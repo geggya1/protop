@@ -242,7 +242,7 @@ export class ConflictError extends Error {
  * Lagrer én entitet med revisjonskontroll.
  * kind: findings | processes | instances | documents | forms | submissions | requirements | assessments | evidence | evidenceLinks | records | system
  */
-export async function saveEntity(companyId, kind, entity, { previous = null } = {}) {
+export async function saveEntity(companyId, kind, entity, { previous = null, createOnly = false } = {}) {
   const id = cid(companyId);
   if (!id) throw new Error('Mangler selskap.');
   const authed = await ensureAuth();
@@ -267,6 +267,7 @@ export async function saveEntity(companyId, kind, entity, { previous = null } = 
   }
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
+    if (snap.exists() && createOnly) throw new ConflictError('Finnes allerede.');
     if (snap.exists()) {
       const remoteRev = Number(snap.data()?.rev) || 0;
       const expected = previous ? Number(previous.rev) || 0 : remoteRev;

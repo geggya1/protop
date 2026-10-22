@@ -9,6 +9,7 @@
 import { addDays, lastMonths, monthKey, text, todayKey, uniq } from './core.js';
 import { NORWEGIAN_OBLIGATIONS, STANDARDS } from './catalog.js';
 import { isOpenFinding, openActions } from './findings.js';
+import { normalizeDiagram, versionOf } from './processes.js';
 import { documentsDueForReview } from './documents.js';
 import { matrixRows, requirementIdsForArea } from './requirements.js';
 import { competenceMatrix, overdueRecords } from './registers.js';
@@ -227,6 +228,35 @@ export function qualityPlanDraft(project, { contracts = [], roleMap = {} } = {})
   };
 }
 
+/** Opprettelsestidspunkt fra prosjektets id (prj_<ms base36>_…). */
+export function projectCreatedAt(project) {
+  const part = String(project?.id || '').split('_')[1] || '';
+  const ms = parseInt(part, 36);
+  return Number.isFinite(ms) && ms > 1.5e12 && ms < 4e12 ? new Date(ms).toISOString() : '';
+}
+
+/**
+ * Nye prosjekter (opprettet etter at ledelsessystemet ble aktivert) får kvalitetsplan automatisk,
+ * fylt ut fra prosjekt og kontrakt. Fast id gjør det idempotent. Eldre prosjekter får forslag.
+ */
+export function autoQualityPlans(state, projects, { contracts = [] } = {}) {
+  if (state.system?.autoQualityPlan === false || !state.system?.setupAt) return [];
+  const since = String(state.system.setupAt);
+  const has = new Set((state.records?.kvalitetsplan || []).map((r) => r.projectId));
+  const roles = state.system.roleMap || {};
+  const out = [];
+  for (const p of projects || []) {
+    if (!p?.id || p.status === 'arkivert' || p.status === 'avsluttet' || has.has(p.id)) continue;
+    const created = projectCreatedAt(p);
+    if (!created || created < since) continue;
+    const draft = qualityPlanDraft(p, { contracts, roleMap: roles });
+    const owner = draft.ownerName ? { name: draft.ownerName, uid: '' } : (roles.project_manager || roles.quality_manager || null);
+    if (!owner?.name) continue;
+    out.push({ id: `kvp_${p.id}`.replace(/[^A-Za-z0-9_-]/g, '_'), project: p, draft: { ...draft, ownerName: owner.name, ownerUid: owner.uid || '' }, notifyUid: owner.uid || roles.quality_manager?.uid || '' });
+  }
+  return out;
+}
+
 /** Eldre avvik og RUH registrert i prosjektmodulen som ikke er tatt inn i ISO ennå. */
 export function legacyProjectCases(projectState, findings = []) {
   const taken = new Set((findings || []).map((f) => f.sourceRef?.id).filter(Boolean));
@@ -372,6 +402,90 @@ export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
   }
   for (const l of state.records.ledelse || []) {
     for (const d of l.decisions || []) if (!d.done && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
+  }
+  return [...out, ...escalationEffects(state, now)];
+}
+
+/* ───────────────────────── Varsling og eskalering ───────────────────────── */
+
+const DAY = 24 * 3600 * 1000;
+
+function daysLate(due, now) {
+  if (!due) return 0;
+  const d = Date.parse(`${String(due).slice(0, 10)}T00:00:00Z`);
+  const t = Date.parse(`${todayKey(now)}T00:00:00Z`);
+  return Number.isFinite(d) && t > d ? Math.round((t - d) / DAY) : 0;
+}
+
+/** Eskaleringsnivå: 1 = forfalt (påminnelse til ansvarlig og leder), 2 = mer enn 7 dager (øverste ledelse). */
+export function escalationLevel(late) {
+  if (late > 7) return 2;
+  if (late > 0) return 1;
+  return 0;
+}
+
+/**
+ * Alt som har passert fristen: tiltak, triage av nye saker, åpne saker og aktive prosesstrinn.
+ * Skjermede saker gir oppgaver uten detaljer.
+ */
+export function overdueItems(state, now = new Date()) {
+  const out = [];
+  for (const f of state.findings || []) {
+    if (!isOpenFinding(f)) continue;
+    const label = f.restricted ? `Skjermet sak ${f.number || ''}`.trim() : `${f.number} ${f.title}`;
+    if (f.state === 'registrert' && f.triageDue) {
+      const late = daysLate(f.triageDue, now);
+      if (late) out.push({ kind: 'triage', id: f.id, findingId: f.id, restricted: !!f.restricted, hse: ['hms', 'nestenulykke', 'miljo'].includes(f.type), title: `Triage forfalt: ${label}`, due: f.triageDue, late, ownerUid: f.assigneeUid || '' });
+    }
+    for (const a of f.actions || []) {
+      if (!['apen', 'pagar', 'returnert'].includes(a.state)) continue;
+      const late = daysLate(a.dueAt, now);
+      if (late) out.push({ kind: 'action', id: a.id, findingId: f.id, restricted: !!f.restricted, hse: ['hms', 'nestenulykke', 'miljo'].includes(f.type), title: `Tiltak forfalt: ${f.restricted ? label : a.title} (${f.number})`, due: a.dueAt, late, ownerUid: a.ownerUid || '' });
+    }
+    if (f.dueAt && !['registrert'].includes(f.state)) {
+      const late = daysLate(f.dueAt, now);
+      if (late) out.push({ kind: 'finding', id: f.id, findingId: f.id, restricted: !!f.restricted, hse: ['hms', 'nestenulykke', 'miljo'].includes(f.type), title: `Sak forfalt: ${label}`, due: f.dueAt, late, ownerUid: f.assigneeUid || '' });
+    }
+  }
+  for (const inst of state.instances || []) {
+    if (inst.state !== 'aktiv') continue;
+    const proc = (state.processes || []).find((p) => p.id === inst.processId);
+    const version = proc ? versionOf(proc, inst.version) : null;
+    if (!version) continue;
+    const diagram = normalizeDiagram(version.diagram);
+    for (const nodeId of inst.active || []) {
+      const node = diagram.nodes.find((n) => n.id === nodeId);
+      if (!node?.dueDays) continue;
+      const entered = [...(inst.log || [])].reverse().find((l) => l.nodeId === nodeId && l.type === 'activated')?.at;
+      if (!entered) continue;
+      const late = daysLate(addDays(String(entered).slice(0, 10), node.dueDays), now);
+      if (late) out.push({ kind: 'step', id: `${inst.id}_${nodeId}`, instanceId: inst.id, title: `Prosesstrinn forfalt: ${node.label} – ${inst.title}`, due: addDays(String(entered).slice(0, 10), node.dueDays), late, ownerUid: '' });
+    }
+  }
+  return out.map((x) => ({ ...x, level: escalationLevel(x.late) })).sort((a, b) => b.late - a.late);
+}
+
+/** Eskaleringsoppgaver (idempotente per frist og nivå): nivå 1 til leder for området, nivå 2 til øverste ledelse. */
+export function escalationEffects(state, now = new Date()) {
+  const roles = state.system?.roleMap || {};
+  const qm = roles.quality_manager || roles.system_owner || {};
+  const hse = roles.hse_manager || qm;
+  const top = roles.top_management || qm;
+  const out = [];
+  for (const item of overdueItems(state, now)) {
+    const lead = item.hse ? hse : qm;
+    const to = item.level >= 2 ? top : lead;
+    if (!to?.uid) continue;
+    out.push({
+      type: 'createTask',
+      key: `isoesk_${item.kind}_${item.id}_${item.due}_${item.level}`.replace(/[^A-Za-z0-9_-]/g, '_'),
+      title: `${item.level >= 2 ? 'Eskalert' : 'Forfalt'}: ${item.title}`,
+      deadline: todayKey(now),
+      assigneeUid: to.uid,
+      description: item.restricted
+        ? 'En skjermet sak har passert fristen. Detaljer vises bare i ISO for dem som har tilgang.'
+        : `Fristen var ${item.due} (${item.late} dager siden).${item.level >= 2 ? ' Eskalert fordi den har vært forfalt i mer enn en uke.' : ''}`,
+    });
   }
   return out;
 }

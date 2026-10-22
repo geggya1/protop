@@ -83,7 +83,7 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
    * kind: findings | processes | instances | documents | forms | submissions | requirements | records | system
    * key:  feltet i resultatet som holder entiteten (finding, process, instance, …)
    */
-  const commit = useCallback(async (kind, key, result, { previous = null, effects = [] } = {}) => {
+  const commit = useCallback(async (kind, key, result, { previous = null, effects = [], createOnly = false } = {}) => {
     if (!result?.ok) return result || { ok: false, error: 'Ukjent feil.' };
     const entity = result[key];
     const before = stateRef.current;
@@ -91,7 +91,7 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     stateRef.current = next;
     setState(next);
     try {
-      await saveEntity(companyId, kind, entity, { previous });
+      await saveEntity(companyId, kind, entity, { previous, createOnly });
       const restricted = kind === 'findings' && (!!entity?.restricted || !!previous?.restricted);
       await appendAudit(companyId, result.events || [], { restricted });
       await runEffects(safeEffects([...(effects || []), ...(result.effects || [])], kind === 'findings' ? entity : null));

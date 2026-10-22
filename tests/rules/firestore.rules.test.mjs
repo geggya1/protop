@@ -48,6 +48,16 @@ const finding = (over = {}) => ({
   reportedByUid: 'mel', reportedAt: '2026-10-22T10:00:00Z', actions: [], history: [], rev: 1, involvedUids: ['mel'], ...over,
 });
 
+/** Leser et dokument uten regler (withSecurityRulesDisabled returnerer ikke verdier). */
+async function adminRead(...path) {
+  let out;
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const snap = await getDoc(doc(ctx.firestore(), ...path));
+    out = snap.exists() ? snap.data() : undefined;
+  });
+  return out;
+}
+
 const closable = (over = {}) => ({
   state: 'lukket', triage: { severity: 'lav' }, assessment: { correctiveRequired: false, rationale: 'Engangshendelse uten risiko.' },
   closeNote: 'Lukket etter vurdering', closedByUid: 'adm', closedAt: '2026-10-22', effect: { required: false }, rev: 2, ...over,
@@ -256,8 +266,8 @@ describe('saksbehandler med begrenset redigering', () => {
     await assertSucceeds(batch.commit());
     // Den gamle åpne kopien er borte for alle.
     await assertFails(getDoc(doc(as('les'), 'families', A, 'isoFindingsRestricted', 'F2')));
-    const left = await env.withSecurityRulesDisabled(async (ctx) => (await getDoc(doc(ctx.firestore(), 'families', A, 'isoFindings', 'F2'))).exists());
-    assert.equal(left, false);
+    assert.equal(await adminRead('families', A, 'isoFindings', 'F2'), undefined, 'åpen kopi er slettet');
+    assert.equal((await adminRead('families', A, 'isoFindingsRestricted', 'F2')).restricted, true);
   });
 
   test('kan ikke lage skjermet kopi uten å slette den åpne', async () => {
@@ -267,10 +277,10 @@ describe('saksbehandler med begrenset redigering', () => {
 
   test('prosess: utkast kan endres, publisert versjon og publisering er låst', async () => {
     const db = as('beh');
-    const base = (await env.withSecurityRulesDisabled(async (ctx) => (await getDoc(doc(ctx.firestore(), 'families', A, 'isoProcesses', 'P1'))).data()));
+    const base = await adminRead('families', A, 'isoProcesses', 'P1');
     const draftEdit = { ...base, versions: [base.versions[0], { ...base.versions[1], diagram: { nodes: [1, 2, 3] } }], rev: 4 };
     await assertSucceeds(setDoc(doc(db, 'families', A, 'isoProcesses', 'P1'), draftEdit));
-    const fresh = (await env.withSecurityRulesDisabled(async (ctx) => (await getDoc(doc(ctx.firestore(), 'families', A, 'isoProcesses', 'P1'))).data()));
+    const fresh = await adminRead('families', A, 'isoProcesses', 'P1');
     await assertFails(setDoc(doc(db, 'families', A, 'isoProcesses', 'P1'), { ...fresh, versions: [{ ...fresh.versions[0], diagram: { nodes: [] } }, fresh.versions[1]], rev: 5 }));
     await assertFails(setDoc(doc(db, 'families', A, 'isoProcesses', 'P1'), { ...fresh, publishedVersion: 2, rev: 5 }));
     await assertFails(setDoc(doc(db, 'families', A, 'isoProcesses', 'P2'), { title: 'Ny', publishedVersion: 1, versions: [{ version: 1, state: 'publisert' }] }));

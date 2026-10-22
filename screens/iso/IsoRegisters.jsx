@@ -353,9 +353,10 @@ export function EnvironmentPage({ ctx }) {
         <Card title="Kjøring per måned" subtitle="Direkte fra Kjørebok. Målt, ikke estimert." style={{ flex: 1, width: wide ? undefined : '100%' }}
           right={caps.manage && km.totalKm ? <Btn small icon="download-outline" label="Bruk som miljødata" onPress={() => setAdopt({ title: 'Kjøring i tjeneste', unit: 'km', quality: 'Målt', method: 'Kjørebok i ProTop', period: km.rows[km.rows.length - 2]?.key, value: km.rows[km.rows.length - 2]?.total })} /> : null}>
           <MonthBars rows={km.rows} parts={[{ key: 'fossil', label: 'Fossil' }, { key: 'electric', label: 'Elbil', color: colors.success }]} unit=" km" empty="Ingen turer i Kjørebok siste 12 måneder." />
+          {ctx.requestTab ? <Btn small icon="open-outline" label="Åpne Kjørebok" onPress={() => ctx.requestTab('okonomi', 'kjorebok')} /> : null}
         </Card>
         <Card title="Avfall per fraksjon" subtitle="Fra avfallsregistreringene i prosjektene." style={{ flex: 1, width: wide ? undefined : '100%' }}>
-          <HBars rows={waste.rows} unit=" kg" empty="Ingen avfall registrert på prosjekter." />
+          <HBars rows={waste.rows} unit=" kg" empty="Ingen avfall registrert på prosjekter." onPick={ctx.requestTab ? () => ctx.requestTab('projects') : undefined} />
         </Card>
       </View>
       <Suggestions ctx={ctx} registerKey="miljoaspekt" rows={aspects} title="Foreslåtte miljøaspekter" subtitle="Ut fra kjørebok, avfall, kjøretøy og typisk drift. Vesentlighet og begrunnelse settes av deg." describe={(r) => `${r.lifecycle} · ${r.impact}`} />
@@ -398,6 +399,7 @@ export function HmsPage({ ctx }) {
       {caps.manage && sick.hasData ? (
         <Card title="Sykefravær per måned" subtitle={sick.method}>
           <MonthBars rows={sick.rows} parts={[{ key: 'days', label: 'Dagsverk' }]} unit=" d" />
+          {ctx.requestTab ? <Btn small icon="open-outline" label="Åpne Fraværsoversikt" onPress={() => ctx.requestTab('arbeid', 'fravaer')} /> : null}
         </Card>
       ) : null}
       <Suggestions ctx={ctx} registerKey="fare" rows={hazards} title="Foreslåtte farer" subtitle="Ut fra prosjektene og kjøreboken. Medvirkning og ansvarlig fylles inn av deg." describe={(r) => `${r.activity} · ${r.hazardCategory}`} />

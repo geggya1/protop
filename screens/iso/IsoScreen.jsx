@@ -13,7 +13,8 @@ import { isSuperAdmin } from '../../src/utils/groups';
 import { defaultIsoSubView } from '../../src/navigation/shellModules';
 import { isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
-import { autoTaskEffects } from '../../src/iso/integrations';
+import { autoQualityPlans, autoTaskEffects } from '../../src/iso/integrations';
+import { createRecord } from '../../src/iso/registers';
 import { useIsoStore } from './useIsoStore';
 import { useIsoSources } from './useIsoSources';
 import IsoDashboard from './IsoDashboard';
@@ -92,18 +93,35 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     });
   }, [subView]);
 
-  // Påminnelser som oppgaver i Oppgaver: forfalte gjennomganger, vurderinger, kompetanse, øvelser, vedtak.
+  // Automatikk: kvalitetsplan for nye prosjekter, påminnelser og eskalering av forfalte frister
+  // (tiltak, triage, saker, prosesstrinn, gjennomganger, vurderinger, kompetanse, øvelser, vedtak).
+  // Nøklene er idempotente, så gjentatt kjøring gir ingen duplikater.
   useEffect(() => {
     if (!familyId || store.loading || !caps.manage || !isSetUp(store.state) || !sources.ready) return;
-    const key = `${familyId}:${new Date().toISOString().slice(0, 10)}`;
+    const key = `${familyId}:${uid}:${new Date().toISOString().slice(0, 10)}:${sources.projects.length}`;
     if (AUTO_RAN.has(key)) return;
     AUTO_RAN.add(key);
-    const effects = autoTaskEffects(store.state, { people: sources.people });
-    if (!effects.length) return;
-    store.runEffects(effects).then((n) => {
-      if (n) setAutoNote(`${effects.length} påminnelser ligger som oppgaver i Oppgaver (forfalte gjennomganger, vurderinger eller kompetanse).`);
-    });
-  }, [familyId, store.loading, caps.manage, store.state, sources.ready, sources.people, store]);
+    (async () => {
+      const notes = [];
+      // Nye prosjekter får kvalitetsplan automatisk (utkast fylt ut fra prosjekt og kontrakt).
+      let plans = 0;
+      for (const row of autoQualityPlans(store.state, sources.projects, { contracts: sources.contracts })) {
+        const res = createRecord('kvalitetsplan', row.draft, { actor, existing: store.current().records.kvalitetsplan });
+        if (!res.ok) continue;
+        const record = { ...res.record, id: row.id };
+        const saved = await store.commit('records', 'record', { ...res, record }, {
+          createOnly: true,
+          effects: row.notifyUid ? [{ type: 'createTask', key: `iso_${row.id}_gjennomga`, title: `Gå gjennom kvalitetsplan: ${row.draft.projectName}`, assigneeUid: row.notifyUid, dueDays: 7, description: 'Kvalitetsplanen er laget automatisk fra prosjektet og kontrakten. Kontroller og godkjenn den i ISO → Prosjektkvalitet.' }] : [],
+        });
+        if (saved.ok) plans += 1;
+      }
+      if (plans) notes.push(`${plans} nye prosjekter har fått kvalitetsplan automatisk`);
+      const effects = autoTaskEffects(store.current(), { people: sources.people });
+      const n = effects.length ? await store.runEffects(effects) : 0;
+      if (n) notes.push(`${n} påminnelser og eskaleringer ligger som oppgaver i Oppgaver`);
+      if (notes.length) setAutoNote(`${notes.join('. ')}.`);
+    })();
+  }, [familyId, store.loading, caps.manage, store.state, sources.ready, sources.people, sources.projects, sources.contracts, store, actor]);
 
   const go = useCallback((next, nextParams = {}) => {
     const target = defaultIsoSubView(next);

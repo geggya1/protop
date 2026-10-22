@@ -171,6 +171,14 @@ export default function IsoSettings({ ctx }) {
 
       <RestrictedAccessCard ctx={ctx} />
 
+      <Card title="Automatikk" subtitle="Det ProTop gjør av seg selv. Alt blir oppgaver i Oppgaver med fast nøkkel, så ingenting dobles.">
+        <Check label="Lag kvalitetsplan automatisk for nye prosjekter (fylt ut fra prosjekt og kontrakt)" value={v.autoQualityPlan !== false} onChange={(x) => set('autoQualityPlan')(!!x)} />
+        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 18 }}>
+          Alltid på: ansvarlig og kravkobling på nye saker, påminnelse om forfalte gjennomganger og vurderinger, og eskalering av forfalte frister –
+          først til kvalitets- eller HMS-leder, etter sju dager til øverste ledelse. Skjermede saker gir oppgaver uten detaljer.
+        </Text>
+      </Card>
+
       <Card title="Risikometode" subtitle={`${v.riskMethod?.name || DEFAULT_RISK_METHOD.name} · versjon ${v.riskMethod?.version || '1.0'}. Endring gir ny metodeversjon; eldre vurderinger beholder sin.`}>
         <Row>
           {['medium', 'high', 'critical'].map((k) => (

@@ -565,3 +565,34 @@ test('prosessbygger: flervalg, justering, gruppering og versjonssammenligning (C
   assert.match(diff.summary, /1 nye · 1 fjernet · 1 endret/);
   assert.equal(P.diffDiagrams(d, P.moveNodes(d, ['a'], 64, 0)).summary, 'Bare plassering er endret');
 });
+
+test('eskalering og automatisk kvalitetsplan (C1/C4)', async () => {
+  const I = await import('./integrations.js');
+  const s = state();
+  s.system.roleMap = { quality_manager: { name: 'Anne', uid: 'u1' }, hse_manager: { name: 'Hans', uid: 'u9' }, top_management: { name: 'Siri', uid: 'u3' } };
+  s.system.setupAt = '2026-10-01T00:00:00Z';
+  const f = { ...reportedFinding(), triageDue: '2026-10-20', state: 'registrert' };
+  const h = { ...reportedFinding({ type: 'hms' }), restricted: true, number: 'HMS-1', state: 'tiltak', actions: [{ id: 'a1', title: 'Bytt stige', state: 'apen', dueAt: '2026-10-01', ownerUid: 'u2' }] };
+  s.findings = [f, h];
+  const items = I.overdueItems(s, now);
+  assert.ok(items.some((x) => x.kind === 'triage' && x.level === 1));
+  const act = items.find((x) => x.kind === 'action');
+  assert.equal(act.level, 2, 'mer enn 7 dager gir nivå 2');
+  assert.ok(!act.title.includes('Bytt stige'), 'skjermet sak uten detaljer');
+  const fx = I.escalationEffects(s, now);
+  assert.equal(fx.find((e) => e.key.includes('action')).assigneeUid, 'u3', 'nivå 2 eskaleres til øverste ledelse');
+  assert.equal(fx.find((e) => e.key.includes('triage')).assigneeUid, 'u1');
+  assert.deepEqual(I.escalationEffects(s, now).map((e) => e.key), fx.map((e) => e.key), 'idempotente nøkler');
+  assert.ok(I.autoTaskEffects(s, { now }).some((e) => e.key.startsWith('isoesk_')));
+  // Kvalitetsplan for nye prosjekter
+  const newId = `prj_${Date.parse('2026-10-15T00:00:00Z').toString(36)}_abc`;
+  const oldId = `prj_${Date.parse('2026-09-01T00:00:00Z').toString(36)}_abc`;
+  assert.equal(I.projectCreatedAt({ id: newId }), '2026-10-15T00:00:00.000Z');
+  const plans = I.autoQualityPlans(s, [{ id: newId, name: 'Ny', number: '200', manager: 'Kari' }, { id: oldId, name: 'Gammel' }]);
+  assert.deepEqual(plans.map((p) => p.project.id), [newId], 'bare prosjekter opprettet etter aktivering');
+  assert.equal(plans[0].draft.ownerName, 'Kari');
+  assert.equal(createRecord('kvalitetsplan', plans[0].draft, { actor: ANNE, now }).ok, true);
+  s.records = { ...s.records, kvalitetsplan: [{ projectId: newId }] };
+  assert.equal(I.autoQualityPlans(s, [{ id: newId, name: 'Ny' }]).length, 0, 'ingen dobbel plan');
+  assert.equal(I.autoQualityPlans({ ...s, system: { ...s.system, autoQualityPlan: false } }, [{ id: newId }]).length, 0);
+});

@@ -3,9 +3,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const CASES = 'protop.indeksregulering.cases.v1';
 const CACHE = 'protop.indeksregulering.ssb.v1';
 
-export async function loadCases() {
+/** Saker hører til ett selskap. Uten selskap finnes ingen saker. */
+function casesKey(companyId) {
+  const id = String(companyId || '').trim();
+  return id ? `${CASES}.${id}` : '';
+}
+
+export async function loadCases(companyId) {
+  const key = casesKey(companyId);
+  if (!key) return [];
   try {
-    const raw = await AsyncStorage.getItem(CASES);
+    const raw = await AsyncStorage.getItem(key);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -13,8 +21,12 @@ export async function loadCases() {
   }
 }
 
-export async function saveCases(cases) {
-  await AsyncStorage.setItem(CASES, JSON.stringify(cases.slice(0, 40)));
+export async function saveCases(cases, companyId) {
+  const key = casesKey(companyId);
+  if (!key) return;
+  await AsyncStorage.setItem(key, JSON.stringify(cases.slice(0, 40)));
+  // Den gamle felles listen kan høre til et annet selskap.
+  try { await AsyncStorage.removeItem(CASES); } catch { /* valgfritt */ }
 }
 
 export async function loadIndexCache() {

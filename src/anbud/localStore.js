@@ -1,6 +1,8 @@
 import { fitAnbudState } from './model.js';
 
-export const ANBUD_LOCAL_KEY = 'protop.anbud.v1';
+/** v1 kunne inneholde et annet selskaps varsling og kunder. Den forkastes. */
+export const ANBUD_LOCAL_KEY = 'protop.anbud.v2';
+export const RETIRED_ANBUD_KEYS = ['protop.anbud.v1', 'protop.customers.v1'];
 
 export function anbudLocalKey(companyId) {
   const id = String(companyId || '').trim();

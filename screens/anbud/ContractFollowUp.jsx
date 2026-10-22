@@ -172,9 +172,9 @@ export default function ContractFollowUp({
   async function seedIndex(contract) {
     const row = indeksCaseFromContract(contract);
     if (!row) return '';
-    const cases = await loadCases();
+    const cases = await loadCases(companyId);
     const next = [row, ...cases.filter((item) => item.id !== row.id)].slice(0, 40);
-    await saveCases(next);
+    await saveCases(next, companyId);
     return row.id;
   }
 

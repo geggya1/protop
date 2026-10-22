@@ -25,8 +25,11 @@ import {
   saveAbsences,
   withoutDeletedAbsences,
 } from '../arbeid/absenceStorage.js';
+import { dropRetiredLocalKeys } from '../utils/retiredLocalKeys.js';
 
-const KEY = 'protop.projectPlatform.v1';
+/** v1 kunne inneholde et annet selskaps prosjekter. Den forkastes. */
+const KEY = 'protop.projectPlatform.v2';
+const RETIRED_KEYS = ['protop.projectPlatform.v1'];
 const remoteTimers = new Map();
 const remotePending = new Map();
 /** Modulminne — unngår ny Firestore/AsyncStorage-runde ved hvert skjermbesøk. */
@@ -316,9 +319,10 @@ export function putProjectState(state, companyId) {
 }
 
 async function readLocal(companyId) {
+  await dropRetiredLocalKeys(AsyncStorage, RETIRED_KEYS);
   try {
-    const scoped = await AsyncStorage.getItem(localKey(companyId));
-    const raw = scoped || (companyId ? await AsyncStorage.getItem(KEY) : null);
+    // Bare selskapets egen kopi. Den gamle felles nøkkelen kan høre til et annet selskap.
+    const raw = await AsyncStorage.getItem(localKey(companyId));
     if (!raw) return emptyProjectState();
     return normalizeProjectState(JSON.parse(raw));
   } catch {
@@ -404,7 +408,8 @@ async function writeLocal(companyId, state) {
   const key = localKey(companyId);
   try {
     await AsyncStorage.setItem(key, payload);
-    if (companyId && key !== KEY) await AsyncStorage.setItem(KEY, payload).catch(() => {});
+    // Fjern den felles kopien, så neste selskap i nettleseren ikke arver prosjektene.
+    if (companyId && key !== KEY) await AsyncStorage.removeItem(KEY).catch(() => {});
   } catch {
     await AsyncStorage.setItem(key, JSON.stringify({
       ...slim,

@@ -43,7 +43,7 @@ function HeadingActions({ yearControl, open, colors, onPress }) {
   return (
     <View style={styles.headingActions}>
       {yearControl}
-      <GearButton open={open} colors={colors} onPress={onPress} />
+      {onPress ? <GearButton open={open} colors={colors} onPress={onPress} /> : null}
     </View>
   );
 }
@@ -82,7 +82,8 @@ export default function CompanyUnitsScreen() {
   } = useApp();
   const company = family?.company?.navn ? family.company : null;
   const access = useCompanyAccess();
-  const canEdit = (isSuperAdmin(family, uid) && !access.previewLocks('units')) || (access.ready && access.canEdit('units'));
+  // Innstillingene (tannhjulet) er bare for Admin på underenheter.
+  const canEdit = (isSuperAdmin(family, uid) && !access.previewLocks('units')) || (access.ready && access.canAdmin('units'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -133,11 +134,11 @@ export default function CompanyUnitsScreen() {
       name={company?.navn || ''}
       colors={colors}
       open={settingsOpen}
-      onPress={toggleSettings}
+      onPress={canEdit ? toggleSettings : null}
       wide={isDesktop}
       yearControl={yearControl}
     />
-  ), [company?.navn, colors, settingsOpen, toggleSettings, years, year, yearOpen, isDesktop]);
+  ), [company?.navn, colors, settingsOpen, toggleSettings, canEdit, years, year, yearOpen, isDesktop]);
   useShellPageHero(inChrome ? heading : null, { active: inChrome });
 
   async function saveCompany(next) {
@@ -200,12 +201,12 @@ export default function CompanyUnitsScreen() {
             yearControl={yearControl}
             open={settingsOpen}
             colors={colors}
-            onPress={toggleSettings}
+            onPress={canEdit ? toggleSettings : null}
           />
         </View>
       ) : (inChrome ? null : heading)}
       {!!error && <Text style={{ color: colors.danger, fontWeight: '400' }}>{error}</Text>}
-      {settingsOpen ? (
+      {settingsOpen && canEdit ? (
         <View nativeID="company-units-settings" style={styles.settings}>
           <Text style={[styles.section, { color: colors.ink }]}>Visning</Text>
           <Text style={[styles.hint, { color: colors.muted }]}>
@@ -233,9 +234,6 @@ export default function CompanyUnitsScreen() {
               );
             })}
           </View>
-          {!canEdit ? (
-            <Text style={[styles.hint, { color: colors.muted }]}>Visningen gjelder denne økten.</Text>
-          ) : null}
 
           <Text style={[styles.section, { color: colors.ink }]}>Knytt selskaper i ProTop</Text>
           <CompanyStructureSettings

@@ -101,6 +101,8 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
   // Endre/slette andres innlegg krever admin; forfatteren kan alltid styre sitt eget.
   const canModerate = (owner && !access.previewLocks('companyProfile'))
     || (access.ready && access.canAdmin('companyPublic'));
+  // «Vis som» skal vise den valgte ansattes egne innlegg, ikke eierens.
+  const actingUid = access.previewing ? (access.viewingAs?.personUid || null) : uid;
   const me = (members || []).find((m) => m.uid === uid);
   const myName = me?.name || family?.company?.navn || 'Bedriften';
   const [posts, setPosts] = useState([]);
@@ -422,7 +424,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
 
       {posts.length ? posts.map((post) => {
         const reacted = post.reactions?.[uid];
-        const canEdit = canModerate || (!!uid && post.authorUid === uid);
+        const canEdit = canModerate || (!!actingUid && post.authorUid === actingUid);
         const author = memberByUid[post.authorUid];
         const editingThis = editingPostId === post.id;
         const card = presentNewsPost(post);

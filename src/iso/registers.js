@@ -1,0 +1,521 @@
+/**
+ * Registre for de operative og evaluerende ISO-modulene.
+ * Én generisk motor (opprett, rediger, status, historikk, revisjonsspor) med
+ * typeavhengige felt og regler. Spesialregler (risiko, miljøaspekt, kompetanse,
+ * revisjon, ledelsens gjennomgang …) ligger som egne funksjoner under.
+ */
+import {
+  addDays, auditEvent, bump, fail, isoDate, newId, nextNumber, nowIso, pushHistory, text, todayKey, uniq,
+} from './core.js';
+import { DEFAULT_RISK_METHOD, RISK_CATEGORIES, riskLevel } from './catalog.js';
+
+const opt = (list) => list.map((x) => (typeof x === 'string' ? { id: x, label: x } : x));
+
+/**
+ * Feltskjema per register. type: text | long | date | number | select | multi | person | project | check | scale
+ */
+export const REGISTERS = {
+  kontekst: {
+    title: 'Kontekst', prefix: 'KON', area: 'context', fields: [
+      { key: 'title', label: 'Forhold', type: 'text', required: true },
+      { key: 'scope', label: 'Internt / eksternt', type: 'select', options: opt(['Internt', 'Eksternt']), required: true },
+      { key: 'description', label: 'Beskrivelse og påvirkning', type: 'long', required: true },
+      { key: 'climate', label: 'Klimarelevant', type: 'select', options: opt(['Ja', 'Nei', 'Ikke vurdert']) },
+      { key: 'ownerName', label: 'Eier', type: 'person' },
+      { key: 'nextReview', label: 'Neste vurdering', type: 'date' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  interessent: {
+    title: 'Interessenter', prefix: 'INT', area: 'parties', fields: [
+      { key: 'title', label: 'Interessent', type: 'text', required: true },
+      { key: 'category', label: 'Kategori', type: 'select', options: opt(['Kunde', 'Ansatte', 'Myndighet', 'Leverandør', 'Eier', 'Nabo/samfunn', 'Annet']) },
+      { key: 'description', label: 'Behov og forventninger', type: 'long', required: true },
+      { key: 'binding', label: 'Bindende forpliktelse', type: 'select', options: opt(['Ja', 'Nei']) },
+      { key: 'ownerName', label: 'Eier', type: 'person' },
+      { key: 'nextReview', label: 'Neste vurdering', type: 'date' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  risiko: {
+    title: 'Risiko og muligheter', prefix: 'RIS', area: 'risk', fields: [
+      { key: 'kind', label: 'Type', type: 'select', options: opt(['Risiko', 'Mulighet']), required: true },
+      { key: 'title', label: 'Risiko / mulighet', type: 'text', required: true },
+      { key: 'category', label: 'Kategori', type: 'select', options: RISK_CATEGORIES, required: true },
+      { key: 'description', label: 'Årsaker og konsekvenser', type: 'long' },
+      { key: 'controls', label: 'Eksisterende barrierer', type: 'long' },
+      { key: 'inherentL', label: 'Sannsynlighet (iboende)', type: 'scale' },
+      { key: 'inherentC', label: 'Konsekvens (iboende)', type: 'scale' },
+      { key: 'plan', label: 'Tiltak / handlingsplan', type: 'long' },
+      { key: 'residualL', label: 'Sannsynlighet (rest)', type: 'scale' },
+      { key: 'residualC', label: 'Konsekvens (rest)', type: 'scale' },
+      { key: 'benefit', label: 'Forventet gevinst (mulighet)', type: 'long', showIf: { kind: 'Mulighet' } },
+      { key: 'projectId', label: 'Prosjekt', type: 'project' },
+      { key: 'ownerName', label: 'Eier', type: 'person', required: true },
+      { key: 'nextReview', label: 'Revurdering', type: 'date' },
+    ], states: ['aktiv', 'akseptert', 'lukket'],
+  },
+  miljoaspekt: {
+    title: 'Miljøaspekter', prefix: 'MIL', area: 'aspects', fields: [
+      { key: 'activity', label: 'Aktivitet', type: 'text', required: true },
+      { key: 'lifecycle', label: 'Livsløpstrinn', type: 'select', options: opt(['Innkjøp', 'Prosjektering', 'Transport', 'Drift', 'Avfall', 'Avhending']) },
+      { key: 'title', label: 'Miljøaspekt', type: 'text', required: true },
+      { key: 'impact', label: 'Miljøpåvirkning', type: 'long', required: true },
+      { key: 'situation', label: 'Situasjon', type: 'select', options: opt(['Normal', 'Unormal', 'Nødsituasjon']) },
+      { key: 'control', label: 'Kontroll eller innflytelse', type: 'select', options: opt(['Direkte kontroll', 'Innflytelse']) },
+      { key: 'extent', label: 'Omfang (1–5)', type: 'scale' },
+      { key: 'severity', label: 'Alvorlighet (1–5)', type: 'scale' },
+      { key: 'significant', label: 'Vesentlig', type: 'select', options: opt(['Ja', 'Nei']), required: true },
+      { key: 'rationale', label: 'Begrunnelse etter kriterier', type: 'long', required: true },
+      { key: 'controls', label: 'Operativ kontroll / tiltak', type: 'long' },
+      { key: 'ownerName', label: 'Eier', type: 'person' },
+      { key: 'nextReview', label: 'Revurdering', type: 'date' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  miljodata: {
+    title: 'Miljødata', prefix: 'MDA', area: 'monitoring', fields: [
+      { key: 'title', label: 'Målepunkt', type: 'text', required: true },
+      { key: 'period', label: 'Periode (ÅÅÅÅ-MM)', type: 'text', required: true },
+      { key: 'value', label: 'Verdi', type: 'number', required: true },
+      { key: 'unit', label: 'Enhet', type: 'select', options: opt(['kWh', 'kg', 'tonn', 'km', 'liter', 'kg CO₂e']), required: true },
+      { key: 'quality', label: 'Datakvalitet', type: 'select', options: opt(['Målt', 'Estimert', 'Ukjent']), required: true },
+      { key: 'method', label: 'Metode / kilde', type: 'text' },
+      { key: 'factor', label: 'Faktor og versjon (ved CO₂e)', type: 'text' },
+    ], states: ['aktiv'],
+  },
+  fare: {
+    title: 'Farer og arbeidsmiljørisiko', prefix: 'FAR', area: 'hazards', fields: [
+      { key: 'activity', label: 'Arbeidsaktivitet', type: 'text', required: true },
+      { key: 'title', label: 'Fare', type: 'text', required: true },
+      { key: 'hazardCategory', label: 'Farekategori', type: 'select', options: opt(['Fysisk', 'Psykososial', 'Organisatorisk', 'Ergonomisk', 'Kjemisk', 'Biologisk', 'Sikkerhet']) },
+      { key: 'exposed', label: 'Utsatte roller', type: 'text' },
+      { key: 'inherentL', label: 'Sannsynlighet', type: 'scale' },
+      { key: 'inherentC', label: 'Konsekvens', type: 'scale' },
+      { key: 'hierarchy', label: 'Tiltakshierarki', type: 'multi', options: opt(['Fjerne faren', 'Erstatte', 'Tekniske tiltak', 'Administrative tiltak', 'Verneutstyr']) },
+      { key: 'controls', label: 'Tiltak', type: 'long' },
+      { key: 'residualL', label: 'Sannsynlighet (rest)', type: 'scale' },
+      { key: 'residualC', label: 'Konsekvens (rest)', type: 'scale' },
+      { key: 'participation', label: 'Medvirkning (hvem deltok)', type: 'text', required: true },
+      { key: 'ownerName', label: 'Ansvarlig', type: 'person', required: true },
+      { key: 'nextReview', label: 'Revurdering', type: 'date' },
+    ], states: ['aktiv', 'lukket'],
+  },
+  medvirkning: {
+    title: 'Medvirkning', prefix: 'MED', area: 'participation', fields: [
+      { key: 'title', label: 'Tema', type: 'text', required: true },
+      { key: 'description', label: 'Innspill', type: 'long', required: true },
+      { key: 'channel', label: 'Kanal', type: 'select', options: opt(['AMU', 'Verneombud', 'Avdelingsmøte', 'Digitalt innspill', 'Annet']) },
+      { key: 'representative', label: 'Representant', type: 'text' },
+      { key: 'decision', label: 'Vurdering og beslutning', type: 'long' },
+      { key: 'feedback', label: 'Tilbakemeldt', type: 'select', options: opt(['Ja', 'Nei']) },
+    ], states: ['mottatt', 'behandlet', 'tilbakemeldt'],
+  },
+  beredskap: {
+    title: 'Beredskap', prefix: 'BER', area: 'emergency', fields: [
+      { key: 'title', label: 'Scenario', type: 'text', required: true },
+      { key: 'domain', label: 'Område', type: 'select', options: opt(['HMS', 'Miljø', 'Drift', 'IT']) },
+      { key: 'alarm', label: 'Varsling og kontaktkjede', type: 'long', required: true },
+      { key: 'roles', label: 'Roller og ansvar', type: 'long' },
+      { key: 'equipment', label: 'Utstyr', type: 'long' },
+      { key: 'instructions', label: 'Beredskapskort / instruks', type: 'long', required: true },
+      { key: 'ownerName', label: 'Ansvarlig', type: 'person' },
+      { key: 'nextExercise', label: 'Neste øvelse', type: 'date' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  kompetansekrav: {
+    title: 'Kompetansekrav', prefix: 'KKR', area: 'competence', fields: [
+      { key: 'title', label: 'Kompetanse', type: 'text', required: true },
+      { key: 'role', label: 'Rolle / funksjon', type: 'text', required: true },
+      { key: 'level', label: 'Nivå', type: 'select', options: opt(['Grunnleggende', 'Selvstendig', 'Ekspert']) },
+      { key: 'validityMonths', label: 'Gyldighet (måneder, 0 = varig)', type: 'number' },
+      { key: 'source', label: 'Kilde (lov, kunde, intern)', type: 'text' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  kompetanse: {
+    title: 'Kompetansebevis', prefix: 'KOM', area: 'competence', fields: [
+      { key: 'personName', label: 'Ansatt', type: 'person', required: true },
+      { key: 'requirementId', label: 'Kompetansekrav', type: 'ref', ref: 'kompetansekrav', required: true },
+      { key: 'title', label: 'Bevis / kurs', type: 'text', required: true },
+      { key: 'validFrom', label: 'Gyldig fra', type: 'date' },
+      { key: 'validTo', label: 'Gyldig til', type: 'date' },
+      { key: 'evidenceUrl', label: 'Dokumentasjon (lenke)', type: 'text' },
+      { key: 'effect', label: 'Effektvurdering', type: 'long' },
+    ], states: ['gyldig', 'arkivert'],
+  },
+  leverandor: {
+    title: 'Leverandører', prefix: 'LEV', area: 'suppliers', fields: [
+      { key: 'title', label: 'Leverandør', type: 'text', required: true },
+      { key: 'orgnr', label: 'Org.nr.', type: 'text' },
+      { key: 'category', label: 'Kategori', type: 'text' },
+      { key: 'criticality', label: 'Kritikalitet', type: 'select', options: opt(['Lav', 'Middels', 'Høy']), required: true },
+      { key: 'certificates', label: 'Sertifikater', type: 'long' },
+      { key: 'approval', label: 'Status', type: 'select', options: opt(['Ikke vurdert', 'Godkjent', 'Betinget godkjent', 'Ikke godkjent']), required: true },
+      { key: 'score', label: 'Siste evaluering (1–5)', type: 'scale' },
+      { key: 'ownerName', label: 'Ansvarlig', type: 'person' },
+      { key: 'nextReview', label: 'Neste evaluering', type: 'date' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  mal: {
+    title: 'Mål og KPI', prefix: 'MAL', area: 'objectives', fields: [
+      { key: 'domain', label: 'Område', type: 'select', options: opt(['Kvalitet', 'Miljø', 'Arbeidsmiljø']), required: true },
+      { key: 'title', label: 'Mål', type: 'text', required: true },
+      { key: 'unit', label: 'Enhet', type: 'text', required: true },
+      { key: 'direction', label: 'Retning', type: 'select', options: opt(['Øke', 'Redusere']), required: true },
+      { key: 'baseline', label: 'Utgangsverdi', type: 'number' },
+      { key: 'target', label: 'Måltall', type: 'number', required: true },
+      { key: 'method', label: 'Målemetode og datakilde', type: 'long', required: true },
+      { key: 'ownerName', label: 'Eier', type: 'person', required: true },
+      { key: 'deadline', label: 'Frist', type: 'date' },
+    ], states: ['aktiv', 'nådd', 'ikke_nådd', 'arkivert'],
+  },
+  samsvar: {
+    title: 'Samsvarsvurderinger', prefix: 'SAM', area: 'evaluation', fields: [
+      { key: 'requirementId', label: 'Lov-/kontraktskrav', type: 'ref', ref: 'requirement', required: true },
+      { key: 'title', label: 'Vurdering', type: 'text', required: true },
+      { key: 'method', label: 'Vurderingsmetode', type: 'long', required: true },
+      { key: 'result', label: 'Resultat', type: 'select', options: opt(['Etterleves', 'Delvis', 'Etterleves ikke', 'Krever juridisk vurdering']), required: true },
+      { key: 'evidence', label: 'Bevis', type: 'long' },
+      { key: 'nextReview', label: 'Neste vurdering', type: 'date', required: true },
+    ], states: ['aktiv'],
+  },
+  revisjon: {
+    title: 'Internrevisjon', prefix: 'REV', area: 'internalAudit', fields: [
+      { key: 'title', label: 'Revisjon', type: 'text', required: true },
+      { key: 'scope', label: 'Omfang (prosesser/enheter)', type: 'long', required: true },
+      { key: 'criteria', label: 'Kriterier', type: 'long', required: true },
+      { key: 'standards', label: 'Standarder', type: 'multi', options: opt(['ISO 9001', 'ISO 14001', 'ISO 45001', 'Lovkrav']) },
+      { key: 'auditorName', label: 'Revisor', type: 'person', required: true },
+      { key: 'independence', label: 'Revisor reviderer ikke eget arbeid', type: 'check', required: true },
+      { key: 'riskBasis', label: 'Risikobegrunnelse', type: 'long' },
+      { key: 'plannedDate', label: 'Planlagt dato', type: 'date', required: true },
+      { key: 'conclusion', label: 'Konklusjon', type: 'long' },
+    ], states: ['planlagt', 'pagar', 'rapport', 'godkjent', 'oppfolging', 'lukket', 'avlyst'],
+  },
+  ledelse: {
+    title: 'Ledelsens gjennomgang', prefix: 'LGJ', area: 'review', fields: [
+      { key: 'title', label: 'Gjennomgang', type: 'text', required: true },
+      { key: 'period', label: 'Periode', type: 'text', required: true },
+      { key: 'meetingDate', label: 'Møtedato', type: 'date', required: true },
+      { key: 'participants', label: 'Deltakere', type: 'long', required: true },
+      { key: 'assessment', label: 'Vurdering av systemets egnethet, tilstrekkelighet og effektivitet', type: 'long' },
+    ], states: ['planlagt', 'gjennomfort', 'godkjent'],
+  },
+  sertifikat: {
+    title: 'Sertifisering', prefix: 'SER', area: 'scope', fields: [
+      { key: 'title', label: 'Standard og utgave', type: 'text', required: true },
+      { key: 'certBody', label: 'Sertifiseringsorgan', type: 'text', required: true },
+      { key: 'accreditation', label: 'Akkreditering', type: 'text' },
+      { key: 'certNumber', label: 'Sertifikatnummer', type: 'text' },
+      { key: 'scopeText', label: 'Omfang', type: 'long' },
+      { key: 'validFrom', label: 'Gyldig fra', type: 'date' },
+      { key: 'validTo', label: 'Gyldig til', type: 'date' },
+      { key: 'nextAudit', label: 'Neste eksterne revisjon', type: 'date' },
+      { key: 'limitations', label: 'Begrensninger', type: 'long' },
+    ], states: ['planlagt', 'gyldig', 'utlopt'],
+  },
+  kvalitetsplan: {
+    title: 'Prosjektkvalitet', prefix: 'KVP', area: 'design', fields: [
+      { key: 'projectId', label: 'Prosjekt', type: 'project', required: true },
+      { key: 'title', label: 'Kvalitetsplan', type: 'text', required: true },
+      { key: 'requirements', label: 'Gjeldende krav', type: 'long' },
+      { key: 'roles', label: 'Roller og ansvar', type: 'long' },
+      { key: 'controlPlan', label: 'Kontrollplan og faseporter', type: 'long', required: true },
+      { key: 'risks', label: 'Prosjektrisiko', type: 'long' },
+      { key: 'ownerName', label: 'Prosjektleder', type: 'person', required: true },
+    ], states: ['utkast', 'godkjent', 'avsluttet'],
+  },
+};
+
+export function registerDef(key) {
+  return REGISTERS[key] || null;
+}
+
+function showField(field, values) {
+  if (!field.showIf) return true;
+  return Object.entries(field.showIf).every(([k, v]) => values?.[k] === v);
+}
+
+export function validateRecord(key, values) {
+  const def = registerDef(key);
+  if (!def) return ['Ukjent register.'];
+  const errors = [];
+  for (const f of def.fields) {
+    if (!showField(f, values)) continue;
+    const v = values?.[f.key];
+    const missing = v == null || (Array.isArray(v) ? !v.length : (typeof v === 'boolean' ? !v : !String(v).trim()));
+    if (f.required && missing) errors.push(`${f.label} må fylles ut.`);
+    if (!missing && f.type === 'date' && !isoDate(v)) errors.push(`${f.label}: ugyldig dato.`);
+    if (!missing && f.type === 'number' && !Number.isFinite(Number(String(v).replace(',', '.')))) errors.push(`${f.label} må være et tall.`);
+    if (!missing && f.type === 'scale' && !(Number(v) >= 1 && Number(v) <= 5)) errors.push(`${f.label} må være 1–5.`);
+  }
+  // Spesialregler
+  if (key === 'miljoaspekt' && values?.significant === 'Ja' && !text(values?.controls)) errors.push('Vesentlig miljøaspekt krever operativ kontroll eller tiltak.');
+  if ((key === 'risiko' || key === 'fare') && (values?.residualL || values?.residualC) && !(values?.inherentL && values?.inherentC)) {
+    errors.push('Iboende risiko må vurderes før rest-risiko.');
+  }
+  if (key === 'kompetanse' && values?.validFrom && values?.validTo && values.validTo < values.validFrom) errors.push('Gyldig til er før gyldig fra.');
+  return errors;
+}
+
+function clean(key, values) {
+  const def = registerDef(key);
+  const out = {};
+  for (const f of def.fields) {
+    const v = values?.[f.key];
+    if (v === undefined) continue;
+    if (f.type === 'number' || f.type === 'scale') out[f.key] = v === '' || v == null ? null : Number(String(v).replace(',', '.'));
+    else if (f.type === 'multi') out[f.key] = uniq(v);
+    else if (f.type === 'check') out[f.key] = !!v;
+    else if (f.type === 'date') out[f.key] = isoDate(v);
+    else out[f.key] = text(v, f.type === 'long' ? 6000 : 400);
+  }
+  for (const extra of ['ownerUid', 'personUid', 'auditorUid', 'projectName', 'requirementIds', 'linkedFindingIds']) {
+    if (values?.[extra] !== undefined) out[extra] = Array.isArray(values[extra]) ? uniq(values[extra]) : text(values[extra], 300);
+  }
+  return out;
+}
+
+export function createRecord(key, values, { actor, existing = [], now = new Date(), riskMethod = DEFAULT_RISK_METHOD } = {}) {
+  const def = registerDef(key);
+  if (!def) return fail('Ukjent register.');
+  const errors = validateRecord(key, values);
+  if (errors.length) return fail(errors[0], { errors });
+  const data = clean(key, values);
+  const record = bump({
+    id: newId(def.prefix.toLowerCase()),
+    register: key,
+    number: nextNumber(def.prefix, existing, now),
+    ...data,
+    state: def.states[0],
+    ...(key === 'risiko' || key === 'fare' ? { methodVersion: riskMethod.version, methodName: riskMethod.name } : {}),
+    createdAt: nowIso(now),
+    createdBy: text(actor?.name, 160),
+    history: pushHistory({}, 'Opprettet', actor, '', now),
+    rev: 0,
+  }, actor, now);
+  return { ok: true, record, events: [auditEvent({ entityType: key, entityId: record.id, action: `iso.${key}.created`, actor, after: record, now })] };
+}
+
+export function updateRecord(record, values, { actor, now = new Date(), note = '' } = {}) {
+  if (!record) return fail('Fant ikke posten.');
+  if (record.locked) return fail('Posten er godkjent og låst. Lag ny vurdering.');
+  const merged = { ...record, ...values };
+  const errors = validateRecord(record.register, merged);
+  if (errors.length) return fail(errors[0], { errors });
+  const next = bump({ ...record, ...clean(record.register, values), history: pushHistory(record, 'Endret', actor, note, now) }, actor, now);
+  return { ok: true, record: next, events: [auditEvent({ entityType: record.register, entityId: record.id, action: `iso.${record.register}.updated`, actor, before: record, after: next, now })] };
+}
+
+export function setRecordState(record, state, { actor, now = new Date(), note = '', caps = null } = {}) {
+  const def = registerDef(record?.register);
+  if (!def) return fail('Ukjent register.');
+  if (!def.states.includes(state)) return fail('Ugyldig status.');
+  if (caps && !caps.manage) return fail('Du har ikke tilgang til å endre status.');
+  if (['godkjent', 'lukket'].includes(state) && caps && !caps.admin) return fail('Godkjenning krever administrator-tilgang i ISO.');
+  const next = bump({
+    ...record,
+    state,
+    locked: ['godkjent'].includes(state) && ['ledelse', 'revisjon'].includes(record.register),
+    history: pushHistory(record, `Status: ${state}`, actor, note, now),
+  }, actor, now);
+  return { ok: true, record: next, events: [auditEvent({ entityType: record.register, entityId: record.id, action: `iso.${record.register}.state`, actor, before: record, after: next, reason: note, now })] };
+}
+
+/* ───────── Risiko ───────── */
+
+export function riskSummary(record, method = DEFAULT_RISK_METHOD) {
+  return {
+    inherent: riskLevel(record?.inherentL, record?.inherentC, method),
+    residual: riskLevel(record?.residualL, record?.residualC, method),
+  };
+}
+
+/** 5×5-matrise. «iboende» og «rest» telles aldri sammen. */
+export function riskMatrix(records, which = 'inherent') {
+  const cells = Array.from({ length: 5 }, () => Array.from({ length: 5 }, () => []));
+  for (const r of records || []) {
+    if (['lukket', 'arkivert'].includes(r.state)) continue;
+    const l = Number(which === 'residual' ? r.residualL : r.inherentL);
+    const c = Number(which === 'residual' ? r.residualC : r.inherentC);
+    if (!(l >= 1 && l <= 5 && c >= 1 && c <= 5)) continue;
+    cells[l - 1][c - 1].push(r.id);
+  }
+  return cells;
+}
+
+/* ───────── Kompetanse ───────── */
+
+export function competenceStatus(record, requirement, now = new Date()) {
+  if (!record) return 'mangler';
+  const today = todayKey(now);
+  if (record.validTo && record.validTo < today) return 'utlopt';
+  if (record.validTo && addDays(today, 60) >= record.validTo) return 'utloper';
+  if (!record.validTo && requirement?.validityMonths > 0 && record.validFrom) {
+    const end = addDays(record.validFrom, Math.round(requirement.validityMonths * 30.4));
+    if (end < today) return 'utlopt';
+  }
+  return 'gyldig';
+}
+
+/** Matrise personer × krav. people: [{name, uid}] fra ProTops ansattregister. */
+export function competenceMatrix(people, requirements, records, now = new Date()) {
+  const reqs = (requirements || []).filter((r) => r.state !== 'arkivert');
+  return (people || []).map((p) => ({
+    person: p,
+    cells: reqs.map((req) => {
+      const mine = (records || []).filter((r) => r.state !== 'arkivert' && r.requirementId === req.id
+        && ((p.uid && r.personUid === p.uid) || (!r.personUid && r.personName === p.name)));
+      const best = mine.sort((a, b) => String(b.validTo || '9999').localeCompare(String(a.validTo || '9999')))[0] || null;
+      return { requirement: req, record: best, status: competenceStatus(best, req, now) };
+    }),
+  }));
+}
+
+export function competenceGaps(matrix) {
+  let gaps = 0;
+  for (const row of matrix || []) for (const cell of row.cells) if (cell.status !== 'gyldig') gaps += 1;
+  return gaps;
+}
+
+/* ───────── Mål og målinger ───────── */
+
+export function addMeasurement(record, input, { actor, now = new Date() } = {}) {
+  if (record?.register !== 'mal') return fail('Ikke et mål.');
+  const value = Number(String(input?.value ?? '').replace(',', '.'));
+  if (!Number.isFinite(value)) return fail('Skriv en tallverdi.');
+  const period = text(input?.period, 20);
+  if (!/^\d{4}(-\d{2})?(-Q[1-4])?$/.test(period)) return fail('Periode som ÅÅÅÅ-MM eller ÅÅÅÅ.');
+  const quality = ['Målt', 'Estimert', 'Ukjent'].includes(input?.quality) ? input.quality : 'Målt';
+  const measurements = [...(record.measurements || []).filter((m) => m.period !== period), {
+    period, value, quality, source: text(input?.source, 300), at: nowIso(now), by: text(actor?.name, 160),
+  }].sort((a, b) => a.period.localeCompare(b.period));
+  const next = bump({ ...record, measurements, history: pushHistory(record, `Måling ${period}`, actor, String(value), now) }, actor, now);
+  return { ok: true, record: next, events: [auditEvent({ entityType: 'mal', entityId: record.id, action: 'iso.objective.measured', actor, before: record, after: next, now })] };
+}
+
+/** Måloppnåelse. Uten måling: ingen datagrunnlag (aldri 100 %). */
+export function objectiveProgress(record) {
+  const last = (record?.measurements || []).at(-1);
+  if (!last) return { status: 'ingen_data', label: 'Ingen datagrunnlag', value: null };
+  const target = Number(record.target);
+  const base = Number(record.baseline);
+  const up = record.direction !== 'Redusere';
+  const reached = up ? last.value >= target : last.value <= target;
+  let pct = null;
+  if (Number.isFinite(base) && base !== target) pct = Math.max(0, Math.min(100, Math.round(((last.value - base) / (target - base)) * 100)));
+  return { status: reached ? 'naadd' : 'underveis', label: reached ? 'Nådd' : 'Underveis', value: last.value, period: last.period, quality: last.quality, pct };
+}
+
+/* ───────── Internrevisjon ───────── */
+
+export const AUDIT_FINDING_CLASSES = [
+  { id: 'samsvar', label: 'Samsvar' },
+  { id: 'forbedring', label: 'Forbedringsmulighet' },
+  { id: 'avvik', label: 'Avvik' },
+];
+
+export function addAuditFinding(audit, input, { actor, now = new Date() } = {}) {
+  if (audit?.register !== 'revisjon') return fail('Ikke en revisjon.');
+  if (['lukket', 'avlyst', 'godkjent'].includes(audit.state)) return fail('Revisjonen er avsluttet eller godkjent og låst.');
+  if (!AUDIT_FINDING_CLASSES.some((c) => c.id === input?.classification)) return fail('Klassifiser funnet.');
+  if (!text(input?.description)) return fail('Beskriv funnet.');
+  if (input.classification !== 'samsvar' && !text(input?.evidence)) return fail('Beskriv objektivt bevis for funnet.');
+  const row = {
+    id: newId('rfn'),
+    classification: input.classification,
+    requirementIds: uniq(input.requirementIds),
+    processRef: text(input.processRef, 200),
+    description: text(input.description, 3000),
+    evidence: text(input.evidence, 3000),
+    findingId: '',
+    at: nowIso(now),
+    by: text(actor?.name, 160),
+  };
+  const next = bump({
+    ...audit,
+    findings: [...(audit.findings || []), row],
+    state: audit.state === 'planlagt' ? 'pagar' : audit.state,
+    history: pushHistory(audit, `Funn: ${row.classification}`, actor, row.description, now),
+  }, actor, now);
+  return { ok: true, record: next, auditFinding: row, events: [auditEvent({ entityType: 'revisjon', entityId: audit.id, action: 'iso.audit.finding', actor, before: audit, after: next, now })] };
+}
+
+/** Input for å opprette avvikssak fra revisjonsfunn (A08 / T16). */
+export function findingInputFromAudit(audit, auditFinding) {
+  return {
+    type: 'revisjonsfunn',
+    title: `Revisjonsfunn: ${text(auditFinding.description, 80)}`,
+    description: `${auditFinding.description}\n\nBevis: ${auditFinding.evidence}\nRevisjon: ${audit.number} ${audit.title}`,
+    requirementIds: auditFinding.requirementIds,
+    auditId: audit.id,
+    auditFindingRef: auditFinding.id,
+    severity: auditFinding.classification === 'avvik' ? 'middels' : 'lav',
+  };
+}
+
+export function linkAuditFinding(audit, auditFindingId, findingId) {
+  return {
+    ...audit,
+    findings: (audit.findings || []).map((f) => (f.id === auditFindingId ? { ...f, findingId } : f)),
+  };
+}
+
+/* ───────── Ledelsens gjennomgang ───────── */
+
+/** Låser inndata som snapshot når referatet godkjennes (T17). */
+export function attachReviewSnapshot(record, snapshot, { actor, now = new Date() } = {}) {
+  if (record?.register !== 'ledelse') return fail('Ikke en ledelsens gjennomgang.');
+  if (record.locked) return fail('Referatet er godkjent og låst.');
+  const next = bump({ ...record, snapshot: { ...snapshot, takenAt: nowIso(now), takenBy: text(actor?.name, 160) }, history: pushHistory(record, 'Grunnlag hentet', actor, '', now) }, actor, now);
+  return { ok: true, record: next, events: [] };
+}
+
+export function addReviewDecision(record, input, { actor, now = new Date() } = {}) {
+  if (record?.register !== 'ledelse') return fail('Ikke en ledelsens gjennomgang.');
+  if (record.locked) return fail('Referatet er godkjent og låst.');
+  if (!text(input?.decision)) return fail('Skriv beslutningen.');
+  if (!text(input?.ownerName)) return fail('Velg ansvarlig.');
+  if (!isoDate(input?.dueAt)) return fail('Sett frist.');
+  const row = {
+    id: newId('vdk'),
+    decision: text(input.decision, 2000),
+    kind: ['forbedring', 'ressurs', 'endring', 'annet'].includes(input.kind) ? input.kind : 'forbedring',
+    ownerName: text(input.ownerName, 160),
+    ownerUid: text(input.ownerUid, 128),
+    dueAt: isoDate(input.dueAt),
+    done: false,
+    taskKey: '',
+  };
+  row.taskKey = `iso_${record.id}_${row.id}`;
+  const next = bump({ ...record, decisions: [...(record.decisions || []), row], history: pushHistory(record, 'Beslutning', actor, row.decision, now) }, actor, now);
+  return { ok: true, record: next, decision: row, events: [auditEvent({ entityType: 'ledelse', entityId: record.id, action: 'iso.review.decision', actor, before: record, after: next, now })] };
+}
+
+export function markDecisionDone(record, decisionId, { actor, now = new Date() } = {}) {
+  const decisions = (record?.decisions || []).map((d) => (d.id === decisionId ? { ...d, done: true, doneAt: nowIso(now), doneBy: text(actor?.name, 160) } : d));
+  const next = bump({ ...record, decisions, history: pushHistory(record, 'Beslutning gjennomført', actor, '', now) }, actor, now);
+  return { ok: true, record: next, events: [] };
+}
+
+/* ───────── Beredskap ───────── */
+
+export function addExercise(record, input, { actor, now = new Date() } = {}) {
+  if (record?.register !== 'beredskap') return fail('Ikke et beredskapsscenario.');
+  if (!isoDate(input?.date)) return fail('Sett dato for øvelsen.');
+  if (!text(input?.evaluation)) return fail('Skriv evalueringen.');
+  const row = { id: newId('ovl'), date: isoDate(input.date), participants: text(input.participants, 1000), evaluation: text(input.evaluation, 3000), improvement: !!input.improvement, by: text(actor?.name, 160), at: nowIso(now) };
+  const next = bump({ ...record, exercises: [...(record.exercises || []), row], history: pushHistory(record, 'Øvelse registrert', actor, row.evaluation, now) }, actor, now);
+  return { ok: true, record: next, exercise: row, events: [auditEvent({ entityType: 'beredskap', entityId: record.id, action: 'iso.emergency.exercise', actor, before: record, after: next, now })] };
+}
+
+/* ───────── Samsvar → kravstatus (aldri automatisk «verifisert») ───────── */
+
+export function assessmentStatusFromCompliance(result) {
+  if (result === 'Etterleves') return 'dokumentert';
+  if (result === 'Delvis') return 'under_arbeid';
+  if (result === 'Etterleves ikke') return 'avvik';
+  return 'ma_revurderes';
+}
+
+export function overdueRecords(records, field = 'nextReview', now = new Date()) {
+  const today = todayKey(now);
+  return (records || []).filter((r) => !['arkivert', 'lukket'].includes(r.state) && r[field] && r[field] < today);
+}

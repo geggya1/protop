@@ -1,0 +1,115 @@
+{
+  "name": "ProTop ISO K-HMS V2 utviklingspakke",
+  "as_of": "2026-10-22",
+  "standards": [
+    "ISO 9001:2026",
+    "ISO 14001:2026",
+    "ISO 45001:2018/Amd 1:2024"
+  ],
+  "ui_views": 21,
+  "graph_types": 20,
+  "form_templates": 30,
+  "mermaid_process_diagrams": 15,
+  "frontend_prototype": "Prototype without backend, all example data fictional",
+  "automated_qa": {
+    "javascript_syntax": "pass",
+    "ui_routes_checked": 21,
+    "designer_add_node": "pass",
+    "designer_edit_node": "pass",
+    "form_demo_submission": "pass",
+    "mobile_no_horizontal_overflow_at_375px": "pass",
+    "javascript_runtime_errors": 0
+  },
+  "files": [
+    {
+      "name": "00_START_HER.md",
+      "size_bytes": 6224,
+      "sha256": "3e89d8089b4884683d5537fa1419240a169fa1a4922fc62ce7e208605179d230"
+    },
+    {
+      "name": "01_KRAV_FUNKSJONELL_TEKNISK.md",
+      "size_bytes": 38733,
+      "sha256": "e65a00db556d07ec33643c3f3b9b78f5515fc4cf245c6c6e9935018fece54ad1"
+    },
+    {
+      "name": "02_SKJERMBILDER_OG_DESIGNSYSTEM.md",
+      "size_bytes": 13499,
+      "sha256": "93b74ae8f712b01b42d2380bfde34c5d75806e1d36928cfb5e9c0820cee527ea"
+    },
+    {
+      "name": "03_GRAFER_KPI_OG_VISUALISERING.md",
+      "size_bytes": 7493,
+      "sha256": "cc04a009789495ef833e352f3f9b892db358e5dedbd9de66ef81d264d6c29226"
+    },
+    {
+      "name": "04_SKJEMAER_OG_FELTMODELL.md",
+      "size_bytes": 10943,
+      "sha256": "7ced144b672c429553f65997831b67b0fdf3729ea763e8fe458837f7e4992194"
+    },
+    {
+      "name": "05_FLYTSKJEMA_OG_WORKFLOW.md",
+      "size_bytes": 10205,
+      "sha256": "c919b607cfc10e5e9afde1113266fdf0d6c47865565d40fdeff4cf0e7871fa5d"
+    },
+    {
+      "name": "06_DATAMODELL_OG_KONTRAKTER.md",
+      "size_bytes": 8773,
+      "sha256": "5ec2498c68ab59126b785ce91d53589f94094640b6ba8f23e41a40c5a5868b50"
+    },
+    {
+      "name": "07_IMPLEMENTERING_TEST_OG_AKSEPTANSE.md",
+      "size_bytes": 5703,
+      "sha256": "70aa5cf45f988f8c8ffaec704dc91ae07c20d31777bbb382cf90adad58adb79a"
+    },
+    {
+      "name": "08_KRAVTIL_UI_SPORBARHET.md",
+      "size_bytes": 3558,
+      "sha256": "ce419b2f0b2134fd694fd0982931bbad7584b3ae8c840ad7281f764616781a31"
+    },
+    {
+      "name": "CURSOR_PROMPT_KORT.md",
+      "size_bytes": 1342,
+      "sha256": "3c3b82eb214cad7afcb9254804b12041fe34e1f4a2456ec66d4fe949c6750f42"
+    },
+    {
+      "name": "ProTop_ISO_INTERAKTIV_PROTOTYPE.html",
+      "size_bytes": 60946,
+      "sha256": "8c7271d4a475deb60be1f51cd3f23831dd5cee11741a6680d396f91428b2a975"
+    },
+    {
+      "name": "eksempeldata.json",
+      "size_bytes": 5749,
+      "sha256": "3ea667f8e337f02bed0623b6b17fb290c08bbf07d6a7a36ab2a896f9a62ed588"
+    },
+    {
+      "name": "Forhaandsvisning_oversikt.png",
+      "size_bytes": 173267,
+      "sha256": "5e45bd387fb0036ec106ee5f8c2fa5c1b2ce9ccd56e13ce8917e88c25dc6bc23"
+    },
+    {
+      "name": "Forhaandsvisning_prosessdesigner.png",
+      "size_bytes": 134395,
+      "sha256": "7644f50538aab9e95eb5e9aa62447b184ff9bfac8d4b24e5b9cdedd8bb3556dc"
+    },
+    {
+      "name": "Forhaandsvisning_visualiseringer.png",
+      "size_bytes": 429660,
+      "sha256": "8ec699579de0a126ae732b3060241abd4e11b74fd34ef0af60723aede57a7977"
+    },
+    {
+      "name": "Forhaandsvisning_mobil.png",
+      "size_bytes": 126531,
+      "sha256": "9bdae61b7ce3bc8907c3e4d831de25bb3c81f9713537d80ca2ad309f39e4d76f"
+    },
+    {
+      "name": "Forhaandsvisning_avvik.png",
+      "size_bytes": 118227,
+      "sha256": "f89bbb9cbd2343a6cd3e689c0c6571ae27240aaac4ca7314ef29ef2103c74169"
+    },
+    {
+      "name": "ProTop_ISO_FORHÅNDSVISNING_skjema.png",
+      "size_bytes": 157246,
+      "sha256": "1bbf396cbfebc182b20cd0bf9f523a0fcfb72f1924084fa781caea502bae1e67"
+    }
+  ]
+}

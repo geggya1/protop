@@ -27,7 +27,7 @@ import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import { viewAsChromeVisible } from '../src/access/viewAsNav';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
-import IsoScreen from '../screens/project/IsoScreen';
+import IsoScreen from '../screens/iso/IsoScreen';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
 import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
@@ -43,7 +43,7 @@ import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -490,6 +490,11 @@ function AppShellInner() {
       setTab('hr');
       return;
     }
+    if (id === 'iso') {
+      setMoreSubView(defaultIsoSubView(subView));
+      setTab('iso');
+      return;
+    }
     setMoreSubView(subView);
     setTab(id);
   };
@@ -628,7 +633,7 @@ function AppShellInner() {
     if (tab === 'projects') return <ProjectWorkScreen />;
     if (tab === 'timeliste') return <PersonalTimesheet />;
     if (tab === 'arbeid') return <ArbeidHub subView={moreSubView} />;
-    if (tab === 'iso') return <IsoScreen />;
+    if (tab === 'iso') return <IsoScreen subView={moreSubView} />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
     if (tab === 'utstyr') return <EquipmentScreen />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;

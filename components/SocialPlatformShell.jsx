@@ -27,7 +27,7 @@ import { useLayout } from '../src/theme';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
-import IsoScreen from '../screens/project/IsoScreen';
+import IsoScreen from '../screens/iso/IsoScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import HrScreen from '../screens/hr/HrScreen';
@@ -226,7 +226,7 @@ export default function SocialPlatformShell({ platformType }) {
     }
     if (tab === 'projects') return <ProjectWorkScreen />;
     if (tab === 'arbeid') return <ArbeidHub subView={route.params?.subView} />;
-    if (tab === 'iso') return <IsoScreen />;
+    if (tab === 'iso') return <IsoScreen subView={route.params?.subView} />;
     if (tab === 'selskap' && route.params?.subView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && route.params?.subView === 'innstillinger') return <ProjectPlatformScreen />;
     if (tab === 'selskap' && (route.params?.subView === 'fravaerstyper' || route.params?.subView === 'fridager')) {

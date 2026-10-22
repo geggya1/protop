@@ -133,7 +133,8 @@ export function AbsenceOverviewScreen({
   const employeeId = locked
     ? workspace.lockedId
     : (canChooseEmployee ? pickedId : (workspace.linked?.id || ''));
-  const visiblePeople = (canChooseEmployee || locked)
+  // Låst til én ansatt (ansattsiden) eller uten valg: bare den personen, ikke hele bedriften.
+  const visiblePeople = canChooseEmployee
     ? people
     : people.filter((row) => row.id && row.id === employeeId);
 
@@ -327,6 +328,7 @@ export function AbsenceOverviewScreen({
       onRegister={readOnly ? null : register}
       onBack={onBack}
       registrationLocked={!!vacationPlan?.announcedAt && planningWindow(vacationPlan, today).locked && !workspace.manager}
+      showKpis={canChooseEmployee}
       planInfo={planInfo}
     />
   );
@@ -355,6 +357,8 @@ export function AbsenceOverviewView({
   types: catalog,
   registrationLocked = false,
   planInfo = null,
+  // Nøkkeltall for hele bedriften vises bare for den som kan velge blant flere ansatte.
+  showKpis = true,
 }) {
   const { width } = useLayout();
   const hostedHero = useModuleHeroHosted();
@@ -448,7 +452,7 @@ export function AbsenceOverviewView({
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {wide ? (
+      {wide && showKpis ? (
         <View style={styles.kpis}>
           <Kpi icon="people" tint="#3E6FE0" bg="#EEF2FF" value={dashboard.headcount} label="Ansatte" />
           <Kpi icon="sunny" tint="#1F9D55" bg="#E7F8EF" value={dashboard.onVacation} label="På ferie nå" />

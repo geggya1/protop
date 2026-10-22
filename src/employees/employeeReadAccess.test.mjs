@@ -94,4 +94,9 @@ assert.match(expensesUi, /sideFilters \? <View style=\{styles\.side\}>\{filterPa
 const companyAbsence = readFileSync(new URL('../../screens/arbeid/CompanyAbsenceDesktop.jsx', import.meta.url), 'utf8');
 assert.match(companyAbsence, /\{canChooseEmployee \? \(\s*<View style=\{styles\.kpis\}>/);
 
+// Fravær på ansattsiden: bare den ansatte, uten bedriftens nøkkeltall.
+assert.match(absence, /const visiblePeople = canChooseEmployee\s*\? people\s*: people\.filter/);
+assert.match(absence, /showKpis=\{canChooseEmployee\}/);
+assert.match(absence, /\{wide && showKpis \? \(/);
+
 console.log('employeeReadAccess.test.mjs: ok');

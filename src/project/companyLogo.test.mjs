@@ -104,3 +104,15 @@ assert.ok(box.width <= 150);
 assert.ok(box.height <= 40);
 
 console.log('companyLogo.test.mjs ok');
+
+// Henting fra Brønnøysund skal aldri nullstille tilgangsstyringen.
+{
+  const accessPolicy = { levels: [{ id: 'ansatt', grants: { companyPublic: 'see' } }] };
+  const fresh = mergeCompanyProfile(
+    { navn: 'CONSULT1 AS', organisasjonsnummer: '916538804' },
+    { navn: 'Consult1 AS', organisasjonsnummer: '916538804', accessPolicy, ownerUid: 'eier' },
+  );
+  assert.deepEqual(fresh.accessPolicy, accessPolicy);
+  assert.equal(fresh.ownerUid, 'eier');
+  assert.equal(fresh.navn, 'CONSULT1 AS');
+}

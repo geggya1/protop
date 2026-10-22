@@ -55,3 +55,40 @@ test('slettet utkast kommer ikke tilbake, sendt brev blir igjen', () => {
   assert.deepEqual(contract.indexCases.map((row) => row.id), ['a']);
   assert.deepEqual(contract.deletedIndexCaseIds, ['b']);
 });
+
+test('slettet godkjent brev fjerner også ny pris og logg, også ved sammenslåing', () => {
+  const full = {
+    id: 'c1',
+    title: 'Breitorget',
+    indexCases: [{ id: 'b', status: 'godkjent', revision: 1, letterPlain: 'brev' }],
+    regulations: [{ id: 'b', letterPlain: 'brev', after: 1388.41 }],
+    priceVersions: [
+      { id: 'pv0', validFrom: '2025-01-01', validTo: '2026-10-17', rateExVat: 1350 },
+      { id: 'pv_b', caseId: 'b', validFrom: '2026-10-18', rateExVat: 1388.41 },
+    ],
+  };
+  const left = { contracts: [full] };
+  const right = { contracts: [{ id: 'c1', title: 'Breitorget', deletedIndexCaseIds: ['b'] }] };
+  const contract = mergeAnbudStates(left, right).contracts.find((row) => row.id === 'c1');
+  assert.deepEqual(contract.indexCases, []);
+  assert.deepEqual(contract.regulations, []);
+  assert.deepEqual(contract.priceVersions.map((row) => [row.id, row.validTo]), [['pv0', '']]);
+  assert.deepEqual(contract.deletedIndexCaseIds, ['b']);
+});
+
+test('gammelt, usendt varsel kan slettes, sendt varsel blir stående', () => {
+  const left = {
+    contracts: [{
+      id: 'c1',
+      title: 'Breitorget',
+      regulations: [
+        { id: 'old', letterPlain: 'generert' },
+        { id: 'sent', letterPlain: 'sendt', sentAt: '2026-10-01' },
+      ],
+    }],
+  };
+  const right = { contracts: [{ id: 'c1', title: 'Breitorget', deletedIndexCaseIds: ['old', 'sent'] }] };
+  const contract = mergeAnbudStates(left, right).contracts.find((row) => row.id === 'c1');
+  assert.deepEqual(contract.regulations.map((row) => row.id), ['sent']);
+  assert.deepEqual(contract.deletedIndexCaseIds, ['old']);
+});

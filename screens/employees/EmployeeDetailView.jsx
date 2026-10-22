@@ -466,6 +466,8 @@ export default function EmployeeDetailView({
   onInvite,
   // Lese på ansatte: bare grunnkortet, uten personlig data, arbeidsforhold, mangler og tagger.
   limited = false,
+  // Mangler og Tagger er bare for Admin på ansatte (og personen selv).
+  showAdminCards = true,
   // Papirkurv og permanent sletting krever Admin på ansatte.
   canDelete = isAdmin,
   // 'home' = hovedsiden, 'employment' = Ansettelsesdata under Innstillinger.
@@ -1005,7 +1007,7 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {gaps && !limited ? (
+          {gaps && !limited && showAdminCards ? (
             <SectionCard
               title="Mangler"
               icon="alert-circle-outline"
@@ -1166,7 +1168,7 @@ export default function EmployeeDetailView({
             ) : null}
           </View>
 
-          {limited ? null : (
+          {limited || !showAdminCards ? null : (
           <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
             <Text style={[styles.sideTitle, { color: colors.ink }]}>Tagger</Text>
             {tags.length ? (

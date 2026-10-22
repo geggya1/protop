@@ -24,7 +24,7 @@ assert.match(detail, /section === 'employment'/);
 assert.match(detail, /!limited && \(personalRows\.length \|\| canEdit\)/);
 assert.match(detail, /!limited && \(workRows\.length \|\| canEdit\)/);
 assert.match(detail, /gaps && !limited/);
-assert.match(detail, /limited \? null : \(\s*<View[^>]*>\s*<Text[^>]*>Tagger/);
+assert.match(detail, /limited \|\| !showAdminCards \? null : \(\s*<View[^>]*>\s*<Text[^>]*>Tagger/);
 // Hovedsiden har ikke lenger Ansettelsesdata direkte; kortet ligger i employmentCard.
 const home = detail.slice(detail.indexOf('nativeID="employee-detail"'));
 assert.equal(/title="Ansettelsesdata"/.test(home), false);
@@ -46,5 +46,11 @@ assert.match(absence, /canEditOpening=\{!!employeeId && !readOnly\}/);
 assert.match(arbeid, /if \(!linked && !manager && !lockedId\)/);
 // Fraværsoversikten på ansattsiden ruller.
 assert.match(screen, /<ScrollView\s+nativeID="employee-absence-view"/);
+
+// Mangler, Tagger, Brukslogg og Hendelser er bare for Admin (og personen selv).
+assert.match(screen, /showAdminCards=\{!readOnlyPerson\}/);
+assert.match(screen, /enabled=\{employeesAdmin \|\| detailEmployee\.personUid === uid\}/);
+assert.match(detail, /gaps && !limited && showAdminCards/);
+assert.match(detail, /limited \|\| !showAdminCards \? null/);
 
 console.log('employeeReadAccess.test.mjs: ok');

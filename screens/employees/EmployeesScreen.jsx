@@ -1590,6 +1590,7 @@ export default function EmployeesScreen() {
               isAdmin={isAdmin}
               isSelf={detailEmployee.personUid === uid}
               limited={limitedPerson}
+              showAdminCards={!readOnlyPerson}
               canDelete={employeesAdmin}
               confirmDelete={confirmDelete}
               busy={busy}
@@ -1621,7 +1622,7 @@ export default function EmployeesScreen() {
               companyId={familyId}
               employee={detailEmployee}
               colors={colors}
-              enabled={isAdmin || detailEmployee.personUid === uid}
+              enabled={employeesAdmin || detailEmployee.personUid === uid}
             />
           ) : null}
 

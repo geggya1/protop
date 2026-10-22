@@ -852,7 +852,7 @@ export default function EmployeeDetailView({
                 </TouchableOpacity>
               </View>
             ) : null}
-            {isSelf ? (
+            {isSelf && onPushProfile ? (
               <View style={[styles.heroFooter, { borderTopColor: colors.line }]}>
                 <TouchableOpacity
                   onPress={onPushProfile}

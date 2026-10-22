@@ -255,20 +255,26 @@ export default function EmployeesScreen() {
   const selected = rows.find((row) => row.id === selectedId) || null;
   // Andre ansatte: Lese ser bare hovedsiden, begrenset redigering ser også
   // Oversikt, Timer og Fraværsoversikt (uten å endre). Resten krever Admin.
-  const limitedPerson = !!selected && !isAdmin && selected.personUid !== uid;
-  const readOnlyPerson = !!selected && !employeesAdmin && selected.personUid !== uid;
+  // «Vis som»: den valgte ansatte er «meg», også når profilen ikke er knyttet til en bruker.
+  function isSelfRow(row) {
+    if (!row) return false;
+    if (access.previewing && access.viewingAs) return row.id === access.viewingAs.id;
+    return !!row.personUid && row.personUid === uid;
+  }
+  const limitedPerson = !!selected && !isAdmin && !isSelfRow(selected);
+  const readOnlyPerson = !!selected && !employeesAdmin && !isSelfRow(selected);
   // Egen profil følger «Egen profil» i tilgangsstyringen: Lese, begrenset redigering eller Admin.
   const ownLevel = employeesAdmin || (groupAdmin && !access.previewLocks('ownProfile'))
     || (access.ready && access.canAdmin('ownProfile'))
     ? 'admin'
     : (access.ready && access.canEdit('ownProfile') ? 'editor' : 'reader');
-  const selfSelected = !!selected?.personUid && selected.personUid === uid;
+  const selfSelected = isSelfRow(selected);
   // Full tilgang til personens sider: Admin på ansatte, eller Admin på egen profil.
   const fullPersonAccess = employeesAdmin || (selfSelected && ownLevel === 'admin');
   const selfEditor = selfSelected && ownLevel === 'editor';
   function personTabsAllowed(row) {
     if (employeesAdmin) return null;
-    if (!!row?.personUid && row.personUid === uid) {
+    if (isSelfRow(row)) {
       if (ownLevel === 'admin') return null;
       return ownLevel === 'editor' ? SELF_EDITOR_VIEWS : READER_PERSON_VIEWS;
     }
@@ -1057,7 +1063,7 @@ export default function EmployeesScreen() {
   function canEditOwner(owner) {
     if (view === 'mine') return owner === 'person';
     if (owner === 'company') return !!isAdmin;
-    return !!isAdmin || (!!draft?.personUid && draft.personUid === uid);
+    return !!isAdmin || isSelfRow(draft);
   }
 
   function changeDetail(next) {
@@ -1326,7 +1332,7 @@ export default function EmployeesScreen() {
 
   const cvEmployee = view === 'cv' && draft && draft.id === selectedId ? draft : selected;
   const cv = cvEmployee ? buildCv(cvEmployee, { companyName }) : null;
-  const canEditCv = view === 'cv' && !!draft && (isAdmin || (!!selected?.personUid && selected.personUid === uid));
+  const canEditCv = view === 'cv' && !!draft && (isAdmin || isSelfRow(selected));
   const mineCv = draft && view === 'mine' ? buildCv({
     ...draft,
     company: {
@@ -1619,10 +1625,10 @@ export default function EmployeesScreen() {
               members={people}
               addressHits={addressHits}
               reveal={canSeeSensitive(personEmployee, { uid, isAdmin })}
-              canEdit={isAdmin || personEmployee.personUid === uid}
+              canEdit={isAdmin || isSelfRow(personEmployee)}
               canEditAccess={canEditAccess}
               isAdmin={isAdmin}
-              isSelf={personEmployee.personUid === uid}
+              isSelf={isSelfRow(personEmployee)}
               busy={busy}
               onChange={changeDetail}
               onSave={save}
@@ -1637,7 +1643,7 @@ export default function EmployeesScreen() {
               mode="settings"
               employee={draft || selected}
               colors={colors}
-              canEdit={isAdmin || selected.personUid === uid}
+              canEdit={isAdmin || isSelfRow(selected)}
               onSave={saveWork}
             />
           ) : null}
@@ -1652,10 +1658,10 @@ export default function EmployeesScreen() {
               addressHits={addressHits}
               reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
               gaps={gaps}
-              canEdit={isAdmin || (detailEmployee.personUid === uid && ownLevel !== 'reader')}
+              canEdit={isAdmin || (isSelfRow(detailEmployee) && ownLevel !== 'reader')}
               canEditAccess={canEditAccess}
               isAdmin={isAdmin}
-              isSelf={detailEmployee.personUid === uid}
+              isSelf={isSelfRow(detailEmployee)}
               limited={limitedPerson}
               showAdminCards={!readOnlyPerson}
               canDelete={employeesAdmin}
@@ -1673,8 +1679,8 @@ export default function EmployeesScreen() {
               onClassify={classifyEmployee}
               onPhoto={choosePhoto}
               onPickAddress={pickAddress}
-              onPushProfile={pushProfile}
-              onPullToProfile={pullToProfile}
+              onPushProfile={access.previewing ? undefined : pushProfile}
+              onPullToProfile={access.previewing ? undefined : pullToProfile}
               onConfirmDelete={() => setConfirmDelete(true)}
               onCancelDelete={() => setConfirmDelete(false)}
               onDestroy={destroy}
@@ -1689,7 +1695,7 @@ export default function EmployeesScreen() {
               companyId={familyId}
               employee={detailEmployee}
               colors={colors}
-              enabled={employeesAdmin || detailEmployee.personUid === uid}
+              enabled={employeesAdmin || isSelfRow(detailEmployee)}
             />
           ) : null}
 
@@ -1911,7 +1917,7 @@ export default function EmployeesScreen() {
               employeeId={mineHrEmployeeId}
             />
           ) : null}
-          {(view === 'mine' || isAdmin || (!!draft.personUid && draft.personUid === uid)) ? (
+          {(view === 'mine' || isAdmin || isSelfRow(draft)) ? (
             <TouchableOpacity
               nativeID="employee-project-import"
               onPress={importProjectsFile}

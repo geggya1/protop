@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 const screen = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
 const detail = readFileSync(new URL('../../screens/employees/EmployeeDetailView.jsx', import.meta.url), 'utf8');
 
-assert.match(screen, /const limitedPerson = !!selected && !isAdmin && selected\.personUid !== uid/);
+assert.match(screen, /const limitedPerson = !!selected && !isAdmin && !isSelfRow\(selected\)/);
 // Tre nivåer: Lese = hovedside, begrenset = + Oversikt/Timer/Fravær (bare visning), Admin = alt.
 assert.match(screen, /READER_PERSON_VIEWS = new Set\(\['detail'\]\)/);
 assert.match(screen, /EDITOR_PERSON_VIEWS = new Set\(\['detail', 'overview', 'hours', 'report', 'absence'\]\)/);
@@ -50,7 +50,7 @@ assert.match(screen, /<ScrollView\s+nativeID="employee-absence-view"/);
 
 // Mangler, Tagger, Brukslogg og Hendelser er bare for Admin (og personen selv).
 assert.match(screen, /showAdminCards=\{!readOnlyPerson\}/);
-assert.match(screen, /enabled=\{employeesAdmin \|\| detailEmployee\.personUid === uid\}/);
+assert.match(screen, /enabled=\{employeesAdmin \|\| isSelfRow\(detailEmployee\)\}/);
 assert.match(detail, /gaps && !limited && showAdminCards/);
 assert.match(detail, /limited \|\| !showAdminCards \? null/);
 
@@ -75,7 +75,7 @@ assert.match(screen, /hideBillable=\{!fullPersonAccess\} embedded readOnly=\{!fu
 assert.match(screen, /<TimesaldoScreen [^>]*readOnly=\{!fullPersonAccess\}/);
 assert.match(screen, /<ProjectExpensesScreen [^>]*canImport=\{fullPersonAccess\}/);
 assert.match(screen, /canEdit=\{fullPersonAccess \|\| selfEditor\}\s*canDelete=\{fullPersonAccess\}/);
-assert.match(screen, /canEdit=\{isAdmin \|\| \(detailEmployee\.personUid === uid && ownLevel !== 'reader'\)\}/);
+assert.match(screen, /canEdit=\{isAdmin \|\| \(isSelfRow\(detailEmployee\) && ownLevel !== 'reader'\)\}/);
 
 // Timelisten: «Skriv ut utvalg» ligger under tannhjulet, som kan skjules.
 assert.match(arbeid, /\{readOnly \|\| hideReportTools \? null : \(/);
@@ -98,5 +98,11 @@ assert.match(companyAbsence, /\{canChooseEmployee \? \(\s*<View style=\{styles\.
 assert.match(absence, /const visiblePeople = canChooseEmployee\s*\? people\s*: people\.filter/);
 assert.match(absence, /showKpis=\{canChooseEmployee\}/);
 assert.match(absence, /\{wide && showKpis \? \(/);
+
+// «Vis som»: den valgte ansatte gjenkjennes som «meg», også uten knyttet bruker.
+assert.match(screen, /if \(access\.previewing && access\.viewingAs\) return row\.id === access\.viewingAs\.id;/);
+assert.match(screen, /const selfSelected = isSelfRow\(selected\);/);
+assert.equal(/selected\.personUid !== uid/.test(screen), false);
+assert.match(screen, /onPushProfile=\{access\.previewing \? undefined : pushProfile\}/);
 
 console.log('employeeReadAccess.test.mjs: ok');

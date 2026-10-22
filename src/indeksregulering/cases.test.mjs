@@ -373,12 +373,16 @@ test('kjeden blander ikke original indeks inn i neste grunnlag', () => {
   assert.equal(chain.mode, 'forrige');
 });
 
-test('ufullførte utkast kan slettes, ferdige brev kan ikke', () => {
+test('alle brev som ikke er sendt kan slettes', () => {
   assert.equal(canDeleteCase({ id: 'a', status: 'utkast' }), true);
   assert.equal(canDeleteCase({ id: 'b', status: 'trukket' }), true);
-  assert.equal(canDeleteCase({ id: 'c', status: 'godkjent' }), false);
+  assert.equal(canDeleteCase({ id: 'c', status: 'godkjent' }), true);
+  assert.equal(canDeleteCase({ id: 'c2', status: 'klar_til_kontroll' }), true);
+  assert.equal(canDeleteCase({ id: 'e', status: 'sendefeil' }), true);
+  assert.equal(canDeleteCase({ id: 'l', letterPlain: 'gammelt varsel', after: 1388.41 }), true);
   assert.equal(canDeleteCase({ id: 'd', status: 'sendt' }), false);
-  assert.equal(canDeleteCase({ id: 'e', status: 'sendefeil' }), false);
+  assert.equal(canDeleteCase({ id: 's', status: 'sending' }), false);
   assert.equal(canDeleteCase({ id: 'f', status: 'utkast', mailStatus: 'sendt' }), false);
-  assert.equal(canDeleteCase({ id: 'g' }), false);
+  assert.equal(canDeleteCase({ id: 'h', letterPlain: 'gammelt', sentAt: '2026-10-01' }), false);
+  assert.equal(canDeleteCase({ status: 'utkast' }), false);
 });

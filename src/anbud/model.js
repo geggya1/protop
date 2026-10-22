@@ -5,6 +5,7 @@ import { normalizeCustomers } from './customers.js';
 import { deadlineHasPassed, normalizeAudit, normalizeBidRecord, normalizeContracts, normalizeStrategy, STRATEGY_ITEMS } from './lifecycle.js';
 import { classifyNotice, ensureProfiles, normalizeBidDesk, normalizeLibrary, normalizeNoticeDesk, rememberActiveProfile } from './desk.js';
 import { mergeAgreementCases, normalizeAgreementCases } from './agreementCase.js';
+import { applyIndexDeletions } from './indexDeletion.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -440,14 +441,6 @@ function mergeContractFiles(left, right) {
     });
     deletedCases.set(row.id, set);
   }
-  for (const [contractId, set] of deletedCases) {
-    (groups.get(contractId)?.cases || []).forEach((item) => {
-      const finished = ['godkjent', 'klar_til_utsending', 'sending', 'sendt', 'sendefeil'].includes(item?.status)
-        || item?.mailStatus === 'sendt'
-        || item?.sentAt;
-      if (finished) set.delete(item?.id);
-    });
-  }
   const kept = new Map();
   for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
     for (const doc of row?.documents || []) {
@@ -459,10 +452,12 @@ function mergeContractFiles(left, right) {
   }
   return merged.map((row) => ({
     ...row,
-    indexCases: (groups.get(row.id)?.cases || row.indexCases || []).filter((item) => !deletedCases.get(row.id)?.has(item?.id)),
-    deletedIndexCaseIds: [...(deletedCases.get(row.id) || [])].slice(-200),
-    priceVersions: groups.get(row.id)?.prices || row.priceVersions || [],
-    regulations: groups.get(row.id)?.regs || row.regulations || [],
+    ...applyIndexDeletions({
+      indexCases: groups.get(row.id)?.cases || row.indexCases || [],
+      regulations: groups.get(row.id)?.regs || row.regulations || [],
+      priceVersions: groups.get(row.id)?.prices || row.priceVersions || [],
+      deletedIndexCaseIds: [...(deletedCases.get(row.id) || [])].slice(-200),
+    }),
     documents: (row.documents || []).map((doc) => {
       const extra = kept.get(`${row.id}:${doc.id}`);
       if (!extra) return doc;

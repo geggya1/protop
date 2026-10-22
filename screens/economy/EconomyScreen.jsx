@@ -167,12 +167,16 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     const loaded = await loadAnbudState(familyId, { force: true });
     const current = (loaded?.contracts || []).find((row) => row.id === contractId);
     if (!current) return { ok: false, error: 'Avtalen finnes ikke.' };
-    const target = (current.indexCases || []).find((row) => row.id === caseId);
-    if (!target) return { ok: true };
-    if (!canDeleteCase(target)) return { ok: false, error: 'Ferdigstilte brev kan ikke slettes.' };
+    const targetCase = (current.indexCases || []).find((row) => row.id === caseId);
+    const targetReg = (current.regulations || []).find((row) => row.id === caseId);
+    if (!targetCase && !targetReg) return { ok: true };
+    if ([targetCase, targetReg].some((row) => row && !canDeleteCase(row))) {
+      return { ok: false, error: 'Sendte brev kan ikke slettes.' };
+    }
     const deletedIndexCaseIds = [...new Set([...(current.deletedIndexCaseIds || []), caseId])].slice(-200);
     const result = updateContractDetails(loaded, current.id, {
       indexCases: (current.indexCases || []).filter((row) => row.id !== caseId),
+      regulations: (current.regulations || []).filter((row) => row.id !== caseId),
       deletedIndexCaseIds,
     });
     if (!result?.ok) return result;

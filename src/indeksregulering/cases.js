@@ -4,6 +4,7 @@
  */
 
 import { projectNumberKey } from '../project/projectFields.js';
+import { indexLetterWasSent } from '../anbud/indexDeletion.js';
 import { modelById, seriesById, standardById } from './catalog.js';
 import { draftFromRegisteredContract } from '../economy/fromContract.js';
 import {
@@ -156,12 +157,10 @@ export function caseIsLocked(entry) {
   return LOCKED.has(entry?.status);
 }
 
-/** Utkast og andre brev som ikke er godkjent eller sendt kan slettes. */
+/** Alle brev kan slettes så lenge de ikke er sendt eller er under sending. */
 export function canDeleteCase(entry) {
   if (!entry?.id) return false;
-  if (caseIsLocked(entry)) return false;
-  if (entry.status === 'sendt' || entry.mailStatus === 'sendt' || entry.sentAt) return false;
-  return entry.status === 'utkast' || entry.status === 'trukket';
+  return !indexLetterWasSent(entry);
 }
 
 export function basisMode(draft) {

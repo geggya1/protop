@@ -466,6 +466,8 @@ export default function EmployeeDetailView({
   onInvite,
   // Lese på ansatte: bare grunnkortet, uten personlig data, arbeidsforhold, mangler og tagger.
   limited = false,
+  // Papirkurv og permanent sletting krever Admin på ansatte.
+  canDelete = isAdmin,
   // 'home' = hovedsiden, 'employment' = Ansettelsesdata under Innstillinger.
   section = 'home',
 }) {
@@ -1041,7 +1043,7 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {isAdmin ? (
+          {canDelete ? (
             isDeletedEmployee(employee) ? (
               <View style={styles.inlineActions}>
                 <TouchableOpacity

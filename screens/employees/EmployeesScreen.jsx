@@ -105,12 +105,17 @@ async function bytesFromFile(file) {
 }
 
 
+const READER_PERSON_TABS = new Set(['home']);
+const EDITOR_PERSON_TABS = new Set(['home', 'overview', 'hours', 'absence']);
+
 export default function EmployeesScreen() {
   const colors = useColors();
   const { familyId, family, members, uid, user, userProfile, isAdmin: groupAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
+  // isAdmin = begrenset redigering (hovedsiden kan redigeres); employeesAdmin = Admin (alt annet).
   const isAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.canEdit('employees'));
-  const canInvite = isAdmin;
+  const employeesAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.canAdmin('employees'));
+  const canInvite = employeesAdmin;
   const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
     || (access.ready && access.canAdmin('accessControl'));
   const accessLocked = canEditAccess ? [] : ['company.accessRole'];
@@ -242,15 +247,22 @@ export default function EmployeesScreen() {
   }, [view, draft?.person?.address1]);
 
   const selected = rows.find((row) => row.id === selectedId) || null;
-  // Lese på ansatte: andre ansatte vises bare med hovedsiden. Undersidene krever begrenset redigering.
+  // Andre ansatte: Lese ser bare hovedsiden, begrenset redigering ser også
+  // Oversikt, Timer og Fraværsoversikt (uten å endre). Resten krever Admin.
   const limitedPerson = !!selected && !isAdmin && selected.personUid !== uid;
+  const readOnlyPerson = !!selected && !employeesAdmin && selected.personUid !== uid;
+  function personTabsAllowed(row) {
+    if (employeesAdmin || (!!row?.personUid && row.personUid === uid)) return null;
+    return isAdmin ? EDITOR_PERSON_TABS : READER_PERSON_TABS;
+  }
   function personViewAllowed(row, nextView) {
-    if (nextView === 'detail' || !PERSON_VIEWS.has(nextView) || isAdmin) return true;
-    return !!row?.personUid && row.personUid === uid;
+    if (!PERSON_VIEWS.has(nextView)) return true;
+    const allowed = personTabsAllowed(row);
+    return !allowed || allowed.has(employeeViewToTab(nextView));
   }
   useEffect(() => {
-    if (limitedPerson && PERSON_VIEWS.has(view) && view !== 'detail') setView('detail');
-  }, [limitedPerson, view]);
+    if (selected && PERSON_VIEWS.has(view) && !personViewAllowed(selected, view)) setView('detail');
+  }, [selected, view, isAdmin, employeesAdmin, uid]);
   const mine = useMemo(() => ownEmployee(rows, {
     uid,
     emails: [
@@ -1329,7 +1341,7 @@ export default function EmployeesScreen() {
           siblings={visible}
           tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => (
             (tab.id !== 'earnings' || access.canView('economyEarnings') || access.canView('economy'))
-            && (!limitedPerson || tab.id === 'home')
+            && (!personTabsAllowed(selected) || personTabsAllowed(selected).has(tab.id))
           ))}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
@@ -1342,7 +1354,7 @@ export default function EmployeesScreen() {
       <View style={styles.personFill}>
         {view === 'hours' ? (
           <View style={styles.hoursHost} nativeID="employee-hours-view">
-            <ArbeidScreen lockedEmployeeId={selected.id} embedded />
+            <ArbeidScreen lockedEmployeeId={selected.id} embedded readOnly={readOnlyPerson} />
           </View>
         ) : null}
         {view === 'report' ? (
@@ -1354,6 +1366,7 @@ export default function EmployeesScreen() {
           <View nativeID="employee-absence-view" style={styles.absenceHost}>
             <AbsenceOverviewScreen
               lockedEmployeeId={selected.id}
+              readOnly={readOnlyPerson}
               embedded
               onBack={() => openDetail(selected)}
             />
@@ -1572,6 +1585,7 @@ export default function EmployeesScreen() {
               isAdmin={isAdmin}
               isSelf={detailEmployee.personUid === uid}
               limited={limitedPerson}
+              canDelete={employeesAdmin}
               confirmDelete={confirmDelete}
               busy={busy}
               onCv={() => openCv(detailEmployee)}

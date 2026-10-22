@@ -99,7 +99,9 @@ function usePeople(lockedEmployeeId) {
   return { workspace, pickedId, setPickedId };
 }
 
-export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, embedded = false } = {}) {
+export function AbsenceOverviewScreen({
+  lockedEmployeeId = '', onBack = null, embedded = false, readOnly = false,
+} = {}) {
   const { isDesktop } = useLayout();
   const { workspace, pickedId, setPickedId } = usePeople(lockedEmployeeId);
   const { family, families, liveFamilies, selectFamily, familyId, requestShellTab } = useApp();
@@ -321,8 +323,8 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
       opening={opening}
       onOpeningChange={setOpening}
       onSaveOpening={saveOpening}
-      canEditOpening={!!employeeId}
-      onRegister={register}
+      canEditOpening={!!employeeId && !readOnly}
+      onRegister={readOnly ? null : register}
       onBack={onBack}
       registrationLocked={!!vacationPlan?.announcedAt && planningWindow(vacationPlan, today).locked && !workspace.manager}
       planInfo={planInfo}
@@ -541,14 +543,16 @@ export function AbsenceOverviewView({
                   ? 'Det er ikke registrert ferie for valgt periode og filter. Når ferie registreres vil den vises her.'
                   : 'Det er ikke registrert fravær for valgt periode og filter. Når det registreres vil det vises her.')}
             </Text>
-            <TouchableOpacity
-              onPress={() => setRegisterOpen(true)}
-              accessibilityRole="button"
-              style={styles.cta}
-              nativeID="registrer-ferie"
-            >
-              <Text style={styles.ctaText}>{registerLabel}</Text>
-            </TouchableOpacity>
+            {onRegister ? (
+              <TouchableOpacity
+                onPress={() => setRegisterOpen(true)}
+                accessibilityRole="button"
+                style={styles.cta}
+                nativeID="registrer-ferie"
+              >
+                <Text style={styles.ctaText}>{registerLabel}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </View>

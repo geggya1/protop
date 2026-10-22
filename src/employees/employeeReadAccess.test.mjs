@@ -6,7 +6,15 @@ const screen = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx
 const detail = readFileSync(new URL('../../screens/employees/EmployeeDetailView.jsx', import.meta.url), 'utf8');
 
 assert.match(screen, /const limitedPerson = !!selected && !isAdmin && selected\.personUid !== uid/);
-assert.match(screen, /!limitedPerson \|\| tab\.id === 'home'/);
+// Tre nivåer: Lese = hovedside, begrenset = + Oversikt/Timer/Fravær (bare visning), Admin = alt.
+assert.match(screen, /READER_PERSON_TABS = new Set\(\['home'\]\)/);
+assert.match(screen, /EDITOR_PERSON_TABS = new Set\(\['home', 'overview', 'hours', 'absence'\]\)/);
+assert.match(screen, /employeesAdmin = [\s\S]{0,120}canAdmin\('employees'\)/);
+assert.match(screen, /personTabsAllowed\(selected\)\.has\(tab\.id\)/);
+assert.match(screen, /<ArbeidScreen lockedEmployeeId=\{selected\.id\} embedded readOnly=\{readOnlyPerson\} \/>/);
+assert.match(screen, /readOnly=\{readOnlyPerson\}/);
+assert.match(screen, /canDelete=\{employeesAdmin\}/);
+assert.match(screen, /const canInvite = employeesAdmin/);
 assert.match(screen, /setView\(personViewAllowed\(row, nextView\) \? nextView : 'detail'\)/);
 assert.match(screen, /limited=\{limitedPerson\}/);
 // Ansettelsesdata ligger under Innstillinger.
@@ -26,5 +34,12 @@ assert.equal(/\{employmentCard\}/.test(home), false);
 assert.match(detail, /onHours && !limited \?/);
 assert.match(detail, /right=\{limited \? null : \(/);
 assert.match(detail, /!limited && \(employee\.cv\?\.projects/);
+
+const arbeid = readFileSync(new URL('../../screens/arbeid/ArbeidScreen.jsx', import.meta.url), 'utf8');
+assert.ok((arbeid.match(/if \(readOnly\) return;/g) || []).length >= 12);
+assert.match(arbeid, /const actions = readOnly \? null : \(/);
+const absence = readFileSync(new URL('../../screens/arbeid/AbsenceOverviewView.jsx', import.meta.url), 'utf8');
+assert.match(absence, /onRegister=\{readOnly \? null : register\}/);
+assert.match(absence, /canEditOpening=\{!!employeeId && !readOnly\}/);
 
 console.log('employeeReadAccess.test.mjs: ok');

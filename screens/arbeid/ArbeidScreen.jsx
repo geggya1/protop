@@ -121,6 +121,8 @@ export default function ArbeidScreen({
   companyId = '',
   companyFamily = null,
   embedded = false,
+  // Bare visning (begrenset redigering på ansattsiden): ingen føring, flytting eller låsing.
+  readOnly = false,
 } = {}) {
   const colors = useColors();
   const { isPhone } = useLayout();
@@ -576,6 +578,7 @@ export default function ArbeidScreen({
   }
 
   function openCell(project, day) {
+    if (readOnly) return;
     const key = entryKey(project.id, day.key);
     const activities = state.activities.filter((row) => row.projectId === project.id);
     setEditor({
@@ -615,6 +618,7 @@ export default function ArbeidScreen({
   }
 
   async function saveEntry(blocks) {
+    if (readOnly) return;
     if (!editor || !employeeId) return;
     const list = Array.isArray(blocks) ? blocks : [blocks];
     const previous = entriesForCell.get(entryKey(editor.project.id, editor.day.key)) || [];
@@ -677,6 +681,7 @@ export default function ArbeidScreen({
   }
 
   async function removeEntry(ids) {
+    if (readOnly) return;
     const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
     let next = state;
     for (const id of list) {
@@ -703,6 +708,7 @@ export default function ArbeidScreen({
   }
 
   function moveEntries({ ids, date, projectId }) {
+    if (readOnly) return;
     const list = (ids || []).filter(Boolean);
     if (!list.length) return;
     let next = state;
@@ -724,6 +730,7 @@ export default function ArbeidScreen({
   }
 
   function toggleLock(dateKey) {
+    if (readOnly) return;
     const result = toggleTimesheetLock(state, {
       employeeId,
       throughDate: dateKey,
@@ -736,16 +743,19 @@ export default function ArbeidScreen({
   }
 
   function hideProject(projectId, hidden) {
+    if (readOnly) return;
     applyResult(hideTimesheetProject(state, { employeeId, projectId, hidden }));
   }
 
   function savePins(typeIds) {
+    if (readOnly) return;
     if (applyResult(setAbsencePins(state, { employeeId, typeIds }), 'Fraværskategorier oppdatert.')) {
       setTypePicker(false);
     }
   }
 
   function saveSide(payload) {
+    if (readOnly) return;
     if (!sideForm) return;
     const project = state.projects.find((row) => row.id === sideForm.projectId);
     const base = {
@@ -788,6 +798,7 @@ export default function ArbeidScreen({
   }
 
   function joinProject(project) {
+    if (readOnly) return;
     const result = addProjectMember(state, {
       projectId: project.id,
       employeeId,
@@ -809,12 +820,14 @@ export default function ArbeidScreen({
   }
 
   function starProject(memberId) {
+    if (readOnly) return;
     if (!memberId) return;
     const result = toggleMemberStar(state, memberId);
     if (result.ok) setState(result.state);
   }
 
   function openAbsenceCell(row, day) {
+    if (readOnly) return;
     const existing = (state.absences || []).find((item) => (
       item.employeeId === employeeId && item.date === day.key && (item.type || 'ferie') === row.id
     ));
@@ -830,6 +843,7 @@ export default function ArbeidScreen({
   }
 
   function saveAbsence() {
+    if (readOnly) return;
     const date = absenceForm.date || selectedDay || todayKey;
     const hours = parseHours(absenceForm.hours);
     if (!(hours > 0) && absenceForm.id) {
@@ -935,7 +949,7 @@ export default function ArbeidScreen({
     selectDate(new Date(base.getFullYear(), base.getMonth(), base.getDate() + deltaDays));
   }
 
-  const actions = (
+  const actions = readOnly ? null : (
     <View style={[styles.footer, isPhone && styles.footerPhone]}>
       {assignedOnly ? null : (
       <TouchableOpacity

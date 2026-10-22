@@ -90,7 +90,9 @@ import EmployeeUsagePanel from './EmployeeUsagePanel';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
-import { EMPLOYEE_DETAIL_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeViewToTab } from '../../src/employees/personTabs.js';
+import {
+  EMPLOYEE_DETAIL_TABS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
+} from '../../src/employees/personTabs.js';
 import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 
 async function bytesFromFile(file) {
@@ -105,8 +107,9 @@ async function bytesFromFile(file) {
 }
 
 
-const READER_PERSON_TABS = new Set(['home']);
-const EDITOR_PERSON_TABS = new Set(['home', 'overview', 'hours', 'absence']);
+// Views (ikke faner) andre ansatte kan se per nivå. Admin og personen selv ser alt.
+const READER_PERSON_VIEWS = new Set(['detail']);
+const EDITOR_PERSON_VIEWS = new Set(['detail', 'overview', 'hours', 'absence']);
 
 export default function EmployeesScreen() {
   const colors = useColors();
@@ -253,12 +256,16 @@ export default function EmployeesScreen() {
   const readOnlyPerson = !!selected && !employeesAdmin && selected.personUid !== uid;
   function personTabsAllowed(row) {
     if (employeesAdmin || (!!row?.personUid && row.personUid === uid)) return null;
-    return isAdmin ? EDITOR_PERSON_TABS : READER_PERSON_TABS;
+    return isAdmin ? EDITOR_PERSON_VIEWS : READER_PERSON_VIEWS;
   }
   function personViewAllowed(row, nextView) {
     if (!PERSON_VIEWS.has(nextView)) return true;
+    if (nextView === 'earnings' && !access.canView('economyEarnings') && !access.canView('economy')) return false;
     const allowed = personTabsAllowed(row);
-    return !allowed || allowed.has(employeeViewToTab(nextView));
+    return !allowed || allowed.has(nextView);
+  }
+  function allowedTabViews(row, tabId) {
+    return employeeTabViews(tabId).filter((id) => personViewAllowed(row, id));
   }
   useEffect(() => {
     if (selected && PERSON_VIEWS.has(view) && !personViewAllowed(selected, view)) setView('detail');
@@ -759,22 +766,27 @@ export default function EmployeesScreen() {
     if (!PERSON_VIEWS.has(view) || !personViewAllowed(row, view)) setView('detail');
   }
 
-  function openPersonTab(tabId) {
-    if (!selected) return;
-    if (tabId === 'earnings' && !access.canView('economyEarnings') && !access.canView('economy')) return;
-    if (tabId === 'home') {
+  function openPersonView(nextView) {
+    if (!selected || !personViewAllowed(selected, nextView)) return;
+    if (nextView === 'detail') {
       openDetail(selected);
       return;
     }
-    if (tabId === 'hours') {
+    if (nextView === 'hours') {
       openHours(selected);
       return;
     }
-    if (tabId === 'cv') {
+    if (nextView === 'cv') {
       openCv(selected);
       return;
     }
-    openWork(selected, tabId);
+    openWork(selected, nextView);
+  }
+
+  function openPersonTab(tabId) {
+    if (!selected) return;
+    const [first] = allowedTabViews(selected, tabId);
+    if (first) openPersonView(first);
   }
 
   useEffect(() => {
@@ -1339,15 +1351,40 @@ export default function EmployeesScreen() {
           colors={colors}
           companyName={companyName}
           siblings={visible}
-          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => (
-            (tab.id !== 'earnings' || access.canView('economyEarnings') || access.canView('economy'))
-            && (!personTabsAllowed(selected) || personTabsAllowed(selected).has(tab.id))
-          ))}
+          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => allowedTabViews(selected, tab.id).length > 0)}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
           onTab={openPersonTab}
           onSelect={openSibling}
-        />
+        >
+          {(() => {
+            const subs = (EMPLOYEE_SUB_TABS[employeeViewToTab(view)] || [])
+              .filter((sub) => personViewAllowed(selected, sub.id));
+            if (subs.length < 2) return null;
+            return (
+              <View nativeID="employee-sub-tabs" accessibilityRole="tablist" style={styles.subTabs}>
+                {subs.map((sub) => {
+                  const active = sub.id === view;
+                  return (
+                    <TouchableOpacity
+                      key={sub.id}
+                      nativeID={`employee-subtab-${sub.id}`}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: active }}
+                      onPress={() => openPersonView(sub.id)}
+                      style={[styles.subTab, {
+                        borderColor: active ? colors.brand : colors.line,
+                        backgroundColor: active ? colors.brandSoft : colors.card,
+                      }]}
+                    >
+                      <Text style={{ color: active ? colors.brand : colors.ink, fontSize: 13 }}>{sub.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })()}
+        </EmployeePersonChrome>
       </View>
     ) : null}
     {personFills ? (
@@ -1978,6 +2015,8 @@ const styles = StyleSheet.create({
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
   hoursHost: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
   absenceHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
+  subTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  subTab: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   // Fraværsoversikten fyller området under fanene og må rulle selv.
   absenceInner: { flexGrow: 1, paddingBottom: 28 },
   title: { fontSize: 28, fontWeight: '700' },

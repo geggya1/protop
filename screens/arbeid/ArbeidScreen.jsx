@@ -1089,6 +1089,7 @@ export default function ArbeidScreen({
           <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
+          {readOnly ? null : (
           <TouchableOpacity
             onPress={() => setReportMenuOpen(true)}
             accessibilityRole="button"
@@ -1099,7 +1100,8 @@ export default function ArbeidScreen({
           >
             <Ionicons name="settings-outline" size={18} color={reportMenuOpen ? colors.brand : colors.ink} />
           </TouchableOpacity>
-          {isPhone ? null : (
+          )}
+          {isPhone || readOnly ? null : (
             <TouchableOpacity
               onPress={printSelection}
               accessibilityRole="button"

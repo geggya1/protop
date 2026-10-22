@@ -7,10 +7,11 @@ const detail = readFileSync(new URL('../../screens/employees/EmployeeDetailView.
 
 assert.match(screen, /const limitedPerson = !!selected && !isAdmin && selected\.personUid !== uid/);
 // Tre nivåer: Lese = hovedside, begrenset = + Oversikt/Timer/Fravær (bare visning), Admin = alt.
-assert.match(screen, /READER_PERSON_TABS = new Set\(\['home'\]\)/);
-assert.match(screen, /EDITOR_PERSON_TABS = new Set\(\['home', 'overview', 'hours', 'absence'\]\)/);
+assert.match(screen, /READER_PERSON_VIEWS = new Set\(\['detail'\]\)/);
+assert.match(screen, /EDITOR_PERSON_VIEWS = new Set\(\['detail', 'overview', 'hours', 'absence'\]\)/);
 assert.match(screen, /employeesAdmin = [\s\S]{0,120}canAdmin\('employees'\)/);
-assert.match(screen, /personTabsAllowed\(selected\)\.has\(tab\.id\)/);
+assert.match(screen, /allowedTabViews\(selected, tab\.id\)\.length > 0/);
+assert.match(screen, /nativeID="employee-sub-tabs"/);
 assert.match(screen, /<ArbeidScreen lockedEmployeeId=\{selected\.id\} embedded readOnly=\{readOnlyPerson\} \/>/);
 assert.match(screen, /readOnly=\{readOnlyPerson\}/);
 assert.match(screen, /canDelete=\{employeesAdmin\}/);
@@ -52,5 +53,9 @@ assert.match(screen, /showAdminCards=\{!readOnlyPerson\}/);
 assert.match(screen, /enabled=\{employeesAdmin \|\| detailEmployee\.personUid === uid\}/);
 assert.match(detail, /gaps && !limited && showAdminCards/);
 assert.match(detail, /limited \|\| !showAdminCards \? null/);
+
+// Tannhjul og «Skriv ut utvalg» på timelisten skjules i skrivebeskyttet modus.
+assert.match(arbeid, /\{readOnly \? null : \(\s*<TouchableOpacity\s+onPress=\{\(\) => setReportMenuOpen\(true\)\}/);
+assert.match(arbeid, /\{isPhone \|\| readOnly \? null : \(/);
 
 console.log('employeeReadAccess.test.mjs: ok');

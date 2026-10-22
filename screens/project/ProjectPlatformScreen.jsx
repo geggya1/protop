@@ -182,7 +182,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   return (
     <View nativeID="company-page" id="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
     <ScrollView
-      contentContainerStyle={styles.body}
+      contentContainerStyle={[styles.body, page === 'tilgang' ? styles.bodyAccess : null]}
       keyboardShouldPersistTaps="handled"
     >
       {page === 'tilgang' ? (
@@ -353,6 +353,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   head: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
   body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 1180, width: '100%', alignSelf: 'flex-start' },
+  bodyAccess: { maxWidth: '100%', alignSelf: 'stretch', flexGrow: 1 },
   column: { alignSelf: 'flex-start', width: '100%', maxWidth: 760, gap: 10 },
   settingsHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4, textTransform: 'uppercase' },

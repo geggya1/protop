@@ -221,6 +221,19 @@ button, [role="button"] { cursor: pointer; }
   align-self: stretch !important;
 }
 
+/* Tilgangsstyring: matrisen trenger hele hovedfeltet (Lese / begrenset / Admin). */
+#company-page:has(#company-access-page) > div,
+#company-access-page,
+#company-access-page [nativeid^="company-access-level-"],
+#company-access-page [id^="company-access-level-"] {
+  width: 100% !important;
+  max-width: none !important;
+  align-self: stretch !important;
+}
+#company-access-page {
+  box-sizing: border-box;
+}
+
 /* Aktivt skilleark på en person skal synes selv om bedriftssiden tvinger vanlig vekt. */
 #employee-detail-tabs [data-employee-tab="active"],
 #employee-detail-tabs [data-employee-tab="active"] * {

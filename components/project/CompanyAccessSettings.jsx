@@ -110,6 +110,12 @@ function CheckBox({ on, disabled, colors, onPress, label }) {
   );
 }
 
+/** Kort etikett i smale kolonner; full tekst i accessibilityLabel. */
+function actionColumnLabel(label) {
+  if (label === 'Begrenset redigering') return 'Begrenset\nredigering';
+  return label;
+}
+
 function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
   if (compact) {
     return (
@@ -149,49 +155,49 @@ function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
     );
   }
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator>
-      <View style={styles.matrix}>
-        {ACCESS_GROUPS.map((group) => (
-          <View key={group.id} style={styles.group}>
-            <Text style={[styles.groupLabel, { color: colors.muted }]}>{group.label}</Text>
-            <View style={[styles.matrixHead, { borderColor: colors.line }]}>
-              <Text style={[styles.areaHead, { color: colors.muted }]}>Område</Text>
-              {ACCESS_ACTIONS.map((action) => (
-                <Text key={action.id} style={[styles.actionHead, { color: colors.muted }]}>{action.label}</Text>
-              ))}
-            </View>
-            {group.resources.map((resource) => {
-              const grant = grants?.[resource.id] || 'none';
-              const checks = checksFromGrant(grant);
-              const overridden = base ? (base[resource.id] || 'none') !== grant : false;
-              return (
-                <View key={resource.id} style={[styles.matrixRow, { borderColor: colors.line }]}>
-                  <View style={styles.areaCell}>
-                    <Text style={[styles.areaLabel, { color: colors.ink }]}>{resource.label}</Text>
-                    {resource.hint ? (
-                      <Text style={[styles.areaHint, { color: colors.muted }]}>{resource.hint}</Text>
-                    ) : null}
-                    {overridden ? (
-                      <Text style={[styles.overrideMark, { color: colors.brand }]}>Avvik fra nivået</Text>
-                    ) : null}
-                  </View>
-                  {ACCESS_ACTIONS.map((action) => (
-                    <CheckBox
-                      key={action.id}
-                      on={checks[action.id]}
-                      disabled={!canEdit}
-                      colors={colors}
-                      label={`${resource.label}, ${action.label}`}
-                      onPress={() => onToggle(resource.id, action.id, !checks[action.id])}
-                    />
-                  ))}
-                </View>
-              );
-            })}
+    <View style={styles.matrix}>
+      {ACCESS_GROUPS.map((group) => (
+        <View key={group.id} style={styles.group}>
+          <Text style={[styles.groupLabel, { color: colors.muted }]}>{group.label}</Text>
+          <View style={[styles.matrixHead, { borderColor: colors.line }]}>
+            <Text style={[styles.areaHead, { color: colors.muted }]}>Område</Text>
+            {ACCESS_ACTIONS.map((action) => (
+              <Text key={action.id} style={[styles.actionHead, { color: colors.muted }]}>
+                {actionColumnLabel(action.label)}
+              </Text>
+            ))}
           </View>
-        ))}
-      </View>
-    </ScrollView>
+          {group.resources.map((resource) => {
+            const grant = grants?.[resource.id] || 'none';
+            const checks = checksFromGrant(grant);
+            const overridden = base ? (base[resource.id] || 'none') !== grant : false;
+            return (
+              <View key={resource.id} style={[styles.matrixRow, { borderColor: colors.line }]}>
+                <View style={styles.areaCell}>
+                  <Text style={[styles.areaLabel, { color: colors.ink }]}>{resource.label}</Text>
+                  {resource.hint ? (
+                    <Text style={[styles.areaHint, { color: colors.muted }]}>{resource.hint}</Text>
+                  ) : null}
+                  {overridden ? (
+                    <Text style={[styles.overrideMark, { color: colors.brand }]}>Avvik fra nivået</Text>
+                  ) : null}
+                </View>
+                {ACCESS_ACTIONS.map((action) => (
+                  <CheckBox
+                    key={action.id}
+                    on={checks[action.id]}
+                    disabled={!canEdit}
+                    colors={colors}
+                    label={`${resource.label}, ${action.label}`}
+                    onPress={() => onToggle(resource.id, action.id, !checks[action.id])}
+                  />
+                ))}
+              </View>
+            );
+          })}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -1169,12 +1175,12 @@ export default function CompanyAccessSettings({
 
 const styles = StyleSheet.create({
   denied: { flex: 1, padding: 24, gap: 8, maxWidth: 560 },
-  page: { alignSelf: 'flex-start', width: '100%', maxWidth: 980, gap: 12 },
+  page: { alignSelf: 'stretch', width: '100%', maxWidth: '100%', gap: 12 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   titleFlex: { flex: 1 },
   helpCopy: { gap: 12 },
   stack: { gap: 10 },
-  section: { gap: 10 },
+  section: { gap: 10, width: '100%' },
   sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 8 },
   title: { fontSize: 22, fontWeight: '600' },
   lead: { fontSize: 15, lineHeight: 21 },
@@ -1196,22 +1202,38 @@ const styles = StyleSheet.create({
   popupHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   kind: { fontSize: 13, lineHeight: 18 },
   summary: { fontSize: 15, lineHeight: 21 },
-  matrix: { minWidth: 760, gap: 14, paddingBottom: 4 },
-  group: { gap: 0 },
+  matrix: { width: '100%', minWidth: 0, gap: 14, paddingBottom: 4 },
+  group: { gap: 0, width: '100%' },
   groupLabel: { fontSize: 12, marginBottom: 4 },
-  matrixHead: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, paddingBottom: 6 },
-  areaHead: { flex: 1, fontSize: 12 },
-  actionHead: { width: 96, textAlign: 'center', fontSize: 11, lineHeight: 14 },
-  matrixRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, minHeight: 52 },
-  areaCell: { flex: 1, paddingVertical: 8, paddingRight: 8 },
+  matrixHead: { flexDirection: 'row', alignItems: 'flex-end', width: '100%', borderBottomWidth: 1, paddingBottom: 6, gap: 4 },
+  areaHead: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 120, fontSize: 12 },
+  actionHead: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 72,
+    textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 14,
+  },
+  matrixRow: { flexDirection: 'row', alignItems: 'center', width: '100%', borderBottomWidth: 1, minHeight: 52, gap: 4 },
+  areaCell: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 120, paddingVertical: 8, paddingRight: 8 },
   areaLabel: { fontSize: 14 },
   areaHint: { fontSize: 12, marginTop: 2 },
   overrideMark: { fontSize: 12, marginTop: 2 },
   compactRow: { borderBottomWidth: 1, paddingVertical: 10, gap: 4 },
   compactChecks: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  compactCheck: { alignItems: 'center', minWidth: 88 },
+  compactCheck: { alignItems: 'center', flex: 1, minWidth: 72 },
   compactAction: { fontSize: 11, marginBottom: 4, textAlign: 'center' },
-  checkHit: { width: 96, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  checkHit: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 72,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   levelActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   primaryBtn: { alignSelf: 'flex-start', borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 16 },
@@ -1219,11 +1241,20 @@ const styles = StyleSheet.create({
   quietBtn: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 12 },
   person: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   personName: { fontSize: 15, fontWeight: '600' },
-  drawer: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
-  drawerHead: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: 4, paddingRight: 8, paddingVertical: 4 },
+  drawer: { borderWidth: 1, borderRadius: 14, width: '100%', alignSelf: 'stretch', overflow: 'visible' },
+  drawerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 4,
+    paddingRight: 8,
+    paddingVertical: 4,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
   drawerToggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 8 },
   gearBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  drawerBody: { borderTopWidth: 1, paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+  drawerBody: { borderTopWidth: 1, paddingHorizontal: 12, paddingVertical: 12, gap: 10, width: '100%', minWidth: 0 },
   memberLine: { gap: 8 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   moveLink: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },

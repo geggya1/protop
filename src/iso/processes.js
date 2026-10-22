@@ -220,7 +220,7 @@ export function validateDiagram(raw, context = {}) {
     for (const e of incoming(diagram, id)) back.push(e.from);
   }
 
-  const formKeys = context.forms ? new Set(context.forms.filter((f) => f.state === 'publisert').map((f) => f.key)) : null;
+  const formKeys = context.forms ? new Set(context.forms.filter((f) => !f.archived && f.publishedVersion).map((f) => f.templateId)) : null;
   const docIds = context.documents ? new Set(context.documents.filter((d) => d.publishedRevision).map((d) => d.id)) : null;
   const processIds = context.processes ? new Set(context.processes.filter((p) => p.publishedVersion).map((p) => p.id)) : null;
 
@@ -257,7 +257,7 @@ export function validateDiagram(raw, context = {}) {
     if (nodeType(node.type).human && !nodeRole(diagram, node)) add(errors, node.id, `${name} mangler ansvarlig rolle.`);
     if (node.type === 'form') {
       if (!node.formKey) add(errors, node.id, `Skjemaboksen ${name} er ikke koblet til et skjema.`);
-      else if (formKeys && !formKeys.has(node.formKey)) add(errors, node.id, `Skjemaet i ${name} er ikke publisert.`);
+      else if (formKeys && !formKeys.has(node.formKey)) add(errors, node.id, `Skjemaet i ${name} er ikke godkjent som styrt skjema i ISO.`);
     }
     if (node.type === 'document') {
       if (!node.documentId) add(warnings, node.id, `Dokumentboksen ${name} er ikke koblet til et styrt dokument.`);

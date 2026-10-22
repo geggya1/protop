@@ -29,19 +29,24 @@ export function toneColor(colors, tone) {
   return colors.muted;
 }
 
-export function Page({ crumb = [], title, intro, actions, children, wide }) {
+/**
+ * Sideoverskrift inne i ISO. Modulbåndet (ModuleHero) i skallet viser modulnavnet,
+ * så her vises bare undersidens tittel, en kort forklaring og handlinger – som i HR og Økonomi.
+ */
+export function Page({ title, intro, actions, children, wide, back }) {
   const colors = useColors();
   return (
-    <View style={{ gap: 16 }}>
+    <View style={{ gap: 14 }}>
+      {back ? (
+        <TouchableOpacity onPress={back.onPress} accessibilityRole="link" style={[styles.row, { gap: 4, alignSelf: 'flex-start', minHeight: 32 }]}>
+          <Ionicons name="chevron-back" size={16} color={colors.brand} />
+          <Text style={{ color: colors.brand, fontSize: 14, fontWeight: '600' }}>{back.label || 'Tilbake'}</Text>
+        </TouchableOpacity>
+      ) : null}
       <View style={[styles.pageHead, { flexDirection: wide ? 'row' : 'column' }]}>
         <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
-          {crumb.length ? (
-            <Text style={[styles.crumb, { color: colors.brand }]} numberOfLines={1}>
-              {['ISO / K-HMS', ...crumb].join('  ›  ').toUpperCase()}
-            </Text>
-          ) : null}
-          <Text style={[styles.title, { color: colors.ink, fontSize: wide ? 26 : 22 }]} accessibilityRole="header">{title}</Text>
-          {intro ? <Text style={{ color: colors.muted, fontSize: 14, lineHeight: 20 }}>{intro}</Text> : null}
+          <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">{title}</Text>
+          {intro ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{intro}</Text> : null}
         </View>
         {actions ? <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>{actions}</View> : null}
       </View>
@@ -81,7 +86,7 @@ export function Btn({ label, icon, onPress, kind = 'ghost', disabled, small, bus
   const colors = useColors();
   const primary = kind === 'primary';
   const danger = kind === 'danger';
-  const bg = primary ? colors.brand : (danger ? `${colors.danger}14` : 'transparent');
+  const bg = primary ? colors.brand : (danger ? `${colors.danger}14` : colors.bg);
   const fg = primary ? '#fff' : (danger ? colors.danger : colors.ink);
   return (
     <TouchableOpacity
@@ -166,7 +171,7 @@ export function TextIn({ value, onChangeText, multiline, placeholder, keyboardTy
       accessibilityLabel={accessibilityLabel || placeholder}
       style={[
         styles.input,
-        { color: colors.ink, borderColor: colors.line, backgroundColor: editable ? colors.card : colors.sunken },
+        { color: colors.ink, borderColor: colors.line, backgroundColor: editable ? colors.bg : colors.sunken },
         multiline && { minHeight: rows * 22, textAlignVertical: 'top' },
       ]}
     />
@@ -191,10 +196,10 @@ export function Choice({ options, value, onChange, multi = false, small }) {
             }}
             accessibilityRole={multi ? 'checkbox' : 'radio'}
             accessibilityState={{ checked: on }}
-            style={[styles.chip, small && { paddingVertical: 5, paddingHorizontal: 9 }, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+            style={[styles.chip, small && { paddingVertical: 5, paddingHorizontal: 9, minHeight: 30 }, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? `${colors.brand}18` : colors.bg }]}
           >
             {on ? <Ionicons name="checkmark" size={13} color={colors.brand} /> : null}
-            <Text style={{ color: colors.ink, fontSize: small ? 12 : 13 }}>{o.label}</Text>
+            <Text style={{ color: on ? colors.brand : colors.ink, fontSize: small ? 12 : 13, fontWeight: on ? '600' : '400' }}>{o.label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -323,10 +328,10 @@ export const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   pageHead: { gap: 12, alignItems: 'flex-start' },
   crumb: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6 },
-  title: { fontWeight: '700', letterSpacing: -0.3 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '700' },
-  btn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, minHeight: 44, alignSelf: 'flex-start' },
+  title: { fontSize: 20, fontWeight: '600', letterSpacing: -0.3 },
+  card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 10, ...(Platform.OS === 'web' ? { boxShadow: '0 8px 22px rgba(15, 23, 42, 0.05)' } : {}) },
+  cardTitle: { fontSize: 17, fontWeight: '600', letterSpacing: -0.2 },
+  btn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, minHeight: 40, alignSelf: 'flex-start' },
   btnSmall: { paddingHorizontal: 10, paddingVertical: 6, minHeight: 32, borderRadius: 10 },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3, borderWidth: 1, alignSelf: 'flex-start' },
   banner: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', borderWidth: 1, borderRadius: 12, padding: 12 },

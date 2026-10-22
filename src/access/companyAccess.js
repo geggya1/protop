@@ -124,12 +124,7 @@ export const ACCESS_GROUPS = [
     id: 'quality',
     label: 'Kvalitet og styringssystem',
     resources: [
-      { id: 'iso', label: 'ISO / K-HMS', hint: 'Lese: se prosesser og dokumenter, melde avvik. Begrenset redigering: behandle saker og registre. Admin: godkjenne, publisere og lukke.' },
-      {
-        id: 'isoRestricted',
-        label: 'ISO — skjermede HMS-saker',
-        hint: 'Personskader og andre saker med person-/helseopplysninger. Gis bare ved konkret behov. Den som meldte eller er tildelt saken, ser den alltid.',
-      },
+      { id: 'iso', label: 'ISO' },
     ],
   },
   {
@@ -484,11 +479,9 @@ const STANDARD = {
     ...economySurface('write'),
     viewAs: 'write',
   }),
-  // Skjermede HMS-saker gis ikke automatisk, heller ikke til administrator (behovsprøvd tilgang).
-  administrator: fill({
-    ...Object.fromEntries(RESOURCE_IDS.map((id) => [id, 'write'])),
-    isoRestricted: 'none',
-  }),
+  administrator: fill(
+    Object.fromEntries(RESOURCE_IDS.map((id) => [id, 'write'])),
+  ),
 };
 
 export function foldAccess(value) {
@@ -1062,7 +1055,6 @@ export function companyTabAllowed(tab, subView, grants) {
       || seeResource(grants, 'absencePlanned')
       || adminResource(grants, 'absenceSettings');
   }
-  if (tab === 'iso' && subView === 'innstillinger') return adminResource(grants, 'iso');
   if (tab === 'okonomi') {
     if (subView === 'innstillinger') return adminResource(grants, 'economySettings');
     if (subView === 'kjorebok') return seeResource(grants, 'mileage');
@@ -1151,7 +1143,6 @@ function navItemAllowed(id, grants) {
       || seeResource(grants, 'economyProjectExpenses')
       || adminResource(grants, 'economySettings');
   }
-  if (id === 'iso-innstillinger') return adminResource(grants, 'iso');
   if (id === 'selskapsinnstillinger') {
     return seeResource(grants, 'companyProfile') || seeResource(grants, 'accessControl');
   }

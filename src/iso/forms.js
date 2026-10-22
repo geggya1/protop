@@ -1,280 +1,56 @@
 /**
- * Skjemabygger og registreringer (M05 / fil 04).
- * Et styrt skjema er en versjonert definisjon. En innsendt registrering er et eget
- * objekt som bevarer skjemaversjon og felt. Innsendt = låst; retting krever ny hendelse.
- * Regler er deklarative (show/require når felt = verdi). Ingen eval av kode.
+ * Skjema i ISO / K-HMS — bygger på ProTops eksisterende Skjemabygger.
+ *
+ * Skjemaene lages og redigeres i Skjemabygger (anbud-state `formTemplates`). ISO lager
+ * ingen egen skjemabygger. ISO legger på et styringslag:
+ *   - «Styrt skjema»: godkjent øyeblikksbilde (versjon) av et Skjemabygger-skjema
+ *   - endring i Skjemabygger etter godkjenning vises som «endret – må godkjennes»
+ *   - registreringer lagres låst med skjemaversjon og sjekksum (ISO-bevis)
+ * Mange SF-maler håndteres av egne ISO-registre (avvik, risiko, miljø …) og blir derfor
+ * ikke installert som skjema – de peker til registeret i stedet (ingen dobbel registrering).
  */
 import {
   auditEvent, bump, checksum, fail, isoDate, newId, nowIso, pushHistory, text,
 } from './core.js';
 
-export const FIELD_TYPES = [
-  { id: 'short_text', label: 'Kort tekst', group: 'Tekst' },
-  { id: 'long_text', label: 'Lang tekst', group: 'Tekst' },
-  { id: 'integer', label: 'Heltall', group: 'Tall' },
-  { id: 'decimal', label: 'Desimaltall', group: 'Tall' },
-  { id: 'percentage', label: 'Prosent', group: 'Tall' },
-  { id: 'date', label: 'Dato', group: 'Tid' },
-  { id: 'time', label: 'Klokkeslett', group: 'Tid' },
-  { id: 'single_select', label: 'Enkeltvalg', group: 'Valg' },
-  { id: 'multi_select', label: 'Flervalg', group: 'Valg' },
-  { id: 'checkbox', label: 'Avkrysning', group: 'Valg' },
-  { id: 'yes_no_na', label: 'Ja / Nei / Ikke aktuelt', group: 'Valg' },
-  { id: 'rating', label: 'Vurdering 1–5', group: 'Valg' },
-  { id: 'user_ref', label: 'Person', group: 'Oppslag' },
-  { id: 'project_ref', label: 'Prosjekt', group: 'Oppslag' },
-  { id: 'customer_ref', label: 'Kunde', group: 'Oppslag' },
-  { id: 'requirement_ref', label: 'Krav', group: 'Oppslag' },
-  { id: 'location', label: 'Sted', group: 'Oppslag' },
-  { id: 'file', label: 'Vedlegg (lenke)', group: 'Filer' },
-  { id: 'likelihood', label: 'Sannsynlighet 1–5', group: 'Risiko' },
-  { id: 'consequence', label: 'Konsekvens 1–5', group: 'Risiko' },
-  { id: 'table_repeatable', label: 'Tabell (rader)', group: 'Struktur' },
-  { id: 'signature_ack', label: 'Bekreftelse', group: 'Kontroll' },
-  { id: 'calculated', label: 'Beregnet (sum/produkt)', group: 'Kontroll' },
-  { id: 'heading', label: 'Overskrift', group: 'Struktur' },
-  { id: 'help_text', label: 'Hjelpetekst', group: 'Struktur' },
-];
-
-const INPUT_TYPES = new Set(FIELD_TYPES.map((f) => f.id).filter((id) => !['heading', 'help_text', 'calculated'].includes(id)));
-
-export function fieldTypeLabel(id) {
-  return FIELD_TYPES.find((f) => f.id === id)?.label || id;
-}
-
-export function makeField(type, patch = {}) {
-  const key = text(patch.key, 60) || `felt_${Math.random().toString(36).slice(2, 7)}`;
-  return {
-    id: patch.id || newId('fld'),
-    key,
-    type: FIELD_TYPES.some((f) => f.id === type) ? type : 'short_text',
-    label: text(patch.label, 200) || fieldTypeLabel(type),
-    help: text(patch.help, 500),
-    required: !!patch.required,
-    options: (patch.options || []).map((o) => text(o, 120)).filter(Boolean),
-    columns: (patch.columns || []).map((o) => text(o, 80)).filter(Boolean),
-    showIf: patch.showIf?.field ? { field: text(patch.showIf.field, 60), equals: patch.showIf.equals } : null,
-    requireIf: patch.requireIf?.field ? { field: text(patch.requireIf.field, 60), equals: patch.requireIf.equals } : null,
-    min: patch.min ?? null,
-    max: patch.max ?? null,
-    unit: text(patch.unit, 20),
-    sensitive: !!patch.sensitive,
-    calc: patch.calc?.op ? { op: patch.calc.op === 'product' ? 'product' : 'sum', fields: (patch.calc.fields || []).map((f) => text(f, 60)) } : null,
-  };
-}
-
-function matches(answers, rule) {
-  if (!rule?.field) return true;
-  const value = answers?.[rule.field];
-  if (Array.isArray(value)) return value.includes(rule.equals);
-  return String(value ?? '') === String(rule.equals ?? '');
-}
-
-export function fieldVisible(field, answers) {
-  return !field.showIf || matches(answers, field.showIf);
-}
-
-export function fieldRequired(field, answers) {
-  if (!fieldVisible(field, answers)) return false;
-  return !!field.required || (field.requireIf ? matches(answers, field.requireIf) : false);
-}
-
-export function calculatedValue(field, answers) {
-  if (!field.calc) return null;
-  const nums = field.calc.fields.map((k) => Number(answers?.[k])).filter((n) => Number.isFinite(n));
-  if (!nums.length) return null;
-  return field.calc.op === 'product' ? nums.reduce((a, b) => a * b, 1) : nums.reduce((a, b) => a + b, 0);
-}
-
-function empty(value) {
-  if (value == null) return true;
-  if (Array.isArray(value)) return value.length === 0;
-  if (typeof value === 'boolean') return value === false;
-  return String(value).trim() === '';
-}
-
-/** Validering ved innsending. Returnerer { ok, errors: {key: melding} }. */
-export function validateAnswers(definition, answers) {
-  const errors = {};
-  for (const field of definition?.fields || []) {
-    if (!INPUT_TYPES.has(field.type)) continue;
-    const value = answers?.[field.key];
-    if (!fieldVisible(field, answers)) continue;
-    if (fieldRequired(field, answers) && empty(value)) {
-      errors[field.key] = field.type === 'signature_ack' ? 'Må bekreftes.' : 'Må fylles ut.';
-      continue;
-    }
-    if (empty(value)) continue;
-    if (['integer', 'decimal', 'percentage', 'likelihood', 'consequence', 'rating'].includes(field.type)) {
-      const n = Number(String(value).replace(',', '.'));
-      if (!Number.isFinite(n)) { errors[field.key] = 'Må være et tall.'; continue; }
-      if (field.type === 'integer' && !Number.isInteger(n)) errors[field.key] = 'Må være et heltall.';
-      const min = field.min ?? (['likelihood', 'consequence', 'rating'].includes(field.type) ? 1 : null);
-      const max = field.max ?? (['likelihood', 'consequence', 'rating'].includes(field.type) ? 5 : (field.type === 'percentage' ? 100 : null));
-      if (min != null && n < min) errors[field.key] = `Minst ${min}.`;
-      if (max != null && n > max) errors[field.key] = `Høyst ${max}.`;
-    }
-    if (field.type === 'date' && !isoDate(value)) errors[field.key] = 'Bruk dato (ÅÅÅÅ-MM-DD).';
-    if (field.type === 'single_select' && field.options.length && !field.options.includes(value)) errors[field.key] = 'Ugyldig valg.';
-    if (field.type === 'yes_no_na' && value === 'Ikke aktuelt' && empty(answers?.[`${field.key}__begrunnelse`])) {
-      errors[field.key] = 'Begrunn «Ikke aktuelt».';
-    }
-  }
-  return { ok: Object.keys(errors).length === 0, errors };
-}
-
-/** Kontroll av definisjonen før publisering. */
-export function validateDefinition(definition) {
-  const errors = [];
-  const keys = new Set();
-  for (const f of definition?.fields || []) {
-    if (!f.key || !/^[a-zA-Z0-9_æøåÆØÅ]+$/.test(f.key)) errors.push(`Feltet «${f.label}» har ugyldig nøkkel.`);
-    if (keys.has(f.key)) errors.push(`Nøkkelen «${f.key}» er brukt to ganger.`);
-    keys.add(f.key);
-    if (['single_select', 'multi_select'].includes(f.type) && f.options.length < 2) errors.push(`«${f.label}» trenger minst to valg.`);
-    for (const rule of [f.showIf, f.requireIf]) {
-      if (rule?.field && !definition.fields.some((x) => x.key === rule.field)) errors.push(`«${f.label}» viser til ukjent felt «${rule.field}».`);
-    }
-    if (f.calc) {
-      for (const k of f.calc.fields) if (!definition.fields.some((x) => x.key === k)) errors.push(`Beregning i «${f.label}» viser til ukjent felt «${k}».`);
-    }
-  }
-  if (!(definition?.fields || []).some((f) => INPUT_TYPES.has(f.type))) errors.push('Skjemaet har ingen felt å fylle ut.');
-  return { ok: errors.length === 0, errors };
-}
-
-/* ───────── Definisjoner (versjonert) ───────── */
-
-export function createFormDefinition(input, { actor, now = new Date() } = {}) {
-  if (!text(input?.title)) return fail('Gi skjemaet et navn.');
-  const key = text(input.key, 60) || `SF_${Date.now().toString(36).toUpperCase()}`;
-  const def = bump({
-    id: newId('frm'),
-    key,
-    title: text(input.title, 200),
-    description: text(input.description, 2000),
-    category: text(input.category, 60),
-    versions: [{ version: 1, state: 'utkast', fields: (input.fields || []).map((f) => makeField(f.type, f)), createdAt: nowIso(now), createdBy: text(actor?.name, 160) }],
-    publishedVersion: 0,
-    state: 'utkast',
-    templateKey: text(input.templateKey, 60),
-    createsFinding: !!input.createsFinding,
-    history: pushHistory({}, 'Opprettet', actor, '', now),
-    rev: 0,
-  }, actor, now);
-  return { ok: true, form: def, events: [auditEvent({ entityType: 'form', entityId: def.id, action: 'iso.form.created', actor, after: def, now })] };
-}
-
-export function formDraft(def) {
-  return (def?.versions || []).find((v) => v.state === 'utkast') || null;
-}
-
-export function formPublished(def) {
-  return (def?.versions || []).find((v) => v.version === def?.publishedVersion) || null;
-}
-
-export function formVersion(def, version) {
-  return (def?.versions || []).find((v) => v.version === Number(version)) || null;
-}
-
-export function saveFormDraft(def, fields, { actor, now = new Date(), meta = null } = {}) {
-  const draft = formDraft(def);
-  if (!draft) return fail('Publisert versjon er låst. Lag ny versjon.');
-  const next = bump({
-    ...def,
-    title: meta?.title ? text(meta.title, 200) : def.title,
-    description: meta?.description != null ? text(meta.description, 2000) : def.description,
-    versions: def.versions.map((v) => (v.version === draft.version ? { ...v, fields: fields.map((f) => makeField(f.type, f)), savedAt: nowIso(now) } : v)),
-  }, actor, now);
-  return { ok: true, form: next, events: [] };
-}
-
-export function publishForm(def, { actor, caps, now = new Date() } = {}) {
-  if (caps && !caps.admin) return fail('Du har ikke fullmakt til å publisere skjema.');
-  const draft = formDraft(def);
-  if (!draft) return fail('Ingen utkast å publisere.');
-  const check = validateDefinition({ fields: draft.fields });
-  if (!check.ok) return fail(check.errors[0], { errors: check.errors });
-  const stamp = nowIso(now);
-  const next = bump({
-    ...def,
-    versions: def.versions.map((v) => {
-      if (v.version === draft.version) return { ...v, state: 'publisert', publishedAt: stamp, publishedBy: text(actor?.name, 160), hash: checksum(v.fields) };
-      if (v.state === 'publisert') return { ...v, state: 'erstattet', supersededAt: stamp };
-      return v;
-    }),
-    publishedVersion: draft.version,
-    state: 'publisert',
-    history: pushHistory(def, `v${draft.version} publisert`, actor, '', now),
-  }, actor, now);
-  return { ok: true, form: next, events: [auditEvent({ entityType: 'form', entityId: def.id, action: 'iso.form.published', actor, before: def, after: next, now })] };
-}
-
-export function newFormVersion(def, { actor, now = new Date() } = {}) {
-  if (formDraft(def)) return fail('Det finnes allerede et utkast.');
-  const base = formPublished(def) || def.versions.at(-1);
-  const version = Math.max(...def.versions.map((v) => v.version)) + 1;
-  const next = bump({
-    ...def,
-    versions: [...def.versions, { version, state: 'utkast', fields: (base?.fields || []).map((f) => ({ ...f })), createdAt: nowIso(now), createdBy: text(actor?.name, 160) }],
-    history: pushHistory(def, `Utkast v${version}`, actor, '', now),
-  }, actor, now);
-  return { ok: true, form: next, events: [] };
-}
-
-/* ───────── Registreringer ───────── */
-
-export function submitForm(def, answers, { actor, now = new Date(), subjectRef = null, idempotencyKey = '', existing = [] } = {}) {
-  const version = formPublished(def);
-  if (!version) return fail('Skjemaet er ikke publisert.');
-  const key = text(idempotencyKey, 160);
-  if (key) {
-    const dup = (existing || []).find((s) => s.idempotencyKey === key);
-    if (dup) return { ok: true, submission: dup, events: [], duplicate: true };
-  }
-  const check = validateAnswers({ fields: version.fields }, answers);
-  if (!check.ok) return fail('Noen felt mangler eller er ugyldige.', { errors: check.errors });
-  const clean = {};
-  for (const f of version.fields) {
-    if (!fieldVisible(f, answers)) continue;
-    if (f.type === 'calculated') { clean[f.key] = calculatedValue(f, answers); continue; }
-    if (answers?.[f.key] !== undefined) clean[f.key] = answers[f.key];
-    if (answers?.[`${f.key}__begrunnelse`]) clean[`${f.key}__begrunnelse`] = text(answers[`${f.key}__begrunnelse`], 2000);
-  }
-  const submission = {
-    id: newId('reg'),
-    formId: def.id,
-    formKey: def.key,
-    formTitle: def.title,
-    formVersion: version.version,
-    answers: clean,
-    subjectRef: subjectRef || null,
-    submittedAt: nowIso(now),
-    submittedBy: text(actor?.name, 160),
-    submittedByUid: text(actor?.uid, 128),
-    state: 'innsendt',
-    locked: true,
-    hash: checksum(clean),
-    idempotencyKey: key,
-    sensitive: version.fields.some((f) => f.sensitive && !empty(clean[f.key])),
-  };
-  return { ok: true, submission, events: [auditEvent({ entityType: 'formSubmission', entityId: submission.id, action: 'iso.form.submitted', actor, after: submission, now })] };
-}
-
-/** Retting av låst registrering: ny hendelse, originalen bevares. */
-export function correctSubmission(submission, patch, reason, { actor, now = new Date() } = {}) {
-  if (text(reason).length < 5) return fail('Begrunn rettingen.');
-  const corrections = [...(submission.corrections || []), { at: nowIso(now), by: text(actor?.name, 160), reason: text(reason, 1000), patch, beforeHash: submission.hash }];
-  const answers = { ...submission.answers, ...patch };
-  const next = { ...submission, answers, corrections, hash: checksum(answers) };
-  return { ok: true, submission: next, events: [auditEvent({ entityType: 'formSubmission', entityId: submission.id, action: 'iso.form.corrected', actor, before: submission, after: next, reason, now })] };
-}
-
-/* ───────── Malbibliotek SF01–SF30 ───────── */
-
 const F = (key, type, label, extra = {}) => ({ key, type, label, ...extra });
 const YN = ['Ja', 'Nei'];
 const STATUS = ['Utkast', 'Godkjent', 'Avvist'];
+
+/** Malene som håndteres i et ISO-register (ikke som skjema). */
+export const NATIVE_FORMS = {
+  SF01_OMFANG: { page: 'innstillinger', label: 'Innstillinger' },
+  SF02_KONTEKST: { page: 'kontekst', label: 'Kontekst' },
+  SF03_INTERESSENT: { page: 'kontekst', label: 'Interessenter' },
+  SF04_POLICY: { page: 'dokumenter', label: 'Dokumenter (policy)' },
+  SF06_MAL: { page: 'mal', label: 'Mål og KPI' },
+  SF07_RISIKO: { page: 'risiko', label: 'Risiko' },
+  SF08_MULIGHET: { page: 'risiko', label: 'Risiko og muligheter' },
+  SF10_MILJOASPEKT: { page: 'miljo', label: 'Miljø' },
+  SF11_MILJOMALING: { page: 'miljo', label: 'Miljødata' },
+  SF16_AVVIK: { page: 'avvik', label: 'Avvik' },
+  SF17_ARSAK: { page: 'avvik', label: 'Avvik (årsak)' },
+  SF18_TILTAK: { page: 'avvik', label: 'Avvik (tiltak)' },
+  SF23_KOMPETANSE: { page: 'kompetanse', label: 'Kompetanse' },
+  SF24_REVPROGRAM: { page: 'revisjon', label: 'Internrevisjon' },
+  SF26_SAMSVAR: { page: 'lovkrav', label: 'Lovkrav og samsvar' },
+  SF27_LEDELSE: { page: 'ledelse', label: 'Ledelsens gjennomgang' },
+  SF30_BEVISPAKKE: { page: 'sertifisering', label: 'Sertifisering' },
+};
+
+/** Id for en ISO-mal installert i Skjemabygger. Fast id gjør installasjon idempotent. */
+export function templateIdFor(key) {
+  return `iso_${String(key || '').toLowerCase()}`;
+}
+
+/** Hvilke skjema som foreslås installert ut fra aktive standarder. */
+export function recommendedFormKeys(standards = []) {
+  const s = new Set(standards);
+  const keys = ['SF19_KONTRAKT', 'SF20_KVALITETSPLAN', 'SF21_FAGKONTROLL', 'SF22_LEVERANDOR', 'SF25_REVISJON', 'SF28_TILFREDSHET', 'SF29_DOKENDRING', 'SF09_ENDRING'];
+  if (s.has('ISO45001')) keys.push('SF12_SJA', 'SF13_VERNERUNDE', 'SF14_MEDVIRKNING');
+  if (s.has('ISO45001') || s.has('ISO14001')) keys.push('SF15_BEREDSKAP');
+  return keys;
+}
 
 export const FORM_TEMPLATES = [
   { key: 'SF01_OMFANG', title: 'Etabler ledelsessystem / sertifiseringsomfang', category: 'Styring', fields: [F('virksomhet', 'short_text', 'Virksomhet', { required: true }), F('org_enhet', 'short_text', 'Organisasjonsenhet'), F('standarder', 'multi_select', 'Standarder', { options: ['ISO 9001:2026', 'ISO 14001:2026', 'ISO 45001:2018+A1:2024'], required: true }), F('lokasjoner', 'long_text', 'Lokasjoner'), F('tjenester', 'long_text', 'Tjenester og aktiviteter', { required: true }), F('omfangstekst', 'long_text', 'Omfangserklæring', { required: true }), F('avgrensning', 'long_text', 'Avgrensning og begrunnelse'), F('prosessansvarlig', 'user_ref', 'Systemansvarlig'), F('godkjenningsdato', 'date', 'Godkjent dato')] },
@@ -309,6 +85,208 @@ export const FORM_TEMPLATES = [
   { key: 'SF30_BEVISPAKKE', title: 'Sertifiserings-/revisjonsbevispakke', category: 'Sertifisering', fields: [F('omfang', 'long_text', 'Sertifiseringsomfang', { required: true }), F('revisjon', 'short_text', 'Revisjon / sertifiseringsorgan', { required: true }), F('utvalg', 'long_text', 'Utvalg av krav og bevis', { required: true }), F('anonymisering', 'signature_ack', 'Persondata er sladdet der det ikke trengs', { required: true }), F('tilgang', 'date', 'Tilgang til og med', { required: true })] },
 ];
 
+
+
 export function formTemplateByKey(key) {
   return FORM_TEMPLATES.find((t) => t.key === key) || null;
+}
+
+/* ───────── Konvertering til Skjemabygger-format ───────── */
+
+const KIND = {
+  short_text: 'text', long_text: 'long', integer: 'number', decimal: 'number', percentage: 'number',
+  date: 'date', time: 'time', multi_select: 'checks', checkbox: 'check', signature_ack: 'check',
+  rating: 'scale', likelihood: 'scale', consequence: 'scale', file: 'file', heading: 'title', help_text: 'note',
+  user_ref: 'text', project_ref: 'text', customer_ref: 'text', requirement_ref: 'text', location: 'text', table_repeatable: 'long',
+};
+
+const REF_HELP = {
+  user_ref: 'Navn på person',
+  project_ref: 'Prosjektnummer og navn',
+  customer_ref: 'Kunde',
+  requirement_ref: 'Krav (lov, kontrakt eller ISO-klausul)',
+  location: 'Sted eller adresse',
+};
+
+/** ISO-mal → felt i Skjemabygger-format (samme struktur som src/anbud/formBuilder.js). */
+export function builderFieldsFromTemplate(template) {
+  const out = [];
+  for (const f of template?.fields || []) {
+    if (f.type === 'calculated') continue;
+    let kind = KIND[f.type] || 'text';
+    let options = [];
+    if (f.type === 'single_select') kind = (f.options || []).length > 4 ? 'dropdown' : 'choice';
+    if (f.type === 'yes_no_na') { kind = 'choice'; options = ['Ja', 'Nei', 'Ikke aktuelt']; }
+    if (['single_select', 'multi_select'].includes(f.type)) options = f.options || [];
+    const id = String(f.key).slice(0, 40);
+    let help = f.help || REF_HELP[f.type] || '';
+    if (f.type === 'table_repeatable' && f.columns?.length) help = `Én linje per rad: ${f.columns.join(' | ')}`;
+    if (f.showIf) help = [help, `Fylles ut når «${f.showIf.field}» er «${f.showIf.equals}».`].filter(Boolean).join(' ');
+    out.push({
+      id,
+      label: f.type === 'signature_ack' ? `Jeg bekrefter: ${f.label}` : f.label,
+      kind,
+      required: !!f.required && !f.showIf && !['heading', 'help_text'].includes(f.type),
+      help: help.slice(0, 180),
+      options: options.map((label, i) => ({ id: `${id}_${i}`, label })),
+      scaleMax: kind === 'scale' ? 5 : undefined,
+      lowLabel: kind === 'scale' ? 'Lav' : undefined,
+      highLabel: kind === 'scale' ? 'Høy' : undefined,
+    });
+  }
+  return out;
+}
+
+export function builderTemplateFromIso(template) {
+  return {
+    id: templateIdFor(template.key),
+    title: template.title.slice(0, 80),
+    category: 'skjema',
+    intro: `ISO / K-HMS ${template.key.split('_')[0]} – ${template.category}.`.slice(0, 280),
+    fields: builderFieldsFromTemplate(template),
+  };
+}
+
+const ANSWER_KINDS = new Set(['long', 'text', 'choice', 'checks', 'dropdown', 'scale', 'date', 'time', 'number', 'check', 'image', 'file']);
+
+function fieldShape(fields) {
+  return (fields || []).map((f) => ({
+    id: f.id, label: f.label, kind: f.kind, required: !!f.required, options: (f.options || []).map((o) => o.label),
+  }));
+}
+
+/** Sjekksum av skjemaets innhold. Endring i Skjemabygger gir ny sjekksum. */
+export function templateHash(template) {
+  return checksum(fieldShape(template?.fields));
+}
+
+/* ───────── Styrt skjema (versjoner) ───────── */
+
+export function controlledVersion(control) {
+  return (control?.versions || []).find((v) => v.version === control?.publishedVersion) || null;
+}
+
+/** «ok» | «endret» (Skjemabygger-skjemaet er endret etter godkjenning) | «slettet» */
+export function driftStatus(control, template) {
+  if (!template) return 'slettet';
+  const v = controlledVersion(control);
+  if (!v) return 'endret';
+  return v.hash === templateHash(template) ? 'ok' : 'endret';
+}
+
+/** Godkjenn gjeldende innhold i Skjemabygger som ny styrt versjon. */
+export function approveTemplate(control, template, { actor, caps, now = new Date(), note = '', templateKey = '' } = {}) {
+  if (caps && !caps.admin) return fail('Bare administrator i ISO kan godkjenne styrte skjema.');
+  if (!template?.id) return fail('Fant ikke skjemaet i Skjemabygger.');
+  const answerFields = (template.fields || []).filter((f) => ANSWER_KINDS.has(f.kind));
+  if (!answerFields.length) return fail('Skjemaet har ingen felt å fylle ut.');
+  const hash = templateHash(template);
+  const current = controlledVersion(control);
+  if (current && current.hash === hash) return fail('Denne versjonen er allerede godkjent.');
+  const version = Math.max(0, ...((control?.versions || []).map((v) => v.version))) + 1;
+  const base = control || {
+    id: newId('frm'),
+    templateId: template.id,
+    templateKey: text(templateKey, 60),
+    versions: [],
+    publishedVersion: 0,
+    rev: 0,
+    createdAt: nowIso(now),
+  };
+  const next = bump({
+    ...base,
+    title: text(template.title, 200),
+    versions: [...(base.versions || []), {
+      version,
+      hash,
+      title: text(template.title, 200),
+      fields: (template.fields || []).map((f) => ({ ...f, value: undefined })),
+      approvedAt: nowIso(now),
+      approvedBy: text(actor?.name, 160),
+      note: text(note, 500),
+    }],
+    publishedVersion: version,
+    history: pushHistory(base, `v${version} godkjent`, actor, note, now),
+  }, actor, now);
+  return { ok: true, form: next, events: [auditEvent({ entityType: 'form', entityId: next.id, action: 'iso.form.approved', actor, before: control, after: next, now })] };
+}
+
+export function releaseControl(control, reason, { actor, caps, now = new Date() } = {}) {
+  if (caps && !caps.admin) return fail('Bare administrator kan fjerne styring.');
+  if (text(reason).length < 5) return fail('Begrunn hvorfor skjemaet ikke lenger er styrt.');
+  const next = bump({ ...control, archived: true, history: pushHistory(control, 'Ikke lenger styrt', actor, reason, now) }, actor, now);
+  return { ok: true, form: next, events: [auditEvent({ entityType: 'form', entityId: control.id, action: 'iso.form.released', actor, before: control, after: next, reason, now })] };
+}
+
+function empty(value) {
+  if (value == null) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'boolean') return value === false;
+  return String(value).trim() === '';
+}
+
+/** Validering av svar mot Skjemabygger-felt. */
+export function validateAnswers(fields, answers) {
+  const errors = {};
+  for (const f of fields || []) {
+    if (!ANSWER_KINDS.has(f.kind)) continue;
+    const v = answers?.[f.id];
+    if (f.required && empty(v)) { errors[f.id] = f.kind === 'check' ? 'Må bekreftes.' : 'Må fylles ut.'; continue; }
+    if (empty(v)) continue;
+    if (f.kind === 'number' && !Number.isFinite(Number(String(v).replace(/\s/g, '').replace(',', '.')))) errors[f.id] = 'Må være et tall.';
+    if (f.kind === 'date' && !isoDate(v)) errors[f.id] = 'Bruk dato.';
+    if (['choice', 'dropdown'].includes(f.kind) && (f.options || []).length && !(f.options || []).some((o) => o.label === v)) errors[f.id] = 'Ugyldig valg.';
+  }
+  return { ok: Object.keys(errors).length === 0, errors };
+}
+
+/** Låst registrering av et styrt skjema. Idempotent med nøkkel (dobbeltklikk/retry). */
+export function submitControlled(control, answers, { actor, now = new Date(), subjectRef = null, idempotencyKey = '', existing = [] } = {}) {
+  const version = controlledVersion(control);
+  if (!version) return fail('Skjemaet er ikke godkjent for bruk i ISO.');
+  const key = text(idempotencyKey, 160);
+  if (key) {
+    const dup = (existing || []).find((s) => s.idempotencyKey === key);
+    if (dup) return { ok: true, submission: dup, events: [], duplicate: true };
+  }
+  const check = validateAnswers(version.fields, answers);
+  if (!check.ok) return fail('Noen felt mangler eller er ugyldige.', { errors: check.errors });
+  const clean = {};
+  for (const f of version.fields) {
+    if (!ANSWER_KINDS.has(f.kind)) continue;
+    if (answers?.[f.id] !== undefined && !empty(answers[f.id])) clean[f.id] = answers[f.id];
+  }
+  const submission = {
+    id: newId('reg'),
+    formId: control.id,
+    templateId: control.templateId,
+    templateKey: control.templateKey || '',
+    formTitle: version.title,
+    formVersion: version.version,
+    formHash: version.hash,
+    answers: clean,
+    subjectRef: subjectRef || null,
+    submittedAt: nowIso(now),
+    submittedBy: text(actor?.name, 160),
+    submittedByUid: text(actor?.uid, 128),
+    state: 'innsendt',
+    locked: true,
+    hash: checksum(clean),
+    idempotencyKey: key,
+  };
+  return { ok: true, submission, events: [auditEvent({ entityType: 'formSubmission', entityId: submission.id, action: 'iso.form.submitted', actor, after: submission, now })] };
+}
+
+/** Retting av låst registrering: ny hendelse, originalen bevares. */
+export function correctSubmission(submission, patch, reason, { actor, now = new Date() } = {}) {
+  if (text(reason).length < 5) return fail('Begrunn rettingen.');
+  const corrections = [...(submission.corrections || []), { at: nowIso(now), by: text(actor?.name, 160), reason: text(reason, 1000), patch, beforeHash: submission.hash }];
+  const answers = { ...submission.answers, ...patch };
+  const next = { ...submission, answers, corrections, hash: checksum(answers) };
+  return { ok: true, submission: next, events: [auditEvent({ entityType: 'formSubmission', entityId: submission.id, action: 'iso.form.corrected', actor, before: submission, after: next, reason, now })] };
+}
+
+/** Skjema som kan brukes i prosesstrinn: styrte og godkjente. */
+export function usableForms(controls) {
+  return (controls || []).filter((c) => !c.archived && c.publishedVersion);
 }

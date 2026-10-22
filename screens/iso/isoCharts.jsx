@@ -284,3 +284,49 @@ export function ObjectiveSpark({ record }) {
     </View>
   );
 }
+
+/**
+ * Månedsstolper for data fra andre moduler (kjørebok, fravær). Stablet når `parts` er gitt.
+ * rows: [{ key: 'ÅÅÅÅ-MM', ...verdier }], parts: [{ key, label, color }].
+ */
+export function MonthBars({ rows, parts, unit = '', empty = 'Ingen data.' }) {
+  const colors = useColors();
+  const [table, setTable] = useState(false);
+  const total = (r) => parts.reduce((s, p) => s + (Number(r[p.key]) || 0), 0);
+  const max = Math.max(1, ...rows.map(total));
+  if (!rows.some((r) => total(r) > 0)) return <Text style={{ color: colors.muted, fontSize: 13 }}>{empty}</Text>;
+  const tones = parts.map((p, i) => p.color || (i === 0 ? colors.brand : colors.muted));
+  return (
+    <View style={{ gap: 8 }}>
+      {table ? (
+        <View style={{ gap: 2 }}>
+          {rows.map((r) => (
+            <View key={r.key} style={{ flexDirection: 'row', gap: 8 }}>
+              <Text style={{ color: colors.muted, fontSize: 12, width: 70 }}>{r.key}</Text>
+              {parts.map((p) => <Text key={p.key} style={{ color: colors.ink, fontSize: 12, flex: 1 }}>{p.label}: {r[p.key] || 0}{unit}</Text>)}
+            </View>
+          ))}
+        </View>
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 110, gap: 4 }} accessibilityLabel={`Månedsverdier: ${rows.map((r) => `${r.key} ${total(r)}${unit}`).join(', ')}`}>
+          {rows.map((r) => (
+            <View key={r.key} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+              <View style={{ width: '70%', height: 90, justifyContent: 'flex-end' }}>
+                {parts.slice().reverse().map((p, i) => {
+                  const v = Number(r[p.key]) || 0;
+                  if (!v) return null;
+                  return <View key={p.key} style={{ height: Math.max(2, (v / max) * 90), backgroundColor: tones[parts.length - 1 - i], borderTopLeftRadius: 3, borderTopRightRadius: 3 }} />;
+                })}
+              </View>
+              <Text style={{ color: colors.muted, fontSize: 9 }}>{r.key.slice(5)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        {parts.length > 1 ? parts.map((p, i) => <Legend key={p.key} color={tones[i]} label={p.label} />) : null}
+        <TouchableOpacity onPress={() => setTable(!table)} accessibilityRole="button"><Text style={{ color: colors.brand, fontSize: 12, fontWeight: '600' }}>{table ? 'Vis graf' : 'Vis tabell'}</Text></TouchableOpacity>
+      </View>
+    </View>
+  );
+}

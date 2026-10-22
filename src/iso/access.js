@@ -1,12 +1,13 @@
 /**
  * Tilgang i ISO / K-HMS.
- * Bygger på ProTops tilgangsmatrise (ressurs «iso» og «isoRestricted»), ikke egne brukere.
+ * Bygger på ProTops tilgangsmatrise (ressursen «iso»), ikke egne brukere.
  *
  *   iso: Lese              → se publiserte prosesser/dokumenter, melde avvik, fylle ut skjema
  *   iso: Begrenset redig.  → behandle saker, registre, utkast til prosesser/dokumenter
  *   iso: Admin             → godkjenne/publisere, lukke saker, innstillinger
- *   isoRestricted          → lese/behandle skjermede HMS-/personsaker
  *
+ * Skjermede HMS-/personsaker styres i ISO-innstillingene (ikke i den felles tilgangsmatrisen):
+ * personene på listen «Tilgang til skjermede saker», HMS-leder og systemansvarlig.
  * Objektbasert: den som meldte en skjermet sak, og den som er tildelt den, ser saken.
  */
 import { text } from './core.js';
@@ -17,10 +18,22 @@ function rank(grants, resource) {
   return RANK[grants?.[resource]] || 0;
 }
 
-export function isoCapabilities({ grants = null, bypass = false, uid = '' } = {}) {
+/** Hvem har særskilt tilgang til skjermede saker (fra ISO-innstillingene). */
+export function restrictedUids(system) {
+  const out = new Set();
+  for (const p of system?.restrictedAccess || []) if (p?.uid) out.add(String(p.uid));
+  for (const key of ['hse_manager', 'system_owner']) {
+    const uid = system?.roleMap?.[key]?.uid;
+    if (uid) out.add(String(uid));
+  }
+  return out;
+}
+
+export function isoCapabilities({ grants = null, bypass = false, uid = '', system = null } = {}) {
   const full = !!bypass || !grants;
   const iso = full ? 3 : rank(grants, 'iso');
-  const restricted = full ? 3 : rank(grants, 'isoRestricted');
+  const named = !!uid && restrictedUids(system).has(String(uid));
+  const restricted = full ? 3 : (named ? Math.max(2, iso) : 0);
   return {
     uid: text(uid, 128),
     view: iso >= 1,

@@ -195,12 +195,11 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
   return (
     <Page
       wide={wide}
-      crumb={['Prosesser', proc.title]}
+      back={{ label: 'Prosesslandskap', onPress: onBack }}
       title={proc.title}
       intro={proc.purpose}
       actions={(
         <>
-          <Btn icon="arrow-back" label="Tilbake" onPress={onBack} />
           {pub && proc.executable !== false ? <Btn kind="primary" icon="play" label="Bruk prosess" onPress={() => setStartOpen(true)} /> : null}
           {caps.manage ? <Btn icon="create-outline" label={draft ? 'Rediger utkast' : 'Ny versjon'} onPress={async () => {
             if (!draft) {
@@ -324,7 +323,9 @@ function ProcessRun({ ctx, instance, onBack }) {
     setErr('');
     const res = completeStep(instance, proc, nodeId, { ...input, note }, { actor });
     if (!res.ok) { setErr(res.error); return; }
-    const saved = await store.commit('instances', 'instance', res, { previous: instance });
+    // Oppgaven for trinnet krysses av i Oppgaver, så den ikke blir hengende igjen.
+    const visit = (instance.visits || {})[nodeId] || 1;
+    const saved = await store.commit('instances', 'instance', res, { previous: instance, effects: [{ type: 'completeTask', key: `isoproc_${instance.id}_${nodeId}_${visit}` }] });
     if (!saved.ok) setErr(saved.error); else setNote('');
   }
 
@@ -338,7 +339,7 @@ function ProcessRun({ ctx, instance, onBack }) {
       crumb={['Prosesser', proc.title, instance.title]}
       title={instance.title}
       intro={`${proc.title} · låst til v${instance.version} · startet ${prettyDate(instance.startedAt)} av ${instance.startedBy}${instance.context?.projectName ? ` · ${instance.context.projectName}` : ''}`}
-      actions={<Btn icon="arrow-back" label="Tilbake" onPress={onBack} />}
+      back={{ label: 'Prosesser', onPress: onBack }}
     >
       <Row>
         <Pill label={instance.state === 'aktiv' ? 'Pågår' : (instance.state === 'fullfort' ? 'Fullført' : 'Avbrutt')} tone={instance.state === 'aktiv' ? 'info' : (instance.state === 'fullfort' ? 'ok' : 'muted')} />
@@ -408,7 +409,7 @@ function ProcessRun({ ctx, instance, onBack }) {
       ) : null}
       <FormFillSheet
         ctx={ctx}
-        formKey={fill?.formKey}
+        templateId={fill?.formKey}
         visible={!!fill}
         subjectRef={{ type: 'processInstance', id: instance.id, nodeId: fill?.nodeId }}
         idempotencyKey={fill ? `${instance.id}_${fill.nodeId}_${(instance.visits || {})[fill.nodeId] || 1}` : ''}
@@ -553,8 +554,8 @@ function ProcessDesigner({ ctx, proc, onBack }) {
           <Field label="Frist (dager)"><TextIn keyboardType="numeric" value={String(node.dueDays || '')} onChangeText={(x) => patchNode(node.id, { dueDays: Number(x) || 0 })} editable={editable} /></Field>
           {node.type === 'form' ? (
             <Field label="Skjema">
-              <Choice small options={state.forms.map((f) => ({ id: f.key, label: `${f.title}${f.publishedVersion ? '' : ' (utkast)'}` }))} value={node.formKey} onChange={(x) => editable && patchNode(node.id, { formKey: x })} />
-              {!state.forms.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Opprett skjema under Skjemaer først.</Text> : null}
+              <Choice small options={(state.forms || []).filter((f) => !f.archived && f.publishedVersion).map((f) => ({ id: f.templateId, label: f.title }))} value={node.formKey} onChange={(x) => editable && patchNode(node.id, { formKey: x })} />
+              {!(state.forms || []).some((f) => f.publishedVersion) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Godkjenn skjema fra Skjemabygger under ISO → Skjemaer først.</Text> : null}
             </Field>
           ) : null}
           {node.type === 'document' ? (
@@ -622,12 +623,11 @@ function ProcessDesigner({ ctx, proc, onBack }) {
   return (
     <Page
       wide={wide}
-      crumb={['Prosesser', 'Designer']}
+      back={{ label: proc.title, onPress: onBack }}
       title={proc.title}
       intro={`v${draft?.version || proc.publishedVersion} · ${draft ? VERSION_STATES[draft.state] : 'Publisert (låst)'}${dirty ? ' · ulagrede endringer' : ''}`}
       actions={(
         <>
-          <Btn icon="arrow-back" label="Tilbake" onPress={onBack} />
           <Btn icon="arrow-undo-outline" accessibilityLabel="Angre" disabled={!past.length || !editable} onPress={() => { setFuture((f) => [diagram, ...f]); setDiagram(past.at(-1)); setPast(past.slice(0, -1)); setDirty(true); }} />
           <Btn icon="arrow-redo-outline" accessibilityLabel="Gjør om" disabled={!future.length || !editable} onPress={() => { setPast((p) => [...p, diagram]); setDiagram(future[0]); setFuture(future.slice(1)); setDirty(true); }} />
           <Btn icon="shield-checkmark-outline" label="Valider" onPress={() => setCheck(validateDiagram(diagram, context))} />

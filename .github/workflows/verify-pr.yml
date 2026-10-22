@@ -25,6 +25,8 @@ jobs:
       - name: Verify web
         timeout-minutes: 8
         run: npm run verify:web
+      - name: ISO / K-HMS tests
+        run: node --test src/iso/*.test.mjs
       - run: npm run build:web
         env:
           APP_BUILD_ID: ${{ github.sha }}

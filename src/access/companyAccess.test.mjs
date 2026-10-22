@@ -229,11 +229,6 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
 {
   const admin = standardGrants('administrator');
   for (const resource of ACCESS_RESOURCES) {
-    // Skjermede HMS-saker er behovsprøvd og gis ikke automatisk.
-    if (resource.id === 'isoRestricted') {
-      assert.equal(admin[resource.id], 'none');
-      continue;
-    }
     assert.equal(admin[resource.id], 'write', resource.id);
   }
   assert.equal(admin.economy, 'write');

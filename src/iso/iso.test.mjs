@@ -13,8 +13,15 @@ import {
   approveAndPublishDocument, createDocument, newDocumentRevision, publishedRevisionOf, revisionOf, saveDocumentDraft, submitDocument,
 } from './documents.js';
 import {
-  FORM_TEMPLATES, createFormDefinition, publishForm, submitForm, validateAnswers, validateDefinition,
+  FORM_TEMPLATES, NATIVE_FORMS, approveTemplate, builderTemplateFromIso, controlledVersion, correctSubmission, driftStatus,
+  recommendedFormKeys, submitControlled, templateIdFor, validateAnswers,
 } from './forms.js';
+import { normalizeFormTemplates } from '../anbud/bidLibrary.js';
+import {
+  actionsDoneInTasks, aspectSuggestions, autoAssignee, autoTaskEffects, contractReviewStatus, legacyProjectCases, mileageSeries,
+  qualityPlanDraft, readinessChecklist, requirementIdsForFinding, setupDefaultsFromCompany, sickLeaveSeries, stakeholderSuggestions,
+  starterPlan, supplierSuggestions, wasteSummary,
+} from './integrations.js';
 import {
   attachEvidence, effectiveStatus, matrixRows, reviewEvidenceLink, setAssessment, markForReassessment,
 } from './requirements.js';
@@ -128,7 +135,8 @@ test('tilgang: skjermet HMS-sak er usynlig for ansatt uten tilgang, også i KPI 
   assert.equal(kpis(s, staff, { now }).find((k) => k.key === 'openFindings').value, 1);
   const reporter = isoCapabilities({ grants: { iso: 'see' }, uid: BOSS.uid });
   assert.equal(canSeeFinding(reporter, hms), true, 'den som meldte saken ser den');
-  const hse = isoCapabilities({ grants: { iso: 'read', isoRestricted: 'see' }, uid: 'u8' });
+  const hse = isoCapabilities({ grants: { iso: 'read' }, uid: 'u8', system: { restrictedAccess: [{ uid: 'u8', name: 'HMS' }] } });
+  assert.equal(isoCapabilities({ grants: { iso: 'read' }, uid: 'u7', system: { roleMap: { hse_manager: { uid: 'u7' } } } }).restrictedView, true, 'HMS-leder ser skjermede saker');
   assert.equal(canSeeFinding(hse, hms), true);
 });
 
@@ -288,24 +296,130 @@ test('dokument: publisert revisjon låst, ny revisjon bevarer gammel (A06/T03)',
   assert.equal(revisionOf(d, 1).content, 'Rev 1 tekst');
 });
 
-test('skjema: maler er gyldige, betinget krav og idempotent innsending', () => {
-  for (const t of FORM_TEMPLATES) {
-    const check = validateDefinition({ fields: t.fields.map((f) => ({ options: [], ...f })) });
-    assert.equal(check.ok, true, `${t.key}: ${check.errors.join('; ')}`);
+function answerFor(f) {
+  switch (f.kind) {
+    case 'number': return '12';
+    case 'date': return '2026-10-22';
+    case 'time': return '08:00';
+    case 'scale': return 3;
+    case 'check': return true;
+    case 'checks': return [f.options[0]?.label].filter(Boolean);
+    case 'choice': case 'dropdown': return f.options[0]?.label || 'x';
+    case 'image': case 'file': return [{ url: 'https://example.invalid/x.pdf', name: 'x.pdf' }];
+    default: return 'Utfylt';
   }
-  let def = createFormDefinition(FORM_TEMPLATES.find((t) => t.key === 'SF16_AVVIK'), { actor: ANNE, now }).form;
-  def = publishForm(def, { actor: BOSS, caps: ADMIN, now }).form;
-  const base = { kategori: 'KVALITET', tittel: 'x', beskrivelse: 'y', dato: '2026-10-22' };
-  assert.equal(validateAnswers({ fields: def.versions[0].fields }, base).ok, true);
-  const need = validateAnswers({ fields: def.versions[0].fields }, { ...base, varsling: 'Ja' });
-  assert.equal(need.ok, false);
-  assert.ok(need.errors.varsler);
-  const a = submitForm(def, base, { actor: ANNE, now, idempotencyKey: 'k1' });
-  assert.equal(a.ok, true);
-  const b = submitForm(def, base, { actor: ANNE, now, idempotencyKey: 'k1', existing: [a.submission] });
+}
+
+test('skjema: alle 30 maler går fra Skjemabygger til godkjent, innsendt, låst og rapporterbar registrering (C5)', () => {
+  assert.equal(FORM_TEMPLATES.length, 30);
+  const keys = new Set(FORM_TEMPLATES.map((t) => t.key));
+  for (const k of Object.keys(NATIVE_FORMS)) assert.ok(keys.has(k), `native ${k} finnes ikke som mal`);
+  for (const k of recommendedFormKeys(['ISO9001', 'ISO14001', 'ISO45001'])) assert.ok(keys.has(k), k);
+  const builder = normalizeFormTemplates(FORM_TEMPLATES.map(builderTemplateFromIso));
+  assert.equal(builder.length, 30, 'Skjemabygger normaliserer bort maler');
+  const submissions = [];
+  for (const t of FORM_TEMPLATES) {
+    const tpl = builder.find((b) => b.id === templateIdFor(t.key));
+    assert.ok(tpl, t.key);
+    assert.ok(tpl.fields.length, `${t.key} har ingen felt etter normalisering`);
+    const approved = approveTemplate(null, tpl, { actor: BOSS, caps: ADMIN, now, templateKey: t.key });
+    assert.equal(approved.ok, true, `${t.key}: ${approved.error}`);
+    const control = approved.form;
+    assert.equal(driftStatus(control, tpl), 'ok');
+    const v = controlledVersion(control);
+    const missing = submitControlled(control, {}, { actor: ANNE, now, existing: submissions });
+    if (v.fields.some((f) => f.required)) assert.equal(missing.ok, false, `${t.key} godtar tomt skjema`);
+    const answers = Object.fromEntries(v.fields.map((f) => [f.id, answerFor(f)]));
+    const sub = submitControlled(control, answers, { actor: ANNE, now, idempotencyKey: `k_${t.key}`, existing: submissions, subjectRef: { projectId: 'p1' } });
+    assert.equal(sub.ok, true, `${t.key}: ${sub.error} ${JSON.stringify(sub.errors)}`);
+    assert.equal(sub.submission.locked, true);
+    assert.equal(sub.submission.templateKey, t.key);
+    assert.equal(sub.events.length, 1);
+    submissions.push(sub.submission);
+  }
+  assert.equal(new Set(submissions.map((x) => x.id)).size, 30);
+  // Rapportering: kontraktsgjennomgang telles per kontrakt.
+  const c = contractReviewStatus([{ id: 'k1', title: 'Rammeavtale' }, { id: 'k2', title: 'Oppdrag' }], [{ ...submissions.find((x) => x.templateKey === 'SF19_KONTRAKT'), subjectRef: { contractId: 'k1' } }]);
+  assert.deepEqual(c.missing.map((r) => r.id), ['k2']);
+});
+
+test('skjema: idempotent innsending, drift ved endring i Skjemabygger, retting bevarer original', () => {
+  const tpl = normalizeFormTemplates([builderTemplateFromIso(FORM_TEMPLATES.find((t) => t.key === 'SF16_AVVIK'))])[0];
+  const control = approveTemplate(null, tpl, { actor: BOSS, caps: ADMIN, now, templateKey: 'SF16_AVVIK' }).form;
+  assert.equal(approveTemplate(control, tpl, { actor: BOSS, caps: ADMIN, now }).ok, false, 'samme versjon godkjennes ikke to ganger');
+  assert.equal(approveTemplate(null, tpl, { actor: ANNE, caps: isoCapabilities({ grants: { iso: 'edit' }, uid: 'u1' }), now }).ok, false, 'bare admin godkjenner');
+  const v = controlledVersion(control);
+  const answers = Object.fromEntries(v.fields.map((f) => [f.id, answerFor(f)]));
+  const a = submitControlled(control, answers, { actor: ANNE, now, idempotencyKey: 'k1' });
+  const b = submitControlled(control, answers, { actor: ANNE, now, idempotencyKey: 'k1', existing: [a.submission] });
   assert.equal(b.duplicate, true);
   assert.equal(b.submission.id, a.submission.id);
-  assert.equal(a.submission.formVersion, 1);
+  const changed = { ...tpl, fields: [...tpl.fields, { id: 'ny', label: 'Nytt felt', kind: 'text', required: false, options: [] }] };
+  assert.equal(driftStatus(control, changed), 'endret');
+  assert.equal(driftStatus(control, null), 'slettet');
+  const v2 = approveTemplate(control, changed, { actor: BOSS, caps: ADMIN, now });
+  assert.equal(v2.form.publishedVersion, 2);
+  assert.equal(v2.form.versions.length, 2, 'v1 bevares');
+  const fixed = correctSubmission(a.submission, { [v.fields[0].id]: 'Rettet' }, 'Skrivefeil', { actor: BOSS, now });
+  assert.equal(fixed.ok, true);
+  assert.equal(fixed.submission.corrections.length, 1);
+  assert.notEqual(fixed.submission.hash, a.submission.hash);
+  assert.equal(validateAnswers(v.fields, { ...answers, [v.fields.find((f) => f.kind === 'date')?.id || 'x']: 'ikke dato' }).ok, !v.fields.some((f) => f.kind === 'date'));
+});
+
+test('integrasjoner: data fra andre moduler blir ISO-kunnskap uten kopiering', () => {
+  const d = setupDefaultsFromCompany({ navn: 'Rådgiver AS', organisasjonsnummer: '999888777', naeringsbeskrivelse: 'Rådgivende ingeniør', naeringskode: '71.129', addressLabel: 'Storgata 1, Oslo' }, { employees: [{}, {}] });
+  assert.match(d.scopeText, /999888777/);
+  assert.match(d.scopeText, /71\.129/);
+  assert.equal(d.staffCount, 2);
+  const km = mileageSeries([{ date: '2026-10-02', km: 100, electric: true }, { date: '2026-09-02', km: 50 }, { date: '2020-01-01', km: 999 }], { now });
+  assert.equal(km.totalKm, 150);
+  assert.equal(km.electricShare, 67);
+  const w = wasteSummary([{ id: 'w1', fraction: 'Treverk', kg: 30 }, { id: 'w2', fraction: 'Restavfall', kg: 10, sorted: false }]);
+  assert.equal(w.totalKg, 40);
+  assert.equal(w.sortingRate, 75);
+  const sick = sickLeaveSeries([{ type: 'egenmelding', date: '2026-10-01', hours: 8, employeeId: 'e1' }, { type: 'ferie', date: '2026-10-02', hours: 8 }], { now });
+  assert.equal(sick.totalDays, 1);
+  assert.ok(!JSON.stringify(sick).includes('e1'), 'ingen person-id ut av fraværsdata');
+  const st = stakeholderSuggestions({ contracts: [{ buyer: 'Statens vegvesen', value: 10 }], requirements: [{ kind: 'lov', authority: 'Arbeidstilsynet' }], existing: [{ title: 'Ansatte og innleide' }] });
+  assert.deepEqual(st.map((x) => x.title), ['Statens vegvesen', 'Arbeidstilsynet']);
+  const sup = supplierSuggestions([{ vendor: 'Byggmakker' }, { vendor: 'Byggmakker' }, { vendor: 'Elkjøp' }], [{ title: 'Elkjøp' }]);
+  assert.deepEqual(sup.map((x) => [x.title, x.count]), [['Byggmakker', 2]]);
+  const legacy = legacyProjectCases({ projects: [{ id: 'p1', number: '101', name: 'Skole' }], deviations: [{ id: 'd1', title: 'Feil', projectId: 'p1' }, { id: 'd2', title: 'Lukket', status: 'lukket' }], incidents: [{ id: 'r1', title: 'Nesten fall', severity: 'høy' }] }, [{ sourceRef: { id: 'r1' } }]);
+  assert.deepEqual(legacy.map((x) => x.id), ['d1']);
+  assert.equal(legacy[0].projectName, '101 Skole');
+  const plan = qualityPlanDraft({ id: 'p1', number: '101', name: 'Skole', manager: 'Kari' }, { contracts: [{ projectId: 'p1', title: 'Totalentreprise', buyer: 'Kommunen' }] });
+  assert.match(plan.requirements, /Totalentreprise/);
+  assert.equal(plan.ownerName, 'Kari');
+  assert.equal(createRecord('kvalitetsplan', plan, { actor: ANNE, now }).ok, true, 'forslaget kan lagres direkte');
+  assert.ok(aspectSuggestions({ trips: [{}] }).some((a) => a.title === 'Kjøring med bil'));
+});
+
+test('automatikk: ansvarlig, kravkobling, påminnelser og startpakke', () => {
+  const s = state();
+  s.system.roleMap = { quality_manager: { name: 'Anne', uid: 'u1' }, hse_manager: { name: 'Hans', uid: 'u9' } };
+  assert.equal(autoAssignee(s.system, 'hms').uid, 'u9');
+  assert.equal(autoAssignee(s.system, 'prosess').uid, 'u1');
+  assert.equal(autoAssignee({}, 'prosess'), null);
+  assert.ok(requirementIdsForFinding(s, 'prosess').length > 0);
+  s.records = { ...s.records, leverandor: [{ id: 'l1', title: 'X', state: 'aktiv', nextReview: '2026-01-01' }] };
+  const fx = autoTaskEffects(s, { now });
+  assert.ok(fx.some((e) => e.title.includes('Evaluer leverandør X')));
+  const again = autoTaskEffects(s, { now });
+  assert.deepEqual(fx.map((e) => e.key), again.map((e) => e.key), 'samme frist gir samme nøkkel (idempotent)');
+  const r = readinessChecklist(s, { now });
+  assert.ok(r.total >= 12 && r.done < r.total);
+  const plan = starterPlan(s.system, now);
+  assert.ok(plan.processes.includes('P02_avvik') && plan.processes.includes('SJA'));
+  const f = reportedFinding();
+  const t1 = triageFinding(f, { decision: 'tiltak', severity: 'middels', ownerName: 'Per', ownerUid: 'u2' }, { actor: BOSS, caps: ADMIN, now });
+  if (t1.ok) {
+    const withAction = addAction(t1.finding, { title: 'Rett tegning', ownerName: 'Per', ownerUid: 'u2', dueAt: '2026-11-01' }, { actor: BOSS, now });
+    if (withAction.ok) {
+      const a = withAction.finding.actions[0];
+      assert.equal(actionsDoneInTasks([withAction.finding], { [a.taskKey]: { done: true } }).length, a.taskKey ? 1 : 0);
+    }
+  }
 });
 
 test('registre: risiko iboende/rest holdes adskilt, samsvar gir aldri «verifisert» (T12/T14)', () => {

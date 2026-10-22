@@ -1,3 +1,4 @@
+import { requirementIdsForDocument } from '../../src/iso/integrations';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Linking, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
@@ -39,7 +40,8 @@ export default function IsoDocuments({ ctx }) {
     .filter((d) => !q || `${d.code} ${d.title} ${(d.tags || []).join(' ')}`.toLowerCase().includes(q.toLowerCase()));
 
   async function create() {
-    const res = createDocument(form, { actor, existing: state.documents });
+    // Kobles automatisk til kravene dokumenttypen dokumenterer (kan endres i dokumentet).
+    const res = createDocument({ ...form, requirementIds: form.requirementIds?.length ? form.requirementIds : requirementIdsForDocument(state, form.docType) }, { actor, existing: state.documents });
     if (!res.ok) { setErr(res.error); return; }
     const saved = await store.commit('documents', 'document', res);
     if (!saved.ok) { setErr(saved.error); return; }
@@ -146,7 +148,7 @@ function DocumentDetail({ ctx, doc, onBack }) {
       crumb={['Dokumenter', doc.code]}
       title={doc.title}
       intro={`${docTypeLabel(doc.docType)} · eier ${doc.ownerName || '–'}${doc.approverName ? ` · godkjenner ${doc.approverName}` : ''} · ${ACCESS_CLASSES.find((c) => c.id === doc.accessClass)?.label}`}
-      actions={<Btn icon="arrow-back" label="Tilbake" onPress={onBack} />}
+      back={{ label: 'Dokumenter', onPress: onBack }}
     >
       {msg ? <Banner tone="ok" text={msg} /> : null}
       {err ? <Banner tone="danger" text={err} /> : null}

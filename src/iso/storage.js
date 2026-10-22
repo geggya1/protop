@@ -14,11 +14,12 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, where, writeBatch,
+  collection, deleteDoc, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { isFirestorePermissionError, waitForFirestoreAccess } from '../utils/firestoreAccess.js';
 import { COLLECTIONS, collectionFor, emptyIsoState, stateFromCollections } from './state.js';
+import { restrictedUids } from './access.js';
 
 const CACHE_KEY = 'protop.iso.v1';
 const AUTH_MS = 8000;
@@ -104,7 +105,7 @@ export function peekIsoState(companyId) {
  * Leser hele ISO-tilstanden for selskapet.
  * Returnerer { state, source: 'remote' | 'cache' | 'empty', error? }.
  */
-export async function loadIsoState(companyId, { uid = '', restrictedView = false } = {}) {
+export async function loadIsoState(companyId, { uid = '', restrictedView = false, bypass = false } = {}) {
   const id = cid(companyId);
   if (!id) return { state: emptyIsoState(), source: 'empty' };
   const authed = await ensureAuth();
@@ -122,7 +123,9 @@ export async function loadIsoState(companyId, { uid = '', restrictedView = false
     ]);
     const parts = { system: systemSnap.exists() ? systemSnap.data() : null };
     names.forEach(([key], i) => { parts[key] = lists[i]; });
-    parts.restrictedFindings = restrictedView
+    // Særskilt tilgang avgjøres av ISO-innstillingene (lest over), ikke av den felles tilgangsmatrisen.
+    const named = !!uid && restrictedUids(parts.system).has(String(uid));
+    parts.restrictedFindings = (restrictedView || bypass || named)
       ? await readAll(id, COLLECTIONS.restrictedFindings)
       : await readOwnRestricted(id, uid);
     const state = stateFromCollections(parts);
@@ -267,6 +270,39 @@ export async function ensureTask(companyId, { key, title, description = '', assi
     return docId;
   } catch {
     return '';
+  }
+}
+
+/** Status for oppgaver ISO har opprettet (lest fra Oppgaver), nøkkel → { done, assignedTo }. */
+export async function loadIsoTasks(companyId) {
+  const id = cid(companyId);
+  if (!id) return {};
+  try {
+    const snap = await getDocs(query(col(id, 'parentTodos'), where('source', '==', 'iso')));
+    const out = {};
+    for (const d of snap.docs) {
+      const data = d.data() || {};
+      out[d.id] = { done: !!data.done, deleted: !!data.deleted, assignedTo: data.assignedTo || '', title: data.title || '' };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Når et steg/tiltak fullføres i ISO, krysses ISO-oppgaven av i Oppgaver (ingen dobbel avkryssing). */
+export async function completeIsoTask(companyId, key) {
+  const id = cid(companyId);
+  const docId = String(key || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 140);
+  if (!id || !docId) return false;
+  try {
+    const ref = doc(db, 'families', id, 'parentTodos', docId);
+    const snap = await getDoc(ref);
+    if (!snap.exists() || snap.data()?.source !== 'iso' || snap.data()?.done) return false;
+    await updateDoc(ref, { done: true, updatedAt: serverTimestamp() });
+    return true;
+  } catch {
+    return false;
   }
 }
 

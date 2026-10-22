@@ -43,7 +43,7 @@ import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -488,11 +488,6 @@ function AppShellInner() {
     if (id === 'hr') {
       setMoreSubView(defaultHrSubView(subView));
       setTab('hr');
-      return;
-    }
-    if (id === 'iso') {
-      setMoreSubView(defaultIsoSubView(subView));
-      setTab('iso');
       return;
     }
     setMoreSubView(subView);

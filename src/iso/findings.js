@@ -91,6 +91,7 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
       auditId: text(input.auditId, 120),
       auditFindingRef: text(input.auditFindingRef, 120),
     },
+    sourceRef: input.sourceRef?.id ? { module: text(input.sourceRef.module, 60), id: text(input.sourceRef.id, 120) } : null,
     formKey: 'SF16_AVVIK',
     formVersion: '1.0',
     createdAt: nowIso(now),

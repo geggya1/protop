@@ -9,12 +9,15 @@ import {
   closedWithinDeadline, findingFunnel, findingTrend, kpis, requirementStatusDistribution, riskMatrixData, upcomingActivities,
 } from '../../src/iso/analytics';
 import { openActions } from '../../src/iso/findings';
+import {
+  actionsDoneInTasks, contractReviewStatus, hrComplianceForIso, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, sickLeaveSeries,
+} from '../../src/iso/integrations';
 import { RiskMatrix, StatusDonut, TrendBars, HBars } from './isoCharts';
 import { Banner, Btn, Card, Choice, Empty, ListRow, Page, Pill, Row } from './isoUi';
 
 export default function IsoDashboard({ ctx }) {
   const colors = useColors();
-  const { state, caps, people, wide, go, actor } = ctx;
+  const { state, caps, people, wide, go, actor, sources = {}, store } = ctx;
   const [months, setMonths] = useState('6');
   const [riskView, setRiskView] = useState('inherent');
   const [info, setInfo] = useState('');
@@ -28,14 +31,33 @@ export default function IsoDashboard({ ctx }) {
   const upcoming = useMemo(() => upcomingActivities(state, caps), [state, caps]);
   const mine = useMemo(() => openActions(findings).filter((a) => a.ownerUid && a.ownerUid === actor.uid), [findings, actor.uid]);
   const active = (state.instances || []).filter((i) => i.state === 'aktiv');
+  const ready = useMemo(() => readinessChecklist(state, { people }), [state, people]);
+  const insights = useMemo(() => {
+    if (!caps.manage) return [];
+    const out = [];
+    const doneInTasks = actionsDoneInTasks(findings, store?.tasks);
+    if (doneInTasks.length) out.push({ key: 'tasks', icon: 'checkmark-done-outline', tone: 'info', title: `${doneInTasks.length} tiltak er ferdig i Oppgaver`, text: 'Kontroller og meld dem utført i saken.', page: 'avvik', params: { ids: doneInTasks.map((a) => a.findingId), label: 'Ferdig i Oppgaver' } });
+    const legacy = legacyProjectCases(sources.projectState, state.findings);
+    if (legacy.length) out.push({ key: 'legacy', icon: 'briefcase-outline', tone: 'warn', title: `${legacy.length} avvik/RUH i Prosjekt er ikke behandlet i ISO`, text: 'Ta dem inn med ett trykk – uten ny registrering.', page: 'avvik' });
+    const pq = projectQuality(sources.projects, state, findings).filter((r) => !r.plan);
+    if (pq.length) out.push({ key: 'plans', icon: 'document-attach-outline', tone: 'warn', title: `${pq.length} aktive prosjekter mangler kvalitetsplan`, text: 'Planen fylles ut fra prosjekt og kontrakt.', page: 'prosjekt' });
+    const cr = contractReviewStatus(sources.contracts, state.submissions).missing;
+    if (cr.length) out.push({ key: 'contracts', icon: 'reader-outline', tone: 'warn', title: `${cr.length} kontrakter uten kontraktsgjennomgang`, text: 'Fra Kontrakt / avtale (krav 8.2).', page: 'prosjekt' });
+    const hr = sources.hrOverview ? hrComplianceForIso(sources.hrOverview, people) : null;
+    if (hr?.awarenessGaps.length) out.push({ key: 'hr', icon: 'school-outline', tone: 'warn', title: `${hr.awarenessGaps.length} ansatte mangler HMS-introduksjon eller avviksrutine`, text: 'Fra HR-sjekklisten (krav 7.3).', page: 'kompetanse' });
+    const km = mileageSeries(sources.trips);
+    if (km.totalKm) out.push({ key: 'km', icon: 'car-outline', tone: 'muted', title: `${km.totalKm.toLocaleString('nb-NO')} km kjørt siste 12 mnd`, text: km.electricShare == null ? 'Fra Kjørebok.' : `${km.electricShare} % med elbil. Fra Kjørebok.`, page: 'miljo' });
+    const sick = sickLeaveSeries(sources.absences);
+    if (sick.hasData) out.push({ key: 'sick', icon: 'pulse-outline', tone: 'muted', title: `${sick.totalDays} dagsverk sykefravær siste 12 mnd`, text: 'Fra Fravær, uten navn.', page: 'hms' });
+    return out;
+  }, [caps.manage, findings, store?.tasks, sources, state, people]);
 
   const standards = STANDARDS.filter((s) => state.system.standards.includes(s.code));
 
   return (
     <Page
       wide={wide}
-      crumb={['Oversikt']}
-      title="ISO / K-HMS"
+      title="Oversikt"
       intro={`${state.system.name || 'Ledelsessystem'} · ${standards.map((s) => s.label).join(' · ') || 'Ingen standarder aktivert'}`}
       actions={(
         <>
@@ -46,6 +68,23 @@ export default function IsoDashboard({ ctx }) {
       )}
     >
       <Banner tone="info" text="Statusene her er interne vurderinger av eget ledelsessystem. De er ikke en sertifisering eller bekreftet lovetterlevelse." />
+
+      {caps.manage && ready.done < ready.total ? (
+        <Card title={`Neste steg · ${ready.done} av ${ready.total} på plass`} subtitle={ready.method}>
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.sunken }}>
+            <View style={{ width: `${Math.round((ready.done / ready.total) * 100)}%`, height: 6, borderRadius: 3, backgroundColor: colors.brand }} />
+          </View>
+          {ready.items.filter((i) => !i.done).slice(0, 4).map((i) => (
+            <ListRow key={i.key} icon="ellipse-outline" title={i.label} onPress={() => go(i.page)} right={<Ionicons name="chevron-forward" size={16} color={colors.muted} />} />
+          ))}
+        </Card>
+      ) : null}
+
+      {insights.length ? (
+        <Card title="Fra resten av ProTop" subtitle="Hentet fra Prosjekt, Kontrakt, HR, Kjørebok, Fravær og Oppgaver. Eies fortsatt av modulene.">
+          {insights.map((x) => <ListRow key={x.key} icon={x.icon} tone={x.tone} title={x.title} subtitle={x.text} onPress={() => go(x.page, x.params || {})} />)}
+        </Card>
+      ) : null}
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
         {cards.map((k) => (

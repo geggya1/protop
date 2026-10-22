@@ -12,6 +12,9 @@ import {
 import { canCloseFinding, canManageFinding, visibleFindings } from '../../src/iso/access';
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
 import { loadAuditFor } from '../../src/iso/storage';
+import { autoAssignee, legacyProjectCases, requirementIdsForFinding } from '../../src/iso/integrations';
+import { publishedVersionOf, normalizeDiagram } from '../../src/iso/processes';
+import IsoDiagram, { fitView } from './IsoDiagram';
 import {
   Banner, Btn, Card, Check, Choice, DateIn, Divider, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
 } from './isoUi';
@@ -19,7 +22,7 @@ import {
 const STATE_TONE = { registrert: 'warn', triage: 'warn', vurdert: 'info', tiltak: 'info', effektkontroll: 'info', lukket: 'ok', kansellert: 'muted' };
 
 export default function IsoFindings({ ctx }) {
-  const { state, caps, params, go, wide } = ctx;
+  const { state, caps, params, go, wide, store } = ctx;
   const [query, setQuery] = useState('');
   const [stateFilter, setStateFilter] = useState(params?.overdue ? 'forfalt' : (params?.open ? 'apne' : ''));
   const [typeFilter, setTypeFilter] = useState('');
@@ -45,6 +48,23 @@ export default function IsoFindings({ ctx }) {
     })
     .filter((f) => !query || `${f.number} ${f.title} ${f.description} ${f.projectName}`.toLowerCase().includes(query.toLowerCase())), [visible, drillIds, typeFilter, stateFilter, query, today]);
 
+  const legacy = useMemo(() => (caps.manage ? legacyProjectCases(ctx.sources?.projectState, state.findings) : []), [caps.manage, ctx.sources?.projectState, state.findings]);
+
+  async function adopt(cases) {
+    let existing = store.current().findings;
+    for (const c of cases) {
+      const who = autoAssignee(state.system, c.type);
+      const res = createFinding({
+        type: c.type, title: c.title, description: c.description || c.title, projectId: c.projectId, projectName: c.projectName,
+        severity: c.severity, sourceRef: { module: c.module, id: c.id }, assigneeName: who?.name, assigneeUid: who?.uid,
+        requirementIds: requirementIdsForFinding(state, c.type),
+      }, { actor: ctx.actor, existing });
+      if (!res.ok) continue;
+      const saved = await store.commit('findings', 'finding', res);
+      if (saved.ok) existing = [...existing, res.finding];
+    }
+  }
+
   const selected = visible.find((f) => f.id === openId) || null;
   if (selected) return <FindingDetail ctx={ctx} finding={selected} onBack={() => setOpenId('')} />;
 
@@ -62,6 +82,14 @@ export default function IsoFindings({ ctx }) {
         <Choice small options={[{ id: 'apne', label: 'Åpne' }, { id: 'forfalt', label: 'Forfalte tiltak' }, ...FINDING_STATES.map((s) => ({ id: s.id, label: s.label }))]} value={stateFilter} onChange={setStateFilter} />
         <Choice small options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={typeFilter} onChange={setTypeFilter} />
       </Card>
+      {legacy.length && caps.manage ? (
+        <Card title={`Fra Prosjekt-modulen (${legacy.length})`} subtitle="Avvik og RUH registrert i prosjektene som ikke er behandlet i ISO. Ta dem inn, så følger de samme flyt – uten å registreres på nytt.">
+          {legacy.slice(0, 8).map((c) => (
+            <ListRow key={c.id} icon="briefcase-outline" title={c.title} subtitle={`${c.label}${c.projectName ? ` · ${c.projectName}` : ''}`} right={<Btn small label="Ta inn" onPress={() => adopt([c])} />} />
+          ))}
+          {legacy.length > 1 ? <Btn small icon="download-outline" label={`Ta inn alle ${legacy.length}`} onPress={() => adopt(legacy)} /> : null}
+        </Card>
+      ) : null}
       <Card title={`${rows.length} saker`}>
         {!rows.length ? (
           <Empty
@@ -101,9 +129,19 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   async function save() {
     setBusy(true);
     const project = projects.find((p) => p.id === v.projectId);
-    const res = createFinding({ ...v, restricted, projectName: project ? `${project.number || ''} ${project.name || ''}`.trim() : '' }, { actor, existing: state.findings, now: new Date() });
+    const who = autoAssignee(state.system, v.type);
+    const res = createFinding({
+      ...v,
+      restricted,
+      assigneeName: who?.name || '',
+      assigneeUid: who?.uid || '',
+      requirementIds: requirementIdsForFinding(state, v.type),
+      projectName: project ? `${project.number || ''} ${project.name || ''}`.trim() : '',
+    }, { actor, existing: state.findings, now: new Date() });
     if (!res.ok) { setError(res.error); setBusy(false); return; }
-    const saved = await store.commit('findings', 'finding', res);
+    // Behandler får oppgave i Oppgaver med en gang (fast nøkkel → én oppgave).
+    const effects = who?.uid ? [{ type: 'createTask', key: `iso_${res.finding.id}_triage`, title: `Behandle ${res.finding.number}: ${res.finding.title}`, assigneeUid: who.uid, deadline: res.finding.triageDue }] : [];
+    const saved = await store.commit('findings', 'finding', res, { effects });
     setBusy(false);
     if (!saved.ok) { setError(saved.error); return; }
     onCreated(res.finding);
@@ -118,6 +156,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Send inn" busy={busy} onPress={save} /></>}
     >
       <Field label="Type" required><Choice options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={v.type} onChange={(x) => set('type')(x || 'prosess')} /></Field>
+      {autoAssignee(state.system, v.type) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Saken tildeles automatisk {autoAssignee(state.system, v.type).name} og kobles til relevante krav.</Text> : null}
       <Field label="Tittel" required><TextIn value={v.title} onChangeText={set('title')} placeholder="Kort hva som skjedde" /></Field>
       <Field label="Beskrivelse" required hint="Beskriv fakta. Ikke legg inn helseopplysninger her."><TextIn multiline value={v.description} onChangeText={set('description')} /></Field>
       <Field label="Dato"><DateIn value={v.occurredAt} onChange={set('occurredAt')} /></Field>
@@ -246,7 +285,7 @@ function FindingDetail({ ctx, finding, onBack }) {
       crumb={['Avvik og forbedring', finding.number]}
       title={finding.title}
       intro={`${findingTypeLabel(finding.type)} · meldt ${prettyDate(finding.reportedAt)} av ${finding.reportedBy}${finding.projectName ? ` · ${finding.projectName}` : ''}`}
-      actions={<Btn icon="arrow-back" label="Tilbake" onPress={onBack} />}
+      back={{ label: 'Avvik og forbedring', onPress: onBack }}
     >
       <Row>
         <Pill label={findingStateLabel(finding.state)} tone={STATE_TONE[finding.state]} />
@@ -292,7 +331,10 @@ function FindingDetail({ ctx, finding, onBack }) {
               <Check label="Mulig meldeplikt til myndighet" value={!!tri.notifiable} onChange={(x) => setTri({ ...tri, notifiable: x })} />
               {tri.notifiable ? <Field label="Hvem varsler"><PersonPick people={people} value={tri.notificationAssignee} onChange={(p) => setTri({ ...tri, notificationAssignee: p.name })} /></Field> : null}
               <Field label="Merknad"><TextIn value={tri.note} onChangeText={(x) => setTri({ ...tri, note: x })} /></Field>
-              <Btn kind="primary" label="Lagre triage" busy={busy === 'Triage'} onPress={() => run('Triage', triageFinding(finding, tri, { actor }), { effects: tri.assigneeUid ? [{ type: 'createTask', key: `iso_${finding.id}_triage`, title: `Behandle avvik ${finding.number}: ${finding.title}`, assigneeUid: tri.assigneeUid, deadline: tri.dueAt || null }] : [] })} />
+              <Btn kind="primary" label="Lagre triage" busy={busy === 'Triage'} onPress={() => run('Triage', triageFinding(finding, tri, { actor }), { effects: [
+                ...(tri.assigneeUid && tri.assigneeUid !== finding.assigneeUid ? [{ type: 'createTask', key: `iso_${finding.id}_behandle`, title: `Følg opp ${finding.number}: ${finding.title}`, assigneeUid: tri.assigneeUid, deadline: tri.dueAt || null }] : []),
+                { type: 'completeTask', key: `iso_${finding.id}_triage` },
+              ] })} />
             </Card>
           ) : null}
 
@@ -333,6 +375,8 @@ function FindingDetail({ ctx, finding, onBack }) {
             {(finding.actions || []).map((a) => {
               const mine = a.ownerUid && a.ownerUid === actor.uid;
               const open = ['apen', 'pagar', 'returnert'].includes(a.state);
+              const task = store.tasks?.[String(a.taskKey || '').replace(/[^A-Za-z0-9_-]/g, '_')];
+              const taskDone = !!task?.done;
               return (
                 <View key={a.id} style={{ gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.line }}>
                   <Row style={{ justifyContent: 'space-between' }}>
@@ -343,11 +387,13 @@ function FindingDetail({ ctx, finding, onBack }) {
                   {a.completionNote ? <Text style={{ color: colors.ink, fontSize: 13 }}>Utført: {a.completionNote}{(a.evidence || []).length ? ` · bevis: ${a.evidence.map((e) => e.label || e.url).join(', ')}` : ''}</Text> : null}
                   {a.returnNote ? <Text style={{ color: colors.danger, fontSize: 12 }}>Returnert: {a.returnNote}</Text> : null}
                   {a.verifiedBy ? <Text style={{ color: colors.muted, fontSize: 12 }}>Kontrollert av {a.verifiedBy}</Text> : null}
+                  {task ? <Pill label={taskDone ? 'Ferdig i Oppgaver' : 'Ligger i Oppgaver'} icon="checkbox-outline" tone={taskDone ? 'ok' : 'info'} /> : null}
+                  {open && taskDone ? <Banner tone="info" text="Oppgaven er markert ferdig i Oppgaver. Meld tiltaket utført her, så det kan kontrolleres." /> : null}
                   {open && (mine || manage) ? (
                     <View style={{ gap: 6 }}>
                       <TextIn value={doneNote[a.id] || ''} onChangeText={(x) => setDoneNote({ ...doneNote, [a.id]: x })} placeholder="Hva er gjort?" />
                       <TextIn value={evidenceRef[a.id] || ''} onChangeText={(x) => setEvidenceRef({ ...evidenceRef, [a.id]: x })} placeholder="Bevis (dokument-ID, lenke eller beskrivelse)" />
-                      <Btn small label="Meld utført" onPress={() => run('Tiltak meldt utført', completeAction(finding, a.id, { note: doneNote[a.id], evidence: evidenceRef[a.id] ? [{ label: evidenceRef[a.id] }] : [] }, { actor }))} />
+                      <Btn small label="Meld utført" onPress={() => run('Tiltak meldt utført', completeAction(finding, a.id, { note: doneNote[a.id] || (taskDone ? 'Markert ferdig i Oppgaver' : ''), evidence: evidenceRef[a.id] ? [{ label: evidenceRef[a.id] }] : [] }, { actor }), { effects: [{ type: 'completeTask', key: a.taskKey }] })} />
                     </View>
                   ) : null}
                   {a.state === 'til_verifisering' && manage ? (
@@ -408,6 +454,7 @@ function FindingDetail({ ctx, finding, onBack }) {
         </View>
 
         <View style={{ flex: 2, gap: 12, width: wide ? undefined : '100%' }}>
+          <CaseProcess state={state} finding={finding} wide={wide} />
           <Card title="Koblinger" subtitle="Krav, prosess og revisjon">
             {linkedReqs.length ? linkedReqs.map((r) => <ListRow key={r.id} icon="document-text-outline" title={`${r.standard ? r.standard.replace('ISO', 'ISO ') : r.kind} ${r.clause || ''} ${r.title}`} onPress={() => go('krav', { open: r.id })} />) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen krav koblet. Ved lukking kobles saken til kravet om avvik og korrigerende tiltak.</Text>}
             {manage && !closed ? <Btn small icon="link-outline" label="Koble krav" onPress={() => setReqOpen(true)} /> : null}
@@ -450,6 +497,33 @@ function FindingDetail({ ctx, finding, onBack }) {
         onSave={async (ids) => { setReqOpen(false); await run('Koblinger', updateFindingLinks(finding, { requirementIds: ids }, { actor })); }}
       />
     </Page>
+  );
+}
+
+const P02_ACTIVE = { registrert: ['a', 'b'], triage: ['c', 'f'], vurdert: ['f', 'g', 'l'], tiltak: ['h'], effektkontroll: ['j', 'k'], lukket: [], kansellert: [] };
+const P02_DONE = {
+  registrert: ['s'], triage: ['s', 'a', 'b'], vurdert: ['s', 'a', 'b', 'c', 'd'], tiltak: ['s', 'a', 'b', 'c', 'f', 'g'],
+  effektkontroll: ['s', 'a', 'b', 'c', 'f', 'g', 'h'], lukket: ['s', 'a', 'b', 'c', 'f', 'g', 'h', 'j', 'k', 'e'], kansellert: [],
+};
+
+/** Viser saken i den publiserte avviksprosessen (samme flyt, ikke en egen kopi). */
+function CaseProcess({ state, finding, wide }) {
+  const colors = useColors();
+  const [open, setOpen] = useState(false);
+  const proc = (state.processes || []).find((p) => p.templateKey === 'P02_avvik' && p.publishedVersion && !p.archived);
+  const version = proc ? publishedVersionOf(proc) : null;
+  if (!version) return null;
+  const diagram = normalizeDiagram(version.diagram);
+  const ids = new Set(diagram.nodes.map((n) => n.id));
+  const active = (P02_ACTIVE[finding.state] || []).filter((id) => ids.has(id));
+  const done = (P02_DONE[finding.state] || []).filter((id) => ids.has(id));
+  const view = fitView(diagram, wide ? 520 : 340, 240);
+  return (
+    <Card title="Prosessen for saken" subtitle={`${proc.title} v${proc.publishedVersion}`} right={<Btn small label={open ? 'Skjul' : 'Vis'} onPress={() => setOpen(!open)} />}>
+      {open ? <IsoDiagram diagram={diagram} scale={view.scale} offset={view.offset} active={active} done={done} height={240} /> : (
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Nå: {active.map((id) => diagram.nodes.find((n) => n.id === id)?.label).filter(Boolean).join(' / ') || (finding.state === 'lukket' ? 'Lukket' : '–')}</Text>
+      )}
+    </Card>
   );
 }
 

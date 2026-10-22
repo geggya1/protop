@@ -242,6 +242,15 @@ export default function EmployeesScreen() {
   }, [view, draft?.person?.address1]);
 
   const selected = rows.find((row) => row.id === selectedId) || null;
+  // Lese på ansatte: andre ansatte vises bare med hovedsiden. Undersidene krever begrenset redigering.
+  const limitedPerson = !!selected && !isAdmin && selected.personUid !== uid;
+  function personViewAllowed(row, nextView) {
+    if (nextView === 'detail' || !PERSON_VIEWS.has(nextView) || isAdmin) return true;
+    return !!row?.personUid && row.personUid === uid;
+  }
+  useEffect(() => {
+    if (limitedPerson && PERSON_VIEWS.has(view) && view !== 'detail') setView('detail');
+  }, [limitedPerson, view]);
   const mine = useMemo(() => ownEmployee(rows, {
     uid,
     emails: [
@@ -709,7 +718,7 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    setView('cv');
+    setView(personViewAllowed(row, 'cv') ? 'cv' : 'detail');
   }
 
   function openHours(row) {
@@ -717,7 +726,7 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    setView('hours');
+    setView(personViewAllowed(row, 'hours') ? 'hours' : 'detail');
   }
 
   function openWork(row, nextView) {
@@ -725,7 +734,7 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    setView(nextView);
+    setView(personViewAllowed(row, nextView) ? nextView : 'detail');
   }
 
   /** Bytt person uten å miste aktiv fane (rød tråd). */
@@ -735,7 +744,7 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    if (!PERSON_VIEWS.has(view)) setView('detail');
+    if (!PERSON_VIEWS.has(view) || !personViewAllowed(row, view)) setView('detail');
   }
 
   function openPersonTab(tabId) {
@@ -1318,7 +1327,10 @@ export default function EmployeesScreen() {
           colors={colors}
           companyName={companyName}
           siblings={visible}
-          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => tab.id !== 'earnings' || access.canView('economyEarnings') || access.canView('economy'))}
+          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => (
+            (tab.id !== 'earnings' || access.canView('economyEarnings') || access.canView('economy'))
+            && (!limitedPerson || tab.id === 'home')
+          ))}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
           onTab={openPersonTab}
@@ -1512,6 +1524,29 @@ export default function EmployeesScreen() {
             />
           ) : null}
 
+          {view === 'settings' && personEmployee ? (
+            <EmployeeDetailView
+              section="employment"
+              employee={personEmployee}
+              colors={colors}
+              companyName={companyName}
+              departments={departments}
+              members={people}
+              addressHits={addressHits}
+              reveal={canSeeSensitive(personEmployee, { uid, isAdmin })}
+              canEdit={isAdmin || personEmployee.personUid === uid}
+              canEditAccess={canEditAccess}
+              isAdmin={isAdmin}
+              isSelf={personEmployee.personUid === uid}
+              busy={busy}
+              onChange={changeDetail}
+              onSave={save}
+              onClassify={classifyEmployee}
+              onPhoto={choosePhoto}
+              onPickAddress={pickAddress}
+            />
+          ) : null}
+
           {view === 'settings' ? (
             <EmployeeWorkViews
               mode="settings"
@@ -1536,6 +1571,7 @@ export default function EmployeesScreen() {
               canEditAccess={canEditAccess}
               isAdmin={isAdmin}
               isSelf={detailEmployee.personUid === uid}
+              limited={limitedPerson}
               confirmDelete={confirmDelete}
               busy={busy}
               onCv={() => openCv(detailEmployee)}

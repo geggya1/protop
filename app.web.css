@@ -221,17 +221,36 @@ button, [role="button"] { cursor: pointer; }
   align-self: stretch !important;
 }
 
-/* Tilgangsstyring: matrisen trenger hele hovedfeltet (Lese / begrenset / Admin). */
+/* Tilgangsstyring fyller hovedfeltet. Innholdsruten får en ekte bredde så spaltene kan skalere. */
 #company-page:has(#company-access-page) > div,
-#company-access-page,
-#company-access-page [nativeid^="company-access-level-"],
-#company-access-page [id^="company-access-level-"] {
+#company-page:has(#company-access-page) > div > div,
+#company-access-page {
   width: 100% !important;
   max-width: none !important;
   align-self: stretch !important;
-}
-#company-access-page {
   box-sizing: border-box;
+}
+#company-page:has(#company-access-page) > div > div {
+  align-items: stretch !important;
+}
+/* Spalter skalerer med feltet, men blir aldri smalere enn teksten. */
+#company-access-page [data-access-matrix="head"],
+#company-access-page [data-access-matrix="row"] {
+  display: grid !important;
+  grid-template-columns: minmax(200px, 2.4fr) minmax(112px, 1fr) minmax(196px, 1.7fr) minmax(112px, 1fr) !important;
+  width: 100% !important;
+  column-gap: 12px;
+}
+#company-access-page [data-access-matrix="head"] *,
+#company-access-page [data-access-title="1"],
+#company-access-page [data-access-title="1"] * {
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+#company-access-page [data-access-title="1"] {
+  flex: 1 1 auto !important;
+  min-width: 160px !important;
+  width: auto !important;
 }
 
 /* Aktivt skilleark på en person skal synes selv om bedriftssiden tvinger vanlig vekt. */

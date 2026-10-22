@@ -953,7 +953,7 @@ export default function EmployeeDetailView({
               colors={colors}
               open={openSections.cvBits}
               onToggle={() => toggle('cvBits')}
-              right={(
+              right={limited ? null : (
                 <TouchableOpacity onPress={onCv} accessibilityRole="button">
                   <Text style={{ color: colors.brand, fontSize: 13 }}>Åpne CV</Text>
                 </TouchableOpacity>
@@ -972,7 +972,7 @@ export default function EmployeeDetailView({
                         {repeatSummary(section.id, item)}
                       </Text>
                     ))}
-                    {more > 0 ? (
+                    {more > 0 && !limited ? (
                       <TouchableOpacity onPress={onCv} accessibilityRole="button">
                         <Text style={{ color: colors.brand, fontSize: 13 }}>{`og ${more} til i CV-en`}</Text>
                       </TouchableOpacity>
@@ -1146,7 +1146,7 @@ export default function EmployeeDetailView({
                 })}
               </View>
             )}
-            {onHours ? (
+            {onHours && !limited ? (
               <TouchableOpacity
                 onPress={onHours}
                 accessibilityRole="button"
@@ -1157,7 +1157,7 @@ export default function EmployeeDetailView({
                 <Text style={{ color: colors.brand, fontSize: 13 }}>Åpne timeføring…</Text>
               </TouchableOpacity>
             ) : null}
-            {(employee.cv?.projects || []).length > 0 ? (
+            {!limited && (employee.cv?.projects || []).length > 0 ? (
               <TouchableOpacity onPress={onCv} accessibilityRole="button" style={{ marginTop: 8 }}>
                 <Text style={{ color: colors.brand, fontSize: 13 }}>Vis referanseprosjekter i CV…</Text>
               </TouchableOpacity>

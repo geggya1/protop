@@ -22,4 +22,9 @@ const home = detail.slice(detail.indexOf('nativeID="employee-detail"'));
 assert.equal(/title="Ansettelsesdata"/.test(home), false);
 assert.equal(/\{employmentCard\}/.test(home), false);
 
+// Lenker til skjulte undersider (timeføring, CV) vises ikke for Lese.
+assert.match(detail, /onHours && !limited \?/);
+assert.match(detail, /right=\{limited \? null : \(/);
+assert.match(detail, /!limited && \(employee\.cv\?\.projects/);
+
 console.log('employeeReadAccess.test.mjs: ok');

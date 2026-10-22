@@ -109,7 +109,7 @@ async function bytesFromFile(file) {
 
 // Views (ikke faner) andre ansatte kan se per nivå. Admin og personen selv ser alt.
 const READER_PERSON_VIEWS = new Set(['detail']);
-const EDITOR_PERSON_VIEWS = new Set(['detail', 'overview', 'hours', 'absence']);
+const EDITOR_PERSON_VIEWS = new Set(['detail', 'overview', 'hours', 'report', 'absence']);
 
 export default function EmployeesScreen() {
   const colors = useColors();
@@ -1396,7 +1396,7 @@ export default function EmployeesScreen() {
         ) : null}
         {view === 'report' ? (
           <View style={styles.hoursHost} nativeID="employee-report-view">
-            <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} embedded />
+            <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} embedded readOnly={readOnlyPerson} />
           </View>
         ) : null}
         {view === 'absence' ? (

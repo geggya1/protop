@@ -8,7 +8,8 @@ const detail = readFileSync(new URL('../../screens/employees/EmployeeDetailView.
 assert.match(screen, /const limitedPerson = !!selected && !isAdmin && selected\.personUid !== uid/);
 // Tre nivåer: Lese = hovedside, begrenset = + Oversikt/Timer/Fravær (bare visning), Admin = alt.
 assert.match(screen, /READER_PERSON_VIEWS = new Set\(\['detail'\]\)/);
-assert.match(screen, /EDITOR_PERSON_VIEWS = new Set\(\['detail', 'overview', 'hours', 'absence'\]\)/);
+assert.match(screen, /EDITOR_PERSON_VIEWS = new Set\(\['detail', 'overview', 'hours', 'report', 'absence'\]\)/);
+assert.match(screen, /<EconomyHours [^>]*readOnly=\{readOnlyPerson\} \/>/);
 assert.match(screen, /employeesAdmin = [\s\S]{0,120}canAdmin\('employees'\)/);
 assert.match(screen, /allowedTabViews\(selected, tab\.id\)\.length > 0/);
 assert.match(screen, /nativeID="employee-sub-tabs"/);
@@ -57,5 +58,9 @@ assert.match(detail, /limited \|\| !showAdminCards \? null/);
 // Tannhjul og «Skriv ut utvalg» på timelisten skjules i skrivebeskyttet modus.
 assert.match(arbeid, /\{readOnly \? null : \(\s*<TouchableOpacity\s+onPress=\{\(\) => setReportMenuOpen\(true\)\}/);
 assert.match(arbeid, /\{isPhone \|\| readOnly \? null : \(/);
+
+const report = readFileSync(new URL('../../screens/economy/EconomyHours.jsx', import.meta.url), 'utf8');
+assert.ok((report.match(/if \(readOnly\) return;/g) || []).length >= 4);
+assert.equal((report.match(/\{readOnly \? null : \(\s*<TouchableOpacity\s+onPress=\{importFile\}/g) || []).length, 2);
 
 console.log('employeeReadAccess.test.mjs: ok');

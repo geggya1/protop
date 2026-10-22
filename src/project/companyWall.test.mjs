@@ -14,6 +14,10 @@ assert.match(wallUi, /Publiser/);
 assert.match(wallUi, /companyProfile/);
 assert.match(wallUi, /useCroppedUpload/);
 assert.match(wallUi, /Beskjær nyhetsbilde/);
+// Begrenset redigering kan publisere, men bare admin eller forfatter kan endre/slette.
+assert.match(wallUi, /canModerate[\s\S]{0,140}canAdmin\('companyPublic'\)/);
+assert.match(wallUi, /const canEdit = canModerate \|\| \(!!uid && post\.authorUid === uid\)/);
+assert.match(src, /Du kan bare slette egne innlegg/);
 assert.match(src, /clipWallTitle/);
 assert.match(src, /normalizeWallCategory/);
 

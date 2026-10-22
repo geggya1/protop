@@ -98,6 +98,9 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
   const owner = isSuperAdmin(family, uid);
   const canPublish = (owner && !access.previewLocks('companyProfile'))
     || (access.ready && access.canEdit('companyPublic'));
+  // Endre/slette andres innlegg krever admin; forfatteren kan alltid styre sitt eget.
+  const canModerate = (owner && !access.previewLocks('companyProfile'))
+    || (access.ready && access.canAdmin('companyPublic'));
   const me = (members || []).find((m) => m.uid === uid);
   const myName = me?.name || family?.company?.navn || 'Bedriften';
   const [posts, setPosts] = useState([]);
@@ -188,7 +191,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
           imageUrls: imageUrl ? [imageUrl] : [],
           linkUrl,
           editorUid: uid,
-          isAdmin: canPublish,
+          isAdmin: canModerate,
         });
       } else {
         await createCompanyWallPost({
@@ -224,7 +227,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
     }
   }, [
     familyId, busy, body, title, category, pendingImageUrl, pendingLinkUrl, editingPostId,
-    uid, myName, members, canPublish, resetComposer,
+    uid, myName, members, canModerate, resetComposer,
   ]);
 
   const addWithPhoto = useCallback(async () => {
@@ -419,7 +422,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
 
       {posts.length ? posts.map((post) => {
         const reacted = post.reactions?.[uid];
-        const canEdit = canPublish || post.authorUid === uid;
+        const canEdit = canModerate || (!!uid && post.authorUid === uid);
         const author = memberByUid[post.authorUid];
         const editingThis = editingPostId === post.id;
         const card = presentNewsPost(post);
@@ -459,7 +462,10 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
                     <Ionicons name="pencil-outline" size={18} color={editingThis ? colors.brand : colors.muted} />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => softDeleteCompanyWallPost(familyId, post.id)}
+                    onPress={() => softDeleteCompanyWallPost(familyId, post.id, {
+                      editorUid: uid,
+                      isAdmin: canModerate,
+                    }).catch((e) => Alert.alert('Feil', e?.message || 'Klarte ikke slette.'))}
                     hitSlop={8}
                     accessibilityLabel="Slett innlegg"
                   >

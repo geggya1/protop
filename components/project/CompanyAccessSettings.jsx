@@ -110,11 +110,8 @@ function CheckBox({ on, disabled, colors, onPress, label }) {
   );
 }
 
-/** Kort etikett i smale kolonner; full tekst i accessibilityLabel. */
-function actionColumnLabel(label) {
-  if (label === 'Begrenset redigering') return 'Begrenset\nredigering';
-  return label;
-}
+/** Område + Lese + Begrenset redigering + Admin. Minstebredde holder ordene vannrett; fr-andeler vokser med feltet. */
+const MATRIX_COLUMNS = 'minmax(200px, 2.4fr) minmax(112px, 1fr) minmax(196px, 1.7fr) minmax(112px, 1fr)';
 
 function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
   if (compact) {
@@ -159,12 +156,10 @@ function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
       {ACCESS_GROUPS.map((group) => (
         <View key={group.id} style={styles.group}>
           <Text style={[styles.groupLabel, { color: colors.muted }]}>{group.label}</Text>
-          <View style={[styles.matrixHead, { borderColor: colors.line }]}>
+          <View dataSet={{ accessMatrix: 'head' }} style={[styles.matrixHead, { borderColor: colors.line }]}>
             <Text style={[styles.areaHead, { color: colors.muted }]}>Område</Text>
             {ACCESS_ACTIONS.map((action) => (
-              <Text key={action.id} style={[styles.actionHead, { color: colors.muted }]}>
-                {actionColumnLabel(action.label)}
-              </Text>
+              <Text key={action.id} style={[styles.actionHead, { color: colors.muted }]}>{action.label}</Text>
             ))}
           </View>
           {group.resources.map((resource) => {
@@ -172,7 +167,7 @@ function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
             const checks = checksFromGrant(grant);
             const overridden = base ? (base[resource.id] || 'none') !== grant : false;
             return (
-              <View key={resource.id} style={[styles.matrixRow, { borderColor: colors.line }]}>
+              <View key={resource.id} dataSet={{ accessMatrix: 'row' }} style={[styles.matrixRow, { borderColor: colors.line }]}>
                 <View style={styles.areaCell}>
                   <Text style={[styles.areaLabel, { color: colors.ink }]}>{resource.label}</Text>
                   {resource.hint ? (
@@ -378,7 +373,7 @@ function LevelDrawer({
           style={styles.drawerToggle}
         >
           <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.muted} />
-          <View style={{ flex: 1 }}>
+          <View dataSet={{ accessTitle: '1' }} style={styles.drawerTitle}>
             <Text style={[styles.levelName, { color: colors.ink }]}>{title}</Text>
             <Text style={[styles.kind, { color: colors.muted }]}>{meta}</Text>
           </View>
@@ -1202,38 +1197,38 @@ const styles = StyleSheet.create({
   popupHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   kind: { fontSize: 13, lineHeight: 18 },
   summary: { fontSize: 15, lineHeight: 21 },
-  matrix: { width: '100%', minWidth: 0, gap: 14, paddingBottom: 4 },
+  matrix: { width: '100%', gap: 14, paddingBottom: 4 },
   group: { gap: 0, width: '100%' },
   groupLabel: { fontSize: 12, marginBottom: 4 },
-  matrixHead: { flexDirection: 'row', alignItems: 'flex-end', width: '100%', borderBottomWidth: 1, paddingBottom: 6, gap: 4 },
-  areaHead: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 120, fontSize: 12 },
-  actionHead: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    minWidth: 72,
-    textAlign: 'center',
-    fontSize: 11,
-    lineHeight: 14,
+  matrixHead: {
+    display: 'grid',
+    gridTemplateColumns: MATRIX_COLUMNS,
+    alignItems: 'end',
+    width: '100%',
+    columnGap: 12,
+    borderBottomWidth: 1,
+    paddingBottom: 6,
   },
-  matrixRow: { flexDirection: 'row', alignItems: 'center', width: '100%', borderBottomWidth: 1, minHeight: 52, gap: 4 },
-  areaCell: { flexGrow: 2, flexShrink: 1, flexBasis: 0, minWidth: 120, paddingVertical: 8, paddingRight: 8 },
+  areaHead: { fontSize: 12, minWidth: 0 },
+  actionHead: { textAlign: 'center', fontSize: 13, lineHeight: 16, minWidth: 0 },
+  matrixRow: {
+    display: 'grid',
+    gridTemplateColumns: MATRIX_COLUMNS,
+    alignItems: 'center',
+    width: '100%',
+    columnGap: 12,
+    borderBottomWidth: 1,
+    minHeight: 52,
+  },
+  areaCell: { minWidth: 0, paddingVertical: 8, paddingRight: 8 },
   areaLabel: { fontSize: 14 },
   areaHint: { fontSize: 12, marginTop: 2 },
   overrideMark: { fontSize: 12, marginTop: 2 },
   compactRow: { borderBottomWidth: 1, paddingVertical: 10, gap: 4 },
-  compactChecks: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  compactCheck: { alignItems: 'center', flex: 1, minWidth: 72 },
-  compactAction: { fontSize: 11, marginBottom: 4, textAlign: 'center' },
-  checkHit: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    minWidth: 72,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  compactChecks: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 6 },
+  compactCheck: { alignItems: 'center', flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 96 },
+  compactAction: { fontSize: 12, lineHeight: 15, marginBottom: 4, textAlign: 'center' },
+  checkHit: { minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   levelActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   primaryBtn: { alignSelf: 'flex-start', borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 16 },
@@ -1241,18 +1236,28 @@ const styles = StyleSheet.create({
   quietBtn: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 12 },
   person: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   personName: { fontSize: 15, fontWeight: '600' },
-  drawer: { borderWidth: 1, borderRadius: 14, width: '100%', alignSelf: 'stretch', overflow: 'visible' },
+  drawer: { borderWidth: 1, borderRadius: 14, width: '100%', alignSelf: 'stretch', overflow: 'hidden' },
   drawerHead: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '100%',
     gap: 4,
     paddingLeft: 4,
     paddingRight: 8,
     paddingVertical: 4,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
   },
-  drawerToggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 8 },
+  drawerToggle: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  drawerTitle: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 160 },
   gearBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   drawerBody: { borderTopWidth: 1, paddingHorizontal: 12, paddingVertical: 12, gap: 10, width: '100%', minWidth: 0 },
   memberLine: { gap: 8 },

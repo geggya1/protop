@@ -133,7 +133,8 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
   assert.equal(canAdminResource(innleie, 'hours'), false);
   assert.equal(companyTabAllowed('okonomi', null, innleie), false);
   assert.equal(companyTabAllowed('okonomi', 'oversikt', innleie), false);
-  assert.equal(companyTabAllowed('projects', null, innleie), false);
+  // Tildelte prosjekt gir Prosjekt-siden, med bare egne prosjekter.
+  assert.equal(companyTabAllowed('projects', null, innleie), true);
   assert.equal(companyTabAllowed('arbeid', null, innleie), true);
   assert.equal(companyTabAllowed('arbeid', 'utlegg', innleie), true);
   assert.equal(companyTabAllowed('selskap', null, innleie), true);
@@ -320,7 +321,7 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
 {
   const innleie = standardGrants('innleie_ekstern');
   const visible = filterCompanyNav(companyNavItems(), innleie).map((item) => item.id);
-  assert.deepEqual(visible, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'produkt', 'utstyr', 'okonomi']);
+  assert.deepEqual(visible, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'projects', 'produkt', 'utstyr', 'okonomi']);
   assert.equal(visible.includes('kjorebok'), false);
   assert.equal(visible.includes('selskapsinnstillinger'), false);
   const innleieOkonomi = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'okonomi');
@@ -526,6 +527,16 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.equal(allowsEffective(grants, 'tenders', 'write'), true);
   assert.equal(allowsEffective(grants, 'tenderRequest', 'see'), false);
   assert.equal(canViewResource(grants, 'tenderRequest'), false);
+}
+
+// Tildelte prosjekt alene gir Prosjekt i menyen og på siden.
+{
+  const assigned = { assignedProjects: 'see' };
+  assert.equal(companyTabAllowed('projects', null, assigned), true);
+  assert.ok(filterCompanyNav(companyNavItems(), assigned).some((item) => item.id === 'projects'
+    || (item.children || []).some((child) => child.id === 'projects')));
+  const none = {};
+  assert.equal(companyTabAllowed('projects', null, none), false);
 }
 
 console.log('companyAccess.test.mjs: ok');

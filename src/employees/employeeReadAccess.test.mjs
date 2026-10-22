@@ -105,4 +105,10 @@ assert.match(screen, /const selfSelected = isSelfRow\(selected\);/);
 assert.equal(/selected\.personUid !== uid/.test(screen), false);
 assert.match(screen, /onPushProfile=\{access\.previewing \? undefined : pushProfile\}/);
 
+// Prosjekt: bare «Tildelte prosjekt» viser prosjektene personen er registrert i.
+const projectsUi = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
+assert.match(projectsUi, /seesAllProjects = [\s\S]{0,120}access\.canView\('projects'\)/);
+assert.match(projectsUi, /if \(!projectVisible\(item\)\) return false;/);
+assert.match(projectsUi, /item\.id === selectedId && projectVisible\(item\)/);
+
 console.log('employeeReadAccess.test.mjs: ok');

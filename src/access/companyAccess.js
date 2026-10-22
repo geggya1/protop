@@ -1021,6 +1021,8 @@ export function companyTabAllowed(tab, subView, grants) {
     return adminResource(grants, 'economySettings');
   }
   if (tab === 'underenheter') return seeResource(grants, 'units');
+  // Tildelte prosjekt alene gir Prosjekt-siden, med bare egne prosjekter.
+  if (tab === 'projects') return seeResource(grants, 'projects') || seeResource(grants, 'assignedProjects');
   if (tab === 'utstyr') {
     return seeResource(grants, 'equipment')
       || seeResource(grants, 'projects')
@@ -1099,6 +1101,7 @@ function navItemAllowed(id, grants) {
     };
     return adminResource(grants, map[id]);
   }
+  if (id === 'projects') return seeResource(grants, 'projects') || seeResource(grants, 'assignedProjects');
   if (id === 'utstyr') {
     return seeResource(grants, 'equipment')
       || seeResource(grants, 'projects')

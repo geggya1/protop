@@ -60,6 +60,8 @@ async function check(id) {
     const got = await post({ action: 'ground-file', file: first.download });
     if (got.data.ok && got.data.base64) row.download = `ok ${got.data.size}`;
     else if (got.data.tooLarge) row.download = 'for-stor';
+    // Krever innlogging: filen vises som lenke til portalen. Forventet, ikke en feil.
+    else if (got.data.gated) row.download = 'portal';
     else row.download = `feil ${got.status} ${got.data.error || got.data.note || ''}`.trim();
   }
   return row;

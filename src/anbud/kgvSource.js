@@ -51,7 +51,75 @@ export function artifikProcId(url) {
   return match ? match[1] : '';
 }
 
+/** Artifik (React Router) legger sidedata i en «turbo-stream»: én flat tabell der objekter peker på andre plasser med indeks. */
+export function decodeTurboStream(html) {
+  const source = String(html || '');
+  const chunks = [];
+  for (const match of source.matchAll(/streamController\.enqueue\(("(?:[^"\\]|\\.)*")\)/g)) {
+    try {
+      chunks.push(JSON.parse(match[1]));
+    } catch {
+      // Ødelagt bit. De andre kan fortsatt leses.
+    }
+  }
+  if (!chunks.length) return [];
+  try {
+    const table = JSON.parse(chunks.join('').split('\n')[0]);
+    return Array.isArray(table) ? table : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Alle vanlige objekter i strømmen, med feltnavn og verdier slått opp ett nivå. */
+export function turboObjects(table) {
+  const rows = [];
+  const look = (value) => (typeof value === 'number' && value >= 0 && value < table.length ? table[value] : undefined);
+  for (const entry of table) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const row = {};
+    let plain = true;
+    for (const [ref, value] of Object.entries(entry)) {
+      const name = /^_\d+$/.test(ref) ? table[Number(ref.slice(1))] : null;
+      if (typeof name !== 'string') {
+        plain = false;
+        break;
+      }
+      row[name] = look(value);
+    }
+    if (plain) rows.push(row);
+  }
+  return rows;
+}
+
+function artifikFilesFromStream(source) {
+  const files = [];
+  const seen = new Set();
+  for (const row of turboObjects(decodeTurboStream(source))) {
+    const key = typeof row.key === 'string' ? row.key : '';
+    const match = key.match(/^procurementAttachments\/(\d+)\/[0-9a-f-]{36}$/i);
+    if (!match || typeof row.name !== 'string' || !FILE_NAME.test(row.name) || row.isDeleted === true) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    files.push({
+      name: text(row.name),
+      sourceId: key,
+      key,
+      procId: match[1],
+      publishedAt: typeof row.lastModified === 'string' ? row.lastModified : '',
+      orderIndex: typeof row.orderIndex === 'number' ? row.orderIndex : null,
+      access: 'public',
+    });
+  }
+  // Samme rekkefølge som på Artifik.
+  return files
+    .sort((a, b) => (a.orderIndex ?? 1e9) - (b.orderIndex ?? 1e9))
+    .map(({ orderIndex, ...file }) => file);
+}
+
 export function parseArtifikFiles(source) {
+  const streamed = artifikFilesFromStream(source);
+  if (streamed.length) return streamed;
   const raw = String(source || '').replace(/\\"/g, '"');
   const files = [];
   const seen = new Set();
@@ -100,6 +168,59 @@ export function parseArtifikQaIndex(html) {
   return rows;
 }
 
+function osloDate(iso) {
+  const at = Date.parse(String(iso || ''));
+  if (!at) return '';
+  const parts = new Intl.DateTimeFormat('nb-NO', {
+    timeZone: 'Europe/Oslo', day: '2-digit', month: '2-digit', year: 'numeric',
+  }).formatToParts(new Date(at));
+  const pick = (type) => parts.find((part) => part.type === type)?.value || '';
+  return `${pick('day')}/${pick('month')}/${pick('year')}`;
+}
+
+/** Artifik lagrer svar som HTML fra en editor. Behold avsnitt, fjern resten. */
+export function richText(value) {
+  const plain = String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h\d)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;|&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+  return plain
+    .split('\n')
+    .map((line) => line.replace(/[ \t\r\f\v]+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+/** Spørsmål og svar fra Artifik-sidens datastrøm. Listesiden har hele svaret. */
+export function parseArtifikQaStream(html, procId) {
+  const rows = [];
+  const seen = new Set();
+  for (const row of turboObjects(decodeTurboStream(html))) {
+    if (typeof row.question !== 'string' || !('answer' in row)) continue;
+    const id = String(row.id ?? '');
+    if (!/^\d+$/.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    rows.push({
+      id,
+      procId: String(procId || ''),
+      title: typeof row.title === 'string' ? richText(row.title) : '',
+      question: richText(row.question),
+      answer: typeof row.answer === 'string' ? richText(row.answer) : '',
+      published: osloDate(row.publishedDate),
+      url: `https://app.artifik.no/procurements/${procId}/qas/${id}`,
+    });
+  }
+  return rows;
+}
+
 export function parseArtifikQaBody(html) {
   const source = String(html || '');
   const match = source.match(/\\"question\\",\\"([\s\S]*?)\\",\\"answer\\",\\"([\s\S]*?)\\"(?:,\\"publishedDate\\"|,\\"files\\")/);
@@ -109,8 +230,8 @@ export function parseArtifikQaBody(html) {
     .replace(/\\"/g, '"')
     .replace(/\\\\/g, '\\');
   return {
-    question: text(unescape(match[1])),
-    answer: text(unescape(match[2])),
+    question: richText(unescape(match[1])),
+    answer: richText(unescape(match[2])),
   };
 }
 
@@ -150,9 +271,17 @@ export async function readArtifik(url) {
     readText(`${pageUrl}/details`),
     readText(`${pageUrl}/qas`),
   ]);
-  const files = parseArtifikFiles(`${details.html}\n${home.html}`);
-  const index = parseArtifikQaIndex(qas.html);
-  const qa = [];
+  // Hver side har sin egen datastrøm, så de leses hver for seg.
+  const files = [];
+  const seenFiles = new Set();
+  for (const file of [...parseArtifikFiles(details.html), ...parseArtifikFiles(home.html)]) {
+    if (seenFiles.has(file.key)) continue;
+    seenFiles.add(file.key);
+    files.push(file);
+  }
+  const streamed = parseArtifikQaStream(qas.html, procId);
+  const index = streamed.length ? [] : parseArtifikQaIndex(qas.html);
+  const qa = [...streamed];
   for (const row of index.slice(0, 20)) {
     try {
       const detail = await readText(row.url);

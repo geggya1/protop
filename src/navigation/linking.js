@@ -317,6 +317,7 @@ export const linking = {
       Confirmation: 'confirmation',
       // Auth-frie forhåndsvisninger (samme path som welcomePathEntry i App.jsx).
       FakturaDemo: 'faktura-demo',
+      AnbudDemo: 'anbud-demo',
       DashboardThemeGallery: 'dashboard-themes',
       ChildDashboardThemeGallery: 'child-dashboard-themes',
       // Marketing site owns `/`. Logged-in family home lives at /hjem.

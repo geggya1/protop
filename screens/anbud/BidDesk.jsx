@@ -145,7 +145,9 @@ export default function BidDesk({
     try {
       if (/^\d{4}-\d+$/.test(String(bid.noticeId || ''))) {
         const file = await fetchCompetitionFile(bid.noticeId);
-        dossier = file?.dossier ? { ...dossier, ...file.dossier, ground: dossier.ground, portalFiles: dossier.portalFiles, updates: dossier.updates } : dossier;
+        // Lagrede svar beholdes, ellers ser alle publiserte svar nye ut ved hver henting.
+        const kept = { ground: dossier.ground, portalFiles: dossier.portalFiles, updates: dossier.updates, qa: dossier.qa?.length ? dossier.qa : file?.dossier?.qa };
+        dossier = file?.dossier ? { ...dossier, ...file.dossier, ...kept } : dossier;
       }
       const documentsUrl = dossier.documentsUrl || dossier.documents?.[0]?.url || '';
       if (!documentsUrl) {
@@ -161,8 +163,10 @@ export default function BidDesk({
       } else {
         ground = await fetchCompetitionGround(documentsUrl);
         const files = [];
-        for (const file of (ground.files || []).slice(0, 12)) {
-          if (!file?.download) {
+        // Med bedrift lagres filene i Storage. Uten bedrift ligger de i nettleseren, og da må antallet holdes lavt.
+        const downloadCap = company?.id ? 60 : 12;
+        for (const [index, file] of (ground.files || []).slice(0, 100).entries()) {
+          if (!file?.download || index >= downloadCap) {
             files.push({ ...file, status: 'portal' });
             continue;
           }

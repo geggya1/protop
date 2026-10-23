@@ -4,6 +4,7 @@ import { searchTedNotices } from './tedQuery';
 import { summarizeNotice } from './dossier';
 import { interestUrlFromDocs } from './portalCatalog';
 import { collectWatchHits } from './watchHits';
+import { tenderProxyUrl } from './tenderProxyUrl';
 
 const LOCAL_SEARCH = 'http://127.0.0.1:8787/search';
 const LOCAL_COMPANY = 'http://127.0.0.1:8787/company';
@@ -36,7 +37,7 @@ async function companyViaProxy(orgnr) {
 }
 
 export async function fetchTenderHits(query) {
-  const res = await fetch('/api/tender-proxy', {
+  const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'search', ...query }),
@@ -58,7 +59,7 @@ export function fetchWatchHits(query) {
 }
 
 export async function fetchRegisterExtras(orgnr) {
-  const res = await fetch('/api/tender-proxy', {
+  const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'register', orgnr }),
@@ -99,7 +100,7 @@ export async function fetchCompanyCpv(orgnr) {
 export async function fetchPortalCatalog(url) {
   const interestUrl = interestUrlFromDocs(url);
   try {
-    const res = await fetch('/api/tender-proxy', {
+    const res = await fetch(tenderProxyUrl(), {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'catalog', url }),
@@ -137,21 +138,22 @@ export async function attachPortalCatalog(dossier) {
 
 /** Leser offentlig filliste, spørsmål/svar og tilgangsstatus fra KGV-adressen. */
 export async function fetchCompetitionGround(url) {
-  const res = await fetch('/api/tender-proxy', {
+  const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'ground', url }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.ok === false) {
-    throw new Error(data.error || 'Kunne ikke lese konkurransegrunnlaget.');
+  // Uten ok:true var svaret ikke fra proxyen (f.eks. en HTML-side). Da må det ikke se ut som tomt grunnlag.
+  if (!res.ok || data.ok !== true) {
+    throw new Error(data.error || 'Kunne ikke lese konkurransegrunnlaget. Prøv igjen om litt.');
   }
   return data;
 }
 
 /** Laster ned én offentlig fil. Innloggede filer returneres uten innhold. */
 export async function downloadGroundFile(file) {
-  const res = await fetch('/api/tender-proxy', {
+  const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -172,7 +174,7 @@ export async function downloadGroundFile(file) {
 
 /** Laster ned et offentlig konkurransedokument. Innloggede portalfiler blir stående som lenke. */
 export async function downloadPublicFile(url) {
-  const res = await fetch('/api/tender-proxy', {
+  const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'download', url }),
@@ -216,7 +218,7 @@ export async function storeReachableFiles(dossier) {
 /** Henter kunngjøring, dokumentlenker, ESPD-grunnlag og spørsmålsfrist. */
 export async function fetchCompetitionFile(id) {
   try {
-    const res = await fetch('/api/tender-proxy', {
+    const res = await fetch(tenderProxyUrl(), {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'dossier', id }),

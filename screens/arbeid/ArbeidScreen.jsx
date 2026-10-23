@@ -122,7 +122,7 @@ export default function ArbeidScreen({
   companyFamily = null,
   embedded = false,
   // Bare visning (begrenset redigering på ansattsiden): ingen føring, flytting eller låsing.
-  readOnly = false,
+  readOnly: readOnlyProp = false,
   // Skjul tannhjulet (rapport, eksport og utskrift).
   hideReportTools = false,
   // «Legg til prosjekt» viser bare prosjekter personen er registrert i.
@@ -262,21 +262,30 @@ export default function ArbeidScreen({
   }, [state, ready, workspaceId]);
 
   const linked = useMemo(() => {
-    const row = personal
+    // «Se som bruker»: timelisten følger personen som vises, ikke innlogget konto.
+    const previewed = !personal && access.previewing && access.viewingAs
+      ? employees.find((row) => row.id === access.viewingAs.id) || access.viewingAs
+      : null;
+    const row = previewed || (personal
       ? ownEmployee(employees, {
         uid,
         emails: [user?.email],
         name: user?.displayName || '',
       })
-      : findLinkedEmployee(employees, uid);
+      : findLinkedEmployee(employees, uid));
     if (!row || row.company?.status === 'former' || row.company?.status === 'deleted') return null;
     return row;
-  }, [employees, uid, personal, user?.email, user?.displayName]);
+  }, [employees, uid, personal, user?.email, user?.displayName, access.previewing, access.viewingAs]);
   const manager = personal
     ? false
     : (access.ready
       ? ((isAdmin && !access.previewLocks('hoursOthers')) || access.canEdit('hoursOthers'))
       : canManageTimesheets({ isAdmin, employee: linked }));
+  // Bedriftstimeliste: Lese = bare se. Begrenset redigering på egne timer (eller andres timer for leder) = føre og endre.
+  const companyTimesheet = !personal && !lockedId && access.active;
+  const rightsReadOnly = companyTimesheet && !manager
+    && (!access.ready || !access.canEdit('hours'));
+  const readOnly = readOnlyProp || rightsReadOnly;
 
   useEffect(() => {
     if (lockedId) {
@@ -292,9 +301,14 @@ export default function ArbeidScreen({
     if (maybeManager && !access.ready) return;
     // Bedriftstimeliste: leder velger person først (steg 1).
     if (manager) return;
+    // Bytte av person i «Se som bruker» skal bytte timeliste.
+    if (access.previewing && linked?.id) {
+      if (employeeId !== linked.id) setEmployeeId(linked.id);
+      return;
+    }
     if (employeeId) return;
     if (linked?.id) setEmployeeId(linked.id);
-  }, [linked, employees, manager, employeeId, lockedId, personal, access.ready, isAdmin]);
+  }, [linked, employees, manager, employeeId, lockedId, personal, access.ready, access.previewing, isAdmin]);
 
   useEffect(() => {
     if (lockedId || personal) return;
@@ -954,7 +968,11 @@ export default function ArbeidScreen({
     selectDate(new Date(base.getFullYear(), base.getMonth(), base.getDate() + deltaDays));
   }
 
-  const actions = readOnly ? null : (
+  const actions = readOnly ? (rightsReadOnly && access.ready ? (
+    <View style={[styles.footer, isPhone && styles.footerPhone]}>
+      <Text style={{ color: colors.muted }}>Du har lesetilgang. Timene kan ses, men ikke endres.</Text>
+    </View>
+  ) : null) : (
     <View style={[styles.footer, isPhone && styles.footerPhone]}>
       {assignedOnly ? null : (
       <TouchableOpacity

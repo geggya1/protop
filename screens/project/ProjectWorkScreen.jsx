@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+import { myProjectIds } from '../../src/project/myProjects';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
@@ -330,8 +331,8 @@ export default function ProjectWorkScreen() {
     && (access.canEdit('projects') || access.canEdit('assignedProjects'));
   const projectMode = isAdmin ? 'admin' : (projectEditor ? 'editor' : 'reader');
   const canDeleteProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canAdmin('projects'));
-  // Bare «Tildelte prosjekt»: listen viser prosjektene personen er registrert i.
-  const seesAllProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canView('projects'));
+  // Bare Admin på Prosjekt ser alle prosjekter. Lese og begrenset redigering ser prosjektene de er deltaker i.
+  const seesAllProjects = isAdmin;
   const cachedProjects = peekProjectState(familyId);
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
@@ -566,11 +567,13 @@ export default function ProjectWorkScreen() {
     if (access.previewing && access.viewingAs) return access.viewingAs.id;
     return (employees || []).find((row) => row.personUid && row.personUid === uid)?.id || '';
   }, [access.previewing, access.viewingAs, employees, uid]);
-  const assignedIds = useMemo(() => new Set(
-    (state.members || [])
-      .filter((row) => myEmployeeId && row.employeeId === myEmployeeId && row.active !== false)
-      .map((row) => row.projectId),
-  ), [state.members, myEmployeeId]);
+  // Egne prosjekter: deltaker, prosjektleder eller ført timer.
+  const assignedIds = useMemo(() => {
+    const me = access.previewing && access.viewingAs
+      ? access.viewingAs
+      : (employees || []).find((row) => row.id === myEmployeeId);
+    return myProjectIds(state, me || (myEmployeeId ? { id: myEmployeeId } : null), employees);
+  }, [state, employees, myEmployeeId, access.previewing, access.viewingAs]);
   const projectVisible = useMemo(
     () => (item) => seesAllProjects || assignedIds.has(item?.id),
     [seesAllProjects, assignedIds],
@@ -1683,6 +1686,7 @@ export default function ProjectWorkScreen() {
 
   const listBody = view === 'list' ? (
     <View style={[styles.stack, listDesk && styles.stackDesk]}>
+      {isAdmin ? (
       <CreateMenu
         label="Nytt prosjekt"
         title="Nytt prosjekt"
@@ -1695,6 +1699,7 @@ export default function ProjectWorkScreen() {
           { id: 'import', label: importing ? 'Tolker filen…' : 'Importer liste', onPress: importFile, disabled: importing },
         ]}
       />
+      ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && (
         <Text style={{ color: colors.danger || '#b42318' }}>
@@ -1825,7 +1830,7 @@ export default function ProjectWorkScreen() {
           Sletting kan ikke angres. Tilhørende poster på prosjektet fjernes også.
         </Text>
       ) : null}
-      {!canDeleteProjects && visibleProjects.length ? (
+      {!canDeleteProjects && isAdmin && visibleProjects.length ? (
         <Text style={{ color: colors.muted, fontSize: 13 }}>
           Bare den som kan slette prosjekter, kan fjerne dem.
         </Text>

@@ -1638,7 +1638,25 @@ export function upsertTimeEntry(state, input) {
   const timeEntries = existing
     ? working.timeEntries.map((item) => (item.id === existing.id ? row : item))
     : [row, ...working.timeEntries];
-  return ok(syncProjectHourRollups({ ...working, timeEntries }, gate.project.id));
+  // Den som fører timer på et prosjekt, blir automatisk deltaker i teamet.
+  let members = working.members || [];
+  const isMember = members.some((item) => (
+    item.projectId === gate.project.id && item.employeeId === employeeId && item.active !== false
+  ));
+  if (!isMember && hours > 0) {
+    members = [normalizeMemberRow({
+      id: createId('mem'),
+      projectId: gate.project.id,
+      employeeId,
+      employeeName: row.employeeName,
+      role: 'Prosjektmedlem',
+      active: true,
+      starred: false,
+      addedAt: now,
+      addedByUid: text(input.createdByUid),
+    }), ...members];
+  }
+  return ok(syncProjectHourRollups({ ...working, timeEntries, members }, gate.project.id));
 }
 
 export function deleteTimeEntry(state, entryId) {

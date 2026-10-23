@@ -23,7 +23,8 @@ function countLine(activeCount, inactiveCount) {
   return `${activeLabel} · ${inactiveLabel}`;
 }
 
-function ActivityTabs({ value, activeCount, inactiveCount, colors, onChange }) {
+/** Aktive / Deaktiverte med antall. Brukes også på Inntjening. */
+export function ActivityTabs({ value, activeCount, inactiveCount, colors, onChange, idPrefix = '' }) {
   const tabs = [
     ['active', 'Aktive', activeCount],
     ['inactive', 'Deaktiverte', inactiveCount],
@@ -35,6 +36,7 @@ function ActivityTabs({ value, activeCount, inactiveCount, colors, onChange }) {
         return (
           <Pressable
             key={id}
+            nativeID={idPrefix ? `${idPrefix}-${id}` : undefined}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
             accessibilityLabel={`${label}, ${count}`}

@@ -41,6 +41,7 @@ import ProjectBillingReadyTab from './ProjectBillingReadyTab';
 import ProjectIndexArchive from './ProjectIndexArchive';
 import ProjectEarningsTab from './ProjectEarningsTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { teamWithHourParticipants } from '../../src/project/myProjects';
 
 // Uten Admin: hovedside, egne utlegg, eget produktsalg og egne timer. Begrenset redigering får også innstillinger.
 const LIMITED_TABS = new Set(['hovedside', 'utlegg', 'produktsalg', 'timerapport']);
@@ -165,9 +166,10 @@ export default function ProjectDetail({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
 
+  // Team: registrerte deltakere pluss de som har ført timer på prosjektet.
   const members = useMemo(
-    () => state.members.filter((row) => row.projectId === project.id && row.active !== false),
-    [state.members, project.id],
+    () => teamWithHourParticipants(state.members, state.timeEntries, project.id),
+    [state.members, state.timeEntries, project.id],
   );
   const activities = useMemo(
     () => state.activities.filter((row) => row.projectId === project.id),
@@ -488,7 +490,8 @@ export default function ProjectDetail({
           <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>Timerapport</Text>
             <View style={[styles.tableHead, { borderColor: colors.line }]}>
-              {['Dato', 'Medarbeider', 'Aktivitet', 'Beskrivelse', 'Timer', 'Fakturerbart', ''].map((label) => (
+              {/* Fakturerbart er bare for Admin på Prosjekt. */}
+              {['Dato', 'Medarbeider', 'Aktivitet', 'Beskrivelse', 'Timer', ...(full ? ['Fakturerbart'] : []), ''].map((label) => (
                 <Text key={label} style={[styles.th, { color: colors.muted }]}>{label}</Text>
               ))}
             </View>
@@ -499,7 +502,7 @@ export default function ProjectDetail({
                 <Text style={[styles.td, { color: colors.muted }]} numberOfLines={1}>{row.activityName}</Text>
                 <Text style={[styles.td, { color: colors.ink, flex: 1.4 }]} numberOfLines={2}>{row.description || '—'}</Text>
                 <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.hours)}</Text>
-                <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.billableHours)}</Text>
+                {full ? <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.billableHours)}</Text> : null}
                 <View style={styles.td}>
                   {row.status === 'godkjent' || row.status === 'låst' ? (
                     <Ionicons name="checkmark-circle" size={18} color={colors.success || '#16a34a'} />

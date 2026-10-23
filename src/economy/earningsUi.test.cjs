@@ -282,8 +282,9 @@ async function renderScreen() {
   assert.doesNotMatch(text, /Sluttet/);
   assert.match(text, /950\s?000/);
   assert.match(text, /lønn/i);
-  assert.match(text, /Ansatte/);
-  assert.match(text, /Innleide/);
+  assert.match(text, /Interne/);
+  assert.match(text, /Eksterne/);
+  assert.match(text, /Deaktiverte/);
   assert.match(text, /Kunder/);
   assert.match(text, /Prosjekt/);
   assert.match(text, /Avtaler/);
@@ -292,6 +293,14 @@ async function renderScreen() {
   assert.doesNotMatch(text, /37\s?970/);
   assert.doesNotMatch(text, /1\s?150/);
   assert.match(text, /Variabler/);
+
+  findPress(tree, 'earnings-status-inactive')();
+  const inactive = await renderScreen();
+  const inactiveText = collectText(inactive).join('\n');
+  assert.match(inactiveText, /Sluttet Person/);
+  assert.doesNotMatch(inactiveText, /Kari Nordmann/);
+  findPress(inactive, 'earnings-status-active')();
+  await renderScreen();
 
   const open = findPress(tree, 'earnings-open-e1');
   assert.equal(typeof open, 'function');

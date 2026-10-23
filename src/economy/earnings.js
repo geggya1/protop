@@ -12,7 +12,7 @@ import { roundHours } from '../arbeid/hours.js';
 import { rateWithOvertime } from '../arbeid/overtime.js';
 import { scheduledHours } from '../arbeid/schedule.js';
 import { emptyVacationPlan, vacationQuota } from '../arbeid/vacationPlan.js';
-import { isDeletedEmployee, personnelKind } from '../employees/model.js';
+import { employeeActivityTab, employeeDirectoryBucket, isDeletedEmployee } from '../employees/model.js';
 import { currentSalaryFor } from '../hr/model.js';
 import { rateOnDate } from '../indeksregulering/cases.js';
 import { roundMoney } from './vat.js';
@@ -228,13 +228,26 @@ export function normalizeEarningsSettings(raw) {
   };
 }
 
+/**
+ * Intern (ansatte) eller ekstern (innleide) etter samme inndeling som Ansatt-siden og timelisten.
+ * Uavhengig av aktiv/deaktivert. Tom for slettede.
+ */
+export function earningsSection(employee) {
+  if (!employee) return '';
+  const bucket = employeeDirectoryBucket(employee);
+  if (bucket === 'trash') return '';
+  return bucket === 'external' ? 'innleide' : 'ansatte';
+}
+
+/** Aktive eller deaktiverte, som i timelisten. Tom for slettede. */
+export function earningsStatus(employee) {
+  const tab = employeeActivityTab(employee);
+  return tab === 'trash' ? '' : tab;
+}
+
 export function earningsAudience(employee) {
-  if (!employee || isDeletedEmployee(employee)) return '';
-  const status = employee.company?.status || 'active';
-  if (status !== 'active') return '';
-  const kind = personnelKind(employee);
-  if (kind === 'innleid' || kind === 'external') return 'innleide';
-  return 'ansatte';
+  if (earningsStatus(employee) !== 'active') return '';
+  return earningsSection(employee);
 }
 
 /**
@@ -580,14 +593,18 @@ export function calculateHired({ employee, settings, yearHours } = {}) {
   };
 }
 
-export function calculateRoster({ employees, salaries, settings, yearHoursById, audience } = {}) {
+export function calculateRoster({ employees, salaries, settings, yearHoursById, audience, status = 'active' } = {}) {
   return (employees || [])
-    .filter((row) => (audience ? earningsAudience(row) === audience : !isDeletedEmployee(row)))
+    .filter((row) => {
+      if (!row || isDeletedEmployee(row)) return false;
+      if (status && status !== 'all' && earningsStatus(row) !== status) return false;
+      return !audience || earningsSection(row) === audience;
+    })
     .map((employee) => {
       const known = yearHoursById && Object.prototype.hasOwnProperty.call(yearHoursById, employee.id)
         ? yearHoursById[employee.id]
         : undefined;
-      if ((audience || earningsAudience(employee)) === 'innleide') {
+      if ((audience || earningsSection(employee)) === 'innleide') {
         return calculateHired({ employee, settings, yearHours: known });
       }
       return calculateEmployee({ employee, salaries, settings, yearHours: known });
@@ -644,7 +661,7 @@ export function projectEarnings({
     const known = yearHoursById && Object.prototype.hasOwnProperty.call(yearHoursById, employeeId)
       ? yearHoursById[employeeId]
       : undefined;
-    const annual = earningsAudience(employee) === 'innleide'
+    const annual = earningsSection(employee) === 'innleide'
       ? calculateHired({ employee, settings, yearHours: known })
       : calculateEmployee({ employee, salaries, settings, yearHours: known });
     let hours = 0;

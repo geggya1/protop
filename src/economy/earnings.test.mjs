@@ -9,6 +9,8 @@ import {
   defaultStandardLines,
   defaultVariables,
   earningsAudience,
+  earningsSection,
+  earningsStatus,
   exactHourlyRate,
   hideEmployeeLine,
   projectEarnings,
@@ -289,6 +291,13 @@ assert.equal(earningsAudience(person()), 'ansatte');
 assert.equal(earningsAudience(person({ company: { status: 'inactive' } })), '');
 assert.equal(earningsAudience(hiredPerson), 'innleide');
 assert.equal(earningsAudience(person({ company: { personnelKind: 'external', status: 'active' } })), 'innleide');
+// Samme inndeling som timelisten: tilgangsnivå vinner over personellkategori.
+const placedExternal = person({ company: { personnelKind: 'staff', status: 'active', accessLevel: 'innleie_ekstern' } });
+assert.equal(earningsSection(placedExternal), 'innleide');
+assert.equal(earningsSection(person({ company: { status: 'inactive' } })), 'ansatte');
+assert.equal(earningsStatus(person({ company: { status: 'inactive' } })), 'inactive');
+assert.equal(earningsStatus(person({ company: { status: 'deleted' } })), '');
+assert.equal(earningsSection(person({ company: { status: 'deleted' } })), '');
 const hired = calculateHired({
   employee: hiredPerson,
   settings: setEmployeeIncome(defaults, 'h1', { purchaseRate: 800, billableRate: 1200, billablePercent: 1 }),

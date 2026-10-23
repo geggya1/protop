@@ -113,84 +113,156 @@ function CheckBox({ on, disabled, colors, onPress, label }) {
 /** Område + Lese + Begrenset redigering + Admin. Minstebredde holder ordene vannrett; fr-andeler vokser med feltet. */
 const MATRIX_COLUMNS = 'minmax(200px, 2.4fr) minmax(112px, 1fr) minmax(196px, 1.7fr) minmax(112px, 1fr)';
 
-function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
-  if (compact) {
+/** Menytreet i én gruppe som rader: modul (dybde 0), overskrift uten rettighet, og undersider (dybde 1). */
+function matrixRows(group) {
+  const rows = [];
+  for (const item of group.items) {
+    rows.push({ key: item.id, item, depth: 0, heading: !!item.heading });
+    for (const child of item.children || []) {
+      rows.push({ key: child.id, item: child, depth: 1, parentLabel: item.label });
+    }
+  }
+  return rows;
+}
+
+function groupMeta(group, grants, base) {
+  const total = group.resources.length;
+  const granted = group.resources.filter((row) => (grants?.[row.id] || 'none') !== 'none').length;
+  const overrides = base
+    ? group.resources.filter((row) => (base[row.id] || 'none') !== (grants?.[row.id] || 'none')).length
+    : 0;
+  const parts = [`${granted} av ${total} med tilgang`];
+  if (overrides) parts.push(overrides === 1 ? '1 avvik' : `${overrides} avvik`);
+  return parts.join(' · ');
+}
+
+/** Kategori som skuff, lik gruppene i hamburgermenyen. Lukket til den åpnes. */
+function GroupDrawer({ group, grants, base, colors, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={[styles.matrixDrawer, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={open ? `Lukk ${group.label}` : `Åpne ${group.label}`}
+        onPress={() => setOpen((value) => !value)}
+        style={styles.matrixDrawerHead}
+      >
+        <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.muted} />
+        <Ionicons name={group.icon} size={18} color={colors.brand} />
+        <View style={styles.drawerTitle}>
+          <Text style={[styles.groupLabel, { color: colors.ink }]}>{group.label}</Text>
+          <Text style={[styles.kind, { color: colors.muted }]}>{groupMeta(group, grants, base)}</Text>
+        </View>
+      </Pressable>
+      {open ? (
+        <View style={[styles.matrixDrawerBody, { borderColor: colors.line }]}>{children}</View>
+      ) : null}
+    </View>
+  );
+}
+
+function AreaLabel({ row, colors, overridden }) {
+  const { item, depth, heading } = row;
+  return (
+    <View style={[styles.areaCell, depth ? styles.areaChild : null]}>
+      <View style={styles.areaTitle}>
+        <Ionicons name={item.icon} size={depth ? 15 : 17} color={heading ? colors.ink : colors.muted} />
+        <Text style={[heading || !depth ? styles.areaModule : styles.areaLabel, { color: colors.ink }]}>{item.label}</Text>
+      </View>
+      {item.hint ? <Text style={[styles.areaHint, styles.areaIndent, { color: colors.muted }]}>{item.hint}</Text> : null}
+      {overridden ? <Text style={[styles.overrideMark, styles.areaIndent, { color: colors.brand }]}>Avvik fra nivået</Text> : null}
+    </View>
+  );
+}
+
+function rowState(row, grants, base) {
+  const grant = grants?.[row.item.id] || 'none';
+  return {
+    checks: checksFromGrant(grant),
+    overridden: base ? (base[row.item.id] || 'none') !== grant : false,
+    a11y: row.parentLabel ? `${row.parentLabel} — ${row.item.label}` : row.item.label,
+  };
+}
+
+function CompactRows({ group, grants, base, colors, canEdit, onToggle }) {
+  return matrixRows(group).map((row) => {
+    if (row.heading) {
+      return (
+        <View key={row.key} style={[styles.compactRow, { borderColor: colors.line }]}>
+          <AreaLabel row={row} colors={colors} />
+        </View>
+      );
+    }
+    const { checks, overridden, a11y } = rowState(row, grants, base);
     return (
-      <View style={styles.stack}>
-        {ACCESS_GROUPS.map((group) => (
-          <View key={group.id} style={styles.group}>
-            <Text style={[styles.groupLabel, { color: colors.muted }]}>{group.label}</Text>
-            {group.resources.map((resource) => {
-              const grant = grants?.[resource.id] || 'none';
-              const checks = checksFromGrant(grant);
-              const overridden = base ? (base[resource.id] || 'none') !== grant : false;
-              return (
-                <View key={resource.id} style={[styles.compactRow, { borderColor: colors.line }]}>
-                  <Text style={[styles.areaLabel, { color: colors.ink }]}>{resource.label}</Text>
-                  {resource.hint ? <Text style={[styles.areaHint, { color: colors.muted }]}>{resource.hint}</Text> : null}
-                  {overridden ? <Text style={[styles.overrideMark, { color: colors.brand }]}>Avvik fra nivået</Text> : null}
-                  <View style={styles.compactChecks}>
-                    {ACCESS_ACTIONS.map((action) => (
-                      <View key={action.id} style={styles.compactCheck}>
-                        <Text style={[styles.compactAction, { color: colors.muted }]}>{action.label}</Text>
-                        <CheckBox
-                          on={checks[action.id]}
-                          disabled={!canEdit}
-                          colors={colors}
-                          label={`${resource.label}, ${action.label}`}
-                          onPress={() => onToggle(resource.id, action.id, !checks[action.id])}
-                        />
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        ))}
+      <View key={row.key} style={[styles.compactRow, { borderColor: colors.line }]}>
+        <AreaLabel row={row} colors={colors} overridden={overridden} />
+        <View style={[styles.compactChecks, row.depth ? styles.areaChild : null]}>
+          {ACCESS_ACTIONS.map((action) => (
+            <View key={action.id} style={styles.compactCheck}>
+              <Text style={[styles.compactAction, { color: colors.muted }]}>{action.label}</Text>
+              <CheckBox
+                on={checks[action.id]}
+                disabled={!canEdit}
+                colors={colors}
+                label={`${a11y}, ${action.label}`}
+                onPress={() => onToggle(row.item.id, action.id, !checks[action.id])}
+              />
+            </View>
+          ))}
+        </View>
       </View>
     );
-  }
+  });
+}
+
+function GridRows({ group, grants, base, colors, canEdit, onToggle }) {
   return (
-    <View style={styles.matrix}>
-      {ACCESS_GROUPS.map((group) => (
-        <View key={group.id} style={styles.group}>
-          <Text style={[styles.groupLabel, { color: colors.muted }]}>{group.label}</Text>
-          <View dataSet={{ accessMatrix: 'head' }} style={[styles.matrixHead, { borderColor: colors.line }]}>
-            <Text style={[styles.areaHead, { color: colors.muted }]}>Område</Text>
+    <>
+      <View dataSet={{ accessMatrix: 'head' }} style={[styles.matrixHead, { borderColor: colors.line }]}>
+        <Text style={[styles.areaHead, { color: colors.muted }]}>Område</Text>
+        {ACCESS_ACTIONS.map((action) => (
+          <Text key={action.id} style={[styles.actionHead, { color: colors.muted }]}>{action.label}</Text>
+        ))}
+      </View>
+      {matrixRows(group).map((row) => {
+        if (row.heading) {
+          return (
+            <View key={row.key} dataSet={{ accessMatrix: 'row' }} style={[styles.matrixRow, styles.headingRow, { borderColor: colors.line }]}>
+              <AreaLabel row={row} colors={colors} />
+            </View>
+          );
+        }
+        const { checks, overridden, a11y } = rowState(row, grants, base);
+        return (
+          <View key={row.key} dataSet={{ accessMatrix: 'row' }} style={[styles.matrixRow, { borderColor: colors.line }]}>
+            <AreaLabel row={row} colors={colors} overridden={overridden} />
             {ACCESS_ACTIONS.map((action) => (
-              <Text key={action.id} style={[styles.actionHead, { color: colors.muted }]}>{action.label}</Text>
+              <CheckBox
+                key={action.id}
+                on={checks[action.id]}
+                disabled={!canEdit}
+                colors={colors}
+                label={`${a11y}, ${action.label}`}
+                onPress={() => onToggle(row.item.id, action.id, !checks[action.id])}
+              />
             ))}
           </View>
-          {group.resources.map((resource) => {
-            const grant = grants?.[resource.id] || 'none';
-            const checks = checksFromGrant(grant);
-            const overridden = base ? (base[resource.id] || 'none') !== grant : false;
-            return (
-              <View key={resource.id} dataSet={{ accessMatrix: 'row' }} style={[styles.matrixRow, { borderColor: colors.line }]}>
-                <View style={styles.areaCell}>
-                  <Text style={[styles.areaLabel, { color: colors.ink }]}>{resource.label}</Text>
-                  {resource.hint ? (
-                    <Text style={[styles.areaHint, { color: colors.muted }]}>{resource.hint}</Text>
-                  ) : null}
-                  {overridden ? (
-                    <Text style={[styles.overrideMark, { color: colors.brand }]}>Avvik fra nivået</Text>
-                  ) : null}
-                </View>
-                {ACCESS_ACTIONS.map((action) => (
-                  <CheckBox
-                    key={action.id}
-                    on={checks[action.id]}
-                    disabled={!canEdit}
-                    colors={colors}
-                    label={`${resource.label}, ${action.label}`}
-                    onPress={() => onToggle(resource.id, action.id, !checks[action.id])}
-                  />
-                ))}
-              </View>
-            );
-          })}
-        </View>
+        );
+      })}
+    </>
+  );
+}
+
+function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
+  const Rows = compact ? CompactRows : GridRows;
+  return (
+    <View style={compact ? styles.stack : styles.matrix}>
+      {ACCESS_GROUPS.map((group) => (
+        <GroupDrawer key={group.id} group={group} grants={grants} base={base} colors={colors}>
+          <Rows group={group} grants={grants} base={base} colors={colors} canEdit={canEdit} onToggle={onToggle} />
+        </GroupDrawer>
       ))}
     </View>
   );
@@ -1197,9 +1269,11 @@ const styles = StyleSheet.create({
   popupHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   kind: { fontSize: 13, lineHeight: 18 },
   summary: { fontSize: 15, lineHeight: 21 },
-  matrix: { width: '100%', gap: 14, paddingBottom: 4 },
-  group: { gap: 0, width: '100%' },
-  groupLabel: { fontSize: 12, marginBottom: 4 },
+  matrix: { width: '100%', gap: 8, paddingBottom: 4 },
+  groupLabel: { fontSize: 15, fontWeight: '600' },
+  matrixDrawer: { borderWidth: 1, borderRadius: 12, width: '100%', overflow: 'hidden' },
+  matrixDrawerHead: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 12, paddingVertical: 8 },
+  matrixDrawerBody: { borderTopWidth: 1, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4, width: '100%', minWidth: 0 },
   matrixHead: {
     display: 'grid',
     gridTemplateColumns: MATRIX_COLUMNS,
@@ -1220,8 +1294,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     minHeight: 52,
   },
+  headingRow: { minHeight: 40 },
   areaCell: { minWidth: 0, paddingVertical: 8, paddingRight: 8 },
-  areaLabel: { fontSize: 14 },
+  areaChild: { paddingLeft: 26 },
+  areaTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  areaIndent: { paddingLeft: 25 },
+  areaModule: { fontSize: 14, fontWeight: '600', flexShrink: 1 },
+  areaLabel: { fontSize: 14, flexShrink: 1 },
   areaHint: { fontSize: 12, marginTop: 2 },
   overrideMark: { fontSize: 12, marginTop: 2 },
   compactRow: { borderBottomWidth: 1, paddingVertical: 10, gap: 4 },

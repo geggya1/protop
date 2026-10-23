@@ -107,7 +107,7 @@ assert.match(screen, /onPushProfile=\{access\.previewing \? undefined : pushProf
 
 // Prosjekt: bare «Tildelte prosjekt» viser prosjektene personen er registrert i.
 const projectsUi = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
-assert.match(projectsUi, /seesAllProjects = [\s\S]{0,120}access\.canView\('projects'\)/);
+assert.match(projectsUi, /const seesAllProjects = isAdmin;/);
 assert.match(projectsUi, /if \(!projectVisible\(item\)\) return false;/);
 assert.match(projectsUi, /item\.id === selectedId && projectVisible\(item\)/);
 

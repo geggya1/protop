@@ -172,12 +172,16 @@ export function useTimesheetWorkspace({
   }, [state, ready, workspaceId]);
 
   const linked = useMemo(() => {
-    const row = personal
+    // «Se som bruker»: følger personen som vises, ikke innlogget konto.
+    const previewed = !personal && access.previewing && access.viewingAs
+      ? employees.find((row) => row.id === access.viewingAs.id) || access.viewingAs
+      : null;
+    const row = previewed || (personal
       ? ownEmployee(employees, { uid, emails: [user?.email], name: user?.displayName || '' })
-      : findLinkedEmployee(employees, uid);
+      : findLinkedEmployee(employees, uid));
     if (!row || row.company?.status === 'former' || row.company?.status === 'deleted') return null;
     return row;
-  }, [employees, uid, personal, user?.email, user?.displayName]);
+  }, [employees, uid, personal, user?.email, user?.displayName, access.previewing, access.viewingAs]);
 
   const manager = personal
     ? false

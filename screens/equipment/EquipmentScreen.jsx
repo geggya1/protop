@@ -21,7 +21,7 @@ import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
 import { EQUIPMENT_GROUPS, EQUIPMENT_STATUSES, equipmentGroup } from '../../src/equipment/catalog';
-import { canManageEquipmentAccess, employeeMayBook } from '../../src/equipment/calendars';
+import { employeeMayBook, employeeMaySeeGear } from '../../src/equipment/calendars';
 import {
   bookingsOnDate,
   normalizeEquipment,
@@ -31,12 +31,10 @@ import {
   cancelBooking,
   removeEquipment,
   removePersonalVehicle,
-  setEquipmentBookingPolicy,
   upsertBooking,
   upsertEquipment,
   upsertPersonalVehicle,
 } from '../../src/equipment/state';
-import { employeeLevelIds } from '../../src/access/companyAccess';
 import EquipmentBookingAccess from '../../components/equipment/EquipmentBookingAccess';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
@@ -180,25 +178,32 @@ export default function EquipmentScreen() {
 
   useEffect(() => watchEmployees(familyId, (rows) => setEmployees(rows || [])), [familyId]);
 
-  const canManage = access.canEdit('equipment')
-    || access.canEdit('projects')
-    || access.canEdit('economy');
-  const canEditAccess = canManageEquipmentAccess(
-    access.employee ? employeeLevelIds(access.employee) : [access.levelId],
-    { bypass: access.bypass, previewing: access.previewing },
-  );
-  const me = ownEmployee(employees, {
-    uid: uid || '',
-    emails: [user?.email, activeProfile?.email].filter(Boolean),
-    name: activeProfile?.name || user?.displayName || '',
-  });
+  // Utstyr i tilgangsstyringen: Lese = se, begrenset redigering = registrere,
+  // endre og reservere, Admin = også slette og styre hvem som kan reservere.
+  const rights = !access.ready
+    ? 'read'
+    : access.canAdmin('equipment') ? 'admin' : access.canEdit('equipment') ? 'edit' : 'read';
+  const canManage = rights !== 'read';
+  const canDelete = rights === 'admin';
+  const canEditAccess = rights === 'admin';
+  // «Se som bruker»: siden følger personen som vises.
+  const me = access.previewing && access.viewingAs
+    ? employees.find((row) => row.id === access.viewingAs.id) || access.viewingAs
+    : ownEmployee(employees, {
+      uid: uid || '',
+      emails: [user?.email, activeProfile?.email].filter(Boolean),
+      name: activeProfile?.name || user?.displayName || '',
+    });
   const employeeId = me?.id || uid || '';
   const employeeName = me ? displayName(me) : (activeProfile?.name || user?.displayName || 'Ansatt');
   const year = cursor.getFullYear();
   const monthIndex = cursor.getMonth();
   const cells = monthCells(year, monthIndex);
   const equipment = (state.equipment || []).map(normalizeEquipment);
-  const companyGear = equipment.filter((row) => row.scope !== 'private');
+  // Uten Admin vises bare bedriftsutstyr personen har rettighet på i Tilgang.
+  const companyGear = equipment.filter((row) => row.scope !== 'private'
+    && (rights === 'admin' || employeeMaySeeGear(row, me)));
+  const companyGearIds = new Set(companyGear.map((row) => row.id));
   const privateGear = equipment.filter((row) => row.scope === 'private' && row.ownerEmployeeId === employeeId);
   const privatePlates = new Set(privateGear.map((row) => row.plate).filter(Boolean));
   const looseCars = (state.personalVehicles || []).filter((row) => (
@@ -218,7 +223,8 @@ export default function EquipmentScreen() {
     `${row.name} ${row.plate} ${row.serial} ${row.location} ${equipmentGroup(row.group).label}`,
   ));
   const visibleCars = looseCars.filter((row) => matches(`${vehicleTitle(row)} ${row.plate} ${row.make}`));
-  const dayBookings = bookingsOnDate(state.equipmentBookings, selectedDate);
+  const dayBookings = bookingsOnDate(state.equipmentBookings, selectedDate)
+    .filter((row) => companyGearIds.has(row.equipmentId));
   const projects = useMemo(
     () => mileageProjectOptions(state, employeeId, { query: projectQuery }),
     [state, employeeId, projectQuery],
@@ -287,8 +293,16 @@ export default function EquipmentScreen() {
 
   function saveGear() {
     const scope = gear.scope === 'private' ? 'private' : 'company';
+    if (scope === 'company' && !canManage) return;
+    // Tilgangen lagres med utstyret. Bare Admin kan endre den.
+    const stored = gear.id ? equipment.find((row) => row.id === gear.id) : null;
+    const policy = canEditAccess || !stored ? gear : stored;
+    const selected = policy.bookingAccess === 'selected';
     let next = upsertEquipment(state, {
       ...gear,
+      bookingAccess: selected ? 'selected' : 'active',
+      bookingEmployeeIds: selected ? policy.bookingEmployeeIds : [],
+      allowRepeating: policy.allowRepeating !== false,
       scope,
       ownerEmployeeId: scope === 'private' ? (gear.ownerEmployeeId || employeeId) : '',
       ownerName: scope === 'private' ? (gear.ownerName || employeeName) : '',
@@ -328,6 +342,7 @@ export default function EquipmentScreen() {
   }
 
   function deleteGear(item) {
+    if (item.scope !== 'private' && !canDelete) return;
     let next = removeEquipment(state, item.id);
     if (!next.ok) {
       setError(next.error);
@@ -344,6 +359,7 @@ export default function EquipmentScreen() {
   }
 
   function saveBooking() {
+    if (!canManage) return;
     const item = companyGear.find((row) => row.id === bookingGearId);
     const project = (state.projects || []).find((row) => row.id === projectId);
     commit(upsertBooking(state, {
@@ -391,9 +407,11 @@ export default function EquipmentScreen() {
             <TouchableOpacity onPress={() => openForm(row.scope, row)} style={[styles.btnGhost, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Rediger</Text>
             </TouchableOpacity>
+            {row.scope === 'private' || canDelete ? (
             <TouchableOpacity onPress={() => deleteGear(row)} style={[styles.btnGhost, { borderColor: colors.line }]}>
               <Text style={{ color: colors.ink }}>Slett</Text>
             </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -417,9 +435,15 @@ export default function EquipmentScreen() {
         <Chip label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
         <Chip label="Privat" active={tab === 'privat' && !formOpen} onPress={() => { setTab('privat'); closeForm(); setQuery(''); }} colors={colors} />
         <Chip label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); }} colors={colors} />
-        <Chip label="Tilgang" active={tab === 'tilgang' && !formOpen} onPress={() => { setTab('tilgang'); closeForm(); }} colors={colors} />
       </View>
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+      {rights === 'admin' || !access.ready || tab === 'privat' ? null : (
+        <Text style={{ color: colors.muted, fontSize: 13 }} nativeID="equipment-rights">
+          {canManage
+            ? 'Du kan registrere, endre og reservere utstyr, men ikke slette det.'
+            : 'Du har lesetilgang. Bedriftens utstyr kan ses, men ikke endres eller reserveres.'}
+        </Text>
+      )}
 
       {formOpen ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -543,6 +567,15 @@ export default function EquipmentScreen() {
               <Field label="Garantibevis (lenke)" value={gear.warrantyUri} onChange={(value) => setGear((row) => ({ ...row, warrantyUri: value }))} colors={colors} placeholder="https://" />
             </View>
           ) : null}
+          {gear.scope !== 'private' ? (
+            <EquipmentBookingAccess
+              gear={gear}
+              employees={employees}
+              canEdit={canEditAccess}
+              colors={colors}
+              onChange={(patch) => setGear((row) => ({ ...row, ...patch }))}
+            />
+          ) : null}
           <Field label="Notat" value={gear.notes} onChange={(value) => setGear((row) => ({ ...row, notes: value }))} colors={colors} />
           <View style={styles.row}>
             <TouchableOpacity onPress={saveGear} style={[styles.btn, { backgroundColor: colors.brand }]}>
@@ -569,7 +602,11 @@ export default function EquipmentScreen() {
             ) : null}
           </View>
           {visibleCompany.map(renderGear)}
-          {!visibleCompany.length ? <Text style={{ color: colors.muted }}>Ingen bedriftsutstyr er registrert.</Text> : null}
+          {!visibleCompany.length ? (
+            <Text style={{ color: colors.muted }}>
+              {rights === 'admin' ? 'Ingen bedriftsutstyr er registrert.' : 'Du har ikke rettighet på noe bedriftsutstyr.'}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -628,7 +665,9 @@ export default function EquipmentScreen() {
           <View style={styles.week}>
             {cells.map((day, index) => {
               const key = day ? dateKey(year, monthIndex, day) : `pad-${index}`;
-              const count = day ? bookingsOnDate(state.equipmentBookings, key).length : 0;
+              const count = day
+                ? bookingsOnDate(state.equipmentBookings, key).filter((row) => companyGearIds.has(row.equipmentId)).length
+                : 0;
               const active = key === selectedDate;
               return (
                 <TouchableOpacity
@@ -643,7 +682,18 @@ export default function EquipmentScreen() {
               );
             })}
           </View>
-          {selectedDate ? (
+          {selectedDate && !canManage ? (
+            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>Reservasjoner {selectedDate}</Text>
+              {dayBookings.map((row) => (
+                <View key={row.id} style={{ gap: 2 }}>
+                  <Text style={{ color: colors.ink }}>{row.start.slice(11)}–{row.end.slice(11)} · {row.equipmentName}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>{row.employeeName}{row.projectName ? ` · ${row.projectName}` : ''} · {row.purpose}</Text>
+                </View>
+              ))}
+              {!dayBookings.length ? <Text style={{ color: colors.muted }}>Ingen reservasjoner denne dagen.</Text> : null}
+            </View>
+          ) : selectedDate ? (
             <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>Reserver {selectedDate}</Text>
               <View style={styles.row}>
@@ -669,7 +719,7 @@ export default function EquipmentScreen() {
                 <View key={row.id} style={{ gap: 2 }}>
                   <Text style={{ color: colors.ink }}>{row.start.slice(11)}–{row.end.slice(11)} · {row.equipmentName}</Text>
                   <Text style={{ color: colors.muted, fontSize: 12 }}>{row.employeeName}{row.projectName ? ` · ${row.projectName}` : ''} · {row.purpose}</Text>
-                  {row.employeeId === employeeId || canManage ? (
+                  {row.employeeId === employeeId || canDelete ? (
                     <TouchableOpacity onPress={() => commit(cancelBooking(state, row.id))}>
                       <Text style={{ color: colors.brand, fontSize: 12 }}>Avbestill</Text>
                     </TouchableOpacity>
@@ -677,19 +727,10 @@ export default function EquipmentScreen() {
                 </View>
               ))}
             </View>
-          ) : <Text style={{ color: colors.muted }}>Velg en dag for å reservere.</Text>}
+          ) : <Text style={{ color: colors.muted }}>{canManage ? 'Velg en dag for å reservere.' : 'Velg en dag for å se reservasjoner.'}</Text>}
         </View>
       ) : null}
 
-      {!formOpen && tab === 'tilgang' ? (
-        <EquipmentBookingAccess
-          equipment={companyGear}
-          employees={employees}
-          canEdit={canEditAccess}
-          colors={colors}
-          onSave={(equipmentId, patch) => commit(setEquipmentBookingPolicy(state, { equipmentId, ...patch }))}
-        />
-      ) : null}
     </ScrollView>
   );
 }

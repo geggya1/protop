@@ -65,6 +65,8 @@ export default function HoursOrganizePanel({
   employeeId,
   onEmployee,
   employees = [],
+  // Skjules når rapporten er låst til én person.
+  showEmployees = true,
   customerId,
   onCustomer,
   customers = [],
@@ -179,6 +181,7 @@ export default function HoursOrganizePanel({
           </View>
         </Section>
 
+        {showEmployees ? (
         <Section title="Medarbeidere med timer" colors={colors}>
           <View style={styles.wrap}>
             <Choice
@@ -203,6 +206,7 @@ export default function HoursOrganizePanel({
             <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen medarbeidere har timer i dette utvalget.</Text>
           ) : null}
         </Section>
+        ) : null}
 
         <Section title="Fakturering" colors={colors}>
           <View style={styles.wrap}>

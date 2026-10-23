@@ -57,8 +57,16 @@ assert.match(detail, /limited \|\| !showAdminCards \? null/);
 // Tannhjul og «Skriv ut utvalg» på timelisten skjules i skrivebeskyttet modus.
 
 const report = readFileSync(new URL('../../screens/economy/EconomyHours.jsx', import.meta.url), 'utf8');
-assert.ok((report.match(/if \(readOnly\) return;/g) || []).length >= 4);
-assert.equal((report.match(/\{readOnly \? null : \(\s*<TouchableOpacity\s+onPress=\{importFile\}/g) || []).length, 2);
+// Timerapporten: Lese åpner føringen uten å endre, begrenset redigering endrer uten å slette, Admin gjør alt.
+assert.equal((report.match(/if \(!canImport\) return;/g) || []).length, 2);
+assert.equal((report.match(/\{!canImport \? null : \(\s*<TouchableOpacity\s+onPress=\{importFile\}/g) || []).length, 2);
+assert.match(report, /const canImport = rights === 'admin';/);
+assert.match(report, /if \(!editing \|\| editing\.rights === 'read'\) return;/);
+assert.match(report, /if \(editing\?\.rights !== 'admin'\) return;/);
+assert.match(report, /readOnly=\{editing\?\.rights === 'read'\}\s+canDelete=\{editing\?\.rights === 'admin'\}/);
+const entryModal = readFileSync(new URL('../../components/arbeid/TimeEntryModal.jsx', import.meta.url), 'utf8');
+assert.match(entryModal, /\{canDelete && !readOnly && blocks\.some/);
+assert.match(entryModal, /\{readOnly \? 'Lukk' : 'Avbryt'\}/);
 
 // Timerapporten ruller selv når den er innebygd på ansattsiden.
 assert.match(report, /const Shell = embedded \? ScrollView : View;/);
@@ -71,8 +79,8 @@ assert.match(screen, /access\.canEdit\('ownProfile'\) \? 'editor' : 'reader'/);
 assert.match(screen, /fullPersonAccess = employeesAdmin \|\| \(selfSelected && ownLevel === 'admin'\)/);
 assert.match(screen, /hideReportTools=\{!fullPersonAccess\}/);
 assert.match(screen, /memberProjectsOnly=\{!fullPersonAccess\}/);
-assert.match(screen, /hideBillable=\{!fullPersonAccess\} embedded readOnly=\{!fullPersonAccess\}/);
-assert.match(screen, /<TimesaldoScreen [^>]*readOnly=\{!fullPersonAccess\}/);
+assert.match(screen, /hideBillable=\{!fullPersonAccess\}\s+embedded\s+rights=\{fullPersonAccess \? 'admin' : selfEditor \? 'edit' : 'read'\}/);
+assert.match(screen, /<TimesaldoScreen\s+lockedEmployeeId=\{selected\.id\}\s+embedded\s+rights=\{fullPersonAccess \? 'admin' : selfEditor \? 'edit' : 'read'\}/);
 assert.match(screen, /<ProjectExpensesScreen [^>]*canImport=\{fullPersonAccess\}/);
 assert.match(screen, /canEdit=\{fullPersonAccess \|\| selfEditor\}\s*canDelete=\{fullPersonAccess\}/);
 assert.match(screen, /canEdit=\{isAdmin \|\| \(isSelfRow\(detailEmployee\) && ownLevel !== 'reader'\)\}/);
@@ -86,6 +94,10 @@ assert.equal((arbeid.match(/nativeID="timesheet-print"/g) || []).length, 1);
 
 const saldo = readFileSync(new URL('../../screens/arbeid/TimesaldoScreen.jsx', import.meta.url), 'utf8');
 assert.match(saldo, /\{readOnly \? \(\s*<Text/);
+// Timesaldo: Lese = bare se, begrenset redigering = justere uten å fjerne, Admin = alt.
+assert.match(saldo, /const readOnly = rights === 'read';/);
+assert.match(saldo, /if \(!edit \|\| !activeId \|\| readOnly\) return;/);
+assert.match(saldo, /Bare Admin kan fjerne en justering\./);
 
 const expensesUi = readFileSync(new URL('../../screens/economy/ProjectExpensesScreen.jsx', import.meta.url), 'utf8');
 assert.match(expensesUi, /\{canImport \? \(/);

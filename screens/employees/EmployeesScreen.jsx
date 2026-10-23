@@ -1424,7 +1424,12 @@ export default function EmployeesScreen() {
         ) : null}
         {view === 'report' ? (
           <View style={styles.hoursHost} nativeID="employee-report-view">
-            <EconomyHours lockedEmployeeId={selected.id} hideBillable={!fullPersonAccess} embedded readOnly={!fullPersonAccess} />
+            <EconomyHours
+              lockedEmployeeId={selected.id}
+              hideBillable={!fullPersonAccess}
+              embedded
+              rights={fullPersonAccess ? 'admin' : selfEditor ? 'edit' : 'read'}
+            />
           </View>
         ) : null}
         {view === 'absence' ? (
@@ -1444,7 +1449,11 @@ export default function EmployeesScreen() {
         ) : null}
         {view === 'saldo' ? (
           <View nativeID="employee-saldo-view" style={styles.personFill}>
-            <TimesaldoScreen lockedEmployeeId={selected.id} embedded readOnly={!fullPersonAccess} />
+            <TimesaldoScreen
+              lockedEmployeeId={selected.id}
+              embedded
+              rights={fullPersonAccess ? 'admin' : selfEditor ? 'edit' : 'read'}
+            />
           </View>
         ) : null}
         {view === 'expenses' ? (

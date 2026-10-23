@@ -1,6 +1,7 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -87,6 +89,8 @@ async function bytesFromFile(file) {
 }
 
 const TABLE_MIN_FALLBACK = 720;
+// Ingen ansattprofil koblet: lås filteret til en id som ikke finnes.
+const NO_EMPLOYEE = '__ingen-ansatt__';
 
 function columnStyle(column) {
   if (column.flex) {
@@ -111,14 +115,26 @@ export default function EconomyHours({
   lockedEmployeeId = '',
   hideBillable = false,
   embedded = false,
-  // Bare visning (begrenset redigering på ansattsiden): ingen import, endring eller sletting.
-  readOnly = false,
+  // Rettighetstrinn: 'read' = åpne uten å endre, 'edit' = endre uten å slette, 'admin' = alt.
+  // Tomt: følger Timerapport i tilgangsstyringen.
+  rights: rightsProp = '',
 }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const { familyId: appFamilyId } = useApp();
+  const access = useCompanyAccess();
   const resolvedFamilyId = familyId || appFamilyId;
-  const { width, isPhone, hasRail, railWidth } = useLayout();
+  const { width, height, isPhone, hasRail, railWidth } = useLayout();
+  const rights = rightsProp || (!access.ready
+    ? 'read'
+    : access.canAdmin('hoursReport') ? 'admin' : access.canEdit('hoursReport') ? 'edit' : 'read');
+  const readOnly = rights === 'read';
+  const canImport = rights === 'admin';
+  // Bedriftsrapporten: uten Admin eller tilgang til andres timer ser man bare egne timer.
+  const companyReport = !lockedEmployeeId && !embedded;
+  const ownEmployeeId = access.previewing ? (access.viewingAs?.id || '') : (access.employee?.id || '');
+  const seesOthers = !companyReport || rights === 'admin' || (access.ready && access.canView('hoursOthers'));
+  const lockedId = lockedEmployeeId || (seesOthers ? '' : (ownEmployeeId || NO_EMPLOYEE));
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
 
@@ -130,7 +146,7 @@ export default function EconomyHours({
   /** Mobil: listekort vs tabell. */
   const [displayMode, setDisplayMode] = useState('list');
   const [query, setQuery] = useState('');
-  const [employeeFilter, setEmployeeFilter] = useState(lockedEmployeeId || '');
+  const [employeeFilter, setEmployeeFilter] = useState(lockedId);
   const [empPickerOpen, setEmpPickerOpen] = useState(false);
   const [empQuery, setEmpQuery] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
@@ -235,7 +251,11 @@ export default function EconomyHours({
     return () => { live = false; };
   }, [resolvedFamilyId, customersProp.length]);
 
-  const entries = state.timeEntries || [];
+  const loadedEntries = state.timeEntries || [];
+  const entries = useMemo(
+    () => (lockedId ? filterHours(loadedEntries, { employeeId: lockedId }) : loadedEntries),
+    [loadedEntries, lockedId],
+  );
   const customers = customersProp.length ? customersProp : anbudCustomers;
   const projectList = projectsProp.length ? projectsProp : (state.projects || []);
   const hourLookupProjects = useMemo(() => {
@@ -340,6 +360,26 @@ export default function EconomyHours({
     const picked = HOUR_COLUMNS.filter((column) => keys.has(column.key) && !(hideBillable && column.key === 'billableHours'));
     return picked.length ? picked : HOUR_COLUMNS.filter((column) => DEFAULT_HOUR_COLUMNS.includes(column.key) && !(hideBillable && column.key === 'billableHours'));
   }, [visibleColumns, hideBillable]);
+  const webGrid = Platform.OS === 'web' && !isPhone;
+  // Tabellen holder seg innenfor skjermhøyden, så rullefeltene ikke havner under bretten.
+  const [gridTop, setGridTop] = useState(0);
+  // Web: tabellen slutter ved skjermkanten, så det sidelengse rullefeltet alltid er synlig.
+  const tableHeight = webGrid && gridTop
+    ? Math.max(320, height - gridTop - 16)
+    : Math.max(320, Math.min(height - 160, 900));
+
+  function measureGrid() {
+    if (!webGrid || typeof document === 'undefined') return;
+    const node = document.getElementById('economy-hours-table-body');
+    if (!node) return;
+    const top = Math.round(node.getBoundingClientRect().top);
+    if (top > 0 && top !== gridTop) setGridTop(top);
+  }
+
+  // Meldinger over tabellen kan flytte den uten at størrelsen endres.
+  useEffect(() => {
+    measureGrid();
+  });
   const tableMin = columns.reduce((sum, column) => sum + (column.minWidth || column.width || 80), 0) || TABLE_MIN_FALLBACK;
   const groupedList = useMemo(() => {
     if (groupBy === 'none') return pageRows.map((row) => ({ type: 'row', id: row.id, row }));
@@ -368,19 +408,20 @@ export default function EconomyHours({
     setPageSize(60);
   }, [query, employeeFilter, customerFilter, projectFilter, activityFilter, period, fromDate, toDate, billableFilter, sort, entries.length]);
 
+  // Låsen kan løsne når tilgangen er lastet (Admin ser alle igjen).
   useEffect(() => {
-    if (lockedEmployeeId) setEmployeeFilter(lockedEmployeeId);
-  }, [lockedEmployeeId]);
+    setEmployeeFilter(lockedId);
+  }, [lockedId]);
 
   useEffect(() => {
-    if (lockedEmployeeId) return;
+    if (lockedId) return;
     if (!employeeFilter) return;
     if (!employeeOptions.some((row) => row.id === employeeFilter)) setEmployeeFilter('');
-  }, [employeeFilter, employeeOptions, lockedEmployeeId]);
+  }, [employeeFilter, employeeOptions, lockedId]);
 
   function resetOrganize() {
     setQuery('');
-    setEmployeeFilter(lockedEmployeeId || '');
+    setEmployeeFilter(lockedId);
     setCustomerFilter('');
     setProjectFilter('');
     setActivityFilter('');
@@ -403,7 +444,7 @@ export default function EconomyHours({
   }
 
   async function importFile() {
-    if (readOnly) return;
+    if (!canImport) return;
     setError('');
     const file = await pickDocument({ accept: HOUR_IMPORT_ACCEPT });
     if (!file) return;
@@ -417,7 +458,7 @@ export default function EconomyHours({
       const bytes = await bytesFromFile(file);
       const plan = await readHourImport(bytes, file.name, {
         familyId: resolvedFamilyId,
-        existingEntries: entries,
+        existingEntries: loadedEntries,
         employees,
         customers,
         projects: projectList,
@@ -448,7 +489,7 @@ export default function EconomyHours({
   }
 
   async function confirmImport() {
-    if (readOnly) return;
+    if (!canImport) return;
     if (!importPlan || busy) return;
     const chosen = [];
     const leftOut = [];
@@ -557,16 +598,22 @@ export default function EconomyHours({
     return row[key] || '—';
   }
 
+  // Begrenset redigering på andres føringer krever også redigering på «Andres timer».
+  function entryRights(row) {
+    if (rights !== 'edit') return rights;
+    if (!companyReport || (ownEmployeeId && row?.employeeId === ownEmployeeId)) return 'edit';
+    return access.canEdit('hoursOthers') ? 'edit' : 'read';
+  }
+
   function openEntry(row) {
-    if (readOnly) return;
     const next = reportEntryEditor(state, row);
     if (!next) return;
-    setEditing(next);
+    setEditing({ ...next, rights: entryRights(row) });
     setError('');
   }
 
   async function commitEntryChange(result, success) {
-    if (readOnly) return;
+    if (!editing || editing.rights === 'read') return;
     if (!result?.ok) {
       setError(result?.error || 'Kunne ikke lagre føringen.');
       return;
@@ -587,6 +634,7 @@ export default function EconomyHours({
   }
 
   function deleteEditing(ids) {
+    if (editing?.rights !== 'admin') return;
     commitEntryChange(applyReportEntryDelete(state, ids), 'Føring slettet.');
   }
 
@@ -639,6 +687,14 @@ export default function EconomyHours({
       </Text>
     </TouchableOpacity>
   ) : null;
+
+  const rightsNote = rights === 'admin' || !access.ready ? null : (
+    <Text style={{ color: colors.muted, fontSize: 13 }} nativeID="economy-hours-rights">
+      {readOnly
+        ? 'Du har lesetilgang. Føringene kan åpnes, men ikke endres.'
+        : 'Du kan endre føringer, men ikke slette dem.'}
+    </Text>
+  );
 
   const busyOverlay = (
     <BrandBusyOverlay
@@ -732,6 +788,7 @@ export default function EconomyHours({
       employeeId={employeeFilter}
       onEmployee={setEmployeeFilter}
       employees={employeeOptions}
+      showEmployees={!lockedId}
       customerId={customerFilter}
       onCustomer={setCustomerFilter}
       customers={facets.customers}
@@ -772,36 +829,59 @@ export default function EconomyHours({
     </TouchableOpacity>
   ) : null;
 
-  const table = (
+  const tableHead = (
+    <View style={[styles.tr, styles.head, webGrid && styles.stickyHead, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
+      {columns.map((column) => (
+        <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
+      ))}
+    </View>
+  );
+  const tableRows = (
+    <>
+      {!groupedList.length ? emptyHint : groupedList.map((item) => {
+        if (item.type === 'header') {
+          return (
+            <View
+              key={item.id}
+              style={[styles.groupHead, { backgroundColor: colors.sunken || colors.bg, borderBottomColor: colors.line }]}
+            >
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>{item.label}</Text>
+              <Text style={{ color: colors.muted }}>{formatHours(item.hours)} · {item.count}</Text>
+            </View>
+          );
+        }
+        return (
+          <View key={item.id}>
+            {renderListRow({ item: item.row })}
+          </View>
+        );
+      })}
+      {moreButton}
+    </>
+  );
+
+  // Web: én rulleflate med faste rullefelt i kanten, så opp/ned og sidelengs alltid er synlige.
+  const table = webGrid ? (
+    <View style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="economy-hours-table">
+      <View
+        style={[styles.gridScroll, { height: tableHeight }]}
+        nativeID="economy-hours-table-body"
+        onLayout={measureGrid}
+      >
+        <View style={{ minWidth: tableMin }}>
+          {tableHead}
+          {tableRows}
+        </View>
+      </View>
+    </View>
+  ) : (
     <View style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="economy-hours-table">
       <ScrollView horizontal showsHorizontalScrollIndicator>
         <View style={{ minWidth: Math.max(tableMin, isPhone ? contentWidth : tableMin) }}>
-          <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-            {columns.map((column) => (
-              <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
-            ))}
-          </View>
-          <View style={{ maxHeight: isPhone ? undefined : 720 }} nativeID="economy-hours-table-body">
-            <ScrollView nestedScrollEnabled={!isPhone}>
-              {!groupedList.length ? emptyHint : groupedList.map((item) => {
-                if (item.type === 'header') {
-                  return (
-                    <View
-                      key={item.id}
-                      style={[styles.groupHead, { backgroundColor: colors.sunken || colors.bg, borderBottomColor: colors.line }]}
-                    >
-                      <Text style={{ color: colors.ink, fontWeight: '700' }}>{item.label}</Text>
-                      <Text style={{ color: colors.muted }}>{formatHours(item.hours)} · {item.count}</Text>
-                    </View>
-                  );
-                }
-                return (
-                  <View key={item.id}>
-                    {renderListRow({ item: item.row })}
-                  </View>
-                );
-              })}
-              {moreButton}
+          {tableHead}
+          <View style={{ maxHeight: isPhone ? undefined : tableHeight }} nativeID="economy-hours-table-body">
+            <ScrollView nestedScrollEnabled={!isPhone} showsVerticalScrollIndicator>
+              {tableRows}
             </ScrollView>
           </View>
         </View>
@@ -841,6 +921,8 @@ export default function EconomyHours({
       projects={(state.projects || []).filter((row) => row.status !== 'arkivert')}
       requireDescription={editing?.project?.workSettings?.requireDescription !== false}
       locked={!!editing?.locked}
+      readOnly={editing?.rights === 'read'}
+      canDelete={editing?.rights === 'admin'}
       onSave={saveEditing}
       onDelete={deleteEditing}
       onClose={() => setEditing(null)}
@@ -900,7 +982,7 @@ export default function EconomyHours({
     </View>
   );
 
-  const pickedEmployee = employees.find((row) => row.id === (lockedEmployeeId || employeeFilter));
+  const pickedEmployee = employees.find((row) => row.id === (lockedId || employeeFilter));
   const employeeChoices = employees.filter((row) => {
     const q = empQuery.trim().toLowerCase();
     if (!q) return true;
@@ -909,14 +991,16 @@ export default function EconomyHours({
   const employeeHeading = (
     <>
       <TouchableOpacity
-        onPress={() => { if (!lockedEmployeeId) setEmpPickerOpen(true); }}
-        disabled={!!lockedEmployeeId}
+        onPress={() => { if (!lockedId) setEmpPickerOpen(true); }}
+        disabled={!!lockedId}
         nativeID="economy-employee-name"
         accessibilityRole="button"
         accessibilityLabel={pickedEmployee ? displayName(pickedEmployee) : 'Velg medarbeider'}
       >
         <Text style={{ color: colors.ink, fontWeight: '700' }}>
-          {pickedEmployee ? displayName(pickedEmployee) : 'Alle medarbeidere'}
+          {pickedEmployee
+            ? displayName(pickedEmployee)
+            : lockedId === NO_EMPLOYEE ? 'Ingen ansattprofil er koblet til brukeren' : 'Alle medarbeidere'}
         </Text>
       </TouchableOpacity>
       <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
@@ -988,7 +1072,7 @@ export default function EconomyHours({
 
           <View style={styles.phoneActions}>
             {modeToggle}
-            {readOnly ? null : (
+            {!canImport ? null : (
             <TouchableOpacity
               onPress={importFile}
               disabled={busy || !resolvedFamilyId}
@@ -1011,6 +1095,7 @@ export default function EconomyHours({
             <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
           </View>
           {periodHint}
+          {rightsNote}
 
           {hideBillable ? (
             <TimesheetDayView
@@ -1066,7 +1151,7 @@ export default function EconomyHours({
                 <Text style={{ color: colors.ink, fontWeight: '600' }}>Filtrer</Text>
               </TouchableOpacity>
             ) : null}
-            {readOnly ? null : (
+            {!canImport ? null : (
             <TouchableOpacity
               onPress={importFile}
               disabled={busy || !resolvedFamilyId}
@@ -1089,6 +1174,7 @@ export default function EconomyHours({
             <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
           </View>
           {periodHint}
+          {rightsNote}
 
           {table}
         </View>
@@ -1194,6 +1280,9 @@ const styles = StyleSheet.create({
   listWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', width: '100%' },
   tr: { flexDirection: 'row', alignItems: 'flex-start', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 10, gap: 8 },
   head: { paddingVertical: 8 },
+  // scroll (ikke auto): rullefeltene står fast også når innholdet får plass.
+  gridScroll: { overflowX: 'scroll', overflowY: 'scroll', width: '100%' },
+  stickyHead: { position: 'sticky', top: 0, zIndex: 2 },
   th: { fontSize: 12, fontWeight: '700' },
   td: { fontSize: 13 },
 });

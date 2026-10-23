@@ -46,6 +46,18 @@ export function employeeMayBook(gear, employee) {
   return true;
 }
 
+/**
+ * Bedriftsutstyr personen har rettighet på (Tilgang-fanen), uansett status.
+ * Brukes for alle uten Admin på Utstyr.
+ */
+export function employeeMaySeeGear(gear, employee) {
+  const row = normalizeEquipment(gear);
+  if (!row.id || row.scope === 'private') return false;
+  if (!isActiveCompanyEmployee(employee)) return false;
+  if (row.bookingAccess === 'selected' && !row.bookingEmployeeIds.includes(employee.id)) return false;
+  return true;
+}
+
 export function canManageEquipmentAccess(levelIds, { bypass = false, previewing = false } = {}) {
   if (previewing) return false;
   return canAddCompanyVehicle(levelIds, { bypass });

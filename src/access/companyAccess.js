@@ -1113,12 +1113,8 @@ export function companyTabAllowed(tab, subView, grants) {
   if (tab === 'underenheter') return seeResource(grants, 'units');
   // Tildelte prosjekt alene gir Prosjekt-siden, med bare egne prosjekter.
   if (tab === 'projects') return seeResource(grants, 'projects') || seeResource(grants, 'assignedProjects');
-  if (tab === 'utstyr') {
-    return seeResource(grants, 'equipment')
-      || seeResource(grants, 'projects')
-      || seeResource(grants, 'assignedProjects')
-      || hoursAllowed(grants);
-  }
+  // Utstyr følger bare Utstyr i tilgangsstyringen.
+  if (tab === 'utstyr') return seeResource(grants, 'equipment');
   if (tab === 'arbeid' && subView === 'fravaer-innstillinger') {
     return adminResource(grants, 'absenceSettings');
   }
@@ -1192,12 +1188,7 @@ function navItemAllowed(id, grants) {
     return adminResource(grants, map[id]);
   }
   if (id === 'projects') return seeResource(grants, 'projects') || seeResource(grants, 'assignedProjects');
-  if (id === 'utstyr') {
-    return seeResource(grants, 'equipment')
-      || seeResource(grants, 'projects')
-      || seeResource(grants, 'assignedProjects')
-      || hoursAllowed(grants);
-  }
+  if (id === 'utstyr') return seeResource(grants, 'equipment');
   if (id === 'fravaer') {
     return seeResource(grants, 'absence')
       || seeResource(grants, 'absenceReport')

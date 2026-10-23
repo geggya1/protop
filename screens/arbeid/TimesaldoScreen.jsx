@@ -36,7 +36,10 @@ function todayKey() {
 }
 
 export default function TimesaldoScreen({
-  lockedEmployeeId = '', companyId = '', embedded = false, readOnly = false,
+  lockedEmployeeId = '', companyId = '', embedded = false,
+  // Rettighetstrinn: 'read' = bare se, 'edit' = justere uten å fjerne, 'admin' = alt.
+  // Tomt: følger Timesaldo i tilgangsstyringen.
+  rights: rightsProp = '',
 } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
@@ -58,8 +61,13 @@ export default function TimesaldoScreen({
   const [empPickerQuery, setEmpPickerQuery] = useState('');
   const pickerSearchRef = useRef(null);
 
+  const rights = rightsProp || (!access.ready
+    ? 'read'
+    : access.canAdmin('hoursBalance') ? 'admin' : access.canEdit('hoursBalance') ? 'edit' : 'read');
+  const readOnly = rights === 'read';
   const lockedId = workspace.lockedId;
-  const manager = workspace.manager;
+  // Admin på Timesaldo kan åpne alle medarbeidere, som i timerapporten.
+  const manager = workspace.manager || (!lockedId && !workspace.personal && access.ready && rights === 'admin');
   const canSwitchPerson = canSwitchTimesheetPerson({ locked: !!lockedId, manager });
   const activeId = lockedId || employeeId || '';
   const needsPersonStep = needsTimesheetPersonStep({
@@ -129,7 +137,12 @@ export default function TimesaldoScreen({
   }, [year, through, activeId, workspace.state, settings.flexCountsAsPay, employee, fullDay]);
 
   function saveAdjustment() {
-    if (!edit || !activeId) return;
+    if (!edit || !activeId || readOnly) return;
+    // Begrenset redigering: justere, men ikke fjerne en justering som finnes.
+    if (rights !== 'admin' && Number(edit.adjustment || 0) !== 0 && parseHours(draft) === 0) {
+      workspace.setError('Bare Admin kan fjerne en justering.');
+      return;
+    }
     const result = setBalanceAdjustment(workspace.state, {
       employeeId: activeId,
       month: edit.month,
@@ -230,6 +243,13 @@ export default function TimesaldoScreen({
         <Text style={{ color: colors.muted, marginBottom: 10, maxWidth: 640 }}>
           Saldo er timebank. Justering ned brukes når overtid tas ut i lønn.
         </Text>
+        {rights === 'admin' || !access.ready ? null : (
+          <Text style={{ color: colors.muted, marginBottom: 10, fontSize: 13 }} nativeID="timesaldo-rights">
+            {readOnly
+              ? 'Du har lesetilgang. Saldoen kan ses, men ikke justeres.'
+              : 'Du kan justere saldoen, men ikke fjerne justeringer.'}
+          </Text>
+        )}
         <ScrollView horizontal nativeID="timesaldo-table">
           <View>
             <View style={[styles.row, { backgroundColor: colors.sunken || '#f4f4f5' }]}>

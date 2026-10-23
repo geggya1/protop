@@ -539,4 +539,12 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.equal(companyTabAllowed('projects', null, none), false);
 }
 
+// Utstyr følger bare Utstyr: prosjekt- eller timetilgang alene åpner ikke modulen.
+{
+  const noGear = { ...standardGrants('ansatt'), equipment: 'none', projects: 'read', hours: 'read' };
+  assert.equal(companyTabAllowed('utstyr', null, noGear), false);
+  assert.equal(filterCompanyNav(companyNavItems(), noGear).some((item) => item.id === 'utstyr'), false);
+  assert.equal(companyTabAllowed('utstyr', null, { ...noGear, equipment: 'see' }), true);
+}
+
 console.log('companyAccess.test.mjs: ok');

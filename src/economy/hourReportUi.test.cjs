@@ -101,9 +101,12 @@ function hookedRequire(orig, id) {
   if (id === 'react-native') return rnMock;
   if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
   if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }) };
+  if (id.includes('useCompanyAccess')) {
+    return { useCompanyAccess: () => ({ ready: true, previewing: false, employee: null, canView: () => true, canEdit: () => true, canAdmin: () => true }) };
+  }
   if (id.includes('ThemeContext')) return { useColors: () => colors };
   if (id.includes('/theme')) {
-    return { useLayout: () => ({ width: 1400, isPhone: false, hasRail: false, railWidth: 0 }) };
+    return { useLayout: () => ({ width: 1400, height: 900, isPhone: false, hasRail: false, railWidth: 0 }) };
   }
   if (id.includes('saveToast')) return { showSaveToast() {} };
   if (id.includes('BrandBusyOverlay')) return { __esModule: true, default() { return null; } };

@@ -47,6 +47,10 @@ export default function TimeEntryModal({
   requireDescription = true,
   requireClock = false,
   locked = false,
+  // Lesetilgang: føringen vises, men kan ikke endres.
+  readOnly = false,
+  // Uten Admin: endre, men ikke slette.
+  canDelete = true,
   onSave,
   onDelete,
   onClose,
@@ -88,6 +92,7 @@ export default function TimeEntryModal({
   }
 
   function submit() {
+    if (readOnly) return;
     if (locked) {
       setError('Dagen er låst og venter på kontroll.');
       return;
@@ -124,6 +129,7 @@ export default function TimeEntryModal({
   }
 
   if (!visible) return null;
+  const frozen = locked || readOnly;
   const activityChoices = activities.length ? activities : [{ id: '', name: 'Hovedaktivitet' }];
 
   return (
@@ -134,10 +140,12 @@ export default function TimeEntryModal({
             <View style={styles.columnsHead}>
               <Text style={[styles.colTitle, { color: colors.ink, width: 88 }]}>Timer</Text>
               <Text style={[styles.colTitle, { color: colors.ink, flex: 1 }]}>Beskrivelse av utført arbeid</Text>
+              {readOnly ? null : (
               <TouchableOpacity onPress={() => setShowMenu((value) => !value)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Flere valg" nativeID="time-entry-menu">
                 <Ionicons name="settings-outline" size={18} color="#7c3aed" />
               </TouchableOpacity>
-              {blocks.some((row) => row.id) ? (
+              )}
+              {canDelete && !readOnly && blocks.some((row) => row.id) ? (
                 <TouchableOpacity
                   onPress={() => onDelete?.(blocks.filter((row) => row.id).map((row) => row.id))}
                   accessibilityRole="button"
@@ -149,7 +157,7 @@ export default function TimeEntryModal({
               ) : null}
             </View>
 
-            {showMenu ? (
+            {showMenu && !readOnly ? (
               <View style={[styles.menu, { borderColor: colors.line, backgroundColor: '#fff' }]}>
                 <MenuItem label="Vis internt notat" onPress={() => { setShowInternal(true); setShowMenu(false); }} colors={colors} />
                 <MenuItem label={showQuick ? 'Skjul hurtigvalg for timer' : 'Vis hurtigvalg for timer'} onPress={() => { setShowQuick((value) => !value); setShowMenu(false); }} colors={colors} />
@@ -172,7 +180,7 @@ export default function TimeEntryModal({
                         onChangeText={(hours) => patchBlock(block.key, { hours })}
                         placeholder="0:00"
                         placeholderTextColor={colors.placeholder}
-                        editable={!locked}
+                        editable={!frozen}
                         keyboardType={Platform.OS === 'web' ? 'default' : 'decimal-pad'}
                         style={[styles.hours, { color: colors.ink, borderColor: colors.line }]}
                       />
@@ -181,12 +189,12 @@ export default function TimeEntryModal({
                         onChangeText={(description) => patchBlock(block.key, { description })}
                         placeholder="Eksternt notat - synlig for kunde"
                         placeholderTextColor={colors.placeholder}
-                        editable={!locked}
+                        editable={!frozen}
                         multiline
                         style={[styles.area, { color: colors.ink, borderColor: colors.line, backgroundColor: '#f8f3df' }]}
                       />
                     </View>
-                    {showQuick ? (
+                    {showQuick && !readOnly ? (
                       <View style={styles.quickRow}>
                         {QUICK.map((item) => (
                           <TouchableOpacity key={item} onPress={() => patchBlock(block.key, { hours: item })} style={[styles.quick, { borderColor: colors.line }]}>
@@ -201,7 +209,7 @@ export default function TimeEntryModal({
                         onChangeText={(internalNote) => patchBlock(block.key, { internalNote })}
                         placeholder="Internt notat — kun synlig internt"
                         placeholderTextColor={colors.placeholder}
-                        editable={!locked}
+                        editable={!frozen}
                         multiline
                         style={[styles.area, { color: colors.ink, borderColor: colors.line, marginTop: 8 }]}
                       />
@@ -226,12 +234,13 @@ export default function TimeEntryModal({
                     ) : null}
                     <TouchableOpacity
                       onPress={() => setActivityOpen((current) => (current === block.key ? '' : block.key))}
+                      disabled={readOnly}
                       style={[styles.activity, { borderColor: colors.line }]}
                     >
                       <Text style={{ color: colors.ink, flex: 1 }}>{activityName}</Text>
                       <Ionicons name="chevron-down" size={16} color={colors.muted} />
                     </TouchableOpacity>
-                    {activityOpen === block.key ? (
+                    {activityOpen === block.key && !readOnly ? (
                       <View style={[styles.activityList, { borderColor: colors.line }]}>
                         {activityChoices.map((row) => (
                           <TouchableOpacity key={row.id || 'main'} onPress={() => { patchBlock(block.key, { activityId: row.id || '' }); setActivityOpen(''); }} style={styles.activityItem}>
@@ -245,7 +254,7 @@ export default function TimeEntryModal({
                         {TIME_TYPES.map((row) => {
                           const on = row.id === block.timeType;
                           return (
-                            <TouchableOpacity key={row.id} onPress={() => patchBlock(block.key, { timeType: row.id })} style={[styles.quick, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? `${colors.brand}18` : '#fff' }]}>
+                            <TouchableOpacity key={row.id} disabled={readOnly} onPress={() => patchBlock(block.key, { timeType: row.id })} style={[styles.quick, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? `${colors.brand}18` : '#fff' }]}>
                               <Text style={{ color: colors.ink, fontSize: 12 }}>{row.label}</Text>
                             </TouchableOpacity>
                           );
@@ -256,7 +265,7 @@ export default function TimeEntryModal({
                 );
               })}
 
-              {showMove ? (
+              {showMove && !readOnly ? (
                 <View style={[styles.move, { borderColor: colors.line }]}>
                   <Text style={{ color: colors.ink, fontWeight: '600', marginBottom: 6 }}>Flytt til annen dag/prosjekt</Text>
                   <TextInput
@@ -292,9 +301,15 @@ export default function TimeEntryModal({
             {dateLabel ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>{dateLabel}</Text> : null}
             {project ? <Text style={{ color: colors.muted, fontSize: 12 }}>#{project.number} {project.name}</Text> : null}
             {locked ? <Text style={{ color: '#0f766e', marginTop: 6 }}>Låst — klar for fakturering.</Text> : null}
+            {readOnly ? (
+              <Text style={{ color: colors.muted, marginTop: 6 }} nativeID="time-entry-readonly">
+                Du har lesetilgang. Føringen kan ses, men ikke endres.
+              </Text>
+            ) : null}
             {error ? <Text style={{ color: colors.danger || '#b42318', marginTop: 6 }}>{error}</Text> : null}
 
             <View style={styles.footer}>
+              {readOnly ? null : (
               <TouchableOpacity
                 onPress={() => setBlocks((current) => [...current, blankBlock(activities)])}
                 disabled={locked}
@@ -302,13 +317,16 @@ export default function TimeEntryModal({
               >
                 <Text style={{ color: '#7c3aed', fontWeight: '600' }}>+ Legg til flere timer på prosjektet</Text>
               </TouchableOpacity>
+              )}
               <View style={{ flex: 1 }} />
               <TouchableOpacity onPress={onClose} style={[styles.btn, { borderWidth: 1, borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink }}>Avbryt</Text>
+                <Text style={{ color: colors.ink }}>{readOnly ? 'Lukk' : 'Avbryt'}</Text>
               </TouchableOpacity>
+              {readOnly ? null : (
               <TouchableOpacity onPress={submit} disabled={locked} style={[styles.btn, { backgroundColor: colors.brand, opacity: locked ? 0.5 : 1 }]}>
                 <Text style={{ color: '#fff', fontWeight: '700' }}>Lagre</Text>
               </TouchableOpacity>
+              )}
             </View>
           </View>
         </Pressable>

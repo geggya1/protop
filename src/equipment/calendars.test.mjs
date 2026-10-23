@@ -22,6 +22,7 @@ import {
   employeesWhoCanBook,
   equipmentCalendarGroup,
   withEquipmentChecks,
+  employeeMaySeeGear,
 } from './calendars.js';
 
 const ada = { id: 'ada', person: { firstName: 'Ada' }, company: { status: 'active' } };
@@ -34,6 +35,14 @@ assert.equal(canManageEquipmentAccess(['ansatt']), false);
 assert.equal(canManageEquipmentAccess(['leder']), true);
 assert.equal(canManageEquipmentAccess(['administrator']), true);
 assert.equal(canManageEquipmentAccess(['leder'], { previewing: true }), false);
+
+// Uten Admin ser personen bare bedriftsutstyr hen har rettighet på.
+const polestar = { id: 'polestar', name: 'Polestar', bookingAccess: 'selected', bookingEmployeeIds: ['ada'] };
+assert.equal(employeeMaySeeGear(polestar, ada), true);
+assert.equal(employeeMaySeeGear(polestar, bo), false);
+assert.equal(employeeMaySeeGear({ id: 'drill', name: 'Drill', status: 'service' }, bo), true);
+assert.equal(employeeMaySeeGear({ ...polestar, bookingAccess: 'active' }, hired), false);
+assert.equal(employeeMaySeeGear({ id: 'car', name: 'Min bil', scope: 'private' }, bo), false);
 
 let state = emptyProjectState();
 state = upsertEquipment(state, { name: 'Poolbil 1', category: 'poolbil', plate: 'EL12345' }).state;

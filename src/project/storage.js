@@ -271,6 +271,65 @@ export function stripTimeEntriesFromState(state) {
   return { ...next, timeEntries: [], absences: [] };
 }
 
+/**
+ * Utstyr, reservasjoner og egne biler ligger i et eget lite dokument (projects/equipment).
+ * Hoveddokumentet (projects/state) kan nå Firestores grense på 1 MiB, og da ble
+ * endringer på utstyr avvist uten at noen merket det.
+ * Finnes dokumentet, er det fasit for disse listene. Ellers brukes hoveddokumentet.
+ */
+export const EQUIPMENT_DOC_KEYS = ['equipment', 'equipmentBookings', 'personalVehicles'];
+
+function rowStamp(row) {
+  return Date.parse(row?.updatedAt || row?.createdAt || '') || 0;
+}
+
+/** Slå sammen etter id. Nyeste rad vinner, og ved likt tidspunkt vinner incoming. */
+function mergeRowsNewest(current, incoming) {
+  const map = new Map();
+  for (const row of Array.isArray(current) ? current : []) {
+    if (row?.id) map.set(row.id, row);
+  }
+  for (const row of Array.isArray(incoming) ? incoming : []) {
+    if (!row?.id) continue;
+    const prev = map.get(row.id);
+    if (!prev || rowStamp(row) >= rowStamp(prev)) map.set(row.id, row);
+  }
+  return [...map.values()];
+}
+
+/** Lister for utstyrsdokumentet, slått sammen med det som allerede ligger der. */
+export function mergeEquipmentDoc(current, incoming) {
+  const out = {};
+  for (const key of EQUIPMENT_DOC_KEYS) {
+    out[key] = mergeRowsNewest(current?.[key], incoming?.[key]);
+  }
+  return out;
+}
+
+/** Utstyrsdokumentet er fasit for sine lister når det finnes. */
+export function applyEquipmentDoc(state, side) {
+  if (!side || typeof side !== 'object') return state;
+  const next = { ...state };
+  for (const key of EQUIPMENT_DOC_KEYS) {
+    if (Array.isArray(side[key])) next[key] = side[key];
+  }
+  return next;
+}
+
+function pickEquipmentKeys(value) {
+  const out = {};
+  for (const key of EQUIPMENT_DOC_KEYS) {
+    if (value && Object.prototype.hasOwnProperty.call(value, key)) out[key] = value[key];
+  }
+  return out;
+}
+
+function withoutEquipmentKeys(value) {
+  const out = { ...(value || {}) };
+  for (const key of EQUIPMENT_DOC_KEYS) delete out[key];
+  return out;
+}
+
 async function firestoreBits() {
   const [{ doc, getDoc, setDoc, serverTimestamp }, { db }] = await Promise.all([
     import('firebase/firestore'),
@@ -366,16 +425,20 @@ async function readRemote(companyId) {
     if (!authed) return { ok: false, state: emptyProjectState() };
     const { doc, getDoc, db } = await firestoreBits();
     const ref = doc(db, 'families', id, 'projects', 'state');
-    const snap = await Promise.race([
-      getDoc(ref),
+    const sideRef = doc(db, 'families', id, 'projects', 'equipment');
+    const [snap, sideSnap] = await Promise.race([
+      Promise.all([getDoc(ref), getDoc(sideRef)]),
       new Promise((_, reject) => {
         setTimeout(() => reject(new Error('project-read-timeout')), REMOTE_READ_MS);
       }),
     ]);
-    if (!snap.exists()) return { ok: true, state: emptyProjectState() };
+    const side = sideSnap.exists() ? sideSnap.data() : null;
+    if (!snap.exists()) {
+      return { ok: true, state: normalizeProjectState(applyEquipmentDoc(emptyProjectState(), side)) };
+    }
     return {
       ok: true,
-      state: normalizeProjectState(snap.data()?.state || snap.data() || {}),
+      state: normalizeProjectState(applyEquipmentDoc(snap.data()?.state || snap.data() || {}, side)),
     };
   } catch {
     return { ok: false, state: emptyProjectState() };
@@ -428,11 +491,47 @@ function firestorePayload(state) {
 async function writeRemote(companyId, state) {
   const id = String(companyId || '').trim();
   if (!id) return { ok: true };
+  const payload = firestorePayload(state);
+  // Utstyret først, i eget dokument. Vanlige lagringer slår sammen etter id, så en
+  // eldre kopi fra en annen skjerm ikke overskriver nyere endringer.
+  const side = await writeEquipmentDoc(id, pickEquipmentKeys(payload), { merge: true });
   try {
     const { doc, setDoc, serverTimestamp, db } = await firestoreBits();
     const ref = doc(db, 'families', id, 'projects', 'state');
+    // Uten utstyrslistene. Med merge beholdes de gamle listene for eldre klienter.
     await setDoc(ref, {
-      state: firestorePayload(state),
+      state: withoutEquipmentKeys(payload),
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    return side.ok ? { ok: true } : { ok: false, error: side.error };
+  } catch (error) {
+    return { ok: false, error, equipmentSaved: side.ok };
+  }
+}
+
+/**
+ * Skriv utstyrsdokumentet. merge: slå sammen etter id med det som ligger der
+ * (vanlige lagringer). Uten merge er listene fasit (sletting fra Utstyr-siden).
+ */
+async function writeEquipmentDoc(companyId, lists, { merge = true } = {}) {
+  const id = String(companyId || '').trim();
+  if (!id || !Object.keys(lists || {}).length) return { ok: true };
+  try {
+    const { doc, getDoc, setDoc, serverTimestamp, db } = await firestoreBits();
+    const ref = doc(db, 'families', id, 'projects', 'equipment');
+    let next = lists;
+    if (merge) {
+      const snap = await getDoc(ref);
+      let current = snap.exists() ? snap.data() : null;
+      if (!current) {
+        // Første gang: start med listene i hoveddokumentet, så en tom kopi ikke blir fasit.
+        const main = await getDoc(doc(db, 'families', id, 'projects', 'state'));
+        current = main.exists() ? (main.data()?.state || {}) : null;
+      }
+      next = mergeEquipmentDoc(current, lists);
+    }
+    await setDoc(ref, {
+      ...JSON.parse(JSON.stringify(next)),
       updatedAt: serverTimestamp(),
     }, { merge: true });
     return { ok: true };
@@ -868,13 +967,24 @@ export async function patchProjectOperations(companyId, mutate) {
   const id = String(companyId || '').trim();
   if (!id || typeof mutate !== 'function') return { ok: false };
   const remote = await readRemote(id);
-  if (!remote?.ok) return { ok: false };
+  if (!remote?.ok) return { ok: false, error: new Error('Fikk ikke lest prosjektdata fra skyen.') };
   const current = remote.state || emptyProjectState();
   const patch = mutate(current);
   if (!patch || typeof patch !== 'object') return { ok: true, changed: false };
-  const next = { ...current, ...patch };
-  const written = await writeRemote(id, next);
-  if (!written?.ok) return { ok: false, error: written.error };
+  const sidePatch = pickEquipmentKeys(patch);
+  const mainPatch = withoutEquipmentKeys(patch);
+  if (Object.keys(sidePatch).length) {
+    // Listene er regnet ut fra skyens ferske kopi og er fasit (også sletting).
+    const side = await writeEquipmentDoc(id, {
+      ...pickEquipmentKeys(firestorePayload(current)),
+      ...JSON.parse(JSON.stringify(sidePatch)),
+    }, { merge: false });
+    if (!side.ok) return { ok: false, error: side.error };
+  }
+  if (Object.keys(mainPatch).length) {
+    const written = await writeRemote(id, { ...current, ...mainPatch });
+    if (!written?.ok) return { ok: false, error: written.error };
+  }
   const key = memoryKey(id);
   if (MEMORY.has(key)) {
     putProjectState({ ...MEMORY.get(key), ...patch }, id);

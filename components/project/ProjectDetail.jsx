@@ -490,7 +490,8 @@ export default function ProjectDetail({
           <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.blockTitle, { color: colors.ink, marginBottom: 12 }]}>Timerapport</Text>
             <View style={[styles.tableHead, { borderColor: colors.line }]}>
-              {['Dato', 'Medarbeider', 'Aktivitet', 'Beskrivelse', 'Timer', 'Fakturerbart', ''].map((label) => (
+              {/* Fakturerbart er bare for Admin på Prosjekt. */}
+              {['Dato', 'Medarbeider', 'Aktivitet', 'Beskrivelse', 'Timer', ...(full ? ['Fakturerbart'] : []), ''].map((label) => (
                 <Text key={label} style={[styles.th, { color: colors.muted }]}>{label}</Text>
               ))}
             </View>
@@ -501,7 +502,7 @@ export default function ProjectDetail({
                 <Text style={[styles.td, { color: colors.muted }]} numberOfLines={1}>{row.activityName}</Text>
                 <Text style={[styles.td, { color: colors.ink, flex: 1.4 }]} numberOfLines={2}>{row.description || '—'}</Text>
                 <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.hours)}</Text>
-                <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.billableHours)}</Text>
+                {full ? <Text style={[styles.td, { color: colors.ink }]}>{formatHours(row.billableHours)}</Text> : null}
                 <View style={styles.td}>
                   {row.status === 'godkjent' || row.status === 'låst' ? (
                     <Ionicons name="checkmark-circle" size={18} color={colors.success || '#16a34a'} />

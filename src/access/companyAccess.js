@@ -48,6 +48,7 @@ const ACCESS_MENU = [
         icon: 'settings-outline',
         hint: 'Logo, kontakt, næringskoder og bedriftsprofil.',
         children: [
+          { id: 'moduleSettings', label: 'Modulinnstillinger', icon: 'apps', hint: 'Hvilke moduler bedriften har slått på.' },
           { id: 'accessControl', label: 'Tilgangsstyring', icon: 'key', hint: 'Nivåer, personer og rettighetsmatrise.' },
         ],
       },
@@ -236,6 +237,7 @@ export const RESOURCE_IDS = [...ACCESS_RESOURCES.map((row) => row.id), 'economy'
 
 /** Undersider som arver fra en eldre/overordnet rettighet når egen verdi mangler i lagret policy. */
 export const RESOURCE_PARENT = {
+  moduleSettings: 'companyProfile',
   accessControl: 'companyProfile',
   hrPeople: 'hr',
   hrAgreements: 'hr',
@@ -287,6 +289,7 @@ export const ECONOMY_PAGE_RESOURCES = [
 export const COMPANY_SETTINGS_RESOURCES = [
   'companyPublic',
   'companyProfile',
+  'moduleSettings',
   'accessControl',
   'units',
   'absenceSettings',
@@ -547,6 +550,7 @@ const STANDARD = {
   leder: fill({
     companyPublic: 'see',
     companyProfile: 'see',
+    moduleSettings: 'see',
     accessControl: 'see',
     absenceSettings: 'write',
     economySettings: 'write',
@@ -1035,6 +1039,8 @@ const NAV_RESOURCE = {
   selskap: 'companyPublic',
   underenheter: 'units',
   selskapsinnstillinger: 'companyProfile',
+  'selskapsinnstillinger-moduler': 'moduleSettings',
+  moduler: 'moduleSettings',
   'selskapsinnstillinger-tilgang': 'accessControl',
   tilgang: 'accessControl',
   ansatte: 'employees',
@@ -1102,6 +1108,7 @@ function adminResource(grants, resource) {
 export function companyTabAllowed(tab, subView, grants) {
   if (!grants) return true;
   if (tab === 'selskap' && subView === 'underenheter') return seeResource(grants, 'units');
+  if (tab === 'selskap' && subView === 'moduler') return seeResource(grants, 'moduleSettings');
   if (tab === 'selskap' && subView === 'tilgang') return seeResource(grants, 'accessControl');
   if (tab === 'selskap' && subView === 'innstillinger') return seeResource(grants, 'companyProfile');
   if (tab === 'selskap' && (subView === 'fravaerstyper' || subView === 'fridager')) {
@@ -1227,7 +1234,9 @@ function navItemAllowed(id, grants) {
       || adminResource(grants, 'economySettings');
   }
   if (id === 'selskapsinnstillinger') {
-    return seeResource(grants, 'companyProfile') || seeResource(grants, 'accessControl');
+    return seeResource(grants, 'companyProfile')
+      || seeResource(grants, 'moduleSettings')
+      || seeResource(grants, 'accessControl');
   }
   const resource = NAV_RESOURCE[id] || COMPANY_TAB_RESOURCE[id];
   if (!resource) return true;

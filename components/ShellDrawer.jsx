@@ -212,7 +212,6 @@ export default function ShellDrawer({
       grandparentModules,
       companyGrants: companyAccess.grants,
       companyModules: companyModules.state,
-      companyModuleAdmin: companyModules.canManage,
       companyModuleNote: companyModules.lockedLabel,
     }),
     [

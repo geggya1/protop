@@ -133,9 +133,9 @@ function idsIn(sections) {
   assert.equal(settings.action.subView, 'innstillinger');
   assert.deepEqual(
     settings.children.map((i) => i.label),
-    ['Tilgangsstyring'],
+    ['Modulinnstillinger', 'Tilgangsstyring'],
   );
-  assert.equal(settings.children[0].action.subView, 'tilgang');
+  assert.equal(settings.children[1].action.subView, 'tilgang');
   assert.equal(companyItems.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');

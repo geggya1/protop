@@ -235,7 +235,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       {page === 'moduler' ? (
         !access.ready && !owner ? (
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
-        ) : companyModules.canManage ? (
+        ) : companyModules.canView ? (
           <>
             <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
               Modulinnstillinger

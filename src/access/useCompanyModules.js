@@ -18,7 +18,7 @@ function isAdministrator(employee) {
 
 /**
  * Hvilke moduler bedriften har slått på, og hvem som kan endre det.
- * Eier av bedriften og ansatte på nivå Administrator styrer modulene.
+ * Modulinnstillinger i tilgangsstyringen avgjør: Lese = se, Admin = slå av og på.
  */
 export function useCompanyModules() {
   const { family } = useApp();
@@ -36,12 +36,13 @@ export function useCompanyModules() {
     return {
       active: org,
       state,
-      canManage: org && (!!access.bypass || isAdministrator(access.employee)),
+      canView: org && access.ready && access.canView('moduleSettings'),
+      canManage: org && access.ready && access.canAdmin('moduleSettings'),
       adminNames,
       contactNote: moduleContactNote(adminNames),
       lockedLabel: moduleLockedLabel(adminNames),
       isActive: (id) => !org || isCompanyModuleActive(state, id),
       lockedFor: (tab, subView) => (org ? lockedCompanyModule(state, tab, subView) : null),
     };
-  }, [org, key, access.bypass, access.employee, access.employees]);
+  }, [org, key, access]);
 }

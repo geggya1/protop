@@ -30,6 +30,8 @@ export default function ProjectExpensesTab({
   project,
   colors,
   isAdmin,
+  // Uten Admin: bare egne rader.
+  employeeId = '',
   onChangeState,
 }) {
   const [query, setQuery] = useState('');
@@ -40,8 +42,10 @@ export default function ProjectExpensesTab({
   const [error, setError] = useState('');
 
   const all = useMemo(
-    () => (state.expenses || []).filter((row) => row.projectId === project.id),
-    [state.expenses, project.id],
+    () => (state.expenses || []).filter((row) => (
+      row.projectId === project.id && (!employeeId || row.employeeId === employeeId)
+    )),
+    [state.expenses, project.id, employeeId],
   );
   const rows = useMemo(
     () => filterExpenses(all, { query, status, projectId: project.id }),

@@ -120,7 +120,8 @@ export const PRODUKT_MENU = [
 
 /**
  * Sider under Økonomi og fakturering.
- * Kundesummer, prosjektsummer og avtalesummer ligger som undermeny på Inntjening.
+ * Inntjening (med kunde-, prosjekt- og avtalesummer) ligger under Produktivitet og
+ * inntjening i bedriftsmenyen. Siden åpnes fortsatt via økonomi-fanen.
  * Fulle registre ligger som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
  * I hamburgermeny og desktop-rail løftes sidene rett under gruppen, så
  * «Økonomi» ikke blir et ekstra nivå mellom gruppen og sidene.
@@ -129,7 +130,6 @@ export const PRODUKT_MENU = [
  */
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
-  { id: 'inntjening', icon: 'analytics', label: 'Inntjening' },
   { id: 'faktura', icon: 'document-text', label: 'Faktura' },
   { id: 'fakturagrunnlag', icon: 'receipt', label: 'Fakturagrunnlag' },
   { id: 'utlegg', icon: 'card', label: 'Utlegg' },
@@ -144,6 +144,7 @@ export const OKONOMI_ROUTE_IDS = [
   ...OKONOMI_MENU
     .filter((item) => !item.tab || item.tab === 'okonomi')
     .map((item) => item.id),
+  'inntjening',
   'kunder',
   'avtaler',
   'produkter',
@@ -170,6 +171,9 @@ export function okonomiMenuTitle(subView) {
   if (subView === 'inntjening') return 'Inntjening';
   return 'Økonomi';
 }
+
+/** Inntjening er eget hovedpunkt under Produktivitet og inntjening (rute: okonomi/inntjening). */
+export const INNTJENING_NAV = { id: 'inntjening', icon: 'analytics', label: 'Inntjening' };
 
 /**
  * Undermeny når HR er valgt.
@@ -365,6 +369,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
       label: 'Produktivitet',
       action: { type: 'tab', tab: 'arbeid', subView: 'produktivitet' },
     },
+    okonomiNavChild(INNTJENING_NAV),
     { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
       id: 'anbud',
@@ -491,9 +496,9 @@ export const COMPANY_DRAWER_GROUPS = [
   },
   {
     id: 'company-productivity',
-    label: 'Produktivitet',
+    label: 'Produktivitet og inntjening',
     icon: 'stats-chart',
-    itemIds: ['produktivitet'],
+    itemIds: ['produktivitet', 'okonomi-inntjening'],
   },
   {
     id: 'company-resources',

@@ -374,7 +374,7 @@ export const COMPANY_HERO = {
   'okonomi-inntjening': {
     ...BLUE,
     name: 'Inntjening',
-    kicker: t('Økonomi', 'Finance'),
+    kicker: t('Produktivitet og inntjening', 'Productivity and earnings'),
     title: t('Inntjening', 'Earnings'),
     pitch: t(
       'Ansatte, innleide, kunder, prosjekt og avtaler. Lønn og timer kommer fra systemet.',

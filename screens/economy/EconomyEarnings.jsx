@@ -7,10 +7,12 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { loadVacationPlan } from '../../src/arbeid/vacationPlanStorage';
 import { displayName } from '../../src/employees/model';
+import { matchEmployeePickerQuery } from '../../src/arbeid/roles.js';
 import { watchEmployees } from '../../src/employees/storage';
 import { formatMoney } from '../../src/economy/invoices';
 import {
   calculateRoster,
+  earningsStatus,
   pct,
   portfolioProjects,
   setGrunnbelop,
@@ -23,12 +25,13 @@ import { useEarningsSettings } from '../../src/economy/useEarningsSettings';
 import { useLayout } from '../../src/theme';
 import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 import EarningsSettings from '../../components/economy/EarningsSettings';
+import { ActivityTabs } from '../../components/arbeid/TimesheetEmployeePicker';
 import EconomyCustomers from './EconomyCustomers';
 import EconomyContracts from './EconomyContracts';
 
 const SECTIONS = [
-  { id: 'ansatte', label: 'Ansatte' },
-  { id: 'innleide', label: 'Innleide' },
+  { id: 'ansatte', label: 'Interne' },
+  { id: 'innleide', label: 'Eksterne' },
   { id: 'kunder', label: 'Kunder' },
   { id: 'prosjekt', label: 'Prosjekter' },
   { id: 'avtaler', label: 'Avtaler' },
@@ -85,6 +88,7 @@ export default function EconomyEarnings({
   const [vacationPlan, setVacationPlan] = useState(null);
   const [yearEntries, setYearEntries] = useState(null);
   const [query, setQuery] = useState('');
+  const [status, setStatus] = useState('active');
   const [mode, setMode] = useState('table');
   const [employeeId, setEmployeeId] = useState('');
   const [gState, setGState] = useState({ busy: false, error: '' });
@@ -154,26 +158,26 @@ export default function EconomyEarnings({
   }, [employees, vacationPlan]);
 
   const peoplePage = current === 'innleide' ? 'innleide' : 'ansatte';
-  const rows = useMemo(() => {
+  // Samme utvalg som timelisten: intern/ekstern, aktive/deaktiverte og samme søk.
+  const roster = useMemo(() => {
     const byId = new Map((employees || []).map((row) => [row.id, row]));
-    const needle = query.trim().toLocaleLowerCase('nb');
-    return calculateRoster({
+    const list = calculateRoster({
       employees,
       salaries,
       settings,
       yearHoursById,
       audience: peoplePage,
+      status: 'all',
     })
       .map((calc) => ({ calc, employee: byId.get(calc.employeeId) }))
-      .filter((row) => row.employee)
-      .filter((row) => {
-        if (!needle) return true;
-        const name = displayName(row.employee).toLocaleLowerCase('nb');
-        const title = String(row.employee.company?.title || '').toLocaleLowerCase('nb');
-        return name.includes(needle) || title.includes(needle);
-      })
+      .filter((row) => row.employee && matchEmployeePickerQuery(row.employee, query))
       .sort((a, b) => displayName(a.employee).localeCompare(displayName(b.employee), 'nb'));
+    return {
+      active: list.filter((row) => earningsStatus(row.employee) === 'active'),
+      inactive: list.filter((row) => earningsStatus(row.employee) === 'inactive'),
+    };
   }, [employees, salaries, settings, query, yearHoursById, peoplePage]);
+  const rows = status === 'inactive' ? roster.inactive : roster.active;
 
   const projectRows = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase('nb');
@@ -207,6 +211,7 @@ export default function EconomyEarnings({
     setMode('table');
     setEmployeeId('');
     setQuery('');
+    setStatus('active');
   }
 
   function commitBillable() {
@@ -260,7 +265,7 @@ export default function EconomyEarnings({
           <View style={styles.toolbar}>
             {mode !== 'table' ? (
               <TouchableOpacity onPress={() => setMode('table')} accessibilityRole="button" nativeID="earnings-back">
-                <Text style={{ color: colors.brand }}>{hired ? 'Alle innleide' : 'Alle ansatte'}</Text>
+                <Text style={{ color: colors.brand }}>{hired ? 'Alle eksterne' : 'Alle interne'}</Text>
               </TouchableOpacity>
             ) : <View />}
             <TouchableOpacity
@@ -280,7 +285,7 @@ export default function EconomyEarnings({
             <View style={styles.grow}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>Faktureringsgrad</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Standard for {hired ? 'innleide' : 'ansatte'}. Personen kan ha sin egen.
+                Standard for {hired ? 'eksterne' : 'interne'}. Personen kan ha sin egen.
               </Text>
             </View>
             <TextInput
@@ -326,20 +331,32 @@ export default function EconomyEarnings({
           <View style={styles.gap}>
             <Text style={{ color: colors.muted, lineHeight: 18 }}>
               {hired
-                ? 'Aktive innleide og eksterne. Kostnaden er avtalt timehonorar ganger timer.'
-                : 'Aktive egne ansatte. Timer er disponible arbeidsdager minus ferie. Feriepenger, avgift og pensjon regnes ut fra lønnen.'}
+                ? 'Innleide og eksterne. Kostnaden er avtalt timehonorar ganger timer.'
+                : 'Egne ansatte. Timer er disponible arbeidsdager minus ferie. Feriepenger, avgift og pensjon regnes ut fra lønnen.'}
             </Text>
             <TextInput
               nativeID="earnings-search"
               value={query}
               onChangeText={setQuery}
-              placeholder={hired ? 'Søk på navn' : 'Søk på navn eller stilling'}
+              placeholder="Søk navn, e-post, rolle eller ansattnr"
               placeholderTextColor={colors.placeholder}
+              autoCapitalize="none"
+              autoCorrect={false}
               style={[styles.search, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+            />
+            <ActivityTabs
+              value={status}
+              activeCount={roster.active.length}
+              inactiveCount={roster.inactive.length}
+              colors={colors}
+              onChange={setStatus}
+              idPrefix="earnings-status"
             />
             {!rows.length ? (
               <Text style={{ color: colors.muted }}>
-                {hired ? 'Ingen aktive innleide.' : 'Ingen aktive ansatte.'}
+                {query.trim()
+                  ? `Ingen treff for «${query.trim()}».`
+                  : `Ingen ${status === 'inactive' ? 'deaktiverte' : 'aktive'} ${hired ? 'eksterne' : 'interne'}.`}
               </Text>
             ) : null}
             <View nativeID="earnings-roster" style={[styles.table, { borderColor: colors.line, backgroundColor: colors.card }]}>

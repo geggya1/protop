@@ -27,118 +27,208 @@ export const ACCESS_ACTIONS = [
 export const ACCESS_ACTIONS_VERSION = 2;
 
 /**
- * Rettighetskatalog som speiler bedriftsmenyen.
+ * Rettighetskatalog som speiler bedriftsmenyen (COMPANY_DRAWER_GROUPS i shellModules).
+ * Gruppe → modul → underside, med samme ikoner som hamburgermenyen.
+ * En rad med `heading: true` er bare overskrift (som HR eller Anbud i menyen);
+ * ellers er raden selv en rettighet, og `children` er undersider under den.
  * Nye moduler, undersider og innstillinger legges her — da dukker de opp i
  * tilgangsstyringen og kan styre navigasjon via NAV_RESOURCE / RESOURCE_PARENT.
  */
-export const ACCESS_GROUPS = [
+const ACCESS_MENU = [
   {
     id: 'company',
     label: 'Selskap og organisasjon',
-    resources: [
-      { id: 'companyPublic', label: 'Selskap / offentlig bedriftsinfo', hint: 'Navn, org.nr. og adresse.' },
-      { id: 'companyProfile', label: 'Selskapsinnstillinger', hint: 'Logo, kontakt, næringskoder og bedriftsprofil.' },
-      { id: 'accessControl', label: 'Tilgangsstyring', hint: 'Nivåer, personer og rettighetsmatrise.' },
-      { id: 'units', label: 'Underenheter og avdelinger' },
+    icon: 'business',
+    items: [
+      { id: 'companyPublic', label: 'Selskap', icon: 'business', hint: 'Offentlig bedriftsinfo: navn, org.nr. og adresse.' },
+      { id: 'units', label: 'Underenheter og avdelinger', icon: 'git-network' },
+      {
+        id: 'companyProfile',
+        label: 'Selskapsinnstillinger',
+        icon: 'settings-outline',
+        hint: 'Logo, kontakt, næringskoder og bedriftsprofil.',
+        children: [
+          { id: 'accessControl', label: 'Tilgangsstyring', icon: 'key', hint: 'Nivåer, personer og rettighetsmatrise.' },
+        ],
+      },
     ],
   },
   {
     id: 'people',
     label: 'Ansatte og arbeidstid',
-    resources: [
-      { id: 'employees', label: 'Ansatte' },
-      { id: 'ownProfile', label: 'Egen profil' },
+    icon: 'people',
+    items: [
       {
-        id: 'hr',
-        label: 'HR — oversikt',
-        hint: 'HR-modul for leder. Vanlige ansatte ser delte poster på Min side.',
+        id: 'employees',
+        label: 'Ansatte',
+        icon: 'id-card',
+        children: [
+          { id: 'ownProfile', label: 'Egen profil', icon: 'person-circle-outline' },
+        ],
       },
-      { id: 'hrPeople', label: 'HR — personell' },
-      { id: 'hrAgreements', label: 'HR — avtaler' },
-      { id: 'hrPayroll', label: 'HR — lønn' },
-      { id: 'hrFollowup', label: 'HR — oppfølging' },
-      { id: 'hrCompliance', label: 'HR — lov & ISO' },
-      { id: 'hrRecruitment', label: 'HR — rekruttering' },
-      { id: 'absence', label: 'Fraværsoversikt' },
-      { id: 'absenceReport', label: 'Fraværsrapport' },
-      { id: 'absencePlanned', label: 'Planlagt fravær' },
-      { id: 'absenceSettings', label: 'Fraværsinnstillinger' },
-      { id: 'hours', label: 'Timeliste (egne timer)' },
-      { id: 'hoursOthers', label: 'Andres timer' },
-      { id: 'hoursReport', label: 'Timerapport' },
-      { id: 'hoursBalance', label: 'Timesaldo' },
-      { id: 'hoursApproval', label: 'Godkjenninger' },
+      {
+        id: 'hrMenu',
+        heading: true,
+        label: 'HR',
+        icon: 'people-circle',
+        children: [
+          { id: 'hr', label: 'Oversikt', icon: 'home', hint: 'HR-modul for leder. Vanlige ansatte ser delte poster på Min side.' },
+          { id: 'hrPeople', label: 'Personell', icon: 'people' },
+          { id: 'hrAgreements', label: 'Avtaler', icon: 'document-text' },
+          { id: 'hrPayroll', label: 'Lønn', icon: 'cash' },
+          { id: 'hrFollowup', label: 'Oppfølging', icon: 'flag' },
+          { id: 'hrCompliance', label: 'Lov & ISO', icon: 'shield-checkmark' },
+          { id: 'hrRecruitment', label: 'Rekruttering', icon: 'megaphone' },
+        ],
+      },
+      {
+        id: 'absenceMenu',
+        heading: true,
+        label: 'Fravær',
+        icon: 'sunny',
+        children: [
+          { id: 'absence', label: 'Fraværsoversikt', icon: 'sunny' },
+          { id: 'absenceReport', label: 'Fraværsrapport', icon: 'bar-chart' },
+          { id: 'absencePlanned', label: 'Planlagt fravær', icon: 'calendar-outline' },
+          { id: 'absenceSettings', label: 'Innstillinger', icon: 'settings-outline' },
+        ],
+      },
+      {
+        id: 'hoursMenu',
+        heading: true,
+        label: 'Arbeid',
+        icon: 'time',
+        children: [
+          { id: 'hours', label: 'Timeliste (egne timer)', icon: 'calendar' },
+          { id: 'hoursOthers', label: 'Andres timer', icon: 'people-outline' },
+          { id: 'hoursReport', label: 'Timerapport', icon: 'list' },
+          { id: 'hoursBalance', label: 'Timesaldo', icon: 'hourglass' },
+          { id: 'hoursApproval', label: 'Godkjenninger', icon: 'checkmark-done' },
+        ],
+      },
     ],
   },
   {
     id: 'customers',
     label: 'Kunder og oppdrag',
-    resources: [
-      { id: 'customers', label: 'Kunder' },
-      { id: 'tenders', label: '1.1 Anbudsvarsling', hint: 'Anbudsvarsling.' },
-      { id: 'tenderRequest', label: '1.2 Anbudsforespørsel' },
-      { id: 'tenderReview', label: '2. Vurdering av aktuelle' },
-      { id: 'offers', label: '3. Tilbud', hint: 'Tilbud i anbudsløpet.' },
-      { id: 'tenderSettings', label: 'Anbudsinnstillinger' },
-      { id: 'contracts', label: 'Kontrakt / avtale' },
-      { id: 'projects', label: 'Prosjekt' },
-      { id: 'assignedProjects', label: 'Tildelte prosjekt' },
-      { id: 'forms', label: 'Skjema og sjekklister' },
+    icon: 'briefcase',
+    items: [
+      { id: 'customers', label: 'Kunder', icon: 'people' },
+      {
+        id: 'tenderMenu',
+        heading: true,
+        label: 'Anbud',
+        icon: 'megaphone',
+        children: [
+          { id: 'tenders', label: '1.1 Anbudsvarsling', icon: 'notifications' },
+          { id: 'tenderRequest', label: '1.2 Anbudsforespørsel', icon: 'mail-open' },
+          { id: 'tenderReview', label: '2. Vurdering av aktuelle', icon: 'options' },
+          { id: 'offers', label: '3. Tilbud', icon: 'document-text', hint: 'Tilbud i anbudsløpet.' },
+          { id: 'tenderSettings', label: 'Innstillinger', icon: 'settings-outline' },
+        ],
+      },
+      { id: 'contracts', label: 'Kontrakt / avtale', icon: 'ribbon' },
+      {
+        id: 'projects',
+        label: 'Prosjekt',
+        icon: 'business',
+        children: [
+          { id: 'assignedProjects', label: 'Tildelte prosjekt', icon: 'person-add-outline' },
+          { id: 'forms', label: 'Skjema og sjekklister', icon: 'clipboard' },
+        ],
+      },
     ],
   },
   {
     id: 'productivity',
-    label: 'Produktivitet',
-    resources: [
-      { id: 'productivity', label: 'Produktivitet' },
+    label: 'Produktivitet og inntjening',
+    icon: 'stats-chart',
+    items: [
+      { id: 'productivity', label: 'Produktivitet', icon: 'stats-chart' },
+      {
+        id: 'economyEarnings',
+        label: 'Inntjening',
+        icon: 'analytics',
+        children: [
+          { id: 'economyCustomers', label: 'Kundesummer', icon: 'people-outline' },
+          { id: 'economyContracts', label: 'Avtalesummer', icon: 'ribbon-outline' },
+        ],
+      },
     ],
   },
   {
     id: 'resources',
     label: 'Produkter og driftsressurser',
-    resources: [
-      { id: 'productSales', label: 'Produktsalg' },
-      { id: 'products', label: 'Produktkatalog' },
-      { id: 'equipment', label: 'Utstyr' },
-      { id: 'mileage', label: 'Kjørebok' },
+    icon: 'cube',
+    items: [
+      {
+        id: 'productMenu',
+        heading: true,
+        label: 'Produkt',
+        icon: 'cube',
+        children: [
+          { id: 'productSales', label: 'Produktsalg', icon: 'cube' },
+          { id: 'products', label: 'Produktkatalog', icon: 'pricetag' },
+        ],
+      },
+      { id: 'equipment', label: 'Utstyr', icon: 'file-tray-full' },
+      { id: 'mileage', label: 'Kjørebok', icon: 'car' },
     ],
   },
   {
     id: 'economy',
     label: 'Økonomi og fakturering',
-    resources: [
-      { id: 'economyOverview', label: 'Oversikt' },
-      { id: 'economyEarnings', label: 'Inntjening' },
-      { id: 'economyCustomers', label: 'Kundesummer' },
-      { id: 'economyContracts', label: 'Avtalesummer' },
-      { id: 'economyInvoices', label: 'Faktura' },
-      { id: 'economyBilling', label: 'Fakturagrunnlag' },
-      { id: 'economyExpenses', label: 'Utlegg' },
-      { id: 'economyProjectExpenses', label: 'Prosjektutlegg' },
-      { id: 'economyIndex', label: 'Indeksregulering' },
-      { id: 'economyIndices', label: 'Indekser' },
-      { id: 'economySettings', label: 'Økonomiinnstillinger' },
+    icon: 'wallet',
+    items: [
+      { id: 'economyOverview', label: 'Oversikt', icon: 'home' },
+      { id: 'economyInvoices', label: 'Faktura', icon: 'document-text' },
+      { id: 'economyBilling', label: 'Fakturagrunnlag', icon: 'receipt' },
+      { id: 'economyExpenses', label: 'Utlegg', icon: 'card' },
+      { id: 'economyProjectExpenses', label: 'Prosjektutlegg', icon: 'receipt-outline' },
+      { id: 'economyIndex', label: 'Indeksregulering', icon: 'trending-up' },
+      { id: 'economyIndices', label: 'Indekser', icon: 'stats-chart' },
+      { id: 'economySettings', label: 'Innstillinger', icon: 'settings-outline' },
     ],
   },
   {
     id: 'quality',
     label: 'Kvalitet og styringssystem',
-    resources: [
-      { id: 'iso', label: 'ISO' },
+    icon: 'shield-checkmark',
+    items: [
+      { id: 'iso', label: 'ISO / K-HMS', icon: 'shield-checkmark' },
     ],
   },
   {
     id: 'preview',
     label: 'Visning',
-    resources: [
+    icon: 'eye',
+    items: [
       {
         id: 'viewAs',
         label: 'Se som bruker',
+        icon: 'eye-outline',
         hint: 'Bytt bruker og se moduler og applikasjoner slik personen ser dem. Lese: bare bedriftsinnstillinger. Begrenset redigering eller Admin: alle moduler og apper.',
       },
     ],
   },
 ];
+
+function menuRow(item, parentLabel = '') {
+  const { children, heading, ...row } = item;
+  return parentLabel ? { ...row, parentLabel } : row;
+}
+
+/**
+ * Grupper med `items` (menytreet til visning) og `resources` (flat liste i menyrekkefølge).
+ * `parentLabel` gir undersider kontekst, f.eks. for skjermlesere.
+ */
+export const ACCESS_GROUPS = ACCESS_MENU.map((group) => ({
+  ...group,
+  resources: group.items.flatMap((item) => [
+    ...(item.heading ? [] : [menuRow(item)]),
+    ...(item.children || []).map((child) => menuRow(child, item.label)),
+  ]),
+}));
 
 export const ACCESS_RESOURCES = ACCESS_GROUPS.flatMap((group) => group.resources);
 /** «economy» er skjult i matrisen, men beholdes for eldre sjekker og synk. */

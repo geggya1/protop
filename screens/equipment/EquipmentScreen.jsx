@@ -2,7 +2,8 @@
  * Utstyr: en liste for bedriften, en for det du eier privat, og registrering for seg.
  * Kjøretøy slås opp hos Vegvesenet. Bedriftens enheter reserveres i kalenderen.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ScrollView,
   StyleSheet,
@@ -12,12 +13,18 @@ import {
   View,
 } from 'react-native';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import { useShellWide } from '../../components/ModuleAside';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { emptyProjectState } from '../../src/project/engine';
-import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import {
+  loadProjectState,
+  patchProjectOperations,
+  putProjectState,
+  saveProjectState,
+} from '../../src/project/storage';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
 import { EQUIPMENT_GROUPS, EQUIPMENT_STATUSES, equipmentGroup } from '../../src/equipment/catalog';
@@ -29,13 +36,17 @@ import {
 } from '../../src/equipment/model';
 import {
   cancelBooking,
+  patchRowsById,
   removeEquipment,
   removePersonalVehicle,
+  setEquipmentBookingPolicy,
   upsertBooking,
   upsertEquipment,
   upsertPersonalVehicle,
 } from '../../src/equipment/state';
 import EquipmentBookingAccess from '../../components/equipment/EquipmentBookingAccess';
+import EquipmentCalendar from '../../components/equipment/EquipmentCalendar';
+import { useLayout } from '../../src/theme';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 import { feeClassFromSignals, feeClassLabel, VEHICLE_FEE_CLASSES } from '../../src/mileage/vehicleFee';
@@ -144,6 +155,7 @@ export default function EquipmentScreen() {
   const hostedHero = useModuleHeroHosted();
   const { familyId, user, uid, activeProfile } = useApp();
   const access = useCompanyAccess();
+  const { isDesktop } = useLayout();
   const [state, setState] = useState(emptyProjectState());
   const [ready, setReady] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -161,11 +173,13 @@ export default function EquipmentScreen() {
   const [projectQuery, setProjectQuery] = useState('');
   const [projectId, setProjectId] = useState('');
   const [lookupNote, setLookupNote] = useState('');
+  const loadedRef = useRef(null);
 
   useEffect(() => {
     let live = true;
     loadProjectState(familyId).then((loaded) => {
       if (!live) return;
+      loadedRef.current = loaded;
       setState(loaded);
       setReady(true);
     });
@@ -173,8 +187,31 @@ export default function EquipmentScreen() {
   }, [familyId]);
 
   useEffect(() => {
-    if (ready) saveProjectState(state, familyId).catch(() => {});
+    if (!ready) return;
+    // Nettopp lastet: ikke skriv tilbake, da kan en eldre kopi overskrive nyere endringer.
+    if (state === loadedRef.current) return;
+    // Minnet oppdateres med en gang, så en ny visning (f.eks. «Vis som») ser endringen.
+    putProjectState(state, familyId);
+    saveProjectState(state, familyId).catch((cause) => {
+      setError(`Kunne ikke lagre utstyret. ${String(cause?.message || '')}`.trim());
+    });
   }, [state, ready, familyId]);
+
+  // Bookinger lagres fra hendelsesskjemaet. Hent på nytt når vi kommer tilbake,
+  // så kalenderen viser dem og vi ikke skriver over med en eldre kopi.
+  useFocusEffect(useCallback(() => {
+    if (!ready) return undefined;
+    let live = true;
+    loadProjectState(familyId, { force: true }).then((loaded) => {
+      if (!live || !loaded) return;
+      loadedRef.current = loaded;
+      setState(loaded);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [familyId, ready]));
+
+  const deskCalendar = isDesktop && tab === 'kalender' && !formOpen;
+  useShellWide(deskCalendar);
 
   useEffect(() => watchEmployees(familyId, (rows) => setEmployees(rows || [])), [familyId]);
 
@@ -229,6 +266,33 @@ export default function EquipmentScreen() {
     () => mileageProjectOptions(state, employeeId, { query: projectQuery }),
     [state, employeeId, projectQuery],
   );
+
+  // Utstyr og egne biler skrives rett inn i skyens ferske kopi, og vi venter på svar.
+  // Ellers kan en eldre kopi overskrive endringen, og en feil forsvinner i stillhet.
+  async function syncEquipment(result) {
+    if (!result.ok) {
+      setError(result.error);
+      return result;
+    }
+    const before = state;
+    const after = result.state;
+    const onto = (base) => ({
+      equipment: patchRowsById(base.equipment, before.equipment, after.equipment),
+      personalVehicles: patchRowsById(base.personalVehicles, before.personalVehicles, after.personalVehicles),
+    });
+    setState(after);
+    setError('');
+    const remote = await patchProjectOperations(familyId, onto);
+    if (!remote?.ok) {
+      const reason = String(remote?.error?.message || remote?.error?.code || '');
+      setError(`Endringen ble ikke lagret i skyen.${reason ? ` ${reason}` : ''} Prøv igjen.`);
+      return { ...result, ok: false };
+    }
+    // En ny lasting underveis kan ha hentet en eldre kopi. Legg endringen inn igjen.
+    setState((current) => (current === after ? current : { ...current, ...onto(current) }));
+    showSaveToast('Lagret.');
+    return result;
+  }
 
   function commit(result) {
     setError(result.ok ? '' : result.error);
@@ -335,9 +399,7 @@ export default function EquipmentScreen() {
         return;
       }
     }
-    setState(next.state);
-    setError('');
-    showSaveToast('Lagret.');
+    syncEquipment(next);
     closeForm();
   }
 
@@ -354,8 +416,7 @@ export default function EquipmentScreen() {
       ));
       if (car) next = removePersonalVehicle(next.state, car.id);
     }
-    setState(next.state);
-    showSaveToast('Lagret.');
+    syncEquipment(next);
   }
 
   function saveBooking() {
@@ -427,9 +488,14 @@ export default function EquipmentScreen() {
   }
 
   const showRegister = tab === 'privat' || canManage;
+  // Kalenderen fyller hele flaten. Da ruller den selv, ikke siden.
+  const Body = deskCalendar ? View : ScrollView;
+  const bodyProps = deskCalendar
+    ? { style: [styles.wrap, styles.wrapFill, { backgroundColor: colors.bg }] }
+    : { style: [styles.wrap, { backgroundColor: colors.bg }], contentContainerStyle: { padding: 16, gap: 12 }, keyboardShouldPersistTaps: 'handled' };
 
   return (
-    <ScrollView style={[styles.wrap, { backgroundColor: colors.bg }]} contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+    <Body {...bodyProps}>
       {hostedHero ? null : <Text style={styles.title}>Utstyr</Text>}
       <View style={styles.row}>
         <Chip label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
@@ -573,7 +639,18 @@ export default function EquipmentScreen() {
               employees={employees}
               canEdit={canEditAccess}
               colors={colors}
-              onChange={(patch) => setGear((row) => ({ ...row, ...patch }))}
+              onChange={(patch) => {
+                setGear((row) => ({ ...row, ...patch }));
+                // Lagret utstyr: tilgangen lagres med en gang, ikke først ved «Lagre».
+                if (!gear.id || !canEditAccess) return;
+                const merged = { ...gear, ...patch };
+                syncEquipment(setEquipmentBookingPolicy(state, {
+                  equipmentId: gear.id,
+                  bookingAccess: merged.bookingAccess,
+                  bookingEmployeeIds: merged.bookingEmployeeIds,
+                  allowRepeating: merged.allowRepeating,
+                }));
+              }}
             />
           ) : null}
           <Field label="Notat" value={gear.notes} onChange={(value) => setGear((row) => ({ ...row, notes: value }))} colors={colors} />
@@ -601,6 +678,44 @@ export default function EquipmentScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
+          {/* MIDLERTIDIG feilsøking av utstyrstilgang. Vises bare i utvikling. Fjernes etter feilsøking. */}
+          {typeof __DEV__ !== 'undefined' && __DEV__ ? (
+            <View nativeID="equipment-debug" style={[styles.card, { borderColor: '#b42318', backgroundColor: '#fff7f5' }]}>
+              <Text style={{ color: '#b42318', fontWeight: '700' }}>Feilsøking (bare localhost)</Text>
+              <Text selectable style={{ color: colors.ink, fontSize: 12 }}>
+                {JSON.stringify({
+                  rights,
+                  ready: access.ready,
+                  previewing: access.previewing,
+                  viewAsScope: access.viewAsScope,
+                  viewingAs: access.viewingAs ? { id: access.viewingAs.id, name: displayName(access.viewingAs) } : null,
+                  me: me ? { id: me.id, name: displayName(me), status: me.company?.status || '', external: !!me.company?.external } : null,
+                  employeesLoaded: employees.length,
+                  gear: equipment.filter((row) => row.scope !== 'private').map((row) => ({
+                    id: row.id,
+                    name: row.name,
+                    rawAccess: (state.equipment || []).find((raw) => raw.id === row.id)?.bookingAccess ?? '(mangler)',
+                    access: row.bookingAccess,
+                    ids: row.bookingEmployeeIds.map((id) => {
+                      const hit = employees.find((employee) => employee.id === id);
+                      return hit ? `${displayName(hit)} (${id})` : id;
+                    }),
+                    updatedAt: row.updatedAt,
+                    seesIt: employeeMaySeeGear(row, me),
+                    browserCopy: (() => {
+                      try {
+                        const saved = JSON.parse(localStorage.getItem(`protop.projectPlatform.v2.${familyId}`) || '{}');
+                        const hit = (saved.equipment || []).find((raw) => raw.id === row.id);
+                        return hit ? { access: hit.bookingAccess ?? '(mangler)', ids: hit.bookingEmployeeIds || [], updatedAt: hit.updatedAt } : '(ikke funnet)';
+                      } catch {
+                        return '(kunne ikke lese)';
+                      }
+                    })(),
+                  })),
+                }, null, 1)}
+              </Text>
+            </View>
+          ) : null}
           {visibleCompany.map(renderGear)}
           {!visibleCompany.length ? (
             <Text style={{ color: colors.muted }}>
@@ -632,9 +747,9 @@ export default function EquipmentScreen() {
                 car={car}
                 trips={state.mileageTrips}
                 colors={colors}
-                onSave={(patch) => commit(upsertPersonalVehicle(state, { ...car, ...patch }))}
+                onSave={(patch) => syncEquipment(upsertPersonalVehicle(state, { ...car, ...patch }))}
               />
-              <TouchableOpacity onPress={() => commit(removePersonalVehicle(state, car.id))} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
+              <TouchableOpacity onPress={() => syncEquipment(removePersonalVehicle(state, car.id))} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
                 <Text style={{ color: colors.ink }}>Slett</Text>
               </TouchableOpacity>
             </View>
@@ -645,7 +760,21 @@ export default function EquipmentScreen() {
         </View>
       ) : null}
 
-      {!formOpen && tab === 'kalender' ? (
+      {!formOpen && tab === 'kalender' && isDesktop ? (
+        <View style={[styles.calendarFrame, { borderColor: colors.line }]}>
+          <EquipmentCalendar
+            familyId={familyId}
+            state={state}
+            employees={employees}
+            viewer={me}
+            manage={canEditAccess}
+            canBook={canManage}
+            employeeId={employeeId}
+          />
+        </View>
+      ) : null}
+
+      {!formOpen && tab === 'kalender' && !isDesktop ? (
         <View style={{ gap: 10 }}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>
             Huk av utstyret i kalenderen og book der. Her kan du også reservere en enkelt dag til et prosjekt.
@@ -731,12 +860,14 @@ export default function EquipmentScreen() {
         </View>
       ) : null}
 
-    </ScrollView>
+    </Body>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
+  wrapFill: { padding: 16, gap: 12, minHeight: 0 },
+  calendarFrame: { flex: 1, minHeight: 480, borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
   title: { fontSize: 22, fontWeight: '700', color: '#102033' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },

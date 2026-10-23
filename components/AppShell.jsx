@@ -71,7 +71,7 @@ import HelpTarget from './HelpTarget';
 import ModuleActivationGate from './ModuleActivationGate';
 import { activationModuleIdForShell } from '../src/modules/moduleActivationRegistry';
 import { phoneChromeHeroId, shellHeroModuleId } from '../src/modules/moduleHero';
-import ModuleAside, { ModuleAsideProvider } from './ModuleAside';
+import ModuleAside, { ModuleAsideProvider, ShellWideContext } from './ModuleAside';
 import { ModuleHeroHostProvider, useShowModuleHero } from './ModulePageBg';
 import { useChatDock, useChatDockPreferred } from '../src/context/ChatDockContext';
 import { useModuleAccess } from '../src/context/ModuleAccessContext';
@@ -174,6 +174,7 @@ function AppShellInner() {
   } = useParentDashboardTheme();
   const [tab, setTab] = useState('home');
   const [shellTitleRight, setShellTitleRight] = useState(null);
+  const [deskWide, setDeskWide] = useState(false);
   const shellTitleOwnerRef = useRef(null);
   const shellTitleApi = useMemo(() => ({
     claim(owner, node) {
@@ -850,6 +851,7 @@ function AppShellInner() {
   return (
     <HomeImmersiveProvider value={immersiveHome}>
     <ModuleAsideProvider>
+    <ShellWideContext.Provider value={setDeskWide}>
     <ShellTitleRightContext.Provider value={shellTitleApi}>
     <ShellPageHeroContext.Provider value={shellPageHeroApi}>
     <View style={[styles.safe, { backgroundColor: immersiveHome ? '#1a2430' : colors.bg }]}>
@@ -1008,14 +1010,16 @@ function AppShellInner() {
                 ) : null}
                 {showDeskAside ? (
                   <View style={[styles.deskSplit, pageHeroId && styles.deskSplitAfterHero]}>
-                    <View style={styles.deskMain}>
+                    <View style={[styles.deskMain, deskWide && styles.deskMainWide]}>
                       <EdgeSwipeBack enabled={edgeSwipeEnabled} onBack={onEdgeSwipeBack}>
                         {gatedBody}
                       </EdgeSwipeBack>
                     </View>
-                    <View style={styles.deskAside}>
-                      <ModuleAside />
-                    </View>
+                    {deskWide ? null : (
+                      <View style={styles.deskAside}>
+                        <ModuleAside />
+                      </View>
+                    )}
                   </View>
                 ) : (
                   <View style={[styles.bodyFill, immersiveHome && styles.immersiveLayer]}>
@@ -1071,6 +1075,7 @@ function AppShellInner() {
     </View>
     </ShellPageHeroContext.Provider>
     </ShellTitleRightContext.Provider>
+    </ShellWideContext.Provider>
     </ModuleAsideProvider>
     </HomeImmersiveProvider>
   );
@@ -1191,6 +1196,7 @@ const styles = StyleSheet.create({
     maxWidth: 880,
     overflow: 'hidden',
   },
+  deskMainWide: { maxWidth: '100%' },
   deskAside: {
     width: 300,
     flexShrink: 0,

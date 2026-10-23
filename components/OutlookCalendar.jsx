@@ -319,6 +319,9 @@ export default function OutlookCalendar({
   showCustodyToggle = false,
   onToggleCustodyOverlay,
   custodyLegend,
+  paneTitle = 'Mine kalendere',
+  views = VIEWS,
+  showTaskPane = true,
 }) {
   const canCreate = canCreateCalendarEvent ?? isParent;
   const canOpenSettings = showCalendarSettings ?? isParent;
@@ -428,7 +431,7 @@ export default function OutlookCalendar({
       ? `${WEEKDAYS_LONG[(anchor.getDay() + 6) % 7]} ${anchor.getDate()}. ${MONTHS_NO[anchor.getMonth()].toLowerCase()} ${anchor.getFullYear()}`
       : formatWeekRangeNo(weekDays, MONTHS_NO);
 
-  const viewLabel = VIEWS.find((v) => v.id === mode)?.label || 'Uke';
+  const viewLabel = views.find((v) => v.id === mode)?.label || 'Uke';
 
   const createAt = (k, minutes) => {
     if (!onCreateEvent) return;
@@ -466,7 +469,7 @@ export default function OutlookCalendar({
             getCustodyOverlay={custodyOverlayActive ? getCustodyOverlay : null}
           />
           <View style={styles.paneSectionRow}>
-            <Text style={styles.paneSection}>Mine kalendere</Text>
+            <Text style={styles.paneSection}>{paneTitle}</Text>
             {canOpenSettings ? (
               <TouchableOpacity
                 onPress={onSettings}
@@ -546,7 +549,7 @@ export default function OutlookCalendar({
             </TouchableOpacity>
             {viewOpen ? (
               <View style={styles.viewMenu}>
-                {VIEWS.map((v) => (
+                {views.map((v) => (
                   <TouchableOpacity
                     key={v.id}
                     onPress={() => { setMode(v.id); setViewOpen(false); }}
@@ -737,6 +740,7 @@ export default function OutlookCalendar({
                 getCustodyOverlay={custodyOverlayActive ? getCustodyOverlay : null}
               />
             </ScrollView>
+            {showTaskPane ? (
             <CalendarTaskPane
               days={viewDays}
               columnInset={scrollInset}
@@ -748,6 +752,7 @@ export default function OutlookCalendar({
               label={paneLabel || 'Oppgaver'}
               createLabel={paneCreateLabel || 'Ny oppgave'}
             />
+            ) : null}
           </View>
         )}
       </View>

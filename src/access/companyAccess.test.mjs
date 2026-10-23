@@ -547,4 +547,27 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.equal(companyTabAllowed('utstyr', null, { ...noGear, equipment: 'see' }), true);
 }
 
+// Kjørebok alene gir ikke Økonomi i menyen (punktet sendte ellers til Selskap).
+{
+  const mileageOnly = { ...standardGrants('ansatt'), economyProjectExpenses: 'none', mileage: 'see', products: 'see' };
+  const nav = filterCompanyNav(companyNavItems(), mileageOnly);
+  assert.equal(nav.some((item) => item.id === 'okonomi'), false);
+  assert.equal(nav.some((item) => item.id === 'kjorebok'), true);
+  assert.equal(companyTabAllowed('okonomi', 'kjorebok', mileageOnly), true);
+  // Prosjektutlegg alene peker til Arbeid → Utlegg, som er tillatt.
+  const expenses = filterCompanyNav(companyNavItems(), standardGrants('ansatt')).find((item) => item.id === 'okonomi');
+  assert.equal(companyTabAllowed(expenses.action.tab, expenses.action.subView, standardGrants('ansatt')), true);
+  // Ingen menypunkter skal peke til en side personen ikke har tilgang til.
+  for (const level of ['ansatt', 'innleie_ekstern', 'tilbud', 'regnskap_ekstern', 'avdelingsleder']) {
+    const grants = { ...standardGrants(level), mileage: 'see' };
+    const walk = (items) => items.forEach((item) => {
+      if (item.action?.tab) {
+        assert.equal(companyTabAllowed(item.action.tab, item.action.subView, grants), true, `${level}: ${item.id}`);
+      }
+      walk(item.children || []);
+    });
+    walk(filterCompanyNav(companyNavItems(), grants));
+  }
+}
+
 console.log('companyAccess.test.mjs: ok');

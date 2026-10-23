@@ -25,6 +25,22 @@ function fail(state, error) {
   return { ok: false, error, state };
 }
 
+/**
+ * Legg lokale endringer (before → after) inn i en ferskere liste, f.eks. skyens kopi.
+ * Endrede og nye rader erstatter etter id, fjernede rader tas ut, resten beholdes.
+ */
+export function patchRowsById(fresh, before, after) {
+  const previous = new Map((before || []).filter((row) => row?.id).map((row) => [row.id, JSON.stringify(row)]));
+  const kept = new Set((after || []).map((row) => row?.id).filter(Boolean));
+  const changed = (after || []).filter((row) => row?.id && previous.get(row.id) !== JSON.stringify(row));
+  const changedIds = new Set(changed.map((row) => row.id));
+  const removed = new Set([...previous.keys()].filter((id) => !kept.has(id)));
+  return [
+    ...changed,
+    ...(fresh || []).filter((row) => row?.id && !changedIds.has(row.id) && !removed.has(row.id)),
+  ];
+}
+
 function replaceById(list, row) {
   const rest = (list || []).filter((item) => item.id !== row.id);
   return [row, ...rest];

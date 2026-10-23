@@ -7,7 +7,7 @@ import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-    alignDepartmentAreas, attachDossier, emptyAnbudState, formatWhen, latestPublished, mergeTenderNotices, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
+    alignDepartmentAreas, attachDossier, emptyAnbudState, formatWhen, mergeTenderNotices, refreshFrom, WATCH_REFRESH_MS, watchRefreshDue, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
 import { geocodeMissing } from '../../src/anbud/geocodePlace';
@@ -330,15 +330,12 @@ export default function TenderAlert({
       || keywords.length > 0
       || (state.watch?.profile?.keywords || []).length > 0;
     if (!hasSignal) return undefined;
-    const now = new Date();
-    const mark = new Date(now);
-    mark.setHours(23, 55, 0, 0);
-    if (now < mark) mark.setDate(mark.getDate() - 1);
-    const synced = state.syncedAt ? new Date(state.syncedAt).getTime() : 0;
-    const hasHits = (state.notices || []).length > 0;
-    if (hasHits && synced >= mark.getTime()) return undefined;
-    refresh(stateRef.current);
-    return undefined;
+    if (watchRefreshDue(stateRef.current)) refresh(stateRef.current);
+    // Søk igjen mens siden står åpen, så nye kunngjøringer dukker opp uten å trykke Oppdater.
+    const timer = setInterval(() => {
+      if (watchRefreshDue(stateRef.current)) refreshRef.current(stateRef.current);
+    }, WATCH_REFRESH_MS);
+    return () => clearInterval(timer);
   }, [ready]);
 
   useEffect(() => {
@@ -430,7 +427,7 @@ export default function TenderAlert({
       const watch = draft.ok ? draft.state.watch : nextState.watch;
       const fingerprint = watchFingerprint(watch);
       const sameSearch = nextState.queryKey === fingerprint && (nextState.notices || []).length > 0;
-      const publishedFrom = sameSearch ? latestPublished(nextState.notices) : '';
+      const publishedFrom = sameSearch ? refreshFrom(nextState.notices, new Date(), { minDays: manual ? 21 : 0 }) : '';
       const known = new Set((nextState.notices || []).map((row) => row.id));
       const profiles = searchProfiles(draft.ok ? draft.state : nextState);
       const hits = [];
@@ -460,7 +457,7 @@ export default function TenderAlert({
           : 'Ingen nye treff. Tidligere treff og vurderinger er beholdt.');
       }
       if (!hits.length && errors.length && !known.size) setError(errors[0]);
-      else if (errors.length) setError(errors.join(' '));
+      else if (errors.length) setError(`Noen søk svarte ikke, så treff kan mangle: ${[...new Set(errors)].join(' ')} Trykk Oppdater nå om litt.`);
       applyAiRank(watch, merged.notices, { silent: true }).catch(() => {});
     } catch (err) {
       const raw = String(err?.message || '');
@@ -471,6 +468,10 @@ export default function TenderAlert({
       setSyncing(false);
     }
   }
+
+  // Intervallet må bruke skjemaverdiene fra siste visning, ikke fra første.
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
 
   function commitState(next) {
     stateRef.current = next;

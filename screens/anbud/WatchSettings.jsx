@@ -10,7 +10,6 @@ import { interpretCompanyProfile } from '../../src/anbud/watchAi';
 import { loadAnbudState, persistAnbudState } from '../../src/anbud/storage';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { updateGroup } from '../../src/utils/groups';
-import PortalSettings from './PortalSettings';
 import RegionCoverage from './RegionCoverage';
 
 function Chip({ label, on, onPress, colors, hint }) {
@@ -41,7 +40,7 @@ function toggle(setter, value) {
   });
 }
 
-export default function WatchSettings({ company, colors, onOpenWork, units = [] }) {
+export default function WatchSettings({ company, colors, units = [] }) {
   const [state, setState] = useState(emptyAnbudState());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -632,8 +631,6 @@ export default function WatchSettings({ company, colors, onOpenWork, units = [] 
         </TouchableOpacity>
         {!!mailNote && <Text style={{ color: colors.muted }}>{mailNote}</Text>}
       </View>
-
-      <PortalSettings company={company} colors={colors} onOpenWork={onOpenWork} />
     </View>
   );
 }

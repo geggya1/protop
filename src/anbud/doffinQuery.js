@@ -63,8 +63,7 @@ export function buildDoffinBody({
 
 export const DOFFIN_SEARCH_URL = 'https://api.doffin.no/webclient/api/v2/search-api/search';
 
-export async function searchDoffinNotices(input) {
-  const body = buildDoffinBody(input || {});
+async function fetchDoffinPage(body) {
   const res = await fetch(DOFFIN_SEARCH_URL, {
     method: 'POST',
     signal: AbortSignal.timeout(15000),
@@ -77,11 +76,27 @@ export async function searchDoffinNotices(input) {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Doffin svarte ${res.status}`);
-  const data = await res.json();
-  const hits = Array.isArray(data?.hits) ? data.hits : [];
+  return res.json();
+}
+
+/** Flere sider når søket har fra-dato, ellers faller treffene midt i perioden bort. */
+export const DOFFIN_CATCH_UP_PAGES = 4;
+
+export async function searchDoffinNotices(input) {
+  const body = buildDoffinBody(input || {});
+  const data = await fetchDoffinPage(body);
+  const hits = Array.isArray(data?.hits) ? [...data.hits] : [];
+  const total = Number(data?.numHitsTotal) || hits.length;
+  const catchUp = !!body.facets.publicationDate.from && !input?.page;
+  for (let page = 2; catchUp && page <= DOFFIN_CATCH_UP_PAGES && hits.length < total; page += 1) {
+    const next = await fetchDoffinPage({ ...body, page });
+    const rows = Array.isArray(next?.hits) ? next.hits : [];
+    if (!rows.length) break;
+    hits.push(...rows);
+  }
   return {
     ok: true,
-    numHitsTotal: Number(data?.numHitsTotal) || hits.length,
+    numHitsTotal: total,
     hits,
     fetchedAt: new Date().toISOString(),
   };

@@ -416,7 +416,7 @@ const watchSettings = readFileSync(new URL('../../screens/anbud/WatchSettings.js
 assert.match(watchSettings, /Anbudsinnstillinger/);
 assert.match(watchSettings, /CPV fra offentlige tildelinger/);
 assert.match(watchSettings, /Egne koder til anbudsvarsling/);
-assert.match(watchSettings, /PortalSettings/);
+assert.equal(watchSettings.includes('PortalSettings'), false);
 assert.match(watchSettings, /AI-profil/);
 assert.match(watchSettings, /La AI tolke bedriften/);
 assert.match(watchSettings, /Hjemmeside/);

@@ -207,7 +207,6 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           units={units}
           companies={companies}
           onFocusHandled={() => setFocusBidId('')}
-          onOpenSettings={canAdminSettings ? () => go('innstillinger') : undefined}
           onOpenAlerts={() => go('varsling')}
           onOpenReview={() => go('vurdering')}
           onOpenContracts={() => requestShellTab?.('kontrakt')}
@@ -219,7 +218,6 @@ export default function AnbudScreen({ company, subView, members = [], units = []
           company={company}
           colors={colors}
           units={units}
-          onOpenWork={() => go('tilbud')}
         />
       ) : null}
     </ScrollView>

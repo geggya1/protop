@@ -51,7 +51,7 @@ const SORTS = [
 ];
 
 export default function BidDesk({
-  company, colors, bids, focusBidId, onFocusHandled, onOpenSettings, onOpenAlerts, onOpenReview, onOpenContracts, onSnapshot,
+  company, colors, bids, focusBidId, onFocusHandled, onOpenAlerts, onOpenReview, onOpenContracts, onSnapshot,
   members = [], units = [], companies = [],
 }) {
   const [state, setState] = useState(null);
@@ -669,11 +669,6 @@ export default function BidDesk({
       <TouchableOpacity onPress={onOpenContracts} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>Kontrakter og avtaler</Text>
       </TouchableOpacity>
-      {onOpenSettings ? (
-        <TouchableOpacity onPress={onOpenSettings} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>Innloggingsportal</Text>
-        </TouchableOpacity>
-      ) : null}
     </View>
   );
 }

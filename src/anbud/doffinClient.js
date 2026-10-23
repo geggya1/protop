@@ -46,6 +46,8 @@ export async function fetchTenderHits(query) {
     const detail = data.error || (Array.isArray(data.errors) ? data.errors.filter(Boolean)[0] : '');
     throw new Error(detail || 'Kunne ikke hente treff.');
   }
+  // En HTML-side (feil adresse) må ikke telle som et søk uten treff.
+  if (!Array.isArray(data.hits)) throw new Error('Søket svarte ikke med treff. Prøv igjen om litt.');
   return data;
 }
 

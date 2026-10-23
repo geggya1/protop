@@ -94,7 +94,7 @@ function idsIn(sections) {
     companyItems.map((i) => i.id),
     [
       'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet',
-      'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
+      'okonomi-inntjening', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
     ],
   );
   assert.equal(companyItems[0].label, 'Selskap');
@@ -188,10 +188,11 @@ function idsIn(sections) {
   assert.ok(companyItems.findIndex((i) => i.id === 'okonomi') < companyItems.findIndex((i) => i.id === 'iso'));
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Inntjening', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
+    ['Oversikt', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
-  const inntjeningKid = okonomiKids.find((i) => i.id === 'okonomi-inntjening');
+  assert.equal(okonomiKids.some((i) => i.id === 'okonomi-inntjening'), false);
+  const inntjeningKid = companyItems.find((i) => i.id === 'okonomi-inntjening');
   assert.equal(inntjeningKid.action.tab, 'okonomi');
   assert.equal(inntjeningKid.action.subView, 'inntjening');
   assert.deepEqual(inntjeningKid.activeSubViews, ['inntjening', 'kunder', 'avtaler']);
@@ -218,7 +219,7 @@ function idsIn(sections) {
   const okonomi = items.find((item) => item.id === 'okonomi');
   const kontrakt = items.find((item) => item.id === 'kontrakt');
   const kunder = items.find((item) => item.id === 'kunder');
-  const inntjening = okonomi.children.find((item) => item.id === 'okonomi-inntjening');
+  const inntjening = items.find((item) => item.id === 'okonomi-inntjening');
   assert.equal(isNavItemActive(anbud, 'anbud', 'varsling'), true);
   assert.equal(isNavItemActive(tilbud, 'anbud', 'tilbud'), true);
   assert.equal(isNavItemActive(tilbud, 'anbud', 'varsling'), false);
@@ -232,8 +233,8 @@ function idsIn(sections) {
   assert.equal(isNavItemActive(inntjening, 'okonomi', 'avtaler'), true);
   assert.equal(isNavItemActive(inntjening, 'okonomi', 'faktura'), false);
   assert.equal(isNavItemActive(inntjening, 'kunder', null), false);
-  assert.equal(isNavItemActive(okonomi, 'okonomi', 'kunder'), true);
-  assert.equal(isNavItemActive(okonomi, 'okonomi', 'avtaler'), true);
+  assert.equal(isNavItemActive(okonomi, 'okonomi', 'kunder'), false);
+  assert.equal(isNavItemActive(okonomi, 'okonomi', 'avtaler'), false);
   const oversikt = okonomi.children.find((item) => item.id === 'okonomi-oversikt');
   const indeks = okonomi.children.find((item) => item.id === 'okonomi-indeks');
   assert.equal(okonomi.action.subView, 'oversikt');
@@ -677,7 +678,7 @@ function collectPresented(items, acc = []) {
       'Selskap og organisasjon',
       'Ansatte og arbeidstid',
       'Kunder og oppdrag',
-      'Produktivitet',
+      'Produktivitet og inntjening',
       'Produkter og driftsressurser',
       'Økonomi og fakturering',
       'Kvalitet og styringssystem',
@@ -689,11 +690,10 @@ function collectPresented(items, acc = []) {
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
       ['ansatte', 'hr', 'fravaer', 'arbeid'],
       ['kunder', 'anbud', 'kontrakt', 'projects'],
-      ['produktivitet'],
+      ['produktivitet', 'okonomi-inntjening'],
       ['produkt', 'utstyr', 'kjorebok'],
       [
         'okonomi-oversikt',
-        'okonomi-inntjening',
         'okonomi-faktura',
         'okonomi-fakturagrunnlag',
         'okonomi-utlegg',

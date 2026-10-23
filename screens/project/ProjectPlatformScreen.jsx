@@ -15,11 +15,14 @@ import { companyContextLabel } from '../../src/project/companyOffer';
 import CompanyLogoSettings from '../../components/CompanyLogoSettings';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import CompanyModuleSettings from '../../components/project/CompanyModuleSettings';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { useCompanyModules } from '../../src/access/useCompanyModules';
 
 function initialCompanyPage(startPage) {
   if (startPage === 'tilgang') return 'tilgang';
+  if (startPage === 'moduler') return 'moduler';
   return 'innstillinger';
 }
 
@@ -62,6 +65,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   const nav = useNavigation();
   const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily } = useApp();
   const access = useCompanyAccess();
+  const companyModules = useCompanyModules();
   const company = family?.company?.navn ? family.company : null;
   const owner = isSuperAdmin(family, uid);
   const canEdit = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.canAdmin('companyProfile'));
@@ -182,10 +186,10 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
   return (
     <View nativeID="company-page" id="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
     <ScrollView
-      contentContainerStyle={[styles.body, page === 'tilgang' ? styles.bodyAccess : null]}
+      contentContainerStyle={[styles.body, page === 'tilgang' || page === 'moduler' ? styles.bodyAccess : null]}
       keyboardShouldPersistTaps="handled"
     >
-      {page === 'tilgang' ? (
+      {page === 'tilgang' || page === 'moduler' ? (
         <TouchableOpacity onPress={() => requestShellTab?.('selskap', 'innstillinger')} accessibilityRole="button">
           <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til selskapsinnstillinger</Text>
         </TouchableOpacity>
@@ -221,6 +225,37 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
                 type: 'openEmployee',
                 employeeId: employee?.id,
               })}
+            />
+          </>
+        ) : (
+          <CompanyAccessDenied colors={colors} />
+        )
+      ) : null}
+
+      {page === 'moduler' ? (
+        !access.ready && !owner ? (
+          <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
+        ) : companyModules.canManage ? (
+          <>
+            <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+              Modulinnstillinger
+            </Text>
+            <Text style={[styles.lead, { color: colors.muted }]}>
+              Velg hvilke moduler bedriften abonnerer på. Dette gjelder over tilgangsstyringen: en modul som er av, er av for alle. Ansatte ser den i menyen, men kan ikke åpne den.
+            </Text>
+            <CompanyModuleSettings
+              company={company}
+              canEdit={companyModules.canManage}
+              colors={colors}
+              busy={busy}
+              onSave={async (modules) => {
+                setBusy(true);
+                try {
+                  await savePatch(familyId, { company: { ...company, modules } });
+                } finally {
+                  setBusy(false);
+                }
+              }}
             />
           </>
         ) : (

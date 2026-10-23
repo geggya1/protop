@@ -21,6 +21,8 @@ import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import CompanyLanding from '../screens/project/CompanyLanding';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import { CompanyModuleLocked } from './project/CompanyModuleSettings';
+import { useCompanyModules } from '../src/access/useCompanyModules';
 import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { viewAsChromeVisible } from '../src/access/viewAsNav';
 import { useLayout } from '../src/theme';
@@ -112,6 +114,7 @@ export default function SocialPlatformShell({ platformType }) {
   const route = useRoute();
   const { familyId, family, families, uid, selectFamily, members } = useApp();
   const companyAccess = useCompanyAccess();
+  const companyModules = useCompanyModules();
   const { isDesktop } = useLayout();
   const [tab, setTab] = useState(route.params?.module || 'home');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -162,6 +165,15 @@ export default function SocialPlatformShell({ platformType }) {
         <View style={{ flex: 1, padding: 24 }}>
           <Text style={{ color: '#5b6b82' }}>Henter tilgang…</Text>
         </View>
+      );
+    }
+    if (COMPANY_TAB_IDS.includes(tab) && companyModules.active && companyModules.lockedFor(tab, route.params?.subView)) {
+      return (
+        <CompanyModuleLocked
+          module={companyModules.lockedFor(tab, route.params?.subView)}
+          contactNote={companyModules.contactNote}
+          canManage={companyModules.canManage}
+        />
       );
     }
     if (
@@ -227,6 +239,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'projects') return <ProjectWorkScreen />;
     if (tab === 'arbeid') return <ArbeidHub subView={route.params?.subView} />;
     if (tab === 'iso') return <IsoScreen subView={route.params?.subView} />;
+    if (tab === 'selskap' && route.params?.subView === 'moduler') return <ProjectPlatformScreen startPage="moduler" />;
     if (tab === 'selskap' && route.params?.subView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && route.params?.subView === 'innstillinger') return <ProjectPlatformScreen />;
     if (tab === 'selskap' && (route.params?.subView === 'fravaerstyper' || route.params?.subView === 'fridager')) {
@@ -249,7 +262,7 @@ export default function SocialPlatformShell({ platformType }) {
     if (tab === 'announcements') return <PlatformAnnouncementsScreen {...props} />;
     if (tab === 'tasks') return <PlatformTasksScreen {...props} />;
     return <PlatformHomeScreen {...props} />;
-  }, [tab, familyId, group?.id, group?.name, group?.joinCode, group?.subUnits, family?.company?.subUnits, families, members, config, platformType, companyAccess, route.params?.subView]);
+  }, [tab, familyId, group?.id, group?.name, group?.joinCode, group?.subUnits, family?.company?.subUnits, families, members, config, platformType, companyAccess, companyModules, route.params?.subView]);
 
   const addPress = () => {
     if (!familyId || !isAdmin) return undefined;

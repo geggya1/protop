@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { useI18n } from '../../src/i18n';
 import { colors, radius, useLayout } from '../../src/theme';
 import { Screen, ScrollBody } from '../../components/ui';
@@ -58,11 +59,10 @@ import {
   buildParentDashboardApps,
   buildShellModules,
   companyHasRegisteredUnits,
-  companyNavItems,
+  companyMenuItems,
   drawerHasSubmenuToggle,
   drawerSubmenuOpen,
 } from '../../src/navigation/shellModules';
-import { filterCompanyNav } from '../../src/access/companyAccess';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import HomeModulesBoard from '../../components/home/HomeModulesBoard';
 import { moreSubviewTitle } from '../../src/navigation/shellHeaderTitle';
@@ -75,9 +75,35 @@ import HelpTarget from '../../components/HelpTarget';
 
 function Row({
   icon, label, onPress, highlight, badgeCount = 0, compact = false, showChevron = true, moduleId,
-  expanded = false, onToggle,
+  expanded = false, onToggle, locked = false, lockedNote = '',
 }) {
   const expandable = typeof onToggle === 'function';
+  if (locked) {
+    const note = lockedNote || 'Ikke aktivert';
+    return (
+      <View
+        style={[!compact && styles.rowWrap, styles.rowLocked]}
+        accessible
+        accessibilityRole="button"
+        accessibilityState={{ disabled: true }}
+        accessibilityLabel={`${label}. ${note}`}
+        nativeID={moduleId ? `module-nav-${moduleId}` : undefined}
+      >
+        <View style={[styles.row, compact && styles.rowCompact, styles.rowMain]}>
+          <View style={[styles.iconCircle, compact && styles.iconCircleCompact]}>
+            <Ionicons name={icon} size={compact ? 15 : 20} color={colors.muted} />
+          </View>
+          <View style={styles.lockedText}>
+            <Text style={[styles.label, compact && styles.labelCompact, { color: colors.muted }]} numberOfLines={1}>
+              {label}
+            </Text>
+            <Text style={styles.lockedNote} numberOfLines={2}>{note}</Text>
+          </View>
+          <Ionicons name="lock-closed" size={16} color={colors.muted} />
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={[!compact && styles.rowWrap, highlight && styles.rowHighlight]}>
       <TouchableOpacity
@@ -201,6 +227,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
   const asChild = isChild || isActingAsChild;
   const asParent = isParent && !isActingAsChild;
   const companyAccess = useCompanyAccess();
+  const companyModules = useCompanyModules();
   const { unreadByModule } = useUnread();
   const profileChild = isChild ? meChild : (isActingAsChild ? activeChild : null);
   const childForSchedule = profileChild;
@@ -248,12 +275,15 @@ export default function MoreHubScreen({ subView, setSubView }) {
       isGrandparent,
       grandparentModules,
       companyGrants: companyAccess.grants,
+      companyModules: companyModules.state,
+      companyModuleAdmin: companyModules.canManage,
+      companyModuleNote: companyModules.lockedLabel,
     }),
     [
       t, asChild, asParent, isAdmin, isSuperAdmin, familyId, family,
       canImport, activeKids, childForSchedule, aiEnabled,
       allowedApps, showChildRestrictions, isGrandparent, grandparentModules,
-      companyAccess.grants,
+      companyAccess.grants, companyModules,
     ],
   );
 
@@ -384,12 +414,15 @@ export default function MoreHubScreen({ subView, setSubView }) {
           footer={isOrganizationType(family?.type) ? (
             <View style={styles.companyBlock}>
               <Text style={styles.companyHeading}>{t('shell.company')}</Text>
-              {filterCompanyNav(
-                companyNavItems({ includeUnderenheter: companyHasRegisteredUnits(family?.company) }),
-                companyAccess.grants,
-              ).map((item) => {
+              {companyMenuItems({
+                includeUnderenheter: companyHasRegisteredUnits(family?.company),
+                grants: companyAccess.grants,
+                modules: companyModules.state,
+                moduleAdmin: companyModules.canManage,
+                lockedNote: companyModules.lockedLabel,
+              }).map((item) => {
                 const renderNavBranch = (row, depth = 0) => {
-                  const expandable = drawerHasSubmenuToggle(row);
+                  const expandable = !row.locked && drawerHasSubmenuToggle(row);
                   const submenuExpanded = drawerSubmenuOpen(row, null, submenuOpen, null);
                   return (
                     <View key={row.id}>
@@ -397,6 +430,8 @@ export default function MoreHubScreen({ subView, setSubView }) {
                         icon={row.icon}
                         label={row.label}
                         moduleId={row.id}
+                        locked={row.locked}
+                        lockedNote={row.lockedNote}
                         compact={depth > 0}
                         expanded={submenuExpanded}
                         onToggle={expandable ? () => setSubmenuOpen((prev) => ({
@@ -475,6 +510,8 @@ export default function MoreHubScreen({ subView, setSubView }) {
                       compact={isDesktop}
                       showChevron={!isDesktop}
                       moduleId={item.id}
+                      locked={item.locked}
+                      lockedNote={item.lockedNote}
                       onPress={() => runAction(item.action, item.id)}
                     />
                   );
@@ -492,6 +529,8 @@ export default function MoreHubScreen({ subView, setSubView }) {
                             compact={isDesktop}
                             showChevron={!isDesktop}
                             moduleId={child.id}
+                            locked={child.locked}
+                            lockedNote={child.lockedNote}
                             onPress={() => runAction(child.action, child.id)}
                           />
                         </View>
@@ -645,6 +684,9 @@ const styles = StyleSheet.create({
   },
   iconCircleHighlight: { backgroundColor: 'rgba(255,255,255,0.2)' },
   label: { flex: 1, fontWeight: '400', fontSize: 16, color: colors.ink },
+  rowLocked: { opacity: 0.75 },
+  lockedText: { flex: 1, minWidth: 0 },
+  lockedNote: { fontSize: 12, lineHeight: 16, color: colors.muted, marginTop: 1 },
   labelCompact: { fontWeight: '500', fontSize: 13 },
   labelHighlight: { color: '#fff' },
 });

@@ -45,6 +45,10 @@ export default function ProjectOverviewTab({
   timeEntries,
   colors,
   isAdmin,
+  // Uten Admin: bilde, status, deltakere og egne utlegg/salg. Øvrig innhold skjules.
+  limited = false,
+  canEditCover = isAdmin,
+  ownEmployeeId = '',
   familyId,
   onChangeState,
   onOpenTab,
@@ -52,20 +56,25 @@ export default function ProjectOverviewTab({
   onOpenAgreement,
 }) {
   const [uploading, setUploading] = useState(false);
+  const mine = (rows) => (ownEmployeeId ? (rows || []).filter((row) => row.employeeId === ownEmployeeId) : rows);
   const expenses = useMemo(
-    () => expenseSummaryForProject(state.expenses, project.id),
-    [state.expenses, project.id],
+    () => expenseSummaryForProject(mine(state.expenses), project.id),
+    [state.expenses, project.id, ownEmployeeId],
   );
   const sales = useMemo(
-    () => salesSummaryForProject(state.sales, project.id),
-    [state.sales, project.id],
+    () => salesSummaryForProject(mine(state.sales), project.id),
+    [state.sales, project.id, ownEmployeeId],
   );
   const chart = useMemo(() => hoursChartForOverview(timeEntries), [timeEntries]);
   const period = useMemo(
     () => projectPeriodProgress(project.start, project.end),
     [project.start, project.end],
   );
-  const teamRows = useMemo(() => memberHoursMap(timeEntries, members).slice(0, 3), [timeEntries, members]);
+  // Begrenset: alle deltakere, uten andres timer.
+  const teamRows = useMemo(
+    () => (limited ? memberHoursMap([], members) : memberHoursMap(timeEntries, members).slice(0, 3)),
+    [timeEntries, members, limited],
+  );
   const estimatedHours = useMemo(
     () => (state.activities || [])
       .filter((row) => row.projectId === project.id)
@@ -88,7 +97,7 @@ export default function ProjectOverviewTab({
   const hasAgreement = !!cross?.contract;
 
   async function uploadCover() {
-    if (!isAdmin || !familyId || uploading) return;
+    if (!canEditCover || !familyId || uploading) return;
     try {
       const picked = await pickImage({ edit: true, aspect: [16, 9] });
       if (!picked) return;
@@ -111,7 +120,7 @@ export default function ProjectOverviewTab({
       <View style={styles.heroRow}>
         <TouchableOpacity
           onPress={uploadCover}
-          disabled={!isAdmin || uploading}
+          disabled={!canEditCover || uploading}
           style={[styles.cover, { backgroundColor: colors.sunken || colors.line, borderColor: colors.line }]}
           accessibilityRole="button"
           accessibilityLabel="Last opp prosjektbilde"
@@ -127,13 +136,13 @@ export default function ProjectOverviewTab({
                 <>
                   <Ionicons name="image-outline" size={22} color={colors.muted} />
                   <Text style={{ color: colors.muted, fontSize: 11 }}>
-                    {isAdmin ? 'Last opp bilde' : 'Ingen bilde'}
+                    {canEditCover ? 'Last opp bilde' : 'Ingen bilde'}
                   </Text>
                 </>
               )}
             </View>
           )}
-          {project.imageUrl && isAdmin ? (
+          {project.imageUrl && canEditCover ? (
             <View style={styles.coverHint}>
               <Ionicons name="camera" size={12} color="#fff" />
             </View>
@@ -145,16 +154,30 @@ export default function ProjectOverviewTab({
             <View style={[styles.dot, { backgroundColor: '#16a34a' }]} />
             <Text style={{ color: '#166534', fontWeight: '600', fontSize: 11 }}>{kpis.status}</Text>
           </View>
+          {limited ? null : (
           <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={2}>
             {billing.sourceLabel} · kredittid {billing.effective.creditDays} d.
           </Text>
+          )}
+          {!limited || canEditCover ? (
           <TouchableOpacity onPress={() => onOpenTab?.('innstillinger')} style={styles.settingsLink}>
             <Ionicons name="settings-outline" size={14} color={colors.brand} />
             <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 12 }}>Prosjektinnstillinger</Text>
           </TouchableOpacity>
+          ) : null}
         </View>
       </View>
 
+      {limited ? (
+      <View style={styles.kpiRow}>
+        <KpiCard
+          label="Status"
+          value={kpis.status}
+          sub={`${formatDate(project.start) || 'Start tom'} – ${formatDate(project.end) || 'Slutt tom'}`}
+          colors={colors}
+        />
+      </View>
+      ) : (
       <View style={styles.kpiRow}>
         <KpiCard label="Omsetning" value={kpis.revenueLabel} sub="Eks. mva" colors={colors} />
         <KpiCard label="Fakturert" value={kpis.invoicedLabel} sub={`${kpis.invoicedPct}%`} progress={kpis.invoicedPct} colors={colors} />
@@ -186,7 +209,10 @@ export default function ProjectOverviewTab({
           colors={colors}
         />
       </View>
+      )}
 
+      {limited ? null : (
+      <>
       <View style={styles.midRow}>
         <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line, flex: 1.6 }]}>
           <Text style={[styles.panelTitle, { color: colors.ink }]}>Prosjektperiode</Text>
@@ -316,20 +342,25 @@ export default function ProjectOverviewTab({
         </View>
       </View>
 
+      </>
+      )}
+
       <View style={styles.midRow}>
         <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line, flex: 1 }]}>
           <View style={styles.panelHead}>
             <Text style={[styles.panelTitle, { color: colors.ink, marginBottom: 0 }]}>Team ({members.length})</Text>
+            {limited ? null : (
             <TouchableOpacity onPress={() => onOpenTab?.('team')}>
               <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 12 }}>Se alle</Text>
             </TouchableOpacity>
+            )}
           </View>
           {teamRows.map((row) => (
             <View key={row.id} style={styles.teamLine}>
               <Text style={{ color: colors.ink, flex: 1, fontSize: 12 }} numberOfLines={1}>
                 {row.employeeName} · {row.role}
               </Text>
-              <Text style={{ color: colors.muted, fontSize: 11 }}>{formatHours(row.hours)} t</Text>
+              {limited ? null : <Text style={{ color: colors.muted, fontSize: 11 }}>{formatHours(row.hours)} t</Text>}
             </View>
           ))}
           {!teamRows.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen deltakere.</Text> : null}

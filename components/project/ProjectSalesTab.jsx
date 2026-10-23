@@ -29,6 +29,8 @@ export default function ProjectSalesTab({
   project,
   colors,
   isAdmin,
+  // Uten Admin: bare egne rader.
+  employeeId = '',
   onChangeState,
 }) {
   const [query, setQuery] = useState('');
@@ -38,8 +40,10 @@ export default function ProjectSalesTab({
   const [error, setError] = useState('');
 
   const all = useMemo(
-    () => (state.sales || []).filter((row) => row.projectId === project.id),
-    [state.sales, project.id],
+    () => (state.sales || []).filter((row) => (
+      row.projectId === project.id && (!employeeId || row.employeeId === employeeId)
+    )),
+    [state.sales, project.id, employeeId],
   );
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();

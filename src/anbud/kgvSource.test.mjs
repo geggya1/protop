@@ -54,6 +54,13 @@ const fileTable = [
   { _1: 2, _11: 12, _7: 8, _4: 5, _3: 0 },
   { _1: 9, _7: 8, _4: 6, _3: 10 },
 ];
+const doubleSpace = parseArtifikFiles(streamPage([
+  'name', '1-  SSA-L - Avtale.docx', 'key', 'procurementAttachments/9684/cf8fe557-6d86-471c-ba0d-ed1937caf1b0',
+  { _0: 1, _2: 3 },
+]));
+// Visningsnavnet ryddes, men Artifik må få navnet nøyaktig som lagret for å gi ut filen.
+assert.equal(doubleSpace[0].name, '1- SSA-L - Avtale.docx');
+assert.equal(doubleSpace[0].portalName, '1-  SSA-L - Avtale.docx');
 const streamed = parseArtifikFiles(streamPage(fileTable));
 assert.equal(streamed.length, 1);
 assert.equal(streamed[0].name, 'Kapittel C0 Avtaledokument.pdf');

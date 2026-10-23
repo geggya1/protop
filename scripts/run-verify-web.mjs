@@ -25,6 +25,7 @@ export const FILES = [
   'src/anbud/documentFile.test.mjs',
   'src/anbud/kgvSource.test.mjs',
   'src/anbud/tenderProxyUrl.test.mjs',
+  'src/anbud/competitionUrl.test.mjs',
   'src/anbud/openDocument.test.mjs',
   'functions/interpretAvtale.smoke.test.mjs',
   'functions/anbudForm.smoke.test.mjs',

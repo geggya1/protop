@@ -45,6 +45,13 @@ const relative = parseMercellCatalog(
 assert.equal(relative.files[0].url, 'https://www.mercell.com/m/file/GetFile.ashx?id=1&version=0');
 assert.equal(relative.files[0].size, '24,72 MB');
 
+// Mercell uten dokumenter viser bare en reklamelenke for anbudsvarsling.
+const promo = parseMercellCatalog(
+  '<div class="rDynamicDocuments"><a href="https://info.mercell.com/no-no/anbudsvarsling">Anbudsvarsling</a></div>',
+  'https://permalink.mercell.com/288101247.aspx',
+);
+assert.equal(promo.files.length, 0);
+
 const deployedCatalog = readFileSync(new URL('../../functions/anbud/portalCatalog.js', import.meta.url), 'utf8');
 const sourceCatalog = readFileSync(new URL('./portalCatalog.js', import.meta.url), 'utf8');
 assert.equal(deployedCatalog, sourceCatalog);

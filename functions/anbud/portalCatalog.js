@@ -79,7 +79,9 @@ export function parseMercellCatalog(html, pageUrl = '') {
     if (name && !seen.has(key)) {
       seen.add(key);
       const href = decode((match[0].match(/href=(['"])(.*?)\1/i) || [])[2] || '');
-      files.push({ name, size, access: 'portal', url: absoluteCatalogUrl(href, pageUrl) });
+      const url = absoluteCatalogUrl(href, pageUrl);
+      // Uten dokumenter viser Mercell en lenke til egen anbudsvarsling (info.mercell.com). Det er ikke en fil.
+      if (!/^https?:\/\/info\.mercell\.com\//i.test(url)) files.push({ name, size, access: 'portal', url });
     }
     match = row.exec(source);
   }

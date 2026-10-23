@@ -1,5 +1,7 @@
 /** Leser en Doffin-kunngjøring til et sammendrag med dokumenter, ESPD og frister. */
 
+import { normalizeCompetitionUrl } from './competitionUrl.js';
+
 const NOTICE_URL = 'https://api.doffin.no/webclient/api/v2/notices-api/notices';
 
 function text(value) {
@@ -206,7 +208,10 @@ function moneyField(raw, currency = 'NOK') {
 
 export function summarizeNotice(notice) {
   const rows = flattenNoticeFields(notice?.eform);
-  const documentsUrl = notice?.competitionDocsUrl || first(rows, /anskaffelsesdokumentene/i);
+  // Bare ekte lenker. «Virksomhet som gir tilgang til anskaffelsesdokumentene» er et firmanavn.
+  const documentsUrl = normalizeCompetitionUrl(notice?.competitionDocsUrl)
+    || all(rows, /anskaffelsesdokumentene/i).map(normalizeCompetitionUrl).find(Boolean)
+    || '';
   const submissionUrl = first(rows, /adresse for innlevering/i) || documentsUrl;
   const linkRows = rows.filter((row) => /^https?:\/\//i.test(row.value) && isProcurementLink(row.label, row.value));
   const documents = [];

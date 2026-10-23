@@ -104,6 +104,21 @@ assert.equal(mapped.buyerOrg, '974761262');
 assert.equal(mapped.tedUrl, 'https://ted.europa.eu/no/notice/-/detail/699650-2026');
 assert.match(mapped.regulationUrl, /lovdata/);
 
+// Doffin 2025-114386: feltet om anskaffelsesdokumentene har bare et firmanavn.
+const nameOnly = summarizeNotice({
+  eform: [
+    { label: 'Virksomhet som gir tilgang til anskaffelsesdokumentene', value: 'Innherred Anskaffelser -' },
+    { label: 'Adresse på anskaffelsesdokumentene', value: 'http://eu.eu-supply.com/app/rfq/rwlentrance_s.asp?PID=375426&B=DFO' },
+  ],
+});
+assert.equal(nameOnly.documentsUrl, 'https://eu.eu-supply.com/app/rfq/rwlentrance_s.asp?PID=375426&B=DFO');
+// Doffin 2026-116004: competitionDocsUrl med http.
+assert.equal(
+  summarizeNotice({ competitionDocsUrl: 'http://permalink.mercell.com/290423823.aspx', eform: [] }).documentsUrl,
+  'https://permalink.mercell.com/290423823.aspx',
+);
+assert.equal(summarizeNotice({ eform: [{ label: 'Virksomhet som gir tilgang til anskaffelsesdokumentene', value: 'Innherred Anskaffelser -' }] }).documentsUrl, '');
+
 const live = await fetchNoticeDossier('2026-114937');
 assert.equal(live.ok, true);
 assert.match(live.dossier.buyer, /Sortland/);

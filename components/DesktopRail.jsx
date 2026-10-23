@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
+import { useCompanyModules } from '../src/access/useCompanyModules';
 import { useI18n } from '../src/i18n';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
@@ -52,6 +53,37 @@ function NavRow({
   const color = active ? colors.brand : colors.ink;
   const expandable = typeof onToggle === 'function' && !collapsed;
   const nestPad = depth > 0 ? Math.min(8 + depth * 12, 32) : 0;
+  if (item.locked) {
+    const note = item.lockedNote || 'Ikke aktivert';
+    return (
+      <View
+        style={[
+          styles.rowWrap,
+          nested && styles.rowNested,
+          depth > 0 && { paddingLeft: nestPad },
+          collapsed && styles.rowCollapsed,
+          styles.rowLocked,
+        ]}
+        accessible
+        accessibilityRole="button"
+        accessibilityState={{ disabled: true }}
+        accessibilityLabel={`${item.label}. ${note}`}
+        nativeID={`module-nav-${item.id}`}
+        {...(Platform.OS === 'web' ? { dataSet: { moduleLocked: '1' }, title: `${item.label} – ${note}` } : null)}
+      >
+        <View style={styles.rowMain}>
+          <Ionicons name={itemIcon(item, false)} size={16} color={colors.muted} />
+          {collapsed ? null : (
+            <View style={styles.lockedText}>
+              <Text style={[styles.rowLabel, { color: colors.muted }]} numberOfLines={1}>{item.label}</Text>
+              <Text style={[styles.lockedNote, { color: colors.muted }]} numberOfLines={2}>{note}</Text>
+            </View>
+          )}
+          {collapsed ? null : <Ionicons name="lock-closed" size={12} color={colors.muted} style={styles.lockIcon} />}
+        </View>
+      </View>
+    );
+  }
   return (
     <View
       style={[
@@ -137,6 +169,7 @@ export default function DesktopRail({
   const asChild = isChild || isActingAsChild;
   const asParent = isParent && !isActingAsChild;
   const companyAccess = useCompanyAccess();
+  const companyModules = useCompanyModules();
   const activeKids = useMemo(
     () => (kids || []).filter((k) => k.active !== false),
     [kids],
@@ -169,6 +202,9 @@ export default function DesktopRail({
         isGrandparent,
         grandparentModules,
         companyGrants: companyAccess.grants,
+        companyModules: companyModules.state,
+        companyModuleAdmin: companyModules.canManage,
+        companyModuleNote: companyModules.lockedLabel,
       });
       if (!hideChatNav) return built;
       return built.map((section) => ({
@@ -180,7 +216,7 @@ export default function DesktopRail({
       t, asChild, asParent, isAdmin, isSuperAdmin, familyId, family,
       canImport, activeKids, childForSchedule, aiEnabled,
       allowedApps, showChildRestrictions, hideChatNav, isGrandparent, grandparentModules,
-      companyAccess.grants,
+      companyAccess.grants, companyModules,
     ],
   );
 
@@ -358,7 +394,7 @@ export default function DesktopRail({
               {expanded ? section.items.map((item, index) => {
                 const renderNavBranch = (row, depth = 0) => {
                   const kids = row.children || [];
-                  const expandable = drawerHasSubmenuToggle(row);
+                  const expandable = !row.locked && drawerHasSubmenuToggle(row);
                   const submenuExpanded = !!q || drawerSubmenuOpen(row, activeTab, submenuOpen, activeSubView);
                   const showKids = expandable && submenuExpanded;
                   return (
@@ -597,6 +633,10 @@ const styles = StyleSheet.create({
   rowChild: { paddingLeft: 14 },
   rowCollapsed: { justifyContent: 'center', paddingHorizontal: 6, width: 36 },
   rowActive: { backgroundColor: colors.brandSoft },
+  rowLocked: { opacity: 0.75, cursor: 'not-allowed' },
+  lockedText: { flex: 1, minWidth: 0 },
+  lockedNote: { fontSize: 11, lineHeight: 14, marginTop: 1 },
+  lockIcon: { marginRight: 6 },
   rowLabel: { flex: 1, fontWeight: '400', fontSize: 13, color: colors.ink },
   rowLabelActive: { fontWeight: '500', color: colors.brand },
   empty: { color: colors.muted, fontWeight: '400', fontSize: 12, paddingHorizontal: 8, marginTop: 8 },

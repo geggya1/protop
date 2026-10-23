@@ -719,7 +719,7 @@ function collectPresented(items, acc = []) {
   assert.equal(companySettings.action.subView, 'innstillinger');
   assert.deepEqual(
     companySettings.children.map((item) => item.id),
-    ['selskapsinnstillinger-tilgang'],
+    ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang'],
   );
   assert.equal(customers.children.find((item) => item.id === 'anbud').children.some((row) => row.id === 'anbud-innstillinger'), true);
   const fravaer = people.children.find((item) => item.id === 'fravaer');

@@ -8,6 +8,7 @@ import { groupParentAppItems } from './parentAppGroups.js';
 import { applyProtopShellApps, applyProtopShellSections } from './protopShell.js';
 import { isOrganizationType } from '../utils/groupTypes.js';
 import { filterCompanyNav } from '../access/companyAccess.js';
+import { lockCompanyNav } from '../access/companyModules.js';
 import { normalizeSubUnits } from '../project/companyUnits.js';
 
 /**
@@ -49,6 +50,7 @@ export function anbudMenuTitle(subView) {
  */
 export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
+  if (subView === 'moduler') return 'Modulinnstillinger';
   if (subView === 'tilgang') return 'Tilgangsstyring';
   if (subView === 'innstillinger') return 'Selskapsinnstillinger';
   if (subView === 'fravaerstyper' || subView === 'fridager') return 'Fraværsinnstillinger';
@@ -349,8 +351,14 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
       icon: 'settings-outline',
       label: 'Selskapsinnstillinger',
       action: { type: 'tab', tab: 'selskap', subView: 'innstillinger' },
-      activeSubViews: ['innstillinger', 'tilgang'],
+      activeSubViews: ['innstillinger', 'moduler', 'tilgang'],
       children: [
+        {
+          id: 'selskapsinnstillinger-moduler',
+          icon: 'apps',
+          label: 'Modulinnstillinger',
+          action: { type: 'tab', tab: 'selskap', subView: 'moduler' },
+        },
         {
           id: 'selskapsinnstillinger-tilgang',
           icon: 'key',
@@ -427,6 +435,31 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     isoNavItem(),
   );
   return items;
+}
+
+/** Modulinnstillinger vises bare for administrator. */
+function withoutModuleSettings(items) {
+  return (items || []).map((item) => (
+    item.children
+      ? { ...item, children: item.children.filter((child) => child.id !== 'selskapsinnstillinger-moduler') }
+      : item
+  ));
+}
+
+/**
+ * Bedriftsmenyen slik brukeren ser den: filtrert på tilgang, og med
+ * deaktiverte moduler låst (synlige, men ikke klikkbare).
+ */
+export function companyMenuItems({
+  includeUnderenheter = false,
+  grants = null,
+  modules = null,
+  moduleAdmin = false,
+  lockedNote = '',
+} = {}) {
+  const base = companyNavItems({ includeUnderenheter });
+  const allowed = filterCompanyNav(moduleAdmin ? base : withoutModuleSettings(base), grants);
+  return lockCompanyNav(allowed, modules, lockedNote || undefined);
 }
 
 /** Bedriftsvalg som ligger under Konto (ikke i bedriftslisten). */
@@ -684,6 +717,9 @@ export function buildShellModules({
   isGrandparent = false,
   grandparentModules = null,
   companyGrants = null,
+  companyModules = null,
+  companyModuleAdmin = false,
+  companyModuleNote = '',
 }) {
   const sections = [];
 
@@ -934,7 +970,13 @@ export function buildShellModules({
     const companySection = {
       id: 'company',
       title: t('shell.company'),
-      items: filterCompanyNav(companyNavItems({ includeUnderenheter }), companyGrants),
+      items: companyMenuItems({
+        includeUnderenheter,
+        grants: companyGrants,
+        modules: companyModules,
+        moduleAdmin: companyModuleAdmin,
+        lockedNote: companyModuleNote,
+      }),
     };
     if (accountAt >= 0) sections.splice(accountAt, 0, companySection);
     else sections.push(companySection);

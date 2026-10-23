@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
+import { useCompanyModules } from '../src/access/useCompanyModules';
 import { useI18n } from '../src/i18n';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
@@ -48,6 +49,33 @@ function DrawerRow({
     : `${base}-outline`;
   const expandable = typeof onToggle === 'function';
   const nestPad = depth > 0 ? Math.min(14 + (depth - 1) * 12, 38) : 0;
+  if (item.locked) {
+    return (
+      <View
+        style={[styles.row, nested && { paddingLeft: nestPad }, styles.rowLocked]}
+        accessible
+        accessibilityRole="button"
+        accessibilityState={{ disabled: true }}
+        accessibilityLabel={`${item.label}. ${item.lockedNote || 'Ikke aktivert'}`}
+        nativeID={`module-nav-${item.id}`}
+        id={`module-nav-${item.id}`}
+        dataSet={{ moduleLocked: '1' }}
+      >
+        <View style={styles.rowMain}>
+          <View style={styles.iconWrap}>
+            <Ionicons name={base.endsWith('-outline') ? base : `${base}-outline`} size={16} color={colors.muted} />
+          </View>
+          <View style={styles.lockedText}>
+            <Text style={[styles.rowLabel, { color: colors.muted }]} numberOfLines={1}>{item.label}</Text>
+            <Text style={[styles.lockedNote, { color: colors.muted }]} numberOfLines={2}>
+              {item.lockedNote || 'Ikke aktivert'}
+            </Text>
+          </View>
+          <Ionicons name="lock-closed" size={14} color={colors.muted} />
+        </View>
+      </View>
+    );
+  }
   return (
     <View
       style={[
@@ -148,6 +176,7 @@ export default function ShellDrawer({
   const asChild = isChild || isActingAsChild;
   const asParent = isParent && !isActingAsChild;
   const companyAccess = useCompanyAccess();
+  const companyModules = useCompanyModules();
   const [open, setOpen] = useState(DEFAULT_OPEN);
   const [submenuOpen, setSubmenuOpen] = useState({});
   const [groupOpen, setGroupOpen] = useState({});
@@ -182,12 +211,15 @@ export default function ShellDrawer({
       isGrandparent,
       grandparentModules,
       companyGrants: companyAccess.grants,
+      companyModules: companyModules.state,
+      companyModuleAdmin: companyModules.canManage,
+      companyModuleNote: companyModules.lockedLabel,
     }),
     [
       t, asChild, asParent, isAdmin, isSuperAdmin, familyId, family,
       canImport, activeKids, childForSchedule, aiEnabled,
       allowedApps, showChildRestrictions, isGrandparent, grandparentModules,
-      companyAccess.grants,
+      companyAccess.grants, companyModules,
     ],
   );
 
@@ -455,7 +487,7 @@ export default function ShellDrawer({
                     ).map((item, index) => {
                       const renderNavBranch = (row, depth = 0) => {
                         const kids = row.children || [];
-                        const expandable = drawerHasSubmenuToggle(row);
+                        const expandable = !row.locked && drawerHasSubmenuToggle(row);
                         const submenuExpanded = drawerSubmenuOpen(row, activeTab, submenuOpen, activeSubView);
                         const showKids = expandable && submenuExpanded;
                         return (
@@ -733,6 +765,9 @@ const styles = StyleSheet.create({
   },
   expandBtnHighlight: { backgroundColor: 'rgba(255,255,255,0.22)' },
   rowActive: { backgroundColor: colors.brandSoft },
+  rowLocked: { opacity: 0.75, cursor: 'not-allowed' },
+  lockedText: { flex: 1, minWidth: 0 },
+  lockedNote: { fontSize: 11, lineHeight: 14, marginTop: 1 },
   rowHighlight: { backgroundColor: colors.brand },
   iconWrap: {
     width: 26, height: 26, borderRadius: 7,

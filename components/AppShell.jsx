@@ -22,6 +22,8 @@ import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import CompanyLanding from '../screens/project/CompanyLanding';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import { CompanyModuleLocked } from './project/CompanyModuleSettings';
+import { useCompanyModules } from '../src/access/useCompanyModules';
 import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
 import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
@@ -150,6 +152,7 @@ function AppShellInner() {
   const { t } = useI18n();
   const colors = useColors();
   const companyAccess = useCompanyAccess();
+  const companyModules = useCompanyModules();
   const { highChildFriendliness } = useThemeMeta();
   const {
     isParent, isChild, isActingAsChild, isGrandparent, family, families, loading,
@@ -556,6 +559,16 @@ function AppShellInner() {
         </View>
       );
     }
+    if (COMPANY_TAB_IDS.includes(tab) && companyModules.active && companyModules.lockedFor(tab, moreSubView)) {
+      return (
+        <CompanyModuleLocked
+          module={companyModules.lockedFor(tab, moreSubView)}
+          contactNote={companyModules.contactNote}
+          canManage={companyModules.canManage}
+          onOpenSettings={() => requestShellTab('selskap', 'moduler')}
+        />
+      );
+    }
     if (
       COMPANY_TAB_IDS.includes(tab)
       && companyAccess.previewing
@@ -632,6 +645,7 @@ function AppShellInner() {
     if (tab === 'iso') return <IsoScreen subView={moreSubView} />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
     if (tab === 'utstyr') return <EquipmentScreen />;
+    if (tab === 'selskap' && moreSubView === 'moduler') return <ProjectPlatformScreen startPage="moduler" />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'innstillinger') return <ProjectPlatformScreen />;
     if (tab === 'selskap' && (moreSubView === 'fravaerstyper' || moreSubView === 'fridager')) {
@@ -652,7 +666,7 @@ function AppShellInner() {
       );
     }
     return <HomeScreen />;
-  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess]);
+  }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess, companyModules]);
 
   const body = (
     <>

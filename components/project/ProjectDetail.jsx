@@ -41,6 +41,7 @@ import ProjectBillingReadyTab from './ProjectBillingReadyTab';
 import ProjectIndexArchive from './ProjectIndexArchive';
 import ProjectEarningsTab from './ProjectEarningsTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { teamWithHourParticipants } from '../../src/project/myProjects';
 
 // Uten Admin: hovedside, egne utlegg, eget produktsalg og egne timer. Begrenset redigering får også innstillinger.
 const LIMITED_TABS = new Set(['hovedside', 'utlegg', 'produktsalg', 'timerapport']);
@@ -165,9 +166,10 @@ export default function ProjectDetail({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
 
+  // Team: registrerte deltakere pluss de som har ført timer på prosjektet.
   const members = useMemo(
-    () => state.members.filter((row) => row.projectId === project.id && row.active !== false),
-    [state.members, project.id],
+    () => teamWithHourParticipants(state.members, state.timeEntries, project.id),
+    [state.members, state.timeEntries, project.id],
   );
   const activities = useMemo(
     () => state.activities.filter((row) => row.projectId === project.id),

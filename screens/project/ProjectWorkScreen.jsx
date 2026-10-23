@@ -572,7 +572,7 @@ export default function ProjectWorkScreen() {
     const me = access.previewing && access.viewingAs
       ? access.viewingAs
       : (employees || []).find((row) => row.id === myEmployeeId);
-    return myProjectIds(state, me || (myEmployeeId ? { id: myEmployeeId } : null));
+    return myProjectIds(state, me || (myEmployeeId ? { id: myEmployeeId } : null), employees);
   }, [state, employees, myEmployeeId, access.previewing, access.viewingAs]);
   const projectVisible = useMemo(
     () => (item) => seesAllProjects || assignedIds.has(item?.id),

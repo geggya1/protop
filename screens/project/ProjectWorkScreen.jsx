@@ -324,7 +324,11 @@ export default function ProjectWorkScreen() {
   const { isPhone } = useLayout();
   const { familyId, requestShellTab, isAdmin: groupAdmin, uid, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
-  const isAdmin = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canEdit('projects'));
+  // Admin på Prosjekt ser og endrer alt. Begrenset redigering og Lese får en avgrenset prosjektside.
+  const isAdmin = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canAdmin('projects'));
+  const projectEditor = !isAdmin && access.ready
+    && (access.canEdit('projects') || access.canEdit('assignedProjects'));
+  const projectMode = isAdmin ? 'admin' : (projectEditor ? 'editor' : 'reader');
   const canDeleteProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canAdmin('projects'));
   // Bare «Tildelte prosjekt»: listen viser prosjektene personen er registrert i.
   const seesAllProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canView('projects'));
@@ -2031,6 +2035,8 @@ export default function ProjectWorkScreen() {
           invoices={invoices}
           colors={colors}
           isAdmin={isAdmin}
+          projectMode={projectMode}
+          myEmployeeId={myEmployeeId}
           uid={uid}
           familyId={familyId}
           onChangeState={(next) => {

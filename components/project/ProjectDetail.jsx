@@ -42,6 +42,9 @@ import ProjectIndexArchive from './ProjectIndexArchive';
 import ProjectEarningsTab from './ProjectEarningsTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 
+// Uten Admin: hovedside, egne utlegg, eget produktsalg og egne timer. Begrenset redigering får også innstillinger.
+const LIMITED_TABS = new Set(['hovedside', 'utlegg', 'produktsalg', 'timerapport']);
+
 const TABS = [
   { id: 'hovedside', label: 'Hovedside' },
   { id: 'aktiviteter', label: 'Aktiviteter' },
@@ -137,17 +140,26 @@ export default function ProjectDetail({
   onOpenEconomySettings,
   onOpenEconomyBilling,
   hoursLoading = false,
+  projectMode = 'admin',
+  myEmployeeId = '',
 }) {
   const access = useCompanyAccess();
+  const full = projectMode === 'admin';
+  const editor = projectMode === 'editor';
   const canSeeEarnings = access.canView('economyEarnings') || access.canView('economy');
   const tabs = useMemo(
-    () => (canSeeEarnings ? TABS : TABS.filter((row) => row.id !== 'inntjening')),
-    [canSeeEarnings],
+    () => TABS.filter((row) => {
+      if (row.id === 'inntjening' && !canSeeEarnings) return false;
+      if (full) return true;
+      return LIMITED_TABS.has(row.id) || (editor && row.id === 'innstillinger');
+    }),
+    [canSeeEarnings, full, editor],
   );
   const [tab, setTab] = useState('hovedside');
   useEffect(() => {
-    if (tab === 'inntjening' && !canSeeEarnings) setTab('hovedside');
-  }, [tab, canSeeEarnings]);
+    if (!tabs.some((row) => row.id === tab)) setTab('hovedside');
+  }, [tab, tabs]);
+  const ownOnly = full ? '' : (myEmployeeId || '__ingen__');
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityName, setActivityName] = useState('');
   const [note, setNote] = useState('');
@@ -166,6 +178,11 @@ export default function ProjectDetail({
       .filter((row) => row.projectId === project.id)
       .sort((a, b) => String(b.date).localeCompare(String(a.date))),
     [state.timeEntries, project.id],
+  );
+  // Timerapporten viser bare egne timer uten Admin.
+  const reportEntries = useMemo(
+    () => (ownOnly ? timeEntries.filter((row) => row.employeeId === ownOnly) : timeEntries),
+    [timeEntries, ownOnly],
   );
   const summary = useMemo(() => projectTimeSummary(state, project.id), [state, project.id]);
   const customer = useMemo(
@@ -218,6 +235,7 @@ export default function ProjectDetail({
           <Ionicons name="arrow-back" size={18} color={colors.ink} />
           <Text style={{ color: colors.ink }}>Tilbake til listen</Text>
         </TouchableOpacity>
+        {full || editor ? (
         <TouchableOpacity
           onPress={() => setTab('innstillinger')}
           style={[styles.editBtn, { borderColor: colors.line }]}
@@ -227,6 +245,7 @@ export default function ProjectDetail({
           <Ionicons name="settings-outline" size={16} color={colors.ink} />
           <Text style={{ color: colors.ink }}>Innstillinger</Text>
         </TouchableOpacity>
+        ) : null}
       </View>
 
       <Text style={[styles.crumb, { color: colors.muted }]}>Prosjekter / #{project.number}</Text>
@@ -280,12 +299,16 @@ export default function ProjectDetail({
               timeEntries={timeEntries}
               colors={colors}
               isAdmin={isAdmin}
+              limited={!full}
+              canEditCover={full || editor}
+              ownEmployeeId={ownOnly}
               familyId={familyId}
               onChangeState={onChangeState}
               onOpenTab={setTab}
               onOpenCustomer={onOpenCustomer}
               onOpenAgreement={onOpenAgreement}
             />
+            {full ? (
             <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card, marginTop: 8, padding: 10 }]}>
               <ProjectIndexNote project={project} contracts={contracts} timeEntries={state.timeEntries || []} colors={colors} />
               <IndexLetterTable
@@ -295,6 +318,7 @@ export default function ProjectDetail({
                 empty="Ingen indeksreguleringer på prosjektet."
               />
             </View>
+            ) : null}
           </>
         ) : null}
 
@@ -305,10 +329,11 @@ export default function ProjectDetail({
             customers={customers}
             contracts={contracts}
             colors={colors}
-            isAdmin={isAdmin}
+            isAdmin={full && isAdmin}
+            canEditBasics={editor}
             familyId={familyId}
             onChangeState={onChangeState}
-            onEditForm={onEditForm}
+            onEditForm={full ? onEditForm : undefined}
             onOpenAgreement={onOpenAgreement}
           />
         ) : null}
@@ -344,7 +369,8 @@ export default function ProjectDetail({
             state={state}
             project={project}
             colors={colors}
-            isAdmin={isAdmin}
+            isAdmin={full && isAdmin}
+            employeeId={ownOnly}
             onChangeState={onChangeState}
           />
         ) : null}
@@ -354,7 +380,8 @@ export default function ProjectDetail({
             state={state}
             project={project}
             colors={colors}
-            isAdmin={isAdmin}
+            isAdmin={full && isAdmin}
+            employeeId={ownOnly}
             onChangeState={onChangeState}
           />
         ) : null}
@@ -465,7 +492,7 @@ export default function ProjectDetail({
                 <Text key={label} style={[styles.th, { color: colors.muted }]}>{label}</Text>
               ))}
             </View>
-            {timeEntries.map((row) => (
+            {reportEntries.map((row) => (
               <View key={row.id} style={[styles.tableRow, { borderColor: colors.line }]}>
                 <Text style={[styles.td, { color: colors.ink }]}>{row.date}</Text>
                 <Text style={[styles.td, { color: colors.ink }]} numberOfLines={1}>{row.employeeName}</Text>
@@ -476,7 +503,7 @@ export default function ProjectDetail({
                 <View style={styles.td}>
                   {row.status === 'godkjent' || row.status === 'låst' ? (
                     <Ionicons name="checkmark-circle" size={18} color={colors.success || '#16a34a'} />
-                  ) : isAdmin ? (
+                  ) : full && isAdmin ? (
                     <TouchableOpacity onPress={() => approveEntry(row.id)}>
                       <Ionicons name="ellipse-outline" size={18} color={colors.muted} />
                     </TouchableOpacity>
@@ -486,9 +513,9 @@ export default function ProjectDetail({
                 </View>
               </View>
             ))}
-            {!timeEntries.length ? (
+            {!reportEntries.length ? (
               <Text style={{ color: colors.muted, paddingVertical: 16 }}>
-                {hoursLoading ? 'Laster timer…' : 'Ingen timeføringer på prosjektet ennå.'}
+                {hoursLoading ? 'Laster timer…' : (full ? 'Ingen timeføringer på prosjektet ennå.' : 'Du har ingen timer på prosjektet ennå.')}
               </Text>
             ) : null}
           </View>

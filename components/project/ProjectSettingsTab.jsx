@@ -30,11 +30,14 @@ export default function ProjectSettingsTab({
   contracts = [],
   colors,
   isAdmin,
+  // Begrenset redigering: bilde, periode og adresse.
+  canEditBasics = false,
   familyId,
   onChangeState,
   onEditForm,
   onOpenAgreement,
 }) {
+  const canEdit = isAdmin || canEditBasics;
   const settings = defaultWorkSettings(project.workSettings);
   const [street, setStreet] = useState(project.street || '');
   const [postalCode, setPostalCode] = useState(project.postalCode || '');
@@ -96,7 +99,7 @@ export default function ProjectSettingsTab({
   }
 
   async function uploadCover() {
-    if (!isAdmin || !familyId || uploading) return;
+    if (!canEdit || !familyId || uploading) return;
     try {
       const picked = await pickImage({ edit: true, aspect: [16, 9] });
       if (!picked) return;
@@ -164,7 +167,7 @@ export default function ProjectSettingsTab({
         <Text style={[styles.title, { color: colors.ink }]}>Prosjektbilde</Text>
         <TouchableOpacity
           onPress={uploadCover}
-          disabled={!isAdmin || uploading}
+          disabled={!canEdit || uploading}
           style={[styles.cover, { borderColor: colors.line, backgroundColor: colors.sunken || colors.line }]}
           accessibilityRole="button"
           accessibilityLabel="Last opp prosjektbilde"
@@ -182,7 +185,7 @@ export default function ProjectSettingsTab({
             </View>
           )}
         </TouchableOpacity>
-        {project.imageUrl && isAdmin ? (
+        {project.imageUrl && canEdit ? (
           <TouchableOpacity onPress={() => apply({ imageUrl: '' }, 'Bildet er fjernet.')} style={{ marginTop: 6 }}>
             <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Fjern bilde</Text>
           </TouchableOpacity>
@@ -195,7 +198,7 @@ export default function ProjectSettingsTab({
           <View style={styles.field}>
             <Text style={{ color: colors.muted, fontSize: 11 }}>Startdato</Text>
             <TextInput
-              editable={isAdmin}
+              editable={canEdit}
               value={start}
               onChangeText={setStart}
               placeholder="ÅÅÅÅ-MM-DD"
@@ -207,7 +210,7 @@ export default function ProjectSettingsTab({
           <View style={styles.field}>
             <Text style={{ color: colors.muted, fontSize: 11 }}>Sluttdato</Text>
             <TextInput
-              editable={isAdmin}
+              editable={canEdit}
               value={end}
               onChangeText={setEnd}
               placeholder="ÅÅÅÅ-MM-DD"
@@ -217,13 +220,14 @@ export default function ProjectSettingsTab({
             />
           </View>
         </View>
-        {isAdmin ? (
+        {canEdit ? (
           <TouchableOpacity onPress={saveDates} style={[styles.btn, { backgroundColor: colors.brand }]}>
             <Text style={{ color: '#fff', fontWeight: '700' }}>Lagre periode</Text>
           </TouchableOpacity>
         ) : null}
       </View>
 
+      {isAdmin ? (
       <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Text style={[styles.title, { color: colors.ink }]}>Avtale</Text>
         {project.contractId ? (
@@ -242,6 +246,7 @@ export default function ProjectSettingsTab({
           </TouchableOpacity>
         ) : null}
       </View>
+      ) : null}
 
       <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Text style={[styles.title, { color: colors.ink }]}>Prosjektadresse</Text>
@@ -249,7 +254,7 @@ export default function ProjectSettingsTab({
           {currentAddress || 'Ingen adresse lagret.'}
         </Text>
         <TextInput
-          editable={isAdmin}
+          editable={canEdit}
           value={query}
           onChangeText={setQuery}
           placeholder="Søk adresse, minst tre bokstaver"
@@ -262,11 +267,11 @@ export default function ProjectSettingsTab({
           </TouchableOpacity>
         ))}
         <View style={styles.row}>
-          <TextInput editable={isAdmin} value={street} onChangeText={setStreet} placeholder="Gate" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, flex: 1 }]} />
-          <TextInput editable={isAdmin} value={postalCode} onChangeText={setPostalCode} placeholder="Postnr" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, width: 90 }]} />
-          <TextInput editable={isAdmin} value={placeName} onChangeText={setPlaceName} placeholder="Poststed" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, flex: 1 }]} />
+          <TextInput editable={canEdit} value={street} onChangeText={setStreet} placeholder="Gate" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, flex: 1 }]} />
+          <TextInput editable={canEdit} value={postalCode} onChangeText={setPostalCode} placeholder="Postnr" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, width: 90 }]} />
+          <TextInput editable={canEdit} value={placeName} onChangeText={setPlaceName} placeholder="Poststed" placeholderTextColor={colors.muted} style={[styles.input, { color: colors.ink, borderColor: colors.line, flex: 1 }]} />
         </View>
-        {isAdmin ? (
+        {canEdit ? (
           <TouchableOpacity
             onPress={() => saveAddress({ street, postalCode, placeName })}
             style={[styles.btn, { backgroundColor: colors.brand }]}
@@ -276,6 +281,7 @@ export default function ProjectSettingsTab({
         ) : null}
       </View>
 
+      {isAdmin ? (
       <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Text style={[styles.title, { color: colors.ink }]}>Kjøreturer</Text>
         {!trips.length ? (
@@ -302,7 +308,9 @@ export default function ProjectSettingsTab({
           </View>
         ))}
       </View>
+      ) : null}
 
+      {isAdmin ? (
       <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Text style={[styles.title, { color: colors.ink }]}>Innstillinger for timeføring</Text>
         {[
@@ -327,6 +335,7 @@ export default function ProjectSettingsTab({
           </TouchableOpacity>
         ))}
       </View>
+      ) : null}
 
       {editingTrip ? (
         <MileageWizard

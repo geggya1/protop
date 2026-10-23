@@ -20,7 +20,7 @@ function bumpVersion(v) {
 
 /** Foreslå roller ut fra tittel i ansattregisteret. */
 function suggestRoles(people) {
-  const find = (re) => people.find((p) => re.test(p.title || ''));
+  const find = (re) => people.find((p) => p.own !== false && re.test(p.title || ''));
   const out = {};
   const pairs = [
     ['top_management', /daglig leder|ceo|adm\.? dir|administrerende/i],

@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { watchEmployees } from '../../src/employees/storage';
-import { displayName, isDeletedEmployee } from '../../src/employees/model';
+import { displayName, isDeletedEmployee, isOwnActiveEmployee } from '../../src/employees/model';
 import { ensureProjectAbsences, loadProjectState } from '../../src/project/storage';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { loadHrState } from '../../src/hr/storage';
@@ -57,9 +57,11 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
 
   return useMemo(() => {
     const active = employees.filter((e) => !isDeletedEmployee(e));
+    // Egne aktive ansatte først; de er standardforslagene i personvelgerne.
     const people = active
-      .map((e) => ({ id: e.id, name: displayName(e), uid: e.personUid || '', title: e.company?.title || e.company?.position || '' }))
-      .filter((p) => p.name && p.name !== 'Uten navn');
+      .map((e) => ({ id: e.id, name: displayName(e), uid: e.personUid || '', title: e.company?.title || e.company?.position || '', own: isOwnActiveEmployee(e) }))
+      .filter((p) => p.name && p.name !== 'Uten navn')
+      .sort((a, b) => Number(b.own) - Number(a.own));
     const projects = (projectState?.projects || []).filter((p) => p.status !== 'arkivert');
     const hrOverview = hr ? companyComplianceOverview(active, hr.compliance || [], { contracts: hr.contracts || [], reviews: hr.reviews || [] }) : null;
     return {

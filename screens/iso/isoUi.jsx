@@ -236,7 +236,10 @@ export function Check({ label, value, onChange }) {
 export function PersonPick({ people, value, onChange, placeholder = 'Søk etter ansatt' }) {
   const colors = useColors();
   const [q, setQ] = useState('');
-  const list = (people || []).filter((p) => !q || p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+  // Uten søk: bare egne aktive ansatte. Søk når også innleide, eksterne og inaktive.
+  const list = (people || [])
+    .filter((p) => (q ? p.name.toLowerCase().includes(q.toLowerCase()) : p.own !== false))
+    .slice(0, 8);
   return (
     <View style={{ gap: 6 }}>
       {value ? (

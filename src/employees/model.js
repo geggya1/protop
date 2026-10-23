@@ -738,6 +738,11 @@ export function isDeletedEmployee(employee) {
   return statusOf(employee?.company?.status) === 'deleted';
 }
 
+/** Eget personell (ikke innleid/eksternt) med status Aktiv. */
+export function isOwnActiveEmployee(employee) {
+  return personnelKind(employee) === 'staff' && statusOf(employee?.company?.status) === 'active';
+}
+
 export function applyEmployeeClassification(employee, patch = {}) {
   const next = normalizeEmployee(employee);
   const company = { ...next.company };

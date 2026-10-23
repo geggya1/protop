@@ -211,6 +211,59 @@ function hrNavItem() {
   };
 }
 
+/**
+ * Sider under ISO / K-HMS (ett integrert ledelsessystem for 9001, 14001 og 45001).
+ * Gruppert som Styring, Operativt og Evaluering i menyen.
+ */
+export const ISO_MENU = [
+  { id: 'oversikt', icon: 'speedometer-outline', label: 'Oversikt', group: 'Styring' },
+  { id: 'prosesser', icon: 'git-network-outline', label: 'Prosesser', group: 'Styring' },
+  { id: 'dokumenter', icon: 'document-text-outline', label: 'Dokumenter', group: 'Styring' },
+  { id: 'skjema', icon: 'clipboard-outline', label: 'Skjemaer', group: 'Styring' },
+  { id: 'krav', icon: 'list-outline', label: 'ISO-kravmatrise', group: 'Styring' },
+  { id: 'lovkrav', icon: 'library-outline', label: 'Lovkrav og samsvar', group: 'Styring' },
+  { id: 'kontekst', icon: 'compass-outline', label: 'Kontekst', group: 'Styring' },
+  { id: 'mal', icon: 'flag-outline', label: 'Mål og KPI', group: 'Styring' },
+  { id: 'avvik', icon: 'alert-circle-outline', label: 'Avvik og forbedring', group: 'Operativt' },
+  { id: 'risiko', icon: 'warning-outline', label: 'Risiko', group: 'Operativt' },
+  { id: 'miljo', icon: 'leaf-outline', label: 'Miljø', group: 'Operativt' },
+  { id: 'hms', icon: 'medkit-outline', label: 'HMS', group: 'Operativt' },
+  { id: 'prosjekt', icon: 'briefcase-outline', label: 'Prosjektkvalitet', group: 'Operativt' },
+  { id: 'kompetanse', icon: 'school-outline', label: 'Kompetanse', group: 'Operativt' },
+  { id: 'leverandorer', icon: 'cube-outline', label: 'Leverandører', group: 'Operativt' },
+  { id: 'beredskap', icon: 'flash-outline', label: 'Beredskap', group: 'Operativt' },
+  { id: 'revisjon', icon: 'search-outline', label: 'Internrevisjon', group: 'Evaluering' },
+  { id: 'ledelse', icon: 'people-outline', label: 'Ledelsens gjennomgang', group: 'Evaluering' },
+  { id: 'sertifisering', icon: 'ribbon-outline', label: 'Sertifisering', group: 'Evaluering' },
+  { id: 'innstillinger', icon: 'settings-outline', label: 'Innstillinger', group: 'Evaluering' },
+];
+
+export const ISO_SUBVIEW_IDS = ISO_MENU.map((item) => item.id);
+
+export function defaultIsoSubView(subView) {
+  return ISO_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
+}
+
+export function isoMenuTitle(subView) {
+  const row = ISO_MENU.find((item) => item.id === subView);
+  return row && row.id !== 'oversikt' ? row.label : 'ISO / K-HMS';
+}
+
+function isoNavItem() {
+  return {
+    id: 'iso',
+    icon: 'shield-checkmark',
+    label: 'ISO / K-HMS',
+    action: { type: 'tab', tab: 'iso', subView: 'oversikt' },
+    children: ISO_MENU.map((item) => ({
+      id: `iso-${item.id}`,
+      icon: item.icon,
+      label: item.label,
+      action: { type: 'tab', tab: 'iso', subView: item.id },
+    })),
+  };
+}
+
 function okonomiNavChild(item) {
   const tab = item.tab || 'okonomi';
   const subView = item.subView || item.id;
@@ -366,7 +419,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
       action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },
       children: OKONOMI_MENU.map(okonomiNavChild),
     },
-    { id: 'iso', icon: 'shield-checkmark', label: 'ISO', action: { type: 'tab', tab: 'iso' } },
+    isoNavItem(),
   );
   return items;
 }

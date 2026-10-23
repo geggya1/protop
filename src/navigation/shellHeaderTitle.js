@@ -4,7 +4,7 @@
  */
 
 import {
-  anbudMenuTitle, arbeidMenuTitle, hrMenuTitle, okonomiMenuTitle, selskapMenuTitle,
+  anbudMenuTitle, arbeidMenuTitle, hrMenuTitle, isoMenuTitle, okonomiMenuTitle, selskapMenuTitle,
 } from './shellModules.js';
 
 export function moreSubviewTitleMap(t) {
@@ -84,7 +84,7 @@ export function resolveShellHeaderTitle({
   if (tab === 'projects') return 'Prosjekt';
   if (tab === 'timeliste') return 'Timeliste';
   if (tab === 'arbeid') return arbeidMenuTitle(moreSubView);
-  if (tab === 'iso') return 'ISO';
+  if (tab === 'iso') return isoMenuTitle(moreSubView);
   if (tab === 'okonomi') return okonomiMenuTitle(moreSubView);
   if (tab === 'plan') return t('tabs.plan');
   if (tab === 'mail') return t('tabs.mail');

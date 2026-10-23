@@ -3,6 +3,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { normalizeCompetitionUrl } from './competitionUrl.js';
 import { parseMercellCatalog, readPortalCatalog } from './portalCatalog.js';
 
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -103,6 +104,8 @@ function artifikFilesFromStream(source) {
     seen.add(key);
     files.push({
       name: text(row.name),
+      // Artifik krever filnavnet nøyaktig som lagret (også doble mellomrom) for å gi ut filen.
+      portalName: row.name,
       sourceId: key,
       key,
       procId: match[1],
@@ -308,7 +311,7 @@ export async function readArtifik(url) {
     interestUrl: '',
     files: files.map((file) => ({
       ...file,
-      download: { kind: 'artifik', procId: file.procId || procId, name: file.name, key: file.key },
+      download: { kind: 'artifik', procId: file.procId || procId, name: file.portalName || file.name, key: file.key },
     })),
     qa,
     checkedAt: new Date().toISOString(),
@@ -504,10 +507,11 @@ async function readEuSupply(url) {
 }
 
 export async function readCompetitionGround(url) {
-  const start = text(url);
+  // Doffin har også http://-lenker og lenker inne i tekst. De ryddes til https her.
+  const start = normalizeCompetitionUrl(url);
   const source = identifySource(start);
-  if (!/^https:\/\//i.test(start) || !source.id) {
-    const error = new Error('Konkurranseadressen må være en https-lenke.');
+  if (!start || !source.id) {
+    const error = new Error('Kunngjøringen har ingen gyldig lenke til konkurransegrunnlaget.');
     error.code = 'invalid-argument';
     throw error;
   }
@@ -605,7 +609,7 @@ export async function downloadGroundFile(spec) {
   const kind = text(spec?.kind || spec?.download?.kind);
   if (kind === 'artifik') {
     const procId = text(spec.procId || spec.download?.procId);
-    const name = text(spec.name || spec.download?.name);
+    const name = String(spec.name || spec.download?.name || '').trim();
     const key = text(spec.key || spec.download?.key);
     if (!/^\d+$/.test(procId) || !name || !key.startsWith(`procurementAttachments/${procId}/`)) {
       const error = new Error('Artifik-filen mangler offentlig nøkkel.');

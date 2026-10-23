@@ -16,6 +16,10 @@ const DEMO_NOTICES = [
   ['2026-116375', 'Artifik med spørsmål og svar'],
   ['2026-116281', 'Artifik med tre spørsmål og svar'],
   ['2026-116457', 'EU-Supply med offentlige dokumenter'],
+  // Doffin oppgir disse med http:// eller bare et firmanavn. Ga «må være en https-lenke» før.
+  ['2026-116004', 'Mercell med http-lenke i Doffin'],
+  ['2023-372837', 'EU-Supply med http-lenke i Doffin'],
+  ['2025-114386', 'Bare firmanavn i dokumentfeltet'],
 ];
 
 export function anbudDemoAllowed() {

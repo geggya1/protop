@@ -23,6 +23,7 @@ import { departmentsOf } from '../../src/project/companyUnits';
 import ProcessTrail from './ProcessTrail';
 import { BidDeskActions } from './BidSymbolButton';
 import { downloadGroundFile, fetchCompetitionFile, fetchCompetitionGround } from '../../src/anbud/doffinClient';
+import { normalizeCompetitionUrl } from '../../src/anbud/competitionUrl';
 import { uploadBidFile } from '../../src/anbud/bidFiles';
 import { STAGE_LABELS } from '../../src/anbud/lifecycle';
 import { deadlineInfo } from '../../src/anbud/noticeText';
@@ -149,7 +150,30 @@ export default function BidDesk({
         const kept = { ground: dossier.ground, portalFiles: dossier.portalFiles, updates: dossier.updates, qa: dossier.qa?.length ? dossier.qa : file?.dossier?.qa };
         dossier = file?.dossier ? { ...dossier, ...file.dossier, ...kept } : dossier;
       }
-      const documentsUrl = dossier.documentsUrl || dossier.documents?.[0]?.url || '';
+      // TED-treff har dokumentlenken på treffet, ikke på TED-siden som ligger i dossieret.
+      const tedDocs = String(bid.noticeId || '').startsWith('ted-')
+        ? normalizeCompetitionUrl((state?.notices || []).find((row) => row.id === bid.noticeId)?.competitionDocsUrl)
+        : '';
+      const documentsUrl = tedDocs
+        || normalizeCompetitionUrl(dossier.documentsUrl)
+        || normalizeCompetitionUrl(dossier.documents?.[0]?.url);
+      if (documentsUrl) dossier = { ...dossier, documentsUrl };
+      if (documentsUrl) {
+        try {
+          ground = await fetchCompetitionGround(documentsUrl);
+        } catch (err) {
+          // Resten av kunngjøringen lagres likevel. Feilen vises på grunnlaget.
+          dossier = {
+            ...dossier,
+            ground: {
+              ...(dossier.ground || {}),
+              checkedAt: new Date().toISOString(),
+              syncOk: false,
+              note: err?.message || 'Kunne ikke lese konkurransegrunnlaget.',
+            },
+          };
+        }
+      }
       if (!documentsUrl) {
         dossier = {
           ...dossier,
@@ -160,8 +184,7 @@ export default function BidDesk({
             note: 'Kunngjøringen har ingen lenke til konkurransegrunnlaget.',
           },
         };
-      } else {
-        ground = await fetchCompetitionGround(documentsUrl);
+      } else if (ground) {
         const files = [];
         // Med bedrift lagres filene i Storage. Uten bedrift ligger de i nettleseren, og da må antallet holdes lavt.
         const downloadCap = company?.id ? 60 : 12;

@@ -586,6 +586,10 @@ async function bytesFromUrl(fileUrl, expectKey = '') {
       continue;
     }
     const mimeType = String(res.headers.get('content-type') || 'application/octet-stream');
+    // Portalen nekter (f.eks. Mercell mot skyens IP-er). Filen åpnes da på portalen, det er ingen serverfeil.
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, gated: true, note: 'Portalen ga ikke ut filen. Åpne den på portalen.' };
+    }
     if (!res.ok) throw new Error(`Dokumentet svarte ${res.status}`);
     if (/text\/html/i.test(mimeType)) {
       return { ok: false, gated: true, note: 'Filen krever innlogging på portalen.' };

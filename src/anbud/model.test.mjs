@@ -488,3 +488,48 @@ assert.equal(union.formTemplates.some((row) => row.id === 'mal_a'), true);
 assert.equal(union.formTemplates.some((row) => row.id === 'mal_b'), true);
 
 console.log('model.test.mjs ok');
+
+// Anbudsvarsling: TED nyeste først, fra-dato med en dags overlapp, og nytt søk etter 30 minutter.
+{
+  const { refreshFrom, watchRefreshDue, WATCH_REFRESH_MS } = await import('./model.js');
+  assert.match(buildTedQuery({ cpvCodes: ['45000000'] }), /SORT BY publication-date DESC$/);
+  const now = new Date('2026-10-23T12:00:00Z');
+  assert.equal(refreshFrom([], now), '');
+  assert.equal(refreshFrom([{ publishedAt: '2026-10-20' }, { publishedAt: '2026-10-22T08:00:00Z' }], now), '2026-10-21');
+  assert.equal(refreshFrom([{ publishedAt: '2026-11-30' }], now), '2026-10-22');
+  const at = now.getTime();
+  assert.equal(watchRefreshDue({ notices: [] }, at), true);
+  assert.equal(watchRefreshDue({ notices: [{ id: 'a' }], syncedAt: '2026-10-23T07:00:00Z' }, at), true);
+  assert.equal(watchRefreshDue({ notices: [{ id: 'a' }], syncedAt: new Date(at - WATCH_REFRESH_MS + 60000).toISOString() }, at), false);
+}
+
+// Med fra-dato hentes flere Doffin-sider, så treff midt i perioden ikke faller bort.
+{
+  const realFetch = globalThis.fetch;
+  const pages = [];
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    pages.push(body.page);
+    const rows = body.page <= 2 ? 50 : 5;
+    return { ok: true, json: async () => ({ numHitsTotal: 105, hits: Array.from({ length: rows }, (_, i) => ({ id: `${body.page}-${i}` })) }) };
+  };
+  try {
+    const since = await searchDoffinNotices({ cpvCodes: ['45000000'], publishedFrom: '2026-10-08' });
+    assert.deepEqual(pages, [1, 2, 3]);
+    assert.equal(since.hits.length, 105);
+    pages.length = 0;
+    await searchDoffinNotices({ cpvCodes: ['45000000'] });
+    assert.deepEqual(pages, [1]);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+}
+
+{
+  const { refreshFrom } = await import('./model.js');
+  const now = new Date('2026-10-23T12:00:00Z');
+  const rows = [{ publishedAt: '2026-10-23' }];
+  assert.equal(refreshFrom(rows, now), '2026-10-22');
+  assert.equal(refreshFrom(rows, now, { minDays: 21 }), '2026-10-02');
+  assert.equal(refreshFrom([{ publishedAt: '2026-09-20' }], now, { minDays: 21 }), '2026-09-19');
+}

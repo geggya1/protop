@@ -79,7 +79,8 @@ export function buildTedQuery({ cpvCodes, locationIds, keywords, publishedFrom }
   const where = places.length
     ? `(${places.map((id) => `place-of-performance=${id}`).join(' OR ')})`
     : 'buyer-country=NOR';
-  return `(${subject}) AND ${where} AND publication-date>=${publishedFromTed(publishedFrom)}`;
+  // TED sorterer eldste først uten SORT BY, så limit 25 ga gamle treff.
+  return `(${subject}) AND ${where} AND publication-date>=${publishedFromTed(publishedFrom)} SORT BY publication-date DESC`;
 }
 
 export function tedHitToNotice(row) {

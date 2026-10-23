@@ -13,7 +13,8 @@ assert.deepEqual(
   preference.filter((row) => row.via === 'proxy').map((row) => row.query.searchString),
   ['bro', 'samferdsel'],
 );
-assert.equal(preference.filter((row) => row.via === 'ted').length, 2);
+assert.equal(preference.filter((row) => row.via === 'ted').length, 0);
+assert.equal(preference.every((row) => row.query.channels.includes('ted')), true);
 
 const calls = [];
 const data = await collectWatchHits({
@@ -55,7 +56,7 @@ const mixed = await collectWatchHits({
 });
 assert.equal(mixed.hits.length, 1);
 assert.equal(mixed.hits[0].id, 'k1');
-assert.deepEqual(mixed.errors, []);
+assert.deepEqual(mixed.errors, ['Doffin svarte 503']);
 
 await assert.rejects(
   () => collectWatchHits({ keywords: ['bro'], channels: ['doffin'] }, {

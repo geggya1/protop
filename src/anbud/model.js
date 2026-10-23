@@ -1162,6 +1162,34 @@ export function latestPublished(notices) {
   return dates.length ? dates[dates.length - 1] : '';
 }
 
+/**
+ * Fra-dato for neste søk. Går én dag tilbake fra nyeste treff, så kunngjøringer
+ * som indekseres sent ikke faller utenfor, og godtar aldri en dato frem i tid.
+ */
+export function refreshFrom(notices, now = new Date(), { minDays = 0 } = {}) {
+  const latest = latestPublished(notices);
+  if (!latest) return '';
+  const today = now.toISOString().slice(0, 10);
+  const from = new Date(`${latest < today ? latest : today}T00:00:00Z`);
+  from.setUTCDate(from.getUTCDate() - 1);
+  if (minDays > 0) {
+    // Manuell oppdatering ser lenger bakover, så et tidligere hull i listen tettes.
+    const floor = new Date(`${today}T00:00:00Z`);
+    floor.setUTCDate(floor.getUTCDate() - minDays);
+    if (floor < from) return floor.toISOString().slice(0, 10);
+  }
+  return from.toISOString().slice(0, 10);
+}
+
+export const WATCH_REFRESH_MS = 30 * 60 * 1000;
+
+/** Om varslingen skal søke på nytt. Tidligere ble det bare søkt én gang per døgn. */
+export function watchRefreshDue(state, now = Date.now()) {
+  if (!(state?.notices || []).length) return true;
+  const synced = Date.parse(state?.syncedAt || '') || 0;
+  return now - synced >= WATCH_REFRESH_MS;
+}
+
 export function noticeMatch(notice, watch) {
   const watched = (watch?.cpvCodes || []).map((row) => text(row?.code || row)).filter(Boolean);
   const codes = Array.isArray(notice?.cpvCodes) ? notice.cpvCodes : [];

@@ -54,6 +54,7 @@ export function watchHitRequests({
       query: { cpvCodes: codes, locationIds, channels: channelList, publishedFrom },
     });
   }
+  // TED søkes i proxyen sammen med Doffin. Direkte kall fra nettleseren stoppes av CORS.
   for (const word of words) {
     requests.push({
       via: 'proxy',
@@ -67,13 +68,6 @@ export function watchHitRequests({
         keywords: [word],
       },
     });
-    if (channelList.includes('ted')) {
-      requests.push({
-        via: 'ted',
-        matched: [word],
-        query: { keywords: [word], locationIds, publishedFrom, numHitsPerPage: 15 },
-      });
-    }
   }
   return requests;
 }
@@ -106,7 +100,7 @@ export async function collectWatchHits(input, runners) {
   return {
     ok: true,
     hits: [...byId.values()],
-    errors: [],
+    errors: [...new Set(errors)],
     fetchedAt: fetchedAt || new Date().toISOString(),
   };
 }

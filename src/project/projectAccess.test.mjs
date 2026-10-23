@@ -15,6 +15,7 @@ assert.match(screen, /const isAdmin = [\s\S]{0,120}access\.canAdmin\('projects'\
 assert.match(screen, /access\.canEdit\('projects'\) \|\| access\.canEdit\('assignedProjects'\)/);
 // Bare Admin ser alle prosjekter og kan opprette nye.
 assert.match(screen, /const seesAllProjects = isAdmin;/);
+assert.match(screen, /return myProjectIds\(state, me/);
 assert.match(screen, /\{isAdmin \? \(\s*<CreateMenu/);
 assert.match(screen, /projectMode=\{projectMode\}\s*myEmployeeId=\{myEmployeeId\}/);
 

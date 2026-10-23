@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../../src/context/AppContext';
+import { myProjectIds } from '../../src/project/myProjects';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
@@ -566,11 +567,13 @@ export default function ProjectWorkScreen() {
     if (access.previewing && access.viewingAs) return access.viewingAs.id;
     return (employees || []).find((row) => row.personUid && row.personUid === uid)?.id || '';
   }, [access.previewing, access.viewingAs, employees, uid]);
-  const assignedIds = useMemo(() => new Set(
-    (state.members || [])
-      .filter((row) => myEmployeeId && row.employeeId === myEmployeeId && row.active !== false)
-      .map((row) => row.projectId),
-  ), [state.members, myEmployeeId]);
+  // Egne prosjekter: deltaker, prosjektleder eller ført timer.
+  const assignedIds = useMemo(() => {
+    const me = access.previewing && access.viewingAs
+      ? access.viewingAs
+      : (employees || []).find((row) => row.id === myEmployeeId);
+    return myProjectIds(state, me || (myEmployeeId ? { id: myEmployeeId } : null));
+  }, [state, employees, myEmployeeId, access.previewing, access.viewingAs]);
   const projectVisible = useMemo(
     () => (item) => seesAllProjects || assignedIds.has(item?.id),
     [seesAllProjects, assignedIds],

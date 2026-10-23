@@ -13,6 +13,9 @@ const sales = read('../../components/project/ProjectSalesTab.jsx');
 
 assert.match(screen, /const isAdmin = [\s\S]{0,120}access\.canAdmin\('projects'\)/);
 assert.match(screen, /access\.canEdit\('projects'\) \|\| access\.canEdit\('assignedProjects'\)/);
+// Bare Admin ser alle prosjekter og kan opprette nye.
+assert.match(screen, /const seesAllProjects = isAdmin;/);
+assert.match(screen, /\{isAdmin \? \(\s*<CreateMenu/);
 assert.match(screen, /projectMode=\{projectMode\}\s*myEmployeeId=\{myEmployeeId\}/);
 
 assert.match(detail, /LIMITED_TABS = new Set\(\['hovedside', 'utlegg', 'produktsalg', 'timerapport'\]\)/);

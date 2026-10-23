@@ -330,8 +330,8 @@ export default function ProjectWorkScreen() {
     && (access.canEdit('projects') || access.canEdit('assignedProjects'));
   const projectMode = isAdmin ? 'admin' : (projectEditor ? 'editor' : 'reader');
   const canDeleteProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canAdmin('projects'));
-  // Bare «Tildelte prosjekt»: listen viser prosjektene personen er registrert i.
-  const seesAllProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canView('projects'));
+  // Bare Admin på Prosjekt ser alle prosjekter. Lese og begrenset redigering ser prosjektene de er deltaker i.
+  const seesAllProjects = isAdmin;
   const cachedProjects = peekProjectState(familyId);
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
@@ -1683,6 +1683,7 @@ export default function ProjectWorkScreen() {
 
   const listBody = view === 'list' ? (
     <View style={[styles.stack, listDesk && styles.stackDesk]}>
+      {isAdmin ? (
       <CreateMenu
         label="Nytt prosjekt"
         title="Nytt prosjekt"
@@ -1695,6 +1696,7 @@ export default function ProjectWorkScreen() {
           { id: 'import', label: importing ? 'Tolker filen…' : 'Importer liste', onPress: importFile, disabled: importing },
         ]}
       />
+      ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && (
         <Text style={{ color: colors.danger || '#b42318' }}>
@@ -1825,7 +1827,7 @@ export default function ProjectWorkScreen() {
           Sletting kan ikke angres. Tilhørende poster på prosjektet fjernes også.
         </Text>
       ) : null}
-      {!canDeleteProjects && visibleProjects.length ? (
+      {!canDeleteProjects && isAdmin && visibleProjects.length ? (
         <Text style={{ color: colors.muted, fontSize: 13 }}>
           Bare den som kan slette prosjekter, kan fjerne dem.
         </Text>

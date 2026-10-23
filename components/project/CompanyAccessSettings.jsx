@@ -434,17 +434,18 @@ function LevelDrawer({
   const shown = tab === 'inactive' ? inactive : active;
   const moving = shown.find((row) => row.id === movingId) || null;
   const hot = !!hotDrop && (hotDrop === `level:${dropKey}` || String(hotDrop).startsWith(`status:${dropKey}:`));
+  const expanded = open || settingsOpen;
   return (
     <View nativeID={nativeID} style={[styles.drawer, { borderColor: hot ? colors.brand : colors.line, backgroundColor: colors.card }]}>
       <View dataSet={{ drop: `level:${dropKey}` }} style={[styles.drawerHead, hot && !String(hotDrop).startsWith(`status:${dropKey}:`) ? { backgroundColor: colors.brandSoft } : null]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ expanded: open }}
-          accessibilityLabel={open ? `Lukk ${title}` : `Åpne ${title}`}
+          accessibilityState={{ expanded }}
+          accessibilityLabel={expanded ? `Lukk ${title}` : `Åpne ${title}`}
           onPress={onToggleOpen}
           style={styles.drawerToggle}
         >
-          <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.muted} />
+          <Ionicons name={expanded ? 'chevron-down' : 'chevron-forward'} size={18} color={colors.muted} />
           <View dataSet={{ accessTitle: '1' }} style={styles.drawerTitle}>
             <Text style={[styles.levelName, { color: colors.ink }]}>{title}</Text>
             <Text style={[styles.kind, { color: colors.muted }]}>{meta}</Text>
@@ -1086,7 +1087,11 @@ export default function CompanyAccessSettings({
                     grants={grants}
                     custom={levelIsCustom(policy, row.id)}
                     summary={row.summary}
-                    onToggleOpen={() => setOpenDrawers((current) => ({ ...current, [row.id]: !current[row.id] }))}
+                    onToggleOpen={() => {
+                      const expanded = !!openDrawers[row.id] || settingsId === row.id;
+                      setOpenDrawers((current) => ({ ...current, [row.id]: !expanded }));
+                      if (expanded && settingsId === row.id) setSettingsId('');
+                    }}
                     onToggleSettings={() => setSettingsId((current) => (current === row.id ? '' : row.id))}
                     onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
                     onAssign={assignLevel}

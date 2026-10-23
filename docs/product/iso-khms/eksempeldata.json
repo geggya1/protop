@@ -1,0 +1,310 @@
+{
+  "metadata": {
+    "mode": "DEMO",
+    "fictional": true,
+    "date": "2026-10-22",
+    "tenant": "Eksempelselskap AS",
+    "standards": [
+      "ISO 9001",
+      "ISO 14001",
+      "ISO 45001"
+    ]
+  },
+  "kpis": [
+    {
+      "id": "findings",
+      "label": "Åpne avvik",
+      "value": 14,
+      "unit": "stk"
+    },
+    {
+      "id": "actions",
+      "label": "Forfalte tiltak",
+      "value": 4,
+      "unit": "stk"
+    },
+    {
+      "id": "audits",
+      "label": "Planlagte revisjoner",
+      "value": 3,
+      "unit": "stk"
+    },
+    {
+      "id": "training",
+      "label": "Kompetansegap",
+      "value": 6,
+      "unit": "stk"
+    }
+  ],
+  "trends": [
+    {
+      "month": "Jan",
+      "new": 7,
+      "closed": 4
+    },
+    {
+      "month": "Feb",
+      "new": 5,
+      "closed": 7
+    },
+    {
+      "month": "Mar",
+      "new": 10,
+      "closed": 8
+    },
+    {
+      "month": "Apr",
+      "new": 8,
+      "closed": 6
+    },
+    {
+      "month": "Mai",
+      "new": 6,
+      "closed": 7
+    },
+    {
+      "month": "Jun",
+      "new": 9,
+      "closed": 8
+    }
+  ],
+  "requirements": [
+    {
+      "id": "R-01",
+      "standard": "9001",
+      "chapter": "4",
+      "name": "Omfang og prosesslandskap",
+      "status": "Internt verifisert",
+      "evidence": "PR-001"
+    },
+    {
+      "id": "R-02",
+      "standard": "9001",
+      "chapter": "8",
+      "name": "Prosjekteringskontroll",
+      "status": "Under arbeid",
+      "evidence": "KP-044"
+    },
+    {
+      "id": "R-03",
+      "standard": "14001",
+      "chapter": "6",
+      "name": "Miljøaspekter",
+      "status": "Mangler",
+      "evidence": "—"
+    },
+    {
+      "id": "R-04",
+      "standard": "14001",
+      "chapter": "9",
+      "name": "Samsvarsvurdering",
+      "status": "Må revurderes",
+      "evidence": "LV-009"
+    },
+    {
+      "id": "R-05",
+      "standard": "45001",
+      "chapter": "5",
+      "name": "Arbeidstakermedvirkning",
+      "status": "Bevis tilgjengelig",
+      "evidence": "HM-003"
+    },
+    {
+      "id": "R-06",
+      "standard": "45001",
+      "chapter": "8",
+      "name": "Beredskap",
+      "status": "Internt verifisert",
+      "evidence": "BE-002"
+    }
+  ],
+  "deviations": [
+    {
+      "id": "AV-2026-014",
+      "title": "Utdatert tegningsgrunnlag brukt",
+      "type": "Kvalitet",
+      "owner": "Prosjektleder",
+      "status": "Tiltak pågår",
+      "severity": "Høy",
+      "due": "2026-11-04"
+    },
+    {
+      "id": "AV-2026-013",
+      "title": "Manglende registrering av avfallsdata",
+      "type": "Miljø",
+      "owner": "Miljøansvarlig",
+      "status": "Til vurdering",
+      "severity": "Middels",
+      "due": "2026-11-09"
+    },
+    {
+      "id": "AV-2026-012",
+      "title": "Hendelse ved befaring",
+      "type": "Arbeidsmiljø",
+      "owner": "HMS-ansvarlig",
+      "status": "Effektkontroll",
+      "severity": "Middels",
+      "due": "2026-11-11"
+    }
+  ],
+  "risks": [
+    {
+      "id": "RS-011",
+      "title": "Forsinket fagkontroll",
+      "likelihood": 3,
+      "impact": 4,
+      "kind": "Kvalitet"
+    },
+    {
+      "id": "RS-012",
+      "title": "Høyt kjørelengdeomfang",
+      "likelihood": 4,
+      "impact": 3,
+      "kind": "Miljø"
+    },
+    {
+      "id": "RS-013",
+      "title": "Fallfare ved befaring",
+      "likelihood": 2,
+      "impact": 5,
+      "kind": "Arbeidsmiljø"
+    }
+  ],
+  "documents": [
+    {
+      "id": "P-001",
+      "title": "Prosess for dokumentstyring",
+      "revision": "03",
+      "status": "Publisert",
+      "owner": "Kvalitetsleder"
+    },
+    {
+      "id": "P-002",
+      "title": "Risikovurdering og tiltak",
+      "revision": "02",
+      "status": "Til godkjenning",
+      "owner": "HMS-ansvarlig"
+    },
+    {
+      "id": "P-003",
+      "title": "Miljøaspektvurdering",
+      "revision": "01",
+      "status": "Utkast",
+      "owner": "Miljøansvarlig"
+    }
+  ],
+  "audits": [
+    {
+      "id": "RE-01",
+      "title": "Prosjektstyring og prosjektering",
+      "date": "2026-11-12",
+      "status": "Planlagt"
+    },
+    {
+      "id": "RE-02",
+      "title": "Ytre miljø og lovkrav",
+      "date": "2026-12-03",
+      "status": "Planlagt"
+    },
+    {
+      "id": "RE-03",
+      "title": "Arbeidsmiljø og medvirkning",
+      "date": "2027-01-14",
+      "status": "Planlagt"
+    }
+  ],
+  "processNodes": [
+    {
+      "id": "n1",
+      "type": "start",
+      "label": "Avvik meldt",
+      "x": 80,
+      "y": 150
+    },
+    {
+      "id": "n2",
+      "type": "form",
+      "label": "Registrer avvik",
+      "x": 300,
+      "y": 150
+    },
+    {
+      "id": "n3",
+      "type": "task",
+      "label": "Vurder og klassifiser",
+      "x": 520,
+      "y": 150
+    },
+    {
+      "id": "n4",
+      "type": "decision",
+      "label": "Krever tiltak?",
+      "x": 760,
+      "y": 150
+    },
+    {
+      "id": "n5",
+      "type": "task",
+      "label": "Årsak og tiltak",
+      "x": 990,
+      "y": 80
+    },
+    {
+      "id": "n6",
+      "type": "approval",
+      "label": "Effektkontroll",
+      "x": 1210,
+      "y": 80
+    },
+    {
+      "id": "n7",
+      "type": "end",
+      "label": "Lukk avvik",
+      "x": 1430,
+      "y": 150
+    },
+    {
+      "id": "n8",
+      "type": "document",
+      "label": "Begrunn ingen tiltak",
+      "x": 990,
+      "y": 250
+    }
+  ],
+  "processEdges": [
+    {
+      "from": "n1",
+      "to": "n2"
+    },
+    {
+      "from": "n2",
+      "to": "n3"
+    },
+    {
+      "from": "n3",
+      "to": "n4"
+    },
+    {
+      "from": "n4",
+      "to": "n5",
+      "label": "Ja"
+    },
+    {
+      "from": "n5",
+      "to": "n6"
+    },
+    {
+      "from": "n6",
+      "to": "n7"
+    },
+    {
+      "from": "n4",
+      "to": "n8",
+      "label": "Nei"
+    },
+    {
+      "from": "n8",
+      "to": "n7"
+    }
+  ]
+}

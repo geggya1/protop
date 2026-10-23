@@ -27,7 +27,7 @@ import { useCompanyAccess } from '../src/access/useCompanyAccess';
 import { COMPANY_TAB_IDS } from '../src/access/companyAccess';
 import { viewAsChromeVisible } from '../src/access/viewAsNav';
 import ProjectWorkScreen from '../screens/project/ProjectWorkScreen';
-import IsoScreen from '../screens/project/IsoScreen';
+import IsoScreen from '../screens/iso/IsoScreen';
 import AnbudScreen from '../screens/anbud/AnbudScreen';
 import ContractScreen from '../screens/anbud/ContractScreen';
 import CustomersScreen from '../screens/customers/CustomersScreen';
@@ -628,7 +628,7 @@ function AppShellInner() {
     if (tab === 'projects') return <ProjectWorkScreen />;
     if (tab === 'timeliste') return <PersonalTimesheet />;
     if (tab === 'arbeid') return <ArbeidHub subView={moreSubView} />;
-    if (tab === 'iso') return <IsoScreen />;
+    if (tab === 'iso') return <IsoScreen subView={moreSubView} />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
     if (tab === 'utstyr') return <EquipmentScreen />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;

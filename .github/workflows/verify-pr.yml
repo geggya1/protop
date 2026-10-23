@@ -1,0 +1,55 @@
+name: Verify pull request
+
+# Bygger web og kjører verify:web på pull requests, uten å publisere noe.
+# Deploy skjer fortsatt bare fra main (deploy-hosting.yml).
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix functions
+      - name: Verify web
+        timeout-minutes: 8
+        run: npm run verify:web
+      - name: ISO / K-HMS tests
+        run: node --test src/iso/*.test.mjs
+      - run: npm run build:web
+        env:
+          APP_BUILD_ID: ${{ github.sha }}
+      - run: npm run verify:dist
+
+  # Sikkerhetsreglene testes direkte mot Firestore-emulatoren (ikke gjennom appen).
+  firestore-rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Install rules test library
+        run: npm install --no-save --no-audit --no-fund @firebase/rules-unit-testing@4
+      - name: Firestore rules (emulator)
+        run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./tests/rules/gh-reporter.mjs --test-reporter-destination=stdout tests/rules/firestore.rules.test.mjs"
+      - name: Pure ISO + access tests
+        run: node --test src/iso/*.test.mjs src/access/*.test.mjs

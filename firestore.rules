@@ -5,9 +5,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function familyPath(familyId) {
+      return /databases/$(database)/documents/families/$(familyId);
+    }
+
     // One family-document read. LIST must use this, not parent/child exists().
     function isFamilyMemberLite(familyId) {
-      let family = get(/databases/$(database)/documents/families/$(familyId)).data;
+      let family = get(familyPath(familyId)).data;
       return isSignedIn() && (
         request.auth.uid in family.get('members', [])
         || request.auth.uid in family.get('activeUsers', [])
@@ -22,11 +26,153 @@ service cloud.firestore {
         || (isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/children/$(request.auth.uid)));
     }
 
+    function isFamilyOwner(familyId) {
+      let family = get(familyPath(familyId)).data;
+      return isSignedIn() && (
+        family.get('ownerUid', '') == request.auth.uid
+        || family.get('ownerId', '') == request.auth.uid
+      );
+    }
+
     function canReadShoppingListData(d) {
       return isSignedIn() && request.auth.uid in d.get('memberIds', []);
     }
 
+    /* ───────── Tilgangsmatrisen speilet på serveren ─────────
+     * families/{id}/accessAcl/{uid} skrives av Cloud Function syncCompanyAccess
+     * (Admin SDK) ut fra selskapets tilgangsmatrise, eller av eieren selv.
+     * Ingen andre kan skrive den. Mangler dokumentet, gis ingen ISO-tilgang.
+     */
+    function aclPath(familyId) {
+      return /databases/$(database)/documents/families/$(familyId)/accessAcl/$(request.auth.uid);
+    }
+
+    function hasFreshAcl(familyId) {
+      return exists(aclPath(familyId))
+        && get(aclPath(familyId)).data.get('expiresAt', request.time) > request.time;
+    }
+
+    // ISO-nivå: 0 ingen, 1 lese, 2 begrenset redigering, 3 admin. Eier = 3.
+    function isoRank(familyId) {
+      return isFamilyOwner(familyId)
+        ? 3
+        : (hasFreshAcl(familyId) ? get(aclPath(familyId)).data.get('iso', 0) : 0);
+    }
+
+    function isoMember(familyId, minRank) {
+      return isFamilyMember(familyId) && isoRank(familyId) >= minRank;
+    }
+
+    function isoMemberLite(familyId, minRank) {
+      return isFamilyMemberLite(familyId) && isoRank(familyId) >= minRank;
+    }
+
+    // Særskilt tilgang til skjermede saker: bare personer som er uttrykkelig ført opp.
+    // Eier, ISO-admin, HMS-leder og systemansvarlig får den ikke automatisk.
+    function restrictedPath(familyId) {
+      return /databases/$(database)/documents/families/$(familyId)/isoRestricted/main;
+    }
+
+    function isRestrictedListed(familyId) {
+      return isSignedIn()
+        && exists(restrictedPath(familyId))
+        && request.auth.uid in get(restrictedPath(familyId)).data.get('uids', []);
+    }
+
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function unchanged(key) {
+      return !changed().hasAny([key]);
+    }
+
+    function bumpKeys() {
+      return ['rev', 'savedAt', 'updatedAt', 'updatedBy', 'updatedByUid', 'history'];
+    }
+
+    function involved(d) {
+      return isSignedIn() && (
+        d.get('reportedByUid', '') == request.auth.uid
+        || request.auth.uid in d.get('involvedUids', [])
+      );
+    }
+
+    // Lukking håndheves også på serveren (ikke bare i klienten).
+    function closesFinding() {
+      return request.resource.data.get('state', '') == 'lukket'
+        && resource.data.get('state', '') != 'lukket';
+    }
+
+    function closeAllowed(familyId) {
+      let d = request.resource.data;
+      return isoRank(familyId) >= 3
+        && d.get('triage', null) != null
+        && d.get('assessment', null) != null
+        && d.get('closeNote', '') is string && d.get('closeNote', '').size() > 0
+        && d.get('closedByUid', '') == request.auth.uid
+        && (d.get('effect', {}).get('required', false) != true || d.get('effect', {}).get('outcome', '') == 'verifisert')
+        && (d.get('authorityNotificationRequired', false) != true || d.get('notificationDone', false) == true);
+    }
+
+    function cancelsFinding() {
+      return request.resource.data.get('state', '') == 'kansellert'
+        && resource.data.get('state', '') != 'kansellert';
+    }
+
+    // Felles regler for oppdatering av en sak (åpen eller skjermet).
+    function findingUpdateAllowed(familyId, managerOk) {
+      return request.resource.data.get('restricted', false) == resource.data.get('restricted', false)
+        && unchanged('reportedByUid')
+        && unchanged('reportedAt')
+        && unchanged('number')
+        && (closesFinding() ? (managerOk && closeAllowed(familyId)) : true)
+        && (cancelsFinding() ? (managerOk && isoRank(familyId) >= 3) : true)
+        && (
+          managerOk
+          // Melder og involverte (tiltaksansvarlige) kan bare oppdatere tiltak og historikk.
+          || (involved(resource.data)
+              && isoRank(familyId) >= 1
+              && unchanged('state')
+              && changed().hasOnly(bumpKeys().concat(['actions', 'involvedUids'])))
+        );
+    }
+
+    // Publiserte versjoner er låst: bare administrator kan publisere eller endre dem.
+    function versionsLocked(listKey, publishedKey) {
+      let n = resource.data.get(publishedKey, 0);
+      return unchanged(publishedKey)
+        && (n == 0 || request.resource.data.get(listKey, [])[0:n] == resource.data.get(listKey, [])[0:n]);
+    }
+
+    function canAdminAccessMatrix(familyId) {
+      // Uten speilet tilgang (selskapet bruker ikke ISO ennå) gjelder tidligere oppførsel.
+      return !exists(aclPath(familyId))
+        || get(aclPath(familyId)).data.get('grants', {}).get('accessControl', 'none') in ['write', 'delete'];
+    }
+
+    // ISO-samlingene og tilgangsspeilet har egne regler og er unntatt fra den generelle regelen.
+    function isProtected(coll) {
+      return coll.matches('^iso[A-Z].*') || coll == 'accessAcl';
+    }
+
     match /families/{familyId} {
+      // Selskapets eget dokument. Eierskap, administratorliste og tilgangsmatrisen
+      // kan ikke endres av vanlige medlemmer.
+      allow get: if isFamilyMember(familyId);
+      allow list: if isFamilyMemberLite(familyId);
+      allow create: if isFamilyMember(familyId);
+      allow delete: if isFamilyOwner(familyId);
+      allow update: if isFamilyMember(familyId)
+        && (isFamilyOwner(familyId) || (unchanged('ownerUid') && unchanged('ownerId')))
+        && (isFamilyOwner(familyId)
+            || unchanged('adminUids')
+            || request.auth.uid in resource.data.get('adminUids', []))
+        && (isFamilyOwner(familyId)
+            || request.resource.data.get('company', {}).get('accessPolicy', null) == resource.data.get('company', {}).get('accessPolicy', null)
+            || request.auth.uid in resource.data.get('adminUids', [])
+            || canAdminAccessMatrix(familyId));
+
       match /{path=**}/shoppingLists/{listId} {
         allow get: if isFamilyMember(familyId) && canReadShoppingListData(resource.data);
         allow list: if isFamilyMemberLite(familyId) && canReadShoppingListData(resource.data);
@@ -42,11 +188,201 @@ service cloud.firestore {
         allow create, update, delete: if isFamilyMember(familyId);
       }
 
-      match /{document=**} {
-        allow get: if isFamilyMember(familyId);
-        allow list: if isFamilyMemberLite(familyId);
-        allow create, update, delete: if isFamilyMember(familyId);
+      // Alle andre samlinger: som før. ISO-samlingene (iso*) og den speilede
+      // tilgangen (accessAcl) har egne regler under og er unntatt her.
+      match /{coll}/{document=**} {
+        allow get: if isFamilyMember(familyId) && !isProtected(coll);
+        allow list: if isFamilyMemberLite(familyId) && !isProtected(coll);
+        allow create, update, delete: if isFamilyMember(familyId) && !isProtected(coll);
       }
+
+      /* ───────── Tilgangsspeil ───────── */
+      match /accessAcl/{uid} {
+        allow get: if isSignedIn() && (request.auth.uid == uid || isFamilyOwner(familyId));
+        allow list: if isFamilyOwner(familyId);
+        // Cloud Function skriver med Admin SDK. Eieren kan skrive som reserve.
+        allow create, update, delete: if isFamilyOwner(familyId);
+      }
+
+      /* ───────── ISO / K-HMS ───────── */
+
+      match /isoSystem/{docId} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create, update: if isoMember(familyId, 3);
+        allow delete: if false;
+      }
+
+      // Hvem som har særskilt tilgang til skjermede saker. Eier kan tildele;
+      // en som allerede står på listen og er ISO-admin kan også tildele.
+      match /isoRestricted/{docId} {
+        allow get: if isFamilyMember(familyId)
+          && (isFamilyOwner(familyId) || isRestrictedListed(familyId) || isoRank(familyId) >= 3);
+        allow list: if false;
+        allow create, update: if isFamilyMember(familyId)
+          && (isFamilyOwner(familyId) || (isRestrictedListed(familyId) && isoRank(familyId) >= 3))
+          && request.resource.data.get('uids', []) is list;
+        allow delete: if false;
+      }
+
+      match /isoFindings/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 1)
+          && request.resource.data.get('restricted', false) != true
+          && (
+            (request.resource.data.get('state', '') == 'registrert'
+              && (request.resource.data.get('reportedByUid', '') == request.auth.uid || isoRank(familyId) >= 2))
+            // Flytting tilbake fra skjermet samling: den skjermede kopien slettes i samme batch.
+            || (isRestrictedListed(familyId) && isoRank(familyId) >= 2
+                && exists(/databases/$(database)/documents/families/$(familyId)/isoFindingsRestricted/$(id))
+                && !existsAfter(/databases/$(database)/documents/families/$(familyId)/isoFindingsRestricted/$(id)))
+          );
+        allow update: if isoMember(familyId, 1)
+          && findingUpdateAllowed(familyId, isoRank(familyId) >= 2);
+        // Bare som del av flytting til skjermet samling (samme batch).
+        allow delete: if isoMember(familyId, 2)
+          && existsAfter(/databases/$(database)/documents/families/$(familyId)/isoFindingsRestricted/$(id));
+      }
+
+      match /isoFindingsRestricted/{id} {
+        allow get: if isoMember(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data));
+        allow list: if isoMemberLite(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data));
+        allow create: if isoMember(familyId, 1)
+          && request.resource.data.get('restricted', false) == true
+          && (
+            (request.resource.data.get('state', '') == 'registrert' && request.resource.data.get('reportedByUid', '') == request.auth.uid)
+            || (isRestrictedListed(familyId) && isoRank(familyId) >= 2)
+            // Flytting fra åpen sak: den åpne kopien slettes i samme batch.
+            || (isoRank(familyId) >= 2
+                && exists(/databases/$(database)/documents/families/$(familyId)/isoFindings/$(id))
+                && !existsAfter(/databases/$(database)/documents/families/$(familyId)/isoFindings/$(id)))
+          );
+        allow update: if isoMember(familyId, 1)
+          && findingUpdateAllowed(familyId, isRestrictedListed(familyId) && isoRank(familyId) >= 2);
+        // Bare som del av flytting tilbake til åpen samling (samme batch).
+        allow delete: if isoMember(familyId, 2) && isRestrictedListed(familyId)
+          && existsAfter(/databases/$(database)/documents/families/$(familyId)/isoFindings/$(id));
+      }
+
+      match /isoProcesses/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 2) && request.resource.data.get('publishedVersion', 0) == 0;
+        allow update: if isoMember(familyId, 3)
+          || (isoMember(familyId, 2) && versionsLocked('versions', 'publishedVersion') && unchanged('archived'));
+        allow delete: if false;
+      }
+
+      match /isoDocuments/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 2) && request.resource.data.get('publishedRevision', 0) == 0;
+        allow update: if isoMember(familyId, 3)
+          || (isoMember(familyId, 2) && versionsLocked('revisions', 'publishedRevision') && unchanged('archived'))
+          // Lesebekreftelse: alle med lesetilgang, bare egne kvitteringer.
+          || (isoMember(familyId, 1) && changed().hasOnly(bumpKeys().concat(['readAcks']))
+              && request.resource.data.readAcks.size() == resource.data.get('readAcks', []).size() + 1
+              && request.resource.data.readAcks[request.resource.data.readAcks.size() - 1].uid == request.auth.uid);
+        allow delete: if false;
+      }
+
+      // Styrte skjema (godkjente versjoner av skjema i Skjemabygger).
+      match /isoForms/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create, update: if isoMember(familyId, 3);
+        allow delete: if false;
+      }
+
+      // Innsendte registreringer er låst. Retting legger til en rettelse og bevarer kjernen.
+      match /isoSubmissions/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 1)
+          && request.resource.data.get('submittedByUid', '') == request.auth.uid
+          && request.resource.data.get('locked', false) == true;
+        allow update: if isoMember(familyId, 3)
+          && unchanged('formId') && unchanged('formVersion') && unchanged('formHash') && unchanged('templateId')
+          && unchanged('submittedAt') && unchanged('submittedBy') && unchanged('submittedByUid') && unchanged('locked')
+          && request.resource.data.get('corrections', []).size() > resource.data.get('corrections', []).size();
+        allow delete: if false;
+      }
+
+      match /isoInstances/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 1);
+        allow update: if isoMember(familyId, 1)
+          && unchanged('processId') && unchanged('version') && unchanged('startedAt');
+        allow delete: if false;
+      }
+
+      match /isoRequirements/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create, update: if isoMember(familyId, 2);
+        allow delete: if false;
+      }
+
+      match /isoAssessments/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        // Et koblet bevis kan bare flytte et uvurdert krav til «dokumentert» (aldri «oppfylt»).
+        allow create: if isoMember(familyId, 2)
+          || (isoMember(familyId, 1) && request.resource.data.get('status', '') == 'dokumentert');
+        allow update: if isoMember(familyId, 2)
+          || (isoMember(familyId, 1)
+              && resource.data.get('status', '') in ['ikke_vurdert', 'mangler']
+              && request.resource.data.get('status', '') == 'dokumentert'
+              && changed().hasOnly(bumpKeys().concat(['status'])));
+        allow delete: if false;
+      }
+
+      // Bevis er uforanderlige (sjekksum). Koblinger vurderes av behandler.
+      match /isoEvidence/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 1);
+        allow update: if isoMember(familyId, 3) && unchanged('hash') && unchanged('objectId') && unchanged('type');
+        allow delete: if false;
+      }
+
+      match /isoEvidenceLinks/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 1) && request.resource.data.get('reviewState', '') == 'til_vurdering';
+        allow update: if isoMember(familyId, 2) && unchanged('evidenceId') && unchanged('requirementId');
+        allow delete: if false;
+      }
+
+      match /isoRecords/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 2) && request.resource.data.get('locked', false) != true;
+        allow update: if isoMember(familyId, 3)
+          || (isoMember(familyId, 2)
+              && resource.data.get('locked', false) != true
+              && request.resource.data.get('locked', false) != true);
+        allow delete: if false;
+      }
+
+      // Revisjonsspor: bare nye hendelser, aldri endring eller sletting.
+      match /isoAudit/{id} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if isoMemberLite(familyId, 1);
+        allow create: if isoMember(familyId, 1) && request.resource.data.get('actorUid', '') == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      match /isoAuditRestricted/{id} {
+        allow get: if isoMember(familyId, 1) && isRestrictedListed(familyId);
+        allow list: if isoMemberLite(familyId, 1) && isRestrictedListed(familyId);
+        allow create: if isoMember(familyId, 1) && request.resource.data.get('actorUid', '') == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // Ukjente iso*-samlinger: ingen tilgang.
     }
 
     match /parents/{parentId} {

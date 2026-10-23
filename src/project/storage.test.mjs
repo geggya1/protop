@@ -3,12 +3,14 @@ import { planAbsenceRemovals } from '../arbeid/absenceStorage.js';
 import {
   adoptLoadedHours,
   applyAbsencesOntoState,
+  applyEquipmentDoc,
   applyHoursOntoState,
   applyRemoteProjectRead,
   clearProjectStateMemory,
   ensureProjectHours,
   hoursRangeCovered,
   loadProjectState,
+  mergeEquipmentDoc,
   noteLoadedHoursRange,
   peekProjectState,
   projectLoadMeta,
@@ -215,6 +217,22 @@ assert.equal(projectLoadMeta('co1'), 'ok');
   assert.equal(edited.timeEntries.find((row) => row.id === 't1').hours, 8);
   assert.ok(edited.timeEntries.some((row) => row.id === 't2'));
   clearProjectStateMemory('co-hours');
+}
+
+// Utstyr i eget dokument: fasit når det finnes, og nyeste rad vinner ved vanlig lagring.
+{
+  const main = { equipment: [{ id: 'car', bookingAccess: 'active', updatedAt: '2026-10-17T10:00:00Z' }], equipmentBookings: [{ id: 'b1' }] };
+  const side = { equipment: [{ id: 'car', bookingAccess: 'selected', bookingEmployeeIds: ['geir'], updatedAt: '2026-10-23T11:00:00Z' }] };
+  const applied = applyEquipmentDoc(main, side);
+  assert.equal(applied.equipment[0].bookingAccess, 'selected');
+  assert.deepEqual(applied.equipmentBookings, [{ id: 'b1' }], 'liste som mangler i dokumentet, beholdes');
+  assert.equal(applyEquipmentDoc(main, null), main);
+  // En eldre kopi fra en annen skjerm overskriver ikke nyere tilgang.
+  const stale = { equipment: [{ id: 'car', bookingAccess: 'active', updatedAt: '2026-10-17T10:00:00Z' }, { id: 'drill', updatedAt: '2026-10-20T10:00:00Z' }] };
+  const mergedDoc = mergeEquipmentDoc(side, stale);
+  assert.equal(mergedDoc.equipment.find((row) => row.id === 'car').bookingAccess, 'selected');
+  assert.deepEqual(mergedDoc.equipment.map((row) => row.id).sort(), ['car', 'drill']);
+  assert.deepEqual(mergedDoc.personalVehicles, []);
 }
 
 console.log('storage.test.mjs: ok');

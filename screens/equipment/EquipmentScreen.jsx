@@ -678,44 +678,6 @@ export default function EquipmentScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
-          {/* MIDLERTIDIG feilsøking av utstyrstilgang. Vises bare i utvikling. Fjernes etter feilsøking. */}
-          {typeof __DEV__ !== 'undefined' && __DEV__ ? (
-            <View nativeID="equipment-debug" style={[styles.card, { borderColor: '#b42318', backgroundColor: '#fff7f5' }]}>
-              <Text style={{ color: '#b42318', fontWeight: '700' }}>Feilsøking (bare localhost)</Text>
-              <Text selectable style={{ color: colors.ink, fontSize: 12 }}>
-                {JSON.stringify({
-                  rights,
-                  ready: access.ready,
-                  previewing: access.previewing,
-                  viewAsScope: access.viewAsScope,
-                  viewingAs: access.viewingAs ? { id: access.viewingAs.id, name: displayName(access.viewingAs) } : null,
-                  me: me ? { id: me.id, name: displayName(me), status: me.company?.status || '', external: !!me.company?.external } : null,
-                  employeesLoaded: employees.length,
-                  gear: equipment.filter((row) => row.scope !== 'private').map((row) => ({
-                    id: row.id,
-                    name: row.name,
-                    rawAccess: (state.equipment || []).find((raw) => raw.id === row.id)?.bookingAccess ?? '(mangler)',
-                    access: row.bookingAccess,
-                    ids: row.bookingEmployeeIds.map((id) => {
-                      const hit = employees.find((employee) => employee.id === id);
-                      return hit ? `${displayName(hit)} (${id})` : id;
-                    }),
-                    updatedAt: row.updatedAt,
-                    seesIt: employeeMaySeeGear(row, me),
-                    browserCopy: (() => {
-                      try {
-                        const saved = JSON.parse(localStorage.getItem(`protop.projectPlatform.v2.${familyId}`) || '{}');
-                        const hit = (saved.equipment || []).find((raw) => raw.id === row.id);
-                        return hit ? { access: hit.bookingAccess ?? '(mangler)', ids: hit.bookingEmployeeIds || [], updatedAt: hit.updatedAt } : '(ikke funnet)';
-                      } catch {
-                        return '(kunne ikke lese)';
-                      }
-                    })(),
-                  })),
-                }, null, 1)}
-              </Text>
-            </View>
-          ) : null}
           {visibleCompany.map(renderGear)}
           {!visibleCompany.length ? (
             <Text style={{ color: colors.muted }}>

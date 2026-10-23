@@ -72,6 +72,23 @@ export default function ProjectTeamTab({
   }
 
   function changeRole(memberId, nextRole) {
+    // «Har ført timer»: gjør personen til ordinær deltaker med valgt rolle.
+    const derived = members.find((row) => row.id === memberId && row.derived);
+    if (derived) {
+      const added = addProjectMember(state, {
+        projectId: project.id,
+        employeeId: derived.employeeId,
+        employeeName: derived.employeeName,
+        role: nextRole,
+        addedByUid: uid,
+      });
+      if (added.ok) {
+        onChangeState(added.state);
+        setMenuId('');
+        showSaveToast('Lagt til i teamet.');
+      } else setError(added.error);
+      return;
+    }
     const result = updateProjectMember(state, memberId, { role: nextRole });
     if (result.ok) {
       onChangeState(result.state);
@@ -81,6 +98,10 @@ export default function ProjectTeamTab({
   }
 
   function drop(memberId) {
+    if (members.some((row) => row.id === memberId && row.derived)) {
+      setError('Personen har ført timer på prosjektet og vises derfor i teamet.');
+      return;
+    }
     const result = removeProjectMember(state, memberId);
     if (result.ok) {
       onChangeState(result.state);

@@ -12,6 +12,7 @@ import {
 } from './model.js';
 import {
   cancelBooking,
+  patchRowsById,
   setMileageRate,
   upsertBooking,
   upsertEquipment,
@@ -282,3 +283,14 @@ assert.equal(withCosts.otherCosts, 10);
 assert.equal(withCosts.extraCosts[0].receiptName, 'parkering.jpg');
 assert.equal(withCosts.extras, 65);
 assert.equal(tripCost({ km: 12, rate: 3.5, tolls: 22, ferries: 0, parking: 40, charging: 15, other: 10 }).amount, 12 * 3.5 + 22 + 65);
+
+// Lokale endringer legges inn i skyens ferskere kopi etter id, uten å miste andres endringer.
+{
+  const before = [{ id: 'car', bookingAccess: 'active' }, { id: 'drill', name: 'Drill' }];
+  const after = [{ id: 'car', bookingAccess: 'selected', bookingEmployeeIds: ['geir'] }, { id: 'new', name: 'Ny' }];
+  const fresh = [{ id: 'car', bookingAccess: 'active' }, { id: 'drill', name: 'Drill' }, { id: 'room', name: 'Møterom' }];
+  const patched = patchRowsById(fresh, before, after);
+  assert.deepEqual(patched.map((row) => row.id), ['car', 'new', 'room']);
+  assert.equal(patched[0].bookingAccess, 'selected');
+  assert.deepEqual(patchRowsById(fresh, before, before).map((row) => row.id), ['car', 'drill', 'room']);
+}

@@ -1,4 +1,4 @@
-import React, { createContext, useMemo, useRef, useState } from 'react';
+import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../src/theme';
@@ -8,6 +8,22 @@ import { moduleHeroName } from '../src/modules/moduleHero';
 import { useI18n } from '../src/i18n';
 
 export const ModuleAsideSlotContext = createContext(null);
+
+/** Skallet gir en setter her. Uten skall (f.eks. sosial plattform) gjør hooken ingenting. */
+export const ShellWideContext = createContext(null);
+
+/**
+ * Lar en skjerm bruke hele bredden på desktop: tipsfeltet skjules og
+ * hovedfeltet får ingen maksbredde så lenge `active` er sann.
+ */
+export function useShellWide(active) {
+  const setWide = useContext(ShellWideContext);
+  useLayoutEffect(() => {
+    if (!setWide || !active) return undefined;
+    setWide(true);
+    return () => setWide(false);
+  }, [setWide, active]);
+}
 
 export function ModuleAsideProvider({ children }) {
   const [node, setNode] = useState(null);

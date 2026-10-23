@@ -1220,10 +1220,9 @@ function navItemAllowed(id, grants) {
       || seeResource(grants, 'economyCustomers')
       || seeResource(grants, 'economyContracts');
   }
+  // Kjørebok og Produktkatalog er egne menypunkter, og åpner ikke Økonomi.
   if (id === 'okonomi') {
     return allowsEconomy(grants, 'see')
-      || seeResource(grants, 'mileage')
-      || seeResource(grants, 'products')
       || seeResource(grants, 'economyProjectExpenses')
       || adminResource(grants, 'economySettings');
   }
@@ -1247,6 +1246,12 @@ function filterCompanyNavItem(item, grants) {
   if (!self && children.length === 0) return null;
   if (!self) return null;
   if (!item.children) return item;
+  // Uten tillatte undersider: vis bare punktet når egen side er tillatt,
+  // ellers sender det brukeren rett videre til Selskap.
+  if (!children.length && item.action?.tab
+    && !companyTabAllowed(item.action.tab, item.action.subView, grants)) {
+    return null;
+  }
   const next = { ...item, children };
   const currentSub = item.action?.subView;
   const currentTab = item.action?.tab;

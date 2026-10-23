@@ -66,7 +66,7 @@ export async function updateCompanyWallPost(companyId, postId, {
   if (!snap.exists()) throw new Error('Innlegget finnes ikke.');
   const data = snap.data() || {};
   if (data.deleted === true) throw new Error('Innlegget er slettet.');
-  if (!isAdmin && data.authorUid !== editorUid) {
+  if (!isAdmin && (!editorUid || data.authorUid !== editorUid)) {
     throw new Error('Du kan bare redigere egne innlegg.');
   }
   const urls = normalizePostImageUrls(
@@ -95,9 +95,15 @@ export async function updateCompanyWallPost(companyId, postId, {
   });
 }
 
-export async function softDeleteCompanyWallPost(companyId, postId) {
+export async function softDeleteCompanyWallPost(companyId, postId, { editorUid, isAdmin = false } = {}) {
   if (!companyId || !postId) return;
-  await updateDoc(doc(db, 'families', companyId, 'companyWallPosts', postId), {
+  const ref = doc(db, 'families', companyId, 'companyWallPosts', postId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  if (!isAdmin && (!editorUid || snap.data()?.authorUid !== editorUid)) {
+    throw new Error('Du kan bare slette egne innlegg.');
+  }
+  await updateDoc(ref, {
     deleted: true,
     updatedAt: serverTimestamp(),
   });

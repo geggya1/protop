@@ -87,10 +87,13 @@ import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
+import EmployeeFilesView from './EmployeeFilesView';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
-import { EMPLOYEE_DETAIL_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeViewToTab } from '../../src/employees/personTabs.js';
+import {
+  EMPLOYEE_DETAIL_TABS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
+} from '../../src/employees/personTabs.js';
 import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 
 async function bytesFromFile(file) {
@@ -105,12 +108,20 @@ async function bytesFromFile(file) {
 }
 
 
+// Views (ikke faner) andre ansatte kan se per nivå. Admin og personen selv ser alt.
+const READER_PERSON_VIEWS = new Set(['detail']);
+const EDITOR_PERSON_VIEWS = new Set(['detail', 'overview', 'hours', 'report', 'absence']);
+// Egen profil med begrenset redigering: holde egen profil oppdatert. Inntjening og Innstillinger krever Admin.
+const SELF_EDITOR_VIEWS = new Set(['detail', 'hours', 'report', 'saldo', 'absence', 'overview', 'files', 'expenses', 'cv']);
+
 export default function EmployeesScreen() {
   const colors = useColors();
   const { familyId, family, members, uid, user, userProfile, isAdmin: groupAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
+  // isAdmin = begrenset redigering (hovedsiden kan redigeres); employeesAdmin = Admin (alt annet).
   const isAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.canEdit('employees'));
-  const canInvite = isAdmin;
+  const employeesAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.canAdmin('employees'));
+  const canInvite = employeesAdmin;
   const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
     || (access.ready && access.canAdmin('accessControl'));
   const accessLocked = canEditAccess ? [] : ['company.accessRole'];
@@ -242,6 +253,45 @@ export default function EmployeesScreen() {
   }, [view, draft?.person?.address1]);
 
   const selected = rows.find((row) => row.id === selectedId) || null;
+  // Andre ansatte: Lese ser bare hovedsiden, begrenset redigering ser også
+  // Oversikt, Timer og Fraværsoversikt (uten å endre). Resten krever Admin.
+  // «Vis som»: den valgte ansatte er «meg», også når profilen ikke er knyttet til en bruker.
+  function isSelfRow(row) {
+    if (!row) return false;
+    if (access.previewing && access.viewingAs) return row.id === access.viewingAs.id;
+    return !!row.personUid && row.personUid === uid;
+  }
+  const limitedPerson = !!selected && !isAdmin && !isSelfRow(selected);
+  const readOnlyPerson = !!selected && !employeesAdmin && !isSelfRow(selected);
+  // Egen profil følger «Egen profil» i tilgangsstyringen: Lese, begrenset redigering eller Admin.
+  const ownLevel = employeesAdmin || (groupAdmin && !access.previewLocks('ownProfile'))
+    || (access.ready && access.canAdmin('ownProfile'))
+    ? 'admin'
+    : (access.ready && access.canEdit('ownProfile') ? 'editor' : 'reader');
+  const selfSelected = isSelfRow(selected);
+  // Full tilgang til personens sider: Admin på ansatte, eller Admin på egen profil.
+  const fullPersonAccess = employeesAdmin || (selfSelected && ownLevel === 'admin');
+  const selfEditor = selfSelected && ownLevel === 'editor';
+  function personTabsAllowed(row) {
+    if (employeesAdmin) return null;
+    if (isSelfRow(row)) {
+      if (ownLevel === 'admin') return null;
+      return ownLevel === 'editor' ? SELF_EDITOR_VIEWS : READER_PERSON_VIEWS;
+    }
+    return isAdmin ? EDITOR_PERSON_VIEWS : READER_PERSON_VIEWS;
+  }
+  function personViewAllowed(row, nextView) {
+    if (!PERSON_VIEWS.has(nextView)) return true;
+    if (nextView === 'earnings' && !access.canView('economyEarnings') && !access.canView('economy')) return false;
+    const allowed = personTabsAllowed(row);
+    return !allowed || allowed.has(nextView);
+  }
+  function allowedTabViews(row, tabId) {
+    return employeeTabViews(tabId).filter((id) => personViewAllowed(row, id));
+  }
+  useEffect(() => {
+    if (selected && PERSON_VIEWS.has(view) && !personViewAllowed(selected, view)) setView('detail');
+  }, [selected, view, isAdmin, employeesAdmin, ownLevel, uid]);
   const mine = useMemo(() => ownEmployee(rows, {
     uid,
     emails: [
@@ -709,7 +759,7 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    setView('cv');
+    setView(personViewAllowed(row, 'cv') ? 'cv' : 'detail');
   }
 
   function openHours(row) {
@@ -717,7 +767,7 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    setView('hours');
+    setView(personViewAllowed(row, 'hours') ? 'hours' : 'detail');
   }
 
   function openWork(row, nextView) {
@@ -725,7 +775,7 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    setView(nextView);
+    setView(personViewAllowed(row, nextView) ? nextView : 'detail');
   }
 
   /** Bytt person uten å miste aktiv fane (rød tråd). */
@@ -735,25 +785,30 @@ export default function EmployeesScreen() {
     clearSectionEdit();
     setSelectedId(row.id);
     setDraft(presentEmployee(row));
-    if (!PERSON_VIEWS.has(view)) setView('detail');
+    if (!PERSON_VIEWS.has(view) || !personViewAllowed(row, view)) setView('detail');
+  }
+
+  function openPersonView(nextView) {
+    if (!selected || !personViewAllowed(selected, nextView)) return;
+    if (nextView === 'detail') {
+      openDetail(selected);
+      return;
+    }
+    if (nextView === 'hours') {
+      openHours(selected);
+      return;
+    }
+    if (nextView === 'cv') {
+      openCv(selected);
+      return;
+    }
+    openWork(selected, nextView);
   }
 
   function openPersonTab(tabId) {
     if (!selected) return;
-    if (tabId === 'earnings' && !access.canView('economyEarnings') && !access.canView('economy')) return;
-    if (tabId === 'home') {
-      openDetail(selected);
-      return;
-    }
-    if (tabId === 'hours') {
-      openHours(selected);
-      return;
-    }
-    if (tabId === 'cv') {
-      openCv(selected);
-      return;
-    }
-    openWork(selected, tabId);
+    const [first] = allowedTabViews(selected, tabId);
+    if (first) openPersonView(first);
   }
 
   useEffect(() => {
@@ -1008,7 +1063,7 @@ export default function EmployeesScreen() {
   function canEditOwner(owner) {
     if (view === 'mine') return owner === 'person';
     if (owner === 'company') return !!isAdmin;
-    return !!isAdmin || (!!draft?.personUid && draft.personUid === uid);
+    return !!isAdmin || isSelfRow(draft);
   }
 
   function changeDetail(next) {
@@ -1277,7 +1332,7 @@ export default function EmployeesScreen() {
 
   const cvEmployee = view === 'cv' && draft && draft.id === selectedId ? draft : selected;
   const cv = cvEmployee ? buildCv(cvEmployee, { companyName }) : null;
-  const canEditCv = view === 'cv' && !!draft && (isAdmin || (!!selected?.personUid && selected.personUid === uid));
+  const canEditCv = view === 'cv' && !!draft && (isAdmin || isSelfRow(selected));
   const mineCv = draft && view === 'mine' ? buildCv({
     ...draft,
     company: {
@@ -1318,43 +1373,83 @@ export default function EmployeesScreen() {
           colors={colors}
           companyName={companyName}
           siblings={visible}
-          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => tab.id !== 'earnings' || access.canView('economyEarnings') || access.canView('economy'))}
+          tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => allowedTabViews(selected, tab.id).length > 0)}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
           onTab={openPersonTab}
           onSelect={openSibling}
-        />
+        >
+          {(() => {
+            const subs = (EMPLOYEE_SUB_TABS[employeeViewToTab(view)] || [])
+              .filter((sub) => personViewAllowed(selected, sub.id));
+            if (subs.length < 2) return null;
+            return (
+              <View nativeID="employee-sub-tabs" accessibilityRole="tablist" style={styles.subTabs}>
+                {subs.map((sub) => {
+                  const active = sub.id === view;
+                  return (
+                    <TouchableOpacity
+                      key={sub.id}
+                      nativeID={`employee-subtab-${sub.id}`}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected: active }}
+                      onPress={() => openPersonView(sub.id)}
+                      style={[styles.subTab, {
+                        borderColor: active ? colors.brand : colors.line,
+                        backgroundColor: active ? colors.brandSoft : colors.card,
+                      }]}
+                    >
+                      <Text style={{ color: active ? colors.brand : colors.ink, fontSize: 13 }}>{sub.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            );
+          })()}
+        </EmployeePersonChrome>
       </View>
     ) : null}
     {personFills ? (
       <View style={styles.personFill}>
         {view === 'hours' ? (
           <View style={styles.hoursHost} nativeID="employee-hours-view">
-            <ArbeidScreen lockedEmployeeId={selected.id} embedded />
+            <ArbeidScreen
+              lockedEmployeeId={selected.id}
+              embedded
+              readOnly={readOnlyPerson}
+              hideReportTools={!fullPersonAccess}
+              memberProjectsOnly={!fullPersonAccess}
+            />
           </View>
         ) : null}
         {view === 'report' ? (
           <View style={styles.hoursHost} nativeID="employee-report-view">
-            <EconomyHours lockedEmployeeId={selected.id} hideBillable={!isAdmin} embedded />
+            <EconomyHours lockedEmployeeId={selected.id} hideBillable={!fullPersonAccess} embedded readOnly={!fullPersonAccess} />
           </View>
         ) : null}
         {view === 'absence' ? (
-          <View nativeID="employee-absence-view" style={styles.absenceHost}>
+          <ScrollView
+            nativeID="employee-absence-view"
+            style={styles.absenceHost}
+            contentContainerStyle={styles.absenceInner}
+            keyboardShouldPersistTaps="handled"
+          >
             <AbsenceOverviewScreen
               lockedEmployeeId={selected.id}
+              readOnly={readOnlyPerson}
               embedded
               onBack={() => openDetail(selected)}
             />
-          </View>
+          </ScrollView>
         ) : null}
         {view === 'saldo' ? (
           <View nativeID="employee-saldo-view" style={styles.personFill}>
-            <TimesaldoScreen lockedEmployeeId={selected.id} embedded />
+            <TimesaldoScreen lockedEmployeeId={selected.id} embedded readOnly={!fullPersonAccess} />
           </View>
         ) : null}
         {view === 'expenses' ? (
           <View nativeID="employee-expenses-view" style={styles.personFill}>
-            <ProjectExpensesScreen lockedEmployeeId={selected.id} embedded />
+            <ProjectExpensesScreen lockedEmployeeId={selected.id} embedded canImport={fullPersonAccess} />
           </View>
         ) : null}
       </View>
@@ -1500,7 +1595,15 @@ export default function EmployeesScreen() {
           ) : null}
 
           {view === 'files' ? (
-            <EmployeeWorkViews mode="files" employee={selected} colors={colors} expenses={projectState.expenses || []} />
+            <EmployeeFilesView
+              companyId={familyId}
+              employee={selected}
+              colors={colors}
+              uid={uid}
+              canEdit={fullPersonAccess || selfEditor}
+              canDelete={fullPersonAccess}
+              expenses={projectState.expenses || []}
+            />
           ) : null}
 
           {view === 'earnings' && (access.canView('economyEarnings') || access.canView('economy')) ? (
@@ -1512,12 +1615,35 @@ export default function EmployeesScreen() {
             />
           ) : null}
 
+          {view === 'settings' && personEmployee ? (
+            <EmployeeDetailView
+              section="employment"
+              employee={personEmployee}
+              colors={colors}
+              companyName={companyName}
+              departments={departments}
+              members={people}
+              addressHits={addressHits}
+              reveal={canSeeSensitive(personEmployee, { uid, isAdmin })}
+              canEdit={isAdmin || isSelfRow(personEmployee)}
+              canEditAccess={canEditAccess}
+              isAdmin={isAdmin}
+              isSelf={isSelfRow(personEmployee)}
+              busy={busy}
+              onChange={changeDetail}
+              onSave={save}
+              onClassify={classifyEmployee}
+              onPhoto={choosePhoto}
+              onPickAddress={pickAddress}
+            />
+          ) : null}
+
           {view === 'settings' ? (
             <EmployeeWorkViews
               mode="settings"
               employee={draft || selected}
               colors={colors}
-              canEdit={isAdmin || selected.personUid === uid}
+              canEdit={isAdmin || isSelfRow(selected)}
               onSave={saveWork}
             />
           ) : null}
@@ -1532,10 +1658,13 @@ export default function EmployeesScreen() {
               addressHits={addressHits}
               reveal={canSeeSensitive(detailEmployee, { uid, isAdmin })}
               gaps={gaps}
-              canEdit={isAdmin || detailEmployee.personUid === uid}
+              canEdit={isAdmin || (isSelfRow(detailEmployee) && ownLevel !== 'reader')}
               canEditAccess={canEditAccess}
               isAdmin={isAdmin}
-              isSelf={detailEmployee.personUid === uid}
+              isSelf={isSelfRow(detailEmployee)}
+              limited={limitedPerson}
+              showAdminCards={!readOnlyPerson}
+              canDelete={employeesAdmin}
               confirmDelete={confirmDelete}
               busy={busy}
               onCv={() => openCv(detailEmployee)}
@@ -1550,8 +1679,8 @@ export default function EmployeesScreen() {
               onClassify={classifyEmployee}
               onPhoto={choosePhoto}
               onPickAddress={pickAddress}
-              onPushProfile={pushProfile}
-              onPullToProfile={pullToProfile}
+              onPushProfile={access.previewing ? undefined : pushProfile}
+              onPullToProfile={access.previewing ? undefined : pullToProfile}
               onConfirmDelete={() => setConfirmDelete(true)}
               onCancelDelete={() => setConfirmDelete(false)}
               onDestroy={destroy}
@@ -1566,7 +1695,7 @@ export default function EmployeesScreen() {
               companyId={familyId}
               employee={detailEmployee}
               colors={colors}
-              enabled={isAdmin || detailEmployee.personUid === uid}
+              enabled={employeesAdmin || isSelfRow(detailEmployee)}
             />
           ) : null}
 
@@ -1788,7 +1917,7 @@ export default function EmployeesScreen() {
               employeeId={mineHrEmployeeId}
             />
           ) : null}
-          {(view === 'mine' || isAdmin || (!!draft.personUid && draft.personUid === uid)) ? (
+          {(view === 'mine' || isAdmin || isSelfRow(draft)) ? (
             <TouchableOpacity
               nativeID="employee-project-import"
               onPress={importProjectsFile}
@@ -1922,6 +2051,10 @@ const styles = StyleSheet.create({
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
   hoursHost: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
   absenceHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
+  subTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  subTab: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  // Fraværsoversikten fyller området under fanene og må rulle selv.
+  absenceInner: { flexGrow: 1, paddingBottom: 28 },
   title: { fontSize: 28, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   stack: { gap: 12 },

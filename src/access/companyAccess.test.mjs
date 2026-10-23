@@ -133,7 +133,8 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
   assert.equal(canAdminResource(innleie, 'hours'), false);
   assert.equal(companyTabAllowed('okonomi', null, innleie), false);
   assert.equal(companyTabAllowed('okonomi', 'oversikt', innleie), false);
-  assert.equal(companyTabAllowed('projects', null, innleie), false);
+  // Tildelte prosjekt gir Prosjekt-siden, med bare egne prosjekter.
+  assert.equal(companyTabAllowed('projects', null, innleie), true);
   assert.equal(companyTabAllowed('arbeid', null, innleie), true);
   assert.equal(companyTabAllowed('arbeid', 'utlegg', innleie), true);
   assert.equal(companyTabAllowed('selskap', null, innleie), true);
@@ -320,7 +321,7 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
 {
   const innleie = standardGrants('innleie_ekstern');
   const visible = filterCompanyNav(companyNavItems(), innleie).map((item) => item.id);
-  assert.deepEqual(visible, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'produkt', 'utstyr', 'okonomi']);
+  assert.deepEqual(visible, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'projects', 'produkt', 'utstyr', 'okonomi']);
   assert.equal(visible.includes('kjorebok'), false);
   assert.equal(visible.includes('selskapsinnstillinger'), false);
   const innleieOkonomi = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'okonomi');
@@ -477,12 +478,36 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   });
   assert.equal(full.grants.economy, 'none');
   assert.equal(full.grants.projects, 'see');
+  // «Vis som» følger valgt ansatts nivå: begrenset redigering på timer, ikke admin.
   assert.equal(viewAsAllows({
     preview: full, actor, bypass: true, resource: 'hours', action: 'read',
+  }), true);
+  assert.equal(viewAsAllows({
+    preview: full, actor, bypass: true, resource: 'hours', action: 'write',
   }), false);
   assert.equal(viewAsAllows({
     preview: full, actor, bypass: true, resource: 'hours', action: 'see',
   }), true);
+  assert.equal(viewAsAllows({
+    preview: full, actor, bypass: true, resource: 'companyProfile', action: 'write',
+  }), false);
+
+  // Valgt ansatt med Admin på selskapsinnstillinger får Admin i «Vis som».
+  const adminPolicy = { employeeGrants: {} };
+  const adminView = resolveViewAsAccess({
+    actor,
+    targetEmployee: { id: 'ola', company: { accessLevel: 'administrator', status: 'active' } },
+    policy: adminPolicy,
+    lens: 'all',
+  });
+  assert.equal(viewAsAllows({
+    preview: adminView, actor, bypass: true, resource: 'companyProfile', action: 'write',
+  }), true);
+  // Aldri mer enn innlogget bruker selv har.
+  const limitedActor = { grants: standardGrants('ansatt') };
+  assert.equal(viewAsAllows({
+    preview: adminView, actor: limitedActor, resource: 'companyProfile', action: 'write',
+  }), false);
   const fullIds = filterCompanyNav(companyNavItems(), full.grants).map((item) => item.id);
   assert.ok(fullIds.includes('okonomi'));
   assert.equal(fullIds.includes('kjorebok'), false);
@@ -502,6 +527,16 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.equal(allowsEffective(grants, 'tenders', 'write'), true);
   assert.equal(allowsEffective(grants, 'tenderRequest', 'see'), false);
   assert.equal(canViewResource(grants, 'tenderRequest'), false);
+}
+
+// Tildelte prosjekt alene gir Prosjekt i menyen og på siden.
+{
+  const assigned = { assignedProjects: 'see' };
+  assert.equal(companyTabAllowed('projects', null, assigned), true);
+  assert.ok(filterCompanyNav(companyNavItems(), assigned).some((item) => item.id === 'projects'
+    || (item.children || []).some((child) => child.id === 'projects')));
+  const none = {};
+  assert.equal(companyTabAllowed('projects', null, none), false);
 }
 
 console.log('companyAccess.test.mjs: ok');

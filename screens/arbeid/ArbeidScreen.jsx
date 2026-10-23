@@ -121,6 +121,12 @@ export default function ArbeidScreen({
   companyId = '',
   companyFamily = null,
   embedded = false,
+  // Bare visning (begrenset redigering på ansattsiden): ingen føring, flytting eller låsing.
+  readOnly = false,
+  // Skjul tannhjulet (rapport, eksport og utskrift).
+  hideReportTools = false,
+  // «Legg til prosjekt» viser bare prosjekter personen er registrert i.
+  memberProjectsOnly = false,
 } = {}) {
   const colors = useColors();
   const { isPhone } = useLayout();
@@ -369,13 +375,13 @@ export default function ArbeidScreen({
     if (!employeeId || assignedOnly) return [];
     const mine = new Set(myProjects.map((row) => row.project.id));
     return projectsForEmployee(state, employeeId, {
-      includeJoinable: true,
+      includeJoinable: !memberProjectsOnly,
       fromDate: monthFromDate,
       toDate: monthToDate,
       includeHourProjects: true,
     })
       .filter((project) => !mine.has(project.id));
-  }, [state, employeeId, myProjects, assignedOnly, monthFromDate, monthToDate]);
+  }, [state, employeeId, myProjects, assignedOnly, memberProjectsOnly, monthFromDate, monthToDate]);
 
   const entriesForCell = useMemo(() => {
     const map = new Map();
@@ -576,6 +582,7 @@ export default function ArbeidScreen({
   }
 
   function openCell(project, day) {
+    if (readOnly) return;
     const key = entryKey(project.id, day.key);
     const activities = state.activities.filter((row) => row.projectId === project.id);
     setEditor({
@@ -615,6 +622,7 @@ export default function ArbeidScreen({
   }
 
   async function saveEntry(blocks) {
+    if (readOnly) return;
     if (!editor || !employeeId) return;
     const list = Array.isArray(blocks) ? blocks : [blocks];
     const previous = entriesForCell.get(entryKey(editor.project.id, editor.day.key)) || [];
@@ -677,6 +685,7 @@ export default function ArbeidScreen({
   }
 
   async function removeEntry(ids) {
+    if (readOnly) return;
     const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
     let next = state;
     for (const id of list) {
@@ -703,6 +712,7 @@ export default function ArbeidScreen({
   }
 
   function moveEntries({ ids, date, projectId }) {
+    if (readOnly) return;
     const list = (ids || []).filter(Boolean);
     if (!list.length) return;
     let next = state;
@@ -724,6 +734,7 @@ export default function ArbeidScreen({
   }
 
   function toggleLock(dateKey) {
+    if (readOnly) return;
     const result = toggleTimesheetLock(state, {
       employeeId,
       throughDate: dateKey,
@@ -736,16 +747,19 @@ export default function ArbeidScreen({
   }
 
   function hideProject(projectId, hidden) {
+    if (readOnly) return;
     applyResult(hideTimesheetProject(state, { employeeId, projectId, hidden }));
   }
 
   function savePins(typeIds) {
+    if (readOnly) return;
     if (applyResult(setAbsencePins(state, { employeeId, typeIds }), 'Fraværskategorier oppdatert.')) {
       setTypePicker(false);
     }
   }
 
   function saveSide(payload) {
+    if (readOnly) return;
     if (!sideForm) return;
     const project = state.projects.find((row) => row.id === sideForm.projectId);
     const base = {
@@ -788,6 +802,7 @@ export default function ArbeidScreen({
   }
 
   function joinProject(project) {
+    if (readOnly) return;
     const result = addProjectMember(state, {
       projectId: project.id,
       employeeId,
@@ -809,12 +824,14 @@ export default function ArbeidScreen({
   }
 
   function starProject(memberId) {
+    if (readOnly) return;
     if (!memberId) return;
     const result = toggleMemberStar(state, memberId);
     if (result.ok) setState(result.state);
   }
 
   function openAbsenceCell(row, day) {
+    if (readOnly) return;
     const existing = (state.absences || []).find((item) => (
       item.employeeId === employeeId && item.date === day.key && (item.type || 'ferie') === row.id
     ));
@@ -830,6 +847,7 @@ export default function ArbeidScreen({
   }
 
   function saveAbsence() {
+    if (readOnly) return;
     const date = absenceForm.date || selectedDay || todayKey;
     const hours = parseHours(absenceForm.hours);
     if (!(hours > 0) && absenceForm.id) {
@@ -895,7 +913,8 @@ export default function ArbeidScreen({
     );
   }
 
-  if (!linked && !manager) {
+  // Låst til én ansatt (ansattsiden): vis den ansattes timeliste selv om leseren ikke er koblet.
+  if (!linked && !manager && !lockedId) {
     return (
       <View style={[styles.screen, { backgroundColor: colors.bg }]}>
         <Text style={{ color: colors.ink, fontSize: personal ? 16 : 22, fontWeight: personal ? '600' : '700' }}>
@@ -935,7 +954,7 @@ export default function ArbeidScreen({
     selectDate(new Date(base.getFullYear(), base.getMonth(), base.getDate() + deltaDays));
   }
 
-  const actions = (
+  const actions = readOnly ? null : (
     <View style={[styles.footer, isPhone && styles.footerPhone]}>
       {assignedOnly ? null : (
       <TouchableOpacity
@@ -1074,6 +1093,7 @@ export default function ArbeidScreen({
           <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
+          {readOnly || hideReportTools ? null : (
           <TouchableOpacity
             onPress={() => setReportMenuOpen(true)}
             accessibilityRole="button"
@@ -1084,17 +1104,6 @@ export default function ArbeidScreen({
           >
             <Ionicons name="settings-outline" size={18} color={reportMenuOpen ? colors.brand : colors.ink} />
           </TouchableOpacity>
-          {isPhone ? null : (
-            <TouchableOpacity
-              onPress={printSelection}
-              accessibilityRole="button"
-              accessibilityLabel="Skriv ut utvalg"
-              nativeID="timesheet-print"
-              style={[styles.ctaGhost, { borderColor: colors.line, marginLeft: 4, flexDirection: 'row', gap: 6 }]}
-            >
-              <Ionicons name="print-outline" size={16} color={colors.ink} />
-              <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Skriv ut utvalg</Text>
-            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -1135,6 +1144,21 @@ export default function ArbeidScreen({
             <Ionicons name="download-outline" size={16} color={colors.ink} />
             <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Eksporter CSV</Text>
           </TouchableOpacity>
+          {isPhone ? null : (
+            <TouchableOpacity
+              onPress={() => {
+                setReportMenuOpen(false);
+                printSelection();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Skriv ut utvalg"
+              nativeID="timesheet-print"
+              style={[styles.ctaGhost, { borderColor: colors.line, flexDirection: 'row', gap: 6, alignSelf: 'flex-start' }]}
+            >
+              <Ionicons name="print-outline" size={16} color={colors.ink} />
+              <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Skriv ut utvalg</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollSheet>
 

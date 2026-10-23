@@ -21,6 +21,7 @@ import {
   normalizeWallLinkUrl, splitBodyAndLinks,
 } from '../../src/utils/familyWall';
 import { notifyUsers } from '../../src/utils/notifications';
+import { notifyUser } from '../../src/utils/dialog';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import {
@@ -98,6 +99,11 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
   const owner = isSuperAdmin(family, uid);
   const canPublish = (owner && !access.previewLocks('companyProfile'))
     || (access.ready && access.canEdit('companyPublic'));
+  // Endre/slette andres innlegg krever admin; forfatteren kan alltid styre sitt eget.
+  const canModerate = (owner && !access.previewLocks('companyProfile'))
+    || (access.ready && access.canAdmin('companyPublic'));
+  // «Vis som» skal vise den valgte ansattes egne innlegg, ikke eierens.
+  const actingUid = access.previewing ? (access.viewingAs?.personUid || null) : uid;
   const me = (members || []).find((m) => m.uid === uid);
   const myName = me?.name || family?.company?.navn || 'Bedriften';
   const [posts, setPosts] = useState([]);
@@ -187,8 +193,8 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
           imageUrl,
           imageUrls: imageUrl ? [imageUrl] : [],
           linkUrl,
-          editorUid: uid,
-          isAdmin: canPublish,
+          editorUid: actingUid,
+          isAdmin: canModerate,
         });
       } else {
         await createCompanyWallPost({
@@ -224,7 +230,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
     }
   }, [
     familyId, busy, body, title, category, pendingImageUrl, pendingLinkUrl, editingPostId,
-    uid, myName, members, canPublish, resetComposer,
+    uid, actingUid, myName, members, canModerate, resetComposer,
   ]);
 
   const addWithPhoto = useCallback(async () => {
@@ -419,7 +425,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
 
       {posts.length ? posts.map((post) => {
         const reacted = post.reactions?.[uid];
-        const canEdit = canPublish || post.authorUid === uid;
+        const canEdit = canModerate || (!!actingUid && post.authorUid === actingUid);
         const author = memberByUid[post.authorUid];
         const editingThis = editingPostId === post.id;
         const card = presentNewsPost(post);
@@ -459,7 +465,10 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
                     <Ionicons name="pencil-outline" size={18} color={editingThis ? colors.brand : colors.muted} />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => softDeleteCompanyWallPost(familyId, post.id)}
+                    onPress={() => softDeleteCompanyWallPost(familyId, post.id, {
+                      editorUid: actingUid,
+                      isAdmin: canModerate,
+                    }).catch((e) => notifyUser('Feil', e?.message || 'Klarte ikke slette.'))}
                     hitSlop={8}
                     accessibilityLabel="Slett innlegg"
                   >

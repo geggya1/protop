@@ -27,8 +27,9 @@ export default function CompanyDesktopLanding({
   const { familyId, family, uid, applyFamilyPatch } = useApp();
   const access = useCompanyAccess();
   const owner = isSuperAdmin(family, uid);
+  // Begrenset redigering gir bare nyhetspublisering; resten av siden krever Admin.
   const canEdit = (owner && !access.previewLocks('companyProfile'))
-    || (access.ready && access.canEdit('companyPublic'));
+    || (access.ready && access.canAdmin('companyPublic'));
   const [live, setLive] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

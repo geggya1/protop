@@ -83,7 +83,7 @@ function presentAccess({ bypass, ready, employees, actor, preview }) {
 /**
  * Effektiv tilgang for innlogget bruker i bedriften.
  * Eier av bedriften har full tilgang, så grunninnstillingene ikke kan låses ute.
- * «Se som bruker» bytter menyen til den valgte brukerens moduler uten å gi skrivetilgang.
+ * «Se som bruker» viser den valgte brukerens moduler og rettigheter, begrenset til egne rettigheter.
  */
 export function useCompanyAccess() {
   const { family, familyId, uid } = useApp();

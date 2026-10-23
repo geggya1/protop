@@ -41,11 +41,14 @@ function orgDigits(value) {
  * Bevarer logo, underenheter og hovedenhetens org.nr når offentlige
  * opplysninger hentes på nytt. Et Brreg-treff på en underenhet skal ikke
  * bytte ut lagret hovedenhet (for eksempel aksjeselskap 916538804).
+ * Appens egne felt (tilgangsstyring, eier o.l.) beholdes; Brreg overstyrer
+ * bare feltene registeret selv leverer.
  */
 export function mergeCompanyProfile(next, previous) {
   if (!next) return next;
   const logo = companyLogoOf(previous);
   const merged = {
+    ...(previous || {}),
     ...next,
     telefon: text(next.telefon) || text(previous?.telefon),
     epostadresse: text(next.epostadresse) || text(previous?.epostadresse),

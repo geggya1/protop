@@ -1021,6 +1021,8 @@ export function companyTabAllowed(tab, subView, grants) {
     return adminResource(grants, 'economySettings');
   }
   if (tab === 'underenheter') return seeResource(grants, 'units');
+  // Tildelte prosjekt alene gir Prosjekt-siden, med bare egne prosjekter.
+  if (tab === 'projects') return seeResource(grants, 'projects') || seeResource(grants, 'assignedProjects');
   if (tab === 'utstyr') {
     return seeResource(grants, 'equipment')
       || seeResource(grants, 'projects')
@@ -1099,6 +1101,7 @@ function navItemAllowed(id, grants) {
     };
     return adminResource(grants, map[id]);
   }
+  if (id === 'projects') return seeResource(grants, 'projects') || seeResource(grants, 'assignedProjects');
   if (id === 'utstyr') {
     return seeResource(grants, 'equipment')
       || seeResource(grants, 'projects')
@@ -1265,15 +1268,14 @@ export function viewAsLocks(preview, resource) {
 }
 
 /**
- * Synlighet i forhåndsvisning er skjæringspunktet av innlogget bruker og valgt bruker.
- * Skriving og sletting er av, så visningen ikke opptrer som den andre.
+ * Forhåndsvisning er skjæringspunktet av innlogget bruker og valgt bruker,
+ * for Lese, begrenset redigering og Admin. Visningen gir aldri mer enn
+ * innlogget bruker selv har, og endringer lagres som innlogget bruker.
  * Områder utenfor valgt omfang følger den innloggede brukeren.
  */
 export function viewAsAllows({ preview, actor, bypass = false, resource, action } = {}) {
   if (!preview?.active) return bypass ? true : allowsEffective(actor?.grants, resource, action);
   const actorOk = bypass ? true : allowsEffective(actor?.grants, resource, action);
   if (!viewAsLocks(preview, resource)) return actorOk;
-  // Forhåndsvisning: bare Lese. Ingen begrenset redigering eller Admin.
-  if (action === 'read' || action === 'write' || action === 'delete') return false;
   return actorOk && allowsEffective(preview.grants, resource, action);
 }

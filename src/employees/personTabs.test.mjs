@@ -1,20 +1,28 @@
 import assert from 'node:assert/strict';
-import { employeeViewToTab, EMPLOYEE_DETAIL_TABS, PERSON_VIEWS, PERSON_FILL_VIEWS } from './personTabs.js';
+import {
+  employeeTabViews, employeeViewToTab, EMPLOYEE_DETAIL_TABS, EMPLOYEE_SUB_TABS, PERSON_VIEWS, PERSON_FILL_VIEWS,
+} from './personTabs.js';
 
 assert.equal(employeeViewToTab('detail'), 'home');
-assert.equal(employeeViewToTab('overview'), 'overview');
 assert.equal(employeeViewToTab('hours'), 'hours');
+assert.equal(employeeViewToTab('report'), 'hours');
+assert.equal(employeeViewToTab('saldo'), 'hours');
+assert.equal(employeeViewToTab('absence'), 'absence');
+// Oversikt (fraværsrapport) ligger under Fravær.
+assert.equal(employeeViewToTab('overview'), 'absence');
 assert.equal(employeeViewToTab('cv'), 'cv');
 
 const ids = EMPLOYEE_DETAIL_TABS.map((tab) => tab.id);
-assert.deepEqual(ids, [
-  'home', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'earnings', 'settings', 'cv',
-]);
+assert.deepEqual(ids, ['home', 'hours', 'absence', 'files', 'expenses', 'earnings', 'settings', 'cv']);
+assert.deepEqual(EMPLOYEE_SUB_TABS.hours.map((tab) => tab.label), ['Timeliste', 'Timerapport', 'Timesaldo']);
+assert.deepEqual(EMPLOYEE_SUB_TABS.absence.map((tab) => tab.label), ['Oversikt', 'Rapport']);
+assert.deepEqual(employeeTabViews('hours'), ['hours', 'report', 'saldo']);
+assert.deepEqual(employeeTabViews('home'), ['detail']);
+assert.deepEqual(employeeTabViews('cv'), ['cv']);
 
-for (const id of ids) {
-  if (id === 'home') assert.ok(PERSON_VIEWS.has('detail'));
-  else assert.ok(PERSON_VIEWS.has(id));
-}
+// Alle views er dekket av en fane.
+const covered = new Set(ids.flatMap((id) => employeeTabViews(id)));
+for (const view of PERSON_VIEWS) assert.ok(covered.has(view), view);
 
 for (const id of PERSON_FILL_VIEWS) assert.ok(PERSON_VIEWS.has(id));
 assert.equal(PERSON_FILL_VIEWS.has('detail'), false);

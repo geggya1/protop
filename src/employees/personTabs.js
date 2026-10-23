@@ -1,22 +1,41 @@
-/** Skilleark på person-sider (ansatt-detalj). */
+/** Skilleark på person-sider (ansatt-detalj). Timer og Fravær har undersider. */
 export const EMPLOYEE_DETAIL_TABS = [
   { id: 'home', label: 'Hovedside' },
-  { id: 'overview', label: 'Oversikt' },
   { id: 'hours', label: 'Timer' },
-  { id: 'report', label: 'Timerapport' },
+  { id: 'absence', label: 'Fravær' },
   { id: 'files', label: 'Filer' },
-  { id: 'absence', label: 'Fraværsoversikt' },
-  { id: 'saldo', label: 'Timesaldo' },
   { id: 'expenses', label: 'Prosjektutlegg' },
   { id: 'earnings', label: 'Inntjening' },
   { id: 'settings', label: 'Innstillinger' },
   { id: 'cv', label: 'CV' },
 ];
 
+/** Undersider per fane, som view-id i EmployeesScreen. Første tillatte åpnes fra fanen. */
+export const EMPLOYEE_SUB_TABS = {
+  hours: [
+    { id: 'hours', label: 'Timeliste' },
+    { id: 'report', label: 'Timerapport' },
+    { id: 'saldo', label: 'Timesaldo' },
+  ],
+  absence: [
+    { id: 'absence', label: 'Oversikt' },
+    { id: 'overview', label: 'Rapport' },
+  ],
+};
+
 /** view-state i EmployeesScreen → fanens id i skillearket. */
 export function employeeViewToTab(view) {
   if (view === 'detail') return 'home';
+  for (const [tab, subs] of Object.entries(EMPLOYEE_SUB_TABS)) {
+    if (subs.some((sub) => sub.id === view)) return tab;
+  }
   return view;
+}
+
+/** Fanens id → view-id-ene den dekker. */
+export function employeeTabViews(tabId) {
+  if (tabId === 'home') return ['detail'];
+  return EMPLOYEE_SUB_TABS[tabId]?.map((sub) => sub.id) || [tabId];
 }
 
 export const PERSON_VIEWS = new Set([

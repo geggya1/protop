@@ -14,6 +14,15 @@ assert.match(wallUi, /Publiser/);
 assert.match(wallUi, /companyProfile/);
 assert.match(wallUi, /useCroppedUpload/);
 assert.match(wallUi, /Beskjær nyhetsbilde/);
+// Begrenset redigering kan publisere, men bare admin eller forfatter kan endre/slette.
+assert.match(wallUi, /canModerate[\s\S]{0,140}canAdmin\('companyPublic'\)/);
+assert.match(wallUi, /const canEdit = canModerate \|\| \(!!actingUid && post\.authorUid === actingUid\)/);
+assert.match(wallUi, /actingUid = access\.previewing \? \(access\.viewingAs\?\.personUid \|\| null\) : uid/);
+assert.match(src, /Du kan bare slette egne innlegg/);
+const desktopLanding = readFileSync(new URL('../../screens/project/CompanyDesktopLanding.jsx', import.meta.url), 'utf8');
+// Rediger side, banner og profiltekst krever Admin, ikke begrenset redigering.
+assert.match(desktopLanding, /canEdit = [\s\S]{0,120}canAdmin\('companyPublic'\)/);
+assert.equal(/canEdit\('companyPublic'\)/.test(desktopLanding), false);
 assert.match(src, /clipWallTitle/);
 assert.match(src, /normalizeWallCategory/);
 

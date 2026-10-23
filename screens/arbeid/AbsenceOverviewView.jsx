@@ -99,7 +99,9 @@ function usePeople(lockedEmployeeId) {
   return { workspace, pickedId, setPickedId };
 }
 
-export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, embedded = false } = {}) {
+export function AbsenceOverviewScreen({
+  lockedEmployeeId = '', onBack = null, embedded = false, readOnly = false,
+} = {}) {
   const { isDesktop } = useLayout();
   const { workspace, pickedId, setPickedId } = usePeople(lockedEmployeeId);
   const { family, families, liveFamilies, selectFamily, familyId, requestShellTab } = useApp();
@@ -131,7 +133,8 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
   const employeeId = locked
     ? workspace.lockedId
     : (canChooseEmployee ? pickedId : (workspace.linked?.id || ''));
-  const visiblePeople = (canChooseEmployee || locked)
+  // Låst til én ansatt (ansattsiden) eller uten valg: bare den personen, ikke hele bedriften.
+  const visiblePeople = canChooseEmployee
     ? people
     : people.filter((row) => row.id && row.id === employeeId);
 
@@ -321,10 +324,11 @@ export function AbsenceOverviewScreen({ lockedEmployeeId = '', onBack = null, em
       opening={opening}
       onOpeningChange={setOpening}
       onSaveOpening={saveOpening}
-      canEditOpening={!!employeeId}
-      onRegister={register}
+      canEditOpening={!!employeeId && !readOnly}
+      onRegister={readOnly ? null : register}
       onBack={onBack}
       registrationLocked={!!vacationPlan?.announcedAt && planningWindow(vacationPlan, today).locked && !workspace.manager}
+      showKpis={canChooseEmployee}
       planInfo={planInfo}
     />
   );
@@ -353,6 +357,8 @@ export function AbsenceOverviewView({
   types: catalog,
   registrationLocked = false,
   planInfo = null,
+  // Nøkkeltall for hele bedriften vises bare for den som kan velge blant flere ansatte.
+  showKpis = true,
 }) {
   const { width } = useLayout();
   const hostedHero = useModuleHeroHosted();
@@ -446,7 +452,7 @@ export function AbsenceOverviewView({
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {wide ? (
+      {wide && showKpis ? (
         <View style={styles.kpis}>
           <Kpi icon="people" tint="#3E6FE0" bg="#EEF2FF" value={dashboard.headcount} label="Ansatte" />
           <Kpi icon="sunny" tint="#1F9D55" bg="#E7F8EF" value={dashboard.onVacation} label="På ferie nå" />
@@ -541,14 +547,16 @@ export function AbsenceOverviewView({
                   ? 'Det er ikke registrert ferie for valgt periode og filter. Når ferie registreres vil den vises her.'
                   : 'Det er ikke registrert fravær for valgt periode og filter. Når det registreres vil det vises her.')}
             </Text>
-            <TouchableOpacity
-              onPress={() => setRegisterOpen(true)}
-              accessibilityRole="button"
-              style={styles.cta}
-              nativeID="registrer-ferie"
-            >
-              <Text style={styles.ctaText}>{registerLabel}</Text>
-            </TouchableOpacity>
+            {onRegister ? (
+              <TouchableOpacity
+                onPress={() => setRegisterOpen(true)}
+                accessibilityRole="button"
+                style={styles.cta}
+                nativeID="registrer-ferie"
+              >
+                <Text style={styles.ctaText}>{registerLabel}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </View>
@@ -804,7 +812,8 @@ const cardShadow = Platform.select({
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: ui.page },
   pageInner: { paddingBottom: 28 },
-  frame: { paddingHorizontal: 16, paddingTop: 6, gap: 12, width: '100%', maxWidth: 1120, alignSelf: 'center' },
+  // Venstrestilt som selskapssiden og resten av appen.
+  frame: { paddingHorizontal: 16, paddingTop: 6, gap: 12, width: '100%', maxWidth: 1120, alignSelf: 'flex-start' },
   frameWide: { paddingTop: 10 },
   companyRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },

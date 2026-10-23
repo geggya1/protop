@@ -23,6 +23,11 @@ assert.match(screen, /GroupYearButton/);
 assert.match(screen, /headingActions/);
 assert.match(screen, /yearControl/);
 assert.match(screen, /company-units-gear/);
+// Tannhjulet og innstillingene er bare for Admin på underenheter.
+assert.match(screen, /canEdit = [\s\S]{0,120}canAdmin\('units'\)/);
+assert.equal(/canEdit\('units'\)/.test(screen), false);
+assert.match(screen, /onPress=\{canEdit \? toggleSettings : null\}/);
+assert.match(screen, /settingsOpen && canEdit \?/);
 assert.doesNotMatch(screen, /group-show-units/);
 assert.doesNotMatch(screen, /Vis underenheter fra Enhetsregisteret/);
 

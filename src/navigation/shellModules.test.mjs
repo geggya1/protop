@@ -757,7 +757,8 @@ function collectPresented(items, acc = []) {
 
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
-  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'produkt', 'utstyr', 'okonomi-prosjektutlegg']);
+  // Innleide har Tildelte prosjekt, og ser derfor Prosjekt (bare egne prosjekter).
+  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'projects', 'produktivitet', 'produkt', 'utstyr', 'okonomi-prosjektutlegg']);
   assert.deepEqual(
     innleie.find((item) => item.id === 'company-finance').collapsedItems.map((item) => item.id),
     ['okonomi'],

@@ -111,6 +111,8 @@ export default function EconomyHours({
   lockedEmployeeId = '',
   hideBillable = false,
   embedded = false,
+  // Bare visning (begrenset redigering på ansattsiden): ingen import, endring eller sletting.
+  readOnly = false,
 }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
@@ -401,6 +403,7 @@ export default function EconomyHours({
   }
 
   async function importFile() {
+    if (readOnly) return;
     setError('');
     const file = await pickDocument({ accept: HOUR_IMPORT_ACCEPT });
     if (!file) return;
@@ -445,6 +448,7 @@ export default function EconomyHours({
   }
 
   async function confirmImport() {
+    if (readOnly) return;
     if (!importPlan || busy) return;
     const chosen = [];
     const leftOut = [];
@@ -554,6 +558,7 @@ export default function EconomyHours({
   }
 
   function openEntry(row) {
+    if (readOnly) return;
     const next = reportEntryEditor(state, row);
     if (!next) return;
     setEditing(next);
@@ -561,6 +566,7 @@ export default function EconomyHours({
   }
 
   async function commitEntryChange(result, success) {
+    if (readOnly) return;
     if (!result?.ok) {
       setError(result?.error || 'Kunne ikke lagre føringen.');
       return;
@@ -982,6 +988,7 @@ export default function EconomyHours({
 
           <View style={styles.phoneActions}>
             {modeToggle}
+            {readOnly ? null : (
             <TouchableOpacity
               onPress={importFile}
               disabled={busy || !resolvedFamilyId}
@@ -991,6 +998,7 @@ export default function EconomyHours({
             >
               <Text style={styles.primaryBtnText}>{busy ? '…' : 'Importer'}</Text>
             </TouchableOpacity>
+            )}
           </View>
 
           {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
@@ -1022,8 +1030,13 @@ export default function EconomyHours({
     );
   }
 
+  // Innebygd (ansattsiden) har verten fast høyde, så rapporten må rulle selv.
+  const Shell = embedded ? ScrollView : View;
+  const shellProps = embedded
+    ? { contentContainerStyle: styles.embeddedInner, keyboardShouldPersistTaps: 'handled' }
+    : {};
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-hours">
+    <Shell style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-hours" {...shellProps}>
       <View style={styles.desk}>
         <View style={styles.mainCol}>
           <View style={styles.toolbar}>
@@ -1053,6 +1066,7 @@ export default function EconomyHours({
                 <Text style={{ color: colors.ink, fontWeight: '600' }}>Filtrer</Text>
               </TouchableOpacity>
             ) : null}
+            {readOnly ? null : (
             <TouchableOpacity
               onPress={importFile}
               disabled={busy || !resolvedFamilyId}
@@ -1062,6 +1076,7 @@ export default function EconomyHours({
             >
               <Text style={styles.primaryBtnText}>{busy ? 'Jobber…' : 'Importer Excel'}</Text>
             </TouchableOpacity>
+            )}
           </View>
 
           {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
@@ -1082,12 +1097,13 @@ export default function EconomyHours({
       {stackRows ? filterModal : null}
       {entryModal}
       {busyOverlay}
-    </View>
+    </Shell>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  embeddedInner: { flexGrow: 1 },
   importInner: { padding: 16, paddingBottom: 48, maxWidth: 1200, width: '100%', alignSelf: 'flex-start', gap: 14 },
   desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 14 },

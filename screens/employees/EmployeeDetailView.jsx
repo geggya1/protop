@@ -464,6 +464,14 @@ export default function EmployeeDetailView({
   onRestore,
   canInvite = false,
   onInvite,
+  // Lese på ansatte: bare grunnkortet, uten personlig data, arbeidsforhold, mangler og tagger.
+  limited = false,
+  // Mangler og Tagger er bare for Admin på ansatte (og personen selv).
+  showAdminCards = true,
+  // Papirkurv og permanent sletting krever Admin på ansatte.
+  canDelete = isAdmin,
+  // 'home' = hovedsiden, 'employment' = Ansettelsesdata under Innstillinger.
+  section = 'home',
 }) {
   const { isPhone } = useLayout();
   const [editingKey, setEditingKey] = useState('');
@@ -690,6 +698,53 @@ export default function EmployeeDetailView({
     );
   }
 
+  const employmentCard = (
+          <SectionCard
+            title="Ansettelsesdata"
+            icon="briefcase-outline"
+            colors={colors}
+            open={openSections.employment}
+            onToggle={() => toggle('employment')}
+            badge={OWNER_LABEL.company}
+            onEdit={canEdit && isAdmin ? () => startSection('employment') : undefined}
+          >
+            <EmploymentChips
+              employee={employee}
+              colors={colors}
+              companyName={companyName}
+              busy={busy}
+              canEdit={canEdit}
+              canEditAccess={canEditAccess}
+              isAdmin={isAdmin}
+              onClassify={onClassify}
+            />
+            {editingSection === 'employment' ? sectionEditor('employment') : (
+              <>
+                {employmentRows.map((row, i) => (
+                  <FactRow
+                    key={row.key}
+                    label={row.label}
+                    value={row.value}
+                    colors={colors}
+                    last={i === employmentRows.length - 1}
+                    onEdit={canEdit && isAdmin ? () => startField(row.key) : undefined}
+                    editing={editingKey === row.key}
+                    editor={editingKey === row.key ? fieldEditor(row.key) : null}
+                  />
+                ))}
+              </>
+            )}
+          </SectionCard>
+  );
+
+  if (section === 'employment') {
+    return (
+      <View nativeID="employee-employment" style={styles.root}>
+        {employmentCard}
+      </View>
+    );
+  }
+
   return (
     <View nativeID="employee-detail" style={styles.root}>
       <View style={[styles.columns, isPhone && styles.columnsPhone]}>
@@ -797,7 +852,7 @@ export default function EmployeeDetailView({
                 </TouchableOpacity>
               </View>
             ) : null}
-            {isSelf ? (
+            {isSelf && onPushProfile ? (
               <View style={[styles.heroFooter, { borderTopColor: colors.line }]}>
                 <TouchableOpacity
                   onPress={onPushProfile}
@@ -830,7 +885,7 @@ export default function EmployeeDetailView({
               </View>
             ) : null}
 
-          {personalRows.length || canEdit ? (
+          {!limited && (personalRows.length || canEdit) ? (
             <SectionCard
               title="Personlig data"
               icon="person-outline"
@@ -860,44 +915,8 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          <SectionCard
-            title="Ansettelsesdata"
-            icon="briefcase-outline"
-            colors={colors}
-            open={openSections.employment}
-            onToggle={() => toggle('employment')}
-            badge={OWNER_LABEL.company}
-            onEdit={canEdit && isAdmin ? () => startSection('employment') : undefined}
-          >
-            <EmploymentChips
-              employee={employee}
-              colors={colors}
-              companyName={companyName}
-              busy={busy}
-              canEdit={canEdit}
-              canEditAccess={canEditAccess}
-              isAdmin={isAdmin}
-              onClassify={onClassify}
-            />
-            {editingSection === 'employment' ? sectionEditor('employment') : (
-              <>
-                {employmentRows.map((row, i) => (
-                  <FactRow
-                    key={row.key}
-                    label={row.label}
-                    value={row.value}
-                    colors={colors}
-                    last={i === employmentRows.length - 1}
-                    onEdit={canEdit && isAdmin ? () => startField(row.key) : undefined}
-                    editing={editingKey === row.key}
-                    editor={editingKey === row.key ? fieldEditor(row.key) : null}
-                  />
-                ))}
-              </>
-            )}
-          </SectionCard>
 
-          {workRows.length || canEdit ? (
+          {!limited && (workRows.length || canEdit) ? (
             <SectionCard
               title="Arbeidsforhold"
               icon="time-outline"
@@ -938,7 +957,7 @@ export default function EmployeeDetailView({
               colors={colors}
               open={openSections.cvBits}
               onToggle={() => toggle('cvBits')}
-              right={(
+              right={limited ? null : (
                 <TouchableOpacity onPress={onCv} accessibilityRole="button">
                   <Text style={{ color: colors.brand, fontSize: 13 }}>Åpne CV</Text>
                 </TouchableOpacity>
@@ -957,7 +976,7 @@ export default function EmployeeDetailView({
                         {repeatSummary(section.id, item)}
                       </Text>
                     ))}
-                    {more > 0 ? (
+                    {more > 0 && !limited ? (
                       <TouchableOpacity onPress={onCv} accessibilityRole="button">
                         <Text style={{ color: colors.brand, fontSize: 13 }}>{`og ${more} til i CV-en`}</Text>
                       </TouchableOpacity>
@@ -988,7 +1007,7 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {gaps ? (
+          {gaps && !limited && showAdminCards ? (
             <SectionCard
               title="Mangler"
               icon="alert-circle-outline"
@@ -1026,7 +1045,7 @@ export default function EmployeeDetailView({
             </SectionCard>
           ) : null}
 
-          {isAdmin ? (
+          {canDelete ? (
             isDeletedEmployee(employee) ? (
               <View style={styles.inlineActions}>
                 <TouchableOpacity
@@ -1131,7 +1150,7 @@ export default function EmployeeDetailView({
                 })}
               </View>
             )}
-            {onHours ? (
+            {onHours && !limited ? (
               <TouchableOpacity
                 onPress={onHours}
                 accessibilityRole="button"
@@ -1142,13 +1161,14 @@ export default function EmployeeDetailView({
                 <Text style={{ color: colors.brand, fontSize: 13 }}>Åpne timeføring…</Text>
               </TouchableOpacity>
             ) : null}
-            {(employee.cv?.projects || []).length > 0 ? (
+            {!limited && (employee.cv?.projects || []).length > 0 ? (
               <TouchableOpacity onPress={onCv} accessibilityRole="button" style={{ marginTop: 8 }}>
                 <Text style={{ color: colors.brand, fontSize: 13 }}>Vis referanseprosjekter i CV…</Text>
               </TouchableOpacity>
             ) : null}
           </View>
 
+          {limited || !showAdminCards ? null : (
           <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
             <Text style={[styles.sideTitle, { color: colors.ink }]}>Tagger</Text>
             {tags.length ? (
@@ -1163,6 +1183,7 @@ export default function EmployeeDetailView({
               <Text style={{ color: colors.muted, fontSize: 14 }}>Ingen avdelinger eller rettigheter er satt.</Text>
             )}
           </View>
+          )}
         </View>
       </View>
     </View>

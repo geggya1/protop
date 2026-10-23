@@ -42,4 +42,8 @@ for (const level of ACCESS_LEVELS) {
 assert.equal(kindOf({ company: { personnelKind: 'external', accessLevel: 'ansatt' } }), 'staff');
 assert.equal(kindOf({ company: { personnelKind: 'staff', accessLevel: 'regnskap_ekstern' } }), 'external');
 
+// Flernivå: bare eksterne nivå huket av gir ikke intern ansatt, selv om enkeltnivået er tomt.
+assert.equal(kindOf({ company: { personnelKind: 'staff', accessLevels: ['regnskap_ekstern'], accessLevel: '' } }), 'external');
+assert.equal(kindOf({ company: { accessLevels: ['ansatt'], accessLevel: '' } }), 'staff');
+
 console.log('employmentFlags.test.mjs: ok');

@@ -326,6 +326,8 @@ export default function ProjectWorkScreen() {
   const access = useCompanyAccess();
   const isAdmin = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canEdit('projects'));
   const canDeleteProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canAdmin('projects'));
+  // Bare «Tildelte prosjekt»: listen viser prosjektene personen er registrert i.
+  const seesAllProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canView('projects'));
   const cachedProjects = peekProjectState(familyId);
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
@@ -556,10 +558,25 @@ export default function ProjectWorkScreen() {
     },
   }), [customers, contracts]);
 
+  const myEmployeeId = useMemo(() => {
+    if (access.previewing && access.viewingAs) return access.viewingAs.id;
+    return (employees || []).find((row) => row.personUid && row.personUid === uid)?.id || '';
+  }, [access.previewing, access.viewingAs, employees, uid]);
+  const assignedIds = useMemo(() => new Set(
+    (state.members || [])
+      .filter((row) => myEmployeeId && row.employeeId === myEmployeeId && row.active !== false)
+      .map((row) => row.projectId),
+  ), [state.members, myEmployeeId]);
+  const projectVisible = useMemo(
+    () => (item) => seesAllProjects || assignedIds.has(item?.id),
+    [seesAllProjects, assignedIds],
+  );
+
   const visibleProjects = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = state.projects.filter((item) => {
       if (item.status === 'arkivert') return false;
+      if (!projectVisible(item)) return false;
       const missing = projectMissingAgreement(item);
       if (gapFilter === 'missing' && !missing) return false;
       if (gapFilter === 'ok' && missing) return false;
@@ -574,7 +591,7 @@ export default function ProjectWorkScreen() {
       ].join(' ').toLowerCase().includes(q);
     });
     return [...filtered].sort((a, b) => compareProjectsByColumn(a, b, sort, columnHelpers));
-  }, [state.projects, query, gapFilter, statusFilter, colFilter, sort, columnHelpers]);
+  }, [state.projects, query, gapFilter, statusFilter, colFilter, sort, columnHelpers, projectVisible]);
 
   function saveVisibleColumns(keys) {
     skipColumnSave.current = false;
@@ -680,7 +697,7 @@ export default function ProjectWorkScreen() {
     return runDelete(ids, noteText);
   }
 
-  const selected = state.projects.find((item) => item.id === selectedId) || null;
+  const selected = state.projects.find((item) => item.id === selectedId && projectVisible(item)) || null;
   const selectedHourKey = selected
     ? `${selected.id}:${projectLookupNumbers(selected).join(',')}`
     : '';

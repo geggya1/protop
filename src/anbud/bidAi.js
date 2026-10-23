@@ -1,9 +1,10 @@
 /** AI-tolkning av konkurransegrunnlag og Q&A for ett tilbud. */
 
+import { tenderProxyUrl } from './tenderProxyUrl.js';
 import { buildLocalBidInterpretation, buildLocalStepSummary, collectBidAiSource } from './bidLibrary.js';
 
 async function post(action, payload) {
-  const res = await fetch('/api/tender-proxy', {
+  const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...payload }),

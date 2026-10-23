@@ -1,7 +1,8 @@
 /** AI-tolkning av bedriftsprofil og rangering av anbudstreff. */
+import { tenderProxyUrl } from './tenderProxyUrl.js';
 
 async function post(action, payload) {
-  const res = await fetch('/api/tender-proxy', {
+  const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, ...payload }),

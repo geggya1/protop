@@ -138,14 +138,26 @@ export async function attachPortalCatalog(dossier) {
   };
 }
 
+/** Ett nytt forsøk når proxyen svarer 5xx eller ikke-JSON (kald instans, Hosting-tidsavbrudd). */
+async function postGround(body) {
+  for (let attempt = 0; ; attempt += 1) {
+    const res = await fetch(tenderProxyUrl(), {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    if ((res.status >= 500 || !data) && attempt < 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      continue;
+    }
+    return { res, data: data || {} };
+  }
+}
+
 /** Leser offentlig filliste, spørsmål/svar og tilgangsstatus fra KGV-adressen. */
 export async function fetchCompetitionGround(url) {
-  const res = await fetch(tenderProxyUrl(), {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'ground', url }),
-  });
-  const data = await res.json().catch(() => ({}));
+  const { res, data } = await postGround({ action: 'ground', url });
   // Uten ok:true var svaret ikke fra proxyen (f.eks. en HTML-side). Da må det ikke se ut som tomt grunnlag.
   if (!res.ok || data.ok !== true) {
     throw new Error(data.error || 'Kunne ikke lese konkurransegrunnlaget. Prøv igjen om litt.');
@@ -155,21 +167,16 @@ export async function fetchCompetitionGround(url) {
 
 /** Laster ned én offentlig fil. Innloggede filer returneres uten innhold. */
 export async function downloadGroundFile(file) {
-  const res = await fetch(tenderProxyUrl(), {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'ground-file',
-      file: {
-        kind: file?.download?.kind || file?.kind || '',
-        procId: file?.download?.procId || file?.procId || '',
-        name: file?.download?.name || file?.name || '',
-        key: file?.download?.key || file?.key || '',
-        url: file?.download?.url || file?.url || '',
-      },
-    }),
+  const { res, data } = await postGround({
+    action: 'ground-file',
+    file: {
+      kind: file?.download?.kind || file?.kind || '',
+      procId: file?.download?.procId || file?.procId || '',
+      name: file?.download?.name || file?.name || '',
+      key: file?.download?.key || file?.key || '',
+      url: file?.download?.url || file?.url || '',
+    },
   });
-  const data = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, note: data.error || 'Kunne ikke hente dokumentet.' };
   return data;
 }

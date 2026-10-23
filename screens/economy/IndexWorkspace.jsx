@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import CompanyLogoChoice from '../../components/CompanyLogoChoice';
+import { confirmUser } from '../../src/utils/dialog';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import {
   allowedFrom,
@@ -471,16 +472,27 @@ export default function IndexWorkspace({
 
   async function removeLetter(row) {
     if (!canDeleteCase(row)) {
-      setError('Ferdigstilte brev kan ikke slettes.');
+      setError('Sendte brev kan ikke slettes.');
       return;
     }
+    const priced = row.status === 'godkjent' || row.status === 'klar_til_utsending' || row.status === 'sendefeil';
+    const ok = await confirmUser(
+      'Slette brevet?',
+      priced
+        ? 'Brevet og den nye prisen det la inn, fjernes. Prisen går tilbake til forrige. Dette kan ikke angres.'
+        : 'Brevet fjernes fra oversikten. Dette kan ikke angres.',
+      { ok: 'Slett', cancel: 'Avbryt' },
+    );
+    if (!ok) return;
     setWorking(true);
     setError('');
     try {
-      if (cases.some((item) => item.id === row.id)) {
+      const stored = cases.some((item) => item.id === row.id)
+        || (contract?.regulations || []).some((item) => item.id === row.id);
+      if (stored) {
         const result = await onDelete?.(row.id);
         if (!result?.ok) {
-          setError(result?.error || 'Kunne ikke slette utkastet.');
+          setError(result?.error || 'Kunne ikke slette brevet.');
           return;
         }
       }
@@ -489,7 +501,7 @@ export default function IndexWorkspace({
       if (openLetterId === row.id) setOpenLetterId('');
       setSendPdf(null);
       pdfStamp.current = '';
-      setNote('Utkastet er slettet.');
+      setNote('Brevet er slettet.');
     } finally {
       setWorking(false);
     }
@@ -763,7 +775,7 @@ function DeleteDraftButton({ row, onPress, colors }) {
   if (!canDeleteCase(row)) return null;
   return (
     <TouchableOpacity onPress={() => onPress?.(row)} accessibilityRole="button" style={[styles.ghost, { borderColor: colors.line }]}>
-      <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>Slett utkast</Text>
+      <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>Slett</Text>
     </TouchableOpacity>
   );
 }

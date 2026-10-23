@@ -203,7 +203,6 @@ export default function DesktopRail({
         grandparentModules,
         companyGrants: companyAccess.grants,
         companyModules: companyModules.state,
-        companyModuleAdmin: companyModules.canManage,
         companyModuleNote: companyModules.lockedLabel,
       });
       if (!hideChatNav) return built;

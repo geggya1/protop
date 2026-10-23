@@ -437,15 +437,6 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
   return items;
 }
 
-/** Modulinnstillinger vises bare for administrator. */
-function withoutModuleSettings(items) {
-  return (items || []).map((item) => (
-    item.children
-      ? { ...item, children: item.children.filter((child) => child.id !== 'selskapsinnstillinger-moduler') }
-      : item
-  ));
-}
-
 /**
  * Bedriftsmenyen slik brukeren ser den: filtrert på tilgang, og med
  * deaktiverte moduler låst (synlige, men ikke klikkbare).
@@ -454,11 +445,10 @@ export function companyMenuItems({
   includeUnderenheter = false,
   grants = null,
   modules = null,
-  moduleAdmin = false,
   lockedNote = '',
 } = {}) {
   const base = companyNavItems({ includeUnderenheter });
-  const allowed = filterCompanyNav(moduleAdmin ? base : withoutModuleSettings(base), grants);
+  const allowed = filterCompanyNav(base, grants);
   return lockCompanyNav(allowed, modules, lockedNote || undefined);
 }
 
@@ -718,7 +708,6 @@ export function buildShellModules({
   grandparentModules = null,
   companyGrants = null,
   companyModules = null,
-  companyModuleAdmin = false,
   companyModuleNote = '',
 }) {
   const sections = [];
@@ -974,7 +963,6 @@ export function buildShellModules({
         includeUnderenheter,
         grants: companyGrants,
         modules: companyModules,
-        moduleAdmin: companyModuleAdmin,
         lockedNote: companyModuleNote,
       }),
     };

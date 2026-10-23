@@ -12,6 +12,7 @@ import {
   setCompanyModuleActive,
 } from './companyModules.js';
 import { companyMenuItems, companyNavItems } from '../navigation/shellModules.js';
+import { standardGrants } from './companyAccess.js';
 
 // Alt er aktivt til administrator slår noe av.
 assert.deepEqual(normalizeCompanyModules(undefined), { disabled: [] });
@@ -56,13 +57,14 @@ assert.ok(okonomi.children.every((row) => row.locked));
 assert.equal(locked.find((row) => row.id === 'projects').locked, undefined);
 assert.equal(locked.find((row) => row.id === 'selskap').locked, undefined);
 
-// Modulinnstillinger ligger rett over Tilgangsstyring, og bare for administrator.
+// Modulinnstillinger ligger rett over Tilgangsstyring og følger egen rad i tilgangsstyringen.
 const settingsKids = (items) => items.find((row) => row.id === 'selskapsinnstillinger').children.map((row) => row.id);
 assert.deepEqual(
-  settingsKids(companyMenuItems({ moduleAdmin: true })),
+  settingsKids(companyMenuItems({ grants: standardGrants('administrator') })),
   ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang'],
 );
-assert.deepEqual(settingsKids(companyMenuItems({ moduleAdmin: false })), ['selskapsinnstillinger-tilgang']);
+const utenModuler = { ...standardGrants('administrator'), moduleSettings: 'none' };
+assert.deepEqual(settingsKids(companyMenuItems({ grants: utenModuler })), ['selskapsinnstillinger-tilgang']);
 
 assert.equal(moduleLockedLabel([]), 'Ikke aktivert · kontakt administrator');
 assert.equal(moduleLockedLabel(['Kari Nordmann']), 'Ikke aktivert · kontakt Kari Nordmann');

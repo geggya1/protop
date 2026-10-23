@@ -492,7 +492,7 @@ export function memberView(world, companyId, uid) {
     hr,
     wall: company.wall.filter((post) => !post.deleted).map((post) => post.body),
     canPublish: company.ownerUid === uid || allows(grants, 'companyPublic', 'read'),
-    settings: allows(grants, 'companyProfile', 'see') || allows(grants, 'accessControl', 'see') || company.ownerUid === uid,
+    settings: allows(grants, 'companyProfile', 'see') || allows(grants, 'moduleSettings', 'see') || allows(grants, 'accessControl', 'see') || company.ownerUid === uid,
     units: allows(grants, 'units', 'see'),
     grants,
   };

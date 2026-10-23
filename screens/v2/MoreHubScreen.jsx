@@ -276,7 +276,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
       grandparentModules,
       companyGrants: companyAccess.grants,
       companyModules: companyModules.state,
-      companyModuleAdmin: companyModules.canManage,
       companyModuleNote: companyModules.lockedLabel,
     }),
     [
@@ -418,7 +417,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
                 includeUnderenheter: companyHasRegisteredUnits(family?.company),
                 grants: companyAccess.grants,
                 modules: companyModules.state,
-                moduleAdmin: companyModules.canManage,
                 lockedNote: companyModules.lockedLabel,
               }).map((item) => {
                 const renderNavBranch = (row, depth = 0) => {

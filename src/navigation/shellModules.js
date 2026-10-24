@@ -511,23 +511,16 @@ export const COMPANY_DRAWER_GROUPS = [
     itemIds: ['ansatte', 'hr', 'fravaer', 'arbeid'],
   },
   {
-    id: 'company-customers',
-    label: 'Kunder og oppdrag',
-    icon: 'briefcase',
-    itemIds: ['kunder', 'anbud', 'kontrakt', 'projects'],
-    processOrder: true,
+    id: 'company-quality',
+    label: 'Kvalitet og styringssystem',
+    icon: 'shield-checkmark',
+    itemIds: ['iso'],
   },
   {
     id: 'company-productivity',
     label: 'Produktivitet og inntjening',
     icon: 'stats-chart',
     itemIds: ['produktivitet', 'okonomi-inntjening'],
-  },
-  {
-    id: 'company-resources',
-    label: 'Produkter og driftsressurser',
-    icon: 'cube',
-    itemIds: ['produkt', 'utstyr', 'kjorebok'],
   },
   {
     id: 'company-finance',
@@ -538,10 +531,25 @@ export const COMPANY_DRAWER_GROUPS = [
     hoistChildren: true,
   },
   {
-    id: 'company-quality',
-    label: 'Kvalitet og styringssystem',
-    icon: 'shield-checkmark',
-    itemIds: ['iso'],
+    id: 'company-resources',
+    label: 'Produkter og driftsressurser',
+    icon: 'cube',
+    itemIds: ['produkt', 'utstyr', 'kjorebok'],
+  },
+  {
+    id: 'company-tenders',
+    label: 'Anbud',
+    icon: 'megaphone',
+    itemIds: ['anbud'],
+    // Som Økonomi: anbudsstegene ligger rett under gruppen.
+    hoistChildren: true,
+  },
+  {
+    id: 'company-customers',
+    label: 'Kunder og oppdrag',
+    icon: 'briefcase',
+    itemIds: ['kunder', 'kontrakt', 'projects'],
+    processOrder: true,
   },
 ];
 

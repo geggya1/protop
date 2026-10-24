@@ -81,7 +81,7 @@ export const COMPANY_MODULES = [
   },
   {
     id: 'anbud',
-    groupId: 'company-customers',
+    groupId: 'company-tenders',
     label: 'Anbud',
     icon: 'megaphone',
     hint: 'Anbudsvarsling, forespørsler, vurdering og tilbud.',

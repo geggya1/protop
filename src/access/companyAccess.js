@@ -29,7 +29,7 @@ export const ACCESS_ACTIONS_VERSION = 2;
 /**
  * Rettighetskatalog som speiler bedriftsmenyen (COMPANY_DRAWER_GROUPS i shellModules).
  * Gruppe → modul → underside, med samme ikoner som hamburgermenyen.
- * En rad med `heading: true` er bare overskrift (som HR eller Anbud i menyen);
+ * En rad med `heading: true` er bare overskrift (som HR eller Produkt i menyen);
  * ellers er raden selv en rettighet, og `children` er undersider under den.
  * Nye moduler, undersider og innstillinger legges her — da dukker de opp i
  * tilgangsstyringen og kan styre navigasjon via NAV_RESOURCE / RESOURCE_PARENT.
@@ -110,34 +110,11 @@ const ACCESS_MENU = [
     ],
   },
   {
-    id: 'customers',
-    label: 'Kunder og oppdrag',
-    icon: 'briefcase',
+    id: 'quality',
+    label: 'Kvalitet og styringssystem',
+    icon: 'shield-checkmark',
     items: [
-      { id: 'customers', label: 'Kunder', icon: 'people' },
-      {
-        id: 'tenderMenu',
-        heading: true,
-        label: 'Anbud',
-        icon: 'megaphone',
-        children: [
-          { id: 'tenders', label: '1.1 Anbudsvarsling', icon: 'notifications' },
-          { id: 'tenderRequest', label: '1.2 Anbudsforespørsel', icon: 'mail-open' },
-          { id: 'tenderReview', label: '2. Vurdering av aktuelle', icon: 'options' },
-          { id: 'offers', label: '3. Tilbud', icon: 'document-text', hint: 'Tilbud i anbudsløpet.' },
-          { id: 'tenderSettings', label: 'Innstillinger', icon: 'settings-outline' },
-        ],
-      },
-      { id: 'contracts', label: 'Kontrakt / avtale', icon: 'ribbon' },
-      {
-        id: 'projects',
-        label: 'Prosjekt',
-        icon: 'business',
-        children: [
-          { id: 'assignedProjects', label: 'Tildelte prosjekt', icon: 'person-add-outline' },
-          { id: 'forms', label: 'Skjema og sjekklister', icon: 'clipboard' },
-        ],
-      },
+      { id: 'iso', label: 'ISO / K-HMS', icon: 'shield-checkmark' },
     ],
   },
   {
@@ -155,6 +132,21 @@ const ACCESS_MENU = [
           { id: 'economyContracts', label: 'Avtalesummer', icon: 'ribbon-outline' },
         ],
       },
+    ],
+  },
+  {
+    id: 'economy',
+    label: 'Økonomi og fakturering',
+    icon: 'wallet',
+    items: [
+      { id: 'economyOverview', label: 'Oversikt', icon: 'home' },
+      { id: 'economyInvoices', label: 'Faktura', icon: 'document-text' },
+      { id: 'economyBilling', label: 'Fakturagrunnlag', icon: 'receipt' },
+      { id: 'economyExpenses', label: 'Utlegg', icon: 'card' },
+      { id: 'economyProjectExpenses', label: 'Prosjektutlegg', icon: 'receipt-outline' },
+      { id: 'economyIndex', label: 'Indeksregulering', icon: 'trending-up' },
+      { id: 'economyIndices', label: 'Indekser', icon: 'stats-chart' },
+      { id: 'economySettings', label: 'Innstillinger', icon: 'settings-outline' },
     ],
   },
   {
@@ -177,26 +169,33 @@ const ACCESS_MENU = [
     ],
   },
   {
-    id: 'economy',
-    label: 'Økonomi og fakturering',
-    icon: 'wallet',
+    id: 'tender',
+    label: 'Anbud',
+    icon: 'megaphone',
     items: [
-      { id: 'economyOverview', label: 'Oversikt', icon: 'home' },
-      { id: 'economyInvoices', label: 'Faktura', icon: 'document-text' },
-      { id: 'economyBilling', label: 'Fakturagrunnlag', icon: 'receipt' },
-      { id: 'economyExpenses', label: 'Utlegg', icon: 'card' },
-      { id: 'economyProjectExpenses', label: 'Prosjektutlegg', icon: 'receipt-outline' },
-      { id: 'economyIndex', label: 'Indeksregulering', icon: 'trending-up' },
-      { id: 'economyIndices', label: 'Indekser', icon: 'stats-chart' },
-      { id: 'economySettings', label: 'Innstillinger', icon: 'settings-outline' },
+      { id: 'tenders', label: '1.1 Anbudsvarsling', icon: 'notifications' },
+      { id: 'tenderRequest', label: '1.2 Anbudsforespørsel', icon: 'mail-open' },
+      { id: 'tenderReview', label: '2. Vurdering av aktuelle', icon: 'options' },
+      { id: 'offers', label: '3. Tilbud', icon: 'document-text', hint: 'Tilbud i anbudsløpet.' },
+      { id: 'tenderSettings', label: 'Innstillinger', icon: 'settings-outline' },
     ],
   },
   {
-    id: 'quality',
-    label: 'Kvalitet og styringssystem',
-    icon: 'shield-checkmark',
+    id: 'customers',
+    label: 'Kunder og oppdrag',
+    icon: 'briefcase',
     items: [
-      { id: 'iso', label: 'ISO / K-HMS', icon: 'shield-checkmark' },
+      { id: 'customers', label: 'Kunder', icon: 'people' },
+      { id: 'contracts', label: 'Kontrakt / avtale', icon: 'ribbon' },
+      {
+        id: 'projects',
+        label: 'Prosjekt',
+        icon: 'business',
+        children: [
+          { id: 'assignedProjects', label: 'Tildelte prosjekt', icon: 'person-add-outline' },
+          { id: 'forms', label: 'Skjema og sjekklister', icon: 'clipboard' },
+        ],
+      },
     ],
   },
   {

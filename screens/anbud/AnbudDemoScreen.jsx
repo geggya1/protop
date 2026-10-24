@@ -4,11 +4,12 @@
  * kun i nettleseren: ingen Firestore, ingen Storage, ingen konto.
  */
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { normalizeBidWork } from '../../src/anbud/bidLibrary';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import BidDesk from './BidDesk';
+import TenderAlert from './TenderAlert';
 
 // Ekte Doffin-kunngjøringer: Artifik med og uten Q&A, og EU-Supply.
 const DEMO_NOTICES = [
@@ -20,6 +21,8 @@ const DEMO_NOTICES = [
   ['2026-116004', 'Mercell med http-lenke i Doffin'],
   ['2023-372837', 'EU-Supply med http-lenke i Doffin'],
   ['2025-114386', 'Bare firmanavn i dokumentfeltet'],
+  // Hyyr (Stryn kommune) og TendSign.
+  ['2026-116069', 'Hyyr: Stryn kommune, kommuneplanens arealdel'],
 ];
 
 export function anbudDemoAllowed() {
@@ -46,6 +49,7 @@ function seedBids(existing) {
 export default function AnbudDemoScreen() {
   const colors = useColors();
   const [ready, setReady] = useState(false);
+  const [view, setView] = useState('tilbud');
 
   useEffect(() => {
     if (!anbudDemoAllowed()) return;
@@ -73,13 +77,22 @@ export default function AnbudDemoScreen() {
           Uten innlogging. Lagres bare i denne nettleseren. Åpne et tilbud for å hente dokumenter og spørsmål og svar.
         </Text>
       </View>
-      {ready ? <BidDesk company={null} colors={colors} /> : null}
+      <View style={styles.tabs}>
+        {[['tilbud', 'Tilbud'], ['varsling', 'Varsling']].map(([id, label]) => (
+          <TouchableOpacity key={id} onPress={() => setView(id)} accessibilityRole="button">
+            <Text style={{ color: view === id ? colors.ink : colors.brand, fontWeight: view === id ? '700' : '400' }}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {ready && view === 'tilbud' ? <BidDesk company={null} colors={colors} /> : null}
+      {ready && view === 'varsling' ? <TenderAlert company={{ name: 'Demo AS', cpvCodes: ['71400000'] }} colors={colors} /> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  tabs: { flexDirection: 'row', gap: 16, paddingHorizontal: 16, paddingVertical: 8 },
   banner: {
     paddingHorizontal: 16,
     paddingVertical: 10,

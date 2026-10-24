@@ -48,6 +48,8 @@ async function check(id) {
   const url = normalizeCompetitionUrl(dossier.documentsUrl) || normalizeCompetitionUrl(dossier.documents?.[0]?.url);
   if (!url) return { ...row, step: 'ingen-lenke' };
   row.host = new URL(url).hostname;
+  // BOT_SKIP=tendsign hopper over portaler som ikke skal belastes med mange kall på rad.
+  if (process.env.BOT_SKIP && new RegExp(process.env.BOT_SKIP, 'i').test(row.host)) return { ...row, step: 'hoppet over' };
   const ground = await post({ action: 'ground', url });
   if (ground.status !== 200 || ground.data.ok !== true) {
     return { ...row, step: 'ground', error: `${ground.status} ${ground.data.error || ''}`.trim() };

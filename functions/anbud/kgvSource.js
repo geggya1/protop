@@ -3,6 +3,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { inflateRawSync } from 'node:zlib';
 import { normalizeCompetitionUrl } from './competitionUrl.js';
 import { parseMercellCatalog, readPortalCatalog } from './portalCatalog.js';
 
@@ -14,6 +15,7 @@ const PLATFORMS = [
   { id: 'mercell', name: 'Mercell', host: /(^|\.)mercell\.com$/ },
   { id: 'eusupply', name: 'EU-Supply', host: /(^|\.)eu-supply\.com$/ },
   { id: 'tendsign', name: 'TendSign', host: /(^|\.)tendsign\.(no|com)$/ },
+  { id: 'hyyr', name: 'Hyyr', host: /(^|\.)hyyr\.no$/ },
   { id: 'doffin', name: 'Doffin', host: /(^|\.)doffin\.no$/ },
   { id: 'ted', name: 'TED', host: /(^|\.)ted\.europa\.eu$/ },
 ];
@@ -454,8 +456,7 @@ function storeCookies(jar, res) {
   }
 }
 
-async function readHtmlWithCookies(url, sourceId) {
-  const jar = new Map();
+async function readHtmlWithCookies(url, sourceId, jar = new Map()) {
   let current = url;
   for (let hop = 0; hop < 4; hop += 1) {
     if (identifySource(current).id !== sourceId) throw new Error('Viderekoblingen forlot den offentlige kilden.');
@@ -506,6 +507,323 @@ async function readEuSupply(url) {
   };
 }
 
+const MIME_BY_EXT = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  zip: 'application/zip',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  xml: 'application/xml',
+  odt: 'application/vnd.oasis.opendocument.text',
+  ods: 'application/vnd.oasis.opendocument.spreadsheet',
+  dwg: 'application/acad',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+};
+
+function mimeOf(name) {
+  const ext = String(name || '').split('.').pop().toLowerCase();
+  return MIME_BY_EXT[ext] || 'application/octet-stream';
+}
+
+/** Leser innholdsfortegnelsen i en zip-fil (uten zip64). */
+export function zipEntries(buffer) {
+  const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
+  let end = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i -= 1) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return [];
+  const count = buf.readUInt16LE(end + 10);
+  let at = buf.readUInt32LE(end + 16);
+  const entries = [];
+  for (let n = 0; n < count && at + 46 <= buf.length; n += 1) {
+    if (buf.readUInt32LE(at) !== 0x02014b50) break;
+    const method = buf.readUInt16LE(at + 10);
+    const compressedSize = buf.readUInt32LE(at + 20);
+    const size = buf.readUInt32LE(at + 24);
+    const nameLength = buf.readUInt16LE(at + 28);
+    const extraLength = buf.readUInt16LE(at + 30);
+    const commentLength = buf.readUInt16LE(at + 32);
+    const offset = buf.readUInt32LE(at + 42);
+    // Moderne portaler skriver filnavn i UTF-8, også når flagget mangler.
+    const name = buf.subarray(at + 46, at + 46 + nameLength).toString('utf8');
+    entries.push({ name, method, compressedSize, size, offset });
+    at += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+export function zipEntryBytes(buffer, entry) {
+  const at = entry.offset;
+  if (buffer.readUInt32LE(at) !== 0x04034b50) throw new Error('Zip-filen er ødelagt.');
+  const start = at + 30 + buffer.readUInt16LE(at + 26) + buffer.readUInt16LE(at + 28);
+  const data = buffer.subarray(start, start + entry.compressedSize);
+  if (entry.method === 0) return Buffer.from(data);
+  if (entry.method === 8) return inflateRawSync(data);
+  throw new Error('Zip-filen bruker en ukjent komprimering.');
+}
+
+const NB_MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
+const HYYR_DATE = /(\d{1,2})\. ([a-zæøå]+) (\d{4}) \d{2}:\d{2}/i;
+
+function hyyrDate(match) {
+  if (!match) return '';
+  const month = NB_MONTHS.indexOf(String(match[2]).toLowerCase()) + 1;
+  if (!month) return '';
+  return `${String(match[1]).padStart(2, '0')}/${String(month).padStart(2, '0')}/${match[3]}`;
+}
+
+/** Deler Hyyrs «Spørsmål og svar.pdf» (som tekst) opp i spørsmål og svar. */
+export function parseHyyrQa(source) {
+  const raw = String(source || '').replace(/\s+/g, ' ');
+  const parts = raw.split(/Spørsmål (\d+): /).slice(1);
+  const rows = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const number = parts[i];
+    const body = parts[i + 1];
+    const asked = body.match(HYYR_DATE);
+    if (!asked) continue;
+    const title = text(body.slice(0, asked.index));
+    const rest = body.slice(asked.index + asked[0].length);
+    const split = rest.split(/Svar fra oppdragsgiver /);
+    const question = text(split[0]);
+    const answer = split.slice(1).map((chunk) => text(chunk.replace(HYYR_DATE, ''))).filter(Boolean).join('\n\n');
+    rows.push({
+      id: `hyyr-${number}`,
+      title,
+      question: question || title,
+      answer,
+      published: hyyrDate(asked),
+    });
+  }
+  return rows;
+}
+
+export function hyyrProcurementId(url) {
+  const match = String(url || '').match(/hyyr\.no\/procurement\/([a-z0-9]{10,40})/i);
+  return match ? match[1] : '';
+}
+
+const HYYR_ZIP_MAX = 80 * 1024 * 1024;
+const HYYR_ZIP_TTL = 15 * 60 * 1000;
+// Hosting avbryter etter 60 s. Grunnlaget svarer uten spørsmål og svar hvis zip-en ikke er klar innen dette.
+const HYYR_ZIP_WAIT = 35 * 1000;
+const HYYR_ZIPS = new Map();
+
+function tooLargeError() {
+  const error = new Error('Vedleggene er for store til å hentes samlet.');
+  error.tooLarge = true;
+  return error;
+}
+
+async function fetchHyyrZip(id) {
+  const res = await fetch(`https://www.hyyr.no/api/public/procurement/${id}/download`, {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(170000),
+    headers: { Accept: 'application/zip, */*', 'User-Agent': 'ProTop' },
+  });
+  if (identifySource(res.url || 'https://www.hyyr.no').id !== 'hyyr') throw new Error('Hyyr sendte nedlastingen til en ukjent adresse.');
+  if (!res.ok) throw new Error(`Hyyr svarte ${res.status}`);
+  if ((Number(res.headers.get('content-length')) || 0) > HYYR_ZIP_MAX) throw tooLargeError();
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length > HYYR_ZIP_MAX) throw tooLargeError();
+  return buffer;
+}
+
+/**
+ * Hyyrs offentlige «Last ned vedlegg (.zip)», med spørsmål og svar som PDF.
+ * Hyyr lager zip-en fortløpende (noen tar over 90 s), så den hentes én gang og holdes i minnet en stund.
+ */
+function hyyrZip(id) {
+  for (const [key, row] of HYYR_ZIPS) if (Date.now() - row.at > HYYR_ZIP_TTL) HYYR_ZIPS.delete(key);
+  const cached = HYYR_ZIPS.get(id);
+  if (cached) return cached.promise;
+  while (HYYR_ZIPS.size >= 6) HYYR_ZIPS.delete(HYYR_ZIPS.keys().next().value);
+  const promise = fetchHyyrZip(id);
+  HYYR_ZIPS.set(id, { at: Date.now(), promise });
+  promise.catch(() => HYYR_ZIPS.delete(id));
+  return promise;
+}
+
+/** Filene i sidedataene (Next.js): id, navn og størrelse. Id-en gir nedlasting via Hyyrs fil-API. */
+export function parseHyyrPageFiles(html) {
+  const source = String(html || '').replace(/\\"/g, '"');
+  const files = [];
+  const seen = new Set();
+  for (const match of source.matchAll(/"id":"([a-z0-9]{20,40})","tenantId":"[^"]*","blobId":"[^"]*"[^{}]*?"fileName":"([^"]+)"(?:,"fileUrl":"[^"]*")?(?:,"fileSize":(\d+))?(?:,"fileType":"([^"]*)")?/g)) {
+    const [, id, rawName, size, mimeType] = match;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    files.push({ id, name: text(rawName), size: Number(size) || 0, mimeType: mimeType || mimeOf(rawName) });
+  }
+  return files;
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([promise, new Promise((resolve) => { setTimeout(() => resolve(null), ms); })]);
+}
+
+export async function readHyyr(url) {
+  const id = hyyrProcurementId(url);
+  if (!id) {
+    const error = new Error('Hyyr-adressen mangler konkurransenummer.');
+    error.code = 'invalid-argument';
+    throw error;
+  }
+  const pageUrl = `https://www.hyyr.no/procurement/${id}`;
+  // Zip-en startes med en gang, så den rekker mest mulig mens siden leses.
+  const zipPromise = hyyrZip(id).catch((err) => ({ failed: err }));
+  const page = await readText(pageUrl).catch(() => ({ html: '' }));
+  const files = parseHyyrPageFiles(page.html).map((file) => ({
+    name: file.name,
+    sourceId: `hyyr:${id}:${file.id}`,
+    size: file.size,
+    access: 'public',
+    download: { kind: 'hyyr', procId: id, fileId: file.id, name: file.name },
+  }));
+  const zip = await withTimeout(zipPromise, HYYR_ZIP_WAIT);
+  let qa = [];
+  let qaNote = '';
+  let missing = false;
+  if (Buffer.isBuffer(zip)) {
+    const known = new Set(files.map((file) => file.name.toLocaleLowerCase('nb-NO')));
+    for (const entry of zipEntries(zip)) {
+      if (entry.name.endsWith('/')) continue;
+      const parts = entry.name.split('/').filter(Boolean);
+      const name = parts[parts.length - 1] || '';
+      if (!name) continue;
+      if (name === 'Feil.txt' && parts.length <= 2) {
+        missing = true;
+        continue;
+      }
+      if (/^Spørsmål og svar\.pdf$/i.test(name) && parts.length === 3) {
+        try {
+          const { extractPdfText } = await import('../documentText.js');
+          const parsed = await extractPdfText(zipEntryBytes(zip, entry));
+          qa = parseHyyrQa(typeof parsed === 'string' ? parsed : parsed?.text);
+        } catch {
+          qa = [];
+        }
+      }
+      // Generert konkurransegrunnlag, Q&A-PDF og vedlegg til svar finnes bare i zip-en.
+      const key = name.toLocaleLowerCase('nb-NO');
+      if (known.has(key)) continue;
+      known.add(key);
+      files.push({
+        name,
+        folder: parts.slice(1, -1).join(' / '),
+        sourceId: `hyyr:${id}:${entry.name}`,
+        size: entry.size,
+        access: 'public',
+        download: { kind: 'hyyr', procId: id, entry: entry.name },
+      });
+    }
+  } else if (zip?.failed) {
+    qaNote = ' Spørsmål og svar kunne ikke hentes fra Hyyr nå.';
+  } else {
+    qaNote = ' Hyyr bruker lang tid på å pakke spørsmål og svar. Trykk «Hent publiserte svar på nytt» om et par minutter.';
+  }
+  return {
+    ok: true,
+    source: { id: 'hyyr', name: 'Hyyr' },
+    documentsUrl: pageUrl,
+    access: files.length ? 'public' : 'login',
+    note: files.length
+      ? `Vedleggene er offentlige på Hyyr.${missing ? ' Hyyr kunne ikke ta med alle dokumentene. Se Hyyr for resten.' : ''}${qaNote}`
+      : `Hyyr har ingen offentlige vedlegg for denne konkurransen.${qaNote}`,
+    interestUrl: '',
+    files,
+    qa,
+    checkedAt: new Date().toISOString(),
+  };
+}
+
+export function tendsignNoticeId(url) {
+  const match = String(url || '').match(/MeFormsNoticeId=(\d+)/i);
+  return match ? match[1] : '';
+}
+
+function tendsignBase(url) {
+  return /(^|\.)tendsign\.no$/.test(hostOf(url)) ? 'https://tendsign.no' : 'https://tendsign.com';
+}
+
+/** Filene på TendSigns offentlige dokumentside. «Alle dokumenter (.zip)» hoppes over. */
+export function parseTendsignDocuments(html) {
+  const files = [];
+  const seen = new Set();
+  const source = String(html || '').replace(/&amp;/g, '&');
+  for (const match of source.matchAll(/download\.aspx\?([^'"]+?)(?:&#39;|')/g)) {
+    const query = match[1];
+    if (/(^|&)ZipFile=1/i.test(query) || !/(^|&)Filename=/i.test(query) || !/(^|&)ObjectID=/i.test(query)) continue;
+    const params = new URLSearchParams(query);
+    const name = text(params.get('PublicFileName') || params.get('Filename'));
+    if (!name || seen.has(query)) continue;
+    seen.add(query);
+    files.push({ name, query });
+  }
+  return files;
+}
+
+const TENDSIGN_SESSIONS = new Map();
+
+/** TendSign gir bare ut filer i en økt som har åpnet den offentlige dokumentsiden. */
+async function tendsignSession(base, noticeId, { fresh = false } = {}) {
+  const key = `${base}|${noticeId}`;
+  const cached = TENDSIGN_SESSIONS.get(key);
+  if (!fresh && cached && Date.now() - cached.at < 10 * 60 * 1000) return cached;
+  const jar = new Map();
+  const notice = await readHtmlWithCookies(`${base}/public/p_meformsnotice.aspx?MeFormsNoticeId=${noticeId}`, 'tendsign', jar);
+  const href = (page) => {
+    const found = (notice.html.match(new RegExp(`href="(${page}\\.aspx\\?[^"]+)"`, 'i')) || [])[1];
+    return found ? new URL(found.replace(/&amp;/g, '&'), notice.finalUrl).href : '';
+  };
+  const docsUrl = href('p_documents');
+  const docs = docsUrl ? await readHtmlWithCookies(docsUrl, 'tendsign', jar) : { html: '' };
+  const session = { at: Date.now(), jar, docsHtml: docs.html, docsUrl, dialogsUrl: href('p_dialogs') };
+  for (const [k, row] of TENDSIGN_SESSIONS) if (Date.now() - row.at > 10 * 60 * 1000) TENDSIGN_SESSIONS.delete(k);
+  TENDSIGN_SESSIONS.set(key, session);
+  return session;
+}
+
+export async function readTendsign(url) {
+  const noticeId = tendsignNoticeId(url);
+  if (!noticeId) return null;
+  const base = tendsignBase(url);
+  const session = await tendsignSession(base, noticeId, { fresh: true });
+  const files = parseTendsignDocuments(session.docsHtml).map((file) => ({
+    name: file.name,
+    sourceId: `tendsign:${noticeId}:${file.query}`,
+    url: session.docsUrl || url,
+    access: 'public',
+    download: { kind: 'tendsign', host: base, noticeId, query: file.query },
+  }));
+  return {
+    ok: true,
+    source: { id: 'tendsign', name: 'TendSign' },
+    documentsUrl: session.docsUrl || url,
+    access: files.length ? 'public' : 'login',
+    note: files.length
+      ? 'Dokumentene er offentlige på TendSign.'
+      : session.docsUrl
+        ? 'TendSign viser ingen offentlige dokumenter for denne konkurransen. Logg inn på TendSign for å se dem.'
+        : 'TendSign ga ikke ut dokumentlisten nå. Prøv igjen senere, eller åpne konkurransen på TendSign.',
+    interestUrl: '',
+    files,
+    qa: [],
+    checkedAt: new Date().toISOString(),
+  };
+}
+
 export async function readCompetitionGround(url) {
   // Doffin har også http://-lenker og lenker inne i tekst. De ryddes til https her.
   const start = normalizeCompetitionUrl(url);
@@ -517,6 +835,11 @@ export async function readCompetitionGround(url) {
   }
   if (source.id === 'artifik') return readArtifik(start);
   if (source.id === 'eusupply') return readEuSupply(start);
+  if (source.id === 'hyyr') return readHyyr(start);
+  if (source.id === 'tendsign') {
+    const read = await readTendsign(start);
+    if (read) return read;
+  }
   if (source.id === 'mercell') {
     const catalog = await readPortalCatalog(start);
     const parsed = catalog.files?.length ? catalog : parseMercellCatalog('', start);
@@ -562,8 +885,7 @@ function allowedFileHop(url, expectKey) {
   }
 }
 
-async function bytesFromUrl(fileUrl, expectKey = '') {
-  const jar = new Map();
+async function bytesFromUrl(fileUrl, expectKey = '', jar = new Map()) {
   let current = fileUrl;
   for (let hop = 0; hop < 5; hop += 1) {
     if (!allowedFileHop(current, expectKey)) {
@@ -611,6 +933,56 @@ async function bytesFromUrl(fileUrl, expectKey = '') {
 
 export async function downloadGroundFile(spec) {
   const kind = text(spec?.kind || spec?.download?.kind);
+  if (kind === 'hyyr') {
+    const id = text(spec.procId || spec.download?.procId);
+    const fileId = text(spec.fileId || spec.download?.fileId);
+    const entryName = String(spec.entry || spec.download?.entry || '');
+    if (!/^[a-z0-9]{10,40}$/i.test(id) || (!entryName && !/^[a-z0-9]{10,40}$/i.test(fileId))) {
+      const error = new Error('Hyyr-filen mangler nøkkel.');
+      error.code = 'invalid-argument';
+      throw error;
+    }
+    if (fileId) {
+      // Én fil om gangen via Hyyrs offentlige fil-API. Raskt, også når zip-en er treg.
+      const got = await bytesFromUrl(`https://www.hyyr.no/api/public/procurement/${id}/lot-files/${fileId}`);
+      return { ...got, name: String(spec.name || spec.download?.name || '').trim(), sourceId: `hyyr:${id}:${fileId}` };
+    }
+    const zip = await hyyrZip(id);
+    const entry = zipEntries(zip).find((row) => row.name === entryName);
+    if (!entry) return { ok: false, gated: true, note: 'Filen finnes ikke lenger på Hyyr.' };
+    if (entry.size > MAX_BYTES) return { ok: false, tooLarge: true, size: entry.size, mimeType: mimeOf(entryName) };
+    const buf = zipEntryBytes(zip, entry);
+    const name = entryName.split('/').pop();
+    return {
+      ok: true,
+      name,
+      mimeType: mimeOf(name),
+      size: buf.length,
+      sha256: sha256(buf),
+      base64: buf.toString('base64'),
+      sourceId: `hyyr:${id}:${entryName}`,
+    };
+  }
+  if (kind === 'tendsign') {
+    const noticeId = text(spec.noticeId || spec.download?.noticeId);
+    const query = String(spec.query || spec.download?.query || '');
+    const base = tendsignBase(spec.host || spec.download?.host || 'https://tendsign.com');
+    if (!/^\d+$/.test(noticeId) || !/(^|&)Filename=/i.test(query) || !/(^|&)ObjectID=/i.test(query) || /[\s"'<>#]/.test(query)) {
+      const error = new Error('TendSign-filen mangler nøkkel.');
+      error.code = 'invalid-argument';
+      throw error;
+    }
+    const fileUrl = `${base}/tools/download.aspx?${query}&ToParent=1`;
+    let session = await tendsignSession(base, noticeId);
+    let got = await bytesFromUrl(fileUrl, '', session.jar);
+    if (!got.ok && got.gated) {
+      // Økten kan ha gått ut. Én ny økt før filen regnes som innlogget.
+      session = await tendsignSession(base, noticeId, { fresh: true });
+      got = await bytesFromUrl(fileUrl, '', session.jar);
+    }
+    const params = new URLSearchParams(query);
+    return { ...got, name: text(params.get('PublicFileName') || params.get('Filename')), sourceId: `tendsign:${noticeId}:${query}` };
+  }
   if (kind === 'artifik') {
     const procId = text(spec.procId || spec.download?.procId);
     const name = String(spec.name || spec.download?.name || '').trim();

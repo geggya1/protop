@@ -26,6 +26,11 @@ export function peekAnbudState(companyId) {
   return MEMORY.get(memoryKey(companyId)) || null;
 }
 
+/** Selskapets egen kopi i minnet eller nettleseren, uten å vente på skyen. Til å vise forrige treff med en gang. */
+export async function readCachedAnbudState(companyId) {
+  return peekAnbudState(companyId) || readLocal(companyId);
+}
+
 function putAnbudMemory(companyId, state) {
   const next = normalizeAnbudState(state);
   MEMORY.set(memoryKey(companyId), next);

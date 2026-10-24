@@ -167,9 +167,11 @@ export async function fetchCompetitionGround(url) {
 
 /** Laster ned én offentlig fil. Innloggede filer returneres uten innhold. */
 export async function downloadGroundFile(file) {
+  // Hele nedlastingsnøkkelen sendes med. Portalene trenger ulike felt (Hyyr: fileId/entry, TendSign: query).
   const { res, data } = await postGround({
     action: 'ground-file',
     file: {
+      ...(file?.download || {}),
       kind: file?.download?.kind || file?.kind || '',
       procId: file?.download?.procId || file?.procId || '',
       name: file?.download?.name || file?.name || '',

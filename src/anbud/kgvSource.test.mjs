@@ -9,6 +9,13 @@ import {
   parseArtifikQaStream,
   parseEuSupplyDocuments,
   richText,
+  hyyrProcurementId,
+  parseHyyrPageFiles,
+  parseHyyrQa,
+  parseTendsignDocuments,
+  tendsignNoticeId,
+  zipEntries,
+  zipEntryBytes,
 } from './kgvSource.js';
 
 const payload = `
@@ -85,6 +92,68 @@ assert.equal(
   richText('<p><span style="color: red;">Er dette en feil?</span></p><p>Nei &amp; ja.<br>Linje to</p>'),
   'Er dette en feil?\nNei & ja.\nLinje to',
 );
+
+// Minimal zip (lagret uten komprimering) som Hyyr-nedlastingen leses med.
+function storedZip(files) {
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
+  for (const [name, body] of files) {
+    const nameBuf = Buffer.from(name, 'utf8');
+    const data = Buffer.from(body, 'utf8');
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(0x800, 6);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(0x800, 8);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, nameBuf, data);
+    centrals.push(central, nameBuf);
+    offset += 30 + nameBuf.length + data.length;
+  }
+  const cd = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(cd.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, end]);
+}
+const zip = storedZip([['Konkurranse/Vedlegg/Kravspesifikasjon å.docx', 'hei'], ['Konkurranse/Feil.txt', 'mangler']]);
+const entries = zipEntries(zip);
+assert.equal(entries.length, 2);
+assert.equal(entries[0].name, 'Konkurranse/Vedlegg/Kravspesifikasjon å.docx');
+assert.equal(zipEntryBytes(zip, entries[0]).toString('utf8'), 'hei');
+assert.equal(hyyrProcurementId('https://hyyr.no/procurement/cmugp559c000004jy6ykwgewf'), 'cmugp559c000004jy6ykwgewf');
+assert.equal(identifySource('https://www.hyyr.no/procurement/x').id, 'hyyr');
+const hyyrPage = parseHyyrPageFiles('self.__next_f.push([1,"{\\"id\\":\\"cmup5mjji000p04l8bjhtefsq\\",\\"tenantId\\":\\"stryn-kommune\\",\\"blobId\\":\\"lot-files/shared/x/K.docx\\",\\"lotId\\":\\"cmugp55az000304jy9zwm8g9i\\",\\"fileName\\":\\"Konkurransegrunnlag Stryn.docx\\",\\"fileUrl\\":\\"https://m9.private.blob.vercel-storage.com/K.docx\\",\\"fileSize\\":80705,\\"fileType\\":\\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\\"}"])');
+assert.equal(hyyrPage.length, 1);
+assert.equal(hyyrPage[0].id, 'cmup5mjji000p04l8bjhtefsq');
+assert.equal(hyyrPage[0].name, 'Konkurransegrunnlag Stryn.docx');
+assert.equal(hyyrPage[0].size, 80705);
+
+const hyyrQa = parseHyyrQa('Innleie Spørsmål og svar Offentlige spørsmål. Spørsmål 1: Timer 06. oktober 2026 04:50 Hei De 2000 timene, er det for 24 mnd? Svar fra oppdragsgiver 06. oktober 2026 07:36 Det er for 24 måneder. Spørsmål 2: Intervju 15. oktober 2026 10:00 Fysisk eller digitalt?');
+assert.equal(hyyrQa.length, 2);
+assert.equal(hyyrQa[0].title, 'Timer');
+assert.equal(hyyrQa[0].question, 'Hei De 2000 timene, er det for 24 mnd?');
+assert.equal(hyyrQa[0].answer, 'Det er for 24 måneder.');
+assert.equal(hyyrQa[0].published, '06/10/2026');
+assert.equal(hyyrQa[1].answer, '');
+
+const tendsignFiles = parseTendsignDocuments(`
+<a onclick="window.open(&#39;../tools/download.aspx?Filename=3341893Inv_2.zip&amp;ObjectType=1&amp;ObjectID=YPsu=&amp;PathType=3&amp;Report=0&amp;ZipFile=1&amp;PublicFileName=Samtliga+bifogade+dokument.zip&#39;,&#39;Download&#39;)">
+<a onclick="window.open(&#39;../tools/download.aspx?Filename=Foresp%c3%b8rselsbrev.docx&amp;ObjectType=1&amp;ObjectID=YPsu=&amp;PathType=3&amp;Report=0&#39;,&#39;Download&#39;)">`);
+assert.equal(tendsignFiles.length, 1);
+assert.equal(tendsignFiles[0].name, 'Forespørselsbrev.docx');
+assert.equal(tendsignNoticeId('https://tendsign.com/doc.aspx?MeFormsNoticeId=102198'), '102198');
 
 const deployed = readFileSync(new URL('../../functions/anbud/kgvSource.js', import.meta.url), 'utf8');
 const source = readFileSync(new URL('./kgvSource.js', import.meta.url), 'utf8');

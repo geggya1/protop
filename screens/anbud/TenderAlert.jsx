@@ -7,7 +7,7 @@ import { CPV_CODES, TENDER_AREAS } from '../../src/anbud/catalog';
 import { attachPortalCatalog, fetchCompetitionFile, fetchWatchHits, storeReachableFiles } from '../../src/anbud/doffinClient';
 import { fetchPublicCompany } from '../../src/project/companyPublic';
 import {
-    alignDepartmentAreas, attachDossier, emptyAnbudState, formatWhen, mergeTenderNotices, refreshFrom, WATCH_REFRESH_MS, watchRefreshDue, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
+    alignDepartmentAreas, attachDossier, emptyAnbudState, formatWhen, mergeAnbudStates, mergeTenderNotices, refreshFrom, WATCH_REFRESH_MS, watchRefreshDue, nextNoticeDecision, normalizeCpvCode, normalizeDepartmentAreas, noticeDeadlineExpired, noticeInArea, noticeInCoverage, releaseUntouchedBid, sameMarkGesture, saveTenderWatch, searchCoverage, seedDossier, setNoticeDecision, watchFingerprint, watchQuery,
 } from '../../src/anbud/model';
 import { mergeAiFit, scoreNoticeFit, watchSearchTerms } from '../../src/anbud/matchFit';
 import { geocodeMissing } from '../../src/anbud/geocodePlace';
@@ -15,7 +15,7 @@ import { geocodeQuery, locateNotice, mapFollowsList, mapPinsForNotices, noticePl
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../src/anbud/desk';
 import { sendTenderAlert } from '../../src/anbud/doffinClient';
-import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { loadAnbudState, readCachedAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { SIDE_WIDTH_KEY, PHONE_PREVIEW_MAP_HEIGHT, clampSideWidth, mapHeightForRail, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
@@ -178,6 +178,8 @@ export default function TenderAlert({
   const phone = cssPhone || width < BREAKPOINTS.tablet;
   const [state, setState] = useState(emptyAnbudState());
   const [ready, setReady] = useState(false);
+  // Forrige treff vises fra lokal kopi med en gang. Lagring, søk og e-post venter til skyen er lest.
+  const [cloudLoaded, setCloudLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState('');
   const [syncing, setSyncing] = useState(false);
@@ -257,9 +259,9 @@ export default function TenderAlert({
     let live = true;
     const gen = ++loadGen.current;
     setReady(false);
+    setCloudLoaded(false);
     setLoadFailed(false);
-    loadAnbudState(company?.id).then((loaded) => {
-      if (!live || gen !== loadGen.current) return;
+    const apply = (loaded) => {
       const watch = loaded.watch || {};
       const codes = [...(company?.cpvCodes || []), ...(watch.cpvCodes || [])];
       setSelectedCpv(new Set(codes.map((row) => normalizeCpvCode(typeof row === 'string' ? row : row?.code)).filter(Boolean)));
@@ -271,8 +273,25 @@ export default function TenderAlert({
       setNotify(watch.notify || { push: true, varsel: true, email: false });
       setEmails(watch.emails || []);
       setKeywords(watch.keywords || []);
+      stateRef.current = loaded;
       setState(loaded);
       setReady(true);
+    };
+    let cloudDone = false;
+    let shown = null;
+    readCachedAnbudState(company?.id).then((cached) => {
+      if (!live || gen !== loadGen.current || cloudDone) return;
+      if (!(cached.notices || []).length && !cached.watch?.savedAt) return;
+      shown = cached;
+      apply(cached);
+    }).catch(() => {});
+    loadAnbudState(company?.id).then((loaded) => {
+      cloudDone = true;
+      if (!live || gen !== loadGen.current) return;
+      // Ble noe endret mens skyen ble lest (f.eks. et treff merket), tas endringen med.
+      const touched = shown && stateRef.current !== shown;
+      apply(touched ? mergeAnbudStates(loaded, stateRef.current) : loaded);
+      setCloudLoaded(true);
     }).catch(() => {
       if (!live || gen !== loadGen.current) return;
       setError('Kunne ikke laste anbudsvarslingen.');
@@ -282,7 +301,7 @@ export default function TenderAlert({
   }, [company?.id]);
 
   useEffect(() => {
-    if (!ready) return undefined;
+    if (!ready || !cloudLoaded) return undefined;
     let live = true;
     saveAnbudState(state, company?.id).then(() => {
       if (!live) return;
@@ -291,10 +310,10 @@ export default function TenderAlert({
       if (live) setError('Kunne ikke lagre varslingen.');
     });
     return () => { live = false; };
-  }, [state, ready, company?.id]);
+  }, [state, ready, cloudLoaded, company?.id]);
 
   useEffect(() => {
-    if (!ready || !digestDue(state.watch)) return undefined;
+    if (!cloudLoaded || !digestDue(state.watch)) return undefined;
     const notices = digestSelection(state.notices);
     if (!notices.length) return undefined;
     let live = true;
@@ -309,7 +328,7 @@ export default function TenderAlert({
       commitState(stampDigest(stateRef.current));
     }).catch(() => {});
     return () => { live = false; };
-  }, [ready, company?.id, state.watch?.digestAt, state.watch?.notify?.email]);
+  }, [cloudLoaded, company?.id, state.watch?.digestAt, state.watch?.notify?.email]);
 
   useEffect(() => {
     const orgnr = company?.orgnr;
@@ -324,7 +343,8 @@ export default function TenderAlert({
   }, [company?.orgnr]);
 
   useEffect(() => {
-    if (!ready) return undefined;
+    // Siste søketidspunkt kommer fra skyen. Med bare lokal kopi kunne den søkt på nytt unødig.
+    if (!cloudLoaded) return undefined;
     const hasSignal = selectedCpv.size > 0
       || (state.watch.cpvCodes || []).length > 0
       || keywords.length > 0
@@ -336,7 +356,7 @@ export default function TenderAlert({
       if (watchRefreshDue(stateRef.current)) refreshRef.current(stateRef.current);
     }, WATCH_REFRESH_MS);
     return () => clearInterval(timer);
-  }, [ready]);
+  }, [cloudLoaded]);
 
   useEffect(() => {
     onBids?.(state.bids || []);

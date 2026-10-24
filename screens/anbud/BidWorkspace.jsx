@@ -71,14 +71,25 @@ import {
   officialNoticeUrl,
   sourceLabel,
 } from '../../src/anbud/noticeText';
-import { deadlineCountdown, fileTypeLabel, groundFileTree } from '../../src/anbud/bidOverview';
+import { deadlineCountdown, fileTypeLabel, groundFileTree, workProgress } from '../../src/anbud/bidOverview';
+import { noticeMapScope, noticePlaceBucket } from '../../src/anbud/noticePlace';
 import { pickDocument } from '../../src/utils/media';
 import { processStepsForBid } from '../../src/anbud/processTrail';
 import { bidCanLeaveDesk, bidCanReturnToReview } from '../../src/anbud/model';
 import FormAnswer from './FormAnswer';
 import ProcessTrail from './ProcessTrail';
+import BidOverview from './BidOverview';
 import BidSymbolButton from './BidSymbolButton';
 import ReviewNotes from './ReviewNotes';
+
+const TABS = [
+  { id: 'oversikt', label: 'Oversikt', icon: 'grid-outline' },
+  ...BID_STEPS.map((row) => ({
+    ...row,
+    label: row.label.replace(/^\d+\s*/, ''),
+    icon: { grunnlag: 'folder-open-outline', qa: 'chatbubbles-outline', arbeid: 'document-text-outline' }[row.id],
+  })),
+];
 
 const FILE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,application/pdf,image/*';
 
@@ -158,7 +169,7 @@ export default function BidWorkspace({
   members = [], units = [], companies = [],
   onReturnToReview, onMarkUaktuell,
 }) {
-  const [step, setStep] = useState('grunnlag');
+  const [step, setStep] = useState('oversikt');
   const [folderId, setFolderId] = useState(null);
   const [folderName, setFolderName] = useState('');
   const [renameValue, setRenameValue] = useState('');
@@ -388,9 +399,22 @@ export default function BidWorkspace({
     qa: (dossier.qa?.length || 0) + (bid.questions?.length || 0),
     arbeid: bid.workItems?.length || 0,
   };
+  const manual = !bid.noticeId;
+  // Ukjent sted skal ikke se ut som «Hele Norge».
+  const placeBucket = notice ? noticePlaceBucket(notice) : 'miss';
+  const place = placeBucket === 'miss'
+    ? (Array.isArray(dossier.places) ? dossier.places.filter(Boolean).join(', ') : '')
+    : noticeMapScope(notice).label;
+  const reference = dossier.reference || bid.noticeId || '';
+  const groundGroups = groundFileTree(filesInFolder(bid.files, GROUND_FOLDER_ID));
+  const overviewFiles = [
+    ...groundGroups.flatMap((group) => group.files),
+    ...filesInFolder(bid.files, GROUND_ATTACH_FOLDER_ID),
+  ];
+  const narrow = step === 'oversikt' ? null : styles.narrow;
 
   return (
-    <View style={{ gap: 16 }}>
+    <View style={styles.page}>
       <View style={[styles.hero, { borderColor: colors.line, backgroundColor: colors.card }]}>
       <View style={styles.heroTop}>
         <TouchableOpacity onPress={onBack} accessibilityRole="button" style={styles.back}>
@@ -433,27 +457,36 @@ export default function BidWorkspace({
         />
         </View>
       </View>
-      <View style={{ gap: 6 }}>
-        <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
-        <View style={styles.row}>
-          <Text style={{ color: colors.ink, fontWeight: '500' }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
-          <Pill text={STAGE_LABELS[stage] || 'Planlegging'} color={colors.brand} background={colors.brandSoft} />
-          <Pill text={source} color={colors.muted} background={colors.sunken} />
-          {assignee ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ansvarlig: {assignee}</Text> : null}
+      <View style={styles.heroBody}>
+        <View style={styles.heroText}>
+          <View style={styles.row}>
+            <Pill text={manual ? 'Direkte forespørsel' : 'Offentlig anbud'} color={colors.brand} background={colors.brandSoft} />
+            <Pill text={STAGE_LABELS[stage] || 'Planlegging'} color={colors.muted} background={colors.sunken} />
+          </View>
+          <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
+          <View style={styles.meta}>
+            <Meta icon="business-outline" text={bid.buyer || 'Oppdragsgiver ikke oppgitt'} colors={colors} />
+            {place ? <Meta icon="location-outline" text={place} colors={colors} /> : null}
+            {reference ? <Meta icon="document-text-outline" text={reference} colors={colors} /> : null}
+            {assignee ? <Meta icon="person-outline" text={assignee} colors={colors} /> : null}
+          </View>
         </View>
+        {noticeUrl ? (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(noticeUrl)}
+            accessibilityRole="link"
+            style={[styles.heroLink, { borderColor: colors.brand, backgroundColor: colors.card }]}
+          >
+            <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne på {source}</Text>
+            <Ionicons name="open-outline" size={15} color={colors.brand} />
+          </TouchableOpacity>
+        ) : null}
       </View>
-      <DeadlineTiles
-        colors={colors}
-        rows={[
-          { id: 'qa', label: 'Frist for spørsmål', icon: 'chatbubbles-outline', value: dossier.questionDeadline },
-          { id: 'tilbud', label: 'Tilbudsfrist', icon: 'flag-outline', value: dossier.submissionDeadline || bid.deadline, main: true },
-        ]}
-      />
       <ProcessTrail colors={colors} steps={processStepsForBid(bid, notice)} />
       </View>
       <View style={styles.column}>
-      <View style={[styles.tabs, { backgroundColor: colors.sunken }]} accessibilityRole="tablist">
-        {BID_STEPS.map((item, index) => {
+      <View style={[styles.tabs, { borderColor: colors.line }]} accessibilityRole="tablist">
+        {TABS.map((item) => {
           const on = step === item.id;
           return (
             <TouchableOpacity
@@ -461,53 +494,24 @@ export default function BidWorkspace({
               onPress={() => goStep(item.id)}
               accessibilityRole="tab"
               accessibilityState={{ selected: on }}
-              style={[styles.tab, on ? [styles.tabOn, { backgroundColor: colors.card }] : null]}
+              style={[styles.tab, { borderColor: on ? colors.brand : 'transparent' }]}
             >
-              <View style={[styles.tabNo, { backgroundColor: on ? colors.brand : colors.card, borderColor: on ? colors.brand : colors.line }]}>
-                <Text style={{ color: on ? '#fff' : colors.muted, fontSize: 12, fontWeight: '700' }}>{index + 1}</Text>
-              </View>
-              <Text style={{ color: on ? colors.ink : colors.muted, fontWeight: on ? '700' : '500', fontSize: 14 }}>
-                {item.label.replace(/^\d+\s*/, '')}
+              <Ionicons name={item.icon} size={17} color={on ? colors.brand : colors.muted} />
+              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '700' : '500', fontSize: 14 }}>
+                {item.label}
               </Text>
               {stepCounts[item.id] ? (
-                <Text style={{ color: on ? colors.brand : colors.muted, fontSize: 12, fontWeight: '600' }}>{stepCounts[item.id]}</Text>
+                <View style={[styles.tabCount, { backgroundColor: on ? colors.brandSoft : colors.sunken }]}>
+                  <Text style={{ color: on ? colors.brand : colors.muted, fontSize: 12, fontWeight: '600' }}>{stepCounts[item.id]}</Text>
+                </View>
               ) : null}
             </TouchableOpacity>
           );
         })}
       </View>
-      <StepInfo
-        step={step}
-        bid={bid}
-        dossier={dossier}
-        stage={stage}
-        colors={colors}
-        noticeUrl={noticeUrl}
-        source={source}
-      />
-      <BidCollab
-        bid={bid}
-        state={state}
-        notice={notice}
-        colors={colors}
-        members={members}
-        onCommit={commit}
-      />
-      {bid.reviewNotes?.length ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <ReviewNotes
-            notes={bid.reviewNotes || []}
-            colors={colors}
-            heading="Notater fra vurderingen"
-            hint="Notatene fulgte med fra vurderingen og kan fortsatt endres her."
-            onSave={locked ? undefined : (notes) => commit(saveBidReviewNotes(state, bid.id, notes))}
-            onDelete={locked ? undefined : (notes) => commit(saveBidReviewNotes(state, bid.id, notes))}
-          />
-        </View>
-      ) : null}
-      {!!message && <Text style={{ color: colors.brand }}>{message}</Text>}
+      {!!message && <Text style={[narrow, { color: colors.brand }]}>{message}</Text>}
       {settingsOpen ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, gap: 10 }]}>
+        <View style={[styles.card, styles.narrow, { borderColor: colors.line, backgroundColor: colors.card, gap: 10 }]}>
           <Text style={{ color: colors.ink, fontWeight: '600' }}>Innstillinger for tilbudsarbeidet</Text>
           <TextInput
             value={metaTitle}
@@ -554,9 +558,63 @@ export default function BidWorkspace({
           />
         </View>
       ) : null}
+      {step === 'oversikt' ? (
+        <BidOverview
+          bid={bid}
+          dossier={dossier}
+          notice={notice}
+          colors={colors}
+          noticeUrl={noticeUrl}
+          source={source}
+          place={place}
+          groundFiles={overviewFiles}
+          busy={busy}
+          aiBusy={aiBusy}
+          onRefresh={onRefresh}
+          onGoStep={goStep}
+          onSuggest={async () => {
+            await runStepAi('arbeid');
+            setStep('arbeid');
+          }}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      ) : (
+        <View style={[styles.narrow, { gap: 10 }]}>
+          <DeadlineTiles
+            colors={colors}
+            rows={[
+              { id: 'qa', label: 'Frist for spørsmål', icon: 'chatbubbles-outline', value: dossier.questionDeadline },
+              { id: 'tilbud', label: 'Tilbudsfrist', icon: 'flag-outline', value: dossier.submissionDeadline || bid.deadline, main: true },
+            ]}
+          />
+          <StepInfo step={step} bid={bid} dossier={dossier} stage={stage} colors={colors} />
+        </View>
+      )}
+      <View style={narrow}>
+        <BidCollab
+          bid={bid}
+          state={state}
+          notice={notice}
+          colors={colors}
+          members={members}
+          onCommit={commit}
+        />
+      </View>
+      {bid.reviewNotes?.length ? (
+        <View style={[styles.card, narrow, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <ReviewNotes
+            notes={bid.reviewNotes || []}
+            colors={colors}
+            heading="Notater fra vurderingen"
+            hint="Notatene fulgte med fra vurderingen og kan fortsatt endres her."
+            onSave={locked ? undefined : (notes) => commit(saveBidReviewNotes(state, bid.id, notes))}
+            onDelete={locked ? undefined : (notes) => commit(saveBidReviewNotes(state, bid.id, notes))}
+          />
+        </View>
+      ) : null}
 
       {step === 'grunnlag' ? (
-        <View style={{ gap: 14 }}>
+        <View style={[styles.narrow, { gap: 14 }]}>
           <Section title="Dokumenter" icon="documents-outline" colors={colors} well>
             {dossier.description ? <FoldedText text={formatNoticeText(dossier.description)} colors={colors} /> : null}
             <View style={styles.row}>
@@ -602,7 +660,7 @@ export default function BidWorkspace({
             ) : null}
             <FileTree
               root="Konkurransegrunnlag"
-              groups={groundFileTree(filesInFolder(bid.files, GROUND_FOLDER_ID))}
+              groups={groundGroups}
               ownFiles={filesInFolder(bid.files, GROUND_ATTACH_FOLDER_ID)}
               colors={colors}
               openFileId={openFileId}
@@ -651,7 +709,7 @@ export default function BidWorkspace({
       ) : null}
 
       {step === 'qa' ? (
-        <View style={{ gap: 14 }}>
+        <View style={[styles.narrow, { gap: 14 }]}>
           <Section title="Innhold og filer" icon="chatbubbles-outline" colors={colors} well>
             <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
               <Text style={{ color: colors.brand }}>{busy ? 'Henter …' : 'Hent publiserte svar på nytt'}</Text>
@@ -757,7 +815,7 @@ export default function BidWorkspace({
       ) : null}
 
       {step === 'arbeid' ? (
-        <View style={{ gap: 14 }}>
+        <View style={[styles.narrow, { gap: 14 }]}>
           <Section title="Hva som skal leveres" icon="checkbox-outline" colors={colors} well>
             <Text style={{ color: colors.muted }}>
               AI og OCR leser konkurransegrunnlaget og foreslår leveranser. Forslag vises her før du importerer dem.
@@ -1235,7 +1293,7 @@ function ExpandSection({ title, items, colors, expandedId, onToggle, empty, show
   );
 }
 
-function StepInfo({ step, bid, dossier, stage, colors, noticeUrl, source }) {
+function StepInfo({ step, bid, dossier, stage, colors }) {
   const publishedQa = Array.isArray(dossier?.qa) ? dossier.qa.length : 0;
   const ownQuestions = Array.isArray(bid?.questions) ? bid.questions.length : 0;
   let facts = [];
@@ -1246,10 +1304,10 @@ function StepInfo({ step, bid, dossier, stage, colors, noticeUrl, source }) {
     ];
   } else if (step === 'arbeid') {
     const closed = stage === 'levert' || stage === 'kontrakt' || stage === 'tapt' || stage === 'trukket';
-    const done = (bid?.workItems || []).filter((row) => row.status === 'ferdig').length;
+    const progress = workProgress(bid);
     facts = [
       closed ? 'Tilbudet er avsluttet' : 'Tilbudet er under arbeid',
-      bid?.workItems?.length ? `${done} av ${bid.workItems.length} sjekkpunkt ferdig` : '',
+      progress.items ? `${progress.done} av ${progress.items} sjekkpunkt ferdig` : '',
     ];
   } else {
     const access = {
@@ -1264,7 +1322,7 @@ function StepInfo({ step, bid, dossier, stage, colors, noticeUrl, source }) {
     ];
   }
   facts = facts.filter(Boolean);
-  if (!facts.length && !noticeUrl) return null;
+  if (!facts.length) return null;
   return (
     <View style={[styles.facts, { borderColor: colors.line, backgroundColor: colors.card }]}>
       {facts.map((fact, index) => (
@@ -1272,12 +1330,6 @@ function StepInfo({ step, bid, dossier, stage, colors, noticeUrl, source }) {
           {index ? '· ' : ''}{fact}
         </Text>
       ))}
-      {noticeUrl ? (
-        <TouchableOpacity onPress={() => Linking.openURL(noticeUrl)} accessibilityRole="link" style={styles.inlineLink}>
-          <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Åpne på {source}</Text>
-          <Ionicons name="open-outline" size={13} color={colors.brand} />
-        </TouchableOpacity>
-      ) : null}
     </View>
   );
 }
@@ -1319,6 +1371,15 @@ function DeadlineTiles({ rows, colors }) {
           </View>
         );
       })}
+    </View>
+  );
+}
+
+function Meta({ icon, text, colors }) {
+  return (
+    <View style={styles.metaItem}>
+      <Ionicons name={icon} size={16} color={colors.muted} />
+      <Text style={{ color: colors.ink, fontSize: 14 }} numberOfLines={1}>{text}</Text>
     </View>
   );
 }
@@ -1768,10 +1829,17 @@ function FoldedText({ text, colors, limit = 280 }) {
 }
 
 const styles = StyleSheet.create({
-  h: { fontSize: 22, fontWeight: '600' },
+  page: { gap: 16, width: '100%', maxWidth: 1240 },
+  h: { fontSize: 26, fontWeight: '700', lineHeight: 32 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  column: { width: '100%', maxWidth: 920, alignSelf: 'flex-start', gap: 14 },
-  hero: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14, width: '100%', maxWidth: 920 },
+  column: { width: '100%', gap: 14 },
+  narrow: { width: '100%', maxWidth: 920, alignSelf: 'flex-start' },
+  hero: { borderWidth: 1, borderRadius: 16, padding: 20, gap: 16, width: '100%' },
+  heroBody: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  heroText: { flexGrow: 1, flexShrink: 1, flexBasis: 320, gap: 8 },
+  heroLink: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  meta: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 20, rowGap: 6 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' },
   heroTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 4 },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
@@ -1779,12 +1847,10 @@ const styles = StyleSheet.create({
   tile: { flexGrow: 1, flexBasis: 220, borderWidth: 1, borderLeftWidth: 5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 2 },
   tileHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tileCount: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, padding: 4, borderRadius: 12, alignSelf: 'flex-start' },
-  tab: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9 },
-  tabOn: { shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-  tabNo: { width: 22, height: 22, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 4, borderBottomWidth: 1 },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 2, marginBottom: -1 },
+  tabCount: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
-  inlineLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   tree: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },

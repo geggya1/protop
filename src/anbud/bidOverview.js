@@ -110,3 +110,178 @@ export function fileTypeLabel(file) {
   if (mime.startsWith('text/')) return 'TXT';
   return 'FIL';
 }
+
+const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
+const MONTHS_SHORT = ['jan.', 'feb.', 'mars', 'apr.', 'mai', 'juni', 'juli', 'aug.', 'sep.', 'okt.', 'nov.', 'des.'];
+
+/** «14. okt. 2026». Ukjent format vises som det er. */
+export function shortDate(value) {
+  const date = parseDeadline(value);
+  if (!date) return String(value || '');
+  return `${date.getDate()}. ${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+/** «9. november 2026 kl. 11:00». */
+export function longDate(value) {
+  const date = parseDeadline(value);
+  if (!date) return String(value || '');
+  const time = date.getHours() || date.getMinutes() ? ` kl. ${pad(date.getHours())}:${pad(date.getMinutes())}` : '';
+  return `${date.getDate()}. ${MONTHS[date.getMonth()]} ${date.getFullYear()}${time}`;
+}
+
+/** Nedtelling til fristen i dager, timer, minutter og sekunder. */
+export function countdownParts(value, now = new Date()) {
+  const date = parseDeadline(value);
+  if (!date) return { ok: false, passed: false, days: 0, hours: 0, minutes: 0, seconds: 0, dateLabel: '' };
+  const total = Math.max(0, Math.floor((date.getTime() - now.getTime()) / 1000));
+  return {
+    ok: true,
+    passed: total === 0,
+    days: Math.floor(total / 86400),
+    hours: Math.floor((total % 86400) / 3600),
+    minutes: Math.floor((total % 3600) / 60),
+    seconds: total % 60,
+    dateLabel: longDate(value),
+  };
+}
+
+const OUTCOME = { kontrakt: 'Vunnet', tapt: 'Tapt', trukket: 'Trukket' };
+
+/**
+ * Konkurransens kalender: kunngjøring → spørsmålsfrist → tilbudsfrist → tildeling.
+ * state: done (passert), current (neste som skjer), todo.
+ */
+export function competitionTimeline({ bid, dossier, notice } = {}, now = new Date()) {
+  const stage = bid?.stage || '';
+  const delivered = !!bid?.submittedAt || stage === 'levert' || stage === 'kontrakt';
+  const manual = !bid?.noticeId;
+  const passed = (value) => {
+    const date = parseDeadline(value);
+    return !!date && date.getTime() <= now.getTime();
+  };
+  const published = dossier?.published || notice?.publishedAt || '';
+  const opened = manual ? (bid?.createdAt || '') : published;
+  const submission = dossier?.submissionDeadline || bid?.deadline || '';
+  const rows = [
+    {
+      id: 'kunngjort',
+      label: manual ? 'Forespørsel' : 'Kunngjøring',
+      value: opened,
+      done: true,
+    },
+    {
+      id: 'sporsmal',
+      label: 'Spørsmålsfrist',
+      value: dossier?.questionDeadline || '',
+      done: passed(dossier?.questionDeadline),
+      deadline: true,
+    },
+    {
+      id: 'tilbud',
+      label: 'Tilbudsfrist',
+      value: submission,
+      done: delivered || passed(submission),
+      note: delivered ? 'Levert' : '',
+      deadline: true,
+    },
+    {
+      id: 'tildeling',
+      label: 'Tildeling',
+      value: OUTCOME[stage] ? (bid?.closedAt || '') : '',
+      done: !!OUTCOME[stage],
+      note: OUTCOME[stage] || '',
+    },
+  ];
+  // Et steg uten dato er passert når et senere steg er det.
+  for (let index = rows.length - 2; index >= 0; index -= 1) {
+    if (rows[index + 1].done) rows[index].done = true;
+  }
+  const next = rows.findIndex((row) => !row.done);
+  return rows.map(({ value, deadline, ...row }, index) => ({
+    ...row,
+    when: value ? shortDate(value) : (deadline ? 'Ikke oppgitt' : (row.done ? '' : 'Venter')),
+    state: row.done ? 'done' : (index === next ? 'current' : 'todo'),
+  }));
+}
+
+const WORK_DONE = new Set(['klart', 'levert']);
+
+/** Hvor langt tilbudet er kommet: sjekkpunkt, skjema og forslag som venter. */
+export function workProgress(bid) {
+  const items = Array.isArray(bid?.workItems) ? bid.workItems : [];
+  const forms = Array.isArray(bid?.forms) ? bid.forms : [];
+  return {
+    items: items.length,
+    done: items.filter((row) => WORK_DONE.has(row.status)).length,
+    forms: forms.length,
+    formsDone: forms.filter((row) => row.status === 'ferdig').length,
+    pending: Array.isArray(bid?.pendingWorkItems) ? bid.pendingWorkItems.length : 0,
+    started: items.length + forms.length > 0,
+  };
+}
+
+/**
+ * Publiserte og egne spørsmål i én liste, nummerert i rekkefølge.
+ * latest: de tre siste, nyeste først.
+ */
+export function qaOverview(dossier, bid) {
+  const published = (Array.isArray(dossier?.qa) ? dossier.qa : []).map((row, index) => ({
+    id: row.id || `publisert-${index}`,
+    question: String(row.question || ''),
+    answered: !!String(row.answer || '').trim(),
+    when: row.published ? shortDate(row.published) : '',
+    own: false,
+  }));
+  const own = (Array.isArray(bid?.questions) ? bid.questions : []).map((row) => ({
+    id: row.id,
+    question: String(row.question || ''),
+    answered: !!String(row.answer || '').trim(),
+    when: row.createdAt ? shortDate(row.createdAt) : '',
+    own: true,
+  }));
+  const all = [...published, ...own].map((row, index) => ({ ...row, no: index + 1 }));
+  return {
+    total: all.length,
+    answered: all.filter((row) => row.answered).length,
+    latest: all.slice(-3).reverse(),
+  };
+}
+
+export function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  const first = parts[0][0] || '';
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return `${first}${last}`.toUpperCase();
+}
+
+function countLabel(count, one, many) {
+  return count === 1 ? `1 ${one}` : `${count} ${many}`;
+}
+
+/** Hvem som er med: ansvarlig først, så eiere av sjekkpunkt og oppgaver. */
+export function bidTeam(bid) {
+  const people = new Map();
+  function add(id, name, kind) {
+    const label = String(name || '').trim();
+    if (!label) return;
+    const key = String(id || '').trim() || label.toLowerCase();
+    if (!people.has(key)) people.set(key, { id: key, name: label, lead: false, items: 0, tasks: 0 });
+    const row = people.get(key);
+    if (kind === 'lead') row.lead = true;
+    else row[kind] += 1;
+  }
+  add(bid?.assignment?.personId, bid?.assignment?.personName, 'lead');
+  for (const item of bid?.workItems || []) add(item.ownerId, item.ownerName, 'items');
+  for (const task of bid?.tasks || []) add(task.ownerId, task.ownerName, 'tasks');
+  return [...people.values()].map((row) => ({
+    id: row.id,
+    name: row.name,
+    initials: initials(row.name),
+    role: [
+      row.lead ? 'Ansvarlig' : '',
+      row.items ? countLabel(row.items, 'sjekkpunkt', 'sjekkpunkt') : '',
+      row.tasks ? countLabel(row.tasks, 'oppgave', 'oppgaver') : '',
+    ].filter(Boolean).join(' · '),
+  }));
+}

@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import BidCollab from './BidCollab';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
@@ -66,11 +67,11 @@ import {
   toggleStrategy,
 } from '../../src/anbud/lifecycle';
 import {
-  deadlineInfo,
   formatNoticeText,
   officialNoticeUrl,
   sourceLabel,
 } from '../../src/anbud/noticeText';
+import { deadlineCountdown, fileTypeLabel, groundFileTree } from '../../src/anbud/bidOverview';
 import { pickDocument } from '../../src/utils/media';
 import { processStepsForBid } from '../../src/anbud/processTrail';
 import { bidCanLeaveDesk, bidCanReturnToReview } from '../../src/anbud/model';
@@ -208,7 +209,6 @@ export default function BidWorkspace({
   const strategyLocked = locked || stage === 'levert';
   const folder = folderId ? bid.folders.find((row) => row.id === folderId) : null;
   const message = localNote || note;
-  const deadline = deadlineInfo(dossier.submissionDeadline || bid.deadline);
   const notice = (state?.notices || []).find((row) => row.id === bid.noticeId) || null;
   const noticeUrl = officialNoticeUrl({
     ...(notice || {}),
@@ -382,12 +382,22 @@ export default function BidWorkspace({
     ...filesInFolder(bid.files, QA_ATTACH_FOLDER_ID),
   ];
 
+  const assignee = [bid.assignment?.personName, bid.assignment?.unitName].filter(Boolean).join(' · ');
+  const stepCounts = {
+    grunnlag: groundFiles.length,
+    qa: (dossier.qa?.length || 0) + (bid.questions?.length || 0),
+    arbeid: bid.workItems?.length || 0,
+  };
+
   return (
-    <View style={{ gap: 14 }}>
-      <View style={styles.row}>
-        <TouchableOpacity onPress={onBack} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>Alle tilbud</Text>
+    <View style={{ gap: 16 }}>
+      <View style={[styles.hero, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View style={styles.heroTop}>
+        <TouchableOpacity onPress={onBack} accessibilityRole="button" style={styles.back}>
+          <Ionicons name="chevron-back" size={16} color={colors.brand} />
+          <Text style={{ color: colors.brand, fontWeight: '600' }}>Alle tilbud</Text>
         </TouchableOpacity>
+        <View style={styles.row}>
         {bidCanReturnToReview(bid) ? (
           <BidSymbolButton
             icon="arrow-undo-outline"
@@ -412,34 +422,56 @@ export default function BidWorkspace({
             disabled={busy}
           />
         ) : null}
-        <TouchableOpacity onPress={() => setSettingsOpen((value) => !value)} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>{settingsOpen ? 'Skjul innstillinger' : 'Innstillinger'}</Text>
-        </TouchableOpacity>
+        <BidSymbolButton
+          icon={settingsOpen ? 'settings' : 'settings-outline'}
+          tip={settingsOpen ? 'Skjul innstillinger' : 'Innstillinger'}
+          label={settingsOpen ? 'Skjul innstillinger' : 'Innstillinger'}
+          color={colors.brand}
+          backgroundColor={settingsOpen ? colors.brandSoft : colors.card}
+          borderColor={colors.brand}
+          onPress={() => setSettingsOpen((value) => !value)}
+        />
+        </View>
       </View>
-      <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
-      <Text style={{ color: colors.ink }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.h, { color: colors.ink }]}>{bid.title}</Text>
+        <View style={styles.row}>
+          <Text style={{ color: colors.ink, fontWeight: '500' }}>{bid.buyer || 'Oppdragsgiver ikke oppgitt'}</Text>
+          <Pill text={STAGE_LABELS[stage] || 'Planlegging'} color={colors.brand} background={colors.brandSoft} />
+          <Pill text={source} color={colors.muted} background={colors.sunken} />
+          {assignee ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ansvarlig: {assignee}</Text> : null}
+        </View>
+      </View>
+      <DeadlineTiles
+        colors={colors}
+        rows={[
+          { id: 'qa', label: 'Frist for spørsmål', icon: 'chatbubbles-outline', value: dossier.questionDeadline },
+          { id: 'tilbud', label: 'Tilbudsfrist', icon: 'flag-outline', value: dossier.submissionDeadline || bid.deadline, main: true },
+        ]}
+      />
       <ProcessTrail colors={colors} steps={processStepsForBid(bid, notice)} />
+      </View>
       <View style={styles.column}>
-      <View style={styles.tabs}>
-        {BID_STEPS.map((item) => {
+      <View style={[styles.tabs, { backgroundColor: colors.sunken }]} accessibilityRole="tablist">
+        {BID_STEPS.map((item, index) => {
           const on = step === item.id;
           return (
             <TouchableOpacity
               key={item.id}
               onPress={() => goStep(item.id)}
-              accessibilityRole="button"
+              accessibilityRole="tab"
               accessibilityState={{ selected: on }}
-              style={[
-                styles.tab,
-                {
-                  borderColor: on ? colors.brand : colors.line,
-                  backgroundColor: on ? colors.brandSoft : colors.card,
-                },
-              ]}
+              style={[styles.tab, on ? [styles.tabOn, { backgroundColor: colors.card }] : null]}
             >
-              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '700' : '500', fontSize: 13 }}>
-                {item.label}
+              <View style={[styles.tabNo, { backgroundColor: on ? colors.brand : colors.card, borderColor: on ? colors.brand : colors.line }]}>
+                <Text style={{ color: on ? '#fff' : colors.muted, fontSize: 12, fontWeight: '700' }}>{index + 1}</Text>
+              </View>
+              <Text style={{ color: on ? colors.ink : colors.muted, fontWeight: on ? '700' : '500', fontSize: 14 }}>
+                {item.label.replace(/^\d+\s*/, '')}
               </Text>
+              {stepCounts[item.id] ? (
+                <Text style={{ color: on ? colors.brand : colors.muted, fontSize: 12, fontWeight: '600' }}>{stepCounts[item.id]}</Text>
+              ) : null}
             </TouchableOpacity>
           );
         })}
@@ -448,7 +480,6 @@ export default function BidWorkspace({
         step={step}
         bid={bid}
         dossier={dossier}
-        deadline={deadline}
         stage={stage}
         colors={colors}
         noticeUrl={noticeUrl}
@@ -526,10 +557,7 @@ export default function BidWorkspace({
 
       {step === 'grunnlag' ? (
         <View style={{ gap: 14 }}>
-          <Section title="Seksjon 1 · Dokumenter" colors={colors} well>
-            <Line label="Tilbudsfrist" value={dossier.submissionDeadline} colors={colors} />
-            <Line label="Frist for spørsmål" value={dossier.questionDeadline} colors={colors} />
-            <Line label="Prosedyre" value={dossier.procedure} colors={colors} />
+          <Section title="Dokumenter" icon="documents-outline" colors={colors} well>
             {dossier.description ? <FoldedText text={formatNoticeText(dossier.description)} colors={colors} /> : null}
             <View style={styles.row}>
               <TouchableOpacity
@@ -572,34 +600,29 @@ export default function BidWorkspace({
                 ))}
               </View>
             ) : null}
-            <FileList
-              files={filesInFolder(bid.files, GROUND_FOLDER_ID)}
-              colors={colors}
-              openFileId={openFileId}
-              onOpen={setOpenFileId}
-            />
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>Egne vedlegg</Text>
-            <DropUpload
-              colors={colors}
-              dragOver={dragOver}
-              setDragOver={setDragOver}
-              uploading={uploading}
-              onPick={() => pickAndUpload(GROUND_ATTACH_FOLDER_ID)}
-              onFiles={(files) => uploadFiles(files, GROUND_ATTACH_FOLDER_ID)}
-            />
-            <FileList
-              files={filesInFolder(bid.files, GROUND_ATTACH_FOLDER_ID)}
+            <FileTree
+              root="Konkurransegrunnlag"
+              groups={groundFileTree(filesInFolder(bid.files, GROUND_FOLDER_ID))}
+              ownFiles={filesInFolder(bid.files, GROUND_ATTACH_FOLDER_ID)}
               colors={colors}
               openFileId={openFileId}
               onOpen={setOpenFileId}
               onDelete={(fileId) => commit(deleteBidFile(state, bid.id, fileId))}
               onRename={(fileId, name) => commit(renameBidFile(state, bid.id, fileId, name))}
+              upload={(
+                <DropUpload
+                  colors={colors}
+                  dragOver={dragOver}
+                  setDragOver={setDragOver}
+                  uploading={uploading}
+                  onPick={() => pickAndUpload(GROUND_ATTACH_FOLDER_ID)}
+                  onFiles={(files) => uploadFiles(files, GROUND_ATTACH_FOLDER_ID)}
+                  compact
+                />
+              )}
             />
-            {!groundFiles.length ? (
-              <Text style={{ color: colors.muted }}>Last inn konkurransegrunnlaget her. Filene vises i dette feltet.</Text>
-            ) : null}
           </Section>
-          <Section title="Seksjon 2 · AI-tolkning og oppsummering" colors={colors}>
+          <Section title="AI-tolkning og oppsummering" icon="sparkles-outline" colors={colors}>
             <Text style={{ color: colors.muted }}>
               AI leser dokumentene og lager en oppsummering av konkurransegrunnlaget.
             </Text>
@@ -629,7 +652,7 @@ export default function BidWorkspace({
 
       {step === 'qa' ? (
         <View style={{ gap: 14 }}>
-          <Section title="Seksjon 1 · Innhold og filer" colors={colors} well>
+          <Section title="Innhold og filer" icon="chatbubbles-outline" colors={colors} well>
             <TouchableOpacity onPress={onRefresh} accessibilityRole="button">
               <Text style={{ color: colors.brand }}>{busy ? 'Henter …' : 'Hent publiserte svar på nytt'}</Text>
             </TouchableOpacity>
@@ -705,7 +728,7 @@ export default function BidWorkspace({
               <Text style={{ color: colors.muted }}>Kunngjorte Q&A-filer vises her når de er hentet inn.</Text>
             ) : null}
           </Section>
-          <Section title="Seksjon 2 · AI-tolkning av betydning" colors={colors}>
+          <Section title="AI-tolkning av betydning" icon="sparkles-outline" colors={colors}>
             <Text style={{ color: colors.muted }}>
               AI leser spørsmål og svar og forklarer hva de betyr for tilbudet.
             </Text>
@@ -735,7 +758,7 @@ export default function BidWorkspace({
 
       {step === 'arbeid' ? (
         <View style={{ gap: 14 }}>
-          <Section title="Seksjon 1 · Hva som skal leveres" colors={colors} well>
+          <Section title="Hva som skal leveres" icon="checkbox-outline" colors={colors} well>
             <Text style={{ color: colors.muted }}>
               AI og OCR leser konkurransegrunnlaget og foreslår leveranser. Forslag vises her før du importerer dem.
             </Text>
@@ -848,7 +871,7 @@ export default function BidWorkspace({
               <Text style={{ color: '#fff' }}>Legg til</Text>
             </TouchableOpacity>
           </Section>
-          <Section title="Seksjon 2 · Krav og kriterier" colors={colors}>
+          <Section title="Krav og kriterier" icon="ribbon-outline" colors={colors}>
             <ExpandSection
               title="Kvalifikasjonskrav"
               items={interpretation.qualification || []}
@@ -1006,10 +1029,17 @@ export default function BidWorkspace({
   );
 }
 
-function Section({ title, colors, well, children }) {
+function Section({ title, icon, colors, well, children }) {
   return (
     <View style={[styles.section, well ? styles.well : styles.sectionCard, { borderColor: colors.line }]}>
-      <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>{title}</Text>
+      <View style={styles.sectionHead}>
+        {icon ? (
+          <View style={[styles.sectionIcon, { backgroundColor: colors.brandSoft }]}>
+            <Ionicons name={icon} size={16} color={colors.brand} />
+          </View>
+        ) : null}
+        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>{title}</Text>
+      </View>
       {children}
     </View>
   );
@@ -1017,7 +1047,7 @@ function Section({ title, colors, well, children }) {
 
 function NotesSection({ colors, value, onChange, onSave }) {
   return (
-    <Section title="Seksjon 3 · Egne notater" colors={colors}>
+    <Section title="Egne notater" icon="create-outline" colors={colors}>
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -1126,7 +1156,7 @@ function WorkItemCard({
   );
 }
 
-function DropUpload({ colors, dragOver, setDragOver, uploading, onPick, onFiles }) {
+function DropUpload({ colors, dragOver, setDragOver, uploading, onPick, onFiles, compact }) {
   const webHandlers = Platform.OS === 'web' ? {
     onDragEnter: (event) => {
       event.preventDefault?.();
@@ -1155,16 +1185,20 @@ function DropUpload({ colors, dragOver, setDragOver, uploading, onPick, onFiles 
       {...webHandlers}
       style={[
         styles.drop,
+        compact ? styles.dropCompact : null,
         {
           borderColor: dragOver ? colors.brand : colors.line,
           backgroundColor: dragOver ? colors.brandSoft : colors.bg,
         },
       ]}
     >
-      <Text style={{ color: colors.ink, fontWeight: '600' }}>
-        {uploading ? 'Laster opp …' : 'Dra og slipp filer her'}
-      </Text>
-      <Text style={{ color: colors.muted }}>eller velg fra PC (PDF, Word, Excel, bilder — inntil 25 MB)</Text>
+      {compact ? <Ionicons name="cloud-upload-outline" size={20} color={colors.brand} /> : null}
+      <View style={compact ? styles.grow : null}>
+        <Text style={{ color: colors.ink, fontWeight: '600' }}>
+          {uploading ? 'Laster opp …' : 'Dra og slipp filer her'}
+        </Text>
+        <Text style={{ color: colors.muted, fontSize: compact ? 12 : 14 }}>eller velg fra PC (PDF, Word, Excel, bilder — inntil 25 MB)</Text>
+      </View>
       <TouchableOpacity onPress={onPick} disabled={uploading} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand, opacity: uploading ? 0.7 : 1 }]}>
         <Text style={{ color: '#fff' }}>Velg filer</Text>
       </TouchableOpacity>
@@ -1201,85 +1235,241 @@ function ExpandSection({ title, items, colors, expandedId, onToggle, empty, show
   );
 }
 
-function StepInfo({ step, bid, dossier, deadline, stage, colors, noticeUrl, source }) {
-  const assignee = [bid?.assignment?.unitName, bid?.assignment?.personName].filter(Boolean).join(' · ');
-  const downloaded = (bid?.files || []).filter((row) => row.status === 'lastet').length;
+function StepInfo({ step, bid, dossier, stage, colors, noticeUrl, source }) {
   const publishedQa = Array.isArray(dossier?.qa) ? dossier.qa.length : 0;
   const ownQuestions = Array.isArray(bid?.questions) ? bid.questions.length : 0;
+  let facts = [];
   if (step === 'qa') {
-    return (
-      <View style={[styles.info, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>
-          {dossier?.questionDeadline ? `Frist for spørsmål ${dossier.questionDeadline}` : 'Ingen frist for spørsmål er oppgitt'}
-        </Text>
-        <Text style={{ color: colors.muted }}>
-          {publishedQa ? `${publishedQa} publiserte spørsmål og svar` : 'Ingen spørsmål og svar er publisert ennå'}
-          {ownQuestions ? ` · ${ownQuestions} egne spørsmål` : ''}
-        </Text>
-      </View>
-    );
-  }
-  if (step === 'arbeid') {
+    facts = [
+      publishedQa ? `${publishedQa} publiserte spørsmål og svar` : 'Ingen spørsmål og svar er publisert ennå',
+      ownQuestions ? `${ownQuestions} egne spørsmål` : '',
+    ];
+  } else if (step === 'arbeid') {
     const closed = stage === 'levert' || stage === 'kontrakt' || stage === 'tapt' || stage === 'trukket';
-    return (
-      <View style={{ gap: 8 }}>
-        <View style={[styles.info, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 16 }}>
-            {closed ? 'Tilbudet er avsluttet' : 'Tilbudet er under arbeid'}
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            {STAGE_LABELS[stage] || 'Planlegging'}
-            {assignee ? ` · ${assignee}` : ''}
-          </Text>
-        </View>
-        <DeadlineBanner deadline={deadline} colors={colors} compact />
-      </View>
-    );
+    const done = (bid?.workItems || []).filter((row) => row.status === 'ferdig').length;
+    facts = [
+      closed ? 'Tilbudet er avsluttet' : 'Tilbudet er under arbeid',
+      bid?.workItems?.length ? `${done} av ${bid.workItems.length} sjekkpunkt ferdig` : '',
+    ];
+  } else {
+    const access = {
+      public: 'Offentlig tilgang',
+      interest: 'Krever at interesse meldes',
+      login: 'Krever innlogging',
+    }[dossier?.ground?.access];
+    facts = [
+      dossier?.procedure ? `Prosedyre: ${dossier.procedure}` : '',
+      dossier?.ground?.portal || '',
+      access || '',
+    ];
   }
+  facts = facts.filter(Boolean);
+  if (!facts.length && !noticeUrl) return null;
   return (
-    <View style={{ gap: 8 }}>
-      <DeadlineBanner deadline={deadline} colors={colors} compact />
-      <View style={[styles.info, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        {dossier?.questionDeadline ? (
-          <Text style={{ color: colors.ink }}>Frist for spørsmål: {dossier.questionDeadline}</Text>
-        ) : null}
-        {dossier?.procedure ? <Text style={{ color: colors.ink }}>Prosedyre: {dossier.procedure}</Text> : null}
-        <Text style={{ color: colors.muted }}>
-          {`${downloaded} dokumenter lastet`}
-          {dossier?.ground?.portal ? ` · ${dossier.ground.portal}` : ''}
-          {dossier?.ground?.access === 'public' ? ' · offentlig tilgang' : ''}
-          {dossier?.ground?.access === 'interest' ? ' · krever at interesse meldes' : ''}
-          {dossier?.ground?.access === 'login' ? ' · krever innlogging' : ''}
-          {publishedQa ? ` · ${publishedQa} spørsmål og svar i grunnlaget` : ''}
+    <View style={[styles.facts, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      {facts.map((fact, index) => (
+        <Text key={fact} style={{ color: index ? colors.muted : colors.ink, fontSize: 13 }}>
+          {index ? '· ' : ''}{fact}
         </Text>
-        {noticeUrl ? (
-          <TouchableOpacity onPress={() => Linking.openURL(noticeUrl)} accessibilityRole="link">
-            <Text style={{ color: colors.brand }}>Åpne på {source}</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
+      ))}
+      {noticeUrl ? (
+        <TouchableOpacity onPress={() => Linking.openURL(noticeUrl)} accessibilityRole="link" style={styles.inlineLink}>
+          <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Åpne på {source}</Text>
+          <Ionicons name="open-outline" size={13} color={colors.brand} />
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
 
-function DeadlineBanner({ deadline, colors, compact }) {
-  const color = toneColor(deadline.tone, colors);
-  const urgent = deadline.tone === 'danger' || deadline.tone === 'warn';
+const TONE_BG = { danger: '#fef2f2', warn: '#fffbeb' };
+
+/** Store fristfelt: antall dager igjen er det første øyet ser. */
+function DeadlineTiles({ rows, colors }) {
   return (
-    <View
-      style={[compact ? styles.deadlineCompact : styles.deadlineBanner, {
-        borderColor: color,
-        backgroundColor: urgent ? colors.brandSoft : colors.card,
-      }]}
-      accessibilityRole="summary"
-      accessibilityLabel={`${deadline.headline}. ${deadline.detail}`}
-    >
-      <Text style={{ color, fontSize: compact ? 20 : 28, fontWeight: '700', lineHeight: compact ? 24 : 32 }}>{deadline.headline}</Text>
-      <Text style={{ color: colors.ink, fontSize: compact ? 13 : 15 }}>{deadline.detail}</Text>
-      {deadline.daysLeft != null && deadline.daysLeft >= 0 && deadline.daysLeft <= 7 ? (
-        <Text style={{ color, fontWeight: '600', fontSize: compact ? 12 : 14 }}>Fristen nærmer seg</Text>
+    <View style={styles.tiles}>
+      {rows.map((row) => {
+        const info = deadlineCountdown(row.value);
+        const color = info.tone === 'muted' ? colors.muted : toneColor(info.tone, colors);
+        const background = TONE_BG[info.tone] || (info.tone === 'brand' ? colors.brandSoft : colors.bg);
+        const spoken = info.ok
+          ? `${row.label}: ${info.unit ? `${info.big} ${info.unit}` : info.big}, ${info.dateLabel}`
+          : `${row.label} er ikke oppgitt`;
+        return (
+          <View
+            key={row.id}
+            accessibilityRole="summary"
+            accessibilityLabel={spoken}
+            style={[styles.tile, { borderColor: info.ok ? color : colors.line, backgroundColor: background }]}
+          >
+            <View style={styles.tileHead}>
+              <Ionicons name={row.icon} size={15} color={color} />
+              <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>{row.label}</Text>
+            </View>
+            <View style={styles.tileCount}>
+              <Text style={{ color, fontSize: info.unit ? 36 : 26, fontWeight: '800', lineHeight: 40 }}>{info.big}</Text>
+              {info.unit ? <Text style={{ color, fontSize: 15, fontWeight: '600' }}>{info.unit}</Text> : null}
+            </View>
+            <Text style={{ color: info.ok ? colors.ink : colors.muted, fontSize: 13 }}>
+              {info.ok ? info.dateLabel : (row.main ? 'Sett fristen under innstillinger.' : 'Står ikke i kunngjøringen.')}
+            </Text>
+            {info.ok && !info.passed && info.daysLeft != null && info.daysLeft <= 7 ? (
+              <Text style={{ color, fontSize: 12, fontWeight: '700' }}>Fristen nærmer seg</Text>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function Pill({ text, color, background }) {
+  return (
+    <View style={[styles.pill, { backgroundColor: background }]}>
+      <Text style={{ color, fontSize: 12, fontWeight: '600' }}>{text}</Text>
+    </View>
+  );
+}
+
+const TYPE_COLORS = {
+  PDF: '#dc2626',
+  DOC: '#2563eb',
+  DOCX: '#2563eb',
+  XLS: '#16a34a',
+  XLSX: '#16a34a',
+  ZIP: '#7c3aed',
+};
+
+/**
+ * Nedlastede filer som en ryddig sti: Konkurransegrunnlag › mappe › fil.
+ * Egne vedlegg ligger som egen mappe nederst, med opplasting inni.
+ */
+function FileTree({ root, groups, ownFiles, colors, openFileId, onOpen, onDelete, onRename, upload }) {
+  const all = [...groups, { id: 'egne', name: 'Egne vedlegg', files: ownFiles, own: true }];
+  const total = all.reduce((sum, group) => sum + group.files.length, 0);
+  const stored = all.reduce((sum, group) => sum + group.files.filter((file) => file.status === 'lastet').length, 0);
+  const [closed, setClosed] = useState({});
+  const [editId, setEditId] = useState('');
+  const [editName, setEditName] = useState('');
+
+  return (
+    <View style={[styles.tree, { borderColor: colors.line }]}>
+      <View style={[styles.treeBar, { backgroundColor: colors.sunken, borderColor: colors.line }]}>
+        <Ionicons name="folder-open" size={16} color={colors.brand} />
+        <Text style={{ color: colors.ink, fontWeight: '700', flexShrink: 1 }}>{root}</Text>
+        <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 'auto' }}>
+          {total === 1 ? '1 fil' : `${total} filer`} · {stored} lagret
+        </Text>
+      </View>
+      {all.map((group) => {
+        const open = !closed[group.id];
+        return (
+          <View key={group.id}>
+            <TouchableOpacity
+              onPress={() => setClosed((value) => ({ ...value, [group.id]: open }))}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: open }}
+              style={[styles.folderRow, { borderColor: colors.line }]}
+            >
+              <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={14} color={colors.muted} />
+              <Ionicons name={open ? 'folder-open-outline' : 'folder-outline'} size={17} color={group.own ? colors.muted : colors.brand} />
+              <Text style={{ color: colors.ink, fontWeight: '600', flexShrink: 1 }}>{group.name}</Text>
+              <Text style={{ color: colors.muted, fontSize: 12 }}>{group.files.length}</Text>
+            </TouchableOpacity>
+            {open ? (
+              <View style={[styles.branch, { borderColor: colors.line }]}>
+                {group.files.map((file) => {
+                  const type = fileTypeLabel(file);
+                  const preview = openFileId === file.id;
+                  const editing = editId === file.id;
+                  const canOpen = file.status === 'lastet' || !!file.url;
+                  const statusColor = file.status === 'lastet' ? colors.success || colors.brand : colors.muted;
+                  return (
+                    <View key={file.id} style={[styles.fileRow, { borderColor: colors.line }]}>
+                      <View style={styles.fileMain}>
+                        <View style={[styles.typeBadge, { backgroundColor: TYPE_COLORS[type] || '#64748b' }]}>
+                          <Text style={styles.typeText} numberOfLines={1}>{type}</Text>
+                        </View>
+                        {editing ? (
+                          <View style={[styles.row, styles.grow]}>
+                            <TextInput
+                              value={editName}
+                              onChangeText={setEditName}
+                              style={[styles.input, styles.grow, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+                            />
+                            <TouchableOpacity onPress={() => { onRename?.(file.id, editName); setEditId(''); }} accessibilityRole="button">
+                              <Text style={{ color: colors.brand }}>Lagre</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setEditId('')} accessibilityRole="button">
+                              <Text style={{ color: colors.muted }}>Avbryt</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            onPress={() => (file.text ? onOpen(preview ? '' : file.id) : canOpen && openStoredFile(file))}
+                            accessibilityRole="button"
+                            style={styles.fileName}
+                          >
+                            <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={2}>{file.name}</Text>
+                            <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>
+                              {root} / {group.name} / {file.name}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        <Text style={[styles.fileStatus, { color: statusColor }]} numberOfLines={1}>
+                          {file.status === 'portal' ? 'Kun på portalen' : statusLabel(file)}{file.sizeLabel ? ` · ${file.sizeLabel}` : ''}
+                        </Text>
+                        <View style={styles.fileActions}>
+                          {file.text ? (
+                            <IconAction icon={preview ? 'eye-off-outline' : 'eye-outline'} label={preview ? 'Skjul tekst' : 'Vis tekst'} color={colors.brand} onPress={() => onOpen(preview ? '' : file.id)} />
+                          ) : null}
+                          {canOpen ? (
+                            <IconAction
+                              icon="open-outline"
+                              label={file.status === 'portal' || file.status === 'lenke' ? 'Åpne på portalen' : 'Åpne fil'}
+                              color={colors.brand}
+                              onPress={() => openStoredFile(file)}
+                            />
+                          ) : null}
+                          {group.own && onRename && !editing ? (
+                            <IconAction icon="pencil-outline" label="Endre navn" color={colors.brand} onPress={() => { setEditId(file.id); setEditName(file.name); }} />
+                          ) : null}
+                          {group.own && onDelete ? (
+                            <IconAction icon="trash-outline" label="Slett" color={colors.danger} onPress={() => onDelete(file.id)} />
+                          ) : null}
+                        </View>
+                      </View>
+                      {preview && file.text ? <FoldedText text={formatNoticeText(file.text)} colors={colors} limit={700} /> : null}
+                    </View>
+                  );
+                })}
+                {!group.files.length && !group.own ? (
+                  <Text style={{ color: colors.muted, fontSize: 13, paddingVertical: 6 }}>Tom mappe.</Text>
+                ) : null}
+                {group.own ? <View style={{ paddingVertical: 8 }}>{upload}</View> : null}
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+      {!groups.length ? (
+        <Text style={{ color: colors.muted, fontSize: 13, padding: 12 }}>
+          Ingen dokumenter er hentet ennå. Trykk «Hent anbudsgrunnlag», så legges filene inn i mappene her.
+        </Text>
       ) : null}
     </View>
+  );
+}
+
+function IconAction({ icon, label, color, onPress }) {
+  const ref = React.useRef(null);
+  useEffect(() => {
+    if (ref.current && typeof ref.current.setAttribute === 'function') ref.current.setAttribute('title', label);
+  }, [label]);
+  return (
+    <TouchableOpacity ref={ref} onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={styles.iconAction}>
+      <Ionicons name={icon} size={17} color={color} />
+    </TouchableOpacity>
   );
 }
 
@@ -1577,28 +1767,48 @@ function FoldedText({ text, colors, limit = 280 }) {
   );
 }
 
-function Line({ label, value, colors }) {
-  if (!value) return null;
-  return <Text style={{ color: colors.ink }}>{label}: {value}</Text>;
-}
-
 const styles = StyleSheet.create({
   h: { fontSize: 22, fontWeight: '600' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  column: { width: '100%', maxWidth: 720, alignSelf: 'flex-start', gap: 14 },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', gap: 8 },
-  tab: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignSelf: 'flex-start' },
+  column: { width: '100%', maxWidth: 920, alignSelf: 'flex-start', gap: 14 },
+  hero: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 14, width: '100%', maxWidth: 920 },
+  heroTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  back: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 4 },
+  pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tile: { flexGrow: 1, flexBasis: 220, borderWidth: 1, borderLeftWidth: 5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 2 },
+  tileHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tileCount: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, padding: 4, borderRadius: 12, alignSelf: 'flex-start' },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9 },
+  tabOn: { shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  tabNo: { width: 22, height: 22, borderRadius: 11, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  facts: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 8, rowGap: 4, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10 },
+  inlineLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  tree: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  treeBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, flexWrap: 'wrap' },
+  folderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10 },
+  branch: { marginLeft: 25, marginRight: 12, marginBottom: 6, paddingLeft: 12, borderLeftWidth: 1 },
+  fileRow: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, gap: 6 },
+  fileMain: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  fileName: { flex: 1, minWidth: 0 },
+  fileStatus: { fontSize: 12, flexShrink: 0, maxWidth: 140, textAlign: 'right' },
+  typeBadge: { width: 42, borderRadius: 6, paddingVertical: 4, alignItems: 'center' },
+  typeText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  fileActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  iconAction: { padding: 6, borderRadius: 8 },
+  dropCompact: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', padding: 12 },
   info: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   btn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16 },
   grow: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
   long: { minHeight: 120, textAlignVertical: 'top' },
-  deadlineBanner: { borderWidth: 2, borderRadius: 14, padding: 14, gap: 4 },
-  deadlineCompact: { borderWidth: 2, borderRadius: 12, padding: 12, gap: 4 },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   section: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 },
-  well: { backgroundColor: '#ffffff', minHeight: 320 },
+  well: { backgroundColor: '#ffffff' },
   sectionCard: { backgroundColor: '#f8fafc' },
   drop: {
     borderWidth: 1,

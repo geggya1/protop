@@ -677,11 +677,12 @@ function collectPresented(items, acc = []) {
     [
       'Selskap og organisasjon',
       'Ansatte og arbeidstid',
-      'Kunder og oppdrag',
-      'Produktivitet og inntjening',
-      'Produkter og driftsressurser',
-      'Økonomi og fakturering',
       'Kvalitet og styringssystem',
+      'Produktivitet og inntjening',
+      'Økonomi og fakturering',
+      'Produkter og driftsressurser',
+      'Anbud',
+      'Kunder og oppdrag',
     ],
   );
   assert.deepEqual(
@@ -689,9 +690,8 @@ function collectPresented(items, acc = []) {
     [
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
       ['ansatte', 'hr', 'fravaer', 'arbeid'],
-      ['kunder', 'anbud', 'kontrakt', 'projects'],
+      ['iso'],
       ['produktivitet', 'okonomi-inntjening'],
-      ['produkt', 'utstyr', 'kjorebok'],
       [
         'okonomi-oversikt',
         'okonomi-faktura',
@@ -702,12 +702,14 @@ function collectPresented(items, acc = []) {
         'okonomi-indekser',
         'okonomi-innstillinger',
       ],
-      ['iso'],
+      ['produkt', 'utstyr', 'kjorebok'],
+      ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud', 'anbud-innstillinger'],
+      ['kunder', 'kontrakt', 'projects'],
     ],
   );
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.icon),
-    ['business', 'people', 'briefcase', 'stats-chart', 'cube', 'wallet', 'shield-checkmark'],
+    ['business', 'people', 'shield-checkmark', 'stats-chart', 'wallet', 'cube', 'megaphone', 'briefcase'],
   );
   const org = presented.find((item) => item.id === 'company-org');
   const people = presented.find((item) => item.id === 'company-people');
@@ -721,7 +723,11 @@ function collectPresented(items, acc = []) {
     companySettings.children.map((item) => item.id),
     ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang'],
   );
-  assert.equal(customers.children.find((item) => item.id === 'anbud').children.some((row) => row.id === 'anbud-innstillinger'), true);
+  const tenders = presented.find((item) => item.id === 'company-tenders');
+  assert.equal(customers.children.some((item) => item.id === 'anbud'), false);
+  assert.deepEqual(tenders.collapsedItems.map((item) => item.id), ['anbud']);
+  assert.equal(tenders.processOrder, false);
+  assert.equal(drawerGroupOpen(tenders, 'anbud', {}, 'vurdering'), true);
   const fravaer = people.children.find((item) => item.id === 'fravaer');
   assert.equal(fravaer.icon, 'sunny');
   assert.deepEqual(
@@ -743,7 +749,7 @@ function collectPresented(items, acc = []) {
   const byId = (rows) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
   assert.deepEqual(
     byId(collectPresented(presented)),
-    byId(collectPresented(source).filter((row) => row.id !== 'okonomi')),
+    byId(collectPresented(source).filter((row) => row.id !== 'okonomi' && row.id !== 'anbud')),
   );
   assert.equal(presented.some((item) => !item.group), false);
 
@@ -753,12 +759,12 @@ function collectPresented(items, acc = []) {
   ]);
   assert.equal(withExtra.at(-1).id, 'ekstra');
   assert.equal(withExtra.at(-1).label, 'Ekstra');
-  assert.equal(withExtra.filter((item) => item.group).length, 7);
+  assert.equal(withExtra.filter((item) => item.group).length, 8);
 
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
   // Innleide har Tildelte prosjekt, og ser derfor Prosjekt (bare egne prosjekter).
-  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'projects', 'produktivitet', 'produkt', 'utstyr', 'okonomi-prosjektutlegg']);
+  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'okonomi-prosjektutlegg', 'produkt', 'utstyr', 'projects']);
   assert.deepEqual(
     innleie.find((item) => item.id === 'company-finance').collapsedItems.map((item) => item.id),
     ['okonomi'],

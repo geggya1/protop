@@ -176,7 +176,7 @@ export function setAssessment(state, requirementId, input, { actor, caps, now = 
   }
   if (status === 'ikke_relevant') {
     if (!mayBeNotApplicable(req)) return fail('Dette kravet kan ikke settes som ikke relevant. Krav i ISO 14001/45001 og ISO 9001 kap. 4–7, 9–10 gjelder alltid innenfor omfanget.');
-    if (caps && !caps.admin) return fail('Ikke-relevans må godkjennes av administrator.');
+    if (caps && !caps.approve) return fail('Ikke-relevans må godkjennes av en godkjenner.');
     if (rationale.length < 15) return fail('Begrunn hvorfor kravet ikke er relevant.');
   }
   if (['mangler', 'avvik', 'ma_revurderes'].includes(status) && !rationale) {

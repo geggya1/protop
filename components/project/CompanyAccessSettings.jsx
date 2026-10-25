@@ -36,13 +36,15 @@ import {
 } from '../../src/access/companyAccess';
 import { applyEmployeeClassification, cardSubtitle, commitEmployee, contactLine, displayName, initials, normalizeEmployee } from '../../src/employees/model';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { canGrantLevel, canSetGrant, checkPersonChange, grantsAbove } from '../../src/access/accessCeiling';
 
 const ACCESS_LEADS = [
   'Åtte standardnivåer ligger til grunn og kan tilpasses. Hvert nivå har egen matrise for alle moduler, undermoduler og innstillinger. Lese = se uten endring. Begrenset redigering = opprette og redigere. Admin = innstillingsknapper og full styring i modulen. Høyere trinn tar med dem under. Flere nivå på samme person krysses av under Personer.',
-  'Lagre som standard lagrer tilpasningen for nivået. Tilbakestill henter ProTop-standarden for nivået. Se som bruker under Visning: Lese viser bare bedriftsinnstillinger; begrenset redigering eller Admin viser alle moduler.',
+  'Alt lagres automatisk med en gang du krysser av. Tilbakestill henter ProTop-standarden for nivået. Se som bruker under Visning: Lese viser bare bedriftsinnstillinger; begrenset redigering eller Admin viser alle moduler.',
+  'Ingen kan endre sin egen tilgang, og ingen kan gi mer enn de har selv. Begrenset redigering på Tilgangsstyring (Øverste leder som standard) gir lov til å endre medlemmene. Admin trengs for å endre selve nivåene.',
 ];
 
-const ACCESS_VIEW_ONLY = 'Du kan se oppsettet. Bare administrator kan endre nivåer, hvem som hører til hvor, og personavvik.';
+const ACCESS_VIEW_ONLY = 'Du kan se oppsettet. Endringer krever Begrenset redigering eller Admin på Tilgangsstyring.';
 
 const ACCESS_PEOPLE_HINT = 'Kryss av nivåene som passer. Trykk navnet for å åpne den ansatte. Deaktiverte har ingen rettigheter.';
 
@@ -185,7 +187,7 @@ function rowState(row, grants, base) {
   };
 }
 
-function CompactRows({ group, grants, base, colors, canEdit, onToggle }) {
+function CompactRows({ group, grants, base, colors, canEdit, onToggle, limit }) {
   return matrixRows(group).map((row) => {
     if (row.heading) {
       return (
@@ -204,7 +206,7 @@ function CompactRows({ group, grants, base, colors, canEdit, onToggle }) {
               <Text style={[styles.compactAction, { color: colors.muted }]}>{action.label}</Text>
               <CheckBox
                 on={checks[action.id]}
-                disabled={!canEdit}
+                disabled={!canEdit || (!!limit && !checks[action.id] && !limit(row.item.id, action.id))}
                 colors={colors}
                 label={`${a11y}, ${action.label}`}
                 onPress={() => onToggle(row.item.id, action.id, !checks[action.id])}
@@ -217,7 +219,7 @@ function CompactRows({ group, grants, base, colors, canEdit, onToggle }) {
   });
 }
 
-function GridRows({ group, grants, base, colors, canEdit, onToggle }) {
+function GridRows({ group, grants, base, colors, canEdit, onToggle, limit }) {
   return (
     <>
       <View dataSet={{ accessMatrix: 'head' }} style={[styles.matrixHead, { borderColor: colors.line }]}>
@@ -242,7 +244,7 @@ function GridRows({ group, grants, base, colors, canEdit, onToggle }) {
               <CheckBox
                 key={action.id}
                 on={checks[action.id]}
-                disabled={!canEdit}
+                disabled={!canEdit || (!!limit && !checks[action.id] && !limit(row.item.id, action.id))}
                 colors={colors}
                 label={`${a11y}, ${action.label}`}
                 onPress={() => onToggle(row.item.id, action.id, !checks[action.id])}
@@ -255,13 +257,14 @@ function GridRows({ group, grants, base, colors, canEdit, onToggle }) {
   );
 }
 
-function Matrix({ grants, base, colors, canEdit, onToggle, compact = false }) {
+/** limit(resourceId, action) → false når aktøren ikke kan heve dit (tak: eget nivå). */
+function Matrix({ grants, base, colors, canEdit, onToggle, compact = false, limit = null }) {
   const Rows = compact ? CompactRows : GridRows;
   return (
     <View style={compact ? styles.stack : styles.matrix}>
       {ACCESS_GROUPS.map((group) => (
         <GroupDrawer key={group.id} group={group} grants={grants} base={base} colors={colors}>
-          <Rows group={group} grants={grants} base={base} colors={colors} canEdit={canEdit} onToggle={onToggle} />
+          <Rows group={group} grants={grants} base={base} colors={colors} canEdit={canEdit} onToggle={onToggle} limit={limit} />
         </GroupDrawer>
       ))}
     </View>
@@ -325,9 +328,9 @@ function rosterMeta(activeCount, inactiveCount, detail) {
   return `${activeLabel} · ${inactiveLabel}${detail ? ` · ${detail}` : ''}`;
 }
 
-function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign }) {
+function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign, allowLevel }) {
   const name = displayName(employee);
-  const targets = ACCESS_LEVELS.filter((level) => level.id !== excludeId);
+  const targets = ACCESS_LEVELS.filter((level) => level.id !== excludeId && (!allowLevel || allowLevel(level.id)));
   return (
     <View style={styles.moveBox}>
       <Text style={[styles.kind, { color: colors.ink }]}>Flytt {name} til</Text>
@@ -428,7 +431,9 @@ function LevelDrawer({
   nativeID, title, meta, members, colors, canEdit, movingId, excludeId, suggestedId, compact,
   open, memberTab, settingsOpen, grants, custom, summary, dropKey, hotDrop, dragging,
   onToggleOpen, onMemberTab, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onSaveLevel, onReset, onOpen,
+  canEditSettings, canEditPerson, allowLevel, limit,
 }) {
+  const settingsEditable = canEditSettings === undefined ? canEdit : canEditSettings;
   const { active, inactive } = splitMembers(members);
   const tab = memberTab === 'inactive' ? 'inactive' : 'active';
   const shown = tab === 'inactive' ? inactive : active;
@@ -475,10 +480,11 @@ function LevelDrawer({
             grants={grants}
             colors={colors}
             compact={compact}
-            canEdit={canEdit}
+            canEdit={settingsEditable}
             onToggle={onToggleGrant}
+            limit={limit}
           />
-          {canEdit ? (
+          {settingsEditable ? (
             <View style={styles.levelActions}>
               {onSaveLevel ? (
                 <Pressable
@@ -522,10 +528,11 @@ function LevelDrawer({
             const customPerson = Object.keys(employee.company?.accessOverrides || {}).length > 0;
             const note = statusNote(employee);
             const movingThis = employee.id === movingId;
+            const personEditable = canEdit && (!canEditPerson || canEditPerson(employee));
             return (
               <View key={employee.id} nativeID={`access-person-${employee.id}`} style={styles.memberLine}>
                 <View style={styles.memberRow}>
-                  {canEdit ? (
+                  {personEditable ? (
                     <Pressable
                       dataSet={{ drag: employee.id }}
                       accessibilityRole="button"
@@ -548,7 +555,7 @@ function LevelDrawer({
                       {customPerson ? ' · egen tilpasning' : ''}
                     </Text>
                   </Pressable>
-                  {canEdit ? (
+                  {personEditable ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={movingThis ? `Lukk flytting av ${displayName(employee)}` : `Flytt ${displayName(employee)}`}
@@ -559,13 +566,14 @@ function LevelDrawer({
                     </Pressable>
                   ) : null}
                 </View>
-                {movingThis && canEdit ? (
+                {movingThis && personEditable ? (
                   <MoveTargets
                     employee={employee}
                     colors={colors}
                     excludeId={excludeId}
                     suggestedId={employee.id === moving?.id ? suggestedId : ''}
                     onAssign={onAssign}
+                    allowLevel={allowLevel}
                   />
                 ) : null}
               </View>
@@ -596,6 +604,8 @@ export function PersonAccessSheet({
   onToggleGrant,
   onSave,
   onClear,
+  limit,
+  lockedReason,
 }) {
   if (!person || !personGrants) return null;
   const mail = employeeMail(person);
@@ -620,8 +630,9 @@ export function PersonAccessSheet({
       </View>
       <ScrollView style={{ maxHeight: scrollMax }} contentContainerStyle={styles.stack}>
         <Text style={[styles.kind, { color: colors.muted }]}>
-          Avvikene under gjelder bare denne personen, oppå nivåene som er krysset av.
+          Avvikene under gjelder bare denne personen, oppå nivåene som er krysset av. Endringer lagres med en gang.
         </Text>
+        {lockedReason ? <Text style={[styles.kind, { color: colors.danger }]}>{lockedReason}</Text> : null}
         <Matrix
           grants={personGrants}
           base={personBase}
@@ -629,17 +640,20 @@ export function PersonAccessSheet({
           compact={compact}
           canEdit={canEdit && !busy}
           onToggle={onToggleGrant}
+          limit={limit}
         />
         {canEdit ? (
           <View style={styles.modeRow}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={!dirty || busy}
-              onPress={onSave}
-              style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: !dirty || busy ? 0.5 : 1 }]}
-            >
-              <Text style={styles.primaryText}>Lagre avvik for personen</Text>
-            </Pressable>
+            {onSave ? (
+              <Pressable
+                accessibilityRole="button"
+                disabled={!dirty || busy}
+                onPress={onSave}
+                style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: !dirty || busy ? 0.5 : 1 }]}
+              >
+                <Text style={styles.primaryText}>Lagre avvik for personen</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               disabled={busy}
@@ -696,7 +710,12 @@ export default function CompanyAccessSettings({
   initialMemberTab = '',
   initialPersonId = '',
   initialMode = 'levels',
+  canEditLevels,
+  actor = null,
 }) {
+  // Endre personer: canEdit. Endre selve nivåene: canEditLevels (Admin på Tilgangsstyring).
+  const levelsEditable = canEditLevels === undefined ? canEdit : !!canEditLevels;
+  const me = actor || { bypass: false, uid: '', grants: {} };
   const policyKey = JSON.stringify(company?.accessPolicy || {});
   const [policy, setPolicy] = useState(() => normalizeAccessPolicy(company?.accessPolicy));
   const [dirty, setDirty] = useState(false);
@@ -738,9 +757,13 @@ export default function CompanyAccessSettings({
   employeesRef.current = employees;
 
   useEffect(() => {
-    setPolicy(normalizeAccessPolicy(company?.accessPolicy));
+    // Venter en autolagring, er det den lokale versjonen som gjelder.
+    if (policyTimer.current) return;
+    const next = normalizeAccessPolicy(company?.accessPolicy);
+    policyRef.current = next;
+    setPolicy(next);
     setDirty(false);
-  }, [policyKey]);
+  }, [policyKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setLevelDrafts((current) => {
@@ -789,13 +812,13 @@ export default function CompanyAccessSettings({
     setPersonDirty(false);
   }, [personId, policyKey, person?.updatedAt]);
 
-  async function savePolicy() {
-    if (!canEdit || busy) return;
+  async function savePolicy(nextPolicy = policy) {
+    if (!levelsEditable || busy) return;
     setError('');
     setNote('');
     try {
-      await onSavePolicy(compactPolicy(policy));
-      setDirty(false);
+      await onSavePolicy(compactPolicy(nextPolicy));
+      if (policyRef.current === nextPolicy) setDirty(false);
       setNote('Nivåene er lagret.');
       showSaveToast('Nivåene er lagret.');
     } catch (err) {
@@ -803,10 +826,54 @@ export default function CompanyAccessSettings({
     }
   }
 
+  // Nivåmatrisen lagres fortløpende: kort pause etter siste klikk, så lagres alt samlet.
+  const policyRef = useRef(policy);
+  const policyTimer = useRef(null);
+  function changePolicy(nextPolicy, message = '') {
+    policyRef.current = nextPolicy;
+    setPolicy(nextPolicy);
+    setDirty(true);
+    setNote(message);
+    if (policyTimer.current) clearTimeout(policyTimer.current);
+    policyTimer.current = setTimeout(() => {
+      policyTimer.current = null;
+      savePolicy(policyRef.current);
+    }, 600);
+  }
+  useEffect(() => () => {
+    // Forlater man siden før pausen er over, lagres det likevel.
+    if (policyTimer.current) {
+      clearTimeout(policyTimer.current);
+      policyTimer.current = null;
+      onSavePolicy?.(compactPolicy(policyRef.current)).catch?.(() => {});
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Kan jeg endre denne personen i det hele tatt? (ikke meg selv, ikke noen over meg) */
+  function personEditable(employee) {
+    if (!canEdit || !employee) return false;
+    return checkPersonChange({ actor: me, policy, before: employee, after: employee }).ok;
+  }
+
+  function personLock(employee) {
+    if (!canEdit || !employee) return '';
+    const res = checkPersonChange({ actor: me, policy, before: employee, after: employee });
+    return res.ok ? '' : res.reason;
+  }
+
+  const allowLevel = (levelId) => canGrantLevel({ actor: me, policy, levelId });
+  const limitFor = (grants) => (resourceId, action) => canSetGrant({ actor: me, resourceId, grant: action, current: grants?.[resourceId] || 'none' });
+
   async function savePerson(nextEmployee, success) {
     if (!canEdit || busy) return;
     setError('');
     setNote('');
+    const before = employeesRef.current.find((row) => row.id === nextEmployee?.id) || null;
+    const check = checkPersonChange({ actor: me, policy, before, after: nextEmployee });
+    if (!check.ok) {
+      setError(check.reason);
+      return;
+    }
     try {
       await onSaveEmployee(nextEmployee);
       setPersonDirty(false);
@@ -939,13 +1006,13 @@ export default function CompanyAccessSettings({
     };
   }, [canEdit, busy]);
 
-  function savePersonGrants() {
-    if (!person || !personGrants || !personBase) return;
+  function savePersonGrants(grantsNext = personGrants) {
+    if (!person || !grantsNext || !personBase) return;
     const next = normalizeEmployee({
       ...person,
       company: {
         ...person.company,
-        accessOverrides: compactOverrides(personBase, personGrants),
+        accessOverrides: compactOverrides(personBase, grantsNext),
       },
     });
     savePerson(next, `Avvikene for ${displayName(person)} er lagret.`);
@@ -973,6 +1040,13 @@ export default function CompanyAccessSettings({
     const job = previous.catch(() => {}).then(async () => {
       const current = draftsRef.current[id] || employeesRef.current.find((row) => row.id === id) || employee;
       const next = withToggledLevel(current, levelId, checked);
+      const stored = employeesRef.current.find((row) => row.id === id) || current;
+      const check = checkPersonChange({ actor: me, policy, before: stored, after: next });
+      if (!check.ok) {
+        setNote('');
+        setError(check.reason);
+        return;
+      }
       const result = commitEmployee(next, { scope: 'company' });
       if (!result.ok) {
         setNote('');
@@ -1071,6 +1145,10 @@ export default function CompanyAccessSettings({
                     colors={colors}
                     compact={compact}
                     canEdit={canEdit && !busy}
+                    canEditSettings={levelsEditable && !busy}
+                    canEditPerson={personEditable}
+                    allowLevel={allowLevel}
+                    limit={limitFor(grants)}
                     movingId={movingId}
                     excludeId={row.id}
                     open={!!openDrawers[row.id]}
@@ -1096,27 +1174,25 @@ export default function CompanyAccessSettings({
                     onToggleMove={(id) => setMovingId((current) => (current === id ? '' : id))}
                     onAssign={assignLevel}
                     onToggleGrant={(resourceId, action, on) => {
+                      if (!levelsEditable) return;
                       const next = toggleGrant(grants[resourceId], action, on);
-                      setPolicy(setLevelGrant(policy, row.id, resourceId, next));
-                      setDirty(true);
-                      setNote('');
-                    }}
-                    onSaveLevel={async () => {
-                      if (!canEdit || busy) return;
-                      setError('');
-                      try {
-                        await onSavePolicy(compactPolicy(policy));
-                        setDirty(false);
-                        setNote('Lagret som standard for nivået.');
-                        showSaveToast('Lagret som standard.');
-                      } catch (err) {
-                        setError(err?.message || 'Kunne ikke lagre tilgangen.');
+                      if (!canSetGrant({ actor: me, resourceId, grant: next, current: grants[resourceId] })) {
+                        setError('Du kan ikke gi høyere tilgang enn du har selv.');
+                        return;
                       }
+                      setError('');
+                      changePolicy(setLevelGrant(policyRef.current, row.id, resourceId, next));
                     }}
+                    onSaveLevel={null}
                     onReset={() => {
-                      setPolicy(resetLevel(policy, row.id));
-                      setDirty(true);
-                      setNote('Tilbakestilt til ProTop-standard. Trykk Lagre som standard for å bekrefte.');
+                      if (!levelsEditable) return;
+                      const next = resetLevel(policyRef.current, row.id);
+                      const lifted = grantsAbove(levelGrants(next, row.id), me.bypass ? levelGrants(next, row.id) : (me.grants || {}));
+                      if (lifted.length) {
+                        setError('Standarden for nivået gir mer enn du har selv. Be eieren tilbakestille det.');
+                        return;
+                      }
+                      changePolicy(next, 'Tilbakestilt til ProTop-standard.');
                     }}
                   />
                 );
@@ -1133,6 +1209,8 @@ export default function CompanyAccessSettings({
             colors={colors}
             compact={compact}
             canEdit={canEdit && !busy}
+            canEditPerson={personEditable}
+            allowLevel={allowLevel}
             movingId={movingId}
             excludeId=""
             suggestedId={movingId ? suggestedLevelId(grouped.unplaced.find((row) => row.id === movingId)) : ''}
@@ -1152,16 +1230,10 @@ export default function CompanyAccessSettings({
             onAssign={assignLevel}
           />
 
-          {canEdit ? (
-            <Pressable
-              nativeID="company-access-save"
-              accessibilityRole="button"
-              disabled={!dirty || busy}
-              onPress={savePolicy}
-              style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: !dirty || busy ? 0.5 : 1 }]}
-            >
-              <Text style={styles.primaryText}>{busy ? 'Lagrer…' : 'Lagre alle nivåer som standard'}</Text>
-            </Pressable>
+          {levelsEditable ? (
+            <Text nativeID="company-access-save" style={[styles.kind, { color: colors.muted }]}>
+              {dirty ? 'Lagrer endringene i nivåene …' : 'Endringer i nivåene lagres automatisk.'}
+            </Text>
           ) : null}
         </View>
       ) : (
@@ -1182,7 +1254,9 @@ export default function CompanyAccessSettings({
               companyName={companyHeadingName(company)}
               colors={colors}
               variant="levels"
-              canEditLevels={canEdit && !busy}
+              canEditLevels={canEdit && !busy
+                ? (row, levelId, turningOn) => personEditable(row) && (!turningOn || allowLevel(levelId))
+                : false}
               onToggleLevel={togglePersonLevel}
               renderIdentity={(employee) => (
                 <Pressable
@@ -1227,18 +1301,26 @@ export default function CompanyAccessSettings({
         personGrants={personGrants}
         personBase={personBase}
         colors={colors}
-        canEdit={canEdit && !busy}
+        canEdit={canEdit && !busy && personEditable(person)}
+        lockedReason={person ? personLock(person) : ''}
+        limit={personGrants ? limitFor(personGrants) : null}
         busy={busy}
         dirty={personDirty}
         compact={compact}
         onClose={() => setPersonId('')}
         onToggleGrant={(resourceId, action, on) => {
           const next = toggleGrant(personGrants[resourceId], action, on);
-          setPersonGrants({ ...personGrants, [resourceId]: next });
-          setPersonDirty(true);
+          if (!canSetGrant({ actor: me, resourceId, grant: next, current: personGrants[resourceId] })) {
+            setError('Du kan ikke gi høyere tilgang enn du har selv.');
+            return;
+          }
+          const grantsNext = { ...personGrants, [resourceId]: next };
+          setPersonGrants(grantsNext);
           setNote('');
+          // Lagres med en gang – ingen egen lagreknapp.
+          savePersonGrants(grantsNext);
         }}
-        onSave={savePersonGrants}
+        onSave={null}
         onClear={clearPersonGrants}
       />
     </View>

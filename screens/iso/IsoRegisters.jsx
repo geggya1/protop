@@ -394,7 +394,7 @@ export function HmsPage({ ctx }) {
       <Card title="Skjema for HMS-arbeid" subtitle="Styrte skjema fra Skjemabygger. Innsendt blir låst bevis.">
         {!forms.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>SJA, vernerunde og medvirkning er ikke godkjent for ISO ennå. Godkjenn dem under Skjemaer.</Text> : null}
         <Row>{forms.map((f) => <Btn key={f.id} icon="clipboard-outline" label={f.title} onPress={() => setFill(f)} />)}</Row>
-        {!forms.length && caps.admin ? <Btn small label="Gå til Skjemaer" onPress={() => go('skjema')} /> : null}
+        {!forms.length && caps.approve ? <Btn small label="Gå til Skjemaer" onPress={() => go('skjema')} /> : null}
       </Card>
       {caps.manage && sick.hasData ? (
         <Card title="Sykefravær per måned" subtitle={sick.method}>
@@ -652,7 +652,7 @@ export function AuditPage({ ctx }) {
               <Field label="Objektivt bevis" required={af.classification !== 'samsvar'}><TextIn multiline rows={2} value={af.evidence} onChangeText={(x) => setAf({ ...af, evidence: x })} /></Field>
               <Field label="Krav"><Choice small multi options={requirements.filter((r) => r.kind === 'iso').slice(0, 60).map((r) => ({ id: r.id, label: `${r.standard.replace('ISO', '')} ${r.clause}` }))} value={af.requirementIds} onChange={(x) => setAf({ ...af, requirementIds: x })} /></Field>
               <Btn kind="primary" label={af.classification === 'samsvar' ? 'Registrer funn' : 'Registrer funn og opprett sak'} onPress={addFinding} />
-              {caps.admin ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
+              {caps.approve ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
             </>
           ) : null}
           {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
@@ -728,7 +728,7 @@ export function ReviewPage({ ctx }) {
               <Field label="Ansvarlig" required><PersonPick people={people} value={d.ownerName} onChange={(p) => setD({ ...d, ownerName: p.name, ownerUid: p.uid })} /></Field>
               <Field label="Frist" required><DateIn value={d.dueAt} onChange={(x) => setD({ ...d, dueAt: x })} /></Field>
               <Btn label="Legg til vedtak og lag oppgave" onPress={decision} />
-              {caps.admin ? <Btn kind="primary" icon="lock-closed-outline" label="Godkjenn referat (låser grunnlag)" onPress={approve} /> : null}
+              {caps.approve ? <Btn kind="primary" icon="lock-closed-outline" label="Godkjenn referat (låser grunnlag)" onPress={approve} /> : null}
             </>
           ) : null}
           {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}

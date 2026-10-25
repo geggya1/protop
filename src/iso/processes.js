@@ -564,7 +564,7 @@ export function submitForApproval(proc, context, { actor, caps, now = new Date()
 }
 
 export function rejectVersion(proc, note, { actor, caps, now = new Date() } = {}) {
-  if (caps && !caps.admin) return fail('Bare godkjenner kan avvise.');
+  if (caps && !caps.approve) return fail('Bare godkjenner kan avvise.');
   const draft = draftVersion(proc);
   if (!draft || draft.state !== 'til_godkjenning') return fail('Ingen versjon venter på godkjenning.');
   if (text(note).length < 5) return fail('Skriv hva som må endres.');
@@ -578,7 +578,7 @@ export function rejectVersion(proc, note, { actor, caps, now = new Date() } = {}
 
 /** Godkjenn og publiser. Forrige publiserte versjon blir «erstattet», men bevares (A03/T06). */
 export function approveAndPublish(proc, context, { actor, caps, now = new Date(), note = '' } = {}) {
-  if (caps && !caps.admin) return fail('Du har ikke fullmakt til å publisere prosesser.');
+  if (caps && !caps.approve) return fail('Du har ikke fullmakt til å publisere prosesser.');
   const draft = draftVersion(proc);
   if (!draft || draft.state !== 'til_godkjenning') return fail('Versjonen må sendes til godkjenning først.');
   if (draft.hash && draft.hash !== diagramHash(draft.diagram)) return fail('Diagrammet er endret etter innsending. Send på nytt.');
@@ -602,7 +602,7 @@ export function approveAndPublish(proc, context, { actor, caps, now = new Date()
 }
 
 export function archiveProcess(proc, reason, { actor, caps, now = new Date(), instances = [] } = {}) {
-  if (caps && !caps.admin) return fail('Bare administrator kan arkivere prosesser.');
+  if (caps && !caps.approve) return fail('Bare en godkjenner kan arkivere prosesser.');
   if (text(reason).length < 5) return fail('Begrunn arkiveringen.');
   const running = instances.filter((i) => i.processId === proc.id && i.state === 'aktiv').length;
   if (running) return fail(`${running} aktive saker bruker prosessen. Fullfør eller avbryt dem først.`);

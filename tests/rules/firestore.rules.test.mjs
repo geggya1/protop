@@ -28,7 +28,9 @@ const USERS = {
   les: { iso: 1, grants: { iso: 'see', accessControl: 'none' } }, // ansatt, kun lese
   mel: { iso: 1, grants: { iso: 'see', accessControl: 'none' } }, // melder eget avvik
   beh: { iso: 2, grants: { iso: 'read', accessControl: 'none' } }, // saksbehandler
-  adm: { iso: 3, grants: { iso: 'write', accessControl: 'write' } }, // ISO-admin, ikke HMS-tilgang
+  adm: { iso: 3, grants: { iso: 'write', accessControl: 'write' }, levelId: 'administrator' }, // ISO-admin, ikke HMS-tilgang
+  kv: { iso: 2, grants: { iso: 'read', accessControl: 'none' } }, // kvalitetsleder: begrenset redigering + godkjennerrolle
+  ldr: { iso: 3, grants: { iso: 'write', accessControl: 'read', companyProfile: 'see' }, levelId: 'leder' }, // øverste leder
   hms: { iso: 3, grants: { iso: 'write', accessControl: 'none' } }, // autorisert for skjermede saker
   exp: { iso: 3, grants: { iso: 'write' }, expired: true }, // utløpt speil
 };
@@ -69,16 +71,16 @@ async function seed() {
     const db = ctx.firestore();
     await setDoc(doc(db, 'families', A), {
       name: 'Rådgiver AS', type: 'company', ownerUid: 'own', adminUids: ['own'],
-      members: ['own', 'les', 'mel', 'beh', 'adm', 'hms', 'non', 'exp'],
+      members: ['own', 'les', 'mel', 'beh', 'adm', 'hms', 'non', 'exp', 'kv', 'ldr'],
       company: { navn: 'Rådgiver AS', accessPolicy: { v: 1 } },
     });
     await setDoc(doc(db, 'families', B), { name: 'Annet AS', type: 'company', ownerUid: 'ext', members: ['ext'] });
     for (const [uid, u] of Object.entries(USERS)) {
-      await setDoc(doc(db, 'families', A, 'accessAcl', uid), { uid, iso: u.iso, grants: u.grants, expiresAt: u.expired ? PAST : FUTURE });
+      await setDoc(doc(db, 'families', A, 'accessAcl', uid), { uid, iso: u.iso, grants: u.grants, levelId: u.levelId || '', expiresAt: u.expired ? PAST : FUTURE });
     }
     await setDoc(doc(db, 'families', B, 'accessAcl', 'ext'), { uid: 'ext', iso: 3, grants: { iso: 'delete' }, expiresAt: FUTURE });
     await setDoc(doc(db, 'families', A, 'isoRestricted', 'main'), { uids: ['hms'], people: [{ uid: 'hms', name: 'HMS-leder' }], rev: 1 });
-    await setDoc(doc(db, 'families', A, 'isoSystem', 'main'), { name: 'KS', standards: ['ISO9001'], rev: 1 });
+    await setDoc(doc(db, 'families', A, 'isoSystem', 'main'), { name: 'KS', standards: ['ISO9001'], rev: 1, approverUids: ['kv'] });
     await setDoc(doc(db, 'families', A, 'isoFindings', 'F1'), finding());
     await setDoc(doc(db, 'families', A, 'isoFindings', 'F2'), finding({ number: 'AVV-2', state: 'triage', triage: { severity: 'lav' } }));
     await setDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), finding({ number: 'HMS-1', type: 'hms', restricted: true, personalDetails: 'Ola, kutt i hånd' }));
@@ -107,6 +109,10 @@ async function seed() {
     await setDoc(doc(db, 'families', A, 'projects', 'PR1'), { name: 'Skole' });
     await setDoc(doc(db, 'families', A, 'hr', 'main'), { contracts: [] });
     await setDoc(doc(db, 'families', A, 'employees', 'EMP1'), { personUid: 'les', company: { accessLevel: 'ansatt' } });
+    await setDoc(doc(db, 'families', A, 'employees', 'EMP2'), { personUid: 'mel', company: { accessLevel: 'ansatt', accessLevels: ['ansatt'], accessOverrides: {} } });
+    await setDoc(doc(db, 'families', A, 'employees', 'EMPADM'), { personUid: 'adm', company: { accessLevel: 'administrator', accessLevels: ['administrator'], accessOverrides: {} } });
+    await setDoc(doc(db, 'families', A, 'employees', 'EMPLDR'), { personUid: 'ldr', company: { accessLevel: 'leder', accessLevels: ['leder'], accessOverrides: {} } });
+    await setDoc(doc(db, 'families', A, 'employees', 'EMPFREE'), { personUid: '', company: { accessLevel: 'leder', accessLevels: ['leder'], accessOverrides: {} } });
     await setDoc(doc(db, 'families', A, 'shoppingLists', 'L1'), { memberIds: ['les'], items: [] });
     await setDoc(doc(db, 'families', B, 'isoFindings', 'FB'), finding({ reportedByUid: 'ext' }));
   });
@@ -484,5 +490,61 @@ describe('regresjon: eksisterende moduler', () => {
     await assertFails(setDoc(doc(as('les'), 'parents', 'adm'), { name: 'x' }));
     await assertSucceeds(getDoc(doc(as('les'), 'system', 'indeksSsb')));
     await assertFails(setDoc(doc(as('own'), 'system', 'indeksSsb'), { x: 1 }));
+  });
+});
+
+describe('ISO: godkjenning uten Admin', () => {
+  test('kvalitetsleder med Begrenset redigering og godkjennerrolle kan publisere, lukke og godkjenne skjema', async () => {
+    const db = as('kv');
+    await assertSucceeds(updateDoc(doc(db, 'families', A, 'isoProcesses', 'P1'), { publishedVersion: 2, rev: 4 }));
+    await assertSucceeds(updateDoc(doc(db, 'families', A, 'isoForms', 'FR1'), { publishedVersion: 2 }));
+    await assertSucceeds(updateDoc(doc(db, 'families', A, 'isoFindings', 'F2'), closable({ closedByUid: 'kv' })));
+  });
+
+  test('saksbehandler uten godkjennerrolle kan ikke publisere eller lukke', async () => {
+    const db = as('beh');
+    await assertFails(updateDoc(doc(db, 'families', A, 'isoProcesses', 'P1'), { publishedVersion: 2, rev: 4 }));
+    await assertFails(updateDoc(doc(db, 'families', A, 'isoFindings', 'F2'), closable({ closedByUid: 'beh' })));
+  });
+
+  test('godkjenner kan ikke endre innstillingene eller gi seg selv rollen', async () => {
+    await assertFails(updateDoc(doc(as('kv'), 'families', A, 'isoSystem', 'main'), { name: 'Endret' }));
+    await assertFails(updateDoc(doc(as('beh'), 'families', A, 'isoSystem', 'main'), { approverUids: ['kv', 'beh'] }));
+  });
+});
+
+describe('tilgang på ansatte: ingen selvoppgradering, tak = eget nivå', () => {
+  test('ingen kan oppgradere seg selv', async () => {
+    await assertFails(updateDoc(doc(as('les'), 'families', A, 'employees', 'EMP1'), { 'company.accessLevel': 'administrator' }));
+    await assertFails(updateDoc(doc(as('les'), 'families', A, 'employees', 'EMP1'), { 'company.accessOverrides': { iso: 'write' } }));
+    await assertFails(updateDoc(doc(as('ldr'), 'families', A, 'employees', 'EMPLDR'), { 'company.accessLevels': ['leder', 'administrator'] }));
+    await assertFails(updateDoc(doc(as('adm'), 'families', A, 'employees', 'EMPADM'), { 'company.accessOverrides': { iso: 'write' } }));
+  });
+
+  test('egen profil kan fortsatt redigeres, også når appen normaliserer eldre nivåfelt', async () => {
+    await assertSucceeds(updateDoc(doc(as('les'), 'families', A, 'employees', 'EMP1'), { name: 'Les', 'company.accessLevels': ['ansatt'] }));
+  });
+
+  test('kan ikke koble seg selv til en post med ledernivå', async () => {
+    await assertFails(updateDoc(doc(as('les'), 'families', A, 'employees', 'EMPFREE'), { personUid: 'les' }));
+    await assertFails(setDoc(doc(as('les'), 'families', A, 'employees', 'NEWSELF'), { personUid: 'les', company: { accessLevel: 'administrator' } }));
+    await assertSucceeds(setDoc(doc(as('non'), 'families', A, 'employees', 'NEWNON'), { personUid: 'non', company: { accessLevel: 'ansatt', accessRole: 'Ansatt' } }));
+  });
+
+  test('øverste leder kan endre medlemmer opp til eget nivå, men ikke gi administrator', async () => {
+    const db = as('ldr');
+    await assertSucceeds(updateDoc(doc(db, 'families', A, 'employees', 'EMP2'), { 'company.accessLevel': 'leder', 'company.accessLevels': ['leder'] }));
+    await assertFails(updateDoc(doc(db, 'families', A, 'employees', 'EMP1'), { 'company.accessLevel': 'administrator' }));
+    await assertFails(updateDoc(doc(db, 'families', A, 'employees', 'EMP1'), { 'company.accessOverrides': { companyProfile: 'write' } }));
+    await assertFails(updateDoc(doc(db, 'families', A, 'employees', 'EMPADM'), { 'company.accessLevels': ['ansatt'], 'company.accessLevel': 'ansatt' }));
+  });
+
+  test('ansatt uten Tilgangsstyring kan ikke endre andres nivå', async () => {
+    await assertFails(updateDoc(doc(as('beh'), 'families', A, 'employees', 'EMP2'), { 'company.accessLevel': 'leder', 'company.accessLevels': ['leder'] }));
+  });
+
+  test('administrator og eier kan gi administrator', async () => {
+    await assertSucceeds(updateDoc(doc(as('adm'), 'families', A, 'employees', 'EMP2'), { 'company.accessLevel': 'administrator', 'company.accessLevels': ['administrator'] }));
+    await assertSucceeds(updateDoc(doc(as('own'), 'families', A, 'employees', 'EMP1'), { 'company.accessLevel': 'administrator' }));
   });
 });

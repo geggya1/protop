@@ -4,7 +4,12 @@
  *
  *   iso: Lese              → se publiserte prosesser/dokumenter, melde avvik, fylle ut skjema
  *   iso: Begrenset redig.  → behandle saker, registre, utkast til prosesser/dokumenter
- *   iso: Admin             → godkjenne/publisere, lukke saker, innstillinger
+ *   iso: Admin             → innstillingene for ledelsessystemet (omfang, roller, risikometode)
+ *
+ * Godkjenne, publisere og lukke krever ikke Admin. Det gjør den som har Begrenset redigering
+ * og står i en ledende ISO-rolle (systemansvarlig, kvalitetsleder, øverste ledelse, HMS-leder).
+ * Rollene settes i ISO-innstillingene, som bare Admin kan endre. Ingen kan derfor gi seg selv
+ * godkjenningsfullmakt.
  *
  * Skjermede HMS-/personsaker: bare personer som er uttrykkelig ført opp på listen
  * «Tilgang til skjermede saker». Objektbasert: den som meldte en skjermet sak, og den
@@ -35,16 +40,21 @@ export function restrictedUids(grants) {
  * bypass = selskapets eier (som i resten av ProTop). serverIso = nivået Firestore-reglene
  * faktisk håndhever (accessAcl); er det lavere, brukes det så knapper ikke lover mer enn serveren tillater.
  */
-export function isoCapabilities({ grants = null, bypass = false, uid = '', restricted = null, serverIso = null } = {}) {
+export function isoCapabilities({ grants = null, bypass = false, uid = '', restricted = null, serverIso = null, approverUids = [] } = {}) {
   let iso = bypass ? 3 : (grants ? rank(grants, 'iso') : 0);
   if (iso > 3) iso = 3;
   if (serverIso != null && Number.isFinite(Number(serverIso))) iso = Math.min(iso, Number(serverIso));
   const listed = !!uid && restrictedUids(restricted).has(String(uid));
+  const approver = !!uid && (approverUids || []).map(String).includes(String(uid));
+  const approve = iso >= 3 || (iso >= 2 && approver);
   return {
     uid: text(uid, 128),
     view: iso >= 1,
     report: iso >= 1,
     manage: iso >= 2,
+    /** Godkjenne, publisere, lukke og arkivere. */
+    approve,
+    /** Innstillingene for ledelsessystemet. */
     admin: iso >= 3,
     owner: !!bypass,
     restrictedListed: listed,
@@ -73,11 +83,26 @@ export function canManageFinding(caps, finding) {
   return !!caps?.manage;
 }
 
-/** Lukking krever fagfullmakt: Admin på ISO, eller særskilt fullmakt for skjermede saker. */
+/** Lukking krever godkjenningsfullmakt, og særskilt tilgang for skjermede saker. */
 export function canCloseFinding(caps, finding) {
   if (!finding) return false;
-  if (finding.restricted) return !!caps?.restrictedManage && !!caps?.admin;
-  return !!caps?.admin;
+  if (finding.restricted) return !!caps?.restrictedManage && !!caps?.approve;
+  return !!caps?.approve;
+}
+
+/** Rollene som gir godkjenningsfullmakt sammen med Begrenset redigering på ISO. */
+export const APPROVER_ROLES = ['system_owner', 'quality_manager', 'top_management', 'hse_manager'];
+
+/** Uid-ene som har en godkjennerrolle. Lagres på isoSystem/main og leses av Firestore-reglene. */
+export function approverUidsFromRoles(roleMap, ownerUid = '') {
+  const out = [];
+  const add = (uid) => {
+    const id = text(uid, 128);
+    if (id && !out.includes(id)) out.push(id);
+  };
+  add(ownerUid);
+  for (const role of APPROVER_ROLES) add(roleMap?.[role]?.uid);
+  return out;
 }
 
 /**
@@ -98,9 +123,12 @@ export function redactFinding(caps, finding) {
   };
 }
 
-/** Minste ISO-nivå hver rolle trenger for å gjøre jobben (1 lese, 2 begrenset redigering, 3 admin). */
+/**
+ * Minste ISO-nivå hver rolle trenger for å gjøre jobben (1 lese, 2 begrenset redigering).
+ * Ingen rolle krever Admin. Admin er bare for innstillingene, og settes etter selskapets ønske.
+ */
 export const ROLE_MIN_ISO = {
-  system_owner: 3, quality_manager: 3, top_management: 3, hse_manager: 2, process_owner: 2,
+  system_owner: 2, quality_manager: 2, top_management: 2, hse_manager: 2, process_owner: 2,
   project_manager: 2, manager: 2, internal_auditor: 2, safety_rep: 1,
 };
 

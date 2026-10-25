@@ -11,7 +11,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { defaultIsoSubView } from '../../src/navigation/shellModules';
-import { isoCapabilities } from '../../src/iso/access';
+import { approverUidsFromRoles, isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
 import { autoQualityPlans, autoTaskEffects } from '../../src/iso/integrations';
 import { createRecord } from '../../src/iso/registers';
@@ -76,7 +76,11 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     uid,
     restricted: store.state.restrictedGrants,
     serverIso: store.serverIso,
-  }), [access.active, access.ready, access.grants, bypass, uid, store.state.restrictedGrants, store.serverIso]);
+    // Godkjennere: lagret liste (som Firestore-reglene leser), ellers utledet av rollene.
+    approverUids: Array.isArray(store.state.system?.approverUids)
+      ? store.state.system.approverUids
+      : approverUidsFromRoles(store.state.system?.roleMap, store.state.system?.ownerUid),
+  }), [access.active, access.ready, access.grants, bypass, uid, store.state.restrictedGrants, store.serverIso, store.state.system?.approverUids, store.state.system?.roleMap, store.state.system?.ownerUid]);
   const canSeeHr = bypass || (typeof access.canView === 'function' && access.canView('hrCompliance'));
   const sources = useIsoSources({ familyId, family, canManage: caps.manage, canSeeHr });
 

@@ -141,7 +141,7 @@ export function submitDocument(doc, { actor, caps, now = new Date() } = {}) {
 }
 
 export function rejectDocument(doc, note, { actor, caps, now = new Date() } = {}) {
-  if (caps && !caps.admin) return fail('Bare godkjenner kan avvise.');
+  if (caps && !caps.approve) return fail('Bare godkjenner kan avvise.');
   const work = workingRevision(doc);
   if (!work || work.state !== 'til_gjennomgang') return fail('Ingen revisjon venter på gjennomgang.');
   if (text(note).length < 5) return fail('Skriv hva som må endres.');
@@ -155,7 +155,7 @@ export function rejectDocument(doc, note, { actor, caps, now = new Date() } = {}
 
 /** Godkjenn og publiser. Forrige publiserte revisjon blir «erstattet» og beholdes uendret. */
 export function approveAndPublishDocument(doc, { actor, caps, now = new Date(), effectiveFrom = '' } = {}) {
-  if (caps && !caps.admin) return fail('Du har ikke fullmakt til å godkjenne dokumenter.');
+  if (caps && !caps.approve) return fail('Du har ikke fullmakt til å godkjenne dokumenter.');
   const work = workingRevision(doc);
   if (!work || work.state !== 'til_gjennomgang') return fail('Revisjonen må sendes til gjennomgang først.');
   if (work.contentHash && work.contentHash !== checksum({ c: work.content, a: work.attachments })) {
@@ -201,7 +201,7 @@ export function newDocumentRevision(doc, reason, { actor, now = new Date() } = {
 }
 
 export function archiveDocument(doc, reason, { actor, caps, now = new Date() } = {}) {
-  if (caps && !caps.admin) return fail('Bare administrator kan arkivere dokumenter.');
+  if (caps && !caps.approve) return fail('Bare en godkjenner kan arkivere dokumenter.');
   if (text(reason).length < 5) return fail('Begrunn arkiveringen.');
   const next = bump({ ...doc, archived: true, archivedAt: nowIso(now), archiveReason: text(reason, 1000), history: pushHistory(doc, 'Arkivert', actor, reason, now) }, actor, now);
   return { ok: true, document: next, events: [ev(next, 'iso.document.archived', actor, doc, now, reason)] };

@@ -63,15 +63,27 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
 export default function ProjectPlatformScreen({ startPage = '' }) {
   const colors = useColors();
   const nav = useNavigation();
-  const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily } = useApp();
+  const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily, shellIntent, clearShellIntent } = useApp();
+  // Kom man hit fra en annen modul (f.eks. ISO-oppsettet), vises en vei tilbake dit.
+  const [returnTo, setReturnTo] = useState(() => (shellIntent?.type === 'returnTo' && shellIntent.tab ? shellIntent : null));
+  useEffect(() => {
+    if (shellIntent?.type !== 'returnTo' || !shellIntent.tab) return;
+    setReturnTo(shellIntent);
+    clearShellIntent?.();
+  }, [shellIntent, clearShellIntent]);
   const access = useCompanyAccess();
   const companyModules = useCompanyModules();
   const company = family?.company?.navn ? family.company : null;
   const owner = isSuperAdmin(family, uid);
   const canEdit = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.canAdmin('companyProfile'));
   const canOpenSettings = (owner && !access.previewLocks('companyProfile')) || (access.ready && access.canView('companyProfile'));
+  // Endre andres tilgang: Begrenset redigering på Tilgangsstyring (Øverste leder har det som standard).
+  // Endre selve nivåene: Admin. Taket (ikke seg selv, ikke over eget nivå) ligger i accessCeiling.
   const canEditAccess = (owner && !access.previewLocks('accessControl'))
+    || (access.ready && access.canEdit('accessControl'));
+  const canEditAccessLevels = (owner && !access.previewLocks('accessControl'))
     || (access.ready && access.canAdmin('accessControl'));
+  const accessActor = { uid: uid || '', grants: access.actorGrants || access.grants || {}, bypass: owner && !access.previewing };
   const canOpenAccess = (owner && !access.previewLocks('accessControl'))
     || (access.ready && access.canView('accessControl'));
   const contextLabel = companyContextLabel(family);
@@ -189,6 +201,11 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       contentContainerStyle={[styles.body, page === 'tilgang' || page === 'moduler' ? styles.bodyAccess : null]}
       keyboardShouldPersistTaps="handled"
     >
+      {returnTo ? (
+        <TouchableOpacity onPress={() => requestShellTab?.(returnTo.tab, returnTo.subView || null)} accessibilityRole="button" nativeID="company-return-to">
+          <Text style={{ color: colors.brand, fontWeight: '600' }}>‹ {returnTo.label || 'Tilbake'}</Text>
+        </TouchableOpacity>
+      ) : null}
       {page === 'tilgang' || page === 'moduler' ? (
         <TouchableOpacity onPress={() => requestShellTab?.('selskap', 'innstillinger')} accessibilityRole="button">
           <Text style={{ color: colors.brand, fontWeight: '400' }}>Tilbake til selskapsinnstillinger</Text>
@@ -215,6 +232,8 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               company={company}
               employees={access.employees}
               canEdit={canEditAccess}
+              canEditLevels={canEditAccessLevels}
+              actor={accessActor}
               colors={colors}
               busy={busy}
               onSavePolicy={async (accessPolicy) => {

@@ -7,6 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from '../../firebase';
+import { findCompanyByOrgnr } from '../../src/project/companyLookupClient';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { createGroup, updateGroup } from '../../src/utils/groups';
@@ -54,8 +55,7 @@ export default function CreateCompanyScreen() {
     const id = digitsOrgnr(orgnr);
     if (id.length !== 9) return null;
     // Andres bedrifter kan ikke leses fra appen. Serveren svarer med id og navn.
-    const res = await httpsCallable(functions, 'findCompanyByOrgnr')({ orgnr: id });
-    const found = res?.data?.company;
+    const found = await findCompanyByOrgnr(id);
     if (!found?.id) return null;
     return { id: found.id, name: found.name, member: !!found.member, company: { navn: found.name, organisasjonsnummer: id } };
   }

@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { collection, getDocs, query, where } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
-import { auth, db } from '../../firebase';
+import { auth } from '../../firebase';
 import { createGroup, updateGroup } from '../../src/utils/groups';
 import { searchBrregCompanies, searchBrregUnderenheter } from '../../src/utils/boligmappaApis';
 import { fetchCompanyCpv } from '../../src/anbud/doffinClient';
 import { companyFromBrreg } from '../../src/project/company';
-import { digitsOrgnr, organizationByOrgnr } from '../../src/project/companyRegistry';
+import { digitsOrgnr } from '../../src/project/companyRegistry';
+import { findCompanyByOrgnr } from '../../src/project/companyLookupClient';
 import {
   addSubUnit,
   createDepartment,
@@ -149,14 +149,7 @@ export default function CompanyStructureSettings({
       const owned = findOwnedOrganization(families, nextCompany.organisasjonsnummer);
       let companyId = owned?.id || '';
       if (!companyId) {
-        const snap = await getDocs(query(
-          collection(db, 'families'),
-          where('orgnr', '==', digitsOrgnr(nextCompany.organisasjonsnummer)),
-        ));
-        const existing = organizationByOrgnr(
-          snap.docs.map((row) => ({ id: row.id, ...row.data() })),
-          nextCompany.organisasjonsnummer,
-        );
+        const existing = await findCompanyByOrgnr(digitsOrgnr(nextCompany.organisasjonsnummer));
         if (existing?.id) {
           throw new Error('Organisasjonsnummeret er allerede registrert i ProTop. Åpne det selskapet hvis du er med, eller be om innpass.');
         }

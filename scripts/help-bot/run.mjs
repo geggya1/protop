@@ -494,7 +494,38 @@ async function testAssistant(view, page) {
   await page.screenshot({ path: join(OUT, view, 'assistent-vis-meg.png') });
   log(`[${view}] ${res.showMeOk ? 'OK ' : 'FEIL'} assistent: «Vis meg» → ${JSON.stringify(res.showMe)}`);
   await closeOverlays(page);
-  res.ok = res.answers.every((a) => a.ok) && res.supportCard && res.ticketSent && res.showMeOk;
+
+  // Presisjon: oppgavesvar med eksakte steg, tips, og «Vis meg» fra riktig steg.
+  phase.now = 'assistent: fravær';
+  await openPage(page, { tab: 'home' });
+  await openAssistantPanel(page);
+  await page.waitForTimeout(1200);
+  const before = await page.locator('[data-testid="assistant-msg-bot"]').count();
+  await page.locator('[data-testid="assistant-input"]').fill('Hvordan føre fravær?');
+  await page.locator('[data-testid="assistant-send"]').click({ force: true });
+  await page.waitForFunction((n) => document.querySelectorAll('[data-testid="assistant-msg-bot"]').length > n, before, { timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const last = page.locator('[data-testid="assistant-msg-bot"]').last();
+  const absenceText = (await last.textContent().catch(() => '')) || '';
+  const hasTip = (await last.locator('[data-testid="assistant-after"]').count()) > 0;
+  const processBtn = await last.locator('[data-testid="assistant-action-process"]').count();
+  await page.screenshot({ path: join(OUT, view, 'assistent-fravaer.png') });
+  await last.locator('[data-testid="assistant-action-tour"]').first().click({ force: true }).catch(() => {});
+  await page.waitForTimeout(4200);
+  const ab = await tourState(page);
+  res.absence = {
+    steps: /Legg til fravær \/ ferie/.test(absenceText) && /7:30 er en hel dag/.test(absenceText),
+    tip: hasTip,
+    noFlow: processBtn === 0,
+    tour: { pageKey: ab.help?.tourPageKey, index: ab.help?.tourIndex, title: ab.title },
+  };
+  res.absenceOk = res.absence.steps && res.absence.tip && res.absence.noFlow
+    && ab.help?.tourPageKey === 'timeliste' && ab.help?.tourIndex === 2 && /Fravær/.test(ab.title);
+  await page.screenshot({ path: join(OUT, view, 'assistent-fravaer-vis-meg.png') });
+  log(`[${view}] ${res.absenceOk ? 'OK ' : 'FEIL'} assistent: «Hvordan føre fravær?» → ${JSON.stringify(res.absence)}`);
+  await closeOverlays(page);
+
+  res.ok = res.answers.every((a) => a.ok) && res.supportCard && res.ticketSent && res.showMeOk && res.absenceOk;
   return res;
 }
 
@@ -530,7 +561,7 @@ function markdown() {
     }
     if (data.assistant) {
       const a = data.assistant;
-      lines.push('', `Assistent: ${a.ok ? 'OK' : 'FEIL'} — ${a.answers.filter((x) => x.ok).length}/${a.answers.length} svar, supportsak ${a.ticketSent ? 'sendt' : 'ikke sendt'}, «Vis meg» ${a.showMeOk ? 'OK' : 'feilet'}`);
+      lines.push('', `Assistent: ${a.ok ? 'OK' : 'FEIL'} — ${a.answers.filter((x) => x.ok).length}/${a.answers.length} svar, supportsak ${a.ticketSent ? 'sendt' : 'ikke sendt'}, «Vis meg» ${a.showMeOk ? 'OK' : 'feilet'}, presist fraværssvar ${a.absenceOk ? 'OK' : 'feilet'}`);
     }
     lines.push('');
   }

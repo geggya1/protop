@@ -596,3 +596,19 @@ test('eskalering og automatisk kvalitetsplan (C1/C4)', async () => {
   assert.equal(I.autoQualityPlans(s, [{ id: newId, name: 'Ny' }]).length, 0, 'ingen dobbel plan');
   assert.equal(I.autoQualityPlans({ ...s, system: { ...s.system, autoQualityPlan: false } }, [{ id: newId }]).length, 0);
 });
+
+test('godkjenning krever ikke Admin: Begrenset redigering + ledende rolle holder', async () => {
+  const { approverUidsFromRoles, ROLE_MIN_ISO, canCloseFinding } = await import('./access.js');
+  const roleMap = { quality_manager: { uid: 'kv', name: 'Kvalitetsleder' }, process_owner: { uid: 'po', name: 'Prosesseier' } };
+  const approvers = approverUidsFromRoles(roleMap, 'sys');
+  assert.deepEqual(approvers, ['sys', 'kv']);
+  const kv = isoCapabilities({ grants: { iso: 'read' }, uid: 'kv', approverUids: approvers });
+  assert.equal(kv.approve, true);
+  assert.equal(kv.admin, false, 'innstillingene er fortsatt bare for Admin');
+  const po = isoCapabilities({ grants: { iso: 'read' }, uid: 'po', approverUids: approvers });
+  assert.equal(po.approve, false, 'prosesseier behandler, men godkjenner ikke');
+  const reader = isoCapabilities({ grants: { iso: 'see' }, uid: 'kv', approverUids: approvers });
+  assert.equal(reader.approve, false, 'rollen alene gir ingen tilgang');
+  assert.equal(canCloseFinding(kv, { restricted: false }), true);
+  assert.ok(Object.values(ROLE_MIN_ISO).every((n) => n <= 2), 'ingen rolle krever Admin');
+});

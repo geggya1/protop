@@ -309,7 +309,7 @@ export function setRecordState(record, state, { actor, now = new Date(), note = 
   if (!def) return fail('Ukjent register.');
   if (!def.states.includes(state)) return fail('Ugyldig status.');
   if (caps && !caps.manage) return fail('Du har ikke tilgang til å endre status.');
-  if (['godkjent', 'lukket'].includes(state) && caps && !caps.admin) return fail('Godkjenning krever administrator-tilgang i ISO.');
+  if (['godkjent', 'lukket'].includes(state) && caps && !caps.approve) return fail('Godkjenning krever en godkjennerrolle i ISO.');
   const next = bump({
     ...record,
     state,

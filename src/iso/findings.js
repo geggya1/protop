@@ -379,7 +379,7 @@ export function closeBlockers(finding) {
 }
 
 export function closeFinding(finding, input, { actor, caps, now = new Date() } = {}) {
-  if (caps && !caps.admin) return fail('Du har ikke fullmakt til å lukke saker.');
+  if (caps && !caps.approve) return fail('Du har ikke fullmakt til å lukke saker.');
   if (finding?.restricted && caps && !caps.restrictedManage) return fail('Skjermede saker krever særskilt fullmakt.');
   const blockers = closeBlockers(finding);
   if (blockers.length) return fail(blockers[0], { blockers });
@@ -417,7 +417,7 @@ export function reopenFinding(finding, reason, { actor, caps, now = new Date() }
 }
 
 export function cancelFinding(finding, reason, { actor, caps, now = new Date() } = {}) {
-  if (caps && !caps.admin) return fail('Bare administrator kan kansellere saker.');
+  if (caps && !caps.approve) return fail('Bare en godkjenner kan kansellere saker.');
   if (['lukket', 'kansellert'].includes(finding?.state)) return fail('Saken er allerede avsluttet.');
   if (text(reason).length < 5) return fail('Begrunn kanselleringen.');
   const next = bump({

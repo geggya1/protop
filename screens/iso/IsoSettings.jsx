@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { auditEvent, bump, nowIso, prettyDate } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, ISO_ROLES, STANDARDS } from '../../src/iso/catalog';
 import { markForReassessment, requirementIdsForArea } from '../../src/iso/requirements';
 import { setupDefaultsFromCompany } from '../../src/iso/integrations';
-import { roleAccessCheck, restrictedUids } from '../../src/iso/access';
+import { APPROVER_ROLES, approverUidsFromRoles, roleAccessCheck, restrictedUids } from '../../src/iso/access';
 import { aclFor } from '../../src/iso/aclSync';
 import { saveRestrictedGrants } from '../../src/iso/storage';
 import { STARTER_OPTIONS, runStarterKit } from './starterKit';
@@ -37,6 +38,62 @@ function suggestRoles(people) {
   return out;
 }
 
+const DRAFT_PREFIX = 'protop.iso.setupDraft.v1.';
+const AUTOSAVE_MS = 900;
+
+/** Feltene som lagres fra skjemaet. Brukes til å se om noe er endret. */
+function settingsKey(x) {
+  return JSON.stringify({
+    name: x?.name || '',
+    standards: x?.standards || [],
+    scopeText: x?.scopeText || '',
+    units: x?.units || '',
+    locations: x?.locations || '',
+    activities: x?.activities || '',
+    exclusions: x?.exclusions || '',
+    ownerName: x?.ownerName || '',
+    ownerUid: x?.ownerUid || '',
+    roleMap: x?.roleMap || {},
+    riskMethod: x?.riskMethod?.thresholds || null,
+    autoQualityPlan: x?.autoQualityPlan !== false,
+  });
+}
+
+/** Feil som hindrer lagring. Tom streng når alt er i orden. */
+function settingsError(v) {
+  if (!(v.standards || []).length) return 'Velg minst én standard.';
+  if (!String(v.scopeText || '').trim()) return 'Beskriv omfanget av ledelsessystemet.';
+  if (!String(v.ownerName || '').trim()) return 'Velg systemansvarlig.';
+  const t = v.riskMethod?.thresholds || DEFAULT_RISK_METHOD.thresholds;
+  if (!(t.medium > 0 && t.high > t.medium && t.critical > t.high && t.critical <= 25)) return 'Risikoterskler må være stigende og høyst 25.';
+  return '';
+}
+
+async function readDraft(companyId) {
+  try {
+    const raw = await AsyncStorage.getItem(DRAFT_PREFIX + companyId);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(companyId, v) {
+  try {
+    AsyncStorage.setItem(DRAFT_PREFIX + companyId, JSON.stringify(v)).catch(() => {});
+  } catch {
+    // Utkastet er en bekvemmelighet. Skjemaet virker uten.
+  }
+}
+
+function clearDraft(companyId) {
+  try {
+    AsyncStorage.removeItem(DRAFT_PREFIX + companyId).catch(() => {});
+  } catch {
+    // Se over.
+  }
+}
+
 export default function IsoSettings({ ctx }) {
   const colors = useColors();
   const { state, caps, actor, store, wide, people, sources, requestTab, companyId, go } = ctx;
@@ -49,25 +106,58 @@ export default function IsoSettings({ ctx }) {
   const [log, setLog] = useState([]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  // Autolagring: idle | pending | saving | saved | invalid | error
+  const [saveState, setSaveState] = useState('idle');
+  const [saveNote, setSaveNote] = useState('');
+  const vRef = useRef(v);
+  vRef.current = v;
+  const sysRef = useRef(sys);
+  sysRef.current = sys;
+  const edited = useRef(false);
+  const timer = useRef(null);
+  const chain = useRef(Promise.resolve());
+  const draftLoaded = useRef(false);
 
-  // Første gang: fyll ut fra selskapsprofil og ansattregister automatisk.
+  // Første gang: fyll ut fra selskapsprofil og ansattregisteret, eller fra utkastet som er lagret.
   useEffect(() => {
-    if (!first) { setV(state.system); return; }
-    setV((cur) => ({
-      ...state.system,
-      name: cur.name || defaults.name,
-      scopeText: cur.scopeText || defaults.scopeText,
-      units: cur.units || defaults.units,
-      locations: cur.locations || defaults.locations,
-      activities: cur.activities || defaults.activities,
-      standards: cur.standards?.length ? cur.standards : defaults.standards,
-      ownerName: cur.ownerName || actor.name,
-      ownerUid: cur.ownerUid || actor.uid,
-      roleMap: Object.keys(cur.roleMap || {}).length ? cur.roleMap : { system_owner: { name: actor.name, uid: actor.uid, label: 'Systemansvarlig K-HMS' }, ...suggestRoles(people) },
-    }));
-  }, [state.system, first, defaults, people, actor.name, actor.uid]);
+    if (!first) {
+      // Ikke overskriv det brukeren holder på med; da lagres det uansett om litt.
+      if (!edited.current) setV(state.system);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const draft = draftLoaded.current ? null : await readDraft(companyId);
+      draftLoaded.current = true;
+      if (!alive) return;
+      setV((cur) => {
+        const base = draft && typeof draft === 'object' ? { ...cur, ...draft } : cur;
+        return {
+          ...state.system,
+          ...base,
+          name: base.name || defaults.name,
+          scopeText: base.scopeText || defaults.scopeText,
+          units: base.units || defaults.units,
+          locations: base.locations || defaults.locations,
+          activities: base.activities || defaults.activities,
+          standards: base.standards?.length ? base.standards : defaults.standards,
+          ownerName: base.ownerName || actor.name,
+          ownerUid: base.ownerUid || actor.uid,
+          roleMap: Object.keys(base.roleMap || {}).length ? base.roleMap : { system_owner: { name: actor.name, uid: actor.uid, label: 'Systemansvarlig K-HMS' }, ...suggestRoles(people) },
+          setupAt: '',
+        };
+      });
+    })();
+    return () => { alive = false; };
+  }, [state.system, first, defaults, people, actor.name, actor.uid, companyId]);
 
-  const set = (k) => (x) => setV((cur) => ({ ...cur, [k]: x }));
+  /** Endre skjemaet. Alt som endres, lagres fortløpende. */
+  const update = useCallback((fn) => {
+    edited.current = true;
+    setV((cur) => (typeof fn === 'function' ? fn(cur) : fn));
+  }, []);
+  const set = (k) => (x) => update((cur) => ({ ...cur, [k]: x }));
+
   const scopeChanged = !first && (v.scopeText !== sys.scopeText || v.units !== sys.units || v.locations !== sys.locations || v.activities !== sys.activities || (v.standards || []).join() !== (sys.standards || []).join());
   const rankFor = useMemo(() => {
     const cache = new Map();
@@ -78,42 +168,155 @@ export default function IsoSettings({ ctx }) {
   }, [ctx.family, ctx.accessEmployees]);
   const roleCheck = useMemo(() => roleAccessCheck(v.roleMap, rankFor), [v.roleMap, rankFor]);
 
-  async function save() {
-    setErr(''); setMsg(''); setLog([]);
-    if (!(v.standards || []).length) { setErr('Velg minst én standard.'); return; }
-    if (!String(v.scopeText || '').trim()) { setErr('Beskriv omfanget av ledelsessystemet.'); return; }
-    if (!String(v.ownerName || '').trim()) { setErr('Velg systemansvarlig.'); return; }
-    const t = v.riskMethod?.thresholds || DEFAULT_RISK_METHOD.thresholds;
-    if (!(t.medium > 0 && t.high > t.medium && t.critical > t.high && t.critical <= 25)) { setErr('Risikoterskler må være stigende og høyst 25.'); return; }
-    setBusy(true);
-    const methodChanged = JSON.stringify(v.riskMethod?.thresholds) !== JSON.stringify(sys.riskMethod?.thresholds);
-    const next = bump({
-      ...v,
-      riskMethod: methodChanged && !first ? { ...v.riskMethod, version: bumpVersion(sys.riskMethod?.version) } : (v.riskMethod || DEFAULT_RISK_METHOD),
-      roleMap: { ...(v.roleMap || {}), system_owner: { name: v.ownerName, uid: v.ownerUid, label: 'Systemansvarlig K-HMS' } },
-      setupAt: sys.setupAt || nowIso(),
-      setupBy: sys.setupBy || actor.name,
+  /** Bygg neste systemdokument fra skjemaet. */
+  function buildNext(cur, prev) {
+    const methodChanged = JSON.stringify(cur.riskMethod?.thresholds) !== JSON.stringify(prev.riskMethod?.thresholds);
+    const roleMap = { ...(cur.roleMap || {}), system_owner: { name: cur.ownerName, uid: cur.ownerUid, label: 'Systemansvarlig K-HMS' } };
+    return bump({
+      ...cur,
+      riskMethod: methodChanged && prev.setupAt ? { ...cur.riskMethod, version: bumpVersion(prev.riskMethod?.version) } : (cur.riskMethod || DEFAULT_RISK_METHOD),
+      roleMap,
+      // Godkjennerne lagres som liste, så Firestore-reglene kan lese dem.
+      approverUids: approverUidsFromRoles(roleMap, cur.ownerUid),
+      setupAt: prev.setupAt || nowIso(),
+      setupBy: prev.setupBy || actor.name,
     }, actor);
-    const res = await store.commit('system', 'system', { ok: true, system: next, events: [auditEvent({ entityType: 'system', entityId: 'main', action: first ? 'iso.system.activated' : 'iso.system.updated', actor, before: sys, after: next })] }, { previous: first ? null : sys });
-    if (!res.ok) { setErr(res.error); setBusy(false); return; }
-    if (scopeChanged) {
-      const now = store.current();
-      const ids = requirementIdsForArea(now, 'scope').concat(requirementIdsForArea(now, 'context'));
-      const flagged = markForReassessment(now, ids, 'Omfanget er endret', { actor });
-      if (flagged.events.length) await store.commitLists({ assessments: flagged.assessments }, flagged.events);
+  }
+
+  /** Lagre endringene i et allerede aktivert system. Køes, så to lagringer aldri går samtidig. */
+  const persist = useCallback(() => {
+    chain.current = chain.current.catch(() => {}).then(async () => {
+      const cur = vRef.current;
+      const prev = sysRef.current;
+      if (!prev.setupAt) return;
+      if (settingsKey(cur) === settingsKey(prev) && Array.isArray(prev.approverUids)) {
+        setSaveState('saved');
+        return;
+      }
+      const problem = settingsError(cur);
+      if (problem) {
+        setSaveState('invalid');
+        setSaveNote(problem);
+        return;
+      }
+      setSaveState('saving');
+      setSaveNote('');
+      const scopeMoved = cur.scopeText !== prev.scopeText || cur.units !== prev.units || cur.locations !== prev.locations || cur.activities !== prev.activities || (cur.standards || []).join() !== (prev.standards || []).join();
+      const next = buildNext(cur, prev);
+      const res = await store.commit('system', 'system', { ok: true, system: next, events: [auditEvent({ entityType: 'system', entityId: 'main', action: 'iso.system.updated', actor, before: prev, after: next })] }, { previous: prev });
+      if (!res.ok) {
+        setSaveState('error');
+        setSaveNote(res.error || 'Kunne ikke lagre.');
+        return;
+      }
+      sysRef.current = next;
+      if (scopeMoved) {
+        const now = store.current();
+        const ids = requirementIdsForArea(now, 'scope').concat(requirementIdsForArea(now, 'context'));
+        const flagged = markForReassessment(now, ids, 'Omfanget er endret', { actor });
+        if (flagged.events.length) await store.commitLists({ assessments: flagged.assessments }, flagged.events);
+      }
+      // Kom det flere endringer mens vi lagret, tar neste runde dem.
+      if (settingsKey(vRef.current) !== settingsKey(next)) setSaveState('pending');
+      else setSaveState('saved');
+    });
+    return chain.current;
+  }, [store, actor]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Lagre nå (brukes før man går til en annen side). */
+  const flush = useCallback(async () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
     }
-    if (first && Object.values(starter).some(Boolean)) {
+    if (first) {
+      writeDraft(companyId, vRef.current);
+      return;
+    }
+    await persist();
+  }, [first, companyId, persist]);
+
+  // Autolagring: et aktivert system lagres i ProTop, et oppsett som ikke er aktivert ennå
+  // lagres som utkast på enheten. Ingenting forsvinner når man går til en annen side.
+  useEffect(() => {
+    if (!edited.current) return undefined;
+    if (first) {
+      writeDraft(companyId, v);
+      setSaveState('draft');
+      return undefined;
+    }
+    if (settingsKey(v) === settingsKey(sysRef.current)) return undefined;
+    setSaveState('pending');
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      persist();
+    }, AUTOSAVE_MS);
+    return undefined;
+  }, [v, first, companyId, persist]);
+
+  // Eldre oppsett mangler godkjennerlisten. Admin som åpner innstillingene, lagrer den med en gang.
+  useEffect(() => {
+    if (!first && caps.admin && !Array.isArray(sys.approverUids) && sys.setupAt) persist();
+  }, [first, caps.admin, sys.setupAt, sys.approverUids, persist]);
+
+  // Går man bort før forsinkelsen er ute, lagres det likevel.
+  useEffect(() => () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+      persist();
+    }
+  }, [persist]);
+
+  /** Til tilgangsstyringen, med vei tilbake hit. */
+  async function openAccess() {
+    await flush();
+    requestTab?.('selskap', 'tilgang', { type: 'returnTo', tab: 'iso', subView: 'innstillinger', label: 'Tilbake til ISO-oppsettet' });
+  }
+
+  async function activate() {
+    setErr(''); setMsg(''); setLog([]);
+    const problem = settingsError(v);
+    if (problem) { setErr(problem); return; }
+    setBusy(true);
+    const next = buildNext(v, sys);
+    const res = await store.commit('system', 'system', { ok: true, system: next, events: [auditEvent({ entityType: 'system', entityId: 'main', action: 'iso.system.activated', actor, before: sys, after: next })] }, { previous: null });
+    if (!res.ok) { setErr(res.error); setBusy(false); return; }
+    clearDraft(companyId);
+    edited.current = false;
+    if (Object.values(starter).some(Boolean)) {
       const lines = await runStarterKit({ companyId, state: store.current(), store, actor, caps, options: starter });
       sources.reloadAnbud();
       setLog(lines);
     }
     setBusy(false);
-    setMsg(first ? 'Ledelsessystemet er aktivert.' : 'Innstillingene er lagret.');
+    setMsg('Ledelsessystemet er aktivert. Endringer du gjør herfra, lagres automatisk.');
   }
 
+  const status = {
+    draft: { tone: 'info', icon: 'phone-portrait-outline', label: 'Utkast lagret på enheten' },
+    pending: { tone: 'info', icon: 'ellipsis-horizontal', label: 'Lagrer straks …' },
+    saving: { tone: 'info', icon: 'cloud-upload-outline', label: 'Lagrer …' },
+    saved: { tone: 'ok', icon: 'checkmark-circle-outline', label: 'Lagret' },
+    invalid: { tone: 'warn', icon: 'alert-circle-outline', label: 'Ikke lagret' },
+    error: { tone: 'danger', icon: 'cloud-offline-outline', label: 'Kunne ikke lagre' },
+  }[saveState];
+
   return (
-    <Page wide={wide} title={first ? 'Sett opp ledelsessystemet' : 'Omfang, standarder og roller'} intro={first ? 'Feltene er fylt ut fra selskapsprofilen og ansattregisteret. Sjekk dem, og velg hva som skal opprettes automatisk.' : 'Virksomheten velger selv standarder, omfang og hvem som har rollene.'}>
-      {scopeChanged ? <Banner tone="warn" text="Endret omfang: vurderingene av kontekst og omfang flagges for ny vurdering når du lagrer." /> : null}
+    <Page
+      wide={wide}
+      title={first ? 'Sett opp ledelsessystemet' : 'Omfang, standarder og roller'}
+      intro={first
+        ? 'Feltene er fylt ut fra selskapsprofilen og ansattregisteret. Sjekk dem, og velg hva som skal opprettes automatisk. Det du fyller inn, huskes til du aktiverer.'
+        : 'Virksomheten velger selv standarder, omfang og hvem som har rollene. Endringer lagres automatisk.'}
+      actions={status ? <Pill label={status.label} icon={status.icon} tone={status.tone} /> : null}
+    >
+      {scopeChanged ? <Banner tone="warn" text="Endret omfang: vurderingene av kontekst og omfang flagges for ny vurdering." /> : null}
+      {saveState === 'invalid' || saveState === 'error' ? (
+        <Banner tone={saveState === 'error' ? 'danger' : 'warn'} text={`${saveNote} Endringen er ikke lagret ennå.`} />
+      ) : null}
+      {saveState === 'error' ? <Btn small icon="refresh" label="Prøv igjen" onPress={() => persist()} /> : null}
       {msg ? <Banner tone="ok" text={msg} /> : null}
       {log.length ? (
         <Card title="Opprettet automatisk">
@@ -130,7 +333,7 @@ export default function IsoSettings({ ctx }) {
         <Field label="Navn"><TextIn value={v.name} onChangeText={set('name')} /></Field>
         <Field label="Standarder" required>
           {STANDARDS.map((s) => (
-            <Check key={s.code} label={`${s.label} – ${s.domain}`} value={(v.standards || []).includes(s.code)} onChange={(on) => set('standards')(on ? [...(v.standards || []), s.code] : (v.standards || []).filter((x) => x !== s.code))} />
+            <Check key={s.code} label={`${s.label} – ${s.domain}`} value={(v.standards || []).includes(s.code)} onChange={(on) => update((cur) => ({ ...cur, standards: on ? [...(cur.standards || []), s.code] : (cur.standards || []).filter((x) => x !== s.code) }))} />
           ))}
         </Field>
         <Field label="Omfangserklæring" required><TextIn multiline rows={3} value={v.scopeText} onChangeText={set('scopeText')} /></Field>
@@ -140,7 +343,7 @@ export default function IsoSettings({ ctx }) {
         </View>
         <Field label="Aktiviteter og tjenester"><TextIn multiline rows={2} value={v.activities} onChangeText={set('activities')} /></Field>
         <Field label="Avgrensninger og begrunnelse" hint="ISO 9001 kap. 8-krav kan begrunnes som ikke anvendbare. Krav i ISO 14001/45001 kan ikke velges bort."><TextIn multiline rows={2} value={v.exclusions} onChangeText={set('exclusions')} /></Field>
-        <Field label="Systemansvarlig" required><PersonPick people={people} value={v.ownerName} onChange={(p) => setV((cur) => ({ ...cur, ownerName: p.name, ownerUid: p.uid }))} /></Field>
+        <Field label="Systemansvarlig" required><PersonPick people={people} value={v.ownerName} onChange={(p) => update((cur) => ({ ...cur, ownerName: p.name, ownerUid: p.uid }))} /></Field>
       </Card>
 
       <Card title="Roller" subtitle="Foreslått ut fra stillingstittel i ansattregisteret. Prosesstrinn og nye saker tildeles personen med rollen.">
@@ -148,14 +351,14 @@ export default function IsoSettings({ ctx }) {
           {ISO_ROLES.filter((r) => !['employee', 'system_owner'].includes(r.id)).map((r) => (
             <View key={r.id} style={wide ? { flexBasis: '48%', flexGrow: 1 } : { width: '100%' }}>
               <Field label={r.label}>
-                <PersonPick people={people} value={v.roleMap?.[r.id]?.name || ''} onChange={(p) => setV((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), [r.id]: p.name ? { name: p.name, uid: p.uid, label: r.label } : null } }))} />
+                <PersonPick people={people} value={v.roleMap?.[r.id]?.name || ''} onChange={(p) => update((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), [r.id]: p.name ? { name: p.name, uid: p.uid, label: r.label } : null } }))} />
               </Field>
             </View>
           ))}
         </View>
       </Card>
 
-      <Card title="Roller og tilgang" subtitle="Rollene gir ikke tilgang av seg selv. Her ser du om personene har nivået rollen trenger i tilgangsmatrisen.">
+      <Card title="Roller og tilgang" subtitle="Ingen rolle krever Admin. Rollene trenger Begrenset redigering på ISO i tilgangsmatrisen. Systemansvarlig, kvalitetsleder, øverste ledelse og HMS-leder kan i tillegg godkjenne, publisere og lukke.">
         {!roleCheck.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Velg personer til rollene over.</Text> : null}
         {roleCheck.map((r) => (
           <ListRow
@@ -163,10 +366,14 @@ export default function IsoSettings({ ctx }) {
             icon={r.ok ? 'checkmark-circle-outline' : 'alert-circle-outline'}
             tone={r.ok ? 'ok' : 'warn'}
             title={`${ISO_ROLES.find((x) => x.id === r.role)?.label || r.role}: ${r.person.name}`}
-            subtitle={r.ok ? `Har ${r.hasLabel}` : `Trenger ISO · ${r.needLabel}, har ${r.hasLabel}`}
+            subtitle={r.has == null
+              ? 'Ikke koblet til en bruker. Personen må ha innlogging og være koblet under Ansatte.'
+              : (r.ok
+                ? `Har ${r.hasLabel}${APPROVER_ROLES.includes(r.role) ? ' · kan godkjenne' : ''}`
+                : `Trenger ISO · ${r.needLabel}, har ${r.hasLabel}`)}
           />
         ))}
-        {roleCheck.some((r) => !r.ok) && requestTab ? <Btn small icon="key-outline" label="Gi tilgang i tilgangsstyring" onPress={() => requestTab('selskap', 'tilgang')} /> : null}
+        {roleCheck.some((r) => !r.ok) && requestTab ? <Btn small icon="key-outline" label="Gi tilgang i tilgangsstyring" onPress={openAccess} /> : null}
       </Card>
 
       <RestrictedAccessCard ctx={ctx} />
@@ -184,7 +391,7 @@ export default function IsoSettings({ ctx }) {
           {['medium', 'high', 'critical'].map((k) => (
             <View key={k} style={{ minWidth: 120, flex: 1 }}>
               <Field label={{ medium: 'Middels fra', high: 'Høy fra', critical: 'Kritisk fra' }[k]}>
-                <TextIn keyboardType="numeric" value={String(v.riskMethod?.thresholds?.[k] ?? DEFAULT_RISK_METHOD.thresholds[k])} onChangeText={(x) => setV((cur) => ({ ...cur, riskMethod: { ...(cur.riskMethod || DEFAULT_RISK_METHOD), thresholds: { ...(cur.riskMethod?.thresholds || DEFAULT_RISK_METHOD.thresholds), [k]: Number(x) || 0 } } }))} />
+                <TextIn keyboardType="numeric" value={String(v.riskMethod?.thresholds?.[k] ?? DEFAULT_RISK_METHOD.thresholds[k])} onChangeText={(x) => update((cur) => ({ ...cur, riskMethod: { ...(cur.riskMethod || DEFAULT_RISK_METHOD), thresholds: { ...(cur.riskMethod?.thresholds || DEFAULT_RISK_METHOD.thresholds), [k]: Number(x) || 0 } } }))} />
               </Field>
             </View>
           ))}
@@ -201,16 +408,18 @@ export default function IsoSettings({ ctx }) {
       <Card title="Tilgang i ProTop">
         <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 20 }}>
           ISO · Lese: se publiserte prosesser og dokumenter, melde avvik, fylle ut skjema.{'\n'}
-          ISO · Begrenset redigering: behandle saker, registre og utkast.{'\n'}
-          ISO · Admin: godkjenne, publisere, lukke saker og endre innstillingene.
+          ISO · Begrenset redigering: behandle saker, registre og utkast. Med en ledende rolle også godkjenne, publisere og lukke.{'\n'}
+          ISO · Admin: bare innstillingene for ledelsessystemet. Selskapet bestemmer selv hvem som skal ha Admin.
         </Text>
-        {requestTab ? <Btn small icon="key-outline" label="Åpne tilgangsstyring" onPress={() => requestTab('selskap', 'tilgang')} /> : null}
+        {requestTab ? <Btn small icon="key-outline" label="Åpne tilgangsstyring" onPress={openAccess} /> : null}
       </Card>
       {sys.setupAt ? <KV label="Aktivert" value={`${prettyDate(sys.setupAt)} av ${sys.setupBy}`} /> : null}
-      <Row>
-        <Btn kind="primary" icon={first ? 'flash-outline' : 'save-outline'} label={first ? 'Aktiver ledelsessystemet' : 'Lagre'} busy={busy} onPress={save} />
-        {first ? <Pill label="Ingen eksempeldata legges inn" tone="info" /> : null}
-      </Row>
+      {first ? (
+        <Row>
+          <Btn kind="primary" icon="flash-outline" label="Aktiver ledelsessystemet" busy={busy} onPress={activate} />
+          <Pill label="Ingen eksempeldata legges inn" tone="info" />
+        </Row>
+      ) : null}
     </Page>
   );
 }

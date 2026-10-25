@@ -193,7 +193,7 @@ function DocumentDetail({ ctx, doc, onBack }) {
               {caps.manage ? <Text style={{ color: colors.muted, fontSize: 12 }}>{(doc.readAcks || []).filter((a) => a.revision === pub.revision).length} har bekreftet gjeldende revisjon.</Text> : null}
             </Card>
           ) : null}
-          {caps.admin && work?.state === 'til_gjennomgang' ? (
+          {caps.approve && work?.state === 'til_gjennomgang' ? (
             <Card title={`Godkjenning – rev. ${work.revision}`} subtitle={`Sendt av ${work.submittedBy}`}>
               <Btn kind="primary" icon="checkmark-done" label="Godkjenn og publiser" onPress={publish} />
               <TextIn value={note} onChangeText={setNote} placeholder="Merknad ved avvisning" />
@@ -215,7 +215,7 @@ function DocumentDetail({ ctx, doc, onBack }) {
             <KV label="Neste gjennomgang" value={prettyDate(doc.nextReview)} />
             <KV label="Gjennomgangsintervall" value={`${doc.reviewIntervalMonths} måneder`} />
             {(doc.history || []).slice().reverse().slice(0, 15).map((h, i) => <Text key={i} style={{ color: colors.muted, fontSize: 12 }}>{prettyDate(h.at)} · {h.action} · {h.by}</Text>)}
-            {caps.admin ? (
+            {caps.approve ? (
               <>
                 <TextIn value={note} onChangeText={setNote} placeholder="Begrunnelse for arkivering" />
                 <Btn small kind="danger" label="Arkiver" onPress={() => run('Arkivert', archiveDocument(doc, note, { actor, caps }))} />

@@ -117,16 +117,18 @@ function LevelTable({
               <View style={styles.personCell}>{renderIdentity(row)}</View>
               {levels.map((level) => {
                 const on = selected.includes(level.id);
+                // canEditLevels kan være en funksjon per person og nivå (tak: ikke over eget nivå).
+                const editable = typeof canEditLevels === 'function' ? !!canEditLevels(row, level.id, !on) : !!canEditLevels;
                 return (
                   <Pressable
                     key={level.id}
                     nativeID={`employee-level-${row.id}-${level.id}`}
                     accessibilityRole="checkbox"
-                    accessibilityState={{ checked: false, disabled: retired || !canEditLevels }}
+                    accessibilityState={{ checked: false, disabled: retired || !editable }}
                     accessibilityLabel={retired
                       ? `${name}, ${level.label}, deaktivert uten rettigheter`
                       : `${name}, ${level.label}`}
-                    disabled={retired || !canEditLevels}
+                    disabled={retired || !editable}
                     onPress={() => {
                       if (retired) return;
                       onToggleLevel?.(row, level.id, !on);
@@ -140,7 +142,7 @@ function LevelTable({
                         borderColor: on ? (retired ? colors.muted : colors.brand) : colors.line,
                         backgroundColor: on ? (retired ? (colors.sunken || '#f8fafc') : colors.brand) : colors.card,
                         borderStyle: retired ? 'dashed' : 'solid',
-                        opacity: retired ? 0.72 : (canEditLevels ? 1 : 0.7),
+                        opacity: retired ? 0.72 : (editable ? 1 : 0.5),
                       },
                     ]}
                     >

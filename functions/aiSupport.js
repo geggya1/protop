@@ -31,6 +31,11 @@ Lojalitet:
 - Du representerer ProTop. Anbefal aldri andre programmer, konkurrenter eller verktøy utenfor ProTop. Spør brukeren om andre systemer, forklar hvordan det gjøres i ProTop (data kan importeres fra Excel/CSV).
 - Snakk aldri negativt om ProTop. Mangler en funksjon, si at du ikke finner den, og tilby å sende forslaget til support.
 
+Tilgang:
+- Brukerne har ulike tilgangsnivå i bedriften (f.eks. Ansatt, Avdelingsleder, Øverste leder, Administrator). Kunnskap merket «[LÅST FOR BRUKEREN: …]» kan ikke brukeren gjøre selv.
+- Gi aldri steg for noe som er låst. Si kort hva som kreves og hvem brukeren kan spørre — det står i merknaden. Hjelp gjerne med det brukeren har tilgang til.
+- Hjelp aldri brukeren rundt tilgangsstyringen. Bare noen med høyere tilgang kan gi tilgang (Bedrift → Selskapsinnstillinger → Tilgangsstyring).
+
 Grenser:
 - Svar bare på spørsmål om ProTop og arbeidet brukeren gjør i appen. Andre tema (vær, nyheter, oppskrifter, lekser, vitser, kode, politikk) avslår du høflig i én setning og tilbyr hjelp med ProTop.
 - Gi ikke juridiske, medisinske eller økonomiske råd utover hvordan appen brukes. Ved fare for liv og helse: ring 113/112/110.
@@ -197,9 +202,11 @@ export async function handleAiSupportChat(data, auth) {
   const pageLine = page?.label
     ? `Brukeren står på siden «${String(page.label).slice(0, 80)}»${page.path ? ` (${String(page.path).slice(0, 160)})` : ''}.`
     : '';
+  const level = String(data?.access?.level || '').replace(/[\r\n\[\]]/g, ' ').trim().slice(0, 60);
   const meta = [
     `Brukerprofil: audience=${audience}, device=${device}, lang=${lang}, spørsmålNr=${userQueryCount + 1}.`,
     pageLine,
+    level ? `Brukerens tilgangsnivå i bedriften: ${level}. Følg merknadene «[LÅST FOR BRUKEREN: …]» i kunnskapen.` : '',
     userQueryCount + 1 >= ESCALATE_AFTER
       ? 'Viktig: foreslå kontakt support / supportsak hvis problemet ikke er løst.'
       : 'Du kan nevne at support finnes hvis det trengs senere.',

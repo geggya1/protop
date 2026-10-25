@@ -18,6 +18,7 @@ import {
 import { getWelcomeTourModules, localizeIntro, pickIntroText } from '../src/utils/moduleIntros';
 import { processTour, getProcess } from '../src/help/protopProcesses';
 import { locateStepTarget } from '../src/help/findTarget';
+import { useHelpAccess } from '../src/help/useHelpAccess';
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { openAssistant } from '../src/help/assistantBridge';
 import { soft } from './parentHome/softTheme';
@@ -54,6 +55,7 @@ function buildProcessPages(processId, lang) {
     pageLabel: pickIntroText(s.pageLabel, lang),
     find: s.find || [],
     via: s.via || [],
+    pageKey: s.page || null,
     viaText: s.viaText ? pickIntroText(s.viaText, lang) : '',
     pending: s.pending ? pickIntroText(s.pending, lang) : '',
     anchor: s.anchor || 'content',
@@ -67,6 +69,7 @@ function buildProcessPages(processId, lang) {
 export default function HelpOverlay() {
   const { t, lang } = useI18n();
   const help = useHelp();
+  const helpAccess = useHelpAccess();
   const { isChild, isActingAsChild, family, requestShellTab } = useApp();
   const asChild = !!(isChild || isActingAsChild);
   const company = isOrganizationType(family?.type);
@@ -210,25 +213,37 @@ export default function HelpOverlay() {
     ? page >= pages.length - 1
     : (current?.index ?? 0) >= Math.max(0, tourTotal - 1);
 
-  // Prosess: åpne siden steget gjelder før vi markerer knappen.
+  // Tilgang: steg brukeren ikke har rettighet til, peker ikke på en knapp,
+  // men sier hva som kreves og hvem i bedriften som kan hjelpe.
+  const gate = useMemo(() => {
+    if (!visible || !current) return null;
+    if (mode === 'module' && copy?.pageKey) return helpAccess.check(copy.pageKey, current.index ?? page);
+    if (mode === 'process' && processId) return helpAccess.checkProcessStep(processId, current.index ?? page, current.pageKey);
+    return null;
+  }, [visible, current, mode, copy?.pageKey, processId, page, helpAccess]);
+  const locked = !!gate && !gate.ok;
+
+  // Prosess: åpne siden steget gjelder før vi markerer knappen — men ikke en side brukeren ikke har tilgang til.
   useEffect(() => {
     if (!visible || mode !== 'process' || !current?.go?.tab) return;
+    if (gate?.page) return;
     const key = `${processId}:${page}`;
     if (navigatedRef.current === key) return;
     navigatedRef.current = key;
     setFoundRect(null);
     try { requestShellTab?.(current.go.tab, current.go.subView || null); } catch { /* ignore */ }
     requestRemeasure();
-  }, [visible, mode, processId, page, current?.go, requestShellTab, requestRemeasure]);
+  }, [visible, mode, processId, page, current?.go, gate?.page, requestShellTab, requestRemeasure]);
 
   // Uten venstremeny (mobil) peker menysteg på ☰-knappen i stedet.
   const noRail = !layout.hasRail && !layout.isDesktop;
   const stepFind = useMemo(() => {
+    if (locked) return [];
     const base = current?.find || [];
     if (current?.anchor === 'rail' && noRail) return [...base, 'Åpne meny'];
     return base;
-  }, [current?.find, current?.anchor, noRail]);
-  const stepVia = current?.via || [];
+  }, [locked, current?.find, current?.anchor, noRail]);
+  const stepVia = useMemo(() => (locked ? [] : (current?.via || [])), [locked, current?.via]);
 
   // Web: finn den ekte knappen fra steget (find) og hold markeringen fast på den.
   // Finnes den ikke ennå, markeres knappen som åpner den (via).
@@ -268,7 +283,7 @@ export default function HelpOverlay() {
   }, [visible, findKey, viaKey, page, width, height]);
 
   const hole = useMemo(() => {
-    if (!visible) return null;
+    if (!visible || locked) return null;
     if (foundRect) return resolveHole('found', foundRect, layoutHints);
     const anchor = current?.anchor;
     if (!anchor) return null;
@@ -290,7 +305,7 @@ export default function HelpOverlay() {
         ? (targets.header || null)
         : null;
     return resolveHole(anchor, measured, layoutHints, alt);
-  }, [visible, foundRect, current?.anchor, stepFind, stepVia, mode, copy?.pageKey, targets, layoutHints, noRail, layout.isPhone]);
+  }, [visible, locked, foundRect, current?.anchor, stepFind, stepVia, mode, copy?.pageKey, targets, layoutHints, noRail, layout.isPhone]);
 
   // Kortet vokser med teksten opp til taket; bare innholdet over taket ruller.
   const baseCap = tourCardCap({ winH: height, winW: width, isPhone: layout.isPhone, inset: insets });
@@ -585,6 +600,7 @@ export default function HelpOverlay() {
                   accent={accent}
                   highlighted={!!hole}
                   viaLabel={hole ? foundVia : null}
+                  lockText={locked ? gate.text : ''}
                 />
               )}
             </ScrollView>
@@ -782,7 +798,7 @@ function WelcomePage({ page, lang, t, company }) {
   );
 }
 
-function StepPage({ page, copy, process, lang, t, accent, highlighted, viaLabel }) {
+function StepPage({ page, copy, process, lang, t, accent, highlighted, viaLabel, lockText }) {
   if (!page) return null;
   const heading = page.title
     || (process ? pickIntroText(process.title, lang) : copy?.title)
@@ -806,7 +822,12 @@ function StepPage({ page, copy, process, lang, t, accent, highlighted, viaLabel 
         </View>
       ) : null}
       <Text style={styles.stepTxt}>{page.text}</Text>
-      {viaLabel ? (
+      {lockText ? (
+        <View style={styles.lockRow} testID="help-step-locked">
+          <Ionicons name="lock-closed" size={15} color="#b45309" />
+          <Text style={styles.lockTxt}>{lockText}</Text>
+        </View>
+      ) : viaLabel ? (
         <View style={[styles.viaRow, { borderColor: `${accent}40`, backgroundColor: `${accent}12` }]} testID="help-step-via">
           <Ionicons name="hand-right-outline" size={15} color={accent} />
           <Text style={[styles.viaTxt, { color: accent }]}>
@@ -1041,6 +1062,25 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontWeight: '400',
     fontSize: 12,
+  },
+  lockRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    backgroundColor: '#fffbeb',
+  },
+  lockTxt: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: '#92400e',
   },
   viaRow: {
     flexDirection: 'row',

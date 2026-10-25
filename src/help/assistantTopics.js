@@ -10,7 +10,9 @@ function topic(def) {
   return { kind: 'topic', steps: [], keywords: [], ...def };
 }
 
-const s = (title, nb, en) => ({ title: tx(title.nb || title, title.en || title), nb, en });
+const s = (title, nb, en, extra = {}) => ({ title: tx(title.nb || title, title.en || title), nb, en, ...extra });
+/** Steget følger tilgangen til steg nr. `index` på ProTop-siden `page` (src/help/helpAccess.js). */
+const gate = (page, index) => ({ access: { page, index } });
 
 export const ASSISTANT_TOPICS = [
   topic({
@@ -104,13 +106,16 @@ export const ASSISTANT_TOPICS = [
     id: 'topic.import',
     title: tx('Flytte data inn i ProTop', 'Moving data into ProTop'),
     summary: tx(
-      'Kommer dere fra Excel eller et annet system, kan dere importere kunder, prosjekter, ansatte, timer, fakturaer, utlegg og produktsalg fra fil. Du kontrollerer radene før noe lagres.',
-      'Coming from Excel or another system, you can import customers, projects, employees, hours, invoices, expenses and product sales from a file. You check the rows before anything is saved.',
+      'Kommer dere fra Excel eller et annet system, kan dere importere kunder, prosjekter, ansatte, timer, fakturaer, utlegg og produktsalg fra fil. Du kontrollerer radene før noe lagres. Import krever Admin på området i Tilgangsstyring.',
+      'Coming from Excel or another system, you can import customers, projects, employees, hours, invoices, expenses and product sales from a file. You check the rows before anything is saved. Importing requires Admin on the area in Access control.',
     ),
     steps: [
-      s({ nb: 'Kunder', en: 'Customers' }, 'Kunder → «Importer fil».', 'Customers → “Import file”.'),
-      s({ nb: 'Prosjekter og ansatte', en: 'Projects and employees' }, 'Prosjekt → «Importer liste». Ansatte → «Importer liste».', 'Projects → “Import list”. Employees → “Import list”.'),
-      s({ nb: 'Timer og fakturaer', en: 'Hours and invoices' }, 'Arbeid → Timerapport → «Importer timer». Økonomi → Faktura → «Importer Excel».', 'Work → Hour report → “Import hours”. Finance → Invoices → “Import Excel”.'),
+      s({ nb: 'Kunder', en: 'Customers' }, 'Kunder → «Ny kunde» → «Importer fil».', 'Customers → “New customer” → “Import file”.', gate('kunder', 3)),
+      s({ nb: 'Prosjekter', en: 'Projects' }, 'Prosjekt → «Nytt prosjekt» → «Importer liste».', 'Projects → “New project” → “Import list”.', gate('projects', 4)),
+      s({ nb: 'Ansatte', en: 'Employees' }, 'Ansatte → «Ny medarbeider» → «Importer liste».', 'Employees → “New employee” → “Import list”.', gate('ansatte', 2)),
+      s({ nb: 'Timer', en: 'Hours' }, 'Arbeid → Timerapport → «Importer timer».', 'Work → Hour report → “Import hours”.', gate('arbeid.timerapport', 1)),
+      s({ nb: 'Fakturaer', en: 'Invoices' }, 'Økonomi → Faktura → «Importer Excel».', 'Finance → Invoices → “Import Excel”.', gate('okonomi.faktura', 4)),
+      s({ nb: 'Utlegg og produktsalg', en: 'Expenses and product sales' }, 'Prosjektutlegg → «Importer fra fil». Produktsalg → «Importer».', 'Project expenses → “Import from file”. Product sales → “Import”.', gate('arbeid.utlegg', 1)),
       s({ nb: 'Kontroller', en: 'Check' }, 'Se over forhåndsvisningen. Duplikater hoppes over.', 'Review the preview. Duplicates are skipped.'),
     ],
     keywords: ['import', 'importere', 'excel', 'csv', 'flytte', 'migrere', 'overføre', 'fil'],

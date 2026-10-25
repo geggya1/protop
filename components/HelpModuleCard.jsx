@@ -9,6 +9,7 @@ import { openAssistant } from '../src/help/assistantBridge';
 import { useLayout } from '../src/theme';
 import { buildTourSteps } from '../src/utils/helpLayout';
 import { pickIntroText } from '../src/utils/moduleIntros';
+import { useHelpAccess } from '../src/help/useHelpAccess';
 
 /**
  * Lightbulb entry. ProTop-sider får hjelpekortet (forklaring, steg,
@@ -36,6 +37,16 @@ export default function HelpModuleCard() {
     });
     return { ...copy, tour, steps: tour.map((s) => s.text) };
   }, [protopPage, copy, lang, layout.isPhone, layout.isTablet, layout.isDesktop, layout.hasRail]);
+  // Steg brukeren ikke har tilgang til: hva som kreves og hvem som kan hjelpe.
+  const helpAccess = useHelpAccess();
+  const stepLocks = useMemo(() => (
+    protopPage && cardCopy?.tour
+      ? cardCopy.tour.map((_, i) => {
+        const gate = helpAccess.check(cardCopy.pageKey, i);
+        return gate.ok ? '' : gate.text;
+      })
+      : []
+  ), [protopPage, cardCopy, helpAccess]);
 
   const module = mode === 'moduleCard' && !protopPage
     ? buildHelpWelcomeModule({
@@ -60,6 +71,7 @@ export default function HelpModuleCard() {
     return (
       <HelpPageCard
         copy={cardCopy}
+        stepLocks={stepLocks}
         onClose={() => dismiss()}
         onStartTour={startModuleTour}
         onStartProcess={(id, fromIndex) => {

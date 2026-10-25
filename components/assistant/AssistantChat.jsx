@@ -22,8 +22,11 @@ import {
   askAssistant, clearConversation, loadConversation, saveConversation,
 } from '../../src/help/assistantService';
 import { getProtopPage } from '../../src/help/protopPages';
+import { useHelpAccess } from '../../src/help/useHelpAccess';
 
 const BRAND = '#1099F4';
+/** Låste steg (brukeren mangler tilgang) — samme farge som i rundturen. */
+const LOCK = '#d97706';
 const NAVY = '#07274C';
 const NATIVE_DRIVER = Platform.OS !== 'web';
 /** Web: markør så hjelpens knappesøk (findTarget) hopper over assistenten. */
@@ -102,12 +105,19 @@ function StepList({ steps, c }) {
     <View style={styles.steps}>
       {steps.map((s, i) => (
         <View key={`${i}-${(s.title || s.text || '').slice(0, 10)}`} style={styles.stepRow}>
-          <View style={[styles.stepNum, { backgroundColor: BRAND }]}>
-            <Text style={styles.stepNumTxt}>{i + 1}</Text>
+          <View style={[styles.stepNum, { backgroundColor: s.locked ? LOCK : BRAND }]}>
+            {s.locked
+              ? <Ionicons name="lock-closed" size={11} color="#fff" />
+              : <Text style={styles.stepNumTxt}>{i + 1}</Text>}
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             {s.title ? <Text style={[styles.stepTitle, { color: c.ink }]}>{s.title}</Text> : null}
-            <Text style={[styles.stepTxt, { color: c.ink }]}>{s.text}</Text>
+            <Text style={[styles.stepTxt, { color: c.ink }, s.locked && styles.stepTxtLocked]}>{s.text}</Text>
+            {s.locked ? (
+              <View style={styles.stepLock} testID="assistant-step-locked">
+                <Text style={[styles.stepLockTxt, { color: c.ink }]}>{s.locked}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
       ))}
@@ -331,6 +341,10 @@ export default function AssistantChat({
   const company = isOrganizationType(family?.type);
   const pageKey = help.pageKey || null;
   const page = pageKey ? getProtopPage(pageKey) : null;
+  // Svarene følger brukerens tilgang: låste steg merkes og hvem som kan hjelpe nevnes.
+  const helpAccess = useHelpAccess();
+  const accessRef = useRef(helpAccess);
+  accessRef.current = helpAccess;
 
   const [messages, setMessages] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -352,13 +366,21 @@ export default function AssistantChat({
     (async () => {
       const prev = await loadConversation(uid);
       if (!alive) return;
-      setMessages(prev.length ? prev : [{ id: 'greet', at: Date.now(), ...greeting({ lang, pageKey, company }) }]);
+      setMessages(prev.length ? prev : [{ id: 'greet', at: Date.now(), ...greeting({ lang, pageKey, company, access: accessRef.current }) }]);
       setLoaded(true);
       scrollToEnd();
     })();
     return () => { alive = false; };
     // Bare ved åpning — siden brukeren står på brukes i hilsenen.
   }, [uid]);
+
+  // Tilgangen kan lastes etter hilsenen: forslagene i hilsenen følger den.
+  const accessKey = `${helpAccess.active}:${helpAccess.level}`;
+  useEffect(() => {
+    setMessages((prev) => (prev[0]?.id === 'greet'
+      ? [{ ...prev[0], followUps: greeting({ lang, pageKey, company, access: accessRef.current }).followUps }, ...prev.slice(1)]
+      : prev));
+  }, [accessKey]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -385,6 +407,7 @@ export default function AssistantChat({
         familyId,
         device: deviceFor(layout),
         unresolved,
+        access: accessRef.current,
       });
       const weak = answer.intent === 'unknown' || answer.confidence < 0.2;
       setUnresolved((n) => (weak ? n + 1 : 0));
@@ -406,7 +429,7 @@ export default function AssistantChat({
     await clearConversation(uid);
     setUnresolved(0);
     setSupport(null);
-    setMessages([{ id: 'greet', at: Date.now(), ...greeting({ lang, pageKey, company }) }]);
+    setMessages([{ id: 'greet', at: Date.now(), ...greeting({ lang, pageKey, company, access: accessRef.current }) }]);
   }, [uid, lang, pageKey, company]);
 
   const onFeedback = useCallback((id, value) => {
@@ -470,10 +493,23 @@ export default function AssistantChat({
     }
     const nav = action.nav || getProtopPage(action.pageKey)?.nav;
     if (!nav) return;
+    // Stengt side (f.eks. lagret samtale fra før tilgangen endret seg): si hvem som kan hjelpe.
+    const gate = action.pageKey ? helpAccess.check(action.pageKey) : null;
+    if (gate && !gate.ok) {
+      setMessages((prev) => [...prev, {
+        id: newId('a'),
+        role: 'assistant',
+        at: Date.now(),
+        intent: 'locked',
+        text: `🔒 ${gate.text}`,
+      }]);
+      scrollToEnd();
+      return;
+    }
     onCollapse?.();
     openShellPage(nav, requestShellTab);
-    if (action.type === 'tour' && action.pageKey) help.startPageTour?.(action.pageKey);
-  }, [variant, onContactSupport, firstQuestion, lang, scrollToEnd, onCollapse, help, requestShellTab]);
+    if (action.type === 'tour' && action.pageKey) help.startPageTour?.(action.pageKey, action.step || 0);
+  }, [variant, onContactSupport, firstQuestion, lang, scrollToEnd, onCollapse, help, requestShellTab, helpAccess]);
 
   const onSupportSent = useCallback((data) => {
     setSupport(null);
@@ -493,8 +529,8 @@ export default function AssistantChat({
   }, [lang, t, scrollToEnd]);
 
   const suggestions = useMemo(
-    () => starterSuggestions({ lang, pageKey, company }),
-    [lang, pageKey, company],
+    () => starterSuggestions({ lang, pageKey, company, access: helpAccess }),
+    [lang, pageKey, company, helpAccess],
   );
   const onlyGreeting = messages.length <= 1;
   const canSend = !!input.trim() && !busy;
@@ -714,6 +750,17 @@ const styles = StyleSheet.create({
   stepNumTxt: { color: '#fff', fontSize: 12, fontWeight: '600' },
   stepTitle: { fontSize: 13.5, fontWeight: '600', lineHeight: 19 },
   stepTxt: { fontSize: 13.5, lineHeight: 19, opacity: 0.92 },
+  stepTxtLocked: { opacity: 0.6 },
+  stepLock: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.45)',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+  },
+  stepLockTxt: { fontSize: 12.5, lineHeight: 17, fontWeight: '600' },
   sources: { marginTop: 10, gap: 6 },
   sourceChip: {
     flexDirection: 'row',

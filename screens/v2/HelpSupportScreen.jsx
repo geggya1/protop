@@ -39,7 +39,8 @@ import {
 } from '../../src/utils/supportTickets';
 import { pickImage, uploadImage } from '../../src/utils/media';
 import AssistantChat from '../../components/assistant/AssistantChat';
-import { listProcesses } from '../../src/help/protopProcesses';
+import { getProcess, listProcesses } from '../../src/help/protopProcesses';
+import { useHelpAccess } from '../../src/help/useHelpAccess';
 import { pickIntroText } from '../../src/utils/moduleIntros';
 import { profileAge, ageBand } from '../../src/utils/age';
 
@@ -150,6 +151,24 @@ export default function HelpSupportScreen() {
     const raw = getHelpArticle(articleId);
     return localizeHelpArticle(raw, { lang, audience, device });
   }, [articleId, lang, audience, device]);
+
+  // Tilgang: hjelpen sier fra når siden eller et steg krever mer enn brukeren har.
+  const helpAccess = useHelpAccess();
+  const articleLock = useMemo(() => {
+    if (!activeArticle?.pageKey) return null;
+    const gate = helpAccess.check(activeArticle.pageKey, null);
+    return gate.ok ? null : gate.text;
+  }, [activeArticle, helpAccess]);
+  const articleStepLocks = useMemo(() => {
+    if (!activeArticle || articleLock) return [];
+    const proc = activeArticle.processId ? getProcess(activeArticle.processId) : null;
+    return (activeArticle.stepItems || []).map((_, i) => {
+      const gate = proc
+        ? helpAccess.checkProcessStep(proc.id, i, proc.steps[i]?.page)
+        : (activeArticle.pageKey ? helpAccess.check(activeArticle.pageKey, i) : { ok: true });
+      return gate.ok ? '' : gate.text;
+    });
+  }, [activeArticle, articleLock, helpAccess]);
 
   const activeTicket = useMemo(
     () => tickets.find((x) => x.id === ticketId) || null,
@@ -492,7 +511,14 @@ export default function HelpSupportScreen() {
           ) : null}
         </View>
 
-        {activeArticle.nav?.tab || activeArticle.processId ? (
+        {articleLock ? (
+          <View style={styles.lockBox} testID="help-article-locked">
+            <Ionicons name="lock-closed" size={16} color="#b45309" />
+            <Text style={styles.lockTxt}>{articleLock}</Text>
+          </View>
+        ) : null}
+
+        {!articleLock && (activeArticle.nav?.tab || activeArticle.processId) ? (
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: activeArticle.accent || colors.brand }]}
             onPress={() => (activeArticle.processId
@@ -529,14 +555,19 @@ export default function HelpSupportScreen() {
             <View style={styles.card}>
               {(activeArticle.stepItems || []).map((step, i) => (
                 <View key={`${i}-${step.text.slice(0, 12)}`} style={styles.stepRow}>
-                  <View style={styles.stepNum}>
-                    <Text style={styles.stepNumTxt}>{i + 1}</Text>
+                  <View style={[styles.stepNum, articleStepLocks[i] && styles.stepNumLocked]}>
+                    {articleStepLocks[i]
+                      ? <Ionicons name="lock-closed" size={13} color="#fff" />
+                      : <Text style={styles.stepNumTxt}>{i + 1}</Text>}
                   </View>
                   <View style={{ flex: 1 }}>
                     {step.title ? (
                       <Text style={[styles.stepTxt, styles.stepTitleTxt, compact && styles.stepTxtDesk]}>{step.title}</Text>
                     ) : null}
                     <Text style={[styles.stepTxt, compact && styles.stepTxtDesk]}>{step.text}</Text>
+                    {articleStepLocks[i] ? (
+                      <Text style={styles.stepLockTxt} testID="help-article-step-lock">{articleStepLocks[i]}</Text>
+                    ) : null}
                   </View>
                 </View>
               ))}
@@ -943,6 +974,14 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   stepNumTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
+  stepNumLocked: { backgroundColor: '#d97706' },
+  stepLockTxt: { marginTop: 6, fontSize: 13, color: '#92400e', lineHeight: 18 },
+  lockBox: {
+    flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+    backgroundColor: '#fffbeb', borderColor: '#fcd34d', borderWidth: 1,
+    borderRadius: 12, padding: 12, marginBottom: 12,
+  },
+  lockTxt: { flex: 1, fontSize: 13.5, color: '#92400e', lineHeight: 19, fontWeight: '600' },
   stepTxt: { flex: 1, fontSize: 14, fontWeight: '400', color: colors.ink, lineHeight: 20 },
   stepTitleTxt: { fontWeight: '600' },
   faqItem: { paddingVertical: 8, gap: 2 },

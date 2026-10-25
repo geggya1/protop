@@ -4,6 +4,8 @@ import {
   searchKnowledge, starterSuggestions, supportTicketBody, tokenize, transcriptText,
 } from './assistantEngine.js';
 import { shouldAskServer } from './assistantPolicy.js';
+import { evaluateHelpAccess, lockedText, processStepNeed } from './helpAccess.js';
+import { standardGrants } from '../access/companyAccess.js';
 
 assert.equal(fold('Kjørebok Åpne Æble'), 'kjorebok apne aeble');
 assert.ok(tokenize('Hvordan fører jeg timer?').includes('#timer'));
@@ -138,5 +140,62 @@ assert.match(body, /kortet ned/);
 assert.match(body, /SISTE$/, 'det nyeste i samtalen beholdes');
 assert.equal(supportTicketBody({ note: 'Kort', transcript: 'Du: hei' }), 'Kort\n\nSamtale med assistenten:\nDu: hei');
 assert.equal(supportTicketBody({ note: 'Bare tekst' }), 'Bare tekst');
+
+// Tilgang: assistenten følger brukerens nivå og peker på hvem som kan hjelpe.
+function accessFor(levelId) {
+  const grants = standardGrants(levelId);
+  const contacts = [{ name: 'Kari Nordmann', level: 'Administrator' }];
+  const describe = (r, pageKey) => (r.ok ? { ok: true } : {
+    ...r,
+    text: lockedText({ need: r.need, page: r.page, pageLabel: pageKey, level: levelId, contacts }),
+  });
+  const check = (pageKey, stepIndex = null) => describe(evaluateHelpAccess({ grants, pageKey, stepIndex }), pageKey);
+  return {
+    check,
+    checkProcessStep: (processId, index, pageKey) => {
+      const page = check(pageKey);
+      if (!page.ok) return page;
+      const need = processStepNeed(processId, index);
+      return need ? describe(evaluateHelpAccess({ grants, pageKey, need }), pageKey) : { ok: true };
+    },
+  };
+}
+const ansattAccess = accessFor('ansatt');
+const lederAccess = accessFor('avdelingsleder');
+
+const invoice = answerQuestion('hvordan lager jeg faktura', { lang: 'nb', access: ansattAccess });
+assert.equal(invoice.intent, 'locked', 'ansatt har ikke økonomi');
+assert.equal(invoice.actions.length, 0, 'ingen «Vis meg» til en stengt side');
+assert.equal(invoice.steps.length, 0);
+assert.match(invoice.text, /ikke tilgang/);
+assert.match(invoice.text, /Kari Nordmann \(Administrator\)/);
+
+const importCustomers = answerQuestion('hvordan importerer jeg kunder fra excel', { lang: 'nb', access: lederAccess });
+assert.notEqual(importCustomers.intent, 'locked', 'avdelingsleder ser kundesiden');
+assert.match(importCustomers.text, /^🔒 \*\*Kunder:\*\* Dette krever «Admin» på «Kunder»/);
+assert.ok(importCustomers.steps.some((st) => st.locked), 'import-steget er merket låst');
+const importTour = importCustomers.actions.find((a) => a.type === 'tour');
+assert.equal(importTour?.pageKey, 'kunder', 'rundturen på Kunder tilbys (låste steg vises med lås)');
+assert.equal(importTour?.step, 3, 'rundturen starter på Importer-steget');
+
+assert.equal(importCustomers.locked, true);
+assert.equal(shouldAskServer(importCustomers, 'hvordan importerer jeg kunder fra excel'), false, 'låst svar går ikke til AI');
+assert.equal(shouldAskServer(invoice, 'hvordan lager jeg faktura'), false);
+
+const fullAccess = answerQuestion('hvordan importerer jeg kunder fra excel', { lang: 'nb', access: accessFor('administrator') });
+assert.ok(!fullAccess.text.startsWith('🔒'));
+assert.ok(fullAccess.steps.every((st) => !st.locked));
+
+const flowAnsatt = answerQuestion('vis meg hele flyten fra anbud til faktura', { lang: 'nb', access: ansattAccess });
+assert.equal(flowAnsatt.intent, 'workflow');
+assert.ok(flowAnsatt.steps.filter((st) => st.locked).length >= 5, 'ansatt kan ikke det meste av flyten');
+assert.match(flowAnsatt.text, /merket med en lås/);
+
+const ansattStarters = starterSuggestions({ lang: 'nb', company: true, access: ansattAccess });
+assert.ok(!ansattStarters.some((q) => /faktura/i.test(q)), 'ingen fakturaforslag til ansatt');
+assert.ok(ansattStarters.some((q) => /timer/i.test(q)));
+
+const serverKnowledge = knowledgeForServer('hvordan lager jeg faktura', { lang: 'nb', access: ansattAccess });
+assert.ok(serverKnowledge.some((k) => k.locked && /LÅST FOR BRUKEREN/.test(k.summary)), 'AI-motoren får vite om sperren');
 
 console.log(`assistantEngine.test.mjs: ok (${CASES.length} spørsmål)`);

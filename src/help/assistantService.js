@@ -81,8 +81,9 @@ export async function askAssistant({
   device = 'phone',
   unresolved = 0,
   allowServer = true,
+  access = null,
 } = {}) {
-  const local = answerQuestion(question, { lang, pageKey, company, unresolved });
+  const local = answerQuestion(question, { lang, pageKey, company, unresolved, access });
   if (!allowServer || !shouldAskServer(local, question)) {
     return { ...local, engine: 'local' };
   }
@@ -102,7 +103,9 @@ export async function askAssistant({
         label: page.label?.[lang] || page.label?.nb || '',
         path: page.path?.[lang] || page.path?.nb || '',
       } : null,
-      knowledge: knowledgeForServer(question, { lang, pageKey, limit: 6 }),
+      knowledge: knowledgeForServer(question, { lang, pageKey, limit: 6, access }),
+      // Brukerens nivå: AI-en skal ikke gi steg brukeren ikke har tilgang til.
+      access: access?.active ? { level: String(access.level || '').slice(0, 60) } : null,
       history: (history || [])
         .filter((m) => m && m.text && (m.role === 'user' || m.role === 'assistant'))
         .slice(-10)

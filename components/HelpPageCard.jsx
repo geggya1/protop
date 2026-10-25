@@ -24,6 +24,7 @@ if (Platform.OS === 'web') {
  */
 export default function HelpPageCard({
   copy,
+  stepLocks = [],
   onStartTour,
   onStartProcess,
   onAsk,
@@ -114,12 +115,17 @@ export default function HelpPageCard({
               <Text style={styles.sectionTitle}>{t('helpCard.howTo')}</Text>
               {tour.map((s, i) => (
                 <View key={`${i}-${s.title}`} style={styles.stepRow}>
-                  <View style={[styles.stepNum, { backgroundColor: accent }]}>
-                    <Text style={styles.stepNumTxt}>{i + 1}</Text>
+                  <View style={[styles.stepNum, { backgroundColor: stepLocks[i] ? '#d97706' : accent }]}>
+                    {stepLocks[i]
+                      ? <Ionicons name="lock-closed" size={12} color="#fff" />
+                      : <Text style={styles.stepNumTxt}>{i + 1}</Text>}
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     {s.title ? <Text style={styles.stepTitle}>{s.title}</Text> : null}
                     <Text style={styles.stepTxt}>{s.text}</Text>
+                    {stepLocks[i] ? (
+                      <Text style={styles.stepLock} testID="help-page-card-lock">{stepLocks[i]}</Text>
+                    ) : null}
                   </View>
                 </View>
               ))}
@@ -298,6 +304,19 @@ const styles = StyleSheet.create({
   stepNumTxt: { color: '#fff', fontSize: 12.5, fontWeight: '600' },
   stepTitle: { fontSize: 14.5, fontWeight: '600', color: '#0f172a', lineHeight: 20 },
   stepTxt: { fontSize: 14, color: '#475569', lineHeight: 20, marginTop: 1 },
+  stepLock: {
+    fontSize: 13,
+    color: '#92400e',
+    lineHeight: 18,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    overflow: 'hidden',
+  },
   flowCard: {
     flexDirection: 'row',
     alignItems: 'center',

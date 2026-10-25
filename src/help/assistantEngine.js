@@ -129,6 +129,7 @@ function stepsOf(def, lang) {
   return (def.steps || []).map((s) => ({
     title: pick(s.title, lang),
     text: pick(s, lang),
+    ...(s.access ? { access: s.access } : {}),
   })).filter((s) => s.text);
 }
 
@@ -358,6 +359,14 @@ const T = {
     en: 'I can’t find a good answer to this. Shall I create a support case so a person can look at it?',
   },
   related: { nb: 'Dette kan også være nyttig:', en: 'This may also help:' },
+  lockedPage: {
+    nb: 'Du har ikke tilgang til denne siden med ditt nåværende nivå, så jeg viser deg ikke veien dit.',
+    en: 'You don’t have access to this page with your current level, so I won’t take you there.',
+  },
+  lockedSome: {
+    nb: 'Noen av stegene krever mer tilgang enn du har — de er merket med en lås.',
+    en: 'Some of the steps need more access than you have — they are marked with a lock.',
+  },
 };
 
 function tr(key, lang, vars = {}) {
@@ -423,21 +432,23 @@ function followUpsFor(item, lang, others = []) {
 }
 
 /** Forslag i starten av samtalen, tilpasset siden brukeren står på. */
-export function starterSuggestions({ lang = 'nb', pageKey = null, company = true } = {}) {
+export function starterSuggestions({ lang = 'nb', pageKey = null, company = true, access = null } = {}) {
   const out = [];
   const page = pageKey ? getProtopPage(pageKey) : null;
   if (page) {
     out.push(pick({ nb: `Hvordan bruker jeg ${pick(page.label, 'nb')}?`, en: `How do I use ${pick(page.label, 'en')}?` }, lang));
     if (page.faq?.[0]) out.push(pick(page.faq[0].q, lang));
   }
+  // Bare forslag brukeren har tilgang til å gjøre noe med.
   const general = company
     ? [
-      { nb: 'Hvordan fører jeg timer?', en: 'How do I log hours?' },
-      { nb: 'Vis meg hele flyten fra anbud til faktura', en: 'Show me the whole flow from tender to invoice' },
-      { nb: 'Hvordan legger jeg til en ny ansatt?', en: 'How do I add a new employee?' },
-      { nb: 'Hvordan lager jeg en faktura?', en: 'How do I create an invoice?' },
-      { nb: 'Hvordan melder jeg et avvik?', en: 'How do I report a deviation?' },
-    ]
+      { nb: 'Hvordan fører jeg timer?', en: 'How do I log hours?', page: 'arbeid.timeliste' },
+      { nb: 'Vis meg hele flyten fra anbud til faktura', en: 'Show me the whole flow from tender to invoice', page: 'anbud.varsling' },
+      { nb: 'Hvordan legger jeg til en ny ansatt?', en: 'How do I add a new employee?', page: 'ansatte' },
+      { nb: 'Hvordan lager jeg en faktura?', en: 'How do I create an invoice?', page: 'okonomi.faktura' },
+      { nb: 'Hvordan melder jeg et avvik?', en: 'How do I report a deviation?', page: 'iso.avvik' },
+      { nb: 'Hvordan legger jeg inn en avtale i kalenderen?', en: 'How do I add an event to the calendar?', page: 'plan' },
+    ].filter((g) => pageOpen(access, g.page))
     : [
       { nb: 'Hvordan legger jeg inn en avtale i kalenderen?', en: 'How do I add an event to the calendar?' },
       { nb: 'Hvordan kobler jeg Outlook?', en: 'How do I connect Outlook?' },
@@ -450,7 +461,7 @@ export function starterSuggestions({ lang = 'nb', pageKey = null, company = true
   return [...new Set(out)].slice(0, 4);
 }
 
-export function greeting({ lang = 'nb', pageKey = null, company = true } = {}) {
+export function greeting({ lang = 'nb', pageKey = null, company = true, access = null } = {}) {
   const page = pageKey ? getProtopPage(pageKey) : null;
   const text = page
     ? `${tr('greet', lang)}\n\n${tr('greetPage', lang, { page: pick(page.label, lang) })}`
@@ -462,8 +473,60 @@ export function greeting({ lang = 'nb', pageKey = null, company = true } = {}) {
     steps: [],
     sources: [],
     actions: page ? actionsFor(buildKnowledge(lang).find((k) => k.pageKey === resolvePageKey(pageKey)), lang).slice(0, 1) : [],
-    followUps: starterSuggestions({ lang, pageKey, company }),
+    followUps: starterSuggestions({ lang, pageKey, company, access }),
   };
+}
+
+/* ───────────── Tilgang ───────────── */
+
+/**
+ * `access` (valgfri): { check(pageKey, stepIndex), checkProcessStep(processId, index, pageKey) }
+ * fra useHelpAccess. Hver gir { ok, page, text }. Uten `access` er alt åpent.
+ */
+function gateOf(access, item, index = null) {
+  if (!access || !item) return null;
+  if (item.kind === 'page') return access.check?.(item.pageKey, index) || null;
+  if (item.kind === 'process' && index != null) {
+    return access.checkProcessStep?.(item.processId, index, item.steps[index]?.pageKey) || null;
+  }
+  // Tema-steg som peker på et steg på en side (f.eks. import av kunder).
+  const ref = index != null ? item.steps?.[index]?.access : null;
+  if (ref) return access.check?.(ref.page, ref.index) || null;
+  return null;
+}
+
+/** Stegene med låsetekst der brukeren mangler tilgang. */
+function stepsWithAccess(item, access) {
+  return (item.steps || []).map((s, i) => {
+    const g = gateOf(access, item, i);
+    const step = { title: s.title, text: s.text };
+    return g && !g.ok ? { ...step, locked: g.text } : step;
+  });
+}
+
+/** Steget spørsmålet handler om (f.eks. «importere» → Importer-steget). */
+function focusStep(question, steps) {
+  const q = tokenize(question).filter((t) => !t.startsWith('#'));
+  if (!q.length) return -1;
+  let best = -1;
+  let bestScore = 0;
+  steps.forEach((s, i) => {
+    const title = new Set(tokenize(s.title || ''));
+    const all = new Set(tokenize(`${s.title || ''} ${s.text}`));
+    const score = q.reduce((n, t) => n + (title.has(t) ? 2 : 0) + (all.has(t) ? 1 : 0), 0);
+    if (score > bestScore) {
+      best = i;
+      bestScore = score;
+    }
+  });
+  return bestScore >= 3 ? best : -1;
+}
+
+/** Siden er åpen for brukeren (eller ingen sperre kjent). */
+function pageOpen(access, pageKey) {
+  if (!access || !pageKey) return true;
+  const g = access.check?.(pageKey, null);
+  return !g || g.ok;
 }
 
 /**
@@ -475,6 +538,7 @@ export function answerQuestion(question, {
   pageKey = null,
   company = true,
   unresolved = 0,
+  access = null,
 } = {}) {
   const q = String(question || '').trim();
   const intent = detectIntent(q);
@@ -492,10 +556,10 @@ export function answerQuestion(question, {
   if (!q) return { ...base, intent: 'empty', text: tr('unsure', lang) };
 
   if (intent.greeting) {
-    return { ...greeting({ lang, pageKey, company }), question: q, confidence: 1 };
+    return { ...greeting({ lang, pageKey, company, access }), question: q, confidence: 1 };
   }
   if (intent.thanks) {
-    return { ...base, intent: 'thanks', text: tr('thanks', lang), confidence: 1, followUps: starterSuggestions({ lang, pageKey, company }).slice(0, 2) };
+    return { ...base, intent: 'thanks', text: tr('thanks', lang), confidence: 1, followUps: starterSuggestions({ lang, pageKey, company, access }).slice(0, 2) };
   }
 
   const vaguePage = intent.thisPage && pageKey;
@@ -513,7 +577,7 @@ export function answerQuestion(question, {
       intent: 'offTopic',
       text: tr('offTopic', lang),
       confidence: 1,
-      followUps: starterSuggestions({ lang, pageKey, company }).slice(0, 3),
+      followUps: starterSuggestions({ lang, pageKey, company, access }).slice(0, 3),
     };
   }
 
@@ -541,7 +605,7 @@ export function answerQuestion(question, {
       sources: about ? [sourceFor(about)] : [],
       confidence: 0.8,
       actions: [
-        ...(about ? actionsFor(about, lang).filter((a) => a.type === 'open') : []),
+        ...(about && pageOpen(access, about.pageKey) ? actionsFor(about, lang).filter((a) => a.type === 'open') : []),
         { type: 'support', label: pick({ nb: 'Kontakt support', en: 'Contact support' }, lang) },
       ],
     };
@@ -555,13 +619,30 @@ export function answerQuestion(question, {
       text: intent.competitor ? tr('competitor', lang) : tr(escalate ? 'unsureEscalate' : 'unsure', lang),
       confidence: 0,
       actions: escalate ? [{ type: 'support', label: pick({ nb: 'Kontakt support', en: 'Contact support' }, lang) }] : [],
-      followUps: starterSuggestions({ lang, pageKey, company }).slice(0, 3),
+      followUps: starterSuggestions({ lang, pageKey, company, access }).slice(0, 3),
     };
   }
 
   const item = top.item;
-  const others = ranked.slice(1, 3).map((r) => r.item);
+  const others = ranked.slice(1, 3).map((r) => r.item).filter((o) => o.kind !== 'page' || pageOpen(access, o.pageKey));
   const preface = intent.competitor && intent.compare ? `${tr('competitor', lang)}\n\n` : '';
+
+  // Siden er stengt for brukeren: si hva som kreves og hvem som kan hjelpe — ingen steg eller «Vis meg».
+  const pageGate = gateOf(access, item);
+  if (item.kind === 'page' && pageGate && !pageGate.ok) {
+    return {
+      ...base,
+      intent: 'locked',
+      text: `${preface}**${item.label}** — ${item.summary}\n\n${tr('lockedPage', lang)}\n\n🔒 ${pageGate.text}`.trim(),
+      steps: [],
+      sources: [sourceFor(item)],
+      actions: [],
+      followUps: starterSuggestions({ lang, pageKey, company, access }).slice(0, 3),
+      confidence: Math.min(1, top.score / 8),
+      matchId: item.id,
+      locked: true,
+    };
+  }
   let text;
   if (item.kind === 'process') {
     text = `${tr('processIntro', lang, { title: item.title })}\n\n${item.summary}`;
@@ -576,9 +657,26 @@ export function answerQuestion(question, {
       : `**${item.label}** — ${item.summary}${item.path ? `\n\n${tr('whereIntro', lang, { path: item.path })}` : ''}\n\n${tr('howIntro', lang)}`;
   }
 
-  const steps = item.kind === 'process'
-    ? item.steps.map((s) => ({ title: s.title, text: s.text }))
-    : item.steps;
+  const steps = stepsWithAccess(item, access);
+  // Spør brukeren om noe de ikke har tilgang til (f.eks. import), sies det rett ut først.
+  const focus = focusStep(q, steps);
+  const focusLocked = focus >= 0 && !!steps[focus].locked;
+  if (focusLocked) {
+    text = `🔒 **${steps[focus].title || item.label}:** ${steps[focus].locked}\n\n${text}`;
+  } else if (steps.some((st) => st.locked)) {
+    text = `${text}\n\n${tr('lockedSome', lang)}`;
+  }
+
+  let actions = actionsFor(item, lang);
+  // Tema-steg som peker på en side (f.eks. import av kunder): «Vis meg» rett til det steget.
+  const ref = focus >= 0 ? item.steps?.[focus]?.access : null;
+  if (item.kind === 'topic' && ref && pageOpen(access, ref.page)) {
+    const target = buildKnowledge(lang).find((k) => k.pageKey === ref.page);
+    actions = [
+      ...actionsFor(target, lang).filter((a) => a.type === 'tour').map((a) => ({ ...a, step: ref.index })),
+      ...actions,
+    ];
+  }
 
   return {
     ...base,
@@ -586,10 +684,11 @@ export function answerQuestion(question, {
     text: `${preface}${text}`.trim(),
     steps,
     sources: [sourceFor(item), ...others.slice(0, 1).map(sourceFor)].filter(Boolean),
-    actions: actionsFor(item, lang),
+    actions,
     followUps: followUpsFor(item, lang, others),
     confidence: Math.min(1, top.score / 8),
     matchId: item.id,
+    ...(focusLocked ? { locked: true } : {}),
   };
 }
 
@@ -604,18 +703,36 @@ function searchFaqMatch(question, faqQuestion) {
 }
 
 /** De mest relevante kunnskapsbitene sendt med til AI-motoren på serveren. */
-export function knowledgeForServer(question, { lang = 'nb', pageKey = null, limit = 6 } = {}) {
+export function knowledgeForServer(question, { lang = 'nb', pageKey = null, limit = 6, access = null } = {}) {
   const ranked = searchKnowledge(question, { lang, pageKey, limit });
   const own = pageKey ? buildKnowledge(lang).find((k) => k.pageKey === resolvePageKey(pageKey)) : null;
   const items = ranked.map((r) => r.item);
   if (own && !items.includes(own)) items.push(own);
-  return items.slice(0, limit + 1).map((it) => ({
-    id: it.id,
-    moduleId: it.pageKey || it.processId || it.id,
-    title: it.label ? `${it.label} — ${it.title}` : it.title,
-    summary: it.path ? `${it.summary} (Hvor: ${it.path})` : it.summary,
-    steps: it.steps.slice(0, 6).map((s) => (s.title ? `${s.title}: ${s.text}` : s.text)),
-  }));
+  return items.slice(0, limit + 1).map((it) => {
+    const where = it.path ? `${it.summary} (Hvor: ${it.path})` : it.summary;
+    const pageGate = gateOf(access, it);
+    // AI-motoren får vite hva brukeren ikke har tilgang til, så den ikke gir steg for det.
+    if (it.kind === 'page' && pageGate && !pageGate.ok) {
+      return {
+        id: it.id,
+        moduleId: it.pageKey,
+        title: `${it.label} — ${it.title}`,
+        summary: `${where} [LÅST FOR BRUKEREN: ${pageGate.text}]`,
+        steps: [],
+        locked: true,
+      };
+    }
+    return {
+      id: it.id,
+      moduleId: it.pageKey || it.processId || it.id,
+      title: it.label ? `${it.label} — ${it.title}` : it.title,
+      summary: where,
+      steps: stepsWithAccess(it, access).slice(0, 6).map((s) => {
+        const line = s.title ? `${s.title}: ${s.text}` : s.text;
+        return s.locked ? `${line} [LÅST FOR BRUKEREN: ${s.locked}]` : line;
+      }),
+    };
+  });
 }
 
 /** Ren tekst til supportsak og kopiering. */

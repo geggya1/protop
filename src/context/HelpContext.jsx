@@ -232,19 +232,21 @@ export function HelpProvider({ children }) {
   /**
    * Rundtur for en bestemt side (fra assistenten eller hjelpesenteret).
    * Siden åpnes av den som kaller; rundturen starter når siden er registrert.
+   * `fromIndex` starter på et bestemt steg (f.eks. Importer-steget).
    */
-  const startPageTour = useCallback((pageId) => {
+  const startPageTour = useCallback((pageId, fromIndex = 0) => {
     const wanted = resolvePageKey(pageId);
     if (!wanted) return;
+    const start = (steps) => Math.min(Math.max(0, Number(fromIndex) || 0), Math.max(0, (steps?.length || 1) - 1));
     if (liveCopy?.pageKey === wanted) {
       pendingPageTourRef.current = null;
       requestRemeasure();
       setTourCopy(liveCopy);
-      setTourIndex(0);
+      setTourIndex(start(liveCopy.steps));
       setMode('module');
       return;
     }
-    pendingPageTourRef.current = { key: wanted, at: Date.now() };
+    pendingPageTourRef.current = { key: wanted, at: Date.now(), start };
   }, [liveCopy, requestRemeasure]);
 
   useEffect(() => {
@@ -260,7 +262,7 @@ export function HelpProvider({ children }) {
     const timer = setTimeout(() => {
       requestRemeasure();
       setTourCopy(liveCopyRef.current);
-      setTourIndex(0);
+      setTourIndex(pending.start(liveCopyRef.current?.steps));
       setMode('module');
     }, 500);
     return () => clearTimeout(timer);

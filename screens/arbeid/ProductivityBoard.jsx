@@ -779,7 +779,7 @@ export default function ProductivityBoard({
             nativeID={`produktivitet-person-${person.id}`}
             style={[styles.person, { backgroundColor: colors.card, borderColor: colors.line }]}
           >
-            <Pressable onPress={() => setOpenId(open ? '' : person.id)} style={styles.personHead}>
+            <Pressable onPress={() => setOpenId(open ? '' : person.id)} style={styles.personHead} nativeID={`produktivitet-head-${person.id}`}>
               <View style={[styles.avatar, { backgroundColor: withAlpha(colors.brand, '18') }]}>
                 <Text style={{ color: colors.brand, fontWeight: '700' }}>{initials(name)}</Text>
               </View>

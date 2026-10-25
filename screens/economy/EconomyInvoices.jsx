@@ -506,6 +506,7 @@ function InvoiceDetail({
         ].map(([id, label]) => (
           <TouchableOpacity
             key={id}
+            nativeID={`invoice-tab-${id}`}
             onPress={() => setTab(id)}
             style={[styles.tab, tab === id && { borderBottomColor: colors.brand }]}
           >
@@ -905,6 +906,7 @@ export default function EconomyInvoices({
           onPress={() => openInvoice(row)}
           accessibilityRole="button"
           accessibilityLabel={`Faktura ${row.invoiceNumber}`}
+          nativeID={`invoice-row-${row.id}`}
           style={[styles.phoneRow, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
         >
           <View style={styles.phoneTop}>
@@ -964,6 +966,7 @@ export default function EconomyInvoices({
         onPress={() => openInvoice(row)}
         accessibilityRole="button"
         accessibilityLabel={`Faktura ${row.invoiceNumber}`}
+        nativeID={`invoice-row-${row.id}`}
         style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
       >
         {columns.map((column) => {

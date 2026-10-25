@@ -221,10 +221,62 @@ export function fallbackTargetRect(anchor, layout = {}) {
   }
 }
 
+/** Høyeste rundturkort på mobil: litt over halve skjermen, så markeringen synes. */
+export function phoneCardCap(winH) {
+  return Math.round(winH * 0.52);
+}
+
+/** Laveste kort som fortsatt viser tittel, litt tekst og knappene. */
+export const MIN_TOUR_CARD = 320;
+
+/**
+ * Mobil: senk kortets tak til plassen over eller under markeringen (den
+ * største), så kortet ikke dekker knappen — innholdet ruller i stedet.
+ * Bygger bare på markeringen, ikke kortets målte høyde (ingen vipping).
+ */
+export function phoneFitCap({ winH, hole, cap, inset = {} } = {}) {
+  if (!hole || !(hole.h > 0)) return cap;
+  const m = 16;
+  const gap = 18;
+  const top = (inset.top || 0) + m;
+  const bottom = winH - (inset.bottom || 0) - m;
+  const room = Math.max(hole.y - gap - top, bottom - (hole.y + hole.h + gap));
+  if (room >= cap) return cap;
+  return room >= MIN_TOUR_CARD ? Math.floor(room) : cap;
+}
+
+/** Høyeste rundturkort: mobil = phoneCardCap, ellers nesten hele høyden. */
+export function tourCardCap({ winH, winW, isPhone, inset = {} } = {}) {
+  if (isPhone || winW < 768) return phoneCardCap(winH);
+  return Math.max(260, winH - 48 - (inset.top || 0) - (inset.bottom || 0));
+}
+
+function overlapArea(a, b) {
+  if (!a || !b) return 0;
+  const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+
+/** Første kandidat som ikke dekker markeringen, ellers den som dekker minst. */
+function leastCovering(candidates, hole) {
+  let best = candidates[0];
+  let bestArea = Infinity;
+  for (const c of candidates) {
+    const area = overlapArea(c, hole);
+    if (area === 0) return c;
+    if (area < bestArea) {
+      best = c;
+      bestArea = area;
+    }
+  }
+  return best;
+}
+
 /**
  * Pick a card rect that does not cover the spotlight when space allows.
- * Phone: bottom sheet, or above the hole when the target sits mid/low.
- * Wider screens: opposite side of the hole.
+ * Phone: bottom sheet, above or below the hole — whichever leaves it visible.
+ * Wider screens: opposite side of the hole, then beside, below or above it.
  */
 export function placeCard({
   winW,
@@ -236,40 +288,61 @@ export function placeCard({
   inset = {},
 } = {}) {
   const m = 16;
+  const gap = 18;
   const bottomSafe = inset.bottom || 0;
   const topSafe = inset.top || 0;
+  const hasHole = !!(hole && hole.w > 0 && hole.h > 0);
 
   if (isPhone || winW < 768) {
     const w = Math.min(cardW, winW - m * 2);
-    const maxH = Math.min(cardH, Math.round(winH * 0.42));
-    const bottomY = winH - maxH - m - bottomSafe;
-    let y = bottomY;
-    if (hole && hole.w > 0 && hole.h > 0) {
-      const holeBottom = hole.y + hole.h;
-      const holeMid = hole.y + hole.h / 2;
-      // Target in lower half → sit the card above so the spotlight stays visible.
-      if (holeMid > winH * 0.42) {
-        y = Math.max(topSafe + m, hole.y - maxH - 18);
-      } else if (holeBottom > bottomY - 8) {
-        // Bottom sheet would cover a mid-page hole — nudge above it.
-        y = Math.max(topSafe + m, Math.min(bottomY, hole.y - maxH - 18));
-      }
-    }
-    return { x: (winW - w) / 2, y, w, h: maxH };
+    const h = Math.min(cardH, phoneCardCap(winH));
+    const x = (winW - w) / 2;
+    const topY = topSafe + m;
+    const bottomY = Math.max(topY, winH - h - m - bottomSafe);
+    if (!hasHole) return { x, y: bottomY, w, h };
+    const at = (y) => ({ x, y: Math.max(topY, Math.min(bottomY, y)), w, h });
+    const above = at(hole.y - h - gap);
+    const below = at(hole.y + hole.h + gap);
+    const sheet = at(bottomY);
+    // Target in lower half → try above first so the spotlight stays visible.
+    const order = hole.y + hole.h / 2 > winH * 0.42
+      ? [above, sheet, below, at(topY)]
+      : [sheet, below, above, at(topY)];
+    return leastCovering(order, hole);
   }
 
   const w = Math.min(cardW, 400);
   const h = Math.min(cardH, winH - 48 - topSafe - bottomSafe);
-  const holeCx = hole ? hole.x + hole.w / 2 : winW / 2;
-  const preferRight = !hole || holeCx < winW * 0.55;
-  const x = preferRight
-    ? Math.max(m, winW - w - 24)
-    : Math.min(24, winW - w - m);
-  const y = Math.max(
-    topSafe + 20,
-    Math.min((winH - h) / 2, winH - h - 24 - bottomSafe),
-  );
-  return { x, y, w, h };
+  const minX = m;
+  const maxX = winW - w - m;
+  const minY = topSafe + 20;
+  const maxY = Math.max(minY, winH - h - 24 - bottomSafe);
+  const clampX = (x) => Math.max(minX, Math.min(maxX, x));
+  const clampY = (y) => Math.max(minY, Math.min(maxY, y));
+  const rightX = Math.max(m, winW - w - 24);
+  const leftX = Math.min(24, winW - w - m);
+  if (!hasHole) {
+    return { x: rightX, y: clampY((winH - h) / 2), w, h };
+  }
+  const holeCx = hole.x + hole.w / 2;
+  const holeCy = hole.y + hole.h / 2;
+  const nearY = clampY(holeCy - h / 2);
+  const preferRight = holeCx < winW * 0.55;
+  const first = preferRight ? rightX : leftX;
+  const second = preferRight ? leftX : rightX;
+  const rect = (x, y) => ({ x, y, w, h });
+  return leastCovering([
+    rect(first, nearY),
+    rect(second, nearY),
+    rect(clampX(hole.x + hole.w + gap), nearY),
+    rect(clampX(hole.x - w - gap), nearY),
+    rect(clampX(holeCx - w / 2), clampY(hole.y + hole.h + gap)),
+    rect(clampX(holeCx - w / 2), clampY(hole.y - h - gap)),
+    rect(first, maxY),
+    rect(second, maxY),
+    rect(first, minY),
+    rect(second, minY),
+  ], hole);
 }
 
 export function attachPoint(rect, other) {
@@ -387,6 +460,13 @@ export function buildTourSteps(rawSteps, lang = 'nb', pickText = (v) => v, layou
       scene: meta?.scene || inferStepScene(text, i, prevText),
       advance: false,
       where: meta?.where ? pickText(meta.where, lang) : '',
+      title: meta?.title ? pickText(meta.title, lang) : '',
+      find: Array.isArray(meta?.find) ? meta.find.filter(Boolean) : [],
+      via: Array.isArray(meta?.via) ? meta.via.filter(Boolean) : [],
+      viaText: meta?.viaText ? pickText(meta.viaText, lang) : '',
+      pending: meta?.pending ? pickText(meta.pending, lang) : '',
+      go: meta?.go || null,
+      pageLabel: meta?.pageLabel ? pickText(meta.pageLabel, lang) : '',
     };
   }).filter((s) => s.text);
   tour.forEach((s, i) => {
@@ -409,6 +489,13 @@ export function visibleTourPages(tour, scene = 'hub') {
     anchor: step.anchor,
     scene: step.scene || 'hub',
     advance: !!step.advance,
+    title: step.title || '',
+    find: step.find || [],
+    via: step.via || [],
+    viaText: step.viaText || '',
+    pending: step.pending || '',
+    go: step.go || null,
+    pageLabel: step.pageLabel || '',
     index,
   }));
   const matching = all.filter((p) => p.scene === scene);

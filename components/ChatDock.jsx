@@ -49,6 +49,8 @@ import {
   CHAT_WINDOW_BOTTOM,
   chatDrawerBottomInset,
 } from '../src/utils/chatDockLayout';
+import AssistantChat from './assistant/AssistantChat';
+import { assistantThread, isAssistantThread } from '../src/help/assistantBridge';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -63,6 +65,7 @@ const DOCK_RIGHT = 16;
 const FAB_BOTTOM = 16;
 const PILL_STACK_BOTTOM = 72;
 const PILL_COL_W = 200;
+const ASSISTANT_W = 400;
 
 function DockBubble({ item, mine }) {
   const { t } = useI18n();
@@ -546,7 +549,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
         <Text style={styles.composeTitle}>
           {drawer ? (t('tabs.chat') || 'Chat') : t('chat.newChat')}
         </Text>
-        <TouchableOpacity onPress={onClose} hitSlop={8}>
+        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('moduleIntro.close')}>
           <Ionicons name="close" size={20} color={colors.ink} />
         </TouchableOpacity>
       </View>
@@ -573,6 +576,24 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
         </View>
       ) : null}
       <ScrollView style={styles.drawerComposeScroll}>
+        {!isChild && (!q || filterName(t('assistant.name'))) ? (
+          <TouchableOpacity
+            style={[styles.composeRow, styles.assistantRow]}
+            onPress={() => onPick(assistantThread({ title: t('assistant.name') }))}
+            accessibilityRole="button"
+            accessibilityLabel={t('assistant.name')}
+            testID="chat-open-assistant"
+          >
+            <View style={[styles.groupAv, styles.assistantAv]}>
+              <Ionicons name="sparkles" size={18} color="#fff" />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.composeName}>{t('assistant.name')}</Text>
+              <Text style={styles.composeSub} numberOfLines={1}>{t('assistant.preview')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+          </TouchableOpacity>
+        ) : null}
         {showAiChat && (!q || filterName(t('chat.aiChat'))) ? (
           <TouchableOpacity
             style={styles.composeRow}
@@ -1011,7 +1032,7 @@ function useFullScreenChatRoute() {
   useEffect(() => {
     const nav = getAppNav();
     if (!nav?.addListener) return undefined;
-    const BLOCKED = new Set(['FriendChatThread', 'ChatThread', 'AiChat']);
+    const BLOCKED = new Set(['FriendChatThread', 'ChatThread', 'AiChat', 'ProtopAssistant']);
     const sync = () => {
       try {
         const name = nav.getCurrentRoute?.()?.name;
@@ -1025,6 +1046,44 @@ function useFullScreenChatRoute() {
     return unsub;
   }, []);
   return blocked;
+}
+
+/** ProTop-assistenten som eget vindu i docken (PC), med minimert pille. */
+function AssistantDockWindow({
+  win, openIndexFromRight = 0, minimizedStackIndex = 0, hasMinimizedColumn = false,
+  onClose, onMinimize,
+}) {
+  const { t } = useI18n();
+  if (win.minimized) {
+    const bottom = PILL_STACK_BOTTOM + minimizedStackIndex * (PILL_H + PILL_GAP);
+    return (
+      <TouchableOpacity
+        style={[styles.pill, styles.assistantPill, { right: DOCK_RIGHT, bottom }]}
+        onPress={() => onMinimize(false)}
+        accessibilityRole="button"
+        accessibilityLabel={t('assistant.name')}
+      >
+        <Ionicons name="sparkles" size={18} color="#fff" />
+        <Text style={styles.pillTxt} numberOfLines={1}>{t('assistant.name')}</Text>
+        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel="Lukk">
+          <Ionicons name="close" size={16} color="#fff" />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  }
+  const columnOffset = hasMinimizedColumn ? (PILL_COL_W + GAP) : 0;
+  const right = DOCK_RIGHT + columnOffset + openIndexFromRight * (PANEL_W + GAP);
+  return (
+    <View style={[styles.panel, styles.assistantPanel, { right }]} accessibilityRole="dialog">
+      <AssistantChat
+        variant="dock"
+        ask={win.ask}
+        onClose={onClose}
+        onMinimize={() => onMinimize(true)}
+        onCollapse={() => onMinimize(true)}
+      />
+    </View>
+  );
 }
 
 /**
@@ -1084,7 +1143,20 @@ export default function ChatDockHost() {
           ]}
           pointerEvents={drawerOpen ? 'auto' : 'none'}
         >
-          {activeWin && !composeOpen ? (
+          {activeWin && !composeOpen && isAssistantThread(activeWin) ? (
+            <View style={styles.drawerPanel}>
+              <AssistantChat
+                variant="drawer"
+                ask={activeWin.ask}
+                onBack={() => {
+                  closeThread(activeWin.chatId);
+                  setComposeOpen(true);
+                }}
+                onClose={closeDrawer}
+                onCollapse={closeDrawer}
+              />
+            </View>
+          ) : activeWin && !composeOpen ? (
             <ChatDockPanel
               window={{ ...activeWin, minimized: false }}
               drawer
@@ -1136,26 +1208,34 @@ export default function ChatDockHost() {
         </View>
       ) : null}
 
-      {openWindows.map((w, i) => (
-        <ChatDockPanel
-          key={w.chatId}
-          window={w}
-          openIndexFromRight={openWindows.length - 1 - i}
-          hasMinimizedColumn={hasMinimizedColumn}
-          onClose={() => closeThread(w.chatId)}
-          onMinimize={(min) => (min ? minimizeThread(w.chatId) : restoreThread(w.chatId))}
-        />
-      ))}
+      {openWindows.map((w, i) => {
+        const Panel = isAssistantThread(w) ? AssistantDockWindow : ChatDockPanel;
+        return (
+          <Panel
+            key={w.chatId}
+            window={w}
+            win={w}
+            openIndexFromRight={openWindows.length - 1 - i}
+            hasMinimizedColumn={hasMinimizedColumn}
+            onClose={() => closeThread(w.chatId)}
+            onMinimize={(min) => (min ? minimizeThread(w.chatId) : restoreThread(w.chatId))}
+          />
+        );
+      })}
 
-      {minimized.map((w, i) => (
-        <ChatDockPanel
-          key={`min-${w.chatId}`}
-          window={w}
-          minimizedStackIndex={i}
-          onClose={() => closeThread(w.chatId)}
-          onMinimize={(min) => (min ? minimizeThread(w.chatId) : restoreThread(w.chatId))}
-        />
-      ))}
+      {minimized.map((w, i) => {
+        const Panel = isAssistantThread(w) ? AssistantDockWindow : ChatDockPanel;
+        return (
+          <Panel
+            key={`min-${w.chatId}`}
+            window={w}
+            win={w}
+            minimizedStackIndex={i}
+            onClose={() => closeThread(w.chatId)}
+            onMinimize={(min) => (min ? minimizeThread(w.chatId) : restoreThread(w.chatId))}
+          />
+        );
+      })}
 
       {!hideFab ? (
         <TouchableOpacity
@@ -1297,6 +1377,20 @@ const styles = StyleSheet.create({
     }),
   },
   pillTxt: { color: '#fff', fontWeight: '400', fontSize: 13, flex: 1 },
+  assistantPill: { backgroundColor: '#07274C' },
+  assistantPanel: { width: ASSISTANT_W },
+  assistantRow: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef2f6',
+    marginBottom: 4,
+  },
+  assistantAv: {
+    backgroundColor: colors.brand,
+    ...Platform.select({
+      web: { backgroundImage: 'linear-gradient(135deg, #1099F4 0%, #07274C 100%)' },
+      default: {},
+    }),
+  },
   fab: {
     position: 'absolute',
     right: DOCK_RIGHT,

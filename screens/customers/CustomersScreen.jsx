@@ -637,6 +637,7 @@ export default function CustomersScreen() {
                 return (
                   <TouchableOpacity
                     key={row.id}
+                    nativeID={`customer-row-${row.id}`}
                     onPress={() => { setSelectedId(row.id); setView('detail'); }}
                     accessibilityRole="button"
                     accessibilityLabel={`${row.customerNumber} ${row.name}${invoiceGaps.length ? ' Må rettes før fakturering' : ''}`}

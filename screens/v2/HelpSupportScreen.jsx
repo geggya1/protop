@@ -1,11 +1,12 @@
 /**
- * Help & Support portal — searchable articles, Skjetten bot, tickets, deploy news.
+ * Help & Support portal — searchable articles for every ProTop page, guided
+ * workflows, the ProTop assistant, tickets and deploy news.
  * Opened as Mer subView `help` (also from Settings → Om).
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList,
+  View, Text, StyleSheet, TextInput, TouchableOpacity,
   ScrollView, ActivityIndicator, Image, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,7 +20,6 @@ import HelpTarget from '../../components/HelpTarget';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import {
   articlesForCategory,
-  buildHelpKnowledgeSnippets,
   listHelpCategories,
   localizeHelpArticle,
   getHelpArticle,
@@ -30,7 +30,6 @@ import {
 import { formatNewsDate, listHelpNews } from '../../src/utils/helpNews';
 import { groupUpdatesByDay } from '../../src/utils/appUpdatesLogic';
 import {
-  askSupportBot,
   appendTicketUserMessage,
   createSupportTicket,
   listenSupportMessages,
@@ -38,8 +37,10 @@ import {
   looksLikeBugReport,
   statusLabel,
 } from '../../src/utils/supportTickets';
-import { HELP_ESCALATE_AFTER, localHelpBotReply, shouldSuggestSupport } from '../../src/utils/helpBotLocal';
 import { pickImage, uploadImage } from '../../src/utils/media';
+import AssistantChat from '../../components/assistant/AssistantChat';
+import { listProcesses } from '../../src/help/protopProcesses';
+import { pickIntroText } from '../../src/utils/moduleIntros';
 import { profileAge, ageBand } from '../../src/utils/age';
 
 const VIEWS = {
@@ -100,7 +101,9 @@ export default function HelpSupportScreen() {
     uid, familyId, isChild, isParent, meChild, activeProfile, user,
     currentAgeBand, shellIntent, clearShellIntent,
   } = useApp();
-  const { openModuleHelp } = useHelp();
+  const { openModuleHelp, startProcessTour, startPageTour } = useHelp();
+  const { requestShellTab } = useApp();
+  const [assistantAsk, setAssistantAsk] = useState(null);
 
   const layout = { isDesktop, isTablet, isPhone };
   const device = resolveHelpDevice(layout);
@@ -117,14 +120,6 @@ export default function HelpSupportScreen() {
     onRetreat: () => setView(VIEWS.hub),
   });
 
-  // Bot state
-  const [botMessages, setBotMessages] = useState([]);
-  const [botInput, setBotInput] = useState('');
-  const [botLoading, setBotLoading] = useState(false);
-  const [userQueryCount, setUserQueryCount] = useState(0);
-  const [suggestSupport, setSuggestSupport] = useState(false);
-  const botListRef = useRef(null);
-
   // Tickets
   const [tickets, setTickets] = useState([]);
   const [ticketMessages, setTicketMessages] = useState([]);
@@ -139,10 +134,6 @@ export default function HelpSupportScreen() {
   const categories = useMemo(() => listHelpCategories(lang), [lang]);
   const news = useMemo(() => listHelpNews({ lang, limit: 40 }), [lang]);
   const newsByDay = useMemo(() => groupUpdatesByDay(news), [news]);
-  const knowledge = useMemo(
-    () => buildHelpKnowledgeSnippets({ lang, limit: 20 }),
-    [lang],
-  );
 
   const searchResults = useMemo(
     () => searchHelpArticles(query, { lang, audience, device, limit: 30 }),
@@ -186,17 +177,6 @@ export default function HelpSupportScreen() {
     return listenSupportMessages(uid, ticketId, setTicketMessages);
   }, [uid, ticketId]);
 
-  useEffect(() => {
-    if (view !== VIEWS.bot) return;
-    if (botMessages.length) return;
-    const greet = audience === 'child'
-      ? t('help.botGreetChild')
-      : audience === 'teen' || audience === 'youth'
-        ? t('help.botGreetTeen')
-        : t('help.botGreet');
-    setBotMessages([{ id: 'greet', role: 'assistant', text: greet }]);
-  }, [view, botMessages.length, audience, t]);
-
   const goHub = () => {
     setView(VIEWS.hub);
     setCategoryId(null);
@@ -214,79 +194,21 @@ export default function HelpSupportScreen() {
     setView(VIEWS.category);
   };
 
-  const openBot = () => setView(VIEWS.bot);
+  const openBot = (question = '') => {
+    setAssistantAsk(question ? { text: question, nonce: `${Date.now()}` } : null);
+    setView(VIEWS.bot);
+  };
+  const showPageTour = (article) => {
+    if (!article?.nav?.tab) return;
+    requestShellTab?.(article.nav.tab, article.nav.subView || null);
+    if (article.pageKey) startPageTour?.(article.pageKey);
+  };
+  const flows = useMemo(() => listProcesses(), []);
   const openForm = (prefill = {}) => {
     if (prefill.title) setFormTitle(prefill.title);
     if (prefill.body) setFormBody(prefill.body);
     setView(VIEWS.form);
   };
-
-  const sendBot = useCallback(async () => {
-    const text = botInput.trim();
-    if (!text || botLoading) return;
-    setBotInput('');
-    const nextCount = userQueryCount + 1;
-    const userMsg = { id: `u-${Date.now()}`, role: 'user', text };
-    setBotMessages((prev) => [...prev, userMsg]);
-    setBotLoading(true);
-    try {
-      const history = botMessages
-        .filter((m) => m.id !== 'greet')
-        .slice(-10)
-        .map((m) => ({ role: m.role, text: m.text }));
-      let data = null;
-      try {
-        data = await askSupportBot({
-          message: text,
-          audience,
-          device,
-          lang,
-          familyId,
-          userQueryCount,
-          knowledge,
-          history,
-        });
-      } catch {
-        data = null;
-      }
-      const reply = data?.reply || localHelpBotReply(text, {
-        audience,
-        device,
-        knowledge,
-        userQueryCount: nextCount,
-      });
-      setBotMessages((prev) => [...prev, {
-        id: `a-${Date.now()}`,
-        role: 'assistant',
-        text: reply,
-      }]);
-      const count = data?.userQueryCount || nextCount;
-      setUserQueryCount(count);
-      if (data?.suggestSupport || shouldSuggestSupport(text, count)) {
-        setSuggestSupport(true);
-      }
-    } catch (err) {
-      const fallback = localHelpBotReply(text, {
-        audience,
-        device,
-        knowledge,
-        userQueryCount: nextCount,
-      });
-      setBotMessages((prev) => [...prev, {
-        id: `e-${Date.now()}`,
-        role: 'assistant',
-        text: fallback || err?.message || t('help.botFallback'),
-      }]);
-      setUserQueryCount(nextCount);
-      if (nextCount >= HELP_ESCALATE_AFTER) setSuggestSupport(true);
-    } finally {
-      setBotLoading(false);
-      setTimeout(() => botListRef.current?.scrollToEnd?.({ animated: true }), 80);
-    }
-  }, [
-    botInput, botLoading, botMessages, userQueryCount, audience, device, lang,
-    familyId, knowledge, t,
-  ]);
 
   const pickAttachment = async () => {
     try {
@@ -379,7 +301,7 @@ export default function HelpSupportScreen() {
   const deviceHint = t('help.deviceHint').replace('{device}', deviceLabel);
 
   const headerTitle = (() => {
-    if (view === VIEWS.bot) return t('help.botTitle');
+    if (view === VIEWS.bot) return t('assistant.name');
     if (view === VIEWS.form) return t('help.contactTitle');
     if (view === VIEWS.tickets) return t('help.myTickets');
     if (view === VIEWS.ticket) return activeTicket?.ticketNumber || t('help.myTickets');
@@ -420,7 +342,7 @@ export default function HelpSupportScreen() {
 
       <HelpTarget id="content" style={{ width: '100%' }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        <Chip icon="chatbubble-ellipses" label={t('help.askBot')} active={false} onPress={openBot} />
+        <Chip icon="sparkles" label={t('helpCard.askAssistant')} active={false} onPress={() => openBot()} />
         <Chip icon="mail-unread-outline" label={t('help.contact')} onPress={() => openForm()} />
         <Chip icon="file-tray-outline" label={t('help.myTickets')} onPress={() => setView(VIEWS.tickets)} />
         <Chip icon="newspaper-outline" label={t('help.newsTitle')} onPress={() => setView(VIEWS.news)} />
@@ -451,6 +373,44 @@ export default function HelpSupportScreen() {
         </View>
       ) : (
         <>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, compact && styles.sectionTitleDesk]}>
+              {t('helpCard.workflows')}
+            </Text>
+            <Text style={styles.deviceHint}>{t('helpCard.workflowsLead')}</Text>
+            <View style={styles.card}>
+              {flows.map((f) => (
+                <View key={f.id} style={styles.flowRow}>
+                  <View style={[styles.articleIcon, { backgroundColor: `${f.accent}1A` }]}>
+                    <Ionicons name={`${f.icon || 'git-merge'}-outline`} size={compact ? 16 : 18} color={f.accent} />
+                  </View>
+                  <TouchableOpacity
+                    style={{ flex: 1 }}
+                    onPress={() => openArticle(`process.${f.id}`)}
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.articleTitle, compact && styles.articleTitleDesk]} numberOfLines={1}>
+                      {pickIntroText(f.title, lang)}
+                    </Text>
+                    <Text style={[styles.articleSub, compact && styles.articleSubDesk]} numberOfLines={2}>
+                      {f.steps.length} {t('helpCard.steps')} · {pickIntroText(f.pitch, lang)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.flowStart, { backgroundColor: f.accent }]}
+                    onPress={() => startProcessTour?.(f.id, 0)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t('helpCard.startFlow')}: ${pickIntroText(f.title, lang)}`}
+                    testID="help-flow-start"
+                  >
+                    <Ionicons name="play" size={13} color="#fff" />
+                    <Text style={styles.flowStartTxt}>{t('helpCard.startFlow')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, compact && styles.sectionTitleDesk]}>
               {t('help.categories')}
@@ -527,7 +487,25 @@ export default function HelpSupportScreen() {
           ) : null}
           <Text style={[styles.heroTitle, compact && styles.heroTitleDesk]}>{activeArticle.title}</Text>
           <Text style={[styles.heroSummary, compact && styles.heroSummaryDesk]}>{activeArticle.summary}</Text>
+          {activeArticle.path ? (
+            <Text style={styles.articlePath}>{t('helpCard.where')}: {activeArticle.path}</Text>
+          ) : null}
         </View>
+
+        {activeArticle.nav?.tab || activeArticle.processId ? (
+          <TouchableOpacity
+            style={[styles.primaryBtn, { backgroundColor: activeArticle.accent || colors.brand }]}
+            onPress={() => (activeArticle.processId
+              ? startProcessTour?.(activeArticle.processId, 0)
+              : showPageTour(activeArticle))}
+            testID="help-article-tour"
+          >
+            <Ionicons name={activeArticle.processId ? 'play' : 'footsteps'} size={18} color="#fff" />
+            <Text style={styles.primaryBtnTxt}>
+              {activeArticle.processId ? t('assistant.startFlow') : t('helpCard.showMe')}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
         {activeArticle.deviceTip ? (
           <View style={styles.tipBox}>
@@ -549,12 +527,31 @@ export default function HelpSupportScreen() {
               {t('help.steps')}
             </Text>
             <View style={styles.card}>
-              {activeArticle.steps.map((step, i) => (
-                <View key={`${i}-${step.slice(0, 12)}`} style={styles.stepRow}>
+              {(activeArticle.stepItems || []).map((step, i) => (
+                <View key={`${i}-${step.text.slice(0, 12)}`} style={styles.stepRow}>
                   <View style={styles.stepNum}>
                     <Text style={styles.stepNumTxt}>{i + 1}</Text>
                   </View>
-                  <Text style={[styles.stepTxt, compact && styles.stepTxtDesk]}>{step}</Text>
+                  <View style={{ flex: 1 }}>
+                    {step.title ? (
+                      <Text style={[styles.stepTxt, styles.stepTitleTxt, compact && styles.stepTxtDesk]}>{step.title}</Text>
+                    ) : null}
+                    <Text style={[styles.stepTxt, compact && styles.stepTxtDesk]}>{step.text}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {activeArticle.faq?.length ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, compact && styles.sectionTitleDesk]}>{t('helpCard.faq')}</Text>
+            <View style={styles.card}>
+              {activeArticle.faq.map((f) => (
+                <View key={f.q} style={styles.faqItem}>
+                  <Text style={[styles.stepTxt, styles.stepTitleTxt]}>{f.q}</Text>
+                  <Text style={styles.stepTxt}>{f.a}</Text>
                 </View>
               ))}
             </View>
@@ -562,9 +559,12 @@ export default function HelpSupportScreen() {
         ) : null}
 
         <View style={styles.ctaRow}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={openBot}>
-            <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
-            <Text style={styles.primaryBtnTxt}>{t('help.askBot')}</Text>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => openBot(lang === 'en' ? `How do I use ${activeArticle.label}?` : `Hvordan bruker jeg ${activeArticle.label}?`)}
+          >
+            <Ionicons name="sparkles" size={18} color="#fff" />
+            <Text style={styles.primaryBtnTxt}>{t('helpCard.askAssistant')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.secondaryBtn}
@@ -579,77 +579,14 @@ export default function HelpSupportScreen() {
   };
 
   const renderBot = () => (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={64}
-    >
-      <FlatList
-        ref={botListRef}
-        data={botMessages}
-        keyExtractor={(m) => m.id}
-        contentContainerStyle={[styles.botList, compact && styles.bodyDesk]}
-        onContentSizeChange={() => botListRef.current?.scrollToEnd?.({ animated: true })}
-        renderItem={({ item }) => (
-          <View style={[
-            styles.bubble,
-            item.role === 'user' ? styles.bubbleUser : styles.bubbleBot,
-          ]}
-          >
-            <Text style={[
-              styles.bubbleTxt,
-              item.role === 'user' && styles.bubbleTxtUser,
-              compact && styles.bubbleTxtDesk,
-            ]}
-            >
-              {item.text}
-            </Text>
-          </View>
-        )}
-        ListFooterComponent={botLoading ? (
-          <ActivityIndicator style={{ marginVertical: 12 }} color={colors.brand} />
-        ) : null}
+    <View style={[{ flex: 1, minHeight: 0 }, compact && styles.bodyDesk, compact && { width: '100%' }]}>
+      <AssistantChat
+        variant="embedded"
+        showHeader={false}
+        ask={assistantAsk}
+        onContactSupport={(prefill) => openForm(prefill)}
       />
-      {suggestSupport ? (
-        <TouchableOpacity
-          style={styles.escalateBar}
-          onPress={() => {
-            const lastUser = [...botMessages].reverse().find((m) => m.role === 'user');
-            openForm({
-              title: lastUser?.text?.slice(0, 80) || '',
-              body: botMessages
-                .filter((m) => m.role === 'user')
-                .map((m) => m.text)
-                .slice(-3)
-                .join('\n\n'),
-            });
-          }}
-        >
-          <Ionicons name="mail-unread-outline" size={18} color="#fff" />
-          <Text style={styles.escalateTxt}>{t('help.suggestSupport')}</Text>
-        </TouchableOpacity>
-      ) : null}
-      <View style={styles.composer}>
-        <TextInput
-          value={botInput}
-          onChangeText={setBotInput}
-          placeholder={t('help.botPlaceholder')}
-          placeholderTextColor={colors.placeholder}
-          style={styles.composerInput}
-          multiline
-          maxLength={2000}
-          onSubmitEditing={sendBot}
-        />
-        <TouchableOpacity
-          onPress={sendBot}
-          disabled={botLoading || !botInput.trim()}
-          style={[styles.sendBtn, (!botInput.trim() || botLoading) && { opacity: 0.45 }]}
-          accessibilityLabel={t('help.send')}
-        >
-          <Ionicons name="send" size={18} color="#fff" />
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 
   const renderTickets = () => (
@@ -1007,6 +944,24 @@ const styles = StyleSheet.create({
   },
   stepNumTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
   stepTxt: { flex: 1, fontSize: 14, fontWeight: '400', color: colors.ink, lineHeight: 20 },
+  stepTitleTxt: { fontWeight: '600' },
+  faqItem: { paddingVertical: 8, gap: 2 },
+  articlePath: { marginTop: 8, fontSize: 12.5, color: colors.muted, lineHeight: 17 },
+  flowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+  },
+  flowStart: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  flowStartTxt: { color: '#fff', fontSize: 13, fontWeight: '600' },
   stepTxtDesk: { fontSize: 13, fontWeight: '500' },
 
   ctaRow: { gap: 10, marginTop: 16 },

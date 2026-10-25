@@ -10,6 +10,7 @@ import {
   localizeIntro,
 } from '../utils/moduleIntros';
 import { shouldAutoWelcome } from '../utils/helpLayout';
+import { resolvePageKey } from '../help/protopPages';
 import { currentRouteName } from '../navigation/navRef';
 import { useI18n } from '../i18n';
 
@@ -57,10 +58,12 @@ export function HelpProvider({ children }) {
   const [targetsVersion, setTargetsVersion] = useState(0);
   const [scene, setScene] = useState('hub');
   const [tourIndex, setTourIndex] = useState(0);
+  const [processId, setProcessId] = useState(null);
   const autoShownRef = useRef(false);
   const moduleRef = useRef({ scope: 'family', moduleId: null, enabled: true });
   const advanceRef = useRef({});
   const retreatRef = useRef(null);
+  const pendingPageTourRef = useRef(null);
 
   useEffect(() => {
     moduleRef.current = { scope, moduleId, enabled };
@@ -164,7 +167,16 @@ export function HelpProvider({ children }) {
   }, []);
 
   const entry = moduleId ? getModuleIntro(scope, moduleId) : null;
-  const copy = useMemo(() => localizeIntro(entry, lang), [entry, lang]);
+  const liveCopy = useMemo(() => localizeIntro(entry, lang), [entry, lang]);
+  // En startet rundtur holder på sin side, også når et steg åpner en annen
+  // (f.eks. en ansatt fra HR-tabellen) — så går turen videre der.
+  const [tourCopy, setTourCopy] = useState(null);
+  useEffect(() => {
+    if (mode !== 'module') setTourCopy(null);
+  }, [mode]);
+  const copy = mode === 'module' && tourCopy ? tourCopy : liveCopy;
+  const liveCopyRef = useRef(liveCopy);
+  liveCopyRef.current = liveCopy;
   const hasHelp = !!copy;
   const introKey = introStorageKey(scope, moduleId);
   const moduleSeen = !!(introKey && moduleSeenMap[introKey]);
@@ -210,23 +222,72 @@ export function HelpProvider({ children }) {
   }, [copy, requestRemeasure]);
 
   const startModuleTour = useCallback(() => {
-    if (!copy) return;
+    if (!liveCopy) return;
     requestRemeasure();
+    setTourCopy(liveCopy);
     setTourIndex(0);
     setMode('module');
-  }, [copy, requestRemeasure]);
+  }, [liveCopy, requestRemeasure]);
+
+  /**
+   * Rundtur for en bestemt side (fra assistenten eller hjelpesenteret).
+   * Siden åpnes av den som kaller; rundturen starter når siden er registrert.
+   */
+  const startPageTour = useCallback((pageId) => {
+    const wanted = resolvePageKey(pageId);
+    if (!wanted) return;
+    if (liveCopy?.pageKey === wanted) {
+      pendingPageTourRef.current = null;
+      requestRemeasure();
+      setTourCopy(liveCopy);
+      setTourIndex(0);
+      setMode('module');
+      return;
+    }
+    pendingPageTourRef.current = { key: wanted, at: Date.now() };
+  }, [liveCopy, requestRemeasure]);
+
+  useEffect(() => {
+    const pending = pendingPageTourRef.current;
+    if (!pending || !liveCopy?.pageKey) return undefined;
+    if (Date.now() - pending.at > 15000) {
+      pendingPageTourRef.current = null;
+      return undefined;
+    }
+    if (liveCopy.pageKey !== pending.key) return undefined;
+    pendingPageTourRef.current = null;
+    // La siden tegne ferdig før knappene måles.
+    const timer = setTimeout(() => {
+      requestRemeasure();
+      setTourCopy(liveCopyRef.current);
+      setTourIndex(0);
+      setMode('module');
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [liveCopy?.pageKey, requestRemeasure]);
+
+  /** Arbeidsflyt på tvers av sider (src/help/protopProcesses.js). */
+  const startProcessTour = useCallback((id, fromIndex = 0) => {
+    if (!id) return;
+    requestRemeasure();
+    setProcessId(id);
+    setTourIndex(Math.max(0, Number(fromIndex) || 0));
+    setMode('process');
+  }, [requestRemeasure]);
 
   const dismiss = useCallback((opts = {}) => {
     const current = mode;
     setMode(null);
     setTourIndex(0);
+    setProcessId(null);
     if (opts.skipPersist) return;
     if (current === 'welcome' || opts.welcome) persistWelcomeSeen();
     if (current === 'module' || current === 'moduleCard' || opts.module) persistModuleSeen();
   }, [mode, persistWelcomeSeen, persistModuleSeen]);
 
   useEffect(() => {
-    if (!ready || !uid || !enabled || !moduleId || autoShownRef.current) return undefined;
+    if (!ready || !uid || !enabled || !moduleId || autoShownRef.current || mode) return undefined;
+    if (pendingPageTourRef.current) return undefined;
     if (currentRouteName() === 'ProfileSetup') return undefined;
     if (!shouldAutoWelcome(welcomeMap, moduleSeenMap, scope)) return undefined;
     const timer = setTimeout(() => {
@@ -235,7 +296,7 @@ export function HelpProvider({ children }) {
       setMode('welcome');
     }, AUTO_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [ready, uid, enabled, moduleId, scope, welcomeMap, moduleSeenMap, requestRemeasure]);
+  }, [ready, uid, enabled, moduleId, scope, welcomeMap, moduleSeenMap, requestRemeasure, mode]);
 
   const value = useMemo(() => ({
     scope,
@@ -250,6 +311,8 @@ export function HelpProvider({ children }) {
     scene,
     tourIndex,
     setTourIndex,
+    processId,
+    pageKey: liveCopy?.pageKey || null,
     registerModule,
     registerTarget,
     registerAdvance,
@@ -262,14 +325,30 @@ export function HelpProvider({ children }) {
     openWelcome,
     openModuleHelp,
     startModuleTour,
+    startProcessTour,
+    startPageTour,
     dismiss,
   }), [
     scope, moduleId, mode, hasHelp, copy, moduleSeen, welcomeSeen, targets, targetsVersion,
-    scene, tourIndex,
+    scene, tourIndex, processId,
     registerModule, registerTarget, registerAdvance, unregisterTarget, runTargetAdvance,
     setHelpScene, registerRetreat, runRetreat, requestRemeasure,
-    openWelcome, openModuleHelp, startModuleTour, dismiss,
+    openWelcome, openModuleHelp, startModuleTour, startProcessTour, startPageTour, dismiss,
   ]);
+
+  // Test-boten (scripts/help-bot) leser hjelpetilstanden. Finnes bare i emulator-bygg.
+  useEffect(() => {
+    if (!process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST || typeof window === 'undefined') return;
+    window.__protopHelp = {
+      pageKey: liveCopy?.pageKey || null,
+      tourPageKey: copy?.pageKey || null,
+      moduleId,
+      mode,
+      processId,
+      tourIndex,
+      scene,
+    };
+  }, [liveCopy?.pageKey, copy?.pageKey, moduleId, mode, processId, tourIndex, scene]);
 
   return (
     <HelpContext.Provider value={value}>
@@ -291,6 +370,8 @@ const FALLBACK = {
   scene: 'hub',
   tourIndex: 0,
   setTourIndex: () => {},
+  processId: null,
+  pageKey: null,
   registerModule: () => () => {},
   registerTarget: () => {},
   registerAdvance: () => {},
@@ -303,6 +384,8 @@ const FALLBACK = {
   openWelcome: () => {},
   openModuleHelp: () => {},
   startModuleTour: () => {},
+  startProcessTour: () => {},
+  startPageTour: () => {},
   dismiss: () => {},
 };
 

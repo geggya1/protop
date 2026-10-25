@@ -10,19 +10,23 @@ import {
   pickIntroText,
 } from './moduleIntros.js';
 
+/** De gamle familie-introene (ProTop-sidene i src/help vinner i getModuleIntro). */
+const legacy = (id) => MODULE_INTROS[`family.${id}`];
+
 assert.equal(introStorageKey('family', 'plan'), 'family.plan');
 assert.equal(introStorageKey('team', 'wall'), 'team.wall');
 
 assert.ok(getModuleIntro('family', 'plan'));
 assert.ok(getModuleIntro('family', 'voiceNotes'), 'voiceNotes aliases to notes');
 assert.equal(getModuleIntro('family', 'voiceNotes').icon, 'document-text');
+assert.equal(getModuleIntro('family', 'voiceNotes').pageKey, undefined, 'voiceNotes er en familie-intro');
 assert.equal(getModuleIntro('classroom', 'messages').icon, 'chatbubbles');
 assert.equal(getModuleIntro('family', 'does-not-exist'), null);
 
-const chatNb = localizeIntro(getModuleIntro('family', 'chat'), 'nb');
+const chatNb = localizeIntro(legacy('chat'), 'nb');
 assert.equal(chatNb.title, 'Prat der du allerede er');
 
-const plan = localizeIntro(getModuleIntro('family', 'plan'), 'nb');
+const plan = localizeIntro(legacy('plan'), 'nb');
 assert.match(plan.title, /uke/i);
 assert.equal(plan.steps.length, 3);
 assert.ok(plan.accent);
@@ -31,14 +35,14 @@ assert.equal(plan.tour[0].scene, 'hub');
 assert.equal(plan.tour[0].advance, true);
 assert.equal(plan.tour[1].scene, 'inner');
 
-const shop = localizeIntro(getModuleIntro('family', 'shop'), 'nb');
+const shop = localizeIntro(legacy('shop'), 'nb');
 assert.equal(shop.tour[0].scene, 'hub');
 assert.equal(shop.tour[0].advance, true);
 assert.equal(shop.tour[1].scene, 'inner');
 assert.equal(shop.tour[1].anchor, 'input');
 assert.equal(shop.tour[2].scene, 'inner');
 
-const planEn = localizeIntro(getModuleIntro('family', 'plan'), 'en');
+const planEn = localizeIntro(legacy('plan'), 'en');
 assert.match(planEn.title, /week/i);
 
 assert.equal(pickIntroText({ nb: 'Hei', en: 'Hi' }, 'nb'), 'Hei');
@@ -67,7 +71,7 @@ for (const key of EXPECTED_INTRO_KEYS) {
   });
 }
 
-const home = localizeIntro(getModuleIntro('family', 'home'), 'nb', { isPhone: true, hasBottomNav: true });
+const home = localizeIntro(legacy('home'), 'nb', { isPhone: true, hasBottomNav: true });
 assert.match(home.steps[0], /kort|dagens plan/i);
 assert.match(home.steps[1], /toppbildet|heading-bilde/i);
 assert.ok(!/Hold på|Long-press|Dashbord-oppsett|nede til høyre/i.test(home.steps.join(' ')), 'home tour must match widget home');
@@ -75,40 +79,40 @@ assert.equal(home.tour[0].anchor, 'timeline');
 assert.equal(home.tour[1].anchor, 'edit');
 assert.equal(home.tour[2].anchor, 'tabs');
 
-const homeDesk = localizeIntro(getModuleIntro('family', 'home'), 'nb', { isDesktop: true, hasRail: true });
+const homeDesk = localizeIntro(legacy('home'), 'nb', { isDesktop: true, hasRail: true });
 assert.equal(homeDesk.tour[0].anchor, 'rail');
 assert.match(homeDesk.steps[0], /menyen til venstre/i);
 
-const homeNoTabs = localizeIntro(getModuleIntro('family', 'home'), 'nb', {
+const homeNoTabs = localizeIntro(legacy('home'), 'nb', {
   isPhone: true, hasBottomNav: false,
 });
 assert.match(homeNoTabs.steps[2], /Mer/i);
 assert.equal(homeNoTabs.tour[2].anchor, 'content');
 
-const homeChild = localizeIntro(getModuleIntro('family', 'home'), 'nb', {
+const homeChild = localizeIntro(legacy('home'), 'nb', {
   isPhone: true, asChild: true, hasBottomNav: false,
 });
 assert.match(homeChild.steps[1], /Foresatte|toppbildet|bytte/i);
 assert.equal(homeChild.tour[1].anchor, 'edit');
 assert.equal(homeChild.tour[2].anchor, 'timeline');
 
-const planTour = localizeIntro(getModuleIntro('family', 'plan'), 'nb');
+const planTour = localizeIntro(legacy('plan'), 'nb');
 assert.match(planTour.steps[0], /Ny hendelse|øverst/i);
 assert.ok(!/nede til høyre/i.test(planTour.steps.join(' ')));
 
-const aiTour = localizeIntro(getModuleIntro('family', 'ai'), 'nb');
+const aiTour = localizeIntro(legacy('ai'), 'nb');
 assert.equal(aiTour.tour[0].anchor, 'input');
 assert.ok(!/nederst/i.test(aiTour.steps[0]));
 assert.equal(aiTour.tour[2].anchor, 'add');
 assert.match(aiTour.steps[2], /Ny chat|øverst/i);
 
-const mailTour = localizeIntro(getModuleIntro('family', 'mail'), 'nb');
+const mailTour = localizeIntro(legacy('mail'), 'nb');
 assert.equal(mailTour.tour[0].anchor, 'content');
 assert.match(mailTour.steps[0], /melding/i);
 assert.equal(mailTour.tour[1].anchor, 'add');
 assert.ok(!/Innstillinger for å koble/i.test(mailTour.steps[0]));
 
-const matcoach = localizeIntro(getModuleIntro('family', 'matcoach'), 'nb');
+const matcoach = localizeIntro(legacy('matcoach'), 'nb');
 assert.equal(matcoach.tour[0].anchor, 'prefs');
 assert.equal(matcoach.tour[0].scene, 'hub');
 assert.equal(matcoach.tour[0].advance, true);
@@ -117,7 +121,7 @@ assert.equal(matcoach.tour[2].anchor, 'add');
 assert.equal(matcoach.tour[3].anchor, 'content');
 assert.match(matcoach.steps[0], /Familie-fanen|preferanser/i);
 
-const albums = localizeIntro(getModuleIntro('family', 'albums'), 'nb');
+const albums = localizeIntro(legacy('albums'), 'nb');
 assert.equal(albums.tour[0].anchor, 'add');
 assert.equal(albums.tour[0].advance, true);
 assert.equal(albums.tour[1].scene, 'inner');
@@ -133,10 +137,24 @@ familyHeroes.forEach((k) => {
 });
 
 for (const [scope, spec] of Object.entries(WELCOME_TOUR)) {
-  const tourScope = scope === 'familyChild' ? 'family' : scope;
-  const tour = getWelcomeTourModules(tourScope, { asChild: scope === 'familyChild' });
+  if (scope === 'family') continue; // ProTop bruker protopCompany / protopPersonal for voksne.
+  const tourScope = ['familyChild', 'protopCompany', 'protopPersonal'].includes(scope) ? 'family' : scope;
+  const tour = getWelcomeTourModules(tourScope, {
+    asChild: scope === 'familyChild',
+    company: scope === 'protopCompany',
+  });
   assert.equal(tour.highlights.length, spec.highlights.length, `${scope} welcome highlights`);
   assert.equal(tour.apps.length, spec.apps.length, `${scope} welcome apps`);
 }
+
+// ProTop-sidene vinner over de gamle familie-introene for samme side.
+assert.equal(getModuleIntro('family', 'plan').pageKey, 'plan');
+assert.equal(localizeIntro(getModuleIntro('family', 'plan'), 'nb').title, 'Kalenderen din');
+assert.equal(getModuleIntro('family', 'anbud.varsling').pageKey, 'anbud.varsling');
+assert.equal(getModuleIntro('family', 'iso').pageKey, 'iso.oversikt');
+assert.equal(getModuleIntro('team', 'wall').pageKey, undefined, 'andre plattformer beholder sine introer');
+const protopWelcome = getWelcomeTourModules('family', { company: true });
+assert.ok(protopWelcome.highlights.some((m) => m.pageKey === 'anbud.varsling'));
+assert.ok(!protopWelcome.apps.some((m) => /shop|wishes|meals|games/.test(m.id)), 'ingen familiemoduler i ProTop-velkomsten');
 
 console.log(`moduleIntros.test.mjs: ok (${EXPECTED_INTRO_KEYS.length} modules)`);

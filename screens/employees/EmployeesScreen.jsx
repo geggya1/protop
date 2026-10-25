@@ -1539,6 +1539,7 @@ export default function EmployeesScreen() {
               renderIdentity={(row) => (
                 <TouchableOpacity
                   onPress={() => openDetail(row)}
+                  nativeID={`employee-open-${row.id}`}
                   accessibilityRole="button"
                   accessibilityLabel={displayName(row)}
                   style={styles.identity}

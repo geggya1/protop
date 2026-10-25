@@ -5,6 +5,7 @@
  */
 
 import { buildTourSteps } from './helpLayout.js';
+import { PROTOP_PAGES, resolvePageKey } from '../help/protopPages.js';
 
 export const tx = (nb, en) => ({ nb, en });
 
@@ -1899,6 +1900,19 @@ const ALIASES = {
  * Keeps new users from getting a popup on every module switch.
  */
 export const WELCOME_TOUR = {
+  /** ProTop i bedriften: kjerneløpet først, resten som snarveier. */
+  protopCompany: {
+    highlights: ['home', 'anbud.varsling', 'projects', 'arbeid.timeliste', 'okonomi.faktura'],
+    apps: [
+      'kunder', 'kontrakt', 'ansatte', 'hr.oversikt', 'arbeid.fravaer', 'arbeid.godkjenning',
+      'iso.oversikt', 'utstyr', 'okonomi.kjorebok', 'plan', 'mail', 'chat',
+    ],
+  },
+  /** ProTop privat: de personlige modulene. */
+  protopPersonal: {
+    highlights: ['home', 'plan', 'mail', 'stars', 'notes'],
+    apps: ['chat', 'friends', 'timeliste', 'settings', 'help'],
+  },
   family: {
     highlights: ['home', 'plan', 'chat', 'stars', 'notes'],
     apps: ['mail', 'shop', 'wishes', 'meals', 'books', 'chores', 'games', 'documents', 'location', 'activities', 'ai'],
@@ -1933,8 +1947,9 @@ export const WELCOME_TOUR = {
   },
 };
 
-export function getWelcomeTourModules(scope, { asChild = false } = {}) {
-  const key = (asChild && scope === 'family') ? 'familyChild' : scope;
+export function getWelcomeTourModules(scope, { asChild = false, company = false } = {}) {
+  let key = (asChild && scope === 'family') ? 'familyChild' : scope;
+  if (scope === 'family' && !asChild) key = company ? 'protopCompany' : 'protopPersonal';
   const spec = WELCOME_TOUR[key] || WELCOME_TOUR[scope];
   if (!spec) return { highlights: [], apps: [] };
   const resolve = (id) => {
@@ -1947,7 +1962,20 @@ export function getWelcomeTourModules(scope, { asChild = false } = {}) {
   };
 }
 
+/**
+ * ProTop-sidene (src/help/protopPages.js) vinner over de gamle familie-introene
+ * for samme side-id. Familie-introene ligger igjen for moduler ProTop ikke viser.
+ */
+export function getProtopIntro(moduleId) {
+  const key = resolvePageKey(moduleId);
+  return key ? { pageKey: key, ...PROTOP_PAGES[key] } : null;
+}
+
 export function getModuleIntro(scope, moduleId) {
+  if ((scope || 'family') === 'family') {
+    const protop = getProtopIntro(moduleId);
+    if (protop) return protop;
+  }
   const raw = introStorageKey(scope, moduleId);
   const key = ALIASES[raw] || raw;
   return MODULE_INTROS[key] || null;
@@ -1967,5 +1995,11 @@ export function localizeIntro(entry, lang = 'nb', layout = {}) {
     steps: tour.map((s) => s.text),
     tour,
     rawSteps: entry.steps,
+    pageKey: entry.pageKey || null,
+    label: entry.label ? pickIntroText(entry.label, lang) : '',
+    path: entry.path ? pickIntroText(entry.path, lang) : '',
+    nav: entry.nav || null,
+    process: entry.process || null,
+    faq: (entry.faq || []).map((f) => ({ q: pickIntroText(f.q, lang), a: pickIntroText(f.a, lang) })),
   };
 }

@@ -89,7 +89,7 @@ async function createSupportTicketLocal(payload) {
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   const day = String(d.getUTCDate()).padStart(2, '0');
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  const ticketNumber = `WP-${y}${m}${day}-${rand}`;
+  const ticketNumber = `PT-${y}${m}${day}-${rand}`;
   const contactEmail = String(payload?.contactEmail || '').trim() || null;
   const category = String(payload?.category || (looksLikeBugReport(`${title} ${body}`) ? 'bug' : 'question'));
 

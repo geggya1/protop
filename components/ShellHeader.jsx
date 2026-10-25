@@ -87,7 +87,9 @@ export default function ShellHeader({
   // onBackHome kept as optional fallback for logo tap only (no visible Hjem link).
   const goHomeFromLogo = onLogoHome || onBackHome;
 
-  const profileButton = (size) => (
+  // Mobil/nettbrett: lyspæren henger under profilbildet (raden ligger over
+  // toppbilde og modulbånd, se chromeRow). PC: lyspæren står i knappeRaden.
+  const profileButton = (size, { hangingHelp = true } = {}) => (
     <View style={styles.avatarSlot}>
       <TouchableOpacity
         style={styles.avatarBtn}
@@ -101,14 +103,16 @@ export default function ShellHeader({
           size={size}
         />
       </TouchableOpacity>
-      <View pointerEvents="box-none" style={styles.helpOnAvatar}>
-        <HelpButton
-          floating
-          compact={size < 34}
-          color={colors.ink}
-          borderColor={colors.line}
-        />
-      </View>
+      {hangingHelp ? (
+        <View pointerEvents="box-none" style={styles.helpOnAvatar}>
+          <HelpButton
+            floating
+            compact={size < 34}
+            color={colors.ink}
+            borderColor={colors.line}
+          />
+        </View>
+      ) : null}
     </View>
   );
 
@@ -132,6 +136,7 @@ export default function ShellHeader({
           </View>
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
             {viewAs}
+            <HelpButton inline compact color={colors.ink} />
             <TouchableOpacity
               style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
               onPress={() => openNotifications(nav)}
@@ -141,7 +146,7 @@ export default function ShellHeader({
                 <Ionicons name="notifications-outline" size={18} color={colors.ink} />
               </IconBadge>
             </TouchableOpacity>
-            {profileButton(28)}
+            {profileButton(28, { hangingHelp: false })}
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -181,6 +186,7 @@ export default function ShellHeader({
                 <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
               ) : null}
               {viewAs}
+              <HelpButton inline color={colors.ink} />
               <TouchableOpacity
                 style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
                 onPress={() => openNotifications(nav)}
@@ -190,7 +196,7 @@ export default function ShellHeader({
                   <Ionicons name="notifications-outline" size={18} color={colors.ink} />
                 </IconBadge>
               </TouchableOpacity>
-              {profileButton(28)}
+              {profileButton(28, { hangingHelp: false })}
             </View>
           </View>
           <View pointerEvents="box-none" nativeID="platform-switch-lock" style={styles.switchLock}>
@@ -417,6 +423,11 @@ const styles = StyleSheet.create({
     minHeight: 48,
     overflow: 'visible',
   },
+  /*
+   * zIndex over switchRow (3) og textCol/modulbåndet: react-native-web gir hver
+   * View z-index 0, så uten dette tegnes Privat/Bedrift og toppbildet over
+   * lyspæren som henger under profilbildet, og trykk på den treffer ikke.
+   */
   chromeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -424,6 +435,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     minHeight: 44,
     overflow: 'visible',
+    zIndex: 6,
   },
   sideSlot: {
     zIndex: 4,

@@ -68,6 +68,7 @@ import { effectiveLocationSharing } from '../src/utils/familyLocation';
 import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
 import { grandparentModulesFor, isGrandparentAppAllowed } from '../src/utils/grandparentAccess';
 import ModuleIntroHost from './ModuleIntroHost';
+import { helpPageId } from '../src/help/protopPages';
 import ModuleHero from './ModuleHero';
 import HelpTarget from './HelpTarget';
 import ModuleActivationGate from './ModuleActivationGate';
@@ -776,9 +777,10 @@ function AppShellInner() {
     modulesHub: isPhone && !simpleChildUi && (asChildView || isParent),
   }), [tab, moreSubView, t, asChildView, now, viewingChild, isPhone, isParent, simpleChildUi]);
 
+  // Hjelpen følger undersiden (anbud.varsling, iso.avvik …), ikke bare fanen.
   const introModuleId = tab === 'more'
     ? (moreSubView || (isDesktop ? null : 'more'))
-    : tab;
+    : helpPageId(tab, moreSubView);
   const pageHeroId = (!kitchenMode && showPageHero)
     ? shellHeroModuleId(tab, moreSubView)
     : null;

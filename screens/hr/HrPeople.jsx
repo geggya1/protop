@@ -113,6 +113,7 @@ export default function HrPeople({
           {SHEETS.map((item) => (
             <HrChip
               key={item.id}
+              nativeID={`hr-sheet-${item.id}`}
               colors={colors}
               label={item.label}
               active={activeSheet === item.id}

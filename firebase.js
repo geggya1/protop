@@ -6,10 +6,10 @@ import {
   ReCaptchaV3Provider,
   getToken as getAppCheckToken,
 } from 'firebase/app-check';
-import { getAuth, initializeAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { getFunctions } from 'firebase/functions';
+import { connectAuthEmulator, getAuth, initializeAuth } from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions';
 import { resolveAuthDomain as resolveAuthDomainForHost } from './src/utils/hostingChannel';
 
 /**
@@ -120,6 +120,20 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
 // Default GCS-bucket for prosjektet (opprettet i Firebase Console)
 export const storage = getStorage(app, 'gs://protop-c189c.firebasestorage.app');
 export const functions = getFunctions(app, 'europe-west1');
+
+// Lokale emulatorer for test-boter (scripts/help-bot). Settes bare når
+// EXPO_PUBLIC_FIREBASE_EMULATOR_HOST er med i bygget — aldri i protop.no-bygget.
+const EMULATOR_HOST = String(process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST || '').trim();
+if (EMULATOR_HOST) {
+  try {
+    connectAuthEmulator(auth, `http://${EMULATOR_HOST}:9099`, { disableWarnings: true });
+    connectFirestoreEmulator(db, EMULATOR_HOST, 8085);
+    connectStorageEmulator(storage, EMULATOR_HOST, 9199);
+    connectFunctionsEmulator(functions, EMULATOR_HOST, 5001);
+  } catch (e) {
+    console.warn('[firebase] emulator connect failed', e?.message || e);
+  }
+}
 
 // ---- App Check (WEB) ----
 // Enable with EXPO_PUBLIC_ENABLE_APPCHECK=1 and a reCAPTCHA v3 site key.

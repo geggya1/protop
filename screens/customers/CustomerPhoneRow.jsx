@@ -9,6 +9,7 @@ export default function CustomerPhoneRow({ customer, people, projectCount, color
   return (
     <TouchableOpacity
       onPress={onPress}
+      nativeID={customer?.id ? `customer-row-${customer.id}` : undefined}
       accessibilityRole="button"
       accessibilityLabel={`${customer?.customerNumber || ''} ${lines.name}${gaps.length ? ' Må rettes før fakturering' : ''}`.trim()}
       style={[styles.row, { borderColor: colors.line }]}

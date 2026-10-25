@@ -23,6 +23,7 @@ import HelpTarget from '../../components/HelpTarget';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import { ModulePageFrame, ModuleHubIntro } from '../../components/ModulePageBg';
 import { isChildAiAllowed } from '../../src/utils/childApps';
+import { ASSISTANT_ROUTE, assistantThread } from '../../src/help/assistantBridge';
 
 const AVATAR = 40;
 
@@ -213,6 +214,15 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
     nav.navigate('AiChat');
   };
 
+  const openAssistant = () => {
+    setPickerOpen(false);
+    if (dockPreferred) {
+      openThread(assistantThread({ title: t('assistant.name') }));
+      return;
+    }
+    nav.navigate(ASSISTANT_ROUTE);
+  };
+
   if (!familyId) return <Screen><Loader /></Screen>;
 
   const friends = friendPeople || [];
@@ -252,9 +262,26 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
         )}
 
         <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-          {showAiChat ? (
+          {!isChild ? (
             <>
               <Text style={[styles.section, isDesktop && styles.sectionDesk]}>{t('chat.assistant')}</Text>
+              <ThreadRow
+                name={t('assistant.name')}
+                preview={t('assistant.preview')}
+                onPress={openAssistant}
+                avatar={(
+                  <View style={[styles.groupAv, styles.assistantAv]} testID="chat-list-assistant">
+                    <Ionicons name="sparkles" size={18} color="#fff" />
+                  </View>
+                )}
+              />
+            </>
+          ) : null}
+          {showAiChat ? (
+            <>
+              {isChild ? (
+                <Text style={[styles.section, isDesktop && styles.sectionDesk]}>{t('chat.assistant')}</Text>
+              ) : null}
               <ThreadRow
                 name={t('chat.aiChat')}
                 preview={t('chat.aiPreview')}
@@ -347,6 +374,17 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
         >
           <Pressable style={[styles.sheet, isDesktop && desktopSheet]} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.sheetTitle}>{t('chat.newChat')}</Text>
+            {!isChild ? (
+              <TouchableOpacity style={styles.pickRow} onPress={openAssistant}>
+                <View style={[styles.groupAv, styles.assistantAv]}>
+                  <Ionicons name="sparkles" size={18} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pickName}>{t('assistant.name')}</Text>
+                  <Text style={styles.pickSub}>{t('assistant.preview')}</Text>
+                </View>
+              </TouchableOpacity>
+            ) : null}
             {showAiChat ? (
               <TouchableOpacity style={styles.pickRow} onPress={openAi}>
                 <View style={[styles.groupAv, styles.aiAv]}>
@@ -486,6 +524,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center',
   },
   aiAv: { backgroundColor: '#f3e8ff' },
+  assistantAv: {
+    backgroundColor: colors.brand,
+    ...Platform.select({
+      web: { backgroundImage: 'linear-gradient(135deg, #1099F4 0%, #07274C 100%)' },
+      default: {},
+    }),
+  },
   groupEmoji: { fontSize: 16 },
   empty: { padding: 14, color: colors.muted, fontWeight: '400', fontSize: 13 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },

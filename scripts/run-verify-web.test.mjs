@@ -7,5 +7,7 @@ assert.ok(FILES.includes('functions/slimDeploy.test.mjs'));
 assert.ok(FILES.includes('scripts/functions-deploy-needed.test.mjs'));
 assert.ok(FILES.includes('functions/anbud/intakeScan.test.mjs'));
 assert.equal(new Set(FILES).size, FILES.length);
+assert.ok(FILES.includes('src/help/assistantEngine.test.mjs'), 'hjelpen og assistenten testes i CI');
+assert.ok(FILES.includes('src/help/protopPages.test.mjs'), 'alle sider har hjelp');
 
 console.log('run-verify-web.test.mjs: ok');

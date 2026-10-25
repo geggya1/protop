@@ -312,10 +312,17 @@ export function Divider() {
   return <View style={{ height: 1, backgroundColor: colors.line, marginVertical: 4 }} />;
 }
 
-export function ListRow({ title, subtitle, right, onPress, icon, tone }) {
+export function ListRow({ title, subtitle, right, onPress, icon, tone, nativeID }) {
   const colors = useColors();
+  // testID: hjelperundturen peker på første rad i en liste (src/help/protopPages.js).
   return (
-    <TouchableOpacity onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined} style={[styles.listRow, { borderColor: colors.line }]}>
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : undefined}
+      nativeID={nativeID}
+      testID={onPress ? 'iso-row' : undefined}
+      style={[styles.listRow, { borderColor: colors.line }]}>
       {icon ? <Ionicons name={icon} size={18} color={toneColor(colors, tone)} /> : null}
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '600' }} numberOfLines={2}>{title}</Text>

@@ -51,6 +51,8 @@ function presentAccess({ bypass, ready, employees, actor, preview }) {
     ready,
     bypass: !!bypass,
     grants,
+    /** Egne rettigheter (uten «se som bruker»). Brukes som tak når man endrer andres tilgang. */
+    actorGrants: actor?.grants || null,
     employees,
     levelId: actor?.levelId || '',
     employee: actor?.employee || null,

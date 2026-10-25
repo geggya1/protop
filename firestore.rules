@@ -67,6 +67,20 @@ service cloud.firestore {
       return isFamilyMemberLite(familyId) && isoRank(familyId) >= minRank;
     }
 
+    function isoSystemPath(familyId) {
+      return /databases/$(database)/documents/families/$(familyId)/isoSystem/main;
+    }
+
+    // Godkjenne, publisere, lukke og arkivere i ISO. Krever ikke Admin: Begrenset redigering
+    // holder når personen står i en ledende ISO-rolle (approverUids på isoSystem/main).
+    // Bare ISO-admin kan endre isoSystem, så ingen kan gi seg selv fullmakten.
+    function isoApprover(familyId) {
+      return isoRank(familyId) >= 3
+        || (isoRank(familyId) >= 2
+            && exists(isoSystemPath(familyId))
+            && request.auth.uid in get(isoSystemPath(familyId)).data.get('approverUids', []));
+    }
+
     // Særskilt tilgang til skjermede saker: bare personer som er uttrykkelig ført opp.
     // Eier, ISO-admin, HMS-leder og systemansvarlig får den ikke automatisk.
     function restrictedPath(familyId) {
@@ -106,7 +120,7 @@ service cloud.firestore {
 
     function closeAllowed(familyId) {
       let d = request.resource.data;
-      return isoRank(familyId) >= 3
+      return isoApprover(familyId)
         && d.get('triage', null) != null
         && d.get('assessment', null) != null
         && d.get('closeNote', '') is string && d.get('closeNote', '').size() > 0
@@ -127,7 +141,7 @@ service cloud.firestore {
         && unchanged('reportedAt')
         && unchanged('number')
         && (closesFinding() ? (managerOk && closeAllowed(familyId)) : true)
-        && (cancelsFinding() ? (managerOk && isoRank(familyId) >= 3) : true)
+        && (cancelsFinding() ? (managerOk && isoApprover(familyId)) : true)
         && (
           managerOk
           // Melder og involverte (tiltaksansvarlige) kan bare oppdatere tiltak og historikk.
@@ -138,7 +152,7 @@ service cloud.firestore {
         );
     }
 
-    // Publiserte versjoner er låst: bare administrator kan publisere eller endre dem.
+    // Publiserte versjoner er låst: bare en godkjenner kan publisere eller endre dem.
     function versionsLocked(listKey, publishedKey) {
       let n = resource.data.get(publishedKey, 0);
       return unchanged(publishedKey)
@@ -149,6 +163,112 @@ service cloud.firestore {
       // Uten speilet tilgang (selskapet bruker ikke ISO ennå) gjelder tidligere oppførsel.
       return !exists(aclPath(familyId))
         || get(aclPath(familyId)).data.get('grants', {}).get('accessControl', 'none') in ['write', 'delete'];
+    }
+
+    /* ───────── Tilgang på ansatte (families/{id}/employees) ─────────
+     * Ingen kan oppgradere seg selv, og ingen kan gi mer enn de har selv.
+     * Nivå og avvik på en ansatt kan bare endres av eieren, eller av en som har
+     * Begrenset redigering på Tilgangsstyring – og aldri på sin egen post.
+     * Administrator-nivået kan bare gis/endres av eieren eller en administrator.
+     */
+    function grantRank(g) {
+      return g == 'see' ? 1 : (g == 'read' ? 2 : ((g == 'write' || g == 'delete') ? 3 : 0));
+    }
+
+    function actorAcl(familyId) {
+      return exists(aclPath(familyId)) ? get(aclPath(familyId)).data : {};
+    }
+
+    function actorGrant(familyId, res) {
+      return actorAcl(familyId).get('grants', {}).get(res, 'none');
+    }
+
+    function isCompanyAdmin(familyId) {
+      return isFamilyOwner(familyId)
+        || request.auth.uid in get(familyPath(familyId)).data.get('adminUids', [])
+        || actorAcl(familyId).get('levelId', '') == 'administrator';
+    }
+
+    // Nivåene posten faktisk gir: listen, ellers enkeltnivået, ellers rolleteksten (eldre poster).
+    function empLevelSet(d) {
+      let c = d.get('company', {});
+      return c.get('accessLevels', []).size() > 0
+        ? c.get('accessLevels', []).toSet()
+        : (c.get('accessLevel', '') != ''
+            ? [c.get('accessLevel', '')].toSet()
+            : [c.get('accessRole', '').lower()].toSet());
+    }
+
+    function benignLevels() {
+      return ['', 'ansatt', 'medarbeider', 'bruker', 'innleie_ekstern', 'regnskap_ekstern', 'innleie eksternt', 'regnskap eksternt'];
+    }
+
+    // Uendret tilgang. Tåler at appen normaliserer eldre poster (f.eks. '' → 'ansatt').
+    function empAccessStable(d, old) {
+      return d.get('company', {}).get('accessOverrides', {}) == old.get('company', {}).get('accessOverrides', {})
+        && empLevelSet(d).difference(empLevelSet(old)).hasOnly(benignLevels())
+        && empLevelSet(old).difference(empLevelSet(d)).hasOnly(benignLevels());
+    }
+
+    function empLevels(d) {
+      let c = d.get('company', {});
+      return c.get('accessLevels', []).concat([c.get('accessLevel', '')]);
+    }
+
+    function empIsAdminLevel(d) {
+      return empLevels(d).hasAny(['administrator'])
+        || d.get('company', {}).get('accessRole', '').lower().matches('.*admin.*');
+    }
+
+    function empIsPrivileged(d) {
+      return empLevels(d).hasAny(['administrator', 'leder', 'avdelingsleder'])
+        || d.get('company', {}).get('accessRole', '').lower().matches('.*(admin|leder).*')
+        || d.get('company', {}).get('accessOverrides', {}).size() > 0;
+    }
+
+    // De viktigste innstillingsområdene: et avvik kan ikke gi mer enn aktøren har selv.
+    function overrideWithin(familyId, d, res) {
+      return grantRank(d.get('company', {}).get('accessOverrides', {}).get(res, 'none')) <= grantRank(actorGrant(familyId, res));
+    }
+
+    function empCeilingOk(familyId, d) {
+      return (isCompanyAdmin(familyId) || !empIsAdminLevel(d))
+        && overrideWithin(familyId, d, 'accessControl')
+        && overrideWithin(familyId, d, 'companyProfile')
+        && overrideWithin(familyId, d, 'moduleSettings')
+        && overrideWithin(familyId, d, 'iso');
+    }
+
+    function canManagePeopleAccess(familyId) {
+      // Uten speilet tilgang (eldre selskap) gjelder tidligere oppførsel, men aldri på seg selv.
+      return !exists(aclPath(familyId)) || grantRank(actorGrant(familyId, 'accessControl')) >= 2;
+    }
+
+    function empSelf(d) {
+      return d.get('personUid', '') == request.auth.uid;
+    }
+
+    function empCreateOk(familyId) {
+      let d = request.resource.data;
+      return empSelf(d)
+        ? !empIsPrivileged(d)
+        : empCeilingOk(familyId, d);
+    }
+
+    function empUpdateOk(familyId) {
+      let d = request.resource.data;
+      let old = resource.data;
+      let accessSame = empAccessStable(d, old);
+      // Kobler seg selv til en post: bare uten ledernivå, eller når invitasjonen allerede var godtatt av en selv.
+      let linkOk = empSelf(old) || !empSelf(d) || !empIsPrivileged(old)
+        || old.get('invite', {}).get('acceptedUid', '') == request.auth.uid;
+      return linkOk && (
+        accessSame
+        || (!empSelf(old) && !empSelf(d)
+            && canManagePeopleAccess(familyId)
+            && (isCompanyAdmin(familyId) || !empIsAdminLevel(old))
+            && empCeilingOk(familyId, d))
+      );
     }
 
     // ISO-samlingene og tilgangsspeilet har egne regler og er unntatt fra den generelle regelen.
@@ -193,7 +313,18 @@ service cloud.firestore {
       match /{coll}/{document=**} {
         allow get: if isFamilyMember(familyId) && !isProtected(coll);
         allow list: if isFamilyMemberLite(familyId) && !isProtected(coll);
-        allow create, update, delete: if isFamilyMember(familyId) && !isProtected(coll);
+        allow create, update, delete: if isFamilyMember(familyId) && !isProtected(coll) && coll != 'employees';
+      }
+
+      // Ansatte: som før, men tilgangsfeltene er beskyttet (se empUpdateOk).
+      match /employees/{empId} {
+        allow create: if isFamilyMember(familyId) && (isFamilyOwner(familyId) || empCreateOk(familyId));
+        allow update: if isFamilyMember(familyId) && (isFamilyOwner(familyId) || empUpdateOk(familyId));
+        allow delete: if isFamilyMember(familyId);
+
+        match /{sub=**} {
+          allow create, update, delete: if isFamilyMember(familyId);
+        }
       }
 
       /* ───────── Tilgangsspeil ───────── */
@@ -269,7 +400,7 @@ service cloud.firestore {
         allow get: if isoMember(familyId, 1);
         allow list: if isoMemberLite(familyId, 1);
         allow create: if isoMember(familyId, 2) && request.resource.data.get('publishedVersion', 0) == 0;
-        allow update: if isoMember(familyId, 3)
+        allow update: if (isoMember(familyId, 2) && isoApprover(familyId))
           || (isoMember(familyId, 2) && versionsLocked('versions', 'publishedVersion') && unchanged('archived'));
         allow delete: if false;
       }
@@ -278,7 +409,7 @@ service cloud.firestore {
         allow get: if isoMember(familyId, 1);
         allow list: if isoMemberLite(familyId, 1);
         allow create: if isoMember(familyId, 2) && request.resource.data.get('publishedRevision', 0) == 0;
-        allow update: if isoMember(familyId, 3)
+        allow update: if (isoMember(familyId, 2) && isoApprover(familyId))
           || (isoMember(familyId, 2) && versionsLocked('revisions', 'publishedRevision') && unchanged('archived'))
           // Lesebekreftelse: alle med lesetilgang, bare egne kvitteringer.
           || (isoMember(familyId, 1) && changed().hasOnly(bumpKeys().concat(['readAcks']))
@@ -291,7 +422,7 @@ service cloud.firestore {
       match /isoForms/{id} {
         allow get: if isoMember(familyId, 1);
         allow list: if isoMemberLite(familyId, 1);
-        allow create, update: if isoMember(familyId, 3);
+        allow create, update: if isoMember(familyId, 2) && isoApprover(familyId);
         allow delete: if false;
       }
 
@@ -302,7 +433,7 @@ service cloud.firestore {
         allow create: if isoMember(familyId, 1)
           && request.resource.data.get('submittedByUid', '') == request.auth.uid
           && request.resource.data.get('locked', false) == true;
-        allow update: if isoMember(familyId, 3)
+        allow update: if isoMember(familyId, 2) && isoApprover(familyId)
           && unchanged('formId') && unchanged('formVersion') && unchanged('formHash') && unchanged('templateId')
           && unchanged('submittedAt') && unchanged('submittedBy') && unchanged('submittedByUid') && unchanged('locked')
           && request.resource.data.get('corrections', []).size() > resource.data.get('corrections', []).size();
@@ -344,7 +475,7 @@ service cloud.firestore {
         allow get: if isoMember(familyId, 1);
         allow list: if isoMemberLite(familyId, 1);
         allow create: if isoMember(familyId, 1);
-        allow update: if isoMember(familyId, 3) && unchanged('hash') && unchanged('objectId') && unchanged('type');
+        allow update: if isoMember(familyId, 2) && isoApprover(familyId) && unchanged('hash') && unchanged('objectId') && unchanged('type');
         allow delete: if false;
       }
 
@@ -360,7 +491,7 @@ service cloud.firestore {
         allow get: if isoMember(familyId, 1);
         allow list: if isoMemberLite(familyId, 1);
         allow create: if isoMember(familyId, 2) && request.resource.data.get('locked', false) != true;
-        allow update: if isoMember(familyId, 3)
+        allow update: if (isoMember(familyId, 2) && isoApprover(familyId))
           || (isoMember(familyId, 2)
               && resource.data.get('locked', false) != true
               && request.resource.data.get('locked', false) != true);

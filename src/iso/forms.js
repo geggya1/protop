@@ -176,7 +176,7 @@ export function driftStatus(control, template) {
 
 /** Godkjenn gjeldende innhold i Skjemabygger som ny styrt versjon. */
 export function approveTemplate(control, template, { actor, caps, now = new Date(), note = '', templateKey = '' } = {}) {
-  if (caps && !caps.admin) return fail('Bare administrator i ISO kan godkjenne styrte skjema.');
+  if (caps && !caps.approve) return fail('Bare en godkjenner kan godkjenne styrte skjema.');
   if (!template?.id) return fail('Fant ikke skjemaet i Skjemabygger.');
   const answerFields = (template.fields || []).filter((f) => ANSWER_KINDS.has(f.kind));
   if (!answerFields.length) return fail('Skjemaet har ingen felt å fylle ut.');
@@ -212,7 +212,7 @@ export function approveTemplate(control, template, { actor, caps, now = new Date
 }
 
 export function releaseControl(control, reason, { actor, caps, now = new Date() } = {}) {
-  if (caps && !caps.admin) return fail('Bare administrator kan fjerne styring.');
+  if (caps && !caps.approve) return fail('Bare en godkjenner kan fjerne styring.');
   if (text(reason).length < 5) return fail('Begrunn hvorfor skjemaet ikke lenger er styrt.');
   const next = bump({ ...control, archived: true, history: pushHistory(control, 'Ikke lenger styrt', actor, reason, now) }, actor, now);
   return { ok: true, form: next, events: [auditEvent({ entityType: 'form', entityId: control.id, action: 'iso.form.released', actor, before: control, after: next, reason, now })] };

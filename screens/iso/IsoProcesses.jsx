@@ -299,7 +299,7 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
         </Card>
       </View>
 
-      {caps.admin && draft?.state === 'til_godkjenning' ? (
+      {caps.approve && draft?.state === 'til_godkjenning' ? (
         <Card title={`Godkjenning av v${draft.version}`} subtitle={`Sendt av ${draft.submittedBy} ${prettyDate(draft.submittedAt)}`}>
           <Row>
             <Btn kind="primary" icon="checkmark-done" label="Godkjenn og publiser" onPress={() => run(`v${draft.version} er publisert`, approveAndPublish(proc, context, { actor, caps }))} />
@@ -308,7 +308,7 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
           <Btn kind="danger" label="Avvis" onPress={() => run('Avvist', rejectVersion(proc, reason, { actor, caps }))} />
         </Card>
       ) : null}
-      {caps.admin ? (
+      {caps.approve ? (
         <Card title="Arkiver">
           <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse" />
           <Btn kind="danger" label="Arkiver prosess" onPress={() => run('Arkivert', archiveProcess(proc, reason, { actor, caps, instances: state.instances }))} />

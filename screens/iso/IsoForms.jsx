@@ -87,7 +87,7 @@ export default function IsoForms({ ctx }) {
     >
       {msg ? <Banner tone="ok" text={msg} /> : null}
       {err ? <Banner tone="danger" text={err} /> : null}
-      {caps.admin && missingRecommended.length ? (
+      {caps.approve && missingRecommended.length ? (
         <Card title="Anbefalte skjema" subtitle={`${missingRecommended.length} ISO-maler passer for standardene dere har valgt. De legges i Skjemabygger og godkjennes her.`}>
           <Text style={{ color: colors.ink, fontSize: 13 }}>{missingRecommended.map((k) => FORM_TEMPLATES.find((t) => t.key === k)?.title).filter(Boolean).join(' · ')}</Text>
           <Btn kind="primary" icon="download-outline" label="Legg til alle" busy={busy === 'install'} onPress={() => install(missingRecommended)} />
@@ -110,7 +110,7 @@ export default function IsoForms({ ctx }) {
               right={(
                 <Row wrap={false}>
                   <Pill label={DRIFT[drift].label} tone={DRIFT[drift].tone} />
-                  {drift === 'endret' && caps.admin ? <Btn small label="Godkjenn" onPress={() => approve(t)} /> : null}
+                  {drift === 'endret' && caps.approve ? <Btn small label="Godkjenn" onPress={() => approve(t)} /> : null}
                   <Btn small kind="primary" label="Fyll ut" onPress={() => setFillId(t.id)} />
                 </Row>
               )}
@@ -121,12 +121,12 @@ export default function IsoForms({ ctx }) {
       {caps.manage ? (
         <Card title={`Andre skjema i Skjemabygger (${others.length})`} subtitle="Godkjenn et skjema for å bruke det som styrt skjema i ISO.">
           {others.map((t) => (
-            <ListRow key={t.id} icon="document-text-outline" title={t.title} subtitle={`${(t.fields || []).length} felt${t.intro ? ` · ${t.intro}` : ''}`} right={caps.admin ? <Btn small label="Godkjenn for ISO" onPress={() => approve(t)} /> : null} />
+            <ListRow key={t.id} icon="document-text-outline" title={t.title} subtitle={`${(t.fields || []).length} felt${t.intro ? ` · ${t.intro}` : ''}`} right={caps.approve ? <Btn small label="Godkjenn for ISO" onPress={() => approve(t)} /> : null} />
           ))}
           {!others.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen.</Text> : null}
         </Card>
       ) : null}
-      {orphans.length && caps.admin ? (
+      {orphans.length && caps.approve ? (
         <Card title="Styrte skjema som er slettet i Skjemabygger">
           {orphans.map((c) => (
             <View key={c.id} style={{ gap: 6 }}>

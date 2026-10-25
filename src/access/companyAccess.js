@@ -550,7 +550,8 @@ const STANDARD = {
     companyPublic: 'see',
     companyProfile: 'see',
     moduleSettings: 'see',
-    accessControl: 'see',
+    // Begrenset redigering: kan endre medlemmenes tilgang, aldri over eget nivå (se accessCeiling.js).
+    accessControl: 'read',
     absenceSettings: 'write',
     economySettings: 'write',
     tenderSettings: 'write',

@@ -7,7 +7,7 @@ import {
   accessContacts,
   evaluateHelpAccess,
   levelLabel,
-  lockedText,
+  lockedParts,
   processStepNeed,
 } from './helpAccess';
 import { getProtopPage } from './protopPages';
@@ -56,10 +56,13 @@ export function useHelpAccess() {
         });
         const page = getProtopPage(pageKey);
         const pageLabel = page ? (lang === 'en' ? page.label?.en : page.label?.nb) : '';
+        const { head, who } = lockedParts({ need: result.need, page: result.page, pageLabel, level, contacts, lang });
         cache.set(key, {
           ...result,
           contacts,
-          text: lockedText({ need: result.need, page: result.page, pageLabel, level, contacts, lang }),
+          text: `${head} ${who}`,
+          head,
+          who,
         });
       }
       return cache.get(key);

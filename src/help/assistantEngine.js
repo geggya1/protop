@@ -11,6 +11,7 @@
 import { PROTOP_PAGES, getProtopPage, resolvePageKey } from './protopPages.js';
 import { PROTOP_PROCESSES } from './protopProcesses.js';
 import { ASSISTANT_TOPICS, COMPETITOR_NAMES, OFF_TOPIC_PATTERNS } from './assistantTopics.js';
+import { condenseStepLocks } from './helpAccess.js';
 
 export const ASSISTANT_CHAT_ID = 'protop-assistant';
 export const ASSISTANT_ESCALATE_AFTER = 2;
@@ -510,8 +511,25 @@ function stepsWithAccess(item, access) {
   return (item.steps || []).map((s, i) => {
     const g = gateOf(access, item, i);
     const step = { title: s.title, text: s.text };
-    return g && !g.ok ? { ...step, locked: g.text } : step;
+    if (!g || g.ok) return step;
+    return g.head && g.who
+      ? { ...step, locked: g.text, lockHead: g.head, lockWho: g.who, lockNeed: g.need || null }
+      : { ...step, locked: g.text };
   });
+}
+
+/**
+ * Flere låste steg: kort lås per steg, og «Ditt nivå … Spør …» én gang under.
+ * Returnerer stegene som vises og linjene om hvem som kan hjelpe.
+ */
+function condenseLocks(steps) {
+  const { locks, who } = condenseStepLocks(steps.map((st) => (st.locked
+    ? { ok: false, text: st.locked, head: st.lockHead, who: st.lockWho, need: st.lockNeed }
+    : { ok: true })));
+  return {
+    steps: steps.map(({ lockHead, lockWho, lockNeed, ...st }, i) => (locks[i] ? { ...st, locked: locks[i] } : st)),
+    who: who ? [who] : [],
+  };
 }
 
 /** Steget spørsmålet handler om (f.eks. «importere» → Importer-steget). */
@@ -667,14 +685,15 @@ export function answerQuestion(question, {
       : `**${item.label}** — ${item.summary}${item.path ? `\n\n${tr('whereIntro', lang, { path: item.path })}` : ''}\n\n${tr('howIntro', lang)}`;
   }
 
-  const steps = stepsWithAccess(item, access);
+  const full = stepsWithAccess(item, access);
   // Spør brukeren om noe de ikke har tilgang til (f.eks. import), sies det rett ut først.
-  const focus = focusStep(q, steps);
-  const focusLocked = focus >= 0 && !!steps[focus].locked;
+  const focus = focusStep(q, full);
+  const focusLocked = focus >= 0 && !!full[focus].locked;
+  const { steps, who } = condenseLocks(full);
   if (focusLocked) {
-    text = `🔒 **${steps[focus].title || item.label}:** ${steps[focus].locked}\n\n${text}`;
+    text = `🔒 **${full[focus].title || item.label}:** ${full[focus].locked}\n\n${text}`;
   } else if (steps.some((st) => st.locked)) {
-    text = `${text}\n\n${tr('lockedSome', lang)}`;
+    text = `${text}\n\n${tr('lockedSome', lang)}${who.length ? ` ${who.join(' ')}` : ''}`;
   }
 
   let actions = actionsFor(item, lang);

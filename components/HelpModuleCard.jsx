@@ -10,6 +10,7 @@ import { useLayout } from '../src/theme';
 import { buildTourSteps } from '../src/utils/helpLayout';
 import { pickIntroText } from '../src/utils/moduleIntros';
 import { useHelpAccess } from '../src/help/useHelpAccess';
+import { condenseStepLocks } from '../src/help/helpAccess';
 
 /**
  * Lightbulb entry. ProTop-sider får hjelpekortet (forklaring, steg,
@@ -39,13 +40,10 @@ export default function HelpModuleCard() {
   }, [protopPage, copy, lang, layout.isPhone, layout.isTablet, layout.isDesktop, layout.hasRail]);
   // Steg brukeren ikke har tilgang til: hva som kreves og hvem som kan hjelpe.
   const helpAccess = useHelpAccess();
-  const stepLocks = useMemo(() => (
+  const { locks: stepLocks, who: lockWho } = useMemo(() => (
     protopPage && cardCopy?.tour
-      ? cardCopy.tour.map((_, i) => {
-        const gate = helpAccess.check(cardCopy.pageKey, i);
-        return gate.ok ? '' : gate.text;
-      })
-      : []
+      ? condenseStepLocks(cardCopy.tour.map((_, i) => helpAccess.check(cardCopy.pageKey, i)))
+      : { locks: [], who: '' }
   ), [protopPage, cardCopy, helpAccess]);
 
   const module = mode === 'moduleCard' && !protopPage
@@ -72,6 +70,7 @@ export default function HelpModuleCard() {
       <HelpPageCard
         copy={cardCopy}
         stepLocks={stepLocks}
+        lockWho={lockWho}
         onClose={() => dismiss()}
         onStartTour={startModuleTour}
         onStartProcess={(id, fromIndex) => {

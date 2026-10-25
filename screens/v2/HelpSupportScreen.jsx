@@ -41,6 +41,7 @@ import { pickImage, uploadImage } from '../../src/utils/media';
 import AssistantChat from '../../components/assistant/AssistantChat';
 import { getProcess, listProcesses } from '../../src/help/protopProcesses';
 import { useHelpAccess } from '../../src/help/useHelpAccess';
+import { condenseStepLocks } from '../../src/help/helpAccess';
 import { pickIntroText } from '../../src/utils/moduleIntros';
 import { profileAge, ageBand } from '../../src/utils/age';
 
@@ -159,15 +160,12 @@ export default function HelpSupportScreen() {
     const gate = helpAccess.check(activeArticle.pageKey, null);
     return gate.ok ? null : gate.text;
   }, [activeArticle, helpAccess]);
-  const articleStepLocks = useMemo(() => {
-    if (!activeArticle || articleLock) return [];
+  const { locks: articleStepLocks, who: articleLockWho } = useMemo(() => {
+    if (!activeArticle || articleLock) return { locks: [], who: '' };
     const proc = activeArticle.processId ? getProcess(activeArticle.processId) : null;
-    return (activeArticle.stepItems || []).map((_, i) => {
-      const gate = proc
-        ? helpAccess.checkProcessStep(proc.id, i, proc.steps[i]?.page)
-        : (activeArticle.pageKey ? helpAccess.check(activeArticle.pageKey, i) : { ok: true });
-      return gate.ok ? '' : gate.text;
-    });
+    return condenseStepLocks((activeArticle.stepItems || []).map((_, i) => (proc
+      ? helpAccess.checkProcessStep(proc.id, i, proc.steps[i]?.page)
+      : (activeArticle.pageKey ? helpAccess.check(activeArticle.pageKey, i) : { ok: true }))));
   }, [activeArticle, articleLock, helpAccess]);
 
   const activeTicket = useMemo(
@@ -571,6 +569,12 @@ export default function HelpSupportScreen() {
                   </View>
                 </View>
               ))}
+              {articleLockWho ? (
+                <View style={[styles.lockBox, styles.lockWhoBox]} testID="help-article-lock-who">
+                  <Ionicons name="lock-closed" size={15} color="#b45309" />
+                  <Text style={styles.lockTxt}>{articleLockWho}</Text>
+                </View>
+              ) : null}
             </View>
           </View>
         ) : null}
@@ -982,6 +986,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, padding: 12, marginBottom: 12,
   },
   lockTxt: { flex: 1, fontSize: 13.5, color: '#92400e', lineHeight: 19, fontWeight: '600' },
+  lockWhoBox: { marginTop: 8, marginBottom: 0 },
   stepTxt: { flex: 1, fontSize: 14, fontWeight: '400', color: colors.ink, lineHeight: 20 },
   stepTitleTxt: { fontWeight: '600' },
   faqItem: { paddingVertical: 8, gap: 2 },

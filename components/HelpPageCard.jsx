@@ -25,6 +25,7 @@ if (Platform.OS === 'web') {
 export default function HelpPageCard({
   copy,
   stepLocks = [],
+  lockWho = '',
   onStartTour,
   onStartProcess,
   onAsk,
@@ -129,6 +130,12 @@ export default function HelpPageCard({
                   </View>
                 </View>
               ))}
+              {lockWho ? (
+                <View style={styles.lockWhoRow} testID="help-page-card-lock-who">
+                  <Ionicons name="lock-closed" size={13} color="#b45309" />
+                  <Text style={styles.lockWhoTxt}>{lockWho}</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -304,6 +311,25 @@ const styles = StyleSheet.create({
   stepNumTxt: { color: '#fff', fontSize: 12.5, fontWeight: '600' },
   stepTitle: { fontSize: 14.5, fontWeight: '600', color: '#0f172a', lineHeight: 20 },
   stepTxt: { fontSize: 14, color: '#475569', lineHeight: 20, marginTop: 1 },
+  lockWhoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    backgroundColor: '#fffbeb',
+  },
+  lockWhoTxt: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: '#92400e',
+  },
   stepLock: {
     fontSize: 13,
     color: '#92400e',

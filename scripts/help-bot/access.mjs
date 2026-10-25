@@ -167,6 +167,25 @@ async function customers(page, persona) {
   await escape(page);
 }
 
+/** Side med flere låste steg: kort lås per steg og «hvem som kan hjelpe» én gang. */
+async function manyLocks(page, persona, tab, label) {
+  await openShell(page, tab);
+  await page.locator('[data-testid="help-bulb"]').first().click({ force: true });
+  await page.waitForTimeout(1000);
+  const res = await page.evaluate(() => ({
+    locks: [...document.querySelectorAll('[data-testid="help-page-card-lock"]')].map((el) => el.textContent || ''),
+    who: [...document.querySelectorAll('[data-testid="help-page-card-lock-who"]')].map((el) => el.textContent || ''),
+  }));
+  await page.screenshot({ path: join(OUT, 'tilgang', `${persona.id}-${tab}-kort.png`) });
+  check(
+    persona.id,
+    `${label}: ${res.locks.length} låste steg, «Spør …» én gang`,
+    res.locks.length >= 2 && res.locks.every((t) => !/Spør/.test(t)) && res.who.length === 1 && /Spør Hjelpe Bot \(Eier\)/.test(res.who[0]),
+    res.who[0] || '',
+  );
+  await escape(page);
+}
+
 async function ask(page, question) {
   const before = await page.locator('[data-testid="assistant-msg-bot"]').count();
   await page.locator('[data-testid="assistant-input"]').fill(question);
@@ -249,6 +268,7 @@ async function main() {
     const { browser, page, errors } = await open(uid, persona);
     try {
       await customers(page, persona);
+      if (persona.id === 'ansatt') await manyLocks(page, persona, 'projects', 'Prosjekt');
       await assistant(page, persona);
     } catch (err) {
       check(persona.id, 'kjøring', false, String(err?.message || err).slice(0, 300));

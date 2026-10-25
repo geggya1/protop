@@ -248,21 +248,52 @@ function contactList(contacts, lang) {
  * Teksten brukeren ser når noe er låst: hva som kreves, eget nivå og hvem
  * som kan hjelpe. `pageLabel` brukes når hele siden er stengt.
  */
-export function lockedText({ need, page = false, pageLabel = '', level = '', contacts = [], lang = 'nb' } = {}) {
-  if (!need) return '';
+export function lockedText(opts = {}) {
+  const { head, who } = lockedParts(opts);
+  return head ? `${head} ${who}` : '';
+}
+
+const ACTION_RANK = { see: 1, read: 2, write: 3 };
+
+/**
+ * Låsene for stegene i en liste (`gates` = svar fra check per steg).
+ * Ett låst steg: hele teksten. Flere: «hva som kreves» per steg og «hvem som
+ * kan hjelpe» én gang (`who`), så det samme ikke gjentas under hvert steg.
+ * Kontaktene for det strengeste kravet (Admin før Lese) kan hjelpe med alle.
+ */
+export function condenseStepLocks(gates = []) {
+  const locked = gates.filter((g) => g && !g.ok);
+  if (locked.length < 2 || locked.some((g) => !g.head || !g.who)) {
+    return { locks: gates.map((g) => (g && !g.ok ? g.text || '' : '')), who: '' };
+  }
+  const strictest = locked.reduce((best, g) => (
+    (ACTION_RANK[g.need?.action] || 0) > (ACTION_RANK[best.need?.action] || 0) ? g : best
+  ), locked[0]);
+  return {
+    locks: gates.map((g) => (g && !g.ok ? g.head : '')),
+    who: strictest.who,
+  };
+}
+
+/**
+ * Låseteksten i to deler: `head` (hva som kreves) og `who` (eget nivå og hvem
+ * som kan hjelpe). Assistenten viser `head` per steg og `who` én gang.
+ */
+export function lockedParts({ need, page = false, pageLabel = '', level = '', contacts = [], lang = 'nb' } = {}) {
+  if (!need) return { head: '', who: '' };
   const action = actionLabel(need.action, lang);
   const area = areaLabel(need.resource);
-  const who = contactList(contacts, lang);
+  const names = contactList(contacts, lang);
   if (lang === 'en') {
     const head = page
       ? `You don’t have access to ${pageLabel || area}. It requires “${action}” on “${area}”.`
       : `This requires “${action}” on “${area}”.`;
-    const mine = level ? ` Your level: ${level}.` : '';
-    return `${head}${mine} Ask ${who} — they can do it or give you access.`;
+    const mine = level ? `Your level: ${level}. ` : '';
+    return { head, who: `${mine}Ask ${names} — they can do it or give you access.` };
   }
   const head = page
     ? `Du har ikke tilgang til ${pageLabel || area}. Det krever «${action}» på «${area}».`
     : `Dette krever «${action}» på «${area}».`;
-  const mine = level ? ` Ditt nivå: ${level}.` : '';
-  return `${head}${mine} Spør ${who} — de kan gjøre det eller gi deg tilgang.`;
+  const mine = level ? `Ditt nivå: ${level}. ` : '';
+  return { head, who: `${mine}Spør ${names} — de kan gjøre det eller gi deg tilgang.` };
 }

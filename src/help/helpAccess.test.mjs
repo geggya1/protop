@@ -4,6 +4,7 @@ import {
   PROCESS_ACCESS,
   accessContacts,
   areaLabel,
+  condenseStepLocks,
   evaluateHelpAccess,
   lockedText,
   processStepNeed,
@@ -115,5 +116,15 @@ assert.match(text, /Ditt nivå: Avdelingsleder/);
 assert.match(text, /Lars Test \(Øverste leder\) eller Anne Test \(Administrator\)/);
 assert.match(lockedText({ need, contacts: [], lang: 'nb' }), /en administrator i bedriften/);
 assert.match(lockedText({ need: { resource: 'customers', action: 'see' }, page: true, pageLabel: 'Kunder', lang: 'en' }), /You don’t have access to Kunder/);
+
+// Flere låste steg: kort lås per steg, hvem som kan hjelpe én gang.
+const gateA = { ok: false, text: 'A. Spør X.', head: 'A.', who: 'Spør X.' };
+const gateB = { ok: false, text: 'B. Spør X.', head: 'B.', who: 'Spør X.' };
+assert.deepEqual(condenseStepLocks([{ ok: true }, gateA, gateB]), { locks: ['', 'A.', 'B.'], who: 'Spør X.' });
+assert.deepEqual(condenseStepLocks([{ ok: true }, gateA]), { locks: ['', 'A. Spør X.'], who: '' }, 'ett låst steg: hele teksten');
+assert.deepEqual(condenseStepLocks([{ ok: false, text: 'C' }, gateA]), { locks: ['C', 'A. Spør X.'], who: '' }, 'uten deler: hele teksten');
+const readGate = { ok: false, need: { resource: 'projects', action: 'read' }, text: 'R. Spør Kari.', head: 'R.', who: 'Spør Kari.' };
+const adminGate = { ok: false, need: { resource: 'projects', action: 'write' }, text: 'W. Spør Eier.', head: 'W.', who: 'Spør Eier.' };
+assert.equal(condenseStepLocks([readGate, adminGate]).who, 'Spør Eier.', 'kontaktene for det strengeste kravet');
 
 console.log('helpAccess.test.mjs: ok');

@@ -4,7 +4,7 @@ import {
   searchKnowledge, starterSuggestions, supportTicketBody, tokenize, transcriptText,
 } from './assistantEngine.js';
 import { shouldAskServer } from './assistantPolicy.js';
-import { evaluateHelpAccess, lockedText, processStepNeed } from './helpAccess.js';
+import { evaluateHelpAccess, lockedParts, processStepNeed } from './helpAccess.js';
 import { allows, standardGrants } from '../access/companyAccess.js';
 
 assert.equal(fold('Kjørebok Åpne Æble'), 'kjorebok apne aeble');
@@ -145,10 +145,11 @@ assert.equal(supportTicketBody({ note: 'Bare tekst' }), 'Bare tekst');
 function accessFor(levelId) {
   const grants = standardGrants(levelId);
   const contacts = [{ name: 'Kari Nordmann', level: 'Administrator' }];
-  const describe = (r, pageKey) => (r.ok ? { ok: true } : {
-    ...r,
-    text: lockedText({ need: r.need, page: r.page, pageLabel: pageKey, level: levelId, contacts }),
-  });
+  const describe = (r, pageKey) => {
+    if (r.ok) return { ok: true };
+    const { head, who } = lockedParts({ need: r.need, page: r.page, pageLabel: pageKey, level: levelId, contacts });
+    return { ...r, text: `${head} ${who}`, head, who };
+  };
   const check = (pageKey, stepIndex = null) => describe(evaluateHelpAccess({ grants, pageKey, stepIndex }), pageKey);
   return {
     check,
@@ -180,6 +181,9 @@ assert.equal(importTour?.pageKey, 'kunder', 'rundturen på Kunder tilbys (låste
 assert.equal(importTour?.step, 3, 'rundturen starter på Importer-steget');
 
 assert.equal(importCustomers.locked, true);
+// Kort lås per steg; hvem som kan hjelpe står én gang i teksten.
+assert.ok(importCustomers.steps.filter((st) => st.locked).every((st) => !/Spør/.test(st.locked)), 'ingen gjentatt «Spør …» per steg');
+assert.equal((importCustomers.text.match(/Spør Kari Nordmann/g) || []).length, 1);
 assert.equal(shouldAskServer(importCustomers, 'hvordan importerer jeg kunder fra excel'), false, 'låst svar går ikke til AI');
 assert.equal(shouldAskServer(invoice, 'hvordan lager jeg faktura'), false);
 
@@ -190,7 +194,7 @@ assert.ok(fullAccess.steps.every((st) => !st.locked));
 const flowAnsatt = answerQuestion('vis meg hele flyten fra anbud til faktura', { lang: 'nb', access: ansattAccess });
 assert.equal(flowAnsatt.intent, 'workflow');
 assert.ok(flowAnsatt.steps.filter((st) => st.locked).length >= 5, 'ansatt kan ikke det meste av flyten');
-assert.match(flowAnsatt.text, /merket med en lås/);
+assert.match(flowAnsatt.text, /merket med en lås\. Ditt nivå: ansatt\. Spør Kari Nordmann \(Administrator\)/);
 
 const ansattStarters = starterSuggestions({ lang: 'nb', company: true, access: ansattAccess });
 assert.ok(!ansattStarters.some((q) => /faktura/i.test(q)), 'ingen fakturaforslag til ansatt');

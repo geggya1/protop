@@ -48,7 +48,9 @@ assert.equal(hashRateKey(['a', 'b']).length, 40);
 assert.equal(memberDocGrantsAccess({ active: true }), true);
 assert.equal(memberDocGrantsAccess({ deleted: true }), false);
 assert.equal(memberDocGrantsAccess({ active: false }), false);
-assert.equal(memberDocGrantsAccess({ active: false, inviteStatus: 'pending' }), true);
+assert.equal(memberDocGrantsAccess({ active: false, inviteStatus: 'pending' }), false);
+assert.equal(memberDocGrantsAccess({ placeholder: true, inviteStatus: 'pending', active: false }), false);
+assert.equal(memberDocGrantsAccess({ active: true, inviteStatus: 'accepted', placeholder: false }), true);
 assert.equal(memberDocGrantsAccess({ leftAt: {} }), false);
 
 console.log('security.test.mjs: ok');

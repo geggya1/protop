@@ -95,17 +95,40 @@ describe('invitasjon til eksisterende bruker', () => {
     await assertSucceeds(getDoc(doc(as('eve'), 'families', A, 'memberInvites', INVITE)));
   });
 
-  test('mottakeren kan godta: medlemskap, profil og invitasjonsstatus', async () => {
+  test('før Godta: ingen tilgang til bedriften, og mottakeren kan ikke gjøre seg selv til medlem', async () => {
     await seedPendingExisting();
     const db = as('eve');
-    await assertSucceeds(setDoc(doc(db, 'families', A, 'parents', 'eve'), {
-      uid: 'eve', active: true, placeholder: false, inviteStatus: 'accepted', deleted: false, archived: false, admin: false,
+    await assertFails(getDoc(doc(db, 'families', A)));
+    await assertFails(getDoc(doc(db, 'families', A, 'parents', 'own')));
+    await assertFails(setDoc(doc(db, 'families', A, 'customers', 'k1'), { name: 'Kunde' }));
+    await assertFails(updateDoc(doc(db, 'families', A), { members: arrayUnion('eve') }));
+    await assertFails(setDoc(doc(db, 'families', A, 'parents', 'eve'), {
+      active: true, placeholder: false, inviteStatus: 'accepted',
     }, { merge: true }));
-    await assertSucceeds(updateDoc(doc(db, 'families', A), { members: arrayUnion('eve') }));
-    await assertSucceeds(setDoc(doc(db, 'parents', 'eve'), { familyIds: arrayUnion(A) }, { merge: true }));
-    await assertSucceeds(setDoc(doc(db, 'users', 'eve'), { familyIds: arrayUnion(A) }, { merge: true }));
-    await assertSucceeds(updateDoc(doc(db, 'families', A, 'memberInvites', INVITE), { status: 'accepted' }));
-    await assertSucceeds(setDoc(doc(db, 'users', 'eve', 'familyInvites', INVITE), { status: 'accepted' }, { merge: true }));
+  });
+
+  test('etter Godta (serveren aktiverer medlemsdokumentet): tilgang til bedriften', async () => {
+    await seedPendingExisting();
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'families', A, 'parents', 'eve'), {
+        active: true, placeholder: false, inviteStatus: 'accepted',
+      }, { merge: true });
+    });
+    const db = as('eve');
+    await assertSucceeds(getDoc(doc(db, 'families', A)));
+    await assertSucceeds(setDoc(doc(db, 'families', A, 'customers', 'k1'), { name: 'Kunde' }));
+  });
+
+  test('deaktivert eller slettet medlem utenfor members[] har ikke tilgang', async () => {
+    for (const patch of [{ active: false, archived: true }, { deleted: true }, { leftAt: new Date() }]) {
+      await seed();
+      await env.withSecurityRulesDisabled(async (ctx) => {
+        await setDoc(doc(ctx.firestore(), 'families', A, 'parents', 'eve'), {
+          uid: 'eve', placeholder: false, inviteStatus: 'accepted', active: true, ...patch,
+        });
+      });
+      await assertFails(getDoc(doc(as('eve'), 'families', A)));
+    }
   });
 
   test('en annen bruker kan ikke lese eller skrive mottakerens innboks', async () => {

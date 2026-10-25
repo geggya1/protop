@@ -14,6 +14,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { canImportList } from '../../src/access/companyAccess';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
@@ -553,6 +555,8 @@ export default function EconomyInvoices({
   } = store;
   const colors = useColors();
   const { requestShellTab } = useApp();
+  // Import av fakturalister krever Admin på Faktura.
+  const canImport = canImportList(useCompanyAccess(), 'economyInvoices');
   const hostedHero = useModuleHeroHosted();
   const { width, isPhone, hasRail, railWidth } = useLayout();
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
@@ -664,6 +668,7 @@ export default function EconomyInvoices({
   }, [query, statusFilter, period, invoices.length]);
 
   async function importFile() {
+    if (!canImport) return;
     setError('');
     const file = await pickDocument({ accept: INVOICE_IMPORT_ACCEPT });
     if (!file) return;
@@ -1155,7 +1160,9 @@ export default function EconomyInvoices({
         ListEmptyComponent={(
           <View style={{ padding: 16 }}>
             <Text style={{ color: colors.muted }}>
-              Ingen fakturaer ennå. Bruk «Importer Excel» for å hente listen fra regnskapssystemet.
+              {canImport
+                ? 'Ingen fakturaer ennå. Bruk «Importer Excel» for å hente listen fra regnskapssystemet.'
+                : 'Ingen fakturaer ennå.'}
             </Text>
           </View>
         )}
@@ -1188,6 +1195,7 @@ export default function EconomyInvoices({
                 : 'Laster fakturaer…'}
             </Text>
           </View>
+          {canImport ? (
           <TouchableOpacity
             onPress={importFile}
             disabled={busy || !familyId}
@@ -1197,6 +1205,7 @@ export default function EconomyInvoices({
           >
             <Text style={styles.primaryBtnText}>{busy ? 'Jobber…' : 'Importer Excel'}</Text>
           </TouchableOpacity>
+          ) : null}
         </View>
 
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}

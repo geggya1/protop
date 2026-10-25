@@ -5,7 +5,7 @@ import {
 } from './assistantEngine.js';
 import { shouldAskServer } from './assistantPolicy.js';
 import { evaluateHelpAccess, lockedText, processStepNeed } from './helpAccess.js';
-import { standardGrants } from '../access/companyAccess.js';
+import { allows, standardGrants } from '../access/companyAccess.js';
 
 assert.equal(fold('Kjørebok Åpne Æble'), 'kjorebok apne aeble');
 assert.ok(tokenize('Hvordan fører jeg timer?').includes('#timer'));
@@ -152,6 +152,7 @@ function accessFor(levelId) {
   const check = (pageKey, stepIndex = null) => describe(evaluateHelpAccess({ grants, pageKey, stepIndex }), pageKey);
   return {
     check,
+    checkNeed: (need) => (allows(grants, need.resource, need.action) ? { ok: true } : describe({ ok: false, need, page: false }, null)),
     checkProcessStep: (processId, index, pageKey) => {
       const page = check(pageKey);
       if (!page.ok) return page;
@@ -194,6 +195,15 @@ assert.match(flowAnsatt.text, /merket med en lås/);
 const ansattStarters = starterSuggestions({ lang: 'nb', company: true, access: ansattAccess });
 assert.ok(!ansattStarters.some((q) => /faktura/i.test(q)), 'ingen fakturaforslag til ansatt');
 assert.ok(ansattStarters.some((q) => /timer/i.test(q)));
+
+// Låst modul: ansatt får vite hvem som kan slå den på, og ingen «Åpne siden» til innstillingene.
+const lockedModule = answerQuestion('hvorfor ser jeg ikke modulen, den er låst', { lang: 'nb', access: ansattAccess });
+assert.equal(lockedModule.matchId, 'topic.locked');
+assert.ok(lockedModule.steps.filter((st) => st.locked).length >= 2, 'innstillingsstegene er låst');
+assert.match(lockedModule.steps[1].locked, /«Admin» på «.*Tilgangsstyring»/);
+assert.ok(!lockedModule.actions.some((a) => a.type === 'open'), 'ingen «Åpne siden» til Modulinnstillinger');
+const lockedAdmin = answerQuestion('hvorfor ser jeg ikke modulen, den er låst', { lang: 'nb', access: accessFor('administrator') });
+assert.ok(lockedAdmin.actions.some((a) => a.type === 'open' && a.pageKey === 'selskap.moduler'));
 
 const serverKnowledge = knowledgeForServer('hvordan lager jeg faktura', { lang: 'nb', access: ansattAccess });
 assert.ok(serverKnowledge.some((k) => k.locked && /LÅST FOR BRUKEREN/.test(k.summary)), 'AI-motoren får vite om sperren');

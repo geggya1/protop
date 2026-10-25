@@ -210,21 +210,27 @@ const LEVEL_ORDER = Object.fromEntries(ACCESS_LEVELS.map((l) => [l.id, l.order])
  * Hvem i bedriften har tilgangen? Aktive ansatte med innlogging, nærmeste
  * nivå over først (avdelingsleder før administrator). Uten treff: tom liste.
  */
-export function accessContacts({ employees = [], policy = null, need, selfEmployeeId = '', limit = 2 } = {}) {
+export function accessContacts({
+  employees = [], policy = null, need, selfEmployeeId = '', limit = 2, ownerUids = [], lang = 'nb',
+} = {}) {
   if (!need) return [];
+  const owners = new Set((ownerUids || []).filter(Boolean));
   const rows = [];
   for (const employee of employees || []) {
     if (!employee || employee.id === selfEmployeeId) continue;
     const status = String(employee.company?.status || 'active');
     if (status !== 'active') continue;
     if (!employee.personUid && employee.company?.canLogin === false) continue;
-    const grants = grantsForEmployee(policy, employee);
-    if (!allows(grants, need.resource, need.action)) continue;
+    // Eieren av bedriften har alltid full tilgang, også uten nivå i Tilgangsstyring.
+    const owner = !!employee.personUid && owners.has(employee.personUid);
+    if (!owner && !allows(grantsForEmployee(policy, employee), need.resource, need.action)) continue;
     const ids = employeeLevelIds(employee);
     const levelId = ids.length ? ids[ids.length - 1] : effectiveLevelId(employee);
     const name = personName(employee);
     if (!name) continue;
-    rows.push({ id: employee.id, name, levelId, level: levelLabel(levelId), order: LEVEL_ORDER[levelId] || 0 });
+    rows.push(owner
+      ? { id: employee.id, name, levelId: 'owner', level: lang === 'en' ? 'Owner' : 'Eier', order: 99 }
+      : { id: employee.id, name, levelId, level: levelLabel(levelId), order: LEVEL_ORDER[levelId] || 0 });
   }
   rows.sort((a, b) => (a.order - b.order) || a.name.localeCompare(b.name, 'nb'));
   return rows.slice(0, limit);

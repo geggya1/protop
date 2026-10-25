@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { useI18n } from '../i18n';
 import { useCompanyAccess } from '../access/useCompanyAccess';
-import { effectiveLevelId } from '../access/companyAccess';
+import { allows, effectiveLevelId } from '../access/companyAccess';
 import {
   accessContacts,
   evaluateHelpAccess,
@@ -25,11 +25,15 @@ export function useHelpAccess() {
   const { family } = useApp();
   const { lang } = useI18n();
   const policy = family?.company?.accessPolicy || null;
+  const ownerA = family?.ownerUid || '';
+  const ownerB = family?.ownerId || '';
 
   return useMemo(() => {
     // Ikke bedrift, eller tilgangen lastes ennå: ingen sperrer (ingen blinkende lås).
     if (!access?.active || !access.ready) {
-      return { active: false, level: '', check: () => OPEN, checkProcessStep: () => OPEN };
+      return {
+        active: false, level: '', check: () => OPEN, checkProcessStep: () => OPEN, checkNeed: () => OPEN,
+      };
     }
     const bypass = !!access.bypass && !access.previewing;
     const grants = access.grants || null;
@@ -47,6 +51,8 @@ export function useHelpAccess() {
           policy,
           need: result.need,
           selfEmployeeId: self?.id || '',
+          ownerUids: [ownerA, ownerB],
+          lang,
         });
         const page = getProtopPage(pageKey);
         const pageLabel = page ? (lang === 'en' ? page.label?.en : page.label?.nb) : '';
@@ -69,6 +75,13 @@ export function useHelpAccess() {
       if (!need || bypass) return OPEN;
       return describe(evaluateHelpAccess({ grants, bypass, pageKey, need }), pageKey);
     };
-    return { active: true, level, check, checkProcessStep };
-  }, [access, policy, lang]);
+    /** Trinn på et område uten egen side (f.eks. «Se som bruker»). */
+    const checkNeed = (need) => {
+      if (!need || bypass || allows(grants, need.resource, need.action)) return OPEN;
+      return describe({ ok: false, need, page: false }, null);
+    };
+    return {
+      active: true, level, check, checkProcessStep, checkNeed,
+    };
+  }, [access, policy, lang, ownerA, ownerB]);
 }

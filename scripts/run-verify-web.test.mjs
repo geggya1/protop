@@ -9,5 +9,6 @@ assert.ok(FILES.includes('functions/anbud/intakeScan.test.mjs'));
 assert.equal(new Set(FILES).size, FILES.length);
 assert.ok(FILES.includes('src/help/assistantEngine.test.mjs'), 'hjelpen og assistenten testes i CI');
 assert.ok(FILES.includes('src/help/protopPages.test.mjs'), 'alle sider har hjelp');
+assert.ok(FILES.includes('src/help/helpAccess.test.mjs'), 'hjelpen følger tilgangsnivået');
 
 console.log('run-verify-web.test.mjs: ok');

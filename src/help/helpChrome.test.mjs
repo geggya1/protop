@@ -59,5 +59,31 @@ const fn = read('functions/aiSupport.js');
 assert.match(fn, /ProTop-assistenten/);
 assert.match(fn, /Anbefal aldri andre programmer/);
 assert.doesNotMatch(fn, /Weekplan sin AI-hjelpeassistent|Skjetten/);
+assert.match(fn, /LÅST FOR BRUKEREN/, 'AI-motoren følger sperrene i kunnskapen');
+assert.match(fn, /Gi aldri steg for noe som er låst/);
+
+// Hjelpen følger tilgangsnivået: rundtur, lyspærekort, hjelpesenter og assistent.
+assert.match(overlay, /useHelpAccess\(\)/);
+assert.match(overlay, /help-step-locked/, 'låst steg forklares i rundturen');
+assert.match(read('components/HelpModuleCard.jsx'), /stepLocks/);
+assert.match(read('screens/v2/HelpSupportScreen.jsx'), /help-article-locked/);
+const assistantChat = read('components/assistant/AssistantChat.jsx');
+assert.match(assistantChat, /useHelpAccess\(\)/);
+assert.match(assistantChat, /access: accessRef\.current/, 'svarene følger tilgangen');
+assert.match(assistantChat, /assistant-step-locked/);
+assert.match(read('src/help/assistantService.js'), /knowledgeForServer\(question, \{[^}]*access/);
+
+// Import av lister krever Admin på området.
+for (const [file, resource] of [
+  ['screens/customers/CustomersScreen.jsx', 'customers'],
+  ['screens/economy/EconomyInvoices.jsx', 'economyInvoices'],
+  ['screens/arbeid/ProductSalesScreen.jsx', 'productSales'],
+  ['screens/economy/ProjectExpensesScreen.jsx', 'economyProjectExpenses'],
+  ['screens/arbeid/AbsenceScreens.jsx', 'absenceReport'],
+]) {
+  assert.match(read(file), new RegExp(`canImportList\\(useCompanyAccess\\(\\), '${resource}'\\)`), `${file}: import krever Admin`);
+}
+assert.match(read('screens/economy/EconomyHours.jsx'), /const canImport = rights === 'admin'/);
+assert.match(read('screens/employees/EmployeesScreen.jsx'), /\.\.\.\(employeesAdmin \? \[\{ id: 'import'/);
 
 console.log('helpChrome.test.mjs: ok');

@@ -97,6 +97,18 @@ assert.deepEqual(contacts.map((c) => c.name), ['Lars Test', 'Anne Test'], 'leder
 assert.equal(contacts[0].level, 'Øverste leder');
 assert.deepEqual(accessContacts({ employees, need: { resource: 'customers', action: 'read' } }).map((c) => c.name), ['Dina Test', 'Lars Test']);
 
+// Eieren har full tilgang uten nivå, og nevnes etter administratorene.
+const withOwner = [...employees, { ...employee('o', 'Ove', ''), personUid: 'uid-owner' }];
+assert.deepEqual(
+  accessContacts({ employees: withOwner, need, selfEmployeeId: 's', ownerUids: ['uid-owner'], limit: 3 }).map((c) => `${c.name} (${c.level})`),
+  ['Lars Test (Øverste leder)', 'Anne Test (Administrator)', 'Ove Test (Eier)'],
+);
+assert.deepEqual(
+  accessContacts({ employees: [employee('s', 'Siv', 'ansatt'), { ...employee('o', 'Ove', ''), personUid: 'uid-owner' }], need, ownerUids: ['uid-owner'], lang: 'en' }).map((c) => c.level),
+  ['Owner'],
+  'eier uten nivå er kontakt når ingen andre har tilgangen',
+);
+
 const text = lockedText({ need, level: 'Avdelingsleder', contacts, lang: 'nb' });
 assert.match(text, /krever «Admin» på «Kunder»/);
 assert.match(text, /Ditt nivå: Avdelingsleder/);

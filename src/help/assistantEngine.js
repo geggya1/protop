@@ -190,6 +190,8 @@ export function buildKnowledge(lang = 'nb') {
       faq: [],
       keywords: tp.keywords || [],
       nav: tp.nav || null,
+      // Siden «Åpne siden» går til (tilgangen sjekkes før knappen vises).
+      openPage: tp.page || null,
     });
   }
   for (const it of items) {
@@ -395,7 +397,14 @@ function actionsFor(item, lang) {
     }
     return out;
   }
-  if (item.nav) out.push({ type: 'open', nav: item.nav, label: pick({ nb: 'Åpne siden', en: 'Open the page' }, lang) });
+  if (item.nav) {
+    out.push({
+      type: 'open',
+      nav: item.nav,
+      ...(item.openPage ? { pageKey: item.openPage } : {}),
+      label: pick({ nb: 'Åpne siden', en: 'Open the page' }, lang),
+    });
+  }
   return out;
 }
 
@@ -491,7 +500,8 @@ function gateOf(access, item, index = null) {
   }
   // Tema-steg som peker på et steg på en side (f.eks. import av kunder).
   const ref = index != null ? item.steps?.[index]?.access : null;
-  if (ref) return access.check?.(ref.page, ref.index) || null;
+  if (ref?.need) return access.checkNeed?.(ref.need) || null;
+  if (ref?.page) return access.check?.(ref.page, ref.index) || null;
   return null;
 }
 
@@ -677,6 +687,9 @@ export function answerQuestion(question, {
       ...actions,
     ];
   }
+
+  // Ingen «Åpne siden» / «Vis meg» til sider brukeren ikke har tilgang til.
+  actions = actions.filter((a) => (a.type !== 'open' && a.type !== 'tour') || pageOpen(access, a.pageKey));
 
   return {
     ...base,

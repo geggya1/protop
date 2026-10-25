@@ -5,6 +5,8 @@ import { ImportResult } from '../../components/ImportReview';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { useColors } from '../../src/context/ThemeContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { canImportList } from '../../src/access/companyAccess';
 import { formatMoney } from '../../src/economy/invoices.js';
 import {
   PRODUCT_SALES_IMPORT_ACCEPT,
@@ -86,6 +88,8 @@ function SaleOkTable({ colors, rows, pageSize, onMore, onToggleRow }) {
 export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
+  // Import av salgslister krever Admin på Produktsalg.
+  const canImport = canImportList(useCompanyAccess(), 'productSales');
   const year = new Date().getFullYear();
   const workspace = useTimesheetWorkspace({
     lockedEmployeeId,
@@ -145,6 +149,7 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
   );
 
   async function importFile() {
+    if (!canImport) return;
     setError('');
     const file = await pickDocument({ accept: PRODUCT_SALES_IMPORT_ACCEPT });
     if (!file) return;
@@ -290,6 +295,7 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
           <Text style={[styles.title, { color: colors.ink }]}>Produktsalg</Text>
         </>
       )}
+      {canImport ? (
       <TouchableOpacity
         onPress={importFile}
         disabled={busy || !workspace.ready || !remoteReady}
@@ -300,6 +306,7 @@ export function ProductSalesScreen({ lockedEmployeeId = '' } = {}) {
       >
         <Text style={{ color: '#fff', fontWeight: '700' }}>{busy ? 'Leser…' : 'Importer'}</Text>
       </TouchableOpacity>
+      ) : null}
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {importReport ? <ImportResult colors={colors} result={importReport} /> : null}

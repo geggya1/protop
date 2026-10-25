@@ -393,7 +393,7 @@ export default function EmployeesScreen() {
   }
 
   async function openImport() {
-    if (!isAdmin || busy) return;
+    if (!employeesAdmin || busy) return;
     resetMessage();
     const picked = await pickDocument({ accept: EMPLOYEE_IMPORT_ACCEPT });
     const file = Array.isArray(picked) ? picked[0] : picked;
@@ -1490,7 +1490,7 @@ export default function EmployeesScreen() {
           actions={isAdmin ? [
             { id: 'new', nativeID: 'employees-new', label: 'Registrer medarbeider', primary: true, onPress: openNew },
             { id: 'invite', nativeID: 'employees-invite', label: 'Inviter brukere', onPress: openInvite },
-            { id: 'import', nativeID: 'employees-import', label: busy ? 'Tolker filen…' : 'Importer liste', onPress: openImport, disabled: busy },
+            ...(employeesAdmin ? [{ id: 'import', nativeID: 'employees-import', label: busy ? 'Tolker filen…' : 'Importer liste', onPress: openImport, disabled: busy }] : []),
             { id: 'mine', nativeID: 'employees-mine', label: 'Min side', onPress: openMine },
           ] : [
             { id: 'mine', nativeID: 'employees-mine', label: 'Min side', onPress: openMine },

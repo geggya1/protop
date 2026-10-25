@@ -84,6 +84,7 @@ export const FILES = [
   'src/help/assistantEngine.test.mjs',
   'src/help/findTarget.test.mjs',
   'src/help/helpChrome.test.mjs',
+  'src/help/helpAccess.test.mjs',
   'src/utils/moduleIntros.test.mjs',
   'src/utils/helpCatalog.test.mjs',
   'src/utils/helpLayout.test.mjs',

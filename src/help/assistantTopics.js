@@ -13,6 +13,8 @@ function topic(def) {
 const s = (title, nb, en, extra = {}) => ({ title: tx(title.nb || title, title.en || title), nb, en, ...extra });
 /** Steget følger tilgangen til steg nr. `index` på ProTop-siden `page` (src/help/helpAccess.js). */
 const gate = (page, index) => ({ access: { page, index } });
+/** Steget krever et trinn på et område uten egen side (f.eks. «Se som bruker»). */
+const need = (resource, action) => ({ access: { need: { resource, action } } });
 
 export const ASSISTANT_TOPICS = [
   topic({
@@ -128,9 +130,9 @@ export const ASSISTANT_TOPICS = [
       'Most lists can be exported: hours (CSV), mileage log, product catalogue, CVs (PDF/Word), forms (PDF) and invoices (EHF).',
     ),
     steps: [
-      s({ nb: 'Timer', en: 'Hours' }, 'Arbeid → Timeliste → «Eksporter CSV» eller «Skriv ut utvalg».', 'Work → Timesheet → “Export CSV” or “Print selection”.'),
-      s({ nb: 'Kjørebok', en: 'Mileage' }, 'Kjørebok → «Eksporter kjørebok».', 'Mileage log → “Export mileage log”.'),
-      s({ nb: 'Faktura', en: 'Invoice' }, 'Faktura → «Last ned EHF (Peppol BIS 3.0)».', 'Invoices → “Download EHF (Peppol BIS 3.0)”.'),
+      s({ nb: 'Timer', en: 'Hours' }, 'Arbeid → Timeliste → «Eksporter CSV» eller «Skriv ut utvalg».', 'Work → Timesheet → “Export CSV” or “Print selection”.', need('hours', 'see')),
+      s({ nb: 'Kjørebok', en: 'Mileage' }, 'Kjørebok → «Eksporter kjørebok».', 'Mileage log → “Export mileage log”.', gate('okonomi.kjorebok', 3)),
+      s({ nb: 'Faktura', en: 'Invoice' }, 'Faktura → «Last ned EHF (Peppol BIS 3.0)».', 'Invoices → “Download EHF (Peppol BIS 3.0)”.', gate('okonomi.faktura', 2)),
     ],
     keywords: ['eksport', 'eksportere', 'csv', 'pdf', 'skrive ut', 'utskrift', 'ehf', 'last ned'],
   }),
@@ -142,10 +144,11 @@ export const ASSISTANT_TOPICS = [
       '“View as” at the top shows modules and permissions as a chosen employee sees them — useful when setting up access.',
     ),
     steps: [
-      s({ nb: 'Vis som', en: 'View as' }, 'Trykk øyet («Vis som») øverst og velg en ansatt.', 'Tap the eye (“View as”) at the top and pick an employee.'),
+      s({ nb: 'Vis som', en: 'View as' }, 'Trykk øyet («Vis som») øverst og velg en ansatt.', 'Tap the eye (“View as”) at the top and pick an employee.', need('viewAs', 'see')),
       s({ nb: 'Tilbake', en: 'Back' }, '«Tilbakestill visning» går tilbake til deg selv.', '“Reset view” goes back to yourself.'),
     ],
     nav: { tab: 'selskap', subView: 'tilgang' },
+    page: 'selskap.tilgang',
     keywords: ['vis som', 'se som', 'view as', 'tilgang', 'rettigheter', 'teste'],
   }),
   topic({
@@ -156,11 +159,12 @@ export const ASSISTANT_TOPICS = [
       'If you see a lock, the module is turned off for the company or you lack access. An administrator opens it in Module settings or Access control.',
     ),
     steps: [
-      s({ nb: 'Slått av for bedriften', en: 'Turned off for the company' }, 'Administrator: Selskapsinnstillinger → Modulinnstillinger → slå på og lagre.', 'Admin: Company settings → Module settings → turn on and save.'),
-      s({ nb: 'Mangler tilgang', en: 'No access' }, 'Administrator: Selskapsinnstillinger → Tilgangsstyring → flytt deg til riktig nivå.', 'Admin: Company settings → Access control → move you to the right level.'),
+      s({ nb: 'Slått av for bedriften', en: 'Turned off for the company' }, 'Administrator: Selskapsinnstillinger → Modulinnstillinger → slå på og lagre.', 'Admin: Company settings → Module settings → turn on and save.', need('moduleSettings', 'write')),
+      s({ nb: 'Mangler tilgang', en: 'No access' }, 'Administrator: Selskapsinnstillinger → Tilgangsstyring → flytt deg til riktig nivå.', 'Admin: Company settings → Access control → move you to the right level.', need('accessControl', 'write')),
       s({ nb: 'Personlige moduler', en: 'Personal modules' }, 'Kalender, E-post, Oppgaver og Notat aktiverer du selv første gang du åpner dem.', 'Calendar, Mail, Tasks and Notes you enable yourself the first time you open them.'),
     ],
     nav: { tab: 'selskap', subView: 'moduler' },
+    page: 'selskap.moduler',
     keywords: ['låst', 'lås', 'mangler', 'ser ikke', 'finner ikke', 'tilgang', 'deaktivert', 'borte'],
   }),
   topic({

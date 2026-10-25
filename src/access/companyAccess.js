@@ -628,6 +628,14 @@ export function allowsEffective(grants, resource, action) {
   return allows(grants, resource, action);
 }
 
+/**
+ * Import av lister (Excel/CSV/PDF) krever «Admin» på området i Tilgangsstyring.
+ * `access` = useCompanyAccess(). Utenfor bedrift er alt åpent; under lasting stengt.
+ */
+export function canImportList(access, resource) {
+  return !!access?.ready && !!access.canAdmin?.(resource);
+}
+
 export function allowsAny(grants, resources, action) {
   return (resources || []).some((id) => allows(grants, id, action));
 }

@@ -185,10 +185,10 @@ export async function seed() {
     title: 'Daglig leder', canLogin: true, email: BOT_USER.email,
   }, { personUid: uid });
   await employee('emp-ola', { firstName: 'Ola', lastName: 'Tømrer', email: 'ola@protop.test' }, {
-    title: 'Tømrer', email: 'ola@protop.test',
+    title: 'Tømrer', email: 'ola@protop.test', accessLevel: 'ansatt',
   });
   await employee('emp-kari', { firstName: 'Kari', lastName: 'Prosjektleder', email: 'kari@protop.test' }, {
-    title: 'Prosjektleder', email: 'kari@protop.test',
+    title: 'Prosjektleder', email: 'kari@protop.test', accessLevel: 'avdelingsleder',
   });
 
   // Én kunde, ett prosjekt og et fakturautkast, så stegene inne i kundekort,

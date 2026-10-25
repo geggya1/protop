@@ -38,6 +38,14 @@ Valg:
 
 Boten avslutter med kode 1 hvis noe feiler.
 
+### Tilgang
+
+```bash
+node scripts/help-bot/access.mjs --view=desktop   # eller --view=phone
+```
+
+Ser appen som eier, avdelingsleder (Kari) og ansatt (Ola) med «Se som bruker» og sjekker at hjelpen følger tilgangsnivået: «Importer fil» på Kunder finnes bare med Admin, import-steget i rundturen er låst og sier hvem som kan hjelpe, og assistenten gir ikke steg eller «Vis meg» for det brukeren ikke har tilgang til. Rapport og skjermbilder havner i `<out>/tilgang/`.
+
 ## Hvordan den finner frem
 
 `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST` kobler web-klienten til emulatorene (`firebase.js`) og slår på to test-kroker som bare finnes i slike bygg: `window.__protopBot.openShell(tab, subView)` åpner en side direkte, og `window.__protopHelp` viser hvilken hjelpeside, modus og steg som er aktive.

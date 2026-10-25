@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  canImportList,
   ACCESS_ACTIONS,
   ACCESS_GROUPS,
   ACCESS_LEVELS,
@@ -568,6 +569,20 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
     });
     walk(filterCompanyNav(companyNavItems(), grants));
   }
+}
+
+// Import av lister: bare Admin på området.
+{
+  const fake = (levelId, ready = true) => {
+    const grants = standardGrants(levelId);
+    return { ready, canAdmin: (res) => allows(grants, res, 'write') };
+  };
+  assert.equal(canImportList(fake('administrator'), 'customers'), true);
+  assert.equal(canImportList(fake('leder'), 'customers'), true);
+  assert.equal(canImportList(fake('avdelingsleder'), 'customers'), false, 'begrenset redigering kan ikke importere');
+  assert.equal(canImportList(fake('ansatt'), 'economyInvoices'), false);
+  assert.equal(canImportList(fake('administrator', false), 'customers'), false, 'stengt mens tilgangen lastes');
+  assert.equal(canImportList(null, 'customers'), false);
 }
 
 console.log('companyAccess.test.mjs: ok');

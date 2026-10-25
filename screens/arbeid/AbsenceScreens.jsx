@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { canImportList } from '../../src/access/companyAccess';
 import { absenceTypeById, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { absenceRoster, absencesForRoster, eachWeekday } from '../../src/arbeid/absenceDashboard.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
@@ -81,6 +83,9 @@ function usePeople(lockedEmployeeId) {
 export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const { workspace, activeId } = usePeople(lockedEmployeeId);
+  // Import av fraværslister: leder for andres timer med Admin på Fraværsrapport.
+  const adminImport = canImportList(useCompanyAccess(), 'absenceReport');
+  const canImport = !!workspace.manager && adminImport;
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const people = useMemo(
     () => filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted'),
@@ -475,7 +480,7 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
         absences={reportAbsences}
         canChooseEmployee={canChooseEmployee}
         lockedEmployeeId={scopedEmployeeId}
-        canImport={!!workspace.manager}
+        canImport={canImport}
         onImport={importFile}
         onClearImported={confirmClearImported}
         onDeleteSelected={deleteSelectedAbsences}

@@ -3,6 +3,8 @@ import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, T
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { canImportList } from '../../src/access/companyAccess';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
@@ -129,6 +131,8 @@ export default function CustomersScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
   const { familyId, requestShellTab, shellIntent, clearShellIntent, members } = useApp();
+  // Import av kundelister krever Admin på Kunder.
+  const canImport = canImportList(useCompanyAccess(), 'customers');
   const [state, setState] = useState(null);
   const [projects, setProjects] = useState([]);
   const [query, setQuery] = useState('');
@@ -394,6 +398,7 @@ export default function CustomersScreen() {
   }
 
   async function importFile() {
+    if (!canImport) return;
     setError('');
     const file = await pickDocument({ accept: CUSTOMER_IMPORT_ACCEPT });
     if (!file) return;
@@ -532,7 +537,7 @@ export default function CustomersScreen() {
           ]}
           actions={[
             { id: 'new', label: 'Registrer kunde', primary: true, onPress: startNew },
-            { id: 'import', label: importing ? 'Tolker filen…' : 'Importer fil', onPress: importFile, disabled: importing },
+            ...(canImport ? [{ id: 'import', label: importing ? 'Tolker filen…' : 'Importer fil', onPress: importFile, disabled: importing }] : []),
           ]}
         />
       ) : null}

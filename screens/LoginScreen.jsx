@@ -10,14 +10,10 @@ import {
   signOut,
   reload,
 } from 'firebase/auth';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import { colors, radius } from '../src/theme';
 import { useI18n } from '../src/i18n';
 import { sendPasswordResetV2 } from '../src/utils/sendPasswordReset';
-import {
-  collectionGroup, getDocs, query, where, doc, updateDoc,
-  serverTimestamp, arrayUnion,
-} from 'firebase/firestore';
 import { resolveLoginEmail } from '../src/utils/usernames';
 import { isChildEmail } from '../src/utils/session';
 import { sendVerificationEmailV2 } from '../src/utils/sendVerificationEmail';
@@ -130,61 +126,6 @@ export default function LoginScreen({ navigation }) {
     }
   }, [navigation]);
 
-  const linkLooseMemberships = useCallback(async (user) => {
-    const lower = (user.email || '').toLowerCase();
-    const [parentsSnap, childrenSnap] = await Promise.all([
-      getDocs(query(collectionGroup(db, 'parents'), where('email', '==', lower))),
-      getDocs(query(collectionGroup(db, 'children'), where('email', '==', lower))),
-    ]);
-
-    const updates = [];
-
-    const ensureListed = (familyId) => {
-      updates.push(updateDoc(doc(db, 'families', familyId), {
-        members: arrayUnion(user.uid),
-        activeUsers: arrayUnion(user.uid),
-        updatedAt: serverTimestamp(),
-      }).catch(() => {}));
-    };
-
-    parentsSnap.forEach((d) => {
-      const data = d.data() || {};
-      const familyId = d.ref.parent.parent.id;
-      if (!data.uid && data.placeholder !== true) {
-        updates.push(updateDoc(d.ref, {
-          uid: user.uid,
-          active: data.active !== false,
-          emailVerified: !!user.emailVerified,
-          linkedAt: serverTimestamp(),
-          linkedBy: user.uid,
-        }));
-        ensureListed(familyId);
-      } else if (data.uid === user.uid && data.placeholder !== true && data.deleted !== true) {
-        // Already linked — still ensure LIST membership for chats/messages.
-        ensureListed(familyId);
-      }
-    });
-
-    childrenSnap.forEach((d) => {
-      const data = d.data() || {};
-      const familyId = d.ref.parent.parent.id;
-      if (!data.uid && data.placeholder !== true) {
-        updates.push(updateDoc(d.ref, {
-          uid: user.uid,
-          active: data.active !== false,
-          emailVerified: !!user.emailVerified,
-          linkedAt: serverTimestamp(),
-          linkedBy: user.uid,
-        }));
-        ensureListed(familyId);
-      } else if (data.uid === user.uid && data.placeholder !== true && data.deleted !== true) {
-        ensureListed(familyId);
-      }
-    });
-
-    await Promise.all(updates);
-  }, []);
-
   // Invitasjoner fra e-post havner i innboksen (Godta/Avslå). Ingen blir medlem her.
   const handlePendingInvites = useCallback(async (user) => {
     if (!user?.emailVerified) return;
@@ -250,9 +191,6 @@ export default function LoginScreen({ navigation }) {
         try { await sendVerificationEmailV2(cred.user.email || loginEmail); } catch {}
       }
 
-      try {
-        await withDeadline(linkLooseMemberships(cred.user), 8000, 'link-timeout');
-      } catch { /* membership can finish after the screen opens */ }
       try {
         await withDeadline(handlePendingInvites(cred.user), 8000, 'invite-timeout');
       } catch { /* invite lookup must not keep the button spinning */ }

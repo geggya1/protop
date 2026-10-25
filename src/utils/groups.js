@@ -2,7 +2,9 @@ import {
   collection, doc, writeBatch, serverTimestamp, updateDoc, arrayUnion, arrayRemove,
   getDoc, setDoc, deleteDoc, getDocs, query, where, limit, onSnapshot, orderBy,
 } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, getAuth, signOut as signOutAuth } from 'firebase/auth';
+import {
+  connectAuthEmulator, createUserWithEmailAndPassword, getAuth, signOut as signOutAuth,
+} from 'firebase/auth';
 import { getApp, initializeApp } from 'firebase/app';
 import { addDoc } from 'firebase/firestore';
 import { db, auth, functions } from '../../firebase';
@@ -79,7 +81,13 @@ async function secondaryAuth() {
   try { app = getApp(name); } catch {
     app = initializeApp(opts, name);
   }
-  return getAuth(app);
+  const secondary = getAuth(app);
+  // Test- og hjelpebot-bygg: barnekontoer skal opprettes i emulatoren, ikke i prosjektet i skyen.
+  const emulatorHost = String(process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST || '').trim();
+  if (emulatorHost && !secondary.emulatorConfig) {
+    connectAuthEmulator(secondary, `http://${emulatorHost}:9099`, { disableWarnings: true });
+  }
+  return secondary;
 }
 
 export async function createAuthUser(email, password) {

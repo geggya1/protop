@@ -64,6 +64,15 @@ export async function syncParentDocs(user) {
   }
 }
 
+/**
+ * collectionGroup('children') tar også med speilet i rot-samlingen children/{uid}.
+ * Bare treff under families/{id}/children forteller hvilken familie barnet hører til.
+ */
+function familyChildRef(snap) {
+  const hit = (snap?.docs || []).find((row) => row.ref.parent.parent);
+  return hit ? hit.ref : null;
+}
+
 /** Finn familyId for barnet via collectionGroup('children'). */
 export async function resolveChildFamilyId(childLike) {
   try {
@@ -71,19 +80,15 @@ export async function resolveChildFamilyId(childLike) {
       const snap = await getDocs(
         query(collectionGroup(db, 'children'), where('uid', '==', childLike.uid))
       );
-      if (!snap.empty) {
-        const ref = snap.docs[0].ref;
-        return { familyId: ref.parent.parent.id, childIdFromFam: ref.id };
-      }
+      const ref = familyChildRef(snap);
+      if (ref) return { familyId: ref.parent.parent.id, childIdFromFam: ref.id };
     }
     if (childLike?.username) {
       const snap = await getDocs(
         query(collectionGroup(db, 'children'), where('username', '==', childLike.username))
       );
-      if (!snap.empty) {
-        const ref = snap.docs[0].ref;
-        return { familyId: ref.parent.parent.id, childIdFromFam: ref.id };
-      }
+      const ref = familyChildRef(snap);
+      if (ref) return { familyId: ref.parent.parent.id, childIdFromFam: ref.id };
     }
     return { familyId: null, childIdFromFam: null };
   } catch (e) {
@@ -116,9 +121,10 @@ export async function resolveChildProfile(user) {
 
   try {
     const cg = await getDocs(query(collectionGroup(db, 'children'), where('uid', '==', uid)));
-    if (!cg.empty) {
-      const d = cg.docs[0];
-      return { id: d.id, ...d.data(), familyId: d.ref.parent.parent.id };
+    const ref = familyChildRef(cg);
+    if (ref) {
+      const d = cg.docs.find((row) => row.ref.path === ref.path);
+      return { id: d.id, ...d.data(), familyId: ref.parent.parent.id };
     }
   } catch { /* ignore */ }
 

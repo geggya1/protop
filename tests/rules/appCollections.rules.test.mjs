@@ -218,6 +218,11 @@ describe('venner og klassekart', () => {
     await assertFails(getDocs(collection(as('ext'), 'friendChats', 'mor_ola', 'messages')));
     await assertFails(getDoc(doc(as('ext'), 'friendChats', 'mor_ola')));
     await assertSucceeds(getDoc(doc(as('ola'), 'friendships', 'mor_ola')));
+    // Ny chat: appen sjekker om den finnes før den lages. Bare de to kan spørre.
+    await assertSucceeds(getDoc(doc(as('mor'), 'friendChats', 'dm_kid_mor')));
+    await assertFails(getDoc(doc(as('ext'), 'friendChats', 'dm_kid_mor')));
+    await assertSucceeds(setDoc(doc(as('mor'), 'friendChats', 'dm_kid_mor'), { type: 'dm', memberIds: ['kid', 'mor'] }));
+    await assertFails(getDoc(doc(as('ext'), 'friendChats', 'dm_kid_mor')));
     await assertFails(setDoc(doc(as('ext'), 'friendships', 'ext_mor'), { memberIds: ['ext', 'mor'], status: 'active' }));
   });
 
@@ -227,5 +232,8 @@ describe('venner og klassekart', () => {
     const entry = await assertSucceeds(addDoc(collection(as('mor'), 'classroomMaps', 'c1_s1', 'entries'), { text: 'Notat' }));
     await assertFails(updateDoc(doc(as('mor'), 'classroomMaps', 'c1_s1', 'entries', entry.id), { text: 'Endret' }));
     await assertFails(getDocs(collection(as('ext'), 'classroomMaps', 'c1_s1', 'entries')));
+    // Kartet finnes ikke ennå: medlem av klassen kan sjekke, andre ikke.
+    await assertSucceeds(getDoc(doc(as('mor'), 'classroomMaps', `${F}_s9`)));
+    await assertFails(getDoc(doc(as('ext'), 'classroomMaps', `${F}_s9`)));
   });
 });

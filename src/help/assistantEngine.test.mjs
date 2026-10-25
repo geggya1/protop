@@ -20,17 +20,17 @@ assert.ok(kb.some((k) => k.kind === 'topic'));
 /** Spørsmål → forventet kilde (side, flyt eller tema). */
 const CASES = [
   ['Hvordan fører jeg timer?', /timeliste/],
-  ['hvordan lager jeg faktura', /^okonomi\.faktura$/],
+  ['hvordan lager jeg faktura', /^okonomi\.(faktura|fakturagrunnlag)$/],
   ['hvor finner jeg kjøreboken', /^okonomi\.kjorebok$/],
   ['hvordan legger jeg til en ny ansatt', /^ansatte$/],
-  ['hvorfor får jeg ingen anbudstreff', /^anbud\.varsling$/],
+  ['hvorfor får jeg ingen anbudstreff', /^anbud\.(varsling|innstillinger)$/],
   ['vis meg hele flyten fra anbud til faktura', /^process:anbud-til-faktura$/],
   ['hvordan melder jeg avvik', /^iso\.avvik$/],
   ['hvordan søker jeg ferie', /^arbeid\.planlagt$/],
   ['hvordan regulerer jeg pris etter indeks', /^okonomi\.indeks$/],
   ['hvordan reserverer jeg bilen', /^utstyr$/],
   ['hvordan låser jeg timelisten', /timeliste/],
-  ['hvordan kobler jeg outlook', /^mail$/],
+  ['hvordan kobler jeg outlook', /^(mail|plan)$/],
   ['hvordan endrer jeg logoen', /^selskap\.innstillinger$/],
   ['hvor ser jeg hvem som er syk', /^arbeid\.fravaer$/],
   ['hvordan lager jeg et skjema for befaring', /^skjema$/],
@@ -46,7 +46,7 @@ const CASES = [
   ['hvordan ser jeg ledig kapasitet', /^arbeid\.produktivitet$/],
   ['hvor er lyspæren', /lightbulb|topic\.lightbulb|home/],
   ['How do I approve hours?', /^arbeid\.godkjenning$/],
-  ['How do I create an invoice?', /^okonomi\.faktura$/],
+  ['How do I create an invoice?', /^okonomi\.(faktura|fakturagrunnlag)$/],
   ['Where is the mileage log?', /^okonomi\.kjorebok$/],
 ];
 for (const [q, rx] of CASES) {
@@ -62,6 +62,123 @@ for (const [q, rx] of CASES) {
     assert.ok(a.actions.some((x) => x.type === 'open' && x.nav?.tab), `«${q}» har «Åpne siden»`);
   }
 }
+
+/**
+ * Presisjon: vanlige spørsmål treffer oppgaven (eller steget) de handler om —
+ * ikke en hel side. Forventet treff = oppgave-id, «page:side#steg» eller tema.
+ */
+const PRECISE = [
+  ['Hvordan føre fravær?', 'task.fravaer'],
+  ['Hvordan registrerer jeg sykdom?', 'task.fravaer'],
+  ['Jeg er syk i dag, hva gjør jeg?', 'task.fravaer'],
+  ['egenmelding', 'task.fravaer'],
+  ['barnet mitt er sykt', 'task.fravaer'],
+  ['jeg har vært hos legen', 'task.fravaer'],
+  ['hvordan registrerer jeg permisjon', 'task.fravaer'],
+  ['Hvordan tar jeg ut avspasering?', 'task.fravaer'],
+  ['Hvordan søker jeg ferie?', 'task.ferie'],
+  ['Hvordan planlegger jeg ferien?', 'task.ferie'],
+  ['Hvor ser jeg hvor mye ferie jeg har igjen?', 'task.feriesaldo'],
+  ['Hvordan godkjenner jeg ferie?', 'task.godkjennFerie'],
+  ['Hvordan fører jeg timer?', 'task.timer'],
+  ['kan jeg føre timer på mobilen', 'task.timer'],
+  ['Hvordan fører jeg overtid?', 'task.overtid'],
+  ['Hvordan låser jeg timene?', 'task.las'],
+  ['Hvordan sender jeg timene til godkjenning?', 'task.las'],
+  ['Jeg får ikke endret timene mine', 'task.lasOpp'],
+  ['Hvordan låser jeg opp timelisten til en ansatt?', 'task.lasOpp'],
+  ['Hvordan godkjenner jeg timer?', 'task.godkjennTimer'],
+  ['Finner ikke prosjektet i timelisten', 'task.prosjektITimeliste'],
+  ['Hvordan legger jeg til et prosjekt i timelisten?', 'task.prosjektITimeliste'],
+  ['Hvordan flytter jeg timer til en annen dag?', 'task.flyttTimer'],
+  ['Hvordan sletter jeg timer?', 'task.slettTimer'],
+  ['Hvordan skriver jeg internt notat på timene?', 'task.internNotat'],
+  ['Hvordan registrerer jeg et utlegg?', 'task.utlegg'],
+  ['Hvordan legger jeg inn kvittering?', 'task.utlegg'],
+  ['Hvordan registrerer jeg kjøring?', 'task.kjoring'],
+  ['Hvordan fører jeg kilometer?', 'task.kjoring'],
+  ['Hvordan registrerer jeg kilometerstand på bilen?', 'task.kilometerstand'],
+  ['Hvordan registrerer jeg produktsalg?', 'task.produktsalg'],
+  ['Hvordan ser jeg timesaldo?', 'task.timesaldo'],
+  ['Hvordan eksporterer jeg timer til lønn?', 'task.eksportTimer'],
+  ['Hvordan oppretter jeg et nytt prosjekt?', 'task.nyttProsjekt'],
+  ['Hvordan legger jeg til en ansatt på prosjektet?', 'task.teamProsjekt'],
+  ['Hvordan setter jeg timepris på prosjektet?', 'task.timepris'],
+  ['Hvordan legger jeg til en ny kunde?', 'task.nyKunde'],
+  ['Hvordan registrerer jeg en avtale?', 'task.nyAvtale'],
+  ['Hvordan lager jeg en faktura?', 'task.faktura'],
+  ['Hvordan fakturerer jeg timer?', 'task.faktura'],
+  ['Hvordan sender jeg faktura med EHF?', 'task.sendFaktura'],
+  ['Hvordan registrerer jeg betaling?', 'task.betaling'],
+  ['Hvordan legger jeg til en ny ansatt?', 'task.nyAnsatt'],
+  ['Hvordan inviterer jeg en bruker?', 'task.inviter'],
+  ['Hvordan gir jeg en ansatt tilgang?', 'task.tilgang'],
+  ['Hvordan endrer jeg tilgangsnivå?', 'task.tilgang'],
+  ['hvordan endrer jeg passord', 'task.passord'],
+  ['Hvordan melder jeg et avvik?', 'task.avvik'],
+  ['Hvordan fyller jeg ut en sjekkliste?', 'task.skjema'],
+  ['Hvordan lager jeg et nytt skjema?', 'task.nyttSkjema'],
+  ['Hvordan reserverer jeg utstyr?', 'task.utstyr'],
+  ['Hvordan setter jeg opp anbudsvarsling?', 'task.anbudsvarsling'],
+  ['Hvordan legger jeg til CPV-koder?', 'task.anbudsvarsling'],
+  ['Hvordan legger jeg til en avtale i kalenderen?', 'task.kalender'],
+  ['Hvordan kobler jeg Outlook?', 'task.outlook'],
+  ['Hvordan lager jeg en oppgave?', 'task.oppgave'],
+  ['Hvordan endrer jeg logo?', 'task.logo'],
+  ['Hvordan legger jeg til en fraværstype?', 'task.fravaerstype'],
+  ['Hvordan regulerer jeg pris med indeks?', 'task.indeks'],
+  ['Hvordan lager jeg CV?', 'task.cv'],
+  ['Hvordan lukker jeg et avvik?', 'page:iso.avvik#3'],
+  ['Hvordan godkjenner jeg utlegg?', 'page:okonomi.utlegg#1'],
+  ['Hvordan bytter jeg språk?', 'page:settings#1'],
+  ['Hvordan vurderer jeg et anbud?', 'page:anbud.varsling#2'],
+  ['Hvordan legger jeg til en aktivitet på prosjektet?', 'page:projects#3'],
+  ['Hvordan bytter jeg måned i timelisten?', 'page:arbeid.timeliste#0'],
+  ['Hvor ser jeg hvem som er syk?', 'page:arbeid.fravaer'],
+  ['Hvordan legger jeg til en underenhet?', 'page:selskap.underenheter'],
+  ['Glemt passord', 'task.passord'],
+  ['Hvordan bytter jeg til bedrift?', 'topic.switch'],
+  ['How do I log sick leave?', 'task.fravaer'],
+  ['How do I request holiday?', 'task.ferie'],
+  ['How do I add a customer?', 'task.nyKunde'],
+];
+for (const [q, want] of PRECISE) {
+  const lang = /^(how|where)/i.test(q) ? 'en' : 'nb';
+  const a = answerQuestion(q, { lang });
+  const got = `${a.matchId || a.intent}${a.focus != null ? `#${a.focus}` : ''}`;
+  assert.equal(got, want, `«${q}» ga ${got}`);
+  // Ingen hel arbeidsflyt uten at det er spurt om.
+  assert.ok(!a.actions.some((x) => x.type === 'process'), `«${q}» foreslår ikke arbeidsflyt`);
+  // Fokusert svar viser ett steg (eller to som henger sammen), ikke hele siden.
+  if (a.focus != null) assert.ok(a.steps.length <= 2, `«${q}» viser bare steget`);
+}
+
+// «Hvordan føre fravær?» fra Timeliste: oppgaven, «Vis meg» fra fraværssteget på denne siden.
+const absence = answerQuestion('Hvordan føre fravær?', { pageKey: 'arbeid.timeliste' });
+assert.match(absence.text, /^\*\*Føre fravær/);
+assert.ok(absence.steps.some((st) => /«Legg til fravær \/ ferie»/.test(st.text)));
+assert.ok(absence.steps.some((st) => /7:30 er en hel dag/.test(st.text)));
+assert.match(absence.after, /Planlagt fravær/);
+assert.ok(!absence.steps.some((st) => st.title === 'Åpne timelisten'), 'står allerede i timelisten');
+assert.equal(answerQuestion('Hvordan føre fravær?', { pageKey: 'home' }).steps[0].title, 'Åpne timelisten');
+assert.deepEqual(absence.actions.map((x) => `${x.type}:${x.pageKey}@${x.step ?? ''}`), ['tour:arbeid.timeliste@3'], 'bare «Vis meg» her — ikke «Åpne siden» eller hele flyten');
+assert.equal(absence.sources.length, 1);
+const absenceMine = answerQuestion('Hvordan føre fravær?', { pageKey: 'timeliste' });
+assert.equal(absenceMine.actions[0].pageKey, 'timeliste');
+assert.equal(absenceMine.actions[0].step, 2);
+const absenceAway = answerQuestion('Hvordan føre fravær?', { pageKey: 'home' });
+assert.ok(absenceAway.actions.some((x) => x.type === 'open' && x.pageKey === 'timeliste'), 'fra en annen side: «Åpne Timeliste»');
+assert.ok(absenceAway.followUps.includes('Hvordan søker jeg ferie?'));
+
+// Fokusert steg: «Vis meg» fra steget, og forslag om hele siden.
+const closeDeviation = answerQuestion('Hvordan lukker jeg et avvik?');
+assert.equal(closeDeviation.steps.length, 1);
+assert.equal(closeDeviation.steps[0].title, 'Lukk');
+assert.ok(closeDeviation.actions.some((x) => x.type === 'tour' && x.step === 3));
+assert.ok(closeDeviation.followUps.some((f) => /Hvordan bruker jeg Avvik og forbedring/.test(f)));
+
+// Hele flyten bare når brukeren spør etter den.
+assert.ok(answerQuestion('vis meg hele flyten fra anbud til faktura').actions.some((x) => x.type === 'process'));
 
 // Konteksten: «denne siden» peker på siden brukeren står på.
 const here = answerQuestion('hvordan bruker jeg denne siden?', { pageKey: 'okonomi.kjorebok' });
@@ -108,7 +225,9 @@ assert.equal(answerQuestion('tusen takk!').intent, 'thanks');
 assert.equal(detectIntent('hei').greeting, true);
 assert.equal(detectIntent('hvordan gjør jeg det her').thisPage, true);
 
-assert.ok(starterSuggestions({ pageKey: 'kunder' })[0].includes('Kunder'));
+assert.equal(starterSuggestions({ pageKey: 'kunder' })[0], 'Hvordan legger jeg til en ny kunde?', 'forslag om det folk gjør på siden');
+assert.ok(starterSuggestions({ pageKey: 'kunder' }).includes('Hvordan bruker jeg Kunder?'));
+assert.ok(starterSuggestions({ pageKey: 'arbeid.timeliste' }).includes('Hvordan fører jeg fravær?'));
 assert.equal(starterSuggestions({ company: false }).length >= 3, true);
 
 // Kunnskap til AI-motoren: relevante sider med steg og hvor de ligger.
@@ -121,6 +240,8 @@ assert.ok(searchKnowledge('faktura', { limit: 3 }).length === 3);
 // Lokale svar er gode nok uten AI; vage spørsmål går til AI.
 assert.equal(shouldAskServer(answerQuestion('hvordan lager jeg faktura'), 'hvordan lager jeg faktura'), false);
 assert.equal(shouldAskServer(answerQuestion('blæh'), 'blæh'), true);
+const longAbsence = 'Hei, jeg var syk i går og i dag og lurer på hvordan jeg skal føre fravær i timelisten min for disse to dagene';
+assert.equal(shouldAskServer(answerQuestion(longAbsence), longAbsence), false, 'kjent oppgave svares lokalt også når spørsmålet er langt');
 assert.equal(shouldAskServer(answerQuestion('hva blir været'), 'hva blir været'), false);
 
 const transcript = transcriptText([
@@ -212,4 +333,4 @@ assert.ok(lockedAdmin.actions.some((a) => a.type === 'open' && a.pageKey === 'se
 const serverKnowledge = knowledgeForServer('hvordan lager jeg faktura', { lang: 'nb', access: ansattAccess });
 assert.ok(serverKnowledge.some((k) => k.locked && /LÅST FOR BRUKEREN/.test(k.summary)), 'AI-motoren får vite om sperren');
 
-console.log(`assistantEngine.test.mjs: ok (${CASES.length} spørsmål)`);
+console.log(`assistantEngine.test.mjs: ok (${CASES.length + PRECISE.length} spørsmål)`);

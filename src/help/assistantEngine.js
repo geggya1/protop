@@ -11,6 +11,7 @@
 import { PROTOP_PAGES, getProtopPage, resolvePageKey } from './protopPages.js';
 import { PROTOP_PROCESSES } from './protopProcesses.js';
 import { ASSISTANT_TOPICS, COMPETITOR_NAMES, OFF_TOPIC_PATTERNS } from './assistantTopics.js';
+import { ASSISTANT_TASKS } from './assistantTasks.js';
 import { condenseStepLocks } from './helpAccess.js';
 
 export const ASSISTANT_CHAT_ID = 'protop-assistant';
@@ -35,7 +36,7 @@ const STOPWORDS = new Set([
   'hva', 'hvem', 'hvor', 'hvordan', 'hvorfor', 'når', 'nar', 'hvilken', 'hvilke', 'hvilket', 'noe', 'noen',
   'ikke', 'ja', 'nei', 'så', 'sa', 'da', 'nå', 'na', 'her', 'der', 'inn', 'ut', 'opp', 'ned', 'over', 'under',
   'man', 'gjør', 'gjor', 'gjøre', 'gjore', 'få', 'fa', 'får', 'far', 'finne', 'finner', 'bruke', 'bruker',
-  'lage', 'lager', 'legge', 'tips', 'hjelp', 'hjelpe', 'trenger', 'lurer', 'vet', 'mer', 'mest', 'alle',
+  'lage', 'lager', 'legge', 'legger', 'legg', 'lagt', 'tips', 'hjelp', 'hjelpe', 'trenger', 'lurer', 'vet', 'mer', 'mest', 'alle',
   'kanskje', 'litt', 'bare', 'også', 'ogsa', 'sånn', 'slik', 'helt', 'protop', 'appen', 'app', 'systemet',
   // engelsk
   'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'to', 'from', 'for', 'with', 'of', 'about', 'as', 'at',
@@ -131,6 +132,7 @@ function stepsOf(def, lang) {
     title: pick(s.title, lang),
     text: pick(s, lang),
     ...(s.access ? { access: s.access } : {}),
+    ...(s.go ? { go: true } : {}),
   })).filter((s) => s.text);
 }
 
@@ -195,6 +197,28 @@ export function buildKnowledge(lang = 'nb') {
       openPage: tp.page || null,
     });
   }
+  for (const tk of ASSISTANT_TASKS) {
+    const ask = pick(tk.ask, lang) || [];
+    items.push({
+      id: tk.id,
+      kind: 'task',
+      title: pick(tk.title, lang),
+      label: pick(tk.title, lang),
+      path: '',
+      summary: pick(tk.intro, lang),
+      steps: stepsOf(tk, lang),
+      faq: [],
+      keywords: ask,
+      nav: null,
+      q: pick(tk.q, lang),
+      after: pick(tk.after, lang),
+      show: tk.show || [],
+      related: tk.related || [],
+      // Formuleringer som treffer oppgaven: alle ordene (stammene) må finnes i spørsmålet.
+      phrases: ask.map((a) => phraseTokens(a)).filter((t) => t.length),
+      avoid: (pick(tk.avoid, lang) || []).map((w) => stem(fold(w))),
+    });
+  }
   for (const it of items) {
     const weights = new Map();
     const add = (text, w) => {
@@ -206,6 +230,7 @@ export function buildKnowledge(lang = 'nb') {
     add(it.keywords.join(' '), 3);
     add(it.label, 4);
     add(it.title, 3.5);
+    if (it.q) add(it.q, 3);
     it.index = weights;
   }
   kbCache = { lang, items };
@@ -226,6 +251,7 @@ export function searchKnowledge(question, { lang = 'nb', pageKey = null, limit =
   if (!tokens.length) return [];
   const unique = [...new Set(tokens)];
   const wantsWorkflow = /\b(hele|prosess(en)?|flyt(en)?|arbeidsflyt(en)?|fra .+ til|workflow|whole|end to end)\b/.test(fold(question));
+  const words = phraseTokens(question);
   const scored = [];
   for (const it of items) {
     let score = 0;
@@ -235,7 +261,10 @@ export function searchKnowledge(question, { lang = 'nb', pageKey = null, limit =
       if (!w && tok.length >= 5 && !tok.startsWith('#')) {
         for (const [k, v] of it.index) {
           if (!k.startsWith('#') && k.length >= 5 && (k.startsWith(tok) || tok.startsWith(k))) {
-            w = Math.max(w, v * 0.6);
+            // Samme ord med annen endelse («underenhet» / «underenheter») er nesten samme ord;
+            // et sammensatt ord («kilometerstand» / «kilometer») er det ikke.
+            const inflection = Math.min(k.length, tok.length) >= 7 && Math.abs(k.length - tok.length) <= 3;
+            w = Math.max(w, v * (inflection ? 0.9 : 0.6));
           }
         }
       }
@@ -251,15 +280,70 @@ export function searchKnowledge(question, { lang = 'nb', pageKey = null, limit =
     // Kuraterte spørsmål (FAQ) som nesten er likt spørsmålet, vinner.
     if (it.faq.some((f) => searchFaqMatch(question, f.q))) score += 3;
     if (pageKey && it.pageKey === pageKey) score += 1.2;
+    let phrase = 0;
+    if (it.kind === 'task') {
+      // Oppgaven treffes av en kjent formulering («føre fravær», «egenmelding»): den vinner.
+      // Unntaksord: ordet (med eventuell endelse) står i spørsmålet.
+      const avoided = it.avoid.some((w) => words.some((x) => x === w || (w.length >= 4 && x.startsWith(w))));
+      phrase = avoided ? 0 : bestPhrase(it.phrases, words);
+      if (phrase) score += phrase >= 2 ? 5 + 1.5 * phrase : 3;
+      else score *= 0.6;
+      if (searchFaqMatch(question, it.q)) score += 4;
+      if (pageKey && it.show.some((sh) => sh.page === resolvePageKey(pageKey))) score += 0.8;
+    }
     if (it.kind === 'process') {
       // Arbeidsflyter dekker mange ord; de vinner bare når brukeren spør etter hele løpet.
       if (wantsWorkflow) score += 3;
       else score *= 0.45;
     }
-    scored.push({ item: it, score, coverage });
+    scored.push({ item: it, score, coverage, phrase });
   }
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, limit);
+}
+
+/** Småord som ikke skiller formuleringer fra hverandre («hvordan», «jeg», «en»). */
+const FILLER = new Set([
+  'jeg', 'du', 'vi', 'en', 'et', 'ei', 'i', 'pa', 'min', 'mitt', 'mine', 'meg', 'deg', 'seg', 'hvordan', 'hva', 'kan',
+  'skal', 'vil', 'er', 'det', 'den', 'de', 'som', 'man', 'har', 'ha', 'mye', 'na', 'her', 'bare', 'ogsa', 'litt', 'jo',
+  'vel', 'the', 'my', 'how', 'do', 'can', 'is', 'a', 'an', 'to', 'of', 'i',
+]);
+
+/**
+ * Ordene i en formulering, i rekkefølge — med «opp», «til» og «ikke»
+ * (de skiller «låse» fra «låse opp»). Småord som «jeg» og «en» tas ut.
+ */
+function phraseTokens(text) {
+  return fold(text).split(/[^a-z0-9%-]+/).filter((w) => w && !FILLER.has(w)).map(stem);
+}
+
+/**
+ * Samme ordstamme: korte ord eksakt, lengre også med endelse («søke» ≈ «søker»).
+ * Et kortere ord i spørsmålet treffer bare nesten like lange («fravær» er ikke «fraværstype»).
+ */
+function sameWord(word, t) {
+  if (word === t) return true;
+  if (t.length < 4 || word.length < 4) return false;
+  return word.startsWith(t) || (t.startsWith(word) && t.length - word.length <= 2);
+}
+
+/**
+ * Lengden (antall ord) på den lengste formuleringen som står i spørsmålet,
+ * ord for ord i samme rekkefølge («legge til prosjekt», ikke «legge til en
+ * aktivitet på prosjektet»), eller 0.
+ */
+function bestPhrase(phrases = [], words = []) {
+  let best = 0;
+  for (const ph of phrases) {
+    if (ph.length <= best) continue;
+    for (let i = 0; i + ph.length <= words.length; i += 1) {
+      if (ph.every((t, k) => sameWord(words[i + k], t))) {
+        best = ph.length;
+        break;
+      }
+    }
+  }
+  return best;
 }
 
 /* ───────────── Intensjon ───────────── */
@@ -366,6 +450,11 @@ const T = {
     nb: 'Du har ikke tilgang til denne siden med ditt nåværende nivå, så jeg viser deg ikke veien dit.',
     en: 'You don’t have access to this page with your current level, so I won’t take you there.',
   },
+  focusOn: { nb: 'På **{label}** ({path}):', en: 'On **{label}** ({path}):' },
+  focusHere: { nb: 'Her på **{label}**:', en: 'Here on **{label}**:' },
+  showMe: { nb: 'Vis meg i appen', en: 'Show me in the app' },
+  openPage: { nb: 'Åpne siden', en: 'Open the page' },
+  openNamed: { nb: 'Åpne {label}', en: 'Open {label}' },
   lockedSome: {
     nb: 'Noen av stegene krever mer tilgang enn du har — de er merket med en lås.',
     en: 'Some of the steps need more access than you have — they are marked with a lock.',
@@ -446,13 +535,21 @@ export function starterSuggestions({ lang = 'nb', pageKey = null, company = true
   const out = [];
   const page = pageKey ? getProtopPage(pageKey) : null;
   if (page) {
+    // Det folk faktisk spør om på denne siden (f.eks. fravær og overtid på Timeliste).
+    const here = resolvePageKey(pageKey);
+    for (const tk of ASSISTANT_TASKS) {
+      if (out.length >= 3) break;
+      if (tk.show?.some((sh) => sh.page === here) && pageOpen(access, here)) out.push(pick(tk.q, lang));
+    }
     out.push(pick({ nb: `Hvordan bruker jeg ${pick(page.label, 'nb')}?`, en: `How do I use ${pick(page.label, 'en')}?` }, lang));
-    if (page.faq?.[0]) out.push(pick(page.faq[0].q, lang));
+    if (page.faq?.[0] && out.length < 4) out.push(pick(page.faq[0].q, lang));
   }
   // Bare forslag brukeren har tilgang til å gjøre noe med.
   const general = company
     ? [
       { nb: 'Hvordan fører jeg timer?', en: 'How do I log hours?', page: 'arbeid.timeliste' },
+      { nb: 'Hvordan fører jeg fravær?', en: 'How do I log absence?', page: 'arbeid.timeliste' },
+      { nb: 'Hvordan søker jeg ferie?', en: 'How do I request holiday?', page: 'arbeid.planlagt' },
       { nb: 'Vis meg hele flyten fra anbud til faktura', en: 'Show me the whole flow from tender to invoice', page: 'anbud.varsling' },
       { nb: 'Hvordan legger jeg til en ny ansatt?', en: 'How do I add a new employee?', page: 'ansatte' },
       { nb: 'Hvordan lager jeg en faktura?', en: 'How do I create an invoice?', page: 'okonomi.faktura' },
@@ -533,15 +630,18 @@ function condenseLocks(steps) {
 }
 
 /** Steget spørsmålet handler om (f.eks. «importere» → Importer-steget). */
-function focusStep(question, steps) {
-  const q = tokenize(question).filter((t) => !t.startsWith('#'));
+function focusStep(question, steps, ignore = new Set()) {
+  const q = tokenize(question).filter((t) => !t.startsWith('#') && !ignore.has(t));
   if (!q.length) return -1;
   let best = -1;
   let bestScore = 0;
+  // Samme ord med ulik endelse («aktivitet» / «aktiviteter») teller som treff.
+  const near = (list, t) => list.some((x) => x === t
+    || (Math.min(x.length, t.length) >= 5 && Math.abs(x.length - t.length) <= 3 && (x.startsWith(t) || t.startsWith(x))));
   steps.forEach((s, i) => {
-    const title = new Set(tokenize(s.title || ''));
-    const all = new Set(tokenize(`${s.title || ''} ${s.text}`));
-    const score = q.reduce((n, t) => n + (title.has(t) ? 2 : 0) + (all.has(t) ? 1 : 0), 0);
+    const title = tokenize(s.title || '');
+    const all = tokenize(`${s.title || ''} ${s.text}`);
+    const score = q.reduce((n, t) => n + (near(title, t) ? 2 : 0) + (near(all, t) ? 1 : 0), 0);
     if (score > bestScore) {
       best = i;
       bestScore = score;
@@ -619,10 +719,13 @@ export function answerQuestion(question, {
     };
   }
 
-  if (intent.bug) {
+  // «Får ikke endret timene» er et kjent spørsmål, ikke en feil: oppgaven svarer.
+  const knownTask = top?.item.kind === 'task' && top.phrase >= 2;
+  if (intent.bug && !knownTask) {
     // Feil går alltid til feilsøking + support. Gjelder det en bestemt side, pekes den ut.
     const rows = T.bugSteps[lang === 'en' ? 'en' : 'nb'];
-    const about = strong && top.item.kind === 'page' ? top.item : null;
+    // Feilen gjelder siden spørsmålet handler om (beste side blant treffene).
+    const about = strong ? (ranked.find((r) => r.item.kind === 'page' && r.score >= 3)?.item || null) : null;
     return {
       ...base,
       intent: 'bug',
@@ -652,8 +755,16 @@ export function answerQuestion(question, {
   }
 
   const item = top.item;
-  const others = ranked.slice(1, 3).map((r) => r.item).filter((o) => o.kind !== 'page' || pageOpen(access, o.pageKey));
   const preface = intent.competitor && intent.compare ? `${tr('competitor', lang)}\n\n` : '';
+  const here = pageKey ? resolvePageKey(pageKey) : null;
+
+  if (item.kind === 'task') {
+    return taskAnswer(item, {
+      base, lang, access, here, preface, pageKey, company, confidence: Math.min(1, top.score / 8),
+    });
+  }
+
+  const others = ranked.slice(1, 3).map((r) => r.item).filter((o) => o.kind !== 'page' || pageOpen(access, o.pageKey));
 
   // Siden er stengt for brukeren: si hva som kreves og hvem som kan hjelpe — ingen steg eller «Vis meg».
   const pageGate = gateOf(access, item);
@@ -671,6 +782,45 @@ export function answerQuestion(question, {
       locked: true,
     };
   }
+
+  const full = stepsWithAccess(item, access);
+  // Steget spørsmålet handler om (ord som bare navngir siden, teller ikke).
+  const focus = focusStep(q, full, new Set(tokenize(item.label)));
+  const focusLocked = focus >= 0 && !!full[focus].locked;
+
+  // Spørsmålet gjelder ett steg på siden: svar med det steget, ikke hele siden.
+  if (item.kind === 'page' && focus >= 0 && !(intent.whatis && !intent.howto)) {
+    const shown = [focus];
+    if (chained(item, focus)) shown.push(focus + 1);
+    const { steps } = condenseLocks(shown.map((i) => full[i]));
+    const lead = focusLocked
+      ? `🔒 **${full[focus].title}:** ${full[focus].locked}\n\n`
+      : '';
+    const where = here === item.pageKey
+      ? tr('focusHere', lang, { label: item.label })
+      : tr('focusOn', lang, { label: item.label, path: item.path });
+    const actions = tidyActions([
+      ...(focusLocked ? [] : [{ type: 'tour', pageKey: item.pageKey, nav: item.nav, step: focus, label: tr('showMe', lang) }]),
+      { type: 'open', pageKey: item.pageKey, nav: item.nav, label: tr('openPage', lang) },
+    ], { here, access });
+    return {
+      ...base,
+      intent: intent.where ? 'where' : 'howto',
+      text: `${preface}${lead}${where}`.trim(),
+      steps,
+      sources: [sourceFor(item)],
+      actions,
+      followUps: [
+        pick({ nb: `Hvordan bruker jeg ${item.label}?`, en: `How do I use ${item.label}?` }, lang),
+        ...followUpsFor(item, lang, others),
+      ].filter((f, i, all) => all.indexOf(f) === i).slice(0, 3),
+      confidence: Math.min(1, top.score / 8),
+      matchId: item.id,
+      focus,
+      ...(focusLocked ? { locked: true } : {}),
+    };
+  }
+
   let text;
   if (item.kind === 'process') {
     text = `${tr('processIntro', lang, { title: item.title })}\n\n${item.summary}`;
@@ -682,13 +832,9 @@ export function answerQuestion(question, {
     const faq = item.faq.find((f) => searchFaqMatch(q, f.q));
     text = faq
       ? `${faq.a}`
-      : `**${item.label}** — ${item.summary}${item.path ? `\n\n${tr('whereIntro', lang, { path: item.path })}` : ''}\n\n${tr('howIntro', lang)}`;
+      : `**${item.label}** — ${item.summary}${item.path && here !== item.pageKey ? `\n\n${tr('whereIntro', lang, { path: item.path })}` : ''}\n\n${tr('howIntro', lang)}`;
   }
 
-  const full = stepsWithAccess(item, access);
-  // Spør brukeren om noe de ikke har tilgang til (f.eks. import), sies det rett ut først.
-  const focus = focusStep(q, full);
-  const focusLocked = focus >= 0 && !!full[focus].locked;
   const { steps, who } = condenseLocks(full);
   if (focusLocked) {
     text = `🔒 **${full[focus].title || item.label}:** ${full[focus].locked}\n\n${text}`;
@@ -699,28 +845,131 @@ export function answerQuestion(question, {
   let actions = actionsFor(item, lang);
   // Tema-steg som peker på en side (f.eks. import av kunder): «Vis meg» rett til det steget.
   const ref = focus >= 0 ? item.steps?.[focus]?.access : null;
-  if (item.kind === 'topic' && ref && pageOpen(access, ref.page)) {
+  if (item.kind === 'topic' && ref?.page && pageOpen(access, ref.page)) {
     const target = buildKnowledge(lang).find((k) => k.pageKey === ref.page);
     actions = [
       ...actionsFor(target, lang).filter((a) => a.type === 'tour').map((a) => ({ ...a, step: ref.index })),
       ...actions,
     ];
   }
-
-  // Ingen «Åpne siden» / «Vis meg» til sider brukeren ikke har tilgang til.
-  actions = actions.filter((a) => (a.type !== 'open' && a.type !== 'tour') || pageOpen(access, a.pageKey));
+  actions = tidyActions(actions, { here, access, workflow: intent.workflow || item.kind === 'process' });
 
   return {
     ...base,
     intent: item.kind === 'process' ? 'workflow' : intent.where ? 'where' : 'howto',
     text: `${preface}${text}`.trim(),
     steps,
-    sources: [sourceFor(item), ...others.slice(0, 1).map(sourceFor)].filter(Boolean),
+    sources: [sourceFor(item)].filter(Boolean),
     actions,
     followUps: followUpsFor(item, lang, others),
     confidence: Math.min(1, top.score / 8),
     matchId: item.id,
     ...(focusLocked ? { locked: true } : {}),
+  };
+}
+
+/**
+ * Knapper som hører til svaret: ingen «Åpne siden» når brukeren står der, ingen
+ * hel arbeidsflyt uten at det er spurt om, og ingenting til stengte sider.
+ */
+function tidyActions(actions, { here = null, access = null, workflow = false } = {}) {
+  return actions.filter((a) => {
+    if (a.type === 'process' && !workflow) return false;
+    if (a.type === 'open' && a.pageKey && a.pageKey === here) return false;
+    if ((a.type === 'open' || a.type === 'tour') && !pageOpen(access, a.pageKey)) return false;
+    return true;
+  });
+}
+
+/** Neste steg fortsetter der dette slapp (det åpnes via dette stegets knapp). */
+function chained(item, index) {
+  const def = PROTOP_PAGES[item.pageKey];
+  const cur = def?.steps?.[index];
+  const next = def?.steps?.[index + 1];
+  if (!cur || !next || !next.via) return false;
+  return (cur.find || []).some((f) => next.via.includes(f));
+}
+
+/** Siden «Vis meg» går til: den brukeren står på, ellers den første som er åpen. */
+function chooseShow(show = [], here, access) {
+  const open = show.filter((sh) => pageOpen(access, sh.page));
+  return open.find((sh) => sh.page === here) || open[0] || null;
+}
+
+/** Svar på en oppgave: direkte svar, eksakte klikk, «Vis meg» fra riktig steg. */
+function taskAnswer(item, {
+  base, lang, access, here, preface = '', pageKey, company, confidence,
+}) {
+  const target = chooseShow(item.show, here, access);
+  const targetPage = target ? PROTOP_PAGES[target.page] : null;
+  const followUps = item.related
+    .map((id) => buildKnowledge(lang).find((k) => k.id === id))
+    .filter((t) => t && (!t.show.length || chooseShow(t.show, here, access)))
+    .map((t) => t.q)
+    .slice(0, 3);
+
+  // Ingen av sidene er åpne for brukeren: si hva som kreves og hvem som kan hjelpe.
+  if (!target && item.show.length) {
+    const gate = access?.check?.(item.show[0].page, item.show[0].step) || null;
+    return {
+      ...base,
+      intent: 'locked',
+      text: `${preface}**${item.title}**\n\n${item.summary}${gate?.text ? `\n\n🔒 ${gate.text}` : ''}`.trim(),
+      steps: [],
+      sources: [taskSource(item, null, lang)],
+      actions: [],
+      followUps: starterSuggestions({ lang, pageKey, company, access }).slice(0, 3),
+      confidence: Math.max(confidence, 0.6),
+      matchId: item.id,
+      locked: true,
+    };
+  }
+
+  // Står brukeren allerede på siden, hoppes «gå til siden»-steget over.
+  const onPage = !!target && target.page === here;
+  const full = stepsWithAccess(onPage ? { ...item, steps: item.steps.filter((st) => !st.go) } : item, access);
+  const { steps, who } = condenseLocks(full);
+  // Selve steget oppgaven handler om er låst: si det først.
+  const mainGate = target ? access?.check?.(target.page, target.step) : null;
+  const mainLocked = !!mainGate && !mainGate.ok;
+  let text = `**${item.title}**\n\n${item.summary}`;
+  if (mainLocked) text = `🔒 ${mainGate.text}\n\n${text}`;
+  else if (steps.some((st) => st.locked)) text = `${text}\n\n${tr('lockedSome', lang)}${who.length ? ` ${who.join(' ')}` : ''}`;
+
+  const actions = target && !mainLocked ? tidyActions([
+    { type: 'tour', pageKey: target.page, nav: targetPage?.nav, step: target.step, label: tr('showMe', lang) },
+    {
+      type: 'open',
+      pageKey: target.page,
+      nav: targetPage?.nav,
+      label: tr('openNamed', lang, { label: pick(targetPage?.label, lang) }),
+    },
+  ], { here, access }) : [];
+
+  return {
+    ...base,
+    intent: 'howto',
+    text: `${preface}${text}`.trim(),
+    steps,
+    after: item.after || '',
+    sources: [taskSource(item, target, lang)],
+    actions,
+    followUps,
+    confidence: Math.max(confidence, 0.6),
+    matchId: item.id,
+    ...(mainLocked ? { locked: true } : {}),
+  };
+}
+
+function taskSource(item, target, lang) {
+  const page = target ? PROTOP_PAGES[target.page] : null;
+  return {
+    id: item.id,
+    kind: 'task',
+    label: item.title,
+    path: page ? pick(page.path, lang) : '',
+    pageKey: target ? target.page : null,
+    processId: null,
   };
 }
 
@@ -757,8 +1006,8 @@ export function knowledgeForServer(question, { lang = 'nb', pageKey = null, limi
     return {
       id: it.id,
       moduleId: it.pageKey || it.processId || it.id,
-      title: it.label ? `${it.label} — ${it.title}` : it.title,
-      summary: where,
+      title: it.kind === 'task' ? `Oppgave: ${it.title}` : (it.label ? `${it.label} — ${it.title}` : it.title),
+      summary: it.after ? `${where} Tips: ${it.after}` : where,
       steps: stepsWithAccess(it, access).slice(0, 6).map((s) => {
         const line = s.title ? `${s.title}: ${s.text}` : s.text;
         return s.locked ? `${line} [LÅST FOR BRUKEREN: ${s.locked}]` : line;
@@ -799,7 +1048,7 @@ export function transcriptText(messages = [], { lang = 'nb' } = {}) {
     .map((m) => {
       const who = m.role === 'user' ? you : bot;
       const steps = (m.steps || []).map((s, i) => `  ${i + 1}. ${s.title ? `${s.title}: ` : ''}${s.text}`).join('\n');
-      return `${who}: ${m.text || ''}${steps ? `\n${steps}` : ''}`;
+      return `${who}: ${m.text || ''}${steps ? `\n${steps}` : ''}${m.after ? `\n${m.after}` : ''}`;
     })
     .join('\n\n');
 }

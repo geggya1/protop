@@ -41,6 +41,7 @@ export async function saveConversation(uid, messages) {
       role: m.role,
       text: m.text || '',
       steps: m.steps || [],
+      after: m.after || '',
       sources: m.sources || [],
       actions: m.actions || [],
       followUps: m.followUps || [],
@@ -122,8 +123,9 @@ export async function askAssistant({
       ...local,
       intent: local.intent === 'unknown' ? 'ai' : local.intent,
       text: reply,
-      // AI-teksten har egne steg; lokale steg vises ikke dobbelt.
+      // AI-teksten har egne steg; lokale steg og tips vises ikke dobbelt.
       steps: [],
+      after: '',
       sources: strongLocal ? local.sources : [],
       actions: strongLocal ? local.actions : (data?.suggestSupport ? [{ type: 'support', label: lang === 'en' ? 'Contact support' : 'Kontakt support' }] : []),
       engine: data?.engine || 'ai',

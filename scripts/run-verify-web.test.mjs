@@ -10,5 +10,6 @@ assert.equal(new Set(FILES).size, FILES.length);
 assert.ok(FILES.includes('src/help/assistantEngine.test.mjs'), 'hjelpen og assistenten testes i CI');
 assert.ok(FILES.includes('src/help/protopPages.test.mjs'), 'alle sider har hjelp');
 assert.ok(FILES.includes('src/help/helpAccess.test.mjs'), 'hjelpen følger tilgangsnivået');
+assert.ok(FILES.includes('src/help/assistantTasks.test.mjs'), 'assistentens oppgaver peker på ekte steg');
 
 console.log('run-verify-web.test.mjs: ok');

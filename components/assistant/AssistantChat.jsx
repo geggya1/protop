@@ -138,6 +138,12 @@ function BotMessage({
           <ChatMarkdownText text={msg.text} style={[styles.botTxt, { color: c.ink }]} />
         ) : null}
         <StepList steps={msg.steps} c={c} />
+        {msg.after ? (
+          <View style={[styles.afterRow, { borderColor: c.line }]} testID="assistant-after">
+            <Ionicons name="bulb-outline" size={14} color={BRAND} style={{ marginTop: 2 }} />
+            <ChatMarkdownText text={msg.after} style={[styles.afterTxt, { color: c.muted }]} />
+          </View>
+        ) : null}
         {(msg.sources || []).length ? (
           <View style={styles.sources}>
             {msg.sources.slice(0, 2).map((src) => (
@@ -751,6 +757,14 @@ const styles = StyleSheet.create({
   stepTitle: { fontSize: 13.5, fontWeight: '600', lineHeight: 19 },
   stepTxt: { fontSize: 13.5, lineHeight: 19, opacity: 0.92 },
   stepTxtLocked: { opacity: 0.6 },
+  afterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 9,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  afterTxt: { flex: 1, fontSize: 13, lineHeight: 18 },
   stepLock: {
     marginTop: 4,
     paddingHorizontal: 8,

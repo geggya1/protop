@@ -1785,7 +1785,7 @@ export const PROTOP_PAGES = {
         { find: ['Tell kilometer', 'Tell kilometer er på', 'Lagre kilometerstand'], via: ['Registrer'],
           pending: tx('Vises i registreringen når utstyret er et kjøretøy med skiltnummer.', 'Shows in the registration when the equipment is a vehicle with a plate number.') }),
     ],
-    keywords: ['utstyr', 'maskin', 'verktøy', 'kjøretøy', 'bil', 'reservere', 'booking', 'møterom', 'garanti'],
+    keywords: ['utstyr', 'maskin', 'verktøy', 'kjøretøy', 'bil', 'reservere', 'booking', 'møterom', 'garanti', 'kilometerstand', 'firmabil'],
   }),
 
   /* ───────────────────── Skjemabygger ───────────────────── */

@@ -16,6 +16,8 @@ export function shouldAskServer(local, question) {
   // Spør om noe brukeren ikke har tilgang til: det lokale svaret sier hvem som kan hjelpe.
   if (local.locked) return false;
   const words = String(question || '').trim().split(/\s+/).length;
+  // Kjent oppgave («føre fravær», «søke ferie»): det eksakte svaret slår et generelt AI-svar.
+  if (String(local.matchId || '').startsWith('task.') && local.confidence >= LOCAL_CONFIDENT && words <= 30) return false;
   if (local.confidence >= LOCAL_CONFIDENT && words <= 14) return false;
   return true;
 }

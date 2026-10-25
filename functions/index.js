@@ -60,6 +60,7 @@ export {
 export {
   resolveJoinCode,
   submitJoinRequestByCode,
+  approveJoinRequest,
   listMyFamilies,
 } from './joinCallables.js';
 

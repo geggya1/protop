@@ -13,7 +13,10 @@ import {
 import { db } from '../../firebase';
 import { createGroup, deactivateGroup, isGroupAdmin, isTeamAdmin } from './groups';
 import { generateJoinCode, normalizeJoinCode } from './teams';
-import { submitJoinRequestByCode as submitJoinRequestCallable } from './joinRequests';
+import {
+  approveJoinRequest as approveJoinRequestCallable,
+  submitJoinRequestByCode as submitJoinRequestCallable,
+} from './joinRequests';
 import { CLASSROOM_TYPES, isClassroomType } from './groupTypes';
 import { dateKey, parseDateKey, addDays, startOfWeekMonday, getISOWeek } from './dates';
 
@@ -304,78 +307,10 @@ export async function rejectClassroomJoinRequest(classroomId, requestId, adminUi
   });
 }
 
-export async function approveClassroomJoinRequest(classroomId, requestId, adminUid) {
-  const roomRef = doc(db, 'families', classroomId);
-  const roomSnap = await getDoc(roomRef);
-  if (!roomSnap.exists()) throw new Error('Fant ikke klassen.');
-  const room = { id: roomSnap.id, ...roomSnap.data() };
-  await assertClassroomAdmin(classroomId, room, adminUid);
-
-  const reqRef = doc(db, 'families', classroomId, 'joinRequests', requestId);
-  const reqSnap = await getDoc(reqRef);
-  if (!reqSnap.exists()) throw new Error('Forespørselen finnes ikke.');
-  const req = reqSnap.data();
-  if (req.status !== 'pending') throw new Error('Forespørselen er allerede behandlet.');
-
-  const parentUid = req.parentUid;
-  const childId = doc(collection(db, 'families', classroomId, 'children')).id;
-  const now = serverTimestamp();
-  const batch = writeBatch(db);
-
-  batch.set(doc(db, 'families', classroomId, 'parents', parentUid), {
-    uid: parentUid,
-    name: req.parentName || '',
-    email: req.parentEmail || '',
-    admin: false,
-    superAdmin: false,
-    active: true,
-    role: 'guardian',
-    staffRole: null,
-    linkedChildIds: arrayUnion(childId),
-    createdAt: now,
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.set(doc(db, 'families', classroomId, 'children', childId), {
-    id: childId,
-    name: req.childName,
-    firstName: req.childFirstName,
-    lastName: req.childLastName,
-    active: true,
-    role: 'student',
-    guardianUids: [parentUid],
-    source: 'join_request',
-    joinRequestId: requestId,
-    createdAt: now,
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.set(roomRef, {
-    members: arrayUnion(parentUid),
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.set(doc(db, 'users', parentUid), {
-    familyIds: arrayUnion(classroomId),
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.set(doc(db, 'parents', parentUid), {
-    familyIds: arrayUnion(classroomId),
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.update(reqRef, {
-    status: 'approved',
-    approvedBy: adminUid,
-    approvedAt: now,
-    childId,
-    updatedAt: now,
-  });
-
-  await batch.commit();
-  await ensureStudentMap(classroomId, childId, req.childName);
-  return { childId, parentUid };
+export async function approveClassroomJoinRequest(classroomId, requestId) {
+  const res = await approveJoinRequestCallable(classroomId, requestId);
+  if (res.childId) await ensureStudentMap(classroomId, res.childId, res.childName || '');
+  return { childId: res.childId, parentUid: res.parentUid };
 }
 
 export async function listUserClassrooms(uid, { includeDeactivated = false } = {}) {

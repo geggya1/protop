@@ -60,7 +60,7 @@ assert.match(script, /timeout --signal=TERM --kill-after=20s 480/);
 const openFor = script.slice(script.indexOf('open_for() {'), script.indexOf('open_queued() {'));
 assert.doesNotMatch(openFor, /open_invokers/);
 assert.ok(script.indexOf('\ndeploy_queued\nopen_queued\n') > 0, 'open_queued må kjøre rett etter deploy_queued');
-for (const name of ['respondGroupInvite', 'syncMyInvites', 'invitePreview', 'findCompanyByOrgnr', 'requestCompanyJoin']) {
+for (const name of ['respondGroupInvite', 'syncMyInvites', 'invitePreview', 'findCompanyByOrgnr', 'requestCompanyJoin', 'approveJoinRequest']) {
   assert.match(script, new RegExp(`functions:${name}`));
 }
 

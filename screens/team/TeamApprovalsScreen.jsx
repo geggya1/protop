@@ -26,7 +26,7 @@ export default function TeamApprovalsScreen({ teamId }) {
   const approve = async (req) => {
     setBusyId(req.id);
     try {
-      await approveTeamJoinRequest(teamId, req.id, uid);
+      await approveTeamJoinRequest(teamId, req.id);
       Alert.alert('Godkjent', `${req.childName} er lagt til på laget.`);
     } catch (e) {
       Alert.alert('Feil', e?.message || 'Klarte ikke godkjenne.');

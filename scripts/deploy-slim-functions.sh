@@ -199,7 +199,7 @@ open_for vegvesenIndex.js functions:lookupVehicleByReg
 queue_entry companyAccessIndex.js functions:syncCompanyAccess
 open_for companyAccessIndex.js functions:syncCompanyAccess
 
-MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:listMyFamilies,functions:deleteMyAccount"
+MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:approveJoinRequest,functions:listMyFamilies,functions:deleteMyAccount"
 queue_entry membershipIndex.js "$MEMBERSHIP"
 open_for membershipIndex.js "$MEMBERSHIP"
 

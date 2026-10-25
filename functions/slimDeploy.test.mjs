@@ -3,7 +3,7 @@
  * Ellers svarer Cloud Functions 404 selv om web-bygget er live.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -60,8 +60,24 @@ assert.match(script, /timeout --signal=TERM --kill-after=20s 480/);
 const openFor = script.slice(script.indexOf('open_for() {'), script.indexOf('open_queued() {'));
 assert.doesNotMatch(openFor, /open_invokers/);
 assert.ok(script.indexOf('\ndeploy_queued\nopen_queued\n') > 0, 'open_queued må kjøre rett etter deploy_queued');
-for (const name of ['respondGroupInvite', 'syncMyInvites', 'invitePreview', 'findCompanyByOrgnr', 'requestCompanyJoin', 'approveJoinRequest']) {
+for (const name of ['respondGroupInvite', 'syncMyInvites', 'invitePreview', 'findCompanyByOrgnr', 'requestCompanyJoin', 'approveJoinRequest', 'sendIndeksLetter']) {
   assert.match(script, new RegExp(`functions:${name}`));
 }
+
+// Alle callables appen kaller må deployes, ellers svarer de 404 på protop.no.
+// deleteFamilyCascade finnes ikke på serveren; appen sletter da selv (FamilyDashboardScreen).
+const NOT_DEPLOYED = new Set(['deleteFamilyCascade']);
+const called = new Set();
+for (const dir of ['src', 'screens', 'components']) {
+  for (const rel of readdirSync(join(root, dir), { recursive: true })) {
+    if (!/\.(js|jsx)$/.test(rel) || /\.test\./.test(rel)) continue;
+    const code = readFileSync(join(root, dir, rel), 'utf8');
+    for (const m of code.matchAll(/httpsCallable\(\s*\w+\s*,\s*['"]([A-Za-z0-9_]+)['"]/g)) called.add(m[1]);
+    for (const m of code.matchAll(/callFriendFn\(\s*['"]([A-Za-z0-9_]+)['"]/g)) called.add(m[1]);
+  }
+}
+assert.ok(called.size > 50, `fant bare ${called.size} callables`);
+const missing = [...called].filter((name) => !NOT_DEPLOYED.has(name) && !new RegExp(`functions:${name}\\b`).test(script));
+assert.deepEqual(missing, [], `callables som appen kaller, men som ikke deployes: ${missing.join(', ')}`);
 
 console.log('functions/slimDeploy.test.mjs: ok');

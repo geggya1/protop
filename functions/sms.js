@@ -127,13 +127,16 @@ export function buildInviteSms({ name, familyName, groupType, joinCode, register
   const who = name ? `Hei ${name}!` : 'Hei!';
   const codeBit = joinCode ? ` ${classroom ? 'Klassekode' : 'Lagkode'}: ${joinCode}.` : '';
   const url = registerUrl || 'https://www.protop.no/register';
-  const role = team
+  const organization = ['organization', 'company'].includes(String(groupType || '').toLowerCase());
+  const role = organization
+    ? `Du er invitert inn i bedriften «${label}» på ProTop.`
+    : team
     ? `Du er invitert til idrettslaget «${label}» på Weekplan.`
     : (classroom
       ? `Du er invitert til klassen «${label}» på Weekplan.`
       : `Du er invitert til familien «${label}» på Weekplan.`);
   if (existingUser) {
-    return `${who} ${role}${codeBit} Du har allerede konto — godta invitasjonen: ${url}`;
+    return `${who} ${role}${codeBit} Du har allerede konto — godta eller avslå invitasjonen: ${url}`;
   }
-  return `${who} ${role}${codeBit} Registrer deg: ${url}`;
+  return `${who} ${role}${codeBit} Registrer deg og godta invitasjonen: ${url}`;
 }

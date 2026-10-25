@@ -4,6 +4,9 @@ import { normalizeEmployee } from './model.js';
 import {
   applyInviteSendResult,
   claimEmployeeSeatPlan,
+  declineEmployeeInvitePlan,
+  inviteStatusLabel,
+  invitesDeclined,
   draftInviteEmployee,
   employeeRegisterUrl,
   invitesAwaitingSend,
@@ -184,4 +187,37 @@ test('godtatt invitasjon knytter brukeren og beholder tilgangsnivået', () => {
     companyId: 'fam1',
   });
   assert.equal(again.already, true);
+});
+
+test('avslått invitasjon vises for administrator og kan sendes på nytt som ny invitasjon', () => {
+  const employee = normalizeEmployee(draftInviteEmployee({
+    firstName: 'Eve',
+    lastName: 'Lund',
+    email: 'eve@firma.no',
+    accessLevel: 'ansatt',
+    id: 'emp_eve',
+  }));
+  employee.invite.status = 'sent';
+  employee.invite.parentKey = 'eve_uid';
+  const other = normalizeEmployee(draftInviteEmployee({
+    firstName: 'Bo', lastName: 'Berg', email: 'bo@firma.no', accessLevel: 'ansatt', id: 'emp_bo',
+  }));
+  other.invite.status = 'sent';
+  const plan = declineEmployeeInvitePlan({
+    employees: [employee, other],
+    authEmail: 'EVE@firma.no',
+    now: '2026-10-25T12:00:00.000Z',
+  });
+  assert.deepEqual(plan.map((row) => row.employeeId), ['emp_eve']);
+  const declined = normalizeEmployee({ ...employee, ...plan[0].patch });
+  assert.equal(declined.invite.status, 'declined');
+  assert.equal(declined.invite.declinedAt, '2026-10-25T12:00:00.000Z');
+  assert.equal(inviteStatusLabel('declined'), 'Avslo invitasjonen');
+  assert.match(inviteStatusLabel('sent'), /venter på at personen godtar/);
+  assert.equal(invitesDeclined([declined, other]).length, 1);
+  const again = queueEmployeeInvite(declined, { at: '2026-10-26T08:00:00.000Z' });
+  assert.equal(again.ok, true);
+  assert.equal(again.employee.invite.status, 'queued');
+  assert.equal(again.employee.invite.parentKey, '', 'ny invitasjon, ikke den som er besvart');
+  assert.equal(again.employee.invite.declinedAt, '');
 });

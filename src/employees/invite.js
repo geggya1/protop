@@ -10,7 +10,7 @@ import {
   levelIdFromRoleLabel,
 } from '../access/companyAccess.js';
 
-const STATUSES = new Set(['none', 'queued', 'sent', 'accepted']);
+const STATUSES = new Set(['none', 'queued', 'sent', 'accepted', 'declined']);
 
 function text(value) {
   return String(value ?? '').trim();
@@ -25,6 +25,7 @@ export function emptyInvite() {
     sentAt: '',
     acceptedAt: '',
     acceptedUid: '',
+    declinedAt: '',
     parentKey: '',
     error: '',
   };
@@ -60,6 +61,7 @@ export function normalizeInviteState(raw) {
   invite.sentAt = text(source.sentAt);
   invite.acceptedAt = text(source.acceptedAt);
   invite.acceptedUid = text(source.acceptedUid);
+  invite.declinedAt = text(source.declinedAt);
   invite.parentKey = text(source.parentKey);
   invite.error = text(source.error).slice(0, 280);
   return invite;
@@ -74,8 +76,9 @@ export function placedAccessLevel(employee) {
 
 export function inviteStatusLabel(status) {
   if (status === 'queued') return 'Klar til invitasjon';
-  if (status === 'sent') return 'Invitasjon sendt';
-  if (status === 'accepted') return 'Inne i bedriften';
+  if (status === 'sent') return 'Invitasjon sendt – venter på at personen godtar';
+  if (status === 'accepted') return 'Godtok invitasjonen – inne i bedriften';
+  if (status === 'declined') return 'Avslo invitasjonen';
   return '';
 }
 
@@ -157,6 +160,8 @@ export function queueEmployeeInvite(employee, { at = '', accessLevel = '' } = {}
     return { ok: false, error: 'Personen er allerede knyttet til en bruker.' };
   }
   const nextStatus = current.status === 'sent' ? 'sent' : 'queued';
+  // Etter avslag lages en ny invitasjon. Den gamle er besvart og kan ikke godtas.
+  const fresh = current.status === 'declined';
   return {
     ok: true,
     employee: {
@@ -176,7 +181,9 @@ export function queueEmployeeInvite(employee, { at = '', accessLevel = '' } = {}
         status: nextStatus,
         email,
         accessLevel: level.id,
-        queuedAt: current.queuedAt || text(at) || new Date().toISOString(),
+        queuedAt: (!fresh && current.queuedAt) || text(at) || new Date().toISOString(),
+        parentKey: fresh ? '' : current.parentKey,
+        declinedAt: fresh ? '' : current.declinedAt,
         error: '',
       },
     },
@@ -203,6 +210,10 @@ export function invitesAwaitingSend(rows) {
 
 export function invitesAwaitingAccept(rows) {
   return (rows || []).filter((row) => normalizeInviteState(row?.invite).status === 'sent');
+}
+
+export function invitesDeclined(rows) {
+  return (rows || []).filter((row) => normalizeInviteState(row?.invite).status === 'declined');
 }
 
 /** Samme registreringslenke som den vanlige vokseninvitasjonen. */
@@ -330,4 +341,28 @@ export function claimEmployeeSeatPlan({
     accessLevel: levelId,
     employeePatch: acceptedPatch(employee, actor, email, stamp),
   };
+}
+
+/**
+ * Personen avslo bedriftsinvitasjonen. Sendte invitasjoner med samme e-post
+ * markeres som avslått, så administrator ser svaret og kan invitere på nytt.
+ */
+export function declineEmployeeInvitePlan({ employees, authEmail, now } = {}) {
+  const email = text(authEmail).toLowerCase();
+  const stamp = text(now) || new Date().toISOString();
+  if (!email) return [];
+  return (employees || [])
+    .filter((row) => employeeMatchEmails(row).includes(email))
+    .filter((row) => normalizeInviteState(row.invite).status === 'sent' && !text(row.personUid))
+    .map((row) => ({
+      employeeId: text(row.id),
+      patch: {
+        invite: {
+          ...normalizeInviteState(row.invite),
+          status: 'declined',
+          declinedAt: stamp,
+          error: '',
+        },
+      },
+    }));
 }

@@ -661,6 +661,7 @@ export default function App() {
             verifyEmail={verifyEmail}
             onEmailVerified={async () => {
               setJustRegisteredEmail(null);
+              try { await auth.authStateReady?.(); } catch { /* ignore */ }
               if (auth.currentUser) {
                 try {
                   await reload(auth.currentUser);

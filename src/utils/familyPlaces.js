@@ -158,6 +158,7 @@ export async function evaluateGeofences({
         placeId: ev.place.id,
         kind: ev.kind,
         module: 'location',
+        createdBy: uid,
       }).catch(() => {});
     }
   }

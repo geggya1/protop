@@ -7,6 +7,7 @@ import {
   employeeContactEmail,
   invitesAwaitingAccept,
   invitesAwaitingSend,
+  invitesDeclined,
   inviteStatusLabel,
 } from '../../src/employees/invite';
 import { displayName } from '../../src/employees/model';
@@ -28,6 +29,7 @@ export default function EmployeeInvitePanel({
   const [formError, setFormError] = useState('');
   const queued = invitesAwaitingSend(employees);
   const sent = invitesAwaitingAccept(employees);
+  const declined = invitesDeclined(employees);
 
   function addPerson() {
     const level = canEditAccess ? accessLevel : (accessLevel || 'ansatt');
@@ -59,7 +61,7 @@ export default function EmployeeInvitePanel({
   return (
     <View nativeID="employee-invite" style={styles.stack}>
       <Text style={{ color: colors.muted }}>
-        Legg til så mange du vil. E-post sendes ikke før du trykker Inviter. Personen registrerer seg med den vanlige kontosiden og kommer inn i denne bedriften med tilgangsnivået du setter her.
+        Legg til så mange du vil. E-post sendes ikke før du trykker Inviter. Personen får en invitasjon og må selv godta den før hen kommer inn i bedriften, med tilgangsnivået du setter her.
       </Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Text style={[styles.heading, { color: colors.ink }]}>Ny person</Text>
@@ -158,7 +160,8 @@ export default function EmployeeInvitePanel({
 
       {sent.length ? (
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
-          <Text style={[styles.heading, { color: colors.ink }]}>Sendt, ikke godtatt</Text>
+          <Text style={[styles.heading, { color: colors.ink }]}>Sendt, venter på svar</Text>
+          <Text style={{ color: colors.muted }}>Personen må godta invitasjonen før hen kommer inn i bedriften.</Text>
           {sent.map((row) => (
             <View key={row.id} style={[styles.person, { borderColor: colors.line }]}>
               <View style={styles.grow}>
@@ -168,6 +171,24 @@ export default function EmployeeInvitePanel({
               </View>
               <TouchableOpacity onPress={() => onResend?.(row)} disabled={busy} accessibilityRole="button">
                 <Text style={{ color: colors.brand }}>Send på nytt</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {declined.length ? (
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
+          <Text style={[styles.heading, { color: colors.ink }]}>Avslått</Text>
+          {declined.map((row) => (
+            <View key={row.id} style={[styles.person, { borderColor: colors.line }]}>
+              <View style={styles.grow}>
+                <Text style={{ color: colors.ink, fontWeight: '700' }}>{displayName(row)}</Text>
+                <Text style={{ color: colors.muted }}>{employeeContactEmail(row)}</Text>
+                <Text style={{ color: colors.muted }}>{inviteStatusLabel('declined')}</Text>
+              </View>
+              <TouchableOpacity onPress={() => onResend?.(row)} disabled={busy} accessibilityRole="button">
+                <Text style={{ color: colors.brand }}>Inviter på nytt</Text>
               </TouchableOpacity>
             </View>
           ))}

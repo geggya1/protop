@@ -8,7 +8,9 @@ import { addDoc } from 'firebase/firestore';
 import { db, auth, functions } from '../../firebase';
 import { claimUsername, usernameToEmail, normalizeUsername, usernameTaken } from './usernames';
 import { hasContactInfo, isValidEmail } from './account';
-import { sendParentInvite, sendParentInviteSms, familyInviteAcceptUrl } from './invite';
+import {
+  sendParentInvite, sendParentInviteSms, familyInviteAcceptUrl, respondGroupInviteCall, callableUnavailable,
+} from './invite';
 import { normalizePhone, hasValidPhone } from './phone';
 import { notifyUsers } from './notifications';
 import { listenAfterAccess, warnPermissionOnce } from './firestoreAccess';
@@ -420,11 +422,12 @@ export async function inviteAdult({
   let smsError = null;
 
   if (normalizedEmail) {
+    // Eldre oppslag på e-post. Reglene tillater bare eget profildokument, så dette er valgfritt.
     await setDoc(
       doc(db, 'parents', normalizedEmail),
       { ...payload, familyIds: arrayUnion(familyId), role: 'parent' },
       { merge: true },
-    );
+    ).catch(() => {});
     await updateDoc(doc(db, 'families', familyId), {
       invitedEmails: arrayUnion(normalizedEmail),
       updatedAt: now,
@@ -633,170 +636,6 @@ export async function resendAdultInvite({ familyId, parentId, familyName, groupT
     smsSent,
     smsError,
   };
-}
-
-/**
- * Når en invitert bruker registrerer seg: aktiver placeholder-medlemskap
- * og knytt uid til laget/familien.
- *
- * Placeholder-doc har ofte id ≠ Firebase uid (e-post-nøkkel). Vi migrerer til
- * parents/{uid} og arkiverer den gamle, ellers blir foresatt listet dobbelt.
- */
-export async function claimAdultInvitesOnRegister({
-  uid,
-  email,
-  name,
-  phone,
-  preferredFamilyId,
-}) {
-  if (!uid) return { claimed: [] };
-  const emailLower = String(email || '').toLowerCase().trim();
-  const phoneNorm = normalizePhone(phone) || '';
-  const familyIds = new Set();
-  if (preferredFamilyId) familyIds.add(preferredFamilyId);
-
-  if (emailLower) {
-    try {
-      const snap = await getDocs(
-        query(collection(db, 'families'), where('invitedEmails', 'array-contains', emailLower)),
-      );
-      snap.docs.forEach((d) => familyIds.add(d.id));
-    } catch {}
-  }
-
-  const claimed = [];
-  const now = serverTimestamp();
-
-  for (const familyId of familyIds) {
-    let matched = false;
-    let promoteAdmin = false;
-    const removeAdminPlaceholders = [];
-    try {
-      const famSnap = await getDoc(doc(db, 'families', familyId));
-      const existingAdminUids = Array.isArray(famSnap.data()?.adminUids)
-        ? famSnap.data().adminUids
-        : [];
-      const parentsSnap = await getDocs(collection(db, 'families', familyId, 'parents'));
-      for (const pDoc of parentsSnap.docs) {
-        const p = pDoc.data() || {};
-        if (p.deleted === true) continue;
-        const emailMatch = emailLower && String(p.email || '').toLowerCase() === emailLower;
-        const phoneMatch = phoneNorm && normalizePhone(p.phone) === phoneNorm;
-        if (!emailMatch && !phoneMatch) continue;
-        matched = true;
-        const wasAdmin = existingAdminUids.includes(pDoc.id)
-          || !!p.admin
-          || !!p.superAdmin
-          || ['principal', 'teacher', 'admin'].includes(p.staffRole);
-        if (wasAdmin) promoteAdmin = true;
-        if (pDoc.id !== uid && existingAdminUids.includes(pDoc.id)) {
-          removeAdminPlaceholders.push(pDoc.id);
-        }
-        const patch = {
-          uid,
-          active: true,
-          placeholder: false,
-          inviteStatus: 'accepted',
-          acceptedAt: now,
-          updatedAt: now,
-          deleted: false,
-          archived: false,
-        };
-        if (name) patch.name = name;
-        if (emailLower) patch.email = emailLower;
-        if (phoneNorm) patch.phone = phoneNorm;
-
-        if (pDoc.id === uid) {
-          await updateDoc(pDoc.ref, patch).catch(() => {});
-        } else {
-          // Canonical membership keyed by Firebase uid
-          await setDoc(
-            doc(db, 'families', familyId, 'parents', uid),
-            { ...p, ...patch, id: uid },
-            { merge: true },
-          ).catch(() => {});
-          // Skjul invite-placeholder så den ikke vises som dobbel foresatt
-          await updateDoc(pDoc.ref, {
-            deleted: true,
-            archived: true,
-            active: false,
-            placeholder: true,
-            inviteStatus: 'accepted',
-            migratedToUid: uid,
-            updatedAt: now,
-          }).catch(() => {});
-        }
-      }
-
-      if (!matched && (emailLower || phoneNorm)) {
-        await setDoc(
-          doc(db, 'families', familyId, 'parents', uid),
-          {
-            uid,
-            name: name || '',
-            email: emailLower,
-            phone: phoneNorm,
-            familyId,
-            active: true,
-            placeholder: false,
-            inviteStatus: 'accepted',
-            acceptedAt: now,
-            createdAt: now,
-            admin: false,
-            superAdmin: false,
-            deleted: false,
-            archived: false,
-          },
-          { merge: true },
-        ).catch(() => {});
-      }
-
-      const famPatch = {
-        members: arrayUnion(uid),
-        updatedAt: now,
-      };
-      if (emailLower) famPatch.invitedEmails = arrayRemove(emailLower);
-      if (promoteAdmin) famPatch.adminUids = arrayUnion(uid);
-      await updateDoc(doc(db, 'families', familyId), famPatch).catch(() => {});
-      if (removeAdminPlaceholders.length) {
-        await updateDoc(doc(db, 'families', familyId), {
-          adminUids: arrayRemove(...removeAdminPlaceholders),
-          updatedAt: now,
-        }).catch(() => {});
-      }
-
-      await setDoc(
-        doc(db, 'parents', uid),
-        {
-          uid,
-          name: name || '',
-          email: emailLower,
-          phone: phoneNorm,
-          familyIds: arrayUnion(familyId),
-          role: 'parent',
-          active: true,
-          updatedAt: now,
-        },
-        { merge: true },
-      ).catch(() => {});
-
-      await setDoc(
-        doc(db, 'users', uid),
-        {
-          uid,
-          displayName: name || '',
-          email: emailLower,
-          familyIds: arrayUnion(familyId),
-          updatedAt: now,
-        },
-        { merge: true },
-      ).catch(() => {});
-
-      claimed.push(familyId);
-    } catch {}
-  }
-
-  return { claimed };
 }
 
 /** Høyere score = mer «ekte» medlemsdoc (uid-nøkkel, aktiv, bilde). */
@@ -1721,8 +1560,30 @@ async function activateExistingMember({
   }, { merge: true });
 }
 
+/**
+ * Svar på serveren: medlemskap, administrator og (for bedrifter) medarbeider og tilgangsnivå
+ * settes samlet. null betyr at serveren ikke kunne nås, og klienten svarer selv.
+ */
+async function respondOnServer({ familyId, inviteId, response }) {
+  try {
+    const res = await respondGroupInviteCall({ familyId, inviteId, response });
+    if (!res?.ok) throw new Error(res?.error || 'unknown');
+    return {
+      familyId: res.familyId || familyId,
+      familyName: res.familyName || '',
+      groupType: res.groupType || '',
+      accessLabel: res.accessLabel || '',
+    };
+  } catch (err) {
+    if (callableUnavailable(err)) return null;
+    throw err;
+  }
+}
+
 export async function acceptFamilyMemberInvite({ familyId, inviteId, uid }) {
   if (!familyId || !inviteId || !uid) throw new Error('missing-params');
+  const server = await respondOnServer({ familyId, inviteId, response: 'accepted' });
+  if (server) return server;
   const inviteRef = doc(db, 'families', familyId, 'memberInvites', inviteId);
   const inviteSnap = await getDoc(inviteRef);
   if (!inviteSnap.exists()) throw new Error('not-found');
@@ -1775,6 +1636,8 @@ export async function acceptFamilyMemberInvite({ familyId, inviteId, uid }) {
 
 export async function declineFamilyMemberInvite({ familyId, inviteId, uid }) {
   if (!familyId || !inviteId || !uid) throw new Error('missing-params');
+  const server = await respondOnServer({ familyId, inviteId, response: 'declined' });
+  if (server) return { familyId: server.familyId };
   const inviteRef = doc(db, 'families', familyId, 'memberInvites', inviteId);
   const inviteSnap = await getDoc(inviteRef);
   if (!inviteSnap.exists()) throw new Error('not-found');

@@ -38,6 +38,63 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid in d.get('memberIds', []);
     }
 
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function childPath(uid) {
+      return /databases/$(database)/documents/children/$(uid);
+    }
+
+    // Voksen i gruppen: har et aktivt foresatt-/ansattdokument der (ikke en ventende invitasjon).
+    function isFamilyAdult(familyId) {
+      let path = /databases/$(database)/documents/families/$(familyId)/parents/$(request.auth.uid);
+      return isSignedIn()
+        && exists(path)
+        && get(path).data.get('placeholder', false) != true
+        && get(path).data.get('deleted', false) != true;
+    }
+
+    // Foresatt kan stelle barnets profil og varsler. Barnets familie står på children/{uid}.
+    function isGuardianOf(uid) {
+      return isSignedIn()
+        && exists(childPath(uid))
+        && isFamilyAdult(get(childPath(uid)).data.get('familyId', 'none'));
+    }
+
+    function isFriendOf(uid) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(uid)/friends/$(request.auth.uid));
+    }
+
+    // Ny gruppe: bare eieren selv står som eier, administrator og medlem.
+    function createsOwnFamily() {
+      let d = request.resource.data;
+      return isSignedIn()
+        && d.get('ownerUid', '') == request.auth.uid
+        && d.get('adminUids', []).hasOnly([request.auth.uid])
+        && d.get('members', []).hasOnly([request.auth.uid])
+        && d.get('activeUsers', []).hasOnly([request.auth.uid])
+        && d.get('invitedEmails', []).size() == 0;
+    }
+
+    // Gruppen opprettes i samme batch (createGroup skriver eierens medlemsdokument samtidig).
+    function foundsFamily(familyId) {
+      return isSignedIn()
+        && !exists(familyPath(familyId))
+        && getAfter(familyPath(familyId)).data.get('ownerUid', '') == request.auth.uid;
+    }
+
+    // LIST på families: spørringen må filtrere på eget medlemskap.
+    function listsOwnFamily() {
+      return isSignedIn() && (
+        request.auth.uid in resource.data.get('members', [])
+        || request.auth.uid in resource.data.get('activeUsers', [])
+        || request.auth.uid in resource.data.get('adminUids', [])
+        || resource.data.get('ownerUid', '') == request.auth.uid
+      );
+    }
+
     /* ───────── Tilgangsmatrisen speilet på serveren ─────────
      * families/{id}/accessAcl/{uid} skrives av Cloud Function syncCompanyAccess
      * (Admin SDK) ut fra selskapets tilgangsmatrise, eller av eieren selv.
@@ -259,8 +316,8 @@ service cloud.firestore {
       // Selskapets eget dokument. Eierskap, administratorliste og tilgangsmatrisen
       // kan ikke endres av vanlige medlemmer.
       allow get: if isFamilyMember(familyId);
-      allow list: if isFamilyMemberLite(familyId);
-      allow create: if isFamilyMember(familyId);
+      allow list: if listsOwnFamily() || isFamilyMemberLite(familyId);
+      allow create: if createsOwnFamily();
       allow delete: if isFamilyOwner(familyId);
       allow update: if isFamilyMember(familyId)
         && (isFamilyOwner(familyId) || (unchanged('ownerUid') && unchanged('ownerId')))
@@ -293,6 +350,7 @@ service cloud.firestore {
         allow get: if isFamilyMember(familyId) && !isProtected(coll);
         allow list: if isFamilyMemberLite(familyId) && !isProtected(coll);
         allow create, update, delete: if isFamilyMember(familyId) && !isProtected(coll) && coll != 'employees';
+        allow create: if foundsFamily(familyId) && !isProtected(coll) && coll != 'employees';
       }
 
       // Ansatte: som før, men tilgangsfeltene er beskyttet (se empUpdateOk).
@@ -496,7 +554,182 @@ service cloud.firestore {
     }
 
     match /parents/{parentId} {
-      allow read, write: if isSignedIn() && request.auth.uid == parentId;
+      allow read, write: if isSelf(parentId);
+      // Spørringer på egen profil, og eldre medlemslister for en gruppe man er med i.
+      allow list: if isSignedIn() && (
+        resource.data.get('uid', '') == request.auth.uid
+        || isFamilyMemberLite(resource.data.get('familyId', 'none'))
+      );
+    }
+
+    /* ───────── Brukerprofil og personlig innboks ─────────
+     * Alt under users/{uid} er privat for eieren. Andre kan bare legge inn
+     * avgrensede ting: varsler fra seg selv, invitasjoner fra en gruppe de er med i,
+     * spillinvitasjoner de er vert for, venneforespørsler og delinger fra venner.
+     */
+    match /users/{uid} {
+      allow read, write: if isSelf(uid) || isGuardianOf(uid);
+
+      match /{sub}/{doc=**} {
+        allow read, write: if isSelf(uid);
+      }
+
+      match /notifications/{id} {
+        allow read, write: if isGuardianOf(uid);
+        // Bare opprettelse. Et eksisterende varsel kan ikke overskrives av andre.
+        // Uten avsender må begge være medlemmer i gruppen varselet gjelder.
+        allow create: if isSignedIn() && (
+          request.resource.data.get('createdBy', '') == request.auth.uid
+          || (request.resource.data.get('createdBy', null) == null
+              && isFamilyMemberLite(request.resource.data.get('familyId', 'none'))
+              && uid in get(familyPath(request.resource.data.get('familyId', 'none'))).data.get('members', []))
+        );
+      }
+
+      // Gruppeinvitasjon i mottakerens innboks. Må høre til en ekte invitasjon i gruppen.
+      match /familyInvites/{inviteId} {
+        allow create: if isSignedIn()
+          && request.resource.data.get('inviteeUid', '') == uid
+          && request.resource.data.get('invitedBy', '') == request.auth.uid
+          && isFamilyMember(request.resource.data.get('familyId', 'none'))
+          && existsAfter(/databases/$(database)/documents/families/$(request.resource.data.familyId)/memberInvites/$(inviteId))
+          && getAfter(/databases/$(database)/documents/families/$(request.resource.data.familyId)/memberInvites/$(inviteId)).data.get('inviteeUid', '') == uid;
+        // Sende på nytt eller aktivere: bare i samme gruppe og for samme person.
+        allow update: if isSignedIn()
+          && isFamilyMember(resource.data.get('familyId', 'none'))
+          && request.resource.data.get('familyId', '') == resource.data.get('familyId', '')
+          && request.resource.data.get('inviteeUid', '') == resource.data.get('inviteeUid', '');
+      }
+
+      match /gameInvites/{id} {
+        allow create: if isSignedIn()
+          && request.resource.data.get('hostUid', '') == request.auth.uid
+          && request.resource.data.get('inviteeUid', '') == uid;
+      }
+
+      match /friendRequests/{id} {
+        allow create: if isSignedIn()
+          && request.resource.data.get('fromUid', '') == request.auth.uid
+          && request.resource.data.get('toUid', '') == uid
+          && request.resource.data.get('status', '') == 'pending';
+      }
+
+      // Den andre parten kan fjerne seg selv fra vennelisten.
+      match /friends/{friendUid} {
+        allow delete: if isSelf(friendUid);
+      }
+
+      match /{shared}/{itemId} {
+        allow create, update: if shared in ['sharedAlbums', 'sharedWishlists', 'sharedDocuments', 'sharedShoppingLists', 'sharedEvents']
+          && isFriendOf(uid)
+          && request.resource.data.get('sharedBy', '') == request.auth.uid;
+        allow delete: if shared in ['sharedAlbums', 'sharedWishlists', 'sharedDocuments', 'sharedShoppingLists', 'sharedEvents']
+          && isSignedIn()
+          && resource.data.get('sharedBy', '') == request.auth.uid;
+      }
+    }
+
+    // Barnets speilprofil. Foresatte i barnets familie kan stelle den.
+    match /children/{childId} {
+      allow get: if isSelf(childId) || isFamilyAdult(resource.data.get('familyId', 'none'));
+      allow list: if isSignedIn() && (
+        resource.data.get('uid', '') == request.auth.uid
+        || isFamilyMemberLite(resource.data.get('familyId', 'none'))
+      );
+      allow create: if isFamilyAdult(request.resource.data.get('familyId', 'none'));
+      allow update: if isFamilyAdult(resource.data.get('familyId', 'none'))
+        || (isSelf(childId) && request.resource.data.get('familyId', '') == resource.data.get('familyId', ''));
+    }
+
+    /* ───────── Samlingsgruppe-spørringer ───────── */
+    match /{path=**}/parents/{parentDoc} {
+      allow list: if isSignedIn() && resource.data.get('uid', '') == request.auth.uid;
+    }
+
+    match /{path=**}/children/{childDoc} {
+      allow list: if isSignedIn() && resource.data.get('uid', '') == request.auth.uid;
+    }
+
+    match /{path=**}/events/{eventId} {
+      allow get, list: if isSignedIn() && request.auth.uid in resource.data.get('memberIds', []);
+    }
+
+    match /{path=**}/shoppingLists/{listId} {
+      allow get, list: if canReadShoppingListData(resource.data);
+    }
+
+    match /{path=**}/wishlists/{listId} {
+      allow get, list: if isSignedIn() && request.auth.uid in resource.data.get('viewerUids', []);
+    }
+
+    /* ───────── Oppslag ───────── */
+    // Brukernavn slås opp før innlogging. Bare eieren (eller et nytt barn) kan ta et ledig navn.
+    match /usernames/{name} {
+      allow get: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.get('type', '') in ['adult', 'child']
+        && (request.resource.data.get('uid', '') == request.auth.uid || request.resource.data.get('type', '') == 'child');
+      allow update: if isSignedIn()
+        && resource.data.get('uid', '') == request.auth.uid
+        && request.resource.data.get('uid', '') == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.get('uid', '') == request.auth.uid;
+    }
+
+    // Kode → gruppe. Bare kode, gruppe-id og type (ingen navn eller personopplysninger).
+    match /joinCodes/{code} {
+      allow get: if isSignedIn();
+      allow create, update: if isFamilyMember(request.resource.data.get('familyId', 'none'))
+        && request.resource.data.keys().hasOnly(['code', 'familyId', 'type', 'updatedAt', 'createdAt']);
+      allow delete: if isFamilyMember(resource.data.get('familyId', 'none'));
+    }
+
+    /* ───────── Klassekart (skjermet per elev) ───────── */
+    match /classroomMaps/{mapId} {
+      allow get, list: if isSignedIn() && request.auth.uid in resource.data.get('viewerUids', []);
+      allow create: if isFamilyMember(request.resource.data.get('classroomId', 'none'));
+      allow update: if isFamilyMember(resource.data.get('classroomId', 'none'))
+        && request.resource.data.get('classroomId', '') == resource.data.get('classroomId', '');
+
+      match /{sub}/{doc=**} {
+        allow read, create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/classroomMaps/$(mapId)).data.get('viewerUids', []);
+        // Revisjonsspor og oppføringer endres ikke i ettertid.
+        allow update, delete: if false;
+      }
+    }
+
+    /* ───────── Venner ───────── */
+    match /friendChats/{chatId} {
+      allow get, list: if isSignedIn() && request.auth.uid in resource.data.get('memberIds', []);
+      allow create: if isSignedIn()
+        && request.auth.uid in request.resource.data.get('memberIds', [])
+        && request.resource.data.get('memberIds', []).size() == 2;
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.get('memberIds', [])
+        && request.auth.uid in request.resource.data.get('memberIds', [])
+        && request.resource.data.get('memberIds', []).size() == 2;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/friendChats/$(chatId)).data.get('memberIds', []);
+        allow create: if isSignedIn()
+          && request.resource.data.get('senderId', '') == request.auth.uid
+          && request.auth.uid in get(/databases/$(database)/documents/friendChats/$(chatId)).data.get('memberIds', []);
+      }
+    }
+
+    // Vennskap og ventende venneinvitasjoner skrives av Cloud Functions.
+    match /friendships/{pairId} {
+      allow get, list: if isSignedIn() && request.auth.uid in resource.data.get('memberIds', []);
+    }
+
+    /* ───────── Felles kataloger (skrives av ProTop) ───────── */
+    match /recipeCatalog/{id} {
+      allow read: if isSignedIn();
+    }
+
+    match /templates/{id} {
+      allow read: if isSignedIn();
     }
 
     match /system/indeksSsb {

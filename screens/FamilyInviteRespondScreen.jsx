@@ -8,12 +8,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { useApp } from '../src/context/AppContext';
 import { colors, radius } from '../src/theme';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 import {
   acceptFamilyMemberInvite,
   declineFamilyMemberInvite,
   getFamilyMemberInvite,
 } from '../src/utils/groups';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
+import { groupInviteCopy } from '../src/utils/inviteIdentifiers';
+import { inviteResponseMessage, isCompanyGroupType } from '../src/utils/groupInviteLogic';
+
+/** Egen innboks først: en invitert er ikke medlem ennå og kan ikke lese gruppens data. */
+async function loadInvite(uid, familyId, inviteId) {
+  if (uid) {
+    try {
+      const snap = await getDoc(doc(db, 'users', uid, 'familyInvites', inviteId));
+      if (snap.exists()) {
+        const data = snap.data() || {};
+        if (!data.familyId || data.familyId === familyId) return { id: snap.id, ...data, familyId };
+      }
+    } catch { /* faller tilbake til gruppen */ }
+  }
+  return getFamilyMemberInvite(familyId, inviteId);
+}
 
 export default function FamilyInviteRespondScreen() {
   const { t } = useI18n();
@@ -39,7 +57,7 @@ export default function FamilyInviteRespondScreen() {
         return;
       }
       try {
-        const data = await getFamilyMemberInvite(familyId, inviteId);
+        const data = await loadInvite(uid, familyId, inviteId);
         if (alive) setInvite(data);
       } catch {
         if (alive) setInvite(null);
@@ -48,7 +66,26 @@ export default function FamilyInviteRespondScreen() {
       }
     })();
     return () => { alive = false; };
-  }, [familyId, inviteId]);
+  }, [uid, familyId, inviteId]);
+
+  // Svaret kan komme fra invitasjonsvinduet over denne siden. Vis utfallet her også.
+  useEffect(() => {
+    if (!uid || !familyId || !inviteId) return undefined;
+    return onSnapshot(doc(db, 'users', uid, 'familyInvites', inviteId), (snap) => {
+      const status = snap.exists() ? snap.data()?.status : '';
+      if (status === 'accepted' || status === 'declined') setDone((prev) => prev || status);
+    }, () => {});
+  }, [uid, familyId, inviteId]);
+
+  const company = isCompanyGroupType(invite?.groupType);
+  const copy = groupInviteCopy(invite?.groupType, invite?.familyName);
+
+  const answerError = (e) => {
+    const code = e?.message || '';
+    if (code === 'already-handled') return t('member.inviteAlreadyHandled');
+    if (code === 'forbidden') return t('member.inviteForbidden');
+    return inviteResponseMessage(code) || (code && !/^[a-z-]+$/.test(code) ? code : t('common.error'));
+  };
 
   const leave = () => {
     if (nav.canGoBack()) nav.goBack();
@@ -66,10 +103,7 @@ export default function FamilyInviteRespondScreen() {
         await selectFamily?.(res.familyId, { name: res.familyName, type: invite?.groupType || 'family' });
       }
     } catch (e) {
-      const msg = e?.message === 'already-handled'
-        ? t('member.inviteAlreadyHandled')
-        : (e?.message === 'forbidden' ? t('member.inviteForbidden') : t('common.error'));
-      Alert.alert(t('common.error'), msg);
+      Alert.alert(t('common.error'), answerError(e));
     } finally {
       setBusy(false);
     }
@@ -82,10 +116,7 @@ export default function FamilyInviteRespondScreen() {
       await declineFamilyMemberInvite({ familyId, inviteId, uid });
       setDone('declined');
     } catch (e) {
-      const msg = e?.message === 'already-handled'
-        ? t('member.inviteAlreadyHandled')
-        : (e?.message === 'forbidden' ? t('member.inviteForbidden') : t('common.error'));
-      Alert.alert(t('common.error'), msg);
+      Alert.alert(t('common.error'), answerError(e));
     } finally {
       setBusy(false);
     }
@@ -111,7 +142,9 @@ export default function FamilyInviteRespondScreen() {
             color={done === 'accepted' ? colors.brand : colors.muted}
           />
           <Text style={styles.title}>
-            {done === 'accepted' ? t('member.inviteAccepted') : t('member.inviteDeclined')}
+            {done === 'accepted'
+              ? t(company ? 'member.companyInviteAccepted' : 'member.inviteAccepted')
+              : t(company ? 'member.companyInviteDeclined' : 'member.inviteDeclined')}
           </Text>
           <TouchableOpacity style={styles.primary} onPress={leave}>
             <Text style={styles.primaryTxt}>{t('common.done')}</Text>
@@ -135,7 +168,7 @@ export default function FamilyInviteRespondScreen() {
     );
   }
 
-  const familyLabel = invite.familyName || t('group.family');
+  const familyLabel = invite.familyName || copy.bodyName;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -143,15 +176,15 @@ export default function FamilyInviteRespondScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={leave} accessibilityLabel={t('common.back')}>
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
         </TouchableOpacity>
-        <Text style={styles.headTitle}>{t('member.familyInviteTitle')}</Text>
+        <Text style={styles.headTitle}>{company ? t('member.companyInviteTitle') : (copy.noun === 'familien' ? t('member.familyInviteTitle') : copy.title)}</Text>
       </View>
 
       <View style={styles.body}>
         <View style={styles.card}>
-          <Ionicons name="people" size={36} color={colors.brand} />
-          <Text style={styles.lead}>{t('member.familyInviteLead')}</Text>
+          <Ionicons name={company ? 'business' : 'people'} size={36} color={colors.brand} />
+          <Text style={styles.lead}>{company ? t('member.companyInviteLead') : t('member.familyInviteLead')}</Text>
           <Text style={styles.familyName}>{familyLabel}</Text>
-          <Text style={styles.hint}>{t('member.familyInviteHint')}</Text>
+          <Text style={styles.hint}>{company ? t('member.companyInviteHint') : t('member.familyInviteHint')}</Text>
         </View>
 
         <TouchableOpacity

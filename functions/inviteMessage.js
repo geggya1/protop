@@ -43,22 +43,27 @@ export function buildInviteMessage({
         ? `Du er invitert inn i bedriften <strong>${escapeHtml(label)}</strong> på ProTop.`
         : `Du er invitert som foresatt i familien <strong>${escapeHtml(label)}</strong> på Weekplan.`));
   const accountLine = organization
-    ? 'Du har allerede en ProTop-konto. Godta invitasjonen her'
-    : 'Du har allerede en Weekplan-konto. Godta invitasjonen her';
+    ? 'Du har allerede en ProTop-konto. Du blir ikke med i bedriften før du godtar invitasjonen.'
+    : 'Du har allerede en Weekplan-konto.';
   const accountHtml = organization
-    ? 'Du har allerede en ProTop-konto. Åpne lenken under for å godta eller avslå invitasjonen.'
+    ? 'Du har allerede en ProTop-konto. Du blir ikke med i bedriften før du godtar. Åpne lenken under for å godta eller avslå invitasjonen.'
     : 'Du har allerede en Weekplan-konto. Åpne lenken under for å godta eller avslå invitasjonen.';
+  // Ny bruker: konto først, så Godta/Avslå når e-posten er bekreftet.
+  const registerLine = organization
+    ? 'Opprett en konto med denne e-postadressen og bekreft e-posten. Deretter godtar eller avslår du invitasjonen. Du blir ikke med i bedriften før du har godtatt'
+    : 'Opprett en konto med denne e-postadressen og bekreft e-posten. Deretter godtar eller avslår du invitasjonen';
   const signoff = organization ? 'Hilsen ProTop' : 'Hilsen Weekplan-teamet';
 
   if (existingUser) {
     return {
       to,
       name,
-      subject: `Du er invitert til ${label} på ${product}`,
+      subject: organization ? `Invitasjon til bedriften ${label} på ProTop` : `Du er invitert til ${label} på ${product}`,
       text:
         `${hello},\n\n` +
         `${roleText}\n\n` +
-        `${accountLine}: ${registerUrl}\n\n` +
+        `${accountLine}\n\n` +
+        `Godta eller avslå invitasjonen her: ${registerUrl}\n\n` +
         signoff,
       html: `
     <p>${escapeHtml(hello)},</p>
@@ -68,7 +73,7 @@ export function buildInviteMessage({
       <a href="${registerUrl}"
          style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
                 text-decoration:none;display:inline-block">
-        Godta invitasjon
+        Godta eller avslå invitasjonen
       </a>
     </p>
     <p style="color:#475569;font-size:13px">Hvis knappen ikke virker: ${escapeHtml(registerUrl)}</p>
@@ -80,20 +85,22 @@ export function buildInviteMessage({
   return {
     to,
     name,
-    subject: `Invitasjon til ${label} på ${product}`,
+    subject: organization ? `Invitasjon til bedriften ${label} på ProTop` : `Invitasjon til ${label} på ${product}`,
     text:
       `${hello},\n\n` +
       `${roleText}\n\n` +
-      `Registrer deg her: ${registerUrl}\n\n` +
+      `${registerLine}.\n\n` +
+      `Opprett konto her: ${registerUrl}\n\n` +
       signoff,
     html: `
     <p>${escapeHtml(hello)},</p>
     <p>${roleHtml}</p>
+    <p>${escapeHtml(registerLine)}.</p>
     <p>
       <a href="${registerUrl}"
          style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
                 text-decoration:none;display:inline-block">
-        Registrer deg nå
+        Opprett konto og svar på invitasjonen
       </a>
     </p>
     <p style="color:#475569;font-size:13px">Hvis knappen ikke virker: ${escapeHtml(registerUrl)}</p>

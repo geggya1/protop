@@ -37,6 +37,43 @@ export async function sendParentInvite({
   return res.data;
 }
 
+function callableUnavailable(error) {
+  const code = String(error?.code || '');
+  return ['functions/not-found', 'functions/unavailable', 'functions/deadline-exceeded', 'functions/internal'].includes(code)
+    || /Failed to fetch|NetworkError|network/i.test(String(error?.message || ''));
+}
+
+export { callableUnavailable };
+
+/** Godta eller avslå en invitasjon på serveren. Returnerer { ok, error?, … }. */
+export async function respondGroupInviteCall({ familyId, inviteId, response }) {
+  const call = httpsCallable(functions, 'respondGroupInvite', { timeout: 30000 });
+  const res = await call({ familyId, inviteId, response });
+  return res?.data || { ok: false, error: 'unknown' };
+}
+
+/** Ny bruker med bekreftet e-post: hent invitasjoner til innboksen (Godta/Avslå). */
+export async function syncMyInvites() {
+  try {
+    const call = httpsCallable(functions, 'syncMyInvites', { timeout: 20000 });
+    const res = await call({});
+    return res?.data || { ok: true, invites: [] };
+  } catch (error) {
+    return { ok: false, error: error?.message || 'sync-failed', invites: [] };
+  }
+}
+
+/** Navn og type på gruppen som har invitert e-posten (registreringssiden). */
+export async function fetchInvitePreview({ familyId, email }) {
+  try {
+    const call = httpsCallable(functions, 'invitePreview', { timeout: 15000 });
+    const res = await call({ familyId, email });
+    return res?.data || { ok: false };
+  } catch {
+    return { ok: false, unavailable: true };
+  }
+}
+
 export async function sendParentInviteSms({
   phone,
   name = '',

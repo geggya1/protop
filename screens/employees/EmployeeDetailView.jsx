@@ -847,7 +847,9 @@ export default function EmployeeDetailView({
                   style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken, opacity: busy ? 0.6 : 1 }]}
                 >
                   <Text style={{ color: colors.ink, fontSize: 13 }}>
-                    {employee.invite?.status === 'sent' ? 'Send invitasjon på nytt' : 'Inviter'}
+                    {employee.invite?.status === 'sent'
+                      ? 'Send invitasjon på nytt'
+                      : (employee.invite?.status === 'declined' ? 'Inviter på nytt' : 'Inviter')}
                   </Text>
                 </TouchableOpacity>
               </View>

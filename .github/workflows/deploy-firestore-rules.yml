@@ -36,4 +36,9 @@ jobs:
           workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
           service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
       - name: Deploy rules to protop-c189c
-        run: npx firebase deploy --only firestore:rules --config firebase.rules.json --project protop-c189c --non-interactive
+        run: |
+          set -o pipefail
+          if ! npx firebase deploy --only firestore:rules --config firebase.rules.json --project protop-c189c --non-interactive 2>&1 | tee deploy.log; then
+            echo "::error title=Firestore rules deploy::$(grep -iE 'error|denied|permission' deploy.log | tail -5 | tr '\n' ' ')"
+            exit 1
+          fi

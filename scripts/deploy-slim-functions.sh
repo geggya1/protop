@@ -173,7 +173,7 @@ queue_entry friendInviteIndex.js "$FRIENDS"
 open_for friendInviteIndex.js "$FRIENDS"
 queue_entry indeksIndex.js functions:interpretIndeksAvtale
 queue_entry importIndex.js functions:interpretImport
-INVITES="functions:claimEmployeeInvite,functions:respondGroupInvite,functions:syncMyInvites,functions:invitePreview,functions:recordUsage,functions:listEmployeeUsage"
+INVITES="functions:claimEmployeeInvite,functions:respondGroupInvite,functions:syncMyInvites,functions:invitePreview,functions:findCompanyByOrgnr,functions:requestCompanyJoin,functions:recordUsage,functions:listEmployeeUsage"
 queue_entry employeeInviteIndex.js "$INVITES"
 open_for employeeInviteIndex.js "$INVITES"
 # Opprettelsen feilet før tilgangen ble satt. Oppdateringer gjør ikke callable offentlig.

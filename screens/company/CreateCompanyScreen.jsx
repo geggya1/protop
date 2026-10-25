@@ -5,8 +5,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
-import { auth, db } from '../../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, functions } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { createGroup, updateGroup } from '../../src/utils/groups';
@@ -15,11 +15,9 @@ import { companyFromBrreg } from '../../src/project/company';
 import { dismissCompanyOffer } from '../../src/project/companyOffer';
 import { fetchCompanyCpv } from '../../src/anbud/doffinClient';
 import {
-  buildJoinRequest,
   companyRegistrationDecision,
   digitsOrgnr,
   manualCompany,
-  organizationByOrgnr,
 } from '../../src/project/companyRegistry';
 
 export default function CreateCompanyScreen() {
@@ -55,9 +53,11 @@ export default function CreateCompanyScreen() {
   async function existingOrganization(orgnr) {
     const id = digitsOrgnr(orgnr);
     if (id.length !== 9) return null;
-    const snap = await getDocs(query(collection(db, 'families'), where('orgnr', '==', id)));
-    const groups = snap.docs.map((row) => ({ id: row.id, ...row.data() }));
-    return organizationByOrgnr(groups, id);
+    // Andres bedrifter kan ikke leses fra appen. Serveren svarer med id og navn.
+    const res = await httpsCallable(functions, 'findCompanyByOrgnr')({ orgnr: id });
+    const found = res?.data?.company;
+    if (!found?.id) return null;
+    return { id: found.id, name: found.name, member: !!found.member, company: { navn: found.name, organisasjonsnummer: id } };
   }
 
   async function chooseHit(hit) {
@@ -67,6 +67,11 @@ export default function CreateCompanyScreen() {
     setError('');
     try {
       const existing = await existingOrganization(nextCompany.organisasjonsnummer);
+      if (existing?.member) {
+        await selectFamily?.(existing.id, { id: existing.id, name: existing.name, type: 'organization' });
+        nav.navigate('Home');
+        return;
+      }
       const decision = companyRegistrationDecision(existing);
       if (decision.kind === 'join') {
         setJoinTarget({ ...decision, company: nextCompany });
@@ -137,16 +142,17 @@ export default function CreateCompanyScreen() {
     setBusy(true);
     setError('');
     try {
-      const at = new Date().toISOString();
-      const request = buildJoinRequest({
-        uid: user.uid,
+      const res = await httpsCallable(functions, 'requestCompanyJoin')({
+        companyId: joinTarget.companyId,
         name: userProfile?.displayName || userProfile?.name || user.displayName || '',
-        email: user.email || '',
-        at,
       });
-      await setDoc(doc(db, 'families', joinTarget.companyId, 'joinRequests', user.uid), request);
+      if (!res?.data?.ok) {
+        throw new Error(res?.data?.error === 'already-member'
+          ? 'Du er allerede med i bedriften.'
+          : 'Fant ikke bedriften.');
+      }
       dismissCompanyOffer(uid || user.uid);
-      setSent({ ...request, companyName: joinTarget.companyName });
+      setSent({ createdAt: res.data.createdAt, companyName: res.data.companyName || joinTarget.companyName });
       setJoinTarget(null);
     } catch (e) {
       setError(e?.message || 'Kunne ikke sende forespørselen.');
@@ -224,7 +230,7 @@ export default function CreateCompanyScreen() {
           <Pressable style={[styles.sheet, { backgroundColor: colors.card }]} onStartShouldSetResponder={() => true}>
             <Text style={[styles.title, { color: colors.ink, fontSize: 20 }]}>{joinTarget?.companyName} finnes allerede</Text>
             <Text style={[styles.lead, { color: colors.muted }]}>
-              Organisasjonsnummeret er registrert i ProTop. Vil du sende en forespørsel om å bli lagt til? Den går til bedriftens superadministrator.
+              Organisasjonsnummeret er registrert i ProTop. Vil du be om å bli med? Bedriftens administratorer får varsel og kan invitere deg. Du må godta invitasjonen før du kommer inn.
             </Text>
             <TouchableOpacity onPress={sendJoinRequest} style={[styles.btn, { backgroundColor: colors.brand }]} disabled={busy}>
               <Text style={styles.btnText}>{busy ? 'Sender…' : 'Send forespørsel'}</Text>
@@ -242,7 +248,7 @@ export default function CreateCompanyScreen() {
             <Text style={[styles.kicker, { color: colors.brand }]}>Sendt</Text>
             <Text style={[styles.title, { color: colors.ink, fontSize: 22 }]}>Forespørselen er sendt</Text>
             <Text style={[styles.lead, { color: colors.muted }]}>
-              {sent?.companyName} har fått spørsmål om deltakelse. Du ser bare kort status til bedriften svarer.
+              Administratorene i {sent?.companyName} har fått beskjed. Når de inviterer deg, får du en bedriftsinvitasjon som du godtar eller avslår.
             </Text>
             <Text style={{ color: colors.ink, fontWeight: '400' }}>Status: Sendt</Text>
             <Text style={{ color: colors.muted }}>{sent?.createdAt ? new Date(sent.createdAt).toLocaleString('nb-NO') : ''}</Text>

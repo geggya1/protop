@@ -203,14 +203,14 @@ export function assertSafeAppContinueUrl(raw, fallback) {
 }
 
 /** True when a families/{id}/parents|children doc should grant live access. */
+// Ventende invitasjon (plassholder) gir ingen tilgang før personen har godtatt.
+// Samme vurdering som grantsMembership i firestore.rules.
 export function memberDocGrantsAccess(data) {
   if (!data || typeof data !== 'object') return false;
   if (data.deleted === true) return false;
   if (data.leftAt != null) return false;
-  if (data.active === false) {
-    return data.inviteStatus === 'pending';
-  }
-  return true;
+  if (data.placeholder === true || data.inviteStatus === 'pending') return false;
+  return data.active !== false;
 }
 
 export async function assertFamilyMember(db, familyId, uid) {

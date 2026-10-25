@@ -20,9 +20,11 @@ service cloud.firestore {
     }
 
     // GET may also accept a parent or child document. Too expensive for LIST.
+    // Et foresatt-/ansattdokument teller bare når det er aktivt (se isFamilyAdult):
+    // en ventende invitasjon gir ingen tilgang før personen har godtatt.
     function isFamilyMember(familyId) {
       return isFamilyMemberLite(familyId)
-        || (isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/parents/$(request.auth.uid)))
+        || isFamilyAdult(familyId)
         || (isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/children/$(request.auth.uid)));
     }
 
@@ -46,13 +48,22 @@ service cloud.firestore {
       return /databases/$(database)/documents/children/$(uid);
     }
 
-    // Voksen i gruppen: har et aktivt foresatt-/ansattdokument der (ikke en ventende invitasjon).
+    // Medlemsdokument som gir tilgang: ikke en ventende invitasjon (plassholder),
+    // ikke deaktivert, slettet eller forlatt. Samme vurdering som memberDocGrantsAccess.
+    function grantsMembership(d) {
+      return d.get('placeholder', false) != true
+        && d.get('inviteStatus', '') != 'pending'
+        && d.get('deleted', false) != true
+        && d.get('active', true) != false
+        && d.get('leftAt', null) == null;
+    }
+
+    // Voksen i gruppen: har et aktivt foresatt-/ansattdokument der.
     function isFamilyAdult(familyId) {
       let path = /databases/$(database)/documents/families/$(familyId)/parents/$(request.auth.uid);
       return isSignedIn()
         && exists(path)
-        && get(path).data.get('placeholder', false) != true
-        && get(path).data.get('deleted', false) != true;
+        && grantsMembership(get(path).data);
     }
 
     // Foresatt kan stelle barnets profil og varsler. Barnets familie står på children/{uid}.
@@ -342,6 +353,11 @@ service cloud.firestore {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
         allow create, update, delete: if isFamilyMember(familyId);
+      }
+
+      // Den inviterte kan åpne sin egen invitasjon (e-postlenken). Svaret går via serveren.
+      match /memberInvites/{inviteId} {
+        allow get: if isSignedIn() && resource.data.get('inviteeUid', '') == request.auth.uid;
       }
 
       // Alle andre samlinger: som før. ISO-samlingene (iso*) og den speilede

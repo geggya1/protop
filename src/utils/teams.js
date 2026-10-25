@@ -4,12 +4,15 @@
  */
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, addDoc, deleteDoc, query, where,
-  serverTimestamp, arrayUnion, writeBatch, orderBy, limit, onSnapshot,
+  serverTimestamp, writeBatch, orderBy, limit, onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { createGroup, isGroupAdmin } from './groups';
 import { generateSecureJoinCode, normalizeJoinCode as normalizeSecureJoinCode } from './secureJoinCode';
-import { submitJoinRequestByCode as submitJoinRequestCallable } from './joinRequests';
+import {
+  approveJoinRequest as approveJoinRequestCallable,
+  submitJoinRequestByCode as submitJoinRequestCallable,
+} from './joinRequests';
 import { TEAM_TYPES, isTeamType, isFamilyType } from './groupTypes';
 
 export { TEAM_TYPES, isTeamType, isFamilyType };
@@ -138,76 +141,9 @@ export async function rejectTeamJoinRequest(teamId, requestId, adminUid) {
 }
 
 /** Godkjenn forespørsel: opprett foresatt + barn på laget. */
-export async function approveTeamJoinRequest(teamId, requestId, adminUid) {
-  const teamRef = doc(db, 'families', teamId);
-  const teamSnap = await getDoc(teamRef);
-  if (!teamSnap.exists()) throw new Error('Fant ikke laget.');
-  const team = { id: teamSnap.id, ...teamSnap.data() };
-  if (!isGroupAdmin(team, adminUid)) throw new Error('Kun administrator kan godkjenne.');
-
-  const reqRef = doc(db, 'families', teamId, 'joinRequests', requestId);
-  const reqSnap = await getDoc(reqRef);
-  if (!reqSnap.exists()) throw new Error('Forespørselen finnes ikke.');
-  const req = reqSnap.data();
-  if (req.status !== 'pending') throw new Error('Forespørselen er allerede behandlet.');
-
-  const parentUid = req.parentUid;
-  const childId = doc(collection(db, 'families', teamId, 'children')).id;
-  const now = serverTimestamp();
-  const batch = writeBatch(db);
-
-  batch.set(doc(db, 'families', teamId, 'parents', parentUid), {
-    uid: parentUid,
-    name: req.parentName || '',
-    email: req.parentEmail || '',
-    admin: false,
-    superAdmin: false,
-    active: true,
-    role: 'guardian',
-    linkedChildIds: arrayUnion(childId),
-    createdAt: now,
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.set(doc(db, 'families', teamId, 'children', childId), {
-    id: childId,
-    name: req.childName,
-    firstName: req.childFirstName,
-    lastName: req.childLastName,
-    active: true,
-    role: 'player',
-    guardianUids: [parentUid],
-    source: 'join_request',
-    joinRequestId: requestId,
-    createdAt: now,
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.set(teamRef, {
-    members: arrayUnion(parentUid),
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.set(doc(db, 'users', parentUid), {
-    familyIds: arrayUnion(teamId),
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.set(doc(db, 'parents', parentUid), {
-    familyIds: arrayUnion(teamId),
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.update(reqRef, {
-    status: 'approved',
-    approvedBy: adminUid,
-    approvedAt: now,
-    childId,
-    updatedAt: now,
-  });
-
-  await batch.commit();
-  return { childId, parentUid };
+export async function approveTeamJoinRequest(teamId, requestId) {
+  const res = await approveJoinRequestCallable(teamId, requestId);
+  return { childId: res.childId, parentUid: res.parentUid };
 }
 
 /** Vegginnlegg (Facebook-stil). */

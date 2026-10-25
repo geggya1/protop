@@ -40,7 +40,7 @@ export default function ClassroomApprovalsScreen({ classroomId, classroom }) {
     if (!canAdmin) return;
     setBusyId(req.id);
     try {
-      await approveClassroomJoinRequest(classroomId, req.id, uid);
+      await approveClassroomJoinRequest(classroomId, req.id);
       Alert.alert('Godkjent', `${req.childName} er lagt til i klassen.`);
     } catch (e) {
       Alert.alert('Feil', e?.message || 'Klarte ikke godkjenne.');

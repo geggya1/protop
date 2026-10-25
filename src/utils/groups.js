@@ -785,32 +785,6 @@ export function isPendingMemberInvite(person) {
   return false;
 }
 
-/**
- * Resolve a real Auth uid for a pending parent invite.
- * Returns null for classic new-user placeholders that have no matching account yet.
- */
-export async function resolveInviteeUidForActivation(parent, parentId) {
-  if (!parent && !parentId) return null;
-  const p = parent || {};
-  if (p.inviteKind === 'existing') {
-    return p.uid || parentId || null;
-  }
-  for (const id of [p.email, p.username, p.usernameLower]) {
-    if (!id) continue;
-    const found = await findExistingAdultByIdentifier(id);
-    if (found?.uid) return found.uid;
-  }
-  if (p.uid) {
-    const profile = await loadUserProfile(p.uid);
-    if (profile) return p.uid;
-  }
-  if (parentId) {
-    const profile = await loadUserProfile(parentId);
-    if (profile) return parentId;
-  }
-  return null;
-}
-
 /** Ensure invitee has users/{uid}/familyInvites/{inviteId} + optional in-app notification. */
 async function ensureInviteeFamilyInviteInbox({
   familyId,
@@ -856,78 +830,6 @@ async function ensureInviteeFamilyInviteInbox({
       notificationId: `familyInvite_${familyId}_${inviteId}`,
     }).catch(() => {});
   }
-}
-
-/**
- * Admin "Aktiver" on a pending invite must grant real membership (members + familyIds),
- * otherwise the invitee cannot switch to the family in settings.
- */
-async function adminCompletePendingMemberInvite({ familyId, parentId, parent }) {
-  const now = serverTimestamp();
-  const inviteeUid = await resolveInviteeUidForActivation(parent, parentId);
-  if (!inviteeUid) {
-    // Classic new-user placeholder — flip active until they register/claim.
-    await updateDoc(doc(db, 'families', familyId, 'parents', parentId), {
-      active: true,
-      archived: false,
-      updatedAt: now,
-    });
-    return { completedMembership: false };
-  }
-
-  await activateExistingMember({
-    familyId,
-    inviteeUid,
-    inviteeName: parent.name || '',
-    inviteeEmail: parent.email || '',
-    asAdmin: !!parent.admin,
-    now,
-  });
-
-  let inviteId = parent.inviteId || null;
-  if (!inviteId) {
-    try {
-      const pendingSnap = await getDocs(
-        query(
-          collection(db, 'families', familyId, 'memberInvites'),
-          where('inviteeUid', '==', inviteeUid),
-          where('status', '==', 'pending'),
-          limit(1),
-        ),
-      );
-      if (!pendingSnap.empty) inviteId = pendingSnap.docs[0].id;
-    } catch { /* ignore */ }
-  }
-
-  if (inviteId) {
-    await updateDoc(doc(db, 'families', familyId, 'memberInvites', inviteId), {
-      status: 'accepted',
-      acceptedAt: now,
-      acceptedBy: inviteeUid,
-      activatedByAdmin: true,
-      updatedAt: now,
-    }).catch(() => {});
-    await setDoc(doc(db, 'users', inviteeUid, 'familyInvites', inviteId), {
-      status: 'accepted',
-      acceptedAt: now,
-      updatedAt: now,
-    }, { merge: true }).catch(() => {});
-  }
-
-  // Email/phone placeholder docs must not keep showing as a second pending person.
-  if (parentId && parentId !== inviteeUid) {
-    await updateDoc(doc(db, 'families', familyId, 'parents', parentId), {
-      active: false,
-      archived: true,
-      deleted: true,
-      placeholder: false,
-      inviteStatus: 'accepted',
-      supersededBy: inviteeUid,
-      updatedAt: now,
-    }).catch(() => {});
-  }
-
-  return { completedMembership: true, inviteeUid };
 }
 
 /**
@@ -1027,9 +929,9 @@ export async function setMemberActive({ familyId, role, id, active }) {
     const parentSnap = await getDoc(doc(db, 'families', familyId, 'parents', id));
     if (parentSnap.exists()) {
       const parent = parentSnap.data() || {};
+      // Ingen blir medlem uten å godta selv. Invitasjonen kan sendes på nytt (resendAdultInvite).
       if (isPendingMemberInvite(parent)) {
-        await adminCompletePendingMemberInvite({ familyId, parentId: id, parent });
-        return;
+        throw new Error('Personen blir med først når hen godtar invitasjonen.');
       }
     }
   }

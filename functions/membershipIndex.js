@@ -8,6 +8,7 @@ import './setRegion.js';
 export {
   resolveJoinCode,
   submitJoinRequestByCode,
+  approveJoinRequest,
   listMyFamilies,
 } from './joinCallables.js';
 

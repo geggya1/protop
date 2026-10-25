@@ -7,6 +7,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { useApp } from '../src/context/AppContext';
+import { useRouteFamily } from '../src/hooks/useRouteFamily';
 import { colors, useLayout, appTileWidth } from '../src/theme';
 import {
   isGroupAdmin,
@@ -139,6 +140,7 @@ export default function GroupHubScreen({ inShell = false }) {
   const compact = !isPhone;
   const { family, familyId, parents, kids, uid, selectFamily, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const fid = params?.familyId || familyId;
+  const { switching } = useRouteFamily(params?.familyId);
   const owner = family?.ownerUid;
   const adminOk = isGroupAdmin(family, uid);
   const [showArchived, setShowArchived] = useState(!!params?.showArchived);
@@ -293,7 +295,7 @@ export default function GroupHubScreen({ inShell = false }) {
 
   const nativeColWidth = (cols) => (cols === 1 ? '100%' : appTileWidth(cols, COL_GAP));
 
-  if (!family && fid) {
+  if ((!family && fid) || switching) {
     return (
       <SafeAreaView style={styles.safe} edges={inShell ? [] : undefined}>
         <Loader />

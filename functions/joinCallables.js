@@ -277,3 +277,143 @@ export const listMyFamilies = onCall(
     }
   },
 );
+
+// Klasse: rollene i STAFF_ROLES (src/utils/classroom.js) som er admin.
+const CLASSROOM_ADMIN_ROLES = ['principal', 'teacher', 'admin'];
+const TEAM_TYPES = ['team', 'club'];
+const COMPANY_TYPES = ['company', 'organization'];
+const CLASSROOM_TYPES = ['class', 'classroom'];
+
+async function memberRecord(familyId, uid) {
+  const byId = await db.doc(`families/${familyId}/parents/${uid}`).get();
+  if (byId.exists) return byId.data() || {};
+  const byUid = await db.collection(`families/${familyId}/parents`).where('uid', '==', uid).limit(1).get();
+  return byUid.empty ? null : (byUid.docs[0].data() || {});
+}
+
+async function canApproveJoin(familyId, family, uid) {
+  if (family.ownerUid === uid || family.ownerId === uid) return true;
+  if (Array.isArray(family.adminUids) && family.adminUids.includes(uid)) return true;
+  const me = await memberRecord(familyId, uid);
+  if (!me || me.active === false || me.deleted === true) return false;
+  if (me.admin === true || me.superAdmin === true) return true;
+  return CLASSROOM_TYPES.includes(String(family.type || '').toLowerCase())
+    && CLASSROOM_ADMIN_ROLES.includes(me.staffRole);
+}
+
+/**
+ * Godkjenn en forespørsel om innpass (plattform, lag, klasse).
+ * Medlemskapet skrives også på søkerens egen profil (users/parents), som
+ * administratoren ikke kan skrive til fra appen.
+ */
+export const approveJoinRequest = onCall(
+  { region: 'europe-west1', timeoutSeconds: 30, memory: '256MiB', cors: true },
+  async (req) => {
+    const uid = requireAuth(req.auth);
+    const familyId = String(req.data?.familyId || '').trim();
+    const requestId = String(req.data?.requestId || '').trim();
+    if (!familyId || !requestId || familyId.includes('/') || requestId.includes('/')) {
+      throw new HttpsError('invalid-argument', 'Mangler forespørsel.');
+    }
+    const groupRef = db.doc(`families/${familyId}`);
+    const reqRef = db.doc(`families/${familyId}/joinRequests/${requestId}`);
+    const [groupSnap, reqSnap] = await Promise.all([groupRef.get(), reqRef.get()]);
+    const family = groupSnap.exists ? (groupSnap.data() || {}) : null;
+    if (!family || family.deleted === true || family.hiddenFromApp === true) {
+      throw new HttpsError('not-found', 'Fant ikke gruppen.');
+    }
+    if (!(await canApproveJoin(familyId, family, uid))) {
+      throw new HttpsError('permission-denied', 'Kun administrator kan godkjenne.');
+    }
+    if (!reqSnap.exists) throw new HttpsError('not-found', 'Fant ikke forespørselen.');
+    const request = reqSnap.data() || {};
+    if (request.status !== 'pending') {
+      throw new HttpsError('failed-precondition', 'Forespørselen er allerede behandlet.');
+    }
+    const parentUid = String(request.parentUid || '').trim();
+    if (!parentUid) throw new HttpsError('failed-precondition', 'Forespørselen mangler søker.');
+
+    const type = String(family.type || '').toLowerCase();
+    // Bedrifter: personen inviteres under Ansatte og knyttes til medarbeideren når hen godtar.
+    if (COMPANY_TYPES.includes(type)) {
+      throw new HttpsError('failed-precondition', 'Bedrifter legger til personer med invitasjon under Ansatte.');
+    }
+    const team = TEAM_TYPES.includes(type);
+    const classroom = CLASSROOM_TYPES.includes(type);
+    const withChild = (team || classroom) && !!String(request.childName || request.childFirstName || '').trim();
+    const now = FieldValue.serverTimestamp();
+    const childRef = withChild ? db.collection(`families/${familyId}/children`).doc() : null;
+    const batch = db.batch();
+
+    batch.set(groupRef, {
+      members: FieldValue.arrayUnion(parentUid),
+      activeUsers: FieldValue.arrayUnion(parentUid),
+      updatedAt: now,
+    }, { merge: true });
+
+    const member = {
+      uid: parentUid,
+      name: request.parentName || (withChild ? '' : 'Medlem'),
+      email: request.parentEmail || '',
+      admin: false,
+      active: true,
+      archived: false,
+      placeholder: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (withChild) {
+      Object.assign(member, { superAdmin: false, role: 'guardian', linkedChildIds: FieldValue.arrayUnion(childRef.id) });
+      if (classroom) member.staffRole = null;
+    }
+    batch.set(db.doc(`families/${familyId}/parents/${parentUid}`), member, { merge: true });
+
+    if (withChild) {
+      batch.set(childRef, {
+        id: childRef.id,
+        name: request.childName || '',
+        firstName: request.childFirstName || '',
+        lastName: request.childLastName || '',
+        active: true,
+        role: classroom ? 'student' : 'player',
+        guardianUids: [parentUid],
+        source: 'join_request',
+        joinRequestId: requestId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const own = { familyIds: FieldValue.arrayUnion(familyId), updatedAt: now };
+    batch.set(db.doc(`users/${parentUid}`), own, { merge: true });
+    batch.set(db.doc(`parents/${parentUid}`), own, { merge: true });
+
+    batch.update(reqRef, {
+      status: 'approved',
+      approvedBy: uid,
+      approvedAt: now,
+      ...(childRef ? { childId: childRef.id } : {}),
+      updatedAt: now,
+    });
+
+    const groupName = String(family.name || '').trim() || 'gruppen';
+    batch.set(db.collection(`users/${parentUid}/notifications`).doc(), {
+      eventType: 'join_request_approved',
+      title: 'Forespørsel godkjent',
+      body: `Du er nå med i «${groupName}».`,
+      familyId,
+      createdBy: uid,
+      createdAt: now,
+      seen: false,
+    });
+
+    await batch.commit();
+    logger.info('join request approved', { familyId, requestId, uid, parentUid });
+    return {
+      ok: true,
+      parentUid,
+      childId: childRef ? childRef.id : null,
+      childName: withChild ? (request.childName || '') : null,
+    };
+  },
+);

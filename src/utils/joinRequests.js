@@ -38,3 +38,11 @@ export async function listMyFamilies() {
     throw e;
   }
 }
+
+/** Godkjenn forespørsel om innpass. Serveren gir medlemskap og oppdaterer søkerens profil. */
+export async function approveJoinRequest(familyId, requestId) {
+  const fn = httpsCallable(functions, 'approveJoinRequest');
+  const res = await fn({ familyId, requestId });
+  if (!res?.data?.ok) throw new Error(res?.data?.error || 'Kunne ikke godkjenne forespørselen');
+  return res.data;
+}

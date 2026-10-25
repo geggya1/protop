@@ -26,7 +26,7 @@ export default function PlatformApprovalsScreen({ config, groupId }) {
   const approve = async (req) => {
     setBusyId(req.id);
     try {
-      await approvePlatformJoinRequest(groupId, req.id, uid);
+      await approvePlatformJoinRequest(groupId, req.id);
       Alert.alert('Godkjent', `${req.parentName} er lagt til.`);
     } catch (e) {
       Alert.alert('Feil', e?.message || 'Klarte ikke godkjenne.');

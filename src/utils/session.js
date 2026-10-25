@@ -1,28 +1,8 @@
 import {
   doc, updateDoc, collection, query, where, getDocs,
-  arrayRemove, arrayUnion, collectionGroup, serverTimestamp,
+  collectionGroup, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-
-/** Oppgrader gamle medlemslister (e-post i members[]) til uid. */
-export async function upgradeFamilyMembership(user) {
-  if (!user?.email || !user?.uid) return;
-  const email = user.email.toLowerCase();
-  try {
-    const snap = await getDocs(
-      query(collection(db, 'families'), where('members', 'array-contains', email))
-    );
-    await Promise.all(snap.docs.map((fam) =>
-      updateDoc(fam.ref, {
-        members: arrayRemove(email),
-      }).then(() => updateDoc(fam.ref, {
-        members: arrayUnion(user.uid),
-      }))
-    ));
-  } catch (err) {
-    console.warn('Feil ved oppgradering av medlemskap i familie:', err);
-  }
-}
 
 /** Synk toppnivå "parents" med innlogget bruker. */
 export async function syncParentDocs(user) {
@@ -36,8 +16,9 @@ export async function syncParentDocs(user) {
     const byUid = await getDocs(query(collection(db, 'parents'), where('uid', '==', user.uid)));
     const seen = new Set(byUid.docs.map((d) => d.id));
 
+    // Andres profiler med samme e-post kan ikke leses; da synkes bare egen profil.
     const extraByEmail = email
-      ? await getDocs(query(collection(db, 'parents'), where('email', '==', email)))
+      ? await getDocs(query(collection(db, 'parents'), where('email', '==', email))).catch(() => ({ docs: [] }))
       : { docs: [] };
 
     const allDocs = [...byUid.docs, ...extraByEmail.docs.filter((d) => !seen.has(d.id))];

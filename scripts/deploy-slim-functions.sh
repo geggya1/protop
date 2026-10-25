@@ -171,7 +171,8 @@ queue_entry friendListIndex.js functions:friendListHttp
 FRIENDS="functions:lookupFriendProfile,functions:sendFriendInviteV2,functions:sendFriendInviteSmsV2,functions:listMyFriends,functions:listFriendsForUid,functions:listFriendRequests,functions:listOutgoingFriendRequests,functions:createFriendRequestAdmin,functions:respondFriendRequestAdmin,functions:withdrawFriendRequestAdmin,functions:dismissOutgoingFriendRequestAdmin,functions:resendFriendRequestAdmin,functions:removeFriendAdmin,functions:sendFriendChatAdmin,functions:listFriendChatMessagesAdmin,functions:createPendingFriendInviteAdmin,functions:claimFriendInviteAdmin,functions:shareWithFriendsAdmin,functions:listSharedAlbumsAdmin,functions:listSharedWishlistsAdmin,functions:respondFriendGameInviteAdmin,functions:notifyFriendGameInvitesAdmin"
 queue_entry friendInviteIndex.js "$FRIENDS"
 open_for friendInviteIndex.js "$FRIENDS"
-queue_entry indeksIndex.js functions:interpretIndeksAvtale
+queue_entry indeksIndex.js functions:interpretIndeksAvtale,functions:sendIndeksLetter
+open_for indeksIndex.js functions:sendIndeksLetter
 queue_entry importIndex.js functions:interpretImport
 INVITES="functions:claimEmployeeInvite,functions:respondGroupInvite,functions:syncMyInvites,functions:invitePreview,functions:findCompanyByOrgnr,functions:requestCompanyJoin,functions:recordUsage,functions:listEmployeeUsage"
 queue_entry employeeInviteIndex.js "$INVITES"
@@ -199,7 +200,7 @@ open_for vegvesenIndex.js functions:lookupVehicleByReg
 queue_entry companyAccessIndex.js functions:syncCompanyAccess
 open_for companyAccessIndex.js functions:syncCompanyAccess
 
-MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:listMyFamilies,functions:deleteMyAccount"
+MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:approveJoinRequest,functions:listMyFamilies,functions:deleteMyAccount"
 queue_entry membershipIndex.js "$MEMBERSHIP"
 open_for membershipIndex.js "$MEMBERSHIP"
 

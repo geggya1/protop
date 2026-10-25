@@ -4,11 +4,10 @@
  */
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, addDoc, deleteDoc,
-  query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion,
+  query, where, orderBy, limit, onSnapshot, serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { isGroupAdmin } from '../utils/groups';
 import {
   isFriendsType, isCongregationType, isDaycareType, isFlexGroupType,
   platformTypesForFilter,
@@ -18,7 +17,10 @@ import {
   generateSecureJoinCode,
   normalizeJoinCode as normalizeSecureJoinCode,
 } from '../utils/secureJoinCode';
-import { submitJoinRequestByCode as submitJoinRequestCallable } from '../utils/joinRequests';
+import {
+  approveJoinRequest as approveJoinRequestCallable,
+  submitJoinRequestByCode as submitJoinRequestCallable,
+} from '../utils/joinRequests';
 
 export function generateJoinCode(length = 8) {
   return generateSecureJoinCode(length);
@@ -616,56 +618,9 @@ export function listenPlatformJoinRequests(groupId, cb) {
   }, () => cb([]));
 }
 
-export async function approvePlatformJoinRequest(groupId, requestId, adminUid) {
-  const reqRef = doc(db, 'families', groupId, 'joinRequests', requestId);
-  const reqSnap = await getDoc(reqRef);
-  if (!reqSnap.exists()) throw new Error('Fant ikke forespørselen.');
-  const req = reqSnap.data() || {};
-  if (req.status !== 'pending') throw new Error('Forespørselen er allerede behandlet.');
-
-  const groupRef = doc(db, 'families', groupId);
-  const groupSnap = await getDoc(groupRef);
-  if (!groupSnap.exists()) throw new Error('Fant ikke gruppen.');
-  const group = groupSnap.data() || {};
-  if (!isGroupAdmin({ ...group, id: groupId }, adminUid)) {
-    throw new Error('Kun administrator kan godkjenne.');
-  }
-
-  const parentUid = req.parentUid;
-  const now = serverTimestamp();
-  const batch = writeBatch(db);
-
-  batch.update(groupRef, {
-    members: arrayUnion(parentUid),
-    updatedAt: now,
-  });
-
-  const parentPayload = {
-    uid: parentUid,
-    email: req.parentEmail || '',
-    name: req.parentName || 'Medlem',
-    admin: false,
-    active: true,
-    archived: false,
-    placeholder: false,
-    createdAt: now,
-    updatedAt: now,
-  };
-  batch.set(doc(db, 'families', groupId, 'parents', parentUid), parentPayload, { merge: true });
-  batch.set(doc(db, 'parents', parentUid), {
-    familyIds: arrayUnion(groupId),
-    updatedAt: now,
-  }, { merge: true });
-
-  batch.update(reqRef, {
-    status: 'approved',
-    approvedBy: adminUid,
-    approvedAt: now,
-    updatedAt: now,
-  });
-
-  await batch.commit();
-  return { parentUid };
+export async function approvePlatformJoinRequest(groupId, requestId) {
+  const res = await approveJoinRequestCallable(groupId, requestId);
+  return { parentUid: res.parentUid };
 }
 
 export async function rejectPlatformJoinRequest(groupId, requestId, adminUid) {

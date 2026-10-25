@@ -20,7 +20,6 @@ import SaveToastHost from './components/SaveToastHost';
 import { platformHomeRoute } from './src/utils/groupTypes';
 import { usePhoneVisualViewport } from './src/shell/usePhoneVisualViewport';
 import {
-  upgradeFamilyMembership,
   syncParentDocs,
   resolveChildFamilyId,
   resolveChildProfile,
@@ -569,7 +568,6 @@ export default function App() {
         const isChildLogin = isChildEmail(email);
 
         syncParentDocs(refreshedUser).catch(() => {});
-        upgradeFamilyMembership(refreshedUser).catch(() => {});
         setReloadKey((prev) => prev + 1);
 
         if (isChildLogin) {

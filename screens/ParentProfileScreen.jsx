@@ -9,7 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../firebase';
 import {
-  doc, setDoc, getDoc, getDocs, collection, query, where, limit, serverTimestamp,
+  doc, getDoc, getDocs, collection, query, where, limit, serverTimestamp,
   collectionGroup, updateDoc, arrayUnion, arrayRemove, onSnapshot, writeBatch
 } from 'firebase/firestore';
 import { updateProfile, signOut as firebaseSignOut } from 'firebase/auth';
@@ -17,10 +17,12 @@ import TopNavBar from '../components/TopNavBar';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  acceptFamilyMemberInvite,
   revokeMemberFamilyAccess,
   restoreMemberFamilyAccess,
   softDeleteParentFromFamily,
 } from '../src/utils/groups';
+import { syncMyInvites } from '../src/utils/invite';
 
 let Cropper = null;
 if (Platform.OS === 'web') {
@@ -275,47 +277,41 @@ export default function ParentProfileScreen() {
   }, [familyId, parentDocRefPath, targetUid, parentEmail]);
 
   // AKSEPTER INVITASJON
+  // Bare personen selv kan godta. Serveren gir medlemskapet (respondGroupInvite).
+  const [acceptError, setAcceptError] = useState('');
   const acceptInvite = useCallback(async () => {
-    if (!auth.currentUser || !familyId) return;
-    if (!isViewingOwn && !isFamilyAdmin) return;
-
+    const me = auth.currentUser;
+    if (!me || !familyId || !isViewingOwn) return;
+    const findInvite = async () => {
+      const snap = await getDocs(query(
+        collection(db, 'users', me.uid, 'familyInvites'),
+        where('familyId', '==', familyId),
+        where('status', '==', 'pending'),
+        limit(1),
+      ));
+      return snap.empty ? null : snap.docs[0].id;
+    };
     try {
       setBusy(true);
-      const me = auth.currentUser;
-      const myUid = me.uid;
-      const myEmail = (me.email || '').toLowerCase();
-      const emailDocRef = doc(db, 'families', familyId, 'parents', myEmail);
-      const uidDocRef = doc(db, 'families', familyId, 'parents', myUid);
-      const now = serverTimestamp();
-      const payload = {
-        uid: myUid,
-        email: myEmail,
-        name: me.displayName || name || myEmail.split('@')[0],
-        active: true,
-        placeholder: false,
-        emailVerified: !!me.emailVerified,
-        acceptedAt: now,
-        acceptedBy: myUid,
-        updatedAt: now,
-      };
-      await setDoc(emailDocRef, payload, { merge: true });
-      await setDoc(uidDocRef, payload, { merge: true });
-      await setDoc(doc(db, 'parents', myUid), {
-        uid: myUid, email: myEmail, displayName: me.displayName || '', photoURL: me.photoURL || null,
-        emailVerified: !!me.emailVerified, familyId, active: true, role: 'parent', updatedAt: now,
-      }, { merge: true });
-      await updateDoc(doc(db, 'families', familyId), { members: arrayUnion(myUid), updatedAt: now });
-
-      setParentDocRefPath(uidDocRef.path);
-      setTargetUid(myUid);
-      setParentEmail(myEmail);
+      setAcceptError('');
+      let inviteId = await findInvite();
+      if (!inviteId) {
+        await syncMyInvites().catch(() => {});
+        inviteId = await findInvite();
+      }
+      if (!inviteId) {
+        setAcceptError('Fant ingen ventende invitasjon. Be administratoren sende den på nytt.');
+        return;
+      }
+      await acceptFamilyMemberInvite({ familyId, inviteId, uid: me.uid });
       setIsActive(true);
-      setEmailVerified(!!me.emailVerified);
       setPlaceholder(false);
+    } catch (e) {
+      setAcceptError(e?.message || 'Kunne ikke godta invitasjonen.');
     } finally {
       setBusy(false);
     }
-  }, [familyId, isViewingOwn, isFamilyAdmin, name]);
+  }, [familyId, isViewingOwn]);
 
   // Persist helpers (admin-aksjoner)
   const persistActive = useCallback(async (next) => {
@@ -521,14 +517,17 @@ export default function ParentProfileScreen() {
               <Text style={[styles.bannerText, { color: '#8a6d00' }]}>
                 Denne profilen er invitert og/eller ikke e-postverifisert.
               </Text>
-              {(needsActivation && (isViewingOwn || isFamilyAdmin)) && (
+              {(needsActivation && isViewingOwn) && (
                 <TouchableOpacity
                   style={[styles.primaryBtn, { marginTop: 10 }]}
                   onPress={acceptInvite}
                   disabled={busy}
                 >
-                  <Text style={styles.primaryBtnText}>Aksepter invitasjon / aktiver profil</Text>
+                  <Text style={styles.primaryBtnText}>Godta invitasjonen</Text>
                 </TouchableOpacity>
+              )}
+              {!!acceptError && (
+                <Text style={[styles.bannerText, { color: '#b42318', marginTop: 8 }]}>{acceptError}</Text>
               )}
             </View>
           )}

@@ -24,6 +24,7 @@ import {
   setMemberGrandparentModules,
   removeMemberFromGroup,
   isPendingMemberInvite,
+  resendAdultInvite,
 } from '../../src/utils/groups';
 import {
   GRANDPARENT_INVITE_APPS,
@@ -33,6 +34,8 @@ import {
 import { goPlatformOverview } from '../../src/utils/platformNav';
 import { isTeamType } from '../../src/utils/teams';
 import { isClassroomType } from '../../src/utils/groupTypes';
+import { useOptionalRoute } from '../../src/hooks/useOptionalRoute';
+import { useRouteFamily } from '../../src/hooks/useRouteFamily';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import Wizard, { Choice } from '../../components/Wizard';
 import AvatarPicker, { AvatarBubble } from '../../components/AvatarPicker';
@@ -98,6 +101,8 @@ export function GroupSettingsScreen({ inShell = false }) {
   const nav = useNavigation();
   const { isDesktop } = useLayout();
   const { family, familyId, uid, families, selectFamily, applyFamilyPatch, requestShellTab } = useApp();
+  const route = useOptionalRoute();
+  const { switching } = useRouteFamily(route?.params?.familyId);
   const superOk = isSuperAdmin(family, uid);
   const adminOk = isGroupAdmin(family, uid);
   const [name, setName] = useState(family?.name || '');
@@ -120,6 +125,14 @@ export function GroupSettingsScreen({ inShell = false }) {
     setAvatarId(family?.avatarId || 'home');
     setPhotoURL(family?.photoURL || family?.photoUrl || '');
   }, [family?.id, family?.name, family?.avatarId, family?.photoURL, family?.photoUrl]);
+
+  if (switching) {
+    return (
+      <SafeAreaView style={gs.safe} edges={inShell ? [] : ['top', 'bottom']}>
+        <Text style={gs.mutedPad}>{t('common.loading')}</Text>
+      </SafeAreaView>
+    );
+  }
 
   if (!adminOk) {
     return (
@@ -484,6 +497,7 @@ export function MemberSettingsScreen() {
   const nav = useNavigation();
   const { params } = useRoute();
   const { family, familyId, uid } = useApp();
+  const { switching } = useRouteFamily(params?.familyId);
   const role = params?.role || 'child';
   const memberId = params?.memberId;
   const superOk = isSuperAdmin(family, uid);
@@ -501,12 +515,18 @@ export function MemberSettingsScreen() {
   const [confirmKind, setConfirmKind] = useState(null); // 'activate' | 'deactivate' | 'delete'
   const [busyAction, setBusyAction] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [inviteNotice, setInviteNotice] = useState('');
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
-    if (!familyId || !memberId) return;
+    if (!familyId || !memberId || switching) return;
     const col = role === 'child' ? 'children' : 'parents';
+    setMissing(false);
     getDoc(doc(db, 'families', familyId, col, memberId)).then((s) => {
-      if (!s.exists()) return;
+      if (!s.exists()) {
+        setMissing(true);
+        return;
+      }
       const d = { id: s.id, ...s.data() };
       setM(d);
       setName(d.name || '');
@@ -514,8 +534,16 @@ export function MemberSettingsScreen() {
       setEmail(d.email || '');
       setLocation(d.location || null);
       setBirthday(toIsoDate(d.birthday) || '');
-    });
-  }, [familyId, memberId, role]);
+    }).catch(() => setMissing(true));
+  }, [familyId, memberId, role, switching]);
+
+  if (switching) {
+    return (
+      <SafeAreaView style={ms.safe} edges={['top', 'bottom']}>
+        <Text style={ms.mutedPad}>{t('common.loading')}</Text>
+      </SafeAreaView>
+    );
+  }
 
   if (!adminOk) {
     return (
@@ -527,7 +555,7 @@ export function MemberSettingsScreen() {
   if (!m) {
     return (
       <SafeAreaView style={ms.safe} edges={['top', 'bottom']}>
-        <Text style={ms.mutedPad}>{t('common.loading')}</Text>
+        <Text style={ms.mutedPad}>{missing ? t('member.notFound') : t('common.loading')}</Text>
       </SafeAreaView>
     );
   }
@@ -663,14 +691,37 @@ export function MemberSettingsScreen() {
     setConfirmKind('delete');
   };
 
-  const runToggleActive = async () => {
+  // Ventende invitasjon: personen må godta selv. Administratoren kan bare sende den på nytt.
+  const runResendInvite = async () => {
     if (busyAction) return;
-    // Pending invites must complete membership even if a prior "Aktiver" only flipped active.
-    const nextActive = pendingInvite ? true : inactive;
     setBusyAction(true);
     setActionError('');
     try {
-      await setMemberActive({ familyId, role, id: memberId, active: nextActive });
+      const res = await resendAdultInvite({
+        familyId, parentId: memberId, familyName: family?.name || '', groupType: family?.type || '',
+      });
+      if (res?.emailSent !== true && res?.smsSent !== true) {
+        throw new Error(res?.emailError || res?.smsError || t('member.inviteResendFailed'));
+      }
+      setConfirmKind(null);
+      setInviteNotice(t('member.inviteResent'));
+    } catch (e) {
+      setActionError(e?.message || t('member.inviteResendFailed'));
+    } finally {
+      setBusyAction(false);
+    }
+  };
+
+  const runToggleActive = async () => {
+    if (busyAction) return;
+    if (pendingInvite) {
+      await runResendInvite();
+      return;
+    }
+    setBusyAction(true);
+    setActionError('');
+    try {
+      await setMemberActive({ familyId, role, id: memberId, active: inactive });
       setConfirmKind(null);
       nav.navigate('GroupHub', { familyId });
     } catch (e) {
@@ -724,7 +775,7 @@ export function MemberSettingsScreen() {
           <View style={ms.deactBanner}>
             <Text style={ms.deactBannerTxt}>{t('member.waitingForReply')}</Text>
             <Text style={ms.deactBannerSub}>
-              {t('member.activatePendingQ')}
+              {inviteNotice || t('member.activatePendingQ')}
             </Text>
           </View>
         ) : inactive ? (
@@ -869,14 +920,14 @@ export function MemberSettingsScreen() {
         <TouchableOpacity style={ms.actionRow} onPress={toggleActive}>
           <View style={[ms.actionIcon, { backgroundColor: '#fff7ed' }]}>
             <Ionicons
-              name={inactive ? 'play-circle-outline' : 'pause-circle-outline'}
+              name={pendingInvite ? 'mail-outline' : (inactive ? 'play-circle-outline' : 'pause-circle-outline')}
               size={18}
               color={colors.warn}
             />
           </View>
           <Text style={[ms.actionTxt, { color: colors.warn }]}>
             {showActivateAction
-              ? (pendingInvite ? t('member.acceptInvite') : t('member.activate'))
+              ? (pendingInvite ? t('member.resendPendingInvite') : t('member.activate'))
               : t('member.deactivate')}
           </Text>
         </TouchableOpacity>
@@ -901,9 +952,9 @@ export function MemberSettingsScreen() {
 
       <ConfirmActionModal
         visible={confirmKind === 'activate'}
-        title={pendingInvite ? t('member.acceptInvite') : t('member.activate')}
+        title={pendingInvite ? t('member.resendPendingInvite') : t('member.activate')}
         body={actionError || (pendingInvite ? t('member.activatePendingQ') : t('member.activateQ'))}
-        confirmLabel={pendingInvite ? t('member.acceptInvite') : t('member.activate')}
+        confirmLabel={pendingInvite ? t('member.resendPendingInvite') : t('member.activate')}
         cancelLabel={t('common.cancel')}
         busy={busyAction}
         onCancel={() => !busyAction && setConfirmKind(null)}

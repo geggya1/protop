@@ -905,46 +905,46 @@ export default function EconomyInvoices({
     const sent = isInvoiceSent(row);
     const danger = colors.danger || '#b42318';
     const deletable = canManage && canDeleteInvoice(row);
+    const deleteButton = deletable ? (
+      <TouchableOpacity
+        onPress={() => requestDelete(row)}
+        accessibilityRole="button"
+        accessibilityLabel={`Slett faktura ${row.invoiceNumber}`}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={styles.rowDelete}
+      >
+        <Ionicons name="trash-outline" size={18} color={danger} />
+      </TouchableOpacity>
+    ) : null;
+    const rowTone = { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card };
+    // Slett ligger ved siden av raden, ikke inni den: en knapp kan ikke inneholde en knapp.
     if (stackRows) {
       return (
-        <TouchableOpacity
-          onPress={() => openInvoice(row)}
-          accessibilityRole="button"
-          accessibilityLabel={`Faktura ${row.invoiceNumber}`}
-          nativeID={`invoice-row-${row.id}`}
-          style={[styles.phoneRow, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
-        >
-          <View style={styles.phoneTop}>
-            <Text style={[styles.phoneName, { color: colors.ink, flex: 1 }]}>
+        <View style={[styles.phoneRow, styles.rowWithAction, rowTone]}>
+          <TouchableOpacity
+            onPress={() => openInvoice(row)}
+            accessibilityRole="button"
+            accessibilityLabel={`Faktura ${row.invoiceNumber}`}
+            nativeID={`invoice-row-${row.id}`}
+            style={styles.rowOpen}
+          >
+            <Text style={[styles.phoneName, { color: colors.ink }]}>
               {row.invoiceNumber} · {formatDate(row.invoiceDate)}
             </Text>
-            {deletable ? (
-              <TouchableOpacity
-                onPress={(event) => {
-                  event?.stopPropagation?.();
-                  requestDelete(row);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Slett faktura ${row.invoiceNumber}`}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.rowDelete}
-              >
-                <Ionicons name="trash-outline" size={18} color={danger} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-          <Text style={[styles.phoneIdentity, { color: colors.ink }]} numberOfLines={1}>
-            {row.customerName || '—'}
-          </Text>
-          <Text style={[styles.phoneMeta, { color: colors.muted }]} numberOfLines={2}>
-            {[
-              row.projectName,
-              formatMoney(row.amountInclVat, row.currency),
-              statusLabel(row.status),
-              overdue ? 'Forfalt' : '',
-            ].filter(Boolean).join(' · ')}
-          </Text>
-        </TouchableOpacity>
+            <Text style={[styles.phoneIdentity, { color: colors.ink }]} numberOfLines={1}>
+              {row.customerName || '—'}
+            </Text>
+            <Text style={[styles.phoneMeta, { color: colors.muted }]} numberOfLines={2}>
+              {[
+                row.projectName,
+                formatMoney(row.amountInclVat, row.currency),
+                statusLabel(row.status),
+                overdue ? 'Forfalt' : '',
+              ].filter(Boolean).join(' · ')}
+            </Text>
+          </TouchableOpacity>
+          {deleteButton}
+        </View>
       );
     }
 
@@ -966,69 +966,56 @@ export default function EconomyInvoices({
       loss: formatMoney(row.loss, row.currency),
     };
 
+    const actionsColumn = columns.find((column) => column.key === 'actions');
     return (
-      <TouchableOpacity
-        onPress={() => openInvoice(row)}
-        accessibilityRole="button"
-        accessibilityLabel={`Faktura ${row.invoiceNumber}`}
-        nativeID={`invoice-row-${row.id}`}
-        style={[styles.tr, { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card }]}
-      >
-        {columns.map((column) => {
-          if (column.key === 'docs') {
+      <View style={[styles.tr, rowTone]}>
+        <TouchableOpacity
+          onPress={() => openInvoice(row)}
+          accessibilityRole="button"
+          accessibilityLabel={`Faktura ${row.invoiceNumber}`}
+          nativeID={`invoice-row-${row.id}`}
+          style={styles.trOpen}
+        >
+          {columns.filter((column) => column.key !== 'actions').map((column) => {
+            if (column.key === 'docs') {
+              return (
+                <View key={column.key} style={[columnStyle(column), styles.docCell]}>
+                  <Ionicons
+                    name={cells.docs ? 'document-text' : 'document-text-outline'}
+                    size={16}
+                    color={cells.docs ? colors.brand : colors.muted}
+                  />
+                  <Ionicons name="eye-outline" size={16} color={colors.muted} />
+                </View>
+              );
+            }
+            if (column.key === 'sent') {
+              return (
+                <View key={column.key} style={[columnStyle(column), styles.docCell]}>
+                  {sent ? <Ionicons name="checkmark-circle" size={18} color="#15803d" /> : <Text style={{ color: colors.muted }}>—</Text>}
+                </View>
+              );
+            }
+            const tone = column.key === 'dueDate' && overdue
+              ? danger
+              : column.key === 'outstanding'
+                ? moneyTone(row.outstandingAmount ?? row.outstanding, colors, { dangerWhenPositive: true })
+                : colors.ink;
             return (
-              <View key={column.key} style={[columnStyle(column), styles.docCell]}>
-                <Ionicons
-                  name={cells.docs ? 'document-text' : 'document-text-outline'}
-                  size={16}
-                  color={cells.docs ? colors.brand : colors.muted}
-                />
-                <Ionicons name="eye-outline" size={16} color={colors.muted} />
-              </View>
+              <Text
+                key={column.key}
+                style={[styles.td, columnStyle(column), { color: tone }, column.key === 'invoiceNumber' && { fontWeight: '700' }]}
+                numberOfLines={column.key === 'customerName' || column.key === 'projectName' ? 2 : 1}
+              >
+                {cells[column.key]}
+              </Text>
             );
-          }
-          if (column.key === 'sent') {
-            return (
-              <View key={column.key} style={[columnStyle(column), styles.docCell]}>
-                {sent ? <Ionicons name="checkmark-circle" size={18} color="#15803d" /> : <Text style={{ color: colors.muted }}>—</Text>}
-              </View>
-            );
-          }
-          if (column.key === 'actions') {
-            return (
-              <View key={column.key} style={[columnStyle(column), styles.docCell]}>
-                {deletable ? (
-                  <TouchableOpacity
-                    onPress={(event) => {
-                      event?.stopPropagation?.();
-                      requestDelete(row);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Slett faktura ${row.invoiceNumber}`}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={danger} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            );
-          }
-          const tone = column.key === 'dueDate' && overdue
-            ? danger
-            : column.key === 'outstanding'
-              ? moneyTone(row.outstandingAmount ?? row.outstanding, colors, { dangerWhenPositive: true })
-              : colors.ink;
-          return (
-            <Text
-              key={column.key}
-              style={[styles.td, columnStyle(column), { color: tone }, column.key === 'invoiceNumber' && { fontWeight: '700' }]}
-              numberOfLines={column.key === 'customerName' || column.key === 'projectName' ? 2 : 1}
-            >
-              {cells[column.key]}
-            </Text>
-          );
-        })}
-      </TouchableOpacity>
+          })}
+        </TouchableOpacity>
+        {actionsColumn ? (
+          <View style={[columnStyle(actionsColumn), styles.docCell]}>{deleteButton}</View>
+        ) : null}
+      </View>
     );
   }
 
@@ -1298,11 +1285,13 @@ const styles = StyleSheet.create({
   td: { fontSize: 12 },
   docCell: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 2 },
   phoneRow: { paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, gap: 2 },
-  phoneTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   phoneName: { fontSize: 15, fontWeight: '700' },
   phoneIdentity: { fontSize: 14 },
   phoneMeta: { fontSize: 13 },
   rowDelete: { padding: 4 },
+  rowWithAction: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  rowOpen: { flex: 1, minWidth: 0, gap: 2 },
+  trOpen: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, flexGrow: 1, flexShrink: 1 },
   primaryAction: {
     marginTop: 4,
     borderRadius: 10,

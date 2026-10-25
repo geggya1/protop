@@ -55,4 +55,13 @@ assert.doesNotMatch(aiIndex, /aiCleanupScheduled/);
 assert.doesNotMatch(hosp, /hospScheduledSync/);
 assert.match(script, /timeout --signal=TERM --kill-after=20s 480/);
 
+// Nye funksjoner finnes først etter deployen. Tilgangen åpnes etterpå, ellers
+// blir en ny callable stående lukket for innloggede (skjedde med respondGroupInvite).
+const openFor = script.slice(script.indexOf('open_for() {'), script.indexOf('open_queued() {'));
+assert.doesNotMatch(openFor, /open_invokers/);
+assert.ok(script.indexOf('\ndeploy_queued\nopen_queued\n') > 0, 'open_queued må kjøre rett etter deploy_queued');
+for (const name of ['respondGroupInvite', 'syncMyInvites', 'invitePreview']) {
+  assert.match(script, new RegExp(`functions:${name}`));
+}
+
 console.log('functions/slimDeploy.test.mjs: ok');

@@ -128,11 +128,23 @@ JS
   BATCH_ONLYS=()
 }
 
+# Tilgangen kan bare åpnes for funksjoner som finnes. En ny funksjon opprettes
+# først i deploy_queued, så åpningen samles opp og kjøres etter deployen.
+OPEN_AFTER_DEPLOY=()
+
 open_for() {
   local entry="$1"
   local names="$2"
   selected_entry "$entry" || return 0
-  open_invokers "$names"
+  OPEN_AFTER_DEPLOY+=("$names")
+}
+
+open_queued() {
+  local names
+  for names in ${OPEN_AFTER_DEPLOY[@]+"${OPEN_AFTER_DEPLOY[@]}"}; do
+    open_invokers "$names"
+  done
+  OPEN_AFTER_DEPLOY=()
 }
 
 open_invokers() {
@@ -207,6 +219,7 @@ queue_entry vacationPlanIndex.js functions:publishVacationPlan,functions:sweepVa
 open_for vacationPlanIndex.js functions:publishVacationPlan,functions:sweepVacationPlan
 
 deploy_queued
+open_queued
 
 deploy_entry pushIndex.js functions:onChatMessageCreated,functions:onFriendChatMessageCreated
 deploy_entry vacationPlanDailyIndex.js functions:vacationPlanDaily

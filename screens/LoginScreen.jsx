@@ -15,7 +15,7 @@ import { colors, radius } from '../src/theme';
 import { useI18n } from '../src/i18n';
 import { sendPasswordResetV2 } from '../src/utils/sendPasswordReset';
 import {
-  collectionGroup, getDocs, getDoc, query, where, doc, updateDoc,
+  collectionGroup, getDocs, query, where, doc, updateDoc,
   serverTimestamp, arrayUnion,
 } from 'firebase/firestore';
 import { resolveLoginEmail } from '../src/utils/usernames';
@@ -35,6 +35,7 @@ import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
 import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
+import { syncMyInvites } from '../src/utils/invite';
 
 function confirmAsync(title, message, ok = 'Bli med', cancel = 'Senere') {
   // react-native-web's Alert.alert is a no-op — Promises would hang forever on web.
@@ -184,74 +185,10 @@ export default function LoginScreen({ navigation }) {
     await Promise.all(updates);
   }, []);
 
+  // Invitasjoner fra e-post havner i innboksen (Godta/Avslå). Ingen blir medlem her.
   const handlePendingInvites = useCallback(async (user) => {
-    const lower = (user.email || '').toLowerCase();
-    const parentsSnap = await getDocs(query(collectionGroup(db, 'parents'), where('email', '==', lower)));
-
-    const invites = [];
-    parentsSnap.forEach((d) => {
-      const data = d.data() || {};
-      // Eksisterende-bruker-invitasjoner håndteres via FamilyInviteRespond / varsler
-      if (data.inviteKind === 'existing') return;
-      const isInvite = data.placeholder === true || (!!data.invitedAt && !data.acceptedAt);
-      if (isInvite && data.inviteStatus !== 'declined') {
-        invites.push({ parentRef: d.ref, familyId: d.ref.parent.parent.id, data });
-      }
-    });
-    if (invites.length === 0) return;
-
-    for (const inv of invites) {
-      let famName = inv.familyId;
-      let famType = '';
-      try {
-        const s = await getDoc(doc(db, 'families', inv.familyId));
-        if (s.exists()) {
-          const fam = s.data() || {};
-          if (fam.deleted === true || fam.hiddenFromApp === true) continue;
-          famName = fam.name || famName;
-          famType = String(fam.type || '');
-        }
-      } catch {}
-
-      const companyInvite = famType === 'organization' || famType === 'company';
-      const ok = await confirmAsync(
-        'Invitasjon',
-        companyInvite
-          ? `Du er invitert inn i bedriften «${famName}». Vil du bli med?`
-          : `Du er invitert som foresatt i familien «${famName}». Vil du bli med?`,
-      );
-      if (!ok) continue;
-
-      try {
-        const now = serverTimestamp();
-        await updateDoc(inv.parentRef, {
-          uid: user.uid,
-          active: true,
-          emailVerified: !!user.emailVerified,
-          placeholder: false,
-          inviteStatus: 'accepted',
-          acceptedAt: now,
-          acceptedBy: user.uid,
-          updatedAt: now,
-        });
-        await updateDoc(doc(db, 'families', inv.familyId), {
-          members: arrayUnion(user.uid),
-          activeUsers: arrayUnion(user.uid),
-          updatedAt: now,
-        });
-        await updateDoc(doc(db, 'parents', user.uid), {
-          familyIds: arrayUnion(inv.familyId),
-          updatedAt: now,
-        }).catch(() => {});
-        await updateDoc(doc(db, 'users', user.uid), {
-          familyIds: arrayUnion(inv.familyId),
-          updatedAt: now,
-        }).catch(() => {});
-        await claimEmployeeSeat(inv.familyId).catch(() => {});
-      } catch {
-        notifyAsync('Kunne ikke akseptere', 'Mangler tillatelse i Firestore-reglene.');
-      }
-    }
+    if (!user?.emailVerified) return;
+    await syncMyInvites();
   }, []);
 
   const doPasswordReset = async () => {

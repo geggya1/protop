@@ -11,6 +11,7 @@ export const USAGE_TYPES = new Set([
   'hour_deleted',
   'invite_sent',
   'invite_accepted',
+  'invite_declined',
   'change',
 ]);
 
@@ -94,6 +95,7 @@ export function usageEventLabel(type, detail = {}) {
   if (type === 'hour_deleted') return 'Slettet timeføring';
   if (type === 'invite_sent') return 'Invitasjon sendt';
   if (type === 'invite_accepted') return 'Invitasjon godtatt';
+  if (type === 'invite_declined') return 'Invitasjon avslått';
   if (type === 'change') return 'Oppdaterte opplysninger';
   return 'Hendelse';
 }

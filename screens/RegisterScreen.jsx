@@ -11,13 +11,12 @@ import {
 import { auth, db } from '../firebase';
 import { colors, radius } from '../src/theme';
 import { sendVerificationEmailV2 } from '../src/utils/sendVerificationEmail';
-import { claimAdultInvitesOnRegister } from '../src/utils/groups';
-import { claimEmployeeSeat } from '../src/employees/inviteClient';
+import { fetchInvitePreview } from '../src/utils/invite';
 import { claimPendingFriendInvite } from '../src/utils/friends';
 import { isTeamType } from '../src/utils/teams';
 import { isClassroomType, isOrganizationType } from '../src/utils/groupTypes';
 import {
-  setDoc, doc, serverTimestamp, getDoc,
+  setDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
 import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
 import { suggestUsername } from '../src/utils/usernames';
@@ -84,23 +83,20 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
       return undefined;
     }
     setInviteLoading(true);
-    getDoc(doc(db, 'families', invite.familyId))
-      .then((snap) => {
+    // Gruppen er lukket for andre enn medlemmer. Serveren svarer med navn og type
+    // bare når e-posten faktisk er invitert.
+    fetchInvitePreview({ familyId: invite.familyId, email: invite.email })
+      .then((res) => {
         if (!alive) return;
-        if (!snap.exists()) {
-          setInviteGroup({ missing: true, id: invite.familyId });
-          return;
-        }
-        const d = snap.data() || {};
-        if (d.deleted === true || d.hiddenFromApp === true) {
+        if (!res?.ok) {
           setInviteGroup({ missing: true, id: invite.familyId });
           return;
         }
         setInviteGroup({
-          id: snap.id,
-          name: d.name || 'Ukjent gruppe',
-          type: d.type || 'family',
-          joinCode: d.joinCode || '',
+          id: invite.familyId,
+          name: res.name || 'Ukjent gruppe',
+          type: res.type || 'family',
+          joinCode: '',
         });
       })
       .catch(() => {
@@ -110,7 +106,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
         if (alive) setInviteLoading(false);
       });
     return () => { alive = false; };
-  }, [invite.familyId]);
+  }, [invite.familyId, invite.email]);
 
   const emailTrimmed = email.trim().toLowerCase();
   const nameTrimmed = name.trim();
@@ -172,24 +168,8 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
         provider: 'password',
       }, { merge: true });
 
-      const claim = await claimAdultInvitesOnRegister({
-        uid: cred.user.uid,
-        email: emailTrimmed,
-        name: nameTrimmed,
-        phone: invite.phone || '',
-        preferredFamilyId: invite.familyId || '',
-      });
-
-      try {
-        await cred.user.getIdToken(true);
-        const companyIds = new Set(claim?.claimed || []);
-        if (invite.familyId) companyIds.add(invite.familyId);
-        for (const companyId of companyIds) {
-          await claimEmployeeSeat(companyId);
-        }
-      } catch (inviteErr) {
-        console.warn('Employee invite claim failed', inviteErr?.message || inviteErr);
-      }
+      // Gruppeinvitasjoner godtas ikke her. Når e-posten er bekreftet, får personen
+      // invitasjonen med Godta/Avslå (syncMyInvites i InviteRespondOverlay).
 
       if (invite.friendInvite) {
         try {
@@ -204,11 +184,6 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
       }
 
       setJustRegisteredEmail?.(emailTrimmed);
-
-      if (claim?.claimed?.length && inviteGroup && !inviteGroup.missing) {
-        // Soft success context — VerifyEmail screen follows via App flow
-        console.info('Invite claimed for', claim.claimed, inviteGroup.name);
-      }
     } catch (err) {
       console.error('❌ Registrering feilet:', err);
       let msg = 'Registrering feilet. Prøv igjen.';
@@ -276,7 +251,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                   <Text style={styles.inviteSub}>Henter invitasjon…</Text>
                 ) : inviteGroup?.missing ? (
                   <Text style={styles.inviteSub}>
-                    Invitasjonslenken peker på en gruppe vi ikke fant. Du kan fortsatt opprette konto.
+                    Vi fant ikke invitasjonen. Den kan være trukket tilbake eller allerede besvart. Du kan fortsatt opprette konto.
                   </Text>
                 ) : (
                   <>
@@ -290,12 +265,12 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                     <Text style={styles.inviteTitle}>{inviteGroup?.name}</Text>
                     <Text style={styles.inviteSub}>
                       {isCompanyInvite
-                        ? 'Når du registrerer deg, kommer du inn i bedriften med tilgangen som er satt på invitasjonen.'
+                        ? 'Du er invitert inn i bedriften. Opprett konto og bekreft e-posten. Deretter må du godta invitasjonen før du blir med i bedriften. Du kan også avslå.'
                         : (isTeamInvite
-                          ? 'Når du registrerer deg, blir du med på laget. Status «invitert» byttes til aktivt medlemskap.'
+                          ? 'Du er invitert til laget. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'
                           : (isClassInvite
-                            ? 'Når du registrerer deg, blir du med i klassen som lærer eller ansatt.'
-                            : 'Når du registrerer deg, blir du med i familien som foresatt.'))}
+                            ? 'Du er invitert til klassen som lærer eller ansatt. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'
+                            : 'Du er invitert som foresatt i familien. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'))}
                     </Text>
                     {!!inviteGroup?.joinCode && (isTeamInvite || isClassInvite) ? (
                       <Text style={styles.inviteCode}>
@@ -389,7 +364,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
             >
               {loading ? <ActivityIndicator color="#fff" /> : (
                 <Text style={styles.primaryBtnText}>
-                  {inviteGroup && !inviteGroup.missing ? 'Registrer og bli med' : 'Registrer'}
+                  {inviteGroup && !inviteGroup.missing ? 'Registrer og se invitasjonen' : 'Registrer'}
                 </Text>
               )}
             </TouchableOpacity>

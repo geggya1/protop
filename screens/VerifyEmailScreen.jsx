@@ -75,6 +75,9 @@ export default function VerifyEmailScreen({ route, navigation, email: emailProp,
 
   const afterSuccess = useCallback(async () => {
     setDone(true);
+    // Lenken kan bekrefte før innloggingen er lest inn igjen. Vent på den, ellers
+    // blir oppfriskingen hoppet over og siden står fast på «Bekreft e-posten din».
+    try { await auth.authStateReady?.(); } catch { /* ignore */ }
     if (auth.currentUser) {
       try { await reload(auth.currentUser); } catch {}
     }

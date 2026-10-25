@@ -304,6 +304,7 @@ export function failInvite(world, { companyId, employeeId }) {
   return next;
 }
 
+/** Personen trykker Godta på invitasjonen (respondGroupInvite). Uten Godta blir ingen medlem. */
 export function claimInvite(world, { companyId, uid, email }) {
   const company = companyById(world, companyId);
   const plan = claimEmployeeSeatPlan({

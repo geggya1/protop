@@ -21,7 +21,7 @@ const existingSms = buildInviteSms({
   registerUrl: acceptUrl,
   existingUser: true,
 });
-assert.match(existingSms, /godta invitasjonen/i);
+assert.match(existingSms, /godta eller avslå invitasjonen/i);
 assert.doesNotMatch(existingSms, /Registrer deg/i);
 assert.match(existingSms, /Andersen/);
 
@@ -33,5 +33,6 @@ const newSms = buildInviteSms({
   existingUser: false,
 });
 assert.match(newSms, /Registrer deg/);
+assert.match(newSms, /godta invitasjonen/);
 
 console.log('invite.existingUser.test.mjs: ok');

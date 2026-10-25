@@ -1,7 +1,7 @@
 /**
- * Knytter en registrert bruker til medarbeideren i bedriften.
- * E-posten sendes av den vanlige invitasjonen. Her settes personUid,
- * innlogging og medlemskap, med tilgangsnivået som allerede ligger på ansettelsen.
+ * Knytter en bruker som allerede har godtatt bedriftsinvitasjonen til medarbeideren.
+ * Medlemskapet kommer fra Godta (respondGroupInvite). Her settes personUid,
+ * innlogging og tilgangsnivået som ligger på ansettelsen. Ingen meldes inn her.
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
@@ -12,6 +12,7 @@ import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
 import { claimEmployeeSeatPlan } from '../src/employees/invite.js';
 import { clientIpFromHeaders, sanitizeIp } from '../src/employees/usage.js';
 import { writeUsageEvent } from './usageLog.js';
+import { isConfirmedMember } from '../src/utils/groupInviteLogic.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -103,6 +104,9 @@ export const claimEmployeeInvite = onCall(CALL, async (req) => {
   });
   const companySnap = await db.doc(`families/${companyId}`).get();
   if (!companySnap.exists) return { ok: true, skipped: true };
+  // Bare den som har godtatt invitasjonen, og med bekreftet e-post, knyttes til en ansatt.
+  if (!isConfirmedMember(companySnap.data(), uid)) return { ok: true, skipped: true, needsAccept: true };
+  if (req.auth?.token?.email_verified !== true) return { ok: true, skipped: true, needsVerifiedEmail: true };
   const snap = await db.collection(`families/${companyId}/employees`).get();
   const employees = snap.docs.map((item) => ({ id: item.id, ...item.data() }));
   const now = new Date().toISOString();

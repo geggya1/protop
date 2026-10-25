@@ -27,6 +27,14 @@ import {
 } from '../src/utils/groups';
 import { archiveEmptyDuplicateClassrooms } from '../src/utils/classroom';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
+import { inviteResponseMessage } from '../src/utils/groupInviteLogic';
+
+function inviteAnswerError(e, t) {
+  const code = e?.message || '';
+  if (code === 'already-handled') return t('member.inviteAlreadyHandled');
+  if (code === 'forbidden') return t('member.inviteForbidden');
+  return inviteResponseMessage(code) || (code && !/^[a-z-]+$/.test(code) ? code : t('common.error'));
+}
 import HelpTarget from '../components/HelpTarget';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { AvatarBubble } from '../components/AvatarPicker';
@@ -220,11 +228,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
         });
       }
     } catch (e) {
-      setInviteError(
-        e?.message === 'already-handled'
-          ? t('member.inviteAlreadyHandled')
-          : (e?.message === 'forbidden' ? t('member.inviteForbidden') : t('common.error')),
-      );
+      setInviteError(inviteAnswerError(e, t));
     } finally {
       setInviteBusyId(null);
     }
@@ -239,11 +243,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
     try {
       await declineFamilyMemberInvite({ familyId, inviteId, uid: user.uid });
     } catch (e) {
-      setInviteError(
-        e?.message === 'already-handled'
-          ? t('member.inviteAlreadyHandled')
-          : (e?.message === 'forbidden' ? t('member.inviteForbidden') : t('common.error')),
-      );
+      setInviteError(inviteAnswerError(e, t));
     } finally {
       setInviteBusyId(null);
     }

@@ -13,6 +13,9 @@ import {
   declineFamilyMemberInvite,
 } from '../src/utils/groups';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
+import { auth } from '../firebase';
+import { syncMyInvites } from '../src/utils/invite';
+import { inviteResponseMessage, isCompanyGroupType } from '../src/utils/groupInviteLogic';
 import {
   listenIncomingGameInvites,
   listenFamilyPendingGameInvites,
@@ -57,6 +60,45 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     }
     return listenIncomingGameInvites(uid, setGameInvites);
   }, [uid, enabled]);
+
+  // Ny bruker invitert på e-post: invitasjonen legges i innboksen når e-posten er bekreftet.
+  // Bekreftelsen skjer midt i økta uten ny uid, så statusen følges her til den er satt.
+  const [emailVerified, setEmailVerified] = useState(() => !!auth.currentUser?.emailVerified);
+  useEffect(() => {
+    if (!uid) return undefined;
+    const check = () => !!auth.currentUser?.emailVerified;
+    if (check()) {
+      setEmailVerified(true);
+      return undefined;
+    }
+    setEmailVerified(false);
+    const timer = setInterval(() => {
+      if (!check()) return;
+      setEmailVerified(true);
+      clearInterval(timer);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [uid]);
+
+  useEffect(() => {
+    const current = auth.currentUser;
+    if (!uid || !enabled || !emailVerified || !current || current.uid !== uid) return undefined;
+    const key = `protop.inviteSync.${uid}`;
+    try { if (sessionStorage.getItem(key) === '1') return undefined; } catch { /* native */ }
+    let alive = true;
+    (async () => {
+      try {
+        const token = await current.getIdTokenResult();
+        if (!token?.claims?.email_verified) await current.getIdToken(true);
+      } catch { /* bruker gammelt token */ }
+      if (!alive) return;
+      const res = await syncMyInvites();
+      if (res?.ok && !res.skipped) {
+        try { sessionStorage.setItem(key, '1'); } catch { /* native */ }
+      }
+    })();
+    return () => { alive = false; };
+  }, [uid, enabled, emailVerified]);
 
   useEffect(() => {
     if (!uid || !enabled || !familyId) {
@@ -135,6 +177,13 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     return null;
   }, [familyInvites, friendInvites, mergedGameInvites]);
 
+  const answerError = (e) => {
+    const code = e?.message || '';
+    if (code === 'already-handled') return t('member.inviteAlreadyHandled');
+    if (code === 'forbidden') return t('member.inviteForbidden');
+    return inviteResponseMessage(code) || (code && !/^[a-z-]+$/.test(code) ? code : t('common.error'));
+  };
+
   if (!enabled || !uid || !current) return null;
 
   const onAccept = async () => {
@@ -179,11 +228,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         }
       }
     } catch (e) {
-      setError(
-        e?.message === 'already-handled'
-          ? t('member.inviteAlreadyHandled')
-          : (e?.message === 'forbidden' ? t('member.inviteForbidden') : t('common.error')),
-      );
+      setError(answerError(e));
     } finally {
       setBusy(false);
     }
@@ -219,26 +264,27 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         });
       }
     } catch (e) {
-      setError(
-        e?.message === 'already-handled'
-          ? t('member.inviteAlreadyHandled')
-          : (e?.message === 'forbidden' ? t('member.inviteForbidden') : t('common.error')),
-      );
+      setError(answerError(e));
     } finally {
       setBusy(false);
     }
   };
 
   const inv = current.inv;
+  const companyInvite = current.kind === 'family' && isCompanyGroupType(inv.groupType);
   const copy = current.kind === 'family'
     ? groupInviteCopy(inv.groupType, inv.familyName)
     : null;
-  const title = current.kind === 'family'
+  const title = companyInvite
+    ? t('member.companyInviteTitle')
+    : current.kind === 'family'
     ? (copy?.title || t('member.familyInviteTitle'))
     : (current.kind === 'friend'
       ? t('friend.requestTitle')
       : t('member.gameInviteTitle'));
-  const lead = current.kind === 'family'
+  const lead = companyInvite
+    ? `${t('member.companyInviteLead')} «${copy?.bodyName || inv.familyName}».`
+    : current.kind === 'family'
     ? `${t('member.familyInviteLead')} «${copy?.bodyName || inv.familyName || t('group.family')}».`
     : (current.kind === 'friend'
       ? (inv.fromName
@@ -246,7 +292,9 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         : t('friend.wantsToBeFriend'))
       : `${inv.hostName || 'Noen'} inviterer deg til ${inv.gameTitle || GAME_TYPE_LABELS[inv.gameType] || 'spill'}.`);
   const question = t('member.homeInviteQuestion');
-  const hint = current.kind === 'family'
+  const hint = companyInvite
+    ? t('member.companyInviteHint')
+    : current.kind === 'family'
     ? t('member.familyInviteHint')
     : (current.kind === 'friend'
       ? t('friend.privacyNotice')

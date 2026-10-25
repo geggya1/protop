@@ -410,8 +410,14 @@ export default function CompanyPublicProfile({
     return null;
   }
 
-  const mainModules = visibleModules(view, 'main').map((row) => moduleBody(row.id)).filter(Boolean);
-  const sideModules = visibleModules(view, 'side').map((row) => moduleBody(row.id)).filter(Boolean);
+  const keyedModules = (column) => visibleModules(view, column)
+    .map((row) => {
+      const body = moduleBody(row.id);
+      return body ? <React.Fragment key={row.id}>{body}</React.Fragment> : null;
+    })
+    .filter(Boolean);
+  const mainModules = keyedModules('main');
+  const sideModules = keyedModules('side');
 
   return (
     <View style={styles.page}>

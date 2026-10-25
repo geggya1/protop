@@ -494,4 +494,5 @@ export { friendListHttp } from './friendListHttp.js';
 export { generateCompanyForm } from './anbudForm.js';
 export { claimEmployeeInvite } from './employeeInvite.js';
 export { respondGroupInvite, syncMyInvites, invitePreview } from './groupInvite.js';
+export { findCompanyByOrgnr, requestCompanyJoin } from './companyJoin.js';
 export { recordUsage, listEmployeeUsage } from './usageLog.js';

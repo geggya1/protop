@@ -16,6 +16,7 @@ import { createRequire } from 'node:module';
 import { PROTOP_PAGES } from '../../src/help/protopPages.js';
 import { PROTOP_PROCESSES } from '../../src/help/protopProcesses.js';
 import { BOT_USER } from './seed.mjs';
+import { markLimits } from '../../src/help/findTarget.js';
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -70,6 +71,8 @@ function log(...a) { console.log(...a); }
 
 /** Gjeldende side/fase, brukt til å merke konsollfeil. */
 const phase = { now: 'innlogging' };
+const RELOAD_PHASE = 'omlasting';
+const isReloadError = (e) => String(e).startsWith(`[${RELOAD_PHASE}]`);
 
 async function login(view) {
   const browser = await chromium.launch();
@@ -125,6 +128,10 @@ async function closeOverlays(page) {
  * (åpnet skjema, valgte ansatt …), så neste side starter rent.
  */
 async function resetApp(page) {
+  // Firestore kan kaste interne feil når lytterne rives ned midt i en
+  // omlasting. Brukeren ser ikke den siden; feilene merkes og telles for seg.
+  const before = phase.now;
+  phase.now = RELOAD_PHASE;
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 300000 });
   await page.waitForFunction(() => !!window.__protopBot && !!document.getElementById('help-target-helpBtn'), null, { timeout: 240000 });
   await page.waitForTimeout(2000);
@@ -133,6 +140,7 @@ async function resetApp(page) {
     await skip.first().click({ force: true }).catch(() => {});
     await page.waitForTimeout(400);
   }
+  phase.now = before;
 }
 
 /**
@@ -179,6 +187,13 @@ function overlap(a, b) {
   const x = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
   const y = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
   return x * y;
+}
+
+/** For bred (hel linje) eller for høy (hel seksjon) markering. Menyen (rail) er loddrett med vilje. */
+function tooBig(st, anchor) {
+  if (!st.hole) return false;
+  const lim = markLimits(st.vw, st.vh);
+  return st.hole.w > lim.buttonW + 40 || (anchor !== 'rail' && st.hole.h > lim.maxH + 40);
 }
 
 async function tourState(page) {
@@ -236,6 +251,9 @@ async function walkTour(page, expectedSteps, { shotPrefix = '' } = {}) {
       holeInView,
       cardCoversHole: covered > (st.hole ? st.hole.w * st.hole.h * 0.25 : 0),
       holeInMenu: st.holeInMenu && exp.anchor !== 'rail',
+      // Markeringen skal være knappen, ikke en hel rad, tabell eller seksjon.
+      holeTooBig: tooBig(st, exp.anchor),
+      holeSize: st.hole ? `${Math.round(st.hole.w)}×${Math.round(st.hole.h)}` : null,
       pageKey: st.help?.pageKey || null,
       // Steg med knapp som verken markeres eller forklares («vises når …»).
       unexplained: !st.hole && !st.pending && (exp.find || []).length > 0,
@@ -317,7 +335,7 @@ async function testPages(view, page) {
       && row.pageMatches
       && row.card?.shown && row.card.titleOk && row.card.stepsOk
       && t && t.count === t.expected && t.closedAtEnd
-      && t.steps.every((s) => s.titleOk && s.holeInView && !s.cardCoversHole && !s.holeInMenu && !s.viaStuck && s.viaTitleKept !== false);
+      && t.steps.every((s) => s.titleOk && s.holeInView && !s.cardCoversHole && !s.holeInMenu && !s.holeTooBig && !s.viaStuck && s.viaTitleKept !== false);
     if (!row.ok && OPTIONAL_PAGES.has(key) && !row.pageMatches) row.skipped = OPTIONAL_PAGES.get(key);
     const unexplained = (row.tour?.steps || []).filter((s) => s.unexplained).map((s) => s.i);
     const viaSteps = (row.tour?.steps || []).filter((s) => s.via);
@@ -332,15 +350,16 @@ async function testPages(view, page) {
         tour: t ? {
           count: `${t.count}/${t.expected}`,
           closed: t.closedAtEnd,
-          bad: t.steps.filter((s) => !s.titleOk || !s.holeInView || s.cardCoversHole || s.holeInMenu || s.viaStuck || s.viaTitleKept === false)
+          bad: t.steps.filter((s) => !s.titleOk || !s.holeInView || s.cardCoversHole || s.holeInMenu || s.holeTooBig || s.viaStuck || s.viaTitleKept === false)
             .map((s) => ({
-              i: s.i, title: s.title, titleOk: s.titleOk, inView: s.holeInView, covered: s.cardCoversHole, menu: s.holeInMenu, via: s.via, viaTitleKept: s.viaTitleKept,
+              i: s.i, title: s.title, titleOk: s.titleOk, inView: s.holeInView, covered: s.cardCoversHole, menu: s.holeInMenu, tooBig: s.holeTooBig ? s.holeSize : undefined, via: s.via, viaTitleKept: s.viaTitleKept,
             })),
         } : null,
         err: row.error,
       })}`}`);
     rows.push(row);
-    if (row.tour?.dirty || row.error) await resetApp(page).catch(() => {});
+    // Via-trykk og chat-siden (åpner «Ny chat» i dokken) etterlater tilstand: last på nytt.
+    if (row.tour?.dirty || row.error || key === 'chat') await resetApp(page).catch(() => {});
   }
   return rows;
 }
@@ -371,6 +390,7 @@ async function testProcesses(view, page) {
         titleOk: st.title.trim() === want.title.nb,
         highlighted: !!st.hole,
         cardCoversHole: overlap(st.card, st.hole) > (st.hole ? st.hole.w * st.hole.h * 0.25 : 0),
+        holeTooBig: tooBig(st, want.anchor),
       });
       if (i === 0 && SHOTS !== 'none') await page.screenshot({ path: join(OUT, view, `flyt-${proc.id}-steg1.png`) });
       const next = page.locator('[data-testid="help-tour-next"]');
@@ -379,7 +399,7 @@ async function testProcesses(view, page) {
     }
     await page.waitForTimeout(800);
     const closed = await page.evaluate(() => !document.querySelector('[data-testid="help-tour-card"]'));
-    const ok = steps.length === proc.steps.length && steps.every((s) => s.pageOk && s.titleOk && !s.cardCoversHole) && closed;
+    const ok = steps.length === proc.steps.length && steps.every((s) => s.pageOk && s.titleOk && !s.cardCoversHole && !s.holeTooBig) && closed;
     out[proc.id] = { ok, steps, closedAtEnd: closed };
     log(`[${view}] ${ok ? 'OK ' : 'FEIL'} arbeidsflyt ${proc.id} — ${steps.filter((s) => s.pageOk).length}/${proc.steps.length} sider riktig, ${steps.filter((s) => s.highlighted).length} markert`);
   }
@@ -493,7 +513,8 @@ function markdown() {
     lines.push(`- «Trykk for å åpne» (via): ${via.filter((s) => s.viaResolved).length}/${via.length} førte videre`);
     const unexplained = rows.flatMap((r) => (r.tour?.steps || []).filter((s) => s.unexplained).map((s) => `${r.key} #${s.i}`));
     lines.push(`- Steg uten markering og uten forklaring: ${unexplained.length}${unexplained.length ? ` (${unexplained.join(', ')})` : ''}`);
-    lines.push(`- Konsollfeil: ${(data.errors || []).length}`);
+    const reloadErrors = (data.errors || []).filter(isReloadError).length;
+    lines.push(`- Konsollfeil: ${(data.errors || []).length - reloadErrors}${reloadErrors ? ` (+ ${reloadErrors} under boten sin omlasting av appen, ikke synlig for brukeren)` : ''}`);
     const bad = rows.filter((r) => !r.ok && !r.skipped);
     if (bad.length) {
       lines.push('', '| Side | Problem |', '|---|---|');
@@ -538,7 +559,7 @@ async function main() {
       || data.pages.some((r) => !r.ok && !r.skipped)
       || Object.values(data.processes || {}).some((p) => !p.ok)
       || (data.assistant && !data.assistant.ok)
-      || errors.length > 0;
+      || errors.some((e) => !isReloadError(e));
     await browser.close();
     writeFileSync(join(OUT, 'rapport.json'), JSON.stringify(report, null, 2));
     writeFileSync(join(OUT, 'rapport.md'), markdown());

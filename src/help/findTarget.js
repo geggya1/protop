@@ -11,6 +11,8 @@
 const OVERLAY_SELECTOR = '[data-wp-help-overlay], [data-help-card], [data-assistant-panel]';
 const CLICKABLE_SELECTOR = 'button, a[href], [role="button"], [role="tab"], [role="link"], [role="checkbox"], [role="switch"], input, textarea, [tabindex]:not([tabindex="-1"])';
 const MAX_SCAN = 4000;
+/** Plass nederst som bunnmenyen på mobil kan dekke. */
+const BOTTOM_RESERVE = 72;
 
 /** Normaliserer synlig tekst: ikon-glyfer, plusstegn og mellomrom bort. */
 export function normalizeLabel(text) {
@@ -64,9 +66,16 @@ export function scoreCandidate({ label, ariaLabel, testId, text }) {
   if (normalizeLabel(ariaLabel) === want) return 90;
   const own = normalizeLabel(text);
   if (own === want) return 80;
-  if (normalizeLabel(ariaLabel).startsWith(want)) return 60;
-  if (want.length >= 4 && own.startsWith(want) && own.length <= want.length + 24) return 50;
+  if (startsAsWord(normalizeLabel(ariaLabel), want)) return 60;
+  if (want.length >= 4 && startsAsWord(own, want) && own.length <= want.length + 24) return 50;
   return 0;
+}
+
+/** «Oppdater nå (3 nye)» starter med «Oppdater nå» — «Godkjenninger» starter ikke med ordet «Godkjenn». */
+function startsAsWord(text, want) {
+  if (!text.startsWith(want)) return false;
+  const next = text.charAt(want.length);
+  return !next || !/[\p{L}\p{N}]/u.test(next);
 }
 
 function viewportOf(doc) {
@@ -206,20 +215,91 @@ function scanFor(labels, scope, win, clickable = false) {
  */
 export function findTargetRect(labels, { scroll = true, doc } = {}) {
   const d = doc || (typeof document !== 'undefined' ? document : null);
-  const el = findTargetElement(labels, d);
-  return el ? rectOf(el, d, scroll) : null;
+  const hit = findTargetMatch(labels, d);
+  return hit ? rectOf(hit.el, d, scroll, hit.label) : null;
 }
 
-function rectOf(el, doc, scroll) {
+function rectOf(el, doc, scroll, label = '') {
   const { w, h } = viewportOf(doc);
   let r = el.getBoundingClientRect();
-  const off = r.bottom < 0 || r.top > h || r.right < 0 || r.left > w;
+  // Rull frem også når knappen bare delvis synes (f.eks. bak bunnmenyen på mobil).
+  const off = r.top < 4 || r.bottom > h - BOTTOM_RESERVE || r.right < 0 || r.left > w;
   if (off && scroll && typeof el.scrollIntoView === 'function') {
     try { el.scrollIntoView({ block: 'center', inline: 'nearest' }); } catch { /* ignore */ }
     r = el.getBoundingClientRect();
   }
   if (!(r.width > 2 && r.height > 2)) return null;
-  return { x: r.left, y: r.top, w: r.width, h: r.height };
+  return preciseRect(el, { x: r.left, y: r.top, w: r.width, h: r.height }, label, doc);
+}
+
+/** Bredeste/høyeste element som markeres helt; større blir krympet til teksten. */
+export function markLimits(vw, vh) {
+  return {
+    maxW: Math.max(200, Math.min(520, vw * 0.6)),
+    // Knapper som fyller mobilbredden (fullbredde-knapper) markeres hele.
+    buttonW: Math.max(420, Math.min(520, vw * 0.6)),
+    maxH: Math.max(96, vh * 0.2),
+  };
+}
+
+function looksLikeButton(el, win) {
+  try {
+    const cs = win.getComputedStyle(el);
+    const radius = parseFloat(cs.borderTopLeftRadius) || 0;
+    const bg = String(cs.backgroundColor || '');
+    const filled = !!bg && !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(bg);
+    const bordered = ['Top', 'Right', 'Bottom', 'Left'].every((s) => (parseFloat(cs[`border${s}Width`]) || 0) > 0);
+    return radius >= 6 && (filled || bordered);
+  } catch {
+    return false;
+  }
+}
+
+function isFormControl(el) {
+  return /^(INPUT|TEXTAREA|SELECT)$/.test(String(el?.tagName || ''));
+}
+
+/** Tett rektangel rundt teksten i elementet — etiketten om den finnes, ellers første tekst. */
+function textRect(el, label, doc) {
+  if (!doc || typeof doc.createTreeWalker !== 'function' || typeof doc.createRange !== 'function') return null;
+  const want = label && !String(label).startsWith('#') ? normalizeLabel(label) : '';
+  const walker = doc.createTreeWalker(el, 4 /* NodeFilter.SHOW_TEXT */);
+  let first = null;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const t = normalizeLabel(node.textContent);
+    if (!t) continue;
+    const range = doc.createRange();
+    range.selectNodeContents(node);
+    const r = range.getBoundingClientRect();
+    if (!(r.width > 2 && r.height > 2)) continue;
+    const rect = { x: r.left, y: r.top, w: r.width, h: r.height };
+    if (want && (t === want || t.startsWith(want) || want.startsWith(t))) return rect;
+    if (!first) first = rect;
+  }
+  return first;
+}
+
+/**
+ * Presis markering: en knapp markeres hel. En rad, overskrift, tabell eller
+ * et kort som går over hele bredden krympes til teksten brukeren ser etter,
+ * så markeringen aldri blir en hel vannrett linje.
+ */
+export function preciseRect(el, rect, label, doc) {
+  const { win, w: vw, h: vh } = viewportOf(doc);
+  if (!rect || !vw || !vh) return rect;
+  const { maxW, buttonW, maxH } = markLimits(vw, vh);
+  if (isFormControl(el)) {
+    // Søkefelt over hele bredden: marker starten av feltet, der teksten står.
+    if (rect.w <= maxW) return rect;
+    const text = String(el.getAttribute?.('placeholder') || el.value || '');
+    const want = Math.min(rect.w, Math.max(maxW * 0.75, text.length * 8 + 48));
+    return { ...rect, w: want };
+  }
+  const tall = rect.h > maxH;
+  const wide = rect.w > maxW && !(rect.w <= buttonW && win && looksLikeButton(el, win));
+  if (!tall && !wide) return rect;
+  const t = textRect(el, label, doc);
+  return t || rect;
 }
 
 /**
@@ -234,7 +314,7 @@ export function locateStepTarget({ find = [], via = [] } = {}, { scroll = true, 
   // En via-knapp bak et åpent modalvindu er dekket — da venter vi på målknappen.
   if (hit && !direct && behindModal(hit.el, d)) hit = null;
   if (!hit) return null;
-  const rect = rectOf(hit.el, d, scroll);
+  const rect = rectOf(hit.el, d, scroll, hit.label);
   if (!rect) return null;
   return { rect, el: hit.el, label: hit.label, via: !direct };
 }

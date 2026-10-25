@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  findTargetElement, findTargetMatch, findTargetRect, locateStepTarget, normalizeLabel, scoreCandidate,
+  findTargetElement, findTargetMatch, findTargetRect, locateStepTarget, normalizeLabel, preciseRect, scoreCandidate,
 } from './findTarget.js';
 
 assert.equal(normalizeLabel(' + Ny kunde '), 'ny kunde');
@@ -14,6 +14,8 @@ assert.equal(scoreCandidate({ label: 'Velg filer', ariaLabel: 'Velg filer eller 
 assert.equal(scoreCandidate({ label: 'Oppdater nå', text: 'Oppdater nå (3 nye)' }), 50);
 assert.equal(scoreCandidate({ label: 'Ny', text: 'Nytt prosjekt' }), 0, 'korte etiketter må treffe eksakt');
 assert.equal(scoreCandidate({ label: 'Ny kunde', text: 'Ingen kunder er registrert ennå.' }), 0);
+assert.equal(scoreCandidate({ label: 'Godkjenn', text: 'Godkjenninger' }), 0, 'prefiks må være et helt ord');
+assert.equal(scoreCandidate({ label: 'Lås timer til', ariaLabel: 'Lås timer til 2026-10-01' }), 60);
 
 // Liten DOM-attrapp: knapp med ikon + tekst inni et kort med mye tekst.
 function el({ text = '', aria = '', testId = '', placeholder = '', rect, role = '', children = [], hidden = false }) {
@@ -102,5 +104,40 @@ const docModal = {
   querySelectorAll: (sel) => (sel.includes('aria-modal') && !sel.includes('role') ? [modal] : (/dialog/.test(sel) ? [] : nodes)),
 };
 assert.equal(locateStepTarget({ find: ['Finnes ikke'], via: ['Ny kunde'] }, { doc: docModal }), null);
+
+// Presis markering: en rad over hele bredden krympes til teksten, en knapp markeres hel.
+const textNode = { textContent: 'Hjelpe Bot' };
+const rowDoc = {
+  defaultView: {
+    innerWidth: 1440,
+    innerHeight: 900,
+    getComputedStyle: () => ({ borderTopLeftRadius: '0px', backgroundColor: 'rgba(0, 0, 0, 0)' }),
+  },
+  createTreeWalker: () => {
+    let done = false;
+    return { nextNode: () => (done ? null : ((done = true), textNode)) };
+  },
+  createRange: () => ({
+    selectNodeContents() {},
+    getBoundingClientRect: () => ({ left: 260, top: 520, width: 72, height: 18 }),
+  }),
+};
+const row = { tagName: 'DIV', getAttribute: () => null };
+assert.deepEqual(preciseRect(row, { x: 240, y: 510, w: 1120, h: 40 }, '#hr-row-*', rowDoc), { x: 260, y: 520, w: 72, h: 18 }, 'hel rad → bare navnet');
+assert.deepEqual(preciseRect(row, { x: 240, y: 510, w: 180, h: 40 }, 'Ny kunde', rowDoc), { x: 240, y: 510, w: 180, h: 40 }, 'knappestørrelse beholdes');
+const input = { tagName: 'INPUT', getAttribute: (n) => (n === 'placeholder' ? 'Søk' : null) };
+assert.ok(preciseRect(input, { x: 240, y: 300, w: 1100, h: 40 }, 'Søk', rowDoc).w < 600, 'brede søkefelt markeres fra starten');
+const phoneDoc = {
+  ...rowDoc,
+  defaultView: {
+    innerWidth: 390,
+    innerHeight: 844,
+    getComputedStyle: () => ({
+      borderTopLeftRadius: '12px', backgroundColor: 'rgb(16, 153, 244)',
+      borderTopWidth: '0px', borderRightWidth: '0px', borderBottomWidth: '0px', borderLeftWidth: '0px',
+    }),
+  },
+};
+assert.deepEqual(preciseRect(row, { x: 16, y: 700, w: 358, h: 48 }, 'Legg til prosjekt', phoneDoc), { x: 16, y: 700, w: 358, h: 48 }, 'fullbreddeknapp på mobil markeres hel');
 
 console.log('findTarget.test.mjs: ok');

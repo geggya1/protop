@@ -28,6 +28,8 @@ const NATIVE_DRIVER = Platform.OS !== 'web';
 const DIM = 'rgba(7, 16, 35, 0.72)';
 /** Ankre der reserveplasseringen faktisk peker på riktig sted uten måling. */
 const RELIABLE_FALLBACK = new Set(['helpBtn', 'rail', 'tabs', 'header']);
+/** Ankre som dekker hele seksjoner — for brede til å vise «trykk her». */
+const BAND_ANCHORS = new Set(['content', 'timeline', 'shortcuts']);
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -279,13 +281,16 @@ export default function HelpOverlay() {
     if ((stepFind.length || stepVia.length) && !hasMeasured && !reliable) return null;
     if (mode === 'process' && !hasMeasured && !reliable) return null;
     if (!hasMeasured && !reliable && (anchor === 'rail' || anchor === 'tabs')) return null;
+    // ProTop-sider: aldri et helt innholdsfelt eller et gjettet bånd —
+    // bare ekte knapper (find) og fast skall (lyspære, meny, faner, topp).
+    if ((mode === 'process' || copy?.pageKey) && (BAND_ANCHORS.has(anchor) || (!hasMeasured && !reliable))) return null;
     const alt = anchor === 'shortcuts' || anchor === 'timeline'
       ? (targets.content || targets.rail || null)
       : anchor === 'edit'
         ? (targets.header || null)
         : null;
     return resolveHole(anchor, measured, layoutHints, alt);
-  }, [visible, foundRect, current?.anchor, stepFind, stepVia, mode, targets, layoutHints, noRail, layout.isPhone]);
+  }, [visible, foundRect, current?.anchor, stepFind, stepVia, mode, copy?.pageKey, targets, layoutHints, noRail, layout.isPhone]);
 
   // Kortet vokser med teksten opp til taket; bare innholdet over taket ruller.
   const baseCap = tourCardCap({ winH: height, winW: width, isPhone: layout.isPhone, inset: insets });

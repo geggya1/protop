@@ -175,23 +175,8 @@ service cloud.firestore {
       return g == 'see' ? 1 : (g == 'read' ? 2 : ((g == 'write' || g == 'delete') ? 3 : 0));
     }
 
-    function actorAcl(familyId) {
-      return exists(aclPath(familyId)) ? get(aclPath(familyId)).data : {};
-    }
-
-    function actorGrant(familyId, res) {
-      return actorAcl(familyId).get('grants', {}).get(res, 'none');
-    }
-
-    function isCompanyAdmin(familyId) {
-      return isFamilyOwner(familyId)
-        || request.auth.uid in get(familyPath(familyId)).data.get('adminUids', [])
-        || actorAcl(familyId).get('levelId', '') == 'administrator';
-    }
-
     // Nivåene posten faktisk gir: listen, ellers enkeltnivået, ellers rolleteksten (eldre poster).
-    function empLevelSet(d) {
-      let c = d.get('company', {});
+    function empLevelSet(c) {
       return c.get('accessLevels', []).size() > 0
         ? c.get('accessLevels', []).toSet()
         : (c.get('accessLevel', '') != ''
@@ -204,71 +189,65 @@ service cloud.firestore {
     }
 
     // Uendret tilgang. Tåler at appen normaliserer eldre poster (f.eks. '' → 'ansatt').
-    function empAccessStable(d, old) {
-      return d.get('company', {}).get('accessOverrides', {}) == old.get('company', {}).get('accessOverrides', {})
-        && empLevelSet(d).difference(empLevelSet(old)).hasOnly(benignLevels())
-        && empLevelSet(old).difference(empLevelSet(d)).hasOnly(benignLevels());
+    function empAccessStable(c, o) {
+      return c.get('accessOverrides', {}) == o.get('accessOverrides', {})
+        && empLevelSet(c).difference(empLevelSet(o)).hasOnly(benignLevels())
+        && empLevelSet(o).difference(empLevelSet(c)).hasOnly(benignLevels());
     }
 
-    function empLevels(d) {
-      let c = d.get('company', {});
-      return c.get('accessLevels', []).concat([c.get('accessLevel', '')]);
+    function empIsAdminLevel(c) {
+      return empLevelSet(c).hasAny(['administrator', 'admin', 'hovedadministrator']);
     }
 
-    function empIsAdminLevel(d) {
-      return empLevels(d).hasAny(['administrator'])
-        || d.get('company', {}).get('accessRole', '').lower().matches('.*admin.*');
+    function empIsPrivileged(c) {
+      return empLevelSet(c).hasAny(['administrator', 'admin', 'hovedadministrator', 'leder', 'avdelingsleder', 'øverste leder', 'daglig leder'])
+        || c.get('accessOverrides', {}).size() > 0;
     }
 
-    function empIsPrivileged(d) {
-      return empLevels(d).hasAny(['administrator', 'leder', 'avdelingsleder'])
-        || d.get('company', {}).get('accessRole', '').lower().matches('.*(admin|leder).*')
-        || d.get('company', {}).get('accessOverrides', {}).size() > 0;
-    }
-
-    // De viktigste innstillingsområdene: et avvik kan ikke gi mer enn aktøren har selv.
-    function overrideWithin(familyId, d, res) {
-      return grantRank(d.get('company', {}).get('accessOverrides', {}).get(res, 'none')) <= grantRank(actorGrant(familyId, res));
-    }
-
-    function empCeilingOk(familyId, d) {
-      return (isCompanyAdmin(familyId) || !empIsAdminLevel(d))
-        && overrideWithin(familyId, d, 'accessControl')
-        && overrideWithin(familyId, d, 'companyProfile')
-        && overrideWithin(familyId, d, 'moduleSettings')
-        && overrideWithin(familyId, d, 'iso');
-    }
-
-    function canManagePeopleAccess(familyId) {
-      // Uten speilet tilgang (eldre selskap) gjelder tidligere oppførsel, men aldri på seg selv.
-      return !exists(aclPath(familyId)) || grantRank(actorGrant(familyId, 'accessControl')) >= 2;
-    }
-
-    function empSelf(d) {
-      return d.get('personUid', '') == request.auth.uid;
+    // Et avvik kan ikke gi mer enn aktøren har selv i de viktigste innstillingsområdene.
+    function empOverridesWithin(c, grants) {
+      let o = c.get('accessOverrides', {});
+      return grantRank(o.get('accessControl', 'none')) <= grantRank(grants.get('accessControl', 'none'))
+        && grantRank(o.get('companyProfile', 'none')) <= grantRank(grants.get('companyProfile', 'none'))
+        && grantRank(o.get('moduleSettings', 'none')) <= grantRank(grants.get('moduleSettings', 'none'))
+        && grantRank(o.get('iso', 'none')) <= grantRank(grants.get('iso', 'none'));
     }
 
     function empCreateOk(familyId) {
       let d = request.resource.data;
-      return empSelf(d)
-        ? !empIsPrivileged(d)
-        : empCeilingOk(familyId, d);
+      let c = d.get('company', {});
+      let hasAcl = exists(aclPath(familyId));
+      let acl = hasAcl ? get(aclPath(familyId)).data : {};
+      let admin = request.auth.uid in get(familyPath(familyId)).data.get('adminUids', [])
+        || acl.get('levelId', '') == 'administrator';
+      return d.get('personUid', '') == request.auth.uid
+        ? !empIsPrivileged(c)
+        : ((admin || !empIsAdminLevel(c)) && (!hasAcl || empOverridesWithin(c, acl.get('grants', {}))));
     }
 
     function empUpdateOk(familyId) {
       let d = request.resource.data;
       let old = resource.data;
-      let accessSame = empAccessStable(d, old);
-      // Kobler seg selv til en post: bare uten ledernivå, eller når invitasjonen allerede var godtatt av en selv.
-      let linkOk = empSelf(old) || !empSelf(d) || !empIsPrivileged(old)
-        || old.get('invite', {}).get('acceptedUid', '') == request.auth.uid;
-      return linkOk && (
-        accessSame
-        || (!empSelf(old) && !empSelf(d)
-            && canManagePeopleAccess(familyId)
-            && (isCompanyAdmin(familyId) || !empIsAdminLevel(old))
-            && empCeilingOk(familyId, d))
-      );
+      let c = d.get('company', {});
+      let oc = old.get('company', {});
+      let me = request.auth.uid;
+      let selfOld = old.get('personUid', '') == me;
+      let selfNew = d.get('personUid', '') == me;
+      // Kobler seg selv til en post: bare uten ledernivå, eller når invitasjonen var godtatt av en selv.
+      let linkOk = selfOld || !selfNew || !empIsPrivileged(oc)
+        || old.get('invite', {}).get('acceptedUid', '') == me;
+      return linkOk && (empAccessStable(c, oc) || (!selfOld && !selfNew && empManageOk(familyId, c, oc)));
+    }
+
+    // Endre andres tilgang: Begrenset redigering på Tilgangsstyring; administrator bare av administrator.
+    function empManageOk(familyId, c, oc) {
+      let hasAcl = exists(aclPath(familyId));
+      let acl = hasAcl ? get(aclPath(familyId)).data : {};
+      let admin = request.auth.uid in get(familyPath(familyId)).data.get('adminUids', [])
+        || acl.get('levelId', '') == 'administrator';
+      return (!hasAcl || grantRank(acl.get('grants', {}).get('accessControl', 'none')) >= 2)
+        && (admin || (!empIsAdminLevel(oc) && !empIsAdminLevel(c)))
+        && (!hasAcl || empOverridesWithin(c, acl.get('grants', {})));
     }
 
     // ISO-samlingene og tilgangsspeilet har egne regler og er unntatt fra den generelle regelen.
@@ -322,7 +301,7 @@ service cloud.firestore {
         allow update: if isFamilyMember(familyId) && (isFamilyOwner(familyId) || empUpdateOk(familyId));
         allow delete: if isFamilyMember(familyId);
 
-        match /{sub=**} {
+        match /{subColl}/{subDoc=**} {
           allow create, update, delete: if isFamilyMember(familyId);
         }
       }

@@ -87,6 +87,7 @@ export function HrTable({
         ) : rows.map((row) => (
           <Pressable
             key={rowKey(row)}
+            nativeID={`hr-row-${rowKey(row)}`}
             onPress={() => onPressRow?.(row)}
             style={[styles.tr, { borderColor: colors.line }]}
           >

@@ -114,9 +114,9 @@ function CarOdometer({ car, trips, colors, onSave }) {
   );
 }
 
-function Chip({ label, active, onPress, colors }) {
+function Chip({ label, active, onPress, colors, nativeID }) {
   return (
-    <TouchableOpacity onPress={onPress} style={[styles.chip, { borderColor: active ? colors.brand : colors.line, backgroundColor: active ? `${colors.brand}18` : colors.card }]}>
+    <TouchableOpacity onPress={onPress} nativeID={nativeID} style={[styles.chip, { borderColor: active ? colors.brand : colors.line, backgroundColor: active ? `${colors.brand}18` : colors.card }]}>
       <Text style={{ color: colors.ink, fontSize: 12 }}>{label}</Text>
     </TouchableOpacity>
   );
@@ -498,9 +498,9 @@ export default function EquipmentScreen() {
     <Body {...bodyProps}>
       {hostedHero ? null : <Text style={styles.title}>Utstyr</Text>}
       <View style={styles.row}>
-        <Chip label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
-        <Chip label="Privat" active={tab === 'privat' && !formOpen} onPress={() => { setTab('privat'); closeForm(); setQuery(''); }} colors={colors} />
-        <Chip label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); }} colors={colors} />
+        <Chip nativeID="equipment-tab-bedrift" label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
+        <Chip nativeID="equipment-tab-privat" label="Privat" active={tab === 'privat' && !formOpen} onPress={() => { setTab('privat'); closeForm(); setQuery(''); }} colors={colors} />
+        <Chip nativeID="equipment-tab-kalender" label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); }} colors={colors} />
       </View>
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
       {rights === 'admin' || !access.ready || tab === 'privat' ? null : (
@@ -763,6 +763,7 @@ export default function EquipmentScreen() {
               return (
                 <TouchableOpacity
                   key={key}
+                  nativeID={day ? `equipment-day-${key}` : undefined}
                   disabled={!day}
                   onPress={() => setSelectedDate(key)}
                   style={[styles.day, { borderColor: active ? colors.brand : colors.line, backgroundColor: colors.card }]}

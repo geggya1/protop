@@ -1,15 +1,14 @@
 /**
- * Help & Support catalog — searchable module articles, age- and device-aware.
- * Built on MODULE_INTROS so new modules stay discoverable as intros evolve.
+ * Help & Support catalog — searchable articles for every ProTop page,
+ * workflow and common topic, device-aware. Built on src/help/protopPages.js,
+ * so the help centre, the lightbulb and the assistant share one source.
  */
 
-import {
-  EXPECTED_INTRO_KEYS,
-  MODULE_INTROS,
-  getModuleIntro,
-  pickIntroText,
-} from './moduleIntros.js';
-import { isProtopShellModule } from '../navigation/protopShell.js';
+import { pickIntroText } from './moduleIntros.js';
+import { HELP_SECTIONS, PROTOP_PAGES } from '../help/protopPages.js';
+import { PROTOP_PROCESSES } from '../help/protopProcesses.js';
+import { ASSISTANT_TOPICS } from '../help/assistantTopics.js';
+import { searchKnowledge } from '../help/assistantEngine.js';
 
 const T = (nb, en) => ({ nb, en });
 
@@ -30,201 +29,77 @@ export function resolveHelpDevice(layout = {}) {
   return 'phone';
 }
 
+/** Kategoriene følger menygruppene, pluss arbeidsflyter og tips. */
 const CATEGORIES = [
   {
-    id: 'getting-started',
-    icon: 'rocket-outline',
-    title: T('Kom i gang', 'Getting started'),
-    moduleIds: ['home', 'settings', 'members', 'childApps', 'moduleAccess'],
+    id: 'workflows',
+    icon: 'git-merge-outline',
+    title: T('Arbeidsflyter', 'Workflows'),
   },
+  ...HELP_SECTIONS,
   {
-    id: 'plan',
-    icon: 'calendar-outline',
-    title: T('Plan og kalender', 'Plan & calendar'),
-    moduleIds: ['plan', 'week-plan', 'activities', 'rememberDates', 'skole'],
-  },
-  {
-    id: 'tasks',
-    icon: 'checkbox-outline',
-    title: T('Gjøremål og progresjon', 'Tasks & progress'),
-    moduleIds: ['stars', 'chores', 'progress'],
-  },
-  {
-    id: 'school',
-    icon: 'school-outline',
-    title: T('Skole og lekser', 'School & homework'),
-    moduleIds: ['lekser', 'leksehjelp', 'klassen', 'books'],
-  },
-  {
-    id: 'food',
-    icon: 'restaurant-outline',
-    title: T('Mat og handel', 'Food & shopping'),
-    moduleIds: ['meals', 'recipes', 'pantry', 'matcoach', 'shop'],
-  },
-  {
-    id: 'communicate',
-    icon: 'chatbubbles-outline',
-    title: T('Chat, mail og AI', 'Chat, mail & AI'),
-    moduleIds: ['chat', 'mail', 'ai', 'notes'],
-  },
-  {
-    id: 'family-life',
-    icon: 'home-outline',
-    title: T('Familieliv', 'Family life'),
-    moduleIds: ['albums', 'wall', 'wishes', 'games', 'quiz', 'familyTree', 'location', 'documents'],
-  },
-  {
-    id: 'travel-home',
-    icon: 'airplane-outline',
-    title: T('Reise, bolig og utleie', 'Travel, home & rental'),
-    moduleIds: ['scratchMap', 'reiseplanlegger', 'boligmappa', 'holdings', 'hospitality'],
-  },
-  {
-    id: 'project',
-    icon: 'business-outline',
-    title: T('Prosjekt', 'Project'),
-    moduleIds: ['projects', 'iso'],
-  },
-  {
-    id: 'account',
-    icon: 'shield-checkmark-outline',
-    title: T('Konto og personvern', 'Account & privacy'),
-    moduleIds: ['legal', 'subscription', 'groupSettings'],
+    id: 'tips',
+    icon: 'bulb-outline',
+    title: T('Tips og vanlige spørsmål', 'Tips and common questions'),
   },
 ];
 
-/** Extra settings/how-to articles beyond module intros. */
+const DEVICE_DEFAULTS = {
+  phone: T(
+    'På mobil: menyen ligger bak ☰ øverst til venstre, og de mest brukte modulene i linjen nederst. Lyspæren under profilbildet gir hjelp for siden.',
+    'On phone: the menu is behind ☰ at the top left, and the most used modules are in the bottom bar. The lightbulb under your profile photo gives help for the page.',
+  ),
+  tablet: T(
+    'På nettbrett: menyen står til venstre, og lyspæren under profilbildet gir hjelp for siden.',
+    'On tablet: the menu is on the left, and the lightbulb under your profile photo gives help for the page.',
+  ),
+  desktop: T(
+    'På PC: alle moduler ligger i menyen til venstre. «Hjelp» øverst til høyre åpner veiledningen for siden.',
+    'On desktop: every module is in the left menu. “Help” at the top right opens the guide for the page.',
+  ),
+};
+
+/** Artikler som ikke er en egen side. */
 const EXTRA_ARTICLES = [
-  {
-    id: 'help.projects',
-    moduleId: 'projects',
-    categoryId: 'project',
-    icon: 'business-outline',
-    accent: '#1099F4',
-    soft: '#E5F6FE',
-    title: T('Prosjektregisteret', 'The project register'),
-    summary: T(
-      'Opplistning av prosjekter med hurtigimport, kundekobling og varsel når avtale mangler.',
-      'Project list with quick import, customer linking and a warning when no agreement is registered.',
-    ),
-    keywords: ['prosjekt', 'import', 'kunde', 'rammeavtale', 'oppdragsavtale', 'avrop', 'project'],
-    steps: {
-      parent: [
-        T('Åpne Prosjekt inne i bedriften og opprett prosjekt manuelt, eller importer en Excel-liste', 'Open Projects inside the company and create a project manually, or import an Excel list'),
-        T('Koble prosjektet til en kunde i kunderegisteret', 'Link the project to a customer in the customer register'),
-        T('Koble oppdragsavtale, eller rammeavtale ved avrop. Et utropstegn vises når avtale mangler', 'Link a service agreement, or a framework agreement for call-offs. An exclamation mark shows when an agreement is missing'),
-        T('ISO ligger som egen modul i bedriftsmenyen', 'ISO is a separate module in the company menu'),
-      ],
-      child: [],
-      teen: [],
-    },
-  },
-  {
-    id: 'help.iso',
-    moduleId: 'iso',
-    categoryId: 'project',
-    icon: 'shield-checkmark-outline',
-    accent: '#1099F4',
-    soft: '#E5F6FE',
-    title: T('ISO-modulen', 'The ISO module'),
-    summary: T(
-      'Prosedyrer og revisjoner for kvalitets- og styringssystemet.',
-      'Procedures and audits for the quality and management system.',
-    ),
-    keywords: ['iso', 'revisjon', 'prosedyre', 'audit'],
-    steps: {
-      parent: [
-        T('Åpne ISO i bedriftsmenyen', 'Open ISO in the company menu'),
-        T('Les prosedyrene og velg prosjekt før du registrerer revisjonsfunn', 'Read the procedures and select a project before registering audit findings'),
-      ],
-      child: [],
-      teen: [],
-    },
-  },
   {
     id: 'help.lightbulb',
     moduleId: 'help-lightbulb',
-    categoryId: 'getting-started',
+    categoryId: 'tips',
     icon: 'bulb-outline',
     accent: '#d97706',
     soft: '#fef3c7',
     title: T('Lyspæren — hjelp der du er', 'The lightbulb — help where you are'),
     summary: T(
-      'Trykk lyspæren ved profilbildet for en kort guide på siden du står på.',
-      'Tap the lightbulb by your profile for a short guide on the page you are on.',
+      'Lyspæren (på PC: «Hjelp» øverst) åpner hjelp for siden du står på. «Vis meg steg for steg» toner ned skjermen og lyser opp knappen du skal trykke på.',
+      'The lightbulb (on desktop: “Help” at the top) opens help for the page you are on. “Show me step by step” dims the screen and lights up the button to tap.',
     ),
-    keywords: ['lyspære', 'lightbulb', 'tour', 'guide', 'hjelp', 'help'],
-    steps: {
-      parent: [
-        T('Finn lyspæren øverst ved profilbildet', 'Find the lightbulb at the top by your profile'),
-        T('Les kortet om modulen, eller start rundturen', 'Read the module card, or start the walkthrough'),
-        T('Følg den markerte pilen steg for steg', 'Follow the highlighted arrow step by step'),
-      ],
-      child: [
-        T('Trykk på den lille lyspæren oppe', 'Tap the little lightbulb at the top'),
-        T('Les hva siden gjør', 'Read what the page does'),
-        T('Følg pilen — den viser hvor du skal trykke', 'Follow the arrow — it shows where to tap'),
-      ],
-      teen: [
-        T('Lyspæren åpner en kort guide for siden', 'The lightbulb opens a short guide for the page'),
-        T('Velg «Vis meg hvordan» for steg-for-steg', 'Choose “Show me how” for step-by-step'),
-      ],
-    },
-    deviceTips: {
-      phone: T(
-        'På mobil ligger lyspæren som et merke rett under profilbildet. Den flyter over siden, så innholdet starter høyere.',
-        'On phone the lightbulb is a badge just under your profile. It floats over the page, so the content starts higher.',
-      ),
-      tablet: T(
-        'På nettbrett finner du lyspæren i toppfeltet ved profil.',
-        'On tablet the lightbulb is in the top bar by your profile.',
-      ),
-      desktop: T(
-        'På web ligger hjelp i toppfeltet — samme sted som varsler og profil.',
-        'On web, help lives in the top bar — same place as notifications and profile.',
-      ),
-    },
-    audienceTips: {
-      parent: T(
-        'Bruk lyspæren når et barn spør «hvor trykker jeg?» — så får dere samme guide.',
-        'Use the lightbulb when a child asks “where do I tap?” — you get the same guide.',
-      ),
-      child: T('Hvis du står fast: trykk lyspæren. Den forklarer siden.', 'If you get stuck: tap the lightbulb. It explains the page.'),
-    },
+    keywords: ['lyspære', 'lightbulb', 'tour', 'guide', 'hjelp', 'help', 'rundtur', 'vis meg'],
+    steps: [
+      { title: T('Trykk lyspæren', 'Tap the lightbulb'), ...T('Mobil og nettbrett: under profilbildet. PC: «Hjelp» ved varslene.', 'Phone and tablet: under the profile photo. Desktop: “Help” next to notifications.') },
+      { title: T('Les kortet', 'Read the card'), ...T('Kortet viser hva siden er til, hvor den ligger og stegene.', 'The card shows what the page is for, where it is and the steps.') },
+      { title: T('Vis meg steg for steg', 'Show me step by step'), ...T('Skjermen tones ned og knappen lyser opp. Trykk «Neste», piltastene, eller det markerte feltet.', 'The screen dims and the button lights up. Tap “Next”, use the arrow keys, or tap the highlighted spot.') },
+      { title: T('Hele arbeidsflyten', 'The whole workflow'), ...T('Hører siden til en arbeidsflyt, kan du starte hele flyten — ProTop åpner hver side for deg.', 'If the page belongs to a workflow, you can start the whole flow — ProTop opens every page for you.') },
+    ],
   },
   {
-    id: 'help.settings-overview',
-    moduleId: 'settings',
-    categoryId: 'getting-started',
-    icon: 'settings-outline',
+    id: 'help.assistant',
+    moduleId: 'chat',
+    categoryId: 'tips',
+    icon: 'sparkles-outline',
     accent: '#1099F4',
     soft: '#dbeafe',
-    title: T('Innstillinger — hva du finner hvor', 'Settings — what lives where'),
+    title: T('ProTop-assistenten', 'The ProTop assistant'),
     summary: T(
-      'Profil, språk, varsler, barnas apper, personvern og denne hjelpen.',
-      'Profile, language, notifications, kids’ apps, privacy and this help centre.',
+      'Assistenten i chatten svarer på alt om ProTop med steg, viser deg veien med «Vis meg», og kan lage en supportsak med samtalen.',
+      'The assistant in the chat answers anything about ProTop with steps, shows you the way with “Show me”, and can create a support case with the conversation.',
     ),
-    keywords: ['innstillinger', 'settings', 'språk', 'varsler', 'profil'],
-    steps: {
-      parent: [
-        T('Åpne Mer → Innstillinger (eller profilmenyen)', 'Open More → Settings (or the profile menu)'),
-        T('Rediger profil ligger rett under profilbildet', 'Edit profile sits right under the profile photo'),
-        T('Hjem og utseende samler tilpass hjem, hilsen, utseende og vær', 'Home and appearance groups customize home, greeting, look and weather'),
-        T('Under Familie: barnas innlogging og apper (sammenklappet), medlemmer og moduler', 'Under Family: kids’ login and apps (collapsed), members and modules'),
-        T('Under Om: personvern og Hjelp & support', 'Under About: privacy and Help & support'),
-      ],
-      child: [
-        T('Profilbilde og endre profil står øverst', 'Profile photo and edit profile are at the top'),
-        T('Del innlogging / QR-kode ligger rett under profilen', 'Share login / QR code sits right under the profile'),
-        T('Brukernavn og passord ligger i en egen meny — ikke på forsiden', 'Username and password live in their own menu — not on the front page'),
-        T('Be en voksen hvis du skal endre apper eller passord', 'Ask a grown-up if you need to change apps or password'),
-      ],
-    },
-    deviceTips: {
-      phone: T('Scroll ned i innstillinger — Hjelp & support ligger under Om, før logg ut.', 'Scroll down in Settings — Help & support is under About, before log out.'),
-      tablet: T('Innstillinger bruker samme liste som mobil, med litt mer plass.', 'Settings uses the same list as phone, with a bit more space.'),
-      desktop: T('På desktop er innstillinger i Mer-huben — smal kolonne, samme rekkefølge.', 'On desktop, settings live in the More hub — narrow column, same order.'),
-    },
+    keywords: ['assistent', 'bot', 'chatbot', 'ai', 'spør', 'chat', 'hjelp'],
+    steps: [
+      { title: T('Åpne chatten', 'Open the chat'), ...T('Chat-boblen nede til høyre (eller Chat i menyen) → «ProTop-assistent».', 'The chat bubble at the bottom right (or Chat in the menu) → “ProTop assistant”.') },
+      { title: T('Spør med egne ord', 'Ask in your own words'), ...T('For eksempel «hvordan fører jeg timer?» eller «hvor finner jeg kjøreboken?».', 'For example “how do I log hours?” or “where is the mileage log?”.') },
+      { title: T('Vis meg', 'Show me'), ...T('Trykk «Vis meg steg for steg» under svaret, så åpnes siden med markering.', 'Tap “Show me step by step” under the answer, and the page opens with highlights.') },
+      { title: T('Få et menneske', 'Get a person'), ...T('«Kontakt support» lager en sak med samtalen, så du slipper å gjenta deg.', '“Contact support” creates a case with the conversation, so you don’t repeat yourself.') },
+    ],
   },
   {
     id: 'help.support-tickets',
@@ -233,41 +108,22 @@ const EXTRA_ARTICLES = [
     icon: 'mail-unread-outline',
     accent: '#0f766e',
     soft: '#ccfbf1',
-    title: T('Kontakt support — saker og svar', 'Contact support — tickets and replies'),
+    title: T('Kontakt support — saker og svar', 'Contact support — cases and replies'),
     summary: T(
-      'Still spørsmål til Skjetten-boten først. Etter noen spørsmål kan du sende en sak med bilde.',
-      'Ask Skjetten the bot first. After a few questions you can send a ticket with a photo.',
+      'Spør ProTop-assistenten først. Står du fast, send en sak med beskrivelse og gjerne skjermbilde — du får saksnummer.',
+      'Ask the ProTop assistant first. If you are stuck, send a case with a description and ideally a screenshot — you get a case number.',
     ),
-    keywords: ['support', 'sak', 'ticket', 'feil', 'bug', 'hvit skjerm', 'kontakt'],
-    steps: {
-      parent: [
-        T('Åpne Hjelp & support → Spør Skjetten', 'Open Help & support → Ask Skjetten'),
-        T('Beskriv problemet — få stegvise tips', 'Describe the problem — get step-by-step tips'),
-        T('Etter 4–5 spørsmål foreslår boten «Kontakt support»', 'After 4–5 questions the bot suggests “Contact support”'),
-        T('Fyll tittel, tekst og eventuelt bilde — du får saksnummer', 'Fill title, text and optional photo — you get a ticket number'),
-        T('Følg saken under Mine henvendelser (intern postkasse)', 'Track it under My requests (in-app mailbox)'),
-      ],
-      child: [
-        T('Spør Skjetten først — den hjelper deg hyggelig', 'Ask Skjetten first — it helps you kindly'),
-        T('Hvis du trenger en voksen: si ifra, eller fyll inn e-post når vi spør', 'If you need a grown-up: tell them, or enter an email when we ask'),
-        T('Du får et saksnummer så du kan se svar senere', 'You get a ticket number so you can see replies later'),
-      ],
-    },
-    audienceTips: {
-      child: T(
-        'Har du ikke e-post? Vi spør om en voksen sitt kontaktpunkt, eller du bruker den interne postkassen i appen.',
-        'No email? We ask for a grown-up’s contact, or you use the in-app mailbox.',
-      ),
-      parent: T(
-        'Feil, hvit skjerm eller error: legg ved bilde. Boten analyserer og sender forslag til utvikler — uten å endre noe selv.',
-        'Bugs, white screen or errors: attach a photo. The bot analyses and sends a suggestion to the developer — it never deploys itself.',
-      ),
-    },
+    keywords: ['support', 'sak', 'ticket', 'feil', 'bug', 'hvit skjerm', 'kontakt', 'saksnummer'],
+    steps: [
+      { title: T('Spør assistenten', 'Ask the assistant'), ...T('Hjelp & support → Spør ProTop-assistenten.', 'Help & support → Ask the ProTop assistant.') },
+      { title: T('Send sak', 'Send a case'), ...T('«Kontakt support»: tittel, tekst og eventuelt bilde.', '“Contact support”: title, text and an optional image.') },
+      { title: T('Følg saken', 'Follow the case'), ...T('Svar kommer under Mine henvendelser.', 'Replies arrive under My requests.') },
+    ],
   },
   {
     id: 'help.whats-new',
     moduleId: 'news',
-    categoryId: 'getting-started',
+    categoryId: 'account',
     icon: 'newspaper-outline',
     accent: '#7c3aed',
     soft: '#ede9fe',
@@ -276,202 +132,133 @@ const EXTRA_ARTICLES = [
       'Versjonen hopper til 3.0, 4.0 osv. ved store oppdateringer. Mindre korreksjoner listes per dag uten varsel.',
       'The version jumps to 3.0, 4.0, etc. for major updates. Smaller fixes are listed per day without a notice.',
     ),
-    keywords: ['nyheter', 'news', 'deploy', 'oppdatering', 'changelog', 'versjon', 'korreksjon'],
-    steps: {
-      parent: [
-        T('Åpne Innstillinger → Versjon, eller Hjelp → Oppdateringer', 'Open Settings → Version, or Help → Updates'),
-        T('Les dagens korreksjoner (uten klokkeslett). Store oppdateringer varsles én gang.', 'Read the day’s fixes (no clock times). Major updates notify once.'),
-      ],
-    },
+    keywords: ['nyheter', 'news', 'oppdatering', 'changelog', 'versjon', 'korreksjon'],
+    steps: [
+      { title: T('Les nytt', 'Read what’s new'), ...T('Innstillinger → Versjon, eller Hjelp & support → Oppdateringer.', 'Settings → Version, or Help & support → Updates.') },
+    ],
   },
 ];
 
-const MODULE_LABELS = {
-  home: T('Hjem', 'Home'),
-  chat: T('Chat', 'Chat'),
-  plan: T('Kalender', 'Calendar'),
-  mail: T('E-post', 'Mail'),
-  stars: T('Gjøremål', 'Tasks'),
-  notes: T('Notater', 'Notes'),
-  chores: T('Husarbeid', 'Chores'),
-  more: T('Mer', 'More'),
-  shop: T('Handlelister', 'Shopping'),
-  wishes: T('Gaveønsker', 'Wishlists'),
-  books: T('Bokhylla', 'Bookshelf'),
-  lekser: T('Lekser', 'Homework'),
-  leksehjelp: T('Leksehjelpen', 'Homework help'),
-  klassen: T('Klassen', 'Classroom'),
-  settings: T('Innstillinger', 'Settings'),
-  childApps: T('Barnas apper', 'Kids’ apps'),
-  activities: T('Aktiviteter', 'Activities'),
-  members: T('Medlemmer', 'Members'),
-  groupSettings: T('Familieinnstillinger', 'Family settings'),
-  location: T('Familieposisjon', 'Family location'),
-  documents: T('Dokumenter', 'Documents'),
-  meals: T('Måltidsplanlegger', 'Meal planner'),
-  matcoach: T('AI Matcoach', 'AI Food coach'),
-  recipes: T('Oppskrifter', 'Recipes'),
-  pantry: T('Lager', 'Pantry'),
-  progress: T('Progresjon', 'Progress'),
-  games: T('Familiespill', 'Family games'),
-  quiz: T('Familiequiz', 'Family quiz'),
-  scratchMap: T('Våre reiser', 'Our travels'),
-  reiseplanlegger: T('Reiseplanlegger', 'Trip planner'),
-  familyTree: T('Familietreet', 'Family tree'),
-  rememberDates: T('Husk dato', 'Remember dates'),
-  boligmappa: T('Boligen', 'Home folder'),
-  holdings: T('Kjøretøy', 'Vehicles'),
-  hospitality: T('Utleie', 'Hospitality'),
-  legal: T('Personvern', 'Privacy'),
-  subscription: T('Abonnement', 'Subscription'),
-  'week-plan': T('Ukeplan', 'Week plan'),
-  skole: T('Skole', 'School'),
-  ai: T('Spør AI', 'Ask AI'),
-  albums: T('Familiealbum', 'Family albums'),
-  wall: T('Familievegg', 'Family wall'),
-  moduleAccess: T('Aktiverte moduler', 'Enabled modules'),
-  support: T('Support', 'Support'),
-  news: T('Nyheter', 'News'),
-  'help-lightbulb': T('Lyspære-hjelp', 'Lightbulb help'),
-};
-
-const DEVICE_DEFAULTS = {
-  phone: T(
-    'På mobil: bruk menyen nederst og Mer for flere apper. Lyspæren er øverst.',
-    'On phone: use the bottom tabs and More for more apps. The lightbulb is at the top.',
-  ),
-  tablet: T(
-    'På nettbrett: samme flyt som mobil, med mer plass til lister og kalender.',
-    'On tablet: same flow as phone, with more room for lists and calendar.',
-  ),
-  desktop: T(
-    'På web/PC: venstremeny (rail) og Mer-hub. Innstillinger og hjelp ligger under Konto.',
-    'On web/PC: left rail and More hub. Settings and help live under Account.',
-  ),
-};
-
-function audienceKey(audience) {
-  if (audience === 'parent') return 'parent';
-  if (audience === 'child') return 'child';
-  if (audience === 'teen' || audience === 'youth') return 'teen';
-  return 'parent';
-}
-
-function articleFromIntro(scope, moduleId) {
-  const intro = getModuleIntro(scope, moduleId);
-  if (!intro) return null;
-  const label = MODULE_LABELS[moduleId] || T(moduleId, moduleId);
-  const cat = CATEGORIES.find((c) => c.moduleIds.includes(moduleId)) || CATEGORIES[0];
+function stepText(step, lang) {
   return {
-    id: `${scope}.${moduleId}`,
-    scope,
-    moduleId,
-    categoryId: cat.id,
-    icon: intro.icon || 'help-circle-outline',
-    accent: intro.accent || '#1099F4',
-    soft: intro.soft || '#dbeafe',
-    hero: intro.hero || null,
-    title: intro.title || label,
-    summary: intro.pitch || intro.kicker || label,
-    kicker: intro.kicker || null,
-    keywords: [
-      moduleId,
-      pickIntroText(label, 'nb'),
-      pickIntroText(label, 'en'),
-      pickIntroText(intro.kicker, 'nb'),
-      pickIntroText(intro.pitch, 'nb'),
-    ].filter(Boolean),
-    steps: {
-      parent: intro.steps || [],
-      child: intro.steps || [],
-      teen: intro.steps || [],
-    },
-    deviceTips: DEVICE_DEFAULTS,
-    fromIntro: true,
+    title: step.title ? pickIntroText(step.title, lang) : '',
+    text: pickIntroText(step, lang),
   };
 }
 
-function familyModuleIds() {
-  const ids = new Set();
-  for (const key of EXPECTED_INTRO_KEYS) {
-    if (!key.startsWith('family.')) continue;
-    ids.add(key.slice('family.'.length));
-  }
-  Object.keys(MODULE_INTROS)
-    .filter((k) => k.startsWith('family.'))
-    .forEach((k) => ids.add(k.slice('family.'.length)));
-  return [...ids];
+function pageArticle(key, def) {
+  return {
+    id: `page.${key}`,
+    moduleId: key,
+    pageKey: key,
+    categoryId: def.section || 'personal',
+    icon: def.icon ? `${String(def.icon).replace(/-outline$/, '')}-outline` : 'help-circle-outline',
+    accent: def.accent,
+    soft: def.soft,
+    title: def.title,
+    label: def.label,
+    kicker: def.kicker,
+    summary: def.pitch,
+    path: def.path,
+    nav: def.nav,
+    process: def.process || null,
+    faq: def.faq || [],
+    keywords: def.keywords || [],
+    steps: def.steps || [],
+  };
+}
+
+function processArticle(proc) {
+  return {
+    id: `process.${proc.id}`,
+    moduleId: proc.id,
+    processId: proc.id,
+    categoryId: 'workflows',
+    icon: `${proc.icon || 'git-merge'}-outline`,
+    accent: proc.accent,
+    soft: `${proc.accent}1A`,
+    title: proc.title,
+    label: proc.title,
+    summary: proc.pitch,
+    keywords: proc.keywords || [],
+    steps: proc.steps.map((s) => ({ title: s.title, nb: s.nb, en: s.en })),
+  };
+}
+
+function topicArticle(tp) {
+  return {
+    id: tp.id,
+    moduleId: tp.id,
+    categoryId: 'tips',
+    icon: 'information-circle-outline',
+    accent: '#1099F4',
+    soft: '#e0f2fe',
+    title: tp.title,
+    label: tp.title,
+    summary: tp.summary,
+    nav: tp.nav || null,
+    keywords: tp.keywords || [],
+    steps: tp.steps || [],
+  };
 }
 
 let _cache = null;
 
-export function listHelpArticles({ scope = 'family' } = {}) {
-  if (_cache && _cache.scope === scope) return _cache.articles;
-  const articles = [];
-  const seen = new Set();
-
-  for (const extra of EXTRA_ARTICLES) {
-    if (!isProtopShellModule(extra.moduleId) && !String(extra.moduleId || '').startsWith('help')) continue;
-    articles.push({ ...extra, scope });
-    seen.add(extra.id);
-  }
-
-  const moduleIds = scope === 'family' ? familyModuleIds() : [];
-  for (const moduleId of moduleIds) {
-    if (!isProtopShellModule(moduleId)) continue;
-    const art = articleFromIntro(scope, moduleId);
-    if (!art || seen.has(art.id)) continue;
-    // Prefer richer EXTRA article for settings/support if present
-    if (EXTRA_ARTICLES.some((e) => e.moduleId === moduleId && e.id !== art.id)) {
-      // keep both: module intro + extra how-to
-    }
-    articles.push(art);
-    seen.add(art.id);
-  }
-
-  _cache = { scope, articles };
+export function listHelpArticles() {
+  if (_cache) return _cache;
+  const articles = [
+    ...Object.values(PROTOP_PROCESSES).map(processArticle),
+    ...Object.entries(PROTOP_PAGES).map(([key, def]) => pageArticle(key, def)),
+    ...EXTRA_ARTICLES,
+    ...ASSISTANT_TOPICS.map(topicArticle),
+  ];
+  _cache = articles;
   return articles;
 }
 
 export function listHelpCategories(lang = 'nb') {
-  return CATEGORIES.map((c) => ({
-    id: c.id,
-    icon: c.icon,
-    title: pickIntroText(c.title, lang),
-    moduleIds: c.moduleIds.filter((id) => isProtopShellModule(id) || String(id).startsWith('help')),
-  })).filter((c) => c.moduleIds.length > 0);
+  const articles = listHelpArticles();
+  return CATEGORIES
+    .map((c) => ({
+      id: c.id,
+      icon: c.icon,
+      title: pickIntroText(c.title, lang),
+      count: articles.filter((a) => a.categoryId === c.id).length,
+    }))
+    .filter((c) => c.count > 0);
 }
 
-export function getHelpArticle(articleId, { scope = 'family' } = {}) {
-  return listHelpArticles({ scope }).find((a) => a.id === articleId) || null;
+export function getHelpArticle(articleId) {
+  return listHelpArticles().find((a) => a.id === articleId) || null;
 }
 
 export function localizeHelpArticle(article, {
   lang = 'nb',
-  audience = 'parent',
   device = 'phone',
 } = {}) {
   if (!article) return null;
-  const aud = audienceKey(audience);
-  const stepSrc = article.steps?.[aud] || article.steps?.parent || article.steps?.child || [];
-  const steps = (Array.isArray(stepSrc) ? stepSrc : []).map((s) => pickIntroText(s, lang));
-  const deviceTip = pickIntroText(article.deviceTips?.[device] || DEVICE_DEFAULTS[device], lang);
-  const audienceTip = pickIntroText(article.audienceTips?.[aud] || article.audienceTips?.parent, lang);
+  const stepItems = (article.steps || []).map((s) => stepText(s, lang)).filter((s) => s.text);
   return {
     id: article.id,
     moduleId: article.moduleId,
+    pageKey: article.pageKey || null,
+    processId: article.processId || null,
     categoryId: article.categoryId,
     icon: article.icon,
     accent: article.accent,
     soft: article.soft,
-    hero: article.hero,
     title: pickIntroText(article.title, lang),
+    label: pickIntroText(article.label || article.title, lang),
     summary: pickIntroText(article.summary, lang),
     kicker: pickIntroText(article.kicker, lang),
-    steps,
-    deviceTip,
-    audienceTip,
-    label: pickIntroText(MODULE_LABELS[article.moduleId] || article.title, lang),
+    path: pickIntroText(article.path, lang),
+    nav: article.nav || null,
+    process: article.process || null,
+    steps: stepItems.map((s) => (s.title ? `${s.title}: ${s.text}` : s.text)),
+    stepItems,
+    faq: (article.faq || []).map((f) => ({ q: pickIntroText(f.q, lang), a: pickIntroText(f.a, lang) })),
+    deviceTip: pickIntroText(DEVICE_DEFAULTS[device] || DEVICE_DEFAULTS.phone, lang),
+    audienceTip: '',
   };
 }
 
@@ -479,64 +266,70 @@ function normalizeQuery(q) {
   return String(q || '')
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .trim();
 }
 
+const KNOWLEDGE_TO_ARTICLE = (item) => {
+  if (item.kind === 'page') return `page.${item.pageKey}`;
+  if (item.kind === 'process') return `process.${item.processId}`;
+  return item.id;
+};
+
 export function searchHelpArticles(query, {
-  scope = 'family',
   lang = 'nb',
-  audience = 'parent',
   device = 'phone',
   limit = 40,
 } = {}) {
+  const articles = listHelpArticles();
   const q = normalizeQuery(query);
-  const articles = listHelpArticles({ scope });
   if (!q) {
-    return articles
-      .slice(0, limit)
-      .map((a) => localizeHelpArticle(a, { lang, audience, device }));
+    // «Ofte brukt»: kjerneløpet først.
+    const popular = ['process.anbud-til-faktura', 'page.arbeid.timeliste', 'page.okonomi.faktura', 'page.ansatte', 'page.projects', 'page.iso.avvik', 'help.assistant', 'help.lightbulb'];
+    const head = popular.map((id) => articles.find((a) => a.id === id)).filter(Boolean);
+    const rest = articles.filter((a) => !popular.includes(a.id));
+    return [...head, ...rest].slice(0, limit).map((a) => localizeHelpArticle(a, { lang, device }));
   }
 
-  const scored = [];
-  for (const raw of articles) {
-    const loc = localizeHelpArticle(raw, { lang, audience, device });
-    const hay = normalizeQuery([
-      loc.title,
-      loc.summary,
-      loc.kicker,
-      loc.label,
-      ...(loc.steps || []),
-      ...(raw.keywords || []),
-      raw.moduleId,
-      raw.categoryId,
-    ].join(' '));
-    let score = 0;
-    if (hay.includes(q)) score += 10;
-    for (const part of q.split(/\s+/).filter(Boolean)) {
-      if (hay.includes(part)) score += 3;
-      if (normalizeQuery(loc.title).includes(part)) score += 5;
-      if (normalizeQuery(raw.moduleId).includes(part)) score += 4;
+  const out = [];
+  const seen = new Set();
+  // Samme rangering som assistenten (synonymer, bøyning, norsk/engelsk).
+  for (const hit of searchKnowledge(query, { lang, limit: Math.min(limit, 20) })) {
+    const id = KNOWLEDGE_TO_ARTICLE(hit.item);
+    const art = articles.find((a) => a.id === id);
+    if (art && !seen.has(id)) {
+      seen.add(id);
+      out.push(art);
     }
-    if (score > 0) scored.push({ score, loc });
   }
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, limit).map((s) => s.loc);
+  // Ren tekstsøk som reserve (f.eks. ekstraartikler og eksakte ord).
+  for (const raw of articles) {
+    if (seen.has(raw.id)) continue;
+    const loc = localizeHelpArticle(raw, { lang, device });
+    const hay = normalizeQuery([
+      loc.title, loc.summary, loc.label, loc.path, ...(loc.steps || []), ...(raw.keywords || []), raw.moduleId,
+    ].join(' '));
+    if (q.split(/\s+/).filter(Boolean).every((part) => hay.includes(part))) {
+      seen.add(raw.id);
+      out.push(raw);
+    }
+  }
+  return out.slice(0, limit).map((a) => localizeHelpArticle(a, { lang, device }));
 }
 
 export function articlesForCategory(categoryId, opts = {}) {
-  const { scope = 'family', lang = 'nb', audience = 'parent', device = 'phone' } = opts;
-  return listHelpArticles({ scope })
+  const { lang = 'nb', device = 'phone' } = opts;
+  return listHelpArticles()
     .filter((a) => a.categoryId === categoryId)
-    .map((a) => localizeHelpArticle(a, { lang, audience, device }));
+    .map((a) => localizeHelpArticle(a, { lang, device }));
 }
 
 /** Compact FAQ snippets for the support bot (local fallback + prompt context). */
 export function buildHelpKnowledgeSnippets({ lang = 'nb', limit = 24 } = {}) {
-  return listHelpArticles({ scope: 'family' })
+  return listHelpArticles()
     .slice(0, limit)
     .map((a) => {
-      const loc = localizeHelpArticle(a, { lang, audience: 'parent', device: 'phone' });
+      const loc = localizeHelpArticle(a, { lang, device: 'phone' });
       return {
         id: loc.id,
         moduleId: a.moduleId,
@@ -548,7 +341,8 @@ export function buildHelpKnowledgeSnippets({ lang = 'nb', limit = 24 } = {}) {
 }
 
 export function moduleLabel(moduleId, lang = 'nb') {
-  return pickIntroText(MODULE_LABELS[moduleId] || T(moduleId, moduleId), lang);
+  const def = PROTOP_PAGES[moduleId];
+  return def ? pickIntroText(def.label, lang) : String(moduleId || '');
 }
 
 /** Test helper — clear memo when intros change in unit tests. */

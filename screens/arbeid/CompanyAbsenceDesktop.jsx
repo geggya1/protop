@@ -819,7 +819,9 @@ export function AbsenceReportDesktop({
           ? 'Laster fravær…'
           : absences.length
             ? 'Ingen fravær i dette utvalget. Åpne Filtrer for periode, type eller sortering.'
-            : 'Ingen fravær er registrert. Importer Excel eller registrer fravær for ansatte.'}
+            : canImport
+              ? 'Ingen fravær er registrert. Importer Excel eller registrer fravær for ansatte.'
+              : 'Ingen fravær er registrert.'}
       </Text>
     </View>
   );

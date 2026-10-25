@@ -1268,7 +1268,7 @@ export default function PlanScreen({ active = true }) {
         ) : null}
 
         <View style={styles.navRow}>
-          <TouchableOpacity onPress={() => shift(-1)} style={styles.navBtn}>
+          <TouchableOpacity onPress={() => shift(-1)} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Forrige periode">
             <Ionicons name="chevron-back" size={20} color={colors.ink} />
           </TouchableOpacity>
           <Text style={styles.navLbl} numberOfLines={1}>
@@ -1278,7 +1278,7 @@ export default function PlanScreen({ active = true }) {
                 ? dayLabel
                 : `Uke ${iso.week} · ${weekDays[0].getDate()}.–${weekDays[6].getDate()}. ${MONTHS_NO[anchor.getMonth()].slice(0, 3)}`}
           </Text>
-          <TouchableOpacity onPress={() => shift(1)} style={styles.navBtn}>
+          <TouchableOpacity onPress={() => shift(1)} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Neste periode">
             <Ionicons name="chevron-forward" size={20} color={colors.ink} />
           </TouchableOpacity>
         </View>

@@ -669,11 +669,11 @@ export default function RewardsScreen({ variant = 'auto' }) {
         </View>
 
         <View style={[styles.navRow, isDesktop && styles.navRowDesk]}>
-          <TouchableOpacity onPress={() => shift(-1)} style={[styles.navBtn, isDesktop && styles.navBtnDesk]}>
+          <TouchableOpacity onPress={() => shift(-1)} style={[styles.navBtn, isDesktop && styles.navBtnDesk]} accessibilityRole="button" accessibilityLabel="Forrige periode">
             <Ionicons name="chevron-back" size={isDesktop ? 16 : 20} color={colors.ink} />
           </TouchableOpacity>
           <Text style={[styles.navLbl, isDesktop && styles.navLblDesk]} numberOfLines={1}>{periodLabel}</Text>
-          <TouchableOpacity onPress={() => shift(1)} style={[styles.navBtn, isDesktop && styles.navBtnDesk]}>
+          <TouchableOpacity onPress={() => shift(1)} style={[styles.navBtn, isDesktop && styles.navBtnDesk]} accessibilityRole="button" accessibilityLabel="Neste periode">
             <Ionicons name="chevron-forward" size={isDesktop ? 16 : 20} color={colors.ink} />
           </TouchableOpacity>
           {isDesktop && !isToday(anchor) && (

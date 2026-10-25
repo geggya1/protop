@@ -114,7 +114,8 @@ export function useCompanyAccess() {
   const selectedId = selection.key === viewAsKey(uid, familyId) ? selection.employeeId : '';
 
   useEffect(() => {
-    if (!org || !familyId || !uid || !ready || !selectedId) return;
+    // Tom liste = ikke lastet ennå (f.eks. rett etter omlasting): behold valget.
+    if (!org || !familyId || !uid || !ready || !selectedId || !employees.length) return;
     const exists = employees.some((row) => row.id === selectedId && row?.company?.status !== 'deleted');
     if (!exists) clearViewAs();
   }, [org, familyId, uid, ready, selectedId, employees]);

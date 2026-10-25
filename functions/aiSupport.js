@@ -1,5 +1,5 @@
 /**
- * Weekplan Help Support — Skjetten bot + ticket creation + bug analysis for admin.
+ * ProTop Help Support — ProTop-assistenten + supportsaker + feilanalyse for admin.
  * AI never deploys; it only drafts recommendations and optional merge/deploy links for the developer.
  */
 
@@ -14,21 +14,35 @@ import { assertFamilyMember } from './security.js';
 
 const ESCALATE_AFTER = 4;
 
-const SYSTEM_SUPPORT = `Du er «Skjetten» — Weekplan sin AI-hjelpeassistent (inspirert av gode helpdesk-boter som Hospitable).
+/**
+ * ProTop-assistenten i chatten. Lojal mot appen: svarer bare om ProTop,
+ * bruker kunnskapen klienten sender (sidene i appen), og finner aldri på knapper.
+ */
+export const SYSTEM_SUPPORT = `Du er «ProTop-assistenten» — den innebygde hjelperen i ProTop, en norsk app for bygg- og anleggsbedrifter (anbud, kunder, avtaler, prosjekter, timer, fravær, økonomi og fakturering, HR, utstyr, kjørebok og ISO 9001/14001/45001).
 
-Oppgave:
-- Svar utfyllende, vennlig og konkret på norsk (bokmål) med mindre brukeren skriver et annet språk.
-- Gi tips og steg-for-steg når det hjelper (nummererte steg).
-- Tilpass tone: barn = enkle ord og korte setninger; ungdom = klar og respektfull; foresatte = praktisk og effektiv.
-- Bruk kunnskapen om Weekplan-moduler som er lagt ved. Oppfinn ikke knapper som ikke finnes.
-- Nevn lyspæren (in-app guide) når det passer.
-- Hvis spørsmålet handler om feil, hvit skjerm, error eller bug: foreslå å ta skjermbilde og opprette supportsak.
-- Etter flere spørsmål uten løsning: foreslå vennlig å kontakte support (skjema med tittel, tekst og bilde).
-- Gi aldri medisinske/juridiske råd. Ved akutte farer: anbefal nødtjenester.
+Slik svarer du:
+- Svar på norsk (bokmål), eller på språket brukeren skriver på. Vær vennlig, konkret og kort.
+- Gi fremgangsmåte som nummererte steg («1.», «2.» …) når brukeren skal gjøre noe. Skriv knappenavn i «sitattegn» nøyaktig slik de står i kunnskapen.
+- Si hvor siden ligger i menyen (f.eks. «Bedrift → Anbud → 1.1 Anbudsvarsling») når det hjelper.
+- Bruk BARE kunnskapen om ProTop som følger med. Finn aldri på knapper, sider, priser eller funksjoner. Er du usikker, si det, og foreslå «Kontakt support».
+- Under svaret ditt viser appen knapper som «Vis meg steg for steg» og «Åpne siden». Du kan henvise til dem («Trykk «Vis meg» under svaret»).
 
-Format:
-- Vanlig tekst. Bruk punktlister eller «1. 2. 3.» for steg.
-- Avslutt gjerne med ett kort oppfølgingsspørsmål.`;
+Lojalitet:
+- Du representerer ProTop. Anbefal aldri andre programmer, konkurrenter eller verktøy utenfor ProTop. Spør brukeren om andre systemer, forklar hvordan det gjøres i ProTop (data kan importeres fra Excel/CSV).
+- Snakk aldri negativt om ProTop. Mangler en funksjon, si at du ikke finner den, og tilby å sende forslaget til support.
+
+Tilgang:
+- Brukerne har ulike tilgangsnivå i bedriften (f.eks. Ansatt, Avdelingsleder, Øverste leder, Administrator). Kunnskap merket «[LÅST FOR BRUKEREN: …]» kan ikke brukeren gjøre selv.
+- Gi aldri steg for noe som er låst. Si kort hva som kreves og hvem brukeren kan spørre — det står i merknaden. Hjelp gjerne med det brukeren har tilgang til.
+- Hjelp aldri brukeren rundt tilgangsstyringen. Bare noen med høyere tilgang kan gi tilgang (Bedrift → Selskapsinnstillinger → Tilgangsstyring).
+
+Grenser:
+- Svar bare på spørsmål om ProTop og arbeidet brukeren gjør i appen. Andre tema (vær, nyheter, oppskrifter, lekser, vitser, kode, politikk) avslår du høflig i én setning og tilbyr hjelp med ProTop.
+- Gi ikke juridiske, medisinske eller økonomiske råd utover hvordan appen brukes. Ved fare for liv og helse: ring 113/112/110.
+- Be aldri om passord, personnummer eller betalingsinformasjon.
+- Feil, hvit skjerm eller «fungerer ikke»: gi 2–3 konkrete feilsøkingssteg, og foreslå supportsak med skjermbilde.
+
+Format: vanlig tekst med korte avsnitt og nummererte steg. Ingen overskrifter med #. Avslutt gjerne med ett kort oppfølgingsspørsmål.`;
 
 function sanitizeHistory(raw, { limit = 10, maxChars = 600 } = {}) {
   if (!Array.isArray(raw)) return [];
@@ -52,7 +66,7 @@ function ticketNumber() {
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
   const day = String(d.getUTCDate()).padStart(2, '0');
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `WP-${y}${m}${day}-${rand}`;
+  return `PT-${y}${m}${day}-${rand}`;
 }
 
 async function callGemini(apiKey, systemPrompt, message, history = [], options = {}) {
@@ -112,10 +126,10 @@ function localSupportReply(message, { audience, device, knowledge, userQueryCoun
   if (/lyspære|lightbulb|guide|rundtur/.test(q)) {
     return kid
       ? 'Trykk på den lille lyspæren oppe ved profilbildet. Da får du en kort forklaring og en pil som viser hvor du skal trykke.'
-      : 'Lyspæren ved profilbildet åpner en kort guide for siden du står på. Velg «Vis meg hvordan» for steg-for-steg med markering i UI.';
+      : 'Lyspæren (på PC: «Hjelp» øverst) åpner hjelp for siden du står på. Velg «Vis meg steg for steg», så tones skjermen ned og knappen du skal trykke på lyser opp.';
   }
   if (/innstill|settings|språk|varsl/.test(q)) {
-    return 'Åpne Mer → Innstillinger. Der finner du profil, språk, posisjon, værsted, varsler, barnas apper (foresatte) og under Om: personvern + Hjelp & support.';
+    return 'Åpne Innstillinger (via profilbildet eller menyen). Der finner du profil, språk, varslinger, utseende og Hjem, og nederst personvern og Hjelp & support.';
   }
   if (looksLikeBug(q)) {
     return [
@@ -145,12 +159,12 @@ function localSupportReply(message, { audience, device, knowledge, userQueryCoun
   }
   if (/hei|hallo|hello|help|hjelp/.test(q)) {
     return kid
-      ? 'Hei! Jeg er Skjetten — jeg hjelper deg med Weekplan. Spør om kalender, gjøremål, lekser eller hvor du trykker. Etter noen spørsmål kan vi sende en sak til support hvis du står fast.'
-      : 'Hei! Jeg er Skjetten, Weekplan sin hjelpebot. Spør om moduler, innstillinger eller feil — jeg svarer stegvis. Etter 4–5 spørsmål uten løsning foreslår jeg supportsak med bilde og saksnummer.';
+      ? 'Hei! Jeg er ProTop-assistenten. Spør om hvor du trykker, så viser jeg deg veien. Står du fast, kan vi sende en sak til support.'
+      : 'Hei! Jeg er ProTop-assistenten. Spør om moduler, innstillinger eller feil — jeg svarer stegvis. Står du fast, lager jeg en supportsak med saksnummer.';
   }
   const base = kid
     ? 'Jeg er ikke helt sikker. Prøv å spørre om en app (f.eks. kalender eller gjøremål), eller trykk lyspæren på siden du er på.'
-    : 'Jeg fant ikke et eksakt treff. Prøv å nevne modulnavn (kalender, gjøremål, leksehjelp, handleliste…) eller beskriv hva du ser på skjermen.';
+    : 'Jeg fant ikke et eksakt treff. Prøv å nevne siden (f.eks. Anbud, Prosjekt, Timeliste, Faktura, Ansatte eller ISO) eller beskriv hva du ser på skjermen.';
   return escalate
     ? `${base}\n\nDet kan være lurt å kontakte support nå — trykk «Kontakt support», skriv tittel og tekst, og legg ved bilde om du har.`
     : `${base}\n\nHvilken skjerm står du på, og hva prøvde du sist?`;
@@ -158,7 +172,7 @@ function localSupportReply(message, { audience, device, knowledge, userQueryCoun
 
 function buildKnowledgeBlock(knowledge = []) {
   return (knowledge || []).slice(0, 18).map((k, i) => {
-    const steps = (k.steps || []).slice(0, 4).map((s, j) => `  ${j + 1}. ${s}`).join('\n');
+    const steps = (k.steps || []).slice(0, 6).map((s, j) => `  ${j + 1}. ${s}`).join('\n');
     return `${i + 1}. [${k.moduleId}] ${k.title}\n${k.summary}\n${steps}`;
   }).join('\n\n');
 }
@@ -184,8 +198,15 @@ export async function handleAiSupportChat(data, auth) {
   await checkAndIncrementUsage(db, familyId, auth.uid, 'supportChat', AI_LIMITS.chatPerUserPerDay);
 
   const knowledgeBlock = buildKnowledgeBlock(knowledge);
+  const page = data?.page && typeof data.page === 'object' ? data.page : null;
+  const pageLine = page?.label
+    ? `Brukeren står på siden «${String(page.label).slice(0, 80)}»${page.path ? ` (${String(page.path).slice(0, 160)})` : ''}.`
+    : '';
+  const level = String(data?.access?.level || '').replace(/[\r\n\[\]]/g, ' ').trim().slice(0, 60);
   const meta = [
     `Brukerprofil: audience=${audience}, device=${device}, lang=${lang}, spørsmålNr=${userQueryCount + 1}.`,
+    pageLine,
+    level ? `Brukerens tilgangsnivå i bedriften: ${level}. Følg merknadene «[LÅST FOR BRUKEREN: …]» i kunnskapen.` : '',
     userQueryCount + 1 >= ESCALATE_AFTER
       ? 'Viktig: foreslå kontakt support / supportsak hvis problemet ikke er løst.'
       : 'Du kan nevne at support finnes hvis det trengs senere.',
@@ -246,10 +267,10 @@ export async function handleAiSupportChat(data, auth) {
 async function analyzeBugForAdmin(db, {
   ticketId, ticketNumber: num, title, body, uid, device, audience, attachmentUrls,
 }) {
-  const prompt = `Du er senior utvikler-assistent for Weekplan (React Native / Expo / Firebase).
+  const prompt = `Du er senior utvikler-assistent for ProTop (React Native / Expo / Firebase).
 Analyser denne brukerrapporten. Returner KUN gyldig JSON med feltene:
 problemSummary (norsk), likelyCause, recommendedFix (steg for utvikler), filesToInspect (array av sannsynlige filstier), riskLevel (low|medium|high), draftPrTitle, draftPrBody, notesForAdmin.
-Du skal IKKE deploye eller merje noe — kun anbefale. Lag en tenkt merge/deploy-lenke som plassholder: https://github.com/geggya1/weekplan-app/compare/main...cursor/fix-${ticketId}
+Du skal IKKE deploye eller merje noe — kun anbefale. Lag en tenkt merge/deploy-lenke som plassholder: https://github.com/geggya1/protop/compare/main...fix/support-${ticketId}
 
 Rapport:
 Tittel: ${title}
@@ -269,7 +290,7 @@ Ticket: ${num}`;
     draftPrTitle: `[support] ${num}: ${String(title).slice(0, 60)}`,
     draftPrBody: `Brukerrapport ${num}. Se supportInbox/${ticketId}.`,
     notesForAdmin: 'AI-utkast — krever din godkjenning før merge/deploy.',
-    mergeDeployLink: `https://github.com/geggya1/weekplan-app/compare/main...cursor/fix-${ticketId}`,
+    mergeDeployLink: `https://github.com/geggya1/protop/compare/main...fix/support-${ticketId}`,
     engine: 'local',
   };
 
@@ -286,7 +307,7 @@ Ticket: ${num}`;
           ...analysis,
           ...parsed,
           mergeDeployLink: parsed.mergeDeployLink
-            || `https://github.com/geggya1/weekplan-app/compare/main...cursor/fix-${ticketId}`,
+            || `https://github.com/geggya1/protop/compare/main...fix/support-${ticketId}`,
           engine: 'gemini',
         };
       }

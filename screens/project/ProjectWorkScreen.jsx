@@ -1919,6 +1919,7 @@ export default function ProjectWorkScreen() {
                 return (
                   <ProjectPhoneRow
                     key={item.id}
+                    nativeID={`project-open-${item.id}`}
                     first={index === 0}
                     lines={lines}
                     colors={colors}
@@ -1987,6 +1988,7 @@ export default function ProjectWorkScreen() {
                         return (
                           <TouchableOpacity
                             key={col.key}
+                            nativeID={`project-open-${item.id}`}
                             onPress={() => openDetail(item)}
                             accessibilityRole="button"
                             accessibilityLabel={`${item.number} ${item.name}`}

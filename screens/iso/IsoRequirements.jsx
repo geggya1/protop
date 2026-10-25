@@ -94,7 +94,7 @@ export default function IsoRequirements({ ctx, legal = false }) {
         ) : null}
         {rows.map((r) => (wide ? (
           <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.line }}>
-            <Text style={{ flex: 4, color: colors.ink, fontSize: 13 }} onPress={() => setOpenId(r.id)} accessibilityRole="button">
+            <Text testID="iso-row" style={{ flex: 4, color: colors.ink, fontSize: 13 }} onPress={() => setOpenId(r.id)} accessibilityRole="button">
               <Text style={{ fontWeight: '700' }}>{r.standard ? `${r.standard.replace('ISO', '')} ${r.clause}` : kindLabel(r.kind)}</Text>  {r.title}
             </Text>
             <View style={{ flex: 1.3 }}><Pill label={assessmentLabel(r.status)} tone={TONE[r.status]} icon={ICON[r.status]} /></View>

@@ -9,6 +9,8 @@ import {
   clampRect,
   fallbackTargetRect,
   placeCard,
+  phoneFitCap,
+  MIN_TOUR_CARD,
   attachPoint,
   arrowPath,
   arrowHead,
@@ -137,6 +139,40 @@ const deskCardLeft = placeCard({
   winW: 1440, winH: 900, hole: holeRight, cardW: 380, cardH: 360, isPhone: false,
 });
 assert.ok(deskCardLeft.x < 200, 'card sits on the left when the hole is on the right');
+
+// Markert knapp midt på mobilen der kortet ikke får plass over: kortet går under.
+const midHole = { x: 270, y: 340, w: 110, h: 86 };
+const phoneBelow = placeCard({
+  winW: 390, winH: 844, hole: midHole, cardW: 420, cardH: 365, isPhone: true,
+});
+assert.ok(phoneBelow.y >= midHole.y + midHole.h, 'card goes below when it cannot fit above');
+
+// Bred markering midt på nettbrettet: kortet havner over eller under, aldri oppå.
+const wideHole = { x: 190, y: 400, w: 545, h: 92 };
+const tabletCard = placeCard({
+  winW: 820, winH: 1180, hole: wideHole, cardW: 420, cardH: 330, isPhone: false,
+});
+const coversWide = !(tabletCard.y + tabletCard.h <= wideHole.y || tabletCard.y >= wideHole.y + wideHole.h
+  || tabletCard.x + tabletCard.w <= wideHole.x || tabletCard.x >= wideHole.x + wideHole.w);
+assert.equal(coversWide, false, 'tablet card does not cover a wide spotlight');
+
+// Markering som fyller nesten alt: kortet dekker så lite som mulig.
+const hugeHole = { x: 200, y: 120, w: 600, h: 900 };
+const hugeCard = placeCard({
+  winW: 820, winH: 1180, hole: hugeHole, cardW: 420, cardH: 300, isPhone: false,
+});
+const hugeCover = Math.max(0, Math.min(hugeCard.x + hugeCard.w, 800) - Math.max(hugeCard.x, 200))
+  * Math.max(0, Math.min(hugeCard.y + hugeCard.h, 1020) - Math.max(hugeCard.y, 120));
+assert.ok(hugeCover < hugeHole.w * hugeHole.h * 0.15, 'huge hole: card covers only a small slice');
+
+// Mobil: knapp midt på skjermen, kortet får ikke plass over eller under med fullt tak.
+const midBtn = { x: 216, y: 358, w: 158, h: 60 };
+const fitted = phoneFitCap({ winH: 844, hole: midBtn, cap: 439 });
+assert.ok(fitted < 439 && fitted >= MIN_TOUR_CARD, `taket senkes til plassen: ${fitted}`);
+const fittedCard = placeCard({ winW: 390, winH: 844, hole: midBtn, cardW: 420, cardH: fitted, isPhone: true });
+assert.ok(fittedCard.y >= midBtn.y + midBtn.h || fittedCard.y + fittedCard.h <= midBtn.y, 'kortet dekker ikke knappen');
+assert.equal(phoneFitCap({ winH: 844, hole: { x: 0, y: 40, w: 50, h: 40 }, cap: 439 }), 439, 'god plass: uendret tak');
+assert.equal(phoneFitCap({ winH: 844, hole: null, cap: 439 }), 439);
 
 const from = attachPoint({ x: 20, y: 400, w: 360, h: 280 }, { x: 200, y: 80, w: 140, h: 40 });
 const to = attachPoint({ x: 200, y: 80, w: 140, h: 40 }, { x: 20, y: 400, w: 360, h: 280 });

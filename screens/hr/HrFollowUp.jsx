@@ -300,7 +300,7 @@ export default function HrFollowUp({
     <View style={styles.page} nativeID="hr-followup">
       <View style={styles.chips}>
         {TABS.map((item) => (
-          <HrChip key={item.id} colors={colors} label={item.label} active={tab === item.id} onPress={() => setTab(item.id)} />
+          <HrChip key={item.id} nativeID={`hr-follow-tab-${item.id}`} colors={colors} label={item.label} active={tab === item.id} onPress={() => setTab(item.id)} />
         ))}
       </View>
 

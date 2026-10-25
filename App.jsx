@@ -112,6 +112,7 @@ import CalendarOAuthRedirectScreen from './screens/v2/CalendarOAuthRedirectScree
 import StravaOAuthRedirectScreen from './screens/v2/StravaOAuthRedirectScreen';
 import AirbnbOAuthRedirectScreen from './screens/v2/AirbnbOAuthRedirectScreen';
 import AiChatScreen from './screens/v2/AiChatScreen';
+import AssistantScreen from './screens/v2/AssistantScreen';
 import LeksehjelpScreen from './screens/v2/LeksehjelpScreen';
 import MattehjelpScreen from './screens/v2/MattehjelpScreen';
 import LekserHubScreen from './screens/v2/LekserHubScreen';
@@ -295,6 +296,7 @@ const AppearanceSettingsWithSwipe = withStackEdgeSwipe(AppearanceSettingsScreen)
 const ChatThreadWithSwipe = withStackEdgeSwipe(ChatThreadScreen);
 const FriendChatThreadWithSwipe = withStackEdgeSwipe(FriendChatThreadScreen);
 const AiChatWithSwipe = withStackEdgeSwipe(AiChatScreen);
+const AssistantWithSwipe = withStackEdgeSwipe(AssistantScreen);
 const GroupSettingsWithSwipe = withStackEdgeSwipe(GroupSettingsScreen);
 const MemberSettingsWithSwipe = withStackEdgeSwipe(MemberSettingsScreen);
 const ProfileSettingsWithSwipe = withStackEdgeSwipe(EditProfileScreen);
@@ -1205,6 +1207,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="Activities" component={ActivitiesWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="ActivityDetail" component={ActivityDetailWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="AiChat" component={AiChatWithSwipe} options={{ headerShown: false }} />
+            <Stack.Screen name="ProtopAssistant" component={AssistantWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="Leksehjelp" component={LeksehjelpWithShell} options={{ headerShown: false }} />
             <Stack.Screen name="Mattehjelp" component={MattehjelpWithShell} options={{ headerShown: false }} />
             <Stack.Screen name="Lekser" component={LekserWithShell} options={{ headerShown: false }} />

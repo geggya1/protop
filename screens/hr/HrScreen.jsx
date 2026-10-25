@@ -33,7 +33,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const { isPhone } = useLayout();
   const nav = useNavigation();
-  const { familyId, uid, activeProfile, requestShellTab } = useApp();
+  const {
+    familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
+  } = useApp();
   const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
   const access = useCompanyAccess();
   const page = defaultHrSubView(subView);
@@ -152,19 +154,29 @@ export default function HrScreen({ subView = 'oversikt' }) {
     const next = patchHrState(base, partial);
     persist(next);
   }, [persist, canWrite]);
-  const go = useCallback((id) => {
+  const go = useCallback((id, intent = null) => {
     if (id === 'produktivitet') {
       requestShellTab?.('arbeid', 'produktivitet');
       return;
     }
-    requestShellTab?.('hr', id);
+    requestShellTab?.('hr', id, intent);
   }, [requestShellTab]);
+
+  // Skallet monterer HR på nytt når undersiden skifter, så valgt ansatt
+  // følger med som intent til Personell.
+  useEffect(() => {
+    if (page !== 'personell' || shellIntent?.type !== 'hrEmployee' || !shellIntent.employeeId) return;
+    setSelectedEmployeeId(shellIntent.employeeId);
+    setEmployeeSheet(shellIntent.sheet || 'oversikt');
+    setFocusCaseId(shellIntent.caseId || '');
+    clearShellIntent?.();
+  }, [page, shellIntent, clearShellIntent]);
 
   const openEmployee = useCallback((id, sheet) => {
     setSelectedEmployeeId(id || '');
     setEmployeeSheet(sheet || 'oversikt');
     setFocusCaseId('');
-    go('personell');
+    go('personell', id ? { type: 'hrEmployee', employeeId: id, sheet: sheet || 'oversikt' } : null);
   }, [go]);
 
   const openCase = useCallback((row) => {
@@ -175,7 +187,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     setSelectedEmployeeId(row.employeeId);
     setEmployeeSheet('oppfolging');
     setFocusCaseId(row.id);
-    go('personell');
+    go('personell', { type: 'hrEmployee', employeeId: row.employeeId, sheet: 'oppfolging', caseId: row.id });
   }, [go]);
 
   const openLinkedTask = useCallback((taskId) => {

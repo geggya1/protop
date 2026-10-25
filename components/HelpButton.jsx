@@ -1,20 +1,27 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import {
+  Animated, Platform, StyleSheet, Text, TouchableOpacity, View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { useHelp } from '../src/context/HelpContext';
 import HelpTarget from './HelpTarget';
 
 const NATIVE_DRIVER = Platform.OS !== 'web';
+const AMBER = '#d97706';
+const AMBER_SOFT = '#fff7e6';
+const AMBER_LINE = '#f5c776';
 
 /**
  * Lightbulb — on-demand help for the current page.
- * `floating` is the overlay chip that sits under the profile photo.
- * Pair it with `compact` on tablet/desktop for a smaller circle.
+ * `floating` is the overlay chip that sits under the profile photo (mobil/nettbrett).
+ * `inline` sits in the desktop button row next to Varslinger, with a «Hjelp» label.
+ * Pair either with `compact` for a smaller control.
  */
 export default function HelpButton({
   compact = false,
   floating = false,
+  inline = false,
   color = '#1a2744',
   borderColor = '#e2e8f0',
   backgroundColor = '#fff',
@@ -58,7 +65,43 @@ export default function HelpButton({
 
   if (!hasHelp && !moduleId) return null;
 
-  const size = floating ? (compact ? 32 : 40) : compact ? 32 : 36;
+  const label = t('moduleIntro.helpHint');
+
+  if (inline) {
+    const height = 32;
+    return (
+      <HelpTarget id="helpBtn">
+        <Animated.View style={{ transform: [{ scale: pulse }] }}>
+          <TouchableOpacity
+            onPress={openModuleHelp}
+            style={[
+              styles.inline,
+              {
+                height,
+                paddingHorizontal: compact ? 0 : 10,
+                width: compact ? height : undefined,
+                borderColor: moduleSeen ? borderColor : AMBER_LINE,
+                backgroundColor: moduleSeen ? backgroundColor : AMBER_SOFT,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            testID="help-bulb"
+          >
+            <Ionicons name="bulb" size={17} color={AMBER} />
+            {!compact ? (
+              <Text style={[styles.inlineTxt, { color }]} numberOfLines={1}>
+                {t('moduleIntro.help')}
+              </Text>
+            ) : null}
+            {!moduleSeen ? <View style={[styles.dot, styles.dotInline]} /> : null}
+          </TouchableOpacity>
+        </Animated.View>
+      </HelpTarget>
+    );
+  }
+
+  const size = floating ? (compact ? 34 : 42) : compact ? 32 : 36;
   const radius = floating || !compact ? size / 2 : 6;
   const translateY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -5] });
 
@@ -74,17 +117,18 @@ export default function HelpButton({
               width: size,
               height: size,
               borderRadius: radius,
-              borderColor,
-              backgroundColor,
+              borderColor: floating ? AMBER_LINE : borderColor,
+              backgroundColor: floating && !moduleSeen ? AMBER_SOFT : backgroundColor,
             },
           ]}
           accessibilityRole="button"
-          accessibilityLabel={t('moduleIntro.helpHint')}
+          accessibilityLabel={label}
+          testID="help-bulb"
         >
           <Ionicons
-            name={moduleSeen ? 'bulb-outline' : 'bulb'}
-            size={floating ? 20 : compact ? 16 : 18}
-            color={moduleSeen ? color : '#d97706'}
+            name="bulb"
+            size={floating ? 21 : compact ? 16 : 18}
+            color={AMBER}
           />
           {!moduleSeen ? <View style={[styles.dot, floating && styles.dotFloating]} /> : null}
         </TouchableOpacity>
@@ -102,13 +146,23 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   btnFloating: {
-    borderWidth: 0,
+    borderWidth: 1.5,
     shadowColor: '#1a2744',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    elevation: 8,
   },
+  inline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    position: 'relative',
+  },
+  inlineTxt: { fontSize: 13, fontWeight: '500' },
   dot: {
     position: 'absolute',
     top: 5,
@@ -116,12 +170,16 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#d97706',
+    backgroundColor: '#e11d48',
     borderWidth: 1.5,
     borderColor: '#fff',
   },
   dotFloating: {
-    top: 6,
-    right: 6,
+    top: 5,
+    right: 5,
+  },
+  dotInline: {
+    top: -2,
+    right: -2,
   },
 });

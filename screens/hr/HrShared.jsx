@@ -35,9 +35,10 @@ export function HrStat({ colors, label, value, hint }) {
   );
 }
 
-export function HrChip({ colors, label, active, onPress }) {
+export function HrChip({ colors, label, active, onPress, nativeID }) {
   return (
     <Pressable
+      nativeID={nativeID}
       onPress={onPress}
       style={[
         styles.chip,

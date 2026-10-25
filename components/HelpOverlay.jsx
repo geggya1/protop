@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text,
+  Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleSheet, Text,
   TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,26 +13,32 @@ import { useLayout } from '../src/theme';
 import { useParentDashboardTheme } from '../src/hooks/useParentDashboardTheme';
 import {
   attachPoint, arrowHead, arrowPath, buildTourSteps, placeCard,
-  resolveHole, shortPitch, visibleTourPages,
+  phoneFitCap, resolveHole, shortPitch, tourCardCap, visibleTourPages,
 } from '../src/utils/helpLayout';
 import { getWelcomeTourModules, localizeIntro, pickIntroText } from '../src/utils/moduleIntros';
+import { processTour, getProcess } from '../src/help/protopProcesses';
+import { locateStepTarget } from '../src/help/findTarget';
+import { useHelpAccess } from '../src/help/useHelpAccess';
+import { isOrganizationType } from '../src/utils/groupTypes';
+import { openAssistant } from '../src/help/assistantBridge';
 import { soft } from './parentHome/softTheme';
 import { subscribeAppRoute } from '../src/navigation/navRef';
 
 const MASK_ID = 'wp-help-spot';
 const NATIVE_DRIVER = Platform.OS !== 'web';
+const DIM = 'rgba(7, 16, 35, 0.72)';
+/** Ankre der reserveplasseringen faktisk peker på riktig sted uten måling. */
+const RELIABLE_FALLBACK = new Set(['helpBtn', 'rail', 'tabs', 'header']);
+/** Ankre som dekker hele seksjoner — for brede til å vise «trykk her». */
+const BAND_ANCHORS = new Set(['content', 'timeline', 'shortcuts']);
 
 let createPortal = null;
 if (Platform.OS === 'web') {
   try { createPortal = require('react-dom').createPortal; } catch { /* ignore */ }
 }
 
-function buildModulePages(tour, scene) {
-  return visibleTourPages(tour || [], scene);
-}
-
-function buildWelcomePages(scope, asChild) {
-  const tour = getWelcomeTourModules(scope, { asChild });
+function buildWelcomePages(scope, asChild, company) {
+  const tour = getWelcomeTourModules(scope, { asChild, company });
   const pages = [{ kind: 'intro' }];
   if (tour.highlights.length) pages.push({ kind: 'highlights', modules: tour.highlights });
   if (tour.apps.length) pages.push({ kind: 'apps', modules: tour.apps });
@@ -40,18 +46,40 @@ function buildWelcomePages(scope, asChild) {
   return pages;
 }
 
+function buildProcessPages(processId, lang) {
+  return processTour(processId).map((s) => ({
+    kind: 'step',
+    index: s.index,
+    title: pickIntroText(s.title, lang),
+    text: pickIntroText(s, lang),
+    pageLabel: pickIntroText(s.pageLabel, lang),
+    find: s.find || [],
+    via: s.via || [],
+    pageKey: s.page || null,
+    viaText: s.viaText ? pickIntroText(s.viaText, lang) : '',
+    pending: s.pending ? pickIntroText(s.pending, lang) : '',
+    anchor: s.anchor || 'content',
+    go: s.go || null,
+    where: '',
+    scene: 'hub',
+    advance: false,
+  }));
+}
+
 export default function HelpOverlay() {
   const { t, lang } = useI18n();
   const help = useHelp();
-  const { isChild, isActingAsChild } = useApp();
+  const helpAccess = useHelpAccess();
+  const { isChild, isActingAsChild, family, requestShellTab } = useApp();
   const asChild = !!(isChild || isActingAsChild);
+  const company = isOrganizationType(family?.type);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const layout = useLayout();
   const { theme: parentTheme } = useParentDashboardTheme();
   const {
     mode, copy, scope, dismiss, openWelcome, requestRemeasure, targets,
-    scene, setTourIndex, tourIndex, runTargetAdvance, runRetreat,
+    scene, setTourIndex, tourIndex, runTargetAdvance, runRetreat, processId,
   } = help;
 
   const layoutHints = useMemo(() => ({
@@ -77,57 +105,101 @@ export default function HelpOverlay() {
   }, [mode, copy?.rawSteps, copy?.tour, lang, layoutHints]);
 
   const pages = useMemo(() => {
-    if (mode === 'welcome') return buildWelcomePages(scope, asChild);
-    if (mode === 'module') return buildModulePages(adaptedTour, scene);
+    if (mode === 'welcome') return buildWelcomePages(scope, asChild, company);
+    if (mode === 'module') return visibleTourPages(adaptedTour, scene);
+    if (mode === 'process') return buildProcessPages(processId, lang);
     return [];
-  }, [mode, scope, adaptedTour, asChild, scene]);
+  }, [mode, scope, adaptedTour, asChild, company, scene, processId, lang]);
 
-  const tourTotal = adaptedTour.length || copy?.steps?.length || pages.length;
-  const softFamilyChrome = scope === 'family' && !asChild && !layout.isDesktop;
+  const process = mode === 'process' ? getProcess(processId) : null;
+  const tourTotal = mode === 'module'
+    ? (adaptedTour.length || copy?.steps?.length || pages.length)
+    : pages.length;
+  const softFamilyChrome = scope === 'family' && !asChild && !layout.isDesktop && !company;
 
   const [page, setPage] = useState(0);
   const [routeName, setRouteName] = useState('');
   useEffect(() => subscribeAppRoute(setRouteName), []);
   const helpHeld = routeName === 'ProfileSetup';
   const [cardSize, setCardSize] = useState({ w: 380, h: 340 });
+  const [foundRect, setFoundRect] = useState(null);
+  // Markeringen står på knappen som åpner steget (via), ikke målknappen.
+  const [foundVia, setFoundVia] = useState(null);
+  const foundElRef = useRef(null);
   const opacity = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(28)).current;
-  const pagerRef = useRef(null);
-  const visible = !helpHeld && (mode === 'welcome' || mode === 'module') && pages.length > 0;
+  const drop = useRef(new Animated.Value(-14)).current;
+  const stepFade = useRef(new Animated.Value(1)).current;
+  const ring = useRef(new Animated.Value(0)).current;
+  const navigatedRef = useRef('');
+  const visible = !helpHeld
+    && (mode === 'welcome' || mode === 'module' || mode === 'process')
+    && pages.length > 0;
 
   useEffect(() => {
     if (!helpHeld || !mode) return;
     dismiss({ skipPersist: true });
   }, [helpHeld, mode, dismiss]);
 
+  // Modul-rundturen følger tourIndex (kan flyttes av hub/inner-scener).
   useEffect(() => {
-    if (mode !== 'module') {
-      setPage(0);
-      pagerRef.current?.scrollTo?.({ x: 0, animated: false });
+    if (mode === 'module') {
+      const idx = pages.findIndex((p) => p.index === tourIndex);
+      const next = idx >= 0 ? idx : 0;
+      setPage(next);
+      const step = pages[next];
+      if (step?.index != null && step.index !== tourIndex) setTourIndex(step.index);
       return;
     }
-    const idx = pages.findIndex((p) => p.index === tourIndex);
-    const next = idx >= 0 ? idx : 0;
-    setPage(next);
-    const step = pages[next];
-    if (step?.index != null && step.index !== tourIndex) setTourIndex(step.index);
-    pagerRef.current?.scrollTo?.({ x: next * pageW, animated: false });
-  }, [mode, scope, copy?.title, scene]);
+    if (mode === 'process') {
+      setPage(Math.max(0, Math.min(pages.length - 1, tourIndex || 0)));
+      return;
+    }
+    setPage(0);
+  }, [mode, scope, copy?.title, scene, processId]);
 
+  // Fade ned: laget tones inn og kortet glir ned på plass.
   useEffect(() => {
     if (!visible) {
       opacity.setValue(0);
-      slide.setValue(28);
+      drop.setValue(-14);
+      navigatedRef.current = '';
       return undefined;
     }
     requestRemeasure();
-    const anim = Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: NATIVE_DRIVER }),
-      Animated.timing(slide, { toValue: 0, duration: 320, useNativeDriver: NATIVE_DRIVER }),
-    ]);
+    // Bare opasitet her: kortets «gli ned» styres av steg-effekten under,
+    // og to animasjoner på samme verdi i en parallel stopper hverandre.
+    const anim = Animated.timing(opacity, { toValue: 1, duration: 280, useNativeDriver: NATIVE_DRIVER });
     anim.start();
     return () => anim.stop();
-  }, [visible, opacity, slide, requestRemeasure]);
+  }, [visible, opacity, drop, requestRemeasure]);
+
+  // Hvert nytt steg toner inn og glir litt ned.
+  useEffect(() => {
+    if (!visible) return undefined;
+    stepFade.setValue(0);
+    drop.setValue(-14);
+    const anim = Animated.parallel([
+      Animated.timing(stepFade, { toValue: 1, duration: 260, useNativeDriver: NATIVE_DRIVER }),
+      Animated.timing(drop, {
+        toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: NATIVE_DRIVER,
+      }),
+    ], { stopTogether: false });
+    anim.start();
+    return () => anim.stop();
+  }, [visible, page, stepFade, drop]);
+
+  // Pulserende ring rundt knappen som skal trykkes.
+  useEffect(() => {
+    if (!visible) return undefined;
+    ring.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(ring, {
+        toValue: 1, duration: 1400, easing: Easing.out(Easing.quad), useNativeDriver: NATIVE_DRIVER,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [visible, ring]);
 
   useEffect(() => {
     if (!visible) return undefined;
@@ -137,39 +209,126 @@ export default function HelpOverlay() {
   }, [visible, width, height, scene, page, requestRemeasure]);
 
   const current = pages[page] || pages[0];
-  const isLastGlobal = (current?.index ?? 0) >= Math.max(0, tourTotal - 1);
+  const isLastGlobal = mode === 'process'
+    ? page >= pages.length - 1
+    : (current?.index ?? 0) >= Math.max(0, tourTotal - 1);
+
+  // Tilgang: steg brukeren ikke har rettighet til, peker ikke på en knapp,
+  // men sier hva som kreves og hvem i bedriften som kan hjelpe.
+  const gate = useMemo(() => {
+    if (!visible || !current) return null;
+    if (mode === 'module' && copy?.pageKey) return helpAccess.check(copy.pageKey, current.index ?? page);
+    if (mode === 'process' && processId) return helpAccess.checkProcessStep(processId, current.index ?? page, current.pageKey);
+    return null;
+  }, [visible, current, mode, copy?.pageKey, processId, page, helpAccess]);
+  const locked = !!gate && !gate.ok;
+
+  // Prosess: åpne siden steget gjelder før vi markerer knappen — men ikke en side brukeren ikke har tilgang til.
+  useEffect(() => {
+    if (!visible || mode !== 'process' || !current?.go?.tab) return;
+    if (gate?.page) return;
+    const key = `${processId}:${page}`;
+    if (navigatedRef.current === key) return;
+    navigatedRef.current = key;
+    setFoundRect(null);
+    try { requestShellTab?.(current.go.tab, current.go.subView || null); } catch { /* ignore */ }
+    requestRemeasure();
+  }, [visible, mode, processId, page, current?.go, gate?.page, requestShellTab, requestRemeasure]);
+
+  // Uten venstremeny (mobil) peker menysteg på ☰-knappen i stedet.
+  const noRail = !layout.hasRail && !layout.isDesktop;
+  const stepFind = useMemo(() => {
+    if (locked) return [];
+    const base = current?.find || [];
+    if (current?.anchor === 'rail' && noRail) return [...base, 'Åpne meny'];
+    return base;
+  }, [locked, current?.find, current?.anchor, noRail]);
+  const stepVia = useMemo(() => (locked ? [] : (current?.via || [])), [locked, current?.via]);
+
+  // Web: finn den ekte knappen fra steget (find) og hold markeringen fast på den.
+  // Finnes den ikke ennå, markeres knappen som åpner den (via).
+  const findKey = stepFind.join('|');
+  const viaKey = stepVia.join('|');
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'web' || (!findKey && !viaKey)) {
+      setFoundRect(null);
+      setFoundVia(null);
+      foundElRef.current = null;
+      return undefined;
+    }
+    let alive = true;
+    let scrolled = false;
+    const find = findKey ? findKey.split('|') : [];
+    const via = viaKey ? viaKey.split('|') : [];
+    const look = () => {
+      if (!alive) return;
+      const hit = locateStepTarget({ find, via }, { scroll: !scrolled });
+      const rect = hit?.rect || null;
+      if (rect) scrolled = true;
+      foundElRef.current = hit?.el || null;
+      setFoundVia(hit?.via ? hit.label : null);
+      setFoundRect((prev) => {
+        if (!rect) return null;
+        if (prev
+          && Math.abs(prev.x - rect.x) < 1 && Math.abs(prev.y - rect.y) < 1
+          && Math.abs(prev.w - rect.w) < 1 && Math.abs(prev.h - rect.h) < 1) return prev;
+        return rect;
+      });
+    };
+    setFoundRect(null);
+    setFoundVia(null);
+    look();
+    const tick = setInterval(look, 400);
+    return () => { alive = false; clearInterval(tick); };
+  }, [visible, findKey, viaKey, page, width, height]);
 
   const hole = useMemo(() => {
-    if (!visible) return null;
+    if (!visible || locked) return null;
+    if (foundRect) return resolveHole('found', foundRect, layoutHints);
     const anchor = current?.anchor;
     if (!anchor) return null;
+    const measured = targets[anchor];
+    const hasMeasured = measured && measured.w > 8 && measured.h > 8;
+    const reliable = RELIABLE_FALLBACK.has(anchor)
+      && !(anchor === 'rail' && noRail)
+      && !(anchor === 'tabs' && !layout.isPhone);
+    // ProTop-steg med knappetekst: ingen gjettet markering når knappen mangler.
+    if ((stepFind.length || stepVia.length) && !hasMeasured && !reliable) return null;
+    if (mode === 'process' && !hasMeasured && !reliable) return null;
+    if (!hasMeasured && !reliable && (anchor === 'rail' || anchor === 'tabs')) return null;
+    // ProTop-sider: aldri et helt innholdsfelt eller et gjettet bånd —
+    // bare ekte knapper (find) og fast skall (lyspære, meny, faner, topp).
+    if ((mode === 'process' || copy?.pageKey) && (BAND_ANCHORS.has(anchor) || (!hasMeasured && !reliable))) return null;
     const alt = anchor === 'shortcuts' || anchor === 'timeline'
       ? (targets.content || targets.rail || null)
       : anchor === 'edit'
         ? (targets.header || null)
         : null;
-    return resolveHole(anchor, targets[anchor], layoutHints, alt);
-  }, [visible, current?.anchor, targets, layoutHints]);
+    return resolveHole(anchor, measured, layoutHints, alt);
+  }, [visible, locked, foundRect, current?.anchor, stepFind, stepVia, mode, copy?.pageKey, targets, layoutHints, noRail, layout.isPhone]);
 
+  // Kortet vokser med teksten opp til taket; bare innholdet over taket ruller.
+  const baseCap = tourCardCap({ winH: height, winW: width, isPhone: layout.isPhone, inset: insets });
+  const cardCap = layout.isPhone || width < 768
+    ? phoneFitCap({ winH: height, hole, cap: baseCap, inset: insets })
+    : baseCap;
   const cardRect = useMemo(() => placeCard({
     winW: width,
     winH: height,
     hole,
-    cardW: Math.min(400, width - 24),
-    cardH: cardSize.h,
+    cardW: Math.min(420, width - 24),
+    cardH: Math.min(cardSize.h, cardCap),
     isPhone: layout.isPhone,
     inset: insets,
-  }), [width, height, hole, cardSize.h, layout.isPhone, insets]);
-
-  const pageW = Math.max(280, cardRect.w - 40);
+  }), [width, height, hole, cardSize.h, cardCap, layout.isPhone, insets]);
 
   const goTo = useCallback((next) => {
     const clamped = Math.max(0, Math.min(pages.length - 1, next));
     setPage(clamped);
     const step = pages[clamped];
     if (mode === 'module' && step?.index != null) setTourIndex(step.index);
-    pagerRef.current?.scrollTo?.({ x: clamped * pageW, animated: true });
-  }, [pages, pageW, mode, setTourIndex]);
+    if (mode === 'process') setTourIndex(clamped);
+  }, [pages, mode, setTourIndex]);
 
   const remeasureSoon = useCallback(() => {
     requestRemeasure();
@@ -192,18 +351,11 @@ export default function HelpOverlay() {
     });
   }, [dismiss, opacity]);
 
-  const finish = useCallback(() => {
-    Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: NATIVE_DRIVER }).start(() => {
-      dismiss();
-    });
-  }, [dismiss, opacity]);
-
   const goNext = useCallback(() => {
     if (mode === 'module' && current?.advance) {
       tryAdvance(current.anchor);
       const nextIdx = (current?.index ?? 0) + 1;
       const next = adaptedTour[nextIdx];
-      // Same-scene advance (e.g. Matcoach «+ Ny ukeplan» then explain the plan)
       if (next && (next.scene || 'hub') === scene) {
         setTourIndex(nextIdx);
         remeasureSoon();
@@ -220,11 +372,24 @@ export default function HelpOverlay() {
       remeasureSoon();
       return;
     }
-    finish();
+    close();
   }, [
     mode, current, page, pages.length, tryAdvance, goTo, adaptedTour, scene,
-    isLastGlobal, setTourIndex, runRetreat, remeasureSoon, finish,
+    isLastGlobal, setTourIndex, runRetreat, remeasureSoon, close,
   ]);
+
+  // Trykk på markeringen: via-knappen åpnes for brukeren (så finner vi
+  // målknappen inni), ellers går turen videre.
+  const onSpotlight = useCallback(() => {
+    const el = foundElRef.current;
+    if (foundVia && el && typeof el.click === 'function') {
+      try { el.click(); } catch { /* ignore */ }
+      setFoundVia(null);
+      remeasureSoon();
+      return;
+    }
+    goNext();
+  }, [foundVia, goNext, remeasureSoon]);
 
   const goBack = useCallback(() => {
     if (page > 0) {
@@ -249,133 +414,140 @@ export default function HelpOverlay() {
     return () => window.removeEventListener('keydown', onKey);
   }, [visible, close, goNext, goBack]);
 
-  const onScrollEnd = (e) => {
-    const x = e.nativeEvent.contentOffset.x;
-    const next = Math.round(x / Math.max(1, pageW));
-    const clamped = Math.max(0, Math.min(pages.length - 1, next));
-    if (clamped !== page) {
-      setPage(clamped);
-      const step = pages[clamped];
-      if (mode === 'module' && step?.index != null) setTourIndex(step.index);
-    }
-  };
-
   const last = page >= pages.length - 1
     && !(mode === 'module' && current?.advance)
     && (mode !== 'module' || isLastGlobal);
   const ctaLabel = last
-    ? (mode === 'welcome' ? t('moduleIntro.explore') : t('moduleIntro.done'))
+    ? (mode === 'welcome' ? t('moduleIntro.explore') : t('moduleIntro.finish'))
     : t('moduleIntro.next');
-  const accent = copy?.accent || '#2563eb';
+  const accent = (mode === 'process' ? process?.accent : copy?.accent) || '#1099F4';
   const arrowStart = hole ? attachPoint(cardRect, hole) : null;
   const arrowEnd = hole ? attachPoint(hole, cardRect) : null;
+  const stepNo = mode === 'welcome' ? page + 1 : (mode === 'process' ? page + 1 : (current?.index ?? 0) + 1);
+  const stepCount = mode === 'welcome' ? pages.length : tourTotal;
 
-  useEffect(() => {
-    if (!visible) return undefined;
-    requestRemeasure?.();
-    return undefined;
-  }, [requestRemeasure, visible, page, width, height]);
+  const topHost = useTopHost(visible);
 
   // Unmount when idle — a hidden RN Modal on Safari/Chrome can eat all taps
   // (Dokumenter / album). Same pattern as ConfirmDialog / AlbumSheet.
   if (!visible) return null;
 
-  const overlayBody = (
-      <Animated.View style={[styles.root, { opacity }]} pointerEvents="box-none">
-        <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Defs>
-            <Mask id={MASK_ID} x="0" y="0" width={width} height={height}>
-              <Rect x="0" y="0" width={width} height={height} fill="#fff" />
-              {hole ? (
-                <Rect
-                  x={hole.x}
-                  y={hole.y}
-                  width={hole.w}
-                  height={hole.h}
-                  rx={14}
-                  ry={14}
-                  fill="#000"
-                />
-              ) : null}
-            </Mask>
-          </Defs>
-          <Rect
-            x="0"
-            y="0"
-            width={width}
-            height={height}
-            fill="rgba(12, 16, 28, 0.62)"
-            mask={`url(#${MASK_ID})`}
-          />
-          {hole ? (
-            <Rect
-              x={hole.x}
-              y={hole.y}
-              width={hole.w}
-              height={hole.h}
-              rx={14}
-              ry={14}
-              fill="none"
-              stroke={accent}
-              strokeWidth={2}
-              opacity={0.9}
-            />
-          ) : null}
-          {hole && arrowStart && arrowEnd ? (
-            <>
-              <Path
-                d={arrowPath(arrowStart, arrowEnd)}
-                stroke="#fff"
-                strokeWidth={2.25}
-                fill="none"
-                strokeLinecap="round"
-              />
-              <Path d={arrowHead(arrowStart, arrowEnd)} fill="#fff" />
-            </>
-          ) : null}
-        </Svg>
+  const ringScale = ring.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
+  const ringOpacity = ring.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0.85, 0.15, 0] });
 
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t('moduleIntro.close')} />
+  const overlayBody = (
+    <Animated.View style={[styles.root, { opacity }]} pointerEvents="box-none">
+      <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Defs>
+          <Mask id={MASK_ID} x="0" y="0" width={width} height={height}>
+            <Rect x="0" y="0" width={width} height={height} fill="#fff" />
+            {hole ? (
+              <Rect x={hole.x} y={hole.y} width={hole.w} height={hole.h} rx={14} ry={14} fill="#000" />
+            ) : null}
+          </Mask>
+        </Defs>
+        <Rect x="0" y="0" width={width} height={height} fill={DIM} mask={`url(#${MASK_ID})`} />
         {hole ? (
-          <Pressable
-            onPress={goNext}
-            accessibilityRole="button"
-            accessibilityLabel={t('moduleIntro.next')}
-            style={{
-              position: 'absolute',
-              left: hole.x,
-              top: hole.y,
-              width: hole.w,
-              height: hole.h,
-            }}
+          <Rect
+            x={hole.x}
+            y={hole.y}
+            width={hole.w}
+            height={hole.h}
+            rx={14}
+            ry={14}
+            fill="none"
+            stroke="#fff"
+            strokeWidth={3}
           />
         ) : null}
+        {hole && arrowStart && arrowEnd ? (
+          <>
+            <Path
+              d={arrowPath(arrowStart, arrowEnd)}
+              stroke="#fff"
+              strokeWidth={2.5}
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray="6 5"
+            />
+            <Path d={arrowHead(arrowStart, arrowEnd, 11)} fill="#fff" />
+          </>
+        ) : null}
+      </Svg>
 
+      {hole ? (
         <Animated.View
+          pointerEvents="none"
           style={[
-            styles.card,
-            softFamilyChrome && styles.cardSoft,
+            styles.ring,
             {
-              width: cardRect.w,
-              left: cardRect.x,
-              top: cardRect.y,
-              maxHeight: cardRect.h,
-              transform: [{ translateX: slide }],
-              borderColor: softFamilyChrome ? soft.line : 'transparent',
-              borderWidth: softFamilyChrome ? 1 : 0,
+              left: hole.x - 4,
+              top: hole.y - 4,
+              width: hole.w + 8,
+              height: hole.h + 8,
+              borderColor: accent,
+              opacity: ringOpacity,
+              transform: [{ scale: ringScale }],
             },
           ]}
-          onStartShouldSetResponder={() => true}
-          onLayout={(e) => {
-            const { width: w, height: h } = e.nativeEvent.layout;
-            if (Math.abs(h - cardSize.h) > 2 || Math.abs(w - cardSize.w) > 2) {
-              setCardSize({ w, h });
-            }
+        />
+      ) : null}
+
+      <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={t('moduleIntro.close')} />
+      {hole ? (
+        <Pressable
+          onPress={onSpotlight}
+          accessibilityRole="button"
+          accessibilityLabel={foundVia ? foundVia : t('moduleIntro.next')}
+          testID="help-spotlight"
+          style={{
+            position: 'absolute',
+            left: hole.x,
+            top: hole.y,
+            width: hole.w,
+            height: hole.h,
           }}
-          accessibilityViewIsModal
-          accessibilityRole="summary"
-        >
-          <View style={styles.cardInner}>
+        />
+      ) : null}
+
+      <Animated.View
+        style={[
+          styles.card,
+          softFamilyChrome && styles.cardSoft,
+          {
+            width: cardRect.w,
+            left: cardRect.x,
+            top: cardRect.y,
+            maxHeight: cardCap,
+            transform: [{ translateY: drop }],
+            borderColor: softFamilyChrome ? soft.line : 'transparent',
+            borderWidth: softFamilyChrome ? 1 : 0,
+          },
+        ]}
+        onStartShouldSetResponder={() => true}
+        onLayout={(e) => {
+          const { width: w, height: h } = e.nativeEvent.layout;
+          if (Math.abs(h - cardSize.h) > 2 || Math.abs(w - cardSize.w) > 2) {
+            setCardSize({ w, h });
+          }
+        }}
+        accessibilityViewIsModal
+        accessibilityRole="summary"
+        testID="help-tour-card"
+      >
+        <View style={[styles.cardAccent, { backgroundColor: accent }]} />
+        <View style={styles.cardInner}>
+          <View style={styles.topRow}>
+            <View style={[styles.stepPill, { backgroundColor: `${accent}1A` }]}>
+              <Ionicons
+                name={mode === 'process' ? 'git-merge-outline' : mode === 'welcome' ? 'sparkles-outline' : 'footsteps-outline'}
+                size={13}
+                color={accent}
+              />
+              <Text style={[styles.stepPillTxt, { color: accent }]} testID="help-step-counter">
+                {t('moduleIntro.stepN')} {stepNo} {t('moduleIntro.of')} {stepCount}
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={close}
               style={styles.close}
@@ -385,109 +557,122 @@ export default function HelpOverlay() {
             >
               <Ionicons name="close" size={18} color="#64748b" />
             </TouchableOpacity>
+          </View>
 
+          <View style={styles.progress}>
+            {Array.from({ length: stepCount }).map((_, i) => (
+              <Pressable
+                key={i}
+                onPress={() => {
+                  if (mode === 'module') {
+                    const idx = pages.findIndex((p) => p.index === i);
+                    if (idx >= 0) goTo(idx);
+                    return;
+                  }
+                  goTo(i);
+                }}
+                hitSlop={6}
+                style={[
+                  styles.progressSeg,
+                  i < stepNo && { backgroundColor: accent },
+                  i === stepNo - 1 && styles.progressSegNow,
+                ]}
+                accessibilityLabel={`${t('moduleIntro.stepN')} ${i + 1}`}
+              />
+            ))}
+          </View>
+
+          <Animated.View style={{ opacity: stepFade }}>
             <ScrollView
-              ref={pagerRef}
-              horizontal
-              pagingEnabled
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={onScrollEnd}
-              onScrollEndDrag={onScrollEnd}
-              style={{ width: pageW }}
-              contentContainerStyle={Platform.OS === 'web' ? styles.snapRow : null}
+              style={{ maxHeight: Math.max(110, cardCap - 200) }}
+              showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {pages.map((item, i) => (
-                <View
-                  key={`${item.kind}-${i}`}
-                  style={[
-                    styles.page,
-                    { width: pageW, maxHeight: Math.max(140, cardRect.h - 148) },
-                    Platform.OS === 'web' && styles.snapPage,
-                  ]}
-                >
-                  <ScrollView
-                    nestedScrollEnabled
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                  >
-                    {mode === 'welcome' ? (
-                      <WelcomePage page={item} lang={lang} t={t} />
-                    ) : (
-                      <ModulePage
-                        page={item}
-                        copy={copy}
-                        t={t}
-                        stepTotal={tourTotal}
-                        highlighted={!!hole && i === page}
-                      />
-                    )}
-                  </ScrollView>
-                </View>
-              ))}
-            </ScrollView>
-
-            <View style={styles.dots}>
-              {pages.map((_, i) => (
-                <Pressable key={i} onPress={() => goTo(i)} hitSlop={6}>
-                  <View style={[
-                    styles.dot,
-                    i === page && { backgroundColor: accent, width: 18 },
-                  ]}
-                  />
-                </Pressable>
-              ))}
-            </View>
-
-            <View style={styles.actions}>
-              {(page > 0 || (mode === 'module' && scene === 'inner')) ? (
-                <TouchableOpacity
-                  onPress={goBack}
-                  style={styles.backBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={t('moduleIntro.back')}
-                >
-                  <Ionicons name="chevron-back" size={18} color="#334155" />
-                </TouchableOpacity>
+              {mode === 'welcome' ? (
+                <WelcomePage page={current} lang={lang} t={t} company={company} />
               ) : (
-                <View style={styles.backBtn} />
+                <StepPage
+                  page={current}
+                  copy={copy}
+                  process={process}
+                  lang={lang}
+                  t={t}
+                  accent={accent}
+                  highlighted={!!hole}
+                  viaLabel={hole ? foundVia : null}
+                  lockText={locked ? gate.text : ''}
+                />
               )}
-              <TouchableOpacity
-                onPress={goNext}
-                style={[styles.cta, { backgroundColor: accent }]}
-                accessibilityRole="button"
-                accessibilityLabel={ctaLabel}
-              >
-                <Text style={styles.ctaTxt}>{ctaLabel}</Text>
-                <Ionicons name={last ? 'checkmark' : 'arrow-forward'} size={16} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            </ScrollView>
+          </Animated.View>
 
-            {mode === 'welcome' ? (
-              <TouchableOpacity onPress={close} accessibilityRole="button">
-                <Text style={styles.skip}>{t('moduleIntro.skipTour')}</Text>
+          <View style={styles.actions}>
+            {(page > 0 || (mode === 'module' && scene === 'inner')) ? (
+              <TouchableOpacity
+                onPress={goBack}
+                style={styles.backBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t('moduleIntro.back')}
+              >
+                <Ionicons name="chevron-back" size={18} color="#334155" />
+                <Text style={styles.backTxt}>{t('moduleIntro.back')}</Text>
               </TouchableOpacity>
-            ) : (
-              <View style={styles.moduleExtras}>
-                {mode === 'module' ? (
-                  <TouchableOpacity onPress={openWelcome} accessibilityRole="button">
-                    <Text style={styles.skipQuiet}>{t('moduleIntro.reopenTour')}</Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            )}
+            ) : null}
+            <TouchableOpacity
+              onPress={goNext}
+              style={[styles.cta, { backgroundColor: accent }]}
+              accessibilityRole="button"
+              accessibilityLabel={ctaLabel}
+              testID="help-tour-next"
+            >
+              <Text style={styles.ctaTxt}>{ctaLabel}</Text>
+              <Ionicons name={last ? 'checkmark' : 'arrow-forward'} size={16} color="#fff" />
+            </TouchableOpacity>
           </View>
-        </Animated.View>
+
+          {mode === 'welcome' ? (
+            <TouchableOpacity onPress={close} accessibilityRole="button">
+              <Text style={styles.skip}>{t('moduleIntro.skipTour')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.moduleExtras}>
+              <Text style={styles.keysHint}>
+                {Platform.OS === 'web' && !layout.isPhone ? t('moduleIntro.keysHint') : t('moduleIntro.tapHint')}
+              </Text>
+              {mode === 'module' && copy?.pageKey ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    const label = copy.label || copy.title;
+                    dismiss();
+                    openAssistant({
+                      title: t('assistant.name'),
+                      question: lang === 'en' ? `How do I use ${label}?` : `Hvordan bruker jeg ${label}?`,
+                    });
+                  }}
+                  accessibilityRole="button"
+                  testID="help-tour-ask"
+                >
+                  <Text style={styles.skipQuiet}>{t('helpCard.askAssistant')}</Text>
+                </TouchableOpacity>
+              ) : mode === 'module' ? (
+                <TouchableOpacity onPress={openWelcome} accessibilityRole="button">
+                  <Text style={styles.skipQuiet}>{t('moduleIntro.reopenTour')}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )}
+        </View>
       </Animated.View>
+    </Animated.View>
   );
 
   if (Platform.OS === 'web' && createPortal && typeof document !== 'undefined' && document.body) {
+    if (!topHost) return null;
     return createPortal(
       <div style={webHelpPortalStyle} data-wp-help-overlay="1">
         {overlayBody}
       </div>,
-      document.body,
+      topHost,
     );
   }
 
@@ -512,19 +697,47 @@ const webHelpPortalStyle = {
   left: 0,
   right: 0,
   bottom: 0,
-  zIndex: 2147483000,
+  zIndex: 2147483647,
 };
 
-function WelcomePage({ page, lang, t }) {
+/**
+ * Web: egen beholder sist i <body>. Menyer og ark som et steg åpner (f.eks.
+ * «Ny kunde») legges også i <body> med høy z-index — beholderen flyttes sist
+ * igjen, så rundturen alltid ligger øverst og det åpnede vises i markeringen.
+ */
+function useTopHost(active) {
+  const [host, setHost] = useState(null);
+  useEffect(() => {
+    if (!active || Platform.OS !== 'web' || typeof document === 'undefined' || !document.body) return undefined;
+    const el = document.createElement('div');
+    el.setAttribute('data-wp-help-host', '1');
+    document.body.appendChild(el);
+    setHost(el);
+    const keepLast = () => {
+      if (el.isConnected && document.body.lastElementChild !== el) document.body.appendChild(el);
+    };
+    const observer = typeof MutationObserver === 'function' ? new MutationObserver(keepLast) : null;
+    observer?.observe(document.body, { childList: true });
+    return () => {
+      observer?.disconnect();
+      el.remove();
+      setHost(null);
+    };
+  }, [active]);
+  return host;
+}
+
+function WelcomePage({ page, lang, t, company }) {
+  if (!page) return null;
   if (page.kind === 'intro') {
     return (
       <View>
         <View style={[styles.iconBadge, { backgroundColor: '#eff6ff' }]}>
-          <Ionicons name="sparkles" size={22} color="#2563eb" />
+          <Ionicons name="sparkles" size={22} color="#1099F4" />
         </View>
         <Text style={styles.kicker}>{t('moduleIntro.help')}</Text>
         <Text style={styles.title}>{t('moduleIntro.welcomeTitle')}</Text>
-        <Text style={styles.body}>{t('moduleIntro.welcomeLead')}</Text>
+        <Text style={styles.body}>{t(company ? 'moduleIntro.welcomeLeadCompany' : 'moduleIntro.welcomeLead')}</Text>
       </View>
     );
   }
@@ -542,8 +755,8 @@ function WelcomePage({ page, lang, t }) {
                   <Ionicons name={loc.icon} size={16} color={loc.accent} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>{loc.kicker}</Text>
-                  <Text style={styles.rowBody} numberOfLines={2}>{shortPitch(loc.pitch, 88)}</Text>
+                  <Text style={styles.rowTitle} numberOfLines={1}>{loc.label || loc.kicker}</Text>
+                  <Text style={styles.rowBody} numberOfLines={2}>{shortPitch(loc.pitch, 96)}</Text>
                 </View>
               </View>
             );
@@ -564,7 +777,7 @@ function WelcomePage({ page, lang, t }) {
               <View key={mod.id} style={[styles.chip, { backgroundColor: loc.soft }]}>
                 <Ionicons name={loc.icon} size={14} color={loc.accent} />
                 <Text style={[styles.chipTxt, { color: loc.accent }]} numberOfLines={1}>
-                  {loc.kicker}
+                  {loc.label || loc.kicker}
                 </Text>
               </View>
             );
@@ -585,38 +798,58 @@ function WelcomePage({ page, lang, t }) {
   );
 }
 
-function ModulePage({ page, copy, t, stepTotal, highlighted }) {
-  if (page.kind === 'pitch') {
-    return (
-      <View>
-        <View style={[styles.iconBadge, { backgroundColor: copy.soft }]}>
-          <Ionicons name={copy.icon} size={22} color={copy.accent} />
-        </View>
-        <Text style={[styles.kicker, { color: copy.accent }]}>{copy.kicker}</Text>
-        <Text style={styles.title}>{copy.title}</Text>
-        <Text style={styles.body}>{copy.pitch}</Text>
-      </View>
-    );
-  }
+function StepPage({ page, copy, process, lang, t, accent, highlighted, viaLabel, lockText }) {
+  if (!page) return null;
+  const heading = page.title
+    || (process ? pickIntroText(process.title, lang) : copy?.title)
+    || t('moduleIntro.startTitle');
+  const context = process
+    ? pickIntroText(process.title, lang)
+    : (copy?.label || copy?.kicker || '');
+  // Uten markering: si når knappen dukker opp — ikke «Fremhevet: …».
+  const unlitHint = page.pending
+    || (page.where && !/^(Fremhevet|Highlighted)\b/.test(page.where) ? page.where : '');
   return (
     <View>
-      <Text style={[styles.kicker, { color: copy.accent }]}>
-        {t('moduleIntro.stepN')} {page.index + 1} / {stepTotal}
-      </Text>
-      <Text style={styles.title}>{t('moduleIntro.startTitle')}</Text>
-      <View style={styles.stepBlock}>
-        <View style={[styles.stepNum, { backgroundColor: copy.accent }]}>
-          <Text style={styles.stepNumTxt}>{page.index + 1}</Text>
+      {context ? (
+        <Text style={[styles.kicker, { color: accent }]} numberOfLines={1}>{context}</Text>
+      ) : null}
+      <Text style={styles.stepTitle} testID="help-step-title">{heading}</Text>
+      {process && page.pageLabel ? (
+        <View style={[styles.pageChip, { borderColor: `${accent}55` }]}>
+          <Ionicons name="navigate-outline" size={13} color={accent} />
+          <Text style={[styles.pageChipTxt, { color: accent }]} numberOfLines={1}>{page.pageLabel}</Text>
         </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.stepTxt}>{page.text}</Text>
-          {highlighted ? (
-            <Text style={[styles.whereHint, { color: copy.accent }]}>
-              {page.where || t('moduleIntro.tapHighlight')}
-            </Text>
-          ) : null}
+      ) : null}
+      <Text style={styles.stepTxt}>{page.text}</Text>
+      {lockText ? (
+        <View style={styles.lockRow} testID="help-step-locked">
+          <Ionicons name="lock-closed" size={15} color="#b45309" />
+          <Text style={styles.lockTxt}>{lockText}</Text>
         </View>
-      </View>
+      ) : viaLabel ? (
+        <View style={[styles.viaRow, { borderColor: `${accent}40`, backgroundColor: `${accent}12` }]} testID="help-step-via">
+          <Ionicons name="hand-right-outline" size={15} color={accent} />
+          <Text style={[styles.viaTxt, { color: accent }]}>
+            {page.viaText
+              || (viaLabel.startsWith('#')
+                ? t('moduleIntro.viaHintPick')
+                : t('moduleIntro.viaHint').replace('{label}', viaLabel))}
+          </Text>
+        </View>
+      ) : highlighted ? (
+        <View style={styles.whereRow}>
+          <Ionicons name="hand-left-outline" size={14} color={accent} />
+          <Text style={[styles.whereHint, { color: accent }]}>
+            {page.where || t('moduleIntro.tapHighlight')}
+          </Text>
+        </View>
+      ) : (unlitHint ? (
+        <View style={styles.whereRow} testID="help-step-pending">
+          <Ionicons name="information-circle-outline" size={14} color="#64748b" />
+          <Text style={[styles.whereHint, { color: '#64748b' }]}>{unlitHint}</Text>
+        </View>
+      ) : null)}
     </View>
   );
 }
@@ -625,50 +858,73 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
+  ring: {
+    position: 'absolute',
+    borderWidth: 3,
+    borderRadius: 18,
+  },
   card: {
     position: 'absolute',
     backgroundColor: '#fff',
     borderRadius: 20,
     shadowColor: '#0f1419',
-    shadowOpacity: 0.22,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 12,
+    shadowOpacity: 0.28,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 18 },
+    elevation: 14,
     overflow: 'hidden',
   },
   cardSoft: {
     backgroundColor: soft.cream,
     borderRadius: soft.radius,
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.14,
     shadowRadius: 18,
+  },
+  cardAccent: {
+    height: 4,
+    width: '100%',
   },
   cardInner: {
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stepPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  stepPillTxt: { fontSize: 12, fontWeight: '600', letterSpacing: 0.2 },
   close: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
     width: 32,
     height: 32,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2,
   },
-  snapRow: {
-    scrollSnapType: 'x mandatory',
+  progress: {
+    flexDirection: 'row',
+    gap: 4,
+    marginTop: 10,
+    marginBottom: 12,
   },
-  snapPage: {
-    scrollSnapAlign: 'start',
-    scrollSnapStop: 'always',
+  progressSeg: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#e2e8f0',
   },
-  page: {
-    paddingRight: 4,
-    paddingTop: 4,
-    minHeight: 168,
+  progressSegNow: {
+    height: 6,
+    marginTop: -1,
   },
   iconBadge: {
     width: 44,
@@ -680,17 +936,24 @@ const styles = StyleSheet.create({
   },
   kicker: {
     fontSize: 11,
-    fontWeight: '400',
+    fontWeight: '500',
     letterSpacing: 0.7,
     textTransform: 'uppercase',
-    color: '#2563eb',
+    color: '#1099F4',
   },
   title: {
     marginTop: 4,
     fontSize: 20,
-    fontWeight: '400',
+    fontWeight: '500',
     color: '#0f1419',
     lineHeight: 26,
+  },
+  stepTitle: {
+    marginTop: 4,
+    fontSize: 19,
+    fontWeight: '600',
+    color: '#0f1419',
+    lineHeight: 25,
   },
   body: {
     marginTop: 8,
@@ -708,7 +971,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowTitle: { fontSize: 13, fontWeight: '400', color: '#0f1419' },
+  rowTitle: { fontSize: 13, fontWeight: '600', color: '#0f1419' },
   rowBody: { fontSize: 12, lineHeight: 17, color: '#64748b', marginTop: 1 },
   chipGrid: {
     marginTop: 14,
@@ -725,60 +988,57 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     maxWidth: '100%',
   },
-  chipTxt: { fontSize: 12, fontWeight: '400', maxWidth: 140 },
-  stepBlock: {
-    marginTop: 14,
+  chipTxt: { fontSize: 12, fontWeight: '500', maxWidth: 160 },
+  pageChip: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  stepNum: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-  },
-  stepNumTxt: { color: '#fff', fontSize: 13, fontWeight: '400' },
-  stepTxt: {
-    fontSize: 16,
-    lineHeight: 23,
-    color: '#334155',
-    fontWeight: '500',
-  },
-  whereHint: {
-    marginTop: 8,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '400',
-  },
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
     gap: 6,
-    marginTop: 14,
-    marginBottom: 12,
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    maxWidth: '100%',
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#cbd5e1',
+  pageChipTxt: { fontSize: 12, fontWeight: '500' },
+  stepTxt: {
+    marginTop: 10,
+    fontSize: 15.5,
+    lineHeight: 23,
+    color: '#334155',
+    fontWeight: '400',
+  },
+  whereRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  whereHint: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginTop: 16,
   },
   backBtn: {
-    width: 44,
-    height: 44,
+    height: 46,
+    paddingHorizontal: 12,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
   },
+  backTxt: { color: '#334155', fontSize: 14, fontWeight: '500' },
   cta: {
     flex: 1,
     flexDirection: 'row',
@@ -788,7 +1048,7 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 14,
   },
-  ctaTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
+  ctaTxt: { color: '#fff', fontWeight: '600', fontSize: 15 },
   skip: {
     marginTop: 10,
     textAlign: 'center',
@@ -802,6 +1062,47 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontWeight: '400',
     fontSize: 12,
+  },
+  lockRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    backgroundColor: '#fffbeb',
+  },
+  lockTxt: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+    color: '#92400e',
+  },
+  viaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  viaTxt: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
+  keysHint: {
+    marginTop: 10,
+    textAlign: 'center',
+    color: '#94a3b8',
+    fontSize: 11.5,
   },
   moduleExtras: { marginTop: 2 },
 });

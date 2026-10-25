@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 /** Mobilrad i prosjektlisten: nummer, navn, kunde og status. Avtale bare når den mangler. */
 export default function ProjectPhoneRow({
+  nativeID,
   lines,
   colors,
   first = false,
@@ -44,6 +45,7 @@ export default function ProjectPhoneRow({
       ) : null}
       <TouchableOpacity
         onPress={onPress}
+        nativeID={nativeID}
         accessibilityRole="button"
         accessibilityLabel={label}
         style={styles.body}

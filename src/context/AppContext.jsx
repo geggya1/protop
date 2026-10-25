@@ -135,6 +135,13 @@ export function AppProvider({ user, role, childProfile, childFamilyId, children 
     setShellIntent(null);
   }, []);
 
+  // Test-boten (scripts/help-bot) åpner faner direkte. Finnes bare i emulator-bygg.
+  useEffect(() => {
+    if (!process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST || typeof window === 'undefined') return undefined;
+    window.__protopBot = { openShell: requestShellTab };
+    return () => { delete window.__protopBot; };
+  }, [requestShellTab]);
+
   useEffect(() => {
     let alive = true;
     familyPickRef.current = false;

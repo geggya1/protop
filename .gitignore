@@ -67,3 +67,5 @@ _config.json
 
 # Sikkerhetskopier fra audit-cross-company-data.mjs (selskapsdata)
 scripts/backup-cross-company-*/
+.helpbot-fn/
+help-bot-out/

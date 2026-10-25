@@ -8,6 +8,8 @@ import {
   View,
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { canImportList } from '../../src/access/companyAccess';
 import { useLayout } from '../../src/theme';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useTimesheetWorkspace } from '../arbeid/useTimesheetWorkspace';
@@ -64,8 +66,11 @@ function Choice({ label, on, onPress, colors }) {
   );
 }
 
-export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false, canImport = true } = {}) {
+export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false, canImport: canImportProp } = {}) {
   const colors = useColors();
+  // Import av utleggslister krever Admin på Prosjektutlegg.
+  const adminImport = canImportList(useCompanyAccess(), 'economyProjectExpenses');
+  const canImport = adminImport && canImportProp !== false;
   const { width } = useLayout();
   // Brede skjermer: filter og sortering i høyre marg, som på Timer.
   const sideFilters = width >= 1100;

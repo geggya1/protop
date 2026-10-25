@@ -128,6 +128,7 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
                 return (
                   <ListRow
                     key={p.id}
+                    nativeID={`iso-proc-${p.id}`}
                     icon="git-network-outline"
                     title={p.title}
                     subtitle={[p.ownerName ? `Eier: ${p.ownerName}` : 'Mangler eier', p.publishedVersion ? `v${p.publishedVersion} publisert` : 'Ikke publisert', draft && caps.manage ? `utkast v${draft.version} (${VERSION_STATES[draft.state]})` : '', running ? `${running} aktive` : ''].filter(Boolean).join(' · ')}

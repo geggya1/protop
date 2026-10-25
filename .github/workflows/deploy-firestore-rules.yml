@@ -1,0 +1,39 @@
+name: Deploy Firestore rules
+
+# Kjøres manuelt. Regeltestene mot emulatoren må være grønne før reglene går live.
+# Bruker firebase.rules.json (firebase.json skal bare inneholde hosting).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: firestore-rules-protop-c189c
+  cancel-in-progress: false
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm install --no-save --no-audit --no-fund @firebase/rules-unit-testing@4
+      - name: Firestore rules (emulator)
+        run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test tests/rules/firestore.rules.test.mjs"
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github
+          service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
+      - name: Deploy rules to protop-c189c
+        run: npx firebase deploy --only firestore:rules --config firebase.rules.json --project protop-c189c --non-interactive

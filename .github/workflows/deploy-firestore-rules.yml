@@ -42,3 +42,13 @@ jobs:
             echo "::error title=Firestore rules deploy::$(grep -iE 'error|denied|permission' deploy.log | tail -5 | tr '\n' ' ')"
             exit 1
           fi
+      # Indekser: emulatoren krever dem ikke, Firestore i skyen gjør det (collectionGroup-
+      # spørringer og sammensatte spørringer). Uten --force slettes ingenting som allerede
+      # finnes i prosjektet; nye indekser opprettes. Mangler tjenestekontoen tilgang
+      # (datastore.indexes.create), stopper ikke regeldeployen, men varselet sier hva som mangler.
+      - name: Deploy indexes to protop-c189c
+        run: |
+          set -o pipefail
+          if ! npx firebase deploy --only firestore:indexes --config firebase.rules.json --project protop-c189c --non-interactive 2>&1 | tee indexes.log; then
+            echo "::warning title=Firestore indexes deploy::$(grep -iE 'error|denied|permission' indexes.log | tail -5 | tr '\n' ' ')"
+          fi

@@ -64,6 +64,10 @@ function loadJsx(rel) {
         }),
       };
     }
+    // Admin på prosjektutlegg: import vises (canImportList).
+    if (id.includes('useCompanyAccess')) {
+      return { useCompanyAccess: () => ({ ready: true, canAdmin: () => true, canEdit: () => true, canRead: () => true }) };
+    }
     if (id.includes('anbud/storage')) return { loadAnbudState: async () => ({ customers: [] }) };
     if (id.includes('expenseStorage')) {
       return {

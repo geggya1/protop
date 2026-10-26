@@ -30,7 +30,7 @@ import {
 export default function HrDashboard({
   colors, employees, hr, canWrite, onPatch,
   onOpenPeople, onOpenFollowUp, onOpenCase, onOpenRecruitment, onOpenProductivity, onOpenCompliance, onOpenContracts,
-  familyId, assigneeUid, assigneeName, onCreateFollowUpTask,
+  familyId, assigneeUid, assigneeName, onCreateFollowUpTask, kin = null,
 }) {
   const [staffFilter, setStaffFilter] = useState('active');
   const counts = useMemo(() => countHrEmployees(employees), [employees]);
@@ -285,6 +285,8 @@ export default function HrDashboard({
         <RowLink colors={colors} title="Åpne rekruttering" onPress={onOpenRecruitment} />
       </HrCard>
 
+      {kin ? <KinCard colors={colors} kin={kin} canWrite={canWrite} onOpenPeople={onOpenPeople} /> : null}
+
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}
@@ -309,6 +311,48 @@ export default function HrDashboard({
         <RowLink colors={colors} title="Følg opp compliance per ansatt" onPress={onOpenCompliance} />
       </HrCard>
     </View>
+  );
+}
+
+/** Pårørende: hvem som mangler, og status på oppgaven de har fått. */
+function KinCard({ colors, kin, canWrite, onOpenPeople }) {
+  const { missing, busy } = kin;
+  const open = missing.filter((row) => row.task).length;
+  return (
+    <HrCard colors={colors}>
+      <HrSectionTitle
+        colors={colors}
+        title="Pårørende"
+        subtitle={missing.length ? `${missing.length} ansatte mangler pårørende` : 'Alle aktive ansatte har lagt inn pårørende'}
+      />
+      <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+        Den ansatte fyller inn pårørende selv under Ansatte › Min side. Mangler det, får hen en oppgave med varsel, og en påminnelse når fristen har gått ut.
+      </Text>
+      {missing.slice(0, 12).map(({ employee, task }) => (
+        <RowLink
+          key={employee.id}
+          colors={colors}
+          title={displayName(employee)}
+          subtitle={task
+            ? `Oppgave sendt, frist ${formatNbDate(task.deadline)}${task.reminders ? ` · påminnet ${task.reminders} ${task.reminders === 1 ? 'gang' : 'ganger'}` : ''}`
+            : (employee.personUid ? 'Får oppgave og varsel' : 'Har ikke brukerkonto. Inviter personen, eller fyll inn på personkortet.')}
+          onPress={onOpenPeople}
+        />
+      ))}
+      {missing.length > 12 ? <Text style={{ color: colors.muted, fontSize: 13 }}>{`… og ${missing.length - 12} til`}</Text> : null}
+      {canWrite && missing.some((row) => row.employee.personUid) ? (
+        <HrButton
+          colors={colors}
+          icon="notifications-outline"
+          label={busy ? 'Sender …' : `Send påminnelse nå${open ? ` (${open})` : ''}`}
+          disabled={busy}
+          onPress={async () => {
+            const count = await kin.remindNow();
+            showSaveToast(count ? 'Påminnelse er sendt.' : 'Ingen å minne på.');
+          }}
+        />
+      ) : null}
+    </HrCard>
   );
 }
 

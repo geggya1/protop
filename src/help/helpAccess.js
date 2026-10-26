@@ -43,7 +43,7 @@ export const PAGE_ACCESS = {
   'selskap.kontoplan': { res: 'economySettings', steps: [W, W, W] },
 
   ansatte: { res: 'employees', steps: [R, R, W, S] },
-  'hr.oversikt': { res: 'hr', steps: [S, S, R] },
+  'hr.oversikt': { res: 'hr', steps: [S, S, R, S] },
   'hr.personell': { res: 'hrPeople', steps: [S, S] },
   'hr.avtaler': { res: 'hrAgreements', steps: [S, R, R] },
   'hr.lonn': { res: 'hrPayroll', steps: [S, R] },

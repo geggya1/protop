@@ -21,6 +21,7 @@ import HrControl from './HrControl';
 import HrHandbook from './HrHandbook';
 import HrForms from './HrForms';
 import { useFormContext } from '../anbud/useFormContext';
+import { useKinTasks } from './useKinTasks';
 
 function periodWindow(months = 3) {
   const to = new Date();
@@ -73,6 +74,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
     if (!familyId) return undefined;
     return watchEmployees(familyId, (rows) => setEmployees(rows || []));
   }, [familyId]);
+
+  // Pårørende fylles inn av den ansatte på profilen. Mangler det, får hen oppgave og varsel.
+  const kin = useKinTasks({ familyId, employees, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
 
   useEffect(() => {
     let live = true;
@@ -310,12 +314,13 @@ export default function HrScreen({ subView = 'oversikt' }) {
         onOpenProductivity={() => go('produktivitet')}
         onOpenCompliance={() => go('compliance')}
         onOpenContracts={() => go('avtaler')}
+        kin={kin}
       />
     );
   }, [
     page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
-    openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo,
+    openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
   ]);
 
   if (access.active && access.ready && !canSee) {

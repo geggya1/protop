@@ -46,7 +46,7 @@ Kilden er `src/forms/ksLibrary.js`. Listen under er laget fra den.
 
 | KS-nr. | Dokument | I ProTop |
 |---|---|---|
-| C1-C-01-002 | Pårørendeskjema | Skjemabygger › KS-maler, og HR › Skjemaer |
+| C1-C-01-002 | Pårørendeskjema | Ansatte › Min side › Pårørende. Den ansatte fyller inn selv. Mangler det, får hen en oppgave med varsel og påminnelse (src/hr/kinReminder.js), og HR › Oversikt viser hvem som mangler. |
 | C1-C-01-003 | Taushetserklæring | Skjemabygger › KS-maler, og HR › Skjemaer |
 | C1-F-02-003 | Sjekkliste nyansatt (introduksjonsprogram) | Skjemabygger › KS-maler, og HR › Skjemaer |
 | C1-F-02-004 | Oppfølgingsplan nyansatt | Skjemabygger › KS-maler, og HR › Skjemaer |

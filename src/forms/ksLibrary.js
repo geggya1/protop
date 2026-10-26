@@ -607,33 +607,6 @@ function instruksArbeidsutstyr() {
   };
 }
 
-function parorende() {
-  const person = (n) => [
-    title(`Pårørende ${n}`),
-    half('Navn', { required: n === 1 }),
-    half('Relasjon', { placeholder: 'For eksempel ektefelle, samboer, forelder' }),
-    text('Adresse'),
-    half('Telefon / mobil', { required: n === 1 }),
-    half('Telefon arbeid'),
-  ];
-  return {
-    title: 'Pårørendeskjema',
-    layout: 'brev',
-    fields: [
-      note('Undertegnede er ansatt i {{firma}}. Arbeidsgiver ønsker pårørende oppført på pårørendelisten, til bruk dersom jeg:\n• plutselig uteblir fra arbeidet uten forutgående avtale eller beskjed.\n• plutselig blir alvorlig syk eller kommer til skade på arbeidsplassen.'),
-      title('Om ansatt'),
-      half('Navn', { required: true }),
-      half('Stilling'),
-      half('Ansattnummer'),
-      ...person(1),
-      ...person(2),
-      ...person(3),
-      note('Opplysningene brukes bare til formålet over og oppbevares med begrenset tilgang. Pårørende 1 kan også føres inn på personkortet under Ansatte.'),
-      sign('Signatur arbeidstaker'),
-    ],
-  };
-}
-
 function taushetserklaering() {
   return {
     title: 'Taushetserklæring',
@@ -836,7 +809,7 @@ export const KS_LIBRARY = [
   MAL('miljofyrtarn-tiltak', 'C1-B-01-008', 'miljo', miljofyrtarnTiltak, 'Tiltak fra Miljøfyrtårns idébank med vurdering, ansvar og frist.'),
   MAL('leverandor-miljo', 'C1-D-01-003', 'miljo', leverandorKartlegging, 'Miljøsertifisering hos vesentlige leverandører.'),
   MAL('miljofyrtarn-ansvarlig', 'C1-F-03-004', 'miljo', miljofyrtarnAnsvarlig, 'Rollebeskrivelse med signatur fra daglig leder og miljøfyrtårnansvarlig.'),
-  MAL('parorende', 'C1-C-01-002', 'personal', parorende, 'Inntil tre pårørende, signert av den ansatte.', { hr: true }),
+  SYS('parorende', 'C1-C-01-002', 'personal', 'Pårørendeskjema', { tab: 'ansatte', label: 'Ansatte › Min side' }, 'Den ansatte fyller inn pårørende selv på profilen. Mangler det, får hen en oppgave med varsel og påminnelse.'),
   MAL('taushetserklaering', 'C1-C-01-003', 'personal', taushetserklaering, 'Taushetserklæring med sikkerhetsgradert informasjon og offentlige oppdrag.', { hr: true }),
   MAL('nyansatt', 'C1-F-02-003', 'personal', nyansatt, 'Introduksjonsprogram: før oppstart, første dag og første uke.', { hr: true }),
   MAL('oppfolgingsplan', 'C1-F-02-004', 'personal', oppfolgingsplan, 'Samtaler i prøvetiden etter 1, 3 og 5 måneder.', { hr: true }),

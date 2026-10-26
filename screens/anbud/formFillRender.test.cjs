@@ -336,8 +336,22 @@ const HrForms = loadLocal(path.join(ROOT, 'screens/hr/HrForms.jsx')).default;
 const hrForms = collect(withHooks(() => React.createElement(HrForms, {
   colors, employees: [], canWrite: true, familyId: 'f1', actor: { uid: 'u1', name: 'Kari' }, company, logo: null,
 })));
-assert.match(hrForms.text, /Pårørendeskjema/);
+assert.doesNotMatch(hrForms.text, /Pårørendeskjema/, 'pårørende fylles inn på profilen, ikke som skjema');
 assert.match(hrForms.text, /Taushetserklæring/);
 assert.match(hrForms.text, /Utfylte personalskjema/);
+
+/* HR › Oversikt: hvem som mangler pårørende, og oppgaven de har fått. */
+const HrDashboard = loadLocal(path.join(ROOT, 'screens/hr/HrDashboard.jsx')).default;
+const olaEmp = { id: 'e1', personUid: 'ola', person: { firstName: 'Ola', lastName: 'Nordmann' }, company: { status: 'active' } };
+const liseEmp = { id: 'e3', person: { firstName: 'Lise', lastName: 'Ny' }, company: { status: 'active' } };
+const kinTaskRow = { id: 'kin_e1', deadline: '2026-11-09', reminders: 1 };
+const dash = collect(withHooks(() => React.createElement(HrDashboard, {
+  colors, employees: [olaEmp, liseEmp], hr: {}, canWrite: true, onPatch() {}, familyId: 'f1',
+  kin: { missing: [{ employee: olaEmp, task: kinTaskRow }, { employee: liseEmp, task: null }], busy: false, remindNow: async () => 1 },
+})));
+assert.match(dash.text, /2 ansatte mangler pårørende/);
+assert.match(dash.text, /Oppgave sendt, frist .* påminnet 1 gang/);
+assert.match(dash.text, /Har ikke brukerkonto/);
+assert.match(dash.text, /Send påminnelse nå \(1\)/);
 
 console.log('formFillRender.test.cjs: ok');

@@ -701,6 +701,10 @@ export const PROTOP_PAGES = {
         q: tx('Hvordan inviterer jeg en ansatt?', 'How do I invite an employee?'),
         a: tx('Ansatte → «Ny medarbeider», fyll inn e-post og huk av «Send velkomstmal». Personen får e-post med lenke til å sette passord.', 'Employees → “New employee”, fill in email and tick “Send welcome template”. The person gets an email with a link to set a password.'),
       },
+      {
+        q: tx('Hvor legger den ansatte inn pårørende?', 'Where do employees add their next of kin?'),
+        a: tx('Ansatte → «Min side» → Pårørende, og trykk Lagre. Mangler det, får den ansatte en oppgave med varsel. Oppgaven lukkes når pårørende er lagret.', 'Employees → “My page” → Next of kin, then Save. If it is missing, the employee gets a task with a notification. The task closes once the next of kin is saved.'),
+      },
     ],
   }),
   'hr.oversikt': page({
@@ -731,8 +735,12 @@ export const PROTOP_PAGES = {
         'Under birthdays and anniversaries “Plan” creates a case and a task in one tap.',
         { find: ['Planlegg'],
           pending: tx('«Planlegg» vises når en bursdag eller et jubileum nærmer seg. Fødselsdato og ansatt dato ligger på personen.', '“Plan” appears when a birthday or anniversary is coming up. Birth date and start date are on the person.') }),
+      step(tx('Pårørende', 'Next of kin'),
+        'Kortet «Pårørende» viser hvem som mangler. Den ansatte fyller inn selv på profilen, får en oppgave med varsel og en påminnelse etter fristen. «Send påminnelse nå» sender med en gang.',
+        'The “Next of kin” card shows who is missing. Employees fill it in on their profile, get a task with a notification and a reminder after the deadline. “Send reminder now” sends at once.',
+        { find: ['Pårørende'] }),
     ],
-    keywords: ['hr', 'personal', 'oversikt', 'jubileum', 'bursdag', 'kontrakt utløper'],
+    keywords: ['hr', 'personal', 'oversikt', 'jubileum', 'bursdag', 'kontrakt utløper', 'pårørende', 'nærmeste pårørende'],
   }),
   'hr.personell': page({
     section: 'company-people',
@@ -956,7 +964,7 @@ export const PROTOP_PAGES = {
     soft: INDIGO_SOFT,
     kicker: tx('Personalskjema per ansatt', 'Staff forms per employee'),
     title: tx('Fyll ut personalskjema', 'Fill in staff forms'),
-    pitch: tx('Her fyller dere ut pårørendeskjema, taushetserklæring, sjekkliste for nyansatt, oppfølgingsplan og medarbeidersamtale for en ansatt. Dokumentene lagres i HR.', 'Fill in next of kin, confidentiality, onboarding checklist, follow-up plan and appraisal for an employee here. The documents are stored in HR.'),
+    pitch: tx('Her fyller dere ut taushetserklæring, sjekkliste for nyansatt, oppfølgingsplan og medarbeidersamtale for en ansatt. Dokumentene lagres i HR. Pårørende fyller den ansatte inn selv på profilen.', 'Fill in confidentiality, onboarding checklist, follow-up plan and appraisal for an employee here. The documents are stored in HR. Employees add their next of kin themselves on their profile.'),
     steps: [
       step(tx('Velg skjema og ansatt', 'Pick form and employee'),
         'Trykk «Fyll ut» på skjemaet og velg den ansatte. Navn og kontaktinfo hentes fra personkortet.',
@@ -971,7 +979,7 @@ export const PROTOP_PAGES = {
         '“Completed staff forms” shows everything filled in. Pick an employee to see only their documents.',
         { find: ['Utfylte personalskjema'] }),
     ],
-    keywords: ['pårørende', 'taushetserklæring', 'nyansatt', 'introduksjon', 'oppfølgingsplan', 'medarbeidersamtale', 'personalskjema'],
+    keywords: ['taushetserklæring', 'nyansatt', 'introduksjon', 'oppfølgingsplan', 'medarbeidersamtale', 'personalskjema'],
   }),
   'arbeid.timeliste': page({
     section: 'company-people',

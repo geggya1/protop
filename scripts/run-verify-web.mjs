@@ -77,6 +77,7 @@ export const FILES = [
   'src/forms/forms.test.mjs',
   'src/hr/handbook.test.mjs',
   'src/doccontrol/doccontrol.test.mjs',
+  'src/hr/kinReminder.test.mjs',
   'screens/anbud/formFillRender.test.cjs',
   'src/anbud/formBuilder.test.mjs',
   'src/hr/reviewPdf.test.mjs',

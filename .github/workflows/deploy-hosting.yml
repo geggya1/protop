@@ -105,7 +105,8 @@ jobs:
     needs: functions-gate
     if: needs.functions-gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Pulje-deployen tar ca. 19 minutter; planlagte jobber og triggere kommer etterpå.
+    timeout-minutes: 45
     concurrency:
       group: functions-protop-c189c
       cancel-in-progress: true

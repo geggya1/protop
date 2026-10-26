@@ -110,3 +110,22 @@ for secret in MAIL_API_KEY VAPID_PRIVATE_KEY; do
     line "- ✅ $secret finnes"
   fi
 done
+all_secrets="$(run gcloud secrets list --project "$PROJECT" --format='value(name)')"
+if [[ "$all_secrets" == INGEN_TILGANG* ]]; then
+  line "- ❔ Kan ikke liste hemmeligheter (${all_secrets#INGEN_TILGANG: })"
+else
+  line "- Alle hemmeligheter i prosjektet: $(printf '%s\n' "$all_secrets" | sed 's#.*/##' | grep . | tr '\n' ' ' || true)"
+fi
+line ""
+
+# 6. Hvilke nøkler funksjonene får ved kjøring. Bare navn; verdier skrives aldri ut.
+line "## Nøkler i funksjonene (bare navn)"
+for svc in sendinvitev2 sendfriendinvitev2 sendnotificationemail; do
+  out="$(run gcloud run services describe "$svc" --project "$PROJECT" --region "$REGION" --format=json)"
+  if [[ "$out" == INGEN_TILGANG* ]]; then
+    line "- $svc: ${out#INGEN_TILGANG: }"
+    continue
+  fi
+  names="$(printf '%s' "$out" | jq -r '[.spec.template.spec.containers[0].env[]? | .name + (if .valueFrom.secretKeyRef then " (fra secret " + .valueFrom.secretKeyRef.name + ")" else "" end)] | join(", ")')"
+  line "- $svc: ${names:-ingen}"
+done

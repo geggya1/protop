@@ -57,9 +57,9 @@ export function newTemplateControl(template, { controls = [], settings = null, a
   }, { actor, now });
 }
 
-/** ISO-skjema (iso_*) godkjennes i ISO › Skjemaer og styres ikke her. */
+/** ISO-skjema (iso_*) og skjema fra ISO-import (imp_*) godkjennes i ISO › Skjemaer og styres ikke her. */
 export function isoManaged(template) {
-  return /^iso_/.test(String(template?.id || ''));
+  return /^(iso|imp)_/.test(String(template?.id || ''));
 }
 
 /** Skal malen styres automatisk? KS-maler alltid. Avtalemaler har egen flyt i Avtaler. */

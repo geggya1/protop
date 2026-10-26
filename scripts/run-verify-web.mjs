@@ -98,6 +98,7 @@ export const FILES = [
   'src/project/projectCrossView.test.mjs',
   'src/arbeid/timesheetReview.test.mjs',
   'src/economy/projectExpensesScreen.test.cjs',
+  'scripts/firestoreIndexes.test.mjs',
   'scripts/verify-app-updates.mjs',
 ];
 

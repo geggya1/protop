@@ -71,22 +71,27 @@ export default function IsoDashboard({ ctx }) {
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
         {cards.map((k) => (
-          <TouchableOpacity
+          // Kortet er ikke selv en knapp: «Grunnlag» ligger ved siden av åpne-knappen, ikke inni den.
+          <View
             key={k.key}
-            onPress={() => go(k.target.page, k.target.filter || {})}
-            onLongPress={() => setInfo(k.key === info ? '' : k.key)}
-            accessibilityRole="button"
-            accessibilityLabel={`${k.label}: ${k.value ?? 'ingen datagrunnlag'}`}
             style={{ flexGrow: 1, flexBasis: wide ? 180 : 150, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card, borderRadius: 16, padding: 14, gap: 6 }}
           >
-            <Text style={{ color: colors.muted, fontSize: 13 }}>{k.label}</Text>
-            <Text style={{ color: k.tone === 'danger' && k.value ? colors.danger : colors.ink, fontSize: 28, fontWeight: '700' }}>{k.value == null ? '–' : k.value}</Text>
-            <TouchableOpacity onPress={() => setInfo(k.key === info ? '' : k.key)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity
+              onPress={() => go(k.target.page, k.target.filter || {})}
+              onLongPress={() => setInfo(k.key === info ? '' : k.key)}
+              accessibilityRole="button"
+              accessibilityLabel={`${k.label}: ${k.value ?? 'ingen datagrunnlag'}`}
+              style={{ gap: 6 }}
+            >
+              <Text style={{ color: colors.muted, fontSize: 13 }}>{k.label}</Text>
+              <Text style={{ color: k.tone === 'danger' && k.value ? colors.danger : colors.ink, fontSize: 28, fontWeight: '700' }}>{k.value == null ? '–' : k.value}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setInfo(k.key === info ? '' : k.key)} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' }}>
               <Ionicons name="information-circle-outline" size={13} color={colors.muted} />
               <Text style={{ color: colors.muted, fontSize: 11 }}>Grunnlag</Text>
             </TouchableOpacity>
             {info === k.key ? <Text style={{ color: colors.muted, fontSize: 12 }}>{k.method}</Text> : null}
-          </TouchableOpacity>
+          </View>
         ))}
       </View>
 

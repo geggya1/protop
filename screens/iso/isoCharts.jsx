@@ -3,7 +3,7 @@
  * drilldown, og hver graf har et tekstlig tabellalternativ (tilgjengelighet, fil 03).
  */
 import React, { useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { useColors } from '../../src/context/ThemeContext';
 import { monthLabel } from '../../src/iso/core';
@@ -232,25 +232,38 @@ export function CompetenceHeatmap({ matrix, onPick }) {
   if (!matrix.length || !matrix[0].cells.length) return <Text style={{ color: colors.muted, fontSize: 13 }}>Legg inn kompetansekrav og ansatte for å se matrisen.</Text>;
   const tone = { gyldig: 'ok', utloper: 'warn', utlopt: 'danger', mangler: 'danger', cv: 'info', na: 'muted' };
   const label = { gyldig: 'Gyldig', utloper: 'Utløper', utlopt: 'Utløpt', mangler: 'Mangler', cv: 'I CV', na: '–' };
+  // Bare krav som gjelder noen, og ansatte som har krav. Krav uten innehaver vises for seg.
+  const cols = matrix[0].cells.map((_, i) => i).filter((i) => matrix.some((row) => row.cells[i].status !== 'na'));
+  if (!cols.length) return <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen krav gjelder de ansatte ennå. Velg innehavere for rollene i Organisasjon og roller.</Text>;
+  const rows = matrix.filter((row) => cols.some((i) => row.cells[i].status !== 'na'));
+  const hidden = matrix.length - rows.length;
+  const NAME = { width: 140, flexShrink: 0 };
+  const CELL = { width: 96, flexShrink: 0 };
   return (
-    <View style={{ gap: 4 }}>
-      <View style={{ flexDirection: 'row', gap: 4 }}>
-        <Text style={{ width: 130, color: colors.muted, fontSize: 11 }}>Ansatt</Text>
-        {matrix[0].cells.map((c) => <Text key={c.requirement.id} style={{ flex: 1, minWidth: 70, color: colors.muted, fontSize: 11 }} numberOfLines={2}>{c.requirement.title}</Text>)}
-      </View>
-      {matrix.map((row) => (
-        <View key={row.person.id || row.person.name} style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-          <Text style={{ width: 130, color: colors.ink, fontSize: 12 }} numberOfLines={1}>{row.person.name}</Text>
-          {row.cells.map((c) => {
-            const col = toneColor(colors, tone[c.status]);
-            return (
-              <TouchableOpacity key={c.requirement.id} disabled={c.status === 'na'} onPress={() => onPick?.(row.person, c)} accessibilityRole="button" accessibilityLabel={`${row.person.name}, ${c.requirement.title}: ${label[c.status]}`} style={{ flex: 1, minWidth: 70, height: 30, borderRadius: 6, backgroundColor: `${col}26`, borderWidth: 1, borderColor: `${col}66`, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ color: colors.ink, fontSize: 11 }}>{label[c.status]}</Text>
-              </TouchableOpacity>
-            );
-          })}
+    <View style={{ gap: 6 }}>
+      <ScrollView horizontal showsHorizontalScrollIndicator>
+        <View style={{ gap: 4 }}>
+          <View style={{ flexDirection: 'row', gap: 4 }}>
+            <Text style={[NAME, { color: colors.muted, fontSize: 11 }]}>Ansatt</Text>
+            {cols.map((i) => { const r = matrix[0].cells[i].requirement; return <Text key={r.id} style={[CELL, { color: colors.muted, fontSize: 11 }]} numberOfLines={3}>{r.title}</Text>; })}
+          </View>
+          {rows.map((row) => (
+            <View key={row.person.id || row.person.name} style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
+              <Text style={[NAME, { color: colors.ink, fontSize: 12 }]} numberOfLines={1}>{row.person.name}</Text>
+              {cols.map((i) => {
+                const c = row.cells[i];
+                const col = toneColor(colors, tone[c.status]);
+                return (
+                  <TouchableOpacity key={c.requirement.id} disabled={c.status === 'na'} onPress={() => onPick?.(row.person, c)} accessibilityRole="button" accessibilityLabel={`${row.person.name}, ${c.requirement.title}: ${label[c.status]}`} style={[CELL, { height: 30, borderRadius: 6, backgroundColor: `${col}26`, borderWidth: 1, borderColor: `${col}66`, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Text style={{ color: colors.ink, fontSize: 11 }}>{label[c.status]}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
         </View>
-      ))}
+      </ScrollView>
+      {hidden ? <Text style={{ color: colors.muted, fontSize: 11 }}>{hidden === 1 ? 'Én ansatt har' : `${hidden} ansatte har`} ingen krav som gjelder dem og vises ikke.</Text> : null}
     </View>
   );
 }

@@ -111,10 +111,29 @@ test('kompetansematrise: krav til en rolle gjelder rolleinnehaverne, og CV-en te
     { id: 'e2', name: 'Kari', uid: 'u2', cv: null },
   ];
   const m = competenceMatrix(people, reqs, [], new Date('2026-10-26'), { roles });
-  assert.deepEqual(m[0].cells.map((c) => c.status), ['gyldig', 'cv', 'mangler']);
+  assert.deepEqual(m[0].cells.map((c) => c.status), ['gyldig', 'cv', 'na']);
   assert.equal(m[0].cells[0].cv.kind, 'Sertifisering');
-  assert.deepEqual(m[1].cells.map((c) => c.status), ['na', 'mangler', 'mangler']);
-  assert.equal(competenceGaps(m), 4);
+  assert.deepEqual(m[1].cells.map((c) => c.status), ['na', 'mangler', 'na']);
+  assert.equal(m[1].cells[2].unassigned, true, 'rollen finnes ikke: kravet er uten innehaver, ikke et gap for alle');
+  assert.equal(competenceGaps(m), 2);
+});
+
+test('kompetansekrav: rolle uten innehavere teller ikke som gap, valgte ansatte gjør', async () => {
+  const { competenceMatrix, competenceGaps, unassignedRequirements, createRecord } = await import('./registers.js');
+  const roles = [{ id: 'r1', title: 'Prosjektleder', state: 'aktiv', holders: [] }, { id: 'r2', title: 'Byggeleder', state: 'aktiv', holders: [{ name: 'Ola', uid: 'u1' }] }];
+  const reqs = [
+    { id: 'k1', title: 'NS 8405', role: 'Prosjektleder', state: 'aktiv' },
+    { id: 'k2', title: 'Arbeidsvarsling', role: 'Byggeleder (vegprosjekter)', persons: [{ name: 'Kari', uid: 'u2' }], state: 'aktiv' },
+    { id: 'k3', title: 'Våtromsnormen', role: 'Byggeleder', persons: [{ name: 'Kari', uid: 'u2' }], state: 'aktiv' },
+  ];
+  const people = [{ id: 'e1', name: 'Ola', uid: 'u1' }, { id: 'e2', name: 'Kari', uid: 'u2' }, { id: 'e3', name: 'Per', uid: 'u3' }];
+  const m = competenceMatrix(people, reqs, [], new Date('2026-10-26'), { roles });
+  assert.deepEqual(m.map((r) => r.cells.map((c) => c.status)), [['na', 'na', 'mangler'], ['na', 'mangler', 'mangler'], ['na', 'na', 'na']]);
+  assert.equal(competenceGaps(m), 3);
+  assert.deepEqual(unassignedRequirements(reqs, roles).map((x) => x.requirement.id), ['k1']);
+  const rec = createRecord('kompetansekrav', { title: 'X', role: 'Prosjektleder', persons: [{ name: 'Kari', uid: 'u2', employeeId: 'e2' }] }, { actor: { uid: 'a', name: 'A' } });
+  assert.ok(rec.ok, rec.error);
+  assert.deepEqual(rec.record.persons.map((x) => x.uid), ['u2']);
 });
 
 test('leverandørevaluering og endringsvurdering erstatter egne skjema', async () => {

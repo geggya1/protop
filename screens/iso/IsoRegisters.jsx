@@ -5,7 +5,7 @@ import { prettyDate, todayKey } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, riskLevel } from '../../src/iso/catalog';
 import {
   AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
-  competenceGaps, competenceMatrix, createRecord, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
+  competenceGaps, competenceMatrix, createRecord, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
   contactsLabel, personsLabel, registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
@@ -801,6 +801,7 @@ export function CompetencePage({ ctx }) {
   const hr = useMemo(() => (ctx.sources?.hrOverview ? hrComplianceForIso(ctx.sources.hrOverview, ctx.sources.people) : null), [ctx.sources?.hrOverview, ctx.sources?.people]);
   const eq = useMemo(() => equipmentStatus(ctx.sources?.equipment), [ctx.sources?.equipment]);
   const gaps = competenceGaps(fullMatrix);
+  const unassigned = useMemo(() => unassignedRequirements(state.records.kompetansekrav, state.records.rolle), [state.records]);
   return (
     <Page wide={wide} title="Kompetanse og ressurser" intro="Kompetansekrav per rolle, CV-en til hver ansatt og dokumentert kompetanse med gyldighet (ISO 7.2). CV-en eies av Ansatte, HR-sjekklisten av HR og utstyret av Utstyr.">
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -810,13 +811,22 @@ export function CompetencePage({ ctx }) {
         <Stat label="Utstyr i drift" value={eq.total} hint={eq.inService.length ? `${eq.inService.length} på service` : 'Fra Utstyr'} />
       </View>
       <TextIn value={q} onChangeText={setQ} placeholder="Søk i ansatte, CV, kurs, sertifiseringer og krav" accessibilityLabel="Søk i kompetanse" />
-      <Card title="Kompetansematrise" subtitle="Krav til en rolle gjelder dem som har rollen i Organisasjon og roller. «I CV» = står i CV-en, men mangler gyldighet eller bevis. Trykk en celle for å registrere bevis.">
+      {unassigned.length ? (
+        <Card title={`Krav uten innehaver (${unassigned.length})`} subtitle="Rollen har ingen innehavere ennå, så kravet gjelder ingen. Velg innehavere i Organisasjon og roller, eller velg ansatte under «Gjelder også for» på kravet.">
+          {unassigned.slice(0, 8).map(({ requirement: r, role }) => (
+            <ListRow key={r.id} icon="person-add-outline" tone="warn" title={r.title} subtitle={role ? `Rollen «${role.title}» har ingen innehavere` : `Fant ingen rolle som heter «${r.role}»`} />
+          ))}
+          {unassigned.length > 8 ? <Text style={{ color: colors.muted, fontSize: 12 }}>… og {unassigned.length - 8} til.</Text> : null}
+          <Row><Btn icon="people-circle-outline" label="Organisasjon og roller" onPress={() => ctx.go('organisasjon')} /></Row>
+        </Card>
+      ) : null}
+      <Card title="Kompetansematrise" subtitle="Krav til en rolle gjelder dem som har rollen i Organisasjon og roller, og dem som er valgt på kravet. «I CV» = står i CV-en, men mangler gyldighet eller bevis. Trykk en celle for å registrere bevis.">
         <CompetenceHeatmap matrix={matrix} onPick={(person, cell) => setPick({ person, cell })} />
       </Card>
       <Card title="Kompetanse per ansatt" subtitle="Utdanning, sertifiseringer og kurs fra CV-en, og bevis registrert i ISO.">
         <CompetenceProfiles ctx={ctx} people={people} matrix={fullMatrix} q={q} />
       </Card>
-      <SimpleRegister ctx={ctx} registerKey="kompetansekrav" subtitle={(r) => `${r.role}${r.validityMonths ? ` · gyldig ${r.validityMonths} mnd` : ''}`} />
+      <SimpleRegister ctx={ctx} registerKey="kompetansekrav" subtitle={(r) => `${r.role}${(r.persons || []).length ? ` + ${r.persons.length} valgt` : ''}${r.validityMonths ? ` · gyldig ${r.validityMonths} mnd` : ''}`} />
       <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => `${r.personName} · ${r.validTo ? `til ${prettyDate(r.validTo)}` : 'varig'}`} />
       {hr && hr.withGaps.length ? (
         <Card title="Bevissthet og opplæring fra HR" subtitle="Punkter som mangler i HR-modulens lov- og ISO-sjekkliste (HMS-introduksjon, avviksrutine, kompetanse). Rettes i HR.">

@@ -28,7 +28,7 @@ export function kpis(state, caps, { people = [], now = new Date() } = {}) {
     { key: 'overdueActions', label: 'Forfalte tiltak', value: overdue.length, ids: overdue.map((a) => a.id), tone: overdue.length ? 'danger' : 'ok', target: { page: 'avvik', filter: { overdue: true } }, method: 'Tiltak med frist før i dag som ikke er kontrollert eller kansellert.' },
     { key: 'upcomingAudits', label: 'Revisjoner neste 90 dager', value: audits.length, ids: audits.map((a) => a.id), target: { page: 'revisjon' }, method: 'Planlagte internrevisjoner med dato innen 90 dager.' },
     { key: 'docsApproval', label: 'Dokumenter til godkjenning', value: docs.length, ids: docs.map((d) => d.id), target: { page: 'dokumenter', filter: { awaiting: true } }, method: 'Dokumentrevisjoner sendt til gjennomgang.' },
-    { key: 'competenceGaps', label: 'Kompetansegap', value: people.length && (state.records.kompetansekrav || []).length ? gaps : null, target: { page: 'kompetanse' }, method: 'Celler i kompetansematrisen som mangler, er utløpt eller utløper innen 60 dager. Krever kompetansekrav og ansatte.' },
+    { key: 'competenceGaps', label: 'Kompetansegap', value: people.length && (state.records.kompetansekrav || []).length ? gaps : null, target: { page: 'kompetanse' }, method: 'Celler i kompetansematrisen som mangler, er utløpt eller utløper innen 60 dager. Krav til roller uten innehavere telles ikke; de vises under Kompetanse. Krever kompetansekrav og ansatte.' },
     { key: 'legalToAssess', label: 'Lovkrav til vurdering', value: legal.length + overdueEval.length, ids: [...legal.map((r) => r.id), ...overdueEval.map((r) => r.id)], target: { page: 'lovkrav' }, method: 'Lovkrav som ikke er vurdert, må revurderes eller har forfalt samsvarsvurdering.' },
   ];
 }

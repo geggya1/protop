@@ -173,6 +173,7 @@ export const REGISTERS = {
     title: 'Kompetansekrav', prefix: 'KKR', area: 'competence', fields: [
       { key: 'title', label: 'Kompetanse', type: 'text', required: true },
       { key: 'role', label: 'Rolle / funksjon', type: 'text', required: true },
+      { key: 'persons', label: 'Gjelder også for', type: 'persons' },
       { key: 'level', label: 'Nivå', type: 'select', options: opt(['Grunnleggende', 'Selvstendig', 'Ekspert']) },
       { key: 'validityMonths', label: 'Gyldighet (måneder, 0 = varig)', type: 'number' },
       { key: 'source', label: 'Kilde (lov, kunde, intern)', type: 'text' },
@@ -552,13 +553,31 @@ export function competenceStatus(record, requirement, now = new Date()) {
 const lowerText = (v) => String(v || '').trim().toLowerCase();
 
 /** Gjelder kravet denne personen? Krav til en rolle gjelder dem som har rollen; ellers alle. */
-function requirementApplies(req, person, roles) {
+const ALL_ROLES = ['alle', 'alle ansatte'];
+
+/**
+ * Hvem et krav gjelder: 'ja', 'nei' eller 'uten' (rollen har ingen innehavere og ingen er valgt på kravet).
+ * Uten rolleregister gjelder kravet alle.
+ */
+export function requirementScope(req, person, roles) {
+  const isMe = (h) => (h.uid && h.uid === person.uid) || (h.employeeId && h.employeeId === person.id) || lowerText(h.name) === lowerText(person.name);
+  const extra = cleanPersons(req.persons);
+  if (extra.some(isMe)) return 'ja';
   const role = lowerText(req.role);
-  if (!role || ['alle', 'alle ansatte'].includes(role) || !roles?.length) return true;
+  if (!role || ALL_ROLES.includes(role) || !roles?.length) return 'ja';
   const match = roles.find((r) => r.state !== 'arkivert' && lowerText(r.title) === role);
   const holders = cleanPersons(match?.holders);
-  if (!match || !holders.length) return true;
-  return holders.some((h) => (h.uid && h.uid === person.uid) || (h.employeeId && h.employeeId === person.id) || lowerText(h.name) === lowerText(person.name));
+  if (holders.length) return holders.some(isMe) ? 'ja' : 'nei';
+  return extra.length ? 'nei' : 'uten';
+}
+
+/** Krav som ingen er knyttet til ennå: rollen mangler innehavere, og ingen ansatte er valgt på kravet. */
+export function unassignedRequirements(requirements, roles) {
+  if (!roles?.length) return [];
+  return (requirements || []).filter((r) => r.state !== 'arkivert' && requirementScope(r, { name: '\u0000' }, roles) === 'uten').map((r) => ({
+    requirement: r,
+    role: roles.find((x) => x.state !== 'arkivert' && lowerText(x.title) === lowerText(r.role)) || null,
+  }));
 }
 
 /** Står kompetansen i CV-en (sertifisering, kurs eller utdanning)? */
@@ -578,7 +597,8 @@ export function cvEvidence(person, req) {
 
 /**
  * Matrise personer × krav. people: [{ id, name, uid, cv? }] fra ProTops ansattregister.
- * Krav til en rolle gjelder bare dem som har rollen (roles = registeret «rolle»); ellers «na».
+ * Krav til en rolle gjelder dem som har rollen (roles = registeret «rolle») og dem som er valgt på kravet; ellers «na».
+ * Har rollen ingen innehavere, er kravet «uten innehaver» (unassigned) og teller ikke som gap for alle.
  * Uten ISO-bevis teller CV-en: varig krav i CV-en = gyldig, krav med gyldighet = «cv» (mangler dato/bevis).
  */
 export function competenceMatrix(people, requirements, records, now = new Date(), { roles = null } = {}) {
@@ -586,7 +606,8 @@ export function competenceMatrix(people, requirements, records, now = new Date()
   return (people || []).map((p) => ({
     person: p,
     cells: reqs.map((req) => {
-      if (!requirementApplies(req, p, roles)) return { requirement: req, record: null, status: 'na' };
+      const scope = requirementScope(req, p, roles);
+      if (scope !== 'ja') return { requirement: req, record: null, status: 'na', unassigned: scope === 'uten' };
       const mine = (records || []).filter((r) => r.state !== 'arkivert' && r.requirementId === req.id
         && ((p.uid && r.personUid === p.uid) || (!r.personUid && r.personName === p.name)));
       const best = mine.sort((a, b) => String(b.validTo || '9999').localeCompare(String(a.validTo || '9999')))[0] || null;

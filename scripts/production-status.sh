@@ -110,6 +110,10 @@ for secret in MAIL_API_KEY VAPID_PRIVATE_KEY; do
     line "- ✅ $secret finnes"
   fi
 done
+vapid_versions="$(run gcloud secrets versions list VAPID_PRIVATE_KEY --project "$PROJECT" --filter='state=ENABLED' --format='value(name)')"
+if [[ "$vapid_versions" != INGEN_TILGANG* ]]; then
+  line "- VAPID_PRIVATE_KEY: $(printf '%s\n' "$vapid_versions" | grep -c .) aktive versjoner (push trenger minst én med innhold)"
+fi
 all_secrets="$(run gcloud secrets list --project "$PROJECT" --format='value(name)')"
 if [[ "$all_secrets" == INGEN_TILGANG* ]]; then
   line "- ❔ Kan ikke liste hemmeligheter (${all_secrets#INGEN_TILGANG: })"
@@ -140,4 +144,30 @@ elif printf '%s' "$out" | jq -e '[.spec.template.spec.containers[0].env[]? | sel
   line "- ✅ aichat har en AI-nøkkel"
 else
   line "- ❌ aichat har ingen AI-nøkkel (GitHub-hemmeligheten PROTOP_GEMINI_KEY er tom eller mangler)"
+fi
+line ""
+
+# 8. Push: resultatet av testvarsler siste døgn («Send testvarsel» i profilen).
+# Bare antall og grunn fra feltet push på varselet; ikke innhold eller hvem.
+line "## Push (testvarsler siste døgn)"
+token="$(gcloud auth print-access-token 2>/dev/null)"
+since="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')"
+query='{"structuredQuery":{"from":[{"collectionId":"notifications","allDescendants":true}],"where":{"fieldFilter":{"field":{"fieldPath":"eventType"},"op":"EQUAL","value":{"stringValue":"pushTest"}}},"limit":50}}'
+resp="$(curl -s -m 30 -X POST -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+  "https://firestore.googleapis.com/v1/projects/$PROJECT/databases/(default)/documents:runQuery" -d "$query")"
+summary="$(printf '%s' "$resp" | jq -r --arg since "$since" '
+  if type != "array" then "FEIL: " + ((.error.message // tostring)[0:160])
+  else [ .[] | select(.document) | .document
+         | select((.fields.createdAt.timestampValue // .createTime) >= $since)
+         | .fields.push.mapValue.fields as $p
+         | "- " + ((.fields.createdAt.timestampValue // .createTime)[0:16]) + " UTC: sendt til "
+           + (($p.sent.integerValue // "?") | tostring) + " av " + (($p.devices.integerValue // "?") | tostring)
+           + " enheter (" + ($p.reason.stringValue // "ikke behandlet") + ")" ] | join("\n")
+  end' 2>/dev/null)"
+if [[ "$summary" == FEIL:* ]]; then
+  line "❔ Kunne ikke lese: ${summary#FEIL: }"
+elif [ -n "$summary" ]; then
+  line "$summary"
+else
+  line "Ingen testvarsler siste døgn. Trykk «Send testvarsel» under Profil → Varsler og kjør statussjekken igjen."
 fi

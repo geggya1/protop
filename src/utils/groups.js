@@ -380,7 +380,7 @@ export async function inviteAdult({
   const asAdminEffective = !!asAdmin && !roleFields.isGrandparent;
   // Safety net: never create a "new user" placeholder for someone who already has an account.
   if (normalizedEmail) {
-    const existing = await findExistingAdultByIdentifier(normalizedEmail);
+    const existing = await findExistingAdultByIdentifier(normalizedEmail, { familyId });
     if (existing?.uid) {
       return inviteExistingAdult({
         familyId,
@@ -1106,8 +1106,11 @@ async function loadUserProfile(uid) {
   return profileFromDocs(uid, userData, parentData);
 }
 
-/** Finn eksisterende voksen bruker via e-post, telefon eller brukernavn. */
-export async function findExistingAdultByIdentifier(identifier) {
+/**
+ * Finn eksisterende voksen bruker via e-post, telefon eller brukernavn.
+ * familyId gir bedriftsadmin høyere grense når en hel ansattliste inviteres.
+ */
+export async function findExistingAdultByIdentifier(identifier, { familyId = '' } = {}) {
   const raw = String(identifier || '').trim();
   if (!raw) return null;
   const classified = classifyInviteIdentifier(raw);
@@ -1118,7 +1121,7 @@ export async function findExistingAdultByIdentifier(identifier) {
     const lookupValue = classified.kind === 'phone'
       ? (classified.value || raw)
       : (classified.kind === 'email' ? classified.value : raw);
-    const res = await fn({ identifier: lookupValue });
+    const res = await fn(familyId ? { identifier: lookupValue, familyId } : { identifier: lookupValue });
     if (res?.data?.ok && res.data.profile?.uid) {
       return res.data.profile;
     }
@@ -1197,7 +1200,7 @@ export async function inviteExistingAdult({
     invitee = await loadUserProfile(inviteeUidHint);
   }
   if (!invitee && identifier) {
-    invitee = await findExistingAdultByIdentifier(identifier);
+    invitee = await findExistingAdultByIdentifier(identifier, { familyId });
   }
   if (!invitee?.uid) throw new Error('user-not-found');
   if (invitee.uid === createdBy) throw new Error('cannot-invite-self');
@@ -1395,7 +1398,7 @@ export async function inviteAdultSmart(params) {
   const candidates = inviteLookupCandidates({ email, phone, identifier, username });
 
   for (const lookup of candidates) {
-    const existing = await findExistingAdultByIdentifier(lookup);
+    const existing = await findExistingAdultByIdentifier(lookup, { familyId: params?.familyId });
     if (existing?.uid) {
       return inviteExistingAdult({
         ...params,

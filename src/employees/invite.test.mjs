@@ -221,3 +221,55 @@ test('avslått invitasjon vises for administrator og kan sendes på nytt som ny 
   assert.equal(again.employee.invite.parentKey, '', 'ny invitasjon, ikke den som er besvart');
   assert.equal(again.employee.invite.declinedAt, '');
 });
+
+test('importert ansatt uten invitasjon vises som «Ikke invitert» og kan inviteres', async () => {
+  const { employeeInviteState, employeesNotInvited, employeesMissingInviteEmail, inviteLevelFor, inviteOverview } = await import('./invite.js');
+  const imported = normalizeEmployee({
+    id: 'emp_imp',
+    person: { firstName: 'Ida', lastName: 'Import', email: 'ida@firma.no' },
+    company: { status: 'active' },
+  });
+  const noEmail = normalizeEmployee({
+    id: 'emp_noemail',
+    person: { firstName: 'Per', lastName: 'Uten' },
+    company: { status: 'active', accessRole: 'Avdelingsleder' },
+  });
+  const linked = normalizeEmployee({
+    id: 'emp_me',
+    personUid: 'uid_me',
+    person: { firstName: 'Meg', lastName: 'Selv', email: 'meg@firma.no' },
+    company: { status: 'active' },
+  });
+  const gone = normalizeEmployee({
+    id: 'emp_gone',
+    person: { firstName: 'Ola', lastName: 'Slutta', email: 'ola@firma.no' },
+    company: { status: 'former' },
+  });
+  const sent = normalizeEmployee({
+    id: 'emp_sent',
+    person: { firstName: 'Siv', lastName: 'Sendt', email: 'siv@firma.no' },
+    company: { status: 'active' },
+    invite: { status: 'sent', email: 'siv@firma.no' },
+  });
+
+  assert.deepEqual(employeeInviteState(imported), { key: 'none', label: 'Ikke invitert' });
+  assert.equal(employeeInviteState(noEmail).key, 'missingEmail');
+  assert.equal(employeeInviteState(linked).key, 'member');
+  assert.equal(employeeInviteState(gone).key, 'closed');
+  assert.equal(employeeInviteState(sent).label, 'Invitert – venter på svar');
+
+  const rows = [imported, noEmail, linked, gone, sent];
+  assert.deepEqual(employeesNotInvited(rows).map((r) => r.id), ['emp_imp']);
+  assert.deepEqual(employeesMissingInviteEmail(rows).map((r) => r.id), ['emp_noemail']);
+  assert.deepEqual(inviteOverview(rows), { none: 1, missingEmail: 1, queued: 0, sent: 1, declined: 0 });
+
+  // Uten tilgangsnivå fra import brukes Ansatt; nivå fra import beholdes.
+  assert.equal(inviteLevelFor(imported), 'ansatt');
+  assert.equal(inviteLevelFor(noEmail), 'avdelingsleder');
+  const queued = queueEmployeeInvite(imported, { accessLevel: inviteLevelFor(imported), at: '2026-10-26T10:00:00.000Z' });
+  assert.equal(queued.ok, true);
+  assert.equal(queued.employee.invite.status, 'queued');
+  assert.equal(queued.employee.invite.email, 'ida@firma.no');
+  assert.equal(queued.employee.company.accessLevel, 'ansatt');
+  assert.equal(employeeInviteState(queued.employee).key, 'queued');
+});

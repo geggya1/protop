@@ -78,6 +78,7 @@ export const FILES = [
   'src/hr/storage.test.mjs',
   'src/hr/integration.test.mjs',
   'src/employees/employmentFlags.test.mjs',
+  'src/employees/invite.test.mjs',
   'src/access/companyAccess.test.mjs',
   'src/modules/moduleHero.test.mjs',
   'src/help/protopPages.test.mjs',

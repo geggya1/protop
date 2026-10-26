@@ -85,6 +85,24 @@ function phoneLookupCandidates(raw) {
   return [...out].filter((v) => String(v).replace(/\D/g, '').length >= 8);
 }
 
+/**
+ * Bedriftsadmin skal kunne invitere en hel importert ansattliste. Andre grupper
+ * (og bedrifter der kalleren ikke er admin) beholder den lave grensen.
+ */
+const ORG_INVITE_LIMIT = 200;
+
+async function orgAdminLimit(callerUid, familyId, base) {
+  const id = String(familyId || '').trim();
+  if (!id) return base;
+  try {
+    const fam = await assertFamilyAdmin(db, id, callerUid);
+    const type = String(fam.data()?.type || '').toLowerCase();
+    return ['organization', 'company'].includes(type) ? ORG_INVITE_LIMIT : base;
+  } catch {
+    return base;
+  }
+}
+
 function publicAdultProfile(uid, data = {}) {
   return {
     uid,
@@ -109,7 +127,7 @@ export const sendInviteV2 = onCall(CALL, async (req) => {
     await assertFamilyAdmin(db, familyId, callerUid);
     await assertRateLimit(db, {
       key: hashRateKey(['invite-mail', callerUid]),
-      limit: 20,
+      limit: await orgAdminLimit(callerUid, familyId, 20),
       windowMs: 60 * 60 * 1000,
     });
     const ctx = await resolveGroupContext({ familyId, familyName, groupType });
@@ -344,7 +362,7 @@ export const lookupAdultProfile = onCall(
       const caller = requireAuth(req.auth);
       await assertRateLimit(db, {
         key: hashRateKey(['lookup-adult', caller]),
-        limit: 40,
+        limit: await orgAdminLimit(caller, req.data?.familyId, 40),
         windowMs: 60 * 60 * 1000,
       });
       const identifier = String(req.data?.identifier || '').trim();

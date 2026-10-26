@@ -138,14 +138,25 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     for (const { kind, entity } of list) next = replaceIn(next, kind, entity);
     stateRef.current = next;
     setState(next);
+    const toSave = list.filter((r) => r.kind !== 'system');
     try {
-      await saveMany(companyId, list.filter((r) => r.kind !== 'system'));
-      for (let i = 0; i < events.length; i += 400) await appendAudit(companyId, events.slice(i, i + 400));
+      await saveMany(companyId, toSave);
+      await appendAudit(companyId, events);
       return { ok: true };
     } catch (err) {
-      stateRef.current = before;
-      setState(before);
-      return { ok: false, error: err?.message || 'Kunne ikke lagre.' };
+      // Batcher som ble lagret før feilen, står i Firestore og må også stå her.
+      // Ellers lager en ny kjøring av importen dem en gang til.
+      const committed = Math.min(Number(err?.committed) || 0, toSave.length);
+      let keep = before;
+      const saved = toSave.slice(0, committed);
+      for (const { kind, entity } of saved) keep = replaceIn(keep, kind, entity);
+      stateRef.current = keep;
+      setState(keep);
+      if (saved.length) {
+        const ids = new Set(saved.map((r) => r.entity.id));
+        await appendAudit(companyId, events.filter((e) => ids.has(e.entityId)));
+      }
+      return { ok: false, error: err?.message || 'Kunne ikke lagre.', committed, total: toSave.length };
     }
   }, [companyId]);
 

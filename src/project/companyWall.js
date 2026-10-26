@@ -29,14 +29,11 @@ export function listenCompanyWall(companyId, cb) {
 }
 
 /** Finnes det allerede et innlegg fra en import (samme importKey)? Brukes så gjentatt import ikke dobler nyheter. */
+/** Er innlegget med denne nøkkelen allerede lagt ut? Kaster ved feil, så kalleren ikke legger ut to ganger. */
 export async function companyWallHasImport(companyId, importKey) {
   if (!companyId || !importKey) return false;
-  try {
-    const snap = await getDocs(query(companyWallPostsCol(companyId), where('importKey', '==', String(importKey)), limit(1)));
-    return !snap.empty;
-  } catch {
-    return false;
-  }
+  const snap = await getDocs(query(companyWallPostsCol(companyId), where('importKey', '==', String(importKey)), limit(1)));
+  return !snap.empty;
 }
 
 export async function createCompanyWallPost({

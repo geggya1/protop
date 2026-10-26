@@ -420,7 +420,7 @@ export function buildImport(state, pkg, {
       };
       const check = validateDiagram(diagram, {});
       const message = check.ok ? (publish.processes ? 'Publiseres' : 'Sendes til godkjenning') : `Lagres som utkast: ${check.errors[0].message}`;
-      out.processes.push({ ...res, process, validation: check });
+      out.processes.push({ ...res, key: row.key, process, validation: check });
       note('processes', row.key, `${process.code ? `${process.code} ` : ''}${process.title}`, 'ny', message);
     }
     // Dokumenter som hører til prosessene (styrende dokumenter) får prosesskoblingen.
@@ -447,8 +447,12 @@ export function buildImport(state, pkg, {
   }
 
   /* Prosessstatus. */
+  // Skjema i pakken godkjennes før prosessene publiseres (se IsoImport), så de regnes som styrte her.
+  const plannedForms = want('forms') && (!caps || caps.approve)
+    ? pkg.forms.filter((r) => r.approve !== false).map((r) => ({ templateId: refs.forms.get(r.key), publishedVersion: 1, planned: true }))
+    : [];
   const context = {
-    forms: [...(state.forms || [])],
+    forms: [...(state.forms || []), ...plannedForms],
     documents: [...(state.documents || []), ...out.documents.map((d) => d.document), ...out.publishDocuments.map((d) => d.document)],
     processes: [...(state.processes || []), ...out.processes.map((p) => p.process)],
   };
@@ -456,7 +460,13 @@ export function buildImport(state, pkg, {
     if (!p.validation.ok) return p;
     // Diagramreferanser til skjema/dokument valideres mot det som er publisert; uten kontekst ved innsending.
     const sub = submitForApproval(p.process, {}, { actor, caps, now });
-    if (!sub.ok) return p;
+    if (!sub.ok) {
+      // Vises i forhåndsvisningen: prosessen legges inn, men som utkast.
+      const row = plan.processes.find((r) => r.key === p.key);
+      if (row) row.message = `Legges inn som utkast: ${sub.error}`;
+      issues.push(`${p.process.code || p.process.title}: ble ikke sendt til godkjenning (${sub.error}). Ligger som utkast.`);
+      return p;
+    }
     const next = { ...p, process: sub.process, events: [...p.events, ...sub.events] };
     if (publish.processes && (!caps || caps.approve)) {
       const pub = approveAndPublish(sub.process, context, { actor, caps, now, note: 'Godkjent ved import' });
@@ -605,7 +615,7 @@ export function buildImport(state, pkg, {
         const pub = approveAndPublishDocument(document, { actor, caps, now });
         if (pub.ok) out.publishDocuments.push(pub);
       }
-      out.news.push(post);
+      out.news.push({ ...post, docId: document.id });
       note('news', row.key, row.title, 'ny', publish.documents ? 'Publiseres i ISO' : 'Sendes til godkjenning');
     }
   }

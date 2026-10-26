@@ -244,3 +244,41 @@ test('skjema som finnes i Skjemabygger (KS-biblioteket) brukes i stedet for en k
   const again = buildImport(state, p, { actor: BOSS, caps: ADMIN, now: NOW, anbudTemplates: [lib] });
   assert.equal(again.out.forms.length, 0);
 });
+
+test('gjenkjenning av bibliotekmal tåler Skjemabyggers normalisering (bare id-en er igjen)', async () => {
+  const { normalizeFormTemplates } = await import('../anbud/bidLibrary.js');
+  const stored = normalizeFormTemplates([{ id: 'ks_sja', libraryKey: 'sja', title: 'SJA', doc: { docId: 'C1-B-03-003' }, fields: [{ id: 'a', kind: 'text', label: 'Hva' }] }]);
+  assert.equal(existingTemplateFor({ libraryKey: 'sja', source: { originalCode: 'C1-B-03-003' } }, stored)?.id, 'ks_sja');
+});
+
+test('publiser direkte: prosess som peker til et skjema i pakken kan publiseres', () => {
+  const base = pkg();
+  const form = { key: 'vr', title: 'Vernerunde', fields: [{ id: 'p1', kind: 'text', label: 'Funn' }] };
+  const proc = {
+    key: 'P-vr', title: 'Vernerunde', category: 'stotte', ownerName: 'HMS-leder',
+    diagram: {
+      lanes: [{ id: 'l1', label: 'HMS-leder' }],
+      nodes: [{ id: 's', type: 'start', label: 'Start', lane: 'l1' }, { id: 'a', type: 'form', label: 'Fyll ut vernerunde', lane: 'l1', formKey: 'vr' }, { id: 'e', type: 'end', label: 'Slutt', lane: 'l1' }],
+      edges: [{ from: 's', to: 'a' }, { from: 'a', to: 'e' }],
+    },
+  };
+  const { pkg: p } = parsePackage({ ...base, processes: [proc], forms: [form] });
+  const built = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, options: { publish: { documents: true, processes: true } } });
+  const pr = built.out.processes.find((x) => x.process.title === 'Vernerunde');
+  assert.ok(pr, 'prosessen er bygget');
+  assert.ok(built.out.publishProcesses.some((x) => x.process.id === pr.process.id), built.issues.join(' | '));
+  // Uten prosesseier: legges inn som utkast, og forhåndsvisningen sier hvorfor.
+  const { pkg: q } = parsePackage({ ...base, processes: [{ ...proc, ownerName: '' }], forms: [form] });
+  const draft = buildImport(emptyIsoState(), q, { actor: BOSS, caps: ADMIN, now: NOW });
+  assert.match(draft.plan.processes.find((r) => r.key === 'P-vr').message, /utkast: Prosessen må ha en prosesseier/);
+});
+
+test('chunkForBatch deler på antall og størrelse', async () => {
+  const { chunkForBatch } = await import('./core.js');
+  const rows = Array.from({ length: 900 }, (_, i) => ({ i, size: i < 10 ? 2_000_000 : 100 }));
+  const chunks = chunkForBatch(rows, (r) => r.size);
+  assert.ok(chunks.every((c) => c.length <= 400));
+  assert.ok(chunks.every((c) => c.reduce((n, r) => n + r.size, 0) <= 5_000_000 || c.length === 1));
+  assert.equal(chunks.flat().length, 900);
+  assert.deepEqual(chunks.flat().map((r) => r.i), rows.map((r) => r.i), 'rekkefølgen beholdes');
+});

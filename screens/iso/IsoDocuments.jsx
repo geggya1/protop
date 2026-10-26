@@ -11,6 +11,7 @@ import {
 import { markdownToPlain, outline } from '../../src/iso/markdown';
 import { allRequirements, attachEvidence, markForReassessment } from '../../src/iso/requirements';
 import { pickDocument, uploadFile } from '../../src/utils/media';
+import { companyWallHasImport, createCompanyWallPost } from '../../src/project/companyWall';
 import { RequirementPicker } from './IsoFindings';
 import IsoMarkdown from './IsoMarkdown';
 import {
@@ -173,6 +174,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
   const [uploading, setUploading] = useState(false);
   const [note, setNote] = useState('');
   const [msg, setMsg] = useState('');
+  const [posting, setPosting] = useState(false);
   const [err, setErr] = useState('');
   const [reqOpen, setReqOpen] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
@@ -231,6 +233,27 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
     }
   }
 
+  /** Publisert nyhet ut til alle ansatte. Samme nøkkel som importen bruker, så den ikke legges ut to ganger. */
+  async function postToWall() {
+    const live = publishedRevisionOf(doc);
+    if (!live) return;
+    setPosting(true);
+    setErr('');
+    setMsg('');
+    const base = doc.importKey || `isodoc:${doc.id}`;
+    const key = doc.publishedRevision > 1 ? `${base}:r${doc.publishedRevision}` : base;
+    try {
+      if (await companyWallHasImport(companyId, key)) setMsg('Nyheten ligger allerede på Nyheter i Selskap.');
+      else {
+        await createCompanyWallPost({ companyId, authorUid: actor.uid, authorName: actor.name, title: doc.title.slice(0, 140), body: markdownToPlain(live.content || '').slice(0, 6000), category: 'selskap', importKey: key });
+        setMsg('Nyheten er lagt på Nyheter i Selskap.');
+      }
+    } catch (e) {
+      setErr(e?.message || 'Kunne ikke legge ut nyheten.');
+    }
+    setPosting(false);
+  }
+
   return (
     <Page
       wide={wide}
@@ -238,7 +261,12 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
       title={doc.title}
       intro={`${doc.code} · ${docTypeLabel(doc.docType)}${doc.folder ? ` · ${folderLabel(structure, doc.folder)}` : ''} · eier ${doc.ownerName || '–'}${doc.approverName ? ` · godkjenner ${doc.approverName}` : ''} · ${ACCESS_CLASSES.find((c) => c.id === doc.accessClass)?.label}`}
       back={{ label: 'Dokumenter', onPress: onBack }}
-      actions={<Btn icon="bulb-outline" label="Meld feil eller forbedring" onPress={() => go('avvik', { create: true, prefill: { type: 'forbedring', title: `Forbedring i ${doc.code} ${doc.title}`.slice(0, 200), documentIds: [doc.id] } })} />}
+      actions={(
+        <>
+          {doc.docType === 'nyhet' && doc.publishedRevision && caps.manage ? <Btn icon="megaphone-outline" label="Legg på Nyheter i Selskap" busy={posting} onPress={postToWall} /> : null}
+          <Btn icon="bulb-outline" label="Meld feil eller forbedring" onPress={() => go('avvik', { create: true, prefill: { type: 'forbedring', title: `Forbedring i ${doc.code} ${doc.title}`.slice(0, 200), documentIds: [doc.id] } })} />
+        </>
+      )}
     >
       {msg ? <Banner tone="ok" text={msg} /> : null}
       {err ? <Banner tone="danger" text={err} /> : null}

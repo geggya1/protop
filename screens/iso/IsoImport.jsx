@@ -28,7 +28,7 @@ async function readPicked(picked) {
   return res.text();
 }
 
-export default function IsoImport({ ctx, first = false }) {
+export default function IsoImport({ ctx, first = false, onSystemImported }) {
   const colors = useColors();
   const { state, caps, actor, store, companyId, go, sources } = ctx;
   const [raw, setRaw] = useState('');
@@ -94,7 +94,39 @@ export default function IsoImport({ ctx, first = false }) {
       if (out.system) {
         const saved = await store.commit('system', 'system', { ok: true, system: out.system, events: [] }, { previous: current.system });
         if (!saved.ok) throw new Error(`Oppsett: ${saved.error}`);
+        // Innstillingene må vise det importen lagret, ellers kan autolagringen skrive det gamle skjemaet tilbake.
+        onSystemImported?.(out.system);
         say('Oppsett, omfang og dokumentstruktur er lagret.');
+      }
+
+      // Skjema først: prosesser som peker til et skjema, kan bare publiseres når skjemaet er styrt.
+      if (out.forms.length) {
+        let anbud = await loadAnbudState(companyId);
+        let added = 0;
+        const full = [];
+        for (const f of out.forms) {
+          if (f.existing || normalizeFormTemplates(anbud.formTemplates).some((t) => t.id === f.template.id)) continue;
+          const res = saveFormTemplate(anbud, f.template);
+          if (!res.ok) { say(`Skjema «${f.template.title}»: ${res.error}`); continue; }
+          // Skjemabygger har et tak på antall maler; det som ikke får plass, faller ut ved normalisering.
+          if (!normalizeFormTemplates(res.state.formTemplates).some((t) => t.id === f.template.id)) { full.push(f.template.title); continue; }
+          anbud = res.state;
+          added += 1;
+        }
+        if (added) anbud = await saveAnbudState(anbud, companyId);
+        if (full.length) say(`Ikke plass i Skjemabygger (for mange maler): ${full.join(', ')}. Slett maler dere ikke bruker, og kjør importen på nytt.`);
+        const fresh = normalizeFormTemplates(anbud.formTemplates);
+        let approved = 0;
+        for (const f of out.forms.filter((x) => x.approve && caps.approve)) {
+          const tpl = fresh.find((t) => t.id === f.template.id);
+          const control = store.current().forms.find((c) => c.templateId === f.template.id && !c.archived) || null;
+          if (!tpl || control?.publishedVersion) continue;
+          const res = approveTemplate(control, tpl, { actor, caps, templateKey: '', note: `Importert fra «${parsed.pkg.title}»` });
+          if (res.ok && (await store.commit('forms', 'form', res, { previous: control })).ok) approved += 1;
+        }
+        sources?.reloadAnbud?.();
+        const reused = out.forms.filter((x) => x.existing).length;
+        say(`${added} skjema og sjekklister er lagt i Skjemabygger${reused ? `, ${reused} fantes fra før og er brukt i stedet for kopi` : ''}${approved ? `, ${approved} godkjent som styrte skjema` : ''}.`);
       }
 
       const rows = [
@@ -111,7 +143,7 @@ export default function IsoImport({ ctx, first = false }) {
       ];
       if (rows.length) {
         const saved = await store.commitMany(rows, events);
-        if (!saved.ok) throw new Error(saved.error);
+        if (!saved.ok) throw new Error(saved.committed ? `${saved.error} (${saved.committed} av ${saved.total} er lagret)` : saved.error);
         say(`${out.documents.length} dokumenter, ${out.processes.length} prosesser, ${out.records.length} registerposter og ${out.requirements.length} krav er lagt inn.`);
       }
 
@@ -121,7 +153,7 @@ export default function IsoImport({ ctx, first = false }) {
       ];
       if (published.length) {
         const saved = await store.commitMany(published, [...out.publishDocuments, ...out.publishProcesses].flatMap((x) => x.events || []));
-        if (!saved.ok) throw new Error(`Publisering: ${saved.error}`);
+        if (!saved.ok) throw new Error(`Publisering: ${saved.error}${saved.committed ? ` (${saved.committed} av ${saved.total} er publisert)` : ''}`);
         say(`${out.publishDocuments.length} dokumenter og ${out.publishProcesses.length} prosesser er publisert.`);
       }
 
@@ -134,33 +166,25 @@ export default function IsoImport({ ctx, first = false }) {
         say('Kravvurderinger og bevis er oppdatert i ISO-kravmatrisen.');
       }
 
-      if (out.forms.length) {
-        let anbud = await loadAnbudState(companyId);
-        let added = 0;
-        for (const f of out.forms) {
-          if (f.existing || normalizeFormTemplates(anbud.formTemplates).some((t) => t.id === f.template.id)) continue;
-          const res = saveFormTemplate(anbud, f.template);
-          if (res.ok) { anbud = res.state; added += 1; } else say(`Skjema «${f.template.title}»: ${res.error}`);
-        }
-        if (added) anbud = await saveAnbudState(anbud, companyId);
-        const fresh = normalizeFormTemplates(anbud.formTemplates);
-        let approved = 0;
-        for (const f of out.forms.filter((x) => x.approve && caps.approve)) {
-          const tpl = fresh.find((t) => t.id === f.template.id);
-          const control = store.current().forms.find((c) => c.templateId === f.template.id && !c.archived) || null;
-          if (!tpl || control?.publishedVersion) continue;
-          const res = approveTemplate(control, tpl, { actor, caps, templateKey: '', note: `Importert fra «${parsed.pkg.title}»` });
-          if (res.ok && (await store.commit('forms', 'form', res, { previous: control })).ok) approved += 1;
-        }
-        sources?.reloadAnbud?.();
-        const reused = out.forms.filter((x) => x.existing).length;
-        say(`${added} skjema og sjekklister er lagt i Skjemabygger${reused ? `, ${reused} fantes fra før og er brukt i stedet for kopi` : ''}${approved ? `, ${approved} godkjent som styrte skjema` : ''}.`);
-      }
-
       if (wallNews && out.news.length) {
+        // Bare godkjente nyheter går ut til alle ansatte. Resten legges ut fra dokumentet når det er publisert.
+        const live = new Set([
+          ...out.publishDocuments.map((d) => d.document.id),
+          ...store.current().documents.filter((d) => d.publishedRevision).map((d) => d.id),
+        ]);
+        const ready = out.news.filter((n) => n.docId && live.has(n.docId));
+        const waiting = out.news.length - ready.length;
+        if (waiting) say(`${waiting === 1 ? 'Én nyhet venter' : `${waiting} nyheter venter`} på godkjenning. Når nyheten er publisert, legger du den på Nyheter i Selskap fra dokumentet.`);
         let posted = 0;
-        for (const n of out.news) {
-          if (await companyWallHasImport(companyId, n.importKey)) continue;
+        for (const n of ready) {
+          let exists = true;
+          try {
+            exists = await companyWallHasImport(companyId, n.importKey);
+          } catch {
+            say(`Nyhet «${n.title}»: kunne ikke kontrollere om den allerede er lagt ut. Hoppet over.`);
+            continue;
+          }
+          if (exists) continue;
           try {
             await createCompanyWallPost({ companyId, authorUid: actor.uid, authorName: actor.name, title: n.title, body: n.body, category: n.category, linkUrl: n.linkUrl, importKey: n.importKey });
             posted += 1;

@@ -58,7 +58,7 @@ function settingsKey(x) {
     roleMap: x?.roleMap || {},
     riskMethod: x?.riskMethod?.thresholds || null,
     autoQualityPlan: x?.autoQualityPlan !== false,
-    docStructure: x?.docStructure || [],
+    docStructure: normalizeDocStructure(x?.docStructure || []),
     profile: x?.profile || null,
   });
 }
@@ -117,6 +117,10 @@ export default function IsoSettings({ ctx }) {
   vRef.current = v;
   const sysRef = useRef(sys);
   sysRef.current = sys;
+  // Importkortet står på samme sted hele tiden. Flytter det seg når oppsettet blir aktivert
+  // midt i en import, mister det fremdriften og feilmeldingene.
+  const importAtTop = useRef(first);
+  if (first) importAtTop.current = true;
   const edited = useRef(false);
   const timer = useRef(null);
   const chain = useRef(Promise.resolve());
@@ -231,6 +235,20 @@ export default function IsoSettings({ ctx }) {
     return chain.current;
   }, [store, actor]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Importen har lagret oppsettet: vis det, og glem det gamle skjemaet så autolagringen ikke skriver det tilbake. */
+  const onSystemImported = useCallback((saved) => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    edited.current = false;
+    const next = saved || store.current().system;
+    sysRef.current = next;
+    setV(next);
+    clearDraft(companyId);
+    setSaveState('saved');
+  }, [store, companyId]);
+
   /** Lagre nå (brukes før man går til en annen side). */
   const flush = useCallback(async () => {
     if (timer.current) {
@@ -337,7 +355,7 @@ export default function IsoSettings({ ctx }) {
         </Card>
       ) : null}
       {err ? <Banner tone="danger" text={err} /> : null}
-      {first ? <IsoImport ctx={ctx} first /> : null}
+      {importAtTop.current ? <IsoImport ctx={ctx} first={first} onSystemImported={onSystemImported} /> : null}
       <Card title="Ledelsessystem" subtitle={sources.company?.navn ? `Hentet fra selskapsprofilen: ${sources.company.navn}${sources.company.organisasjonsnummer ? ` · ${sources.company.organisasjonsnummer}` : ''}` : ''}>
         <Field label="Navn"><TextIn value={v.name} onChangeText={set('name')} /></Field>
         <Field label="Standarder" required>
@@ -416,7 +434,7 @@ export default function IsoSettings({ ctx }) {
 
       <ProfileCard v={v} update={update} wide={wide} />
       <DocStructureCard v={v} update={update} />
-      {!first ? <IsoImport ctx={ctx} /> : null}
+      {!importAtTop.current ? <IsoImport ctx={ctx} onSystemImported={onSystemImported} /> : null}
 
       <Card title="Tilgang i ProTop">
         <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 20 }}>

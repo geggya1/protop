@@ -24,6 +24,7 @@ import { isFirestorePermissionError, waitForFirestoreAccess } from '../utils/fir
 import { COLLECTIONS, collectionFor, emptyIsoState, stateFromCollections } from './state.js';
 import { restrictedUids } from './access.js';
 import { aclIsFresh, isCompanyOwner, planAclSync } from './aclSync.js';
+import { chunkForBatch } from './core.js';
 
 const CACHE_KEY = 'protop.iso.v1';
 const AUTH_MS = 8000;
@@ -288,13 +289,22 @@ export async function saveMany(companyId, rows) {
   if (!id || !rows?.length) return;
   const authed = await ensureAuth();
   if (!authed) throw new Error('Ikke innlogget. Endringen er ikke lagret.');
-  for (let i = 0; i < rows.length; i += 400) {
+  // Batcher etter antall og størrelse. Feiler en batch, står de foregående lagret:
+  // err.committed sier hvor mange rader (i rekkefølge) som er i Firestore.
+  let committed = 0;
+  for (const chunk of chunkForBatch(rows, (r) => JSON.stringify(r.entity ?? null).length)) {
     const batch = writeBatch(db);
-    for (const { kind, entity } of rows.slice(i, i + 400)) {
+    for (const { kind, entity } of chunk) {
       const name = collectionFor(kind, entity);
       batch.set(doc(db, 'families', id, name, entity.id), plain(entity));
     }
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err) {
+      if (err && typeof err === 'object') err.committed = committed;
+      throw err;
+    }
+    committed += chunk.length;
   }
 }
 
@@ -308,12 +318,15 @@ export function withInvolved(finding) {
 export async function appendAudit(companyId, events, { restricted = false } = {}) {
   const id = cid(companyId);
   if (!id || !events?.length) return;
-  try {
-    const batch = writeBatch(db);
-    for (const ev of events) batch.set(doc(db, 'families', id, restricted ? 'isoAuditRestricted' : 'isoAudit', ev.id), plain(ev));
-    await batch.commit();
-  } catch {
-    /* sporet ligger også i objektets historikk */
+  // Store importer gir mange og store hendelser: del i batcher, så én for stor batch ikke tar med seg resten.
+  for (const chunk of chunkForBatch(events, (ev) => JSON.stringify(ev ?? null).length)) {
+    try {
+      const batch = writeBatch(db);
+      for (const ev of chunk) batch.set(doc(db, 'families', id, restricted ? 'isoAuditRestricted' : 'isoAudit', ev.id), plain(ev));
+      await batch.commit();
+    } catch {
+      /* sporet ligger også i objektets historikk */
+    }
   }
 }
 

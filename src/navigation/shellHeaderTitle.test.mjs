@@ -134,6 +134,7 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'innstillinger', t }), 'Innstillinger');
   assert.equal(resolveShellHeaderTitle({ tab: 'kontrakt', t }), 'Kontrakt / avtale');
   assert.equal(resolveShellHeaderTitle({ tab: 'kunder', t }), 'Kunder');
+  assert.equal(resolveShellHeaderTitle({ tab: 'utstyr', t }), 'Utstyr');
   assert.equal(resolveShellHeaderTitle({ tab: 'ansatte', t }), 'Ansatte');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', t }), 'Økonomi');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'oversikt', t }), 'Økonomi');
@@ -145,6 +146,18 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'timeliste', t }), 'Timeliste');
   assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', moreSubView: 'timeliste', t }), 'Timeliste');
   assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', moreSubView: 'timerapport', t }), 'Timerapport');
+}
+
+
+// Alle faner i ProTop-menyen har egen tittel (ikke «Hjem» som reserve).
+{
+  const { readFileSync } = await import('node:fs');
+  const menu = readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8');
+  const tabs = [...new Set([...menu.matchAll(/tab: '([a-zA-Z]+)'/g)].map((m) => m[1]))].filter((id) => id !== 'home');
+  const t = (key) => key;
+  for (const tab of tabs) {
+    assert.notEqual(resolveShellHeaderTitle({ tab, t }), 'tabs.home', `fanen «${tab}» mangler tittel`);
+  }
 }
 
 console.log('shellHeaderTitle.test.mjs: ok');

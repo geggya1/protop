@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Text, View, useWindowDimensions } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { useShellWide } from '../../components/ModuleAside';
 import { prettyDate } from '../../src/iso/core';
 import { ISO_ROLES } from '../../src/iso/catalog';
 import {
@@ -462,6 +463,8 @@ function ProcessDesigner({ ctx, proc, onBack }) {
   const colors = useColors();
   const { state, caps, actor, store, wide, people } = ctx;
   const { width } = useWindowDimensions();
+  // Tegneflaten trenger hele bredden; tipsfeltet skjules mens prosessen tegnes.
+  useShellWide(true);
   const draft = draftVersion(proc);
   const [diagram, setDiagram] = useState(() => normalizeDiagram(draft?.diagram || publishedVersionOf(proc)?.diagram || { nodes: [], edges: [] }));
   const [meta, setMeta] = useState({ title: proc.title, purpose: proc.purpose, ownerName: proc.ownerName, ownerUid: proc.ownerUid, category: proc.category, inputs: proc.inputs, outputs: proc.outputs, kpi: proc.kpi });

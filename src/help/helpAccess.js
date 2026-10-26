@@ -93,7 +93,7 @@ export const PAGE_ACCESS = {
   'iso.skjema': { res: 'iso', steps: [W, W, S] },
   'iso.krav': { res: 'iso', steps: [S, R, R] },
   'iso.lovkrav': { res: 'iso', steps: [R, R] },
-  'iso.kontekst': { res: 'iso', steps: [R, R] },
+  'iso.kontekst': { res: 'iso', steps: [R, R, R] },
   'iso.mal': { res: 'iso', steps: [R, R] },
   'iso.avvik': { res: 'iso', steps: [S, R, R, W] },
   'iso.risiko': { res: 'iso', steps: [R, S] },

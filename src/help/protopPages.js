@@ -1874,7 +1874,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Prosesslandskap', 'Process landscape'),
     title: tx('Tegn og kjør prosessene', 'Draw and run the processes'),
-    pitch: tx('Bygg prosesser med baner, trinn, skjema og ansvar. Publiserte prosesser kan startes som saker.', 'Build processes with lanes, steps, forms and owners. Published processes can be started as cases.'),
+    pitch: tx('Her tegner dere arbeidsprosessene: hvem gjør hva, i hvilken rekkefølge og med hvilke skjema. Publiserte prosesser kan startes som saker.', 'Draw your work processes here: who does what, in which order and with which forms. Published processes can be started as cases.'),
     steps: [
       step(tx('Ny prosess', 'New process'), '«Ny prosess» → «Opprett og åpne bygger». Legg til baner og trinn fra nodepaletten.', '“New process” → “Create and open builder”. Add lanes and steps from the node palette.', { find: ['Ny prosess'] }),
       step(tx('Godkjenn', 'Approve'), '«Send til godkjenning», og «Godkjenn og publiser». Ansatte ser bare publiserte versjoner.', '“Send for approval”, then “Approve and publish”. Staff only see published versions.', { find: ['Send til godkjenning', 'Godkjenn og publiser'], via: ['#iso-proc-*'], viaText: tx('Åpne en prosess først: trykk den markerte, så viser jeg knappen.', 'Open a process first: tap the highlighted one and I’ll show you the button.'),
@@ -1894,7 +1894,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Styrende dokumenter', 'Controlled documents'),
     title: tx('Policy, rutiner og instrukser', 'Policies, procedures and instructions'),
-    pitch: tx('Styrende dokumenter med eier, godkjenner, revisjon og lesebekreftelse.', 'Controlled documents with owner, approver, revision and read confirmation.'),
+    pitch: tx('Her ligger policy, rutiner og instrukser som styrer arbeidet, med eier, godkjenning, revisjoner og lesebekreftelse fra de ansatte.', 'Policies, procedures and instructions that govern the work live here, with owner, approval, revisions and read confirmation from staff.'),
     steps: [
       step(tx('Nytt dokument', 'New document'), '«Nytt dokument»: tittel, type, eier, godkjenner og gjennomgangsintervall.', '“New document”: title, type, owner, approver and review interval.', { find: ['Nytt dokument'] }),
       step(tx('Godkjenn og publiser', 'Approve and publish'), '«Send til godkjenning». Godkjenner trykker «Godkjenn og publiser». Forrige revisjon bevares.', '“Send for approval”. The approver taps “Approve and publish”. The previous revision is kept.', { find: ['Send til godkjenning', 'Godkjenn og publiser'], via: ['iso-row'], viaText: tx('Åpne en rad i listen først: trykk den markerte, så viser jeg knappen.', 'Open a row in the list first: tap the highlighted one and I’ll show you the button.'),
@@ -1914,7 +1914,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Styrte skjema', 'Controlled forms'),
     title: tx('Skjema og sjekklister for ISO', 'Forms and checklists for ISO'),
-    pitch: tx('Godkjente skjema fra Skjemabygger brukes i prosesser og registre. Innsendte svar blir låst bevis.', 'Approved forms from the form builder are used in processes and registers. Submitted answers become locked evidence.'),
+    pitch: tx('Her godkjenner dere skjema og sjekklister fra Skjemabygger for bruk i ISO, og fyller dem ut. Innsendte svar blir låst bevis.', 'Approve forms and checklists from the form builder for ISO use, and fill them in. Submitted answers become locked evidence.'),
     steps: [
       step(tx('Anbefalte skjema', 'Recommended forms'), '«Legg til alle» installerer de anbefalte ISO-malene.', '“Add all” installs the recommended ISO templates.', { find: ['Legg til alle'],
         pending: tx('Alle anbefalte skjema er lagt til. Nye forslag dukker opp her.', 'All recommended forms are added. New suggestions show up here.') }),
@@ -1933,7 +1933,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Krav og etterlevelse', 'Requirements and compliance'),
     title: tx('Hvert ISO-krav med bevis', 'Every ISO clause with evidence'),
-    pitch: tx('Alle krav i standardene dere har valgt, med status, ansvarlig og koblet bevis.', 'Every clause in the standards you chose, with status, owner and linked evidence.'),
+    pitch: tx('Her ser dere hvert krav i standardene dere har valgt, og dokumenterer hvordan dere oppfyller det med bevis, ansvarlig og vurdering.', 'See every clause in the standards you chose, and document how you meet it with evidence, owner and assessment.'),
     steps: [
       step(tx('Søk', 'Search'), 'Søk i klausul, tittel eller kilde, og filtrer på status.', 'Search by clause, title or source, and filter by status.', { find: ['Søk i klausul, tittel eller kilde'], anchor: 'content' }),
       step(tx('Koble bevis', 'Link evidence'), 'Åpne et krav og trykk «Koble bevis». Et vedlegg alene betyr ikke at kravet er oppfylt.', 'Open a clause and tap “Link evidence”. An attachment alone does not mean the clause is met.', { find: ['Koble bevis'], via: ['iso-row'], viaText: tx('Åpne en rad i listen først: trykk den markerte, så viser jeg knappen.', 'Open a row in the list first: tap the highlighted one and I’ll show you the button.') }),
@@ -1951,7 +1951,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Lov, forskrift og kontrakt', 'Law, regulation and contract'),
     title: tx('Lovkrav og samsvarsvurdering', 'Legal requirements and compliance'),
-    pitch: tx('Lov- og kontraktskrav som gjelder virksomheten, med planlagt og dokumentert vurdering av etterlevelse.', 'Legal and contractual requirements that apply, with planned and documented compliance assessment.'),
+    pitch: tx('Her registrerer dere lover, forskrifter og kontraktskrav som gjelder virksomheten, og vurderer jevnlig om dere etterlever dem.', 'Record the laws, regulations and contract requirements that apply to the business, and assess regularly whether you comply.'),
     steps: [
       step(tx('Nytt krav', 'New requirement'), '«Nytt krav»: tittel, kilde (lov/forskrift/kontrakt), paragraf og tolket plikt.', '“New requirement”: title, source (law/regulation/contract), section and interpreted duty.', { find: ['Nytt krav'] }),
       step(tx('Vurder', 'Assess'), '«Registrer vurdering» med metode, resultat og neste vurdering.', '“Record assessment” with method, result and next assessment.', { find: ['Registrer vurdering', 'Lagre vurdering'], via: ['iso-row'], viaText: tx('Åpne en rad i listen først: trykk den markerte, så viser jeg knappen.', 'Open a row in the list first: tap the highlighted one and I’ll show you the button.') }),
@@ -1968,12 +1968,41 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Kontekst og interessenter', 'Context and stakeholders'),
     title: tx('Forhold og interessenter', 'Issues and stakeholders'),
-    pitch: tx('Interne og eksterne forhold og interessenter som påvirker ledelsessystemet.', 'Internal and external issues and stakeholders that affect the management system.'),
+    pitch: tx(
+      'Her kartlegger dere hva som påvirker virksomheten, og hvem som har krav eller forventninger til den (ISO 4.1 og 4.2). Det er grunnlaget for risikovurderingen, lovkravene og målene.',
+      'Map what affects the business and who has requirements or expectations of it (ISO 4.1 and 4.2). It is the basis for risk assessment, legal requirements and objectives.',
+    ),
     steps: [
-      step(tx('Foreslåtte interessenter', 'Suggested stakeholders'), 'Forslag hentes fra kontrakter, kunderegisteret, ansatte og myndigheter. Legg dem til med ett trykk.', 'Suggestions come from contracts, customers, employees and authorities. Add them in one tap.', { find: ['Foreslåtte interessenter'] }),
-      step(tx('Registrer', 'Register'), '«Ny» i hvert register legger inn forhold eller interessent.', '“New” in each register adds an issue or stakeholder.', { find: ['Ny'] }),
+      step(tx('Kontekst', 'Context'),
+        '«Ny» under Kontekst: et forhold internt eller eksternt som påvirker virksomheten, f.eks. marked, økonomi, kompetanse, regelverk eller klima.',
+        '“New” under Context: an internal or external issue that affects the business, e.g. market, finances, skills, regulation or climate.',
+        { find: ['Ny'] }),
+      step(tx('Foreslåtte interessenter', 'Suggested stakeholders'),
+        'Forslagene kommer fra kontrakter, kunderegisteret, ansatte og myndigheter. «Legg til» lagrer dem i Interessenter nederst på siden.',
+        'Suggestions come from contracts, customers, employees and authorities. “Add” saves them in Stakeholders at the bottom of the page.',
+        { find: ['Foreslåtte interessenter'] }),
+      step(tx('Fyll ut', 'Complete'),
+        'Trykk på en interessent og skriv behov og forventninger, eier og neste vurdering. «Arkiver» tar den ut av listen; «Vis arkiverte» henter den fram igjen.',
+        'Tap a stakeholder and write needs and expectations, owner and next review. “Archive” takes it off the list; “Show archived” brings it back.',
+        { find: ['Interessenter'] }),
     ],
-    keywords: ['kontekst', 'interessent', 'interessentanalyse', 'swot'],
+    keywords: ['kontekst', 'interessent', 'interessentanalyse', 'swot', 'arkivert', 'gjenopprett'],
+    faq: [
+      {
+        q: tx('Hvor ble interessentene av da jeg trykket «Legg til»?', 'Where did the stakeholders go when I tapped “Add”?'),
+        a: tx(
+          'De er lagret i Interessenter nederst på siden, og er derfor borte fra forslagene. Finner du dem ikke der, er de arkivert: trykk «Vis arkiverte», åpne posten og trykk «Gjenopprett».',
+          'They are saved in Stakeholders at the bottom of the page, so they no longer show as suggestions. If they are not there, they are archived: tap “Show archived”, open the entry and tap “Restore”.',
+        ),
+      },
+      {
+        q: tx('Hvorfor må vi kartlegge kontekst og interessenter?', 'Why do we have to map context and stakeholders?'),
+        a: tx(
+          'ISO 9001, 14001 og 45001 krever det (kapittel 4.1 og 4.2). Det er grunnlaget for risikovurderingen, lovkravene og målene.',
+          'ISO 9001, 14001 and 45001 require it (clauses 4.1 and 4.2). It is the basis for risk assessment, legal requirements and objectives.',
+        ),
+      },
+    ],
   }),
   'iso.mal': page({
     section: 'company-quality',
@@ -1985,7 +2014,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Måltall og målinger', 'Targets and measurements'),
     title: tx('Kvalitets-, miljø- og HMS-mål', 'Quality, environment and HSE objectives'),
-    pitch: tx('Mål med baseline, måltall, målemetode og målinger.', 'Objectives with baseline, target, method and measurements.'),
+    pitch: tx('Her setter dere mål for kvalitet, miljø og HMS med utgangspunkt, måltall og ansvarlig, og legger inn målinger for å følge utviklingen.', 'Set objectives for quality, environment and HSE with baseline, target and owner, and add measurements to follow progress.'),
     steps: [
       step(tx('Nytt mål', 'New objective'), '«Nytt mål»: baseline, måltall, metode og ansvarlig.', '“New objective”: baseline, target, method and owner.', { find: ['Nytt mål'] }),
       step(tx('Mål', 'Measure'), 'Legg inn målinger. Uten målinger vises «ingen datagrunnlag».', 'Add measurements. Without them “no data” is shown.',
@@ -2044,7 +2073,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Risiko og muligheter', 'Risks and opportunities'),
     title: tx('Risikomatrisen', 'The risk matrix'),
-    pitch: tx('Strategiske, kvalitets-, miljø-, HMS-, prosjekt- og leverandørrisikoer. Iboende og rest-risiko vurderes hver for seg.', 'Strategic, quality, environmental, HSE, project and supplier risks. Inherent and residual risk are assessed separately.'),
+    pitch: tx('Her vurderer dere hva som kan gå galt og hvilke muligheter som finnes, med sannsynlighet og konsekvens før og etter tiltak. Gjelder strategiske, kvalitets-, miljø-, HMS-, prosjekt- og leverandørrisikoer.', 'Assess what could go wrong and which opportunities exist, with likelihood and consequence before and after actions. Covers strategic, quality, environmental, HSE, project and supplier risks.'),
     steps: [
       step(tx('Ny vurdering', 'New assessment'), '«Ny vurdering»: aktivitet, fare, sannsynlighet (1–5) og konsekvens (1–5).', '“New assessment”: activity, hazard, likelihood (1–5) and consequence (1–5).', { find: ['Ny vurdering'] }),
       step(tx('Iboende og rest', 'Inherent and residual'), 'Bytt mellom «Iboende» og «Rest» i matrisen for å se effekten av tiltakene.', 'Switch between “Inherent” and “Residual” in the matrix to see the effect of actions.', { find: ['Iboende', 'Rest'] }),
@@ -2061,7 +2090,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('ISO 14001', 'ISO 14001'),
     title: tx('Miljøaspekter og miljødata', 'Environmental aspects and data'),
-    pitch: tx('Miljøaspekter i livsløpsperspektiv og miljødata. Kjøring hentes fra Kjørebok og avfall fra prosjektene.', 'Environmental aspects across the life cycle and environmental data. Driving comes from the mileage log and waste from projects.'),
+    pitch: tx('Her kartlegger dere hvordan virksomheten påvirker miljøet og hva som er vesentlig, og registrerer miljødata. Kjøring hentes fra Kjørebok og avfall fra prosjektene.', 'Map how the business affects the environment and what is significant, and record environmental data. Driving comes from the mileage log and waste from projects.'),
     steps: [
       step(tx('Foreslåtte aspekter', 'Suggested aspects'), '«Foreslåtte miljøaspekter» bygger på kjørebok, avfall og kjøretøy. Sett vesentlighet og begrunnelse.', '“Suggested environmental aspects” build on mileage, waste and vehicles. Set significance and reasoning.', { find: ['Foreslåtte miljøaspekter'] }),
       step(tx('Miljødata', 'Environmental data'), 'Registrer miljødata med periode, verdi, enhet og datakvalitet.', 'Record data with period, value, unit and data quality.',
@@ -2080,7 +2109,7 @@ export const PROTOP_PAGES = {
     process: 'avvik',
     kicker: tx('ISO 45001', 'ISO 45001'),
     title: tx('Arbeidsmiljø og HMS', 'Working environment and HSE'),
-    pitch: tx('Farekartlegging med tiltakshierarki, vernerunder, SJA, medvirkning og HMS-hendelser.', 'Hazard mapping with the hierarchy of controls, safety rounds, job safety analysis, participation and HSE incidents.'),
+    pitch: tx('Her kartlegger dere farer i arbeidet og følger opp vernerunder, SJA, medvirkning og HMS-hendelser. Tiltak velges etter tiltakshierarkiet.', 'Map hazards in the work and follow up safety rounds, job safety analyses, participation and HSE incidents. Controls follow the hierarchy of controls.'),
     steps: [
       step(tx('Meld HMS-hendelse', 'Report an HSE incident'), '«Meld HMS-hendelse» åpner avviksskjemaet som HMS-sak.', '“Report HSE incident” opens the deviation form as an HSE case.', { find: ['Meld HMS-hendelse'] }),
       step(tx('Farer', 'Hazards'), '«Foreslåtte farer» kommer fra prosjektene og kjøreboken. Legg inn medvirkning og ansvarlig.', '“Suggested hazards” come from projects and the mileage log. Add participation and owner.', { find: ['Foreslåtte farer'] }),
@@ -2098,7 +2127,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Kvalitetsplan per prosjekt', 'Quality plan per project'),
     title: tx('Prosjektkvalitet og prosjekteringskontroll', 'Project quality and design review'),
-    pitch: tx('Kvalitetsplan, kontraktsgjennomgang (8.2) og fag-/sidemannskontroll per prosjekt. Prosjekter og kontrakter hentes fra Prosjekt og Kontrakt.', 'Quality plan, contract review (8.2) and discipline/peer review per project. Projects and contracts come from Projects and Contracts.'),
+    pitch: tx('Her følger dere opp kvaliteten i hvert prosjekt: kvalitetsplan, kontraktsgjennomgang (8.2) og fag- og sidemannskontroll. Prosjekter og kontrakter hentes fra Prosjekt og Kontrakt.', 'Follow up quality in each project: quality plan, contract review (8.2) and discipline and peer review. Projects and contracts come from Projects and Contracts.'),
     steps: [
       step(tx('Velg prosjekt', 'Pick a project'), 'Nye prosjekter får kvalitetsplan automatisk. Åpne prosjektet for planen.', 'New projects get a quality plan automatically. Open the project for the plan.',
         { find: ['Prosjektkvalitetsplan'] }),
@@ -2116,7 +2145,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Kompetansematrise', 'Competence matrix'),
     title: tx('Kompetansekrav og bevis', 'Competence requirements and evidence'),
-    pitch: tx('Krav per rolle og dokumentert kompetanse per ansatt. Mangler fra HR-sjekklisten vises her.', 'Requirements per role and documented competence per employee. Gaps from the HR checklist show here.'),
+    pitch: tx('Her setter dere kompetansekrav per rolle og dokumenterer kurs og sertifikater per ansatt, så dere ser hva som mangler eller går ut. Mangler fra HR-sjekklisten vises her.', 'Set competence requirements per role and document courses and certificates per employee, so you see what is missing or expiring. Gaps from the HR checklist show here.'),
     steps: [
       step(tx('Krav', 'Requirements'), 'Legg inn kompetansekrav per rolle med gyldighet.', 'Add competence requirements per role with validity.',
         { find: ['Ny'] }),
@@ -2134,7 +2163,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Leverandørkontroll', 'Supplier control'),
     title: tx('Kvalifiser og evaluer leverandører', 'Qualify and evaluate suppliers'),
-    pitch: tx('Kvalifisering, evaluering og oppfølging etter kritikalitet. Leverandører foreslås fra utleggene.', 'Qualification, evaluation and follow-up by criticality. Suppliers are suggested from expenses.'),
+    pitch: tx('Her godkjenner og evaluerer dere leverandørene, strengere jo viktigere de er for leveransen. Leverandører foreslås fra utleggene.', 'Approve and evaluate suppliers, more strictly the more critical they are to delivery. Suppliers are suggested from expenses.'),
     steps: [
       step(tx('Legg til', 'Add'), 'Ta inn foreslåtte leverandører eller registrer nye med kritikalitet.', 'Bring in suggested suppliers or register new ones with criticality.',
         { find: ['Ny'] }),
@@ -2153,7 +2182,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Scenarioer og øvelser', 'Scenarios and drills'),
     title: tx('Beredskapsplan', 'Emergency plan'),
-    pitch: tx('Scenarioer med varsling, roller og instrukser. Nødvisningen viser kritisk informasjon stort og enkelt.', 'Scenarios with alerting, roles and instructions. The emergency view shows critical info large and simple.'),
+    pitch: tx('Her planlegger dere hva som gjøres hvis noe alvorlig skjer: scenarioer, varsling, roller, instrukser og øvelser. Nødvisningen viser kritisk informasjon stort og enkelt.', 'Plan what to do if something serious happens: scenarios, alerting, roles, instructions and drills. The emergency view shows critical info large and simple.'),
     steps: [
       step(tx('Nytt scenario', 'New scenario'), '«Nytt scenario»: hva kan skje, hvem varsles og hva gjøres.', '“New scenario”: what can happen, who is alerted and what is done.', { find: ['Nytt scenario'] }),
       step(tx('Øvelser', 'Drills'), 'Registrer øvelser og evaluering, og koble dem til tiltak.', 'Record drills and evaluation, and link them to actions.', { find: ['Scenarioer og øvelser'] }),
@@ -2171,7 +2200,7 @@ export const PROTOP_PAGES = {
     process: 'avvik',
     kicker: tx('Revisjonsprogram', 'Audit programme'),
     title: tx('Planlegg og gjennomfør internrevisjon', 'Plan and carry out internal audits'),
-    pitch: tx('Risikobasert revisjonsprogram. Funn klassifiseres, og avvik blir saker med tiltak.', 'Risk-based audit programme. Findings are classified, and non-conformities become cases with actions.'),
+    pitch: tx('Her planlegger og gjennomfører dere internrevisjoner for å sjekke at systemet virker i praksis. Funn klassifiseres, og avvik blir saker med tiltak.', 'Plan and carry out internal audits to check that the system works in practice. Findings are classified, and non-conformities become cases with actions.'),
     steps: [
       step(tx('Planlegg', 'Plan'), '«Planlegg revisjon»: område, krav, revisor og dato. Revisor skal ikke revidere eget arbeid.', '“Plan audit”: area, clauses, auditor and date. Auditors must not audit their own work.', { find: ['Planlegg revisjon'] }),
       step(tx('Funn', 'Findings'), 'Registrer funn. Avvik blir saker under Avvik og forbedring.', 'Record findings. Non-conformities become cases under Deviations.',
@@ -2191,7 +2220,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Årlig gjennomgang', 'Annual review'),
     title: tx('Ledelsens gjennomgang', 'Management review'),
-    pitch: tx('Grunnlaget hentes automatisk fra registrene og låses når referatet godkjennes. Vedtak blir oppgaver.', 'The input is pulled from the registers and locked when the minutes are approved. Decisions become tasks.'),
+    pitch: tx('Her går ledelsen jevnlig gjennom om ledelsessystemet virker, og vedtar forbedringer. Grunnlaget hentes automatisk fra registrene og låses når referatet godkjennes. Vedtak blir oppgaver.', 'Management regularly reviews whether the management system works and decides on improvements. The input is pulled from the registers and locked when the minutes are approved. Decisions become tasks.'),
     steps: [
       step(tx('Ny gjennomgang', 'New review'), '«Ny gjennomgang» henter grunnlaget fra avvik, mål, risiko og revisjoner.', '“New review” pulls input from deviations, objectives, risk and audits.', { find: ['Ny gjennomgang'] }),
       step(tx('Godkjenn referat', 'Approve minutes'), '«Godkjenn referat (låser grunnlag)». Vedtak blir oppgaver med ansvar og frist.', '“Approve minutes (locks input)”. Decisions become tasks with owner and deadline.', { find: ['Godkjenn referat (låser grunnlag)'], via: ['iso-row'], viaText: tx('Åpne en rad i listen først: trykk den markerte, så viser jeg knappen.', 'Open a row in the list first: tap the highlighted one and I’ll show you the button.'),
@@ -2209,7 +2238,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Revisjonsrom', 'Audit room'),
     title: tx('Sertifikater og bevispakker', 'Certificates and evidence packs'),
-    pitch: tx('Sertifikater, eksterne revisjoner og bevispakker til revisor. Sertifikatet utstedes av et akkreditert organ.', 'Certificates, external audits and evidence packs for the auditor. The certificate is issued by an accredited body.'),
+    pitch: tx('Her samler dere sertifikater, eksterne revisjoner og bevispakker til revisor. Sertifikatet utstedes av et akkreditert organ.', 'Collect certificates, external audits and evidence packs for the auditor here. The certificate is issued by an accredited body.'),
     steps: [
       step(tx('Bevispakke', 'Evidence pack'), 'Lag en bevispakke til revisor fra registrene.', 'Create an evidence pack for the auditor from the registers.', { find: ['Bevispakke til revisor'], anchor: 'content' }),
       step(tx('Registrer sertifikat', 'Record certificate'), 'Legg inn sertifikat, gyldighet og eksterne revisjoner.', 'Add certificate, validity and external audits.',
@@ -2227,7 +2256,7 @@ export const PROTOP_PAGES = {
     soft: GREEN_SOFT,
     kicker: tx('Omfang, standarder og roller', 'Scope, standards and roles'),
     title: tx('Sett opp ledelsessystemet', 'Set up the management system'),
-    pitch: tx('Velg standarder, omfang, lokasjoner, roller, risikometode og startpakke.', 'Choose standards, scope, locations, roles, risk method and starter pack.'),
+    pitch: tx('Her setter administrator opp ledelsessystemet: standarder, omfang, lokasjoner, roller, risikometode og startpakke.', 'The administrator sets up the management system here: standards, scope, locations, roles, risk method and starter pack.'),
     steps: [
       step(tx('Standarder og omfang', 'Standards and scope'), 'Velg ISO 9001, 14001 og/eller 45001, og beskriv omfanget.', 'Choose ISO 9001, 14001 and/or 45001, and describe the scope.', { find: ['Standarder'], anchor: 'content' }),
       step(tx('Roller', 'Roles'), 'Velg systemansvarlig og gi personer tilgang til skjermede HMS-saker.', 'Pick the system owner and give people access to restricted HSE cases.', { find: ['Systemansvarlig'] }),

@@ -49,10 +49,12 @@ export function ModuleAsideProvider({ children }) {
   );
 }
 
-function TipsCard() {
+function TipsCard({ fallbackName }) {
   const { lang } = useI18n();
   const { copy, hasHelp, openModuleHelp, moduleId } = useHelp();
-  const moduleName = moduleHeroName(moduleId, lang);
+  // Undersider (iso.kontekst …) har ikke eget modulnavn; da brukes sidetittelen fra skallet.
+  const heroName = moduleHeroName(moduleId, lang);
+  const moduleName = heroName && heroName !== moduleId ? heroName : (fallbackName || '');
   const tipsKicker = moduleName
     ? (lang === 'en' ? `Tips for ${moduleName}` : `Tips for ${moduleName}`)
     : (copy?.kicker || 'Tips');
@@ -100,7 +102,7 @@ function TipsCard() {
  * hovedinnholdet over hele bredden. Skjermer kan legge inn ekstra
  * forslag under tipskortet via useModuleAsideSlot.
  */
-export default function ModuleAside() {
+export default function ModuleAside({ fallbackName = '' } = {}) {
   const ctx = React.useContext(ModuleAsideSlotContext);
   const extras = ctx?.node || null;
 
@@ -110,7 +112,7 @@ export default function ModuleAside() {
       contentContainerStyle={styles.stack}
       showsVerticalScrollIndicator={false}
     >
-      <TipsCard />
+      <TipsCard fallbackName={fallbackName} />
       {extras}
     </ScrollView>
   );

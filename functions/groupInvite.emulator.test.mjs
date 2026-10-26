@@ -198,3 +198,28 @@ describe('eksisterende bruker', () => {
     assert.equal((await data(`families/${A}/employees/emp_eve`)).personUid, 'eve');
   });
 });
+
+describe('invitasjon fra en som ikke er administrator', () => {
+  test('«asAdmin» fra en Øverste leder gir ikke administratorrettighet', async () => {
+    await seed();
+    await db.doc(`families/${A}`).update({ members: ['own', 'sjef'] });
+    await db.doc(`families/${A}/parents/sjef`).set({ uid: 'sjef', admin: false, active: true });
+    await db.doc(`families/${A}/employees/emp_eve`).set(employee('emp_eve', 'Eve', 'eve@firma.no', 'ansatt'));
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ invitedBy: 'sjef', asAdmin: true });
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' });
+    assert.equal(res.ok, true);
+    const family = await data(`families/${A}`);
+    assert.ok(family.members.includes('eve'));
+    assert.ok(!(family.adminUids || []).includes('eve'));
+    assert.equal((await data(`families/${A}/parents/eve`)).admin, false);
+  });
+
+  test('«asAdmin» fra eieren gir fortsatt administratorrettighet', async () => {
+    await seed();
+    await db.doc(`families/${A}/employees/emp_eve`).set(employee('emp_eve', 'Eve', 'eve@firma.no', 'ansatt'));
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ asAdmin: true });
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' });
+    assert.equal(res.ok, true);
+    assert.ok((await data(`families/${A}`)).adminUids.includes('eve'));
+  });
+});

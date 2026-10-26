@@ -10,7 +10,9 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { VAPID_PUBLIC_KEY, VAPID_SUBJECT } from './vapid.js';
 import { resolveRuntimeSecret } from './runtimeSecret.js';
 import { assertRateLimit, hashRateKey } from './security.js';
-import { channelEnabled } from '../src/notifications/prefs.js';
+import { channelEnabled, notificationAccess } from '../src/notifications/prefs.js';
+import { companyAllows } from '../src/notifications/audience.js';
+import { isOrganizationType } from '../src/utils/groupTypes.js';
 import { sendNotificationEmail } from './notifyEmail.js';
 
 const PRODUCT = 'ProTop';
@@ -59,8 +61,25 @@ export function pushPayloadFor(notifId, notif = {}) {
 }
 
 /**
+ * Har mottakeren rettigheten typen krever i bedriften varselet gjelder (tilgangsstyringen)?
+ * Typer uten krav, og varsler utenfor en bedrift, er alltid tillatt.
+ */
+export async function recipientHasAccess({ db, uid, notif = {} }) {
+  if (!notificationAccess(notif.eventType)) return true;
+  const familyId = text(notif.familyId);
+  if (!familyId || familyId.includes('/')) return true;
+  const famSnap = await db.doc(`families/${familyId}`).get();
+  const family = famSnap.exists ? (famSnap.data() || {}) : null;
+  if (!family || !isOrganizationType(family.type)) return true;
+  const own = await db.collection(`families/${familyId}/employees`).where('personUid', '==', uid).limit(5).get();
+  const employees = own.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  return companyAllows({ family, employees, uid, type: notif.eventType });
+}
+
+/**
  * Push og e-post etter brukerens valg per varseltype (standard fra katalogen), med unntak:
  * - varsler appen lager til seg selv (den viser dem lokalt), unntatt testvarsel,
+ * - typer som krever en rettighet mottakeren ikke har i bedriften (tilgangsstyringen),
  * - samme avsender har sendt over grensen til samme mottaker siste time.
  * Varselet ligger i bjellen uansett.
  */
@@ -75,6 +94,7 @@ export async function deliveryDecision({ db, uid, notif = {}, rateLimit = assert
   const push = notif.skipPush !== true && channelEnabled(prefs, eventType, 'push');
   const email = notif.skipEmail !== true && channelEnabled(prefs, eventType, 'email');
   if (!push && !email) return { push: false, email: false, reason: 'prefs' };
+  if (!(await recipientHasAccess({ db, uid, notif }))) return { push: false, email: false, reason: 'access' };
   if (sender) {
     try {
       await rateLimit(db, { key: hashRateKey(['push', sender, uid]), limit: PAIR_LIMIT_PER_HOUR });

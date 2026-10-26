@@ -1,15 +1,18 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
-import { doc, updateDoc } from 'firebase/firestore';
+import {
+  collection, doc, getDocs, limit, query, updateDoc, where,
+} from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '../firebase';
 import { useApp } from '../src/context/AppContext';
 import { colors, radius } from '../src/theme';
+import { isGroupAdminOf, visibleNotificationGroups } from '../src/notifications/audience';
+import { isOrganizationType } from '../src/utils/groupTypes';
 import {
   channelEnabled,
-  groupedNotificationTypes,
   hasOwnEmail,
   isRecommended,
   normalizePrefs,
@@ -45,18 +48,50 @@ function Check({ id, checked, disabled, onPress, label }) {
   );
 }
 
+/** Gruppene brukeren er med i, med egne ansattrader i bedrifter (for rettighetene). */
+async function loadMemberships(families, uid) {
+  return Promise.all((families || []).map(async (family) => {
+    if (!isOrganizationType(family?.type) || isGroupAdminOf(family, uid)) return { family, employees: [] };
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'families', family.id, 'employees'),
+        where('personUid', '==', uid),
+        limit(5),
+      ));
+      return { family, employees: snap.docs.map((row) => ({ id: row.id, ...row.data() })) };
+    } catch {
+      return { family, employees: [] };
+    }
+  }));
+}
+
 /**
  * Brukerens egne varselvalg: push og e-post per varseltype, med anbefalte standarder.
- * Alle varsler vises uansett i bjellen. Lagres i users/{uid}.notificationPrefs (versjon 2).
+ * Bare typene brukeren kan få vises: i bedrifter styres det av tilgangsstyringen
+ * (src/notifications/audience.js). Alle varsler vises uansett i bjellen.
+ * Lagres i users/{uid}.notificationPrefs (versjon 2).
  */
 export default function NotificationPrefsPanel() {
-  const { uid, userProfile } = useApp();
+  const { uid, userProfile, liveFamilies } = useApp();
   const stored = userProfile?.notificationPrefs;
   const [prefs, setPrefs] = useState(() => normalizePrefs(stored));
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState('');
   const [device, setDevice] = useState(null);
   const [deviceBusy, setDeviceBusy] = useState(false);
+  const [memberships, setMemberships] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!uid) return () => { active = false; };
+    loadMemberships(liveFamilies, uid).then((rows) => { if (active) setMemberships(rows); });
+    return () => { active = false; };
+  }, [liveFamilies, uid]);
+
+  const groups = useMemo(() => visibleNotificationGroups({
+    uid,
+    memberships: memberships || (liveFamilies || []).map((family) => ({ family, employees: [] })),
+  }), [uid, memberships, liveFamilies]);
 
   useEffect(() => {
     if (!saving) setPrefs(normalizePrefs(stored));
@@ -145,6 +180,7 @@ export default function NotificationPrefsPanel() {
     <View nativeID="notification-prefs" style={styles.stack}>
       <Text style={styles.lead}>
         Alle varsler vises alltid i bjellen øverst ved profilbildet. Her velger du om du i tillegg vil få dem som push på telefonen eller PC-en, eller som e-post.
+        {' '}Hvilke varsler du kan få i en bedrift, følger rollen din i tilgangsstyringen.
       </Text>
 
       <View style={styles.card}>
@@ -193,7 +229,7 @@ export default function NotificationPrefsPanel() {
           <Text style={styles.colHead}>Push</Text>
           <Text style={styles.colHead}>E-post</Text>
         </View>
-        {groupedNotificationTypes().map((group) => (
+        {groups.map((group) => (
           <View key={group.id} style={styles.group}>
             <Text style={styles.groupTitle}>{group.label}</Text>
             {group.types.map((type) => {
@@ -203,6 +239,9 @@ export default function NotificationPrefsPanel() {
                 <View key={type.id} style={styles.row}>
                   <View style={styles.grow}>
                     <Text style={styles.label}>{type.label}</Text>
+                    {type.audience ? (
+                      <Text nativeID={`notif-${type.id}-audience`} style={styles.audience}>Får: {type.audience}</Text>
+                    ) : null}
                     {isRecommended(type.id) ? <Text style={styles.badge}>Anbefalt</Text> : null}
                   </View>
                   <View style={styles.cell}>
@@ -264,6 +303,7 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0 },
   label: { color: colors.ink, fontSize: 14 },
   badge: { alignSelf: 'flex-start', color: colors.brand, fontSize: 11, fontWeight: '600', marginTop: 2 },
+  audience: { color: colors.muted, fontSize: 12, marginTop: 2 },
   cell: { width: 64, alignItems: 'center' },
   check: { padding: 2 },
   checkDisabled: { opacity: 0.5 },

@@ -174,6 +174,33 @@ test('e-post: anbefalte typer får e-post, chat ikke; brukerens valg vinner', as
   assert.equal(mails.length, 3);
 });
 
+test('rettighet i bedriften: forespørsel om å bli med leveres bare til dem med Admin på Ansatte', async () => {
+  const { web, mails, deps } = fakes();
+  await db.doc('families/firma').set({ type: 'company', ownerUid: 'eier', adminUids: ['eier'], members: ['eier', 'bente'] });
+  const join = { eventType: 'companyJoinRequest', title: 'Forespørsel om å bli med', familyId: 'firma', createdBy: 'ny' };
+
+  // Bente er Ansatt: varselet ligger i bjellen, men ingen push eller e-post.
+  await db.doc('families/firma/employees/emp-bente').set({ personUid: 'bente', company: { accessLevel: 'ansatt', status: 'active' } });
+  const ansatt = await notify('bente', 'join_1', join, deps);
+  assert.equal(ansatt.result.reason, 'access');
+  assert.equal(ansatt.result.sent, 0);
+  assert.equal(ansatt.mail.reason, 'access');
+  assert.equal((await db.doc('users/bente/notifications/join_1').get()).exists, true, 'ligger i bjellen');
+  assert.equal(web.length + mails.length, 0);
+
+  // Bente blir Øverste leder i tilgangsstyringen: push og e-post.
+  await db.doc('families/firma/employees/emp-bente').set({ personUid: 'bente', company: { accessLevel: 'leder', status: 'active' } });
+  const leder = await notify('bente', 'join_2', join, deps);
+  assert.equal(leder.result.reason, 'user');
+  assert.ok(leder.result.sent >= 1);
+  assert.equal(leder.mail.sent, true);
+
+  // Ferieplanen gjelder alle, også en ansatt.
+  await db.doc('families/firma/employees/emp-bente').set({ personUid: 'bente', company: { accessLevel: 'ansatt', status: 'active' } });
+  const ferie = await notify('bente', 'ferie_1', { eventType: 'vacationPlan', title: 'Ferieplan 2027', familyId: 'firma', skipEmail: true }, deps);
+  assert.ok(ferie.result.sent >= 1);
+});
+
 test('e-post sendes ikke for typer med egen e-post, uten adresse eller uten nøkkel', async () => {
   await db.doc('users/bente').set({
     email: 'bente@firma.no',

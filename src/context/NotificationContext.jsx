@@ -4,7 +4,7 @@ import React, {
 import { Platform, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  collection, doc, limit, onSnapshot, orderBy, query, setDoc,
+  collection, limit, onSnapshot, orderBy, query,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useApp } from './AppContext';
@@ -30,7 +30,7 @@ import {
   showLocalNotification,
   isStandaloneDisplay,
 } from '../utils/push';
-import { isChannelOn, isMasterNotifEnabled, mergeNotificationPrefs } from '../utils/notificationPrefs';
+import { isChannelOn, isMasterNotifEnabled } from '../utils/notificationPrefs';
 import {
   appendToast,
   buildToastFromNotification,
@@ -45,7 +45,6 @@ import InAppNotificationToast from '../../components/InAppNotificationToast';
 
 const Ctx = createContext(null);
 const PUSH_ASKED_KEY = 'weekplan_push_asked_v1';
-const PUSH_MIGRATE_KEY = 'weekplan_push_enable_v1';
 
 async function storageGet(key) {
   try {
@@ -327,25 +326,6 @@ export function NotificationProvider({ children }) {
   }, [enqueueToast]);
 
   useEffect(() => {
-    if (!uid) return undefined;
-    let cancelled = false;
-    (async () => {
-      const seen = await storageGet(PUSH_MIGRATE_KEY);
-      if (seen || cancelled) return;
-      await storageSet(PUSH_MIGRATE_KEY, '1');
-      const merged = mergeNotificationPrefs(userProfile?.notificationPrefs);
-      const alreadyOn = merged.events.messageReceived.push && merged.events.taskReceived.push;
-      if (alreadyOn) return;
-      merged.events.messageReceived.push = true;
-      merged.events.taskReceived.push = true;
-      try {
-        await setDoc(doc(db, 'users', uid), { notificationPrefs: merged }, { merge: true });
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, [uid, userProfile?.notificationPrefs]);
-
-  useEffect(() => {
     if (!uid || !pushSupported()) return undefined;
     const prefs = userProfile?.notificationPrefs;
     let cancelled = false;
@@ -393,7 +373,7 @@ export function NotificationProvider({ children }) {
 
     incoming.forEach((n) => {
       seenIdsRef.current.add(n.id);
-      const channelOn = isChannelOn(prefs, n.eventType, 'push', true);
+      const channelOn = isChannelOn(prefs, n.eventType, 'push');
       if (!channelOn) {
         notifLog('incoming_skipped_prefs', { id: n.id, eventType: n.eventType });
         return;

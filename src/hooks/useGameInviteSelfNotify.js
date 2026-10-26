@@ -53,7 +53,7 @@ export function useGameInviteSelfNotify(familyId, uid, prefs) {
           }
           selfHealGameInviteInbox(uid, invite).then(() => {
             if (!pushSupported()) return;
-            if (!isChannelOn(prefsRef.current, 'gameInvite', 'push', true)) return;
+            if (!isChannelOn(prefsRef.current, 'gameInvite', 'push')) return;
             if (Platform.OS === 'web') {
               if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
               if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;

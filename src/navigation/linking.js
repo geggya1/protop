@@ -292,6 +292,7 @@ export const linking = {
       },
       Archive: 'archive',
       ProfileSettings: 'settings/profile',
+      NotificationSettings: 'settings/notifications',
       AppearanceSettings: 'settings/appearance',
       CalendarSettings: 'settings/calendar',
       CustodySettings: {

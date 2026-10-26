@@ -190,6 +190,7 @@ export default function SettingsScreen({ setSubView } = {}) {
           <Row icon="globe" label={t('more.language')} onPress={() => nav.navigate('PickLanguage')} />
           <Row icon="navigate-outline" label={t('settings.locationSharing')} onPress={() => nav.navigate('LocationSettings')} />
           <Row icon="notifications-outline" label={t('tabs.notifications')} onPress={() => openNotifications(nav)} muted />
+          <Row icon="options-outline" label="Varselinnstillinger" onPress={() => nav.navigate('NotificationSettings')} />
           {showInstallGuide ? (
             <Row
               icon="phone-portrait-outline"

@@ -273,6 +273,8 @@ const COMPANY_PAGES = [
   ['hr', 'oppfolging', 'hr-oppfolging'],
   ['hr', 'compliance', 'hr-compliance'],
   ['hr', 'rekruttering', 'hr-rekruttering'],
+  ['hr', 'handbok', 'hr-handbok'],
+  ['hr', 'skjema', 'hr-skjema'],
   ['selskap', null, 'selskap'],
   ['selskap', 'tilgang', 'selskap-tilgang'],
   ['selskap', 'underenheter', 'underenheter'],

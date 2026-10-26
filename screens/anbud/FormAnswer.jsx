@@ -28,7 +28,9 @@ function stampText(value) {
 /** Digital signatur: navnet til den som er logget inn og tidspunktet. */
 function SignAnswer({ field, colors, onChange, signer, need }) {
   const value = field.value && typeof field.value === 'object' ? field.value : null;
-  const name = String(signer?.name || '').trim();
+  const [typed, setTyped] = React.useState('');
+  const known = String(signer?.name || '').trim();
+  const name = known || typed.trim();
   return (
     <View style={[styles.signBox, { borderColor: need ? FOCUS_FIELD_BORDER : colors.line, backgroundColor: need ? FOCUS_FIELD_BG : colors.card }]}>
       <Text style={[styles.docLabel, { color: need ? FOCUS_FIELD_INK : colors.ink, fontWeight: '600' }]}>{field.label}{field.required ? ' *' : ''}</Text>
@@ -41,14 +43,25 @@ function SignAnswer({ field, colors, onChange, signer, need }) {
           </TouchableOpacity>
         </View>
       ) : (
-        <TouchableOpacity
-          onPress={() => onChange({ name: name || 'Ukjent', uid: signer?.uid || '', at: new Date().toISOString() })}
-          disabled={!name}
-          accessibilityRole="button"
-          style={[styles.signButton, { backgroundColor: name ? colors.brand : colors.sunken }]}
-        >
-          <Text style={{ color: name ? '#fff' : colors.muted, fontWeight: '600' }}>{name ? `Signer som ${name}` : 'Logg inn for å signere'}</Text>
-        </TouchableOpacity>
+        <View style={{ gap: 6 }}>
+          {!known ? (
+            <TextInput
+              value={typed}
+              onChangeText={setTyped}
+              placeholder="Navnet ditt"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+            />
+          ) : null}
+          <TouchableOpacity
+            onPress={() => onChange({ name, uid: signer?.uid || '', at: new Date().toISOString() })}
+            disabled={!name}
+            accessibilityRole="button"
+            style={[styles.signButton, { backgroundColor: name ? colors.brand : colors.sunken }]}
+          >
+            <Text style={{ color: name ? '#fff' : colors.muted, fontWeight: '600' }}>{name ? `Signer som ${name}` : 'Skriv navnet for å signere'}</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );

@@ -18,6 +18,9 @@ import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
 import HrRecruitment from './HrRecruitment';
 import HrControl from './HrControl';
+import HrHandbook from './HrHandbook';
+import HrForms from './HrForms';
+import { useFormContext } from '../anbud/useFormContext';
 
 function periodWindow(months = 3) {
   const to = new Date();
@@ -38,6 +41,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
   } = useApp();
   const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
   const access = useCompanyAccess();
+  const forms = useFormContext();
   const page = defaultHrSubView(subView);
   const hrResource = ({
     oversikt: 'hr',
@@ -47,6 +51,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
     oppfolging: 'hrFollowup',
     compliance: 'hrCompliance',
     rekruttering: 'hrRecruitment',
+    handbok: 'hr',
+    skjema: 'hrPeople',
   })[page] || 'hr';
   const canSee = access.canView(hrResource);
   const canWrite = access.canEdit(hrResource);
@@ -247,6 +253,34 @@ export default function HrScreen({ subView = 'oversikt' }) {
         />
       );
     }
+    if (page === 'handbok') {
+      return (
+        <HrHandbook
+          colors={colors}
+          hr={hr}
+          canWrite={canWrite}
+          onPatch={onPatch}
+          employees={employees}
+          familyId={familyId}
+          actor={forms.actor}
+          company={forms.company}
+          logo={forms.logo?.dataUrl || ''}
+        />
+      );
+    }
+    if (page === 'skjema') {
+      return (
+        <HrForms
+          colors={colors}
+          employees={employees}
+          canWrite={canWrite}
+          familyId={familyId}
+          actor={forms.actor}
+          company={forms.company}
+          logo={forms.logo}
+        />
+      );
+    }
     if (page === 'rekruttering') {
       return (
         <HrRecruitment
@@ -281,11 +315,21 @@ export default function HrScreen({ subView = 'oversikt' }) {
   }, [
     page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
-    openEmployee, openCase, openLinkedTask, createTask, saveSalaries,
+    openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo,
   ]);
 
   if (access.active && access.ready && !canSee) {
     return <CompanyAccessDenied />;
+  }
+
+  // Skjemaer har egen rulling og full høyde ved utfylling.
+  if (page === 'skjema') {
+    return (
+      <View style={[styles.scroll, styles.content, { backgroundColor: colors.bg }]} nativeID="hr-screen">
+        <HrSectionNav colors={colors} page={page} isPhone={isPhone} onChange={go} />
+        {ready ? <View key={familyId || 'hr'} style={{ flex: 1, minHeight: 0 }}>{body}</View> : null}
+      </View>
+    );
   }
 
   return (

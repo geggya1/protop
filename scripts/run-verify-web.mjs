@@ -75,6 +75,8 @@ export const FILES = [
   'src/hr/contractOcr.test.mjs',
   'src/hr/forms.test.mjs',
   'src/forms/forms.test.mjs',
+  'src/hr/handbook.test.mjs',
+  'screens/anbud/formFillRender.test.cjs',
   'src/anbud/formBuilder.test.mjs',
   'src/hr/reviewPdf.test.mjs',
   'src/hr/storage.test.mjs',

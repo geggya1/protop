@@ -7,6 +7,7 @@ import {
   amlContractCompleteness,
   normalizeComplianceItem,
 } from './compliance.js';
+import { emptyHandbook, handbookHasContent, normalizeHandbook } from './handbook.js';
 
 export const HR_VERSION = 2;
 
@@ -106,6 +107,7 @@ export function emptyHrState() {
     applications: [],
     compliance: [],
     files: [],
+    handbook: emptyHandbook(),
     updatedAt: '',
   };
 }
@@ -390,6 +392,7 @@ export function normalizeHrState(raw) {
     applications: normalizeList(raw.applications, normalizeApplication),
     compliance: normalizeList(raw.compliance, normalizeComplianceItem),
     files: normalizeList(raw.files, normalizeHrFile),
+    handbook: normalizeHandbook(raw.handbook),
     updatedAt: text(raw.updatedAt),
   };
 }
@@ -441,7 +444,7 @@ export function hrStateHasData(state) {
   return [
     'contracts', 'reviews', 'cases', 'memos', 'tasks',
     'salaries', 'jobs', 'applications', 'compliance', 'files',
-  ].some((key) => (src[key] || []).length > 0);
+  ].some((key) => (src[key] || []).length > 0) || handbookHasContent(src.handbook);
 }
 
 export function employeeVisibleSlice(state, employeeId) {
@@ -461,6 +464,8 @@ export function employeeVisibleSlice(state, employeeId) {
       if (file.memoId) return visibleMemoIds.has(file.memoId);
       return !!file.employeeVisible;
     }),
+    // Publisert personalhåndbok er for alle ansatte. Utkastet er HR-internt.
+    handbook: src.handbook.published,
   };
 }
 

@@ -745,8 +745,8 @@ export const PROTOP_PAGES = {
     kicker: tx('Alt om én ansatt', 'Everything about one employee'),
     title: tx('Personellmappen', 'The personnel file'),
     pitch: tx(
-      'Velg en ansatt for avtale, lønn, medarbeidersamtaler, sjekkliste, filer, memo og oppgaver — samlet på personen.',
-      'Pick an employee for agreement, salary, reviews, checklist, files, memo and tasks — gathered on the person.',
+      'Her er personellmappen: velg en ansatt og finn avtale, lønn, medarbeidersamtaler, sjekkliste, filer, memo og oppgaver samlet på personen.',
+      'This is the personnel file: pick an employee and find agreement, salary, reviews, checklist, files, memo and tasks gathered on the person.',
     ),
     steps: [
       step(tx('Velg ansatt', 'Pick an employee'),
@@ -771,8 +771,8 @@ export const PROTOP_PAGES = {
     kicker: tx('Arbeidsavtaler', 'Employment agreements'),
     title: tx('Arbeidsavtale på personen', 'Employment agreement on the person'),
     pitch: tx(
-      'Registrer eller last opp arbeidsavtalen. AI leser nøkkeldata, og AML- og compliance-sjekklisten oppdateres.',
-      'Register or upload the employment agreement. AI reads the key data, and the employment law and compliance checklist update.',
+      'Her ser dere hvem som har og hvem som mangler arbeidsavtale, og registrerer eller laster opp avtalen på den ansatte. AI leser nøkkeldata, og AML- og compliance-sjekklisten oppdateres.',
+      'See who has and who lacks an employment agreement, and register or upload the agreement on the employee. AI reads the key data, and the employment law and compliance checklist update.',
     ),
     steps: [
       step(tx('Velg ansatt', 'Pick the employee'),
@@ -800,7 +800,7 @@ export const PROTOP_PAGES = {
     soft: INDIGO_SOFT,
     kicker: tx('Lønn og planlagte justeringer', 'Salary and planned changes'),
     title: tx('Lønn per ansatt', 'Salary per employee'),
-    pitch: tx('Registrer årslønn og planlagte justeringer med begrunnelse. Velg om det er synlig for den ansatte.', 'Record annual salary and planned adjustments with reasoning. Choose whether the employee can see it.'),
+    pitch: tx('Her ser dere gjeldende lønn og neste planlagte justering for hver ansatt, og registrerer endringer med begrunnelse. Velg om det er synlig for den ansatte.', 'See current salary and the next planned adjustment for each employee, and record changes with reasoning. Choose whether the employee can see it.'),
     steps: [
       step(tx('Velg medarbeider', 'Pick the employee'),
         'Tabellen viser gjeldende lønn og neste plan. Trykk personen for å se historikk og endre.',
@@ -824,8 +824,8 @@ export const PROTOP_PAGES = {
     kicker: tx('Samtaler, saker og oppgaver', 'Reviews, cases and tasks'),
     title: tx('Medarbeidersamtaler og oppfølging', 'Reviews and follow-up'),
     pitch: tx(
-      'Hold medarbeidersamtaler fra mal, sammenlign med forrige samtale, opprett saker og tildel oppgaver som vises på den ansattes Min side.',
-      'Hold reviews from a template, compare with the previous one, create cases and assign tasks that appear on the employee’s My page.',
+      'Her følger dere opp hver ansatt: hold medarbeidersamtaler fra mal, opprett saker og tildel oppgaver. Samtalen sammenlignes med forrige, og oppgavene vises på den ansattes Min side.',
+      'Follow up each employee here: hold reviews from a template, create cases and assign tasks. The review is compared with the previous one, and tasks show on the employee’s My page.',
     ),
     steps: [
       step(tx('Velg ansatt', 'Pick the employee'),
@@ -861,7 +861,7 @@ export const PROTOP_PAGES = {
     soft: INDIGO_SOFT,
     kicker: tx('Sjekkliste per ansatt', 'Checklist per employee'),
     title: tx('Lovpålagt og ISO for hver ansatt', 'Statutory and ISO per employee'),
-    pitch: tx('Sjekkliste med arbeidsavtale, HMS-introduksjon, kompetanse og mer. Mangler vises også i ISO.', 'Checklist with employment agreement, HSE induction, competence and more. Gaps also show in ISO.'),
+    pitch: tx('Her ser dere om hver ansatt har det loven og ISO krever på plass, som arbeidsavtale, HMS-introduksjon og kompetanse. Mangler vises også i ISO.', 'See whether each employee has what the law and ISO require in place, such as employment agreement, HSE induction and competence. Gaps also show in ISO.'),
     steps: [
       step(tx('Velg ansatt', 'Pick the employee'),
         'Tabellen viser dekning og hva som mangler per person. Trykk «Åpne sjekkliste» på personen.',
@@ -889,7 +889,7 @@ export const PROTOP_PAGES = {
     process: 'ny-ansatt',
     kicker: tx('Fra annonse til ansatt', 'From ad to hire'),
     title: tx('Rekruttering i tre steg', 'Recruitment in three steps'),
-    pitch: tx('Publiser annonse, registrer søknader, vurder med scorekort og ansett — søknaden går rett inn i Ansatte.', 'Publish an ad, register applications, assess with a scorecard and hire — the application goes straight into Employees.'),
+    pitch: tx('Her ansetter dere nye folk: publiser annonse, registrer søknader, vurder med scorekort og ansett. Søknaden går rett inn i Ansatte.', 'Hire new people here: publish an ad, register applications, assess with a scorecard and hire. The application goes straight into Employees.'),
     steps: [
       step(tx('Publiser annonse', 'Publish an ad'),
         '«Publiser annonse» med tittel, avdeling, sted og krav.',

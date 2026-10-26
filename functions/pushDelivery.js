@@ -1,6 +1,7 @@
 /**
- * Push for alle varsler i users/{uid}/notifications: web push (nettleser og PWA)
- * og Expo (app). Brukes av triggeren i notifyPush.js. Avhengigheter kan byttes i tester.
+ * Push og e-post for varsler i users/{uid}/notifications: web push (nettleser og PWA),
+ * Expo (app) og e-post, etter brukerens varselinnstillinger (src/notifications/prefs.js).
+ * Brukes av triggeren i notifyPush.js. Avhengigheter kan byttes i tester.
  */
 import { createECDH } from 'node:crypto';
 import webpush from 'web-push';
@@ -9,9 +10,11 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { VAPID_PUBLIC_KEY, VAPID_SUBJECT } from './vapid.js';
 import { resolveRuntimeSecret } from './runtimeSecret.js';
 import { assertRateLimit, hashRateKey } from './security.js';
+import { channelEnabled } from '../src/notifications/prefs.js';
+import { sendNotificationEmail } from './notifyEmail.js';
 
 const PRODUCT = 'ProTop';
-// Vern mot at én avsender kan oversvømme én mottaker med push.
+// Vern mot at én avsender kan oversvømme én mottaker med push og e-post.
 const PAIR_LIMIT_PER_HOUR = 120;
 
 function text(value) {
@@ -55,34 +58,37 @@ export function pushPayloadFor(notifId, notif = {}) {
   };
 }
 
-export function pushChannelOn(prefs, eventType) {
-  if (prefs?.enabled === false) return false;
-  const value = prefs?.events?.[eventType]?.push;
-  return typeof value === 'boolean' ? value : true;
-}
-
 /**
- * Alle varseltyper gir push, med disse unntakene:
+ * Push og e-post etter brukerens valg per varseltype (standard fra katalogen), med unntak:
  * - varsler appen lager til seg selv (den viser dem lokalt), unntatt testvarsel,
- * - brukeren har slått av push for typen eller alle varsler,
  * - samme avsender har sendt over grensen til samme mottaker siste time.
+ * Varselet ligger i bjellen uansett.
  */
-export async function pushDecision({ db, uid, notif = {}, rateLimit = assertRateLimit }) {
+export async function deliveryDecision({ db, uid, notif = {}, rateLimit = assertRateLimit }) {
   const sender = text(notif.createdBy);
-  if (notif.pushTest === true && sender === uid) return { push: true, reason: 'test' };
-  if (notif.skipPush === true) return { push: false, reason: 'skip' };
-  if (sender && sender === uid) return { push: false, reason: 'self' };
+  const eventType = text(notif.eventType);
+  if (notif.pushTest === true && sender === uid) return { push: true, email: false, reason: 'test' };
+  if (sender && sender === uid) return { push: false, email: false, reason: 'self' };
   const userSnap = await db.doc(`users/${uid}`).get();
-  const prefs = userSnap.exists ? (userSnap.data()?.notificationPrefs || {}) : {};
-  if (!pushChannelOn(prefs, text(notif.eventType))) return { push: false, reason: 'prefs' };
+  const user = userSnap.exists ? (userSnap.data() || {}) : {};
+  const prefs = user.notificationPrefs || {};
+  const push = notif.skipPush !== true && channelEnabled(prefs, eventType, 'push');
+  const email = notif.skipEmail !== true && channelEnabled(prefs, eventType, 'email');
+  if (!push && !email) return { push: false, email: false, reason: 'prefs' };
   if (sender) {
     try {
       await rateLimit(db, { key: hashRateKey(['push', sender, uid]), limit: PAIR_LIMIT_PER_HOUR });
     } catch {
-      return { push: false, reason: 'limit' };
+      return { push: false, email: false, reason: 'limit' };
     }
   }
-  return { push: true, reason: sender ? 'user' : 'server' };
+  return {
+    push,
+    email,
+    reason: sender ? 'user' : 'server',
+    to: text(user.email).toLowerCase(),
+    name: text(user.displayName || user.name),
+  };
 }
 
 function webSubscription(data) {
@@ -172,11 +178,11 @@ async function sendExpoPush({ uid, docs, payload, fetchImpl }) {
 }
 
 /**
- * Sender push for ett varsel og skriver resultatet på varselet (push.sent, push.reason),
- * så det kan sjekkes i ettertid.
+ * Sender push og/eller e-post for ett varsel og skriver resultatet på varselet
+ * (push.sent, push.reason, mail.sent, mail.reason), så det kan sjekkes i ettertid.
  */
-export async function deliverNotificationPush({ db, uid, notifId, notif = {}, ref = null, deps = {} }) {
-  const decision = await pushDecision({ db, uid, notif, rateLimit: deps.rateLimit });
+export async function deliverNotification({ db, uid, notifId, notif = {}, ref = null, deps = {} }) {
+  const decision = await deliveryDecision({ db, uid, notif, rateLimit: deps.rateLimit });
   let web = { sent: 0, devices: 0 };
   let expo = { sent: 0, devices: 0 };
   if (decision.push) {
@@ -194,13 +200,19 @@ export async function deliverNotificationPush({ db, uid, notifId, notif = {}, re
       sendExpoPush({ uid, docs: snap.docs, payload, fetchImpl: deps.fetch || fetch }),
     ]);
   }
+  const mail = decision.email
+    ? await sendNotificationEmail({ to: decision.to, name: decision.name, notif, deps })
+    : { sent: false, reason: decision.push ? 'off' : decision.reason };
   const result = {
     sent: web.sent + expo.sent,
     devices: web.devices + expo.devices,
-    reason: web.missingKey ? 'missing-key' : (web.keyMismatch ? 'key-mismatch' : decision.reason),
+    reason: !decision.push && decision.email
+      ? 'off'
+      : (web.missingKey ? 'missing-key' : (web.keyMismatch ? 'key-mismatch' : decision.reason)),
   };
   if (ref) {
-    await ref.set({ push: { ...result, at: FieldValue.serverTimestamp() } }, { merge: true }).catch(() => {});
+    const at = FieldValue.serverTimestamp();
+    await ref.set({ push: { ...result, at }, mail: { ...mail, at } }, { merge: true }).catch(() => {});
   }
-  return result;
+  return { ...result, mail };
 }

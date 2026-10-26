@@ -19,8 +19,7 @@ import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import { calculateAge, isValidBirthday, toIsoDate } from '../../src/utils/age';
 import { normalizePhone, defaultDialCode, splitPhone } from '../../src/utils/phone';
 import { Screen, ScrollBody, BigButton } from '../../components/ui';
-import { mergeNotificationPrefs } from '../../src/utils/notificationPrefs';
-import { disablePushSubscription, ensurePushSubscription, sendTestPush } from '../../src/utils/push';
+import NotificationPrefsPanel from '../../components/NotificationPrefsPanel';
 import CompactBackLink from '../../components/CompactBackLink';
 import AvatarPicker, { AvatarBubble } from '../../components/AvatarPicker';
 import LocationPicker from '../../components/LocationPicker';
@@ -104,10 +103,6 @@ export default function EditProfileScreen() {
   const [selectedImageUri, setSelectedImageUri] = useState(null);
   const [hydrated, setHydrated] = useState(false);
 
-  const [notificationPrefs, setNotificationPrefs] = useState(
-    mergeNotificationPrefs(initial.notificationPrefs),
-  );
-  const [notifBusy, setNotifBusy] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Face ID');
@@ -146,9 +141,6 @@ export default function EditProfileScreen() {
     if (nextGender) setGender((prev) => prev || nextGender);
     if (nextLocation) setLocation((prev) => prev || nextLocation);
     if (nextPhone) setPhone((prev) => prev || nextPhone);
-    if (src.notificationPrefs) {
-      setNotificationPrefs((prev) => mergeNotificationPrefs(src.notificationPrefs || prev));
-    }
     setHydrated(true);
   }, [userProfile, meParent, authUser, hydrated, lang]);
 
@@ -330,61 +322,6 @@ export default function EditProfileScreen() {
     }
   };
 
-  const persistNotificationPrefs = async (prefs) => {
-    if (!uid) return;
-    setNotifBusy(true);
-    try {
-      await setDoc(doc(db, 'users', uid), { notificationPrefs: prefs }, { merge: true });
-    } catch { /* ignore */ }
-    finally {
-      setNotifBusy(false);
-    }
-  };
-
-  const [pushTestNote, setPushTestNote] = useState('');
-  const [pushTestBusy, setPushTestBusy] = useState(false);
-  // Sjekk at push virker: kobler denne enheten til og ber serveren sende et testvarsel.
-  const sendPushCheck = async () => {
-    if (!uid || pushTestBusy) return;
-    setPushTestBusy(true);
-    setPushTestNote('');
-    try {
-      const subscription = await ensurePushSubscription(uid).catch(() => null);
-      // Sendes uansett, så andre enheter med push også får det.
-      await sendTestPush(uid);
-      setPushTestNote(subscription
-        ? 'Testvarsel sendt. Du skal få et varsel på denne og de andre enhetene dine om noen sekunder.'
-        : (Platform.OS === 'web'
-          ? 'Testvarsel sendt til enhetene der push er slått på, men denne enheten får ikke push. Tillat varsler for ProTop i nettleseren. På iPhone: legg ProTop til hjemskjermen og åpne den derfra.'
-          : 'Testvarsel sendt til enhetene der push er slått på, men denne enheten får ikke push. Tillat varsler for ProTop i innstillingene på telefonen.'));
-    } catch (err) {
-      setPushTestNote('Kunne ikke sende testvarsel. Prøv igjen.');
-    } finally {
-      setPushTestBusy(false);
-    }
-  };
-
-  const updateEventChannel = (eventType, channel, value) => {
-    const next = {
-      ...notificationPrefs,
-      events: {
-        ...notificationPrefs.events,
-        [eventType]: {
-          ...(notificationPrefs.events?.[eventType] || {}),
-          [channel]: value,
-        },
-      },
-    };
-    setNotificationPrefs(next);
-    persistNotificationPrefs(next);
-    if (channel === 'push') {
-      if (value) ensurePushSubscription(uid).catch(() => {});
-      else if (!next.events?.messageReceived?.push && !next.events?.taskReceived?.push) {
-        disablePushSubscription(uid).catch(() => {});
-      }
-    }
-  };
-
   const save = async () => {
     if (!canSave || !uid || !authUser) return;
     setSaving(true);
@@ -425,7 +362,6 @@ export default function EditProfileScreen() {
         avatarId,
         language: lang,
         profileComplete: true,
-        notificationPrefs,
         updatedAt: serverTimestamp(),
       };
       if (uname) {
@@ -769,66 +705,7 @@ export default function EditProfileScreen() {
         </View>
 
         <SectionHeader title={t('tabs.notifications')} />
-        <View style={styles.card}>
-          <View style={styles.switchRow}>
-            <Text style={styles.switchLbl}>Aktiver</Text>
-            <Switch
-              value={notificationPrefs.enabled}
-              onValueChange={(v) => {
-                const next = { ...notificationPrefs, enabled: v };
-                setNotificationPrefs(next);
-                persistNotificationPrefs(next);
-              }}
-              trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-              thumbColor={notificationPrefs.enabled ? '#0b74d1' : '#f9fafb'}
-              disabled={notifBusy}
-            />
-          </View>
-          <Text style={[styles.lbl, { marginTop: 8 }]}>Oppgave mottatt</Text>
-          {['email', 'push', 'sms'].map((ch) => (
-            <View key={`task-${ch}`} style={styles.switchRow}>
-              <Text style={styles.switchLbl}>
-                {ch === 'email' ? 'E-post' : ch === 'push' ? 'Push' : 'SMS'}
-              </Text>
-              <Switch
-                value={!!notificationPrefs.events?.taskReceived?.[ch]}
-                onValueChange={(v) => updateEventChannel('taskReceived', ch, v)}
-                disabled={notifBusy}
-                trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-                thumbColor={notificationPrefs.events?.taskReceived?.[ch] ? '#0b74d1' : '#f9fafb'}
-              />
-            </View>
-          ))}
-          <Text style={[styles.lbl, { marginTop: 8 }]}>Melding mottatt</Text>
-          {['email', 'push', 'sms'].map((ch) => (
-            <View key={`msg-${ch}`} style={styles.switchRow}>
-              <Text style={styles.switchLbl}>
-                {ch === 'email' ? 'E-post' : ch === 'push' ? 'Push' : 'SMS'}
-              </Text>
-              <Switch
-                value={!!notificationPrefs.events?.messageReceived?.[ch]}
-                onValueChange={(v) => updateEventChannel('messageReceived', ch, v)}
-                disabled={notifBusy}
-                trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-                thumbColor={notificationPrefs.events?.messageReceived?.[ch] ? '#0b74d1' : '#f9fafb'}
-              />
-            </View>
-          ))}
-          <Text style={styles.hint}>
-            Push-varsler vises på enheten når du får en ny melding, også når appen er i bakgrunnen.
-            Nettleseren spør om tillatelse første gang. SMS støttes ikke ennå.
-          </Text>
-          <TouchableOpacity
-            nativeID="profile-push-test"
-            onPress={sendPushCheck}
-            disabled={pushTestBusy || !uid}
-            accessibilityRole="button"
-            style={[styles.pushTestBtn, (pushTestBusy || !uid) && { opacity: 0.6 }]}
-          >
-            <Text style={styles.pushTestTxt}>{pushTestBusy ? 'Sender…' : 'Send testvarsel'}</Text>
-          </TouchableOpacity>
-          {pushTestNote ? <Text nativeID="profile-push-test-note" style={styles.hint}>{pushTestNote}</Text> : null}
-        </View>
+        <NotificationPrefsPanel />
 
         <BigButton
           label={saving ? t('common.loading') : t('common.save')}
@@ -883,8 +760,6 @@ const styles = StyleSheet.create({
 
   lbl: { fontWeight: '400', color: colors.ink, fontSize: 14, marginTop: 10, marginBottom: 6 },
   hint: { color: colors.muted, fontWeight: '400', fontSize: 13, marginBottom: 8, lineHeight: 18 },
-  pushTestBtn: { alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.brand, borderRadius: radius.md || 10, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 8 },
-  pushTestTxt: { color: colors.brand, fontWeight: '600', fontSize: 14 },
   lockedUsernameRow: {
     flexDirection: 'row',
     alignItems: 'center',

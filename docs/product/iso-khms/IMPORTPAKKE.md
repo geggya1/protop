@@ -65,7 +65,7 @@ Bare **tomme** felt fylles. Det som allerede er lagt inn i ProTop, beholdes. Er 
 | `standards` | `["ISO9001", "ISO14001"]`. Legges til de som er valgt |
 | `ownerName` | Systemansvarlig, hvis oppsettet fullføres |
 | `docStructure` | Virksomhetens dokumentstruktur: `[{ "code": "A", "title": "HMSK-system", "folders": [{ "code": "A-01", "title": "Politikk" }] }]` |
-| `profile` | `{ "vision", "values": [], "businessGoals", "about" }`. Vises på Oversikt (5.1, 7.3) |
+| `profile` | `{ "vision", "values": [], "businessGoals" }`. Vises på Oversikt (5.1, 7.3). «Om oss» hentes fra bedriftssiden i Selskap. |
 
 ## `documents`: styrte dokumenter
 
@@ -206,11 +206,17 @@ Legges i Skjemabygger og godkjennes som styrte skjema i ISO, med mindre raden ha
 - `choice`, `checks` og `dropdown`
 - `scale`, `check`, `image` og `file`
 
-## `news`: nyheter og kunngjøringer
+## `news`: nyheter på Selskap → Nyheter
 
-`{ "key", "title", "body", "content" (Markdown, valgfri), "readAckRequired", "publishedAt", "category" }`
+`{ "key", "title" (≤ 140), "body" (ren tekst ≤ 6000), "category": "selskap" | "baerekraft" | "kompetanse" | "prosjekt" | "ledelsessystem", "linkUrl"? }`
 
-Hver nyhet blir et styrt dokument av typen «Nyhet / kunngjøring» i ISO, med godkjenning og eventuelt lesebekreftelse. Ved import kan nyhetene også publiseres på Nyheter i Selskap.
+ProTop har ett sted for nyheter, nemlig Selskap → Nyheter. Hver nyhet blir et innlegg der. I forhåndsvisningen velger du hvilke nyheter som skal legges ut. Nyheter som allerede er lagt ut (samme nøkkel), hoppes over. Det som må leses og bekreftes, legges inn som et styrt dokument med `readAckRequired: true`, og nyheten viser til dokumentet.
+
+## `competence`: kompetanse i de ansattes CV
+
+`{ "key", "name", "role"?, "education": [{ "program", "school", "from"?, "to"? }], "certifications": [{ "title" }], "courses": [{ "title", "date"? }] }`
+
+Utdanning, sertifiseringer og kurs legges inn i CV-en til den ansatte i Ansatte (fullt navn må stemme). Ingenting fjernes, og like linjer legges ikke inn to ganger. ISO → Kompetanse leser CV-en. Krav med gyldighet legges i tillegg som `records.kompetanse`.
 
 ## Kravområder (`requirementAreas` / `areaKeys`)
 
@@ -257,6 +263,8 @@ ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `proce
 
 ## Registre og felt
 
+Generert fra `src/iso/registers.js`. Typene `persons` (liste med navn) og `contacts` (liste med `{ role, name, phone, note }`) kobles til de ansatte ved import. `department` er navnet på en avdeling eller underenhet under Selskap.
+
 ### kontekst – Kontekst (statuser: aktiv, arkivert)
 | Felt | Etikett | Type | Påkrevd | Valg |
 |---|---|---|---|---|
@@ -288,7 +296,7 @@ ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `proce
 |---|---|---|---|---|
 | kind | Type | select | ja | Risiko / Mulighet |
 | title | Risiko / mulighet | text | ja |  |
-| category | Kategori | select | ja | strategisk / kvalitet / miljo / arbeidsmiljo / prosjekt / beredskap / leverandor |
+| category | Kategori | select | ja | Strategisk / Kvalitet / Miljø / Arbeidsmiljø / Prosjekt / Beredskap / Leverandør |
 | processId | Prosess | ref → process |  |  |
 | activity | Aktivitet / område | text |  |  |
 | description | Årsaker og konsekvenser | long |  |  |
@@ -314,6 +322,7 @@ ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `proce
 | control | Kontroll eller innflytelse | select |  | Direkte kontroll / Innflytelse |
 | extent | Omfang (1–5) | scale |  |  |
 | severity | Alvorlighet (1–5) | scale |  |  |
+| obligation | Knyttet til samsvarsforpliktelse (lov, tillatelse, kundekrav, Miljøfyrtårn) | select |  | Ja / Nei |
 | significant | Vesentlig | select | ja | Ja / Nei |
 | rationale | Begrunnelse etter kriterier | long | ja |  |
 | controls | Operativ kontroll / tiltak | long |  |  |
@@ -338,6 +347,9 @@ ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `proce
 | title | Fare | text | ja |  |
 | hazardCategory | Farekategori | select |  | Fysisk / Psykososial / Organisatorisk / Ergonomisk / Kjemisk / Biologisk / Sikkerhet |
 | exposed | Utsatte roller | text |  |  |
+| cause | Årsak / kilde til faren | long |  |  |
+| consequence | Mulig konsekvens (skade, sykdom, belastning) | long |  |  |
+| existingControls | Eksisterende barrierer | long |  |  |
 | inherentL | Sannsynlighet | scale |  |  |
 | inherentC | Konsekvens | scale |  |  |
 | hierarchy | Tiltakshierarki | multi |  | Fjerne faren / Erstatte / Tekniske tiltak / Administrative tiltak / Verneutstyr |
@@ -364,6 +376,7 @@ ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `proce
 | title | Scenario | text | ja |  |
 | domain | Område | select |  | HMS / Miljø / Drift / IT |
 | alarm | Varsling og kontaktkjede | long | ja |  |
+| contacts | Interne kontakter (velg blant ansatte) | contacts |  |  |
 | roles | Roller og ansvar | long |  |  |
 | equipment | Utstyr | long |  |  |
 | instructions | Beredskapskort / instruks | long | ja |  |
@@ -490,7 +503,7 @@ ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `proce
 | title | Rolle / stilling | text | ja |  |
 | category | Nivå | select |  | Styre og eiere / Ledelse / Administrasjon / Prosjekt / HMS og vern / Annet |
 | reportsTo | Rapporterer til | text |  |  |
-| department | Avdeling | text |  |  |
+| department | Avdeling | department |  |  |
 | location | Sted | text |  |  |
 | purpose | Formål med rollen | long |  |  |
 | responsibilities | Ansvar | long | ja |  |
@@ -498,7 +511,7 @@ ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `proce
 | mandates | Fullmakter | long |  |  |
 | tasks | Arbeidsoppgaver | long |  |  |
 | qualifications | Kvalifikasjoner og kompetansekrav | long |  |  |
-| holders | Innehaves av | text |  |  |
+| holders | Innehaves av | persons |  |  |
 | ownerName | Eier av beskrivelsen | person |  |  |
 | nextReview | Neste gjennomgang | date |  |  |
 
@@ -533,7 +546,6 @@ ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `proce
 | category | Område | select |  | Ledelse / Kvalitet / Miljø / HMS / Personal / Marked / Økonomi / Annet |
 | responsibleRole | Ansvarlig rolle | text |  |  |
 | ownerName | Ansvarlig person | person |  |  |
-| page | Utføres i ProTop | select |  | ledelse / revisjon / kontekst / risiko / miljo / hms / mal / lovkrav / leverandorer / kompetanse / beredskap / dokumenter / kommunikasjon / organisasjon / avvik |
+| page | Utføres i ProTop | select |  | Ledelsens gjennomgang / Internrevisjon / Kontekst og interessenter / Risiko / Miljø / HMS / Mål og KPI / Lovkrav og samsvar / Leverandører / Kompetanse / Beredskap / Dokumenter / Kommunikasjon / Organisasjon og roller / Avvik og forbedring |
 | description | Beskrivelse | long |  |  |
 | createTasks | Lag oppgave i ProTop når måneden starter | check |  |  |
-

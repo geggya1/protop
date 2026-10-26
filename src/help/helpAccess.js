@@ -123,6 +123,7 @@ export const PROCESS_ACCESS = {
   ferie: [W, R, null, null],
   avvik: [W, S, null, W],
   oppstart: [W, W, R, W, R, W],
+  ledelsessystem: [W, R, R, R, R, null, R],
 };
 
 const ACTION_LABEL = {

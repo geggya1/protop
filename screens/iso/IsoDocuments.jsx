@@ -13,6 +13,7 @@ import { allRequirements, attachEvidence, markForReassessment } from '../../src/
 import { pickDocument, uploadFile } from '../../src/utils/media';
 import { RequirementPicker } from './IsoFindings';
 import IsoMarkdown from './IsoMarkdown';
+import { VisioViewer } from './IsoVisio';
 import {
   Banner, Btn, Card, Check, Choice, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
 } from './isoUi';
@@ -173,6 +174,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
   const [uploading, setUploading] = useState(false);
   const [note, setNote] = useState('');
   const [msg, setMsg] = useState('');
+  const [visio, setVisio] = useState(null);
   const [err, setErr] = useState('');
   const [reqOpen, setReqOpen] = useState(false);
   const [metaOpen, setMetaOpen] = useState(false);
@@ -279,7 +281,13 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
               title={a.label || a.url}
               subtitle={[a.kind === 'original' ? 'Original fra tidligere system' : (a.kind === 'fil' ? 'Fil i ProTop' : 'Lenke'), a.size ? `${Math.max(1, Math.round(a.size / 1024))} kB` : ''].filter(Boolean).join(' · ')}
               onPress={() => a.url && Linking.openURL(a.url).catch(() => {})}
-              right={editable ? <Btn small icon="close" accessibilityLabel={`Fjern vedlegg ${a.label}`} onPress={() => run('Vedlegg fjernet', saveDocumentDraft(doc, { content, changeReason: reason, attachments: (work.attachments || []).filter((_, j) => j !== i) }, { actor }))} /> : null}
+              right={(
+                <Row gap={6} wrap={false}>
+                  {/* Visio-filer lastet opp i ProTop kan vises som prosesskart. Originaler i SharePoint krever innlogging der. */}
+                  {a.kind === 'fil' && /\.vsdx($|\?)/i.test(`${a.label} ${a.path || ''} ${a.url}`) ? <Btn small icon="git-network-outline" label="Vis tegning" onPress={() => setVisio(a)} /> : null}
+                  {editable ? <Btn small icon="close" accessibilityLabel={`Fjern vedlegg ${a.label}`} onPress={() => run('Vedlegg fjernet', saveDocumentDraft(doc, { content, changeReason: reason, attachments: (work.attachments || []).filter((_, j) => j !== i) }, { actor }))} /> : null}
+                </Row>
+              )}
             />
           ))}
           {editable ? (
@@ -371,6 +379,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
       </View>
       <RequirementPicker visible={reqOpen} requirements={requirements} selected={doc.requirementIds || []} onClose={() => setReqOpen(false)} onSave={async (ids) => { setReqOpen(false); await run('Koblinger lagret', { ok: true, document: { ...doc, requirementIds: ids, rev: (doc.rev || 0) + 1 }, events: [] }); }} />
       <MetaSheet ctx={ctx} doc={doc} structure={structure} visible={metaOpen} onClose={() => setMetaOpen(false)} onSave={async (patch) => { const ok = await run('Metadata lagret', saveDocumentDraft(doc, { ...patch, content, changeReason: reason }, { actor, existing: state.documents })); if (ok) setMetaOpen(false); }} />
+      <VisioViewer visible={!!visio} source={visio ? { url: visio.url, path: visio.path } : null} title={visio?.label} wide={wide} onClose={() => setVisio(null)} />
     </Page>
   );
 }

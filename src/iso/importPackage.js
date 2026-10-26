@@ -679,7 +679,7 @@ export function buildImport(state, pkg, {
         importKey: ik,
         title: text(row.title, 140),
         body: text(row.body || markdownToPlain(row.content || ''), 6000),
-        category: ['selskap', 'baerekraft', 'kompetanse', 'prosjekt'].includes(row.category) ? row.category : 'selskap',
+        category: ['selskap', 'baerekraft', 'kompetanse', 'prosjekt', 'ledelsessystem'].includes(row.category) ? row.category : 'selskap',
         linkUrl: text(row.linkUrl, 2000),
       };
       if (!post.title && !post.body) { note('news', row.key, row.title || row.key, 'feil', 'Nyheten har verken tittel eller tekst.'); continue; }

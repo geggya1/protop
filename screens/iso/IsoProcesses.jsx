@@ -16,6 +16,7 @@ import { PROCESS_TEMPLATES, templateByKey } from '../../src/iso/processTemplates
 import IsoDiagram, { fitView } from './IsoDiagram';
 import IsoProcessMap, { sortProcesses } from './IsoProcessMap';
 import IsoMarkdown from './IsoMarkdown';
+import { VisioImportSheet } from './IsoVisio';
 import { riskSummary } from '../../src/iso/registers';
 import { FormFillSheet } from './IsoForms';
 import {
@@ -87,6 +88,7 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
   const [form, setForm] = useState({ title: '', category: 'kjerne', ownerName: '', ownerUid: '', template: '' });
   const [err, setErr] = useState('');
   const [importText, setImportText] = useState('');
+  const [visio, setVisio] = useState(false);
   const live = state.processes.filter((p) => !p.archived && (!q || `${p.code || ''} ${p.title}`.toLowerCase().includes(q.toLowerCase())));
   const visibleToStaff = (p) => caps.manage || p.publishedVersion;
   const mineActive = state.instances.filter((i) => i.state === 'aktiv');
@@ -112,8 +114,14 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
       crumb={['Prosesser']}
       title="Prosesslandskap"
       intro="Ledelses-, kjerne- og støtteprosesser. Klikk en prosess for detaljer, eller start den i daglig arbeid. Bare publiserte versjoner kan brukes."
-      actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny prosess" onPress={() => { setErr(''); setCreating(true); }} /> : null}
+      actions={caps.manage ? (
+        <>
+          <Btn icon="document-attach-outline" label="Importer fra Visio" onPress={() => setVisio(true)} />
+          <Btn kind="primary" icon="add" label="Ny prosess" onPress={() => { setErr(''); setCreating(true); }} />
+        </>
+      ) : null}
     >
+      <VisioImportSheet ctx={ctx} visible={visio} onClose={() => setVisio(false)} onCreated={(id) => { setVisio(false); onDesign(id); }} />
       {mineActive.length ? (
         <Card title="Aktive saker" subtitle="Prosessinstanser som pågår">
           {mineActive.slice(0, 8).map((i) => <ListRow key={i.id} icon="play-circle-outline" title={i.title} subtitle={`${i.processTitle} v${i.version} · startet ${prettyDate(i.startedAt)} av ${i.startedBy}`} onPress={() => onRun(i.id)} />)}

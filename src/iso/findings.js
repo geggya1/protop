@@ -22,9 +22,12 @@ function result(before, after, action, actor, now, reason = '') {
   };
 }
 
-/** Skjermet som standard: personskade/HMS-hendelse. Nestenulykke og miljø er ikke skjermet uten valg. */
+/**
+ * Skjermet som standard: personskade/HMS-hendelse og varsling av kritikkverdige forhold (aml kap. 2 A).
+ * Nestenulykke og miljø er ikke skjermet uten valg.
+ */
 export function defaultRestricted(type) {
-  return type === 'hms';
+  return type === 'hms' || type === 'varsling';
 }
 
 export function validateNewFinding(input) {

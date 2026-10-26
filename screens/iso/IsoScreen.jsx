@@ -28,6 +28,7 @@ import {
   AuditPage, CertificationPage, CompetencePage, ContextPage, EmergencyPage, EnvironmentPage, HmsPage, ObjectivesPage,
   ProjectQualityPage, ReviewPage, RiskPage, SupplierPage,
 } from './IsoRegisters';
+import { AnnualWheelPage, CommunicationPage, OrganizationPage } from './IsoPlanning';
 import { Banner, Btn, Empty, useWide } from './isoUi';
 
 const PAGES = {
@@ -39,7 +40,10 @@ const PAGES = {
   krav: IsoRequirements,
   lovkrav: (props) => <IsoRequirements {...props} legal />,
   kontekst: ContextPage,
+  organisasjon: OrganizationPage,
+  kommunikasjon: CommunicationPage,
   mal: ObjectivesPage,
+  arshjul: AnnualWheelPage,
   risiko: RiskPage,
   miljo: EnvironmentPage,
   hms: HmsPage,

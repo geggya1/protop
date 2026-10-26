@@ -69,7 +69,7 @@ export const REQUIREMENT_AREAS = [
   { key: 'resources', title: 'Ressurser og organisasjonskunnskap', clauses: { ISO9001: '7.1', ISO14001: '7.1', ISO45001: '7.1' }, summary: 'Nødvendige ressurser, måleutstyr og kunnskap er fastsatt og tilgjengelig.', module: 'ledelse' },
   { key: 'competence', title: 'Kompetanse', clauses: { ISO9001: '7.2', ISO14001: '7.2', ISO45001: '7.2' }, summary: 'Kompetansekrav per rolle, dokumentert kompetanse, opplæring og effektvurdering.', module: 'kompetanse' },
   { key: 'awareness', title: 'Bevissthet', clauses: { ISO9001: '7.3', ISO14001: '7.3', ISO45001: '7.3' }, summary: 'Ansatte kjenner policy, mål, eget bidrag og konsekvenser av avvik.', module: 'dokumenter' },
-  { key: 'communication', title: 'Kommunikasjon', clauses: { ISO9001: '7.4', ISO14001: '7.4', ISO45001: '7.4' }, summary: 'Hva, når, med hvem og hvordan det kommuniseres internt og eksternt.', module: 'ledelse' },
+  { key: 'communication', title: 'Kommunikasjon', clauses: { ISO9001: '7.4', ISO14001: '7.4', ISO45001: '7.4' }, summary: 'Hva, når, med hvem og hvordan det kommuniseres internt og eksternt.', module: 'kommunikasjon' },
   { key: 'documented', title: 'Dokumentert informasjon', clauses: { ISO9001: '7.5', ISO14001: '7.5', ISO45001: '7.5' }, summary: 'Styrte dokumenter og registreringer har identifikasjon, godkjenning, versjon og tilgangskontroll.', module: 'dokumenter' },
   { key: 'operation', title: 'Operativ planlegging og styring', clauses: { ISO9001: '8.1', ISO14001: '8.1', ISO45001: '8.1' }, summary: 'Driften planlegges og styres med kriterier, kontrollpunkter og dokumentasjon.', module: 'prosesser' },
   { key: 'requirements', title: 'Krav til produkter og tjenester', clauses: { ISO9001: '8.2', ISO14001: null, ISO45001: null }, summary: 'Kundekrav avklares og kontrakt gjennomgås før aksept, og endringer håndteres.', module: 'prosjekt' },
@@ -145,6 +145,10 @@ export const FINDING_TYPES = [
   { id: 'hms', label: 'HMS-hendelse / personskade', domain: 'HMS' },
   { id: 'nestenulykke', label: 'Nestenulykke / RUH', domain: 'HMS' },
   { id: 'forbedring', label: 'Forbedringsforslag', domain: 'KVALITET' },
+  { id: 'endringsforslag', label: 'Endringsforslag (endring i drift)', domain: 'KVALITET' },
+  { id: 'positiv', label: 'Positiv tilbakemelding', domain: 'KVALITET' },
+  { id: 'omdomme', label: 'Omdømmesak', domain: 'KVALITET' },
+  { id: 'varsling', label: 'Varsling av kritikkverdige forhold', domain: 'HMS' },
 ];
 
 export function findingTypeLabel(id) {

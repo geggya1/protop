@@ -14,6 +14,9 @@ import {
 } from '../../src/iso/processes';
 import { PROCESS_TEMPLATES, templateByKey } from '../../src/iso/processTemplates';
 import IsoDiagram, { fitView } from './IsoDiagram';
+import IsoProcessMap, { sortProcesses } from './IsoProcessMap';
+import IsoMarkdown from './IsoMarkdown';
+import { riskSummary } from '../../src/iso/registers';
 import { FormFillSheet } from './IsoForms';
 import {
   Banner, Btn, Card, Choice, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
@@ -84,7 +87,7 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
   const [form, setForm] = useState({ title: '', category: 'kjerne', ownerName: '', ownerUid: '', template: '' });
   const [err, setErr] = useState('');
   const [importText, setImportText] = useState('');
-  const live = state.processes.filter((p) => !p.archived && (!q || p.title.toLowerCase().includes(q.toLowerCase())));
+  const live = state.processes.filter((p) => !p.archived && (!q || `${p.code || ''} ${p.title}`.toLowerCase().includes(q.toLowerCase())));
   const visibleToStaff = (p) => caps.manage || p.publishedVersion;
   const mineActive = state.instances.filter((i) => i.state === 'aktiv');
 
@@ -116,10 +119,11 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
           {mineActive.slice(0, 8).map((i) => <ListRow key={i.id} icon="play-circle-outline" title={i.title} subtitle={`${i.processTitle} v${i.version} · startet ${prettyDate(i.startedAt)} av ${i.startedBy}`} onPress={() => onRun(i.id)} />)}
         </Card>
       ) : null}
+      {!q ? <IsoProcessMap processes={state.processes.filter(visibleToStaff)} onOpen={onOpen} wide={wide} /> : null}
       <TextIn value={q} onChangeText={setQ} placeholder="Søk i prosesser" />
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
         {PROCESS_CATEGORIES.map((cat) => {
-          const list = live.filter((p) => p.category === cat.id && visibleToStaff(p));
+          const list = sortProcesses(live.filter((p) => p.category === cat.id && visibleToStaff(p)));
           return (
             <Card key={cat.id} title={cat.label} style={{ flex: 1, width: wide ? undefined : '100%' }}>
               {!list.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen prosesser.</Text> : null}
@@ -131,7 +135,7 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
                     key={p.id}
                     nativeID={`iso-proc-${p.id}`}
                     icon="git-network-outline"
-                    title={p.title}
+                    title={`${p.code ? `${p.code} ` : ''}${p.title}`}
                     subtitle={[p.ownerName ? `Eier: ${p.ownerName}` : 'Mangler eier', p.publishedVersion ? `v${p.publishedVersion} publisert` : 'Ikke publisert', draft && caps.manage ? `utkast v${draft.version} (${VERSION_STATES[draft.state]})` : '', running ? `${running} aktive` : ''].filter(Boolean).join(' · ')}
                     right={p.publishedVersion ? <Pill label="I bruk" tone="ok" /> : <Pill label="Utkast" tone="muted" />}
                     onPress={() => onOpen(p.id)}
@@ -182,6 +186,13 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
   useEffect(() => { setViewState(fitView(diagram, wide ? Math.min(width - 340, 1200) : width - 32, 420)); }, [showVersion]); // eslint-disable-line react-hooks/exhaustive-deps
   const instances = state.instances.filter((i) => i.processId === proc.id);
   const context = { forms: state.forms, documents: state.documents, processes: state.processes };
+  const [nodeSel, setNodeSel] = useState(null);
+  const docs = state.documents.filter((d) => !d.archived && ((proc.documentIds || []).includes(d.id) || (d.processIds || []).includes(proc.id)) && (caps.manage || d.publishedRevision));
+  const risks = (state.records?.risiko || []).filter((r) => r.processId === proc.id && !['lukket', 'arkivert'].includes(r.state));
+  // Verdikjeden: hvilke prosesser leder hit, og hvor går den videre.
+  const pointsTo = (p, id) => (publishedVersionOf(p) || (p.versions || []).at(-1))?.diagram?.nodes?.some((n) => n.onClick?.type === 'openProcess' && n.onClick.ref === id);
+  const fromProcs = state.processes.filter((p) => p.id !== proc.id && !p.archived && pointsTo(p, proc.id));
+  const toProcs = state.processes.filter((p) => p.id !== proc.id && !p.archived && diagram.nodes.some((n) => n.onClick?.type === 'openProcess' && n.onClick.ref === p.id));
 
   async function run(label, result, key = 'process', kind = 'processes', previous = proc) {
     setErr(''); setMsg('');
@@ -202,7 +213,7 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
     <Page
       wide={wide}
       back={{ label: 'Prosesslandskap', onPress: onBack }}
-      title={proc.title}
+      title={`${proc.code ? `${proc.code} ` : ''}${proc.title}`}
       intro={proc.purpose}
       actions={(
         <>
@@ -264,10 +275,18 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
         onPan={(o) => setViewState({ ...view, offset: o })}
         onSelectNode={(id) => {
           const node = diagram.nodes.find((n) => n.id === id);
-          if (node) openNodeTarget(ctx, node);
+          if (node) setNodeSel(node);
         }}
         height={wide ? 460 : 380}
       />
+      <Text style={{ color: colors.muted, fontSize: 12 }}>Trykk på en boks for detaljer, dokumenter og hvor trinnet utføres i ProTop.</Text>
+      {fromProcs.length || toProcs.length ? (
+        <Row>
+          {fromProcs.map((p) => <Btn key={p.id} small icon="arrow-back" label={`Fra ${p.code ? `${p.code} ` : ''}${p.title}`} onPress={() => ctx.go('prosesser', { open: p.id })} />)}
+          {toProcs.map((p) => <Btn key={p.id} small icon="arrow-forward" label={`Videre til ${p.code ? `${p.code} ` : ''}${p.title}`} onPress={() => ctx.go('prosesser', { open: p.id })} />)}
+        </Row>
+      ) : null}
+      <NodeSheet ctx={ctx} diagram={diagram} node={nodeSel} onClose={() => setNodeSel(null)} />
       <Row>
         <Btn small icon="remove" accessibilityLabel="Zoom ut" onPress={() => setViewState({ ...view, scale: Math.max(0.3, view.scale - 0.1) })} />
         <Text style={{ color: colors.muted }}>{Math.round(view.scale * 100)} %</Text>
@@ -293,6 +312,10 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
           <KV label="Publisert" value={pub ? `v${pub.version} ${prettyDate(pub.publishedAt)} av ${pub.publishedBy}` : 'Nei'} />
           {version?.rejectNote ? <Banner tone="danger" text={`Avvist: ${version.rejectNote}`} /> : null}
         </Card>
+        <Card title="Styrende dokumenter" subtitle="Prosedyrer, instrukser og maler for prosessen." style={{ flex: 1, width: wide ? undefined : '100%' }}>
+          {!docs.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen dokumenter koblet. Velg dem under «Rediger utkast».</Text> : null}
+          {docs.map((d) => <ListRow key={d.id} icon="document-text-outline" title={`${d.code} · ${d.title}`} subtitle={d.publishedRevision ? `rev. ${d.publishedRevision}` : 'ikke publisert'} onPress={() => ctx.go('dokumenter', { open: d.id })} />)}
+        </Card>
         <Card title="Saker" style={{ flex: 1, width: wide ? undefined : '100%' }}>
           {!instances.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen saker er startet.</Text> : null}
           {instances.slice(0, 20).map((i) => (
@@ -301,6 +324,27 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
         </Card>
       </View>
 
+      {risks.length || caps.manage ? (
+        <Card title="Risiko i prosessen" subtitle="Risikoer og muligheter i ISO → Risiko som er koblet til prosessen.">
+          {!risks.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen risiko koblet. Velg prosessen på risikoposten i ISO → Risiko.</Text> : null}
+          {risks.slice(0, 30).map((r) => {
+            const lv = riskSummary(r, state.system.riskMethod);
+            const shown = lv.residual.score ? lv.residual : lv.inherent;
+            return (
+              <ListRow
+                key={r.id}
+                icon={r.kind === 'Mulighet' ? 'trending-up-outline' : 'warning-outline'}
+                tone={['hoy', 'kritisk'].includes(shown.id) ? 'danger' : (shown.id === 'middels' ? 'warn' : 'muted')}
+                title={`${r.number} · ${r.title}`}
+                subtitle={[r.activity, r.ownerName, shown.score ? `${lv.residual.score ? 'rest' : 'iboende'} ${shown.label} (${shown.score})` : ''].filter(Boolean).join(' · ')}
+                right={r.needsReview ? <Pill label="Må gjennomgås" tone="warn" /> : null}
+                onPress={() => ctx.go('risiko', { open: r.id })}
+              />
+            );
+          })}
+          {risks.length > 30 ? <Text style={{ color: colors.muted, fontSize: 12 }}>+ {risks.length - 30} flere i ISO → Risiko.</Text> : null}
+        </Card>
+      ) : null}
       {caps.approve && draft?.state === 'til_godkjenning' ? (
         <Card title={`Godkjenning av v${draft.version}`} subtitle={`Sendt av ${draft.submittedBy} ${prettyDate(draft.submittedAt)}`}>
           <Row>
@@ -330,15 +374,76 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
   );
 }
 
-/** Klikkhandling på node i lesemodus. */
+/** Har boksen noe å åpne (dokument, skjema, prosess, modul, lenke)? */
+export function nodeHasTarget(node) {
+  const click = node?.onClick || { type: 'none' };
+  return (click.type && click.type !== 'none' && (click.ref || ['openForm', 'openDocument', 'openProcess'].includes(click.type)))
+    || (node?.type === 'form' && node.formKey) || !!node?.documentId || (node?.type === 'subprocess' && node.subprocessId);
+}
+
+/** Navn på det boksen åpner, til knappen i detaljpanelet. */
+export function nodeTargetLabel(ctx, node) {
+  const click = node?.onClick || { type: 'none' };
+  const docId = click.type === 'openDocument' ? (click.ref || node.documentId) : node.documentId;
+  if (click.type === 'openDocument' || (click.type === 'none' && docId)) {
+    const d = (ctx.state.documents || []).find((x) => x.id === docId);
+    return d ? `Åpne ${d.code} ${d.title}` : 'Åpne dokument';
+  }
+  if (click.type === 'openProcess' || node?.type === 'subprocess') {
+    const p = (ctx.state.processes || []).find((x) => x.id === (click.ref || node.subprocessId));
+    return p ? `Gå til ${p.code ? `${p.code} ` : ''}${p.title}` : 'Åpne prosess';
+  }
+  if (click.type === 'openForm' || node?.type === 'form') return 'Fyll ut skjema';
+  if (click.type === 'openModule') return String(click.ref || '').startsWith('tab:') ? `Åpne ${click.ref.slice(4).replace('/', ' → ')}` : 'Åpne i ISO';
+  if (click.type === 'openUrl') return 'Åpne lenke';
+  return 'Åpne';
+}
+
+/** Klikkhandling på node i lesemodus. «tab:anbud/vurdering» åpner en annen ProTop-modul. */
 export function openNodeTarget(ctx, node) {
   const click = node.onClick || { type: 'none' };
   if (click.type === 'openForm' || (click.type === 'none' && node.type === 'form' && node.formKey)) return ctx.go('skjema', { fill: click.ref || node.formKey });
-  if (click.type === 'openDocument' || (node.type === 'document' && node.documentId)) return ctx.go('dokumenter', { open: click.ref || node.documentId });
+  if (click.type === 'openDocument' || (click.type === 'none' && node.documentId)) return ctx.go('dokumenter', { open: click.ref || node.documentId });
   if (click.type === 'openProcess' || (node.type === 'subprocess' && node.subprocessId)) return ctx.go('prosesser', { open: click.ref || node.subprocessId });
-  if (click.type === 'openModule' && click.ref) return ctx.go(click.ref, {});
+  if (click.type === 'openModule' && click.ref) {
+    const ref = String(click.ref);
+    if (ref.startsWith('tab:')) {
+      const [tab, subView] = ref.slice(4).split('/');
+      return ctx.requestTab ? ctx.requestTab(tab, subView) : null;
+    }
+    return ctx.go(ref, {});
+  }
   if (click.type === 'openUrl' && click.ref) return Linking.openURL(click.ref).catch(() => {});
   return null;
+}
+
+/** Detaljer for en boks i prosesskartet: hva, hvem, hvor i ProTop, frist, neste trinn og hva som kan åpnes. */
+function NodeSheet({ ctx, diagram, node, onClose }) {
+  const colors = useColors();
+  if (!node) return null;
+  const type = nodeType(node.type);
+  const role = nodeRole(diagram, node);
+  const outs = diagram.edges.filter((e) => e.from === node.id);
+  return (
+    <Sheet visible={!!node} title={node.label} onClose={onClose} wide={ctx.wide}>
+      <Row>
+        <Pill label={type.label} icon={type.icon} tone="info" />
+        {role ? <Pill label={role.label} icon="person-outline" /> : null}
+        {node.dueDays ? <Pill label={`Frist ${node.dueDays} dager`} icon="time-outline" tone="warn" /> : null}
+      </Row>
+      {node.description ? <IsoMarkdown text={node.description} /> : <Text style={{ color: colors.muted }}>Ingen beskrivelse.</Text>}
+      {node.system ? <KV label="System / datalager" value={node.system} /> : null}
+      {node.inputs ? <KV label="Input" value={node.inputs} /> : null}
+      {node.outputs ? <KV label="Output" value={node.outputs} /> : null}
+      {outs.length ? (
+        <View style={{ gap: 2 }}>
+          <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }}>Neste</Text>
+          {outs.map((e) => <Text key={e.id} style={{ color: colors.muted, fontSize: 13 }}>→ {diagram.nodes.find((n) => n.id === e.to)?.label}{e.label ? ` (${e.label})` : ''}</Text>)}
+        </View>
+      ) : null}
+      {nodeHasTarget(node) ? <Btn kind="primary" icon="open-outline" label={nodeTargetLabel(ctx, node)} onPress={() => { onClose(); openNodeTarget(ctx, node); }} /> : null}
+    </Sheet>
+  );
 }
 
 function ProcessRun({ ctx, instance, onBack }) {
@@ -467,7 +572,7 @@ function ProcessDesigner({ ctx, proc, onBack }) {
   useShellWide(true);
   const draft = draftVersion(proc);
   const [diagram, setDiagram] = useState(() => normalizeDiagram(draft?.diagram || publishedVersionOf(proc)?.diagram || { nodes: [], edges: [] }));
-  const [meta, setMeta] = useState({ title: proc.title, purpose: proc.purpose, ownerName: proc.ownerName, ownerUid: proc.ownerUid, category: proc.category, inputs: proc.inputs, outputs: proc.outputs, kpi: proc.kpi });
+  const [meta, setMeta] = useState({ title: proc.title, code: proc.code || '', order: proc.order || 0, documentIds: proc.documentIds || [], purpose: proc.purpose, ownerName: proc.ownerName, ownerUid: proc.ownerUid, category: proc.category, inputs: proc.inputs, outputs: proc.outputs, kpi: proc.kpi });
   const [past, setPast] = useState([]);
   const [future, setFuture] = useState([]);
   const [sel, setSel] = useState('');
@@ -742,9 +847,19 @@ function ProcessDesigner({ ctx, proc, onBack }) {
           {node.type === 'subprocess' ? (
             <Field label="Underprosess"><Choice small options={state.processes.filter((p) => p.id !== proc.id && !p.archived).map((p) => ({ id: p.id, label: p.title }))} value={node.subprocessId} onChange={(x) => editable && patchNode(node.id, { subprocessId: x, onClick: { type: 'openProcess', ref: x } })} /></Field>
           ) : null}
-          <Field label="Klikkhandling (lesemodus)"><Choice small options={CLICK_ACTIONS} value={node.onClick?.type || 'none'} onChange={(x) => editable && patchNode(node.id, { onClick: { type: x || 'none', ref: node.onClick?.ref || '' } })} /></Field>
+          <Field label="System / datalager" hint="Hvor trinnet utføres eller registreres, f.eks. «ProTop Anbud» eller «Kundens system»."><TextIn value={node.system} onChangeText={(x) => patchNode(node.id, { system: x })} editable={editable} /></Field>
+          <Field label="Klikkhandling (lesemodus)"><Choice small options={CLICK_ACTIONS} value={node.onClick?.type || 'none'} onChange={(x) => editable && patchNode(node.id, { onClick: { type: x || 'none', ref: x === node.onClick?.type ? node.onClick?.ref || '' : '' } })} /></Field>
+          {node.onClick?.type === 'openDocument' ? (
+            <Field label="Dokument"><Choice small options={state.documents.filter((d) => !d.archived).map((d) => ({ id: d.id, label: `${d.code} ${d.title}` }))} value={node.onClick.ref || node.documentId} onChange={(x) => editable && patchNode(node.id, { onClick: { type: 'openDocument', ref: x || '' } })} /></Field>
+          ) : null}
+          {node.onClick?.type === 'openProcess' ? (
+            <Field label="Prosess"><Choice small options={state.processes.filter((p) => p.id !== proc.id && !p.archived).map((p) => ({ id: p.id, label: `${p.code ? `${p.code} ` : ''}${p.title}` }))} value={node.onClick.ref} onChange={(x) => editable && patchNode(node.id, { onClick: { type: 'openProcess', ref: x || '' } })} /></Field>
+          ) : null}
+          {node.onClick?.type === 'openForm' ? (
+            <Field label="Skjema"><Choice small options={(state.forms || []).filter((f) => !f.archived && f.publishedVersion).map((f) => ({ id: f.templateId, label: f.title }))} value={node.onClick.ref || node.formKey} onChange={(x) => editable && patchNode(node.id, { onClick: { type: 'openForm', ref: x || '' } })} /></Field>
+          ) : null}
           {['openModule', 'openUrl'].includes(node.onClick?.type) ? (
-            <Field label={node.onClick.type === 'openUrl' ? 'Lenke' : 'Modul'} hint={node.onClick.type === 'openModule' ? 'F.eks. avvik, risiko, kompetanse, dokumenter' : ''}>
+            <Field label={node.onClick.type === 'openUrl' ? 'Lenke' : 'Modul'} hint={node.onClick.type === 'openModule' ? 'ISO-side (avvik, risiko, leverandorer, dokumenter …) eller annen modul som tab:anbud/vurdering, tab:projects, tab:arbeid/timeliste' : ''}>
               <TextIn value={node.onClick.ref} onChangeText={(x) => patchNode(node.id, { onClick: { ...node.onClick, ref: x } })} editable={editable} />
             </Field>
           ) : null}
@@ -785,12 +900,19 @@ function ProcessDesigner({ ctx, proc, onBack }) {
       ) : (
         <>
           <Field label="Navn"><TextIn value={meta.title} onChangeText={(x) => { setMeta({ ...meta, title: x }); setDirty(true); }} editable={editable} /></Field>
+          <Row>
+            <View style={{ flex: 1, minWidth: 110 }}><Field label="Kode"><TextIn value={meta.code} onChangeText={(x) => { setMeta({ ...meta, code: x }); setDirty(true); }} editable={editable} placeholder="B-01-001" /></Field></View>
+            <View style={{ width: 90 }}><Field label="Rekkefølge"><TextIn keyboardType="numeric" value={String(meta.order || '')} onChangeText={(x) => { setMeta({ ...meta, order: Number(x) || 0 }); setDirty(true); }} editable={editable} /></Field></View>
+          </Row>
           <Field label="Formål"><TextIn multiline rows={2} value={meta.purpose} onChangeText={(x) => { setMeta({ ...meta, purpose: x }); setDirty(true); }} editable={editable} /></Field>
           <Field label="Prosesseier" required><PersonPick people={people} value={meta.ownerName} onChange={(p) => { setMeta({ ...meta, ownerName: p.name, ownerUid: p.uid }); setDirty(true); }} /></Field>
           <Field label="Kategori"><Choice small options={PROCESS_CATEGORIES} value={meta.category} onChange={(x) => { setMeta({ ...meta, category: x || 'kjerne' }); setDirty(true); }} /></Field>
           <Field label="Input"><TextIn value={meta.inputs} onChangeText={(x) => { setMeta({ ...meta, inputs: x }); setDirty(true); }} editable={editable} /></Field>
           <Field label="Output"><TextIn value={meta.outputs} onChangeText={(x) => { setMeta({ ...meta, outputs: x }); setDirty(true); }} editable={editable} /></Field>
           <Field label="KPI"><TextIn value={meta.kpi} onChangeText={(x) => { setMeta({ ...meta, kpi: x }); setDirty(true); }} editable={editable} /></Field>
+          <Field label="Styrende dokumenter" hint="Prosedyrer og maler prosessen bygger på. Vises på prosessen og kan åpnes derfra.">
+            <Choice small multi options={state.documents.filter((d) => !d.archived).map((d) => ({ id: d.id, label: `${d.code} ${d.title}` }))} value={meta.documentIds || []} onChange={(x) => { if (!editable) return; setMeta({ ...meta, documentIds: x }); setDirty(true); }} />
+          </Field>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Velg en boks, kobling eller bane for å redigere den.</Text>
           {(diagram.lanes || []).map((l) => <ListRow key={l.id} icon="reorder-four-outline" title={l.label} onPress={() => { setSelLane(l.id); setSel(''); setMulti([]); setSelEdge(''); }} />)}
         </>

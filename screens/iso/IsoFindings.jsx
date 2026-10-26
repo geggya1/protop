@@ -7,7 +7,7 @@ import {
 } from '../../src/iso/catalog';
 import {
   addAction, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, confirmNotification,
-  createFinding, findingStep, isOpenFinding, recordRootCause, reopenFinding, triageFinding, updateFindingLinks, verifyAction, verifyEffect,
+  createFinding, defaultRestricted, findingStep, isOpenFinding, recordRootCause, reopenFinding, triageFinding, updateFindingLinks, verifyAction, verifyEffect,
 } from '../../src/iso/findings';
 import { canCloseFinding, canManageFinding, visibleFindings } from '../../src/iso/access';
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
@@ -126,7 +126,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   useEffect(() => { if (visible) { setV({ ...blank, ...(prefill || {}) }); setError(''); } }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (val) => setV((x) => ({ ...x, [k]: val }));
   const domain = FINDING_TYPES.find((t) => t.id === v.type)?.domain;
-  const restricted = v.restricted == null ? v.type === 'hms' : v.restricted;
+  const restricted = v.restricted == null ? defaultRestricted(v.type) : v.restricted;
 
   async function save() {
     setBusy(true);

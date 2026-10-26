@@ -126,8 +126,31 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     }
   }, [companyId]);
 
+  /**
+   * Mange entiteter på en gang (import). rows: [{ kind, entity }] der kind er documents | processes | records | requirements …
+   * Vises med en gang, lagres i batcher (uten revisjonslås – bare for nye poster og importens egne oppdateringer).
+   */
+  const commitMany = useCallback(async (rows, events = []) => {
+    const list = (rows || []).filter((r) => r?.entity?.id || r?.kind === 'system');
+    if (!list.length) return { ok: true };
+    const before = stateRef.current;
+    let next = before;
+    for (const { kind, entity } of list) next = replaceIn(next, kind, entity);
+    stateRef.current = next;
+    setState(next);
+    try {
+      await saveMany(companyId, list.filter((r) => r.kind !== 'system'));
+      for (let i = 0; i < events.length; i += 400) await appendAudit(companyId, events.slice(i, i + 400));
+      return { ok: true };
+    } catch (err) {
+      stateRef.current = before;
+      setState(before);
+      return { ok: false, error: err?.message || 'Kunne ikke lagre.' };
+    }
+  }, [companyId]);
+
   return {
-    state, setState, loading, source, loadError, reload, commit, commitLists, runEffects, tasks, refreshTasks, serverIso,
+    state, setState, loading, source, loadError, reload, commit, commitLists, commitMany, runEffects, tasks, refreshTasks, serverIso,
     current: () => stateRef.current,
   };
 }

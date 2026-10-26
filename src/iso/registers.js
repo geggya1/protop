@@ -11,14 +11,52 @@ import { DEFAULT_RISK_METHOD, RISK_CATEGORIES, riskLevel } from './catalog.js';
 
 const opt = (list) => list.map((x) => (typeof x === 'string' ? { id: x, label: x } : x));
 
+/** Kontekstfaktorer: forhold, utfordringer/muligheter (6.1) og SWOT. */
+export const CONTEXT_FACTOR_TYPES = ['Forhold', 'Utfordring', 'Mulighet', 'Styrke', 'Svakhet', 'Trussel'];
+
+/** Leverandørklasser med evalueringsintervall (måneder, 0 = ingen periodisk evaluering). */
+export const SUPPLIER_CLASSES = [
+  { id: 'Kritisk', months: 12, criticality: 'Høy', hint: 'Avgjørende for leveransen, få eller ingen alternativer. Evalueres årlig.' },
+  { id: 'Ikke kritisk – inngår i leveransen', months: 24, criticality: 'Middels', hint: 'Påvirker leveransen. Evalueres hvert 2. år.' },
+  { id: 'Ikke kritisk – inngår ikke i leveransen', months: 60, criticality: 'Lav', hint: 'Inngår ikke i tjenestene. Godkjennes for 5 år.' },
+];
+
+export const ROLE_LEVELS = ['Styre og eiere', 'Ledelse', 'Administrasjon', 'Prosjekt', 'HMS og vern', 'Annet'];
+
+export const COMMUNICATION_CHANNELS = ['Driftsmøte', 'Allmøte', 'Ledermøte', 'E-post', 'ProTop-nyhet', 'ProTop-oppgave', 'Telefon', 'Møte', 'Rapport', 'Nettside', 'Sosiale medier', 'Annet'];
+
+export const MONTH_NAMES = ['Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Desember'];
+
+/** Hvor en årshjulsaktivitet utføres i ISO (side-id). */
+export const ANNUAL_PAGES = [
+  { id: 'ledelse', label: 'Ledelsens gjennomgang' },
+  { id: 'revisjon', label: 'Internrevisjon' },
+  { id: 'kontekst', label: 'Kontekst og interessenter' },
+  { id: 'risiko', label: 'Risiko' },
+  { id: 'miljo', label: 'Miljø' },
+  { id: 'hms', label: 'HMS' },
+  { id: 'mal', label: 'Mål og KPI' },
+  { id: 'lovkrav', label: 'Lovkrav og samsvar' },
+  { id: 'leverandorer', label: 'Leverandører' },
+  { id: 'kompetanse', label: 'Kompetanse' },
+  { id: 'beredskap', label: 'Beredskap' },
+  { id: 'dokumenter', label: 'Dokumenter' },
+  { id: 'kommunikasjon', label: 'Kommunikasjon' },
+  { id: 'organisasjon', label: 'Organisasjon og roller' },
+  { id: 'avvik', label: 'Avvik og forbedring' },
+];
+
 /**
  * Feltskjema per register. type: text | long | date | number | select | multi | person | project | check | scale
+ *   | ref (én post i et annet register, eller ref: 'process' / 'requirement') | refmulti (flere poster i et annet register)
  */
 export const REGISTERS = {
   kontekst: {
     title: 'Kontekst', prefix: 'KON', area: 'context', fields: [
       { key: 'title', label: 'Forhold', type: 'text', required: true },
       { key: 'scope', label: 'Internt / eksternt', type: 'select', options: opt(['Internt', 'Eksternt']), required: true },
+      { key: 'factorType', label: 'Type', type: 'select', options: opt(CONTEXT_FACTOR_TYPES) },
+      { key: 'area', label: 'Område', type: 'text' },
       { key: 'description', label: 'Beskrivelse og påvirkning', type: 'long', required: true },
       { key: 'climate', label: 'Klimarelevant', type: 'select', options: opt(['Ja', 'Nei', 'Ikke vurdert']) },
       { key: 'ownerName', label: 'Eier', type: 'person' },
@@ -29,7 +67,11 @@ export const REGISTERS = {
     title: 'Interessenter', prefix: 'INT', area: 'parties', fields: [
       { key: 'title', label: 'Interessent', type: 'text', required: true },
       { key: 'category', label: 'Kategori', type: 'select', options: opt(['Kunde', 'Ansatte', 'Myndighet', 'Leverandør', 'Eier', 'Nabo/samfunn', 'Annet']) },
+      { key: 'scope', label: 'Intern / ekstern', type: 'select', options: opt(['Intern', 'Ekstern']) },
+      { key: 'parties', label: 'Konkrete parter', type: 'long' },
       { key: 'description', label: 'Behov og forventninger', type: 'long', required: true },
+      { key: 'influence', label: 'Påvirkning på ledelsessystemet', type: 'select', options: opt(['Høy', 'Middels', 'Lav']) },
+      { key: 'followUp', label: 'Hvordan følges forventningene opp', type: 'long' },
       { key: 'binding', label: 'Bindende forpliktelse', type: 'select', options: opt(['Ja', 'Nei']) },
       { key: 'ownerName', label: 'Eier', type: 'person' },
       { key: 'nextReview', label: 'Neste vurdering', type: 'date' },
@@ -40,6 +82,8 @@ export const REGISTERS = {
       { key: 'kind', label: 'Type', type: 'select', options: opt(['Risiko', 'Mulighet']), required: true },
       { key: 'title', label: 'Risiko / mulighet', type: 'text', required: true },
       { key: 'category', label: 'Kategori', type: 'select', options: RISK_CATEGORIES, required: true },
+      { key: 'processId', label: 'Prosess', type: 'ref', ref: 'process' },
+      { key: 'activity', label: 'Aktivitet / område', type: 'text' },
       { key: 'description', label: 'Årsaker og konsekvenser', type: 'long' },
       { key: 'controls', label: 'Eksisterende barrierer', type: 'long' },
       { key: 'inherentL', label: 'Sannsynlighet (iboende)', type: 'scale' },
@@ -145,8 +189,18 @@ export const REGISTERS = {
       { key: 'title', label: 'Leverandør', type: 'text', required: true },
       { key: 'orgnr', label: 'Org.nr.', type: 'text' },
       { key: 'category', label: 'Kategori', type: 'text' },
+      { key: 'services', label: 'Varer / tjenester', type: 'long' },
+      { key: 'supplierClass', label: 'Leverandørklasse', type: 'select', options: opt(SUPPLIER_CLASSES.map((c) => c.id)) },
       { key: 'criticality', label: 'Kritikalitet', type: 'select', options: opt(['Lav', 'Middels', 'Høy']), required: true },
+      { key: 'department', label: 'Avdeling som bruker leverandøren', type: 'text' },
+      { key: 'contactPerson', label: 'Kontaktperson', type: 'text' },
+      { key: 'email', label: 'E-post', type: 'text' },
+      { key: 'phone', label: 'Telefon', type: 'text' },
+      { key: 'address', label: 'Adresse', type: 'text' },
       { key: 'certificates', label: 'Sertifikater', type: 'long' },
+      { key: 'diligence', label: 'Aktsomhetsvurdering (åpenhetsloven)', type: 'select', options: opt(['Utført', 'Ikke utført', 'Ikke relevant']) },
+      { key: 'agreementUrl', label: 'Gyldig avtale (lenke)', type: 'text' },
+      { key: 'deviations', label: 'Registrerte avvik', type: 'select', options: opt(['Nei', 'Ja']) },
       { key: 'approval', label: 'Status', type: 'select', options: opt(['Ikke vurdert', 'Godkjent', 'Betinget godkjent', 'Ikke godkjent']), required: true },
       { key: 'score', label: 'Siste evaluering (1–5)', type: 'scale' },
       { key: 'ownerName', label: 'Ansvarlig', type: 'person' },
@@ -162,6 +216,8 @@ export const REGISTERS = {
       { key: 'baseline', label: 'Utgangsverdi', type: 'number' },
       { key: 'target', label: 'Måltall', type: 'number', required: true },
       { key: 'method', label: 'Målemetode og datakilde', type: 'long', required: true },
+      { key: 'frequency', label: 'Målefrekvens', type: 'select', options: opt(['Måned', 'Kvartal', 'Halvår', 'År']) },
+      { key: 'actions', label: 'Tiltak / handlingsplan', type: 'long' },
       { key: 'ownerName', label: 'Eier', type: 'person', required: true },
       { key: 'deadline', label: 'Frist', type: 'date' },
     ], states: ['aktiv', 'nådd', 'ikke_nådd', 'arkivert'],
@@ -222,10 +278,90 @@ export const REGISTERS = {
       { key: 'ownerName', label: 'Prosjektleder', type: 'person', required: true },
     ], states: ['utkast', 'godkjent', 'avsluttet'],
   },
+  rolle: {
+    title: 'Roller og stillinger', prefix: 'ROL', area: 'roles', fields: [
+      { key: 'title', label: 'Rolle / stilling', type: 'text', required: true },
+      { key: 'category', label: 'Nivå', type: 'select', options: opt(ROLE_LEVELS) },
+      { key: 'reportsTo', label: 'Rapporterer til', type: 'text' },
+      { key: 'department', label: 'Avdeling', type: 'text' },
+      { key: 'location', label: 'Sted', type: 'text' },
+      { key: 'purpose', label: 'Formål med rollen', type: 'long' },
+      { key: 'responsibilities', label: 'Ansvar', type: 'long', required: true },
+      { key: 'authority', label: 'Myndighet', type: 'long' },
+      { key: 'mandates', label: 'Fullmakter', type: 'long' },
+      { key: 'tasks', label: 'Arbeidsoppgaver', type: 'long' },
+      { key: 'qualifications', label: 'Kvalifikasjoner og kompetansekrav', type: 'long' },
+      { key: 'holders', label: 'Innehaves av', type: 'text' },
+      { key: 'ownerName', label: 'Eier av beskrivelsen', type: 'person' },
+      { key: 'nextReview', label: 'Neste gjennomgang', type: 'date' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  myndighet: {
+    title: 'Myndighetsmatrise', prefix: 'MYN', area: 'roles', fields: [
+      { key: 'title', label: 'Aktivitet / beslutning', type: 'text', required: true },
+      { key: 'category', label: 'Kategori', type: 'text', required: true },
+      { key: 'roles', label: 'Roller med myndighet', type: 'refmulti', ref: 'rolle', required: true },
+      { key: 'limit', label: 'Beløpsgrense / vilkår', type: 'text' },
+      { key: 'note', label: 'Merknad', type: 'long' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  kommunikasjon: {
+    title: 'Kommunikasjonsplan', prefix: 'KPL', area: 'communication', fields: [
+      { key: 'title', label: 'Hva kommuniseres', type: 'text', required: true },
+      { key: 'direction', label: 'Intern / ekstern', type: 'select', options: opt(['Intern', 'Ekstern', 'Intern og ekstern']), required: true },
+      { key: 'audience', label: 'Til hvem', type: 'text', required: true },
+      { key: 'purpose', label: 'Hvorfor', type: 'long' },
+      { key: 'when', label: 'Når / hvor ofte', type: 'text', required: true },
+      { key: 'channel', label: 'Kanal', type: 'multi', options: opt(COMMUNICATION_CHANNELS) },
+      { key: 'responsible', label: 'Hvem kommuniserer (rolle)', type: 'text', required: true },
+      { key: 'ownerName', label: 'Ansvarlig person', type: 'person' },
+      { key: 'record', label: 'Hvor dokumenteres det', type: 'text' },
+    ], states: ['aktiv', 'arkivert'],
+  },
+  aarshjul: {
+    title: 'Årshjul', prefix: 'AHJ', area: 'review', fields: [
+      { key: 'title', label: 'Aktivitet', type: 'text', required: true },
+      { key: 'months', label: 'Måned(er)', type: 'multi', options: opt(MONTH_NAMES), required: true },
+      { key: 'frequency', label: 'Hyppighet', type: 'select', options: opt(['Årlig', 'Halvårlig', 'Kvartalsvis', 'Månedlig', 'Ved behov']) },
+      { key: 'category', label: 'Område', type: 'select', options: opt(['Ledelse', 'Kvalitet', 'Miljø', 'HMS', 'Personal', 'Marked', 'Økonomi', 'Annet']) },
+      { key: 'responsibleRole', label: 'Ansvarlig rolle', type: 'text' },
+      { key: 'ownerName', label: 'Ansvarlig person', type: 'person' },
+      { key: 'page', label: 'Utføres i ProTop', type: 'select', options: ANNUAL_PAGES },
+      { key: 'description', label: 'Beskrivelse', type: 'long' },
+      { key: 'createTasks', label: 'Lag oppgave i ProTop når måneden starter', type: 'check' },
+    ], states: ['aktiv', 'arkivert'],
+  },
 };
 
 export function registerDef(key) {
   return REGISTERS[key] || null;
+}
+
+/** ISO-siden der et register vises (for lenker fra oversikt, årshjul og import). */
+const REGISTER_PAGES = {
+  kontekst: 'kontekst', interessent: 'kontekst', risiko: 'risiko', miljoaspekt: 'miljo', miljodata: 'miljo', fare: 'hms', medvirkning: 'hms',
+  beredskap: 'beredskap', kompetansekrav: 'kompetanse', kompetanse: 'kompetanse', leverandor: 'leverandorer', mal: 'mal', samsvar: 'lovkrav',
+  revisjon: 'revisjon', ledelse: 'ledelse', sertifikat: 'sertifisering', kvalitetsplan: 'prosjekt', rolle: 'organisasjon', myndighet: 'organisasjon',
+  kommunikasjon: 'kommunikasjon', aarshjul: 'arshjul',
+};
+
+export function registerPage(key) {
+  return REGISTER_PAGES[key] || 'oversikt';
+}
+
+/** Poster merket «Må gjennomgås», per register (flest først). */
+export function recordsNeedingReview(records) {
+  return Object.entries(records || {})
+    .map(([key, rows]) => ({ key, title: REGISTERS[key]?.title || key, page: registerPage(key), count: (rows || []).filter((r) => r?.needsReview && r.state !== 'arkivert').length }))
+    .filter((x) => x.count)
+    .sort((a, b) => b.count - a.count);
+}
+
+/** Leverandørklassen gir kritikalitet når den ikke er satt. */
+function withDefaults(key, values) {
+  if (key !== 'leverandor' || !values?.supplierClass || values.criticality) return values;
+  const cls = SUPPLIER_CLASSES.find((c) => c.id === values.supplierClass);
+  return cls ? { ...values, criticality: cls.criticality } : values;
 }
 
 function showField(field, values) {
@@ -262,20 +398,28 @@ function clean(key, values) {
     const v = values?.[f.key];
     if (v === undefined) continue;
     if (f.type === 'number' || f.type === 'scale') out[f.key] = v === '' || v == null ? null : Number(String(v).replace(',', '.'));
-    else if (f.type === 'multi') out[f.key] = uniq(v);
+    else if (f.type === 'multi' || f.type === 'refmulti') out[f.key] = uniq(Array.isArray(v) ? v : [v]);
     else if (f.type === 'check') out[f.key] = !!v;
     else if (f.type === 'date') out[f.key] = isoDate(v);
     else out[f.key] = text(v, f.type === 'long' ? 6000 : 400);
   }
-  for (const extra of ['ownerUid', 'personUid', 'auditorUid', 'projectName', 'requirementIds', 'linkedFindingIds']) {
+  for (const extra of ['ownerUid', 'personUid', 'auditorUid', 'projectName', 'requirementIds', 'linkedFindingIds', 'importKey']) {
     if (values?.[extra] !== undefined) out[extra] = Array.isArray(values[extra]) ? uniq(values[extra]) : text(values[extra], 300);
   }
+  // Til gjennomgang: f.eks. importert post der kilden manglet opplysninger (ansvarlig, frist …).
+  if (values?.needsReview !== undefined) out.needsReview = !!values.needsReview;
+  if (values?.reviewNote !== undefined) out.reviewNote = text(values.reviewNote, 1000);
+  // Opphav (import fra tidligere system). Eget navn: «source» er et vanlig tekstfelt i noen registre.
+  if (values?.origin !== undefined) out.origin = values.origin && typeof values.origin === 'object'
+    ? { system: text(values.origin.system, 120), ref: text(values.origin.ref, 300), url: text(values.origin.url, 2000) }
+    : null;
   return out;
 }
 
 export function createRecord(key, values, { actor, existing = [], now = new Date(), riskMethod = DEFAULT_RISK_METHOD } = {}) {
   const def = registerDef(key);
   if (!def) return fail('Ukjent register.');
+  values = withDefaults(key, values);
   const errors = validateRecord(key, values);
   if (errors.length) return fail(errors[0], { errors });
   const data = clean(key, values);
@@ -297,6 +441,7 @@ export function createRecord(key, values, { actor, existing = [], now = new Date
 export function updateRecord(record, values, { actor, now = new Date(), note = '' } = {}) {
   if (!record) return fail('Fant ikke posten.');
   if (record.locked) return fail('Posten er godkjent og låst. Lag ny vurdering.');
+  if (record.register === 'leverandor') values = withDefaults('leverandor', { supplierClass: record.supplierClass, criticality: record.criticality, ...values });
   const merged = { ...record, ...values };
   const errors = validateRecord(record.register, merged);
   if (errors.length) return fail(errors[0], { errors });

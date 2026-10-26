@@ -224,6 +224,8 @@ open_queued
 
 deploy_entry pushIndex.js functions:onChatMessageCreated,functions:onFriendChatMessageCreated
 deploy_entry vacationPlanDailyIndex.js functions:vacationPlanDaily
+deploy_entry aiCleanupIndex.js functions:aiCleanupScheduled
+deploy_entry indeksSsbDailyIndex.js functions:indeksSsbDaily
 
 node --input-type=module -e "
 import { readFileSync, writeFileSync } from 'node:fs';

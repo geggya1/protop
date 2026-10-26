@@ -535,7 +535,7 @@ export function buildImport(state, pkg, {
   /* Prosessstatus. */
   // Skjema i pakken godkjennes før prosessene publiseres (se IsoImport), så de regnes som styrte her.
   const plannedForms = want('forms') && (!caps || caps.approve)
-    ? pkg.forms.filter((r) => r.approve !== false).map((r) => ({ templateId: refs.forms.get(r.key), publishedVersion: 1, planned: true }))
+    ? pkg.forms.filter((r) => r.approve !== false && !/^ks_/.test(refs.forms.get(r.key) || '')).map((r) => ({ templateId: refs.forms.get(r.key), publishedVersion: 1, planned: true }))
     : [];
   const context = {
     forms: [...(state.forms || []), ...plannedForms],
@@ -640,6 +640,8 @@ export function buildImport(state, pkg, {
       const lib = existingTemplateFor(row, anbudTemplates);
       if (lib) {
         const control = (state.forms || []).find((c) => c.templateId === lib.id && !c.archived);
+        // Maler fra KS-biblioteket godkjennes i Skjemabygger → Dokumentstyring, ikke i ISO (én godkjenning).
+        if (/^ks_/.test(lib.id)) { note('forms', row.key, row.title, 'finnes', `Bruker «${lib.title}» fra KS-biblioteket. Godkjennes i Skjemabygger → Dokumentstyring.`); continue; }
         if (control?.publishedVersion || row.approve === false) { note('forms', row.key, row.title, 'finnes', `Bruker «${lib.title}» som allerede ligger i Skjemabygger.`); continue; }
         out.forms.push({ key: row.key, approve: true, existing: true, template: lib });
         note('forms', row.key, row.title, 'ny', `«${lib.title}» ligger allerede i Skjemabygger og godkjennes som styrt skjema. Ingen kopi lages.`);

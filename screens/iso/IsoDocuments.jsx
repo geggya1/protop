@@ -14,6 +14,7 @@ import { pickDocument, uploadFile } from '../../src/utils/media';
 import { RequirementPicker } from './IsoFindings';
 import IsoMarkdown from './IsoMarkdown';
 import { VisioViewer } from './IsoVisio';
+import { externalDocumentRows } from '../../src/iso/docControlLink';
 import {
   Banner, Btn, Card, Check, Choice, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
 } from './isoUi';
@@ -50,6 +51,7 @@ export default function IsoDocuments({ ctx }) {
     if (params?.create && caps.manage) { setErr(''); setForm({ ...blank, ...(params.prefill || {}) }); setCreating(true); }
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
   const structure = useMemo(() => normalizeDocStructure(state.system?.docStructure), [state.system?.docStructure]);
+  const external = useMemo(() => externalDocumentRows(ctx.sources?.docControls), [ctx.sources?.docControls]);
   const folders = useMemo(() => structure.flatMap((p) => p.folders.map((f) => ({ ...f, part: p.code }))), [structure]);
 
   const doc = state.documents.find((d) => d.id === openId) || null;
@@ -137,6 +139,20 @@ export default function IsoDocuments({ ctx }) {
             );
           })}
           {loose.length ? <Card title="Uten mappe" subtitle={`${loose.length} dokumenter`}>{loose.map(row)}</Card> : null}
+          {external.length ? (
+            <Card title="Styres i andre moduler" subtitle="Personalhåndboka og malene i KS-biblioteket har egen godkjenning og lesekrav der de redigeres. De er med her så dokumentoversikten er komplett (ISO 7.5).">
+              {external.map((x) => (
+                <ListRow
+                  key={x.id}
+                  icon={x.kind === 'handbook' ? 'book-outline' : 'clipboard-outline'}
+                  tone={x.waiting ? 'warn' : 'muted'}
+                  title={`${x.code ? `${x.code} · ` : ''}${x.title}`}
+                  subtitle={[x.status, x.approvedBy ? `godkjent av ${x.approvedBy}` : '', x.nextReview ? `gjennomgås ${prettyDate(x.nextReview)}` : '', x.where].filter(Boolean).join(' · ')}
+                  right={ctx.requestTab ? <Btn small label="Åpne" onPress={() => ctx.requestTab(x.link.tab, x.link.subView || undefined)} /> : null}
+                />
+              ))}
+            </Card>
+          ) : null}
         </>
       ) : (visible.length ? <Card title={`${visible.length} dokumenter`}>{visible.map(row)}</Card> : null)}
       <Sheet visible={creating} title="Nytt dokument" onClose={() => setCreating(false)} footer={<><Btn label="Avbryt" onPress={() => setCreating(false)} /><Btn kind="primary" label="Opprett" onPress={create} /></>}>

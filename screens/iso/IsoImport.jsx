@@ -112,7 +112,8 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
     const lines = [];
     const say = (line) => { lines.push(line); setLog([...lines]); };
     try {
-      const current = store.current();
+      // Med skjemaene som er godkjent i Dokumentstyring (KS-biblioteket), så prosesser som bruker dem kan publiseres.
+      const current = { ...store.current(), forms: state.forms };
       const built = buildImport(current, parsed.pkg, { actor, caps, options, ...extra });
       const { out } = built;
 

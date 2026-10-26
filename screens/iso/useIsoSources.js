@@ -14,6 +14,7 @@ import { companyComplianceOverview } from '../../src/hr/compliance';
 import { normalizeFormTemplates } from '../../src/anbud/bidLibrary';
 import { addDays, todayKey } from '../../src/iso/core';
 import { loadProjectExpenses, mergeExpenseLists } from '../../src/economy/expenseStorage';
+import { loadDocControls } from '../../src/iso/storage';
 
 export function useIsoSources({ familyId, family, canManage = false, canSeeHr = false }) {
   const [employees, setEmployees] = useState([]);
@@ -23,6 +24,7 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
   const [stamp, setStamp] = useState(0);
   // Utlegg importert i bulk ligger i egen samling (projectExpenses); leverandørforslagene skal se alle.
   const [extraExpenses, setExtraExpenses] = useState([]);
+  const [docControls, setDocControls] = useState([]);
 
   useEffect(() => {
     if (!familyId) return undefined;
@@ -46,6 +48,13 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
     let live = true;
     if (!familyId) return undefined;
     loadAnbudState(familyId).then((s) => { if (live) setAnbud(s); }).catch(() => {});
+    return () => { live = false; };
+  }, [familyId, stamp]);
+
+  useEffect(() => {
+    let live = true;
+    if (!familyId) return undefined;
+    loadDocControls(familyId).then((rows) => { if (live) setDocControls(rows || []); }).catch(() => {});
     return () => { live = false; };
   }, [familyId, stamp]);
 
@@ -104,6 +113,7 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
       formTemplates: anbud ? normalizeFormTemplates(anbud.formTemplates) : [],
       hrOverview,
       reloadAnbud,
+      docControls,
     };
-  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses]);
+  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses, docControls]);
 }

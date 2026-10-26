@@ -14,6 +14,7 @@ import {
   FORM_TEMPLATES, NATIVE_FORMS, approveTemplate, builderTemplateFromIso, controlledVersion, driftStatus, recommendedFormKeys,
   releaseControl, submitControlled, templateIdFor,
 } from '../../src/iso/forms';
+import { isDocControlledTemplate } from '../../src/iso/docControlLink';
 import {
   Banner, Btn, Card, Check, Choice, DateIn, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
 } from './isoUi';
@@ -39,7 +40,7 @@ export default function IsoForms({ ctx }) {
   const list = templates.filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase()));
   const controlled = list.filter((t) => controlByTemplate.has(t.id));
   const others = list.filter((t) => !controlByTemplate.has(t.id));
-  const orphans = controls.filter((c) => !templates.some((t) => t.id === c.templateId));
+  const orphans = controls.filter((c) => !c.external && !templates.some((t) => t.id === c.templateId));
 
   async function install(keys) {
     setErr(''); setMsg(''); setBusy('install');
@@ -109,8 +110,8 @@ export default function IsoForms({ ctx }) {
               subtitle={`v${c.publishedVersion} godkjent ${prettyDate(controlledVersion(c)?.approvedAt)} av ${controlledVersion(c)?.approvedBy} · ${regs} registreringer${(t.responses || []).length ? ` · ${t.responses.length} svar i Skjemabygger` : ''}`}
               right={(
                 <Row wrap={false}>
-                  <Pill label={DRIFT[drift].label} tone={DRIFT[drift].tone} />
-                  {drift === 'endret' && caps.approve ? <Btn small label="Godkjenn" onPress={() => approve(t)} /> : null}
+                  {c.external ? <Pill label="Styres i Dokumentstyring" icon="shield-checkmark-outline" tone="info" /> : <Pill label={DRIFT[drift].label} tone={DRIFT[drift].tone} />}
+                  {!c.external && drift === 'endret' && caps.approve ? <Btn small label="Godkjenn" onPress={() => approve(t)} /> : null}
                   <Btn small kind="primary" label="Fyll ut" onPress={() => setFillId(t.id)} />
                 </Row>
               )}
@@ -121,7 +122,15 @@ export default function IsoForms({ ctx }) {
       {caps.manage ? (
         <Card title={`Andre skjema i Skjemabygger (${others.length})`} subtitle="Godkjenn et skjema for å bruke det som styrt skjema i ISO.">
           {others.map((t) => (
-            <ListRow key={t.id} icon="document-text-outline" title={t.title} subtitle={`${(t.fields || []).length} felt${t.intro ? ` · ${t.intro}` : ''}`} right={caps.approve ? <Btn small label="Godkjenn for ISO" onPress={() => approve(t)} /> : null} />
+            <ListRow
+              key={t.id}
+              icon="document-text-outline"
+              title={t.title}
+              subtitle={`${(t.fields || []).length} felt${t.intro ? ` · ${t.intro}` : ''}${isDocControlledTemplate(t.id) ? ' · godkjennes i Skjemabygger → Dokumentstyring' : ''}`}
+              right={isDocControlledTemplate(t.id)
+                ? (requestTab ? <Btn small label="Åpne Dokumentstyring" onPress={() => requestTab('skjema')} /> : null)
+                : (caps.approve ? <Btn small label="Godkjenn for ISO" onPress={() => approve(t)} /> : null)}
+            />
           ))}
           {!others.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen.</Text> : null}
         </Card>

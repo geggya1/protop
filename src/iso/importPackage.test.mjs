@@ -235,14 +235,16 @@ test('skjema som finnes i Skjemabygger (KS-biblioteket) brukes i stedet for en k
   assert.equal(existingTemplateFor(form, [{ id: 'ks_x', title: 'SJA', doc: { docId: 'C1-B-03-003' } }]).id, 'ks_x');
   assert.equal(existingTemplateFor(form, [{ ...lib, importKey: 'x:forms:sja' }]), null);
   const built = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, anbudTemplates: [lib] });
-  assert.equal(built.out.forms.length, 1);
-  assert.equal(built.out.forms[0].existing, true);
-  assert.equal(built.out.forms[0].template.id, 'ks_sja');
-  // Allerede styrt skjema: ingenting å gjøre.
-  const state = emptyIsoState();
-  state.forms = [{ id: 'f1', templateId: 'ks_sja', publishedVersion: 1 }];
-  const again = buildImport(state, p, { actor: BOSS, caps: ADMIN, now: NOW, anbudTemplates: [lib] });
-  assert.equal(again.out.forms.length, 0);
+  // KS-malen godkjennes i Skjemabygger → Dokumentstyring, ikke i ISO: ingen kopi og ingen ISO-godkjenning.
+  assert.equal(built.out.forms.length, 0);
+  assert.match(built.plan.forms[0].message, /Dokumentstyring/);
+  assert.equal(built.refs.forms.get('sja'), 'ks_sja', 'prosesser peker til bibliotekmalen');
+  // En vanlig mal i Skjemabygger (ikke ks_) godkjennes i ISO uten kopi.
+  const own = { id: 'tpl_egen', libraryKey: 'egen', title: 'Egen', fields: [{ id: 'a', kind: 'text', label: 'Hva' }] };
+  const { pkg: q } = parsePackage({ ...base, forms: [{ ...form, key: 'egen', libraryKey: 'egen', source: {} }] });
+  const b2 = buildImport(emptyIsoState(), q, { actor: BOSS, caps: ADMIN, now: NOW, anbudTemplates: [own] });
+  assert.equal(b2.out.forms.length, 1);
+  assert.equal(b2.out.forms[0].existing, true);
 });
 
 test('gjenkjenning av bibliotekmal tåler Skjemabyggers normalisering (bare id-en er igjen)', async () => {

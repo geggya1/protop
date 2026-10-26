@@ -393,6 +393,18 @@ export async function ensureTask(companyId, { key, title, description = '', assi
   }
 }
 
+/** Dokumentstyringen i Skjemabygger og HR (malene og personalhåndboka). Tom liste uten tilgang. */
+export async function loadDocControls(companyId) {
+  const id = cid(companyId);
+  if (!id) return [];
+  try {
+    const snap = await getDocs(col(id, 'docControl'));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch {
+    return [];
+  }
+}
+
 /** Status for oppgaver ISO har opprettet (lest fra Oppgaver), nøkkel → { done, assignedTo }. */
 export async function loadIsoTasks(companyId) {
   const id = cid(companyId);

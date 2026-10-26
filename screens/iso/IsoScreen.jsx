@@ -15,6 +15,7 @@ import { approverUidsFromRoles, isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
 import { autoQualityPlans, autoTaskEffects } from '../../src/iso/integrations';
 import { createRecord } from '../../src/iso/registers';
+import { externalFormControls, mergeForms } from '../../src/iso/docControlLink';
 import { useIsoStore } from './useIsoStore';
 import { useIsoSources } from './useIsoSources';
 import IsoDashboard from './IsoDashboard';
@@ -142,8 +143,14 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     scrollRef.current?.scrollTo?.({ y: 0, animated: false });
   }, [page, requestShellTab]);
 
+  // Maler fra KS-biblioteket godkjennes i Skjemabygger → Dokumentstyring. ISO bruker den godkjente versjonen.
+  const viewState = useMemo(() => {
+    const external = externalFormControls(sources.docControls, sources.formTemplates);
+    return external.length ? { ...store.state, forms: mergeForms(store.state.forms, external) } : store.state;
+  }, [store.state, sources.docControls, sources.formTemplates]);
+
   const ctx = {
-    state: store.state,
+    state: viewState,
     store,
     caps,
     actor,

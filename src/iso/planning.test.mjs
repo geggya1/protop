@@ -139,3 +139,22 @@ test('leverandørevaluering og endringsvurdering erstatter egne skjema', async (
     assert.ok(!recommendedFormKeys(['ISO9001', 'ISO14001', 'ISO45001']).includes(k));
   }
 });
+
+test('dokumentstyring: godkjente KS-maler blir styrte skjema i ISO, uten egen ISO-godkjenning', async () => {
+  const { externalFormControls, externalDocumentRows, mergeForms, isDocControlledTemplate } = await import('./docControlLink.js');
+  const controls = [
+    { id: 'tpl_ks_sja', kind: 'template', refId: 'ks_sja', title: 'SJA', publishedRevision: 2, revisions: [{ revision: 2, state: 'publisert', approvedBy: 'Kari', snapshot: { fields: [{ id: 'f1', kind: 'text', label: 'Arbeid' }] } }, { revision: 3, state: 'til_gjennomgang' }] },
+    { id: 'tpl_ks_el', kind: 'template', refId: 'ks_el', title: 'El', publishedRevision: 0, revisions: [{ revision: 1, state: 'utkast' }] },
+    { id: 'handbook', kind: 'handbook', title: 'Personalhåndbok', publishedRevision: 1, revisions: [{ revision: 1, state: 'publisert' }] },
+  ];
+  const ext = externalFormControls(controls, []);
+  assert.equal(ext.length, 1);
+  assert.equal(ext[0].templateId, 'ks_sja');
+  assert.equal(ext[0].publishedVersion, 2);
+  assert.equal(ext[0].versions[0].fields[0].label, 'Arbeid');
+  assert.equal(mergeForms([{ id: 'f', templateId: 'ks_sja', publishedVersion: 1 }], ext).length, 1, 'ISO-kontroll for samme mal vinner');
+  const rows = externalDocumentRows(controls);
+  assert.equal(rows.find((r) => r.id === 'handbook').where, 'HR → Personalhåndbok');
+  assert.ok(rows.find((r) => r.id === 'tpl_ks_sja').waiting);
+  assert.ok(isDocControlledTemplate('ks_sja') && !isDocControlledTemplate('iso_sf12_sja'));
+});

@@ -9,6 +9,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { buildJoinRequest } from '../src/project/companyRegistry.js';
 import { isConfirmedMember } from '../src/utils/groupInviteLogic.js';
+import { companyRecipients } from '../src/notifications/audience.js';
 import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
 
 if (!getApps().length) initializeApp();
@@ -58,7 +59,10 @@ export const findCompanyByOrgnr = onCall(CALL, async (req) => {
   };
 });
 
-/** Be om å bli med. Eier og administratorer får varsel og kan invitere personen. */
+/**
+ * Be om å bli med. Varselet går til dem som kan invitere: eier, administratorer og de
+ * som har Admin på Ansatte i tilgangsstyringen (Øverste leder og Administrator som standard).
+ */
 export const requestCompanyJoin = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);
   const companyId = text(req.data?.companyId);
@@ -91,10 +95,11 @@ export const requestCompanyJoin = onCall(CALL, async (req) => {
     updatedAt: at,
   });
 
-  const admins = [...new Set([company.ownerUid, company.ownerId, ...(company.adminUids || [])].map(text).filter(Boolean))]
-    .filter((id) => id !== uid);
+  const employees = (await db.collection(`families/${companyId}/employees`).get())
+    .docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const recipients = companyRecipients({ family: company, employees, type: 'companyJoinRequest', exclude: [uid] });
   const who = [name, email && `(${email})`].filter(Boolean).join(' ') || 'En bruker';
-  await Promise.all(admins.map((adminUid) => db.collection(`users/${adminUid}/notifications`).add({
+  await Promise.all(recipients.map((recipient) => db.collection(`users/${recipient}/notifications`).add({
     eventType: 'companyJoinRequest',
     title: 'Forespørsel om å bli med',
     body: `${who} ber om å bli med i «${label(company)}». Inviter personen under Ansatte → Inviter brukere.`,

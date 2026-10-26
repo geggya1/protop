@@ -63,6 +63,7 @@ const ACCESS_MENU = [
         id: 'employees',
         label: 'Ansatte',
         icon: 'id-card',
+        hint: 'Admin kan invitere, og får varsel når noen ber om å bli med i bedriften.',
         children: [
           { id: 'ownProfile', label: 'Egen profil', icon: 'person-circle-outline' },
         ],

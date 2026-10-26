@@ -7,6 +7,10 @@
  * Bare brukerens egne valg lagres. Ellers gjelder standarden her, så nye standarder virker for alle.
  * Eldre innstillinger (uten version) hadde standardverdier skrevet inn uten at brukeren valgte dem,
  * og e-post ble aldri sendt. Fra dem brukes bare «enabled».
+ *
+ * Hvem som kan få en type, styres av rettighetene (se audience.js):
+ * scope 'company' = bare i bedrifter, 'family' = bare i familier,
+ * access = krever rettigheten i bedriftens tilgangsmatrise (ressurs og trinn).
  */
 export const PREFS_VERSION = 2;
 
@@ -14,7 +18,8 @@ export const NOTIFICATION_GROUPS = [
   { id: 'work', label: 'Jobb og bedrift' },
   { id: 'messages', label: 'Meldinger' },
   { id: 'calendar', label: 'Kalender og påminnelser' },
-  { id: 'social', label: 'Venner, familie og deling' },
+  { id: 'home', label: 'Hjem og familie' },
+  { id: 'social', label: 'Venner og deling' },
 ];
 
 // push/email: true = på som standard, false = av som standard,
@@ -22,23 +27,35 @@ export const NOTIFICATION_GROUPS = [
 // recommended: de viktigste varslene, merket «Anbefalt» på innstillingssiden.
 export const NOTIFICATION_TYPES = [
   { id: 'taskReceived', group: 'work', label: 'Oppgave tildelt deg', push: true, email: true, recommended: true },
-  { id: 'companyJoinRequest', group: 'work', label: 'Noen ber om å bli med i bedriften', push: true, email: true, recommended: true },
+  {
+    id: 'companyJoinRequest', group: 'work', label: 'Noen ber om å bli med i bedriften', push: true, email: true, recommended: true,
+    scope: 'company', access: { resource: 'employees', action: 'write' },
+  },
   { id: 'join_request_approved', group: 'work', label: 'Forespørselen din om å bli med er godkjent', push: true, email: true, recommended: true },
   { id: 'familyInvite', group: 'work', label: 'Invitasjon til bedrift eller gruppe', push: true, email: 'own', recommended: true },
   { id: 'familyInviteAccepted', group: 'work', label: 'Noen godtok invitasjonen din', push: true, email: false },
   { id: 'familyInviteDeclined', group: 'work', label: 'Noen avslo invitasjonen din', push: true, email: false },
-  { id: 'attestPending', group: 'work', label: 'Noe venter på godkjenning', push: true, email: false, recommended: true },
-  { id: 'documentApproval', group: 'work', label: 'Dokument venter på din godkjenning', push: true, email: true, recommended: true },
-  { id: 'documentPublished', group: 'work', label: 'Ny versjon av et dokument du skal lese', push: true, email: true, recommended: true },
-  { id: 'documentComment', group: 'work', label: 'Ny merknad til et dokument du har ansvar for', push: true, email: false },
-  { id: 'vacationPlan', group: 'work', label: 'Ferieplan', push: true, email: 'own', recommended: true },
-  { id: 'companyWallPost', group: 'work', label: 'Nytt innlegg på bedriftsveggen', push: false, email: false },
+  { id: 'attestPending', group: 'home', label: 'Barnets gjøremål venter på attestering', push: true, email: false, recommended: true, scope: 'family' },
+  {
+    id: 'documentApproval', group: 'work', label: 'Dokument venter på din godkjenning', push: true, email: true, recommended: true,
+    scope: 'company', audience: 'Godkjennere i dokumentstyringen',
+  },
+  {
+    id: 'documentPublished', group: 'work', label: 'Ny versjon av et dokument du skal lese', push: true, email: true, recommended: true,
+    scope: 'company', audience: 'Ansatte når et dokument med lesekrav får ny versjon',
+  },
+  {
+    id: 'documentComment', group: 'work', label: 'Ny merknad til et dokument du har ansvar for', push: true, email: false,
+    scope: 'company', audience: 'Dokumentets eier og godkjenner, og lesere av merknader',
+  },
+  { id: 'vacationPlan', group: 'work', label: 'Ferieplan', push: true, email: 'own', recommended: true, scope: 'company', audience: 'Alle ansatte' },
+  { id: 'companyWallPost', group: 'work', label: 'Nytt innlegg på bedriftsveggen', push: false, email: false, scope: 'company', audience: 'Alle i bedriften' },
   { id: 'messageReceived', group: 'messages', label: 'Ny melding i chat', push: true, email: false, recommended: true },
   { id: 'wallPost', group: 'messages', label: 'Nytt innlegg på veggen', push: false, email: false },
   { id: 'eventCreated', group: 'calendar', label: 'Ny eller endret avtale', push: true, email: false },
-  { id: 'choreReceived', group: 'calendar', label: 'Ny oppgave hjemme', push: true, email: false },
+  { id: 'choreReceived', group: 'home', label: 'Ny oppgave hjemme', push: true, email: false },
   { id: 'birthdayReminder', group: 'calendar', label: 'Bursdagspåminnelse', push: true, email: false },
-  { id: 'boligReminder', group: 'calendar', label: 'Påminnelse om bolig', push: true, email: false },
+  { id: 'boligReminder', group: 'home', label: 'Påminnelse om bolig', push: true, email: false },
   { id: 'locationGeofence', group: 'calendar', label: 'Kommet frem eller dratt (posisjon)', push: true, email: false },
   { id: 'friendInvite', group: 'social', label: 'Venneforespørsel', push: true, email: 'own', recommended: true },
   { id: 'friendInviteAccepted', group: 'social', label: 'Noen godtok venneforespørselen', push: true, email: false },
@@ -57,6 +74,15 @@ const CHANNELS = ['push', 'email'];
 
 export function notificationType(id) {
   return BY_ID.get(String(id || '')) || { id: String(id || ''), ...OTHER };
+}
+
+/** Rettigheten som kreves i bedriften, eller null når alle kan få typen. */
+export function notificationAccess(id) {
+  return notificationType(id).access || null;
+}
+
+export function notificationScope(id) {
+  return notificationType(id).scope || '';
 }
 
 export function hasOwnEmail(id) {

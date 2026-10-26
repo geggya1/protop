@@ -124,7 +124,7 @@ line ""
 
 # 6. Hvilke nøkler funksjonene får ved kjøring. Bare navn; verdier skrives aldri ut.
 line "## Nøkler i funksjonene (bare navn)"
-for svc in sendinvitev2 sendfriendinvitev2 sendnotificationemail; do
+for svc in sendinvitev2 sendfriendinvitev2 onnotificationpush; do
   out="$(run gcloud run services describe "$svc" --project "$PROJECT" --region "$REGION" --format=json)"
   if [[ "$out" == INGEN_TILGANG* ]]; then
     line "- $svc: ${out#INGEN_TILGANG: }"

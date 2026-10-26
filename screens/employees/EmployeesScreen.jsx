@@ -92,6 +92,9 @@ import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
 import EmployeeFilesView from './EmployeeFilesView';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
+import { kinMissing } from '../../src/hr/kinReminder';
+import { closeKinTask } from '../../src/hr/kinTasks';
+import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
 import {
@@ -745,6 +748,7 @@ export default function EmployeesScreen() {
   const pendingEmployeeId = useRef('');
   const pendingEmployeeView = useRef('detail');
   const pendingMyAbsence = useRef(false);
+  const pendingMine = useRef(false);
   useEffect(() => {
     if (!shellIntent || typeof shellIntent !== 'object') return;
     if (shellIntent.type === 'openEmployee') {
@@ -755,6 +759,12 @@ export default function EmployeesScreen() {
     }
     if (shellIntent.type === 'openMyAbsence') {
       pendingMyAbsence.current = true;
+      clearShellIntent?.();
+      return;
+    }
+    // Varsel om ny versjon av et dokument: Min side, der dokumentene leses og bekreftes.
+    if (shellIntent.type === 'myDocuments') {
+      pendingMine.current = true;
       clearShellIntent?.();
     }
   }, [shellIntent, clearShellIntent]);
@@ -839,6 +849,12 @@ export default function EmployeesScreen() {
     pendingMyAbsence.current = false;
     requestShellTab?.('arbeid', 'fravaer');
   }, [rows, directoryReady, linked, mine, requestShellTab]);
+
+  useEffect(() => {
+    if (!pendingMine.current || (!directoryReady && !linked && !mine)) return;
+    pendingMine.current = false;
+    openMine();
+  }, [rows, directoryReady, linked, mine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveWork(employee) {
     const saved = await saveEmployee(familyId, employee);
@@ -1223,6 +1239,8 @@ export default function EmployeesScreen() {
         if (linked && familyId) {
           const updated = await saveEmployee(familyId, applyProfessionalProfile(linked, stored));
           setRows((current) => sortEmployees([...current.filter((row) => row.id !== updated.id), updated]));
+          // Pårørende er lagt inn: oppgaven «Legg inn pårørende» lukkes.
+          if (!kinMissing(stored)) closeKinTask(familyId, updated.id, { uid, name: displayName(stored) });
         }
         setDraft(presentEmployee({
           ...emptyEmployee(),
@@ -1237,6 +1255,7 @@ export default function EmployeesScreen() {
       }
       const saved = await saveEmployee(familyId, employee);
       setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+      if (!kinMissing(saved)) closeKinTask(familyId, saved.id, { uid });
       if (saved.personUid && saved.personUid === uid) {
         const stored = await saveProfessionalProfile(uid, rememberLink({
           ...(profile || {}),
@@ -1964,6 +1983,21 @@ export default function EmployeesScreen() {
           ) : (
             <Text style={{ color: colors.muted }}>Åpne ett avsnitt om gangen. Bildet vises på profilen og øverst i CV-en.</Text>
           )}
+          {view === 'mine' && mineHrEmployeeId && kinMissing(profile || draft) && kinMissing(linked) ? (
+            <View nativeID="employee-kin-todo" style={[styles.kinTodo, { backgroundColor: FOCUS_FIELD_BG, borderColor: FOCUS_FIELD_BORDER }]}>
+              <Text style={{ color: FOCUS_FIELD_INK, fontWeight: '700' }}>Gjøremål: legg inn pårørende</Text>
+              <Text style={{ color: FOCUS_FIELD_INK, lineHeight: 20 }}>
+                Navn og telefon til nærmeste pårørende. Det vises bare for deg og administrator. Trykk Lagre når det er fylt inn, så lukkes oppgaven.
+              </Text>
+              <TouchableOpacity
+                onPress={() => beginSectionEdit('kin')}
+                accessibilityRole="button"
+                style={[styles.secondary, { borderColor: FOCUS_FIELD_BORDER, alignSelf: 'flex-start', backgroundColor: colors.card }]}
+              >
+                <Text style={{ color: colors.ink, fontWeight: '600' }}>Fyll inn pårørende</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {view === 'mine' && mineHrEmployeeId ? (
             <EmployeeHrSelfService
               colors={colors}
@@ -2146,6 +2180,7 @@ const styles = StyleSheet.create({
   primary: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start' },
   primaryText: { color: '#fff', fontWeight: '600' },
   secondary: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'flex-start' },
+  kinTodo: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 },
   stats: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },

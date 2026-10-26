@@ -1,6 +1,6 @@
 /** Dokumentmapper, opplastede filer og bedriftsskjema i ett tilbudsarbeid. */
 
-import { MAX_FIELDS, coerceAnswer, emptyAnswer, normalizeBuilderField, normalizeResponses, normalizeSettings, cleanCover } from './formBuilder.js';
+import { MAX_FIELDS, coerceAnswer, emptyAnswer, normalizeBuilderField, normalizeDocInfo, normalizeResponses, normalizeSettings, cleanCover } from './formBuilder.js';
 import { deadlinePassedAt, parseDeadline } from './noticeText.js';
 import { normalizeReviewNotes } from './reviewNotes.js';
 
@@ -439,6 +439,8 @@ function normalizeTemplate(row) {
     category: row?.category === 'avtale' ? 'avtale' : 'skjema',
     intro: text(row?.intro).slice(0, 280),
     cover: cleanCover(row?.cover),
+    doc: normalizeDocInfo(row?.doc),
+    libraryKey: text(row?.libraryKey).slice(0, 60),
     settings: normalizeSettings(row?.settings),
     responses: normalizeResponses(row?.responses),
     fields,
@@ -1227,7 +1229,10 @@ export function saveFormTemplate(state, input) {
   const templates = normalizeFormTemplates(state?.formTemplates);
   const title = text(input?.title).slice(0, 80);
   if (!title) return fail(state, 'Malen trenger et navn.');
-  const fields = (Array.isArray(input?.fields) ? input.fields : []).map((row) => normalizeField({ ...row, value: '' })).filter(Boolean);
+  // Svar tas ikke med i malen. Låste felt beholder den faste teksten de viser.
+  const fields = (Array.isArray(input?.fields) ? input.fields : [])
+    .map((row) => normalizeField({ ...row, value: row?.editor === 'fast' ? row.value : '' }))
+    .filter(Boolean);
   if (!fields.length) return fail(state, 'Malen trenger minst ett felt.');
   const id = text(input?.id) || createId('mal');
   const next = normalizeTemplate({
@@ -1236,6 +1241,8 @@ export function saveFormTemplate(state, input) {
     category: input?.category === 'avtale' ? 'avtale' : 'skjema',
     intro: text(input?.intro).slice(0, 280),
     cover: input?.cover,
+    doc: input?.doc,
+    libraryKey: input?.libraryKey,
     settings: input?.settings,
     responses: input?.responses,
     fields,

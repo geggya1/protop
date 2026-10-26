@@ -1,6 +1,8 @@
 import React from 'react';
 import { Image, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { fieldType } from '../../src/anbud/formBuilder';
+import { fieldType, needsInput } from '../../src/anbud/formBuilder';
+import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
+import FormTableAnswer from './FormTableAnswer';
 
 const FACE = Platform.OS === 'web' ? { fontFamily: 'Carlito, Calibri, "Segoe UI", Helvetica, Arial, sans-serif' } : null;
 
@@ -16,6 +18,55 @@ function bracketPlaceholder(field) {
   return '';
 }
 
+function stampText(value) {
+  const d = new Date(value);
+  if (!value || Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} kl. ${pad(d.getHours())}.${pad(d.getMinutes())}`;
+}
+
+/** Digital signatur: navnet til den som er logget inn og tidspunktet. */
+function SignAnswer({ field, colors, onChange, signer, need }) {
+  const value = field.value && typeof field.value === 'object' ? field.value : null;
+  const [typed, setTyped] = React.useState('');
+  const known = String(signer?.name || '').trim();
+  const name = known || typed.trim();
+  return (
+    <View style={[styles.signBox, { borderColor: need ? FOCUS_FIELD_BORDER : colors.line, backgroundColor: need ? FOCUS_FIELD_BG : colors.card }]}>
+      <Text style={[styles.docLabel, { color: need ? FOCUS_FIELD_INK : colors.ink, fontWeight: '600' }]}>{field.label}{field.required ? ' *' : ''}</Text>
+      {field.help ? <Text style={[styles.help, { color: colors.muted }]}>{field.help}</Text> : null}
+      {value?.name ? (
+        <View style={{ gap: 4 }}>
+          <Text style={{ color: colors.ink }}>Signert digitalt av {value.name}{value.at ? ` · ${stampText(value.at)}` : ''}</Text>
+          <TouchableOpacity onPress={() => onChange(null)} accessibilityRole="button">
+            <Text style={{ color: colors.danger, fontSize: 13 }}>Fjern signatur</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={{ gap: 6 }}>
+          {!known ? (
+            <TextInput
+              value={typed}
+              onChangeText={setTyped}
+              placeholder="Navnet ditt"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+            />
+          ) : null}
+          <TouchableOpacity
+            onPress={() => onChange({ name, uid: signer?.uid || '', at: new Date().toISOString() })}
+            disabled={!name}
+            accessibilityRole="button"
+            style={[styles.signButton, { backgroundColor: name ? colors.brand : colors.sunken }]}
+          >
+            <Text style={{ color: name ? '#fff' : colors.muted, fontWeight: '600' }}>{name ? `Signer som ${name}` : 'Skriv navnet for å signere'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
 function Mark({ on, radio, colors }) {
   return (
     <View style={[styles.mark, radio && styles.markRound, { borderColor: colors.ink }]}>
@@ -24,11 +75,19 @@ function Mark({ on, radio, colors }) {
   );
 }
 
-export default function FormAnswer({ field, colors, onChange, onPickFile, variant = 'stacked' }) {
+export default function FormAnswer({ field, colors, onChange, onPickFile, variant = 'stacked', signer = null, highlight = true, caption = true }) {
   const cell = variant === 'cell';
   const doc = variant === 'document' || cell;
+  const need = highlight && needsInput(field);
+  const needBox = need ? { backgroundColor: FOCUS_FIELD_BG, borderColor: FOCUS_FIELD_BORDER } : null;
   if (field?.kind === 'note') {
     return <Text style={[styles.note, { color: colors.ink }]}>{field.label}</Text>;
+  }
+  if (field?.kind === 'table') {
+    return <FormTableAnswer field={field} colors={colors} onChange={onChange} readOnly={field.editor === 'fast'} highlight={highlight} caption={caption} />;
+  }
+  if (field?.kind === 'sign' && field.editor !== 'fast') {
+    return <SignAnswer field={field} colors={colors} onChange={onChange} signer={signer} need={need} />;
   }
   if (!field || field.kind === 'title') {
     return <Text style={[doc ? styles.docSection : styles.title, { color: colors.ink, borderBottomColor: colors.line }]}>{field?.label}</Text>;
@@ -37,7 +96,9 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
     const raw = field.value;
     const shown = raw == null || raw === '' || raw === false
       ? ''
-      : field.kind === 'check'
+      : field.kind === 'sign'
+        ? (raw?.name ? `Signert digitalt av ${raw.name}` : '')
+        : field.kind === 'check'
         ? 'Ja'
         : Array.isArray(raw)
           ? raw.map((id) => (field.options || []).find((row) => row.id === id)?.label || String(id).replace(/^other:/, '')).filter(Boolean).join(', ')
@@ -97,7 +158,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
         placeholder={bracketPlaceholder(field)}
         placeholderTextColor={colors.placeholder}
         keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
-        style={[styles.cellInput, { color: colors.ink }]}
+        style={[styles.cellInput, { color: colors.ink }, needBox]}
       />
     );
   }
@@ -109,13 +170,13 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
         placeholder={bracketPlaceholder(field) || 'Skriv her'}
         placeholderTextColor={colors.placeholder}
         multiline
-        style={[styles.cellArea, { color: colors.ink }]}
+        style={[styles.cellArea, { color: colors.ink }, needBox]}
       />
     );
   }
   if (doc && signatureField(field)) {
     return (
-      <View style={styles.signature}>
+      <View style={[styles.signature, needBox && { ...needBox, borderWidth: 1, padding: 6, borderRadius: 6 }]}>
         <View style={[styles.signLine, { borderBottomColor: colors.ink }]} />
         <Text style={[styles.docLabel, { color: colors.ink }]}>{label}</Text>
         {field.help ? <Text style={[styles.help, { color: colors.muted }]}>{field.help}</Text> : null}
@@ -127,7 +188,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
   }
   if (field.kind === 'check') {
     return (
-      <TouchableOpacity onPress={() => onChange(!field.value)} accessibilityRole="checkbox" accessibilityState={{ checked: !!field.value }} style={doc ? styles.docCheck : undefined}>
+      <TouchableOpacity onPress={() => onChange(!field.value)} accessibilityRole="checkbox" accessibilityState={{ checked: !!field.value }} style={[doc ? styles.docCheck : undefined, needBox && { ...needBox, borderWidth: 1, borderRadius: 6, paddingHorizontal: 6 }]}>
         <Text style={{ color: colors.ink }}>{field.value ? '☑' : '☐'} {label}</Text>
         {field.help ? <Text style={[styles.help, { color: colors.muted }]}>{field.help}</Text> : null}
       </TouchableOpacity>
@@ -137,7 +198,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
     const many = field.kind === 'checks';
     const selected = many ? (field.value || []) : field.value;
     return (
-      <View style={{ gap: doc ? 6 : 4 }}>
+      <View style={[{ gap: doc ? 6 : 4 }, needBox && { ...needBox, borderWidth: 1, borderRadius: 8, padding: 8 }]}>
         <Text style={[doc ? styles.docLabel : null, { color: colors.ink }]}>{label}</Text>
         {field.help ? <Text style={[styles.help, { color: colors.muted }]}>{field.help}</Text> : null}
         <View style={doc ? styles.docOptions : { gap: 4 }}>
@@ -185,7 +246,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
     const max = field.scaleMax || 5;
     const current = String(field.value || '');
     return (
-      <View style={{ gap: 6 }}>
+      <View style={[{ gap: 6 }, needBox && { ...needBox, borderWidth: 1, borderRadius: 8, padding: 8 }]}>
         <Text style={{ color: colors.ink }}>{label}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {Array.from({ length: max }, (_, i) => String(i + 1)).map((n) => (
@@ -210,7 +271,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
   if (field.kind === 'image' || field.kind === 'file') {
     const stored = field.value?.name;
     return (
-      <View style={{ gap: 4 }}>
+      <View style={[{ gap: 4 }, needBox && { ...needBox, borderWidth: 1, borderRadius: 8, padding: 8 }]}>
         <Text style={{ color: colors.ink }}>{label}</Text>
         {field.help ? <Text style={{ color: colors.muted }}>{field.help}</Text> : null}
         <Text style={{ color: colors.muted }}>{stored || (field.kind === 'image' ? 'Ingen bilde er lagt inn' : 'Ingen fil er lagt inn')}</Text>
@@ -233,7 +294,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
             placeholder={placeholder}
             placeholderTextColor={colors.placeholder}
             keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
-            style={[styles.docInput, { color: colors.ink, borderBottomColor: colors.ink }]}
+            style={[styles.docInput, { color: colors.ink, borderBottomColor: colors.ink }, need && { backgroundColor: FOCUS_FIELD_BG, borderBottomColor: FOCUS_FIELD_BORDER }]}
           />
         </View>
         {field.help ? <Text style={[styles.help, { color: colors.muted }]}>{field.help}</Text> : null}
@@ -251,7 +312,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
         placeholderTextColor={colors.placeholder}
         multiline={field.kind === 'long'}
         keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
-        style={[doc ? styles.docArea : styles.input, field.kind === 'long' && !doc && styles.long, { color: colors.ink, borderColor: colors.line, backgroundColor: doc ? 'transparent' : colors.card }]}
+        style={[doc ? styles.docArea : styles.input, field.kind === 'long' && !doc && styles.long, { color: colors.ink, borderColor: colors.line, backgroundColor: doc ? 'transparent' : colors.card }, needBox]}
       />
     </View>
   );
@@ -286,4 +347,6 @@ const styles = StyleSheet.create({
   cellInput: { fontSize: 12, lineHeight: 16, paddingVertical: 0, paddingHorizontal: 0, minHeight: 18, ...FACE },
   cellArea: { fontSize: 12, lineHeight: 16, minHeight: 48, paddingVertical: 0, paddingHorizontal: 0, textAlignVertical: 'top', ...FACE },
   cellSign: { minHeight: 36, justifyContent: 'flex-end' },
+  signBox: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 6, maxWidth: 420 },
+  signButton: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
 });

@@ -40,6 +40,8 @@ export function HrChip({ colors, label, active, onPress, nativeID }) {
     <Pressable
       nativeID={nativeID}
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!active }}
       style={[
         styles.chip,
         {
@@ -61,6 +63,9 @@ export function HrButton({ colors, label, onPress, icon, primary, danger, disabl
       nativeID={nativeID}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!disabled }}
       style={[
         styles.button,
         {

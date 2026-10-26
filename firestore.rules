@@ -320,7 +320,43 @@ service cloud.firestore {
 
     // ISO-samlingene og tilgangsspeilet har egne regler og er unntatt fra den generelle regelen.
     function isProtected(coll) {
-      return coll.matches('^iso[A-Z].*') || coll == 'accessAcl';
+      return coll.matches('^iso[A-Z].*') || coll == 'accessAcl'
+        || coll == 'docComments' || coll == 'docControlSettings' || coll == 'docControl' || coll == 'docAcks';
+    }
+
+    /* ───────── Dokumentstyring (Skjemabygger og personalhåndbok) ─────────
+     * Merknader til dokumenter er bare synlige for den som skrev dem, eier og
+     * administratorer, godkjennere og utpekte lesere i innstillingene, og personene
+     * som står i merknadens readerUids (dokumentets eier og godkjenner).
+     */
+    function docSettingsPath(familyId) {
+      return /databases/$(database)/documents/families/$(familyId)/docControlSettings/main;
+    }
+
+    function isFamilyAdmin(familyId) {
+      return isFamilyOwner(familyId)
+        || (isSignedIn() && request.auth.uid in get(familyPath(familyId)).data.get('adminUids', []));
+    }
+
+    function docCommentReader(familyId) {
+      return isFamilyAdmin(familyId)
+        || (exists(docSettingsPath(familyId))
+            && (request.auth.uid in get(docSettingsPath(familyId)).data.get('commentReaderUids', [])
+                || request.auth.uid in get(docSettingsPath(familyId)).data.get('approverUids', [])));
+    }
+
+    // Godkjenner: administrator, dokumentets utpekte godkjenner eller godkjenner i innstillingene.
+    function docApprover(familyId, d) {
+      return isFamilyAdmin(familyId)
+        || request.auth.uid == d.get('approver', {}).get('uid', '')
+        || (exists(docSettingsPath(familyId))
+            && request.auth.uid in get(docSettingsPath(familyId)).data.get('approverUids', []));
+    }
+
+    function seesDocComment(familyId, d) {
+      return d.get('authorUid', '') == request.auth.uid
+        || request.auth.uid in d.get('readerUids', [])
+        || docCommentReader(familyId);
     }
 
     match /families/{familyId} {
@@ -378,6 +414,55 @@ service cloud.firestore {
         match /{subColl}/{subDoc=**} {
           allow create, update, delete: if isFamilyMember(familyId);
         }
+      }
+
+      /* ───────── Dokumentstyring ───────── */
+
+      match /docComments/{id} {
+        allow get: if isFamilyMember(familyId) && seesDocComment(familyId, resource.data);
+        allow list: if isFamilyMemberLite(familyId) && seesDocComment(familyId, resource.data);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.get('authorUid', '') == request.auth.uid;
+        // Behandling (status og svar) gjøres av lesere med full tilgang og av dokumentets eier
+        // og godkjenner (readerUids). Forfatteren kan rette egen merknad mens den er åpen.
+        allow update: if isFamilyMember(familyId)
+          && unchanged('authorUid')
+          && (docCommentReader(familyId)
+              || (request.auth.uid in resource.data.get('readerUids', []) && unchanged('readerUids'))
+              || (resource.data.get('authorUid', '') == request.auth.uid
+                  && unchanged('readerUids')
+                  && resource.data.get('status', 'apen') == 'apen'
+                  && request.resource.data.get('status', 'apen') == 'apen'));
+        allow delete: if isFamilyMember(familyId)
+          && (docCommentReader(familyId) || resource.data.get('authorUid', '') == request.auth.uid);
+      }
+
+      // Register over styrte dokumenter. Alle medlemmer kan arbeide med utkast og sende
+      // til godkjenning, men bare en godkjenner kan publisere, endre godkjente revisjoner
+      // eller bytte godkjenner.
+      match /docControl/{id} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create: if isFamilyMember(familyId) && request.resource.data.get('publishedRevision', 0) == 0;
+        allow update: if isFamilyMember(familyId)
+          && (docApprover(familyId, resource.data)
+              || (versionsLocked('revisions', 'publishedRevision') && unchanged('approver')));
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      // Lesebekreftelser: bare i eget navn.
+      match /docAcks/{id} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create, update: if isFamilyMember(familyId) && request.resource.data.get('uid', '') == request.auth.uid;
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      match /docControlSettings/{docId} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create, update: if isFamilyMember(familyId) && isFamilyAdmin(familyId);
+        allow delete: if false;
       }
 
       /* ───────── Tilgangsspeil ───────── */

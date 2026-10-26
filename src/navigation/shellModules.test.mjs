@@ -139,7 +139,7 @@ function idsIn(sections) {
   assert.equal(companyItems.find((i) => i.id === 'ansatte').action.tab, 'ansatte');
   const hr = companyItems.find((i) => i.id === 'hr');
   assert.equal(hr.action.tab, 'hr');
-  assert.equal(hr.children.length, 7);
+  assert.equal(hr.children.length, 9);
   assert.deepEqual(
     companyItems.find((i) => i.id === 'anbud').children.map((i) => i.label),
     ['1.1 Anbudsvarsling', '1.2 Anbudsforespørsel', '2. Vurdering av aktuelle', '3. Tilbud', 'Innstillinger'],

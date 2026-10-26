@@ -1061,6 +1061,8 @@ const NAV_RESOURCE = {
   'hr-oppfolging': 'hrFollowup',
   'hr-compliance': 'hrCompliance',
   'hr-rekruttering': 'hrRecruitment',
+  'hr-handbok': 'hr',
+  'hr-skjema': 'hrPeople',
   'fravaer-fravaer': 'absence',
   'fravaer-fravaersrapport': 'absenceReport',
   'fravaer-planlagt': 'absencePlanned',

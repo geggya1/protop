@@ -8,7 +8,7 @@ import { HrChip } from './HrShared';
 /**
  * HR-undermeny.
  * Telefon: én rad som åpner sidene, så oversikten ikke skyves ned av to rader med knapper.
- * Nettbrett og desktop: chips, der det er plass til alle sju.
+ * Nettbrett og desktop: chips, der det er plass til alle sidene.
  */
 export function HrSectionList({ colors, page, onChange }) {
   return (

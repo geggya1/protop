@@ -34,6 +34,8 @@ const ICONS = {
   check: 'checkmark-circle-outline',
   image: 'image-outline',
   file: 'document-attach-outline',
+  table: 'grid-outline',
+  sign: 'pencil-outline',
 };
 
 const SETTINGS = [
@@ -51,7 +53,6 @@ const SETTINGS = [
     ['progress', 'Vis fremdriftslinje', 'Vis hvor langt respondenten er kommet.'],
     ['shuffleQuestions', 'Bland spørsmålsrekkefølgen', 'Spørsmålene bytter plass for hvert svar.'],
     ['anotherResponse', 'Send inn et annet svar', 'Vis en lenke for å svare en gang til.'],
-    ['useCompanyLogo', 'Bruk bedriftens logo', 'Viser logoen fra bedriftsinnstillingene. ProTop-logoen beholdes.'],
   ]],
 ];
 
@@ -93,7 +94,7 @@ function PieChart({ counts, colors }) {
   );
 }
 
-function PdfPreview({ draft, logo, colors, wide }) {
+function PdfPreview({ draft, logo, colors, wide, company }) {
   return (
     <View style={[styles.pdfPane, { backgroundColor: colors.sunken, borderColor: colors.line }, wide ? styles.pdfPaneSide : styles.pdfPaneStack]}>
       <Text style={[styles.kicker, { color: colors.muted }]}>PDF</Text>
@@ -101,7 +102,7 @@ function PdfPreview({ draft, logo, colors, wide }) {
       <View style={wide ? styles.pdfFrame : styles.pdfFrameStack}>
         {Platform.OS === 'web' ? React.createElement('iframe', {
           title: 'PDF-forhåndsvisning',
-          srcDoc: formPrintHtml(draft, logo, { preview: true }),
+          srcDoc: formPrintHtml(draft, logo, { preview: true, company }),
           style: {
             position: 'absolute',
             top: 0,
@@ -122,7 +123,7 @@ function PdfPreview({ draft, logo, colors, wide }) {
   );
 }
 
-function BuilderWork({ wide, colors, draft, logo, layout, onLayout, onCategory, onToggleLogo, onCover, onAddField, editor }) {
+function BuilderWork({ wide, colors, draft, logo, company, layout, onLayout, onCategory, onCover, onAddField, onFill, editor, docPanel, shown }) {
   const category = draft.category === 'avtale' ? 'avtale' : 'skjema';
   const tools = (
     <View style={styles.row}>
@@ -136,15 +137,19 @@ function BuilderWork({ wide, colors, draft, logo, layout, onLayout, onCategory, 
           <Text style={{ color: layout === id ? '#fff' : colors.ink }}>{label}</Text>
         </TouchableOpacity>
       ))}
-      <TouchableOpacity onPress={onToggleLogo} accessibilityRole="button">
-        <Text style={{ color: colors.brand }}>{draft.settings?.useCompanyLogo ? 'Skjul logo i PDF' : 'Vis logo i PDF'}</Text>
-      </TouchableOpacity>
       <TouchableOpacity onPress={onCover} accessibilityRole="button">
         <Text style={{ color: colors.brand }}>{draft.cover ? 'Bytt forside' : 'Forsidebilde'}</Text>
       </TouchableOpacity>
+      {!logo ? <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen bedriftslogo ennå. Legg den inn under Bedriftsinnstillinger › Bedriftsprofil.</Text> : null}
       <TouchableOpacity onPress={onAddField} accessibilityRole="button" accessibilityLabel="Legg til felt">
         <Text style={{ color: colors.brand }}>Legg til felt</Text>
       </TouchableOpacity>
+      {onFill ? (
+        <TouchableOpacity onPress={onFill} accessibilityRole="button" accessibilityLabel="Fyll ut dokumentet" style={[styles.typeChip, { backgroundColor: colors.brand }]}>
+          <Ionicons name="create-outline" size={14} color="#fff" />
+          <Text style={{ color: '#fff' }}>Fyll ut</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
   if (wide) {
@@ -153,8 +158,9 @@ function BuilderWork({ wide, colors, draft, logo, layout, onLayout, onCategory, 
         <ScrollView style={styles.editorScroll} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
           {tools}
           {editor}
+          {docPanel}
         </ScrollView>
-        <PdfPreview draft={draft} logo={logo} colors={colors} wide />
+        <PdfPreview draft={shown} logo={logo} colors={colors} wide company={company} />
       </View>
     );
   }
@@ -162,7 +168,8 @@ function BuilderWork({ wide, colors, draft, logo, layout, onLayout, onCategory, 
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.column} keyboardShouldPersistTaps="handled">
       {tools}
       {editor}
-      <PdfPreview draft={draft} logo={logo} colors={colors} wide={false} />
+      <PdfPreview draft={shown} logo={logo} colors={colors} wide={false} company={company} />
+      {docPanel}
     </ScrollView>
   );
 }
@@ -180,7 +187,12 @@ export default function FormStudio({
   onScan,
   onImport,
   companyLogo = null,
+  company = null,
+  onFill = null,
   backLabel = 'Alle skjema',
+  docHead = null,
+  docStatus = null,
+  docPanel = null,
 }) {
   const [tab, setTab] = useState('questions');
   const [selected, setSelected] = useState(-1);
@@ -198,6 +210,9 @@ export default function FormStudio({
   ));
   const settings = draft.settings || {};
   const responses = draft.responses || [];
+  // Bedriftens logo brukes alltid. Dokumenthodet kommer fra dokumentstyringen.
+  const logo = companyLogo?.dataUrl || '';
+  const shown = docHead ? { ...draft, doc: docHead } : draft;
 
   useEffect(() => {
     const el = rootNode && typeof rootNode.addEventListener === 'function' ? rootNode : null;
@@ -329,7 +344,7 @@ export default function FormStudio({
             <TouchableOpacity onPress={() => setReadOpen((open) => !open)} disabled={busy} accessibilityRole="button" accessibilityLabel="Les inn dokument">
               <Text style={{ color: colors.brand }}>{busy ? 'Leser …' : 'Les inn'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => printForm(draft, settings.useCompanyLogo ? companyLogo?.dataUrl : '')} accessibilityRole="button" accessibilityLabel="Skriv ut eller lagre PDF">
+            <TouchableOpacity onPress={() => printForm(shown, logo, { company })} accessibilityRole="button" accessibilityLabel="Skriv ut eller lagre PDF">
               <Text style={{ color: colors.brand }}>PDF</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => openTab(tab === 'responses' ? 'questions' : 'responses')} accessibilityRole="button" accessibilityLabel={tab === 'responses' ? 'Vis malen' : 'Vis svar'}>
@@ -435,11 +450,14 @@ export default function FormStudio({
             wide={paneWidth >= 980}
             colors={colors}
             draft={draft}
-            logo={settings.useCompanyLogo ? companyLogo?.dataUrl : ''}
+            logo={logo}
+            company={company}
+            onFill={onFill}
+            shown={shown}
+            docPanel={docPanel}
             layout={settings.layout === 'skjema' ? 'skjema' : 'brev'}
             onLayout={(layout) => onDraft({ ...draft, settings: { ...settings, layout } })}
             onCategory={(category) => onDraft({ ...draft, category: category === 'avtale' ? 'avtale' : 'skjema' })}
-            onToggleLogo={() => onDraft({ ...draft, settings: { ...settings, useCompanyLogo: !settings.useCompanyLogo } })}
             onCover={setCover}
             onAddField={() => { setTypeFor(null); setInsertAt(draft.fields.length); setTypeOpen(true); }}
             editor={(
@@ -467,6 +485,8 @@ export default function FormStudio({
                 }}
                 onAdd={(index) => { setTypeFor(null); setInsertAt(index); setTypeOpen(true); }}
                 onOptionImage={setOptionImage}
+                docHead={docHead}
+                docStatus={docStatus}
               />
             )}
           />

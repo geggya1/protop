@@ -36,6 +36,18 @@ export const NOTIFICATION_TYPES = [
   { id: 'familyInviteAccepted', group: 'work', label: 'Noen godtok invitasjonen din', push: true, email: false },
   { id: 'familyInviteDeclined', group: 'work', label: 'Noen avslo invitasjonen din', push: true, email: false },
   { id: 'attestPending', group: 'home', label: 'Barnets gjøremål venter på attestering', push: true, email: false, recommended: true, scope: 'family' },
+  {
+    id: 'documentApproval', group: 'work', label: 'Dokument venter på din godkjenning', push: true, email: true, recommended: true,
+    scope: 'company', audience: 'Godkjennere i dokumentstyringen',
+  },
+  {
+    id: 'documentPublished', group: 'work', label: 'Ny versjon av et dokument du skal lese', push: true, email: true, recommended: true,
+    scope: 'company', audience: 'Ansatte når et dokument med lesekrav får ny versjon',
+  },
+  {
+    id: 'documentComment', group: 'work', label: 'Ny merknad til et dokument du har ansvar for', push: true, email: false,
+    scope: 'company', audience: 'Dokumentets eier og godkjenner, og lesere av merknader',
+  },
   { id: 'vacationPlan', group: 'work', label: 'Ferieplan', push: true, email: 'own', recommended: true, scope: 'company', audience: 'Alle ansatte' },
   { id: 'companyWallPost', group: 'work', label: 'Nytt innlegg på bedriftsveggen', push: false, email: false, scope: 'company', audience: 'Alle i bedriften' },
   { id: 'messageReceived', group: 'messages', label: 'Ny melding i chat', push: true, email: false, recommended: true },

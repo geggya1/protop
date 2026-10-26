@@ -11,9 +11,10 @@ import {
 } from './agreementTemplate.js';
 import { matchCustomer, namesLikelyMatch, normalizeOrgnr } from './customers.js';
 
+import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER } from '../forms/highlight.js';
+
+export { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER };
 export const SUGGESTION_MARK = 'Automatisk foreslått (kontroller)';
-export const FOCUS_FIELD_BG = '#fff4cc';
-export const FOCUS_FIELD_BORDER = '#d4a017';
 export const SUGGESTION_NOTE = 'Lyse gule felt skal fylles inn. «Automatisk foreslått (kontroller)» er lest fra dokumentet og må kontrolleres.';
 
 export const INVOICE_METHODS = [

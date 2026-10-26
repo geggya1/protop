@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { accessLevelSections, accessSectionTitle, employeeLevelIds, levelById, placedLevelId, withToggledLevel } from '../../src/access/companyAccess';
-import { inviteStatusLabel } from '../../src/employees/invite';
+import { employeeInviteState, inviteStatusLabel } from '../../src/employees/invite';
 import {
   choiceLabel,
   contactLine,
@@ -432,6 +432,9 @@ function InlineEditor({
   );
 }
 
+// Statusene der administrator kan sende (eller sende på nytt) bedriftsinvitasjonen.
+const INVITABLE = new Set(['none', 'missingEmail', 'queued', 'sent', 'declined']);
+
 export default function EmployeeDetailView({
   employee,
   colors,
@@ -504,6 +507,8 @@ export default function EmployeeDetailView({
   }, [employee?.id]);
 
   const name = displayName(employee);
+  const inviteState = employeeInviteState(employee);
+  const inviteLabel = canInvite ? inviteState.label : inviteStatusLabel(employee.invite?.status);
   const deactivated = accountDeactivated(employee);
   const depts = departmentLabels(employee, departments);
   const tags = [
@@ -807,9 +812,9 @@ export default function EmployeeDetailView({
                       Ikke knyttet
                     </Text>
                   )}
-                  {inviteStatusLabel(employee.invite?.status) ? (
-                    <Text style={[styles.statusChip, { color: colors.ink, backgroundColor: colors.sunken }]}>
-                      {inviteStatusLabel(employee.invite?.status)}
+                  {inviteLabel ? (
+                    <Text nativeID="employee-invite-status" style={[styles.statusChip, { color: colors.ink, backgroundColor: colors.sunken }]}>
+                      {inviteLabel}
                     </Text>
                   ) : null}
                   {depts.map((dept) => (
@@ -838,18 +843,19 @@ export default function EmployeeDetailView({
                 </View>
               </View>
             </View>
-            {canInvite && employee.invite?.status !== 'accepted' && !isDeletedEmployee(employee) ? (
+            {canInvite && INVITABLE.has(inviteState.key) && !isDeletedEmployee(employee) ? (
               <View style={[styles.heroFooter, { borderTopColor: colors.line }]}>
                 <TouchableOpacity
+                  nativeID="employee-invite-send"
                   onPress={onInvite}
                   disabled={busy}
                   accessibilityRole="button"
                   style={[styles.secondaryBtn, { borderColor: colors.line, backgroundColor: colors.sunken, opacity: busy ? 0.6 : 1 }]}
                 >
                   <Text style={{ color: colors.ink, fontSize: 13 }}>
-                    {employee.invite?.status === 'sent'
+                    {inviteState.key === 'sent'
                       ? 'Send invitasjon på nytt'
-                      : (employee.invite?.status === 'declined' ? 'Inviter på nytt' : 'Inviter')}
+                      : (inviteState.key === 'declined' ? 'Inviter på nytt' : 'Send invitasjon')}
                   </Text>
                 </TouchableOpacity>
               </View>

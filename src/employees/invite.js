@@ -82,6 +82,54 @@ export function inviteStatusLabel(status) {
   return '';
 }
 
+/** Tilgang når personen ikke har fått satt nivå, for eksempel fra import. */
+export const DEFAULT_INVITE_LEVEL = 'ansatt';
+
+export function inviteLevelFor(employee) {
+  return placedAccessLevel(employee) || DEFAULT_INVITE_LEVEL;
+}
+
+const VALID_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Invitasjonsstatus slik administrator ser den på personen.
+ * key: closed | member | accepted | sent | queued | declined | missingEmail | none
+ */
+export function employeeInviteState(employee) {
+  const employment = text(employee?.company?.status || 'active');
+  if (employment === 'deleted' || employment === 'inactive' || employment === 'former') {
+    return { key: 'closed', label: '' };
+  }
+  const status = normalizeInviteState(employee?.invite).status;
+  if (status === 'accepted') return { key: 'accepted', label: inviteStatusLabel('accepted') };
+  if (status === 'sent') return { key: 'sent', label: 'Invitert – venter på svar' };
+  if (status === 'queued') return { key: 'queued', label: inviteStatusLabel('queued') };
+  if (status === 'declined') return { key: 'declined', label: inviteStatusLabel('declined') };
+  if (text(employee?.personUid)) return { key: 'member', label: '' };
+  if (!VALID_EMAIL.test(employeeContactEmail(employee))) {
+    return { key: 'missingEmail', label: 'Ikke invitert – mangler e-post' };
+  }
+  return { key: 'none', label: 'Ikke invitert' };
+}
+
+/** Ligger i ansattlisten (for eksempel fra import) og kan inviteres med dataene som finnes. */
+export function employeesNotInvited(rows) {
+  return (rows || []).filter((row) => employeeInviteState(row).key === 'none');
+}
+
+export function employeesMissingInviteEmail(rows) {
+  return (rows || []).filter((row) => employeeInviteState(row).key === 'missingEmail');
+}
+
+export function inviteOverview(rows) {
+  const counts = { none: 0, missingEmail: 0, queued: 0, sent: 0, declined: 0 };
+  for (const row of rows || []) {
+    const { key } = employeeInviteState(row);
+    if (key in counts) counts[key] += 1;
+  }
+  return counts;
+}
+
 export function matchEmployeeByEmail(rows, email) {
   const needle = text(email).toLowerCase();
   if (!needle || !needle.includes('@')) return null;

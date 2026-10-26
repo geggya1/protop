@@ -8,7 +8,10 @@ import {
   applyInviteSendResult,
   draftInviteEmployee,
   employeeContactEmail,
+  employeeInviteState,
   inviteDeliveryError,
+  inviteLevelFor,
+  inviteOverview,
   inviteStatusLabel,
   matchEmployeeByEmail,
   placedAccessLevel,
@@ -155,6 +158,7 @@ export default function EmployeesScreen() {
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [inviteProgress, setInviteProgress] = useState(null);
   const [busyKind, setBusyKind] = useState('');
   const [saveProgress, setSaveProgress] = useState(null);
   const [editSection, setEditSection] = useState('');
@@ -306,6 +310,7 @@ export default function EmployeesScreen() {
     () => resolveMineEmployeeId({ linked, mine, profile, familyId }),
     [linked, mine, profile, familyId],
   );
+  const inviteCounts = useMemo(() => inviteOverview(rows), [rows]);
   const visible = useMemo(
     () => filterEmployees(rows, {
       status: 'all',
@@ -486,6 +491,9 @@ export default function EmployeesScreen() {
     }
     const saved = await saveEmployee(familyId, committed.employee);
     setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+    // Detaljsiden viser redigeringskopien. Uten invitasjonen her viser den gammel status,
+    // og en senere lagring av kopien skriver over invitasjonen.
+    setDraft((current) => (current?.id === saved.id ? withInviteFields(current, saved) : current));
     return saved;
   }
 
@@ -539,7 +547,7 @@ export default function EmployeesScreen() {
     }
   }
 
-  async function deliverInvites(ids) {
+  async function deliverInvites(ids, { known = [] } = {}) {
     const employeeIds = (ids || []).filter(Boolean);
     if (!canInvite || busy || !familyId) return;
     if (!employeeIds.length) {
@@ -551,23 +559,27 @@ export default function EmployeesScreen() {
     const sent = [];
     const failed = [];
     const at = new Date().toISOString();
+    const many = employeeIds.length > 1;
     try {
-      for (const id of employeeIds) {
-        const row = rows.find((item) => item.id === id);
+      for (const [index, id] of employeeIds.entries()) {
+        if (many) setInviteProgress({ done: index, total: employeeIds.length });
+        const row = known.find((item) => item.id === id) || rows.find((item) => item.id === id);
         if (!row) {
           failed.push('Fant ikke medarbeideren.');
           continue;
         }
         let current = row;
+        const who = displayName(row) || employeeContactEmail(row);
         if (current.invite?.status !== 'queued' && current.invite?.status !== 'sent') {
-          const queued = queueEmployeeInvite(current, { at });
+          // Bruker det som står på personen (navn, e-post, tilgang fra import). Uten tilgang: Ansatt.
+          const queued = queueEmployeeInvite(current, { at, accessLevel: inviteLevelFor(current) });
           if (!queued.ok) {
-            failed.push(queued.error);
+            failed.push(many ? `${who}: ${queued.error}` : queued.error);
             continue;
           }
           const saved = await rememberInvite(queued.employee);
           if (!saved) {
-            failed.push('Kunne ikke lagre personen.');
+            failed.push(`${who}: kunne ikke lagre personen.`);
             continue;
           }
           current = saved;
@@ -606,7 +618,7 @@ export default function EmployeesScreen() {
             failed.push(result?.emailError || `${name || email}: e-post ble ikke sendt.`);
           }
         } catch (err) {
-          failed.push(inviteDeliveryError(err));
+          failed.push(many ? `${who}: ${inviteDeliveryError(err)}` : inviteDeliveryError(err));
         }
       }
       if (failed.length) setError(failed.filter(Boolean).join('\n'));
@@ -619,6 +631,7 @@ export default function EmployeesScreen() {
     } catch (err) {
       showError(err?.message || 'Kunne ikke sende invitasjonen.');
     } finally {
+      setInviteProgress(null);
       setBusy(false);
     }
   }
@@ -627,7 +640,10 @@ export default function EmployeesScreen() {
     if (!employee || !canInvite) return;
     let current = employee;
     if (current.invite?.status !== 'queued' && current.invite?.status !== 'sent') {
-      const queued = queueEmployeeInvite(current, { at: new Date().toISOString() });
+      const queued = queueEmployeeInvite(current, {
+        at: new Date().toISOString(),
+        accessLevel: inviteLevelFor(current),
+      });
       if (!queued.ok) {
         showError(queued.error);
         return;
@@ -644,7 +660,7 @@ export default function EmployeesScreen() {
       }
       setBusy(false);
     }
-    await deliverInvites([current.id]);
+    await deliverInvites([current.id], { known: [current] });
   }
 
   function openNew() {
@@ -1528,6 +1544,31 @@ export default function EmployeesScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
+          {canInvite && inviteCounts.none + inviteCounts.missingEmail > 0 ? (
+            <View nativeID="employees-invite-overview" style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>
+                {inviteCounts.none + inviteCounts.missingEmail === 1
+                  ? '1 person er ikke invitert'
+                  : `${inviteCounts.none + inviteCounts.missingEmail} personer er ikke invitert`}
+              </Text>
+              <Text style={{ color: colors.muted }}>
+                {[
+                  'De ligger i listen, men har ikke fått invitasjon. Du velger selv hvem som skal inviteres og når.',
+                  inviteCounts.missingEmail ? `${inviteCounts.missingEmail} mangler e-post.` : '',
+                  inviteCounts.sent ? `${inviteCounts.sent} venter på svar.` : '',
+                ].filter(Boolean).join(' ')}
+              </Text>
+              <TouchableOpacity
+                nativeID="employees-invite-open"
+                onPress={openInvite}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.primary, { marginTop: 6, backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.primaryText}>Velg hvem som skal inviteres</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
           {!rows.length ? (
             <Text style={{ color: colors.muted }}>Ingen medarbeidere er registrert ennå.</Text>
           ) : (
@@ -1559,6 +1600,7 @@ export default function EmployeesScreen() {
                       {mine?.id === row.id ? (
                         <Text style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>Din profil</Text>
                       ) : null}
+                      {canInvite ? <InviteChip employee={row} colors={colors} /> : null}
                       {departmentLabels(row, departments).map((name) => (
                         <Text key={name} style={[styles.dept, { color: colors.brand, backgroundColor: colors.brandSoft }]}>{name}</Text>
                       ))}
@@ -1907,6 +1949,8 @@ export default function EmployeesScreen() {
           onRemove={removeInvitePerson}
           onSend={deliverInvites}
           onResend={(row) => deliverInvites([row.id])}
+          onInviteSelected={deliverInvites}
+          progress={inviteProgress}
         />
       ) : null}
 
@@ -2012,6 +2056,37 @@ export default function EmployeesScreen() {
       total={saveProgress?.total}
     />
     </>
+  );
+}
+
+/** Invitasjonen og det den endrer på personen, lagt inn i en redigeringskopi. */
+function withInviteFields(draft, saved) {
+  return {
+    ...draft,
+    personUid: saved.personUid,
+    invite: saved.invite,
+    person: { ...(draft.person || {}), email: draft.person?.email || saved.person?.email || '' },
+    company: {
+      ...(draft.company || {}),
+      email: draft.company?.email || saved.company?.email || '',
+      accessLevel: saved.company?.accessLevel || '',
+      accessRole: saved.company?.accessRole || '',
+      canLogin: saved.company?.canLogin === true,
+    },
+  };
+}
+
+const INVITE_CHIP_KEYS = new Set(['none', 'missingEmail', 'queued', 'sent', 'declined']);
+
+/** Invitasjonsstatus på personen i listen (bare for den som kan invitere). */
+function InviteChip({ employee, colors }) {
+  const state = employeeInviteState(employee);
+  if (!INVITE_CHIP_KEYS.has(state.key)) return null;
+  const alert = state.key === 'declined' || state.key === 'missingEmail';
+  return (
+    <Text style={[styles.dept, { color: alert ? (colors.danger || '#b42318') : colors.muted, backgroundColor: colors.sunken }]}>
+      {state.label}
+    </Text>
   );
 }
 

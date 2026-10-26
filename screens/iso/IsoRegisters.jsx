@@ -29,6 +29,19 @@ const STATE_LABEL = {
   gjennomfort: 'Gjennomført', utlopt: 'Utløpt', utkast: 'Utkast', avsluttet: 'Avsluttet', nådd: 'Nådd', ikke_nådd: 'Ikke nådd',
 };
 
+/** Knappetekst for statusskifte. «Arkivert» som knapp så ut som en merkelapp, ikke en handling. */
+function stateAction(next, current, first) {
+  if (next === 'arkivert') return { label: 'Arkiver', icon: 'archive-outline' };
+  if (current === 'arkivert' && next === first) return { label: 'Gjenopprett', icon: 'arrow-undo-outline' };
+  return { label: STATE_LABEL[next] || next };
+}
+
+/** «A», «A og B», «A, B og C» – flere enn tre blir et antall. */
+function nameList(names, noun = 'forslag') {
+  if (names.length > 3) return `${names.length} ${noun}`;
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} og ${names[names.length - 1]}` : (names[0] || '');
+}
+
 /* ───────── Generisk skjema for registerpost ───────── */
 
 export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSaved, preset = {} }) {
@@ -156,9 +169,19 @@ function RecordDetail({ ctx, record, onClose, children }) {
           <>
             <Row>
               <Btn icon="create-outline" label="Rediger" onPress={() => setEdit(true)} />
-              {def.states.filter((s) => s !== record.state).map((s) => <Btn key={s} small label={STATE_LABEL[s] || s} onPress={() => state(s)} />)}
+              {def.states.filter((s) => s !== record.state).map((s) => {
+                const a = stateAction(s, record.state, def.states[0]);
+                return <Btn key={s} small icon={a.icon} label={a.label} onPress={() => state(s)} />;
+              })}
             </Row>
             <TextIn value={note} onChangeText={setNote} placeholder="Merknad til statusendring" />
+            {def.states.includes('arkivert') ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                {record.state === 'arkivert'
+                  ? '«Gjenopprett» setter posten tilbake i listen.'
+                  : '«Arkiver» tar posten ut av listen uten å slette den. Arkiverte poster finner du under «Vis arkiverte» nederst i registeret.'}
+              </Text>
+            ) : null}
           </>
         ) : null}
         {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
@@ -179,15 +202,28 @@ function useRegister(ctx, key) {
   return { creating, setCreating, openId, setOpenId, rows, open };
 }
 
-function SimpleRegister({ ctx, registerKey, subtitle, children, detail, filter }) {
+function SimpleRegister({ ctx, registerKey, subtitle, children, detail, filter, right }) {
   const { caps } = ctx;
   const def = REGISTERS[registerKey];
   const reg = useRegister(ctx, registerKey);
-  const rows = (filter ? reg.rows.filter(filter) : reg.rows).filter((r) => r.state !== 'arkivert');
+  const [showArchived, setShowArchived] = useState(false);
+  const all = filter ? reg.rows.filter(filter) : reg.rows;
+  const rows = all.filter((r) => r.state !== 'arkivert');
+  // Arkiverte poster skjules i listen, men må kunne finnes og gjenopprettes.
+  const archived = all.filter((r) => r.state === 'arkivert');
   return (
     <Card title={def.title} right={caps.manage ? <Btn small icon="add" label="Ny" onPress={() => reg.setCreating(true)} /> : null}>
       {children}
-      <RecordList ctx={ctx} registerKey={registerKey} rows={rows} subtitle={subtitle} onOpen={(r) => reg.setOpenId(r.id)} />
+      <RecordList ctx={ctx} registerKey={registerKey} rows={rows} subtitle={subtitle} right={right} onOpen={(r) => reg.setOpenId(r.id)} />
+      {archived.length ? (
+        <Btn
+          small
+          icon={showArchived ? 'chevron-up' : 'archive-outline'}
+          label={showArchived ? 'Skjul arkiverte' : `Vis arkiverte (${archived.length})`}
+          onPress={() => setShowArchived(!showArchived)}
+        />
+      ) : null}
+      {showArchived && archived.length ? <RecordList ctx={ctx} registerKey={registerKey} rows={archived} subtitle={subtitle} onOpen={(r) => reg.setOpenId(r.id)} /> : null}
       <RecordSheet ctx={ctx} registerKey={registerKey} visible={reg.creating} onClose={() => reg.setCreating(false)} />
       {reg.open ? <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')}>{detail ? detail(reg.open) : null}</RecordDetail> : null}
     </Card>
@@ -198,30 +234,55 @@ function SimpleRegister({ ctx, registerKey, subtitle, children, detail, filter }
  * Forslag hentet fra andre moduler. «Legg til» lagrer direkte når forslaget har alt som kreves;
  * ellers åpnes skjemaet ferdig utfylt så brukeren bare vurderer og lagrer.
  */
-function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct, limit = 6 }) {
+function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct, limit = 6, addedTo, onAdded }) {
   const colors = useColors();
   const { caps, actor, store, state } = ctx;
   const [preset, setPreset] = useState(null);
   const [busy, setBusy] = useState(false);
   const [dismissed, setDismissed] = useState([]);
+  const [added, setAdded] = useState([]);
+  const [err, setErr] = useState('');
   const visible = rows.filter((r) => !dismissed.includes(r.title));
-  if (!caps.manage || !visible.length) return null;
+  const hidden = rows.length - visible.length;
+  // Kortet blir stående etter «Legg til», så brukeren ser hvor forslagene ble av.
+  if (!caps.manage || (!visible.length && !hidden && !added.length && !err)) return null;
+  const target = addedTo || `${registerDef(registerKey)?.title || 'registeret'} nedenfor`;
 
   async function addAll(list) {
     setBusy(true);
+    setErr('');
     let existing = store.current().records[registerKey] || [];
+    const done = [];
+    const failed = [];
     for (const r of list) {
       const { source, ...input } = r;
       const res = createRecord(registerKey, input, { actor, existing, riskMethod: state.system.riskMethod || DEFAULT_RISK_METHOD });
-      if (!res.ok) continue;
-      const saved = await store.commit('records', 'record', res);
-      if (saved.ok) existing = [...existing, res.record];
+      const saved = res.ok ? await store.commit('records', 'record', res) : res;
+      if (saved.ok) {
+        existing = [...existing, res.record];
+        done.push(res.record);
+      } else {
+        failed.push(`${r.title} (${saved.error})`);
+      }
     }
     setBusy(false);
+    if (done.length) {
+      setAdded((cur) => [...cur, ...done.map((x) => x.title)]);
+      onAdded?.(done);
+    }
+    if (failed.length) setErr(`Ble ikke lagt til: ${failed.join(', ')}.`);
   }
 
   return (
     <Card title={title} subtitle={subtitle} right={<Pill label="Forslag" icon="sparkles-outline" tone="info" />}>
+      {added.length ? (
+        <Banner
+          tone="ok"
+          text={`${nameList(added)} er lagt til i ${target}.${direct ? ` Trykk på ${added.length === 1 ? 'den' : 'dem'} der for å fylle ut resten.` : ''}`}
+        />
+      ) : null}
+      {err ? <Banner tone="danger" text={err} /> : null}
+      {!visible.length && !hidden ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen flere forslag.</Text> : null}
       {visible.slice(0, limit).map((r) => (
         <ListRow
           key={r.title}
@@ -238,8 +299,27 @@ function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct
         />
       ))}
       {direct && visible.length > 1 ? <Btn small icon="add-circle-outline" label={`Legg til alle ${Math.min(visible.length, limit)}`} busy={busy} onPress={() => addAll(visible.slice(0, limit))} /> : null}
-      {!direct ? <Text style={{ color: colors.muted, fontSize: 12 }}>«Bruk» åpner registreringen ferdig utfylt. Du vurderer og lagrer.</Text> : null}
-      <RecordSheet ctx={ctx} registerKey={registerKey} visible={!!preset} preset={preset ? (({ source, ...x }) => x)(preset) : {}} onClose={() => setPreset(null)} />
+      {hidden ? (
+        <Row>
+          <Text style={{ color: colors.muted, fontSize: 12 }}>{hidden === 1 ? 'Ett forslag er skjult.' : `${hidden} forslag er skjult.`}</Text>
+          <Btn small icon="eye-outline" label="Vis igjen" onPress={() => setDismissed([])} />
+        </Row>
+      ) : null}
+      {visible.length ? (
+        <Text style={{ color: colors.muted, fontSize: 12 }}>
+          {direct
+            ? `«Legg til» lagrer forslaget i ${target}. × skjuler forslaget.`
+            : '«Bruk» åpner registreringen ferdig utfylt. Du vurderer og lagrer.'}
+        </Text>
+      ) : null}
+      <RecordSheet
+        ctx={ctx}
+        registerKey={registerKey}
+        visible={!!preset}
+        preset={preset ? (({ source, ...x }) => x)(preset) : {}}
+        onClose={() => setPreset(null)}
+        onSaved={(rec) => { setAdded((cur) => [...cur, rec.title || rec.activity]); onAdded?.([rec]); }}
+      />
     </Card>
   );
 }
@@ -268,14 +348,31 @@ function useControlledForms(state, keys) {
 
 export function ContextPage({ ctx }) {
   const { state, sources } = ctx;
+  // Interessenter lagt til fra forslagene i denne økten, så de er lette å kjenne igjen i listen.
+  const [fresh, setFresh] = useState([]);
   const suggestions = useMemo(() => stakeholderSuggestions({
     customers: sources?.customers, contracts: sources?.contracts, requirements: allRequirements(state), existing: state.records.interessent,
   }), [sources?.customers, sources?.contracts, state]);
   return (
     <Page wide={ctx.wide} title="Kontekst og interessenter" intro="Interne og eksterne forhold og interessenter som påvirker ledelsessystemet. Endringer kan utløse ny risikovurdering.">
       <SimpleRegister ctx={ctx} registerKey="kontekst" subtitle={(r) => `${r.scope}${r.climate === 'Ja' ? ' · klimarelevant' : ''}`} />
-      <Suggestions ctx={ctx} registerKey="interessent" rows={suggestions} direct title="Foreslåtte interessenter" subtitle="Fra kontraktene, kunderegisteret, ansatte og myndighetene i lovkravene." describe={(r) => r.category} />
-      <SimpleRegister ctx={ctx} registerKey="interessent" subtitle={(r) => `${r.category || ''}${r.binding === 'Ja' ? ' · bindende forpliktelse' : ''}`} />
+      <Suggestions
+        ctx={ctx}
+        registerKey="interessent"
+        rows={suggestions}
+        direct
+        title="Foreslåtte interessenter"
+        subtitle="Fra kontraktene, kunderegisteret, ansatte og myndighetene i lovkravene."
+        describe={(r) => r.category}
+        addedTo="Interessenter nederst på siden"
+        onAdded={(recs) => setFresh((cur) => [...cur, ...recs.map((r) => r.id)])}
+      />
+      <SimpleRegister
+        ctx={ctx}
+        registerKey="interessent"
+        subtitle={(r) => `${r.category || ''}${r.binding === 'Ja' ? ' · bindende forpliktelse' : ''}`}
+        right={(r) => (fresh.includes(r.id) ? <Pill label="Nettopp lagt til" icon="checkmark" tone="ok" /> : <Pill label={STATE_LABEL[r.state] || r.state} />)}
+      />
     </Page>
   );
 }

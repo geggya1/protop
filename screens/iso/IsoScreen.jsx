@@ -58,7 +58,10 @@ const AUTO_RAN = new Set();
 
 export default function IsoScreen({ subView = 'oversikt' }) {
   const colors = useColors();
-  const wide = useWide();
+  const windowWide = useWide();
+  // Tipsfeltet til høyre tar plass på desktop: bred layout krever at plassen ISO faktisk får er bred nok.
+  const [boxWidth, setBoxWidth] = useState(0);
+  const wide = windowWide && (!boxWidth || boxWidth >= 760);
   const { family, familyId, uid, activeProfile, requestShellTab } = useApp();
   const access = useCompanyAccess();
   const actor = useMemo(() => ({
@@ -201,6 +204,7 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   return (
     <ScrollView
       ref={scrollRef}
+      onLayout={(e) => setBoxWidth(Math.round(e.nativeEvent.layout.width))}
       style={{ flex: 1, backgroundColor: colors.bg }}
       contentContainerStyle={{ padding: 16, paddingBottom: 96, gap: 14, maxWidth: wide ? 1280 : 980, width: '100%', alignSelf: 'flex-start' }}
       keyboardShouldPersistTaps="handled"

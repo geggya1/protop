@@ -45,7 +45,7 @@ import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -147,6 +147,9 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
   );
 }
 
+/** Under denne vindusbredden får ISO hele bredden i stedet for tipsfeltet. */
+const ISO_ASIDE_MIN_WIDTH = 1280;
+
 function AppShellInner() {
   const nav = useNavigation();
   const route = useOptionalRoute();
@@ -161,7 +164,7 @@ function AppShellInner() {
     familyId, uid, userProfile, meChild, meParent, members,
     activeChild,
   } = useApp();
-  const { hasRail, isDesktop, isTablet, isPhone, contentMax, railWidth } = useLayout();
+  const { width, hasRail, isDesktop, isTablet, isPhone, contentMax, railWidth } = useLayout();
   const showPageHero = useShowModuleHero();
   const { unreadByModule } = useUnread();
   const { needsWelcome } = useModuleAccess();
@@ -825,9 +828,14 @@ function AppShellInner() {
     </View>
   );
 
-  const showDeskAside = isDesktop && !kitchenMode
-    && tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kunder' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter'
-    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'iso' && tab !== 'ansatte' && tab !== 'hr';
+  // ISO har tipsfeltet på alle undersider unntatt oversikten, og bare når vinduet har plass
+  // til både feltet og ISO i full bredde. ISO ligger alltid i samme oppsett på desktop, så
+  // skjermen ikke lastes på nytt når man går mellom oversikten og en underside.
+  const isoDesk = tab === 'iso' && isDesktop && !kitchenMode;
+  const isoAside = isoDesk && width >= ISO_ASIDE_MIN_WIDTH && defaultIsoSubView(moreSubView) !== 'oversikt';
+  const showDeskAside = isDesktop && !kitchenMode && (isoDesk || (
+    tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kunder' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter'
+    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'ansatte' && tab !== 'hr'));
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset
@@ -1025,15 +1033,15 @@ function AppShellInner() {
                   </View>
                 ) : null}
                 {showDeskAside ? (
-                  <View style={[styles.deskSplit, pageHeroId && styles.deskSplitAfterHero]}>
-                    <View style={[styles.deskMain, deskWide && styles.deskMainWide]}>
+                  <View style={[styles.deskSplit, pageHeroId && styles.deskSplitAfterHero, isoDesk && styles.deskSplitIso, isoAside && styles.deskSplitIsoAside]}>
+                    <View style={[styles.deskMain, (deskWide || isoDesk) && styles.deskMainWide]}>
                       <EdgeSwipeBack enabled={edgeSwipeEnabled} onBack={onEdgeSwipeBack}>
                         {gatedBody}
                       </EdgeSwipeBack>
                     </View>
-                    {deskWide ? null : (
-                      <View style={styles.deskAside}>
-                        <ModuleAside />
+                    {deskWide || (isoDesk && !isoAside) ? null : (
+                      <View style={[styles.deskAside, isoDesk && styles.deskAsideIso]}>
+                        <ModuleAside fallbackName={shellHeaderTitle} />
                       </View>
                     )}
                   </View>
@@ -1213,6 +1221,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   deskMainWide: { maxWidth: '100%' },
+  // ISO har egen innramming (padding i ScrollView); skallet legger bare til luft mot tipsfeltet.
+  deskSplitIso: { gap: 0, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
+  deskSplitIsoAside: { gap: 8, paddingRight: 20 },
   deskAside: {
     width: 300,
     flexShrink: 0,
@@ -1220,6 +1231,7 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     minHeight: 0,
   },
+  deskAsideIso: { paddingTop: 16 },
   contentAreaKitchen: { alignItems: 'stretch' },
   contentInnerKitchen: { maxWidth: '100%', width: '100%' },
   kitchenNav: {

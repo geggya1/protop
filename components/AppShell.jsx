@@ -147,8 +147,10 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
   );
 }
 
-/** Under denne vindusbredden får ISO hele bredden i stedet for tipsfeltet. */
-const ISO_ASIDE_MIN_WIDTH = 1280;
+/** Moduler med tipsfeltet på alle undersider unntatt oversikten: fane → standard underside. */
+const SUBPAGE_ASIDE = { iso: defaultIsoSubView, hr: defaultHrSubView };
+/** Under denne vindusbredden får modulen hele bredden i stedet for tipsfeltet. */
+const SUBPAGE_ASIDE_MIN_WIDTH = 1280;
 
 function AppShellInner() {
   const nav = useNavigation();
@@ -828,14 +830,14 @@ function AppShellInner() {
     </View>
   );
 
-  // ISO har tipsfeltet på alle undersider unntatt oversikten, og bare når vinduet har plass
-  // til både feltet og ISO i full bredde. ISO ligger alltid i samme oppsett på desktop, så
-  // skjermen ikke lastes på nytt når man går mellom oversikten og en underside.
-  const isoDesk = tab === 'iso' && isDesktop && !kitchenMode;
-  const isoAside = isoDesk && width >= ISO_ASIDE_MIN_WIDTH && defaultIsoSubView(moreSubView) !== 'oversikt';
-  const showDeskAside = isDesktop && !kitchenMode && (isoDesk || (
+  // ISO og HR har tipsfeltet på alle undersider unntatt oversikten, og bare når vinduet har
+  // plass til både feltet og innholdet. Modulen ligger i samme oppsett på desktop også uten
+  // feltet, så innholdet ikke flytter seg mellom oversikten og undersidene.
+  const subDesk = !!SUBPAGE_ASIDE[tab] && isDesktop && !kitchenMode;
+  const subAside = subDesk && width >= SUBPAGE_ASIDE_MIN_WIDTH && SUBPAGE_ASIDE[tab](moreSubView) !== 'oversikt';
+  const showDeskAside = isDesktop && !kitchenMode && (subDesk || (
     tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kunder' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter'
-    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'ansatte' && tab !== 'hr'));
+    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'ansatte'));
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset
@@ -1033,14 +1035,14 @@ function AppShellInner() {
                   </View>
                 ) : null}
                 {showDeskAside ? (
-                  <View style={[styles.deskSplit, pageHeroId && styles.deskSplitAfterHero, isoDesk && styles.deskSplitIso, isoAside && styles.deskSplitIsoAside]}>
-                    <View style={[styles.deskMain, (deskWide || isoDesk) && styles.deskMainWide]}>
+                  <View style={[styles.deskSplit, pageHeroId && styles.deskSplitAfterHero, subDesk && styles.deskSplitFlush, subAside && styles.deskSplitFlushAside]}>
+                    <View style={[styles.deskMain, (deskWide || subDesk) && styles.deskMainWide]}>
                       <EdgeSwipeBack enabled={edgeSwipeEnabled} onBack={onEdgeSwipeBack}>
                         {gatedBody}
                       </EdgeSwipeBack>
                     </View>
-                    {deskWide || (isoDesk && !isoAside) ? null : (
-                      <View style={[styles.deskAside, isoDesk && styles.deskAsideIso]}>
+                    {deskWide || (subDesk && !subAside) ? null : (
+                      <View style={[styles.deskAside, subDesk && styles.deskAsideFlush]}>
                         <ModuleAside fallbackName={shellHeaderTitle} />
                       </View>
                     )}
@@ -1221,9 +1223,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   deskMainWide: { maxWidth: '100%' },
-  // ISO har egen innramming (padding i ScrollView); skallet legger bare til luft mot tipsfeltet.
-  deskSplitIso: { gap: 0, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
-  deskSplitIsoAside: { gap: 8, paddingRight: 20 },
+  // ISO og HR har egen innramming (padding i ScrollView); skallet legger bare til luft mot tipsfeltet.
+  deskSplitFlush: { gap: 0, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 },
+  deskSplitFlushAside: { gap: 8, paddingRight: 20 },
   deskAside: {
     width: 300,
     flexShrink: 0,
@@ -1231,7 +1233,7 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     minHeight: 0,
   },
-  deskAsideIso: { paddingTop: 16 },
+  deskAsideFlush: { paddingTop: 16 },
   contentAreaKitchen: { alignItems: 'stretch' },
   contentInnerKitchen: { maxWidth: '100%', width: '100%' },
   kitchenNav: {

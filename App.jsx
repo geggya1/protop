@@ -96,6 +96,7 @@ import AddHomeworkScreen from './screens/AddHomeworkScreen';
 import NotificationsScreen from './screens/v2/NotificationsScreen';
 import SubscriptionScreen from './screens/v2/SubscriptionScreen';
 import LocationSettingsScreen from './screens/v2/LocationSettingsScreen';
+import NotificationSettingsScreen from './screens/v2/NotificationSettingsScreen';
 import WeatherSettingsScreen from './screens/v2/WeatherSettingsScreen';
 import AppearanceSettingsScreen from './screens/v2/AppearanceSettingsScreen';
 import DashboardThemeSettingsScreen from './screens/v2/DashboardThemeSettingsScreen';
@@ -260,6 +261,7 @@ const ActivityDetailWithGate = gatedStackScreen('ActivityDetail', ActivityDetail
 const StarGoalsWithGate = gatedStackScreen('StarGoals', StarGoalsScreen);
 const FamilyProgressWithGate = gatedStackScreen('FamilyProgress', FamilyProgressScreen);
 const LocationSettingsWithGate = gatedStackScreen('LocationSettings', LocationSettingsScreen);
+const NotificationSettingsWithGate = gatedStackScreen('NotificationSettings', NotificationSettingsScreen);
 const AddTodoWithGate = gatedStackScreen('AddTodo', AddTodoScreen);
 const AddNoteWithGate = gatedStackScreen('AddNote', AddNote);
 const AddBookWithGate = gatedStackScreen('AddBook', AddBookScreen);
@@ -1250,6 +1252,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             <Stack.Screen name="Notifications" component={NotificationsWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="Subscription" component={SubscriptionWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="LocationSettings" component={LocationSettingsWithGate} options={{ headerShown: false }} />
+            <Stack.Screen name="NotificationSettings" component={NotificationSettingsWithGate} options={{ headerShown: false }} />
             <Stack.Screen name="WeatherSettings" component={WeatherSettingsWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="AppearanceSettings" component={AppearanceSettingsWithSwipe} options={{ headerShown: false }} />
             <Stack.Screen name="DashboardThemeSettings" component={DashboardThemeSettingsWithShell} options={{ headerShown: false }} />

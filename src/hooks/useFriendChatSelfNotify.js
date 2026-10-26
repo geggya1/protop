@@ -75,7 +75,7 @@ export function useFriendChatSelfNotify(uid, prefs) {
         });
 
         if (!pushSupported()) return;
-        if (!isChannelOn(prefsRef.current, 'messageReceived', 'push', true)) return;
+        if (!isChannelOn(prefsRef.current, 'messageReceived', 'push')) return;
         if (Platform.OS === 'web') {
           if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
           if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;

@@ -417,6 +417,15 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
         <Mute style={isDesktop && styles.muteDesk}>
           Trykk for å åpne opphavet — chat, kalender, oppgaver m.m.
         </Mute>
+        <TouchableOpacity
+          nativeID="notifications-open-settings"
+          onPress={() => nav.navigate('NotificationSettings')}
+          accessibilityRole="button"
+          style={[styles.settingsLink, isDesktop && styles.muteDesk]}
+        >
+          <Ionicons name="options-outline" size={16} color={colors.brand} />
+          <Text style={styles.settingsLinkTxt}>Velg om du også vil få varslene som push eller e-post</Text>
+        </TouchableOpacity>
 
         {familyInvites.length > 0 ? (
           <View style={[styles.listCard, isDesktop && styles.listCardDesk, styles.inviteCard]}>
@@ -529,6 +538,8 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
 }
 
 const styles = StyleSheet.create({
+  settingsLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 },
+  settingsLinkTxt: { color: colors.brand, fontSize: 14 },
   body: { padding: 16, paddingBottom: 40, gap: 12 },
   bodyDesk: { padding: 12, gap: 10, maxWidth: 720, width: '100%', alignSelf: 'center' },
   headerBadge: {

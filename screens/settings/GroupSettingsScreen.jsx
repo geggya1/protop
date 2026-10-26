@@ -46,8 +46,7 @@ import { hasContactAccount } from '../../src/utils/account';
 import { setMemberPassword } from '../../src/utils/setMemberPassword';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
 import { calculateAge, isValidBirthday, toIsoDate } from '../../src/utils/age';
-import { NOTIF_DEFAULT, mergeNotificationPrefs } from '../../src/utils/notificationPrefs';
-import { disablePushSubscription, ensurePushSubscription } from '../../src/utils/push';
+import NotificationPrefsPanel from '../../components/NotificationPrefsPanel';
 import BirthdayPicker from '../../components/BirthdayPicker';
 import PhoneInput from '../../components/PhoneInput';
 import WebImageCropperModal from '../../components/WebImageCropperModal';
@@ -1028,56 +1027,6 @@ export function ProfileSettingsScreen() {
   const [password2, setPassword2] = useState('');
   const [pwdBusy, setPwdBusy] = useState(false);
 
-  const [notificationPrefs, setNotificationPrefs] = useState(NOTIF_DEFAULT);
-  const [notifBusy, setNotifBusy] = useState(false);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-    let alive = true;
-    getDoc(doc(db, 'users', user.uid))
-      .then((s) => {
-        if (!alive) return;
-        const p = s.exists() ? s.data()?.notificationPrefs : null;
-        if (!p) return;
-        setNotificationPrefs(mergeNotificationPrefs(p));
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.uid]);
-
-  const persistNotificationPrefs = async (prefs) => {
-    if (!user?.uid) return;
-    setNotifBusy(true);
-    try {
-      await setDoc(doc(db, 'users', user.uid), { notificationPrefs: prefs }, { merge: true });
-    } catch {}
-    finally {
-      setNotifBusy(false);
-    }
-  };
-
-  const updateEventChannel = (eventType, channel, value) => {
-    const next = {
-      ...notificationPrefs,
-      events: {
-        ...notificationPrefs.events,
-        [eventType]: {
-          ...(notificationPrefs.events?.[eventType] || {}),
-          [channel]: value,
-        },
-      },
-    };
-    setNotificationPrefs(next);
-    persistNotificationPrefs(next);
-    if (channel === 'push') {
-      if (value) ensurePushSubscription(user.uid).catch(() => {});
-      else if (!next.events?.messageReceived?.push && !next.events?.taskReceived?.push) {
-        disablePushSubscription(user.uid).catch(() => {});
-      }
-    }
-  };
-
   const saveLocalPassword = async () => {
     if (password.length < 6) return Alert.alert(t('common.error'), t('member.passwordSet'));
     if (password !== password2) return Alert.alert(t('common.error'), t('auth.passwordMismatch'));
@@ -1122,157 +1071,9 @@ export function ProfileSettingsScreen() {
         <Choice key={l.id} emoji={l.flag} label={l.name} active={lang === l.id} onPress={() => setLang(l.id)} />
       ))}
 
-      {/* Varslinger */}
+      {/* Varslinger: personlige valg for push og e-post, samme som under Innstillinger. */}
       <Text style={{ fontWeight: '400', fontSize: 18, marginTop: 18, marginBottom: 8 }}>🔔 Varslinger</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text style={{ fontWeight: '400' }}>Aktiver</Text>
-        <Switch
-          value={notificationPrefs.enabled}
-          onValueChange={(v) => {
-            const next = { ...notificationPrefs, enabled: v };
-            setNotificationPrefs(next);
-            persistNotificationPrefs(next);
-          }}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.enabled ? '#0b74d1' : '#f9fafb'}
-          disabled={notifBusy}
-        />
-      </View>
-
-      <Text style={{ fontWeight: '400', marginTop: 10 }}>Oppgave mottatt</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>📧 E-post</Text>
-        <Switch
-          value={!!notificationPrefs.events?.taskReceived?.email}
-          onValueChange={(v) => updateEventChannel('taskReceived', 'email', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.taskReceived?.email ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>🔔 Push</Text>
-        <Switch
-          value={!!notificationPrefs.events?.taskReceived?.push}
-          onValueChange={(v) => updateEventChannel('taskReceived', 'push', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.taskReceived?.push ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>📱 SMS</Text>
-        <Switch
-          value={!!notificationPrefs.events?.taskReceived?.sms}
-          onValueChange={(v) => updateEventChannel('taskReceived', 'sms', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.taskReceived?.sms ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-
-      <Text style={{ fontWeight: '400', marginTop: 10 }}>Melding mottatt</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>📧 E-post</Text>
-        <Switch
-          value={!!notificationPrefs.events?.messageReceived?.email}
-          onValueChange={(v) => updateEventChannel('messageReceived', 'email', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.messageReceived?.email ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>🔔 Push</Text>
-        <Switch
-          value={!!notificationPrefs.events?.messageReceived?.push}
-          onValueChange={(v) => updateEventChannel('messageReceived', 'push', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.messageReceived?.push ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>📱 SMS</Text>
-        <Switch
-          value={!!notificationPrefs.events?.messageReceived?.sms}
-          onValueChange={(v) => updateEventChannel('messageReceived', 'sms', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.messageReceived?.sms ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-
-      <Text style={{ fontWeight: '400', marginTop: 10 }}>Til attestering</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>📧 E-post</Text>
-        <Switch
-          value={!!notificationPrefs.events?.attestPending?.email}
-          onValueChange={(v) => updateEventChannel('attestPending', 'email', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.attestPending?.email ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>🔔 Push</Text>
-        <Switch
-          value={!!notificationPrefs.events?.attestPending?.push}
-          onValueChange={(v) => updateEventChannel('attestPending', 'push', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.attestPending?.push ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>📱 SMS</Text>
-        <Switch
-          value={!!notificationPrefs.events?.attestPending?.sms}
-          onValueChange={(v) => updateEventChannel('attestPending', 'sms', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.attestPending?.sms ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-
-      <Text style={{ fontWeight: '400', marginTop: 10 }}>Invitasjoner (familie/lag/klasse)</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>📧 E-post</Text>
-        <Switch
-          value={!!notificationPrefs.events?.familyInvite?.email}
-          onValueChange={(v) => updateEventChannel('familyInvite', 'email', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.familyInvite?.email ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>🔔 Push</Text>
-        <Switch
-          value={!!notificationPrefs.events?.familyInvite?.push}
-          onValueChange={(v) => updateEventChannel('familyInvite', 'push', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.familyInvite?.push ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-
-      <Text style={{ fontWeight: '400', marginTop: 10 }}>Spillinvitasjoner</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
-        <Text>🔔 Push</Text>
-        <Switch
-          value={!!notificationPrefs.events?.gameInvite?.push}
-          onValueChange={(v) => updateEventChannel('gameInvite', 'push', v)}
-          disabled={notifBusy}
-          trackColor={{ false: '#d1d5db', true: '#93c5fd' }}
-          thumbColor={notificationPrefs.events?.gameInvite?.push ? '#0b74d1' : '#f9fafb'}
-        />
-      </View>
-
-      <Text style={{ color: '#94a3b8', fontWeight: '400', marginTop: 10, fontSize: 12 }}>
-        Push-varsler vises på enheten når du får en ny melding, også når appen er i bakgrunnen.
-        Nettleseren spør om tillatelse første gang. SMS støttes ikke ennå.
-      </Text>
+      <NotificationPrefsPanel />
     </Wizard>
   );
 }

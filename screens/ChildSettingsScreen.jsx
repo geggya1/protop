@@ -34,16 +34,13 @@ import {
 import { calculateAge, toIsoDate } from '../src/utils/age';
 import { friendAddByUsernameUrl } from '../src/utils/friendsLogic';
 
-import { NOTIF_DEFAULT, mergeNotificationPrefs } from '../src/utils/notificationPrefs';
-import { ensurePushSubscription } from '../src/utils/push';
+import NotificationPrefsPanel from '../components/NotificationPrefsPanel';
 import { clearLiveLocation } from '../src/utils/familyLocation';
 import { mergeAllowedApps, persistChildAllowedApps } from '../src/utils/childApps';
 import { aiImportNavParams } from '../src/utils/childNav';
 import { canEnableHighChildFriendliness } from '../src/utils/childUi';
 import ChildThemeBackdrop from '../components/ChildThemeBackdrop';
 import { custodySummaryLabel, resolveCustodyLabels } from '../src/utils/custodySchedule';
-
-const CHANNEL_LABELS = { email: 'E-post', push: 'Push', sms: 'SMS' };
 
 const PANE_TITLES = {
   profile: 'Rediger profil',
@@ -83,7 +80,6 @@ function makeFormSnapshot(form, { childSelfOnly = false } = {}) {
     travelSelfEdit: !!form.travelSelfEdit,
     homeworkSelfEdit: form.homeworkSelfEdit !== false,
     leksehjelpAllowFasit: form.leksehjelpAllowFasit !== false,
-    notificationPrefs: JSON.stringify(form.notificationPrefs || NOTIF_DEFAULT),
   };
 }
 
@@ -183,8 +179,6 @@ export default function ChildSettingsScreen() {
   const [custodyDoc, setCustodyDoc] = useState(child?.custody || null);
 
   // Notifications (per-user)
-  const notifUid = auth.currentUser?.uid || null;
-  const [notificationPrefs, setNotificationPrefs] = useState(NOTIF_DEFAULT);
 
   // UI
   const [loading, setLoading] = useState(true);
@@ -226,11 +220,11 @@ export default function ChildSettingsScreen() {
   const currentForm = useMemo(() => ({
     name, photoURL, avatarId, birthday, username, email, phone,
     aiEnabled, locationSharingEnabled, locationSharingChildCanControl, themeId,
-    highChildFriendliness, calendarSelfEdit, travelSelfEdit, homeworkSelfEdit, leksehjelpAllowFasit, notificationPrefs,
+    highChildFriendliness, calendarSelfEdit, travelSelfEdit, homeworkSelfEdit, leksehjelpAllowFasit,
   }), [
     name, photoURL, avatarId, birthday, username, email, phone,
     aiEnabled, locationSharingEnabled, locationSharingChildCanControl, themeId,
-    highChildFriendliness, calendarSelfEdit, travelSelfEdit, homeworkSelfEdit, leksehjelpAllowFasit, notificationPrefs,
+    highChildFriendliness, calendarSelfEdit, travelSelfEdit, homeworkSelfEdit, leksehjelpAllowFasit,
   ]);
 
   const isDirty = useMemo(() => {
@@ -293,34 +287,13 @@ export default function ChildSettingsScreen() {
       setLeksehjelpAllowFasit(loaded.leksehjelpAllowFasit);
       setCustodyDoc(loaded.custody);
       setBaseline(makeFormSnapshot(
-        { ...loaded, notificationPrefs },
+        loaded,
         { childSelfOnly: isChildSelfView },
       ));
     }).catch(() => {}).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [familyId, childId, isChildSelfView]);
-
-  // Load notification prefs from users/{uid} (foresatte styrer dette for barn)
-  useEffect(() => {
-    let active = true;
-    if (!notifUid || isChildSelfView) return () => { active = false; };
-    (async () => {
-      try {
-        const s = await getDoc(doc(db, 'users', notifUid));
-        if (!active) return;
-        const p = s.exists() ? (s.data()?.notificationPrefs || null) : null;
-        if (!p) return;
-        const merged = mergeNotificationPrefs(p);
-        setNotificationPrefs(merged);
-        setBaseline((prev) => {
-          if (!prev || isChildSelfView) return prev;
-          return { ...prev, notificationPrefs: JSON.stringify(merged) };
-        });
-      } catch {}
-    })();
-    return () => { active = false; };
-  }, [notifUid, isChildSelfView]);
 
   const showInfo = useCallback((title, message, onClose) => {
     if (Platform.OS === 'web') {
@@ -502,10 +475,6 @@ export default function ChildSettingsScreen() {
         }
       }
 
-      if (notifUid) {
-        await setDoc(doc(db, 'users', notifUid), { notificationPrefs }, { merge: true });
-      }
-
       setBaseline(makeFormSnapshot(currentForm));
       setConfirmSaveOpen(false);
       showInfo('Lagret', 'Innstillingene er lagret.', () => navigation.goBack());
@@ -516,7 +485,7 @@ export default function ChildSettingsScreen() {
       setSaving(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, photoURL, avatarId, birthday, username, usernameLocked, email, phone, aiEnabled, allowedApps, canRestrict, isChildSelfView, locationSharingEnabled, locationSharingChildCanControl, themeId, dashboardThemeId, isUnder18, highChildFriendliness, calendarSelfEdit, travelSelfEdit, homeworkSelfEdit, leksehjelpAllowFasit, isAdmin, familyId, childId, child, notificationPrefs, currentForm, showInfo, navigation, notifUid]);
+  }, [name, photoURL, avatarId, birthday, username, usernameLocked, email, phone, aiEnabled, allowedApps, canRestrict, isChildSelfView, locationSharingEnabled, locationSharingChildCanControl, themeId, dashboardThemeId, isUnder18, highChildFriendliness, calendarSelfEdit, travelSelfEdit, homeworkSelfEdit, leksehjelpAllowFasit, isAdmin, familyId, childId, child, currentForm, showInfo, navigation]);
 
   const saveChildPassword = useCallback(async (nextPassword) => {
     setPasswordBusy(true);
@@ -553,19 +522,6 @@ export default function ChildSettingsScreen() {
       ],
     );
   }, [canSave, name, performSave]);
-
-  const updateEventChannel = useCallback((eventType, channel, value) => {
-    setNotificationPrefs((prev) => ({
-      ...prev,
-      events: {
-        ...prev.events,
-        [eventType]: { ...(prev.events?.[eventType] || {}), [channel]: value },
-      },
-    }));
-    if (eventType === 'messageReceived' && channel === 'push' && value && notifUid) {
-      ensurePushSubscription(notifUid).catch(() => {});
-    }
-  }, [notifUid]);
 
   const loginHandle = String(username || '').replace(/^@+/, '').trim();
   const shareUrl = loginHandle ? friendAddByUsernameUrl(loginHandle) : '';
@@ -1000,7 +956,7 @@ export default function ChildSettingsScreen() {
             <NavRow
               icon="notifications-outline"
               label="Varslinger"
-              hint="Hva barnet skal få beskjed om"
+              hint="Dine push- og e-postvarsler"
               onPress={() => setPane('notifications')}
             />
           </View>
@@ -1229,45 +1185,11 @@ export default function ChildSettingsScreen() {
       );
     } else if (pane === 'notifications') {
       body = (
-        <View style={styles.group}>
-          <Row label="Aktiver varslinger" hint="Slår av/på alle event-varsler for barnet.">
-            <BrandToggle
-              value={notificationPrefs.enabled}
-              onValueChange={(v) => setNotificationPrefs((prev) => ({ ...prev, enabled: v }))}
-            />
-          </Row>
-          <View style={styles.notifBlock}>
-            <View style={styles.notifGroup}>
-              <Text style={styles.fieldLabel}>Når barnet får oppgave</Text>
-              {['email', 'push', 'sms'].map((ch) => (
-                <View key={`task-${ch}`} style={styles.channelRow}>
-                  <Text style={styles.channelLabel}>{CHANNEL_LABELS[ch]}</Text>
-                  <BrandToggle
-                    value={!!notificationPrefs.events?.taskReceived?.[ch]}
-                    onValueChange={(v) => updateEventChannel('taskReceived', ch, v)}
-                  />
-                </View>
-              ))}
-            </View>
-            <View style={styles.notifGroup}>
-              <Text style={styles.fieldLabel}>Når barnet mottar melding</Text>
-              {['email', 'push', 'sms'].map((ch) => (
-                <View key={`msg-${ch}`} style={styles.channelRow}>
-                  <Text style={styles.channelLabel}>{CHANNEL_LABELS[ch]}</Text>
-                  <BrandToggle
-                    value={!!notificationPrefs.events?.messageReceived?.[ch]}
-                    onValueChange={(v) => updateEventChannel('messageReceived', ch, v)}
-                  />
-                </View>
-              ))}
-            </View>
-            <View style={styles.aiDisclaimer}>
-              <Ionicons name="information-circle-outline" size={16} color={colors.warn} />
-              <Text style={styles.aiDisclaimerTxt}>
-                Foreløpig støttes e-post- og push-varsler. SMS kommer senere.
-              </Text>
-            </View>
-          </View>
+        <View style={styles.notifPane}>
+          <Text style={styles.hint}>
+            Dette er dine egne varsler, også om barnet. Barnet med egen innlogging velger sine under Innstillinger.
+          </Text>
+          <NotificationPrefsPanel />
         </View>
       );
     }
@@ -1551,15 +1473,7 @@ const styles = StyleSheet.create({
   },
   importPlanBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
 
-  notifBlock: {
-    padding: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line, gap: 14,
-  },
-  notifGroup: { gap: 2 },
-  channelRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 6,
-  },
-  channelLabel: { fontWeight: '400', color: colors.ink, fontSize: 14 },
+  notifPane: { gap: 8 },
 
   saveBtn: {
     alignSelf: 'flex-start', marginTop: 20, backgroundColor: colors.brand, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },

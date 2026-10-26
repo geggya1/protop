@@ -87,7 +87,7 @@ export function useChatSelfNotify(familyId, uid, prefs) {
           // In-app toast comes from NotificationContext when the inbox doc lands.
           // Only fire OS/local push when the app is not already visible.
           if (!pushSupported()) return;
-          if (!isChannelOn(prefsRef.current, 'messageReceived', 'push', true)) return;
+          if (!isChannelOn(prefsRef.current, 'messageReceived', 'push')) return;
           if (Platform.OS === 'web') {
             if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
             if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;

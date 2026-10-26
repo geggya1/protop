@@ -72,7 +72,7 @@ for bucket in "gs://$PROJECT.firebasestorage.app" "gs://$PROJECT.appspot.com"; d
   out="$(run gcloud storage buckets describe "$bucket" --format='value(name)')"
   if [[ "$out" != INGEN_TILGANG* ]] && [ -n "$out" ]; then
     found="$bucket"
-  elif [[ "${out,,}" =~ (401|403|denied|unauthenticated|credential|permission) ]]; then
+  elif [[ "${out,,}" =~ (403|denied|does\ not\ have\ permission) ]]; then
     # Cloud Storage svarer 404 for bucketer som ikke finnes, 403 bare for dem som finnes.
     denied="$bucket"
   fi

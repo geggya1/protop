@@ -129,3 +129,15 @@ for svc in sendinvitev2 sendfriendinvitev2 sendnotificationemail; do
   names="$(printf '%s' "$out" | jq -r '[.spec.template.spec.containers[0].env[]? | .name + (if .valueFrom.secretKeyRef then " (fra secret " + .valueFrom.secretKeyRef.name + ")" else "" end)] | join(", ")')"
   line "- $svc: ${names:-ingen}"
 done
+line ""
+
+# 7. AI-nøkkelen: bare om den er satt eller tom. Ingen del av verdien skrives ut.
+line "## AI-nøkkel (Gemini)"
+out="$(run gcloud run services describe aichat --project "$PROJECT" --region "$REGION" --format=json)"
+if [[ "$out" == INGEN_TILGANG* ]]; then
+  line "- aichat: ${out#INGEN_TILGANG: }"
+elif printf '%s' "$out" | jq -e '[.spec.template.spec.containers[0].env[]? | select(.name == "PROTOP_GEMINI_KEY" or .name == "GEMINI_API_KEY") | (.value // "") | select(length > 0)] | length > 0' >/dev/null; then
+  line "- ✅ aichat har en AI-nøkkel"
+else
+  line "- ❌ aichat har ingen AI-nøkkel (GitHub-hemmeligheten PROTOP_GEMINI_KEY er tom eller mangler)"
+fi

@@ -32,6 +32,28 @@ import {
 } from '../../src/forms/filledDocs';
 import { deleteFilledDoc, loadFilledDocs, peekFilledDocs, saveFilledDoc } from '../../src/forms/filledStore';
 import { formWithTokens } from '../../src/forms/tokens';
+import {
+  archiveControl,
+  controlKey,
+  controlStatus,
+  docHeader,
+  ensureWorkingRevision,
+  pendingFor,
+  revisionLog,
+  submitRevision,
+  updateControl,
+  workingRevision,
+} from '../../src/doccontrol/model';
+import { templateFromSnapshot, templateHash, templateSnapshot } from '../../src/doccontrol/content';
+import {
+  autoControlled,
+  draftHeaderForTemplate,
+  fillSource,
+  isoManaged,
+  libraryKeyOf,
+  newTemplateControl,
+  templateControlKey,
+} from '../../src/doccontrol/templates';
 import { pickDocument, pickImage } from '../../src/utils/media';
 import { useColors } from '../../src/context/ThemeContext';
 import { useApp } from '../../src/context/AppContext';
@@ -40,6 +62,13 @@ import FormFill, { FilledStatusIcon } from './FormFill';
 import { useFormContext } from './useFormContext';
 import CreateMenu from '../../components/CreateMenu';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+import { useDocControl } from '../doccontrol/useDocControl';
+import DocControlPanel from '../doccontrol/DocControlPanel';
+import DocComments from '../doccontrol/DocComments';
+import DocOverview from '../doccontrol/DocOverview';
+import { StatusChip } from '../doccontrol/parts';
+import { printHandbook } from '../hr/handbookPrint';
+import { printForm } from './formPrint';
 
 const STARTERS = [
   { id: 'blank', title: 'Tomt skjema', icon: 'document-outline', kind: 'blank' },
@@ -52,7 +81,10 @@ const TABS = [
   { id: 'bibliotek', label: 'KS-maler' },
   { id: 'maler', label: 'Bedriftens maler' },
   { id: 'utfylt', label: 'Utfylte dokumenter' },
+  { id: 'styring', label: 'Dokumentstyring' },
 ];
+
+const NOT_CONTROLLED = { label: 'Ikke godkjent', tone: 'warn' };
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -97,6 +129,8 @@ export default function FormBuilderScreen({
   const colors = colorsProp || themeColors;
   const { shellIntent, clearShellIntent, requestShellTab } = useApp();
   const { familyId, actor, company, logo: companyLogo } = useFormContext();
+  const dc = useDocControl();
+  const logoUrl = companyLogo?.dataUrl || '';
   const [localState, setLocalState] = useState(null);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('bibliotek');
@@ -123,6 +157,15 @@ export default function FormBuilderScreen({
     });
     return () => { live = false; };
   }, [externalState, familyId]);
+
+  // Varsel om dokument til godkjenning eller ny merknad åpner fanen Dokumentstyring.
+  useEffect(() => {
+    if (shellIntent?.type !== 'docControl') return;
+    clearShellIntent?.();
+    setDraft(null);
+    setFilled(null);
+    setTab('styring');
+  }, [shellIntent, clearShellIntent]);
 
   useEffect(() => {
     let live = true;
@@ -202,11 +245,96 @@ export default function FormBuilderScreen({
     say(own ? '' : 'KS-malen fra biblioteket. Endringer lagres som bedriftens egen versjon.');
   }
 
+  function controlOf(template) {
+    const key = templateControlKey(template);
+    return key ? dc.controlFor(key) : null;
+  }
+
+  function templateOf(control) {
+    const own = templates.find((row) => row.id === control.refId);
+    if (own) return own;
+    const key = libraryKeyOf(control.refId);
+    return key ? libraryTemplate(key) : null;
+  }
+
+  /** Lagret mal: start neste revisjon når innholdet avviker fra gjeldende versjon. KS-maler tas inn av seg selv. */
+  async function syncControl(template) {
+    if (!template?.id || template.category === 'avtale' || isoManaged(template)) return;
+    const existing = controlOf(template);
+    if (!existing && !autoControlled(template)) return;
+    let next = existing || newTemplateControl(template, { controls: dc.controls, settings: dc.settings, actor });
+    next = ensureWorkingRevision(next, templateHash(template), { actor });
+    if (next.title !== template.title) next = updateControl(next, { title: template.title }, { actor });
+    if (next !== existing) await dc.storeControl(next);
+  }
+
+  /** Vis innsendt versjon som PDF, slik godkjenner skal godkjenne den. */
+  function previewSnapshot(snapshot, control) {
+    if (!snapshot || !control) return;
+    const work = workingRevision(control);
+    if (control.kind === 'handbook') {
+      printHandbook({
+        title: snapshot.title,
+        chapters: snapshot.chapters || [],
+        header: { ...docHeader(control), version: `Utkast ${work?.revision || 1}`, approvedBy: '', approved: '' },
+        log: revisionLog(control),
+      }, { company, logo: logoUrl });
+      return;
+    }
+    const base = templateOf(control) || { id: control.refId, doc: { docId: control.code } };
+    printForm({ ...templateFromSnapshot(snapshot, base), doc: draftHeaderForTemplate(base, control) }, logoUrl, { company });
+  }
+
+  function openControl(control) {
+    if (control.kind === 'handbook') {
+      requestShellTab?.('hr', 'handbok');
+      return;
+    }
+    const template = templateOf(control);
+    if (!template) {
+      say('Malen finnes ikke lenger.', true);
+      return;
+    }
+    setDraft(draftFromTemplate(template));
+    say('');
+  }
+
+  const missingLibrary = KS_LIBRARY.filter((entry) => entry.kind === 'mal' && !dc.controlFor(controlKey('template', libraryTemplateId(entry.key))));
+
+  /** Ta alle KS-malene inn i dokumentstyringen og send rev. 1 til godkjenning. */
+  async function addLibraryControls() {
+    const list = missingLibrary.map((entry) => {
+      const template = libraryTemplate(entry.key);
+      const control = newTemplateControl(template, { controls: dc.controls, settings: dc.settings, actor });
+      const res = submitRevision(control, templateSnapshot(template), { actor, changeReason: 'Første utgave' });
+      return res.ok ? res.control : control;
+    }).filter(Boolean);
+    if (!list.length) return;
+    setSaving(true);
+    const results = await Promise.all(list.map((control) => dc.storeControl(control)));
+    setSaving(false);
+    const ok = results.filter((row) => row.ok).length;
+    if (ok) {
+      dc.notifySubmitted(list[0], 1, { title: `${ok} KS-maler venter på godkjenning`, body: `Sendt av ${actor.name || 'en kollega'}. Åpne Skjemabygger › Dokumentstyring.` });
+    }
+    const message = ok === list.length ? `${ok} KS-maler er tatt inn og sendt til godkjenning.` : `${ok} av ${list.length} KS-maler ble tatt inn. ${results.find((row) => !row.ok)?.error || ''}`;
+    say(message, ok !== list.length);
+    showSaveToast(message);
+  }
+
   function startFill(form, returnTo = null) {
     const entry = form.libraryKey ? libraryEntry(form.libraryKey) : null;
+    const control = controlOf(form);
+    const controlled = !!control || autoControlled(form);
+    const source = controlled ? fillSource(form, control) : { form, approved: true, version: 0 };
     fillReturnRef.current = returnTo;
-    setFilled(newFilledDoc(form, { actor, scope: entry?.hr ? 'hr' : 'skjema' }));
-    say(entry?.hr ? 'Personaldokument. Det lagres i HR med begrenset tilgang.' : '');
+    setFilled(newFilledDoc(source.form, { actor, scope: entry?.hr ? 'hr' : 'skjema' }));
+    const work = workingRevision(control);
+    say([
+      entry?.hr ? 'Personaldokument. Det lagres i HR med begrenset tilgang.' : '',
+      controlled && !source.approved ? 'Malen er ikke godkjent ennå. Dokumentet får «Utkast» i hodet til en versjon er godkjent.' : '',
+      source.approved && source.version && work ? `Utfyllingen bruker godkjent versjon ${source.version}. Endringene i rev. ${work.revision} gjelder når de er godkjent.` : '',
+    ].filter(Boolean).join(' '));
   }
 
   function fillLibrary(key) {
@@ -301,24 +429,28 @@ export default function FormBuilderScreen({
     say('Tom avtalemal. Bygg malen og lagre for å gå tilbake til avtalebehandlingen.');
   }, [state, shellIntent, clearShellIntent]);
 
-  async function save() {
+  async function save({ quiet = false } = {}) {
     const known = new Set((state.formTemplates || []).map((row) => row.id));
     const toSave = agreementReturnRef.current
       ? { ...draft, category: 'avtale' }
       : draft;
     const result = await commit(saveFormTemplate(state, toSave));
-    if (!result) return;
+    if (!result) return null;
     const saved = draft.id
       ? result.state.formTemplates.find((row) => row.id === draft.id)
       : result.state.formTemplates.find((row) => row.title === toSave.title && !known.has(row.id))
         || result.state.formTemplates.find((row) => row.category === 'avtale' && !known.has(row.id));
     if (saved && returnToAgreement(saved.id)) {
       showSaveToast('Avtalemalen er lagret.');
-      return;
+      return saved;
     }
-    say('Skjemaet er lagret.');
-    showSaveToast('Skjemaet er lagret.');
+    if (saved) await syncControl(saved);
+    if (!quiet) {
+      say('Skjemaet er lagret.');
+      showSaveToast('Skjemaet er lagret.');
+    }
     if (saved) setDraft(draftFromTemplate(saved));
+    return saved || null;
   }
 
   function adoptForm(form, text) {
@@ -330,6 +462,8 @@ export default function FormBuilderScreen({
   async function removeTemplate(template) {
     setPendingDelete('');
     const result = await commit(deleteFormTemplate(state, template.id));
+    const control = controlOf(template);
+    if (result?.ok && control && !template.libraryKey) await dc.storeControl(archiveControl(control, { actor }));
     if (result?.ok) {
       say(template.libraryKey ? 'Bedriftens versjon er slettet. KS-malen fra biblioteket står igjen.' : 'Skjemaet er slettet.');
       showSaveToast('Skjemaet er slettet.');
@@ -390,13 +524,12 @@ export default function FormBuilderScreen({
   if (!state) return <Text style={{ color: colors.muted }}>Henter skjemaene …</Text>;
 
   if (filled) {
-    const useLogo = filled.settings?.useCompanyLogo ? (companyLogo?.dataUrl || '') : '';
     return (
       <FormFill
         doc={filled}
         colors={colors}
         company={company}
-        logo={useLogo}
+        logo={logoUrl}
         actor={actor}
         busy={saving}
         note={note}
@@ -420,9 +553,46 @@ export default function FormBuilderScreen({
   }
 
   if (draft) {
+    const draftControl = controlOf(draft);
+    const governed = !fromAgreement && draft.category !== 'avtale' && (!!draftControl || autoControlled(draft));
+    const docPanel = !fromAgreement && draft.category !== 'avtale' ? (
+      <View style={{ gap: 12 }}>
+        {isoManaged(draft) ? (
+          <TouchableOpacity onPress={() => requestShellTab?.('iso', 'skjema')} accessibilityRole="button">
+            <Text style={{ color: colors.brand }}>Versjon og godkjenning for dette ISO-skjemaet styres i ISO › Skjemaer.</Text>
+          </TouchableOpacity>
+        ) : draft.id || governed ? (
+          <DocControlPanel
+            colors={colors}
+            dc={dc}
+            control={draftControl}
+            title="Versjon og godkjenning"
+            create={() => newTemplateControl(draft, { controls: dc.controls, settings: dc.settings, actor })}
+            snapshot={templateSnapshot(draft)}
+            beforeSubmit={async () => {
+              const saved = await save({ quiet: true });
+              return saved ? templateSnapshot(saved) : null;
+            }}
+            filled={filledDocs}
+            onPreview={previewSnapshot}
+          />
+        ) : (
+          <Text style={{ color: colors.muted }}>Lagre malen for å ta den inn i dokumentstyringen med versjon og godkjenning.</Text>
+        )}
+        <DocComments
+          colors={colors}
+          dc={dc}
+          control={draftControl}
+          anchors={(draft.fields || []).filter((field) => field.kind === 'title' && field.label).map((field) => ({ id: field.id, label: field.label }))}
+        />
+      </View>
+    ) : null;
     return (
       <>
         <FormStudio
+          docHead={governed ? draftHeaderForTemplate(draft, draftControl) : null}
+          docStatus={governed ? (draftControl ? controlStatus(draftControl) : NOT_CONTROLLED) : null}
+          docPanel={docPanel}
           key={scanToken}
           draft={draft}
           colors={colors}
@@ -456,6 +626,7 @@ export default function FormBuilderScreen({
     );
   }
 
+  const myApprovals = pendingFor(dc.controls, actor, dc.settings, { isAdmin: dc.isAdmin }).approvals.length;
   const groups = libraryGroups()
     .map((group) => ({ ...group, entries: group.entries.filter((row) => libraryHits.has(row.key)) }))
     .filter((group) => group.entries.length);
@@ -485,10 +656,12 @@ export default function FormBuilderScreen({
                 {item.label}
                 {item.id === 'utfylt' && ownFilled.length ? ` (${ownFilled.length})` : ''}
                 {item.id === 'maler' && templates.length ? ` (${templates.length})` : ''}
+                {item.id === 'styring' && myApprovals ? ` (${myApprovals})` : ''}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
+        {tab !== 'styring' ? (
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -496,6 +669,7 @@ export default function FormBuilderScreen({
           placeholderTextColor={colors.placeholder}
           style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
         />
+        ) : null}
         {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
 
         {tab === 'bibliotek' ? (
@@ -513,6 +687,7 @@ export default function FormBuilderScreen({
                   {group.entries.map((entry) => {
                     const own = entry.kind === 'mal' && templates.some((row) => row.id === libraryTemplateId(entry.key));
                     const done = entry.kind === 'mal' ? filledDocs.filter((row) => row.libraryKey === entry.key).length : 0;
+                    const control = entry.kind === 'mal' ? dc.controlFor(controlKey('template', libraryTemplateId(entry.key))) : null;
                     return (
                       <View key={entry.key} style={[styles.libCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
                         <View style={styles.libHead}>
@@ -522,6 +697,7 @@ export default function FormBuilderScreen({
                         <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{entry.summary}</Text>
                         {entry.kind === 'mal' ? (
                           <>
+                            <StatusChip status={control ? controlStatus(control) : NOT_CONTROLLED} colors={colors} />
                             <Text style={{ color: colors.muted, fontSize: 12 }}>
                               {own ? 'Tilpasset av bedriften' : 'Standard KS-mal'}
                               {entry.hr ? ' · lagres i HR' : ''}
@@ -587,6 +763,7 @@ export default function FormBuilderScreen({
                     {template.responses?.length ? ` · ${template.responses.length} svar` : ''}
                     {template.intro ? ` · ${template.intro}` : ''}
                   </Text>
+                  {controlOf(template) ? <StatusChip status={controlStatus(controlOf(template))} colors={colors} /> : null}
                 </TouchableOpacity>
                 <View style={styles.row}>
                   {onPick ? (
@@ -640,6 +817,23 @@ export default function FormBuilderScreen({
             ))}
             {!visible.length ? <Text style={{ color: colors.muted }}>{templates.length ? 'Ingen skjema treffer søket.' : 'Bedriften har ingen egne skjema ennå. Start fra en KS-mal eller et tomt skjema.'}</Text> : null}
           </>
+        ) : null}
+
+        {tab === 'styring' ? (
+          <DocOverview
+            colors={colors}
+            dc={dc}
+            filled={filledDocs}
+            onOpen={openControl}
+            onPreview={previewSnapshot}
+            snapshotFor={(control) => {
+              if (control.kind !== 'template') return null;
+              const template = templateOf(control);
+              return template ? templateSnapshot(template) : null;
+            }}
+            libraryMissing={missingLibrary.length}
+            onAddLibrary={saving ? null : addLibraryControls}
+          />
         ) : null}
 
         {tab === 'utfylt' ? (

@@ -434,6 +434,9 @@ export function formPrintHtml(source, logo, options = {}) {
   table.meta { border-collapse: collapse; width: 100%; font-size: 6.8pt; color: #3c4654; }
   table.meta th { text-align: left; font-weight: 400; color: #7a8696; padding: 1px 4px 1px 0; white-space: nowrap; border-bottom: 1px dashed #c5ced6; }
   table.meta td { padding: 1px 10px 1px 0; border-bottom: 1px dashed #c5ced6; white-space: nowrap; }
+  table.meta tr:first-child td:first-of-type { white-space: normal; }
+  header.dochead > .logo, header.dochead > .word { flex: none; }
+  header.dochead > .word { font-size: 18pt; max-width: 40%; text-align: right; }
   .titlerow { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin: 0 0 8px; }
   .titlerow h1 { margin: 0; font-size: 17pt; }
   .docno { text-align: right; color: #7a8696; font-size: 8pt; }

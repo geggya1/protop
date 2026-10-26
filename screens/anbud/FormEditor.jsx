@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { DOC_INFO_FIELDS, fieldType, isAnswerField, normalizeDocInfo } from '../../src/anbud/formBuilder';
+import { fieldType, hasDocInfo, isAnswerField, normalizeDocInfo } from '../../src/anbud/formBuilder';
 import { TOKENS } from '../../src/forms/tokens';
+import { HeaderGrid, StatusChip } from '../doccontrol/parts';
 import FormTableEditor from './FormTableEditor';
 
 function chromeNote(field) {
@@ -236,41 +237,29 @@ function FieldCard({ item, colors, selected, marked, onSelect, onPatch, onType, 
   );
 }
 
-function DocHeadEditor({ doc, colors, onChange }) {
+/**
+ * Dokumenthodet (KS) beregnes av dokumentstyringen: dokument-ID, versjon, eier,
+ * godkjent av og datoer. Det kan ikke skrives inn for hånd.
+ */
+function DocHeadView({ header, status, colors }) {
   const [open, setOpen] = useState(false);
-  const info = normalizeDocInfo(doc);
-  const filled = DOC_INFO_FIELDS.filter((row) => info[row.key]).length;
+  const info = normalizeDocInfo(header);
+  const used = hasDocInfo(info);
   return (
     <View style={[styles.group, { backgroundColor: colors.card, borderColor: colors.line }]}>
       <TouchableOpacity onPress={() => setOpen((value) => !value)} accessibilityRole="button" style={styles.head}>
         <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.muted} />
         <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>Dokumenthode (KS)</Text>
-        <Text style={{ color: colors.muted }}>{filled ? `${filled} av ${DOC_INFO_FIELDS.length}` : 'Ikke i bruk'}</Text>
+        {status ? <StatusChip status={status} colors={colors} /> : <Text style={{ color: colors.muted }}>{used ? `Versjon ${info.version || '–'}` : 'Ikke styrt'}</Text>}
       </TouchableOpacity>
       {open ? (
         <View style={{ gap: 8 }}>
-          <Text style={[styles.hint, { color: colors.muted, marginLeft: 0 }]}>Står øverst på hver side i PDF, slik som i KS-malene. Tomt hode skrives ikke ut.</Text>
-          <TextInput
-            value={info.system}
-            onChangeText={(system) => onChange({ ...info, system })}
-            placeholder="Systemnavn, for eksempel {{firma}} - Ledelsessystem"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.line, { color: colors.ink, borderBottomColor: colors.line }]}
-          />
-          <View style={styles.pair}>
-            {DOC_INFO_FIELDS.map((row) => (
-              <View key={row.key} style={{ flexGrow: 1, flexBasis: 160, gap: 2 }}>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{row.label}</Text>
-                <TextInput
-                  value={info[row.key]}
-                  onChangeText={(value) => onChange({ ...info, [row.key]: value })}
-                  placeholder={row.key === 'created' || row.key === 'changed' || row.key === 'approved' ? 'dd.mm.åå' : row.label}
-                  placeholderTextColor={colors.placeholder}
-                  style={[styles.line, { color: colors.ink, borderBottomColor: colors.line }]}
-                />
-              </View>
-            ))}
-          </View>
+          {used ? <HeaderGrid header={info} colors={colors} /> : null}
+          <Text style={[styles.hint, { color: colors.muted, marginLeft: 0 }]}>
+            {used
+              ? 'Fylles ut av dokumentstyringen og står øverst på hver side i PDF. Ny versjon får nytt nummer når den er godkjent. Send til godkjenning nederst.'
+              : 'Ta malen inn i dokumentstyringen nederst for å få dokument-ID, versjon og godkjenning i hodet.'}
+          </Text>
           <Text style={[styles.hint, { color: colors.muted, marginLeft: 0 }]}>
             Flettefelt i all tekst: {TOKENS.map((row) => `{{${row.key}}}`).join(' ')}. De fylles fra bedriftsprofilen.
           </Text>
@@ -293,6 +282,8 @@ export default function FormEditor({
   onDeleteIds,
   onAdd,
   onOptionImage,
+  docHead = null,
+  docStatus = null,
 }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [marked, setMarked] = useState([]);
@@ -341,7 +332,7 @@ export default function FormEditor({
         placeholderTextColor={colors.placeholder}
         style={[styles.intro, { color: colors.ink, borderBottomColor: colors.line }]}
       />
-      <DocHeadEditor doc={draft.doc} colors={colors} onChange={(doc) => onPatch(-1, { doc })} />
+      <DocHeadView header={docHead || draft.doc} status={docStatus} colors={colors} />
       {model.info.length ? (
         <View style={[styles.group, { backgroundColor: colors.card, borderColor: colors.line }]}>
           <TouchableOpacity onPress={() => setInfoOpen((open) => !open)} accessibilityRole="button" style={styles.head}>

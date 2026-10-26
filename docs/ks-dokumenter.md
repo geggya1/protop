@@ -74,6 +74,19 @@ Kilden er `src/forms/ksLibrary.js`. Listen under er laget fra den.
 
 - Felt som skal fylles ut, er lyse gule, som i avtalemodulen. Felt med * må fylles ut før dokumentet kan merkes ferdig.
 - Firmaopplysninger skrives som flettefelt (`{{firma}}`, `{{orgnr}}`, `{{adresse}}`, `{{telefon}}`, `{{epost}}`, `{{web}}`, `{{dato}}`, `{{bruker}}`) og fylles fra bedriftsprofilen. Når et dokument merkes ferdig, låses verdiene i dokumentet.
-- PDF har KS-hodet (dokument-ID, eier, versjon, godkjent av, datoer), logo og bunntekst med firmaopplysninger og sidetall.
+- PDF har KS-hodet (dokument-ID, eier, versjon, godkjent av, datoer), bedriftens logo og bunntekst med firmaopplysninger og sidetall. Hodet beregnes av dokumentstyringen og skrives aldri inn for hånd.
 - Utfylte dokumenter lagres i `families/{id}/formDocs`. Personalskjema (scope `hr`) vises bare i HR.
 - Personopplysninger fra de gamle dokumentene (navnelister, adresser, fødselsnummer, kompetansematrise med navn) er ikke lagt inn i koden. De hører hjemme i Ansatte, HR og ISO › Kompetanse.
+
+## Dokumentstyring (revisjon etter ISO 7.5)
+
+KS-malene i Skjemabygger og personalhåndboken i HR styres i `src/doccontrol`:
+
+- Hvert styrt dokument har revisjoner: utkast → til godkjenning → gjeldende → erstattet (avvist går tilbake til utkast). Endres og lagres et dokument etter godkjenning, starter neste revisjon av seg selv.
+- Godkjenning skjer faktisk: dokumentets godkjenner, godkjennerne i innstillingene eller administrator. Med «fire øyne» kan ikke den som sendte inn, godkjenne selv. Firestore-reglene hindrer andre i å publisere eller endre godkjente revisjoner.
+- Versjon, «Godkjent av» og datoene i hodet settes først ved godkjenning. Revisjonsloggen og dokumentlisten (C1-A-01-001) bygges av revisjonene.
+- Lesekrav per dokument: ingen, til informasjon, påkrevd lesing med bekreftelse, eller påkrevd utfylling og signering (for eksempel taushetserklæring). Ansatte leser og bekrefter under Ansatte › Min side.
+- Merknader kan knyttes til markert tekst. De er bare synlige for den som skrev dem, dokumentets eier og godkjenner, godkjennere og utpekte lesere i innstillingene, og administrator. De behandles ved gjennomgang (tatt inn / ikke tatt inn).
+- Innstillinger: godkjennere, lesere av merknader, om ansatte kan skrive merknader, om ansatte varsles om ny versjon, fire øyne og standard gjennomgangsintervall.
+- Lagring: `families/{id}/docControl`, `docControlSettings/main`, `docComments` og `docAcks`.
+- ISO-skjemaene (`iso_*`) godkjennes fortsatt i ISO › Skjemaer.

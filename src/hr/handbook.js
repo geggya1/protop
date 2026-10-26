@@ -1,6 +1,6 @@
 /**
- * Personalhåndbok i HR: kapitler som kan redigeres, publiserte versjoner og
- * lesebekreftelse fra hver ansatt.
+ * Personalhåndbok i HR: kapitlene som redigeres. Versjoner, godkjenning og
+ * lesebekreftelse håndteres av dokumentstyringen (src/doccontrol, nøkkel «handbook»).
  *
  * Tekstformat i kapitlene:
  *   «## Overskrift»  underoverskrift
@@ -51,47 +51,26 @@ function normalizeChapters(list) {
     .slice(0, MAX_CHAPTERS);
 }
 
-function normalizeRevision(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const version = Math.max(0, Math.round(Number(raw.version) || 0));
-  if (!version) return null;
-  return { version, at: text(raw.at, 40), by: text(raw.by, 120), reason: text(raw.reason, 300) };
-}
-
 export function emptyHandbook() {
   return {
     title: 'Personalhåndbok',
     chapters: [],
     changedAt: '',
-    published: null,
-    revisions: [],
   };
 }
 
 export function normalizeHandbook(raw) {
   const base = emptyHandbook();
   if (!raw || typeof raw !== 'object') return base;
-  const pub = raw.published && typeof raw.published === 'object' ? raw.published : null;
-  const published = pub && Number(pub.version) > 0
-    ? {
-      version: Math.round(Number(pub.version)),
-      at: text(pub.at, 40),
-      by: text(pub.by, 120),
-      chapters: normalizeChapters(pub.chapters),
-    }
-    : null;
   return {
     title: text(raw.title, 120) || base.title,
     chapters: normalizeChapters(raw.chapters),
     changedAt: text(raw.changedAt, 40),
-    published,
-    revisions: (Array.isArray(raw.revisions) ? raw.revisions : []).map(normalizeRevision).filter(Boolean).slice(-80),
   };
 }
 
 export function handbookHasContent(handbook) {
-  const h = normalizeHandbook(handbook);
-  return h.chapters.length > 0 || !!h.published;
+  return normalizeHandbook(handbook).chapters.length > 0;
 }
 
 /** Plassholdere [[…]] som ikke er bekreftet. */
@@ -106,13 +85,6 @@ export function openPlaceholders(chapters) {
     }
   }
   return out;
-}
-
-/** Er utkastet endret siden siste publisering? */
-export function draftChanged(handbook) {
-  const h = normalizeHandbook(handbook);
-  if (!h.published) return h.chapters.length > 0;
-  return JSON.stringify(h.chapters) !== JSON.stringify(h.published.chapters);
 }
 
 export function setChapter(handbook, chapterId, part, { now = new Date() } = {}) {
@@ -147,70 +119,6 @@ export function moveChapter(handbook, chapterId, delta, { now = new Date() } = {
   const [row] = chapters.splice(from, 1);
   chapters.splice(to, 0, row);
   return { ...h, changedAt: now.toISOString(), chapters };
-}
-
-/** Publiser utkastet som ny versjon. Alle ansatte må bekrefte den nye versjonen. */
-export function publishHandbook(handbook, { by = '', reason = '', now = new Date() } = {}) {
-  const h = normalizeHandbook(handbook);
-  if (!h.chapters.length) return { ok: false, error: 'Håndboken har ingen kapitler.' };
-  if (!draftChanged(h)) return { ok: false, error: 'Ingen endringer siden forrige versjon.' };
-  const open = openPlaceholders(h.chapters);
-  if (open.length) {
-    return { ok: false, error: `${open.length} gule felt er ikke bekreftet. Første er «${open[0].value}» i «${open[0].chapter}».`, open };
-  }
-  const version = (h.published?.version || 0) + 1;
-  const at = now.toISOString();
-  return {
-    ok: true,
-    handbook: {
-      ...h,
-      published: { version, at, by: text(by, 120), chapters: h.chapters.map((row) => ({ ...row })) },
-      revisions: [...h.revisions, { version, at, by: text(by, 120), reason: text(reason, 300) || (version === 1 ? 'Første versjon' : 'Oppdatert') }],
-    },
-  };
-}
-
-/* ───────── Lesebekreftelse ───────── */
-
-export function normalizeAck(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const version = Math.round(Number(raw.version) || 0);
-  const uid = text(raw.uid, 128);
-  const employeeId = text(raw.employeeId, 80);
-  if (!version || (!uid && !employeeId)) return null;
-  return { uid, employeeId, name: text(raw.name, 120), version, at: text(raw.at, 40) };
-}
-
-export function ackFor({ uid = '', employeeId = '', name = '' }, version, now = new Date()) {
-  return normalizeAck({ uid, employeeId, name, version, at: now.toISOString() });
-}
-
-function employeeUid(employee) {
-  return text(employee?.personUid || employee?.uid, 128);
-}
-
-function employeeName(employee) {
-  const person = employee?.person || {};
-  return text([person.firstName, person.middleName, person.lastName].map((part) => text(part)).filter(Boolean).join(' ')
-    || employee?.name || employee?.displayName, 120);
-}
-
-/** Status per ansatt for gjeldende versjon. */
-export function ackStatus(employees, acks, version) {
-  const list = (Array.isArray(acks) ? acks : []).map(normalizeAck).filter(Boolean);
-  return (Array.isArray(employees) ? employees : []).map((employee) => {
-    const uid = employeeUid(employee);
-    const mine = list
-      .filter((row) => (uid && row.uid === uid) || (row.employeeId && row.employeeId === employee.id))
-      .sort((a, b) => b.version - a.version);
-    const latest = mine[0] || null;
-    return {
-      employeeId: employee.id,
-      name: employeeName(employee) || 'Uten navn',
-      latest,
-      current: !!latest && latest.version >= version,
-    };
-  });
 }
 
 /* ───────── Innlesing fra Word eller tekst ───────── */
@@ -380,7 +288,7 @@ Arbeidsgiver pålegger alle arbeidstakere å gjøre seg kjent med personalhåndb
 Alle arbeidstakere plikter å overholde reglene i personalhåndboken og andre relevante lover og forskrifter. Brudd på lovpålagte eller kontraktsfestede krav kan føre til oppsigelse.
 
 ## Revisjon
-Personalhåndboken revideres ved behov, for eksempel ved endring i rutiner, og gjennomgås i sin helhet minst én gang i året[[ i løpet av august]]. Alle har plikt til å melde behov for endring til [[K-HMS-leder]]. Hver publisering får nytt versjonsnummer, og endringene vises i revisjonsloggen.
+Personalhåndboken revideres ved behov, for eksempel ved endring i rutiner, og gjennomgås i sin helhet minst én gang i året[[ i løpet av august]]. Alle har plikt til å melde behov for endring til [[K-HMS-leder]]. Hver godkjente versjon får nytt versjonsnummer, og endringene vises i revisjonsloggen.
 `),
     c('Visjon og verdier', `
 ## Vår visjon

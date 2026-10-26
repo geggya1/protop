@@ -745,6 +745,7 @@ export default function EmployeesScreen() {
   const pendingEmployeeId = useRef('');
   const pendingEmployeeView = useRef('detail');
   const pendingMyAbsence = useRef(false);
+  const pendingMine = useRef(false);
   useEffect(() => {
     if (!shellIntent || typeof shellIntent !== 'object') return;
     if (shellIntent.type === 'openEmployee') {
@@ -755,6 +756,12 @@ export default function EmployeesScreen() {
     }
     if (shellIntent.type === 'openMyAbsence') {
       pendingMyAbsence.current = true;
+      clearShellIntent?.();
+      return;
+    }
+    // Varsel om ny versjon av et dokument: Min side, der dokumentene leses og bekreftes.
+    if (shellIntent.type === 'myDocuments') {
+      pendingMine.current = true;
       clearShellIntent?.();
     }
   }, [shellIntent, clearShellIntent]);
@@ -839,6 +846,12 @@ export default function EmployeesScreen() {
     pendingMyAbsence.current = false;
     requestShellTab?.('arbeid', 'fravaer');
   }, [rows, directoryReady, linked, mine, requestShellTab]);
+
+  useEffect(() => {
+    if (!pendingMine.current || (!directoryReady && !linked && !mine)) return;
+    pendingMine.current = false;
+    openMine();
+  }, [rows, directoryReady, linked, mine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveWork(employee) {
     const saved = await saveEmployee(familyId, employee);

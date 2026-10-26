@@ -1,6 +1,7 @@
 /**
- * Rendrer utfylling av en KS-mal, tabellredigering i byggeren og personalhåndboken
- * i HR, og sjekker at gule felt, tabeller, signatur og lesebekreftelse vises.
+ * Rendrer utfylling av en KS-mal, tabellredigering i byggeren, personalhåndboken
+ * i HR og dokumentstyringen, og sjekker at gule felt, tabeller, signatur, godkjenning,
+ * merknader og lesebekreftelse vises.
  */
 const fs = require('fs');
 const path = require('path');
@@ -21,15 +22,31 @@ function host(name) {
   };
 }
 
+// Dokumentstyringen som useDocControl finner i minnet (peekDocControl). Settes per test.
+const DC = { controls: [], settings: null, acks: [] };
+
 const MOCKS = {
   'src/utils/media': { pickImage: async () => null, pickDocument: async () => null },
   'src/anbud/intakeClient': { fileToDataUrl: async () => '' },
-  'src/hr/handbookAcks': { loadHandbookAcks: async () => [], saveHandbookAck: async () => ({ ok: true }) },
+  'src/doccontrol/store': {
+    peekDocControl: () => DC,
+    loadControls: async () => DC.controls,
+    loadSettings: async () => DC.settings,
+    loadAcks: async () => DC.acks,
+    loadComments: async () => [],
+    saveControl: async (id, control) => ({ ok: true, control }),
+    saveSettings: async (id, settings) => ({ ok: true, settings }),
+    saveComment: async (id, comment) => ({ ok: true, comment }),
+    saveAck: async (id, ack) => ({ ok: true, ack }),
+  },
+  'src/employees/storage': { watchEmployees: () => () => {} },
+  'src/utils/notifications': { notifyUsers: async () => ({ notified: 0 }) },
+  'src/access/useCompanyAccess': { useCompanyAccess: () => ({ levelId: 'leder', bypass: false, canView: () => true, canEdit: () => true }) },
   'src/employees/cvImport': { textFromDocx: async () => '' },
   'src/ui/saveToast': { showSaveToast: () => {} },
   'src/context/AppContext': {
     useApp: () => ({
-      family: { company: { navn: 'Eksempel AS', organisasjonsnummer: '123456789' } },
+      family: { company: { navn: 'Eksempel AS', organisasjonsnummer: '123456789' }, ownerUid: 'u1' },
       familyId: 'f1',
       uid: 'u1',
       activeProfile: { name: 'Kari' },
@@ -204,26 +221,101 @@ assert.match(editor.text, /Ett av valgene/);
 assert.match(editor.text, /Lim inn mange rader/);
 assert.match(editor.text, /Er sikringene godt tilskrudd\?/);
 
-/* Personalhåndbok i HR: redigering og lesing. */
-const { standardHandbookChapters, publishHandbook, normalizeHandbook } = loadLocal(path.join(ROOT, 'src/hr/handbook.js'));
+/* Dokumentstyring: utkast, innsending, godkjenning. */
+const dcModel = loadLocal(path.join(ROOT, 'src/doccontrol/model.js'));
+const dcContent = loadLocal(path.join(ROOT, 'src/doccontrol/content.js'));
+const kari = { uid: 'u1', name: 'Kari' };
+const per = { uid: 'u2', name: 'Per Godkjenner' };
+DC.settings = dcModel.normalizeSettings({ approvers: [per] });
+
+/* Personalhåndbok i HR: redigering med godkjenning og lesing. */
+const { standardHandbookChapters, normalizeHandbook } = loadLocal(path.join(ROOT, 'src/hr/handbook.js'));
 const HrHandbook = loadLocal(path.join(ROOT, 'screens/hr/HrHandbook.jsx'));
 const chapters = standardHandbookChapters();
 const hr = { handbook: normalizeHandbook({ chapters }) };
+DC.controls = [dcModel.newControl({ kind: 'handbook', title: 'Personalhåndbok', code: 'C1-C-01-001', readRule: 'pakrevd' }, { actor: kari })];
 const edit = collect(withHooks(() => React.createElement(HrHandbook.default, {
-  colors, hr, canWrite: true, onPatch() {}, employees: [], familyId: 'f1', actor: { uid: 'u1', name: 'Kari' }, company, logo: '',
+  colors, hr, canWrite: true, onPatch() {}, employees: [], actor: kari, company, logo: '',
 })));
 assert.match(edit.text, /Personalhåndbok/);
 assert.match(edit.text, /gule felt å bekrefte/);
-assert.match(edit.text, /Publiser versjon 1/);
+assert.match(edit.text, /Versjon og godkjenning/);
+assert.match(edit.text, /Send rev\. 1 til godkjenning/);
+assert.match(edit.text, /gule felt er ikke bekreftet/, 'innsending stoppes til de gule feltene er bekreftet');
+assert.match(edit.text, /Utkast 1/, 'dokumenthodet viser utkast til godkjenning er gitt');
+assert.match(edit.text, /Godkjennes av .*Per Godkjenner/);
 assert.match(edit.text, /Om personalhåndboken/);
 
 const clean = chapters.map((row) => ({ ...row, body: row.body.replace(/\[\[([^\]]+)\]\]/g, '$1') }));
-const published = publishHandbook(normalizeHandbook({ chapters: clean }), { by: 'Kari' }).handbook.published;
+const snapshot = dcContent.handbookSnapshot({ chapters: clean });
+let handbookControl = dcModel.submitRevision(DC.controls[0], snapshot, { actor: kari }).control;
+
+/* Godkjenner ser knappen. Den som sendte inn, gjør ikke det (fire øyne). */
+const DocControlPanel = loadLocal(path.join(ROOT, 'screens/doccontrol/DocControlPanel.jsx')).default;
+const dcFor = (actor, extra = {}) => ({
+  actor, settings: DC.settings, isAdmin: false, employees: [], acks: [], people: [kari, per], comments: [], canComment: true, allComments: false,
+  storeControl: async (control) => ({ ok: true, control }), notifySubmitted() {}, notifyPublished() {}, addComment: async () => ({ ok: true }), updateComment: async () => ({ ok: true }),
+  ...extra,
+});
+const asPer = collect(withHooks(() => React.createElement(DocControlPanel, { colors, dc: dcFor(per), control: handbookControl, snapshot })));
+assert.match(asPer.text, /Rev\. 1 venter på godkjenning hos Per Godkjenner/);
+assert.match(asPer.text, /Godkjenn og publiser versjon 1/);
+const asKari = collect(withHooks(() => React.createElement(DocControlPanel, { colors, dc: dcFor(kari), control: handbookControl, snapshot })));
+assert.doesNotMatch(asKari.text, /Godkjenn og publiser/);
+assert.match(asKari.text, /Bare Per Godkjenner kan|Du sendte inn revisjonen selv|Du er ikke godkjenner/);
+assert.match(asKari.text, /Trekk tilbake/);
+
+handbookControl = dcModel.approveRevision(handbookControl, { actor: per, settings: DC.settings }).control;
+const published = collect(withHooks(() => React.createElement(DocControlPanel, { colors, dc: dcFor(kari), control: handbookControl, snapshot })));
+assert.match(published.text, /Gjeldende versjon 1, godkjent/);
+assert.match(published.text, /Per Godkjenner/, 'godkjent av står i hodet');
+assert.match(published.text, /Ingen endringer siden versjon 1/);
+
+const book = dcContent.handbookFromControl(handbookControl);
 const reader = collect(withHooks(() => React.createElement(HrHandbook.HandbookReader, {
-  colors, handbook: published, company, ack: null, onAck() {},
+  colors, book, company, ack: null, onAck() {}, onComment() {},
 })));
 assert.match(reader.text, /Likestilling, mangfold og inkludering/);
 assert.match(reader.text, /Jeg har lest og forstått versjon 1/);
+assert.match(reader.text, /@Merknad til Arbeidstid|@Merknad til /, 'kapitlene kan få merknad');
+
+/* Merknader: bare de som har lov ser dem. Eier og godkjenner kan behandle dem. */
+const DocComments = loadLocal(path.join(ROOT, 'screens/doccontrol/DocComments.jsx')).default;
+const comment = dcModel.newComment({ control: handbookControl, anchorId: chapters[0].id, anchorLabel: chapters[0].title, quote: 'fem uker', note: 'Gjelder dette også deltid?' }, { actor: { uid: 'u3', name: 'Ola' } });
+const comments = collect(withHooks(() => React.createElement(DocComments, { colors, dc: dcFor(per, { comments: [comment], allComments: true }), control: handbookControl })));
+assert.match(comments.text, /Gjelder dette også deltid\?/);
+assert.match(comments.text, /«fem uker»/);
+assert.match(comments.text, /Behandle/, 'godkjenner kan behandle merknaden');
+const noResolve = collect(withHooks(() => React.createElement(DocComments, { colors, dc: dcFor({ uid: 'u3', name: 'Ola' }, { comments: [comment] }), control: handbookControl })));
+assert.doesNotMatch(noResolve.text, /Behandle/, 'forfatteren kan ikke behandle sin egen merknad');
+
+/* Min side: påkrevde dokumenter står øverst og må bekreftes. */
+const { newTemplateControl } = loadLocal(path.join(ROOT, 'src/doccontrol/templates.js'));
+let brann = newTemplateControl({ ...libraryForm('branninstruks'), id: libraryTemplateId('branninstruks') }, { actor: kari });
+assert.equal(brann.readRule, 'pakrevd', 'branninstruks er påkrevd lesing');
+brann = dcModel.submitRevision(brann, dcContent.templateSnapshot(libraryForm('branninstruks')), { actor: kari }).control;
+brann = dcModel.approveRevision(brann, { actor: per, settings: DC.settings }).control;
+DC.controls = [handbookControl, brann];
+const MyDocuments = loadLocal(path.join(ROOT, 'screens/doccontrol/MyDocuments.jsx')).default;
+const mine = collect(withHooks(() => React.createElement(MyDocuments, { colors, employeeId: 'e1' })));
+assert.match(mine.text, /Dokumenter å lese/);
+assert.match(mine.text, /2 påkrevde gjenstår/);
+assert.match(mine.text, /Branninstruks/);
+assert.match(mine.text, /Påkrevd: les og bekreft/);
+
+/* Oversikten: venter på godkjenning, dokumentliste og innstillinger. */
+const DocOverview = loadLocal(path.join(ROOT, 'screens/doccontrol/DocOverview.jsx')).default;
+const waiting = dcModel.submitRevision(dcModel.ensureWorkingRevision(brann, 'ny', { actor: kari }), { title: 'Branninstruks 2' }, { actor: kari, changeReason: 'Ny møteplass' }).control;
+const overview = collect(withHooks(() => React.createElement(DocOverview, {
+  colors, dc: dcFor(per, { controls: [handbookControl, waiting], company, logo: null }), onOpen() {}, onPreview() {}, libraryMissing: 3, onAddLibrary() {},
+})));
+assert.match(overview.text, /Venter på din godkjenning/);
+assert.match(overview.text, /Ny møteplass/);
+assert.match(overview.text, /Dokumentliste/);
+assert.match(overview.text, /3 KS-maler er ikke tatt inn/);
+assert.match(overview.text, /Lesere av merknader/);
+assert.match(overview.text, /Varsle ansatte om ny versjon/);
+assert.match(overview.text, /C1-B-02-004/, 'KS-referansen er dokument-ID');
 
 /* Skjemabygger: KS-malene er standardfanen. */
 const FormBuilderScreen = loadLocal(path.join(ROOT, 'screens/anbud/FormBuilderScreen.jsx')).default;
@@ -235,6 +327,9 @@ assert.match(list.text, /Sjekkliste for gjennomføring av SJA/);
 assert.match(list.text, /ISO \/ K-HMS › Avvik og forbedring/, 'avviksrapport peker til avviksregisteret');
 assert.match(list.text, /HR › Personalhåndbok/);
 assert.match(list.text, /@Fyll ut Møtereferat/);
+assert.match(list.text, /Dokumentstyring/);
+assert.match(list.text, /Versjon 1 gjeldende/, 'godkjent KS-mal viser versjonen');
+assert.match(list.text, /Ikke godkjent/, 'KS-maler som ikke er godkjent er merket');
 
 /* HR › Skjemaer viser personalskjemaene. */
 const HrForms = loadLocal(path.join(ROOT, 'screens/hr/HrForms.jsx')).default;

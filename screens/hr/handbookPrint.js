@@ -23,9 +23,17 @@ function dateText(value) {
   return d.toLocaleDateString('nb-NO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-/** Personalhåndboken som HTML for utskrift og Lagre som PDF. */
-export function handbookPrintHtml({ title = 'Personalhåndbok', chapters = [], version = 0, at = '', revisions = [] }, { company = {}, logo = '', docId = 'C1-C-01-001' } = {}) {
+function cell(label, value) {
+  return `<th>${esc(label)}</th><td>${esc(value || '')}</td>`;
+}
+
+/**
+ * Personalhåndboken som HTML for utskrift og Lagre som PDF.
+ * header er dokumenthodet fra dokumentstyringen (docHeader), log er revisjonsloggen (revisionLog).
+ */
+export function handbookPrintHtml({ title = 'Personalhåndbok', chapters = [], header = null, log = [] }, { company = {}, logo = '' } = {}) {
   const firma = company?.firma || '';
+  const h = header || {};
   const toc = chapters.map((row, index) => `<li><span>${index + 1}.</span> ${line(row.title, company)}</li>`).join('');
   const body = chapters.map((row, index) => {
     const blocks = bodyBlocks(row.body).map((block) => {
@@ -35,9 +43,11 @@ export function handbookPrintHtml({ title = 'Personalhåndbok', chapters = [], v
     }).join('');
     return `<section><h2>${index + 1}. ${line(row.title, company)}</h2>${blocks}</section>`;
   }).join('');
-  const log = revisions.length
-    ? `<table class="rev"><thead><tr><th>Versjon</th><th>Dato</th><th>Grunn til revidering</th><th>Revidert av</th></tr></thead><tbody>${revisions.map((row) => `<tr><td>${esc(row.version)}</td><td>${esc(dateText(row.at))}</td><td>${esc(row.reason)}</td><td>${esc(row.by)}</td></tr>`).join('')}</tbody></table>`
+  const revisions = log.length
+    ? `<h2>Revisjonslogg</h2><table class="rev"><thead><tr><th>Versjon</th><th>Godkjent</th><th>Endring</th><th>Endret av</th><th>Godkjent av</th></tr></thead><tbody>${log.map((row) => `<tr><td>${esc(row.revision)}</td><td>${esc(dateText(row.approvedAt))}</td><td>${esc(row.reason)}</td><td>${esc(row.changedBy)}</td><td>${esc(row.approvedBy)}</td></tr>`).join('')}</tbody></table>`
     : '';
+  const system = firma ? `${firma} - Ledelsessystem` : '';
+  const meta = `<table class="meta"><tr>${cell('Dokument navn', title)}${cell('Opprettet', h.created)}${cell('Sist endret', h.changed)}${cell('Godkjent', h.approved)}</tr><tr>${cell('Dokument-ID', h.docId)}${cell('Dokumenteier', h.owner)}${cell('Versjon', h.version || 'Utkast')}${cell('Godkjent av', h.approvedBy)}</tr></table>`;
   const foot = [firma, company?.orgnr ? `Org. ${company.orgnr}` : '', company?.telefon ? `Sentralbord: ${company.telefon}` : '', company?.web ? `Web: ${company.web}` : '', company?.epost ? `E-post: ${company.epost}` : ''].filter(Boolean).join('   ');
   return `<!DOCTYPE html>
 <html lang="nb">
@@ -47,8 +57,14 @@ export function handbookPrintHtml({ title = 'Personalhåndbok', chapters = [], v
 <style>
   @page { size: A4; margin: 14mm 14mm 18mm; @bottom-left { content: ${cssString(foot)}; font: 7.5pt Calibri, Carlito, Arial, sans-serif; color: #3c4654; } @bottom-right { content: "Side " counter(page) " av " counter(pages); font: 7.5pt Calibri, Carlito, Arial, sans-serif; color: #3c4654; } }
   body { margin: 0; color: #1c2430; font: 10.5pt/1.45 Calibri, Carlito, "Segoe UI", Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px dashed #9fb3c8; padding-bottom: 6px; margin-bottom: 18px; font-size: 8pt; color: #5c6775; }
-  header img { max-height: 48px; max-width: 170px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 1px dashed #9fb3c8; padding-bottom: 6px; margin-bottom: 18px; }
+  header img { max-height: 52px; max-width: 170px; object-fit: contain; }
+  .docmeta { flex: 1; min-width: 0; }
+  .system { font-size: 8pt; color: #5c6775; margin-bottom: 2px; }
+  .word { font-size: 24pt; font-weight: 300; color: #1f3b5c; }
+  table.meta { border-collapse: collapse; width: 100%; font-size: 6.8pt; color: #3c4654; }
+  table.meta th { text-align: left; font-weight: 400; color: #7a8696; padding: 1px 4px 1px 0; white-space: nowrap; border-bottom: 1px dashed #c5ced6; }
+  table.meta td { padding: 1px 10px 1px 0; border-bottom: 1px dashed #c5ced6; white-space: nowrap; }
   h1 { font-size: 26pt; font-weight: 300; color: #1f3b5c; margin: 40px 0 4px; }
   .sub { color: #5c6775; margin: 0 0 24px; }
   h2 { font-size: 14pt; color: #fff; background: #1f3b5c; padding: 4px 8px; margin: 22px 0 8px; break-after: avoid; }
@@ -66,10 +82,10 @@ export function handbookPrintHtml({ title = 'Personalhåndbok', chapters = [], v
 </style>
 </head>
 <body>
-<header><div>${esc(firma ? `${firma} - Ledelsessystem` : '')}<br/>Dokument-ID ${esc(docId)} · ${version ? `Versjon ${esc(version)} · ${esc(dateText(at))}` : 'Utkast'}</div>${logo ? `<img alt="" src="${esc(logo)}" />` : ''}</header>
+<header><div class="docmeta">${system ? `<div class="system">${esc(system)}</div>` : ''}${meta}</div>${logo ? `<img alt="" src="${esc(logo)}" />` : `<div class="word">${esc(firma.replace(/\s+AS$/i, ''))}</div>`}</header>
 <h1>${esc(title)}</h1>
-<p class="sub">${esc(firma ? `For ansatte i ${firma}` : '')}</p>
-${log}
+<p class="sub">${esc(firma ? `For ansatte i ${firma}` : '')}${h.version && !/^Utkast/.test(h.version) ? ` · versjon ${esc(h.version)}` : ' · utkast, ikke godkjent'}</p>
+${revisions}
 <h2>Innhold</h2>
 <ol class="toc">${toc}</ol>
 ${body}

@@ -50,7 +50,7 @@ export const PAGE_ACCESS = {
   'hr.oppfolging': { res: 'hrFollowup', steps: [S, R, R, R, R] },
   'hr.compliance': { res: 'hrCompliance', steps: [S, R, R] },
   'hr.rekruttering': { res: 'hrRecruitment', steps: [R, R, R, R] },
-  'hr.handbok': { res: 'hr', steps: [W, W, W, R] },
+  'hr.handbok': { res: 'hr', steps: [W, W, W, R, R] },
   'hr.skjema': { res: 'hrPeople', steps: [W, W, R] },
 
   'arbeid.timeliste': { res: 'hours', steps: [on(S, 'hoursOthers'), R, R, R, R, S] },
@@ -87,7 +87,7 @@ export const PAGE_ACCESS = {
   'anbud.innstillinger': { res: 'tenderSettings', steps: [W, W, W, W] },
 
   utstyr: { res: 'equipment', steps: [R, R, R] },
-  skjema: { res: 'forms', steps: [R, R, R, S, R, R] },
+  skjema: { res: 'forms', steps: [R, R, R, S, R, R, R] },
 
   'iso.oversikt': { res: 'iso', steps: [W, S, R, R] },
   'iso.prosesser': { res: 'iso', steps: [R, W, S] },

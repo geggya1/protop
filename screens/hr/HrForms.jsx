@@ -15,7 +15,11 @@ import { loadAnbudState, peekAnbudState } from '../../src/anbud/storage';
 import { displayName } from '../../src/employees/model';
 import { filterHrEmployees } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { controlStatus } from '../../src/doccontrol/model';
+import { fillSource, templateControlKey } from '../../src/doccontrol/templates';
 import FormFill, { FilledStatusIcon } from '../anbud/FormFill';
+import { useDocControl } from '../doccontrol/useDocControl';
+import { StatusChip } from '../doccontrol/parts';
 import { HrButton, HrCard, HrSectionTitle } from './HrShared';
 
 const HR_ENTRIES = KS_LIBRARY.filter((row) => row.kind === 'mal' && row.hr);
@@ -74,6 +78,7 @@ export default function HrForms({ colors, employees, canWrite, familyId, actor, 
   const [note, setNote] = useState('');
   const [noteBad, setNoteBad] = useState(false);
   const people = useMemo(() => filterHrEmployees(employees, 'active'), [employees]);
+  const dc = useDocControl();
 
   useEffect(() => {
     let live = true;
@@ -97,10 +102,12 @@ export default function HrForms({ colors, employees, canWrite, familyId, actor, 
   function start(key, employee) {
     const template = templateFor(key);
     if (!template) return;
+    // Gjeldende godkjente versjon, med dokumenthodet fra dokumentstyringen.
+    const source = fillSource(template, dc.controlFor(templateControlKey(template)));
     const subject = employee ? { kind: 'employee', id: employee.id, name: displayName(employee) } : null;
-    setFilled(prefill(newFilledDoc(template, { actor, scope: 'hr', subject }), employee));
+    setFilled(prefill(newFilledDoc(source.form, { actor, scope: 'hr', subject }), employee));
     setPicking('');
-    say('');
+    say(source.approved ? '' : 'Malen er ikke godkjent ennå. Dokumentet får «Utkast» i hodet til en versjon er godkjent.');
   }
 
   async function store(next, message) {
@@ -114,13 +121,12 @@ export default function HrForms({ colors, employees, canWrite, familyId, actor, 
   }
 
   if (filled) {
-    const useLogo = filled.settings?.useCompanyLogo ? (logo?.dataUrl || '') : '';
     return (
       <FormFill
         doc={filled}
         colors={colors}
         company={company}
-        logo={useLogo}
+        logo={logo?.dataUrl || ''}
         actor={actor}
         busy={saving}
         note={note}
@@ -161,6 +167,10 @@ export default function HrForms({ colors, employees, canWrite, familyId, actor, 
                 <Text style={{ color: colors.muted, fontSize: 11 }}>{entry.ref}</Text>
               </View>
               <Text style={{ color: colors.muted, fontSize: 13 }}>{entry.summary}</Text>
+              {(() => {
+                const control = dc.controlFor(templateControlKey({ id: libraryTemplateId(entry.key) }));
+                return <StatusChip status={control ? controlStatus(control) : { label: 'Ikke godkjent', tone: 'warn' }} colors={colors} />;
+              })()}
               {canWrite ? (
                 picking === entry.key ? (
                   <View style={{ gap: 6 }}>

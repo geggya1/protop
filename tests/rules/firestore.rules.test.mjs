@@ -548,3 +548,105 @@ describe('tilgang på ansatte: ingen selvoppgradering, tak = eget nivå', () => 
     await assertSucceeds(updateDoc(doc(as('own'), 'families', A, 'employees', 'EMP1'), { 'company.accessLevel': 'administrator' }));
   });
 });
+
+describe('dokumentstyring: merknader og innstillinger', () => {
+  async function seedDocs() {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'families', A, 'docControlSettings', 'main'), {
+        approverUids: ['kv'], commentReaderUids: ['ldr'], approvers: [{ uid: 'kv', name: 'Kvalitet' }], employeesCanComment: true,
+      });
+      await setDoc(doc(db, 'families', A, 'docComments', 'C1'), {
+        id: 'C1', docKey: 'handbook', note: 'Gjelder deltid?', authorUid: 'les', readerUids: ['beh'], status: 'apen',
+      });
+      await setDoc(doc(db, 'families', A, 'docComments', 'C2'), {
+        id: 'C2', docKey: 'handbook', note: 'Feil telefonnummer', authorUid: 'mel', readerUids: [], status: 'apen',
+      });
+      await setDoc(doc(db, 'families', A, 'docControl', 'handbook'), { id: 'handbook', title: 'Personalhåndbok', revisions: [] });
+    });
+  }
+
+  test('ansatt ser bare egne merknader, også i lister', async () => {
+    await seedDocs();
+    const db = as('les');
+    await assertSucceeds(getDoc(doc(db, 'families', A, 'docComments', 'C1')));
+    await assertFails(getDoc(doc(db, 'families', A, 'docComments', 'C2')));
+    await assertSucceeds(getDocs(query(collection(db, 'families', A, 'docComments'), where('authorUid', '==', 'les'))));
+    await assertFails(getDocs(collection(db, 'families', A, 'docComments')));
+  });
+
+  test('dokumentets eier (readerUids), godkjenner, utpekt leser og eier av selskapet ser merknadene', async () => {
+    await seedDocs();
+    await assertSucceeds(getDoc(doc(as('beh'), 'families', A, 'docComments', 'C1')));
+    await assertFails(getDoc(doc(as('beh'), 'families', A, 'docComments', 'C2')));
+    await assertSucceeds(getDocs(query(collection(as('beh'), 'families', A, 'docComments'), where('readerUids', 'array-contains', 'beh'))));
+    for (const uid of ['kv', 'ldr', 'own']) {
+      await assertSucceeds(getDocs(collection(as(uid), 'families', A, 'docComments')));
+    }
+    await assertFails(getDocs(collection(as('adm'), 'families', A, 'docComments')));
+    await assertFails(getDoc(doc(as('ext'), 'families', A, 'docComments', 'C1')));
+  });
+
+  test('merknad skrives i eget navn; bare lesere med full tilgang kan behandle den', async () => {
+    await seedDocs();
+    const les = as('les');
+    await assertSucceeds(setDoc(doc(les, 'families', A, 'docComments', 'C3'), { id: 'C3', docKey: 'handbook', note: 'Ny', authorUid: 'les', status: 'apen' }));
+    await assertFails(setDoc(doc(les, 'families', A, 'docComments', 'C4'), { id: 'C4', docKey: 'handbook', note: 'Falsk', authorUid: 'mel', status: 'apen' }));
+    await assertSucceeds(updateDoc(doc(les, 'families', A, 'docComments', 'C1'), { note: 'Gjelder det deltid også?' }));
+    await assertFails(updateDoc(doc(les, 'families', A, 'docComments', 'C1'), { status: 'tatt_inn' }));
+    await assertFails(updateDoc(doc(les, 'families', A, 'docComments', 'C1'), { authorUid: 'mel' }));
+    await assertSucceeds(updateDoc(doc(as('kv'), 'families', A, 'docComments', 'C1'), { status: 'tatt_inn', resolution: 'Presisert i rev. 2' }));
+    await assertFails(updateDoc(doc(les, 'families', A, 'docComments', 'C1'), { note: 'Endret etter behandling' }));
+    await assertFails(deleteDoc(doc(as('mel'), 'families', A, 'docComments', 'C1')));
+    await assertSucceeds(deleteDoc(doc(as('ldr'), 'families', A, 'docComments', 'C2')));
+  });
+
+  test('dokumentets eier og godkjenner (readerUids) kan behandle merknaden, men ikke dele den med flere', async () => {
+    await seedDocs();
+    const ref = (uid) => doc(as(uid), 'families', A, 'docComments', 'C1');
+    await assertFails(updateDoc(ref('les'), { readerUids: ['beh', 'mel'] }), 'forfatteren kan ikke legge til lesere');
+    await assertFails(updateDoc(ref('beh'), { readerUids: ['beh', 'mel'] }));
+    await assertSucceeds(updateDoc(ref('beh'), { status: 'avvist', resolution: 'Står allerede i kapittel 4' }));
+    await assertFails(updateDoc(doc(as('mel'), 'families', A, 'docComments', 'C2'), { status: 'tatt_inn' }), 'forfatteren kan ikke behandle egen merknad');
+  });
+
+  test('innstillingene leses av alle medlemmer, men endres bare av eier og administratorer', async () => {
+    await seedDocs();
+    await assertSucceeds(getDoc(doc(as('les'), 'families', A, 'docControlSettings', 'main')));
+    await assertFails(setDoc(doc(as('les'), 'families', A, 'docControlSettings', 'main'), { approverUids: ['les'] }));
+    await assertFails(updateDoc(doc(as('kv'), 'families', A, 'docControlSettings', 'main'), { commentReaderUids: ['kv', 'les'] }));
+    await assertSucceeds(updateDoc(doc(as('own'), 'families', A, 'docControlSettings', 'main'), { commentReaderUids: ['ldr', 'beh'] }));
+    await assertFails(getDoc(doc(as('ext'), 'families', A, 'docControlSettings', 'main')));
+  });
+
+  test('lesebekreftelse bare i eget navn; utfylte skjema følger de vanlige reglene', async () => {
+    await seedDocs();
+    const db = as('les');
+    await assertSucceeds(setDoc(doc(db, 'families', A, 'docAcks', 'handbook__les'), { docKey: 'handbook', revision: 1, uid: 'les' }));
+    await assertFails(setDoc(doc(db, 'families', A, 'docAcks', 'handbook__mel'), { docKey: 'handbook', revision: 1, uid: 'mel' }));
+    await assertSucceeds(getDocs(collection(as('mel'), 'families', A, 'docAcks')));
+    await assertSucceeds(setDoc(doc(db, 'families', A, 'formDocs', 'dok1'), { id: 'dok1', title: 'SJA' }));
+    await assertFails(getDocs(collection(as('ext'), 'families', A, 'docControl')));
+  });
+
+  test('bare godkjenner kan publisere, endre godkjent revisjon eller bytte godkjenner', async () => {
+    await seedDocs();
+    const published = {
+      id: 'tpl_ks_sja', title: 'SJA', publishedRevision: 1, approver: { uid: '', name: '' },
+      revisions: [{ revision: 1, state: 'publisert', approvedBy: 'Kvalitet' }, { revision: 2, state: 'til_gjennomgang', submittedByUid: 'les' }],
+    };
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'families', A, 'docControl', 'tpl_ks_sja'), published);
+    });
+    const ref = (uid) => doc(as(uid), 'families', A, 'docControl', 'tpl_ks_sja');
+    const approve = { publishedRevision: 2, revisions: [{ ...published.revisions[0], state: 'erstattet' }, { ...published.revisions[1], state: 'publisert', approvedBy: 'X' }] };
+    await assertFails(updateDoc(ref('les'), approve));
+    await assertFails(updateDoc(ref('les'), { revisions: [{ revision: 1, state: 'publisert', approvedBy: 'Forfalsket' }, published.revisions[1]] }));
+    await assertFails(updateDoc(ref('les'), { approver: { uid: 'les', name: 'Les' } }));
+    await assertSucceeds(updateDoc(ref('les'), { revisions: [...published.revisions.slice(0, 1), { revision: 2, state: 'utkast' }] }));
+    await assertSucceeds(updateDoc(ref('kv'), approve));
+    await assertFails(setDoc(doc(as('les'), 'families', A, 'docControl', 'ny'), { id: 'ny', title: 'Ny', publishedRevision: 1, revisions: [] }));
+    await assertSucceeds(setDoc(doc(as('les'), 'families', A, 'docControl', 'ny'), { id: 'ny', title: 'Ny', publishedRevision: 0, revisions: [] }));
+    await assertFails(deleteDoc(ref('les')));
+  });
+});

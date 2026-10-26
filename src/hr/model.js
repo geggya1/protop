@@ -464,8 +464,6 @@ export function employeeVisibleSlice(state, employeeId) {
       if (file.memoId) return visibleMemoIds.has(file.memoId);
       return !!file.employeeVisible;
     }),
-    // Publisert personalhåndbok er for alle ansatte. Utkastet er HR-internt.
-    handbook: src.handbook.published,
   };
 }
 

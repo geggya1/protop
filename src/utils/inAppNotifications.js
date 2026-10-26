@@ -17,6 +17,9 @@ const EVENT_MODULE = {
   locationGeofence: 'location',
   wallPost: 'wall',
   attestPending: 'progress',
+  documentApproval: 'skjema',
+  documentPublished: 'skjema',
+  documentComment: 'skjema',
   birthdayReminder: 'rememberDates',
   boligReminder: 'boligmappa',
 };
@@ -37,6 +40,9 @@ const EVENT_LABELS = {
   locationGeofence: 'Posisjon',
   wallPost: 'Familievegg',
   attestPending: 'Attestering',
+  documentApproval: 'Godkjenning',
+  documentPublished: 'Dokument',
+  documentComment: 'Merknad',
   birthdayReminder: 'Bursdag',
   boligReminder: 'Boligen',
 };
@@ -57,6 +63,9 @@ const EVENT_ICONS = {
   locationGeofence: 'location',
   wallPost: 'newspaper',
   attestPending: 'shield-checkmark',
+  documentApproval: 'ribbon',
+  documentPublished: 'document-text',
+  documentComment: 'chatbox-ellipses',
   birthdayReminder: 'gift',
   boligReminder: 'home',
 };

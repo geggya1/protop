@@ -1,6 +1,6 @@
 /**
- * Det den ansatte selv kan se fra HR-modulen — synlige memo, oppgaver,
- * samtaler, kontrakter og lønn. Vises på Min side / egen ansattprofil.
+ * Det den ansatte selv kan se fra HR-modulen — dokumenter å lese og signere,
+ * synlige memo, oppgaver, samtaler, kontrakter og lønn. Vises på Min side.
  */
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -13,36 +13,11 @@ import {
   TASK_STATUSES,
 } from '../../src/hr/model';
 import { loadEmployeeHrSlice } from '../../src/hr/storage';
-import { ackFor } from '../../src/hr/handbook';
-import { loadHandbookAcks, saveHandbookAck } from '../../src/hr/handbookAcks';
-import { useFormContext } from '../anbud/useFormContext';
 import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './HrShared';
-import { HandbookReader } from './HrHandbook';
+import MyDocuments from '../doccontrol/MyDocuments';
 
 export default function EmployeeHrSelfService({ colors, companyId, employeeId }) {
   const [slice, setSlice] = useState(null);
-  const [acks, setAcks] = useState([]);
-  const [acking, setAcking] = useState(false);
-  const { actor, company } = useFormContext();
-
-  useEffect(() => {
-    let live = true;
-    if (!companyId) return undefined;
-    loadHandbookAcks(companyId).then((rows) => { if (live) setAcks(rows); });
-    return () => { live = false; };
-  }, [companyId]);
-
-  const myAck = acks
-    .filter((row) => (actor?.uid && row.uid === actor.uid) || row.employeeId === employeeId)
-    .sort((a, b) => b.version - a.version)[0] || null;
-
-  async function confirmHandbook() {
-    if (!slice?.handbook?.version) return;
-    setAcking(true);
-    const res = await saveHandbookAck(companyId, ackFor({ uid: actor?.uid || '', employeeId, name: actor?.name || '' }, slice.handbook.version));
-    setAcking(false);
-    if (res.ok) setAcks((rows) => [...rows.filter((row) => !(row.uid === res.ack.uid && row.employeeId === res.ack.employeeId)), res.ack]);
-  }
 
   useEffect(() => {
     let live = true;
@@ -79,19 +54,7 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId })
 
   return (
     <View style={styles.page} nativeID="employee-hr-self" id="employee-hr-self">
-      {slice.handbook?.version ? (
-        <HrCard colors={colors}>
-          <HrSectionTitle colors={colors} title="Personalhåndbok" subtitle="Les håndboken og bekreft at du har lest gjeldende versjon." />
-          <HandbookReader
-            colors={colors}
-            handbook={slice.handbook}
-            company={company}
-            ack={myAck}
-            onAck={actor?.uid ? confirmHandbook : null}
-            busy={acking}
-          />
-        </HrCard>
-      ) : null}
+      <MyDocuments colors={colors} employeeId={employeeId} />
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}

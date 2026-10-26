@@ -379,7 +379,8 @@ export function blankSettings() {
     progress: false,
     shuffleQuestions: false,
     anotherResponse: true,
-    useCompanyLogo: false,
+    // Bedriftens logo brukes i dokumentene med mindre den er slått av på skjemaet.
+    useCompanyLogo: true,
     layout: 'brev',
     confirmation: 'Svaret er sendt.',
   };
@@ -511,7 +512,7 @@ export function normalizeSettings(raw) {
     progress: !!src.progress,
     shuffleQuestions: !!src.shuffleQuestions,
     anotherResponse: src.anotherResponse !== false,
-    useCompanyLogo: !!src.useCompanyLogo,
+    useCompanyLogo: src.useCompanyLogo !== false,
     layout: src.layout === 'skjema' ? 'skjema' : 'brev',
     confirmation: text(src.confirmation).slice(0, 280) || base.confirmation,
   };

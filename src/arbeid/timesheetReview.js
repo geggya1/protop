@@ -260,7 +260,7 @@ function byName(a, b) {
 /**
  * Del aktive medarbeidere i låst (til kontroll) og ulåst.
  */
-export function splitApprovalQueues({ employees = [], locks = [], archive = [] } = {}) {
+export function splitApprovalQueues({ employees = [], locks = [], archive = [], now = new Date() } = {}) {
   const lockByEmployee = new Map();
   for (const row of locks || []) {
     if (!row?.employeeId) continue;
@@ -281,7 +281,7 @@ export function splitApprovalQueues({ employees = [], locks = [], archive = [] }
     unlocked.push({
       employee,
       last,
-      ageLabel: formatLockAge(last?.lockedAt),
+      ageLabel: formatLockAge(last?.lockedAt, now),
       lastThrough: last?.throughDate || '',
     });
   }

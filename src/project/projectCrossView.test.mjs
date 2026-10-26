@@ -148,10 +148,13 @@ assert.equal(applyAgreementToProjects(own.state, [contract], [customer]).changed
 assert.equal(own.state.projects.find((row) => row.id === projectId).manager, 'Anna');
 
 const detail = readFileSync(new URL('../../components/project/ProjectDetail.jsx', import.meta.url), 'utf8');
+const overview = readFileSync(new URL('../../components/project/ProjectOverviewTab.jsx', import.meta.url), 'utf8');
 const screen = readFileSync(new URL('../../screens/project/ProjectWorkScreen.jsx', import.meta.url), 'utf8');
-assert.match(detail, /project-agreement-open/);
-assert.match(detail, /project-agreement-fee/);
-assert.match(detail, /project-invoiced-amount/);
+// Avtalen, honoraret og fakturert beløp ligger i oversikten (avtale-spalten og nøkkeltallene).
+assert.match(overview, /project-overview-agreement/);
+assert.match(overview, /onOpenAgreement\?\.\(cross\.contract\.id\)/);
+assert.match(overview, /label="Fakturert"/);
+assert.match(detail, /onOpenAgreement=\{onOpenAgreement\}/);
 assert.match(detail, /project-invoice-list/);
 assert.match(screen, /applyAgreementToProjects/);
 assert.match(screen, /openContract/);

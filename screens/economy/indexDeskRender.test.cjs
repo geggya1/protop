@@ -347,7 +347,7 @@ const draftLetter = withHooks(() => React.createElement(Workspace, {
     }],
   },
 }));
-assert.match(texts(draftLetter).join('\n'), /Slett utkast/);
+assert.match(texts(draftLetter).join('\n'), /\bSlett\b/);
 const draftHistory = withHooks(() => React.createElement(Workspace, {
   ...workspaceProps,
   initialView: 'historikk',
@@ -364,5 +364,5 @@ const draftHistory = withHooks(() => React.createElement(Workspace, {
     }],
   },
 }));
-assert.match(texts(draftHistory).join('\n'), /Slett utkast/);
+assert.match(texts(draftHistory).join('\n'), /\bSlett\b/);
 console.log('index desk render ok');

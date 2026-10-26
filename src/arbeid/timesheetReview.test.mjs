@@ -38,6 +38,7 @@ import {
     ],
     locks: [{ employeeId: 'e1', throughDate: '2026-10-02', approvedAt: '' }],
     archive: [{ employeeId: 'e2', throughDate: '2026-09-30', lockedAt: '2026-10-02T08:00:00.000Z' }],
+    now,
   });
   assert.equal(queues.locked.length, 1);
   assert.equal(queues.locked[0].employee.name, 'Aina Helen Jespersen');

@@ -91,6 +91,13 @@ export const FILES = [
   'src/utils/helpLayout.test.mjs',
   'src/utils/helpWelcome.test.mjs',
   'src/modules/moduleActivationIllustrations.test.mjs',
+  // Sto utenfor CI og ble liggende røde etter bevisste endringer i appen.
+  'src/utils/firestoreRules.list.test.mjs',
+  'src/navigation/shellHeaderTitle.test.mjs',
+  'screens/economy/indexDeskRender.test.cjs',
+  'src/project/projectCrossView.test.mjs',
+  'src/arbeid/timesheetReview.test.mjs',
+  'src/economy/projectExpensesScreen.test.cjs',
   'scripts/verify-app-updates.mjs',
 ];
 

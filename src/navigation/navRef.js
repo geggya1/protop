@@ -53,6 +53,8 @@ function shellForEvent(eventType) {
   if (eventType === 'familyInvite') return null;
   if (eventType === 'gameInvite') return { tab: 'more', subView: 'games' };
   if (eventType === 'attestPending') return { tab: 'more', subView: 'progress', intent: 'attest' };
+  if (eventType === 'documentApproval' || eventType === 'documentComment') return { tab: 'skjema', intent: { type: 'docControl', tab: 'styring' } };
+  if (eventType === 'documentPublished') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
   if (eventType === 'birthdayReminder') return { tab: 'home' };
   if (eventType === 'boligReminder') return { tab: 'more', subView: 'boligmappa' };
   return null;

@@ -1,6 +1,6 @@
 /**
- * Det den ansatte selv kan se fra HR-modulen — synlige memo, oppgaver,
- * samtaler, kontrakter og lønn. Vises på Min side / egen ansattprofil.
+ * Det den ansatte selv kan se fra HR-modulen — dokumenter å lese og signere,
+ * synlige memo, oppgaver, samtaler, kontrakter og lønn. Vises på Min side.
  */
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -14,6 +14,7 @@ import {
 } from '../../src/hr/model';
 import { loadEmployeeHrSlice } from '../../src/hr/storage';
 import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './HrShared';
+import MyDocuments from '../doccontrol/MyDocuments';
 
 export default function EmployeeHrSelfService({ colors, companyId, employeeId }) {
   const [slice, setSlice] = useState(null);
@@ -53,6 +54,7 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId })
 
   return (
     <View style={styles.page} nativeID="employee-hr-self" id="employee-hr-self">
+      <MyDocuments colors={colors} employeeId={employeeId} />
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}

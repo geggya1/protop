@@ -43,13 +43,15 @@ export const PAGE_ACCESS = {
   'selskap.kontoplan': { res: 'economySettings', steps: [W, W, W] },
 
   ansatte: { res: 'employees', steps: [R, R, W, S] },
-  'hr.oversikt': { res: 'hr', steps: [S, S, R] },
+  'hr.oversikt': { res: 'hr', steps: [S, S, R, S] },
   'hr.personell': { res: 'hrPeople', steps: [S, S] },
   'hr.avtaler': { res: 'hrAgreements', steps: [S, R, R] },
   'hr.lonn': { res: 'hrPayroll', steps: [S, R] },
   'hr.oppfolging': { res: 'hrFollowup', steps: [S, R, R, R, R] },
   'hr.compliance': { res: 'hrCompliance', steps: [S, R, R] },
   'hr.rekruttering': { res: 'hrRecruitment', steps: [R, R, R, R] },
+  'hr.handbok': { res: 'hr', steps: [W, W, W, R, R] },
+  'hr.skjema': { res: 'hrPeople', steps: [W, W, R] },
 
   'arbeid.timeliste': { res: 'hours', steps: [on(S, 'hoursOthers'), R, R, R, R, S] },
   'arbeid.timerapport': { res: 'hoursReport', steps: [S, W] },
@@ -85,7 +87,7 @@ export const PAGE_ACCESS = {
   'anbud.innstillinger': { res: 'tenderSettings', steps: [W, W, W, W] },
 
   utstyr: { res: 'equipment', steps: [R, R, R] },
-  skjema: { res: 'forms', steps: [R, R, R, S] },
+  skjema: { res: 'forms', steps: [R, R, R, S, R, R, R] },
 
   'iso.oversikt': { res: 'iso', steps: [W, S, R, R] },
   'iso.prosesser': { res: 'iso', steps: [R, W, S] },

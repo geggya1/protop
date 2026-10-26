@@ -189,6 +189,8 @@ export const HR_MENU = [
   { id: 'oppfolging', icon: 'flag', label: 'Oppfølging' },
   { id: 'compliance', icon: 'shield-checkmark', label: 'Lov & ISO' },
   { id: 'rekruttering', icon: 'megaphone', label: 'Rekruttering' },
+  { id: 'handbok', icon: 'book', label: 'Personalhåndbok' },
+  { id: 'skjema', icon: 'clipboard', label: 'Skjemaer' },
 ];
 
 export const HR_SUBVIEW_IDS = HR_MENU.map((item) => item.id);

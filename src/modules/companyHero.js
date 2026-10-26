@@ -119,6 +119,28 @@ export const COMPANY_HERO = {
       'Working Environment Act, internal control and ISO per employee.',
     ),
   },
+  'hr-handbok': {
+    ...BLUE,
+    wideArt: true,
+    name: 'Personalhåndbok',
+    kicker: t('HR', 'HR'),
+    title: t('Personalhåndbok med lesebekreftelse', 'Staff handbook with read receipts'),
+    pitch: t(
+      'Kapitler, versjoner og hvem som har lest siste versjon.',
+      'Chapters, versions and who has read the latest version.',
+    ),
+  },
+  'hr-skjema': {
+    ...BLUE,
+    wideArt: true,
+    name: 'Skjemaer',
+    kicker: t('HR', 'HR'),
+    title: t('Personalskjema per ansatt', 'Staff forms per employee'),
+    pitch: t(
+      'Pårørende, taushetserklæring, nyansatt og medarbeidersamtale.',
+      'Next of kin, confidentiality, onboarding and appraisals.',
+    ),
+  },
   'hr-rekruttering': {
     ...BLUE,
     wideArt: true,

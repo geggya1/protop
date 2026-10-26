@@ -1,5 +1,5 @@
 /**
- * Push for varsler (web push og Expo) mot Firestore-emulatoren.
+ * Push (web push og Expo) og e-post for varsler mot Firestore-emulatoren.
  *
  *   npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop \
  *     "node --test functions/pushDelivery.emulator.test.mjs"
@@ -13,7 +13,7 @@ process.env.GCLOUD_PROJECT ||= 'demo-protop';
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
 
 const { getFirestore } = await import('firebase-admin/firestore');
-const { deliverNotificationPush, pushPayloadFor } = await import('./pushDelivery.js');
+const { deliverNotification, pushPayloadFor } = await import('./pushDelivery.js');
 const { onNotificationPush } = await import('./notifyPushIndex.js');
 const { VAPID_PUBLIC_KEY } = await import('./vapid.js');
 
@@ -29,6 +29,7 @@ function browserKeys() {
 function fakes() {
   const web = [];
   const expo = [];
+  const mails = [];
   const sender = {
     async sendNotification(sub, body, options) {
       // Ekte kryptering og VAPID-signering, bare uten nettverk.
@@ -51,14 +52,23 @@ function fakes() {
     expo.push(...messages);
     return { json: async () => ({ data: messages.map(() => ({ status: 'ok' })) }) };
   };
-  return { web, expo, deps: { webpush: sender, fetch: fetchImpl, vapidKey: VAPID.privateKey, vapidPublicKey: VAPID.publicKey } };
+  const sendMail = async (key, message) => { mails.push({ key, ...message }); };
+  return {
+    web,
+    expo,
+    mails,
+    deps: {
+      webpush: sender, fetch: fetchImpl, vapidKey: VAPID.privateKey, vapidPublicKey: VAPID.publicKey, sendMail, mailKey: 'xkeysib-test',
+    },
+  };
 }
 
 async function notify(uid, id, data, deps) {
   const ref = db.doc(`users/${uid}/notifications/${id}`);
   await ref.set(data);
-  const result = await deliverNotificationPush({ db, uid, notifId: id, notif: data, ref, deps });
-  return { result, stored: (await ref.get()).data()?.push };
+  const result = await deliverNotification({ db, uid, notifId: id, notif: data, ref, deps });
+  const snap = (await ref.get()).data() || {};
+  return { result, stored: snap.push, mail: snap.mail };
 }
 
 beforeEach(async () => {
@@ -67,7 +77,7 @@ beforeEach(async () => {
     { method: 'DELETE' },
   );
   assert.ok(res.ok);
-  await db.doc('users/bente').set({ uid: 'bente', notificationPrefs: { enabled: true } });
+  await db.doc('users/bente').set({ uid: 'bente', email: 'bente@firma.no', displayName: 'Bente', notificationPrefs: { enabled: true } });
   await db.doc('users/bente/pushSubscriptions/pc').set({ endpoint: 'https://push.example/pc', keys: browserKeys() });
   await db.doc('users/bente/pushSubscriptions/gammel').set({ endpoint: 'https://push.example/utlopt', keys: browserKeys() });
   await db.doc('users/bente/pushSubscriptions/telefon').set({ type: 'expo', token: 'ExponentPushToken[abc]' });
@@ -123,16 +133,89 @@ test('varsel appen lager til seg selv gir ikke push, men testvarsel gjør', asyn
 });
 
 test('push av for typen eller alle varsler respekteres', async () => {
-  await db.doc('users/bente').set({ notificationPrefs: { enabled: true, events: { messageReceived: { push: false } } } });
+  await db.doc('users/bente').set({ notificationPrefs: { version: 2, enabled: true, events: { messageReceived: { push: false } } } });
   const { web, deps } = fakes();
   const off = await notify('bente', 'm1', { eventType: 'messageReceived', createdBy: 'arne' }, deps);
   assert.equal(off.result.reason, 'prefs');
   const other = await notify('bente', 't1', { eventType: 'taskReceived', createdBy: 'arne' }, deps);
   assert.equal(other.result.reason, 'user');
-  await db.doc('users/bente').set({ notificationPrefs: { enabled: false } });
+  await db.doc('users/bente').set({ notificationPrefs: { version: 2, enabled: false, events: {} } });
   const all = await notify('bente', 't2', { eventType: 'taskReceived', createdBy: 'arne' }, deps);
   assert.equal(all.result.reason, 'prefs');
   assert.equal(web.length, 1);
+});
+
+test('e-post: anbefalte typer får e-post, chat ikke; brukerens valg vinner', async () => {
+  const { mails, deps } = fakes();
+  const task = await notify('bente', 'e_task', { eventType: 'taskReceived', title: 'Ny oppgave: Rydd lageret', body: 'Fra Arne', createdBy: 'arne' }, deps);
+  assert.equal(task.mail.sent, true);
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0].to, 'bente@firma.no');
+  assert.equal(mails[0].fromName, 'ProTop');
+  assert.equal(mails[0].subject, 'ProTop: Ny oppgave: Rydd lageret');
+  assert.match(mails[0].text, /Oppgave tildelt deg/);
+  assert.match(mails[0].text, /settings\/notifications/);
+  const chat = await notify('bente', 'e_chat', { eventType: 'messageReceived', title: 'Ny melding', createdBy: 'arne' }, deps);
+  assert.equal(chat.mail.sent, false);
+  assert.equal(chat.mail.reason, 'off');
+  assert.equal(mails.length, 1);
+
+  // Brukeren slår på e-post for chat og av push for oppgaver.
+  await db.doc('users/bente').set({
+    email: 'bente@firma.no',
+    notificationPrefs: { version: 2, enabled: true, events: { messageReceived: { email: true }, taskReceived: { push: false } } },
+  });
+  const chat2 = await notify('bente', 'e_chat2', { eventType: 'messageReceived', title: 'Hei', createdBy: 'arne' }, deps);
+  assert.equal(chat2.mail.sent, true);
+  const task2 = await notify('bente', 'e_task2', { eventType: 'taskReceived', title: 'Oppgave', createdBy: 'arne' }, deps);
+  assert.equal(task2.result.reason, 'off');
+  assert.equal(task2.result.sent, 0);
+  assert.equal(task2.mail.sent, true);
+  assert.equal(mails.length, 3);
+});
+
+test('rettighet i bedriften: forespørsel om å bli med leveres bare til dem med Admin på Ansatte', async () => {
+  const { web, mails, deps } = fakes();
+  await db.doc('families/firma').set({ type: 'company', ownerUid: 'eier', adminUids: ['eier'], members: ['eier', 'bente'] });
+  const join = { eventType: 'companyJoinRequest', title: 'Forespørsel om å bli med', familyId: 'firma', createdBy: 'ny' };
+
+  // Bente er Ansatt: varselet ligger i bjellen, men ingen push eller e-post.
+  await db.doc('families/firma/employees/emp-bente').set({ personUid: 'bente', company: { accessLevel: 'ansatt', status: 'active' } });
+  const ansatt = await notify('bente', 'join_1', join, deps);
+  assert.equal(ansatt.result.reason, 'access');
+  assert.equal(ansatt.result.sent, 0);
+  assert.equal(ansatt.mail.reason, 'access');
+  assert.equal((await db.doc('users/bente/notifications/join_1').get()).exists, true, 'ligger i bjellen');
+  assert.equal(web.length + mails.length, 0);
+
+  // Bente blir Øverste leder i tilgangsstyringen: push og e-post.
+  await db.doc('families/firma/employees/emp-bente').set({ personUid: 'bente', company: { accessLevel: 'leder', status: 'active' } });
+  const leder = await notify('bente', 'join_2', join, deps);
+  assert.equal(leder.result.reason, 'user');
+  assert.ok(leder.result.sent >= 1);
+  assert.equal(leder.mail.sent, true);
+
+  // Ferieplanen gjelder alle, også en ansatt.
+  await db.doc('families/firma/employees/emp-bente').set({ personUid: 'bente', company: { accessLevel: 'ansatt', status: 'active' } });
+  const ferie = await notify('bente', 'ferie_1', { eventType: 'vacationPlan', title: 'Ferieplan 2027', familyId: 'firma', skipEmail: true }, deps);
+  assert.ok(ferie.result.sent >= 1);
+});
+
+test('e-post sendes ikke for typer med egen e-post, uten adresse eller uten nøkkel', async () => {
+  await db.doc('users/bente').set({
+    email: 'bente@firma.no',
+    notificationPrefs: { version: 2, enabled: true, events: { familyInvite: { email: true } } },
+  });
+  const { mails, deps } = fakes();
+  const invite = await notify('bente', 'o_inv', { eventType: 'familyInvite', title: 'Bedriftsinvitasjon', createdBy: 'arne' }, deps);
+  assert.equal(invite.mail.sent, false);
+  assert.equal(mails.length, 0);
+  const noKey = await notify('bente', 'o_task', { eventType: 'taskReceived', title: 'Oppgave' }, { ...deps, mailKey: '' });
+  assert.equal(noKey.mail.reason, 'missing-key');
+  await db.doc('users/bente').set({ notificationPrefs: { version: 2, enabled: true, events: {} } });
+  const noAddress = await notify('bente', 'o_task2', { eventType: 'taskReceived', title: 'Oppgave' }, deps);
+  assert.equal(noAddress.mail.reason, 'no-address');
+  assert.equal(mails.length, 0);
 });
 
 test('uten VAPID-nøkkel: ingen web push, men app-push går', async () => {

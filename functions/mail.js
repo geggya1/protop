@@ -68,7 +68,7 @@ export function providerAttachments(provider, attachments) {
   };
 }
 
-async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attachments }) {
+async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attachments, fromName = FROM_NAME }) {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -77,10 +77,10 @@ async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attach
       'api-key': apiKey,
     },
     body: JSON.stringify({
-      sender: { name: FROM_NAME, email: FROM_EMAIL },
+      sender: { name: fromName, email: FROM_EMAIL },
       to: [{ email: to, ...(name ? { name } : {}) }],
       ...(copyRows(cc).length ? { cc: copyRows(cc) } : {}),
-      replyTo: { email: REPLY_TO, name: FROM_NAME },
+      replyTo: { email: REPLY_TO, name: fromName },
       subject,
       htmlContent: html,
       textContent: text,
@@ -106,7 +106,7 @@ async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attach
   return body;
 }
 
-async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments }) {
+async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments, fromName = FROM_NAME }) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -114,7 +114,7 @@ async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: `${FROM_NAME} <${FROM_EMAIL}>`,
+      from: `${fromName} <${FROM_EMAIL}>`,
       to: [to],
       ...(copyRows(cc).length ? { cc: copyRows(cc).map((row) => row.email) } : {}),
       reply_to: REPLY_TO,
@@ -135,7 +135,7 @@ async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments
   return body;
 }
 
-async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html, attachments }) {
+async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html, attachments, fromName = FROM_NAME }) {
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
@@ -147,8 +147,8 @@ async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html, att
         to: [{ email: to, ...(name ? { name } : {}) }],
         ...(copyRows(cc).length ? { cc: copyRows(cc) } : {}),
       }],
-      from: { email: FROM_EMAIL, name: FROM_NAME },
-      reply_to: { email: REPLY_TO, name: FROM_NAME },
+      from: { email: FROM_EMAIL, name: fromName },
+      reply_to: { email: REPLY_TO, name: fromName },
       subject,
       content: [
         { type: 'text/plain', value: text },

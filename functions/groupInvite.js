@@ -8,6 +8,7 @@ import { logger } from 'firebase-functions';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { levelById } from '../src/access/companyAccess.js';
+import { isGroupAdminOf } from '../src/notifications/audience.js';
 import {
   claimEmployeeSeatPlan,
   declineEmployeeInvitePlan,
@@ -114,6 +115,15 @@ async function companyEmployees(familyId) {
   return snap.docs.map((row) => ({ id: row.id, ...row.data() }));
 }
 
+/** Var den som inviterte administrator i gruppen (samme som assertFamilyAdmin)? */
+async function inviterIsAdmin(familyId, family, inviterUid) {
+  if (!inviterUid) return false;
+  if (isGroupAdminOf(family, inviterUid) || text(family?.createdBy) === inviterUid) return true;
+  const snap = await db.doc(`families/${familyId}/parents/${inviterUid}`).get();
+  const row = snap.exists ? snap.data() || {} : {};
+  return row.admin === true && row.active !== false && row.deleted !== true;
+}
+
 async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
   const authEmail = authEmailOf(req);
   const now = new Date().toISOString();
@@ -129,7 +139,10 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
     employee = seat.employeeId ? employees.find((row) => row.id === seat.employeeId) || null : null;
   }
   const accessLevel = seat?.accessLevel || '';
-  const asAdmin = invite.asAdmin === true || accessLevel === 'administrator';
+  // Admin bare når en administrator inviterte som admin. Andre som kan invitere
+  // (f.eks. Øverste leder i en bedrift) kan ikke gi mer enn de har selv.
+  const adminInvite = invite.asAdmin === true && await inviterIsAdmin(familyId, family, text(invite.invitedBy));
+  const asAdmin = adminInvite || accessLevel === 'administrator';
   const name = text(invite.inviteeName)
     || [employee?.person?.firstName, employee?.person?.lastName].map(text).filter(Boolean).join(' ')
     || text(req.auth?.token?.name);

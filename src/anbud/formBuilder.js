@@ -15,11 +15,14 @@ export const FIELD_TYPES = [
   { id: 'check', label: 'Avkrysning', hint: 'Ja eller nei' },
   { id: 'image', label: 'Bilde', hint: 'Last opp et bilde' },
   { id: 'file', label: 'Fil', hint: 'Last opp et dokument' },
+  { id: 'table', label: 'Tabell', hint: 'Rader og kolonner, for eksempel sjekkpunkter' },
+  { id: 'sign', label: 'Signatur', hint: 'Signeres digitalt med navn og tid' },
 ];
 
 export const FIELD_GROUPS = [
   { id: 'dokument', label: 'Dokument', types: ['title', 'note'] },
   { id: 'sporsmal', label: 'Felt', types: ['long', 'text', 'choice', 'checks', 'dropdown', 'scale', 'date', 'time', 'number', 'check', 'image', 'file'] },
+  { id: 'tabell', label: 'Tabell og signatur', types: ['table', 'sign'] },
 ];
 
 export const FIELD_TYPE_IDS = new Set(FIELD_TYPES.map((row) => row.id));
@@ -28,6 +31,34 @@ export const MAX_FIELDS = 120;
 export const MAX_TEMPLATES = 80;
 const NOTE_LABEL_MAX = 4000;
 const PLAIN_TEXT_LINES = 400;
+
+/** Kolonnetyper i en tabell. «Fast tekst» står i malen, resten fylles ut. */
+export const TABLE_COLUMN_TYPES = [
+  { id: 'fixed', label: 'Fast tekst', hint: 'Står i malen, for eksempel sjekkpunktet' },
+  { id: 'text', label: 'Tekst', hint: 'Kort svar' },
+  { id: 'long', label: 'Avsnitt', hint: 'Lengre svar' },
+  { id: 'date', label: 'Dato', hint: 'Dato' },
+  { id: 'number', label: 'Tall', hint: 'Beløp eller antall' },
+  { id: 'check', label: 'Avkrysning', hint: 'Én boks' },
+  { id: 'mark', label: 'Ett av valgene', hint: 'For eksempel J, N eller I' },
+];
+const COLUMN_TYPE_IDS = new Set(TABLE_COLUMN_TYPES.map((row) => row.id));
+const COLUMN_WIDTH = { fixed: 4, text: 3, long: 5, date: 2, number: 2, check: 1, mark: 1 };
+export const MAX_TABLE_COLUMNS = 10;
+export const MAX_TABLE_ROWS = 80;
+const MAX_ADDED_ROWS = 60;
+const CELL_MAX = 1200;
+
+/** Dokumentinformasjon som står øverst i KS-maler. */
+export const DOC_INFO_FIELDS = [
+  { key: 'docId', label: 'Dokument-ID' },
+  { key: 'owner', label: 'Dokumenteier' },
+  { key: 'version', label: 'Versjon' },
+  { key: 'approvedBy', label: 'Godkjent av' },
+  { key: 'created', label: 'Opprettet' },
+  { key: 'changed', label: 'Sist endret' },
+  { key: 'approved', label: 'Godkjent' },
+];
 
 function text(value) {
   return String(value || '').trim();
@@ -46,10 +77,270 @@ export function isAnswerField(field) {
   return kind !== 'title' && kind !== 'note';
 }
 
+function columnWidth(type, raw, options) {
+  const fallback = type === 'mark' ? Math.max(1, (options || []).length) : (COLUMN_WIDTH[type] || 3);
+  const n = Math.round(Number(raw));
+  return Number.isFinite(n) && n >= 1 ? Math.min(8, n) : fallback;
+}
+
+export function tableColumn(type = 'text', label = '', extra = {}) {
+  const kind = COLUMN_TYPE_IDS.has(type) ? type : 'text';
+  const options = kind === 'mark'
+    ? (Array.isArray(extra.options) && extra.options.length ? extra.options : ['Ja', 'Nei'])
+    : [];
+  return {
+    id: text(extra.id) || createId('kol'),
+    label: text(label) || (TABLE_COLUMN_TYPES.find((row) => row.id === kind)?.label || 'Kolonne'),
+    type: kind,
+    options,
+    width: columnWidth(kind, extra.width, options),
+  };
+}
+
+export function normalizeColumn(raw) {
+  const type = COLUMN_TYPE_IDS.has(raw?.type) ? raw.type : 'text';
+  const label = text(raw?.label).slice(0, 60);
+  const options = type === 'mark'
+    ? [...new Set((Array.isArray(raw?.options) ? raw.options : [])
+      .map((row) => text(typeof row === 'string' ? row : row?.label).slice(0, 16))
+      .filter(Boolean))].slice(0, 6)
+    : [];
+  if (type === 'mark' && options.length < 2) return null;
+  return {
+    id: text(raw?.id).slice(0, 40) || createId('kol'),
+    label,
+    type,
+    options,
+    width: columnWidth(type, raw?.width, options),
+  };
+}
+
+function normalizeRows(input, columns) {
+  const rows = Array.isArray(input) ? input : [];
+  const keep = new Set((columns || []).filter((col) => col.type !== 'check' && col.type !== 'mark').map((col) => col.id));
+  const out = [];
+  const seen = new Set();
+  for (const row of rows) {
+    let id = text(row?.id).slice(0, 40) || createId('rad');
+    if (seen.has(id)) id = createId('rad');
+    seen.add(id);
+    const group = text(row?.group).slice(0, 120);
+    if (group) {
+      out.push({ id, group });
+    } else {
+      const cells = {};
+      const source = row?.cells && typeof row.cells === 'object' ? row.cells : {};
+      for (const [key, value] of Object.entries(source)) {
+        if (!keep.has(key)) continue;
+        const cell = text(value).slice(0, CELL_MAX);
+        if (cell) cells[key] = cell;
+      }
+      out.push({ id, cells });
+    }
+    if (out.length >= MAX_TABLE_ROWS) break;
+  }
+  return out;
+}
+
+/** Tabellrad i malen. `cells` er faste tekster, `group` gir en mellomoverskrift. */
+export function tableRow(cells = {}, extra = {}) {
+  if (typeof cells === 'string') return { id: text(extra.id) || createId('rad'), group: cells };
+  return { id: text(extra.id) || createId('rad'), cells: { ...cells } };
+}
+
+export function blankTableValue() {
+  return { cells: {}, added: [] };
+}
+
+function cellValue(type, value) {
+  if (type === 'check') return !!value;
+  if (type === 'mark') return text(value).slice(0, 16);
+  return text(value).slice(0, CELL_MAX);
+}
+
+function cleanCells(source) {
+  const out = {};
+  const raw = source && typeof source === 'object' ? source : {};
+  for (const [key, value] of Object.entries(raw).slice(0, MAX_TABLE_COLUMNS * 2)) {
+    const id = text(key).slice(0, 40);
+    if (!id) continue;
+    if (typeof value === 'boolean') {
+      if (value) out[id] = true;
+      continue;
+    }
+    const cell = text(value).slice(0, CELL_MAX);
+    if (cell) out[id] = cell;
+  }
+  return out;
+}
+
+function coerceTable(value) {
+  const src = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const cells = {};
+  const rows = src.cells && typeof src.cells === 'object' ? src.cells : {};
+  for (const [rowId, rowCells] of Object.entries(rows).slice(0, MAX_TABLE_ROWS)) {
+    const id = text(rowId).slice(0, 40);
+    const clean = cleanCells(rowCells);
+    if (id && Object.keys(clean).length) cells[id] = clean;
+  }
+  const added = (Array.isArray(src.added) ? src.added : []).slice(0, MAX_ADDED_ROWS).map((row) => ({
+    id: text(row?.id).slice(0, 40) || createId('rad'),
+    cells: cleanCells(row?.cells),
+  }));
+  return { cells, added };
+}
+
+function coerceSign(value) {
+  if (!value || typeof value !== 'object') return null;
+  const name = text(value.name).slice(0, 120);
+  if (!name) return null;
+  return {
+    name,
+    at: text(value.at).slice(0, 40),
+    uid: text(value.uid).slice(0, 128),
+    place: text(value.place).slice(0, 120),
+  };
+}
+
+/** Rader slik de vises: radene i malen, deretter radene som er lagt til ved utfylling. */
+export function tableRows(field) {
+  const value = field?.value && typeof field.value === 'object' ? field.value : blankTableValue();
+  const base = (field?.rows || []).map((row) => (row.group
+    ? { id: row.id, group: row.group, preset: {}, cells: {}, added: false }
+    : { id: row.id, group: '', preset: row.cells || {}, cells: value.cells?.[row.id] || {}, added: false }));
+  const extra = (value.added || []).map((row) => ({ id: row.id, group: '', preset: {}, cells: row.cells || {}, added: true }));
+  return [...base, ...extra];
+}
+
+/** Sett én celle. Returnerer ny verdi; malen endres ikke. */
+export function setTableCell(field, rowId, columnId, next) {
+  const column = (field?.columns || []).find((col) => col.id === columnId);
+  const type = column?.type || 'text';
+  const value = coerceTable(field?.value);
+  const clean = cellValue(type, next);
+  const apply = (cells) => {
+    const out = { ...(cells || {}) };
+    if (clean === '' || clean === false) delete out[columnId];
+    else out[columnId] = clean;
+    return out;
+  };
+  const addedIndex = value.added.findIndex((row) => row.id === rowId);
+  if (addedIndex >= 0) {
+    value.added = value.added.map((row, index) => (index === addedIndex ? { ...row, cells: apply(row.cells) } : row));
+    return value;
+  }
+  const cells = apply(value.cells[rowId]);
+  if (Object.keys(cells).length) value.cells = { ...value.cells, [rowId]: cells };
+  else {
+    const rest = { ...value.cells };
+    delete rest[rowId];
+    value.cells = rest;
+  }
+  return value;
+}
+
+export function addTableRow(field) {
+  const value = coerceTable(field?.value);
+  if (value.added.length >= MAX_ADDED_ROWS) return value;
+  value.added = [...value.added, { id: createId('rad'), cells: {} }];
+  return value;
+}
+
+export function removeTableRow(field, rowId) {
+  const value = coerceTable(field?.value);
+  value.added = value.added.filter((row) => row.id !== rowId);
+  return value;
+}
+
+/** Celler som skal fylles ut (alt unntatt fast tekst i malens rader). */
+function answerColumns(field) {
+  return (field?.columns || []).filter((col) => col.type !== 'fixed');
+}
+
+export function tableRowFilled(field, row) {
+  const cols = answerColumns(field);
+  if (row.added) return (field?.columns || []).some((col) => row.cells[col.id] !== undefined && row.cells[col.id] !== '');
+  return cols.some((col) => row.cells[col.id] !== undefined && row.cells[col.id] !== '' && row.cells[col.id] !== false);
+}
+
+export function tableProgress(field) {
+  const rows = tableRows(field).filter((row) => !row.group);
+  const filled = rows.filter((row) => tableRowFilled(field, row)).length;
+  return { rows: rows.length, filled };
+}
+
+/** Har feltet fått et svar? Brukes til gul markering og fremdrift. */
+export function answerFilled(field) {
+  if (!field || !isAnswerField(field)) return true;
+  const value = field.value;
+  if (field.kind === 'table') return tableProgress(field).filled > 0;
+  if (field.kind === 'sign') return !!value?.name;
+  if (field.kind === 'check') return value === true;
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === 'object') return !!(value.name || value.dataUrl);
+  return value != null && String(value).trim() !== '';
+}
+
+/** Felt som venter på utfylling: ikke låst, og uten svar. */
+export function needsInput(field) {
+  return isAnswerField(field) && field.editor !== 'fast' && !answerFilled(field);
+}
+
+export function formProgress(fields) {
+  const open = (Array.isArray(fields) ? fields : []).filter((field) => isAnswerField(field) && field.editor !== 'fast');
+  const required = open.filter((field) => field.required);
+  const missing = required.filter((field) => !answerFilled(field));
+  return {
+    total: open.length,
+    filled: open.filter((field) => answerFilled(field)).length,
+    required: required.length,
+    missing: missing.map((field) => field.id),
+    ready: missing.length === 0,
+  };
+}
+
+export function blankDocInfo() {
+  return { system: '', docId: '', owner: '', version: '', approvedBy: '', created: '', changed: '', approved: '' };
+}
+
+export function normalizeDocInfo(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    system: text(src.system).slice(0, 120),
+    docId: text(src.docId).slice(0, 40),
+    owner: text(src.owner).slice(0, 60),
+    version: text(src.version).slice(0, 20),
+    approvedBy: text(src.approvedBy).slice(0, 60),
+    created: text(src.created).slice(0, 20),
+    changed: text(src.changed).slice(0, 20),
+    approved: text(src.approved).slice(0, 20),
+  };
+}
+
+export function hasDocInfo(doc) {
+  const info = normalizeDocInfo(doc);
+  return DOC_INFO_FIELDS.some((row) => info[row.key]) || !!info.system;
+}
+
 export function blankField(kind = 'text') {
   const id = createId('felt');
   const type = FIELD_TYPE_IDS.has(kind) ? kind : 'text';
   const label = type === 'title' ? 'Ny seksjon' : type === 'note' ? 'Ny tekst' : (type === 'choice' ? 'Spørsmål' : fieldType(type).label);
+  const table = type === 'table'
+    ? {
+      columns: [
+        tableColumn('fixed', 'Sjekkpunkt', { id: `${id}_k1` }),
+        tableColumn('text', 'Merknad', { id: `${id}_k2` }),
+        tableColumn('mark', 'Status', { id: `${id}_k3`, options: ['Ja', 'Nei'] }),
+      ],
+      rows: [
+        tableRow({ [`${id}_k1`]: 'Punkt 1' }, { id: `${id}_r1` }),
+        tableRow({ [`${id}_k1`]: 'Punkt 2' }, { id: `${id}_r2` }),
+      ],
+      allowAdd: true,
+      legend: '',
+    }
+    : { columns: [], rows: [], allowAdd: false, legend: '' };
   return {
     id,
     label,
@@ -71,6 +362,7 @@ export function blankField(kind = 'text') {
         { id: `${id}_b`, label: 'Alternativ 2' },
       ]
       : [],
+    ...table,
     editor: type === 'title' || type === 'note' ? 'fast' : 'avsender',
     value: emptyAnswer(type),
   };
@@ -87,7 +379,8 @@ export function blankSettings() {
     progress: false,
     shuffleQuestions: false,
     anotherResponse: true,
-    useCompanyLogo: false,
+    // Bedriftens logo brukes i dokumentene med mindre den er slått av på skjemaet.
+    useCompanyLogo: true,
     layout: 'brev',
     confirmation: 'Svaret er sendt.',
   };
@@ -100,6 +393,7 @@ export function blankForm() {
     category: 'skjema',
     intro: '',
     cover: '',
+    doc: blankDocInfo(),
     settings: blankSettings(),
     responses: [],
     fields: [blankField('choice')],
@@ -109,7 +403,8 @@ export function blankForm() {
 export function emptyAnswer(kind) {
   if (kind === 'check') return false;
   if (kind === 'checks') return [];
-  if (kind === 'image' || kind === 'file') return null;
+  if (kind === 'image' || kind === 'file' || kind === 'sign') return null;
+  if (kind === 'table') return blankTableValue();
   if (kind === 'scale') return '';
   return '';
 }
@@ -135,6 +430,8 @@ function normalizeOptions(input) {
 
 export function coerceAnswer(kind, value) {
   if (kind === 'title' || kind === 'note') return '';
+  if (kind === 'table') return coerceTable(value);
+  if (kind === 'sign') return coerceSign(value);
   if (kind === 'check') return !!value;
   if (kind === 'scale') {
     const n = Number(value);
@@ -167,6 +464,17 @@ export function normalizeBuilderField(raw) {
   const id = text(raw?.id).slice(0, 40) || createId('felt');
   if (!label) return null;
   const staticKind = kind === 'title' || kind === 'note';
+  const columns = kind === 'table'
+    ? (Array.isArray(raw?.columns) ? raw.columns : []).map(normalizeColumn).filter(Boolean).slice(0, MAX_TABLE_COLUMNS)
+    : [];
+  const table = kind === 'table'
+    ? {
+      columns,
+      rows: normalizeRows(raw?.rows, columns),
+      allowAdd: raw?.allowAdd !== false,
+      legend: text(raw?.legend).slice(0, 240),
+    }
+    : {};
   return {
     id,
     label,
@@ -180,12 +488,13 @@ export function normalizeBuilderField(raw) {
     lowLabel: kind === 'scale' ? text(raw?.lowLabel).slice(0, 40) : '',
     highLabel: kind === 'scale' ? text(raw?.highLabel).slice(0, 40) : '',
     placeholder: staticKind ? '' : text(raw?.placeholder).slice(0, 120),
-    width: staticKind ? 'full' : (raw?.width === 'half' ? 'half' : 'full'),
+    width: staticKind || kind === 'table' ? 'full' : (raw?.width === 'half' ? 'half' : 'full'),
     review: text(raw?.review).slice(0, 180),
     editor: staticKind
       ? 'fast'
       : (['fast', 'avsender', 'motpart', 'begge'].includes(raw?.editor) ? raw.editor : 'avsender'),
     options: OPTION_KINDS.has(kind) ? normalizeOptions(raw?.options) : [],
+    ...table,
     value: coerceAnswer(kind, raw?.value),
   };
 }
@@ -203,7 +512,7 @@ export function normalizeSettings(raw) {
     progress: !!src.progress,
     shuffleQuestions: !!src.shuffleQuestions,
     anotherResponse: src.anotherResponse !== false,
-    useCompanyLogo: !!src.useCompanyLogo,
+    useCompanyLogo: src.useCompanyLogo !== false,
     layout: src.layout === 'skjema' ? 'skjema' : 'brev',
     confirmation: text(src.confirmation).slice(0, 280) || base.confirmation,
   };
@@ -225,6 +534,8 @@ export function normalizeResponses(input) {
       if (!idKey) continue;
       if (typeof value === 'boolean') clean[idKey] = value;
       else if (Array.isArray(value)) clean[idKey] = value.map((item) => text(item).slice(0, 200)).filter(Boolean).slice(0, 12);
+      else if (value && typeof value === 'object' && (value.cells || value.added)) clean[idKey] = coerceTable(value);
+      else if (value && typeof value === 'object' && value.at) clean[idKey] = coerceSign(value);
       else if (value && typeof value === 'object') clean[idKey] = { name: text(value.name).slice(0, 120) };
       else clean[idKey] = text(value).slice(0, 2000);
     }
@@ -260,6 +571,11 @@ function optionName(field, id) {
 
 function answerText(field, value) {
   if (value == null || value === '') return '';
+  if (field.kind === 'table') {
+    const filled = tableProgress({ ...field, value }).filled;
+    return filled ? `${filled} ${filled === 1 ? 'rad' : 'rader'} utfylt` : '';
+  }
+  if (field.kind === 'sign') return value?.name ? `Signert av ${text(value.name)}` : '';
   if (field.kind === 'check') return value ? 'Ja' : 'Nei';
   if (Array.isArray(value)) return value.map((id) => optionName(field, id)).filter(Boolean).join('; ');
   if (typeof value === 'object') return text(value.name);
@@ -1349,6 +1665,10 @@ export function formAttention(form) {
   for (const field of bare.slice(0, 4)) {
     if (flagged.includes(field)) continue;
     issues.push({ tone: 'warn', fieldId: field.id, text: `«${field.label}» mangler alternativer.` });
+  }
+  const emptyTables = fields.filter((field) => field.kind === 'table' && !(field.columns || []).length);
+  for (const field of emptyTables.slice(0, 4)) {
+    issues.push({ tone: 'warn', fieldId: field.id, text: `«${field.label}» har ingen kolonner.` });
   }
   return { issues };
 }

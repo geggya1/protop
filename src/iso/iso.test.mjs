@@ -418,6 +418,8 @@ test('automatikk: ansvarlig, kravkobling, påminnelser og startpakke', () => {
   assert.equal(autoAssignee(s.system, 'prosess').uid, 'u1');
   assert.equal(autoAssignee({}, 'prosess'), null);
   assert.ok(requirementIdsForFinding(s, 'prosess').length > 0);
+  const withLaw = { ...s, requirements: [{ id: 'lov_bhf', kind: 'lov', title: 'Byggherreforskriften', areaKeys: ['hazards', 'nonconformity'] }] };
+  assert.ok(!requirementIdsForFinding(withLaw, 'nestenulykke').includes('lov_bhf'), 'egne krav kobles ikke automatisk til saker');
   s.records = { ...s.records, leverandor: [{ id: 'l1', title: 'X', state: 'aktiv', nextReview: '2026-01-01' }] };
   const fx = autoTaskEffects(s, { now });
   assert.ok(fx.some((e) => e.title.includes('Evaluer leverandør X')));

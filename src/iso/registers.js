@@ -329,6 +329,7 @@ export const REGISTERS = {
       { key: 'title', label: 'Aktivitet', type: 'text', required: true },
       { key: 'months', label: 'Måned(er)', type: 'multi', options: opt(MONTH_NAMES), required: true },
       { key: 'frequency', label: 'Hyppighet', type: 'select', options: opt(['Årlig', 'Halvårlig', 'Kvartalsvis', 'Månedlig', 'Ved behov']) },
+      { key: 'year', label: 'Bare i år (tomt = hvert år)', type: 'number' },
       { key: 'category', label: 'Område', type: 'select', options: opt(['Ledelse', 'Kvalitet', 'Miljø', 'HMS', 'Personal', 'Marked', 'Økonomi', 'Annet']) },
       { key: 'responsibleRole', label: 'Ansvarlig rolle', type: 'text' },
       { key: 'ownerName', label: 'Ansvarlig person', type: 'person' },

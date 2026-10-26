@@ -388,6 +388,7 @@ Generert fra `src/iso/registers.js`. Typene `persons` (liste med navn) og `conta
 |---|---|---|---|---|
 | title | Kompetanse | text | ja |  |
 | role | Rolle / funksjon | text | ja |  |
+| persons | Gjelder også for | persons |  |  |
 | level | Nivå | select |  | Grunnleggende / Selvstendig / Ekspert |
 | validityMonths | Gyldighet (måneder, 0 = varig) | number |  |  |
 | source | Kilde (lov, kunde, intern) | text |  |  |
@@ -543,6 +544,7 @@ Generert fra `src/iso/registers.js`. Typene `persons` (liste med navn) og `conta
 | title | Aktivitet | text | ja |  |
 | months | Måned(er) | multi | ja | Januar / Februar / Mars / April / Mai / Juni / Juli / August / September / Oktober / November / Desember |
 | frequency | Hyppighet | select |  | Årlig / Halvårlig / Kvartalsvis / Månedlig / Ved behov |
+| year | Bare i år (tomt = hvert år) | number |  |  |
 | category | Område | select |  | Ledelse / Kvalitet / Miljø / HMS / Personal / Marked / Økonomi / Annet |
 | responsibleRole | Ansvarlig rolle | text |  |  |
 | ownerName | Ansvarlig person | person |  |  |

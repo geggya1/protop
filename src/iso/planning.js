@@ -9,6 +9,8 @@ import { publishedRevisionOf } from './documents.js';
 
 const norm = (s) => String(s || '').trim().toLowerCase();
 const live = (rows) => (rows || []).filter((r) => r && r.state !== 'arkivert');
+/** Årshjulaktivitet som gjelder året (tomt «Bare i år» = hvert år, f.eks. innføringsaktiviteter for 2027). */
+const inYear = (r, year) => !Number(r.year) || Number(r.year) === Number(year);
 
 export function sortRoles(roles) {
   const level = (r) => {
@@ -150,7 +152,7 @@ export function annualWheel(state, { year = new Date().getFullYear() } = {}) {
   return MONTH_NAMES.map((name, month) => ({
     month,
     name,
-    planned: planned.filter((r) => (r.months || []).includes(name)).sort((a, b) => String(a.title).localeCompare(String(b.title), 'nb')),
+    planned: planned.filter((r) => (r.months || []).includes(name) && inYear(r, year)).sort((a, b) => String(a.title).localeCompare(String(b.title), 'nb')),
     dated: dated.filter((d) => d.month === month).sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || a.title.localeCompare(b.title, 'nb')),
   }));
 }
@@ -185,7 +187,7 @@ export function annualTaskEffects(state, { now = new Date(), all = false } = {})
   const roles = state?.system?.roleMap || {};
   const fallback = roles.quality_manager || roles.system_owner || {};
   return live(state?.records?.aarshjul)
-    .filter((r) => (r.months || []).includes(name) && (all || r.createTasks))
+    .filter((r) => (r.months || []).includes(name) && inYear(r, year) && (all || r.createTasks))
     .map((r) => {
       const page = pageLabel(r.page);
       return {

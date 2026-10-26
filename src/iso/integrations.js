@@ -318,8 +318,14 @@ const FINDING_AREAS = {
   varsling: ['participation', 'leadership'],
 };
 
+/**
+ * Automatisk kobling fra en ny sak: ISO-klausulene for sakstypen. Egne krav (lov, kontrakt, internt) har brede
+ * kravområder; de kobles bare når de faktisk gjelder saken (Koblinger i saken), ellers ville en RUH i en trapp
+ * blitt koblet til byggherreforskriften og droneforskriften.
+ */
 export function requirementIdsForFinding(state, type) {
-  return uniq((FINDING_AREAS[type] || ['nonconformity']).flatMap((a) => requirementIdsForArea(state, a)));
+  const custom = new Set((state?.requirements || []).map((r) => r.id));
+  return uniq((FINDING_AREAS[type] || ['nonconformity']).flatMap((a) => requirementIdsForArea(state, a))).filter((id) => !custom.has(id));
 }
 
 const DOC_AREAS = {

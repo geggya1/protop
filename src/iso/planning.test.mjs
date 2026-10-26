@@ -177,3 +177,15 @@ test('dokumentstyring: godkjente KS-maler blir styrte skjema i ISO, uten egen IS
   assert.ok(rows.find((r) => r.id === 'tpl_ks_sja').waiting);
   assert.ok(isDocControlledTemplate('ks_sja') && !isDocControlledTemplate('iso_sf12_sja'));
 });
+
+test('årshjul: «Bare i år» viser aktiviteten bare det året, og oppgaven lages bare da', async () => {
+  const { annualWheel, annualTaskEffects } = await import('./planning.js');
+  const state = { records: { aarshjul: [
+    { id: 'a1', title: 'Innføring 2027: første internrevisjon', months: ['Mars'], year: 2027, createTasks: true, state: 'aktiv' },
+    { id: 'a2', title: 'Ledelsens gjennomgang', months: ['Mars'], createTasks: true, state: 'aktiv' },
+  ] } };
+  assert.deepEqual(annualWheel(state, { year: 2026 })[2].planned.map((r) => r.id), ['a2']);
+  assert.deepEqual(annualWheel(state, { year: 2027 })[2].planned.map((r) => r.id).sort(), ['a1', 'a2']);
+  assert.equal(annualTaskEffects(state, { now: new Date('2026-03-05T10:00:00Z') }).length, 1);
+  assert.equal(annualTaskEffects(state, { now: new Date('2027-03-05T10:00:00Z') }).length, 2);
+});

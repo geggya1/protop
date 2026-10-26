@@ -15,6 +15,8 @@ const ICONS = {
   dropdown: 'chevron-down-circle-outline',
   image: 'image-outline',
   file: 'document-attach-outline',
+  table: 'grid-outline',
+  sign: 'pencil-outline',
 };
 
 function Box({ colors, children, tall = false }) {

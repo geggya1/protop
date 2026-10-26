@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { fieldType, isAnswerField } from '../../src/anbud/formBuilder';
+import { DOC_INFO_FIELDS, fieldType, isAnswerField, normalizeDocInfo } from '../../src/anbud/formBuilder';
+import { TOKENS } from '../../src/forms/tokens';
+import FormTableEditor from './FormTableEditor';
 
 function chromeNote(field) {
   return field?.kind === 'note' && /ledelsessystem|dokument\s*(navn|id)|dokumenteier|godkjent av|\bversjon\b|org\.\s*\d|sentralbord|utskriftstidspunkt|\bsidetall\b|\bwww\.|^web:|e-?post:/i.test(field.label || '');
@@ -52,6 +54,11 @@ function rowsOf(items) {
 
 function hintOf(field) {
   if (field.kind === 'note') return '';
+  if (field.kind === 'table') {
+    const rows = (field.rows || []).filter((row) => !row.group).length;
+    return `${(field.columns || []).map((col) => col.label).filter(Boolean).join(' · ') || 'Ingen kolonner'} · ${rows} ${rows === 1 ? 'rad' : 'rader'}`;
+  }
+  if (field.kind === 'sign') return 'Signeres digitalt med navn og tid';
   if (field.kind === 'checks' || field.kind === 'choice' || field.kind === 'dropdown') {
     const labels = (field.options || []).map((option) => option.label).filter(Boolean);
     return labels.join(' · ') || 'Ingen alternativer';
@@ -143,16 +150,23 @@ function FieldCard({ item, colors, selected, marked, onSelect, onPatch, onType, 
             </View>
           ) : null}
           {isAnswerField(field) ? (
-            <View style={styles.head}>
+            <View style={[styles.head, { flexWrap: 'wrap' }]}>
               <Text style={{ color: colors.ink }}>Obligatorisk</Text>
               <Switch value={!!field.required} onValueChange={(required) => onPatch(index, { required })} />
-              <Text style={{ color: colors.ink }}>{field.width === 'half' ? 'Ved siden av' : 'Egen linje'}</Text>
-              <Switch value={field.width === 'half'} onValueChange={(half) => onPatch(index, { width: half ? 'half' : 'full' })} />
+              {field.kind !== 'table' ? (
+                <>
+                  <Text style={{ color: colors.ink }}>{field.width === 'half' ? 'Ved siden av' : 'Egen linje'}</Text>
+                  <Switch value={field.width === 'half'} onValueChange={(half) => onPatch(index, { width: half ? 'half' : 'full' })} />
+                </>
+              ) : null}
               <Text style={{ color: colors.ink }}>Låst</Text>
               <Switch value={field.editor === 'fast'} onValueChange={(locked) => onPatch(index, { editor: locked ? 'fast' : 'avsender' })} />
             </View>
           ) : null}
-          {isAnswerField(field) && field.editor === 'fast' && !['choice', 'checks', 'dropdown', 'scale', 'image', 'file'].includes(field.kind) ? (
+          {field.kind === 'table' ? (
+            <FormTableEditor field={field} colors={colors} onPatch={(part) => onPatch(index, part)} />
+          ) : null}
+          {isAnswerField(field) && field.editor === 'fast' && !['choice', 'checks', 'dropdown', 'scale', 'image', 'file', 'table', 'sign'].includes(field.kind) ? (
             field.kind === 'check' ? (
               <View style={styles.head}>
                 <Text style={{ color: colors.ink }}>Avkrysset</Text>
@@ -168,7 +182,16 @@ function FieldCard({ item, colors, selected, marked, onSelect, onPatch, onType, 
               />
             )
           ) : null}
-          {isAnswerField(field) && !['check', 'choice', 'checks', 'dropdown', 'scale', 'image', 'file'].includes(field.kind) ? (
+          {isAnswerField(field) && ['table', 'sign'].includes(field.kind) ? (
+            <TextInput
+              value={field.help || ''}
+              onChangeText={(help) => onPatch(index, { help })}
+              placeholder="Hjelpetekst under feltet"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.line, { color: colors.ink, borderBottomColor: colors.line }]}
+            />
+          ) : null}
+          {isAnswerField(field) && !['check', 'choice', 'checks', 'dropdown', 'scale', 'image', 'file', 'table', 'sign'].includes(field.kind) ? (
             <TextInput
               value={field.placeholder || ''}
               onChangeText={(placeholder) => onPatch(index, { placeholder })}
@@ -207,6 +230,50 @@ function FieldCard({ item, colors, selected, marked, onSelect, onPatch, onType, 
             <TouchableOpacity onPress={() => onMove(index, -1)} accessibilityRole="button" accessibilityLabel="Flytt opp"><Ionicons name="arrow-up" size={18} color={colors.muted} /></TouchableOpacity>
             <TouchableOpacity onPress={() => onMove(index, 1)} disabled={last} accessibilityRole="button" accessibilityLabel="Flytt ned"><Ionicons name="arrow-down" size={18} color={last ? colors.line : colors.muted} /></TouchableOpacity>
           </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function DocHeadEditor({ doc, colors, onChange }) {
+  const [open, setOpen] = useState(false);
+  const info = normalizeDocInfo(doc);
+  const filled = DOC_INFO_FIELDS.filter((row) => info[row.key]).length;
+  return (
+    <View style={[styles.group, { backgroundColor: colors.card, borderColor: colors.line }]}>
+      <TouchableOpacity onPress={() => setOpen((value) => !value)} accessibilityRole="button" style={styles.head}>
+        <Ionicons name={open ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.muted} />
+        <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>Dokumenthode (KS)</Text>
+        <Text style={{ color: colors.muted }}>{filled ? `${filled} av ${DOC_INFO_FIELDS.length}` : 'Ikke i bruk'}</Text>
+      </TouchableOpacity>
+      {open ? (
+        <View style={{ gap: 8 }}>
+          <Text style={[styles.hint, { color: colors.muted, marginLeft: 0 }]}>Står øverst på hver side i PDF, slik som i KS-malene. Tomt hode skrives ikke ut.</Text>
+          <TextInput
+            value={info.system}
+            onChangeText={(system) => onChange({ ...info, system })}
+            placeholder="Systemnavn, for eksempel {{firma}} - Ledelsessystem"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.line, { color: colors.ink, borderBottomColor: colors.line }]}
+          />
+          <View style={styles.pair}>
+            {DOC_INFO_FIELDS.map((row) => (
+              <View key={row.key} style={{ flexGrow: 1, flexBasis: 160, gap: 2 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{row.label}</Text>
+                <TextInput
+                  value={info[row.key]}
+                  onChangeText={(value) => onChange({ ...info, [row.key]: value })}
+                  placeholder={row.key === 'created' || row.key === 'changed' || row.key === 'approved' ? 'dd.mm.åå' : row.label}
+                  placeholderTextColor={colors.placeholder}
+                  style={[styles.line, { color: colors.ink, borderBottomColor: colors.line }]}
+                />
+              </View>
+            ))}
+          </View>
+          <Text style={[styles.hint, { color: colors.muted, marginLeft: 0 }]}>
+            Flettefelt i all tekst: {TOKENS.map((row) => `{{${row.key}}}`).join(' ')}. De fylles fra bedriftsprofilen.
+          </Text>
         </View>
       ) : null}
     </View>
@@ -274,6 +341,7 @@ export default function FormEditor({
         placeholderTextColor={colors.placeholder}
         style={[styles.intro, { color: colors.ink, borderBottomColor: colors.line }]}
       />
+      <DocHeadEditor doc={draft.doc} colors={colors} onChange={(doc) => onPatch(-1, { doc })} />
       {model.info.length ? (
         <View style={[styles.group, { backgroundColor: colors.card, borderColor: colors.line }]}>
           <TouchableOpacity onPress={() => setInfoOpen((open) => !open)} accessibilityRole="button" style={styles.head}>

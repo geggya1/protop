@@ -37,7 +37,6 @@ else
   expected="$( {
     grep -oE 'functions:[A-Za-z0-9_]+' "$ROOT/scripts/deploy-slim-functions.sh" | sed 's/functions://'
     sed -n '/^export {/,/}/p' "$ROOT/functions/calendarIndex.js" | grep -oE '^\s+[A-Za-z0-9_]+' | tr -d ' '
-    printf '%s\n' aiCleanupScheduled hospScheduledSync indeksSsbDaily
   } | sort -u)"
   missing="$(comm -23 <(printf '%s\n' "$expected") <(printf '%s\n' "$deployed_names"))"
   line "Deployet: $(printf '%s\n' "$deployed_names" | grep -c .) funksjoner."
@@ -73,14 +72,15 @@ for bucket in "gs://$PROJECT.firebasestorage.app" "gs://$PROJECT.appspot.com"; d
   out="$(run gcloud storage buckets describe "$bucket" --format='value(name)')"
   if [[ "$out" != INGEN_TILGANG* ]] && [ -n "$out" ]; then
     found="$bucket"
-  elif [[ "${out,,}" =~ (401|403|denied|unauthenticated|credential|permission) ]]; then
-    denied="${out#INGEN_TILGANG: }"
+  elif [[ "${out,,}" =~ (403|denied|does\ not\ have\ permission) ]]; then
+    # Cloud Storage svarer 404 for bucketer som ikke finnes, 403 bare for dem som finnes.
+    denied="$bucket"
   fi
 done
 if [ -n "$found" ]; then
   line "✅ Bucket finnes: $found"
 elif [ -n "$denied" ]; then
-  line "❔ Ingen tilgang til å lese bucketene: $denied"
+  line "✅ Bucket finnes: $denied (deploy-kontoen har ikke lesetilgang, så CORS settes ikke fra CI; appen bruker firebasestorage.googleapis.com og trenger det ikke)"
 else
   line "❌ Fant ingen standard-bucket ($PROJECT.firebasestorage.app / .appspot.com)"
 fi

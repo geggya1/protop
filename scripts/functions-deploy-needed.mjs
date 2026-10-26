@@ -47,6 +47,8 @@ export const DEPLOY_ENTRIES = [
   'pushIndex.js',
   'vacationPlanIndex.js',
   'vacationPlanDailyIndex.js',
+  'aiCleanupIndex.js',
+  'indeksSsbDailyIndex.js',
 ];
 
 const SPECIFIER_RE = [

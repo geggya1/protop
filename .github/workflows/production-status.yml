@@ -23,4 +23,4 @@ jobs:
           service_account: github-hosting-deploy@protop-c189c.iam.gserviceaccount.com
       - uses: google-github-actions/setup-gcloud@v2
       - name: Les status
-        run: bash scripts/production-status.sh >> "$GITHUB_STEP_SUMMARY"
+        run: bash scripts/production-status.sh | tee -a "$GITHUB_STEP_SUMMARY"

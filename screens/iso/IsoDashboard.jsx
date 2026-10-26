@@ -12,10 +12,10 @@ import { openActions } from '../../src/iso/findings';
 import {
   actionsDoneInTasks, contractReviewStatus, hrComplianceForIso, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, sickLeaveSeries,
 } from '../../src/iso/integrations';
-import { publishedRevisionOf } from '../../src/iso/documents';
 import { recordsNeedingReview } from '../../src/iso/registers';
 import { annualWheel, pageLabel } from '../../src/iso/planning';
 import { RiskMatrix, StatusDonut, TrendBars, HBars } from './isoCharts';
+import { postDate, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, Choice, Empty, ListRow, Page, Pill, Row } from './isoUi';
 
 export default function IsoDashboard({ ctx }) {
@@ -38,10 +38,8 @@ export default function IsoDashboard({ ctx }) {
   const profile = state.system?.profile || null;
   const published = useMemo(() => (state.documents || []).filter((d) => !d.archived && d.publishedRevision), [state.documents]);
   const policies = published.filter((d) => d.docType === 'policy').sort((a, b) => String(a.code).localeCompare(String(b.code), 'nb', { numeric: true }));
-  const news = published.filter((d) => d.docType === 'nyhet')
-    .map((d) => ({ d, at: publishedRevisionOf(d)?.publishedAt || d.updatedAt || '' }))
-    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
-    .slice(0, 3);
+  const { top: news } = useCompanyNews(ctx.companyId, { limit: 3 });
+  const openNews = () => ctx.requestTab?.('selskap', 'nyheter');
   const wheelNow = useMemo(() => annualWheel(state, { year: new Date().getFullYear() })[new Date().getMonth()], [state]);
   const insights = useMemo(() => {
     if (!caps.manage) return [];
@@ -95,8 +93,8 @@ export default function IsoDashboard({ ctx }) {
             </Card>
           ) : null}
           {news.length ? (
-            <Card style={{ flex: 2 }} title="Nytt i ledelsessystemet" right={<Btn small label="Alle" onPress={() => go('dokumenter', { type: 'nyhet' })} />}>
-              {news.map(({ d, at }) => <ListRow key={d.id} icon="megaphone-outline" title={d.title} subtitle={at ? prettyDate(at) : d.code} onPress={() => go('dokumenter', { open: d.id })} />)}
+            <Card style={{ flex: 2 }} title="Nyheter" subtitle="Fra Selskap → Nyheter" right={<Btn small label="Alle" onPress={openNews} />}>
+              {news.map((p) => <ListRow key={p.id} icon="megaphone-outline" title={p.title || String(p.body || '').slice(0, 80)} subtitle={postDate(p) ? prettyDate(postDate(p)) : p.authorName} onPress={openNews} />)}
             </Card>
           ) : null}
         </View>

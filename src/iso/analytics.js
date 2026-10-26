@@ -19,7 +19,7 @@ export function kpis(state, caps, { people = [], now = new Date() } = {}) {
   const horizon = addDays(today, 90);
   const audits = (state.records.revisjon || []).filter((a) => a.state === 'planlagt' && a.plannedDate && a.plannedDate >= today && a.plannedDate <= horizon);
   const docs = documentsAwaitingApproval(state.documents);
-  const matrix = competenceMatrix(people, state.records.kompetansekrav, state.records.kompetanse, now);
+  const matrix = competenceMatrix(people, state.records.kompetansekrav, state.records.kompetanse, now, { roles: state.records.rolle });
   const gaps = competenceGaps(matrix);
   const legal = matrixRows(state, { kind: 'lov' }, now).filter((r) => ['ikke_vurdert', 'ma_revurderes'].includes(r.status));
   const overdueEval = overdueRecords(state.records.samsvar, 'nextReview', now);

@@ -36,6 +36,14 @@ export const NATIVE_FORMS = {
   SF26_SAMSVAR: { page: 'lovkrav', label: 'Lovkrav og samsvar' },
   SF27_LEDELSE: { page: 'ledelse', label: 'Ledelsens gjennomgang' },
   SF30_BEVISPAKKE: { page: 'sertifisering', label: 'Sertifisering' },
+  // Disse dekkes av registrene; eget skjema ville gitt to steder for det samme.
+  SF09_ENDRING: { page: 'avvik', label: 'Avvik og forbedring (endringsforslag med endringsvurdering)' },
+  SF14_MEDVIRKNING: { page: 'hms', label: 'HMS (medvirkning)' },
+  SF15_BEREDSKAP: { page: 'beredskap', label: 'Beredskap (øvelser)' },
+  SF20_KVALITETSPLAN: { page: 'prosjekt', label: 'Prosjektkvalitet (kvalitetsplan)' },
+  SF22_LEVERANDOR: { page: 'leverandorer', label: 'Leverandører (evaluering)' },
+  SF25_REVISJON: { page: 'revisjon', label: 'Internrevisjon' },
+  SF29_DOKENDRING: { page: 'dokumenter', label: 'Dokumenter (revisjon med endringsårsak)' },
 };
 
 /** Id for en ISO-mal installert i Skjemabygger. Fast id gjør installasjon idempotent. */
@@ -46,10 +54,9 @@ export function templateIdFor(key) {
 /** Hvilke skjema som foreslås installert ut fra aktive standarder. */
 export function recommendedFormKeys(standards = []) {
   const s = new Set(standards);
-  const keys = ['SF19_KONTRAKT', 'SF20_KVALITETSPLAN', 'SF21_FAGKONTROLL', 'SF22_LEVERANDOR', 'SF25_REVISJON', 'SF28_TILFREDSHET', 'SF29_DOKENDRING', 'SF09_ENDRING'];
-  if (s.has('ISO45001')) keys.push('SF12_SJA', 'SF13_VERNERUNDE', 'SF14_MEDVIRKNING');
-  if (s.has('ISO45001') || s.has('ISO14001')) keys.push('SF15_BEREDSKAP');
-  return keys;
+  const keys = ['SF19_KONTRAKT', 'SF21_FAGKONTROLL', 'SF28_TILFREDSHET'];
+  if (s.has('ISO45001')) keys.push('SF12_SJA', 'SF13_VERNERUNDE');
+  return keys.filter((k) => !NATIVE_FORMS[k]);
 }
 
 export const FORM_TEMPLATES = [

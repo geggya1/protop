@@ -107,6 +107,7 @@ export const REGISTERS = {
       { key: 'control', label: 'Kontroll eller innflytelse', type: 'select', options: opt(['Direkte kontroll', 'Innflytelse']) },
       { key: 'extent', label: 'Omfang (1–5)', type: 'scale' },
       { key: 'severity', label: 'Alvorlighet (1–5)', type: 'scale' },
+      { key: 'obligation', label: 'Knyttet til samsvarsforpliktelse (lov, tillatelse, kundekrav, Miljøfyrtårn)', type: 'select', options: opt(['Ja', 'Nei']) },
       { key: 'significant', label: 'Vesentlig', type: 'select', options: opt(['Ja', 'Nei']), required: true },
       { key: 'rationale', label: 'Begrunnelse etter kriterier', type: 'long', required: true },
       { key: 'controls', label: 'Operativ kontroll / tiltak', type: 'long' },
@@ -131,6 +132,9 @@ export const REGISTERS = {
       { key: 'title', label: 'Fare', type: 'text', required: true },
       { key: 'hazardCategory', label: 'Farekategori', type: 'select', options: opt(['Fysisk', 'Psykososial', 'Organisatorisk', 'Ergonomisk', 'Kjemisk', 'Biologisk', 'Sikkerhet']) },
       { key: 'exposed', label: 'Utsatte roller', type: 'text' },
+      { key: 'cause', label: 'Årsak / kilde til faren', type: 'long' },
+      { key: 'consequence', label: 'Mulig konsekvens (skade, sykdom, belastning)', type: 'long' },
+      { key: 'existingControls', label: 'Eksisterende barrierer', type: 'long' },
       { key: 'inherentL', label: 'Sannsynlighet', type: 'scale' },
       { key: 'inherentC', label: 'Konsekvens', type: 'scale' },
       { key: 'hierarchy', label: 'Tiltakshierarki', type: 'multi', options: opt(['Fjerne faren', 'Erstatte', 'Tekniske tiltak', 'Administrative tiltak', 'Verneutstyr']) },
@@ -157,6 +161,7 @@ export const REGISTERS = {
       { key: 'title', label: 'Scenario', type: 'text', required: true },
       { key: 'domain', label: 'Område', type: 'select', options: opt(['HMS', 'Miljø', 'Drift', 'IT']) },
       { key: 'alarm', label: 'Varsling og kontaktkjede', type: 'long', required: true },
+      { key: 'contacts', label: 'Interne kontakter (velg blant ansatte)', type: 'contacts' },
       { key: 'roles', label: 'Roller og ansvar', type: 'long' },
       { key: 'equipment', label: 'Utstyr', type: 'long' },
       { key: 'instructions', label: 'Beredskapskort / instruks', type: 'long', required: true },
@@ -283,7 +288,7 @@ export const REGISTERS = {
       { key: 'title', label: 'Rolle / stilling', type: 'text', required: true },
       { key: 'category', label: 'Nivå', type: 'select', options: opt(ROLE_LEVELS) },
       { key: 'reportsTo', label: 'Rapporterer til', type: 'text' },
-      { key: 'department', label: 'Avdeling', type: 'text' },
+      { key: 'department', label: 'Avdeling', type: 'department' },
       { key: 'location', label: 'Sted', type: 'text' },
       { key: 'purpose', label: 'Formål med rollen', type: 'long' },
       { key: 'responsibilities', label: 'Ansvar', type: 'long', required: true },
@@ -291,7 +296,7 @@ export const REGISTERS = {
       { key: 'mandates', label: 'Fullmakter', type: 'long' },
       { key: 'tasks', label: 'Arbeidsoppgaver', type: 'long' },
       { key: 'qualifications', label: 'Kvalifikasjoner og kompetansekrav', type: 'long' },
-      { key: 'holders', label: 'Innehaves av', type: 'text' },
+      { key: 'holders', label: 'Innehaves av', type: 'persons' },
       { key: 'ownerName', label: 'Eier av beskrivelsen', type: 'person' },
       { key: 'nextReview', label: 'Neste gjennomgang', type: 'date' },
     ], states: ['aktiv', 'arkivert'],
@@ -391,6 +396,48 @@ export function validateRecord(key, values) {
   return errors;
 }
 
+/** Personliste: navn (tekst eller { name, uid, employeeId }). Tekst kan være kommadelt. */
+export function cleanPersons(value) {
+  const list = Array.isArray(value) ? value : String(value || '').split(/[,;\n]+/);
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const p = typeof item === 'object' && item ? item : { name: item };
+    const name = text(p.name, 160);
+    if (!name) continue;
+    const id = String(p.uid || p.employeeId || name).toLowerCase();
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ name, uid: text(p.uid, 128), employeeId: text(p.employeeId, 128) });
+  }
+  return out.slice(0, 40);
+}
+
+/** Kontaktliste: rolle, person (ansatt eller navn), telefon og merknad. */
+export function cleanContacts(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((c) => ({
+      role: text(c?.role, 120),
+      name: text(c?.name, 160),
+      uid: text(c?.uid, 128),
+      employeeId: text(c?.employeeId, 128),
+      phone: text(c?.phone, 40),
+      email: text(c?.email, 160),
+      note: text(c?.note, 300),
+    }))
+    .filter((c) => c.role || c.name || c.phone)
+    .slice(0, 40);
+}
+
+/** Visningstekst for person- og kontaktlister. */
+export function personsLabel(value) {
+  return cleanPersons(value).map((p) => p.name).join(', ');
+}
+
+export function contactsLabel(value) {
+  return cleanContacts(value).map((c) => `${c.role ? `${c.role}: ` : ''}${c.name || '–'}${c.phone ? ` (${c.phone})` : ''}`).join(' · ');
+}
+
 function clean(key, values) {
   const def = registerDef(key);
   const out = {};
@@ -399,6 +446,8 @@ function clean(key, values) {
     if (v === undefined) continue;
     if (f.type === 'number' || f.type === 'scale') out[f.key] = v === '' || v == null ? null : Number(String(v).replace(',', '.'));
     else if (f.type === 'multi' || f.type === 'refmulti') out[f.key] = uniq(Array.isArray(v) ? v : [v]);
+    else if (f.type === 'persons') out[f.key] = cleanPersons(v);
+    else if (f.type === 'contacts') out[f.key] = cleanContacts(v);
     else if (f.type === 'check') out[f.key] = !!v;
     else if (f.type === 'date') out[f.key] = isoDate(v);
     else out[f.key] = text(v, f.type === 'long' ? 6000 : 400);
@@ -500,15 +549,51 @@ export function competenceStatus(record, requirement, now = new Date()) {
   return 'gyldig';
 }
 
-/** Matrise personer × krav. people: [{name, uid}] fra ProTops ansattregister. */
-export function competenceMatrix(people, requirements, records, now = new Date()) {
+const lowerText = (v) => String(v || '').trim().toLowerCase();
+
+/** Gjelder kravet denne personen? Krav til en rolle gjelder dem som har rollen; ellers alle. */
+function requirementApplies(req, person, roles) {
+  const role = lowerText(req.role);
+  if (!role || ['alle', 'alle ansatte'].includes(role) || !roles?.length) return true;
+  const match = roles.find((r) => r.state !== 'arkivert' && lowerText(r.title) === role);
+  const holders = cleanPersons(match?.holders);
+  if (!match || !holders.length) return true;
+  return holders.some((h) => (h.uid && h.uid === person.uid) || (h.employeeId && h.employeeId === person.id) || lowerText(h.name) === lowerText(person.name));
+}
+
+/** Står kompetansen i CV-en (sertifisering, kurs eller utdanning)? */
+export function cvEvidence(person, req) {
+  const cv = person?.cv;
+  const t = lowerText(req?.title);
+  if (!cv || t.length < 3) return null;
+  const hit = (s) => { const x = lowerText(s); return x && (x.includes(t) || t.includes(x)); };
+  const cert = (cv.certifications || []).find((c) => hit(c.title));
+  if (cert) return { kind: 'Sertifisering', title: cert.title };
+  const course = (cv.courses || []).find((c) => hit(c.title));
+  if (course) return { kind: 'Kurs', title: course.title, date: course.date };
+  const edu = (cv.education || []).find((e) => hit(e.program));
+  if (edu) return { kind: 'Utdanning', title: [edu.program, edu.school].filter(Boolean).join(', ') };
+  return null;
+}
+
+/**
+ * Matrise personer × krav. people: [{ id, name, uid, cv? }] fra ProTops ansattregister.
+ * Krav til en rolle gjelder bare dem som har rollen (roles = registeret «rolle»); ellers «na».
+ * Uten ISO-bevis teller CV-en: varig krav i CV-en = gyldig, krav med gyldighet = «cv» (mangler dato/bevis).
+ */
+export function competenceMatrix(people, requirements, records, now = new Date(), { roles = null } = {}) {
   const reqs = (requirements || []).filter((r) => r.state !== 'arkivert');
   return (people || []).map((p) => ({
     person: p,
     cells: reqs.map((req) => {
+      if (!requirementApplies(req, p, roles)) return { requirement: req, record: null, status: 'na' };
       const mine = (records || []).filter((r) => r.state !== 'arkivert' && r.requirementId === req.id
         && ((p.uid && r.personUid === p.uid) || (!r.personUid && r.personName === p.name)));
       const best = mine.sort((a, b) => String(b.validTo || '9999').localeCompare(String(a.validTo || '9999')))[0] || null;
+      if (!best) {
+        const cv = cvEvidence(p, req);
+        if (cv) return { requirement: req, record: null, cv, status: Number(req.validityMonths) > 0 ? 'cv' : 'gyldig' };
+      }
       return { requirement: req, record: best, status: competenceStatus(best, req, now) };
     }),
   }));
@@ -516,7 +601,7 @@ export function competenceMatrix(people, requirements, records, now = new Date()
 
 export function competenceGaps(matrix) {
   let gaps = 0;
-  for (const row of matrix || []) for (const cell of row.cells) if (cell.status !== 'gyldig') gaps += 1;
+  for (const row of matrix || []) for (const cell of row.cells) if (!['gyldig', 'na'].includes(cell.status)) gaps += 1;
   return gaps;
 }
 
@@ -649,6 +734,47 @@ export function addExercise(record, input, { actor, now = new Date() } = {}) {
   const row = { id: newId('ovl'), date: isoDate(input.date), participants: text(input.participants, 1000), evaluation: text(input.evaluation, 3000), improvement: !!input.improvement, by: text(actor?.name, 160), at: nowIso(now) };
   const next = bump({ ...record, exercises: [...(record.exercises || []), row], history: pushHistory(record, 'Øvelse registrert', actor, row.evaluation, now) }, actor, now);
   return { ok: true, record: next, exercise: row, events: [auditEvent({ entityType: 'beredskap', entityId: record.id, action: 'iso.emergency.exercise', actor, before: record, after: next, now })] };
+}
+
+/* ───────── Leverandørevaluering (8.4) ───────── */
+
+export const SUPPLIER_CRITERIA = [
+  { key: 'quality', label: 'Kvalitet' },
+  { key: 'hse', label: 'HMS' },
+  { key: 'environment', label: 'Miljø' },
+  { key: 'delivery', label: 'Leveringsevne' },
+];
+
+/**
+ * Evaluering av en leverandør: kriteriene 1–5, beslutning og kommentar. Evalueringen legges i historikken,
+ * score og status oppdateres, og neste evaluering settes ut fra leverandørklassen (ellers 12 mnd).
+ * Erstatter et eget evalueringsskjema, så resultatet bare ligger ett sted.
+ */
+export function addSupplierEvaluation(record, input, { actor, now = new Date() } = {}) {
+  if (record?.register !== 'leverandor') return fail('Ikke en leverandør.');
+  const scores = {};
+  for (const c of SUPPLIER_CRITERIA) {
+    const v = Number(input?.[c.key]);
+    if (!(v >= 1 && v <= 5)) return fail(`Gi ${c.label.toLowerCase()} en score fra 1 til 5.`);
+    scores[c.key] = v;
+  }
+  const decision = ['Godkjent', 'Betinget godkjent', 'Ikke godkjent'].includes(input?.decision) ? input.decision : '';
+  if (!decision) return fail('Velg beslutning.');
+  if (decision !== 'Godkjent' && !text(input?.comment)) return fail('Begrunn beslutningen.');
+  const total = Math.round((Object.values(scores).reduce((a, b) => a + b, 0) / SUPPLIER_CRITERIA.length) * 10) / 10;
+  const date = isoDate(input?.date) || todayKey(now);
+  const cls = SUPPLIER_CLASSES.find((c) => c.id === record.supplierClass);
+  const months = cls ? cls.months : 12;
+  const row = { id: newId('lev'), date, ...scores, total, decision, comment: text(input?.comment, 2000), by: text(actor?.name, 160), at: nowIso(now) };
+  const next = bump({
+    ...record,
+    evaluations: [...(record.evaluations || []), row],
+    score: Math.round(total),
+    approval: decision,
+    nextReview: months ? addDays(date, Math.round(months * 30.4)) : (record.nextReview || ''),
+    history: pushHistory(record, `Evaluert: ${decision} (${total})`, actor, row.comment, now),
+  }, actor, now);
+  return { ok: true, record: next, evaluation: row, events: [auditEvent({ entityType: 'leverandor', entityId: record.id, action: 'iso.supplier.evaluated', actor, before: record, after: next, now })] };
 }
 
 /* ───────── Samsvar → kravstatus (aldri automatisk «verifisert») ───────── */

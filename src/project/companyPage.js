@@ -19,6 +19,7 @@ export const NEWS_CATEGORIES = [
   { id: 'baerekraft', label: 'Bærekraft' },
   { id: 'kompetanse', label: 'Kompetanse' },
   { id: 'prosjekt', label: 'Prosjekt' },
+  { id: 'ledelsessystem', label: 'Kvalitet, miljø og HMS' },
 ];
 
 export const MODULE_CATALOG = [

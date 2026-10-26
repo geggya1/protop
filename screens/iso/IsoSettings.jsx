@@ -12,6 +12,7 @@ import { saveRestrictedGrants } from '../../src/iso/storage';
 import { STARTER_OPTIONS, runStarterKit } from './starterKit';
 import IsoImport from './IsoImport';
 import { normalizeDocStructure } from '../../src/iso/documents';
+import { normalizeCompanyPage, shownAbout } from '../../src/project/companyPage';
 import {
   Banner, Btn, Card, Check, Field, KV, ListRow, Page, PersonPick, Pill, Row, TextIn,
 } from './isoUi';
@@ -432,7 +433,7 @@ export default function IsoSettings({ ctx }) {
         </Card>
       ) : null}
 
-      <ProfileCard v={v} update={update} wide={wide} />
+      <ProfileCard v={v} update={update} wide={wide} about={shownAbout(normalizeCompanyPage(sources.company?.publicPage), sources.company?.brreg || sources.company)} onCompanyPage={() => requestTab?.('selskap')} />
       <DocStructureCard v={v} update={update} />
       {!importAtTop.current ? <IsoImport ctx={ctx} onSystemImported={onSystemImported} /> : null}
 
@@ -456,7 +457,8 @@ export default function IsoSettings({ ctx }) {
 }
 
 /** Visjon, verdier og forretningsmål – vises på Oversikt (ISO 5.1 og 7.3). */
-function ProfileCard({ v, update, wide }) {
+function ProfileCard({ v, update, wide, about = '', onCompanyPage }) {
+  const colors = useColors();
   const p = v.profile || {};
   const setP = (k) => (x) => update((cur) => ({ ...cur, profile: { ...(cur.profile || {}), [k]: x } }));
   return (
@@ -470,7 +472,11 @@ function ProfileCard({ v, update, wide }) {
         </View>
         <View style={{ flex: 1 }}><Field label="Forretningsmål og overordnede mål"><TextIn multiline rows={3} value={p.businessGoals || ''} onChangeText={setP('businessGoals')} /></Field></View>
       </View>
-      <Field label="Om virksomheten"><TextIn multiline rows={3} value={p.about || ''} onChangeText={setP('about')} /></Field>
+      {/* «Om oss» eies av bedriftssiden i Selskap; ISO viser den, så teksten ikke finnes to steder. */}
+      <Field label="Om virksomheten (fra Selskap)" hint="Endres på bedriftssiden: Selskap → Rediger side.">
+        <Text style={{ color: about ? colors.ink : colors.muted, fontSize: 13, lineHeight: 19 }}>{about || 'Ingen tekst på bedriftssiden ennå.'}</Text>
+      </Field>
+      {onCompanyPage ? <Btn small icon="open-outline" label="Åpne bedriftssiden" onPress={onCompanyPage} /> : null}
     </Card>
   );
 }

@@ -445,6 +445,37 @@ export function confirmNotification(finding, note, { actor, now = new Date() } =
   return result(finding, next, 'iso.finding.notification_confirmed', actor, now);
 }
 
+/** Felt i endringsvurderingen (ISO 9001 6.3, ISO 45001 8.1.3, ISO 14001 6.1). */
+export const CHANGE_FIELDS = [
+  { key: 'purpose', label: 'Formål og mulige konsekvenser' },
+  { key: 'processes', label: 'Berørte prosesser og roller' },
+  { key: 'legal', label: 'Berørte lovkrav og samsvarsforpliktelser' },
+  { key: 'risk', label: 'Risiko og muligheter (kvalitet, miljø, arbeidsmiljø)' },
+  { key: 'participation', label: 'Medvirkning (verneombud og berørte ansatte)' },
+  { key: 'resources', label: 'Ressurser og kompetanse' },
+  { key: 'documents', label: 'Dokumenter, prosesskart og opplæring som må oppdateres' },
+];
+
+/**
+ * Endringsvurdering for et endringsforslag: konsekvenser vurderes før endringen besluttes.
+ * Beslutningen (Godkjent / Avvist / Utsatt) lagres med hvem og når. Tiltak følges opp som i andre saker.
+ */
+export function assessChange(finding, input, { actor, now = new Date() } = {}) {
+  if (!finding) return fail('Fant ikke saken.');
+  if (finding.type !== 'endringsforslag') return fail('Endringsvurdering gjelder endringsforslag.');
+  const change = {};
+  for (const f of CHANGE_FIELDS) change[f.key] = text(input?.[f.key], 3000);
+  if (!change.risk) return fail('Vurder risiko og muligheter før endringen besluttes.');
+  const decision = ['Godkjent', 'Avvist', 'Utsatt'].includes(input?.decision) ? input.decision : '';
+  if (decision && !change.purpose) return fail('Beskriv formål og konsekvenser før beslutning.');
+  const next = bump({
+    ...finding,
+    change: { ...change, decision, decidedBy: decision ? text(actor?.name, 160) : '', decidedAt: decision ? nowIso(now) : '' },
+    history: pushHistory(finding, decision ? `Endring ${decision.toLowerCase()}` : 'Endringsvurdering lagret', actor, '', now),
+  }, actor, now);
+  return result(finding, next, 'iso.finding.change', actor, now);
+}
+
 export function updateFindingLinks(finding, patch, { actor, now = new Date() } = {}) {
   if (!finding) return fail('Fant ikke saken.');
   const links = {

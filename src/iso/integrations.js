@@ -334,7 +334,6 @@ const DOC_AREAS = {
   sjekkliste: ['operation', 'monitoring'],
   skjema: ['documented'],
   rapport: ['monitoring', 'review'],
-  nyhet: ['communication', 'awareness'],
   kravbevis: ['documented'],
   mal: ['documented'],
   ekstern: ['documented'],
@@ -412,7 +411,7 @@ export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
   for (const r of overdueRecords(state.records.miljoaspekt, 'nextReview', now)) push(`asp_${r.id}_${r.nextReview}`, `Revurder miljøaspekt ${r.title}`, r.nextReview, hse);
   for (const r of overdueRecords(state.records.samsvar, 'nextReview', now)) push(`eval_${r.id}_${r.nextReview}`, `Ny samsvarsvurdering: ${r.title}`, r.nextReview, qm);
   for (const b of (state.records.beredskap || []).filter((x) => x.state !== 'arkivert' && x.nextExercise && x.nextExercise <= todayKey(now))) push(`ex_${b.id}_${b.nextExercise}`, `Gjennomfør beredskapsøvelse: ${b.title}`, b.nextExercise, hse);
-  const matrix = competenceMatrix(people, state.records.kompetansekrav, state.records.kompetanse, now);
+  const matrix = competenceMatrix(people, state.records.kompetansekrav, state.records.kompetanse, now, { roles: state.records.rolle });
   for (const row of matrix) {
     for (const cell of row.cells) {
       if (cell.status !== 'utlopt') continue;

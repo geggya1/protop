@@ -3,16 +3,18 @@
  * Velg fil → forhåndsvisning (ny / finnes / feil) → valg → import med fremdrift.
  * Alt går gjennom domenefunksjonene i src/iso/importPackage.js og lagres med revisjonsspor.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { pickDocument } from '../../src/utils/media';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { normalizeFormTemplates, saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { approveTemplate } from '../../src/iso/forms';
+import { saveEmployee } from '../../src/employees/storage';
+import { displayName } from '../../src/employees/model';
 import { companyWallHasImport, createCompanyWallPost } from '../../src/project/companyWall';
 import {
-  PACKAGE_SECTIONS, approvalTaskFor, buildImport, parsePackage, planImport,
+  PACKAGE_SECTIONS, approvalTaskFor, buildImport, importKeyFor, parsePackage, planImport,
 } from '../../src/iso/importPackage';
 import {
   Banner, Btn, Card, Check, Field, ListRow, Pill, Row, TextIn,
@@ -37,7 +39,9 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
   const [parsed, setParsed] = useState(null);
   const [sections, setSections] = useState(() => new Set(PACKAGE_SECTIONS.map((s) => s.id)));
   const [publishDirect, setPublishDirect] = useState(false);
-  const [wallNews, setWallNews] = useState(true);
+  // Nyheter går til Selskap → Nyheter. Hver nyhet kan velges bort; de som allerede ligger der, hoppes over.
+  const [newsKeys, setNewsKeys] = useState(null);
+  const [wallKeys, setWallKeys] = useState(null);
   const [open, setOpen] = useState('');
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState([]);
@@ -45,13 +49,33 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
   const [done, setDone] = useState(false);
 
   const anbudTemplates = sources?.formTemplates || [];
+  const people = sources?.people;
+  const employees = useMemo(() => (sources?.employees || []).map((e) => ({ id: e.id, name: displayName(e), employee: e })), [sources?.employees]);
   const options = useMemo(() => ({
     sections,
+    newsKeys,
     publish: { documents: publishDirect && caps.approve, processes: publishDirect && caps.approve },
-  }), [sections, publishDirect, caps.approve]);
+  }), [sections, newsKeys, publishDirect, caps.approve]);
+  const extra = useMemo(() => ({ anbudTemplates, people, employees, wallKeys }), [anbudTemplates, people, employees, wallKeys]);
   const plan = useMemo(() => (parsed?.ok
-    ? planImport(state, parsed.pkg, { actor, caps, options, anbudTemplates })
-    : null), [parsed, state, actor, caps, options, anbudTemplates]);
+    ? planImport(state, parsed.pkg, { actor, caps, options, ...extra })
+    : null), [parsed, state, actor, caps, options, extra]);
+
+  // Hvilke nyheter ligger allerede på Selskap → Nyheter?
+  useEffect(() => {
+    let live = true;
+    const news = parsed?.ok ? parsed.pkg.news || [] : [];
+    if (!news.length || !companyId) { setWallKeys(null); return undefined; }
+    (async () => {
+      const found = new Set();
+      for (const n of news) {
+        const ik = importKeyFor(parsed.pkg, 'news', n.key);
+        try { if (await companyWallHasImport(companyId, ik)) found.add(ik); } catch { /* ukjent: kontrolleres igjen ved import */ }
+      }
+      if (live) setWallKeys(found);
+    })();
+    return () => { live = false; };
+  }, [parsed, companyId]);
 
   function load(text, name = '') {
     setErr(''); setLog([]); setDone(false);
@@ -59,6 +83,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
     if (!res.ok) { setParsed(null); setErr(res.error); return; }
     setParsed(res);
     setFileName(name);
+    setNewsKeys(new Set((res.pkg.news || []).map((n) => n.key)));
     const present = new Set(PACKAGE_SECTIONS.map((s) => s.id).filter((id) => {
       if (id === 'system') return !!res.pkg.system;
       if (id === 'records') return Object.values(res.pkg.records).some((rows) => rows.length);
@@ -88,7 +113,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
     const say = (line) => { lines.push(line); setLog([...lines]); };
     try {
       const current = store.current();
-      const built = buildImport(current, parsed.pkg, { actor, caps, options, anbudTemplates });
+      const built = buildImport(current, parsed.pkg, { actor, caps, options, ...extra });
       const { out } = built;
 
       if (out.system) {
@@ -166,17 +191,9 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
         say('Kravvurderinger og bevis er oppdatert i ISO-kravmatrisen.');
       }
 
-      if (wallNews && out.news.length) {
-        // Bare godkjente nyheter går ut til alle ansatte. Resten legges ut fra dokumentet når det er publisert.
-        const live = new Set([
-          ...out.publishDocuments.map((d) => d.document.id),
-          ...store.current().documents.filter((d) => d.publishedRevision).map((d) => d.id),
-        ]);
-        const ready = out.news.filter((n) => n.docId && live.has(n.docId));
-        const waiting = out.news.length - ready.length;
-        if (waiting) say(`${waiting === 1 ? 'Én nyhet venter' : `${waiting} nyheter venter`} på godkjenning. Når nyheten er publisert, legger du den på Nyheter i Selskap fra dokumentet.`);
+      if (out.news.length) {
         let posted = 0;
-        for (const n of ready) {
+        for (const n of out.news) {
           let exists = true;
           try {
             exists = await companyWallHasImport(companyId, n.importKey);
@@ -192,7 +209,21 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
             say(`Nyhet «${n.title}»: ${e?.message || 'ble ikke publisert'}`);
           }
         }
-        if (posted) say(`${posted} nyheter er publisert på Nyheter i Selskap.`);
+        if (posted) say(`${posted} nyheter er publisert på Selskap → Nyheter.`);
+      }
+
+      // Kompetanse: inn i CV-en til hver ansatt (Ansatte → CV). ISO → Kompetanse leser den derfra.
+      if (out.competence.length) {
+        let saved = 0;
+        for (const c of out.competence) {
+          try {
+            await saveEmployee(companyId, c.employee);
+            saved += 1;
+          } catch (e) {
+            say(`CV for ${c.name}: ${e?.message || 'ble ikke lagret'}`);
+          }
+        }
+        if (saved) say(`Kompetanse er lagt inn i CV-en til ${saved} ansatte.`);
       }
 
       const task = approvalTaskFor(parsed.pkg, built);
@@ -248,9 +279,23 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
                   {c.feil ? <Pill label={`${c.feil} feil`} tone="danger" /> : null}
                   <Btn small icon={open === s.id ? 'chevron-up' : 'chevron-down'} label={open === s.id ? 'Skjul' : 'Vis'} onPress={() => setOpen(open === s.id ? '' : s.id)} />
                 </Row>
-                {open === s.id ? rows.map((r, i) => (
+                {open === s.id && s.id === 'news' ? (parsed.pkg.news || []).map((n) => {
+                  const r = rows.find((x) => x.key === n.key);
+                  const there = r?.message === 'Ligger allerede på Selskap → Nyheter';
+                  return (
+                    <View key={n.key} style={{ gap: 2, paddingVertical: 4 }}>
+                      {there
+                        ? <ListRow icon="checkmark-circle-outline" title={n.title || n.key} subtitle={r.message} right={<Pill label="Finnes" />} />
+                        : <Check label={`${n.title || n.key}${n.category ? ` · ${n.category}` : ''}`} value={!!newsKeys?.has(n.key)} onChange={(x) => { const next = new Set(newsKeys || []); if (x) next.add(n.key); else next.delete(n.key); setNewsKeys(next); }} />}
+                      {!there && n.body ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={3}>{n.body}</Text> : null}
+                    </View>
+                  );
+                }) : null}
+                {open === s.id && s.id !== 'news' ? rows.map((r, i) => (
                   <ListRow key={`${r.key}${i}`} icon={r.status === 'feil' ? 'alert-circle-outline' : (r.status === 'ny' ? 'add-circle-outline' : 'checkmark-circle-outline')} tone={STATUS[r.status].tone} title={r.title || r.key} subtitle={r.message} right={<Pill label={STATUS[r.status].label} tone={STATUS[r.status].tone} />} />
                 )) : null}
+                {s.id === 'news' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Nyhetene publiseres på Selskap → Nyheter, som er eneste sted for nyheter i ProTop. Velg bort dem som skal vente, og skriv dem senere fra Selskap.</Text> : null}
+                {s.id === 'competence' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Utdanning, kurs og sertifiseringer legges i CV-en til den ansatte. ISO → Kompetanse viser dem sammen med kompetansekravene.</Text> : null}
               </View>
             );
           })}
@@ -278,7 +323,6 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
                 : 'Dokumenter og prosesser sendes til godkjenning. Godkjenner får én samleoppgave og godkjenner hvert dokument i ISO → Dokumenter.'}
             </Text>
           </Field>
-          {(parsed.pkg.news || []).length ? <Check label="Legg nyhetene også på Nyheter i Selskap" value={wallNews} onChange={setWallNews} /> : null}
           <Row>
             <Btn kind="primary" icon="cloud-upload-outline" label={total ? `Importer ${total} poster` : 'Ingenting nytt å importere'} disabled={!total || busy} busy={busy} onPress={run} />
             {done ? <Btn icon="document-text-outline" label="Gå til Dokumenter" onPress={() => go('dokumenter', { awaiting: true })} /> : null}

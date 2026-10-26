@@ -230,8 +230,8 @@ export function HBars({ rows, onPick, unit = '', showCumulative = false, empty =
 export function CompetenceHeatmap({ matrix, onPick }) {
   const colors = useColors();
   if (!matrix.length || !matrix[0].cells.length) return <Text style={{ color: colors.muted, fontSize: 13 }}>Legg inn kompetansekrav og ansatte for å se matrisen.</Text>;
-  const tone = { gyldig: 'ok', utloper: 'warn', utlopt: 'danger', mangler: 'danger' };
-  const label = { gyldig: 'Gyldig', utloper: 'Utløper', utlopt: 'Utløpt', mangler: 'Mangler' };
+  const tone = { gyldig: 'ok', utloper: 'warn', utlopt: 'danger', mangler: 'danger', cv: 'info', na: 'muted' };
+  const label = { gyldig: 'Gyldig', utloper: 'Utløper', utlopt: 'Utløpt', mangler: 'Mangler', cv: 'I CV', na: '–' };
   return (
     <View style={{ gap: 4 }}>
       <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -244,7 +244,7 @@ export function CompetenceHeatmap({ matrix, onPick }) {
           {row.cells.map((c) => {
             const col = toneColor(colors, tone[c.status]);
             return (
-              <TouchableOpacity key={c.requirement.id} onPress={() => onPick?.(row.person, c)} accessibilityRole="button" accessibilityLabel={`${row.person.name}, ${c.requirement.title}: ${label[c.status]}`} style={{ flex: 1, minWidth: 70, height: 30, borderRadius: 6, backgroundColor: `${col}26`, borderWidth: 1, borderColor: `${col}66`, alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity key={c.requirement.id} disabled={c.status === 'na'} onPress={() => onPick?.(row.person, c)} accessibilityRole="button" accessibilityLabel={`${row.person.name}, ${c.requirement.title}: ${label[c.status]}`} style={{ flex: 1, minWidth: 70, height: 30, borderRadius: 6, backgroundColor: `${col}26`, borderWidth: 1, borderColor: `${col}66`, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ color: colors.ink, fontSize: 11 }}>{label[c.status]}</Text>
               </TouchableOpacity>
             );

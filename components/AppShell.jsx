@@ -660,7 +660,7 @@ function AppShellInner() {
     }
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;
-    if (tab === 'selskap') return <CompanyLanding />;
+    if (tab === 'selskap') return <CompanyLanding subView={moreSubView} />;
     if (tab === 'more') {
       return (
         <MoreHubScreen

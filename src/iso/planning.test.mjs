@@ -97,3 +97,45 @@ test('annualTaskEffects: oppgaver for inneværende måned, idempotent nøkkel og
   // Med i den daglige automatikken.
   assert.ok(autoTaskEffects(state, { now }).some((e) => e.key === 'isoauto_ahj_a1_2027_01'));
 });
+
+test('kompetansematrise: krav til en rolle gjelder rolleinnehaverne, og CV-en teller', async () => {
+  const { competenceMatrix, competenceGaps } = await import('./registers.js');
+  const roles = [{ id: 'r1', title: 'Prosjektleder', state: 'aktiv', holders: [{ name: 'Ola', uid: 'u1' }] }];
+  const reqs = [
+    { id: 'k1', title: 'Byggesaksforskriften', role: 'Prosjektleder', state: 'aktiv' },
+    { id: 'k2', title: 'Førstehjelp', role: 'Alle', validityMonths: 24, state: 'aktiv' },
+    { id: 'k3', title: 'Master', role: 'Rådgiver', state: 'aktiv' },
+  ];
+  const people = [
+    { id: 'e1', name: 'Ola', uid: 'u1', cv: { courses: [{ title: 'Førstehjelp grunnkurs' }], certifications: [{ title: 'Byggesaksforskriften (SAK10)' }] } },
+    { id: 'e2', name: 'Kari', uid: 'u2', cv: null },
+  ];
+  const m = competenceMatrix(people, reqs, [], new Date('2026-10-26'), { roles });
+  assert.deepEqual(m[0].cells.map((c) => c.status), ['gyldig', 'cv', 'mangler']);
+  assert.equal(m[0].cells[0].cv.kind, 'Sertifisering');
+  assert.deepEqual(m[1].cells.map((c) => c.status), ['na', 'mangler', 'mangler']);
+  assert.equal(competenceGaps(m), 4);
+});
+
+test('leverandørevaluering og endringsvurdering erstatter egne skjema', async () => {
+  const { createRecord, addSupplierEvaluation } = await import('./registers.js');
+  const { assessChange } = await import('./findings.js');
+  const { NATIVE_FORMS, recommendedFormKeys } = await import('./forms.js');
+  const actor = { uid: 'u1', name: 'Kari' };
+  const sup = createRecord('leverandor', { title: 'Rørlegger AS', criticality: 'Høy', approval: 'Ikke vurdert', supplierClass: 'Kritisk' }, { actor }).record;
+  assert.equal(addSupplierEvaluation(sup, { quality: 4, hse: 4, environment: 3, delivery: 5 }, { actor }).ok, false, 'beslutning kreves');
+  const ev = addSupplierEvaluation(sup, { quality: 4, hse: 4, environment: 3, delivery: 5, decision: 'Godkjent', date: '2026-11-01' }, { actor });
+  assert.equal(ev.ok, true);
+  assert.equal(ev.record.approval, 'Godkjent');
+  assert.equal(ev.record.score, 4);
+  assert.equal(ev.record.nextReview.slice(0, 7), '2027-11');
+  const f = { id: 'f1', type: 'endringsforslag', state: 'registrert', history: [] };
+  assert.equal(assessChange(f, { purpose: 'Ny rutine' }, { actor }).ok, false, 'risiko må vurderes');
+  const c = assessChange(f, { purpose: 'Ny rutine', risk: 'Lav', decision: 'Godkjent' }, { actor });
+  assert.equal(c.finding.change.decision, 'Godkjent');
+  assert.equal(c.finding.change.decidedBy, 'Kari');
+  for (const k of ['SF09_ENDRING', 'SF14_MEDVIRKNING', 'SF15_BEREDSKAP', 'SF20_KVALITETSPLAN', 'SF22_LEVERANDOR', 'SF25_REVISJON', 'SF29_DOKENDRING']) {
+    assert.ok(NATIVE_FORMS[k], `${k} dekkes av et register`);
+    assert.ok(!recommendedFormKeys(['ISO9001', 'ISO14001', 'ISO45001']).includes(k));
+  }
+});

@@ -13,6 +13,7 @@ import { loadHrState } from '../../src/hr/storage';
 import { companyComplianceOverview } from '../../src/hr/compliance';
 import { normalizeFormTemplates } from '../../src/anbud/bidLibrary';
 import { addDays, todayKey } from '../../src/iso/core';
+import { loadProjectExpenses, mergeExpenseLists } from '../../src/economy/expenseStorage';
 
 export function useIsoSources({ familyId, family, canManage = false, canSeeHr = false }) {
   const [employees, setEmployees] = useState([]);
@@ -20,6 +21,8 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
   const [anbud, setAnbud] = useState(null);
   const [hr, setHr] = useState(null);
   const [stamp, setStamp] = useState(0);
+  // Utlegg importert i bulk ligger i egen samling (projectExpenses); leverandørforslagene skal se alle.
+  const [extraExpenses, setExtraExpenses] = useState([]);
 
   useEffect(() => {
     if (!familyId) return undefined;
@@ -48,6 +51,13 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
 
   useEffect(() => {
     let live = true;
+    if (!familyId || !canManage) { setExtraExpenses([]); return undefined; }
+    loadProjectExpenses(familyId).then((rows) => { if (live) setExtraExpenses(rows || []); }).catch(() => {});
+    return () => { live = false; };
+  }, [familyId, canManage]);
+
+  useEffect(() => {
+    let live = true;
     if (!familyId || !canSeeHr) { setHr(null); return undefined; }
     loadHrState(familyId).then((s) => { if (live) setHr(s); }).catch(() => {});
     return () => { live = false; };
@@ -59,7 +69,18 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
     const active = employees.filter((e) => !isDeletedEmployee(e));
     // Egne aktive ansatte først; de er standardforslagene i personvelgerne.
     const people = active
-      .map((e) => ({ id: e.id, name: displayName(e), uid: e.personUid || '', title: e.company?.title || e.company?.position || '', own: isOwnActiveEmployee(e) }))
+      .map((e) => ({
+        id: e.id,
+        name: displayName(e),
+        uid: e.personUid || '',
+        title: e.company?.title || e.company?.position || '',
+        own: isOwnActiveEmployee(e),
+        // Kontakt, avdeling og CV eies av Ansatte; ISO bruker dem i velgere, beredskap og kompetanse.
+        phone: e.person?.phone || '',
+        email: e.company?.email || e.person?.email || '',
+        departmentIds: e.company?.departmentIds || [],
+        cv: e.cv || null,
+      }))
       .filter((p) => p.name && p.name !== 'Uten navn')
       .sort((a, b) => Number(b.own) - Number(a.own));
     const projects = (projectState?.projects || []).filter((p) => p.status !== 'arkivert');
@@ -75,7 +96,7 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
       waste: projectState?.waste || [],
       absences: canManage ? (projectState?.absences || []) : [],
       equipment: projectState?.equipment || [],
-      expenses: projectState?.expenses || [],
+      expenses: mergeExpenseLists(projectState?.expenses || [], extraExpenses),
       legacyAudits: (projectState?.audits || []).map((a) => ({ ...a, projectName: projects.find((p) => p.id === a.projectId)?.name || '' })),
       contracts: (anbud?.contracts || []).filter((c) => !c.deletedAt),
       customers: anbud?.customers || [],
@@ -84,5 +105,5 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
       hrOverview,
       reloadAnbud,
     };
-  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud]);
+  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses]);
 }

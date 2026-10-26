@@ -228,6 +228,57 @@ export function riskLevel(likelihood, consequence, method = DEFAULT_RISK_METHOD)
   return { score, id: 'lav', label: 'Lav' };
 }
 
+/**
+ * Veiledning til risikomatrisen. Grensene i metoden endres ikke; dette er skalabeskrivelser og
+ * akseptkriterier slik NS 5814:2021 og ISO 31000 krever (kriterier fastsatt før vurderingen,
+ * og risikonivået styrer hvem som kan akseptere risikoen).
+ */
+export const RISK_GUIDANCE = {
+  likelihood: [
+    'Sjeldnere enn hvert 10. år',
+    'Én gang per 3–10 år',
+    'Én gang per 1–3 år',
+    'Flere ganger per år',
+    'Månedlig eller oftere',
+  ],
+  dimensions: ['Person/HMS', 'Miljø', 'Kvalitet/kunde', 'Økonomi', 'Omdømme'],
+  consequence: [
+    ['Ingen personskade', 'Ingen påvirkning utover normal drift', 'Ubetydelig internt avvik', '< 10 000 kr', 'Ingen omtale'],
+    ['Førstehjelpsskade', 'Liten lokal påvirkning, rask gjenoppretting', 'Avvik rettet før levering', '10 000–100 000 kr', 'Misnøye hos én kunde'],
+    ['Skade med fravær', 'Krever tiltak, mulig brudd på tillatelse', 'Reklamasjon eller forsinkelse', '100 000–1 mill. kr', 'Lokal negativ omtale'],
+    ['Alvorlig personskade, varig mén', 'Betydelig skade, rapporteringspliktig utslipp', 'Tap av kunde/kontrakt, erstatningskrav', '1–5 mill. kr', 'Regional eller nasjonal omtale'],
+    ['Dødsfall', 'Langvarig eller irreversibel skade', 'Tap av sertifisering eller vesentlige kontrakter', '> 5 mill. kr', 'Varig omdømmetap'],
+  ],
+  acceptance: {
+    lav: { label: 'Akseptabel', text: 'Følges opp ved revurdering.', who: 'Prosesseier' },
+    middels: { label: 'Tiltak vurderes (ALARP)', text: 'Reduser så langt det er praktisk mulig. Aksepteres med begrunnelse.', who: 'Prosesseier eller leder' },
+    hoy: { label: 'Ikke akseptabel uten tiltak', text: 'Tiltaksplan med ansvarlig og frist. Kan aksepteres midlertidig med dokumentasjon.', who: 'Daglig leder' },
+    kritisk: { label: 'Ikke akseptabel', text: 'Umiddelbare tiltak. Aktiviteten stanses til risikoen er redusert.', who: 'Øverste ledelse' },
+  },
+  measures: 'Sannsynlighetsreduserende tiltak før konsekvensreduserende. For HMS gjelder tiltakshierarkiet (ISO 45001 8.1.2): eliminere, erstatte, tekniske tiltak, administrative tiltak, verneutstyr.',
+  sources: 'NS 5814:2021 Krav til risikovurderinger · ISO 31000:2018 Risikostyring · ISO 45001 6.1.2 og 8.1.2 · ISO 14001 6.1.2',
+};
+
+export function riskAcceptance(levelId) {
+  return RISK_GUIDANCE.acceptance[levelId] || null;
+}
+
+/**
+ * Vesentlighet for et miljøaspekt (ISO 14001 6.1.2) med samme matrise som risiko:
+ * omfang × alvorlighet. Vesentlig når score ≥ høy, eller score ≥ middels og aspektet er knyttet
+ * til en samsvarsforpliktelse eller kan gi en nødsituasjon. Gir forslag og begrunnelse; eieren bestemmer.
+ */
+export function aspectSignificance(aspect, method = DEFAULT_RISK_METHOD) {
+  const level = riskLevel(aspect?.extent, aspect?.severity, method);
+  const t = method?.thresholds || DEFAULT_RISK_METHOD.thresholds;
+  if (!level.score) return { level, significant: null, reasons: [] };
+  const reasons = [];
+  if (level.score >= t.high) reasons.push(`score ${level.score} (${level.label.toLowerCase()})`);
+  if (level.score >= t.medium && aspect?.obligation === 'Ja') reasons.push('samsvarsforpliktelse');
+  if (level.score >= t.medium && aspect?.situation === 'Nødsituasjon') reasons.push('kan gi nødsituasjon');
+  return { level, significant: reasons.length > 0, reasons };
+}
+
 /** Roller i K-HMS. Kobles til ProTops eksisterende tilgangsnivåer, ikke egne brukere. */
 export const ISO_ROLES = [
   { id: 'system_owner', label: 'Systemansvarlig K-HMS' },

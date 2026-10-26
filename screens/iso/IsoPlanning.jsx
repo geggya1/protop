@@ -8,11 +8,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate } from '../../src/iso/core';
 import { ISO_ROLES } from '../../src/iso/catalog';
-import { publishedRevisionOf } from '../../src/iso/documents';
 import {
   annualTaskEffects, annualWheel, authorityMatrix, communicationGroups, orgTree, pageLabel, roleLinks,
 } from '../../src/iso/planning';
+import { personsLabel } from '../../src/iso/registers';
 import { SimpleRegister, Stat } from './IsoRegisters';
+import { postDate, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, KV, ListRow, Page, Pill, Row } from './isoUi';
 
 const live = (rows) => (rows || []).filter((r) => r.state !== 'arkivert');
@@ -49,7 +50,7 @@ function OrgBox({ node, root, onOpen }) {
       <View style={{ flex: 1, gap: 1 }}>
         <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 14 }}>{r.title}</Text>
         <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>
-          {[r.holders, node.reportsToText ? `rapporterer til ${node.reportsToText}` : ''].filter(Boolean).join(' · ') || r.category || ' '}
+          {[personsLabel(r.holders), node.reportsToText ? `rapporterer til ${node.reportsToText}` : ''].filter(Boolean).join(' · ') || r.category || ' '}
         </Text>
       </View>
       {r.needsReview ? <Ionicons name="alert-circle-outline" size={16} color={colors.warn} /> : null}
@@ -279,13 +280,10 @@ function CommunicationTable({ rows, wide, onOpen }) {
 
 export function CommunicationPage({ ctx }) {
   const colors = useColors();
-  const { state, caps, go, wide } = ctx;
+  const { state, wide, companyId, requestTab } = ctx;
   const rows = live(state.records.kommunikasjon);
-  const news = (state.documents || [])
-    .filter((d) => d.docType === 'nyhet' && !d.archived && d.publishedRevision)
-    .map((d) => ({ d, at: publishedRevisionOf(d)?.publishedAt || d.updatedAt || '' }))
-    .sort((a, b) => String(b.at).localeCompare(String(a.at)))
-    .slice(0, 5);
+  const { top: news } = useCompanyNews(companyId, { limit: 5 });
+  const openNews = () => requestTab?.('selskap', 'nyheter');
   return (
     <Page wide={wide} title="Kommunikasjon" intro="Hva som kommuniseres, til hvem, når, hvordan og av hvem – internt og eksternt (ISO 7.4). Gjelder også miljø- og HMS-informasjon.">
       <Row>
@@ -300,17 +298,17 @@ export function CommunicationPage({ ctx }) {
         view={({ rows: list, open }) => <CommunicationTable rows={list} wide={wide} onOpen={open} />}
       />
       <Card
-        title="Nyheter fra ledelsessystemet"
-        subtitle="Nyheter er styrte dokumenter av typen Nyhet, med godkjenning og historikk."
-        right={caps.manage ? <Btn small icon="add" label="Skriv nyhet" onPress={() => go('dokumenter', { create: true, prefill: { docType: 'nyhet', reviewIntervalMonths: '12' } })} /> : null}
+        title="Nyheter"
+        subtitle="Nyheter publiseres ett sted i ProTop: Selskap → Nyheter. Velg kategorien «Kvalitet, miljø og HMS» for nyheter fra ledelsessystemet."
+        right={<Btn small icon="create-outline" label="Skriv nyhet" onPress={openNews} />}
       >
         {news.length
-          ? news.map(({ d, at }) => <ListRow key={d.id} icon="megaphone-outline" title={d.title} subtitle={[d.code, at ? prettyDate(at) : ''].filter(Boolean).join(' · ')} onPress={() => go('dokumenter', { open: d.id })} />)
-          : <Muted>Ingen publiserte nyheter ennå.</Muted>}
-        {news.length ? <Row><Btn small icon="list-outline" label="Alle nyheter" onPress={() => go('dokumenter', { type: 'nyhet' })} /></Row> : null}
+          ? news.map((p) => <ListRow key={p.id} icon="megaphone-outline" title={p.title || String(p.body || '').slice(0, 80)} subtitle={[postDate(p) ? prettyDate(postDate(p)) : '', p.authorName].filter(Boolean).join(' · ')} onPress={openNews} />)
+          : <Muted>Ingen nyheter ennå.</Muted>}
+        {news.length ? <Row><Btn small icon="list-outline" label="Alle nyheter" onPress={openNews} /></Row> : null}
       </Card>
       <Card title="Kanaler i ProTop" subtitle="Bruk kanalene i planen, så finnes alt på ett sted.">
-        <KV label="ProTop-nyhet" value="Nyheter i Selskap. Alle ansatte ser dem i appen." />
+        <KV label="ProTop-nyhet" value="Selskap → Nyheter. Alle ansatte ser dem i appen." />
         <KV label="ProTop-oppgave" value="Oppgaver med frist og ansvarlig. Årshjulet og avvikene lager dem automatisk." />
         <KV label="Styrte dokumenter" value="ISO → Dokumenter. Med lesebekreftelse når de ansatte må bekrefte at de har lest." />
         <KV label="Avvik og forbedring" value="ISO → Avvik og forbedring. Alle ansatte kan melde avvik, forslag og varsling." />

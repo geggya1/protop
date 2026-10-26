@@ -6,7 +6,7 @@ import {
   FINDING_STATES, FINDING_TYPES, SEVERITIES, actionStateLabel, findingStateLabel, findingTypeLabel, severityLabel,
 } from '../../src/iso/catalog';
 import {
-  addAction, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, confirmNotification,
+  CHANGE_FIELDS, addAction, assessChange, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, confirmNotification,
   createFinding, defaultRestricted, findingStep, isOpenFinding, recordRootCause, reopenFinding, triageFinding, updateFindingLinks, verifyAction, verifyEffect,
 } from '../../src/iso/findings';
 import { canCloseFinding, canManageFinding, visibleFindings } from '../../src/iso/access';
@@ -236,6 +236,7 @@ function FindingDetail({ ctx, finding, onBack }) {
   const [tri, setTri] = useState({ severity: finding.severity || '', urgent: false, assigneeName: finding.assigneeName, assigneeUid: finding.assigneeUid, immediateAction: finding.immediateAction, notifiable: finding.authorityNotificationRequired, notificationAssignee: finding.notificationAssignee, dueAt: finding.dueAt, note: '' });
   // Vurdering
   const [asm, setAsm] = useState({ correctiveRequired: finding.assessment?.correctiveRequired ?? null, rationale: '', correction: '' });
+  const [chg, setChg] = useState(() => ({ ...(finding.change || {}) }));
   // Årsak
   const [rc, setRc] = useState({ method: '5whys', whys: ['', '', '', '', ''], systemCause: '', categories: [] });
   // Nytt tiltak
@@ -320,6 +321,21 @@ function FindingDetail({ ctx, finding, onBack }) {
                   <Btn label="Bekreft varsling vurdert/utført" onPress={() => run('Varsling bekreftet', confirmNotification(finding, notifNote, { actor }))} />
                 </>
               ) : null}
+            </Card>
+          ) : null}
+
+          {finding.type === 'endringsforslag' ? (
+            <Card title="Endringsvurdering" subtitle="Vurder konsekvensene før endringen besluttes (ISO 9001 6.3, ISO 45001 8.1.3, ISO 14001 6.1). Tiltak følges opp under Tiltak.">
+              {CHANGE_FIELDS.map((f) => (manage && !closed
+                ? <Field key={f.key} label={f.label} required={f.key === 'risk'}><TextIn multiline value={chg[f.key] || ''} onChangeText={(x) => setChg({ ...chg, [f.key]: x })} /></Field>
+                : <KV key={f.key} label={f.label} value={finding.change?.[f.key] || '–'} />))}
+              {manage && !closed ? (
+                <>
+                  <Field label="Beslutning"><Choice options={['Godkjent', 'Avvist', 'Utsatt']} value={chg.decision || ''} onChange={(x) => setChg({ ...chg, decision: x })} /></Field>
+                  <Btn kind="primary" label="Lagre endringsvurdering" busy={busy === 'Endringsvurdering'} onPress={() => run('Endringsvurdering', assessChange(finding, chg, { actor }))} />
+                </>
+              ) : null}
+              {finding.change?.decision ? <Text style={{ color: colors.muted, fontSize: 12 }}>Endringen er {finding.change.decision.toLowerCase()} av {finding.change.decidedBy} {prettyDate(finding.change.decidedAt)}.</Text> : null}
             </Card>
           ) : null}
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildImport, existingTemplateFor, formTemplateIdFor, importKeyFor, parsePackage, planImport, approvalTaskFor } from './importPackage.js';
+import { buildImport, existingTemplateFor, mergeCompetenceIntoCv, formTemplateIdFor, importKeyFor, parsePackage, planImport, approvalTaskFor } from './importPackage.js';
 import { emptyIsoState } from './state.js';
 import { isoCapabilities } from './access.js';
 import { validateDiagram } from './processes.js';
@@ -133,7 +133,7 @@ test('buildImport: oppsett, dokumenter, prosesser, registre, krav, vurderinger, 
   assert.equal(out.system.docStructure[0].folders[0].code, 'A-01');
   assert.equal(out.system.profile.vision, 'Best i fagfeltet');
   // Dokumenter sendes til godkjenning, med kode, mappe, historikk og importnøkkel
-  assert.equal(out.documents.length, 3, 'to dokumenter og én nyhet');
+  assert.equal(out.documents.length, 2, 'nyheter blir ikke ISO-dokumenter');
   const pol = out.documents.find((d) => d.document.code === 'A-01-001').document;
   assert.equal(pol.folder, 'A-01');
   assert.equal(pol.revisions[0].state, 'til_gjennomgang');
@@ -173,15 +173,15 @@ test('buildImport: oppsett, dokumenter, prosesser, registre, krav, vurderinger, 
   assert.equal(out.forms[0].template.id, formTemplateIdFor(p, 'S-03-004'));
   assert.equal(out.forms[0].template.fields[1].options.length, 3);
   assert.equal(out.news.length, 1);
-  assert.equal(out.documents.find((d) => d.document.docType === 'nyhet').document.title, 'ISO-sertifisering – hele organisasjonen er med!');
+  assert.equal(out.news[0].title, 'ISO-sertifisering – hele organisasjonen er med!');
   // Samleoppgave til godkjenner
-  assert.ok(approvalTaskFor(p, built).title.includes('3 dokumenter'));
+  assert.ok(approvalTaskFor(p, built).title.includes('2 dokumenter'));
 });
 
 test('buildImport: publiser direkte og koble dokument som bevis', () => {
   const { pkg: p } = parsePackage(pkg());
   const built = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, options: { publish: { documents: true, processes: true } } });
-  assert.equal(built.out.publishDocuments.length, 3);
+  assert.equal(built.out.publishDocuments.length, 2);
   assert.ok(built.out.publishDocuments.every((d) => d.document.publishedRevision === 1));
   assert.equal(built.out.publishProcesses.length, 1);
   assert.equal(built.out.publishProcesses[0].process.publishedVersion, 1);
@@ -197,7 +197,7 @@ test('import er idempotent: andre gang hoppes alt over', () => {
   state.processes = first.out.processes.map((x) => x.process);
   state.requirements = first.out.requirements.map((x) => x.requirement);
   for (const r of first.out.records) state.records[r.record.register].push(r.record);
-  const plan = planImport(state, p, { actor: BOSS, caps: ADMIN, now: NOW, anbudTemplates: first.out.forms.map((f) => f.template) });
+  const plan = planImport(state, p, { actor: BOSS, caps: ADMIN, now: NOW, anbudTemplates: first.out.forms.map((f) => f.template), wallKeys: new Set(first.out.news.map((n) => n.importKey)) });
   assert.equal(plan.counts.documents.ny, 0);
   assert.equal(plan.counts.documents.finnes, 2);
   assert.equal(plan.counts.news.finnes, 1);
@@ -281,4 +281,48 @@ test('chunkForBatch deler på antall og størrelse', async () => {
   assert.ok(chunks.every((c) => c.reduce((n, r) => n + r.size, 0) <= 5_000_000 || c.length === 1));
   assert.equal(chunks.flat().length, 900);
   assert.deepEqual(chunks.flat().map((r) => r.i), rows.map((r) => r.i), 'rekkefølgen beholdes');
+});
+
+test('nyheter blir innlegg på Selskap → Nyheter, og navn kobles til ansatte', () => {
+  const base = pkg();
+  const { pkg: p } = parsePackage({
+    ...base,
+    news: [{ key: 'golive', title: 'ProTop fra 1. januar 2027', body: 'Fra nyttår er ProTop vårt ledelsessystem.', category: 'selskap' }],
+    records: {
+      rolle: [{ key: 'dl', title: 'Daglig leder', responsibilities: 'Leder selskapet', holders: ['Siri Leder', 'Ukjent Person'] }],
+      beredskap: [{ key: 'brann', title: 'Brann', alarm: 'Ring 110', instructions: 'Evakuer', contacts: [{ role: 'Beredskapsleder', name: 'siri leder' }] }],
+    },
+  });
+  const people = [{ id: 'e1', name: 'Siri Anne Leder', uid: 'u3', phone: '900 00 000', email: 'siri@x.no' }];
+  const built = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, people });
+  assert.equal(built.out.news.length, 1);
+  assert.equal(built.out.news[0].category, 'selskap');
+  assert.ok(!built.out.documents.some((d) => d.document.docType === 'nyhet'));
+  const rolle = built.out.records.map((r) => r.record).find((r) => r.register === 'rolle');
+  assert.deepEqual(rolle.holders.map((h) => [h.name, h.uid]), [['Siri Anne Leder', 'u3'], ['Ukjent Person', '']]);
+  const ber = built.out.records.map((r) => r.record).find((r) => r.register === 'beredskap');
+  assert.equal(ber.contacts[0].phone, '900 00 000');
+  assert.equal(ber.contacts[0].uid, 'u3');
+  assert.ok(built.issues.some((i) => i.includes('Ukjent Person')));
+  // Allerede lagt ut: hoppes over.
+  const again = planImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, wallKeys: new Set([built.out.news[0].importKey]) });
+  assert.equal(again.counts.news.ny, 0);
+});
+
+test('kompetanse legges i CV-en til den ansatte uten duplikater', () => {
+  const cv = { education: [{ id: 'e1', program: 'Master bygg', school: 'NTNU' }], courses: [], certifications: [] };
+  const row = { key: 'k1', name: 'Siri Leder', education: [{ program: 'master bygg', school: 'ntnu' }, { program: 'Bachelor', school: 'UiS', to: '2015' }], courses: [{ title: 'Førstehjelp', date: '2025-03' }], certifications: ['Sentral godkjenning'] };
+  const m = mergeCompetenceIntoCv(cv, row);
+  assert.deepEqual(m.added, { education: 1, certifications: 1, courses: 1 });
+  assert.equal(m.cv.education.length, 2);
+  const { pkg: p } = parsePackage({ ...pkg(), competence: [row, { key: 'k2', name: 'Ingen Ansatt', courses: ['X'] }] });
+  const employees = [{ id: 'emp1', name: 'Siri Anne Leder', employee: { id: 'emp1', person: { firstName: 'Siri' }, cv } }];
+  const built = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, employees });
+  assert.equal(built.out.competence.length, 1);
+  assert.equal(built.out.competence[0].employee.cv.courses[0].title, 'Førstehjelp');
+  assert.equal(built.out.competence[0].employee.person.firstName, 'Siri', 'resten av ansattposten beholdes');
+  assert.equal(built.plan.competence.find((r) => r.key === 'k2').status, 'feil');
+  // Andre gang: ingenting nytt.
+  const again = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, employees: [{ ...employees[0], employee: built.out.competence[0].employee }] });
+  assert.equal(again.out.competence.length, 0);
 });

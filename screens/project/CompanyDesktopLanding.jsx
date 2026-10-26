@@ -22,6 +22,7 @@ export default function CompanyDesktopLanding({
   onUnits,
   onEmployees,
   onProjects,
+  initialTab = '',
 }) {
   const colors = useColors();
   const { familyId, family, uid, applyFamilyPatch } = useApp();
@@ -91,6 +92,7 @@ export default function CompanyDesktopLanding({
         onEmployees={onEmployees}
         onProjects={onProjects}
         onSavePage={savePage}
+        initialTab={initialTab}
       />
     </View>
   );

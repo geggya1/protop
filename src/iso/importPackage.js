@@ -22,6 +22,7 @@ import {
   approveAndPublish, createProcess, makeNode, normalizeDiagram, PROCESS_CATEGORIES, submitForApproval, validateDiagram,
 } from './processes.js';
 import { layoutSwimlanes } from './processLayout.js';
+import { markdownToPlain } from './markdown.js';
 import { createRecord, REGISTERS } from './registers.js';
 import {
   allRequirements, attachEvidence, createCustomRequirement, requirementIdsForArea, setAssessment,
@@ -41,7 +42,8 @@ export const PACKAGE_SECTIONS = [
   { id: 'requirements', label: 'Lov- og kontraktskrav' },
   { id: 'assessments', label: 'Kravvurderinger (GAP-analyse)' },
   { id: 'forms', label: 'Skjema og sjekklister (Skjemabygger)' },
-  { id: 'news', label: 'Nyheter' },
+  { id: 'news', label: 'Nyheter (Selskap → Nyheter)' },
+  { id: 'competence', label: 'Kompetanse i de ansattes CV (utdanning, kurs, sertifiseringer)' },
 ];
 
 const MAX_FORM_FIELDS = 120;
@@ -110,6 +112,7 @@ export function parsePackage(raw) {
     assessments: uniqueRows(data.assessments, 'Vurderinger', warnings),
     forms: uniqueRows(data.forms, 'Skjema', warnings),
     news: uniqueRows(data.news, 'Nyheter', warnings),
+    competence: uniqueRows(data.competence, 'Kompetanse', warnings),
     review: arr(data.review).map((x) => text(x, 2000)).filter(Boolean),
   };
   return { ok: true, pkg, warnings };
@@ -209,6 +212,66 @@ export function existingTemplateFor(row, anbudTemplates) {
   )) || null;
 }
 
+const normName = (s) => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-zæøå0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * Finn den ansatte et navn i pakken gjelder: likt navn, ellers samme fornavn og etternavn
+ * (mellomnavn kan mangle). Bare entydige treff brukes.
+ */
+export function matchPerson(people, name) {
+  const n = normName(name);
+  if (!n) return null;
+  const list = people || [];
+  const exact = list.filter((p) => normName(p.name) === n);
+  if (exact.length === 1) return exact[0];
+  const parts = n.split(' ');
+  if (parts.length < 2) return null;
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  const loose = list.filter((p) => {
+    const q = normName(p.name).split(' ');
+    return q.length >= 2 && q[0] === first && q[q.length - 1] === last;
+  });
+  return loose.length === 1 ? loose[0] : null;
+}
+
+const UID_FIELD = { personName: 'personUid', auditorName: 'auditorUid' };
+
+const sameText = (a, b) => normName(a) === normName(b);
+
+/**
+ * Kompetanse fra pakken inn i den ansattes CV: utdanning, sertifiseringer og kurs som mangler.
+ * Gir neste CV og hva som er lagt til. Ingenting fjernes, og like linjer legges ikke inn to ganger.
+ */
+export function mergeCompetenceIntoCv(cv, row) {
+  const cur = cv && typeof cv === 'object' ? cv : {};
+  const education = [...arr(cur.education)];
+  const certifications = [...arr(cur.certifications)];
+  const courses = [...arr(cur.courses)];
+  const added = { education: 0, certifications: 0, courses: 0 };
+  for (const e of arr(row?.education)) {
+    const program = text(e?.program, 200);
+    const school = text(e?.school, 200);
+    if (!program && !school) continue;
+    if (education.some((x) => sameText(x.program, program) && sameText(x.school, school))) continue;
+    education.push({ id: `edu_imp_${education.length + 1}`, program, school, from: text(e?.from, 20), to: text(e?.to, 20) });
+    added.education += 1;
+  }
+  for (const c of arr(row?.certifications)) {
+    const title = text(c?.title || c, 200);
+    if (!title || certifications.some((x) => sameText(x.title, title))) continue;
+    certifications.push({ id: `cert_imp_${certifications.length + 1}`, title });
+    added.certifications += 1;
+  }
+  for (const c of arr(row?.courses)) {
+    const title = text(c?.title || c, 200);
+    if (!title || courses.some((x) => sameText(x.title, title))) continue;
+    courses.push({ id: `course_imp_${courses.length + 1}`, title, date: text(c?.date, 20) });
+    added.courses += 1;
+  }
+  return { cv: { ...cur, education, certifications, courses }, added, changed: added.education + added.certifications + added.courses > 0 };
+}
+
 /** Feltverdier for en registerpost. Ref-felt i pakken bruker nøkler; de løses til id-er her. */
 function recordValues(register, row, refs, issues) {
   const def = REGISTERS[register];
@@ -228,6 +291,27 @@ function recordValues(register, row, refs, issues) {
       v = f.type === 'refmulti' ? arr(v).map(resolve).filter(Boolean) : resolve(v);
     }
     if (f.type === 'date' && v) v = isoDate(v) || '';
+    // Navn på ansatte kobles til personen i ProTop, så oppgaver og varsler går til riktig person.
+    if (f.type === 'person' && v && refs.people) {
+      const hit = matchPerson(refs.people, v);
+      const uidKey = UID_FIELD[f.key] || 'ownerUid';
+      if (hit) { v = hit.name; if (hit.uid && row[uidKey] === undefined) values[uidKey] = hit.uid; } else refs.unmatched.add(String(v));
+    }
+    if (f.type === 'persons' && refs.people) {
+      v = arr(v).map((x) => {
+        const name = typeof x === 'object' && x ? x.name : x;
+        const hit = matchPerson(refs.people, name);
+        if (!hit && name) refs.unmatched.add(String(name));
+        return hit ? { name: hit.name, uid: hit.uid || '', employeeId: hit.id || '' } : { name };
+      });
+    }
+    if (f.type === 'contacts' && refs.people) {
+      v = arr(v).map((c) => {
+        const hit = c?.name ? matchPerson(refs.people, c.name) : null;
+        if (c?.name && !hit) refs.unmatched.add(String(c.name));
+        return hit ? { ...c, name: hit.name, uid: hit.uid || '', employeeId: hit.id || '', phone: c.phone || hit.phone || '', email: c.email || hit.email || '' } : c;
+      });
+    }
     values[f.key] = v;
   }
   if (row.needsReview || row.reviewNote) {
@@ -254,7 +338,7 @@ function stateAfter(register, row) {
  * options.fillSystem: fyll tomme felt i oppsettet (omfang, standarder …), og fullfør oppsettet hvis det mangler
  */
 export function buildImport(state, pkg, {
-  actor, caps = null, now = new Date(), options = {}, anbudTemplates = [],
+  actor, caps = null, now = new Date(), options = {}, anbudTemplates = [], people = null, wallKeys = null, employees = null,
 } = {}) {
   const sections = options.sections || new Set(PACKAGE_SECTIONS.map((s) => s.id));
   const want = (id) => sections.has(id);
@@ -292,7 +376,6 @@ export function buildImport(state, pkg, {
         vision: text(s.profile.vision, 2000),
         values: arr(s.profile.values).map((v) => text(v, 300)).filter(Boolean).slice(0, 12),
         businessGoals: text(s.profile.businessGoals, 4000),
-        about: text(s.profile.about, 6000),
       };
       filled.push('profile');
     }
@@ -325,6 +408,8 @@ export function buildImport(state, pkg, {
     requirements: new Map(),
     forms: new Map(),
     records: new Map(Object.keys(REGISTERS).map((k) => [k, new Map()])),
+    people: Array.isArray(people) && people.length ? people : null,
+    unmatched: new Set(),
   };
   for (const row of pkg.documents) { const hit = existing.get(importKeyFor(pkg, 'documents', row.key)); if (hit) refs.documents.set(row.key, hit.row.id); }
   for (const row of pkg.processes) { const hit = existing.get(importKeyFor(pkg, 'processes', row.key)); if (hit) refs.processes.set(row.key, hit.row.id); }
@@ -344,6 +429,7 @@ export function buildImport(state, pkg, {
     evidence: null,
     forms: [],
     news: [],
+    competence: [],
     publishDocuments: [],
     publishProcesses: [],
     events: [],
@@ -582,42 +668,47 @@ export function buildImport(state, pkg, {
     }
   }
 
-  /* Nyheter: kunngjøring i ledelsessystemet (dokumenttype «nyhet», med lesebekreftelse om ønsket),
-     og eventuelt også på Nyheter i Selskap (gjøres av kalleren). */
+  /* Nyheter: ProTop har ett sted for nyheter, Selskap → Nyheter. Kalleren legger dem ut der. */
   if (want('news')) {
-    let docs = [...(state.documents || []), ...out.documents.map((d) => d.document)];
+    const pick = options.newsKeys instanceof Set ? options.newsKeys : null;
     for (const row of pkg.news) {
       const ik = importKeyFor(pkg, 'news', row.key);
-      const post = { key: row.key, importKey: ik, title: text(row.title, 140), body: text(row.body, 6000), category: text(row.category, 40) || 'selskap', linkUrl: text(row.linkUrl, 2000) };
-      if (existing.has(ik)) { note('news', row.key, row.title, 'finnes'); continue; }
-      const res = createDocument({
-        title: row.title,
-        docType: 'nyhet',
-        code: row.code,
-        ownerName: row.ownerName || actor?.name,
-        content: row.content || row.body,
-        readAckRequired: !!row.readAckRequired,
-        reviewIntervalMonths: 36,
-        tags: ['nyhet'],
-        legacyRevisions: cleanLegacyRevisions(row.legacyRevisions),
-        source: row.source || null,
-        changeReason: `Importert nyhet${row.publishedAt ? ` publisert ${row.publishedAt}` : ''}`,
-        requirementIds: requirementIdsForDocument(work, 'nyhet'),
-      }, { actor, existing: docs, now });
-      if (!res.ok) { note('news', row.key, row.title, 'feil', res.error); continue; }
-      let document = { ...res.document, importKey: ik };
-      let events = res.events;
-      const sub = submitDocument(document, { actor, caps, now });
-      if (sub.ok) { document = sub.document; events = [...events, ...sub.events]; }
-      docs = [...docs, document];
-      out.documents.push({ ok: true, document, events });
-      if (publish.documents && sub.ok && (!caps || caps.approve)) {
-        const pub = approveAndPublishDocument(document, { actor, caps, now });
-        if (pub.ok) out.publishDocuments.push(pub);
-      }
-      out.news.push({ ...post, docId: document.id });
-      note('news', row.key, row.title, 'ny', publish.documents ? 'Publiseres i ISO' : 'Sendes til godkjenning');
+      if (wallKeys && wallKeys.has(ik)) { note('news', row.key, row.title, 'finnes', 'Ligger allerede på Selskap → Nyheter'); continue; }
+      const post = {
+        key: row.key,
+        importKey: ik,
+        title: text(row.title, 140),
+        body: text(row.body || markdownToPlain(row.content || ''), 6000),
+        category: ['selskap', 'baerekraft', 'kompetanse', 'prosjekt'].includes(row.category) ? row.category : 'selskap',
+        linkUrl: text(row.linkUrl, 2000),
+      };
+      if (!post.title && !post.body) { note('news', row.key, row.title || row.key, 'feil', 'Nyheten har verken tittel eller tekst.'); continue; }
+      if (pick && !pick.has(row.key)) { note('news', row.key, post.title, 'finnes', 'Ikke valgt'); continue; }
+      out.news.push(post);
+      note('news', row.key, post.title, 'ny', 'Legges på Selskap → Nyheter');
     }
+  }
+
+  /* Kompetanse: inn i CV-en til den ansatte (Ansatte → CV). ISO leser den derfra. */
+  if (want('competence') && pkg.competence.length) {
+    for (const row of pkg.competence) {
+      const who = text(row.name, 160);
+      if (!employees) { note('competence', row.key, who, 'ny', 'Legges i CV-en når navnet finnes blant de ansatte'); continue; }
+      // employees: [{ id, name, employee }] – name er visningsnavnet, employee er ansattposten slik den er lagret.
+      const people = employees.map((e) => ({ id: e.id, name: e.name, employee: e.employee }));
+      const hit = matchPerson(people, who);
+      if (!hit) { note('competence', row.key, who, 'feil', 'Fant ikke den ansatte. Legg vedkommende inn i Ansatte og kjør importen på nytt.'); continue; }
+      const merged = mergeCompetenceIntoCv(hit.employee.cv, row);
+      if (!merged.changed) { note('competence', row.key, hit.name, 'finnes', 'CV-en har dette fra før'); continue; }
+      out.competence.push({ employeeId: hit.id, name: hit.name, employee: { ...hit.employee, cv: merged.cv }, added: merged.added });
+      const a = merged.added;
+      note('competence', row.key, hit.name, 'ny', [a.education ? `${a.education} utdanning` : '', a.certifications ? `${a.certifications} sertifisering${a.certifications > 1 ? 'er' : ''}` : '', a.courses ? `${a.courses} kurs` : ''].filter(Boolean).join(', '));
+    }
+  }
+
+  if (refs.unmatched.size) {
+    const names = [...refs.unmatched].slice(0, 12);
+    issues.push(`Fant ikke disse blant de ansatte, så de står som tekst: ${names.join(', ')}${refs.unmatched.size > names.length ? ` og ${refs.unmatched.size - names.length} til` : ''}. Legg dem inn i Ansatte og velg dem i postene.`);
   }
 
   return { ok: true, plan, issues: [...new Set(issues)], out, refs };

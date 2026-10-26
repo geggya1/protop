@@ -19,7 +19,6 @@ export const DOC_TYPES = [
   { id: 'sjekkliste', label: 'Sjekkliste' },
   { id: 'skjema', label: 'Skjema' },
   { id: 'rapport', label: 'Rapport / referat' },
-  { id: 'nyhet', label: 'Nyhet / kunngjøring' },
   { id: 'ekstern', label: 'Eksternt dokument' },
   { id: 'kravbevis', label: 'Kravbevis' },
   { id: 'mal', label: 'Mal' },

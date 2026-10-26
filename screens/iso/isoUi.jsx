@@ -252,7 +252,7 @@ export function PersonPick({ people, value, onChange, placeholder = 'Søk etter 
           <TextIn value={q} onChangeText={setQ} placeholder={placeholder} />
           <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]}>
             {list.map((p) => (
-              <TouchableOpacity key={p.id || p.name} onPress={() => { onChange({ name: p.name, uid: p.uid || '' }); setQ(''); }} style={[styles.chip, { borderColor: colors.line, backgroundColor: colors.card }]} accessibilityRole="button">
+              <TouchableOpacity key={p.id || p.name} onPress={() => { onChange({ name: p.name, uid: p.uid || '', employeeId: p.id || '', phone: p.phone || '', email: p.email || '' }); setQ(''); }} style={[styles.chip, { borderColor: colors.line, backgroundColor: colors.card }]} accessibilityRole="button">
                 <Ionicons name="person-outline" size={13} color={colors.muted} />
                 <Text style={{ color: colors.ink, fontSize: 13 }}>{p.name}</Text>
               </TouchableOpacity>
@@ -265,6 +265,61 @@ export function PersonPick({ people, value, onChange, placeholder = 'Søk etter 
           </View>
         </>
       )}
+    </View>
+  );
+}
+
+/** Flere personer: velg blant de ansatte (eller skriv navn på en ekstern). Lagres som [{ name, uid, employeeId }]. */
+export function PersonsPick({ people, value, onChange }) {
+  const list = Array.isArray(value) ? value : [];
+  return (
+    <View style={{ gap: 6 }}>
+      {list.length ? (
+        <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]}>
+          {list.map((p, i) => (
+            <View key={`${p.uid || p.employeeId || p.name}${i}`} style={[styles.row, { gap: 4 }]}>
+              <Pill label={p.name} tone={p.uid || p.employeeId ? 'info' : 'muted'} icon="person" />
+              <Btn small icon="close" accessibilityLabel={`Fjern ${p.name}`} onPress={() => onChange(list.filter((_, j) => j !== i))} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+      <PersonPick
+        people={(people || []).filter((p) => !list.some((x) => (x.employeeId && x.employeeId === p.id) || x.name === p.name))}
+        value=""
+        placeholder="Legg til ansatt"
+        onChange={(p) => { if (p.name) onChange([...list, { name: p.name, uid: p.uid || '', employeeId: p.employeeId || '' }]); }}
+      />
+    </View>
+  );
+}
+
+/** Kontaktliste: rolle, person (velges blant de ansatte, telefon hentes fra Ansatte), telefon og merknad. */
+export function ContactsEdit({ people, value, onChange }) {
+  const colors = useColors();
+  const list = Array.isArray(value) ? value : [];
+  const set = (i, patch) => onChange(list.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  return (
+    <View style={{ gap: 8 }}>
+      {list.map((c, i) => (
+        <View key={i} style={{ gap: 6, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.line }}>
+          <View style={[styles.row, { gap: 6 }]}>
+            <View style={{ flex: 1 }}><TextIn value={c.role} onChangeText={(x) => set(i, { role: x })} placeholder="Rolle, f.eks. Beredskapsleder" /></View>
+            <Btn small icon="trash-outline" accessibilityLabel="Fjern kontakt" onPress={() => onChange(list.filter((_, j) => j !== i))} />
+          </View>
+          <PersonPick
+            people={people}
+            value={c.name}
+            placeholder="Velg ansatt"
+            onChange={(p) => set(i, { name: p.name, uid: p.uid || '', employeeId: p.employeeId || '', phone: p.phone || c.phone || '', email: p.email || c.email || '' })}
+          />
+          <View style={[styles.row, { gap: 6 }]}>
+            <View style={{ flex: 1 }}><TextIn value={c.phone} onChangeText={(x) => set(i, { phone: x })} placeholder="Telefon" keyboardType="phone-pad" /></View>
+            <View style={{ flex: 2 }}><TextIn value={c.note} onChangeText={(x) => set(i, { note: x })} placeholder="Merknad (stedfortreder, når …)" /></View>
+          </View>
+        </View>
+      ))}
+      <Btn small icon="add" label="Legg til kontakt" onPress={() => onChange([...list, { role: '', name: '', phone: '', note: '' }])} />
     </View>
   );
 }

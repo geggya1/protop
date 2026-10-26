@@ -80,6 +80,7 @@ export const FILES = [
   'src/employees/employmentFlags.test.mjs',
   'src/employees/invite.test.mjs',
   'src/notifications/prefs.test.mjs',
+  'src/notifications/audience.test.mjs',
   'src/access/companyAccess.test.mjs',
   'src/modules/moduleHero.test.mjs',
   'src/help/protopPages.test.mjs',

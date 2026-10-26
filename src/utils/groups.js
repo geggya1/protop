@@ -24,6 +24,8 @@ import {
   groupInviteCopy,
 } from './inviteIdentifiers';
 import { setMemberPassword } from './setMemberPassword';
+import { canInviteToCompany } from '../notifications/audience';
+import { isOrganizationType } from './groupTypes';
 import {
   isSuperAdmin,
   isGroupAdmin,
@@ -1166,10 +1168,18 @@ async function assertCanInviteToFamily(familyId, inviterUid) {
     throw new Error('Familien er slettet og kan ikke invitere nye medlemmer.');
   }
   const family = { id: famSnap.id, ...famSnap.data() };
-  if (!isGroupAdmin(family, inviterUid)) {
-    throw new Error('Kun administrator kan invitere.');
+  if (isGroupAdmin(family, inviterUid)) return family;
+  // I bedrifter kan også de med Admin på Ansatte invitere (tilgangsstyringen), som på serveren.
+  if (isOrganizationType(family.type)) {
+    const own = await getDocs(query(
+      collection(db, 'families', familyId, 'employees'),
+      where('personUid', '==', inviterUid),
+      limit(5),
+    ));
+    const employees = own.docs.map((row) => ({ id: row.id, ...row.data() }));
+    if (canInviteToCompany({ family, employees, uid: inviterUid })) return family;
   }
-  return family;
+  throw new Error('Kun administrator kan invitere.');
 }
 
 /**

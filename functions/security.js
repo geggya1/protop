@@ -5,6 +5,8 @@
 import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { FieldValue } from 'firebase-admin/firestore';
+import { canInviteToCompany } from '../src/notifications/audience.js';
+import { isOrganizationType } from '../src/utils/groupTypes.js';
 
 const WEEKPLAN_URL_HOSTS = new Set([
   'protop.no',
@@ -263,6 +265,27 @@ export async function assertFamilyMember(db, familyId, uid) {
   if (Array.isArray(members) && members.includes(uid)) return fam;
   if (members && typeof members === 'object' && !Array.isArray(members) && members[uid]) return fam;
   throw new HttpsError('permission-denied', 'Ingen tilgang til denne familien.');
+}
+
+/**
+ * Kan sende invitasjoner til gruppen: admin som før, og i bedrifter også de som har
+ * Admin på Ansatte i tilgangsstyringen (samme regel som «Inviter brukere» i appen og
+ * som hvem som får varsel når noen ber om å bli med).
+ */
+export async function assertCanInvite(db, familyId, uid) {
+  try {
+    return await assertFamilyAdmin(db, familyId, uid);
+  } catch (err) {
+    if (err?.code !== 'permission-denied') throw err;
+    // Bare medlemmer. En som er fjernet, kan ikke invitere selv om ansattraden finnes.
+    const fam = await assertFamilyMember(db, familyId, uid);
+    const family = fam.data() || {};
+    if (!isOrganizationType(family.type)) throw err;
+    const own = await db.collection(`families/${familyId}/employees`).where('personUid', '==', uid).limit(5).get();
+    const employees = own.docs.map((row) => ({ id: row.id, ...row.data() }));
+    if (canInviteToCompany({ family, employees, uid })) return fam;
+    throw err;
+  }
 }
 
 export async function assertFamilyAdmin(db, familyId, uid) {

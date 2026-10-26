@@ -20,6 +20,7 @@ import {
 } from './emailVerify.js';
 import { resolveMailApiKey } from './mailApiKey.js';
 import {
+  assertCanInvite,
   assertFamilyAdmin,
   assertRateLimit,
   assertSafeAppContinueUrl,
@@ -95,7 +96,7 @@ async function orgAdminLimit(callerUid, familyId, base) {
   const id = String(familyId || '').trim();
   if (!id) return base;
   try {
-    const fam = await assertFamilyAdmin(db, id, callerUid);
+    const fam = await assertCanInvite(db, id, callerUid);
     const type = String(fam.data()?.type || '').toLowerCase();
     return ['organization', 'company'].includes(type) ? ORG_INVITE_LIMIT : base;
   } catch {
@@ -124,7 +125,7 @@ export const sendInviteV2 = onCall(CALL, async (req) => {
     } = req.data || {};
     if (!isValidEmail(email)) return { ok: false, error: 'Ugyldig e-postadresse' };
     if (!familyId) return { ok: false, error: 'Mangler gruppe.' };
-    await assertFamilyAdmin(db, familyId, callerUid);
+    await assertCanInvite(db, familyId, callerUid);
     await assertRateLimit(db, {
       key: hashRateKey(['invite-mail', callerUid]),
       limit: await orgAdminLimit(callerUid, familyId, 20),
@@ -169,7 +170,7 @@ export const sendInviteSmsV2 = onCall(CALL, async (req) => {
     const to = toE164(phone);
     if (!to) return { ok: false, error: 'Ugyldig telefonnummer. Bruk landskode, f.eks. +47…' };
     if (!familyId) return { ok: false, error: 'Mangler gruppe.' };
-    await assertFamilyAdmin(db, familyId, callerUid);
+    await assertCanInvite(db, familyId, callerUid);
     await assertRateLimit(db, {
       key: hashRateKey(['invite-sms', callerUid]),
       limit: 10,

@@ -223,6 +223,7 @@ deploy_queued
 open_queued
 
 deploy_entry pushIndex.js functions:onChatMessageCreated,functions:onFriendChatMessageCreated
+deploy_entry notifyPushIndex.js functions:onNotificationPush
 deploy_entry vacationPlanDailyIndex.js functions:vacationPlanDaily
 deploy_entry aiCleanupIndex.js functions:aiCleanupScheduled
 deploy_entry indeksSsbDailyIndex.js functions:indeksSsbDaily

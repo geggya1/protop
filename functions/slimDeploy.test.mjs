@@ -66,7 +66,12 @@ for (const name of ['respondGroupInvite', 'syncMyInvites', 'invitePreview', 'fin
 
 // Alle callables appen kaller må deployes, ellers svarer de 404 på protop.no.
 // deleteFamilyCascade finnes ikke på serveren; appen sletter da selv (FamilyDashboardScreen).
-const NOT_DEPLOYED = new Set(['deleteFamilyCascade']);
+// Kalender og Outlook-e-post (calendarIndex.js) trenger Microsoft- og Google-nøkler som
+// GitHub-deployen ikke har, og deployes manuelt. Workflowen «Produksjonsstatus» viser om de finnes.
+const calendarIndex = readFileSync(join(root, 'functions/calendarIndex.js'), 'utf8');
+const MANUAL = new Set([...calendarIndex.matchAll(/^\s+([A-Za-z0-9_]+),?$/gm)].map((m) => m[1]));
+assert.ok(MANUAL.has('listMailMessages') && MANUAL.has('exchangeMicrosoftSignIn'));
+const NOT_DEPLOYED = new Set(['deleteFamilyCascade', ...MANUAL]);
 const called = new Set();
 for (const dir of ['src', 'screens', 'components']) {
   for (const rel of readdirSync(join(root, dir), { recursive: true })) {
@@ -74,6 +79,8 @@ for (const dir of ['src', 'screens', 'components']) {
     const code = readFileSync(join(root, dir, rel), 'utf8');
     for (const m of code.matchAll(/httpsCallable\(\s*\w+\s*,\s*['"]([A-Za-z0-9_]+)['"]/g)) called.add(m[1]);
     for (const m of code.matchAll(/callFriendFn\(\s*['"]([A-Za-z0-9_]+)['"]/g)) called.add(m[1]);
+    // Egne hjelpere som call('navn') i kalenderintegrasjonen.
+    for (const m of code.matchAll(/\bcall\(\s*'([a-z][A-Za-z0-9]+)'/g)) called.add(m[1]);
   }
 }
 assert.ok(called.size > 50, `fant bare ${called.size} callables`);

@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, riskLevel } from '../../src/iso/catalog';
 import {
   AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
   competenceGaps, competenceMatrix, createRecord, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
-  contactsLabel, personsLabel, registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
+  cleanContacts, contactsLabel, personsLabel, registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
 import { createFinding } from '../../src/iso/findings';
@@ -682,6 +682,33 @@ export function HmsPage({ ctx }) {
   );
 }
 
+/**
+ * Kontaktene på et beredskapskort, store og med ringeknapp. Navn og telefon hentes fra Ansatte når kontakten
+ * er valgt blant de ansatte, så kortet aldri viser et gammelt nummer.
+ */
+function EmergencyContacts({ contacts, people }) {
+  const colors = useColors();
+  const rows = cleanContacts(contacts).map((c) => {
+    const p = (people || []).find((x) => (c.employeeId && x.id === c.employeeId) || (c.uid && x.uid === c.uid)) || null;
+    return { ...c, name: p?.name || c.name, phone: p?.phone || c.phone };
+  });
+  if (!rows.length) return null;
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>Kontakter</Text>
+      {rows.map((c, i) => (
+        <View key={`${c.role}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <View style={{ flex: 1, minWidth: 200 }}>
+            <Text style={{ color: colors.ink, fontSize: 18 }}>{[c.role, c.name].filter(Boolean).join(': ')}</Text>
+            {c.note ? <Text style={{ color: colors.muted, fontSize: 13 }}>{c.note}</Text> : null}
+          </View>
+          {c.phone ? <Btn icon="call-outline" label={c.phone} accessibilityLabel={`Ring ${c.name || c.role} ${c.phone}`} onPress={() => Linking.openURL(`tel:${String(c.phone).replace(/[^\d+]/g, '')}`).catch(() => {})} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function EmergencyPage({ ctx }) {
   const colors = useColors();
   const { state, wide, actor, store, caps } = ctx;
@@ -702,6 +729,7 @@ export function EmergencyPage({ ctx }) {
             <Text style={{ color: colors.ink, fontSize: 18, lineHeight: 26 }}>{shown.instructions}</Text>
             <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>Varsling</Text>
             <Text style={{ color: colors.ink, fontSize: 18, lineHeight: 26 }}>{shown.alarm}</Text>
+            <EmergencyContacts contacts={shown.contacts} people={ctx.people} />
             {shown.roles ? <Text style={{ color: colors.ink, fontSize: 15 }}>{shown.roles}</Text> : null}
             {shown.equipment ? <Text style={{ color: colors.muted, fontSize: 14 }}>Utstyr: {shown.equipment}</Text> : null}
           </View>

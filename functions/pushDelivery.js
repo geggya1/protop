@@ -2,6 +2,7 @@
  * Push for alle varsler i users/{uid}/notifications: web push (nettleser og PWA)
  * og Expo (app). Brukes av triggeren i notifyPush.js. Avhengigheter kan byttes i tester.
  */
+import { createECDH } from 'node:crypto';
 import webpush from 'web-push';
 import * as logger from 'firebase-functions/logger';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -22,6 +23,17 @@ export function vapidPrivateKey(options = {}) {
     envNames: ['VAPID_PRIVATE_KEY', 'WEEKPLAN_VAPID_PRIVATE_KEY'],
     ...options,
   });
+}
+
+/** Hører den private nøkkelen til den offentlige i appen? Ellers avviser push-tjenesten alt. */
+export function vapidKeyMatches(privateKey, publicKey = VAPID_PUBLIC_KEY) {
+  try {
+    const ecdh = createECDH('prime256v1');
+    ecdh.setPrivateKey(Buffer.from(String(privateKey), 'base64url'));
+    return ecdh.getPublicKey().toString('base64url') === publicKey;
+  } catch {
+    return false;
+  }
 }
 
 export function pushPayloadFor(notifId, notif = {}) {
@@ -85,7 +97,7 @@ function expoToken(data) {
   return expo && token ? token : '';
 }
 
-async function sendWebPush({ uid, docs, payload, sender, privateKey }) {
+async function sendWebPush({ uid, docs, payload, sender, privateKey, publicKey = VAPID_PUBLIC_KEY }) {
   const subs = docs.map((d) => ({ d, sub: webSubscription(d.data()) })).filter((row) => row.sub);
   if (!subs.length) return { sent: 0, devices: 0 };
   const key = privateKey !== undefined ? privateKey : await vapidPrivateKey();
@@ -93,9 +105,13 @@ async function sendWebPush({ uid, docs, payload, sender, privateKey }) {
     logger.warn('Web push hoppet over: VAPID_PRIVATE_KEY mangler', { uid });
     return { sent: 0, devices: subs.length, missingKey: true };
   }
+  if (!vapidKeyMatches(key, publicKey)) {
+    logger.error('VAPID_PRIVATE_KEY hører ikke til den offentlige nøkkelen i appen (functions/vapid.js)', { uid });
+    return { sent: 0, devices: subs.length, keyMismatch: true };
+  }
   const options = {
     TTL: 60 * 60,
-    vapidDetails: { subject: VAPID_SUBJECT, publicKey: VAPID_PUBLIC_KEY, privateKey: key },
+    vapidDetails: { subject: VAPID_SUBJECT, publicKey, privateKey: key },
   };
   let sent = 0;
   await Promise.all(subs.map(async ({ d, sub }) => {
@@ -104,8 +120,10 @@ async function sendWebPush({ uid, docs, payload, sender, privateKey }) {
       sent += 1;
     } catch (err) {
       const status = err?.statusCode;
-      // Utløpt eller avmeldt abonnement: fjern det, så vi ikke prøver igjen.
-      if (status === 404 || status === 410) await d.ref.delete().catch(() => {});
+      // Utløpt eller avmeldt, eller laget med en tidligere nøkkel (avvises med 401/403):
+      // fjern det. Appen lager et nytt abonnement neste gang den åpnes.
+      const oldKey = (status === 401 || status === 403) && d.data()?.vapidPublicKey !== publicKey;
+      if (status === 404 || status === 410 || oldKey) await d.ref.delete().catch(() => {});
       else logger.warn('Web push feilet', { uid, status, message: err?.message });
     }
   }));
@@ -165,14 +183,21 @@ export async function deliverNotificationPush({ db, uid, notifId, notif = {}, re
     const payload = pushPayloadFor(notifId, notif);
     const snap = await db.collection(`users/${uid}/pushSubscriptions`).get();
     [web, expo] = await Promise.all([
-      sendWebPush({ uid, docs: snap.docs, payload, sender: deps.webpush || webpush, privateKey: deps.vapidKey }),
+      sendWebPush({
+        uid,
+        docs: snap.docs,
+        payload,
+        sender: deps.webpush || webpush,
+        privateKey: deps.vapidKey,
+        publicKey: deps.vapidPublicKey,
+      }),
       sendExpoPush({ uid, docs: snap.docs, payload, fetchImpl: deps.fetch || fetch }),
     ]);
   }
   const result = {
     sent: web.sent + expo.sent,
     devices: web.devices + expo.devices,
-    reason: web.missingKey ? 'missing-key' : decision.reason,
+    reason: web.missingKey ? 'missing-key' : (web.keyMismatch ? 'key-mismatch' : decision.reason),
   };
   if (ref) {
     await ref.set({ push: { ...result, at: FieldValue.serverTimestamp() } }, { merge: true }).catch(() => {});

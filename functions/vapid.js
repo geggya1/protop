@@ -6,7 +6,7 @@
  *   firebase functions:secrets:set VAPID_PRIVATE_KEY
  * or WEEKPLAN_VAPID_PRIVATE_KEY in the Functions runtime env.
  */
-export const VAPID_PUBLIC_KEY = 'BCLzemr5fBU85YOc7FiIsf-6KwWxVg-478pjeHyyj6TFOZs7vV2rCMHnjMHZ2A5wUoYJqbOV3_CIex6f-JwIip4';
+export const VAPID_PUBLIC_KEY = 'BHYyKHM7T_LmOFs566yRc8tViLKOfSplbI2g0tqfHBprCFPH0CFvIXiQi92Ydy7Ct9PQIGhtxDDPrJS3RY8CDmg';
 export const VAPID_SUBJECT = 'mailto:hei@protop.no';
 
 /** Resolve private key at call time (secret may be injected after cold start). */

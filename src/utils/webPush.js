@@ -15,6 +15,19 @@ function urlBase64ToUint8Array(base64String) {
   return output;
 }
 
+/**
+ * Er abonnementet laget med nøkkelen appen bruker nå? Etter nøkkelbytte må det lages
+ * på nytt, ellers avviser push-tjenesten alt serveren sender.
+ */
+function usesCurrentKey(subscription) {
+  const raw = subscription?.options?.applicationServerKey;
+  // Nettlesere som ikke oppgir nøkkelen: behold abonnementet.
+  if (!raw) return true;
+  const got = new Uint8Array(raw);
+  const want = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+  return got.length === want.length && got.every((byte, i) => byte === want[i]);
+}
+
 function subscriptionDocId(endpoint) {
   let hash = 0;
   for (let i = 0; i < endpoint.length; i += 1) {
@@ -140,6 +153,7 @@ export async function savePushSubscription(uid, subscription) {
     endpoint: subscription.endpoint,
     keys: json.keys || {},
     expirationTime: json.expirationTime || null,
+    vapidPublicKey: VAPID_PUBLIC_KEY,
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
     standalone: isStandaloneDisplay(),
     updatedAt: serverTimestamp(),
@@ -188,8 +202,9 @@ export async function completePushSubscription(uid, permission) {
     let subscription = await registration.pushManager.getSubscription();
     const json = subscription?.toJSON?.() || {};
     const hasKeys = !!(json.keys?.p256dh && json.keys?.auth);
-    if (!subscription || !hasKeys) {
+    if (!subscription || !hasKeys || !usesCurrentKey(subscription)) {
       if (subscription) {
+        await removePushSubscription(uid, subscription);
         try { await subscription.unsubscribe(); } catch { /* ignore */ }
       }
       subscription = await registration.pushManager.subscribe({
@@ -269,7 +284,7 @@ export async function getPushStatus() {
     const reg = await navigator.serviceWorker.getRegistration(PUSH_SW_PATH)
       || await navigator.serviceWorker.getRegistration('/');
     const sub = await reg?.pushManager?.getSubscription();
-    subscribed = !!sub?.endpoint;
+    subscribed = !!sub?.endpoint && usesCurrentKey(sub);
   } catch { /* ignore */ }
   return {
     supported: true,

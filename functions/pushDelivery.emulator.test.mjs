@@ -18,7 +18,7 @@ const { onNotificationPush } = await import('./notifyPushIndex.js');
 const { VAPID_PUBLIC_KEY } = await import('./vapid.js');
 
 const db = getFirestore();
-const VAPID_KEY = webpush.generateVAPIDKeys().privateKey;
+const VAPID = webpush.generateVAPIDKeys();
 
 function browserKeys() {
   const ecdh = createECDH('prime256v1');
@@ -33,6 +33,11 @@ function fakes() {
     async sendNotification(sub, body, options) {
       // Ekte kryptering og VAPID-signering, bare uten nettverk.
       webpush.generateRequestDetails(sub, body, options);
+      if (sub.endpoint.includes('gammelnokkel')) {
+        const err = new Error('VAPID credentials do not correspond');
+        err.statusCode = 403;
+        throw err;
+      }
       if (sub.endpoint.includes('utlopt')) {
         const err = new Error('Gone');
         err.statusCode = 410;
@@ -46,7 +51,7 @@ function fakes() {
     expo.push(...messages);
     return { json: async () => ({ data: messages.map(() => ({ status: 'ok' })) }) };
   };
-  return { web, expo, deps: { webpush: sender, fetch: fetchImpl, vapidKey: VAPID_KEY } };
+  return { web, expo, deps: { webpush: sender, fetch: fetchImpl, vapidKey: VAPID.privateKey, vapidPublicKey: VAPID.publicKey } };
 }
 
 async function notify(uid, id, data, deps) {
@@ -79,11 +84,21 @@ test('varsel fra en annen bruker gir push på alle enheter; utløpt abonnement f
   assert.equal(web.length, 1);
   assert.equal(web[0].payload.title, 'Ny melding');
   assert.equal(web[0].payload.tag, 'chat_c1');
-  assert.equal(web[0].options.vapidDetails.publicKey, VAPID_PUBLIC_KEY);
+  assert.equal(web[0].options.vapidDetails.publicKey, VAPID.publicKey);
   assert.equal(expo.length, 1);
   assert.equal(expo[0].to, 'ExponentPushToken[abc]');
   assert.equal((await db.doc('users/bente/pushSubscriptions/gammel').get()).exists, false);
   assert.equal((await db.doc('users/bente/pushSubscriptions/pc').get()).exists, true);
+});
+
+test('abonnement laget med en tidligere nøkkel fjernes når push-tjenesten avviser det', async () => {
+  await db.doc('users/bente/pushSubscriptions/gammelnokkel').set({ endpoint: 'https://push.example/gammelnokkel', keys: browserKeys(), vapidPublicKey: 'tidligere' });
+  await db.doc('users/bente/pushSubscriptions/naa').set({ endpoint: 'https://push.example/gammelnokkel-men-ny', keys: browserKeys(), vapidPublicKey: VAPID.publicKey });
+  const { deps } = fakes();
+  await notify('bente', 'k_old', { eventType: 'taskReceived', title: 'Oppgave' }, deps);
+  assert.equal((await db.doc('users/bente/pushSubscriptions/gammelnokkel').get()).exists, false);
+  // Samme feil med dagens nøkkel: behold (feil hos oss, ikke hos abonnementet).
+  assert.equal((await db.doc('users/bente/pushSubscriptions/naa').get()).exists, true);
 });
 
 test('alle varseltyper gir push, også fra serveren uten avsender', async () => {
@@ -126,6 +141,18 @@ test('uten VAPID-nøkkel: ingen web push, men app-push går', async () => {
   assert.equal(result.reason, 'missing-key');
   assert.equal(web.length, 0);
   assert.equal(expo.length, 1);
+});
+
+test('privat nøkkel som ikke hører til den offentlige: ingen web push, tydelig grunn', async () => {
+  const { web, deps } = fakes();
+  const other = webpush.generateVAPIDKeys().privateKey;
+  const { result } = await notify('bente', 'mm1', { eventType: 'taskReceived' }, { ...deps, vapidKey: other });
+  assert.equal(result.reason, 'key-mismatch');
+  assert.equal(web.length, 0);
+  // Dagens offentlige nøkkel i appen er gyldig (65 byte, ukomprimert punkt).
+  const raw = Buffer.from(VAPID_PUBLIC_KEY, 'base64url');
+  assert.equal(raw.length, 65);
+  assert.equal(raw[0], 4);
 });
 
 test('over grensen fra samme avsender: ingen push', async () => {

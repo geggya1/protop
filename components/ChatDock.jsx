@@ -32,6 +32,7 @@ import { isChildAiAllowed } from '../src/utils/childApps';
 import { getAppNav } from '../src/navigation/navRef';
 import { pickImage, uploadImage, alertPhotoError } from '../src/utils/media';
 import { useParentBottomNavChrome } from '../src/hooks/useParentBottomNavChrome';
+import { useWebModalOpen } from '../src/hooks/useWebModalOpen';
 import { httpsCallable } from 'firebase/functions';
 import { otherUidFromFriendChatId, isFriendChatNavPayload, friendChatId } from '../src/utils/friendsLogic';
 import {
@@ -1102,6 +1103,8 @@ export default function ChatDockHost() {
   const extraBottom = useParentBottomNavChrome();
   const slide = useRef(new Animated.Value(0)).current;
   const hideChrome = useFullScreenChatRoute();
+  // Chatknappen ligger over alt annet. Mens en dialog er åpen, skjules den så den ikke dekker «Lagre».
+  const modalOpen = useWebModalOpen();
 
   useEffect(() => {
     if (!mobileDrawer) return;
@@ -1176,7 +1179,7 @@ export default function ChatDockHost() {
           )}
         </Animated.View>
 
-        {!drawerOpen && !hideChrome ? (
+        {!drawerOpen && !hideChrome && !modalOpen ? (
           <MovableChatFab open={false} onPress={toggleDrawer} />
         ) : null}
       </View>
@@ -1192,7 +1195,7 @@ export default function ChatDockHost() {
   const minimized = windows.filter((w) => w.minimized);
   const hasMinimizedColumn = minimized.length > 0;
   // Windows sit at bottom:16 — hide compose FAB so it cannot cover send.
-  const hideFab = hideChrome || openWindows.length > 0 || composeOpen;
+  const hideFab = hideChrome || openWindows.length > 0 || composeOpen || modalOpen;
 
   const content = (
     <View style={styles.host} pointerEvents="box-none">

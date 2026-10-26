@@ -84,7 +84,8 @@ export function useFriendChatSelfNotify(uid, prefs) {
         showLocalNotification({
           title,
           body,
-          tag: notifId,
+          // Samme tag som push fra serveren: én melding gir ett varsel.
+          tag: `chat_${data.id}`,
           data: notificationNavPayload({
             id: notifId,
             eventType: 'messageReceived',

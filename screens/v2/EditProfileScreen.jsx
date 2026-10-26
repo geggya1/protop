@@ -20,7 +20,7 @@ import { calculateAge, isValidBirthday, toIsoDate } from '../../src/utils/age';
 import { normalizePhone, defaultDialCode, splitPhone } from '../../src/utils/phone';
 import { Screen, ScrollBody, BigButton } from '../../components/ui';
 import { mergeNotificationPrefs } from '../../src/utils/notificationPrefs';
-import { disablePushSubscription, ensurePushSubscription } from '../../src/utils/push';
+import { disablePushSubscription, ensurePushSubscription, sendTestPush } from '../../src/utils/push';
 import CompactBackLink from '../../components/CompactBackLink';
 import AvatarPicker, { AvatarBubble } from '../../components/AvatarPicker';
 import LocationPicker from '../../components/LocationPicker';
@@ -338,6 +338,29 @@ export default function EditProfileScreen() {
     } catch { /* ignore */ }
     finally {
       setNotifBusy(false);
+    }
+  };
+
+  const [pushTestNote, setPushTestNote] = useState('');
+  const [pushTestBusy, setPushTestBusy] = useState(false);
+  // Sjekk at push virker: kobler denne enheten til og ber serveren sende et testvarsel.
+  const sendPushCheck = async () => {
+    if (!uid || pushTestBusy) return;
+    setPushTestBusy(true);
+    setPushTestNote('');
+    try {
+      const subscription = await ensurePushSubscription(uid).catch(() => null);
+      // Sendes uansett, så andre enheter med push også får det.
+      await sendTestPush(uid);
+      setPushTestNote(subscription
+        ? 'Testvarsel sendt. Du skal få et varsel på denne og de andre enhetene dine om noen sekunder.'
+        : (Platform.OS === 'web'
+          ? 'Testvarsel sendt til enhetene der push er slått på, men denne enheten får ikke push. Tillat varsler for ProTop i nettleseren. På iPhone: legg ProTop til hjemskjermen og åpne den derfra.'
+          : 'Testvarsel sendt til enhetene der push er slått på, men denne enheten får ikke push. Tillat varsler for ProTop i innstillingene på telefonen.'));
+    } catch (err) {
+      setPushTestNote('Kunne ikke sende testvarsel. Prøv igjen.');
+    } finally {
+      setPushTestBusy(false);
     }
   };
 
@@ -795,6 +818,16 @@ export default function EditProfileScreen() {
             Push-varsler vises på enheten når du får en ny melding, også når appen er i bakgrunnen.
             Nettleseren spør om tillatelse første gang. SMS støttes ikke ennå.
           </Text>
+          <TouchableOpacity
+            nativeID="profile-push-test"
+            onPress={sendPushCheck}
+            disabled={pushTestBusy || !uid}
+            accessibilityRole="button"
+            style={[styles.pushTestBtn, (pushTestBusy || !uid) && { opacity: 0.6 }]}
+          >
+            <Text style={styles.pushTestTxt}>{pushTestBusy ? 'Sender…' : 'Send testvarsel'}</Text>
+          </TouchableOpacity>
+          {pushTestNote ? <Text nativeID="profile-push-test-note" style={styles.hint}>{pushTestNote}</Text> : null}
         </View>
 
         <BigButton
@@ -850,6 +883,8 @@ const styles = StyleSheet.create({
 
   lbl: { fontWeight: '400', color: colors.ink, fontSize: 14, marginTop: 10, marginBottom: 6 },
   hint: { color: colors.muted, fontWeight: '400', fontSize: 13, marginBottom: 8, lineHeight: 18 },
+  pushTestBtn: { alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.brand, borderRadius: radius.md || 10, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 8 },
+  pushTestTxt: { color: colors.brand, fontWeight: '600', fontSize: 14 },
   lockedUsernameRow: {
     flexDirection: 'row',
     alignItems: 'center',

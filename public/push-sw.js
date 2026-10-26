@@ -1,4 +1,4 @@
-/* Weekplan Web Push service worker — do not cache the app shell. */
+/* ProTop Web Push service worker — do not cache the app shell. */
 /* iOS PWA: must call showNotification() for every push, or permission may be revoked. */
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
@@ -36,11 +36,11 @@ self.addEventListener('push', (event) => {
       } catch { /* ignore */ }
     });
 
-    await self.registration.showNotification(payload.title || 'Weekplan', {
+    await self.registration.showNotification(payload.title || 'ProTop', {
       body: payload.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      tag: payload.tag || payload.notificationId || 'weekplan',
+      tag: payload.tag || payload.notificationId || 'protop',
       data: payload,
       renotify: true,
     });

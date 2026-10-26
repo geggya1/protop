@@ -1,7 +1,9 @@
 /**
  * Unified push helpers — web (VAPID) + native (Expo push tokens).
  */
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Platform } from 'react-native';
+import { db } from '../../firebase';
 import * as web from './webPush';
 import * as native from './nativePush';
 
@@ -55,6 +57,25 @@ export async function disablePushSubscription(uid) {
 export async function getPushStatus() {
   if (Platform.OS === 'web') return web.getPushStatus();
   return native.getNativePushStatus();
+}
+
+/**
+ * Testvarsel til egen bruker. Serveren sender det som push til alle enhetene
+ * der push er slått på, så brukeren ser at det virker.
+ */
+export async function sendTestPush(uid) {
+  if (!uid) return false;
+  const id = `pushtest_${Date.now()}`;
+  await setDoc(doc(db, 'users', uid, 'notifications', id), {
+    eventType: 'pushTest',
+    title: 'ProTop',
+    body: 'Push-varsler virker på denne enheten.',
+    pushTest: true,
+    createdBy: uid,
+    createdAt: serverTimestamp(),
+    seen: true,
+  });
+  return true;
 }
 
 export function showLocalNotification(opts) {

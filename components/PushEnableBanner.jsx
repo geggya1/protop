@@ -11,6 +11,7 @@ import {
   getPushStatus,
   isStandaloneDisplay,
   pushSupported,
+  sendTestPush,
 } from '../src/utils/push';
 
 const DISMISS_KEY = 'weekplan_push_banner_v2';
@@ -174,6 +175,8 @@ export default function PushEnableBanner() {
           result = await enablePushFromUserGesture(uid);
         }
         if (result?.ok) {
+          // Bekreftelse: serveren sender et testvarsel til enheten som nå er koblet til.
+          sendTestPush(uid).catch(() => {});
           await clearDismissed();
           setVisible(false);
           setFeedback('');

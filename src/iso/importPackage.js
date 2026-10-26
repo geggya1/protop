@@ -195,6 +195,20 @@ export function diagramFromPackage(spec, refs, issues = []) {
   return layoutSwimlanes({ lanes, nodes, edges: arr(spec?.edges) });
 }
 
+/**
+ * Finnes skjemaet allerede i Skjemabygger (f.eks. installert fra KS-malbiblioteket)? Da brukes den malen
+ * som styrt skjema, og det lages ingen kopi. Treff på bibliotekets nøkkel (libraryKey / ks_<nøkkel>)
+ * eller på opprinnelig KS-kode (source.originalCode mot malens dokumenthode, doc.docId).
+ */
+export function existingTemplateFor(row, anbudTemplates) {
+  const code = String(row?.libraryRef || row?.source?.originalCode || '').trim().toUpperCase();
+  const key = String(row?.libraryKey || '').trim();
+  return (anbudTemplates || []).find((t) => t && !t.importKey && (
+    (key && (t.libraryKey === key || t.id === `ks_${key.replace(/[^a-z0-9-]/gi, '').toLowerCase()}`))
+    || (code && [t.doc?.docId, t.doc?.ref].some((x) => String(x || '').trim().toUpperCase() === code))
+  )) || null;
+}
+
 /** Feltverdier for en registerpost. Ref-felt i pakken bruker nøkler; de løses til id-er her. */
 function recordValues(register, row, refs, issues) {
   const def = REGISTERS[register];
@@ -315,7 +329,7 @@ export function buildImport(state, pkg, {
   for (const row of pkg.documents) { const hit = existing.get(importKeyFor(pkg, 'documents', row.key)); if (hit) refs.documents.set(row.key, hit.row.id); }
   for (const row of pkg.processes) { const hit = existing.get(importKeyFor(pkg, 'processes', row.key)); if (hit) refs.processes.set(row.key, hit.row.id); }
   for (const row of pkg.requirements) { const hit = existing.get(importKeyFor(pkg, 'requirements', row.key)); if (hit) refs.requirements.set(row.key, hit.row.id); }
-  for (const row of pkg.forms) refs.forms.set(row.key, formTemplateIdFor(pkg, row.key));
+  for (const row of pkg.forms) refs.forms.set(row.key, existingTemplateFor(row, anbudTemplates)?.id || formTemplateIdFor(pkg, row.key));
   for (const [register, rows] of Object.entries(pkg.records)) {
     for (const row of rows) { const hit = existing.get(importKeyFor(pkg, `records.${register}`, row.key)); if (hit) refs.records.get(register).set(row.key, hit.row.id); }
   }
@@ -527,6 +541,14 @@ export function buildImport(state, pkg, {
     for (const row of pkg.forms) {
       const id = formTemplateIdFor(pkg, row.key);
       if (anbudTemplates.some((t) => t.id === id)) { note('forms', row.key, row.title, 'finnes'); continue; }
+      const lib = existingTemplateFor(row, anbudTemplates);
+      if (lib) {
+        const control = (state.forms || []).find((c) => c.templateId === lib.id && !c.archived);
+        if (control?.publishedVersion || row.approve === false) { note('forms', row.key, row.title, 'finnes', `Bruker «${lib.title}» som allerede ligger i Skjemabygger.`); continue; }
+        out.forms.push({ key: row.key, approve: true, existing: true, template: lib });
+        note('forms', row.key, row.title, 'ny', `«${lib.title}» ligger allerede i Skjemabygger og godkjennes som styrt skjema. Ingen kopi lages.`);
+        continue;
+      }
       const fields = arr(row.fields).filter((f) => FORM_KINDS.has(f?.kind)).slice(0, MAX_FORM_FIELDS).map((f, i) => ({
         id: text(f.id, 40) || `f${i + 1}`,
         label: text(f.label, f.kind === 'note' ? 4000 : 300),

@@ -138,7 +138,7 @@ export default function IsoImport({ ctx, first = false }) {
         let anbud = await loadAnbudState(companyId);
         let added = 0;
         for (const f of out.forms) {
-          if (normalizeFormTemplates(anbud.formTemplates).some((t) => t.id === f.template.id)) continue;
+          if (f.existing || normalizeFormTemplates(anbud.formTemplates).some((t) => t.id === f.template.id)) continue;
           const res = saveFormTemplate(anbud, f.template);
           if (res.ok) { anbud = res.state; added += 1; } else say(`Skjema «${f.template.title}»: ${res.error}`);
         }
@@ -153,7 +153,8 @@ export default function IsoImport({ ctx, first = false }) {
           if (res.ok && (await store.commit('forms', 'form', res, { previous: control })).ok) approved += 1;
         }
         sources?.reloadAnbud?.();
-        say(`${added} skjema og sjekklister er lagt i Skjemabygger${approved ? `, ${approved} godkjent som styrte skjema` : ''}.`);
+        const reused = out.forms.filter((x) => x.existing).length;
+        say(`${added} skjema og sjekklister er lagt i Skjemabygger${reused ? `, ${reused} fantes fra før og er brukt i stedet for kopi` : ''}${approved ? `, ${approved} godkjent som styrte skjema` : ''}.`);
       }
 
       if (wallNews && out.news.length) {

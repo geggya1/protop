@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildImport, formTemplateIdFor, importKeyFor, parsePackage, planImport, approvalTaskFor } from './importPackage.js';
+import { buildImport, existingTemplateFor, formTemplateIdFor, importKeyFor, parsePackage, planImport, approvalTaskFor } from './importPackage.js';
 import { emptyIsoState } from './state.js';
 import { isoCapabilities } from './access.js';
 import { validateDiagram } from './processes.js';
@@ -223,4 +223,24 @@ test('opphav kolliderer ikke med registerfeltet «source»', () => {
   assert.equal(k1.source, 'Forsikringskrav');
   assert.equal(k2.source, undefined);
   assert.deepEqual(k2.origin, { system: 'SharePoint', ref: 'Kompetansematrise.xlsm', url: '' });
+});
+
+test('skjema som finnes i Skjemabygger (KS-biblioteket) brukes i stedet for en kopi', () => {
+  const base = pkg();
+  const form = { ...base.forms[0], key: 'sja', title: 'SJA', source: { originalCode: 'C1-B-03-003' } };
+  const { pkg: p } = parsePackage({ ...base, forms: [form] });
+  const lib = { id: 'ks_sja', libraryKey: 'sja', title: 'Sikker jobbanalyse', doc: { ref: 'C1-B-03-003' }, fields: [{ id: 'a', kind: 'text', label: 'Hva' }] };
+  assert.equal(existingTemplateFor(form, [lib]).id, 'ks_sja');
+  assert.equal(existingTemplateFor({ libraryKey: 'sja' }, [{ id: 'ks_sja', title: 'SJA' }]).id, 'ks_sja');
+  assert.equal(existingTemplateFor(form, [{ id: 'ks_x', title: 'SJA', doc: { docId: 'C1-B-03-003' } }]).id, 'ks_x');
+  assert.equal(existingTemplateFor(form, [{ ...lib, importKey: 'x:forms:sja' }]), null);
+  const built = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, anbudTemplates: [lib] });
+  assert.equal(built.out.forms.length, 1);
+  assert.equal(built.out.forms[0].existing, true);
+  assert.equal(built.out.forms[0].template.id, 'ks_sja');
+  // Allerede styrt skjema: ingenting å gjøre.
+  const state = emptyIsoState();
+  state.forms = [{ id: 'f1', templateId: 'ks_sja', publishedVersion: 1 }];
+  const again = buildImport(state, p, { actor: BOSS, caps: ADMIN, now: NOW, anbudTemplates: [lib] });
+  assert.equal(again.out.forms.length, 0);
 });

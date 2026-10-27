@@ -18,7 +18,7 @@ Se også `docs/hr/research-matrix.md` for verdensbasis-matrise (BambooHR, Person
 4. **Produktivitet** — utfakturerbart vs ikke-fakturerbart
 5. **Lønn** — historikk, % utvikling, neste år, memo på bevegelser
 6. **Oppfølging** — saker, samtaler (PDF + sammenlign), memo/filer, oppgaver
-7. **Lov & ISO** — AML, internkontroll, ISO 9001/14001/45001, GDPR per ansatt
+7. **Lovpålagt** — AML (avtale, oppfølging, verneutstyr) og GDPR per ansatt. Kompetanse, opplæring og HMS-introduksjon følges opp i ISO / K-HMS → Kompetanse
 8. **Rekruttering** — annonser, 3-kolonne kanban (mottatt → behandling → ferdig), vunnet/avslått
 
 ## Datamodell

@@ -50,8 +50,8 @@ const PAGES = {
     ],
   },
   compliance: {
-    title: 'Lov og ISO',
-    subtitle: 'Sjekkliste for egne ansatte: skriftlig avtale, HMS, kompetanse og personvern. Avtale og gjennomført medarbeidersamtale fyller inn det som kan bevises. Åpne raden for å krysse av resten.',
+    title: 'Lovpålagt',
+    subtitle: 'Sjekkliste for egne ansatte: skriftlig avtale, oppfølging, verneutstyr og personvern. Avtale og gjennomført medarbeidersamtale fyller inn det som kan bevises. Åpne raden for å krysse av resten. Kompetanse og opplæring følges opp i ISO / K-HMS.',
     sheet: 'compliance',
     staffOnly: true,
     columns: [

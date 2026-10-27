@@ -190,7 +190,7 @@ export const HR_MENU = [
   { id: 'avtaler', icon: 'document-text', label: 'Avtaler' },
   { id: 'lonn', icon: 'cash', label: 'Lønn' },
   { id: 'oppfolging', icon: 'flag', label: 'Oppfølging' },
-  { id: 'compliance', icon: 'shield-checkmark', label: 'Lov & ISO' },
+  { id: 'compliance', icon: 'shield-checkmark', label: 'Lovpålagt' },
   { id: 'rekruttering', icon: 'megaphone', label: 'Rekruttering' },
   { id: 'handbok', icon: 'book', label: 'Personalhåndbok' },
   { id: 'skjema', icon: 'clipboard', label: 'Skjemaer' },

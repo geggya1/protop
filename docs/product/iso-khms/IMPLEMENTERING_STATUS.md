@@ -19,7 +19,7 @@ Modulen ligger under **ISO** i hamburgermenyen med 20 undersider. Den endrer ikk
 | Kjørebok | turer, km, elbil | Kjøring per måned, elbilandel, «Bruk som miljødata», forslag til miljøaspekt |
 | Fravær | sykefravær (aggregert, uten navn) | HMS-indikator per måned (bare for Begrenset redigering og opp) |
 | Kontrakt / Kunder | kontrakter, oppdragsgivere | Kontraktsgjennomgang (8.2) per kontrakt, interessentforslag |
-| HR – lov & ISO | sjekkliste per ansatt | Bevissthet/opplæring (7.3), mangler vises og rettes i HR |
+| HR – lovpålagt | sjekklisten per ansatt (bare punkter som er flyttet hit) | HR eier bare det lovpålagte (avtale, oppfølging, verneutstyr, personvern). HMS-introduksjon, avviksrutine og arbeidsmiljøopplæring er kompetansekrav i ISO; Kompetanse tilbyr å opprette kravene og ta med OK-avkrysninger fra HR som bevis. HR viser ISO-statusen på personen |
 | Skjemabygger | skjemaer | ISO lager ikke egne skjema. Skjema installeres/endres i Skjemabygger; ISO godkjenner en versjon (sjekksum) og varsler når skjemaet er endret etterpå |
 | Oppgaver | `parentTodos` | Tiltak, triage, godkjenninger, prosesstrinn, påminnelser og eskalering blir vanlige oppgaver (fast nøkkel = aldri duplikater). «Ferdig i Oppgaver» vises i saken |
 

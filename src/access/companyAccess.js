@@ -79,7 +79,7 @@ const ACCESS_MENU = [
           { id: 'hrAgreements', label: 'Avtaler', icon: 'document-text' },
           { id: 'hrPayroll', label: 'Lønn', icon: 'cash' },
           { id: 'hrFollowup', label: 'Oppfølging', icon: 'flag' },
-          { id: 'hrCompliance', label: 'Lov & ISO', icon: 'shield-checkmark' },
+          { id: 'hrCompliance', label: 'Lovpålagt', icon: 'shield-checkmark' },
           { id: 'hrRecruitment', label: 'Rekruttering', icon: 'megaphone' },
         ],
       },

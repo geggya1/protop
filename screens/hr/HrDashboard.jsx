@@ -166,7 +166,7 @@ export default function HrDashboard({
         />
         <HrStat colors={colors} label="Åpne saker" value={String(follow.cases.length)} hint="oppfølging" />
         <HrStat colors={colors} label="Søknadskø" value={String(received + processing)} hint={`${received} nye · ${processing} i behandling`} />
-        <HrStat colors={colors} label="Compliance" value={String(complianceGap)} hint="mangler lov/ISO" />
+        <HrStat colors={colors} label="Lovpålagt" value={String(complianceGap)} hint="mangler på tvers" />
       </View>
 
       <HrCard colors={colors}>
@@ -290,7 +290,7 @@ export default function HrDashboard({
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}
-          title="Lov & ISO — gap"
+          title="Lovpålagt — mangler"
           subtitle={`${COMPLIANCE_CATALOG.length} sjekkpunkter · ${complianceGap} mangler på tvers`}
         />
         {worstGaps.length === 0 ? (
@@ -308,7 +308,7 @@ export default function HrDashboard({
             />
           );
         })}
-        <RowLink colors={colors} title="Følg opp compliance per ansatt" onPress={onOpenCompliance} />
+        <RowLink colors={colors} title="Følg opp lovpålagt per ansatt" onPress={onOpenCompliance} />
       </HrCard>
     </View>
   );

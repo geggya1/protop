@@ -28,6 +28,8 @@ import {
 } from '../src/utils/deskHome';
 
 const R = 16;
+/** Betaling er ikke innført ennå. Sett til true når Premium skal selges. */
+const SHOW_PREMIUM_UPSELL = false;
 
 function Card({ children, style, onPress, fill }) {
   const inner = (
@@ -428,14 +430,16 @@ export default function DeskHomeDashboard({
             )}
           </View>
 
-          <View style={styles.upsell}>
-            <Text style={styles.upsellTxt} numberOfLines={1}>
-              Premium Familie — 14 dager gratis, deretter 49 kr/mnd
-            </Text>
-            <TouchableOpacity style={styles.upsellBtn} onPress={onUpgrade || onCreate}>
-              <Text style={styles.upsellBtnTxt}>Oppgrader ✨</Text>
-            </TouchableOpacity>
-          </View>
+          {SHOW_PREMIUM_UPSELL ? (
+            <View style={styles.upsell}>
+              <Text style={styles.upsellTxt} numberOfLines={1}>
+                Premium Familie — 14 dager gratis, deretter 49 kr/mnd
+              </Text>
+              <TouchableOpacity style={styles.upsellBtn} onPress={onUpgrade || onCreate}>
+                <Text style={styles.upsellBtnTxt}>Oppgrader ✨</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </ScrollView>
       </View>
     </View>

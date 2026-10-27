@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isoRoleFor } from './planning.js';
 import { isoRoleIdFor, isRoleName, ownerParts, roleOwner, roleOwnerFixes } from './roles.js';
-import { recommendedRoleAccess, roleAccessCheck, ROLE_ACCESS } from './access.js';
+import {
+  employeeForRole, employeeIsoRank, recommendedRoleAccess, roleAccessCheck, ROLE_ACCESS,
+} from './access.js';
 import { ISO_ROLES } from './catalog.js';
 import { levelById } from '../access/companyAccess.js';
 
@@ -125,4 +127,30 @@ test('anbefalt tilgang: bare det som mangler, ett fagansvar per behov, aldri på
   assert.equal(hse.ok, false);
   assert.equal(hse.levelLabel, 'HMS-ansvarlig / verneombud');
   assert.equal(check.find((r) => r.role === 'safety_rep').ok, true, 'verneombud trenger bare Lese');
+});
+
+test('anbefalt tilgang virker også for ansatte uten innlogging (funnet via ansatt-id eller navn)', () => {
+  const employees = [
+    { id: 'e1', personUid: '', company: { status: 'active', accessLevels: ['ansatt'], accessLevel: 'ansatt' } },
+    { id: 'e2', personUid: '', company: { status: 'active', accessLevels: ['ansatt'], accessLevel: 'ansatt' } },
+    { id: 'e3', personUid: '', company: { status: 'active', accessLevels: ['ansatt'], accessLevel: 'ansatt' } },
+  ];
+  const people = [{ id: 'e1', name: 'Ellen Hidle', uid: '' }, { id: 'e2', name: 'Silje Håland', uid: '' }, { id: 'e3', name: 'Ola Navnesen', uid: '' }, { id: 'x', name: 'Ola Navnesen', uid: '' }];
+  const roleMap = {
+    hse_manager: { name: 'Ellen Hidle', uid: '' },
+    project_manager: { name: 'Silje Håland', uid: '', employeeId: 'e2' },
+    internal_auditor: { name: 'Ola Navnesen', uid: '' },
+  };
+  assert.equal(employeeForRole(roleMap.hse_manager, { employees, people })?.id, 'e1', 'navn');
+  assert.equal(employeeForRole(roleMap.project_manager, { employees, people })?.id, 'e2', 'ansatt-id');
+  assert.equal(employeeForRole(roleMap.internal_auditor, { employees, people }), null, 'tvetydig navn gir ingen');
+  const recs = recommendedRoleAccess(roleMap, { employees, people });
+  assert.deepEqual(recs.map((r) => [r.employeeId, r.addLevels, r.linked]), [['e1', ['hms_ansvarlig'], false], ['e2', ['iso_rolle'], false]]);
+  const check = roleAccessCheck(roleMap, () => 0, (person) => {
+    const e = employeeForRole(person, { employees, people });
+    return e ? { rank: employeeIsoRank(null, e), linked: !!e.personUid } : null;
+  });
+  const hse = check.find((r) => r.role === 'hse_manager');
+  assert.deepEqual([hse.has, hse.linked, hse.ok], [1, false, false]);
+  assert.equal(check.find((r) => r.role === 'internal_auditor').has, null);
 });

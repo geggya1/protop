@@ -12,6 +12,7 @@ import { linkingPrefixes } from '../utils/hostingChannel';
 import { captureAgreementLinkFromLocation, withAgreementQuery } from '../anbud/agreementLink';
 import { indexLinkFromPath } from '../indeksregulering/indexLink';
 import { homePathForLinking, shellLinkState } from './shellPaths';
+import { legacyNewNoteState, legacyRegisterInvitedState } from './legacyPaths.js';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -223,6 +224,11 @@ export const linking = {
         }],
       };
     }
+    // Gamle adresser: /register-invited → registrering, /note/new → Notater, nytt notat.
+    const legacyRegister = legacyRegisterInvitedState(path, { signedIn: linkingSignedIn });
+    if (legacyRegister) return legacyRegister;
+    const legacyNote = legacyNewNoteState(path);
+    if (legacyNote) return legacyNote;
     // After Google/Apple/Microsoft from /signup, URL often stays on signup while
     // RootNav enters app stage. Linking must not force AuthChoice again.
     const authOverride = resolveAuthEntryLinkState(path, { signedIn: linkingSignedIn });
@@ -317,7 +323,6 @@ export const linking = {
       CalendarOAuthRedirect: 'oauth/calendar',
       StravaOAuthRedirect: 'oauth/strava',
       AirbnbOAuthRedirect: 'oauth/airbnb',
-      RegisterInvitedUser: 'register-invited',
       ForgotPassword: 'forgot-password',
       VerifyEmail: {
         path: 'verify-email',
@@ -370,7 +375,6 @@ export const linking = {
       ParentProfile: 'parent/:parentId',
       SelectFamilyScreen: 'select-family',
       AddTodo: 'todo/new',
-      AddNote: 'note/new',
       Activities: 'activities/:familyId',
       ActivityDetail: 'activities/:familyId/:activityId',
       ChildDashboard: 'child/:familyId',

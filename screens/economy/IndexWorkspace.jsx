@@ -1418,7 +1418,7 @@ function LetterPreview({ letter, colors }) {
           accessibilityLabel="Bedriftens logo"
         />
       ) : (
-        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18 }}>{notice.brand}</Text>
+        <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 18, alignSelf: 'flex-end' }}>{notice.brand}</Text>
       )}
       <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700' }}>{notice.title}</Text>
       <Text selectable style={{ color: colors.ink, lineHeight: 20 }}>{notice.intro}</Text>
@@ -1504,6 +1504,6 @@ const styles = StyleSheet.create({
   td: { width: 140, fontSize: 14, paddingVertical: 6 },
   calc: { flexDirection: 'row', gap: 12, paddingVertical: 4 },
   letter: { borderWidth: 1, borderRadius: 4, padding: 20, gap: 8, width: '100%' },
-  logo: { width: 180, height: 52, alignSelf: 'flex-start' },
+  logo: { width: 180, height: 52, alignSelf: 'flex-end' },
   hist: { flexDirection: 'row', gap: 8, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 8, alignItems: 'center' },
 });

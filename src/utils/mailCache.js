@@ -7,11 +7,18 @@ const STORAGE_PREFIX = 'protop.mailCache.v1';
 const DEFAULT_TTL_MS = MAIL_FRESH_MS;
 const STORAGE_TTL_MS = MAIL_STORAGE_MS;
 const BODY_TTL_MS = MAIL_STORAGE_MS;
-const BODY_MAX = 40;
+const BODY_MAX = 60;
 const BODY_MAX_CHARS = 180000;
 
-function rangeKey(uid, connectionId, folderId, unreadOnly) {
-  return `${uid || 'anon'}|${connectionId || ''}|${folderId || ''}|${unreadOnly ? '1' : '0'}`;
+/** Filteret er 'all' | 'unread' | 'flagged' …; gamle kall sender true/false for ulest. */
+function filterKey(filter) {
+  if (filter === true || filter === 'unread') return '1';
+  if (!filter || filter === 'all') return '0';
+  return String(filter);
+}
+
+function rangeKey(uid, connectionId, folderId, filter) {
+  return `${uid || 'anon'}|${connectionId || ''}|${folderId || ''}|${filterKey(filter)}`;
 }
 
 function storageKey(uid, connectionId, folderId, unreadOnly) {

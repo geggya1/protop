@@ -144,3 +144,10 @@ export async function resizeLogoDataUrl(dataUrl, maxWidth = 180) {
     img.src = src;
   });
 }
+
+/** Signaturen slik den ligger i skrivefeltet: egen blokk som kan byttes ut. */
+export function signatureBlockHtml(html) {
+  const inner = String(html || '').trim();
+  if (!inner) return '';
+  return `<div data-wp-signature="1"><div><br></div>${inner}</div>`;
+}

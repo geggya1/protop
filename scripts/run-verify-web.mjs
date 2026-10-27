@@ -149,6 +149,13 @@ export const FILES = [
   'src/access/accessRules.test.mjs',
   'src/access/accessHeadcount.test.mjs',
   'src/utils/companyChat.test.mjs',
+  'src/utils/mailModel.test.mjs',
+  'src/utils/mailSync.test.mjs',
+  'src/utils/mailSignature.test.mjs',
+  'src/utils/mailHtml.test.mjs',
+  'src/utils/mailFolderTree.test.mjs',
+  'src/utils/mailUi.test.mjs',
+  'src/utils/mailPanes.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',
 ];

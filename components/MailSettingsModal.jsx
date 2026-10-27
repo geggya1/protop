@@ -43,7 +43,7 @@ export default function MailSettingsModal({
         onPress={onClose}
       >
         <Pressable
-          style={[styles.sheet, isDesktop && [styles.sheetDesktop, desktopFormSheet]]}
+          style={[styles.sheet, isDesktop && [desktopFormSheet, styles.sheetDesktop]]}
           onPress={(e) => e.stopPropagation?.()}
         >
           <View style={styles.head}>
@@ -117,8 +117,8 @@ export default function MailSettingsModal({
             <Text style={[styles.kicker, { marginTop: 18 }]}>Visning</Text>
             <View style={styles.optionRow}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.optionLbl}>Start med uleste</Text>
-                <Text style={styles.hint}>Åpner ulest-fanen når du går inn på e-post.</Text>
+                <Text style={styles.optionLbl}>Vis bare uleste</Text>
+                <Text style={styles.hint}>Meldingslisten viser uleste til du velger et annet filter.</Text>
               </View>
               <BrandToggle
                 value={!!unreadFirst}
@@ -174,7 +174,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 16,
-    maxWidth: 540,
+    maxWidth: 760,
+    width: '100%',
   },
   head: {
     flexDirection: 'row',

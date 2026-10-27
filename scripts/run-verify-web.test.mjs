@@ -20,4 +20,6 @@ assert.ok(FILES.includes('src/project/projectAccess.test.mjs'), 'prosjektsiden f
 assert.ok(FILES.includes('src/access/accessRules.test.mjs'), 'prosjekt og kjøretøy følger tilgangsstyringen overalt');
 assert.ok(FILES.includes('src/utils/companyChat.test.mjs'), 'chatten i bedriften skiller faste ansatte og eksterne');
 
+assert.ok(FILES.includes('src/utils/mailModel.test.mjs'), 'e-post: svar, mottakere, utkast og flagg testes i CI');
+
 console.log('run-verify-web.test.mjs: ok');

@@ -149,54 +149,97 @@ export const ROLE_MIN_ISO = Object.fromEntries(Object.entries(ROLE_ACCESS).map((
 
 const RANK_LABEL = ['Ingen', 'Lese', 'Begrenset redigering', 'Admin'];
 
+const isoRank = (grants) => Math.min(3, rank(grants, 'iso'));
+
+/** ISO-nivået (0–3) ansattposten gir etter tilgangsmatrisen. */
+export function employeeIsoRank(policy, employee) {
+  return employee ? isoRank(grantsForEmployee(policy, employee)) : 0;
+}
+
+const sameName = (a, b) => text(a).toLowerCase().replace(/\s+/g, ' ') === text(b).toLowerCase().replace(/\s+/g, ' ');
+
+/**
+ * Ansattposten til personen i en rolle: innlogging (uid), ansatt-id, ellers entydig navn.
+ * people: personvelgerens liste ({ id, name }) – navnet der er det som vises i rollene.
+ */
+export function employeeForRole(person, { employees = [], people = [] } = {}) {
+  if (!person?.name && !person?.uid) return null;
+  const live = (employees || []).filter((e) => e?.id && e?.company?.status !== 'deleted');
+  const uid = text(person.uid, 128);
+  if (uid) {
+    const hit = live.find((e) => e.personUid === uid);
+    if (hit) return hit;
+  }
+  const id = text(person.employeeId, 128);
+  if (id) {
+    const hit = live.find((e) => e.id === id);
+    if (hit) return hit;
+  }
+  const named = (people || []).filter((p) => p?.id && sameName(p.name, person.name));
+  if (named.length !== 1) return null;
+  return live.find((e) => e.id === named[0].id) || null;
+}
+
 /**
  * Oppstartskontroll av roller: har personene som har fått en ISO-rolle, nivået rollen krever
  * i tilgangsmatrisen? Gir aldri tilgang selv – viser bare hva som mangler og hvilket fagansvar
  * som dekker det. Særskilt tilgang til skjermede saker følger ikke av noen rolle.
+ * rankFor(uid): ISO-nivået til en innlogget bruker. employeeRank(person): nivået ansattposten gir,
+ * for personer som ikke er koblet til en innlogging ennå ({ rank } eller null).
  */
-export function roleAccessCheck(roleMap, rankFor) {
+export function roleAccessCheck(roleMap, rankFor, employeeRank = null) {
   const rows = [];
   for (const [role, { need, level }] of Object.entries(ROLE_ACCESS)) {
     const person = roleMap?.[role];
     if (!person?.name) continue;
-    const has = person.uid ? Number(rankFor(person.uid)) || 0 : null;
+    let has = null;
+    let linked = false;
+    if (person.uid) {
+      has = Number(rankFor(person.uid)) || 0;
+      linked = true;
+    } else if (employeeRank) {
+      const r = employeeRank(person);
+      if (r) { has = Number(r.rank) || 0; linked = !!r.linked; }
+    }
     rows.push({
       role,
       person,
       need,
       has,
+      linked,
       level,
       levelLabel: levelById(level)?.label || level,
       needLabel: RANK_LABEL[need],
-      hasLabel: has == null ? 'Ikke koblet til bruker' : RANK_LABEL[has],
+      hasLabel: has == null ? 'Finnes ikke i Ansatte' : RANK_LABEL[has],
       ok: has != null && has >= need,
     });
   }
   return rows;
 }
 
-const isoRank = (grants) => Math.min(3, rank(grants, 'iso'));
-
 /**
  * Anbefalt tilgang for personene med ISO-roller: fagansvaret som mangler, per person.
  * Legger bare til (fjerner aldri), og bare det som trengs: har personen nok fra før,
  * eller dekker ett fagansvar flere roller, legges ingenting mer til.
- * employees: ansattpostene (personUid kobler til innlogging). policy: selskapets tilgangsmatrise.
- * Svar: [{ uid, name, employee, roles: [rolle-id], addLevels: [nivå-id], from, to, next }]
+ * Gjelder også ansatte som ikke er koblet til en innlogging ennå; tilgangen står på ansattposten
+ * og gjelder fra de logger inn.
+ * employees: ansattpostene. people: personvelgerens liste (navn → ansatt). policy: tilgangsmatrisen.
+ * Svar: [{ uid, employeeId, name, employee, linked, roles: [rolle-id], addLevels: [nivå-id], from, to, next }]
  */
-export function recommendedRoleAccess(roleMap, { employees = [], policy = null } = {}) {
-  const byUid = new Map();
+export function recommendedRoleAccess(roleMap, { employees = [], policy = null, people = [] } = {}) {
+  const byEmployee = new Map();
   for (const [role, req] of Object.entries(ROLE_ACCESS)) {
     const person = roleMap?.[role];
-    const uid = text(person?.uid, 128);
-    if (!uid) continue;
-    if (!byUid.has(uid)) byUid.set(uid, { uid, name: text(person.name, 160), roles: [] });
-    byUid.get(uid).roles.push({ role, ...req });
+    if (!person?.name && !person?.uid) continue;
+    const employee = employeeForRole(person, { employees, people });
+    if (!employee) continue;
+    if (!byEmployee.has(employee.id)) byEmployee.set(employee.id, { employee, name: text(person.name, 160), roles: [] });
+    byEmployee.get(employee.id).roles.push({ role, ...req });
   }
   const out = [];
-  for (const row of byUid.values()) {
-    const employee = (employees || []).find((e) => e?.personUid === row.uid && e?.company?.status !== 'deleted');
-    if (!employee || accountDeactivated(employee)) continue;
+  for (const row of byEmployee.values()) {
+    const { employee } = row;
+    if (accountDeactivated(employee)) continue;
     const from = isoRank(grantsForEmployee(policy, employee));
     let next = employee;
     const addLevels = [];
@@ -209,9 +252,11 @@ export function recommendedRoleAccess(roleMap, { employees = [], policy = null }
     }
     if (!addLevels.length) continue;
     out.push({
-      uid: row.uid,
+      uid: text(employee.personUid, 128),
+      employeeId: employee.id,
       name: row.name,
       employee,
+      linked: !!employee.personUid,
       roles: row.roles.map((r) => r.role),
       addLevels,
       addLabels: addLevels.map((id) => levelById(id)?.label || id),

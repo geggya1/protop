@@ -57,6 +57,8 @@ export function emptyProjectState() {
     deletedProjects: [],
     /** Tombstones slik at slettede kjøreturer og utlegget deres ikke gjenoppstår ved merge. */
     deletedMileageTrips: [],
+    /** Tombstones slik at slettede produkter ikke gjenoppstår ved merge. */
+    deletedProducts: [],
     activities: [],
     members: [],
     timeEntries: [],
@@ -121,6 +123,24 @@ function normalizeDeletedMileageTrip(row) {
     id,
     expenseId: text(row.expenseId),
     deletedAt: text(row.deletedAt) || '',
+  };
+}
+
+function normalizeDeletedProduct(row) {
+  if (!row || typeof row !== 'object') return null;
+  const id = text(row.id);
+  if (!id) return null;
+  return { id, deletedAt: text(row.deletedAt) || '' };
+}
+
+function withoutDeletedProducts(state) {
+  const tombstones = (state.deletedProducts || []).map(normalizeDeletedProduct).filter(Boolean);
+  const ids = new Set(tombstones.map((row) => row.id));
+  return {
+    deletedProducts: tombstones,
+    products: (state.products || []).filter((row) => (
+      row && typeof row === 'object' && !ids.has(text(row.id))
+    )),
   };
 }
 
@@ -328,7 +348,9 @@ export function normalizeProjectState(raw) {
   next.equipmentBookings = (next.equipmentBookings || []).filter((row) => row && typeof row === 'object');
   next.personalVehicles = (next.personalVehicles || []).filter((row) => row && typeof row === 'object');
   next.mileagePolicies = (next.mileagePolicies || []).filter((row) => row && typeof row === 'object');
-  next.products = (next.products || []).filter((row) => row && typeof row === 'object');
+  const catalog = withoutDeletedProducts(next);
+  next.deletedProducts = catalog.deletedProducts;
+  next.products = catalog.products;
   next.sales = (next.sales || []).filter((row) => row && typeof row === 'object');
   const healed = healOrphanProjectRefs(next, idRemap);
   // Nullstill Moment-restfelter og økonomiske verdier som andre moduler fyller automatisk.

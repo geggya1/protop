@@ -40,7 +40,10 @@ export function emptyProduct(overrides = {}) {
     account: '',
     stock: null,
     trackStock: false,
+    description: '',
     notes: '',
+    archived: false,
+    archivedAt: '',
     createdAt: '',
     updatedAt: '',
     ...overrides,
@@ -65,10 +68,19 @@ export function normalizeProduct(input = {}) {
     costAccount: kind.costAccount,
     stock: row.trackStock || row.stock != null ? Number(row.stock) || 0 : null,
     trackStock: !!row.trackStock || row.stock != null,
-    notes: text(row.notes),
+    description: multiline(row.description),
+    notes: multiline(row.notes),
+    // Arkivert: brukt i salg før, så produktet skjules i stedet for å slettes.
+    archived: row.archived === true,
+    archivedAt: row.archived === true ? text(row.archivedAt) : '',
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
   };
+}
+
+/** Fritekst med linjeskift. */
+function multiline(value) {
+  return String(value ?? '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').trim();
 }
 
 export function validateProduct(product) {
@@ -221,13 +233,15 @@ export function saleInvoiceLine(sale) {
 }
 
 export function productsToCsv(rows = []) {
-  const header = ['Varenr', 'Navn', 'Type', 'Enhet', 'Pris eks', 'MVA', 'Konto', 'Lager'];
+  const header = ['Varenr', 'Navn', 'Type', 'Enhet', 'Pris eks', 'Kost eks', 'MVA', 'Konto', 'Lager', 'Beskrivelse', 'Status'];
   const lines = rows.map((raw) => {
     const row = normalizeProduct(raw);
     return [
       row.sku, row.name, productKind(row.kind).label, row.unit,
-      row.priceExVat, row.vatCode, row.account,
+      row.priceExVat, row.costExVat, row.vatCode, row.account,
       row.trackStock ? row.stock : '',
+      row.description,
+      row.archived ? 'Arkivert' : 'Aktiv',
     ].map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(';');
   });
   return `\uFEFF${header.join(';')}\n${lines.join('\n')}`;

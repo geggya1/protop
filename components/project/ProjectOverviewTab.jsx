@@ -39,6 +39,8 @@ function KpiCard({ label, value, sub, progress, colors, children }) {
 export default function ProjectOverviewTab({
   state,
   project,
+  // Salg på prosjektet, også importerte. Uten listen brukes salg i prosjektstate.
+  sales: projectSales,
   cross,
   summary,
   members,
@@ -62,8 +64,8 @@ export default function ProjectOverviewTab({
     [state.expenses, project.id, ownEmployeeId],
   );
   const sales = useMemo(
-    () => salesSummaryForProject(mine(state.sales), project.id),
-    [state.sales, project.id, ownEmployeeId],
+    () => salesSummaryForProject(mine(projectSales || state.sales), project.id),
+    [projectSales, state.sales, project.id, ownEmployeeId],
   );
   const chart = useMemo(() => hoursChartForOverview(timeEntries), [timeEntries]);
   const period = useMemo(

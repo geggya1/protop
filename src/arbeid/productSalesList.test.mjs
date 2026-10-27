@@ -1,5 +1,6 @@
 /**
- * Produktsalg-tabellen viser katalogsalg, søk og tomtilstand.
+ * Produktsalg-tabellen viser katalogsalg, søk, sortering, eksport,
+ * prosjektlenke, lås på fakturert salg, sider og tomtilstand.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -29,8 +30,16 @@ const rnMock = {
   Text: (props) => React.createElement('span', domProps(props), props?.children),
   ScrollView: (props) => React.createElement('div', domProps(props), props?.children),
   TouchableOpacity: (props) => React.createElement('button', { type: 'button', ...domProps(props) }, props?.children),
+  Pressable: (props) => React.createElement('button', { type: 'button', ...domProps(props) }, props?.children),
   TextInput: (props) => React.createElement('input', domProps(props)),
   StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
+};
+const iconMock = {
+  Ionicons: (props) => React.createElement('i', { 'data-icon': props?.name }),
+};
+const pickerMock = {
+  __esModule: true,
+  default: (props) => React.createElement('select', { 'aria-label': props?.accessibilityLabel }),
 };
 
 function resolveFrom(id, mod) {
@@ -64,6 +73,8 @@ function load(full) {
   mod.require = (id) => {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id === '@expo/vector-icons') return iconMock;
+    if (id.endsWith('components/OptionPicker')) return pickerMock;
     const resolved = resolveFrom(id, mod);
     if (resolved.endsWith('.js') || resolved.endsWith('.jsx')) return load(resolved);
     return require(resolved);
@@ -125,3 +136,58 @@ const missed = renderToStaticMarkup(React.createElement(ProductSalesList, {
 }));
 assert.match(missed, /Ingen produktsalg treffer søket/);
 assert.match(missed, /0 av 4/);
+
+// Sorterbare kolonner, eksport, prosjektlenke og lås på fakturert salg.
+const invoiced = { ...sale, id: 'sal-2', name: 'Fremleie', projectId: 'prj-42', status: 'invoiced', invoiceId: 'inv-1', amountInclVat: 1000 };
+const rich = renderToStaticMarkup(React.createElement(ProductSalesList, {
+  colors,
+  rows: [sale, invoiced],
+  totalCount: 2,
+  sort: { key: 'amount', dir: 'asc' },
+  onSort: () => {},
+  onOpen: () => {},
+  onOpenProject: () => {},
+  onExport: () => {},
+  counts: { all: 2, draft: 1, approved: 0, invoiced: 1 },
+  filterOptions: { projects: [{ id: 'id:prj-42', label: '#42 Verksted' }], customers: [] },
+}));
+for (const key of ['date', 'name', 'quantity', 'customer', 'project', 'employee', 'amount', 'status']) {
+  assert.match(rich, new RegExp(`produktsalg-sort-${key}`), `kolonnen ${key} skal kunne sorteres`);
+}
+assert.match(rich, /data-icon="arrow-up"/, 'aktiv sortering viser pil');
+assert.match(rich, /produktsalg-eksport/);
+assert.match(rich, /Eksporter til Excel/);
+assert.match(rich, /produktsalg-prosjekt-sal-2/, 'koblet prosjekt er en lenke');
+assert.doesNotMatch(rich, /produktsalg-prosjekt-sal-1/, 'prosjekt uten id er bare tekst');
+assert.match(rich, /data-icon="lock-closed-outline"/, 'fakturert rad viser lås');
+assert.match(rich, /Fakturert/);
+assert.match(rich, /Filtrer på prosjekt/);
+assert.match(rich, /2 salg/);
+
+// Sider: bare de første radene tegnes.
+const many = Array.from({ length: 5 }, (_, index) => ({ ...sale, id: `sal-m${index}` }));
+const paged = renderToStaticMarkup(React.createElement(ProductSalesList, {
+  colors,
+  rows: many,
+  totalCount: 5,
+  limit: 2,
+  onMore: () => {},
+  onShowAll: () => {},
+}));
+assert.match(paged, /produktsalg-row-sal-m1/);
+assert.doesNotMatch(paged, /produktsalg-row-sal-m2/);
+assert.match(paged, /Viser 2 av 5/);
+assert.match(paged, /Vis flere/);
+assert.match(paged, /Vis alle/);
+
+// Smal skjerm: kort i stedet for bred tabell.
+const phone = renderToStaticMarkup(React.createElement(ProductSalesList, {
+  colors,
+  rows: [sale],
+  totalCount: 1,
+  narrow: true,
+}));
+assert.match(phone, /produktsalg-row-sal-1/);
+assert.doesNotMatch(phone, /produktsalg-sort-date/);
+
+console.log('productSalesList.test.mjs ok');

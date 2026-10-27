@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,102 +9,145 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import ProductSaleSheet from '../sales/ProductSaleSheet';
+import SaleStatusBadge from '../sales/SaleStatusBadge';
 import { formatMoney } from '../../src/economy/invoices.js';
-import { emptySale, saleStatusLabel } from '../../src/economy/products.js';
+import { emptySale } from '../../src/economy/products.js';
 import { deleteSale, upsertSale } from '../../src/economy/opsState.js';
+import { replaceSaleInState } from '../../src/economy/productSaleEdit.js';
+import { removeSale, saveSaleChange } from '../../src/economy/productSaleSave.js';
+import { isExternalSale } from '../../src/economy/productSalesStorage.js';
+import { saleIsLocked, sortProductSales } from '../../src/economy/productSalesView.js';
 import { salesSummaryForProject } from '../../src/project/projectDashboard.js';
 import { showSaveToast } from '../../src/ui/saveToast';
 
-function statusTone(status) {
-  if (status === 'invoiced') return { bg: '#dcfce7', fg: '#166534', label: 'Fakturert' };
-  return { bg: '#ffedd5', fg: '#9a3412', label: status === 'approved' ? 'Ikke fakturert' : saleStatusLabel(status) };
+const COLUMNS = [
+  { key: 'date', label: 'Dato', width: 96, sort: 'date' },
+  { key: 'name', label: 'Produkt', width: 220, flex: 2, sort: 'name' },
+  { key: 'quantity', label: 'Antall', width: 80, num: true, sort: 'quantity' },
+  { key: 'unitPrice', label: 'Enhetspris', width: 110, num: true },
+  { key: 'discount', label: 'Rabatt', width: 70, num: true },
+  { key: 'amount', label: 'Sum eks. mva', width: 120, num: true, sort: 'amount' },
+  { key: 'margin', label: 'Margin', width: 70, num: true },
+  { key: 'employee', label: 'Medarbeider', width: 140, sort: 'employee' },
+  { key: 'status', label: 'Status', width: 112, sort: 'status' },
+];
+const MIN_WIDTH = COLUMNS.reduce((sum, col) => sum + col.width, 28);
+
+function cellBox(col) {
+  return col.flex ? { flex: col.flex, minWidth: col.width } : { width: col.width };
+}
+
+function rowMargin(row) {
+  const cost = (Number(row.purchaseUnitPrice) || Number(row.costExVat) || 0) * (Number(row.quantity) || 0);
+  const amount = Number(row.amountExVat) || 0;
+  if (!(amount > 0) || !(cost > 0)) return '—';
+  return `${Math.round(((amount - cost) / amount) * 100)}%`;
 }
 
 /**
- * Produktsalg på prosjekt — tabell, oppsummering og CRUD.
+ * Produktsalg på prosjekt: alle salg koblet til prosjektet, også importerte.
+ * Et trykk på en rad åpner salget. Fakturert salg er låst.
  */
 export default function ProjectSalesTab({
   state,
   project,
+  // Salg på prosjektet fra prosjektstate og importen. Uten listen brukes prosjektstate.
+  sales,
+  salesReady = true,
+  employees = [],
+  customers = [],
+  familyId = '',
   colors,
   isAdmin,
   // Uten Admin: bare egne rader.
   employeeId = '',
   onChangeState,
+  onOpenInvoice,
 }) {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
-  const [editor, setEditor] = useState(null);
-  const [menuId, setMenuId] = useState('');
-  const [error, setError] = useState('');
+  const [sort, setSort] = useState({ key: 'date', dir: 'desc' });
+  const [opened, setOpened] = useState(null);
+  const [boxWidth, setBoxWidth] = useState(0);
 
   const all = useMemo(
-    () => (state.sales || []).filter((row) => (
-      row.projectId === project.id && (!employeeId || row.employeeId === employeeId)
-    )),
-    [state.sales, project.id, employeeId],
+    () => (sales || (state.sales || []).filter((row) => row.projectId === project.id))
+      .filter((row) => !employeeId || row.employeeId === employeeId),
+    [sales, state.sales, project.id, employeeId],
   );
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return all.filter((row) => {
-      if (status && row.status !== status) return false;
+    const hits = all.filter((row) => {
+      if (status === 'open' && row.status === 'invoiced') return false;
+      if (status && status !== 'open' && row.status !== status) return false;
       if (!q) return true;
-      return [row.name, row.description, row.sku].join(' ').toLowerCase().includes(q);
+      return [row.name, row.title, row.sku, row.employeeName, row.customerName, row.date].join(' ').toLowerCase().includes(q);
     });
-  }, [all, query, status]);
+    return sortProductSales(hits, sort);
+  }, [all, query, status, sort]);
   const summary = useMemo(() => salesSummaryForProject(all, project.id), [all, project.id]);
+  // Panelet viser alltid siste versjon av salget, også etter lagring.
+  const current = useMemo(() => {
+    if (!opened) return null;
+    if (opened.isNew) return opened.sale;
+    return all.find((row) => row.id === opened.sale.id) || opened.sale;
+  }, [opened, all]);
 
   function openNew() {
-    setEditor(emptySale({
-      date: new Date().toISOString().slice(0, 10),
-      projectId: project.id,
-      projectNumber: project.number,
-      projectName: project.name,
-      customerId: project.customerId || '',
-      customerName: project.client || '',
-      billable: true,
-      status: 'approved',
-      name: '',
-      quantity: 1,
-      unitPrice: 0,
-      discountPercent: 0,
-    }));
-    setError('');
-  }
-
-  function save() {
-    if (!editor) return;
-    const qty = Number(String(editor.quantity).replace(',', '.')) || 0;
-    const unit = Number(String(editor.unitPrice).replace(/\s/g, '').replace(',', '.')) || 0;
-    const discount = Number(String(editor.discountPercent || 0).replace(',', '.')) || 0;
-    const unitAfter = unit * (1 - discount / 100);
-    const result = upsertSale(state, {
-      ...editor,
-      quantity: qty,
-      unitPrice: unitAfter,
-      projectId: project.id,
-      projectNumber: project.number,
-      projectName: project.name,
-      discountPercent: discount,
+    setOpened({
+      isNew: true,
+      sale: emptySale({
+        date: new Date().toISOString().slice(0, 10),
+        projectId: project.id,
+        projectNumber: project.number,
+        projectName: project.name,
+        customerId: project.customerId || '',
+        customerName: project.client || '',
+        billable: true,
+        status: 'approved',
+      }),
     });
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    onChangeState(result.state);
-    setEditor(null);
-    showSaveToast('Produktsalg lagret.');
   }
 
-  function remove(id) {
-    const result = deleteSale(state, id);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+  function toggleSort(key) {
+    setSort((now) => (now.key === key
+      ? { key, dir: now.dir === 'asc' ? 'desc' : 'asc' }
+      : { key, dir: key === 'date' || key === 'amount' || key === 'quantity' ? 'desc' : 'asc' }));
+  }
+
+  async function save(next) {
+    if (opened?.isNew) {
+      const result = upsertSale(state, next);
+      if (!result.ok) return result;
+      onChangeState(result.state);
+      showSaveToast('Produktsalg lagret.');
+      return result;
     }
+    if (isExternalSale(next)) {
+      const result = await saveSaleChange(familyId, next);
+      if (result.ok) showSaveToast('Produktsalg lagret.');
+      return result;
+    }
+    const result = replaceSaleInState(state, next);
+    if (!result.ok) return result;
     onChangeState(result.state);
-    setMenuId('');
+    showSaveToast('Produktsalg lagret.');
+    return result;
+  }
+
+  async function remove(sale) {
+    if (isExternalSale(sale)) {
+      const result = await removeSale(familyId, sale);
+      if (!result.ok) return result;
+    } else {
+      const result = deleteSale(state, sale.id);
+      if (!result.ok) return result;
+      onChangeState(result.state);
+    }
+    setOpened(null);
     showSaveToast('Salgslinje slettet.');
+    return { ok: true };
   }
 
   return (
@@ -121,7 +163,7 @@ export default function ProjectSalesTab({
         <View style={styles.chipRow}>
           {[
             { id: '', label: 'Alle status' },
-            { id: 'approved', label: 'Ikke fakturert' },
+            { id: 'open', label: 'Ikke fakturert' },
             { id: 'invoiced', label: 'Fakturert' },
             { id: 'draft', label: 'Utkast' },
           ].map((opt) => {
@@ -130,6 +172,8 @@ export default function ProjectSalesTab({
               <TouchableOpacity
                 key={opt.id || 'all'}
                 onPress={() => setStatus(opt.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
                 style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
               >
                 <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 12 }}>{opt.label}</Text>
@@ -144,98 +188,95 @@ export default function ProjectSalesTab({
         ) : null}
       </View>
 
-      {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
-
-      <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
-        <View style={[styles.tableHead, { borderColor: colors.line }]}>
-          {['Produkt', 'Beskrivelse', 'Antall', 'Enhetspris', 'Rabatt', 'Sum (eks. mva)', 'Margin', 'Status', ''].map((h) => (
-            <Text key={h || 'x'} style={[styles.th, { color: colors.muted }]}>{h}</Text>
-          ))}
-        </View>
-        {rows.map((row) => {
-          const tone = statusTone(row.status);
-          const cost = (Number(row.purchaseUnitPrice) || Number(row.costExVat) || 0) * (Number(row.quantity) || 0);
-          const amount = Number(row.amountExVat) || 0;
-          const margin = amount > 0 ? Math.round(((amount - cost) / amount) * 100) : 0;
-          return (
-            <View key={row.id} style={[styles.tableRow, { borderColor: colors.line }]}>
-              <Text style={[styles.td, { color: colors.ink, fontWeight: '600' }]} numberOfLines={1}>{row.name}</Text>
-              <Text style={[styles.td, { color: colors.muted }]} numberOfLines={1}>{row.description || '—'}</Text>
-              <Text style={[styles.td, { color: colors.ink }]}>{row.quantity}</Text>
-              <Text style={[styles.td, { color: colors.ink }]}>{formatMoney(row.unitPrice)}</Text>
-              <Text style={[styles.td, { color: colors.ink }]}>{row.discountPercent != null ? `${row.discountPercent}%` : '—'}</Text>
-              <Text style={[styles.td, { color: colors.ink, fontWeight: '600' }]}>{formatMoney(amount)}</Text>
-              <Text style={[styles.td, { color: colors.ink }]}>{margin}%</Text>
-              <View style={styles.td}>
-                <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-                  <Text style={{ color: tone.fg, fontSize: 11, fontWeight: '600' }}>{tone.label}</Text>
-                </View>
-              </View>
-              <View style={styles.td}>
-                {isAdmin ? (
-                  <TouchableOpacity onPress={() => setMenuId(menuId === row.id ? '' : row.id)}>
-                    <Ionicons name="ellipsis-vertical" size={16} color={colors.muted} />
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              {menuId === row.id ? (
-                <View style={[styles.menu, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                  <TouchableOpacity onPress={() => { setEditor({ ...row, discountPercent: row.discountPercent || 0 }); setMenuId(''); }} style={styles.menuItem}>
-                    <Text style={{ color: colors.ink }}>Rediger</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => remove(row.id)} style={styles.menuItem}>
-                    <Text style={{ color: colors.danger || '#b42318' }}>Slett</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </View>
-          );
-        })}
-        {!rows.length ? <Text style={{ color: colors.muted, paddingVertical: 16 }}>Ingen produktsalg på prosjektet.</Text> : null}
-      </View>
-
       <View style={styles.summaryRow}>
-        <SummaryCard colors={colors} title="Totalt produktsalg" value={formatMoney(summary.total)} sub="Eks. mva" tone="#dbeafe" />
-        <SummaryCard colors={colors} title="Fakturert" value={formatMoney(summary.billed)} sub={`${summary.billedCount} produkter`} tone="#dcfce7" />
-        <SummaryCard colors={colors} title="Ikke fakturert" value={formatMoney(summary.unbilled)} sub={`${summary.unbilledCount} produkter`} tone="#ffedd5" />
+        <SummaryCard colors={colors} title="Totalt produktsalg" value={formatMoney(summary.total)} sub={`${summary.count} salg · eks. mva`} tone="#dbeafe" />
+        <SummaryCard colors={colors} title="Fakturert" value={formatMoney(summary.billed)} sub={`${summary.billedCount} salg`} tone="#dcfce7" />
+        <SummaryCard colors={colors} title="Ikke fakturert" value={formatMoney(summary.unbilled)} sub={`${summary.unbilledCount} salg`} tone="#ffedd5" />
         <SummaryCard colors={colors} title="Snittmargin" value={`${summary.margin}%`} sub="På prosjektet" tone="#dcfce7" />
       </View>
 
-      <Modal transparent visible={!!editor} animationType="fade" onRequestClose={() => setEditor(null)}>
-        <Pressable style={styles.modalBg} onPress={() => setEditor(null)}>
-          <Pressable style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <Text style={[styles.sheetTitle, { color: colors.ink }]}>{editor?.id ? 'Rediger produktsalg' : 'Nytt produktsalg'}</Text>
-            <ScrollView style={{ maxHeight: 420 }}>
-              {[
-                ['name', 'Produkt'],
-                ['description', 'Beskrivelse'],
-                ['quantity', 'Antall'],
-                ['unitPrice', 'Enhetspris eks. mva'],
-                ['discountPercent', 'Rabatt %'],
-                ['purchaseUnitPrice', 'Kostpris eks. mva'],
-              ].map(([key, label]) => (
-                <View key={key}>
-                  <Text style={{ color: colors.muted, marginTop: 10, marginBottom: 4, fontSize: 12 }}>{label}</Text>
-                  <TextInput
-                    value={editor ? String(editor[key] ?? '') : ''}
-                    onChangeText={(v) => setEditor((e) => ({ ...e, [key]: v }))}
-                    keyboardType={key === 'name' || key === 'description' ? 'default' : 'numeric'}
-                    style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
-                  />
-                </View>
-              ))}
-            </ScrollView>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-              <TouchableOpacity onPress={() => setEditor(null)} style={[styles.ghost, { borderColor: colors.line, flex: 1, alignItems: 'center' }]}>
-                <Text style={{ color: colors.ink }}>Avbryt</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={save} style={[styles.primary, { backgroundColor: colors.brand, flex: 1, alignItems: 'center' }]}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>Lagre</Text>
-              </TouchableOpacity>
+      <View onLayout={(event) => setBoxWidth(event?.nativeEvent?.layout?.width || 0)}>
+        <ScrollView horizontal showsHorizontalScrollIndicator>
+          <View
+            nativeID="project-sales-table"
+            style={[styles.panel, { width: Math.max(MIN_WIDTH, boxWidth), backgroundColor: colors.card, borderColor: colors.line }]}
+          >
+            <View style={[styles.tableRow, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
+              {COLUMNS.map((col) => {
+                const on = col.sort && sort.key === col.sort;
+                return (
+                  <TouchableOpacity
+                    key={col.key}
+                    disabled={!col.sort}
+                    onPress={() => toggleSort(col.sort)}
+                    accessibilityRole={col.sort ? 'button' : undefined}
+                    accessibilityLabel={col.sort ? `Sorter på ${col.label}` : undefined}
+                    style={[styles.cell, styles.head, cellBox(col), col.num ? { justifyContent: 'flex-end' } : null]}
+                  >
+                    <Text style={{ color: on ? colors.ink : colors.muted, fontSize: 11, fontWeight: '600' }}>{col.label}</Text>
+                    {on ? <Ionicons name={sort.dir === 'asc' ? 'arrow-up' : 'arrow-down'} size={11} color={colors.ink} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+              <View style={{ width: 28 }} />
             </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+            {rows.map((row) => (
+              <Pressable
+                key={row.id}
+                onPress={() => setOpened({ isNew: false, sale: row })}
+                accessibilityRole="button"
+                accessibilityLabel={`Åpne salg ${row.name}`}
+                nativeID={`project-sale-${row.id}`}
+                style={({ hovered }) => [
+                  styles.tableRow,
+                  { borderBottomColor: colors.line },
+                  hovered ? { backgroundColor: colors.sunken || colors.bg } : null,
+                ]}
+              >
+                <Text style={[styles.cell, cellBox(COLUMNS[0]), { color: colors.ink }]}>{row.date || '—'}</Text>
+                <View style={[styles.cell, cellBox(COLUMNS[1])]}>
+                  <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 12 }} numberOfLines={1}>{row.name}</Text>
+                  {row.title && row.title !== row.name ? (
+                    <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={2}>{row.title}</Text>
+                  ) : null}
+                </View>
+                <Text style={[styles.cell, styles.num, cellBox(COLUMNS[2]), { color: colors.ink }]}>{`${row.quantity} ${row.unit || 'stk'}`}</Text>
+                <Text style={[styles.cell, styles.num, cellBox(COLUMNS[3]), { color: colors.ink }]}>{formatMoney(row.unitPrice)}</Text>
+                <Text style={[styles.cell, styles.num, cellBox(COLUMNS[4]), { color: colors.ink }]}>{row.discountPercent ? `${row.discountPercent}%` : '—'}</Text>
+                <Text style={[styles.cell, styles.num, cellBox(COLUMNS[5]), { color: colors.ink, fontWeight: '600' }]}>{formatMoney(row.amountExVat)}</Text>
+                <Text style={[styles.cell, styles.num, cellBox(COLUMNS[6]), { color: colors.ink }]}>{rowMargin(row)}</Text>
+                <Text style={[styles.cell, cellBox(COLUMNS[7]), { color: colors.ink }]} numberOfLines={1}>{row.employeeName || '—'}</Text>
+                <View style={[styles.cell, cellBox(COLUMNS[8])]}>
+                  <SaleStatusBadge status={row.status} colors={colors} />
+                </View>
+                <View style={{ width: 28, alignItems: 'center' }}>
+                  <Ionicons name={saleIsLocked(row) ? 'lock-closed-outline' : 'chevron-forward'} size={14} color={colors.muted} />
+                </View>
+              </Pressable>
+            ))}
+            {!rows.length ? (
+              <Text style={{ color: colors.muted, padding: 16 }}>
+                {!salesReady ? 'Henter produktsalg…' : all.length ? 'Ingen produktsalg treffer søket.' : 'Ingen produktsalg på prosjektet.'}
+              </Text>
+            ) : null}
+          </View>
+        </ScrollView>
+      </View>
+
+      <ProductSaleSheet
+        sale={current}
+        isNew={!!opened?.isNew}
+        colors={colors}
+        projects={state.projects || []}
+        customers={customers}
+        employees={employees}
+        canEdit={!!isAdmin}
+        canDelete={!!isAdmin}
+        onSave={save}
+        onDelete={remove}
+        onOpenInvoice={onOpenInvoice}
+        onClose={() => setOpened(null)}
+      />
     </View>
   );
 }
@@ -262,20 +303,12 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   primary: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
-  panel: { borderWidth: 1, borderRadius: 12, padding: 12 },
-  tableHead: { flexDirection: 'row', borderBottomWidth: 1, paddingBottom: 8, gap: 6 },
-  tableRow: { flexDirection: 'row', flexWrap: 'wrap', borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 10, gap: 6, alignItems: 'center' },
-  th: { flex: 1, fontSize: 11 },
-  td: { flex: 1, fontSize: 12 },
-  badge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  menu: { width: '100%', borderWidth: 1, borderRadius: 8, padding: 6 },
-  menuItem: { paddingVertical: 8 },
+  panel: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  tableRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cell: { paddingHorizontal: 8, paddingVertical: 9, fontSize: 12 },
+  num: { textAlign: 'right', fontVariant: ['tabular-nums'] },
   summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   summary: { flexGrow: 1, flexBasis: 160, borderWidth: 1, borderRadius: 12, padding: 12, flexDirection: 'row', gap: 10, alignItems: 'center' },
   summaryIcon: { width: 36, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  modalBg: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'center', alignItems: 'center', padding: 16 },
-  sheet: { width: '100%', maxWidth: 480, borderWidth: 1, borderRadius: 12, padding: 16 },
-  sheetTitle: { fontSize: 17, fontWeight: '700' },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
-  ghost: { borderWidth: 1, borderRadius: 8, paddingVertical: 10 },
 });

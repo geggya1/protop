@@ -7,6 +7,7 @@
 import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { DEFAULT_RISK_METHOD } from '../../src/iso/catalog';
 import { registerDef } from '../../src/iso/registers';
 import {
@@ -40,6 +41,7 @@ export default function IsoExcelImport({ ctx, registerKey, visible, onClose }) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState('');
+  const [saved, setSaved] = useState(null);
 
   const rows = sheets[sheetIx]?.rows || [];
   const headers = rows[headerRow] || [];
@@ -100,9 +102,13 @@ export default function IsoExcelImport({ ctx, registerKey, visible, onClose }) {
       existing: store.current().records[registerKey] || [],
       riskMethod: state.system.riskMethod || DEFAULT_RISK_METHOD,
     });
-    const saved = res.ok ? await store.commitMany(res.records.map((r) => ({ kind: 'records', entity: r })), res.events) : res;
+    setSaved({ done: 0, total: res.ok ? res.records.length : 0 });
+    const result = res.ok
+      ? await store.commitMany(res.records.map((r) => ({ kind: 'records', entity: r })), res.events, { onProgress: (n, of) => setSaved({ done: n, total: of }) })
+      : res;
+    setSaved(null);
     setBusy(false);
-    if (!saved.ok) { setErr(saved.error || 'Kunne ikke lagre.'); return; }
+    if (!result.ok) { setErr(result.error || 'Kunne ikke lagre.'); return; }
     setDone(`${res.records.length} ${res.records.length === 1 ? 'post er importert' : 'poster er importert'} til ${def.title}. De står nederst i listen og kan endres som vanlig.`);
   }
 
@@ -214,6 +220,7 @@ export default function IsoExcelImport({ ctx, registerKey, visible, onClose }) {
           ) : null}
         </>
       ) : null}
+      <BrandBusyOverlay visible={busy} label={`Importerer til ${def?.title || 'registeret'}`} detail={file?.name} done={saved?.done} total={saved?.total} testID="iso-excel-busy" />
     </Sheet>
   );
 }

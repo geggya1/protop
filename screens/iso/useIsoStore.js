@@ -99,7 +99,9 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     } catch (err) {
       stateRef.current = before;
       setState(before);
-      return { ok: false, error: err?.message || 'Kunne ikke lagre.' };
+      // Lagret et annet sted i mellomtiden: revisjonslåsen, eller Firestore som har gitt opp etter flere forsøk.
+      const conflict = ['iso/conflict', 'failed-precondition', 'aborted'].includes(err?.code);
+      return { ok: false, error: err?.message || 'Kunne ikke lagre.', conflict };
     }
   }, [companyId, runEffects]);
 
@@ -130,7 +132,7 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
    * Mange entiteter på en gang (import). rows: [{ kind, entity }] der kind er documents | processes | records | requirements …
    * Vises med en gang, lagres i batcher (uten revisjonslås – bare for nye poster og importens egne oppdateringer).
    */
-  const commitMany = useCallback(async (rows, events = []) => {
+  const commitMany = useCallback(async (rows, events = [], { onProgress = null } = {}) => {
     const list = (rows || []).filter((r) => r?.entity?.id || r?.kind === 'system');
     if (!list.length) return { ok: true };
     const before = stateRef.current;
@@ -140,7 +142,7 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     setState(next);
     const toSave = list.filter((r) => r.kind !== 'system');
     try {
-      await saveMany(companyId, toSave);
+      await saveMany(companyId, toSave, { onProgress });
       await appendAudit(companyId, events);
       return { ok: true };
     } catch (err) {

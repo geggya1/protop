@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { codeTaken, createDocument, DOC_TYPES } from '../../src/iso/documents';
 import { documentMetaFromFileName, docxToMarkdown } from '../../src/iso/docx';
 import { requirementIdsForDocument } from '../../src/iso/integrations';
@@ -24,6 +25,7 @@ export default function IsoWordImport({ ctx, visible, onClose }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState('');
+  const [progress, setProgress] = useState(null);
 
   async function pick() {
     setErr('');
@@ -61,7 +63,8 @@ export default function IsoWordImport({ ctx, visible, onClose }) {
     let existing = store.current().documents || [];
     let made = 0;
     const failed = [];
-    for (const it of ready) {
+    for (const [i, it] of ready.entries()) {
+      setProgress({ done: i, total: ready.length, detail: it.file.name });
       let url = '';
       if (attach) {
         try {
@@ -85,6 +88,7 @@ export default function IsoWordImport({ ctx, visible, onClose }) {
       const saved = res.ok ? await store.commit('documents', 'document', res) : res;
       if (saved.ok) { existing = [...existing, res.document]; made += 1; } else failed.push(`${it.file.name}: ${saved.error}`);
     }
+    setProgress(null);
     setBusy(false);
     setItems((cur) => cur.filter((it) => statusOf(it) !== 'ny'));
     if (made) setDone(`${made} ${made === 1 ? 'dokument er lagt inn' : 'dokumenter er lagt inn'} som utkast. Kontroller innholdet og send til godkjenning.`);
@@ -141,6 +145,7 @@ export default function IsoWordImport({ ctx, visible, onClose }) {
           </View>
         );
       })}
+      <BrandBusyOverlay visible={!!progress} label="Lager dokumentutkast" detail={progress?.detail} done={progress?.done} total={progress?.total} testID="iso-word-busy" />
     </Sheet>
   );
 }

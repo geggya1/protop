@@ -435,7 +435,19 @@ Ordet **«Låst»** brukes bare om timelisten.
 
 ---
 
-## 9. Beslutninger som trengs
+## 9. Beslutninger
+
+### Avgjort 27.10.2026
+
+- **ProTop utsteder fakturaer selv.** EHF er standardkanalen. E-post og de andre kanalene skal også kunne brukes. PowerOffice-modus støttes i tillegg.
+- **Nummerserie.**
+  - Startnummeret settes på en egen innstillingsside.
+  - ProTop setter nummeret ved ferdigstilling: høyeste nummer i fakturalisten + 1, men aldri lavere enn startnummeret.
+  - Hull fylles aldri, fordi det ville bryte den kontrollerbare sekvensen (L5).
+- **Utkast** lages, og kan godkjennes av alle med tilgang til fakturering.
+- **EHF-avtalen avklares før byggingen starter.** ProTop kobler seg til et eksisterende aksesspunkt via API og blir ikke eget aksesspunkt.
+
+### Opprinnelig liste
 
 1. **Driftsmåte.** Skal ProTop utstede fakturaer selv, med nummerserie, PDF, utsending og arkiv, når PowerOffice ikke er koblet? Eller er PowerOffice alltid regnskaps- og fakturasystemet? *Anbefaling:* støtt begge, valgt per selskap. Er PowerOffice koblet, tildeler ProTop aldri nummer.
 2. **Nummerserie.** Hvis ProTop utsteder: fortsetter vi fra høyeste importerte nummer (16722 → 16723)? Det gir én sammenhengende serie per selskap, slik L5 krever.

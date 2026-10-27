@@ -44,7 +44,7 @@ export interface CustodySchedule {
   rules?: CustodyRule[];
 }
 
-export interface WeekPlan {
+export interface WeeklyPlan {
   id: string;
   childId: string;
   weekNumber: number;

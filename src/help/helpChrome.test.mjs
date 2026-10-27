@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { OLD_BRAND_PATTERN } from '../utils/legacyNames.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (p) => readFileSync(join(ROOT, p), 'utf8');
@@ -58,7 +59,8 @@ assert.match(app, /name="ProtopAssistant"/, 'egen skjerm for assistenten i mobil
 const fn = read('functions/aiSupport.js');
 assert.match(fn, /ProTop-assistenten/);
 assert.match(fn, /Anbefal aldri andre programmer/);
-assert.doesNotMatch(fn, /Weekplan sin AI-hjelpeassistent|Skjetten/);
+assert.doesNotMatch(fn, /Skjetten/);
+assert.doesNotMatch(fn, OLD_BRAND_PATTERN);
 assert.match(fn, /LÅST FOR BRUKEREN/, 'AI-motoren følger sperrene i kunnskapen');
 assert.match(fn, /Gi aldri steg for noe som er låst/);
 

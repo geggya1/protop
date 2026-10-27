@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { statusLabel } from '../../src/utils/weekPlanView';
+import { statusLabel } from '../../src/utils/weeklyPlanView';
 
 export default function DayTimeline({ items, colors, canEdit, onPressSlot }) {
   if (!items?.length) {

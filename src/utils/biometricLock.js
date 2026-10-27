@@ -1,7 +1,7 @@
 import { Platform, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SETTINGS_KEY = 'weekplan.biometricLock.v1';
+const SETTINGS_KEY = 'protop.biometricLock.v1';
 const UNLOCK_GRACE_MS = 60 * 1000;
 
 let LocalAuthentication = null;

@@ -45,7 +45,7 @@ function publicFriendProfile(uid, data = {}) {
 }
 
 /**
- * Lookup any Weekplan user (adult or child) for friend invites.
+ * Lookup any ProTop user (adult or child) for friend invites.
  * Returns public display fields only (no email/phone).
  */
 export const lookupFriendProfile = onCall(

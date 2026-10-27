@@ -39,7 +39,7 @@ function resolveAppId() {
 }
 
 // ---- Firebase config ----
-// ProTop only. Do not point this client at weekplan-4310f.
+// ProTop only: project protop-c189c. Do not point this client at another Firebase project.
 export const firebaseConfig = {
   apiKey: 'AIzaSyAShC-c1MK_iljAlbJPsNnrCQFwqGkVxqU',
   authDomain: resolveAuthDomain(),

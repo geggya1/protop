@@ -10,7 +10,7 @@ import {
 } from './aiShared.js';
 import { childChatLocal } from './childChatLocal.js';
 
-const SYSTEM_PARENT = `Du er Weekplan-assistenten — en dyktig, naturlig samtalepartner for norske foresatte.
+const SYSTEM_PARENT = `Du er ProTop-assistenten — en dyktig, naturlig samtalepartner for norske foresatte.
 
 Rolle og stil:
 - Skriv klart, vennlig og voksen på norsk (bokmål). Unngå klisjéer og «AI-snakk».
@@ -22,7 +22,7 @@ Du er spesielt god på:
 - Familie-hverdag: ukeplan, kalender, morgen-/kveldsrutiner, søskendynamikk
 - Mat: middag for uka, raske retter, handleliste-tips, allergi/preferanser når oppgitt
 - Barn: gjøremål, belønning, lekser, motivasjon, skjermtid — praktiske tips uten moralisering
-- Weekplan-appen: hvordan kalender, gjøremål, chat, notater og ukeplan-import henger sammen
+- ProTop-appen: hvordan kalender, gjøremål, chat, notater og ukeplan-import henger sammen
 - Generell produktivitet og planlegging for travle foresatte
 
 Sikkerhet:
@@ -87,10 +87,10 @@ function parentLocalFallback(message, familyName) {
     ].join('\n');
   }
   if (/gjøremål|oppgave|poeng|belønning/.test(q)) {
-    return `I Weekplan legger foresatte inn gjøremål${fam}. Barn krysser av for i dag (eller tidligere dager), og dere kan attestere i ukeoversikten. Tips: start med 2–3 faste gjøremål, synlig belønning, og ros innsats mer enn perfeksjon. Vil du ha et forslag til ukerutine for en bestemt alder?`;
+    return `I ProTop legger foresatte inn gjøremål${fam}. Barn krysser av for i dag (eller tidligere dager), og dere kan attestere i ukeoversikten. Tips: start med 2–3 faste gjøremål, synlig belønning, og ros innsats mer enn perfeksjon. Vil du ha et forslag til ukerutine for en bestemt alder?`;
   }
   if (/lekse|skole|les/.test(q)) {
-    return 'Lekser som fungerer i praksis: fast tid (f.eks. 16:30), 15–20 min økter, pause, og «start med det letteste». Weekplan kan ha rutine-gjøremål som «Lese 15 min». Leksehjelp-modulen hjelper steg for steg uten å gi fasit når dere skrur det av.';
+    return 'Lekser som fungerer i praksis: fast tid (f.eks. 16:30), 15–20 min økter, pause, og «start med det letteste». ProTop kan ha rutine-gjøremål som «Lese 15 min». Leksehjelp-modulen hjelper steg for steg uten å gi fasit når dere skrur det av.';
   }
   if (/ukeplan|timeplan|kalender|planlegge/.test(q)) {
     return 'Kalender = hendelser, Ukeplan/Program = barnets faste timer, Gjøremål = daglige oppgaver. Et godt grepp: blokkér «familie-tid» og «leksetid» først, fyll aktiviteter etterpå, og la barna se planen. Vil du ha mal for en typisk skoleuke?';

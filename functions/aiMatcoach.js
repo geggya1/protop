@@ -279,7 +279,7 @@ function dishBlocked(dish, prefs) {
   return false;
 }
 
-function localWeekPlan(prefs, catalog = []) {
+function localWeeklyPlan(prefs, catalog = []) {
   const pool = [
     ...LOCAL_DINNERS,
     ...(Array.isArray(catalog) ? catalog : []).map((r) => ({
@@ -407,7 +407,7 @@ function localLunchBoxes(prefs) {
   };
 }
 
-function normalizeWeekPlan(parsed, prefs, engine) {
+function normalizeWeeklyPlan(parsed, prefs, engine) {
   const daysIn = Array.isArray(parsed?.days) ? parsed.days : [];
   const days = WEEKDAYS.map((dayName, i) => {
     const raw = daysIn.find((d) => Number(d?.dayIndex) === i) || daysIn[i] || {};
@@ -441,7 +441,7 @@ function normalizeWeekPlan(parsed, prefs, engine) {
   };
 }
 
-export async function handleAiMatcoachWeekPlan(data, auth) {
+export async function handleAiMatcoachWeeklyPlan(data, auth) {
   const uid = auth?.uid;
   const familyId = String(data?.familyId || '').trim();
   if (!uid || !familyId) throw new Error('Mangler familie.');
@@ -470,9 +470,9 @@ export async function handleAiMatcoachWeekPlan(data, auth) {
         maxOutputTokens: 4096,
         perModelTimeoutMs: 50000,
       });
-      const plan = normalizeWeekPlan(parsed, prefs, 'gemini');
+      const plan = normalizeWeeklyPlan(parsed, prefs, 'gemini');
       if (plan.days.every((d) => d.title)) {
-        await saveMatcoachHistory(db, familyId, uid, 'weekPlan', plan);
+        await saveMatcoachHistory(db, familyId, uid, 'weeklyPlan', plan);
         return plan;
       }
     } catch {
@@ -480,8 +480,8 @@ export async function handleAiMatcoachWeekPlan(data, auth) {
     }
   }
 
-  const plan = localWeekPlan(prefs, catalog);
-  await saveMatcoachHistory(db, familyId, uid, 'weekPlan', plan);
+  const plan = localWeeklyPlan(prefs, catalog);
+  await saveMatcoachHistory(db, familyId, uid, 'weeklyPlan', plan);
   return plan;
 }
 
@@ -697,9 +697,9 @@ async function saveMatcoachHistory(db, familyId, uid, kind, payload) {
 export const __test = {
   normalizePrefs,
   dishBlocked,
-  localWeekPlan,
+  localWeeklyPlan,
   localFridgeScan,
   localLunchBoxes,
-  normalizeWeekPlan,
+  normalizeWeeklyPlan,
   LOCAL_DINNERS,
 };

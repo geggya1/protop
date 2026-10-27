@@ -1,6 +1,6 @@
 import { DEFAULT_MAIL_SIGNATURE, MAIL_FONTS } from './mailSignature.js';
 
-const KEY = 'weekplan.mail.compose.v1';
+const KEY = 'protop.mail.compose.v1';
 
 export const DEFAULT_MAIL_COMPOSE_PREFS = {
   showBcc: false,

@@ -7,7 +7,7 @@ import { isProtopHomeWidget } from '../../src/navigation/protopShell';
 import {
   SoftWeatherCard, NextEventPastel, TasksPastel, ChildTasksPastel,
   NotesPastel, AppsPastel, ShortcutRow, AppFolderPastel, TimelinePastel,
-  MealsPastel, RewardsPastel, GoalsPastel, WeekPlanPastel,
+  MealsPastel, RewardsPastel, GoalsPastel, WeeklyPlanPastel,
 } from './PastelCards';
 import {
   ChatRows, InfoRows, TimedIconRows, EmptyHint,
@@ -248,7 +248,7 @@ export default function ChildWidgetRenderer({ widget, model, handlers }) {
       ] : []);
     const schoolGh = widget.gh || 2;
     return (
-      <WeekPlanPastel
+      <WeeklyPlanPastel
         programTitle={focus?.programTitle || (demo ? 'Dagens program' : 'Dagens program')}
         weekLabel={focus?.weekLabel}
         weekDays={weekDays}
@@ -256,7 +256,7 @@ export default function ChildWidgetRenderer({ widget, model, handlers }) {
         emptyLabel={focus?.photoMode ? 'Åpne ukeplan for bilde' : 'Ingen timeplan ennå'}
         compact={widgetIsNarrow(widget) || schoolGh < 3}
         onPress={() => {
-          if (handlers.onOpenWeekPlan) handlers.onOpenWeekPlan();
+          if (handlers.onOpenWeeklyPlan) handlers.onOpenWeeklyPlan();
           else handlers.onAppAction?.({ type: 'nav', screen: 'ChildSchedule' });
         }}
       />

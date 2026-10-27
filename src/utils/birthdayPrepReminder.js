@@ -8,7 +8,7 @@ import { memberBirthdayItems } from './rememberDatesLogic.js';
 
 export const BIRTHDAY_PREP_DAYS = 20;
 export const BIRTHDAY_PREP_EVENT = 'birthdayReminder';
-export const BIRTHDAY_PREP_SHOWN_KEY = 'weekplan.birthdayPrep.v1';
+export const BIRTHDAY_PREP_SHOWN_KEY = 'protop.birthdayPrep.v1';
 
 export function firstNameFrom(name) {
   const raw = String(name || '').trim();

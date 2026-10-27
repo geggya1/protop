@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { normalizeUsername } from './usernamesLogic.js';
 
 /** Mirror of src/utils/inviteIdentifiers.js + phone helpers for Node tests. */
 
@@ -29,9 +30,6 @@ function hasValidPhone(phone) {
   return raw.replace(/\D/g, '').length >= 8;
 }
 
-function normalizeUsername(raw) {
-  return String(raw || '').trim().toLowerCase().replace(/^@/, '').replace(/@weekplan\.app$/i, '');
-}
 
 function isValidUsername(raw) {
   const u = normalizeUsername(raw);

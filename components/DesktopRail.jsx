@@ -225,8 +225,8 @@ export default function DesktopRail({
       if (collapsed) onToggleCollapse?.();
       requestAnimationFrame(() => searchRef.current?.focus?.());
     };
-    window.addEventListener('weekplan:focus-tools-search', focusSearch);
-    return () => window.removeEventListener('weekplan:focus-tools-search', focusSearch);
+    window.addEventListener('protop:focus-tools-search', focusSearch);
+    return () => window.removeEventListener('protop:focus-tools-search', focusSearch);
   }, [collapsed, onToggleCollapse]);
 
   const runAction = (action) => {

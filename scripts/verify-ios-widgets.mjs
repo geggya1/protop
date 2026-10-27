@@ -60,7 +60,7 @@ try {
     await shot(`parent_widget_${type}`);
   }
 
-  for (const type of ['messages', 'shopping', 'meals', 'weekPlan']) {
+  for (const type of ['messages', 'shopping', 'meals', 'weeklyPlan']) {
     if (await page.$(`[data-testid="home-widget-${type}"]`)) {
       throw new Error(`unexpected parent widget ${type}`);
     }

@@ -138,7 +138,7 @@ export async function notifyUsers(toUids, payload = {}) {
   const createdBy = payload.createdBy || null;
   const unique = [...new Set((toUids || []).filter((id) => id && id !== createdBy))];
   if (!unique.length) {
-    console.warn('[weekplan-notif] notifyUsers skipped — no recipients', {
+    console.warn('[protop-notif] notifyUsers skipped — no recipients', {
       eventType: payload.eventType,
       notificationId: payload.notificationId || null,
     });
@@ -176,12 +176,12 @@ export async function notifyUsers(toUids, payload = {}) {
         // Cross-user setDoc on an existing doc is an update → permission-denied.
         // Treat as already delivered (create succeeded earlier / CF backup).
         if (code.includes('permission-denied') || code.includes('already-exists')) {
-          console.warn('[weekplan-notif] notifyUsers existing/skip', {
+          console.warn('[protop-notif] notifyUsers existing/skip', {
             toUid, id: fixedId, code, eventType: docPayload.eventType,
           });
           return { toUid, ok: true, mode: 'skip-existing' };
         }
-        console.warn('[weekplan-notif] notifyUsers setDoc fail → addDoc', {
+        console.warn('[protop-notif] notifyUsers setDoc fail → addDoc', {
           toUid, id: fixedId, code, message: err?.message,
         });
       }
@@ -195,7 +195,7 @@ export async function notifyUsers(toUids, payload = {}) {
   if (failed) {
     results.forEach((r) => {
       if (r.status === 'rejected') {
-        console.warn('[weekplan-notif] notifyUsers failed', {
+        console.warn('[protop-notif] notifyUsers failed', {
           eventType: docPayload.eventType,
           message: r.reason?.message || r.reason,
           code: r.reason?.code,
@@ -203,7 +203,7 @@ export async function notifyUsers(toUids, payload = {}) {
       }
     });
   } else {
-    console.log('[weekplan-notif] notifyUsers ok', {
+    console.log('[protop-notif] notifyUsers ok', {
       eventType: docPayload.eventType,
       count: unique.length,
       id: payload.notificationId || null,

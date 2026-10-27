@@ -65,7 +65,7 @@ export function trackModuleActivationEvent(eventName, input = {}) {
   if (!ALLOWED_EVENTS.has(eventName)) return null;
   const payload = buildModuleActivationPayload(input);
   try {
-    const track = globalThis.__weekplanTrack;
+    const track = globalThis.__protopTrack;
     if (typeof track === 'function') track(eventName, payload);
   } catch { /* never block */ }
   try {

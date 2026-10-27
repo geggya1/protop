@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { hrKindBucket } from '../../src/hr/directory';
 import { filterHrEmployees } from '../../src/hr/model';
 import { KIN_TASK_TITLE, kinPlan, kinTaskId } from '../../src/hr/kinReminder';
 import { closeKinTask, createKinTask, loadKinTasks, markKinReminded } from '../../src/hr/kinTasks';
@@ -11,13 +12,19 @@ const SETTLE_MS = 3000;
 /**
  * Pårørende i HR: hvem som mangler, og oppgaver med varsel til dem som ikke har fylt inn.
  * Med skrivetilgang lages manglende oppgaver, påminnelser sendes og ferdige lukkes automatisk.
+ * Gjelder egne ansatte. Eksterne og innleide får ingen ny oppgave, men en oppgave de
+ * allerede har, lukkes fortsatt når pårørende er lagt inn.
  */
 export function useKinTasks({ familyId, employees, canWrite, actor }) {
   const [tasks, setTasks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const people = useMemo(() => filterHrEmployees(employees, 'active'), [employees]);
-  const plan = useMemo(() => kinPlan(people, tasks), [people, tasks]);
+  const active = useMemo(() => filterHrEmployees(employees, 'active'), [employees]);
+  const people = useMemo(() => active.filter((row) => hrKindBucket(row) !== 'external'), [active]);
+  const plan = useMemo(() => ({
+    ...kinPlan(people, tasks),
+    close: kinPlan(active, tasks).close,
+  }), [people, active, tasks]);
   const planRef = useRef(plan);
   planRef.current = plan;
 
@@ -69,7 +76,7 @@ export function useKinTasks({ familyId, employees, canWrite, actor }) {
   }, [familyId, tasks, actor?.uid, actor?.name, notify]);
 
   useEffect(() => {
-    if (!canWrite || !loaded || !people.length || !actor?.uid || HANDLED.has(familyId)) return undefined;
+    if (!canWrite || !loaded || !active.length || !actor?.uid || HANDLED.has(familyId)) return undefined;
     // Vent litt, så ansattlisten er ferdig lastet fra serveren før noe sendes.
     const timer = setTimeout(() => {
       if (HANDLED.has(familyId)) return;
@@ -78,7 +85,7 @@ export function useKinTasks({ familyId, employees, canWrite, actor }) {
       if (next.create.length || next.remind.length || next.close.length) apply(next);
     }, SETTLE_MS);
     return () => clearTimeout(timer);
-  }, [canWrite, loaded, people.length, actor?.uid, familyId, apply]);
+  }, [canWrite, loaded, active.length, actor?.uid, familyId, apply]);
 
   /** Send påminnelse nå til alle med åpen oppgave, uavhengig av frist. */
   const remindNow = useCallback(async () => {

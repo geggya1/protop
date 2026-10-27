@@ -25,7 +25,7 @@ import {
   subscribeParentDashboardTheme,
 } from './parentDashboardTheme';
 
-export const HOME_LAYOUT_KEY = 'weekplan.homeLayout.v1';
+export const HOME_LAYOUT_KEY = 'protop.homeLayout.v1';
 export const HOME_TEMPLATE_VERSION = 4;
 /** Child-only bump — does not re-reset parent homes still on version 4. */
 export const CHILD_HOME_TEMPLATE_VERSION = 8;

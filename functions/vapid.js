@@ -4,7 +4,7 @@
  *
  * Set with:
  *   firebase functions:secrets:set VAPID_PRIVATE_KEY
- * or WEEKPLAN_VAPID_PRIVATE_KEY in the Functions runtime env.
+ * or PROTOP_VAPID_PRIVATE_KEY in the Functions runtime env.
  */
 export const VAPID_PUBLIC_KEY = 'BHYyKHM7T_LmOFs566yRc8tViLKOfSplbI2g0tqfHBprCFPH0CFvIXiQi92Ydy7Ct9PQIGhtxDDPrJS3RY8CDmg';
 export const VAPID_SUBJECT = 'mailto:hei@protop.no';
@@ -13,7 +13,7 @@ export const VAPID_SUBJECT = 'mailto:hei@protop.no';
 export function getVapidPrivateKey() {
   const key = String(
     process.env.VAPID_PRIVATE_KEY
-    || process.env.WEEKPLAN_VAPID_PRIVATE_KEY
+    || process.env.PROTOP_VAPID_PRIVATE_KEY
     || '',
   ).trim();
   if (!key) {

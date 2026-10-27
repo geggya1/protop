@@ -320,9 +320,11 @@ export default function HrScreen({ subView = 'oversikt' }) {
         colors={colors}
         employees={employees}
         hr={hr}
+        entries={entries}
         canWrite={canWrite}
         onPatch={onPatch}
         onOpenPeople={() => go('personell')}
+        onOpenEmployee={openEmployee}
         onOpenFollowUp={() => go('oppfolging')}
         onOpenCase={openCase}
         familyId={familyId}

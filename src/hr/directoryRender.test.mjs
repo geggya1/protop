@@ -84,6 +84,7 @@ const rnMock = {
   Text: (props) => React.createElement('span', domProps(props), props?.children),
   ScrollView: (props) => React.createElement('div', domProps(props), props?.children),
   Pressable: (props) => React.createElement('button', { type: 'button', ...domProps(props) }, props?.children),
+  Image: (props) => React.createElement('img', { src: props?.source?.uri, alt: props?.accessibilityLabel }),
   TextInput: (props) => React.createElement('input', { placeholder: props?.placeholder, defaultValue: props?.value }),
   StyleSheet: { create: (styles) => styles, hairlineWidth: 1, absoluteFill: {}, absoluteFillObject: {} },
   Platform: { OS: 'web', select: (options) => options?.web || options?.default },
@@ -97,6 +98,10 @@ function mocked(id) {
   if (id === 'react') return React;
   if (id === 'react-native') return rnMock;
   if (id === '@expo/vector-icons') return { Ionicons: () => null };
+  if (id === 'react-native-svg') {
+    const Svg = (props) => React.createElement('svg', null, props?.children);
+    return { __esModule: true, default: Svg, Svg, Circle: () => React.createElement('circle') };
+  }
   if (id.includes('employees/storage') || id.includes('utils/media') || id.includes('anbud/storage') || id.includes('firebase')) {
     return {
       saveEmployee: async () => {},
@@ -456,21 +461,35 @@ let caseHtml = '';
     canWrite: true,
     onPatch: () => {},
     onOpenPeople: () => {},
+    onOpenFollowUp: () => {},
+    kin: {
+      missing: dashboardEmployees.map((employee) => ({ employee, task: null })),
+      busy: false,
+      remindNow: async () => 0,
+    },
   }));
   const html = dashboardHtml;
-  const internalAt = html.indexOf('Aktive ansatte');
-  const externalAt = html.indexOf('Eksternt aktiv');
-  assert.ok(internalAt >= 0, 'mangler Aktive ansatte');
-  assert.ok(externalAt > internalAt, 'eksterne skal etter egne ansatte');
-  assert.ok(html.indexOf('Geir Ove Andersen') > internalAt);
-  assert.ok(html.indexOf('Geir Ove Andersen') < externalAt);
-  assert.ok(html.indexOf('Daniel Edvard Wold') < externalAt);
-  assert.ok(html.indexOf('Øyvind Granberg') > externalAt);
-  assert.match(html, /id="hr-event-grid-internal"/);
-  assert.match(html, /id="hr-event-grid-external"/);
-  assert.match(html, /repeat\(auto-fill, minmax\(min\(100%, 420px\), 1fr\)\)/);
+  const staffAt = html.indexOf('id="hr-dash-staff"');
+  const externalAt = html.indexOf('id="hr-dash-external"');
+  assert.ok(staffAt >= 0, 'mangler egne ansatte');
+  assert.ok(externalAt > staffAt, 'eksterne skal etter egne ansatte');
+  const staffPart = html.slice(0, externalAt);
+  const externalPart = html.slice(externalAt);
+  assert.ok(html.indexOf('Geir Ove Andersen') > staffAt);
+  assert.ok(staffPart.includes('Daniel Edvard Wold'));
+  assert.equal(staffPart.includes('Øyvind Granberg'), false, 'eksterne skal ikke blandes inn hos egne ansatte');
+  assert.ok(externalPart.includes('Øyvind Granberg'));
+  assert.equal(externalPart.includes('Geir Ove Andersen'), false);
+  assert.match(html, /aria-label="Egne ansatte: 2"/, 'eksterne telles ikke som ansatte');
+  assert.match(html, /id="hr-event-list"/);
+  assert.match(html, /id="hr-kin"/);
+  assert.match(staffPart, /2 ansatte mangler pårørende/, 'pårørende gjelder egne ansatte');
+  assert.match(html, /id="hr-kpis"/);
+  assert.match(html, /repeat\(auto-fill, minmax\(min\(100%, max\(300px, calc\(\(100% - 32px\) \/ 3\)\)\), 1fr\)\)/);
   assert.match(html, /Planlegg/);
-  assert.equal(html.includes('Eksternt deaktivert'), false);
+  assert.match(externalPart, /Aktive eksterne/);
+  assert.match(externalPart, /Følg opp/);
+  assert.equal(html.includes('Deaktiverte eksterne'), false);
 }
 
 {

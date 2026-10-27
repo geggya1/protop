@@ -3,6 +3,7 @@ import {
   collectionGroup, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { isSyntheticEmail, stripSyntheticDomain } from './usernamesLogic';
 
 /** Synk toppnivå "parents" med innlogget bruker. */
 export async function syncParentDocs(user) {
@@ -79,11 +80,11 @@ export async function resolveChildFamilyId(childLike) {
 }
 
 export function isChildEmail(email) {
-  return String(email || '').toLowerCase().endsWith('@weekplan.app');
+  return isSyntheticEmail(email);
 }
 
 function usernameFromChildEmail(email) {
-  return String(email || '').toLowerCase().replace(/@weekplan\.app$/i, '');
+  return stripSyntheticDomain(String(email || '').toLowerCase());
 }
 
 /** Slå opp barnprofil etter innlogging (uid, brukernavn eller e-post). */

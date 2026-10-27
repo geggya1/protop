@@ -19,6 +19,7 @@ import { captureAgreementLinkFromLocation } from './src/anbud/agreementLink';
 import AgreementLinkHost from './screens/anbud/AgreementLinkHost';
 import SaveToastHost from './components/SaveToastHost';
 import { platformHomeRoute } from './src/utils/groupTypes';
+import { stripSyntheticDomain } from './src/utils/usernamesLogic';
 import { usePhoneVisualViewport } from './src/shell/usePhoneVisualViewport';
 import {
   syncParentDocs,
@@ -360,10 +361,10 @@ export default function App() {
     // Never hard-reload while returning from Apple/Google OAuth — that wipes getRedirectResult.
     const oauthReturn = isLikelyOauthReturn() || isCalendarOauthReturn();
     if (oauthReturn) {
-      window.localStorage.setItem('weekplan_app_build', APP_BUILD_ID);
+      window.localStorage.setItem('protop_app_build', APP_BUILD_ID);
       return undefined;
     }
-    const key = 'weekplan_app_build';
+    const key = 'protop_app_build';
     const prev = window.localStorage.getItem(key);
     if (prev && prev !== APP_BUILD_ID) {
       window.localStorage.setItem(key, APP_BUILD_ID);
@@ -488,7 +489,7 @@ export default function App() {
         const code = err?.message || err?.code || '';
         if (code && code !== 'cancelled') {
           console.warn('[auth] redirect result', err);
-          // LoginScreen / AuthChoice read weekplan_oauth_error from sessionStorage
+          // LoginScreen / AuthChoice read protop_oauth_error from sessionStorage
         }
       } finally {
         if (!cancelled) {
@@ -534,7 +535,7 @@ export default function App() {
         // Drop legacy global familyId so the next account is not treated as a returning member.
         try {
           const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-          await AsyncStorage.removeItem('weekplan.familyId');
+          await AsyncStorage.removeItem('protop.familyId');
         } catch { /* ignore */ }
         return;
       }
@@ -601,7 +602,7 @@ export default function App() {
               setChildData({
                 uid: refreshedUser.uid,
                 name: refreshedUser.displayName || 'Barn',
-                username: email.replace(/@weekplan\.app$/i, ''),
+                username: stripSyntheticDomain(email),
               });
               const { familyId, childIdFromFam } = await withTimeout(
                 resolveChildFamilyId({ uid: refreshedUser.uid }),
@@ -618,7 +619,7 @@ export default function App() {
             setChildData((prev) => prev || {
               uid: refreshedUser.uid,
               name: refreshedUser.displayName || 'Barn',
-              username: email.replace(/@weekplan\.app$/i, ''),
+              username: stripSyntheticDomain(email),
             });
           }
           setChildResolving(false);
@@ -890,7 +891,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         try {
           const parts = p.split('/').filter(Boolean);
           if (parts[1] && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem('weekplanGamePreviewId', parts[1]);
+            sessionStorage.setItem('protopGamePreviewId', parts[1]);
           }
         } catch { /* ignore */ }
         return 'GamePreview';

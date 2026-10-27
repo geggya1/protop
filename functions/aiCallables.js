@@ -27,7 +27,7 @@ import { handleAiReceiptOcr } from './aiReceiptOcr.js';
 import { handleAiClassListOcr } from './aiClassListOcr.js';
 import { handleInterpretImport } from './importInterpret.js';
 import {
-  handleAiMatcoachWeekPlan,
+  handleAiMatcoachWeeklyPlan,
   handleAiMatcoachFridgeScan,
   handleAiMatcoachLunchBoxes,
   handleAiMatcoachSwapMeal,
@@ -224,7 +224,7 @@ export const interpretImport = onCall(
 );
 
 /** AI Matcoach — generer familietilpasset middagsuke. */
-export const aiMatcoachWeekPlan = onCall(
+export const aiMatcoachWeeklyPlan = onCall(
   {
     region: 'europe-west1',
     timeoutSeconds: 90,
@@ -235,9 +235,9 @@ export const aiMatcoachWeekPlan = onCall(
     try {
       const uid = requireAuth(req.auth);
       await guardAiBurst(uid, 'meal', 15, 40);
-      return await handleAiMatcoachWeekPlan(req.data, req.auth);
+      return await handleAiMatcoachWeeklyPlan(req.data, req.auth);
     } catch (error) {
-      logger.warn('aiMatcoachWeekPlan failed', { message: error?.message });
+      logger.warn('aiMatcoachWeeklyPlan failed', { message: error?.message });
       rethrowCallable(error, 'Klarte ikke lage AI-ukeplan.');
     }
   },

@@ -161,7 +161,7 @@ assert.equal(childAppArtName('documents'), 'appDocuments');
 assert.equal(childAppArtName('games'), 'appGames');
 assert.equal(childAppArtName('lekser'), 'appLekser');
 assert.equal(childAppArtName('leksehjelp'), 'appLeksehjelp');
-assert.equal(childAppArtName('week-plan'), 'appWeekPlan');
+assert.equal(childAppArtName('week-plan'), 'appWeeklyPlan');
 assert.equal(childAppArtName('scratchMap'), 'appTravel');
 assert.equal(childAppArtName('rememberDates'), 'appRememberDates');
 assert.equal(childAppArtName('skole', 'afterSchool'), 'schoolAfter');

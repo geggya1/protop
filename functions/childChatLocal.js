@@ -99,8 +99,8 @@ function adultRedirect(name, tone) {
 
 function greeting(name, tone) {
   return pick(tone,
-    `Hei ${name}! 👋 Jeg er Weekplan-hjelperen. Spør om lekser, lesing eller hva du lurer på!`,
-    `Hei ${name}! 👋 Spør meg om lekser, hobbyer, eller hvordan Weekplan fungerer.`,
+    `Hei ${name}! 👋 Jeg er ProTop-hjelperen. Spør om lekser, lesing eller hva du lurer på!`,
+    `Hei ${name}! 👋 Spør meg om lekser, hobbyer, eller hvordan ProTop fungerer.`,
     `Hei ${name}! Jeg hjelper med lekser, planlegging og tips. Hva lurer du på?`,
   );
 }
@@ -200,7 +200,7 @@ function motivation(name, tone, q) {
   return null;
 }
 
-function weekplanHelp(name, tone, q, todos) {
+function appHelp(name, tone, q, todos) {
   if (/poeng|stjerne|belønning|premie/.test(q)) {
     return pick(tone,
       'Poeng får du når du gjør gjøremål og voksne attesterer! Se under Stjerner. ⭐',
@@ -218,9 +218,9 @@ function weekplanHelp(name, tone, q, todos) {
       );
     }
     return pick(tone,
-      `${name}, sjekk Gjøremål-fanen i Weekplan — der ser du hva voksne har lagt inn! 📋`,
+      `${name}, sjekk Gjøremål-fanen i ProTop — der ser du hva voksne har lagt inn! 📋`,
       'Se under Gjøremål i appen. Du kan bare krysse av for i dag eller tidligere dager.',
-      'Gå til Gjøremål i Weekplan. Foresatt kan legge inn og attestere — du ser fremdrift i ukeoversikten.',
+      'Gå til Gjøremål i ProTop. Foresatt kan legge inn og attestere — du ser fremdrift i ukeoversikten.',
     );
   }
   if (/ukeplan|timeplan|program|kalender/.test(q)) {
@@ -261,7 +261,7 @@ function hobbyAnswer(q, tone, name) {
 function defaultHelp(name, tone) {
   return pick(tone,
     `${name}, bra spørsmål! Jeg kan hjelpe med lekser, lesing, gjøremål og ting du lurer på. Prøv å spørre mer spesifikt — for eksempel «hjelp med matte» eller «lesetips»! 🤔`,
-    `${name}, jeg hjelper best med skole, Weekplan og hverdagen. Spør om lekser, motivasjon, eller «hva skal jeg gjøre i dag?»`,
+    `${name}, jeg hjelper best med skole, ProTop og hverdagen. Spør om lekser, motivasjon, eller «hva skal jeg gjøre i dag?»`,
     `${name}, prøv å være konkret — fag, lekse, planlegging eller motivasjon. Ved tunge tema: snakk med en voksen.`,
   );
 }
@@ -323,7 +323,7 @@ export function childChatLocal(opts) {
   const mot = motivation(name, tone, q);
   if (mot) return mot;
 
-  const wp = weekplanHelp(name, tone, q, todos);
+  const wp = appHelp(name, tone, q, todos);
   if (wp) return wp;
 
   const hob = hobbyAnswer(q, tone, name);

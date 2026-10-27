@@ -26,10 +26,10 @@ import { aliasFamilyIds, companyWorkspaces, preferHovedenhetWorkspace, resolveLo
 import { bindCompanyAliases } from '../project/companyAlias';
 
 const Ctx = createContext(null);
-const FAMILY_KEY = 'weekplan.familyId';
-const COMPANY_KEY = 'weekplan.companyId';
-const PROFILE_KEY = 'weekplan.activeProfile';
-const PROFILE_CACHE_KEY = 'weekplan.profileCache';
+const FAMILY_KEY = 'protop.familyId';
+const COMPANY_KEY = 'protop.companyId';
+const PROFILE_KEY = 'protop.activeProfile';
+const PROFILE_CACHE_KEY = 'protop.profileCache';
 
 function familyStorageKey(uid) {
   return uid ? `${FAMILY_KEY}.${uid}` : FAMILY_KEY;

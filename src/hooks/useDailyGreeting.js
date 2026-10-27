@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { dateKey } from '../utils/dates';
 import { getGreetingPeriod } from '../utils/timeGreeting';
 
-export const GREETING_SHOWN_KEY = 'weekplan.dailyGreeting.v1';
+export const GREETING_SHOWN_KEY = 'protop.dailyGreeting.v1';
 
 function storageKey(uid, date, period) {
   return `${GREETING_SHOWN_KEY}.${uid}.${date}.${period}`;

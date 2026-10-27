@@ -44,7 +44,7 @@ import { navigateFromNotification } from '../navigation/navRef';
 import InAppNotificationToast from '../../components/InAppNotificationToast';
 
 const Ctx = createContext(null);
-const PUSH_ASKED_KEY = 'weekplan_push_asked_v1';
+const PUSH_ASKED_KEY = 'protop_push_asked_v1';
 
 async function storageGet(key) {
   try {
@@ -124,7 +124,7 @@ export function NotificationProvider({ children }) {
   useEffect(() => {
     if (typeof __DEV__ === 'undefined' || !__DEV__) return undefined;
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
-    window.__weekplanShowToast = (payload = {}) => {
+    window.__protopShowToast = (payload = {}) => {
       const id = payload.id || `demo_${Date.now()}`;
       enqueueToast({
         id,
@@ -135,7 +135,7 @@ export function NotificationProvider({ children }) {
       });
     };
     return () => {
-      try { delete window.__weekplanShowToast; } catch { /* ignore */ }
+      try { delete window.__protopShowToast; } catch { /* ignore */ }
     };
   }, [enqueueToast]);
 
@@ -279,13 +279,13 @@ export function NotificationProvider({ children }) {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       const onSwMessage = (event) => {
         const msg = event?.data || {};
-        if (msg.type === 'weekplan-open') {
+        if (msg.type === 'protop-open') {
           navigateFromNotification(msg.payload || {});
           return;
         }
         // Push while app is open: surface large in-app popup immediately
         // (inbox snapshot may lag; OS notification still shows via SW).
-        if (msg.type === 'weekplan-push') {
+        if (msg.type === 'protop-push') {
           const p = msg.payload || {};
           const id = p.notificationId || p.tag || `push_${Date.now()}`;
           if (seenIdsRef.current.has(id)) return;
@@ -309,9 +309,9 @@ export function NotificationProvider({ children }) {
       navigator.serviceWorker?.addEventListener?.('message', onSwMessage);
 
       try {
-        const pending = window.sessionStorage.getItem('weekplan_open_notif');
+        const pending = window.sessionStorage.getItem('protop_open_notif');
         if (pending) {
-          window.sessionStorage.removeItem('weekplan_open_notif');
+          window.sessionStorage.removeItem('protop_open_notif');
           navigateFromNotification(JSON.parse(pending));
         }
       } catch {}

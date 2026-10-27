@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Linking,
   Platform,
   ScrollView,
@@ -20,10 +19,13 @@ import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import OptionPicker from '../../components/OptionPicker';
+import FilterMenu from '../../components/FilterMenu';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
+import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
+import ReportTable from '../../components/table/ReportTable';
+import useReportColumns from '../../components/table/useReportColumns';
 import { importResult } from '../../src/imports/review';
 import { pickDocument, uploadFile } from '../../src/utils/media';
 import {
@@ -37,21 +39,36 @@ import { readInvoiceImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import {
   canDeleteInvoice,
-  filterInvoices,
-  filterInvoicesByPeriod,
   formatDate,
   formatMoney,
   invoiceAmountGroups,
   invoiceDetailSections,
   invoicePaymentSummary,
-  invoiceTotals,
-  INVOICE_STATUSES,
   isInvoiceOverdue,
   isInvoiceSent,
   markInvoiceAsSent,
-  parseMoney,
   statusLabel,
 } from '../../src/economy/invoices.js';
+import {
+  INVOICE_PERIODS,
+  INVOICE_REPORT_COLUMNS,
+  filterInvoiceReport,
+  invoiceFilterOptions,
+  invoiceOutstanding,
+  invoiceReportStatus,
+  invoiceReportSummary,
+  invoiceStatusChoices,
+} from '../../src/economy/invoiceReport.js';
+import {
+  hasColumnFilter,
+  matchesColumnFilters,
+  nextReportSort,
+  reportExportRows,
+  reportTotals,
+  sortReportRows,
+  visibleColumns,
+} from '../../src/ui/reportTable';
+import { dateKey } from '../../src/utils/dates';
 import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
 import { releaseInvoicedWork } from '../../src/economy/invoiceRelease.js';
 import { loadAnbudState } from '../../src/anbud/storage';
@@ -79,53 +96,36 @@ async function bytesFromFile(file) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-const PERIODS = [
-  { id: 'all', label: 'Alle' },
-  { id: '7', label: 'Siste 7 dager' },
-  { id: '30', label: 'Siste 30 dager' },
-  { id: '100', label: 'Siste 100 dager' },
-  { id: 'year', label: 'I år' },
+// Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
+const PAGE_SIZE = 100;
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const ACTION_WIDTH = 44;
+const DEFAULT_SORT = { key: 'invoiceDate', dir: 'desc' };
+// Mobil har ingen kolonneoverskrifter. Sorteringen ligger i filtermenyen, som i prosjektlisten.
+const PHONE_SORTS = [
+  { id: 'invoiceDate:desc', label: 'Nyeste fakturadato' },
+  { id: 'invoiceDate:asc', label: 'Eldste fakturadato' },
+  { id: 'dueDate:asc', label: 'Tidligste forfall' },
+  { id: 'amountInclVat:desc', label: 'Største beløp' },
+  { id: 'outstanding:desc', label: 'Mest utestående' },
+  { id: 'customerName:asc', label: 'Kunde A–Å' },
 ];
 
-const BASE_COLUMNS = [
-  { key: 'invoiceNumber', label: 'Fakturanr', width: 88 },
-  { key: 'docs', label: 'PDF', width: 52 },
-  { key: 'invoiceDate', label: 'Fakturadato', width: 100 },
-  { key: 'dueDate', label: 'Forfall', width: 100 },
-  { key: 'customerNumber', label: 'Kundenr', width: 84 },
-  { key: 'customerName', label: 'Kunde', flex: true, minWidth: 160 },
-  { key: 'projectNumber', label: 'Prosjektnr', width: 88 },
-  { key: 'projectName', label: 'Prosjekt', flex: true, minWidth: 160 },
-  { key: 'sent', label: 'Sendt', width: 56 },
-  { key: 'currency', label: 'Valuta', width: 56 },
-  { key: 'amountExVat', label: 'Eks. mva', width: 108 },
-  { key: 'vat', label: 'MVA', width: 96 },
-  { key: 'amountInclVat', label: 'Ink. mva', width: 112 },
-  { key: 'outstanding', label: 'Utestående', width: 112 },
-  { key: 'loss', label: 'Tap', width: 72 },
-];
-
-const ACTIONS_COLUMN = { key: 'actions', label: '', width: 44 };
-
-function tableColumns(showActions) {
-  return showActions ? [...BASE_COLUMNS, ACTIONS_COLUMN] : BASE_COLUMNS;
+function statusTone(status, colors) {
+  if (status === 'paid') return { bg: '#dcfce7', fg: '#166534' };
+  if (status === 'overdue' || status === 'written_off') return { bg: '#fee4e2', fg: colors.danger || '#b42318' };
+  if (status === 'sent') return { bg: '#e0f2fe', fg: '#075985' };
+  if (status === 'credited') return { bg: '#f3e8ff', fg: '#6b21a8' };
+  return { bg: colors.sunken || '#f1f5f9', fg: colors.ink || '#334155' };
 }
 
-function tableMinWidth(columns) {
-  return columns.reduce((sum, column) => sum + (column.minWidth || column.width), 0);
-}
-
-function columnStyle(column) {
-  if (column.flex) {
-    return { flexGrow: 1, flexShrink: 1, flexBasis: column.minWidth || 160, minWidth: column.minWidth || 120 };
-  }
-  return { width: column.width, flexGrow: 0, flexShrink: 0 };
-}
-
-function moneyTone(value, colors, { dangerWhenPositive = false } = {}) {
-  const amount = parseMoney(value);
-  if (dangerWhenPositive && amount != null && amount > 0) return colors.danger || '#b42318';
-  return colors.ink;
+function InvoiceStatusBadge({ status, colors }) {
+  const tone = statusTone(status, colors);
+  return (
+    <View style={[styles.badge, { backgroundColor: tone.bg }]}>
+      <Text style={{ color: tone.fg, fontSize: 12, fontWeight: '600' }}>{statusLabel(status)}</Text>
+    </View>
+  );
 }
 
 function Fact({ label, value, colors, emphasize }) {
@@ -607,7 +607,7 @@ export default function EconomyInvoices({
     watchInvoices,
   } = store;
   const colors = useColors();
-  const { requestShellTab } = useApp();
+  const { requestShellTab, uid } = useApp();
   // Import av fakturalister krever Admin på Faktura.
   const canImport = canImportList(useCompanyAccess(), 'economyInvoices');
   const hostedHero = useModuleHeroHosted();
@@ -616,8 +616,8 @@ export default function EconomyInvoices({
   const stackRows = isPhone || contentWidth < 720;
   const wideDetail = !isPhone && contentWidth >= 900;
   const canManage = !!isAdmin;
-  const columns = useMemo(() => tableColumns(canManage), [canManage]);
-  const tableMin = useMemo(() => tableMinWidth(columns), [columns]);
+  const [columnKeys, setColumnKeys, resetColumns] = useReportColumns('invoices', uid, INVOICE_REPORT_COLUMNS);
+  const listColumns = useMemo(() => visibleColumns(INVOICE_REPORT_COLUMNS, columnKeys), [columnKeys]);
 
   const [invoices, setInvoices] = useState([]);
   const [ready, setReady] = useState(false);
@@ -627,6 +627,11 @@ export default function EconomyInvoices({
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [period, setPeriod] = useState('all');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [colFilter, setColFilter] = useState({});
+  const [sort, setSort] = useState(DEFAULT_SORT);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -644,7 +649,7 @@ export default function EconomyInvoices({
   const [dropped, setDropped] = useState(new Set());
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
-  const [pageSize, setPageSize] = useState(80);
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const hiddenIds = useRef(new Set());
 
   useEffect(() => {
@@ -709,12 +714,39 @@ export default function EconomyInvoices({
     return () => { live = false; };
   }, [canManage, familyId]);
 
-  const visible = useMemo(() => {
-    const byPeriod = filterInvoicesByPeriod(invoices, period);
-    return filterInvoices(byPeriod, query, statusFilter);
-  }, [invoices, query, statusFilter, period]);
-  const pageRows = useMemo(() => visible.slice(0, pageSize), [visible, pageSize]);
-  const totals = useMemo(() => invoiceTotals(visible), [visible]);
+  // Søket filtrerer etter at tastetrykket er tegnet, så feltet ikke henger med mange rader.
+  const searchQuery = useDeferredValue(query);
+  const columnQuery = useDeferredValue(colFilter);
+  const filterOptions = useMemo(() => invoiceFilterOptions(invoices), [invoices]);
+  // Alle filtre unntatt status, så hver statusknapp kan vise sitt antall.
+  const unstatused = useMemo(
+    () => filterInvoiceReport(invoices, {
+      query: searchQuery,
+      period,
+      customer: customerFilter,
+      project: projectFilter,
+    }).filter((row) => matchesColumnFilters(row, columnQuery, listColumns)),
+    [invoices, searchQuery, period, customerFilter, projectFilter, columnQuery, listColumns],
+  );
+  const statusChoices = useMemo(() => {
+    const choices = invoiceStatusChoices(unstatused);
+    if (!statusFilter || choices.some((row) => row.id === statusFilter)) return choices;
+    return [...choices, { id: statusFilter, label: statusLabel(statusFilter), count: 0 }];
+  }, [unstatused, statusFilter]);
+  const visible = useMemo(
+    () => sortReportRows(
+      statusFilter ? unstatused.filter((row) => invoiceReportStatus(row) === statusFilter) : unstatused,
+      sort,
+      INVOICE_REPORT_COLUMNS,
+    ),
+    [unstatused, statusFilter, sort],
+  );
+  const summary = useMemo(() => invoiceReportSummary(visible), [visible]);
+  const totals = useMemo(() => {
+    const sums = reportTotals(visible, listColumns);
+    return Object.fromEntries(Object.entries(sums).map(([key, value]) => [key, formatMoney(value)]));
+  }, [visible, listColumns]);
+  const filtered = !!(query || statusFilter || period !== 'all' || customerFilter || projectFilter || hasColumnFilter(colFilter));
   const importReview = useMemo(
     () => (importPlan ? buildInvoiceImportReview(importPlan, { dropped }) : null),
     [importPlan, dropped],
@@ -730,8 +762,34 @@ export default function EconomyInvoices({
   }, [importPlan, dropped]);
 
   useEffect(() => {
-    setPageSize(80);
-  }, [query, statusFilter, period, invoices.length]);
+    setLimit(PAGE_SIZE);
+  }, [query, statusFilter, period, customerFilter, projectFilter, colFilter, sort, invoices.length]);
+
+  function resetFilters() {
+    setQuery('');
+    setStatusFilter('');
+    setPeriod('all');
+    setCustomerFilter('');
+    setProjectFilter('');
+    setColFilter({});
+  }
+
+  async function exportRows() {
+    if (!visible.length || exporting) return;
+    setExporting(true);
+    setError('');
+    try {
+      // Excel-byggeren lastes først når noen eksporterer.
+      const { buildXlsx, downloadBytes } = await import('../../src/indeksregulering/office.js');
+      const bytes = buildXlsx([{ name: 'Fakturaer', rows: reportExportRows(visible, INVOICE_REPORT_COLUMNS) }]);
+      downloadBytes(`fakturaer-${dateKey(new Date())}.xlsx`, bytes, XLSX_MIME);
+      showSaveToast(`${visible.length} fakturaer er eksportert.`);
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke eksportere fakturaene.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function importFile() {
     if (!canImport) return;
@@ -999,12 +1057,9 @@ export default function EconomyInvoices({
     setConfirmDelete(row);
   }
 
-  function renderListRow({ item: row, index }) {
-    const overdue = isInvoiceOverdue(row);
-    const sent = isInvoiceSent(row);
-    const danger = colors.danger || '#b42318';
-    const deletable = canManage && canDeleteInvoice(row);
-    const deleteButton = deletable ? (
+  function deleteButton(row) {
+    if (!canManage || !canDeleteInvoice(row)) return null;
+    return (
       <TouchableOpacity
         onPress={() => requestDelete(row)}
         accessibilityRole="button"
@@ -1012,108 +1067,88 @@ export default function EconomyInvoices({
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         style={styles.rowDelete}
       >
-        <Ionicons name="trash-outline" size={18} color={danger} />
+        <Ionicons name="trash-outline" size={18} color={colors.danger || '#b42318'} />
       </TouchableOpacity>
-    ) : null;
-    const rowTone = { borderBottomColor: colors.line, backgroundColor: index % 2 ? (colors.sunken || colors.bg) : colors.card };
-    // Slett ligger ved siden av raden, ikke inni den: en knapp kan ikke inneholde en knapp.
-    if (stackRows) {
+    );
+  }
+
+  function linkCell(label, onPress, a11y) {
+    return (
+      <TouchableOpacity onPress={onPress} accessibilityRole="link" accessibilityLabel={a11y}>
+        <Text style={{ color: colors.brand, fontSize: 13 }} numberOfLines={2}>{label}</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  // Celler med ikon, merke eller lenke. Resten tegnes som tekst av tabellen.
+  function renderCell(row, column) {
+    if (column.key === 'docs') {
+      const has = !!(row.previewReady || row.attachment?.url);
       return (
-        <View style={[styles.phoneRow, styles.rowWithAction, rowTone]}>
-          <TouchableOpacity
-            onPress={() => openInvoice(row)}
-            accessibilityRole="button"
-            accessibilityLabel={`Faktura ${row.invoiceNumber}`}
-            nativeID={`invoice-row-${row.id}`}
-            style={styles.rowOpen}
-          >
-            <Text style={[styles.phoneName, { color: colors.ink }]}>
-              {row.invoiceNumber} · {formatDate(row.invoiceDate)}
-            </Text>
-            <Text style={[styles.phoneIdentity, { color: colors.ink }]} numberOfLines={1}>
-              {row.customerName || '—'}
-            </Text>
-            <Text style={[styles.phoneMeta, { color: colors.muted }]} numberOfLines={2}>
-              {[
-                row.projectName,
-                formatMoney(row.amountInclVat, row.currency),
-                statusLabel(row.status),
-                overdue ? 'Forfalt' : '',
-              ].filter(Boolean).join(' · ')}
-            </Text>
-          </TouchableOpacity>
-          {deleteButton}
+        <View style={styles.docCell}>
+          <Ionicons
+            name={has ? 'document-text' : 'document-text-outline'}
+            size={16}
+            color={has ? colors.brand : colors.muted}
+            accessibilityLabel={has ? 'PDF er knyttet' : 'Ingen PDF'}
+          />
         </View>
       );
     }
+    if (column.key === 'status') return <InvoiceStatusBadge status={invoiceReportStatus(row)} colors={colors} />;
+    if (column.key === 'sent') {
+      return isInvoiceSent(row)
+        ? <Ionicons name="checkmark-circle" size={18} color="#15803d" accessibilityLabel="Sendt" />
+        : <Text style={{ color: colors.muted }}>—</Text>;
+    }
+    if (column.key === 'customerName' && row.customerId && row.customerName && onOpenCustomer) {
+      return linkCell(row.customerName, () => onOpenCustomer(row.customerId), `Åpne kunde ${row.customerName}`);
+    }
+    if (column.key === 'projectName' && row.projectId && row.projectName && onOpenProject) {
+      return linkCell(row.projectName, () => onOpenProject(row.projectId), `Åpne prosjekt ${row.projectName}`);
+    }
+    return undefined;
+  }
 
-    const cells = {
-      invoiceNumber: row.invoiceNumber || '—',
-      docs: row.previewReady || row.attachment?.url ? 'pdf' : '',
-      invoiceDate: formatDate(row.invoiceDate),
-      dueDate: formatDate(row.dueDate),
-      customerNumber: row.customerNumber || '—',
-      customerName: row.customerName || '—',
-      projectNumber: row.projectNumber || '—',
-      projectName: row.projectName || '—',
-      sent: sent ? 'yes' : '',
-      currency: row.currency || 'NOK',
-      amountExVat: formatMoney(row.amountExVat, row.currency),
-      vat: formatMoney(row.vat, row.currency),
-      amountInclVat: formatMoney(row.amountInclVat, row.currency),
-      outstanding: row.outstanding || formatMoney(row.outstandingAmount, row.currency),
-      loss: formatMoney(row.loss, row.currency),
-    };
+  function cellTone(row, column) {
+    const danger = colors.danger || '#b42318';
+    if (column.key === 'dueDate' && isInvoiceOverdue(row)) return danger;
+    if (column.key === 'daysOverdue') return danger;
+    if (column.key === 'outstanding' && (invoiceOutstanding(row) || 0) > 0) return danger;
+    return null;
+  }
 
-    const actionsColumn = columns.find((column) => column.key === 'actions');
+  // Slett ligger ved siden av raden, ikke inni den: en knapp kan ikke inneholde en knapp.
+  function renderCard(row) {
+    const overdue = invoiceReportStatus(row) === 'overdue';
     return (
-      <View style={[styles.tr, rowTone]}>
+      <View style={[styles.phoneRow, styles.rowWithAction, { borderBottomColor: colors.line }]}>
         <TouchableOpacity
           onPress={() => openInvoice(row)}
           accessibilityRole="button"
           accessibilityLabel={`Faktura ${row.invoiceNumber}`}
           nativeID={`invoice-row-${row.id}`}
-          style={styles.trOpen}
+          style={styles.rowOpen}
         >
-          {columns.filter((column) => column.key !== 'actions').map((column) => {
-            if (column.key === 'docs') {
-              return (
-                <View key={column.key} style={[columnStyle(column), styles.docCell]}>
-                  <Ionicons
-                    name={cells.docs ? 'document-text' : 'document-text-outline'}
-                    size={16}
-                    color={cells.docs ? colors.brand : colors.muted}
-                  />
-                  <Ionicons name="eye-outline" size={16} color={colors.muted} />
-                </View>
-              );
-            }
-            if (column.key === 'sent') {
-              return (
-                <View key={column.key} style={[columnStyle(column), styles.docCell]}>
-                  {sent ? <Ionicons name="checkmark-circle" size={18} color="#15803d" /> : <Text style={{ color: colors.muted }}>—</Text>}
-                </View>
-              );
-            }
-            const tone = column.key === 'dueDate' && overdue
-              ? danger
-              : column.key === 'outstanding'
-                ? moneyTone(row.outstandingAmount ?? row.outstanding, colors, { dangerWhenPositive: true })
-                : colors.ink;
-            return (
-              <Text
-                key={column.key}
-                style={[styles.td, columnStyle(column), { color: tone }, column.key === 'invoiceNumber' && { fontWeight: '700' }]}
-                numberOfLines={column.key === 'customerName' || column.key === 'projectName' ? 2 : 1}
-              >
-                {cells[column.key]}
+          <Text style={[styles.phoneName, { color: colors.ink }]}>
+            {row.invoiceNumber} · {formatDate(row.invoiceDate)}
+          </Text>
+          <Text style={[styles.phoneIdentity, { color: colors.ink }]} numberOfLines={1}>
+            {row.customerName || '—'}
+          </Text>
+          <Text style={[styles.phoneMeta, { color: colors.muted }]} numberOfLines={2}>
+            {[row.projectName, formatMoney(row.amountInclVat, row.currency)].filter(Boolean).join(' · ')}
+          </Text>
+          <View style={styles.phoneStatus}>
+            <InvoiceStatusBadge status={invoiceReportStatus(row)} colors={colors} />
+            {overdue ? (
+              <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>
+                {`Forfalt ${formatDate(row.dueDate)}`}
               </Text>
-            );
-          })}
+            ) : null}
+          </View>
         </TouchableOpacity>
-        {actionsColumn ? (
-          <View style={[columnStyle(actionsColumn), styles.docCell]}>{deleteButton}</View>
-        ) : null}
+        {deleteButton(row)}
       </View>
     );
   }
@@ -1239,140 +1274,230 @@ export default function EconomyInvoices({
     );
   }
 
-  const table = (
-    <View
-      style={[
-        styles.tableWrap,
-        { borderColor: colors.line, backgroundColor: colors.card },
-      ]}
+  const filterGroups = [
+    {
+      id: 'status',
+      label: 'Status',
+      nativeID: 'invoice-filter-status',
+      value: statusFilter,
+      onChange: (id) => setStatusFilter(id || ''),
+      options: statusChoices.map((row) => ({
+        id: row.id,
+        label: row.id ? `${row.label} (${row.count})` : 'Alle statuser',
+        nativeID: `invoice-status-${row.id || 'all'}`,
+      })),
+    },
+    ...(filterOptions.customers.length ? [{
+      id: 'customer',
+      label: 'Kunde',
+      nativeID: 'invoice-filter-customer',
+      dropdown: true,
+      value: customerFilter,
+      onChange: (id) => setCustomerFilter(id || ''),
+      options: [{ id: '', label: 'Alle kunder' }, ...filterOptions.customers],
+    }] : []),
+    ...(filterOptions.projects.length ? [{
+      id: 'project',
+      label: 'Prosjekt',
+      nativeID: 'invoice-filter-project',
+      dropdown: true,
+      value: projectFilter,
+      onChange: (id) => setProjectFilter(id || ''),
+      options: [{ id: '', label: 'Alle prosjekter' }, ...filterOptions.projects],
+    }] : []),
+    {
+      id: 'period',
+      label: 'Periode',
+      nativeID: 'invoice-filter-period',
+      value: period,
+      idle: 'all',
+      onChange: (id) => setPeriod(id || 'all'),
+      options: INVOICE_PERIODS,
+    },
+    ...(stackRows ? [{
+      id: 'sort',
+      label: 'Sortering',
+      value: `${sort.key}:${sort.dir}`,
+      idle: `${DEFAULT_SORT.key}:${DEFAULT_SORT.dir}`,
+      onChange: (value) => {
+        const [key, dir] = String(value || '').split(':');
+        setSort(key ? { key, dir: dir === 'asc' ? 'asc' : 'desc' } : DEFAULT_SORT);
+      },
+      options: PHONE_SORTS,
+    }] : []),
+  ];
+
+  const summaryText = !ready
+    ? 'Laster fakturaer…'
+    : [
+      filtered ? `${summary.count} av ${invoices.length} fakturaer` : `${summary.count} fakturaer`,
+      `Eks. mva ${formatMoney(summary.exVat)}`,
+      `Ink. mva ${formatMoney(summary.inclVat)}`,
+      `Utestående ${formatMoney(summary.outstanding)}`,
+      summary.overdueCount ? `${summary.overdueCount} forfalt (${formatMoney(summary.overdueAmount)})` : '',
+    ].filter(Boolean).join(' · ');
+
+  const exportButton = (
+    <TouchableOpacity
+      onPress={exportRows}
+      disabled={exporting || !visible.length}
+      accessibilityRole="button"
+      accessibilityLabel="Eksporter til Excel"
+      nativeID="invoice-export"
+      style={[styles.exportBtn, { borderColor: colors.line, backgroundColor: colors.card, opacity: exporting || !visible.length ? 0.55 : 1 }]}
     >
-      {!stackRows ? (
-        <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-          {columns.map((column) => (
-            <Text key={column.key} style={[styles.th, columnStyle(column), { color: colors.muted }]}>{column.label}</Text>
-          ))}
+      <Ionicons name="download-outline" size={16} color={colors.ink} />
+      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>{exporting ? 'Eksporterer…' : 'Eksporter til Excel'}</Text>
+    </TouchableOpacity>
+  );
+  const resetLink = filtered ? (
+    <TouchableOpacity onPress={resetFilters} accessibilityRole="button" nativeID="invoice-filter-reset" style={styles.resetLink}>
+      <Text style={{ color: colors.brand, fontSize: 13 }}>Nullstill filtre</Text>
+    </TouchableOpacity>
+  ) : null;
+  const searchProps = {
+    value: query,
+    onChange: (value) => {
+      setQuery(value);
+      if (importReport) setImportReport(null);
+    },
+    placeholder: 'Søk på fakturanummer, kunde, prosjekt, KID…',
+    nativeID: 'invoice-search',
+    accessibilityLabel: 'Søk i fakturaer',
+  };
+
+  // Mobil: søk og filter i én meny som prosjektlisten. Bred skjerm: søk, filtre side om side og verktøylinje.
+  const filterBar = stackRows ? (
+    <View style={styles.filters}>
+      <View style={styles.toolRow}>
+        <View style={styles.phoneMenu}>
+          <FilterMenu search={searchProps} groups={filterGroups} />
         </View>
-      ) : null}
-      <FlatList
-        data={pageRows}
-        keyExtractor={(row) => row.id}
-        renderItem={renderListRow}
-        style={{ maxHeight: stackRows ? 640 : 720 }}
-        initialNumToRender={24}
-        maxToRenderPerBatch={24}
-        windowSize={7}
-        ListEmptyComponent={(
-          <View style={{ padding: 16 }}>
-            <Text style={{ color: colors.muted }}>
-              {canImport
-                ? 'Ingen fakturaer ennå. Bruk «Importer Excel» for å hente listen fra regnskapssystemet.'
-                : 'Ingen fakturaer ennå.'}
-            </Text>
-          </View>
-        )}
-        ListFooterComponent={visible.length > pageRows.length ? (
-          <TouchableOpacity
-            onPress={() => setPageSize((n) => n + 80)}
-            accessibilityRole="button"
-            style={{ padding: 14, alignItems: 'center' }}
-          >
-            <Text style={{ color: colors.brand, fontWeight: '600' }}>
-              Vis flere ({pageRows.length} av {visible.length})
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-      />
+        {exportButton}
+      </View>
+      <Text style={{ color: colors.muted, fontSize: 13 }} nativeID="invoice-summary">{summaryText}</Text>
+      {resetLink}
+    </View>
+  ) : (
+    <View style={styles.filters}>
+      <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <Ionicons name="search" size={16} color={colors.muted} />
+        <TextInput
+          nativeID={searchProps.nativeID}
+          value={query}
+          onChangeText={searchProps.onChange}
+          placeholder={searchProps.placeholder}
+          placeholderTextColor={colors.placeholder}
+          accessibilityLabel={searchProps.accessibilityLabel}
+          style={[styles.searchInput, { color: colors.ink }]}
+        />
+      </View>
+      <FilterMenu row groups={filterGroups} />
+      <View style={styles.toolRow}>
+        <Text style={{ color: colors.muted, fontSize: 13, flex: 1, minWidth: 240 }} nativeID="invoice-summary">{summaryText}</Text>
+        {resetLink}
+        <ColumnSettingsMenu
+          columns={INVOICE_REPORT_COLUMNS}
+          visibleKeys={columnKeys}
+          onChange={setColumnKeys}
+          onReset={resetColumns}
+          nativeID="invoice-column-settings"
+        />
+        {exportButton}
+      </View>
     </View>
   );
 
-  return (
-    <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-invoices">
-      <View style={styles.inner}>
-        <View style={styles.toolbar}>
-          <View style={{ flex: 1, gap: 4 }}>
-            {hostedHero ? null : (
-              <Text style={[styles.heading, { color: colors.ink }]}>Fakturaer</Text>
-            )}
-            <Text style={{ color: colors.muted }}>
-              {ready
-                ? `${invoices.length} registrerte fakturaer. Fordelt på kunde og prosjekt — klikk for full oversikt.`
-                : 'Laster fakturaer…'}
-            </Text>
-          </View>
-          {canImport ? (
-          <TouchableOpacity
-            onPress={importFile}
-            disabled={busy || !familyId}
-            accessibilityRole="button"
-            accessibilityLabel="Importer fakturaer"
-            style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: busy || !familyId ? 0.6 : 1 }]}
-          >
-            <Text style={styles.primaryBtnText}>{busy ? 'Jobber…' : 'Importer Excel'}</Text>
-          </TouchableOpacity>
-          ) : null}
-        </View>
+  const table = !ready ? (
+    <ActivityIndicator color={colors.brand} />
+  ) : !invoices.length ? (
+    <Text style={{ color: colors.muted }} nativeID="invoice-empty">
+      {canImport
+        ? 'Ingen fakturaer ennå. Bruk «Importer Excel» for å hente listen fra regnskapssystemet.'
+        : 'Ingen fakturaer ennå.'}
+    </Text>
+  ) : (
+    <ReportTable
+      nativeID="invoice-table"
+      colors={colors}
+      columns={listColumns}
+      rows={visible}
+      sort={sort}
+      onSort={(column) => setSort((current) => nextReportSort(current, column))}
+      filters={colFilter}
+      onFilter={(key, value) => setColFilter((current) => ({ ...current, [key]: value }))}
+      onOpen={openInvoice}
+      rowNativeID={(row) => `invoice-row-${row.id}`}
+      rowLabel={(row) => `Faktura ${row.invoiceNumber}`}
+      renderCell={renderCell}
+      cellTone={cellTone}
+      renderAction={canManage ? deleteButton : undefined}
+      actionWidth={canManage ? ACTION_WIDTH : 0}
+      limit={limit}
+      onMore={() => setLimit((current) => current + PAGE_SIZE)}
+      onShowAll={() => setLimit(visible.length)}
+      totals={totals}
+      phone={stackRows}
+      renderCard={renderCard}
+      empty="Ingen fakturaer treffer søket eller filteret."
+    />
+  );
 
-        {canManage && familyId ? (
-          <PowerOfficePanel familyId={familyId} colors={colors} status={poStatus} onStatus={setPoStatus} />
+  const top = (
+    <>
+      <View style={styles.toolbar}>
+        <View style={{ flex: 1, gap: 4 }}>
+          {hostedHero ? null : (
+            <Text style={[styles.heading, { color: colors.ink }]}>Fakturaer</Text>
+          )}
+          <Text style={{ color: colors.muted }}>
+            {stackRows
+              ? 'Trykk en faktura for full oversikt.'
+              : 'Sorter og filtrer i kolonnene, velg kolonner og eksporter utvalget til Excel. Trykk en faktura for full oversikt.'}
+          </Text>
+        </View>
+        {canImport ? (
+        <TouchableOpacity
+          onPress={importFile}
+          disabled={busy || !familyId}
+          accessibilityRole="button"
+          accessibilityLabel="Importer fakturaer"
+          style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: busy || !familyId ? 0.6 : 1 }]}
+        >
+          <Text style={styles.primaryBtnText}>{busy ? 'Jobber…' : 'Importer Excel'}</Text>
+        </TouchableOpacity>
         ) : null}
-        {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
-        {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
-        <ImportResult colors={colors} result={importReport} />
+      </View>
 
-        <View style={styles.filters}>
-          <TextInput
-            value={query}
-            onChangeText={(value) => {
-              setQuery(value);
-              if (importReport) setImportReport(null);
-            }}
-            placeholder="Søk på fakturanummer, kunde, prosjekt, KID…"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { flex: 1, color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-          />
-          <View style={styles.pickerRow}>
-            <View style={styles.pickerCell}>
-              <OptionPicker
-                options={PERIODS}
-                value={period}
-                onChange={(id) => setPeriod(id || 'all')}
-                placeholder="Alle"
-                title="Periode"
-                clearable={false}
-              />
-            </View>
-            <View style={styles.pickerCell}>
-              <OptionPicker
-                options={[{ id: '', label: 'Alle statuser' }, ...INVOICE_STATUSES.map((status) => ({ id: status.id, label: status.label }))]}
-                value={statusFilter || ''}
-                onChange={(id) => setStatusFilter(id || '')}
-                placeholder="Alle statuser"
-                title="Status"
-                clearable={false}
-              />
-            </View>
-          </View>
-        </View>
+      {canManage && familyId ? (
+        <PowerOfficePanel familyId={familyId} colors={colors} status={poStatus} onStatus={setPoStatus} />
+      ) : null}
+      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
+      <ImportResult colors={colors} result={importReport} />
+      {filterBar}
+    </>
+  );
 
-        <Text style={{ color: colors.muted }}>
-          Viser {visible.length}
-          {' · '}
-          Eks. mva {formatMoney(totals.amountExVat)}
-          {' · '}
-          Ink. mva {formatMoney(totals.amountInclVat)}
-          {' · '}
-          Utestående {formatMoney(totals.outstanding)}
-        </Text>
+  // Mobil: kort i en side som ruller. Bred skjerm: tabellen fyller resten av siden som prosjektlisten.
+  if (stackRows) {
+    return (
+      <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-invoices">
+        <ScrollView style={styles.screen} contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+          {top}
+          {table}
+        </ScrollView>
+        {busyOverlay}
+        {deleteDialog}
+      </View>
+    );
+  }
 
-        {!ready ? (
-          <ActivityIndicator color={colors.brand} />
-        ) : stackRows ? table : (
-          <ScrollView horizontal showsHorizontalScrollIndicator>
-            <View style={{ minWidth: tableMin }}>
-              {table}
-            </View>
-          </ScrollView>
-        )}
+  return (
+    <View style={[styles.screen, styles.screenDesk, { backgroundColor: colors.bg }]} nativeID="economy-invoices">
+      <View style={[styles.inner, styles.innerDesk]}>
+        {top}
+        {table}
       </View>
       {busyOverlay}
       {deleteDialog}
@@ -1382,32 +1507,32 @@ export default function EconomyInvoices({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  inner: { padding: 16, paddingBottom: 48, maxWidth: 1280, width: '100%', alignSelf: 'flex-start', gap: 14 },
+  // Blir toppen høyere enn skjermen, ruller siden. Ellers fyller tabellen resten.
+  screenDesk: { minHeight: 0, ...(Platform.OS === 'web' ? { overflowY: 'auto' } : null) },
+  inner: { padding: 16, paddingBottom: 48, width: '100%', alignSelf: 'stretch', gap: 12 },
+  innerDesk: { flex: 1, minHeight: 0, paddingBottom: 16 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   heading: { fontSize: 22, fontWeight: '700' },
   primaryBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
   secondaryBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
-  filters: { gap: 10 },
-  statusChips: { gap: 8, paddingVertical: 2 },
-  pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pickerCell: { flexGrow: 1, flexBasis: 200, minWidth: 180 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
-  tr: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, gap: 6 },
-  head: {},
-  th: { fontSize: 11, fontWeight: '700' },
-  td: { fontSize: 12 },
-  docCell: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 2 },
+  filters: { gap: 10, flexShrink: 0 },
+  toolRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, minHeight: 42 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 15, paddingVertical: 9 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  phoneMenu: { flexShrink: 1, maxWidth: '72%' },
+  resetLink: { paddingVertical: 6, paddingHorizontal: 4, alignSelf: 'flex-start' },
+  badge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  docCell: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   phoneRow: { paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, gap: 2 },
+  phoneStatus: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   phoneName: { fontSize: 15, fontWeight: '700' },
   phoneIdentity: { fontSize: 14 },
   phoneMeta: { fontSize: 13 },
   rowDelete: { padding: 4 },
   rowWithAction: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   rowOpen: { flex: 1, minWidth: 0, gap: 2 },
-  trOpen: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, flexGrow: 1, flexShrink: 1 },
   primaryAction: {
     marginTop: 4,
     borderRadius: 10,

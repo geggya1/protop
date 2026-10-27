@@ -606,9 +606,15 @@ export function invoiceAmountGroups(invoice) {
 export function filterInvoicesByPeriod(rows, period = 'all', today = new Date()) {
   const list = Array.isArray(rows) ? rows : [];
   if (!period || period === 'all') return list;
-  const end = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  let end = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
   let start = null;
-  if (period === '7') {
+  if (period === 'lastYear') {
+    start = new Date(Date.UTC(today.getFullYear() - 1, 0, 1));
+    end = new Date(Date.UTC(today.getFullYear() - 1, 11, 31));
+  } else if (period === '365') {
+    start = new Date(end);
+    start.setUTCFullYear(start.getUTCFullYear() - 1);
+  } else if (period === '7') {
     start = new Date(end);
     start.setUTCDate(start.getUTCDate() - 7);
   } else if (period === '30') {

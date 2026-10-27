@@ -12,7 +12,7 @@ export const STATEMENT_YEAR_COLORS = ['#4472C4', '#C00000', '#ED7D31', '#70AD47'
 
 export const STATEMENT_YEAR_BAR = '#4472C4';
 
-const ISSUED = new Set(['sent', 'paid', 'overdue', 'credited', 'written_off']);
+const ISSUED = new Set(['issued', 'sent', 'paid', 'overdue', 'credited', 'written_off']);
 const CHART_YEAR_SPAN = 5;
 
 function roundOre(value) {

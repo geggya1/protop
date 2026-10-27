@@ -128,7 +128,31 @@ const EMPTY = {
   notes: '',
   ownerUid: '',
   ownerName: '',
+  invoiceEmail: '',
+  invoiceReference: '',
+  creditDays: '',
+  invoiceLanguage: '',
+  invoiceDelivery: '',
 };
+
+// Faktureringsvalg på kunden. Tomt eller «Standard» betyr selskapets fakturastandard.
+const INVOICE_TEXT_FIELDS = [
+  ['invoiceEmail', 'Faktura-e-post', 'Brukes i stedet for e-posten over når faktura sendes på e-post.'],
+  ['invoiceReference', 'Deres referanse / bestillingsnummer', 'Offentlige kunder krever som regel en referanse på EHF-fakturaen.'],
+  ['creditDays', 'Kredittid (dager)', 'Tomt: selskapets standard.'],
+];
+const INVOICE_DELIVERY_CHOICES = [
+  { id: '', label: 'Standard' },
+  { id: 'ehf', label: 'EHF' },
+  { id: 'email', label: 'E-post' },
+  { id: 'manual', label: 'Manuelt' },
+];
+const INVOICE_LANGUAGE_CHOICES = [
+  { id: '', label: 'Standard' },
+  { id: 'nb', label: 'Bokmål' },
+  { id: 'nn', label: 'Nynorsk' },
+  { id: 'en', label: 'English' },
+];
 
 const FORM_FIELDS = [
   ['name', 'Navn'],
@@ -152,6 +176,16 @@ async function bytesFromFile(file) {
     throw new Error('Kunne ikke lese filen.');
   }
   return new Uint8Array(await blob.arrayBuffer());
+}
+
+function customerInvoiceSummary(row) {
+  return [
+    row.invoiceEmail ? `faktura til ${row.invoiceEmail}` : '',
+    row.invoiceReference ? `ref. ${row.invoiceReference}` : '',
+    row.creditDays != null && row.creditDays !== '' ? `${row.creditDays} dagers kreditt` : '',
+    INVOICE_DELIVERY_CHOICES.find((choice) => choice.id && choice.id === row.invoiceDelivery)?.label || '',
+    INVOICE_LANGUAGE_CHOICES.find((choice) => choice.id && choice.id === row.invoiceLanguage)?.label || '',
+  ].filter(Boolean);
 }
 
 function fillFromBrreg(current, hit) {
@@ -993,6 +1027,47 @@ export default function CustomersScreen() {
               ))}
             </View>
           ) : null}
+          <View style={{ gap: 8 }} nativeID="customer-invoice-fields">
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>Fakturering</Text>
+            {INVOICE_TEXT_FIELDS.map(([key, label, hint]) => (
+              <View key={key} style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
+                <TextInput
+                  value={String(form[key] ?? '')}
+                  onChangeText={(value) => patch({ [key]: key === 'creditDays' ? value.replace(/\D/g, '') : value })}
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType={key === 'creditDays' ? 'number-pad' : key === 'invoiceEmail' ? 'email-address' : 'default'}
+                  autoCapitalize={key === 'invoiceEmail' ? 'none' : 'sentences'}
+                  nativeID={`customer-${key}`}
+                  style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+                />
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text>
+              </View>
+            ))}
+            {[
+              ['invoiceDelivery', 'Forsendelse', INVOICE_DELIVERY_CHOICES],
+              ['invoiceLanguage', 'Fakturaspråk', INVOICE_LANGUAGE_CHOICES],
+            ].map(([key, label, choices]) => (
+              <View key={key} style={{ gap: 4 }}>
+                <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
+                <View style={styles.row}>
+                  {choices.map((choice) => {
+                    const on = (form[key] || '') === choice.id;
+                    return (
+                      <TouchableOpacity
+                        key={choice.id || 'default'}
+                        onPress={() => patch({ [key]: choice.id })}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
+                      >
+                        <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '700' : '400' }}>{choice.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </View>
           <OwnerPicker
             colors={colors}
             people={followPeople}
@@ -1055,6 +1130,11 @@ export default function CustomersScreen() {
             {selected.contactName ? <Text style={{ color: colors.ink }}>Kontakt {selected.contactName}</Text> : null}
             {selected.email ? <Text style={{ color: colors.ink }}>{selected.email}</Text> : null}
             {selected.phone ? <Text style={{ color: colors.ink }}>{selected.phone}</Text> : null}
+            {customerInvoiceSummary(selected).length ? (
+              <Text style={{ color: colors.ink }} nativeID="customer-invoice-summary">
+                {`Fakturering: ${customerInvoiceSummary(selected).join(' · ')}`}
+              </Text>
+            ) : null}
             {ownerLabel(selected, followPeople) ? (
               <Text style={{ color: colors.ink }}>Ansvarlig {ownerLabel(selected, followPeople)}</Text>
             ) : (

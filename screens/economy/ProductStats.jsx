@@ -190,7 +190,7 @@ export default function ProductStatsCard({ product, rows, colors, narrow, salesR
             <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Produktsalg</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={onOpenBilling} accessibilityRole="link">
-            <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Fakturagrunnlag</Text>
+            <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Til fakturering</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -486,7 +486,7 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity onPress={() => requestShellTab?.('okonomi', 'fakturagrunnlag')} style={[styles.btnGhost, { borderColor: colors.line }]}>
-          <Text style={{ color: colors.ink }}>Fakturagrunnlag</Text>
+          <Text style={{ color: colors.ink }}>Til fakturering</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

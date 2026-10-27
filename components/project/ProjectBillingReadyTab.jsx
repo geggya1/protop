@@ -1,162 +1,159 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { formatHours } from '../../src/arbeid/hours.js';
-import { formatMoney } from '../../src/economy/invoices.js';
-import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings.js';
+import { useApp } from '../../src/context/AppContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
+import { supplierFromCompany } from '../../src/economy/ehf.js';
+import { buildReadyProjects, PERIOD_OPTIONS, periodEndFor } from '../../src/economy/billingReady.js';
+import { osloDate } from '../../src/indeksregulering/watch';
+import ConfirmDialog from '../ConfirmDialog';
+import BrandBusyOverlay from '../BrandBusyOverlay';
+import BillingProjectRow from '../../screens/economy/billing/BillingProjectRow';
+import useBillingData from '../../screens/economy/billing/useBillingData';
+import useBillingWorkflow from '../../screens/economy/billing/useBillingWorkflow';
+import { Banner } from '../../screens/economy/billing/ui';
+import { withIndexWarnings } from '../../screens/economy/billing/indexWarnings';
 
 /**
- * Til fakturering — prosjektfiltrert grunnlag (timer, utlegg, salg) klar for faktura.
+ * Prosjekt · Til fakturering: samme blokk som i Økonomi → Til fakturering, for dette prosjektet.
  */
 export default function ProjectBillingReadyTab({
-  state,
   project,
-  // Salg på prosjektet, også importerte. Uten listen brukes salg i prosjektstate.
-  sales: projectSales,
   colors,
   onOpenEconomyBilling,
   onOpenTab,
+  onOpenInvoice,
 }) {
-  const billing = resolveProjectInvoiceSettings(state, project);
-  const showExpenses = project.pricingSettings?.showBillableExpenses !== false;
-  const showSales = project.pricingSettings?.showBillableSales !== false;
+  const { familyId, family, uid, activeProfile, isAdmin } = useApp();
+  const access = useCompanyAccess();
+  const { isPhone, width } = useLayout();
+  const canEdit = !!isAdmin || access.canEdit('economyBilling');
+  const data = useBillingData({ familyId, projectId: project.id, canSeePowerOffice: !!isAdmin });
+  const today = osloDate();
+  const [period, setPeriod] = useState('today');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const periodEnd = periodEndFor(period, today);
+  const supplier = useMemo(() => supplierFromCompany(family?.company, family?.name), [family]);
+  const actor = useMemo(() => ({ byUid: uid || '', byName: activeProfile?.name || '' }), [uid, activeProfile?.name]);
 
-  const hours = useMemo(() => (state.timeEntries || []).filter((row) => (
-    row.projectId === project.id
-    && row.billable !== false
-    && (row.status === 'godkjent' || row.status === 'registrert')
-    && !row.invoiceId
-  )), [state.timeEntries, project.id]);
+  const ready = useMemo(() => {
+    if (!data.ready) return null;
+    const built = buildReadyProjects({
+      projects: data.projects.filter((row) => row.id === project.id),
+      customers: data.customers,
+      timeEntries: data.timeEntries,
+      expenses: data.expenses,
+      trips: data.trips,
+      sales: data.sales,
+      invoices: data.invoices,
+      timesheetLocks: data.timesheetLocks,
+      contracts: data.contracts,
+      settingsFor: data.settingsFor,
+      periodEnd,
+      today,
+      includeEmpty: true,
+    });
+    return withIndexWarnings(built, data, today)[0] || null;
+  }, [data, project.id, periodEnd, today]);
 
-  const expenses = useMemo(() => (state.expenses || []).filter((row) => (
-    row.projectId === project.id
-    && row.billable !== false
-    && row.status !== 'invoiced'
-    && row.status !== 'draft'
-  )), [state.expenses, project.id]);
-
-  const sales = useMemo(() => (projectSales || state.sales || []).filter((row) => (
-    row.projectId === project.id
-    && row.billable !== false
-    && row.status !== 'invoiced'
-    && !row.invoiceId
-  )), [projectSales, state.sales, project.id]);
-
-  const hourSum = hours.reduce((sum, row) => sum + (Number(row.billableHours) || Number(row.hours) || 0), 0);
-  const expenseSum = expenses.reduce((sum, row) => sum + (Number(row.amountExVat) || 0), 0);
-  const saleSum = sales.reduce((sum, row) => sum + (Number(row.amountExVat) || 0), 0);
-  const rate = Number(project.pricingSettings?.hourlyRate) || 0;
-  const hourAmount = hourSum * rate;
+  const workflow = useBillingWorkflow({
+    familyId,
+    projects: ready ? [ready] : [],
+    data,
+    supplier,
+    actor,
+    periodEnd,
+    onCreated: (created, failed) => {
+      setError(failed.map((row) => row.error).join('\n'));
+      if (created.length) {
+        setNote('Fakturautkastet er laget. Kontroller og ferdigstill det fra fakturasiden.');
+        showSaveToast('Fakturautkastet er laget.');
+      }
+    },
+    onError: (message) => setError(message),
+  });
 
   return (
     <View style={styles.wrap} nativeID="project-billing-ready-tab">
-      <View style={[styles.banner, { backgroundColor: colors.brandSoft || '#e8f1ff', borderColor: colors.brand }]}>
-        <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 19 }}>
-          Grunnlag som kan faktureres på dette prosjektet. Kredittid og kontoer hentes fra{' '}
-          {billing.sourceLabel.toLowerCase()}. Effektiv kredittid: {billing.effective.creditDays} dager.
-        </Text>
-      </View>
-
-      <View style={styles.cards}>
-        <ReadyCard
-          colors={colors}
-          title="Timer"
-          value={`${formatHours(hourSum)} t`}
-          sub={rate ? `≈ ${formatMoney(hourAmount)} eks. mva` : 'Sett timepris under Faktureringsvalg'}
-          count={hours.length}
-          onPress={() => onOpenTab?.('timerapport')}
-        />
-        {showExpenses ? (
-          <ReadyCard
-            colors={colors}
-            title="Utlegg"
-            value={formatMoney(expenseSum)}
-            sub={`${expenses.length} poster`}
-            count={expenses.length}
-            onPress={() => onOpenTab?.('utlegg')}
-          />
-        ) : null}
-        {showSales ? (
-          <ReadyCard
-            colors={colors}
-            title="Produktsalg"
-            value={formatMoney(saleSum)}
-            sub={`${sales.length} poster`}
-            count={sales.length}
-            onPress={() => onOpenTab?.('produktsalg')}
-          />
-        ) : null}
-      </View>
-
-      <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
-        <Text style={[styles.title, { color: colors.ink }]}>Klar til faktura</Text>
-        <Text style={{ color: colors.muted, fontSize: 13, marginBottom: 12 }}>
-          Opprett faktura i Økonomi → Fakturagrunnlag. Prosjektet er forhåndsfiltrert der du jobber videre med bilag og EHF.
-        </Text>
-        <TouchableOpacity
-          onPress={onOpenEconomyBilling}
-          style={[styles.primary, { backgroundColor: colors.brand }]}
-          accessibilityRole="button"
-          nativeID="project-open-billing-desk"
-        >
-          <Ionicons name="receipt-outline" size={18} color="#fff" />
-          <Text style={{ color: '#fff', fontWeight: '700' }}>Åpne fakturagrunnlag</Text>
+      <View style={styles.toolbar}>
+        {PERIOD_OPTIONS.filter((row) => row.id !== 'custom').map((row) => {
+          const on = period === row.id;
+          return (
+            <TouchableOpacity
+              key={row.id}
+              onPress={() => setPeriod(row.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+            >
+              <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 13 }}>{row.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity onPress={onOpenEconomyBilling} accessibilityRole="link" nativeID="project-open-billing-desk">
+          <Text style={{ color: colors.brand, fontWeight: '600' }}>Alle prosjekter til fakturering</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.panel, { backgroundColor: colors.card, borderColor: colors.line }]}>
-        <Text style={[styles.title, { color: colors.ink }]}>Poster</Text>
-        {hours.slice(0, 8).map((row) => (
-          <Text key={row.id} style={[styles.line, { color: colors.ink, borderColor: colors.line }]}>
-            Timer · {row.date} · {row.employeeName} · {formatHours(row.billableHours || row.hours)} t
-          </Text>
-        ))}
-        {showExpenses && expenses.slice(0, 8).map((row) => (
-          <Text key={row.id} style={[styles.line, { color: colors.ink, borderColor: colors.line }]}>
-            Utlegg · {row.date} · {row.description || 'Utlegg'} · {formatMoney(row.amountExVat)}
-          </Text>
-        ))}
-        {showSales && sales.slice(0, 8).map((row) => (
-          <Text key={row.id} style={[styles.line, { color: colors.ink, borderColor: colors.line }]}>
-            Salg · {row.name} · {formatMoney(row.amountExVat)}
-          </Text>
-        ))}
-        {!hours.length && !expenses.length && !sales.length ? (
-          <Text style={{ color: colors.muted }}>Ingen poster klare til fakturering.</Text>
-        ) : null}
-      </View>
-    </View>
-  );
-}
+      {data.error ? <Banner tone="block" colors={colors}>{data.error}</Banner> : null}
+      {error ? <Banner tone="block" colors={colors}>{error}</Banner> : null}
+      {note ? <Banner tone="ok" colors={colors}>{note}</Banner> : null}
 
-function ReadyCard({ colors, title, value, sub, count, onPress }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}
-    >
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{title} ({count})</Text>
-      <Text style={{ color: colors.ink, fontSize: 20, fontWeight: '700', marginTop: 4 }}>{value}</Text>
-      <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>{sub}</Text>
-    </TouchableOpacity>
+      {!data.ready ? (
+        <Text style={{ color: colors.muted }}>Henter det som skal faktureres…</Text>
+      ) : ready ? (
+        <BillingProjectRow
+          project={ready}
+          colors={colors}
+          open
+          onToggleOpen={() => {}}
+          selected={workflow.selectedFor(ready)}
+          onToggleKey={(key) => workflow.toggleKey(ready, key)}
+          showCheck={false}
+          fixedAmount={workflow.fixedAmounts[ready.projectId]}
+          onFixedAmount={(value) => workflow.setFixedAmount(ready.projectId, value)}
+          stacked={isPhone || width < 1100}
+          busy={!!workflow.busy}
+          canEdit={canEdit}
+          onApprove={async () => {
+            const count = await workflow.approve([ready]);
+            if (count) showSaveToast(count === 1 ? '1 post er godkjent.' : `${count} poster er godkjent.`);
+          }}
+          onCreateDraft={() => { setError(''); setNote(''); workflow.requestCreate([ready]); }}
+          onOpenDraft={(invoice) => onOpenInvoice?.(invoice.id)}
+          onOpenProject={(tab) => onOpenTab?.(tab)}
+        />
+      ) : (
+        <Text style={{ color: colors.muted }}>Ingen poster klare til fakturering.</Text>
+      )}
+
+      <ConfirmDialog
+        visible={!!workflow.pending}
+        title="Ikke godkjent"
+        message={workflow.pending
+          ? `${workflow.pending.unapproved === 1 ? '1 post' : `${workflow.pending.unapproved} poster`} er ikke godkjent. Vil du godkjenne dem og ta dem med, eller bare ta med det som er godkjent?`
+          : ''}
+        buttons={[
+          { text: 'Avbryt', style: 'cancel', onPress: workflow.cancelPending },
+          { text: 'Bare godkjente', style: 'cancel', onPress: () => workflow.confirmPending(false) },
+          { text: 'Godkjenn og lag utkast', onPress: () => workflow.confirmPending(true) },
+        ]}
+        onClose={() => {}}
+      />
+      <BrandBusyOverlay
+        visible={workflow.busy === 'draft'}
+        label="Lager fakturautkast…"
+        detail="Postene reserveres på utkastet."
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: 12 },
-  banner: { borderWidth: 1, borderRadius: 10, padding: 12 },
-  cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  card: { flexGrow: 1, flexBasis: 180, borderWidth: 1, borderRadius: 12, padding: 14 },
-  panel: { borderWidth: 1, borderRadius: 12, padding: 14 },
-  title: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
-  primary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    alignSelf: 'flex-start',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  line: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 8, fontSize: 13 },
+  toolbar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
 });

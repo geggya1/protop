@@ -143,7 +143,7 @@ const ACCESS_MENU = [
     items: [
       { id: 'economyOverview', label: 'Oversikt', icon: 'home' },
       { id: 'economyInvoices', label: 'Faktura', icon: 'document-text' },
-      { id: 'economyBilling', label: 'Fakturagrunnlag', icon: 'receipt' },
+      { id: 'economyBilling', label: 'Til fakturering', icon: 'receipt' },
       { id: 'economyExpenses', label: 'Utlegg', icon: 'card' },
       { id: 'economyProjectExpenses', label: 'Prosjektutlegg', icon: 'receipt-outline' },
       { id: 'economyIndex', label: 'Indeksregulering', icon: 'trending-up' },

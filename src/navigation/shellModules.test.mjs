@@ -194,7 +194,7 @@ function idsIn(sections) {
   assert.ok(companyItems.findIndex((i) => i.id === 'okonomi') < companyItems.findIndex((i) => i.id === 'iso'));
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Faktura', 'Fakturagrunnlag', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
+    ['Oversikt', 'Faktura', 'Til fakturering', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.some((i) => i.id === 'okonomi-inntjening'), false);

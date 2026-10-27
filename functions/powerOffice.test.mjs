@@ -465,3 +465,18 @@ function fakeClient(routes) {
 }
 
 console.log('powerOffice.test ok');
+
+// Påslag på linjen: PowerOffice får nettoprisen, så summen blir lik ProTop.
+{
+  const { salesOrderFromInvoice: build } = await import('./powerOfficeMap.js');
+  const order = build({
+    invoiceDate: '2026-10-27',
+    lines: [
+      { description: 'Utlegg', quantity: 1, unitPrice: 60807.21, netUnitPrice: 69928.2915, vatCode: 'HIGH' },
+      { description: 'Timer', quantity: 10.5, unitPrice: 1090, netUnitPrice: 1090, vatCode: 'HIGH' },
+    ],
+  }, { customerId: 1, productCodes: { HIGH: 'P1' }, ref: 'protop:x' });
+  assert.equal(order.ok, true);
+  assert.equal(order.order.SalesOrderLines[0].ProductUnitPrice, 69928.2915);
+  assert.equal(order.order.SalesOrderLines[1].ProductUnitPrice, 1090);
+}

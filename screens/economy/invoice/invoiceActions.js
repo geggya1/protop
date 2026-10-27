@@ -1,0 +1,456 @@
+/**
+ * Handlingene på fakturasiden. Hver funksjon lagrer og svarer med { invoice, message }.
+ *
+ * ctx: {
+ *   familyId, store, supplier, logo, settings, chart, actor, invoices, mode ('protop' | 'poweroffice'),
+ *   companyName,
+ * }
+ */
+import {
+  addNote,
+  applyCreditToOriginal,
+  approveDraft,
+  buildCreditNote,
+  isCreditNote,
+  isDraftInvoice,
+  isManagedInvoice,
+  issueInvoice,
+  mergeTemplate,
+  nextInvoiceNumber,
+  postponeReminder,
+  projectInvoiceCountFor,
+  recordDelivery,
+  registerPayment,
+  removePayment,
+  setCollectionFlag,
+  settleCreditNote,
+  unapproveDraft,
+  updateDraft,
+  withEvent,
+  writeOffInvoice,
+} from '../../../src/economy/invoiceFlow.js';
+import { lineSources, totalsFromLines } from '../../../src/economy/invoiceLines.js';
+import { normalizeInvoice } from '../../../src/economy/invoices.js';
+import { attachVoucherSnapshot, ledgerVoucher } from '../../../src/economy/vouchers.js';
+import { buildEhfXml } from '../../../src/economy/ehf.js';
+import {
+  buildInvoicePdf,
+  buildInvoiceWithTimeSpecPdf,
+  buildTimeSpecPdf,
+  invoicePdfName,
+  pdfBase64,
+} from '../../../src/economy/invoicePdf.js';
+import {
+  archiveInvoice,
+  fileBase64,
+  sendInvoiceEhf,
+  sendInvoiceMail,
+  storeInvoiceFile,
+} from '../../../src/economy/invoiceDelivery.js';
+import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js';
+import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
+
+function demo(ctx) {
+  return !ctx.familyId || ctx.familyId === '__demo__';
+}
+
+async function save(ctx, invoice) {
+  return ctx.store.saveInvoice(ctx.familyId, normalizeInvoice(invoice));
+}
+
+/** Timene bak timelinjene, til timespesifikasjonen. */
+export async function timeEntriesFor(ctx, invoice) {
+  const ids = invoiceWorkIds(invoice).timeEntryIds;
+  if (!ids.length || demo(ctx)) return ctx.demoEntries?.filter((row) => ids.includes(row.id)) || [];
+  return loadTimeEntriesByIds(ctx.familyId, ids);
+}
+
+export function pdfFor(ctx, invoice, originalDate = '') {
+  return buildInvoicePdf(invoice, { supplier: ctx.supplier, logo: ctx.logo, originalDate });
+}
+
+export async function timeSpecFor(ctx, invoice) {
+  const entries = await timeEntriesFor(ctx, invoice);
+  return buildTimeSpecPdf(invoice, entries, { supplier: ctx.supplier, settings: ctx.settings, logo: ctx.logo });
+}
+
+export async function invoiceWithTimeSpecFor(ctx, invoice, originalDate = '') {
+  const entries = await timeEntriesFor(ctx, invoice);
+  return buildInvoiceWithTimeSpecPdf(invoice, entries, { supplier: ctx.supplier, settings: ctx.settings, logo: ctx.logo, originalDate });
+}
+
+/** Hele fakturaen fra lagringen. Listeradene mangler linjer og skal aldri lagres tilbake. */
+async function fullInvoice(ctx, row) {
+  if (!row || typeof ctx.store.loadInvoice !== 'function') return row;
+  const loaded = await ctx.store.loadInvoice(ctx.familyId, row.id).catch(() => null);
+  if (!loaded || loaded.partial) throw new Error('Kunne ikke hente hele fakturaen. Sjekk nettet og prøv igjen.');
+  return loaded;
+}
+
+function originalOf(ctx, invoice) {
+  if (!isCreditNote(invoice)) return null;
+  return (ctx.invoices || []).find((row) => row.id === invoice.creditNoteForId) || null;
+}
+
+/** Lagrer endringer i utkastet. Linjer fra grunnlaget som fjernes, frigjøres. */
+export async function saveDraft(ctx, previous, patch) {
+  const result = updateDraft(previous, patch, { actor: ctx.actor });
+  if (!result.ok) throw new Error(result.error);
+  if (!result.changed) return { invoice: previous, message: '' };
+  const before = invoiceWorkIds(previous);
+  const after = invoiceWorkIds(result.invoice);
+  const removed = [
+    ...before.timeEntryIds.filter((id) => !after.timeEntryIds.includes(id)),
+    ...before.expenseIds.filter((id) => !after.expenseIds.includes(id)),
+    ...before.tripIds.filter((id) => !after.tripIds.includes(id)),
+    ...before.saleIds.filter((id) => !after.saleIds.includes(id)),
+  ];
+  const saved = await save(ctx, result.invoice);
+  if (removed.length && !isCreditNote(previous)) {
+    await releaseWork(ctx.familyId, previous, { mode: 'release', onlyIds: removed });
+  }
+  return {
+    invoice: saved,
+    message: removed.length
+      ? `Utkastet er lagret. ${removed.length === 1 ? '1 post' : `${removed.length} poster`} er tilbake i Til fakturering.`
+      : 'Utkastet er lagret.',
+  };
+}
+
+export async function toggleApproval(ctx, invoice) {
+  const result = invoice.approval ? unapproveDraft(invoice, { actor: ctx.actor }) : approveDraft(invoice, { actor: ctx.actor });
+  if (!result.ok) throw new Error(result.error);
+  const saved = await save(ctx, result.invoice);
+  return { invoice: saved, message: saved.approval ? 'Utkastet er godkjent.' : 'Godkjenningen er trukket tilbake.' };
+}
+
+export async function addNoteAction(ctx, invoice, body) {
+  const saved = await save(ctx, addNote(invoice, { text: body, actor: ctx.actor }));
+  return { invoice: saved, message: 'Notatet er lagt til.' };
+}
+
+export async function addEventAction(ctx, invoice, body) {
+  const saved = await save(ctx, withEvent(invoice, { type: 'manual', text: body, actor: ctx.actor }));
+  return { invoice: saved, message: 'Hendelsen er lagt i loggen.' };
+}
+
+/** Slett utkast. Postene frigjøres eller avskrives før utkastet fjernes. */
+export async function deleteDraft(ctx, invoice, { mode = 'release', reason = '' } = {}) {
+  const full = await fullInvoice(ctx, invoice);
+  if (full?.issuedAt) throw new Error(`Faktura ${full.invoiceNumber} er ferdigstilt og kan ikke slettes. Krediter den i stedet.`);
+  if (!isCreditNote(full)) {
+    await releaseWork(ctx.familyId, full, { mode, reason, actor: ctx.actor });
+  }
+  await ctx.store.removeInvoice(ctx.familyId, full.id);
+  return {
+    message: mode === 'writeoff'
+      ? 'Utkastet er slettet. Postene er avskrevet og faktureres ikke.'
+      : 'Utkastet er slettet. Postene er tilbake i Til fakturering.',
+  };
+}
+
+/**
+ * Ferdigstill i ProTop: nummer (transaksjon), dato, forfall, KID, bilag og arkiv-PDF.
+ * Kreditnota: originalen oppdateres og grunnlaget frigjøres når det er valgt.
+ */
+export async function finalize(ctx, invoice, { date = '' } = {}) {
+  const settings = ctx.settings || {};
+  const minimum = nextInvoiceNumber(ctx.invoices || [], settings.invoiceNumberStart);
+  const build = (number, current) => {
+    const base = current && current.status === 'draft' ? { ...current, ...invoice } : invoice;
+    const issued = issueInvoice(base, {
+      number,
+      date,
+      creditDays: base.creditDays,
+      dueDateMode: settings.dueDateMode || 'invoice_date',
+      kidFormat: settings.kidFormat || 'customer_invoice',
+      kidMethod: settings.kidMethod || 'mod10',
+      projectInvoiceCount: isCreditNote(base) ? null : projectInvoiceCountFor(ctx.invoices || [], base.projectId, base.id),
+      actor: ctx.actor,
+    });
+    if (!issued.ok) return issued;
+    const voucher = ledgerVoucher(issued.invoice, { totals: totalsFromLines(issued.invoice.lines), accountNames: ctx.accountNames || {} });
+    return { ok: true, invoice: voucher.ok ? attachVoucherSnapshot(issued.invoice, voucher) : issued.invoice };
+  };
+  let issued;
+  if (typeof ctx.store.issueInvoiceWithNumber === 'function' && !demo(ctx)) {
+    issued = await ctx.store.issueInvoiceWithNumber(ctx.familyId, invoice, { minimum, build });
+  } else {
+    const result = build(minimum, null);
+    if (!result.ok) throw new Error(result.error);
+    issued = await save(ctx, result.invoice);
+  }
+
+  // Arkiv: PDF-en slik den ble utstedt (bokføringsloven § 13).
+  const original = originalOf(ctx, issued);
+  const originalDate = original ? original.invoiceDate.split('-').reverse().join('.') : '';
+  let archived = issued;
+  try {
+    const pdf = pdfFor(ctx, issued, originalDate);
+    const timeSpec = !isCreditNote(issued) && settings.attachTimeSpec && (issued.timeEntryIds || []).length
+      ? await timeSpecFor(ctx, issued)
+      : null;
+    const archive = await archiveInvoice(ctx.familyId, issued, {
+      pdf,
+      pdfName: invoicePdfName(issued),
+      timeSpec,
+      timeSpecName: `Timespesifikasjon-${issued.invoiceNumber}.pdf`,
+    });
+    archived = await save(ctx, { ...issued, archive, previewReady: true });
+  } catch (cause) {
+    archived = await save(ctx, withEvent(issued, { type: 'archive', text: `PDF-arkivet feilet: ${String(cause?.message || cause).slice(0, 120)}` }));
+  }
+
+  if (original) {
+    const full = await fullInvoice(ctx, original);
+    const updated = applyCreditToOriginal(full, archived, { actor: ctx.actor });
+    await save(ctx, updated);
+    archived = await save(ctx, settleCreditNote(archived, updated, { actor: ctx.actor }));
+    if (archived.creditReleaseWork) {
+      const ids = lineSources(archived.lines);
+      await releaseWork(ctx.familyId, updated, {
+        mode: 'release',
+        onlyIds: [...ids.timeEntryIds, ...ids.expenseIds, ...ids.tripIds, ...ids.saleIds],
+      });
+    }
+  }
+  return {
+    invoice: archived,
+    message: `${isCreditNote(archived) ? 'Kreditnotaen' : 'Fakturaen'} ble ferdigstilt som nummer ${archived.invoiceNumber}.`,
+  };
+}
+
+function attachmentAllowed(familyId, row) {
+  const path = row?.storagePath || '';
+  if (path) return path.startsWith(`families/${familyId}/`);
+  const match = String(row?.url || '').match(/^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/[^/]+\/o\/([^?#]+)/);
+  if (!match) return false;
+  try {
+    return decodeURIComponent(match[1]).startsWith(`families/${familyId}/`);
+  } catch {
+    return false;
+  }
+}
+
+/** Vedlegg som ikke ligger i ProTop (for eksempel en lenke), kan ikke sendes med. */
+export function sendableAttachments(familyId, invoice) {
+  return (invoice?.attachments || []).filter((row) => row.include !== false && (demo({ familyId }) || attachmentAllowed(familyId, row)));
+}
+
+/** Sender en ferdigstilt faktura: e-post, EHF (med e-post i tillegg) eller manuelt. */
+export async function send(ctx, invoice, options = {}) {
+  const channel = options.channel || 'email';
+  let current = invoice;
+  const credit = isCreditNote(current);
+  const values = { company: ctx.companyName || ctx.supplier?.name || '', replyTo: options.replyTo || '' };
+  const messages = [];
+
+  if (channel === 'manual') {
+    current = recordDelivery(current, { channel: 'manual', actor: ctx.actor });
+    current = await save(ctx, current);
+    return { invoice: current, message: `${credit ? 'Kreditnotaen' : 'Fakturaen'} er markert som sendt. Last ned PDF-en og send den selv.` };
+  }
+
+  if (channel === 'ehf') {
+    const pdf = pdfFor(ctx, current);
+    const embedded = [{ id: invoicePdfName(current), name: invoicePdfName(current), mime: 'application/pdf', base64: pdfBase64(pdf), description: credit ? 'Kreditnota' : 'Faktura' }];
+    if (options.includeTimeSpec && (current.timeEntryIds || []).length) {
+      const spec = await timeSpecFor(ctx, current);
+      embedded.push({ id: 'Timespesifikasjon', name: `Timespesifikasjon-${current.invoiceNumber}.pdf`, mime: 'application/pdf', base64: pdfBase64(spec), description: 'Timespesifikasjon' });
+    }
+    if (options.includeAttachments !== false) {
+      for (const row of sendableAttachments(ctx.familyId, current)) {
+        const base64 = await fileBase64(row).catch(() => '');
+        if (base64) embedded.push({ id: row.name, name: row.name, mime: row.mime, base64, description: 'Vedlegg' });
+      }
+    }
+    const built = buildEhfXml(current, { supplier: ctx.supplier, attachments: embedded });
+    if (!built.ok) throw new Error(built.error);
+    try {
+      const result = await sendInvoiceEhf({ familyId: ctx.familyId, invoiceId: current.id, xml: built.xml, senderOrgnr: ctx.supplier?.orgnr });
+      let archive = current.archive || {};
+      try {
+        const xmlFile = await storeInvoiceFile(ctx.familyId, current.id, `${invoicePdfName(current).replace(/\.pdf$/, '')}-EHF.xml`, new TextEncoder().encode(built.xml), 'application/xml');
+        archive = { ...archive, xml: xmlFile };
+      } catch {
+        // XML-arkivet er en kopi. PDF-en ligger allerede i arkivet.
+      }
+      current = recordDelivery({ ...current, archive }, { channel: 'ehf', to: [`0192:${String(current.orgnr).replace(/\D/g, '')}`], providerId: result.providerId, actor: ctx.actor });
+      messages.push('sendt som EHF');
+    } catch (cause) {
+      current = recordDelivery(current, { channel: 'ehf', status: 'failed', message: String(cause?.message || cause), actor: ctx.actor });
+      current = await save(ctx, current);
+      throw new Error(`EHF-sendingen feilet: ${String(cause?.message || cause)}`);
+    }
+  }
+
+  if (channel === 'email' || options.alsoEmail) {
+    const to = options.to || [];
+    const subject = mergeTemplate(options.subject || 'Faktura @invoiceNumber fra @company', current, values);
+    const body = mergeTemplate(options.body || '', current, values);
+    const archive = current.archive || {};
+    const files = [];
+    if (options.includePdf !== false) {
+      files.push(archive.pdf?.storagePath
+        ? { name: archive.pdf.name, storagePath: archive.pdf.storagePath, mime: 'application/pdf' }
+        : { name: invoicePdfName(current), base64: pdfBase64(pdfFor(ctx, current)), mime: 'application/pdf' });
+    }
+    if (options.includeTimeSpec && (current.timeEntryIds || []).length) {
+      files.push(archive.timeSpec?.storagePath
+        ? { name: archive.timeSpec.name, storagePath: archive.timeSpec.storagePath, mime: 'application/pdf' }
+        : { name: `Timespesifikasjon-${current.invoiceNumber}.pdf`, base64: pdfBase64(await timeSpecFor(ctx, current)), mime: 'application/pdf' });
+    }
+    if (options.includeAttachments !== false) {
+      for (const row of sendableAttachments(ctx.familyId, current)) {
+        files.push({ name: row.name, storagePath: row.storagePath, url: row.url, mime: row.mime });
+      }
+    }
+    try {
+      const result = demo(ctx)
+        ? { providerId: 'demo', to }
+        : await sendInvoiceMail({
+          familyId: ctx.familyId,
+          invoiceId: current.id,
+          to: to.slice(0, 1),
+          cc: to.slice(1),
+          replyTo: options.replyTo || '',
+          fromName: values.company,
+          subject,
+          text: body,
+          files,
+        });
+      current = recordDelivery(current, { channel: 'email', to: result.to || to, providerId: result.providerId, actor: ctx.actor });
+      messages.push(`sendt på e-post til ${to.join(', ')}`);
+    } catch (cause) {
+      current = recordDelivery(current, { channel: 'email', to, status: 'failed', message: String(cause?.message || cause), actor: ctx.actor });
+      current = await save(ctx, current);
+      throw new Error(`E-posten ble ikke sendt: ${String(cause?.message || cause)}`);
+    }
+  }
+  current = await save(ctx, current);
+  return {
+    invoice: current,
+    message: `${credit ? 'Kreditnota' : 'Faktura'} ${current.invoiceNumber} er ${messages.join(' og ')}.`,
+  };
+}
+
+/** Kreditnotautkast fra en ferdigstilt faktura. */
+export async function createCredit(ctx, invoice, { lineIds = null, reason = '', release = false } = {}) {
+  const full = await fullInvoice(ctx, invoice);
+  const result = buildCreditNote(full, { lineIds, reason, releaseWork: release, actor: ctx.actor });
+  if (!result.ok) throw new Error(result.error);
+  const saved = await save(ctx, result.invoice);
+  return { invoice: saved, message: 'Kreditnotautkastet er laget. Kontroller det og ferdigstill.' };
+}
+
+export async function payment(ctx, invoice, input) {
+  const result = registerPayment(invoice, { ...input, actor: ctx.actor });
+  if (!result.ok) throw new Error(result.error);
+  const saved = await save(ctx, result.invoice);
+  return { invoice: saved, message: saved.status === 'paid' ? 'Betalingen er registrert. Fakturaen er betalt.' : 'Betalingen er registrert.' };
+}
+
+export async function deletePayment(ctx, invoice, paymentId) {
+  const result = removePayment(invoice, paymentId, { actor: ctx.actor });
+  if (!result.ok) throw new Error(result.error);
+  return { invoice: await save(ctx, result.invoice), message: 'Betalingen er fjernet.' };
+}
+
+export async function loss(ctx, invoice, input) {
+  const result = writeOffInvoice(invoice, { ...input, actor: ctx.actor });
+  if (!result.ok) throw new Error(result.error);
+  return { invoice: await save(ctx, result.invoice), message: 'Restbeløpet er ført som tap.' };
+}
+
+export async function flag(ctx, invoice, key, value) {
+  const result = setCollectionFlag(invoice, key, value, { actor: ctx.actor });
+  if (!result.ok) throw new Error(result.error);
+  return { invoice: await save(ctx, result.invoice), message: '' };
+}
+
+export async function postpone(ctx, invoice, date) {
+  return { invoice: await save(ctx, postponeReminder(invoice, date, { actor: ctx.actor })), message: '' };
+}
+
+/** Last opp et vedlegg til fakturaen (PDF eller bilde). */
+export async function uploadAttachment(ctx, invoice, file, bytes) {
+  const type = file.mimeType || file.type || 'application/octet-stream';
+  const ref = await storeInvoiceFile(ctx.familyId, invoice.id, file.name || 'vedlegg', bytes, type);
+  // Importert faktura: den første PDF-en er selve fakturaen fra det andre systemet.
+  const imported = !isManagedInvoice(invoice) && !isDraftInvoice(invoice);
+  const asDocument = imported && !invoice.attachment?.url && /pdf/i.test(type || ref.name);
+  const next = withEvent({
+    ...invoice,
+    ...(asDocument ? { attachment: { url: ref.url, name: ref.name, storagePath: ref.storagePath || '' }, previewReady: true } : {}),
+    attachments: [...(invoice.attachments || []), { id: `att_${Date.now().toString(36)}`, ...ref, source: 'upload', include: true }],
+  }, { type: 'attachment', text: `la ved ${ref.name}`, actor: ctx.actor });
+  return { invoice: await save(ctx, next), message: `${ref.name} er lagt ved.` };
+}
+
+/**
+ * Oppdater utkast: henter ferske timer, utlegg, kjøring og salg for prosjektet.
+ * Poster som allerede er på utkastet regnes som åpne, så de kommer med på nytt.
+ * Svarer med forhåndsvisning: { lines, selection, added, removed, changed }.
+ */
+export async function refreshPreview(ctx, invoice) {
+  const [{ loadProjectState }, { loadTimeEntries }, { loadProjectExpenses, mergeExpenseLists }, { loadProductSales, mergeSaleLists }] = await Promise.all([
+    import('../../../src/project/storage'),
+    import('../../../src/economy/timeEntryStorage.js'),
+    import('../../../src/economy/expenseStorage.js'),
+    import('../../../src/economy/productSalesStorage.js'),
+  ]);
+  const [{ buildReadyProjects, periodEndFor, selectableKeys, selectionFor, approvedOnly }, { refreshDraftLines }, { resolveProjectInvoiceSettings }] = await Promise.all([
+    import('../../../src/economy/billingReady.js'),
+    import('../../../src/economy/invoiceDraft.js'),
+    import('../../../src/project/invoiceSettings.js'),
+  ]);
+  const [state, entries, extExpenses, extSales] = await Promise.all([
+    loadProjectState(ctx.familyId, { force: true }),
+    loadTimeEntries(ctx.familyId, { projectId: invoice.projectId }).catch(() => []),
+    loadProjectExpenses(ctx.familyId).catch(() => []),
+    loadProductSales(ctx.familyId).catch(() => []),
+  ]);
+  const project = (state.projects || []).find((row) => row.id === invoice.projectId);
+  if (!project) throw new Error('Fant ikke prosjektet til utkastet.');
+  const reopen = (row) => {
+    if (String(row?.invoiceId || '') !== invoice.id) return row;
+    return { ...row, invoiceId: '', status: row.status === 'låst' ? 'godkjent' : (row.status === 'invoiced' ? 'approved' : row.status) };
+  };
+  const lastMonth = periodEndFor('lastMonth');
+  const periodEnd = String(invoice.periodEnd || '') > lastMonth ? invoice.periodEnd : lastMonth;
+  const ready = buildReadyProjects({
+    projects: [project],
+    customers: ctx.customers || [],
+    timeEntries: entries.map(reopen),
+    expenses: mergeExpenseLists(extExpenses, state.expenses || []).map(reopen),
+    trips: (state.mileageTrips || []).map(reopen),
+    sales: mergeSaleLists(extSales, state.sales || []).map(reopen),
+    invoices: (ctx.invoices || []).filter((row) => row.id !== invoice.id),
+    timesheetLocks: state.timesheetLocks || [],
+    contracts: ctx.contracts || [],
+    settingsFor: (row) => resolveProjectInvoiceSettings(state, row).effective,
+    periodEnd,
+    includeEmpty: true,
+  })[0];
+  if (!ready) throw new Error('Fant ikke grunnlaget til prosjektet.');
+  const selection = approvedOnly(selectionFor(ready, new Set(selectableKeys(ready))));
+  const result = refreshDraftLines(invoice, selection, {
+    settings: resolveProjectInvoiceSettings(state, project).effective,
+    chart: ctx.chart || [],
+    periodEnd,
+  });
+  return { ...result, selection };
+}
+
+export async function applyRefresh(ctx, invoice, preview) {
+  const { syncDraftWork } = await import('../../../src/economy/billingWork.js');
+  const result = updateDraft(invoice, { lines: preview.lines }, { actor: ctx.actor, message: 'oppdaterte utkastet fra grunnlaget' });
+  if (!result.ok) throw new Error(result.error);
+  const saved = await save(ctx, result.invoice);
+  await syncDraftWork(ctx.familyId, invoice, saved, preview.selection);
+  const parts = [
+    preview.added ? `${preview.added} nye poster` : '',
+    preview.removed ? `${preview.removed} poster fjernet` : '',
+  ].filter(Boolean);
+  return { invoice: saved, message: parts.length ? `Utkastet er oppdatert: ${parts.join(', ')}.` : 'Utkastet er oppdatert.' };
+}

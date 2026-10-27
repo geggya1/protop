@@ -448,12 +448,12 @@ export const COMPANY_HERO = {
   'okonomi-fakturagrunnlag': {
     ...BLUE,
     wideArt: true,
-    name: 'Fakturagrunnlag',
+    name: 'Til fakturering',
     kicker: t('Økonomi', 'Finance'),
-    title: t('Fakturagrunnlag', 'Billing basis'),
+    title: t('Til fakturering', 'To be invoiced'),
     pitch: t(
-      'Godkjente timer, utlegg, kjøreturer og varesalg samles per kunde og prosjekt.',
-      'Approved hours, expenses, trips and sales are grouped by customer and project.',
+      'Ufakturerte timer, utlegg, kjøring og salg per prosjekt. Godkjenn og lag fakturautkast.',
+      'Uninvoiced hours, expenses, mileage and sales per project. Approve and create draft invoices.',
     ),
   },
   'okonomi-utlegg': {

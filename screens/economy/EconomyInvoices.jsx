@@ -1,7 +1,6 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -27,7 +26,7 @@ import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 import ReportTable from '../../components/table/ReportTable';
 import useReportColumns from '../../components/table/useReportColumns';
 import { importResult } from '../../src/imports/review';
-import { pickDocument, uploadFile } from '../../src/utils/media';
+import { pickDocument } from '../../src/utils/media';
 import {
   INVOICE_IMPORT_ACCEPT,
   buildInvoiceImportReview,
@@ -41,13 +40,8 @@ import {
   canDeleteInvoice,
   formatDate,
   formatMoney,
-  invoiceAmountGroups,
-  invoiceDetailSections,
-  invoicePaymentSummary,
   isInvoiceOverdue,
   isInvoiceSent,
-  markInvoiceAsSent,
-  statusLabel,
 } from '../../src/economy/invoices.js';
 import {
   INVOICE_PERIODS,
@@ -58,6 +52,7 @@ import {
   invoiceReportStatus,
   invoiceReportSummary,
   invoiceStatusChoices,
+  reportStatusLabel,
 } from '../../src/economy/invoiceReport.js';
 import {
   hasColumnFilter,
@@ -78,12 +73,15 @@ import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
 import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
-import IndexWarning from './IndexWarning';
+import InvoicePage from './invoice/InvoicePage';
+import { DeleteDraftDialog, PaymentDialog } from './invoice/InvoiceDialogs';
+import { deleteDraft, payment } from './invoice/invoiceActions';
 import PowerOfficeSyncLine from './PowerOfficeSyncLine';
 import { loadPowerOfficeStatus, transferInvoiceToPowerOffice } from '../../src/economy/powerOfficeClient.js';
-import { canTransferToPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../src/economy/powerOfficeView.js';
-import { buildEhfXml } from '../../src/economy/ehf.js';
-import { validateKid } from '../../src/economy/kid.js';
+import { isCreditNote, isDraftInvoice } from '../../src/economy/invoiceFlow.js';
+import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings.js';
+import { resolveCompanyInvoiceDefaults } from '../../src/economy/companyInvoiceDefaults.js';
+import { resolveCompanyAccounts } from '../../src/economy/companyChart.js';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -112,10 +110,11 @@ const PHONE_SORTS = [
 ];
 
 function statusTone(status, colors) {
-  if (status === 'paid') return { bg: '#dcfce7', fg: '#166534' };
+  if (status === 'paid' || status === 'approved') return { bg: '#dcfce7', fg: '#166534' };
   if (status === 'overdue' || status === 'written_off') return { bg: '#fee4e2', fg: colors.danger || '#b42318' };
-  if (status === 'sent') return { bg: '#e0f2fe', fg: '#075985' };
-  if (status === 'credited') return { bg: '#f3e8ff', fg: '#6b21a8' };
+  if (status === 'sent' || status === 'issued' || status === 'transferred') return { bg: '#e0f2fe', fg: '#075985' };
+  if (status === 'partly_paid') return { bg: '#fef3c7', fg: '#92400e' };
+  if (status === 'credited' || status === 'partly_credited' || status === 'credit_note') return { bg: '#f3e8ff', fg: '#6b21a8' };
   return { bg: colors.sunken || '#f1f5f9', fg: colors.ink || '#334155' };
 }
 
@@ -123,466 +122,8 @@ function InvoiceStatusBadge({ status, colors }) {
   const tone = statusTone(status, colors);
   return (
     <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-      <Text style={{ color: tone.fg, fontSize: 12, fontWeight: '600' }}>{statusLabel(status)}</Text>
+      <Text style={{ color: tone.fg, fontSize: 12, fontWeight: '600' }}>{reportStatusLabel(status)}</Text>
     </View>
-  );
-}
-
-function Fact({ label, value, colors, emphasize }) {
-  return (
-    <View style={styles.fact}>
-      <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
-      <Text style={[styles.factValue, emphasize && styles.factEmphasize, { color: colors.ink }]}>{value || '—'}</Text>
-    </View>
-  );
-}
-
-function InvoicePreviewPanel({ invoice, colors, onUpload, uploading }) {
-  const ready = !!(invoice?.previewReady && invoice?.attachment?.url);
-  const url = invoice?.attachment?.url || '';
-  return (
-    <View
-      nativeID="invoice-preview-panel"
-      style={[styles.preview, { borderColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}
-    >
-      <Text style={[styles.previewTitle, { color: colors.ink }]}>Fakturafremvisning</Text>
-      {ready ? (
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: colors.muted }}>
-            {invoice.attachment.name || `Faktura-${invoice.invoiceNumber}.pdf`}
-          </Text>
-          {Platform.OS === 'web' && url ? (
-            <View style={[styles.pdfFrame, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              {React.createElement('iframe', {
-                title: `Faktura ${invoice.invoiceNumber}`,
-                src: url,
-                style: { border: 0, width: '100%', height: 360 },
-              })}
-            </View>
-          ) : (
-            <Text style={{ color: colors.muted }}>PDF er knyttet. Åpne fra «Last ned».</Text>
-          )}
-        </View>
-      ) : (
-        <Text style={{ color: colors.muted }}>
-          Ingen PDF er knyttet ennå. Last opp faktura-PDF her — på sikt kan systemet også generere den.
-        </Text>
-      )}
-      <TouchableOpacity
-        onPress={onUpload}
-        disabled={uploading}
-        accessibilityRole="button"
-        style={[styles.secondaryBtn, { borderColor: colors.line, opacity: uploading ? 0.6 : 1 }]}
-      >
-        <Text style={{ color: colors.brand, fontWeight: '600' }}>
-          {uploading ? 'Laster opp…' : (ready ? 'Bytt PDF-vedlegg' : 'Last opp faktura-PDF')}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function AmountGroups({ invoice, colors }) {
-  const groups = invoiceAmountGroups(invoice);
-  if (!groups.length) {
-    return (
-      <Text style={{ color: colors.muted }}>
-        Detaljerte fakturalinjer mangler i Excel-importen. Aggregerte beløp vises i summeringen.
-      </Text>
-    );
-  }
-  return (
-    <View style={{ gap: 14 }}>
-      {groups.map((group) => (
-        <View key={group.id} style={[styles.section, { borderColor: colors.line }]}>
-          <Text style={[styles.sectionTitle, { color: colors.ink }]}>{group.title}</Text>
-          <View style={[styles.lineHead, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-            {['Periode', 'Tekst', 'Antall', 'Enhetspris', 'Totalt eks. mva'].map((label) => (
-              <Text key={label} style={[styles.lineTh, { color: colors.muted }]}>{label}</Text>
-            ))}
-          </View>
-          {group.lines.map((line, index) => (
-            <View key={`${group.id}-${index}`} style={[styles.lineRow, { borderBottomColor: colors.line }]}>
-              <Text style={[styles.lineTd, { color: colors.ink }]}>{line.period}</Text>
-              <Text style={[styles.lineTd, styles.lineText, { color: colors.ink }]}>{line.text}</Text>
-              <Text style={[styles.lineTd, { color: colors.ink }]}>{line.qty}</Text>
-              <Text style={[styles.lineTd, { color: colors.ink }]}>{formatMoney(line.unitPrice, invoice.currency)}</Text>
-              <Text style={[styles.lineTd, { color: colors.ink }]}>{formatMoney(line.totalExVat, invoice.currency)}</Text>
-            </View>
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function InvoiceDetail({
-  invoice,
-  invoices = [],
-  colors,
-  wide,
-  onBack,
-  onOpenCustomer,
-  onOpenProject,
-  onNavigate,
-  onUploadPdf,
-  uploading,
-  supplier = {},
-  canManage = false,
-  onSend,
-  onDelete,
-  sending = false,
-  deleting = false,
-  powerOffice = null,
-  onTransfer,
-  transferring = false,
-  error = '',
-  note = '',
-}) {
-  const [tab, setTab] = useState('overview');
-  const [ehfNote, setEhfNote] = useState('');
-  const sections = useMemo(() => invoiceDetailSections(invoice), [invoice]);
-  const payment = useMemo(() => invoicePaymentSummary(invoice), [invoice]);
-  const overdue = isInvoiceOverdue(invoice);
-  const draft = invoice?.status === 'draft' || /utkast|draft/i.test(String(invoice?.exportStatus || ''));
-  // Med PowerOffice sendes fakturaen derfra. Da overføres utkastet i stedet.
-  const viaPowerOffice = !!powerOffice?.connected;
-  const showSend = canManage && draft && !isInvoiceSent(invoice) && !viaPowerOffice;
-  const showTransfer = canManage && canTransferToPowerOffice(invoice, powerOffice);
-  const poSummary = powerOfficeSummary(invoice);
-  const poState = invoice.poweroffice?.state || '';
-  const showDelete = canManage && canDeleteInvoice(invoice);
-  const kidCheck = invoice.kid ? validateKid(invoice.kid) : null;
-  const index = invoices.findIndex((row) => row.id === invoice.id);
-  const prev = index > 0 ? invoices[index - 1] : null;
-  const next = index >= 0 && index < invoices.length - 1 ? invoices[index + 1] : null;
-
-  function downloadEhf() {
-    const built = invoice.ehfXml
-      ? { ok: true, xml: invoice.ehfXml }
-      : buildEhfXml(invoice, { supplier });
-    if (!built?.ok || !built.xml) {
-      setEhfNote(built?.error || 'Kan ikke lage EHF (mangler org.nr eller data).');
-      return;
-    }
-    setEhfNote('EHF XML generert.');
-    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const blob = new Blob([built.xml], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `faktura-${invoice.invoiceNumber || 'ehf'}.xml`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  const overview = (
-    <View style={{ gap: 16 }}>
-      <View style={styles.detailMetaGrid}>
-        <View style={[styles.metaCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={[styles.metaHeading, { color: colors.ink }]}>Kunde</Text>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>
-            {invoice.customerName || '—'}
-            {invoice.customerNumber ? ` (${invoice.customerNumber})` : ''}
-          </Text>
-          <Text style={{ color: colors.muted }}>Org.nr. {invoice.orgnr || '—'}</Text>
-          {invoice.customerId ? (
-            <TouchableOpacity onPress={() => onOpenCustomer?.(invoice.customerId)}>
-              <Text style={{ color: colors.brand }}>Åpne kunde</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        <View style={[styles.metaCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={[styles.metaHeading, { color: colors.ink }]}>Prosjekt og sending</Text>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>
-            {invoice.projectName || '—'}
-            {invoice.projectNumber ? ` (${invoice.projectNumber})` : ''}
-          </Text>
-          <Text style={{ color: colors.muted }}>Aktivitet: {invoice.activities || '—'}</Text>
-          <Text style={{ color: colors.muted }}>
-            Fakturadato {formatDate(invoice.invoiceDate)} · Forfall{' '}
-            <Text style={{ color: overdue ? (colors.danger || '#b42318') : colors.muted, fontWeight: overdue ? '700' : '400' }}>
-              {formatDate(invoice.dueDate)}
-            </Text>
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            KID {invoice.kid || '—'}
-            {kidCheck ? (kidCheck.ok ? ' ✓' : ` (${kidCheck.error})`) : ''}
-            {' · '}
-            {invoice.deliveryMethod || statusLabel(invoice.status)}
-          </Text>
-          {invoice.voucherId ? (
-            <Text style={{ color: colors.muted }}>
-              Bilag: {invoice.voucherId}
-              {Array.isArray(invoice.voucherLines) && invoice.voucherLines.length
-                ? ` (${invoice.voucherLines.length} linjer)`
-                : ''}
-            </Text>
-          ) : null}
-          {invoice.projectId ? (
-            <TouchableOpacity onPress={() => onOpenProject?.(invoice.projectId)}>
-              <Text style={{ color: colors.brand }}>Åpne prosjekt</Text>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity onPress={downloadEhf} style={{ marginTop: 6 }}>
-            <Text style={{ color: colors.brand }}>Last ned EHF (Peppol BIS 3.0)</Text>
-          </TouchableOpacity>
-          {ehfNote ? <Text style={{ color: colors.muted, fontSize: 12 }}>{ehfNote}</Text> : null}
-        </View>
-      </View>
-
-      {Array.isArray(invoice.lines) && invoice.lines.length ? (
-        <View style={[styles.section, { borderColor: colors.line, padding: 12, gap: 8 }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Fakturalinjer</Text>
-          {invoice.lines.map((line) => (
-            <View key={line.id} style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              <Text style={{ color: colors.ink, flex: 2, minWidth: 140 }}>{line.description}</Text>
-              <Text style={{ color: colors.muted }}>{line.quantity} {line.unit}</Text>
-              <Text style={{ color: colors.muted }}>à {formatMoney(line.unitPrice, invoice.currency)}</Text>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{formatMoney(line.amountExVat, invoice.currency)}</Text>
-              <Text style={{ color: colors.muted }}>MVA {line.vatPercent ?? '—'}%</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      <AmountGroups invoice={invoice} colors={colors} />
-
-      <View style={[styles.payBox, { borderColor: colors.line, backgroundColor: colors.card }]}>
-        <Text style={[styles.metaHeading, { color: colors.ink }]}>Summering</Text>
-        {[
-          ['Fakturabeløp eks. mva', formatMoney(payment.amountExVat, payment.currency)],
-          ['Mva', formatMoney(payment.vat, payment.currency)],
-          ['Fakturabeløp ink. mva', formatMoney(payment.amountInclVat, payment.currency)],
-          ['Øreavrunding', formatMoney(payment.rounding, payment.currency)],
-          ['Totalt å betale', formatMoney(payment.totalDue, payment.currency)],
-          ['Har betalt', payment.paid != null ? formatMoney(payment.paid, payment.currency) : '—'],
-          ['Igjen å betale', formatMoney(payment.remaining, payment.currency)],
-        ].map(([label, value], index, list) => (
-          <View
-            key={label}
-            style={[
-              styles.payRow,
-              { borderBottomColor: colors.line },
-              index === list.length - 1 && styles.payRowLast,
-            ]}
-          >
-            <Text style={{ color: colors.muted }}>{label}</Text>
-            <Text style={{ color: colors.ink, fontWeight: index >= list.length - 3 ? '700' : '500' }}>{value}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-
-  const paymentsTab = (
-    <View style={[styles.section, { borderColor: colors.line, padding: 12, gap: 8 }]}>
-      <Text style={{ color: colors.ink, fontWeight: '700' }}>Betalinger og tap</Text>
-      <Fact label="Betalingsdato" value={formatDate(invoice.paidAt)} colors={colors} />
-      <Fact label="Utestående" value={invoice.outstanding || formatMoney(invoice.outstandingAmount, invoice.currency)} colors={colors} />
-      <Fact label="Tap" value={formatMoney(invoice.loss, invoice.currency)} colors={colors} />
-      <Fact label="Dager mellom sendt og betalt" value={invoice.daysSentToPaid == null ? '—' : String(invoice.daysSentToPaid)} colors={colors} />
-      <Text style={{ color: colors.muted }}>
-        Registrering av delbetalinger og kreditnota kommer når systemet også kan opprette egne fakturaer.
-      </Text>
-    </View>
-  );
-
-  const fieldsTab = (
-    <View style={{ gap: 12 }}>
-      {sections.map((section) => (
-        <View key={section.id} style={[styles.section, { borderColor: colors.line }]}>
-          <Text style={[styles.sectionTitle, { color: colors.ink }]}>{section.title}</Text>
-          {section.rows.map(([label, value]) => (
-            <View key={`${section.id}-${label}`} style={[styles.detailRow, !wide && styles.detailRowStack, { borderBottomColor: colors.line }]}>
-              <Text style={[styles.detailLabel, !wide && styles.detailLabelStack, { color: colors.muted }]}>{label}</Text>
-              <Text style={[styles.detailValue, { color: colors.ink }]}>{value}</Text>
-            </View>
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-
-  const sidebar = (
-    <View style={styles.detailSide}>
-      <View style={[styles.metaCard, { borderColor: colors.line, backgroundColor: colors.card, gap: 8 }]}>
-        <Text style={[styles.metaHeading, { color: colors.ink }]}>Status</Text>
-        <Text style={{ color: overdue ? (colors.danger || '#b42318') : colors.ink, fontWeight: '700' }}>
-          {statusLabel(invoice.status)}
-          {overdue ? ' · forfalt' : ''}
-        </Text>
-        <Text style={{ color: colors.muted }}>{invoice.exportStatus || '—'}</Text>
-        {poSummary ? (
-          <View style={{ gap: 2 }}>
-            <Text style={{ color: poSummary.tone === 'warn' ? (colors.danger || '#b42318') : colors.ink, fontWeight: '700' }}>
-              {poSummary.title}
-            </Text>
-            {poSummary.lines.map((line) => (
-              <Text key={line} style={{ color: colors.muted, fontSize: 12 }}>{line}</Text>
-            ))}
-          </View>
-        ) : null}
-        {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
-        {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
-        {showTransfer ? (
-          <TouchableOpacity
-            onPress={onTransfer}
-            disabled={transferring || deleting}
-            accessibilityRole="button"
-            accessibilityLabel="Overfør til PowerOffice"
-            style={[styles.primaryAction, { backgroundColor: colors.brand, opacity: transferring || deleting ? 0.6 : 1 }]}
-          >
-            <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '700' }}>
-              {transferring ? 'Overfører…' : (poState === 'missing' ? 'Overfør på nytt' : 'Overfør til PowerOffice')}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-        {showTransfer && !poState ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Utkastet kontrolleres og sendes fra PowerOffice Go. Fakturanummer, KID og betaling hentes tilbake hit.
-          </Text>
-        ) : null}
-        {viaPowerOffice && poState === 'draft' ? (
-          <TouchableOpacity
-            onPress={() => Linking.openURL(POWEROFFICE_GUI[invoice.poweroffice?.env] || POWEROFFICE_GUI.prod)}
-            accessibilityRole="link"
-          >
-            <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne PowerOffice Go</Text>
-          </TouchableOpacity>
-        ) : null}
-        {showSend ? (
-          <TouchableOpacity
-            onPress={onSend}
-            disabled={sending || deleting}
-            accessibilityRole="button"
-            accessibilityLabel="Send faktura"
-            style={[styles.primaryAction, { backgroundColor: colors.brand, opacity: sending || deleting ? 0.6 : 1 }]}
-          >
-            <Ionicons name="send-outline" size={16} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '700' }}>{sending ? 'Sender…' : 'Send faktura'}</Text>
-          </TouchableOpacity>
-        ) : null}
-        {showDelete ? (
-          <TouchableOpacity
-            onPress={onDelete}
-            disabled={sending || deleting}
-            accessibilityRole="button"
-            accessibilityLabel="Slett faktura"
-            style={[styles.dangerAction, { borderColor: colors.danger || '#b42318', opacity: sending || deleting ? 0.6 : 1 }]}
-          >
-            <Ionicons name="trash-outline" size={16} color={colors.danger || '#b42318'} />
-            <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>
-              {deleting ? 'Sletter…' : 'Slett faktura'}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
-        {draft && !showSend && !showTransfer && !poSummary ? (
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            Fakturaen er et utkast. Send når du er klar.
-          </Text>
-        ) : null}
-      </View>
-      <InvoicePreviewPanel
-        invoice={invoice}
-        colors={colors}
-        onUpload={onUploadPdf}
-        uploading={uploading}
-      />
-      <View style={[styles.metaCard, { borderColor: colors.line, backgroundColor: colors.card, gap: 8 }]}>
-        <Text style={[styles.metaHeading, { color: colors.ink }]}>Last ned</Text>
-        {invoice.attachment?.url ? (
-          <TouchableOpacity onPress={() => Linking.openURL(invoice.attachment.url)} accessibilityRole="link">
-            <Text style={{ color: colors.brand }}>
-              {invoice.attachment.name || `Faktura-${invoice.invoiceNumber}.pdf`}
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <Text style={{ color: colors.muted }}>Ingen generert PDF ennå.</Text>
-        )}
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-          Timespesifikasjon og «faktura med timespesifikasjon» genereres når systemet lager egne fakturaer.
-        </Text>
-      </View>
-      <View style={[styles.metaCard, { borderColor: colors.line, backgroundColor: colors.card, gap: 8 }]}>
-        <Text style={[styles.metaHeading, { color: colors.ink }]}>Vedlegg</Text>
-        {invoice.attachment?.url ? (
-          <Text style={{ color: colors.ink }}>
-            {invoice.attachment.name || 'faktura.pdf'}
-            {invoice.attachment.uploadedAt ? ` · ${formatDate(invoice.attachment.uploadedAt.slice(0, 10))}` : ''}
-          </Text>
-        ) : (
-          <Text style={{ color: colors.muted }}>Ingen vedlegg.</Text>
-        )}
-        <TouchableOpacity
-          onPress={onUploadPdf}
-          disabled={uploading}
-          style={[styles.uploadZone, { borderColor: colors.brand }]}
-          accessibilityRole="button"
-        >
-          <Ionicons name="cloud-upload-outline" size={20} color={colors.brand} />
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>Last opp fakturavedlegg</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  return (
-    <ScrollView
-      nativeID="economy-invoice-detail"
-      style={{ flex: 1 }}
-      contentContainerStyle={[styles.detailInner, wide && styles.detailInnerWide]}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.detailTop}>
-        <TouchableOpacity onPress={onBack} accessibilityRole="button">
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>← Økonomi / Fakturaer</Text>
-        </TouchableOpacity>
-        <View style={styles.navRow}>
-          <TouchableOpacity disabled={!prev} onPress={() => prev && onNavigate(prev)} style={{ opacity: prev ? 1 : 0.4 }}>
-            <Text style={{ color: colors.brand }}>Forrige</Text>
-          </TouchableOpacity>
-          <TouchableOpacity disabled={!next} onPress={() => next && onNavigate(next)} style={{ opacity: next ? 1 : 0.4 }}>
-            <Text style={{ color: colors.brand }}>Neste</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <Text style={[styles.detailTitle, { color: colors.ink }]}>
-        Faktura #{invoice.invoiceNumber || '—'}
-      </Text>
-
-      <View style={styles.tabs}>
-        {[
-          ['overview', 'Fakturaoversikt'],
-          ['payments', 'Betalinger og tap'],
-          ['fields', 'Alle felt'],
-        ].map(([id, label]) => (
-          <TouchableOpacity
-            key={id}
-            nativeID={`invoice-tab-${id}`}
-            onPress={() => setTab(id)}
-            style={[styles.tab, tab === id && { borderBottomColor: colors.brand }]}
-          >
-            <Text style={{ color: tab === id ? colors.brand : colors.muted, fontWeight: tab === id ? '700' : '500' }}>
-              {label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={[styles.detailBody, wide && styles.detailBodyWide]}>
-        <View style={styles.detailMain}>
-          {tab === 'overview' ? overview : null}
-          {tab === 'payments' ? paymentsTab : null}
-          {tab === 'fields' ? fieldsTab : null}
-        </View>
-        {wide ? sidebar : (
-          <View style={{ marginTop: 8 }}>{sidebar}</View>
-        )}
-      </View>
-    </ScrollView>
   );
 }
 
@@ -597,6 +138,7 @@ export default function EconomyInvoices({
   storage = null,
   supplier = {},
   isAdmin = false,
+  demoProjectState = null,
 }) {
   const store = storage || invoiceStorage;
   const {
@@ -607,7 +149,9 @@ export default function EconomyInvoices({
     watchInvoices,
   } = store;
   const colors = useColors();
-  const { requestShellTab, uid } = useApp();
+  const { requestShellTab, uid, family, activeProfile } = useApp();
+  const actor = useMemo(() => ({ byUid: uid || '', byName: activeProfile?.name || '' }), [uid, activeProfile?.name]);
+  const access = useCompanyAccess();
   // Import av fakturalister krever Admin på Faktura.
   const canImport = canImportList(useCompanyAccess(), 'economyInvoices');
   const hostedHero = useModuleHeroHosted();
@@ -615,7 +159,8 @@ export default function EconomyInvoices({
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
   const wideDetail = !isPhone && contentWidth >= 900;
-  const canManage = !!isAdmin;
+  // Utkast lages, godkjennes og ferdigstilles av alle med redigeringstilgang til Faktura.
+  const canManage = !!isAdmin || !!demoProjectState || !!access?.canEdit?.('economyInvoices');
   const [columnKeys, setColumnKeys, resetColumns] = useReportColumns('invoices', uid, INVOICE_REPORT_COLUMNS);
   const listColumns = useMemo(() => visibleColumns(INVOICE_REPORT_COLUMNS, columnKeys), [columnKeys]);
 
@@ -635,12 +180,13 @@ export default function EconomyInvoices({
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [draftDelete, setDraftDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [paymentRow, setPaymentRow] = useState(null);
+  const [fullId, setFullId] = useState('');
+  const [paying, setPaying] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [watch, setWatch] = useState(null);
-  const [askIndex, setAskIndex] = useState(false);
   const [poStatus, setPoStatus] = useState(null);
   const [transferring, setTransferring] = useState(false);
   const [confirmRetransfer, setConfirmRetransfer] = useState(false);
@@ -654,6 +200,10 @@ export default function EconomyInvoices({
 
   useEffect(() => {
     let live = true;
+    if (demoProjectState) {
+      setWatch({ contracts: [], projectState: demoProjectState, timeEntries: demoProjectState.timeEntries || [], dueById: {} });
+      return undefined;
+    }
     Promise.all([
       loadAnbudState(familyId).catch(() => null),
       loadProjectState(familyId).catch(() => null),
@@ -665,12 +215,13 @@ export default function EconomyInvoices({
       const contracts = anbud?.contracts || [];
       setWatch({
         contracts,
+        projectState: projectState || null,
         timeEntries: projectState?.timeEntries || [],
         dueById: dueByContractId(contracts, cases, mergeIndexSnapshot(cache?.series, remote)),
       });
     }).catch(() => {});
     return () => { live = false; };
-  }, [familyId]);
+  }, [familyId, demoProjectState]);
 
   useEffect(() => {
     const id = String(openInvoiceId || '').trim();
@@ -696,10 +247,18 @@ export default function EconomyInvoices({
       return;
     }
     let live = true;
+    // Listeraden mangler linjer. Den vises til hele fakturaen er hentet, og handlingene venter.
+    // En faktura som allerede er åpen, byttes ikke tilbake til listeraden.
     const summary = invoices.find((row) => row.id === selectedId) || null;
-    if (summary) setSelected(summary);
+    if (summary) setSelected((current) => (current?.id === selectedId ? current : summary));
     loadInvoice(familyId, selectedId).then((row) => {
-      if (live && row) setSelected(row);
+      if (!live || !row) return;
+      if (row.partial) {
+        setSelected((current) => (current?.id === row.id ? current : row));
+        return;
+      }
+      setSelected(row);
+      setFullId(row.id);
     }).catch(() => {});
     return () => { live = false; };
   }, [selectedId, familyId, invoices]);
@@ -731,7 +290,7 @@ export default function EconomyInvoices({
   const statusChoices = useMemo(() => {
     const choices = invoiceStatusChoices(unstatused);
     if (!statusFilter || choices.some((row) => row.id === statusFilter)) return choices;
-    return [...choices, { id: statusFilter, label: statusLabel(statusFilter), count: 0 }];
+    return [...choices, { id: statusFilter, label: reportStatusLabel(statusFilter), count: 0 }];
   }, [unstatused, statusFilter]);
   const visible = useMemo(
     () => sortReportRows(
@@ -897,53 +456,13 @@ export default function EconomyInvoices({
 
   const busyOverlay = (
     <BrandBusyOverlay
-      visible={busy || uploading}
-      label={uploading ? 'Laster opp PDF…' : (progress?.label || 'Jobber…')}
+      visible={busy}
+      label={progress?.label || 'Jobber…'}
       detail="Vent til operasjonen er ferdig før du går videre."
       done={progress?.done}
       total={progress?.total}
     />
   );
-
-  async function uploadPdf() {
-    if (!selected || !familyId || uploading || typeof saveInvoice !== 'function') return;
-    const file = await pickDocument({
-      accept: '.pdf,application/pdf',
-    });
-    if (!file) return;
-    setUploading(true);
-    setError('');
-    try {
-      let url = '';
-      let storagePath = '';
-      if (familyId === '__demo__') {
-        const bytes = await bytesFromFile(file);
-        const blob = new Blob([bytes], { type: file.mimeType || 'application/pdf' });
-        url = URL.createObjectURL(blob);
-      } else {
-        storagePath = `families/${familyId}/invoices/${selected.id}/${file.name || `Faktura-${selected.invoiceNumber || 'vedlegg'}.pdf`}`;
-        url = await uploadFile(storagePath, file, file.mimeType || 'application/pdf');
-      }
-      const next = await saveInvoice(familyId, {
-        ...selected,
-        attachment: {
-          url,
-          name: file.name || `Faktura-${selected.invoiceNumber}.pdf`,
-          mime: file.mimeType || 'application/pdf',
-          storagePath,
-          uploadedAt: new Date().toISOString(),
-        },
-        previewReady: true,
-      });
-      setSelected(next);
-      setNote('PDF-vedlegg er lagret på fakturaen.');
-      showSaveToast('PDF-vedlegg er lagret på fakturaen.');
-    } catch (cause) {
-      setError(cause?.message || 'Kunne ikke laste opp PDF.');
-    } finally {
-      setUploading(false);
-    }
-  }
 
   function openInvoice(row) {
     setSelectedId(row.id);
@@ -993,45 +512,13 @@ export default function EconomyInvoices({
     });
   }, [selected?.projectId, watch, projects]);
 
-  async function sendSelectedInvoice(options = {}) {
-    if (!selected || !canManage || sending || deleting) return;
-    if (indexWarning && !options.force) {
-      setAskIndex(true);
-      setError('Indeksregulering bør foretas før fakturaen sendes.');
-      return;
-    }
-    setAskIndex(false);
-    if (typeof saveInvoice !== 'function') {
-      setError('Kan ikke lagre sendt-status i denne visningen.');
-      return;
-    }
-    setSending(true);
-    setError('');
-    try {
-      const next = await saveInvoice(familyId, markInvoiceAsSent(selected));
-      setSelected(next);
-      setNote(`Faktura ${next.invoiceNumber} er markert som sendt.`);
-      showSaveToast(`Faktura ${next.invoiceNumber} er sendt.`);
-    } catch (cause) {
-      setError(cause?.message || 'Kunne ikke sende fakturaen.');
-    } finally {
-      setSending(false);
-    }
-  }
-
   async function transferSelectedInvoice(options = {}) {
     if (!selected || !canManage || transferring || deleting) return;
-    if (indexWarning && !options.force) {
-      setAskIndex(true);
-      setError('Indeksregulering bør foretas før fakturaen overføres.');
-      return;
-    }
     const again = selected.poweroffice?.state === 'missing';
     if (again && !options.confirmed) {
       setConfirmRetransfer(true);
       return;
     }
-    setAskIndex(false);
     setConfirmRetransfer(false);
     setTransferring(true);
     setError('');
@@ -1053,12 +540,19 @@ export default function EconomyInvoices({
   }
 
   function requestDelete(row) {
-    if (!canManage || !canDeleteInvoice(row) || deleting || sending) return;
+    if (!canManage || !canDeleteInvoice(row) || deleting) return;
+    if (!isDraftInvoice(row) && !isAdmin && !demoProjectState) return;
+    if (isDraftInvoice(row)) {
+      setDraftDelete(row);
+      return;
+    }
     setConfirmDelete(row);
   }
 
+  // Utkast slettes av alle som kan arbeide med fakturaer. Importerte fakturaer bare av administrator.
   function deleteButton(row) {
     if (!canManage || !canDeleteInvoice(row)) return null;
+    if (!isDraftInvoice(row) && !isAdmin && !demoProjectState) return null;
     return (
       <TouchableOpacity
         onPress={() => requestDelete(row)}
@@ -1068,6 +562,40 @@ export default function EconomyInvoices({
         style={styles.rowDelete}
       >
         <Ionicons name="trash-outline" size={18} color={colors.danger || '#b42318'} />
+      </TouchableOpacity>
+    );
+  }
+
+  function canRegisterPayment(row) {
+    if (!canManage || isDraftInvoice(row) || isCreditNote(row)) return false;
+    if (row.status === 'paid' || row.status === 'credited' || row.status === 'written_off') return false;
+    return (invoiceOutstanding(row) || 0) > 0;
+  }
+
+  // Listeraden har lite av fakturaen. Betalingen regnes på hele dokumentet.
+  async function openPayment(row) {
+    const full = typeof loadInvoice === 'function' ? await loadInvoice(familyId, row.id).catch(() => null) : row;
+    if (!full || full.partial) {
+      setError('Kunne ikke hente fakturaen. Sjekk nettet og prøv igjen.');
+      return;
+    }
+    setPaymentRow(full);
+  }
+
+  // Ved siden av raden: slett for utkast og importerte, betaling for ubetalte fakturaer.
+  function rowAction(row) {
+    if (canManage && canDeleteInvoice(row)) return deleteButton(row);
+    if (!canRegisterPayment(row)) return null;
+    return (
+      <TouchableOpacity
+        onPress={() => openPayment(row)}
+        accessibilityRole="button"
+        accessibilityLabel={`Registrer betaling på faktura ${row.invoiceNumber}`}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={styles.rowDelete}
+        nativeID={`invoice-row-pay-${row.id}`}
+      >
+        <Ionicons name="cash-outline" size={18} color={colors.success || '#15803d'} />
       </TouchableOpacity>
     );
   }
@@ -1148,17 +676,70 @@ export default function EconomyInvoices({
             ) : null}
           </View>
         </TouchableOpacity>
-        {deleteButton(row)}
+        {rowAction(row)}
       </View>
     );
   }
+
+  const draftDeleteDialog = (
+    <DeleteDraftDialog
+      visible={!!draftDelete}
+      invoice={draftDelete}
+      colors={colors}
+      busy={deleting}
+      onCancel={() => setDraftDelete(null)}
+      onConfirm={async (choice) => {
+        const target = draftDelete;
+        setDeleting(true);
+        setError('');
+        try {
+          const full = (typeof loadInvoice === 'function' ? await loadInvoice(familyId, target.id).catch(() => null) : null) || target;
+          const result = await deleteDraft({ familyId, store, actor }, full, choice);
+          hiddenIds.current.add(target.id);
+          setInvoices((rows) => rows.filter((row) => row.id !== target.id));
+          setNote(result.message);
+          showSaveToast(result.message);
+          setDraftDelete(null);
+        } catch (cause) {
+          setError(cause?.message || 'Kunne ikke slette utkastet.');
+        } finally {
+          setDeleting(false);
+        }
+      }}
+    />
+  );
+
+  const paymentDialog = (
+    <PaymentDialog
+      visible={!!paymentRow}
+      invoice={paymentRow}
+      colors={colors}
+      busy={paying}
+      onCancel={() => setPaymentRow(null)}
+      onConfirm={async (input) => {
+        setPaying(true);
+        setError('');
+        try {
+          const result = await payment({ familyId, store, actor }, paymentRow, input);
+          setInvoices((rows) => rows.map((row) => (row.id === result.invoice.id ? { ...row, ...result.invoice } : row)));
+          setNote(result.message);
+          showSaveToast(result.message);
+          setPaymentRow(null);
+        } catch (cause) {
+          setError(cause?.message || 'Kunne ikke registrere betalingen.');
+        } finally {
+          setPaying(false);
+        }
+      }}
+    />
+  );
 
   const deleteDialog = (
     <ConfirmDialog
       visible={!!confirmDelete}
       title="Slett faktura?"
       message={confirmDelete
-        ? `Faktura ${confirmDelete.invoiceNumber || ''} slettes permanent. Tilknyttede timer og poster frigjøres hvis de var låst til denne fakturaen.${
+        ? `Faktura ${confirmDelete.invoiceNumber || ''} er importert og slettes fra listen i ProTop. Tilknyttede timer og poster frigjøres hvis de var låst til denne fakturaen.${
           confirmDelete.poweroffice?.state === 'draft' ? ' Utkastet i PowerOffice må slettes der.' : ''}`
         : ''}
       confirmText="Slett"
@@ -1171,46 +752,55 @@ export default function EconomyInvoices({
   );
 
   if (view === 'detail' && selected) {
+    const projectState = watch?.projectState || null;
+    const project = (projectState?.projects || []).find((row) => row.id === selected.projectId) || null;
+    const settings = project && projectState
+      ? resolveProjectInvoiceSettings(projectState, project).effective
+      : resolveCompanyInvoiceDefaults(projectState);
     return (
       <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-invoices">
-        {askIndex ? (
-          <View style={{ padding: 16 }}>
-            <IndexWarning
-              warning={indexWarning}
-              colors={colors}
-              continueLabel={poStatus?.connected ? 'Overfør likevel' : 'Send faktura likevel'}
-              onContinue={() => (poStatus?.connected
-                ? transferSelectedInvoice({ force: true })
-                : sendSelectedInvoice({ force: true }))}
-              onOpenIndex={() => requestShellTab?.('okonomi', 'indeks')}
-            />
-          </View>
-        ) : null}
-        <InvoiceDetail
+        <InvoicePage
           invoice={selected}
           invoices={visible}
-          colors={colors}
-          wide={wideDetail}
+          allInvoices={invoices}
+          familyId={familyId}
+          store={store}
           supplier={supplier}
-          canManage={canManage}
-          sending={sending}
-          deleting={deleting}
+          logo={family?.company?.logo || null}
+          settings={settings}
+          chart={resolveCompanyAccounts(projectState)}
+          customers={customers}
+          contracts={watch?.contracts || []}
+          mode={poStatus?.connected ? 'poweroffice' : 'protop'}
+          poStatus={poStatus}
+          canManage={canManage && (fullId === selected.id || !!demoProjectState)}
+          wide={wideDetail}
+          stacked={stackRows}
+          actor={actor}
+          companyName={supplier?.name || family?.name || ''}
+          indexWarning={indexWarning}
+          colors={colors}
           onBack={() => { setView('list'); setSelectedId(''); }}
+          onNavigate={(row) => openInvoice(row)}
           onOpenCustomer={onOpenCustomer}
           onOpenProject={onOpenProject}
-          onNavigate={(row) => openInvoice(row)}
-          onUploadPdf={uploadPdf}
-          uploading={uploading}
-          onSend={sendSelectedInvoice}
-          onDelete={() => requestDelete(selected)}
-          powerOffice={poStatus}
-          onTransfer={() => transferSelectedInvoice()}
+          onOpenInvoiceId={(id) => { if (id) { setSelectedId(id); setView('detail'); } }}
+          onChanged={(row) => {
+            setSelected(row);
+            setInvoices((rows) => rows.map((item) => (item.id === row.id ? { ...item, ...row } : item)));
+          }}
+          onDeleted={(message) => {
+            hiddenIds.current.add(selected.id);
+            setInvoices((rows) => rows.filter((row) => row.id !== selected.id));
+            setView('list');
+            setSelectedId('');
+            setSelected(null);
+            setNote(message || '');
+          }}
+          onTransfer={() => transferSelectedInvoice({ force: true })}
           transferring={transferring}
-          error={error}
-          note={note}
         />
         {busyOverlay}
-        {deleteDialog}
         <ConfirmDialog
           visible={confirmRetransfer}
           title="Overføre på nytt?"
@@ -1361,7 +951,7 @@ export default function EconomyInvoices({
       setQuery(value);
       if (importReport) setImportReport(null);
     },
-    placeholder: 'Søk på fakturanummer, kunde, prosjekt, KID…',
+    placeholder: 'Søk på nummer (eller 16700-16720), kunde, prosjekt, KID…',
     nativeID: 'invoice-search',
     accessibilityLabel: 'Søk i fakturaer',
   };
@@ -1431,7 +1021,7 @@ export default function EconomyInvoices({
       rowLabel={(row) => `Faktura ${row.invoiceNumber}`}
       renderCell={renderCell}
       cellTone={cellTone}
-      renderAction={canManage ? deleteButton : undefined}
+      renderAction={canManage ? rowAction : undefined}
       actionWidth={canManage ? ACTION_WIDTH : 0}
       limit={limit}
       onMore={() => setLimit((current) => current + PAGE_SIZE)}
@@ -1489,6 +1079,8 @@ export default function EconomyInvoices({
         </ScrollView>
         {busyOverlay}
         {deleteDialog}
+        {draftDeleteDialog}
+        {paymentDialog}
       </View>
     );
   }
@@ -1501,6 +1093,8 @@ export default function EconomyInvoices({
       </View>
       {busyOverlay}
       {deleteDialog}
+      {draftDeleteDialog}
+      {paymentDialog}
     </View>
   );
 }

@@ -316,6 +316,47 @@ export function applyEquipmentDoc(state, side) {
   return next;
 }
 
+/**
+ * Produktkatalogen ligger i et eget lite dokument (projects/catalog).
+ * Å arkivere eller rette et produkt skal ikke stoppe fordi hoveddokumentet
+ * har nådd Firestores grense på 1 MiB. Finnes dokumentet, er det fasit for katalogen.
+ */
+export const CATALOG_DOC_KEYS = ['products', 'deletedProducts'];
+
+/** Slå sammen katalogen: nyeste produkt vinner, slettede produkter holdes ute. */
+export function mergeCatalogDoc(current, incoming) {
+  const deletedProducts = mergeRowsNewest(current?.deletedProducts, incoming?.deletedProducts);
+  const gone = new Set(deletedProducts.map((row) => row.id));
+  return {
+    products: mergeRowsNewest(current?.products, incoming?.products).filter((row) => !gone.has(row.id)),
+    deletedProducts,
+  };
+}
+
+/** Katalogdokumentet er fasit for produktene når det finnes. */
+export function applyCatalogDoc(state, side) {
+  if (!side || typeof side !== 'object' || !Array.isArray(side.products)) return state;
+  return {
+    ...state,
+    products: side.products,
+    deletedProducts: Array.isArray(side.deletedProducts) ? side.deletedProducts : [],
+  };
+}
+
+function pickCatalogKeys(value) {
+  const out = {};
+  for (const key of CATALOG_DOC_KEYS) {
+    if (value && Object.prototype.hasOwnProperty.call(value, key)) out[key] = value[key];
+  }
+  return out;
+}
+
+function withoutCatalogKeys(value) {
+  const out = { ...(value || {}) };
+  for (const key of CATALOG_DOC_KEYS) delete out[key];
+  return out;
+}
+
 function pickEquipmentKeys(value) {
   const out = {};
   for (const key of EQUIPMENT_DOC_KEYS) {
@@ -426,19 +467,19 @@ async function readRemote(companyId) {
     const { doc, getDoc, db } = await firestoreBits();
     const ref = doc(db, 'families', id, 'projects', 'state');
     const sideRef = doc(db, 'families', id, 'projects', 'equipment');
-    const [snap, sideSnap] = await Promise.race([
-      Promise.all([getDoc(ref), getDoc(sideRef)]),
+    const catalogRef = doc(db, 'families', id, 'projects', 'catalog');
+    const [snap, sideSnap, catalogSnap] = await Promise.race([
+      Promise.all([getDoc(ref), getDoc(sideRef), getDoc(catalogRef)]),
       new Promise((_, reject) => {
         setTimeout(() => reject(new Error('project-read-timeout')), REMOTE_READ_MS);
       }),
     ]);
     const side = sideSnap.exists() ? sideSnap.data() : null;
-    if (!snap.exists()) {
-      return { ok: true, state: normalizeProjectState(applyEquipmentDoc(emptyProjectState(), side)) };
-    }
+    const catalog = catalogSnap.exists() ? catalogSnap.data() : null;
+    const base = snap.exists() ? (snap.data()?.state || snap.data() || {}) : emptyProjectState();
     return {
       ok: true,
-      state: normalizeProjectState(applyEquipmentDoc(snap.data()?.state || snap.data() || {}, side)),
+      state: normalizeProjectState(applyCatalogDoc(applyEquipmentDoc(base, side), catalog)),
     };
   } catch {
     return { ok: false, state: emptyProjectState() };
@@ -495,17 +536,51 @@ async function writeRemote(companyId, state) {
   // Utstyret først, i eget dokument. Vanlige lagringer slår sammen etter id, så en
   // eldre kopi fra en annen skjerm ikke overskriver nyere endringer.
   const side = await writeEquipmentDoc(id, pickEquipmentKeys(payload), { merge: true });
+  const catalog = await writeCatalogDoc(id, pickCatalogKeys(payload), { merge: true });
   try {
     const { doc, setDoc, serverTimestamp, db } = await firestoreBits();
     const ref = doc(db, 'families', id, 'projects', 'state');
     // Uten utstyrslistene. Med merge beholdes de gamle listene for eldre klienter.
+    // Produktene skrives også hit, så eldre klienter og en tilbakerulling ser katalogen.
     await setDoc(ref, {
       state: withoutEquipmentKeys(payload),
       updatedAt: serverTimestamp(),
     }, { merge: true });
-    return side.ok ? { ok: true } : { ok: false, error: side.error };
+    if (!side.ok) return { ok: false, error: side.error };
+    return catalog.ok ? { ok: true } : { ok: false, error: catalog.error };
   } catch (error) {
     return { ok: false, error, equipmentSaved: side.ok };
+  }
+}
+
+/**
+ * Skriv katalogdokumentet. merge: slå sammen med det som ligger der (vanlige
+ * lagringer). Uten merge er listene fasit (endringer fra Produkt-siden).
+ */
+async function writeCatalogDoc(companyId, lists, { merge = true } = {}) {
+  const id = String(companyId || '').trim();
+  if (!id || !Object.keys(lists || {}).length) return { ok: true };
+  try {
+    const { doc, getDoc, setDoc, serverTimestamp, db } = await firestoreBits();
+    const ref = doc(db, 'families', id, 'projects', 'catalog');
+    let current = null;
+    if (merge) {
+      const snap = await getDoc(ref);
+      current = snap.exists() ? snap.data() : null;
+      if (!current) {
+        // Første gang: start med produktene i hoveddokumentet, så en tom kopi ikke blir fasit.
+        const main = await getDoc(doc(db, 'families', id, 'projects', 'state'));
+        current = main.exists() ? (main.data()?.state || {}) : null;
+      }
+    }
+    const next = mergeCatalogDoc(current, lists);
+    await setDoc(ref, {
+      ...JSON.parse(JSON.stringify(next)),
+      updatedAt: serverTimestamp(),
+    });
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error };
   }
 }
 
@@ -972,7 +1047,8 @@ export async function patchProjectOperations(companyId, mutate) {
   const patch = mutate(current);
   if (!patch || typeof patch !== 'object') return { ok: true, changed: false };
   const sidePatch = pickEquipmentKeys(patch);
-  const mainPatch = withoutEquipmentKeys(patch);
+  const catalogPatch = pickCatalogKeys(patch);
+  const mainPatch = withoutCatalogKeys(withoutEquipmentKeys(patch));
   if (Object.keys(sidePatch).length) {
     // Listene er regnet ut fra skyens ferske kopi og er fasit (også sletting).
     const side = await writeEquipmentDoc(id, {
@@ -984,6 +1060,14 @@ export async function patchProjectOperations(companyId, mutate) {
   if (Object.keys(mainPatch).length) {
     const written = await writeRemote(id, { ...current, ...mainPatch });
     if (!written?.ok) return { ok: false, error: written.error };
+  }
+  if (Object.keys(catalogPatch).length) {
+    // Bare katalogdokumentet. Et fullt hoveddokument stopper ikke produktendringer.
+    const catalog = await writeCatalogDoc(id, {
+      ...pickCatalogKeys(firestorePayload(current)),
+      ...JSON.parse(JSON.stringify(catalogPatch)),
+    }, { merge: false });
+    if (!catalog.ok) return { ok: false, error: catalog.error };
   }
   const key = memoryKey(id);
   if (MEMORY.has(key)) {

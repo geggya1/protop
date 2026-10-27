@@ -280,7 +280,10 @@ export default function ProductCatalog() {
     }
     setBusy(false);
     if (!remote?.ok) {
-      const reason = String(remote?.error?.message || remote?.error?.code || '');
+      const raw = String(remote?.error?.message || remote?.error?.code || '');
+      const reason = /exceeds the maximum allowed size|too big/i.test(raw)
+        ? 'Prosjektdataene til selskapet er større enn Firestore tillater i ett dokument.'
+        : raw;
       setState((now) => (now === after ? before : now));
       setError(`Endringen ble ikke lagret.${reason ? ` ${reason}` : ''} Prøv igjen.`);
       return { ...result, ok: false };

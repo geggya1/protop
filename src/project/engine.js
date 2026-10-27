@@ -697,10 +697,8 @@ export function projectDetails(input = {}, current = {}) {
   const details = {};
   for (const key of PROJECT_DETAIL_KEYS) {
     if (key === 'place') continue;
-    if (PROJECT_NULL_ON_SAVE.has(key)) {
-      details[key] = null;
-      continue;
-    }
+    // Automatiske felter og Moment-rester lagres ikke (se scrubProjectFields).
+    if (PROJECT_NULL_ON_SAVE.has(key)) continue;
     if (input[key] !== undefined) details[key] = detailValue(key, input[key]);
     else if (current[key] !== undefined) details[key] = detailValue(key, current[key]);
     else details[key] = key === 'parentProjectId' || PROJECT_NUMERIC_KEYS.has(key) ? null : '';

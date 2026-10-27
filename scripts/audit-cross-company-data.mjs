@@ -51,6 +51,13 @@ const SOURCES = [
     tombstones: { projects: 'deletedProjects' },
   },
   {
+    // Produktkatalogen har eget dokument (src/project/storage.js, CATALOG_DOC_KEYS).
+    doc: ['projects', 'catalog'],
+    wrap: '',
+    lists: ['products'],
+    tombstones: { products: 'deletedProducts' },
+  },
+  {
     doc: ['anbud', 'state'],
     wrap: 'state',
     lists: ['customers', 'notices', 'bids', 'contracts', 'agreementCases', 'profiles', 'library'],

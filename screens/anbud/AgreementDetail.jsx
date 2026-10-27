@@ -39,6 +39,13 @@ import {
 import { indexLabel } from '../../src/anbud/fieldReview';
 import { formatNumberId } from '../../src/anbud/numbering';
 import { documentHasOriginalFile, documentIsOpenable } from '../../src/anbud/openDocument';
+import {
+  AGREEMENT_DOC_MIN,
+  AGREEMENT_DOC_WIDTH_KEY,
+  agreementDocHeight,
+  agreementDocMaxWidth,
+  sideWidthFromDrag,
+} from '../../src/anbud/sideWidth';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { INDEX_SERIES } from '../../src/indeksregulering/catalog';
 import {
@@ -69,6 +76,25 @@ function isoFromDate(value) {
   if (!value) return '';
   if (typeof value === 'string') return value.slice(0, 10);
   return dateKey(value) || '';
+}
+
+/** Bredden brukeren har dratt dokumentkolonnen til. 0 betyr standard bredde. */
+function readDocWidth() {
+  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return 0;
+  try {
+    const raw = Number(localStorage.getItem(AGREEMENT_DOC_WIDTH_KEY));
+    return Number.isFinite(raw) && raw >= AGREEMENT_DOC_MIN ? Math.round(raw) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveDocWidth(width) {
+  if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return;
+  try {
+    if (width) localStorage.setItem(AGREEMENT_DOC_WIDTH_KEY, String(width));
+    else localStorage.removeItem(AGREEMENT_DOC_WIDTH_KEY);
+  } catch { /* lagring er valgfri */ }
 }
 
 function Section({ colors, title, open, onToggle, children, actions = null }) {
@@ -215,8 +241,69 @@ export default function AgreementDetail({
   });
   const [previewId, setPreviewId] = useState('');
   const lookupRef = useRef('');
-  const { isPhone } = useLayout();
+  const { isPhone, height: viewportHeight } = useLayout();
   const splitPreview = !isPhone;
+  const [docWidth, setDocWidth] = useState(readDocWidth);
+  const [splitWidth, setSplitWidth] = useState(0);
+  const docPaneWidth = useRef(0);
+  const stopDocDrag = useRef(() => {});
+  const docMax = agreementDocMaxWidth(splitWidth);
+  const docShown = docWidth ? Math.min(docMax, Math.max(AGREEMENT_DOC_MIN, docWidth)) : 0;
+
+  useEffect(() => () => stopDocDrag.current(), []);
+
+  /** Dra håndtaket mot venstre for å se dokumentet større, som kartet på anbud. */
+  function startDocResize(event) {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    event.preventDefault?.();
+    const startX = event.clientX ?? event.nativeEvent?.clientX;
+    const startW = docShown || docPaneWidth.current || AGREEMENT_DOC_MIN;
+    const max = docMax;
+    let latest = startW;
+    let moved = false;
+    // PDF-en ligger i en iframe som ellers sluker pekeren når den dras over dokumentet.
+    try { event.currentTarget?.setPointerCapture?.(event.pointerId); } catch { /* valgfritt */ }
+    const previousCursor = document.body.style.cursor;
+    const previousSelect = document.body.style.userSelect;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    function move(e) {
+      if (Math.abs(e.clientX - startX) > 3) moved = true;
+      if (!moved) return;
+      latest = sideWidthFromDrag(startW, startX, e.clientX, { min: AGREEMENT_DOC_MIN, max });
+      setDocWidth(latest);
+    }
+    function stop() {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousSelect;
+      stopDocDrag.current = () => {};
+    }
+    function up() {
+      stop();
+      if (moved) saveDocWidth(latest);
+    }
+    stopDocDrag.current = stop;
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
+  function onDocResizeKey(event) {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault?.();
+    const current = docShown || docPaneWidth.current || AGREEMENT_DOC_MIN;
+    const next = Math.min(docMax, Math.max(AGREEMENT_DOC_MIN, Math.round(current + (event.key === 'ArrowLeft' ? 40 : -40))));
+    setDocWidth(next);
+    saveDocWidth(next);
+  }
+
+  function resetDocWidth() {
+    setDocWidth(0);
+    saveDocWidth(0);
+  }
 
   const children = childAgreements(contracts, contract.id);
   const parent = contracts.find((row) => row.id === contract.parentId) || null;
@@ -637,6 +724,7 @@ export default function AgreementDetail({
       <View
         nativeID={splitPreview ? 'agreement-detail-split' : 'agreement-detail-stack'}
         style={splitPreview ? styles.split : styles.stack}
+        onLayout={splitPreview ? (event) => setSplitWidth(Math.round(event.nativeEvent.layout.width)) : undefined}
       >
       <View style={splitPreview ? styles.splitLeft : styles.stackPane}>
       <View style={[styles.hero, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -1157,13 +1245,46 @@ export default function AgreementDetail({
       </View>
       </View>
 
-      <View style={splitPreview ? styles.splitRight : styles.stackPane}>
+      <View
+        onLayout={splitPreview ? (event) => { docPaneWidth.current = event.nativeEvent.layout.width; } : undefined}
+        style={splitPreview
+          ? [styles.splitRight, docShown ? { width: docShown, flexBasis: docShown, flexGrow: 0, maxWidth: docShown } : null]
+          : styles.stackPane}
+      >
+        {splitPreview && Platform.OS === 'web' ? React.createElement('div', {
+          role: 'separator',
+          'aria-orientation': 'vertical',
+          'aria-label': 'Dra for å endre bredden på dokumentet. Dobbeltklikk for standard bredde.',
+          'aria-valuemin': AGREEMENT_DOC_MIN,
+          'aria-valuemax': docMax,
+          ...(docShown ? { 'aria-valuenow': docShown } : null),
+          title: 'Dra for å se dokumentet større',
+          tabIndex: 0,
+          onPointerDown: startDocResize,
+          onKeyDown: onDocResizeKey,
+          onDoubleClick: resetDocWidth,
+          style: {
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: -14,
+            width: 14,
+            cursor: 'col-resize',
+            touchAction: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1,
+          },
+        }, React.createElement('div', {
+          style: { width: 4, height: 56, borderRadius: 4, background: colors.line },
+        })) : null}
         <AgreementDocumentPreview
           colors={colors}
           documents={contract.documents || []}
           selectedId={previewId}
           onSelect={setPreviewId}
-          minHeight={splitPreview ? 560 : 360}
+          minHeight={splitPreview ? agreementDocHeight(docShown, viewportHeight) : 360}
           onUploadOriginal={(doc) => attachOriginal(doc)}
         />
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>

@@ -1,6 +1,6 @@
 /** Transactional SMS via Brevo (same MAIL_API_KEY when provider is Brevo). */
 
-const SMS_SENDER = 'Weekplan'; // max 11 alphanumeric for Brevo
+export const SMS_SENDER = 'ProTop'; // max 11 alphanumeric for Brevo
 
 function detectProvider(apiKey) {
   const key = String(apiKey || '').trim();
@@ -50,7 +50,7 @@ export function friendlySmsError(error) {
     return 'Brevo SMS-kredittene er tomme. Kjøp SMS-kreditt i Brevo-kontoen.';
   }
   if (/sender|unauthorised|unauthorized|not.?allowed|not.?registered/i.test(blob)) {
-    return 'SMS-avsender «Weekplan» er ikke godkjent hos Brevo for dette landet. Registrer avsendernavn i Brevo.';
+    return 'SMS-avsender «ProTop» er ikke godkjent hos Brevo for dette landet. Registrer avsendernavn i Brevo.';
   }
   if (/invalid.*(number|phone|recipient)|bad.?request/i.test(blob) || status === 400) {
     return 'Ugyldig telefonnummer. Bruk landskode, f.eks. +47…';
@@ -68,7 +68,7 @@ async function sendWithBrevoSms(apiKey, { to, content, sender = SMS_SENDER }) {
   }
   // Brevo wants digits with country code, without leading +.
   const recipient = e164.replace(/^\+/, '');
-  const safeSender = String(sender || SMS_SENDER).replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) || 'Weekplan';
+  const safeSender = String(sender || SMS_SENDER).replace(/[^a-zA-Z0-9]/g, '').slice(0, 11) || SMS_SENDER;
   const bodyText = String(content || '').trim().slice(0, 640);
   if (!bodyText) {
     throw smsError(400, 'Tom SMS-tekst');
@@ -131,10 +131,10 @@ export function buildInviteSms({ name, familyName, groupType, joinCode, register
   const role = organization
     ? `Du er invitert inn i bedriften «${label}» på ProTop.`
     : team
-    ? `Du er invitert til idrettslaget «${label}» på Weekplan.`
+    ? `Du er invitert til idrettslaget «${label}» på ProTop.`
     : (classroom
-      ? `Du er invitert til klassen «${label}» på Weekplan.`
-      : `Du er invitert til familien «${label}» på Weekplan.`);
+      ? `Du er invitert til klassen «${label}» på ProTop.`
+      : `Du er invitert til familien «${label}» på ProTop.`);
   if (existingUser) {
     return `${who} ${role}${codeBit} Du har allerede konto — godta eller avslå invitasjonen: ${url}`;
   }

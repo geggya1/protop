@@ -98,7 +98,7 @@ line ""
 
 # 5. Hemmeligheter (bare navn, aldri verdier).
 line "## Hemmeligheter (Secret Manager)"
-for secret in MAIL_API_KEY VAPID_PRIVATE_KEY; do
+for secret in MAIL_API_KEY VAPID_PRIVATE_KEY POWEROFFICE_DEMO_APPLICATION_KEY POWEROFFICE_DEMO_SUBSCRIPTION_KEY POWEROFFICE_APPLICATION_KEY POWEROFFICE_SUBSCRIPTION_KEY; do
   out="$(run gcloud secrets describe "$secret" --project "$PROJECT" --format='value(name)')"
   if [[ "$out" == INGEN_TILGANG* ]]; then
     if [[ "$out" == *"not found"* || "$out" == *"NOT_FOUND"* ]]; then

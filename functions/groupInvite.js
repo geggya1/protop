@@ -392,30 +392,52 @@ export const respondGroupInvite = onCall(CALL, async (req) => {
   return result;
 });
 
+/** Grupper som har en ventende e-postinvitasjon til personen, med plassholderen. */
+async function pendingEmailInvites(uid, authEmail) {
+  const snap = await db.collection('families').where('invitedEmails', 'array-contains', authEmail).limit(20).get();
+  const out = [];
+  for (const familyDoc of snap.docs) {
+    const family = familyDoc.data() || {};
+    if (groupDeleted(family) || isConfirmedMember(family, uid)) continue;
+    const placeholders = (await placeholdersFor(familyDoc.id, [authEmail]))
+      .filter((row) => row.id !== uid && isPendingPlaceholder(row.data(), authEmail));
+    if (placeholders.length) out.push({ familyDoc, placeholder: placeholders[0] });
+  }
+  return out;
+}
+
 /**
  * Ny bruker som ble invitert på e-post: når e-posten er bekreftet, legges
  * invitasjonen i innboksen (Godta/Avslå). Ingen blir medlem her.
+ * Ubekreftet e-post (f.eks. Microsoft-innlogging, der Firebase ikke merker
+ * e-posten som bekreftet) får bare navn og type, som invitePreview, så appen
+ * kan vise invitasjonen og be om bekreftelse før Godta.
  */
 export const syncMyInvites = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);
   const authEmail = authEmailOf(req);
   if (!authEmail) return { ok: true, invites: [] };
-  if (!emailVerified(req)) return { ok: true, skipped: 'email-not-verified', invites: [] };
   await assertRateLimit(db, {
     key: hashRateKey(['group-invite-sync', uid]),
     limit: 60,
     windowMs: 60 * 60 * 1000,
   });
-  const snap = await db.collection('families').where('invitedEmails', 'array-contains', authEmail).limit(20).get();
+  const found = await pendingEmailInvites(uid, authEmail);
+  if (!emailVerified(req)) {
+    return {
+      ok: true,
+      skipped: 'email-not-verified',
+      invites: [],
+      pending: found.map(({ familyDoc }) => {
+        const family = familyDoc.data() || {};
+        return { familyId: familyDoc.id, familyName: groupLabel(family), groupType: text(family.type) || 'family' };
+      }),
+    };
+  }
   const out = [];
-  for (const familyDoc of snap.docs) {
+  for (const { familyDoc, placeholder } of found) {
     const familyId = familyDoc.id;
     const family = familyDoc.data() || {};
-    if (groupDeleted(family) || isConfirmedMember(family, uid)) continue;
-    const placeholders = (await placeholdersFor(familyId, [authEmail]))
-      .filter((row) => row.id !== uid && isPendingPlaceholder(row.data(), authEmail));
-    if (!placeholders.length) continue;
-    const placeholder = placeholders[0];
 
     const pending = await db.collection(`families/${familyId}/memberInvites`)
       .where('inviteeUid', '==', uid)

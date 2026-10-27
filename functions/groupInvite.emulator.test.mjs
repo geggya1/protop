@@ -102,10 +102,13 @@ describe('ny bruker invitert på e-post', () => {
     assert.equal((await data(`families/${A}/employees/emp_nina`)).personUid, undefined);
   });
 
-  test('ubekreftet e-post får ingen invitasjon i innboksen', async () => {
+  test('ubekreftet e-post får ingen invitasjon i innboksen, bare navn og type å vise', async () => {
     const res = await call(syncMyInvites, 'nina', {}, { verified: false });
     assert.equal(res.skipped, 'email-not-verified');
+    assert.deepEqual(res.pending, [{ familyId: A, familyName: 'Rådgiver AS', groupType: 'organization' }]);
     assert.equal((await db.collection('users/nina/familyInvites').get()).size, 0);
+    assert.equal((await db.collection(`families/${A}/memberInvites`).where('inviteeUid', '==', 'nina').get()).size, 0);
+    assert.equal((await call(syncMyInvites, 'ext', {}, { verified: false })).pending.length, 0);
   });
 
   test('bekreftet e-post: invitasjonen havner i innboksen med varsel, uten medlemskap', async () => {

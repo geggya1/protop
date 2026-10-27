@@ -321,9 +321,14 @@ test('siden viser avtaleliste og forhåndsvisning', () => {
   assert.match(workspace, /index-workspace-nav/);
   assert.match(workspace, /letterFromRecord/);
   assert.match(workspace, /Foreta en ny beregning/);
-  assert.match(workspace, /Generer utkast/);
-  assert.match(workspace, /Generer brev \/ PDF/);
-  assert.match(workspace, /Se over og godkjenn/);
+  assert.match(workspace, /Generer brevutkast/);
+  assert.match(workspace, /index-price-change/);
+  assert.ok(workspace.indexOf('<PriceChange') < workspace.indexOf('index-calc-status'), 'prisendring og utkastknapp står før feltlisten');
+  assert.match(workspace, /index-pdf-preview/);
+  assert.match(workspace, />Endre</);
+  assert.match(workspace, /'Ferdigstill'/);
+  assert.match(workspace, /Bruk endringene/);
+  assert.doesNotMatch(workspace, /Se over og godkjenn/);
   assert.doesNotMatch(workspace, />Word</);
   assert.match(workspace, /Hendelseslogg/);
   assert.match(workspace, /'Varselbrev'/);

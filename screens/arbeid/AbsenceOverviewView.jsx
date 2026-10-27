@@ -87,11 +87,9 @@ function companyLabel(group) {
 }
 
 function usePeople(lockedEmployeeId) {
-  const year = new Date().getFullYear();
+  // Fraværsoversikten bruker ikke timeføringer. Uten datovindu hentes ingen timer.
   const workspace = useTimesheetWorkspace({
     lockedEmployeeId,
-    fromDate: `${year - 1}-01-01`,
-    toDate: `${year + 1}-12-31`,
     absences: { all: true },
     liveAbsences: true,
   });
@@ -134,9 +132,9 @@ export function AbsenceOverviewScreen({
     ? workspace.lockedId
     : (canChooseEmployee ? pickedId : (workspace.linked?.id || ''));
   // Låst til én ansatt (ansattsiden) eller uten valg: bare den personen, ikke hele bedriften.
-  const visiblePeople = canChooseEmployee
+  const visiblePeople = useMemo(() => (canChooseEmployee
     ? people
-    : people.filter((row) => row.id && row.id === employeeId);
+    : people.filter((row) => row.id && row.id === employeeId)), [canChooseEmployee, people, employeeId]);
 
   const names = useMemo(() => {
     const map = {};
@@ -159,7 +157,9 @@ export function AbsenceOverviewScreen({
 
   const companyMode = !locked;
   const absenceTypes = useMemo(() => resolveAbsenceTypes(workspace.state), [workspace.state.absenceTypes, workspace.state.absenceTypesCustom]);
-  const dashboard = useMemo(() => buildAbsenceDashboard({
+  // Skrivebordet regner ut sin egen tavle. Telefonens dashboard trengs ikke der.
+  const desktopBoard = companyMode && isDesktop;
+  const dashboard = useMemo(() => (desktopBoard ? null : buildAbsenceDashboard({
     employees: companyMode ? phoneRoster : visiblePeople,
     employeeId: companyMode ? phoneEmployeeId : employeeId,
     typeId: companyMode ? '' : typeId,
@@ -170,8 +170,8 @@ export function AbsenceOverviewScreen({
     today,
     names,
     types: absenceTypes,
-  }), [
-    phoneRoster, visiblePeople, employeeId, phoneEmployeeId, typeId, category, companyMode,
+  })), [
+    desktopBoard, phoneRoster, visiblePeople, employeeId, phoneEmployeeId, typeId, category, companyMode,
     workspace.state.absences, workspace.state.absenceAdjustments,
     fullDay, today, names, absenceTypes,
   ]);
@@ -189,7 +189,7 @@ export function AbsenceOverviewScreen({
       return;
     }
     const days = Number(String(opening).replace(',', '.'));
-    const balanceType = typeof typeOverride === 'string' && typeOverride ? typeOverride : dashboard.balanceType;
+    const balanceType = typeof typeOverride === 'string' && typeOverride ? typeOverride : (dashboard?.balanceType || 'ferie');
     const result = setAbsenceAdjustment(workspace.state, {
       employeeId: target,
       typeId: balanceType,
@@ -263,7 +263,7 @@ export function AbsenceOverviewScreen({
     locked: planPhase.locked && !workspace.manager,
   } : null;
 
-  if (companyMode && isDesktop) {
+  if (desktopBoard) {
     return (
       <CompanyAbsenceDesktop
         employees={desktopPeople}

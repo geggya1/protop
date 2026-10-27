@@ -36,28 +36,55 @@ export function absenceDateKey(row) {
   return parseDate(row?.date) || text(row?.date);
 }
 
+/** Koblet liste per fraværsliste og ansattliste. Lister i state endres ikke på stedet. */
+const LINKED = new WeakMap();
+
+function rememberLinked(absences, employees, linked) {
+  let byEmployees = LINKED.get(absences);
+  if (!byEmployees) {
+    byEmployees = new WeakMap();
+    LINKED.set(absences, byEmployees);
+  }
+  byEmployees.set(employees, linked);
+}
+
 /**
  * Koble fravær til ansattlisten. Id som fortsatt finnes beholdes.
  * Ellers brukes ansattnummer og navn, så en ny id i Ansatte ikke nuller oversikten.
+ * Oversikten kaller denne flere ganger med samme lister. Svaret gjenbrukes da.
  */
 export function linkAbsencesToEmployees(absences = [], employees = []) {
   const list = Array.isArray(employees) ? employees : [];
+  const rows = Array.isArray(absences) ? absences : [];
+  const cached = LINKED.get(rows)?.get(list);
+  if (cached) return cached;
   const ids = new Set(list.map((row) => text(row?.id)).filter(Boolean));
-  return (Array.isArray(absences) ? absences : []).map((row) => {
+  // Importerte dagsrader gjentar samme navn tusenvis av ganger. Slå opp hver person én gang.
+  const matches = new Map();
+  const linked = rows.map((row) => {
     if (!row) return row;
     const date = absenceDateKey(row);
     const id = text(row.employeeId);
     let employeeId = id;
     if (!(id && ids.has(id)) && list.length) {
-      const hit = matchEmployee(list, {
-        employeeName: row.employeeName,
-        employeeNumber: row.employeeNumber,
-      });
-      if (hit?.id) employeeId = hit.id;
+      const key = `${text(row.employeeName)}\u0000${text(row.employeeNumber)}`;
+      let hitId = matches.get(key);
+      if (hitId === undefined) {
+        hitId = matchEmployee(list, {
+          employeeName: row.employeeName,
+          employeeNumber: row.employeeNumber,
+        })?.id || '';
+        matches.set(key, hitId);
+      }
+      if (hitId) employeeId = hitId;
     }
     if (employeeId === id && date === text(row.date)) return row;
     return { ...row, date, employeeId };
   });
+  rememberLinked(rows, list, linked);
+  // En koblet liste kobles likt igjen, for eksempel når tavlen sender den videre til dashboardet.
+  rememberLinked(linked, list, linked);
+  return linked;
 }
 
 /** År som har minst én føring for personene i utvalget, eldst først. */
@@ -182,11 +209,18 @@ export function eachWeekday(from, to) {
   return out;
 }
 
+/** Dagnummer i UTC. Grupperingen går gjennom hver rad, og lokal Date er for treg der. */
+function dayNumber(iso) {
+  const [year, month, day] = String(iso || '').split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return Date.UTC(year, month - 1, day) / 86400000;
+}
+
 function dayGap(prev, next) {
-  const a = parseIsoDate(prev);
-  const b = parseIsoDate(next);
-  if (!a || !b) return 99;
-  return Math.round((b.getTime() - a.getTime()) / 86400000);
+  const a = dayNumber(prev);
+  const b = dayNumber(next);
+  if (a == null || b == null) return 99;
+  return b - a;
 }
 
 /** Helg mellom to virkedager regnes som samme fraværsperiode. */
@@ -194,10 +228,9 @@ function continuesPeriod(prev, next) {
   const gap = dayGap(prev, next);
   if (gap <= 1) return gap === 1;
   if (gap > 3) return false;
-  const cursor = parseIsoDate(prev);
+  const start = dayNumber(prev);
   for (let step = 1; step < gap; step += 1) {
-    cursor.setDate(cursor.getDate() + 1);
-    const day = cursor.getDay();
+    const day = new Date((start + step) * 86400000).getUTCDay();
     if (day !== 0 && day !== 6) return false;
   }
   return true;

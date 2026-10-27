@@ -102,6 +102,8 @@ function loadLocal(full) {
         Switch: host('Switch'),
         Image: host('Image'),
         ScrollView: host('ScrollView'),
+        Modal: host('Modal'),
+        useWindowDimensions: () => ({ width: 1200, height: 900 }),
         Platform: { OS: 'ios', select: (row) => row.ios ?? row.default },
         StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
       };
@@ -353,5 +355,22 @@ assert.match(dash.text, /2 ansatte mangler pårørende/);
 assert.match(dash.text, /Oppgave sendt, frist .* påminnet 1 gang/);
 assert.match(dash.text, /Har ikke brukerkonto/);
 assert.match(dash.text, /Send påminnelse nå \(1\)/);
+
+/* Felles velger: 1–4 valg som knapper, 5 eller flere som nedtrekk. */
+const parts = loadLocal(path.join(ROOT, 'screens/doccontrol/parts.jsx'));
+const few = collect(withHooks(() => React.createElement(parts.PersonChips, { colors, people: [kari, per], value: kari, onChange() {} })));
+assert.ok(few.texts.includes('Kari') && few.texts.includes('Per Godkjenner'), 'to personer vises som knapper');
+const crowd = ['A', 'B', 'C', 'D', 'E', 'F'].map((n) => ({ uid: n, name: `Person ${n}` }));
+const many = collect(withHooks(() => React.createElement(parts.PersonChips, { colors, people: crowd, value: crowd[1], onChange() {}, emptyLabel: 'Administrator', title: 'Godkjenner' })));
+assert.ok(many.texts.includes('Person B'), 'valgt person står i feltet');
+assert.ok(!many.texts.includes('Person E'), 'seks personer vises ikke som knapper, men som nedtrekk');
+const FormAnswer = loadLocal(path.join(ROOT, 'screens/anbud/FormAnswer.jsx')).default;
+const sixChoices = { id: 'f1', kind: 'choice', label: 'Fag', options: ['Elektro', 'Rør', 'Tømrer', 'Maler', 'Murer', 'Ventilasjon'].map((label, i) => ({ id: `o${i}`, label })), value: 'o2' };
+const choice = collect(withHooks(() => React.createElement(FormAnswer, { field: sixChoices, colors, onChange() {} })));
+assert.ok(choice.texts.includes('Tømrer'), 'valgt alternativ står i feltet');
+assert.ok(!choice.texts.includes('Ventilasjon') && !choice.text.includes('○'), 'seks valg er ikke en radioliste');
+const threeChoices = { ...sixChoices, options: sixChoices.options.slice(0, 3), value: '' };
+const three = collect(withHooks(() => React.createElement(FormAnswer, { field: threeChoices, colors, onChange() {} })));
+assert.ok(three.texts.includes('Rør') && three.text.includes('○'), 'tre valg vises fortsatt som liste');
 
 console.log('formFillRender.test.cjs: ok');

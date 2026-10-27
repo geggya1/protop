@@ -351,7 +351,7 @@ export default function DocControlPanel({
             ) : null}
           </View>
           <Label colors={colors}>Dokumenteier</Label>
-          <PersonChips colors={colors} people={dc.people} value={control.owner} onChange={(owner) => change({ owner })} />
+          <PersonChips colors={colors} people={dc.people} value={control.owner} onChange={(owner) => change({ owner })} title="Dokumenteier" />
           <Label colors={colors}>Godkjenner</Label>
           <PersonChips
             colors={colors}
@@ -360,18 +360,19 @@ export default function DocControlPanel({
             emptyLabel={settings.approvers.length ? 'Godkjennerne i innstillingene' : 'Administrator'}
             onChange={(approver) => change({ approver })}
             disabled={!canSetApprover}
+            title="Godkjenner"
           />
           {!canSetApprover ? <Text style={{ color: colors.muted, fontSize: 12 }}>Bare godkjenner og administrator kan bytte godkjenner.</Text> : null}
           <Label colors={colors}>Lesekrav for ansatte</Label>
-          <ChoiceChips colors={colors} options={READ_RULES} value={control.readRule} onChange={(readRule) => change({ readRule })} />
+          <ChoiceChips colors={colors} options={READ_RULES.map((row) => ({ id: row.id, label: row.label, hint: row.hint }))} value={control.readRule} onChange={(readRule) => change({ readRule })} title="Lesekrav for ansatte" />
           <Text style={{ color: colors.muted, fontSize: 12 }}>{READ_RULES.find((row) => row.id === control.readRule)?.hint}</Text>
           <Label colors={colors}>Varsel ved ny versjon</Label>
-          <ChoiceChips colors={colors} options={NOTIFY} value={control.notify} onChange={(notify) => change({ notify })} />
+          <ChoiceChips colors={colors} options={NOTIFY} value={control.notify} onChange={(notify) => change({ notify })} title="Varsel ved ny versjon" />
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             {settings.notifyOnPublish ? 'Innstillingene: ansatte varsles når et dokument med lesekrav får ny versjon.' : 'Innstillingene: ansatte varsles ikke om nye versjoner.'}
           </Text>
           <Label colors={colors}>Gjennomgang</Label>
-          <ChoiceChips colors={colors} options={INTERVALS} value={String(control.reviewIntervalMonths)} onChange={(months) => change({ reviewIntervalMonths: Number(months) })} />
+          <ChoiceChips colors={colors} options={INTERVALS} value={String(control.reviewIntervalMonths)} onChange={(months) => change({ reviewIntervalMonths: Number(months) })} title="Gjennomgang" />
         </View>
       ) : null}
 

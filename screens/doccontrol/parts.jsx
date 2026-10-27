@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
-import { HrChip } from '../hr/HrShared';
+import OptionPicker from '../../components/OptionPicker';
 
 export const OK_INK = '#1d7a3e';
 
@@ -60,37 +60,59 @@ export function HeaderGrid({ header, colors }) {
   );
 }
 
-export function ChoiceChips({ colors, options, value, onChange, disabled = false }) {
+/** Ett valg. Felles velger: knapper ved 1–4 valg, nedtrekk ved 5 eller flere. */
+export function ChoiceChips({ options, value, onChange, disabled = false, title = '' }) {
   return (
-    <View style={styles.chips}>
-      {options.map((row) => (
-        <HrChip key={row.id} colors={colors} label={row.label} active={row.id === value} onPress={disabled ? undefined : () => onChange(row.id)} />
-      ))}
-    </View>
+    <OptionPicker
+      options={options}
+      value={value}
+      onChange={(id) => { if (id !== '' && id != null) onChange(id); }}
+      clearable={false}
+      disabled={disabled}
+      title={title}
+    />
   );
 }
 
-/** Velg personer (uid og navn). multiple gir flervalg. */
-export function PersonChips({ colors, people, value, onChange, multiple = false, emptyLabel = '', disabled = false }) {
-  const picked = new Set((multiple ? value || [] : [value].filter(Boolean)).map((row) => row.uid));
-  function toggle(person) {
-    if (disabled) return;
-    if (!multiple) {
-      onChange(picked.has(person.uid) ? { uid: '', name: '' } : person);
-      return;
-    }
-    onChange(picked.has(person.uid) ? value.filter((row) => row.uid !== person.uid) : [...(value || []), person]);
+const NOBODY = '__ingen__';
+
+/**
+ * Velg personer (uid og navn). multiple gir flervalg.
+ * emptyLabel er et eget valg for «ingen valgt», for eksempel «Administrator» som godkjenner.
+ */
+export function PersonChips({ colors, people, value, onChange, multiple = false, emptyLabel = '', disabled = false, title = '' }) {
+  if (!people.length) {
+    return <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen ansatte med brukerkonto ennå. Inviter dem under Ansatte.</Text>;
   }
+  const byUid = new Map(people.map((row) => [row.uid, row]));
+  const options = people.map((row) => ({ id: row.uid, label: row.name }));
+  if (multiple) {
+    return (
+      <OptionPicker
+        options={options}
+        value={(value || []).map((row) => row.uid)}
+        onChange={(ids) => onChange(ids.map((id) => byUid.get(id)).filter(Boolean))}
+        multiple
+        placeholder="Ingen valgt"
+        disabled={disabled}
+        title={title}
+      />
+    );
+  }
+  const list = emptyLabel ? [{ id: NOBODY, label: emptyLabel }, ...options] : options;
   return (
-    <View style={styles.chips}>
-      {emptyLabel && !multiple ? (
-        <HrChip colors={colors} label={emptyLabel} active={!picked.size} onPress={disabled ? undefined : () => onChange({ uid: '', name: '' })} />
-      ) : null}
-      {people.map((person) => (
-        <HrChip key={person.uid} colors={colors} label={person.name} active={picked.has(person.uid)} onPress={disabled ? undefined : () => toggle(person)} />
-      ))}
-      {!people.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen ansatte med brukerkonto ennå. Inviter dem under Ansatte.</Text> : null}
-    </View>
+    <OptionPicker
+      options={list}
+      value={value?.uid || (emptyLabel ? NOBODY : '')}
+      onChange={(id) => {
+        if (!id || id === NOBODY) onChange({ uid: '', name: '' });
+        else if (byUid.has(id)) onChange(byUid.get(id));
+      }}
+      clearable={false}
+      placeholder="Velg person"
+      disabled={disabled}
+      title={title}
+    />
   );
 }
 
@@ -103,6 +125,5 @@ const styles = StyleSheet.create({
   grid: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
   gridRow: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { flexGrow: 1, flexBasis: 120, paddingHorizontal: 8, paddingVertical: 5, borderRightWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, gap: 1 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   label: { fontSize: 11, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase', marginTop: 4 },
 });

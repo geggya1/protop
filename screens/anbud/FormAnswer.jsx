@@ -3,11 +3,49 @@ import { Image, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } 
 import { fieldType, needsInput } from '../../src/anbud/formBuilder';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import FormTableAnswer from './FormTableAnswer';
+import OptionPicker, { CHIP_LIMIT } from '../../components/OptionPicker';
 
 const FACE = Platform.OS === 'web' ? { fontFamily: 'Carlito, Calibri, "Segoe UI", Helvetica, Arial, sans-serif' } : null;
 
 function signatureField(field) {
   return field?.kind === 'image' && /signatur|underskrift/i.test(`${field.label || ''} ${field.review || ''}`);
+}
+
+/** Fem eller flere valg (uten bilder) vises som nedtrekk med den felles velgeren. */
+function listPicker(field) {
+  const options = field?.options || [];
+  return options.length > CHIP_LIMIT && !options.some((row) => row.image);
+}
+
+/** Valgfelt som nedtrekk. «Annet»-teksten (other:…) beholdes utenfor velgeren. */
+function ChoicePicker({ field, onChange, small = false }) {
+  const many = field.kind === 'checks';
+  const options = (field.options || []).map((row) => ({ id: row.id, label: row.label }));
+  if (many) {
+    const selected = Array.isArray(field.value) ? field.value : [];
+    const others = selected.filter((id) => String(id).startsWith('other:'));
+    return (
+      <OptionPicker
+        options={options}
+        value={selected.filter((id) => !String(id).startsWith('other:'))}
+        onChange={(ids) => onChange([...ids, ...others])}
+        multiple
+        small={small}
+        placeholder="Velg ett eller flere"
+        title={field.label}
+      />
+    );
+  }
+  return (
+    <OptionPicker
+      options={options}
+      value={String(field.value || '').startsWith('other:') ? '' : (field.value || '')}
+      onChange={(id) => onChange(id || '')}
+      small={small}
+      placeholder="Velg"
+      title={field.label}
+    />
+  );
 }
 
 function bracketPlaceholder(field) {
@@ -125,6 +163,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
         </TouchableOpacity>
       );
     }
+    if (listPicker(field)) return <ChoicePicker field={field} onChange={onChange} small />;
     const many = field.kind === 'checks';
     const selected = many ? (field.value || []) : field.value;
     return (
@@ -202,7 +241,7 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
         <Text style={[doc ? styles.docLabel : null, { color: colors.ink }]}>{label}</Text>
         {field.help ? <Text style={[styles.help, { color: colors.muted }]}>{field.help}</Text> : null}
         <View style={doc ? styles.docOptions : { gap: 4 }}>
-        {(field.options || []).map((option) => {
+        {listPicker(field) ? <ChoicePicker field={field} onChange={onChange} /> : (field.options || []).map((option) => {
           const on = many ? selected.includes(option.id) : selected === option.id;
           return (
             <TouchableOpacity

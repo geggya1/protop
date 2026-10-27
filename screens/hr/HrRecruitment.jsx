@@ -18,6 +18,7 @@ import { emptyEmployee, normalizeEmployee } from '../../src/employees/model';
 import { saveEmployee } from '../../src/employees/storage';
 import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
+import OptionPicker from '../../components/OptionPicker';
 import {
   EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
@@ -166,17 +167,16 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
 
       <HrCard colors={colors}>
         <HrSectionTitle colors={colors} title="Stillingsannonser" />
-        <View style={styles.chips}>
-          {(hr.jobs || []).map((job) => (
-            <HrChip
-              key={job.id}
-              colors={colors}
-              label={`${job.title} (${choiceLabel(JOB_STATUSES, job.status)})`}
-              active={job.id === activeJobId}
-              onPress={() => setJobId(job.id)}
-            />
-          ))}
-        </View>
+        {(hr.jobs || []).length ? (
+          <OptionPicker
+            options={(hr.jobs || []).map((job) => ({ id: job.id, label: `${job.title} (${choiceLabel(JOB_STATUSES, job.status)})` }))}
+            value={activeJobId}
+            onChange={(id) => { if (id) setJobId(id); }}
+            clearable={false}
+            placeholder="Velg stilling"
+            title="Stillingsannonse"
+          />
+        ) : null}
         {canWrite ? (
           <View style={styles.form}>
             <HrField colors={colors} label="Tittel" value={jobDraft.title} onChangeText={(title) => setJobDraft((p) => ({ ...p, title }))} />

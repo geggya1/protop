@@ -46,6 +46,7 @@ import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor } from '../src/navigation/shellPaths';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -339,6 +340,62 @@ function AppShellInner() {
     }
     nav.setParams({ openShell: undefined });
   }, [route?.params?.openShell, nav, requestShellTab]);
+
+  // Web: fanen og undersiden står i adressen (/hjem/iso/avvik), så nettleserens tilbake og fram virker.
+  useEffect(() => {
+    if (route?.key) setHomeRouteKey(route.key);
+  }, [route?.key]);
+
+  // Første kjøring hopper over: fanen fra adressen (openShell) er ikke satt ennå.
+  const shellSyncedRef = useRef(false);
+  // Siste navigasjon fra adressen (oppstart, tilbake/fram) og siste trykk eller tast fra brukeren.
+  // Bytter uten brukerinput siden adressenavigasjonen er omdirigeringer (standard underside, tilgang) og erstatter.
+  const urlNavAtRef = useRef(Date.now());
+  const inputAtRef = useRef(0);
+  // Siste oppføring: et nytt bytte i samme fane rett etter (modulen setter standard underside) slås sammen.
+  const lastEntryRef = useRef({ at: 0, tab: '' });
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.history?.pushState) return;
+    if (!shellSyncedRef.current) {
+      shellSyncedRef.current = true;
+      return;
+    }
+    const path = shellPathFor(tab, moreSubView);
+    setShellLocation(path);
+    const here = window.location.pathname;
+    // Etter tilbake/fram står nettleseren allerede på stien. Ligger en annen skjerm over Hjem, rører vi den ikke.
+    if (here === path || !isShellPath(here)) return;
+    // Omdirigering (/hjem/anbud → /hjem/anbud/varsling) erstatter oppføringen. Ellers ville tilbake havne i en løkke.
+    const redirect = inputAtRef.current < urlNavAtRef.current;
+    const chained = lastEntryRef.current.tab === tab && Date.now() - lastEntryRef.current.at < 400;
+    const url = `${path}${window.location.search || ''}`;
+    const state = { ...(window.history.state || {}), shell: path };
+    try {
+      if (redirect || chained) window.history.replaceState(state, '', url);
+      else window.history.pushState(state, '', url);
+    } catch { /* ignore */ }
+    lastEntryRef.current = { at: Date.now(), tab };
+  }, [tab, moreSubView]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onPop = () => {
+      const next = parseShellPath(window.location.pathname);
+      if (!next) return;
+      urlNavAtRef.current = Date.now();
+      setMoreSubView(next.subView || null);
+      setTab(next.tab);
+    };
+    const onInput = () => { inputAtRef.current = Date.now(); };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('pointerdown', onInput, true);
+    window.addEventListener('keydown', onInput, true);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('pointerdown', onInput, true);
+      window.removeEventListener('keydown', onInput, true);
+    };
+  }, []);
 
   // Tilpass hjem → åpne hjem-fanen (editHome leses av theme hosts)
   useEffect(() => {

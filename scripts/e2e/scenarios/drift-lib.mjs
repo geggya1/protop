@@ -329,7 +329,10 @@ export async function fillAfterLabel(bot, label, value, { nth = 0, within = null
     document.querySelectorAll('[data-drift-target]').forEach((e) => e.removeAttribute('data-drift-target'));
     const root = scope ? [...document.querySelectorAll('*')].find((e) => e.innerText?.trim() === scope) || document.body : document.body;
     const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    // Sidemenyen på PC (venstre 220 px) har egne punkter som «E-post» og «Notat».
+    const side = window.innerWidth > 1000 ? 222 : -1;
     const labels = [...root.querySelectorAll('div,span,label,p')].filter((e) => vis(e)
+      && e.getBoundingClientRect().left > side
       && e.childElementCount === 0 && (e.innerText || '').trim() === lbl);
     const lab = labels[n];
     if (!lab) return false;
@@ -365,4 +368,28 @@ export async function buttons(bot) {
   return bot.page.evaluate(() => [...document.querySelectorAll('[role=button],button,[aria-label]')]
     .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; })
     .map((e) => `${e.getAttribute('aria-label') || ''} | ${(e.innerText || '').slice(0, 40).replace(/\n/g, ' ')}`));
+}
+
+/**
+ * Trykker et klikkbart element (tabindex) inne i den minste raden som inneholder teksten.
+ * `pick` = 'last' | 'first' | indeks. Brukes for ikonknapper uten navn (⋮-menyer).
+ */
+export async function clickInRow(bot, rowText, pick = 'last', { minChildren = 3 } = {}) {
+  const ok = await bot.page.evaluate(([txt, which, minC]) => {
+    document.querySelectorAll('[data-drift-click]').forEach((e) => e.removeAttribute('data-drift-click'));
+    const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const leaf = [...document.querySelectorAll('div,span')].find((e) => vis(e) && e.childElementCount === 0 && (e.innerText || '').trim() === txt);
+    if (!leaf) return 'notext';
+    let row = leaf.parentElement;
+    while (row && row.childElementCount < minC) row = row.parentElement;
+    if (!row) return 'norow';
+    const clickables = [...row.querySelectorAll('[tabindex="0"],[role=button],button')].filter(vis);
+    if (!clickables.length) return 'noclick';
+    const el = which === 'last' ? clickables[clickables.length - 1] : (which === 'first' ? clickables[0] : clickables[which]);
+    el.setAttribute('data-drift-click', '1');
+    return true;
+  }, [rowText, pick, minChildren]);
+  if (ok !== true) throw new Error(`clickInRow «${rowText}»: ${ok}`);
+  await bot.page.locator('[data-drift-click]').first().click();
+  await bot.page.waitForTimeout(500);
 }

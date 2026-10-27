@@ -1,0 +1,246 @@
+/**
+ * Felles hjelpere for ansatt-botene (team A): stegrapport med OK/AVVIK,
+ * REST mot Firestore-emulatoren med brukerens eget idToken (tester reglene,
+ * ikke admin-bypass) og små UI-hjelpere oppå lib/bot.mjs.
+ * Kjører bare mot lokale emulatorer og localhost:8081.
+ */
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { toValue } from '../../help-bot/seed.mjs';
+import { fromFields, PROJECT_ID, FS } from '../lib/emu.mjs';
+import { BASE } from '../lib/bot.mjs';
+
+export const OUT_ROOT = '/home/user/protop/e2e-out/ansatt';
+const DB = `projects/${PROJECT_ID}/databases/(default)/documents`;
+const DOCS = `http://${FS}/v1/${DB}`;
+
+/* ───────── Stegrapport ───────── */
+
+export class Steps {
+  constructor(name) {
+    this.name = name;
+    this.rows = [];
+    this.started = new Date().toISOString();
+  }
+
+  /** Ett steg. ok=true → OK, ok=false → AVVIK. kind: 'app' (avvik i appen), 'env' (testmiljø), 'info'. */
+  record({ step, expected = '', actual = '', ok, shot = '', id = '', sev = '', ref = '', kind = 'app' }) {
+    const row = { step, expected, actual: String(actual).slice(0, 600), ok: !!ok, shot: shot || '', id, sev, ref, kind };
+    this.rows.push(row);
+    const tag = kind === 'env' ? 'MILJØ' : (kind === 'info' ? 'INFO ' : (ok ? 'OK   ' : 'AVVIK'));
+    const extra = !ok && kind === 'app' ? ` [${[id, sev, ref].filter(Boolean).join(' · ')}]` : '';
+    console.log(`${tag} ${step}${extra} — ${row.actual}`);
+    return ok;
+  }
+
+  check(ok, step, expected, actual, opts = {}) {
+    return this.record({ step, expected, actual, ok, ...opts });
+  }
+
+  info(step, actual, shot = '') {
+    return this.record({ step, actual, ok: true, shot, kind: 'info' });
+  }
+
+  env(step, actual, shot = '') {
+    return this.record({ step, actual, ok: true, shot, kind: 'env' });
+  }
+
+  get deviations() {
+    return this.rows.filter((r) => !r.ok && r.kind === 'app');
+  }
+
+  save(extra = {}) {
+    mkdirSync(OUT_ROOT, { recursive: true });
+    const file = join(OUT_ROOT, `${this.name}-result.json`);
+    writeFileSync(file, JSON.stringify({ name: this.name, started: this.started, finished: new Date().toISOString(), rows: this.rows, ...extra }, null, 2));
+    const dev = this.deviations;
+    console.log(`\n${this.name}: ${this.rows.filter((r) => r.kind === 'app').length} steg, ${dev.length} avvik. Resultat: ${file}`);
+    for (const d of dev) console.log(`  AVVIK ${d.id || ''} ${d.sev || ''} ${d.step}`);
+    return file;
+  }
+}
+
+/* ───────── REST mot reglene (brukerens idToken) ───────── */
+
+function fieldsOf(obj) {
+  const fields = {};
+  for (const [k, v] of Object.entries(obj)) fields[k] = toValue(v);
+  return fields;
+}
+
+/** Feltstier for updateMask: { company: { status: 'x' } } → ['company.status']. */
+function maskPaths(obj, prefix = '') {
+  const out = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const key = /^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? k : `\`${k}\``;
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (v && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date) && Object.keys(v).length) {
+      out.push(...maskPaths(v, path));
+    } else {
+      out.push(path);
+    }
+  }
+  return out;
+}
+
+async function call(method, url, token, body) {
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let json = null;
+  try { json = await res.json(); } catch { json = null; }
+  return { status: res.status, json };
+}
+
+/** GET som brukeren. { status, data } */
+export async function rget(path, token) {
+  const r = await call('GET', `${DOCS}/${path}`, token);
+  return { status: r.status, data: r.json?.fields ? fromFields(r.json.fields) : null, error: r.json?.error?.message || '' };
+}
+
+/** LIST som brukeren. */
+export async function rlist(path, token) {
+  const r = await call('GET', `${DOCS}/${path}?pageSize=50`, token);
+  return { status: r.status, count: (r.json?.documents || []).length, docs: (r.json?.documents || []).map((d) => ({ id: d.name.split('/').pop(), ...fromFields(d.fields || {}) })) };
+}
+
+/** PATCH bare feltene i obj (updateMask), som brukeren. */
+export async function rpatch(path, token, obj, { create = false } = {}) {
+  const mask = maskPaths(obj).map((p) => `updateMask.fieldPaths=${encodeURIComponent(p)}`).join('&');
+  const exists = create ? '' : '&currentDocument.exists=true';
+  const r = await call('PATCH', `${DOCS}/${path}?${mask}${exists}`, token, { fields: fieldsOf(obj) });
+  return { status: r.status, error: r.json?.error?.message || '' };
+}
+
+/** arrayUnion/arrayRemove via commit, som brukeren. */
+export async function rarray(path, token, field, values, { remove = false } = {}) {
+  const transform = remove
+    ? { fieldPath: field, removeAllFromArray: { values: values.map(toValue) } }
+    : { fieldPath: field, appendMissingElements: { values: values.map(toValue) } };
+  const r = await call('POST', `http://${FS}/v1/${DB}:commit`, token, {
+    writes: [{ transform: { document: `${DB}/${path}`, fieldTransforms: [transform] } }],
+  });
+  return { status: r.status, error: r.json?.error?.message || '' };
+}
+
+export async function rdelete(path, token) {
+  const r = await call('DELETE', `${DOCS}/${path}`, token);
+  return { status: r.status, error: r.json?.error?.message || '' };
+}
+
+export const denied = (s) => s === 403;
+export const allowed = (s) => s === 200;
+
+/* ───────── UI ───────── */
+
+export function tsId() {
+  return Date.now().toString(36);
+}
+
+/** Lukker velkomstrunden og andre overlegg som legger seg over skallet. */
+export async function skipTour(bot, rounds = 3) {
+  for (let i = 0; i < rounds; i += 1) {
+    const el = bot.page.getByText('Hopp over rundturen', { exact: true });
+    let hit = false;
+    if (await el.count().catch(() => 0)) {
+      if (await el.first().isVisible().catch(() => false)) {
+        await el.first().click({ force: true }).catch(() => {});
+        hit = true;
+      }
+    }
+    const x = bot.page.getByText('Skjønner', { exact: true });
+    if (await x.count().catch(() => 0) && await x.first().isVisible().catch(() => false)) {
+      await x.first().click({ force: true }).catch(() => {});
+      hit = true;
+    }
+    if (!hit) return;
+    await bot.page.waitForTimeout(400);
+  }
+}
+
+/** Trykker synlig tekst etter å ha lukket rundturen. */
+export async function tap(bot, text, opts = {}) {
+  await skipTour(bot, 1);
+  return bot.click(text, opts);
+}
+
+export async function tapId(bot, id, { timeout = 8000 } = {}) {
+  await skipTour(bot, 1);
+  const loc = bot.page.locator(`[id="${id}"]`);
+  await loc.first().waitFor({ state: 'visible', timeout });
+  await loc.first().click();
+  await bot.page.waitForTimeout(500);
+}
+
+export async function fillId(bot, id, value) {
+  const loc = bot.page.locator(`[id="${id}"]`);
+  await loc.first().waitFor({ state: 'visible', timeout: 8000 });
+  await loc.first().fill(value);
+  await bot.page.waitForTimeout(150);
+}
+
+export async function waitText(bot, re, timeout = 20000) {
+  const until = Date.now() + timeout;
+  let text = '';
+  while (Date.now() < until) {
+    text = await bot.visibleText().catch(() => '');
+    if (re.test(text)) return text;
+    await bot.page.waitForTimeout(500);
+  }
+  return null;
+}
+
+/** Innlogging via /login. Krysser av samtykket hvis det står ukrysset. */
+export async function loginUI(bot, { wait = 8000 } = {}) {
+  bot.where = 'innlogging';
+  await bot.goto('/login');
+  await bot.page.waitForSelector('input[type=password]', { timeout: 300000 });
+  await bot.page.fill('input >> nth=0', bot.email);
+  await bot.page.fill('input[type=password]', bot.password);
+  const box = bot.page.getByRole('checkbox', { name: /Jeg har lest og forstått/ });
+  if (await box.count()) {
+    const checked = await box.first().getAttribute('aria-checked').catch(() => null);
+    if (checked !== 'true') await box.first().click().catch(() => {});
+  } else {
+    const consent = bot.page.getByText('Jeg har lest og forstått', { exact: false });
+    if (await consent.count()) await consent.first().click().catch(() => {});
+  }
+  await bot.page.getByText('Logg inn', { exact: true }).last().click();
+  await bot.page.waitForTimeout(wait);
+}
+
+/** Venter til skallet er oppe (test-kroken finnes) og lukker rundturen. */
+export async function waitShell(bot, timeout = 120000) {
+  await bot.page.waitForFunction(() => !!window.__protopBot, null, { timeout });
+  await bot.page.waitForTimeout(2500);
+  await skipTour(bot);
+}
+
+/** Åpner en side og svarer: 'denied' (Ingen tilgang), 'locked' (modul av), 'allowed'. */
+export async function pageAccess(bot, tab, sub = null) {
+  await skipTour(bot, 1);
+  await bot.open(tab, sub, 1800);
+  let text = await bot.visibleText();
+  for (let i = 0; i < 10 && /Henter tilgang…/.test(text); i += 1) {
+    await bot.page.waitForTimeout(800);
+    text = await bot.visibleText();
+  }
+  if (/Ingen tilgang\s*\n\s*Du har ikke tilgang til denne delen av bedriften/.test(text)) return 'denied';
+  if (/Modulen er slått av|er slått av for bedriften/i.test(text)) return 'locked';
+  return 'allowed';
+}
+
+/** Lenke fra e-post: produksjonsadressen byttes til den lokale web-serveren. */
+export function localLink(url) {
+  return String(url).replace(/^https:\/\/(www\.)?protop\.no/, BASE);
+}
+
+/** Tekst i navigasjonen til venstre (desktop) eller skuffen (telefon). */
+export async function navText(bot) {
+  return bot.page.evaluate(() => {
+    const rail = document.querySelector('[data-wp-rail], nav, [role="navigation"]');
+    return (rail?.innerText || '').trim();
+  });
+}

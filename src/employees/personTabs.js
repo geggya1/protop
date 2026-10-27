@@ -21,14 +21,17 @@ export const EMPLOYEE_SUB_TABS = {
     { id: 'absence', label: 'Oversikt' },
     { id: 'overview', label: 'Rapport' },
   ],
-  // Innstillinger: ansettelsesdata og brukerinnstillingene i samme meny øverst.
+  // Innstillinger: brukerkonto, ansettelsesdata, brukerinnstillingene og brukerloggen i samme meny øverst.
+  // Rettighetene settes bare i Tilgangsstyring. Brukerkonto viser dem som en oppsummering.
   settings: [
-    { id: 'settings', label: 'Ansettelsesdata' },
+    { id: 'settings', label: 'Brukerkonto' },
+    { id: 'settingsEmployment', label: 'Ansettelsesdata' },
     { id: 'settingsGeneral', label: 'Generelt' },
     { id: 'settingsRate', label: 'Timepriser' },
     { id: 'settingsWork', label: 'Arbeidsforhold' },
     { id: 'settingsPassword', label: 'Endre passord' },
     { id: 'settingsNotify', label: 'Varslinger' },
+    { id: 'settingsLog', label: 'Brukerlogg' },
   ],
 };
 
@@ -58,6 +61,7 @@ export function employeeTabViews(tabId) {
 
 export const PERSON_VIEWS = new Set([
   'detail', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'earnings', 'settings', 'cv',
+  'settingsEmployment', 'settingsLog',
   ...Object.keys(EMPLOYEE_SETTINGS_SUBS),
 ]);
 

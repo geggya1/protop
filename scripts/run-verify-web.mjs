@@ -131,6 +131,7 @@ export const FILES = [
   'src/access/viewAsStore.test.mjs',
   'src/employees/employeeReadAccess.test.mjs',
   'src/employees/personTabs.test.mjs',
+  'src/employees/employeeAccount.test.mjs',
   'src/project/projectAccess.test.mjs',
   'src/arbeid/employeeScheduleRender.test.cjs',
   // Prosjekt, kjøretøy, (i)-forklaringene og fagansvar, og at selskapet lagres felt for felt.

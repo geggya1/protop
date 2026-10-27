@@ -239,6 +239,14 @@ export class ConflictError extends Error {
   }
 }
 
+/** Bare oppsettet (isoSystem/main), slik det står lagret nå. Brukes når en lagring ble avvist fordi det er endret et annet sted. */
+export async function loadIsoSystem(companyId) {
+  const id = cid(companyId);
+  if (!id) return null;
+  const snap = await getDoc(doc(db, 'families', id, 'isoSystem', 'main'));
+  return snap.exists() ? snap.data() : null;
+}
+
 /**
  * Lagrer én entitet med revisjonskontroll.
  * kind: findings | processes | instances | documents | forms | submissions | requirements | assessments | evidence | evidenceLinks | records | system
@@ -284,7 +292,7 @@ export async function saveEntity(companyId, kind, entity, { previous = null, cre
 }
 
 /** Flere entiteter i én batch (f.eks. bevis + koblinger + vurderinger). Ingen revisjonslås. */
-export async function saveMany(companyId, rows) {
+export async function saveMany(companyId, rows, { onProgress = null } = {}) {
   const id = cid(companyId);
   if (!id || !rows?.length) return;
   const authed = await ensureAuth();
@@ -305,6 +313,8 @@ export async function saveMany(companyId, rows) {
       throw err;
     }
     committed += chunk.length;
+    // Fremdrift for store importer: hvor mange av radene som er lagret.
+    onProgress?.(committed, rows.length);
   }
 }
 

@@ -5,6 +5,7 @@
 import React, { useMemo, useState } from 'react';
 import { Text, useWindowDimensions, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { createProcess, PROCESS_CATEGORIES } from '../../src/iso/processes';
 import { visioToProcesses } from '../../src/iso/visio';
 import { pickDocument, uploadFile } from '../../src/utils/media';
@@ -84,6 +85,7 @@ export function VisioImportSheet({ ctx, visible, onClose, onCreated }) {
   const [form, setForm] = useState({ title: '', code: '', category: 'kjerne', ownerName: '', ownerUid: '' });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null);
   // Flere filer på én gang: én rad per fil, felles prosesseier.
   const [batch, setBatch] = useState([]);
   const [made, setMade] = useState('');
@@ -129,8 +131,10 @@ export function VisioImportSheet({ ctx, visible, onClose, onCreated }) {
     setErr('');
     let count = 0;
     const failed = [];
+    const todo = batch.filter((row) => !row.error && row.out?.pages?.[0] && !codeExists(row.code));
     for (const row of batch) {
       if (row.error || !row.out?.pages?.[0] || codeExists(row.code)) continue;
+      setProgress({ done: count + failed.length, total: todo.length, detail: row.file?.name || row.title });
       const pg = row.out.pages[0];
       let url = '';
       try {
@@ -148,6 +152,7 @@ export function VisioImportSheet({ ctx, visible, onClose, onCreated }) {
       const saved = await store.commit('processes', 'process', { ...r, process });
       if (saved.ok) count += 1; else failed.push(`${row.file.name}: ${saved.error}`);
     }
+    setProgress(null);
     setBusy(false);
     setBatch([]);
     if (count) setMade(`${count} ${count === 1 ? 'prosessutkast er laget' : 'prosessutkast er laget'}. Kontroller kartene i prosessbyggeren og send dem til godkjenning.`);
@@ -241,6 +246,7 @@ export function VisioImportSheet({ ctx, visible, onClose, onCreated }) {
           <Field label="Prosesseier" required><PersonPick people={people} value={form.ownerName} onChange={(p) => setForm({ ...form, ownerName: p.name, ownerUid: p.uid })} /></Field>
         </>
       ) : null}
+      <BrandBusyOverlay visible={busy} label="Lager prosessutkast fra Visio" detail={progress?.detail || file?.name} done={progress?.done} total={progress?.total} testID="iso-visio-busy" />
     </Sheet>
   );
 }

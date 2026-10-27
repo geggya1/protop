@@ -11,12 +11,15 @@ import {
 } from '../../src/iso/access';
 import { aclFor } from '../../src/iso/aclSync';
 import { roleOwnerFixes } from '../../src/iso/roles';
-import { ensureAccessMirror, saveRestrictedGrants } from '../../src/iso/storage';
+import { ensureAccessMirror, loadIsoSystem, saveRestrictedGrants } from '../../src/iso/storage';
 import { checkPersonChange } from '../../src/access/accessCeiling';
 import { saveEmployee } from '../../src/employees/storage';
 import { STARTER_OPTIONS, runStarterKit } from './starterKit';
 import IsoImport from './IsoImport';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { normalizeDocStructure } from '../../src/iso/documents';
+import { mergeOwnChanges, settingsKey } from '../../src/iso/settingsSave';
+import { normalizeSystem } from '../../src/iso/state';
 import { normalizeCompanyPage, shownAbout } from '../../src/project/companyPage';
 import {
   Banner, Btn, Card, Check, Field, KV, ListRow, Page, PersonPick, Pill, Row, TextIn,
@@ -49,26 +52,6 @@ function suggestRoles(people) {
 
 const DRAFT_PREFIX = 'protop.iso.setupDraft.v1.';
 const AUTOSAVE_MS = 900;
-
-/** Feltene som lagres fra skjemaet. Brukes til å se om noe er endret. */
-function settingsKey(x) {
-  return JSON.stringify({
-    name: x?.name || '',
-    standards: x?.standards || [],
-    scopeText: x?.scopeText || '',
-    units: x?.units || '',
-    locations: x?.locations || '',
-    activities: x?.activities || '',
-    exclusions: x?.exclusions || '',
-    ownerName: x?.ownerName || '',
-    ownerUid: x?.ownerUid || '',
-    roleMap: x?.roleMap || {},
-    riskMethod: x?.riskMethod?.thresholds || null,
-    autoQualityPlan: x?.autoQualityPlan !== false,
-    docStructure: normalizeDocStructure(x?.docStructure || []),
-    profile: x?.profile || null,
-  });
-}
 
 /** Feil som hindrer lagring. Tom streng når alt er i orden. */
 function settingsError(v) {
@@ -117,6 +100,7 @@ export default function IsoSettings({ ctx }) {
   const [log, setLog] = useState([]);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [busyNote, setBusyNote] = useState('');
   // Autolagring: idle | pending | saving | saved | invalid | error
   const [saveState, setSaveState] = useState('idle');
   const [saveNote, setSaveNote] = useState('');
@@ -132,6 +116,10 @@ export default function IsoSettings({ ctx }) {
   const timer = useRef(null);
   const chain = useRef(Promise.resolve());
   const draftLoaded = useRef(false);
+  // Lagringen leser disse via ref, så den ikke lages på nytt hver gang ISO-siden tegnes
+  // (da startet autolagringen på nytt for hver lagring).
+  const live = useRef({});
+  live.current = { store, actor, companyId };
 
   // Første gang: fyll ut fra selskapsprofil og ansattregisteret, eller fra utkastet som er lagret.
   useEffect(() => {
@@ -194,27 +182,28 @@ export default function IsoSettings({ ctx }) {
 
   // Rollene lagrer innloggingen (uid) da personen ble valgt. Er personen koblet til en innlogging
   // senere, oppdateres rollen, så oppgaver og godkjenning når fram.
+  // Systemansvarlig følger feltet over, og en rolle som alt har en innlogging, røres ikke.
+  // Navn brukes bare når det er entydig, ellers kan to personer med samme navn byttes om.
   useEffect(() => {
     if (first || !caps.admin) return;
-    const map = v.roleMap || {};
-    let changed = false;
-    const next = { ...map };
-    for (const [role, person] of Object.entries(map)) {
-      if (!person?.name) continue;
-      const hit = (people || []).find((p) => (person.employeeId ? p.id === person.employeeId : p.name === person.name) && p.uid);
-      if (hit && hit.uid !== person.uid) { next[role] = { ...person, uid: hit.uid, employeeId: hit.id }; changed = true; }
+    const next = {};
+    for (const [role, person] of Object.entries(v.roleMap || {})) {
+      if (role === 'system_owner' || !person?.name || person.uid) continue;
+      const employee = employeeForRole(person, { employees: ctx.accessEmployees, people });
+      if (employee?.personUid) next[role] = { ...person, uid: employee.personUid, employeeId: employee.id };
     }
-    if (changed) update((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), ...next } }));
-  }, [first, caps.admin, v.roleMap, people, update]);
+    if (Object.keys(next).length) update((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), ...next } }));
+  }, [first, caps.admin, v.roleMap, people, ctx.accessEmployees, update]);
   const [grant, setGrant] = useState({ busy: false, msg: '', err: '' });
 
   /** Legger til fagansvaret rollene trenger, med samme tak som i tilgangsstyringen. */
   async function grantRecommended() {
-    setGrant({ busy: true, msg: '', err: '' });
+    setGrant({ busy: true, msg: '', err: '', done: 0, total: accessRecs.length });
     const done = [];
     const failed = [];
     const saved = [];
-    for (const rec of accessRecs) {
+    for (const [i, rec] of accessRecs.entries()) {
+      setGrant((g) => ({ ...g, done: i, detail: rec.name }));
       const check = checkPersonChange({ actor: ctx.accessActor, policy: ctx.accessPolicy, before: rec.employee, after: rec.next });
       if (!check.ok) { failed.push(`${rec.name}: ${check.reason}`); continue; }
       try {
@@ -225,6 +214,7 @@ export default function IsoSettings({ ctx }) {
       }
     }
     if (saved.length) {
+      setGrant((g) => ({ ...g, done: accessRecs.length, detail: 'Oppdaterer tilgangen …' }));
       // Serveren beregner ISO-tilgangen på nytt, så knappene og reglene stemmer med en gang.
       const employees = (ctx.accessEmployees || []).map((e) => saved.find((x) => x.id === e.id) || e);
       await ensureAccessMirror(companyId, actor.uid, { family: ctx.family, employees, force: true }).catch(() => null);
@@ -238,6 +228,7 @@ export default function IsoSettings({ ctx }) {
 
   /** Bygg neste systemdokument fra skjemaet. */
   function buildNext(cur, prev) {
+    const { actor } = live.current;
     const methodChanged = JSON.stringify(cur.riskMethod?.thresholds) !== JSON.stringify(prev.riskMethod?.thresholds);
     const roleMap = { ...(cur.roleMap || {}), system_owner: { name: cur.ownerName, uid: cur.ownerUid, label: 'Systemansvarlig K-HMS' } };
     return bump({
@@ -258,8 +249,9 @@ export default function IsoSettings({ ctx }) {
   /** Lagre endringene i et allerede aktivert system. Køes, så to lagringer aldri går samtidig. */
   const persist = useCallback(() => {
     chain.current = chain.current.catch(() => {}).then(async () => {
-      const cur = vRef.current;
-      const prev = sysRef.current;
+      const { store, actor, companyId } = live.current;
+      let cur = vRef.current;
+      let prev = sysRef.current;
       if (!prev.setupAt) return;
       if (settingsKey(cur) === settingsKey(prev) && Array.isArray(prev.approverUids)) {
         setSaveState('saved');
@@ -273,27 +265,55 @@ export default function IsoSettings({ ctx }) {
       }
       setSaveState('saving');
       setSaveNote('');
-      const scopeMoved = cur.scopeText !== prev.scopeText || cur.units !== prev.units || cur.locations !== prev.locations || cur.activities !== prev.activities || (cur.standards || []).join() !== (prev.standards || []).join();
-      const next = buildNext(cur, prev);
-      const res = await store.commit('system', 'system', { ok: true, system: next, events: [auditEvent({ entityType: 'system', entityId: 'main', action: 'iso.system.updated', actor, before: prev, after: next })] }, { previous: prev });
+      const save = async () => {
+        const next = buildNext(cur, prev);
+        const res = await store.commit('system', 'system', { ok: true, system: next, events: [auditEvent({ entityType: 'system', entityId: 'main', action: 'iso.system.updated', actor, before: prev, after: next })] }, { previous: prev });
+        return { res, next };
+      };
+      const base = prev;
+      let { res, next } = await save();
+      if (!res.ok && res.conflict) {
+        // Oppsettet er lagret et annet sted i mellomtiden (en import, en annen fane). Hent det som
+        // står lagret, legg det brukeren selv har endret oppå, og prøv én gang til.
+        const saved = await loadIsoSystem(companyId).catch(() => null);
+        if (saved?.setupAt) {
+          prev = normalizeSystem(saved);
+          cur = mergeOwnChanges(vRef.current, base, prev);
+          sysRef.current = prev;
+          setV(cur);
+          ({ res, next } = await save());
+        }
+      }
       if (!res.ok) {
         setSaveState('error');
         setSaveNote(res.error || 'Kunne ikke lagre.');
         return;
       }
       sysRef.current = next;
+      const scopeMoved = cur.scopeText !== base.scopeText || cur.units !== base.units || cur.locations !== base.locations || cur.activities !== base.activities || (cur.standards || []).join() !== (base.standards || []).join();
       if (scopeMoved) {
         const now = store.current();
         const ids = requirementIdsForArea(now, 'scope').concat(requirementIdsForArea(now, 'context'));
         const flagged = markForReassessment(now, ids, 'Omfanget er endret', { actor });
         if (flagged.events.length) await store.commitLists({ assessments: flagged.assessments }, flagged.events);
       }
+      if (settingsKey(vRef.current) === settingsKey(next)) {
+        // Alt er lagret: skjemaet følger det som står i ProTop igjen (f.eks. etter en import).
+        edited.current = false;
+        setSaveState('saved');
+        return;
+      }
       // Kom det flere endringer mens vi lagret, tar neste runde dem.
-      if (settingsKey(vRef.current) !== settingsKey(next)) setSaveState('pending');
-      else setSaveState('saved');
+      setSaveState('pending');
+      if (!timer.current) {
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          persist();
+        }, AUTOSAVE_MS);
+      }
     });
     return chain.current;
-  }, [store, actor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Importen har lagret oppsettet: vis det, og glem det gamle skjemaet så autolagringen ikke skriver det tilbake. */
   const onSystemImported = useCallback((saved) => {
@@ -366,12 +386,14 @@ export default function IsoSettings({ ctx }) {
     const problem = settingsError(v);
     if (problem) { setErr(problem); return; }
     setBusy(true);
+    setBusyNote('Lagrer oppsettet …');
     const next = buildNext(v, sys);
     const res = await store.commit('system', 'system', { ok: true, system: next, events: [auditEvent({ entityType: 'system', entityId: 'main', action: 'iso.system.activated', actor, before: sys, after: next })] }, { previous: null });
     if (!res.ok) { setErr(res.error); setBusy(false); return; }
     clearDraft(companyId);
     edited.current = false;
     if (Object.values(starter).some(Boolean)) {
+      setBusyNote('Oppretter prosesser, dokumenter og registre du valgte …');
       const lines = await runStarterKit({ companyId, state: store.current(), store, actor, caps, options: starter });
       sources.reloadAnbud();
       setLog(lines);
@@ -415,7 +437,7 @@ export default function IsoSettings({ ctx }) {
         </Card>
       ) : null}
       {err ? <Banner tone="danger" text={err} /> : null}
-      {importAtTop.current ? <IsoImport ctx={ctx} first={first} onSystemImported={onSystemImported} /> : null}
+      {importAtTop.current ? <IsoImport ctx={ctx} first={first} onSystemImported={onSystemImported} beforeImport={flush} /> : null}
       <Card title="Ledelsessystem" subtitle={sources.company?.navn ? `Hentet fra selskapsprofilen: ${sources.company.navn}${sources.company.organisasjonsnummer ? ` · ${sources.company.organisasjonsnummer}` : ''}` : ''}>
         <Field label="Navn"><TextIn value={v.name} onChangeText={set('name')} /></Field>
         <Field label="Standarder" required>
@@ -517,7 +539,7 @@ export default function IsoSettings({ ctx }) {
 
       <ProfileCard v={v} update={update} wide={wide} about={shownAbout(normalizeCompanyPage(sources.company?.publicPage), sources.company?.brreg || sources.company)} onCompanyPage={() => requestTab?.('selskap')} />
       <DocStructureCard v={v} update={update} />
-      {!importAtTop.current ? <IsoImport ctx={ctx} onSystemImported={onSystemImported} /> : null}
+      {!importAtTop.current ? <IsoImport ctx={ctx} onSystemImported={onSystemImported} beforeImport={flush} /> : null}
 
       <Card title="Tilgang i ProTop">
         <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 20 }}>
@@ -534,6 +556,8 @@ export default function IsoSettings({ ctx }) {
           <Pill label="Ingen eksempeldata legges inn" tone="info" />
         </Row>
       ) : null}
+      <BrandBusyOverlay visible={busy} label="Aktiverer ledelsessystemet" detail={busyNote} testID="iso-activate-busy" />
+      <BrandBusyOverlay visible={grant.busy} label="Gir anbefalt tilgang" detail={grant.detail} done={grant.done} total={grant.total} testID="iso-grant-busy" />
     </Page>
   );
 }
@@ -622,6 +646,7 @@ function RoleOwnerCard({ ctx }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
+  const [saved, setSaved] = useState({ done: 0, total: 0 });
   if (!caps.admin || (!fixes.length && !msg)) return null;
   const counts = { records: 0, documents: 0, processes: 0 };
   const pairs = new Map();
@@ -636,7 +661,10 @@ function RoleOwnerCard({ ctx }) {
     setBusy(true); setErr(''); setMsg('');
     // Fersk beregning rett før lagring, så ingenting som er endret i mellomtiden, overskrives.
     const fresh = roleOwnerFixes(store.current(), { people, actor });
-    const res = await store.commitMany(fresh.map((f) => ({ kind: f.kind, entity: f.entity })), fresh.map((f) => f.event));
+    setSaved({ done: 0, total: fresh.length });
+    const res = await store.commitMany(fresh.map((f) => ({ kind: f.kind, entity: f.entity })), fresh.map((f) => f.event), {
+      onProgress: (n, total) => setSaved({ done: n, total }),
+    });
     setBusy(false);
     if (!res.ok) { setErr(res.error || 'Kunne ikke lagre.'); return; }
     setMsg(`${fresh.length} eiere er koblet til personer. Poster som fikk kvalitetsleder som eier, står under «Må gjennomgås».`);
@@ -657,6 +685,7 @@ function RoleOwnerCard({ ctx }) {
           <Row><Btn small kind="primary" icon="people-outline" label={`Koble rolle-eiere til personer (${fixes.length})`} busy={busy} onPress={run} /></Row>
         </>
       ) : null}
+      <BrandBusyOverlay visible={busy} label="Kobler eiere til personer" detail={`${saved.done} av ${saved.total} poster lagret`} done={saved.done} total={saved.total} testID="iso-owner-busy" />
     </Card>
   );
 }

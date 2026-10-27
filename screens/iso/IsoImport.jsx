@@ -6,6 +6,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { pickDocument } from '../../src/utils/media';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { normalizeFormTemplates, saveFormTemplate } from '../../src/anbud/bidLibrary';
@@ -30,7 +31,7 @@ async function readPicked(picked) {
   return res.text();
 }
 
-export default function IsoImport({ ctx, first = false, onSystemImported }) {
+export default function IsoImport({ ctx, first = false, onSystemImported, beforeImport }) {
   const colors = useColors();
   const { state, caps, actor, store, companyId, go, sources } = ctx;
   const [raw, setRaw] = useState('');
@@ -44,6 +45,8 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
   const [wallKeys, setWallKeys] = useState(null);
   const [open, setOpen] = useState('');
   const [busy, setBusy] = useState(false);
+  // Overlegget med logoen mens importen kjører: hvilket steg, og hvor mange poster som er lagret.
+  const [progress, setProgress] = useState(null);
   const [log, setLog] = useState([]);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
@@ -111,13 +114,28 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
     setBusy(true); setErr(''); setDone(false);
     const lines = [];
     const say = (line) => { lines.push(line); setLog([...lines]); };
+    setProgress({ detail: 'Forbereder importen …' });
+    // La overlegget vises før den tunge beregningen starter.
+    await new Promise((resolve) => setTimeout(resolve, 30));
     try {
+      // Endringer i innstillingene som venter på autolagring, lagres først, så de ikke kolliderer med importen.
+      await beforeImport?.();
       // Med skjemaene som er godkjent i Dokumentstyring (KS-biblioteket), så prosesser som bruker dem kan publiseres.
       const current = { ...store.current(), forms: state.forms };
       const built = buildImport(current, parsed.pkg, { actor, caps, options, ...extra });
       const { out } = built;
+      const stepTotal = [
+        out.system, out.forms.length, out.requirements.length + out.documents.length + out.processes.length + out.records.length,
+        out.publishDocuments.length + out.publishProcesses.length, out.assessments || out.evidence, out.news.length, out.competence.length, true,
+      ].filter(Boolean).length;
+      let stepNo = 0;
+      const step = (detail, meter = {}) => {
+        stepNo += 1;
+        setProgress({ detail: `Steg ${stepNo} av ${stepTotal}: ${detail}`, done: meter.done || 0, total: meter.total || 0 });
+      };
 
       if (out.system) {
+        step('Oppsett og dokumentstruktur');
         const saved = await store.commit('system', 'system', { ok: true, system: out.system, events: [] }, { previous: current.system });
         if (!saved.ok) throw new Error(`Oppsett: ${saved.error}`);
         // Innstillingene må vise det importen lagret, ellers kan autolagringen skrive det gamle skjemaet tilbake.
@@ -127,6 +145,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
 
       // Skjema først: prosesser som peker til et skjema, kan bare publiseres når skjemaet er styrt.
       if (out.forms.length) {
+        step('Skjema og sjekklister');
         let anbud = await loadAnbudState(companyId);
         let added = 0;
         const full = [];
@@ -168,7 +187,8 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
         ...out.records.flatMap((r) => r.events || []),
       ];
       if (rows.length) {
-        const saved = await store.commitMany(rows, events);
+        step(`Lagrer ${out.documents.length} dokumenter, ${out.processes.length} prosesser, ${out.records.length} registerposter og ${out.requirements.length} krav`, { done: 0, total: rows.length });
+        const saved = await store.commitMany(rows, events, { onProgress: (n, of) => setProgress((p) => (p ? { ...p, done: n, total: of } : p)) });
         if (!saved.ok) throw new Error(saved.committed ? `${saved.error} (${saved.committed} av ${saved.total} er lagret)` : saved.error);
         say(`${out.documents.length} dokumenter, ${out.processes.length} prosesser, ${out.records.length} registerposter og ${out.requirements.length} krav er lagt inn.`);
       }
@@ -178,12 +198,14 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
         ...out.publishProcesses.map((p) => ({ kind: 'processes', entity: p.process })),
       ];
       if (published.length) {
-        const saved = await store.commitMany(published, [...out.publishDocuments, ...out.publishProcesses].flatMap((x) => x.events || []));
+        step('Publiserer', { done: 0, total: published.length });
+        const saved = await store.commitMany(published, [...out.publishDocuments, ...out.publishProcesses].flatMap((x) => x.events || []), { onProgress: (n, of) => setProgress((p) => (p ? { ...p, done: n, total: of } : p)) });
         if (!saved.ok) throw new Error(`Publisering: ${saved.error}${saved.committed ? ` (${saved.committed} av ${saved.total} er publisert)` : ''}`);
         say(`${out.publishDocuments.length} dokumenter og ${out.publishProcesses.length} prosesser er publisert.`);
       }
 
       if (out.assessments || out.evidence) {
+        step('Kravvurderinger og bevis');
         const patch = {};
         if (out.assessments) patch.assessments = out.assessments;
         if (out.evidence) { patch.evidence = out.evidence.evidence; patch.evidenceLinks = out.evidence.evidenceLinks; }
@@ -193,6 +215,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
       }
 
       if (out.news.length) {
+        step('Nyheter');
         let posted = 0;
         for (const n of out.news) {
           let exists = true;
@@ -215,6 +238,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
 
       // Kompetanse: inn i CV-en til hver ansatt (Ansatte → CV). ISO → Kompetanse leser den derfra.
       if (out.competence.length) {
+        step('Kompetanse i CV-ene');
         let saved = 0;
         for (const c of out.competence) {
           try {
@@ -227,6 +251,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
         if (saved) say(`Kompetanse er lagt inn i CV-en til ${saved} ansatte.`);
       }
 
+      step('Oppgave til godkjenner');
       const task = approvalTaskFor(parsed.pkg, built);
       if (task) {
         await store.runEffects([task]);
@@ -238,6 +263,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
       setErr(e?.message || 'Importen stoppet.');
       say('Importen stoppet. Det som er lagret, blir liggende. Kjør importen på nytt for å fortsette – ferdige poster hoppes over.');
     }
+    setProgress(null);
     setBusy(false);
   }
 
@@ -333,6 +359,14 @@ export default function IsoImport({ ctx, first = false, onSystemImported }) {
           {Platform.OS !== 'web' ? <Text style={{ color: colors.muted, fontSize: 11 }}>Tips: Store pakker importeres raskest fra nettleseren.</Text> : null}
         </View>
       ) : null}
+      <BrandBusyOverlay
+        visible={!!progress}
+        label="Importerer ledelsessystemet"
+        detail={progress?.detail}
+        done={progress?.done}
+        total={progress?.total}
+        testID="iso-import-busy"
+      />
     </Card>
   );
 }

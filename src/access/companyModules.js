@@ -64,7 +64,7 @@ export const COMPANY_MODULES = [
   {
     id: 'arbeid',
     groupId: 'company-people',
-    label: 'Arbeid og timer',
+    label: 'Timer / arbeid per ansatt',
     icon: 'time',
     hint: 'Timeliste, timerapport, timesaldo og godkjenninger.',
     navIds: ['arbeid'],

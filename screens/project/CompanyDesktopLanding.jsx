@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { isSuperAdmin, updateGroup } from '../../src/utils/groups';
+import { isSuperAdmin, updateGroupCompany } from '../../src/utils/groups';
 import { companyAddressParts } from '../../src/mileage/flow';
 import {
   fetchPublicCompany,
@@ -68,7 +68,7 @@ export default function CompanyDesktopLanding({
   async function savePage(nextPage) {
     if (!familyId) throw new Error('Mangler selskap.');
     const company = { ...stored, publicPage: normalizeCompanyPage(nextPage) };
-    await updateGroup(familyId, { company });
+    await updateGroupCompany(familyId, stored, company);
     applyFamilyPatch?.(familyId, { company });
   }
 

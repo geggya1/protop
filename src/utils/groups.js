@@ -25,6 +25,7 @@ import {
 } from './inviteIdentifiers';
 import { setMemberPassword } from './setMemberPassword';
 import { canInviteToCompany } from '../notifications/audience';
+import { companyFieldChanges } from '../project/companyFields';
 import { isOrganizationType } from './groupTypes';
 import {
   isSuperAdmin,
@@ -140,6 +141,20 @@ export async function updateGroup(familyId, patch) {
   // Gruppetype er låst etter opprettelse (familie ≠ idrettslag ≠ …).
   const { type: _ignoredType, ...safe } = patch || {};
   await updateDoc(doc(db, 'families', familyId), { ...safe, updatedAt: serverTimestamp() });
+}
+
+/**
+ * Lagre endringer på selskapet felt for felt (company.<felt>), aldri hele objektet.
+ * Da kan ikke en eldre kopi av selskapet stille tilgangsmatrisen eller andre felt tilbake.
+ * `base` = selskapet skjermen bygde `next` fra. `extra` = andre felt på gruppen (f.eks. name).
+ */
+export async function updateGroupCompany(familyId, base, next, extra = {}) {
+  const { set, remove } = companyFieldChanges(base, next);
+  const patch = { ...extra };
+  for (const [key, value] of Object.entries(set)) patch[`company.${key}`] = value;
+  for (const key of remove) patch[`company.${key}`] = deleteField();
+  if (!Object.keys(patch).length) return;
+  await updateGroup(familyId, patch);
 }
 
 /** Deaktiver: vises nedtonet, kan reaktiveres. Dokumentet beholdes. */

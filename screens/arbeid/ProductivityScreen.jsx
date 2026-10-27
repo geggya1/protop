@@ -8,6 +8,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { watchEmployees } from '../../src/employees/storage';
 import { ensureProjectAbsences, loadProjectState } from '../../src/project/storage';
+import { myProjectIds } from '../../src/project/myProjects';
 import { showSaveToast } from '../../src/ui/saveToast';
 import ProductivityBoard from './ProductivityBoard';
 
@@ -104,13 +105,26 @@ export default function ProductivityScreen() {
   const seeOthers = !access.active || access.canView('hoursOthers');
   const canWrite = access.canEdit('productivity')
     || (seeOthers ? access.canEdit('hoursOthers') : access.canEdit('hours'));
+  // «Se som bruker»: den valgte personen.
+  const me = useMemo(
+    () => (access.previewing && access.viewingAs
+      ? (employees.find((row) => row.id === access.viewingAs.id) || access.viewingAs)
+      : ownEmployee(activeEmployees(employees), user)),
+    [access.previewing, access.viewingAs, employees, user],
+  );
   const people = useMemo(() => {
     const active = activeEmployees(employees);
     if (seeOthers) return active;
-    const mine = ownEmployee(active, user);
-    return mine ? [mine] : [];
-  }, [employees, seeOthers, user]);
-  const liveProjects = useMemo(() => activeProjects(projects), [projects]);
+    return me ? [me] : [];
+  }, [employees, seeOthers, me]);
+  // Admin på Prosjekt ser alle prosjekter. Ellers bare prosjektene personen er med i.
+  const allProjects = !access.active || (access.ready && access.canAdmin('projects'));
+  const liveProjects = useMemo(() => {
+    const live = activeProjects(projects);
+    if (allProjects) return live;
+    const own = myProjectIds({ projects, members, timeEntries }, me, employees);
+    return live.filter((project) => own.has(project.id));
+  }, [projects, allProjects, members, timeEntries, me, employees]);
 
   if (access.active && !access.ready) {
     return <ScrollView style={[styles.scroll, { backgroundColor: colors.bg }]} nativeID="produktivitet-screen" />;

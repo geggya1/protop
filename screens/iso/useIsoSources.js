@@ -14,8 +14,16 @@ import { normalizeFormTemplates } from '../../src/anbud/bidLibrary';
 import { addDays, todayKey } from '../../src/iso/core';
 import { loadProjectExpenses, mergeExpenseLists } from '../../src/economy/expenseStorage';
 import { loadDocControls } from '../../src/iso/storage';
+import { myProjectIds } from '../../src/project/myProjects';
+import { employeeMaySeeGear } from '../../src/equipment/calendars';
 
-export function useIsoSources({ familyId, family, canManage = false, canSeeHr = false }) {
+/**
+ * allProjects / allGear: hele listen. Ellers bare prosjektene personen er med i og utstyret
+ * personen har rettighet på (`viewer` = personens ansattpost), som i Prosjekt og Utstyr.
+ */
+export function useIsoSources({
+  familyId, family, canManage = false, canSeeHr = false, allProjects = true, allGear = true, viewer = null,
+}) {
   const [employees, setEmployees] = useState([]);
   const [projectState, setProjectState] = useState(null);
   const [anbud, setAnbud] = useState(null);
@@ -91,7 +99,9 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
       }))
       .filter((p) => p.name && p.name !== 'Uten navn')
       .sort((a, b) => Number(b.own) - Number(a.own));
-    const projects = (projectState?.projects || []).filter((p) => p.status !== 'arkivert');
+    const own = allProjects ? null : myProjectIds(projectState, viewer, employees);
+    const projects = (projectState?.projects || [])
+      .filter((p) => p.status !== 'arkivert' && (!own || own.has(p.id)));
     // HR-sjekklistens rader: avkrysninger for HMS-punktene som er flyttet til Kompetanse kan tas med derfra.
     const hrCompliance = hr ? (hr.compliance || []) : null;
     return {
@@ -104,7 +114,7 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
       trips: projectState?.mileageTrips || [],
       waste: projectState?.waste || [],
       absences: canManage ? (projectState?.absences || []) : [],
-      equipment: projectState?.equipment || [],
+      equipment: (projectState?.equipment || []).filter((row) => allGear || employeeMaySeeGear(row, viewer)),
       expenses: mergeExpenseLists(projectState?.expenses || [], extraExpenses),
       legacyAudits: (projectState?.audits || []).map((a) => ({ ...a, projectName: projects.find((p) => p.id === a.projectId)?.name || '' })),
       contracts: (anbud?.contracts || []).filter((c) => !c.deletedAt),
@@ -115,5 +125,5 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
       reloadAnbud,
       docControls,
     };
-  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses, docControls]);
+  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses, docControls, allProjects, allGear, viewer]);
 }

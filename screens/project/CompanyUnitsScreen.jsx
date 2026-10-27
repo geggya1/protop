@@ -5,7 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { isSuperAdmin, updateGroup } from '../../src/utils/groups';
+import { isSuperAdmin, updateGroupCompany } from '../../src/utils/groups';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useLayout } from '../../src/theme';
 import { ShellPageHeroContext } from '../../components/ShellHeader';
@@ -143,9 +143,9 @@ export default function CompanyUnitsScreen() {
 
   async function saveCompany(next) {
     if (!familyId) return;
-    const patch = { company: next };
-    await updateGroup(familyId, patch);
-    applyFamilyPatch?.(familyId, patch);
+    // Felt for felt, så en eldre kopi ikke stiller tilgangsmatrisen tilbake.
+    await updateGroupCompany(familyId, company, next);
+    applyFamilyPatch?.(familyId, { company: next });
   }
 
   async function saveView(next) {

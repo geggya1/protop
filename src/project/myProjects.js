@@ -66,6 +66,24 @@ export function myProjectIds(state, me, employees = []) {
   return out;
 }
 
+/** Prosjektadmin har åpnet prosjektet for alle i timelisten. */
+function openToAll(project) {
+  const settings = project?.workSettings || {};
+  return settings.showInAllTimesheets === true || settings.allowSelfJoin === true;
+}
+
+/**
+ * Prosjektene i en velger. Admin på Prosjekt (`all`) ser alle aktive prosjekter.
+ * Ellers egne prosjekter og prosjekter prosjektadmin har åpnet for alle i timelisten.
+ * `keepId` beholder prosjektet som allerede er valgt.
+ */
+export function pickableProjects(state, me, employees = [], { all = false, keepId = '' } = {}) {
+  const live = (state?.projects || []).filter((project) => project.status !== 'arkivert');
+  if (all) return live;
+  const own = myProjectIds(state, me, employees);
+  return live.filter((project) => own.has(project.id) || project.id === keepId || openToAll(project));
+}
+
 /**
  * Teamet på et prosjekt: registrerte deltakere, pluss de som har ført timer uten å
  * stå i teamet (vises som «Har ført timer»).

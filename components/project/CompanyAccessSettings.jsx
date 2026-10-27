@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { Ionicons } from '@expo/vector-icons';
 import EmployeeDirectory from '../employees/EmployeeDirectory';
 import InfoButton from '../InfoButton';
+import ScrollSheet from '../ScrollSheet';
 import OptionPicker from '../OptionPicker';
 import {
   ACCESS_ACTIONS,
@@ -31,6 +32,7 @@ import {
   placedLevelId,
   resetLevel,
   setLevelGrant,
+  standardGrants,
   suggestedLevelId,
   toggleGrant,
   withToggledLevel,
@@ -38,9 +40,10 @@ import {
 import { applyEmployeeClassification, cardSubtitle, commitEmployee, contactLine, displayName, initials, normalizeEmployee } from '../../src/employees/model';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { canGrantLevel, canSetGrant, checkPersonChange, grantsAbove } from '../../src/access/accessCeiling';
+import { accessHelp } from '../../src/access/accessHelp';
 
 const ACCESS_LEADS = [
-  'Åtte standardnivåer ligger til grunn og kan tilpasses. Hvert nivå har egen matrise for alle moduler, undermoduler og innstillinger. Lese = se uten endring. Begrenset redigering = opprette og redigere. Admin = innstillingsknapper og full styring i modulen. Høyere trinn tar med dem under. Flere nivå på samme person krysses av under Personer.',
+  'Åtte standardnivåer ligger til grunn og kan tilpasses. I tillegg finnes tre fagansvar (HMS-ansvarlig, Kvalitetsansvarlig og HR-ansvarlig) som krysses av i tillegg til vanlig nivå. Hvert nivå har egen matrise for alle moduler, undermoduler og innstillinger. Lese = se uten endring. Begrenset redigering = opprette og redigere. Admin = innstillingsknapper og full styring i modulen. Høyere trinn tar med dem under. Trykk (i) i matrisen for å se hva trinnet gir i akkurat den modulen. Flere nivå på samme person krysses av under Personer.',
   'Alt lagres automatisk med en gang du krysser av. Tilbakestill henter ProTop-standarden for nivået. Se som bruker under Visning: Lese viser bare bedriftsinnstillinger; begrenset redigering eller Admin viser alle moduler.',
   'Ingen kan endre sin egen tilgang, og ingen kan gi mer enn de har selv. Begrenset redigering på Tilgangsstyring (Øverste leder som standard) gir lov til å endre medlemmene. Admin trengs for å endre selve nivåene.',
 ];
@@ -113,6 +116,23 @@ function CheckBox({ on, disabled, colors, onPress, label }) {
   );
 }
 
+/** (i) bak Lese, Begrenset redigering og Admin: åpner en kort forklaring for området. */
+function AccessInfo({ row, action, colors, onInfo }) {
+  const area = row.parentLabel ? `${row.parentLabel} — ${row.item.label}` : row.item.label;
+  return (
+    <Pressable
+      nativeID={`access-info-${row.item.id}-${action.id}`}
+      accessibilityRole="button"
+      accessibilityLabel={`Hva gir ${action.label} på ${area}?`}
+      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+      onPress={() => onInfo?.({ resourceId: row.item.id, actionId: action.id, area, label: action.label })}
+      style={styles.infoHit}
+    >
+      <Ionicons name="information-circle-outline" size={17} color={colors.brand} />
+    </Pressable>
+  );
+}
+
 /** Område + Lese + Begrenset redigering + Admin. Minstebredde holder ordene vannrett; fr-andeler vokser med feltet. */
 const MATRIX_COLUMNS = 'minmax(200px, 2.4fr) minmax(112px, 1fr) minmax(196px, 1.7fr) minmax(112px, 1fr)';
 
@@ -165,7 +185,7 @@ function GroupDrawer({ group, grants, base, colors, children }) {
   );
 }
 
-function AreaLabel({ row, colors, overridden }) {
+function AreaLabel({ row, colors, overridden, overrideLabel = 'Avvik fra nivået' }) {
   const { item, depth, heading } = row;
   return (
     <View style={[styles.areaCell, depth ? styles.areaChild : null]}>
@@ -174,7 +194,7 @@ function AreaLabel({ row, colors, overridden }) {
         <Text style={[heading || !depth ? styles.areaModule : styles.areaLabel, { color: colors.ink }]}>{item.label}</Text>
       </View>
       {item.hint ? <Text style={[styles.areaHint, styles.areaIndent, { color: colors.muted }]}>{item.hint}</Text> : null}
-      {overridden ? <Text style={[styles.overrideMark, styles.areaIndent, { color: colors.brand }]}>Avvik fra nivået</Text> : null}
+      {overridden ? <Text style={[styles.overrideMark, styles.areaIndent, { color: colors.brand }]}>{overrideLabel}</Text> : null}
     </View>
   );
 }
@@ -188,7 +208,7 @@ function rowState(row, grants, base) {
   };
 }
 
-function CompactRows({ group, grants, base, colors, canEdit, onToggle, limit }) {
+function CompactRows({ group, grants, base, colors, canEdit, onToggle, limit, onInfo, overrideLabel }) {
   return matrixRows(group).map((row) => {
     if (row.heading) {
       return (
@@ -200,11 +220,14 @@ function CompactRows({ group, grants, base, colors, canEdit, onToggle, limit }) 
     const { checks, overridden, a11y } = rowState(row, grants, base);
     return (
       <View key={row.key} style={[styles.compactRow, { borderColor: colors.line }]}>
-        <AreaLabel row={row} colors={colors} overridden={overridden} />
+        <AreaLabel row={row} colors={colors} overridden={overridden} overrideLabel={overrideLabel} />
         <View style={[styles.compactChecks, row.depth ? styles.areaChild : null]}>
           {ACCESS_ACTIONS.map((action) => (
             <View key={action.id} style={styles.compactCheck}>
-              <Text style={[styles.compactAction, { color: colors.muted }]}>{action.label}</Text>
+              <View style={styles.actionLabelRow}>
+                <Text style={[styles.compactAction, { color: colors.muted }]}>{action.label}</Text>
+                <AccessInfo row={row} action={action} colors={colors} onInfo={onInfo} />
+              </View>
               <CheckBox
                 on={checks[action.id]}
                 disabled={!canEdit || (!!limit && !checks[action.id] && !limit(row.item.id, action.id))}
@@ -220,7 +243,7 @@ function CompactRows({ group, grants, base, colors, canEdit, onToggle, limit }) 
   });
 }
 
-function GridRows({ group, grants, base, colors, canEdit, onToggle, limit }) {
+function GridRows({ group, grants, base, colors, canEdit, onToggle, limit, onInfo, overrideLabel }) {
   return (
     <>
       <View dataSet={{ accessMatrix: 'head' }} style={[styles.matrixHead, { borderColor: colors.line }]}>
@@ -240,16 +263,18 @@ function GridRows({ group, grants, base, colors, canEdit, onToggle, limit }) {
         const { checks, overridden, a11y } = rowState(row, grants, base);
         return (
           <View key={row.key} dataSet={{ accessMatrix: 'row' }} style={[styles.matrixRow, { borderColor: colors.line }]}>
-            <AreaLabel row={row} colors={colors} overridden={overridden} />
+            <AreaLabel row={row} colors={colors} overridden={overridden} overrideLabel={overrideLabel} />
             {ACCESS_ACTIONS.map((action) => (
-              <CheckBox
-                key={action.id}
-                on={checks[action.id]}
-                disabled={!canEdit || (!!limit && !checks[action.id] && !limit(row.item.id, action.id))}
-                colors={colors}
-                label={`${a11y}, ${action.label}`}
-                onPress={() => onToggle(row.item.id, action.id, !checks[action.id])}
-              />
+              <View key={action.id} style={styles.gridCell}>
+                <CheckBox
+                  on={checks[action.id]}
+                  disabled={!canEdit || (!!limit && !checks[action.id] && !limit(row.item.id, action.id))}
+                  colors={colors}
+                  label={`${a11y}, ${action.label}`}
+                  onPress={() => onToggle(row.item.id, action.id, !checks[action.id])}
+                />
+                <AccessInfo row={row} action={action} colors={colors} onInfo={onInfo} />
+              </View>
             ))}
           </View>
         );
@@ -258,16 +283,49 @@ function GridRows({ group, grants, base, colors, canEdit, onToggle, limit }) {
   );
 }
 
-/** limit(resourceId, action) → false når aktøren ikke kan heve dit (tak: eget nivå). */
-function Matrix({ grants, base, colors, canEdit, onToggle, compact = false, limit = null }) {
+const ACTION_MEANING = {
+  see: 'Lese = se uten å endre.',
+  read: 'Begrenset redigering = opprette og endre innhold. Tar med Lese.',
+  write: 'Admin = innstillinger og full styring i modulen. Tar med Begrenset redigering og Lese.',
+};
+
+/**
+ * limit(resourceId, action) → false når aktøren ikke kan heve dit (tak: eget nivå).
+ * base: det raden sammenlignes med (nivået for en person, ProTop-standarden for et nivå).
+ */
+function Matrix({ grants, base, colors, canEdit, onToggle, compact = false, limit = null, overrideLabel }) {
   const Rows = compact ? CompactRows : GridRows;
+  const [info, setInfo] = useState(null);
   return (
     <View style={compact ? styles.stack : styles.matrix}>
       {ACCESS_GROUPS.map((group) => (
         <GroupDrawer key={group.id} group={group} grants={grants} base={base} colors={colors}>
-          <Rows group={group} grants={grants} base={base} colors={colors} canEdit={canEdit} onToggle={onToggle} limit={limit} />
+          <Rows
+            group={group}
+            grants={grants}
+            base={base}
+            colors={colors}
+            canEdit={canEdit}
+            onToggle={onToggle}
+            limit={limit}
+            onInfo={setInfo}
+            overrideLabel={overrideLabel}
+          />
         </GroupDrawer>
       ))}
+      <ScrollSheet
+        visible={!!info}
+        placement="center"
+        title={info ? `${info.area}: ${info.label}` : ''}
+        onClose={() => setInfo(null)}
+      >
+        {info ? (
+          <View nativeID="access-info-sheet" style={styles.infoSheet}>
+            <Text style={{ color: colors.ink, fontSize: 15, lineHeight: 22 }}>{accessHelp(info.resourceId, info.actionId)}</Text>
+            <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{ACTION_MEANING[info.actionId]}</Text>
+          </View>
+        ) : null}
+      </ScrollSheet>
     </View>
   );
 }
@@ -417,7 +475,7 @@ function StatusDrop({ dropKey, hotDrop, colors }) {
 
 function LevelDrawer({
   nativeID, title, meta, members, colors, canEdit, movingId, excludeId, suggestedId, compact,
-  open, memberTab, settingsOpen, grants, custom, summary, dropKey, hotDrop, dragging,
+  open, memberTab, settingsOpen, grants, standard = null, custom, summary, dropKey, hotDrop, dragging,
   onToggleOpen, onMemberTab, onToggleSettings, onToggleMove, onAssign, onToggleGrant, onSaveLevel, onReset, onOpen,
   canEditSettings, canEditPerson, allowLevel, limit,
 }) {
@@ -462,10 +520,14 @@ function LevelDrawer({
         <View nativeID={`${nativeID}-settings`} style={[styles.drawerBody, { borderTopColor: colors.line }]}>
           <Text style={[styles.summary, { color: colors.ink }]}>{summary}</Text>
           <Text style={[styles.kind, { color: custom ? colors.brand : colors.muted }]}>
-            {custom ? 'Tilpasset for denne bedriften' : 'ProTop-standard'}
+            {custom
+              ? 'Tilpasset for denne bedriften. Rader merket «Endret fra ProTop-standard» er endret. Tilbakestill henter standarden.'
+              : 'ProTop-standard'}
           </Text>
           <Matrix
             grants={grants}
+            base={custom ? standard : null}
+            overrideLabel="Endret fra ProTop-standard"
             colors={colors}
             compact={compact}
             canEdit={settingsEditable}
@@ -875,6 +937,12 @@ export default function CompanyAccessSettings({
   function assignLevel(employee, nextLevelId) {
     const nextLevel = levelById(nextLevelId);
     if (!nextLevel || !employee) return;
+    // Fagansvar legges til i tillegg til nivået.
+    if (nextLevel.section === 'specialist') {
+      setMovingId('');
+      if (!employeeLevelIds(employee).includes(nextLevel.id)) togglePersonLevel(employee, nextLevel.id, true);
+      return;
+    }
     if (placedLevelId(employee) === nextLevel.id) return;
     setMovingId('');
     const next = applyEmployeeClassification(employee, { accessLevel: nextLevel.id });
@@ -884,6 +952,12 @@ export default function CompanyAccessSettings({
   function dropPerson(employee, dropId) {
     const change = personDropChange(employee, dropId);
     if (!change || !employee) return;
+    if (change.addLevel && !change.activate && !change.deactivate) {
+      setMovingId('');
+      setOpenDrawers((current) => ({ ...current, [change.addLevel]: true }));
+      togglePersonLevel(employee, change.addLevel, true);
+      return;
+    }
     const name = displayName(employee);
     const patch = {};
     if (change.levelId) patch.accessLevel = change.levelId;
@@ -1128,7 +1202,7 @@ export default function CompanyAccessSettings({
                     key={row.id}
                     nativeID={`company-access-level-${row.id}`}
                     title={`${row.order}. ${row.label}`}
-                    meta={rosterMeta(parts.active.length, parts.inactive.length, kindLabel(row))}
+                    meta={`${rosterMeta(parts.active.length, parts.inactive.length, kindLabel(row))}${levelIsCustom(policy, row.id) ? ' · Tilpasset' : ''}`}
                     members={roster}
                     colors={colors}
                     compact={compact}
@@ -1151,6 +1225,7 @@ export default function CompanyAccessSettings({
                     }}
                     settingsOpen={settingsId === row.id}
                     grants={grants}
+                    standard={standardGrants(row.id)}
                     custom={levelIsCustom(policy, row.id)}
                     summary={row.summary}
                     onToggleOpen={() => {
@@ -1381,8 +1456,12 @@ const styles = StyleSheet.create({
   compactRow: { borderBottomWidth: 1, paddingVertical: 10, gap: 4 },
   compactChecks: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 6 },
   compactCheck: { alignItems: 'center', flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 96 },
-  compactAction: { fontSize: 12, lineHeight: 15, marginBottom: 4, textAlign: 'center' },
+  compactAction: { fontSize: 12, lineHeight: 15, textAlign: 'center' },
   checkHit: { minWidth: 0, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  gridCell: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minWidth: 0 },
+  actionLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 4 },
+  infoHit: { padding: 2, alignItems: 'center', justifyContent: 'center' },
+  infoSheet: { gap: 10, paddingBottom: 8 },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   levelActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   primaryBtn: { alignSelf: 'flex-start', borderRadius: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 16 },

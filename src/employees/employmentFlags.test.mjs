@@ -11,6 +11,10 @@ const expectByLevel = {
   avdelingsleder: { bucket: 'staff', capacity: true, consultant: false, rules: false },
   leder: { bucket: 'staff', capacity: true, consultant: false, rules: false },
   administrator: { bucket: 'staff', capacity: true, consultant: false, rules: false },
+  // Fagansvar endrer ikke personellgruppen; den kommer fra det vanlige nivået.
+  hms_ansvarlig: { bucket: 'staff', capacity: true, consultant: false, rules: false },
+  kvalitetsansvarlig: { bucket: 'staff', capacity: true, consultant: false, rules: false },
+  hr_ansvarlig: { bucket: 'staff', capacity: true, consultant: false, rules: false },
 };
 
 for (const level of ACCESS_LEVELS) {
@@ -24,7 +28,7 @@ for (const level of ACCESS_LEVELS) {
   assert.equal(flags.externalConsultant, expect.consultant, `${level.id} consultant`);
   assert.equal(flags.externalRules, expect.rules, `${level.id} rules`);
   const grants = standardGrants(level.id);
-  if (flags.includeInCapacity) {
+  if (flags.includeInCapacity && level.section !== 'specialist') {
     // Begrenset redigering (read) eller Admin (write) på egne timer.
     assert.equal(allows(grants, 'hours', 'read'), true, `${level.id} edits own hours`);
   }
@@ -45,5 +49,9 @@ assert.equal(kindOf({ company: { personnelKind: 'staff', accessLevel: 'regnskap_
 // Flernivå: bare eksterne nivå huket av gir ikke intern ansatt, selv om enkeltnivået er tomt.
 assert.equal(kindOf({ company: { personnelKind: 'staff', accessLevels: ['regnskap_ekstern'], accessLevel: '' } }), 'external');
 assert.equal(kindOf({ company: { accessLevels: ['ansatt'], accessLevel: '' } }), 'staff');
+
+// Ansatt + fagansvar: fortsatt intern ansatt, og ekstern + fagansvar fortsatt ekstern.
+assert.equal(kindOf({ company: { accessLevels: ['hr_ansvarlig', 'ansatt'], accessLevel: 'ansatt' } }), 'staff');
+assert.equal(kindOf({ company: { accessLevels: ['hms_ansvarlig', 'regnskap_ekstern'], accessLevel: 'regnskap_ekstern' } }), 'external');
 
 console.log('employmentFlags.test.mjs: ok');

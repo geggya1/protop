@@ -268,7 +268,8 @@ service cloud.firestore {
     }
 
     function empIsPrivileged(c) {
-      return empLevelSet(c).hasAny(['administrator', 'admin', 'hovedadministrator', 'leder', 'avdelingsleder', 'øverste leder', 'daglig leder'])
+      return empLevelSet(c).hasAny(['administrator', 'admin', 'hovedadministrator', 'leder', 'avdelingsleder', 'øverste leder', 'daglig leder',
+          'hr_ansvarlig', 'kvalitetsansvarlig', 'hms_ansvarlig'])
         || c.get('accessOverrides', {}).size() > 0;
     }
 

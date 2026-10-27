@@ -9,10 +9,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { employeeLevelIds } from '../../src/access/companyAccess';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
-import { canManageEquipmentAccess, equipmentCalendarGroup } from '../../src/equipment/calendars';
+import { equipmentCalendarGroup, equipmentViewerAccess } from '../../src/equipment/calendars';
 import { cancelBooking, cancelEventBookings, replaceEventBookings, upsertBooking } from '../../src/equipment/state';
 import { displayName, ownEmployee } from '../../src/employees/model';
 import { colors, MEMBER_COLORS, radius, useLayout } from '../../src/theme';
@@ -225,10 +224,9 @@ export default function EventFormScreen() {
   const { familyId: activeFamilyId, members, friendPeople, uid, isParent, family, user, activeProfile } = useApp();
   const access = useCompanyAccess();
   const isCompany = isOrganizationType(family?.type);
-  const manageEquipment = canManageEquipmentAccess(
-    access.employee ? employeeLevelIds(access.employee) : [access.levelId],
-    { bypass: access.bypass, previewing: access.previewing },
-  );
+  // Firmautstyr følger Utstyr i tilgangsstyringen. «Se som» viser den valgte personens utstyr.
+  const gearAccess = equipmentViewerAccess(access, { employees: access.employees });
+  const manageEquipment = gearAccess.manage;
 
   const existing = params?.event || null;
   const isEdit = !!existing;
@@ -393,14 +391,17 @@ export default function EventFormScreen() {
   });
   const bookerId = booker?.id || uid || '';
   const bookerName = booker ? displayName(booker) : (activeProfile?.name || user?.displayName || 'Ansatt');
+  const gearViewer = access.previewing ? gearAccess.viewer : booker;
   const bookableGear = useMemo(() => (
-    equipmentCalendarGroup({
-      equipment: projectGear?.equipment,
-      employees: access.employees,
-      viewer: booker,
-      manage: manageEquipment,
-    })?.children || []
-  ), [projectGear, access.employees, booker, manageEquipment]);
+    gearAccess.canSee
+      ? equipmentCalendarGroup({
+        equipment: projectGear?.equipment,
+        employees: access.employees,
+        viewer: gearViewer,
+        manage: manageEquipment,
+      })?.children || []
+      : []
+  ), [projectGear, access.employees, gearViewer, manageEquipment, gearAccess.canSee]);
 
   function toggleEquipment(id) {
     setEquipmentIds((prev) => (prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id]));

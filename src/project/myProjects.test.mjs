@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  employeeNameKeys, myProjectIds, sameEmployeeIds, teamWithHourParticipants,
+  employeeNameKeys, myProjectIds, pickableProjects, sameEmployeeIds, teamWithHourParticipants,
 } from './myProjects.js';
 
 const daniel = { id: 'dw', person: { firstName: 'Daniel', middleName: 'Edvard', lastName: 'Wold', email: 'dew@consult1.no' } };
@@ -53,5 +53,24 @@ const team = teamWithHourParticipants(
 assert.deepEqual(team.map((row) => row.employeeId), ['ar', 'dw']);
 assert.equal(team[1].derived, true);
 assert.equal(team[1].role, 'Har ført timer');
+
+// Velgere: Admin på Prosjekt ser alle aktive. Lese ser egne og prosjekter som er åpnet for alle.
+{
+  const pick = {
+    projects: [
+      { id: 'egen', name: 'Egen' },
+      { id: 'annen', name: 'Annen' },
+      { id: 'apen', name: 'Åpen', workSettings: { showInAllTimesheets: true } },
+      { id: 'gammel', name: 'Gammel', status: 'arkivert' },
+    ],
+    members: [{ projectId: 'egen', employeeId: 'ar', active: true }],
+    timeEntries: [],
+  };
+  assert.deepEqual(pickableProjects(pick, anders, employees).map((p) => p.id), ['egen', 'apen']);
+  assert.deepEqual(pickableProjects(pick, anders, employees, { all: true }).map((p) => p.id), ['egen', 'annen', 'apen']);
+  assert.deepEqual(pickableProjects(pick, anders, employees, { keepId: 'annen' }).map((p) => p.id), ['egen', 'annen', 'apen']);
+  // Uten kjent person: bare åpne prosjekter.
+  assert.deepEqual(pickableProjects(pick, null, employees).map((p) => p.id), ['apen']);
+}
 
 console.log('myProjects.test.mjs: ok');

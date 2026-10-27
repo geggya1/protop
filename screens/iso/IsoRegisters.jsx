@@ -554,7 +554,7 @@ export function RiskPage({ ctx }) {
           <RiskMatrix cells={cells} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
         </Card>
         <Card title="Register" style={{ flex: 1, width: wide ? undefined : '100%' }}>
-          <Choice small options={['Risiko', 'Mulighet']} value={kind} onChange={setKind} />
+          <Choice small options={['Risiko', 'Mulighet']} value={kind} onChange={setKind} placeholder="Alle" title="Vis" />
           <RecordList
             ctx={ctx}
             registerKey="risiko"

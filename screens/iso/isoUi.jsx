@@ -2,7 +2,7 @@
  * Felles UI-byggeklosser for ISO / K-HMS. Bruker ProTops fargetokens (useColors),
  * Ionicons og DateField, så modulen følger samme profil i lyst og mørkt utseende.
  */
-import React, { useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import {
   ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
@@ -142,6 +142,9 @@ export function Empty({ icon = 'file-tray-outline', title, text, action }) {
   );
 }
 
+// Feltet rundt en velger: navnet blir overskrift og skjermlesertekst, og påkrevd felt kan ikke tømmes.
+const FieldContext = createContext(null);
+
 export function Field({ label, hint, error, required, children }) {
   const colors = useColors();
   return (
@@ -151,7 +154,9 @@ export function Field({ label, hint, error, required, children }) {
           {label}{required ? <Text style={{ color: colors.danger }}> *</Text> : null}
         </Text>
       ) : null}
-      {children}
+      <FieldContext.Provider value={{ label: typeof label === 'string' ? label : '', required: !!required }}>
+        {children}
+      </FieldContext.Provider>
       {hint && !error ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
       {error ? <Text style={{ color: colors.danger, fontSize: 12 }}>{error}</Text> : null}
     </View>
@@ -184,9 +189,10 @@ export function TextIn({ value, onChangeText, multiline, placeholder, keyboardTy
  * placeholder vises i feltet når ingenting er valgt (f.eks. «Alle» i filtre).
  */
 export function Choice({ options, value, onChange, multi = false, small, placeholder = 'Velg', title, clearLabel, clearable }) {
-  // Tømme valget: i filtre («Alle …») og valgfrie felt. Obligatoriske felt sender clearable={false}.
+  // Tømme valget: i filtre («Alle …») og valgfrie felt. Påkrevde felt og vippebrytere utenfor felt kan ikke tømmes.
+  const field = useContext(FieldContext);
   const filter = /^Alle\b/.test(String(placeholder || ''));
-  const canClear = clearable ?? filter;
+  const canClear = clearable ?? (filter || (!!field && !field.required));
   return (
     <OptionPicker
       options={options}
@@ -195,7 +201,7 @@ export function Choice({ options, value, onChange, multi = false, small, placeho
       multiple={multi}
       small={small}
       placeholder={placeholder}
-      title={title}
+      title={title || field?.label || undefined}
       clearable={canClear}
       clearLabel={clearLabel || (filter ? placeholder : 'Ingen valgt')}
     />

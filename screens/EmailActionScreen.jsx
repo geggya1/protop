@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { auth } from '../firebase';
 import { applyActionCode, checkActionCode, reload } from 'firebase/auth';
+import { notifyUser } from '../src/utils/dialog';
 
 function useQueryParams() {
   const { params = {} } = useRoute();
@@ -43,10 +44,10 @@ export default function EmailActionScreen() {
       setApplying(true);
       await applyActionCode(auth, oobCode);
       if (auth.currentUser) await reload(auth.currentUser);
-      Alert.alert('Bekreftet', 'E-posten er verifisert.');
+      notifyUser('Bekreftet', 'E-posten er verifisert.');
       navigation.replace('FamilyOverview');
     } catch (e) {
-      Alert.alert('Kunne ikke fullføre', 'Lenken er brukt eller utløpt. Be om en ny fra appen.');
+      notifyUser('Kunne ikke fullføre', 'Lenken er brukt eller utløpt. Be om en ny fra appen.');
     } finally {
       setApplying(false);
     }

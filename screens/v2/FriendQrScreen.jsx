@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, Share, Platform, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, Share, Platform, ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import CompactBackLink from '../../components/CompactBackLink';
 import { AvatarBubble } from '../../components/AvatarPicker';
 import { friendAddByUsernameUrl } from '../../src/utils/friendsLogic';
 import { isValidUsername } from '../../src/utils/usernames';
+import { notifyUser } from '../../src/utils/dialog';
 
 /**
  * Vis QR-kode andre kan skanne for å sende deg venneforespørsel.
@@ -52,7 +53,7 @@ export default function FriendQrScreen({ asModal = false, onClose } = {}) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      Alert.alert(t('common.error'), text);
+      notifyUser(t('common.error'), text);
     }
   };
 
@@ -62,12 +63,12 @@ export default function FriendQrScreen({ asModal = false, onClose } = {}) {
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(message);
-        Alert.alert(t('friend.copiedTitle'), t('friend.copiedBody'));
+        notifyUser(t('friend.copiedTitle'), t('friend.copiedBody'));
         return;
       }
       await Share.share({ message, url: shareUrl });
     } catch {
-      Alert.alert(t('friend.qrTitle'), shareUrl);
+      notifyUser(t('friend.qrTitle'), shareUrl);
     }
   };
 

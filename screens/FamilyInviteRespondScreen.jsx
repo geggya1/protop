@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -18,6 +18,7 @@ import {
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { groupInviteCopy } from '../src/utils/inviteIdentifiers';
 import { inviteResponseMessage, isCompanyGroupType } from '../src/utils/groupInviteLogic';
+import { notifyUser } from '../src/utils/dialog';
 
 /** Egen innboks først: en invitert er ikke medlem ennå og kan ikke lese gruppens data. */
 async function loadInvite(uid, familyId, inviteId) {
@@ -103,7 +104,7 @@ export default function FamilyInviteRespondScreen() {
         await selectFamily?.(res.familyId, { name: res.familyName, type: invite?.groupType || 'family' });
       }
     } catch (e) {
-      Alert.alert(t('common.error'), answerError(e));
+      notifyUser(t('common.error'), answerError(e));
     } finally {
       setBusy(false);
     }
@@ -116,7 +117,7 @@ export default function FamilyInviteRespondScreen() {
       await declineFamilyMemberInvite({ familyId, inviteId, uid });
       setDone('declined');
     } catch (e) {
-      Alert.alert(t('common.error'), answerError(e));
+      notifyUser(t('common.error'), answerError(e));
     } finally {
       setBusy(false);
     }

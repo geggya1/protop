@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Text, Alert, View, StyleSheet, TouchableOpacity, Platform, useWindowDimensions,
+  Text, View, StyleSheet, TouchableOpacity, Platform, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useI18n } from '../../src/i18n';
@@ -46,7 +46,6 @@ export default function AuthChoiceScreen({ navigation }) {
     const msg = socialErrorMessage(t, err, stashed.provider);
     if (msg) {
       setError(msg);
-      Alert.alert(t('common.error'), msg);
     }
   }, [t]);
 
@@ -71,7 +70,6 @@ export default function AuthChoiceScreen({ navigation }) {
       const msg = socialErrorMessage(t, e, provider);
       if (msg) {
         setError(msg);
-        Alert.alert(t('common.error'), msg);
       }
     } finally {
       setBusy(false);

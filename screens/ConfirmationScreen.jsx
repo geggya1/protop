@@ -1,12 +1,13 @@
 // src/screens/ConfirmationScreen.jsx
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, Alert, TouchableOpacity, ActivityIndicator, Linking,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { sendVerificationEmailV2 } from '../src/utils/sendVerificationEmail';
+import { notifyUser } from '../src/utils/dialog';
 
 export default function ConfirmationScreen({ route }) {
   const { email, password, forChild } = route?.params || {};
@@ -17,18 +18,18 @@ export default function ConfirmationScreen({ route }) {
     setLoading(true);
     try {
       if (!email || !password) {
-        Alert.alert('Trenger innlogging', 'Gå til innlogging og skriv e-post og passord for å sende bekreftelsesmail på nytt.');
+        notifyUser('Trenger innlogging', 'Gå til innlogging og skriv e-post og passord for å sende bekreftelsesmail på nytt.');
         return;
       }
       const cred = await signInWithEmailAndPassword(auth, email, password);
       await sendVerificationEmailV2(cred.user.email || email);
       await signOut(auth);
-      Alert.alert('E-post sendt på nytt', `Bekreftelsesmail er sendt til ${email}.`);
+      notifyUser('E-post sendt på nytt', `Bekreftelsesmail er sendt til ${email}.`);
     } catch (error) {
       let msg = 'Kunne ikke sende e-post på nytt.';
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') msg = 'Feil passord.';
       else if (error.code === 'auth/user-not-found') msg = 'Bruker ikke funnet.';
-      Alert.alert('Feil', msg);
+      notifyUser('Feil', msg);
     } finally { setLoading(false); }
   };
 

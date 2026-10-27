@@ -1,12 +1,20 @@
 import { fitAnbudState } from './model.js';
+import { packHits } from './hitStore.js';
 
 /** v1 kunne inneholde et annet selskaps varsling og kunder. Den forkastes. */
 export const ANBUD_LOCAL_KEY = 'protop.anbud.v2';
 export const RETIRED_ANBUD_KEYS = ['protop.anbud.v1', 'protop.customers.v1'];
+/** Trefflisten for seg, slik at den ikke må vike for kunder og kontrakter i hovedkopien. */
+export const ANBUD_HITS_KEY = 'protop.anbud.hits.v1';
 
 export function anbudLocalKey(companyId) {
   const id = String(companyId || '').trim();
   return id ? `${ANBUD_LOCAL_KEY}.${id}` : ANBUD_LOCAL_KEY;
+}
+
+export function anbudHitsKey(companyId) {
+  const id = String(companyId || '').trim();
+  return id ? `${ANBUD_HITS_KEY}.${id}` : ANBUD_HITS_KEY;
 }
 
 export function isQuotaError(err) {
@@ -92,4 +100,30 @@ export async function storeAnbudPayload(storage, companyId, state) {
     }
   }
   throw lastError || new Error('Kunne ikke lagre varslingen.');
+}
+
+/**
+ * Skriver trefflisten. Er nettleseren full, prøves en kortere liste.
+ * Skyen er fasit, så en kopi som ikke får plass gir bare litt tregere første visning.
+ */
+export async function storeHitsPayload(storage, companyId, pack) {
+  const key = anbudHitsKey(companyId);
+  let lastError = null;
+  for (const budget of [800_000, 250_000]) {
+    let payload = '';
+    try {
+      payload = JSON.stringify(packHits(pack, budget));
+    } catch (err) {
+      lastError = err;
+      continue;
+    }
+    try {
+      await storage.setItem(key, payload);
+      return payload;
+    } catch (err) {
+      lastError = err;
+      if (!isQuotaError(err)) throw err;
+    }
+  }
+  throw lastError || new Error('Kunne ikke lagre trefflisten.');
 }

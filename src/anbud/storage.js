@@ -1,17 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { anbudLocalKey, RETIRED_ANBUD_KEYS, saveWhereItFits, storeAnbudPayload } from './localStore.js';
+import { anbudHitsKey, anbudLocalKey, RETIRED_ANBUD_KEYS, saveWhereItFits, storeAnbudPayload, storeHitsPayload } from './localStore.js';
 import { pickCustomerList, resolveCustomerLoad } from './customerRegistry.js';
 import { normalizeCustomers } from './customers.js';
 import { emptyAnbudState, fitAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
+import { hitsSignature, mergeHitPacks, packHits, readHitPack, withHits } from './hitStore.js';
 import { aliasSourceIds } from '../project/companyAlias.js';
 import { dropRetiredLocalKeys } from '../utils/retiredLocalKeys.js';
 
 const CUSTOMER_KEY = 'protop.customers.v2';
 const REMOTE_AUTH_MS = 8000;
+const HITS_DELAY_MS = 800;
 const remoteTimers = new Map();
 const remotePending = new Map();
+const hitTimers = new Map();
+const hitPending = new Map();
+/** Signaturen til trefflisten som sist ble lagret i skyen. Uendret liste skrives ikke på nytt. */
+const hitSaved = new Map();
+/** 'ok' når trefflisten finnes i skyen, 'missing' når skyen svarte uten den, 'error' når lesingen feilet. */
+const hitMeta = new Map();
 /** Modulminne — unngår ny Firestore/AsyncStorage-runde ved hvert skjermbesøk. */
 const MEMORY = new Map();
 const inflight = new Map();
@@ -28,7 +36,18 @@ export function peekAnbudState(companyId) {
 
 /** Selskapets egen kopi i minnet eller nettleseren, uten å vente på skyen. Til å vise forrige treff med en gang. */
 export async function readCachedAnbudState(companyId) {
-  return peekAnbudState(companyId) || readLocal(companyId);
+  const memory = peekAnbudState(companyId);
+  if (memory) return memory;
+  const [local, hits] = await Promise.all([readLocal(companyId), readLocalHits(companyId)]);
+  return withHits(local, hits);
+}
+
+/**
+ * Om trefflisten er lagret for seg i skyen. 'missing' betyr at den aldri er det,
+ * så treff som falt ut av hoveddokumentet før må hentes inn igjen med et fullt søk.
+ */
+export function anbudHitsStatus(companyId) {
+  return hitMeta.get(memoryKey(companyId)) || '';
 }
 
 function putAnbudMemory(companyId, state) {
@@ -47,6 +66,12 @@ function customerDoc(companyId) {
   const id = String(companyId || '').trim();
   if (!id) return null;
   return doc(db, 'families', id, 'anbud', 'customers');
+}
+
+function hitsDoc(companyId) {
+  const id = String(companyId || '').trim();
+  if (!id) return null;
+  return doc(db, 'families', id, 'anbud', 'hits');
 }
 
 export function anbudLoadMeta(companyId) {
@@ -105,6 +130,88 @@ async function readRemote(companyId) {
   } catch {
     return { ok: false, state: emptyAnbudState() };
   }
+}
+
+async function readLocalHits(companyId) {
+  try {
+    const raw = await AsyncStorage.getItem(anbudHitsKey(companyId));
+    return readHitPack(raw ? JSON.parse(raw) : null);
+  } catch {
+    return readHitPack(null);
+  }
+}
+
+async function readRemoteHits(companyId) {
+  const ref = hitsDoc(companyId);
+  const none = readHitPack(null);
+  if (!ref) return { ok: false, exists: false, pack: none };
+  try {
+    const authed = await ensureRemoteAuth();
+    if (!authed) return { ok: false, exists: false, pack: none };
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return { ok: true, exists: false, pack: none };
+    return { ok: true, exists: true, pack: readHitPack(snap.data()) };
+  } catch {
+    return { ok: false, exists: false, pack: none };
+  }
+}
+
+async function writeRemoteHits(companyId, pack) {
+  const ref = hitsDoc(companyId);
+  if (!ref) return;
+  // En annen fane eller enhet kan ha lagret treff i mellomtiden. Listene slås sammen.
+  const bodyOf = (remote) => ({
+    ...JSON.parse(JSON.stringify(mergeHitPacks(remote, pack))),
+    updatedAt: serverTimestamp(),
+  });
+  try {
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref);
+      transaction.set(ref, bodyOf(snap.exists() ? snap.data() : null));
+    });
+  } catch {
+    const snap = await getDoc(ref);
+    await setDoc(ref, bodyOf(snap.exists() ? snap.data() : null));
+  }
+}
+
+async function flushHits(companyId) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  const timer = hitTimers.get(id);
+  if (timer) clearTimeout(timer);
+  hitTimers.delete(id);
+  const job = hitPending.get(id);
+  hitPending.delete(id);
+  if (!job) return;
+  await writeRemoteHits(id, job.pack);
+  hitSaved.set(id, job.signature);
+  hitMeta.set(memoryKey(id), 'ok');
+}
+
+/** Lagrer trefflisten for seg: nettleseren med en gang, skyen litt etter, og bare når listen er endret. */
+function queueHits(companyId, state) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  let pack;
+  let signature;
+  try {
+    pack = packHits(state);
+    signature = hitsSignature(pack);
+  } catch {
+    // Trefflisten skal aldri stoppe lagringen av resten av anbudet.
+    return;
+  }
+  if (!pack.notices.length) return;
+  if (hitSaved.get(id) === signature || hitPending.get(id)?.signature === signature) return;
+  storeHitsPayload(AsyncStorage, companyId, pack).catch(() => {});
+  hitPending.set(id, { pack, signature });
+  const prev = hitTimers.get(id);
+  if (prev) clearTimeout(prev);
+  hitTimers.set(id, setTimeout(() => {
+    hitTimers.delete(id);
+    flushHits(id).catch(() => {});
+  }, HITS_DELAY_MS));
 }
 
 function customerCacheKey(companyId) {
@@ -260,13 +367,21 @@ function queueRemote(companyId, state) {
   }, 400));
 }
 
+function customerKey(rows) {
+  return JSON.stringify([...(rows || [])].sort((a, b) => String(a?.id || '').localeCompare(String(b?.id || ''))));
+}
+
 async function mergedForSave(state, companyId) {
-  const local = await readLocal(companyId);
-  const registry = companyId ? await readCustomerRegistry(companyId) : { ok: false, customers: [] };
+  const [local, registry] = await Promise.all([
+    readLocal(companyId),
+    companyId ? readCustomerRegistry(companyId) : { ok: false, customers: [] },
+  ]);
   let next = mergeAnbudStates(local, state);
   if (registry.ok) next = mergeAnbudStates(next, { customers: registry.customers });
   next = mergeAnbudStates(next, { customers: state?.customers || [] });
-  return { next, registryOk: registry.ok };
+  // Registeret skrives bare når kundelisten faktisk er endret. Ellers ble det en ekstra skyrunde per lagring.
+  const registryStale = registry.ok && customerKey(registry.customers) !== customerKey(next.customers);
+  return { next, registryOk: registry.ok, registryStale };
 }
 
 export async function loadAnbudState(companyId, { force = false } = {}) {
@@ -274,11 +389,16 @@ export async function loadAnbudState(companyId, { force = false } = {}) {
   if (!force && MEMORY.has(key)) return MEMORY.get(key);
   if (!force && inflight.has(key)) return inflight.get(key);
   const pending = (async () => {
-    const local = await readLocal(companyId);
-    const [remote, registry] = await Promise.all([
+    const [local, localHits, remote, registry, remoteHits] = await Promise.all([
+      readLocal(companyId),
+      readLocalHits(companyId),
       readRemote(companyId),
       readCustomerRegistry(companyId),
+      readRemoteHits(companyId),
     ]);
+    hitMeta.set(key, remoteHits.ok ? (remoteHits.exists ? 'ok' : 'missing') : 'error');
+    const hits = remoteHits.exists ? mergeHitPacks(localHits, remoteHits.pack) : localHits;
+    if (remoteHits.exists) storeHitsPayload(AsyncStorage, companyId, hits).catch(() => {});
     const resolved = resolveCustomerLoad({
       local,
       remote: remote.state,
@@ -298,8 +418,9 @@ export async function loadAnbudState(companyId, { force = false } = {}) {
     ) {
       writeCustomerRegistry(companyId, resolved.state.customers).catch(() => {});
     }
-    if (resolved.status === 'error') return resolved.state;
-    let state = resolved.state;
+    // Trefflisten for seg har treffene hoveddokumentet ikke hadde plass til.
+    if (resolved.status === 'error') return withHits(resolved.state, localHits);
+    let state = withHits(resolved.state, hits);
     for (const aliasId of aliasSourceIds(companyId)) {
       try {
         const extra = await readRemote(aliasId);
@@ -329,13 +450,18 @@ export async function flushAnbudState(companyId) {
   const pending = remotePending.get(id);
   remotePending.delete(id);
   const state = pending || MEMORY.get(memoryKey(companyId));
-  if (state) await writeRemote(id, state);
+  await Promise.all([
+    state ? writeRemote(id, state) : null,
+    // Trefflisten kan hentes inn igjen med et søk. Den skal ikke stoppe lagringen av resten.
+    flushHits(id).catch(() => {}),
+  ]);
 }
 
 export async function saveAnbudState(state, companyId) {
-  const { next, registryOk } = await mergedForSave(state, companyId);
+  const { next, registryStale } = await mergedForSave(state, companyId);
   if (next.customers.length) writeCustomerCache(companyId, next.customers).catch(() => {});
-  if (companyId && registryOk) await writeCustomerRegistry(companyId, next.customers).catch(() => {});
+  if (companyId && registryStale) await writeCustomerRegistry(companyId, next.customers).catch(() => {});
+  queueHits(companyId, next);
   const where = await saveWhereItFits({
     companyId,
     writeLocal: () => writeLocal(companyId, next),
@@ -350,10 +476,11 @@ export async function saveAnbudState(state, companyId) {
 
 /** Lagrer med en gang og venter på Firestore, slik at «Lagre» ikke later som det gikk bra. */
 export async function persistAnbudState(state, companyId) {
-  const { next, registryOk } = await mergedForSave(state, companyId);
+  const { next, registryStale } = await mergedForSave(state, companyId);
   const id = String(companyId || '').trim();
   if (next.customers.length) writeCustomerCache(companyId, next.customers).catch(() => {});
-  if (id && registryOk) await writeCustomerRegistry(id, next.customers);
+  if (id && registryStale) await writeCustomerRegistry(id, next.customers);
+  queueHits(companyId, next);
   clearRemoteQueue(id);
   let localError = null;
   try {

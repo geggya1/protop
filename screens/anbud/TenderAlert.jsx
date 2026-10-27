@@ -15,7 +15,7 @@ import { geocodeQuery, locateNotice, mapFollowsList, mapPinsForNotices, noticePl
 import { rankTenderHits } from '../../src/anbud/watchAi';
 import { digestDue, digestSelection, searchProfiles, stampDigest } from '../../src/anbud/desk';
 import { sendTenderAlert } from '../../src/anbud/doffinClient';
-import { loadAnbudState, readCachedAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { anbudHitsStatus, loadAnbudState, readCachedAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { SIDE_WIDTH_KEY, PHONE_PREVIEW_MAP_HEIGHT, clampSideWidth, mapHeightForRail, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
@@ -50,6 +50,11 @@ const FILTERS = [
   ['alle', 'Alle', 'plain'],
   ['utlopt', 'Frist utløpt', 'plain'],
 ];
+
+/** Rader som tegnes om gangen. Hele listen kan være flere hundre treff. */
+const PAGE_SIZE = 60;
+/** Endringer som kommer tett (merking, kart, AI) lagres samlet. */
+const SAVE_DELAY_MS = 400;
 
 const COLUMNS = [
   { key: 'publishedAt', label: 'Publisert', width: 120, kind: 'date' },
@@ -212,11 +217,44 @@ export default function TenderAlert({
   const [pullingId, setPullingId] = useState('');
   const [ranking, setRanking] = useState(false);
   const [companyTrades, setCompanyTrades] = useState(company?.naeringskoder || []);
+  const [shownCount, setShownCount] = useState(PAGE_SIZE);
   const stateRef = useRef(state);
   stateRef.current = state;
   const lastMark = useRef({ key: '', at: 0 });
+  // Tilstanden slik den kom fra skyen. Den trenger ikke skrives tilbake.
+  const loadedRef = useRef(null);
+  const pendingSave = useRef(null);
+  const saveTimer = useRef(null);
+  const mountedRef = useRef(true);
+  const cloudRef = useRef(false);
+  cloudRef.current = cloudLoaded;
 
   const loadGen = useRef(0);
+
+  function flushSave() {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    const job = pendingSave.current;
+    pendingSave.current = null;
+    if (!job) return;
+    saveAnbudState(job.state, job.companyId).then(() => {
+      if (!mountedRef.current) return;
+      setError((current) => (current === 'Kunne ikke lagre varslingen.' ? '' : current));
+    }).catch(() => {
+      if (mountedRef.current) setError('Kunne ikke lagre varslingen.');
+    });
+  }
+  const flushSaveRef = useRef(flushSave);
+  flushSaveRef.current = flushSave;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    // Det som venter på lagring, skrives før siden lukkes.
+    return () => {
+      mountedRef.current = false;
+      flushSaveRef.current();
+    };
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return;
@@ -259,6 +297,8 @@ export default function TenderAlert({
   useEffect(() => {
     let live = true;
     const gen = ++loadGen.current;
+    flushSaveRef.current();
+    loadedRef.current = null;
     setReady(false);
     setCloudLoaded(false);
     setLoadFailed(false);
@@ -291,7 +331,9 @@ export default function TenderAlert({
       if (!live || gen !== loadGen.current) return;
       // Ble noe endret mens skyen ble lest (f.eks. et treff merket), tas endringen med.
       const touched = shown && stateRef.current !== shown;
-      apply(touched ? mergeAnbudStates(loaded, stateRef.current) : loaded);
+      const next = touched ? mergeAnbudStates(loaded, stateRef.current) : loaded;
+      loadedRef.current = touched ? null : loaded;
+      apply(next);
       setCloudLoaded(true);
     }).catch(() => {
       if (!live || gen !== loadGen.current) return;
@@ -302,15 +344,12 @@ export default function TenderAlert({
   }, [company?.id]);
 
   useEffect(() => {
-    if (!ready || !cloudLoaded) return undefined;
-    let live = true;
-    saveAnbudState(state, company?.id).then(() => {
-      if (!live) return;
-      setError((current) => (current === 'Kunne ikke lagre varslingen.' ? '' : current));
-    }).catch(() => {
-      if (live) setError('Kunne ikke lagre varslingen.');
-    });
-    return () => { live = false; };
+    if (!ready || !cloudLoaded) return;
+    // Uendret siden lesingen: ingen grunn til å skrive hele dokumentet tilbake ved hvert besøk.
+    if (state === loadedRef.current) return;
+    pendingSave.current = { state, companyId: company?.id };
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => flushSaveRef.current(), SAVE_DELAY_MS);
   }, [state, ready, cloudLoaded, company?.id]);
 
   useEffect(() => {
@@ -351,7 +390,9 @@ export default function TenderAlert({
       || keywords.length > 0
       || (state.watch?.profile?.keywords || []).length > 0;
     if (!hasSignal) return undefined;
-    if (watchRefreshDue(stateRef.current)) refresh(stateRef.current);
+    // Trefflisten er ikke lagret for seg ennå. Treff som falt ut av hoveddokumentet hentes inn med ett fullt søk.
+    const rebuild = anbudHitsStatus(company?.id) === 'missing';
+    if (rebuild || watchRefreshDue(stateRef.current)) refresh(stateRef.current, false, { deep: rebuild });
     // Søk igjen mens siden står åpen, så nye kunngjøringer dukker opp uten å trykke Oppdater.
     const timer = setInterval(() => {
       if (watchRefreshDue(stateRef.current)) refreshRef.current(stateRef.current);
@@ -430,7 +471,7 @@ export default function TenderAlert({
     }
   }
 
-  async function refresh(nextState, manual = false) {
+  async function refresh(nextState, manual = false, { deep = false } = {}) {
     const draft = saveTenderWatch(nextState, inputFromForm());
     const watchForQuery = draft.ok ? draft.state.watch : nextState.watch;
     const active = watchQuery(watchForQuery);
@@ -447,25 +488,33 @@ export default function TenderAlert({
     try {
       const watch = draft.ok ? draft.state.watch : nextState.watch;
       const fingerprint = watchFingerprint(watch);
-      const sameSearch = nextState.queryKey === fingerprint && (nextState.notices || []).length > 0;
+      const sameSearch = !deep && nextState.queryKey === fingerprint && (nextState.notices || []).length > 0;
       const publishedFrom = sameSearch ? refreshFrom(nextState.notices, new Date(), { minDays: manual ? 21 : 0 }) : '';
       const known = new Set((nextState.notices || []).map((row) => row.id));
-      const profiles = searchProfiles(draft.ok ? draft.state : nextState);
+      const profiles = searchProfiles(draft.ok ? draft.state : nextState)
+        .map((profile) => ({ profile, query: watchQuery(profile.watch) }))
+        .filter((row) => row.query);
       const hits = [];
       const errors = [];
       let fetchedAt = '';
-      for (const profile of profiles) {
-        const query = watchQuery(profile.watch);
-        if (!query) continue;
-        const data = await fetchWatchHits({
-          ...query,
-          channels: profile.watch.channels || watch.channels,
-          publishedFrom,
-        });
+      // Profilene søkes samtidig. Ett tregt søk skal ikke holde de andre igjen.
+      const results = await Promise.allSettled(profiles.map(({ profile, query }) => fetchWatchHits({
+        ...query,
+        channels: profile.watch.channels || watch.channels,
+        publishedFrom,
+      })));
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          errors.push(result.reason?.message || 'Kunne ikke hente treff.');
+          return;
+        }
+        const { profile } = profiles[index];
+        const data = result.value || {};
         fetchedAt = data.fetchedAt || fetchedAt;
         for (const hit of data.hits || []) hits.push({ ...hit, profileIds: profile.id ? [profile.id] : [] });
         if (data.errors?.length) errors.push(...data.errors);
-      }
+      });
+      if (results.length && results.every((result) => result.status === 'rejected')) throw results[0].reason;
       if (gen !== loadGen.current) return;
       const latest = stateRef.current;
       const base = draft.ok ? { ...latest, watch } : latest;
@@ -497,6 +546,11 @@ export default function TenderAlert({
   function commitState(next) {
     stateRef.current = next;
     setState(next);
+    // Et søk eller en AI-vurdering som blir ferdig etter at siden er lukket, lagres likevel.
+    if (!mountedRef.current && cloudRef.current) {
+      pendingSave.current = { state: next, companyId: company?.id };
+      flushSaveRef.current();
+    }
   }
 
   function scrollNoticeIntoView(id) {
@@ -667,6 +721,17 @@ export default function TenderAlert({
     profile: state.watch?.profile,
   }), [selectedCpv, keywords, state.watch?.profile]);
 
+  // Treffvurderingen regnes én gang per rad, ikke ved hver sammenligning i sorteringen og hver tegning.
+  const fitCache = useMemo(() => new WeakMap(), [matchWatch]);
+  function fitOf(row) {
+    let fit = fitCache.get(row);
+    if (!fit) {
+      fit = scoreNoticeFit(row, matchWatch);
+      fitCache.set(row, fit);
+    }
+    return fit;
+  }
+
   const placeCounts = useMemo(() => {
     const counts = { hele: 0, miss: 0 };
     for (const row of scopedNotices) {
@@ -734,8 +799,8 @@ export default function TenderAlert({
     const { key, dir } = sort;
     const factor = dir === 'asc' ? 1 : -1;
     return [...filtered].sort((a, b) => {
-      const aFit = scoreNoticeFit(a, matchWatch);
-      const bFit = scoreNoticeFit(b, matchWatch);
+      const aFit = fitOf(a);
+      const bFit = fitOf(b);
       if (aFit.strong !== bFit.strong) return aFit.strong ? -1 : 1;
       if (aFit.score !== bFit.score) return bFit.score - aFit.score;
       const left = String(columnValue(a, key, matchWatch) || '');
@@ -744,7 +809,32 @@ export default function TenderAlert({
       if (left && !right) return -1;
       return left.localeCompare(right, 'nb', { numeric: true }) * factor;
     });
-  }, [scopedNotices, filter, sourceFilter, queryText, areaId, colFilter, sort, matchWatch]);
+  }, [scopedNotices, filter, sourceFilter, queryText, areaId, colFilter, sort, fitCache]);
+
+  // Nytt filter eller ny sortering starter øverst med én side.
+  useEffect(() => {
+    setShownCount(PAGE_SIZE);
+  }, [filter, sourceFilter, queryText, areaId, colFilter, sort, departmentId]);
+
+  // Raden som er valgt i listen eller på kartet, tegnes alltid, selv om den ligger lenger ned.
+  const focusIndex = Math.max(
+    mapFocusId ? rows.findIndex((row) => row.id === mapFocusId) : -1,
+    openId ? rows.findIndex((row) => row.id === openId) : -1,
+  );
+  const visibleRows = rows.slice(0, Math.max(shownCount, focusIndex + 1));
+  const hiddenRows = rows.length - visibleRows.length;
+  const moreRows = hiddenRows > 0 ? (
+    <TouchableOpacity
+      onPress={() => setShownCount(visibleRows.length + PAGE_SIZE)}
+      accessibilityRole="button"
+      accessibilityLabel={`Vis flere treff, ${hiddenRows} til`}
+      style={[styles.more, { borderColor: colors.line, backgroundColor: colors.card }]}
+    >
+      <Text style={{ color: colors.brand, fontWeight: '600' }}>
+        {`Vis flere (${hiddenRows} til)`}
+      </Text>
+    </TouchableOpacity>
+  ) : null;
 
   const mapRows = useMemo(
     () => (mapFollowsList(filter) ? rows : []),
@@ -754,8 +844,12 @@ export default function TenderAlert({
     () => mapPinsForNotices(mapRows, { asShown: true }),
     [mapRows],
   );
-  const missingPlaces = mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row)).length;
-  const missingKey = mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row)).map((row) => row.id).join(',');
+  const missingRows = useMemo(
+    () => mapRows.filter((row) => !unboundPlace(row) && !locateNotice(row)),
+    [mapRows],
+  );
+  const missingPlaces = missingRows.length;
+  const missingKey = useMemo(() => missingRows.map((row) => row.id).join(','), [missingRows]);
 
   useEffect(() => {
     if (!ready || !missingKey) return undefined;
@@ -1106,7 +1200,10 @@ export default function TenderAlert({
         {phone && !!savedNote ? <Text style={{ color: colors.brand }}>{savedNote}</Text> : null}
         {phone ? (
           <TenderHitCards
-            rows={rows}
+            rows={visibleRows}
+            total={rows.length}
+            footer={moreRows}
+            fitOf={fitOf}
             columns={COLUMNS}
             colors={colors}
             sort={sort}
@@ -1166,14 +1263,14 @@ export default function TenderAlert({
             })}
             <Text style={[styles.th, { width: 176, color: colors.ink }]}>Vurdering</Text>
           </View>
-          {rows.map((row) => {
+          {visibleRows.map((row) => {
             const deadline = deadlineInfo(row.deadline);
             const soon = deadline.tone === 'danger' || deadline.tone === 'warn';
             const open = openId === row.id;
             const onMap = mapFocusId === row.id;
             const aktuell = row.decision === 'aktuell';
             const uaktuell = row.decision === 'forkastet' || row.decision === 'arkiv' || row.decision === 'ikke';
-            const fit = scoreNoticeFit(row, matchWatch);
+            const fit = fitOf(row);
             return (
               <View key={row.id} dataSet={{ noticeId: row.id }} style={{
                 borderColor: onMap ? colors.brand : colors.line,
@@ -1242,6 +1339,7 @@ export default function TenderAlert({
         </View>
         </ScrollView>
         )}
+        {phone ? null : moreRows}
       </View>
       {!phone ? (
         <>
@@ -1391,4 +1489,5 @@ const styles = StyleSheet.create({
   filterInput: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 4, fontSize: 13, marginHorizontal: 4, marginBottom: 6 },
   decision: { width: 176, flexGrow: 0, flexShrink: 0, flexDirection: 'row', gap: 4, padding: 6, alignItems: 'center' },
   mini: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 6 },
+  more: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: 'center' },
 });

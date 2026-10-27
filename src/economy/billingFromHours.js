@@ -25,8 +25,8 @@ function projectHourlyRate(project, date = '', contracts = []) {
   if (indexed != null && indexed > 0) return indexed;
   const settings = project?.pricingSettings || {};
   const rate = Number(settings.hourlyRate ?? settings.ensTimepris ?? settings.rate);
-  if (Number.isFinite(rate) && rate > 0) return rate;
-  return 1000; // fallback slik at utkast kan opprettes og redigeres
+  // Ingen reservepris: uten timepris kan timene ikke faktureres.
+  return Number.isFinite(rate) && rate > 0 ? rate : null;
 }
 
 /** Utkast som bruker en annen timepris enn gjeldende prisversjon. Bokførte fakturaer røres ikke. */
@@ -101,13 +101,19 @@ export function buildBillingProposals(state, {
         projectNumber: row.projectNumber || project.number || '',
         projectName: row.projectName || project.name || '',
         entries: [],
+        missingRate: [],
         hours: 0,
         amountExVat: 0,
       });
     }
     const group = groups.get(key);
     const hours = roundHours(row.billableHours != null ? row.billableHours : row.hours);
-    const rate = rateWithOvertime(projectHourlyRate(project, row.date, contracts), row.timeType || 'ordinary');
+    const base = projectHourlyRate(project, row.date, contracts);
+    if (base == null) {
+      group.missingRate.push(row.id);
+      continue;
+    }
+    const rate = rateWithOvertime(base, row.timeType || 'ordinary');
     group.entries.push({ ...row, _rate: rate, _hours: hours });
     group.hours = roundHours(group.hours + hours);
     group.amountExVat = roundMoney(group.amountExVat + hours * rate);

@@ -86,20 +86,29 @@ export function accountOptionLabel(row) {
   return [row?.code, rate, row?.name].filter(Boolean).join(' - ');
 }
 
+/**
+ * Kontogruppene på fakturalinjene. Alle settes under Økonomi → Innstillinger → Standard
+ * regnskapskontoer, og fakturamotoren bruker bare disse (eller prosjektets overstyring).
+ * Mangler en konto, kan ikke det som hører til den faktureres.
+ */
 export const STANDARD_ACCOUNT_SLOTS = [
-  { id: 'fees', label: 'Honorærer' },
-  { id: 'hours', label: 'Timer' },
-  { id: 'expenses', label: 'Utlegg' },
-  { id: 'products', label: 'Produkter' },
+  { id: 'hours', label: 'Timer', hint: 'Timer etter timepris' },
+  { id: 'fees', label: 'Honorar og fastpris', hint: 'Fastpris, fast avtale og enhetspris' },
+  { id: 'expenses', label: 'Viderefakturerte utlegg', hint: 'Kjøp i eget navn som faktureres videre, med mva og eventuelt påslag' },
+  { id: 'outlays', label: 'Utlegg på vegne av kunden', hint: 'Kjøp i kundens navn. Bruttobeløp, uten påslag og mva (mval. § 4-1 annet ledd)' },
+  { id: 'mileage', label: 'Kjøring', hint: 'Kilometer, bom, ferje og parkering' },
+  { id: 'products', label: 'Produkter og varesalg' },
   { id: 'admin', label: 'Adm. kostnader' },
   { id: 'deduction', label: 'Fratrekk for andre fakturamottakere' },
-  { id: 'aconto', label: 'A-Konto' },
+  { id: 'aconto', label: 'A-konto' },
 ];
 
 const DOMESTIC_DEFAULTS = {
   fees: '3000',
   hours: '3000',
   expenses: '3001',
+  outlays: '6301',
+  mileage: '3001',
   products: '3001',
   admin: '3000',
   deduction: '',
@@ -110,6 +119,8 @@ const FOREIGN_DEFAULTS = {
   fees: '3100',
   hours: '3100',
   expenses: '3101',
+  outlays: '6301',
+  mileage: '3101',
   products: '3101',
   admin: '3100',
   deduction: '',

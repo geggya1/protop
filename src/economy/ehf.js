@@ -217,8 +217,18 @@ export function buildEhfXml(invoice, { supplier = {}, attachments = [] } = {}) {
     return { ok: false, error: 'Faktura mangler linjer/beløp for EHF.', xml: '' };
   }
 
-  const taxSubtotals = (totals.groups || []).map((g) => {
+  // Én mva-gruppe per kategori og sats (BR-S-08, BR-Z-08): nullsats og utlegg er begge Z 0 %.
+  const breakdown = new Map();
+  for (const g of totals.groups || []) {
     const cat = g.category || taxCategory(g.vatCode, g.vatPercent);
+    const key = `${cat}:${Number(g.vatPercent) || 0}`;
+    const prev = breakdown.get(key) || { category: cat, vatPercent: Number(g.vatPercent) || 0, taxableAmount: 0, vatAmount: 0 };
+    prev.taxableAmount = Math.round((prev.taxableAmount + (Number(g.taxableAmount) || 0)) * 100) / 100;
+    prev.vatAmount = Math.round((prev.vatAmount + (Number(g.vatAmount) || 0)) * 100) / 100;
+    breakdown.set(key, prev);
+  }
+  const taxSubtotals = [...breakdown.values()].map((g) => {
+    const cat = g.category;
     return `
     <cac:TaxSubtotal>
       <cbc:TaxableAmount currencyID="${esc(currency)}">${money(abs(g.taxableAmount))}</cbc:TaxableAmount>

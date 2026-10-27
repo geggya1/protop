@@ -68,6 +68,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
       timesheetLocks: data.timesheetLocks,
       contracts: data.contracts,
       settingsFor: data.settingsFor,
+      chart: data.chart,
       periodEnd,
       today,
     });
@@ -113,9 +114,11 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
     onError: (message) => setError(message),
   });
 
-  const allChecked = visible.length > 0 && visible.every((project) => workflow.checked.has(project.projectId));
-  const someChecked = visible.some((project) => workflow.checked.has(project.projectId));
-  const checkedProjects = visible.filter((project) => workflow.checked.has(project.projectId));
+  // Prosjekter som mangler timepris, kunde eller konto kan ikke velges.
+  const selectable = visible.filter((project) => !project.blocked);
+  const allChecked = selectable.length > 0 && selectable.every((project) => workflow.checked.has(project.projectId));
+  const someChecked = selectable.some((project) => workflow.checked.has(project.projectId));
+  const checkedProjects = selectable.filter((project) => workflow.checked.has(project.projectId));
 
   function toggleOpen(projectId) {
     setOpenIds((current) => {
@@ -244,9 +247,9 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
             <Check
               checked={allChecked}
               partial={!allChecked && someChecked}
-              onPress={() => workflow.setAllChecked(!allChecked, visible)}
+              onPress={() => workflow.setAllChecked(!allChecked, selectable)}
               colors={colors}
-              disabled={!visible.length || !canEdit}
+              disabled={!selectable.length || !canEdit}
               label="Velg alle"
               nativeID="billing-check-all"
             />

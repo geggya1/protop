@@ -10,7 +10,8 @@ import { roundMoney, vatCodeById } from './vat.js';
 export const LINE_SECTIONS = [
   { id: 'hours', label: 'Timer' },
   { id: 'fixed', label: 'Fastpris og avtaler' },
-  { id: 'expenses', label: 'Utlegg' },
+  { id: 'expenses', label: 'Viderefakturerte utlegg' },
+  { id: 'outlays', label: 'Utlegg på vegne av kunden (uten mva)' },
   { id: 'trips', label: 'Kjøring' },
   { id: 'products', label: 'Produkter' },
   { id: 'admin', label: 'Adm. kostnader' },

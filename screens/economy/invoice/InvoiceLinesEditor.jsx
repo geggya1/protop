@@ -57,7 +57,19 @@ function Cell({ value, onChange, colors, width, flex, align = 'left', editable =
   );
 }
 
-export default function InvoiceLinesEditor({ lines = [], onChange, colors, chart = [], stacked = false }) {
+// Seksjon på fakturaen → kontogruppe i innstillingene.
+const SECTION_ACCOUNT = {
+  hours: 'hours',
+  fixed: 'fees',
+  expenses: 'expenses',
+  outlays: 'outlays',
+  trips: 'mileage',
+  products: 'products',
+  admin: 'admin',
+  other: 'fees',
+};
+
+export default function InvoiceLinesEditor({ lines = [], onChange, colors, chart = [], accountsBySlot = {}, stacked = false }) {
   const accounts = (chart || []).filter((row) => row.kind === 'sale');
   const accountOptions = accounts.map((row) => ({ id: row.code, label: accountOptionLabel(row) }));
 
@@ -96,9 +108,11 @@ export default function InvoiceLinesEditor({ lines = [], onChange, colors, chart
     onChange(next);
   }
 
+  // Ny linje får kontoen for seksjonen fra innstillingene. Utlegg i kundens navn har ingen mva.
   function add(section) {
-    const account = section === 'expenses' || section === 'trips' || section === 'products' ? '3001' : '3000';
-    onChange([...lines, emptyManualLine(section, { account, vatCode: vatCodeForAccount(account, chart) })]);
+    const account = accountsBySlot[SECTION_ACCOUNT[section] || 'fees'] || '';
+    const vatCode = section === 'outlays' ? 'OUTLAY' : vatCodeForAccount(account, chart);
+    onChange([...lines, emptyManualLine(section, { account, vatCode })]);
   }
 
   const sections = sectionsOf(lines);

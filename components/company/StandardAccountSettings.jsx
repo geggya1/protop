@@ -54,7 +54,8 @@ export default function StandardAccountSettings({ familyId, colors, canEdit }) {
     >
       <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 12 }}>
         Disse kontoene er selskapets standard og arves av alle prosjekter under Faktureringsvalg
-        (Regnskapskontoer og MVA). Prosjektet kan overstyre enkeltkontoer.
+        (Regnskapskontoer og MVA). Prosjektet kan overstyre enkeltkontoer. Fakturalinjene får
+        kontoen og mva-satsen herfra. Mangler en konto, stopper Til fakturering det som hører til den.
       </Text>
       <Text accessibilityRole="header" style={[styles.section, { color: colors.ink, marginTop: 0 }]}>
         Standard regnskapskontoer for kunder i samme land som egen bedrift
@@ -106,6 +107,8 @@ function AccountGroup({ colors, accounts, values, canEdit, onChange }) {
         <AccountRow
           key={slot.id}
           label={slot.label}
+          hint={slot.hint}
+          missing={slot.id !== 'deduction' && !values?.[slot.id]}
           value={values?.[slot.id] || ''}
           accounts={accounts}
           colors={colors}
@@ -117,7 +120,7 @@ function AccountGroup({ colors, accounts, values, canEdit, onChange }) {
   );
 }
 
-function AccountRow({ label, value, accounts, colors, canEdit, onChange }) {
+function AccountRow({ label, hint = '', missing = false, value, accounts, colors, canEdit, onChange }) {
   const options = [{ value: '', label: '' }, ...accounts.map((row) => ({
     value: row.code,
     label: accountOptionLabel(row),
@@ -127,7 +130,11 @@ function AccountRow({ label, value, accounts, colors, canEdit, onChange }) {
   }
   return (
     <View style={styles.line}>
-      <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
+      <View style={styles.labelBox}>
+        <Text style={[styles.label, { color: colors.ink }]}>{label}</Text>
+        {hint ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
+        {missing ? <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Ikke satt. Det som hører hit, kan ikke faktureres.</Text> : null}
+      </View>
       {Platform.OS === 'web' ? (
         <select
           aria-label={label}
@@ -172,7 +179,8 @@ const selectStyle = {
 const styles = StyleSheet.create({
   section: { fontSize: 22, fontWeight: '600', marginTop: 12 },
   line: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
-  label: { width: 280, fontSize: 15 },
+  labelBox: { width: 280, gap: 2 },
+  label: { fontSize: 15 },
   nativePick: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, minWidth: 240 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 8 },
   btn: { borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10 },

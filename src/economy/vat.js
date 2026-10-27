@@ -45,6 +45,16 @@ export const VAT_CODES = [
     description: 'Fritatt for merverdiavgift',
   },
   {
+    // Utlegg i kundens navn: kunden er kjøper, beløpet går videre brutto og er ikke omsetning.
+    // EHF: kategori Z (ikke omfattet av mva-reglene), som kan stå sammen med linjer med mva.
+    id: 'OUTLAY',
+    label: 'Utlegg (ingen mva)',
+    percent: 0,
+    category: 'Z',
+    account: '',
+    description: 'Utlegg i kundens navn, utenfor mva-grunnlaget (mval. § 4-1 annet ledd)',
+  },
+  {
     id: 'OUTSIDE',
     label: 'Utenfor avgiftsområdet',
     percent: 0,

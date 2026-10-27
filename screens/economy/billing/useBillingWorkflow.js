@@ -169,10 +169,16 @@ export default function useBillingWorkflow({
 
   /** Spør først når utvalget har poster som ikke er godkjent. */
   function requestCreate(list) {
-    const usable = list.filter((project) => !selectionOf(project).empty);
+    const blocked = list.filter((project) => project.blocked);
+    const usable = list.filter((project) => !project.blocked && !selectionOf(project).empty);
     if (!usable.length) {
-      onError?.('Velg minst én post som kan faktureres.');
+      onError?.(blocked.length
+        ? blocked.map((project) => `#${project.number} ${project.name}: ${project.blockReasons.join(', ')}`).join('\n')
+        : 'Velg minst én post som kan faktureres.');
       return;
+    }
+    if (blocked.length) {
+      onError?.(`Hoppet over fordi noe mangler: ${blocked.map((project) => `#${project.number} ${project.name} (${project.blockReasons.join(', ')})`).join('; ')}.`);
     }
     const unapproved = usable.reduce((sum, project) => sum + selectionOf(project).unapprovedCount, 0);
     if (unapproved) {

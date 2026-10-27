@@ -76,6 +76,8 @@ export const INHERITABLE_KEYS = [
   'accountFees',
   'accountHours',
   'accountExpenses',
+  'accountOutlays',
+  'accountMileage',
   'accountProducts',
   'accountAdmin',
   'accountAconto',
@@ -166,22 +168,35 @@ export function resolveProjectInvoiceSettings(state, project) {
     overridden.push(key);
   }
 
-  // Konto-default fra standardkontoer hvis ikke overstyrt
-  const accountMap = {
-    accountFees: accounts.domestic.fees,
-    accountHours: accounts.domestic.hours,
-    accountExpenses: accounts.domestic.expenses,
-    accountProducts: accounts.domestic.products,
-    accountAdmin: accounts.domestic.admin,
-    accountAconto: accounts.domestic.aconto,
+  // Kontoene kommer fra standardkontoene, eller fra prosjektet når det overstyrer.
+  // Kunder i utlandet bruker utlandskontoene, med mindre prosjektet har valgt konto selv.
+  const slotOf = {
+    accountFees: 'fees',
+    accountHours: 'hours',
+    accountExpenses: 'expenses',
+    accountOutlays: 'outlays',
+    accountMileage: 'mileage',
+    accountProducts: 'products',
+    accountAdmin: 'admin',
+    accountAconto: 'aconto',
   };
-  for (const [key, code] of Object.entries(accountMap)) {
+  const accountMap = {};
+  const foreignAccounts = {};
+  const accountOverrides = [];
+  for (const [key, slot] of Object.entries(slotOf)) {
+    accountMap[key] = accounts.domestic[slot] || '';
     if (projectSettings[key] != null && projectSettings[key] !== '') {
       effective[key] = projectSettings[key];
-    } else if (effective[key] == null || effective[key] === '') {
-      effective[key] = code;
+      accountOverrides.push(key);
+      foreignAccounts[key] = projectSettings[key];
+    } else {
+      effective[key] = accounts.domestic[slot] || '';
+      foreignAccounts[key] = accounts.foreign[slot] || '';
     }
   }
+  effective.foreignAccounts = foreignAccounts;
+  effective.accountOverrides = accountOverrides;
+  effective.accountRounding = accounts.rounding || '';
 
   for (const key of PROJECT_TEXT_KEYS) {
     effective[key] = projectSettings[key] || company[`${key}Default`] || '';

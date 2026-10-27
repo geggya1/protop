@@ -29,6 +29,16 @@ export const EXPENSE_STATUSES = [
 
 export const RECEIPT_REQUIRED_INCL = 1000;
 
+/**
+ * Hvordan utlegget faktureres.
+ * reinvoice: kjøp i eget navn som viderefaktureres. Mva-pliktig omsetning, påslag tillatt.
+ * outlay: kjøp i kundens navn (kvitteringen lyder på kunden). Utenfor mva-grunnlaget, uten påslag.
+ */
+export const EXPENSE_CHARGE_TYPES = [
+  { id: 'reinvoice', label: 'Viderefakturering', hint: 'Kjøpt i eget navn. Faktureres eks. mva med påslag, og får mva.' },
+  { id: 'outlay', label: 'Utlegg i kundens navn', hint: 'Kvitteringen lyder på kunden. Faktureres med bruttobeløpet, uten påslag og mva.' },
+];
+
 export function expenseCategory(id) {
   return EXPENSE_CATEGORIES.find((row) => row.id === id) || EXPENSE_CATEGORIES[EXPENSE_CATEGORIES.length - 1];
 }
@@ -50,6 +60,7 @@ export function emptyExpense(overrides = {}) {
     vatAmount: 0,
     amountInclVat: 0,
     markupPercent: 0,
+    chargeType: 'reinvoice',
     billable: true,
     representation: false,
     customerId: '',
@@ -118,7 +129,8 @@ export function normalizeExpense(input = {}) {
     vatPercent: calc.vatPercent,
     vatAmount: calc.vatAmount,
     amountInclVat: calc.amountInclVat,
-    markupPercent: Math.max(0, Number(row.markupPercent) || 0),
+    markupPercent: row.chargeType === 'outlay' ? 0 : Math.max(0, Number(row.markupPercent) || 0),
+    chargeType: row.chargeType === 'outlay' ? 'outlay' : 'reinvoice',
     billable: row.billable !== false,
     representation: !!row.representation || category.id === 'representation',
     customerId: text(row.customerId),

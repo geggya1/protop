@@ -169,7 +169,11 @@ export async function finalize(ctx, invoice, { date = '' } = {}) {
       actor: ctx.actor,
     });
     if (!issued.ok) return issued;
-    const voucher = ledgerVoucher(issued.invoice, { totals: totalsFromLines(issued.invoice.lines), accountNames: ctx.accountNames || {} });
+    const voucher = ledgerVoucher(issued.invoice, {
+      totals: totalsFromLines(issued.invoice.lines),
+      accountNames: ctx.accountNames || {},
+      ...(settings.accountRounding ? { roundingAccount: settings.accountRounding } : {}),
+    });
     return { ok: true, invoice: voucher.ok ? attachVoucherSnapshot(issued.invoice, voucher) : issued.invoice };
   };
   let issued;
@@ -337,7 +341,7 @@ export async function send(ctx, invoice, options = {}) {
 /** Kreditnotautkast fra en ferdigstilt faktura. */
 export async function createCredit(ctx, invoice, { lineIds = null, reason = '', release = false } = {}) {
   const full = await fullInvoice(ctx, invoice);
-  const result = buildCreditNote(full, { lineIds, reason, releaseWork: release, actor: ctx.actor });
+  const result = buildCreditNote(full, { lineIds, reason, releaseWork: release, actor: ctx.actor, account: ctx.settings?.accountFees || '' });
   if (!result.ok) throw new Error(result.error);
   const saved = await save(ctx, result.invoice);
   return { invoice: saved, message: 'Kreditnotautkastet er laget. Kontroller det og ferdigstill.' };
@@ -429,16 +433,19 @@ export async function refreshPreview(ctx, invoice) {
     timesheetLocks: state.timesheetLocks || [],
     contracts: ctx.contracts || [],
     settingsFor: (row) => resolveProjectInvoiceSettings(state, row).effective,
+    chart: ctx.chart || [],
     periodEnd,
     includeEmpty: true,
   })[0];
   if (!ready) throw new Error('Fant ikke grunnlaget til prosjektet.');
+  if (ready.blocked) throw new Error(`${ready.blockReasons.join('. ')}.`);
   const selection = approvedOnly(selectionFor(ready, new Set(selectableKeys(ready))));
   const result = refreshDraftLines(invoice, selection, {
     settings: resolveProjectInvoiceSettings(state, project).effective,
     chart: ctx.chart || [],
     periodEnd,
   });
+  if (result.error) throw new Error(result.error);
   return { ...result, selection };
 }
 

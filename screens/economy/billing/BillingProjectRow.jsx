@@ -12,7 +12,7 @@ import { periodLabel } from '../../../src/economy/invoiceLines.js';
 import { invoiceTotals } from '../../../src/economy/invoiceFlow.js';
 import { selectableKeys, selectionAmount } from '../../../src/economy/billingReady.js';
 import {
-  Button, Check, Chip, LinkText, MiniTable, SectionTitle, TotalRow, money,
+  Banner, Button, Check, Chip, LinkText, MiniTable, SectionTitle, TotalRow, money,
 } from './ui';
 
 function pct(value) {
@@ -144,7 +144,7 @@ export default function BillingProjectRow({
         checked={selected.has(row.key)}
         onPress={() => onToggleKey(row.key)}
         colors={colors}
-        disabled={row.rateMissing || !canEdit}
+        disabled={row.rateMissing || !canEdit || project.blocked}
         label={`Velg timer ${row.employeeName}`}
       />
     ) },
@@ -178,12 +178,13 @@ export default function BillingProjectRow({
   ];
   const opColumns = (kind) => [
     { key: 'pick', label: '', width: 26, render: (row) => (
-      <Check checked={selected.has(row.key)} onPress={() => onToggleKey(row.key)} colors={colors} disabled={!canEdit} label={`Velg ${row.description}`} />
+      <Check checked={selected.has(row.key)} onPress={() => onToggleKey(row.key)} colors={colors} disabled={!canEdit || project.blocked} label={`Velg ${row.description}`} />
     ) },
     { key: 'description', label: 'Navn', flex: 2, wrap: true, render: (row) => (
       <View>
         <Text style={{ color: colors.brand, fontSize: 13 }} numberOfLines={2}>{row.description}</Text>
         {row.employeeName ? <Text style={{ color: colors.muted, fontSize: 12 }}>{row.employeeName}</Text> : null}
+        {row.chargeType === 'outlay' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Utlegg i kundens navn · brutto, uten mva</Text> : null}
       </View>
     ) },
     { key: 'date', label: 'Dato', width: 86, render: (row) => formatDate(row.date) },
@@ -206,6 +207,19 @@ export default function BillingProjectRow({
       {hideHeader ? null : header}
       {draftLine}
       <View style={styles.body}>
+        {project.blocked ? (
+          <Banner tone="block" colors={colors} title="Kan ikke faktureres før dette er rettet">
+            <View style={{ gap: 4 }}>
+              {project.blockReasons.map((reason) => (
+                <Text key={reason} style={{ color: colors.ink, fontSize: 13 }}>{`• ${reason}`}</Text>
+              ))}
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Timepris settes under prosjektets Faktureringsvalg. Kontoene settes under Økonomi → Innstillinger → Standard regnskapskontoer, eller overstyres på prosjektet.
+              </Text>
+              <LinkText label="Åpne Faktureringsvalg" icon="settings-outline" onPress={() => onOpenProject?.('fakturering')} colors={colors} nativeID={`billing-fix-${project.projectId}`} />
+            </View>
+          </Banner>
+        ) : null}
         <SectionTitle title="Prismodeller som skal faktureres" colors={colors} />
         <View style={[styles.models, { borderColor: colors.line }]}>
           <View style={styles.modelRow}>
@@ -224,7 +238,7 @@ export default function BillingProjectRow({
                 checked={selected.has(fixed.key)}
                 onPress={() => onToggleKey(fixed.key)}
                 colors={colors}
-                disabled={!canEdit}
+                disabled={!canEdit || project.blocked}
                 label={`Fakturer ${fixed.description}`}
                 nativeID={`billing-fixed-${project.projectId}`}
               />
@@ -235,7 +249,7 @@ export default function BillingProjectRow({
                 value={fixedAmount == null ? String(fixed.amount || '') : String(fixedAmount)}
                 onChangeText={(value) => onFixedAmount?.(value.replace(',', '.'))}
                 keyboardType="decimal-pad"
-                editable={canEdit}
+                editable={canEdit && !project.blocked}
                 accessibilityLabel="Beløp å fakturere"
                 nativeID={`billing-fixed-amount-${project.projectId}`}
                 style={[styles.amountInput, { borderColor: colors.line, color: colors.ink, backgroundColor: colors.card }]}

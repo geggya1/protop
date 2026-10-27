@@ -13,6 +13,7 @@ import { fold, parseMoney, text } from './invoices.js';
 import { round2 } from './invoiceLines.js';
 import { isCreditNote, isDraftInvoice, issueDeadline } from './invoiceFlow.js';
 import { pricingModelLabel } from '../project/projectFields.js';
+import { ACCOUNT_SLOTS, accountsFrom, isForeignCustomer } from './invoiceDraft.js';
 
 export const PERIOD_OPTIONS = [
   { id: 'lastMonth', label: 'T.o.m. forrige måned' },
@@ -181,6 +182,9 @@ function emptyProject(project, customer, settings) {
     invoiced: { total: 0, fees: 0, count: 0 },
     drafts: [],
     warnings: [],
+    blocked: false,
+    blockReasons: [],
+    missingAccounts: [],
     oldestDate: '',
     open: 0,
     approved: 0,
@@ -207,6 +211,7 @@ export function buildReadyProjects({
   timesheetLocks = [],
   contracts = [],
   settingsFor = () => ({}),
+  chart = [],
   periodEnd = '',
   today = '',
   includeEmpty = false,
@@ -288,13 +293,18 @@ export function buildReadyProjects({
     if (!isOpenOperation(row) || text(row.date) > until) continue;
     const target = slot(row.projectId);
     if (!target) continue;
-    const markupPercent = expenseMarkup(row, target.project, target.settings);
-    const base = Math.abs(row.amountExVat) ? row.amountExVat : 0;
+    // Utlegg i kundens navn går videre med bruttobeløpet, uten påslag og mva.
+    // Viderefakturerte utlegg faktureres eks. mva med påslag, og får mva på fakturaen.
+    const outlay = row.chargeType === 'outlay';
+    const markupPercent = outlay ? 0 : expenseMarkup(row, target.project, target.settings);
+    const gross = Math.abs(row.amountInclVat) ? row.amountInclVat : row.amountExVat;
+    const base = outlay ? (gross || 0) : (Math.abs(row.amountExVat) ? row.amountExVat : 0);
     const markup = round2(base * (markupPercent / 100));
     target.expenses.push({
       key: `e:${row.id}`,
       id: row.id,
       row,
+      chargeType: outlay ? 'outlay' : 'reinvoice',
       date: row.date,
       description: row.description || row.purpose || row.vendor || 'Utlegg',
       employeeName: row.employeeName,
@@ -447,7 +457,7 @@ export function buildReadyProjects({
     target.approved = approved;
 
     if (target.hourGroups.some((row) => row.rateMissing)) {
-      warn(target, 'block', 'rate', 'Timepriser er ikke spesifisert');
+      warn(target, 'block', 'rate', 'Timepris mangler');
     }
     if (!target.customerName) warn(target, 'block', 'customer', 'Prosjektet har ingen kunde');
     else if (!text(target.customer?.orgnr) && !text(target.customer?.address)) {
@@ -464,6 +474,28 @@ export function buildReadyProjects({
     if (target.fixed && target.fixed.model === 'fixed' && !target.fixed.agreed) {
       warn(target, 'warn', 'fixed', 'Fastprisen er ikke satt på prosjektet');
     }
+    // Kontoene kommer fra innstillingene. Mangler en konto for noe som skal faktureres, stoppes prosjektet.
+    const accounts = accountsFrom(target.settings, { foreign: isForeignCustomer(target.customer) });
+    const needed = new Set();
+    if (target.hourGroups.length) needed.add('hours');
+    if (target.fixed) needed.add('fees');
+    for (const row of target.expenses) needed.add(row.chargeType === 'outlay' ? 'outlays' : 'expenses');
+    if (target.trips.length) needed.add('mileage');
+    if (target.sales.some((row) => !text(row.row?.account) || text(row.row?.account) === '3000')) needed.add('products');
+    if (needed.size && (Number(target.settings.adminAmount) || Number(target.settings.adminMarkupPercent))) needed.add('admin');
+    const known = new Set((chart || []).map((row) => row.code));
+    const missingAccounts = ACCOUNT_SLOTS.filter((row) => needed.has(row.id) && !accounts[row.id]);
+    const unknownAccounts = ACCOUNT_SLOTS.filter((row) => needed.has(row.id) && accounts[row.id] && known.size && !known.has(accounts[row.id]));
+    if (missingAccounts.length) {
+      warn(target, 'block', 'account', `Konto mangler for ${missingAccounts.map((row) => row.label.toLowerCase()).join(', ')}`);
+    }
+    if (unknownAccounts.length) {
+      warn(target, 'block', 'account_unknown', `Konto ${[...new Set(unknownAccounts.map((row) => accounts[row.id]))].join(', ')} finnes ikke i kontoplanen`);
+    }
+    target.missingAccounts = missingAccounts.map((row) => row.id);
+    // Et prosjekt med noe som stopper, kan ikke faktureres før det er rettet.
+    target.blockReasons = target.warnings.filter((row) => row.level === 'block').map((row) => row.text);
+    target.blocked = target.blockReasons.length > 0;
     if (count || target.fixed || includeEmpty) list.push(target);
   }
   return list.sort((a, b) => (
@@ -472,8 +504,9 @@ export function buildReadyProjects({
   ));
 }
 
-/** Alle nøkler som kan krysses av på prosjektet. Fastpris er ikke valgt fra start. */
+/** Alle nøkler som kan krysses av på prosjektet. Fastpris er ikke valgt fra start. Ingen når prosjektet er stoppet. */
 export function selectableKeys(project, { includeFixed = false } = {}) {
+  if (project?.blocked) return [];
   const keys = [
     ...(project?.hourGroups || []).filter((row) => !row.rateMissing).map((row) => row.key),
     ...(project?.expenses || []).map((row) => row.key),
@@ -489,7 +522,7 @@ export function selectableKeys(project, { includeFixed = false } = {}) {
  * fixedAmount overstyrer forslaget for fastpris.
  */
 export function selectionFor(project, selected, { fixedAmount = null, fixedQuantity = null, fixedDescription = '' } = {}) {
-  const has = (key) => selected?.has?.(key);
+  const has = (key) => !project?.blocked && selected?.has?.(key);
   const groups = (project?.hourGroups || []).filter((row) => has(row.key) && !row.rateMissing);
   const entries = groups.flatMap((row) => row.entries);
   const pickedExpenses = (project?.expenses || []).filter((row) => has(row.key));

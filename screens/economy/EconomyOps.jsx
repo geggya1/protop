@@ -26,6 +26,7 @@ import { loadAnbudState } from '../../src/anbud/storage';
 import { formatMoney } from '../../src/economy/invoices.js';
 import {
   EXPENSE_CATEGORIES,
+  EXPENSE_CHARGE_TYPES,
   emptyExpense,
   expensesToCsv,
 } from '../../src/economy/expenses.js';
@@ -410,6 +411,18 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
               title="Kategori"
               clearable={false}
             />
+          </View>
+          <View style={{ marginTop: 8 }}>
+            <OptionPicker
+              options={EXPENSE_CHARGE_TYPES.map((row) => ({ id: row.id, label: row.label }))}
+              value={draft.chargeType || 'reinvoice'}
+              onChange={(id) => { if (id) setDraft((d) => ({ ...d, chargeType: id, ...(id === 'outlay' ? { markupPercent: 0 } : {}) })); }}
+              title="Faktureres som"
+              clearable={false}
+            />
+            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+              {EXPENSE_CHARGE_TYPES.find((row) => row.id === (draft.chargeType || 'reinvoice'))?.hint}
+            </Text>
           </View>
           <TouchableOpacity onPress={saveExpense} style={[styles.btn, { backgroundColor: colors.brand, marginTop: 12, alignSelf: 'flex-start' }]}>
             <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre utlegg</Text>

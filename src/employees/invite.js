@@ -112,6 +112,20 @@ export function employeeInviteState(employee) {
   return { key: 'none', label: 'Ikke invitert' };
 }
 
+/**
+ * Når invitasjonen ble sendt og besvart, for Brukerkonto på personen.
+ * «Lagt klar» vises bare mens invitasjonen venter på å bli sendt.
+ */
+export function inviteTimeline(employee) {
+  const invite = normalizeInviteState(employee?.invite);
+  return [
+    { id: 'queued', label: 'Lagt klar', at: invite.status === 'queued' ? invite.queuedAt : '' },
+    { id: 'sent', label: 'Sendt', at: invite.sentAt },
+    { id: 'accepted', label: 'Godtatt', at: invite.acceptedAt },
+    { id: 'declined', label: 'Avslått', at: invite.declinedAt },
+  ].filter((row) => row.at);
+}
+
 /** Ligger i ansattlisten (for eksempel fra import) og kan inviteres med dataene som finnes. */
 export function employeesNotInvited(rows) {
   return (rows || []).filter((row) => employeeInviteState(row).key === 'none');

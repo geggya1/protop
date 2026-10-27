@@ -46,7 +46,7 @@ export default function EmployeeUsagePanel({
 
   return (
     <View nativeID="employee-usage" style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
-      <Text style={[styles.heading, { color: colors.ink }]}>Brukslogg</Text>
+      <Text style={[styles.heading, { color: colors.ink }]}>Brukerlogg</Text>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
         Innlogging, sider, timeføring og invitasjon. IP-adressen hentes fra tilkoblingen når det er mulig.
       </Text>

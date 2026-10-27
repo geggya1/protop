@@ -761,6 +761,8 @@ export default function CompanyAccessSettings({
   initialMemberTab = '',
   initialPersonId = '',
   initialMode = 'levels',
+  // Fra Brukerkonto på en ansatt: Personer, søkt frem på den ansatte.
+  focusEmployeeId = '',
   canEditLevels,
   actor = null,
 }) {
@@ -770,7 +772,7 @@ export default function CompanyAccessSettings({
   const policyKey = JSON.stringify(company?.accessPolicy || {});
   const [policy, setPolicy] = useState(() => normalizeAccessPolicy(company?.accessPolicy));
   const [dirty, setDirty] = useState(false);
-  const [mode, setMode] = useState(initialMode);
+  const [mode, setMode] = useState(focusEmployeeId ? 'people' : initialMode);
   const [query, setQuery] = useState('');
   const [levelDrafts, setLevelDrafts] = useState({});
   const [personId, setPersonId] = useState(initialPersonId);
@@ -806,6 +808,16 @@ export default function CompanyAccessSettings({
   const levelWrites = useRef(new Map());
   const draftsRef = useRef({});
   employeesRef.current = employees;
+  const focusedRef = useRef('');
+
+  useEffect(() => {
+    if (!focusEmployeeId || focusedRef.current === focusEmployeeId) return;
+    const row = employees.find((item) => item.id === focusEmployeeId);
+    if (!row) return;
+    focusedRef.current = focusEmployeeId;
+    setMode('people');
+    setQuery(displayName(row));
+  }, [focusEmployeeId, employees]);
 
   useEffect(() => {
     // Venter en autolagring, er det den lokale versjonen som gjelder.

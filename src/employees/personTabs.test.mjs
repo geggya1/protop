@@ -19,13 +19,14 @@ assert.deepEqual(EMPLOYEE_SUB_TABS.absence.map((tab) => tab.label), ['Oversikt',
 assert.deepEqual(employeeTabViews('hours'), ['hours', 'report', 'saldo']);
 assert.deepEqual(employeeTabViews('home'), ['detail']);
 assert.deepEqual(employeeTabViews('cv'), ['cv']);
-// Innstillinger: brukerinnstillingene er undersider i menyen øverst, etter Ansettelsesdata.
+// Innstillinger: Brukerkonto først, så Ansettelsesdata, brukerinnstillingene og Brukerlogg alene til slutt.
 assert.deepEqual(EMPLOYEE_SUB_TABS.settings.map((tab) => tab.label), [
-  'Ansettelsesdata', 'Generelt', 'Timepriser', 'Arbeidsforhold', 'Endre passord', 'Varslinger',
+  'Brukerkonto', 'Ansettelsesdata', 'Generelt', 'Timepriser', 'Arbeidsforhold', 'Endre passord', 'Varslinger', 'Brukerlogg',
 ]);
 assert.equal(employeeTabViews('settings')[0], 'settings');
+assert.equal(employeeTabViews('settings').at(-1), 'settingsLog');
 for (const view of employeeTabViews('settings')) assert.equal(employeeViewToTab(view), 'settings');
-assert.deepEqual(Object.keys(EMPLOYEE_SETTINGS_SUBS), employeeTabViews('settings').slice(1));
+assert.deepEqual(Object.keys(EMPLOYEE_SETTINGS_SUBS), employeeTabViews('settings').slice(2, -1));
 
 // Alle views er dekket av en fane.
 const covered = new Set(ids.flatMap((id) => employeeTabViews(id)));

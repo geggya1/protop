@@ -6,6 +6,7 @@ import {
   claimEmployeeSeatPlan,
   declineEmployeeInvitePlan,
   inviteStatusLabel,
+  inviteTimeline,
   invitesDeclined,
   draftInviteEmployee,
   employeeRegisterUrl,
@@ -292,4 +293,24 @@ test('sendt invitasjon på medarbeideren gjelder når plassholderen er ryddet bo
   assert.equal(sentInviteEmployee(args([row('a', 'sent', { personUid: 'annen' })])), null, 'tatt av en annen konto');
   assert.equal(sentInviteEmployee(args([row('a', 'sent', { company: { status: 'former' } })])), null, 'sluttet');
   assert.equal(sentInviteEmployee({ employees: [row('a', 'sent')], uid: 'ny', authEmail: '' }), null);
+});
+
+test('Brukerkonto viser når invitasjonen ble sendt og besvart', () => {
+  const base = { id: 'a', person: { firstName: 'Ida', lastName: 'Test', email: 'ida@firma.no' }, company: { status: 'active' } };
+  assert.deepEqual(inviteTimeline(base), []);
+  // Mens den venter på utsending vises når den ble lagt klar.
+  assert.deepEqual(
+    inviteTimeline({ ...base, invite: { status: 'queued', queuedAt: '2026-10-26T10:00:00.000Z' } }).map((row) => row.id),
+    ['queued'],
+  );
+  const sent = applyInviteSendResult(
+    { ...base, invite: { status: 'queued', queuedAt: '2026-10-26T10:00:00.000Z' } },
+    { emailSent: true },
+    { at: '2026-10-27T09:15:00.000Z' },
+  );
+  assert.deepEqual(inviteTimeline(sent), [{ id: 'sent', label: 'Sendt', at: '2026-10-27T09:15:00.000Z' }]);
+  const answered = { ...sent, invite: { ...sent.invite, status: 'accepted', acceptedAt: '2026-10-28T08:00:00.000Z' } };
+  assert.deepEqual(inviteTimeline(answered).map((row) => row.label), ['Sendt', 'Godtatt']);
+  const declined = { ...sent, invite: { ...sent.invite, status: 'declined', declinedAt: '2026-10-28T08:00:00.000Z' } };
+  assert.deepEqual(inviteTimeline(declined).map((row) => row.label), ['Sendt', 'Avslått']);
 });

@@ -24,6 +24,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { isSuperAdmin } from '../../src/utils/groups';
 import { useColors } from '../../src/context/ThemeContext';
+import { useLayout } from '../../src/theme';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { searchKartverketAdresser } from '../../src/utils/boligmappaApis';
 import { downloadBytes } from '../../src/indeksregulering/office';
@@ -123,6 +124,7 @@ const SELF_EDITOR_VIEWS = new Set(['detail', 'hours', 'report', 'saldo', 'absenc
 
 export default function EmployeesScreen() {
   const colors = useColors();
+  const { isDesktop } = useLayout();
   const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
   // isAdmin = begrenset redigering (hovedsiden kan redigeres); employeesAdmin = Admin (alt annet).
@@ -1514,6 +1516,8 @@ export default function EmployeesScreen() {
       contentContainerStyle={[
         styles.inner,
         personMode && styles.innerWide,
+        // Ansatte og eksterne står side om side og bruker hele bredden.
+        view === 'list' && isDesktop && styles.innerList,
         (view === 'hours' || view === 'report') && styles.innerHours,
         view === 'absence' && styles.innerAbsence,
       ]}
@@ -2178,6 +2182,7 @@ const styles = StyleSheet.create({
   personFill: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   inner: { padding: 16, paddingBottom: 48, gap: 12, maxWidth: 1080, width: '100%', alignSelf: 'flex-start' },
   innerWide: { maxWidth: 1220 },
+  innerList: { maxWidth: '100%' },
   innerHours: { maxWidth: '100%', width: '100%', alignSelf: 'stretch', flexGrow: 1 },
   innerAbsence: { padding: 0, gap: 0, maxWidth: 1180, paddingBottom: 28 },
   hoursHost: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },

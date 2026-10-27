@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { accessLevelSections, accessSectionTitle, accountDeactivated, employeeLevelIds } from '../../src/access/companyAccess';
 import { displayName, employeeActivityTab, employeeShowsInSection } from '../../src/employees/model';
+import { useLayout } from '../../src/theme';
 
 const COLUMN_LABEL = {
   regnskap_ekstern: 'Regnskap',
@@ -58,9 +59,9 @@ function ActivityTabs({ value, activeCount, inactiveCount, colors, onChange }) {
   );
 }
 
-function Drawer({ nativeID, title, meta, open, colors, onToggle, children }) {
+function Drawer({ nativeID, title, meta, open, colors, onToggle, style, children }) {
   return (
-    <View nativeID={nativeID} style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.card }]}>
+    <View nativeID={nativeID} style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.card }, style]}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -183,6 +184,9 @@ export default function EmployeeDirectory({
   const sections = accessLevelSections();
   const companyLevels = sections.find((section) => section.id === 'company')?.levels || [];
   const externalLevels = sections.find((section) => section.id === 'external')?.levels || [];
+  const { isDesktop } = useLayout();
+  // Listen står side om side på bred skjerm. Nivåtabellen trenger hele bredden.
+  const split = variant === 'list' && isDesktop;
 
   useEffect(() => {
     if (focusSection === 'external') setExternalOpen(true);
@@ -227,64 +231,68 @@ export default function EmployeeDirectory({
 
   return (
     <View style={styles.stack}>
-      <Drawer
-        nativeID="employees-section-company"
-        title={accessSectionTitle('company', companyName)}
-        meta={countLine(companyParts.active.length, companyParts.inactive.length)}
-        open={companyOpen}
-        colors={colors}
-        onToggle={() => setCompanyOpen((open) => !open)}
-      >
-        <ActivityTabs
-          value={companyTab}
-          activeCount={companyParts.active.length}
-          inactiveCount={companyParts.inactive.length}
+      <View style={split ? styles.split : styles.stack}>
+        <Drawer
+          nativeID="employees-section-company"
+          title={accessSectionTitle('company', companyName)}
+          meta={countLine(companyParts.active.length, companyParts.inactive.length)}
+          open={companyOpen}
           colors={colors}
-          onChange={setCompanyTab}
-        />
-        {withLevels ? (
-          <Text nativeID="employees-level-hint-company" style={{ color: companyTab === 'inactive' ? (colors.danger || '#b42318') : colors.muted, fontSize: 13 }}>
-            {companyTab === 'inactive'
-              ? 'Deaktivert. Ingen rettigheter. De skraverte rutene viser nivåene de hadde.'
-              : 'Kryss av nivåene som passer. En ansatt kan ha flere.'}
-          </Text>
-        ) : null}
-        {listing(
-          withLevels ? 'employees-table-company' : 'employees-list-company',
-          companyShown,
-          companyLevels,
-          companyTab === 'inactive' ? 'Ingen deaktiverte ansatte.' : 'Ingen aktive ansatte.',
-        )}
-      </Drawer>
-      <Drawer
-        nativeID="employees-section-external"
-        title={accessSectionTitle('external', companyName)}
-        meta={countLine(externalParts.active.length, externalParts.inactive.length)}
-        open={externalOpen}
-        colors={colors}
-        onToggle={() => setExternalOpen((open) => !open)}
-      >
-        <ActivityTabs
-          value={externalTab}
-          activeCount={externalParts.active.length}
-          inactiveCount={externalParts.inactive.length}
+          onToggle={() => setCompanyOpen((open) => !open)}
+          style={split && styles.splitCol}
+        >
+          <ActivityTabs
+            value={companyTab}
+            activeCount={companyParts.active.length}
+            inactiveCount={companyParts.inactive.length}
+            colors={colors}
+            onChange={setCompanyTab}
+          />
+          {withLevels ? (
+            <Text nativeID="employees-level-hint-company" style={{ color: companyTab === 'inactive' ? (colors.danger || '#b42318') : colors.muted, fontSize: 13 }}>
+              {companyTab === 'inactive'
+                ? 'Deaktivert. Ingen rettigheter. De skraverte rutene viser nivåene de hadde.'
+                : 'Kryss av nivåene som passer. En ansatt kan ha flere.'}
+            </Text>
+          ) : null}
+          {listing(
+            withLevels ? 'employees-table-company' : 'employees-list-company',
+            companyShown,
+            companyLevels,
+            companyTab === 'inactive' ? 'Ingen deaktiverte ansatte.' : 'Ingen aktive ansatte.',
+          )}
+        </Drawer>
+        <Drawer
+          nativeID="employees-section-external"
+          title={accessSectionTitle('external', companyName)}
+          meta={countLine(externalParts.active.length, externalParts.inactive.length)}
+          open={externalOpen}
           colors={colors}
-          onChange={setExternalTab}
-        />
-        {withLevels ? (
-          <Text nativeID="employees-level-hint-external" style={{ color: externalTab === 'inactive' ? (colors.danger || '#b42318') : colors.muted, fontSize: 13 }}>
-            {externalTab === 'inactive'
-              ? 'Deaktivert. Ingen rettigheter. De skraverte rutene viser nivåene de hadde.'
-              : 'Kryss av nivåene som passer. En person kan ha flere.'}
-          </Text>
-        ) : null}
-        {listing(
-          withLevels ? 'employees-table-external' : 'employees-list-external',
-          externalShown,
-          externalLevels,
-          externalTab === 'inactive' ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne.',
-        )}
-      </Drawer>
+          onToggle={() => setExternalOpen((open) => !open)}
+          style={split && styles.splitCol}
+        >
+          <ActivityTabs
+            value={externalTab}
+            activeCount={externalParts.active.length}
+            inactiveCount={externalParts.inactive.length}
+            colors={colors}
+            onChange={setExternalTab}
+          />
+          {withLevels ? (
+            <Text nativeID="employees-level-hint-external" style={{ color: externalTab === 'inactive' ? (colors.danger || '#b42318') : colors.muted, fontSize: 13 }}>
+              {externalTab === 'inactive'
+                ? 'Deaktivert. Ingen rettigheter. De skraverte rutene viser nivåene de hadde.'
+                : 'Kryss av nivåene som passer. En person kan ha flere.'}
+            </Text>
+          ) : null}
+          {listing(
+            withLevels ? 'employees-table-external' : 'employees-list-external',
+            externalShown,
+            externalLevels,
+            externalTab === 'inactive' ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne.',
+          )}
+        </Drawer>
+      </View>
       {trash.length ? (
         <Drawer
           nativeID="employees-section-trash"
@@ -303,6 +311,8 @@ export default function EmployeeDirectory({
 
 const styles = StyleSheet.create({
   stack: { gap: 10 },
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  splitCol: { flex: 1, minWidth: 0 },
   drawer: { borderWidth: 1, borderRadius: 14, overflow: 'hidden' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
   headText: { flex: 1, gap: 2 },

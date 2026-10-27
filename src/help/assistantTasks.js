@@ -519,7 +519,7 @@ export const ASSISTANT_TASKS = [
     q: tx('Hvordan legger jeg til en ny ansatt?', 'How do I add a new employee?'),
     title: tx('Registrere ny ansatt', 'Register a new employee'),
     ask: tx(['ny ansatt', 'ny medarbeider', 'registrere ansatt', 'legge til ansatt', 'opprette ansatt', 'nyansatt', 'ansette'], ['new employee', 'add employee', 'register employee', 'new hire']),
-    intro: tx('Ansatte registreres under Ansatte og arbeidstid → Ansatte.', 'Employees are registered under Employees and working hours → Employees.'),
+    intro: tx('Ansatte registreres under Ansatte og arbeidstid → Ansatte og eksterne.', 'Employees are registered under Employees and working hours → Employees and externals.'),
     steps: [
       s(tx('Ny medarbeider', 'New employee'), 'Trykk «Ny medarbeider» → «Registrer medarbeider».', 'Tap “New employee” → “Register employee”.', gate('ansatte', 0)),
       s(tx('Fyll ut', 'Fill in'), 'Fyll inn fornavn, etternavn, e-post, mobil, ansatt siden og avdeling, og velg tilgangsnivå.', 'Fill in first and last name, email, mobile, start date and department, and pick the access level.', gate('ansatte', 0)),

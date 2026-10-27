@@ -336,11 +336,14 @@ test('siden viser avtaleliste og forhåndsvisning', () => {
   assert.match(workspace, />Slett</);
   assert.match(screen, /timeEntries=\{state\.timeEntries/);
   assert.match(screen, /page === 'indekser'/);
+  // Til fakturering varsler om ny indeks per prosjekt og henter prisene på nytt etter regulering.
   const billing = readFileSync(new URL('../../screens/economy/EconomyBilling.jsx', import.meta.url), 'utf8');
-  assert.match(billing, /IndexWarning/);
-  assert.match(billing, /force: true/);
-  const invoices = readFileSync(new URL('../../screens/economy/EconomyInvoices.jsx', import.meta.url), 'utf8');
-  assert.match(invoices, /før fakturaen sendes/);
+  assert.match(billing, /withIndexWarnings/);
+  const billingData = readFileSync(new URL('../../screens/economy/billing/useBillingData.js', import.meta.url), 'utf8');
+  assert.match(billingData, /force: stamp > 0/);
+  // Fakturautkastet varsler før det ferdigstilles.
+  const invoicePage = readFileSync(new URL('../../screens/economy/invoice/InvoicePage.jsx', import.meta.url), 'utf8');
+  assert.match(invoicePage, /før fakturaen ferdigstilles/);
   const agreement = readFileSync(new URL('../../screens/anbud/AgreementDetail.jsx', import.meta.url), 'utf8');
   assert.match(agreement, /regulationScope/);
   assert.match(agreement, /Første dato regulering kan virke/);

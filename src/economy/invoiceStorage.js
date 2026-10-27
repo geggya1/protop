@@ -137,8 +137,10 @@ export async function loadInvoice(companyId, invoiceId) {
   } catch {
     // fall through to local
   }
+  // Listeraden fra cachen mangler linjer og mer. partial: ikke lagre den tilbake som en hel faktura.
   const local = await readLocal(companyId);
-  return local.find((row) => row.id === id) || null;
+  const hit = local.find((row) => row.id === id);
+  return hit ? { ...hit, partial: true } : null;
 }
 
 export async function saveInvoice(companyId, invoice) {
@@ -167,6 +169,21 @@ export async function loadInvoiceSeries(companyId) {
   } catch {
     return { last: 0 };
   }
+}
+
+/**
+ * Til innstillingssiden: høyeste nummer i serien og i fakturalisten på denne enheten.
+ * Selve nummeret settes ved ferdigstilling, mot hele listen og telleren.
+ */
+export async function peekInvoiceNumbers(companyId) {
+  if (!companyId) return { last: 0, highest: 0 };
+  const [series, rows] = await Promise.all([loadInvoiceSeries(companyId), readLocal(companyId)]);
+  let highest = 0;
+  for (const row of rows) {
+    const value = text(row?.invoiceNumber);
+    if (/^\d+$/.test(value)) highest = Math.max(highest, Number(value));
+  }
+  return { last: series.last, highest };
 }
 
 /**

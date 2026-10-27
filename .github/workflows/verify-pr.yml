@@ -59,7 +59,7 @@ jobs:
       - name: Install rules test library
         run: npm install --no-save --no-audit --no-fund @firebase/rules-unit-testing@4
       - name: Firestore rules (emulator)
-        run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-concurrency=1 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./tests/rules/gh-reporter.mjs --test-reporter-destination=stdout tests/rules/firestore.rules.test.mjs tests/rules/appCollections.rules.test.mjs tests/rules/employeeInvite.rules.test.mjs"
+        run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-concurrency=1 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./tests/rules/gh-reporter.mjs --test-reporter-destination=stdout tests/rules/firestore.rules.test.mjs tests/rules/appCollections.rules.test.mjs tests/rules/employeeInvite.rules.test.mjs tests/rules/invoices.rules.test.mjs"
       - run: npm ci --prefix functions
       - name: Invitasjoner mot emulator (Cloud Functions)
         run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-concurrency=1 --test-reporter=spec functions/groupInvite.emulator.test.mjs functions/companyJoin.emulator.test.mjs functions/joinApproval.emulator.test.mjs functions/pushDelivery.emulator.test.mjs"

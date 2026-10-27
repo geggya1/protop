@@ -15,6 +15,7 @@ import {
   isDraftInvoice,
   isEditableDraft,
   isLockedInvoice,
+  isManagedInvoice,
   issueChecks,
   recalcInvoice,
   removeNote,
@@ -28,7 +29,7 @@ import {
   openFileUrl,
   previewUrl as makePreviewUrl,
 } from '../../../src/economy/invoiceDelivery.js';
-import { powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
+import { POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
 import { Banner, Button, LinkText, money } from '../billing/ui';
 import { InvoiceHeaderEditor, InvoiceHeaderView, InvoiceTexts } from './InvoiceHeader';
 import { InvoiceLinesView, InvoiceTotalsView } from './InvoiceLinesView';
@@ -128,9 +129,9 @@ export default function InvoicePage({
   // PDF-forhåndsvisning: arkivkopien for utstedte fakturaer, ellers laget av dataene her.
   useEffect(() => {
     let alive = true;
-    const archived = !isDraftInvoice(invoice) && invoice?.archive?.pdf?.url;
+    const archived = !isDraftInvoice(invoice) && (invoice?.archive?.pdf?.url || (!isManagedInvoice(invoice) && invoice?.attachment?.url));
     if (archived) {
-      setPreview(invoice.archive.pdf.url);
+      setPreview(archived);
       return undefined;
     }
     const timer = setTimeout(() => {
@@ -153,7 +154,7 @@ export default function InvoicePage({
       alive = false;
       clearTimeout(timer);
     };
-  }, [shown, ctx, editing, invoice?.archive?.pdf?.url]);
+  }, [shown, ctx, editing, invoice?.archive?.pdf?.url, invoice?.attachment?.url]);
 
   useEffect(() => () => {
     if (previewRef.current && previewRef.current.startsWith('blob:')) URL.revokeObjectURL(previewRef.current);
@@ -270,8 +271,9 @@ export default function InvoicePage({
         return;
       }
       if (kind === 'pdf') {
-        if (!isDraftInvoice(invoice) && invoice.archive?.pdf?.url) {
-          openFileUrl(invoice.archive.pdf.url);
+        const stored = !isDraftInvoice(invoice) && (invoice.archive?.pdf?.url || (!isManagedInvoice(invoice) && invoice.attachment?.url));
+        if (stored) {
+          openFileUrl(stored);
           return;
         }
         downloadFile(actions.pdfFor(ctx, recalcInvoice(shown)), invoicePdfName(shown), 'application/pdf');
@@ -434,6 +436,7 @@ export default function InvoicePage({
       previewUrl={preview}
       editing={editing}
       locked={locked}
+      canUpload={canManage && (!locked || (!isManagedInvoice(invoice) && !isDraftInvoice(invoice)))}
       editable={editable}
       onAction={onAction}
       onFlag={(key, value) => run('flag', () => actions.flag(ctx, invoice, key, value), { close: false })}
@@ -451,6 +454,8 @@ export default function InvoicePage({
       onOpenOriginal={() => onOpenInvoiceId?.(invoice.creditNoteForId)}
       onOpenCredit={(id) => onOpenInvoiceId?.(id)}
       powerOfficeSummary={powerOfficeSummary(invoice)}
+      powerOfficeUrl={poStatus?.connected ? (POWEROFFICE_GUI[poStatus.env] || POWEROFFICE_GUI.prod) : ''}
+      settings={settings}
     />
   );
 
@@ -505,7 +510,7 @@ export default function InvoicePage({
         </Banner>
       ) : null}
       <View style={[styles.body, wide && styles.bodyWide]}>
-        <View style={{ flex: 1, minWidth: 0 }}>{main}</View>
+        <View style={wide ? { flex: 1, minWidth: 0 } : null}>{main}</View>
         <View style={wide ? styles.sideWide : null}>{sidebar}</View>
       </View>
 

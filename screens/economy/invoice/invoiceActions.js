@@ -12,6 +12,8 @@ import {
   approveDraft,
   buildCreditNote,
   isCreditNote,
+  isDraftInvoice,
+  isManagedInvoice,
   issueInvoice,
   mergeTemplate,
   nextInvoiceNumber,
@@ -77,6 +79,14 @@ export async function invoiceWithTimeSpecFor(ctx, invoice, originalDate = '') {
   return buildInvoiceWithTimeSpecPdf(invoice, entries, { supplier: ctx.supplier, settings: ctx.settings, logo: ctx.logo, originalDate });
 }
 
+/** Hele fakturaen fra lagringen. Listeradene mangler linjer og skal aldri lagres tilbake. */
+async function fullInvoice(ctx, row) {
+  if (!row || typeof ctx.store.loadInvoice !== 'function') return row;
+  const loaded = await ctx.store.loadInvoice(ctx.familyId, row.id).catch(() => null);
+  if (!loaded || loaded.partial) throw new Error('Kunne ikke hente hele fakturaen. Sjekk nettet og prøv igjen.');
+  return loaded;
+}
+
 function originalOf(ctx, invoice) {
   if (!isCreditNote(invoice)) return null;
   return (ctx.invoices || []).find((row) => row.id === invoice.creditNoteForId) || null;
@@ -126,10 +136,12 @@ export async function addEventAction(ctx, invoice, body) {
 
 /** Slett utkast. Postene frigjøres eller avskrives før utkastet fjernes. */
 export async function deleteDraft(ctx, invoice, { mode = 'release', reason = '' } = {}) {
-  if (!isCreditNote(invoice)) {
-    await releaseWork(ctx.familyId, invoice, { mode, reason, actor: ctx.actor });
+  const full = await fullInvoice(ctx, invoice);
+  if (full?.issuedAt) throw new Error(`Faktura ${full.invoiceNumber} er ferdigstilt og kan ikke slettes. Krediter den i stedet.`);
+  if (!isCreditNote(full)) {
+    await releaseWork(ctx.familyId, full, { mode, reason, actor: ctx.actor });
   }
-  await ctx.store.removeInvoice(ctx.familyId, invoice.id);
+  await ctx.store.removeInvoice(ctx.familyId, full.id);
   return {
     message: mode === 'writeoff'
       ? 'Utkastet er slettet. Postene er avskrevet og faktureres ikke.'
@@ -190,7 +202,7 @@ export async function finalize(ctx, invoice, { date = '' } = {}) {
   }
 
   if (original) {
-    const full = original.lines ? original : (await ctx.store.loadInvoice?.(ctx.familyId, original.id)) || original;
+    const full = await fullInvoice(ctx, original);
     const updated = applyCreditToOriginal(full, archived, { actor: ctx.actor });
     await save(ctx, updated);
     archived = await save(ctx, settleCreditNote(archived, updated, { actor: ctx.actor }));
@@ -324,7 +336,7 @@ export async function send(ctx, invoice, options = {}) {
 
 /** Kreditnotautkast fra en ferdigstilt faktura. */
 export async function createCredit(ctx, invoice, { lineIds = null, reason = '', release = false } = {}) {
-  const full = invoice.lines ? invoice : (await ctx.store.loadInvoice?.(ctx.familyId, invoice.id)) || invoice;
+  const full = await fullInvoice(ctx, invoice);
   const result = buildCreditNote(full, { lineIds, reason, releaseWork: release, actor: ctx.actor });
   if (!result.ok) throw new Error(result.error);
   const saved = await save(ctx, result.invoice);
@@ -362,9 +374,14 @@ export async function postpone(ctx, invoice, date) {
 
 /** Last opp et vedlegg til fakturaen (PDF eller bilde). */
 export async function uploadAttachment(ctx, invoice, file, bytes) {
-  const ref = await storeInvoiceFile(ctx.familyId, invoice.id, file.name || 'vedlegg', bytes, file.mimeType || file.type || 'application/octet-stream');
+  const type = file.mimeType || file.type || 'application/octet-stream';
+  const ref = await storeInvoiceFile(ctx.familyId, invoice.id, file.name || 'vedlegg', bytes, type);
+  // Importert faktura: den første PDF-en er selve fakturaen fra det andre systemet.
+  const imported = !isManagedInvoice(invoice) && !isDraftInvoice(invoice);
+  const asDocument = imported && !invoice.attachment?.url && /pdf/i.test(type || ref.name);
   const next = withEvent({
     ...invoice,
+    ...(asDocument ? { attachment: { url: ref.url, name: ref.name, storagePath: ref.storagePath || '' }, previewReady: true } : {}),
     attachments: [...(invoice.attachments || []), { id: `att_${Date.now().toString(36)}`, ...ref, source: 'upload', include: true }],
   }, { type: 'attachment', text: `la ved ${ref.name}`, actor: ctx.actor });
   return { invoice: await save(ctx, next), message: `${ref.name} er lagt ved.` };

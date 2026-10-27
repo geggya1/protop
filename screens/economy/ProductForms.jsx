@@ -321,7 +321,7 @@ export function SaleForm({ product, colors, narrow, customers, projects, busy, e
       </View>
       <Text style={{ color: colors.muted, fontSize: 12 }}>
         {`Sum ${formatMoney(amount)} eks. mva · ${formatMoney(withVat(amount, product.vatCode))} inkl. mva. `}
-        {status === 'approved' ? 'Salget kommer med i Fakturagrunnlag.' : 'Utkast kommer med i Fakturagrunnlag når det er merket klart.'}
+        {status === 'approved' ? 'Salget kommer med under Til fakturering.' : 'Utkast kommer med under Til fakturering når det er merket klart.'}
       </Text>
       {localError || error ? <Text style={{ color: colors.danger || '#b42318' }}>{localError || error}</Text> : null}
       <View style={styles.actions}>

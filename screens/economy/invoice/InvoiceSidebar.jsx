@@ -2,14 +2,16 @@
  * Sidepanelet på fakturasiden: status, sjekkliste, handlinger, notater, logg, PDF og vedlegg.
  */
 import React, { useState } from 'react';
-import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDate } from '../../../src/economy/invoices.js';
+import { REMINDER_FEE_MAX } from '../../../src/economy/companyInvoiceDefaults.js';
 import {
   COLLECTION_FLAGS,
   deliveryChannelLabel,
   displayStatus,
   isCreditNote,
+  reminderFrom,
 } from '../../../src/economy/invoiceFlow.js';
 import { Banner, Button, Check, Chip, LinkText, money } from '../billing/ui';
 
@@ -95,6 +97,15 @@ function InlineAdd({ placeholder, onSave, colors, nativeID, multiline = true }) 
   );
 }
 
+function overdueText(invoice, settings) {
+  const from = reminderFrom(invoice, settings);
+  const fee = Number(settings.reminderFee) || 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const when = !from ? '' : from <= today ? ' Purring kan sendes nå' : ` Purring kan sendes fra ${formatDate(from)}`;
+  const feeText = fee > 0 ? ` med purregebyr ${money(Math.min(fee, REMINDER_FEE_MAX))}.` : '.';
+  return `Forfall var ${formatDate(invoice.dueDate)}.${when ? `${when}${feeText}` : ''} Marker «Purring sendt» når den er sendt.`;
+}
+
 export default function InvoiceSidebar({
   invoice,
   colors,
@@ -105,6 +116,7 @@ export default function InvoiceSidebar({
   previewUrl,
   editing,
   locked,
+  canUpload = false,
   editable,
   onAction,
   onFlag,
@@ -118,6 +130,8 @@ export default function InvoiceSidebar({
   onOpenOriginal,
   onOpenCredit,
   powerOfficeSummary,
+  powerOfficeUrl = '',
+  settings = {},
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [eventOpen, setEventOpen] = useState(false);
@@ -226,6 +240,9 @@ export default function InvoiceSidebar({
             <View style={{ gap: 2, marginTop: 4 }}>
               <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }}>{powerOfficeSummary.title}</Text>
               {powerOfficeSummary.lines.map((line) => <Text key={line} style={{ color: colors.muted, fontSize: 12 }}>{line}</Text>)}
+              {powerOfficeUrl ? (
+                <LinkText label="Åpne PowerOffice Go" icon="open-outline" colors={colors} onPress={() => Linking.openURL(powerOfficeUrl)} nativeID="invoice-open-poweroffice" />
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -391,13 +408,13 @@ export default function InvoiceSidebar({
             ) : null}
           </View>
         ))}
-        {canManage && !locked ? (
+        {canUpload ? (
           <TouchableOpacity onPress={onUpload} style={[styles.upload, { borderColor: colors.line }]} accessibilityRole="button" nativeID="invoice-upload">
             <Ionicons name="cloud-upload-outline" size={18} color={colors.brand} />
             <Text style={{ color: colors.brand }}>Last opp fakturavedlegg</Text>
           </TouchableOpacity>
         ) : null}
-        {locked && (invoice.attachments || []).length ? (
+        {locked && !canUpload && (invoice.attachments || []).length ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>Vedleggene er låst sammen med fakturaen.</Text>
         ) : null}
       </Card>
@@ -414,7 +431,7 @@ export default function InvoiceSidebar({
       ) : null}
       {status.id === 'overdue' ? (
         <Banner tone="block" colors={colors} title="Forfalt">
-          {`Forfall var ${formatDate(invoice.dueDate)}. Purring kan tidligst sendes 14 dager etter forfall (inkassoloven § 9).`}
+          {overdueText(invoice, settings)}
         </Banner>
       ) : null}
     </View>

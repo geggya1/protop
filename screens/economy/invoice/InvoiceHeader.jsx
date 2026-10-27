@@ -42,7 +42,7 @@ export function InvoiceHeaderView({ invoice, colors, wide, onOpenCustomer, onOpe
   const credit = isCreditNote(invoice);
   return (
     <View style={[styles.grid, wide && styles.gridWide]}>
-      <View style={styles.col}>
+      <View style={[styles.col, wide && styles.colWide]}>
         <Fact label="Kunde" colors={colors}>
           <View>
             <TouchableOpacity disabled={!invoice.customerId || !onOpenCustomer} onPress={() => onOpenCustomer?.(invoice.customerId)}>
@@ -63,7 +63,7 @@ export function InvoiceHeaderView({ invoice, colors, wide, onOpenCustomer, onOpe
         <Fact label="Kontraktsreferanse" colors={colors}>{invoice.contractReference}</Fact>
         <Fact label="Ordrereferanse" colors={colors}>{invoice.orderReference}</Fact>
       </View>
-      <View style={styles.col}>
+      <View style={[styles.col, wide && styles.colWide]}>
         <Fact label={credit ? 'Dato' : 'Fakturadato'} colors={colors}>{formatDate(invoice.invoiceDate)}</Fact>
         {credit ? <Fact label="Krediterer" colors={colors}>{`Faktura ${invoice.creditNoteForNumber}`}</Fact> : null}
         {credit && invoice.creditReason ? <Fact label="Årsak" colors={colors}>{invoice.creditReason}</Fact> : null}
@@ -124,7 +124,7 @@ export function InvoiceHeaderEditor({ invoice, colors, wide, customers = [], onP
   const setAddr = (key, value) => onPatch({ customerAddress: { ...addr, [key]: value } });
   return (
     <View style={[styles.grid, wide && styles.gridWide]}>
-      <View style={[styles.box, { borderColor: colors.line }]}>
+      <View style={[styles.box, wide && styles.boxWide, { borderColor: colors.line }]}>
         <Text style={[styles.boxTitle, { color: colors.ink }]}>Mottaker</Text>
         <View style={styles.fieldWrap}>
           <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '600' }}>Kunde</Text>
@@ -167,7 +167,7 @@ export function InvoiceHeaderEditor({ invoice, colors, wide, customers = [], onP
           <Field grow label="Kontraktsreferanse" value={invoice.contractReference} onChangeText={(v) => onPatch({ contractReference: v })} colors={colors} />
         </View>
       </View>
-      <View style={[styles.box, { borderColor: colors.line }]}>
+      <View style={[styles.box, wide && styles.boxWide, { borderColor: colors.line }]}>
         <Text style={[styles.boxTitle, { color: colors.ink }]}>Fakturainformasjon</Text>
         <View style={styles.row}>
           <Field grow label="Fakturanummer" value="Settes ved ferdigstilling" colors={colors} editable={false} />
@@ -226,7 +226,7 @@ export function InvoiceHeaderEditor({ invoice, colors, wide, customers = [], onP
           />
         </View>
       </View>
-      <View style={[styles.box, styles.full, { borderColor: colors.line }]}>
+      <View style={[styles.box, wide && styles.boxWide, styles.full, { borderColor: colors.line }]}>
         <Field label="Fakturatekst" value={invoice.invoiceText} onChangeText={(v) => onPatch({ invoiceText: v })} colors={colors} multiline nativeID="invoice-edit-text" />
         <Field label="Bunntekst" value={invoice.footerText} onChangeText={(v) => onPatch({ footerText: v })} colors={colors} multiline />
       </View>
@@ -237,10 +237,12 @@ export function InvoiceHeaderEditor({ invoice, colors, wide, customers = [], onP
 const styles = StyleSheet.create({
   grid: { gap: 16 },
   gridWide: { flexDirection: 'row', flexWrap: 'wrap' },
-  col: { flex: 1, minWidth: 260, gap: 10 },
+  col: { gap: 10 },
+  colWide: { flex: 1, minWidth: 260 },
   fact: { gap: 2 },
   textBox: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 4 },
-  box: { flex: 1, minWidth: 320, borderWidth: 1, borderRadius: 10, padding: 14, gap: 10 },
+  box: { borderWidth: 1, borderRadius: 10, padding: 14, gap: 10 },
+  boxWide: { flex: 1, minWidth: 320 },
   full: { flexBasis: '100%' },
   boxTitle: { fontWeight: '700', fontSize: 15 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

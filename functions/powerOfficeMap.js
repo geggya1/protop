@@ -90,7 +90,10 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
   const missing = new Set();
   const lines = (Array.isArray(row.lines) ? row.lines : []).map((line, index) => {
     const quantity = num(line?.quantity) ?? 0;
-    const unitPrice = num(line?.unitPrice) ?? 0;
+    // Nettopris etter påslag og rabatt, så summen i PowerOffice blir lik utkastet i ProTop.
+    const net = num(line?.netUnitPrice);
+    const listPrice = num(line?.unitPrice) ?? 0;
+    const unitPrice = net != null && quantity && Math.abs(net - listPrice) > 0.00001 ? net : listPrice;
     const description = text(line?.description).slice(0, 250);
     const base = {
       Description: description || null,
@@ -108,7 +111,7 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
       LineType: 'Normal',
       ProductCode: productCode,
       Quantity: quantity,
-      ProductUnitPrice: round2(unitPrice),
+      ProductUnitPrice: unitPrice === listPrice ? round2(unitPrice) : Math.round(unitPrice * 10000) / 10000,
     };
   });
   if (!lines.length) return { ok: false, error: 'Fakturaen har ingen linjer.' };

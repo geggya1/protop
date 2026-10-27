@@ -237,7 +237,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
               {visible.length === 1 ? '1 prosjekt' : `${visible.length} prosjekter`}
             </Text>
           </View>
-          <View style={styles.summaryRight}>
+          <View style={[styles.summaryRight, isPhone && styles.summaryRightStacked]}>
             <Text style={{ color: colors.ink }}>
               <Text style={{ fontWeight: '700' }}>Totalt å faktureres: </Text>
               {money(workflow.totals.open)}
@@ -247,7 +247,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
               <Text style={{ color: colors.muted, fontSize: 13 }}>{`Valgt ${money(workflow.totals.picked)}`}</Text>
             ) : null}
             {canEdit ? (
-              <View style={styles.actions}>
+              <View style={[styles.actions, isPhone && { width: '100%' }]}>
                 <Button
                   label="Godkjenn utvalg"
                   icon="checkmark"
@@ -355,7 +355,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   summaryLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexGrow: 1 },
-  summaryRight: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' },
-  actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  summaryRight: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end', flexShrink: 1, minWidth: 0 },
+  summaryRightStacked: { justifyContent: 'flex-start' },
+  actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', flexShrink: 1, minWidth: 0 },
   empty: { borderWidth: 1, borderRadius: 10, padding: 24, alignItems: 'center', gap: 8 },
 });

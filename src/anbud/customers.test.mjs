@@ -555,3 +555,14 @@ assert.equal(ownerPicker.includes('Velg blant ansatte og medlemmer'), false);
 assert.equal(ownerPicker.includes('people.map'), false);
 
 console.log('customers.test.mjs: ok');
+
+// Faktureringsvalg på kunden: tomme felt lagres ikke.
+{
+  const row = normalizeCustomer({ id: 'c1', name: 'Sola kommune', invoiceEmail: ' faktura@sola.kommune.no ', creditDays: '30', invoiceDelivery: 'ehf', invoiceLanguage: 'xx', invoiceReference: '' });
+  assert.equal(row.invoiceEmail, 'faktura@sola.kommune.no');
+  assert.equal(row.creditDays, 30);
+  assert.equal(row.invoiceDelivery, 'ehf');
+  assert.equal('invoiceLanguage' in row, false);
+  assert.equal('invoiceReference' in row, false);
+  assert.equal('creditDays' in normalizeCustomer({ id: 'c2', name: 'X', creditDays: '' }), false);
+}

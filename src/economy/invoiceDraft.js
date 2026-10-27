@@ -315,10 +315,10 @@ export function expenseAttachments(expenses = [], settings = {}) {
     }));
 }
 
-/** Standard forsendelse: EHF når kunden har org.nr., ellers e-post når adressen finnes. */
+/** Standard forsendelse (kundens valg før selskapets): EHF når kunden har org.nr., ellers e-post når adressen finnes. */
 export function defaultDelivery({ settings = {}, customer = null, orgnr = '', mode = 'protop' } = {}) {
   if (mode === 'poweroffice') return 'poweroffice';
-  const wanted = text(settings.defaultDelivery) || 'ehf';
+  const wanted = text(customer?.invoiceDelivery) || text(settings.defaultDelivery) || 'ehf';
   const email = text(customer?.invoiceEmail || customer?.email);
   if (wanted === 'ehf' && text(orgnr || customer?.orgnr)) return 'ehf';
   if (wanted === 'manual') return 'manual';
@@ -368,7 +368,7 @@ export function buildInvoiceDraft(selection, {
     customerAddress: customerAddress(customer, project),
     customerEmail: text(customer?.invoiceEmail || customer?.email),
     customerContact: text(customer?.contactName),
-    customerReference: text(settings.theirReference),
+    customerReference: text(settings.theirReference) || text(customer?.invoiceReference),
     orderReference: text(settings.orderReference),
     contractReference: text(settings.contractReference),
     addressLineAbove: text(settings.addressLineAbove),
@@ -384,7 +384,7 @@ export function buildInvoiceDraft(selection, {
     creditDays,
     bankAccount: text(supplier.bankAccount),
     currency: 'NOK',
-    language: text(settings.invoiceLanguage) || 'nb',
+    language: text(customer?.invoiceLanguage) || text(settings.invoiceLanguage) || 'nb',
     invoiceText: String(settings.introText ?? '').trim(),
     footerText: String(settings.footerText ?? '').trim(),
     deliveryMethod: defaultDelivery({ settings, customer, orgnr: selection.orgnr, mode }),

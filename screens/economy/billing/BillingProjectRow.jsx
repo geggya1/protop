@@ -102,7 +102,7 @@ export default function BillingProjectRow({
               {project.fixed.model === 'fixed' ? `Fastpris, rest ${money(project.fixed.remaining)}` : `${project.fixed.description} ${money(project.fixed.amount)}`}
             </Text>
           ) : null}
-          {unpriced > 0 ? <Text style={{ color: colors.danger || '#b91c1c', fontSize: 12 }}>{`${formatHours(unpriced)} uten pris`}</Text> : null}
+          {unpriced > 0 ? <Text style={{ color: colors.danger || '#b91c1c', fontSize: 12 }}>{`${formatHours(unpriced)} t uten pris`}</Text> : null}
         </View>
       </TouchableOpacity>
     </View>

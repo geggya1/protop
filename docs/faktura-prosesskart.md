@@ -414,7 +414,9 @@ Ordet **«Låst»** brukes bare om timelisten.
 
 ---
 
-## 8. Gap i koden i dag
+## 8. Gap i koden før byggingen
+
+Tabellen viser utgangspunktet. Kapittel 11 viser hva som er bygget.
 
 | Område | Fil | Gap |
 |---|---|---|
@@ -487,6 +489,98 @@ Hver fase kan gå live alene.
    - Rapportene «Påløpt ufakturert» og reskontro.
    - Fakturaplan for fastpris.
    - EHF via aksesspunkt når avtalen finnes.
+
+---
+
+## 11. Slik er det bygget
+
+### To driftsmåter
+
+| | PowerOffice koblet til | PowerOffice ikke koblet |
+|---|---|---|
+| Utkast | Lages, endres og godkjennes i ProTop | Samme |
+| Nummer og KID | Settes av PowerOffice | Settes av ProTop ved ferdigstilling |
+| Sending | PowerOffice sender etter kundens oppsett der | ProTop sender som EHF eller e-post, eller «Send selv» |
+| Arkiv | I PowerOffice | PDF, EHF-XML og timespesifikasjon i Storage, lenket fra fakturaen |
+
+Driftsmåten følger koblingen. Innstillingssiden viser hvilken som gjelder.
+
+### Flyten i appen
+
+1. **Til fakturering** (Økonomi og prosjektfanen) samler ufakturerte timer, utlegg, kjøring og salg per prosjekt.
+   - Varsler stopper eller advarer: manglende timepris, kunde uten org.nr. og adresse, ikke godkjent, timeliste ikke levert, og fakturafristen.
+   - Fastpris viser resten av avtalt beløp. Timer uten pris vises som «x t uten pris».
+2. **Lag fakturautkast av utvalg**.
+   - Spør først hvis noe ikke er godkjent: godkjenn samtidig, eller ta bare med det som er godkjent.
+   - Postene reserveres på utkastet, og to brukere kan ikke reservere de samme postene.
+3. **Utkastet** har lesevisning og «Rediger»: mottaker, fakturainformasjon, linjer per seksjon, tekster og vedlegg.
+   - «Oppdater utkast» henter ferske poster.
+   - «Slett utkast» spør om postene skal tilbake til Til fakturering, eller avskrives med årsak.
+4. **Ferdigstill og send**:
+   - kontrollene (kapittel 2)
+   - nummer fra serien i én transaksjon
+   - KID, bilag og arkiv-PDF
+   - sending som EHF, e-post eller «Send selv»
+5. **Etter utstedelse**:
+   - Betaling registreres på fakturaen eller fra raden i listen.
+   - Purring, inkasso og rentefaktura merkes.
+   - Tap føres med årsak.
+   - Feil rettes med kreditnota, hel eller per linje. Kreditnotaen kan sette postene tilbake til Til fakturering.
+   - Kreditnotaen motregnes mot fakturaen, så utestående ikke telles to ganger.
+
+### Låsing og kontroll
+
+- **Firestore-reglene (`firestore.rules`, `match /invoices`).**
+  - En faktura med `issuedAt` kan ikke slettes.
+  - Nummer, datoer, KID, kunde, linjer, beløp og prosjekt kan ikke endres.
+  - Arkivet kan fylles inn, men ikke byttes.
+  - Status, betalinger, forsendelser, merker, notater og hendelser kan oppdateres.
+- **Nummerserien (`invoiceSeries/main`).**
+  - Telleren går bare oppover og kan ikke slettes.
+  - En faktura kan bare få nummer i samme skriving som telleren flyttes fram til det nummeret. Dermed kan to fakturaer aldri få samme nummer.
+- **Tester.** Testene ligger i `tests/rules/invoices.rules.test.mjs` og kjøres i PR-verifiseringen og før reglene deployes.
+- **Deploy av reglene.** Reglene deployes ikke automatisk med Hosting. Workflowen «Deploy Firestore rules» må kjøres etter merge.
+
+### Innstillinger
+
+Økonomi → Innstillinger → Fakturastandarder:
+
+- første fakturanummer, med neste nummer vist
+- KID-format og kontrollsiffer
+- om utkast må godkjennes
+- kredittid, språk, forfall og vår referanse
+- timer per medarbeider eller aktivitet
+- periode på linjene, timespesifikasjon og kvitteringer
+- standard forsendelse og EHF-valg
+- e-postmaler for faktura og kreditnota, svar til og kopi
+- purring: dager etter forfall og gebyr, maks 38 kr
+
+På kunden: faktura-e-post, «Deres referanse», kredittid, forsendelse og språk. Kundens valg går foran selskapets standard.
+
+### Koble til EHF (aksesspunkt)
+
+ProTop sender EHF gjennom et eksisterende Peppol-aksesspunkt.
+
+1. Inngå avtale med en leverandør av aksesspunkt som har et API for sending.
+2. Få selskapets org.nr. registrert som mottaker og avsender i ELMA.
+3. Opprett to hemmeligheter i Secret Manager i `protop-c189c`, på samme måte som e-postnøkkelen:
+   - `PEPPOL_API_KEY`: API-nøkkelen fra leverandøren
+   - `PEPPOL_SEND_URL`: https-adressen EHF-fila postes til
+
+   De leses når funksjonen kjører (`functions/runtimeSecret.js`), så funksjonene trenger ikke deployes på nytt.
+4. Hvis leverandøren krever et eget format: lag en tilpasning i `functions/peppolProvider.js` og sett `PEPPOL_PROVIDER`. Standard er «generic», som poster XML-en med `Authorization: Bearer <nøkkel>` og leser id og status fra JSON-svaret.
+5. Send en testfaktura til eget org.nr.
+
+Funksjonene i `functions/invoiceIndex.js` (e-post, EHF og mottakeroppslag) deployes automatisk når de endres på `main`.
+
+Mottakeroppslaget bruker den åpne Peppol-katalogen og virker allerede. Til aksesspunktet er koblet, svarer EHF-sendingen «ikke koblet», og dialogen tilbyr e-post.
+
+### Ikke bygget ennå
+
+- Purrebrev og rentefaktura som dokument. I dag finnes bare merker og frist.
+- Rapportene «Påløpt ufakturert» og reskontro.
+- Fakturaplan for fastpris. I dag legges et fast beløp inn per utkast.
+- Eksport av bilag (SAF-T eller CSV) når ProTop utsteder uten PowerOffice.
 
 ---
 

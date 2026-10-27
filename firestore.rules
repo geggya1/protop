@@ -322,7 +322,50 @@ service cloud.firestore {
     // ISO-samlingene og tilgangsspeilet har egne regler og er unntatt fra den generelle regelen.
     function isProtected(coll) {
       return coll.matches('^iso[A-Z].*') || coll == 'accessAcl'
-        || coll == 'docComments' || coll == 'docControlSettings' || coll == 'docControl' || coll == 'docAcks';
+        || coll == 'docComments' || coll == 'docControlSettings' || coll == 'docControl' || coll == 'docAcks'
+        || coll == 'invoices' || coll == 'invoiceSeries';
+    }
+
+    /* ───────── Fakturaer ─────────
+     * En ferdigstilt faktura (issuedAt satt) er et regnskapsdokument: nummer, dato, kunde,
+     * linjer og beløp endres ikke, og den slettes ikke (bokføringsloven §§ 10 og 13,
+     * bokføringsforskriften § 5-1-3). Rettelser gjøres med kreditnota. Status, betalinger,
+     * forsendelser, inkassomerker, notater og hendelser kan fortsatt oppdateres.
+     * Nummeret kommer fra telleren invoiceSeries/main, som bare kan gå oppover.
+     */
+    function invoiceIssued(data) {
+      return data.get('issuedAt', '') != '';
+    }
+
+    function invoiceLockedKeys() {
+      return ['issuedAt', 'issuedByUid', 'invoiceNumber', 'invoiceDate', 'dueDate', 'kid', 'kind',
+        'customerId', 'customerNumber', 'customerName', 'orgnr', 'customerAddress', 'customerVatNumber',
+        'lines', 'amountExVat', 'vat', 'amountInclVat', 'currency', 'creditNoteForId', 'creditNoteForNumber',
+        'bankAccount', 'projectId'];
+    }
+
+    // Arkivet (PDF, EHF-XML, timespesifikasjon) kan fylles inn etter ferdigstilling, men ikke byttes.
+    function invoiceArchiveKept() {
+      let before = resource.data.get('archive', {});
+      let after = request.resource.data.get('archive', {});
+      return (before.get('pdf', null) == null || after.get('pdf', null) == before.get('pdf', null))
+        && (before.get('xml', null) == null || after.get('xml', null) == before.get('xml', null))
+        && (before.get('timeSpec', null) == null || after.get('timeSpec', null) == before.get('timeSpec', null));
+    }
+
+    function invoiceSeriesPath(familyId) {
+      return /databases/$(database)/documents/families/$(familyId)/invoiceSeries/main;
+    }
+
+    // Ferdigstilling skjer i samme transaksjon som telleren flyttes fram til fakturanummeret.
+    // Telleren må endres i samme skriving, så et nummer aldri kan brukes to ganger.
+    function invoiceNumberFromSeries(familyId) {
+      return existsAfter(invoiceSeriesPath(familyId))
+        && request.resource.data.get('invoiceNumber', '') is string
+        && request.resource.data.invoiceNumber.matches('^[0-9]{1,12}$')
+        && getAfter(invoiceSeriesPath(familyId)).data.get('last', -1) == int(request.resource.data.invoiceNumber)
+        && (!exists(invoiceSeriesPath(familyId))
+          || get(invoiceSeriesPath(familyId)).data.get('last', 0) < getAfter(invoiceSeriesPath(familyId)).data.get('last', 0));
     }
 
     /* ───────── Dokumentstyring (Skjemabygger og personalhåndbok) ─────────
@@ -404,6 +447,32 @@ service cloud.firestore {
         allow list: if isFamilyMemberLite(familyId) && !isProtected(coll);
         allow create, update, delete: if isFamilyMember(familyId) && !isProtected(coll) && coll != 'employees';
         allow create: if foundsFamily(familyId) && !isProtected(coll) && coll != 'employees';
+      }
+
+      match /invoices/{invoiceId} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create: if isFamilyMember(familyId)
+          && (!invoiceIssued(request.resource.data) || invoiceNumberFromSeries(familyId));
+        allow update: if isFamilyMember(familyId) && (
+          (!invoiceIssued(resource.data)
+            && (!invoiceIssued(request.resource.data) || invoiceNumberFromSeries(familyId)))
+          || (invoiceIssued(resource.data)
+            && !changed().hasAny(invoiceLockedKeys())
+            && invoiceArchiveKept())
+        );
+        allow delete: if isFamilyMember(familyId) && !invoiceIssued(resource.data);
+      }
+
+      // Telleren for fakturanummer: bare oppover, aldri slettet.
+      match /invoiceSeries/{seriesId} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create: if isFamilyMember(familyId) && request.resource.data.get('last', 0) is int
+          && request.resource.data.get('last', 0) >= 1;
+        allow update: if isFamilyMember(familyId) && request.resource.data.get('last', 0) is int
+          && request.resource.data.get('last', 0) > resource.data.get('last', 0);
+        allow delete: if false;
       }
 
       // Ansatte: som før, men tilgangsfeltene er beskyttet (se empUpdateOk).

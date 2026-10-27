@@ -42,7 +42,6 @@ import {
   formatMoney,
   isInvoiceOverdue,
   isInvoiceSent,
-  statusLabel,
 } from '../../src/economy/invoices.js';
 import {
   INVOICE_PERIODS,
@@ -53,6 +52,7 @@ import {
   invoiceReportStatus,
   invoiceReportSummary,
   invoiceStatusChoices,
+  reportStatusLabel,
 } from '../../src/economy/invoiceReport.js';
 import {
   hasColumnFilter,
@@ -74,11 +74,11 @@ import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import InvoicePage from './invoice/InvoicePage';
-import { DeleteDraftDialog } from './invoice/InvoiceDialogs';
-import { deleteDraft } from './invoice/invoiceActions';
+import { DeleteDraftDialog, PaymentDialog } from './invoice/InvoiceDialogs';
+import { deleteDraft, payment } from './invoice/invoiceActions';
 import PowerOfficePanel from './PowerOfficePanel';
 import { loadPowerOfficeStatus, transferInvoiceToPowerOffice } from '../../src/economy/powerOfficeClient.js';
-import { isDraftInvoice } from '../../src/economy/invoiceFlow.js';
+import { isCreditNote, isDraftInvoice } from '../../src/economy/invoiceFlow.js';
 import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings.js';
 import { resolveCompanyInvoiceDefaults } from '../../src/economy/companyInvoiceDefaults.js';
 import { resolveCompanyAccounts } from '../../src/economy/companyChart.js';
@@ -110,10 +110,11 @@ const PHONE_SORTS = [
 ];
 
 function statusTone(status, colors) {
-  if (status === 'paid') return { bg: '#dcfce7', fg: '#166534' };
+  if (status === 'paid' || status === 'approved') return { bg: '#dcfce7', fg: '#166534' };
   if (status === 'overdue' || status === 'written_off') return { bg: '#fee4e2', fg: colors.danger || '#b42318' };
-  if (status === 'sent') return { bg: '#e0f2fe', fg: '#075985' };
-  if (status === 'credited') return { bg: '#f3e8ff', fg: '#6b21a8' };
+  if (status === 'sent' || status === 'issued' || status === 'transferred') return { bg: '#e0f2fe', fg: '#075985' };
+  if (status === 'partly_paid') return { bg: '#fef3c7', fg: '#92400e' };
+  if (status === 'credited' || status === 'partly_credited' || status === 'credit_note') return { bg: '#f3e8ff', fg: '#6b21a8' };
   return { bg: colors.sunken || '#f1f5f9', fg: colors.ink || '#334155' };
 }
 
@@ -121,7 +122,7 @@ function InvoiceStatusBadge({ status, colors }) {
   const tone = statusTone(status, colors);
   return (
     <View style={[styles.badge, { backgroundColor: tone.bg }]}>
-      <Text style={{ color: tone.fg, fontSize: 12, fontWeight: '600' }}>{statusLabel(status)}</Text>
+      <Text style={{ color: tone.fg, fontSize: 12, fontWeight: '600' }}>{reportStatusLabel(status)}</Text>
     </View>
   );
 }
@@ -150,6 +151,7 @@ export default function EconomyInvoices({
   const colors = useColors();
   const { requestShellTab, uid, family, activeProfile } = useApp();
   const actor = useMemo(() => ({ byUid: uid || '', byName: activeProfile?.name || '' }), [uid, activeProfile?.name]);
+  const access = useCompanyAccess();
   // Import av fakturalister krever Admin på Faktura.
   const canImport = canImportList(useCompanyAccess(), 'economyInvoices');
   const hostedHero = useModuleHeroHosted();
@@ -157,7 +159,8 @@ export default function EconomyInvoices({
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
   const wideDetail = !isPhone && contentWidth >= 900;
-  const canManage = !!isAdmin;
+  // Utkast lages, godkjennes og ferdigstilles av alle med redigeringstilgang til Faktura.
+  const canManage = !!isAdmin || !!demoProjectState || !!access?.canEdit?.('economyInvoices');
   const [columnKeys, setColumnKeys, resetColumns] = useReportColumns('invoices', uid, INVOICE_REPORT_COLUMNS);
   const listColumns = useMemo(() => visibleColumns(INVOICE_REPORT_COLUMNS, columnKeys), [columnKeys]);
 
@@ -179,6 +182,9 @@ export default function EconomyInvoices({
   const [busy, setBusy] = useState(false);
   const [draftDelete, setDraftDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [paymentRow, setPaymentRow] = useState(null);
+  const [fullId, setFullId] = useState('');
+  const [paying, setPaying] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [watch, setWatch] = useState(null);
   const [poStatus, setPoStatus] = useState(null);
@@ -241,10 +247,18 @@ export default function EconomyInvoices({
       return;
     }
     let live = true;
+    // Listeraden mangler linjer. Den vises til hele fakturaen er hentet, og handlingene venter.
+    // En faktura som allerede er åpen, byttes ikke tilbake til listeraden.
     const summary = invoices.find((row) => row.id === selectedId) || null;
-    if (summary) setSelected(summary);
+    if (summary) setSelected((current) => (current?.id === selectedId ? current : summary));
     loadInvoice(familyId, selectedId).then((row) => {
-      if (live && row) setSelected(row);
+      if (!live || !row) return;
+      if (row.partial) {
+        setSelected((current) => (current?.id === row.id ? current : row));
+        return;
+      }
+      setSelected(row);
+      setFullId(row.id);
     }).catch(() => {});
     return () => { live = false; };
   }, [selectedId, familyId, invoices]);
@@ -276,7 +290,7 @@ export default function EconomyInvoices({
   const statusChoices = useMemo(() => {
     const choices = invoiceStatusChoices(unstatused);
     if (!statusFilter || choices.some((row) => row.id === statusFilter)) return choices;
-    return [...choices, { id: statusFilter, label: statusLabel(statusFilter), count: 0 }];
+    return [...choices, { id: statusFilter, label: reportStatusLabel(statusFilter), count: 0 }];
   }, [unstatused, statusFilter]);
   const visible = useMemo(
     () => sortReportRows(
@@ -527,6 +541,7 @@ export default function EconomyInvoices({
 
   function requestDelete(row) {
     if (!canManage || !canDeleteInvoice(row) || deleting) return;
+    if (!isDraftInvoice(row) && !isAdmin && !demoProjectState) return;
     if (isDraftInvoice(row)) {
       setDraftDelete(row);
       return;
@@ -534,8 +549,10 @@ export default function EconomyInvoices({
     setConfirmDelete(row);
   }
 
+  // Utkast slettes av alle som kan arbeide med fakturaer. Importerte fakturaer bare av administrator.
   function deleteButton(row) {
     if (!canManage || !canDeleteInvoice(row)) return null;
+    if (!isDraftInvoice(row) && !isAdmin && !demoProjectState) return null;
     return (
       <TouchableOpacity
         onPress={() => requestDelete(row)}
@@ -545,6 +562,40 @@ export default function EconomyInvoices({
         style={styles.rowDelete}
       >
         <Ionicons name="trash-outline" size={18} color={colors.danger || '#b42318'} />
+      </TouchableOpacity>
+    );
+  }
+
+  function canRegisterPayment(row) {
+    if (!canManage || isDraftInvoice(row) || isCreditNote(row)) return false;
+    if (row.status === 'paid' || row.status === 'credited' || row.status === 'written_off') return false;
+    return (invoiceOutstanding(row) || 0) > 0;
+  }
+
+  // Listeraden har lite av fakturaen. Betalingen regnes på hele dokumentet.
+  async function openPayment(row) {
+    const full = typeof loadInvoice === 'function' ? await loadInvoice(familyId, row.id).catch(() => null) : row;
+    if (!full || full.partial) {
+      setError('Kunne ikke hente fakturaen. Sjekk nettet og prøv igjen.');
+      return;
+    }
+    setPaymentRow(full);
+  }
+
+  // Ved siden av raden: slett for utkast og importerte, betaling for ubetalte fakturaer.
+  function rowAction(row) {
+    if (canManage && canDeleteInvoice(row)) return deleteButton(row);
+    if (!canRegisterPayment(row)) return null;
+    return (
+      <TouchableOpacity
+        onPress={() => openPayment(row)}
+        accessibilityRole="button"
+        accessibilityLabel={`Registrer betaling på faktura ${row.invoiceNumber}`}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={styles.rowDelete}
+        nativeID={`invoice-row-pay-${row.id}`}
+      >
+        <Ionicons name="cash-outline" size={18} color={colors.success || '#15803d'} />
       </TouchableOpacity>
     );
   }
@@ -625,7 +676,7 @@ export default function EconomyInvoices({
             ) : null}
           </View>
         </TouchableOpacity>
-        {deleteButton(row)}
+        {rowAction(row)}
       </View>
     );
   }
@@ -653,6 +704,31 @@ export default function EconomyInvoices({
           setError(cause?.message || 'Kunne ikke slette utkastet.');
         } finally {
           setDeleting(false);
+        }
+      }}
+    />
+  );
+
+  const paymentDialog = (
+    <PaymentDialog
+      visible={!!paymentRow}
+      invoice={paymentRow}
+      colors={colors}
+      busy={paying}
+      onCancel={() => setPaymentRow(null)}
+      onConfirm={async (input) => {
+        setPaying(true);
+        setError('');
+        try {
+          const result = await payment({ familyId, store, actor }, paymentRow, input);
+          setInvoices((rows) => rows.map((row) => (row.id === result.invoice.id ? { ...row, ...result.invoice } : row)));
+          setNote(result.message);
+          showSaveToast(result.message);
+          setPaymentRow(null);
+        } catch (cause) {
+          setError(cause?.message || 'Kunne ikke registrere betalingen.');
+        } finally {
+          setPaying(false);
         }
       }}
     />
@@ -697,7 +773,7 @@ export default function EconomyInvoices({
           contracts={watch?.contracts || []}
           mode={poStatus?.connected ? 'poweroffice' : 'protop'}
           poStatus={poStatus}
-          canManage={canManage}
+          canManage={canManage && (fullId === selected.id || !!demoProjectState)}
           wide={wideDetail}
           stacked={stackRows}
           actor={actor}
@@ -875,7 +951,7 @@ export default function EconomyInvoices({
       setQuery(value);
       if (importReport) setImportReport(null);
     },
-    placeholder: 'Søk på fakturanummer, kunde, prosjekt, KID…',
+    placeholder: 'Søk på nummer (eller 16700-16720), kunde, prosjekt, KID…',
     nativeID: 'invoice-search',
     accessibilityLabel: 'Søk i fakturaer',
   };
@@ -945,7 +1021,7 @@ export default function EconomyInvoices({
       rowLabel={(row) => `Faktura ${row.invoiceNumber}`}
       renderCell={renderCell}
       cellTone={cellTone}
-      renderAction={canManage ? deleteButton : undefined}
+      renderAction={canManage ? rowAction : undefined}
       actionWidth={canManage ? ACTION_WIDTH : 0}
       limit={limit}
       onMore={() => setLimit((current) => current + PAGE_SIZE)}
@@ -1004,6 +1080,7 @@ export default function EconomyInvoices({
         {busyOverlay}
         {deleteDialog}
         {draftDeleteDialog}
+        {paymentDialog}
       </View>
     );
   }
@@ -1017,6 +1094,7 @@ export default function EconomyInvoices({
       {busyOverlay}
       {deleteDialog}
       {draftDeleteDialog}
+      {paymentDialog}
     </View>
   );
 }

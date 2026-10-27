@@ -108,3 +108,13 @@ assert.equal(sheet[2][header.indexOf('Utestående')], 0);
 assert.equal(sheet[4][header.indexOf('Utestående')], '');
 
 console.log('invoiceReport.test.mjs: ok');
+
+// Nummerintervall i søket.
+{
+  const { filterInvoiceReport: filter, invoiceNumberRange: range } = await import('./invoiceReport.js');
+  assert.deepEqual(range('16720 - 16700'), { from: 16700, to: 16720 });
+  assert.equal(range('16720'), null);
+  const rows = [{ invoiceNumber: '16699' }, { invoiceNumber: '16700' }, { invoiceNumber: '16710' }, { invoiceNumber: '' }];
+  assert.deepEqual(filter(rows, { query: '16700-16720' }).map((row) => row.invoiceNumber), ['16700', '16710']);
+}
+

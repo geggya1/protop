@@ -3,7 +3,6 @@
  * Tabellen selv ligger i components/table/ReportTable.
  */
 import {
-  INVOICE_STATUSES,
   filterInvoicesByPeriod,
   fold,
   formatDate,
@@ -16,6 +15,7 @@ import {
   statusLabel,
   text,
 } from './invoices.js';
+import { displayStatus } from './invoiceFlow.js';
 
 export const INVOICE_PERIODS = [
   { id: 'all', label: 'Alle perioder' },
@@ -31,11 +31,39 @@ function todayKey(today) {
   return text(today) || new Date().toISOString().slice(0, 10);
 }
 
-/** Sendt eller registrert faktura som har passert forfall uten betaling, regnes som forfalt. */
+/** Statusene i listen, i den rekkefølgen filtrene vises. Flere enn de lagrede statusene. */
+export const INVOICE_REPORT_STATUSES = [
+  { id: 'registered', label: 'Registrert' },
+  { id: 'issued', label: 'Ferdigstilt' },
+  { id: 'sent', label: 'Sendt' },
+  { id: 'partly_paid', label: 'Delbetalt' },
+  { id: 'overdue', label: 'Forfalt' },
+  { id: 'paid', label: 'Betalt' },
+  { id: 'partly_credited', label: 'Delvis kreditert' },
+  { id: 'credited', label: 'Kreditert' },
+  { id: 'credit_note', label: 'Kreditnota' },
+  { id: 'written_off', label: 'Tap' },
+  { id: 'draft', label: 'Utkast' },
+  { id: 'approved', label: 'Godkjent utkast' },
+  { id: 'transferred', label: 'I PowerOffice' },
+];
+
+export function reportStatusLabel(status) {
+  return INVOICE_REPORT_STATUSES.find((row) => row.id === status)?.label || statusLabel(status);
+}
+
+/**
+ * Status slik den vises: utkast og godkjent utkast, ferdigstilt, sendt, delbetalt, forfalt,
+ * betalt, kreditert, kreditnota og tap. Faktura som har passert forfall uten betaling er forfalt.
+ */
 export function invoiceReportStatus(invoice, today) {
-  const status = text(invoice?.status) || 'registered';
-  if ((status === 'sent' || status === 'registered') && isInvoiceOverdue(invoice, todayKey(today))) return 'overdue';
-  return status;
+  const row = invoice || {};
+  const day = todayKey(today);
+  const shown = displayStatus(row, day).id;
+  if (shown === 'overdue' && !isInvoiceOverdue(row, day)) {
+    return isInvoiceSent(row) ? 'sent' : (text(row.status) || 'registered');
+  }
+  return shown;
 }
 
 export function invoiceDaysOverdue(invoice, today) {
@@ -111,7 +139,7 @@ export const INVOICE_REPORT_COLUMNS = [
     key: 'status',
     label: 'Status',
     width: 104,
-    value: (row) => statusLabel(invoiceReportStatus(row)),
+    value: (row) => reportStatusLabel(invoiceReportStatus(row)),
   },
   {
     key: 'sent',
@@ -183,12 +211,26 @@ export function invoiceFilterOptions(rows) {
   };
 }
 
+/** «16700-16720» i søket betyr fakturanummer fra og med til og med. */
+export function invoiceNumberRange(query) {
+  const match = text(query).match(/^(\d+)\s*[-–]\s*(\d+)$/);
+  if (!match) return null;
+  const a = Number(match[1]);
+  const b = Number(match[2]);
+  return { from: Math.min(a, b), to: Math.max(a, b) };
+}
+
 /** Søk, periode, kunde og prosjekt. Status filtreres for seg, så tellingen per status kan vises. */
 export function filterInvoiceReport(rows, { query = '', period = 'all', customer = '', project = '' } = {}, now = new Date()) {
-  const needle = fold(query);
+  const range = invoiceNumberRange(query);
+  const needle = range ? '' : fold(query);
   return filterInvoicesByPeriod(rows, period, now).filter((row) => {
     if (customer && invoiceCustomerKey(row) !== customer) return false;
     if (project && invoiceProjectKey(row) !== project) return false;
+    if (range) {
+      const number = Number(text(row.invoiceNumber));
+      return Number.isFinite(number) && text(row.invoiceNumber) !== '' && number >= range.from && number <= range.to;
+    }
     if (!needle) return true;
     return invoiceSearchHay(row).includes(needle);
   });
@@ -201,7 +243,7 @@ export function invoiceStatusChoices(rows, today) {
     const status = invoiceReportStatus(row, today);
     counts.set(status, (counts.get(status) || 0) + 1);
   }
-  const known = INVOICE_STATUSES
+  const known = INVOICE_REPORT_STATUSES
     .filter((status) => counts.get(status.id))
     .map((status) => ({ id: status.id, label: status.label, count: counts.get(status.id) }));
   return [{ id: '', label: 'Alle', count: (rows || []).length }, ...known];

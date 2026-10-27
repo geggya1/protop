@@ -2,7 +2,7 @@
  * Dialogene på fakturasiden: slett utkast, ferdigstill og send, krediter, betaling og tap.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateField from '../../../components/DateField';
 import { dateKey } from '../../../src/utils/dates';
@@ -227,6 +227,7 @@ export function SendDialog({
   const blocking = checks?.blocking || [];
   const warnings = checks?.warnings || [];
   const chosen = recipients.filter((row) => row.on).map((row) => row.email);
+  const narrow = useWindowDimensions().width < 520;
   const needsMail = send && (channel === 'email' || (channel === 'ehf' && alsoEmail));
   const canGo = !blocking.length
     && (!send || channel === 'manual' || (channel === 'email' && chosen.length) || (channel === 'ehf' && ehfReady && (!alsoEmail || chosen.length)));
@@ -236,8 +237,8 @@ export function SendDialog({
   if (powerOffice) action = 'Overfør til PowerOffice';
 
   const channelTabs = [
-    { id: 'ehf', label: 'Send som EHF' },
-    { id: 'email', label: 'Send som e-post' },
+    { id: 'ehf', label: narrow ? 'EHF' : 'Send som EHF' },
+    { id: 'email', label: narrow ? 'E-post' : 'Send som e-post' },
     { id: 'manual', label: 'Send selv' },
   ];
 

@@ -724,6 +724,20 @@ export function settleCreditNote(creditNote, original, { actor = null, at = '' }
   }));
 }
 
+/**
+ * Første dag purring sendes, etter innstillingene. Med purregebyr er det tidligst 14 dager
+ * etter forfall (inkassoforskriften § 1-1), og gebyret har et tak (REMINDER_FEE_MAX).
+ */
+export function reminderFrom(invoice, settings = {}) {
+  const due = parseDate(invoice?.dueDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(due)) return '';
+  const fee = Number(settings.reminderFee) || 0;
+  const days = Math.max(Number(settings.reminderDays) || 0, fee > 0 ? 14 : 0);
+  const from = addDays(due, days);
+  const postponed = parseDate(invoice?.reminderPostponedTo);
+  return postponed && postponed > from ? postponed : from;
+}
+
 /** Status som vises: utkast, godkjent, ferdigstilt, sendt, delbetalt, betalt, forfalt, kreditert, tap. */
 export function displayStatus(invoice, today = '') {
   const row = invoice || {};

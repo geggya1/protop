@@ -52,6 +52,8 @@ import {
 } from '../src/utils/chatDockLayout';
 import AssistantChat from './assistant/AssistantChat';
 import { assistantThread, isAssistantThread } from '../src/help/assistantBridge';
+import { useCompanyChatContacts } from '../src/hooks/useCompanyChatContacts';
+import { STAFF_CHAT_ID, STAFF_CHAT_TITLE, companyChatLabel } from '../src/utils/companyChat';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -478,9 +480,15 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
   const { unreadByChat } = useUnread();
   const [query, setQuery] = useState('');
   const showAiChat = !isChild || isChildAiAllowed(meChild);
+  // I en bedrift: «Alle ansatte» (faste ansatte) og ansattlisten i stedet for familien.
+  const companyChat = useCompanyChatContacts();
+  const isCompany = !!companyChat;
+  const companyName = family?.company?.navn || family?.name || '';
+  const staffChatIds = companyChat?.staffChatIds || [];
+  const showStaffChat = !!(companyChat?.ready && companyChat.inStaffChat && staffChatIds.length);
   const others = useMemo(
-    () => (members || []).filter((m) => m.uid && m.uid !== uid),
-    [members, uid],
+    () => (isCompany ? [] : (members || []).filter((m) => m.uid && m.uid !== uid)),
+    [isCompany, members, uid],
   );
   const friends = useMemo(
     () => (friendPeople || []).filter((p) => p.uid && p.uid !== uid),
@@ -494,7 +502,8 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
     [members, family?.members],
   );
 
-  const contactCount = 1 + others.length + friends.length; // family row + people
+  const companyPeopleCount = companyChat ? companyChat.staff.length + companyChat.external.length : 0;
+  const contactCount = 1 + others.length + companyPeopleCount + friends.length; // family row + people
   const showSearch = contactCount > 8;
   const q = query.trim().toLowerCase();
   const filterName = (name) => !q || String(name || '').toLowerCase().includes(q);
@@ -502,12 +511,57 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
     () => others.filter((p) => filterName(p.name)),
     [others, q],
   );
+  const companyGroups = useMemo(() => (companyChat ? [
+    { key: 'staff', title: t('chat.sectionStaff'), people: companyChat.staff },
+    { key: 'external', title: t('chat.sectionExternal'), people: companyChat.external },
+  ] : []).map((group) => ({
+    ...group,
+    people: group.people.filter((p) => filterName(p.name) || filterName(p.title)),
+  })), [companyChat, q, t]);
   const filteredFriends = useMemo(
     () => friends.filter((p) => filterName(p.name) || filterName(p.username)),
     [friends, q],
   );
   const familyName = family?.name || 'Familien';
-  const showFamilyRow = !q || filterName(familyName);
+  const showFamilyRow = !isCompany && (!q || filterName(familyName));
+  const showStaffRow = showStaffChat && (filterName(t('chat.allStaff')) || filterName(companyName));
+  // Den gamle familietråden i bedriften vises bare hvis den har meldinger.
+  const showLegacyRow = !!(isCompany && companyChat.threads.family?.at)
+    && filterName(t('chat.legacyCompanyChat'));
+  const companyHits = companyGroups.reduce((n, group) => n + group.people.length, 0);
+
+  const openDm = async (p) => {
+    const id = ['dm', ...[uid, p.uid].sort()].join('_');
+    await ensureChatDoc(familyId, id, {
+      type: 'dm',
+      title: p.name,
+      memberIds: [uid, p.uid],
+    });
+    onPick({
+      familyId,
+      chatId: id,
+      title: p.name,
+      memberIds: [uid, p.uid],
+      photoURL: p.photoURL || p.photoUrl,
+      avatarId: p.avatarId,
+    });
+  };
+
+  const openStaffChat = async () => {
+    try {
+      await ensureChatDoc(familyId, STAFF_CHAT_ID, {
+        type: 'group',
+        title: STAFF_CHAT_TITLE,
+        memberIds: staffChatIds,
+      });
+    } catch { /* tråden åpnes likevel; dokumentet lages ved første melding */ }
+    onPick({
+      familyId,
+      chatId: STAFF_CHAT_ID,
+      title: t('chat.allStaff'),
+      memberIds: staffChatIds,
+    });
+  };
 
   const openAi = () => {
     onClose?.();
@@ -555,7 +609,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
         </TouchableOpacity>
       </View>
       {drawer ? (
-        <Text style={styles.composeHint}>Velg familie eller kontakt</Text>
+        <Text style={styles.composeHint}>{isCompany ? 'Velg kollega eller kontakt' : 'Velg familie eller kontakt'}</Text>
       ) : null}
       {showSearch ? (
         <View style={styles.composeSearchWrap}>
@@ -640,26 +694,116 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
           </TouchableOpacity>
         ) : null}
 
+        {showStaffRow ? (
+          <>
+            <Text style={styles.composeSection} numberOfLines={1}>{companyName || t('chat.allStaff')}</Text>
+            <TouchableOpacity
+              style={styles.composeRow}
+              onPress={openStaffChat}
+              accessibilityRole="button"
+              accessibilityLabel={t('chat.allStaff')}
+              testID="chat-open-all-staff"
+            >
+              <View style={[styles.groupAv, { backgroundColor: colors.brandSoft }]}>
+                <Ionicons name="business" size={18} color={colors.brand} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.composeName}>{t('chat.allStaff')}</Text>
+                <Text style={styles.composeSub} numberOfLines={1}>{t('chat.allStaffPreview')}</Text>
+              </View>
+              {Number(unreadByChat?.[STAFF_CHAT_ID]) > 0 ? (
+                <View style={styles.composeUnread}>
+                  <Text style={styles.composeUnreadTxt}>
+                    {Number(unreadByChat[STAFF_CHAT_ID]) > 9 ? '9+' : String(unreadByChat[STAFF_CHAT_ID])}
+                  </Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          </>
+        ) : null}
+
+        {companyGroups.map((group) => {
+          const showEmpty = group.key === 'staff' && !q && group.people.length === 0;
+          if (!group.people.length && !showEmpty) return null;
+          return (
+            <React.Fragment key={group.key}>
+              <Text style={[styles.composeSection, styles.composeSectionGap]}>{group.title}</Text>
+              {showEmpty ? (
+                <Text style={styles.composeEmpty}>
+                  {companyChat.loaded ? t('chat.staffEmpty') : t('common.loading')}
+                </Text>
+              ) : null}
+              {group.people.map((p) => {
+                const unread = Number(unreadByChat?.[['dm', ...[uid, p.uid].sort()].join('_')]) || 0;
+                return (
+                  <TouchableOpacity
+                    key={p.uid}
+                    style={styles.composeRow}
+                    onPress={() => openDm(p)}
+                    accessibilityRole="button"
+                  >
+                    <AvatarBubble
+                      photoURL={p.photoURL}
+                      avatarId={p.avatarId}
+                      name={p.name}
+                      size={36}
+                    />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.composeName}>{p.name}</Text>
+                      <Text style={styles.composeSub} numberOfLines={1}>{companyChatLabel(p, t)}</Text>
+                    </View>
+                    {unread > 0 ? (
+                      <View style={styles.composeUnread}>
+                        <Text style={styles.composeUnreadTxt}>{unread > 9 ? '9+' : String(unread)}</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+              {group.key === 'staff' && !q && companyChat.loaded && companyChat.withoutLogin > 0 ? (
+                <Text style={styles.composeEmpty}>
+                  {companyChat.withoutLogin === 1
+                    ? t('chat.staffWithoutLoginOne')
+                    : t('chat.staffWithoutLogin', { n: companyChat.withoutLogin })}
+                </Text>
+              ) : null}
+            </React.Fragment>
+          );
+        })}
+
+        {showLegacyRow ? (
+          <TouchableOpacity
+            style={styles.composeRow}
+            onPress={() => onPick({
+              familyId,
+              chatId: 'family',
+              title: t('chat.legacyCompanyChat'),
+              memberIds: memberIdList,
+            })}
+            accessibilityRole="button"
+          >
+            <View style={[styles.groupAv, { backgroundColor: colors.brandSoft }]}>
+              <Ionicons name="people" size={18} color={colors.brand} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.composeName}>{t('chat.legacyCompanyChat')}</Text>
+              <Text style={styles.composeSub} numberOfLines={1}>{companyChat.threads.family.preview}</Text>
+            </View>
+            {Number(unreadByChat?.family) > 0 ? (
+              <View style={styles.composeUnread}>
+                <Text style={styles.composeUnreadTxt}>
+                  {Number(unreadByChat.family) > 9 ? '9+' : String(unreadByChat.family)}
+                </Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
+
         {filteredOthers.map((p) => (
           <TouchableOpacity
             key={p.uid}
             style={styles.composeRow}
-            onPress={async () => {
-              const id = ['dm', ...[uid, p.uid].sort()].join('_');
-              await ensureChatDoc(familyId, id, {
-                type: 'dm',
-                title: p.name,
-                memberIds: [uid, p.uid],
-              });
-              onPick({
-                familyId,
-                chatId: id,
-                title: p.name,
-                memberIds: [uid, p.uid],
-                photoURL: p.photoURL || p.photoUrl,
-                avatarId: p.avatarId,
-              });
-            }}
+            onPress={() => openDm(p)}
           >
             <AvatarBubble
               photoURL={p.photoURL || p.photoUrl}
@@ -710,7 +854,8 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
           );
         })}
 
-        {q && !showFamilyRow && filteredOthers.length === 0 && filteredFriends.length === 0 ? (
+        {q && !showFamilyRow && !showStaffRow && !showLegacyRow && companyHits === 0
+          && filteredOthers.length === 0 && filteredFriends.length === 0 ? (
           <Text style={styles.composeEmpty}>Ingen treff</Text>
         ) : null}
       </ScrollView>

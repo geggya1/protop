@@ -13,7 +13,9 @@ import { colors, useLayout } from '../../src/theme';
 import { Screen, Loader } from '../../components/ui';
 import { AvatarBubble } from '../../components/AvatarPicker';
 import { formatThreadTime } from '../../src/utils/aiChats';
-import { ensureChatDoc, memberIdsKey, uniqueMemberIds } from '../../src/utils/chats';
+import {
+  ensureChatDoc, memberIdsKey, timestampToMs, uniqueMemberIds,
+} from '../../src/utils/chats';
 import { ensureFriendChatDoc } from '../../src/utils/friendChats';
 import { friendChatId } from '../../src/utils/friendsLogic';
 import { desktopOverlay, desktopSheet } from '../../src/desktop';
@@ -24,8 +26,14 @@ import { useHelpScene } from '../../src/hooks/useHelpScene';
 import { ModulePageFrame, ModuleHubIntro } from '../../components/ModulePageBg';
 import { isChildAiAllowed } from '../../src/utils/childApps';
 import { ASSISTANT_ROUTE, assistantThread } from '../../src/help/assistantBridge';
+import { useCompanyChatContacts } from '../../src/hooks/useCompanyChatContacts';
+import { STAFF_CHAT_ID, STAFF_CHAT_TITLE, companyChatLabel } from '../../src/utils/companyChat';
 
 const AVATAR = 40;
+
+function dmChatId(a, b) {
+  return ['dm', ...[a, b].sort()].join('_');
+}
 
 function ThreadRow({
   avatar, name, preview, timeLabel, unreadCount = 0, onPress,
@@ -70,6 +78,15 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
   const [familyUpdatedAt, setFamilyUpdatedAt] = useState(null);
   const [dmMeta, setDmMeta] = useState({});
   const showAiChat = !isChild || isChildAiAllowed(meChild);
+  // I en bedrift: fellestråd for faste ansatte og ansattlisten i stedet for familien.
+  const companyChat = useCompanyChatContacts();
+  const isCompany = !!companyChat;
+  const companyName = family?.company?.navn || family?.name || '';
+  const staffChatKey = companyChat ? companyChat.staffChatIds.join('|') : '';
+  const showStaffChat = !!(companyChat?.ready && companyChat.inStaffChat && staffChatKey);
+  const chatDocs = companyChat?.threads || {};
+  // Den gamle familietråden i bedriften vises bare hvis den har meldinger, så de ikke blir borte.
+  const showLegacyChat = !!(isCompany && chatDocs.family?.at);
 
   const memberKey = useMemo(() => memberIdsKey(members), [members]);
   const familyMembersKey = useMemo(
@@ -88,17 +105,26 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
   }, [shellIntent, clearShellIntent]);
 
   useEffect(() => {
-    if (!familyId || memberIdList.length === 0) return undefined;
+    if (!familyId || isCompany || memberIdList.length === 0) return undefined;
     ensureChatDoc(familyId, 'family', {
       type: 'family',
       title: family?.name || 'Familien',
       memberIds: memberIdList,
     }).catch(() => {});
     return undefined;
-  }, [familyId, family?.name, memberKey, familyMembersKey, memberIdList]);
+  }, [familyId, isCompany, family?.name, memberKey, familyMembersKey, memberIdList]);
 
   useEffect(() => {
-    if (!familyId) return undefined;
+    if (!familyId || !showStaffChat) return;
+    ensureChatDoc(familyId, STAFF_CHAT_ID, {
+      type: 'group',
+      title: STAFF_CHAT_TITLE,
+      memberIds: staffChatKey.split('|'),
+    }).catch(() => {});
+  }, [familyId, showStaffChat, staffChatKey]);
+
+  useEffect(() => {
+    if (!familyId || isCompany) return undefined;
     const qy = query(
       collection(db, 'families', familyId, 'chats', 'family', 'messages'),
       orderBy('createdAt', 'desc'),
@@ -111,11 +137,11 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
       setFamilyPreview(data.text || (data.type === 'image' ? t('chat.imageSent') : t('chat.allTogether')));
       setFamilyUpdatedAt(data.createdAt || null);
     }, () => {});
-  }, [familyId, t]);
+  }, [familyId, isCompany, t]);
 
   const others = useMemo(
-    () => members.filter((m) => m.uid && m.uid !== uid),
-    [members, uid],
+    () => (isCompany ? [] : members.filter((m) => m.uid && m.uid !== uid)),
+    [isCompany, members, uid],
   );
   const othersKey = useMemo(
     () => others.map((p) => p.uid).filter(Boolean).sort().join('|'),
@@ -126,7 +152,7 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
     if (!familyId || !othersKey) return undefined;
     const people = othersKey.split('|').filter(Boolean);
     const unsubs = people.map((personUid) => {
-      const id = ['dm', ...[uid, personUid].sort()].join('_');
+      const id = dmChatId(uid, personUid);
       const qy = query(
         collection(db, 'families', familyId, 'chats', id, 'messages'),
         orderBy('createdAt', 'desc'),
@@ -174,7 +200,7 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
       nav.navigate('FriendChatThread', thread);
       return;
     }
-    const id = ['dm', ...[uid, person.uid].sort()].join('_');
+    const id = dmChatId(uid, person.uid);
     await ensureChatDoc(familyId, id, {
       type: 'dm',
       title: person.name,
@@ -199,8 +225,24 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
     const thread = {
       familyId,
       chatId: 'family',
-      title: family?.name || 'Familien',
+      title: isCompany ? t('chat.legacyCompanyChat') : (family?.name || 'Familien'),
       memberIds: memberIdList,
+    };
+    if (dockPreferred) {
+      openThread(thread);
+      return;
+    }
+    nav.navigate('ChatThread', thread);
+  };
+
+  const openStaffChat = () => {
+    if (!showStaffChat) return;
+    setPickerOpen(false);
+    const thread = {
+      familyId,
+      chatId: STAFF_CHAT_ID,
+      title: t('chat.allStaff'),
+      memberIds: staffChatKey.split('|'),
     };
     if (dockPreferred) {
       openThread(thread);
@@ -226,7 +268,14 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
   if (!familyId) return <Screen><Loader /></Screen>;
 
   const friends = friendPeople || [];
-  const pickerContactCount = 1 + others.length + friends.length;
+  // Bedriften: siste samtaler først, ellers alfabetisk.
+  const dmAt = (p) => timestampToMs(chatDocs[dmChatId(uid, p.uid)]?.at);
+  const companyGroups = companyChat ? [
+    { key: 'staff', title: t('chat.sectionStaff'), people: [...companyChat.staff].sort((a, b) => dmAt(b) - dmAt(a)) },
+    { key: 'external', title: t('chat.sectionExternal'), people: [...companyChat.external].sort((a, b) => dmAt(b) - dmAt(a)) },
+  ] : [];
+  const companyPeopleCount = companyGroups.reduce((n, group) => n + group.people.length, 0);
+  const pickerContactCount = 1 + others.length + companyPeopleCount + friends.length;
   const showPickerSearch = pickerContactCount > 8;
   const pq = pickerQuery.trim().toLowerCase();
   const filterPickerName = (name) => !pq || String(name || '').toLowerCase().includes(pq);
@@ -234,6 +283,14 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
   const filteredPickerFriends = friends.filter(
     (p) => filterPickerName(p.name) || filterPickerName(p.username),
   );
+  const filteredPickerGroups = companyGroups.map((group) => ({
+    ...group,
+    people: group.people.filter((p) => filterPickerName(p.name) || filterPickerName(p.title)),
+  }));
+  const withoutLogin = companyChat?.loaded ? companyChat.withoutLogin : 0;
+  const withoutLoginText = withoutLogin === 1
+    ? t('chat.staffWithoutLoginOne')
+    : t('chat.staffWithoutLogin', { n: withoutLogin });
 
   return (
     <Screen>
@@ -245,7 +302,7 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
             {!compactHeader && (
               <View style={{ flex: 1 }}>
                 <Text style={styles.pageTitle}>{t('tabs.chat')}</Text>
-                <Text style={styles.pageSub}>{t('chat.subtitleShort')}</Text>
+                <Text style={styles.pageSub}>{isCompany ? t('chat.subtitleCompany') : t('chat.subtitleShort')}</Text>
               </View>
             )}
             </ModuleHubIntro>
@@ -295,47 +352,124 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
             </>
           ) : null}
 
-          <Text style={[styles.section, showAiChat && styles.sectionGap, isDesktop && styles.sectionDesk]}>{t('chat.familyChat')}</Text>
-          <HelpTarget id="content" onAdvance={openFamily}>
-            <ThreadRow
-              name={family?.name || 'Familien'}
-              preview={familyPreview}
-              timeLabel={formatThreadTime(familyUpdatedAt)}
-              unreadCount={unreadByChat.family || 0}
-              onPress={openFamily}
-              avatar={(
-                <View style={styles.groupAv}>
-                  <Text style={styles.groupEmoji}>👨‍👩‍👧‍👦</Text>
-                </View>
-              )}
-            />
-          </HelpTarget>
+          {isCompany ? (
+            <>
+              {showStaffChat ? (
+                <>
+                  <Text style={[styles.section, showAiChat && styles.sectionGap, isDesktop && styles.sectionDesk]} numberOfLines={1}>
+                    {companyName || t('chat.allStaff')}
+                  </Text>
+                  <HelpTarget id="content" onAdvance={openStaffChat}>
+                    <ThreadRow
+                      name={t('chat.allStaff')}
+                      preview={chatDocs[STAFF_CHAT_ID]?.preview || t('chat.allStaffPreview')}
+                      timeLabel={formatThreadTime(chatDocs[STAFF_CHAT_ID]?.at)}
+                      unreadCount={unreadByChat[STAFF_CHAT_ID] || 0}
+                      onPress={openStaffChat}
+                      avatar={(
+                        <View style={styles.groupAv} testID="chat-list-all-staff">
+                          <Ionicons name="business" size={18} color={colors.brand} />
+                        </View>
+                      )}
+                    />
+                  </HelpTarget>
+                </>
+              ) : null}
+              {companyGroups.map((group) => (group.key === 'staff' || group.people.length > 0 ? (
+                <React.Fragment key={group.key}>
+                  <Text style={[styles.section, styles.sectionGap, isDesktop && styles.sectionDesk]}>{group.title}</Text>
+                  {group.key === 'staff' && !companyChat.loaded ? (
+                    <Text style={styles.empty}>{t('common.loading')}</Text>
+                  ) : null}
+                  {group.key === 'staff' && companyChat.loaded && group.people.length === 0 ? (
+                    <Text style={styles.empty}>{t('chat.staffEmpty')}</Text>
+                  ) : null}
+                  {group.people.map((p) => {
+                    const id = dmChatId(uid, p.uid);
+                    return (
+                      <ThreadRow
+                        key={p.uid}
+                        name={p.name}
+                        preview={chatDocs[id]?.preview || companyChatLabel(p, t)}
+                        timeLabel={formatThreadTime(chatDocs[id]?.at)}
+                        unreadCount={unreadByChat[id] || 0}
+                        onPress={() => openDm(p)}
+                        avatar={(
+                          <AvatarBubble
+                            avatarId={p.avatarId}
+                            photoURL={p.photoURL}
+                            name={p.name}
+                            size={AVATAR}
+                          />
+                        )}
+                      />
+                    );
+                  })}
+                  {group.key === 'staff' && withoutLogin > 0 ? (
+                    <Text style={styles.hint}>{withoutLoginText}</Text>
+                  ) : null}
+                </React.Fragment>
+              ) : null))}
+              {showLegacyChat ? (
+                <ThreadRow
+                  name={t('chat.legacyCompanyChat')}
+                  preview={chatDocs.family.preview || t('chat.allTogether')}
+                  timeLabel={formatThreadTime(chatDocs.family.at)}
+                  unreadCount={unreadByChat.family || 0}
+                  onPress={openFamily}
+                  avatar={(
+                    <View style={styles.groupAv}>
+                      <Ionicons name="people" size={18} color={colors.brand} />
+                    </View>
+                  )}
+                />
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={[styles.section, showAiChat && styles.sectionGap, isDesktop && styles.sectionDesk]}>{t('chat.familyChat')}</Text>
+              <HelpTarget id="content" onAdvance={openFamily}>
+                <ThreadRow
+                  name={family?.name || 'Familien'}
+                  preview={familyPreview}
+                  timeLabel={formatThreadTime(familyUpdatedAt)}
+                  unreadCount={unreadByChat.family || 0}
+                  onPress={openFamily}
+                  avatar={(
+                    <View style={styles.groupAv}>
+                      <Text style={styles.groupEmoji}>👨‍👩‍👧‍👦</Text>
+                    </View>
+                  )}
+                />
+              </HelpTarget>
 
-          <Text style={[styles.section, styles.sectionGap, isDesktop && styles.sectionDesk]}>{t('chat.directMessages')}</Text>
-          {others.length === 0 ? (
-            <Text style={styles.empty}>{isChild ? t('chat.emptyChild') : t('chat.emptyParent')}</Text>
-          ) : others.map((p) => {
-            const meta = dmMeta[p.uid] || {};
-            const dmId = ['dm', ...[uid, p.uid].sort()].join('_');
-            return (
-              <ThreadRow
-                key={p.uid}
-                name={p.name}
-                preview={meta.preview || (p.role === 'child' ? t('chat.child') : t('chat.parent'))}
-                timeLabel={formatThreadTime(meta.at)}
-                unreadCount={unreadByChat[dmId] || 0}
-                onPress={() => openDm(p)}
-                avatar={(
-                  <AvatarBubble
-                    avatarId={p.avatarId}
-                    photoURL={p.photoURL}
+              <Text style={[styles.section, styles.sectionGap, isDesktop && styles.sectionDesk]}>{t('chat.directMessages')}</Text>
+              {others.length === 0 ? (
+                <Text style={styles.empty}>{isChild ? t('chat.emptyChild') : t('chat.emptyParent')}</Text>
+              ) : others.map((p) => {
+                const meta = dmMeta[p.uid] || {};
+                const dmId = ['dm', ...[uid, p.uid].sort()].join('_');
+                return (
+                  <ThreadRow
+                    key={p.uid}
                     name={p.name}
-                    size={AVATAR}
+                    preview={meta.preview || (p.role === 'child' ? t('chat.child') : t('chat.parent'))}
+                    timeLabel={formatThreadTime(meta.at)}
+                    unreadCount={unreadByChat[dmId] || 0}
+                    onPress={() => openDm(p)}
+                    avatar={(
+                      <AvatarBubble
+                        avatarId={p.avatarId}
+                        photoURL={p.photoURL}
+                        name={p.name}
+                        size={AVATAR}
+                      />
+                    )}
                   />
-                )}
-              />
-            );
-          })}
+                );
+              })}
+            </>
+          )}
 
           {(friendPeople || []).length > 0 ? (
             <>
@@ -415,8 +549,33 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
                 ) : null}
               </View>
             ) : null}
-            <Text style={styles.sheetSection}>{t('friend.sectionFamily')}</Text>
+            {isCompany ? null : <Text style={styles.sheetSection}>{t('friend.sectionFamily')}</Text>}
             <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={false}>
+              {showStaffChat && (filterPickerName(t('chat.allStaff')) || filterPickerName(companyName)) ? (
+                <TouchableOpacity style={styles.pickRow} onPress={openStaffChat}>
+                  <View style={styles.groupAv}>
+                    <Ionicons name="business" size={18} color={colors.brand} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.pickName}>{t('chat.allStaff')}</Text>
+                    <Text style={styles.pickSub} numberOfLines={1}>{companyName || t('chat.allStaffPreview')}</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+              {filteredPickerGroups.map((group) => (group.people.length > 0 ? (
+                <React.Fragment key={group.key}>
+                  <Text style={styles.sheetSection}>{group.title}</Text>
+                  {group.people.map((p) => (
+                    <TouchableOpacity key={p.uid} style={styles.pickRow} onPress={() => openDm(p)}>
+                      <AvatarBubble avatarId={p.avatarId} photoURL={p.photoURL} name={p.name} size={36} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.pickName}>{p.name}</Text>
+                        <Text style={styles.pickSub} numberOfLines={1}>{companyChatLabel(p, t)}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </React.Fragment>
+              ) : null))}
               {filteredPickerOthers.map((p) => (
                 <TouchableOpacity key={p.uid} style={styles.pickRow} onPress={() => openDm(p)}>
                   <AvatarBubble avatarId={p.avatarId} photoURL={p.photoURL} name={p.name} size={36} />
@@ -441,9 +600,10 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
                 </>
               ) : null}
             </ScrollView>
-            {others.length === 0 && friends.length === 0 ? (
-              <Text style={styles.empty}>{t('chat.noRecipients')}</Text>
+            {others.length === 0 && companyPeopleCount === 0 && friends.length === 0 ? (
+              <Text style={styles.empty}>{isCompany ? t('chat.staffEmpty') : t('chat.noRecipients')}</Text>
             ) : null}
+            {isCompany && withoutLogin > 0 ? <Text style={styles.hint}>{withoutLoginText}</Text> : null}
             <TouchableOpacity
               style={styles.cancelBtn}
               onPress={() => { setPickerOpen(false); setPickerQuery(''); }}
@@ -533,6 +693,7 @@ const styles = StyleSheet.create({
   },
   groupEmoji: { fontSize: 16 },
   empty: { padding: 14, color: colors.muted, fontWeight: '400', fontSize: 13 },
+  hint: { paddingHorizontal: 4, paddingVertical: 8, color: colors.muted, fontWeight: '400', fontSize: 12 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: colors.card, borderTopLeftRadius: 18, borderTopRightRadius: 18,

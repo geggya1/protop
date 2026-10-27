@@ -18,5 +18,6 @@ assert.ok(FILES.includes('src/anbud/hitStore.test.mjs'), 'anbudstreffene blir li
 assert.ok(FILES.includes('src/employees/employeeReadAccess.test.mjs'), 'Lese på ansatte ser bare hovedsiden på andre');
 assert.ok(FILES.includes('src/project/projectAccess.test.mjs'), 'prosjektsiden følger tilgangsstyringen');
 assert.ok(FILES.includes('src/access/accessRules.test.mjs'), 'prosjekt og kjøretøy følger tilgangsstyringen overalt');
+assert.ok(FILES.includes('src/utils/companyChat.test.mjs'), 'chatten i bedriften skiller faste ansatte og eksterne');
 
 console.log('run-verify-web.test.mjs: ok');

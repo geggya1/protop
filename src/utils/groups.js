@@ -1,6 +1,6 @@
 import {
   collection, doc, writeBatch, serverTimestamp, updateDoc, arrayUnion, arrayRemove,
-  getDoc, setDoc, deleteDoc, getDocs, query, where, limit, onSnapshot, orderBy,
+  getDoc, setDoc, deleteDoc, getDocs, query, where, limit, onSnapshot, orderBy, deleteField,
 } from 'firebase/firestore';
 import {
   connectAuthEmulator, createUserWithEmailAndPassword, getAuth, signOut as signOutAuth,
@@ -522,6 +522,25 @@ export async function resendAdultInvite({ familyId, parentId, familyName, groupT
   const acceptUrl = isExisting
     ? familyInviteAcceptUrl({ familyId, inviteId: data.inviteId })
     : null;
+
+  // Ny runde for en ny bruker: plassholderen kan være ryddet etter et tidligere svar
+  // (slettet, arkivert, flyttet til en konto), og e-posten tatt av invitasjonslisten.
+  // Uten dette finner ikke serveren invitasjonen når personen logger inn.
+  if (!isExisting) {
+    await updateDoc(ref, {
+      deleted: false,
+      archived: false,
+      migratedToUid: deleteField(),
+      inviteId: deleteField(),
+      inviteeUid: deleteField(),
+    });
+    if (email) {
+      await updateDoc(doc(db, 'families', familyId), {
+        invitedEmails: arrayUnion(email),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
 
   // Re-write invitee inbox + in-app notification so they see the invite even if
   // the original familyInvites write was missing or notifications were dismissed.

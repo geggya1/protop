@@ -12,7 +12,7 @@ import { after, before, beforeEach, describe, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import {
-  arrayUnion, collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  arrayUnion, collection, deleteField, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 const A = 'companyA';
@@ -148,6 +148,22 @@ describe('invitasjon til ny bruker', () => {
       inviteStatus: 'pending', clientSendsInvite: true, active: false, placeholder: true, admin: false,
     }, { merge: true }));
     await assertSucceeds(updateDoc(doc(db, 'families', A), { invitedEmails: arrayUnion('nina@firma.no') }));
+  });
+
+  test('send på nytt: administrator kan gjenopplive en ryddet plassholder og merke e-posten igjen', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'families', A, 'parents', 'ninafirmano'), {
+        uid: 'ninafirmano', email: 'nina@firma.no', familyId: A, createdBy: 'own', inviteStatus: 'accepted',
+        placeholder: true, deleted: true, archived: true, migratedToUid: 'gammel', inviteId: 'inv_gammel', inviteeUid: 'gammel',
+      });
+    });
+    const db = as('own');
+    // Det resendAdultInvite skriver før e-posten sendes.
+    await assertSucceeds(updateDoc(doc(db, 'families', A, 'parents', 'ninafirmano'), {
+      deleted: false, archived: false, migratedToUid: deleteField(), inviteId: deleteField(), inviteeUid: deleteField(),
+    }));
+    await assertSucceeds(updateDoc(doc(db, 'families', A), { invitedEmails: arrayUnion('nina@firma.no'), updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(doc(as('ext'), 'families', A, 'parents', 'ninafirmano'), { deleted: false }));
   });
 
   test('administrator kan lagre medarbeideren med invitasjonsstatus', async () => {

@@ -392,6 +392,24 @@ export function claimEmployeeSeatPlan({
 }
 
 /**
+ * Medarbeideren med sendt invitasjon til e-posten, som ingen annen bruker har tatt.
+ * Gjelder når plassholderen fra en tidligere runde er ryddet bort, men invitasjonen
+ * er sendt på nytt fra Ansatte.
+ */
+export function sentInviteEmployee({ employees, uid, authEmail } = {}) {
+  const email = text(authEmail).toLowerCase();
+  const actor = text(uid);
+  if (!email) return null;
+  return (employees || []).find((row) => {
+    if (!employeeMatchEmails(row).includes(email)) return false;
+    if (normalizeInviteState(row.invite).status !== 'sent') return false;
+    const linked = text(row.personUid);
+    if (linked && linked !== actor) return false;
+    return employmentOpen(row);
+  }) || null;
+}
+
+/**
  * Personen avslo bedriftsinvitasjonen. Sendte invitasjoner med samme e-post
  * markeres som avslått, så administrator ser svaret og kan invitere på nytt.
  */

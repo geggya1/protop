@@ -12,6 +12,7 @@ import {
   invitesAwaitingSend,
   matchEmployeeByEmail,
   queueEmployeeInvite,
+  sentInviteEmployee,
   unqueueEmployeeInvite,
 } from './invite.js';
 
@@ -272,4 +273,23 @@ test('importert ansatt uten invitasjon vises som «Ikke invitert» og kan invite
   assert.equal(queued.employee.invite.email, 'ida@firma.no');
   assert.equal(queued.employee.company.accessLevel, 'ansatt');
   assert.equal(employeeInviteState(queued.employee).key, 'queued');
+});
+
+test('sendt invitasjon på medarbeideren gjelder når plassholderen er ryddet bort', () => {
+  const row = (id, status, extra = {}) => ({
+    id,
+    person: { firstName: 'Geir', lastName: 'Test', email: 'goa@firma.no' },
+    company: { status: 'active' },
+    invite: { status, email: 'goa@firma.no' },
+    ...extra,
+  });
+  const args = (employees) => ({ employees, uid: 'ny', authEmail: 'GOA@firma.no' });
+  assert.equal(sentInviteEmployee(args([row('a', 'sent')]))?.id, 'a');
+  assert.equal(sentInviteEmployee(args([row('a', 'sent', { personUid: 'ny' })]))?.id, 'a', 'samme konto kan svare');
+  assert.equal(sentInviteEmployee(args([row('a', 'queued')])), null, 'ikke sendt ennå');
+  assert.equal(sentInviteEmployee(args([row('a', 'declined')])), null);
+  assert.equal(sentInviteEmployee(args([row('a', 'accepted')])), null);
+  assert.equal(sentInviteEmployee(args([row('a', 'sent', { personUid: 'annen' })])), null, 'tatt av en annen konto');
+  assert.equal(sentInviteEmployee(args([row('a', 'sent', { company: { status: 'former' } })])), null, 'sluttet');
+  assert.equal(sentInviteEmployee({ employees: [row('a', 'sent')], uid: 'ny', authEmail: '' }), null);
 });

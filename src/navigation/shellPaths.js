@@ -56,6 +56,37 @@ export function isShellPath(path) {
   return !!parseShellPath(path);
 }
 
+/** Spørringer som hører til én side. De følger ikke med til andre sider, ellers åpner en oppdatering den siden igjen. */
+const PAGE_QUERY = [
+  { tab: 'okonomi', subView: 'indeks', keys: ['indeksAvtale', 'indeksSak', 'indeksVis'] },
+];
+
+/** Spørringen som skal stå i adressen for fanen og undersiden. Andre siders spørringer fjernes. */
+export function shellSearchFor(tab, subView, search = '') {
+  const raw = clean(search).replace(/^\?/, '');
+  if (!raw) return '';
+  const params = new URLSearchParams(raw);
+  let removed = false;
+  for (const page of PAGE_QUERY) {
+    if (page.tab === tab && page.subView === (subView || null)) continue;
+    for (const key of page.keys) {
+      if (!params.has(key)) continue;
+      params.delete(key);
+      removed = true;
+    }
+  }
+  if (!removed) return `?${raw}`;
+  const rest = params.toString();
+  return rest ? `?${rest}` : '';
+}
+
+/** Bedrift lander på selskapssiden når adressen bare er / eller /hjem. Personlig Hjem nås fra menyen. */
+export function companyLandingTab(path, { company = false, allowed = true } = {}) {
+  if (!company || !allowed) return null;
+  const root = !clean(path).split(/[?#]/)[0].replace(/\/+$/, '');
+  return root || parseShellPath(path)?.tab === 'home' ? 'selskap' : null;
+}
+
 /* Siste skallsti og nøkkelen til Hjem-ruten. Brukes av linking når Hjem får fokus igjen. */
 let currentShellPath = SHELL_ROOT;
 let homeRouteKey = '';

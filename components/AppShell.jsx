@@ -48,7 +48,7 @@ import { isOrganizationType } from '../src/utils/groupTypes';
 import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
 import ModuleTabs from './ModuleTabs';
-import { isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor } from '../src/navigation/shellPaths';
+import { companyLandingTab, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor, shellSearchFor } from '../src/navigation/shellPaths';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -374,13 +374,22 @@ function AppShellInner() {
     const path = shellPathFor(tab, moreSubView);
     setShellLocation(path);
     const here = window.location.pathname;
-    // Etter tilbake/fram står nettleseren allerede på stien. Ligger en annen skjerm over Hjem, rører vi den ikke.
-    if (here === path || !isShellPath(here)) return;
+    // Ligger en annen skjerm over Hjem, rører vi ikke adressen.
+    if (!isShellPath(here)) return;
+    // En annen sides spørring (indeksavtalen) følger ikke med. Ellers åpner en oppdatering den siden igjen.
+    const search = shellSearchFor(tab, moreSubView, window.location.search);
+    const url = `${path}${search}`;
+    const state = { ...(window.history.state || {}), shell: path };
+    // Etter tilbake/fram står nettleseren allerede på stien. Bare en gammel spørring ryddes bort.
+    if (here === path) {
+      if (search !== (window.location.search || '')) {
+        try { window.history.replaceState(state, '', url); } catch { /* ignore */ }
+      }
+      return;
+    }
     // Omdirigering (/hjem/anbud → /hjem/anbud/varsling) erstatter oppføringen. Ellers ville tilbake havne i en løkke.
     const redirect = inputAtRef.current < urlNavAtRef.current;
     const chained = lastEntryRef.current.tab === tab && Date.now() - lastEntryRef.current.at < 400;
-    const url = `${path}${window.location.search || ''}`;
-    const state = { ...(window.history.state || {}), shell: path };
     try {
       if (redirect || chained) window.history.replaceState(state, '', url);
       else window.history.pushState(state, '', url);
@@ -407,6 +416,24 @@ function AppShellInner() {
       window.removeEventListener('keydown', onInput, true);
     };
   }, []);
+
+  // Web, Bedrift: /hjem lander på selskapssiden. Én gang per oppstart, før brukeren har trykket noe,
+  // og bare når adressen ikke peker på en annen side.
+  const landedRef = useRef(false);
+  useEffect(() => {
+    if (landedRef.current || Platform.OS !== 'web' || typeof window === 'undefined' || !family) return;
+    const company = isOrganizationType(family.type);
+    if (company && companyAccess.active && !companyAccess.ready) return;
+    landedRef.current = true;
+    if (inputAtRef.current || kitchenMode || route?.params?.editHome || tab !== 'home' || moreSubView) return;
+    const open = route?.params?.openShell?.tab;
+    if (open && open !== 'home') return;
+    const next = companyLandingTab(window.location.pathname, {
+      company,
+      allowed: companyAccess.tabAllowed('selskap', null),
+    });
+    if (next) setTab((current) => (current === 'home' ? next : current));
+  }, [family, companyAccess.active, companyAccess.ready]);
 
   // Tilpass hjem → åpne hjem-fanen (editHome leses av theme hosts)
   useEffect(() => {

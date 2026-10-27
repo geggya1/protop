@@ -7,6 +7,7 @@ import { projectNumberKey } from '../project/projectFields.js';
 import { indexLetterWasSent } from '../anbud/indexDeletion.js';
 import { modelById, seriesById, standardById } from './catalog.js';
 import { draftFromRegisteredContract } from '../economy/fromContract.js';
+import { shellPathFor } from '../navigation/shellPaths.js';
 import {
   calculate,
   contractBasis,
@@ -1122,7 +1123,7 @@ export function mergeRegulationList(existing, entry) {
 
 export function workspaceHref(currentHref, contractId, caseId = '', view = '') {
   const url = new URL(currentHref || 'https://protop.no/hjem', 'https://protop.no');
-  url.pathname = '/hjem';
+  url.pathname = shellPathFor('okonomi', 'indeks');
   url.search = '';
   url.hash = '';
   url.searchParams.set('indeksAvtale', contractId);

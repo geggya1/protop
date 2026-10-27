@@ -34,8 +34,8 @@ export const COMPANY_HERO = {
   ansatte: {
     ...BLUE,
     wideArt: true,
-    name: 'Ansatte',
-    kicker: t('Ansatte', 'People'),
+    name: 'Ansatte og eksterne',
+    kicker: t('Ansatte og eksterne', 'Employees and externals'),
     title: t('Folkene i bedriften', 'The people in the company'),
     pitch: t(
       'Register, CV og tilgang for medarbeiderne.',

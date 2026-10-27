@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { accessSectionTitle } from '../../src/access/companyAccess';
+import { useLayout } from '../../src/theme';
 import {
   employeeDisplayName,
   employeePickerEmail,
@@ -59,10 +60,11 @@ function SectionDrawer({
   open,
   colors,
   onToggle,
+  style,
   children,
 }) {
   return (
-    <View nativeID={nativeID} style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.card }]}>
+    <View nativeID={nativeID} style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.card }, style]}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -83,6 +85,7 @@ function SectionDrawer({
 
 /**
  * Komprimert personvalg for timeliste: intern/ekstern, aktive/deaktiverte, navn + e-post.
+ * På bred skjerm står ansatte og eksterne side om side, hver med halv bredde.
  */
 export default function TimesheetEmployeePicker({
   colors,
@@ -101,6 +104,8 @@ export default function TimesheetEmployeePicker({
   const [externalOpen, setExternalOpen] = useState(true);
   const [companyTab, setCompanyTab] = useState('active');
   const [externalTab, setExternalTab] = useState('active');
+  const { isDesktop } = useLayout();
+  const split = !compact && isDesktop;
 
   const groups = useMemo(
     () => groupEmployeesForTimesheetPicker(employees, query),
@@ -200,7 +205,7 @@ export default function TimesheetEmployeePicker({
               : 'Ingen medarbeidere å velge.'}
           </Text>
         ) : (
-          <>
+          <View style={split ? styles.split : styles.stack}>
             <SectionDrawer
               nativeID="timesheet-pick-section-company"
               title={accessSectionTitle('company', companyName)}
@@ -208,6 +213,7 @@ export default function TimesheetEmployeePicker({
               open={companyOpen}
               colors={colors}
               onToggle={() => setCompanyOpen((open) => !open)}
+              style={split && styles.splitCol}
             >
               <ActivityTabs
                 value={companyTab}
@@ -229,6 +235,7 @@ export default function TimesheetEmployeePicker({
               open={externalOpen}
               colors={colors}
               onToggle={() => setExternalOpen((open) => !open)}
+              style={split && styles.splitCol}
             >
               <ActivityTabs
                 value={externalTab}
@@ -243,7 +250,7 @@ export default function TimesheetEmployeePicker({
                 externalTab === 'inactive' ? 'Ingen deaktiverte eksterne.' : 'Ingen aktive eksterne.',
               )}
             </SectionDrawer>
-          </>
+          </View>
         )}
       </ScrollView>
     </View>
@@ -268,6 +275,9 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
   scrollCompact: { maxHeight: 340 },
   scrollInner: { gap: 10, paddingBottom: 12 },
+  stack: { gap: 10 },
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  splitCol: { flex: 1, minWidth: 0 },
   drawer: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
   headText: { flex: 1, gap: 2 },

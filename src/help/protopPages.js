@@ -666,8 +666,8 @@ export const PROTOP_PAGES = {
   /* ───────────────────── Ansatte og arbeidstid ───────────────────── */
   ansatte: page({
     section: 'company-people',
-    label: tx('Ansatte', 'Employees'),
-    path: tx('Bedrift → Ansatte og arbeidstid → Ansatte', 'Company → Employees and working hours → Employees'),
+    label: tx('Ansatte og eksterne', 'Employees and externals'),
+    path: tx('Bedrift → Ansatte og arbeidstid → Ansatte og eksterne', 'Company → Employees and working hours → Employees and externals'),
     nav: { tab: 'ansatte' },
     icon: 'id-card',
     accent: INDIGO,

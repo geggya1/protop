@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker from '../OptionPicker';
 import { ACTIVE_STAFF_LABEL } from '../../src/arbeid/absenceDashboard.js';
 import {
   ABSENCE_REPORT_COLUMNS,
@@ -129,18 +130,14 @@ export default function AbsenceOrganizePanel({
 
       <View style={styles.block}>
         <RowLabel color={colors.muted}>Periode</RowLabel>
-        <View style={styles.wrap}>
-          {ABSENCE_REPORT_PERIODS.map((item) => (
-            <Chip
-              key={item.id}
-              label={item.label}
-              on={period === item.id}
-              onPress={() => onPeriod(item.id)}
-              colors={colors}
-              testID={`absence-period-${item.id}`}
-            />
-          ))}
-        </View>
+        <OptionPicker
+          options={ABSENCE_REPORT_PERIODS}
+          value={period}
+          onChange={(id) => { if (id) onPeriod(id); }}
+          title="Periode"
+          clearable={false}
+          small
+        />
         {period === 'custom' ? (
           <View style={styles.dates}>
             <TextInput
@@ -169,19 +166,18 @@ export default function AbsenceOrganizePanel({
       <View style={styles.split}>
         <View style={styles.block}>
           <RowLabel color={colors.muted}>Type</RowLabel>
-          <View style={styles.wrap}>
-            {ABSENCE_REPORT_TYPE_FILTERS.map((item) => (
-              <Chip
-                key={item.id || 'all'}
-                label={item.label}
-                count={countFor(item.id)}
-                on={category === item.id}
-                onPress={() => onCategory(item.id)}
-                colors={colors}
-                testID={`absence-category-${item.id || 'all'}`}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={ABSENCE_REPORT_TYPE_FILTERS.map((item) => {
+              const count = countFor(item.id);
+              return { id: item.id, label: count != null ? `${item.label} (${count})` : item.label };
+            })}
+            value={category || ''}
+            onChange={(id) => onCategory(id || '')}
+            placeholder="Alle typer"
+            title="Type"
+            clearable={false}
+            small
+          />
         </View>
         <View style={styles.block}>
           <RowLabel color={colors.muted}>Status</RowLabel>
@@ -202,41 +198,33 @@ export default function AbsenceOrganizePanel({
 
       <View style={styles.block}>
         <RowLabel color={colors.muted}>Sortering</RowLabel>
-        <View style={styles.wrap}>
-          {ABSENCE_REPORT_SORT_OPTIONS.map((item) => (
-            <Chip
-              key={item.id}
-              label={item.label}
-              on={sort === item.id}
-              onPress={() => onSort(item.id)}
-              colors={colors}
-              testID={`absence-sort-${item.id}`}
-            />
-          ))}
-        </View>
+        <OptionPicker
+          options={ABSENCE_REPORT_SORT_OPTIONS}
+          value={sort}
+          onChange={(id) => { if (id) onSort(id); }}
+          title="Sortering"
+          clearable={false}
+          small
+        />
       </View>
 
       <View style={styles.block}>
         <RowLabel color={colors.muted}>Medarbeider</RowLabel>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.people}>
-          <Chip
-            label={ACTIVE_STAFF_LABEL}
-            on={!employeeId}
-            onPress={() => onEmployee('')}
-            colors={colors}
-            testID="absence-employee-all"
-          />
-          {employees.map((item) => (
-            <Chip
-              key={item.id}
-              label={item.hours != null ? `${item.name} · ${formatHours(item.hours)}` : item.name}
-              on={employeeId === item.id}
-              onPress={() => onEmployee(item.id)}
-              colors={colors}
-              testID={`absence-employee-${item.id}`}
-            />
-          ))}
-        </ScrollView>
+        <OptionPicker
+          options={[
+            { id: '', label: ACTIVE_STAFF_LABEL },
+            ...employees.map((item) => ({
+              id: item.id,
+              label: item.hours != null ? `${item.name} · ${formatHours(item.hours)}` : item.name,
+            })),
+          ]}
+          value={employeeId || ''}
+          onChange={(id) => onEmployee(id || '')}
+          placeholder={ACTIVE_STAFF_LABEL}
+          title="Medarbeider"
+          clearable={false}
+          small
+        />
         {!employees.length ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen medarbeidere i dette utvalget.</Text>
         ) : null}
@@ -256,29 +244,22 @@ export default function AbsenceOrganizePanel({
         </TouchableOpacity>
         {columnsOpen ? (
           <View style={styles.wrap}>
-            {ABSENCE_REPORT_COLUMNS.map((column) => {
-              const on = visible.has(column.key);
-              return (
-                <TouchableOpacity
-                  key={column.key}
-                  onPress={() => onToggleColumn(column.key)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: on }}
-                  nativeID={`absence-column-${column.key}`}
-                  style={[
-                    styles.chip,
-                    { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? '#E8F1FF' : '#fff' },
-                  ]}
-                >
-                  <Ionicons
-                    name={on ? 'checkmark' : 'add'}
-                    size={14}
-                    color={on ? colors.brand : colors.muted}
-                  />
-                  <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 13 }}>{column.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
+            <View style={{ flexGrow: 1, flexBasis: 220 }}>
+              <OptionPicker
+                options={ABSENCE_REPORT_COLUMNS.map((column) => ({ id: column.key, label: column.label }))}
+                multiple
+                value={ABSENCE_REPORT_COLUMNS.filter((column) => visible.has(column.key)).map((column) => column.key)}
+                onChange={(keys) => {
+                  // Én kolonne av/på om gangen, som før. Forelderen hindrer at alle skjules.
+                  const next = new Set(keys);
+                  ABSENCE_REPORT_COLUMNS.forEach((column) => {
+                    if (next.has(column.key) !== visible.has(column.key)) onToggleColumn(column.key);
+                  });
+                }}
+                title="Kolonner i tabellen"
+                small
+              />
+            </View>
             {onResetColumns ? (
               <TouchableOpacity onPress={onResetColumns} accessibilityRole="button" style={styles.columnReset}>
                 <Text style={{ color: colors.brand, fontSize: 13 }}>Tilbakestill</Text>

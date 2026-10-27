@@ -20,6 +20,7 @@ import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import OptionPicker from '../../components/OptionPicker';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
@@ -1210,34 +1211,28 @@ export default function EconomyInvoices({
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { flex: 1, color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
-            {PERIODS.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => setPeriod(item.id)}
-                style={[styles.chip, { borderColor: colors.line, backgroundColor: period === item.id ? colors.brand : colors.card }]}
-              >
-                <Text style={{ color: period === item.id ? '#fff' : colors.ink }}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
-            <TouchableOpacity
-              onPress={() => setStatusFilter('')}
-              style={[styles.chip, { borderColor: colors.line, backgroundColor: !statusFilter ? colors.brand : colors.card }]}
-            >
-              <Text style={{ color: !statusFilter ? '#fff' : colors.ink }}>Alle statuser</Text>
-            </TouchableOpacity>
-            {INVOICE_STATUSES.map((status) => (
-              <TouchableOpacity
-                key={status.id}
-                onPress={() => setStatusFilter(status.id)}
-                style={[styles.chip, { borderColor: colors.line, backgroundColor: statusFilter === status.id ? colors.brand : colors.card }]}
-              >
-                <Text style={{ color: statusFilter === status.id ? '#fff' : colors.ink }}>{status.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={styles.pickerRow}>
+            <View style={styles.pickerCell}>
+              <OptionPicker
+                options={PERIODS}
+                value={period}
+                onChange={(id) => setPeriod(id || 'all')}
+                placeholder="Alle"
+                title="Periode"
+                clearable={false}
+              />
+            </View>
+            <View style={styles.pickerCell}>
+              <OptionPicker
+                options={[{ id: '', label: 'Alle statuser' }, ...INVOICE_STATUSES.map((status) => ({ id: status.id, label: status.label }))]}
+                value={statusFilter || ''}
+                onChange={(id) => setStatusFilter(id || '')}
+                placeholder="Alle statuser"
+                title="Status"
+                clearable={false}
+              />
+            </View>
+          </View>
         </View>
 
         <Text style={{ color: colors.muted }}>
@@ -1276,6 +1271,8 @@ const styles = StyleSheet.create({
   secondaryBtn: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   filters: { gap: 10 },
   statusChips: { gap: 8, paddingVertical: 2 },
+  pickerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pickerCell: { flexGrow: 1, flexBasis: 200, minWidth: 180 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
   tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },

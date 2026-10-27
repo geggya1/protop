@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { Ionicons } from '@expo/vector-icons';
 import EmployeeDirectory from '../employees/EmployeeDirectory';
 import InfoButton from '../InfoButton';
+import OptionPicker from '../OptionPicker';
 import {
   ACCESS_ACTIONS,
   ACCESS_GROUPS,
@@ -334,30 +335,17 @@ function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign, allow
   return (
     <View style={styles.moveBox}>
       <Text style={[styles.kind, { color: colors.ink }]}>Flytt {name} til</Text>
-      <View style={styles.modeRow}>
-        {targets.map((level) => {
-          const suggested = level.id === suggestedId;
-          return (
-            <Pressable
-              key={level.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Flytt ${name} til ${level.label}`}
-              onPress={() => onAssign(employee, level.id)}
-              style={[
-                styles.moveBtn,
-                {
-                  borderColor: suggested ? colors.brand : colors.line,
-                  backgroundColor: suggested ? colors.brandSoft : colors.card,
-                },
-              ]}
-            >
-              <Text style={{ color: suggested ? colors.brand : colors.ink, fontSize: 13 }}>
-                {suggested ? `${level.label} · forslag` : level.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <OptionPicker
+        options={targets.map((level) => ({
+          id: level.id,
+          label: level.id === suggestedId ? `${level.label} · forslag` : level.label,
+        }))}
+        value=""
+        onChange={(id) => { if (id) onAssign(employee, id); }}
+        title={`Flytt ${name} til`}
+        clearable={false}
+        small
+      />
     </View>
   );
 }

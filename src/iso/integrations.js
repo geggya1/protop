@@ -14,6 +14,7 @@ import { documentsDueForReview } from './documents.js';
 import { matrixRows, requirementIdsForArea } from './requirements.js';
 import { competenceMatrix, overdueRecords } from './registers.js';
 import { usableForms, templateIdFor } from './forms.js';
+import { annualTaskEffects } from './planning.js';
 
 const SICK = new Set(['syk_melding', 'egenmelding', 'sykdom', 'syk_uten']);
 
@@ -311,10 +312,20 @@ const FINDING_AREAS = {
   hms: ['nonconformity', 'hazards', 'emergency'],
   nestenulykke: ['nonconformity', 'hazards'],
   forbedring: ['improvement'],
+  endringsforslag: ['change', 'improvement'],
+  positiv: ['satisfaction', 'improvement'],
+  omdomme: ['nonconformity', 'satisfaction'],
+  varsling: ['participation', 'leadership'],
 };
 
+/**
+ * Automatisk kobling fra en ny sak: ISO-klausulene for sakstypen. Egne krav (lov, kontrakt, internt) har brede
+ * kravområder; de kobles bare når de faktisk gjelder saken (Koblinger i saken), ellers ville en RUH i en trapp
+ * blitt koblet til byggherreforskriften og droneforskriften.
+ */
 export function requirementIdsForFinding(state, type) {
-  return uniq((FINDING_AREAS[type] || ['nonconformity']).flatMap((a) => requirementIdsForArea(state, a)));
+  const custom = new Set((state?.requirements || []).map((r) => r.id));
+  return uniq((FINDING_AREAS[type] || ['nonconformity']).flatMap((a) => requirementIdsForArea(state, a))).filter((id) => !custom.has(id));
 }
 
 const DOC_AREAS = {
@@ -323,6 +334,12 @@ const DOC_AREAS = {
   instruks: ['operation', 'competence'],
   plan: ['objectives', 'operation'],
   handbok: ['processes', 'documented'],
+  veileder: ['awareness', 'competence'],
+  analyse: ['context', 'risk'],
+  register: ['documented'],
+  sjekkliste: ['operation', 'monitoring'],
+  skjema: ['documented'],
+  rapport: ['monitoring', 'review'],
   kravbevis: ['documented'],
   mal: ['documented'],
   ekstern: ['documented'],
@@ -335,6 +352,11 @@ export function requirementIdsForDocument(state, docType) {
 /** Automatisk ansvarlig for en ny sak ut fra rollene i innstillingene. */
 export function autoAssignee(system, type) {
   const roles = system?.roleMap || {};
+  // Varsling går til øverste leder (nærmeste leder kan være involvert; aml § 2 A-3).
+  if (type === 'varsling') {
+    const top = roles.top_management || roles.system_owner || null;
+    return top?.name ? { name: top.name, uid: top.uid || '' } : null;
+  }
   const domainHse = ['hms', 'nestenulykke', 'miljo'].includes(type);
   const pick = (domainHse ? roles.hse_manager : roles.quality_manager) || roles.quality_manager || roles.hse_manager || roles.system_owner || null;
   return pick?.name ? { name: pick.name, uid: pick.uid || '' } : null;
@@ -356,6 +378,8 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
     { key: 'scope', label: 'Omfang, standarder og roller er satt', done: !!state.system?.setupAt && Object.values(state.system?.roleMap || {}).filter(Boolean).length >= 2, page: 'innstillinger' },
     { key: 'policy', label: 'Policy er godkjent og publisert', done: docs.some((d) => d.docType === 'policy'), page: 'dokumenter' },
     { key: 'context', label: 'Kontekst og interessenter er kartlagt', done: (rec.kontekst || []).length > 0 && (rec.interessent || []).length > 0, page: 'kontekst' },
+    { key: 'roles', label: 'Roller, ansvar og myndighet er beskrevet', done: (rec.rolle || []).some((r) => r.state !== 'arkivert'), page: 'organisasjon' },
+    { key: 'communication', label: 'Kommunikasjonsplan er laget', done: (rec.kommunikasjon || []).some((r) => r.state !== 'arkivert'), page: 'kommunikasjon' },
     { key: 'processes', label: 'Kjerneprosesser er publisert (minst tre)', done: published.length >= 3, page: 'prosesser' },
     { key: 'risk', label: 'Risiko og muligheter er vurdert', done: (rec.risiko || []).some((r) => r.inherentL && r.inherentC), page: 'risiko' },
     ...(std.has('ISO14001') ? [{ key: 'aspects', label: 'Miljøaspekter er vurdert med vesentlighet', done: (rec.miljoaspekt || []).length > 0, page: 'miljo' }] : []),
@@ -393,7 +417,7 @@ export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
   for (const r of overdueRecords(state.records.miljoaspekt, 'nextReview', now)) push(`asp_${r.id}_${r.nextReview}`, `Revurder miljøaspekt ${r.title}`, r.nextReview, hse);
   for (const r of overdueRecords(state.records.samsvar, 'nextReview', now)) push(`eval_${r.id}_${r.nextReview}`, `Ny samsvarsvurdering: ${r.title}`, r.nextReview, qm);
   for (const b of (state.records.beredskap || []).filter((x) => x.state !== 'arkivert' && x.nextExercise && x.nextExercise <= todayKey(now))) push(`ex_${b.id}_${b.nextExercise}`, `Gjennomfør beredskapsøvelse: ${b.title}`, b.nextExercise, hse);
-  const matrix = competenceMatrix(people, state.records.kompetansekrav, state.records.kompetanse, now);
+  const matrix = competenceMatrix(people, state.records.kompetansekrav, state.records.kompetanse, now, { roles: state.records.rolle });
   for (const row of matrix) {
     for (const cell of row.cells) {
       if (cell.status !== 'utlopt') continue;
@@ -403,7 +427,8 @@ export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
   for (const l of state.records.ledelse || []) {
     for (const d of l.decisions || []) if (!d.done && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
   }
-  return [...out, ...escalationEffects(state, now)];
+  // Årshjulet: aktiviteter merket «Lag oppgave» blir oppgave når måneden starter.
+  return [...out, ...annualTaskEffects(state, { now }), ...escalationEffects(state, now)];
 }
 
 /* ───────────────────────── Varsling og eskalering ───────────────────────── */

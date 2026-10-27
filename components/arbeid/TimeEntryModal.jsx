@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker from '../OptionPicker';
 import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { TIME_TYPES } from '../../src/arbeid/overtime.js';
 
@@ -250,16 +251,15 @@ export default function TimeEntryModal({
                       </View>
                     ) : null}
                     {showTimeType ? (
-                      <View style={styles.quickRow}>
-                        {TIME_TYPES.map((row) => {
-                          const on = row.id === block.timeType;
-                          return (
-                            <TouchableOpacity key={row.id} disabled={readOnly} onPress={() => patchBlock(block.key, { timeType: row.id })} style={[styles.quick, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? `${colors.brand}18` : '#fff' }]}>
-                              <Text style={{ color: colors.ink, fontSize: 12 }}>{row.label}</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
+                      <OptionPicker
+                        options={TIME_TYPES.map((row) => ({ id: row.id, label: row.label }))}
+                        value={block.timeType}
+                        onChange={(id) => { if (id) patchBlock(block.key, { timeType: id }); }}
+                        disabled={readOnly}
+                        title="Type tid"
+                        clearable={false}
+                        small
+                      />
                     ) : null}
                   </View>
                 );

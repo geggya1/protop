@@ -10,6 +10,9 @@ import { APPROVER_ROLES, approverUidsFromRoles, roleAccessCheck, restrictedUids 
 import { aclFor } from '../../src/iso/aclSync';
 import { saveRestrictedGrants } from '../../src/iso/storage';
 import { STARTER_OPTIONS, runStarterKit } from './starterKit';
+import IsoImport from './IsoImport';
+import { normalizeDocStructure } from '../../src/iso/documents';
+import { normalizeCompanyPage, shownAbout } from '../../src/project/companyPage';
 import {
   Banner, Btn, Card, Check, Field, KV, ListRow, Page, PersonPick, Pill, Row, TextIn,
 } from './isoUi';
@@ -56,6 +59,8 @@ function settingsKey(x) {
     roleMap: x?.roleMap || {},
     riskMethod: x?.riskMethod?.thresholds || null,
     autoQualityPlan: x?.autoQualityPlan !== false,
+    docStructure: normalizeDocStructure(x?.docStructure || []),
+    profile: x?.profile || null,
   });
 }
 
@@ -113,6 +118,10 @@ export default function IsoSettings({ ctx }) {
   vRef.current = v;
   const sysRef = useRef(sys);
   sysRef.current = sys;
+  // Importkortet står på samme sted hele tiden. Flytter det seg når oppsettet blir aktivert
+  // midt i en import, mister det fremdriften og feilmeldingene.
+  const importAtTop = useRef(first);
+  if (first) importAtTop.current = true;
   const edited = useRef(false);
   const timer = useRef(null);
   const chain = useRef(Promise.resolve());
@@ -173,7 +182,11 @@ export default function IsoSettings({ ctx }) {
     const methodChanged = JSON.stringify(cur.riskMethod?.thresholds) !== JSON.stringify(prev.riskMethod?.thresholds);
     const roleMap = { ...(cur.roleMap || {}), system_owner: { name: cur.ownerName, uid: cur.ownerUid, label: 'Systemansvarlig K-HMS' } };
     return bump({
+      ...prev,
       ...cur,
+      // Felt som også kan settes av importen: behold det som er lagret hvis skjemaet ikke har dem.
+      docStructure: cur.docStructure !== undefined ? normalizeDocStructure(cur.docStructure) : (prev.docStructure || []),
+      profile: cur.profile !== undefined ? cur.profile : (prev.profile || null),
       riskMethod: methodChanged && prev.setupAt ? { ...cur.riskMethod, version: bumpVersion(prev.riskMethod?.version) } : (cur.riskMethod || DEFAULT_RISK_METHOD),
       roleMap,
       // Godkjennerne lagres som liste, så Firestore-reglene kan lese dem.
@@ -222,6 +235,20 @@ export default function IsoSettings({ ctx }) {
     });
     return chain.current;
   }, [store, actor]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Importen har lagret oppsettet: vis det, og glem det gamle skjemaet så autolagringen ikke skriver det tilbake. */
+  const onSystemImported = useCallback((saved) => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    edited.current = false;
+    const next = saved || store.current().system;
+    sysRef.current = next;
+    setV(next);
+    clearDraft(companyId);
+    setSaveState('saved');
+  }, [store, companyId]);
 
   /** Lagre nå (brukes før man går til en annen side). */
   const flush = useCallback(async () => {
@@ -329,6 +356,7 @@ export default function IsoSettings({ ctx }) {
         </Card>
       ) : null}
       {err ? <Banner tone="danger" text={err} /> : null}
+      {importAtTop.current ? <IsoImport ctx={ctx} first={first} onSystemImported={onSystemImported} /> : null}
       <Card title="Ledelsessystem" subtitle={sources.company?.navn ? `Hentet fra selskapsprofilen: ${sources.company.navn}${sources.company.organisasjonsnummer ? ` · ${sources.company.organisasjonsnummer}` : ''}` : ''}>
         <Field label="Navn"><TextIn value={v.name} onChangeText={set('name')} /></Field>
         <Field label="Standarder" required>
@@ -405,6 +433,10 @@ export default function IsoSettings({ ctx }) {
         </Card>
       ) : null}
 
+      <ProfileCard v={v} update={update} wide={wide} about={shownAbout(normalizeCompanyPage(sources.company?.publicPage), sources.company?.brreg || sources.company)} onCompanyPage={() => requestTab?.('selskap')} />
+      <DocStructureCard v={v} update={update} />
+      {!importAtTop.current ? <IsoImport ctx={ctx} onSystemImported={onSystemImported} /> : null}
+
       <Card title="Tilgang i ProTop">
         <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 20 }}>
           ISO · Lese: se publiserte prosesser og dokumenter, melde avvik, fylle ut skjema.{'\n'}
@@ -421,6 +453,79 @@ export default function IsoSettings({ ctx }) {
         </Row>
       ) : null}
     </Page>
+  );
+}
+
+/** Visjon, verdier og forretningsmål – vises på Oversikt (ISO 5.1 og 7.3). */
+function ProfileCard({ v, update, wide, about = '', onCompanyPage }) {
+  const colors = useColors();
+  const p = v.profile || {};
+  const setP = (k) => (x) => update((cur) => ({ ...cur, profile: { ...(cur.profile || {}), [k]: x } }));
+  return (
+    <Card title="Visjon, verdier og mål" subtitle="Vises for alle på Oversikt i ISO, sammen med policyene. Hjelper ansatte å forstå hva ledelsessystemet skal oppnå.">
+      <Field label="Visjon"><TextIn multiline rows={2} value={p.vision || ''} onChangeText={setP('vision')} /></Field>
+      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Field label="Verdier" hint="Én per linje.">
+            <TextIn multiline rows={3} value={(p.values || []).join('\n')} onChangeText={(x) => setP('values')(String(x).split('\n').map((l) => l.trimStart()).filter((l, i, a) => l || i < a.length - 1))} />
+          </Field>
+        </View>
+        <View style={{ flex: 1 }}><Field label="Forretningsmål og overordnede mål"><TextIn multiline rows={3} value={p.businessGoals || ''} onChangeText={setP('businessGoals')} /></Field></View>
+      </View>
+      {/* «Om oss» eies av bedriftssiden i Selskap; ISO viser den, så teksten ikke finnes to steder. */}
+      <Field label="Om virksomheten (fra Selskap)" hint="Endres på bedriftssiden: Selskap → Rediger side.">
+        <Text style={{ color: about ? colors.ink : colors.muted, fontSize: 13, lineHeight: 19 }}>{about || 'Ingen tekst på bedriftssiden ennå.'}</Text>
+      </Field>
+      {onCompanyPage ? <Btn small icon="open-outline" label="Åpne bedriftssiden" onPress={onCompanyPage} /> : null}
+    </Card>
+  );
+}
+
+/**
+ * Dokumentstruktur: virksomhetens egne deler og mapper (f.eks. A – HMSK-system, A-01 Politikk).
+ * Dokumenter plasseres i en mappe og får kode etter mappen (A-01-001).
+ */
+function DocStructureCard({ v, update }) {
+  const colors = useColors();
+  const parts = Array.isArray(v.docStructure) ? v.docStructure : [];
+  const [draft, setDraft] = useState({ part: '', code: '', title: '' });
+  const setParts = (next) => update((cur) => ({ ...cur, docStructure: next }));
+  const patchPart = (i, patch) => setParts(parts.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  return (
+    <Card title="Dokumentstruktur" subtitle="Deler og mapper for styrende dokumenter. Dokumenter vises gruppert slik, og nye dokumenter får neste ledige kode i mappen (f.eks. F-01-017). Tom struktur = gruppering etter dokumenttype.">
+      {!parts.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen struktur ennå.</Text> : null}
+      {parts.map((p, i) => (
+        <View key={`${p.code}${i}`} style={{ gap: 6, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.line }}>
+          <Row>
+            <View style={{ width: 70 }}><TextIn value={p.code} onChangeText={(x) => patchPart(i, { code: String(x).toUpperCase() })} accessibilityLabel="Kode for del" /></View>
+            <View style={{ flex: 1, minWidth: 160 }}><TextIn value={p.title} onChangeText={(x) => patchPart(i, { title: x })} accessibilityLabel="Navn på del" /></View>
+            <Btn small kind="danger" icon="trash-outline" accessibilityLabel={`Fjern del ${p.code}`} onPress={() => setParts(parts.filter((_, j) => j !== i))} />
+          </Row>
+          {(p.folders || []).map((f, k) => (
+            <Row key={`${f.code}${k}`}>
+              <View style={{ width: 24 }} />
+              <View style={{ width: 90 }}><TextIn value={f.code} onChangeText={(x) => patchPart(i, { folders: p.folders.map((y, m) => (m === k ? { ...y, code: String(x).toUpperCase() } : y)) })} accessibilityLabel="Mappekode" /></View>
+              <View style={{ flex: 1, minWidth: 140 }}><TextIn value={f.title} onChangeText={(x) => patchPart(i, { folders: p.folders.map((y, m) => (m === k ? { ...y, title: x } : y)) })} accessibilityLabel="Mappenavn" /></View>
+              <Btn small icon="close" accessibilityLabel={`Fjern mappe ${f.code}`} onPress={() => patchPart(i, { folders: p.folders.filter((_, m) => m !== k) })} />
+            </Row>
+          ))}
+          <Btn
+            small
+            icon="add"
+            label="Legg til mappe"
+            onPress={() => {
+              const n = (p.folders || []).length + 1;
+              patchPart(i, { folders: [...(p.folders || []), { code: `${p.code}-${String(n).padStart(2, '0')}`, title: 'Ny mappe' }] });
+            }}
+          />
+        </View>
+      ))}
+      <Row>
+        <View style={{ width: 70 }}><TextIn value={draft.code} onChangeText={(x) => setDraft({ ...draft, code: String(x).toUpperCase() })} placeholder="Kode" /></View>
+        <View style={{ flex: 1, minWidth: 160 }}><TextIn value={draft.title} onChangeText={(x) => setDraft({ ...draft, title: x })} placeholder="Ny del, f.eks. «Prosesser»" /></View>
+        <Btn small icon="add" label="Legg til del" disabled={!draft.code.trim()} onPress={() => { setParts([...parts, { code: draft.code.trim(), title: draft.title.trim() || draft.code.trim(), folders: [] }]); setDraft({ part: '', code: '', title: '' }); }} />
+      </Row>
+    </Card>
   );
 }
 

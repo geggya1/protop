@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BidCollab from './BidCollab';
+import OptionPicker from '../../components/OptionPicker';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
   BID_STEPS,
@@ -891,21 +892,14 @@ export default function BidWorkspace({
               <Text style={{ color: colors.muted }}>Ingen sjekkpunkt ennå. Foreslå med AI, eller legg til egne under.</Text>
             ) : null}
             <Text style={{ color: colors.ink, fontWeight: '600' }}>Legg til eget sjekkpunkt</Text>
-            <View style={styles.row}>
-              {WORK_ITEM_KINDS.map((kind) => {
-                const on = ownKind === kind.id;
-                return (
-                  <TouchableOpacity
-                    key={kind.id}
-                    onPress={() => setOwnKind(kind.id)}
-                    accessibilityRole="button"
-                    style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
-                  >
-                    <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{kind.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <OptionPicker
+              options={WORK_ITEM_KINDS}
+              value={ownKind}
+              onChange={(id) => { if (id) setOwnKind(id); }}
+              title="Legg til eget sjekkpunkt"
+              clearable={false}
+              small
+            />
             <TextInput
               value={ownTitle}
               onChangeText={setOwnTitle}
@@ -1153,24 +1147,22 @@ function WorkItemCard({
             })}
           </View>
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Eier</Text>
-          <View style={styles.row}>
-            {people.map((person) => {
-              const id = person.id || person.uid;
-              const on = item.ownerId === id;
-              return (
-                <TouchableOpacity
-                  key={id}
-                  onPress={() => onCommit(patchWorkItem(state, bid.id, item.id, {
-                    ownerId: id,
-                    ownerName: person.name || '',
-                  }))}
-                  accessibilityRole="button"
-                  style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
-                >
-                  <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{person.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          <View style={{ gap: 6 }}>
+            <OptionPicker
+              options={people.map((person) => ({ id: person.id || person.uid, label: person.name }))}
+              value={item.ownerId}
+              onChange={(id) => {
+                const person = people.find((row) => (row.id || row.uid) === id);
+                if (!person) return;
+                onCommit(patchWorkItem(state, bid.id, item.id, {
+                  ownerId: id,
+                  ownerName: person.name || '',
+                }));
+              }}
+              title="Eier"
+              clearable={false}
+              small
+            />
             {item.ownerId ? (
               <TouchableOpacity
                 onPress={() => onCommit(patchWorkItem(state, bid.id, item.id, { ownerId: '', ownerName: '' }))}
@@ -1606,62 +1598,49 @@ function AssignmentPanel({ bid, state, colors, locked, members, units, companies
           {people.length ? (
             <View style={{ gap: 6 }}>
               <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Person</Text>
-              <View style={styles.row}>
-                {people.map((person) => {
-                  const on = assignment.personId === (person.id || person.uid);
-                  return (
-                    <TouchableOpacity
-                      key={person.id || person.uid}
-                      onPress={() => assignPerson(person)}
-                      accessibilityRole="button"
-                      style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
-                    >
-                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{person.name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <OptionPicker
+                options={people.map((person) => ({ id: person.id || person.uid, label: person.name }))}
+                value={assignment.personId}
+                onChange={(id) => {
+                  const person = people.find((row) => (row.id || row.uid) === id);
+                  if (person) assignPerson(person);
+                }}
+                title="Person"
+                clearable={false}
+                small
+              />
             </View>
           ) : null}
           {unitRows.length ? (
             <View style={{ gap: 6 }}>
               <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Avdeling / datterselskap</Text>
-              <View style={styles.row}>
-                {unitRows.map((unit) => {
-                  const on = assignment.unitId === unit.id;
-                  const label = unit.kind === 'underenhet' ? `${unit.name} (datter)` : unit.name;
-                  return (
-                    <TouchableOpacity
-                      key={unit.id}
-                      onPress={() => assignUnit(unit)}
-                      accessibilityRole="button"
-                      style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
-                    >
-                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <OptionPicker
+                options={unitRows.map((unit) => ({ id: unit.id, label: unit.kind === 'underenhet' ? `${unit.name} (datter)` : unit.name }))}
+                value={assignment.unitId}
+                onChange={(id) => {
+                  const unit = unitRows.find((row) => row.id === id);
+                  if (unit) assignUnit(unit);
+                }}
+                title="Avdeling / datterselskap"
+                clearable={false}
+                small
+              />
             </View>
           ) : null}
           {companyRows.length ? (
             <View style={{ gap: 6 }}>
               <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Annet selskap</Text>
-              <View style={styles.row}>
-                {companyRows.map((company) => {
-                  const on = assignment.companyId === company.id;
-                  return (
-                    <TouchableOpacity
-                      key={company.id}
-                      onPress={() => assignCompany(company)}
-                      accessibilityRole="button"
-                      style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
-                    >
-                      <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 12 }}>{company.name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <OptionPicker
+                options={companyRows.map((company) => ({ id: company.id, label: company.name }))}
+                value={assignment.companyId}
+                onChange={(id) => {
+                  const company = companyRows.find((row) => row.id === id);
+                  if (company) assignCompany(company);
+                }}
+                title="Annet selskap"
+                clearable={false}
+                small
+              />
             </View>
           ) : null}
           {(assignment.personName || assignment.unitName || assignment.companyName) ? (

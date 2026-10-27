@@ -68,9 +68,11 @@ export default function IsoRequirements({ ctx, legal = false }) {
       {!legal && !active.length ? <Banner tone="warn" text="Ingen standarder er aktivert. Velg standarder under Innstillinger." /> : null}
       <Card>
         <TextIn value={q} onChangeText={setQ} placeholder="Søk i klausul, tittel eller kilde" />
-        {!legal ? <Choice small options={active.map((s) => ({ id: s.code, label: s.label }))} value={standard} onChange={setStandard} /> : null}
-        <Choice small options={REQUIREMENT_KINDS} value={kind} onChange={setKind} />
-        <Choice small options={ASSESSMENT_STATUSES.map((s) => ({ id: s.id, label: s.label }))} value={status} onChange={setStatus} />
+        {!legal ? <Choice small options={active.map((s) => ({ id: s.code, label: s.label }))} value={standard} onChange={setStandard} placeholder="Alle standarder" title="Standard" /> : null}
+        <Row>
+          <View style={{ flex: 1, minWidth: 160 }}><Choice small options={REQUIREMENT_KINDS} value={kind} onChange={setKind} placeholder="Alle kravtyper" title="Kravtype" /></View>
+          <View style={{ flex: 1, minWidth: 160 }}><Choice small options={ASSESSMENT_STATUSES.map((s) => ({ id: s.id, label: s.label }))} value={status} onChange={setStatus} placeholder="Alle statuser" title="Vurdering" /></View>
+        </Row>
         <Row>
           <Check label="Uten bevis" value={noEvidence} onChange={setNoEvidence} />
           <Check label="Forfalt vurdering" value={overdue} onChange={setOverdue} />

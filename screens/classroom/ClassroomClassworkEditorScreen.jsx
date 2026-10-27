@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { classroomColors as c } from '../../src/classroomTheme';
+import OptionPicker from '../../components/OptionPicker';
 import {
   createClassworkItem, updateClassworkItem, classworkTypeMeta, listenClassTopics, listenSubjects,
 } from '../../src/utils/classroom';
@@ -199,52 +200,39 @@ export default function ClassroomClassworkEditorScreen() {
         >
           <Text style={[styles.chipTxt, !assignAll && styles.chipTxtOn]}>Utvalgte elever</Text>
         </TouchableOpacity>
-        {!assignAll ? students.map((s) => {
-          const on = !!pickedStudents[s.id];
-          return (
-            <TouchableOpacity
-              key={s.id}
-              style={[styles.chip, on && styles.chipOn]}
-              onPress={() => setPickedStudents((p) => ({ ...p, [s.id]: !on }))}
-            >
-              <Text style={[styles.chipTxt, on && styles.chipTxtOn]}>{s.name || 'Elev'}</Text>
-            </TouchableOpacity>
-          );
-        }) : null}
+        {!assignAll && students.length ? (
+          <OptionPicker
+            options={students.map((s) => ({ id: s.id, label: s.name || 'Elev' }))}
+            multiple
+            value={students.filter((s) => pickedStudents[s.id]).map((s) => s.id)}
+            onChange={(ids) => setPickedStudents((p) => {
+              const next = { ...p };
+              students.forEach((s) => { next[s.id] = ids.includes(s.id); });
+              return next;
+            })}
+            title="Utvalgte elever"
+          />
+        ) : null}
 
         <Text style={styles.label}>Emne</Text>
-        <TouchableOpacity
-          style={[styles.chip, !topicId && styles.chipOn]}
-          onPress={() => setTopicId(null)}
-        >
-          <Text style={[styles.chipTxt, !topicId && styles.chipTxtOn]}>Uten emne</Text>
-        </TouchableOpacity>
-        {topics.map((t) => (
-          <TouchableOpacity
-            key={t.id}
-            style={[styles.chip, topicId === t.id && styles.chipOn]}
-            onPress={() => setTopicId(t.id)}
-          >
-            <Text style={[styles.chipTxt, topicId === t.id && styles.chipTxtOn]}>{t.name}</Text>
-          </TouchableOpacity>
-        ))}
+        <OptionPicker
+          options={[{ id: '', label: 'Uten emne' }, ...topics.map((t) => ({ id: t.id, label: t.name }))]}
+          value={topicId || ''}
+          onChange={(id) => setTopicId(id || null)}
+          placeholder="Uten emne"
+          title="Emne"
+          clearable={false}
+        />
 
         <Text style={styles.label}>Fag</Text>
-        <TouchableOpacity
-          style={[styles.chip, !subjectId && styles.chipOn]}
-          onPress={() => setSubjectId(null)}
-        >
-          <Text style={[styles.chipTxt, !subjectId && styles.chipTxtOn]}>Ingen</Text>
-        </TouchableOpacity>
-        {subjects.map((s) => (
-          <TouchableOpacity
-            key={s.id}
-            style={[styles.chip, subjectId === s.id && styles.chipOn]}
-            onPress={() => setSubjectId(s.id)}
-          >
-            <Text style={[styles.chipTxt, subjectId === s.id && styles.chipTxtOn]}>{s.name}</Text>
-          </TouchableOpacity>
-        ))}
+        <OptionPicker
+          options={[{ id: '', label: 'Ingen' }, ...subjects.map((s) => ({ id: s.id, label: s.name }))]}
+          value={subjectId || ''}
+          onChange={(id) => setSubjectId(id || null)}
+          placeholder="Ingen"
+          title="Fag"
+          clearable={false}
+        />
 
         <TouchableOpacity
           style={[styles.save, (!title.trim() || busy) && { opacity: 0.45 }]}

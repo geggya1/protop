@@ -126,8 +126,42 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     }
   }, [companyId]);
 
+  /**
+   * Mange entiteter på en gang (import). rows: [{ kind, entity }] der kind er documents | processes | records | requirements …
+   * Vises med en gang, lagres i batcher (uten revisjonslås – bare for nye poster og importens egne oppdateringer).
+   */
+  const commitMany = useCallback(async (rows, events = []) => {
+    const list = (rows || []).filter((r) => r?.entity?.id || r?.kind === 'system');
+    if (!list.length) return { ok: true };
+    const before = stateRef.current;
+    let next = before;
+    for (const { kind, entity } of list) next = replaceIn(next, kind, entity);
+    stateRef.current = next;
+    setState(next);
+    const toSave = list.filter((r) => r.kind !== 'system');
+    try {
+      await saveMany(companyId, toSave);
+      await appendAudit(companyId, events);
+      return { ok: true };
+    } catch (err) {
+      // Batcher som ble lagret før feilen, står i Firestore og må også stå her.
+      // Ellers lager en ny kjøring av importen dem en gang til.
+      const committed = Math.min(Number(err?.committed) || 0, toSave.length);
+      let keep = before;
+      const saved = toSave.slice(0, committed);
+      for (const { kind, entity } of saved) keep = replaceIn(keep, kind, entity);
+      stateRef.current = keep;
+      setState(keep);
+      if (saved.length) {
+        const ids = new Set(saved.map((r) => r.entity.id));
+        await appendAudit(companyId, events.filter((e) => ids.has(e.entityId)));
+      }
+      return { ok: false, error: err?.message || 'Kunne ikke lagre.', committed, total: toSave.length };
+    }
+  }, [companyId]);
+
   return {
-    state, setState, loading, source, loadError, reload, commit, commitLists, runEffects, tasks, refreshTasks, serverIso,
+    state, setState, loading, source, loadError, reload, commit, commitLists, commitMany, runEffects, tasks, refreshTasks, serverIso,
     current: () => stateRef.current,
   };
 }

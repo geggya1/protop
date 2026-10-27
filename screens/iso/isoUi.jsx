@@ -2,13 +2,14 @@
  * Felles UI-byggeklosser for ISO / K-HMS. Bruker ProTops fargetokens (useColors),
  * Ionicons og DateField, så modulen følger samme profil i lyst og mørkt utseende.
  */
-import React, { useState } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import {
   ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import DateField from '../../components/DateField';
+import OptionPicker from '../../components/OptionPicker';
 import { dateKey } from '../../src/utils/dates';
 
 export function useWide() {
@@ -141,6 +142,9 @@ export function Empty({ icon = 'file-tray-outline', title, text, action }) {
   );
 }
 
+// Feltet rundt en velger: navnet blir overskrift og skjermlesertekst, og påkrevd felt kan ikke tømmes.
+const FieldContext = createContext(null);
+
 export function Field({ label, hint, error, required, children }) {
   const colors = useColors();
   return (
@@ -150,7 +154,9 @@ export function Field({ label, hint, error, required, children }) {
           {label}{required ? <Text style={{ color: colors.danger }}> *</Text> : null}
         </Text>
       ) : null}
-      {children}
+      <FieldContext.Provider value={{ label: typeof label === 'string' ? label : '', required: !!required }}>
+        {children}
+      </FieldContext.Provider>
       {hint && !error ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
       {error ? <Text style={{ color: colors.danger, fontSize: 12 }}>{error}</Text> : null}
     </View>
@@ -178,32 +184,27 @@ export function TextIn({ value, onChangeText, multiline, placeholder, keyboardTy
   );
 }
 
-export function Choice({ options, value, onChange, multi = false, small }) {
-  const colors = useColors();
-  const list = (options || []).map((o) => (typeof o === 'string' ? { id: o, label: o } : o));
-  const active = (id) => (multi ? (value || []).includes(id) : value === id);
+/**
+ * Valg i ISO. Under 5 valg: knapper side om side. 5 eller flere: liste med søk (felles velger for hele appen).
+ * placeholder vises i feltet når ingenting er valgt (f.eks. «Alle» i filtre).
+ */
+export function Choice({ options, value, onChange, multi = false, small, placeholder = 'Velg', title, clearLabel, clearable }) {
+  // Tømme valget: i filtre («Alle …») og valgfrie felt. Påkrevde felt og vippebrytere utenfor felt kan ikke tømmes.
+  const field = useContext(FieldContext);
+  const filter = /^Alle\b/.test(String(placeholder || ''));
+  const canClear = clearable ?? (filter || (!!field && !field.required));
   return (
-    <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]} accessibilityRole={multi ? undefined : 'radiogroup'}>
-      {list.map((o) => {
-        const on = active(o.id);
-        return (
-          <TouchableOpacity
-            key={o.id}
-            onPress={() => {
-              if (!multi) return onChange(on ? '' : o.id);
-              const cur = value || [];
-              return onChange(on ? cur.filter((x) => x !== o.id) : [...cur, o.id]);
-            }}
-            accessibilityRole={multi ? 'checkbox' : 'radio'}
-            accessibilityState={{ checked: on }}
-            style={[styles.chip, small && { paddingVertical: 5, paddingHorizontal: 9, minHeight: 30 }, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? `${colors.brand}18` : colors.bg }]}
-          >
-            {on ? <Ionicons name="checkmark" size={13} color={colors.brand} /> : null}
-            <Text style={{ color: on ? colors.brand : colors.ink, fontSize: small ? 12 : 13, fontWeight: on ? '600' : '400' }}>{o.label}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+    <OptionPicker
+      options={options}
+      value={multi ? (value || []) : value}
+      onChange={onChange}
+      multiple={multi}
+      small={small}
+      placeholder={placeholder}
+      title={title || field?.label || undefined}
+      clearable={canClear}
+      clearLabel={clearLabel || (filter ? placeholder : 'Ingen valgt')}
+    />
   );
 }
 
@@ -233,38 +234,93 @@ export function Check({ label, value, onChange }) {
 }
 
 /** Velg person fra ProTops ansattregister (ingen egen brukerliste). */
-export function PersonPick({ people, value, onChange, placeholder = 'Søk etter ansatt' }) {
-  const colors = useColors();
-  const [q, setQ] = useState('');
-  // Uten søk: bare egne aktive ansatte. Søk når også innleide, eksterne og inaktive.
-  const list = (people || [])
-    .filter((p) => (q ? p.name.toLowerCase().includes(q.toLowerCase()) : p.own !== false))
-    .slice(0, 8);
+/**
+ * Velg en ansatt. Egne aktive ansatte først, deretter innleide, eksterne og inaktive. Søk i navn og stilling.
+ * Finnes ikke personen, kan navnet skrives inn («Bruk …»).
+ */
+export function PersonPick({ people, value, onChange, placeholder = 'Velg ansatt' }) {
+  const list = (people || []).filter((p) => p?.name);
+  const options = list.map((p) => ({
+    id: p.id || p.name,
+    label: p.name,
+    hint: p.title || '',
+    group: p.own === false ? 'Andre' : 'Egne ansatte',
+    person: p,
+  })).sort((a, b) => Number(a.group !== 'Egne ansatte') - Number(b.group !== 'Egne ansatte'));
+  const current = options.find((o) => o.label === value) || null;
+  const shown = value && !current ? [{ id: `__navn:${value}`, label: value, hint: 'Ikke i Ansatte', group: 'Valgt' }, ...options] : options;
+  const pick = (id) => {
+    if (!id) { onChange({ name: '', uid: '' }); return; }
+    const o = options.find((x) => x.id === id);
+    if (!o) return;
+    const p = o.person;
+    onChange({ name: p.name, uid: p.uid || '', employeeId: p.id || '', phone: p.phone || '', email: p.email || '' });
+  };
+  return (
+    <OptionPicker
+      options={shown}
+      value={current ? current.id : (value ? `__navn:${value}` : '')}
+      onChange={pick}
+      placeholder={placeholder}
+      title={placeholder}
+      searchable
+      searchPlaceholder="Søk i navn eller stilling"
+      clearLabel="Fjern person"
+      onCustom={(name) => onChange({ name: name.trim(), uid: '' })}
+    />
+  );
+}
+
+export function PersonsPick({ people, value, onChange }) {
+  const list = Array.isArray(value) ? value : [];
   return (
     <View style={{ gap: 6 }}>
-      {value ? (
-        <View style={[styles.row, { gap: 8 }]}>
-          <Pill label={value} tone="info" icon="person" />
-          <Btn small label="Endre" onPress={() => onChange({ name: '', uid: '' })} />
+      {list.length ? (
+        <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]}>
+          {list.map((p, i) => (
+            <View key={`${p.uid || p.employeeId || p.name}${i}`} style={[styles.row, { gap: 4 }]}>
+              <Pill label={p.name} tone={p.uid || p.employeeId ? 'info' : 'muted'} icon="person" />
+              <Btn small icon="close" accessibilityLabel={`Fjern ${p.name}`} onPress={() => onChange(list.filter((_, j) => j !== i))} />
+            </View>
+          ))}
         </View>
-      ) : (
-        <>
-          <TextIn value={q} onChangeText={setQ} placeholder={placeholder} />
-          <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]}>
-            {list.map((p) => (
-              <TouchableOpacity key={p.id || p.name} onPress={() => { onChange({ name: p.name, uid: p.uid || '' }); setQ(''); }} style={[styles.chip, { borderColor: colors.line, backgroundColor: colors.card }]} accessibilityRole="button">
-                <Ionicons name="person-outline" size={13} color={colors.muted} />
-                <Text style={{ color: colors.ink, fontSize: 13 }}>{p.name}</Text>
-              </TouchableOpacity>
-            ))}
-            {q && !list.length ? (
-              <TouchableOpacity onPress={() => { onChange({ name: q.trim(), uid: '' }); setQ(''); }} style={[styles.chip, { borderColor: colors.line }]} accessibilityRole="button">
-                <Text style={{ color: colors.ink, fontSize: 13 }}>Bruk «{q.trim()}»</Text>
-              </TouchableOpacity>
-            ) : null}
+      ) : null}
+      <PersonPick
+        people={(people || []).filter((p) => !list.some((x) => (x.employeeId && x.employeeId === p.id) || x.name === p.name))}
+        value=""
+        placeholder="Legg til ansatt"
+        onChange={(p) => { if (p.name) onChange([...list, { name: p.name, uid: p.uid || '', employeeId: p.employeeId || '' }]); }}
+      />
+    </View>
+  );
+}
+
+/** Kontaktliste: rolle, person (velges blant de ansatte, telefon hentes fra Ansatte), telefon og merknad. */
+export function ContactsEdit({ people, value, onChange }) {
+  const colors = useColors();
+  const list = Array.isArray(value) ? value : [];
+  const set = (i, patch) => onChange(list.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  return (
+    <View style={{ gap: 8 }}>
+      {list.map((c, i) => (
+        <View key={i} style={{ gap: 6, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.line }}>
+          <View style={[styles.row, { gap: 6 }]}>
+            <View style={{ flex: 1 }}><TextIn value={c.role} onChangeText={(x) => set(i, { role: x })} placeholder="Rolle, f.eks. Beredskapsleder" /></View>
+            <Btn small icon="trash-outline" accessibilityLabel="Fjern kontakt" onPress={() => onChange(list.filter((_, j) => j !== i))} />
           </View>
-        </>
-      )}
+          <PersonPick
+            people={people}
+            value={c.name}
+            placeholder="Velg ansatt"
+            onChange={(p) => set(i, { name: p.name, uid: p.uid || '', employeeId: p.employeeId || '', phone: p.phone || c.phone || '', email: p.email || c.email || '' })}
+          />
+          <View style={[styles.row, { gap: 6 }]}>
+            <View style={{ flex: 1 }}><TextIn value={c.phone} onChangeText={(x) => set(i, { phone: x })} placeholder="Telefon" keyboardType="phone-pad" /></View>
+            <View style={{ flex: 2 }}><TextIn value={c.note} onChangeText={(x) => set(i, { note: x })} placeholder="Merknad (stedfortreder, når …)" /></View>
+          </View>
+        </View>
+      ))}
+      <Btn small icon="add" label="Legg til kontakt" onPress={() => onChange([...list, { role: '', name: '', phone: '', note: '' }])} />
     </View>
   );
 }

@@ -6,8 +6,8 @@ import {
   FINDING_STATES, FINDING_TYPES, SEVERITIES, actionStateLabel, findingStateLabel, findingTypeLabel, severityLabel,
 } from '../../src/iso/catalog';
 import {
-  addAction, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, confirmNotification,
-  createFinding, findingStep, isOpenFinding, recordRootCause, reopenFinding, triageFinding, updateFindingLinks, verifyAction, verifyEffect,
+  CHANGE_FIELDS, addAction, assessChange, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, confirmNotification,
+  createFinding, defaultRestricted, findingStep, isOpenFinding, recordRootCause, reopenFinding, triageFinding, updateFindingLinks, verifyAction, verifyEffect,
 } from '../../src/iso/findings';
 import { canCloseFinding, canManageFinding, visibleFindings } from '../../src/iso/access';
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
@@ -65,7 +65,6 @@ export default function IsoFindings({ ctx }) {
     }
   }
 
-  const [moreFilters, setMoreFilters] = useState(false);
   const selected = visible.find((f) => f.id === openId) || null;
   if (selected) return <FindingDetail ctx={ctx} finding={selected} onBack={() => setOpenId('')} />;
 
@@ -80,9 +79,15 @@ export default function IsoFindings({ ctx }) {
       {drillIds ? <Banner tone="info" text={`Viser utvalg fra oversikten: ${params?.label || ''} (${rows.length})`} /> : null}
       <Card>
         <TextIn value={query} onChangeText={setQuery} placeholder="Søk i saksnummer, tittel, prosjekt" />
-        <Choice small options={[{ id: 'apne', label: 'Åpne' }, { id: 'forfalt', label: 'Forfalte tiltak' }, ...(wide || moreFilters ? FINDING_STATES.map((s) => ({ id: s.id, label: s.label })) : [])]} value={stateFilter} onChange={setStateFilter} />
-        {wide || moreFilters ? <Choice small options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={typeFilter} onChange={setTypeFilter} /> : null}
-        {!wide ? <Btn small icon="options-outline" label={moreFilters ? 'Færre filtre' : `Flere filtre${typeFilter || (stateFilter && !['apne', 'forfalt'].includes(stateFilter)) ? ' (aktive)' : ''}`} onPress={() => setMoreFilters(!moreFilters)} /> : null}
+        {/* To nedtrekk side om side: status og type. Begge får plass også på mobil, så «Flere filtre» trengs ikke. */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <View style={{ flex: 1, minWidth: 180 }}>
+            <Choice small options={[{ id: 'apne', label: 'Åpne' }, { id: 'forfalt', label: 'Forfalte tiltak' }, ...FINDING_STATES.map((s) => ({ id: s.id, label: s.label }))]} value={stateFilter} onChange={setStateFilter} placeholder="Alle statuser" title="Status" />
+          </View>
+          <View style={{ flex: 1, minWidth: 180 }}>
+            <Choice small options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={typeFilter} onChange={setTypeFilter} placeholder="Alle typer" title="Type" />
+          </View>
+        </View>
       </Card>
       {legacy.length && caps.manage ? (
         <Card title={`Fra Prosjekt-modulen (${legacy.length})`} subtitle="Avvik og RUH registrert i prosjektene som ikke er behandlet i ISO. Ta dem inn, så følger de samme flyt – uten å registreres på nytt.">
@@ -126,7 +131,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   useEffect(() => { if (visible) { setV({ ...blank, ...(prefill || {}) }); setError(''); } }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k) => (val) => setV((x) => ({ ...x, [k]: val }));
   const domain = FINDING_TYPES.find((t) => t.id === v.type)?.domain;
-  const restricted = v.restricted == null ? v.type === 'hms' : v.restricted;
+  const restricted = v.restricted == null ? defaultRestricted(v.type) : v.restricted;
 
   async function save() {
     setBusy(true);
@@ -163,7 +168,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       <Field label="Beskrivelse" required hint="Beskriv fakta. Ikke legg inn helseopplysninger her."><TextIn multiline value={v.description} onChangeText={set('description')} /></Field>
       <Field label="Dato"><DateIn value={v.occurredAt} onChange={set('occurredAt')} /></Field>
       {projects.length ? (
-        <Field label="Prosjekt"><Choice small options={projects.slice(0, 30).map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={v.projectId} onChange={set('projectId')} /></Field>
+        <Field label="Prosjekt"><Choice small title="Prosjekt" options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={v.projectId} onChange={set('projectId')} /></Field>
       ) : null}
       <Field label="Sted"><TextIn value={v.location} onChangeText={set('location')} placeholder="Adresse, bygg eller prosjektsted" /></Field>
       {domain === 'KVALITET' ? (
@@ -236,6 +241,7 @@ function FindingDetail({ ctx, finding, onBack }) {
   const [tri, setTri] = useState({ severity: finding.severity || '', urgent: false, assigneeName: finding.assigneeName, assigneeUid: finding.assigneeUid, immediateAction: finding.immediateAction, notifiable: finding.authorityNotificationRequired, notificationAssignee: finding.notificationAssignee, dueAt: finding.dueAt, note: '' });
   // Vurdering
   const [asm, setAsm] = useState({ correctiveRequired: finding.assessment?.correctiveRequired ?? null, rationale: '', correction: '' });
+  const [chg, setChg] = useState(() => ({ ...(finding.change || {}) }));
   // Årsak
   const [rc, setRc] = useState({ method: '5whys', whys: ['', '', '', '', ''], systemCause: '', categories: [] });
   // Nytt tiltak
@@ -320,6 +326,21 @@ function FindingDetail({ ctx, finding, onBack }) {
                   <Btn label="Bekreft varsling vurdert/utført" onPress={() => run('Varsling bekreftet', confirmNotification(finding, notifNote, { actor }))} />
                 </>
               ) : null}
+            </Card>
+          ) : null}
+
+          {finding.type === 'endringsforslag' ? (
+            <Card title="Endringsvurdering" subtitle="Vurder konsekvensene før endringen besluttes (ISO 9001 6.3, ISO 45001 8.1.3, ISO 14001 6.1). Tiltak følges opp under Tiltak.">
+              {CHANGE_FIELDS.map((f) => (manage && !closed
+                ? <Field key={f.key} label={f.label} required={f.key === 'risk'}><TextIn multiline value={chg[f.key] || ''} onChangeText={(x) => setChg({ ...chg, [f.key]: x })} /></Field>
+                : <KV key={f.key} label={f.label} value={finding.change?.[f.key] || '–'} />))}
+              {manage && !closed ? (
+                <>
+                  <Field label="Beslutning"><Choice options={['Godkjent', 'Avvist', 'Utsatt']} value={chg.decision || ''} onChange={(x) => setChg({ ...chg, decision: x })} /></Field>
+                  <Btn kind="primary" label="Lagre endringsvurdering" busy={busy === 'Endringsvurdering'} onPress={() => run('Endringsvurdering', assessChange(finding, chg, { actor }))} />
+                </>
+              ) : null}
+              {finding.change?.decision ? <Text style={{ color: colors.muted, fontSize: 12 }}>Endringen er {finding.change.decision.toLowerCase()} av {finding.change.decidedBy} {prettyDate(finding.change.decidedAt)}.</Text> : null}
             </Card>
           ) : null}
 

@@ -34,6 +34,7 @@ import MapRail, { activateMapRow, mapCardChrome, MapIndexBadge, revealAnbudRow }
 import BidWorkspace from './BidWorkspace';
 import FormBuilderScreen from './FormBuilderScreen';
 import FilterMenu from '../../components/FilterMenu';
+import OptionPicker from '../../components/OptionPicker';
 import InfoButton from '../../components/InfoButton';
 import { useLayout } from '../../src/theme';
 
@@ -546,39 +547,25 @@ export default function BidDesk({
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
           />
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Avdeling</Text>
-          <View style={styles.toolbar}>
-            {departments.map((unit) => {
-              const on = draftUnitId === unit.id;
-              return (
-                <TouchableOpacity
-                  key={unit.id}
-                  onPress={() => setDraftUnitId(on ? '' : unit.id)}
-                  accessibilityRole="button"
-                  style={[styles.btn, { backgroundColor: on ? colors.brand : colors.sunken }]}
-                >
-                  <Text style={{ color: on ? '#fff' : colors.ink }}>{unit.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-            {!departments.length ? <Text style={{ color: colors.muted }}>Ingen avdelinger er registrert.</Text> : null}
-          </View>
+          {departments.length ? (
+            <OptionPicker
+              options={departments.map((unit) => ({ id: unit.id, label: unit.name }))}
+              value={draftUnitId}
+              onChange={(id) => setDraftUnitId(id || '')}
+              title="Avdeling"
+              clearable
+            />
+          ) : <Text style={{ color: colors.muted }}>Ingen avdelinger er registrert.</Text>}
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Person</Text>
-          <View style={styles.toolbar}>
-            {people.map((person) => {
-              const on = draftPersonId === person.id;
-              return (
-                <TouchableOpacity
-                  key={person.id}
-                  onPress={() => setDraftPersonId(on ? '' : person.id)}
-                  accessibilityRole="button"
-                  style={[styles.btn, { backgroundColor: on ? colors.brand : colors.sunken }]}
-                >
-                  <Text style={{ color: on ? '#fff' : colors.ink }}>{person.name}</Text>
-                </TouchableOpacity>
-              );
-            })}
-            {!people.length ? <Text style={{ color: colors.muted }}>Ingen ansatte er registrert.</Text> : null}
-          </View>
+          {people.length ? (
+            <OptionPicker
+              options={people.map((person) => ({ id: person.id, label: person.name }))}
+              value={draftPersonId}
+              onChange={(id) => setDraftPersonId(id || '')}
+              title="Person"
+              clearable
+            />
+          ) : <Text style={{ color: colors.muted }}>Ingen ansatte er registrert.</Text>}
           <TouchableOpacity onPress={createManual} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
             <Text style={{ color: '#fff' }}>Opprett og åpne</Text>
           </TouchableOpacity>

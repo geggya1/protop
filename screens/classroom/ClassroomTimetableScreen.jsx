@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { classroomColors as c } from '../../src/classroomTheme';
+import OptionPicker from '../../components/OptionPicker';
 import {
   listenSubjects, listenTimetableSlots, createTimetableSlot, deleteTimetableSlot,
   expandTimetableSlots, weekRangeKeys, monthRangeKeys, yearRangeKeys, WEEKDAYS,
@@ -304,19 +305,18 @@ export default function ClassroomTimetableScreen({ classroomId, classroom }) {
               {form.kind === 'subject' && (
                 <>
                   <Text style={styles.label}>Fag</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                    <View style={styles.modeRow}>
-                      {subjects.map((s) => (
-                        <TouchableOpacity
-                          key={s.id}
-                          style={[styles.modeChip, form.subjectId === s.id && styles.modeOn]}
-                          onPress={() => setForm((f) => ({ ...f, subjectId: s.id, title: s.name }))}
-                        >
-                          <Text style={[styles.modeTxt, form.subjectId === s.id && styles.modeTxtOn]}>{s.name}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
+                  <View style={{ marginBottom: 8 }}>
+                    <OptionPicker
+                      options={subjects.map((s) => ({ id: s.id, label: s.name }))}
+                      value={form.subjectId}
+                      onChange={(id) => {
+                        const s = subjects.find((row) => row.id === id);
+                        if (s) setForm((f) => ({ ...f, subjectId: s.id, title: s.name }));
+                      }}
+                      title="Fag"
+                      clearable={false}
+                    />
+                  </View>
                 </>
               )}
               <Text style={styles.label}>Fra kl.</Text>

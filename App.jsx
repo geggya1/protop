@@ -13,6 +13,7 @@ import { completeRedirectSignIn, isLikelyOauthReturn } from './src/utils/authPro
 import { isCalendarOauthReturn } from './src/utils/calendarOAuthCapture';
 import { markBiometricUnlocked } from './src/utils/biometricLock';
 import { linking, setLinkingSignedIn, isAuthEntryPath } from './src/navigation/linking';
+import { takeEntryShellPath } from './src/navigation/shellPaths';
 import { capturePendingAddFriendFromLocation, peekPendingAddFriend, persistPendingAddFriend } from './src/utils/pendingAddFriend';
 import { captureAgreementLinkFromLocation } from './src/anbud/agreementLink';
 import AgreementLinkHost from './screens/anbud/AgreementLinkHost';
@@ -418,12 +419,14 @@ export default function App() {
     setLinkingSignedIn(!!user);
     if (!isWeb || !user || typeof window === 'undefined') return;
     try {
+      // Åpnet via en lenke til en side i appen (/hjem/iso/avvik) før innlogging: gå dit, ikke til forsiden.
+      const entry = takeEntryShellPath();
       const path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
       if (isAuthEntryPath(path)) {
         const pending = peekPendingAddFriend() || capturePendingAddFriendFromLocation(window.location.href);
         const next = pending
           ? `/hjem?addFriend=${encodeURIComponent(pending)}`
-          : '/hjem';
+          : (entry || '/hjem');
         window.history.replaceState(window.history.state || {}, '', next);
       }
     } catch { /* ignore */ }

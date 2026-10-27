@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../src/theme';
 import BrandToggle from './BrandToggle';
+import OptionPicker from './OptionPicker';
 import { MAIL_FONTS, MAIL_FONT_SIZES, resizeLogoDataUrl, buildSignatureHtml } from '../src/utils/mailSignature';
 import { sanitizeHtml } from '../src/utils/sanitizeHtml';
 
@@ -104,29 +105,21 @@ export default function MailSignatureSettings({ prefs, onChange }) {
 
       <Text style={[styles.kicker, { marginTop: 18 }]}>Skrift og visning</Text>
       <Text style={styles.optionLbl}>Skrifttype</Text>
-      <View style={styles.chips}>
-        {MAIL_FONTS.map((font) => (
-          <TouchableOpacity
-            key={font.id}
-            onPress={() => onChange({ fontFamily: font.value })}
-            style={[styles.chip, prefs.fontFamily === font.value && styles.chipOn]}
-          >
-            <Text style={[styles.chipTxt, prefs.fontFamily === font.value && styles.chipTxtOn]}>{font.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <OptionPicker
+        options={MAIL_FONTS.map((font) => ({ id: font.value, label: font.label }))}
+        value={prefs.fontFamily}
+        onChange={(fontFamily) => { if (fontFamily) onChange({ fontFamily }); }}
+        title="Skrifttype"
+        clearable={false}
+      />
       <Text style={[styles.optionLbl, { marginTop: 10 }]}>Skriftstørrelse</Text>
-      <View style={styles.chips}>
-        {MAIL_FONT_SIZES.map((size) => (
-          <TouchableOpacity
-            key={size}
-            onPress={() => onChange({ fontSize: size })}
-            style={[styles.chip, prefs.fontSize === size && styles.chipOn]}
-          >
-            <Text style={[styles.chipTxt, prefs.fontSize === size && styles.chipTxtOn]}>{size}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <OptionPicker
+        options={MAIL_FONT_SIZES.map((size) => ({ id: size, label: String(size) }))}
+        value={prefs.fontSize}
+        onChange={(fontSize) => { if (fontSize !== '') onChange({ fontSize }); }}
+        title="Skriftstørrelse"
+        clearable={false}
+      />
       <View style={styles.optionRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.optionLbl}>Vis blindkopi som standard</Text>

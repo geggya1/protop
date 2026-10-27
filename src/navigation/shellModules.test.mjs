@@ -692,18 +692,9 @@ function collectPresented(items, acc = []) {
       ['ansatte', 'hr', 'fravaer', 'arbeid'],
       ['iso'],
       ['produktivitet', 'okonomi-inntjening'],
-      [
-        'okonomi-oversikt',
-        'okonomi-faktura',
-        'okonomi-fakturagrunnlag',
-        'okonomi-utlegg',
-        'okonomi-prosjektutlegg',
-        'okonomi-indeks',
-        'okonomi-indekser',
-        'okonomi-innstillinger',
-      ],
+      ['okonomi'],
       ['produkt', 'utstyr', 'kjorebok'],
-      ['anbud-varsling', 'anbud-foresporsel', 'anbud-vurdering', 'anbud-tilbud', 'anbud-innstillinger'],
+      ['anbud'],
       ['kunder', 'kontrakt', 'projects'],
     ],
   );
@@ -717,39 +708,40 @@ function collectPresented(items, acc = []) {
   assert.equal(org.children.find((item) => item.id === 'selskap').children, undefined);
   assert.equal(org.children.find((item) => item.id === 'selskap').icon, 'business');
   assert.equal(org.children.find((item) => item.id === 'underenheter').action.subView, 'underenheter');
+  // To nivåer: gruppe → modul. Undersidene ligger i modulens vannrette meny (moduleTabsFor) og som `pages`.
   const companySettings = org.children.find((item) => item.id === 'selskapsinnstillinger');
   assert.equal(companySettings.action.subView, 'innstillinger');
+  assert.equal(companySettings.children, undefined);
   assert.deepEqual(
-    companySettings.children.map((item) => item.id),
+    companySettings.pages.map((item) => item.id),
     ['selskapsinnstillinger-moduler', 'selskapsinnstillinger-tilgang'],
   );
   const tenders = presented.find((item) => item.id === 'company-tenders');
   assert.equal(customers.children.some((item) => item.id === 'anbud'), false);
-  assert.deepEqual(tenders.collapsedItems.map((item) => item.id), ['anbud']);
+  assert.deepEqual(tenders.children.map((item) => item.id), ['anbud']);
   assert.equal(tenders.processOrder, false);
   assert.equal(drawerGroupOpen(tenders, 'anbud', {}, 'vurdering'), true);
   const fravaer = people.children.find((item) => item.id === 'fravaer');
   assert.equal(fravaer.icon, 'sunny');
   assert.deepEqual(
-    fravaer.children.map((item) => item.label),
+    fravaer.pages.map((item) => item.label),
     ['Fraværsoversikt', 'Fraværsrapport', 'Planlagt fravær', 'Innstillinger'],
   );
-  assert.equal(fravaer.children[0].action.tab, 'arbeid');
-  assert.equal(fravaer.children[0].action.subView, 'fravaer');
+  assert.equal(fravaer.pages[0].action.tab, 'arbeid');
+  assert.equal(fravaer.pages[0].action.subView, 'fravaer');
   assert.equal(customers.processOrder, true);
-  assert.equal(people.children.find((item) => item.id === 'arbeid').children.some((c) => c.label === 'Produktivitet'), false);
+  assert.equal(people.children.find((item) => item.id === 'arbeid').pages.some((c) => c.label === 'Produktivitet'), false);
   const finance = presented.find((item) => item.id === 'company-finance');
-  assert.equal(finance.children.some((child) => child.id === 'okonomi' || child.label === 'Økonomi'), false);
-  assert.equal(finance.children.every((child) => !(child.children || []).length), true);
-  assert.deepEqual(finance.collapsedItems.map((item) => item.id), ['okonomi']);
-  assert.equal(people.collapsedItems, undefined);
+  assert.deepEqual(finance.children.map((child) => child.id), ['okonomi']);
+  assert.equal(presented.every((g) => !g.group || g.children.every((child) => !(child.children || []).length)), true);
   assert.equal(drawerGroupOpen(finance, 'okonomi', {}, 'faktura'), true);
   assert.equal(drawerGroupOpen(finance, 'okonomi', { 'company-finance': false }, 'faktura'), false);
   assert.equal(drawerGroupOpen(finance, 'home', {}, null), false);
   const byId = (rows) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
   assert.deepEqual(
     byId(collectPresented(presented)),
-    byId(collectPresented(source).filter((row) => row.id !== 'okonomi' && row.id !== 'anbud')),
+    byId(source.map((item) => ({ id: item.id, label: item.label, icon: item.icon || null, tab: item.action?.tab || null, subView: item.action?.subView ?? null }))),
+    'alle modulene er med i menyen',
   );
   assert.equal(presented.some((item) => !item.group), false);
 
@@ -764,12 +756,8 @@ function collectPresented(items, acc = []) {
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
   // Innleide har Tildelte prosjekt, og ser derfor Prosjekt (bare egne prosjekter).
-  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'okonomi-prosjektutlegg', 'produkt', 'utstyr', 'projects']);
-  assert.deepEqual(
-    innleie.find((item) => item.id === 'company-finance').collapsedItems.map((item) => item.id),
-    ['okonomi'],
-  );
-  assert.equal(innleie.find((item) => item.id === 'company-people').children.find((item) => item.id === 'fravaer').children.length, 3);
+  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'okonomi-prosjektutlegg', 'produkt-salg', 'utstyr', 'projects']);
+  assert.equal(innleie.find((item) => item.id === 'company-people').children.find((item) => item.id === 'fravaer').pages.length, 3);
 
   assert.equal(drawerGroupOpen(org, 'home', {}, null), false);
   assert.equal(drawerGroupOpen(org, 'selskap', {}, 'innstillinger'), true);

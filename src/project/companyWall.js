@@ -3,8 +3,8 @@
  * Samme form som familieveggen, egen subcollection under families/{id}.
  */
 import {
-  collection, doc, onSnapshot, addDoc, updateDoc, getDoc, query,
-  orderBy, limit, serverTimestamp,
+  collection, doc, onSnapshot, addDoc, updateDoc, getDoc, getDocs, query,
+  orderBy, limit, serverTimestamp, where,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { normalizeWallLinkUrl } from '../utils/familyWall';
@@ -28,8 +28,16 @@ export function listenCompanyWall(companyId, cb) {
   }, () => cb([]));
 }
 
+/** Finnes det allerede et innlegg fra en import (samme importKey)? Brukes så gjentatt import ikke dobler nyheter. */
+/** Er innlegget med denne nøkkelen allerede lagt ut? Kaster ved feil, så kalleren ikke legger ut to ganger. */
+export async function companyWallHasImport(companyId, importKey) {
+  if (!companyId || !importKey) return false;
+  const snap = await getDocs(query(companyWallPostsCol(companyId), where('importKey', '==', String(importKey)), limit(1)));
+  return !snap.empty;
+}
+
 export async function createCompanyWallPost({
-  companyId, authorUid, authorName, body, imageUrl, imageUrls, linkUrl, title, category,
+  companyId, authorUid, authorName, body, imageUrl, imageUrls, linkUrl, title, category, importKey,
 }) {
   if (!companyId) throw new Error('Mangler selskap');
   const urls = normalizePostImageUrls(imageUrls, imageUrl);
@@ -51,6 +59,7 @@ export async function createCompanyWallPost({
     reactionCount: 0,
     reactions: {},
     deleted: false,
+    ...(importKey ? { importKey: String(importKey).slice(0, 200) } : {}),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

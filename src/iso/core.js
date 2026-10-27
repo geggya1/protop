@@ -149,6 +149,28 @@ export function upsert(list, entity) {
   return next;
 }
 
+/**
+ * Deler en liste i Firestore-batcher: høyst maxCount skrivinger og omtrent maxBytes per batch
+ * (grensen er 500 skrivinger og 10 MiB). sizeOf gir omtrentlig størrelse per element.
+ */
+export function chunkForBatch(items, sizeOf = () => 1, { maxCount = 400, maxBytes = 5_000_000 } = {}) {
+  const out = [];
+  let cur = [];
+  let bytes = 0;
+  for (const item of items || []) {
+    const n = Number(sizeOf(item)) || 0;
+    if (cur.length && (cur.length >= maxCount || bytes + n > maxBytes)) {
+      out.push(cur);
+      cur = [];
+      bytes = 0;
+    }
+    cur.push(item);
+    bytes += n;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
 export function uniq(values) {
   return [...new Set((values || []).map((v) => text(v, 200)).filter(Boolean))];
 }

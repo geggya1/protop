@@ -607,6 +607,10 @@ export const TABLE = {
     workflows: L('Arbeidsflyter', 'Workflows'),
     workflowsLead: L('Guidede turer som tar deg gjennom en hel prosess, side for side.', 'Guided tours that take you through a whole process, page by page.'),
     startFlow: L('Start', 'Start'),
+    videos: L('Støttevideoer', 'Support videos'),
+    videosLead: L('Korte videoer som viser stegene i ProTop, med engelsk tale og tekst.', 'Short videos that show the steps in ProTop, with English voice and captions.'),
+    playVideo: L('Spill av video', 'Play video'),
+    videoLang: L('engelsk tale og tekst', 'English voice and captions'),
   },
   assistant: {
     name: L('ProTop-assistent', 'ProTop assistant'),

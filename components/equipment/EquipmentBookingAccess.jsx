@@ -6,6 +6,7 @@ import {
   employeeMayBook,
 } from '../../src/equipment/calendars';
 import { displayName } from '../../src/employees/model';
+import OptionPicker from '../OptionPicker';
 
 /**
  * Hvem som kan booke utstyret, inne i redigeringsskjemaet.
@@ -63,18 +64,19 @@ export default function EquipmentBookingAccess({
             />
           </View>
           {mode === 'selected' ? (
-            <View style={styles.row}>
-              {active.map((employee) => (
-                <Choice
-                  key={employee.id}
-                  label={displayName(employee)}
-                  active={picked.has(employee.id)}
-                  colors={colors}
-                  onPress={() => toggle(employee.id)}
-                />
-              ))}
-              {!active.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen aktive ansatte.</Text> : null}
-            </View>
+            active.length ? (
+              <OptionPicker
+                options={active.map((employee) => ({ id: employee.id, label: displayName(employee) }))}
+                multiple
+                value={active.filter((employee) => picked.has(employee.id)).map((employee) => employee.id)}
+                onChange={(ids) => {
+                  // Id-er for ansatte som ikke lenger er aktive, beholdes slik knappene gjorde.
+                  const stale = [...picked].filter((id) => !active.some((employee) => employee.id === id));
+                  onChange?.({ bookingEmployeeIds: [...stale, ...ids] });
+                }}
+                title="Valgte ansatte"
+              />
+            ) : <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen aktive ansatte.</Text>
           ) : (
             <Text style={{ color: colors.muted, fontSize: 12 }}>
               Nye aktive ansatte får tilgang av seg selv. Deaktiverte og innleide tas ikke med.

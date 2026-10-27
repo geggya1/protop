@@ -12,7 +12,7 @@ import CompanyDesktopLanding from './CompanyDesktopLanding';
  * Selskap: offentlig bedriftsinfo og nyhetsvegg.
  * Innstillinger åpnes via tannhjulet (selskap/innstillinger).
  */
-export default function CompanyLanding() {
+export default function CompanyLanding({ subView = '' } = {}) {
   const { pad } = useLayout();
   const colors = useColors();
   const nav = useNavigation();
@@ -53,6 +53,7 @@ export default function CompanyLanding() {
       <View nativeID="company-profile-sheet" id="company-profile-sheet" style={[styles.sheet, { padding: pad }]}>
         <CompanyDesktopLanding
           stored={stored}
+          initialTab={subView === 'nyheter' ? 'nyheter' : ''}
           onSettings={canOpenSettings ? () => requestShellTab?.('selskap', 'innstillinger') : null}
           onUnits={() => requestShellTab?.('selskap', 'underenheter')}
           onEmployees={() => requestShellTab?.('ansatte')}

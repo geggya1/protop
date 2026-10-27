@@ -107,6 +107,7 @@ export default function CompanyPublicProfile({
   onEmployees,
   onProjects,
   onSavePage,
+  initialTab = '',
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
@@ -114,7 +115,9 @@ export default function CompanyPublicProfile({
   const wide = width >= 980;
   const stacked = width < 760;
   const page = useMemo(() => normalizeCompanyPage(stored?.publicPage), [stored?.publicPage]);
-  const [tab, setTab] = useState('oversikt');
+  const [tab, setTab] = useState(initialTab || 'oversikt');
+  // Lenker fra andre moduler (f.eks. ISO → «Skriv nyhet») åpner nyhetene direkte.
+  useEffect(() => { if (initialTab) setTab(initialTab); }, [initialTab]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(page);
   const [saving, setSaving] = useState(false);

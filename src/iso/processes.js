@@ -124,6 +124,8 @@ export function makeNode(type, patch = {}) {
     requirementIds: uniq(patch.requirementIds),
     inputs: text(patch.inputs, 1000),
     outputs: text(patch.outputs, 1000),
+    // System eller datalager trinnet bruker (f.eks. «ProTop Anbud», «Kundens system»).
+    system: text(patch.system, 160),
   };
 }
 
@@ -459,6 +461,9 @@ export function createProcess(input, { actor, now = new Date(), template = null 
   const proc = bump({
     id: newId('pro'),
     title: text(input.title, 160),
+    code: text(input.code || template?.code, 40),
+    order: Number.isFinite(Number(input.order ?? template?.order)) ? Number(input.order ?? template?.order) : 0,
+    documentIds: uniq(input.documentIds || template?.documentIds),
     purpose: text(input.purpose || template?.purpose, 2000),
     category: PROCESS_CATEGORIES.some((c) => c.id === input.category) ? input.category : (template?.category || 'kjerne'),
     ownerName: text(input.ownerName, 160),
@@ -530,6 +535,9 @@ export function saveDraftDiagram(proc, diagram, { actor, now = new Date(), meta 
     ...proc,
     ...(meta ? {
       title: text(meta.title, 160) || proc.title,
+      code: meta.code != null ? text(meta.code, 40) : (proc.code || ''),
+      order: meta.order != null && Number.isFinite(Number(meta.order)) ? Number(meta.order) : (proc.order || 0),
+      documentIds: meta.documentIds ? uniq(meta.documentIds) : (proc.documentIds || []),
       purpose: meta.purpose != null ? text(meta.purpose, 2000) : proc.purpose,
       category: meta.category || proc.category,
       ownerName: meta.ownerName != null ? text(meta.ownerName, 160) : proc.ownerName,
@@ -903,6 +911,8 @@ export function exportProcessJson(proc) {
     format: 'protop.iso.process',
     formatVersion: 1,
     title: proc.title,
+    code: proc.code || '',
+    order: proc.order || 0,
     purpose: proc.purpose,
     category: proc.category,
     inputs: proc.inputs,
@@ -927,6 +937,8 @@ export function importProcessJson(raw) {
     template: {
       key: 'import',
       title: text(data.title, 160) || 'Importert prosess',
+      code: text(data.code, 40),
+      order: Number(data.order) || 0,
       purpose: text(data.purpose, 2000),
       category: data.category,
       inputs: data.inputs,

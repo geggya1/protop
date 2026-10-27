@@ -10,6 +10,7 @@ import { interpretCompanyProfile } from '../../src/anbud/watchAi';
 import { loadAnbudState, persistAnbudState } from '../../src/anbud/storage';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { updateGroup } from '../../src/utils/groups';
+import OptionPicker from '../../components/OptionPicker';
 import RegionCoverage from './RegionCoverage';
 
 function Chip({ label, on, onPress, colors, hint }) {
@@ -297,35 +298,31 @@ export default function WatchSettings({ company, colors, units = [] }) {
         CPV-koder, næringskoder, søkeord og varsling for anbudsvarsling. Verdiene lagres på bedriften og brukes i trefflisten.
       </Text>
       <Text style={[styles.h, { color: colors.ink }]}>Søkekriterier</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        {(state.profiles || []).map((profile) => {
-          const on = state.activeProfileId === profile.id;
-          return (
-            <TouchableOpacity
-              key={profile.id}
-              onPress={async () => {
-                const selected = selectProfile(state, profile.id);
-                if (!selected.ok) return;
-                const next = await persistAnbudState(selected.state, company?.id);
-                setState(next);
-                const watch = next.watch || {};
-                setSelectedCpv(new Set((watch.cpvCodes || []).map((row) => row.code).filter(Boolean)));
-                setKeywords(watch.keywords || []);
-                setNationwide(!!watch.nationwide);
-                setAreas(new Set((watch.areas || []).map((row) => row.id)));
-                setChannels(new Set(watch.channels?.length ? watch.channels : ['doffin', 'ted']));
-                setDepartmentAreas(watch.departmentAreas || []);
-                setNote(`Profilen ${profile.name} er valgt.`);
-                showSaveToast(`Profilen ${profile.name} er valgt.`);
-              }}
-              accessibilityRole="button"
-              style={[styles.chip, { backgroundColor: on ? colors.brand : colors.sunken }]}
-            >
-              <Text style={{ color: on ? '#fff' : colors.ink, fontSize: 13 }}>{profile.name}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {(state.profiles || []).length ? (
+        <OptionPicker
+          options={(state.profiles || []).map((profile) => ({ id: profile.id, label: profile.name }))}
+          value={state.activeProfileId}
+          onChange={async (id) => {
+            const profile = (state.profiles || []).find((row) => row.id === id);
+            if (!profile) return;
+            const selected = selectProfile(state, profile.id);
+            if (!selected.ok) return;
+            const next = await persistAnbudState(selected.state, company?.id);
+            setState(next);
+            const watch = next.watch || {};
+            setSelectedCpv(new Set((watch.cpvCodes || []).map((row) => row.code).filter(Boolean)));
+            setKeywords(watch.keywords || []);
+            setNationwide(!!watch.nationwide);
+            setAreas(new Set((watch.areas || []).map((row) => row.id)));
+            setChannels(new Set(watch.channels?.length ? watch.channels : ['doffin', 'ted']));
+            setDepartmentAreas(watch.departmentAreas || []);
+            setNote(`Profilen ${profile.name} er valgt.`);
+            showSaveToast(`Profilen ${profile.name} er valgt.`);
+          }}
+          title="Søkekriterier"
+          clearable={false}
+        />
+      ) : null}
       <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
         <TextInput
           value={profileName}
@@ -405,12 +402,20 @@ export default function WatchSettings({ company, colors, units = [] }) {
               >
                 <Text style={{ color: colors.brand }}>{opened ? 'Skjul undernivå' : `Vis ${children.length} undernivå`}</Text>
               </TouchableOpacity>
-              {opened ? (
-                <View style={styles.row}>
-                  {children.map((row) => (
-                    <Chip key={row.code} colors={colors} on={selectedCpv.has(row.code)} label={`${row.code.slice(0, 4)} ${row.label}`} onPress={() => toggle(setSelectedCpv, row.code)} />
-                  ))}
-                </View>
+              {opened && children.length ? (
+                <OptionPicker
+                  options={children.map((row) => ({ id: row.code, label: `${row.code.slice(0, 4)} ${row.label}` }))}
+                  multiple
+                  value={children.filter((row) => selectedCpv.has(row.code)).map((row) => row.code)}
+                  onChange={(codes) => setSelectedCpv((current) => {
+                    // Bare kodene i denne gruppen (og søket) byttes ut. Andre valgte koder står.
+                    const next = new Set(current);
+                    children.forEach((row) => next.delete(row.code));
+                    codes.forEach((code) => next.add(code));
+                    return next;
+                  })}
+                  title={`${group.code.slice(0, 4)} ${group.label}`}
+                />
               ) : null}
             </View>
           );

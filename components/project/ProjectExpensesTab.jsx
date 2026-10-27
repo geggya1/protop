@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker, { CHIP_LIMIT } from '../OptionPicker';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
 import { EXPENSE_CATEGORIES, emptyExpense, expenseCategory } from '../../src/economy/expenses.js';
 import { expenseStatusLabel, filterExpenses } from '../../src/economy/expenseList.js';
@@ -248,17 +249,14 @@ export default function ProjectExpensesTab({
                 style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
               />
               <Label colors={colors} text="Kategori" />
-              <View style={styles.chipRow}>
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <TouchableOpacity
-                    key={c.id}
-                    onPress={() => setEditor((e) => ({ ...e, category: c.id }))}
-                    style={[styles.chip, { borderColor: editor?.category === c.id ? colors.brand : colors.line }]}
-                  >
-                    <Text style={{ color: colors.ink, fontSize: 12 }}>{c.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <OptionPicker
+                options={EXPENSE_CATEGORIES.map((c) => ({ id: c.id, label: c.label }))}
+                value={editor?.category}
+                onChange={(id) => { if (id) setEditor((e) => ({ ...e, category: id })); }}
+                title="Kategori"
+                clearable={false}
+                small
+              />
               <Label colors={colors} text="Beløp eks. mva" />
               <TextInput
                 keyboardType="numeric"
@@ -292,7 +290,21 @@ function Label({ colors, text }) {
   return <Text style={{ color: colors.muted, marginTop: 10, marginBottom: 4, fontSize: 12 }}>{text}</Text>;
 }
 
-function ChipSelect({ colors, value, options, onChange }) {
+function ChipSelect({ colors, value, options, onChange, placeholder }) {
+  if (options.length > CHIP_LIMIT) {
+    // 5 eller flere valg: nedtrekk i stedet for en rad med knapper.
+    return (
+      <OptionPicker
+        options={options}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        title={placeholder}
+        clearable={false}
+        small
+      />
+    );
+  }
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
       {options.map((opt) => {

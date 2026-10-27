@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useShellWide } from '../../components/ModuleAside';
+import OptionPicker from '../../components/OptionPicker';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
@@ -788,11 +789,15 @@ export default function EquipmentScreen() {
           ) : selectedDate ? (
             <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>Reserver {selectedDate}</Text>
-              <View style={styles.row}>
-                {companyGear.filter((row) => row.bookable && (canEditAccess || employeeMayBook(row, me))).map((row) => (
-                  <Chip key={row.id} label={row.name} active={bookingGearId === row.id} onPress={() => setBookingGearId(row.id)} colors={colors} />
-                ))}
-              </View>
+              <OptionPicker
+                options={companyGear
+                  .filter((row) => row.bookable && (canEditAccess || employeeMayBook(row, me)))
+                  .map((row) => ({ id: row.id, label: row.name }))}
+                value={bookingGearId}
+                onChange={(id) => { if (id) setBookingGearId(id); }}
+                title={`Reserver ${selectedDate}`}
+                clearable={false}
+              />
               <View style={styles.row}>
                 <Field label="Fra kl." value={startTime} onChange={setStartTime} colors={colors} placeholder="08:00" />
                 <Field label="Til kl." value={endTime} onChange={setEndTime} colors={colors} placeholder="16:00" />

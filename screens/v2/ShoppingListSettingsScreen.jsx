@@ -8,6 +8,7 @@ import { colors, radius } from '../../src/theme';
 import { Screen, Title, Mute, ScrollBody, BigButton } from '../../components/ui';
 import ConfirmDialog, { InfoDialog } from '../../components/ConfirmDialog';
 import CompactBackLink from '../../components/CompactBackLink';
+import OptionPicker from '../../components/OptionPicker';
 import EdgeSwipeBack from '../../components/EdgeSwipeBack';
 import {
   listenList, updateList, archiveList, deleteList, setListMembersForList,
@@ -317,23 +318,14 @@ export default function ShoppingListSettingsScreen({
 
         <Text style={styles.label}>Foretrukket butikk</Text>
         <Text style={styles.hint}>Brukes til hyllesortering under handletur.</Text>
-        <View style={styles.chipRow}>
-          {GROCERY_STORES.map((s) => {
-            const on = preferredStoreId === s.id;
-            return (
-              <TouchableOpacity
-                key={s.id}
-                style={[styles.chip, on && styles.chipOn, !canManage && styles.chipDisabled]}
-                onPress={() => canManage && setPreferredStoreId(on ? null : s.id)}
-                disabled={!canManage}
-              >
-                <Text style={[styles.chipTxt, on && styles.chipTxtOn]}>
-                  {s.emoji} {s.shortName}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <OptionPicker
+          options={GROCERY_STORES.map((s) => ({ id: s.id, label: `${s.emoji} ${s.shortName}` }))}
+          value={preferredStoreId || ''}
+          onChange={(id) => { if (canManage) setPreferredStoreId(id || null); }}
+          disabled={!canManage}
+          title="Foretrukket butikk"
+          clearable
+        />
 
         <Text style={styles.label}>Deling og medlemmer</Text>
         <Text style={styles.hint}>

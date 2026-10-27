@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ACCESS_LEVELS, levelById } from '../../src/access/companyAccess';
+import OptionPicker from '../../components/OptionPicker';
 import {
   employeeContactEmail,
   employeesMissingInviteEmail,
@@ -106,31 +107,17 @@ export default function EmployeeInvitePanel({
           style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
         />
         <Text style={{ color: colors.muted, fontSize: 13 }}>Tilgang i bedriften</Text>
-        <View style={styles.chips}>
-          {ACCESS_LEVELS.map((level) => {
-            const selected = accessLevel === level.id;
-            const locked = !canEditAccess && level.id !== 'ansatt';
-            return (
-              <TouchableOpacity
-                key={level.id}
-                disabled={locked || busy}
-                onPress={() => setAccessLevel(level.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: selected ? colors.brand : colors.line,
-                    backgroundColor: selected ? colors.brandSoft : colors.bg,
-                    opacity: locked ? 0.45 : 1,
-                  },
-                ]}
-              >
-                <Text style={{ color: selected ? colors.brand : colors.ink, fontSize: 13 }}>{level.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {/* Uten rett til å styre tilgang kan bare «ansatt» velges (de andre nivåene var låst). */}
+        <OptionPicker
+          options={ACCESS_LEVELS
+            .filter((level) => canEditAccess || level.id === 'ansatt')
+            .map((level) => ({ id: level.id, label: level.label }))}
+          value={accessLevel}
+          onChange={(id) => { if (id) setAccessLevel(id); }}
+          disabled={busy}
+          title="Tilgang i bedriften"
+          clearable={false}
+        />
         {!!formError && <Text style={{ color: colors.danger || '#b42318' }}>{formError}</Text>}
         <TouchableOpacity
           nativeID="employee-invite-add"

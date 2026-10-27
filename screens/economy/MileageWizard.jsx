@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import OptionPicker from '../../components/OptionPicker';
 import { useApp } from '../../src/context/AppContext';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
@@ -1505,17 +1506,13 @@ export default function MileageWizard({
             </View>
           ) : null}
           <Text style={{ color: colors.muted, fontSize: 12 }}>Hensikt med turen</Text>
-          <View style={styles.row}>
-            {VISIT_PURPOSES.map((row) => (
-              <Chip
-                key={row.id}
-                label={row.label}
-                colors={colors}
-                active={draft.visitPurpose === row.id}
-                onPress={() => patch({ visitPurpose: row.id })}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={VISIT_PURPOSES}
+            value={draft.visitPurpose}
+            onChange={(id) => { if (id) patch({ visitPurpose: id }); }}
+            title="Hensikt med turen"
+            clearable={false}
+          />
           {draft.visitPurpose === 'annet' ? (
             <Field label="Egen hensikt" value={draft.visitCustom} onChange={(value) => patch({ visitCustom: value })} colors={colors} />
           ) : null}

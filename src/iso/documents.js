@@ -13,6 +13,12 @@ export const DOC_TYPES = [
   { id: 'instruks', label: 'Arbeidsinstruks' },
   { id: 'plan', label: 'Plan' },
   { id: 'handbok', label: 'Håndbok' },
+  { id: 'veileder', label: 'Veileder / opplæring' },
+  { id: 'analyse', label: 'Kartlegging / analyse' },
+  { id: 'register', label: 'Register / matrise' },
+  { id: 'sjekkliste', label: 'Sjekkliste' },
+  { id: 'skjema', label: 'Skjema' },
+  { id: 'rapport', label: 'Rapport / referat' },
   { id: 'ekstern', label: 'Eksternt dokument' },
   { id: 'kravbevis', label: 'Kravbevis' },
   { id: 'mal', label: 'Mal' },
@@ -41,13 +47,117 @@ function ev(doc, action, actor, before, now, reason = '') {
   return auditEvent({ entityType: 'document', entityId: doc.id, action, actor, before, after: doc, reason, now });
 }
 
+/* ───────── Dokumentstruktur (deler og mapper) ───────── */
+
+/**
+ * Virksomhetens egen dokumentstruktur, f.eks. «A – HMSK-system» med mappene «A-01 Politikk», «A-02 Kontekst».
+ * Lagres i isoSystem.docStructure. Tom struktur = dokumentene grupperes etter type.
+ */
+export function normalizeDocStructure(raw) {
+  const parts = Array.isArray(raw) ? raw : [];
+  const seen = new Set();
+  return parts.map((p) => {
+    const code = text(p?.code, 12).toUpperCase();
+    if (!code || seen.has(code)) return null;
+    seen.add(code);
+    const folders = (Array.isArray(p?.folders) ? p.folders : []).map((f) => {
+      const fc = text(f?.code, 20).toUpperCase();
+      if (!fc || seen.has(fc)) return null;
+      seen.add(fc);
+      return { code: fc, title: text(f?.title, 120) || fc, description: text(f?.description, 600) };
+    }).filter(Boolean);
+    return { code, title: text(p?.title, 120) || code, description: text(p?.description, 600), folders };
+  }).filter(Boolean);
+}
+
+/** «A-01» → «A-01 Politikk». Ukjent mappe gir koden. */
+export function folderLabel(structure, folderCode) {
+  const code = text(folderCode, 20).toUpperCase();
+  if (!code) return '';
+  for (const p of normalizeDocStructure(structure)) {
+    if (p.code === code) return `${p.code} – ${p.title}`;
+    const f = p.folders.find((x) => x.code === code);
+    if (f) return `${f.code} ${f.title}`;
+  }
+  return code;
+}
+
+/** Neste ledige dokumentkode i en mappe: A-01 → A-01-004 (løpenummer med tre siffer). */
+export function nextDocumentCode(folder, docs = []) {
+  const head = `${text(folder, 20).toUpperCase()}-`;
+  if (head === '-') return '';
+  let max = 0;
+  for (const d of docs || []) {
+    const code = String(d?.code || '').toUpperCase();
+    if (!code.startsWith(head)) continue;
+    const n = Number(code.slice(head.length));
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return `${head}${String(max + 1).padStart(3, '0')}`;
+}
+
+/** Dokumentkoden er unik blant dokumenter som ikke er arkivert (ISO 7.5.2 identifikasjon). */
+export function codeTaken(code, docs = [], exceptId = '') {
+  const c = text(code, 40).toUpperCase();
+  return !!c && (docs || []).some((d) => !d.archived && d.id !== exceptId && String(d.code || '').toUpperCase() === c);
+}
+
+/** Vedlegg: lenke eller opplastet fil i ProTop. */
+export function cleanAttachment(a) {
+  const label = text(a?.label, 200);
+  const url = text(a?.url, 2000);
+  if (!label && !url) return null;
+  const out = { label: label || url.split('/').pop() || 'Vedlegg', url };
+  if (a?.path) out.path = text(a.path, 500);
+  if (a?.contentType) out.contentType = text(a.contentType, 120);
+  if (Number(a?.size) > 0) out.size = Math.round(Number(a.size));
+  if (['fil', 'lenke', 'original'].includes(a?.kind)) out.kind = a.kind;
+  return out;
+}
+
+function cleanAttachments(list) {
+  return (Array.isArray(list) ? list : []).map(cleanAttachment).filter(Boolean).slice(0, 40);
+}
+
+/** Revisjonshistorikk fra tidligere system (vises som historikk, ikke som ProTop-revisjoner). */
+export function cleanLegacyRevisions(list) {
+  return (Array.isArray(list) ? list : []).map((r) => ({
+    rev: text(r?.rev, 20),
+    date: isoDate(r?.date) || text(r?.date, 20),
+    reason: text(r?.reason, 500),
+    by: text(r?.by, 120),
+  })).filter((r) => r.rev || r.reason).slice(0, 60);
+}
+
+/** Hvor dokumentet kommer fra (import fra tidligere system). */
+export function cleanSource(src) {
+  if (!src || typeof src !== 'object') return null;
+  const out = {
+    system: text(src.system, 120),
+    path: text(src.path, 600),
+    url: text(src.url, 2000),
+    originalCode: text(src.originalCode, 80),
+    originalCreated: text(src.originalCreated, 40),
+    originalVersion: text(src.originalVersion, 40),
+    note: text(src.note, 2000),
+  };
+  return Object.values(out).some(Boolean) ? out : null;
+}
+
 export function createDocument(input, { actor, existing = [], now = new Date() } = {}) {
   if (!text(input?.title)) return fail('Gi dokumentet en tittel.');
   if (!DOC_TYPES.some((d) => d.id === input?.docType)) return fail('Velg dokumenttype.');
   const months = Number(input.reviewIntervalMonths) || 12;
+  const folder = text(input.folder, 20).toUpperCase();
+  const code = text(input.code, 40)
+    || (folder ? nextDocumentCode(folder, existing) : nextNumber('DOK', existing.map((d) => ({ number: d.code })), now));
+  if (codeTaken(code, existing)) return fail(`Dokument-ID ${code} er allerede i bruk.`);
+  const legacy = cleanLegacyRevisions(input.legacyRevisions);
+  const source = cleanSource(input.source);
   const doc = bump({
     id: newId('dok'),
-    code: text(input.code, 40) || nextNumber('DOK', existing.map((d) => ({ number: d.code })), now),
+    code,
+    folder,
     title: text(input.title, 200),
     docType: input.docType,
     ownerName: text(input.ownerName, 160) || text(actor?.name, 160),
@@ -60,12 +170,14 @@ export function createDocument(input, { actor, existing = [], now = new Date() }
     reviewIntervalMonths: months,
     nextReview: '',
     readAckRequired: !!input.readAckRequired,
+    ...(legacy.length ? { legacyRevisions: legacy } : {}),
+    ...(source ? { source } : {}),
     revisions: [{
       revision: 1,
       state: 'utkast',
       content: text(input.content, 60000),
-      attachments: [],
-      changeReason: 'Første utgave',
+      attachments: cleanAttachments(input.attachments),
+      changeReason: text(input.changeReason, 1000) || 'Første utgave',
       createdAt: nowIso(now),
       createdBy: text(actor?.name, 160),
     }],
@@ -94,15 +206,20 @@ function patchRevision(doc, revision, patch) {
   return (doc.revisions || []).map((r) => (r.revision === revision ? { ...r, ...patch } : r));
 }
 
-export function saveDocumentDraft(doc, input, { actor, now = new Date() } = {}) {
+export function saveDocumentDraft(doc, input, { actor, now = new Date(), existing = null } = {}) {
   const work = workingRevision(doc);
   if (!work) return fail('Publisert revisjon er låst. Lag ny revisjon for å endre.');
   if (!['utkast', 'avvist'].includes(work.state)) return fail('Revisjonen er til gjennomgang og kan ikke endres.');
-  const attachments = (input?.attachments || work.attachments || [])
-    .map((a) => ({ label: text(a?.label, 200), url: text(a?.url, 2000) }))
-    .filter((a) => a.label || a.url);
+  const attachments = cleanAttachments(input?.attachments || work.attachments || []);
+  const code = input?.code != null ? (text(input.code, 40) || doc.code) : doc.code;
+  if (existing && code !== doc.code && codeTaken(code, existing, doc.id)) return fail(`Dokument-ID ${code} er allerede i bruk.`);
   const next = bump({
     ...doc,
+    code,
+    folder: input?.folder != null ? text(input.folder, 20).toUpperCase() : (doc.folder || ''),
+    tags: input?.tags ? uniq(input.tags) : (doc.tags || []),
+    processIds: input?.processIds ? uniq(input.processIds) : (doc.processIds || []),
+    docType: input?.docType && DOC_TYPES.some((d) => d.id === input.docType) ? input.docType : doc.docType,
     title: input?.title != null ? (text(input.title, 200) || doc.title) : doc.title,
     ownerName: input?.ownerName != null ? text(input.ownerName, 160) : doc.ownerName,
     approverName: input?.approverName != null ? text(input.approverName, 160) : doc.approverName,

@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker from '../OptionPicker';
 import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { formatNbDate } from '../../src/arbeid/absenceDashboard.js';
 import { hoursToDays } from '../../src/arbeid/balance.js';
@@ -143,23 +144,14 @@ export default function AbsencePeriodModal({
                         placeholderTextColor={colors.muted}
                         style={[styles.input, { borderColor: colors.line, color: colors.ink }]}
                       />
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-                        {absencePickerTypes(catalog).map((type) => (
-                          <TouchableOpacity
-                            key={type.id}
-                            onPress={() => setDraft((current) => ({ ...current, type: type.id }))}
-                            style={[
-                              styles.chip,
-                              {
-                                borderColor: draft.type === type.id ? colors.brand : colors.line,
-                                backgroundColor: draft.type === type.id ? (colors.brandSoft || '#E8F0FE') : colors.card,
-                              },
-                            ]}
-                          >
-                            <Text style={{ color: colors.ink, fontSize: 12 }}>{type.label}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
+                      <OptionPicker
+                        options={absencePickerTypes(catalog).map((type) => ({ id: type.id, label: type.label }))}
+                        value={draft.type}
+                        onChange={(id) => { if (id) setDraft((current) => ({ ...current, type: id })); }}
+                        title="Type"
+                        clearable={false}
+                        small
+                      />
                       <View style={styles.actions}>
                         <TouchableOpacity
                           onPress={() => {

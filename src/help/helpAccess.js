@@ -96,7 +96,10 @@ export const PAGE_ACCESS = {
   'iso.krav': { res: 'iso', steps: [S, R, R] },
   'iso.lovkrav': { res: 'iso', steps: [R, R] },
   'iso.kontekst': { res: 'iso', steps: [R, R, R] },
+  'iso.organisasjon': { res: 'iso', steps: [R, R, W] },
+  'iso.kommunikasjon': { res: 'iso', steps: [R, R] },
   'iso.mal': { res: 'iso', steps: [R, R] },
+  'iso.arshjul': { res: 'iso', steps: [R, R, R] },
   'iso.avvik': { res: 'iso', steps: [S, R, R, W] },
   'iso.risiko': { res: 'iso', steps: [R, S] },
   'iso.miljo': { res: 'iso', steps: [R, R] },
@@ -122,6 +125,7 @@ export const PROCESS_ACCESS = {
   ferie: [W, R, null, null],
   avvik: [W, S, null, W],
   oppstart: [W, W, R, W, R, W],
+  ledelsessystem: [W, R, R, R, R, null, R],
 };
 
 const ACTION_LABEL = {

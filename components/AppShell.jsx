@@ -45,7 +45,10 @@ import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { moduleTabsFor } from '../src/navigation/moduleTabs';
+import ModuleTabs from './ModuleTabs';
+import { isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor } from '../src/navigation/shellPaths';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -339,6 +342,71 @@ function AppShellInner() {
     }
     nav.setParams({ openShell: undefined });
   }, [route?.params?.openShell, nav, requestShellTab]);
+
+  // Web: Hjem montert uten openShell mens adressen peker på en side (etter innlogging, ny Hjem-rute) → åpne den.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || route?.params?.openShell?.tab) return;
+    const at = parseShellPath(window.location.pathname);
+    if (!at || at.tab === 'home') return;
+    setMoreSubView(at.subView || null);
+    setTab(at.tab);
+  }, []);
+
+  // Web: fanen og undersiden står i adressen (/hjem/iso/avvik), så nettleserens tilbake og fram virker.
+  useEffect(() => {
+    if (route?.key) setHomeRouteKey(route.key);
+  }, [route?.key]);
+
+  // Første kjøring hopper over: fanen fra adressen (openShell) er ikke satt ennå.
+  const shellSyncedRef = useRef(false);
+  // Siste navigasjon fra adressen (oppstart, tilbake/fram) og siste trykk eller tast fra brukeren.
+  // Bytter uten brukerinput siden adressenavigasjonen er omdirigeringer (standard underside, tilgang) og erstatter.
+  const urlNavAtRef = useRef(Date.now());
+  const inputAtRef = useRef(0);
+  // Siste oppføring: et nytt bytte i samme fane rett etter (modulen setter standard underside) slås sammen.
+  const lastEntryRef = useRef({ at: 0, tab: '' });
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !window.history?.pushState) return;
+    if (!shellSyncedRef.current) {
+      shellSyncedRef.current = true;
+      return;
+    }
+    const path = shellPathFor(tab, moreSubView);
+    setShellLocation(path);
+    const here = window.location.pathname;
+    // Etter tilbake/fram står nettleseren allerede på stien. Ligger en annen skjerm over Hjem, rører vi den ikke.
+    if (here === path || !isShellPath(here)) return;
+    // Omdirigering (/hjem/anbud → /hjem/anbud/varsling) erstatter oppføringen. Ellers ville tilbake havne i en løkke.
+    const redirect = inputAtRef.current < urlNavAtRef.current;
+    const chained = lastEntryRef.current.tab === tab && Date.now() - lastEntryRef.current.at < 400;
+    const url = `${path}${window.location.search || ''}`;
+    const state = { ...(window.history.state || {}), shell: path };
+    try {
+      if (redirect || chained) window.history.replaceState(state, '', url);
+      else window.history.pushState(state, '', url);
+    } catch { /* ignore */ }
+    lastEntryRef.current = { at: Date.now(), tab };
+  }, [tab, moreSubView]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onPop = () => {
+      const next = parseShellPath(window.location.pathname);
+      if (!next) return;
+      urlNavAtRef.current = Date.now();
+      setMoreSubView(next.subView || null);
+      setTab(next.tab);
+    };
+    const onInput = () => { inputAtRef.current = Date.now(); };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('pointerdown', onInput, true);
+    window.addEventListener('keydown', onInput, true);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('pointerdown', onInput, true);
+      window.removeEventListener('keydown', onInput, true);
+    };
+  }, []);
 
   // Tilpass hjem → åpne hjem-fanen (editHome leses av theme hosts)
   useEffect(() => {
@@ -662,7 +730,7 @@ function AppShellInner() {
     }
     if (tab === 'selskap' && moreSubView === 'underenheter') return <CompanyUnitsScreen />;
     if (tab === 'underenheter') return <CompanyUnitsScreen />;
-    if (tab === 'selskap') return <CompanyLanding />;
+    if (tab === 'selskap') return <CompanyLanding subView={moreSubView} />;
     if (tab === 'more') {
       return (
         <MoreHubScreen
@@ -673,6 +741,24 @@ function AppShellInner() {
     }
     return <HomeScreen />;
   }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess, companyModules]);
+
+  // Undersidene i modulen (ISO, Økonomi, Arbeid …) ligger i en vannrett meny øverst, ikke i hamburgermenyen.
+  const moduleMenu = useMemo(() => {
+    if (kitchenMode || !isOrganizationType(family?.type)) return null;
+    const items = companyMenuItems({
+      includeUnderenheter: companyHasRegisteredUnits(family?.company),
+      grants: companyAccess.grants,
+      modules: companyModules.state,
+      lockedNote: companyModules.lockedLabel,
+    });
+    return moduleTabsFor(tab, moreSubView, items);
+  }, [kitchenMode, family?.type, family?.company, companyAccess.grants, companyModules.state, companyModules.lockedLabel, tab, moreSubView]);
+
+  const moduleBody = (
+    <ShellErrorBoundary key={`${tab}:${moreSubView || ''}`}>
+      {otherBody}
+    </ShellErrorBoundary>
+  );
 
   const body = (
     <>
@@ -685,11 +771,13 @@ function AppShellInner() {
           <PlanScreen active={tab === 'plan'} />
         </View>
       ) : null}
-      {tab !== 'plan' ? (
-        <ShellErrorBoundary key={`${tab}:${moreSubView || ''}`}>
-          {otherBody}
-        </ShellErrorBoundary>
+      {tab !== 'plan' && moduleMenu ? (
+        <View style={styles.moduleFrame}>
+          <ModuleTabs menu={moduleMenu} onSelect={(nextTab, nextSub) => selectTab(nextTab, nextSub)} />
+          <View style={styles.moduleFrame}>{moduleBody}</View>
+        </View>
       ) : null}
+      {tab !== 'plan' && !moduleMenu ? moduleBody : null}
     </>
   );
 
@@ -1113,6 +1201,7 @@ export default function AppShell() {
 }
 
 const styles = StyleSheet.create({
+  moduleFrame: { flex: 1, minHeight: 0 },
   safe: { flex: 1, minHeight: 0 },
   /* Photo backdrop is z-index 0. The shell must stay above that fade. */
   shellAboveBackdrop: { backgroundColor: 'transparent', zIndex: 1 },

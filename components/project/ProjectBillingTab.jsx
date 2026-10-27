@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker from '../OptionPicker';
 import { updateProject } from '../../src/project/engine.js';
 import {
   PRICING_MODELS,
@@ -314,43 +315,28 @@ export default function ProjectBillingTab({
             <Text style={{ color: colors.ink }}>{project.name}</Text>
           </FormRow>
           <FormRow label="Prismodell">
-            <View style={styles.chipRow}>
-              {PRICING_MODELS.map((row) => {
-                const on = pricingDraft.pricingModel === row.id;
-                return (
-                  <TouchableOpacity
-                    key={row.id}
-                    disabled={!isAdmin}
-                    onPress={() => setPricingDraft((c) => ({ ...c, pricingModel: row.id }))}
-                    style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : 'transparent' }]}
-                  >
-                    <Text style={{ color: colors.ink, fontSize: 12 }}>{row.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <OptionPicker
+              options={PRICING_MODELS}
+              value={pricingDraft.pricingModel}
+              onChange={(id) => { if (id) setPricingDraft((c) => ({ ...c, pricingModel: id })); }}
+              disabled={!isAdmin}
+              title="Prismodell"
+              clearable={false}
+              small
+            />
           </FormRow>
           <FormRow label="Aktiviteter">
-            <View style={styles.chipRow}>
-              {projectActivities.map((row) => {
-                const selected = (pricingDraft.pricingSettings.activityIds || []).includes(row.id);
-                return (
-                  <TouchableOpacity
-                    key={row.id}
-                    disabled={!isAdmin}
-                    onPress={() => {
-                      const current = pricingDraft.pricingSettings.activityIds || [];
-                      const next = selected ? current.filter((id) => id !== row.id) : [...current, row.id];
-                      setPricingField('activityIds', next);
-                    }}
-                    style={[styles.chip, { borderColor: selected ? colors.brand : colors.line, backgroundColor: selected ? colors.brandSoft : 'transparent' }]}
-                  >
-                    <Text style={{ color: colors.ink, fontSize: 12 }}>{row.name}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-              {!projectActivities.length ? <Text style={{ color: colors.muted }}>Ingen aktiviteter</Text> : null}
-            </View>
+            {projectActivities.length ? (
+              <OptionPicker
+                options={projectActivities.map((row) => ({ id: row.id, label: row.name }))}
+                multiple
+                value={pricingDraft.pricingSettings.activityIds || []}
+                onChange={(next) => setPricingField('activityIds', next)}
+                disabled={!isAdmin}
+                title="Aktiviteter"
+                small
+              />
+            ) : <Text style={{ color: colors.muted }}>Ingen aktiviteter</Text>}
           </FormRow>
           <FormRow label="Kunde">
             <Text style={{ color: colors.ink }}>{project.client || '—'}</Text>
@@ -673,28 +659,19 @@ function InvoiceSettingsForm({
             ['accountAconto', 'Regnskapskonto for akonto'],
           ].map(([key, label]) => (
             <FormRow key={key} label={label}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                <TouchableOpacity
-                  disabled={!isAdmin}
-                  onPress={() => onChange(key, null)}
-                  style={[styles.chip, { borderColor: draft[key] == null ? colors.brand : colors.line }]}
-                >
-                  <Text style={{ color: colors.ink, fontSize: 12 }}>Bruk standard</Text>
-                </TouchableOpacity>
-                {accounts.filter((a) => a.kind === 'sale').slice(0, 12).map((acc) => {
-                  const on = draft[key] === acc.code;
-                  return (
-                    <TouchableOpacity
-                      key={acc.code}
-                      disabled={!isAdmin}
-                      onPress={() => onChange(key, acc.code)}
-                      style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : 'transparent' }]}
-                    >
-                      <Text style={{ color: colors.ink, fontSize: 11 }}>{accountOptionLabel(acc)}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              <OptionPicker
+                options={[
+                  { id: '', label: 'Bruk standard' },
+                  ...accounts.filter((a) => a.kind === 'sale').map((acc) => ({ id: acc.code, label: accountOptionLabel(acc) })),
+                ]}
+                value={draft[key] == null ? '' : draft[key]}
+                onChange={(code) => onChange(key, code === '' ? null : code)}
+                disabled={!isAdmin}
+                placeholder="Bruk standard"
+                title={label}
+                clearable={false}
+                small
+              />
             </FormRow>
           ))}
           <FormRow label="Standard regnskapsavdeling">

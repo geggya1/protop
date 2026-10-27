@@ -25,6 +25,7 @@ import { Screen, Title, ScrollBody, BigButton, Mute } from '../../components/ui'
 import DesktopFormShell from '../../components/DesktopFormShell';
 import { InfoDialog } from '../../components/ConfirmDialog';
 import HelpTarget from '../../components/HelpTarget';
+import OptionPicker from '../../components/OptionPicker';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import { notifyUsers } from '../../src/utils/notifications';
 import { syncCalendarEventFriendShares } from '../../src/utils/friends';
@@ -933,30 +934,19 @@ export default function EventFormScreen() {
             <Text style={{ color: colors.muted, fontSize: 12, paddingHorizontal: 4, paddingBottom: 8 }}>
               Huk av utstyret i kalenderen for å se om det er ledig. Bookingen bruker samme innkalling og gjentakelse som hendelsen.
             </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 4, paddingBottom: 8 }}>
-              {bookableGear.map((gear) => {
-                const on = equipmentIds.includes(gear.equipmentId);
-                return (
-                  <TouchableOpacity
-                    key={gear.id}
-                    disabled={contentReadOnly}
-                    onPress={() => toggleEquipment(gear.equipmentId)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: on }}
-                    accessibilityLabel={gear.label}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: on ? colors.brand : colors.line,
-                      backgroundColor: on ? `${colors.brand}18` : colors.card,
-                      borderRadius: 8,
-                      paddingHorizontal: 10,
-                      paddingVertical: 8,
-                    }}
-                  >
-                    <Text style={{ color: colors.ink, fontSize: 13 }}>{on ? '✓ ' : ''}{gear.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={{ paddingHorizontal: 4, paddingBottom: 8 }}>
+              <OptionPicker
+                options={bookableGear.map((gear) => ({ id: gear.equipmentId, label: gear.label }))}
+                multiple
+                value={equipmentIds.filter((id) => bookableGear.some((gear) => gear.equipmentId === id))}
+                onChange={(ids) => setEquipmentIds((prev) => [
+                  // Utstyr som ikke står i listen nå, beholdes slik knappene gjorde.
+                  ...prev.filter((id) => !bookableGear.some((gear) => gear.equipmentId === id)),
+                  ...ids,
+                ])}
+                disabled={contentReadOnly}
+                title="Utstyr"
+              />
             </View>
           </GroupCard>
         ) : null}

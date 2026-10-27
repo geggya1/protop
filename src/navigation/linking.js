@@ -11,6 +11,7 @@ import { formatWebDocumentTitle } from './webDocumentTitle';
 import { linkingPrefixes } from '../utils/hostingChannel';
 import { captureAgreementLinkFromLocation, withAgreementQuery } from '../anbud/agreementLink';
 import { indexLinkFromPath } from '../indeksregulering/indexLink';
+import { homePathForLinking, shellLinkState } from './shellPaths';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -115,6 +116,11 @@ function parseAddFriendFromPath(path) {
 export const linking = {
   prefixes,
   getPathFromState(state, options) {
+    // Web: når Hjem har fokus, eier skallet stien (/hjem/iso/avvik). Den skal ikke nullstilles til /hjem.
+    const top = state?.routes?.[state.index ?? (state.routes?.length || 1) - 1];
+    if (Platform.OS === 'web' && top?.name === 'Home' && !top.state) {
+      return withAgreementQuery(homePathForLinking(typeof window !== 'undefined' ? window.location?.pathname : ''));
+    }
     return withAgreementQuery(defaultGetPathFromState(state, options));
   },
   getStateFromPath(path, options) {
@@ -221,6 +227,11 @@ export const linking = {
     // RootNav enters app stage. Linking must not force AuthChoice again.
     const authOverride = resolveAuthEntryLinkState(path, { signedIn: linkingSignedIn });
     if (authOverride) return authOverride;
+    // Skallet: /hjem/fane/underside åpner fanen i Hjem. Ved tilbake beholdes Hjem-rutens nøkkel, så skallet ikke lastes på nytt.
+    if (Platform.OS === 'web') {
+      const shell = shellLinkState(path);
+      if (shell) return shell;
+    }
     return defaultGetStateFromPath(path, options);
   },
   config: {

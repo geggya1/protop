@@ -12,7 +12,10 @@ import { openActions } from '../../src/iso/findings';
 import {
   actionsDoneInTasks, contractReviewStatus, hrComplianceForIso, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, sickLeaveSeries,
 } from '../../src/iso/integrations';
+import { recordsNeedingReview } from '../../src/iso/registers';
+import { annualWheel, pageLabel } from '../../src/iso/planning';
 import { RiskMatrix, StatusDonut, TrendBars, HBars } from './isoCharts';
+import { postDate, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, Choice, Empty, ListRow, Page, Pill, Row } from './isoUi';
 
 export default function IsoDashboard({ ctx }) {
@@ -32,6 +35,12 @@ export default function IsoDashboard({ ctx }) {
   const mine = useMemo(() => openActions(findings).filter((a) => a.ownerUid && a.ownerUid === actor.uid), [findings, actor.uid]);
   const active = (state.instances || []).filter((i) => i.state === 'aktiv');
   const ready = useMemo(() => readinessChecklist(state, { people }), [state, people]);
+  const profile = state.system?.profile || null;
+  const published = useMemo(() => (state.documents || []).filter((d) => !d.archived && d.publishedRevision), [state.documents]);
+  const policies = published.filter((d) => d.docType === 'policy').sort((a, b) => String(a.code).localeCompare(String(b.code), 'nb', { numeric: true }));
+  const { top: news } = useCompanyNews(ctx.companyId, { limit: 3 });
+  const openNews = () => ctx.requestTab?.('selskap', 'nyheter');
+  const wheelNow = useMemo(() => annualWheel(state, { year: new Date().getFullYear() })[new Date().getMonth()], [state]);
   const insights = useMemo(() => {
     if (!caps.manage) return [];
     const out = [];
@@ -47,6 +56,11 @@ export default function IsoDashboard({ ctx }) {
     if (hr?.awarenessGaps.length) out.push({ key: 'hr', icon: 'school-outline', tone: 'warn', title: `${hr.awarenessGaps.length} ansatte mangler HMS-introduksjon eller avviksrutine`, text: 'Fra HR-sjekklisten (krav 7.3).', page: 'kompetanse' });
     const km = mileageSeries(sources.trips);
     if (km.totalKm) out.push({ key: 'km', icon: 'car-outline', tone: 'muted', title: `${km.totalKm.toLocaleString('nb-NO')} km kjørt siste 12 mnd`, text: km.electricShare == null ? 'Fra Kjørebok.' : `${km.electricShare} % med elbil. Fra Kjørebok.`, page: 'miljo' });
+    const review = recordsNeedingReview(state.records);
+    if (review.length) {
+      const total = review.reduce((n, r) => n + r.count, 0);
+      out.unshift({ key: 'review', icon: 'alert-circle-outline', tone: 'warn', title: `${total} poster er merket «Må gjennomgås»`, text: review.slice(0, 4).map((r) => `${r.title} ${r.count}`).join(' · '), page: review[0].page });
+    }
     const sick = sickLeaveSeries(sources.absences);
     if (sick.hasData) out.push({ key: 'sick', icon: 'pulse-outline', tone: 'muted', title: `${sick.totalDays} dagsverk sykefravær siste 12 mnd`, text: 'Fra Fravær, uten navn.', page: 'hms' });
     return out;
@@ -68,6 +82,23 @@ export default function IsoDashboard({ ctx }) {
       )}
     >
       <Banner tone="info" text="Statusene her er interne vurderinger av eget ledelsessystem. De er ikke en sertifisering eller bekreftet lovetterlevelse." />
+
+      {profile?.vision || profile?.values?.length || policies.length || news.length ? (
+        <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'stretch' }}>
+          {profile?.vision || profile?.values?.length || policies.length ? (
+            <Card style={{ flex: 3 }} title="Visjon, verdier og policy">
+              {profile?.vision ? <Text style={{ color: colors.ink, fontSize: 15, fontStyle: 'italic' }}>«{profile.vision}»</Text> : null}
+              {profile?.values?.length ? <Row>{profile.values.map((v) => <Pill key={v} label={v} tone="info" />)}</Row> : null}
+              {policies.map((d) => <ListRow key={d.id} icon="ribbon-outline" title={`${d.code} · ${d.title}`} subtitle={`rev. ${d.publishedRevision}`} onPress={() => go('dokumenter', { open: d.id })} />)}
+            </Card>
+          ) : null}
+          {news.length ? (
+            <Card style={{ flex: 2 }} title="Nyheter" subtitle="Fra Selskap → Nyheter" right={<Btn small label="Alle" onPress={openNews} />}>
+              {news.map((p) => <ListRow key={p.id} icon="megaphone-outline" title={p.title || String(p.body || '').slice(0, 80)} subtitle={postDate(p) ? prettyDate(postDate(p)) : p.authorName} onPress={openNews} />)}
+            </Card>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
         {cards.map((k) => (
@@ -147,8 +178,11 @@ export default function IsoDashboard({ ctx }) {
             <ListRow key={i.id} icon="git-network-outline" title={i.title} subtitle={`${i.processTitle} v${i.version} · ${i.active.length} aktive trinn`} onPress={() => go('prosesser', { instance: i.id })} />
           ))}
         </Card>
-        <Card style={{ flex: 1 }} title="Kommende aktiviteter">
-          {!upcoming.length ? <Empty icon="calendar-outline" title="Ingen planlagte aktiviteter" text="Planlegg internrevisjoner, dokumentgjennomganger og øvelser, så vises de her." /> : null}
+        <Card style={{ flex: 1 }} title="Kommende aktiviteter" right={<Btn small icon="calendar-outline" label="Årshjul" onPress={() => go('arshjul')} />}>
+          {wheelNow.planned.map((r) => (
+            <ListRow key={r.id} icon="ellipse-outline" tone="info" title={r.title} subtitle={[`Årshjul ${wheelNow.name.toLowerCase()}`, r.ownerName || r.responsibleRole, pageLabel(r.page)].filter(Boolean).join(' · ')} onPress={() => go(r.page || 'arshjul')} />
+          ))}
+          {!upcoming.length && !wheelNow.planned.length ? <Empty icon="calendar-outline" title="Ingen planlagte aktiviteter" text="Planlegg internrevisjoner, dokumentgjennomganger og øvelser, så vises de her." /> : null}
           {upcoming.map((u) => (
             <ListRow key={`${u.page}${u.id}${u.date}`} icon="calendar-outline" title={u.label} subtitle={prettyDate(u.date)} onPress={() => go(u.page, { open: u.id })} />
           ))}

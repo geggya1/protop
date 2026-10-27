@@ -29,6 +29,7 @@ import { updateGroup } from '../../src/utils/groups';
 import { useLayout } from '../../src/theme';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import InfoButton from '../../components/InfoButton';
+import OptionPicker from '../../components/OptionPicker';
 import { applyGeoHits, reviewMapRows } from '../../src/anbud/workMap';
 import ProcessTrail from './ProcessTrail';
 import OppdragBrief from './OppdragBrief';
@@ -64,25 +65,13 @@ function ChoiceChips({ label, colors, options, selectedId, onSelect, empty }) {
     <View style={{ gap: 6 }}>
       <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>{label}</Text>
       {options.length ? (
-        <View style={styles.chips}>
-          {options.map((option) => {
-            const on = selectedId === option.id;
-            return (
-              <TouchableOpacity
-                key={option.id}
-                onPress={() => onSelect(on ? '' : option.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
-                style={[styles.chip, {
-                  borderColor: on ? colors.brand : colors.line,
-                  backgroundColor: on ? colors.brandSoft : colors.card,
-                }]}
-              >
-                <Text style={{ color: on ? colors.brand : colors.ink }}>{option.name}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <OptionPicker
+          options={options.map((option) => ({ id: option.id, label: option.name }))}
+          value={selectedId}
+          onChange={(id) => onSelect(id || '')}
+          title={label}
+          clearable
+        />
       ) : (
         <Text style={{ color: colors.muted }}>{empty}</Text>
       )}

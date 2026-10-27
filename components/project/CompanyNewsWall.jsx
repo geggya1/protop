@@ -13,6 +13,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { AvatarBubble } from '../AvatarPicker';
+import OptionPicker from '../OptionPicker';
 import {
   listenCompanyWall, createCompanyWallPost, updateCompanyWallPost,
   softDeleteCompanyWallPost, reactToCompanyWallPost,
@@ -277,20 +278,14 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
                 placeholder="Overskrift"
                 placeholderTextColor={colors.placeholder}
               />
-              <View style={styles.categories}>
-                {NEWS_CATEGORIES.map((row) => {
-                  const on = category === row.id;
-                  return (
-                    <TouchableOpacity
-                      key={row.id}
-                      onPress={() => setCategory(row.id)}
-                      style={[styles.categoryChip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
-                    >
-                      <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 12 }}>{row.label}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              <OptionPicker
+                options={NEWS_CATEGORIES}
+                value={category}
+                onChange={(id) => { if (id) setCategory(id); }}
+                title="Kategori"
+                clearable={false}
+                small
+              />
               <TextInput
                 style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.sunken }]}
                 value={body}

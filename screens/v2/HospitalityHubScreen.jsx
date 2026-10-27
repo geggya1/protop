@@ -47,6 +47,7 @@ import {
 import { deliveryMethodLabelNb } from '../../src/utils/hospitalityMessaging';
 import { healthFromViews, buildChannelViews } from '../../src/utils/hospitalitySetup';
 import HospitalityChannelConnect from '../../components/HospitalityChannelConnect';
+import OptionPicker from '../../components/OptionPicker';
 
 
 const TABS = [
@@ -303,17 +304,15 @@ export default function HospitalityHubScreen({ inShell = false }) {
               onChangeText={(v) => setResForm((s) => ({ ...s, propertyId: v }))}
               placeholder={properties[0]?.id || 'propertyId'}
             />
-            <View style={styles.propPick}>
-              {properties.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  style={[styles.chip, resForm.propertyId === p.id && styles.chipOn]}
-                  onPress={() => setResForm((s) => ({ ...s, propertyId: p.id }))}
-                >
-                  <Text style={[styles.chipTxt, resForm.propertyId === p.id && styles.chipTxtOn]}>{p.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {properties.length ? (
+              <OptionPicker
+                options={properties.map((p) => ({ id: p.id, label: p.name }))}
+                value={resForm.propertyId}
+                onChange={(id) => { if (id) setResForm((s) => ({ ...s, propertyId: id })); }}
+                title="Bolig"
+                clearable={false}
+              />
+            ) : null}
             <Field
               label="Innsjekk (ISO)"
               value={resForm.checkIn}
@@ -525,17 +524,13 @@ export default function HospitalityHubScreen({ inShell = false }) {
                 />
                 <Field label="Emne" value={editTpl.subject || ''} onChangeText={(v) => setEditTpl((s) => ({ ...s, subject: v }))} />
                 <Field label="Melding" value={editTpl.body || ''} onChangeText={(v) => setEditTpl((s) => ({ ...s, body: v }))} multiline />
-                <View style={styles.propPick}>
-                  {Object.entries(TRIGGER_LABELS).map(([id, label]) => (
-                    <TouchableOpacity
-                      key={id}
-                      style={[styles.chip, editTpl.trigger === id && styles.chipOn]}
-                      onPress={() => setEditTpl((s) => ({ ...s, trigger: id }))}
-                    >
-                      <Text style={[styles.chipTxt, editTpl.trigger === id && styles.chipTxtOn]}>{label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <OptionPicker
+                  options={Object.entries(TRIGGER_LABELS).map(([id, label]) => ({ id, label }))}
+                  value={editTpl.trigger}
+                  onChange={(id) => { if (id) setEditTpl((s) => ({ ...s, trigger: id })); }}
+                  title="Når"
+                  clearable={false}
+                />
                 <TouchableOpacity
                   style={styles.btn}
                   onPress={() => run('saveTpl', async () => {

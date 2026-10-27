@@ -55,6 +55,7 @@ function loadLocal(full) {
     if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id === 'firebase/functions') return { httpsCallable: () => async () => ({ data: {} }) };
+    if (id.includes('components/OptionPicker')) return { __esModule: true, default: host('OptionPicker'), CHIP_LIMIT: 4 };
     if (id.startsWith('.')) {
       const fromDir = path.dirname(full);
       let resolved;

@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker from '../OptionPicker';
 import {
   DEFAULT_HOUR_COLUMNS,
   HOUR_COLUMNS,
@@ -115,18 +116,14 @@ export default function HoursOrganizePanel({
         </Section>
 
         <Section title="Periode" colors={colors}>
-          <View style={styles.wrap}>
-            {HOUR_PERIODS.map((item) => (
-              <Choice
-                key={item.id}
-                label={item.label}
-                on={period === item.id}
-                onPress={() => onPeriod(item.id)}
-                colors={colors}
-                testID={`hours-period-${item.id}`}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={HOUR_PERIODS}
+            value={period}
+            onChange={(id) => { if (id) onPeriod(id); }}
+            title="Periode"
+            clearable={false}
+            small
+          />
           {period === 'custom' ? (
             <View style={{ gap: 8, marginTop: 8 }}>
               <TextInput
@@ -152,56 +149,41 @@ export default function HoursOrganizePanel({
         </Section>
 
         <Section title="Gruppering" colors={colors}>
-          <View style={styles.wrap}>
-            {HOUR_GROUP_OPTIONS.map((item) => (
-              <Choice
-                key={item.id}
-                label={item.label}
-                on={groupBy === item.id}
-                onPress={() => onGroupBy(item.id)}
-                colors={colors}
-                testID={`hours-group-${item.id}`}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={HOUR_GROUP_OPTIONS}
+            value={groupBy}
+            onChange={(id) => { if (id) onGroupBy(id); }}
+            title="Gruppering"
+            clearable={false}
+            small
+          />
         </Section>
 
         <Section title="Sortering" colors={colors}>
-          <View style={styles.wrap}>
-            {HOUR_SORT_OPTIONS.map((item) => (
-              <Choice
-                key={item.id}
-                label={item.label}
-                on={sort === item.id}
-                onPress={() => onSort(item.id)}
-                colors={colors}
-                testID={`hours-sort-${item.id}`}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={HOUR_SORT_OPTIONS}
+            value={sort}
+            onChange={(id) => { if (id) onSort(id); }}
+            title="Sortering"
+            clearable={false}
+            small
+          />
         </Section>
 
         {showEmployees ? (
         <Section title="Medarbeidere med timer" colors={colors}>
-          <View style={styles.wrap}>
-            <Choice
-              label="Alle"
-              on={!employeeId}
-              onPress={() => onEmployee('')}
-              colors={colors}
-              testID="hours-employee-all"
-            />
-            {employees.map((item) => (
-              <Choice
-                key={item.id}
-                label={`${item.name} · ${formatHours(item.hours)}`}
-                on={employeeId === item.id}
-                onPress={() => onEmployee(item.id)}
-                colors={colors}
-                testID={`hours-employee-${item.id}`}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={[
+              { id: '', label: 'Alle' },
+              ...employees.map((item) => ({ id: item.id, label: `${item.name} · ${formatHours(item.hours)}` })),
+            ]}
+            value={employeeId || ''}
+            onChange={(id) => onEmployee(id || '')}
+            placeholder="Alle"
+            title="Medarbeidere med timer"
+            clearable={false}
+            small
+          />
           {!employees.length ? (
             <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen medarbeidere har timer i dette utvalget.</Text>
           ) : null}
@@ -228,52 +210,43 @@ export default function HoursOrganizePanel({
 
         {customers.length ? (
           <Section title="Kunde" colors={colors}>
-            <View style={styles.wrap}>
-              <Choice label="Alle" on={!customerId} onPress={() => onCustomer('')} colors={colors} />
-              {customers.map((item) => (
-                <Choice
-                  key={item.id || item.name}
-                  label={item.name}
-                  on={customerId === item.id}
-                  onPress={() => onCustomer(item.id)}
-                  colors={colors}
-                />
-              ))}
-            </View>
+            <OptionPicker
+              options={[{ id: '', label: 'Alle' }, ...customers.map((item) => ({ id: item.id, label: item.name }))]}
+              value={customerId || ''}
+              onChange={(id) => onCustomer(id || '')}
+              placeholder="Alle"
+              title="Kunde"
+              clearable={false}
+              small
+            />
           </Section>
         ) : null}
 
         {projects.length ? (
           <Section title="Prosjekt" colors={colors}>
-            <View style={styles.wrap}>
-              <Choice label="Alle" on={!projectId} onPress={() => onProject('')} colors={colors} />
-              {projects.map((item) => (
-                <Choice
-                  key={item.id || item.name}
-                  label={item.name}
-                  on={projectId === item.id}
-                  onPress={() => onProject(item.id)}
-                  colors={colors}
-                />
-              ))}
-            </View>
+            <OptionPicker
+              options={[{ id: '', label: 'Alle' }, ...projects.map((item) => ({ id: item.id, label: item.name }))]}
+              value={projectId || ''}
+              onChange={(id) => onProject(id || '')}
+              placeholder="Alle"
+              title="Prosjekt"
+              clearable={false}
+              small
+            />
           </Section>
         ) : null}
 
         {activities.length ? (
           <Section title="Aktivitet" colors={colors}>
-            <View style={styles.wrap}>
-              <Choice label="Alle" on={!activityName} onPress={() => onActivity('')} colors={colors} />
-              {activities.map((item) => (
-                <Choice
-                  key={item.id}
-                  label={item.name}
-                  on={activityName === item.id}
-                  onPress={() => onActivity(item.id)}
-                  colors={colors}
-                />
-              ))}
-            </View>
+            <OptionPicker
+              options={[{ id: '', label: 'Alle' }, ...activities.map((item) => ({ id: item.id, label: item.name }))]}
+              value={activityName || ''}
+              onChange={(id) => onActivity(id || '')}
+              placeholder="Alle"
+              title="Aktivitet"
+              clearable={false}
+              small
+            />
           </Section>
         ) : null}
 

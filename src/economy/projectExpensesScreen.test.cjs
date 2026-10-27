@@ -80,6 +80,18 @@ function loadJsx(rel) {
     if (id.includes('utils/media')) return { pickDocument: async () => null };
     if (id.includes('saveToast')) return { showSaveToast: () => {} };
     if (id.includes('ExpenseImportReview')) return { __esModule: true, default: function ExpenseImportReview() { return null; } };
+    if (id.includes('components/OptionPicker')) {
+      // Felles velger: vis valgt etikett som tekst, slik feltet gjør.
+      return {
+        __esModule: true,
+        CHIP_LIMIT: 4,
+        default: function OptionPicker(props) {
+          const hit = (props.options || []).find((row) => (row && typeof row === 'object' ? row.id : row) === props.value);
+          const label = hit ? (typeof hit === 'object' ? hit.label : hit) : props.placeholder;
+          return React.createElement('OptionPicker', props, label || null);
+        },
+      };
+    }
     return orig(id);
   };
   m._compile(out.code, full);

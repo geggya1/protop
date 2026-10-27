@@ -12,6 +12,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
 import { useLayout } from '../../src/theme';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import OptionPicker from '../../components/OptionPicker';
 import { useTimesheetWorkspace } from '../arbeid/useTimesheetWorkspace';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { formatMoney, parseDate } from '../../src/economy/invoices.js';
@@ -294,18 +295,24 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
         </View>
       ) : null}
       <Text style={[styles.label, { color: colors.muted }]}>Sortering</Text>
-      <View style={styles.rowWrap}>
-        {EXPENSE_SORT_OPTIONS.map((item) => (
-          <Choice key={item.id} label={item.label} on={sort === item.id} onPress={() => setSort(item.id)} colors={colors} />
-        ))}
-      </View>
+      <OptionPicker
+        options={EXPENSE_SORT_OPTIONS}
+        value={sort}
+        onChange={(id) => { if (id) setSort(id); }}
+        title="Sortering"
+        clearable={false}
+        small
+      />
       <Text style={[styles.label, { color: colors.muted }]}>Status</Text>
-      <View style={styles.rowWrap}>
-        <Choice label="Alle" on={!status} onPress={() => setStatus('')} colors={colors} />
-        {EXPENSE_STATUSES.map((item) => (
-          <Choice key={item.id} label={item.label} on={status === item.id} onPress={() => setStatus(item.id)} colors={colors} />
-        ))}
-      </View>
+      <OptionPicker
+        options={[{ id: '', label: 'Alle' }, ...EXPENSE_STATUSES.map((item) => ({ id: item.id, label: item.label }))]}
+        value={status || ''}
+        onChange={(id) => setStatus(id || '')}
+        placeholder="Alle"
+        title="Status"
+        clearable={false}
+        small
+      />
       {workspace.lockedId ? null : (
         <TextInput
           value={employeeQuery}

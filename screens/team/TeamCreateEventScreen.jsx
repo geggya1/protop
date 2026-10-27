@@ -11,6 +11,7 @@ import { useApp } from '../../src/context/AppContext';
 import { createTeamEvent } from '../../src/utils/teams';
 import { teamColors as c } from '../../src/teamTheme';
 import LocationPicker from '../../components/LocationPicker';
+import OptionPicker from '../../components/OptionPicker';
 
 function InviteChip({ label, selected, onPress }) {
   return (
@@ -199,32 +200,26 @@ export default function TeamCreateEventScreen() {
         {children.length > 0 && (
           <>
             <Text style={styles.subLabel}>Spillere</Text>
-            <View style={styles.chipWrap}>
-              {children.map((ch) => (
-                <InviteChip
-                  key={ch.id}
-                  label={ch.name || 'Spiller'}
-                  selected={inviteChildIds.includes(ch.id)}
-                  onPress={() => toggleChild(ch.id)}
-                />
-              ))}
-            </View>
+            <OptionPicker
+              options={children.map((ch) => ({ id: ch.id, label: ch.name || 'Spiller' }))}
+              multiple
+              value={inviteChildIds}
+              onChange={setInviteChildIds}
+              title="Spillere"
+            />
           </>
         )}
 
         {parents.length > 0 && (
           <>
             <Text style={styles.subLabel}>Foresatte / ledere</Text>
-            <View style={styles.chipWrap}>
-              {parents.map((p) => (
-                <InviteChip
-                  key={p.id}
-                  label={p.name || p.email || 'Foresatt'}
-                  selected={inviteParentIds.includes(p.id)}
-                  onPress={() => toggleParent(p.id)}
-                />
-              ))}
-            </View>
+            <OptionPicker
+              options={parents.map((p) => ({ id: p.id, label: p.name || p.email || 'Foresatt' }))}
+              multiple
+              value={inviteParentIds}
+              onChange={setInviteParentIds}
+              title="Foresatte / ledere"
+            />
           </>
         )}
 

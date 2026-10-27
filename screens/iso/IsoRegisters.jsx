@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
-import { DEFAULT_RISK_METHOD, riskLevel } from '../../src/iso/catalog';
+import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, riskLevel } from '../../src/iso/catalog';
 import {
-  AUDIT_FINDING_CLASSES, REGISTERS, addAuditFinding, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
-  competenceMatrix, createRecord, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
-  registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
+  AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
+  competenceGaps, competenceMatrix, createRecord, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
+  cleanContacts, contactsLabel, personsLabel, registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
 } from '../../src/iso/registers';
+import { normalizeSubUnits } from '../../src/project/companyUnits';
 import { createFinding } from '../../src/iso/findings';
 import { managementReviewSnapshot } from '../../src/iso/analytics';
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
@@ -20,10 +21,10 @@ import {
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
 import { FormFillSheet } from './IsoForms';
 import {
-  Banner, Btn, Card, Check, Choice, DateIn, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
+  Banner, Btn, Card, Check, Choice, ContactsEdit, DateIn, Empty, Field, KV, ListRow, Page, PersonPick, PersonsPick, Pill, Row, Sheet, TextIn, toneColor,
 } from './isoUi';
 
-const STATE_LABEL = {
+export const STATE_LABEL = {
   aktiv: 'Aktiv', arkivert: 'Arkivert', akseptert: 'Akseptert', lukket: 'Lukket', mottatt: 'Mottatt', behandlet: 'Behandlet', tilbakemeldt: 'Tilbakemeldt',
   gyldig: 'Gyldig', planlagt: 'Planlagt', pagar: 'Pågår', rapport: 'Rapport', godkjent: 'Godkjent', oppfolging: 'Oppfølging', avlyst: 'Avlyst',
   gjennomfort: 'Gjennomført', utlopt: 'Utløpt', utkast: 'Utkast', avsluttet: 'Avsluttet', nådd: 'Nådd', ikke_nådd: 'Ikke nådd',
@@ -43,6 +44,32 @@ function nameList(names, noun = 'forslag') {
 }
 
 /* ───────── Generisk skjema for registerpost ───────── */
+
+/** Valg for felt som peker til andre poster: krav, prosesser eller poster i et annet register. */
+export function refOptions(state, f) {
+  if (f.ref === 'requirement') {
+    return allRequirements(state).filter((r) => r.kind === 'lov' || r.kind === 'kontrakt').map((r) => ({ id: r.id, label: r.title }));
+  }
+  if (f.ref === 'process') {
+    // Gruppert som i prosesslandskapet, så lange lister er lette å finne fram i.
+    const groups = [['ledelse', 'Ledelsesprosesser'], ['kjerne', 'Kjerneprosesser'], ['stotte', 'Støtteprosesser']];
+    const order = (p) => { const i = groups.findIndex(([id]) => id === p.category); return i < 0 ? groups.length : i; };
+    return (state.processes || []).filter((p) => !p.archived)
+      .sort((a, b) => order(a) - order(b) || String(a.code || a.title).localeCompare(String(b.code || b.title), 'nb', { numeric: true }))
+      .map((p) => ({ id: p.id, label: `${p.code ? `${p.code} ` : ''}${p.title}`, group: (groups.find(([id]) => id === p.category) || [])[1] || 'Andre' }));
+  }
+  return (state.records[f.ref] || []).filter((r) => r.state !== 'arkivert').map((r) => ({ id: r.id, label: `${r.title}${r.role ? ` (${r.role})` : ''}` }));
+}
+
+/** Visningstekst for en verdi som peker til andre poster. */
+export function refLabel(state, f, value) {
+  const ids = Array.isArray(value) ? value : [value];
+  const opts = refOptions(state, f);
+  const all = f.ref === 'process'
+    ? (state.processes || []).map((p) => ({ id: p.id, label: `${p.code ? `${p.code} ` : ''}${p.title}` }))
+    : opts;
+  return ids.filter(Boolean).map((id) => all.find((o) => o.id === id)?.label || (state.records[f.ref] || []).find((r) => r.id === id)?.title || allRequirements(state).find((r) => r.id === id)?.title || id).join(', ');
+}
 
 export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSaved, preset = {} }) {
   const colors = useColors();
@@ -74,9 +101,9 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
       case 'long': return <TextIn multiline value={value} onChangeText={set(f.key)} />;
       case 'date': return <DateIn value={value} onChange={set(f.key)} />;
       case 'number': return <TextIn keyboardType="numeric" value={value == null ? '' : String(value)} onChangeText={set(f.key)} />;
-      case 'scale': return <Choice options={['1', '2', '3', '4', '5']} value={value == null ? '' : String(value)} onChange={(x) => set(f.key)(x ? Number(x) : null)} />;
-      case 'select': return <Choice options={f.options} value={value} onChange={set(f.key)} />;
-      case 'multi': return <Choice multi options={f.options} value={value || []} onChange={set(f.key)} />;
+      case 'scale': return <Choice title={f.label} options={['1', '2', '3', '4', '5']} value={value == null ? '' : String(value)} onChange={(x) => set(f.key)(x ? Number(x) : null)} clearable={!f.required} />;
+      case 'select': return <Choice title={f.label} options={f.options} value={value} onChange={set(f.key)} clearable={!f.required} />;
+      case 'multi': return <Choice multi title={f.label} options={f.options} value={value || []} onChange={set(f.key)} />;
       case 'check': return <Check label={f.label} value={!!value} onChange={set(f.key)} />;
       case 'person': return (
         <PersonPick
@@ -86,19 +113,31 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
         />
       );
       case 'project': return projects.length
-        ? <Choice small options={projects.slice(0, 40).map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={value} onChange={(x) => { const p = projects.find((y) => y.id === x); setV((cur) => ({ ...cur, projectId: x, projectName: p ? `${p.number || ''} ${p.name || ''}`.trim() : '' })); }} />
+        ? <Choice small title="Prosjekt" clearable={!f.required} options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={value} onChange={(x) => { const p = projects.find((y) => y.id === x); setV((cur) => ({ ...cur, projectId: x, projectName: p ? `${p.number || ''} ${p.name || ''}`.trim() : '' })); }} />
         : <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen prosjekter registrert i Prosjekt.</Text>;
-      case 'ref': {
-        const opts = f.ref === 'requirement'
-          ? allRequirements(state).filter((r) => r.kind === 'lov' || r.kind === 'kontrakt').map((r) => ({ id: r.id, label: r.title }))
-          : (state.records[f.ref] || []).filter((r) => r.state !== 'arkivert').map((r) => ({ id: r.id, label: `${r.title}${r.role ? ` (${r.role})` : ''}` }));
-        return opts.length ? <Choice small options={opts} value={value} onChange={set(f.key)} /> : <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen å velge mellom ennå.</Text>;
+      case 'persons': return <PersonsPick people={people} value={Array.isArray(value) ? value : (value ? String(value).split(/[,;]+/).map((n) => ({ name: n.trim() })).filter((x) => x.name) : [])} onChange={set(f.key)} />;
+      case 'contacts': return <ContactsEdit people={people} value={value || []} onChange={set(f.key)} />;
+      case 'department': {
+        // Avdelinger og underenheter fra Selskap; uten registrerte enheter skrives navnet fritt.
+        const units = normalizeSubUnits(ctx.sources?.company?.subUnits).map((u) => u.name || u.navn).filter(Boolean);
+        return units.length
+          ? <Choice small title={f.label} clearable={!f.required} options={units.map((u) => ({ id: u, label: u }))} value={value} onChange={set(f.key)} />
+          : <TextIn value={value} onChangeText={set(f.key)} placeholder="Avdeling (registrer avdelinger under Selskap → Underenheter)" />;
+      }
+      case 'ref':
+      case 'refmulti': {
+        const opts = refOptions(state, f);
+        if (!opts.length) return <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen å velge mellom ennå.</Text>;
+        return f.type === 'refmulti'
+          ? <Choice small multi title={f.label} options={opts} value={value || []} onChange={set(f.key)} />
+          : <Choice small title={f.label} clearable={!f.required} options={opts} value={value} onChange={set(f.key)} />;
       }
       default: return <TextIn value={value} onChangeText={set(f.key)} />;
     }
   }
 
   const level = (registerKey === 'risiko' || registerKey === 'fare') ? riskSummary(v, state.system.riskMethod) : null;
+  const aspect = registerKey === 'miljoaspekt' ? aspectSignificance(v, state.system.riskMethod) : null;
   return (
     <Sheet visible={visible} title={record ? `${record.number} · ${def.title}` : `Ny – ${def.title}`} onClose={onClose} wide={ctx.wide} footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Lagre" busy={busy} onPress={save} /></>}>
       {def.fields.map((f) => {
@@ -112,8 +151,53 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
           <Text style={{ color: colors.muted, fontSize: 11 }}>Metode {state.system.riskMethod?.name} v{state.system.riskMethod?.version}</Text>
         </Row>
       ) : null}
+      {level?.inherent?.id && level.inherent.id !== 'ukjent' ? (
+        <Text style={{ color: colors.muted, fontSize: 12 }}>
+          {`${RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.label || ''}: ${RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.text || ''} Aksepteres av ${String(RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.who || '').toLowerCase()}.`}
+        </Text>
+      ) : null}
+      {aspect?.level?.score ? (
+        <Banner
+          tone={aspect.significant ? 'warn' : 'info'}
+          text={aspect.significant
+            ? `Forslag etter kriteriene: vesentlig (${aspect.reasons.join(', ')}). ${v.significant !== 'Ja' ? 'Velg «Ja» under Vesentlig, eller begrunn hvorfor ikke.' : ''}`
+            : `Forslag etter kriteriene: ikke vesentlig (score ${aspect.level.score}, ${aspect.level.label.toLowerCase()}). Vesentlig ved score ≥ ${state.system.riskMethod?.thresholds?.high || 10}, eller ≥ ${state.system.riskMethod?.thresholds?.medium || 5} med samsvarsforpliktelse eller nødsituasjon.`}
+        />
+      ) : null}
       {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
     </Sheet>
+  );
+}
+
+/** Skalaer og akseptkriterier for risikomatrisen (samme matrise for risiko, farer og miljøaspekter). */
+function RiskCriteria({ method }) {
+  const colors = useColors();
+  const [open, setOpen] = useState(false);
+  const t = method?.thresholds || DEFAULT_RISK_METHOD.thresholds;
+  const levels = [
+    { id: 'lav', range: `1–${t.medium - 1}`, tone: 'ok' },
+    { id: 'middels', range: `${t.medium}–${t.high - 1}`, tone: 'warn' },
+    { id: 'hoy', range: `${t.high}–${t.critical - 1}`, tone: 'danger' },
+    { id: 'kritisk', range: `${t.critical}–25`, tone: 'danger' },
+  ];
+  return (
+    <Card title="Kriterier og akseptgrenser" subtitle={RISK_GUIDANCE.sources} right={<Btn small icon={open ? 'chevron-up' : 'chevron-down'} label={open ? 'Skjul skalaer' : 'Vis skalaer'} onPress={() => setOpen(!open)} />}>
+      {levels.map((l) => {
+        const a = RISK_GUIDANCE.acceptance[l.id];
+        return <ListRow key={l.id} icon="ellipse" tone={l.tone} title={`${a.label} · score ${l.range}`} subtitle={`${a.text} Aksepteres av ${a.who.toLowerCase()}.`} />;
+      })}
+      <Text style={{ color: colors.muted, fontSize: 12 }}>{RISK_GUIDANCE.measures}</Text>
+      {open ? (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Sannsynlighet</Text>
+          {(method?.likelihood || DEFAULT_RISK_METHOD.likelihood).map((x, i) => <Text key={x} style={{ color: colors.ink, fontSize: 12 }}>{i + 1} {x}: {RISK_GUIDANCE.likelihood[i]}</Text>)}
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Konsekvens (verst realistiske utfall)</Text>
+          {(method?.consequence || DEFAULT_RISK_METHOD.consequence).map((x, i) => (
+            <Text key={x} style={{ color: colors.ink, fontSize: 12 }}>{i + 1} {x}: {RISK_GUIDANCE.dimensions.map((d, j) => `${d}: ${RISK_GUIDANCE.consequence[i][j]}`).join(' · ')}</Text>
+          ))}
+        </View>
+      ) : null}
+    </Card>
   );
 }
 
@@ -130,7 +214,7 @@ function RecordList({ ctx, registerKey, rows, subtitle, onOpen, right }) {
         tone={overdue ? 'warn' : 'muted'}
         title={`${r.number} · ${r.title || r.activity || ''}`}
         subtitle={[subtitle ? subtitle(r) : '', r.ownerName, overdue ? `revurdering forfalt ${prettyDate(r.nextReview)}` : ''].filter(Boolean).join(' · ')}
-        right={right ? right(r) : <Pill label={STATE_LABEL[r.state] || r.state} />}
+        right={right ? right(r) : (r.needsReview ? <Pill label="Må gjennomgås" tone="warn" /> : <Pill label={STATE_LABEL[r.state] || r.state} />)}
         onPress={() => onOpen(r)}
       />
     );
@@ -154,13 +238,19 @@ function RecordDetail({ ctx, record, onClose, children }) {
   return (
     <>
       <Sheet visible={!edit} title={`${record.number} · ${record.title || record.activity}`} onClose={onClose} wide={ctx.wide}>
-        <Row><Pill label={STATE_LABEL[record.state] || record.state} tone="info" />{record.locked ? <Pill label="Låst" icon="lock-closed" /> : null}</Row>
+        <Row><Pill label={STATE_LABEL[record.state] || record.state} tone="info" />{record.locked ? <Pill label="Låst" icon="lock-closed" /> : null}{record.needsReview ? <Pill label="Må gjennomgås" icon="alert-circle-outline" tone="warn" /> : null}</Row>
+        {record.needsReview ? (
+          <Banner tone="warn" text={`Må gjennomgås: ${record.reviewNote || 'Kontroller innholdet før posten regnes som gjeldende.'}`} />
+        ) : null}
+        {record.origin?.system ? <Text style={{ color: colors.muted, fontSize: 12 }}>Opphav: {record.origin.system}{record.origin.ref ? ` · ${record.origin.ref}` : ''}</Text> : null}
         {def.fields.map((f) => {
           let value = record[f.key];
-          if (Array.isArray(value)) value = value.join(', ');
+          if (Array.isArray(value) && !['persons', 'contacts'].includes(f.type)) value = value.join(', ');
           if (typeof value === 'boolean') value = value ? 'Ja' : 'Nei';
           if (f.type === 'date') value = prettyDate(value);
-          if (f.type === 'ref') value = (ctx.state.records[f.ref] || []).find((r) => r.id === value)?.title || allRequirements(ctx.state).find((r) => r.id === value)?.title || value;
+          if (f.type === 'ref' || f.type === 'refmulti') value = refLabel(ctx.state, f, record[f.key]);
+          if (f.type === 'persons') value = personsLabel(record[f.key]);
+          if (f.type === 'contacts') value = contactsLabel(record[f.key]);
           if (f.type === 'project') value = record.projectName || value;
           return <KV key={f.key} label={f.label} value={value} />;
         })}
@@ -169,6 +259,19 @@ function RecordDetail({ ctx, record, onClose, children }) {
           <>
             <Row>
               <Btn icon="create-outline" label="Rediger" onPress={() => setEdit(true)} />
+              {record.needsReview ? (
+                <Btn
+                  small
+                  icon="checkmark-done-outline"
+                  label="Marker som gjennomgått"
+                  onPress={async () => {
+                    const res = updateRecord(record, { needsReview: false, reviewNote: '' }, { actor, note: note || 'Gjennomgått' });
+                    if (!res.ok) { setErr(res.error); return; }
+                    const saved = await store.commit('records', 'record', res, { previous: record });
+                    if (!saved.ok) setErr(saved.error);
+                  }}
+                />
+              ) : null}
               {def.states.filter((s) => s !== record.state).map((s) => {
                 const a = stateAction(s, record.state, def.states[0]);
                 return <Btn key={s} small icon={a.icon} label={a.label} onPress={() => state(s)} />;
@@ -202,7 +305,11 @@ function useRegister(ctx, key) {
   return { creating, setCreating, openId, setOpenId, rows, open };
 }
 
-function SimpleRegister({ ctx, registerKey, subtitle, children, detail, filter, right }) {
+/**
+ * Register med liste, ny post, detalj og arkiv. view({ rows, open }) erstatter listen
+ * (tabell, matrise, månedsrutenett …); arkiverte poster vises fortsatt som liste.
+ */
+export function SimpleRegister({ ctx, registerKey, subtitle, children, detail, filter, right, view, title, cardSubtitle }) {
   const { caps } = ctx;
   const def = REGISTERS[registerKey];
   const reg = useRegister(ctx, registerKey);
@@ -212,9 +319,11 @@ function SimpleRegister({ ctx, registerKey, subtitle, children, detail, filter, 
   // Arkiverte poster skjules i listen, men må kunne finnes og gjenopprettes.
   const archived = all.filter((r) => r.state === 'arkivert');
   return (
-    <Card title={def.title} right={caps.manage ? <Btn small icon="add" label="Ny" onPress={() => reg.setCreating(true)} /> : null}>
+    <Card title={title || def.title} subtitle={cardSubtitle} right={caps.manage ? <Btn small icon="add" label="Ny" onPress={() => reg.setCreating(true)} /> : null}>
       {children}
-      <RecordList ctx={ctx} registerKey={registerKey} rows={rows} subtitle={subtitle} right={right} onOpen={(r) => reg.setOpenId(r.id)} />
+      {view
+        ? view({ rows, open: (r) => reg.setOpenId(r.id) })
+        : <RecordList ctx={ctx} registerKey={registerKey} rows={rows} subtitle={subtitle} right={right} onOpen={(r) => reg.setOpenId(r.id)} />}
       {archived.length ? (
         <Btn
           small
@@ -325,7 +434,7 @@ function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct
 }
 
 /** Nøkkeltall-flis i samme stil som resten av ISO. */
-function Stat({ label, value, hint, tone }) {
+export function Stat({ label, value, hint, tone }) {
   const colors = useColors();
   return (
     <View style={{ flexGrow: 1, flexBasis: 150, gap: 4, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}>
@@ -346,6 +455,53 @@ function useControlledForms(state, keys) {
 
 /* ───────── Sider ───────── */
 
+const SWOT = [
+  { id: 'Styrke', label: 'Styrker', hint: 'Interne', tone: 'ok' },
+  { id: 'Svakhet', label: 'Svakheter', hint: 'Interne', tone: 'warn' },
+  { id: 'Mulighet', label: 'Muligheter', hint: 'Eksterne', tone: 'info' },
+  { id: 'Trussel', label: 'Trusler', hint: 'Eksterne', tone: 'danger' },
+];
+
+/** Kontekst: SWOT i rutenett når typene er satt, resten gruppert internt/eksternt. */
+function ContextView({ ctx, rows, onOpen }) {
+  const colors = useColors();
+  const swotIds = SWOT.map((x) => x.id);
+  const swot = rows.filter((r) => swotIds.includes(r.factorType));
+  const rest = rows.filter((r) => !swotIds.includes(r.factorType));
+  if (!rows.length) return <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen forhold ennå. «Ny» legger til et internt eller eksternt forhold.</Text>;
+  return (
+    <>
+      {swot.length ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          {SWOT.map((q) => {
+            const items = swot.filter((r) => r.factorType === q.id);
+            return (
+              <View key={q.id} style={{ flexGrow: 1, flexBasis: ctx.wide ? '46%' : '100%', padding: 10, gap: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.line, borderLeftWidth: 4, borderLeftColor: toneColor(colors, q.tone), backgroundColor: colors.card }}>
+                <Text style={{ color: colors.ink, fontWeight: '800' }}>{q.label} <Text style={{ color: colors.muted, fontWeight: '400', fontSize: 12 }}>· {q.hint.toLowerCase()} · {items.length}</Text></Text>
+                {items.length ? items.map((r) => (
+                  <Pressable key={r.id} onPress={() => onOpen(r)} accessibilityRole="button" accessibilityLabel={`Åpne ${r.title}`} style={({ pressed }) => ({ paddingVertical: 3, backgroundColor: pressed ? colors.brandSoft : 'transparent', borderRadius: 6 })}>
+                    <Text style={{ color: colors.ink, fontSize: 13 }}>• {r.title}{r.area ? <Text style={{ color: colors.muted, fontSize: 12 }}> ({r.area})</Text> : null}{r.needsReview ? <Text style={{ color: colors.warn, fontSize: 12 }}> · må gjennomgås</Text> : null}</Text>
+                  </Pressable>
+                )) : <Text style={{ color: colors.muted, fontSize: 12 }}>–</Text>}
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
+      {['Internt', 'Eksternt', ''].map((scope) => {
+        const list = rest.filter((r) => (scope ? r.scope === scope : !['Internt', 'Eksternt'].includes(r.scope)));
+        if (!list.length) return null;
+        return (
+          <View key={scope || 'annet'} style={{ gap: 2 }}>
+            <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '800', letterSpacing: 0.5, marginTop: 6 }}>{`${scope ? `${scope}e forhold` : 'Andre forhold'} (${list.length})`.toUpperCase()}</Text>
+            <RecordList ctx={ctx} registerKey="kontekst" rows={list} subtitle={(r) => [r.factorType, r.area, r.climate === 'Ja' ? 'klimarelevant' : ''].filter(Boolean).join(' · ')} onOpen={onOpen} />
+          </View>
+        );
+      })}
+    </>
+  );
+}
+
 export function ContextPage({ ctx }) {
   const { state, sources } = ctx;
   // Interessenter lagt til fra forslagene i denne økten, så de er lette å kjenne igjen i listen.
@@ -355,7 +511,12 @@ export function ContextPage({ ctx }) {
   }), [sources?.customers, sources?.contracts, state]);
   return (
     <Page wide={ctx.wide} title="Kontekst og interessenter" intro="Interne og eksterne forhold og interessenter som påvirker ledelsessystemet. Endringer kan utløse ny risikovurdering.">
-      <SimpleRegister ctx={ctx} registerKey="kontekst" subtitle={(r) => `${r.scope}${r.climate === 'Ja' ? ' · klimarelevant' : ''}`} />
+      <SimpleRegister
+        ctx={ctx}
+        registerKey="kontekst"
+        cardSubtitle="Forhold, utfordringer og SWOT. Muligheter og trusler bør følges opp i Risiko (6.1)."
+        view={({ rows, open }) => <ContextView ctx={ctx} rows={rows} onOpen={open} />}
+      />
       <Suggestions
         ctx={ctx}
         registerKey="interessent"
@@ -393,7 +554,7 @@ export function RiskPage({ ctx }) {
           <RiskMatrix cells={cells} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
         </Card>
         <Card title="Register" style={{ flex: 1, width: wide ? undefined : '100%' }}>
-          <Choice small options={['Risiko', 'Mulighet']} value={kind} onChange={setKind} />
+          <Choice small options={['Risiko', 'Mulighet']} value={kind} onChange={setKind} placeholder="Alle" title="Vis" />
           <RecordList
             ctx={ctx}
             registerKey="risiko"
@@ -411,6 +572,7 @@ export function RiskPage({ ctx }) {
           />
         </Card>
       </View>
+      <RiskCriteria method={state.system.riskMethod} />
       <RecordSheet ctx={ctx} registerKey="risiko" visible={reg.creating} onClose={() => { reg.setCreating(false); if (params?.create) go('risiko', {}); }} preset={{ kind: 'Risiko' }} />
       {reg.open ? <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')} /> : null}
     </Page>
@@ -457,7 +619,21 @@ export function EnvironmentPage({ ctx }) {
         </Card>
       </View>
       <Suggestions ctx={ctx} registerKey="miljoaspekt" rows={aspects} title="Foreslåtte miljøaspekter" subtitle="Ut fra kjørebok, avfall, kjøretøy og typisk drift. Vesentlighet og begrunnelse settes av deg." describe={(r) => `${r.lifecycle} · ${r.impact}`} />
-      <SimpleRegister ctx={ctx} registerKey="miljoaspekt" subtitle={(r) => `${r.lifecycle || ''} · ${r.significant === 'Ja' ? 'vesentlig' : 'ikke vesentlig'}${r.control ? ` · ${r.control.toLowerCase()}` : ''}`} />
+      <SimpleRegister
+        ctx={ctx}
+        registerKey="miljoaspekt"
+        cardSubtitle="Vesentlighet etter samme matrise som risiko: omfang × alvorlighet. Vesentlig ved høy score, eller middels score med samsvarsforpliktelse eller nødsituasjon."
+        subtitle={(r) => {
+          const a = aspectSignificance(r, state.system.riskMethod);
+          return [r.lifecycle, r.significant === 'Ja' ? 'vesentlig' : 'ikke vesentlig', a.level.score ? `score ${a.level.score} (${a.level.label.toLowerCase()})` : '', r.control ? r.control.toLowerCase() : ''].filter(Boolean).join(' · ');
+        }}
+        right={(r) => {
+          const a = aspectSignificance(r, state.system.riskMethod);
+          // Avviker vurderingen fra kriteriene, vises det, så det blir begrunnet eller rettet.
+          if (a.significant != null && a.significant !== (r.significant === 'Ja')) return <Pill label={a.significant ? 'Kriteriene: vesentlig' : 'Kriteriene: ikke vesentlig'} tone="warn" />;
+          return r.needsReview ? <Pill label="Må gjennomgås" tone="warn" /> : <Pill label={r.significant === 'Ja' ? 'Vesentlig' : 'Ikke vesentlig'} tone={r.significant === 'Ja' ? 'danger' : 'muted'} />;
+        }}
+      />
       <Card title="Miljødata – sum per målepunkt">
         <HBars rows={byPoint} empty="Ingen miljødata registrert. Grafen vises bare når det finnes reelle målinger." />
         <Text style={{ color: colors.muted, fontSize: 12 }}>CO₂e beregnes ikke automatisk. Bruk dokumentert metode og faktor med kilde og år.</Text>
@@ -473,7 +649,7 @@ export function HmsPage({ ctx }) {
   const { state, caps, wide, go } = ctx;
   const [fill, setFill] = useState(null);
   const hmsFindings = visibleFindings(caps, state.findings).filter((f) => ['hms', 'nestenulykke'].includes(f.type));
-  const forms = useControlledForms(state, ['SF12_SJA', 'SF13_VERNERUNDE', 'SF14_MEDVIRKNING']);
+  const forms = useControlledForms(state, ['SF12_SJA', 'SF13_VERNERUNDE']);
   const src = ctx.sources || {};
   const sick = useMemo(() => sickLeaveSeries(src.absences), [src.absences]);
   const hazards = useMemo(() => hazardSuggestions({ projects: src.projects, trips: src.trips, existing: state.records.fare }), [src.projects, src.trips, state.records.fare]);
@@ -511,6 +687,33 @@ export function HmsPage({ ctx }) {
   );
 }
 
+/**
+ * Kontaktene på et beredskapskort, store og med ringeknapp. Navn og telefon hentes fra Ansatte når kontakten
+ * er valgt blant de ansatte, så kortet aldri viser et gammelt nummer.
+ */
+function EmergencyContacts({ contacts, people }) {
+  const colors = useColors();
+  const rows = cleanContacts(contacts).map((c) => {
+    const p = (people || []).find((x) => (c.employeeId && x.id === c.employeeId) || (c.uid && x.uid === c.uid)) || null;
+    return { ...c, name: p?.name || c.name, phone: p?.phone || c.phone };
+  });
+  if (!rows.length) return null;
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>Kontakter</Text>
+      {rows.map((c, i) => (
+        <View key={`${c.role}-${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <View style={{ flex: 1, minWidth: 200 }}>
+            <Text style={{ color: colors.ink, fontSize: 18 }}>{[c.role, c.name].filter(Boolean).join(': ')}</Text>
+            {c.note ? <Text style={{ color: colors.muted, fontSize: 13 }}>{c.note}</Text> : null}
+          </View>
+          {c.phone ? <Btn icon="call-outline" label={c.phone} accessibilityLabel={`Ring ${c.name || c.role} ${c.phone}`} onPress={() => Linking.openURL(`tel:${String(c.phone).replace(/[^\d+]/g, '')}`).catch(() => {})} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function EmergencyPage({ ctx }) {
   const colors = useColors();
   const { state, wide, actor, store, caps } = ctx;
@@ -531,6 +734,7 @@ export function EmergencyPage({ ctx }) {
             <Text style={{ color: colors.ink, fontSize: 18, lineHeight: 26 }}>{shown.instructions}</Text>
             <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>Varsling</Text>
             <Text style={{ color: colors.ink, fontSize: 18, lineHeight: 26 }}>{shown.alarm}</Text>
+            <EmergencyContacts contacts={shown.contacts} people={ctx.people} />
             {shown.roles ? <Text style={{ color: colors.ink, fontSize: 15 }}>{shown.roles}</Text> : null}
             {shown.equipment ? <Text style={{ color: colors.muted, fontSize: 14 }}>Utstyr: {shown.equipment}</Text> : null}
           </View>
@@ -570,27 +774,92 @@ export function EmergencyPage({ ctx }) {
   );
 }
 
+/** Søkbar kompetanseoversikt: CV-en (Ansatte) og ISO-bevis per ansatt. */
+function CompetenceProfiles({ ctx, people, matrix, q }) {
+  const colors = useColors();
+  const [openId, setOpenId] = useState('');
+  const ql = q.trim().toLowerCase();
+  const rows = people.map((p) => {
+    const cv = p.cv || {};
+    const lines = [
+      ...(cv.education || []).map((e) => ({ kind: 'Utdanning', text: [e.program, e.school, [e.from, e.to].filter(Boolean).join('–')].filter(Boolean).join(' · ') })),
+      ...(cv.certifications || []).map((c) => ({ kind: 'Sertifisering', text: c.title })),
+      ...(cv.courses || []).map((c) => ({ kind: 'Kurs', text: [c.title, c.date].filter(Boolean).join(' · ') })),
+    ];
+    const evidence = (ctx.state.records.kompetanse || []).filter((r) => r.state !== 'arkivert' && ((p.uid && r.personUid === p.uid) || r.personName === p.name));
+    const row = matrix.find((m) => m.person === p);
+    const gaps = row ? row.cells.filter((c) => !['gyldig', 'na'].includes(c.status)).length : 0;
+    const hay = [p.name, p.title, ...lines.map((l) => l.text), ...evidence.map((e) => e.title)].join(' ').toLowerCase();
+    return { p, lines, evidence, gaps, hay };
+  }).filter((r) => !ql || r.hay.includes(ql));
+  if (!rows.length) return <Text style={{ color: colors.muted, fontSize: 13 }}>{ql ? 'Ingen treff.' : 'Ingen ansatte i Ansatte ennå.'}</Text>;
+  return rows.map(({ p, lines, evidence, gaps }) => (
+    <View key={p.id || p.name} style={{ gap: 4 }}>
+      <ListRow
+        icon="person-outline"
+        tone={gaps ? 'warn' : 'muted'}
+        title={p.name}
+        subtitle={[p.title, `${lines.length} i CV`, evidence.length ? `${evidence.length} bevis` : '', gaps ? `${gaps} mangler` : ''].filter(Boolean).join(' · ')}
+        right={<Pill label={openId === (p.id || p.name) ? 'Skjul' : 'Vis'} />}
+        onPress={() => setOpenId(openId === (p.id || p.name) ? '' : (p.id || p.name))}
+      />
+      {openId === (p.id || p.name) ? (
+        <View style={{ marginLeft: 28, gap: 2 }}>
+          {lines.map((l, i) => <Text key={i} style={{ color: colors.ink, fontSize: 12 }}><Text style={{ color: colors.muted }}>{l.kind}: </Text>{l.text}</Text>)}
+          {evidence.map((e) => <Text key={e.id} style={{ color: colors.ink, fontSize: 12 }}><Text style={{ color: colors.muted }}>Bevis: </Text>{e.title}{e.validTo ? ` · gyldig til ${prettyDate(e.validTo)}` : ''}</Text>)}
+          {!lines.length && !evidence.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen utdanning, kurs eller sertifiseringer registrert.</Text> : null}
+          <Row><Btn small icon="create-outline" label="Rediger CV i Ansatte" onPress={() => ctx.requestTab?.('ansatte')} /></Row>
+        </View>
+      ) : null}
+    </View>
+  ));
+}
+
 export function CompetencePage({ ctx }) {
   const colors = useColors();
   const { state, wide, people } = ctx;
-  const matrix = useMemo(() => competenceMatrix(people, state.records.kompetansekrav, state.records.kompetanse), [people, state.records]);
+  const [q, setQ] = useState('');
+  const fullMatrix = useMemo(() => competenceMatrix(people, state.records.kompetansekrav, state.records.kompetanse, new Date(), { roles: state.records.rolle }), [people, state.records]);
+  const ql = q.trim().toLowerCase();
+  // Søk filtrerer både ansatte (navn, stilling, CV) og krav (tittel, rolle).
+  const matrix = useMemo(() => {
+    if (!ql) return fullMatrix;
+    const reqHit = (r) => `${r.title} ${r.role || ''}`.toLowerCase().includes(ql);
+    const anyReq = fullMatrix[0]?.cells.some((c) => reqHit(c.requirement));
+    if (anyReq) return fullMatrix.map((row) => ({ ...row, cells: row.cells.filter((c) => reqHit(c.requirement)) }));
+    return fullMatrix.filter((row) => `${row.person.name} ${row.person.title || ''} ${JSON.stringify(row.person.cv || {})}`.toLowerCase().includes(ql));
+  }, [fullMatrix, ql]);
   const [pick, setPick] = useState(null);
   const [create, setCreate] = useState(null);
   const hr = useMemo(() => (ctx.sources?.hrOverview ? hrComplianceForIso(ctx.sources.hrOverview, ctx.sources.people) : null), [ctx.sources?.hrOverview, ctx.sources?.people]);
   const eq = useMemo(() => equipmentStatus(ctx.sources?.equipment), [ctx.sources?.equipment]);
-  const gaps = matrix.reduce((n, row) => n + row.cells.filter((c) => c.status !== 'ok').length, 0);
+  const gaps = competenceGaps(fullMatrix);
+  const unassigned = useMemo(() => unassignedRequirements(state.records.kompetansekrav, state.records.rolle), [state.records]);
   return (
-    <Page wide={wide} title="Kompetanse og ressurser" intro="Kompetansekrav per rolle og dokumentert kompetanse for ansatte i ProTop. HR-sjekklisten og utstyret vises her, men eies av HR og Utstyr.">
+    <Page wide={wide} title="Kompetanse og ressurser" intro="Kompetansekrav per rolle, CV-en til hver ansatt og dokumentert kompetanse med gyldighet (ISO 7.2). CV-en eies av Ansatte, HR-sjekklisten av HR og utstyret av Utstyr.">
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         <Stat label="Ansatte" value={people.length} hint="Fra Ansatte" />
-        <Stat label="Kompetansegap" value={gaps} tone={gaps ? 'warn' : undefined} />
+        <Stat label="Kompetansegap" value={gaps} tone={gaps ? 'warn' : undefined} hint="Krav som mangler, er utløpt eller mangler gyldighet" />
         {hr ? <Stat label="Mangler i HR-sjekklisten" value={hr.withGaps.length} hint="HR – lov & ISO" tone={hr.withGaps.length ? 'warn' : undefined} /> : null}
         <Stat label="Utstyr i drift" value={eq.total} hint={eq.inService.length ? `${eq.inService.length} på service` : 'Fra Utstyr'} />
       </View>
-      <Card title="Kompetansematrise" subtitle="Trykk en celle for å registrere bevis.">
+      <TextIn value={q} onChangeText={setQ} placeholder="Søk i ansatte, CV, kurs, sertifiseringer og krav" accessibilityLabel="Søk i kompetanse" />
+      {unassigned.length ? (
+        <Card title={`Krav uten innehaver (${unassigned.length})`} subtitle="Rollen har ingen innehavere ennå, så kravet gjelder ingen. Velg innehavere i Organisasjon og roller, eller velg ansatte under «Gjelder også for» på kravet.">
+          {unassigned.slice(0, 8).map(({ requirement: r, role }) => (
+            <ListRow key={r.id} icon="person-add-outline" tone="warn" title={r.title} subtitle={role ? `Rollen «${role.title}» har ingen innehavere` : `Fant ingen rolle som heter «${r.role}»`} />
+          ))}
+          {unassigned.length > 8 ? <Text style={{ color: colors.muted, fontSize: 12 }}>… og {unassigned.length - 8} til.</Text> : null}
+          <Row><Btn icon="people-circle-outline" label="Organisasjon og roller" onPress={() => ctx.go('organisasjon')} /></Row>
+        </Card>
+      ) : null}
+      <Card title="Kompetansematrise" subtitle="Krav til en rolle gjelder dem som har rollen i Organisasjon og roller, og dem som er valgt på kravet. «I CV» = står i CV-en, men mangler gyldighet eller bevis. Trykk en celle for å registrere bevis.">
         <CompetenceHeatmap matrix={matrix} onPick={(person, cell) => setPick({ person, cell })} />
       </Card>
-      <SimpleRegister ctx={ctx} registerKey="kompetansekrav" subtitle={(r) => `${r.role}${r.validityMonths ? ` · gyldig ${r.validityMonths} mnd` : ''}`} />
+      <Card title="Kompetanse per ansatt" subtitle="Utdanning, sertifiseringer og kurs fra CV-en, og bevis registrert i ISO.">
+        <CompetenceProfiles ctx={ctx} people={people} matrix={fullMatrix} q={q} />
+      </Card>
+      <SimpleRegister ctx={ctx} registerKey="kompetansekrav" subtitle={(r) => `${r.role}${(r.persons || []).length ? ` + ${r.persons.length} valgt` : ''}${r.validityMonths ? ` · gyldig ${r.validityMonths} mnd` : ''}`} />
       <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => `${r.personName} · ${r.validTo ? `til ${prettyDate(r.validTo)}` : 'varig'}`} />
       {hr && hr.withGaps.length ? (
         <Card title="Bevissthet og opplæring fra HR" subtitle="Punkter som mangler i HR-modulens lov- og ISO-sjekkliste (HMS-introduksjon, avviksrutine, kompetanse). Rettes i HR.">
@@ -605,15 +874,61 @@ export function CompetencePage({ ctx }) {
         </Card>
       ) : null}
       <Sheet visible={!!pick} title={pick ? `${pick.person.name} – ${pick.cell.requirement.title}` : ''} onClose={() => setPick(null)}>
-        {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${pick.cell.record.validTo ? `gyldig til ${prettyDate(pick.cell.record.validTo)}` : 'varig'}`} /> : <Text style={{ color: colors.muted }}>Ingen dokumentert kompetanse.</Text>}
-        <Btn kind="primary" icon="add" label="Registrer bevis" onPress={() => { setCreate({ personName: pick.person.name, personUid: pick.person.uid, requirementId: pick.cell.requirement.id }); setPick(null); }} />
+        {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${pick.cell.record.validTo ? `gyldig til ${prettyDate(pick.cell.record.validTo)}` : 'varig'}`} /> : null}
+        {!pick?.cell.record && pick?.cell.cv ? <KV label={`I CV-en (${pick.cell.cv.kind.toLowerCase()})`} value={`${pick.cell.cv.title}${pick.cell.cv.date ? ` · ${pick.cell.cv.date}` : ''}`} /> : null}
+        {!pick?.cell.record && !pick?.cell.cv ? <Text style={{ color: colors.muted }}>Ingen dokumentert kompetanse.</Text> : null}
+        <Btn kind="primary" icon="add" label="Registrer bevis" onPress={() => { setCreate({ personName: pick.person.name, personUid: pick.person.uid, requirementId: pick.cell.requirement.id, title: pick.cell.cv?.title || '' }); setPick(null); }} />
       </Sheet>
       <RecordSheet ctx={ctx} registerKey="kompetanse" visible={!!create} preset={create || {}} onClose={() => setCreate(null)} />
     </Page>
   );
 }
 
+/** Evaluering av en leverandør i detaljvisningen: kriterier, beslutning og historikk. */
+function SupplierEvaluation({ ctx, record }) {
+  const colors = useColors();
+  const { caps, actor, store } = ctx;
+  const blank = { quality: '', hse: '', environment: '', delivery: '', decision: '', comment: '', date: todayKey() };
+  const [v, setV] = useState(blank);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const list = (record.evaluations || []).slice().reverse();
+  async function save() {
+    setBusy(true);
+    const res = addSupplierEvaluation(record, v, { actor });
+    if (!res.ok) { setErr(res.error); setBusy(false); return; }
+    const saved = await store.commit('records', 'record', res, { previous: record });
+    setBusy(false);
+    if (!saved.ok) { setErr(saved.error); return; }
+    setV(blank);
+    setErr('');
+  }
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={{ color: colors.ink, fontWeight: '700', marginTop: 6 }}>Evalueringer</Text>
+      {list.length ? list.map((e) => (
+        <Text key={e.id} style={{ color: colors.ink, fontSize: 12 }}>{prettyDate(e.date)} · {e.decision} · snitt {e.total} ({SUPPLIER_CRITERIA.map((c) => `${c.label.toLowerCase()} ${e[c.key]}`).join(', ')}){e.comment ? ` · ${e.comment}` : ''} · {e.by}</Text>
+      )) : <Text style={{ color: colors.muted, fontSize: 12 }}>Ikke evaluert ennå.</Text>}
+      {caps.manage ? (
+        <View style={{ gap: 6, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.line }}>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Evaluer leverandør</Text>
+          {SUPPLIER_CRITERIA.map((c) => (
+            <Field key={c.key} label={`${c.label} (1–5)`}><Choice options={['1', '2', '3', '4', '5']} value={String(v[c.key] || '')} onChange={(x) => setV({ ...v, [c.key]: x })} /></Field>
+          ))}
+          <Field label="Beslutning" required><Choice options={['Godkjent', 'Betinget godkjent', 'Ikke godkjent']} value={v.decision} onChange={(x) => setV({ ...v, decision: x })} /></Field>
+          <Field label="Kommentar"><TextIn multiline value={v.comment} onChangeText={(x) => setV({ ...v, comment: x })} placeholder="Avvik, leveranser, sertifikater, oppfølging" /></Field>
+          <Field label="Dato"><DateIn value={v.date} onChange={(x) => setV({ ...v, date: x })} /></Field>
+          {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
+          <Btn kind="primary" icon="checkmark" label="Lagre evaluering" busy={busy} onPress={save} />
+          <Text style={{ color: colors.muted, fontSize: 11 }}>Neste evaluering settes ut fra leverandørklassen. Score og status oppdateres på leverandøren.</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function SupplierPage({ ctx }) {
+  const colors = useColors();
   const { state, wide } = ctx;
   const due = overdueRecords(state.records.leverandor, 'nextReview');
   const suggestions = useMemo(() => supplierSuggestions(ctx.sources?.expenses, state.records.leverandor)
@@ -622,7 +937,16 @@ export function SupplierPage({ ctx }) {
     <Page wide={wide} title="Leverandørkontroll" intro="Kvalifisering, evaluering og oppfølging etter kritikalitet. Leverandører foreslås fra utleggene, og evaluering blir oppgave når den forfaller.">
       {due.length ? <Banner tone="warn" text={`${due.length} leverandører har forfalt evaluering.`} /> : null}
       <Suggestions ctx={ctx} registerKey="leverandor" rows={suggestions} direct title="Leverandører fra utleggene" subtitle="Mest brukte leverandører som ikke er vurdert. Legges inn som «Ikke vurdert» med middels kritikalitet." describe={() => 'Ikke vurdert'} limit={8} />
-      <SimpleRegister ctx={ctx} registerKey="leverandor" subtitle={(r) => `${r.criticality} kritikalitet · ${r.approval}${r.score ? ` · score ${r.score}` : ''}`} />
+      <SimpleRegister ctx={ctx} registerKey="leverandor" subtitle={(r) => [r.supplierClass || `${r.criticality} kritikalitet`, r.approval, r.score ? `score ${r.score}` : '', r.services].filter(Boolean).join(' · ')} detail={(r) => <SupplierEvaluation ctx={ctx} record={r} />} />
+      <Card title="Leverandørklasser" subtitle="Klassen gir kritikalitet og hvor ofte leverandøren evalueres.">
+        {SUPPLIER_CLASSES.map((c) => {
+          const n = (state.records.leverandor || []).filter((r) => r.state !== 'arkivert' && r.supplierClass === c.id).length;
+          return <ListRow key={c.id} icon="cube-outline" title={`${c.id} (${n})`} subtitle={`${c.hint} Kritikalitet ${c.criticality.toLowerCase()}.`} />;
+        })}
+        {(state.records.leverandor || []).some((r) => r.state !== 'arkivert' && !r.supplierClass)
+          ? <Text style={{ color: colors.muted, fontSize: 12 }}>{(state.records.leverandor || []).filter((r) => r.state !== 'arkivert' && !r.supplierClass).length} leverandører har ingen klasse ennå.</Text>
+          : null}
+      </Card>
     </Page>
   );
 }
@@ -747,7 +1071,7 @@ export function AuditPage({ ctx }) {
               <Field label="Klassifisering"><Choice options={AUDIT_FINDING_CLASSES} value={af.classification} onChange={(x) => setAf({ ...af, classification: x || 'avvik' })} /></Field>
               <Field label="Funn" required><TextIn multiline value={af.description} onChangeText={(x) => setAf({ ...af, description: x })} /></Field>
               <Field label="Objektivt bevis" required={af.classification !== 'samsvar'}><TextIn multiline rows={2} value={af.evidence} onChangeText={(x) => setAf({ ...af, evidence: x })} /></Field>
-              <Field label="Krav"><Choice small multi options={requirements.filter((r) => r.kind === 'iso').slice(0, 60).map((r) => ({ id: r.id, label: `${r.standard.replace('ISO', '')} ${r.clause}` }))} value={af.requirementIds} onChange={(x) => setAf({ ...af, requirementIds: x })} /></Field>
+              <Field label="Krav"><Choice small multi title="Krav" options={requirements.filter((r) => r.kind === 'iso').map((r) => ({ id: r.id, label: `${r.standard.replace('ISO', 'ISO ')} ${r.clause}`, hint: r.title || '' }))} value={af.requirementIds} onChange={(x) => setAf({ ...af, requirementIds: x })} /></Field>
               <Btn kind="primary" label={af.classification === 'samsvar' ? 'Registrer funn' : 'Registrer funn og opprett sak'} onPress={addFinding} />
               {caps.approve ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
             </>
@@ -840,7 +1164,7 @@ export function ProjectQualityPage({ ctx }) {
   const { state, wide, projects, caps, go, sources } = ctx;
   const [fill, setFill] = useState(null);
   const [plan, setPlan] = useState(null);
-  const forms = useControlledForms(state, ['SF19_KONTRAKT', 'SF20_KVALITETSPLAN', 'SF21_FAGKONTROLL', 'SF28_TILFREDSHET']);
+  const forms = useControlledForms(state, ['SF19_KONTRAKT', 'SF21_FAGKONTROLL', 'SF28_TILFREDSHET']);
   const formFor = (key) => forms.find((f) => f.templateId === templateIdFor(key) || f.templateKey === key) || null;
   const findings = visibleFindings(caps, state.findings);
   const rows = useMemo(() => projectQuality(projects, state, findings), [projects, state, findings]);
@@ -951,7 +1275,7 @@ ${rows.map(({ r, a, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clau
       <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Klar for ekstern revisjon» er en intern indikator med synlig mangelliste." />
       <SimpleRegister ctx={ctx} registerKey="sertifikat" subtitle={(r) => `${r.certBody}${r.validTo ? ` · gyldig til ${prettyDate(r.validTo)}` : ''}${r.nextAudit ? ` · neste revisjon ${prettyDate(r.nextAudit)}` : ''}`} />
       <Card title="Bevispakke til revisor" subtitle="Velg krav (tomt utvalg = alle). Bare godkjente bevis tas med, og skjermede saker utelates.">
-        <Choice small multi options={requirements.slice(0, 120).map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', '')} ${r.clause}` : r.title }))} value={selected} onChange={setSelected} />
+        <Choice small multi title="Krav" options={requirements.map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.title, hint: r.standard ? (r.title || '') : '' }))} value={selected} onChange={setSelected} />
         {Platform.OS === 'web' ? <Btn kind="primary" icon="print-outline" label="Lag bevispakke (PDF)" onPress={exportPackage} /> : <Text style={{ color: colors.muted }}>Eksport er tilgjengelig i nettleseren.</Text>}
         <Text style={{ color: colors.muted, fontSize: 12 }}>Tidsstyrt lesetilgang for ekstern revisor i appen krever egen revisorrolle og er ikke aktivert ennå. Del bevispakken i stedet.</Text>
         {!caps.manage ? null : null}

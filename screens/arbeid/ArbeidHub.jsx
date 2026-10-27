@@ -14,6 +14,7 @@ import {
   ProjectExpensesScreen,
 } from './OpsScreens';
 import ProductivityScreen from './ProductivityScreen';
+import ProjectTimelineScreen from './ProjectTimelineScreen';
 import AbsenceSettingsScreen from './AbsenceSettingsScreen';
 
 export default function ArbeidHub({ subView } = {}) {
@@ -28,5 +29,6 @@ export default function ArbeidHub({ subView } = {}) {
   if (page === 'salg') return <ProductSalesScreen />;
   if (page === 'godkjenning') return <ApprovalsScreen />;
   if (page === 'produktivitet') return <ProductivityScreen />;
+  if (page === 'fremdrift') return <ProjectTimelineScreen />;
   return <ArbeidScreen />;
 }

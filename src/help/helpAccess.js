@@ -58,6 +58,7 @@ export const PAGE_ACCESS = {
   'arbeid.timesaldo': { res: 'hoursBalance', steps: [S, S, W] },
   'arbeid.godkjenning': { res: 'hoursApproval', steps: [S, on(R, 'hoursOthers'), on(R, 'hoursOthers')] },
   'arbeid.produktivitet': { res: 'productivity', steps: [S, S, R] },
+  'arbeid.fremdrift': { res: 'productivity', steps: [S, S, S] },
   'arbeid.fravaer': { res: 'absence', steps: [S, S, S] },
   'arbeid.fravaersrapport': { res: 'absenceReport', steps: [S] },
   'arbeid.planlagt': { res: 'absencePlanned', steps: [R, R, on(R, 'hoursOthers')] },

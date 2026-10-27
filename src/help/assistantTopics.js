@@ -115,7 +115,7 @@ export const ASSISTANT_TOPICS = [
       s({ nb: 'Kunder', en: 'Customers' }, 'Kunder → «Ny kunde» → «Importer fil».', 'Customers → “New customer” → “Import file”.', gate('kunder', 3)),
       s({ nb: 'Prosjekter', en: 'Projects' }, 'Prosjekt → «Nytt prosjekt» → «Importer liste».', 'Projects → “New project” → “Import list”.', gate('projects', 4)),
       s({ nb: 'Ansatte', en: 'Employees' }, 'Ansatte → «Ny medarbeider» → «Importer liste».', 'Employees → “New employee” → “Import list”.', gate('ansatte', 2)),
-      s({ nb: 'Timer', en: 'Hours' }, 'Arbeid → Timerapport → «Importer timer».', 'Work → Hour report → “Import hours”.', gate('arbeid.timerapport', 1)),
+      s({ nb: 'Timer', en: 'Hours' }, 'Timer / arbeid per ansatt → Timerapport → «Importer timer».', 'Hours / work per employee → Hour report → “Import hours”.', gate('arbeid.timerapport', 1)),
       s({ nb: 'Fakturaer', en: 'Invoices' }, 'Økonomi → Faktura → «Importer Excel».', 'Finance → Invoices → “Import Excel”.', gate('okonomi.faktura', 4)),
       s({ nb: 'Utlegg og produktsalg', en: 'Expenses and product sales' }, 'Prosjektutlegg → «Importer fra fil». Produktsalg → «Importer».', 'Project expenses → “Import from file”. Product sales → “Import”.', gate('arbeid.utlegg', 1)),
       s({ nb: 'Kontroller', en: 'Check' }, 'Se over forhåndsvisningen. Duplikater hoppes over.', 'Review the preview. Duplicates are skipped.'),
@@ -130,7 +130,7 @@ export const ASSISTANT_TOPICS = [
       'Most lists can be exported: hours (CSV), mileage log, product catalogue, CVs (PDF/Word), forms (PDF) and invoices (EHF).',
     ),
     steps: [
-      s({ nb: 'Timer', en: 'Hours' }, 'Arbeid → Timeliste → «Eksporter CSV» eller «Skriv ut utvalg».', 'Work → Timesheet → “Export CSV” or “Print selection”.', need('hours', 'see')),
+      s({ nb: 'Timer', en: 'Hours' }, 'Timer / arbeid per ansatt → Timeliste → «Eksporter CSV» eller «Skriv ut utvalg».', 'Hours / work per employee → Timesheet → “Export CSV” or “Print selection”.', need('hours', 'see')),
       s({ nb: 'Kjørebok', en: 'Mileage' }, 'Kjørebok → «Eksporter kjørebok».', 'Mileage log → “Export mileage log”.', gate('okonomi.kjorebok', 3)),
       s({ nb: 'Faktura', en: 'Invoice' }, 'Faktura → «Last ned EHF (Peppol BIS 3.0)».', 'Invoices → “Download EHF (Peppol BIS 3.0)”.', gate('okonomi.faktura', 2)),
     ],

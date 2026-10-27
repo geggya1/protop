@@ -306,8 +306,8 @@ export const PROTOP_PAGES = {
     kicker: tx('Dine egne timer', 'Your own hours'),
     title: tx('Før timene dine', 'Log your hours'),
     pitch: tx(
-      'Samme timeliste som under Arbeid, men låst til deg. Før timer per prosjekt og dag, og lås dagene når de er ferdige.',
-      'The same timesheet as under Work, but locked to you. Log hours per project and day, and lock the days when they are done.',
+      'Samme timeliste som under Timer / arbeid per ansatt, men låst til deg. Før timer per prosjekt og dag, og lås dagene når de er ferdige.',
+      'The same timesheet as under Hours / work per employee, but locked to you. Log hours per project and day, and lock the days when they are done.',
     ),
     steps: [
       step(tx('Legg til prosjekt', 'Add a project'),
@@ -993,7 +993,7 @@ export const PROTOP_PAGES = {
   'arbeid.timeliste': page({
     section: 'company-people',
     label: tx('Timeliste', 'Timesheet'),
-    path: tx('Bedrift → Ansatte og arbeidstid → Arbeid → Timeliste', 'Company → Employees and working hours → Work → Timesheet'),
+    path: tx('Bedrift → Ansatte og arbeidstid → Timer / arbeid per ansatt → Timeliste', 'Company → Employees and working hours → Hours / work per employee → Timesheet'),
     nav: { tab: 'arbeid', subView: 'timeliste' },
     icon: 'calendar',
     accent: TEAL,
@@ -1043,7 +1043,7 @@ export const PROTOP_PAGES = {
   'arbeid.timerapport': page({
     section: 'company-people',
     label: tx('Timerapport', 'Hour report'),
-    path: tx('Bedrift → Arbeid → Timerapport', 'Company → Work → Hour report'),
+    path: tx('Bedrift → Timer / arbeid per ansatt → Timerapport', 'Company → Hours / work per employee → Hour report'),
     nav: { tab: 'arbeid', subView: 'timerapport' },
     icon: 'list',
     accent: TEAL,
@@ -1066,7 +1066,7 @@ export const PROTOP_PAGES = {
   'arbeid.timesaldo': page({
     section: 'company-people',
     label: tx('Timesaldo', 'Hour balance'),
-    path: tx('Bedrift → Arbeid → Timesaldo', 'Company → Work → Hour balance'),
+    path: tx('Bedrift → Timer / arbeid per ansatt → Timesaldo', 'Company → Hours / work per employee → Hour balance'),
     nav: { tab: 'arbeid', subView: 'timesaldo' },
     icon: 'hourglass',
     accent: TEAL,
@@ -1095,7 +1095,7 @@ export const PROTOP_PAGES = {
   'arbeid.godkjenning': page({
     section: 'company-people',
     label: tx('Godkjenninger', 'Approvals'),
-    path: tx('Bedrift → Arbeid → Godkjenninger', 'Company → Work → Approvals'),
+    path: tx('Bedrift → Timer / arbeid per ansatt → Godkjenninger', 'Company → Hours / work per employee → Approvals'),
     nav: { tab: 'arbeid', subView: 'godkjenning' },
     icon: 'checkmark-done',
     accent: TEAL,
@@ -1371,7 +1371,7 @@ export const PROTOP_PAGES = {
     faq: [
       {
         q: tx('Hvordan lager jeg en faktura?', 'How do I create an invoice?'),
-        a: tx('Godkjenn timene under Arbeid → Godkjenninger. Gå til Økonomi → Fakturagrunnlag og trykk «Opprett utkast». Send utkastet fra Økonomi → Faktura.', 'Approve the hours under Work → Approvals. Go to Finance → Invoice basis and tap “Create draft”. Send the draft from Finance → Invoices.'),
+        a: tx('Godkjenn timene under Timer / arbeid per ansatt → Godkjenninger. Gå til Økonomi → Fakturagrunnlag og trykk «Opprett utkast». Send utkastet fra Økonomi → Faktura.', 'Approve the hours under Hours / work per employee → Approvals. Go to Finance → Invoice basis and tap “Create draft”. Send the draft from Finance → Invoices.'),
       },
     ],
   }),

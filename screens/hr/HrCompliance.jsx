@@ -9,6 +9,7 @@ import {
 } from '../../src/hr/compliance';
 import { localIsoDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
+import OptionPicker from '../../components/OptionPicker';
 import {
   EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle,
 } from './HrShared';
@@ -114,18 +115,14 @@ export default function HrCompliance({
 
       {activeId ? (
         <HrCard colors={colors}>
-          <View style={styles.chips}>
-            <HrChip colors={colors} label="Alle" active={sourceFilter === 'all'} onPress={() => setSourceFilter('all')} />
-            {COMPLIANCE_SOURCES.map((src) => (
-              <HrChip
-                key={src.id}
-                colors={colors}
-                label={src.label}
-                active={sourceFilter === src.id}
-                onPress={() => setSourceFilter(src.id)}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={COMPLIANCE_SOURCES}
+            value={sourceFilter === 'all' ? '' : sourceFilter}
+            onChange={(id) => setSourceFilter(id || 'all')}
+            placeholder="Alle kilder"
+            clearLabel="Alle kilder"
+            title="Kilde"
+          />
           {canWrite ? (
             <HrButton
               colors={colors}

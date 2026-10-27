@@ -18,11 +18,13 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { controlStatus } from '../../src/doccontrol/model';
 import { fillSource, templateControlKey } from '../../src/doccontrol/templates';
 import FormFill, { FilledStatusIcon } from '../anbud/FormFill';
+import OptionPicker from '../../components/OptionPicker';
 import { useDocControl } from '../doccontrol/useDocControl';
 import { StatusChip } from '../doccontrol/parts';
 import { HrButton, HrCard, HrSectionTitle } from './HrShared';
 
 const HR_ENTRIES = KS_LIBRARY.filter((row) => row.kind === 'mal' && row.hr);
+const NO_EMPLOYEE = '__uten__';
 
 function dateText(value) {
   const d = new Date(value);
@@ -175,16 +177,14 @@ export default function HrForms({ colors, employees, canWrite, familyId, actor, 
                 picking === entry.key ? (
                   <View style={{ gap: 6 }}>
                     <Text style={{ color: colors.ink, fontSize: 13 }}>Hvem gjelder skjemaet?</Text>
-                    <View style={styles.chips}>
-                      {people.map((employee) => (
-                        <TouchableOpacity key={employee.id} onPress={() => start(entry.key, employee)} accessibilityRole="button" style={[styles.chip, { borderColor: colors.line }]}>
-                          <Text style={{ color: colors.ink }}>{displayName(employee)}</Text>
-                        </TouchableOpacity>
-                      ))}
-                      <TouchableOpacity onPress={() => start(entry.key, null)} accessibilityRole="button" style={[styles.chip, { borderColor: colors.line }]}>
-                        <Text style={{ color: colors.muted }}>Uten ansatt</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <OptionPicker
+                      options={[...people.map((employee) => ({ id: employee.id, label: displayName(employee) })), { id: NO_EMPLOYEE, label: 'Uten ansatt' }]}
+                      value=""
+                      onChange={(id) => { if (id) start(entry.key, id === NO_EMPLOYEE ? null : people.find((row) => row.id === id) || null); }}
+                      clearable={false}
+                      placeholder="Velg ansatt"
+                      title="Hvem gjelder skjemaet?"
+                    />
                     <TouchableOpacity onPress={() => setPicking('')} accessibilityRole="button">
                       <Text style={{ color: colors.muted }}>Avbryt</Text>
                     </TouchableOpacity>
@@ -201,16 +201,14 @@ export default function HrForms({ colors, employees, canWrite, familyId, actor, 
 
       <HrCard colors={colors}>
         <HrSectionTitle colors={colors} title="Utfylte personalskjema" subtitle={`${docs.length} dokumenter`} />
-        <View style={styles.chips}>
-          <TouchableOpacity onPress={() => setEmployeeId('')} accessibilityRole="button" style={[styles.chip, { borderColor: !employeeId ? colors.brand : colors.line, backgroundColor: !employeeId ? `${colors.brand}18` : 'transparent' }]}>
-            <Text style={{ color: !employeeId ? colors.brand : colors.ink }}>Alle</Text>
-          </TouchableOpacity>
-          {people.filter((employee) => docs.some((row) => row.subject?.id === employee.id)).map((employee) => (
-            <TouchableOpacity key={employee.id} onPress={() => setEmployeeId(employee.id)} accessibilityRole="button" style={[styles.chip, { borderColor: employeeId === employee.id ? colors.brand : colors.line, backgroundColor: employeeId === employee.id ? `${colors.brand}18` : 'transparent' }]}>
-              <Text style={{ color: employeeId === employee.id ? colors.brand : colors.ink }}>{displayName(employee)}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <OptionPicker
+          options={people.filter((employee) => docs.some((row) => row.subject?.id === employee.id)).map((employee) => ({ id: employee.id, label: displayName(employee) }))}
+          value={employeeId}
+          onChange={(id) => setEmployeeId(id || '')}
+          placeholder="Alle ansatte"
+          clearLabel="Alle ansatte"
+          title="Vis for ansatt"
+        />
         {visible.map((row) => (
           <TouchableOpacity key={row.id} onPress={() => { setFilled(row); say(''); }} accessibilityRole="button" style={[styles.docRow, { borderBottomColor: colors.line }]}>
             <FilledStatusIcon status={row.status} colors={colors} />
@@ -232,7 +230,5 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   formCard: { flexGrow: 1, flexBasis: 280, maxWidth: 460, borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
   headRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: StyleSheet.hairlineWidth },
 });

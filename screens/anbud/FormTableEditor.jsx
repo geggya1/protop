@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker from '../../components/OptionPicker';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_ROWS,
@@ -47,10 +48,9 @@ export default function FormTableEditor({ field, colors, onPatch }) {
     setColumns(columns.map((col, i) => (i === index ? { ...col, ...part } : col)));
   }
 
-  function cycleType(index) {
+  function setType(index, type) {
     const col = columns[index];
-    const order = TABLE_COLUMN_TYPES.map((row) => row.id);
-    const type = order[(order.indexOf(col.type) + 1) % order.length];
+    if (!type || type === col.type) return;
     patchColumn(index, {
       type,
       options: type === 'mark' ? (col.options?.length >= 2 ? col.options : ['J', 'N', 'I']) : [],
@@ -76,9 +76,16 @@ export default function FormTableEditor({ field, colors, onPatch }) {
               placeholderTextColor={colors.placeholder}
               style={[styles.line, { color: colors.ink, borderBottomColor: colors.line }]}
             />
-            <TouchableOpacity onPress={() => cycleType(index)} accessibilityRole="button" accessibilityLabel={`Kolonnetype ${meta?.label}`} style={[styles.chip, { backgroundColor: colors.sunken }]}>
-              <Text style={{ color: colors.ink, fontSize: 12 }}>{meta?.label || col.type}</Text>
-            </TouchableOpacity>
+            <View style={styles.typePick}>
+              <OptionPicker
+                options={TABLE_COLUMN_TYPES.map((row) => ({ id: row.id, label: row.label }))}
+                value={meta?.id || col.type}
+                onChange={(type) => setType(index, type)}
+                clearable={false}
+                small
+                title={`Kolonnetype for ${col.label || 'kolonnen'}`}
+              />
+            </View>
             {col.type === 'mark' ? (
               <TextInput
                 value={(col.options || []).join(', ')}
@@ -105,7 +112,7 @@ export default function FormTableEditor({ field, colors, onPatch }) {
           <Text style={{ color: colors.brand }}>Legg til kolonne</Text>
         </TouchableOpacity>
       ) : null}
-      <Text style={{ color: colors.muted, fontSize: 12 }}>Trykk på typen for å bytte. «Fast tekst» står i malen. «Ett av valgene» gir små knapper, for eksempel J, N og I.</Text>
+      <Text style={{ color: colors.muted, fontSize: 12 }}>Velg type for hver kolonne. «Fast tekst» står i malen. «Ett av valgene» gir små knapper, for eksempel J, N og I.</Text>
 
       <Text style={[styles.kicker, { color: colors.muted, marginTop: 6 }]}>Rader i malen ({rows.length})</Text>
       {rows.map((row, index) => (
@@ -205,7 +212,7 @@ const styles = StyleSheet.create({
   line: { flex: 1, minWidth: 80, borderBottomWidth: 1, paddingVertical: 4, fontSize: 14 },
   groupInput: { fontWeight: '700', paddingHorizontal: 6 },
   options: { width: 110, borderBottomWidth: 1, paddingVertical: 4, fontSize: 14 },
-  chip: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  typePick: { minWidth: 150 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 14 },
   paste: { minHeight: 120, borderWidth: 1, borderRadius: 10, padding: 8, fontSize: 14, textAlignVertical: 'top' },
   pasteButton: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },

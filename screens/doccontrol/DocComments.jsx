@@ -17,6 +17,9 @@ const FLOATING = Platform.OS === 'web'
   ? { position: 'fixed', left: 16, right: 16, bottom: 16, maxWidth: 560, marginHorizontal: 'auto', zIndex: 50, boxShadow: '0 6px 24px rgba(0,0,0,0.18)' }
   : null;
 
+// Valget «Hele dokumentet» i velgeren. Merknaden lagres med tomt anker.
+const WHOLE_DOC = '__dokument__';
+
 const VISIBLE_TO = 'Merknaden ser bare du, dokumentets eier og godkjenner, og dem som er satt til å lese merknader.';
 
 /** Egenskaper som gjør en blokk til et anker for merknader (data-doc-anchor på nett). */
@@ -242,9 +245,13 @@ export default function DocComments({ colors, dc, control, anchors = [], onCompo
               <Label colors={colors}>Gjelder</Label>
               <ChoiceChips
                 colors={colors}
-                options={[{ id: '', label: 'Hele dokumentet' }, ...anchors]}
-                value={composing.anchorId}
-                onChange={(anchorId) => setComposing({ ...composing, anchorId, anchorLabel: anchors.find((row) => row.id === anchorId)?.label || '' })}
+                options={[{ id: WHOLE_DOC, label: 'Hele dokumentet' }, ...anchors]}
+                value={composing.anchorId || WHOLE_DOC}
+                onChange={(picked) => {
+                  const anchorId = picked === WHOLE_DOC ? '' : picked;
+                  setComposing({ ...composing, anchorId, anchorLabel: anchors.find((row) => row.id === anchorId)?.label || '' });
+                }}
+                title="Gjelder"
               />
             </>
           ) : null}
@@ -252,7 +259,7 @@ export default function DocComments({ colors, dc, control, anchors = [], onCompo
         </>
       ) : null}
       {rows.length ? (
-        <ChoiceChips colors={colors} options={[{ id: 'apen', label: `Åpne (${open.length})` }, { id: 'alle', label: `Alle (${rows.length})` }]} value={filter} onChange={setFilter} />
+        <ChoiceChips colors={colors} options={[{ id: 'apen', label: `Åpne (${open.length})` }, { id: 'alle', label: `Alle (${rows.length})` }]} value={filter} onChange={setFilter} title="Vis merknader" />
       ) : null}
       {shown.map((row) => (
         <CommentRow key={row.id} colors={colors} dc={dc} control={control} comment={row} canResolve={canResolve} />

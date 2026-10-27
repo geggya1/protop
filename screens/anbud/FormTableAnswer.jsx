@@ -9,11 +9,26 @@ import {
   tableRows,
 } from '../../src/anbud/formBuilder';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER } from '../../src/forms/highlight';
+import OptionPicker, { CHIP_LIMIT } from '../../components/OptionPicker';
 
 /** Bredde der tabellen vises som rutenett. Smalere skjerm får ett kort per rad. */
 const GRID_MIN = 620;
 
 function MarkButtons({ column, value, colors, onChange, disabled }) {
+  // Fem eller flere valg i kolonnen: nedtrekk med den felles velgeren.
+  if (column.options.length > CHIP_LIMIT) {
+    return (
+      <OptionPicker
+        options={column.options}
+        value={value || ''}
+        onChange={(next) => onChange(next || '')}
+        small
+        disabled={disabled}
+        placeholder="Velg"
+        title={column.label || 'Valg'}
+      />
+    );
+  }
   return (
     <View style={styles.marks}>
       {column.options.map((option) => {

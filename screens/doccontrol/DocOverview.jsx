@@ -86,10 +86,10 @@ function SettingsCard({ colors, dc }) {
       <HrSectionTitle colors={colors} title="Innstillinger" subtitle={isAdmin ? 'Gjelder alle styrte dokumenter.' : 'Bare eier og administratorer kan endre innstillingene.'} />
       <Label colors={colors}>Godkjennere</Label>
       <Text style={{ color: colors.muted, fontSize: 12 }}>Kan godkjenne alle dokumenter som ikke har egen godkjenner. Uten godkjennere godkjenner administrator.</Text>
-      <PersonChips colors={colors} people={dc.people} value={settings.approvers} multiple onChange={(approvers) => change({ approvers })} disabled={!isAdmin || busy} />
+      <PersonChips colors={colors} people={dc.people} value={settings.approvers} multiple onChange={(approvers) => change({ approvers })} disabled={!isAdmin || busy} title="Godkjennere" />
       <Label colors={colors}>Lesere av merknader</Label>
       <Text style={{ color: colors.muted, fontSize: 12 }}>Ser alle merknader, i tillegg til godkjennere, dokumentets eier og administrator.</Text>
-      <PersonChips colors={colors} people={dc.people} value={settings.commentReaders} multiple onChange={(commentReaders) => change({ commentReaders })} disabled={!isAdmin || busy} />
+      <PersonChips colors={colors} people={dc.people} value={settings.commentReaders} multiple onChange={(commentReaders) => change({ commentReaders })} disabled={!isAdmin || busy} title="Lesere av merknader" />
       {toggles.map(([key, label, hint]) => (
         <View key={key} style={styles.switchRow}>
           <View style={{ flex: 1 }}>
@@ -100,7 +100,7 @@ function SettingsCard({ colors, dc }) {
         </View>
       ))}
       <Label colors={colors}>Standard gjennomgang for nye dokumenter</Label>
-      <ChoiceChips colors={colors} options={MONTHS} value={String(settings.defaultReviewMonths)} onChange={(months) => change({ defaultReviewMonths: Number(months) })} disabled={!isAdmin || busy} />
+      <ChoiceChips colors={colors} options={MONTHS} value={String(settings.defaultReviewMonths)} onChange={(months) => change({ defaultReviewMonths: Number(months) })} disabled={!isAdmin || busy} title="Standard gjennomgang" />
       {settings.updatedBy ? <Text style={{ color: colors.muted, fontSize: 12 }}>{`Sist endret ${dateText(settings.updatedAt)} av ${settings.updatedBy}`}</Text> : null}
     </HrCard>
   );
@@ -255,6 +255,7 @@ export default function DocOverview({
           ]}
           value={filter}
           onChange={setFilter}
+          title="Utvalg"
         />
         {shown.map((row) => (
           <TouchableOpacity

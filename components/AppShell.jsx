@@ -45,7 +45,9 @@ import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { moduleTabsFor } from '../src/navigation/moduleTabs';
+import ModuleTabs from './ModuleTabs';
 import { isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor } from '../src/navigation/shellPaths';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
@@ -731,6 +733,24 @@ function AppShellInner() {
     return <HomeScreen />;
   }, [tab, moreSubView, isChild, isActingAsChild, familyId, family, families, members, colors, companyAccess, companyModules]);
 
+  // Undersidene i modulen (ISO, Økonomi, Arbeid …) ligger i en vannrett meny øverst, ikke i hamburgermenyen.
+  const moduleMenu = useMemo(() => {
+    if (kitchenMode || !isOrganizationType(family?.type)) return null;
+    const items = companyMenuItems({
+      includeUnderenheter: companyHasRegisteredUnits(family?.company),
+      grants: companyAccess.grants,
+      modules: companyModules.state,
+      lockedNote: companyModules.lockedLabel,
+    });
+    return moduleTabsFor(tab, moreSubView, items);
+  }, [kitchenMode, family?.type, family?.company, companyAccess.grants, companyModules.state, companyModules.lockedLabel, tab, moreSubView]);
+
+  const moduleBody = (
+    <ShellErrorBoundary key={`${tab}:${moreSubView || ''}`}>
+      {otherBody}
+    </ShellErrorBoundary>
+  );
+
   const body = (
     <>
           {planMounted ? (
@@ -742,11 +762,13 @@ function AppShellInner() {
           <PlanScreen active={tab === 'plan'} />
         </View>
       ) : null}
-      {tab !== 'plan' ? (
-        <ShellErrorBoundary key={`${tab}:${moreSubView || ''}`}>
-          {otherBody}
-        </ShellErrorBoundary>
+      {tab !== 'plan' && moduleMenu ? (
+        <View style={styles.moduleFrame}>
+          <ModuleTabs menu={moduleMenu} onSelect={(nextTab, nextSub) => selectTab(nextTab, nextSub)} />
+          <View style={styles.moduleFrame}>{moduleBody}</View>
+        </View>
       ) : null}
+      {tab !== 'plan' && !moduleMenu ? moduleBody : null}
     </>
   );
 
@@ -1170,6 +1192,7 @@ export default function AppShell() {
 }
 
 const styles = StyleSheet.create({
+  moduleFrame: { flex: 1, minHeight: 0 },
   safe: { flex: 1, minHeight: 0 },
   /* Photo backdrop is z-index 0. The shell must stay above that fade. */
   shellAboveBackdrop: { backgroundColor: 'transparent', zIndex: 1 },

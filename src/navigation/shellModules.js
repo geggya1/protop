@@ -501,6 +501,7 @@ export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView
  * companyNavItems() er kilden for ruter, ikoner og tilgang.
  * Ikoner er Ionicons-navn (samme sett som øvrige menypunkter).
  * Punkter som ikke er nevnt i gruppene, legges etterpå og skal ikke skjules.
+ * Menyen har to nivåer: gruppe → modul. Undersidene ligger i modulens vannrette meny (moduleTabsFor).
  */
 export const COMPANY_DRAWER_GROUPS = [
   {
@@ -532,8 +533,6 @@ export const COMPANY_DRAWER_GROUPS = [
     label: 'Økonomi og fakturering',
     icon: 'wallet',
     itemIds: ['okonomi'],
-    // Gruppen er nivå 1. Sidene løftes opp så «Økonomi» ikke blir et tredje nivå.
-    hoistChildren: true,
   },
   {
     id: 'company-resources',
@@ -546,8 +545,6 @@ export const COMPANY_DRAWER_GROUPS = [
     label: 'Anbud',
     icon: 'megaphone',
     itemIds: ['anbud'],
-    // Som Økonomi: anbudsstegene ligger rett under gruppen.
-    hoistChildren: true,
   },
   {
     id: 'company-customers',
@@ -557,6 +554,18 @@ export const COMPANY_DRAWER_GROUPS = [
     processOrder: true,
   },
 ];
+
+/**
+ * Modulen slik menyen viser den: uten undermeny. Undersidene beholdes som `pages`, så modulen
+ * markeres aktiv på alle sine sider. Søketreff (forceOpen) beholder undermenyen, så søk finner sidene.
+ */
+function drawerModule(item) {
+  if (!item?.children?.length || item.forceOpen) return item;
+  // Bare én side tilgjengelig (f.eks. Prosjektutlegg for innleide): vis siden, ikke modulen.
+  if (item.children.length === 1 && !item.children[0].children?.length) return item.children[0];
+  const { children, ...rest } = item;
+  return { ...rest, pages: children };
+}
 
 export function groupCompanyDrawerItems(items) {
   const pool = new Map();
@@ -568,20 +577,11 @@ export function groupCompanyDrawerItems(items) {
   const used = new Set();
   const grouped = [];
   for (const def of COMPANY_DRAWER_GROUPS) {
-    const modules = [];
     const children = [];
-    let hoisted = false;
     for (const id of def.itemIds) {
       if (!pool.has(id) || used.has(id)) continue;
-      const item = pool.get(id);
       used.add(id);
-      modules.push(item);
-      if (def.hoistChildren && (item.children || []).length) {
-        children.push(...item.children);
-        hoisted = true;
-      } else {
-        children.push(item);
-      }
+      children.push(drawerModule(pool.get(id)));
     }
     if (!children.length) continue;
     grouped.push({
@@ -591,13 +591,11 @@ export function groupCompanyDrawerItems(items) {
       processOrder: !!def.processOrder,
       group: true,
       children,
-      // Sammenfoldet rail viser fortsatt ett ikon per modul, ikke hver side.
-      ...(hoisted ? { collapsedItems: modules } : null),
     });
   }
 
   for (const [id, item] of pool) {
-    if (!used.has(id)) grouped.push(item);
+    if (!used.has(id)) grouped.push(drawerModule(item));
   }
   return grouped;
 }
@@ -670,7 +668,8 @@ export function normalizeShellSelection(id, subView = null) {
 export function isNavItemActive(item, activeTab, activeSubView) {
   const action = item?.action;
   if (!action || action.type !== 'tab') return false;
-  if (item.children?.length && item.children.some((child) => isNavItemActive(child, activeTab, activeSubView))) {
+  const kids = item.children?.length ? item.children : (item.pages || []);
+  if (kids.length && kids.some((child) => isNavItemActive(child, activeTab, activeSubView))) {
     return true;
   }
   if (action.tab !== activeTab) return false;

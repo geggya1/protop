@@ -185,6 +185,11 @@ export const ACCESS_HELP = {
     read: 'Som Lese, og kan registrere, endre og reservere utstyr og registrere firmabil.',
     write: 'Ser alt utstyr og alle kjøretøy, sletter og bestemmer hvem som kan bruke hvert utstyr.',
   },
+  meetings: {
+    see: 'Ser møter som er åpne for alle i bedriften, og møter en selv er med i. Laster ned referat.',
+    read: 'Som Lese, og kan opprette møter og styre møter der en er møteleder eller referent.',
+    write: 'Ser og styrer alle møter, også møter som bare er for deltakerne, og møtemalene.',
+  },
   mileage: {
     see: 'Åpner kjøreboken og ser kjøreturene.',
     read: GENERIC.read,

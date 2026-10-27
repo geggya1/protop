@@ -151,6 +151,9 @@ export const FILES = [
   'src/utils/companyChat.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',
+  // Møter: livsløp, serier, oppfølging, maler, skjema, PDF, kalenderfil og utsending.
+  'src/meetings/meetings.test.mjs',
+  'functions/meetingDelivery.test.mjs',
 ];
 
 function runFile(file) {

@@ -3,7 +3,7 @@
  * Kilden er bedriftsmenyen (companyMenuItems), så tilgang og låste moduler følger samme regler.
  * HR og Anbud har sin egen meny på siden og får ikke en til.
  */
-import { ISO_MENU, companyNavItems, defaultIsoSubView, isNavItemActive } from './shellModules.js';
+import { ISO_MENU, companyNavItems, defaultIsoSubView, defaultMoterSubView, isNavItemActive } from './shellModules.js';
 
 const OWN_NAV = new Set(['hr', 'anbud']);
 
@@ -37,7 +37,9 @@ function isoSections(pages, active) {
 export function moduleTabsFor(tab, subView, items = null) {
   if (!tab) return null;
   const list = items || companyNavItems({ includeUnderenheter: true });
-  const sub = tab === 'iso' ? defaultIsoSubView(subView) : (subView || null);
+  let sub = subView || null;
+  if (tab === 'iso') sub = defaultIsoSubView(subView);
+  if (tab === 'moter') sub = defaultMoterSubView(subView);
   const module = list.find((item) => !OWN_NAV.has(item.id) && !item.locked && (item.children || []).length
     && isNavItemActive(item, tab, sub));
   if (!module) return null;

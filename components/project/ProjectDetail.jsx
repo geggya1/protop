@@ -43,6 +43,7 @@ import ProjectBillingTab from './ProjectBillingTab';
 import ProjectBillingReadyTab from './ProjectBillingReadyTab';
 import ProjectIndexArchive from './ProjectIndexArchive';
 import ProjectEarningsTab from './ProjectEarningsTab';
+import ProjectMeetingsTab from './ProjectMeetingsTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { teamWithHourParticipants } from '../../src/project/myProjects';
 
@@ -56,6 +57,7 @@ const TABS = [
   { id: 'aktiviteter', label: 'Aktiviteter' },
   { id: 'fakturering', label: 'Faktureringsvalg' },
   { id: 'team', label: 'Team' },
+  { id: 'moter', label: 'Møter' },
   { id: 'timerapport', label: 'Timerapport' },
   { id: 'inntjening', label: 'Inntjening' },
   { id: 'utlegg', label: 'Prosjektutlegg' },
@@ -155,13 +157,16 @@ export default function ProjectDetail({
   const full = projectMode === 'admin';
   const editor = projectMode === 'editor';
   const canSeeEarnings = access.canView('economyEarnings') || access.canView('economy');
+  const canSeeMeetings = access.canView('meetings');
   const tabs = useMemo(
     () => TABS.filter((row) => {
       if (row.id === 'inntjening' && !canSeeEarnings) return false;
+      // Møter følger tilgangen til Møter, ikke prosjektnivået.
+      if (row.id === 'moter') return canSeeMeetings;
       if (full) return true;
       return LIMITED_TABS.has(row.id) || (editor && row.id === 'innstillinger');
     }),
-    [canSeeEarnings, full, editor],
+    [canSeeEarnings, canSeeMeetings, full, editor],
   );
   const [tab, setTab] = useState(initialTab || 'hovedside');
   useEffect(() => {
@@ -369,6 +374,10 @@ export default function ProjectDetail({
             onChangeState={onChangeState}
             onOpenEconomySettings={onOpenEconomySettings}
           />
+        ) : null}
+
+        {tab === 'moter' ? (
+          <ProjectMeetingsTab familyId={familyId} project={project} colors={colors} uid={uid} />
         ) : null}
 
         {tab === 'team' ? (

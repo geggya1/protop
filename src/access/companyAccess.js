@@ -201,6 +201,19 @@ const ACCESS_MENU = [
     ],
   },
   {
+    id: 'meetingsGroup',
+    label: 'Møter og referat',
+    icon: 'people-circle',
+    items: [
+      {
+        id: 'meetings',
+        label: 'Møter',
+        icon: 'people-circle',
+        hint: 'Møter, innkalling, referat, oppfølgingspunkter og møtemaler.',
+      },
+    ],
+  },
+  {
     id: 'preview',
     label: 'Visning',
     icon: 'eye',
@@ -532,6 +545,7 @@ const STANDARD = {
     iso: 'read',
     hrCompliance: 'see',
     forms: 'read',
+    meetings: 'read',
   }),
   kvalitetsansvarlig: fill({
     companyPublic: 'see',
@@ -539,6 +553,7 @@ const STANDARD = {
     iso: 'write',
     hrCompliance: 'see',
     forms: 'write',
+    meetings: 'read',
   }),
   // Rolle i ISO: Begrenset redigering i ISO og skjema. Godkjenning følger ISO-rollen, ikke nivået.
   iso_rolle: fill({
@@ -559,6 +574,7 @@ const STANDARD = {
     absenceSettings: 'write',
     hoursOthers: 'see',
     iso: 'see',
+    meetings: 'read',
   }),
   regnskap_ekstern: fill({
     companyPublic: 'see',
@@ -583,6 +599,7 @@ const STANDARD = {
     ...hoursSurface('read'),
     equipment: 'see',
     iso: 'see',
+    meetings: 'read',
   }),
   tilbud: fill({
     companyPublic: 'see',
@@ -600,6 +617,7 @@ const STANDARD = {
     ...hoursSurface('read'),
     equipment: 'see',
     iso: 'see',
+    meetings: 'read',
   }),
   ansatt_andre_avdelinger: fill({
     companyPublic: 'see',
@@ -613,6 +631,7 @@ const STANDARD = {
     hoursOthers: 'see',
     equipment: 'see',
     iso: 'see',
+    meetings: 'read',
   }),
   avdelingsleder: fill({
     companyPublic: 'see',
@@ -632,6 +651,7 @@ const STANDARD = {
     hoursOthers: 'read',
     equipment: 'read',
     iso: 'read',
+    meetings: 'read',
   }),
   leder: fill({
     companyPublic: 'see',
@@ -657,6 +677,7 @@ const STANDARD = {
     hoursOthers: 'write',
     equipment: 'write',
     iso: 'write',
+    meetings: 'write',
     ...economySurface('write'),
     viewAs: 'write',
   }),
@@ -1140,6 +1161,7 @@ const COMPANY_TAB_RESOURCE = {
   iso: 'iso',
   okonomi: 'economy',
   utstyr: 'equipment',
+  moter: 'meetings',
 };
 
 /** Meny-id → rettighetsressurs. Foreldre uten egen rad dekkes i navItemAllowed. */
@@ -1197,11 +1219,15 @@ const NAV_RESOURCE = {
   'okonomi-innstillinger': 'economySettings',
   skjema: 'forms',
   iso: 'iso',
+  moter: 'meetings',
+  'moter-oversikt': 'meetings',
+  'moter-oppfolging': 'meetings',
+  'moter-maler': 'meetings',
 };
 
 export const COMPANY_TAB_IDS = [
   'selskap', 'underenheter', 'ansatte', 'hr', 'kunder', 'anbud', 'kontrakt',
-  'skjema', 'projects', 'arbeid', 'utstyr', 'iso', 'okonomi',
+  'skjema', 'projects', 'moter', 'arbeid', 'utstyr', 'iso', 'okonomi',
 ];
 
 function hoursAllowed(grants) {

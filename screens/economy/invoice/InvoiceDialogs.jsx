@@ -245,8 +245,9 @@ export function SendDialog({
   const narrow = useWindowDimensions().width < 520;
   const needsMail = send && (channel === 'email' || (channel === 'ehf' && alsoEmail));
   const dueBeforeDate = finalize && !powerOffice && !credit && !!dueDate && !!date && dueDate < date;
-  const canGo = !blocking.length && !dueBeforeDate
-    && (!send || channel === 'manual' || (channel === 'email' && chosen.length) || (channel === 'ehf' && ehfReady && (!alsoEmail || chosen.length)));
+  // Til PowerOffice sendes ingenting herfra, så mottakere og kanal spiller ingen rolle.
+  const canGo = !blocking.length && (powerOffice || (!dueBeforeDate
+    && (!send || channel === 'manual' || (channel === 'email' && chosen.length) || (channel === 'ehf' && ehfReady && (!alsoEmail || chosen.length)))));
   const title = finalize ? (credit ? 'Ferdigstill kreditnota' : 'Ferdigstill faktura') : (credit ? 'Send kreditnota' : 'Send faktura');
   let action = 'Send';
   if (finalize) action = send && !powerOffice ? 'Ferdigstill og send' : 'Ferdigstill';
@@ -338,6 +339,10 @@ export function SendDialog({
             <Text style={{ color: colors.ink, lineHeight: 20 }}>
               Utkastet overføres til PowerOffice Go, som setter fakturanummer og KID. Kontroller og send fakturaen fra PowerOffice.
               Nummer, KID, sending og betaling hentes tilbake hit.
+              {invoice?.invoiceDate ? `\n\nOrdredato i PowerOffice: ${formatDate(invoice.invoiceDate)}. ` : '\n\n'}
+              {invoice?.dueDateSet && invoice?.creditDays != null && Number.isFinite(Number(invoice.creditDays))
+                ? `Betalingsfristen blir ${Number(invoice.creditDays)} dager fra dagen fakturaen sendes fra PowerOffice.`
+                : 'Betalingsfristen følger betalingsbetingelsen i PowerOffice.'}
             </Text>
           )}
         </View>

@@ -43,6 +43,7 @@ function formatNb(value) {
 /**
  * Shared date field for web + native.
  * Web: invisible native date input over a formatted label (reliable on mobile Safari).
+ * A click opens the calendar (showPicker), also on desktop Chrome/Edge.
  * Native: DateTimePicker with iOS "Ferdig" dismiss.
  */
 export default function DateField({
@@ -73,7 +74,15 @@ export default function DateField({
           value={key}
           min={minKey || undefined}
           onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            // Chrome/Edge på PC åpner kalenderen bare fra ikonet ytterst til høyre, som er usynlig her.
+            try {
+              e.currentTarget.showPicker?.();
+            } catch (_) {
+              /* eldre nettlesere: fokus på feltet holder */
+            }
+          }}
           onChange={(e) => {
             e.stopPropagation();
             const v = e.target.value;

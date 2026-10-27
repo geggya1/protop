@@ -128,6 +128,7 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
     SalesOrderDate: isoDate(row.invoiceDate) || null,
     DeliveryDate: isoDate(row.periodEnd) || null,
     CustomerReference: text(row.customerReference) || null,
+    PaymentTerm: paymentTerm(row),
     CurrencyCode: text(row.currency) || 'NOK',
     SalesOrderLines: lines,
   };
@@ -135,6 +136,13 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
     if (order[key] == null) delete order[key];
   }
   return { ok: true, order };
+}
+
+/** Fristen valgt i ProTop, i dager. Ellers arver Go betalingsbetingelsen fra kunden eller klienten. */
+function paymentTerm(row) {
+  if (row.dueDateSet !== true || row.creditDays == null || row.creditDays === '') return null;
+  const days = Number(row.creditDays);
+  return Number.isFinite(days) && days >= 0 ? Math.round(days) : null;
 }
 
 /** ProTop-kunde → CustomerPostDto. */

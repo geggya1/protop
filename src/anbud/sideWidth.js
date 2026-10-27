@@ -58,3 +58,23 @@ export function mapHeightForRail(sideWidth, viewportHeight) {
   const byView = Math.round((Number.isFinite(view) && view > 0 ? view : 800) * 0.42);
   return Math.min(560, Math.max(220, Math.min(byWidth, byView)));
 }
+
+export const AGREEMENT_DOC_WIDTH_KEY = 'protop.avtale.docWidth';
+export const AGREEMENT_DOC_MIN = 340;
+export const AGREEMENT_DOC_HEIGHT = 560;
+
+/** Avtalesiden: dokumentkolonnen kan dras bredere så lenge avtaleopplysningene beholder plass til venstre. */
+export function agreementDocMaxWidth(splitWidth, { left = 360, gap = 14 } = {}) {
+  const width = Number(splitWidth);
+  if (!Number.isFinite(width) || width <= 0) return 1200;
+  return Math.max(AGREEMENT_DOC_MIN, Math.round(width - left - gap));
+}
+
+/** En bredere dokumentkolonne gir også en høyere PDF, men ikke høyere enn vinduet. */
+export function agreementDocHeight(docWidth, viewportHeight, { base = AGREEMENT_DOC_HEIGHT, chrome = 320 } = {}) {
+  const width = Number(docWidth);
+  if (!Number.isFinite(width) || width <= 0) return base;
+  const view = Number(viewportHeight);
+  const roof = Number.isFinite(view) && view > 0 ? Math.round(view - chrome) : base;
+  return Math.max(base, Math.min(Math.round(width * 0.9), roof));
+}

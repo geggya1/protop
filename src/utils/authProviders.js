@@ -37,8 +37,8 @@ function prefersRedirectAuth() {
   return iOS || android;
 }
 
-const OAUTH_PENDING_KEY = 'weekplan_oauth_pending';
-const OAUTH_ERROR_KEY = 'weekplan_oauth_error';
+const OAUTH_PENDING_KEY = 'protop_oauth_pending';
+const OAUTH_ERROR_KEY = 'protop_oauth_error';
 
 function setOauthPending(providerId) {
   const value = providerId || 'unknown';
@@ -267,7 +267,7 @@ function requestGoogleAccessToken() {
           const lower = type.toLowerCase();
           if (lower.includes('popup_closed') || lower.includes('closed')) {
             // User may have closed after seeing origin_mismatch — surface that hint
-            if (typeof window !== 'undefined' && window.__weekplanGoogleOriginHint) {
+            if (typeof window !== 'undefined' && window.__protopGoogleOriginHint) {
               reject(Object.assign(new Error('origin_mismatch'), { code: 'origin_mismatch' }));
               return;
             }
@@ -282,7 +282,7 @@ function requestGoogleAccessToken() {
         },
       });
       // If the Google error page opens, origin is almost always the cause on custom domains
-      if (typeof window !== 'undefined') window.__weekplanGoogleOriginHint = true;
+      if (typeof window !== 'undefined') window.__protopGoogleOriginHint = true;
       client.requestAccessToken({ prompt: 'select_account' });
     } catch (e) {
       reject(e);
@@ -439,7 +439,7 @@ export async function signInWithGoogle() {
   const AuthSession = await import('expo-auth-session');
   const WebBrowser = await import('expo-web-browser');
   WebBrowser.maybeCompleteAuthSession();
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'weekplan' });
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'protop' });
   const discovery = {
     authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenEndpoint: 'https://oauth2.googleapis.com/token',
@@ -607,7 +607,7 @@ export async function signInWithMicrosoft() {
   const AuthSession = await import('expo-auth-session');
   const WebBrowser = await import('expo-web-browser');
   WebBrowser.maybeCompleteAuthSession();
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'weekplan' });
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: 'protop' });
   const tenant = process.env.EXPO_PUBLIC_MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.EXPO_PUBLIC_MICROSOFT_CLIENT_ID;
   if (!clientId) {

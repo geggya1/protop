@@ -33,10 +33,8 @@ function initialTab(startTab) {
 
 function VacationPlanSettings({ colors, canEdit }) {
   const { familyId, family } = useApp();
-  const year = new Date().getFullYear();
+  // Ferieplanen bruker bare fravær. Uten datovindu hentes ingen timer.
   const workspace = useTimesheetWorkspace({
-    fromDate: `${year - 1}-01-01`,
-    toDate: `${year + 1}-12-31`,
     absences: { all: true },
     liveAbsences: true,
   });

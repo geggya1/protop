@@ -32,7 +32,7 @@ assert.ok(HR_MENU.some((item) => item.id === 'compliance'));
 assert.equal(defaultHrSubView('avtaler'), 'avtaler');
 assert.equal(defaultHrSubView('compliance'), 'compliance');
 assert.equal(hrMenuTitle('avtaler'), 'Avtaler');
-assert.equal(hrMenuTitle('compliance'), 'Lov & ISO');
+assert.equal(hrMenuTitle('compliance'), 'Lovpålagt');
 
 for (const item of HR_MENU) {
   assert.equal(companyHeroId('hr', item.id), `hr-${item.id}`);

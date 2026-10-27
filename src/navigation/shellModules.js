@@ -190,7 +190,7 @@ export const HR_MENU = [
   { id: 'avtaler', icon: 'document-text', label: 'Avtaler' },
   { id: 'lonn', icon: 'cash', label: 'Lønn' },
   { id: 'oppfolging', icon: 'flag', label: 'Oppfølging' },
-  { id: 'compliance', icon: 'shield-checkmark', label: 'Lov & ISO' },
+  { id: 'compliance', icon: 'shield-checkmark', label: 'Lovpålagt' },
   { id: 'rekruttering', icon: 'megaphone', label: 'Rekruttering' },
   { id: 'handbok', icon: 'book', label: 'Personalhåndbok' },
   { id: 'skjema', icon: 'clipboard', label: 'Skjemaer' },
@@ -1018,7 +1018,7 @@ export function buildChildSkoleApps({
     skoleApps.push({
       id: 'week-plan',
       icon: 'today',
-      label: t('tabs.weekPlan'),
+      label: t('tabs.weeklyPlan'),
       sub: t('shellSub.overview'),
       action: {
         type: 'nav',
@@ -1320,14 +1320,14 @@ export function buildParentDashboardApps({
       id: 'matcoach',
       icon: 'nutrition',
       label: t('apps.matcoach'),
-      sub: t('shellSub.weekPlanAi'),
+      sub: t('shellSub.weeklyPlanAi'),
       action: { type: 'tab', tab: 'more', subView: 'matcoach' },
     },
     {
       id: 'meals',
       icon: 'restaurant',
       label: t('apps.meals'),
-      sub: t('shellSub.weekPlan'),
+      sub: t('shellSub.weeklyPlan'),
       action: { type: 'tab', tab: 'more', subView: 'meals' },
     },
     {

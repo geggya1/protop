@@ -24,7 +24,7 @@ import {
 const T = (nb, en) => ({ nb, en });
 
 export const APP_VERSION_FALLBACK = '2.0.0';
-export const MAJOR_SEEN_PREFIX = 'weekplan.appUpdates.majorSeen.v1';
+export const MAJOR_SEEN_PREFIX = 'protop.appUpdates.majorSeen.v1';
 
 export {
   APP_UPDATES,

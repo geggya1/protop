@@ -330,7 +330,7 @@ async function fetchRecipePage(url) {
     redirect: 'follow',
     headers: {
       // Browser-like UA — some recipe blogs block generic bots.
-      'User-Agent': 'Mozilla/5.0 (compatible; Weekplan/1.0; +https://protop.no)',
+      'User-Agent': 'Mozilla/5.0 (compatible; ProTop/1.0; +https://protop.no)',
       Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'nb-NO,nb;q=0.9,en;q=0.8',
     },

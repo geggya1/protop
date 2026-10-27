@@ -61,8 +61,8 @@ async function open(uid, persona) {
   const ctx = await browser.newContext({ viewport: VIEWS[VIEW] });
   await ctx.addInitScript(() => {
     const now = new Date().toISOString();
-    localStorage.setItem('weekplan.lang', 'nb');
-    localStorage.setItem('weekplan.consents', JSON.stringify({
+    localStorage.setItem('protop.lang', 'nb');
+    localStorage.setItem('protop.consents', JSON.stringify({
       version: '2.0.0', termsAt: now, privacyAt: now, gdprAt: now, dataAt: now, copyrightAt: now, language: 'nb',
     }));
   });

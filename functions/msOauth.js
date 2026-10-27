@@ -21,7 +21,7 @@ export const MS_MAIL_OAUTH_SCOPES = 'openid offline_access User.Read Mail.Read M
 export const MS_SIGNIN_OAUTH_SCOPES = 'openid profile email offline_access User.Read';
 
 /**
- * Only allow token exchange for Weekplan redirect URIs (account sign-in).
+ * Only allow token exchange for ProTop redirect URIs (account sign-in).
  * Azure already has /oauth/calendar; Firebase's /__/auth/handler is often missing.
  */
 export function isAllowedMicrosoftSignInRedirectUri(redirectUri) {

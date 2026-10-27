@@ -1,6 +1,6 @@
 /**
  * Deploy entry for friend features without Secret Manager.
- * sendFriendInviteV2 / Sms use WEEKPLAN_MAIL_KEY (CI /.env), not defineSecret('MAIL_API_KEY').
+ * sendFriendInviteV2 / Sms use PROTOP_MAIL_KEY (CI /.env), not defineSecret('MAIL_API_KEY').
  */
 import './setRegion.js';
 

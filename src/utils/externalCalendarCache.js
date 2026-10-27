@@ -1,8 +1,8 @@
 import { addDays, dateKey, parseDateKey, startOfWeekMonday } from './dates.js';
 
 const MEMORY = new Map();
-const STORAGE_PREFIX = 'weekplan.extCalCache.v2';
-const LEGACY_PREFIX = 'weekplan.extCalCache.v1';
+const STORAGE_PREFIX = 'protop.extCalCache.v2';
+const LEGACY_PREFIX = 'protop.extCalCache.v1';
 
 /** Fresh enough to skip network entirely. */
 export const CAL_FRESH_MS = 30 * 60 * 1000;

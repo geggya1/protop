@@ -4,7 +4,7 @@
  * Rene funksjoner + fetch med injiserbar fetch/proxy (ingen React).
  */
 
-export const LIVE_WIDGET_KEY = 'weekplan.liveWidgets.v1';
+export const LIVE_WIDGET_KEY = 'protop.liveWidgets.v1';
 
 export const LIVE_WIDGETS = [
   { id: 'news', title: 'Siste nytt', icon: 'newspaper-outline' },

@@ -27,7 +27,7 @@ export function introStorageKey(scope, moduleId) {
   return `${String(scope || 'family')}.${String(moduleId || '')}`;
 }
 
-export const MODULE_INTRO_SEEN_PREFIX = 'weekplan.moduleIntro.seen.v1';
+export const MODULE_INTRO_SEEN_PREFIX = 'protop.moduleIntro.seen.v1';
 
 const BLUE = '#1099F4';
 const BLUE_SOFT = '#dbeafe';

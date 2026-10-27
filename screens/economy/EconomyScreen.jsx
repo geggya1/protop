@@ -28,6 +28,7 @@ import EconomyIndices from './EconomyIndices';
 import EconomyInvoices from './EconomyInvoices';
 import EconomyBilling from './EconomyBilling';
 import EconomyOps from './EconomyOps';
+import ProductCatalog from './ProductCatalog';
 import EconomyWelcome from './EconomyWelcome';
 import EconomySettingsScreen from './EconomySettingsScreen';
 import EconomyEarnings from './EconomyEarnings';
@@ -333,7 +334,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   }
 
   if (page === 'produkter') {
-    return <EconomyOps kind="products" />;
+    return <ProductCatalog />;
   }
 
   if (page === 'innstillinger') {

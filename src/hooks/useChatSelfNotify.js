@@ -78,9 +78,9 @@ export function useChatSelfNotify(familyId, uid, prefs) {
           };
 
           setDoc(doc(db, 'users', uid, 'notifications', notifId), payload).catch((err) => {
-            console.warn('[weekplan-notif] chat self-notify inbox', err?.code, err?.message);
+            console.warn('[protop-notif] chat self-notify inbox', err?.code, err?.message);
           });
-          console.log('[weekplan-notif] chat self-notify queued', {
+          console.log('[protop-notif] chat self-notify queued', {
             chatId: data.id, notifId, unread,
           });
 

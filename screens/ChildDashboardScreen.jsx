@@ -320,7 +320,7 @@ export default function ChildDashboardScreen() {
 
   const drawerItems = useMemo(() => [
     { id: 'dashboard', icon: 'home', label: t('tabs.home') },
-    { id: 'program', icon: 'today', label: t('tabs.weekPlan') },
+    { id: 'program', icon: 'today', label: t('tabs.weeklyPlan') },
     { id: 'tasks', icon: 'checkbox', label: t('tabs.tasks') },
     { id: 'calendar', icon: 'calendar', label: t('tabs.plan') },
     { id: 'chat', icon: 'chatbubbles', label: t('tabs.chat') },

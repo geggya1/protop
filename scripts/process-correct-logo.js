@@ -268,7 +268,7 @@ async function main() {
 
   fs.writeFileSync(
     path.join(OUT, 'README.txt'),
-    `WEEKPLAN LOGO — godkjent utgave
+    `PROTOP LOGO — godkjent utgave
 
 Kilde: brand/logo/ProTop_logo_source.jpg
 (glatt hus + familie, hvitt inni huset, solide blå bokstaver).

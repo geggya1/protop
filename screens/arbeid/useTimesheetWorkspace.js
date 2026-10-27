@@ -19,6 +19,7 @@ import {
   saveProjectState,
 } from '../../src/project/storage';
 import { subscribeFamilyCollection } from '../../src/utils/sharedCollectionListeners';
+import { waitForFirestoreAccess } from '../../src/utils/firestoreAccess';
 
 /** Delt lasting av prosjektstate og medarbeidere for tid-sidene. */
 export function useTimesheetWorkspace({
@@ -110,6 +111,31 @@ export function useTimesheetWorkspace({
     });
     return () => { live = false; };
   }, [ready, workspaceId, absenceOff, absenceAll, absenceFrom, absenceTo, absenceEmployee]);
+
+  // Åpne fraværsstrømmen mens prosjektstate lastes. Lesingen og lytteren under
+  // bruker samme strøm, så fraværet hentes parallelt og bare én gang.
+  useEffect(() => {
+    if (!workspaceId || !uid || !liveAbsences || !absenceAll) return undefined;
+    let live = true;
+    let stop = null;
+    let failed = false;
+    const release = () => {
+      failed = true;
+      stop?.();
+    };
+    waitForFirestoreAccess(uid).then((ok) => {
+      if (!live || !ok) return;
+      // Feil kommer som tom liste. Slipp strømmen, så lytteren under starter på nytt som før.
+      stop = subscribeFamilyCollection(workspaceId, 'absences', () => null, (rows) => {
+        if (Array.isArray(rows)) release();
+      });
+      if (failed) stop();
+    }).catch(() => {});
+    return () => {
+      live = false;
+      stop?.();
+    };
+  }, [workspaceId, uid, liveAbsences, absenceAll]);
 
   useEffect(() => {
     if (!ready || !workspaceId || !liveAbsences || !absenceAll) return undefined;

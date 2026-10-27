@@ -214,6 +214,11 @@ export function buildLetter(draft, result, options = {}) {
     footer: [supplier, hourly ? 'Indeksregulering av timesats' : 'Indeksregulering', draft.website ? `Internett: ${draft.website}` : ''].filter(Boolean),
   };
 
+  return finishLetter({ title, filenameBase: fileBase(draft, result), today }, notice);
+}
+
+/** Avsnitt og ren tekst lages alltid fra brevets felter, også etter manuelle endringer. */
+function finishLetter(meta, notice) {
   const paragraphs = [
     { heading: notice.brand, lines: [notice.title, '', notice.intro] },
     ...notice.sections.map((section) => ({
@@ -237,9 +242,9 @@ export function buildLetter(draft, result, options = {}) {
   ];
 
   return {
-    title,
-    filenameBase: fileBase(draft, result),
-    today,
+    title: notice.title || meta.title,
+    filenameBase: meta.filenameBase,
+    today: meta.today,
     paragraphs,
     notice,
     plain: paragraphs.map((part) => [part.heading, ...part.lines].filter(Boolean).join('\n')).join('\n\n'),
@@ -305,7 +310,7 @@ export function letterFromRecord(draft, record, options = {}) {
     effectiveDate: record.effectiveFrom || draft?.effectiveDate || '',
     freeText: record.freeText || draft?.freeText || '',
   }, result, options);
-  return { letter, result };
+  return { letter: applyLetterEdits(letter, record.letterEdits), result };
 }
 
 const EMPTY_LETTER_FIELDS = [
@@ -345,15 +350,64 @@ const EMPTY_LETTER_FIELDS = [
   'Selskap',
 ];
 
-function pushField(rows, seen, label, value) {
-  const name = String(label || '').replace(/\s+/g, ' ').trim();
-  if (!name) return;
-  const count = (seen.get(name) || 0) + 1;
-  seen.set(name, count);
-  rows.push([
-    count === 1 ? name : `${name} ${count}`,
-    String(value ?? '').replace(/\s+/g, ' ').trim(),
-  ]);
+function fieldText(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Går gjennom brevets felter i samme rekkefølge som PDF-en.
+ * Hvert felt får en fast nøkkel («Merknad 2») og en funksjon som skriver ny tekst inn i en kopi av brevet.
+ */
+function noticeFields(notice) {
+  const fields = [];
+  const seen = new Map();
+  function add(label, value, write) {
+    const name = fieldText(label);
+    if (!name) return;
+    const count = (seen.get(name) || 0) + 1;
+    seen.set(name, count);
+    fields.push({ key: count === 1 ? name : `${name} ${count}`, value: fieldText(value), write });
+  }
+  add('Avsender', notice.brand, (next, value) => { next.brand = value; });
+  add('Tittel', notice.title, (next, value) => { next.title = value; });
+  add('Innledning', notice.intro, (next, value) => { next.intro = value; });
+  (notice.sections || []).forEach((section, sectionIndex) => {
+    if (section.lead) {
+      add(section.heading || 'Tekst', section.lead, (next, value) => { next.sections[sectionIndex].lead = value; });
+    }
+    (section.rows || []).forEach((row, rowIndex) => {
+      let label = '';
+      let start = -1;
+      const values = [];
+      const flush = (end) => {
+        if (!label) return;
+        const from = start + 1;
+        add(label, values.join(' '), (next, value) => {
+          const cells = next.sections[sectionIndex].rows[rowIndex];
+          const run = cells.slice(from, end);
+          const span = run.reduce((sum, item) => sum + (item?.span || 1), 0) || 1;
+          cells.splice(from, run.length, cell(value, span));
+        });
+      };
+      row.forEach((item, index) => {
+        if (item?.label) {
+          flush(index);
+          values.length = 0;
+          label = item.text;
+          start = index;
+        } else if (item?.text) {
+          values.push(item.text);
+        }
+      });
+      flush(row.length);
+    });
+  });
+  (notice.notes || []).forEach((line, index) => add('Merknad', line, (next, value) => { next.notes[index] = value; }));
+  add('Sted', notice.signoff?.place || '', (next, value) => { next.signoff.place = value; });
+  add('Dato', notice.signoff?.date || '', (next, value) => { next.signoff.date = value; });
+  add('Underskriver', notice.signoff?.name || '', (next, value) => { next.signoff.name = value; });
+  add('Selskap', notice.signoff?.company || '', (next, value) => { next.signoff.company = value; });
+  return fields;
 }
 
 /** Lange brevfelter skal ha hele bredden. Korte felt deler raden. */
@@ -369,35 +423,61 @@ export function letterFieldWide(label, value) {
 export function letterFieldRows(letter, { filled = true } = {}) {
   const notice = letter?.notice;
   if (!notice) return EMPTY_LETTER_FIELDS.map((label) => [label, '']);
-  const rows = [];
-  const seen = new Map();
-  pushField(rows, seen, 'Avsender', notice.brand);
-  pushField(rows, seen, 'Tittel', notice.title);
-  pushField(rows, seen, 'Innledning', notice.intro);
-  (notice.sections || []).forEach((section) => {
-    if (section.lead) pushField(rows, seen, section.heading || 'Tekst', section.lead);
-    (section.rows || []).forEach((row) => {
-      let label = '';
-      const values = [];
-      row.forEach((item) => {
-        if (item?.label) {
-          if (label) pushField(rows, seen, label, values.join(' ').trim());
-          values.length = 0;
-          label = item.text;
-        } else if (item?.text) {
-          values.push(item.text);
-        }
-      });
-      if (label) pushField(rows, seen, label, values.join(' ').trim());
-    });
-  });
-  (notice.notes || []).forEach((line) => pushField(rows, seen, 'Merknad', line));
-  pushField(rows, seen, 'Sted', notice.signoff?.place || '');
-  pushField(rows, seen, 'Dato', notice.signoff?.date || '');
-  pushField(rows, seen, 'Underskriver', notice.signoff?.name || '');
-  pushField(rows, seen, 'Selskap', notice.signoff?.company || '');
+  const rows = noticeFields(notice).map((field) => [field.key, field.value]);
   if (filled) return rows;
   return rows.map(([label]) => [label, '']);
+}
+
+/** Bare tekstfelt med nøkkel og verdi tas vare på. */
+export function cleanLetterEdits(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
+  const out = {};
+  Object.keys(input).slice(0, 120).forEach((key) => {
+    const name = fieldText(key).slice(0, 80);
+    if (name && typeof input[key] === 'string') out[name] = fieldText(input[key]).slice(0, 2000);
+  });
+  return out;
+}
+
+/** Feltene som skiller seg fra det beregnede brevet. Like verdier lagres ikke. */
+export function letterEditsFrom(letter, values) {
+  const out = {};
+  if (!letter?.notice || !values) return out;
+  noticeFields(letter.notice).forEach((field) => {
+    if (!Object.prototype.hasOwnProperty.call(values, field.key)) return;
+    const value = fieldText(values[field.key]);
+    if (value !== field.value) out[field.key] = value;
+  });
+  return out;
+}
+
+/**
+ * Legger manuelle endringer inn i brevet. Nøklene er de samme som i letterFieldRows.
+ * En tom merknad fjernes. Beregnet pris og indeks i saken endres ikke.
+ */
+export function applyLetterEdits(letter, edits) {
+  const clean = cleanLetterEdits(edits);
+  if (!letter?.notice || !Object.keys(clean).length) return letter;
+  const notice = {
+    ...letter.notice,
+    sections: (letter.notice.sections || []).map((section) => ({
+      ...section,
+      rows: (section.rows || []).map((row) => row.map((item) => ({ ...item }))),
+    })),
+    notes: [...(letter.notice.notes || [])],
+    signoff: { ...(letter.notice.signoff || {}) },
+    footer: [...(letter.notice.footer || [])],
+  };
+  let changed = false;
+  noticeFields(letter.notice).reverse().forEach((field) => {
+    if (!Object.prototype.hasOwnProperty.call(clean, field.key)) return;
+    if (clean[field.key] === field.value) return;
+    field.write(notice, clean[field.key]);
+    changed = true;
+  });
+  if (!changed) return letter;
+  notice.notes = notice.notes.filter(Boolean);
+  return finishLetter(letter, notice);
 }
 
 function fileBase(draft, result) {

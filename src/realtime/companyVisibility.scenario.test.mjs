@@ -7,6 +7,7 @@ import {
 } from '../employees/invite.js';
 import { validNationalId } from '../employees/model.js';
 import { groupInviteCopy } from '../utils/inviteIdentifiers.js';
+import { OLD_BRAND_PATTERN } from '../utils/legacyNames.js';
 import {
   addHr,
   awaiting,
@@ -483,7 +484,8 @@ test('flere boter: oppslag, flere bedrifter, invitasjon, e-post, deaktivering og
   assert.equal(sent.mail.html.includes('<script>'), false);
   assert.match(sent.mail.text, /https:\/\/www\.protop\.no\/register\?email=eva%40example\.com&familyId=/);
   assert.equal(sent.mail.text.includes('NORDBYGG'), false);
-  assert.equal(sent.mail.text.includes('Weekplan'), false);
+  assert.doesNotMatch(sent.mail.text, OLD_BRAND_PATTERN);
+  assert.match(sent.mail.text, /ProTop/);
   assert.equal(dropQueued(world, { companyId: consult.id, employeeId: queued.employee.id }).ok, false);
 
   const claimed = claimInvite(world, { companyId: consult.id, uid: EVA, email: 'eva@example.com' });

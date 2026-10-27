@@ -353,7 +353,7 @@ export const resendFriendRequestAdmin = onCall(
         await db.doc(`users/${toUid}/notifications/friendInvite_${requestId}`).set({
           eventType: 'friendInvite',
           title: 'Venneforespørsel',
-          body: `${fromName} vil gjerne bli venn med deg på Weekplan.`,
+          body: `${fromName} vil gjerne bli venn med deg på ProTop.`,
           requestId,
           inviteId: requestId,
           fromUid: uid,
@@ -559,7 +559,7 @@ export const createFriendRequestAdmin = onCall(
       batch.set(db.doc(`users/${toUid}/notifications/friendInvite_${ref.id}`), {
         eventType: 'friendInvite',
         title: 'Venneforespørsel',
-        body: `${fromName} vil gjerne bli venn med deg på Weekplan.`,
+        body: `${fromName} vil gjerne bli venn med deg på ProTop.`,
         requestId: ref.id,
         inviteId: ref.id,
         fromUid,
@@ -983,7 +983,7 @@ export const claimFriendInviteAdmin = onCall(
       batch.set(db.doc(`users/${fromUid}/notifications/friendClaimed_${friendshipId}`), {
         eventType: 'friendInviteAccepted',
         title: 'Ny venn',
-        body: `${me.name} ble med på Weekplan og er nå vennen din.`,
+        body: `${me.name} ble med på ProTop og er nå vennen din.`,
         friendUid: uid,
         createdBy: uid,
         createdAt: now,

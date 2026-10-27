@@ -7,7 +7,7 @@ import {
   normalizeRecurrenceStartKey,
 } from './todoRecurrence.js';
 
-export const CUSTODY_OVERLAY_KEY = 'weekplan.custodyOverlay.v1';
+export const CUSTODY_OVERLAY_KEY = 'protop.custodyOverlay.v1';
 
 const ALL_WEEK_DAYS = [0, 1, 2, 3, 4, 5, 6];
 

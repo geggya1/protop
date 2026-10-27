@@ -21,7 +21,7 @@ const SHEETS = [
   { id: 'avtale', label: 'Avtale' },
   { id: 'lonn', label: 'Lønn' },
   { id: 'oppfolging', label: 'Oppfølging' },
-  { id: 'compliance', label: 'Lov & ISO' },
+  { id: 'compliance', label: 'Lovpålagt' },
 ];
 
 const COLUMNS = [
@@ -39,6 +39,7 @@ export default function HrPeople({
   colors, employees, hr, entries, selectedId, onSelect, canWrite, onPatch, onSheet,
   sheet = 'oversikt', familyId, onSaveSalaries,
   focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
+  isoCompetence, onOpenIso,
 }) {
   const dir = useHrDirectory(employees);
   const rows = useMemo(
@@ -222,6 +223,8 @@ export default function HrPeople({
           canWrite={canWrite}
           onPatch={onPatch}
           lockedEmployeeId={selected.id}
+          isoCompetence={isoCompetence}
+          onOpenIso={onOpenIso}
         />
       ) : null}
     </View>

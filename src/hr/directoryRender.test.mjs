@@ -84,18 +84,24 @@ const rnMock = {
   Text: (props) => React.createElement('span', domProps(props), props?.children),
   ScrollView: (props) => React.createElement('div', domProps(props), props?.children),
   Pressable: (props) => React.createElement('button', { type: 'button', ...domProps(props) }, props?.children),
+  Image: (props) => React.createElement('img', { src: props?.source?.uri, alt: props?.accessibilityLabel }),
   TextInput: (props) => React.createElement('input', { placeholder: props?.placeholder, defaultValue: props?.value }),
   StyleSheet: { create: (styles) => styles, hairlineWidth: 1, absoluteFill: {}, absoluteFillObject: {} },
   Platform: { OS: 'web', select: (options) => options?.web || options?.default },
   TouchableOpacity: (props) => React.createElement('button', { type: 'button', ...domProps(props) }, props?.children),
   Modal: (props) => (props?.visible === false ? null : React.createElement('div', domProps(props), props?.children)),
   Dimensions: { get: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }) },
+  useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }),
 };
 
 function mocked(id) {
   if (id === 'react') return React;
   if (id === 'react-native') return rnMock;
   if (id === '@expo/vector-icons') return { Ionicons: () => null };
+  if (id === 'react-native-svg') {
+    const Svg = (props) => React.createElement('svg', null, props?.children);
+    return { __esModule: true, default: Svg, Svg, Circle: () => React.createElement('circle') };
+  }
   if (id.includes('employees/storage') || id.includes('utils/media') || id.includes('anbud/storage') || id.includes('firebase')) {
     return {
       saveEmployee: async () => {},
@@ -253,6 +259,41 @@ let followHtml = '';
   assert.equal(html.includes('Skann og fyll ut'), false);
   assert.equal(html.includes('Nøkkeldata'), false);
   assert.equal(html.includes('Bo Ekstern'), false);
+}
+
+{
+  // Lovpålagt-fanen: bare det HR eier, og kompetansen fra ISO som lesing.
+  const html = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    selectedId: 'e1',
+    sheet: 'compliance',
+    isoCompetence: {
+      status: 'ready',
+      rows: [
+        { id: 'k1', title: 'HMS-introduksjon', status: 'gyldig', validTo: '' },
+        { id: 'k2', title: 'Arbeidsmiljøopplæring', status: 'utlopt', validTo: '2025-01-31' },
+      ],
+    },
+    onOpenIso: () => {},
+  }));
+  assert.match(html, /Lovpålagt/);
+  assert.match(html, /Personverninformasjon gitt/);
+  assert.match(html, /Verneutstyr utlevert/);
+  assert.equal(html.includes('Kjenner avviksrutine'), false);
+  assert.equal(html.includes('Kompetanse for rollen dokumentert'), false);
+  assert.match(html, /id="hr-compliance-iso"/);
+  assert.match(html, /1 av 2 krav er gyldige/);
+  assert.match(html, /Utløpt · til 31\.01\.2025/);
+  assert.match(html, /Åpne Kompetanse i ISO/);
+
+  // Uten tilgang til ISO: bare henvisningen, ingen knapp.
+  const plain = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    selectedId: 'e1',
+    sheet: 'compliance',
+  }));
+  assert.match(plain, /følges opp i ISO \/ K-HMS → Kompetanse/);
+  assert.equal(plain.includes('Åpne Kompetanse i ISO'), false);
 }
 
 {
@@ -420,21 +461,35 @@ let caseHtml = '';
     canWrite: true,
     onPatch: () => {},
     onOpenPeople: () => {},
+    onOpenFollowUp: () => {},
+    kin: {
+      missing: dashboardEmployees.map((employee) => ({ employee, task: null })),
+      busy: false,
+      remindNow: async () => 0,
+    },
   }));
   const html = dashboardHtml;
-  const internalAt = html.indexOf('Aktive ansatte');
-  const externalAt = html.indexOf('Eksternt aktiv');
-  assert.ok(internalAt >= 0, 'mangler Aktive ansatte');
-  assert.ok(externalAt > internalAt, 'eksterne skal etter egne ansatte');
-  assert.ok(html.indexOf('Geir Ove Andersen') > internalAt);
-  assert.ok(html.indexOf('Geir Ove Andersen') < externalAt);
-  assert.ok(html.indexOf('Daniel Edvard Wold') < externalAt);
-  assert.ok(html.indexOf('Øyvind Granberg') > externalAt);
-  assert.match(html, /id="hr-event-grid-internal"/);
-  assert.match(html, /id="hr-event-grid-external"/);
-  assert.match(html, /repeat\(auto-fill, minmax\(min\(100%, 420px\), 1fr\)\)/);
+  const staffAt = html.indexOf('id="hr-dash-staff"');
+  const externalAt = html.indexOf('id="hr-dash-external"');
+  assert.ok(staffAt >= 0, 'mangler egne ansatte');
+  assert.ok(externalAt > staffAt, 'eksterne skal etter egne ansatte');
+  const staffPart = html.slice(0, externalAt);
+  const externalPart = html.slice(externalAt);
+  assert.ok(html.indexOf('Geir Ove Andersen') > staffAt);
+  assert.ok(staffPart.includes('Daniel Edvard Wold'));
+  assert.equal(staffPart.includes('Øyvind Granberg'), false, 'eksterne skal ikke blandes inn hos egne ansatte');
+  assert.ok(externalPart.includes('Øyvind Granberg'));
+  assert.equal(externalPart.includes('Geir Ove Andersen'), false);
+  assert.match(html, /aria-label="Egne ansatte: 2"/, 'eksterne telles ikke som ansatte');
+  assert.match(html, /id="hr-event-list"/);
+  assert.match(html, /id="hr-kin"/);
+  assert.match(staffPart, /2 ansatte mangler pårørende/, 'pårørende gjelder egne ansatte');
+  assert.match(html, /id="hr-kpis"/);
+  assert.match(html, /repeat\(auto-fill, minmax\(min\(100%, max\(300px, calc\(\(100% - 32px\) \/ 3\)\)\), 1fr\)\)/);
   assert.match(html, /Planlegg/);
-  assert.equal(html.includes('Eksternt deaktivert'), false);
+  assert.match(externalPart, /Aktive eksterne/);
+  assert.match(externalPart, /Følg opp/);
+  assert.equal(html.includes('Deaktiverte eksterne'), false);
 }
 
 {
@@ -494,7 +549,7 @@ let caseHtml = '';
 }
 
 const HrSectionNav = component('screens/hr/HrSectionNav.jsx');
-const sectionLabels = ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lov & ISO', 'Rekruttering'];
+const sectionLabels = ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lovpålagt', 'Rekruttering'];
 
 let phoneNavHtml = '';
 let phoneSheetHtml = '';
@@ -562,7 +617,7 @@ if (fs.existsSync(previewDir)) {
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging-sak.html'), page('Oppfølgingssak', linkedHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-sak-detalj.html'), page('Sak', caseHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-avtaler.html'), page('Ansettelsesavtaler', avtalerHtml));
-  fs.writeFileSync(path.join(previewDir, 'hr-lov-iso.html'), page('Lov og ISO', complianceHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-lovpalagt.html'), page('Lovpålagt', complianceHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging.html'), page('Oppfølging', followHtml));
 }
 

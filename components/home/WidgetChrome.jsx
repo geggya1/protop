@@ -9,7 +9,7 @@ import { soft } from '../parentHome/softTheme';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { immersiveCardSurface, immersiveIconDisc } from './homeGlass';
 
-const WEEKPLAN_MARK = require('../../assets/weekplan-mark-square.png');
+const BRAND_MARK = require('../../assets/protop-mark-square.png');
 
 /** Home modules match the cream theme. Dimmed chrome is only for pickers. */
 export const glassCard = {
@@ -63,7 +63,7 @@ export function AppIconTile({ icon = 'apps', glyphColor, glyphBg }) {
   if (icon === 'mark' || !icon) {
     return (
       <View style={[styles.appIcon, immersive && styles.appIconImmersive, immersive && immersiveIconDisc]}>
-        <Image source={WEEKPLAN_MARK} style={styles.appIconImg} resizeMode="contain" />
+        <Image source={BRAND_MARK} style={styles.appIconImg} resizeMode="contain" />
       </View>
     );
   }

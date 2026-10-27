@@ -66,6 +66,6 @@ export function buildVerifyEmailHtml(verifyUrl) {
     <p style="color:#64748b;font-size:12px">
       E-posten kan bruke noen minutter. Du trenger ikke bekrefte med én gang — lenken utløper ikke med det samme.
     </p>
-    <p>Hilsen Weekplan-teamet</p>
+    <p>Hilsen ProTop</p>
   `;
 }

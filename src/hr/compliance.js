@@ -1,14 +1,11 @@
 /**
- * Lovpålagt og ISO-relatert oppfølging per ansatt.
- * Kilder: AML §§ 4-2/4-3/14-5/14-6, internkontrollforskriften, ISO 9001/14001/45001.
+ * Lovpålagt oppfølging per ansatt: arbeidsavtale, oppfølging, verneutstyr og personvern.
+ * Kilder: AML §§ 4-2/4-3/14-5/14-6 og personvernforordningen.
+ * Kompetanse, opplæring, HMS-introduksjon og avviksrutine følges opp i ISO / K-HMS → Kompetanse.
  */
 
 export const COMPLIANCE_SOURCES = [
   { id: 'aml', label: 'Arbeidsmiljøloven' },
-  { id: 'ik', label: 'Internkontroll' },
-  { id: 'iso9001', label: 'ISO 9001' },
-  { id: 'iso14001', label: 'ISO 14001' },
-  { id: 'iso45001', label: 'ISO 45001' },
   { id: 'gdpr', label: 'GDPR' },
 ];
 
@@ -43,52 +40,11 @@ export const COMPLIANCE_CATALOG = [
     required: true,
   },
   {
-    id: 'ik_hms_intro',
-    source: 'ik',
-    label: 'HMS-introduksjon gjennomført',
-    hint: 'Internkontroll: opplæring og informasjon til ansatte.',
-    required: true,
-  },
-  {
-    id: 'ik_deviation_known',
-    source: 'ik',
-    label: 'Kjenner avviksrutine',
-    hint: 'Ansatt vet hvordan avvik meldes.',
-    required: true,
-  },
-  {
-    id: 'iso9001_competence',
-    source: 'iso9001',
-    label: 'Kompetanse for rollen dokumentert',
-    hint: 'ISO 9001 kap. 7.2 — kompetanse og bevis.',
-    required: true,
-  },
-  {
-    id: 'iso9001_training',
-    source: 'iso9001',
-    label: 'Opplæring / bevissthet',
-    hint: 'ISO 9001 kap. 7.3.',
-    required: false,
-  },
-  {
-    id: 'iso14001_role',
-    source: 'iso14001',
-    label: 'Miljøansvar / opplæring (ved behov)',
-    hint: 'ISO 14001 — miljøkompetanse knyttet til rollen.',
-    required: false,
-  },
-  {
-    id: 'iso45001_hms',
-    source: 'iso45001',
-    label: 'Arbeidsmiljøopplæring',
-    hint: 'ISO 45001 + AML — risikoforståelse og vern.',
-    required: true,
-  },
-  {
+    // Id-en er beholdt fra da punktet lå under ISO 45001, så lagrede avkrysninger følger med.
     id: 'iso45001_ppe',
-    source: 'iso45001',
+    source: 'aml',
     label: 'Verneutstyr utlevert (ved behov)',
-    hint: 'Når rollen krever det.',
+    hint: 'Når rollen krever det. Arbeidsgiver stiller verneutstyret til rådighet.',
     required: false,
   },
   {
@@ -99,6 +55,28 @@ export const COMPLIANCE_CATALOG = [
     required: true,
   },
 ];
+
+const CATALOG_IDS = new Set(COMPLIANCE_CATALOG.map((row) => row.id));
+
+/**
+ * Punkter som før lå i sjekklisten og nå følges opp i ISO / K-HMS → Kompetanse.
+ * Lagrede rader for dem beholdes, så ISO kan ta med det som er krysset av.
+ */
+export const MOVED_TO_ISO = [
+  { id: 'ik_hms_intro', label: 'HMS-introduksjon gjennomført' },
+  { id: 'ik_deviation_known', label: 'Kjenner avviksrutine' },
+  { id: 'iso9001_competence', label: 'Kompetanse for rollen dokumentert' },
+  { id: 'iso9001_training', label: 'Opplæring / bevissthet' },
+  { id: 'iso14001_role', label: 'Miljøansvar / opplæring (ved behov)' },
+  { id: 'iso45001_hms', label: 'Arbeidsmiljøopplæring' },
+];
+
+/** Bytt ut én ansatts sjekkliste. Rader utenfor katalogen (flyttet til ISO) blir stående. */
+export function replaceEmployeeCompliance(all, employeeId, rows) {
+  const emp = String(employeeId || '').trim();
+  const kept = (all || []).filter((row) => String(row.employeeId) !== emp || !CATALOG_IDS.has(row.catalogId));
+  return [...kept, ...(rows || [])];
+}
 
 export function emptyComplianceItem(catalogId, employeeId) {
   const cat = COMPLIANCE_CATALOG.find((row) => row.id === catalogId);
@@ -125,7 +103,7 @@ export function normalizeComplianceItem(row = {}) {
     id: String(row.id || '').trim() || `${catalogId}_${row.employeeId || 'x'}`,
     catalogId: catalogId || 'unknown',
     employeeId: String(row.employeeId || '').trim(),
-    source: String(row.source || cat?.source || '').trim(),
+    source: String(cat?.source || row.source || '').trim(),
     label: String(row.label || cat?.label || catalogId).trim(),
     status,
     dueDate: String(row.dueDate || '').slice(0, 10),
@@ -252,8 +230,7 @@ export function syncComplianceFromEvidence(compliance, {
     return row;
   });
 
-  const others = (compliance || []).filter((row) => String(row.employeeId) !== emp);
-  return [...others, ...next];
+  return replaceEmployeeCompliance(compliance, emp, next);
 }
 
 /** Oversikt over compliance-gap for hele selskapet (sortert verst først). */
@@ -276,18 +253,18 @@ export function companyComplianceOverview(employees, compliance, {
       : (compliance || []);
     const items = ensureEmployeeCompliance(sourced, id);
     const summary = complianceSummary(items);
+    const gapRows = items.filter((row) => {
+      const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
+      return cat?.required && (row.status === 'missing' || row.status === 'overdue');
+    });
     rows.push({
       employeeId: id,
       missing: summary.missing,
       ok: summary.ok,
       total: summary.total,
       pct: summary.pct,
-      gaps: items
-        .filter((row) => {
-          const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
-          return cat?.required && (row.status === 'missing' || row.status === 'overdue');
-        })
-        .map((row) => row.label),
+      gaps: gapRows.map((row) => row.label),
+      gapIds: gapRows.map((row) => row.catalogId),
     });
   }
   return rows.sort((a, b) => b.missing - a.missing || a.pct - b.pct);

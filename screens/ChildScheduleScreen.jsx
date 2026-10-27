@@ -22,15 +22,15 @@ import { useShellTitleRight } from '../src/hooks/useShellTitleRight';
 import ModuleIntroHost from '../components/ModuleIntroHost';
 import SchoolPageLayout from '../components/SchoolPageLayout';
 import ShellAddButton from '../components/ShellAddButton';
-import DayTimeline from '../components/weekPlan/DayTimeline';
-import WeekPlanGrid from '../components/weekPlan/WeekPlanGrid';
+import DayTimeline from '../components/weeklyPlan/DayTimeline';
+import WeeklyPlanGrid from '../components/weeklyPlan/WeeklyPlanGrid';
 import {
-  WEEKPLAN_DAYS,
+  WEEKLY_PLAN_DAYS,
   emptyWeekTimetable,
   timetableHasLessons,
   upsertTimetableSlot,
   defaultSlotEndTime,
-} from '../src/utils/weekPlanGrid';
+} from '../src/utils/weeklyPlanGrid';
 import { parseTimeToMinutes } from '../src/utils/timeGrid';
 import { childFromRouteParams, aiImportNavParams, paramBool } from '../src/utils/childNav';
 import {
@@ -54,7 +54,7 @@ import {
   buildDayTimeline,
   schoolDayEnd,
   remindersForDay,
-} from '../src/utils/weekPlanView';
+} from '../src/utils/weeklyPlanView';
 
 export default function ChildScheduleScreen() {
   useChildAppGuard('week-plan');
@@ -317,7 +317,7 @@ export default function ChildScheduleScreen() {
   };
 
   const shiftDay = (dir) => {
-    const idx = WEEKPLAN_DAYS.findIndex((d) => d.key === selectedDay);
+    const idx = WEEKLY_PLAN_DAYS.findIndex((d) => d.key === selectedDay);
     const next = idx + dir;
     if (next < 0) {
       setWeekOffset((v) => v - 1);
@@ -329,7 +329,7 @@ export default function ChildScheduleScreen() {
       setSelectedDay('mon');
       return;
     }
-    setSelectedDay(WEEKPLAN_DAYS[next].key);
+    setSelectedDay(WEEKLY_PLAN_DAYS[next].key);
   };
 
   const goToday = () => {
@@ -375,7 +375,7 @@ export default function ChildScheduleScreen() {
           onPressSlot={(item) => openAdd(selectedDay, item)}
         />
       ) : (
-        <WeekPlanGrid
+        <WeeklyPlanGrid
           timetable={weekTimetable}
           colors={colors}
           canEdit={canEdit}
@@ -492,7 +492,7 @@ export default function ChildScheduleScreen() {
             <Text style={styles.modalTitle}>{editIndex != null ? 'Rediger time' : 'Legg til time'}</Text>
             <Text style={styles.modalLabel}>Dag</Text>
             <View style={styles.dayPick}>
-              {WEEKPLAN_DAYS.map((d) => (
+              {WEEKLY_PLAN_DAYS.map((d) => (
                 <TouchableOpacity
                   key={d.key}
                   style={[styles.dayChip, editDay === d.key && styles.dayChipOn]}

@@ -1,8 +1,8 @@
 ProTop native (iOS / Android) — console checklist
 =====================================================
 
-Bundle ID / package: no.weekplan.app
-URL scheme: weekplan://
+Bundle ID / package: no.protop.app
+URL scheme: protop://
 Privacy: https://www.protop.no/personvern
 
 1) Expo / EAS
@@ -13,15 +13,15 @@ Privacy: https://www.protop.no/personvern
    - eas submit --platform all --profile production
 
 2) Firebase Console (project protop-c189c)
-   - Add iOS app (bundle no.weekplan.app) → download GoogleService-Info.plist
-   - Add Android app (package no.weekplan.app) → download google-services.json
+   - Add iOS app (bundle no.protop.app) → download GoogleService-Info.plist
+   - Add Android app (package no.protop.app) → download google-services.json
    - Place both files in repo root (gitignored; app.config.js picks them up)
    - Optional: set EXPO_PUBLIC_FIREBASE_APP_ID_IOS / _ANDROID
 
-3) OAuth redirect URIs (register weekplan:// and Expo auth proxy if used)
+3) OAuth redirect URIs (register protop:// and Expo auth proxy if used)
    - Google Cloud OAuth clients (iOS + Android + existing web client)
    - Apple Developer: Sign in with Apple capability + Services ID for Firebase
-   - Microsoft Azure app registration: redirect weekplan://
+   - Microsoft Azure app registration: redirect protop://
 
 4) Push
    - Client stores Expo push tokens under users/{uid}/pushSubscriptions

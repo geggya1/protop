@@ -43,7 +43,7 @@ export const PAGE_ACCESS = {
   'selskap.kontoplan': { res: 'economySettings', steps: [W, W, W] },
 
   ansatte: { res: 'employees', steps: [R, R, W, S] },
-  'hr.oversikt': { res: 'hr', steps: [S, S, R, S] },
+  'hr.oversikt': { res: 'hr', steps: [S, S, R, S, S] },
   'hr.personell': { res: 'hrPeople', steps: [S, S] },
   'hr.avtaler': { res: 'hrAgreements', steps: [S, R, R] },
   'hr.lonn': { res: 'hrPayroll', steps: [S, R] },
@@ -73,7 +73,7 @@ export const PAGE_ACCESS = {
   'okonomi.indekser': { res: 'economyIndices', steps: [S] },
   'okonomi.innstillinger': { res: 'economySettings', steps: [W, W] },
   'okonomi.inntjening': { res: 'economyEarnings', steps: [S, W] },
-  'okonomi.produkter': { res: 'products', steps: [R, R, S] },
+  'okonomi.produkter': { res: 'products', steps: [S, R, R, R, S] },
   'okonomi.kjorebok': { res: 'mileage', steps: [R, R, R, S] },
 
   kunder: { res: 'customers', steps: [R, R, S, W] },

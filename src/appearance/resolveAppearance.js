@@ -1,4 +1,4 @@
-export const APPEARANCE_PREFS_KEY = 'weekplan.appearance.v1';
+export const APPEARANCE_PREFS_KEY = 'protop.appearance.v1';
 
 export const DEFAULT_APPEARANCE_PREFS = {
   automatic: false,

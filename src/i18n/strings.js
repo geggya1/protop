@@ -479,7 +479,7 @@ export const TABLE = {
     leksehjelp: L('Leksehjelpen', 'Homework help', 'Lektiehjælp', 'Läxhjälpen', 'Läksyapu', 'Pomoc w zadaniach', 'Ayuda con deberes', 'Aide aux devoirs', 'Hausaufgabenhilfe'),
     mattehjelp: L('Lær skole', 'Learn school', 'Lær skole', 'Lär skola', 'Oppikoulu', 'Ucz się', 'Aprender', 'Apprendre', 'Schule lernen'),
     klassen: L('Klassen', 'The class', 'Klassen', 'Klassen', 'Luokka', 'Klasa', 'La clase', 'La classe', 'Die Klasse'),
-    weekPlan: L('Ukesplan', 'Week plan', 'Ugeplan', 'Veckoplan', 'Viikkosuunnitelma', 'Plan tygodnia', 'Plan semanal', 'Planning hebdo', 'Wochenplan'),
+    weeklyPlan: L('Ukesplan', 'Week plan', 'Ugeplan', 'Veckoplan', 'Viikkosuunnitelma', 'Plan tygodnia', 'Plan semanal', 'Planning hebdo', 'Wochenplan'),
     menu: L('Meny', 'Menu', 'Menu', 'Meny', 'Valikko', 'Menu', 'Menú', 'Menu', 'Menü'),
     more: L('Mer', 'More', 'Mere', 'Mer', 'Lisää', 'Więcej', 'Más', 'Plus', 'Mehr'),
     settings: L('Innstillinger', 'Settings', 'Indstillinger', 'Inställningar', 'Asetukset', 'Ustawienia', 'Ajustes', 'Paramètres', 'Einstellungen'),

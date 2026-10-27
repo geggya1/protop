@@ -151,6 +151,15 @@ export function upsertProduct(state, input) {
   const check = validateProduct(input);
   if (!check.ok) return fail(state, check.error);
   const existing = (state.products || []).find((row) => row.id && row.id === input.id);
+  const sku = check.product.sku.toLowerCase();
+  // Bare nytt eller endret varenr sjekkes. Gamle dubletter fra import kan fortsatt redigeres.
+  const skuChanged = sku && String(existing?.sku || '').trim().toLowerCase() !== sku;
+  const twin = skuChanged
+    ? (state.products || []).find((row) => (
+      row.id !== (existing?.id || input.id) && String(row.sku || '').trim().toLowerCase() === sku
+    ))
+    : null;
+  if (twin) return fail(state, `Varenr ${check.product.sku} brukes allerede av ${twin.name || 'et annet produkt'}.`);
   const row = normalizeProduct({
     ...check.product,
     id: existing?.id || input.id || createId('var'),
@@ -158,6 +167,40 @@ export function upsertProduct(state, input) {
     updatedAt: stamp(),
   });
   return ok({ ...state, products: replaceById(state.products || [], row) }, { product: row });
+}
+
+/** Arkiver eller hent tilbake. Arkiverte produkter beholder salgshistorikken. */
+export function setProductArchived(state, id, archived = true) {
+  const current = (state.products || []).find((row) => row.id === id);
+  if (!current) return fail(state, 'Produktet finnes ikke.');
+  const at = stamp();
+  const row = normalizeProduct({
+    ...current,
+    archived: !!archived,
+    archivedAt: archived ? at : '',
+    updatedAt: at,
+  });
+  return ok({ ...state, products: replaceById(state.products, row) }, { product: row });
+}
+
+/**
+ * Slett et produkt som aldri er brukt. usedCount er antall salg som peker på
+ * produktet. Brukte produkter arkiveres i stedet, så historikken står.
+ */
+export function deleteProduct(state, id, { usedCount = 0 } = {}) {
+  const current = (state.products || []).find((row) => row.id === id);
+  if (!current) return fail(state, 'Produktet finnes ikke.');
+  if (usedCount > 0) {
+    return fail(state, 'Produktet er brukt i salg og kan ikke slettes. Arkiver det i stedet.');
+  }
+  return ok({
+    ...state,
+    products: (state.products || []).filter((row) => row.id !== id),
+    deletedProducts: [
+      ...(state.deletedProducts || []).filter((row) => row?.id !== id),
+      { id, deletedAt: stamp() },
+    ],
+  }, { product: current });
 }
 
 export function upsertSale(state, input) {

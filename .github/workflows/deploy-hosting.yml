@@ -140,10 +140,14 @@ jobs:
       - name: Deploy slim Cloud Functions
         continue-on-error: true
         # Krever Cloud Functions Admin og Service Account User på deploy-kontoen.
-        # PROTOP_GEMINI_KEY er riktig secret-navn (ProTop Gemini-nøkkel).
-        # Fallback til gammelt navn bare hvis det nye ikke er opprettet ennå.
-        # Tom nøkkel deployer fortsatt funksjonen (ellers 404/CORS).
+        # PROTOP_GEMINI_KEY er GitHub-hemmeligheten med Gemini-nøkkelen. Er den tom,
+        # deployes ingenting, så funksjonene beholder AI-nøkkelen de har i dag.
         env:
-          PROTOP_GEMINI_KEY: ${{ secrets.PROTOP_GEMINI_KEY || secrets.WEEKPLAN_GEMINI_KEY }}
+          PROTOP_GEMINI_KEY: ${{ secrets.PROTOP_GEMINI_KEY }}
           FUNCTION_ENTRIES: ${{ needs.functions-gate.outputs.entries }}
-        run: bash scripts/deploy-slim-functions.sh
+        run: |
+          if [ -z "$PROTOP_GEMINI_KEY" ]; then
+            echo "::error title=PROTOP_GEMINI_KEY mangler::GitHub-hemmeligheten PROTOP_GEMINI_KEY er tom. Cloud Functions ble ikke deployet."
+            exit 1
+          fi
+          bash scripts/deploy-slim-functions.sh

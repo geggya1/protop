@@ -106,7 +106,7 @@ export function childAppArtName(appId, period = 'school') {
     lekser: 'appLekser',
     leksehjelp: 'appLeksehjelp',
     mattehjelp: 'appMattehjelp',
-    'week-plan': 'appWeekPlan',
+    'week-plan': 'appWeeklyPlan',
     klassen: 'school',
   };
   return map[appId] || null;

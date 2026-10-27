@@ -6,7 +6,7 @@ mkdirSync(outDir, { recursive: true });
 
 async function waitForToastHelper(page, timeoutMs = 90000) {
   await page.waitForFunction(
-    () => typeof window.__weekplanShowToast === 'function',
+    () => typeof window.__protopShowToast === 'function',
     null,
     { timeout: timeoutMs },
   );
@@ -18,7 +18,7 @@ async function run() {
   const consoleLogs = [];
   page.on('console', (msg) => {
     const text = msg.text();
-    if (text.includes('weekplan-notif') || text.includes('__weekplan')) {
+    if (text.includes('protop-notif') || text.includes('__protop')) {
       consoleLogs.push(text);
     }
   });
@@ -34,7 +34,7 @@ async function run() {
   // Give Metro bundle time to hydrate NotificationProvider
   let helperReady = false;
   for (let i = 0; i < 60; i += 1) {
-    helperReady = await page.evaluate(() => typeof window.__weekplanShowToast === 'function');
+    helperReady = await page.evaluate(() => typeof window.__protopShowToast === 'function');
     if (helperReady) break;
     await page.waitForTimeout(1000);
   }
@@ -43,14 +43,14 @@ async function run() {
     for (const path of ['/', '/start', '/app']) {
       await page.goto(`http://localhost:8081${path}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForTimeout(3000);
-      helperReady = await page.evaluate(() => typeof window.__weekplanShowToast === 'function');
+      helperReady = await page.evaluate(() => typeof window.__protopShowToast === 'function');
       if (helperReady) break;
     }
   }
 
   if (!helperReady) {
     await page.screenshot({ path: `${outDir}/varsel-helper-missing.png`, fullPage: true });
-    console.error('FAIL: window.__weekplanShowToast not available');
+    console.error('FAIL: window.__protopShowToast not available');
     console.error('URL:', page.url());
     console.error('title:', await page.title());
     await browser.close();
@@ -60,7 +60,7 @@ async function run() {
 
   // Test 1: attest popup
   await page.evaluate(() => {
-    window.__weekplanShowToast({
+    window.__protopShowToast({
       title: 'Til attestering',
       body: 'Emma: Rydd rommet',
       eventType: 'attestPending',
@@ -85,7 +85,7 @@ async function run() {
 
   // Test 2: chat popup
   await page.evaluate(() => {
-    window.__weekplanShowToast({
+    window.__protopShowToast({
       title: 'Ny melding',
       body: 'Hei fra Geir',
       eventType: 'messageReceived',

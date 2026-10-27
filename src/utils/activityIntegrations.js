@@ -165,7 +165,7 @@ export async function connectStravaOAuth(opts = {}) {
 
   let redirectUri = getStravaRedirectUri();
   if (!redirectUri) {
-    redirectUri = AuthSession.makeRedirectUri({ scheme: 'weekplan', path: STRAVA_OAUTH_PATH });
+    redirectUri = AuthSession.makeRedirectUri({ scheme: 'protop', path: STRAVA_OAUTH_PATH });
   }
 
   const request = new AuthSession.AuthRequest({

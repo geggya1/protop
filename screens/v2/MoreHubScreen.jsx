@@ -316,8 +316,8 @@ export default function MoreHubScreen({ subView, setSubView }) {
     const focusSearch = () => {
       requestAnimationFrame(() => searchRef.current?.focus?.());
     };
-    window.addEventListener('weekplan:focus-tools-search', focusSearch);
-    return () => window.removeEventListener('weekplan:focus-tools-search', focusSearch);
+    window.addEventListener('protop:focus-tools-search', focusSearch);
+    return () => window.removeEventListener('protop:focus-tools-search', focusSearch);
   }, [isDesktop]);
 
   const runAction = (action, appId) => {

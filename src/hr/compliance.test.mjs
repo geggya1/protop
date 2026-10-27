@@ -1,14 +1,19 @@
 import assert from 'node:assert/strict';
 import {
   COMPLIANCE_CATALOG,
+  MOVED_TO_ISO,
   amlContractCompleteness,
   companyComplianceOverview,
   complianceSummary,
   ensureEmployeeCompliance,
+  replaceEmployeeCompliance,
   syncComplianceFromEvidence,
 } from './compliance.js';
 
-assert.ok(COMPLIANCE_CATALOG.length >= 10);
+// Bare det HR eier: arbeidsmiljøloven og personvern. Kompetanse og opplæring ligger i ISO.
+assert.equal(COMPLIANCE_CATALOG.length, 6);
+assert.ok(COMPLIANCE_CATALOG.every((row) => ['aml', 'gdpr'].includes(row.source)));
+assert.ok(!COMPLIANCE_CATALOG.some((row) => MOVED_TO_ISO.some((moved) => moved.id === row.id)));
 assert.ok(COMPLIANCE_CATALOG.some((row) => row.id === 'aml_written_contract' && row.required));
 
 {
@@ -87,6 +92,27 @@ assert.ok(COMPLIANCE_CATALOG.some((row) => row.id === 'aml_written_contract' && 
   );
   assert.ok(withEvidence[0].missing < withoutEvidence[0].missing);
   assert.ok(withEvidence[0].ok > 0);
+}
+
+{
+  // Punkter flyttet til ISO: lagrede rader blir stående når personens sjekkliste lagres.
+  const stored = [
+    { catalogId: 'ik_hms_intro', employeeId: 'e1', status: 'ok', note: 'Kurs 2024' },
+    { catalogId: 'iso45001_ppe', employeeId: 'e1', status: 'ok', source: 'iso45001' },
+    { catalogId: 'ik_hms_intro', employeeId: 'e2', status: 'ok' },
+  ];
+  const synced = syncComplianceFromEvidence(stored, { employeeId: 'e1' });
+  assert.ok(synced.some((row) => row.catalogId === 'ik_hms_intro' && row.employeeId === 'e1' && row.note === 'Kurs 2024'));
+  assert.ok(synced.some((row) => row.catalogId === 'ik_hms_intro' && row.employeeId === 'e2'));
+  const rows = ensureEmployeeCompliance(stored, 'e1');
+  assert.equal(rows.length, COMPLIANCE_CATALOG.length);
+  assert.ok(!rows.some((row) => row.catalogId === 'ik_hms_intro'));
+  // Verneutstyr hører nå til arbeidsmiljøloven, også for rader lagret med gammel kilde.
+  assert.equal(rows.find((row) => row.catalogId === 'iso45001_ppe').source, 'aml');
+  const replaced = replaceEmployeeCompliance(stored, 'e1', rows);
+  assert.equal(replaced.filter((row) => row.catalogId === 'ik_hms_intro').length, 2);
+  assert.equal(replaced.filter((row) => row.catalogId === 'iso45001_ppe').length, 1);
+  assert.equal(replaced.filter((row) => row.employeeId === 'e1').length, COMPLIANCE_CATALOG.length + 1);
 }
 
 console.log('hr/compliance.test.mjs ok');

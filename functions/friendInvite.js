@@ -1,6 +1,6 @@
 /**
  * Friend invite email/SMS delivery.
- * Uses WEEKPLAN_MAIL_KEY (CI /.env) or a MAIL_API_KEY secret mount, plus runtime
+ * Uses PROTOP_MAIL_KEY (CI /.env) or a MAIL_API_KEY secret mount, plus runtime
  * Secret Manager fallback — so GitHub deploy SA can ship these without defineSecret.
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';

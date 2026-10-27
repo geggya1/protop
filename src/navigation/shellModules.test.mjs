@@ -93,7 +93,7 @@ function idsIn(sections) {
   assert.deepEqual(
     companyItems.map((i) => i.id),
     [
-      'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet',
+      'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
       'okonomi-inntjening', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
     ],
   );
@@ -168,6 +168,10 @@ function idsIn(sections) {
   assert.equal(fravaer.children.find((i) => i.id === 'fravaer-innstillinger').action.subView, 'fravaer-innstillinger');
   assert.equal(produktivitet.action.tab, 'arbeid');
   assert.equal(produktivitet.action.subView, 'produktivitet');
+  const fremdrift = companyItems.find((i) => i.id === 'fremdrift');
+  assert.equal(fremdrift.label, 'Prosjektfremdrift');
+  assert.equal(fremdrift.action.tab, 'arbeid');
+  assert.equal(fremdrift.action.subView, 'fremdrift');
   assert.deepEqual(
     companyItems.find((i) => i.id === 'produkt').children.map((i) => i.label),
     ['Produktsalg', 'Produkt'],
@@ -691,7 +695,7 @@ function collectPresented(items, acc = []) {
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
       ['ansatte', 'hr', 'fravaer', 'arbeid'],
       ['iso'],
-      ['produktivitet', 'okonomi-inntjening'],
+      ['produktivitet', 'fremdrift', 'okonomi-inntjening'],
       ['okonomi'],
       ['produkt', 'utstyr', 'kjorebok'],
       ['anbud'],

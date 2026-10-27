@@ -14,6 +14,7 @@ import { pickDocument, uploadFile } from '../../src/utils/media';
 import { RequirementPicker } from './IsoFindings';
 import IsoMarkdown from './IsoMarkdown';
 import { VisioViewer } from './IsoVisio';
+import IsoWordImport from './IsoWordImport';
 import { externalDocumentRows } from '../../src/iso/docControlLink';
 import {
   Banner, Btn, Card, Check, Choice, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
@@ -40,6 +41,7 @@ export default function IsoDocuments({ ctx }) {
   const [folder, setFolder] = useState('');
   const [awaiting, setAwaiting] = useState(!!params?.awaiting);
   const [creating, setCreating] = useState(false);
+  const [wordImport, setWordImport] = useState(false);
   const blank = { title: '', docType: 'prosedyre', folder: '', code: '', ownerName: '', ownerUid: '', approverName: '', accessClass: 'intern', reviewIntervalMonths: '12', readAckRequired: false };
   const [form, setForm] = useState(blank);
   const [err, setErr] = useState('');
@@ -123,8 +125,14 @@ export default function IsoDocuments({ ctx }) {
       crumb={['Styrende dokumenter']}
       title="Styrende dokumenter"
       intro="Policyer, prosedyrer, instrukser, håndbøker og maler med revisjon, godkjenning og lesebekreftelse. Publisert revisjon kan ikke endres – endring gir ny revisjon."
-      actions={caps.manage ? <Btn kind="primary" icon="add" label="Nytt dokument" onPress={() => { setErr(''); setForm(blank); setCreating(true); }} /> : null}
+      actions={caps.manage ? (
+        <>
+          <Btn icon="document-attach-outline" label="Importer fra Word" onPress={() => setWordImport(true)} />
+          <Btn kind="primary" icon="add" label="Nytt dokument" onPress={() => { setErr(''); setForm(blank); setCreating(true); }} />
+        </>
+      ) : null}
     >
+      {wordImport ? <IsoWordImport ctx={ctx} visible={wordImport} onClose={() => setWordImport(false)} /> : null}
       <Card>
         <TextIn value={q} onChangeText={setQ} placeholder="Søk i dokument-ID, tittel, stikkord og innhold" />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

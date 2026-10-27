@@ -315,7 +315,7 @@ test('utkast, godkjenning, sending og feil er adskilt', () => {
 test('arbeidsvindu kan åpnes direkte via URL', () => {
   const href = workspaceHref('https://protop.no/okonomi', 'breitorget', 'ir1', 'historikk');
   const url = new URL(href);
-  assert.equal(url.pathname, '/hjem');
+  assert.equal(url.pathname, '/hjem/okonomi/indeks');
   const query = readWorkspaceQuery(url.search);
   assert.equal(query.contractId, 'breitorget');
   assert.equal(query.caseId, 'ir1');
@@ -327,6 +327,13 @@ test('arbeidsvindu kan åpnes direkte via URL', () => {
   assert.equal(link.intent.view, 'historikk');
   assert.equal(link.intent.workspaceCaseId, 'ir1');
   assert.equal(indexLinkFromPath('/hjem'), null);
+});
+
+test('indeksavtalen i adressen åpner bare indekssiden, ikke andre sider ved oppdatering', () => {
+  assert.equal(indexLinkFromPath('/hjem?indeksAvtale=breitorget'), null);
+  assert.equal(indexLinkFromPath('/hjem/selskap?indeksAvtale=breitorget'), null);
+  assert.equal(indexLinkFromPath('/hjem/okonomi/faktura?indeksAvtale=breitorget'), null);
+  assert.equal(indexLinkFromPath('/hjem/okonomi/indeks?indeksAvtale=breitorget').intent.contractId, 'breitorget');
 });
 
 test('prosjekter uten avtale deles i aktiv og deaktivert', () => {

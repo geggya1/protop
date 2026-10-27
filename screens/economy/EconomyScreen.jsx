@@ -34,6 +34,17 @@ import EconomySettingsScreen from './EconomySettingsScreen';
 import EconomyEarnings from './EconomyEarnings';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
 
+/** Arbeidsvinduet står i adressen (/hjem/okonomi/indeks?indeksAvtale=…). Fra en annen side blir det en ny oppføring, så tilbake går dit. */
+function rememberIndexUrl(contractId, caseId = '', view = '') {
+  if (typeof window === 'undefined' || !contractId) return;
+  const url = new URL(workspaceHref(window.location.href, contractId, caseId, view));
+  const next = `${url.pathname}${url.search}`;
+  if (`${window.location.pathname}${window.location.search}` === next) return;
+  const state = { ...(window.history.state || {}), shell: url.pathname };
+  if (window.location.pathname === url.pathname) window.history.replaceState(state, '', next);
+  else window.history.pushState(state, '', next);
+}
+
 export default function EconomyScreen({ subView = 'oversikt' }) {
   const colors = useColors();
   const {
@@ -117,13 +128,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     setWorkspaceCaseId(shellIntent.workspaceCaseId || '');
     setWorkspaceView(shellIntent.view || '');
     setIndexOpen(true);
-    if (typeof window !== 'undefined' && shellIntent.contractId) {
-      const href = workspaceHref(window.location.href, shellIntent.contractId, shellIntent.workspaceCaseId || '', shellIntent.view || '');
-      const next = `${new URL(href).pathname}${new URL(href).search}`;
-      if (`${window.location.pathname}${window.location.search}` !== next) {
-        window.history.replaceState(window.history.state || {}, '', next);
-      }
-    }
+    rememberIndexUrl(shellIntent.contractId, shellIntent.workspaceCaseId || '', shellIntent.view || '');
   }, [shellIntent]);
 
   const customers = anbud?.customers || [];
@@ -184,13 +189,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     const stored = await saveAnbudState(result.state, familyId);
     setAnbud(stored);
     return { ok: true };
-  }
-
-  function rememberIndexUrl(contractId, caseId = '', view = '') {
-    if (typeof window === 'undefined' || !contractId) return;
-    const href = workspaceHref(window.location.href, contractId, caseId, view);
-    const next = `${new URL(href).pathname}${new URL(href).search}`;
-    window.history.replaceState(window.history.state || {}, '', next);
   }
 
   function openIndex(contract, caseId = '', view = '') {

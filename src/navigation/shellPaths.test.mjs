@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  getShellLocation, homePathForLinking, isShellPath, parseShellPath, rememberEntryShellPath, setHomeRouteKey, setShellLocation, shellLinkState,
-  shellPathFor, takeEntryShellPath,
+  companyLandingTab, getShellLocation, homePathForLinking, isShellPath, parseShellPath, rememberEntryShellPath, setHomeRouteKey, setShellLocation,
+  shellLinkState, shellPathFor, shellSearchFor, takeEntryShellPath,
 } from './shellPaths.js';
 
 test('skallsti: fane og underside i adressen', () => {
@@ -58,4 +58,25 @@ test('skallsti: lenken siden ble åpnet på, huskes til etter innlogging (én ga
   rememberEntryShellPath('/Hjem/ISO/avvik/');
   assert.equal(takeEntryShellPath(), '/hjem/iso/avvik');
   assert.equal(takeEntryShellPath(), null, 'brukes bare én gang');
+});
+
+test('skallsti: indeksavtalen i spørringen følger ikke med til andre sider', () => {
+  const q = '?indeksAvtale=breitorget&indeksSak=ir1&indeksVis=historikk';
+  assert.equal(shellSearchFor('okonomi', 'indeks', q), q, 'på indekssiden blir den stående');
+  assert.equal(shellSearchFor('selskap', null, q), '');
+  assert.equal(shellSearchFor('home', null, q), '');
+  assert.equal(shellSearchFor('okonomi', 'faktura', q), '');
+  assert.equal(shellSearchFor('selskap', null, '?avtale=abc&indeksAvtale=x'), '?avtale=abc', 'andre spørringer beholdes');
+  assert.equal(shellSearchFor('iso', 'avvik', '?x=a%20b'), '?x=a%20b', 'urørt når ingenting fjernes');
+  assert.equal(shellSearchFor('iso', 'avvik', ''), '');
+});
+
+test('skallsti: bedrift lander på selskapssiden når adressen bare er /hjem', () => {
+  assert.equal(companyLandingTab('/hjem', { company: true }), 'selskap');
+  assert.equal(companyLandingTab('/hjem/', { company: true }), 'selskap');
+  assert.equal(companyLandingTab('/', { company: true }), 'selskap', 'protop.no før adressen er skrevet om til /hjem');
+  assert.equal(companyLandingTab('/hjem', { company: false }), null, 'privat beholder Hjem');
+  assert.equal(companyLandingTab('/hjem', { company: true, allowed: false }), null, 'uten tilgang til selskapssiden');
+  assert.equal(companyLandingTab('/hjem/okonomi/indeks', { company: true }), null, 'en side i adressen åpnes som før');
+  assert.equal(companyLandingTab('/settings/profile', { company: true }), null);
 });

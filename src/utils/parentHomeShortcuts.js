@@ -43,7 +43,7 @@ export const DEFAULT_CHILD_HOME_SHORTCUT_TILES = [
   },
 ];
 
-export const PARENT_HOME_SHORTCUTS_KEY = 'weekplan.parentHomeShortcuts.v1';
+export const PARENT_HOME_SHORTCUTS_KEY = 'protop.parentHomeShortcuts.v1';
 
 export const MAX_PARENT_SHORTCUTS = 8;
 

@@ -189,7 +189,7 @@ DOFFIN="functions:searchDoffin,functions:searchTed,functions:lookupCompany,funct
 queue_entry doffinIndex.js "$DOFFIN"
 open_for doffinIndex.js "$DOFFIN"
 
-AI="functions:aiChat,functions:aiVoiceNote,functions:aiTutor,functions:aiMealIngredients,functions:aiRecipeImport,functions:aiReceiptOcr,functions:aiClassListOcr,functions:aiMatcoachWeekPlan,functions:aiMatcoachFridgeScan,functions:aiMatcoachLunchBoxes,functions:aiMatcoachSwapMeal,functions:aiImportPlan,functions:applyAiImport,functions:discardAiImport,functions:uploadDocumentFile,functions:createAlbumUploadUrl,functions:uploadAlbumFile,functions:aiSupportChat,functions:createSupportTicket,functions:scanTimesheetReview"
+AI="functions:aiChat,functions:aiVoiceNote,functions:aiTutor,functions:aiMealIngredients,functions:aiRecipeImport,functions:aiReceiptOcr,functions:aiClassListOcr,functions:aiMatcoachWeeklyPlan,functions:aiMatcoachFridgeScan,functions:aiMatcoachLunchBoxes,functions:aiMatcoachSwapMeal,functions:aiImportPlan,functions:applyAiImport,functions:discardAiImport,functions:uploadDocumentFile,functions:createAlbumUploadUrl,functions:uploadAlbumFile,functions:aiSupportChat,functions:createSupportTicket,functions:scanTimesheetReview"
 queue_entry aiIndex.js "$AI"
 open_for aiIndex.js "$AI"
 

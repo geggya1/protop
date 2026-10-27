@@ -20,7 +20,7 @@ export function shortDateLabel(dateKeyStr) {
 }
 
 /** Per-day chores for one child across an ISO week. */
-export function weekPlanForChild(todos, weekKeys) {
+export function weeklyPlanForChild(todos, weekKeys) {
   return (weekKeys || []).map((k) => {
     const day = parseDateKey(k);
     const chores = todosOnDate(todos || [], day).map((t) => ({

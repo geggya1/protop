@@ -46,7 +46,7 @@ export default function ChildDashboardThemeHost({
   onOpenDetail,
   onOpenSummary,
   onOpenCalendar,
-  onOpenWeekPlan,
+  onOpenWeeklyPlan,
   onStartTask,
   todayKey,
   onAddTodo,
@@ -254,7 +254,7 @@ export default function ChildDashboardThemeHost({
       if (ev) onOpenDetail?.(ev);
     },
     onOpenPlan: () => onOpenCalendar?.(),
-    onOpenWeekPlan: () => onOpenWeekPlan?.(),
+    onOpenWeeklyPlan: () => onOpenWeeklyPlan?.(),
     onAppAction: (action) => onAppAction?.(action),
     onToggleTask: (item) => {
       if (item?.raw) onToggle?.(item.raw);
@@ -267,7 +267,7 @@ export default function ChildDashboardThemeHost({
       else nav.navigate('ChildSettings', { child });
     },
   }), [
-    onOpenDetail, onOpenCalendar, onOpenWeekPlan, onAppAction, onToggle, onOpenSummary,
+    onOpenDetail, onOpenCalendar, onOpenWeeklyPlan, onAppAction, onToggle, onOpenSummary,
     onAddTodo, onStartTask, onOpenSettings, nav, child,
   ]);
 

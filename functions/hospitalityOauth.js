@@ -81,7 +81,7 @@ async function exchangeAirbnbCode(code, redirectUri, creds) {
   if (!creds?.clientId || !creds?.clientSecret) {
     throw new HttpsError(
       'failed-precondition',
-      'Airbnb er ikke satt opp. Weekplan trenger Partner API-nøkler.',
+      'Airbnb er ikke satt opp. ProTop trenger Partner API-nøkler.',
     );
   }
   const res = await fetch(AIRBNB_TOKEN_URL, {

@@ -253,7 +253,7 @@ export {
   aiReceiptOcr,
   aiClassListOcr,
   interpretImport,
-  aiMatcoachWeekPlan,
+  aiMatcoachWeeklyPlan,
   aiMatcoachFridgeScan,
   aiMatcoachLunchBoxes,
   aiMatcoachSwapMeal,

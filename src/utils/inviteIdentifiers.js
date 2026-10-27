@@ -4,14 +4,12 @@
  */
 
 import { hasValidPhone, normalizePhone } from './phone.js';
+import { normalizeUsername } from './usernamesLogic.js';
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email || '').trim());
 }
 
-function normalizeUsername(raw) {
-  return String(raw || '').trim().toLowerCase().replace(/^@/, '').replace(/@weekplan\.app$/i, '');
-}
 
 function isValidUsername(raw) {
   const u = normalizeUsername(raw);

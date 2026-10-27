@@ -1,5 +1,5 @@
-export const ADD_HOME_DISMISS_KEY = 'weekplan_add_home_dismiss_v1';
-export const ADD_HOME_SEEN_KEY = 'weekplan_add_home_seen_v1';
+export const ADD_HOME_DISMISS_KEY = 'protop_add_home_dismiss_v1';
+export const ADD_HOME_SEEN_KEY = 'protop_add_home_seen_v1';
 
 export const APP_INSTALL = {
   name: 'ProTop',

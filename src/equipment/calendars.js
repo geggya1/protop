@@ -11,7 +11,7 @@ import { canAddCompanyVehicle, normalizeBooking, normalizeEquipment } from './mo
 
 export { equipmentGroupLayerId, equipmentLayerId };
 
-export const SHOWN_EQUIPMENT_CALENDARS_KEY = 'weekplan.shownEquipmentCalendars.v1';
+export const SHOWN_EQUIPMENT_CALENDARS_KEY = 'protop.shownEquipmentCalendars.v1';
 
 export function isActiveCompanyEmployee(employee) {
   if (!employee?.id) return false;

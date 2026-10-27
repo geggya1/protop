@@ -75,8 +75,8 @@ await page.evaluate(() => {
   });
   // AsyncStorage on web prefixes differently; also set raw localStorage keys used by RN AsyncStorage
   const keys = [
-    'weekplan.homeLayout.v1.child.child-doc-test',
-    'weekplan.homeLayout.v1.child.child-auth-test',
+    'protop.homeLayout.v1.child.child-doc-test',
+    'protop.homeLayout.v1.child.child-auth-test',
   ];
   keys.forEach((k) => {
     try { localStorage.setItem(k, stale); } catch {}

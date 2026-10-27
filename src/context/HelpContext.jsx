@@ -14,7 +14,7 @@ import { resolvePageKey } from '../help/protopPages';
 import { currentRouteName } from '../navigation/navRef';
 import { useI18n } from '../i18n';
 
-const WELCOME_SEEN_PREFIX = 'weekplan.help.welcome.v1';
+const WELCOME_SEEN_PREFIX = 'protop.help.welcome.v1';
 const AUTO_DELAY_MS = 640;
 
 function seenStoreKey(uid) {

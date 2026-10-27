@@ -1,5 +1,5 @@
 /**
- * ProTop uses the Weekplan shell unchanged: same mobile dock, tablet rail,
+ * ProTop uses one shell everywhere: same mobile dock, tablet rail,
  * and home grid. Only the module set changes.
  *
  * Kept: hjem, venner, kalender, e-post, oppgaver, notat,
@@ -50,7 +50,7 @@ export const PROTOP_HOME_WIDGET_TYPES = [
   'weather',
   'clock',
   'date',
-  'weekPlan',
+  'weeklyPlan',
   'nextEvent',
   'timeline',
   'tasks',

@@ -42,7 +42,7 @@ assert.equal(child.moduleId, 'chores');
 assert.equal(child.timezone, 'Europe/Oslo');
 
 const seen = [];
-globalThis.__weekplanTrack = (event, data) => seen.push({ event, data });
+globalThis.__protopTrack = (event, data) => seen.push({ event, data });
 const tracked = trackModuleActivationEvent(MODULE_ACTIVATION_EVENTS.back, {
   moduleId: 'shop',
   platform: 'web',
@@ -53,7 +53,7 @@ assert.equal(seen.length, 1);
 assert.equal(seen[0].event, 'module_activation_back_clicked');
 assert.equal(seen[0].data.moduleId, 'shop');
 assert.equal(tracked.moduleId, 'shop');
-delete globalThis.__weekplanTrack;
+delete globalThis.__protopTrack;
 
 assert.doesNotThrow(() => trackModuleActivationEvent('x', { moduleId: 'plan' }));
 

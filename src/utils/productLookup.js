@@ -1,7 +1,7 @@
 import { normalizeBarcode } from './barcode.js';
 import { guessShoppingCategory } from './groceryCategory.js';
 
-const USER_AGENT = 'WeekPlan/2.0 (family app; contact@protop.no)';
+const USER_AGENT = 'ProTop/2.0 (contact@protop.no)';
 
 function pickName(product) {
   return (

@@ -13,10 +13,10 @@ const ROOT = path.join(__dirname, '..');
 const BRAND = path.join(ROOT, 'brand');
 
 const COPIES = [
-  ['ProTop_logo_primary_transparent.png', 'assets/weekplan-logo-transparent.png'],
-  ['ProTop_logo_primary_transparent.png', 'assets/weekplan-logo.png'],
-  ['ProTop_symbol_transparent.png', 'assets/weekplan-mark.png'],
-  ['ProTop_symbol_square_2048.png', 'assets/weekplan-mark-square.png'],
+  ['ProTop_logo_primary_transparent.png', 'assets/protop-logo-transparent.png'],
+  ['ProTop_logo_primary_transparent.png', 'assets/protop-logo.png'],
+  ['ProTop_symbol_transparent.png', 'assets/protop-mark.png'],
+  ['ProTop_symbol_square_2048.png', 'assets/protop-mark-square.png'],
 ];
 
 function copy(srcName, destRel) {

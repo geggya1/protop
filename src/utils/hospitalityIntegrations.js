@@ -9,7 +9,7 @@ import { functions } from '../../firebase';
 import { AIRBNB_OAUTH_SCOPES } from './hospitalityMessaging.js';
 
 const AIRBNB_OAUTH_PATH = 'oauth/airbnb';
-const AIRBNB_PENDING_KEY = 'weekplan.hosp.airbnb.oauth';
+const AIRBNB_PENDING_KEY = 'protop.hosp.airbnb.oauth';
 
 export const HOSP_OAUTH_PROVIDERS = [
   {
@@ -128,7 +128,7 @@ export async function connectAirbnbOAuth(opts = {}) {
 
   let redirectUri = getAirbnbRedirectUri();
   if (!redirectUri) {
-    redirectUri = AuthSession.makeRedirectUri({ scheme: 'weekplan', path: AIRBNB_OAUTH_PATH });
+    redirectUri = AuthSession.makeRedirectUri({ scheme: 'protop', path: AIRBNB_OAUTH_PATH });
   }
 
   const discovery = {

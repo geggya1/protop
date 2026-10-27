@@ -4,8 +4,9 @@
  * Valgfri PIN for å avslutte.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LEGACY_KITCHEN_PIN_SALT } from './legacyNames.js';
 
-const SETTINGS_KEY = 'weekplan.kitchenDisplay.v1';
+const SETTINGS_KEY = 'protop.kitchenDisplay.v1';
 
 const listeners = new Set();
 
@@ -15,8 +16,10 @@ function notify(settings) {
   });
 }
 
-async function hashPin(pin) {
-  const s = `weekplan-kitchen-v2:${String(pin || '')}`;
+const PIN_SALT = 'protop-kitchen-v2:';
+
+async function hashPin(pin, salt = PIN_SALT) {
+  const s = `${salt}${String(pin || '')}`;
   if (typeof globalThis.crypto?.subtle?.digest === 'function') {
     const buf = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
     return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -83,7 +86,9 @@ export async function saveKitchenDisplaySettings(uid, patch = {}) {
 
 export async function verifyKitchenPin(settings, pin) {
   if (!settings?.pinHash) return true;
-  return (await hashPin(pin)) === settings.pinHash;
+  if ((await hashPin(pin)) === settings.pinHash) return true;
+  // PIN satt før ProTop er lagret med det gamle saltet.
+  return (await hashPin(pin, LEGACY_KITCHEN_PIN_SALT)) === settings.pinHash;
 }
 
 /** Abonner på endringer (enabled / pin-flagg). */

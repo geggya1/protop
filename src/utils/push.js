@@ -94,8 +94,8 @@ export async function addPushOpenListener(handler) {
   if (Platform.OS === 'web') {
     if (typeof window === 'undefined') return () => {};
     const onOpen = (ev) => handler(ev?.detail || {});
-    window.addEventListener('weekplan-open-notification', onOpen);
-    return () => window.removeEventListener('weekplan-open-notification', onOpen);
+    window.addEventListener('protop-open-notification', onOpen);
+    return () => window.removeEventListener('protop-open-notification', onOpen);
   }
   return native.addNativeNotificationResponseListener(handler);
 }

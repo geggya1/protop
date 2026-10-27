@@ -27,7 +27,7 @@ import { useI18n } from '../../src/i18n';
 import { useNow } from '../../src/hooks/useNow';
 import { childScheduleNavParams } from '../../src/utils/childNav';
 import { findPlanForWeek, schedulePlansFromDoc } from '../../src/utils/schedulePeriod';
-import { resolveWeekProgramFocus, schoolMonday } from '../../src/utils/weekPlanView';
+import { resolveWeekProgramFocus, schoolMonday } from '../../src/utils/weeklyPlanView';
 
 function capitalizeNb(value) {
   const s = String(value || '').trim();
@@ -246,7 +246,7 @@ export default function ChildHomeScreen({ child }) {
   const addTodo = () => nav.navigate('AddTodo', {
     familyId, child, currentDateKey: dateKey(today),
   });
-  const openWeekPlan = useCallback(() => {
+  const openWeeklyPlan = useCallback(() => {
     nav.navigate('ChildSchedule', childScheduleNavParams({
       familyId,
       child,
@@ -278,7 +278,7 @@ export default function ChildHomeScreen({ child }) {
     onOpenDetail: setDetailTask,
     onOpenSummary: openSummary,
     onOpenCalendar: () => requestShellTab('plan'),
-    onOpenWeekPlan: openWeekPlan,
+    onOpenWeeklyPlan: openWeeklyPlan,
     onStartTask,
     todayKey,
     canManageTodos,

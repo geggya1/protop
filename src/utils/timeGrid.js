@@ -98,7 +98,7 @@ export function visibleHourRange(events, { minStart = 7, minEnd = 21 } = {}) {
   return { startHour: start, endHour: end };
 }
 
-export const HIDDEN_CALENDAR_LAYERS_KEY = 'weekplan.hiddenCalendarLayers.v1';
+export const HIDDEN_CALENDAR_LAYERS_KEY = 'protop.hiddenCalendarLayers.v1';
 
 export function hiddenCalendarStorageKey(uid) {
   return `${HIDDEN_CALENDAR_LAYERS_KEY}.${uid || 'anon'}`;

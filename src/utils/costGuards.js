@@ -27,7 +27,7 @@ export const CALLABLE_BUDGETS = {
   aiMealIngredients: { perMinute: 4, perHour: 20, perDay: 40 },
   aiReceiptOcr: { perMinute: 2, perHour: 12, perDay: 30 },
   aiClassListOcr: { perMinute: 2, perHour: 10, perDay: 24 },
-  aiMatcoachWeekPlan: { perMinute: 2, perHour: 10, perDay: 20 },
+  aiMatcoachWeeklyPlan: { perMinute: 2, perHour: 10, perDay: 20 },
   aiMatcoachFridgeScan: { perMinute: 2, perHour: 10, perDay: 20 },
   aiMatcoachLunchBoxes: { perMinute: 2, perHour: 12, perDay: 24 },
   aiMatcoachSwapMeal: { perMinute: 4, perHour: 20, perDay: 40 },

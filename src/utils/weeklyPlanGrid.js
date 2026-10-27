@@ -1,6 +1,6 @@
 import { layoutTimedEvents, minutesToTime, parseTimeToMinutes, visibleHourRange } from './timeGrid.js';
 
-export const WEEKPLAN_DAYS = [
+export const WEEKLY_PLAN_DAYS = [
   { key: 'mon', short: 'Man', full: 'Mandag' },
   { key: 'tue', short: 'Tir', full: 'Tirsdag' },
   { key: 'wed', short: 'Ons', full: 'Onsdag' },
@@ -8,7 +8,7 @@ export const WEEKPLAN_DAYS = [
   { key: 'fri', short: 'Fre', full: 'Fredag' },
 ];
 
-export const WEEKPLAN_DAY_KEYS = WEEKPLAN_DAYS.map((d) => d.key);
+export const WEEKLY_PLAN_DAY_KEYS = WEEKLY_PLAN_DAYS.map((d) => d.key);
 
 const DEFAULT_LESSON_MIN = 45;
 
@@ -61,13 +61,13 @@ export function filledDaySlots(timetable, dayKey) {
 }
 
 export function timetableHasLessons(timetable) {
-  return WEEKPLAN_DAY_KEYS.some((key) => filledDaySlots(timetable, key).length > 0);
+  return WEEKLY_PLAN_DAY_KEYS.some((key) => filledDaySlots(timetable, key).length > 0);
 }
 
 /** Timed events for the week-grid (not the family calendar). */
 export function timetableToGridEvents(timetable) {
   const events = [];
-  WEEKPLAN_DAY_KEYS.forEach((day) => {
+  WEEKLY_PLAN_DAY_KEYS.forEach((day) => {
     filledDaySlots(timetable, day).forEach((slot, idx) => {
       const { start, end } = slotTimeRange(slot);
       if (!start) return;
@@ -86,7 +86,7 @@ export function timetableToGridEvents(timetable) {
 }
 
 /** Legg pauser uten kolonne-deling mot fag — rendres over fag med full bredde. */
-export function layoutWeekPlanDay(events) {
+export function layoutWeeklyPlanDay(events) {
   const lessons = [];
   const breaks = [];
   for (const event of events || []) {
@@ -102,14 +102,14 @@ export function layoutWeekPlanDay(events) {
   return [...laidLessons, ...laidBreaks];
 }
 
-export function weekPlanHourRange(timetable) {
+export function weeklyPlanHourRange(timetable) {
   const events = timetableToGridEvents(timetable);
   return visibleHourRange(events, { minStart: 8, minEnd: 15 });
 }
 
 export function emptyWeekTimetable() {
   const t = {};
-  WEEKPLAN_DAY_KEYS.forEach((d) => {
+  WEEKLY_PLAN_DAY_KEYS.forEach((d) => {
     t[d] = ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00']
       .map((time) => ({ time, endTime: defaultSlotEndTime(time), subject: '' }));
   });

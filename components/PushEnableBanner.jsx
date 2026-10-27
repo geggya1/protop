@@ -14,7 +14,7 @@ import {
   sendTestPush,
 } from '../src/utils/push';
 
-const DISMISS_KEY = 'weekplan_push_banner_v2';
+const DISMISS_KEY = 'protop_push_banner_v2';
 const DISMISS_TTL_MS = 1000 * 60 * 60 * 24 * 3; // 3 dager — ikke glem for alltid
 
 async function wasDismissedRecently() {

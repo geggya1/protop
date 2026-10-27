@@ -12,10 +12,10 @@ import {
 } from '../parentDashboardThemes';
 import { isProtopShellModule, PROTOP_BOTTOM_SHORTCUT_IDS } from '../navigation/protopShell';
 
-export const PARENT_DASHBOARD_THEME_KEY = 'weekplan.parentDashboardTheme.v1';
-export const PARENT_DASHBOARD_ART_KEY = 'weekplan.parentDashboardArt.v1';
-export const PARENT_DASHBOARD_BACKGROUND_KEY = 'weekplan.parentDashboardBackground.v1';
-export const PARENT_BOTTOM_SHORTCUTS_KEY = 'weekplan.parentBottomShortcuts.v1';
+export const PARENT_DASHBOARD_THEME_KEY = 'protop.parentDashboardTheme.v1';
+export const PARENT_DASHBOARD_ART_KEY = 'protop.parentDashboardArt.v1';
+export const PARENT_DASHBOARD_BACKGROUND_KEY = 'protop.parentDashboardBackground.v1';
+export const PARENT_BOTTOM_SHORTCUTS_KEY = 'protop.parentBottomShortcuts.v1';
 
 const themeListeners = new Set();
 

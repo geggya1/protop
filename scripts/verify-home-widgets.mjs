@@ -39,7 +39,7 @@ try {
     const el = await page.$(`[data-testid="home-widget-${type}"]`);
     if (!el) throw new Error(`missing parent widget ${type}`);
   }
-  for (const type of ['messages', 'shopping', 'meals', 'weekPlan']) {
+  for (const type of ['messages', 'shopping', 'meals', 'weeklyPlan']) {
     const el = await page.$(`[data-testid="home-widget-${type}"]`);
     if (el) throw new Error(`unexpected parent widget ${type}`);
   }

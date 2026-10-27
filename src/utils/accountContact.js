@@ -1,12 +1,9 @@
 /** Contact and password checks that do not touch Firebase. */
 
 import { hasValidPhone } from './phone.js';
+import { isSyntheticEmail } from './usernamesLogic.js';
 
-const SYNTHETIC = /@weekplan\.app$/i;
-
-export function isSyntheticEmail(email) {
-  return SYNTHETIC.test(String(email || ''));
-}
+export { isSyntheticEmail };
 
 export function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email || '').trim());

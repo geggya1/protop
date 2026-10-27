@@ -6,7 +6,7 @@ import {
   defaultChildDashboardThemeIdForAge,
 } from '../childDashboardThemes';
 
-export const CHILD_DASHBOARD_THEME_KEY = 'weekplan.childDashboardTheme.v1';
+export const CHILD_DASHBOARD_THEME_KEY = 'protop.childDashboardTheme.v1';
 
 async function storage() {
   const mod = await import('@react-native-async-storage/async-storage');

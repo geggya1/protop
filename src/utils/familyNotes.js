@@ -1,10 +1,12 @@
 import {
-  collection, doc, addDoc, updateDoc, getDocs,
-  onSnapshot, serverTimestamp, query, where,
+  collection, doc, setDoc, updateDoc, getDocs,
+  onSnapshot, serverTimestamp, query, where, runTransaction,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { voiceNotesCol, updateVoiceNote } from './voiceNotes';
-import { structuredNoteBody } from './noteAi';
+import { voiceNotesCol, voiceNoteDoc } from './voiceNotes';
+import {
+  canMigrateVoiceNotesInto, familyNoteFromVoiceNote, migratedVoiceNoteId, voiceNoteNeedsMigration,
+} from './notesLogic.js';
 
 export function notesCol(familyId) {
   return collection(db, 'families', familyId, 'notes');
@@ -38,11 +40,16 @@ export function listenNote(familyId, noteId, cb) {
   }, () => cb(null));
 }
 
-export async function createNote(familyId, uid, title, creatorName, profileUid = null, extra = {}) {
+/**
+ * Start opprettelsen og få id-en med en gang. write løses først når serveren har svart,
+ * så offline kan skjermen åpne notatet før skrivingen er bekreftet.
+ */
+export function startCreateNote(familyId, uid, title, creatorName, profileUid = null, extra = {}) {
   const memberIds = profileUid && profileUid !== uid
     ? [...new Set([uid, profileUid])]
     : [uid];
-  return addDoc(notesCol(familyId), {
+  const ref = doc(notesCol(familyId));
+  const write = setDoc(ref, {
     title: String(title || '').trim() || 'Uten tittel',
     body: extra.body || '',
     bodyFormat: 'markdown',
@@ -61,35 +68,48 @@ export async function createNote(familyId, uid, title, creatorName, profileUid =
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  return { ref, write };
 }
 
-/** Flytt gamle AI-lydnotater inn i familiens notater (én gang). */
-export async function migrateVoiceNotesIntoFamily(familyId, uid, creatorName) {
+export async function createNote(familyId, uid, title, creatorName, profileUid = null, extra = {}) {
+  const { ref, write } = startCreateNote(familyId, uid, title, creatorName, profileUid, extra);
+  await write;
+  return ref;
+}
+
+/**
+ * Flytt gamle AI-lydnotater (users/{uid}/voiceNotes) inn i notatene til et personlig
+ * arbeidsområde. Aldri inn i en bedrift: talenotatene er private.
+ * Idempotent: fast notat-id per talenotat, og notatet og markøren på talenotatet
+ * skrives i samme transaksjon. To samtidige kjøringer gir ikke duplikater.
+ */
+export async function migrateVoiceNotesIntoFamily(familyId, uid, creatorName, { groupType } = {}) {
   if (!familyId || !uid) return 0;
+  if (!canMigrateVoiceNotesInto(groupType)) return 0;
   const snap = await getDocs(voiceNotesCol(uid));
   let moved = 0;
   for (const d of snap.docs) {
     const vn = { id: d.id, ...d.data() };
-    if (vn.deleted || vn.migratedToFamilyNoteId) continue;
-    const body = structuredNoteBody({
-      title: vn.title,
-      summary: vn.summary,
-      body: vn.body || vn.summary,
-    }) || vn.transcript || '';
-    const ref = await createNote(familyId, uid, vn.title || 'Lydnotat', creatorName, null, {
-      body,
-      source: 'voice',
-      transcript: vn.transcript || '',
-      summary: vn.summary || body.slice(0, 280),
-      keyPoints: [],
-      durationMs: vn.durationMs || 0,
-      voiceNoteId: vn.id,
+    if (!voiceNoteNeedsMigration(vn)) continue;
+    const noteId = migratedVoiceNoteId(vn.id);
+    const voiceRef = voiceNoteDoc(uid, vn.id);
+    const done = await runTransaction(db, async (tx) => {
+      const fresh = await tx.get(voiceRef);
+      if (!fresh.exists() || !voiceNoteNeedsMigration({ id: fresh.id, ...fresh.data() })) return false;
+      tx.set(noteDoc(familyId, noteId), {
+        ...familyNoteFromVoiceNote({ id: fresh.id, ...fresh.data() }, uid, creatorName),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      tx.update(voiceRef, {
+        migratedToFamilyNoteId: noteId,
+        migratedToFamilyId: familyId,
+        deleted: true,
+        updatedAt: serverTimestamp(),
+      });
+      return true;
     });
-    await updateVoiceNote(uid, vn.id, {
-      migratedToFamilyNoteId: ref.id,
-      deleted: true,
-    });
-    moved += 1;
+    if (done) moved += 1;
   }
   return moved;
 }

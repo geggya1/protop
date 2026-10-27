@@ -13,7 +13,9 @@ import {
   salesOrderFromInvoice,
   salesOrderRef,
 } from './powerOfficeMap.js';
-import { customerRef, syncInvoices, transferInvoice } from './powerOfficeSync.js';
+import {
+  customerRef, productsWithVat, syncInvoices, transferInvoice, vatRatePercent,
+} from './powerOfficeSync.js';
 
 function jsonResponse(status, body, headers = {}) {
   return {
@@ -462,6 +464,42 @@ function fakeClient(routes) {
   assert.equal(result.patches.length, 1);
   assert.equal(result.patches[0].patch.outstandingAmount, 400);
   assert.equal(client.log.some((row) => row.query?.balanceLastChangedDateTimeOffsetGreaterThan), false);
+}
+
+{
+  // Produkter med salgskonto og MVA fra kontoplanen.
+  assert.equal(vatRatePercent(0.25), 25);
+  assert.equal(vatRatePercent(25), 25);
+  assert.equal(vatRatePercent(0), 0);
+  assert.equal(vatRatePercent(null), null);
+  const client = fakeClient({
+    'GET /Products': [
+      { Code: '1', Name: 'Timer', StandardSalesAccount: 3000 },
+      { Code: '2', Name: 'Utlegg fritatt', StandardSalesAccount: 3100 },
+      { Code: '', Name: 'Uten kode' },
+      { Code: '3', Name: 'Uten konto' },
+    ],
+    'GET /GeneralLedgerAccounts': ({ query }) => {
+      assert.equal(query.accountNos, '3000,3100');
+      return [{ AccountNo: 3000, VatCode: '3' }, { AccountNo: 3100, VatCode: '5' }];
+    },
+    'GET /VatCodes': [{ Code: '3', Rate: 0.25 }, { Code: '5', Rate: 0 }],
+  });
+  const products = await productsWithVat(client);
+  assert.deepEqual(products, [
+    { code: '1', name: 'Timer', salesAccount: 3000, vatCode: '3', vatPercent: 25 },
+    { code: '2', name: 'Utlegg fritatt', salesAccount: 3100, vatCode: '5', vatPercent: 0 },
+    { code: '3', name: 'Uten konto', salesAccount: null, vatCode: '', vatPercent: null },
+  ]);
+
+  // Uten tilgang til kontoplanen: produktene kommer likevel, uten MVA.
+  const denied = fakeClient({
+    'GET /Products': [{ Code: '1', Name: 'Timer', StandardSalesAccount: 3000 }],
+    'GET /GeneralLedgerAccounts': () => { throw new Error('403'); },
+  });
+  assert.deepEqual(await productsWithVat(denied), [
+    { code: '1', name: 'Timer', salesAccount: 3000, vatCode: '', vatPercent: null },
+  ]);
 }
 
 console.log('powerOffice.test ok');

@@ -19,7 +19,7 @@ import {
   createPowerOfficeClient, findClientEnvironment, POWEROFFICE_ENVS, PowerOfficeError,
 } from './powerOfficeApi.js';
 import { normalizeProductCodes } from './powerOfficeMap.js';
-import { syncInvoices, transferInvoice } from './powerOfficeSync.js';
+import { productsWithVat, syncInvoices, transferInvoice } from './powerOfficeSync.js';
 
 if (!getApps().length) initializeApp();
 
@@ -203,13 +203,7 @@ export const powerOfficeProducts = onCall(CALL, async (request) => {
   await assertFamilyAdmin(db, familyId, uid);
   try {
     const client = await clientFor(db, familyId);
-    const rows = await client.listAll('/Products', { isArchived: false }, { pageSize: 100, maxPages: 10 });
-    return {
-      products: rows
-        .filter((row) => row?.Code)
-        .map((row) => ({ code: String(row.Code), name: String(row.Name || '') }))
-        .slice(0, 1000),
-    };
+    return { products: await productsWithVat(client) };
   } catch (err) {
     throw toHttpsError(err, 'products');
   }

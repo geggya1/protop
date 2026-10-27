@@ -31,6 +31,50 @@ function chunk(list, size) {
   return out;
 }
 
+/** Sats i prosent. API-et kan oppgi 0.25 eller 25. */
+export function vatRatePercent(rate) {
+  const n = Number(rate);
+  if (rate == null || rate === '' || !Number.isFinite(n)) return null;
+  return n <= 1 ? Math.round(n * 10000) / 100 : n;
+}
+
+/**
+ * Produktene i Go med salgskonto og MVA, så admin ser hvilken sats et produkt gir.
+ * MVA-en ligger på salgskontoen (GeneralLedgerAccounts), satsen på MVA-koden (VatCodes).
+ * Mangler integrasjonen tilgang til kontoplanen, kommer produktene uten MVA.
+ */
+export async function productsWithVat(client, { limit = 1000 } = {}) {
+  const rows = (await client.listAll('/Products', { isArchived: false }, { pageSize: 100, maxPages: 10 }))
+    .filter((row) => row?.Code)
+    .slice(0, limit);
+  const accountNos = [...new Set(rows.map((row) => Number(row.StandardSalesAccount)).filter((n) => n > 0))];
+  const accounts = new Map();
+  const vatCodes = new Map();
+  if (accountNos.length) {
+    try {
+      const list = await client.listAll('/GeneralLedgerAccounts', { accountNos: accountNos.join(',') }, { pageSize: 100, maxPages: 5 });
+      for (const account of list) accounts.set(Number(account?.AccountNo), account);
+      const codes = await client.listAll('/VatCodes', {}, { pageSize: 100, maxPages: 3 });
+      for (const code of codes) vatCodes.set(text(code?.Code), code);
+    } catch {
+      // Uten tilgang til kontoplan eller MVA-koder: vis produktene uten MVA.
+    }
+  }
+  return rows.map((row) => {
+    const salesAccount = Number(row.StandardSalesAccount) || null;
+    const account = salesAccount ? accounts.get(salesAccount) : null;
+    const vatCode = text(account?.VatCode);
+    const vat = vatCode ? vatCodes.get(vatCode) : null;
+    return {
+      code: text(row.Code),
+      name: text(row.Name),
+      salesAccount,
+      vatCode,
+      vatPercent: vat ? vatRatePercent(vat.Rate) : null,
+    };
+  });
+}
+
 export function customerRef(customerId) {
   return `${REF_PREFIX}-kunde-${text(customerId).replace(/[^\w.-]+/g, '').slice(0, 60)}`;
 }

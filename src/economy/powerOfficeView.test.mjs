@@ -8,6 +8,8 @@ import {
   canTransferToPowerOffice,
   POWEROFFICE_VAT_ROWS,
   powerOfficeSummary,
+  productOptionsForRow,
+  productVatWarning,
 } from './powerOfficeView.js';
 
 const draft = normalizeInvoice({
@@ -61,5 +63,23 @@ assert.equal(powerOfficeSummary({ poweroffice: { state: 'paid', balance: 0 } }).
 assert.equal(powerOfficeSummary({ poweroffice: { state: 'missing' } }).tone, 'warn');
 
 assert.deepEqual(POWEROFFICE_VAT_ROWS.map((row) => row.id), ['HIGH', 'MID', 'LOW', 'ZERO', 'EXEMPT', 'OUTSIDE']);
+
+{
+  // Produktene som gir radens sats står øverst, med konto og MVA i teksten.
+  const products = [
+    { code: '9', name: 'Fritatt utlegg', salesAccount: 3100, vatCode: '5', vatPercent: 0 },
+    { code: '1', name: 'Timer', salesAccount: 3000, vatCode: '3', vatPercent: 25 },
+    { code: '7', name: 'Ukjent', salesAccount: null, vatCode: '', vatPercent: null },
+  ];
+  const high = POWEROFFICE_VAT_ROWS.find((row) => row.id === 'HIGH');
+  const options = productOptionsForRow(high, products);
+  assert.deepEqual(options.map((row) => row.id), ['1', '9', '7']);
+  assert.equal(options[0].label, '1 · Timer · konto 3000 · 25 % MVA (kode 3)');
+  assert.equal(options[2].label, '7 · Ukjent');
+  assert.equal(productVatWarning(high, products, '1'), '');
+  assert.equal(productVatWarning(high, products, '9'), 'Produktet gir 0 % MVA i PowerOffice, ikke 25 %.');
+  assert.equal(productVatWarning(high, products, '7'), '');
+  assert.equal(productVatWarning(high, products, ''), '');
+}
 
 console.log('powerOfficeView.test ok');

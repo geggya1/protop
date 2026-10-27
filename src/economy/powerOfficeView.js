@@ -14,7 +14,34 @@ export const POWEROFFICE_GUI = {
 export const POWEROFFICE_VAT_ROWS = VAT_CODES.map((row) => ({
   id: row.id,
   label: `${row.label} (${row.percent} %)`,
+  percent: row.percent,
 }));
+
+/** «1 · Timer · konto 3000 · 25 % MVA (kode 3)». MVA vises når PowerOffice oppgir den. */
+export function productOptionLabel(product) {
+  const parts = [`${product.code} · ${product.name}`];
+  if (product.salesAccount) parts.push(`konto ${product.salesAccount}`);
+  if (product.vatPercent != null) {
+    parts.push(`${product.vatPercent} % MVA${product.vatCode ? ` (kode ${product.vatCode})` : ''}`);
+  }
+  return parts.join(' · ');
+}
+
+/** Valgene for én MVA-rad: produkter med samme sats først. */
+export function productOptionsForRow(row, products) {
+  const list = Array.isArray(products) ? products : [];
+  const matches = (product) => product.vatPercent != null && product.vatPercent === row.percent;
+  return [...list.filter(matches), ...list.filter((product) => !matches(product))]
+    .map((product) => ({ id: product.code, label: productOptionLabel(product) }));
+}
+
+/** Advarsel når valgt produkt gir en annen MVA-sats enn raden. */
+export function productVatWarning(row, products, code) {
+  if (!code) return '';
+  const product = (Array.isArray(products) ? products : []).find((item) => item.code === code);
+  if (!product || product.vatPercent == null || product.vatPercent === row.percent) return '';
+  return `Produktet gir ${product.vatPercent} % MVA i PowerOffice, ikke ${row.percent} %.`;
+}
 
 const DELIVERY_LABELS = {
   EHF: 'EHF',

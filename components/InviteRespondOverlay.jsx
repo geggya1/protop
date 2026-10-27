@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback, useEffect, useMemo, useRef, useState,
+} from 'react';
 import {
-  Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
+  Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, AppState,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -29,6 +31,15 @@ import {
   acceptFriendRequest,
   declineFriendRequest,
 } from '../src/utils/friends';
+
+/** Ny henting når appen får fokus igjen. Serveren tillater 60 i timen. */
+const INVITE_SYNC_GAP_MS = 2 * 60 * 1000;
+
+/** Passordbrukere bekrefter på «Bekreft e-posten»-siden og har fått lenken ved registrering. */
+function isPasswordUser(user) {
+  const provider = user?.providerData?.[0]?.providerId;
+  return !provider || provider === 'password';
+}
 
 /**
  * Full-screen mandatory invite gate after login.
@@ -61,10 +72,15 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     return listenIncomingGameInvites(uid, setGameInvites);
   }, [uid, enabled]);
 
-  // Ny bruker invitert på e-post: invitasjonen legges i innboksen når e-posten er bekreftet.
-  // Bekreftelsen skjer midt i økta uten ny uid, så statusen følges her til den er satt.
+  // Ny bruker invitert på e-post: serveren legger invitasjonen i innboksen når e-posten er
+  // bekreftet, eller personen er innlogget med Google, Microsoft eller Apple. Hentes ved
+  // innlogging, når e-posten blir bekreftet og når appen får fokus igjen.
   const [emailVerified, setEmailVerified] = useState(() => !!auth.currentUser?.emailVerified);
+  const syncBusyRef = useRef(false);
+  const lastSyncRef = useRef(0);
+
   useEffect(() => {
+    lastSyncRef.current = 0;
     if (!uid) return undefined;
     const check = () => !!auth.currentUser?.emailVerified;
     if (check()) {
@@ -80,25 +96,57 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     return () => clearInterval(timer);
   }, [uid]);
 
-  useEffect(() => {
-    const current = auth.currentUser;
-    if (!uid || !enabled || !emailVerified || !current || current.uid !== uid) return undefined;
-    const key = `protop.inviteSync.${uid}`;
-    try { if (sessionStorage.getItem(key) === '1') return undefined; } catch { /* native */ }
-    let alive = true;
-    (async () => {
-      try {
-        const token = await current.getIdTokenResult();
-        if (!token?.claims?.email_verified) await current.getIdToken(true);
-      } catch { /* bruker gammelt token */ }
-      if (!alive) return;
-      const res = await syncMyInvites();
-      if (res?.ok && !res.skipped) {
-        try { sessionStorage.setItem(key, '1'); } catch { /* native */ }
+  const runInviteSync = useCallback(async () => {
+    const me = auth.currentUser;
+    if (!uid || !enabled || !me || me.uid !== uid || !me.email || syncBusyRef.current) return null;
+    if (!me.emailVerified && isPasswordUser(me)) return null;
+    syncBusyRef.current = true;
+    try {
+      if (me.emailVerified) {
+        try {
+          const token = await me.getIdTokenResult();
+          if (!token?.claims?.email_verified) await me.getIdToken(true);
+        } catch { /* bruker gammelt token */ }
       }
-    })();
-    return () => { alive = false; };
-  }, [uid, enabled, emailVerified]);
+      const res = await syncMyInvites();
+      if (res?.ok) lastSyncRef.current = Date.now();
+      return res;
+    } finally {
+      syncBusyRef.current = false;
+    }
+  }, [uid, enabled]);
+
+  useEffect(() => {
+    let alive = true;
+    let retry = null;
+    runInviteSync().then((res) => {
+      if (alive && res && !res.ok) retry = setTimeout(() => { if (alive) runInviteSync(); }, 20000);
+    });
+    return () => {
+      alive = false;
+      clearTimeout(retry);
+    };
+  }, [runInviteSync, emailVerified]);
+
+  useEffect(() => {
+    if (!uid || !enabled) return undefined;
+    const again = () => {
+      if (Date.now() - lastSyncRef.current < INVITE_SYNC_GAP_MS) return;
+      runInviteSync();
+    };
+    if (Platform.OS === 'web') {
+      if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+      const onVisible = () => { if (document.visibilityState !== 'hidden') again(); };
+      window.addEventListener('focus', again);
+      document.addEventListener('visibilitychange', onVisible);
+      return () => {
+        window.removeEventListener('focus', again);
+        document.removeEventListener('visibilitychange', onVisible);
+      };
+    }
+    const sub = AppState.addEventListener('change', (state) => { if (state === 'active') again(); });
+    return () => sub.remove();
+  }, [uid, enabled, runInviteSync]);
 
   useEffect(() => {
     if (!uid || !enabled || !familyId) {

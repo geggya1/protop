@@ -14,6 +14,7 @@ import {
   isLockedInvoice,
   issueChecks,
   issueDeadline,
+  issueDates,
   issueInvoice,
   mergeTemplate,
   nextInvoiceNumber,
@@ -228,6 +229,52 @@ assert.equal(updateDraft(invoice, { invoiceText: 'x' }).ok, false, 'ferdigstilt 
 assert.equal(issueInvoice(invoice, { number: '16723' }).ok, false);
 assert.equal(displayStatus(invoice, '2026-10-01').id, 'issued');
 assert.equal(dueDateFor({ invoiceDate: '2026-09-30' }, { creditDays: 14 }), '2026-10-14');
+// Loggen viser når det skjedde, teksten hvilke datoer fakturaen fikk.
+assert.equal(invoice.events.at(-1).at, '2026-09-30T10:00:00.000Z');
+assert.match(invoice.events.at(-1).text, /^ferdigstilte faktura 16722 \(fakturadato 30\.09\.2026, forfall 28\.10\.2026\)$/);
+
+{
+  // Datoer valgt i utkastet brukes ved ferdigstilling. Uten valg: dagens dato og kredittid.
+  const base = { ...edited.invoice, invoiceDate: '2026-09-01', dueDate: '2026-09-29', creditDays: 28 };
+  assert.deepEqual(issueDates(base, { today: '2026-10-27' }), { invoiceDate: '2026-10-27', dueDate: '2026-11-24' });
+  assert.deepEqual(
+    issueDates({ ...base, invoiceDateSet: true }, { today: '2026-10-27' }),
+    { invoiceDate: '2026-09-01', dueDate: '2026-09-29' },
+  );
+  assert.deepEqual(
+    issueDates({ ...base, invoiceDateSet: true, dueDateSet: true, dueDate: '2026-09-15' }, { today: '2026-10-27' }),
+    { invoiceDate: '2026-09-01', dueDate: '2026-09-15' },
+  );
+  assert.deepEqual(issueDates({ ...base, dueDateSet: true }, { today: '2026-10-27' }), { invoiceDate: '2026-10-27', dueDate: '2026-09-29' });
+
+  // Valgt forfall overstyrer kredittiden, og kredittiden følger med.
+  const chosen = issueInvoice(base, { number: '16800', date: '2026-09-01', dueDate: '2026-09-15', at: '2026-10-27T08:00:00.000Z' });
+  assert.ok(chosen.ok, chosen.error);
+  assert.equal(chosen.invoice.invoiceDate, '2026-09-01');
+  assert.equal(chosen.invoice.dueDate, '2026-09-15');
+  assert.equal(chosen.invoice.creditDays, 14);
+  assert.equal(chosen.invoice.issuedAt, '2026-10-27T08:00:00.000Z', 'ferdigstilt-tidspunktet er det faktiske');
+  assert.equal(chosen.invoice.events.at(-1).at, '2026-10-27T08:00:00.000Z');
+  assert.match(chosen.invoice.events.at(-1).text, /fakturadato 01\.09\.2026, forfall 15\.09\.2026/);
+  const backwards = issueInvoice(base, { number: '16801', date: '2026-09-20', dueDate: '2026-09-15' });
+  assert.equal(backwards.ok, false);
+  assert.match(backwards.error, /før fakturadatoen/);
+
+  // Valget lagres på utkastet.
+  const kept = updateDraft(base, { invoiceDate: '2026-09-05', invoiceDateSet: true });
+  assert.ok(kept.ok && kept.changed);
+  assert.equal(kept.invoice.invoiceDateSet, true);
+  assert.equal(kept.invoice.events.at(-1).text, 'endret utkastet (fakturadato 05.09.2026)');
+  assert.equal(normalizeInvoice({ invoiceDateSet: 'ja' }).invoiceDateSet, false);
+}
+
+// Uten adresse, men med org.nr.: et råd, ikke et krav.
+{
+  const supplierOk = { name: 'Consult1 AS', orgnr: '916538804', bankAccount: '32010946149', address: 'Svanholmen 7' };
+  const noAddress = issueChecks({ ...edited.invoice, customerAddress: {} }, { supplier: supplierOk, today: '2026-09-30' });
+  assert.equal(noAddress.ok, true, JSON.stringify(noAddress.blocking));
+  assert.match(noAddress.warnings.find((row) => row.id === 'address').text, /kan sendes uten/);
+}
 
 // Bilag i balanse, per konto, med øreavrunding.
 const voucher = ledgerVoucher(invoice, { totals: totalsFromLines(invoice.lines) });

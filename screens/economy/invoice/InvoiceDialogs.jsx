@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateField from '../../../components/DateField';
 import { dateKey } from '../../../src/utils/dates';
 import { formatDate } from '../../../src/economy/invoices.js';
-import { invoiceTotals, isCreditNote } from '../../../src/economy/invoiceFlow.js';
+import { dueDateFor, invoiceTotals, isCreditNote, issueDates } from '../../../src/economy/invoiceFlow.js';
 import { sectionLabel } from '../../../src/economy/invoiceLines.js';
 import DialogShell from './DialogShell';
 import { Banner, Button, Check, Field, money } from '../billing/ui';
@@ -195,6 +195,8 @@ export function SendDialog({
   const [includeTimeSpec, setIncludeTimeSpec] = useState(false);
   const [alsoEmail, setAlsoEmail] = useState(false);
   const [date, setDate] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [dueTouched, setDueTouched] = useState(false);
 
   const ehfReady = !!(peppol?.connected && peppol?.receiver?.found && peppol?.receiver?.[credit ? 'creditNote' : 'invoice']);
   useEffect(() => {
@@ -213,8 +215,21 @@ export function SendDialog({
     setIncludeAttachments(settings.emailIncludeAttachments !== false);
     setIncludeTimeSpec(!!settings.attachTimeSpec && !credit && (invoice?.timeEntryIds || []).length > 0);
     setAlsoEmail(!!settings.ehfAlsoEmail && !!invoice?.customerEmail);
-    setDate(new Date().toISOString().slice(0, 10));
+    const dates = issueDates(invoice, { dueDateMode: settings.dueDateMode || 'invoice_date' });
+    setDate(dates.invoiceDate);
+    setDueDate(dates.dueDate);
+    setDueTouched(false);
   }, [visible]);
+
+  // Ny fakturadato flytter fristen etter kredittiden, til fristen er valgt selv.
+  function changeDate(day) {
+    setDate(day);
+    if (credit || dueTouched || invoice?.dueDateSet) return;
+    setDueDate(dueDateFor({ ...invoice, invoiceDate: day }, {
+      creditDays: invoice?.creditDays ?? null,
+      dueDateMode: settings.dueDateMode || 'invoice_date',
+    }));
+  }
 
   // Når EHF ikke kan brukes (ikke koblet eller mottaker ikke funnet), foreslås e-post.
   useEffect(() => {
@@ -229,7 +244,8 @@ export function SendDialog({
   const chosen = recipients.filter((row) => row.on).map((row) => row.email);
   const narrow = useWindowDimensions().width < 520;
   const needsMail = send && (channel === 'email' || (channel === 'ehf' && alsoEmail));
-  const canGo = !blocking.length
+  const dueBeforeDate = finalize && !powerOffice && !credit && !!dueDate && !!date && dueDate < date;
+  const canGo = !blocking.length && !dueBeforeDate
     && (!send || channel === 'manual' || (channel === 'email' && chosen.length) || (channel === 'ehf' && ehfReady && (!alsoEmail || chosen.length)));
   const title = finalize ? (credit ? 'Ferdigstill kreditnota' : 'Ferdigstill faktura') : (credit ? 'Send kreditnota' : 'Send faktura');
   let action = 'Send';
@@ -260,6 +276,7 @@ export function SendDialog({
             disabled={!canGo || busy}
             onPress={() => onConfirm({
               date,
+              dueDate: credit ? '' : dueDate,
               send: !powerOffice && send,
               channel,
               to: chosen,
@@ -294,10 +311,27 @@ export function SendDialog({
           ) : null}
           {!powerOffice ? (
             <>
-              <DateRow label={credit ? 'Dato' : 'Fakturadato'} value={date} onChange={setDate} colors={colors} />
+              <View style={styles.dates}>
+                <View style={{ flexGrow: 1, flexBasis: 200 }}>
+                  <DateRow label={credit ? 'Dato' : 'Fakturadato'} value={date} onChange={changeDate} colors={colors} />
+                </View>
+                {credit ? null : (
+                  <View style={{ flexGrow: 1, flexBasis: 200 }}>
+                    <DateRow
+                      label="Betalingsfrist"
+                      value={dueDate}
+                      onChange={(day) => { setDueDate(day); setDueTouched(true); }}
+                      colors={colors}
+                    />
+                  </View>
+                )}
+              </View>
+              {dueBeforeDate ? (
+                <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Betalingsfristen er før fakturadatoen.</Text>
+              ) : null}
               <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>
                 Fakturaen får neste nummer i nummerserien og låses. Etterpå kan den bare rettes med kreditnota.
-                {credit ? '' : ' Forfallet regnes fra fakturadatoen.'}
+                {' '}Datoene over står på fakturaen. Loggen viser når den faktisk ble ferdigstilt og sendt.
               </Text>
             </>
           ) : (
@@ -604,6 +638,7 @@ const styles = StyleSheet.create({
   radioFill: { width: 8, height: 8, borderRadius: 4 },
   date: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  dates: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tabs: { flexDirection: 'row', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 9 },
   recipients: { borderWidth: 1, borderRadius: 8 },

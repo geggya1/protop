@@ -2,7 +2,7 @@
  * Felles byggeklosser for Til fakturering og fakturasiden.
  * Tabellen blir til kort på smal skjerm, så ingenting forsvinner på mobil.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatMoney } from '../../../src/economy/invoices.js';
@@ -113,14 +113,28 @@ export function SectionTitle({ title, colors, right = null }) {
   );
 }
 
-/** grow: feltet deler bredden med naboene i en rad (flexWrap). Uten grow tar det bare plassen det trenger i høyden. */
+function squash(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * grow: feltet deler bredden med naboene i en rad (flexWrap). Uten grow tar det bare plassen det trenger i høyden.
+ * Mens feltet er i bruk vises det som skrives, så mellomrom ikke forsvinner når verdien
+ * ryddes (trimmes) på veien. Endrer forelderen mer enn mellomrom, vises verdien.
+ */
 export function Field({ label, value, onChangeText, colors, placeholder = '', multiline = false, keyboardType, editable = true, nativeID, width, grow = false }) {
+  const [typed, setTyped] = useState(null);
+  const shown = value == null ? '' : String(value);
   return (
     <View style={[styles.field, grow && !width ? styles.fieldGrow : null, width ? { width } : null]}>
       {label ? <Text style={[styles.fieldLabel, { color: colors.muted }]}>{label}</Text> : null}
       <TextInput
-        value={value == null ? '' : String(value)}
-        onChangeText={onChangeText}
+        value={typed != null && squash(typed) === squash(shown) ? typed : shown}
+        onChangeText={(next) => {
+          setTyped(next);
+          onChangeText?.(next);
+        }}
+        onBlur={() => setTyped(null)}
         placeholder={placeholder}
         placeholderTextColor={colors.muted}
         multiline={multiline}

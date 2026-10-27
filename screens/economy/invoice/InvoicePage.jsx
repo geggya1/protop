@@ -242,7 +242,7 @@ export default function InvoicePage({
     setBusy('finalize');
     setError('');
     try {
-      const done = await actions.finalize(ctx, invoice, { date: options.date });
+      const done = await actions.finalize(ctx, invoice, { date: options.date, dueDate: options.dueDate });
       onChanged?.(done.invoice);
       let message = done.message;
       if (options.send) {

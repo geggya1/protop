@@ -153,7 +153,7 @@ export async function deleteDraft(ctx, invoice, { mode = 'release', reason = '' 
  * Ferdigstill i ProTop: nummer (transaksjon), dato, forfall, KID, bilag og arkiv-PDF.
  * Kreditnota: originalen oppdateres og grunnlaget frigjøres når det er valgt.
  */
-export async function finalize(ctx, invoice, { date = '' } = {}) {
+export async function finalize(ctx, invoice, { date = '', dueDate = '' } = {}) {
   const settings = ctx.settings || {};
   const minimum = nextInvoiceNumber(ctx.invoices || [], settings.invoiceNumberStart);
   const build = (number, current) => {
@@ -161,6 +161,7 @@ export async function finalize(ctx, invoice, { date = '' } = {}) {
     const issued = issueInvoice(base, {
       number,
       date,
+      dueDate,
       creditDays: base.creditDays,
       dueDateMode: settings.dueDateMode || 'invoice_date',
       kidFormat: settings.kidFormat || 'customer_invoice',

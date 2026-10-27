@@ -1072,6 +1072,7 @@ const NAV_RESOURCE = {
   'arbeid-timesaldo': 'hoursBalance',
   'arbeid-godkjenning': 'hoursApproval',
   produktivitet: 'productivity',
+  fremdrift: 'productivity',
   kunder: 'customers',
   'anbud-varsling': 'tenders',
   'anbud-foresporsel': 'tenderRequest',
@@ -1116,6 +1117,10 @@ function adminResource(grants, resource) {
   return allowsEffective(grants, resource, 'write');
 }
 
+function projectTimelineAllowed(grants) {
+  return seeResource(grants, 'productivity') && seeResource(grants, 'projects');
+}
+
 export function companyTabAllowed(tab, subView, grants) {
   if (!grants) return true;
   if (tab === 'selskap' && subView === 'underenheter') return seeResource(grants, 'units');
@@ -1137,6 +1142,8 @@ export function companyTabAllowed(tab, subView, grants) {
     return adminResource(grants, 'absenceSettings');
   }
   if (tab === 'arbeid' && subView === 'produktivitet') return seeResource(grants, 'productivity');
+  // Fremdrift viser alle prosjekter, så den krever også Prosjekt (ikke bare tildelte).
+  if (tab === 'arbeid' && subView === 'fremdrift') return projectTimelineAllowed(grants);
   if (tab === 'arbeid' && subView === 'salg') return seeResource(grants, 'productSales');
   if (tab === 'arbeid' && subView === 'utlegg') return seeResource(grants, 'economyProjectExpenses');
   if (tab === 'arbeid' && (subView === 'fravaer' || subView === 'fravaersrapport' || subView === 'planlagt')) {
@@ -1206,6 +1213,7 @@ function navItemAllowed(id, grants) {
     return adminResource(grants, map[id]);
   }
   if (id === 'projects') return seeResource(grants, 'projects') || seeResource(grants, 'assignedProjects');
+  if (id === 'fremdrift') return projectTimelineAllowed(grants);
   if (id === 'utstyr') return seeResource(grants, 'equipment');
   if (id === 'fravaer') {
     return seeResource(grants, 'absence')

@@ -12,6 +12,7 @@ import { isGroupAdminOf } from '../src/notifications/audience.js';
 import {
   claimEmployeeSeatPlan,
   declineEmployeeInvitePlan,
+  sentInviteEmployee,
 } from '../src/employees/invite.js';
 import { clientIpFromHeaders, sanitizeIp } from '../src/employees/usage.js';
 import {
@@ -411,10 +412,25 @@ export const syncMyInvites = onCall(CALL, async (req) => {
     const familyId = familyDoc.id;
     const family = familyDoc.data() || {};
     if (groupDeleted(family) || isConfirmedMember(family, uid)) continue;
-    const placeholders = (await placeholdersFor(familyId, [authEmail]))
-      .filter((row) => row.id !== uid && isPendingPlaceholder(row.data(), authEmail));
-    if (!placeholders.length) continue;
-    const placeholder = placeholders[0];
+    const rows = await placeholdersFor(familyId, [authEmail]);
+    const placeholder = rows.find((row) => row.id !== uid && isPendingPlaceholder(row.data(), authEmail)) || null;
+    let source = placeholder ? { id: placeholder.id, data: placeholder.data() } : null;
+    if (!source && isCompanyGroupType(family.type)) {
+      // Invitert på nytt fra Ansatte: plassholderen fra en tidligere runde kan være ryddet
+      // bort (godtatt, avslått, flyttet til en konto). Medarbeideren med sendt invitasjon gjelder.
+      const employee = sentInviteEmployee({ employees: await companyEmployees(familyId), uid, authEmail });
+      if (employee) {
+        const earlier = rows.map((row) => row.data() || {}).find((row) => text(row.createdBy || row.invitedBy)) || {};
+        source = {
+          id: '',
+          data: {
+            name: [employee.person?.firstName, employee.person?.lastName].map(text).filter(Boolean).join(' '),
+            createdBy: text(earlier.createdBy || earlier.invitedBy) || text(family.ownerUid || family.createdBy) || null,
+          },
+        };
+      }
+    }
+    if (!source) continue;
 
     const pending = await db.collection(`families/${familyId}/memberInvites`)
       .where('inviteeUid', '==', uid)
@@ -431,8 +447,8 @@ export const syncMyInvites = onCall(CALL, async (req) => {
       const ref = db.collection(`families/${familyId}/memberInvites`).doc();
       inviteId = ref.id;
       invite = inviteFromPlaceholder({
-        placeholder: placeholder.data(),
-        placeholderId: placeholder.id,
+        placeholder: source.data,
+        placeholderId: source.id,
         family,
         familyId,
         uid,
@@ -442,7 +458,7 @@ export const syncMyInvites = onCall(CALL, async (req) => {
       await ref.set(invite);
     }
     await db.doc(`users/${uid}/familyInvites/${inviteId}`).set({ ...invite, inviteId }, { merge: true });
-    await placeholder.ref.set({ inviteId, inviteeUid: uid, updatedAt: now }, { merge: true });
+    if (placeholder) await placeholder.ref.set({ inviteId, inviteeUid: uid, updatedAt: now }, { merge: true });
     if (pending.empty) {
       await notify(uid, {
         eventType: 'familyInvite',

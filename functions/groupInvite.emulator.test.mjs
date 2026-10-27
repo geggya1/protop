@@ -181,6 +181,46 @@ describe('ny bruker invitert på e-post', () => {
   });
 });
 
+describe('invitert på nytt etter en tidligere runde', () => {
+  // Slik det lå i produksjon: plassholderen er ryddet etter et tidligere svar og
+  // sendt på nytt uten å bli gjenopplivet, mens medarbeideren står med sendt invitasjon.
+  async function oldRound(employeeInvite = {}) {
+    await db.doc(`families/${A}/parents/ninafirmano`).set({
+      deleted: true, archived: true, inviteStatus: 'pending', migratedToUid: 'gammelKonto', inviteId: 'inv_gammel',
+    }, { merge: true });
+    await db.doc(`families/${A}/employees/emp_nina`).set({ invite: { parentKey: 'ninafirmano', ...employeeInvite } }, { merge: true });
+  }
+
+  test('invitasjonen vises likevel, og Godta knytter medarbeideren', async () => {
+    await oldRound();
+    const { invites } = await call(syncMyInvites, 'nina', {});
+    assert.equal(invites.length, 1);
+    const { inviteId } = invites[0];
+    const inbox = await data(`users/nina/familyInvites/${inviteId}`);
+    assert.equal(inbox.status, 'pending');
+    assert.equal(inbox.groupType, 'organization');
+    assert.equal(inbox.inviteeName, 'Nina Test');
+    assert.equal(inbox.invitedBy, 'own');
+    assert.ok(await data(`users/nina/notifications/familyInvite_${A}_${inviteId}`));
+    const again = await call(syncMyInvites, 'nina', {});
+    assert.equal(again.invites[0].inviteId, inviteId, 'samme invitasjon, ikke en ny');
+    const res = await call(respondGroupInvite, 'nina', { familyId: A, inviteId, response: 'accepted' });
+    assert.equal(res.ok, true);
+    assert.ok((await members()).includes('nina'));
+    const emp = await data(`families/${A}/employees/emp_nina`);
+    assert.equal(emp.personUid, 'nina');
+    assert.equal(emp.invite.status, 'accepted');
+  });
+
+  test('avslått eller tatt av en annen konto: ingen invitasjon', async () => {
+    await oldRound({ status: 'declined' });
+    assert.equal((await call(syncMyInvites, 'nina', {})).invites.length, 0);
+    await oldRound({ status: 'sent' });
+    await db.doc(`families/${A}/employees/emp_nina`).set({ personUid: 'annen' }, { merge: true });
+    assert.equal((await call(syncMyInvites, 'nina', {})).invites.length, 0);
+  });
+});
+
 describe('eksisterende bruker', () => {
   test('Avslå: ikke medlem, plassholder borte, medarbeideren viser avslått', async () => {
     const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'declined' });

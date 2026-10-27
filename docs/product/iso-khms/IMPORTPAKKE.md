@@ -9,7 +9,7 @@ Format for å flytte et eksisterende ledelsessystem inn i ProTop ISO, for eksemp
 ## Slik fungerer importen
 
 1. **Velg fil** (`.json`) eller lim inn innholdet. Pakken kontrolleres (`parsePackage`).
-2. **Forhåndsvisning.** Hver post vises som *ny*, *finnes* (importert før) eller *feil* (med grunn). Merknader vises også, for eksempel brutte referanser.
+2. **Forhåndsvisning.** Hver post vises som *ny*, *oppdateres* (prosess som er endret i pakken), *finnes* (importert før) eller *feil* (med grunn). Merknader vises også, for eksempel brutte referanser.
 3. **Valg.** Velg hvilke deler som skal med. Velg også om dokumenter og prosesser skal **sendes til godkjenning** (standard) eller **publiseres direkte**. Direkte publisering krever at importøren er godkjenner.
 4. **Import.** Alt lagres i fast rekkefølge:
    - oppsett
@@ -25,6 +25,8 @@ Format for å flytte et eksisterende ledelsessystem inn i ProTop ISO, for eksemp
    Godkjenneren får én samleoppgave i Oppgaver.
 
 **Idempotens.** Hver entitet får `importKey = "<pakke-id>:<del>:<key>"`. En ny import av samme pakke hopper over det som finnes. Rettinger gjøres i ProTop, ikke ved å importere på nytt.
+
+**Endret pakke (prosesser).** Er en prosess endret i pakken (navn, formål, inn/ut, styrende dokumenter eller kartet) og ikke endret i ProTop siden importen, får den en ny versjon ved ny import. Den sendes til godkjenning, eller publiseres hvis importøren velger det. Gjeldende versjon står til den nye er godkjent, og den gamle bevares. Prosessen lagrer et fingeravtrykk (`importHash`) av det importen la inn. Er prosessen endret i ProTop, røres den ikke, og forhåndsvisningen sier det. Bare ny `order` gir ny plass i landskapet uten ny versjon, så lenge prosessen ikke er flyttet i ProTop. Dokumenter og registerposter oppdateres ikke.
 
 **Eiere tilpasses ProTop.** I ProTop eier en person (med innlogging) hver post, så oppgaver og varsler når fram. Pakken kan bruke navn, roller eller funksjoner som eier (`ownerName`, `approverName`, deltakere):
 - Navn på en ansatt kobles til personen.

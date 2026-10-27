@@ -21,7 +21,7 @@ import {
   Banner, Btn, Card, Check, Field, ListRow, Pill, Row, TextIn,
 } from './isoUi';
 
-const STATUS = { ny: { label: 'Ny', tone: 'ok' }, finnes: { label: 'Finnes', tone: 'muted' }, feil: { label: 'Feil', tone: 'danger' } };
+const STATUS = { ny: { label: 'Ny', tone: 'ok' }, endres: { label: 'Oppdateres', tone: 'info' }, finnes: { label: 'Finnes', tone: 'muted' }, feil: { label: 'Feil', tone: 'danger' } };
 
 async function readPicked(picked) {
   if (!picked) return '';
@@ -107,7 +107,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported, before
     }
   }
 
-  const total = plan ? Object.values(plan.counts).reduce((n, c) => n + c.ny, 0) : 0;
+  const total = plan ? Object.values(plan.counts).reduce((n, c) => n + c.ny + (c.endres || 0), 0) : 0;
 
   async function run() {
     if (!parsed?.ok) return;
@@ -190,7 +190,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported, before
         step(`Lagrer ${out.documents.length} dokumenter, ${out.processes.length} prosesser, ${out.records.length} registerposter og ${out.requirements.length} krav`, { done: 0, total: rows.length });
         const saved = await store.commitMany(rows, events, { onProgress: (n, of) => setProgress((p) => (p ? { ...p, done: n, total: of } : p)) });
         if (!saved.ok) throw new Error(saved.committed ? `${saved.error} (${saved.committed} av ${saved.total} er lagret)` : saved.error);
-        say(`${out.documents.length} dokumenter, ${out.processes.length} prosesser, ${out.records.length} registerposter og ${out.requirements.length} krav er lagt inn.`);
+        say(`${out.documents.length} dokumenter, ${out.processes.length} prosesser, ${out.records.length} registerposter og ${out.requirements.length} krav er lagt inn eller oppdatert.`);
       }
 
       const published = [
@@ -302,6 +302,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported, before
                 <Row>
                   <View style={{ flex: 1, minWidth: 200 }}><Check label={s.label} value={sections.has(s.id)} onChange={(x) => { const n = new Set(sections); if (x) n.add(s.id); else n.delete(s.id); setSections(n); }} /></View>
                   <Pill label={`${c.ny} nye`} tone={c.ny ? 'ok' : 'muted'} />
+                  {c.endres ? <Pill label={`${c.endres} oppdateres`} tone="info" /> : null}
                   {c.finnes ? <Pill label={`${c.finnes} finnes`} /> : null}
                   {c.feil ? <Pill label={`${c.feil} feil`} tone="danger" /> : null}
                   <Btn small icon={open === s.id ? 'chevron-up' : 'chevron-down'} label={open === s.id ? 'Skjul' : 'Vis'} onPress={() => setOpen(open === s.id ? '' : s.id)} />
@@ -319,7 +320,7 @@ export default function IsoImport({ ctx, first = false, onSystemImported, before
                   );
                 }) : null}
                 {open === s.id && s.id !== 'news' ? rows.map((r, i) => (
-                  <ListRow key={`${r.key}${i}`} icon={r.status === 'feil' ? 'alert-circle-outline' : (r.status === 'ny' ? 'add-circle-outline' : 'checkmark-circle-outline')} tone={STATUS[r.status].tone} title={r.title || r.key} subtitle={r.message} right={<Pill label={STATUS[r.status].label} tone={STATUS[r.status].tone} />} />
+                  <ListRow key={`${r.key}${i}`} icon={{ feil: 'alert-circle-outline', ny: 'add-circle-outline', endres: 'git-compare-outline' }[r.status] || 'checkmark-circle-outline'} tone={STATUS[r.status].tone} title={r.title || r.key} subtitle={r.message} right={<Pill label={STATUS[r.status].label} tone={STATUS[r.status].tone} />} />
                 )) : null}
                 {s.id === 'news' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Nyhetene publiseres på Selskap → Nyheter, som er eneste sted for nyheter i ProTop. Velg bort dem som skal vente, og skriv dem senere fra Selskap.</Text> : null}
                 {s.id === 'competence' ? <Text style={{ color: colors.muted, fontSize: 12 }}>Utdanning, kurs og sertifiseringer legges i CV-en til den ansatte. ISO → Kompetanse viser dem sammen med kompetansekravene.</Text> : null}

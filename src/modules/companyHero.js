@@ -86,6 +86,17 @@ export const COMPANY_HERO = {
       'Plan projects, position size and free capacity week by week.',
     ),
   },
+  'arbeid-fremdrift': {
+    ...CYAN,
+    wideArt: true,
+    name: 'Prosjektfremdrift',
+    kicker: t('Produktivitet', 'Productivity'),
+    title: t('Prosjektfremdrift', 'Project progress'),
+    pitch: t(
+      'Planlagt periode fra prosjekt og avtale, og ukene det er ført timer.',
+      'Planned period from project and agreement, and the weeks with logged hours.',
+    ),
+  },
   'hr-lonn': {
     ...SAND,
     wideArt: true,

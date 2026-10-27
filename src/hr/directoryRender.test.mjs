@@ -91,6 +91,7 @@ const rnMock = {
   TouchableOpacity: (props) => React.createElement('button', { type: 'button', ...domProps(props) }, props?.children),
   Modal: (props) => (props?.visible === false ? null : React.createElement('div', domProps(props), props?.children)),
   Dimensions: { get: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }) },
+  useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }),
 };
 
 function mocked(id) {
@@ -258,6 +259,41 @@ let followHtml = '';
   assert.equal(html.includes('Skann og fyll ut'), false);
   assert.equal(html.includes('Nøkkeldata'), false);
   assert.equal(html.includes('Bo Ekstern'), false);
+}
+
+{
+  // Lovpålagt-fanen: bare det HR eier, og kompetansen fra ISO som lesing.
+  const html = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    selectedId: 'e1',
+    sheet: 'compliance',
+    isoCompetence: {
+      status: 'ready',
+      rows: [
+        { id: 'k1', title: 'HMS-introduksjon', status: 'gyldig', validTo: '' },
+        { id: 'k2', title: 'Arbeidsmiljøopplæring', status: 'utlopt', validTo: '2025-01-31' },
+      ],
+    },
+    onOpenIso: () => {},
+  }));
+  assert.match(html, /Lovpålagt/);
+  assert.match(html, /Personverninformasjon gitt/);
+  assert.match(html, /Verneutstyr utlevert/);
+  assert.equal(html.includes('Kjenner avviksrutine'), false);
+  assert.equal(html.includes('Kompetanse for rollen dokumentert'), false);
+  assert.match(html, /id="hr-compliance-iso"/);
+  assert.match(html, /1 av 2 krav er gyldige/);
+  assert.match(html, /Utløpt · til 31\.01\.2025/);
+  assert.match(html, /Åpne Kompetanse i ISO/);
+
+  // Uten tilgang til ISO: bare henvisningen, ingen knapp.
+  const plain = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    selectedId: 'e1',
+    sheet: 'compliance',
+  }));
+  assert.match(plain, /følges opp i ISO \/ K-HMS → Kompetanse/);
+  assert.equal(plain.includes('Åpne Kompetanse i ISO'), false);
 }
 
 {
@@ -513,7 +549,7 @@ let caseHtml = '';
 }
 
 const HrSectionNav = component('screens/hr/HrSectionNav.jsx');
-const sectionLabels = ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lov & ISO', 'Rekruttering'];
+const sectionLabels = ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lovpålagt', 'Rekruttering'];
 
 let phoneNavHtml = '';
 let phoneSheetHtml = '';
@@ -581,7 +617,7 @@ if (fs.existsSync(previewDir)) {
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging-sak.html'), page('Oppfølgingssak', linkedHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-sak-detalj.html'), page('Sak', caseHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-avtaler.html'), page('Ansettelsesavtaler', avtalerHtml));
-  fs.writeFileSync(path.join(previewDir, 'hr-lov-iso.html'), page('Lov og ISO', complianceHtml));
+  fs.writeFileSync(path.join(previewDir, 'hr-lovpalagt.html'), page('Lovpålagt', complianceHtml));
   fs.writeFileSync(path.join(previewDir, 'hr-oppfolging.html'), page('Oppfølging', followHtml));
 }
 

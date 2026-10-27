@@ -562,7 +562,7 @@ function ComplianceCard({ colors, compliance, onOpen }) {
       colors={colors}
       nativeID="hr-compliance"
       icon="shield-checkmark-outline"
-      title="Lov & ISO"
+      title="Lovpålagt"
       subtitle="Påkrevde sjekkpunkter for egne ansatte, gruppert på det som mangler."
       actionLabel="Vis alle"
       onAction={onOpen}
@@ -768,7 +768,7 @@ function ExternalCard({
         <View style={styles.flexText}>
           <Text style={[styles.extTitle, { color: colors.ink }]}>{inactive ? 'Deaktiverte eksterne' : 'Aktive eksterne'}</Text>
           <Text style={[styles.rowSub, { color: colors.muted }]}>
-            Saker, oppgaver og avtaleslutt. Lønn, Lov & ISO og pårørende gjelder egne ansatte.
+            Saker, oppgaver og avtaleslutt. Lønn, Lovpålagt og pårørende gjelder egne ansatte.
           </Text>
         </View>
         {onOpenFollowUp ? (

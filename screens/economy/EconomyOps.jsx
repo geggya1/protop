@@ -1,5 +1,6 @@
 /**
- * Økonomi · Utlegg / Kjørebok / Produkter — registrering, godkjenning, CSV.
+ * Økonomi · Utlegg / Kjørebok — registrering, godkjenning, CSV.
+ * Produkter har egen side (ProductCatalog).
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -33,22 +34,13 @@ import {
   tripsToCsv,
   yearlyDutyKm,
 } from '../../src/economy/mileage.js';
-import {
-  PRODUCT_KINDS,
-  emptyProduct,
-  productsToCsv,
-  saleFromProduct,
-} from '../../src/economy/products.js';
 import { setMileageRate } from '../../src/equipment/state';
 import { mileageRate } from '../../src/mileage/flow';
 import {
   deleteTrip,
   setExpenseStatus,
-  setSaleStatus,
   setTripStatus,
   upsertExpense,
-  upsertProduct,
-  upsertSale,
 } from '../../src/economy/opsState.js';
 import MileageWizard from './MileageWizard';
 
@@ -230,20 +222,6 @@ function Field({ label, value, onChange, colors, placeholder, keyboardType }) {
   );
 }
 
-function Chip({ label, active, onPress, colors }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.chip, {
-        borderColor: active ? colors.brand : colors.line,
-        backgroundColor: active ? `${colors.brand}18` : colors.card,
-      }]}
-    >
-      <Text style={{ color: colors.ink, fontSize: 12 }}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 export default function EconomyOps({ kind = 'expenses', company = null }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
@@ -258,7 +236,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const [rateOpen, setRateOpen] = useState(false);
   const [rateDraft, setRateDraft] = useState('');
   const [draft, setDraft] = useState({});
-  const [tab, setTab] = useState(kind === 'produkter' || kind === 'products' ? 'catalog' : 'list');
   const [editingTrip, setEditingTrip] = useState(null);
   const [pendingDelete, setPendingDelete] = useState('');
 
@@ -281,11 +258,9 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
     if (ready) saveProjectState(state, familyId).catch(() => {});
   }, [state, ready, familyId]);
 
-  const title = kind === 'mileage' ? 'Kjørebok' : kind === 'products' ? 'Produkter og varesalg' : 'Utlegg';
+  const title = kind === 'mileage' ? 'Kjørebok' : 'Utlegg';
   const expenses = state.expenses || [];
   const trips = state.mileageTrips || [];
-  const products = state.products || [];
-  const sales = state.sales || [];
   const dutyKm = useMemo(() => yearlyDutyKm(trips, new Date().getFullYear()), [trips]);
   const rateInfo = mileageRate(state.mileagePolicies);
   const canEditRate = access.canAdmin('mileage') || access.canAdmin('economySettings');
@@ -325,21 +300,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
       ...emptyExpense(draft),
       date: draft.date || new Date().toISOString().slice(0, 10),
     }));
-  }
-
-  function saveProduct() {
-    apply(upsertProduct(state, emptyProduct(draft)));
-  }
-
-  function sellProduct(product) {
-    apply(upsertSale(state, saleFromProduct(product, {
-      date: new Date().toISOString().slice(0, 10),
-      quantity: Number(draft.quantity) || 1,
-      customerName: draft.customerName || '',
-      customerNumber: draft.customerNumber || '',
-      projectName: draft.projectName || '',
-      projectNumber: draft.projectNumber || '',
-    })));
   }
 
   if (!ready) {
@@ -408,12 +368,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
           ) : null}
         </View>
       ) : null}
-      {kind === 'products' ? (
-        <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 720 }}>
-          {hostedHero ? '' : 'Produktkatalog og stykk-salg mot kunde/prosjekt. '}
-          Godkjente linjer havner i Fakturagrunnlag.
-        </Text>
-      ) : null}
 
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
       {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
@@ -433,13 +387,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
           onApply={apply}
           onOpenBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
         />
-      ) : null}
-
-      {kind === 'products' ? (
-        <View style={styles.row}>
-          <Chip label="Katalog" active={tab === 'catalog'} onPress={() => setTab('catalog')} colors={colors} />
-          <Chip label="Salg" active={tab === 'sales'} onPress={() => setTab('sales')} colors={colors} />
-        </View>
       ) : null}
 
       {kind === 'expenses' ? (
@@ -480,26 +427,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
           onApply={apply}
           onOpenBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
         />
-      ) : null}
-
-      {kind === 'products' && tab === 'catalog' ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700', marginBottom: 8 }}>Nytt produkt</Text>
-          <View style={styles.row}>
-            <Field label="Navn" value={draft.name || ''} onChange={(v) => setDraft((d) => ({ ...d, name: v }))} colors={colors} />
-            <Field label="Varenr" value={draft.sku || ''} onChange={(v) => setDraft((d) => ({ ...d, sku: v }))} colors={colors} />
-            <Field label="Pris eks. mva" value={String(draft.priceExVat ?? '')} onChange={(v) => setDraft((d) => ({ ...d, priceExVat: v }))} colors={colors} keyboardType="decimal-pad" />
-            <Field label="Lager" value={String(draft.stock ?? '')} onChange={(v) => setDraft((d) => ({ ...d, stock: v, trackStock: true }))} colors={colors} keyboardType="decimal-pad" />
-          </View>
-          <View style={[styles.row, { marginTop: 8 }]}>
-            {PRODUCT_KINDS.map((row) => (
-              <Chip key={row.id} label={row.label} active={(draft.kind || 'goods_resale') === row.id} onPress={() => setDraft((d) => ({ ...d, kind: row.id }))} colors={colors} />
-            ))}
-          </View>
-          <TouchableOpacity onPress={saveProduct} style={[styles.btn, { backgroundColor: colors.brand, marginTop: 12, alignSelf: 'flex-start' }]}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre produkt</Text>
-          </TouchableOpacity>
-        </View>
       ) : null}
 
       {kind === 'expenses' ? expenses.map((row) => {
@@ -545,35 +472,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
         />
       ) : null}
 
-      {kind === 'products' && tab === 'catalog' ? products.map((row) => (
-        <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.sku ? `${row.sku} · ` : ''}{row.name}</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
-            {formatMoney(row.priceExVat)} eks. · {row.vatCode}
-            {row.trackStock ? ` · lager ${row.stock}` : ''}
-          </Text>
-          <View style={[styles.row, { marginTop: 8 }]}>
-            <Field label="Antall" value={String(draft.quantity ?? '1')} onChange={(v) => setDraft((d) => ({ ...d, quantity: v }))} colors={colors} keyboardType="decimal-pad" />
-            <Field label="Kunde på salg" value={draft.customerName || ''} onChange={(v) => setDraft((d) => ({ ...d, customerName: v }))} colors={colors} />
-          </View>
-          <TouchableOpacity onPress={() => sellProduct(row)} style={[styles.btn, { backgroundColor: colors.brand, marginTop: 8, alignSelf: 'flex-start' }]}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Registrer salg</Text>
-          </TouchableOpacity>
-        </View>
-      )) : null}
-
-      {kind === 'products' && tab === 'sales' ? sales.map((row) => (
-        <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.name} · {row.quantity} {row.unit}</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>{row.date} · {formatMoney(row.amountInclVat)} · {row.status}</Text>
-          {row.status !== 'approved' && row.status !== 'invoiced' ? (
-            <TouchableOpacity onPress={() => apply(setSaleStatus(state, row.id, 'approved'))} style={[styles.btnGhost, { borderColor: colors.line, marginTop: 8, alignSelf: 'flex-start' }]}>
-              <Text style={{ color: colors.ink }}>Merk klar for faktura</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      )) : null}
-
       <View style={[styles.row, { alignSelf: 'flex-start' }]}>
         {kind === 'expenses' ? (
           <TouchableOpacity onPress={() => downloadCsv('utlegg.csv', expensesToCsv(expenses))} style={[styles.btnGhost, { borderColor: colors.line }]}>
@@ -585,12 +483,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
           <TouchableOpacity onPress={() => downloadCsv('kjorebok.csv', tripsToCsv(trips))} style={[styles.btnGhost, { borderColor: colors.line }]}>
             <Ionicons name="download-outline" size={16} color={colors.ink} />
             <Text style={{ color: colors.ink }}>Eksporter kjørebok</Text>
-          </TouchableOpacity>
-        ) : null}
-        {kind === 'products' ? (
-          <TouchableOpacity onPress={() => downloadCsv('produkter.csv', productsToCsv(products))} style={[styles.btnGhost, { borderColor: colors.line }]}>
-            <Ionicons name="download-outline" size={16} color={colors.ink} />
-            <Text style={{ color: colors.ink }}>Eksporter katalog</Text>
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity onPress={() => requestShellTab?.('okonomi', 'fakturagrunnlag')} style={[styles.btnGhost, { borderColor: colors.line }]}>
@@ -605,7 +497,6 @@ const styles = StyleSheet.create({
   wrap: { flex: 1 },
   title: { fontSize: 22, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' },
-  chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   card: { borderWidth: 1, borderRadius: 10, padding: 14, gap: 4 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },

@@ -5,9 +5,10 @@ import {
   COMPLIANCE_SOURCES,
   complianceSummary,
   ensureEmployeeCompliance,
+  replaceEmployeeCompliance,
   syncComplianceFromEvidence,
 } from '../../src/hr/compliance';
-import { localIsoDate } from '../../src/hr/model';
+import { formatNbDate, localIsoDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
 import OptionPicker from '../../components/OptionPicker';
 import {
@@ -21,8 +22,16 @@ const STATUS = [
   { id: 'na', label: 'Ikke aktuelt' },
 ];
 
+const ISO_STATUS = {
+  gyldig: 'Gyldig',
+  utloper: 'Utløper snart',
+  utlopt: 'Utløpt',
+  mangler: 'Mangler',
+  cv: 'Står i CV-en, mangler bevis',
+};
+
 export default function HrCompliance({
-  colors, hr, canWrite, onPatch, lockedEmployeeId,
+  colors, hr, canWrite, onPatch, lockedEmployeeId, isoCompetence, onOpenIso,
 }) {
   const activeId = String(lockedEmployeeId || '');
   const [sourceFilter, setSourceFilter] = useState('all');
@@ -63,8 +72,7 @@ export default function HrCompliance({
           }
           : row
       ));
-      const others = (state.compliance || []).filter((row) => row.employeeId !== activeId);
-      return { compliance: [...others, ...nextRows] };
+      return { compliance: replaceEmployeeCompliance(state.compliance, activeId, nextRows) };
     });
   }
 
@@ -76,8 +84,7 @@ export default function HrCompliance({
       const nextRows = ensureEmployeeCompliance(state.compliance || [], activeId).map((row) => (
         row.catalogId === catalogId ? { ...row, note, updatedAt: new Date().toISOString() } : row
       ));
-      const others = (state.compliance || []).filter((row) => row.employeeId !== activeId);
-      return { compliance: [...others, ...nextRows] };
+      return { compliance: replaceEmployeeCompliance(state.compliance, activeId, nextRows) };
     });
   }
 
@@ -104,8 +111,8 @@ export default function HrCompliance({
         <HrCard colors={colors}>
           <HrSectionTitle
             colors={colors}
-            title="Lovpålagt og ISO"
-            subtitle="Sjekkliste for denne personen"
+            title="Lovpålagt"
+            subtitle="Arbeidsavtale, oppfølging, verneutstyr og personvern for denne personen"
           />
           <Text style={[styles.summary, { color: colors.ink }]}>
             {`OK: ${summary.ok}/${summary.total} (${summary.pct} %) · Mangler: ${summary.missing}`}
@@ -177,6 +184,10 @@ export default function HrCompliance({
         </HrCard>
       ) : null}
 
+      {activeId ? (
+        <IsoCompetenceCard colors={colors} iso={isoCompetence} onOpenIso={onOpenIso} />
+      ) : null}
+
       {canWrite && activeId ? (
         <HrButton
           colors={colors}
@@ -194,13 +205,46 @@ export default function HrCompliance({
                   updatedAt: new Date().toISOString(),
                 };
               });
-              const others = (state.compliance || []).filter((row) => row.employeeId !== activeId);
-              return { compliance: [...others, ...nextRows] };
+              return { compliance: replaceEmployeeCompliance(state.compliance, activeId, nextRows) };
             });
           }}
         />
       ) : null}
     </View>
+  );
+}
+
+/** Kompetanse, opplæring og HMS-introduksjon eies av ISO / K-HMS. HR viser status, men endrer ikke. */
+function IsoCompetenceCard({ colors, iso, onOpenIso }) {
+  const status = iso?.status || 'off';
+  const rows = iso?.rows || [];
+  const valid = rows.filter((row) => row.status === 'gyldig').length;
+  let text = 'Kompetanse, opplæring, HMS-introduksjon og avviksrutine følges opp i ISO / K-HMS → Kompetanse.';
+  if (status === 'loading') text = 'Henter kompetansen fra ISO …';
+  if (status === 'error') text = 'Fikk ikke hentet kompetansen fra ISO. Åpne Kompetanse i ISO for å se den.';
+  if (status === 'ready') {
+    text = rows.length
+      ? `${valid} av ${rows.length} krav er gyldige. Krav og bevis registreres i ISO.`
+      : 'Ingen kompetansekrav i ISO gjelder denne personen ennå.';
+  }
+  return (
+    <HrCard colors={colors}>
+      <View nativeID="hr-compliance-iso">
+        <HrSectionTitle colors={colors} title="Kompetanse og opplæring" subtitle="Fra ISO / K-HMS" />
+        <Text style={[styles.itemHint, { color: colors.muted }]}>{text}</Text>
+        {status === 'ready' ? rows.map((row) => (
+          <View key={row.id} style={[styles.isoRow, { borderColor: colors.line }]}>
+            <Text style={[styles.itemTitle, { color: colors.ink, flex: 1 }]}>{row.title}</Text>
+            <Text style={[styles.itemHint, { color: row.status === 'gyldig' ? colors.muted : colors.danger }]}>
+              {`${ISO_STATUS[row.status] || row.status}${row.validTo ? ` · til ${formatNbDate(row.validTo)}` : ''}`}
+            </Text>
+          </View>
+        )) : null}
+        {onOpenIso ? (
+          <HrButton colors={colors} label="Åpne Kompetanse i ISO" icon="school-outline" onPress={onOpenIso} />
+        ) : null}
+      </View>
+    </HrCard>
   );
 }
 
@@ -211,4 +255,8 @@ const styles = StyleSheet.create({
   item: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
   itemTitle: { fontSize: 14, fontWeight: '600' },
   itemHint: { fontSize: 12, lineHeight: 17 },
+  isoRow: {
+    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, marginTop: 8,
+  },
 });

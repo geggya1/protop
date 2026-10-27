@@ -8,7 +8,6 @@ import { parseHours } from '../arbeid/hours.js';
 import {
   addDays,
   intensityOf,
-  isActiveProject,
   mondayKey,
   projectLabel,
   round1,
@@ -28,6 +27,8 @@ export const TIMELINE_ZOOMS = [
 export const RECENT_WEEKS = 4;
 /** Dager frem som teller som «slutter snart». */
 export const ENDING_SOON_DAYS = 90;
+/** Måneder uten timer før et prosjekt legger seg i skuffen. */
+export const ACTIVE_MONTHS = 2;
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
 
@@ -106,6 +107,47 @@ export function phaseLabel(project) {
   const phase = projectPhaseOf(project);
   if (project?.status === 'arkivert') return 'Arkivert';
   return PROJECT_STATUS_FILTERS.find((row) => row.id === phase)?.label || 'Planlegging';
+}
+
+/** Samme dag et antall måneder frem eller tilbake. Siste dag i måneden når dagen ikke finnes. */
+export function addMonthsKey(iso, deltaMonths) {
+  const parts = partsOf(iso);
+  if (!parts) return '';
+  const idx = monthIndex(parts[0], parts[1]) + Math.round(Number(deltaMonths) || 0);
+  const year = Math.floor(idx / 12);
+  const month = (idx % 12) + 1;
+  const day = Math.min(parts[2], daysInMonth(year, month));
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Første dato som teller som aktivitet: i dag minus ACTIVE_MONTHS. */
+export function activityCutoff(today = toDateKey(new Date())) {
+  return addMonthsKey(today, -ACTIVE_MONTHS);
+}
+
+function isClosed(project) {
+  return project?.status === 'arkivert' || projectPhaseOf(project) === 'avsluttet';
+}
+
+/**
+ * Øverst eller i skuffen.
+ * Timer siste ACTIVE_MONTHS måneder gir alltid øverst.
+ * Uten timer: start og slutt der slutt ikke er passert gir øverst, så lenge prosjektet ikke er avsluttet.
+ * Alt annet (bare start, ingen datoer, slutt passert) legger seg i skuffen.
+ */
+export function rowPlacement({ project, span, lastWorked = '', today = toDateKey(new Date()) } = {}) {
+  const cutoff = activityCutoff(today);
+  if (lastWorked && lastWorked >= cutoff && lastWorked <= today) return { active: true, reason: 'timer' };
+  if (!isClosed(project) && span?.start && span?.end && span.end >= today) return { active: true, reason: 'periode' };
+  return { active: false, reason: isClosed(project) ? 'lukket' : 'stille' };
+}
+
+export function placementLabel(row) {
+  const reason = row?.placement?.reason;
+  if (reason === 'timer') return `Aktiv · timer siste ${ACTIVE_MONTHS} måneder`;
+  if (reason === 'periode') return `Aktiv · planlagt periode til ${formatDay(row.span.end)}`;
+  if (reason === 'lukket') return `Deaktivert · ${row.phase.toLowerCase()} og ingen timer siste ${ACTIVE_MONTHS} måneder`;
+  return `Deaktivert · ingen timer siste ${ACTIVE_MONTHS} måneder og ingen pågående periode`;
 }
 
 function monthIndex(year, month) {
@@ -286,8 +328,9 @@ function sortKey(row) {
 }
 
 /**
- * Rader for prosjektfremdrift, delt i aktive og avsluttede/arkiverte.
+ * Rader for prosjektfremdrift, delt i aktive og deaktiverte (skuffen), se rowPlacement.
  * Sortert på planlagt start, prosjekter uten start til slutt.
+ * Timeføringene må dekke minst siste ACTIVE_MONTHS måneder, se hoursRangeFor.
  */
 export function timelineRows({
   projects = [],
@@ -298,7 +341,8 @@ export function timelineRows({
   hoursFrom = '',
 } = {}) {
   const list = (projects || []).filter((row) => row?.id && !row.deletedAt);
-  const hours = projectWeekHours(timeEntries, list, { from: hoursFrom, to: today });
+  const all = projectWeekHours(timeEntries, list, { to: today });
+  const hours = hoursFrom ? projectWeekHours(timeEntries, list, { from: hoursFrom, to: today }) : all;
   const recentFrom = addDays(mondayKey(today), -7 * (RECENT_WEEKS - 1));
   const rows = list
     .filter((project) => matchesQuery(project, query))
@@ -308,14 +352,19 @@ export function timelineRows({
       for (const [key, value] of worked.weeks) {
         if (key >= recentFrom && key <= today) recentHours += value;
       }
+      const span = plannedSpan(project, contracts);
+      const lastActivity = all.get(project.id)?.last || '';
+      const placement = rowPlacement({ project, span, lastWorked: lastActivity, today });
       return {
         id: project.id,
         project,
         label: projectLabel(project),
         client: text(project.client),
         phase: phaseLabel(project),
-        active: isActiveProject(project),
-        span: plannedSpan(project, contracts),
+        active: placement.active,
+        placement,
+        span,
+        lastActivity,
         weeks: worked.weeks,
         totalHours: worked.total,
         firstWorked: worked.first,
@@ -360,10 +409,12 @@ export function quarterBands(months) {
   return bands;
 }
 
-/** Timer som trengs for vinduet: fra vinduets start (og siste uker) til i dag. */
+/** Timer som trengs: fra vinduets start, og alltid siste ACTIVE_MONTHS måneder, til i dag. */
 export function hoursRangeFor(months, today = toDateKey(new Date())) {
   const range = windowRange(months);
   const recent = addDays(mondayKey(today), -7 * RECENT_WEEKS);
-  const from = range.from && range.from < recent ? range.from : recent;
+  const cutoff = activityCutoff(today);
+  const earliest = recent < cutoff ? recent : cutoff;
+  const from = range.from && range.from < earliest ? range.from : earliest;
   return { fromDate: from, toDate: today };
 }

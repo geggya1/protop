@@ -95,21 +95,13 @@ function seriesCode(series) {
   return (series?.codes || []).find((code) => String(code).includes('.')) || '';
 }
 
-function termNotes(draft) {
-  const terms = draft.terms || {};
-  const notes = [];
-  if (terms.baseRule === 'contract') notes.push('Basismåneden er kontraktsdatoen.');
-  if (terms.baseRule === 'offer') notes.push('Basismåneden er tilbudsdatoen.');
-  if (terms.thresholdPercent) notes.push(`Terskel: endring under ${terms.thresholdPercent} % reguleres ikke.`);
-  if (terms.capPercent) notes.push(`Tak: endringen kan ikke overstige ${terms.capPercent} %.`);
-  if (terms.frequency === 'quarter') notes.push('Avtalt intervall: kvartalsvis.');
-  if (terms.frequency === 'year') notes.push('Avtalt intervall: årlig.');
-  if (terms.frequency === 'once') notes.push('Avtalt intervall: engangsregulering.');
-  if (terms.roundToKrone) notes.push('Beløpet er avrundet til nærmeste krone.');
-  (terms.variables || []).forEach((row) => {
-    if (row?.name && row?.value) notes.push(`${row.name}: ${row.value}`);
-  });
-  return notes;
+/** «NS 8403» og «NS 8403 Byggelederoppdrag» skal stå én gang. */
+function standardText(code, label) {
+  const short = String(code || '').trim();
+  const long = String(label || '').trim();
+  if (!long) return short;
+  if (!short || long.toLowerCase().startsWith(short.toLowerCase())) return long;
+  return `${short} ${long}`;
 }
 
 export function buildLetter(draft, result, options = {}) {
@@ -156,7 +148,7 @@ export function buildLetter(draft, result, options = {}) {
     rows: [
       [cell('Avtalenavn', 1, true), cell(draft.title || ''), cell('Prosjektnummer', 1, true), cell(draft.reference || '')],
       [cell('Eksternt PO-nr.', 1, true), cell(draft.poNumber || ''), cell('Kontraktsdato', 1, true), cell(contractDate)],
-      [cell('Generelle bestemmelser', 1, true), cell(draft.standard || ''), cell(result.standard?.label || '', 2)],
+      [cell('Generelle bestemmelser', 1, true), cell(standardText(draft.standard, result.standard?.label), 3)],
       ...(draft.address || draft.place ? [[cell('Oppdragssted', 1, true), cell([draft.address, draft.place].filter(Boolean).join(', '), 3)]] : []),
       [cell('Oppdragstaker', 1, true), cell(supplier), cell('Organisasjonsnr.', 1, true), cell(formatOrgnr(draft.supplierOrgnr))],
       ...(priced.description ? [[cell('Avtalt honorar', 1, true), cell(priced.description, 3)]] : []),
@@ -193,11 +185,10 @@ export function buildLetter(draft, result, options = {}) {
     title,
     intro: `Vi varsler herved om indeksregulering av priser i tråd med foreliggende avtale. Indeksreguleringen er basert på siste kjente prisindeks fra når tilbudet ble gitt iht. Statistisk sentralbyrå (SSB) tabell ${tableNo}, som er regulert frem til den siste kjente indeksen pr. dags dato.`,
     sections: [party, agreement, ...regulationRows],
+    // Avtalevilkår og varsler fra beregningen hører til saksbehandlingen, ikke brevet til kunden.
     notes: [
-      ...termNotes(draft),
       ...(model.id === 'engang' ? [] : [`${model.label}. ${model.formula}.`]),
       ...(draft.freeText ? [String(draft.freeText).trim()] : []),
-      ...(result.warnings || []),
       draft.model === 'husleie'
         ? 'Dette er skriftlig varsel etter husleieloven § 4-2. Endringen kan ikke settes høyere enn KPI, og kan tidligst virke ett år etter siste leiefastsetting og én måned etter at varselet er kommet fram.'
         : '',

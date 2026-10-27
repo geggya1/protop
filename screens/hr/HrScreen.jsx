@@ -22,6 +22,7 @@ import HrHandbook from './HrHandbook';
 import HrForms from './HrForms';
 import { useFormContext } from '../anbud/useFormContext';
 import { useKinTasks } from './useKinTasks';
+import { useIsoCompetence } from './useIsoCompetence';
 
 function periodWindow(months = 3) {
   const to = new Date();
@@ -38,7 +39,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const { isPhone } = useLayout();
   const nav = useNavigation();
   const {
-    familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
+    family, familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
   } = useApp();
   const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
   const access = useCompanyAccess();
@@ -212,6 +213,22 @@ export default function HrScreen({ subView = 'oversikt' }) {
     draft,
   }), [familyId, uid, assigneeName]);
 
+  // Kompetanse og opplæring eies av ISO. Personens «Lovpålagt»-fane viser status derfra.
+  const canSeeIso = typeof access.canView === 'function' && access.canView('iso');
+  const isoEmployee = useMemo(
+    () => employees.find((row) => row.id === selectedEmployeeId) || null,
+    [employees, selectedEmployeeId],
+  );
+  const isoCompetence = useIsoCompetence({
+    companyId: familyId,
+    uid,
+    employee: isoEmployee,
+    enabled: canSeeIso && page === 'personell' && employeeSheet === 'compliance' && !!selectedEmployeeId,
+    family,
+    employees: access.employees,
+  });
+  const openIsoCompetence = useCallback(() => requestShellTab?.('iso', 'kompetanse'), [requestShellTab]);
+
   const saveSalaries = useCallback((salariesOrFn) => onPatch((state) => ({
     salaries: typeof salariesOrFn === 'function'
       ? salariesOrFn(state.salaries || [])
@@ -242,6 +259,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
           assigneeName={assigneeName}
           onOpenTask={openLinkedTask}
           onCreateFollowUpTask={createTask}
+          isoCompetence={isoCompetence}
+          onOpenIso={canSeeIso ? openIsoCompetence : null}
         />
       );
     }
@@ -323,6 +342,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
     openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
+    isoCompetence, canSeeIso, openIsoCompetence,
   ]);
 
   if (access.active && access.ready && !canSee) {

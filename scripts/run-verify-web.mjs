@@ -49,6 +49,8 @@ export const FILES = [
   'src/economy/productSalesView.test.mjs',
   'src/economy/productSalesImport.test.mjs',
   'src/economy/productSalesStorage.test.mjs',
+  'src/economy/productCatalog.test.mjs',
+  'screens/economy/productDetailRender.test.cjs',
   'src/economy/powerOfficeView.test.mjs',
   'src/arbeid/productSalesList.test.mjs',
   'src/arbeid/absenceDashboard.test.mjs',

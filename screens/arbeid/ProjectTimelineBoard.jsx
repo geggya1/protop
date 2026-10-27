@@ -5,12 +5,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { INTENSITY_SCALE, addDays, formatHours, toDateKey } from '../../src/capacity/plan';
 import {
+  ACTIVE_MONTHS,
   RECENT_WEEKS,
   TIMELINE_ZOOMS,
   activitySegments,
   formatDay,
   hoursRangeFor,
   monthWindow,
+  placementLabel,
   quarterBands,
   shiftAnchor,
   spanPlacement,
@@ -248,13 +250,14 @@ function Detail({ row, colors, hoursFrom }) {
     ? `${formatDay(span.start) || '?'} – ${formatDay(span.end) || '?'}`
     : 'Ingen datoer på prosjekt eller avtale';
   const lines = [
+    { label: 'Plassering', value: placementLabel(row) },
     { label: 'Planlagt', value: planned },
     source ? { label: 'Kilde', value: span.contractTitle && source !== 'Prosjekt' ? `${source} · ${span.contractTitle}` : source } : null,
     span.optionEnd ? { label: 'Opsjon / forlengelse', value: `til ${formatDay(span.optionEnd)}` } : null,
     {
       label: 'Utført',
       value: row.totalHours > 0
-        ? `${formatHours(row.totalHours)} t siden ${formatDay(hoursFrom)} · siste føring ${formatDay(row.lastWorked)}`
+        ? `${formatHours(row.totalHours)} t siden ${formatDay(hoursFrom)} · siste føring ${formatDay(row.lastActivity || row.lastWorked)}`
         : `Ingen timer siden ${formatDay(hoursFrom)}`,
     },
     { label: `Siste ${RECENT_WEEKS} uker`, value: `${formatHours(row.recentHours)} t` },
@@ -392,7 +395,7 @@ export default function ProjectTimelineBoard({
       </View>
 
       <View style={styles.stats}>
-        <Stat colors={colors} label="Aktive prosjekter" value={String(stats.active)} hint={`${groups.inactive.length} avsluttet eller arkivert`} />
+        <Stat colors={colors} label="Aktive prosjekter" value={String(stats.active)} hint={`${groups.inactive.length} deaktivert i skuffen`} />
         <Stat colors={colors} label="Aktivitet nå" value={String(stats.working)} hint={`Timer siste ${RECENT_WEEKS} uker`} />
         <Stat colors={colors} label="Avtalt slutt snart" value={String(stats.endingSoon)} hint="Innen 3 måneder" />
         <Stat colors={colors} label="Mangler periode" value={String(stats.missing)} hint="Uten start eller slutt" />
@@ -456,9 +459,14 @@ export default function ProjectTimelineBoard({
                   nativeID="fremdrift-drawer"
                 >
                   <Ionicons name={showDone ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.ink} />
-                  <Text style={[styles.drawerText, { color: colors.ink }]}>
-                    {`Avsluttede og arkiverte prosjekter (${groups.inactive.length})`}
-                  </Text>
+                  <View style={styles.drawerTexts}>
+                    <Text style={[styles.drawerText, { color: colors.ink }]}>
+                      {`Deaktiverte prosjekter (${groups.inactive.length})`}
+                    </Text>
+                    <Text style={[styles.drawerHint, { color: colors.muted }]}>
+                      {`Ingen timer siste ${ACTIVE_MONTHS} måneder, og ingen planlagt sluttdato frem i tid`}
+                    </Text>
+                  </View>
                 </Pressable>
                 {showDone ? <Group rows={groups.inactive} {...shared} /> : null}
               </>
@@ -516,7 +524,9 @@ const styles = StyleSheet.create({
   detailLabel: { fontSize: 12, fontWeight: '600', minWidth: 120 },
   detailValue: { fontSize: 12, flexShrink: 1 },
   drawer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
+  drawerTexts: { flex: 1, gap: 1 },
   drawerText: { fontSize: 13, fontWeight: '700' },
+  drawerHint: { fontSize: 11 },
   empty: { padding: 16, gap: 6 },
   emptyTitle: { fontSize: 16, fontWeight: '700' },
   emptySub: { fontSize: 13, lineHeight: 18 },

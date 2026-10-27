@@ -26,6 +26,15 @@ import {
 import { normalizeInviteState } from './invite.js';
 import { normalizeUsageSummary } from './usage.js';
 
+// Én definisjon av aktiv ansatt. Ligger i egen fil uten avhengigheter, så tilgang
+// (companyAccess) og Cloud Functions kan bruke den uten å laste hele modellen.
+export {
+  employmentClosed,
+  employmentEndDate,
+  employmentState,
+  isActiveEmployee,
+} from './employmentState.js';
+
 const DATE_PATHS = ['person.birthDate', 'company.periodFrom', 'company.periodTo'];
 const EMAIL_PATHS = ['person.email', 'company.email', 'person.kinEmail'];
 const PHONE_PATHS = ['person.phone', 'person.kinPhone'];

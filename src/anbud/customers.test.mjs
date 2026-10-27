@@ -506,6 +506,21 @@ const activeRoster = agreementResponsiblePeople(
   ],
 );
 assert.deepEqual(activeRoster.map((row) => row.uid).sort(), ['e1', 'e3', 'm1']);
+// Deaktivert ansatt som fortsatt er medlem: treffes via personUid (ikke ansatt-id).
+const linkedRoster = agreementResponsiblePeople(
+  [
+    { uid: 'u-ola', name: 'Ola Sluttet', role: 'parent' },
+    { uid: 'u-kari', name: 'Kari Aktiv', role: 'parent' },
+    { uid: 'u-per', name: 'Per Begge', role: 'parent' },
+  ],
+  [
+    { id: 'emp-ola', personUid: 'u-ola', company: { status: 'inactive' }, person: { firstName: 'Ola', lastName: 'Sluttet' } },
+    { id: 'emp-kari', personUid: 'u-kari', company: { status: 'active' }, person: { firstName: 'Kari', lastName: 'Aktiv' } },
+    { id: 'emp-per-gml', personUid: 'u-per', company: { status: 'deleted' }, person: { firstName: 'Per', lastName: 'Begge' } },
+    { id: 'emp-per', personUid: 'u-per', company: { status: 'active' }, person: { firstName: 'Per', lastName: 'Begge' } },
+  ],
+);
+assert.deepEqual(linkedRoster.map((row) => row.uid).sort(), ['u-kari', 'u-per']);
 assert.equal(isActiveEmployee({ company: { status: 'inactive' } }), false);
 assert.equal(isActiveEmployee({ company: { status: 'active' } }), true);
 

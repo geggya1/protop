@@ -8,6 +8,8 @@
  * Høyere trinn inkluderer de under.
  */
 
+import { employmentState, isActiveEmployee } from '../employees/employmentState.js';
+
 export const ACCESS_RANKS = ['none', 'see', 'read', 'write', 'delete'];
 
 const RANK_VALUE = { none: 0, see: 1, read: 2, write: 3, delete: 4 };
@@ -1012,15 +1014,9 @@ export function alignCompanyEmployment(company) {
   return next;
 }
 
-function employmentStatus(employee) {
-  return String(employee?.company?.status || 'active');
-}
-
 export function grantsForEmployee(policy, employee) {
-  const status = employmentStatus(employee);
-  if (status === 'inactive' || status === 'deleted' || status === 'former') {
-    return blankGrants();
-  }
+  // Deaktivert, i papirkurven eller sluttdato passert: ingen rettigheter.
+  if (!isActiveEmployee(employee)) return blankGrants();
   const ids = employeeLevelIds(employee);
   const base = ids.length
     ? grantsForLevelIds(policy, ids)
@@ -1041,12 +1037,14 @@ export function resolveActorAccess({ policy, employees, uid, bypass = false } = 
       bypass: true,
     };
   }
-  const linked = (employees || []).find((row) => (
-    row?.personUid
-    && row.personUid === uid
-    && employmentStatus(row) !== 'deleted'
-  )) || null;
-  if (linked && (employmentStatus(linked) === 'inactive' || employmentStatus(linked) === 'former')) {
+  const own = (employees || []).filter((row) => row?.personUid && row.personUid === uid);
+  // En aktiv ansettelse vinner over en gammel. Finnes bare avsluttede (deaktivert, sluttdato
+  // passert eller papirkurv), gis ingen rettigheter – ikke standardnivået «Ansatt».
+  const linked = own.find((row) => isActiveEmployee(row))
+    || own.find((row) => employmentState(row) !== 'deleted')
+    || own[0]
+    || null;
+  if (linked && !isActiveEmployee(linked)) {
     const grants = blankGrants();
     return {
       levelId: '',
@@ -1056,6 +1054,7 @@ export function resolveActorAccess({ policy, employees, uid, bypass = false } = 
       customized: false,
       hoursOnAssignedOnly: false,
       bypass: false,
+      closed: employmentState(linked),
     };
   }
   const ids = linked ? employeeLevelIds(linked) : [];
@@ -1074,9 +1073,9 @@ export function resolveActorAccess({ policy, employees, uid, bypass = false } = 
   };
 }
 
+/** Deaktivert, i papirkurven eller sluttdato passert (samme som isActiveEmployee). */
 export function accountDeactivated(employee) {
-  const status = employmentStatus(employee);
-  return status === 'inactive' || status === 'deleted' || status === 'former';
+  return !isActiveEmployee(employee);
 }
 
 export function parseDropId(value) {
@@ -1454,7 +1453,7 @@ export function grantsForViewAs(actorGrants, targetGrants, scope) {
 export function resolveViewAsAccess({ actor, targetEmployee, policy, lens = 'all' } = {}) {
   const bypass = !!actor?.bypass;
   const capability = viewAsCapability(actor?.grants, { bypass });
-  const alive = !!targetEmployee && employmentStatus(targetEmployee) !== 'deleted';
+  const alive = !!targetEmployee && employmentState(targetEmployee) !== 'deleted';
   const scope = alive ? effectiveViewAsScope(capability, lens) : 'none';
   if (scope === 'none') {
     return {

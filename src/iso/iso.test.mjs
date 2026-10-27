@@ -614,3 +614,49 @@ test('godkjenning krever ikke Admin: Begrenset redigering + ledende rolle holder
   assert.equal(canCloseFinding(kv, { restricted: false }), true);
   assert.ok(Object.values(ROLE_MIN_ISO).every((n) => n <= 2), 'ingen rolle krever Admin');
 });
+
+test('avvik: klokkeslett, vedlegg og faser i listen', async () => {
+  const F = await import('./findings.js');
+  const A = await import('./analytics.js');
+  const photo = { label: 'stillas.jpg', url: 'https://x/stillas.jpg', path: 'families/c/iso/findings/k/1-stillas.jpg', contentType: 'image/jpeg', size: 2048, kind: 'fil' };
+  const f = reportedFinding({ occurredTime: '7:05', attachments: [photo, { label: '' }] });
+  assert.equal(f.occurredTime, '07:05');
+  assert.equal(f.attachments.length, 1, 'tomme vedlegg forkastes');
+  assert.equal(F.isImageAttachment(f.attachments[0]), true);
+  assert.equal(createFinding({ type: 'prosess', title: 'x', description: 'y', occurredTime: '25:00' }, { actor: ANNE, now }).ok, false);
+
+  assert.equal(F.findingPhase(f), 'ny');
+  const tri = triageFinding(f, { severity: 'middels', assigneeName: PER.name, assigneeUid: PER.uid, dueAt: '2026-10-01' }, { actor: BOSS, now }).finding;
+  assert.equal(F.findingPhase(tri), 'behandling');
+  assert.equal(F.isFindingOverdue(tri, now), true);
+
+  const more = F.addFindingAttachments(tri, [{ label: 'rapport.pdf', url: 'https://x/r.pdf', contentType: 'application/pdf', kind: 'fil' }], { actor: BOSS, now });
+  assert.equal(more.ok, true, more.error);
+  assert.equal(more.finding.attachments.length, 2);
+  assert.match(more.finding.history.at(-1).action, /Vedlegg lagt til/);
+  const less = F.removeFindingAttachment(more.finding, 0, { actor: BOSS, now });
+  assert.deepEqual(less.finding.attachments.map((a) => a.label), ['rapport.pdf']);
+
+  let g = assessFinding(tri, { correctiveRequired: true }, { actor: BOSS, now }).finding;
+  g = addAction(g, { title: 'Oppdater rutine', ownerName: PER.name, ownerUid: PER.uid, dueAt: '2026-10-10' }, { actor: BOSS, now }).finding;
+  assert.deepEqual(F.actionProgress(g), { done: 0, total: 1 });
+  assert.equal(F.hasOverdueAction(g, now), true);
+
+  const closed = { ...reportedFinding(), id: 'c1', state: 'lukket', reportedAt: '2026-09-01T10:00:00Z', closedAt: '2026-09-11T10:00:00Z' };
+  const old = { ...reportedFinding(), id: 'c2', state: 'lukket', reportedAt: '2024-01-01T10:00:00Z', closedAt: '2024-02-01T10:00:00Z' };
+  const sum = A.findingSummary([f, g, closed, old], now);
+  assert.deepEqual(sum.nye.ids, [f.id]);
+  assert.deepEqual(sum.behandling.ids, [g.id]);
+  assert.equal(sum.behandling.late, 1, 'saksfristen er passert');
+  assert.deepEqual(sum.closed.ids, ['c1'], 'bare lukket siste 12 måneder');
+  assert.equal(sum.closed.avgDays, 10);
+  assert.equal(sum.actions.count, 1);
+  assert.equal(sum.actions.late, 1);
+
+  const hms = reportedFinding({ type: 'nestenulykke', occurredAt: '2026-10-02' });
+  const months = A.findingsPerMonth([f, hms], { months: 12, now });
+  assert.equal(months.length, 12);
+  assert.equal(months.at(-1).key, '2026-10');
+  assert.equal(months.at(-1).avvik + months.at(-1).hms, 2);
+  assert.deepEqual(A.findingsByType([f, g, hms]).map((r) => [r.id, r.value]), [['prosess', 2], ['nestenulykke', 1]]);
+});

@@ -568,7 +568,7 @@ export const ASSISTANT_TASKS = [
     intro: tx('Avvik meldes i ISO / K-HMS — «Meld avvik» er alltid ett trykk unna.', 'Deviations are reported in ISO / QHSE — “Report deviation” is always one tap away.'),
     steps: [
       s(tx('Meld avvik', 'Report deviation'), 'Gå til ISO / K-HMS → Avvik og forbedring (eller Oversikt) og trykk «Meld avvik».', 'Go to ISO / QHSE → Deviations and improvement (or Overview) and tap “Report deviation”.', gate('iso.avvik', 0)),
-      s(tx('Fyll ut', 'Fill in'), 'Velg type, skriv «Tittel» (kort hva som skjedde) og «Beskrivelse» med fakta. Sett dato, prosjekt og sted. Ikke legg inn helseopplysninger.', 'Pick the type, write the “Title” (briefly what happened) and a factual “Description”. Set the date, project and place. Don’t add health information.', gate('iso.avvik', 0)),
+      s(tx('Fyll ut', 'Fill in'), 'Velg type, skriv «Tittel» (kort hva som skjedde) og «Hva skjedde» med fakta. Sett når og hvor, og legg ved bilder. Ikke legg inn helseopplysninger.', 'Pick the type, write the “Title” (briefly what happened) and a factual “What happened”. Set when and where, and attach photos. Don’t add health information.', gate('iso.avvik', 0)),
       s(tx('Send inn', 'Send'), 'Trykk «Send inn». Ansvarlig vurderer saken og lager tiltak, som blir oppgaver i Oppgaver.', 'Tap “Send”. The person responsible assesses the case and creates actions, which become tasks in Tasks.'),
     ],
     show: [at('iso.avvik', 0)],

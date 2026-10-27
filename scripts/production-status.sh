@@ -147,7 +147,11 @@ else
 fi
 line ""
 
-# 8. Push: resultatet av testvarsler siste døgn («Send testvarsel» i profilen).
+# 8. Bedriftsinvitasjoner som venter: om personen får dem i appen (e-post maskert).
+GCLOUD_TOKEN="$(gcloud auth print-access-token 2>/dev/null)" PROJECT="$PROJECT" node "$ROOT/scripts/invite-status.mjs"
+line ""
+
+# 9. Push: resultatet av testvarsler siste døgn («Send testvarsel» i profilen).
 # Bare antall og grunn fra feltet push på varselet; ikke innhold eller hvem.
 line "## Push (testvarsler siste døgn)"
 token="$(gcloud auth print-access-token 2>/dev/null)"

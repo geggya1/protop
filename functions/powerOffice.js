@@ -15,7 +15,9 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { assertFamilyAdmin, assertFamilyMember, assertRateLimit, hashRateKey } from './security.js';
 import { resolveRuntimeSecret } from './runtimeSecret.js';
-import { createPowerOfficeClient, POWEROFFICE_ENVS, PowerOfficeError } from './powerOfficeApi.js';
+import {
+  createPowerOfficeClient, findClientEnvironment, POWEROFFICE_ENVS, PowerOfficeError,
+} from './powerOfficeApi.js';
 import { normalizeProductCodes } from './powerOfficeMap.js';
 import { syncInvoices, transferInvoice } from './powerOfficeSync.js';
 
@@ -144,15 +146,14 @@ export const powerOfficeConnect = onCall(CALL, async (request) => {
 
   const clientKey = String(request.data?.clientKey || '').trim();
   if (clientKey) {
-    const env = String(request.data?.env || 'demo');
-    if (!POWEROFFICE_ENVS[env]) throw new HttpsError('invalid-argument', 'Velg demo eller produksjon.');
     if (!/^[0-9a-f-]{32,40}$/i.test(clientKey)) {
       throw new HttpsError('invalid-argument', 'Klientnøkkelen ser ikke riktig ut.');
     }
+    // Miljøet (produksjon eller testklient) følger av nøkkelen. Brukeren velger det ikke.
+    let env;
     let info;
     try {
-      const client = createPowerOfficeClient({ env, clientKey, ...(await envKeys(env)) });
-      info = await client.request('GET', '/ClientIntegrationInformation');
+      ({ env, info } = await findClientEnvironment(clientKey, { keysFor: envKeys }));
     } catch (err) {
       throw toHttpsError(err, 'connect');
     }
@@ -169,7 +170,7 @@ export const powerOfficeConnect = onCall(CALL, async (request) => {
     const previous = await readStatus(db, familyId);
     // Ny klient: kundekoblinger og synkmarkør gjelder den gamle klienten.
     if (previous.clientId && previous.clientId !== update.clientId) {
-      update.customers = {};
+      update.customers = FieldValue.delete();
       update.balanceCursor = '';
     }
   }

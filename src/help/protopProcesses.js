@@ -210,8 +210,8 @@ export const PROTOP_PROCESSES = {
     keywords: ['iso', 'ledelsessystem', 'kvalitetssystem', 'k-hms', 'hmsk', 'internkontroll', 'kom i gang', 'årshjul'],
     steps: [
       flowStep('iso.innstillinger', tx('Sett opp eller importer', 'Set up or import'),
-        'I Innstillinger: velg standarder, omfang og ISO-roller, eller «Importer ledelsessystem» fra en pakke. Alt legges inn som utkast til godkjenning.',
-        'In Settings: choose standards, scope and ISO roles, or “Import management system” from a package. Everything goes in as drafts for approval.',
+        'I Innstillinger: velg standarder, omfang og ISO-roller, eller «Importer ledelsessystem» fra en pakke. Enkeltfiler går også: «Importer fra Word» i Dokumenter, «Importer fra Visio» i Prosesser og «Excel» på hvert register. Alt legges inn som utkast til godkjenning.',
+        'In Settings: choose standards, scope and ISO roles, or “Import management system” from a package. Single files work too: “Import from Word” in Documents, “Import from Visio” in Processes and “Excel” on each register. Everything goes in as drafts for approval.',
         { find: ['Importer ledelsessystem', 'Sett opp ledelsessystemet'] }),
       flowStep('iso.dokumenter', tx('Godkjenn dokumentene', 'Approve the documents'),
         'Les policyer og prosedyrer, rett det som må rettes, og «Godkjenn og publiser». Krev lesebekreftelse der de ansatte må bekrefte.',

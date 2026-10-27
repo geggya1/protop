@@ -76,7 +76,7 @@ import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import InvoicePage from './invoice/InvoicePage';
 import { DeleteDraftDialog, PaymentDialog } from './invoice/InvoiceDialogs';
 import { deleteDraft, payment } from './invoice/invoiceActions';
-import PowerOfficePanel from './PowerOfficePanel';
+import PowerOfficeSyncLine from './PowerOfficeSyncLine';
 import { loadPowerOfficeStatus, transferInvoiceToPowerOffice } from '../../src/economy/powerOfficeClient.js';
 import { isCreditNote, isDraftInvoice } from '../../src/economy/invoiceFlow.js';
 import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings.js';
@@ -1060,7 +1060,7 @@ export default function EconomyInvoices({
       </View>
 
       {canManage && familyId ? (
-        <PowerOfficePanel familyId={familyId} colors={colors} status={poStatus} onStatus={setPoStatus} />
+        <PowerOfficeSyncLine familyId={familyId} colors={colors} status={poStatus} onStatus={setPoStatus} />
       ) : null}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}

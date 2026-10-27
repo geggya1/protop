@@ -81,11 +81,14 @@ export function HrButton({ colors, label, onPress, icon, primary, danger, disabl
   );
 }
 
-export function HrField({ colors, label, value, onChangeText, placeholder, multiline, keyboardType }) {
+export function HrField({
+  colors, label, value, onChangeText, placeholder, multiline, keyboardType, autoFocus,
+}) {
   return (
     <View style={styles.field}>
       {label ? <Text style={[styles.fieldLabel, { color: colors.muted }]}>{label}</Text> : null}
       <TextInput
+        autoFocus={!!autoFocus}
         value={value ?? ''}
         onChangeText={onChangeText}
         placeholder={placeholder || ''}

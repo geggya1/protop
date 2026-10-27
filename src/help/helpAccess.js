@@ -43,7 +43,7 @@ export const PAGE_ACCESS = {
   'selskap.kontoplan': { res: 'economySettings', steps: [W, W, W] },
 
   ansatte: { res: 'employees', steps: [R, R, W, S] },
-  'hr.oversikt': { res: 'hr', steps: [S, S, R, S, S] },
+  'hr.oversikt': { res: 'hr', steps: [S, S, S, S, R, S, S] },
   'hr.personell': { res: 'hrPeople', steps: [S, S] },
   'hr.avtaler': { res: 'hrAgreements', steps: [S, R, R] },
   'hr.lonn': { res: 'hrPayroll', steps: [S, R] },
@@ -102,7 +102,7 @@ export const PAGE_ACCESS = {
   'iso.mal': { res: 'iso', steps: [R, R] },
   'iso.arshjul': { res: 'iso', steps: [R, R, R] },
   'iso.avvik': { res: 'iso', steps: [S, R, R, W] },
-  'iso.risiko': { res: 'iso', steps: [R, S] },
+  'iso.risiko': { res: 'iso', steps: [R, W, S] },
   'iso.miljo': { res: 'iso', steps: [R, R] },
   'iso.hms': { res: 'iso', steps: [S, R, S] },
   'iso.prosjekt': { res: 'iso', steps: [S, R] },

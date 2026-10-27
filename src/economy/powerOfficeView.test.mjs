@@ -44,7 +44,7 @@ assert.equal(canTransferToPowerOffice({ ...draft, status: 'sent', exportStatus: 
 
 assert.equal(powerOfficeSummary(draft), null);
 const pending = powerOfficeSummary(transferred);
-assert.equal(pending.title, 'Overført til PowerOffice (demo)');
+assert.equal(pending.title, 'Overført til PowerOffice (testklient)');
 assert.match(pending.lines[0], /Utkast nr\. 12 venter/);
 
 const sent = powerOfficeSummary({

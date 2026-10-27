@@ -78,6 +78,40 @@ export function problemMessage(problem, status) {
   return `PowerOffice svarte ${status || 'uten status'}.`;
 }
 
+/**
+ * Finn hvilket miljø en klientnøkkel hører til. Brukeren skal ikke velge det:
+ * nøkkelen fra Utvidelser i Go virker bare i ett miljø. Produksjon prøves først.
+ * keysFor(env) → { applicationKey, subscriptionKey }. Miljø uten nøkler hoppes over.
+ */
+export async function findClientEnvironment(clientKey, {
+  keysFor,
+  createClient = createPowerOfficeClient,
+  order = ['prod', 'demo'],
+} = {}) {
+  let tried = 0;
+  for (const env of order) {
+    const keys = await keysFor(env);
+    if (!keys?.applicationKey || !keys?.subscriptionKey) continue;
+    tried += 1;
+    const client = createClient({ env, clientKey, ...keys });
+    try {
+      const info = await client.request('GET', '/ClientIntegrationInformation');
+      return { env, client, info };
+    } catch (err) {
+      // Feil nøkkel for dette miljøet: prøv neste.
+      if (err instanceof PowerOfficeError && (err.status === 400 || err.status === 401)) continue;
+      throw err;
+    }
+  }
+  if (!tried) {
+    throw new PowerOfficeError('PowerOffice-nøklene er ikke lagt inn på serveren, eller funksjonene har ikke tilgang til dem.');
+  }
+  throw new PowerOfficeError(
+    'PowerOffice avviste klientnøkkelen. Sjekk at ProTop-integrasjonen er aktivert på klienten, og at hele nøkkelen er kopiert.',
+    { status: 401 },
+  );
+}
+
 export function createPowerOfficeClient({
   env = 'demo',
   applicationKey,

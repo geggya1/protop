@@ -205,9 +205,11 @@ export function Segmented({ colors, options, value, onChange, nativeID, compact 
   );
 }
 
+/** Nøkkeltall. Med expanded (true/false) åpner flisen et panel under seg i stedet for å bytte side. */
 export function KpiTile({
-  colors, icon, accent, label, value, badge, badgeAccent, hint, onPress, ringPct, nativeID,
+  colors, icon, accent, label, value, badge, badgeAccent, hint, onPress, ringPct, nativeID, expanded,
 }) {
+  const toggles = expanded != null;
   return (
     <Pressable
       nativeID={nativeID}
@@ -215,14 +217,22 @@ export function KpiTile({
       disabled={!onPress}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={`${label}: ${value}`}
-      style={[styles.card, styles.kpi, { backgroundColor: colors.card, borderColor: colors.line }]}
+      accessibilityState={toggles ? { expanded: !!expanded } : undefined}
+      style={[
+        styles.card,
+        styles.kpi,
+        { backgroundColor: colors.card, borderColor: expanded ? tint(accent, 0.55) : colors.line },
+      ]}
     >
+      {toggles ? (
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} style={styles.kpiChevron} />
+      ) : null}
       {ringPct != null ? (
         <Ring pct={ringPct} size={52} stroke={6} color={accent} label={`${Math.round(ringPct)}%`} labelColor={colors.ink} labelSize={12} />
       ) : (
         <IconDisc icon={icon} accent={accent} size={48} iconSize={22} />
       )}
-      <View style={styles.kpiText}>
+      <View style={[styles.kpiText, toggles && styles.kpiTextToggle]}>
         <Text style={[styles.kpiLabel, { color: colors.ink }]} numberOfLines={1}>{label}</Text>
         <View style={styles.kpiValueRow}>
           <Text style={[styles.kpiValue, { color: colors.ink }]} numberOfLines={1}>{value}</Text>
@@ -263,7 +273,7 @@ const styles = StyleSheet.create({
   sectionLabelMain: {
     flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 2, flexShrink: 1, minWidth: 0,
   },
-  sectionLabelText: { fontSize: 13, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
+  sectionLabelText: { fontSize: 13, fontWeight: '500', letterSpacing: 0.6, textTransform: 'uppercase' },
   sectionLabelHint: { fontSize: 13, flexShrink: 1 },
   card: {
     flexGrow: 1,
@@ -277,19 +287,19 @@ const styles = StyleSheet.create({
   cardIcon: { marginTop: 1 },
   cardHeadText: { flex: 1, minWidth: 0 },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.2, flexShrink: 1 },
+  cardTitle: { fontSize: 17, fontWeight: '500', letterSpacing: -0.2, flexShrink: 1 },
   cardBadge: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' },
-  cardBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  cardBadgeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
   cardSub: { fontSize: 13, lineHeight: 18, marginTop: 2 },
   cardAction: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 2 },
-  cardActionText: { fontSize: 13, fontWeight: '600' },
+  cardActionText: { fontSize: 13, fontWeight: '500' },
   ringCenter: {
     position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center',
   },
-  ringLabel: { fontWeight: '700' },
+  ringLabel: { fontWeight: '500' },
   disc: { alignItems: 'center', justifyContent: 'center' },
   avatar: { alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontWeight: '700' },
+  avatarText: { fontWeight: '600' },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -300,7 +310,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     maxWidth: '100%',
   },
-  pillText: { fontSize: 12, fontWeight: '600', flexShrink: 1 },
+  pillText: { fontSize: 12, fontWeight: '500', flexShrink: 1 },
   segment: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -322,9 +332,9 @@ const styles = StyleSheet.create({
   segmentOn: Platform.OS === 'web'
     ? { boxShadow: '0 1px 4px rgba(20, 36, 64, 0.12)' }
     : { elevation: 1 },
-  segmentText: { fontSize: 13, fontWeight: '600' },
+  segmentText: { fontSize: 13, fontWeight: '500' },
   segmentCount: { borderRadius: 999, paddingHorizontal: 6, minWidth: 20, alignItems: 'center' },
-  segmentCountText: { fontSize: 11, fontWeight: '700' },
+  segmentCountText: { fontSize: 11, fontWeight: '500' },
   // Smal flis (telefon): teksten legger seg under ikonet i stedet for å kuttes.
   kpi: {
     flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, paddingVertical: 14,
@@ -332,12 +342,14 @@ const styles = StyleSheet.create({
   kpiText: {
     flexGrow: 1, flexShrink: 1, flexBasis: 110, minWidth: 0, gap: 1,
   },
-  kpiLabel: { fontSize: 13, fontWeight: '600' },
+  kpiLabel: { fontSize: 13, fontWeight: '400' },
   kpiValueRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
-  kpiValue: { fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
+  kpiValue: { fontSize: 26, fontWeight: '500', letterSpacing: -0.5 },
   kpiHint: { fontSize: 12 },
+  kpiChevron: { position: 'absolute', top: 12, right: 12 },
+  kpiTextToggle: { paddingRight: 14 },
   more: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'center', paddingVertical: 2 },
-  moreText: { fontSize: 13, fontWeight: '600' },
+  moreText: { fontSize: 13, fontWeight: '500' },
   barTrack: { width: '100%', overflow: 'hidden' },
   barFill: {},
 });

@@ -1,6 +1,6 @@
 # PowerOffice Go — integrasjon for fakturautkast
 
-Sist oppdatert: 27.10.2026
+Sist oppdatert: 27.10.2026 (innstillinger flyttet, miljø fra nøkkelen)
 
 ## Avtalt med PowerOffice
 
@@ -35,7 +35,9 @@ Den gikk 16.–21.10.2026.
 - `IsCreatedByCurrentIntegration` brukes ikke. Når en bruker sender utkastet fra Go, regnes fakturaen
   som brukerens. Vi slår opp på id og referanse.
 - Linjene får produkt etter MVA-sats. Produktet i Go styrer salgskonto og MVA. Admin velger
-  produkt per sats i panelet.
+  produkt per sats under Økonomi → Innstillinger → Regnskapssystem.
+- Miljøet velges ikke. Serveren prøver klientnøkkelen mot produksjon først og deretter mot
+  PowerOffice sitt testmiljø (`findClientEnvironment`). En testklient merkes «Testklient» overalt.
 - Fakturanummer og KID kommer fra PowerOffice. ProTop sitt nummer på utkastet tas vare på i
   `poweroffice.protopInvoiceNumber`. KID-en fra ProTop fjernes ved overføring.
 
@@ -48,9 +50,12 @@ Den gikk 16.–21.10.2026.
 
 ### I appen
 
+Økonomi → Innstillinger → Regnskapssystem: koble til med klientnøkkel, velg produkt per MVA-sats,
+«Synk nå», «Koble fra».
+
 Økonomi → Faktura (bare admin):
-- PowerOffice-panelet øverst viser status, «Synk nå» og innstillinger (klientnøkkel, miljø og produkt
-  per MVA-sats). Listen synker av seg selv når den åpnes, høyst hvert femte minutt.
+- Er bedriften koblet til, viser listen én linje med PowerOffice-status og «Synk nå». Listen synker
+  av seg selv når den åpnes, høyst hvert femte minutt. Uten tilkobling vises ingenting.
 - På et utkast erstatter «Overfør til PowerOffice» knappen «Send faktura» når bedriften er koblet til.
   Etterpå viser fakturaen status fra Go.
 - Finnes ikke utkastet lenger i Go, kan det overføres på nytt etter en bekreftelse. Det får da en ny referanse.
@@ -71,17 +76,22 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
    printf '%s' '<verdi>' | gcloud secrets create POWEROFFICE_DEMO_APPLICATION_KEY --data-file=- --project protop-c189c
    printf '%s' '<verdi>' | gcloud secrets create POWEROFFICE_DEMO_SUBSCRIPTION_KEY --data-file=- --project protop-c189c
    ```
-   Kjørekontoen til funksjonene må ha `Secret Manager Secret Accessor`, slik som for `MAIL_API_KEY`.
+   Kjørekontoen til funksjonene, `330510386923-compute@developer.gserviceaccount.com`, må ha rollen
+   `Secret Manager Secret Accessor` på hver av hemmelighetene (fanen Permissions på hemmeligheten).
+   `MAIL_API_KEY` har den fordi den deployes med `defineSecret`. PowerOffice-nøklene leses i kjøring
+   og må få tilgangen manuelt. Uten den svarer appen at nøklene ikke er satt opp.
    Workflowen «Produksjonsstatus» viser om nøklene finnes.
 2. **Deploy:** Merge til `main` deployer funksjonene (functions-gate) og web.
-3. **Koble til demo:** Gå til Økonomi → Faktura → PowerOffice → Koble til. Velg «Demo» og lim inn
-   «Client key» fra e-posten.
+3. **Egen testbedrift:** Ikke koble demoklienten til Consult1. Koblingen gjelder én ProTop-bedrift,
+   så testen gjøres i en egen bedrift (for eksempel Invest AS) med egne kunder, prosjekter og
+   timer. Consult1 kobles først til produksjonsklienten når PowerOffice har godkjent.
+   Koble til under Økonomi → Innstillinger → Regnskapssystem i testbedriften med «Client key» fra e-posten.
 4. **Produkter:** Opprett eller finn produkter i demoklienten (https://godemo.poweroffice.net/) for
-   minst 25 % MVA, og eventuelt for 0 % og «utenfor». Velg dem i panelet med «Hent produkter fra PowerOffice».
+   minst 25 % MVA, og eventuelt for 0 % og «utenfor». Velg dem med «Hent produkter fra PowerOffice».
 
 ## Testliste i demo (før vi skriver til PowerOffice)
 
-- [ ] Panelet viser «PowerOffice demo: Invest AS - API Test Client», og ingen manglende tilganger.
+- [ ] Regnskapssystem viser «Koblet til Invest AS - API Test Client» med merket «Testklient», og ingen manglende tilganger.
 - [ ] Et utkast fra fakturagrunnlaget overføres. Det ligger som fakturautkast i Go med riktig kunde,
       linjer, antall, pris og MVA.
 - [ ] Ny kunde (finnes ikke i Go) blir opprettet med org.nr., e-post og adresse.
@@ -120,5 +130,6 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 
 - Legg inn `POWEROFFICE_APPLICATION_KEY` og `POWEROFFICE_SUBSCRIPTION_KEY` i Secret Manager.
 - Aktiver integrasjonen på klienten i Go (Meny → Innstillinger → Utvidelser) og hent klientnøkkelen.
-- Bytt til «Produksjon» i panelet, lim inn klientnøkkelen og velg produkter på nytt. Kundekoblinger og
-  synkmarkør nullstilles når klienten byttes.
+- Gå til Økonomi → Innstillinger → Regnskapssystem i den operative bedriften (Consult1). Lim inn
+  klientnøkkelen og velg produkter. Nøkkelen kjennes igjen som produksjon. Kundekoblinger og synkmarkør
+  nullstilles når klienten byttes.

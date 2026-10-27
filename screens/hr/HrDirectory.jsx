@@ -1,15 +1,20 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { directoryFacetCounts, filterHrDirectory } from '../../src/hr/directory';
 import { EmptyHint, HrChip } from './HrShared';
 
-export function useHrDirectory(employees, { lockedKind = '' } = {}) {
+/** preset ({ kind, status }) setter filteret når siden åpnes fra et tall på oversikten. */
+export function useHrDirectory(employees, { lockedKind = '', preset = null } = {}) {
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('active');
-  const [kindChoice, setKind] = useState('all');
+  const [status, setStatus] = useState(preset?.status || 'active');
+  const [kindChoice, setKind] = useState(preset?.kind || 'all');
   const kind = lockedKind || kindChoice;
+  useEffect(() => {
+    if (preset?.status) setStatus(preset.status);
+    if (preset?.kind) setKind(preset.kind);
+  }, [preset]);
   const counts = useMemo(
     () => directoryFacetCounts(employees, { status, kind }),
     [employees, status, kind],

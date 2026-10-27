@@ -20,6 +20,7 @@ import {
 } from '../../src/iso/integrations';
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
 import { FormFillSheet } from './IsoForms';
+import IsoExcelImport from './IsoExcelImport';
 import {
   Banner, Btn, Card, Check, Choice, ContactsEdit, DateIn, Empty, Field, KV, ListRow, Page, PersonPick, PersonsPick, Pill, Row, Sheet, TextIn, toneColor,
 } from './isoUi';
@@ -314,12 +315,22 @@ export function SimpleRegister({ ctx, registerKey, subtitle, children, detail, f
   const def = REGISTERS[registerKey];
   const reg = useRegister(ctx, registerKey);
   const [showArchived, setShowArchived] = useState(false);
+  const [importing, setImporting] = useState(false);
   const all = filter ? reg.rows.filter(filter) : reg.rows;
   const rows = all.filter((r) => r.state !== 'arkivert');
   // Arkiverte poster skjules i listen, men må kunne finnes og gjenopprettes.
   const archived = all.filter((r) => r.state === 'arkivert');
   return (
-    <Card title={title || def.title} subtitle={cardSubtitle} right={caps.manage ? <Btn small icon="add" label="Ny" onPress={() => reg.setCreating(true)} /> : null}>
+    <Card
+      title={title || def.title}
+      subtitle={cardSubtitle}
+      right={caps.manage ? (
+        <Row gap={6} wrap={false}>
+          <Btn small icon="grid-outline" label="Excel" accessibilityLabel={`Importer ${def.title} fra Excel`} onPress={() => setImporting(true)} />
+          <Btn small icon="add" label="Ny" onPress={() => reg.setCreating(true)} />
+        </Row>
+      ) : null}
+    >
       {children}
       {view
         ? view({ rows, open: (r) => reg.setOpenId(r.id) })
@@ -334,6 +345,7 @@ export function SimpleRegister({ ctx, registerKey, subtitle, children, detail, f
       ) : null}
       {showArchived && archived.length ? <RecordList ctx={ctx} registerKey={registerKey} rows={archived} subtitle={subtitle} onOpen={(r) => reg.setOpenId(r.id)} /> : null}
       <RecordSheet ctx={ctx} registerKey={registerKey} visible={reg.creating} onClose={() => reg.setCreating(false)} />
+      {importing ? <IsoExcelImport ctx={ctx} registerKey={registerKey} visible={importing} onClose={() => setImporting(false)} /> : null}
       {reg.open ? <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')}>{detail ? detail(reg.open) : null}</RecordDetail> : null}
     </Card>
   );

@@ -102,7 +102,7 @@ export const PAGE_ACCESS = {
   'iso.mal': { res: 'iso', steps: [R, R] },
   'iso.arshjul': { res: 'iso', steps: [R, R, R] },
   'iso.avvik': { res: 'iso', steps: [S, R, R, W] },
-  'iso.risiko': { res: 'iso', steps: [R, S] },
+  'iso.risiko': { res: 'iso', steps: [R, W, S] },
   'iso.miljo': { res: 'iso', steps: [R, R] },
   'iso.hms': { res: 'iso', steps: [S, R, S] },
   'iso.prosjekt': { res: 'iso', steps: [S, R] },

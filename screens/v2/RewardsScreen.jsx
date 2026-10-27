@@ -51,6 +51,15 @@ import HelpTarget from '../../components/HelpTarget';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import { ModulePageFrame } from '../../components/ModulePageBg';
+import { confirmUser } from '../../src/utils/dialog';
+import { showErrorToast } from '../../src/ui/saveToast';
+import { todoActionError } from '../../src/utils/todoStatus.js';
+
+/** Feil i oppgavehandlinger vises som toast i stedet for å svelges. */
+function toastTodoError(action, err) {
+  const { title, detail } = todoActionError(action, err);
+  showErrorToast(title, detail);
+}
 
 function TaskCheckbox({ done, onPress, disabled, large = false }) {
   return (
@@ -535,7 +544,9 @@ export default function RewardsScreen({ variant = 'auto' }) {
     try {
       await toggleTodo(familyId, childId, task, anchor);
       if (!wasDone) celebrateComplete(task, { willBeDone: true });
-    } catch { /* ignore future */ }
+    } catch (e) {
+      toastTodoError('toggle', e);
+    }
   };
 
   const onCompleteFromDetail = async () => {
@@ -547,17 +558,23 @@ export default function RewardsScreen({ variant = 'auto' }) {
 
   const onToggleParent = async (task) => {
     if (!familyId) return;
-    try { await toggleParentTodo(familyId, task, anchor); } catch { /* ignore */ }
+    try { await toggleParentTodo(familyId, task, anchor); } catch (e) { toastTodoError('toggle', e); }
   };
 
   const onRestoreParent = async (task) => {
     if (!familyId) return;
-    try { await restoreParentTodo(familyId, task); } catch { /* ignore */ }
+    try { await restoreParentTodo(familyId, task); } catch (e) { toastTodoError('restore', e); }
   };
 
   const onPurgeParent = async (task) => {
     if (!familyId) return;
-    try { await purgeParentTodo(familyId, task); } catch { /* ignore */ }
+    const ok = await confirmUser(
+      'Slette permanent?',
+      `«${task?.title || 'Oppgaven'}» slettes for godt og kan ikke gjenopprettes.`,
+      { ok: 'Slett permanent' },
+    );
+    if (!ok) return;
+    try { await purgeParentTodo(familyId, task); } catch (e) { toastTodoError('purge', e); }
   };
 
   const openTask = (task) => {

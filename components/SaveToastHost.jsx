@@ -46,6 +46,7 @@ export default function SaveToastHost() {
   }, [toast, opacity, shift]);
 
   if (!toast) return null;
+  const isError = toast.kind === 'error';
 
   const card = (
     <View pointerEvents="none" style={styles.host} nativeID="save-toast-host">
@@ -55,8 +56,8 @@ export default function SaveToastHost() {
         accessibilityLiveRegion="polite"
         style={[styles.card, { opacity, transform: [{ translateY: shift }] }]}
       >
-        <View style={styles.check}>
-          <Text style={styles.checkMark}>✓</Text>
+        <View style={[styles.check, isError && styles.checkError]}>
+          <Text style={[styles.checkMark, isError && styles.checkMarkError]}>{isError ? '!' : '✓'}</Text>
         </View>
         <View style={styles.copy}>
           <Text style={styles.title}>{toast.title}</Text>
@@ -121,6 +122,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 18,
     fontWeight: '600',
+  },
+  checkError: {
+    backgroundColor: '#fee2e2',
+  },
+  checkMarkError: {
+    color: colors.danger || '#b91c1c',
   },
   copy: {
     flex: 1,

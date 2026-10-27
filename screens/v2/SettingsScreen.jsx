@@ -20,6 +20,7 @@ import {
 import { guardedCallable } from '../../src/utils/guardedCallable';
 import { isDeleteAccountConfirmed } from '../../src/utils/deleteAccount';
 import { getAppVersion } from '../../src/utils/appUpdates';
+import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 import { Screen } from '../../components/ui';
 import { AvatarBubble } from '../../components/AvatarPicker';
 import AddToHomeGuide from '../../components/AddToHomeGuide';
@@ -357,7 +358,7 @@ export default function SettingsScreen({ setSubView } = {}) {
           />
         </View>
 
-        {isSuperAdmin && (
+        {isSuperAdmin && PRICING_VISIBLE && (
           <>
             <SectionHeader title={t('settings.subscription')} />
             <View style={styles.group}>

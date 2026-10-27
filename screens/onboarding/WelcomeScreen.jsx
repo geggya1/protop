@@ -13,6 +13,7 @@ import WelcomeTeasers from '../../components/WelcomeTeasers';
 import BrandLogo from '../../components/BrandLogo';
 import { isStandaloneDisplay } from '../../src/utils/preferApp';
 import { applyBootNavigation } from '../../src/shell/pwaNavigation';
+import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 
 const HERO = require('../../assets/hero-family.png');
 
@@ -37,6 +38,7 @@ export default function WelcomeScreen({ onTryFree, onLogin }) {
   const insets = useSafeAreaInsets();
   const { height: winH } = useWindowDimensions();
   const heroH = Math.min(420, Math.max(280, winH * 0.42));
+  const ctaLabel = t(PRICING_VISIBLE ? 'welcome.cta' : 'welcome.ctaStart');
 
   const fadeHero = useRef(new Animated.Value(0)).current;
   const fadeCopy = useRef(new Animated.Value(0)).current;
@@ -105,10 +107,10 @@ export default function WelcomeScreen({ onTryFree, onLogin }) {
               style={styles.cta}
               onPress={onTryFree}
               accessibilityRole="button"
-              accessibilityLabel={t('welcome.cta')}
+              accessibilityLabel={ctaLabel}
               activeOpacity={0.88}
             >
-              <Text style={styles.ctaTxt}>{t('welcome.cta')}</Text>
+              <Text style={styles.ctaTxt}>{ctaLabel}</Text>
               <Ionicons name="arrow-forward" size={18} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
@@ -175,12 +177,14 @@ export default function WelcomeScreen({ onTryFree, onLogin }) {
           </View>
 
           {/* One job: trial / trust */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('welcome.trialTitle')}</Text>
-            <Text style={styles.trialPrice}>{t('welcome.price')}</Text>
-            <Text style={styles.sectionLead}>{t('welcome.trialBody')}</Text>
-            <Text style={styles.stores}>{t('welcome.stores')}</Text>
-          </View>
+          {PRICING_VISIBLE ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t('welcome.trialTitle')}</Text>
+              <Text style={styles.trialPrice}>{t('welcome.price')}</Text>
+              <Text style={styles.sectionLead}>{t('welcome.trialBody')}</Text>
+              <Text style={styles.stores}>{t('welcome.stores')}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.finalCtaBlock}>
             <TouchableOpacity
@@ -189,10 +193,10 @@ export default function WelcomeScreen({ onTryFree, onLogin }) {
               accessibilityRole="button"
               activeOpacity={0.88}
             >
-              <Text style={styles.ctaTxt}>{t('welcome.cta')}</Text>
+              <Text style={styles.ctaTxt}>{ctaLabel}</Text>
               <Ionicons name="arrow-forward" size={18} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.trustLine}>{t('welcome.trust')}</Text>
+            {PRICING_VISIBLE ? <Text style={styles.trustLine}>{t('welcome.trust')}</Text> : null}
           </View>
         </Animated.View>
 

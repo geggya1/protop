@@ -24,6 +24,7 @@ import {
 } from '../../src/project/companyUnits';
 import { aliasFamilyIds } from '../../src/utils/platformSwitch';
 import { copyAliasRecordsToCanonical } from '../../src/project/companyAliasTransfer';
+import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 
 function Field({ label, value, onChangeText, placeholder, colors, editable = true }) {
   return (
@@ -356,7 +357,7 @@ export default function CompanyStructureSettings({
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.ink, fontWeight: '400' }}>{row.name}</Text>
             <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {[row.organisasjonsnummer, 'Eget abonnement'].filter(Boolean).join(' · ')}
+              {[row.organisasjonsnummer, PRICING_VISIBLE ? 'Eget abonnement' : null].filter(Boolean).join(' · ')}
             </Text>
           </View>
           {row.companyId && onOpenCompany && !hiddenCompanyIds.has(row.companyId) ? (

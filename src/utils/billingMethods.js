@@ -1,3 +1,6 @@
+/** Price, trial and payment stay out of the app until billing launches. Flip to true then. */
+export const PRICING_VISIBLE = false;
+
 /**
  * Digital subscriptions on iOS/Android must not offer web checkout (card, Vipps).
  * Those methods stay on the website. Store billing is the only native option.

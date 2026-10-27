@@ -143,6 +143,7 @@ export function buildKnowledge(lang = 'nb') {
   if (kbCache && kbCache.lang === lang) return kbCache.items;
   const items = [];
   for (const [key, def] of Object.entries(PROTOP_PAGES)) {
+    if (def.hidden) continue;
     items.push({
       id: `page:${key}`,
       kind: 'page',

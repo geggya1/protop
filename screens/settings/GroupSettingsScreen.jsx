@@ -36,6 +36,7 @@ import { isTeamType } from '../../src/utils/teams';
 import { isClassroomType } from '../../src/utils/groupTypes';
 import { useOptionalRoute } from '../../src/hooks/useOptionalRoute';
 import { useRouteFamily } from '../../src/hooks/useRouteFamily';
+import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import Wizard, { Choice } from '../../components/Wizard';
 import AvatarPicker, { AvatarBubble } from '../../components/AvatarPicker';
@@ -476,7 +477,7 @@ export function GroupSettingsScreen({ inShell = false }) {
       <ConfirmActionModal
         visible={confirmKind === 'delete'}
         title={life.delete}
-        body={`${life.deleteBody}\n\n${t('group.subscriptionEnds')}`}
+        body={PRICING_VISIBLE ? `${life.deleteBody}\n\n${t('group.subscriptionEnds')}` : life.deleteBody}
         confirmLabel={life.delete}
         cancelLabel={t('common.cancel')}
         danger

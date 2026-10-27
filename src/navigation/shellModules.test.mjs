@@ -20,6 +20,7 @@ import {
 import { filterCompanyNav, standardGrants } from '../access/companyAccess.js';
 import { applyProtopActivationSections, PROTOP_SHELL_MODULE_IDS } from './protopShell.js';
 import { listModulesByCategory } from '../modules/moduleActivationRegistry.js';
+import { PRICING_VISIBLE } from '../utils/billingMethods.js';
 
 const t = (k) => k;
 const kid = { id: 'k1', name: 'Kari' };
@@ -48,6 +49,7 @@ function idsIn(sections) {
   assert.ok(account.items.some((i) => i.id === 'settings'));
   assert.ok(account.items.some((i) => i.id === 'help'));
   assert.ok(account.items.some((i) => i.id === 'legal'));
+  assert.equal(account.items.some((i) => i.id === 'subscription'), PRICING_VISIBLE, 'Abonnement vises bare når priser er på');
   for (const hidden of ['projects', 'anbud', 'kunder', 'ansatte', 'kontrakt', 'skjema', 'chores', 'books', 'shop', 'meals', 'games', 'familyTree', 'boligmappa', 'matcoach', 'pantry']) {
     assert.equal(ids.includes(hidden), false, `${hidden} stays out of the personal shell`);
   }

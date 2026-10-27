@@ -26,6 +26,7 @@ import {
   mergeDeskDayEvents,
   taskFocusMeta,
 } from '../src/utils/deskHome';
+import { PRICING_VISIBLE } from '../src/utils/billingMethods';
 
 const R = 16;
 
@@ -428,14 +429,16 @@ export default function DeskHomeDashboard({
             )}
           </View>
 
-          <View style={styles.upsell}>
-            <Text style={styles.upsellTxt} numberOfLines={1}>
-              Premium Familie — 14 dager gratis, deretter 49 kr/mnd
-            </Text>
-            <TouchableOpacity style={styles.upsellBtn} onPress={onUpgrade || onCreate}>
-              <Text style={styles.upsellBtnTxt}>Oppgrader ✨</Text>
-            </TouchableOpacity>
-          </View>
+          {PRICING_VISIBLE ? (
+            <View style={styles.upsell}>
+              <Text style={styles.upsellTxt} numberOfLines={1}>
+                Premium Familie — 14 dager gratis, deretter 49 kr/mnd
+              </Text>
+              <TouchableOpacity style={styles.upsellBtn} onPress={onUpgrade || onCreate}>
+                <Text style={styles.upsellBtnTxt}>Oppgrader ✨</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </ScrollView>
       </View>
     </View>

@@ -10,6 +10,7 @@ import { isOrganizationType } from '../utils/groupTypes.js';
 import { filterCompanyNav } from '../access/companyAccess.js';
 import { lockCompanyNav } from '../access/companyModules.js';
 import { normalizeSubUnits } from '../project/companyUnits.js';
+import { PRICING_VISIBLE } from '../utils/billingMethods.js';
 
 /**
  * Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet
@@ -953,7 +954,7 @@ export function buildShellModules({
       id: 'legal', icon: 'shield-checkmark', label: t('apps.privacy'),
       action: { type: 'tab', tab: 'more', subView: 'legal' },
     });
-    if (isSuperAdmin) {
+    if (isSuperAdmin && PRICING_VISIBLE) {
       accountItems.push({
         id: 'subscription', icon: 'card', label: t('group.subscription'),
         action: { type: 'tab', tab: 'more', subView: 'subscription' },

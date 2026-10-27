@@ -1,7 +1,10 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { displayName } from '../../src/employees/model';
+import {
+  billableMonth, formatTimer, monthKeyOf, ownCompanyMatcher,
+} from '../../src/hr/billable';
 import { hrDashboard, staffKinMissing } from '../../src/hr/dashboard';
 import {
   caseFromExpiringContract,
@@ -10,7 +13,6 @@ import {
   followUpTaskFromCase,
   formatNbDate,
   JOB_STATUSES,
-  localIsoDate,
   planFollowUpCases,
 } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -18,10 +20,16 @@ import {
   ACCENT, Avatar, Bar, DashCard, IconDisc, KpiTile, MoreToggle, Pill, Ring, SectionLabel, Segmented,
   gridItem, gridStyle, tint,
 } from './HrDashParts';
+import {
+  BillablePanel, CasesPanel, FollowRow, followRowProps,
+} from './HrKpiPanels';
+import { useBillableMonth } from './useBillableMonth';
 
 const SHORT_LIST = 4;
-const NO_ENTRIES = [];
-const LONG_LIST = 10;
+const isWeb = Platform.OS === 'web';
+// Panelet under et nøkkeltall fyller hele raden. «dense» lar flisene etter panelet fylle raden over.
+const KPI_GRID = isWeb ? { gridAutoFlow: 'row dense' } : null;
+const KPI_PANEL_CELL = isWeb ? { gridColumn: '1 / -1', minWidth: 0 } : null;
 
 const MILESTONE_TYPES = {
   birthday: { label: 'Bursdager', icon: 'gift-outline', accent: ACCENT.rose },
@@ -39,16 +47,33 @@ function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** «oktober hittil», «september» eller «desember 2025». */
+function monthText(result) {
+  const [name, year] = String(result.label || '').split(' ');
+  const month = String(name || '').toLowerCase();
+  if (result.current) return `${month} hittil`;
+  return year && Number(year) !== new Date().getFullYear() ? `${month} ${year}` : month;
+}
+
+/** Saken «Planlegg» lager for raden. Samme tittel som planFollowUpCases ser etter. */
+function milestoneCase(row, employeeName) {
+  if (row.type === 'contract') return caseFromExpiringContract(row.contract, { employeeName });
+  return caseFromPeopleEvent(row);
+}
+
 export default function HrDashboard({
-  colors, employees, hr, entries = NO_ENTRIES, canWrite, onPatch,
+  colors, employees, hr, canWrite, onPatch,
   onOpenPeople, onOpenEmployee, onOpenFollowUp, onOpenCase, onOpenRecruitment, onOpenProductivity,
-  onOpenCompliance, onOpenContracts,
-  familyId, assigneeUid, assigneeName, onCreateFollowUpTask, kin = null,
+  onOpenCompliance, onOpenContracts, onNewJob, onOpenJob,
+  familyId, ownCompany, assigneeUid, assigneeName, onCreateFollowUpTask, kin = null,
 }) {
   const [status, setStatus] = useState('active');
+  const [panel, setPanel] = useState('');
+  const todayMonth = monthKeyOf(new Date());
+  const [month, setMonth] = useState(todayMonth);
   const dash = useMemo(
-    () => hrDashboard(employees, hr, { status, entries }),
-    [employees, hr, status, entries],
+    () => hrDashboard(employees, hr, { status }),
+    [employees, hr, status],
   );
   const nameOf = useMemo(() => {
     const map = new Map((employees || []).map((row) => [row.id, displayName(row)]));
@@ -62,10 +87,32 @@ export default function HrDashboard({
   const { counts } = dash;
   const externalTotal = counts.external.active + counts.external.inactive;
 
+  const monthData = useBillableMonth({ familyId, month });
+  const isOwnCompany = useMemo(
+    () => ownCompanyMatcher({ name: ownCompany?.name, orgnr: ownCompany?.orgnr, projects: monthData.projects }),
+    [ownCompany?.name, ownCompany?.orgnr, monthData.projects],
+  );
+  const billable = useMemo(() => billableMonth({
+    staff: dash.staff,
+    entries: monthData.entries,
+    absences: monthData.absences,
+    month,
+    redDays: monthData.redDays,
+    fullDayHours: monthData.fullDayHours,
+    absenceTypes: monthData.absenceTypes,
+    isOwnCompany,
+  }), [
+    dash.staff, monthData.entries, monthData.absences, month, monthData.redDays,
+    monthData.fullDayHours, monthData.absenceTypes, isOwnCompany,
+  ]);
+
+  // Personell åpnes med samme utvalg som tallet: egne ansatte, aktive eller deaktiverte.
+  const openStaffList = () => onOpenPeople?.({ kind: 'internal', status });
   const openPerson = (id, sheet) => {
     if (id && onOpenEmployee) onOpenEmployee(id, sheet);
-    else onOpenPeople?.();
+    else openStaffList();
   };
+  const togglePanel = (id) => setPanel((current) => (current === id ? '' : id));
 
   const planningRef = useRef(false);
 
@@ -132,7 +179,121 @@ export default function HrDashboard({
   }
 
   const follow = dash.follow;
-  const productivityHours = dash.productivity.total > 0;
+  const plannedCases = useMemo(() => {
+    const open = new Map(follow.cases.map((row) => [`${row.employeeId}|${String(row.title).trim().toLowerCase()}`, row]));
+    const map = new Map();
+    for (const row of dash.milestones) {
+      const draft = milestoneCase(row, nameOf(row.employeeId));
+      const hit = draft && open.get(`${draft.employeeId}|${String(draft.title).trim().toLowerCase()}`);
+      if (hit) map.set(row.key, hit);
+    }
+    return map;
+  }, [follow.cases, dash.milestones, nameOf]);
+
+  let billableValue = '–';
+  let billableHint = `Ingen mulig tid · ${monthText(billable)}`;
+  if (monthData.loading) {
+    billableValue = '…';
+    billableHint = 'Henter timer …';
+  } else if (billable.capacity > 0) {
+    billableValue = formatTimer(billable.billable);
+    billableHint = `av ${formatTimer(billable.capacity)} mulig · ${monthText(billable)}`;
+  }
+
+  const kpis = [
+    {
+      id: 'staff',
+      tile: (
+        <KpiTile
+          colors={colors}
+          nativeID="hr-kpi-staff"
+          icon="people-outline"
+          accent={ACCENT.blue}
+          label={inactive ? 'Deaktiverte ansatte' : 'Egne ansatte'}
+          value={String(dash.staff.length)}
+          badge={!inactive && dash.newHires ? `+${dash.newHires} nye` : ''}
+          badgeAccent={ACCENT.green}
+          hint={inactive ? 'Sluttet eller deaktivert' : 'Uten eksterne og innleide'}
+          onPress={openStaffList}
+        />
+      ),
+    },
+    {
+      id: 'cases',
+      tile: (
+        <KpiTile
+          colors={colors}
+          nativeID="hr-kpi-cases"
+          icon="document-text-outline"
+          accent={ACCENT.violet}
+          label="Åpne HR-saker"
+          value={String(follow.cases.length)}
+          badge={dash.overdue ? `${dash.overdue} forfalt` : ''}
+          badgeAccent={ACCENT.amber}
+          hint={`${plural(follow.tasks.length, 'oppgave', 'oppgaver')} · ${plural(follow.reviews.length, 'samtale', 'samtaler')}`}
+          expanded={panel === 'cases'}
+          onPress={() => togglePanel('cases')}
+        />
+      ),
+      panel: (
+        <CasesPanel
+          colors={colors}
+          follow={follow}
+          nameOf={nameOf}
+          onOpenCase={onOpenCase}
+          onOpenPerson={openPerson}
+          onOpenFollowUp={onOpenFollowUp}
+          onClose={() => setPanel('')}
+        />
+      ),
+    },
+    {
+      id: 'applications',
+      tile: (
+        <KpiTile
+          colors={colors}
+          nativeID="hr-kpi-applications"
+          icon="mail-unread-outline"
+          accent={ACCENT.teal}
+          label="Søknader i kø"
+          value={String(dash.recruitment.queue)}
+          badge={dash.recruitment.received ? `${dash.recruitment.received} nye` : ''}
+          hint={`${dash.recruitment.processing} til behandling`}
+          onPress={onOpenRecruitment}
+        />
+      ),
+    },
+    {
+      id: 'billable',
+      tile: (
+        <KpiTile
+          colors={colors}
+          nativeID="hr-kpi-productivity"
+          accent={ACCENT.green}
+          label="Fakturerbar tid"
+          value={billableValue}
+          ringPct={monthData.loading ? 0 : (billable.pct || 0)}
+          hint={billableHint}
+          expanded={panel === 'billable'}
+          onPress={() => togglePanel('billable')}
+        />
+      ),
+      panel: (
+        <BillablePanel
+          colors={colors}
+          result={billable}
+          loading={monthData.loading}
+          month={month}
+          todayMonth={todayMonth}
+          onMonth={setMonth}
+          onOpenPerson={(id) => openPerson(id)}
+          onOpenProductivity={onOpenProductivity}
+          onClose={() => setPanel('')}
+        />
+      ),
+    },
+  ];
+  const openPanel = kpis.find((kpi) => kpi.id === panel)?.panel || null;
 
   return (
     <View style={styles.page} nativeID="hr-dashboard">
@@ -155,61 +316,15 @@ export default function HrDashboard({
         )}
       />
 
-      <View style={gridStyle(4, 165, 12)} nativeID="hr-kpis">
-        <View style={gridItem(165)}>
-          <KpiTile
-            colors={colors}
-            nativeID="hr-kpi-staff"
-            icon="people-outline"
-            accent={ACCENT.blue}
-            label={inactive ? 'Deaktiverte ansatte' : 'Egne ansatte'}
-            value={String(dash.staff.length)}
-            badge={!inactive && dash.newHires ? `+${dash.newHires} nye` : ''}
-            badgeAccent={ACCENT.green}
-            hint={inactive ? 'Sluttet eller deaktivert' : 'Uten eksterne og innleide'}
-            onPress={onOpenPeople}
-          />
-        </View>
-        <View style={gridItem(165)}>
-          <KpiTile
-            colors={colors}
-            nativeID="hr-kpi-cases"
-            icon="document-text-outline"
-            accent={ACCENT.violet}
-            label="Åpne HR-saker"
-            value={String(follow.cases.length)}
-            badge={dash.overdue ? `${dash.overdue} forfalt` : ''}
-            badgeAccent={ACCENT.amber}
-            hint={`${plural(follow.tasks.length, 'oppgave', 'oppgaver')} · ${plural(follow.reviews.length, 'samtale', 'samtaler')}`}
-            onPress={onOpenFollowUp}
-          />
-        </View>
-        <View style={gridItem(165)}>
-          <KpiTile
-            colors={colors}
-            nativeID="hr-kpi-applications"
-            icon="mail-unread-outline"
-            accent={ACCENT.teal}
-            label="Søknader i kø"
-            value={String(dash.recruitment.queue)}
-            badge={dash.recruitment.received ? `${dash.recruitment.received} nye` : ''}
-            hint={`${dash.recruitment.processing} til behandling`}
-            onPress={onOpenRecruitment}
-          />
-        </View>
-        <View style={gridItem(165)}>
-          <KpiTile
-            colors={colors}
-            nativeID="hr-kpi-productivity"
-            accent={ACCENT.green}
-            label="Fakturerbar tid"
-            value={productivityHours ? `${dash.productivity.billable} t` : '–'}
-            ringPct={dash.productivity.utilizationPct}
-            hint={productivityHours ? `av ${dash.productivity.total} t · siste 3 mnd` : 'Ingen timer siste 3 mnd'}
-            onPress={onOpenProductivity}
-          />
-        </View>
+      <View style={[gridStyle(4, 165, 12), KPI_GRID]} nativeID="hr-kpis">
+        {kpis.map((kpi) => (
+          <React.Fragment key={kpi.id}>
+            <View style={gridItem(165)}>{kpi.tile}</View>
+            {isWeb && panel === kpi.id && kpi.panel ? <View style={KPI_PANEL_CELL}>{kpi.panel}</View> : null}
+          </React.Fragment>
+        ))}
       </View>
+      {!isWeb ? openPanel : null}
 
       <View style={gridStyle(3, 300, 16)} nativeID="hr-dash-staff">
         <View style={gridItem(300)}>
@@ -218,9 +333,10 @@ export default function HrDashboard({
             rows={dash.milestones}
             photoOf={photoOf}
             canWrite={canWrite}
+            plannedCases={plannedCases}
             onOpenPerson={(id) => openPerson(id)}
-            onOpenAll={onOpenPeople}
             onOpenContracts={onOpenContracts}
+            onOpenCase={onOpenCase}
             onPlan={planMilestone}
           />
         </View>
@@ -241,6 +357,8 @@ export default function HrDashboard({
             jobs={hr.jobs || []}
             canWrite={canWrite}
             onOpen={onOpenRecruitment}
+            onOpenJob={onOpenJob}
+            onNewJob={onNewJob}
           />
         </View>
         <View style={gridItem(300)}>
@@ -257,7 +375,7 @@ export default function HrDashboard({
             rows={dash.recentHires}
             inactive={inactive}
             onOpenPerson={openPerson}
-            onOpenAll={onOpenPeople}
+            onOpenAll={openStaffList}
           />
         </View>
       </View>
@@ -284,7 +402,7 @@ export default function HrDashboard({
 }
 
 function MilestonesCard({
-  colors, rows, photoOf, canWrite, onOpenPerson, onOpenAll, onOpenContracts, onPlan,
+  colors, rows, photoOf, canWrite, plannedCases, onOpenPerson, onOpenContracts, onOpenCase, onPlan,
 }) {
   const [filter, setFilter] = useState('all');
   const [expanded, setExpanded] = useState(false);
@@ -299,9 +417,8 @@ function MilestonesCard({
   ];
   const active = options.some((row) => row.id === filter) ? filter : 'all';
   const list = active === 'all' ? rows : rows.filter((row) => row.type === active);
-  const limit = expanded ? LONG_LIST : SHORT_LIST;
-  const shown = list.slice(0, limit);
-  const more = Math.min(list.length, LONG_LIST) - SHORT_LIST;
+  const shown = expanded ? list : list.slice(0, SHORT_LIST);
+  const more = list.length - SHORT_LIST;
   return (
     <DashCard
       colors={colors}
@@ -309,8 +426,8 @@ function MilestonesCard({
       icon="calendar-outline"
       title="Go-to dashboard"
       subtitle="Nedtelling til bursdag, jubileum og avtaleslutt de neste 90 dagene."
-      actionLabel="Vis alle"
-      onAction={onOpenAll}
+      actionLabel={more > 0 ? (expanded ? 'Vis færre' : 'Vis alle') : ''}
+      onAction={() => setExpanded((v) => !v)}
     >
       {rows.length ? (
         <>
@@ -325,7 +442,9 @@ function MilestonesCard({
                 row={row}
                 photoUrl={photoOf(row.employeeId)}
                 canWrite={canWrite}
+                planned={plannedCases.get(row.key) || null}
                 onOpen={() => (row.type === 'contract' && onOpenContracts ? onOpenContracts() : onOpenPerson(row.employeeId))}
+                onOpenCase={onOpenCase}
                 onPlan={() => onPlan(row)}
               />
             ))}
@@ -342,7 +461,7 @@ function MilestonesCard({
 }
 
 function MilestoneRow({
-  colors, row, photoUrl, canWrite, onOpen, onPlan,
+  colors, row, photoUrl, canWrite, planned, onOpen, onOpenCase, onPlan,
 }) {
   const type = MILESTONE_TYPES[row.type] || MILESTONE_TYPES.birthday;
   const soon = row.days != null && row.days <= 7;
@@ -367,7 +486,18 @@ function MilestoneRow({
           <Ionicons name="calendar-outline" size={12} color={soon ? '#fff' : type.accent} />
           <Text style={[styles.dayPillText, { color: soon ? '#fff' : colors.ink }]}>{row.days != null ? daysText(row.days) : formatNbDate(row.date)}</Text>
         </View>
-        {canWrite ? (
+        {planned ? (
+          <Pressable
+            onPress={() => onOpenCase?.(planned)}
+            accessibilityRole="button"
+            accessibilityLabel={`Åpne saken for ${row.name}`}
+            style={styles.planBtn}
+          >
+            <Ionicons name="checkmark-circle-outline" size={13} color={ACCENT.green} />
+            <Text style={[styles.planBtnText, { color: ACCENT.green }]}>{row.type === 'contract' ? 'Fulgt opp' : 'Planlagt'}</Text>
+          </Pressable>
+        ) : null}
+        {!planned && canWrite ? (
           <Pressable
             onPress={onPlan}
             accessibilityRole="button"
@@ -389,14 +519,6 @@ const FOLLOW_TABS = [
   { id: 'reviews', label: 'Samtaler', empty: 'Ingen planlagte samtaler.' },
 ];
 
-function caseLook(title) {
-  const t = String(title || '').toLowerCase();
-  if (t.includes('bursdag')) return { icon: 'gift-outline', accent: ACCENT.rose };
-  if (t.includes('jubileum')) return { icon: 'ribbon-outline', accent: ACCENT.green };
-  if (t.includes('avtale')) return { icon: 'document-text-outline', accent: ACCENT.amber };
-  return { icon: 'flag-outline', accent: ACCENT.violet };
-}
-
 function FollowUpCard({
   colors, follow, nameOf, onOpenCase, onOpenFollowUp, onOpenPerson,
 }) {
@@ -405,7 +527,9 @@ function FollowUpCard({
   const current = tab || firstWithRows;
   const spec = FOLLOW_TABS.find((row) => row.id === current);
   const rows = follow[current].slice(0, SHORT_LIST);
-  const today = localIsoDate();
+  const handlers = {
+    nameOf, onOpenCase, onOpenPerson, onOpenFollowUp,
+  };
   return (
     <DashCard
       colors={colors}
@@ -426,47 +550,15 @@ function FollowUpCard({
       />
       {rows.length ? (
         <View>
-          {rows.map((row, index) => {
-            const who = nameOf(row.employeeId) || 'Uten person';
-            let look = { icon: 'checkbox-outline', accent: ACCENT.teal };
-            let title = row.title;
-            let subtitle = who;
-            let date = row.dueDate;
-            let onPress = () => (row.employeeId ? onOpenPerson(row.employeeId, 'oppfolging') : onOpenFollowUp?.());
-            if (current === 'cases') {
-              look = caseLook(row.title);
-              const taskBit = row.assigneeName
-                ? `oppgave til ${row.assigneeName}`
-                : (row.taskId ? 'oppgave opprettet' : '');
-              subtitle = taskBit ? `${who} · ${taskBit}` : who;
-              onPress = () => (onOpenCase ? onOpenCase(row) : onOpenFollowUp?.());
-            } else if (current === 'reviews') {
-              look = { icon: 'chatbubbles-outline', accent: ACCENT.blue };
-              title = 'Medarbeidersamtale';
-              date = row.date;
-            }
-            const late = date && date < today;
-            return (
-              <Pressable
-                key={row.id}
-                nativeID={current === 'cases' ? `hr-case-${row.id}` : undefined}
-                onPress={onPress}
-                style={[styles.followRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line }]}
-              >
-                <IconDisc icon={look.icon} accent={look.accent} size={36} iconSize={17} />
-                <View style={styles.flexText}>
-                  <Text numberOfLines={1} style={[styles.rowTitle, { color: colors.ink }]}>{title}</Text>
-                  <Text numberOfLines={1} style={[styles.rowSub, { color: colors.muted }]}>{subtitle}</Text>
-                </View>
-                {date ? (
-                  <Text style={[styles.rowMeta, { color: late ? ACCENT.red : colors.muted }]}>
-                    {late ? `Forfalt ${formatNbDate(date)}` : formatNbDate(date)}
-                  </Text>
-                ) : null}
-                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-              </Pressable>
-            );
-          })}
+          {rows.map((row, index) => (
+            <FollowRow
+              key={row.id}
+              colors={colors}
+              divider={index > 0}
+              nativeID={current === 'cases' ? `hr-case-${row.id}` : undefined}
+              {...followRowProps(current, row, handlers)}
+            />
+          ))}
         </View>
       ) : (
         <EmptyState colors={colors} icon="checkmark-done-outline" text={spec.empty} />
@@ -491,7 +583,7 @@ const FUNNEL_LOOK = {
 };
 
 function RecruitmentCard({
-  colors, funnel, jobs, canWrite, onOpen,
+  colors, funnel, jobs, canWrite, onOpen, onOpenJob, onNewJob,
 }) {
   const tiles = [...(funnel.board || []), ...(funnel.outcomes || [])];
   const openJobs = jobs.filter((job) => job.status !== 'closed').slice(0, 2);
@@ -524,7 +616,7 @@ function RecruitmentCard({
         })}
       </View>
       {openJobs.map((job) => (
-        <Pressable key={job.id} onPress={onOpen} style={styles.jobRow}>
+        <Pressable key={job.id} onPress={() => (onOpenJob ? onOpenJob(job.id) : onOpen?.())} style={styles.jobRow}>
           <Ionicons name="briefcase-outline" size={16} color={colors.muted} />
           <View style={styles.flexText}>
             <Text numberOfLines={1} style={[styles.rowTitle, { color: colors.ink }]}>{job.title}</Text>
@@ -537,7 +629,7 @@ function RecruitmentCard({
       ))}
       {canWrite ? (
         <Pressable
-          onPress={onOpen}
+          onPress={onNewJob || onOpen}
           accessibilityRole="button"
           style={[styles.cta, { borderColor: tint(colors.brand, 0.4), backgroundColor: tint(colors.brand, 0.04) }]}
         >
@@ -844,9 +936,8 @@ const styles = StyleSheet.create({
   page: { gap: 16 },
   stack: { gap: 8 },
   flexText: { flex: 1, minWidth: 0 },
-  rowTitle: { fontSize: 14, fontWeight: '600' },
+  rowTitle: { fontSize: 14, fontWeight: '500' },
   rowSub: { fontSize: 12, lineHeight: 17, marginTop: 1 },
-  rowMeta: { fontSize: 12 },
   milestone: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -883,17 +974,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  dayPillText: { fontSize: 12, fontWeight: '700' },
+  dayPillText: { fontSize: 12, fontWeight: '500' },
   planBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 2 },
-  planBtnText: { fontSize: 12, fontWeight: '600' },
-  followRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 9,
-  },
+  planBtnText: { fontSize: 12, fontWeight: '500' },
   more: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'center' },
-  moreText: { fontSize: 13, fontWeight: '600' },
+  moreText: { fontSize: 13, fontWeight: '500' },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: {
     flexGrow: 1,
@@ -905,7 +990,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   tileHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-  tileCount: { fontSize: 20, fontWeight: '700' },
+  tileCount: { fontSize: 20, fontWeight: '500' },
   tileLabel: { fontSize: 11, lineHeight: 14 },
   jobRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   cta: {
@@ -922,7 +1007,7 @@ const styles = StyleSheet.create({
   complianceTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   gapRow: { gap: 5 },
   gapHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  gapLabel: { fontSize: 13, fontWeight: '600', flexShrink: 1 },
+  gapLabel: { fontSize: 13, flexShrink: 1 },
   gapCount: { fontSize: 12, flexShrink: 0 },
   kinProgress: { gap: 6 },
   alert: {
@@ -939,7 +1024,7 @@ const styles = StyleSheet.create({
   kinLineText: { fontSize: 12, lineHeight: 17, flex: 1 },
   faces: { flexDirection: 'row', alignItems: 'center' },
   faceOverlap: { marginLeft: -8 },
-  facesMore: { fontSize: 12, fontWeight: '600', marginLeft: 6 },
+  facesMore: { fontSize: 12, fontWeight: '500', marginLeft: 6 },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   names: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   nameChip: {
@@ -963,10 +1048,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 8,
   },
-  remindText: { fontSize: 13, fontWeight: '600' },
+  remindText: { fontSize: 13, fontWeight: '500' },
   hires: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'space-between' },
   hire: { alignItems: 'center', gap: 2, flexGrow: 1, flexBasis: 52, minWidth: 52, maxWidth: 96 },
-  hireName: { fontSize: 13, fontWeight: '600', marginTop: 4 },
+  hireName: { fontSize: 13, fontWeight: '500', marginTop: 4 },
   hireSub: { fontSize: 11 },
   extCard: {
     borderWidth: 1,
@@ -976,7 +1061,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   extHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  extTitle: { fontSize: 16, fontWeight: '700' },
+  extTitle: { fontSize: 16, fontWeight: '500' },
   extLink: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   extRow: {
     flexDirection: 'row',
@@ -989,7 +1074,7 @@ const styles = StyleSheet.create({
   extName: { flexShrink: 1 },
   kindTag: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     borderWidth: 1,
@@ -997,7 +1082,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
-  extMeta: { fontSize: 12, fontWeight: '600', marginTop: 2 },
+  extMeta: { fontSize: 12, fontWeight: '500', marginTop: 2 },
   empty: {
     flexDirection: 'row',
     alignItems: 'center',

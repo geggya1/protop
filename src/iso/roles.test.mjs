@@ -52,7 +52,7 @@ test('roleOwner: rolle → person, ellers kvalitetsleder med merknad; personnavn
   assert.equal(blank.uid, 'q1');
   assert.match(blank.note, /Eier mangler i kilden/);
   assert.match(roleOwner('Innkjøpsansvarlig', SYSTEM).note, /ikke en rolle i ProTop/);
-  assert.match(roleOwner('Internrevisor', SYSTEM).note, /rollen Internrevisor, som ingen har ennå/);
+  assert.deepEqual((({ kind, name, uid }) => ({ kind, name, uid }))(roleOwner('Internrevisor', SYSTEM)), { kind: 'ledig_rolle', name: 'Internrevisor', uid: '' }, 'rollen står til noen har den');
   assert.equal(roleOwner('Ola Nordmann', SYSTEM), null);
   assert.equal(roleOwner('Ikke tildelt', SYSTEM, { fallback: false }), null);
   assert.equal(roleOwner('Ukjent / Per Prosjekt', SYSTEM, { people: [{ name: 'Per Prosjekt', uid: 'p1' }] }).kind, 'person');
@@ -83,6 +83,11 @@ test('roleOwnerFixes kobler eksisterende rolle-eiere og lar personer og låste p
   assert.equal(by('p1').ownerUid, 'u3');
   assert.ok(fixes.every((f) => f.event.action.endsWith('.owner_linked')));
   assert.equal(roleOwnerFixes(state, { people, build: false }).length, 4, 'oversikten teller det samme');
+  // En rolle ingen har ennå, kobles ikke (ingen å koble til) – men kobles når rollen er satt.
+  const vacant = { ...state, records: { risiko: [{ id: 'r9', register: 'risiko', title: 'X', ownerName: 'Internrevisor' }] }, documents: [], processes: [] };
+  assert.equal(roleOwnerFixes(vacant, { people }).length, 0);
+  const filled = { ...vacant, system: { ...SYSTEM, roleMap: { ...SYSTEM.roleMap, internal_auditor: { name: 'Per Prosjekt', uid: 'p1' } } } };
+  assert.equal(roleOwnerFixes(filled, { people }).at(0)?.entity.ownerUid, 'p1');
 });
 
 test('rollene har beskrivelse, fagansvar og nivå som finnes i tilgangsstyringen', () => {

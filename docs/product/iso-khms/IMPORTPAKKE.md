@@ -29,6 +29,7 @@ Format for å flytte et eksisterende ledelsessystem inn i ProTop ISO, for eksemp
 **Eiere tilpasses ProTop.** I ProTop eier en person (med innlogging) hver post, så oppgaver og varsler når fram. Pakken kan bruke navn, roller eller funksjoner som eier (`ownerName`, `approverName`, deltakere):
 - Navn på en ansatt kobles til personen.
 - Rolletekster går til personen som har rollen i Innstillinger → Roller: «Daglig leder», «Ledelsen» → øverste ledelse; «HMSK-leder», «Kvalitetsansvarlig» → kvalitetsleder; «HMS-ansvarlig», «Miljøansvarlig» → HMS-leder; «Byggeleder» → prosjektleder; «HR» → HR-ansvarlig (se `src/iso/roles.js`). Ved flere («A / B») eier den første som har en person.
+- En ProTop-rolle som ingen har ennå: rollenavnet (for eksempel «Kvalitetsleder») blir stående som eier, uten bruker. «Koble rolle-eiere til personer» gir posten til personen når rollen er satt.
 - Ingen eier («Ikke tildelt», «Tildelt ressurs», «Alle ansatte») eller en funksjon ProTop ikke har som rolle («Tilbudsansvarlig», «Innkjøpsansvarlig»): kvalitetsleder (ellers systemansvarlig) blir eier, og registerposten merkes «må gjennomgås» med opprinnelig tekst i merknaden.
 - Prosesser uten eier i kilden legges inn som utkast til noen velger prosesseier.
 - «Ansvarlig rolle» i årshjulet får ProTops navn på rollen.

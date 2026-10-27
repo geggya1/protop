@@ -389,7 +389,10 @@ test('eiere som er roller går til personen med rollen; uten eier eller ukjent f
   assert.ok(built.issues.some((i) => /2 poster hadde ingen eier eller en funksjon/.test(i) && /Kvalitetsleder Kari Kvalitet er satt som eier/.test(i)), built.issues.join('\n'));
   assert.ok(built.issues.some((i) => /Fant ikke disse blant de ansatte, så de står som tekst: Ola Utenfor\. Legg dem inn i Ansatte/.test(i)));
 
-  // Uten roller i oppsettet: systemansvarlig (den som importerer) blir eier i stedet.
+  // Uten roller i oppsettet: rollenavnet blir stående (kan kobles senere); uten eier får systemansvarlig.
   const bare = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, people: [{ name: 'Siri Leder', uid: 'u3' }] });
-  assert.match(bare.out.records.find((r) => r.record.importKey.endsWith(':R2')).record.reviewNote, /rollen Kvalitetsleder, som ingen har ennå/);
+  const r2 = bare.out.records.find((r) => r.record.importKey.endsWith(':R2')).record;
+  assert.deepEqual([r2.ownerName, r2.ownerUid || '', !!r2.needsReview], ['Kvalitetsleder', '', false]);
+  assert.equal(bare.out.records.find((r) => r.record.importKey.endsWith(':R4')).record.ownerUid, BOSS.uid);
+  assert.ok(bare.issues.some((i) => /en rolle som eier som ingen har ennå: .*Kvalitetsleder \(1\)/.test(i) && /Koble rolle-eiere til personer/.test(i)), bare.issues.join('\n'));
 });

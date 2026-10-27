@@ -230,6 +230,14 @@ assert.equal(orderRefFromLineRef('noe annet'), '');
   assert.deepEqual(missing.missingVatCodes, ['OUTSIDE']);
   assert.match(missing.error, /OUTSIDE/);
   assert.equal(salesOrderFromInvoice({ lines: [] }, { customerId: 1, ref: 'r' }).ok, false);
+
+  // Betalingsfrist valgt i ProTop går som betalingsbetingelse. Ellers bestemmer Go.
+  assert.equal('PaymentTerm' in order, false);
+  const term = (patch) => salesOrderFromInvoice({ ...invoice, ...patch }, { customerId: 55, productCodes, ref: 'r' }).order.PaymentTerm;
+  assert.equal(term({ dueDateSet: true, creditDays: 14 }), 14);
+  assert.equal(term({ dueDateSet: true, creditDays: 0 }), 0);
+  assert.equal(term({ dueDateSet: true, creditDays: null }), undefined);
+  assert.equal(term({ dueDateSet: false, creditDays: 14 }), undefined);
 }
 
 {

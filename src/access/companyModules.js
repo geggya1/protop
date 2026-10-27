@@ -111,9 +111,9 @@ export const COMPANY_MODULES = [
     groupId: 'company-productivity',
     label: 'Produktivitet',
     icon: 'stats-chart',
-    hint: 'Produktivitet per ansatt og prosjekt.',
-    navIds: ['produktivitet'],
-    routes: [['arbeid', ['produktivitet']]],
+    hint: 'Produktivitet per ansatt og prosjekt, og prosjektfremdrift.',
+    navIds: ['produktivitet', 'fremdrift'],
+    routes: [['arbeid', ['produktivitet', 'fremdrift']]],
   },
   {
     id: 'inntjening',

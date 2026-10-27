@@ -562,10 +562,10 @@ export const MODULE_INTROS = {
     accent: SLATE,
     soft: SLATE_SOFT,
     title: tx('Kontoen bak kulissene', 'The account behind the curtain'),
-    kicker: tx('Navn, roller, abonnement.', 'Name, roles, plan.'),
+    kicker: tx('Navn og roller.', 'Name and roles.'),
     pitch: tx(
-      'Her bor kontoinnstillingene. Hold navn og abonnement i orden — så flyter resten av appen.',
-      'This is where account settings live. Keep the name and plan tidy — and the rest of the app flows.',
+      'Her bor kontoinnstillingene. Hold navn og roller i orden — så flyter resten av appen.',
+      'This is where account settings live. Keep the name and roles tidy — and the rest of the app flows.',
     ),
     steps: [
       tx('Endre navn og detaljer øverst', 'Change the name and details at the top'),

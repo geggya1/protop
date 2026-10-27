@@ -26,10 +26,9 @@ import {
   mergeDeskDayEvents,
   taskFocusMeta,
 } from '../src/utils/deskHome';
+import { PRICING_VISIBLE } from '../src/utils/billingMethods';
 
 const R = 16;
-/** Betaling er ikke innført ennå. Sett til true når Premium skal selges. */
-const SHOW_PREMIUM_UPSELL = false;
 
 function Card({ children, style, onPress, fill }) {
   const inner = (
@@ -430,7 +429,7 @@ export default function DeskHomeDashboard({
             )}
           </View>
 
-          {SHOW_PREMIUM_UPSELL ? (
+          {PRICING_VISIBLE ? (
             <View style={styles.upsell}>
               <Text style={styles.upsellTxt} numberOfLines={1}>
                 Premium Familie — 14 dager gratis, deretter 49 kr/mnd

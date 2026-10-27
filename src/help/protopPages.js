@@ -10,7 +10,10 @@
  *   anchor       reserve når knappen ikke finnes (add, content, rail, tabs, helpBtn)
  *   where        hint under steget
  * Ren data — ingen React Native-import, så node-testene kan lese den.
+ * hidden: true holder siden ute av hjelpesenteret og assistenten.
  */
+
+import { PRICING_VISIBLE } from '../utils/billingMethods.js';
 
 const tx = (nb, en) => ({ nb, en });
 
@@ -426,6 +429,7 @@ export const PROTOP_PAGES = {
     keywords: ['personvern', 'gdpr', 'vilkår', 'samtykke', 'slette konto'],
   }),
   subscription: page({
+    hidden: !PRICING_VISIBLE,
     section: 'account',
     label: tx('Abonnement', 'Subscription'),
     path: tx('Konto → Abonnement', 'Account → Subscription'),

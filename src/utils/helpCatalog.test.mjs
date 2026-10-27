@@ -25,9 +25,10 @@ assert.equal(resolveHelpDevice({ isTablet: true }), 'tablet');
 assert.equal(resolveHelpDevice({}), 'phone');
 
 const articles = listHelpArticles();
-// Én artikkel per side og arbeidsflyt, pluss tips.
-for (const key of Object.keys(PROTOP_PAGES)) {
-  assert.ok(articles.some((a) => a.id === `page.${key}`), `mangler artikkel for ${key}`);
+// Én artikkel per synlig side og arbeidsflyt, pluss tips. Skjulte sider får ingen.
+for (const [key, def] of Object.entries(PROTOP_PAGES)) {
+  const has = articles.some((a) => a.id === `page.${key}`);
+  assert.equal(has, !def.hidden, def.hidden ? `skjult side ${key} har artikkel` : `mangler artikkel for ${key}`);
 }
 for (const id of Object.keys(PROTOP_PROCESSES)) {
   assert.ok(articles.some((a) => a.id === `process.${id}`), `mangler arbeidsflyt ${id}`);

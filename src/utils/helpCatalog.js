@@ -208,7 +208,7 @@ export function listHelpArticles() {
   if (_cache) return _cache;
   const articles = [
     ...Object.values(PROTOP_PROCESSES).map(processArticle),
-    ...Object.entries(PROTOP_PAGES).map(([key, def]) => pageArticle(key, def)),
+    ...Object.entries(PROTOP_PAGES).filter(([, def]) => !def.hidden).map(([key, def]) => pageArticle(key, def)),
     ...EXTRA_ARTICLES,
     ...ASSISTANT_TOPICS.map(topicArticle),
   ];

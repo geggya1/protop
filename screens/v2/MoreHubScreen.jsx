@@ -53,6 +53,7 @@ import {
   GroupSettingsScreen,
 } from '../settings/GroupSettingsScreen';
 import { useAiPlanImport } from '../../src/hooks/useAiPlanImport';
+import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 import AiImportChildPicker from '../../components/AiImportChildPicker';
 import {
   buildChildDashboardApps,
@@ -194,7 +195,7 @@ const SUB_SCREENS = {
   klassen: KlassenHubScreen,
   mail: MailHubScreen,
   legal: PrivacyTermsScreen,
-  subscription: SubscriptionScreen,
+  ...(PRICING_VISIBLE ? { subscription: SubscriptionScreen } : {}),
   moduleAccess: ModuleAccessSettingsScreen,
   help: HelpSupportScreen,
   notifications: NotificationsScreen,

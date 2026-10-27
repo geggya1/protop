@@ -8,7 +8,9 @@ import { logger } from 'firebase-functions';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { levelById } from '../src/access/companyAccess.js';
-import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
+import {
+  assertRateLimit, emailTrusted, hashRateKey, requireAuth,
+} from './security.js';
 import { claimEmployeeSeatPlan } from '../src/employees/invite.js';
 import { clientIpFromHeaders, sanitizeIp } from '../src/employees/usage.js';
 import { writeUsageEvent } from './usageLog.js';
@@ -104,9 +106,10 @@ export const claimEmployeeInvite = onCall(CALL, async (req) => {
   });
   const companySnap = await db.doc(`families/${companyId}`).get();
   if (!companySnap.exists) return { ok: true, skipped: true };
-  // Bare den som har godtatt invitasjonen, og med bekreftet e-post, knyttes til en ansatt.
+  // Bare den som har godtatt invitasjonen, og med bekreftet e-post (eller Google/Microsoft/Apple),
+  // knyttes til en ansatt.
   if (!isConfirmedMember(companySnap.data(), uid)) return { ok: true, skipped: true, needsAccept: true };
-  if (req.auth?.token?.email_verified !== true) return { ok: true, skipped: true, needsVerifiedEmail: true };
+  if (!emailTrusted(req.auth)) return { ok: true, skipped: true, needsVerifiedEmail: true };
   const snap = await db.collection(`families/${companyId}/employees`).get();
   const employees = snap.docs.map((item) => ({ id: item.id, ...item.data() }));
   const now = new Date().toISOString();

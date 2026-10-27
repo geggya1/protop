@@ -34,6 +34,19 @@ export function requireAuth(auth) {
   return auth.uid;
 }
 
+/**
+ * Innlogging der leverandøren står for e-posten. Firebase merker ikke e-post fra
+ * Microsoft som bekreftet, men personen skal likevel få invitasjonene sine.
+ */
+export const EMAIL_PROVIDERS = new Set(['google.com', 'microsoft.com', 'apple.com']);
+
+/** Bekreftet e-post, eller innlogget med Google, Microsoft eller Apple. */
+export function emailTrusted(auth) {
+  const token = auth?.token || {};
+  if (!token.email) return false;
+  return token.email_verified === true || EMAIL_PROVIDERS.has(token.firebase?.sign_in_provider);
+}
+
 export function isValidEmail(email) {
   return typeof email === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
 }

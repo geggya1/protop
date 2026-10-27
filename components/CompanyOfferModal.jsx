@@ -5,22 +5,30 @@ import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../src/context/AppContext';
 import { colors, radius } from '../src/theme';
 import { COMPANY_OFFER_DELAY_MS, dismissCompanyOffer, shouldOfferCompany } from '../src/project/companyOffer';
+import CompanyJoinModal from './CompanyJoinModal';
 
-/** Forslag rett etter innlogging: be om innpass eller opprett bedrift. Gratis. */
-export default function CompanyOfferModal() {
+/**
+ * Forslag rett etter innlogging: be om innpass eller opprett bedrift. Gratis.
+ * Venter en invitasjon (enabled=false), vises den i stedet.
+ */
+export default function CompanyOfferModal({ enabled = true }) {
   const nav = useNavigation();
   const { uid, families, familiesReady, isChild } = useApp();
   const [open, setOpen] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(false);
 
   useEffect(() => {
-    if (!familiesReady) return undefined;
+    if (!familiesReady || !enabled) {
+      setOpen(false);
+      return undefined;
+    }
     if (!shouldOfferCompany({ uid, families, isChild })) {
       setOpen(false);
       return undefined;
     }
     const timer = setTimeout(() => setOpen(true), COMPANY_OFFER_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [uid, families, familiesReady, isChild]);
+  }, [uid, families, familiesReady, isChild, enabled]);
 
   const close = () => {
     dismissCompanyOffer(uid);
@@ -32,7 +40,14 @@ export default function CompanyOfferModal() {
     nav.navigate(screen, params);
   };
 
+  const askToJoin = () => {
+    close();
+    setJoinOpen(true);
+  };
+
   return (
+    <>
+    <CompanyJoinModal visible={joinOpen} onClose={() => setJoinOpen(false)} />
     <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
       <Pressable style={styles.backdrop} onPress={close}>
         <Pressable style={styles.card} onStartShouldSetResponder={() => true}>
@@ -41,13 +56,13 @@ export default function CompanyOfferModal() {
           <Text style={styles.lead}>
             Be om innpass i en eksisterende bedrift, eller opprett en ny. Dette er gratis. Du kan også fortsette i arbeidsområdet ditt.
           </Text>
-          <TouchableOpacity style={styles.row} onPress={() => go('GroupJoin', { platformType: 'organization' })}>
+          <TouchableOpacity style={styles.row} onPress={askToJoin}>
             <View style={[styles.icon, { backgroundColor: '#f1f5f9' }]}>
               <Ionicons name="key-outline" size={22} color={colors.ink} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>Be om innpass</Text>
-              <Text style={styles.rowSub}>Kode fra en administrator i bedriften</Text>
+              <Text style={styles.rowSub}>Finn bedriften i Brønnøysund og be om tilgang</Text>
             </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.row} onPress={() => go('CreateCompany')}>
@@ -65,6 +80,7 @@ export default function CompanyOfferModal() {
         </Pressable>
       </Pressable>
     </Modal>
+    </>
   );
 }
 

@@ -20,7 +20,9 @@ import {
   isConfirmedMember,
   isPendingPlaceholder,
 } from '../src/utils/groupInviteLogic.js';
-import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
+import {
+  assertRateLimit, emailTrusted, hashRateKey, requireAuth,
+} from './security.js';
 import { writeUsageEvent } from './usageLog.js';
 
 if (!getApps().length) initializeApp();
@@ -40,10 +42,6 @@ function text(value) {
 
 function authEmailOf(req) {
   return text(req.auth?.token?.email).toLowerCase();
-}
-
-function emailVerified(req) {
-  return req.auth?.token?.email_verified === true;
 }
 
 function clientIp(req) {
@@ -384,7 +382,7 @@ export const respondGroupInvite = onCall(CALL, async (req) => {
   if (invite.status !== 'pending') return { ok: false, error: 'already-handled' };
   const family = familySnap.exists ? familySnap.data() || {} : null;
   if (groupDeleted(family)) return { ok: false, error: 'gone' };
-  if (response === 'accepted' && !emailVerified(req)) return { ok: false, error: 'email-not-verified' };
+  if (response === 'accepted' && !emailTrusted(req.auth)) return { ok: false, error: 'email-not-verified' };
 
   const args = { req, uid, familyId, inviteRef, invite, family };
   const result = response === 'accepted' ? await acceptInvite(args) : await declineInvite(args);
@@ -395,12 +393,13 @@ export const respondGroupInvite = onCall(CALL, async (req) => {
 /**
  * Ny bruker som ble invitert på e-post: når e-posten er bekreftet, legges
  * invitasjonen i innboksen (Godta/Avslå). Ingen blir medlem her.
+ * Innlogging med Google, Microsoft eller Apple regnes som bekreftet e-post.
  */
 export const syncMyInvites = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);
   const authEmail = authEmailOf(req);
   if (!authEmail) return { ok: true, invites: [] };
-  if (!emailVerified(req)) return { ok: true, skipped: 'email-not-verified', invites: [] };
+  if (!emailTrusted(req.auth)) return { ok: true, skipped: 'email-not-verified', invites: [] };
   await assertRateLimit(db, {
     key: hashRateKey(['group-invite-sync', uid]),
     limit: 60,

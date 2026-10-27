@@ -89,7 +89,7 @@ export default function SessionOverlays() {
       />
       <BirthdayPrepReminderModal enabled={false} />
       <FamilySetupNudgeModal enabled={false} />
-      <CompanyOfferModal />
+      <CompanyOfferModal enabled={invitesEnabled && !hasPendingInvites} />
       <MajorUpdateModal
         enabled={!loading && invitesEnabled && !hasPendingInvites}
       />

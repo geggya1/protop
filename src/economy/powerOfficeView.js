@@ -5,11 +5,6 @@
 import { VAT_CODES } from './vat.js';
 import { formatDate, formatMoney } from './invoices.js';
 
-export const POWEROFFICE_ENV_OPTIONS = [
-  { id: 'demo', label: 'Demo' },
-  { id: 'prod', label: 'Produksjon' },
-];
-
 export const POWEROFFICE_GUI = {
   demo: 'https://godemo.poweroffice.net/',
   prod: 'https://go.poweroffice.net/',
@@ -36,8 +31,28 @@ export function deliveryTypeLabel(type) {
   return DELIVERY_LABELS[key] || key;
 }
 
-export function envLabel(env) {
-  return POWEROFFICE_ENV_OPTIONS.find((row) => row.id === env)?.label || '';
+/**
+ * Produksjon er det vanlige og får ingen merkelapp. En testklient (PowerOffice sitt
+ * demomiljø) merkes tydelig, så ingen tror testfakturaer er ekte.
+ */
+export function envTag(env) {
+  return env === 'demo' ? 'Testklient' : '';
+}
+
+export function syncLabel(lastSyncAt) {
+  const at = new Date(lastSyncAt || '');
+  if (!lastSyncAt || Number.isNaN(at.getTime())) return 'ikke synket ennå';
+  return `sist synket ${at.toLocaleString('nb-NO', { dateStyle: 'short', timeStyle: 'short' })}`;
+}
+
+export function syncCountsText(counts) {
+  if (!counts) return '';
+  const parts = [];
+  if (counts.sent) parts.push(`${counts.sent} sendt`);
+  if (counts.paid) parts.push(`${counts.paid} betalt`);
+  if (counts.merged) parts.push(`${counts.merged} slått sammen`);
+  if (counts.missing) parts.push(`${counts.missing} ikke funnet`);
+  return parts.length ? parts.join(', ') : 'ingen endringer';
 }
 
 function isDraft(invoice) {
@@ -55,7 +70,7 @@ export function canTransferToPowerOffice(invoice, status) {
 export function powerOfficeSummary(invoice) {
   const po = invoice?.poweroffice;
   if (!po?.state) return null;
-  const env = po.env === 'demo' ? ' (demo)' : '';
+  const env = po.env === 'demo' ? ' (testklient)' : '';
   if (po.state === 'draft') {
     return {
       tone: 'info',

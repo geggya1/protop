@@ -79,7 +79,7 @@ import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import IndexWarning from './IndexWarning';
-import PowerOfficePanel from './PowerOfficePanel';
+import PowerOfficeSyncLine from './PowerOfficeSyncLine';
 import { loadPowerOfficeStatus, transferInvoiceToPowerOffice } from '../../src/economy/powerOfficeClient.js';
 import { canTransferToPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../src/economy/powerOfficeView.js';
 import { buildEhfXml } from '../../src/economy/ehf.js';
@@ -1470,7 +1470,7 @@ export default function EconomyInvoices({
       </View>
 
       {canManage && familyId ? (
-        <PowerOfficePanel familyId={familyId} colors={colors} status={poStatus} onStatus={setPoStatus} />
+        <PowerOfficeSyncLine familyId={familyId} colors={colors} status={poStatus} onStatus={setPoStatus} />
       ) : null}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
       {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}

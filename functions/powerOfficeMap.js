@@ -115,7 +115,7 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
   if (missing.size) {
     return {
       ok: false,
-      error: `Velg produkt i PowerOffice for MVA-sats ${[...missing].join(', ')}.`,
+      error: `Velg produkt for MVA-sats ${[...missing].join(', ')} under Økonomi → Innstillinger → Regnskapssystem.`,
       missingVatCodes: [...missing],
     };
   }

@@ -3,7 +3,9 @@
  * Ingen nettverk: fetch og API-klient er falske.
  */
 import assert from 'node:assert/strict';
-import { createPowerOfficeClient, problemMessage, POWEROFFICE_ENVS } from './powerOfficeApi.js';
+import {
+  createPowerOfficeClient, findClientEnvironment, PowerOfficeError, problemMessage, POWEROFFICE_ENVS,
+} from './powerOfficeApi.js';
 import {
   invoicePatchFromOutgoing,
   matchCustomer,
@@ -127,6 +129,40 @@ function fakeClock() {
 }
 
 assert.throws(() => createPowerOfficeClient({ env: 'demo', clientKey: 'c' }), /ikke satt opp/);
+
+{
+  // Miljøet følger av klientnøkkelen: produksjon først, så testklienten.
+  const keys = { prod: { applicationKey: 'pa', subscriptionKey: 'ps' }, demo: { applicationKey: 'da', subscriptionKey: 'ds' } };
+  const created = [];
+  const fakeClient = (accepts) => ({ env, clientKey }) => {
+    created.push(env);
+    return {
+      request: async () => {
+        if (env !== accepts) throw new PowerOfficeError('avvist', { status: 401 });
+        return { ClientName: 'Invest AS - API Test Client' };
+      },
+    };
+  };
+  const demo = await findClientEnvironment('k', { keysFor: async (env) => keys[env], createClient: fakeClient('demo') });
+  assert.equal(demo.env, 'demo');
+  assert.equal(demo.info.ClientName, 'Invest AS - API Test Client');
+  assert.deepEqual(created, ['prod', 'demo']);
+
+  // Uten produksjonsnøkler hoppes produksjon over.
+  created.length = 0;
+  await findClientEnvironment('k', { keysFor: async (env) => (env === 'demo' ? keys.demo : {}), createClient: fakeClient('demo') });
+  assert.deepEqual(created, ['demo']);
+
+  await assert.rejects(
+    findClientEnvironment('k', { keysFor: async (env) => keys[env], createClient: fakeClient('none') }),
+    /avviste klientnøkkelen/,
+  );
+  await assert.rejects(findClientEnvironment('k', { keysFor: async () => ({}) }), /ikke tilgang/);
+
+  // Andre feil (f.eks. nede) stopper søket i stedet for å prøve neste miljø.
+  const down = () => ({ request: async () => { throw new PowerOfficeError('nede', { status: 503 }); } });
+  await assert.rejects(findClientEnvironment('k', { keysFor: async (env) => keys[env], createClient: down }), /nede/);
+}
 assert.throws(() => createPowerOfficeClient({ env: 'x', applicationKey: 'a', clientKey: 'c', subscriptionKey: 's' }), /Ukjent/);
 assert.equal(
   problemMessage({ title: 'Valideringsfeil', errors: { CustomerId: ['Påkrevd'] } }, 400),

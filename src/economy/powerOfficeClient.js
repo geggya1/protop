@@ -15,11 +15,14 @@ export function loadPowerOfficeStatus(familyId) {
   return call('powerOfficeStatus', { familyId }, 20000);
 }
 
-/** Klientnøkkel fra Utvidelser i PowerOffice Go, og/eller produkt per MVA-sats. */
-export function connectPowerOffice(familyId, { env, clientKey, productCodes } = {}) {
+/**
+ * Klientnøkkel fra Utvidelser i PowerOffice Go, og/eller produkt per MVA-sats.
+ * Serveren finner selv ut om nøkkelen hører til produksjon eller en testklient.
+ */
+export function connectPowerOffice(familyId, { clientKey, productCodes } = {}) {
   return call('powerOfficeConnect', {
     familyId,
-    ...(clientKey ? { env, clientKey } : {}),
+    ...(clientKey ? { clientKey } : {}),
     ...(productCodes ? { productCodes } : {}),
   }, 30000);
 }

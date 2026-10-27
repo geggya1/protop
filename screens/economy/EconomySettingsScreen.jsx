@@ -9,21 +9,24 @@ import ChartOfAccountsSettings from '../../components/company/ChartOfAccountsSet
 import StandardAccountSettings from '../../components/company/StandardAccountSettings';
 import CompanyInvoiceDefaultsSettings from '../../components/company/CompanyInvoiceDefaultsSettings';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
+import PowerOfficeSettings from './PowerOfficeSettings';
 
 const TABS = [
   { id: 'kontoplan', label: 'Kontoplan', icon: 'list-outline', hint: 'Salgs- og kjøpskontoer med MVA' },
   { id: 'regnskapskontoer', label: 'Standard regnskapskontoer', icon: 'wallet-outline', hint: 'Honorar, timer, utlegg, produkter og avrunding' },
   { id: 'fakturastandarder', label: 'Fakturastandarder', icon: 'receipt-outline', hint: 'Kredittid, tekster, påslag og EHF — arves av alle prosjekter' },
+  { id: 'regnskapssystem', label: 'Regnskapssystem', icon: 'swap-horizontal-outline', hint: 'PowerOffice Go: fakturautkast ut, faktura og betaling inn' },
 ];
 
 function initialTab(startTab) {
   if (startTab === 'regnskapskontoer') return 'regnskapskontoer';
   if (startTab === 'fakturastandarder') return 'fakturastandarder';
+  if (startTab === 'regnskapssystem') return 'regnskapssystem';
   return 'kontoplan';
 }
 
 /**
- * Økonomi → Innstillinger: kontoplan, standardkontoer og fakturastandarder.
+ * Økonomi → Innstillinger: kontoplan, standardkontoer, fakturastandarder og regnskapssystem.
  * Prosjekter arver faktura-/økonomiverdier herfra under Faktureringsvalg.
  */
 export default function EconomySettingsScreen({ startTab = 'kontoplan' } = {}) {
@@ -117,6 +120,9 @@ export default function EconomySettingsScreen({ startTab = 'kontoplan' } = {}) {
       ) : null}
       {tab === 'fakturastandarder' ? (
         <CompanyInvoiceDefaultsSettings familyId={familyId} colors={colors} canEdit={canEdit} />
+      ) : null}
+      {tab === 'regnskapssystem' ? (
+        <PowerOfficeSettings familyId={familyId} colors={colors} canEdit={canEdit} />
       ) : null}
     </ScrollView>
   );

@@ -106,9 +106,9 @@ export function ProductSalesScreen() {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const { familyId, requestShellTab } = useApp();
-  const access = useCompanyAccess();
   // Import av salgslister krever Admin på Produktsalg. Endring krever Begrenset redigering.
-  const canImport = canImportList(access, 'productSales');
+  const canImport = canImportList(useCompanyAccess(), 'productSales');
+  const access = useCompanyAccess();
   const canEdit = !!access?.ready && !!access.canEdit?.('productSales');
   const canDelete = !!access?.ready && !!access.canAdmin?.('productSales');
   const { width } = useWindowDimensions();

@@ -73,7 +73,7 @@ export default function ProjectSalesTab({
 
   const all = useMemo(
     () => (sales || (state.sales || []).filter((row) => row.projectId === project.id))
-      .filter((row) => !employeeId || row.employeeId === employeeId),
+      .filter((row) => (!employeeId || row.employeeId === employeeId)),
     [sales, state.sales, project.id, employeeId],
   );
   const rows = useMemo(() => {

@@ -326,6 +326,14 @@ export const ACCESS_LEVELS = [
     summary: 'Har hele HR-modulen, alle faner på ansatte, fravær for alle og fraværsinnstillingene. Krysses av i tillegg til vanlig nivå.',
   },
   {
+    id: 'iso_rolle',
+    order: 12,
+    label: 'Rolle i ISO / K-HMS',
+    kind: 'staff',
+    section: 'specialist',
+    summary: 'For prosesseiere, prosjektledere, ledere, internrevisor og HR med rolle i ISO / K-HMS: behandler saker og registre og lager utkast. Godkjenner bare med en godkjennerrolle. Krysses av i tillegg til vanlig nivå.',
+  },
+  {
     id: 'regnskap_ekstern',
     order: 1,
     label: 'Regnskap eksternt',
@@ -416,6 +424,10 @@ const ROLE_TO_LEVEL = [
   ['kvalitetsansvarlig', 'kvalitetsansvarlig'],
   ['kvalitetsansvarlig iso', 'kvalitetsansvarlig'],
   ['kvalitetsleder', 'kvalitetsansvarlig'],
+  ['rolle i iso k hms', 'iso_rolle'],
+  ['iso rolle', 'iso_rolle'],
+  ['prosesseier', 'iso_rolle'],
+  ['internrevisor', 'iso_rolle'],
   ['hr ansvarlig', 'hr_ansvarlig'],
   ['hr leder', 'hr_ansvarlig'],
   ['personalansvarlig', 'hr_ansvarlig'],
@@ -527,6 +539,13 @@ const STANDARD = {
     iso: 'write',
     hrCompliance: 'see',
     forms: 'write',
+  }),
+  // Rolle i ISO: Begrenset redigering i ISO og skjema. Godkjenning følger ISO-rollen, ikke nivået.
+  iso_rolle: fill({
+    companyPublic: 'see',
+    employees: 'see',
+    iso: 'read',
+    forms: 'read',
   }),
   hr_ansvarlig: fill({
     companyPublic: 'see',

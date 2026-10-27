@@ -30,6 +30,12 @@ import {
 import { normalizeSystem } from './state.js';
 import { requirementIdsForDocument } from './integrations.js';
 import { approverUidsFromRoles } from './access.js';
+import {
+  isoRoleIdFor, isRoleName, matchPerson, normName, roleOwner,
+} from './roles.js';
+import { roleLabel } from './catalog.js';
+
+export { isRoleName, matchPerson };
 
 export const PACKAGE_FORMAT = 'protop.iso.package';
 export const PACKAGE_VERSION = 1;
@@ -143,13 +149,16 @@ function existingIndex(state, anbudTemplates = []) {
 function documentInput(pkg, row, ctx) {
   const docType = DOC_TYPES.some((d) => d.id === row.docType) ? row.docType : '';
   const areaIds = uniq(arr(row.requirementAreas).flatMap((a) => requirementIdsForArea(ctx.state, a)));
+  const owner = text(row.ownerName) ? ctx.owner(row.ownerName, { fallback: true }) : null;
+  const approver = ctx.owner(row.approverName, { fallback: false });
   return {
     title: row.title,
     code: row.code,
     folder: row.folder,
     docType,
-    ownerName: row.ownerName,
-    approverName: row.approverName,
+    ownerName: owner?.name || row.ownerName,
+    ownerUid: owner?.uid || '',
+    approverName: approver?.name || row.approverName,
     accessClass: row.accessClass,
     readAckRequired: !!row.readAckRequired,
     reviewIntervalMonths: row.reviewIntervalMonths,
@@ -164,14 +173,6 @@ function documentInput(pkg, row, ctx) {
 }
 
 const lower = (v) => text(v).toLowerCase();
-
-/** Rolle- eller funksjonsnavn (ikke et personnavn): finnes som rolle, eller ser ut som en tittel. */
-export function isRoleName(name, roleTitles = new Set()) {
-  const n = lower(name);
-  if (!n) return false;
-  if (roleTitles.has(n) || n.split('/').map((x) => x.trim()).some((x) => roleTitles.has(x))) return true;
-  return /\/|ansvarlig|leder|ledelse|rådgiver|ressurs|konsulent|koordinator|innkjøper|ombud|revisor|styret|sjef|direktør|medarbeider|ansatte|avdeling|behandler|ingeniør|byggeleder|administrasjon|^hr\b|^it\b|^hms|^k-?hms|^økonomi/.test(n);
-}
 
 /** Oppfølgingslisten fra pakken som Markdown, gruppert på «Del: tekst». */
 export function reviewMarkdown(pkg) {
@@ -205,7 +206,8 @@ function resolveClick(node, refs) {
 
 /** Diagram fra pakken: svømmebaner + bokser + piler, med referanser løst til ProTop-id-er. */
 export function diagramFromPackage(spec, refs, issues = []) {
-  const lanes = arr(spec?.lanes);
+  // Baner med rollenavn («Daglig leder», «HMSK-leder») får ProTop-rollen, så oppgavene går til personen med rollen.
+  const lanes = arr(spec?.lanes).map((l) => (l && !l.roleKey && isoRoleIdFor(l.label) ? { ...l, roleKey: isoRoleIdFor(l.label) } : l));
   const laneById = new Map(lanes.map((l) => [String(l.id), l]));
   const nodes = arr(spec?.nodes).map((n) => {
     const lane = laneById.get(String(n.lane || ''));
@@ -218,7 +220,7 @@ export function diagramFromPackage(spec, refs, issues = []) {
       ...n,
       type,
       roleLabel: n.roleLabel || lane?.label || '',
-      roleKey: n.roleKey || lane?.roleKey || '',
+      roleKey: n.roleKey || (n.roleLabel ? isoRoleIdFor(n.roleLabel) : '') || lane?.roleKey || '',
       documentId: n.documentKey ? (refs.documents.get(n.documentKey) || '') : '',
       subprocessId: type === 'subprocess' ? (refs.processes.get(n.processKey) || '') : '',
       formKey: n.formKey ? (refs.forms.get(n.formKey) || '') : '',
@@ -241,29 +243,6 @@ export function existingTemplateFor(row, anbudTemplates) {
     (key && (t.libraryKey === key || t.id === `ks_${key.replace(/[^a-z0-9-]/gi, '').toLowerCase()}`))
     || (code && [t.doc?.docId, t.doc?.ref].some((x) => String(x || '').trim().toUpperCase() === code))
   )) || null;
-}
-
-const normName = (s) => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-zæøå0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
-
-/**
- * Finn den ansatte et navn i pakken gjelder: likt navn, ellers samme fornavn og etternavn
- * (mellomnavn kan mangle). Bare entydige treff brukes.
- */
-export function matchPerson(people, name) {
-  const n = normName(name);
-  if (!n) return null;
-  const list = people || [];
-  const exact = list.filter((p) => normName(p.name) === n);
-  if (exact.length === 1) return exact[0];
-  const parts = n.split(' ');
-  if (parts.length < 2) return null;
-  const first = parts[0];
-  const last = parts[parts.length - 1];
-  const loose = list.filter((p) => {
-    const q = normName(p.name).split(' ');
-    return q.length >= 2 && q[0] === first && q[q.length - 1] === last;
-  });
-  return loose.length === 1 ? loose[0] : null;
 }
 
 const UID_FIELD = { personName: 'personUid', auditorName: 'auditorUid' };
@@ -307,6 +286,7 @@ export function mergeCompetenceIntoCv(cv, row) {
 function recordValues(register, row, refs, issues) {
   const def = REGISTERS[register];
   const values = {};
+  const notes = [];
   for (const f of def.fields) {
     if (row[f.key] === undefined) continue;
     let v = row[f.key];
@@ -323,18 +303,33 @@ function recordValues(register, row, refs, issues) {
     }
     if (f.type === 'date' && v) v = isoDate(v) || '';
     // Navn på ansatte kobles til personen i ProTop, så oppgaver og varsler går til riktig person.
-    if (f.type === 'person' && v && refs.people) {
-      const hit = matchPerson(refs.people, v);
+    // Rolletekster («Daglig leder») går til personen med rollen. Eier mangler eller er en funksjon
+    // ProTop ikke har: kvalitetsleder blir eier, og posten merkes til gjennomgang.
+    if (f.type === 'person' && v) {
       const uidKey = UID_FIELD[f.key] || 'ownerUid';
-      if (hit) { v = hit.name; if (hit.uid && row[uidKey] === undefined) values[uidKey] = hit.uid; } else refs.unmatched.add(String(v));
+      const hit = refs.people ? matchPerson(refs.people, v) : null;
+      const via = hit || f.key === 'personName' ? null : refs.owner(v, { fallback: f.key === 'ownerName' });
+      if (hit) { v = hit.name; if (hit.uid && row[uidKey] === undefined) values[uidKey] = hit.uid; }
+      else if (via) {
+        v = via.name;
+        if (via.uid && row[uidKey] === undefined) values[uidKey] = via.uid;
+        if (via.note) notes.push(via.note);
+      } else if (refs.people) refs.unmatched.add(String(v));
     }
-    if (f.type === 'persons' && refs.people) {
+    if (f.type === 'persons' && v) {
       v = arr(v).map((x) => {
         const name = typeof x === 'object' && x ? x.name : x;
-        const hit = matchPerson(refs.people, name);
-        if (!hit && name) refs.unmatched.add(String(name));
-        return hit ? { name: hit.name, uid: hit.uid || '', employeeId: hit.id || '' } : { name };
+        const hit = refs.people ? matchPerson(refs.people, name) : null;
+        const via = hit || !name ? null : refs.owner(name, { fallback: false });
+        if (!hit && !via && name && refs.people) refs.unmatched.add(String(name));
+        if (hit) return { name: hit.name, uid: hit.uid || '', employeeId: hit.id || '' };
+        return via ? { name: via.name, uid: via.uid || '' } : { name };
       });
+    }
+    // Ansvarlig rolle (årshjul) med ProTops navn på rollen, så oppgaven finner personen.
+    if (f.key === 'responsibleRole' && v) {
+      const role = isoRoleIdFor(v);
+      if (role && role !== 'employee') v = roleLabel(role);
     }
     if (f.type === 'contacts' && refs.people) {
       v = arr(v).map((c) => {
@@ -345,9 +340,9 @@ function recordValues(register, row, refs, issues) {
     }
     values[f.key] = v;
   }
-  if (row.needsReview || row.reviewNote) {
+  if (row.needsReview || row.reviewNote || notes.length) {
     values.needsReview = true;
-    values.reviewNote = text(row.reviewNote, 1000);
+    values.reviewNote = text([row.reviewNote, ...notes].filter(Boolean).join(' '), 1000);
   }
   // Hvor posten kom fra lagres som origin, så den ikke kolliderer med felt som heter «source» (f.eks. kompetansekrav).
   const origin = row.origin || (row.source && typeof row.source === 'object' ? row.source : null);
@@ -441,6 +436,24 @@ export function buildImport(state, pkg, {
     records: new Map(Object.keys(REGISTERS).map((k) => [k, new Map()])),
     people: Array.isArray(people) && people.length ? people : null,
     unmatched: new Set(),
+    linked: new Map(),
+    defaulted: new Map(),
+  };
+  /** Rolletekst → personen med rollen (eller standard eier). Teller for oppsummeringen. */
+  refs.owner = (value, opts) => {
+    const hit = roleOwner(value, work.system, { ...opts, people: refs.people });
+    if (!hit || hit.kind === 'person') return hit;
+    const bucket = hit.kind === 'rolle' ? refs.linked : refs.defaulted;
+    const k = hit.kind === 'rolle' ? `${hit.from}→${hit.name}→${hit.role}` : (hit.from || 'uten eier');
+    bucket.set(k, (bucket.get(k) || 0) + 1);
+    return hit;
+  };
+  // Tom eier i kilden: prosessen legges inn som utkast til noen velger prosesseier.
+  const ownerOf = (value) => {
+    if (!text(value)) return null;
+    const hit = refs.people ? matchPerson(refs.people, value) : null;
+    if (hit) return { name: hit.name, uid: hit.uid || '' };
+    return refs.owner(value, { fallback: true });
   };
   for (const row of pkg.documents) { const hit = existing.get(importKeyFor(pkg, 'documents', row.key)); if (hit) refs.documents.set(row.key, hit.row.id); }
   for (const row of pkg.processes) { const hit = existing.get(importKeyFor(pkg, 'processes', row.key)); if (hit) refs.processes.set(row.key, hit.row.id); }
@@ -489,7 +502,13 @@ export function buildImport(state, pkg, {
     for (const row of pkg.documents) {
       const ik = importKeyFor(pkg, 'documents', row.key);
       if (existing.has(ik)) { note('documents', row.key, `${row.code || ''} ${row.title}`.trim(), 'finnes'); continue; }
-      const res = createDocument(documentInput(pkg, row, { state: work }), { actor, existing: docs, now });
+      const res = createDocument(documentInput(pkg, row, {
+        state: work,
+        owner: (value, opts) => {
+          const hit = refs.people && text(value) ? matchPerson(refs.people, value) : null;
+          return hit ? { name: hit.name, uid: hit.uid || '' } : refs.owner(value, opts);
+        },
+      }), { actor, existing: docs, now });
       if (!res.ok) { note('documents', row.key, `${row.code || ''} ${row.title}`.trim(), 'feil', res.error); continue; }
       const document = { ...res.document, importKey: ik };
       docs = [...docs, document];
@@ -532,7 +551,10 @@ export function buildImport(state, pkg, {
         code: row.code,
         order: row.order,
         category: PROCESS_CATEGORIES.some((c) => c.id === row.category) ? row.category : 'kjerne',
-        ownerName: row.ownerName,
+        ...(() => {
+          const o = ownerOf(row.ownerName);
+          return { ownerName: o?.name || row.ownerName, ownerUid: o?.uid || '' };
+        })(),
         purpose: row.purpose,
         inputs: row.inputs,
         outputs: row.outputs,
@@ -661,7 +683,8 @@ export function buildImport(state, pkg, {
       if (row.status === 'internt_verifisert') { note('assessments', row.key, label, 'feil', '«Internt verifisert» krever vurdert bevis og settes ikke ved import.'); continue; }
       const current = (tmp.assessments || []).find((a) => a.requirementId === target);
       if (current && current.status !== 'ikke_vurdert' && !row.overwrite) { note('assessments', row.key, label, 'finnes', 'Kravet er allerede vurdert. Vurderingen beholdes.'); continue; }
-      const res = setAssessment(tmp, target, { status: row.status, rationale: row.rationale, ownerName: row.ownerName, nextReview: row.nextReview }, { actor, caps, now });
+      const assessOwner = text(row.ownerName) ? (refs.people && matchPerson(refs.people, row.ownerName)) || refs.owner(row.ownerName, { fallback: false }) : null;
+      const res = setAssessment(tmp, target, { status: row.status, rationale: row.rationale, ownerName: assessOwner?.name || row.ownerName, nextReview: row.nextReview }, { actor, caps, now });
       if (!res.ok) { note('assessments', row.key, label, 'feil', res.error); continue; }
       tmp = { ...tmp, assessments: res.assessments };
       out.events.push(...res.events);
@@ -761,6 +784,20 @@ export function buildImport(state, pkg, {
     }
   }
 
+  if (refs.linked.size) {
+    const rows = [...refs.linked.entries()].map(([k, n]) => { const [from, name, role] = k.split('→'); return { from, name, role, n }; })
+      .sort((a, b) => b.n - a.n);
+    const total = rows.reduce((sum, r) => sum + r.n, 0);
+    const shown = rows.slice(0, 8).map((r) => `«${r.from}» → ${r.name} (${roleLabel(r.role)}, ${r.n})`).join(', ');
+    issues.push(`Roller er koblet til personene som har dem i Innstillinger → Roller (${total} ${total === 1 ? 'post' : 'poster'}): ${shown}${rows.length > 8 ? ` og ${rows.length - 8} til` : ''}.`);
+  }
+  if (refs.defaulted.size) {
+    const def = defaultOwnerLabel(work.system);
+    const rows = [...refs.defaulted.entries()].sort((a, b) => b[1] - a[1]);
+    const total = rows.reduce((sum, [, n]) => sum + n, 0);
+    const shown = rows.slice(0, 10).map(([from, n]) => `«${from}» (${n})`).join(', ');
+    issues.push(`${total} ${total === 1 ? 'post hadde' : 'poster hadde'} ingen eier eller en funksjon som ikke er en rolle i ProTop: ${shown}${rows.length > 10 ? ` og ${rows.length - 10} til` : ''}. ${def} er satt som eier, og registerpostene er merket «må gjennomgås». Velg riktig person i postene.`);
+  }
   if (refs.unmatched.size) {
     const roleTitles = new Set([...arr(pkg.records.rolle), ...((state.records || {}).rolle || [])].map((r) => lower(r?.title)).filter(Boolean));
     const all = [...refs.unmatched];
@@ -768,12 +805,19 @@ export function buildImport(state, pkg, {
     const roles = all.filter((n) => !blank.includes(n) && isRoleName(n, roleTitles));
     const names = all.filter((n) => !blank.includes(n) && !roles.includes(n));
     const list = (xs) => `${xs.slice(0, 12).join(', ')}${xs.length > 12 ? ` og ${xs.length - 12} til` : ''}`;
-    if (roles.length) issues.push(`${roles.length === 1 ? 'Én eier er en rolle' : `${roles.length} eiere er roller`}, ikke personer, og står som tekst: ${list(roles)}. Velg hvem som har rollene i Organisasjon og roller, og bytt til person i postene der det trengs.`);
+    if (roles.length) issues.push(`${roles.length === 1 ? 'Én eier er en rolle' : `${roles.length} eiere er roller`} som ingen har ennå, og står som tekst: ${list(roles)}. Velg hvem som har rollene i Innstillinger → Roller, og trykk «Koble rolle-eiere til personer» der.`);
     if (names.length) issues.push(`Fant ikke disse blant de ansatte, så de står som tekst: ${list(names)}. Legg dem inn i Ansatte og velg dem i postene.`);
     if (blank.length) issues.push(`Noen poster har ingen eier i kilden («${blank.join('», «')}»). Velg eier i postene etter importen.`);
   }
 
   return { ok: true, plan, issues: [...new Set(issues)], out, refs };
+}
+
+function defaultOwnerLabel(system) {
+  const roles = system?.roleMap || {};
+  if (roles.quality_manager?.name) return `Kvalitetsleder ${roles.quality_manager.name}`;
+  if (roles.system_owner?.name) return `Systemansvarlig ${roles.system_owner.name}`;
+  return `Systemansvarlig ${text(system?.ownerName) || ''}`.trim();
 }
 
 /** Tørrkjøring: hva blir opprettet, hva finnes, hva feiler. */

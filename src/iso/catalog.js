@@ -279,18 +279,22 @@ export function aspectSignificance(aspect, method = DEFAULT_RISK_METHOD) {
   return { level, significant: reasons.length > 0, reasons };
 }
 
-/** Roller i K-HMS. Kobles til ProTops eksisterende tilgangsnivåer, ikke egne brukere. */
+/**
+ * Roller i K-HMS. Kobles til ProTops eksisterende tilgangsnivåer, ikke egne brukere.
+ * Én person per rolle (Innstillinger → Roller). Tilgangen hver rolle trenger, står i access.js (ROLE_ACCESS).
+ */
 export const ISO_ROLES = [
-  { id: 'system_owner', label: 'Systemansvarlig K-HMS' },
-  { id: 'quality_manager', label: 'Kvalitetsleder' },
-  { id: 'hse_manager', label: 'HMS-leder' },
-  { id: 'process_owner', label: 'Prosesseier' },
-  { id: 'project_manager', label: 'Prosjektleder' },
-  { id: 'manager', label: 'Leder' },
-  { id: 'top_management', label: 'Øverste ledelse' },
-  { id: 'internal_auditor', label: 'Internrevisor' },
-  { id: 'safety_rep', label: 'Verneombud / ansattrepresentant' },
-  { id: 'employee', label: 'Ansatt' },
+  { id: 'system_owner', label: 'Systemansvarlig K-HMS', summary: 'Eier ledelsessystemet og innstillingene. Godkjenner.' },
+  { id: 'quality_manager', label: 'Kvalitetsleder', summary: 'Dokumentstyring, avvik, interne revisjoner og forbedring (ISO 9001). Godkjenner.' },
+  { id: 'hse_manager', label: 'HMS-leder', summary: 'Arbeidsmiljø, sikkerhet og ytre miljø (ISO 45001 og 14001), beredskap. Godkjenner.' },
+  { id: 'process_owner', label: 'Prosesseier', summary: 'Eier prosesser uten egen eier og følger opp målene deres.' },
+  { id: 'project_manager', label: 'Prosjektleder', summary: 'Kvalitetsplan, risiko og avvik i prosjektene.' },
+  { id: 'manager', label: 'Leder', summary: 'Følger opp avvik, tiltak og opplæring i egen enhet.' },
+  { id: 'top_management', label: 'Øverste ledelse', summary: 'Policy, mål, ressurser og ledelsens gjennomgang. Godkjenner.' },
+  { id: 'internal_auditor', label: 'Internrevisor', summary: 'Planlegger og gjennomfører interne revisjoner. Reviderer ikke eget arbeid.' },
+  { id: 'hr_manager', label: 'HR-ansvarlig', summary: 'Kompetansekrav, opplæring og bemanning (ISO 7.2 og 7.3).' },
+  { id: 'safety_rep', label: 'Verneombud / ansattrepresentant', summary: 'Medvirkning og konsultasjon i HMS (ISO 45001 5.4).' },
+  { id: 'employee', label: 'Ansatt', summary: 'Melder avvik, leser og kvitterer dokumenter.' },
 ];
 
 export function roleLabel(id) {

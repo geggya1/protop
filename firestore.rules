@@ -269,7 +269,7 @@ service cloud.firestore {
 
     function empIsPrivileged(c) {
       return empLevelSet(c).hasAny(['administrator', 'admin', 'hovedadministrator', 'leder', 'avdelingsleder', 'øverste leder', 'daglig leder',
-          'hr_ansvarlig', 'kvalitetsansvarlig', 'hms_ansvarlig'])
+          'hr_ansvarlig', 'kvalitetsansvarlig', 'hms_ansvarlig', 'iso_rolle'])
         || c.get('accessOverrides', {}).size() > 0;
     }
 

@@ -7,12 +7,13 @@ import { ISO_MENU, companyNavItems, defaultIsoSubView, isNavItemActive } from '.
 
 const OWN_NAV = new Set(['hr', 'anbud']);
 
-/** ISO har mange sider: først et valg av del, så sidene i delen. */
+/** ISO har mange sider: først et valg av del, så sidene i delen. Oversikt og Innstillinger er egne faner. */
 const ISO_SECTIONS = [
   { id: 'oversikt', label: 'Oversikt', group: null },
   { id: 'styring', label: 'Styring', group: 'Styring' },
   { id: 'drift', label: 'Drift', group: 'Operativt' },
   { id: 'evaluering', label: 'Evaluering', group: 'Evaluering' },
+  { id: 'innstillinger', label: 'Innstillinger', group: 'Innstillinger' },
 ];
 
 const sameAction = (a, b) => !!a && !!b && a.tab === b.tab && (a.subView || null) === (b.subView || null);

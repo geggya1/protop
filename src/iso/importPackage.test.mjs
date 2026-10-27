@@ -349,7 +349,7 @@ test('oppfølgingslisten fra pakken blir et utkast i Dokumenter, gruppert og bar
   assert.equal(again.plan.documents.find((r) => r.key === '__oppfolging').status, 'finnes');
 });
 
-test('eiere som er roller får egen merknad, personnavn som ikke finnes får rådet om Ansatte', () => {
+test('eiere som er roller går til personen med rollen; uten eier eller ukjent funksjon får kvalitetsleder', () => {
   const p = parsePackage(pkg({
     records: {
       risiko: [
@@ -357,14 +357,39 @@ test('eiere som er roller får egen merknad, personnavn som ikke finnes får rå
         { key: 'R2', kind: 'Risiko', title: 'Feil i tilbud', category: 'kvalitet', ownerName: 'Kvalitetsansvarlig' },
         { key: 'R3', kind: 'Risiko', title: 'Sykdom', category: 'arbeidsmiljo', ownerName: 'Ola Utenfor' },
         { key: 'R4', kind: 'Risiko', title: 'Brann', category: 'beredskap', ownerName: 'Ikke tildelt' },
+        { key: 'R5', kind: 'Risiko', title: 'Innkjøp', category: 'kvalitet', ownerName: 'Innkjøpsansvarlig' },
+        { key: 'R6', kind: 'Risiko', title: 'Strategi', category: 'strategisk', ownerName: 'Daglig leder' },
       ],
+      aarshjul: [{ key: 'A1', title: 'Vernerunde', months: ['Mars'], responsibleRole: 'HMS-ansvarlig' }],
     },
   })).pkg;
-  const res = planImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, people: [{ name: 'Siri Leder', uid: 'u3' }] });
-  const roleNote = res.issues.find((i) => /eiere er roller/.test(i));
-  assert.ok(roleNote, res.issues.join('\n'));
-  assert.match(roleNote, /Tilbudsansvarlig \/ Prosjektleder, Kvalitetsansvarlig/);
-  assert.doesNotMatch(roleNote, /Ola Utenfor/);
-  assert.ok(res.issues.some((i) => /Fant ikke disse blant de ansatte, så de står som tekst: Ola Utenfor\. Legg dem inn i Ansatte/.test(i)));
-  assert.ok(res.issues.some((i) => /ingen eier i kilden \(«Ikke tildelt»\)/.test(i)));
+  const state = emptyIsoState();
+  state.system = {
+    ...state.system,
+    roleMap: {
+      quality_manager: { name: 'Kari Kvalitet', uid: 'q1' },
+      project_manager: { name: 'Per Prosjekt', uid: 'p1' },
+      top_management: { name: 'Siri Leder', uid: 'u3' },
+    },
+  };
+  const built = buildImport(state, p, { actor: BOSS, caps: ADMIN, now: NOW, people: [{ name: 'Siri Leder', uid: 'u3' }] });
+  const owner = (key) => built.out.records.find((r) => r.record.importKey.endsWith(`:${key}`)).record;
+  assert.deepEqual([owner('R1').ownerName, owner('R1').ownerUid], ['Per Prosjekt', 'p1'], 'første rolle med person');
+  assert.deepEqual([owner('R2').ownerName, owner('R2').ownerUid], ['Kari Kvalitet', 'q1'], 'Kvalitetsansvarlig = kvalitetsleder');
+  assert.equal(owner('R2').needsReview, undefined);
+  assert.deepEqual([owner('R6').ownerName, owner('R6').ownerUid], ['Siri Leder', 'u3'], 'Daglig leder = øverste ledelse');
+  for (const key of ['R4', 'R5']) {
+    assert.equal(owner(key).ownerUid, 'q1', `${key} får kvalitetsleder`);
+    assert.equal(owner(key).needsReview, true);
+  }
+  assert.match(owner('R4').reviewNote, /Eier mangler i kilden \(«Ikke tildelt»\)/);
+  assert.match(owner('R5').reviewNote, /«Innkjøpsansvarlig» er ikke en rolle i ProTop/);
+  assert.equal(built.out.records.find((r) => r.record.register === 'aarshjul').record.responsibleRole, 'HMS-leder');
+  assert.ok(built.issues.some((i) => /Roller er koblet til personene/.test(i) && /«Daglig leder» → Siri Leder \(Øverste ledelse, \d+\)/.test(i)), built.issues.join('\n'));
+  assert.ok(built.issues.some((i) => /2 poster hadde ingen eier eller en funksjon/.test(i) && /Kvalitetsleder Kari Kvalitet er satt som eier/.test(i)), built.issues.join('\n'));
+  assert.ok(built.issues.some((i) => /Fant ikke disse blant de ansatte, så de står som tekst: Ola Utenfor\. Legg dem inn i Ansatte/.test(i)));
+
+  // Uten roller i oppsettet: systemansvarlig (den som importerer) blir eier i stedet.
+  const bare = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, people: [{ name: 'Siri Leder', uid: 'u3' }] });
+  assert.match(bare.out.records.find((r) => r.record.importKey.endsWith(':R2')).record.reviewNote, /rollen Kvalitetsleder, som ingen har ennå/);
 });

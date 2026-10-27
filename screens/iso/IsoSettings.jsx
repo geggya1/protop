@@ -6,9 +6,14 @@ import { auditEvent, bump, nowIso, prettyDate } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, ISO_ROLES, STANDARDS } from '../../src/iso/catalog';
 import { markForReassessment, requirementIdsForArea } from '../../src/iso/requirements';
 import { setupDefaultsFromCompany } from '../../src/iso/integrations';
-import { APPROVER_ROLES, approverUidsFromRoles, roleAccessCheck, restrictedUids } from '../../src/iso/access';
+import {
+  APPROVER_ROLES, approverUidsFromRoles, recommendedRoleAccess, roleAccessCheck, restrictedUids,
+} from '../../src/iso/access';
 import { aclFor } from '../../src/iso/aclSync';
-import { saveRestrictedGrants } from '../../src/iso/storage';
+import { roleOwnerFixes } from '../../src/iso/roles';
+import { ensureAccessMirror, saveRestrictedGrants } from '../../src/iso/storage';
+import { checkPersonChange } from '../../src/access/accessCeiling';
+import { saveEmployee } from '../../src/employees/storage';
 import { STARTER_OPTIONS, runStarterKit } from './starterKit';
 import IsoImport from './IsoImport';
 import { normalizeDocStructure } from '../../src/iso/documents';
@@ -32,6 +37,7 @@ function suggestRoles(people) {
     ['hse_manager', /hms|sikkerhet|verne/i],
     ['project_manager', /prosjektleder/i],
     ['internal_auditor', /revisor|kvalitet/i],
+    ['hr_manager', /\bhr\b|personal/i],
     ['safety_rep', /verneombud|tillitsvalgt/i],
   ];
   for (const [role, re] of pairs) {
@@ -176,6 +182,39 @@ export default function IsoSettings({ ctx }) {
     };
   }, [ctx.family, ctx.accessEmployees]);
   const roleCheck = useMemo(() => roleAccessCheck(v.roleMap, rankFor), [v.roleMap, rankFor]);
+  const accessRecs = useMemo(
+    () => recommendedRoleAccess(v.roleMap, { employees: ctx.accessEmployees, policy: ctx.accessPolicy }),
+    [v.roleMap, ctx.accessEmployees, ctx.accessPolicy],
+  );
+  const [grant, setGrant] = useState({ busy: false, msg: '', err: '' });
+
+  /** Legger til fagansvaret rollene trenger, med samme tak som i tilgangsstyringen. */
+  async function grantRecommended() {
+    setGrant({ busy: true, msg: '', err: '' });
+    const done = [];
+    const failed = [];
+    const saved = [];
+    for (const rec of accessRecs) {
+      const check = checkPersonChange({ actor: ctx.accessActor, policy: ctx.accessPolicy, before: rec.employee, after: rec.next });
+      if (!check.ok) { failed.push(`${rec.name}: ${check.reason}`); continue; }
+      try {
+        saved.push(await saveEmployee(companyId, rec.next));
+        done.push(`${rec.name} (${rec.addLabels.join(', ')})`);
+      } catch (e) {
+        failed.push(`${rec.name}: ${e?.message || 'kunne ikke lagre'}`);
+      }
+    }
+    if (saved.length) {
+      // Serveren beregner ISO-tilgangen på nytt, så knappene og reglene stemmer med en gang.
+      const employees = (ctx.accessEmployees || []).map((e) => saved.find((x) => x.id === e.id) || e);
+      await ensureAccessMirror(companyId, actor.uid, { family: ctx.family, employees, force: true }).catch(() => null);
+    }
+    setGrant({
+      busy: false,
+      msg: done.length ? `Fagansvar lagt til: ${done.join('; ')}.` : '',
+      err: failed.length ? `Ble ikke endret: ${failed.join('; ')}` : '',
+    });
+  }
 
   /** Bygg neste systemdokument fra skjemaet. */
   function buildNext(cur, prev) {
@@ -374,11 +413,11 @@ export default function IsoSettings({ ctx }) {
         <Field label="Systemansvarlig" required><PersonPick people={people} value={v.ownerName} onChange={(p) => update((cur) => ({ ...cur, ownerName: p.name, ownerUid: p.uid }))} /></Field>
       </Card>
 
-      <Card title="Roller" subtitle="Foreslått ut fra stillingstittel i ansattregisteret. Prosesstrinn og nye saker tildeles personen med rollen.">
+      <Card title="Roller" subtitle="Én person per rolle. Prosesstrinn, nye saker og importerte poster med rollen som eier går til personen. Foreslått ut fra stillingstittel i ansattregisteret.">
         <View style={{ flexDirection: wide ? 'row' : 'column', flexWrap: 'wrap', gap: 12 }}>
           {ISO_ROLES.filter((r) => !['employee', 'system_owner'].includes(r.id)).map((r) => (
             <View key={r.id} style={wide ? { flexBasis: '48%', flexGrow: 1 } : { width: '100%' }}>
-              <Field label={r.label}>
+              <Field label={r.label} hint={r.summary}>
                 <PersonPick people={people} value={v.roleMap?.[r.id]?.name || ''} onChange={(p) => update((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), [r.id]: p.name ? { name: p.name, uid: p.uid, label: r.label } : null } }))} />
               </Field>
             </View>
@@ -386,23 +425,38 @@ export default function IsoSettings({ ctx }) {
         </View>
       </Card>
 
-      <Card title="Roller og tilgang" subtitle="Ingen rolle krever Admin. Rollene trenger Begrenset redigering på ISO i tilgangsmatrisen. Systemansvarlig, kvalitetsleder, øverste ledelse og HMS-leder kan i tillegg godkjenne, publisere og lukke.">
+      <Card title="Roller og tilgang" subtitle="Hver rolle trenger Begrenset redigering på ISO (verneombud: Lese). Fagansvaret i tilgangsstyringen gir det uten å endre personens vanlige nivå. Systemansvarlig, kvalitetsleder, HMS-leder og øverste ledelse kan i tillegg godkjenne, publisere og lukke.">
         {!roleCheck.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Velg personer til rollene over.</Text> : null}
-        {roleCheck.map((r) => (
-          <ListRow
-            key={r.role}
-            icon={r.ok ? 'checkmark-circle-outline' : 'alert-circle-outline'}
-            tone={r.ok ? 'ok' : 'warn'}
-            title={`${ISO_ROLES.find((x) => x.id === r.role)?.label || r.role}: ${r.person.name}`}
-            subtitle={r.has == null
-              ? 'Ikke koblet til en bruker. Personen må ha innlogging og være koblet under Ansatte.'
-              : (r.ok
-                ? `Har ${r.hasLabel}${APPROVER_ROLES.includes(r.role) ? ' · kan godkjenne' : ''}`
-                : `Trenger ISO · ${r.needLabel}, har ${r.hasLabel}`)}
-          />
-        ))}
-        {roleCheck.some((r) => !r.ok) && requestTab ? <Btn small icon="key-outline" label="Gi tilgang i tilgangsstyring" onPress={openAccess} /> : null}
+        {roleCheck.map((r) => {
+          const rec = accessRecs.find((x) => x.uid === r.person.uid);
+          return (
+            <ListRow
+              key={r.role}
+              icon={r.ok ? 'checkmark-circle-outline' : 'alert-circle-outline'}
+              tone={r.ok ? 'ok' : 'warn'}
+              title={`${ISO_ROLES.find((x) => x.id === r.role)?.label || r.role}: ${r.person.name}`}
+              subtitle={r.has == null
+                ? 'Ikke koblet til en bruker. Personen må ha innlogging og være koblet under Ansatte.'
+                : (r.ok
+                  ? `Har ${r.hasLabel}${APPROVER_ROLES.includes(r.role) ? ' · kan godkjenne' : ''}`
+                  : `Trenger ISO · ${r.needLabel}, har ${r.hasLabel}. Anbefalt: fagansvar «${rec?.addLabels.join('», «') || r.levelLabel}».`)}
+            />
+          );
+        })}
+        {grant.msg ? <Banner tone="ok" text={grant.msg} /> : null}
+        {grant.err ? <Banner tone="danger" text={grant.err} /> : null}
+        <Row>
+          {accessRecs.length && ctx.canGrantAccess
+            ? <Btn small kind="primary" icon="shield-checkmark-outline" label={`Gi anbefalt tilgang (${accessRecs.length} ${accessRecs.length === 1 ? 'person' : 'personer'})`} busy={grant.busy} onPress={grantRecommended} />
+            : null}
+          {roleCheck.some((r) => !r.ok) && requestTab ? <Btn small icon="key-outline" label="Åpne tilgangsstyring" onPress={openAccess} /> : null}
+        </Row>
+        {accessRecs.length && !ctx.canGrantAccess
+          ? <Text style={{ color: colors.muted, fontSize: 12 }}>Du kan ikke endre andres tilgang. Be en som har Tilgangsstyring, om å krysse av fagansvaret.</Text>
+          : null}
       </Card>
+
+      <RoleOwnerCard ctx={ctx} />
 
       <RestrictedAccessCard ctx={ctx} />
 
@@ -525,6 +579,56 @@ function DocStructureCard({ v, update }) {
         <View style={{ flex: 1, minWidth: 160 }}><TextIn value={draft.title} onChangeText={(x) => setDraft({ ...draft, title: x })} placeholder="Ny del, f.eks. «Prosesser»" /></View>
         <Btn small icon="add" label="Legg til del" disabled={!draft.code.trim()} onPress={() => { setParts([...parts, { code: draft.code.trim(), title: draft.title.trim() || draft.code.trim(), folders: [] }]); setDraft({ part: '', code: '', title: '' }); }} />
       </Row>
+    </Card>
+  );
+}
+
+/**
+ * Eiere som er en rolle eller funksjon i stedet for en person (typisk fra import før rollene var satt).
+ * Kobler dem til personen med rollen; uten eier eller ukjent funksjon → kvalitetsleder, merket til gjennomgang.
+ */
+function RoleOwnerCard({ ctx }) {
+  const colors = useColors();
+  const { state, caps, people, store, actor } = ctx;
+  const fixes = useMemo(() => roleOwnerFixes(state, { people, build: false }), [state, people]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+  if (!caps.admin || (!fixes.length && !msg)) return null;
+  const counts = { records: 0, documents: 0, processes: 0 };
+  const pairs = new Map();
+  for (const f of fixes) {
+    counts[f.kind] += 1;
+    const k = `«${f.from}» → ${f.to}${f.how === 'standard' ? ' (må gjennomgås)' : ''}`;
+    pairs.set(k, (pairs.get(k) || 0) + 1);
+  }
+  const top = [...pairs.entries()].sort((a, b) => b[1] - a[1]);
+
+  async function run() {
+    setBusy(true); setErr(''); setMsg('');
+    // Fersk beregning rett før lagring, så ingenting som er endret i mellomtiden, overskrives.
+    const fresh = roleOwnerFixes(store.current(), { people, actor });
+    const res = await store.commitMany(fresh.map((f) => ({ kind: f.kind, entity: f.entity })), fresh.map((f) => f.event));
+    setBusy(false);
+    if (!res.ok) { setErr(res.error || 'Kunne ikke lagre.'); return; }
+    setMsg(`${fresh.length} eiere er koblet til personer. Poster som fikk kvalitetsleder som eier, står under «Må gjennomgås».`);
+  }
+
+  return (
+    <Card title="Eiere som er roller" subtitle="Poster der eieren er en rolle, en funksjon eller «Ikke tildelt» i stedet for en person. I ProTop eier en person hver post, så oppgaver og varsler når fram.">
+      {msg ? <Banner tone="ok" text={msg} /> : null}
+      {err ? <Banner tone="danger" text={err} /> : null}
+      {fixes.length ? (
+        <>
+          <Text style={{ color: colors.ink, fontSize: 13 }}>
+            {[counts.records ? `${counts.records} registerposter` : '', counts.documents ? `${counts.documents} dokumenter` : '', counts.processes ? `${counts.processes} prosesser` : ''].filter(Boolean).join(', ')}:
+          </Text>
+          {top.slice(0, 8).map(([k, n]) => <Text key={k} style={{ color: colors.muted, fontSize: 12 }}>• {k} ({n})</Text>)}
+          {top.length > 8 ? <Text style={{ color: colors.muted, fontSize: 12 }}>… og {top.length - 8} til.</Text> : null}
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Rollen går til personen i Roller over. Uten eier, eller en funksjon ProTop ikke har som rolle (f.eks. Tilbudsansvarlig), blir kvalitetsleder eier og posten merkes «må gjennomgås».</Text>
+          <Row><Btn small kind="primary" icon="people-outline" label={`Koble rolle-eiere til personer (${fixes.length})`} busy={busy} onPress={run} /></Row>
+        </>
+      ) : null}
     </Card>
   );
 }

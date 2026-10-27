@@ -26,6 +26,15 @@ Format for å flytte et eksisterende ledelsessystem inn i ProTop ISO, for eksemp
 
 **Idempotens.** Hver entitet får `importKey = "<pakke-id>:<del>:<key>"`. En ny import av samme pakke hopper over det som finnes. Rettinger gjøres i ProTop, ikke ved å importere på nytt.
 
+**Eiere tilpasses ProTop.** I ProTop eier en person (med innlogging) hver post, så oppgaver og varsler når fram. Pakken kan bruke navn, roller eller funksjoner som eier (`ownerName`, `approverName`, deltakere):
+- Navn på en ansatt kobles til personen.
+- Rolletekster går til personen som har rollen i Innstillinger → Roller: «Daglig leder», «Ledelsen» → øverste ledelse; «HMSK-leder», «Kvalitetsansvarlig» → kvalitetsleder; «HMS-ansvarlig», «Miljøansvarlig» → HMS-leder; «Byggeleder» → prosjektleder; «HR» → HR-ansvarlig (se `src/iso/roles.js`). Ved flere («A / B») eier den første som har en person.
+- Ingen eier («Ikke tildelt», «Tildelt ressurs», «Alle ansatte») eller en funksjon ProTop ikke har som rolle («Tilbudsansvarlig», «Innkjøpsansvarlig»): kvalitetsleder (ellers systemansvarlig) blir eier, og registerposten merkes «må gjennomgås» med opprinnelig tekst i merknaden.
+- Prosesser uten eier i kilden legges inn som utkast til noen velger prosesseier.
+- «Ansvarlig rolle» i årshjulet får ProTops navn på rollen.
+
+Sett derfor rollene før importen. Er noe importert før rollene var satt, kobler «Koble rolle-eiere til personer» i Innstillinger det i etterkant.
+
 **Sikkerhet:**
 - Ingenting settes til «internt verifisert» ved import.
 - Publisering skjer bare når importøren har godkjennerrollen.
@@ -263,7 +272,7 @@ Utdanning, sertifiseringer og kurs legges inn i CV-en til den ansatte i Ansatte 
 
 Risikokategorier (`risiko.category`): `strategisk`, `kvalitet`, `miljo`, `arbeidsmiljo`, `prosjekt`, `beredskap`, `leverandor`.
 
-ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `process_owner`, `project_manager`, `manager`, `top_management`, `internal_auditor`, `safety_rep`, `employee`.
+ISO-roller (`roleKey`): `system_owner`, `quality_manager`, `hse_manager`, `process_owner`, `project_manager`, `manager`, `top_management`, `internal_auditor`, `hr_manager`, `safety_rep`, `employee`.
 
 ## Registre og felt
 

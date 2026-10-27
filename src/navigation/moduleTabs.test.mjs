@@ -7,12 +7,16 @@ test('modulmeny: ISO får deler og sider, med aktiv side', () => {
   const m = moduleTabsFor('iso', 'avvik');
   assert.equal(m.moduleId, 'iso');
   assert.equal(m.activeId, 'iso-avvik');
-  assert.deepEqual(m.sections.map((s) => s.label), ['Oversikt', 'Styring', 'Drift', 'Evaluering']);
+  assert.deepEqual(m.sections.map((s) => s.label), ['Oversikt', 'Styring', 'Drift', 'Evaluering', 'Innstillinger']);
   assert.equal(m.activeSectionId, 'drift');
   assert.deepEqual(m.sections[0].pages.map((p) => p.id), ['iso-oversikt']);
   assert.ok(m.sections[2].pages.some((p) => p.label === 'Beredskap'));
   assert.equal(m.sections.reduce((n, s) => n + s.pages.length, 0), m.pages.length, 'alle sidene ligger i en del');
   assert.equal(moduleTabsFor('iso', null).activeId, 'iso-oversikt', 'uten underside: oversikten');
+  const settings = moduleTabsFor('iso', 'innstillinger');
+  assert.equal(settings.activeSectionId, 'innstillinger', 'Innstillinger er en egen fane, ikke gjemt under Evaluering');
+  assert.deepEqual(settings.sections.at(-1).pages.map((p) => p.id), ['iso-innstillinger']);
+  assert.equal(settings.sections.find((s) => s.id === 'evaluering').pages.some((p) => p.id === 'iso-innstillinger'), false);
 });
 
 test('modulmeny: Økonomi, Arbeid, Fravær, Produkt og Selskapsinnstillinger', () => {

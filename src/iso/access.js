@@ -16,6 +16,9 @@
  * som er tildelt den eller eier et tiltak, ser saken. Alt håndheves også i Firestore-reglene.
  */
 import { text } from './core.js';
+import {
+  accountDeactivated, employeeLevelIds, grantsForEmployee, levelById, withToggledLevel,
+} from '../access/companyAccess.js';
 
 const RANK = { none: 0, see: 1, read: 2, write: 3, delete: 4 };
 
@@ -124,24 +127,36 @@ export function redactFinding(caps, finding) {
 }
 
 /**
- * Minste ISO-nivå hver rolle trenger for å gjøre jobben (1 lese, 2 begrenset redigering).
- * Ingen rolle krever Admin. Admin er bare for innstillingene, og settes etter selskapets ønske.
+ * Hva hver ISO-rolle trenger i tilgangsstyringen: minste ISO-nivå (1 lese, 2 begrenset redigering)
+ * og fagansvaret som gir det. Ingen rolle krever Admin. Admin er bare for innstillingene, og settes
+ * etter selskapets ønske (fagansvaret Kvalitetsansvarlig gir det).
  */
-export const ROLE_MIN_ISO = {
-  system_owner: 2, quality_manager: 2, top_management: 2, hse_manager: 2, process_owner: 2,
-  project_manager: 2, manager: 2, internal_auditor: 2, safety_rep: 1,
+export const ROLE_ACCESS = {
+  system_owner: { need: 2, level: 'kvalitetsansvarlig' },
+  quality_manager: { need: 2, level: 'kvalitetsansvarlig' },
+  hse_manager: { need: 2, level: 'hms_ansvarlig' },
+  top_management: { need: 2, level: 'iso_rolle' },
+  manager: { need: 2, level: 'iso_rolle' },
+  process_owner: { need: 2, level: 'iso_rolle' },
+  project_manager: { need: 2, level: 'iso_rolle' },
+  internal_auditor: { need: 2, level: 'iso_rolle' },
+  hr_manager: { need: 2, level: 'iso_rolle' },
+  // Verneombudet ser alle HMS-saker som ikke er skjermet, og melder selv. Skjermede saker gis særskilt.
+  safety_rep: { need: 1, level: 'hms_ansvarlig' },
 };
+
+export const ROLE_MIN_ISO = Object.fromEntries(Object.entries(ROLE_ACCESS).map(([role, a]) => [role, a.need]));
 
 const RANK_LABEL = ['Ingen', 'Lese', 'Begrenset redigering', 'Admin'];
 
 /**
  * Oppstartskontroll av roller: har personene som har fått en ISO-rolle, nivået rollen krever
- * i tilgangsmatrisen? Gir aldri tilgang selv – viser bare hva som mangler. Særskilt tilgang til
- * skjermede saker følger ikke av noen rolle.
+ * i tilgangsmatrisen? Gir aldri tilgang selv – viser bare hva som mangler og hvilket fagansvar
+ * som dekker det. Særskilt tilgang til skjermede saker følger ikke av noen rolle.
  */
 export function roleAccessCheck(roleMap, rankFor) {
   const rows = [];
-  for (const [role, need] of Object.entries(ROLE_MIN_ISO)) {
+  for (const [role, { need, level }] of Object.entries(ROLE_ACCESS)) {
     const person = roleMap?.[role];
     if (!person?.name) continue;
     const has = person.uid ? Number(rankFor(person.uid)) || 0 : null;
@@ -150,10 +165,60 @@ export function roleAccessCheck(roleMap, rankFor) {
       person,
       need,
       has,
+      level,
+      levelLabel: levelById(level)?.label || level,
       needLabel: RANK_LABEL[need],
       hasLabel: has == null ? 'Ikke koblet til bruker' : RANK_LABEL[has],
       ok: has != null && has >= need,
     });
   }
   return rows;
+}
+
+const isoRank = (grants) => Math.min(3, rank(grants, 'iso'));
+
+/**
+ * Anbefalt tilgang for personene med ISO-roller: fagansvaret som mangler, per person.
+ * Legger bare til (fjerner aldri), og bare det som trengs: har personen nok fra før,
+ * eller dekker ett fagansvar flere roller, legges ingenting mer til.
+ * employees: ansattpostene (personUid kobler til innlogging). policy: selskapets tilgangsmatrise.
+ * Svar: [{ uid, name, employee, roles: [rolle-id], addLevels: [nivå-id], from, to, next }]
+ */
+export function recommendedRoleAccess(roleMap, { employees = [], policy = null } = {}) {
+  const byUid = new Map();
+  for (const [role, req] of Object.entries(ROLE_ACCESS)) {
+    const person = roleMap?.[role];
+    const uid = text(person?.uid, 128);
+    if (!uid) continue;
+    if (!byUid.has(uid)) byUid.set(uid, { uid, name: text(person.name, 160), roles: [] });
+    byUid.get(uid).roles.push({ role, ...req });
+  }
+  const out = [];
+  for (const row of byUid.values()) {
+    const employee = (employees || []).find((e) => e?.personUid === row.uid && e?.company?.status !== 'deleted');
+    if (!employee || accountDeactivated(employee)) continue;
+    const from = isoRank(grantsForEmployee(policy, employee));
+    let next = employee;
+    const addLevels = [];
+    // Strengeste krav først, så ett fagansvar kan dekke flere roller.
+    for (const r of [...row.roles].sort((a, b) => b.need - a.need)) {
+      if (isoRank(grantsForEmployee(policy, next)) >= r.need) continue;
+      if (employeeLevelIds(next).includes(r.level)) continue;
+      next = withToggledLevel(next, r.level, true);
+      addLevels.push(r.level);
+    }
+    if (!addLevels.length) continue;
+    out.push({
+      uid: row.uid,
+      name: row.name,
+      employee,
+      roles: row.roles.map((r) => r.role),
+      addLevels,
+      addLabels: addLevels.map((id) => levelById(id)?.label || id),
+      from,
+      to: isoRank(grantsForEmployee(policy, next)),
+      next,
+    });
+  }
+  return out;
 }

@@ -14,8 +14,8 @@ type BrandLogoProps = {
   accessible?: boolean;
 };
 
-const FULL = require('../assets/weekplan-logo-transparent.png');
-const MARK = require('../assets/weekplan-mark.png');
+const FULL = require('../assets/protop-logo-transparent.png');
+const MARK = require('../assets/protop-mark.png');
 const FULL_WHITE = require('../brand/ProTop_logo_white_transparent.png');
 const MARK_WHITE = require('../brand/ProTop_symbol_white.png');
 

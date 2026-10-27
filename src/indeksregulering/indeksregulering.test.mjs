@@ -4,7 +4,16 @@ import { extractContractText, MAX_LOCAL_PDF_BYTES } from './extractText.js';
 import { calculate } from './engine.js';
 import { createProject, emptyProjectState, postEntry } from '../project/engine.js';
 import { interpretContract, interpretDocuments, mergeInterpretation } from './interpret.js';
-import { buildLetter, formatMoney, letterFieldRows, letterFieldWide, letterFromRecord } from './letter.js';
+import {
+  applyLetterEdits,
+  buildLetter,
+  cleanLetterEdits,
+  formatMoney,
+  letterEditsFrom,
+  letterFieldRows,
+  letterFieldWide,
+  letterFromRecord,
+} from './letter.js';
 import { honorarPrice } from './priceText.js';
 import { regulationCells, regulationEntry, rememberRegulation } from './regulationLog.js';
 import { buildPdf, exportFiles, readZip, zipStore } from './office.js';
@@ -682,6 +691,64 @@ test('lagret regulering kan forhåndsvises som brev når ny indeks mangler', () 
   assert.match(pack.letter.plain, /119,5/);
   assert.match(pack.letter.plain, /122,9/);
   assert.equal(letterFromRecord(draft, { letterPlain: 'bare tekst' }), null);
+});
+
+test('alle felt i brevet kan endres før det ferdigstilles', () => {
+  const draft = {
+    supplier: 'Consult1 AS',
+    buyer: 'Breitorget AS',
+    title: 'Breitorget · Prosjektleder',
+    standard: 'NS 8403',
+    model: 'engang',
+    indexId: 'ppi-byggeteknisk',
+    contractDate: '2025-12-19',
+    senderContact: 'Geir',
+    terms: { frequency: 'quarter' },
+    lines: [{ text: 'Timepris', unit: 'time', rate: '1350', quantity: '1' }],
+  };
+  const record = {
+    freeText: 'Beløpene er eks. mva.',
+    before: 1350,
+    after: 1388.41,
+    increase: 38.41,
+    fromPeriod: '2025K4',
+    fromIndex: 119.5,
+    toPeriod: '2026K2',
+    toIndex: 122.9,
+    effectiveFrom: '2026-01-01',
+  };
+  const base = letterFromRecord(draft, record, { today: '2026-10-27', includeLogo: false }).letter;
+  const fields = letterFieldRows(base);
+  const values = Object.fromEntries(fields);
+  const before = values['Merknad 2'];
+  assert.ok(before, 'brevet har minst to merknader');
+  values.Tittel = 'Varsel om ny timepris';
+  values.Tabell = '14335 Konsulentindeks';
+  values['Pris justert'] = '38,41 kr';
+  values['Merknad 2'] = '';
+  values.Underskriver = 'Geir Ove';
+  const edits = letterEditsFrom(base, values);
+  assert.deepEqual(Object.keys(edits).sort(), ['Merknad 2', 'Pris justert', 'Tabell', 'Tittel', 'Underskriver']);
+
+  const edited = applyLetterEdits(base, edits);
+  assert.equal(edited.title, 'Varsel om ny timepris');
+  assert.equal(edited.notice.title, 'Varsel om ny timepris');
+  assert.match(edited.plain, /Tabell \| 14335 Konsulentindeks \| Pris justert \| 38,41 kr/);
+  assert.doesNotMatch(edited.plain, new RegExp(before.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(edited.plain, /Geir Ove/);
+  const tableRow = edited.notice.sections[2].rows[1];
+  assert.equal(tableRow.reduce((sum, item) => sum + (item.span || 1), 0), 6, 'raden beholder seks kolonner');
+  assert.equal(base.notice.title, 'Varsel om indeksregulering av timepriser', 'grunnbrevet endres ikke');
+  const pdf = new TextDecoder().decode(buildPdf(edited));
+  assert.match(pdf, /Varsel om ny timepris/);
+  assert.match(pdf, /Konsulentindeks/);
+
+  const unchanged = applyLetterEdits(base, { Tittel: base.notice.title, Ukjent: 'x' });
+  assert.equal(unchanged, base);
+  assert.deepEqual(cleanLetterEdits({ Tittel: '  Ny   tittel ', Tall: 5, '': 'x' }), { Tittel: 'Ny tittel' });
+
+  const stored = letterFromRecord(draft, { ...record, letterEdits: edits }, { today: '2026-10-27', includeLogo: false });
+  assert.equal(stored.letter.plain, edited.plain, 'lagret sak bygger samme brev med endringene');
 });
 
 test('indeksbrevet kan bruke bedriftens logo', () => {

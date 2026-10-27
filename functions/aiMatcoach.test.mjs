@@ -4,10 +4,10 @@ import { __test } from './aiMatcoach.js';
 const {
   normalizePrefs,
   dishBlocked,
-  localWeekPlan,
+  localWeeklyPlan,
   localFridgeScan,
   localLunchBoxes,
-  normalizeWeekPlan,
+  normalizeWeeklyPlan,
   LOCAL_DINNERS,
 } = __test;
 
@@ -35,7 +35,7 @@ const {
 }
 
 {
-  const plan = localWeekPlan(normalizePrefs({ adults: 2, children: 2, maxMinutes: 45, budgetKr: 1000 }));
+  const plan = localWeeklyPlan(normalizePrefs({ adults: 2, children: 2, maxMinutes: 45, budgetKr: 1000 }));
   assert.equal(plan.days.length, 7);
   assert.equal(plan.days[0].dayName, 'Mandag');
   assert.equal(plan.days[6].dayName, 'Søndag');
@@ -60,7 +60,7 @@ const {
 }
 
 {
-  const normalized = normalizeWeekPlan({
+  const normalized = normalizeWeeklyPlan({
     headline: 'Test',
     summary: 'ok',
     estimatedWeeklyCostKr: 800,

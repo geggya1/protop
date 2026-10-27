@@ -2,7 +2,7 @@
 
 import { normalizeFriendUsername, parseFriendAddUsername } from './friendsLogic.js';
 
-export const PENDING_ADD_FRIEND_KEY = 'weekplan_pending_add_friend';
+export const PENDING_ADD_FRIEND_KEY = 'protop_pending_add_friend';
 
 let memory = '';
 

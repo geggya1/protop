@@ -8,9 +8,9 @@ import {
   upsertTimetableSlot,
   emptyWeekTimetable,
   isScheduleBreak,
-  layoutWeekPlanDay,
+  layoutWeeklyPlanDay,
   filledDaySlots,
-} from './weekPlanGrid.js';
+} from './weeklyPlanGrid.js';
 
 assert.equal(defaultSlotEndTime('08:00'), '08:45');
 assert.equal(defaultSlotEndTime('09:30', 60), '10:30');
@@ -35,7 +35,7 @@ assert.equal(formatSlotRange({ time: '10:00', endTime: '10:40' }), '10:00–10:4
 assert.equal(formatSlotRange({ time: '08:15' }), '08:15–09:00');
 assert.equal(formatSlotRange({ time: '09:55', subject: 'Friminutt' }), '09:55–10:10');
 
-const overlapDay = layoutWeekPlanDay([
+const overlapDay = layoutWeeklyPlanDay([
   { id: 'l1', title: 'Matte', startTime: '10:10', endTime: '11:00' },
   { id: 'b1', title: 'Friminutt', startTime: '11:00', endTime: '11:15' },
   { id: 'l2', title: 'Engelsk', startTime: '11:50', endTime: '12:50' },
@@ -67,4 +67,4 @@ assert.deepEqual(filledDaySlots({ mon: 'bad' }, 'mon'), []);
 assert.deepEqual(filledDaySlots({ mon: null }, 'mon'), []);
 assert.equal(timetableHasLessons({ mon: { subject: 'Norsk' } }), false);
 
-console.log('weekPlanGrid.test.mjs ok');
+console.log('weeklyPlanGrid.test.mjs ok');

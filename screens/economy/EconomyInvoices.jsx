@@ -62,6 +62,9 @@ import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import IndexWarning from './IndexWarning';
+import PowerOfficePanel from './PowerOfficePanel';
+import { loadPowerOfficeStatus, transferInvoiceToPowerOffice } from '../../src/economy/powerOfficeClient.js';
+import { canTransferToPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../src/economy/powerOfficeView.js';
 import { buildEhfXml } from '../../src/economy/ehf.js';
 import { validateKid } from '../../src/economy/kid.js';
 
@@ -230,6 +233,11 @@ function InvoiceDetail({
   onDelete,
   sending = false,
   deleting = false,
+  powerOffice = null,
+  onTransfer,
+  transferring = false,
+  error = '',
+  note = '',
 }) {
   const [tab, setTab] = useState('overview');
   const [ehfNote, setEhfNote] = useState('');
@@ -237,7 +245,12 @@ function InvoiceDetail({
   const payment = useMemo(() => invoicePaymentSummary(invoice), [invoice]);
   const overdue = isInvoiceOverdue(invoice);
   const draft = invoice?.status === 'draft' || /utkast|draft/i.test(String(invoice?.exportStatus || ''));
-  const showSend = canManage && draft && !isInvoiceSent(invoice);
+  // Med PowerOffice sendes fakturaen derfra. Da overføres utkastet i stedet.
+  const viaPowerOffice = !!powerOffice?.connected;
+  const showSend = canManage && draft && !isInvoiceSent(invoice) && !viaPowerOffice;
+  const showTransfer = canManage && canTransferToPowerOffice(invoice, powerOffice);
+  const poSummary = powerOfficeSummary(invoice);
+  const poState = invoice.poweroffice?.state || '';
   const showDelete = canManage && canDeleteInvoice(invoice);
   const kidCheck = invoice.kid ? validateKid(invoice.kid) : null;
   const index = invoices.findIndex((row) => row.id === invoice.id);
@@ -400,6 +413,45 @@ function InvoiceDetail({
           {overdue ? ' · forfalt' : ''}
         </Text>
         <Text style={{ color: colors.muted }}>{invoice.exportStatus || '—'}</Text>
+        {poSummary ? (
+          <View style={{ gap: 2 }}>
+            <Text style={{ color: poSummary.tone === 'warn' ? (colors.danger || '#b42318') : colors.ink, fontWeight: '700' }}>
+              {poSummary.title}
+            </Text>
+            {poSummary.lines.map((line) => (
+              <Text key={line} style={{ color: colors.muted, fontSize: 12 }}>{line}</Text>
+            ))}
+          </View>
+        ) : null}
+        {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+        {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
+        {showTransfer ? (
+          <TouchableOpacity
+            onPress={onTransfer}
+            disabled={transferring || deleting}
+            accessibilityRole="button"
+            accessibilityLabel="Overfør til PowerOffice"
+            style={[styles.primaryAction, { backgroundColor: colors.brand, opacity: transferring || deleting ? 0.6 : 1 }]}
+          >
+            <Ionicons name="cloud-upload-outline" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '700' }}>
+              {transferring ? 'Overfører…' : (poState === 'missing' ? 'Overfør på nytt' : 'Overfør til PowerOffice')}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+        {showTransfer && !poState ? (
+          <Text style={{ color: colors.muted, fontSize: 12 }}>
+            Utkastet kontrolleres og sendes fra PowerOffice Go. Fakturanummer, KID og betaling hentes tilbake hit.
+          </Text>
+        ) : null}
+        {viaPowerOffice && poState === 'draft' ? (
+          <TouchableOpacity
+            onPress={() => Linking.openURL(POWEROFFICE_GUI[invoice.poweroffice?.env] || POWEROFFICE_GUI.prod)}
+            accessibilityRole="link"
+          >
+            <Text style={{ color: colors.brand, fontWeight: '600' }}>Åpne PowerOffice Go</Text>
+          </TouchableOpacity>
+        ) : null}
         {showSend ? (
           <TouchableOpacity
             onPress={onSend}
@@ -426,7 +478,7 @@ function InvoiceDetail({
             </Text>
           </TouchableOpacity>
         ) : null}
-        {draft && !showSend ? (
+        {draft && !showSend && !showTransfer && !poSummary ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             Fakturaen er et utkast. Send når du er klar.
           </Text>
@@ -584,6 +636,9 @@ export default function EconomyInvoices({
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [watch, setWatch] = useState(null);
   const [askIndex, setAskIndex] = useState(false);
+  const [poStatus, setPoStatus] = useState(null);
+  const [transferring, setTransferring] = useState(false);
+  const [confirmRetransfer, setConfirmRetransfer] = useState(false);
   const [progress, setProgress] = useState(null); // { label, done?, total? }
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(new Set());
@@ -643,6 +698,16 @@ export default function EconomyInvoices({
     }).catch(() => {});
     return () => { live = false; };
   }, [selectedId, familyId, invoices]);
+
+  useEffect(() => {
+    let live = true;
+    setPoStatus(null);
+    if (!canManage || !familyId) return undefined;
+    loadPowerOfficeStatus(familyId).then((next) => {
+      if (live) setPoStatus(next);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [canManage, familyId]);
 
   const visible = useMemo(() => {
     const byPeriod = filterInvoicesByPeriod(invoices, period);
@@ -896,6 +961,39 @@ export default function EconomyInvoices({
     }
   }
 
+  async function transferSelectedInvoice(options = {}) {
+    if (!selected || !canManage || transferring || deleting) return;
+    if (indexWarning && !options.force) {
+      setAskIndex(true);
+      setError('Indeksregulering bør foretas før fakturaen overføres.');
+      return;
+    }
+    const again = selected.poweroffice?.state === 'missing';
+    if (again && !options.confirmed) {
+      setConfirmRetransfer(true);
+      return;
+    }
+    setAskIndex(false);
+    setConfirmRetransfer(false);
+    setTransferring(true);
+    setError('');
+    setNote('');
+    try {
+      const result = await transferInvoiceToPowerOffice(familyId, selected.id, { again });
+      const row = typeof loadInvoice === 'function' ? await loadInvoice(familyId, selected.id).catch(() => null) : null;
+      if (row) setSelected(row);
+      const orderNo = result?.poweroffice?.orderNo;
+      setNote(result?.already
+        ? 'Utkastet ligger allerede i PowerOffice.'
+        : `Overført til PowerOffice${orderNo ? ` som utkast nr. ${orderNo}` : ''}. Kontroller og send fakturaen der.`);
+      showSaveToast('Overført til PowerOffice.');
+    } catch (cause) {
+      setError(cause?.message || 'Kunne ikke overføre til PowerOffice.');
+    } finally {
+      setTransferring(false);
+    }
+  }
+
   function requestDelete(row) {
     if (!canManage || !canDeleteInvoice(row) || deleting || sending) return;
     setConfirmDelete(row);
@@ -1025,7 +1123,8 @@ export default function EconomyInvoices({
       visible={!!confirmDelete}
       title="Slett faktura?"
       message={confirmDelete
-        ? `Faktura ${confirmDelete.invoiceNumber || ''} slettes permanent. Tilknyttede timer og poster frigjøres hvis de var låst til denne fakturaen.`
+        ? `Faktura ${confirmDelete.invoiceNumber || ''} slettes permanent. Tilknyttede timer og poster frigjøres hvis de var låst til denne fakturaen.${
+          confirmDelete.poweroffice?.state === 'draft' ? ' Utkastet i PowerOffice må slettes der.' : ''}`
         : ''}
       confirmText="Slett"
       cancelText="Avbryt"
@@ -1044,8 +1143,10 @@ export default function EconomyInvoices({
             <IndexWarning
               warning={indexWarning}
               colors={colors}
-              continueLabel="Send faktura likevel"
-              onContinue={() => sendSelectedInvoice({ force: true })}
+              continueLabel={poStatus?.connected ? 'Overfør likevel' : 'Send faktura likevel'}
+              onContinue={() => (poStatus?.connected
+                ? transferSelectedInvoice({ force: true })
+                : sendSelectedInvoice({ force: true }))}
               onOpenIndex={() => requestShellTab?.('okonomi', 'indeks')}
             />
           </View>
@@ -1067,9 +1168,24 @@ export default function EconomyInvoices({
           uploading={uploading}
           onSend={sendSelectedInvoice}
           onDelete={() => requestDelete(selected)}
+          powerOffice={poStatus}
+          onTransfer={() => transferSelectedInvoice()}
+          transferring={transferring}
+          error={error}
+          note={note}
         />
         {busyOverlay}
         {deleteDialog}
+        <ConfirmDialog
+          visible={confirmRetransfer}
+          title="Overføre på nytt?"
+          message="Utkastet finnes ikke lenger i PowerOffice. Overfør på nytt bare hvis det ble slettet der. Ble det slått sammen med et annet utkast, blir kunden fakturert to ganger."
+          confirmText="Overfør på nytt"
+          cancelText="Avbryt"
+          onCancel={() => setConfirmRetransfer(false)}
+          onConfirm={() => transferSelectedInvoice({ force: true, confirmed: true })}
+          onClose={() => setConfirmRetransfer(false)}
+        />
       </View>
     );
   }
@@ -1196,6 +1312,9 @@ export default function EconomyInvoices({
           ) : null}
         </View>
 
+        {canManage && familyId ? (
+          <PowerOfficePanel familyId={familyId} colors={colors} status={poStatus} onStatus={setPoStatus} />
+        ) : null}
         {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
         {!!note && <Text style={{ color: colors.ink }}>{note}</Text>}
         <ImportResult colors={colors} result={importReport} />

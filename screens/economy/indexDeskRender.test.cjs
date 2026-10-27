@@ -50,6 +50,7 @@ function loadLocal(full) {
         useWindowDimensions: () => viewport,
         ScrollView: host('ScrollView'),
         Image: host('Image'),
+        Platform: { OS: 'web', select: (options) => options && (options.web ?? options.default) },
       };
     }
     if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
@@ -290,33 +291,33 @@ for (const view of ['oversikt', 'beregning', 'brev', 'historikk', 'indekser']) {
   if (view === 'beregning') {
     assert.match(workspaceText, /Foreta en ny beregning/);
     assert.match(workspaceText, /Status etter beregning/);
-    assert.match(workspaceText, /Generer utkast/);
+    assert.doesNotMatch(workspaceText, /Generer brevutkast/);
+    assert.equal(workspaceText.includes('#index-price-change'), false);
     assert.match(workspaceText, /Oppdragsgiver/);
     assert.match(workspaceText, /Avtalt pris/);
     assert.match(workspaceText, /Indeks 1/);
     assert.match(workspaceText, /1\. Indeks og beregningsgrunnlag/);
     assert.equal(propOf(workspace, 'index-run-calculation', 'disabled'), false);
     assert.equal(styleWidth(workspace, 'index-run-calculation').backgroundColor, '#1099F4');
-    assert.equal(propOf(workspace, 'index-generate-draft', 'disabled'), true);
-    assert.equal(styleWidth(workspace, 'index-generate-draft').backgroundColor, '#E6EBF2');
     assert.equal(styleWidth(workspace, 'index-calc-status').minWidth, 340);
     assert.equal(styleWidth(workspace, 'index-letter-facts').flexDirection, 'row');
     assert.equal(styleWidth(workspace, 'index-letter-facts').flexWrap, 'wrap');
   }
   if (view === 'brev') {
     assert.match(workspaceText, /Varsel og utsending/);
+    assert.match(workspaceText, /Forhåndsvisning av varselbrevet/);
+    assert.match(workspaceText, /Ferdigstill/);
     assert.match(workspaceText, /Endre/);
-    assert.match(workspaceText, /Generer brev \/ PDF/);
-    assert.match(workspaceText, /Utfylte felt/);
-    assert.match(workspaceText, /Oppdragsgiver/);
-    assert.match(workspaceText, /Avtalt pris/);
+    assert.doesNotMatch(workspaceText, /Utfylte felt/);
     assert.match(workspaceText, /Ingenting er opprettet|Lagret som utkast|Sendt/);
     assert.match(workspaceText, /post@consult1\.no/);
     assert.match(workspaceText, /Victor Husebø/);
-    assert.match(workspaceText, /PDF vises her etter at brevet er generert/);
+    assert.match(workspaceText, /#index-pdf-preview/);
+    assert.match(workspaceText, /Ingen forhåndsvisning ennå/);
     assert.doesNotMatch(workspaceText, /\bWord\b/);
-    assert.equal(propOf(workspace, 'index-generate-pdf', 'disabled'), true);
-    assert.equal(styleWidth(workspace, 'index-generate-pdf').backgroundColor, '#E6EBF2');
+    assert.equal(propOf(workspace, 'index-finish-letter', 'disabled'), true);
+    assert.equal(styleWidth(workspace, 'index-finish-letter').backgroundColor, '#E6EBF2');
+    assert.equal(propOf(workspace, 'index-edit-letter', 'disabled'), true);
     assert.equal(propOf(workspace, 'index-send-letter', 'disabled'), true);
     assert.equal(styleWidth(workspace, 'index-send-letter').backgroundColor, '#E6EBF2');
     assert.equal(workspaceText.includes('#index-letter-preview'), false);

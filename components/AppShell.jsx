@@ -431,7 +431,7 @@ function AppShellInner() {
       if ((e.metaKey || e.ctrlKey) && key === 'k') {
         e.preventDefault();
         if (simpleChildUi) return;
-        window.dispatchEvent(new CustomEvent('weekplan:focus-tools-search'));
+        window.dispatchEvent(new CustomEvent('protop:focus-tools-search'));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -951,7 +951,7 @@ function AppShellInner() {
   });
   const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
   const backdropCustomUri = asChildView ? childHome.layout.customBannerUri : homeCustomBannerUri;
-  // Weekplan keeps the safe area inside the chrome, not as a gap outside it.
+  // ProTop keeps the safe area inside the chrome, not as a gap outside it.
   // On a phone the header is the top layer: its background covers Safari's
   // top band, and the logo sits just below that band.
   const headerCoversStatusBar = Platform.OS === 'web' && isPhone && !kitchenMode;

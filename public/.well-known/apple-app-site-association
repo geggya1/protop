@@ -3,12 +3,12 @@
     "apps": [],
     "details": [
       {
-        "appID": "TEAMID.no.weekplan.app",
+        "appID": "TEAMID.no.protop.app",
         "paths": ["*", "/"]
       }
     ]
   },
   "webcredentials": {
-    "apps": ["TEAMID.no.weekplan.app"]
+    "apps": ["TEAMID.no.protop.app"]
   }
 }

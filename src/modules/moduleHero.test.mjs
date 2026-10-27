@@ -269,6 +269,7 @@ const COMPANY_PAGES = [
   ['hr', 'avtaler', 'hr-avtaler'],
   ['hr', 'produktivitet', 'hr-oversikt'],
   ['arbeid', 'produktivitet', 'arbeid-produktivitet'],
+  ['arbeid', 'fremdrift', 'arbeid-fremdrift'],
   ['hr', 'lonn', 'hr-lonn'],
   ['hr', 'oppfolging', 'hr-oppfolging'],
   ['hr', 'compliance', 'hr-compliance'],
@@ -369,6 +370,7 @@ const TEXT_ONLY_PASTEL = {
   'hr-personell': ['#e7f7ee', '#f5fcf8', '#15803d'],
   'hr-avtaler': ['#f4efe6', '#fbf8f2', '#b45309'],
   'arbeid-produktivitet': ['#e6f5fb', '#f4fbfe', '#0284c7'],
+  'arbeid-fremdrift': ['#e6f5fb', '#f4fbfe', '#0284c7'],
   'hr-lonn': ['#f4efe6', '#fbf8f2', '#b45309'],
   'hr-oppfolging': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
   'hr-compliance': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
@@ -384,8 +386,8 @@ for (const id of Object.keys(COMPANY_HERO)) {
   assert.equal(band.accent, pastel[2], `${id} pastel accent`);
 }
 assert.equal(resolveModuleHero('okonomi-utlegg', 'nb').wideArt, true, 'economy expenses use the illustration');
-assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'weekplan palette stays sand');
-assert.equal(resolveModuleHero('week-plan', 'nb').wideArt, false, 'weekplan art slot is unchanged');
+assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'ukeplan palette stays sand');
+assert.equal(resolveModuleHero('week-plan', 'nb').wideArt, false, 'ukeplan art slot is unchanged');
 assert.doesNotMatch(heroSrc, /width:\s*'64%'/, 'phone wide art is not a 64% absolute crop');
 assert.doesNotMatch(heroSrc, /objectFit:\s*'cover'/, 'hero art stays contain, not cover');
 assert.match(heroSrc, /artWrapPhone:\s*\{[^}]*maxWidth:\s*'54%'/, 'phone art shrinks inside the short heading');

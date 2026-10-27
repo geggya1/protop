@@ -34,7 +34,7 @@ function contentFitCounts(model) {
   const shopLive = (model?.shopItems || []).length
     || Number(model?.shopCount)
     || 0;
-  const weekPlanLive = (model?.appointmentsPeek || []).length;
+  const weeklyPlanLive = (model?.appointmentsPeek || []).length;
   const progressLive = (model?.kidProgress || model?.activeKids || []).length;
 
   return {
@@ -43,7 +43,7 @@ function contentFitCounts(model) {
     homework: homeworkLive || (demo ? FALLBACK_HOMEWORK.length : 0),
     school: schoolLive || (demo ? FALLBACK_SCHOOL.length : 0),
     shopping: shopLive || (demo ? FALLBACK_SHOP.length : 0),
-    weekPlan: weekPlanLive || (demo ? FALLBACK_EVENTS.length : 0),
+    weeklyPlan: weeklyPlanLive || (demo ? FALLBACK_EVENTS.length : 0),
     progress: progressLive || (demo ? 3 : 0),
     kids: (model?.activeKids || []).length || (demo ? 3 : 0),
   };

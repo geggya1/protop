@@ -45,7 +45,7 @@ export const CONTENT_FIT_TYPES = new Set([
   'homework',
   'school',
   'shopping',
-  'weekPlan',
+  'weeklyPlan',
   'progress',
   'kids',
 ]);
@@ -159,7 +159,7 @@ export function preferredShoppingGh(_itemCount) {
 export function preferredContentGh(type, itemCount) {
   if (type === 'timeline') return preferredTimelineGh(itemCount);
   if (type === 'tasks') return preferredTasksGh(itemCount);
-  if (type === 'homework' || type === 'weekPlan') {
+  if (type === 'homework' || type === 'weeklyPlan') {
     return preferredListGh(itemCount);
   }
   if (type === 'shopping') return preferredShoppingGh(itemCount);
@@ -520,7 +520,7 @@ export function defaultSpanForType(type) {
   }
   if (type === 'tasks') return GRID_SPANS.wide;
   if (type === 'appFolder') return GRID_SPANS.square;
-  if (type === 'kids' || type === 'shortcuts' || type === 'assistant' || type === 'weekPlan') {
+  if (type === 'kids' || type === 'shortcuts' || type === 'assistant' || type === 'weeklyPlan') {
     return GRID_SPANS.wide;
   }
   if (type === 'nextEvent' || type === 'meals') return GRID_SPANS.rect;

@@ -87,11 +87,11 @@ import {
 import { appendSignatureHtml, prepareHtmlForSend, shouldIncludeSignature } from '../../src/utils/mailSignature';
 import { composeBodyToHtml, escapeHtml } from '../../src/utils/mailHtml';
 
-const PANE_KEY = 'weekplan.mail.panes';
-const EXPAND_KEY = 'weekplan.mail.expanded';
-const DEFAULT_ACCOUNT_KEY = 'weekplan.mail.defaultAccount';
-const LAST_FOLDER_KEY = 'weekplan.mail.lastFolder';
-const UNREAD_FIRST_KEY = 'weekplan.mail.unreadFirst';
+const PANE_KEY = 'protop.mail.panes';
+const EXPAND_KEY = 'protop.mail.expanded';
+const DEFAULT_ACCOUNT_KEY = 'protop.mail.defaultAccount';
+const LAST_FOLDER_KEY = 'protop.mail.lastFolder';
+const UNREAD_FIRST_KEY = 'protop.mail.unreadFirst';
 
 function readJson(key, fallback) {
   try {

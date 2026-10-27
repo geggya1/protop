@@ -15,7 +15,7 @@ export const CHILD_ART = {
   heroLekser: require('../assets/child-home/hero-lekser.webp'),
   heroLeksehjelp: require('../assets/child-home/hero-leksehjelp.webp'),
   heroMattehjelp: require('../assets/child-home/hero-mattehjelp.webp'),
-  heroWeekPlan: require('../assets/child-home/hero-week-plan.png'),
+  heroWeeklyPlan: require('../assets/child-home/hero-week-plan.png'),
   school: require('../assets/child-home/school.webp'),
   schoolAfter: require('../assets/child-home/school-after.webp'),
   sport: require('../assets/child-home/sport.webp'),
@@ -45,7 +45,7 @@ export const CHILD_ART = {
   appLekser: require('../assets/child-home/app-lekser.webp'),
   appLeksehjelp: require('../assets/child-home/app-leksehjelp.webp'),
   appMattehjelp: require('../assets/child-home/app-mattehjelp.webp'),
-  appWeekPlan: require('../assets/child-home/app-week-plan.webp'),
+  appWeeklyPlan: require('../assets/child-home/app-week-plan.webp'),
   appRememberDates: require('../assets/child-home/app-remember-dates.webp'),
 };
 
@@ -63,7 +63,7 @@ const WEB_FALLBACK = {
   heroLekser: '/child-home/hero-lekser.webp',
   heroLeksehjelp: '/child-home/hero-leksehjelp.webp',
   heroMattehjelp: '/child-home/hero-mattehjelp.webp',
-  heroWeekPlan: '/child-home/hero-week-plan.png',
+  heroWeeklyPlan: '/child-home/hero-week-plan.png',
   school: '/child-home/school.webp',
   schoolAfter: '/child-home/school-after.webp',
   sport: '/child-home/sport.webp',
@@ -93,7 +93,7 @@ const WEB_FALLBACK = {
   appLekser: '/child-home/app-lekser.webp',
   appLeksehjelp: '/child-home/app-leksehjelp.webp',
   appMattehjelp: '/child-home/app-mattehjelp.webp',
-  appWeekPlan: '/child-home/app-week-plan.webp',
+  appWeeklyPlan: '/child-home/app-week-plan.webp',
   appRememberDates: '/child-home/app-remember-dates.webp',
 };
 

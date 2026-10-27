@@ -32,7 +32,7 @@ self.addEventListener('push', (event) => {
     // Tell open clients (badge / deep-link) — never skip the OS notification.
     clientsList.forEach((client) => {
       try {
-        client.postMessage({ type: 'weekplan-push', payload });
+        client.postMessage({ type: 'protop-push', payload });
       } catch { /* ignore */ }
     });
 
@@ -58,7 +58,7 @@ self.addEventListener('notificationclick', (event) => {
     if (clientsList.length) {
       const target = clientsList.find((c) => c.focused) || clientsList[0];
       try {
-        target.postMessage({ type: 'weekplan-open', payload });
+        target.postMessage({ type: 'protop-open', payload });
       } catch { /* ignore */ }
       if (target.focus) await target.focus();
       return;

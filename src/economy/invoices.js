@@ -242,6 +242,20 @@ function normalizeVoucherLines(list) {
   }).filter((line) => line && (line.account || line.debit || line.credit));
 }
 
+/**
+ * PowerOffice-data skrives av serveren (functions/powerOfficeMap.js).
+ * Tas bare med når den finnes: lagring skjer med merge, og en eldre kopi i appen
+ * skal ikke nulle ut det serveren har hentet.
+ */
+function normalizePowerOffice(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item == null || ['string', 'number', 'boolean'].includes(typeof item)) out[key] = item;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 export function normalizeInvoice(input) {
   const row = input && typeof input === 'object' ? input : {};
   const accounts = {};
@@ -338,6 +352,8 @@ export function normalizeInvoice(input) {
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
   };
+  const poweroffice = normalizePowerOffice(row.poweroffice);
+  if (poweroffice) normalized.poweroffice = poweroffice;
   if (!INVOICE_STATUSES.some((item) => item.id === normalized.status)) {
     normalized.status = deriveInvoiceStatus(normalized);
   }
@@ -363,7 +379,7 @@ const INVOICE_LIST_KEYS = [
   'amountExVat', 'vat', 'amountInclVat', 'outstanding', 'outstandingAmount', 'loss',
   'currency', 'status', 'sent', 'sentAt', 'paidAt', 'exportStatus',
   'kid', 'vatCode', 'deliveryMethod', 'voucherId',
-  'creditNoteForId', 'creditNoteForNumber', 'department', 'previewReady',
+  'creditNoteForId', 'creditNoteForNumber', 'department', 'previewReady', 'poweroffice',
 ];
 
 export function invoiceListSource(data, id = '') {
@@ -498,6 +514,9 @@ export function isInvoiceSent(invoice) {
 export function canDeleteInvoice(invoice) {
   const row = invoice || {};
   if (!text(row.id) && !text(row.invoiceNumber)) return false;
+  // Ligger utkastet i PowerOffice, må det slettes der først. Ellers frigjøres timene
+  // mens utkastet fortsatt kan sendes, og kunden kan bli fakturert to ganger.
+  if (text(row.poweroffice?.salesOrderId) && row.poweroffice?.state !== 'missing') return false;
   if (row.status === 'paid' || row.status === 'credited' || row.status === 'written_off') return false;
   if (row.status === 'draft') return true;
   if (/utkast|draft/i.test(text(row.exportStatus)) && !isInvoiceSent(row)) return true;

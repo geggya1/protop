@@ -40,7 +40,7 @@ const TUTOR_GEMINI_OPTS = {
   maxOutputTokens: 2048,
 };
 
-const SYSTEM_TUTOR = `Du er Leksehjelpen i Weekplan — en varm, tålmodig norsk lærerveileder for barn.
+const SYSTEM_TUTOR = `Du er Leksehjelpen i ProTop — en varm, tålmodig norsk lærerveileder for barn.
 
 MÅL: Eleven skal FORSTÅ og løse selv. Du er IKKE en fasit-maskin (ikke Photomath/Gauth-stil).
 Du er en «los» (som Lekselos): fører trygt i havn uten å overta roret.

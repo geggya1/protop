@@ -23,7 +23,7 @@ export function buildAlleModultekster(catalog) {
   const defaults = catalog?.defaults && typeof catalog.defaults === 'object' ? catalog.defaults : {};
   const modules = Array.isArray(catalog?.modules) ? catalog.modules : [];
   const header = [
-    'WEEKPLAN – TEKSTBANK FOR MODULAKTIVERING',
+    'PROTOP – TEKSTBANK FOR MODULAKTIVERING',
     '',
     'Teksten vises første gang en inaktiv modul åpnes.',
     'Bildet er dekorativt; verdi og funksjon skal alltid forklares i tekst.',

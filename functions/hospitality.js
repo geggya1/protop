@@ -22,7 +22,7 @@ const NUKI_API = 'https://api.nuki.io';
 
 /** Optional — avoid defineSecret so hospitality can deploy without Secret Manager IAM. */
 function mailApiKey() {
-  return String(process.env.WEEKPLAN_MAIL_KEY || process.env.MAIL_API_KEY || '').trim();
+  return String(process.env.PROTOP_MAIL_KEY || process.env.MAIL_API_KEY || '').trim();
 }
 
 // --- Pure helpers (kept in-functions to avoid cross-package imports) ---

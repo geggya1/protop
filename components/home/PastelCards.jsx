@@ -472,7 +472,7 @@ export function CalendarPeek({ events = [], onPress, title = 'Familiekalender', 
 }
 
 /** Barnets ukeplan: ukestripe + dagens (eller morgendagens) program. */
-export function WeekPlanPastel({
+export function WeeklyPlanPastel({
   programTitle = 'Dagens program',
   weekLabel,
   weekDays = [],
@@ -484,7 +484,7 @@ export function WeekPlanPastel({
   const rows = lessons.slice(0, compact ? 2 : 4);
   return (
     <TouchableOpacity
-      style={[styles.card, styles.weekPlanCard, useImmersiveCard()]}
+      style={[styles.card, styles.weeklyPlanCard, useImmersiveCard()]}
       onPress={onPress}
       activeOpacity={0.92}
       accessibilityRole="button"
@@ -494,19 +494,19 @@ export function WeekPlanPastel({
         <ModuleHeadIcon name="school" color="#2F80ED" size={16} compact={compact} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.headTitle} numberOfLines={1}>Ukeplan</Text>
-          <Text style={styles.weekPlanSub} numberOfLines={1}>
+          <Text style={styles.weeklyPlanSub} numberOfLines={1}>
             {weekLabel ? `${weekLabel} · ${programTitle}` : programTitle}
           </Text>
         </View>
       </View>
       {weekDays.length ? (
-        <View style={styles.weekPlanStrip}>
+        <View style={styles.weeklyPlanStrip}>
           {weekDays.map((d) => (
             <View
               key={d.id}
-              style={[styles.weekPlanDay, d.active && styles.weekPlanDayOn]}
+              style={[styles.weeklyPlanDay, d.active && styles.weeklyPlanDayOn]}
             >
-              <Text style={[styles.weekPlanDayLbl, d.active && styles.weekPlanDayLblOn]}>
+              <Text style={[styles.weeklyPlanDayLbl, d.active && styles.weeklyPlanDayLblOn]}>
                 {d.label}
               </Text>
             </View>
@@ -514,25 +514,25 @@ export function WeekPlanPastel({
         </View>
       ) : null}
       {rows.length ? (
-        <View style={styles.weekPlanCols}>
+        <View style={styles.weeklyPlanCols}>
           {rows.map((ev) => {
             const time = compact
               ? String(ev.time || '').split(/[–-]/)[0]?.trim() || ev.time || '—'
               : (ev.time || '—');
             return (
-              <View key={ev.id} style={styles.weekPlanRow}>
-                <View style={[styles.weekPlanTimeCol, compact && styles.weekPlanTimeColSm]}>
-                  <Text style={styles.weekPlanTime} numberOfLines={1}>{time}</Text>
+              <View key={ev.id} style={styles.weeklyPlanRow}>
+                <View style={[styles.weeklyPlanTimeCol, compact && styles.weeklyPlanTimeColSm]}>
+                  <Text style={styles.weeklyPlanTime} numberOfLines={1}>{time}</Text>
                 </View>
-                <View style={styles.weekPlanSubjectCol}>
-                  <Text style={styles.weekPlanSubject} numberOfLines={1}>{ev.title}</Text>
+                <View style={styles.weeklyPlanSubjectCol}>
+                  <Text style={styles.weeklyPlanSubject} numberOfLines={1}>{ev.title}</Text>
                 </View>
               </View>
             );
           })}
         </View>
       ) : (
-        <Text style={styles.weekPlanEmpty}>{emptyLabel}</Text>
+        <Text style={styles.weeklyPlanEmpty}>{emptyLabel}</Text>
       )}
     </TouchableOpacity>
   );
@@ -1097,15 +1097,15 @@ const styles = StyleSheet.create({
   shop: { backgroundColor: '#F8EEE6' },
   meals: { backgroundColor: '#FAF6EF' },
   cal: { backgroundColor: '#EEF4EA' },
-  weekPlanCard: { backgroundColor: '#E8F0FB' },
-  weekPlanSub: { fontSize: 11, color: soft.muted, fontFamily: sans, marginTop: 1 },
-  weekPlanStrip: {
+  weeklyPlanCard: { backgroundColor: '#E8F0FB' },
+  weeklyPlanSub: { fontSize: 11, color: soft.muted, fontFamily: sans, marginTop: 1 },
+  weeklyPlanStrip: {
     flexDirection: 'row',
     gap: 3,
     marginBottom: 6,
     marginTop: 2,
   },
-  weekPlanDay: {
+  weeklyPlanDay: {
     flex: 1,
     minWidth: 0,
     alignItems: 'center',
@@ -1114,39 +1114,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
     backgroundColor: 'rgba(255,255,255,0.55)',
   },
-  weekPlanDayOn: { backgroundColor: '#2F80ED' },
-  weekPlanDayLbl: { fontSize: 11, color: soft.muted, fontFamily: sans, fontWeight: '400' },
-  weekPlanDayLblOn: { color: '#fff' },
-  weekPlanCols: { gap: 3 },
-  weekPlanRow: {
+  weeklyPlanDayOn: { backgroundColor: '#2F80ED' },
+  weeklyPlanDayLbl: { fontSize: 11, color: soft.muted, fontFamily: sans, fontWeight: '400' },
+  weeklyPlanDayLblOn: { color: '#fff' },
+  weeklyPlanCols: { gap: 3 },
+  weeklyPlanRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     minHeight: 18,
   },
-  weekPlanTimeCol: {
+  weeklyPlanTimeCol: {
     width: 78,
     flexGrow: 0,
     flexShrink: 0,
   },
-  weekPlanTimeColSm: { width: 42 },
-  weekPlanTime: {
+  weeklyPlanTimeColSm: { width: 42 },
+  weeklyPlanTime: {
     fontSize: 11,
     color: soft.muted,
     fontFamily: sans,
     fontVariant: ['tabular-nums'],
   },
-  weekPlanSubjectCol: {
+  weeklyPlanSubjectCol: {
     flex: 1,
     minWidth: 0,
   },
-  weekPlanSubject: {
+  weeklyPlanSubject: {
     fontSize: 12,
     color: soft.ink,
     fontFamily: sans,
     fontWeight: '500',
   },
-  weekPlanEmpty: { fontSize: 12, color: soft.muted, fontFamily: sans, marginTop: 2 },
+  weeklyPlanEmpty: { fontSize: 12, color: soft.muted, fontFamily: sans, marginTop: 2 },
   rewards: { backgroundColor: '#FBF3D8' },
   goals: { backgroundColor: '#E8F5EE' },
   progressCard: { backgroundColor: '#EAF2FB' },

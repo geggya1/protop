@@ -25,7 +25,7 @@ function text(value) {
 
 export function vapidPrivateKey(options = {}) {
   return resolveRuntimeSecret('VAPID_PRIVATE_KEY', {
-    envNames: ['VAPID_PRIVATE_KEY', 'WEEKPLAN_VAPID_PRIVATE_KEY'],
+    envNames: ['VAPID_PRIVATE_KEY', 'PROTOP_VAPID_PRIVATE_KEY'],
     ...options,
   });
 }

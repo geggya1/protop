@@ -93,8 +93,8 @@ function catalogForAi(limitN = 30) {
   }));
 }
 
-export async function generateMatcoachWeekPlan(familyId, { prefs, pantryNames = [], extraRecipes = [] } = {}) {
-  const raw = await guardedCallable('aiMatcoachWeekPlan', {
+export async function generateMatcoachWeeklyPlan(familyId, { prefs, pantryNames = [], extraRecipes = [] } = {}) {
+  const raw = await guardedCallable('aiMatcoachWeeklyPlan', {
     familyId,
     prefs,
     pantryNames,
@@ -125,7 +125,7 @@ export async function swapMatcoachMeal(familyId, { prefs, currentTitle, avoidTit
 }
 
 /** Local planner used when offline / for unit tests. */
-export function buildLocalWeekPlan(prefs = DEFAULT_MATCOACH_PREFS) {
+export function buildLocalWeeklyPlan(prefs = DEFAULT_MATCOACH_PREFS) {
   const pool = NORWEGIAN_RECIPES.filter((r) => (r.tag || 'Middag') === 'Middag');
   const days = [];
   for (let i = 0; i < 7; i += 1) {
@@ -159,7 +159,7 @@ export function buildLocalWeekPlan(prefs = DEFAULT_MATCOACH_PREFS) {
   }, NORWEGIAN_RECIPES);
 }
 
-export async function applyWeekPlanToMeals(familyId, plan, prefs, { weekStart, days } = {}) {
+export async function applyWeeklyPlanToMeals(familyId, plan, prefs, { weekStart, days } = {}) {
   if (!familyId) throw new Error('Mangler plan');
   const list = Array.isArray(days) && days.length ? days : plan?.days;
   if (!list?.length) throw new Error('Mangler plan');
@@ -191,7 +191,7 @@ export async function applyWeekPlanToMeals(familyId, plan, prefs, { weekStart, d
 }
 
 export async function applySingleDayToMeal(familyId, day, prefs, { weekStart } = {}) {
-  const created = await applyWeekPlanToMeals(familyId, null, prefs, {
+  const created = await applyWeeklyPlanToMeals(familyId, null, prefs, {
     weekStart,
     days: [day],
   });

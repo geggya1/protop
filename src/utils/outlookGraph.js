@@ -7,7 +7,7 @@
 
 import { colorForExternalCalendar } from './calendarColors';
 
-const TOKEN_KEY = 'weekplan.outlook.graphToken';
+const TOKEN_KEY = 'protop.outlook.graphToken';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
 const MS_TOKEN = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
 const GRAPH_TZ = 'W. Europe Standard Time';

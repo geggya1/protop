@@ -8,7 +8,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { canInviteToCompany } from '../src/notifications/audience.js';
 import { isOrganizationType } from '../src/utils/groupTypes.js';
 
-const WEEKPLAN_URL_HOSTS = new Set([
+const APP_URL_HOSTS = new Set([
   'protop.no',
   'www.protop.no',
   'protop-c189c.web.app',
@@ -24,7 +24,7 @@ const BLOCKED_HOSTNAMES = new Set([
 ]);
 
 function isAllowedAppHost(host) {
-  if (WEEKPLAN_URL_HOSTS.has(host)) return true;
+  if (APP_URL_HOSTS.has(host)) return true;
   return /^protop-c189c--[\w.-]+\.web\.app$/i.test(host);
 }
 
@@ -186,7 +186,7 @@ export function assertSafeOutboundUrl(raw, { allowHttp = false } = {}) {
   return parsed;
 }
 
-/** continueUrl / registerUrl for mail — only Weekplan (and local) hosts. */
+/** continueUrl / registerUrl for mail — only ProTop (and local) hosts. */
 export function assertSafeAppContinueUrl(raw, fallback) {
   const fb = fallback || 'https://www.protop.no/';
   if (typeof raw !== 'string' || !raw.trim()) return fb;
@@ -196,7 +196,7 @@ export function assertSafeAppContinueUrl(raw, fallback) {
   } catch {
     return fb;
   }
-  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && WEEKPLAN_URL_HOSTS.has(parsed.hostname))) {
+  if (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && APP_URL_HOSTS.has(parsed.hostname))) {
     return fb;
   }
   const host = parsed.hostname.toLowerCase();

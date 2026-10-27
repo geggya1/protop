@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   applyPriceVersion,
   approveCase,
+  attachLetter,
   beginSend,
   buildIndexChain,
   caseFromCalculation,
@@ -385,4 +386,20 @@ test('alle brev som ikke er sendt kan slettes', () => {
   assert.equal(canDeleteCase({ id: 'f', status: 'utkast', mailStatus: 'sendt' }), false);
   assert.equal(canDeleteCase({ id: 'h', letterPlain: 'gammelt', sentAt: '2026-10-01' }), false);
   assert.equal(canDeleteCase({ status: 'utkast' }), false);
+});
+
+test('manuelle endringer i brevet lagres på saken sammen med teksten', () => {
+  const contract = breitorget();
+  const status = classifyContract({ contract, series: published, today: '2026-10-20' });
+  const math = computeRegulation({ draft: status.draft, series: published });
+  const entry = caseFromCalculation({ contract, draft: status.draft, result: math, dates: { effectiveFrom: '2026-01-01' } });
+  const letter = { title: 'Varsel', plain: 'Varsel om ny timepris' };
+  const attached = attachLetter({ ...entry, letterEdits: { Tittel: '  Varsel om   ny timepris ', Feil: 3 } }, letter, math, null);
+  assert.equal(attached.ok, true);
+  assert.deepEqual(attached.case.letterEdits, { Tittel: 'Varsel om ny timepris' });
+  assert.equal(attached.case.letterPlain, 'Varsel om ny timepris');
+  const approved = approveCase(attached.case, [], null);
+  assert.equal(approved.ok, true);
+  const locked = attachLetter({ ...approved.case, letterEdits: { Tittel: 'Annen' } }, letter, math, null);
+  assert.equal(locked.ok, false, 'ferdigstilt brev kan ikke endres');
 });

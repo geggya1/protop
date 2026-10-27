@@ -33,9 +33,9 @@ function idFromUrl() {
     const q = new URLSearchParams(window.location.search).get('game');
     if (q) return q;
     try {
-      const stored = sessionStorage.getItem('weekplanGamePreviewId');
+      const stored = sessionStorage.getItem('protopGamePreviewId');
       if (stored) {
-        sessionStorage.removeItem('weekplanGamePreviewId');
+        sessionStorage.removeItem('protopGamePreviewId');
         return stored;
       }
     } catch { /* ignore */ }

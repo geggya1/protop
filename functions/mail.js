@@ -1,5 +1,5 @@
 const FROM_EMAIL = 'noreply@protop.no';
-const FROM_NAME = 'Weekplan';
+export const FROM_NAME = 'ProTop';
 const REPLY_TO = 'support@protop.no';
 
 function detectProvider(apiKey) {
@@ -85,7 +85,7 @@ async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attach
       htmlContent: html,
       textContent: text,
       ...providerAttachments('brevo', attachments),
-      tags: ['transactional', 'weekplan'],
+      tags: ['transactional', 'protop'],
       // Avoid rewriting links through the new branded tracker; inbox scanners
       // often hold those messages for 2–3 minutes on a fresh domain.
       headers: {

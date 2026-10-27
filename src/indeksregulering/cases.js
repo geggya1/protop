@@ -17,7 +17,7 @@ import {
   periodLabel,
   roundMoney,
 } from './engine.js';
-import { formatMoney } from './letter.js';
+import { cleanLetterEdits, formatMoney } from './letter.js';
 import { honorarPrice } from './priceText.js';
 import { effectiveRegulation, frequencyLabel } from './settings.js';
 import { earliestRegulationDate, osloDate } from './watch.js';
@@ -873,6 +873,7 @@ export function attachLetter(entry, letter, result, actor, now = new Date()) {
       documentVersion: version,
       letterPlain: doc.plain,
       freeText: entry.freeText || '',
+      letterEdits: cleanLetterEdits(entry.letterEdits),
       snapshot: {
         draft: result?.draft || null,
         result: (() => {

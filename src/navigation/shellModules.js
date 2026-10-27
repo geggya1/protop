@@ -64,6 +64,7 @@ export function selskapMenuTitle(subView) {
  * Samme timeliste ligger også under Personlig, låst til innlogget bruker.
  * Fravær, produktsalg og prosjektutlegg ligger i egne menykategorier.
  * Produktivitet er eget hovedpunkt under Bedrift (samme rute: arbeid/produktivitet).
+ * Prosjektfremdrift ligger ved siden av (arbeid/fremdrift).
  */
 export const ARBEID_MENU = [
   { id: 'timeliste', icon: 'calendar', label: 'Timeliste' },
@@ -76,6 +77,7 @@ export const ARBEID_MENU = [
 export const ARBEID_ROUTE_IDS = [
   ...ARBEID_MENU.map((item) => item.id),
   'produktivitet',
+  'fremdrift',
   'fravaer',
   'fravaersrapport',
   'planlagt',
@@ -96,6 +98,7 @@ export function arbeidMenuTitle(subView) {
   if (subView === 'planlagt') return 'Planlagt fravær';
   if (subView === 'fravaer-innstillinger') return 'Fraværsinnstillinger';
   if (subView === 'produktivitet') return 'Produktivitet';
+  if (subView === 'fremdrift') return 'Prosjektfremdrift';
   if (subView === 'utlegg') return 'Prosjektutlegg';
   if (subView === 'salg') return 'Produktsalg';
   const row = ARBEID_MENU.find((item) => item.id === subView);
@@ -382,6 +385,12 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
       label: 'Produktivitet',
       action: { type: 'tab', tab: 'arbeid', subView: 'produktivitet' },
     },
+    {
+      id: 'fremdrift',
+      icon: 'reorder-four',
+      label: 'Prosjektfremdrift',
+      action: { type: 'tab', tab: 'arbeid', subView: 'fremdrift' },
+    },
     okonomiNavChild(INNTJENING_NAV),
     { id: 'kunder', icon: 'people', label: 'Kunder', action: { type: 'tab', tab: 'kunder' } },
     {
@@ -526,7 +535,7 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-productivity',
     label: 'Produktivitet og inntjening',
     icon: 'stats-chart',
-    itemIds: ['produktivitet', 'okonomi-inntjening'],
+    itemIds: ['produktivitet', 'fremdrift', 'okonomi-inntjening'],
   },
   {
     id: 'company-finance',
@@ -1009,7 +1018,7 @@ export function buildChildSkoleApps({
     skoleApps.push({
       id: 'week-plan',
       icon: 'today',
-      label: t('tabs.weekPlan'),
+      label: t('tabs.weeklyPlan'),
       sub: t('shellSub.overview'),
       action: {
         type: 'nav',
@@ -1311,14 +1320,14 @@ export function buildParentDashboardApps({
       id: 'matcoach',
       icon: 'nutrition',
       label: t('apps.matcoach'),
-      sub: t('shellSub.weekPlanAi'),
+      sub: t('shellSub.weeklyPlanAi'),
       action: { type: 'tab', tab: 'more', subView: 'matcoach' },
     },
     {
       id: 'meals',
       icon: 'restaurant',
       label: t('apps.meals'),
-      sub: t('shellSub.weekPlan'),
+      sub: t('shellSub.weeklyPlan'),
       action: { type: 'tab', tab: 'more', subView: 'meals' },
     },
     {

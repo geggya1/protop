@@ -32,7 +32,7 @@ import { shouldBounceApexToWww } from '../shell/pwaNavigation';
 import { isStandaloneDisplay } from './preferApp';
 
 const OAUTH_REDIRECT_PATH = 'oauth/calendar';
-const OAUTH_STORAGE_KEY = 'weekplan.calendar.oauth';
+const OAUTH_STORAGE_KEY = 'protop.calendar.oauth';
 const OAUTH_STATE_PREFIX = 'wp1.';
 const DEFAULT_MS_CLIENT_ID = 'd641e51b-4503-43d8-b2f4-332acb296864';
 
@@ -135,9 +135,9 @@ export async function listCalendarConnections(opts = {}) {
   return connections;
 }
 
-export const OPEN_CALENDAR_SETTINGS_KEY = 'weekplan.openCalendarSettings';
-export const OPEN_MAIL_HUB_KEY = 'weekplan.openMailHub';
-export const OAUTH_COMPLETE_MESSAGE = 'weekplan-oauth-complete';
+export const OPEN_CALENDAR_SETTINGS_KEY = 'protop.openCalendarSettings';
+export const OPEN_MAIL_HUB_KEY = 'protop.openMailHub';
+export const OAUTH_COMPLETE_MESSAGE = 'protop-oauth-complete';
 
 function storageSet(key, value) {
   try { sessionStorage.setItem(key, value); } catch { /* ignore */ }
@@ -441,7 +441,7 @@ async function makeRedirectUri() {
   if (isWebBrowser()) {
     return `${webAppOrigin()}/${OAUTH_REDIRECT_PATH}`;
   }
-  return AuthSession.makeRedirectUri({ scheme: 'weekplan', path: OAUTH_REDIRECT_PATH });
+  return AuthSession.makeRedirectUri({ scheme: 'protop', path: OAUTH_REDIRECT_PATH });
 }
 
 function parseOauthPayload(raw) {

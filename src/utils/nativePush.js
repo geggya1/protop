@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
-const PUSH_ASKED_KEY = 'weekplan_native_push_asked_v1';
+const PUSH_ASKED_KEY = 'protop_native_push_asked_v1';
 
 function isNative() {
   return Platform.OS === 'ios' || Platform.OS === 'android';

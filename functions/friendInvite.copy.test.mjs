@@ -30,6 +30,6 @@ const sms = buildFriendInviteSms({
   existingUser: false,
 });
 assert.ok(sms.includes('Geir'));
-assert.ok(sms.includes('Weekplan'));
+assert.ok(sms.includes('ProTop'));
 
 console.log('friendInvite.copy.test.mjs: ok');

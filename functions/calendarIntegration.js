@@ -285,7 +285,7 @@ async function fetchIcsBody(url) {
     let text = '';
     for (let hop = 0; hop < 3; hop += 1) {
       const res = await fetch(current, {
-        headers: { Accept: 'text/calendar', 'User-Agent': 'Weekplan/1.0' },
+        headers: { Accept: 'text/calendar', 'User-Agent': 'ProTop/1.0' },
         redirect: 'manual',
         signal: ctrl.signal,
       });

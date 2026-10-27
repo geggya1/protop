@@ -28,6 +28,7 @@ import {
 import { archiveEmptyDuplicateClassrooms } from '../src/utils/classroom';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { inviteResponseMessage } from '../src/utils/groupInviteLogic';
+import { isSyntheticEmail } from '../src/utils/usernamesLogic';
 
 function inviteAnswerError(e, t) {
   const code = e?.message || '';
@@ -129,7 +130,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   const [inviteError, setInviteError] = useState('');
 
   const user = auth.currentUser;
-  const isChild = !!user?.email?.endsWith('@weekplan.app');
+  const isChild = isSyntheticEmail(user?.email);
 
   useEffect(() => {
     if (!user?.uid || isChild) {

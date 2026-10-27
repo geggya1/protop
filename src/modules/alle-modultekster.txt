@@ -1,4 +1,4 @@
-WEEKPLAN – TEKSTBANK FOR MODULAKTIVERING
+PROTOP – TEKSTBANK FOR MODULAKTIVERING
 
 Teksten vises første gang en inaktiv modul åpnes.
 Bildet er dekorativt; verdi og funksjon skal alltid forklares i tekst.

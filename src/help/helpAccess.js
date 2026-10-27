@@ -43,7 +43,7 @@ export const PAGE_ACCESS = {
   'selskap.kontoplan': { res: 'economySettings', steps: [W, W, W] },
 
   ansatte: { res: 'employees', steps: [R, R, W, S] },
-  'hr.oversikt': { res: 'hr', steps: [S, S, R, S] },
+  'hr.oversikt': { res: 'hr', steps: [S, S, R, S, S] },
   'hr.personell': { res: 'hrPeople', steps: [S, S] },
   'hr.avtaler': { res: 'hrAgreements', steps: [S, R, R] },
   'hr.lonn': { res: 'hrPayroll', steps: [S, R] },
@@ -58,6 +58,7 @@ export const PAGE_ACCESS = {
   'arbeid.timesaldo': { res: 'hoursBalance', steps: [S, S, W] },
   'arbeid.godkjenning': { res: 'hoursApproval', steps: [S, on(R, 'hoursOthers'), on(R, 'hoursOthers')] },
   'arbeid.produktivitet': { res: 'productivity', steps: [S, S, R] },
+  'arbeid.fremdrift': { res: 'productivity', steps: [S, S, S] },
   'arbeid.fravaer': { res: 'absence', steps: [S, S, S] },
   'arbeid.fravaersrapport': { res: 'absenceReport', steps: [S] },
   'arbeid.planlagt': { res: 'absencePlanned', steps: [R, R, on(R, 'hoursOthers')] },

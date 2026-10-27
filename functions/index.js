@@ -253,7 +253,7 @@ export {
   aiReceiptOcr,
   aiClassListOcr,
   interpretImport,
-  aiMatcoachWeekPlan,
+  aiMatcoachWeeklyPlan,
   aiMatcoachFridgeScan,
   aiMatcoachLunchBoxes,
   aiMatcoachSwapMeal,
@@ -273,6 +273,14 @@ export {
 } from './aiCallables.js';
 
 export { lookupVehicleByReg, lookupVehicleHttp } from './vegvesenLookup.js';
+export {
+  powerOfficeStatus,
+  powerOfficeConnect,
+  powerOfficeDisconnect,
+  powerOfficeProducts,
+  powerOfficeTransferInvoice,
+  powerOfficeSyncInvoices,
+} from './powerOffice.js';
 export { fetchOpenFeed, fetchOpenFeedHttp } from './openFeed.js';
 export { searchDoffin, searchTed, lookupCompany, fetchDossier } from './doffinSearch.js';
 export { tenderProxy } from './tenderProxy.js';

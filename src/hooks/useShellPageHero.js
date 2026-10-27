@@ -5,7 +5,7 @@ let ownerSeq = 0;
 
 /**
  * On phone the band is the page heading: it replaces familienavn and the
- * large title under the logo, the same way ModuleHero does for Weekplan.
+ * large title under the logo, the same way ModuleHero does for the app modules.
  * Pass a memoized node so the shell does not re-claim on every render.
  */
 export function useShellPageHero(node, { active = true } = {}) {

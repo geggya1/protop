@@ -1,7 +1,7 @@
 /**
- * Structured notification diagnostics — filter console by `[weekplan-notif]`.
+ * Structured notification diagnostics — filter console by `[protop-notif]`.
  */
-const PREFIX = '[weekplan-notif]';
+const PREFIX = '[protop-notif]';
 
 export function notifLog(event, detail = {}) {
   try {

@@ -276,18 +276,18 @@ export function companyComplianceOverview(employees, compliance, {
       : (compliance || []);
     const items = ensureEmployeeCompliance(sourced, id);
     const summary = complianceSummary(items);
+    const gapRows = items.filter((row) => {
+      const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
+      return cat?.required && (row.status === 'missing' || row.status === 'overdue');
+    });
     rows.push({
       employeeId: id,
       missing: summary.missing,
       ok: summary.ok,
       total: summary.total,
       pct: summary.pct,
-      gaps: items
-        .filter((row) => {
-          const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
-          return cat?.required && (row.status === 'missing' || row.status === 'overdue');
-        })
-        .map((row) => row.label),
+      gaps: gapRows.map((row) => row.label),
+      gapIds: gapRows.map((row) => row.catalogId),
     });
   }
   return rows.sort((a, b) => b.missing - a.missing || a.pct - b.pct);

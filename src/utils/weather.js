@@ -6,7 +6,7 @@
  * GPS kun når brukeren aktivt velger «Bruk der jeg er» — aldri automatisk ved lasting.
  */
 
-export const WEATHER_PLACE_KEY = 'weekplan.weatherPlace.v1';
+export const WEATHER_PLACE_KEY = 'protop.weatherPlace.v1';
 
 export const DEFAULT_WEATHER_PLACE = {
   name: 'Oslo',

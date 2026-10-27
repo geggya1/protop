@@ -13,7 +13,7 @@ import { applyCors, requireBearerUid } from './httpAuth.js';
 if (!getApps().length) initializeApp();
 
 const MAX_BYTES = 350000;
-const USER_AGENT = 'Mozilla/5.0 (compatible; Weekplan/2.0; +https://protop.no) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const USER_AGENT = 'Mozilla/5.0 (compatible; ProTop/2.0; +https://protop.no) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 function reject(code, message) {
   throw new HttpsError(code, message);

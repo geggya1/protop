@@ -2,7 +2,7 @@
 /**
  * Guard against publishing an empty Firebase Hosting dist for protop.no.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,9 +20,22 @@ const index = readFileSync(indexHtml, 'utf8');
 if (!/id="root"/.test(index) && !/_expo\//.test(index)) {
   fail('dist/index.html is not the Expo SPA');
 }
-if (/weekplan-4310f/.test(index)) {
-  fail('dist/index.html still points at ProTop Firebase');
+
+// Klienten skal bare snakke med Firebase-prosjektet til ProTop.
+const projectIds = new Set();
+function collectProjectIds(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const file = join(dir, entry.name);
+    if (entry.isDirectory()) collectProjectIds(file);
+    else if (entry.name.endsWith('.js')) {
+      for (const match of readFileSync(file, 'utf8').matchAll(/projectId\s*:\s*["']([\w-]+)["']\s*,\s*storageBucket/g)) projectIds.add(match[1]);
+    }
+  }
 }
+const jsDir = join(root, 'dist', '_expo', 'static', 'js');
+if (existsSync(jsDir)) collectProjectIds(jsDir);
+const foreignProjects = [...projectIds].filter((id) => id !== 'protop-c189c');
+if (foreignProjects.length) fail(`dist points at another Firebase project: ${foreignProjects.join(', ')}`);
 
 function assertPng(rel) {
   const file = join(root, 'dist', rel);

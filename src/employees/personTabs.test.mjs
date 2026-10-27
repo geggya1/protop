@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  employeeTabViews, employeeViewToTab, EMPLOYEE_DETAIL_TABS, EMPLOYEE_SUB_TABS, PERSON_VIEWS, PERSON_FILL_VIEWS,
+  employeeTabViews, employeeViewToTab, EMPLOYEE_DETAIL_TABS, EMPLOYEE_SETTINGS_SUBS, EMPLOYEE_SUB_TABS, PERSON_VIEWS, PERSON_FILL_VIEWS,
 } from './personTabs.js';
 
 assert.equal(employeeViewToTab('detail'), 'home');
@@ -19,6 +19,13 @@ assert.deepEqual(EMPLOYEE_SUB_TABS.absence.map((tab) => tab.label), ['Oversikt',
 assert.deepEqual(employeeTabViews('hours'), ['hours', 'report', 'saldo']);
 assert.deepEqual(employeeTabViews('home'), ['detail']);
 assert.deepEqual(employeeTabViews('cv'), ['cv']);
+// Innstillinger: brukerinnstillingene er undersider i menyen øverst, etter Ansettelsesdata.
+assert.deepEqual(EMPLOYEE_SUB_TABS.settings.map((tab) => tab.label), [
+  'Ansettelsesdata', 'Generelt', 'Timepriser', 'Arbeidsforhold', 'Endre passord', 'Varslinger',
+]);
+assert.equal(employeeTabViews('settings')[0], 'settings');
+for (const view of employeeTabViews('settings')) assert.equal(employeeViewToTab(view), 'settings');
+assert.deepEqual(Object.keys(EMPLOYEE_SETTINGS_SUBS), employeeTabViews('settings').slice(1));
 
 // Alle views er dekket av en fane.
 const covered = new Set(ids.flatMap((id) => employeeTabViews(id)));

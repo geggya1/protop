@@ -36,14 +36,6 @@ const CHECKS = [
   { key: 'flexCountsAsPay', label: 'Mertid teller i lønn' },
 ];
 
-const SUBS = [
-  { id: 'general', label: 'Generelt' },
-  { id: 'rate', label: 'Timepriser' },
-  { id: 'work', label: 'Arbeidsforhold' },
-  { id: 'password', label: 'Endre passord' },
-  { id: 'notify', label: 'Varslinger' },
-];
-
 export default function EmployeeWorkViews({
   mode = 'settings',
   employee,
@@ -51,7 +43,8 @@ export default function EmployeeWorkViews({
   canEdit = false,
   expenses = [],
   onSave,
-  initialSub = 'general',
+  // Delen av brukerinnstillingene. Menyen ligger øverst på personen (Innstillinger), ikke her.
+  sub = 'general',
 }) {
   if (mode === 'files') {
     const files = (expenses || []).filter((row) => row.employeeId === employee?.id && (row.receiptName || row.description));
@@ -68,14 +61,13 @@ export default function EmployeeWorkViews({
     );
   }
   return (
-    <EmployeeSettings employee={employee} colors={colors} canEdit={canEdit} onSave={onSave} initialSub={initialSub} />
+    <EmployeeSettings employee={employee} colors={colors} canEdit={canEdit} onSave={onSave} sub={sub} />
   );
 }
 
-function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'general' }) {
+function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }) {
   const settings = timeSettingsOf(employee);
   const membership = employmentFlags(employee);
-  const [sub, setSub] = useState(initialSub);
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [target, setTarget] = useState(String(settings.utilizationTarget ?? 100));
@@ -124,6 +116,7 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
   }
 
   async function resetPassword() {
+    if (!canEdit) return;
     const email = employee?.person?.email || employee?.company?.email || '';
     if (!email) {
       setError('Medarbeideren mangler e-post.');
@@ -154,14 +147,6 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
 
   return (
     <ScrollView contentContainerStyle={styles.wrap} nativeID="employee-time-settings">
-      <Text style={[styles.title, { color: colors.ink }]}>Brukerinnstillinger</Text>
-      <View style={styles.tabs}>
-        {SUBS.map((row) => (
-          <TouchableOpacity key={row.id} onPress={() => setSub(row.id)} accessibilityRole="tab">
-            <Text style={{ color: sub === row.id ? colors.brand : colors.muted, fontWeight: sub === row.id ? '700' : '500' }}>{row.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
       {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
 
@@ -238,9 +223,11 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
       {sub === 'password' ? (
         <View style={{ gap: 8 }}>
           <Text style={{ color: colors.muted }}>Vi sender en lenke til medarbeiderens e-post for å sette nytt passord.</Text>
-          <TouchableOpacity onPress={resetPassword} style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}>
-            <Text style={styles.btnText}>Send passordlenke</Text>
-          </TouchableOpacity>
+          {canEdit ? (
+            <TouchableOpacity onPress={resetPassword} nativeID="employee-password-send" style={[styles.btn, { backgroundColor: colors.brand, alignSelf: 'flex-start' }]}>
+              <Text style={styles.btnText}>Send passordlenke</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
 
@@ -252,8 +239,8 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, initialSub = 'gen
           ].map((row) => {
             const on = settings[row.key] !== false;
             return (
-              <TouchableOpacity key={row.key} onPress={() => toggle(row.key)} style={styles.check} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
-                <View style={[styles.box, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent' }]}>
+              <TouchableOpacity key={row.key} onPress={() => toggle(row.key)} disabled={!canEdit} style={styles.check} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: !canEdit }}>
+                <View style={[styles.box, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brand : 'transparent', opacity: canEdit ? 1 : 0.45 }]}>
                   {on ? <Text style={{ color: '#fff', fontSize: 12 }}>✓</Text> : null}
                 </View>
                 <Text style={{ color: colors.ink }}>{row.label}</Text>
@@ -563,7 +550,6 @@ function DayGrid({ colors, days, editing = false, onPatch, onEditDay }) {
 const styles = StyleSheet.create({
   wrap: { padding: 16, gap: 10, paddingBottom: 40 },
   title: { fontSize: 20, fontWeight: '700' },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 8 },
   checks: { gap: 10, maxWidth: 560 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   box: { width: 18, height: 18, borderWidth: 1, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },

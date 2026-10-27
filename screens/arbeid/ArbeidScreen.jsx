@@ -276,10 +276,11 @@ export default function ArbeidScreen({
     if (!row || row.company?.status === 'former' || row.company?.status === 'deleted') return null;
     return row;
   }, [employees, uid, personal, user?.email, user?.displayName, access.previewing, access.viewingAs]);
+  // Andres timer følger bare tilgangsstyringen, ikke administratorlisten på selskapet (adminUids).
   const manager = personal
     ? false
     : (access.ready
-      ? ((isAdmin && !access.previewLocks('hoursOthers')) || access.canEdit('hoursOthers'))
+      ? access.canEdit('hoursOthers')
       : canManageTimesheets({ isAdmin, employee: linked }));
   // Bedriftstimeliste: Lese = bare se. Begrenset redigering på egne timer (eller andres timer for leder) = føre og endre.
   const companyTimesheet = !personal && !lockedId && access.active;

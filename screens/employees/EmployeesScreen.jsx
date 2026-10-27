@@ -98,7 +98,7 @@ import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/f
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState } from '../../src/project/storage';
 import {
-  EMPLOYEE_DETAIL_TABS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
+  EMPLOYEE_DETAIL_TABS, EMPLOYEE_SETTINGS_SUBS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
 } from '../../src/employees/personTabs.js';
 import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
 
@@ -122,11 +122,13 @@ const SELF_EDITOR_VIEWS = new Set(['detail', 'hours', 'report', 'saldo', 'absenc
 
 export default function EmployeesScreen() {
   const colors = useColors();
-  const { familyId, family, members, uid, user, userProfile, isAdmin: groupAdmin, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
   // isAdmin = begrenset redigering (hovedsiden kan redigeres); employeesAdmin = Admin (alt annet).
-  const isAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.canEdit('employees'));
-  const employeesAdmin = (groupAdmin && !access.previewLocks('employees')) || (access.ready && access.canAdmin('employees'));
+  // Bare tilgangsstyringen gjelder. Administratorlisten på selskapet (adminUids) gir ikke Admin her;
+  // eieren har full tilgang gjennom useCompanyAccess.
+  const isAdmin = access.ready && access.canEdit('employees');
+  const employeesAdmin = access.ready && access.canAdmin('employees');
   const canInvite = employeesAdmin;
   const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
     || (access.ready && access.canAdmin('accessControl'));
@@ -271,8 +273,7 @@ export default function EmployeesScreen() {
   const limitedPerson = !!selected && !isAdmin && !isSelfRow(selected);
   const readOnlyPerson = !!selected && !employeesAdmin && !isSelfRow(selected);
   // Egen profil følger «Egen profil» i tilgangsstyringen: Lese, begrenset redigering eller Admin.
-  const ownLevel = employeesAdmin || (groupAdmin && !access.previewLocks('ownProfile'))
-    || (access.ready && access.canAdmin('ownProfile'))
+  const ownLevel = employeesAdmin || (access.ready && access.canAdmin('ownProfile'))
     ? 'admin'
     : (access.ready && access.canEdit('ownProfile') ? 'editor' : 'reader');
   const selfSelected = isSelfRow(selected);
@@ -1709,9 +1710,11 @@ export default function EmployeesScreen() {
             />
           ) : null}
 
-          {view === 'settings' ? (
+          {EMPLOYEE_SETTINGS_SUBS[view] ? (
             <EmployeeWorkViews
+              key={view}
               mode="settings"
+              sub={EMPLOYEE_SETTINGS_SUBS[view]}
               employee={draft || selected}
               colors={colors}
               canEdit={isAdmin || isSelfRow(selected)}

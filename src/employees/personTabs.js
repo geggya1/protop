@@ -1,4 +1,4 @@
-/** Skilleark på person-sider (ansatt-detalj). Timer og Fravær har undersider. */
+/** Skilleark på person-sider (ansatt-detalj). Timer, Fravær og Innstillinger har undersider. */
 export const EMPLOYEE_DETAIL_TABS = [
   { id: 'home', label: 'Hovedside' },
   { id: 'hours', label: 'Timer' },
@@ -21,6 +21,24 @@ export const EMPLOYEE_SUB_TABS = {
     { id: 'absence', label: 'Oversikt' },
     { id: 'overview', label: 'Rapport' },
   ],
+  // Innstillinger: ansettelsesdata og brukerinnstillingene i samme meny øverst.
+  settings: [
+    { id: 'settings', label: 'Ansettelsesdata' },
+    { id: 'settingsGeneral', label: 'Generelt' },
+    { id: 'settingsRate', label: 'Timepriser' },
+    { id: 'settingsWork', label: 'Arbeidsforhold' },
+    { id: 'settingsPassword', label: 'Endre passord' },
+    { id: 'settingsNotify', label: 'Varslinger' },
+  ],
+};
+
+/** Brukerinnstillingene under Innstillinger: view-id → del i EmployeeWorkViews. */
+export const EMPLOYEE_SETTINGS_SUBS = {
+  settingsGeneral: 'general',
+  settingsRate: 'rate',
+  settingsWork: 'work',
+  settingsPassword: 'password',
+  settingsNotify: 'notify',
 };
 
 /** view-state i EmployeesScreen → fanens id i skillearket. */
@@ -40,6 +58,7 @@ export function employeeTabViews(tabId) {
 
 export const PERSON_VIEWS = new Set([
   'detail', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'earnings', 'settings', 'cv',
+  ...Object.keys(EMPLOYEE_SETTINGS_SUBS),
 ]);
 
 /** Undersider med eget rullefelt. De fyller området under chrome. */

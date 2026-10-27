@@ -6,6 +6,17 @@ const screen = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx
 const detail = readFileSync(new URL('../../screens/employees/EmployeeDetailView.jsx', import.meta.url), 'utf8');
 
 assert.match(screen, /const limitedPerson = !!selected && !isAdmin && !isSelfRow\(selected\)/);
+// Bare tilgangsstyringen gjelder. Administratorlisten på selskapet (adminUids, useApp().isAdmin)
+// gir ikke Admin på ansatte, prosjekt eller andres timer. Ellers ser en med Lese alle faner og kan endre.
+assert.match(screen, /const isAdmin = access\.ready && access\.canEdit\('employees'\);/);
+assert.match(screen, /const employeesAdmin = access\.ready && access\.canAdmin\('employees'\);/);
+assert.match(screen, /const ownLevel = employeesAdmin \|\| \(access\.ready && access\.canAdmin\('ownProfile'\)\)/);
+assert.equal(/groupAdmin/.test(screen), false);
+for (const file of ['../../screens/arbeid/ArbeidScreen.jsx', '../../screens/arbeid/useTimesheetWorkspace.js']) {
+  const src = readFileSync(new URL(file, import.meta.url), 'utf8');
+  assert.match(src, /: \(access\.ready\s*\? access\.canEdit\('hoursOthers'\)/, file);
+  assert.equal(/isAdmin && !access\.previewLocks/.test(src), false, file);
+}
 // Tre nivåer: Lese = hovedside, begrenset = + Oversikt/Timer/Fravær (bare visning), Admin = alt.
 assert.match(screen, /READER_PERSON_VIEWS = new Set\(\['detail'\]\)/);
 assert.match(screen, /EDITOR_PERSON_VIEWS = new Set\(\['detail', 'overview', 'hours', 'report', 'absence'\]\)/);
@@ -20,6 +31,12 @@ assert.match(screen, /setView\(personViewAllowed\(row, nextView\) \? nextView : 
 assert.match(screen, /limited=\{limitedPerson\}/);
 // Ansettelsesdata ligger under Innstillinger.
 assert.match(screen, /view === 'settings' && personEmployee \? \(\s*<EmployeeDetailView\s*section="employment"/);
+// Brukerinnstillingene er egne undersider i menyen øverst (ikke nederst under Ansettelsesdata).
+assert.match(screen, /\{EMPLOYEE_SETTINGS_SUBS\[view\] \? \(\s*<EmployeeWorkViews\s+key=\{view\}\s+mode="settings"\s+sub=\{EMPLOYEE_SETTINGS_SUBS\[view\]\}/);
+// Lese og begrenset redigering ser ingen av undersidene under Innstillinger på andre.
+assert.equal(/'settings/.test(screen.match(/READER_PERSON_VIEWS = new Set\(\[[^\]]*\]\)/)[0]), false);
+assert.equal(/'settings/.test(screen.match(/EDITOR_PERSON_VIEWS = new Set\(\[[^\]]*\]\)/)[0]), false);
+assert.equal(/'settings/.test(screen.match(/SELF_EDITOR_VIEWS = new Set\(\[[^\]]*\]\)/)[0]), false);
 
 assert.match(detail, /section === 'employment'/);
 assert.match(detail, /!limited && \(personalRows\.length \|\| canEdit\)/);

@@ -209,10 +209,11 @@ export function useTimesheetWorkspace({
     return row;
   }, [employees, uid, personal, user?.email, user?.displayName, access.previewing, access.viewingAs]);
 
+  // Andres timer følger bare tilgangsstyringen, ikke administratorlisten på selskapet (adminUids).
   const manager = personal
     ? false
     : (access.ready
-      ? ((isAdmin && !access.previewLocks('hoursOthers')) || access.canEdit('hoursOthers'))
+      ? access.canEdit('hoursOthers')
       : canManageTimesheets({ isAdmin, employee: linked }));
 
   return {

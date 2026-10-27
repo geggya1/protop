@@ -12,6 +12,9 @@ const expenses = read('../../components/project/ProjectExpensesTab.jsx');
 const sales = read('../../components/project/ProjectSalesTab.jsx');
 
 assert.match(screen, /const isAdmin = [\s\S]{0,120}access\.canAdmin\('projects'\)/);
+// Bare tilgangsstyringen gjelder; administratorlisten på selskapet (adminUids) gir ikke Admin på Prosjekt.
+assert.equal(/groupAdmin/.test(screen), false);
+assert.match(screen, /const canDeleteProjects = isAdmin;/);
 assert.match(screen, /access\.canEdit\('projects'\) \|\| access\.canEdit\('assignedProjects'\)/);
 // Bare Admin ser alle prosjekter og kan opprette nye.
 assert.match(screen, /const seesAllProjects = isAdmin;/);

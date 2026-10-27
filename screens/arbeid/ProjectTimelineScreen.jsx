@@ -7,6 +7,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { watchEmployees } from '../../src/employees/storage';
 import { ensureProjectHours, loadProjectState, peekProjectState } from '../../src/project/storage';
+import { myProjectIds } from '../../src/project/myProjects';
 import ProjectTimelineBoard from './ProjectTimelineBoard';
 
 function ownEmployee(rows, user) {
@@ -20,13 +21,17 @@ function ownEmployee(rows, user) {
   return (rows || []).find((row) => String(row.person?.email || row.company?.email || '').toLowerCase() === email) || null;
 }
 
-/** Prosjektfremdrift: planlagt periode og utført arbeid for alle prosjekter. Bare visning. */
+/**
+ * Prosjektfremdrift: planlagt periode og utført arbeid. Bare visning.
+ * Admin på Prosjekt ser alle prosjekter. Lese og begrenset redigering ser prosjektene de er med i.
+ */
 export default function ProjectTimelineScreen() {
   const colors = useColors();
   const { familyId, user } = useApp();
   const access = useCompanyAccess();
   const cachedProjects = peekProjectState(familyId);
   const [projects, setProjects] = useState(() => cachedProjects?.projects || []);
+  const [members, setMembers] = useState(() => cachedProjects?.members || []);
   const [dayHours, setDayHours] = useState(() => Number(cachedProjects?.fullDayHours) || 8);
   const [contracts, setContracts] = useState(() => peekAnbudState(familyId)?.contracts || []);
   const [timeEntries, setTimeEntries] = useState([]);
@@ -37,11 +42,12 @@ export default function ProjectTimelineScreen() {
   familyRef.current = familyId;
 
   const seeOthers = !access.active || access.canView('hoursOthers');
+  const allProjects = !access.active || (access.ready && access.canAdmin('projects'));
 
   useEffect(() => {
-    if (!familyId || seeOthers) return undefined;
+    if (!familyId || (seeOthers && allProjects)) return undefined;
     return watchEmployees(familyId, (rows) => setEmployees(rows || []));
-  }, [familyId, seeOthers]);
+  }, [familyId, seeOthers, allProjects]);
 
   useEffect(() => {
     let live = true;
@@ -51,6 +57,7 @@ export default function ProjectTimelineScreen() {
       .then((state) => {
         if (!live || familyRef.current !== companyId) return;
         setProjects(state?.projects || []);
+        setMembers(state?.members || []);
         if (Number(state?.fullDayHours) > 0) setDayHours(Number(state.fullDayHours));
       })
       .catch(() => {});
@@ -80,12 +87,23 @@ export default function ProjectTimelineScreen() {
     return () => { live = false; };
   }, [familyId, range?.fromDate, range?.toDate]);
 
+  // «Se som bruker»: den valgte personen.
+  const me = useMemo(
+    () => (access.previewing && access.viewingAs ? access.viewingAs : ownEmployee(employees, user)),
+    [access.previewing, access.viewingAs, employees, user],
+  );
+
   const visibleEntries = useMemo(() => {
     if (seeOthers) return timeEntries;
-    const mine = ownEmployee(employees, user);
-    if (!mine) return [];
-    return timeEntries.filter((row) => row.employeeId === mine.id);
-  }, [timeEntries, seeOthers, employees, user]);
+    if (!me) return [];
+    return timeEntries.filter((row) => row.employeeId === me.id);
+  }, [timeEntries, seeOthers, me]);
+
+  const visibleProjects = useMemo(() => {
+    if (allProjects) return projects;
+    const own = myProjectIds({ projects, members, timeEntries }, me, employees);
+    return projects.filter((project) => own.has(project.id));
+  }, [allProjects, projects, members, timeEntries, me, employees]);
 
   if (access.active && !access.ready) {
     return <ScrollView style={[styles.scroll, { backgroundColor: colors.bg }]} nativeID="fremdrift-screen" />;
@@ -103,7 +121,7 @@ export default function ProjectTimelineScreen() {
     >
       <ProjectTimelineBoard
         colors={colors}
-        projects={projects}
+        projects={visibleProjects}
         contracts={contracts}
         timeEntries={visibleEntries}
         fullWeekHours={dayHours * 5}

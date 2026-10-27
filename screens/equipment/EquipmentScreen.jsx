@@ -30,6 +30,7 @@ import { watchEmployees } from '../../src/employees/storage';
 import { displayName, ownEmployee } from '../../src/employees/model';
 import { EQUIPMENT_GROUPS, EQUIPMENT_STATUSES, equipmentGroup } from '../../src/equipment/catalog';
 import { employeeMayBook, employeeMaySeeGear } from '../../src/equipment/calendars';
+import { pickableProjects } from '../../src/project/myProjects';
 import {
   bookingsOnDate,
   normalizeEquipment,
@@ -264,8 +265,15 @@ export default function EquipmentScreen() {
   const dayBookings = bookingsOnDate(state.equipmentBookings, selectedDate)
     .filter((row) => companyGearIds.has(row.equipmentId));
   const projects = useMemo(
-    () => mileageProjectOptions(state, employeeId, { query: projectQuery }),
-    [state, employeeId, projectQuery],
+    // Prosjektvelgeren: Admin på Prosjekt ser alle, ellers egne og åpne prosjekter.
+    () => mileageProjectOptions(
+      access.ready && access.canAdmin('projects')
+        ? state
+        : { ...state, projects: pickableProjects(state, me, employees, { keepId: projectId }) },
+      employeeId,
+      { query: projectQuery },
+    ),
+    [state, employeeId, projectQuery, access, me, employees, projectId],
   );
 
   // Utstyr og egne biler skrives rett inn i skyens ferske kopi, og vi venter på svar.

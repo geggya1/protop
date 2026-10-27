@@ -31,6 +31,8 @@ import { recordDutyTrip } from '../../src/economy/opsState';
 import { updateProject } from '../../src/project/engine';
 import { upsertEquipment, upsertPersonalVehicle } from '../../src/equipment/state';
 import { canAddCompanyVehicle, companyVehicles, employeeVehicles, vehicleTitle } from '../../src/equipment/model';
+import { equipmentViewerAccess, vehiclesForViewer } from '../../src/equipment/calendars';
+import { pickableProjects } from '../../src/project/myProjects';
 import { CUSTOMER_COST_KINDS, customerCostTitle, sumCustomerCosts } from '../../src/mileage/customerCosts';
 import { feeClassFromSignals, feeClassLabel, VEHICLE_FEE_CLASSES } from '../../src/mileage/vehicleFee';
 import { pickReceipt, uploadImage } from '../../src/utils/media';
@@ -372,19 +374,36 @@ export default function MileageWizard({
   const employeeId = me?.id || uid || '';
   const employeeName = me ? displayName(me) : (activeProfile?.name || user?.displayName || 'Ansatt');
   const rateInfo = mileageRate(state.mileagePolicies);
-  const cars = companyVehicles(state.equipment);
+  // Firmabiler: uten Admin på Utstyr bare de personen har rettighet på (Tilgang på kjøretøyet).
+  const gearAccess = equipmentViewerAccess(access, { employees, self: me });
+  const cars = vehiclesForViewer(companyVehicles(state.equipment), {
+    viewer: gearAccess.viewer,
+    manage: gearAccess.manage,
+    keepId: draft.vehicleKind === 'company' ? draft.vehicleId : '',
+  });
   const mine = employeeVehicles(state.personalVehicles, state.equipment, employeeId);
   const levelIds = access.previewing
     ? employeeLevelIds(access.viewingAs)
     : (employeeLevelIds(me).length ? employeeLevelIds(me) : (access.levelId ? [access.levelId] : []));
-  const canCompany = canAddCompanyVehicle(levelIds, { bypass: !!access.bypass && !access.previewing });
+  // Registrere firmabil: Begrenset redigering på Utstyr, som på Utstyr-siden.
+  const canCompany = access.active
+    ? !!access.ready && access.canEdit('equipment')
+    : canAddCompanyVehicle(levelIds, { bypass: !!access.bypass && !access.previewing });
   const addressSources = useMemo(() => ({
     customers,
     contracts: [...(contracts || []), ...(state?.contracts || [])],
   }), [customers, contracts, state]);
+  // Prosjektvelgeren: Admin på Prosjekt ser alle, ellers egne og åpne prosjekter.
+  const allProjects = !access.active || (access.ready && access.canAdmin('projects'));
   const projects = useMemo(
-    () => mileageProjectOptions(state, employeeId, { query, customers, contracts: addressSources.contracts }),
-    [state, employeeId, query, customers, addressSources],
+    () => mileageProjectOptions(
+      allProjects
+        ? state
+        : { ...state, projects: pickableProjects(state, gearAccess.viewer, employees, { keepId: draft.project?.id || '' }) },
+      employeeId,
+      { query, customers, contracts: addressSources.contracts },
+    ),
+    [state, employeeId, query, customers, addressSources, allProjects, gearAccess.viewer, employees, draft.project?.id],
   );
   function patch(partial) {
     if (Object.prototype.hasOwnProperty.call(partial, 'routeEdited')) {

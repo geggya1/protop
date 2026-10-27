@@ -1,7 +1,8 @@
 /**
  * Tilgang i bedriften.
- * Åtte standardnivåer ligger til grunn. Bedriften kan tilpasse hvert nivå,
- * og hver ansatt hører til nøyaktig ett nivå. En person kan i tillegg ha egne avvik.
+ * Åtte standardnivåer ligger til grunn, pluss tre fagansvar (HMS, kvalitet/ISO og HR)
+ * som krysses av i tillegg til nivået. Bedriften kan tilpasse hvert nivå. Rettighetene fra
+ * alle avhukede nivå gjelder. En person kan i tillegg ha egne avvik.
  *
  * Rettighet per område er ett trinn: ikke se, se, lese, skrive/redigere, slette.
  * Høyere trinn inkluderer de under.
@@ -298,6 +299,32 @@ export const COMPANY_SETTINGS_RESOURCES = [
 ];
 
 export const ACCESS_LEVELS = [
+  // Fagansvar legges til i tillegg til et vanlig nivå. De står først, så personens
+  // hovednivå (det siste avhukede) fortsatt er det vanlige nivået.
+  {
+    id: 'hms_ansvarlig',
+    order: 9,
+    label: 'HMS-ansvarlig / verneombud',
+    kind: 'staff',
+    section: 'specialist',
+    summary: 'Behandler avvik og HMS-saker i ISO / K-HMS og ser HMS-opplæringen under Lovpålagt. Krysses av i tillegg til vanlig nivå.',
+  },
+  {
+    id: 'kvalitetsansvarlig',
+    order: 10,
+    label: 'Kvalitetsansvarlig (ISO)',
+    kind: 'staff',
+    section: 'specialist',
+    summary: 'Styrer ledelsessystemet i ISO / K-HMS: innstillinger, roller, prosesser, dokumenter og skjema. Krysses av i tillegg til vanlig nivå.',
+  },
+  {
+    id: 'hr_ansvarlig',
+    order: 11,
+    label: 'HR-ansvarlig',
+    kind: 'staff',
+    section: 'specialist',
+    summary: 'Har hele HR-modulen, alle faner på ansatte, fravær for alle og fraværsinnstillingene. Krysses av i tillegg til vanlig nivå.',
+  },
   {
     id: 'regnskap_ekstern',
     order: 1,
@@ -367,12 +394,14 @@ export const ACCESS_LEVELS = [
 export function accessLevelSections() {
   return [
     { id: 'company', levels: ACCESS_LEVELS.filter((level) => level.section === 'company') },
+    { id: 'specialist', levels: ACCESS_LEVELS.filter((level) => level.section === 'specialist') },
     { id: 'external', levels: ACCESS_LEVELS.filter((level) => level.section === 'external') },
   ];
 }
 
 export function accessSectionTitle(sectionId, companyName) {
   if (sectionId === 'external') return 'Eksternt';
+  if (sectionId === 'specialist') return 'Fagansvar (i tillegg til nivået)';
   const name = String(companyName || '').replace(/\s+/g, ' ').trim() || 'bedriften';
   return `Ansatt i ${name}`;
 }
@@ -380,6 +409,16 @@ export function accessSectionTitle(sectionId, companyName) {
 export const ACCESS_LEVEL_LABELS = ACCESS_LEVELS.map((level) => level.label);
 
 const ROLE_TO_LEVEL = [
+  ['hms ansvarlig', 'hms_ansvarlig'],
+  ['hms ansvarlig verneombud', 'hms_ansvarlig'],
+  ['hms leder', 'hms_ansvarlig'],
+  ['verneombud', 'hms_ansvarlig'],
+  ['kvalitetsansvarlig', 'kvalitetsansvarlig'],
+  ['kvalitetsansvarlig iso', 'kvalitetsansvarlig'],
+  ['kvalitetsleder', 'kvalitetsansvarlig'],
+  ['hr ansvarlig', 'hr_ansvarlig'],
+  ['hr leder', 'hr_ansvarlig'],
+  ['personalansvarlig', 'hr_ansvarlig'],
   ['administrator', 'administrator'],
   ['admin', 'administrator'],
   ['hovedadministrator', 'administrator'],
@@ -474,6 +513,34 @@ function tenderSurface(rank) {
  * see = Lese, read = begrenset redigering, write = Admin.
  */
 const STANDARD = {
+  // Fagansvar: bare området sitt. Resten kommer fra personens vanlige nivå.
+  hms_ansvarlig: fill({
+    companyPublic: 'see',
+    employees: 'see',
+    iso: 'read',
+    hrCompliance: 'see',
+    forms: 'read',
+  }),
+  kvalitetsansvarlig: fill({
+    companyPublic: 'see',
+    employees: 'see',
+    iso: 'write',
+    hrCompliance: 'see',
+    forms: 'write',
+  }),
+  hr_ansvarlig: fill({
+    companyPublic: 'see',
+    units: 'see',
+    employees: 'write',
+    ownProfile: 'read',
+    ...hrSurface('write'),
+    absence: 'read',
+    absenceReport: 'read',
+    absencePlanned: 'read',
+    absenceSettings: 'write',
+    hoursOthers: 'see',
+    iso: 'see',
+  }),
   regnskap_ekstern: fill({
     companyPublic: 'see',
     ownProfile: 'see',
@@ -1009,6 +1076,14 @@ export function personDropChange(employee, dropId) {
   if (drop.levelId !== 'unplaced' && !levelById(drop.levelId)) return null;
   const placed = placedLevelId(employee) || '';
   const deactivated = accountDeactivated(employee);
+  const activateTo = drop.kind === 'status' && drop.status === 'active' && deactivated;
+  const deactivateTo = drop.kind === 'status' && drop.status === 'inactive' && !deactivated;
+  // Fagansvar legges til i tillegg til nivået personen har. Det erstatter det ikke.
+  if (levelById(drop.levelId)?.section === 'specialist') {
+    const addLevel = employeeLevelIds(employee).includes(drop.levelId) ? '' : drop.levelId;
+    if (!addLevel && !activateTo && !deactivateTo) return null;
+    return { levelId: '', addLevel, clearLevel: false, activate: activateTo, deactivate: deactivateTo };
+  }
   const setLevel = drop.levelId !== 'unplaced' && drop.levelId !== placed;
   const clearLevel = drop.levelId === 'unplaced' && placed !== '';
   const activate = drop.kind === 'status' && drop.status === 'active' && deactivated;
@@ -1020,10 +1095,15 @@ export function personDropChange(employee, dropId) {
 export function groupEmployeesByLevel(employees) {
   const buckets = Object.fromEntries(ACCESS_LEVELS.map((level) => [level.id, []]));
   const unplaced = [];
+  const specialist = ACCESS_LEVELS.filter((level) => level.section === 'specialist').map((level) => level.id);
   for (const employee of employees || []) {
     const placed = placedLevelId(employee);
     if (placed && buckets[placed]) buckets[placed].push(employee);
     else unplaced.push(employee);
+    // Fagansvar: personen står også under hvert fagansvar som er huket av.
+    for (const id of specialist) {
+      if (id !== placed && employeeLevelIds(employee).includes(id)) buckets[id].push(employee);
+    }
   }
   return { buckets, unplaced };
 }

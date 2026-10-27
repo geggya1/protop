@@ -107,10 +107,11 @@ export default function EmployeeInvitePanel({
           style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
         />
         <Text style={{ color: colors.muted, fontSize: 13 }}>Tilgang i bedriften</Text>
-        {/* Uten rett til å styre tilgang kan bare «ansatt» velges (de andre nivåene var låst). */}
+        {/* Uten rett til å styre tilgang kan bare «ansatt» velges (de andre nivåene var låst).
+            Fagansvar krysses av på personen i tillegg til nivået, ikke ved invitasjon. */}
         <OptionPicker
           options={ACCESS_LEVELS
-            .filter((level) => canEditAccess || level.id === 'ansatt')
+            .filter((level) => level.section !== 'specialist' && (canEditAccess || level.id === 'ansatt'))
             .map((level) => ({ id: level.id, label: level.label }))}
           value={accessLevel}
           onChange={(id) => { if (id) setAccessLevel(id); }}

@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { isSuperAdmin, updateGroup } from '../../src/utils/groups';
+import { isSuperAdmin, updateGroup, updateGroupCompany } from '../../src/utils/groups';
 import { searchBrregCompanies, selectBrregHitForStoredOrg } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
 import { mergeCompanyProfile } from '../../src/project/companyLogo';
@@ -117,8 +117,11 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     setPlace(parts?.poststed || '');
   }, [company?.organisasjonsnummer, company?.telefon, company?.epostadresse, addressKey]);
 
+  // Selskapet lagres felt for felt, så en eldre kopi ikke stiller tilgangsmatrisen tilbake.
   async function savePatch(id, patch) {
-    await updateGroup(id, patch);
+    const { company: nextCompany, ...rest } = patch || {};
+    if (nextCompany) await updateGroupCompany(id, company, nextCompany, rest);
+    else await updateGroup(id, patch);
     applyFamilyPatch?.(id, patch);
   }
 

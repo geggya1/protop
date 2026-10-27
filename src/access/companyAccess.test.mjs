@@ -94,6 +94,9 @@ import { hiddenCompanyModules } from './viewAsNav.js';
 
 const ids = ACCESS_LEVELS.map((level) => level.id);
 assert.deepEqual(ids, [
+  'hms_ansvarlig',
+  'kvalitetsansvarlig',
+  'hr_ansvarlig',
   'regnskap_ekstern',
   'innleie_ekstern',
   'ansatt',
@@ -104,9 +107,11 @@ assert.deepEqual(ids, [
   'administrator',
 ]);
 const sections = accessLevelSections();
-assert.deepEqual(sections.map((section) => section.id), ['company', 'external']);
+assert.deepEqual(sections.map((section) => section.id), ['company', 'specialist', 'external']);
 assert.deepEqual(sections[0].levels.map((level) => level.order), [3, 4, 6, 7, 8]);
-assert.deepEqual(sections[1].levels.map((level) => level.order), [1, 2, 5]);
+assert.deepEqual(sections[1].levels.map((level) => level.order), [9, 10, 11]);
+assert.deepEqual(sections[2].levels.map((level) => level.order), [1, 2, 5]);
+assert.equal(accessSectionTitle('specialist', 'CONSULT1 AS'), 'Fagansvar (i tillegg til nivået)');
 assert.equal(accessSectionTitle('company', 'CONSULT1 AS'), 'Ansatt i CONSULT1 AS');
 assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
 
@@ -430,6 +435,26 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
       edit: [],
       admin: ['companyProfile', 'accessControl', 'economySettings', 'absenceSettings', 'employees'],
     },
+    // Fagansvar: bare området sitt. Resten kommer fra det vanlige nivået.
+    // HR vises bare med Lovpålagt (HMS-opplæringen).
+    hms_ansvarlig: {
+      show: ['iso', 'hr'],
+      hide: ['okonomi', 'anbud', 'selskapsinnstillinger', 'projects'],
+      edit: ['iso', 'forms'],
+      admin: [],
+    },
+    kvalitetsansvarlig: {
+      show: ['iso', 'hr'],
+      hide: ['okonomi', 'anbud', 'selskapsinnstillinger', 'projects'],
+      edit: [],
+      admin: ['iso', 'forms'],
+    },
+    hr_ansvarlig: {
+      show: ['hr', 'ansatte', 'fravaer', 'iso'],
+      hide: ['okonomi', 'anbud', 'selskapsinnstillinger', 'projects', 'kjorebok'],
+      edit: ['absence'],
+      admin: ['hr', 'hrPeople', 'hrPayroll', 'employees', 'absenceSettings'],
+    },
   };
 
   for (const level of ACCESS_LEVELS) {
@@ -455,6 +480,11 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
       assert.equal(canAdminResource(grants, resource), true, `${level.id} admin ${resource}`);
     }
   }
+  // Fagansvar på HR-menyen: bare Lovpålagt.
+  const hmsHr = filterCompanyNav(companyNavItems(), standardGrants('hms_ansvarlig')).find((item) => item.id === 'hr');
+  assert.ok(hmsHr);
+  assert.equal(standardGrants('hms_ansvarlig').hrPeople, 'none');
+  assert.equal(standardGrants('hms_ansvarlig').hrPayroll, 'none');
 }
 
 {
@@ -583,6 +613,28 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.equal(canImportList(fake('ansatt'), 'economyInvoices'), false);
   assert.equal(canImportList(fake('administrator', false), 'customers'), false, 'stengt mens tilgangen lastes');
   assert.equal(canImportList(null, 'customers'), false);
+}
+
+// Fagansvar legges til i tillegg til nivået, og personen står både under nivået og fagansvaret.
+{
+  const ola = { id: 'ola', company: { accessLevel: 'ansatt', accessLevels: ['ansatt'], status: 'active' } };
+  assert.deepEqual(personDropChange(ola, 'level:hr_ansvarlig'), {
+    levelId: '', addLevel: 'hr_ansvarlig', clearLevel: false, activate: false, deactivate: false,
+  });
+  const both = withToggledLevel(ola, 'hr_ansvarlig', true);
+  assert.deepEqual(employeeLevelIds(both), ['hr_ansvarlig', 'ansatt']);
+  assert.equal(placedLevelId(both), 'ansatt');
+  assert.equal(personDropChange(both, 'level:hr_ansvarlig'), null);
+  const grouped = groupEmployeesByLevel([both]);
+  assert.deepEqual(grouped.buckets.ansatt.map((row) => row.id), ['ola']);
+  assert.deepEqual(grouped.buckets.hr_ansvarlig.map((row) => row.id), ['ola']);
+  // Ansatt + HR-ansvarlig: HR og alle faner på ansatte, men ikke økonomi eller selskapsinnstillinger.
+  const grants = grantsForEmployee(null, both);
+  assert.equal(grants.hrPayroll, 'write');
+  assert.equal(grants.employees, 'write');
+  assert.equal(grants.hours, 'read');
+  assert.equal(grants.economy, 'none');
+  assert.equal(grants.companyProfile, 'none');
 }
 
 console.log('companyAccess.test.mjs: ok');

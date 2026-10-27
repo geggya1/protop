@@ -96,6 +96,7 @@ import { kinMissing } from '../../src/hr/kinReminder';
 import { closeKinTask } from '../../src/hr/kinTasks';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import { emptyProjectState } from '../../src/project/engine';
+import { myProjectIds } from '../../src/project/myProjects';
 import { loadProjectState } from '../../src/project/storage';
 import {
   EMPLOYEE_DETAIL_TABS, EMPLOYEE_SETTINGS_SUBS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
@@ -310,6 +311,14 @@ export default function EmployeesScreen() {
     name: userProfile?.displayName || user?.displayName || '',
   }), [rows, uid, user, userProfile, profile]);
   const linked = mine?.personUid === uid ? mine : (rows.find((row) => row.personUid && row.personUid === uid) || null);
+  // Prosjektkortet på en person: uten Admin på Prosjekt bare prosjekter leseren selv er med i.
+  const projectsAdmin = !access.active || (access.ready && access.canAdmin('projects'));
+  const projectViewer = access.previewing && access.viewingAs ? access.viewingAs : (linked || mine);
+  const visibleProjectState = useMemo(() => {
+    if (projectsAdmin) return projectState;
+    const own = myProjectIds(projectState, projectViewer, rows);
+    return { ...projectState, projects: (projectState.projects || []).filter((project) => own.has(project.id)) };
+  }, [projectsAdmin, projectState, projectViewer, rows]);
   const mineHrEmployeeId = useMemo(
     () => resolveMineEmployeeId({ linked, mine, profile, familyId }),
     [linked, mine, profile, familyId],
@@ -1743,7 +1752,7 @@ export default function EmployeesScreen() {
               busy={busy}
               onCv={() => openCv(detailEmployee)}
               onHours={() => openHours(detailEmployee)}
-              projectState={projectState}
+              projectState={visibleProjectState}
               onOpenProject={(project) => {
                 if (!project?.id) return;
                 requestShellTab?.('projects', null, { type: 'openProject', projectId: project.id });

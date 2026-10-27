@@ -63,6 +63,29 @@ export function canManageEquipmentAccess(levelIds, { bypass = false, previewing 
   return canAddCompanyVehicle(levelIds, { bypass });
 }
 
+/**
+ * Firmautstyr i Kalender, hendelsesskjemaet og kjøreboken følger Utstyr i tilgangsstyringen,
+ * som Utstyr-siden: Admin ser og retter alt. Ellers bare utstyr personen har rettighet på.
+ * «Se som bruker» viser det den valgte personen ser.
+ * `access` = useCompanyAccess(). `self` = innlogget brukers ansattpost når den er kjent.
+ */
+export function equipmentViewerAccess(access, { employees = [], self = null } = {}) {
+  if (!access?.active) return { canSee: true, manage: true, viewer: self };
+  const viewer = access.previewing && access.viewingAs
+    ? ((employees || []).find((row) => row.id === access.viewingAs.id) || access.viewingAs)
+    : (self || access.employee || null);
+  return {
+    canSee: !!access.ready && !!access.canView?.('equipment'),
+    manage: !!access.ready && !!access.canAdmin?.('equipment'),
+    viewer,
+  };
+}
+
+/** Firmabiler personen kan velge (kjøreboken). `keepId` beholder bilen på en tur som redigeres. */
+export function vehiclesForViewer(vehicles = [], { viewer = null, manage = false, keepId = '' } = {}) {
+  return (vehicles || []).filter((row) => manage || row.id === keepId || employeeMaySeeGear(row, viewer));
+}
+
 export function bookingAccessLabel(gear, employees = []) {
   const people = employeesWhoCanBook(gear, employees);
   if (normalizeEquipment(gear).bookingAccess !== 'selected') {

@@ -43,11 +43,12 @@ function ids(list) {
   return [...list].sort();
 }
 
-test('forespørsel om å bli med: bare eier, Øverste leder og Administrator (standard)', () => {
+test('forespørsel om å bli med: bare eier, HR-ansvarlig, Øverste leder og Administrator (standard)', () => {
   const got = companyRecipients({ family: COMPANY, employees: EMPLOYEES, type: 'companyJoinRequest', exclude: ['ny'] });
   assert.deepEqual(ids(got), ['admin2', 'eier', 'sjef']);
-  assert.deepEqual(levelsReceiving({ policy: undefined, type: 'companyJoinRequest' }), ['Øverste leder', 'Administrator']);
-  assert.equal(audienceText({ policy: undefined, type: 'companyJoinRequest' }), 'Øverste leder og Administrator (styres i tilgangsstyringen)');
+  // HR-ansvarlig (fagansvar) har Admin på Ansatte og får også forespørslene.
+  assert.deepEqual(levelsReceiving({ policy: undefined, type: 'companyJoinRequest' }), ['HR-ansvarlig', 'Øverste leder', 'Administrator']);
+  assert.equal(audienceText({ policy: undefined, type: 'companyJoinRequest' }), 'HR-ansvarlig, Øverste leder og Administrator (styres i tilgangsstyringen)');
 });
 
 test('ferie og bedriftsveggen gjelder alle i bedriften', () => {
@@ -63,7 +64,7 @@ test('tilgangsstyringen bestemmer: endret nivå og eget avvik på en person', ()
   const family = { ...COMPANY, company: { accessPolicy: policy } };
   const got = companyRecipients({ family, employees: EMPLOYEES, type: 'companyJoinRequest' });
   assert.deepEqual(ids(got), ['admin2', 'avd', 'eier']);
-  assert.deepEqual(levelsReceiving({ policy, type: 'companyJoinRequest' }), ['Avdelingsleder', 'Administrator']);
+  assert.deepEqual(levelsReceiving({ policy, type: 'companyJoinRequest' }), ['HR-ansvarlig', 'Avdelingsleder', 'Administrator']);
 
   const withOverride = EMPLOYEES.map((row) => (row.personUid === 'ans'
     ? { ...row, company: { ...row.company, accessOverrides: { employees: 'write' } } }
@@ -96,7 +97,7 @@ test('innstillingssiden viser bare typene personen kan få', () => {
 
   const sjef = visibleNotificationGroups({ uid: 'sjef', memberships: [{ family: COMPANY, employees: EMPLOYEES.filter((r) => r.personUid === 'sjef') }, familyGroup] });
   const join = sjef.flatMap((g) => g.types).find((t) => t.id === 'companyJoinRequest');
-  assert.equal(join.audience, 'Øverste leder og Administrator (styres i tilgangsstyringen)');
+  assert.equal(join.audience, 'HR-ansvarlig, Øverste leder og Administrator (styres i tilgangsstyringen)');
   assert.ok(typeIds(sjef).includes('attestPending'));
 
   const privat = visibleNotificationGroups({ uid: 'x', memberships: [familyGroup] });

@@ -76,6 +76,7 @@ import { watchEmployees } from '../../src/employees/storage';
 import { recordUsage } from '../../src/employees/usageClient';
 import { displayName } from '../../src/employees/model.js';
 import { parseDate } from '../../src/economy/invoices.js';
+import { pickableProjects } from '../../src/project/myProjects';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -918,7 +919,10 @@ export default function EconomyHours({
       dateLabel={editing ? `${formatDate(editing.row.date)} · ${editing.project?.name || editing.row.projectName || ''}` : ''}
       activities={editing?.activities || []}
       entries={editing ? [editing.row] : []}
-      projects={(state.projects || []).filter((row) => row.status !== 'arkivert')}
+      projects={pickableProjects(state, editing?.row?.employeeId ? { id: editing.row.employeeId } : null, employees, {
+        all: !access.active || rights === 'admin' || (access.ready && access.canAdmin('projects')),
+        keepId: editing?.project?.id || '',
+      })}
       requireDescription={editing?.project?.workSettings?.requireDescription !== false}
       locked={!!editing?.locked}
       readOnly={editing?.rights === 'read'}

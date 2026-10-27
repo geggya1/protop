@@ -62,11 +62,10 @@ import {
 } from '../../src/utils/custodyOverlayPrefs';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { employeeLevelIds } from '../../src/access/companyAccess';
 import { loadProjectState } from '../../src/project/storage';
 import {
   SHOWN_EQUIPMENT_CALENDARS_KEY,
-  canManageEquipmentAccess,
+  equipmentViewerAccess,
   equipmentCalendarGroup,
   equipmentEventsFromBookings,
   withEquipmentChecks,
@@ -187,10 +186,9 @@ export default function PlanScreen({ active = true }) {
   const [projectState, setProjectState] = useState(null);
   const access = useCompanyAccess();
   const isCompany = isOrganizationType(family?.type);
-  const manageEquipment = canManageEquipmentAccess(
-    access.employee ? employeeLevelIds(access.employee) : [access.levelId],
-    { bypass: access.bypass, previewing: access.previewing },
-  );
+  // Firmautstyr følger Utstyr i tilgangsstyringen. «Se som» viser den valgte personens utstyr.
+  const gearAccess = equipmentViewerAccess(access, { employees: access.employees });
+  const manageEquipment = gearAccess.manage;
   const [showCalendarSettings, setShowCalendarSettings] = useState(false);
   const [parentTodos, setParentTodos] = useState([]);
   const [kidsTodosById, setKidsTodosById] = useState({});
@@ -585,15 +583,15 @@ export default function PlanScreen({ active = true }) {
   }, [canOpenEvent, canManageEvent, familyId, nav, events, manageEquipment, access.employee]);
 
   const equipmentGroup = useMemo(() => (
-    isCompany
+    isCompany && gearAccess.canSee
       ? equipmentCalendarGroup({
         equipment: projectState?.equipment,
         employees: access.employees,
-        viewer: access.employee,
+        viewer: gearAccess.viewer,
         manage: manageEquipment,
       })
       : null
-  ), [isCompany, projectState, access.employees, access.employee, manageEquipment]);
+  ), [isCompany, projectState, access.employees, gearAccess.canSee, gearAccess.viewer, manageEquipment]);
 
   const itemsForDay = useCallback((d) => {
     const k = dateKey(d);

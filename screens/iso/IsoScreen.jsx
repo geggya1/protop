@@ -90,7 +90,18 @@ export default function IsoScreen({ subView = 'oversikt' }) {
       : approverUidsFromRoles(store.state.system?.roleMap, store.state.system?.ownerUid),
   }), [access.active, access.ready, access.grants, bypass, uid, store.state.restrictedGrants, store.serverIso, store.state.system?.approverUids, store.state.system?.roleMap, store.state.system?.ownerUid]);
   const canSeeHr = bypass || (typeof access.canView === 'function' && access.canView('hrCompliance'));
-  const sources = useIsoSources({ familyId, family, canManage: caps.manage, canSeeHr });
+  // Prosjekter og utstyr følger Prosjekt og Utstyr i tilgangsstyringen. Den som behandler ISO-saker
+  // trenger alle prosjektene (avvik og prosjektkvalitet); ellers bare egne prosjekter.
+  const isoViewer = access.previewing && access.viewingAs ? access.viewingAs : access.employee;
+  const sources = useIsoSources({
+    familyId,
+    family,
+    canManage: caps.manage,
+    canSeeHr,
+    allProjects: bypass || caps.manage || (access.ready && access.canAdmin('projects')),
+    allGear: bypass || caps.manage || (access.ready && access.canAdmin('equipment')),
+    viewer: isoViewer,
+  });
 
   const [page, setPage] = useState(defaultIsoSubView(subView));
   const [params, setParams] = useState({});

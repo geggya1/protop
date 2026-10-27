@@ -23,6 +23,8 @@ import {
   equipmentCalendarGroup,
   withEquipmentChecks,
   employeeMaySeeGear,
+  equipmentViewerAccess,
+  vehiclesForViewer,
 } from './calendars.js';
 
 const ada = { id: 'ada', person: { firstName: 'Ada' }, company: { status: 'active' } };
@@ -192,3 +194,29 @@ assert.equal(validateBooking({
 }).ok, true);
 assert.ok(bookingDateKeys(series.booking).includes('2026-10-19'));
 assert.ok(bookingDateKeys(series.booking).includes('2026-11-02'));
+
+// Kalender, hendelsesskjema og kjørebok følger Utstyr i tilgangsstyringen, ikke nivånavnet.
+{
+  const grants = { equipment: 'see' };
+  const access = {
+    active: true,
+    ready: true,
+    previewing: false,
+    viewingAs: null,
+    employee: ada,
+    canView: (r) => ['see', 'read', 'write'].includes(grants[r]),
+    canAdmin: (r) => grants[r] === 'write',
+  };
+  const reader = equipmentViewerAccess(access, { employees: [ada, bo] });
+  assert.deepEqual({ canSee: reader.canSee, manage: reader.manage, viewer: reader.viewer?.id }, { canSee: true, manage: false, viewer: 'ada' });
+  // «Se som»: den valgte personens utstyr, ikke innlogget bruker.
+  const preview = equipmentViewerAccess({ ...access, previewing: true, viewingAs: { id: 'bo' } }, { employees: [ada, bo] });
+  assert.equal(preview.viewer.id, 'bo');
+  // Uten Utstyr i tilgangsstyringen: ikke noe firmautstyr.
+  assert.equal(equipmentViewerAccess({ ...access, canView: () => false }).canSee, false);
+  const cars = [polestar, { id: 'tesla', name: 'Tesla' }];
+  assert.deepEqual(vehiclesForViewer(cars, { viewer: bo }).map((c) => c.id), ['tesla']);
+  assert.deepEqual(vehiclesForViewer(cars, { viewer: ada }).map((c) => c.id), ['polestar', 'tesla']);
+  assert.deepEqual(vehiclesForViewer(cars, { viewer: bo, manage: true }).map((c) => c.id), ['polestar', 'tesla']);
+  assert.deepEqual(vehiclesForViewer(cars, { viewer: bo, keepId: 'polestar' }).map((c) => c.id), ['polestar', 'tesla']);
+}

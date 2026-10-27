@@ -163,6 +163,37 @@ function documentInput(pkg, row, ctx) {
   };
 }
 
+const lower = (v) => text(v).toLowerCase();
+
+/** Rolle- eller funksjonsnavn (ikke et personnavn): finnes som rolle, eller ser ut som en tittel. */
+export function isRoleName(name, roleTitles = new Set()) {
+  const n = lower(name);
+  if (!n) return false;
+  if (roleTitles.has(n) || n.split('/').map((x) => x.trim()).some((x) => roleTitles.has(x))) return true;
+  return /\/|ansvarlig|leder|ledelse|rådgiver|ressurs|konsulent|koordinator|innkjøper|ombud|revisor|styret|sjef|direktør|medarbeider|ansatte|avdeling|behandler|ingeniør|byggeleder|administrasjon|^hr\b|^it\b|^hms|^k-?hms|^økonomi/.test(n);
+}
+
+/** Oppfølgingslisten fra pakken som Markdown, gruppert på «Del: tekst». */
+export function reviewMarkdown(pkg) {
+  const groups = new Map();
+  for (const item of arr(pkg.review)) {
+    const m = /^([^:]{2,24}):\s+(.*)$/s.exec(item);
+    const group = m ? m[1].trim() : 'Generelt';
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(m ? m[2] : item);
+  }
+  const lines = [
+    `Punkter fra importen av «${pkg.title}» som må følges opp før dokumentene og prosessene godkjennes. Rett punktene der de hører hjemme i ProTop, og fjern dem fra listen i en ny revisjon når de er lukket.`,
+    '',
+  ];
+  for (const [group, items] of groups) {
+    lines.push(`## ${group} (${items.length})`, '');
+    for (const it of items) lines.push(`- ${String(it).replace(/\s+/g, ' ').trim()}`);
+    lines.push('');
+  }
+  return lines.join('\n').trim();
+}
+
 function resolveClick(node, refs) {
   if (node.documentKey && refs.documents.get(node.documentKey)) return { type: 'openDocument', ref: refs.documents.get(node.documentKey) };
   if (node.processKey && refs.processes.get(node.processKey)) return { type: 'openProcess', ref: refs.processes.get(node.processKey) };
@@ -466,6 +497,28 @@ export function buildImport(state, pkg, {
       docRows.push({ row, document, events: res.events });
       note('documents', row.key, `${document.code} ${document.title}`, 'ny', publish.documents ? 'Publiseres' : 'Sendes til godkjenning');
     }
+    // Oppfølgingslisten fra pakken blir et eget dokument (utkast), så den finnes etter importen.
+    if (arr(pkg.review).length) {
+      const ik = importKeyFor(pkg, 'documents', '__oppfolging');
+      const title = `Oppfølging etter import – ${pkg.title}`.slice(0, 200);
+      if (existing.has(ik)) note('documents', '__oppfolging', title, 'finnes');
+      else {
+        const res = createDocument({
+          title,
+          docType: 'rapport',
+          accessClass: 'begrenset',
+          content: reviewMarkdown(pkg),
+          changeReason: `Oppfølgingslisten fra importen (${arr(pkg.review).length} punkter)`,
+          source: { system: pkg.source?.system || 'Import', note: 'Laget av importen. Arbeidsliste, ikke et styrende dokument.' },
+        }, { actor, existing: docs, now });
+        if (res.ok) {
+          const document = { ...res.document, importKey: ik };
+          docs = [...docs, document];
+          out.documents.push({ ok: true, document, events: res.events });
+          note('documents', '__oppfolging', `${document.code} ${title}`, 'ny', `Oppfølgingslisten (${arr(pkg.review).length} punkter) som utkast`);
+        } else note('documents', '__oppfolging', title, 'feil', res.error);
+      }
+    }
   }
 
   /* Prosesser: to omganger, så prosesser kan peke til hverandre (underprosess, neste prosess). */
@@ -709,8 +762,15 @@ export function buildImport(state, pkg, {
   }
 
   if (refs.unmatched.size) {
-    const names = [...refs.unmatched].slice(0, 12);
-    issues.push(`Fant ikke disse blant de ansatte, så de står som tekst: ${names.join(', ')}${refs.unmatched.size > names.length ? ` og ${refs.unmatched.size - names.length} til` : ''}. Legg dem inn i Ansatte og velg dem i postene.`);
+    const roleTitles = new Set([...arr(pkg.records.rolle), ...((state.records || {}).rolle || [])].map((r) => lower(r?.title)).filter(Boolean));
+    const all = [...refs.unmatched];
+    const blank = all.filter((n) => /^(ikke tildelt|ikke satt|ukjent|mangler|ingen|tbd|-+)$/i.test(String(n).trim()));
+    const roles = all.filter((n) => !blank.includes(n) && isRoleName(n, roleTitles));
+    const names = all.filter((n) => !blank.includes(n) && !roles.includes(n));
+    const list = (xs) => `${xs.slice(0, 12).join(', ')}${xs.length > 12 ? ` og ${xs.length - 12} til` : ''}`;
+    if (roles.length) issues.push(`${roles.length === 1 ? 'Én eier er en rolle' : `${roles.length} eiere er roller`}, ikke personer, og står som tekst: ${list(roles)}. Velg hvem som har rollene i Organisasjon og roller, og bytt til person i postene der det trengs.`);
+    if (names.length) issues.push(`Fant ikke disse blant de ansatte, så de står som tekst: ${list(names)}. Legg dem inn i Ansatte og velg dem i postene.`);
+    if (blank.length) issues.push(`Noen poster har ingen eier i kilden («${blank.join('», «')}»). Velg eier i postene etter importen.`);
   }
 
   return { ok: true, plan, issues: [...new Set(issues)], out, refs };
@@ -732,7 +792,9 @@ export function planImport(state, pkg, opts = {}) {
 
 /** Én samleoppgave til godkjenneren i stedet for én per dokument. */
 export function approvalTaskFor(pkg, built) {
-  const docs = built.out.documents.filter((d) => !built.out.publishDocuments.some((p) => p.document.id === d.document.id)).length;
+  const docs = built.out.documents
+    .filter((d) => !String(d.document.importKey || '').endsWith(':__oppfolging'))
+    .filter((d) => !built.out.publishDocuments.some((p) => p.document.id === d.document.id)).length;
   const procs = built.out.processes.filter((p) => p.process.versions?.[0]?.state === 'til_godkjenning' && !built.out.publishProcesses.some((x) => x.process.id === p.process.id)).length;
   if (!docs && !procs) return null;
   return {

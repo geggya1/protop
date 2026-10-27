@@ -66,7 +66,7 @@ export const PAGE_ACCESS = {
   'arbeid.salg': { res: 'productSales', steps: [S, W] },
 
   'okonomi.oversikt': { res: 'economyOverview', steps: [S, S] },
-  'okonomi.faktura': { res: 'economyInvoices', steps: [S, R, R, R, W] },
+  'okonomi.faktura': { res: 'economyInvoices', steps: [S, R, R, R, W, S] },
   'okonomi.fakturagrunnlag': { res: 'economyBilling', steps: [S, R, S] },
   'okonomi.utlegg': { res: 'economyExpenses', steps: [R, R] },
   'okonomi.indeks': { res: 'economyIndex', steps: [S, R, R] },
@@ -76,7 +76,7 @@ export const PAGE_ACCESS = {
   'okonomi.produkter': { res: 'products', steps: [S, R, R, R, S] },
   'okonomi.kjorebok': { res: 'mileage', steps: [R, R, R, S] },
 
-  kunder: { res: 'customers', steps: [R, R, S, W] },
+  kunder: { res: 'customers', steps: [R, R, S, W, S] },
   kontrakt: { res: 'contracts', steps: [R, R, R, R, S] },
   // Nye prosjekter opprettes av Admin på Prosjekt; tildelte prosjekt kan åpnes.
   projects: { res: 'projects', steps: [W, W, null, R, W] },

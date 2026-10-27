@@ -34,8 +34,10 @@ function searchQuery(search) {
  * På bredere skjerm ligger de som knapper på siden.
  * Hver gruppe er ett valg. Flere grupper kan settes samtidig.
  * `search` legger søkefeltet i samme meny på mobil.
+ * `row` legger gruppene side om side på bred skjerm, med nedtrekkene like brede.
+ * En gruppe med `dropdown: true` blir nedtrekk også med få valg.
  */
-export default function FilterMenu({ groups = [], children = null, marked = false, search = null }) {
+export default function FilterMenu({ groups = [], children = null, marked = false, search = null, row = false }) {
   const colors = useColors();
   const { isPhone } = useLayout();
   const [open, setOpen] = useState(false);
@@ -84,18 +86,21 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
 
   if (!isPhone) {
     return (
-      <View style={styles.inline}>
-        {groups.map((group) => ((group.options || []).length > CHIP_LIMIT ? (
-          // 5 eller flere valg: nedtrekk i stedet for en rad med knapper.
-          <OptionPicker
-            key={group.id}
-            options={group.options}
-            value={group.value}
-            onChange={(id) => group.onChange?.(id)}
-            placeholder={(group.options || []).find((row) => row.id === idleOf(group))?.label || group.label || 'Velg'}
-            title={group.label || 'Filter'}
-            clearable={false}
-          />
+      <View style={[styles.inline, row && styles.inlineRow]}>
+        {groups.map((group) => ((group.options || []).length > CHIP_LIMIT || group.dropdown ? (
+          // 5 eller flere valg, eller lister som kunder og prosjekter: nedtrekk i stedet for knapper.
+          <View key={group.id} nativeID={group.nativeID} style={row ? styles.rowPicker : null}>
+            <OptionPicker
+              options={group.options}
+              value={group.value}
+              onChange={(id) => group.onChange?.(id)}
+              placeholder={(group.options || []).find((option) => option.id === idleOf(group))?.label || group.label || 'Velg'}
+              title={group.label || 'Filter'}
+              accessibilityLabel={group.label ? `Filtrer på ${group.label.toLowerCase()}` : undefined}
+              chipLimit={group.dropdown ? 0 : undefined}
+              clearable={false}
+            />
+          </View>
         ) : (
           <View key={group.id} style={styles.chips}>
             {(group.options || []).map((option) => {
@@ -239,6 +244,8 @@ const webDialogStyle = {
 
 const styles = StyleSheet.create({
   inline: { gap: 8 },
+  inlineRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  rowPicker: { flexBasis: 210, flexGrow: 0, flexShrink: 1, minWidth: 170 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   button: {

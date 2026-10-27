@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { PROJECT_LIST_COLUMNS, toggleVisibleColumn } from '../../src/project/listColumns';
+import { toggleColumnKey } from '../../src/ui/reportTable';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -12,13 +13,16 @@ if (Platform.OS === 'web') {
 }
 
 /**
- * Innstillingsmeny for hvilke kolonner som vises i prosjektlisten.
+ * Innstillingsmeny for hvilke kolonner som vises i prosjektlisten og rapporttabellene.
+ * Uten `columns` gjelder prosjektlistens kolonner.
  * Valgene lagres av forelder (AsyncStorage per bruker).
  */
 export default function ColumnSettingsMenu({
   visibleKeys = [],
   onChange,
   onReset,
+  columns = null,
+  nativeID = 'project-column-settings',
 }) {
   const colors = useColors();
   const [open, setOpen] = useState(false);
@@ -39,13 +43,15 @@ export default function ColumnSettingsMenu({
   };
 
   function toggle(key) {
-    const next = toggleVisibleColumn(visibleKeys, key, !visible.has(key));
+    const next = columns
+      ? toggleColumnKey(columns, visibleKeys, key, !visible.has(key))
+      : toggleVisibleColumn(visibleKeys, key, !visible.has(key));
     onChange?.(next);
   }
 
   const card = (
     <View
-      nativeID="project-column-settings"
+      nativeID={nativeID}
       style={[styles.card, { backgroundColor: colors.card }]}
       accessibilityRole="dialog"
       accessibilityViewIsModal
@@ -55,7 +61,7 @@ export default function ColumnSettingsMenu({
         Velg hvilke kolonner som skal vises. Valget huskes for deg.
       </Text>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollInner} keyboardShouldPersistTaps="handled">
-        {PROJECT_LIST_COLUMNS.map((col) => {
+        {(columns || PROJECT_LIST_COLUMNS).map((col) => {
           const on = visible.has(col.key);
           return (
             <TouchableOpacity

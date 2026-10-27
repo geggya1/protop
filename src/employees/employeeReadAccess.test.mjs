@@ -29,8 +29,9 @@ assert.match(screen, /canDelete=\{employeesAdmin\}/);
 assert.match(screen, /const canInvite = employeesAdmin/);
 assert.match(screen, /setView\(personViewAllowed\(row, nextView\) \? nextView : 'detail'\)/);
 assert.match(screen, /limited=\{limitedPerson\}/);
-// Ansettelsesdata ligger under Innstillinger.
-assert.match(screen, /view === 'settings' && personEmployee \? \(\s*<EmployeeDetailView\s*section="employment"/);
+// Brukerkonto og Ansettelsesdata ligger under Innstillinger.
+assert.match(screen, /view === 'settings' && personEmployee \? \(\s*<EmployeeAccountView/);
+assert.match(screen, /view === 'settingsEmployment' && personEmployee \? \(\s*<EmployeeDetailView\s*section="employment"/);
 // Brukerinnstillingene er egne undersider i menyen øverst (ikke nederst under Ansettelsesdata).
 assert.match(screen, /\{EMPLOYEE_SETTINGS_SUBS\[view\] \? \(\s*<EmployeeWorkViews\s+key=\{view\}\s+mode="settings"\s+sub=\{EMPLOYEE_SETTINGS_SUBS\[view\]\}/);
 // Lese og begrenset redigering ser ingen av undersidene under Innstillinger på andre.
@@ -67,7 +68,7 @@ assert.match(screen, /<ScrollView\s+nativeID="employee-absence-view"/);
 
 // Mangler, Tagger, Brukslogg og Hendelser er bare for Admin (og personen selv).
 assert.match(screen, /showAdminCards=\{!readOnlyPerson\}/);
-assert.match(screen, /enabled=\{employeesAdmin \|\| isSelfRow\(detailEmployee\)\}/);
+assert.match(screen, /enabled=\{employeesAdmin \|\| isSelfRow\(selected\)\}/);
 assert.match(detail, /gaps && !limited && showAdminCards/);
 assert.match(detail, /limited \|\| !showAdminCards \? null/);
 

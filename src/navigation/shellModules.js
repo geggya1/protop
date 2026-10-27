@@ -103,7 +103,7 @@ export function arbeidMenuTitle(subView) {
   if (subView === 'utlegg') return 'Prosjektutlegg';
   if (subView === 'salg') return 'Produktsalg';
   const row = ARBEID_MENU.find((item) => item.id === subView);
-  return row?.label || 'Arbeid';
+  return row?.label || 'Timer / arbeid per ansatt';
 }
 
 export const FRAVAER_MENU = [
@@ -298,7 +298,7 @@ function arbeidNavItem() {
   return {
     id: 'arbeid',
     icon: 'time',
-    label: 'Arbeid',
+    label: 'Timer / arbeid per ansatt',
     action: { type: 'tab', tab: 'arbeid', subView: 'timeliste' },
     children: ARBEID_MENU.map((item) => ({
       id: `arbeid-${item.id}`,

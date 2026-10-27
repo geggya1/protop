@@ -99,7 +99,7 @@ const ACCESS_MENU = [
       {
         id: 'hoursMenu',
         heading: true,
-        label: 'Arbeid',
+        label: 'Timer / arbeid per ansatt',
         icon: 'time',
         children: [
           { id: 'hours', label: 'Timeliste (egne timer)', icon: 'calendar' },

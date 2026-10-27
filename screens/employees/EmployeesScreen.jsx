@@ -91,6 +91,7 @@ import EmployeeFields from './EmployeeFields';
 import EmployeeInvitePanel from './EmployeeInvitePanel';
 import RegisterEmployeeDialog from './RegisterEmployeeDialog';
 import EmployeeUsagePanel from './EmployeeUsagePanel';
+import EmployeeAccountView from './EmployeeAccountView';
 import EmployeeFilesView from './EmployeeFilesView';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
 import { kinMissing } from '../../src/hr/kinReminder';
@@ -135,6 +136,9 @@ export default function EmployeesScreen() {
   const canInvite = employeesAdmin;
   const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
     || (access.ready && access.canAdmin('accessControl'));
+  // Rettighetene settes bare i Tilgangsstyring. Brukerkonto lenker dit for den som kan åpne siden.
+  const canOpenAccessPage = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
+    || (access.ready && access.canView('accessControl'));
   const accessLocked = canEditAccess ? [] : ['company.accessRole'];
   const companyName = family?.company?.navn || family?.name || '';
   const departments = useMemo(
@@ -765,7 +769,7 @@ export default function EmployeesScreen() {
     if (!shellIntent || typeof shellIntent !== 'object') return;
     if (shellIntent.type === 'openEmployee') {
       pendingEmployeeId.current = String(shellIntent.employeeId || '');
-      pendingEmployeeView.current = shellIntent.view === 'absence' ? 'absence' : 'detail';
+      pendingEmployeeView.current = ['absence', 'settings'].includes(shellIntent.view) ? shellIntent.view : 'detail';
       clearShellIntent?.();
       return;
     }
@@ -788,9 +792,21 @@ export default function EmployeesScreen() {
     pendingEmployeeId.current = '';
     const nextView = pendingEmployeeView.current;
     pendingEmployeeView.current = 'detail';
-    if (nextView === 'absence') openWork(row, 'absence');
-    else openDetail(row);
+    if (nextView === 'detail') openDetail(row);
+    else openWork(row, nextView);
   }, [rows]);
+
+  /** Til Tilgangsstyring, med vei tilbake til Brukerkonto på personen. */
+  function openAccessPage(row) {
+    if (!row?.id) return;
+    requestShellTab?.('selskap', 'tilgang', {
+      type: 'returnTo',
+      tab: 'ansatte',
+      label: `Tilbake til ${displayName(row)}`,
+      intent: { type: 'openEmployee', employeeId: row.id, view: 'settings' },
+      focusEmployeeId: row.id,
+    });
+  }
 
   function openCv(row) {
     resetMessage();
@@ -1154,7 +1170,7 @@ export default function EmployeesScreen() {
         ? (levelNames.length ? `${displayName(saved)} har ${levelNames.join(', ')}.` : `${displayName(saved)} har ingen tilgangsnivå.`)
         : (accessChange
           ? `${displayName(current)} er nå ${levelById(patch.accessLevel)?.label || 'oppdatert'}.`
-          : 'Tilknytningen er lagret.'));
+          : classificationNote(saved, patch)));
     } catch (err) {
       showError(err?.message || 'Kunne ikke lagre.');
     } finally {
@@ -1401,7 +1417,7 @@ export default function EmployeesScreen() {
 
   const personMode = PERSON_VIEWS.has(view) && !!selected;
   const personFills = personMode && PERSON_FILL_VIEWS.has(view);
-  const personEmployee = (view === 'detail' || view === 'settings' || view === 'cv') && draft && draft.id === selectedId
+  const personEmployee = (view === 'detail' || view === 'settings' || view === 'settingsEmployment' || view === 'cv') && draft && draft.id === selectedId
     ? draft
     : selected;
 
@@ -1701,6 +1717,20 @@ export default function EmployeesScreen() {
           ) : null}
 
           {view === 'settings' && personEmployee ? (
+            <EmployeeAccountView
+              employee={personEmployee}
+              colors={colors}
+              companyName={companyName}
+              busy={busy}
+              canEdit={isAdmin}
+              canInvite={canInvite}
+              onClassify={classifyEmployee}
+              onInvite={() => inviteEmployee(personEmployee)}
+              onOpenAccess={canOpenAccessPage ? () => openAccessPage(personEmployee) : undefined}
+            />
+          ) : null}
+
+          {view === 'settingsEmployment' && personEmployee ? (
             <EmployeeDetailView
               section="employment"
               employee={personEmployee}
@@ -1717,7 +1747,6 @@ export default function EmployeesScreen() {
               busy={busy}
               onChange={changeDetail}
               onSave={save}
-              onClassify={classifyEmployee}
               onPhoto={choosePhoto}
               onPickAddress={pickAddress}
             />
@@ -1763,7 +1792,6 @@ export default function EmployeesScreen() {
               }}
               onChange={changeDetail}
               onSave={save}
-              onClassify={classifyEmployee}
               onPhoto={choosePhoto}
               onPickAddress={pickAddress}
               onPushProfile={access.previewing ? undefined : pushProfile}
@@ -1777,12 +1805,13 @@ export default function EmployeesScreen() {
             />
           ) : null}
 
-          {view === 'detail' && detailEmployee ? (
+          {/* Brukerloggen står alene på egen underside under Innstillinger, ikke på hovedsiden. */}
+          {view === 'settingsLog' && selected ? (
             <EmployeeUsagePanel
               companyId={familyId}
-              employee={detailEmployee}
+              employee={selected}
               colors={colors}
-              enabled={employeesAdmin || isSelfRow(detailEmployee)}
+              enabled={employeesAdmin || isSelfRow(selected)}
             />
           ) : null}
 
@@ -2127,6 +2156,17 @@ function withInviteFields(draft, saved) {
 }
 
 const INVITE_CHIP_KEYS = new Set(['none', 'missingEmail', 'queued', 'sent', 'declined']);
+
+/** Lagremelding etter aktivering, deaktivering eller innlogging på Brukerkonto. */
+function classificationNote(employee, patch) {
+  const name = displayName(employee);
+  if (patch.status === 'active') return `${name} er aktivert.`;
+  if (patch.status === 'inactive') return `${name} er deaktivert og kan ikke logge inn.`;
+  if (Object.prototype.hasOwnProperty.call(patch, 'canLogin')) {
+    return employee.company?.canLogin ? `${name} kan logge inn.` : `${name} kan ikke logge inn.`;
+  }
+  return 'Tilknytningen er lagret.';
+}
 
 /** Invitasjonsstatus på personen i listen (bare for den som kan invitere). */
 function InviteChip({ employee, colors }) {

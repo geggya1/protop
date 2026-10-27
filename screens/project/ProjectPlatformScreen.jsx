@@ -205,7 +205,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
       keyboardShouldPersistTaps="handled"
     >
       {returnTo ? (
-        <TouchableOpacity onPress={() => requestShellTab?.(returnTo.tab, returnTo.subView || null)} accessibilityRole="button" nativeID="company-return-to">
+        <TouchableOpacity onPress={() => requestShellTab?.(returnTo.tab, returnTo.subView || null, returnTo.intent || null)} accessibilityRole="button" nativeID="company-return-to">
           <Text style={{ color: colors.brand, fontWeight: '600' }}>‹ {returnTo.label || 'Tilbake'}</Text>
         </TouchableOpacity>
       ) : null}
@@ -247,6 +247,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
                 type: 'openEmployee',
                 employeeId: employee?.id,
               })}
+              focusEmployeeId={returnTo?.focusEmployeeId || ''}
             />
           </>
         ) : (

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
@@ -13,7 +13,6 @@ import {
   customerDraftFromBrreg,
   enrichCustomerFromBrreg,
   enrichCustomerImportPlan,
-  filterCustomers,
   formatOrgnr,
   identityFieldsForKind,
   customerImportReviewRows,
@@ -25,7 +24,6 @@ import {
   planCustomerImport,
   normalizeOrgnr,
   ownerLabel,
-  projectCountsByCustomer,
   projectLinkSummary,
   relatedContractsForCustomer,
   relatedProjectsForCustomer,
@@ -40,6 +38,33 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
 import FilterMenu from '../../components/FilterMenu';
+import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
+import ReportTable from '../../components/table/ReportTable';
+import useReportColumns from '../../components/table/useReportColumns';
+import {
+  CUSTOMER_INVOICE_FILTERS,
+  CUSTOMER_PROJECT_FILTERS,
+  CUSTOMER_REPORT_COLUMNS,
+  customerKindCounts,
+  customerKindMatches,
+  customerOwnerOptions,
+  customerReportRows,
+  customerReportSummary,
+  filterCustomerReport,
+} from '../../src/anbud/customerReport';
+import { INVOICE_PERIODS } from '../../src/economy/invoiceReport';
+import { formatMoney } from '../../src/economy/invoices';
+import { watchInvoices } from '../../src/economy/invoiceStorage';
+import {
+  hasColumnFilter,
+  matchesColumnFilters,
+  nextReportSort,
+  reportExportRows,
+  reportTotals,
+  sortReportRows,
+  visibleColumns,
+} from '../../src/ui/reportTable';
+import { dateKey } from '../../src/utils/dates';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { formatNok } from '../../src/anbud/model';
 import { withCustomers } from '../../src/anbud/customerRegistry';
@@ -52,6 +77,25 @@ import OwnerPicker from '../anbud/OwnerPicker';
 import IndexLetterTable from '../../components/economy/IndexLetterTable';
 import { lettersForCustomer } from '../../src/indeksregulering/groups';
 import CustomerPhoneRow from './CustomerPhoneRow';
+
+// Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
+const PAGE_SIZE = 100;
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+// Mobil har ingen kolonneoverskrifter. Sorteringen ligger i filtermenyen, som i prosjektlisten.
+const PHONE_SORTS = [
+  { id: 'customerNumber:asc', label: 'Kundenummer' },
+  { id: 'name:asc', label: 'Navn A–Å' },
+  { id: 'projectCount:desc', label: 'Flest prosjekter' },
+  { id: 'invoiced:desc', label: 'Mest fakturert', invoice: true },
+  { id: 'outstanding:desc', label: 'Mest utestående', invoice: true },
+];
+
+const KIND_FILTERS = [
+  { id: '', label: 'Alle typer', nativeID: 'customer-filter-kind-all' },
+  { id: 'org', label: 'Virksomhet', nativeID: 'customer-filter-kind-org' },
+  { id: 'person', label: 'Privat', nativeID: 'customer-filter-kind-person' },
+];
 
 async function lookupBrregCustomer(orgnr) {
   const id = normalizeOrgnr(orgnr);
@@ -130,9 +174,12 @@ function fillFromBrreg(current, hit) {
 export default function CustomersScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, requestShellTab, shellIntent, clearShellIntent, members } = useApp();
+  const { familyId, requestShellTab, shellIntent, clearShellIntent, members, uid } = useApp();
+  const access = useCompanyAccess();
   // Import av kundelister krever Admin på Kunder.
   const canImport = canImportList(useCompanyAccess(), 'customers');
+  // Fakturatallene per kunde vises bare for dem som kan se Faktura.
+  const canSeeInvoices = !!access?.ready && !!access.canView?.('economyInvoices');
   const [state, setState] = useState(null);
   const [projects, setProjects] = useState([]);
   const [query, setQuery] = useState('');
@@ -148,6 +195,15 @@ export default function CustomersScreen() {
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
   const [kindFilter, setKindFilter] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [invoiceFilter, setInvoiceFilter] = useState('');
+  const [period, setPeriod] = useState('all');
+  const [colFilter, setColFilter] = useState({});
+  const [sort, setSort] = useState({ key: 'customerNumber', dir: 'asc' });
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [exporting, setExporting] = useState(false);
+  const [invoices, setInvoices] = useState([]);
   const [loadProblem, setLoadProblem] = useState(false);
   const [listReady, setListReady] = useState(false);
   const lookupRef = useRef('');
@@ -226,6 +282,14 @@ export default function CustomersScreen() {
     }
   }, [shellIntent, clearShellIntent]);
 
+  useEffect(() => {
+    if (!familyId || !canSeeInvoices) {
+      setInvoices([]);
+      return undefined;
+    }
+    return watchInvoices(familyId, setInvoices, () => setInvoices([]));
+  }, [familyId, canSeeInvoices]);
+
   const orgnrDigits = normalizeOrgnr(form.orgnr) || String(form.orgnr || '').replace(/\D/g, '').slice(0, 9);
 
   useEffect(() => {
@@ -267,21 +331,58 @@ export default function CustomersScreen() {
 
   const customers = state?.customers || [];
   const contracts = state?.contracts || [];
-  const followPeople = companyFollowUpPeople(members);
+  const followPeople = useMemo(() => companyFollowUpPeople(members), [members]);
   const numbered = useMemo(() => withCustomerNumbers(customers), [customers]);
+  const reportColumns = useMemo(
+    () => (canSeeInvoices ? CUSTOMER_REPORT_COLUMNS : CUSTOMER_REPORT_COLUMNS.filter((col) => !col.invoice)),
+    [canSeeInvoices],
+  );
+  const [columnKeys, setColumnKeys, resetColumns] = useReportColumns('customers', uid, CUSTOMER_REPORT_COLUMNS);
+  const listColumns = useMemo(() => visibleColumns(reportColumns, columnKeys), [reportColumns, columnKeys]);
+  const reportRows = useMemo(
+    () => customerReportRows(numbered, {
+      projects,
+      contracts,
+      invoices: canSeeInvoices ? invoices : null,
+      people: followPeople,
+      period,
+    }),
+    [numbered, projects, contracts, canSeeInvoices, invoices, followPeople, period],
+  );
+  const ownerOptions = useMemo(() => customerOwnerOptions(reportRows), [reportRows]);
+  // Søket filtrerer etter at tastetrykket er tegnet, så feltet ikke henger med mange rader.
+  const searchQuery = useDeferredValue(query);
+  const columnQuery = useDeferredValue(colFilter);
+  // Alle filtre unntatt type, så hver typeknapp kan vise sitt antall.
+  const unkinded = useMemo(
+    () => filterCustomerReport(reportRows, {
+      query: searchQuery,
+      owner: ownerFilter,
+      project: projectFilter,
+      invoice: canSeeInvoices ? invoiceFilter : '',
+    }).filter((row) => matchesColumnFilters(row, columnQuery, listColumns)),
+    [reportRows, searchQuery, ownerFilter, projectFilter, canSeeInvoices, invoiceFilter, columnQuery, listColumns],
+  );
+  const kindCounts = useMemo(() => customerKindCounts(unkinded), [unkinded]);
   const visible = useMemo(
-    () => filterCustomers(numbered, query, { kind: kindFilter }),
-    [numbered, query, kindFilter],
+    () => sortReportRows(unkinded.filter((row) => customerKindMatches(row, kindFilter)), sort, reportColumns),
+    [unkinded, kindFilter, sort, reportColumns],
   );
-  const projectCounts = useMemo(
-    () => projectCountsByCustomer(projects, numbered),
-    [projects, numbered],
-  );
+  const summary = useMemo(() => customerReportSummary(visible), [visible]);
+  const totals = useMemo(() => {
+    const sums = reportTotals(visible, listColumns);
+    return Object.fromEntries(Object.entries(sums).map(([key, value]) => [key, formatMoney(value)]));
+  }, [visible, listColumns]);
+  const filtered = !!(query || kindFilter || ownerFilter || projectFilter || (canSeeInvoices && invoiceFilter) || hasColumnFilter(colFilter));
   const projectSummary = useMemo(
     () => projectLinkSummary(projects, numbered),
     [projects, numbered],
   );
   const upcomingNumber = nextCustomerNumber(numbered);
+
+  useEffect(() => {
+    setLimit(PAGE_SIZE);
+  }, [query, kindFilter, ownerFilter, projectFilter, invoiceFilter, period, colFilter, sort]);
 
   useEffect(() => {
     if (!state || !familyId || loadProblem) return undefined;
@@ -515,6 +616,281 @@ export default function CustomersScreen() {
 
   const customerReviewRows = customerImportReviewRows(importPlan?.rows, dropped);
 
+  function resetFilters() {
+    setQuery('');
+    setKindFilter('');
+    setOwnerFilter('');
+    setProjectFilter('');
+    setInvoiceFilter('');
+    setPeriod('all');
+    setColFilter({});
+  }
+
+  function openCustomer(row) {
+    setSelectedId(row.id);
+    setView('detail');
+  }
+
+  async function exportRows() {
+    if (!visible.length || exporting) return;
+    setExporting(true);
+    setError('');
+    try {
+      // Excel-byggeren lastes først når noen eksporterer.
+      const { buildXlsx, downloadBytes } = await import('../../src/indeksregulering/office.js');
+      const bytes = buildXlsx([{ name: 'Kunder', rows: reportExportRows(visible, reportColumns) }]);
+      downloadBytes(`kunder-${dateKey(new Date())}.xlsx`, bytes, XLSX_MIME);
+      showSaveToast(`${visible.length} kunder er eksportert.`);
+    } catch (cause) {
+      setError(String(cause?.message || '') || 'Kunne ikke eksportere kundelisten.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  // Navnet får varsel når kunden må rettes før fakturering. Resten tegnes som tekst av tabellen.
+  function renderCell(row, column) {
+    if (column.key !== 'name') return undefined;
+    return (
+      <View style={styles.nameCell}>
+        {row.gaps?.length ? (
+          <Ionicons
+            name="warning"
+            size={16}
+            color={colors.danger || '#b45309'}
+            accessibilityLabel="Må rettes før fakturering"
+          />
+        ) : null}
+        <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13, flex: 1 }} numberOfLines={2}>{row.name}</Text>
+      </View>
+    );
+  }
+
+  function cellTone(row, column) {
+    if ((column.key === 'outstanding' || column.key === 'overdue') && row[column.key] > 0) return colors.danger || '#b42318';
+    return null;
+  }
+
+  const summaryText = !listReady
+    ? 'Henter kunder…'
+    : loadProblem
+      ? `Kunderegisteret ble ikke hentet · ${projectSummary.total} aktive i systemet`
+      : [
+        filtered ? `${visible.length} av ${numbered.length} kunder` : `${numbered.length} kunder`,
+        `${projectSummary.linked} prosjekt på kunder`,
+        `${projectSummary.total} aktive i systemet${projectSummary.unlinked ? ` (${projectSummary.unlinked} uten kunde)` : ''}`,
+        canSeeInvoices ? `Fakturert eks. mva ${formatMoney(summary.invoiced)}` : '',
+        canSeeInvoices ? `Utestående ${formatMoney(summary.outstanding)}` : '',
+        `neste ledige er ${upcomingNumber}`,
+      ].filter(Boolean).join(' · ');
+
+  const filterGroups = [
+    {
+      id: 'kind',
+      label: 'Type',
+      value: kindFilter,
+      onChange: (id) => setKindFilter(id || ''),
+      options: KIND_FILTERS.map((row) => ({
+        ...row,
+        label: `${row.label} (${kindCounts[row.id] || 0})`,
+      })),
+    },
+    ...(ownerOptions.length ? [{
+      id: 'owner',
+      label: 'Ansvarlig',
+      nativeID: 'customer-filter-owner',
+      dropdown: true,
+      value: ownerFilter,
+      onChange: (id) => setOwnerFilter(id || ''),
+      options: [{ id: '', label: 'Alle ansvarlige' }, ...ownerOptions],
+    }] : []),
+    {
+      id: 'project',
+      label: 'Prosjekt',
+      value: projectFilter,
+      onChange: (id) => setProjectFilter(id || ''),
+      options: [{ id: '', label: 'Med og uten prosjekt' }, ...CUSTOMER_PROJECT_FILTERS],
+    },
+    ...(canSeeInvoices ? [
+      {
+        id: 'invoice',
+        label: 'Faktura',
+        nativeID: 'customer-filter-invoice',
+        dropdown: true,
+        value: invoiceFilter,
+        onChange: (id) => setInvoiceFilter(id || ''),
+        options: [{ id: '', label: 'Med og uten faktura' }, ...CUSTOMER_INVOICE_FILTERS],
+      },
+      {
+        id: 'period',
+        label: 'Periode for fakturatall',
+        nativeID: 'customer-filter-period',
+        value: period,
+        idle: 'all',
+        onChange: (id) => setPeriod(id || 'all'),
+        options: INVOICE_PERIODS,
+      },
+    ] : []),
+    ...(isPhone ? [{
+      id: 'sort',
+      label: 'Sortering',
+      value: `${sort.key}:${sort.dir}`,
+      idle: 'customerNumber:asc',
+      onChange: (value) => {
+        const [key, dir] = String(value || '').split(':');
+        setSort(key ? { key, dir: dir === 'desc' ? 'desc' : 'asc' } : { key: 'customerNumber', dir: 'asc' });
+      },
+      options: PHONE_SORTS.filter((row) => canSeeInvoices || !row.invoice),
+    }] : []),
+  ];
+  const searchProps = {
+    value: query,
+    onChange: setQuery,
+    placeholder: 'Søk i kundenr, navn, org.nr, sted, e-post, telefon',
+    nativeID: 'customer-search',
+    accessibilityLabel: 'Søk i kunder',
+  };
+  const exportButton = (
+    <TouchableOpacity
+      onPress={exportRows}
+      disabled={exporting || !visible.length}
+      accessibilityRole="button"
+      accessibilityLabel="Eksporter til Excel"
+      nativeID="customer-export"
+      style={[styles.exportBtn, { borderColor: colors.line, backgroundColor: colors.card, opacity: exporting || !visible.length ? 0.55 : 1 }]}
+    >
+      <Ionicons name="download-outline" size={16} color={colors.ink} />
+      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>{exporting ? 'Eksporterer…' : 'Eksporter til Excel'}</Text>
+    </TouchableOpacity>
+  );
+  const resetLink = filtered ? (
+    <TouchableOpacity onPress={resetFilters} accessibilityRole="button" nativeID="customer-filter-reset" style={styles.resetLink}>
+      <Text style={{ color: colors.brand, fontSize: 13 }}>Nullstill filtre</Text>
+    </TouchableOpacity>
+  ) : null;
+
+  const listBody = view === 'list' ? (
+    <>
+      <CreateMenu
+        label="Ny kunde"
+        title="Ny kunde"
+        info={[
+          'Org.nr hentes fra Brønnøysund. Privatkunder bruker personnummer.',
+          'Import kjenner igjen eksisterende kunder på kundenummer, organisasjonsnummer og personnummer. Adresse og kontakt hentes fra Brønnøysund når org.nr finnes. Privatkunder uten kontakt merkes på kundekortet.',
+        ]}
+        actions={[
+          { id: 'new', label: 'Registrer kunde', primary: true, onPress: startNew },
+          ...(canImport ? [{ id: 'import', label: importing ? 'Tolker filen…' : 'Importer fil', onPress: importFile, disabled: importing }] : []),
+        ]}
+      />
+      {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
+      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {importReport ? <ImportResult colors={colors} result={importReport} /> : null}
+      {isPhone ? (
+        <View style={styles.filters}>
+          <View style={styles.toolRow}>
+            <View style={styles.phoneMenu}>
+              <FilterMenu search={searchProps} groups={filterGroups} />
+            </View>
+            {exportButton}
+          </View>
+          <Text style={{ color: colors.muted, fontSize: 13 }} nativeID="customer-summary">{summaryText}</Text>
+          {resetLink}
+        </View>
+      ) : (
+        <View style={styles.filters}>
+          <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Ionicons name="search" size={16} color={colors.muted} />
+            <TextInput
+              nativeID={searchProps.nativeID}
+              value={query}
+              onChangeText={setQuery}
+              placeholder={searchProps.placeholder}
+              placeholderTextColor={colors.placeholder}
+              accessibilityLabel={searchProps.accessibilityLabel}
+              style={[styles.searchInput, { color: colors.ink }]}
+            />
+          </View>
+          <FilterMenu row groups={filterGroups} />
+          <View style={styles.toolRow}>
+            <Text style={{ color: colors.muted, fontSize: 13, flex: 1, minWidth: 240 }} nativeID="customer-summary">{summaryText}</Text>
+            {resetLink}
+            <ColumnSettingsMenu
+              columns={reportColumns}
+              visibleKeys={columnKeys}
+              onChange={setColumnKeys}
+              onReset={resetColumns}
+              nativeID="customer-column-settings"
+            />
+            {exportButton}
+          </View>
+        </View>
+      )}
+      {loadProblem ? (
+        <Text style={{ color: colors.danger || '#b42318' }}>
+          Kunne ikke hente kunderegisteret. Last siden på nytt.
+        </Text>
+      ) : null}
+      {listReady && !loadProblem && !numbered.length ? (
+        <Text style={{ color: colors.muted }}>Ingen kunder er registrert ennå.</Text>
+      ) : null}
+      {numbered.length ? (
+        <ReportTable
+          nativeID="customer-list"
+          colors={colors}
+          columns={listColumns}
+          rows={visible}
+          sort={sort}
+          onSort={(column) => setSort((current) => nextReportSort(current, column))}
+          filters={colFilter}
+          onFilter={(key, value) => setColFilter((current) => ({ ...current, [key]: value }))}
+          onOpen={openCustomer}
+          rowNativeID={(row) => `customer-row-${row.id}`}
+          rowLabel={(row) => `${row.customerNumber} ${row.name}${row.gaps?.length ? ' Må rettes før fakturering' : ''}`}
+          renderCell={renderCell}
+          cellTone={cellTone}
+          limit={limit}
+          onMore={() => setLimit((current) => current + PAGE_SIZE)}
+          onShowAll={() => setLimit(visible.length)}
+          totals={canSeeInvoices ? totals : null}
+          phone={isPhone}
+          renderCard={(row) => (
+            <CustomerPhoneRow
+              customer={row}
+              people={followPeople}
+              projectCount={row.projectCount}
+              colors={colors}
+              onPress={() => openCustomer(row)}
+            />
+          )}
+          empty="Ingen kunder treffer søket eller filteret."
+        />
+      ) : null}
+    </>
+  ) : null;
+
+  const busyOverlay = (
+    <BrandBusyOverlay
+      visible={importing}
+      label={importPlan ? 'Lagrer kunder…' : 'Leser fil…'}
+      detail="Vent til operasjonen er ferdig før du går videre."
+    />
+  );
+
+  // Bred skjerm: listen fyller siden og tabellen ruller selv, som prosjektlisten.
+  if (view === 'list' && !isPhone) {
+    return (
+      <>
+        <View style={[styles.screen, styles.screenDesk, { backgroundColor: colors.bg }]}>
+          <View style={[styles.inner, styles.innerDesk]}>
+            {listBody}
+          </View>
+        </View>
+        {busyOverlay}
+      </>
+    );
+  }
+
   return (
     <>
     <ScrollView
@@ -527,24 +903,6 @@ export default function CustomersScreen() {
           {view === 'import' ? 'Kontroller import' : selected.name}
         </Text>
       ) : null}
-      {view === 'list' ? (
-        <CreateMenu
-          label="Ny kunde"
-          title="Ny kunde"
-          info={[
-            'Org.nr hentes fra Brønnøysund. Privatkunder bruker personnummer.',
-            'Import kjenner igjen eksisterende kunder på kundenummer, organisasjonsnummer og personnummer. Adresse og kontakt hentes fra Brønnøysund når org.nr finnes. Privatkunder uten kontakt merkes på kundekortet.',
-          ]}
-          actions={[
-            { id: 'new', label: 'Registrer kunde', primary: true, onPress: startNew },
-            ...(canImport ? [{ id: 'import', label: importing ? 'Tolker filen…' : 'Importer fil', onPress: importFile, disabled: importing }] : []),
-          ]}
-        />
-      ) : null}
-      {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
-      {view === 'list' && importReport ? <ImportResult colors={colors} result={importReport} /> : null}
-
       {view === 'import' && importPlan ? (
         <ImportReview
           nativeID="customers-import-plan"
@@ -568,121 +926,7 @@ export default function CustomersScreen() {
         />
       ) : null}
 
-      {view === 'list' ? (
-        <>
-          <TextInput
-            nativeID="customer-search"
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Søk i kundenr, navn, org.nr, sted, e-post, telefon"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-          />
-          <FilterMenu
-            groups={[
-              {
-                id: 'kind',
-                label: 'Type',
-                value: kindFilter,
-                onChange: setKindFilter,
-                options: [
-                  { id: '', label: 'Alle', nativeID: 'customer-filter-kind-all' },
-                  { id: 'org', label: 'Virksomhet', nativeID: 'customer-filter-kind-org' },
-                  { id: 'person', label: 'Privat', nativeID: 'customer-filter-kind-person' },
-                ],
-              },
-            ]}
-          />
-          <Text style={{ color: colors.muted, fontSize: 13 }}>
-            {!listReady
-              ? 'Henter kunder…'
-              : loadProblem
-                ? `Kunderegisteret ble ikke hentet · ${projectSummary.total} aktive i systemet`
-                : `${visible.length === numbered.length ? `${numbered.length} kunder` : `${visible.length} av ${numbered.length}`} · ${projectSummary.linked} prosjekt på kunder · ${projectSummary.total} aktive i systemet${projectSummary.unlinked ? ` (${projectSummary.unlinked} uten kunde)` : ''} · sortert etter kundenummer · neste ledige er ${upcomingNumber}`}
-          </Text>
-          {loadProblem ? (
-            <Text style={{ color: colors.danger || '#b42318' }}>
-              Kunne ikke hente kunderegisteret. Last siden på nytt.
-            </Text>
-          ) : null}
-          {listReady && !loadProblem && !numbered.length ? (
-            <Text style={{ color: colors.muted }}>Ingen kunder er registrert ennå.</Text>
-          ) : null}
-          {numbered.length && !visible.length ? (
-            <Text style={{ color: colors.muted }}>Ingen kunder treffer søket eller filteret.</Text>
-          ) : null}
-          {visible.length ? (
-            <CustomerTable phone={isPhone} colors={colors}>
-              {!isPhone ? (
-                <View style={[styles.tableRow, styles.tableHead, { borderColor: colors.line }]}>
-                  {LIST_COLUMNS.map(([label, width]) => (
-                    <Text key={label} style={[styles.cell, { width }, styles.headCell, { color: colors.muted }]}>{label}</Text>
-                  ))}
-                </View>
-              ) : null}
-              {visible.map((row) => {
-                const idLabel = row.kind === 'person'
-                  ? (maskPersonnummer(row.personnummer) || '—')
-                  : (formatOrgnr(row.orgnr) || '—');
-                const address = [row.address, [row.postalCode, row.place].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—';
-                const projectCount = projectCounts.get(row.id) || 0;
-                const invoiceGaps = customerInvoiceGaps(row);
-                if (isPhone) {
-                  return (
-                    <CustomerPhoneRow
-                      key={row.id}
-                      customer={row}
-                      people={followPeople}
-                      projectCount={projectCount}
-                      colors={colors}
-                      onPress={() => { setSelectedId(row.id); setView('detail'); }}
-                    />
-                  );
-                }
-                return (
-                  <TouchableOpacity
-                    key={row.id}
-                    nativeID={`customer-row-${row.id}`}
-                    onPress={() => { setSelectedId(row.id); setView('detail'); }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${row.customerNumber} ${row.name}${invoiceGaps.length ? ' Må rettes før fakturering' : ''}`}
-                    style={[styles.tableRow, { borderColor: colors.line }]}
-                  >
-                    <Text style={[styles.cell, colWidth(0, false), { color: colors.ink, fontWeight: '700' }]}>
-                      {row.customerNumber}
-                    </Text>
-                    <View style={[styles.cell, colWidth(1, false)]}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        {invoiceGaps.length ? (
-                          <Ionicons
-                            name="warning"
-                            size={16}
-                            color={colors.danger || '#b45309'}
-                            accessibilityLabel="Må rettes før fakturering"
-                          />
-                        ) : null}
-                        <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>{row.name}</Text>
-                      </View>
-                      <Text style={{ color: colors.muted, fontSize: 12 }}>
-                        {row.kind === 'person' ? 'Privatkunde' : 'Virksomhet'}
-                        {ownerLabel(row, followPeople) ? ` · ${ownerLabel(row, followPeople)}` : ''}
-                      </Text>
-                    </View>
-                    <Text style={[styles.cell, colWidth(2, false), { color: colors.ink }]}>{idLabel}</Text>
-                    <Text style={[styles.cell, colWidth(3, false), { color: colors.ink, fontWeight: projectCount ? '600' : '400' }]}>
-                      {projectCount || '—'}
-                    </Text>
-                    <Text style={[styles.cell, colWidth(4, false), { color: colors.ink }]}>{address}</Text>
-                    <Text style={[styles.cell, colWidth(5, false), { color: colors.ink }]}>{row.contactName || '—'}</Text>
-                    <Text style={[styles.cell, colWidth(6, false), { color: colors.ink }]}>{row.email || '—'}</Text>
-                    <Text style={[styles.cell, colWidth(7, false), { color: colors.ink }]}>{row.phone || '—'}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </CustomerTable>
-          ) : null}
-        </>
-      ) : null}
+      {listBody}
 
       {view === 'edit' ? (
         <View style={[styles.card, { borderColor: colors.brand, backgroundColor: colors.card }]}>
@@ -908,50 +1152,8 @@ export default function CustomersScreen() {
         </View>
       ) : null}
     </ScrollView>
-    <BrandBusyOverlay
-      visible={importing}
-      label={importPlan ? 'Lagrer kunder…' : 'Leser fil…'}
-      detail="Vent til operasjonen er ferdig før du går videre."
-    />
+    {busyOverlay}
     </>
-  );
-}
-
-const LIST_COLUMNS = [
-  ['Nr', 72],
-  ['Kunde', 240],
-  ['Org.nr', 140],
-  ['Prosjekt', 88],
-  ['Adresse', 260],
-  ['Kontakt', 170],
-  ['E-post', 220],
-  ['Telefon', 130],
-];
-
-const TABLE_WIDTH = LIST_COLUMNS.reduce((sum, [, width]) => sum + width + 8, 20);
-
-function colWidth(index, phone) {
-  if (phone) return null;
-  return { width: LIST_COLUMNS[index][1], flexGrow: 0, flexShrink: 0 };
-}
-
-function CustomerTable({ phone, colors, children }) {
-  const body = (
-    <View nativeID="customer-list" style={[styles.table, phone && styles.tablePhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
-      {children}
-    </View>
-  );
-  if (phone) return body;
-  return (
-    <ScrollView
-      horizontal
-      nestedScrollEnabled
-      showsHorizontalScrollIndicator
-      style={styles.tableScroll}
-      contentContainerStyle={styles.tableContent}
-    >
-      {body}
-    </ScrollView>
   );
 }
 
@@ -966,19 +1168,15 @@ const styles = StyleSheet.create({
   save: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' },
   input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, fontSize: 16, backgroundColor: '#fff' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  tableScroll: {
-    width: '100%',
-    maxWidth: '100%',
-    alignSelf: 'stretch',
-    ...(Platform.OS === 'web' ? { overflowX: 'auto', overflowY: 'hidden' } : null),
-  },
-  tableContent: { flexGrow: 1 },
-  table: { width: TABLE_WIDTH, minWidth: TABLE_WIDTH, borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
-  tablePhone: { width: '100%', minWidth: 0 },
-  tableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 10, paddingVertical: 10, borderTopWidth: 1 },
-  tableHead: { borderTopWidth: 0 },
-  headCell: { fontSize: 12, fontWeight: '700' },
-  cell: { fontSize: 14 },
+  // Blir toppen høyere enn skjermen, ruller siden. Ellers fyller tabellen resten.
+  screenDesk: { minHeight: 0, ...(Platform.OS === 'web' ? { overflowY: 'auto' } : null) },
+  innerDesk: { flex: 1, minHeight: 0, paddingBottom: 16 },
+  filters: { gap: 10, flexShrink: 0 },
+  toolRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, minHeight: 42 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 15, paddingVertical: 9 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  phoneMenu: { flexShrink: 1, maxWidth: '72%' },
+  resetLink: { paddingVertical: 6, paddingHorizontal: 4, alignSelf: 'flex-start' },
+  nameCell: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 });

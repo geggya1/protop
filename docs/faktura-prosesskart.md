@@ -557,6 +557,41 @@ Driftsmåten følger koblingen. Innstillingssiden viser hvilken som gjelder.
 
 På kunden: faktura-e-post, «Deres referanse», kredittid, forsendelse og språk. Kundens valg går foran selskapets standard.
 
+### Timepris og kontoer må være satt
+
+Avgjort 27.10.2026: ingenting faktureres før parameterne er satt.
+
+- **Ingen reservepris.**
+  - Mangler timeprisen, stoppes hele prosjektet i Til fakturering, også utleggene. Raden forklarer hva som mangler og lenker til Faktureringsvalg.
+  - Ferdigstilling stopper timelinjer uten pris.
+- **Alle kontogrupper settes under Økonomi → Innstillinger → Standard regnskapskontoer**, for kunder i Norge og i utlandet:
+
+  | Kontogruppe | Standardkonto i Norge | Standardkonto i utlandet |
+  |---|---|---|
+  | Timer | 3000 | 3100 |
+  | Honorar og fastpris | 3000 | 3100 |
+  | Viderefakturerte utlegg | 3001 | 3101 |
+  | Utlegg på vegne av kunden | 6301 | 6301 |
+  | Kjøring | 3001 | 3101 |
+  | Produkter og varesalg | 3001 | 3101 |
+  | Adm. kostnader | 3000 | 3100 |
+  | A-konto | 3000 | 3100 |
+  | Avrunding | 7771 | 7771 |
+
+  - Prosjektet kan overstyre enkeltkontoer under Faktureringsvalg.
+  - Fakturamotoren har ingen reservekontoer.
+  - Mangler en konto, eller finnes den ikke i kontoplanen, stoppes prosjektet. Utkast og ferdigstilling stopper linjer uten konto.
+  - Mva-satsen på linjen følger kontoen i kontoplanen.
+- **Utlegg (L13).** På utlegget velges «Viderefakturering» eller «Utlegg i kundens navn».
+  - *Viderefakturering* (kjøp i eget navn):
+    - Beløpet eks. mva føres på konto for viderefakturerte utlegg (3001).
+    - Påslaget står i egen kolonne, ikke i enhetsprisen.
+    - Linjen får mva etter sats.
+  - *Utlegg i kundens navn*:
+    - Bruttobeløpet fra kvitteringen føres uten påslag og uten mva, på konto for utlegg på vegne av kunden (6301, mva-kode 7).
+    - Linjen står i egen seksjon og regnes ikke med i adm.-kostnad.
+    - I EHF har den mva-kategori Z, som kan stå sammen med linjer med mva.
+
 ### Koble til EHF (aksesspunkt)
 
 ProTop sender EHF gjennom et eksisterende Peppol-aksesspunkt.

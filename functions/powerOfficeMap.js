@@ -16,7 +16,7 @@
 export const REF_PREFIX = 'ProTop';
 
 /** MVA-satsene i ProTop. Hver trenger et produkt i Go som styrer salgskonto og MVA. */
-export const PRODUCT_VAT_CODES = ['HIGH', 'MID', 'LOW', 'ZERO', 'EXEMPT', 'OUTSIDE'];
+export const PRODUCT_VAT_CODES = ['HIGH', 'MID', 'LOW', 'ZERO', 'EXEMPT', 'OUTLAY', 'OUTSIDE'];
 
 const DELIVERY_TYPES = {
   EHF: { id: 'ehf', label: 'EHF' },
@@ -143,11 +143,12 @@ export function customerPostFromProTop(customer, { ref } = {}) {
   const name = text(row.name || row.customerName).slice(0, 160);
   if (!name) return { ok: false, error: 'Kunden mangler navn.' };
   const email = text(row.email);
+  const invoiceEmail = text(row.invoiceEmail) || email;
   const body = {
     Name: name,
     ExternalImportReference: ref || null,
     EmailAddress: email || null,
-    InvoiceEmailAddress: email || null,
+    InvoiceEmailAddress: invoiceEmail || null,
     PhoneNumber: text(row.phone) || null,
   };
   if (row.kind === 'person') {

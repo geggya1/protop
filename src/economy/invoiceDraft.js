@@ -36,19 +36,62 @@ export function vatCodeForAccount(code, chart = []) {
   if (rate >= 15) return 'MID';
   if (rate >= 12) return 'LOW';
   if (row.vatLetter === 'E') return 'EXEMPT';
+  // Mva-kode 7 i kontoplanen: ingen mva-behandling, som utlegg på vegne av kunden.
+  if (String(row.vatCode || '') === '7') return 'OUTLAY';
   return 'ZERO';
 }
 
-/** Kontoer for linjetypene, fra Faktureringsvalg eller standardkontoene. */
-export function accountsFrom(settings = {}) {
-  return {
-    hours: text(settings.accountHours) || '3000',
-    fees: text(settings.accountFees) || '3000',
-    expenses: text(settings.accountExpenses) || '3001',
-    products: text(settings.accountProducts) || '3001',
-    admin: text(settings.accountAdmin) || '3000',
-  };
+/** Kontogruppene og feltene de leses fra i prosjektets effektive innstillinger. */
+export const ACCOUNT_SLOTS = [
+  { id: 'hours', key: 'accountHours', label: 'Timer' },
+  { id: 'fees', key: 'accountFees', label: 'Honorar og fastpris' },
+  { id: 'expenses', key: 'accountExpenses', label: 'Viderefakturerte utlegg' },
+  { id: 'outlays', key: 'accountOutlays', label: 'Utlegg på vegne av kunden' },
+  { id: 'mileage', key: 'accountMileage', label: 'Kjøring' },
+  { id: 'products', key: 'accountProducts', label: 'Produkter og varesalg' },
+  { id: 'admin', key: 'accountAdmin', label: 'Adm. kostnader' },
+];
+
+/**
+ * Kontoer for linjetypene, fra Faktureringsvalg eller standardkontoene. Ingen reservekonto:
+ * mangler en konto, er den tom, og utkastet kan ikke lages. foreign: kunde i utlandet.
+ */
+export function accountsFrom(settings = {}, { foreign = false } = {}) {
+  const out = {};
+  for (const slot of ACCOUNT_SLOTS) {
+    const abroad = foreign ? text(settings.foreignAccounts?.[slot.key]) : '';
+    out[slot.id] = abroad || text(settings[slot.key]);
+  }
+  return out;
 }
+
+/** Linjer uten konto, eller med konto som ikke finnes i kontoplanen. */
+export function accountProblems(lines = [], chart = []) {
+  const codes = new Set((chart || []).map((row) => row.code));
+  const missing = new Set();
+  const unknown = new Set();
+  for (const line of lines || []) {
+    const code = text(line?.account);
+    if (!code) missing.add(line?.section || 'other');
+    else if (codes.size && !codes.has(code)) unknown.add(code);
+  }
+  if (!missing.size && !unknown.size) return '';
+  const names = [...missing].map((id) => ACCOUNT_SLOTS.find((slot) => slot.id === SECTION_SLOT[id])?.label || 'Andre linjer');
+  const parts = [];
+  if (names.length) parts.push(`Konto for ${names.join(', ')} er ikke satt under Økonomi → Innstillinger → Standard regnskapskontoer`);
+  if (unknown.size) parts.push(`Konto ${[...unknown].join(', ')} finnes ikke i kontoplanen`);
+  return `${parts.join('. ')}.`;
+}
+
+const SECTION_SLOT = {
+  hours: 'hours',
+  fixed: 'fees',
+  expenses: 'expenses',
+  outlays: 'outlays',
+  trips: 'mileage',
+  products: 'products',
+  admin: 'admin',
+};
 
 /** Timer → linjer etter groupHoursBy: per medarbeider, aktivitet eller samlet, per måned når perioden vises. */
 export function hourLines(entries = [], { settings = {}, accounts, chart = [], markupPercent = 0, discountPercent = 0 } = {}) {
@@ -109,31 +152,51 @@ export function hourLines(entries = [], { settings = {}, accounts, chart = [], m
     ));
 }
 
+/**
+ * Utlegg. Viderefakturert (kjøp i eget navn): beløp eks. mva, påslag for seg og mva etter kontoen.
+ * Utlegg på vegne av kunden (kjøp i kundens navn): bruttobeløpet fra kvitteringen, uten påslag
+ * og uten mva, på egen konto (merverdiavgiftsloven § 4-1 annet ledd).
+ */
 function expenseLines(rows = [], { accounts, chart }) {
   return rows.map((item, index) => {
     const row = item.row || item;
-    return {
+    const outlay = (item.chargeType || row.chargeType) === 'outlay';
+    const base = {
       id: `exp_${row.id || index + 1}`,
-      section: 'expenses',
       description: text(item.description) || text(row.description) || text(row.purpose) || 'Utlegg',
       quantity: 1,
       unit: 'stk',
-      unitPrice: Number(item.unitPrice ?? row.amountExVat) || 0,
-      markupPercent: Number(item.markupPercent ?? row.markupPercent) || 0,
-      discountPercent: Number(item.discountPercent) || 0,
-      vatCode: vatCodeForAccount(accounts.expenses, chart),
-      account: accounts.expenses,
       employeeName: text(row.employeeName),
       activityName: text(row.activityName),
       periodStart: row.date,
       periodEnd: row.date,
       expenseIds: row.id ? [row.id] : [],
     };
+    if (outlay) {
+      return {
+        ...base,
+        section: 'outlays',
+        unitPrice: Number(item.unitPrice ?? (row.amountInclVat || row.amountExVat)) || 0,
+        markupPercent: 0,
+        discountPercent: 0,
+        vatCode: 'OUTLAY',
+        account: accounts.outlays,
+      };
+    }
+    return {
+      ...base,
+      section: 'expenses',
+      unitPrice: Number(item.unitPrice ?? row.amountExVat) || 0,
+      markupPercent: Number(item.markupPercent ?? row.markupPercent) || 0,
+      discountPercent: Number(item.discountPercent) || 0,
+      vatCode: vatCodeForAccount(accounts.expenses, chart),
+      account: accounts.expenses,
+    };
   });
 }
 
 function tripLines(rows = [], { accounts, chart }) {
-  const vatCode = vatCodeForAccount(accounts.expenses, chart);
+  const vatCode = vatCodeForAccount(accounts.mileage, chart);
   return rows.flatMap((row) => {
     const rate = Number(row.billableRate || row.rate) || 0;
     const out = [{
@@ -144,7 +207,7 @@ function tripLines(rows = [], { accounts, chart }) {
       unit: 'km',
       unitPrice: rate,
       vatCode,
-      account: accounts.expenses,
+      account: accounts.mileage,
       employeeName: text(row.employeeName),
       periodStart: row.date,
       periodEnd: row.date,
@@ -159,7 +222,7 @@ function tripLines(rows = [], { accounts, chart }) {
         unit: 'stk',
         unitPrice: Number(row.extras) || 0,
         vatCode,
-        account: accounts.expenses,
+        account: accounts.mileage,
         periodStart: row.date,
         periodEnd: row.date,
         tripIds: [row.id],
@@ -169,7 +232,7 @@ function tripLines(rows = [], { accounts, chart }) {
   });
 }
 
-function saleLines(rows = [], { accounts, settings }) {
+function saleLines(rows = [], { accounts, settings, chart = [] }) {
   return rows.map((item) => {
     const row = item.row || item;
     const account = text(row.account) && text(row.account) !== '3000' ? text(row.account) : accounts.products;
@@ -182,7 +245,7 @@ function saleLines(rows = [], { accounts, settings }) {
       unitPrice: Number(row.unitPrice) || 0,
       markupPercent: Number(item.markupPercent ?? row.surchargePercent) || 0,
       discountPercent: Number(item.discountPercent ?? row.discountPercent) || Number(settings.discountProducts) || 0,
-      vatCode: text(row.vatCode) || 'HIGH',
+      vatCode: text(row.vatCode) || vatCodeForAccount(account, chart),
       account,
       employeeName: text(row.employeeName),
       periodStart: row.date,
@@ -261,7 +324,7 @@ export function adminLine(lines = [], { settings = {}, accounts, chart = [], pri
 
 /** Alle genererte linjer for utvalget, med adm.-kostnad til slutt. */
 export function linesFromSelection(selection, { settings = {}, chart = [], periodEnd = '' } = {}) {
-  const accounts = accountsFrom(settings);
+  const accounts = accountsFrom(settings, { foreign: isForeignCustomer(selection.customer) });
   const hourGroup = selection.hourGroups?.[0];
   const lines = [
     ...fixedLine(selection.fixed, { accounts, chart, periodEnd }),
@@ -274,11 +337,17 @@ export function linesFromSelection(selection, { settings = {}, chart = [], perio
     }),
     ...expenseLines(selection.expenseRows?.length ? selection.expenseRows : (selection.expenses || []), { accounts, chart }),
     ...tripLines(selection.trips || [], { accounts, chart }),
-    ...saleLines(selection.saleRows?.length ? selection.saleRows : (selection.sales || []), { accounts, settings }),
+    ...saleLines(selection.saleRows?.length ? selection.saleRows : (selection.sales || []), { accounts, settings, chart }),
   ];
   const normalized = normalizeLines(lines);
   const admin = adminLine(normalized, { settings, accounts, chart, pricingModel: selection.pricingModel });
   return admin ? [...normalized, admin] : normalized;
+}
+
+/** Kunde i utlandet: landkoden er satt og er ikke Norge. */
+export function isForeignCustomer(customer) {
+  const country = text(customer?.country).toUpperCase();
+  return !!country && country !== 'NO' && country !== 'NORGE' && country !== 'NORWAY';
 }
 
 function customerAddress(customer, project) {
@@ -345,6 +414,8 @@ export function buildInvoiceDraft(selection, {
   if (!selection || selection.empty) return { ok: false, error: 'Velg minst én post.', invoice: null };
   const lines = linesFromSelection(selection, { settings, chart, periodEnd });
   if (!lines.length) return { ok: false, error: 'Utvalget gir ingen fakturalinjer.', invoice: null };
+  const accountError = accountProblems(lines, chart);
+  if (accountError) return { ok: false, error: accountError, invoice: null };
   const stamp = text(today) ? `${today}T12:00:00.000Z` : new Date().toISOString();
   const day = stamp.slice(0, 10);
   const project = selection.project || {};
@@ -411,12 +482,14 @@ export function refreshDraftLines(invoice, selection, { settings = {}, chart = [
   // Manuelle linjer og fastprislinjer beholdes. De kommer ikke fra timer eller utlegg.
   const manual = (invoice?.lines || []).filter((line) => line.manual || line.section === 'fixed');
   const fresh = linesFromSelection(selection, { settings, chart, periodEnd: periodEnd || invoice?.periodEnd });
+  const error = accountProblems(fresh, chart);
   const kept = new Set((invoice?.lines || []).filter((line) => !line.manual && line.section !== 'fixed').map((line) => line.id));
   const before = sourceSet(invoice?.lines || []);
   const after = sourceSet(fresh);
   const added = [...after].filter((id) => !before.has(id)).length;
   const removed = [...before].filter((id) => !after.has(id)).length;
   return {
+    error,
     lines: [...fresh, ...manual],
     added,
     removed,

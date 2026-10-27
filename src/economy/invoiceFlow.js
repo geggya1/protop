@@ -311,6 +311,13 @@ export function issueChecks(invoice, {
   if (!lines.length) add(blocking, 'lines', 'Fakturaen har ingen linjer.', 'lines');
   else if (!totals.totalDue && !totals.amountExVat) add(blocking, 'amount', 'Beløpet er 0.', 'lines');
   if (lines.some((line) => !text(line.description))) add(blocking, 'lineText', 'En linje mangler tekst.', 'lines');
+  // Bare fakturaer laget i ProTop har linjer med konto. Importerte fakturaer har ingen linjer.
+  if (lines.some((line) => !text(line.account))) {
+    add(blocking, 'lineAccount', 'En linje mangler konto. Kontoene settes under Økonomi → Innstillinger → Standard regnskapskontoer.', 'lines');
+  }
+  if (!isCreditNote(row) && lines.some((line) => line.section === 'hours' && !(Number(line.unitPrice) > 0))) {
+    add(blocking, 'linePrice', 'En timelinje mangler timepris.', 'lines');
+  }
   if (!text(row.customerName)) add(blocking, 'customer', 'Kunden mangler.', 'customerName');
   if (!text(row.orgnr) && !hasAddress(row)) {
     add(blocking, 'party', 'Kunden må ha org.nr. eller adresse (bokføringsforskriften § 5-1-1).', 'orgnr');
@@ -585,7 +592,7 @@ export function postponeReminder(invoice, date, { actor = null, at = '' } = {}) 
  * Kreditnotautkast fra en ferdigstilt faktura. lineIds = null krediterer alt.
  * Beløpene speiles, så øre ikke avviker fra originalen.
  */
-export function buildCreditNote(invoice, { lineIds = null, reason = '', releaseWork = false, actor = null, at = '' } = {}) {
+export function buildCreditNote(invoice, { lineIds = null, reason = '', releaseWork = false, actor = null, at = '', account = '' } = {}) {
   const original = normalizeInvoice(invoice);
   if (isDraftInvoice(original)) return { ok: false, error: 'Et utkast krediteres ikke. Slett eller endre det.', invoice: null };
   if (isCreditNote(original)) return { ok: false, error: 'En kreditnota kan ikke krediteres.', invoice: null };
@@ -617,7 +624,8 @@ export function buildCreditNote(invoice, { lineIds = null, reason = '', releaseW
       unit: 'stk',
       unitPrice: ex,
       vatCode: original.vatCode || 'HIGH',
-      account: '3000',
+      // Importert faktura uten linjer: kontoen for honorar fra innstillingene. Kan endres i utkastet.
+      account: text(account),
     }];
   } else {
     return { ok: false, error: 'Velg minst én linje å kreditere.', invoice: null };

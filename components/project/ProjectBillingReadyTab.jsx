@@ -51,6 +51,7 @@ export default function ProjectBillingReadyTab({
       timesheetLocks: data.timesheetLocks,
       contracts: data.contracts,
       settingsFor: data.settingsFor,
+      chart: data.chart,
       periodEnd,
       today,
       includeEmpty: true,

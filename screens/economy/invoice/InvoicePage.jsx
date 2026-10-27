@@ -30,6 +30,7 @@ import {
   previewUrl as makePreviewUrl,
 } from '../../../src/economy/invoiceDelivery.js';
 import { POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
+import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
 import { Banner, Button, LinkText, money } from '../billing/ui';
 import { InvoiceHeaderEditor, InvoiceHeaderView, InvoiceTexts } from './InvoiceHeader';
 import { InvoiceLinesView, InvoiceTotalsView } from './InvoiceLinesView';
@@ -366,7 +367,14 @@ export default function InvoicePage({
       {tab === 'overview' && editing && draft ? (
         <View style={{ gap: 18 }} nativeID="invoice-editor">
           <InvoiceHeaderEditor invoice={draft} colors={colors} wide={wide} customers={customers} onPatch={patchDraft} />
-          <InvoiceLinesEditor lines={draft.lines} onChange={(lines) => patchDraft({ lines })} colors={colors} chart={chart} stacked={stacked} />
+          <InvoiceLinesEditor
+            lines={draft.lines}
+            onChange={(lines) => patchDraft({ lines })}
+            colors={colors}
+            chart={chart}
+            accountsBySlot={accountsFrom(settings, { foreign: draft.customerAddress?.country && draft.customerAddress.country !== 'NO' })}
+            stacked={stacked}
+          />
           <InvoiceTotalsView invoice={draft} colors={colors} />
           <View style={styles.editActions}>
             <Button label="Avbryt" tone="ghost" colors={colors} onPress={() => { setEditing(false); setDraft(null); }} disabled={busy === 'save'} />

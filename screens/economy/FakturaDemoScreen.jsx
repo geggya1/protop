@@ -170,6 +170,10 @@ const DEMO_EXPENSES = [
     amountExVat: 60807.21, markupPercent: 15, status: 'approved', billable: true,
     receiptUri: 'https://firebasestorage.googleapis.com/v0/b/demo/o/families%2F__demo__%2Fkvittering.jpeg', receiptName: 'img418769196 (1).jpeg',
   },
+  {
+    id: 'x3', projectId: 'p-jas', projectNumber: '10791', date: '2026-09-18', description: 'Byggesaksgebyr Sola kommune',
+    amountExVat: 4500, vatCode: 'EXEMPT', category: 'other', chargeType: 'outlay', status: 'approved', billable: true,
+  },
   { id: 'x2', projectId: 'p-kino', projectNumber: '10610', date: '2026-09-20', description: 'Parkering', amountExVat: 300, status: 'approved', billable: true },
 ];
 

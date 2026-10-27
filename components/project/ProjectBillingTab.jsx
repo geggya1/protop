@@ -215,8 +215,12 @@ export default function ProjectBillingTab({
             ['Rabatt timer', `${resolved.company.discountHours}%`],
             ['EHF + e-post', resolved.company.ehfAlsoEmail ? 'Ja' : 'Nei'],
             ['Konto timer', resolved.accountLabels.accountHours],
-            ['Konto utlegg', resolved.accountLabels.accountExpenses],
+            ['Konto fastpris', resolved.accountLabels.accountFees],
+            ['Konto viderefakturerte utlegg', resolved.accountLabels.accountExpenses],
+            ['Konto utlegg på vegne av kunden', resolved.accountLabels.accountOutlays],
+            ['Konto kjøring', resolved.accountLabels.accountMileage],
             ['Konto produkter', resolved.accountLabels.accountProducts],
+            ['Konto adm. kostnader', resolved.accountLabels.accountAdmin],
           ].map(([label, value]) => (
             <View key={label} style={[styles.kv, { borderColor: colors.line }]}>
               <Text style={{ color: colors.muted, fontSize: 12, width: 160 }}>{label}</Text>
@@ -653,7 +657,9 @@ function InvoiceSettingsForm({
           {[
             ['accountFees', 'Regnskapskonto for fastpris'],
             ['accountHours', 'Regnskapskonto for timepris'],
-            ['accountExpenses', 'Regnskapskonto for utlegg'],
+            ['accountExpenses', 'Regnskapskonto for viderefakturerte utlegg'],
+            ['accountOutlays', 'Regnskapskonto for utlegg på vegne av kunden'],
+            ['accountMileage', 'Regnskapskonto for kjøring'],
             ['accountProducts', 'Regnskapskonto for produkter'],
             ['accountAdmin', 'Regnskapskonto for adm.kostnader'],
             ['accountAconto', 'Regnskapskonto for akonto'],

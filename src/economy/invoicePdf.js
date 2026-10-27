@@ -159,7 +159,7 @@ LABELS.nn = {
 };
 
 const SECTION_LABELS = {
-  en: { hours: 'Hours', fixed: 'Fixed price and agreements', expenses: 'Expenses', trips: 'Mileage', products: 'Products', admin: 'Admin costs', other: 'Other' },
+  en: { hours: 'Hours', fixed: 'Fixed price and agreements', expenses: 'Re-invoiced expenses', outlays: 'Outlays on behalf of the customer (no VAT)', trips: 'Mileage', products: 'Products', admin: 'Admin costs', other: 'Other' },
 };
 
 function labelsFor(language) {

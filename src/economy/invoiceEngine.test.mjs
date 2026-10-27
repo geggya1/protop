@@ -81,7 +81,16 @@ assert.equal(byEmployee.find((line) => line.description === 'Linda Øie').period
 assert.equal(byEmployee.find((line) => line.description === 'Linda Øie').periodEnd, '2026-09-30');
 assert.ok(byEmployee.some((line) => line.description.includes('Overtid 50 %')));
 
-// Til fakturering → utkast.
+// Til fakturering → utkast. Kontoene kommer fra standardkontoene (her som prosjektets effektive innstillinger).
+const ACCOUNTS = {
+  accountHours: '3000',
+  accountFees: '3000',
+  accountExpenses: '3001',
+  accountOutlays: '6301',
+  accountMileage: '3001',
+  accountProducts: '3001',
+  accountAdmin: '3000',
+};
 const projects = [
   {
     id: 'p1', number: '10791', name: 'Jåsund Skole', customerId: 'c1', client: 'Sola Kommune',
@@ -112,7 +121,7 @@ const ready = buildReadyProjects({
   expenses,
   invoices: [],
   timesheetLocks: [{ employeeId: 'e1', throughDate: '2026-07-31' }],
-  settingsFor: () => ({ markupHourly: 0, markupExpenseHourly: 10, adminAmount: 95, adminOnHourly: true, groupHoursBy: 'employee' }),
+  settingsFor: () => ({ ...ACCOUNTS, markupHourly: 0, markupExpenseHourly: 10, adminAmount: 95, adminOnHourly: true, groupHoursBy: 'employee' }),
   periodEnd: '2026-09-30',
   today: '2026-10-27',
 });
@@ -129,6 +138,8 @@ assert.ok(jasund.warnings.some((row) => row.id === 'lock'));
 const leirvika = ready.find((row) => row.projectId === 'p2');
 assert.ok(leirvika.warnings.some((row) => row.id === 'rate' && row.level === 'block'), 'mangler timepris');
 assert.equal(selectableKeys(leirvika).length, 0, 'timer uten pris kan ikke velges');
+assert.equal(leirvika.blocked, true, 'prosjekt uten timepris kan ikke faktureres i det hele tatt');
+assert.equal(selectionFor(leirvika, new Set(['h:x'])).empty, true);
 const fixed = ready.find((row) => row.projectId === 'p3');
 assert.equal(fixed.fixed.remaining, 50000);
 

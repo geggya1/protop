@@ -61,6 +61,7 @@ export const FILES = [
   'components/table/reportTableRender.test.cjs',
   'src/economy/invoiceReport.test.mjs',
   'src/economy/invoiceEngine.test.mjs',
+  'src/economy/invoiceAccounts.test.mjs',
   'src/economy/invoiceDocs.test.mjs',
   'functions/invoiceDelivery.test.mjs',
   'src/anbud/customerReport.test.mjs',

@@ -68,6 +68,7 @@ export const FILES = [
   'src/hr/followUpTask.test.mjs',
   'src/hr/directory.test.mjs',
   'src/hr/directoryRender.test.mjs',
+  'src/hr/dashboard.test.mjs',
   'src/hr/productivity.test.mjs',
   'src/capacity/plan.test.mjs',
   'src/capacity/productivityBoard.test.mjs',

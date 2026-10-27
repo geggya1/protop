@@ -352,9 +352,10 @@ const dash = collect(withHooks(() => React.createElement(HrDashboard, {
   kin: { missing: [{ employee: olaEmp, task: kinTaskRow }, { employee: liseEmp, task: null }], busy: false, remindNow: async () => 1 },
 })));
 assert.match(dash.text, /2 ansatte mangler pårørende/);
-assert.match(dash.text, /Oppgave sendt, frist .* påminnet 1 gang/);
-assert.match(dash.text, /Har ikke brukerkonto/);
+assert.match(dash.text, /Oppgave sendt til 1, første frist 09\.11\.2026 · 1 påminnet/);
+assert.match(dash.text, /1 uten brukerkonto: inviter personen/);
 assert.match(dash.text, /Send påminnelse nå \(1\)/);
+assert.doesNotMatch(dash.text, /Lise Ny/, 'navnene ligger bak varselet, ikke som lang liste');
 
 /* Felles velger: 1–4 valg som knapper, 5 eller flere som nedtrekk. */
 const parts = loadLocal(path.join(ROOT, 'screens/doccontrol/parts.jsx'));

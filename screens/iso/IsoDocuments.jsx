@@ -98,6 +98,22 @@ export default function IsoDocuments({ ctx }) {
 
   // Gruppering: virksomhetens dokumentstruktur (del → mappe), ellers én liste.
   const grouped = structure.length && !type && !ql;
+  // Søk finner også dokumentene som styres i andre moduler (personalhåndbok, KS-maler).
+  const externalHits = ql && !type ? external.filter((x) => `${x.code} ${x.title} ${x.where}`.toLowerCase().includes(ql)) : [];
+  const externalCard = (list) => (list.length ? (
+    <Card title="Styres i andre moduler" subtitle="Personalhåndboka og malene i KS-biblioteket har egen godkjenning og lesekrav der de redigeres. De er med her så dokumentoversikten er komplett (ISO 7.5).">
+      {list.map((x) => (
+        <ListRow
+          key={x.id}
+          icon={x.kind === 'handbook' ? 'book-outline' : 'clipboard-outline'}
+          tone={x.waiting ? 'warn' : 'muted'}
+          title={`${x.code ? `${x.code} · ` : ''}${x.title}`}
+          subtitle={[x.status, x.approvedBy ? `godkjent av ${x.approvedBy}` : '', x.nextReview ? `gjennomgås ${prettyDate(x.nextReview)}` : '', x.where].filter(Boolean).join(' · ')}
+          right={ctx.requestTab ? <Btn small label="Åpne" onPress={() => ctx.requestTab(x.link.tab, x.link.subView || undefined)} /> : null}
+        />
+      ))}
+    </Card>
+  ) : null);
   const known = new Set(folders.map((f) => f.code));
   const loose = visible.filter((d) => !known.has(d.folder));
 
@@ -115,7 +131,7 @@ export default function IsoDocuments({ ctx }) {
         <Choice small options={DOC_TYPES} value={type} onChange={setType} />
         {caps.manage ? <Check label="Bare dokumenter til godkjenning" value={awaiting} onChange={setAwaiting} /> : null}
       </Card>
-      {!visible.length ? (
+      {!visible.length && !externalHits.length ? (
         <Card><Empty icon="document-outline" title={state.documents.length ? 'Ingen treff' : 'Ingen dokumenter ennå'} text={caps.manage ? 'Opprett policy og rutiner, send dem til godkjenning og publiser. Har dere et system fra før, kan det importeres under Innstillinger.' : 'Ingen publiserte dokumenter.'} /></Card>
       ) : null}
       {grouped ? (
@@ -139,22 +155,14 @@ export default function IsoDocuments({ ctx }) {
             );
           })}
           {loose.length ? <Card title="Uten mappe" subtitle={`${loose.length} dokumenter`}>{loose.map(row)}</Card> : null}
-          {external.length ? (
-            <Card title="Styres i andre moduler" subtitle="Personalhåndboka og malene i KS-biblioteket har egen godkjenning og lesekrav der de redigeres. De er med her så dokumentoversikten er komplett (ISO 7.5).">
-              {external.map((x) => (
-                <ListRow
-                  key={x.id}
-                  icon={x.kind === 'handbook' ? 'book-outline' : 'clipboard-outline'}
-                  tone={x.waiting ? 'warn' : 'muted'}
-                  title={`${x.code ? `${x.code} · ` : ''}${x.title}`}
-                  subtitle={[x.status, x.approvedBy ? `godkjent av ${x.approvedBy}` : '', x.nextReview ? `gjennomgås ${prettyDate(x.nextReview)}` : '', x.where].filter(Boolean).join(' · ')}
-                  right={ctx.requestTab ? <Btn small label="Åpne" onPress={() => ctx.requestTab(x.link.tab, x.link.subView || undefined)} /> : null}
-                />
-              ))}
-            </Card>
-          ) : null}
+          {externalCard(external)}
         </>
-      ) : (visible.length ? <Card title={`${visible.length} dokumenter`}>{visible.map(row)}</Card> : null)}
+      ) : (
+        <>
+          {visible.length ? <Card title={`${visible.length} dokumenter`}>{visible.map(row)}</Card> : null}
+          {externalCard(externalHits)}
+        </>
+      )}
       <Sheet visible={creating} title="Nytt dokument" onClose={() => setCreating(false)} footer={<><Btn label="Avbryt" onPress={() => setCreating(false)} /><Btn kind="primary" label="Opprett" onPress={create} /></>}>
         <Field label="Tittel" required><TextIn value={form.title} onChangeText={(x) => setForm({ ...form, title: x })} /></Field>
         <Field label="Type" required><Choice small options={DOC_TYPES} value={form.docType} onChange={(x) => setForm({ ...form, docType: x || 'prosedyre' })} /></Field>

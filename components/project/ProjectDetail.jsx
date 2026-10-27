@@ -25,6 +25,9 @@ import { projectCrossView } from '../../src/project/projectCrossView.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { pricingModelLabel } from '../../src/project/projectFields.js';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
+import { mergeSaleLists, withoutExternalSales } from '../../src/economy/productSalesStorage.js';
+import { salesForProject } from '../../src/economy/productSalesView.js';
+import { useProductSales } from '../../src/economy/useProductSales.js';
 import IndexLetterTable from '../economy/IndexLetterTable';
 import { lettersForProject, projectNeedsIndexAttention } from '../../src/indeksregulering/groups';
 import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
@@ -42,6 +45,8 @@ import ProjectIndexArchive from './ProjectIndexArchive';
 import ProjectEarningsTab from './ProjectEarningsTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { teamWithHourParticipants } from '../../src/project/myProjects';
+
+const SALES_MAX_AGE_MS = 2 * 60 * 1000;
 
 // Uten Admin: hovedside, egne utlegg, eget produktsalg og egne timer. Begrenset redigering får også innstillinger.
 const LIMITED_TABS = new Set(['hovedside', 'utlegg', 'produktsalg', 'timerapport']);
@@ -187,6 +192,17 @@ export default function ProjectDetail({
     [timeEntries, ownOnly],
   );
   const summary = useMemo(() => projectTimeSummary(state, project.id), [state, project.id]);
+  // Importerte salg ligger i egen samling. Slås sammen med salg i prosjektstate.
+  // Listen deles med Produktsalg-siden og leses ikke på nytt for hvert prosjekt.
+  const { rows: importedSales, ready: salesReady } = useProductSales(familyId, { maxAgeMs: SALES_MAX_AGE_MS });
+  const projectRef = useMemo(() => ({ id: project.id, number: project.number }), [project.id, project.number]);
+  const projectSales = useMemo(
+    () => mergeSaleLists(
+      salesForProject(importedSales, projectRef),
+      salesForProject(withoutExternalSales(state.sales), projectRef),
+    ),
+    [importedSales, state.sales, projectRef],
+  );
   const customer = useMemo(
     () => customers.find((row) => row.id === project.customerId) || null,
     [customers, project.customerId],
@@ -295,6 +311,7 @@ export default function ProjectDetail({
             <ProjectOverviewTab
               state={state}
               project={project}
+              sales={projectSales}
               cross={cross}
               summary={summary}
               members={members}
@@ -381,10 +398,16 @@ export default function ProjectDetail({
           <ProjectSalesTab
             state={state}
             project={project}
+            sales={projectSales}
+            salesReady={salesReady}
+            employees={employees}
+            customers={customers}
+            familyId={familyId}
             colors={colors}
             isAdmin={full && isAdmin}
             employeeId={ownOnly}
             onChangeState={onChangeState}
+            onOpenInvoice={onOpenInvoice}
           />
         ) : null}
 
@@ -392,6 +415,7 @@ export default function ProjectDetail({
           <ProjectBillingReadyTab
             state={state}
             project={project}
+            sales={projectSales}
             colors={colors}
             onOpenEconomyBilling={onOpenEconomyBilling}
             onOpenTab={setTab}

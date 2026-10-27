@@ -11,6 +11,8 @@ import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings
 export default function ProjectBillingReadyTab({
   state,
   project,
+  // Salg på prosjektet, også importerte. Uten listen brukes salg i prosjektstate.
+  sales: projectSales,
   colors,
   onOpenEconomyBilling,
   onOpenTab,
@@ -33,11 +35,12 @@ export default function ProjectBillingReadyTab({
     && row.status !== 'draft'
   )), [state.expenses, project.id]);
 
-  const sales = useMemo(() => (state.sales || []).filter((row) => (
+  const sales = useMemo(() => (projectSales || state.sales || []).filter((row) => (
     row.projectId === project.id
     && row.billable !== false
     && row.status !== 'invoiced'
-  )), [state.sales, project.id]);
+    && !row.invoiceId
+  )), [projectSales, state.sales, project.id]);
 
   const hourSum = hours.reduce((sum, row) => sum + (Number(row.billableHours) || Number(row.hours) || 0), 0);
   const expenseSum = expenses.reduce((sum, row) => sum + (Number(row.amountExVat) || 0), 0);

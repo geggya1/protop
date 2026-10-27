@@ -49,6 +49,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
   const [scope, setScope] = useState('all');
   const [openIds, setOpenIds] = useState(() => new Set());
   const [note, setNote] = useState('');
+  const [createdDrafts, setCreatedDrafts] = useState([]);
   const [error, setError] = useState('');
   const periodEnd = periodEndFor(period, today, customDate);
   const supplier = useMemo(() => (demo?.supplier || supplierFromCompany(family?.company, family?.name)), [family, demo]);
@@ -95,12 +96,18 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
     periodEnd,
     onCreated: (created, failed) => {
       setError(failed.length ? failed.map((row) => `${row.project ? `#${row.project.number} ${row.project.name}: ` : ''}${row.error}`).join('\n') : '');
+      setCreatedDrafts(created);
       if (created.length) {
         const text = created.length === 1
           ? 'Fakturautkastet er laget.'
           : `${created.length} fakturautkast er laget.`;
-        setNote(`${text} Kontroller og ferdigstill dem fra fakturasiden.`);
         showSaveToast(text);
+        // Ett utkast: rett til det, så det kan kontrolleres med en gang.
+        if (created.length === 1 && !failed.length) {
+          openDraft(created[0]);
+          return;
+        }
+        setNote(`${text} Åpne dem under, eller fra fakturasiden.`);
       }
     },
     onError: (message) => setError(message),
@@ -220,6 +227,17 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
         {data.error ? <Banner tone="block" colors={colors}>{data.error}</Banner> : null}
         {error ? <Banner tone="block" colors={colors}>{error}</Banner> : null}
         {note ? <Banner tone="ok" colors={colors}>{note}</Banner> : null}
+        {note && createdDrafts.length ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }} nativeID="billing-created-drafts">
+            {createdDrafts.slice(0, 20).map((row) => (
+              <TouchableOpacity key={row.id} onPress={() => openDraft(row)} accessibilityRole="link">
+                <Text style={{ color: colors.brand, fontWeight: '600' }}>
+                  Åpne utkast{row.projectNumber ? ` #${row.projectNumber}` : ''}{row.customerName ? ` · ${row.customerName}` : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
 
         <View style={[styles.summary, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <View style={styles.summaryLeft}>
@@ -264,7 +282,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
                   colors={colors}
                   disabled={!checkedProjects.length || !!workflow.busy}
                   busy={workflow.busy === 'draft'}
-                  onPress={() => { setError(''); setNote(''); workflow.requestCreate(checkedProjects); }}
+                  onPress={() => { setError(''); setNote(''); setCreatedDrafts([]); workflow.requestCreate(checkedProjects); }}
                   nativeID="billing-draft-selected"
                 />
               </View>
@@ -303,7 +321,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
               busy={!!workflow.busy}
               canEdit={canEdit}
               onApprove={() => approve([project])}
-              onCreateDraft={() => { setError(''); setNote(''); workflow.requestCreate([project]); }}
+              onCreateDraft={() => { setError(''); setNote(''); setCreatedDrafts([]); workflow.requestCreate([project]); }}
               onOpenDraft={openDraft}
               onOpenProject={(tab) => openProject(project, tab)}
             />

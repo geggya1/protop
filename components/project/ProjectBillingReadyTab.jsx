@@ -68,8 +68,13 @@ export default function ProjectBillingReadyTab({
     onCreated: (created, failed) => {
       setError(failed.map((row) => row.error).join('\n'));
       if (created.length) {
-        setNote('Fakturautkastet er laget. Kontroller og ferdigstill det fra fakturasiden.');
         showSaveToast('Fakturautkastet er laget.');
+        // Rett til utkastet, så det kan kontrolleres med en gang.
+        if (onOpenInvoice) {
+          onOpenInvoice(created[0].id);
+          return;
+        }
+        setNote('Fakturautkastet er laget. Kontroller og ferdigstill det fra fakturasiden.');
       }
     },
     onError: (message) => setError(message),

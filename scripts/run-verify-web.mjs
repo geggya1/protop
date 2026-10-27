@@ -128,6 +128,7 @@ export const FILES = [
   'src/access/accessCeiling.test.mjs',
   'src/access/viewAsStore.test.mjs',
   'src/employees/employeeReadAccess.test.mjs',
+  'src/employees/employeeAbsenceRender.test.cjs',
   'src/employees/personTabs.test.mjs',
   'src/project/projectAccess.test.mjs',
   'src/arbeid/employeeScheduleRender.test.cjs',

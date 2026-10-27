@@ -15,6 +15,7 @@ import { formatDate, formatMoney } from '../../src/economy/invoices.js';
 import { EXPENSE_CATEGORIES, emptyExpense, expenseCategory } from '../../src/economy/expenses.js';
 import { expenseStatusLabel, filterExpenses } from '../../src/economy/expenseList.js';
 import { deleteExpense, upsertExpense } from '../../src/economy/opsState.js';
+import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { expenseSummaryForProject } from '../../src/project/projectDashboard.js';
 import { showSaveToast } from '../../src/ui/saveToast';
 
@@ -33,6 +34,9 @@ export default function ProjectExpensesTab({
   isAdmin,
   // Uten Admin: bare egne rader.
   employeeId = '',
+  // Den som registrerer. Utlegget vises da under Prosjektutlegg på ansattsiden.
+  myEmployeeId = '',
+  employees = [],
   onChangeState,
 }) {
   const [query, setQuery] = useState('');
@@ -56,6 +60,17 @@ export default function ProjectExpensesTab({
     category ? rows.filter((row) => row.category === category) : rows
   ), [rows, category]);
   const summary = useMemo(() => expenseSummaryForProject(all, project.id), [all, project.id]);
+  const people = useMemo(
+    () => filterEmployeesForPicker(employees, '')
+      .map((row) => ({ id: row.id, label: employeeDisplayName(row) }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'nb')),
+    [employees],
+  );
+
+  function personName(id) {
+    const row = (employees || []).find((item) => item.id === id);
+    return row ? employeeDisplayName(row) : '';
+  }
 
   function openNew() {
     setEditor(emptyExpense({
@@ -70,6 +85,8 @@ export default function ProjectExpensesTab({
       category: 'travel',
       description: '',
       amountExVat: 0,
+      employeeId: myEmployeeId,
+      employeeName: personName(myEmployeeId),
     }));
     setError('');
   }
@@ -78,6 +95,7 @@ export default function ProjectExpensesTab({
     if (!editor) return;
     const result = upsertExpense(state, {
       ...editor,
+      employeeName: personName(editor.employeeId) || editor.employeeName || '',
       projectId: project.id,
       projectNumber: project.number,
       projectName: project.name,
@@ -241,6 +259,15 @@ export default function ProjectExpensesTab({
                 placeholder="ÅÅÅÅ-MM-DD"
                 placeholderTextColor={colors.muted}
                 style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+              />
+              <Label colors={colors} text="Medarbeider" />
+              <OptionPicker
+                options={people}
+                value={editor?.employeeId || ''}
+                onChange={(id) => setEditor((e) => ({ ...e, employeeId: id || '', employeeName: id ? personName(id) : '' }))}
+                placeholder="Velg medarbeider"
+                title="Medarbeider"
+                small
               />
               <Label colors={colors} text="Beskrivelse" />
               <TextInput

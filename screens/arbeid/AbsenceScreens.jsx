@@ -1,11 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
-import { absenceTypeById, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
-import { absenceRoster, absencesForRoster, eachWeekday } from '../../src/arbeid/absenceDashboard.js';
+import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
+import {
+  absenceRoster,
+  absencesForRoster,
+  eachWeekday,
+  linkAbsencesToEmployees,
+} from '../../src/arbeid/absenceDashboard.js';
+import {
+  ABSENCE_REPORT_COLUMNS,
+  absenceReportTotals,
+  formatHours,
+  hydrateAbsenceReportRow,
+} from '../../src/arbeid/absenceReport.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { employeeActivityTab } from '../../src/employees/model.js';
@@ -642,57 +654,195 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   );
 }
 
+/** Ansattens fraværsrapport: kolonnene fra Fraværsrapport, uten medarbeider. */
+const PERSON_REPORT_KEYS = new Set(['date', 'typeLabel', 'statusLabel', 'description', 'hours', 'paidHours']);
+const PERSON_REPORT_COLUMNS = ABSENCE_REPORT_COLUMNS.filter((column) => PERSON_REPORT_KEYS.has(column.key));
+const PERSON_REPORT_MIN = PERSON_REPORT_COLUMNS.reduce((sum, column) => sum + (column.minWidth || column.width || 80), 0);
+const NUMERIC_COLUMNS = new Set(['hours', 'paidHours']);
+
+function reportCellStyle(column) {
+  if (column.flex) return { flexGrow: 1, flexShrink: 1, flexBasis: column.minWidth || 160, minWidth: column.minWidth || 120 };
+  return { width: column.width, flexGrow: 0, flexShrink: 0 };
+}
+
+function reportCell(row, key) {
+  if (key === 'date') return row.dateLabel || row.date || '–';
+  if (key === 'hours') return row.hoursLabel;
+  if (key === 'paidHours') return row.paidHoursLabel;
+  const value = row[key];
+  return value == null || value === '' ? '–' : String(value);
+}
+
+function formatDays(value) {
+  return String(Math.round((Number(value) || 0) * 100) / 100).replace('.', ',');
+}
+
+/** Rapport-fanen under Fravær på ansattsiden. Ett år om gangen. */
 export function MyOverviewScreen({ lockedEmployeeId = '', embedded = false } = {}) {
   const colors = useColors();
   const today = toDateKey(new Date());
   const month = today.slice(0, 7);
+  const thisYear = Number(today.slice(0, 4));
+  const [year, setYear] = useState(thisYear);
   // Bare «Timer denne måneden» bruker timer.
   const { workspace, activeId, employee } = usePeople(
     lockedEmployeeId,
-    monthDateRange(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1),
+    monthDateRange(thisYear, Number(today.slice(5, 7)) - 1),
   );
+  const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const hours = (workspace.state.timeEntries || [])
     .filter((row) => row.employeeId === activeId && String(row.date || '').startsWith(month))
     .reduce((sum, row) => sum + Number(row.hours || 0), 0);
-  const lock = (workspace.state.timesheetLocks || []).find((row) => row.employeeId === activeId);
+  // Samme kobling som Fraværsrapport: importerte rader uten id følger navnet.
+  const mine = useMemo(
+    () => linkAbsencesToEmployees(workspace.state.absences || [], workspace.employees || [])
+      .filter((row) => row && row.employeeId === activeId),
+    [workspace.state.absences, workspace.employees, activeId],
+  );
+  const span = useMemo(() => {
+    const found = mine
+      .map((row) => Number(String(row.date || '').slice(0, 4)))
+      .filter((value) => value > 1900);
+    return { first: Math.min(thisYear, ...found), last: Math.max(thisYear, ...found) };
+  }, [mine, thisYear]);
+  const yearKey = String(year);
+  const yearAbsences = useMemo(
+    () => mine
+      .filter((row) => String(row.date || '').startsWith(yearKey))
+      .sort((a, b) => String(b.date).localeCompare(String(a.date))),
+    [mine, yearKey],
+  );
+  // Saldo for valgt år, regnet som på Oversikt.
   const vacation = buildAbsenceOverview({
     employeeId: activeId,
     typeId: 'ferie',
-    absences: workspace.state.absences,
+    absences: yearAbsences,
     adjustments: workspace.state.absenceAdjustments,
-    fullDayHours: Number(workspace.state.fullDayHours) || 7.5,
+    fullDayHours: fullDay,
     today,
+    year: yearKey,
   });
-  const year = today.slice(0, 4);
-  const yearAbsences = (workspace.state.absences || [])
-    .filter((row) => row.employeeId === activeId && String(row.date || '').startsWith(year))
-    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const name = employeeDisplayName(employee);
+  const rows = useMemo(
+    () => yearAbsences
+      .map((row) => hydrateAbsenceReportRow(row, { names: { [activeId]: name } }))
+      .filter(Boolean),
+    [yearAbsences, activeId, name],
+  );
+  const totals = absenceReportTotals(rows);
+  const days = hoursToDays(totals.hours, fullDay);
+
+  const yearBar = (
+    <View style={styles.yearBar}>
+      <View style={[styles.stepper, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <TouchableOpacity
+          onPress={() => setYear((value) => value - 1)}
+          disabled={year <= span.first}
+          accessibilityRole="button"
+          accessibilityLabel="Forrige år"
+          nativeID="fravaer-rapport-aar-forrige"
+          style={[styles.stepHit, { opacity: year <= span.first ? 0.35 : 1 }]}
+        >
+          <Ionicons name="chevron-back" size={18} color={colors.ink} />
+        </TouchableOpacity>
+        <Text style={[styles.stepLabel, { color: colors.ink }]} nativeID="fravaer-rapport-aar">{yearKey}</Text>
+        <TouchableOpacity
+          onPress={() => setYear((value) => value + 1)}
+          disabled={year >= span.last}
+          accessibilityRole="button"
+          accessibilityLabel="Neste år"
+          nativeID="fravaer-rapport-aar-neste"
+          style={[styles.stepHit, { opacity: year >= span.last ? 0.35 : 1 }]}
+        >
+          <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+        </TouchableOpacity>
+      </View>
+      <Text style={{ color: colors.muted, fontSize: 13 }}>
+        {workspace.ready
+          ? `${totals.count} ${totals.count === 1 ? 'dag' : 'dager'} · ${formatHours(totals.hours)} timer`
+          : 'Laster fravær…'}
+      </Text>
+    </View>
+  );
+
+  const tableSheet = (
+    <View style={{ minWidth: PERSON_REPORT_MIN, width: '100%' }}>
+      <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
+        {PERSON_REPORT_COLUMNS.map((column) => (
+          <Text
+            key={column.key}
+            style={[styles.th, reportCellStyle(column), { color: colors.muted }, NUMERIC_COLUMNS.has(column.key) && styles.num]}
+          >
+            {column.label}
+          </Text>
+        ))}
+      </View>
+      {rows.length ? rows.map((row) => (
+        <View key={row.id || `${row.date}-${row.type}`} style={[styles.tr, { borderBottomColor: colors.line }]}>
+          {PERSON_REPORT_COLUMNS.map((column) => (
+            <Text
+              key={column.key}
+              style={[
+                styles.td,
+                reportCellStyle(column),
+                { color: NUMERIC_COLUMNS.has(column.key) || column.key === 'date' ? colors.ink : colors.muted },
+                NUMERIC_COLUMNS.has(column.key) && styles.num,
+              ]}
+              numberOfLines={2}
+            >
+              {reportCell(row, column.key)}
+            </Text>
+          ))}
+        </View>
+      )) : (
+        <Text style={{ color: colors.muted, padding: 16 }}>
+          {workspace.ready ? `Ingen fravær registrert i ${yearKey}.` : 'Laster fravær…'}
+        </Text>
+      )}
+      {rows.length ? (
+        <View style={[styles.tr, styles.sumRow, { backgroundColor: colors.sunken || colors.bg }]} nativeID="fravaer-rapport-sum">
+          {PERSON_REPORT_COLUMNS.map((column) => (
+            <Text
+              key={column.key}
+              style={[styles.td, reportCellStyle(column), { color: colors.ink }, NUMERIC_COLUMNS.has(column.key) && styles.num]}
+            >
+              {column.key === 'date' ? `Sum ${yearKey}`
+                : column.key === 'hours' ? formatHours(totals.hours)
+                  : column.key === 'paidHours' ? formatHours(totals.paidHours)
+                    : ''}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+
   const overviewBody = (
     <>
       {embedded ? null : (
         <>
           <Text style={[styles.crumb, { color: colors.muted }]}>Ansatte / Oversikt</Text>
           <Text style={[styles.title, { color: colors.ink }]}>
-            {employeeDisplayName(employee) || 'Oversikt'}
+            {name || 'Oversikt'}
           </Text>
         </>
       )}
+      {yearBar}
       <View style={styles.cards}>
         <Card colors={colors} label="Timer denne måneden" value={hours.toFixed(2)} />
-        <Card colors={colors} label="Feriedager til gode" value={String(vacation.summary.remaining)} />
-        <Card colors={colors} label="Timeliste" value={lock?.throughDate ? `Låst til ${lock.throughDate}` : 'Åpen'} />
-        <Card colors={colors} label={`Fraværsdager ${year}`} value={String(yearAbsences.length)} />
+        <Card colors={colors} label={`Feriedager til gode ${yearKey}`} value={formatDays(vacation.summary.remaining)} />
+        <Card colors={colors} label={`Fraværsdager ${yearKey}`} value={formatDays(days)} />
       </View>
-      {yearAbsences.slice(0, 12).map((row) => (
-        <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>
-            {row.date} · {absenceTypeById(row.type).label}
-          </Text>
-          <Text style={{ color: colors.muted }}>
-            {hoursToDays(row.hours, Number(workspace.state.fullDayHours) || 7.5)} d · {row.description || 'Ingen merknad'}
-          </Text>
-        </View>
-      ))}
+      <View
+        style={[styles.tableWrap, { borderColor: colors.line, backgroundColor: colors.card }]}
+        nativeID="fravaer-rapport-tabell"
+      >
+        {Platform.OS === 'web' ? (
+          <View style={styles.hScroll}>{tableSheet}</View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator>{tableSheet}</ScrollView>
+        )}
+      </View>
     </>
   );
   if (embedded) {
@@ -717,7 +867,7 @@ function Card({ colors, label, value }) {
   return (
     <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, minWidth: 180 }]}>
       <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '700', marginTop: 4 }}>{value}</Text>
+      <Text style={{ color: colors.ink, fontSize: 18, fontWeight: '400', marginTop: 4 }}>{value}</Text>
     </View>
   );
 }
@@ -730,4 +880,17 @@ const styles = StyleSheet.create({
   mobileImport: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  yearBar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, paddingHorizontal: 2 },
+  stepHit: { minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' },
+  stepLabel: { fontSize: 14, fontWeight: '400', minWidth: 56, textAlign: 'center' },
+  // Samme tabell som Fraværsrapport.
+  tableWrap: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  hScroll: { width: '100%', overflowX: 'auto', overflowY: 'visible' },
+  tr: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, minHeight: 40 },
+  head: { minHeight: 42 },
+  sumRow: { borderBottomWidth: 0 },
+  th: { fontSize: 11, fontWeight: '400', paddingVertical: 10, paddingHorizontal: 4 },
+  td: { fontSize: 13, fontWeight: '400', paddingVertical: 8, paddingHorizontal: 4 },
+  num: { textAlign: 'right' },
 });

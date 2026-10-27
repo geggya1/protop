@@ -45,4 +45,9 @@ for (const src of [expenses, sales]) {
   assert.match(src, /\(!employeeId \|\| row\.employeeId === employeeId\)/);
 }
 
+// Nytt utlegg på prosjekt får den som registrerer, så det vises på ansattsiden.
+assert.match(expenses, /employeeId: myEmployeeId,\s*employeeName: personName\(myEmployeeId\)/);
+assert.match(expenses, /<Label colors=\{colors\} text="Medarbeider" \/>/);
+assert.match(detail, /<ProjectExpensesTab[^>]*myEmployeeId=\{myEmployeeId\}\s*employees=\{employees\}/);
+
 console.log('projectAccess.test.mjs: ok');

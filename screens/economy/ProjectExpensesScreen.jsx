@@ -22,6 +22,7 @@ import {
   EXPENSE_PERIODS,
   EXPENSE_SORT_OPTIONS,
   expenseStatusLabel,
+  expensesForEmployee,
   filterExpenses,
   sortExpenses,
 } from '../../src/economy/expenseList.js';
@@ -125,8 +126,11 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
     const inline = (workspace.state?.expenses || []).filter((row) => !isExternalExpense(row));
     const merged = mergeExpenseLists(remoteExpenses, inline);
     const locked = workspace.lockedId;
-    return locked ? merged.filter((row) => row.employeeId === locked) : merged;
-  }, [workspace.state, remoteExpenses, workspace.lockedId]);
+    if (!locked) return merged;
+    // Ansattsiden: det personen har registrert på prosjekt, også importerte rader uten kobling.
+    const person = (workspace.employees || []).find((row) => row.id === locked) || { id: locked };
+    return expensesForEmployee(merged, person);
+  }, [workspace.state, remoteExpenses, workspace.lockedId, workspace.employees]);
 
   const visible = useMemo(() => sortExpenses(filterExpenses(allRows, {
     query,
@@ -249,9 +253,11 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
     );
   }
 
+  // På ansattsiden er medarbeideren gitt.
+  const showEmployee = !workspace.lockedId;
   const columns = [
     ['date', 'Dato'],
-    ['employee', 'Medarbeider'],
+    ...(showEmployee ? [['employee', 'Medarbeider']] : []),
     ['customer', 'Kunde'],
     ['project', 'Prosjekt'],
     ['description', 'Beskrivelse'],
@@ -389,7 +395,9 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
           {visible.slice(0, pageSize).map((row) => (
             <View key={row.id || row.importFingerprint} style={[styles.tableRow, { borderBottomColor: colors.line }]}>
               <Text style={[styles.cell, { color: colors.ink }]}>{formatDate(row.date)}</Text>
-              <Text style={[styles.cell, { color: colors.ink }]} numberOfLines={2}>{row.employeeName || '—'}</Text>
+              {showEmployee ? (
+                <Text style={[styles.cell, { color: colors.ink }]} numberOfLines={2}>{row.employeeName || '—'}</Text>
+              ) : null}
               <Text style={[styles.cell, { color: colors.ink }]} numberOfLines={2}>{row.customerName || '—'}</Text>
               <Text style={[styles.cell, { color: colors.ink }]} numberOfLines={2}>
                 {row.projectNumber ? `#${row.projectNumber}` : ''} {row.projectName || ''}

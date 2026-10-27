@@ -65,7 +65,6 @@ export default function IsoFindings({ ctx }) {
     }
   }
 
-  const [moreFilters, setMoreFilters] = useState(false);
   const selected = visible.find((f) => f.id === openId) || null;
   if (selected) return <FindingDetail ctx={ctx} finding={selected} onBack={() => setOpenId('')} />;
 
@@ -80,9 +79,15 @@ export default function IsoFindings({ ctx }) {
       {drillIds ? <Banner tone="info" text={`Viser utvalg fra oversikten: ${params?.label || ''} (${rows.length})`} /> : null}
       <Card>
         <TextIn value={query} onChangeText={setQuery} placeholder="Søk i saksnummer, tittel, prosjekt" />
-        <Choice small options={[{ id: 'apne', label: 'Åpne' }, { id: 'forfalt', label: 'Forfalte tiltak' }, ...(wide || moreFilters ? FINDING_STATES.map((s) => ({ id: s.id, label: s.label })) : [])]} value={stateFilter} onChange={setStateFilter} placeholder="Alle" title="Status" />
-        {wide || moreFilters ? <Choice small options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={typeFilter} onChange={setTypeFilter} placeholder="Alle" title="Type" /> : null}
-        {!wide ? <Btn small icon="options-outline" label={moreFilters ? 'Færre filtre' : `Flere filtre${typeFilter || (stateFilter && !['apne', 'forfalt'].includes(stateFilter)) ? ' (aktive)' : ''}`} onPress={() => setMoreFilters(!moreFilters)} /> : null}
+        {/* To nedtrekk side om side: status og type. Begge får plass også på mobil, så «Flere filtre» trengs ikke. */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <View style={{ flex: 1, minWidth: 180 }}>
+            <Choice small options={[{ id: 'apne', label: 'Åpne' }, { id: 'forfalt', label: 'Forfalte tiltak' }, ...FINDING_STATES.map((s) => ({ id: s.id, label: s.label }))]} value={stateFilter} onChange={setStateFilter} placeholder="Alle statuser" title="Status" />
+          </View>
+          <View style={{ flex: 1, minWidth: 180 }}>
+            <Choice small options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={typeFilter} onChange={setTypeFilter} placeholder="Alle typer" title="Type" />
+          </View>
+        </View>
       </Card>
       {legacy.length && caps.manage ? (
         <Card title={`Fra Prosjekt-modulen (${legacy.length})`} subtitle="Avvik og RUH registrert i prosjektene som ikke er behandlet i ISO. Ta dem inn, så følger de samme flyt – uten å registreres på nytt.">

@@ -184,8 +184,9 @@ export function TextIn({ value, onChangeText, multiline, placeholder, keyboardTy
  * placeholder vises i feltet når ingenting er valgt (f.eks. «Alle» i filtre).
  */
 export function Choice({ options, value, onChange, multi = false, small, placeholder = 'Velg', title, clearLabel, clearable }) {
-  // Tømme valget: i filtre («Alle») og valgfrie felt. Obligatoriske felt sender clearable={false}.
-  const canClear = clearable ?? placeholder === 'Alle';
+  // Tømme valget: i filtre («Alle …») og valgfrie felt. Obligatoriske felt sender clearable={false}.
+  const filter = /^Alle\b/.test(String(placeholder || ''));
+  const canClear = clearable ?? filter;
   return (
     <OptionPicker
       options={options}
@@ -196,7 +197,7 @@ export function Choice({ options, value, onChange, multi = false, small, placeho
       placeholder={placeholder}
       title={title}
       clearable={canClear}
-      clearLabel={clearLabel || (placeholder === 'Alle' ? 'Alle' : 'Ingen valgt')}
+      clearLabel={clearLabel || (filter ? placeholder : 'Ingen valgt')}
     />
   );
 }

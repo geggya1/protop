@@ -235,8 +235,9 @@ export default function InvoicePage({
 
   async function finalizeAndSend(options) {
     if (mode === 'poweroffice') {
+      // Resultatet og feilen fra PowerOffice vises øverst på fakturaen.
       setDialog('');
-      onTransfer?.();
+      await run('transfer', () => onTransfer?.({ again: invoice?.poweroffice?.state === 'missing' }), { close: false });
       return;
     }
     setBusy('finalize');

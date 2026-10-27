@@ -14,6 +14,8 @@ import {
 } from '../../src/iso/processes';
 import { PROCESS_TEMPLATES, templateByKey } from '../../src/iso/processTemplates';
 import IsoDiagram, { fitView } from './IsoDiagram';
+import ProcessFlow from './IsoProcessFlow';
+import { anbudMenuTitle, arbeidMenuTitle, hrMenuTitle, isoMenuTitle, okonomiMenuTitle, selskapMenuTitle } from '../../src/navigation/shellModules';
 import IsoProcessMap, { sortProcesses } from './IsoProcessMap';
 import IsoMarkdown from './IsoMarkdown';
 import { VisioImportSheet } from './IsoVisio';
@@ -195,6 +197,8 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
   const instances = state.instances.filter((i) => i.processId === proc.id);
   const context = { forms: state.forms, documents: state.documents, processes: state.processes };
   const [nodeSel, setNodeSel] = useState(null);
+  // Flyt (steg for steg) er standard. Kartet med svømmebaner er et valg, og brukes ved sammenligning av versjoner.
+  const [mode, setMode] = useState('flyt');
   const docs = state.documents.filter((d) => !d.archived && ((proc.documentIds || []).includes(d.id) || (d.processIds || []).includes(proc.id)) && (caps.manage || d.publishedRevision));
   const risks = (state.records?.risiko || []).filter((r) => r.processId === proc.id && !['lukket', 'arkivert'].includes(r.state));
   // Verdikjeden: hvilke prosesser leder hit, og hvor går den videre.
@@ -241,9 +245,14 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
       {err ? <Banner tone="danger" text={err} /> : null}
       {!pub ? <Banner tone="warn" text="Prosessen er ikke publisert. Ansatte ser bare publiserte versjoner." /> : null}
       <Row>
-        {(proc.versions || []).map((v) => (
-          <Btn key={v.version} small label={`v${v.version} · ${VERSION_STATES[v.state]}`} kind={v.version === showVersion ? 'primary' : 'ghost'} onPress={() => setShowVersion(v.version)} />
-        ))}
+        <Choice
+          small
+          title="Versjon"
+          clearable={false}
+          options={(proc.versions || []).map((v) => ({ id: String(v.version), label: `v${v.version} · ${VERSION_STATES[v.state]}` }))}
+          value={String(showVersion || '')}
+          onChange={(x) => { if (x) setShowVersion(Number(x)); }}
+        />
         {(proc.versions || []).length > 1 ? (
           <Btn
             small
@@ -264,9 +273,14 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
         <Card title={`Endringer fra v${compareWith} til v${version?.version}`} subtitle={diff?.summary}>
           <Row>
             <Text style={{ color: colors.muted, fontSize: 12 }}>Sammenlign med:</Text>
-            {(proc.versions || []).filter((v) => v.version !== version?.version).map((v) => (
-              <Btn key={v.version} small label={`v${v.version}`} kind={v.version === compareWith ? 'primary' : 'ghost'} onPress={() => setCompareWith(v.version)} />
-            ))}
+            <Choice
+              small
+              title="Sammenlign med"
+              clearable={false}
+              options={(proc.versions || []).filter((v) => v.version !== version?.version).map((v) => ({ id: String(v.version), label: `v${v.version}` }))}
+              value={String(compareWith || '')}
+              onChange={(x) => { if (x) setCompareWith(Number(x)); }}
+            />
           </Row>
           {diff?.added.map((n) => <ListRow key={`a${n.id}`} icon="add-circle-outline" tone="ok" title={`Ny: ${n.label}`} subtitle={nodeType(n.type).label} />)}
           {diff?.changed.map((c) => <ListRow key={`c${c.id}`} icon="create-outline" tone="warn" title={`Endret: ${c.label}`} subtitle={`${c.fields.join(', ')}${c.before !== c.label ? ` (før: ${c.before})` : ''}`} />)}
@@ -275,19 +289,31 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
           <Text style={{ color: colors.muted, fontSize: 12 }}>Nye og endrede bokser er merket i diagrammet.</Text>
         </Card>
       ) : null}
-      <IsoDiagram
-        marks={diff?.marks || null}
-        diagram={diagram}
-        scale={view.scale}
-        offset={view.offset}
-        onPan={(o) => setViewState({ ...view, offset: o })}
-        onSelectNode={(id) => {
-          const node = diagram.nodes.find((n) => n.id === id);
-          if (node) setNodeSel(node);
-        }}
-        height={wide ? 460 : 380}
-      />
-      <Text style={{ color: colors.muted, fontSize: 12 }}>Trykk på en boks for detaljer, dokumenter og hvor trinnet utføres i ProTop.</Text>
+      {!compareWith ? (
+        <Choice
+          options={[{ id: 'flyt', label: 'Flyt', icon: 'list-outline' }, { id: 'kart', label: 'Kart', icon: 'git-network-outline' }]}
+          value={mode}
+          onChange={(x) => setMode(x || 'flyt')}
+          clearable={false}
+        />
+      ) : null}
+      {mode === 'flyt' && !compareWith ? (
+        <ProcessFlow diagram={diagram} onSelect={setNodeSel} targetLabel={(n) => (nodeHasTarget(n) ? nodeTargetLabel(ctx, n) : '')} />
+      ) : (
+        <IsoDiagram
+          marks={diff?.marks || null}
+          diagram={diagram}
+          scale={view.scale}
+          offset={view.offset}
+          onPan={(o) => setViewState({ ...view, offset: o })}
+          onSelectNode={(id) => {
+            const node = diagram.nodes.find((n) => n.id === id);
+            if (node) setNodeSel(node);
+          }}
+          height={wide ? 460 : 380}
+        />
+      )}
+      <Text style={{ color: colors.muted, fontSize: 12 }}>{mode === 'flyt' && !compareWith ? 'Trykk på et steg for detaljer, dokumenter og hvor det gjøres i ProTop.' : 'Trykk på en boks for detaljer, dokumenter og hvor trinnet utføres i ProTop. Dra for å flytte kartet.'}</Text>
       {fromProcs.length || toProcs.length ? (
         <Row>
           {fromProcs.map((p) => <Btn key={p.id} small icon="arrow-back" label={`Fra ${p.code ? `${p.code} ` : ''}${p.title}`} onPress={() => ctx.go('prosesser', { open: p.id })} />)}
@@ -296,10 +322,14 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
       ) : null}
       <NodeSheet ctx={ctx} diagram={diagram} node={nodeSel} onClose={() => setNodeSel(null)} />
       <Row>
-        <Btn small icon="remove" accessibilityLabel="Zoom ut" onPress={() => setViewState({ ...view, scale: Math.max(0.3, view.scale - 0.1) })} />
-        <Text style={{ color: colors.muted }}>{Math.round(view.scale * 100)} %</Text>
-        <Btn small icon="add" accessibilityLabel="Zoom inn" onPress={() => setViewState({ ...view, scale: Math.min(2, view.scale + 0.1) })} />
-        <Btn small label="Tilpass" onPress={() => setViewState(fitView(diagram, wide ? Math.min(width - 340, 1200) : width - 32, 420))} />
+        {mode === 'kart' || compareWith ? (
+          <>
+            <Btn small icon="remove" accessibilityLabel="Zoom ut" onPress={() => setViewState({ ...view, scale: Math.max(0.3, view.scale - 0.1) })} />
+            <Text style={{ color: colors.muted }}>{Math.round(view.scale * 100)} %</Text>
+            <Btn small icon="add" accessibilityLabel="Zoom inn" onPress={() => setViewState({ ...view, scale: Math.min(2, view.scale + 0.1) })} />
+            <Btn small label="Tilpass" onPress={() => setViewState(fitView(diagram, wide ? Math.min(width - 340, 1200) : width - 32, 420))} />
+          </>
+        ) : null}
         {Platform.OS === 'web' ? (
           <>
             <Btn small icon="download-outline" label="SVG" onPress={() => download(`${proc.title}-v${version?.version}.svg`, 'image/svg+xml', diagramToSvg(diagram, { title: proc.title, subtitle: `v${version?.version} · ${VERSION_STATES[version?.state]} · eier ${proc.ownerName}` }))} />
@@ -390,6 +420,20 @@ export function nodeHasTarget(node) {
 }
 
 /** Navn på det boksen åpner, til knappen i detaljpanelet. */
+const MODULE_NAMES = {
+  anbud: 'Anbud', arbeid: 'Arbeid', hr: 'HR', iso: 'ISO', okonomi: 'Økonomi', selskap: 'Selskap', kunder: 'Kunder',
+  kontrakt: 'Kontrakt', projects: 'Prosjekt', ansatte: 'Ansatte', utstyr: 'Utstyr', skjema: 'Skjemabygger',
+};
+const SUB_TITLES = { anbud: anbudMenuTitle, arbeid: arbeidMenuTitle, hr: hrMenuTitle, iso: isoMenuTitle, okonomi: okonomiMenuTitle, selskap: selskapMenuTitle };
+
+/** «tab:anbud/foresporsel» → «Anbud → Forespørsel» (navnene fra menyen). */
+export function moduleTargetName(ref) {
+  const [tab, sub] = String(ref || '').replace(/^tab:/, '').split('/');
+  const name = MODULE_NAMES[tab] || tab;
+  const subName = sub ? String((SUB_TITLES[tab] && SUB_TITLES[tab](sub)) || sub).replace(/^[\d.]+\s+/, '') : '';
+  return subName && subName !== name && subName !== 'ISO / K-HMS' ? `${name} → ${subName}` : name;
+}
+
 export function nodeTargetLabel(ctx, node) {
   const click = node?.onClick || { type: 'none' };
   const docId = click.type === 'openDocument' ? (click.ref || node.documentId) : node.documentId;
@@ -402,7 +446,7 @@ export function nodeTargetLabel(ctx, node) {
     return p ? `Gå til ${p.code ? `${p.code} ` : ''}${p.title}` : 'Åpne prosess';
   }
   if (click.type === 'openForm' || node?.type === 'form') return 'Fyll ut skjema';
-  if (click.type === 'openModule') return String(click.ref || '').startsWith('tab:') ? `Åpne ${click.ref.slice(4).replace('/', ' → ')}` : 'Åpne i ISO';
+  if (click.type === 'openModule') return String(click.ref || '').startsWith('tab:') ? `Åpne ${moduleTargetName(click.ref)}` : 'Åpne i ISO';
   if (click.type === 'openUrl') return 'Åpne lenke';
   return 'Åpne';
 }

@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
 import { useLayout } from '../src/theme';
+import OptionPicker, { CHIP_LIMIT } from './OptionPicker';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -84,7 +85,18 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
   if (!isPhone) {
     return (
       <View style={styles.inline}>
-        {groups.map((group) => (
+        {groups.map((group) => ((group.options || []).length > CHIP_LIMIT ? (
+          // 5 eller flere valg: nedtrekk i stedet for en rad med knapper.
+          <OptionPicker
+            key={group.id}
+            options={group.options}
+            value={group.value}
+            onChange={(id) => group.onChange?.(id)}
+            placeholder={(group.options || []).find((row) => row.id === idleOf(group))?.label || group.label || 'Velg'}
+            title={group.label || 'Filter'}
+            clearable={false}
+          />
+        ) : (
           <View key={group.id} style={styles.chips}>
             {(group.options || []).map((option) => {
               const selected = group.value === option.id;
@@ -102,7 +114,7 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
               );
             })}
           </View>
-        ))}
+        )))}
         {children}
       </View>
     );

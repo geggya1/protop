@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker from '../OptionPicker';
 import { PROJECT_ROLES, employeeDisplayName } from '../../src/arbeid/roles.js';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { memberHoursMap } from '../../src/project/projectDashboard.js';
@@ -208,23 +209,14 @@ export default function ProjectTeamTab({
               ) : null}
             </ScrollView>
             <Text style={{ color: colors.muted, marginTop: 10, marginBottom: 6 }}>Rolle</Text>
-            <View style={styles.chipRow}>
-              {PROJECT_ROLES.map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  onPress={() => setRole(r)}
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: role === r ? colors.brand : colors.line,
-                      backgroundColor: role === r ? `${colors.brand}14` : 'transparent',
-                    },
-                  ]}
-                >
-                  <Text style={{ color: colors.ink, fontSize: 12 }}>{r}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <OptionPicker
+              options={PROJECT_ROLES}
+              value={role}
+              onChange={(r) => { if (r) setRole(r); }}
+              title="Rolle"
+              clearable={false}
+              small
+            />
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               <TouchableOpacity onPress={() => setOpen(false)} style={[styles.ghost, { borderColor: colors.line, flex: 1 }]}>
                 <Text style={{ color: colors.ink, textAlign: 'center' }}>Avbryt</Text>

@@ -3,6 +3,7 @@ import {
   Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { EXPENSE_CATEGORIES } from '../../src/economy/expenses.js';
+import OptionPicker from '../OptionPicker';
 
 /**
  * Kort registrering fra timeføringsmenyen: utlegg, produktsalg eller bilgodtgjørelse.
@@ -82,12 +83,15 @@ export default function TimesheetSideForm({
             />
           )}
           {kind === 'expense' ? (
-            <View style={styles.chips}>
-              {EXPENSE_CATEGORIES.slice(0, 4).map((row) => (
-                <TouchableOpacity key={row.id} onPress={() => setCategory(row.id)} style={[styles.chip, { borderColor: category === row.id ? colors.brand : colors.line }]}>
-                  <Text style={{ color: colors.ink, fontSize: 12 }}>{row.label}</Text>
-                </TouchableOpacity>
-              ))}
+            <View style={{ marginBottom: 8 }}>
+              <OptionPicker
+                options={EXPENSE_CATEGORIES.map((row) => ({ id: row.id, label: row.label }))}
+                value={category}
+                onChange={(id) => { if (id) setCategory(id); }}
+                title="Kategori"
+                clearable={false}
+                small
+              />
             </View>
           ) : null}
           {error ? <Text style={{ color: '#b42318', marginBottom: 8 }}>{error}</Text> : null}

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateField from '../../components/DateField';
+import OptionPicker from '../../components/OptionPicker';
 import LocationPicker from '../../components/LocationPicker';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
 import { extractContractText, MAX_LOCAL_PDF_BYTES, pdfTextLooksReadable } from '../../src/indeksregulering/extractText';
@@ -201,20 +202,13 @@ function Field({ colors, field, value, onChange, warning, hint, suggested }) {
         <Text style={{ color: colors.ink, fontWeight: '600' }}>
           {selected ? `${selected.name} · tabell ${selected.table}` : 'Ikke valgt'}
         </Text>
-        <View style={styles.row}>
-          {INDEX_SERIES.map((row) => (
-            <TouchableOpacity
-              key={row.id}
-              onPress={() => onChange(row.id)}
-              accessibilityRole="button"
-              style={[styles.chip, value === row.id && { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}
-            >
-              <Text style={{ color: value === row.id ? colors.brand : colors.ink }}>
-                {row.table} · {row.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <OptionPicker
+          options={INDEX_SERIES.map((row) => ({ id: row.id, label: `${row.table} · ${row.name}` }))}
+          value={value}
+          onChange={(id) => { if (id) onChange(id); }}
+          title={field.label}
+          clearable={false}
+        />
         {hint ? <Text style={{ color: colors.muted, fontSize: 12 }}>{hint}</Text> : null}
         {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
       </View>
@@ -1107,13 +1101,13 @@ export default function DirectAgreementForm({
 
       <View style={{ gap: 6 }}>
         <Text style={{ color: colors.muted, fontSize: 12 }}>Avtaletype</Text>
-        <View style={styles.row}>
-          {AGREEMENT_KINDS.map((row) => (
-            <TouchableOpacity key={row.id} onPress={() => patch({ kind: row.id })} accessibilityRole="button" style={[styles.chip, form.kind === row.id && { borderColor: colors.brand, backgroundColor: colors.brandSoft }]}>
-              <Text style={{ color: form.kind === row.id ? colors.brand : colors.ink }}>{row.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <OptionPicker
+          options={AGREEMENT_KINDS}
+          value={form.kind}
+          onChange={(kind) => patch({ kind })}
+          title="Avtaletype"
+          clearable={false}
+        />
       </View>
       <Text style={{ color: colors.muted, fontSize: 13 }}>
         System-ID og Oppdrags-ID settes automatisk (neste: {previewSystem} · {previewOppdrag}). Feltene er ikke skrivbare.
@@ -1332,16 +1326,18 @@ export default function DirectAgreementForm({
       {parents.length ? (
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Tilknyttet avtale</Text>
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => patch({ parentId: '' })} accessibilityRole="button">
-              <Text style={{ color: form.parentId ? colors.muted : colors.brand }}>Ingen</Text>
-            </TouchableOpacity>
-            {parents.map((row) => (
-              <TouchableOpacity key={row.id} onPress={() => patch({ parentId: row.id, buyer: form.buyer || row.buyer, customerId: form.customerId || row.customerId })} accessibilityRole="button">
-                <Text style={{ color: form.parentId === row.id ? colors.brand : colors.ink }}>{row.title}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <OptionPicker
+            options={[{ id: '', label: 'Ingen' }, ...parents.map((row) => ({ id: row.id, label: row.title }))]}
+            value={form.parentId || ''}
+            onChange={(parentId) => {
+              const row = parentId ? parents.find((item) => item.id === parentId) : null;
+              if (!row) { patch({ parentId: '' }); return; }
+              patch({ parentId: row.id, buyer: form.buyer || row.buyer, customerId: form.customerId || row.customerId });
+            }}
+            placeholder="Ingen"
+            title="Tilknyttet avtale"
+            clearable={false}
+          />
         </View>
       ) : null}
 

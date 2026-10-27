@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import OptionPicker from '../../components/OptionPicker';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
@@ -454,10 +455,14 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
             <Field label="Kunde" value={draft.customerName || ''} onChange={(v) => setDraft((d) => ({ ...d, customerName: v }))} colors={colors} />
             <Field label="Prosjekt" value={draft.projectName || ''} onChange={(v) => setDraft((d) => ({ ...d, projectName: v }))} colors={colors} />
           </View>
-          <View style={[styles.row, { marginTop: 8 }]}>
-            {EXPENSE_CATEGORIES.map((row) => (
-              <Chip key={row.id} label={row.label} active={(draft.category || 'other') === row.id} onPress={() => setDraft((d) => ({ ...d, category: row.id }))} colors={colors} />
-            ))}
+          <View style={{ marginTop: 8 }}>
+            <OptionPicker
+              options={EXPENSE_CATEGORIES.map((row) => ({ id: row.id, label: row.label }))}
+              value={draft.category || 'other'}
+              onChange={(id) => { if (id) setDraft((d) => ({ ...d, category: id })); }}
+              title="Kategori"
+              clearable={false}
+            />
           </View>
           <TouchableOpacity onPress={saveExpense} style={[styles.btn, { backgroundColor: colors.brand, marginTop: 12, alignSelf: 'flex-start' }]}>
             <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre utlegg</Text>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import OptionPicker from '../../components/OptionPicker';
 import {
   addBidTask,
   addLibraryItem,
@@ -75,13 +76,17 @@ export default function BidCollab({ bid, state, notice, colors, members = [], on
           <TouchableOpacity onPress={() => commit(toggleTask(state, bid.id, task.id))} accessibilityRole="button">
             <Text style={{ color: colors.ink }}>{task.status === 'ferdig' ? 'Ferdig' : 'Åpen'} · {task.title}{task.ownerName ? ` · ${task.ownerName}` : ''}</Text>
           </TouchableOpacity>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {members.slice(0, 8).map((person) => (
-              <TouchableOpacity key={person.id || person.uid} onPress={() => commit(assignTask(state, bid.id, task.id, person))} accessibilityRole="button">
-                <Text style={{ color: colors.brand }}>{person.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <OptionPicker
+            options={members.map((person) => ({ id: person.id || person.uid, label: person.name }))}
+            value={task.ownerId}
+            onChange={(id) => {
+              const person = members.find((row) => (row.id || row.uid) === id);
+              if (person) commit(assignTask(state, bid.id, task.id, person));
+            }}
+            title={task.title}
+            clearable={false}
+            small
+          />
           {(task.comments || []).map((row) => (
             <Text key={row.id} style={{ color: colors.muted }}>{row.authorName || 'Kommentar'}: {row.text}</Text>
           ))}
@@ -92,13 +97,16 @@ export default function BidCollab({ bid, state, notice, colors, members = [], on
         <Text style={{ color: colors.brand }}>Legg til oppgave</Text>
       </TouchableOpacity>
       <TextInput value={comment} onChangeText={setComment} placeholder="Kommentar til valgt oppgave" placeholderTextColor={colors.placeholder} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 8, color: colors.ink }} />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {tasks.map((task) => (
-          <TouchableOpacity key={task.id} onPress={() => setTaskId(task.id)} accessibilityRole="button">
-            <Text style={{ color: taskId === task.id ? colors.brand : colors.ink }}>{task.title}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {tasks.length ? (
+        <OptionPicker
+          options={tasks.map((task) => ({ id: task.id, label: task.title }))}
+          value={taskId}
+          onChange={(id) => { if (id) setTaskId(id); }}
+          title="Kommentar til valgt oppgave"
+          clearable={false}
+          small
+        />
+      ) : null}
       <TouchableOpacity
         onPress={() => commit(commentOnTask(state, bid.id, taskId || tasks[0]?.id, { text: comment, authorName: members[0]?.name || '' }))}
         accessibilityRole="button"
@@ -111,13 +119,16 @@ export default function BidCollab({ bid, state, notice, colors, members = [], on
           {(bid.files || []).find((file) => file.id === row.fileId)?.name || 'Dokument'} · side {row.pages.join(', ')} · {row.readers.join(', ') || 'lest'}
         </Text>
       ))}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        {(bid.files || []).slice(0, 8).map((file) => (
-          <TouchableOpacity key={file.id} onPress={() => setFileId(file.id)} accessibilityRole="button">
-            <Text style={{ color: fileId === file.id ? colors.brand : colors.ink }}>{file.name}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {(bid.files || []).length ? (
+        <OptionPicker
+          options={(bid.files || []).map((file) => ({ id: file.id, label: file.name }))}
+          value={fileId}
+          onChange={(id) => { if (id) setFileId(id); }}
+          title="Sider som er lest"
+          clearable={false}
+          small
+        />
+      ) : null}
       <TextInput value={page} onChangeText={setPage} placeholder="Sidenummer" placeholderTextColor={colors.placeholder} keyboardType="number-pad" style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 8, color: colors.ink, maxWidth: 120 }} />
       <TouchableOpacity
         onPress={() => commit(markPageRead(state, bid.id, { fileId, page, userId: members[0]?.id || members[0]?.uid || '', userName: members[0]?.name || 'Meg' }))}

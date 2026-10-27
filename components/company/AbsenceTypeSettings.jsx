@@ -8,6 +8,7 @@ import {
 } from '../../src/arbeid/absenceCatalog.js';
 import { deleteAbsenceType, upsertAbsenceType } from '../../src/company/setupState.js';
 import { SetupFrame, TextAction } from './SetupFrame';
+import OptionPicker from '../OptionPicker';
 import { useCompanyProject } from './useCompanyProject';
 
 const EMPTY = {
@@ -89,35 +90,27 @@ export default function AbsenceTypeSettings({ familyId, colors, canEdit }) {
             />
           </Field>
           <Field label="Kategori" colors={colors}>
-            <View style={styles.chips}>
-              {ABSENCE_CATEGORIES.map((category) => (
-                <TouchableOpacity
-                  key={category}
-                  disabled={!canEdit}
-                  onPress={() => setDraft((current) => ({ ...current, category }))}
-                  style={[styles.chip, { borderColor: draft.category === category ? colors.brand : colors.line, backgroundColor: draft.category === category ? `${colors.brand}18` : 'transparent' }]}
-                >
-                  <Text style={{ color: colors.ink }}>{category}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <OptionPicker
+              options={ABSENCE_CATEGORIES}
+              value={draft.category}
+              onChange={(category) => { if (category) setDraft((current) => ({ ...current, category })); }}
+              disabled={!canEdit}
+              title="Kategori"
+              clearable={false}
+            />
           </Field>
           <Toggle label="Betalt fravær" value={draft.paid} disabled={!canEdit} onChange={(paid) => setDraft((current) => ({ ...current, paid }))} colors={colors} />
           <Toggle label="Trekkes fra timebalanse" value={draft.deductBalance} disabled={!canEdit} onChange={(deductBalance) => setDraft((current) => ({ ...current, deductBalance }))} colors={colors} />
           <Toggle label="Teller som fakturerbart arbeid" value={draft.billable} disabled={!canEdit} onChange={(billable) => setDraft((current) => ({ ...current, billable }))} colors={colors} />
           <Field label="Startmåned" colors={colors}>
-            <View style={styles.chips}>
-              {ABSENCE_MONTHS.map((month) => (
-                <TouchableOpacity
-                  key={month.id}
-                  disabled={!canEdit}
-                  onPress={() => setDraft((current) => ({ ...current, startMonth: month.id }))}
-                  style={[styles.chip, { borderColor: draft.startMonth === month.id ? colors.brand : colors.line }]}
-                >
-                  <Text style={{ color: colors.ink }}>{month.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <OptionPicker
+              options={ABSENCE_MONTHS.map((month) => ({ id: month.id, label: month.label }))}
+              value={draft.startMonth}
+              onChange={(startMonth) => { if (startMonth !== '') setDraft((current) => ({ ...current, startMonth })); }}
+              disabled={!canEdit}
+              title="Startmåned"
+              clearable={false}
+            />
           </Field>
           <View style={styles.formActions}>
             <TextAction label="Avbryt" colors={colors} onPress={() => setDraft(null)} />

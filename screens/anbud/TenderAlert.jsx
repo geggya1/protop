@@ -28,6 +28,7 @@ import TenderMap from './TenderMap';
 import PhoneMapDock from './PhoneMapDock';
 import RegionCoverage from './RegionCoverage';
 import FilterMenu from '../../components/FilterMenu';
+import OptionPicker from '../../components/OptionPicker';
 import InfoButton from '../../components/InfoButton';
 import {
   deadlineInfo,
@@ -1029,12 +1030,14 @@ export default function TenderAlert({
               <Chip label="Doffin" colors={colors} on={sourceFilter === 'doffin'} onPress={() => setSourceFilter(sourceFilter === 'doffin' ? 'alle' : 'doffin')} />
               <Chip label="TED" colors={colors} on={sourceFilter === 'ted'} onPress={() => setSourceFilter(sourceFilter === 'ted' ? 'alle' : 'ted')} />
             </View>
-            <View style={styles.row}>
-              <Chip label="Alle områder" colors={colors} on={!areaId} onPress={() => setAreaId('')} />
-              {TENDER_AREAS.map((area) => (
-                <Chip key={area.id} label={area.name} colors={colors} on={areaId === area.id} onPress={() => setAreaId(areaId === area.id ? '' : area.id)} />
-              ))}
-            </View>
+            <OptionPicker
+              options={[{ id: '', label: 'Alle områder' }, ...TENDER_AREAS.map((area) => ({ id: area.id, label: area.name }))]}
+              value={areaId}
+              onChange={(id) => setAreaId(id || '')}
+              placeholder="Alle områder"
+              title="Område"
+              clearable={false}
+            />
           </View>
         ) : null}
         {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}

@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { classroomColors as c } from '../../src/classroomTheme';
+import OptionPicker from '../../components/OptionPicker';
 import {
   listenSubjects, listenLessonOffers, createLessonOffer, deleteLessonOffer,
   isClassroomAdmin, staffRoleLabel,
@@ -101,17 +102,16 @@ export default function ClassroomOffersScreen({ classroomId, classroom }) {
               <Text style={styles.sheetTitle}>Undervisningstilbud</Text>
               <TextInput style={styles.input} value={form.title} onChangeText={(t) => setForm((f) => ({ ...f, title: t }))} placeholder="Tittel" />
               <Text style={styles.label}>Fag</Text>
-              <View style={styles.chips}>
-                {subjects.map((s) => (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={[styles.chip, form.subjectId === s.id && styles.chipOn]}
-                    onPress={() => setForm((f) => ({ ...f, subjectId: s.id, title: f.title || s.name }))}
-                  >
-                    <Text style={[styles.chipTxt, form.subjectId === s.id && styles.chipTxtOn]}>{s.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <OptionPicker
+                options={subjects.map((s) => ({ id: s.id, label: s.name }))}
+                value={form.subjectId}
+                onChange={(id) => {
+                  const s = subjects.find((row) => row.id === id);
+                  if (s) setForm((f) => ({ ...f, subjectId: s.id, title: f.title || s.name }));
+                }}
+                title="Fag"
+                clearable={false}
+              />
               <Text style={styles.label}>Ansvarlig lærer</Text>
               {staff.map((p) => {
                 const id = p.uid || p.id;

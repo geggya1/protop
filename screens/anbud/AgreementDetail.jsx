@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import DateField from '../../components/DateField';
+import OptionPicker from '../../components/OptionPicker';
 import {
   addContractDocuments,
   addDelivery,
@@ -659,18 +660,13 @@ export default function AgreementDetail({
             <View style={styles.grid}>
               <View style={[styles.fact, styles.factWide]}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Avtaletype</Text>
-                <View style={styles.row}>
-                  {AGREEMENT_KINDS.map((row) => (
-                    <TouchableOpacity
-                      key={row.id}
-                      onPress={() => patch({ kind: row.id })}
-                      accessibilityRole="button"
-                      style={[styles.chip, form.kind === row.id && { borderColor: colors.brand, backgroundColor: colors.brandSoft || colors.bg }]}
-                    >
-                      <Text style={{ color: form.kind === row.id ? colors.brand : colors.ink }}>{row.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <OptionPicker
+                  options={AGREEMENT_KINDS}
+                  value={form.kind}
+                  onChange={(kind) => patch({ kind })}
+                  title="Avtaletype"
+                  clearable={false}
+                />
               </View>
               <EditField colors={colors} label="Oppdrag" value={form.title} onChange={(title) => patch({ title })} />
               <EditField colors={colors} label="Oppdrags-ID" value={form.oppdragId} onChange={(oppdragId) => patch({ oppdragId })} />
@@ -803,16 +799,14 @@ export default function AgreementDetail({
               <EditField colors={colors} label="Særlige bestemmelser" value={form.specialTerms} onChange={(specialTerms) => patch({ specialTerms })} multiline />
               <View style={[styles.fact, styles.factWide]}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Prisregulering / indeks</Text>
-                <View style={styles.row}>
-                  <TouchableOpacity onPress={() => patch({ indexId: '' })} accessibilityRole="button">
-                    <Text style={{ color: form.indexId ? colors.muted : colors.brand }}>Ingen</Text>
-                  </TouchableOpacity>
-                  {indexChoices.map((row) => (
-                    <TouchableOpacity key={row.id} onPress={() => patch({ indexId: row.id })} accessibilityRole="button">
-                      <Text style={{ color: form.indexId === row.id ? colors.brand : colors.ink }}>{row.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <OptionPicker
+                  options={[{ id: '', label: 'Ingen' }, ...indexChoices.map((row) => ({ id: row.id, label: row.name }))]}
+                  value={form.indexId || ''}
+                  onChange={(indexId) => patch({ indexId: indexId || '' })}
+                  placeholder="Ingen"
+                  title="Prisregulering / indeks"
+                  clearable={false}
+                />
               </View>
               <View style={[styles.fact, styles.factWide]}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Hvor reguleres prisen</Text>
@@ -829,13 +823,13 @@ export default function AgreementDetail({
               </View>
               <View style={[styles.fact, styles.factWide]}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Hvor ofte kan prisen reguleres</Text>
-                <View style={styles.row}>
-                  {REGULATION_FREQUENCIES.map((row) => (
-                    <TouchableOpacity key={row.id} onPress={() => patch({ regulationFrequency: row.id })} accessibilityRole="button">
-                      <Text style={{ color: form.regulationFrequency === row.id ? colors.brand : colors.ink }}>{row.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <OptionPicker
+                  options={REGULATION_FREQUENCIES}
+                  value={form.regulationFrequency}
+                  onChange={(regulationFrequency) => patch({ regulationFrequency })}
+                  title="Hvor ofte kan prisen reguleres"
+                  clearable={false}
+                />
               </View>
               <DateEdit
                 colors={colors}
@@ -867,16 +861,14 @@ export default function AgreementDetail({
             {parents.length ? (
               <View style={{ gap: 6 }}>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>Tilknyttet avtale</Text>
-                <View style={styles.row}>
-                  <TouchableOpacity onPress={() => patch({ parentId: '' })} accessibilityRole="button">
-                    <Text style={{ color: form.parentId ? colors.muted : colors.brand }}>Ingen</Text>
-                  </TouchableOpacity>
-                  {parents.map((row) => (
-                    <TouchableOpacity key={row.id} onPress={() => patch({ parentId: row.id })} accessibilityRole="button">
-                      <Text style={{ color: form.parentId === row.id ? colors.brand : colors.ink }}>{row.title}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <OptionPicker
+                  options={[{ id: '', label: 'Ingen' }, ...parents.map((row) => ({ id: row.id, label: row.title }))]}
+                  value={form.parentId || ''}
+                  onChange={(parentId) => patch({ parentId: parentId || '' })}
+                  placeholder="Ingen"
+                  title="Tilknyttet avtale"
+                  clearable={false}
+                />
               </View>
             ) : null}
 

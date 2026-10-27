@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import CompanyLogoChoice from '../../components/CompanyLogoChoice';
+import OptionPicker from '../../components/OptionPicker';
 import { confirmUser } from '../../src/utils/dialog';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import {
@@ -795,13 +796,13 @@ function Calculation(props) {
             <Text style={[styles.h, { color: colors.ink }]}>1. Indeks og beregningsgrunnlag</Text>
             <IndexTable chain={chain} math={math} colors={colors} />
             <Text style={{ color: colors.muted, fontSize: 12 }}>Velg indeksperiode. Serien byttes ikke selv om en nyere tabell finnes.</Text>
-            <View style={styles.row}>
-              {points.slice(-6).map((point) => (
-                <TouchableOpacity key={point.period} onPress={() => setSelectedPeriod(point.period)} style={[styles.ghost, { borderColor: (selectedPeriod || math?.regulationPoint?.period) === point.period ? colors.brand : colors.line }]}>
-                  <Text style={{ color: colors.ink }}>{periodLabel(point.period)} · {formatIndex(point.value)}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <OptionPicker
+              options={points.slice(-6).map((point) => ({ id: point.period, label: `${periodLabel(point.period)} · ${formatIndex(point.value)}` }))}
+              value={selectedPeriod || math?.regulationPoint?.period}
+              onChange={(period) => { if (period) setSelectedPeriod(period); }}
+              title="Indeksperiode"
+              clearable={false}
+            />
           </View>
           <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={[styles.h, { color: colors.ink }]}>2. Reguleringsperiode og virkning</Text>

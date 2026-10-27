@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, TextInput, Linking, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import OptionPicker from './OptionPicker';
 import { colors, radius } from '../src/theme';
 import { useLiveWidgets } from '../src/hooks/useLiveWidgets';
 import {
@@ -357,38 +358,45 @@ function Editor({ prefs, updatePrefs, placeName }) {
   return (
     <View style={styles.editor}>
       <Text style={styles.editorLbl}>Vis</Text>
-      <View style={styles.chips}>
-        {LIVE_WIDGETS.map((w) => (
-          <Chip key={w.id} label={w.title} on={enabled.has(w.id)} onPress={() => toggle(w.id)} />
-        ))}
-      </View>
+      <OptionPicker
+        options={LIVE_WIDGETS.map((w) => ({ id: w.id, label: w.title }))}
+        multiple
+        value={LIVE_WIDGETS.filter((w) => enabled.has(w.id)).map((w) => w.id)}
+        onChange={(ids) => {
+          const next = new Set(ids);
+          const changed = LIVE_WIDGETS.filter((w) => next.has(w.id) !== enabled.has(w.id));
+          if (changed.length === 1) toggle(changed[0].id);
+          else if (changed.length) updatePrefs({ enabled: (prefs.enabled || []).filter((id) => next.has(id) || !LIVE_WIDGETS.some((w) => w.id === id)) });
+        }}
+        title="Vis"
+      />
       {enabled.has('news') ? (
         <>
           <Text style={styles.editorLbl}>Nyhetskilde</Text>
-          <View style={styles.chips}>
-            {NEWS_SOURCES.map((s) => (
-              <Chip
-                key={s.id}
-                label={s.name}
-                on={prefs.newsSource === s.id}
-                onPress={() => updatePrefs({ newsSource: s.id })}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={NEWS_SOURCES.map((s) => ({ id: s.id, label: s.name }))}
+            value={prefs.newsSource}
+            onChange={(id) => { if (id) updatePrefs({ newsSource: id }); }}
+            title="Nyhetskilde"
+            clearable={false}
+          />
         </>
       ) : null}
       {enabled.has('stocks') ? (
         <>
           <Text style={styles.editorLbl}>Aksjer å følge</Text>
+          <OptionPicker
+            options={POPULAR_STOCKS.map((s) => ({ id: s.symbol, label: s.name }))}
+            multiple
+            value={followed.filter((sym) => popularSet.has(sym))}
+            onChange={(symbols) => {
+              // Egne symboler (utenfor listen) står. Nye legges sist, som før.
+              const keep = followed.filter((sym) => !popularSet.has(sym) || symbols.includes(sym));
+              setStocks([...keep, ...symbols.filter((sym) => !keep.includes(sym))]);
+            }}
+            title="Aksjer å følge"
+          />
           <View style={styles.chips}>
-            {POPULAR_STOCKS.map((s) => (
-              <Chip
-                key={s.symbol}
-                label={s.name}
-                on={followed.includes(s.symbol)}
-                onPress={() => toggleStock(s.symbol)}
-              />
-            ))}
             {extraSymbols.map((s) => (
               <Chip
                 key={s}
@@ -418,36 +426,32 @@ function Editor({ prefs, updatePrefs, placeName }) {
       {enabled.has('fx') ? (
         <>
           <Text style={styles.editorLbl}>Valuta mot NOK</Text>
-          <View style={styles.chips}>
-            {FX_CURRENCIES.map((c) => (
-              <Chip
-                key={c.code}
-                label={c.code}
-                on={fxCodes.includes(c.code)}
-                onPress={() => toggleFx(c.code)}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={FX_CURRENCIES.map((c) => ({ id: c.code, label: c.code }))}
+            multiple
+            value={fxCodes}
+            onChange={(codes) => { if (codes.length) updatePrefs({ fxCodes: codes }); }}
+            title="Valuta mot NOK"
+          />
         </>
       ) : null}
       {enabled.has('power') ? (
         <>
           <Text style={styles.editorLbl}>Strømområde</Text>
-          <View style={styles.chips}>
-            <Chip
-              label={placeName ? `Automatisk · ${placeName}` : 'Automatisk · området ditt'}
-              on={prefs.powerZoneAuto !== false}
-              onPress={() => updatePrefs({ powerZoneAuto: true })}
-            />
-            {POWER_ZONES.map((z) => (
-              <Chip
-                key={z.id}
-                label={`${z.id} ${z.label}`}
-                on={prefs.powerZoneAuto === false && prefs.powerZone === z.id}
-                onPress={() => updatePrefs({ powerZone: z.id, powerZoneAuto: false })}
-              />
-            ))}
-          </View>
+          <OptionPicker
+            options={[
+              { id: '__auto', label: placeName ? `Automatisk · ${placeName}` : 'Automatisk · området ditt' },
+              ...POWER_ZONES.map((z) => ({ id: z.id, label: `${z.id} ${z.label}` })),
+            ]}
+            value={prefs.powerZoneAuto !== false ? '__auto' : prefs.powerZone}
+            onChange={(id) => {
+              if (!id) return;
+              if (id === '__auto') updatePrefs({ powerZoneAuto: true });
+              else updatePrefs({ powerZone: id, powerZoneAuto: false });
+            }}
+            title="Strømområde"
+            clearable={false}
+          />
         </>
       ) : null}
     </View>

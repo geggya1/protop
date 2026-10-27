@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { classroomColors as c } from '../../src/classroomTheme';
+import OptionPicker from '../../components/OptionPicker';
 import {
   listenSubjects, listenLessonPlans, createLessonPlan, deleteLessonPlan, isClassroomAdmin,
 } from '../../src/utils/classroom';
@@ -137,17 +138,13 @@ export default function ClassroomLessonPlanScreen({ classroomId, classroom }) {
               <Text style={styles.label}>Tittel</Text>
               <TextInput style={styles.input} value={form.title} onChangeText={(t) => setForm((f) => ({ ...f, title: t }))} placeholder="Øktens tema" />
               <Text style={styles.label}>Fag</Text>
-              <View style={styles.chips}>
-                {subjects.map((s) => (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={[styles.chip, form.subjectId === s.id && styles.chipOn]}
-                    onPress={() => setForm((f) => ({ ...f, subjectId: s.id }))}
-                  >
-                    <Text style={[styles.chipTxt, form.subjectId === s.id && styles.chipTxtOn]}>{s.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <OptionPicker
+                options={subjects.map((s) => ({ id: s.id, label: s.name }))}
+                value={form.subjectId}
+                onChange={(id) => { if (id) setForm((f) => ({ ...f, subjectId: id })); }}
+                title="Fag"
+                clearable={false}
+              />
               <Text style={styles.label}>Dato (YYYY-MM-DD)</Text>
               <TextInput style={styles.input} value={form.dateKey} onChangeText={(t) => setForm((f) => ({ ...f, dateKey: t }))} />
               <Text style={styles.label}>Læringsmål (ett per linje)</Text>

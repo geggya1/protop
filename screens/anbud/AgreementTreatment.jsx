@@ -3,6 +3,7 @@ import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vi
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import InfoButton from '../../components/InfoButton';
+import OptionPicker from '../../components/OptionPicker';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
@@ -513,13 +514,20 @@ export default function AgreementTreatment({
         </View>
       ) : null}
 
-      {party === 'avsender' ? (
-        <View style={styles.row}>
-          {cases.map((item) => (
-            <Chip key={item.id} colors={colors} label={`${item.title} · ${statusLabel(item.status)}`} on={item.id === selected?.id} onPress={() => { setSelectedId(item.id); setVersionNo(item.version); }} />
-          ))}
-          {selected ? <Chip colors={colors} label="Ny" on={false} onPress={() => setSelectedId('')} /> : null}
-        </View>
+      {party === 'avsender' && cases.length ? (
+        <OptionPicker
+          options={[...cases.map((item) => ({ id: item.id, label: `${item.title} · ${statusLabel(item.status)}` })), { id: '', label: 'Ny' }]}
+          value={selected?.id || ''}
+          onChange={(id) => {
+            const item = id ? cases.find((row) => row.id === id) : null;
+            if (!item) { setSelectedId(''); return; }
+            setSelectedId(item.id);
+            setVersionNo(item.version);
+          }}
+          placeholder="Ny"
+          title="Avtale"
+          clearable={false}
+        />
       ) : null}
 
       {view && version ? (
@@ -601,11 +609,14 @@ export default function AgreementTreatment({
           ) : null}
           {(showDocument || party !== 'avsender' || view.status !== 'utkast') ? (
           <>
-          <View style={styles.row}>
-            {(view.versions || []).map((item) => (
-              <Chip key={item.number} colors={colors} label={`Versjon ${item.number}`} on={item.number === version.number} onPress={() => setVersionNo(item.number)} />
-            ))}
-          </View>
+          <OptionPicker
+            options={(view.versions || []).map((item) => ({ id: item.number, label: `Versjon ${item.number}` }))}
+            value={version.number}
+            onChange={(number) => { if (number !== '') setVersionNo(number); }}
+            title="Versjon"
+            clearable={false}
+            small
+          />
           <Text style={{ color: colors.muted, fontSize: 12 }}>Låst versjon {version.number}. PDF og Word er denne teksten.</Text>
           <View style={[styles.paper, { borderColor: colors.line, backgroundColor: colors.bg }]}>
             {(version.fields || []).map((field) => (

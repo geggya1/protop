@@ -5,6 +5,7 @@ import { levelById, placedLevelId } from '../../src/access/companyAccess';
 import { blankRepeatItem, readPath, setEmployeePath } from '../../src/employees/model';
 import { OWNER_LABEL, PURPOSE_LABEL, sectionsFor } from '../../src/employees/schema';
 import { PHONE_COUNTRIES, parsePhoneInput, splitPhone } from '../../src/utils/phone';
+import OptionPicker from '../../components/OptionPicker';
 
 function Chip({ label, on, onPress, colors, disabled }) {
   return (
@@ -43,17 +44,15 @@ function PhoneField({ value, onChangeText, colors, editable, placeholder }) {
 
   return (
     <View style={styles.phoneRow}>
-      <View style={styles.dials}>
-        {PHONE_COUNTRIES.slice(0, 4).map((country) => (
-          <Chip
-            key={country.code}
-            label={`${country.flag} ${country.dial}`}
-            on={dial === country.dial}
-            disabled={!editable}
-            onPress={() => write(country.dial, national)}
-            colors={colors}
-          />
-        ))}
+      <View style={{ maxWidth: 240 }}>
+        <OptionPicker
+          options={PHONE_COUNTRIES.map((country) => ({ id: country.dial, label: `${country.flag} ${country.dial}`, hint: country.name }))}
+          value={dial}
+          onChange={(next) => { if (next) write(next, national); }}
+          disabled={!editable}
+          title="Landskode"
+          clearable={false}
+        />
       </View>
       <TextInput
         value={national}
@@ -388,21 +387,14 @@ export function EmployeeField({
     return (
       <View style={styles.field}>
         {label}
-        <View style={styles.chips}>
-          {options.map((option) => (
-            <Chip
-              key={option.value}
-              label={option.label}
-              on={value === option.value}
-              disabled={!editable}
-              onPress={() => onChange(
-                field.key,
-                field.key === 'company.accessRole' || value !== option.value ? option.value : '',
-              )}
-              colors={colors}
-            />
-          ))}
-        </View>
+        <OptionPicker
+          options={options.map((option) => ({ id: option.value, label: option.label }))}
+          value={value}
+          onChange={(next) => onChange(field.key, next)}
+          disabled={!editable}
+          title={field.label}
+          clearable={field.key !== 'company.accessRole'}
+        />
         {field.type === 'suggest' ? (
           <TextInput
             value={String(value || '')}
@@ -428,25 +420,21 @@ export function EmployeeField({
     return (
       <View style={styles.field}>
         {label}
+        {(departments || []).length ? (
+          <OptionPicker
+            options={(departments || []).map((unit) => ({ id: unit.id, label: unit.name }))}
+            multiple
+            value={(draft.company?.departmentIds || []).filter((id) => (departments || []).some((unit) => unit.id === id))}
+            onChange={(ids) => {
+              // Id-er som ikke lenger finnes i listen, beholdes slik knappene gjorde.
+              const stale = (draft.company?.departmentIds || []).filter((id) => !(departments || []).some((unit) => unit.id === id));
+              onChange('company.departmentIds', [...stale, ...ids]);
+            }}
+            disabled={!editable}
+            title={field.label}
+          />
+        ) : null}
         <View style={styles.chips}>
-          {(departments || []).map((unit) => {
-            const on = (draft.company?.departmentIds || []).includes(unit.id);
-            return (
-              <Chip
-                key={unit.id}
-                label={unit.name}
-                on={on}
-                disabled={!editable}
-                colors={colors}
-                onPress={() => {
-                  const ids = new Set(draft.company?.departmentIds || []);
-                  if (ids.has(unit.id)) ids.delete(unit.id);
-                  else ids.add(unit.id);
-                  onChange('company.departmentIds', [...ids]);
-                }}
-              />
-            );
-          })}
           {extras.map((name) => (
             <Chip
               key={name}
@@ -485,25 +473,18 @@ export function EmployeeField({
     return (
       <View style={styles.field}>
         {label}
-        <View style={styles.chips}>
-          <Chip
-            label="Ikke knyttet"
-            on={!draft.personUid}
-            disabled={!editable}
-            colors={colors}
-            onPress={() => onChange('personUid', '')}
-          />
-          {(members || []).map((member) => (
-            <Chip
-              key={member.uid || member.id}
-              label={member.name || 'Medlem'}
-              on={draft.personUid === (member.uid || member.id)}
-              disabled={!editable}
-              colors={colors}
-              onPress={() => onChange('personUid', member.uid || member.id)}
-            />
-          ))}
-        </View>
+        <OptionPicker
+          options={[
+            { id: '', label: 'Ikke knyttet' },
+            ...(members || []).map((member) => ({ id: member.uid || member.id, label: member.name || 'Medlem' })),
+          ]}
+          value={draft.personUid || ''}
+          onChange={(id) => onChange('personUid', id || '')}
+          disabled={!editable}
+          placeholder="Ikke knyttet"
+          title={field.label}
+          clearable={false}
+        />
       </View>
     );
   }

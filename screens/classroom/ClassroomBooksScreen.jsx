@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { classroomColors as c } from '../../src/classroomTheme';
+import OptionPicker from '../../components/OptionPicker';
 import {
   listenSubjects, listenBookLists, createBookListItem, deleteBookListItem, isClassroomAdmin,
 } from '../../src/utils/classroom';
@@ -99,17 +100,13 @@ export default function ClassroomBooksScreen({ classroomId, classroom }) {
               <TextInput style={styles.input} value={form.author} onChangeText={(t) => setForm((f) => ({ ...f, author: t }))} placeholder="Forfatter" />
               <TextInput style={styles.input} value={form.isbn} onChangeText={(t) => setForm((f) => ({ ...f, isbn: t }))} placeholder="ISBN" />
               <Text style={styles.label}>Fag</Text>
-              <View style={styles.chips}>
-                {subjects.map((s) => (
-                  <TouchableOpacity
-                    key={s.id}
-                    style={[styles.chip, form.subjectId === s.id && styles.chipOn]}
-                    onPress={() => setForm((f) => ({ ...f, subjectId: s.id }))}
-                  >
-                    <Text style={[styles.chipTxt, form.subjectId === s.id && styles.chipTxtOn]}>{s.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <OptionPicker
+                options={subjects.map((s) => ({ id: s.id, label: s.name }))}
+                value={form.subjectId}
+                onChange={(id) => { if (id) setForm((f) => ({ ...f, subjectId: id })); }}
+                title="Fag"
+                clearable={false}
+              />
               <TextInput style={styles.input} value={form.purchaseUrl} onChangeText={(t) => setForm((f) => ({ ...f, purchaseUrl: t }))} placeholder="Kjøpslenke (https://…)" autoCapitalize="none" />
               <TextInput style={styles.input} value={form.notes} onChangeText={(t) => setForm((f) => ({ ...f, notes: t }))} placeholder="Notat" />
               <TouchableOpacity

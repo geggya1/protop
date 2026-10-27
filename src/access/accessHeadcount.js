@@ -1,38 +1,23 @@
 /**
- * Oversikt øverst i Tilgangsstyring: hvor mange ansatte og eksterne som har tilgang, totalt og per gruppe.
- * «Med tilgang» = aktive (deaktiverte har ingen rettigheter). Slettede telles ikke.
- * Ansatt eller ekstern følger personellgruppen (innleid regnes som ekstern), som ellers i appen.
- * En person med flere nivå står i hver gruppe som er huket av, men telles én gang i summen.
+ * Antall med tilgang i hver gruppe i Tilgangsstyring, vist i overskriften:
+ * «Ansatt i CONSULT1 AS (18)», «Fagansvar (1)», «Eksternt (13)».
+ * Med tilgang = aktive (deaktiverte har ingen rettigheter). Slettede telles ikke.
+ * Tallet er summen av aktive i gruppens nivåer, og hver person telles én gang per gruppe.
  */
 import { accessLevelSections, accountDeactivated, groupEmployeesByLevel } from './companyAccess.js';
-import { kindOf } from '../employees/employmentFlags.js';
 
-function tally(rows) {
-  let staff = 0;
-  let external = 0;
-  for (const employee of rows || []) {
-    if (kindOf(employee) === 'staff') staff += 1;
-    else external += 1;
+export function sectionHeadcounts(employees) {
+  const active = (employees || []).filter((employee) => (
+    employee?.company?.status !== 'deleted' && !accountDeactivated(employee)
+  ));
+  const { buckets } = groupEmployeesByLevel(active);
+  const counts = {};
+  for (const section of accessLevelSections()) {
+    const ids = new Set();
+    for (const level of section.levels) {
+      for (const employee of buckets[level.id] || []) ids.add(employee.id);
+    }
+    counts[section.id] = ids.size;
   }
-  return { staff, external, total: staff + external };
-}
-
-export function accessHeadcount(employees) {
-  const live = (employees || []).filter((employee) => employee?.company?.status !== 'deleted');
-  const active = live.filter((employee) => !accountDeactivated(employee));
-  const { buckets, unplaced } = groupEmployeesByLevel(active);
-  return {
-    total: tally(active),
-    deactivated: live.length - active.length,
-    unplaced: tally(unplaced),
-    sections: accessLevelSections().map((section) => ({
-      id: section.id,
-      levels: section.levels.map((level) => ({
-        id: level.id,
-        order: level.order,
-        label: level.label,
-        ...tally(buckets[level.id]),
-      })),
-    })),
-  };
+  return counts;
 }

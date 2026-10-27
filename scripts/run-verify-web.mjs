@@ -124,6 +124,13 @@ export const FILES = [
   'src/economy/projectExpensesScreen.test.cjs',
   'scripts/firestoreIndexes.test.mjs',
   'scripts/verify-app-updates.mjs',
+  // Rettighetene på ansatte, prosjekt og timer. Sto utenfor CI, så Lese fikk for mye uten at noe ble rødt.
+  'src/access/accessCeiling.test.mjs',
+  'src/access/viewAsStore.test.mjs',
+  'src/employees/employeeReadAccess.test.mjs',
+  'src/employees/personTabs.test.mjs',
+  'src/project/projectAccess.test.mjs',
+  'src/arbeid/employeeScheduleRender.test.cjs',
 ];
 
 function runFile(file) {

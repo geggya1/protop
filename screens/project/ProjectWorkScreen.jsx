@@ -323,14 +323,15 @@ function Chip({ label, on, onPress, colors }) {
 export default function ProjectWorkScreen() {
   const colors = useColors();
   const { isPhone } = useLayout();
-  const { familyId, requestShellTab, isAdmin: groupAdmin, uid, shellIntent, clearShellIntent } = useApp();
+  const { familyId, requestShellTab, uid, shellIntent, clearShellIntent } = useApp();
   const access = useCompanyAccess();
   // Admin på Prosjekt ser og endrer alt. Begrenset redigering og Lese får en avgrenset prosjektside.
-  const isAdmin = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canAdmin('projects'));
+  // Bare tilgangsstyringen gjelder; administratorlisten på selskapet (adminUids) gir ikke Admin her.
+  const isAdmin = access.ready && access.canAdmin('projects');
   const projectEditor = !isAdmin && access.ready
     && (access.canEdit('projects') || access.canEdit('assignedProjects'));
   const projectMode = isAdmin ? 'admin' : (projectEditor ? 'editor' : 'reader');
-  const canDeleteProjects = (groupAdmin && !access.previewLocks('projects')) || (access.ready && access.canAdmin('projects'));
+  const canDeleteProjects = isAdmin;
   // Bare Admin på Prosjekt ser alle prosjekter. Lese og begrenset redigering ser prosjektene de er deltaker i.
   const seesAllProjects = isAdmin;
   const cachedProjects = peekProjectState(familyId);

@@ -15,5 +15,7 @@ assert.ok(FILES.includes('src/help/protopPages.test.mjs'), 'alle sider har hjelp
 assert.ok(FILES.includes('src/help/helpAccess.test.mjs'), 'hjelpen følger tilgangsnivået');
 assert.ok(FILES.includes('src/help/assistantTasks.test.mjs'), 'assistentens oppgaver peker på ekte steg');
 assert.ok(FILES.includes('src/anbud/hitStore.test.mjs'), 'anbudstreffene blir liggende mellom besøk');
+assert.ok(FILES.includes('src/employees/employeeReadAccess.test.mjs'), 'Lese på ansatte ser bare hovedsiden på andre');
+assert.ok(FILES.includes('src/project/projectAccess.test.mjs'), 'prosjektsiden følger tilgangsstyringen');
 
 console.log('run-verify-web.test.mjs: ok');

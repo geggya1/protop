@@ -725,7 +725,7 @@ export const ASSISTANT_TASKS = [
     steps: [
       s(tx('Glemt passord', 'Forgot password'), 'På innloggingen: skriv e-postadressen og trykk «Glemt passord».', 'On the sign-in page: enter your email and tap “Forgot password”.'),
       s(tx('Endre når du er innlogget', 'Change while signed in'), 'Innstillinger → «Rediger profil» → «Send lenke for å endre passord».', 'Settings → “Edit profile” → “Send a link to change password”.'),
-      s(tx('For en ansatt', 'For an employee'), 'Administrator: Ansatte → personen → «Endre passord» → «Send passordlenke».', 'Administrator: Employees → the person → “Change password” → “Send password link”.', gate('ansatte', 0)),
+      s(tx('For en ansatt', 'For an employee'), 'Administrator: Ansatte → personen → Innstillinger → «Endre passord» → «Send passordlenke».', 'Administrator: Employees → the person → Settings → “Change password” → “Send password link”.', gate('ansatte', 0)),
     ],
     after: tx('Kommer ikke e-posten, sjekk søppelpost og at adressen er riktig.', 'If the email doesn’t arrive, check spam and that the address is right.'),
     show: [at('settings', 0)],

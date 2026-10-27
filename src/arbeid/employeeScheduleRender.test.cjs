@@ -178,7 +178,7 @@ const tree = withHooks(() => React.createElement(EmployeeWorkViews, {
   employee,
   colors,
   canEdit: true,
-  initialSub: 'work',
+  sub: 'work',
   onSave() {},
 }));
 const text = collectText(tree).join('\n');
@@ -202,7 +202,7 @@ function settingsRows(person) {
     employee: person,
     colors,
     canEdit: true,
-    initialSub: 'general',
+    sub: 'general',
     onSave() {},
   }));
   return checkRows(view);
@@ -255,5 +255,18 @@ const promotedByLabel = Object.fromEntries(promotedRows.map((row) => [row.label,
 assert.equal(promotedByLabel['Er ekstern konsulent'].checked, false);
 assert.equal(promotedByLabel['Inkluder i selskapets kapasitetsoversikt'].checked, true);
 assert.equal(promotedByLabel['Skal låse timelisten'].pressable, true);
+
+// Menyen for brukerinnstillingene ligger øverst på personen, ikke som egen tittel og faner her.
+assert.doesNotMatch(text, /Brukerinnstillinger/);
+
+// Uten rett til å endre: ingen passordlenke, og varslene kan ikke slås av eller på.
+function settingsView(sub, canEdit) {
+  return withHooks(() => React.createElement(EmployeeWorkViews, {
+    mode: 'settings', employee, colors, canEdit, sub, onSave() {},
+  }));
+}
+assert.match(collectText(settingsView('password', true)).join('\n'), /Send passordlenke/);
+assert.doesNotMatch(collectText(settingsView('password', false)).join('\n'), /Send passordlenke/);
+for (const row of checkRows(settingsView('notify', false))) assert.equal(row.disabled, true, row.label);
 
 console.log('employeeScheduleRender.test.cjs: ok');

@@ -72,7 +72,7 @@ export const PAGE_ACCESS = {
   'okonomi.indekser': { res: 'economyIndices', steps: [S] },
   'okonomi.innstillinger': { res: 'economySettings', steps: [W, W] },
   'okonomi.inntjening': { res: 'economyEarnings', steps: [S, W] },
-  'okonomi.produkter': { res: 'products', steps: [R, R, S] },
+  'okonomi.produkter': { res: 'products', steps: [S, R, R, R, S] },
   'okonomi.kjorebok': { res: 'mileage', steps: [R, R, R, S] },
 
   kunder: { res: 'customers', steps: [R, R, S, W] },

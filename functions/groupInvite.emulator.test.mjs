@@ -19,10 +19,13 @@ const { claimEmployeeInvite } = await import('./employeeInvite.js');
 const db = getFirestore();
 const A = 'companyA';
 
-function call(fn, uid, data, { verified = true } = {}) {
+function call(fn, uid, data, { verified = true, provider = 'password' } = {}) {
   return fn.run({
     data,
-    auth: uid ? { uid, token: { email: `${uid}@firma.no`, email_verified: verified } } : null,
+    auth: uid ? {
+      uid,
+      token: { email: `${uid}@firma.no`, email_verified: verified, firebase: { sign_in_provider: provider } },
+    } : null,
     rawRequest: { headers: {}, ip: '127.0.0.1' },
   });
 }
@@ -102,14 +105,28 @@ describe('ny bruker invitert på e-post', () => {
     assert.equal((await data(`families/${A}/employees/emp_nina`)).personUid, undefined);
   });
 
-  test('ubekreftet e-post får ingen invitasjon i innboksen, bare navn og type å vise', async () => {
+  test('ubekreftet e-post får ingen invitasjon i innboksen', async () => {
     const res = await call(syncMyInvites, 'nina', {}, { verified: false });
     assert.equal(res.skipped, 'email-not-verified');
-    assert.deepEqual(res.pending, [{ familyId: A, familyName: 'Rådgiver AS', groupType: 'organization' }]);
     assert.equal((await db.collection('users/nina/familyInvites').get()).size, 0);
-    assert.equal((await db.collection(`families/${A}/memberInvites`).where('inviteeUid', '==', 'nina').get()).size, 0);
-    assert.equal((await call(syncMyInvites, 'ext', {}, { verified: false })).pending.length, 0);
   });
+
+  for (const provider of ['microsoft.com', 'google.com']) {
+    test(`innlogget med ${provider}: invitasjonen vises og kan godtas uten egen bekreftelse`, async () => {
+      // Firebase merker ikke e-post fra Microsoft som bekreftet.
+      const opts = { verified: false, provider };
+      const { invites } = await call(syncMyInvites, 'nina', {}, opts);
+      assert.equal(invites.length, 1);
+      const { inviteId } = invites[0];
+      assert.equal((await data(`users/nina/familyInvites/${inviteId}`)).status, 'pending');
+      const res = await call(respondGroupInvite, 'nina', { familyId: A, inviteId, response: 'accepted' }, opts);
+      assert.equal(res.ok, true);
+      assert.ok((await members()).includes('nina'));
+      const claim = await call(claimEmployeeInvite, 'nina', { familyId: A }, opts);
+      assert.notEqual(claim.needsVerifiedEmail, true);
+      assert.equal((await data(`families/${A}/employees/emp_nina`)).personUid, 'nina');
+    });
+  }
 
   test('bekreftet e-post: invitasjonen havner i innboksen med varsel, uten medlemskap', async () => {
     const first = await call(syncMyInvites, 'nina', {});

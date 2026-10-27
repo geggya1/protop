@@ -4,7 +4,6 @@ import React, {
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform, AppState,
 } from 'react-native';
-import { reload } from 'firebase/auth';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../src/context/AppContext';
@@ -18,7 +17,6 @@ import {
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { auth } from '../firebase';
 import { syncMyInvites } from '../src/utils/invite';
-import { sendVerificationEmailV2 } from '../src/utils/sendVerificationEmail';
 import { inviteResponseMessage, isCompanyGroupType } from '../src/utils/groupInviteLogic';
 import {
   listenIncomingGameInvites,
@@ -36,19 +34,6 @@ import {
 
 /** Ny henting når appen får fokus igjen. Serveren tillater 60 i timen. */
 const INVITE_SYNC_GAP_MS = 2 * 60 * 1000;
-/** Bekreftelseslenken sendes av seg selv høyst så ofte. «Send på nytt» virker alltid. */
-const VERIFY_MAIL_GAP_MS = 12 * 60 * 60 * 1000;
-const verifyMailSentAt = new Map();
-
-function verifyMailKey(uid) {
-  return `protop.inviteVerifySent.${uid}`;
-}
-
-function verifyMailRecentlySent(uid) {
-  let at = verifyMailSentAt.get(uid) || 0;
-  try { at = Math.max(at, Number(globalThis.localStorage?.getItem(verifyMailKey(uid)) || 0)); } catch { /* native */ }
-  return Date.now() - at < VERIFY_MAIL_GAP_MS;
-}
 
 /** Passordbrukere bekrefter på «Bekreft e-posten»-siden og har fått lenken ved registrering. */
 function isPasswordUser(user) {
@@ -56,16 +41,9 @@ function isPasswordUser(user) {
   return !provider || provider === 'password';
 }
 
-function markVerifyMailSent(uid) {
-  const now = Date.now();
-  verifyMailSentAt.set(uid, now);
-  try { globalThis.localStorage?.setItem(verifyMailKey(uid), String(now)); } catch { /* native */ }
-}
-
 /**
  * Full-screen mandatory invite gate after login.
- * Cannot be dismissed without Accept or Decline. The confirm-email card for an
- * invite that waits on email confirmation can be put off with «Senere».
+ * Cannot be dismissed without Accept or Decline.
  */
 export default function InviteRespondOverlay({ enabled = true, onPendingChange }) {
   const { t } = useI18n();
@@ -95,22 +73,14 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, enabled]);
 
   // Ny bruker invitert på e-post: serveren legger invitasjonen i innboksen når e-posten er
-  // bekreftet. Hentes ved innlogging, når e-posten blir bekreftet og når appen får fokus igjen.
-  // Ubekreftet e-post (Microsoft-innlogging) gir bare navnet på gruppen: da vises invitasjonen
-  // med en bekreftelseslenke, og Godta/Avslå kommer når lenken er trykket.
+  // bekreftet, eller personen er innlogget med Google, Microsoft eller Apple. Hentes ved
+  // innlogging, når e-posten blir bekreftet og når appen får fokus igjen.
   const [emailVerified, setEmailVerified] = useState(() => !!auth.currentUser?.emailVerified);
-  const [unverified, setUnverified] = useState([]);
-  const [verifyLater, setVerifyLater] = useState(false);
-  const [verifyBusy, setVerifyBusy] = useState(false);
-  const [verifyNote, setVerifyNote] = useState(null);
   const syncBusyRef = useRef(false);
   const lastSyncRef = useRef(0);
 
   useEffect(() => {
     lastSyncRef.current = 0;
-    setUnverified([]);
-    setVerifyLater(false);
-    setVerifyNote(null);
     if (!uid) return undefined;
     const check = () => !!auth.currentUser?.emailVerified;
     if (check()) {
@@ -139,10 +109,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         } catch { /* bruker gammelt token */ }
       }
       const res = await syncMyInvites();
-      if (res?.ok) {
-        lastSyncRef.current = Date.now();
-        setUnverified(res.skipped === 'email-not-verified' ? (res.pending || []) : []);
-      }
+      if (res?.ok) lastSyncRef.current = Date.now();
       return res;
     } finally {
       syncBusyRef.current = false;
@@ -181,62 +148,6 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     return () => sub.remove();
   }, [uid, enabled, runInviteSync]);
 
-  const showVerify = enabled && unverified.length > 0 && !verifyLater;
-
-  // Lenken sendes av seg selv første gang invitasjonen vises.
-  useEffect(() => {
-    const email = auth.currentUser?.email;
-    if (!showVerify || !uid || !email || verifyMailRecentlySent(uid)) return;
-    markVerifyMailSent(uid);
-    sendVerificationEmailV2(email).catch((e) => setVerifyNote({ text: e?.message || t('common.error') }));
-  }, [showVerify, uid]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Lenken kan bli trykket i en annen fane eller på telefonen.
-  useEffect(() => {
-    if (!showVerify) return undefined;
-    const timer = setInterval(async () => {
-      const me = auth.currentUser;
-      if (!me) return;
-      try { await reload(me); } catch { return; }
-      if (me.emailVerified) setEmailVerified(true);
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [showVerify]);
-
-  const resendVerifyMail = async () => {
-    const email = auth.currentUser?.email;
-    if (!email || verifyBusy) return;
-    setVerifyBusy(true);
-    setVerifyNote(null);
-    try {
-      await sendVerificationEmailV2(email);
-      markVerifyMailSent(uid);
-      setVerifyNote({ text: t('member.inviteVerifyResent'), ok: true });
-    } catch (e) {
-      setVerifyNote({ text: e?.message || t('common.error') });
-    } finally {
-      setVerifyBusy(false);
-    }
-  };
-
-  const checkVerified = async () => {
-    const me = auth.currentUser;
-    if (!me || verifyBusy) return;
-    setVerifyBusy(true);
-    setVerifyNote(null);
-    try {
-      try { await reload(me); } catch { /* ignore */ }
-      if (me.emailVerified) {
-        setEmailVerified(true);
-        await runInviteSync();
-      } else {
-        setVerifyNote({ text: t('member.inviteVerifyNotYet') });
-      }
-    } finally {
-      setVerifyBusy(false);
-    }
-  };
-
   useEffect(() => {
     if (!uid || !enabled || !familyId) {
       setFamilyGameInvites([]);
@@ -263,8 +174,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     return [...byKey.values()];
   }, [gameInvites, familyGameInvites]);
 
-  const pendingCount = familyInvites.length + mergedGameInvites.length + friendInvites.length
-    + (showVerify ? 1 : 0);
+  const pendingCount = familyInvites.length + mergedGameInvites.length + friendInvites.length;
   useEffect(() => {
     onPendingChange?.(enabled ? pendingCount > 0 : false);
   }, [enabled, pendingCount, onPendingChange]);
@@ -322,76 +232,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     return inviteResponseMessage(code) || (code && !/^[a-z-]+$/.test(code) ? code : t('common.error'));
   };
 
-  if (!enabled || !uid) return null;
-  if (!current) {
-    if (!showVerify) return null;
-    const pend = unverified[0];
-    const pendCompany = isCompanyGroupType(pend.groupType);
-    const pendCopy = groupInviteCopy(pend.groupType, pend.familyName);
-    return (
-      <Modal
-        visible
-        transparent
-        animationType="fade"
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-        onRequestClose={() => setVerifyLater(true)}
-      >
-        <View style={styles.backdrop} accessibilityViewIsModal>
-          <View style={styles.card} testID="invite-verify-email">
-            <View style={styles.iconWrap}>
-              <Ionicons name="mail-unread" size={36} color={colors.brand} />
-            </View>
-            <Text style={styles.kicker}>
-              {pendCompany ? t('member.companyInviteTitle') : (pendCopy?.title || t('member.familyInviteTitle'))}
-            </Text>
-            <Text style={styles.lead}>
-              {pendCompany ? t('member.companyInviteLead') : t('member.familyInviteLead')}
-              {` «${pendCopy?.bodyName || pend.familyName}».`}
-            </Text>
-            <Text style={styles.hint}>
-              {t('member.inviteVerifyLead').replace('{email}', auth.currentUser?.email || '')}
-            </Text>
-            {unverified.length > 1 ? (
-              <Text style={styles.queue}>
-                {unverified.length - 1} {t('member.moreInvitesWaiting')}
-              </Text>
-            ) : null}
-            {verifyNote ? <Text style={verifyNote.ok ? styles.note : styles.error}>{verifyNote.text}</Text> : null}
-            <View style={styles.row}>
-              <TouchableOpacity
-                style={[styles.declineBtn, verifyBusy && styles.disabled]}
-                onPress={resendVerifyMail}
-                disabled={verifyBusy}
-                accessibilityRole="button"
-              >
-                <Text style={styles.declineTxt}>{t('member.inviteVerifyResend')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.acceptBtn, verifyBusy && styles.disabled]}
-                onPress={checkVerified}
-                disabled={verifyBusy}
-                accessibilityRole="button"
-              >
-                {verifyBusy ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.acceptTxt}>{t('member.inviteVerifyDone')}</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={styles.later}
-              onPress={() => setVerifyLater(true)}
-              accessibilityRole="button"
-            >
-              <Text style={styles.laterTxt}>{t('member.inviteVerifyLater')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    );
-  }
+  if (!enabled || !uid || !current) return null;
 
   const onAccept = async () => {
     if (busy || !current) return;
@@ -673,12 +514,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   disabled: { opacity: 0.55 },
-  note: {
-    textAlign: 'center',
-    color: colors.muted,
-    fontWeight: '400',
-    fontSize: 13,
-  },
-  later: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 12 },
-  laterTxt: { color: colors.muted, fontWeight: '400', fontSize: 14 },
 });

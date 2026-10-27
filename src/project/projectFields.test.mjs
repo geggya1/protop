@@ -44,12 +44,11 @@ const scrubbed = scrubProjectFields({
   feeEstimate: 1500,
 });
 assert.equal(scrubbed.pricingModel, 'not_billable');
-assert.equal(scrubbed.hoursPeriod, null);
-assert.equal(scrubbed.billableHours, null);
-assert.equal(scrubbed.inboxEmail, null);
-assert.equal(scrubbed.customerTags, null);
-assert.equal(scrubbed.supplierLabel, null);
-assert.equal(scrubbed.createdBy, null);
+// Feltene fjernes helt. Som null tok de plass i prosjektdokumentet (1 MiB-tak).
+for (const key of ['hoursPeriod', 'billableHours', 'inboxEmail', 'customerTags', 'supplierLabel', 'createdBy']) {
+  assert.equal(key in scrubbed, false, `${key} skal være fjernet`);
+}
+assert.equal(scrubProjectFields({ id: 'x', hoursPeriod: null, size: null }).size, undefined);
 
 const settings = normalizePricingSettings({ hourlyRate: 1200 }, 'hourly');
 assert.equal(settings.hourlyRate, 1200);
@@ -69,8 +68,8 @@ state = created.state;
 const project = state.projects[0];
 assert.equal(project.pricingModel, 'hourly');
 assert.equal(project.feeEstimate, 950);
-assert.equal(project.hoursPeriod, null);
-assert.equal(project.inboxEmail, null);
+assert.equal('hoursPeriod' in project, false);
+assert.equal('inboxEmail' in project, false);
 
 const withDocs = addProjectAgreementDocuments(state, project.id, [
   { name: 'Avtale.pdf', url: 'https://example.com/a.pdf' },
@@ -96,12 +95,12 @@ const normalized = normalizeProjectState({
   }],
 });
 assert.equal(normalized.projects[0].pricingModel, 'not_billable');
-assert.equal(normalized.projects[0].hoursPeriod, null);
-assert.equal(normalized.projects[0].exportStatus, null);
-assert.equal(normalized.projects[0].createdBy, null);
+assert.equal('hoursPeriod' in normalized.projects[0], false);
+assert.equal('exportStatus' in normalized.projects[0], false);
+assert.equal('createdBy' in normalized.projects[0], false);
 
 const scrubbedState = scrubProjectState({ projects: [{ id: 'a', hoursPeriod: 1, inboxEmail: 'm' }] });
-assert.equal(scrubbedState.projects[0].hoursPeriod, null);
-assert.equal(scrubbedState.projects[0].inboxEmail, null);
+assert.equal('hoursPeriod' in scrubbedState.projects[0], false);
+assert.equal('inboxEmail' in scrubbedState.projects[0], false);
 
 console.log('projectFields.test.mjs: ok');

@@ -238,12 +238,16 @@ function normalizeDocList(list) {
     .filter(Boolean);
 }
 
-/** Nullstill automatiske felter og Moment-rester på ett prosjekt. */
+/**
+ * Fjern automatiske felter og Moment-rester på ett prosjekt.
+ * Feltene slettes i stedet for å lagres som null: 26 tomme felt per prosjekt
+ * sprengte 1 MiB-taket på prosjektdokumentet.
+ */
 export function scrubProjectFields(project = {}) {
   if (!project || typeof project !== 'object') return project;
   const next = { ...project };
-  for (const key of PROJECT_AUTO_KEYS) next[key] = null;
-  for (const key of PROJECT_LEGACY_KEYS) next[key] = null;
+  for (const key of PROJECT_AUTO_KEYS) delete next[key];
+  for (const key of PROJECT_LEGACY_KEYS) delete next[key];
   next.pricingModel = normalizePricingModel(next.pricingModel);
   next.pricingSettings = normalizePricingSettings(next.pricingSettings, next.pricingModel);
   if (next.feeEstimate !== undefined && next.pricingModel) {
@@ -261,7 +265,7 @@ export function scrubProjectFields(project = {}) {
   return next;
 }
 
-/** Nullstill auto-/legacy-felter på alle prosjekter i state. */
+/** Fjern auto-/legacy-felter på alle prosjekter i state. */
 export function scrubProjectState(state) {
   if (!state || typeof state !== 'object') return state;
   const projects = Array.isArray(state.projects)

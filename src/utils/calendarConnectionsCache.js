@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MEMORY = new Map();
-const STORAGE_PREFIX = 'weekplan.calConnections.v1';
+const STORAGE_PREFIX = 'protop.calConnections.v1';
 const DEFAULT_TTL_MS = 15 * 60 * 1000;
 const STORAGE_TTL_MS = 12 * 60 * 60 * 1000;
 

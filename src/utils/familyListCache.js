@@ -6,7 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const MEMORY = new Map();
-const PREFIX = 'weekplan.familiesCache.v1';
+const PREFIX = 'protop.familiesCache.v1';
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 const STORAGE_TTL_MS = 24 * 60 * 60 * 1000;
 

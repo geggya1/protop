@@ -1,4 +1,6 @@
 // index.js
+// Først: flytter lagrede nøkler fra før ProTop, før noen modul leser dem.
+import './src/utils/legacyStorageBootstrap';
 import React from 'react';
 import { Platform } from 'react-native';
 import { registerRootComponent } from 'expo';

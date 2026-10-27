@@ -1,13 +1,13 @@
 /** Dags-/ukesvisning, fagfarger og voksen-tilgang for barnets ukeplan. */
 import { PREP_RULES } from './schedulePrepTasks.js';
 import {
-  WEEKPLAN_DAYS,
-  WEEKPLAN_DAY_KEYS,
+  WEEKLY_PLAN_DAYS,
+  WEEKLY_PLAN_DAY_KEYS,
   filledDaySlots,
   slotTimeRange,
   formatSlotRange,
   isScheduleBreak,
-} from './weekPlanGrid.js';
+} from './weeklyPlanGrid.js';
 import { parseTimeToMinutes } from './timeGrid.js';
 import { addDays, startOfWeekMonday, getISOWeek } from './dates.js';
 
@@ -47,7 +47,7 @@ export function canAdultEditSchedule({ isParent, isChild, isAdmin } = {}) {
 export function planDayKeyFromDate(date) {
   if (!date || Number.isNaN(date.getTime?.() ?? date.getTime())) return null;
   const key = JS_TO_DAY[date.getDay()];
-  return WEEKPLAN_DAY_KEYS.includes(key) ? key : null;
+  return WEEKLY_PLAN_DAY_KEYS.includes(key) ? key : null;
 }
 
 /** Helg → mandag, ellers ukedagen. */
@@ -60,13 +60,13 @@ export function schoolMonday(date = new Date(), weekOffset = 0) {
 }
 
 export function dateForPlanDay(monday, dayKey) {
-  const idx = WEEKPLAN_DAY_KEYS.indexOf(dayKey);
+  const idx = WEEKLY_PLAN_DAY_KEYS.indexOf(dayKey);
   if (idx < 0) return monday;
   return addDays(monday, idx);
 }
 
 export function schoolWeekDays(monday) {
-  return WEEKPLAN_DAYS.map((d, i) => ({
+  return WEEKLY_PLAN_DAYS.map((d, i) => ({
     ...d,
     date: addDays(monday, i),
   }));
@@ -228,7 +228,7 @@ export function resolveWeekProgramFocus(timetable, now = new Date()) {
       color: item.style?.color || '#2F80ED',
     }));
 
-  const weekDays = WEEKPLAN_DAYS.map((d) => {
+  const weekDays = WEEKLY_PLAN_DAYS.map((d) => {
     const slots = filledDaySlots(timetable, d.key);
     const first = slots.find((s) => !isScheduleBreak(s.subject));
     return {

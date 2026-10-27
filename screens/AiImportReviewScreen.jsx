@@ -33,7 +33,7 @@ import { partitionImportSuggestions, groupScheduleSlotsByDay } from '../src/util
 import { childFromRouteParams, childScheduleNavParams, lekserNavParams, paramBool } from '../src/utils/childNav';
 import { applyHomeworkFocusToSuggestions } from '../src/utils/homeworkImport';
 import { HOMEWORK_SUBJECTS, groupHomeworkBySubject, inferSubjectId } from '../src/utils/homework';
-import { formatSlotRange } from '../src/utils/weekPlanGrid';
+import { formatSlotRange } from '../src/utils/weeklyPlanGrid';
 import {
   PERIOD_PRESETS,
   defaultSchedulePeriod,

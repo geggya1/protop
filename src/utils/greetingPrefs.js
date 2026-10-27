@@ -4,7 +4,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const GREETING_PREFS_KEY = 'weekplan.greetingPrefs.v1';
+export const GREETING_PREFS_KEY = 'protop.greetingPrefs.v1';
 
 const listeners = new Set();
 

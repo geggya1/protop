@@ -46,7 +46,7 @@ async function exchangeCode(code, creds) {
   if (!creds?.clientId || !creds?.clientSecret) {
     throw new HttpsError(
       'failed-precondition',
-      'Strava er ikke satt opp. Opprett en API-app på strava.com/settings/api og lim inn Client ID + Secret i Weekplan.',
+      'Strava er ikke satt opp. Opprett en API-app på strava.com/settings/api og lim inn Client ID + Secret i ProTop.',
     );
   }
   const body = new URLSearchParams({
@@ -458,7 +458,7 @@ export const stravaWebhook = onRequest(
   async (req, res) => {
     const db = getFirestore();
     const verifyToken = String(process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || '').trim();
-    if (!verifyToken || verifyToken === 'weekplan-strava') {
+    if (!verifyToken || verifyToken === 'protop-strava') {
       logger.error('STRAVA_WEBHOOK_VERIFY_TOKEN mangler eller bruker usikker default');
       res.status(503).send('Webhook not configured');
       return;
@@ -567,7 +567,7 @@ export const registerStravaWebhook = onCall(
       );
     }
     const verifyToken = String(process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || '').trim();
-    if (!verifyToken || verifyToken === 'weekplan-strava') {
+    if (!verifyToken || verifyToken === 'protop-strava') {
       throw new HttpsError(
         'failed-precondition',
         'Sett STRAVA_WEBHOOK_VERIFY_TOKEN (sterk, unik verdi) før webhook registreres.',

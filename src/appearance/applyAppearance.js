@@ -43,7 +43,7 @@ export function applyAppearanceScheme(scheme, { followSystem = false } = {}) {
 export function readAppearancePrefsSync() {
   if (Platform.OS !== 'web' || typeof localStorage === 'undefined') return null;
   try {
-    const raw = localStorage.getItem('weekplan.appearance.v1');
+    const raw = localStorage.getItem('protop.appearance.v1');
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {

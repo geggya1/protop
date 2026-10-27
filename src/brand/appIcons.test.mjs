@@ -138,7 +138,7 @@ const og = await meta('public/og-image.png');
 assert.equal(og.width, 1200);
 assert.equal(og.height, 630);
 
-const lockup = await meta('assets/weekplan-logo-transparent.png');
+const lockup = await meta('assets/protop-logo-transparent.png');
 assert.equal(lockup.width, 1306);
 assert.equal(lockup.height, 481);
 assert.equal(lockup.hasAlpha, true);

@@ -16,7 +16,7 @@ import {
   resolveWeekProgramFocus,
   remindersForDay,
   statusLabel,
-} from './weekPlanView.js';
+} from './weeklyPlanView.js';
 
 assert.equal(canAdultEditSchedule({ isParent: true, isChild: false, isActingAsChild: false }), true);
 assert.equal(canAdultEditSchedule({ isParent: true, isChild: false, isActingAsChild: true }), true);
@@ -110,4 +110,4 @@ assert.equal(weekend.dayKey, 'mon');
 assert.equal(weekend.reason, 'weekend');
 assert.equal(weekend.lessons[0].title, 'Matte');
 
-console.log('weekPlanView.test.mjs ok');
+console.log('weeklyPlanView.test.mjs ok');

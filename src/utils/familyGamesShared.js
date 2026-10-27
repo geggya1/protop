@@ -80,11 +80,11 @@ async function writeGameInviteInbox(inviteeUid, payload) {
     await setDoc(doc(db, 'users', inviteeUid, 'gameInvites', id), data, { merge: true });
   } catch (err) {
     // Older rules only allow create (not host update). Fall back to create-only fields.
-    console.warn('[weekplan-notif] gameInvite inbox merge failed', err?.code, err?.message);
+    console.warn('[protop-notif] gameInvite inbox merge failed', err?.code, err?.message);
     try {
       await setDoc(doc(db, 'users', inviteeUid, 'gameInvites', id), data);
     } catch (err2) {
-      console.warn('[weekplan-notif] gameInvite inbox write failed', err2?.code, err2?.message);
+      console.warn('[protop-notif] gameInvite inbox write failed', err2?.code, err2?.message);
       throw err2;
     }
   }
@@ -111,7 +111,7 @@ export async function notifyGameInvites(familyId, {
 }) {
   const invited = normalizeInviteUids(invitedUids, hostUid);
   if (!invited.length || !gameId || !gameType) {
-    console.warn('[weekplan-notif] notifyGameInvites skipped', {
+    console.warn('[protop-notif] notifyGameInvites skipped', {
       invited: invited.length,
       raw: (invitedUids || []).length,
       gameId,
@@ -135,7 +135,7 @@ export async function notifyGameInvites(familyId, {
       invitedUids: invited,
     });
   } catch (err) {
-    console.warn('[weekplan-notif] notifyFriendGameInvitesAdmin failed', err?.code || err?.message);
+    console.warn('[protop-notif] notifyFriendGameInvitesAdmin failed', err?.code || err?.message);
   }
 
   const inboxResults = await Promise.allSettled(
@@ -150,7 +150,7 @@ export async function notifyGameInvites(familyId, {
   );
   const inboxFailed = inboxResults.filter((r) => r.status === 'rejected').length;
   if (inboxFailed) {
-    console.warn('[weekplan-notif] gameInvite inbox writes failed', inboxFailed);
+    console.warn('[protop-notif] gameInvite inbox writes failed', inboxFailed);
   }
 
   const notif = await notifyUsers(invited, {
@@ -293,7 +293,7 @@ export async function selfHealGameInviteInbox(uid, invite) {
       gameTitle: label,
     });
   } catch (err) {
-    console.warn('[weekplan-notif] self-heal gameInvite inbox', err?.code, err?.message);
+    console.warn('[protop-notif] self-heal gameInvite inbox', err?.code, err?.message);
   }
   try {
     await notifyUsers([uid], {
@@ -308,7 +308,7 @@ export async function selfHealGameInviteInbox(uid, invite) {
       notificationId: `gameInvite_${invite.gameType}_${invite.gameId}`,
     });
   } catch (err) {
-    console.warn('[weekplan-notif] self-heal gameInvite notif', err?.code, err?.message);
+    console.warn('[protop-notif] self-heal gameInvite notif', err?.code, err?.message);
   }
 }
 

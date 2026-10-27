@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { resolveMailApiKey } from './mailApiKey.js';
 
-delete process.env.WEEKPLAN_MAIL_KEY;
+delete process.env.PROTOP_MAIL_KEY;
 delete process.env.MAIL_API_KEY;
 
 let secret = null;

@@ -5,7 +5,7 @@ import {
   collectPendingAttestations,
   kidProgressSummary,
   kidProgressRows,
-  weekPlanForChild,
+  weeklyPlanForChild,
   attestKeysThroughToday,
 } from './familyProgress.js';
 
@@ -69,7 +69,7 @@ const pending = collectPendingAttestations(kids, kidMap, attestKeysThroughToday(
 assert.ok(pending.some((p) => p.todoId === 'a1' && p.dateKey === '2026-08-31'));
 assert.equal(pending.some((p) => p.todoId === 't1'), false); // already attested
 
-const plan = weekPlanForChild([trashA, teeth], weekKeys);
+const plan = weeklyPlanForChild([trashA, teeth], weekKeys);
 assert.equal(plan.length, 7);
 const wed = plan.find((d) => d.dateKey === '2026-09-02');
 assert.ok(wed.chores.some((c) => c.title === 'Ta søppel'));

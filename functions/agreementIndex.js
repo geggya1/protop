@@ -1,6 +1,6 @@
 /**
  * Deploy entry for avtalebehandling.
- * Uses WEEKPLAN_MAIL_KEY / runtime MAIL_API_KEY, not defineSecret.
+ * Uses PROTOP_MAIL_KEY / runtime MAIL_API_KEY, not defineSecret.
  */
 import './setRegion.js';
 import { initializeApp, getApps } from 'firebase-admin/app';

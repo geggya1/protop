@@ -71,7 +71,7 @@ export function useFriendChatSelfNotify(uid, prefs) {
         };
 
         setDoc(doc(db, 'users', uid, 'notifications', notifId), payload).catch((err) => {
-          console.warn('[weekplan-notif] friend chat self-notify inbox', err?.code, err?.message);
+          console.warn('[protop-notif] friend chat self-notify inbox', err?.code, err?.message);
         });
 
         if (!pushSupported()) return;

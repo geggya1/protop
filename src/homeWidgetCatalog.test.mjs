@@ -29,6 +29,7 @@ import {
   setWidgetVariantInList,
   isWidgetOn,
 } from './homeWidgetCatalog.js';
+import { LEGACY_WIDGET_TYPES } from './utils/legacyNames.js';
 
 assert.equal(DEFAULT_HOME_LOOK, 'oversikt');
 assert.deepEqual(HOME_LOOKS.map((l) => l.id), ['oversikt', 'fokus']);
@@ -130,7 +131,13 @@ assert.equal(
   0,
 );
 assert.ok(catalogForRole('parent').every((w) => !['rewards', 'goals', 'progress', 'messages', 'family', 'location', 'activities', 'familyTree', 'shopping', 'meals'].includes(w.type)));
-assert.ok(catalogForRole('parent').some((w) => w.type === 'weekPlan'));
+assert.ok(catalogForRole('parent').some((w) => w.type === 'weeklyPlan'));
+const [legacyWeekType] = Object.keys(LEGACY_WIDGET_TYPES);
+assert.equal(
+  normalizeWidgets([{ id: 'saved-week', type: legacyWeekType, size: 'full' }], 'parent')[0]?.type,
+  'weeklyPlan',
+  'en lagret ukeplan-widget fra før ProTop blir med',
+);
 assert.ok(catalogForRole('parent').some((w) => w.type === 'tasks'));
 assert.ok(catalogForRole('parent').some((w) => w.type === 'notes'));
 assert.ok(catalogForRole('parent').some((w) => w.type === 'timeline'));
@@ -155,7 +162,7 @@ assert.equal(moduleChrome('family').icon, 'people');
 assert.equal(moduleChrome('messages').icon, 'chatbubbles');
 assert.equal(moduleChrome('tasks').icon, 'checkbox');
 assert.notEqual(moduleChrome('timeline').icon, moduleChrome('family').icon);
-assert.ok(MODULE_CHROME.weekPlan);
+assert.ok(MODULE_CHROME.weeklyPlan);
 assert.ok(MODULE_CHROME.school);
 assert.ok(MODULE_CHROME.rewards);
 assert.ok(MODULE_CHROME.progress);

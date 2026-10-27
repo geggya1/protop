@@ -44,7 +44,7 @@ export function headerTopPad(insetTop, frameTop, { standalone = false, phone = f
 
 /**
  * Padding inside the bottom menu. The bar itself is flush with the screen.
- * Weekplan keeps a small floor in a browser tab and never grows a
+ * ProTop keeps a small floor in a browser tab and never grows a
  * home-indicator band taller than 34 just because env() over-reports.
  * When Safari's toolbar covers the layout bottom, that band is part of
  * the bar: the icons stay in view and the toolbar sits on our background.

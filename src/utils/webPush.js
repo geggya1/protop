@@ -303,14 +303,14 @@ export function showLocalNotification({ title, body, tag, data } = {}) {
       body: body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      tag: tag || 'weekplan',
+      tag: tag || 'protop',
       data: data || {},
     });
     n.onclick = () => {
       try { window.focus(); } catch {}
       n.close();
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('weekplan-open-notification', { detail: data || {} }));
+        window.dispatchEvent(new CustomEvent('protop-open-notification', { detail: data || {} }));
       }
     };
     return n;

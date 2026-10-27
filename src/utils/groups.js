@@ -78,7 +78,7 @@ export function isTeamAdmin(team, uid, parents = []) {
 
 async function secondaryAuth() {
   const opts = getApp().options;
-  const name = 'weekplan-secondary';
+  const name = 'protop-secondary';
   let app;
   try { app = getApp(name); } catch {
     app = initializeApp(opts, name);

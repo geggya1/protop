@@ -3,7 +3,7 @@ import { MAIL_FRESH_MS, MAIL_STORAGE_MS } from './mailSync';
 
 const MEMORY = new Map();
 const BODY_MEMORY = new Map();
-const STORAGE_PREFIX = 'weekplan.mailCache.v1';
+const STORAGE_PREFIX = 'protop.mailCache.v1';
 const DEFAULT_TTL_MS = MAIL_FRESH_MS;
 const STORAGE_TTL_MS = MAIL_STORAGE_MS;
 const BODY_TTL_MS = MAIL_STORAGE_MS;

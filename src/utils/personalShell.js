@@ -7,7 +7,7 @@
 export const PERSONAL_SHELL_DEFAULT_NAME = 'Mitt arbeidsområde';
 export const FAMILY_NUDGE_DELAY_MS = 3 * 60 * 1000;
 export const FAMILY_NUDGE_SNOOZE_MS = 24 * 60 * 60 * 1000;
-export const FAMILY_NUDGE_STORAGE_PREFIX = 'weekplan.familyNudge.v1';
+export const FAMILY_NUDGE_STORAGE_PREFIX = 'protop.familyNudge.v1';
 
 /** Same-session flag so RootNav does not bounce back to the wizard before Firestore catches up. */
 const homeSetupSessionDone = new Set();

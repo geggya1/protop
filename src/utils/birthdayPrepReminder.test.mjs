@@ -54,7 +54,7 @@ assert.equal(
 );
 
 assert.deepEqual(adultUidsFromMembers(members).sort(), ['pu1', 'pu2']);
-assert.equal(birthdayPrepDismissKey('u1', 'c1', 2026), 'weekplan.birthdayPrep.v1.u1.c1.2026');
+assert.equal(birthdayPrepDismissKey('u1', 'c1', 2026), 'protop.birthdayPrep.v1.u1.c1.2026');
 
 const titles = prepTaskTitlesForMember(due[0]);
 assert.ok(titles.some((t) => /gave til Celine/.test(t)));

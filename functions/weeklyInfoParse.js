@@ -59,12 +59,12 @@ function mergeNearbyText(items) {
  */
 export function looksLikeWeeklyInfoPlan(text, positionedItems = []) {
   const blob = String(text || '');
-  const hasWeekPlan = /ukeplan|uke\s*\d{1,2}|læringsmål|lekser/i.test(blob);
+  const hasWeeklyPlan = /ukeplan|uke\s*\d{1,2}|læringsmål|lekser/i.test(blob);
   const hasDays = /(mandag|tirsdag|onsdag|torsdag|fredag)/i.test(blob);
   const hasSubjects = /(norsk|matte|matematikk|engelsk)/i.test(blob);
   const hasSessions = (positionedItems || []).some((it) => SESSION_OR_TIME_RE.test(String(it?.str || '').trim()))
     || /\d\.?\s*økt\b|\d{1,2}[.:]\d{2}\s*[-–]\s*\d{1,2}[.:]\d{2}/.test(blob);
-  return hasWeekPlan && hasDays && hasSubjects && !hasSessions;
+  return hasWeeklyPlan && hasDays && hasSubjects && !hasSessions;
 }
 
 /**

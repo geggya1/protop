@@ -230,7 +230,7 @@ export default function ParentWidgetRenderer({ widget, model, handlers }) {
   if (type === 'clock') return <ClockTile variant={widget.variant} />;
   if (type === 'date') return <DateTile variant={widget.variant} />;
 
-  if (type === 'weekPlan') {
+  if (type === 'weeklyPlan') {
     const peek = (model.appointmentsPeek || []).map((ev, i) => ({
       id: ev.id || `p-${i}`,
       time: ev.time,

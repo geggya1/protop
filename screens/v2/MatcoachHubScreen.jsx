@@ -20,13 +20,13 @@ import {
   MATCOACH_GOAL_OPTIONS,
   loadMatcoachPrefs,
   saveMatcoachPrefs,
-  generateMatcoachWeekPlan,
+  generateMatcoachWeeklyPlan,
   generateMatcoachLunchBoxes,
   swapMatcoachMeal,
-  applyWeekPlanToMeals,
+  applyWeeklyPlanToMeals,
   collectShoppingFromPlan,
   listenMatcoachHistory,
-  buildLocalWeekPlan,
+  buildLocalWeeklyPlan,
   subtractPantryFromShopping,
   restorePlanFromHistoryEntry,
   restoreLunchFromHistoryEntry,
@@ -356,13 +356,13 @@ export default function MatcoachHubScreen({ inShell = false, setSubView }) {
       const pantryNames = pantry.map((p) => p.name).filter(Boolean).slice(0, 30);
       let next;
       try {
-        next = await generateMatcoachWeekPlan(familyId, {
+        next = await generateMatcoachWeeklyPlan(familyId, {
           prefs,
           pantryNames,
           extraRecipes: recipePool,
         });
       } catch (err) {
-        next = buildLocalWeekPlan(prefs);
+        next = buildLocalWeeklyPlan(prefs);
         next.summary = `${next.summary} (lokal reserve: ${err?.message || 'AI utilgjengelig'})`;
       }
       next = enrichPlanDays(next, recipePool);
@@ -406,7 +406,7 @@ export default function MatcoachHubScreen({ inShell = false, setSubView }) {
     try {
       const parts = [];
       if (bulkToMeals) {
-        await applyWeekPlanToMeals(familyId, plan, prefs, { weekStart });
+        await applyWeeklyPlanToMeals(familyId, plan, prefs, { weekStart });
         parts.push('måltidsplanen');
       }
       if (bulkToShop) {
@@ -508,7 +508,7 @@ export default function MatcoachHubScreen({ inShell = false, setSubView }) {
     try {
       const parts = [];
       if (toMeals) {
-        await applyWeekPlanToMeals(familyId, null, prefs, {
+        await applyWeeklyPlanToMeals(familyId, null, prefs, {
           weekStart,
           days: [activeDay],
         });

@@ -12,6 +12,7 @@ import {
   spanFromLegacySize,
 } from './homeGrid.js';
 import { isProtopHomeWidget } from './navigation/protopShell.js';
+import { LEGACY_WIDGET_TYPES } from './utils/legacyNames.js';
 
 export const WIDGET_SIZES = ['third', 'half', 'full', 'tall'];
 
@@ -19,7 +20,7 @@ export const PARENT_WIDGET_CATALOG = [
   { type: 'weather', label: 'Vær', icon: 'partly-sunny-outline', sizes: ['half', 'full', 'tall'], defaultSize: 'half', hint: 'Temperatur, sted og neste timer' },
   { type: 'clock', label: 'Klokke', icon: 'time-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Analog klokke og klokkeslett' },
   { type: 'date', label: 'Dato', icon: 'calendar-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Ukedag og dato' },
-  { type: 'weekPlan', label: 'Ukeplan', icon: 'calendar-outline', sizes: ['third', 'full', 'tall'], defaultSize: 'full', hint: 'Uken i fem dager' },
+  { type: 'weeklyPlan', label: 'Ukeplan', icon: 'calendar-outline', sizes: ['third', 'full', 'tall'], defaultSize: 'full', hint: 'Uken i fem dager' },
   { type: 'nextEvent', label: 'Neste avtale', icon: 'calendar-outline', sizes: ['half', 'full', 'tall'], defaultSize: 'full', hint: 'Det som skjer først' },
   { type: 'timeline', label: 'Avtaler', icon: 'calendar-outline', sizes: ['full', 'tall'], defaultSize: 'full', hint: 'Kalender for i dag — fra kveld: i morgen' },
   { type: 'tasks', label: 'Oppgaver', icon: 'checkbox-outline', sizes: ['third', 'half', 'full', 'tall'], defaultSize: 'full', hint: 'Åpne oppgaver' },
@@ -239,7 +240,7 @@ export function resolvedWidgetSize(widget) {
 
 /** Unique per-module glyph — never the ProTop mark. */
 export const MODULE_CHROME = {
-  weekPlan: { icon: 'calendar', glyphColor: '#2F80ED' },
+  weeklyPlan: { icon: 'calendar', glyphColor: '#2F80ED' },
   nextEvent: { icon: 'today', glyphColor: '#5B63A6' },
   timeline: { icon: 'list', glyphColor: '#34C759' },
   tasks: { icon: 'checkbox', glyphColor: '#34C759' },
@@ -281,7 +282,7 @@ export const CATALOG_GROUPS = [
   {
     id: 'plan',
     label: 'Plan og kalender',
-    types: ['weekPlan', 'nextEvent', 'timeline', 'activities', 'rememberDates', 'school', 'homework'],
+    types: ['weeklyPlan', 'nextEvent', 'timeline', 'activities', 'rememberDates', 'school', 'homework'],
   },
   { id: 'hjem', label: 'Hjem', types: ['tasks', 'shopping', 'meals', 'notes', 'reminders', 'rewards', 'goals'] },
   { id: 'familie', label: 'Familie', types: ['kids', 'progress', 'family', 'location', 'familyTree', 'messages'] },
@@ -313,7 +314,8 @@ export function normalizeWidgets(list, role = 'parent') {
   const allowed = new Set(catalog.map((w) => w.type));
   const out = [];
   const seen = new Set();
-  (list || []).forEach((raw) => {
+  (list || []).forEach((saved) => {
+    const raw = saved && LEGACY_WIDGET_TYPES[saved.type] ? { ...saved, type: LEGACY_WIDGET_TYPES[saved.type] } : saved;
     if (!raw || !allowed.has(raw.type)) return;
     const id = String(raw.id || newWidgetId());
     if (seen.has(id)) return;
@@ -334,7 +336,7 @@ export function normalizeWidgets(list, role = 'parent') {
 }
 
 const DECORATIVE_WIDGET_TYPES = new Set(['weather', 'clock', 'date']);
-const TIMELINE_WIDGET_TYPES = new Set(['timeline', 'nextEvent', 'weekPlan', 'tasks']);
+const TIMELINE_WIDGET_TYPES = new Set(['timeline', 'nextEvent', 'weeklyPlan', 'tasks']);
 
 /** Spotlight id for the help tour — skip weather/clock/date so "innhold" is an app card. */
 export function helpIdForWidget(widget, used) {

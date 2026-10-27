@@ -16,6 +16,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # Funksjonsdeployen fra main stopper uten denne hemmeligheten.
+      - name: GitHub-hemmeligheten PROTOP_GEMINI_KEY finnes
+        env:
+          HAS_GEMINI_KEY: ${{ secrets.PROTOP_GEMINI_KEY != '' }}
+        run: |
+          if [ "$HAS_GEMINI_KEY" != "true" ]; then
+            echo "::error title=PROTOP_GEMINI_KEY mangler::Opprett GitHub-hemmeligheten PROTOP_GEMINI_KEY. Uten den deployes ikke Cloud Functions fra main."
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 22

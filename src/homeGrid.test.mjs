@@ -201,7 +201,7 @@ const childFit = fitHomeWidgets(childSparse, {
   homework: 1,
   school: 0,
   shopping: 0,
-  weekPlan: 0,
+  weeklyPlan: 0,
 });
 assert.equal(childFit.find((w) => w.id === 'tl').gh, 2);
 assert.equal(childFit.find((w) => w.id === 'tasks').gh, 2);
@@ -231,7 +231,7 @@ const parentFit = fitHomeWidgets(parentSparse, {
   tasks: 0,
   homework: 0,
   school: 0,
-  weekPlan: 0,
+  weeklyPlan: 0,
 });
 assert.equal(parentFit.find((w) => w.id === 'tl').gh, 2);
 assert.equal(parentFit.find((w) => w.id === 'shop').gh, 3);
@@ -247,7 +247,7 @@ assert.equal(kidsFit.find((w) => w.id === 'kids').gh, 2);
 assert.equal(kidsFit.find((w) => w.id === 'kids').row, 2);
 
 const stack = [
-  { id: 'top', type: 'weekPlan', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'top', type: 'weeklyPlan', col: 0, row: 0, gw: 5, gh: 2 },
   { id: 'bot', type: 'shortcuts', col: 0, row: 6, gw: 2, gh: 2 },
 ];
 const snug = moveWidgetOnGrid(stack, 'bot', 0, 2);
@@ -259,13 +259,13 @@ assert.deepEqual(ghost, { col: 0, row: 2, gw: 2, gh: 2 });
 assert.equal(canPlace(stack, stack[1], ghost.col, ghost.row, 'bot'), true);
 
 const tallSaved = [
-  { id: 'top', type: 'weekPlan', col: 0, row: 0, gw: 5, gh: 3 },
+  { id: 'top', type: 'weeklyPlan', col: 0, row: 0, gw: 5, gh: 3 },
   { id: 'bot', type: 'shortcuts', col: 0, row: 5, gw: 2, gh: 2 },
 ];
-const editView = displayHomeWidgets(tallSaved, { weekPlan: 0 }, { editing: true });
+const editView = displayHomeWidgets(tallSaved, { weeklyPlan: 0 }, { editing: true });
 assert.equal(editView.find((w) => w.id === 'top').gh, 2);
 assert.equal(editView.find((w) => w.id === 'bot').row, 5);
-const homeView = displayHomeWidgets(tallSaved, { weekPlan: 0 }, { editing: false });
+const homeView = displayHomeWidgets(tallSaved, { weeklyPlan: 0 }, { editing: false });
 assert.equal(homeView.find((w) => w.id === 'top').gh, 2);
 assert.equal(homeView.find((w) => w.id === 'bot').row, 5);
 

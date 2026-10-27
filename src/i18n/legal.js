@@ -3,7 +3,7 @@ import { LEGAL_VERSION } from './langs';
 /** Oppdatert: 20. august 2026 — familieapp + idrettslag. */
 
 const TERMS_NB = [
-  'WEEKPLAN BRUKERVILKÅR',
+  'PROTOP BRUKERVILKÅR',
   'Sist oppdatert: 20. august 2026',
   '1. Aksept av vilkårene',
   'Disse vilkårene regulerer bruk av ProTop (appen og protop.no), heretter «tjenesten». Når du oppretter konto eller bruker tjenesten, inngår du avtale med ProTop (protop.no) på disse vilkårene.',
@@ -34,7 +34,7 @@ const TERMS_NB = [
 ];
 
 const PRIVACY_NB = [
-  'PERSONVERNERKLÆRING FOR WEEKPLAN',
+  'PERSONVERNERKLÆRING FOR PROTOP',
   'Sist oppdatert: 20. august 2026',
   'Kort fortalt: ProTop (protop.no) er behandlingsansvarlig. Vi behandler opplysninger for å levere samhandling for bygg og anlegg (hjem, venner, kalender, e-post, oppgaver, notat, innstillinger, varslinger og hjelp). Vi selger ikke personopplysninger.',
   '1. Hvem vi er',
@@ -68,7 +68,7 @@ const PRIVACY_NB = [
 ];
 
 const TERMS_EN = [
-  'WEEKPLAN TERMS OF USE',
+  'PROTOP TERMS OF USE',
   'Last updated: 20 August 2026',
   '1. Acceptance',
   'These terms govern ProTop (the app and protop.no). By creating an account or using the service you agree with ProTop (protop.no).',
@@ -99,7 +99,7 @@ const TERMS_EN = [
 ];
 
 const PRIVACY_EN = [
-  'WEEKPLAN PRIVACY POLICY',
+  'PROTOP PRIVACY POLICY',
   'Last updated: 20 August 2026',
   'In short: ProTop (protop.no) is the controller. We process data to provide the family planner. Children under the applicable digital age need guardian consent. We do not sell personal data.',
   '1. Who we are',
@@ -139,7 +139,7 @@ const LEGAL = {
   en: { terms: TERMS_EN, privacy: PRIVACY_EN },
   da: {
     terms: shortTerms([
-      'WEEKPLAN BRUGERVILKÅR (familieapp)',
+      'PROTOP BRUGERVILKÅR (familieapp)',
       'Senest opdateret: 20. august 2026',
       'ProTop er en familieplanlægger (kalender, opgaver, belønning, chat m.m.), ikke en idrætsklub-løsning.',
       'Ved brug accepterer du aftalen med ProTop (protop.no). Værge er ansvarlig for børneprofiler.',
@@ -147,7 +147,7 @@ const LEGAL = {
       'Fuld tekst er tilgængelig på norsk/engelsk i appen.',
     ]),
     privacy: shortTerms([
-      'PERSONVERNERKLÆRING — WEEKPLAN',
+      'PERSONVERNERKLÆRING — PROTOP',
       'ProTop (protop.no) er dataansvarlig. Vi behandler profil- og familieoplysninger for at levere tjenesten.',
       'Børn under den lovpligtige alder kræver værgesamtykke. Vi sælger ikke personoplysninger.',
       'Underleverandører bl.a. Google Firebase (EU/EØS hvor muligt). AI til voksne kan bruge Google Gemini; chattråde kan gemmes på din konto.',
@@ -156,78 +156,78 @@ const LEGAL = {
   },
   sv: {
     terms: shortTerms([
-      'WEEKPLAN ANVÄNDARVILLKOR (familjeapp)',
+      'PROTOP ANVÄNDARVILLKOR (familjeapp)',
       'Senast uppdaterad: 20 augusti 2026',
       'ProTop är en familjeplanerare, inte en idrottsklubbsplattform. Genom att använda tjänsten ingår du avtal med ProTop (protop.no).',
       'Vårdnadshavare ansvarar för barnprofiler. Använd tjänsten lagligt. Kontakt: https://protop.no.',
     ]),
     privacy: shortTerms([
-      'INTEGRITETSPOLICY — WEEKPLAN',
+      'INTEGRITETSPOLICY — PROTOP',
       'ProTop är personuppgiftsansvarig. Vi behandlar profil- och familjedata för att leverera tjänsten. Vi säljer inte uppgifter.',
       'Barn under lagstadgad ålder kräver vårdnadshavares samtycke. Firebase i EU/EES där möjligt. Rättigheter via https://protop.no.',
     ]),
   },
   fi: {
     terms: shortTerms([
-      'WEEKPLANIN KÄYTTÖEHDOT (perhesovellus)',
+      'PROTOPIN KÄYTTÖEHDOT (perhesovellus)',
       'Päivitetty: 20. elokuuta 2026',
       'ProTop on perhesuunnittelusovellus. Käyttämällä hyväksyt sopimuksen ProTopin (protop.no) kanssa. Huoltaja vastaa lapsiprofiileista.',
       'Yhteys: https://protop.no.',
     ]),
     privacy: shortTerms([
-      'TIETOSUOJASELOSTE — WEEKPLAN',
+      'TIETOSUOJASELOSTE — PROTOP',
       'ProTop on rekisterinpitäjä. Käsittelemme profiili- ja perhetietoja palvelun tarjoamiseksi. Emme myy tietoja.',
       'Oikeudet: https://protop.no.',
     ]),
   },
   pl: {
     terms: shortTerms([
-      'REGULAMIN WEEKPLAN (aplikacja rodzinna)',
+      'REGULAMIN PROTOP (aplikacja rodzinna)',
       'Aktualizacja: 20 sierpnia 2026',
       'ProTop to planer rodzinny. Korzystanie oznacza umowę z ProTop (protop.no). Opiekun odpowiada za profile dzieci.',
       'Kontakt: https://protop.no.',
     ]),
     privacy: shortTerms([
-      'POLITYKA PRYWATNOŚCI — WEEKPLAN',
+      'POLITYKA PRYWATNOŚCI — PROTOP',
       'ProTop jest administratorem. Przetwarzamy dane profilu i rodziny, aby świadczyć usługę. Nie sprzedajemy danych.',
       'Prawa: https://protop.no.',
     ]),
   },
   es: {
     terms: shortTerms([
-      'TÉRMINOS DE WEEKPLAN (app familiar)',
+      'TÉRMINOS DE PROTOP (app familiar)',
       'Actualizado: 20 de agosto de 2026',
       'ProTop es un planificador familiar. Al usarlo aceptas el acuerdo con ProTop (protop.no). El tutor responde de perfiles infantiles.',
       'Contacto: https://protop.no.',
     ]),
     privacy: shortTerms([
-      'POLÍTICA DE PRIVACIDAD — WEEKPLAN',
+      'POLÍTICA DE PRIVACIDAD — PROTOP',
       'ProTop es el responsable. Tratamos datos de perfil y familia para prestar el servicio. No vendemos datos.',
       'Derechos: https://protop.no.',
     ]),
   },
   fr: {
     terms: shortTerms([
-      'CONDITIONS WEEKPLAN (app familiale)',
+      'CONDITIONS PROTOP (app familiale)',
       'Mis à jour : 20 août 2026',
       'ProTop est un planificateur familial. En l’utilisant, tu acceptes l’accord avec ProTop (protop.no). Le tuteur est responsable des profils enfants.',
       'Contact : https://protop.no.',
     ]),
     privacy: shortTerms([
-      'POLITIQUE DE CONFIDENTIALITÉ — WEEKPLAN',
+      'POLITIQUE DE CONFIDENTIALITÉ — PROTOP',
       'ProTop est le responsable du traitement. Nous traitons les données de profil et de famille pour fournir le service. Nous ne vendons pas les données.',
       'Droits : https://protop.no.',
     ]),
   },
   de: {
     terms: shortTerms([
-      'WEEKPLAN NUTZUNGSBEDINGUNGEN (Familien-App)',
+      'PROTOP NUTZUNGSBEDINGUNGEN (Familien-App)',
       'Stand: 20. August 2026',
       'ProTop ist ein Familienplaner. Mit der Nutzung akzeptierst du die Vereinbarung mit ProTop (protop.no). Erziehungsberechtigte verantworten Kinderprofile.',
       'Kontakt: https://protop.no.',
     ]),
     privacy: shortTerms([
-      'DATENSCHUTZERKLÄRUNG — WEEKPLAN',
+      'DATENSCHUTZERKLÄRUNG — PROTOP',
       'ProTop ist Verantwortlicher. Wir verarbeiten Profil- und Familiendaten zur Bereitstellung des Dienstes. Wir verkaufen keine Daten.',
       'Rechte: https://protop.no.',
     ]),

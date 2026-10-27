@@ -81,7 +81,7 @@ test('flere boter gjennom registrering, samhandling og avsluttet abonnement', ()
   }).errors.includes('email'));
   assert.ok(registrationVerdict({
     name: 'Ada',
-    email: 'katt@weekplan.app',
+    email: 'katt@konto.protop.no',
     password: 'Hemmelig1',
   }).errors.includes('email'));
   assert.ok(registrationVerdict({

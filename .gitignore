@@ -61,7 +61,6 @@ firebase-debug.*.log
 *.bak
 *.broken
 *.backup.json
-weekplan.zip
 _config.json
 .tmp-cv-export-test.pdf
 

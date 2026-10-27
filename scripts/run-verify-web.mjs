@@ -20,6 +20,8 @@ export const FILES = [
   'functions/uploadStorage.test.mjs',
   'functions/mailApiKey.test.mjs',
   'functions/inviteBrand.test.mjs',
+  'scripts/old-brand.test.mjs',
+  'src/utils/legacyNames.test.mjs',
   'functions/anbudIntake.smoke.test.mjs',
   'functions/anbud/intakeScan.test.mjs',
   'src/anbud/intake.test.mjs',

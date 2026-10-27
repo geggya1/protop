@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { normalizeUsername } from './usernamesLogic.js';
 
 /**
  * Lightweight checks for invite identifier parsing helpers used by the
@@ -6,9 +7,6 @@ import assert from 'node:assert/strict';
  * by manual/integration testing.
  */
 
-function normalizeUsername(raw) {
-  return String(raw || '').trim().toLowerCase().replace(/^@/, '').replace(/@weekplan\.app$/i, '');
-}
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email || '').trim());

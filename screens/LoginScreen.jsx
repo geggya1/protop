@@ -15,6 +15,7 @@ import { colors, radius } from '../src/theme';
 import { useI18n } from '../src/i18n';
 import { sendPasswordResetV2 } from '../src/utils/sendPasswordReset';
 import { resolveLoginEmail } from '../src/utils/usernames';
+import { legacyLoginEmail } from '../src/utils/usernamesLogic';
 import { isChildEmail } from '../src/utils/session';
 import { sendVerificationEmailV2 } from '../src/utils/sendVerificationEmail';
 import {
@@ -179,11 +180,20 @@ export default function LoginScreen({ navigation }) {
         8000,
         'login-email-timeout',
       ).catch(() => emailTrimmed)) || emailTrimmed;
-      const cred = await withDeadline(
-        signInWithEmailAndPassword(auth, loginEmail, password),
+      const signIn = (email) => withDeadline(
+        signInWithEmailAndPassword(auth, email, password),
         20000,
         'login-timeout',
       );
+      let cred;
+      try {
+        cred = await signIn(loginEmail);
+      } catch (firstErr) {
+        // Brukernavn-kontoer laget før ProTop har det gamle domenet i Firebase Auth.
+        const legacyEmail = legacyLoginEmail(loginEmail);
+        if (!legacyEmail || !['auth/user-not-found', 'auth/invalid-credential'].includes(firstErr?.code)) throw firstErr;
+        cred = await signIn(legacyEmail);
+      }
       await withDeadline(reload(cred.user), 8000, 'login-reload-timeout').catch(() => {});
 
       if (!cred.user.emailVerified) {

@@ -2,32 +2,32 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useLayout } from '../../src/theme';
 import {
-  WEEKPLAN_DAYS,
-  WEEKPLAN_DAY_KEYS,
+  WEEKLY_PLAN_DAYS,
+  WEEKLY_PLAN_DAY_KEYS,
   timetableToGridEvents,
-  weekPlanHourRange,
+  weeklyPlanHourRange,
   formatSlotRange,
-  layoutWeekPlanDay,
+  layoutWeeklyPlanDay,
   isScheduleBreak,
-} from '../../src/utils/weekPlanGrid';
-import { subjectStyle } from '../../src/utils/weekPlanView';
+} from '../../src/utils/weeklyPlanGrid';
+import { subjectStyle } from '../../src/utils/weeklyPlanView';
 
 const HOUR_H = 58;
 const TIME_GUTTER = 46;
 
-export default function WeekPlanGrid({ timetable, colors, onPressSlot, canEdit, weekDays }) {
+export default function WeeklyPlanGrid({ timetable, colors, onPressSlot, canEdit, weekDays }) {
   const { isDesktop, isPhone } = useLayout();
   const events = useMemo(() => timetableToGridEvents(timetable), [timetable]);
-  const { startHour, endHour } = useMemo(() => weekPlanHourRange(timetable), [timetable]);
+  const { startHour, endHour } = useMemo(() => weeklyPlanHourRange(timetable), [timetable]);
   const hours = Math.max(1, endHour - startHour);
   const gridH = hours * HOUR_H;
   const minDayW = isPhone ? 96 : 114;
-  const heads = weekDays || WEEKPLAN_DAYS;
+  const heads = weekDays || WEEKLY_PLAN_DAYS;
 
   const byDay = useMemo(() => {
     const map = {};
-    WEEKPLAN_DAY_KEYS.forEach((day) => {
-      map[day] = layoutWeekPlanDay(events.filter((e) => e.day === day));
+    WEEKLY_PLAN_DAY_KEYS.forEach((day) => {
+      map[day] = layoutWeeklyPlanDay(events.filter((e) => e.day === day));
     });
     return map;
   }, [events]);
@@ -63,7 +63,7 @@ export default function WeekPlanGrid({ timetable, colors, onPressSlot, canEdit, 
               </Text>
             ))}
           </View>
-          {WEEKPLAN_DAYS.map((d) => (
+          {WEEKLY_PLAN_DAYS.map((d) => (
             <View
               key={d.key}
               style={[gridStyles.dayCol, { borderColor: colors.line, height: gridH }]}

@@ -10,7 +10,7 @@ import { colors, MEMBER_COLORS, useLayout } from '../../src/theme';
 import { dateKey, addDays, startOfWeekMonday, getISOWeek, parseDateKey } from '../../src/utils/dates';
 import { listenChildTodos, attestTodo, undoAttestTodo } from '../../src/utils/todos';
 import {
-  weekPlanForChild,
+  weeklyPlanForChild,
   findCrossChildDuplicates,
   collectPendingAttestations,
   kidProgressSummary,
@@ -263,7 +263,7 @@ export default function FamilyProgressScreen({ inShell = false, onBack = null })
               ? Math.round((summary.doneToday / summary.todayTotal) * 100)
               : 0;
             const expanded = expandedKidId === kid.id;
-            const plan = expanded ? weekPlanForChild(todos, weekKeys) : null;
+            const plan = expanded ? weeklyPlanForChild(todos, weekKeys) : null;
             const unit = (todos.some((t) => t.rewardType === 'money') && !todos.some((t) => t.rewardType === 'points'))
               ? 'kr'
               : '★';
@@ -463,7 +463,7 @@ export default function FamilyProgressScreen({ inShell = false, onBack = null })
 
           <View style={[styles.panel, isDesktop && styles.panelDesk]}>
             {activeKids.map((kid, idx) => {
-              const day = weekPlanForChild(kidMap[kid.id] || [], [planDayKey])[0];
+              const day = weeklyPlanForChild(kidMap[kid.id] || [], [planDayKey])[0];
               return (
                 <View key={kid.id} style={[styles.planKid, idx > 0 && styles.kidBlockBorder]}>
                   <Text style={[styles.planKidName, isDesktop && styles.kidNameDesk]}>{kid.name}</Text>

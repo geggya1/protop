@@ -386,8 +386,8 @@ for (const id of Object.keys(COMPANY_HERO)) {
   assert.equal(band.accent, pastel[2], `${id} pastel accent`);
 }
 assert.equal(resolveModuleHero('okonomi-utlegg', 'nb').wideArt, true, 'economy expenses use the illustration');
-assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'weekplan palette stays sand');
-assert.equal(resolveModuleHero('week-plan', 'nb').wideArt, false, 'weekplan art slot is unchanged');
+assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'ukeplan palette stays sand');
+assert.equal(resolveModuleHero('week-plan', 'nb').wideArt, false, 'ukeplan art slot is unchanged');
 assert.doesNotMatch(heroSrc, /width:\s*'64%'/, 'phone wide art is not a 64% absolute crop');
 assert.doesNotMatch(heroSrc, /objectFit:\s*'cover'/, 'hero art stays contain, not cover');
 assert.match(heroSrc, /artWrapPhone:\s*\{[^}]*maxWidth:\s*'54%'/, 'phone art shrinks inside the short heading');

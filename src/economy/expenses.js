@@ -151,6 +151,9 @@ export function normalizeExpense(input = {}) {
     supplierInvoice: text(row.supplierInvoice),
     accountLabel: text(row.accountLabel),
     attachmentNames: text(row.attachmentNames),
+    writeOffAt: text(row.writeOffAt),
+    writeOffReason: text(row.writeOffReason).slice(0, 300),
+    writeOffBy: text(row.writeOffBy).slice(0, 120),
     source: row.source && typeof row.source === 'object'
       ? {
         filename: text(row.source.filename),

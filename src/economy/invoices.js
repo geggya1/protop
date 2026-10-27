@@ -2,9 +2,11 @@
  * Faktura-modell for Økonomi · Faktura.
  * Alle Excel-kolonner beholdes (source.values + typed felt + regnskapskontoer).
  */
+import { normalizeLines } from './invoiceLines.js';
 
 export const INVOICE_STATUSES = [
   { id: 'registered', label: 'Registrert' },
+  { id: 'issued', label: 'Ferdigstilt' },
   { id: 'sent', label: 'Sendt' },
   { id: 'overdue', label: 'Forfalt' },
   { id: 'paid', label: 'Betalt' },
@@ -196,6 +198,39 @@ export function emptyInvoice(overrides = {}) {
     previewReady: false,
     source: { filename: '', importedAt: '', values: {} },
     notes: '',
+    kind: 'invoice',
+    customerAddress: null,
+    customerEmail: '',
+    customerVatNumber: '',
+    customerContact: '',
+    ourReference: '',
+    orderReference: '',
+    contractReference: '',
+    addressLineAbove: '',
+    addressLineBelow: '',
+    externalProjectNumber: '',
+    invoiceText: '',
+    footerText: '',
+    language: 'nb',
+    projectInvoiceCount: null,
+    approval: null,
+    issuedAt: '',
+    issuedByUid: '',
+    issuedByName: '',
+    events: [],
+    noteList: [],
+    payments: [],
+    paidAmount: null,
+    creditedAmount: null,
+    creditNoteIds: [],
+    creditReason: '',
+    lossAt: '',
+    lossReason: '',
+    collection: null,
+    deliveries: [],
+    deliveryChannel: '',
+    archive: {},
+    attachments: [],
     createdAt: '',
     updatedAt: '',
     ...overrides,
@@ -207,24 +242,145 @@ function moneyOrNull(value) {
 }
 
 function normalizeInvoiceLines(list) {
+  return normalizeLines(list);
+}
+
+function stamped(list, mapRow, limit = 400) {
   if (!Array.isArray(list)) return [];
-  return list.map((line, index) => {
-    if (!line || typeof line !== 'object') return null;
+  return list
+    .map((row, index) => (row && typeof row === 'object' ? mapRow(row, index) : null))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function person(row) {
+  return {
+    byUid: text(row?.byUid),
+    byName: text(row?.byName),
+  };
+}
+
+/** Endringslogg: hvem gjorde hva, og når. */
+function normalizeEvents(list) {
+  return stamped(list, (row, index) => {
+    const message = text(row.text);
+    if (!message) return null;
     return {
-      id: text(line.id) || `line_${index + 1}`,
-      description: text(line.description),
-      quantity: Number(line.quantity) || 0,
-      unit: text(line.unit) || 't',
-      unitPrice: moneyOrNull(line.unitPrice) ?? 0,
-      vatCode: text(line.vatCode) || 'HIGH',
-      vatPercent: moneyOrNull(line.vatPercent),
-      amountExVat: moneyOrNull(line.amountExVat),
-      vatAmount: moneyOrNull(line.vatAmount),
-      amountInclVat: moneyOrNull(line.amountInclVat),
-      account: text(line.account),
-      timeEntryIds: Array.isArray(line.timeEntryIds) ? line.timeEntryIds.map((id) => text(id)).filter(Boolean) : [],
+      id: text(row.id) || `ev_${index + 1}`,
+      at: text(row.at),
+      type: text(row.type) || 'note',
+      text: message.slice(0, 500),
+      ...person(row),
     };
-  }).filter(Boolean);
+  });
+}
+
+function normalizeNotes(list) {
+  return stamped(list, (row, index) => {
+    const message = String(row.text ?? '').trim();
+    if (!message) return null;
+    return {
+      id: text(row.id) || `note_${index + 1}`,
+      at: text(row.at),
+      text: message.slice(0, 4000),
+      ...person(row),
+    };
+  }, 200);
+}
+
+function normalizePayments(list) {
+  return stamped(list, (row, index) => {
+    const amount = parseMoney(row.amount);
+    if (amount == null || amount === 0) return null;
+    return {
+      id: text(row.id) || `pay_${index + 1}`,
+      date: parseDate(row.date) || text(row.date),
+      amount,
+      note: text(row.note).slice(0, 300),
+      source: text(row.source) || 'manual',
+      at: text(row.at),
+      ...person(row),
+    };
+  }, 200);
+}
+
+function normalizeFileRef(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const url = text(raw.url);
+  const storagePath = text(raw.storagePath);
+  if (!url && !storagePath) return null;
+  return {
+    url,
+    storagePath,
+    name: text(raw.name),
+    mime: text(raw.mime),
+    size: Number(raw.size) || 0,
+    at: text(raw.at),
+  };
+}
+
+function normalizeAttachments(list) {
+  return stamped(list, (row, index) => {
+    const file = normalizeFileRef(row);
+    if (!file) return null;
+    return {
+      id: text(row.id) || `att_${index + 1}`,
+      ...file,
+      source: text(row.source) || 'upload',
+      expenseId: text(row.expenseId),
+      include: row.include !== false,
+    };
+  }, 60);
+}
+
+function normalizeDeliveries(list) {
+  return stamped(list, (row, index) => ({
+    id: text(row.id) || `del_${index + 1}`,
+    at: text(row.at),
+    channel: text(row.channel) || 'manual',
+    status: text(row.status) || 'sent',
+    to: Array.isArray(row.to) ? row.to.map((item) => text(item)).filter(Boolean).slice(0, 10) : [],
+    message: text(row.message).slice(0, 500),
+    providerId: text(row.providerId),
+    ...person(row),
+  }), 100);
+}
+
+function normalizeAddress(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    street: text(src.street).slice(0, 200),
+    postalCode: text(src.postalCode).slice(0, 12),
+    city: text(src.city).slice(0, 80),
+    country: (text(src.country) || 'NO').toUpperCase().slice(0, 2),
+  };
+}
+
+function normalizeCollection(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    reminderSent: src.reminderSent === true,
+    reminderSentAt: text(src.reminderSentAt),
+    debtCollection: src.debtCollection === true,
+    debtCollectionAt: text(src.debtCollectionAt),
+    interestInvoice: src.interestInvoice === true,
+    interestInvoiceAt: text(src.interestInvoiceAt),
+  };
+}
+
+function normalizeApproval(raw) {
+  if (!raw || typeof raw !== 'object' || !text(raw.at)) return null;
+  return { at: text(raw.at), ...person(raw) };
+}
+
+function normalizeArchive(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const out = {};
+  for (const key of ['pdf', 'xml', 'timeSpec']) {
+    const file = normalizeFileRef(src[key]);
+    if (file) out[key] = file;
+  }
+  return out;
 }
 
 /** Snapshot av bilagslinjer lagret på faktura (uten egen voucher-collection). */
@@ -349,6 +505,39 @@ export function normalizeInvoice(input) {
       values: sourceValues,
     },
     notes: text(row.notes),
+    kind: row.kind === 'credit_note' || text(row.creditNoteForId) ? 'credit_note' : 'invoice',
+    customerAddress: normalizeAddress(row.customerAddress),
+    customerEmail: text(row.customerEmail).slice(0, 200),
+    customerVatNumber: text(row.customerVatNumber).slice(0, 40),
+    customerContact: text(row.customerContact).slice(0, 120),
+    ourReference: text(row.ourReference).slice(0, 120),
+    orderReference: text(row.orderReference).slice(0, 120),
+    contractReference: text(row.contractReference).slice(0, 120),
+    addressLineAbove: text(row.addressLineAbove).slice(0, 160),
+    addressLineBelow: text(row.addressLineBelow).slice(0, 160),
+    externalProjectNumber: text(row.externalProjectNumber).slice(0, 60),
+    invoiceText: String(row.invoiceText ?? '').trim().slice(0, 4000),
+    footerText: String(row.footerText ?? '').trim().slice(0, 4000),
+    language: ['nb', 'nn', 'en'].includes(text(row.language)) ? text(row.language) : 'nb',
+    projectInvoiceCount: moneyOrNull(row.projectInvoiceCount),
+    approval: normalizeApproval(row.approval),
+    issuedAt: text(row.issuedAt),
+    issuedByUid: text(row.issuedByUid),
+    issuedByName: text(row.issuedByName),
+    events: normalizeEvents(row.events),
+    noteList: normalizeNotes(row.noteList),
+    payments: normalizePayments(row.payments),
+    paidAmount: moneyOrNull(row.paidAmount),
+    creditedAmount: moneyOrNull(row.creditedAmount),
+    creditNoteIds: Array.isArray(row.creditNoteIds) ? row.creditNoteIds.map((id) => text(id)).filter(Boolean) : [],
+    creditReason: text(row.creditReason).slice(0, 500),
+    lossAt: parseDate(row.lossAt) || text(row.lossAt),
+    lossReason: text(row.lossReason).slice(0, 500),
+    collection: normalizeCollection(row.collection),
+    deliveries: normalizeDeliveries(row.deliveries),
+    deliveryChannel: text(row.deliveryChannel),
+    archive: normalizeArchive(row.archive),
+    attachments: normalizeAttachments(row.attachments),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
   };
@@ -380,6 +569,8 @@ const INVOICE_LIST_KEYS = [
   'currency', 'status', 'sent', 'sentAt', 'paidAt', 'exportStatus',
   'kid', 'vatCode', 'deliveryMethod', 'voucherId',
   'creditNoteForId', 'creditNoteForNumber', 'department', 'previewReady', 'poweroffice',
+  'kind', 'issuedAt', 'approval', 'collection', 'paidAmount', 'creditedAmount', 'archive',
+  'deliveryChannel', 'customerReference',
 ];
 
 export function invoiceListSource(data, id = '') {
@@ -445,6 +636,18 @@ export function toInvoiceCacheRow(invoice) {
       ? { url: row.attachment.url, name: row.attachment.name || '', mime: row.attachment.mime || '' }
       : null,
     updatedAt: row.updatedAt,
+    // Bare når feltene har innhold: cachen må tåle tusenvis av importerte fakturaer.
+    ...(row.kind === 'credit_note' ? { kind: row.kind } : {}),
+    ...(row.issuedAt ? { issuedAt: row.issuedAt } : {}),
+    ...(row.approval ? { approval: row.approval } : {}),
+    ...(row.collection && (row.collection.reminderSent || row.collection.debtCollection || row.collection.interestInvoice)
+      ? { collection: row.collection }
+      : {}),
+    ...(row.paidAmount != null ? { paidAmount: row.paidAmount } : {}),
+    ...(row.creditedAmount != null ? { creditedAmount: row.creditedAmount } : {}),
+    ...(row.archive?.pdf ? { archive: { pdf: row.archive.pdf } } : {}),
+    ...(row.deliveryChannel ? { deliveryChannel: row.deliveryChannel } : {}),
+    ...(row.customerReference ? { customerReference: row.customerReference } : {}),
   };
 }
 
@@ -514,6 +717,8 @@ export function isInvoiceSent(invoice) {
 export function canDeleteInvoice(invoice) {
   const row = invoice || {};
   if (!text(row.id) && !text(row.invoiceNumber)) return false;
+  // Ferdigstilt i ProTop: salgsdokumentet står fast og rettes med kreditnota.
+  if (text(row.issuedAt)) return false;
   // Ligger utkastet i PowerOffice, må det slettes der først. Ellers frigjøres timene
   // mens utkastet fortsatt kan sendes, og kunden kan bli fakturert to ganger.
   if (text(row.poweroffice?.salesOrderId) && row.poweroffice?.state !== 'missing') return false;

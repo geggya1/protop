@@ -4,7 +4,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, writeBatch,
+  collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, runTransaction, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { rememberInvoicedStatement } from './invoicedStatementStorage.js';
@@ -152,6 +152,58 @@ export async function saveInvoice(companyId, invoice) {
   const current = await readLocal(companyId);
   await writeLocal(companyId, [...current.filter((row) => row.id !== next.id), next]).catch(() => {});
   return next;
+}
+
+function seriesRef(companyId) {
+  return doc(db, 'families', companyId, 'invoiceSeries', 'main');
+}
+
+/** Siste brukte fakturanummer i serien (0 når serien ikke er startet). */
+export async function loadInvoiceSeries(companyId) {
+  if (!companyId) return { last: 0 };
+  try {
+    const snap = await getDoc(seriesRef(companyId));
+    return { last: Number(snap.exists() ? snap.data()?.last : 0) || 0 };
+  } catch {
+    return { last: 0 };
+  }
+}
+
+/**
+ * Ferdigstiller med neste nummer i én transaksjon: telleren og fakturaen skrives
+ * sammen, så to brukere aldri får samme nummer og et nummer aldri går tapt.
+ * minimum er høyeste nummer i listen + 1, eller startnummeret fra innstillingene.
+ * build(number, current) returnerer { ok, invoice, error } (se issueInvoice).
+ */
+export async function issueInvoiceWithNumber(companyId, invoice, { minimum = 1, build } = {}) {
+  if (!companyId) throw new Error('Mangler selskap.');
+  const id = text(invoice?.id);
+  if (!id) throw new Error('Fakturaen mangler id.');
+  const ref = invoiceRef(companyId, id);
+  const counter = seriesRef(companyId);
+  const issued = await runTransaction(db, async (tx) => {
+    const counterSnap = await tx.get(counter);
+    const invoiceSnap = await tx.get(ref);
+    const current = invoiceSnap.exists() ? normalizeInvoice({ ...invoiceSnap.data(), id: invoiceSnap.id }) : null;
+    if (current?.issuedAt) throw new Error(`Fakturaen er allerede ferdigstilt som nummer ${current.invoiceNumber}.`);
+    const last = Number(counterSnap.exists() ? counterSnap.data()?.last : 0) || 0;
+    const number = Math.max(last + 1, Math.floor(Number(minimum) || 1));
+    const result = build(String(number), current);
+    if (!result?.ok) throw new Error(result?.error || 'Kunne ikke ferdigstille fakturaen.');
+    const stamp = new Date().toISOString();
+    const next = normalizeInvoice({
+      ...result.invoice,
+      id,
+      createdAt: result.invoice.createdAt || current?.createdAt || stamp,
+      updatedAt: stamp,
+    });
+    tx.set(counter, { last: number, updatedAt: stamp }, { merge: true });
+    tx.set(ref, next, { merge: true });
+    return next;
+  });
+  const local = await readLocal(companyId);
+  await writeLocal(companyId, [...local.filter((row) => row.id !== issued.id), issued]).catch(() => {});
+  return issued;
 }
 
 async function writeBatchSet(companyId, invoices, onProgress) {

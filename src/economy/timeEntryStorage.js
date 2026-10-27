@@ -382,6 +382,32 @@ export async function releaseTimeEntriesFromInvoice(companyId, invoiceId, entryI
   return { released: updates.length };
 }
 
+/** Henter konkrete timeføringer, én og én. Ukjente id-er hoppes over. */
+export async function loadTimeEntriesByIds(companyId, entryIds = []) {
+  const id = text(companyId);
+  const ids = [...new Set((entryIds || []).map((row) => text(row)).filter(Boolean))];
+  if (!id || !ids.length) return [];
+  const bits = await firestoreBits();
+  const rows = [];
+  for (const entryId of ids) {
+    const snap = await bits.getDoc(entryRef(bits, id, entryId));
+    if (!snap.exists()) continue;
+    const row = normalizeTimeEntryRow({ ...snap.data(), id: snap.id });
+    if (row) rows.push(row);
+  }
+  return rows;
+}
+
+/** Timeføringer som peker på en faktura (eller er avskrevet fra den). */
+export async function loadTimeEntriesByInvoice(companyId, invoiceId) {
+  const id = text(companyId);
+  const invoice = text(invoiceId);
+  if (!id || !invoice) return [];
+  const bits = await firestoreBits();
+  const snap = await bits.getDocs(bits.query(entriesCol(bits, id), bits.where('invoiceId', '==', invoice)));
+  return snap.docs.map((item) => normalizeTimeEntryRow({ ...item.data(), id: item.id })).filter(Boolean);
+}
+
 export async function removeTimeEntry(companyId, entryId) {
   const id = text(entryId);
   if (!companyId || !id) return;

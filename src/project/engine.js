@@ -491,6 +491,12 @@ export function normalizeTimeEntryRow(row) {
     updatedAt: text(row.updatedAt) || '',
     createdByUid: text(row.createdByUid),
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
+    // Avskrevet fra et fakturautkast: skal ikke faktureres (Til fakturering → Slett utkast).
+    ...(text(row.writeOffAt) ? {
+      writeOffAt: text(row.writeOffAt),
+      writeOffReason: text(row.writeOffReason).slice(0, 300),
+      writeOffBy: text(row.writeOffBy).slice(0, 120),
+    } : {}),
   };
 }
 

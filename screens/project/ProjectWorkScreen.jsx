@@ -368,6 +368,8 @@ export default function ProjectWorkScreen() {
   const skipNextSave = useRef(true);
   const allowSave = useRef(false);
   const pendingProjectId = useRef('');
+  const pendingProjectTab = useRef('');
+  const [detailTab, setDetailTab] = useState('');
   const skipColumnSave = useRef(true);
 
   useEffect(() => {
@@ -480,6 +482,7 @@ export default function ProjectWorkScreen() {
   useEffect(() => {
     if (shellIntent?.type === 'openProject' && shellIntent.projectId) {
       pendingProjectId.current = shellIntent.projectId;
+      pendingProjectTab.current = shellIntent.tab || '';
       clearShellIntent?.();
     }
   }, [shellIntent, clearShellIntent]);
@@ -494,6 +497,8 @@ export default function ProjectWorkScreen() {
       return;
     }
     setSelectedId(project.id);
+    setDetailTab(pendingProjectTab.current || '');
+    pendingProjectTab.current = '';
     setForm(formFromProject(project));
     setError('');
     setNote('');
@@ -951,6 +956,7 @@ export default function ProjectWorkScreen() {
 
   function openDetail(project) {
     setSelectedId(project.id);
+    setDetailTab('');
     setForm(formFromProject(project));
     setError('');
     setNote('');
@@ -2035,6 +2041,8 @@ export default function ProjectWorkScreen() {
     return (
       <View style={[styles.screen, { backgroundColor: colors.bg, padding: 16 }]}>
         <ProjectDetail
+          key={`${selected.id}:${detailTab}`}
+          initialTab={detailTab}
           state={state}
           project={selected}
           employees={employees}
@@ -2067,6 +2075,7 @@ export default function ProjectWorkScreen() {
           })}
           onOpenEconomySettings={() => requestShellTab?.('okonomi', 'innstillinger')}
           onOpenEconomyBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
+          onOpenProjectInvoice={(invoiceId) => requestShellTab?.('okonomi', 'faktura', { type: 'openInvoice', invoiceId })}
           hoursLoading={projectHoursLoading}
         />
       </View>

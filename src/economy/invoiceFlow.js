@@ -585,7 +585,7 @@ export function postponeReminder(invoice, date, { actor = null, at = '' } = {}) 
  * Kreditnotautkast fra en ferdigstilt faktura. lineIds = null krediterer alt.
  * Beløpene speiles, så øre ikke avviker fra originalen.
  */
-export function buildCreditNote(invoice, { lineIds = null, reason = '', actor = null, at = '' } = {}) {
+export function buildCreditNote(invoice, { lineIds = null, reason = '', releaseWork = false, actor = null, at = '' } = {}) {
   const original = normalizeInvoice(invoice);
   if (isDraftInvoice(original)) return { ok: false, error: 'Et utkast krediteres ikke. Slett eller endre det.', invoice: null };
   if (isCreditNote(original)) return { ok: false, error: 'En kreditnota kan ikke krediteres.', invoice: null };
@@ -640,6 +640,7 @@ export function buildCreditNote(invoice, { lineIds = null, reason = '', actor = 
     creditNoteForId: original.id,
     creditNoteForNumber: original.invoiceNumber,
     creditReason: why,
+    creditReleaseWork: !!releaseWork,
     invoiceText: `Kreditnota for faktura ${original.invoiceNumber} datert ${formatDate(original.invoiceDate)}. Årsak: ${why}`,
     approval: null,
     issuedAt: '',
@@ -706,6 +707,23 @@ export function applyCreditToOriginal(original, creditNote, { actor = null, at =
   return normalizeInvoice(row);
 }
 
+/**
+ * Kreditnotaen etter at den er motregnet mot fakturaen den krediterer. Restbeløpet står på
+ * den opprinnelige fakturaen (et tilgodehavende hvis kunden har betalt), ikke på kreditnotaen,
+ * så utestående ikke telles to ganger. creditedAmount på en kreditnota er beløpet som er brukt.
+ */
+export function settleCreditNote(creditNote, original, { actor = null, at = '' } = {}) {
+  const used = Math.abs(invoiceTotals(creditNote).totalDue);
+  const next = { ...creditNote, creditedAmount: used, updatedAt: nowIso(at) };
+  const row = isManagedInvoice(next) ? recalcInvoice(next) : normalizeInvoice({ ...next, outstanding: '0', outstandingAmount: 0 });
+  return normalizeInvoice(withEvent(row, {
+    type: 'credit',
+    text: `motregnet mot faktura ${original?.invoiceNumber || ''}`.trim(),
+    actor,
+    at,
+  }));
+}
+
 /** Status som vises: utkast, godkjent, ferdigstilt, sendt, delbetalt, betalt, forfalt, kreditert, tap. */
 export function displayStatus(invoice, today = '') {
   const row = invoice || {};
@@ -741,8 +759,9 @@ export function mergeTemplate(template, invoice, { company = '', replyTo = '' } 
     customer: text(invoice?.customerName),
     replyTo: text(replyTo) || text(company),
     project: [text(invoice?.projectNumber), text(invoice?.projectName)].filter(Boolean).join(' '),
+    creditedInvoice: text(invoice?.creditNoteForNumber) ? `faktura ${text(invoice.creditNoteForNumber)}` : '',
   };
-  return String(template ?? '').replace(/@(invoiceNumber|company|amount|dueDate|kid|customer|replyTo|project)\b/g, (_, key) => values[key] ?? '');
+  return String(template ?? '').replace(/@(invoiceNumber|company|amount|dueDate|kid|customer|replyTo|project|creditedInvoice)\b/g, (_, key) => values[key] ?? '');
 }
 
 /** Antall utstedte fakturaer på prosjektet, denne medregnet. */

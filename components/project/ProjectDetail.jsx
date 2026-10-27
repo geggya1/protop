@@ -145,6 +145,8 @@ export default function ProjectDetail({
   onOpenIndex,
   onOpenEconomySettings,
   onOpenEconomyBilling,
+  onOpenProjectInvoice,
+  initialTab = '',
   hoursLoading = false,
   projectMode = 'admin',
   myEmployeeId = '',
@@ -161,7 +163,7 @@ export default function ProjectDetail({
     }),
     [canSeeEarnings, full, editor],
   );
-  const [tab, setTab] = useState('hovedside');
+  const [tab, setTab] = useState(initialTab || 'hovedside');
   useEffect(() => {
     if (!tabs.some((row) => row.id === tab)) setTab('hovedside');
   }, [tab, tabs]);
@@ -415,12 +417,11 @@ export default function ProjectDetail({
 
         {tab === 'til_fakturering' ? (
           <ProjectBillingReadyTab
-            state={state}
             project={project}
-            sales={projectSales}
             colors={colors}
             onOpenEconomyBilling={onOpenEconomyBilling}
-            onOpenTab={setTab}
+            onOpenTab={(next) => setTab(tabs.some((row) => row.id === next) ? next : 'fakturering')}
+            onOpenInvoice={onOpenProjectInvoice || onOpenInvoice}
           />
         ) : null}
 

@@ -21,6 +21,7 @@ import {
   registerPayment,
   removePayment,
   setCollectionFlag,
+  settleCreditNote,
   updateDraft,
   writeOffInvoice,
 } from './invoiceFlow.js';
@@ -274,6 +275,14 @@ const credited = applyCreditToOriginal(invoice, cnIssued.invoice);
 assert.equal(credited.status, 'credited');
 assert.equal(credited.outstandingAmount, 0);
 assert.equal(displayStatus(credited).id, 'credited');
+const settled = settleCreditNote(cnIssued.invoice, credited);
+assert.ok(cnIssued.invoice.outstandingAmount < 0, 'kreditnotaen står med negativt beløp før motregning');
+assert.equal(settled.outstandingAmount, 0, 'motregnet kreditnota har ingenting utestående');
+assert.equal(displayStatus(settled).id, 'credit_note');
+assert.equal(
+  mergeTemplate('@creditedInvoice', cnIssued.invoice),
+  `faktura ${invoice.invoiceNumber}`,
+);
 
 // Delvis kreditering: bare adm.-linjen.
 const adminId = invoice.lines.find((line) => line.section === 'admin').id;

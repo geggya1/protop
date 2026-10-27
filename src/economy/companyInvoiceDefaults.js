@@ -84,6 +84,7 @@ export function builtinInvoiceDefaults() {
     emailSubject: 'Faktura @invoiceNumber fra @company',
     emailBodyText: 'Hei,\n\nVedlagt følger faktura @invoiceNumber fra @company.\n\nÅ betale: @amount\nForfall: @dueDate\nKID: @kid\n\nEventuelle spørsmål om fakturaen rettes til @replyTo.\n\nMed vennlig hilsen\n@company',
     creditEmailSubject: 'Kreditnota @invoiceNumber fra @company',
+    creditEmailBodyText: 'Hei,\n\nVedlagt følger kreditnota @invoiceNumber fra @company. Den krediterer @creditedInvoice og trekkes fra det dere skylder oss.\n\nBeløp: @amount\n\nEventuelle spørsmål rettes til @replyTo.\n\nMed vennlig hilsen\n@company',
     emailReplyTo: '',
     emailCc: '',
     emailIncludePdf: true,

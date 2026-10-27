@@ -548,3 +548,27 @@ export function selectionAmount(project, selected, fixedAmount = null) {
   const fixed = sel.fixed ? round2((sel.fixed.amount || 0) * (sel.fixed.quantity || 1)) : 0;
   return round2(hours + exp + trips + salesSum + fixed);
 }
+
+/** Utvalget uten poster som ikke er godkjent. */
+export function approvedOnly(selection) {
+  const entries = (selection.entries || []).filter((row) => isApprovedEntry(row));
+  const ids = new Set(entries.map((row) => row.id));
+  const hourGroups = (selection.hourGroups || [])
+    .map((group) => ({ ...group, entries: group.entries.filter((row) => ids.has(row.id)) }))
+    .filter((group) => group.entries.length);
+  const expenseRows = (selection.expenseRows || []).filter((row) => row.approved);
+  const saleRows = (selection.saleRows || []).filter((row) => row.approved);
+  const trips = (selection.trips || []).filter((row) => row.status === 'approved');
+  return {
+    ...selection,
+    entries,
+    hourGroups,
+    expenseRows,
+    expenses: expenseRows.map((row) => row.row),
+    saleRows,
+    sales: saleRows.map((row) => row.row),
+    trips,
+    unapprovedCount: 0,
+    empty: !entries.length && !expenseRows.length && !saleRows.length && !trips.length && !(selection.fixed && selection.fixed.amount),
+  };
+}

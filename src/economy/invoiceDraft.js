@@ -408,9 +408,10 @@ export function buildInvoiceDraft(selection, {
  * Manuelle linjer beholdes. Hodet (mottaker, referanser, tekster) røres ikke.
  */
 export function refreshDraftLines(invoice, selection, { settings = {}, chart = [], periodEnd = '' } = {}) {
-  const manual = (invoice?.lines || []).filter((line) => line.manual);
+  // Manuelle linjer og fastprislinjer beholdes. De kommer ikke fra timer eller utlegg.
+  const manual = (invoice?.lines || []).filter((line) => line.manual || line.section === 'fixed');
   const fresh = linesFromSelection(selection, { settings, chart, periodEnd: periodEnd || invoice?.periodEnd });
-  const kept = new Set((invoice?.lines || []).filter((line) => !line.manual).map((line) => line.id));
+  const kept = new Set((invoice?.lines || []).filter((line) => !line.manual && line.section !== 'fixed').map((line) => line.id));
   const before = sourceSet(invoice?.lines || []);
   const after = sourceSet(fresh);
   const added = [...after].filter((id) => !before.has(id)).length;

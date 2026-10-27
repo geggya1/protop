@@ -101,21 +101,44 @@ export async function approveWork(companyId, selection) {
  * Reserver utvalget på et utkast: posten peker på utkastet og vises ikke lenger som åpen.
  * Når approve er satt, godkjennes postene samtidig.
  */
+export class WorkConflictError extends Error {
+  constructor(count) {
+    super(count === 1
+      ? 'En av postene er allerede lagt på en annen faktura. Last siden på nytt og prøv igjen.'
+      : `${count} av postene er allerede lagt på en annen faktura. Last siden på nytt og prøv igjen.`);
+    this.code = 'work-conflict';
+  }
+}
+
 export async function reserveWork(companyId, selection, invoiceId) {
   const id = text(invoiceId);
   if (isDemo(companyId) || !id) return;
   const at = stamp();
+  // Ferske timer fra skyen: en annen bruker kan ha fakturert dem i mellomtiden.
+  const wanted = (selection.entries || []).map((row) => row.id).filter(Boolean);
+  const fresh = wanted.length ? await loadTimeEntriesByIds(companyId, wanted) : [];
+  const taken = fresh.filter((row) => text(row.invoiceId) && text(row.invoiceId) !== id);
+  if (taken.length) throw new WorkConflictError(taken.length);
+  const freshById = new Map(fresh.map((row) => [row.id, row]));
   const entries = (selection.entries || []).map((row) => ({
-    ...cleanEntry(row),
+    ...cleanEntry(freshById.get(row.id) || row),
     invoiceId: id,
     status: 'låst',
     updatedAt: at,
   }));
-  if (entries.length) await saveTimeEntries(companyId, entries);
   const { internal, externalExpenses, externalSales } = splitOperations(selection);
-  const mark = (row) => ({ ...row, status: 'invoiced', invoiceId: id });
+  let conflicts = 0;
+  const mark = (row) => {
+    if (text(row.invoiceId) && text(row.invoiceId) !== id) {
+      conflicts += 1;
+      return null;
+    }
+    return { ...row, status: 'invoiced', invoiceId: id };
+  };
   const patched = await patchOperations(companyId, internal, mark);
   if (patched && patched.ok === false) throw patched.error || new Error('Kunne ikke lagre utlegg og salg på utkastet.');
+  if (conflicts) throw new WorkConflictError(conflicts);
+  if (entries.length) await saveTimeEntries(companyId, entries);
   if (externalExpenses.length) await saveProjectExpenses(companyId, externalExpenses.map((row) => ({ ...mark(row), updatedAt: at })));
   if (externalSales.length) await saveProductSales(companyId, externalSales.map((row) => ({ ...mark(row), updatedAt: at })));
 }

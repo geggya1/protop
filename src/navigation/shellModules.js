@@ -137,7 +137,7 @@ export const PRODUKT_MENU = [
 export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
   { id: 'faktura', icon: 'document-text', label: 'Faktura' },
-  { id: 'fakturagrunnlag', icon: 'receipt', label: 'Fakturagrunnlag' },
+  { id: 'fakturagrunnlag', icon: 'receipt', label: 'Til fakturering' },
   { id: 'utlegg', icon: 'card', label: 'Utlegg' },
   { id: 'prosjektutlegg', icon: 'receipt-outline', label: 'Prosjektutlegg', tab: 'arbeid', subView: 'utlegg' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
@@ -169,7 +169,7 @@ export function okonomiMenuTitle(subView) {
   if (subView === 'kunder') return 'Kundesummer';
   if (subView === 'avtaler') return 'Avtalesummer';
   if (subView === 'faktura') return 'Faktura';
-  if (subView === 'fakturagrunnlag') return 'Fakturagrunnlag';
+  if (subView === 'fakturagrunnlag') return 'Til fakturering';
   if (subView === 'utlegg') return 'Utlegg';
   if (subView === 'kjorebok') return 'Kjørebok';
   if (subView === 'produkter') return 'Produkt';

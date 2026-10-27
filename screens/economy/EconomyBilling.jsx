@@ -1,465 +1,361 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
-import { showSaveToast } from '../../src/ui/saveToast';
 import { useColors } from '../../src/context/ThemeContext';
-import { emptyProjectState } from '../../src/project/engine';
-import { loadProjectState, saveProjectState } from '../../src/project/storage';
-import {
-  isExternalExpense,
-  loadProjectExpenses,
-  mergeExpenseLists,
-  saveProjectExpenses,
-  withoutExternalExpenses,
-} from '../../src/economy/expenseStorage.js';
-import {
-  isExternalSale,
-  loadProductSales,
-  mergeSaleLists,
-  saveProductSales,
-  withoutExternalSales,
-} from '../../src/economy/productSalesStorage.js';
-import * as invoiceStorage from '../../src/economy/invoiceStorage.js';
-import { createCreditNoteFromInvoice } from '../../src/economy/billingFromHours.js';
-import {
-  buildOperationsProposals,
-  createInvoiceFromOperations,
-  markProposalInvoiced,
-  proposalSummary,
-} from '../../src/economy/billingFromOperations.js';
-import { draftPriceWarnings } from '../../src/economy/billingFromHours.js';
-import {
-  attachVoucherSnapshot,
-  creditVoucherFromInvoice,
-  voucherFromInvoice,
-} from '../../src/economy/vouchers.js';
-import { buildEhfXml, supplierFromCompany } from '../../src/economy/ehf.js';
-import { formatHours } from '../../src/arbeid/hours.js';
-import { formatMoney } from '../../src/economy/invoices.js';
-import { loadAnbudState } from '../../src/anbud/storage';
-import { invoiceIndexWarning } from '../../src/indeksregulering/groups';
-import { mergeIndexSnapshot } from '../../src/indeksregulering/indexLedger';
-import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
-import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
-import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
-import IndexWarning from './IndexWarning';
-import { VAT_CODES as VAT_TABLE } from '../../src/economy/vat.js';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { useLayout } from '../../src/theme';
+import { showSaveToast } from '../../src/ui/saveToast';
+import { dateKey } from '../../src/utils/dates';
+import { fold } from '../../src/economy/invoices.js';
+import { supplierFromCompany } from '../../src/economy/ehf.js';
+import { buildReadyProjects, PERIOD_OPTIONS, periodEndFor } from '../../src/economy/billingReady.js';
+import { osloDate } from '../../src/indeksregulering/watch';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import { effectiveCreditDays } from '../../src/project/invoiceSettings.js';
+import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import DateField from '../../components/DateField';
+import BillingProjectRow from './billing/BillingProjectRow';
+import useBillingData from './billing/useBillingData';
+import useBillingWorkflow from './billing/useBillingWorkflow';
+import { Banner, Button, Check, money } from './billing/ui';
+import { withIndexWarnings } from './billing/indexWarnings';
+
+const SCOPES = [
+  { id: 'all', label: 'Alle prosjekter' },
+  { id: 'mine', label: 'Mine prosjekter' },
+  { id: 'warnings', label: 'Med varsler' },
+  { id: 'drafts', label: 'Med utkast' },
+];
 
 /**
- * Økonomi · Fakturagrunnlag — godkjente timer → faktura → bilag → EHF.
+ * Økonomi · Til fakturering: åpne poster per prosjekt → godkjenn → fakturautkast.
+ * Utkastene ferdigstilles og sendes fra fakturasiden.
  */
-export default function EconomyBilling() {
+export default function EconomyBilling({ demo = null, storage = null, onOpenInvoice = null } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { familyId, family, requestShellTab } = useApp();
-  const [projectState, setProjectState] = useState(emptyProjectState());
-  const [invoices, setInvoices] = useState([]);
-  const [ready, setReady] = useState(false);
-  const [onlyApproved, setOnlyApproved] = useState(true);
-  const [vatCode, setVatCode] = useState('HIGH');
+  const { familyId, family, requestShellTab, uid, activeProfile, isAdmin } = useApp();
+  const access = useCompanyAccess();
+  const { isPhone, width, hasRail, railWidth } = useLayout();
+  const stacked = isPhone || width - (hasRail ? railWidth : 0) < 1100;
+  const canEdit = !!demo || !!isAdmin || access.canEdit('economyBilling');
+  const company = demo ? '__demo__' : familyId;
+  const data = useBillingData({ familyId: company, canSeePowerOffice: !!isAdmin && !demo, storage, demo });
+  const today = osloDate();
+  const [period, setPeriod] = useState('lastMonth');
+  const [customDate, setCustomDate] = useState('');
+  const [query, setQuery] = useState('');
+  const [scope, setScope] = useState('all');
+  const [openIds, setOpenIds] = useState(() => new Set());
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
-  const [busyKey, setBusyKey] = useState('');
-  const [lastEhf, setLastEhf] = useState('');
-  const [lastVoucher, setLastVoucher] = useState(null);
-  const [lastInvoice, setLastInvoice] = useState(null);
-  const [watch, setWatch] = useState(null);
-  const [pending, setPending] = useState(null);
+  const periodEnd = periodEndFor(period, today, customDate);
+  const supplier = useMemo(() => (demo?.supplier || supplierFromCompany(family?.company, family?.name)), [family, demo]);
+  const actor = useMemo(() => ({ byUid: uid || '', byName: activeProfile?.name || '' }), [uid, activeProfile?.name]);
 
-  useEffect(() => {
-    let live = true;
-    Promise.all([
-      loadProjectState(familyId),
-      invoiceStorage.loadInvoices(familyId),
-      loadProjectExpenses(familyId).catch(() => []),
-      loadProductSales(familyId).catch(() => []),
-      loadAnbudState(familyId).catch(() => null),
-      loadCases(familyId).catch(() => []),
-      loadIndexCache().catch(() => null),
-      loadRemoteIndexSnapshot().catch(() => null),
-    ]).then(([projects, inv, remoteExpenses, remoteSales, anbud, cases, cache, remote]) => {
-      if (!live) return;
-      setProjectState({
-        ...projects,
-        expenses: mergeExpenseLists(remoteExpenses, projects?.expenses || []),
-        sales: mergeSaleLists(remoteSales, projects?.sales || []),
-      });
-      setInvoices(inv);
-      const contracts = anbud?.contracts || [];
-      setWatch({
-        contracts,
-        dueById: dueByContractId(contracts, cases, mergeIndexSnapshot(cache?.series, remote)),
-      });
-      setReady(true);
-    }).catch(() => setReady(true));
-    return () => { live = false; };
-  }, [familyId]);
+  const ready = useMemo(() => {
+    if (!data.ready) return [];
+    const built = buildReadyProjects({
+      projects: data.projects,
+      customers: data.customers,
+      timeEntries: data.timeEntries,
+      expenses: data.expenses,
+      trips: data.trips,
+      sales: data.sales,
+      invoices: data.invoices,
+      timesheetLocks: data.timesheetLocks,
+      contracts: data.contracts,
+      settingsFor: data.settingsFor,
+      periodEnd,
+      today,
+    });
+    return withIndexWarnings(built, data, today);
+  }, [data, periodEnd, today]);
 
-  const proposals = useMemo(
-    () => buildOperationsProposals(projectState, { onlyApproved, contracts: watch?.contracts || [] }),
-    [projectState, onlyApproved, watch?.contracts],
-  );
-  const priceNotes = useMemo(
-    () => draftPriceWarnings(invoices, watch?.contracts || []),
-    [invoices, watch?.contracts],
-  );
+  const me = fold(activeProfile?.name);
+  const visible = useMemo(() => {
+    const needle = fold(query);
+    return ready.filter((project) => {
+      if (scope === 'mine' && (!me || fold(project.project?.manager) !== me)) return false;
+      if (scope === 'warnings' && !project.warnings.length) return false;
+      if (scope === 'drafts' && !project.drafts.length) return false;
+      if (!needle) return true;
+      return fold([project.number, project.name, project.customerName, project.customerNumber].join(' ')).includes(needle);
+    });
+  }, [ready, query, scope, me]);
 
-  const supplier = useMemo(
-    () => supplierFromCompany(family?.company, family?.name),
-    [family],
-  );
+  const workflow = useBillingWorkflow({
+    familyId: company,
+    storage,
+    projects: visible,
+    data,
+    supplier,
+    actor,
+    periodEnd,
+    onCreated: (created, failed) => {
+      setError(failed.length ? failed.map((row) => `${row.project ? `#${row.project.number} ${row.project.name}: ` : ''}${row.error}`).join('\n') : '');
+      if (created.length) {
+        const text = created.length === 1
+          ? 'Fakturautkastet er laget.'
+          : `${created.length} fakturautkast er laget.`;
+        setNote(`${text} Kontroller og ferdigstill dem fra fakturasiden.`);
+        showSaveToast(text);
+      }
+    },
+    onError: (message) => setError(message),
+  });
 
-  function warningFor(proposal) {
-    if (!watch || !proposal?.projectId) return null;
-    return invoiceIndexWarning({
-      projectId: proposal.projectId,
-      projects: projectState.projects || [],
-      contracts: watch.contracts,
-      timeEntries: projectState.timeEntries || [],
-      dueById: watch.dueById,
-      today: osloDate(),
+  const allChecked = visible.length > 0 && visible.every((project) => workflow.checked.has(project.projectId));
+  const someChecked = visible.some((project) => workflow.checked.has(project.projectId));
+  const checkedProjects = visible.filter((project) => workflow.checked.has(project.projectId));
+
+  function toggleOpen(projectId) {
+    setOpenIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
     });
   }
 
-  async function createInvoice(proposal, options = {}) {
-    const warning = options.force ? null : warningFor(proposal);
-    if (warning) {
-      setPending({ warning, proposal });
+  function openDraft(invoice) {
+    if (onOpenInvoice) {
+      onOpenInvoice(invoice.id);
       return;
     }
-    setPending(null);
-    setBusyKey(proposal.key);
+    requestShellTab?.('okonomi', 'faktura', { type: 'openInvoice', invoiceId: invoice.id });
+  }
+
+  function openProject(project, tab) {
+    requestShellTab?.('projects', null, { type: 'openProject', projectId: project.projectId, tab });
+  }
+
+  async function approve(list) {
     setError('');
-    setNote('');
-    try {
-      const project = (projectState.projects || []).find((row) => row.id === proposal.projectId) || null;
-      const created = createInvoiceFromOperations(proposal, {
-        existingInvoices: invoices,
-        vatCode,
-        groupBy: 'activity',
-        bankAccount: supplier.bankAccount,
-        creditDays: effectiveCreditDays(projectState, project, 14),
-      });
-      if (!created.ok) {
-        setError(created.error);
-        return;
-      }
-      let invoice = created.invoice;
-
-      const voucher = voucherFromInvoice(invoice);
-      if (voucher.ok) {
-        invoice = attachVoucherSnapshot(invoice, voucher);
-        setLastVoucher(voucher.voucher);
-      }
-
-      const ehf = buildEhfXml(invoice, { supplier });
-      if (ehf.ok) {
-        invoice = {
-          ...invoice,
-          ehfXml: ehf.xml,
-          deliveryMethod: 'ehf',
-          status: 'draft',
-        };
-        setLastEhf(ehf.xml);
-      }
-
-      // Behold alltid utkast til admin aktivt sender fra fakturalisten.
-      invoice = {
-        ...invoice,
-        status: 'draft',
-        exportStatus: invoice.exportStatus || 'utkast',
-        sent: '',
-        sentAt: '',
-      };
-      await invoiceStorage.saveInvoice(familyId, invoice);
-      const nextState = markProposalInvoiced(projectState, proposal, invoice.id);
-      const touched = (nextState.expenses || []).filter((row) => (
-        isExternalExpense(row) && (proposal.expenses || []).some((item) => item.id === row.id)
-      ));
-      if (touched.length) await saveProjectExpenses(familyId, touched);
-      const touchedSales = (nextState.sales || []).filter((row) => (
-        isExternalSale(row) && (proposal.sales || []).some((item) => item.id === row.id)
-      ));
-      if (touchedSales.length) await saveProductSales(familyId, touchedSales);
-      await saveProjectState({
-        ...nextState,
-        expenses: withoutExternalExpenses(nextState.expenses),
-        sales: withoutExternalSales(nextState.sales),
-      }, familyId);
-      setProjectState(nextState);
-      setInvoices(await invoiceStorage.loadInvoices(familyId));
-      setLastInvoice(invoice);
-      const parts = [
-        `Utkast ${invoice.invoiceNumber} opprettet (${formatMoney(invoice.amountInclVat)}).`,
-        'Send fakturaen fra Faktura-listen når den er klar.',
-        `KID ${invoice.kid || '—'}.`,
-      ];
-      if (voucher.ok) parts.push('Bilag bokført.');
-      // Fortsett uten EHF hvis orgnr mangler — faktura lagres likevel
-      if (ehf.ok) parts.push('EHF klar.');
-      else parts.push(`EHF: ${ehf.error}`);
-      setNote(parts.join(' '));
-      showSaveToast(parts[0] || 'Fakturautkast er opprettet.');
-    } catch (cause) {
-      setError(String(cause?.message || cause) || 'Kunne ikke opprette faktura.');
-    } finally {
-      setBusyKey('');
+    const count = await workflow.approve(list);
+    if (count) {
+      const text = count === 1 ? '1 post er godkjent.' : `${count} poster er godkjent.`;
+      setNote(text);
+      showSaveToast(text);
     }
   }
 
-  async function createCreditNote() {
-    if (!lastInvoice?.id) return;
-    setBusyKey('credit');
-    setError('');
-    setNote('');
-    try {
-      const created = createCreditNoteFromInvoice(lastInvoice, {
-        existingInvoices: invoices,
-        bankAccount: supplier.bankAccount,
-        reason: 'Kreditnota fra fakturagrunnlag',
-      });
-      if (!created.ok) {
-        setError(created.error);
-        return;
-      }
-      let invoice = created.invoice;
-      const voucher = creditVoucherFromInvoice(lastInvoice);
-      if (voucher.ok) {
-        invoice = attachVoucherSnapshot(invoice, voucher);
-        setLastVoucher(voucher.voucher);
-      }
-      const ehf = buildEhfXml(invoice, { supplier });
-      if (ehf.ok) {
-        invoice = { ...invoice, ehfXml: ehf.xml };
-        setLastEhf(ehf.xml);
-      }
-      await invoiceStorage.saveInvoice(familyId, invoice);
-      // Merk original som kreditert (status) uten å låse opp timer
-      await invoiceStorage.saveInvoice(familyId, {
-        ...lastInvoice,
-        status: 'credited',
-        updatedAt: new Date().toISOString(),
-      });
-      setInvoices(await invoiceStorage.loadInvoices(familyId));
-      setLastInvoice(null);
-      setNote(`Kreditnota ${invoice.invoiceNumber} opprettet for faktura ${lastInvoice.invoiceNumber}.`);
-      showSaveToast(`Kreditnota ${invoice.invoiceNumber} opprettet for faktura ${lastInvoice.invoiceNumber}.`);
-    } catch (cause) {
-      setError(String(cause?.message || cause) || 'Kunne ikke opprette kreditnota.');
-    } finally {
-      setBusyKey('');
-    }
-  }
-
-  function downloadEhf() {
-    if (!lastEhf || Platform.OS !== 'web' || typeof document === 'undefined') return;
-    const blob = new Blob([lastEhf], { type: 'application/xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'faktura-ehf.xml';
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  if (!ready) {
+  if (!data.ready) {
     return (
-      <View style={[styles.wrap, { backgroundColor: colors.bg }]}>
-        <Text style={{ color: colors.muted }}>Laster fakturagrunnlag…</Text>
+      <View style={[styles.wrap, { backgroundColor: colors.bg, padding: 16 }]}>
+        <Text style={{ color: colors.muted }}>Henter det som skal faktureres…</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.wrap, { backgroundColor: colors.bg }]} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      {hostedHero ? null : (
-        <Text style={[styles.title, { color: colors.ink }]}>Fakturagrunnlag</Text>
-      )}
-      <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 640 }}>
-        {hostedHero ? '' : 'Godkjente timer, utlegg, kjøreturer og varesalg samles per kunde/prosjekt. '}
-        Opprett faktura med linjer, MVA, KID, bilag og EHF-XML.
-      </Text>
+    <View style={[styles.wrap, { backgroundColor: colors.bg }]} nativeID="economy-billing">
+      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+        {hostedHero ? null : <Text style={[styles.title, { color: colors.ink }]}>Til fakturering</Text>}
+        <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 760, lineHeight: 19 }}>
+          Ufakturerte timer, utlegg, kjøring og salg per prosjekt. Åpne et prosjekt for å se linjene,
+          godkjenn og lag fakturautkast. Utkastene får nummer først når de ferdigstilles.
+        </Text>
 
-      <View style={styles.row}>
-        <TouchableOpacity
-          onPress={() => setOnlyApproved((v) => !v)}
-          style={[styles.chip, { borderColor: colors.line, backgroundColor: onlyApproved ? `${colors.brand}18` : colors.card }]}
-        >
-          <Text style={{ color: colors.ink, fontSize: 13 }}>
-            {onlyApproved ? 'Kun godkjente' : 'Godkjente + registrerte'}
-          </Text>
-        </TouchableOpacity>
-        {VAT_TABLE.filter((row) => ['HIGH', 'MID', 'LOW', 'ZERO'].includes(row.id)).map((row) => (
-          <TouchableOpacity
-            key={row.id}
-            onPress={() => setVatCode(row.id)}
-            style={[styles.chip, {
-              borderColor: vatCode === row.id ? colors.brand : colors.line,
-              backgroundColor: vatCode === row.id ? `${colors.brand}18` : colors.card,
-            }]}
-          >
-            <Text style={{ color: colors.ink, fontSize: 12 }}>{row.label} {row.percent}%</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {priceNotes.slice(0, 3).map((row) => (
-        <Text key={row.invoiceId + row.message} style={{ color: colors.warn || '#d97706' }}>{row.message}</Text>
-      ))}
-      {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
-      {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
-      <IndexWarning
-        warning={pending?.warning}
-        colors={colors}
-        continueLabel="Opprett utkast likevel"
-        onContinue={() => pending?.proposal && createInvoice(pending.proposal, { force: true })}
-        onOpenIndex={() => requestShellTab?.('okonomi', 'indeks')}
-      />
-
-      {lastInvoice?.id ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>
-            Siste faktura {lastInvoice.invoiceNumber}
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4 }}>
-            Opprett kreditnota med speilede linjer, bilag og ny KID.
-          </Text>
-          <TouchableOpacity
-            onPress={createCreditNote}
-            disabled={busyKey === 'credit'}
-            style={[styles.btnGhost, { borderColor: colors.line, marginTop: 10, alignSelf: 'flex-start', flexDirection: 'row', gap: 6, alignItems: 'center' }]}
-          >
-            <Ionicons name="return-down-back-outline" size={16} color={colors.ink} />
-            <Text style={{ color: colors.ink, fontWeight: '600' }}>
-              {busyKey === 'credit' ? 'Krediterer…' : 'Opprett kreditnota'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
-      {!proposals.length ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.muted }}>
-            Ingen poster klare for fakturering. Godkjenn timer, utlegg, kjøring eller varesalg først.
-          </Text>
-          <View style={[styles.row, { marginTop: 12 }]}>
-            <TouchableOpacity onPress={() => requestShellTab?.('arbeid')} style={[styles.btn, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Åpne Arbeid</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => requestShellTab?.('okonomi', 'faktura')} style={[styles.btnGhost, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Se fakturaer</Text>
-            </TouchableOpacity>
+        <View style={styles.toolbar}>
+          <View style={styles.chipRow}>
+            {PERIOD_OPTIONS.map((row) => {
+              const on = period === row.id;
+              return (
+                <TouchableOpacity
+                  key={row.id}
+                  onPress={() => setPeriod(row.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  nativeID={`billing-period-${row.id}`}
+                  style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+                >
+                  <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 13 }}>{row.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            {period === 'custom' ? (
+              <DateField
+                value={customDate || periodEnd}
+                onChange={(date) => setCustomDate(date ? dateKey(date) : '')}
+                style={[styles.dateField, { borderColor: colors.line, backgroundColor: colors.card }]}
+              />
+            ) : (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>{`t.o.m. ${periodEnd.split('-').reverse().join('.')}`}</Text>
+            )}
+          </View>
+          <View style={styles.chipRow}>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Søk prosjekt eller kunde"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Søk prosjekt eller kunde"
+              nativeID="billing-search"
+              style={[styles.search, { borderColor: colors.line, color: colors.ink, backgroundColor: colors.card }]}
+            />
+            {SCOPES.map((row) => {
+              const on = scope === row.id;
+              return (
+                <TouchableOpacity
+                  key={row.id}
+                  onPress={() => setScope(row.id)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
+                >
+                  <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 13 }}>{row.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
-      ) : null}
 
-      {proposals.map((proposal) => (
-        <View key={proposal.key} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 15 }}>
-            {proposal.customerName || 'Uten kunde'} · #{proposal.projectNumber} {proposal.projectName}
-          </Text>
-          <Text style={{ color: colors.muted, marginTop: 4, fontSize: 13 }}>
-            {(() => {
-              const s = proposalSummary(proposal);
-              const bits = [];
-              if (s.entryCount) bits.push(`${s.entryCount} timer (${formatHours(s.hours)})`);
-              if (s.expenseCount) bits.push(`${s.expenseCount} utlegg`);
-              if (s.tripCount) bits.push(`${s.tripCount} turer`);
-              if (s.saleCount) bits.push(`${s.saleCount} varer`);
-              bits.push(`eks. mva ${formatMoney(proposal.amountExVat)}`);
-              return bits.join(' · ');
-            })()}
-          </Text>
-          <ScrollView horizontal style={{ marginTop: 8 }}>
-            {proposal.entries.slice(0, 8).map((row) => (
-              <View key={row.id} style={[styles.mini, { borderColor: colors.line }]}>
-                <Text style={{ color: colors.ink, fontSize: 11 }}>{row.date}</Text>
-                <Text style={{ color: colors.muted, fontSize: 11 }}>{formatHours(row._hours)} · {row.employeeName}</Text>
+        {data.mode === 'poweroffice' ? (
+          <Banner tone="info" colors={colors} title="PowerOffice Go er koblet">
+            Utkastene lages her. Fra fakturasiden overføres de til PowerOffice, som setter fakturanummer, KID og sender fakturaen.
+          </Banner>
+        ) : null}
+        {data.error ? <Banner tone="block" colors={colors}>{data.error}</Banner> : null}
+        {error ? <Banner tone="block" colors={colors}>{error}</Banner> : null}
+        {note ? <Banner tone="ok" colors={colors}>{note}</Banner> : null}
+
+        <View style={[styles.summary, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <View style={styles.summaryLeft}>
+            <Check
+              checked={allChecked}
+              partial={!allChecked && someChecked}
+              onPress={() => workflow.setAllChecked(!allChecked, visible)}
+              colors={colors}
+              disabled={!visible.length || !canEdit}
+              label="Velg alle"
+              nativeID="billing-check-all"
+            />
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>Velg alle</Text>
+            <Text style={{ color: colors.muted, fontSize: 13 }}>
+              {visible.length === 1 ? '1 prosjekt' : `${visible.length} prosjekter`}
+            </Text>
+          </View>
+          <View style={styles.summaryRight}>
+            <Text style={{ color: colors.ink }}>
+              <Text style={{ fontWeight: '700' }}>Totalt å faktureres: </Text>
+              {money(workflow.totals.open)}
+              <Text style={{ color: colors.muted }}> eks. mva</Text>
+            </Text>
+            {someChecked ? (
+              <Text style={{ color: colors.muted, fontSize: 13 }}>{`Valgt ${money(workflow.totals.picked)}`}</Text>
+            ) : null}
+            {canEdit ? (
+              <View style={styles.actions}>
+                <Button
+                  label="Godkjenn utvalg"
+                  icon="checkmark"
+                  tone="success"
+                  colors={colors}
+                  disabled={!checkedProjects.length || !!workflow.busy}
+                  busy={workflow.busy === 'approve'}
+                  onPress={() => approve(checkedProjects)}
+                  nativeID="billing-approve-selected"
+                />
+                <Button
+                  label="Lag fakturautkast av utvalg"
+                  icon="document-text-outline"
+                  colors={colors}
+                  disabled={!checkedProjects.length || !!workflow.busy}
+                  busy={workflow.busy === 'draft'}
+                  onPress={() => { setError(''); setNote(''); workflow.requestCreate(checkedProjects); }}
+                  nativeID="billing-draft-selected"
+                />
               </View>
-            ))}
-          </ScrollView>
-          {warningFor(proposal) ? (
-            <Text style={{ color: colors.danger || '#b45309', marginTop: 8 }}>
-              Ny indeks på dette prosjektet. Regulering bør gjøres før fakturaen opprettes.
-            </Text>
-          ) : null}
-          <TouchableOpacity
-            onPress={() => createInvoice(proposal)}
-            disabled={busyKey === proposal.key}
-            style={[styles.btn, { backgroundColor: colors.brand, marginTop: 12, alignSelf: 'flex-start' }]}
-          >
-            <Ionicons name="document-text-outline" size={16} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '600' }}>
-              {busyKey === proposal.key ? 'Oppretter utkast…' : 'Opprett utkast'}
-            </Text>
-          </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
-      ))}
 
-      {lastVoucher ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Siste bilag</Text>
-          <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>{lastVoucher.text}</Text>
-          {lastVoucher.lines.map((line, i) => (
-            <Text key={i} style={{ color: colors.ink, fontSize: 12, marginTop: 2 }}>
-              {line.account} {line.accountName}: D {line.debit} / K {line.credit}
+        {!visible.length ? (
+          <View style={[styles.empty, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Ionicons name="checkmark-done-outline" size={22} color={colors.muted} />
+            <Text style={{ color: colors.ink, fontWeight: '700' }}>
+              {ready.length ? 'Ingen prosjekter passer filteret.' : 'Ingenting å fakturere i perioden.'}
             </Text>
+            <Text style={{ color: colors.muted, fontSize: 13, textAlign: 'center', maxWidth: 520 }}>
+              Timer, utlegg, kjøring og salg dukker opp her når de er ført på et prosjekt med kunde.
+              Velg «T.o.m. i dag» for å ta med arbeid fra denne måneden.
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={{ gap: 8 }}>
+          {visible.map((project) => (
+            <BillingProjectRow
+              key={project.projectId}
+              project={project}
+              colors={colors}
+              open={openIds.has(project.projectId)}
+              onToggleOpen={() => toggleOpen(project.projectId)}
+              selected={workflow.selectedFor(project)}
+              onToggleKey={(key) => workflow.toggleKey(project, key)}
+              checked={workflow.checked.has(project.projectId)}
+              onToggleCheck={() => workflow.toggleChecked(project.projectId)}
+              fixedAmount={workflow.fixedAmounts[project.projectId]}
+              onFixedAmount={(value) => workflow.setFixedAmount(project.projectId, value)}
+              stacked={stacked}
+              busy={!!workflow.busy}
+              canEdit={canEdit}
+              onApprove={() => approve([project])}
+              onCreateDraft={() => { setError(''); setNote(''); workflow.requestCreate([project]); }}
+              onOpenDraft={openDraft}
+              onOpenProject={(tab) => openProject(project, tab)}
+            />
           ))}
         </View>
-      ) : null}
+      </ScrollView>
 
-      {lastEhf ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <View style={styles.row}>
-            <Text style={{ color: colors.ink, fontWeight: '700', flex: 1 }}>EHF XML klar</Text>
-            <TouchableOpacity onPress={downloadEhf} style={[styles.btnGhost, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink }}>Last ned XML</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={{ color: colors.muted, fontSize: 11, marginTop: 8 }} numberOfLines={6}>
-            {lastEhf.slice(0, 400)}…
-          </Text>
-        </View>
-      ) : null}
-    </ScrollView>
+      <ConfirmDialog
+        visible={!!workflow.pending}
+        title="Ikke godkjent"
+        message={workflow.pending
+          ? `${workflow.pending.unapproved === 1 ? '1 post' : `${workflow.pending.unapproved} poster`} i utvalget er ikke godkjent. Vil du godkjenne dem og ta dem med, eller bare ta med det som er godkjent?`
+          : ''}
+        buttons={[
+          { text: 'Avbryt', style: 'cancel', onPress: workflow.cancelPending },
+          { text: 'Bare godkjente', style: 'cancel', onPress: () => workflow.confirmPending(false) },
+          { text: 'Godkjenn og lag utkast', onPress: () => workflow.confirmPending(true) },
+        ]}
+        onClose={() => {}}
+      />
+      <BrandBusyOverlay
+        visible={workflow.busy === 'draft'}
+        label="Lager fakturautkast…"
+        detail="Postene reserveres på utkastene. Vent til det er ferdig."
+        done={workflow.progress?.done}
+        total={workflow.progress?.total}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
+  inner: { padding: 16, gap: 12, paddingBottom: 48 },
   title: { fontSize: 22, fontWeight: '700' },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  card: { borderWidth: 1, borderRadius: 10, padding: 14 },
-  btn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  btnGhost: {
+  toolbar: { gap: 8 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  dateField: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, minWidth: 180 },
+  search: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, minWidth: 220, flexGrow: 1, maxWidth: 360, fontSize: 14 },
+  summary: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 12,
   },
-  mini: {
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 8,
-    marginRight: 6,
-    minWidth: 100,
-  },
+  summaryLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flexGrow: 1 },
+  summaryRight: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  empty: { borderWidth: 1, borderRadius: 10, padding: 24, alignItems: 'center', gap: 8 },
 });

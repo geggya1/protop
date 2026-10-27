@@ -78,8 +78,18 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
 
   async function fetchProducts() {
     const result = await run('products', () => listPowerOfficeProducts(familyId));
-    if (result) setProducts(result.products || []);
+    if (!result) return;
+    const list = result.products || [];
+    setProducts(list);
+    if (list.length) setNote(`Hentet ${list.length} produkter fra PowerOffice. Velg produkt for hver MVA-sats under.`);
   }
+
+  // Produktene hentes av seg selv når klienten er koblet til, så valgene er klare.
+  useEffect(() => {
+    if (!status?.connected || !canEdit || products != null) return;
+    void fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.connected, canEdit]);
 
   async function sync() {
     const result = await run('sync', () => syncPowerOfficeInvoices(familyId));
@@ -230,9 +240,11 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
           ))}
           <View style={styles.row}>
             {button(busy === 'codes' ? 'Lagrer…' : 'Lagre produkter', saveCodes, { key: 'codes', primary: true })}
-            {products == null
-              ? button(busy === 'products' ? 'Henter…' : 'Hent produkter fra PowerOffice', fetchProducts, { key: 'products' })
-              : null}
+            {button(
+              busy === 'products' ? 'Henter…' : (products == null ? 'Hent produkter fra PowerOffice' : 'Hent produkter på nytt'),
+              fetchProducts,
+              { key: 'products' },
+            )}
           </View>
           {products && !products.length ? (
             <Text style={{ color: colors.muted }}>Fant ingen produkter i PowerOffice. Opprett dem der først.</Text>

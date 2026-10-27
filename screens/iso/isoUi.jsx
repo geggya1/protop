@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import DateField from '../../components/DateField';
+import OptionPicker from '../../components/OptionPicker';
 import { dateKey } from '../../src/utils/dates';
 
 export function useWide() {
@@ -178,32 +179,25 @@ export function TextIn({ value, onChangeText, multiline, placeholder, keyboardTy
   );
 }
 
-export function Choice({ options, value, onChange, multi = false, small }) {
-  const colors = useColors();
-  const list = (options || []).map((o) => (typeof o === 'string' ? { id: o, label: o } : o));
-  const active = (id) => (multi ? (value || []).includes(id) : value === id);
+/**
+ * Valg i ISO. Under 5 valg: knapper side om side. 5 eller flere: liste med søk (felles velger for hele appen).
+ * placeholder vises i feltet når ingenting er valgt (f.eks. «Alle» i filtre).
+ */
+export function Choice({ options, value, onChange, multi = false, small, placeholder = 'Velg', title, clearLabel, clearable }) {
+  // Tømme valget: i filtre («Alle») og valgfrie felt. Obligatoriske felt sender clearable={false}.
+  const canClear = clearable ?? placeholder === 'Alle';
   return (
-    <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]} accessibilityRole={multi ? undefined : 'radiogroup'}>
-      {list.map((o) => {
-        const on = active(o.id);
-        return (
-          <TouchableOpacity
-            key={o.id}
-            onPress={() => {
-              if (!multi) return onChange(on ? '' : o.id);
-              const cur = value || [];
-              return onChange(on ? cur.filter((x) => x !== o.id) : [...cur, o.id]);
-            }}
-            accessibilityRole={multi ? 'checkbox' : 'radio'}
-            accessibilityState={{ checked: on }}
-            style={[styles.chip, small && { paddingVertical: 5, paddingHorizontal: 9, minHeight: 30 }, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? `${colors.brand}18` : colors.bg }]}
-          >
-            {on ? <Ionicons name="checkmark" size={13} color={colors.brand} /> : null}
-            <Text style={{ color: on ? colors.brand : colors.ink, fontSize: small ? 12 : 13, fontWeight: on ? '600' : '400' }}>{o.label}</Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+    <OptionPicker
+      options={options}
+      value={multi ? (value || []) : value}
+      onChange={onChange}
+      multiple={multi}
+      small={small}
+      placeholder={placeholder}
+      title={title}
+      clearable={canClear}
+      clearLabel={clearLabel || (placeholder === 'Alle' ? 'Alle' : 'Ingen valgt')}
+    />
   );
 }
 
@@ -233,43 +227,43 @@ export function Check({ label, value, onChange }) {
 }
 
 /** Velg person fra ProTops ansattregister (ingen egen brukerliste). */
-export function PersonPick({ people, value, onChange, placeholder = 'Søk etter ansatt' }) {
-  const colors = useColors();
-  const [q, setQ] = useState('');
-  // Uten søk: bare egne aktive ansatte. Søk når også innleide, eksterne og inaktive.
-  const list = (people || [])
-    .filter((p) => (q ? p.name.toLowerCase().includes(q.toLowerCase()) : p.own !== false))
-    .slice(0, 8);
+/**
+ * Velg en ansatt. Egne aktive ansatte først, deretter innleide, eksterne og inaktive. Søk i navn og stilling.
+ * Finnes ikke personen, kan navnet skrives inn («Bruk …»).
+ */
+export function PersonPick({ people, value, onChange, placeholder = 'Velg ansatt' }) {
+  const list = (people || []).filter((p) => p?.name);
+  const options = list.map((p) => ({
+    id: p.id || p.name,
+    label: p.name,
+    hint: p.title || '',
+    group: p.own === false ? 'Andre' : 'Egne ansatte',
+    person: p,
+  })).sort((a, b) => Number(a.group !== 'Egne ansatte') - Number(b.group !== 'Egne ansatte'));
+  const current = options.find((o) => o.label === value) || null;
+  const shown = value && !current ? [{ id: `__navn:${value}`, label: value, hint: 'Ikke i Ansatte', group: 'Valgt' }, ...options] : options;
+  const pick = (id) => {
+    if (!id) { onChange({ name: '', uid: '' }); return; }
+    const o = options.find((x) => x.id === id);
+    if (!o) return;
+    const p = o.person;
+    onChange({ name: p.name, uid: p.uid || '', employeeId: p.id || '', phone: p.phone || '', email: p.email || '' });
+  };
   return (
-    <View style={{ gap: 6 }}>
-      {value ? (
-        <View style={[styles.row, { gap: 8 }]}>
-          <Pill label={value} tone="info" icon="person" />
-          <Btn small label="Endre" onPress={() => onChange({ name: '', uid: '' })} />
-        </View>
-      ) : (
-        <>
-          <TextIn value={q} onChangeText={setQ} placeholder={placeholder} />
-          <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]}>
-            {list.map((p) => (
-              <TouchableOpacity key={p.id || p.name} onPress={() => { onChange({ name: p.name, uid: p.uid || '', employeeId: p.id || '', phone: p.phone || '', email: p.email || '' }); setQ(''); }} style={[styles.chip, { borderColor: colors.line, backgroundColor: colors.card }]} accessibilityRole="button">
-                <Ionicons name="person-outline" size={13} color={colors.muted} />
-                <Text style={{ color: colors.ink, fontSize: 13 }}>{p.name}</Text>
-              </TouchableOpacity>
-            ))}
-            {q && !list.length ? (
-              <TouchableOpacity onPress={() => { onChange({ name: q.trim(), uid: '' }); setQ(''); }} style={[styles.chip, { borderColor: colors.line }]} accessibilityRole="button">
-                <Text style={{ color: colors.ink, fontSize: 13 }}>Bruk «{q.trim()}»</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </>
-      )}
-    </View>
+    <OptionPicker
+      options={shown}
+      value={current ? current.id : (value ? `__navn:${value}` : '')}
+      onChange={pick}
+      placeholder={placeholder}
+      title={placeholder}
+      searchable
+      searchPlaceholder="Søk i navn eller stilling"
+      clearLabel="Fjern person"
+      onCustom={(name) => onChange({ name: name.trim(), uid: '' })}
+    />
   );
 }
 
-/** Flere personer: velg blant de ansatte (eller skriv navn på en ekstern). Lagres som [{ name, uid, employeeId }]. */
 export function PersonsPick({ people, value, onChange }) {
   const list = Array.isArray(value) ? value : [];
   return (

@@ -227,7 +227,7 @@ export function FormFillSheet({ ctx, control: controlProp, templateId, visible, 
     <Sheet visible title={version.title} onClose={onClose} wide={wide} footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Send inn" busy={busy} onPress={send} /></>}>
       <Text style={{ color: colors.muted, fontSize: 12 }}>Styrt versjon {version.version}. Innsendt registrering låses og brukes som bevis.</Text>
       {!subjectRef?.projectId && projects.length ? (
-        <Field label="Prosjekt (valgfritt)"><Choice small options={projects.slice(0, 30).map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={projectId} onChange={setProjectId} /></Field>
+        <Field label="Prosjekt (valgfritt)"><Choice small title="Prosjekt" options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={projectId} onChange={setProjectId} /></Field>
       ) : null}
       {version.fields.map((f) => (
         <BuilderField key={f.id} field={f} value={answers[f.id]} onChange={set(f.id)} error={errors[f.id]} people={people} />

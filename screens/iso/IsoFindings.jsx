@@ -80,8 +80,8 @@ export default function IsoFindings({ ctx }) {
       {drillIds ? <Banner tone="info" text={`Viser utvalg fra oversikten: ${params?.label || ''} (${rows.length})`} /> : null}
       <Card>
         <TextIn value={query} onChangeText={setQuery} placeholder="Søk i saksnummer, tittel, prosjekt" />
-        <Choice small options={[{ id: 'apne', label: 'Åpne' }, { id: 'forfalt', label: 'Forfalte tiltak' }, ...(wide || moreFilters ? FINDING_STATES.map((s) => ({ id: s.id, label: s.label })) : [])]} value={stateFilter} onChange={setStateFilter} />
-        {wide || moreFilters ? <Choice small options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={typeFilter} onChange={setTypeFilter} /> : null}
+        <Choice small options={[{ id: 'apne', label: 'Åpne' }, { id: 'forfalt', label: 'Forfalte tiltak' }, ...(wide || moreFilters ? FINDING_STATES.map((s) => ({ id: s.id, label: s.label })) : [])]} value={stateFilter} onChange={setStateFilter} placeholder="Alle" title="Status" />
+        {wide || moreFilters ? <Choice small options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={typeFilter} onChange={setTypeFilter} placeholder="Alle" title="Type" /> : null}
         {!wide ? <Btn small icon="options-outline" label={moreFilters ? 'Færre filtre' : `Flere filtre${typeFilter || (stateFilter && !['apne', 'forfalt'].includes(stateFilter)) ? ' (aktive)' : ''}`} onPress={() => setMoreFilters(!moreFilters)} /> : null}
       </Card>
       {legacy.length && caps.manage ? (
@@ -163,7 +163,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       <Field label="Beskrivelse" required hint="Beskriv fakta. Ikke legg inn helseopplysninger her."><TextIn multiline value={v.description} onChangeText={set('description')} /></Field>
       <Field label="Dato"><DateIn value={v.occurredAt} onChange={set('occurredAt')} /></Field>
       {projects.length ? (
-        <Field label="Prosjekt"><Choice small options={projects.slice(0, 30).map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={v.projectId} onChange={set('projectId')} /></Field>
+        <Field label="Prosjekt"><Choice small title="Prosjekt" options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={v.projectId} onChange={set('projectId')} /></Field>
       ) : null}
       <Field label="Sted"><TextIn value={v.location} onChangeText={set('location')} placeholder="Adresse, bygg eller prosjektsted" /></Field>
       {domain === 'KVALITET' ? (

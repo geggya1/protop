@@ -127,8 +127,8 @@ export default function IsoDocuments({ ctx }) {
     >
       <Card>
         <TextIn value={q} onChangeText={setQ} placeholder="Søk i dokument-ID, tittel, stikkord og innhold" />
-        {structure.length ? <Choice small options={[{ id: '', label: 'Alle mapper' }, ...structure.map((p) => ({ id: p.code, label: `${p.code} – ${p.title}` }))]} value={folder} onChange={(x) => setFolder(x || '')} /> : null}
-        <Choice small options={DOC_TYPES} value={type} onChange={setType} />
+        {structure.length ? <Choice small options={[{ id: '', label: 'Alle mapper' }, ...structure.map((p) => ({ id: p.code, label: `${p.code} – ${p.title}` }))]} value={folder} onChange={(x) => setFolder(x || '')} title="Mappe" /> : null}
+        <Choice small options={DOC_TYPES} value={type} onChange={setType} placeholder="Alle" title="Dokumenttype" />
         {caps.manage ? <Check label="Bare dokumenter til godkjenning" value={awaiting} onChange={setAwaiting} /> : null}
       </Card>
       {!visible.length && !externalHits.length ? (

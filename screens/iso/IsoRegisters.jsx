@@ -51,7 +51,12 @@ export function refOptions(state, f) {
     return allRequirements(state).filter((r) => r.kind === 'lov' || r.kind === 'kontrakt').map((r) => ({ id: r.id, label: r.title }));
   }
   if (f.ref === 'process') {
-    return (state.processes || []).filter((p) => !p.archived).map((p) => ({ id: p.id, label: `${p.code ? `${p.code} ` : ''}${p.title}` }));
+    // Gruppert som i prosesslandskapet, så lange lister er lette å finne fram i.
+    const groups = [['ledelse', 'Ledelsesprosesser'], ['kjerne', 'Kjerneprosesser'], ['stotte', 'Støtteprosesser']];
+    const order = (p) => { const i = groups.findIndex(([id]) => id === p.category); return i < 0 ? groups.length : i; };
+    return (state.processes || []).filter((p) => !p.archived)
+      .sort((a, b) => order(a) - order(b) || String(a.code || a.title).localeCompare(String(b.code || b.title), 'nb', { numeric: true }))
+      .map((p) => ({ id: p.id, label: `${p.code ? `${p.code} ` : ''}${p.title}`, group: (groups.find(([id]) => id === p.category) || [])[1] || 'Andre' }));
   }
   return (state.records[f.ref] || []).filter((r) => r.state !== 'arkivert').map((r) => ({ id: r.id, label: `${r.title}${r.role ? ` (${r.role})` : ''}` }));
 }
@@ -96,9 +101,9 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
       case 'long': return <TextIn multiline value={value} onChangeText={set(f.key)} />;
       case 'date': return <DateIn value={value} onChange={set(f.key)} />;
       case 'number': return <TextIn keyboardType="numeric" value={value == null ? '' : String(value)} onChangeText={set(f.key)} />;
-      case 'scale': return <Choice options={['1', '2', '3', '4', '5']} value={value == null ? '' : String(value)} onChange={(x) => set(f.key)(x ? Number(x) : null)} />;
-      case 'select': return <Choice options={f.options} value={value} onChange={set(f.key)} />;
-      case 'multi': return <Choice multi options={f.options} value={value || []} onChange={set(f.key)} />;
+      case 'scale': return <Choice title={f.label} options={['1', '2', '3', '4', '5']} value={value == null ? '' : String(value)} onChange={(x) => set(f.key)(x ? Number(x) : null)} clearable={!f.required} />;
+      case 'select': return <Choice title={f.label} options={f.options} value={value} onChange={set(f.key)} clearable={!f.required} />;
+      case 'multi': return <Choice multi title={f.label} options={f.options} value={value || []} onChange={set(f.key)} />;
       case 'check': return <Check label={f.label} value={!!value} onChange={set(f.key)} />;
       case 'person': return (
         <PersonPick
@@ -108,7 +113,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
         />
       );
       case 'project': return projects.length
-        ? <Choice small options={projects.slice(0, 40).map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={value} onChange={(x) => { const p = projects.find((y) => y.id === x); setV((cur) => ({ ...cur, projectId: x, projectName: p ? `${p.number || ''} ${p.name || ''}`.trim() : '' })); }} />
+        ? <Choice small title="Prosjekt" clearable={!f.required} options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={value} onChange={(x) => { const p = projects.find((y) => y.id === x); setV((cur) => ({ ...cur, projectId: x, projectName: p ? `${p.number || ''} ${p.name || ''}`.trim() : '' })); }} />
         : <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen prosjekter registrert i Prosjekt.</Text>;
       case 'persons': return <PersonsPick people={people} value={Array.isArray(value) ? value : (value ? String(value).split(/[,;]+/).map((n) => ({ name: n.trim() })).filter((x) => x.name) : [])} onChange={set(f.key)} />;
       case 'contacts': return <ContactsEdit people={people} value={value || []} onChange={set(f.key)} />;
@@ -116,7 +121,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
         // Avdelinger og underenheter fra Selskap; uten registrerte enheter skrives navnet fritt.
         const units = normalizeSubUnits(ctx.sources?.company?.subUnits).map((u) => u.name || u.navn).filter(Boolean);
         return units.length
-          ? <Choice small options={units.map((u) => ({ id: u, label: u }))} value={value} onChange={set(f.key)} />
+          ? <Choice small title={f.label} clearable={!f.required} options={units.map((u) => ({ id: u, label: u }))} value={value} onChange={set(f.key)} />
           : <TextIn value={value} onChangeText={set(f.key)} placeholder="Avdeling (registrer avdelinger under Selskap → Underenheter)" />;
       }
       case 'ref':
@@ -124,8 +129,8 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
         const opts = refOptions(state, f);
         if (!opts.length) return <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen å velge mellom ennå.</Text>;
         return f.type === 'refmulti'
-          ? <Choice small multi options={opts} value={value || []} onChange={set(f.key)} />
-          : <Choice small options={opts} value={value} onChange={set(f.key)} />;
+          ? <Choice small multi title={f.label} options={opts} value={value || []} onChange={set(f.key)} />
+          : <Choice small title={f.label} clearable={!f.required} options={opts} value={value} onChange={set(f.key)} />;
       }
       default: return <TextIn value={value} onChangeText={set(f.key)} />;
     }
@@ -1066,7 +1071,7 @@ export function AuditPage({ ctx }) {
               <Field label="Klassifisering"><Choice options={AUDIT_FINDING_CLASSES} value={af.classification} onChange={(x) => setAf({ ...af, classification: x || 'avvik' })} /></Field>
               <Field label="Funn" required><TextIn multiline value={af.description} onChangeText={(x) => setAf({ ...af, description: x })} /></Field>
               <Field label="Objektivt bevis" required={af.classification !== 'samsvar'}><TextIn multiline rows={2} value={af.evidence} onChangeText={(x) => setAf({ ...af, evidence: x })} /></Field>
-              <Field label="Krav"><Choice small multi options={requirements.filter((r) => r.kind === 'iso').slice(0, 60).map((r) => ({ id: r.id, label: `${r.standard.replace('ISO', '')} ${r.clause}` }))} value={af.requirementIds} onChange={(x) => setAf({ ...af, requirementIds: x })} /></Field>
+              <Field label="Krav"><Choice small multi title="Krav" options={requirements.filter((r) => r.kind === 'iso').map((r) => ({ id: r.id, label: `${r.standard.replace('ISO', 'ISO ')} ${r.clause}`, hint: r.title || '' }))} value={af.requirementIds} onChange={(x) => setAf({ ...af, requirementIds: x })} /></Field>
               <Btn kind="primary" label={af.classification === 'samsvar' ? 'Registrer funn' : 'Registrer funn og opprett sak'} onPress={addFinding} />
               {caps.approve ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
             </>
@@ -1270,7 +1275,7 @@ ${rows.map(({ r, a, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clau
       <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Klar for ekstern revisjon» er en intern indikator med synlig mangelliste." />
       <SimpleRegister ctx={ctx} registerKey="sertifikat" subtitle={(r) => `${r.certBody}${r.validTo ? ` · gyldig til ${prettyDate(r.validTo)}` : ''}${r.nextAudit ? ` · neste revisjon ${prettyDate(r.nextAudit)}` : ''}`} />
       <Card title="Bevispakke til revisor" subtitle="Velg krav (tomt utvalg = alle). Bare godkjente bevis tas med, og skjermede saker utelates.">
-        <Choice small multi options={requirements.slice(0, 120).map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', '')} ${r.clause}` : r.title }))} value={selected} onChange={setSelected} />
+        <Choice small multi title="Krav" options={requirements.map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.title, hint: r.standard ? (r.title || '') : '' }))} value={selected} onChange={setSelected} />
         {Platform.OS === 'web' ? <Btn kind="primary" icon="print-outline" label="Lag bevispakke (PDF)" onPress={exportPackage} /> : <Text style={{ color: colors.muted }}>Eksport er tilgjengelig i nettleseren.</Text>}
         <Text style={{ color: colors.muted, fontSize: 12 }}>Tidsstyrt lesetilgang for ekstern revisor i appen krever egen revisorrolle og er ikke aktivert ennå. Del bevispakken i stedet.</Text>
         {!caps.manage ? null : null}

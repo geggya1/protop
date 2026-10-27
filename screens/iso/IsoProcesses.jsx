@@ -375,7 +375,7 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
       <Sheet visible={startOpen} title={`Bruk «${proc.title}»`} onClose={() => setStartOpen(false)} footer={<><Btn label="Avbryt" onPress={() => setStartOpen(false)} /><Btn kind="primary" label="Start" onPress={start} /></>}>
         <Text style={{ color: colors.muted, fontSize: 13 }}>Saken låses til v{pub?.version}. Senere endringer i prosessen påvirker ikke denne saken.</Text>
         <Field label="Saksnavn"><TextIn value={startForm.title} onChangeText={(x) => setStartForm({ ...startForm, title: x })} placeholder={proc.title} /></Field>
-        {projects.length ? <Field label="Knytt til prosjekt"><Choice small options={projects.slice(0, 30).map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={startForm.projectId} onChange={(x) => setStartForm({ ...startForm, projectId: x })} /></Field> : null}
+        {projects.length ? <Field label="Knytt til prosjekt"><Choice small title="Prosjekt" options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={startForm.projectId} onChange={(x) => setStartForm({ ...startForm, projectId: x })} /></Field> : null}
         {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
       </Sheet>
     </Page>

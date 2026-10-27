@@ -118,13 +118,38 @@ async function main() {
       const holder = rows[0] || null;
       const notes = [];
       notes.push(invited.has(email) ? 'på invitasjonslisten' : '❌ ikke på invitasjonslisten (invitedEmails)');
-      if (!holder) notes.push('❌ ingen ventende plassholder');
+      if (!holder) {
+        notes.push('❌ ingen ventende plassholder');
+        const others = parents.filter((row) => String(row.email || '').toLowerCase() === email);
+        others.forEach((row) => {
+          const flags = ['placeholder', 'deleted', 'archived', 'active'].filter((key) => row[key] === true);
+          notes.push(`rad \`${row.id}\`: ${row.inviteStatus || 'uten status'}${row.inviteKind ? `/${row.inviteKind}` : ''}`
+            + `${flags.length ? ` [${flags.join(', ')}]` : ''}${row.migratedToUid ? ' → flyttet til konto' : ''}`
+            + `${row.inviteId ? ' (har inviteId)' : ''}`);
+        });
+        if (!others.length) notes.push('ingen rad med denne e-posten under parents');
+      }
       else {
         notes.push(`plassholder \`${holder.id}\` status ${holder.inviteStatus || '–'}${holder.inviteKind ? `, ${holder.inviteKind}` : ''}`);
         if (holder.inviteKind === 'existing') notes.push('❌ merket som eksisterende bruker');
         if (holder.inviteEmailSentAt) notes.push(`e-post sendt ${String(holder.inviteEmailSentAt).slice(0, 16)}`);
         if (rows.length > 1) notes.push(`${rows.length} plassholdere`);
       }
+      const staff = await query(`families/${company.id}`, {
+        from: [{ collectionId: 'employees' }],
+        limit: 300,
+      }).catch(() => []);
+      staff.filter((row) => [row.person?.email, row.company?.email, row.invite?.email]
+        .some((value) => String(value || '').toLowerCase() === email))
+        .forEach((row) => notes.push(`ansatt \`${row.id}\`: invitasjon ${row.invite?.status || '–'}`
+          + `${row.invite?.parentKey ? `, parentKey \`${row.invite.parentKey}\`` : ', uten parentKey'}`
+          + `${row.personUid ? ', knyttet til konto' : ''}`));
+      const profiles = await query('', {
+        from: [{ collectionId: 'users' }],
+        where: { fieldFilter: { field: { fieldPath: 'email' }, op: 'EQUAL', value: { stringValue: email } } },
+        limit: 5,
+      }).catch(() => []);
+      profiles.forEach((row) => notes.push(`profil users/\`${row.id}\``));
       let user = null;
       if (!authDenied) {
         try {
@@ -133,10 +158,11 @@ async function main() {
           authDenied = error.message;
         }
       }
-      if (authDenied) notes.push('konto: ingen tilgang');
+      if (authDenied && profiles[0]) user = { uid: profiles[0].id, verified: null, providers: '?', createdAt: '' };
+      if (authDenied && !user) notes.push('konto: ingen tilgang');
       else if (!user) notes.push('ingen konto ennå');
       else {
-        notes.push(`konto fra ${user.createdAt} (${user.providers}), e-post ${user.verified ? 'bekreftet' : '❌ ikke bekreftet'}`);
+        if (user.verified !== null) notes.push(`konto fra ${user.createdAt} (${user.providers}), e-post ${user.verified ? 'bekreftet' : '❌ ikke bekreftet'}`);
         if (members.has(user.uid)) notes.push('allerede medlem');
         const inbox = await list(`users/${user.uid}/familyInvites`).catch((error) => ({ error }));
         if (inbox.error) notes.push('innboks: ingen tilgang');
@@ -147,6 +173,12 @@ async function main() {
             : `❌ ingen ventende invitasjon i innboksen${mine.length ? ` (${mine.map((row) => row.status).join(', ')})` : ''}`);
         }
       }
+      const sent = await query(`families/${company.id}`, {
+        from: [{ collectionId: 'memberInvites' }],
+        where: { fieldFilter: { field: { fieldPath: 'inviteeEmail' }, op: 'EQUAL', value: { stringValue: email } } },
+        limit: 20,
+      }).catch(() => []);
+      if (sent.length) notes.push(`memberInvites: ${sent.map((row) => `${row.status}${row.inviteeUid === user?.uid ? ' (denne kontoen)' : ''}`).join(', ')}`);
       say(`- ${mask(email)}: ${notes.join(' · ')}`);
     }
   }

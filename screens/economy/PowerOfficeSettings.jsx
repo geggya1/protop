@@ -14,6 +14,8 @@ import {
   envTag,
   POWEROFFICE_GUI,
   POWEROFFICE_VAT_ROWS,
+  productOptionsForRow,
+  productVatWarning,
   syncCountsText,
   syncLabel,
 } from '../../src/economy/powerOfficeView.js';
@@ -109,7 +111,7 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
   const connected = !!status?.connected;
   const tag = connected ? envTag(status.env) : '';
   const keysMissing = status?.keysReady && !Object.values(status.keysReady).some(Boolean);
-  const productOptions = (products || []).map((row) => ({ id: row.code, label: `${row.code} · ${row.name}` }));
+  const hasProducts = !!products?.length;
   const danger = colors.danger || '#b42318';
   const button = (label, onPress, { key, primary = false, disabled = false } = {}) => (
     <TouchableOpacity
@@ -208,16 +210,22 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
           <Text style={{ color: colors.muted, lineHeight: 20 }}>
             Produktet i PowerOffice bestemmer salgskonto og MVA. Hver linje i utkastet får produktet for sin MVA-sats.
           </Text>
+          <Text style={{ color: colors.muted, lineHeight: 20 }}>
+            ProTop bruker Høy sats for timer, kjøring og de fleste utlegg, og Fritatt for utlegg i kategoriene
+            Bompenger og Kjøregodtgjørelse. Rader dere ikke fakturerer med, kan stå tomme. Velg et produkt med
+            samme sats som raden: de som passer, står øverst i listen.
+          </Text>
           {Object.keys(status.productCodes || {}).length ? null : (
             <Text style={{ color: danger }}>Velg minst produktet for høy sats før du overfører utkast.</Text>
           )}
           {POWEROFFICE_VAT_ROWS.map((row) => (
-            <View key={row.id} style={styles.row}>
+            <View key={row.id} style={{ gap: 4 }}>
+            <View style={styles.row}>
               <Text style={{ color: colors.ink, width: 220 }}>{row.label}</Text>
-              {productOptions.length ? (
+              {hasProducts ? (
                 <View style={{ flex: 1, minWidth: 200 }}>
                   <OptionPicker
-                    options={productOptions}
+                    options={productOptionsForRow(row, products)}
                     value={codes[row.id] || ''}
                     onChange={(id) => setCodes((current) => ({ ...current, [row.id]: id || '' }))}
                     placeholder="Ikke valgt"
@@ -236,6 +244,12 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
                   style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
                 />
               )}
+            </View>
+            {productVatWarning(row, products, codes[row.id]) ? (
+              <Text style={{ color: danger, fontSize: 12, marginLeft: 228 }}>
+                {productVatWarning(row, products, codes[row.id])}
+              </Text>
+            ) : null}
             </View>
           ))}
           <View style={styles.row}>

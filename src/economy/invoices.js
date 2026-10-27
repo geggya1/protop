@@ -494,6 +494,9 @@ export function normalizeInvoice(input) {
     daysPaidToDue: moneyOrNull(row.daysPaidToDue),
     lockedAt: parseDate(row.lockedAt) || text(row.lockedAt),
     creditDays: moneyOrNull(row.creditDays),
+    // Datoer valgt i utkastet. Uten valg får fakturaen datoen den ferdigstilles.
+    invoiceDateSet: row.invoiceDateSet === true,
+    dueDateSet: row.dueDateSet === true,
     customerId: text(row.customerId),
     projectId: text(row.projectId),
     contractId: text(row.contractId),

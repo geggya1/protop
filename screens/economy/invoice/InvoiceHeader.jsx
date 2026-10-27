@@ -7,9 +7,9 @@ import OptionPicker from '../../../components/OptionPicker';
 import DateField from '../../../components/DateField';
 import { dateKey } from '../../../src/utils/dates';
 import { formatDate } from '../../../src/economy/invoices.js';
-import { DELIVERY_CHANNELS, isCreditNote } from '../../../src/economy/invoiceFlow.js';
+import { DELIVERY_CHANNELS, daysBetween, dueDateFor, isCreditNote } from '../../../src/economy/invoiceFlow.js';
 import { INVOICE_LANGUAGE_OPTIONS } from '../../../src/economy/companyInvoiceDefaults.js';
-import { Field } from '../billing/ui';
+import { Field, LinkText } from '../billing/ui';
 
 function Fact({ label, children, colors }) {
   if (children == null || children === '' || children === '—') return null;
@@ -122,6 +122,27 @@ export function InvoiceHeaderEditor({ invoice, colors, wide, customers = [], onP
     });
   }
   const setAddr = (key, value) => onPatch({ customerAddress: { ...addr, [key]: value } });
+  // Fristen følger fakturadatoen og kredittiden til den velges selv.
+  function setInvoiceDate(day) {
+    onPatch({
+      invoiceDate: day,
+      invoiceDateSet: true,
+      ...(invoice.dueDateSet ? {} : { dueDate: dueDateFor({ invoiceDate: day }, { creditDays: invoice.creditDays ?? 0 }) }),
+    });
+  }
+  function setDueDate(day) {
+    const days = daysBetween(invoice.invoiceDate, day);
+    onPatch({ dueDate: day, dueDateSet: true, ...(days != null && days >= 0 ? { creditDays: days } : {}) });
+  }
+  function setCreditDays(value) {
+    const days = value === '' ? null : Number(value.replace(/\D/g, '')) || 0;
+    onPatch({
+      creditDays: days,
+      dueDateSet: false,
+      ...(invoice.invoiceDate ? { dueDate: dueDateFor({ invoiceDate: invoice.invoiceDate }, { creditDays: days ?? 0 }) } : {}),
+    });
+  }
+  const dueBeforeDate = !!(invoice.invoiceDate && invoice.dueDate && invoice.dueDate < invoice.invoiceDate);
   return (
     <View style={[styles.grid, wide && styles.gridWide]}>
       <View style={[styles.box, wide && styles.boxWide, { borderColor: colors.line }]}>
@@ -177,7 +198,7 @@ export function InvoiceHeaderEditor({ invoice, colors, wide, customers = [], onP
             <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '600' }}>Fakturadato</Text>
             <DateField
               value={invoice.invoiceDate}
-              onChange={(date) => date && onPatch({ invoiceDate: dateKey(date) })}
+              onChange={(date) => date && setInvoiceDate(dateKey(date))}
               style={[styles.date, { borderColor: colors.line, backgroundColor: colors.card }]}
             />
           </View>
@@ -185,15 +206,28 @@ export function InvoiceHeaderEditor({ invoice, colors, wide, customers = [], onP
             <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '600' }}>Betalingsfrist</Text>
             <DateField
               value={invoice.dueDate}
-              onChange={(date) => date && onPatch({ dueDate: dateKey(date) })}
-              style={[styles.date, { borderColor: colors.line, backgroundColor: colors.card }]}
+              onChange={(date) => date && setDueDate(dateKey(date))}
+              style={[styles.date, { borderColor: dueBeforeDate ? (colors.danger || '#b42318') : colors.line, backgroundColor: colors.card }]}
             />
           </View>
-          <Field label="Kredittid (dager)" value={invoice.creditDays ?? ''} onChangeText={(v) => onPatch({ creditDays: v === '' ? null : Number(v.replace(/\D/g, '')) || 0 })} colors={colors} keyboardType="number-pad" width={130} />
+          <Field label="Kredittid (dager)" value={invoice.creditDays ?? ''} onChangeText={setCreditDays} colors={colors} keyboardType="number-pad" width={130} />
         </View>
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
-          Fakturadato settes til dagen fakturaen ferdigstilles, og fristen regnes da på nytt fra kredittiden.
+        {dueBeforeDate ? (
+          <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Betalingsfristen er før fakturadatoen.</Text>
+        ) : null}
+        <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>
+          {invoice.invoiceDateSet
+            ? 'Fakturaen får datoene du har valgt her. Loggen viser når den faktisk ble ferdigstilt og sendt.'
+            : 'Velger du ingen fakturadato, får fakturaen dagens dato når den ferdigstilles, og fristen regnes fra kredittiden.'}
         </Text>
+        {invoice.invoiceDateSet || invoice.dueDateSet ? (
+          <LinkText
+            label="Bruk datoen fakturaen ferdigstilles i stedet"
+            onPress={() => onPatch({ invoiceDateSet: false, dueDateSet: false })}
+            colors={colors}
+            nativeID="invoice-edit-dates-reset"
+          />
+        ) : null}
         <View style={styles.row}>
           <Field grow label="Prosjekt" value={[invoice.projectNumber, invoice.projectName].filter(Boolean).join(' ')} colors={colors} editable={false} />
           <Field grow label="Eksternt prosjektnummer" value={invoice.externalProjectNumber} onChangeText={(v) => onPatch({ externalProjectNumber: v })} colors={colors} />

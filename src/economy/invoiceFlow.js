@@ -181,7 +181,7 @@ export const DRAFT_FIELDS = [
   'customerId', 'customerNumber', 'customerName', 'orgnr', 'customerAddress', 'customerEmail',
   'customerVatNumber', 'customerContact', 'customerReference', 'ourReference', 'orderReference',
   'contractReference', 'addressLineAbove', 'addressLineBelow', 'externalProjectNumber',
-  'invoiceDate', 'dueDate', 'creditDays', 'department', 'activities', 'bankAccount', 'kid',
+  'invoiceDate', 'dueDate', 'invoiceDateSet', 'dueDateSet', 'creditDays', 'department', 'activities', 'bankAccount', 'kid',
   'invoiceText', 'footerText', 'language', 'lines', 'deliveryMethod', 'currency', 'attachments',
 ];
 
@@ -202,7 +202,11 @@ export function updateDraft(invoice, patch = {}, { actor = null, at = '', messag
     updated = { ...updated, approval: null };
     updated = withEvent(updated, { type: 'approval', text: 'godkjenningen falt bort fordi utkastet ble endret', actor, at });
   }
-  updated = withEvent(updated, { type: 'edit', text: message, actor, at });
+  const dates = [
+    next.invoiceDate !== invoice?.invoiceDate && parseDate(next.invoiceDate) ? `fakturadato ${formatDate(next.invoiceDate)}` : '',
+    next.dueDate !== invoice?.dueDate && parseDate(next.dueDate) ? `betalingsfrist ${formatDate(next.dueDate)}` : '',
+  ].filter(Boolean);
+  updated = withEvent(updated, { type: 'edit', text: dates.length ? `${message} (${dates.join(', ')})` : message, actor, at });
   return { ok: true, error: null, invoice: normalizeInvoice(updated), changed: true };
 }
 
@@ -270,6 +274,27 @@ export function dueDateFor(invoice, { creditDays = null, dueDateMode = 'invoice_
   return addDays(invoiceDate, days);
 }
 
+/** Dager fra en dato til en annen. null når en av dem mangler. */
+export function daysBetween(from, to) {
+  const a = parseDate(from);
+  const b = parseDate(to);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || !/^\d{4}-\d{2}-\d{2}$/.test(b)) return null;
+  return Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86400000);
+}
+
+/**
+ * Datoene fakturaen får ved ferdigstilling. Valgt i utkastet: de brukes.
+ * Ellers dagens dato, og forfall etter kredittiden.
+ */
+export function issueDates(invoice, { today = '', dueDateMode = 'invoice_date' } = {}) {
+  const row = invoice || {};
+  const invoiceDate = (row.invoiceDateSet && parseDate(row.invoiceDate)) || todayKey(today);
+  if (isCreditNote(row)) return { invoiceDate, dueDate: invoiceDate };
+  const dueDate = (row.dueDateSet && parseDate(row.dueDate))
+    || dueDateFor({ ...row, invoiceDate }, { creditDays: row.creditDays ?? null, dueDateMode });
+  return { invoiceDate, dueDate };
+}
+
 /** Siste dag fakturaen burde vært utstedt: én måned etter levering (bokføringsforskriften § 5-2-2). */
 export function issueDeadline(periodEnd) {
   const day = parseDate(periodEnd);
@@ -322,7 +347,7 @@ export function issueChecks(invoice, {
   if (!text(row.orgnr) && !hasAddress(row)) {
     add(blocking, 'party', 'Kunden må ha org.nr. eller adresse (bokføringsforskriften § 5-1-1).', 'orgnr');
   } else if (!hasAddress(row)) {
-    add(warnings, 'address', 'Kundens adresse mangler på fakturaen.', 'customerAddress');
+    add(warnings, 'address', 'Kundens adresse mangler. Fakturaen kan sendes uten, men legg adressen inn på kunden til neste gang.', 'customerAddress');
   }
   if (isCreditNote(row) && !text(row.creditNoteForNumber)) {
     add(blocking, 'creditRef', 'Kreditnotaen mangler henvisning til fakturaen den krediterer (GBS 1).', '');
@@ -388,6 +413,7 @@ function kidFor(row, { kidFormat = 'customer_invoice', kidMethod = 'mod10' } = {
 export function issueInvoice(invoice, {
   number,
   date = '',
+  dueDate = '',
   creditDays = null,
   dueDateMode = 'invoice_date',
   kidFormat = 'customer_invoice',
@@ -401,12 +427,17 @@ export function issueInvoice(invoice, {
   if (!invoiceNumber) return { ok: false, error: 'Fakturanummer mangler.', invoice };
   const stamp = nowIso(at);
   const invoiceDate = parseDate(date) || stamp.slice(0, 10);
+  const chosenDue = isCreditNote(invoice) ? '' : parseDate(dueDate);
+  if (chosenDue && chosenDue < invoiceDate) {
+    return { ok: false, error: 'Betalingsfristen kan ikke være før fakturadatoen.', invoice };
+  }
   let row = recalcInvoice({ ...invoice, invoiceNumber, invoiceDate });
-  const days = creditDays == null ? row.creditDays : creditDays;
+  let days = creditDays == null ? row.creditDays : creditDays;
+  if (chosenDue) days = daysBetween(invoiceDate, chosenDue);
   row = {
     ...row,
     creditDays: days,
-    dueDate: isCreditNote(row) ? invoiceDate : dueDateFor({ ...row, creditDays: days }, { creditDays: days, dueDateMode }),
+    dueDate: isCreditNote(row) ? invoiceDate : (chosenDue || dueDateFor({ ...row, creditDays: days }, { creditDays: days, dueDateMode })),
   };
   row = {
     ...row,
@@ -420,9 +451,13 @@ export function issueInvoice(invoice, {
     projectInvoiceCount: projectInvoiceCount == null ? row.projectInvoiceCount : projectInvoiceCount,
     updatedAt: stamp,
   };
+  // Hendelsen står med klokkeslettet det skjedde. Datoene på fakturaen står i teksten.
+  const dated = isCreditNote(row)
+    ? `datert ${formatDate(invoiceDate)}`
+    : `fakturadato ${formatDate(invoiceDate)}, forfall ${formatDate(row.dueDate)}`;
   row = withEvent(row, {
     type: 'issue',
-    text: `ferdigstilte ${isCreditNote(row) ? 'kreditnota' : 'faktura'} ${invoiceNumber}`,
+    text: `ferdigstilte ${isCreditNote(row) ? 'kreditnota' : 'faktura'} ${invoiceNumber} (${dated})`,
     actor,
     at: stamp,
   });

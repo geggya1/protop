@@ -7,7 +7,7 @@ import { ISO_ROLES } from '../../src/iso/catalog';
 import {
   CLICK_ACTIONS, EDGE_CONDITIONS, ENTER_ACTIONS, NODE_TYPES, PROCESS_CATEGORIES, VERSION_STATES,
   alignNodes, approveAndPublish, archiveProcess, cancelInstance, completeStep, createProcess, diagramToSvg, diffDiagrams, distributeNodes,
-  draftVersion, duplicateNodes, exportProcessJson, focusView, groupNodes, groupOf, importProcessJson, makeEdge, makeNode, moveNodes, nodeRole,
+  draftVersion, duplicateNodes, exportProcessJson, focusView, groupNodes, groupOf, importProcessJson, makeEdge, makeNode, moveNodes, nodeRole, reorderProcesses,
   nodeType, normalizeDiagram, removeNodes, ungroup,
   publishedVersionOf, rejectVersion, saveDraftDiagram, snap, startInstance, startNewVersion, submitForApproval,
   validateDiagram, versionOf,
@@ -95,6 +95,18 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
   const visibleToStaff = (p) => caps.manage || p.publishedVersion;
   const mineActive = state.instances.filter((i) => i.state === 'aktiv');
 
+  /** Ny rekkefølge i landskapet: { kategori: [ids] }. Lagres én og én med revisjonslås. */
+  async function saveOrder(lists) {
+    for (const ids of Object.values(lists)) {
+      for (const { process, event } of reorderProcesses(store.current().processes, ids, { actor })) {
+        const previous = store.current().processes.find((p) => p.id === process.id);
+        const res = await store.commit('processes', 'process', { ok: true, process, events: [event] }, { previous });
+        if (!res.ok) return res;
+      }
+    }
+    return { ok: true };
+  }
+
   async function create() {
     let template = form.template ? templateByKey(form.template) : null;
     if (form.template === 'import') {
@@ -129,7 +141,7 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
           {mineActive.slice(0, 8).map((i) => <ListRow key={i.id} icon="play-circle-outline" title={i.title} subtitle={`${i.processTitle} v${i.version} · startet ${prettyDate(i.startedAt)} av ${i.startedBy}`} onPress={() => onRun(i.id)} />)}
         </Card>
       ) : null}
-      {!q ? <IsoProcessMap processes={state.processes.filter(visibleToStaff)} onOpen={onOpen} wide={wide} /> : null}
+      {!q ? <IsoProcessMap processes={state.processes.filter(visibleToStaff)} onOpen={onOpen} wide={wide} onReorder={caps.manage ? saveOrder : null} /> : null}
       <TextIn value={q} onChangeText={setQ} placeholder="Søk i prosesser" />
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
         {PROCESS_CATEGORIES.map((cat) => {

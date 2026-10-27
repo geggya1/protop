@@ -527,6 +527,25 @@ export function startNewVersion(proc, { actor, now = new Date(), changeNote = ''
   return { ok: true, process: next, events: [auditEvent({ entityType: 'process', entityId: proc.id, action: 'iso.process.new_version', actor, before: proc, after: next, now })] };
 }
 
+/**
+ * Ny rekkefølge i prosesslandskapet for én kategori (ids i ønsket rekkefølge). Rekkefølgen er
+ * visning, ikke styrt innhold, så den endres uten ny versjon. Gir bare prosessene som får nytt nummer.
+ */
+export function reorderProcesses(processes, orderedIds, { actor, now = new Date() } = {}) {
+  const byId = new Map((processes || []).map((p) => [p.id, p]));
+  const out = [];
+  (orderedIds || []).forEach((id, i) => {
+    const proc = byId.get(id);
+    if (!proc || Number(proc.order) === i + 1) return;
+    const next = bump({ ...proc, order: i + 1 }, actor, now);
+    out.push({
+      process: next,
+      event: auditEvent({ entityType: 'process', entityId: id, action: 'iso.process.reordered', actor, before: { order: proc.order || 0 }, after: { order: i + 1 }, now }),
+    });
+  });
+  return out;
+}
+
 export function saveDraftDiagram(proc, diagram, { actor, now = new Date(), meta = null } = {}) {
   const draft = draftVersion(proc);
   if (!draft) return fail('Publisert versjon er låst. Lag ny versjon for å endre.');

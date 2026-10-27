@@ -135,7 +135,7 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'kontrakt', t }), 'Kontrakt / avtale');
   assert.equal(resolveShellHeaderTitle({ tab: 'kunder', t }), 'Kunder');
   assert.equal(resolveShellHeaderTitle({ tab: 'utstyr', t }), 'Utstyr');
-  assert.equal(resolveShellHeaderTitle({ tab: 'ansatte', t }), 'Ansatte');
+  assert.equal(resolveShellHeaderTitle({ tab: 'ansatte', t }), 'Ansatte og eksterne');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', t }), 'Økonomi');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'oversikt', t }), 'Økonomi');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'kunder', t }), 'Kundesummer');

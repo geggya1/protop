@@ -376,7 +376,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
         },
       ],
     },
-    { id: 'ansatte', icon: 'id-card', label: 'Ansatte', action: { type: 'tab', tab: 'ansatte' } },
+    { id: 'ansatte', icon: 'id-card', label: 'Ansatte og eksterne', action: { type: 'tab', tab: 'ansatte' } },
     hrNavItem(),
     fravaerNavItem(),
     arbeidNavItem(),

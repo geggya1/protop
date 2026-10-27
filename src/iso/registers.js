@@ -621,6 +621,15 @@ export function competenceMatrix(people, requirements, records, now = new Date()
   }));
 }
 
+/** Kompetansekravene som gjelder én person, med status. Brukes der ISO-kompetansen vises utenfor ISO (HR). */
+export function competenceForPerson(person, records, now = new Date()) {
+  if (!person) return [];
+  const row = competenceMatrix([person], records?.kompetansekrav, records?.kompetanse, now, { roles: records?.rolle })[0];
+  return (row?.cells || [])
+    .filter((cell) => cell.status !== 'na')
+    .map((cell) => ({ id: cell.requirement.id, title: cell.requirement.title, status: cell.status, validTo: cell.record?.validTo || '' }));
+}
+
 export function competenceGaps(matrix) {
   let gaps = 0;
   for (const row of matrix || []) for (const cell of row.cells) if (!['gyldig', 'na'].includes(cell.status)) gaps += 1;

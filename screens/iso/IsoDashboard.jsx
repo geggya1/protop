@@ -10,7 +10,7 @@ import {
 } from '../../src/iso/analytics';
 import { openActions } from '../../src/iso/findings';
 import {
-  actionsDoneInTasks, contractReviewStatus, hrComplianceForIso, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, sickLeaveSeries,
+  actionsDoneInTasks, contractReviewStatus, hrCarryOver, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, sickLeaveSeries,
 } from '../../src/iso/integrations';
 import { recordsNeedingReview } from '../../src/iso/registers';
 import { annualWheel, pageLabel } from '../../src/iso/planning';
@@ -52,8 +52,8 @@ export default function IsoDashboard({ ctx }) {
     if (pq.length) out.push({ key: 'plans', icon: 'document-attach-outline', tone: 'warn', title: `${pq.length} aktive prosjekter mangler kvalitetsplan`, text: 'Planen fylles ut fra prosjekt og kontrakt.', page: 'prosjekt' });
     const cr = contractReviewStatus(sources.contracts, state.submissions).missing;
     if (cr.length) out.push({ key: 'contracts', icon: 'reader-outline', tone: 'warn', title: `${cr.length} kontrakter uten kontraktsgjennomgang`, text: 'Fra Kontrakt / avtale (krav 8.2).', page: 'prosjekt' });
-    const hr = sources.hrOverview ? hrComplianceForIso(sources.hrOverview, people) : null;
-    if (hr?.awarenessGaps.length) out.push({ key: 'hr', icon: 'school-outline', tone: 'warn', title: `${hr.awarenessGaps.length} ansatte mangler HMS-introduksjon eller avviksrutine`, text: 'Fra HR-sjekklisten (krav 7.3).', page: 'kompetanse' });
+    const carry = hrCarryOver({ hrCompliance: sources.hrCompliance, people, requirements: state.records.kompetansekrav, records: state.records.kompetanse });
+    if (carry.evidence.length) out.push({ key: 'hr', icon: 'school-outline', tone: 'info', title: `${carry.evidence.length} avkrysninger fra HR kan tas med i kompetansematrisen`, text: 'HMS-introduksjon, avviksrutine og arbeidsmiljøopplæring følges nå opp i Kompetanse (krav 7.2 og 7.3).', page: 'kompetanse' });
     const km = mileageSeries(sources.trips);
     if (km.totalKm) out.push({ key: 'km', icon: 'car-outline', tone: 'muted', title: `${km.totalKm.toLocaleString('nb-NO')} km kjørt siste 12 mnd`, text: km.electricShare == null ? 'Fra Kjørebok.' : `${km.electricShare} % med elbil. Fra Kjørebok.`, page: 'miljo' });
     const review = recordsNeedingReview(state.records);

@@ -6,13 +6,13 @@
  * dem om til ISO-kunnskap: indikatorer, bevis og forslag. Ingen data kopieres inn i
  * ISO før brukeren velger det, og ingenting skrives tilbake til de andre modulene.
  */
-import { addDays, lastMonths, monthKey, text, todayKey, uniq } from './core.js';
+import { addDays, isoDate, lastMonths, monthKey, text, todayKey, uniq } from './core.js';
 import { NORWEGIAN_OBLIGATIONS, STANDARDS } from './catalog.js';
 import { isOpenFinding, openActions } from './findings.js';
 import { normalizeDiagram, versionOf } from './processes.js';
 import { documentsDueForReview } from './documents.js';
 import { matrixRows, requirementIdsForArea } from './requirements.js';
-import { competenceMatrix, overdueRecords } from './registers.js';
+import { competenceMatrix, createRecord, overdueRecords } from './registers.js';
 import { usableForms, templateIdFor } from './forms.js';
 import { annualTaskEffects } from './planning.js';
 
@@ -131,23 +131,84 @@ export function equipmentStatus(equipment, now = new Date()) {
   };
 }
 
-/* ───────────────────────── HR → kompetanse og bevissthet ───────────────────────── */
+/* ───────────────────────── HR → kompetanse ───────────────────────── */
 
 /**
- * HR-modulens lov- og ISO-sjekkliste per ansatt (kompetanse, HMS-introduksjon, avviksrutine).
- * Rader fra HR sin egen oversikt (companyComplianceOverview) – ISO viser, HR eier.
+ * HMS-punktene som før var avkrysninger i HR-sjekklisten. Nå er de kompetansekrav for alle
+ * ansatte i ISO, og HR viser statusen derfra. `hrId` er punktets id i HR-sjekklisten.
  */
-export function hrComplianceForIso(overviewRows, employees = []) {
-  const names = new Map((employees || []).map((e) => [String(e.id), e.name]));
-  const rows = (overviewRows || []).map((r) => ({
-    employeeId: r.employeeId,
-    name: names.get(String(r.employeeId)) || '',
-    gaps: r.gaps || [],
-    pct: r.pct,
-  }));
-  const withGaps = rows.filter((r) => r.gaps.length);
-  const awarenessGaps = rows.filter((r) => r.gaps.some((g) => /avviksrutine|HMS-introduksjon/i.test(g)));
-  return { rows, withGaps, awarenessGaps, source: 'HR – lov & ISO' };
+export const HR_CARRY_OVER = [
+  { hrId: 'ik_hms_intro', title: 'HMS-introduksjon', source: 'Internkontrollforskriften' },
+  { hrId: 'ik_deviation_known', title: 'Kjenner rutinen for å melde avvik', source: 'Internkontrollforskriften' },
+  { hrId: 'iso45001_hms', title: 'Arbeidsmiljøopplæring', source: 'Arbeidsmiljøloven og ISO 45001' },
+];
+
+const lower = (value) => text(value).toLowerCase();
+
+function carryRequirement(requirements, def) {
+  return (requirements || []).find((r) => r.state !== 'arkivert' && lower(r.title) === lower(def.title)) || null;
+}
+
+/**
+ * Det som gjenstår for å flytte HR-punktene inn i kompetansematrisen: krav som mangler, og
+ * OK-avkrysninger i HR som ennå ikke er kompetansebevis. people: ansatte med id, navn og uid.
+ */
+export function hrCarryOver({ hrCompliance = [], people = [], requirements = [], records = [] } = {}) {
+  const missing = HR_CARRY_OVER.filter((def) => !carryRequirement(requirements, def));
+  // Også arkiverte bevis teller som tatt med, så de ikke kommer tilbake.
+  const taken = new Set((records || []).map((r) => r.importKey).filter(Boolean));
+  const live = (records || []).filter((r) => r.state !== 'arkivert');
+  const byId = new Map((people || []).map((p) => [String(p.id), p]));
+  const evidence = [];
+  for (const row of hrCompliance || []) {
+    const def = HR_CARRY_OVER.find((d) => d.hrId === row?.catalogId);
+    if (!def || row.status !== 'ok') continue;
+    const person = byId.get(String(row.employeeId));
+    if (!person) continue;
+    const key = `hr:${def.hrId}:${row.employeeId}`;
+    if (taken.has(key)) continue;
+    const req = carryRequirement(requirements, def);
+    const proven = req && live.some((r) => r.requirementId === req.id
+      && ((person.uid && r.personUid === person.uid) || (!r.personUid && r.personName === person.name)));
+    if (proven) continue;
+    evidence.push({ def, person, key, completedAt: isoDate(row.completedAt), note: text(row.note, 300) });
+  }
+  return { missing, evidence };
+}
+
+/** Kravene og bevisene fra hrCarryOver som nye poster, klare til å lagres samlet. */
+export function hrCarryOverRecords(plan, { actor, requirements = [], records = [], now = new Date() } = {}) {
+  const created = [];
+  const events = [];
+  let reqs = [...(requirements || [])];
+  let proofs = [...(records || [])];
+  for (const def of plan?.missing || []) {
+    const res = createRecord('kompetansekrav', {
+      title: def.title, role: 'Alle ansatte', source: def.source, validityMonths: 0,
+    }, { actor, existing: reqs, now });
+    if (!res.ok) return res;
+    reqs = [...reqs, res.record];
+    created.push(res.record);
+    events.push(...res.events);
+  }
+  for (const item of plan?.evidence || []) {
+    const req = carryRequirement(reqs, item.def);
+    if (!req) continue;
+    const res = createRecord('kompetanse', {
+      personName: item.person.name,
+      personUid: item.person.uid || '',
+      requirementId: req.id,
+      title: item.note ? `Krysset av i HR: ${item.note}` : 'Krysset av i HR-sjekklisten',
+      validFrom: item.completedAt,
+      importKey: item.key,
+      origin: { system: 'ProTop HR', ref: item.def.hrId, url: '' },
+    }, { actor, existing: proofs, now });
+    if (!res.ok) return res;
+    proofs = [...proofs, res.record];
+    created.push(res.record);
+    events.push(...res.events);
+  }
+  return { ok: true, records: created, events };
 }
 
 /* ───────────────────────── Kunder, kontrakter, utlegg ───────────────────────── */

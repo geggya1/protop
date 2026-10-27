@@ -157,7 +157,8 @@ function person(id, {
   assert.equal(cells.openTasks, '1');
   assert.equal(cells.kindLabel, 'Intern');
   assert.equal(cells.checklistOk, 3);
-  assert.match(cells.checklistGaps, /HMS-introduksjon/);
+  // HMS-introduksjon og kompetanse følges opp i ISO, ikke i HR-sjekklisten.
+  assert.equal(cells.checklistGaps, 'Personverninformasjon gitt');
   assert.doesNotMatch(cells.checklistGaps, /Skriftlig arbeidsavtale/);
 }
 

@@ -122,12 +122,12 @@ export const COMPANY_HERO = {
   'hr-compliance': {
     ...SLATE,
     wideArt: true,
-    name: 'Lov & ISO',
+    name: 'Lovpålagt',
     kicker: t('HR', 'HR'),
-    title: t('Lovpålagt og ISO-oppfølging', 'Legal and ISO follow-up'),
+    title: t('Lovpålagt per ansatt', 'Statutory per employee'),
     pitch: t(
-      'AML, internkontroll og ISO 9001 / 14001 / 45001 per ansatt.',
-      'Working Environment Act, internal control and ISO per employee.',
+      'Arbeidsavtale, oppfølging, verneutstyr og personvern per ansatt.',
+      'Employment agreement, follow-up, protective equipment and privacy per employee.',
     ),
   },
   'hr-handbok': {

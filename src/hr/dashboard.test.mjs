@@ -90,7 +90,7 @@ const entries = [
   assert.equal(dash.recruitment.queue, 2);
   assert.equal(dash.recruitment.received, 1);
 
-  assert.equal(dash.compliance.people, 3, 'Lov & ISO teller bare egne ansatte');
+  assert.equal(dash.compliance.people, 3, 'Lovpålagt teller bare egne ansatte');
   assert.ok(dash.compliance.items.length > 0);
   assert.equal(dash.compliance.items.find((row) => row.id === 'aml_written_contract').missing, 2, 'Ada har aktiv avtale');
 
@@ -135,10 +135,10 @@ const entries = [
 
 {
   const summary = complianceByItem([employees[0]], {
-    compliance: [{ catalogId: 'ik_hms_intro', employeeId: 's1', status: 'ok' }],
+    compliance: [{ catalogId: 'gdpr_privacy_notice', employeeId: 's1', status: 'ok' }],
   });
   assert.equal(summary.people, 1);
-  assert.equal(summary.items.some((row) => row.id === 'ik_hms_intro'), false);
+  assert.equal(summary.items.some((row) => row.id === 'gdpr_privacy_notice'), false);
   assert.ok(summary.pct > 0 && summary.pct < 100);
 }
 

@@ -10,7 +10,6 @@ import { displayName, isDeletedEmployee, isOwnActiveEmployee } from '../../src/e
 import { ensureProjectAbsences, loadProjectState } from '../../src/project/storage';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { loadHrState } from '../../src/hr/storage';
-import { companyComplianceOverview } from '../../src/hr/compliance';
 import { normalizeFormTemplates } from '../../src/anbud/bidLibrary';
 import { addDays, todayKey } from '../../src/iso/core';
 import { loadProjectExpenses, mergeExpenseLists } from '../../src/economy/expenseStorage';
@@ -93,7 +92,8 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
       .filter((p) => p.name && p.name !== 'Uten navn')
       .sort((a, b) => Number(b.own) - Number(a.own));
     const projects = (projectState?.projects || []).filter((p) => p.status !== 'arkivert');
-    const hrOverview = hr ? companyComplianceOverview(active, hr.compliance || [], { contracts: hr.contracts || [], reviews: hr.reviews || [] }) : null;
+    // HR-sjekklistens rader: avkrysninger for HMS-punktene som er flyttet til Kompetanse kan tas med derfra.
+    const hrCompliance = hr ? (hr.compliance || []) : null;
     return {
       ready: !!projectState,
       company: family?.company || null,
@@ -111,7 +111,7 @@ export function useIsoSources({ familyId, family, canManage = false, canSeeHr = 
       customers: anbud?.customers || [],
       anbud,
       formTemplates: anbud ? normalizeFormTemplates(anbud.formTemplates) : [],
-      hrOverview,
+      hrCompliance,
       reloadAnbud,
       docControls,
     };

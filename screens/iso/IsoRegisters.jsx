@@ -15,7 +15,7 @@ import { allRequirements, attachEvidence, requirementIdsForArea } from '../../sr
 import { visibleFindings } from '../../src/iso/access';
 import { templateIdFor, usableForms } from '../../src/iso/forms';
 import {
-  aspectSuggestions, contractReviewStatus, equipmentStatus, hazardSuggestions, hrComplianceForIso, mileageSeries,
+  aspectSuggestions, contractReviewStatus, equipmentStatus, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
   projectQuality, qualityPlanDraft, sickLeaveSeries, stakeholderSuggestions, supplierSuggestions, wasteSummary,
 } from '../../src/iso/integrations';
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
@@ -831,16 +831,14 @@ export function CompetencePage({ ctx }) {
   }, [fullMatrix, ql]);
   const [pick, setPick] = useState(null);
   const [create, setCreate] = useState(null);
-  const hr = useMemo(() => (ctx.sources?.hrOverview ? hrComplianceForIso(ctx.sources.hrOverview, ctx.sources.people) : null), [ctx.sources?.hrOverview, ctx.sources?.people]);
   const eq = useMemo(() => equipmentStatus(ctx.sources?.equipment), [ctx.sources?.equipment]);
   const gaps = competenceGaps(fullMatrix);
   const unassigned = useMemo(() => unassignedRequirements(state.records.kompetansekrav, state.records.rolle), [state.records]);
   return (
-    <Page wide={wide} title="Kompetanse og ressurser" intro="Kompetansekrav per rolle, CV-en til hver ansatt og dokumentert kompetanse med gyldighet (ISO 7.2). CV-en eies av Ansatte, HR-sjekklisten av HR og utstyret av Utstyr.">
+    <Page wide={wide} title="Kompetanse og ressurser" intro="Kompetansekrav per rolle, CV-en til hver ansatt og dokumentert kompetanse med gyldighet (ISO 7.2). Her følges også HMS-introduksjon, avviksrutine og arbeidsmiljøopplæring opp; HR ser statusen på personen. CV-en eies av Ansatte og utstyret av Utstyr.">
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         <Stat label="Ansatte" value={people.length} hint="Fra Ansatte" />
         <Stat label="Kompetansegap" value={gaps} tone={gaps ? 'warn' : undefined} hint="Krav som mangler, er utløpt eller mangler gyldighet" />
-        {hr ? <Stat label="Mangler i HR-sjekklisten" value={hr.withGaps.length} hint="HR – lov & ISO" tone={hr.withGaps.length ? 'warn' : undefined} /> : null}
         <Stat label="Utstyr i drift" value={eq.total} hint={eq.inService.length ? `${eq.inService.length} på service` : 'Fra Utstyr'} />
       </View>
       <TextIn value={q} onChangeText={setQ} placeholder="Søk i ansatte, CV, kurs, sertifiseringer og krav" accessibilityLabel="Søk i kompetanse" />
@@ -853,6 +851,7 @@ export function CompetencePage({ ctx }) {
           <Row><Btn icon="people-circle-outline" label="Organisasjon og roller" onPress={() => ctx.go('organisasjon')} /></Row>
         </Card>
       ) : null}
+      <HrCarryOverCard ctx={ctx} />
       <Card title="Kompetansematrise" subtitle="Krav til en rolle gjelder dem som har rollen i Organisasjon og roller, og dem som er valgt på kravet. «I CV» = står i CV-en, men mangler gyldighet eller bevis. Trykk en celle for å registrere bevis.">
         <CompetenceHeatmap matrix={matrix} onPick={(person, cell) => setPick({ person, cell })} />
       </Card>
@@ -861,11 +860,6 @@ export function CompetencePage({ ctx }) {
       </Card>
       <SimpleRegister ctx={ctx} registerKey="kompetansekrav" subtitle={(r) => `${r.role}${(r.persons || []).length ? ` + ${r.persons.length} valgt` : ''}${r.validityMonths ? ` · gyldig ${r.validityMonths} mnd` : ''}`} />
       <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => `${r.personName} · ${r.validTo ? `til ${prettyDate(r.validTo)}` : 'varig'}`} />
-      {hr && hr.withGaps.length ? (
-        <Card title="Bevissthet og opplæring fra HR" subtitle="Punkter som mangler i HR-modulens lov- og ISO-sjekkliste (HMS-introduksjon, avviksrutine, kompetanse). Rettes i HR.">
-          {hr.withGaps.slice(0, 10).map((r) => <ListRow key={r.employeeId} icon="person-outline" tone="warn" title={r.name || 'Ansatt'} subtitle={r.gaps.slice(0, 3).join(' · ')} right={<Pill label={`${r.pct ?? 0} %`} />} onPress={() => ctx.requestTab?.('hr')} />)}
-        </Card>
-      ) : null}
       {eq.total ? (
         <Card title="Utstyr og infrastruktur (7.1)" subtitle="Fra Utstyr. Service og garanti følges opp der.">
           {eq.inService.slice(0, 5).map((e) => <ListRow key={e.id} icon="construct-outline" tone="warn" title={e.name || e.title || 'Utstyr'} subtitle="På service" />)}
@@ -881,6 +875,74 @@ export function CompetencePage({ ctx }) {
       </Sheet>
       <RecordSheet ctx={ctx} registerKey="kompetanse" visible={!!create} preset={create || {}} onClose={() => setCreate(null)} />
     </Page>
+  );
+}
+
+/**
+ * HMS-introduksjon, avviksrutine og arbeidsmiljøopplæring var avkrysninger i HR-sjekklisten.
+ * Kortet oppretter dem som krav for alle ansatte og tar med OK-avkrysningene som bevis.
+ */
+function HrCarryOverCard({ ctx }) {
+  const colors = useColors();
+  const { state, caps, actor, store, people } = ctx;
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [moved, setMoved] = useState('');
+  const [hidden, setHidden] = useState(false);
+  const carry = useMemo(() => hrCarryOver({
+    hrCompliance: ctx.sources?.hrCompliance,
+    people,
+    requirements: state.records.kompetansekrav,
+    records: state.records.kompetanse,
+  }), [ctx.sources?.hrCompliance, people, state.records]);
+  const todo = carry.missing.length + carry.evidence.length;
+  if (!caps.manage || hidden || (!todo && !moved)) return null;
+
+  async function move() {
+    setBusy(true);
+    setErr('');
+    const cur = store.current().records;
+    const res = hrCarryOverRecords(carry, { actor, requirements: cur.kompetansekrav, records: cur.kompetanse });
+    const saved = res.ok
+      ? await store.commitMany(res.records.map((record) => ({ kind: 'records', entity: record })), res.events)
+      : res;
+    setBusy(false);
+    if (!saved.ok) {
+      setErr(saved.error || 'Kunne ikke lagre.');
+      return;
+    }
+    const reqs = res.records.filter((r) => r.register === 'kompetansekrav').length;
+    const proofs = res.records.length - reqs;
+    setMoved([
+      reqs ? `${reqs} krav er opprettet` : '',
+      proofs ? `${proofs} ${proofs === 1 ? 'avkrysning er tatt med som bevis' : 'avkrysninger er tatt med som bevis'}` : '',
+    ].filter(Boolean).join(', ') || 'Ingenting å flytte.');
+  }
+
+  const names = [...new Set(carry.evidence.map((e) => e.person.name))];
+  const label = carry.missing.length && carry.evidence.length
+    ? 'Opprett krav og ta med avkrysningene'
+    : (carry.missing.length ? 'Opprett kravene' : 'Ta med avkrysningene');
+  return (
+    <Card title="Flyttet fra HR" subtitle="HMS-introduksjon, avviksrutine og arbeidsmiljøopplæring var avkrysninger i HR. Nå følges de opp her som kompetansekrav for alle ansatte, og HR viser statusen på personen.">
+      {moved ? <Banner tone="ok" text={`${moved}. Du finner dem under Kompetansekrav og Kompetansebevis nedenfor.`} /> : null}
+      {err ? <Banner tone="danger" text={err} /> : null}
+      {carry.missing.map((def) => <ListRow key={def.hrId} icon="add-circle-outline" title={`Nytt krav: ${def.title}`} subtitle={`Alle ansatte · ${def.source}`} />)}
+      {carry.evidence.length ? (
+        <ListRow
+          icon="checkmark-done-outline"
+          title={`${carry.evidence.length} ${carry.evidence.length === 1 ? 'avkrysning' : 'avkrysninger'} fra HR blir kompetansebevis`}
+          subtitle={`${names.slice(0, 4).join(', ')}${names.length > 4 ? ` og ${names.length - 4} til` : ''}. Datoen og notatet fra HR følger med.`}
+        />
+      ) : null}
+      {todo ? (
+        <Row>
+          <Btn kind="primary" icon="arrow-down-circle-outline" label={label} onPress={move} disabled={busy} />
+          <Btn label="Ikke nå" onPress={() => setHidden(true)} disabled={busy} />
+        </Row>
+      ) : null}
+      {!todo && moved ? <Text style={{ color: colors.muted, fontSize: 13 }}>Alt fra HR er tatt med.</Text> : null}
+    </Card>
   );
 }
 

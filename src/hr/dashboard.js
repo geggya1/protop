@@ -1,6 +1,6 @@
 /**
  * HR-oversikten. HR gjelder egne ansatte: tall, merkedager, oppfølging,
- * Lov & ISO og pårørende regnes bare for dem. Eksterne og innleide samles
+ * Lovpålagt og pårørende regnes bare for dem. Eksterne og innleide samles
  * for seg med egne saker, oppgaver og avtaleslutt, og telles ikke med i
  * tallene for ansatte.
  */
@@ -41,7 +41,7 @@ export function splitHrPeople(employees) {
   return { staff, external };
 }
 
-/** Lov & ISO for egne ansatte, gruppert på sjekkpunktet som mangler. */
+/** Lovpålagt for egne ansatte, gruppert på sjekkpunktet som mangler. */
 export function complianceByItem(staff, hr = {}) {
   const rows = companyComplianceOverview(staff, hr.compliance, {
     contracts: hr.contracts,

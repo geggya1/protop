@@ -11,15 +11,19 @@
  *  buildImport(state, pkg, opts)     → ferdige entiteter i rekkefølge, klare til lagring
  *
  * Idempotent: hver entitet får importKey «<pakke-id>:<del>:<nøkkel>». Finnes nøkkelen fra før, hoppes posten over.
+ * Unntak: en prosess som er endret i pakken og ikke er endret i ProTop siden importen, får ny versjon.
  * Format beskrevet i docs/product/iso-khms/IMPORTPAKKE.md.
  */
-import { addDays, fail, isoDate, text, todayKey, uniq } from './core.js';
+import {
+  addDays, auditEvent, bump, checksum, fail, isoDate, stableJson, text, todayKey, uniq,
+} from './core.js';
 import { STANDARDS } from './catalog.js';
 import {
   approveAndPublishDocument, cleanLegacyRevisions, createDocument, DOC_TYPES, normalizeDocStructure, submitDocument,
 } from './documents.js';
 import {
-  approveAndPublish, createProcess, makeNode, normalizeDiagram, PROCESS_CATEGORIES, submitForApproval, validateDiagram,
+  approveAndPublish, createProcess, draftVersion, makeNode, normalizeDiagram, PROCESS_CATEGORIES, publishedVersionOf,
+  saveDraftDiagram, startNewVersion, submitForApproval, validateDiagram,
 } from './processes.js';
 import { layoutSwimlanes } from './processLayout.js';
 import { markdownToPlain } from './markdown.js';
@@ -355,6 +359,48 @@ function stateAfter(register, row) {
   return row.state && def.states.includes(row.state) ? row.state : '';
 }
 
+/* ───────────────────────── Oppdatering av prosesser ───────────────────────── */
+
+/** Innholdet i et prosesskart, uten plassering og interne id-er på pilene. */
+function diagramSignature(diagram) {
+  const d = normalizeDiagram(diagram);
+  return {
+    nodes: d.nodes.map((n) => [n.id, n.type, n.label, n.description, n.roleKey, n.documentId, n.subprocessId, n.formKey, n.onClick?.type || '', n.onClick?.ref || '', n.system]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    edges: d.edges.map((e) => [e.from, e.to, e.condition, e.label]).map((e) => e.join('|')).sort(),
+  };
+}
+
+/** Det i en prosess som kommer fra pakken (ikke eier, status eller rekkefølge). */
+function processContent(meta, diagram) {
+  return stableJson({
+    title: text(meta.title, 160),
+    code: text(meta.code, 40),
+    purpose: text(meta.purpose, 2000),
+    inputs: text(meta.inputs, 1000),
+    outputs: text(meta.outputs, 1000),
+    kpi: text(meta.kpi, 1000),
+    category: meta.category || '',
+    documentIds: uniq(meta.documentIds || []).sort(),
+    diagram: diagramSignature(diagram),
+  });
+}
+
+/** Versjonen som gjelder for innholdet: utkastet hvis det finnes, ellers den publiserte. */
+function currentDiagram(proc) {
+  return (draftVersion(proc) || publishedVersionOf(proc) || (proc?.versions || []).at(-1))?.diagram;
+}
+
+/**
+ * Er prosessen urørt i ProTop siden importen? Nyere importer lagrer et fingeravtrykk (importHash).
+ * Eldre: én versjon, laget av importen, aldri avvist og ikke et åpent utkast.
+ */
+function untouchedSinceImport(proc) {
+  if (proc?.importHash) return checksum(processContent(proc, currentDiagram(proc))) === proc.importHash;
+  const versions = proc?.versions || [];
+  const v = versions[0];
+  return versions.length === 1 && /^Importert fra/.test(v?.changeNote || '') && !v?.rejectNote && v?.state !== 'utkast' && v?.state !== 'avvist';
+}
+
 /* ───────────────────────── Plan og bygging ───────────────────────── */
 
 /**
@@ -543,10 +589,11 @@ export function buildImport(state, pkg, {
 
   /* Prosesser: to omganger, så prosesser kan peke til hverandre (underprosess, neste prosess). */
   const procRows = [];
+  const procUpdates = [];
   if (want('processes')) {
     for (const row of pkg.processes) {
       const ik = importKeyFor(pkg, 'processes', row.key);
-      if (existing.has(ik)) { note('processes', row.key, `${row.code || ''} ${row.title}`.trim(), 'finnes'); continue; }
+      if (existing.has(ik)) { procUpdates.push({ row, ik, current: existing.get(ik).row }); continue; }
       const res = createProcess({
         title: row.title,
         code: row.code,
@@ -573,17 +620,77 @@ export function buildImport(state, pkg, {
       const documentIds = uniq(arr(row.documentKeys).map((k) => refs.documents.get(k)).filter(Boolean));
       const missingDocs = arr(row.documentKeys).filter((k) => !refs.documents.get(k));
       if (missingDocs.length) issues.push(`${row.code || row.title}: styrende dokumenter som ikke finnes: ${missingDocs.join(', ')}.`);
-      const process = {
+      const created = {
         ...res.process,
         documentIds,
         importKey: ik,
         ...(row.source ? { source: row.source } : {}),
         versions: res.process.versions.map((v, i) => (i === 0 ? { ...v, diagram, changeNote: row.changeNote || `Importert fra ${pkg.source?.system || 'tidligere system'}` } : v)),
       };
+      // Fingeravtrykk av det importen la inn, så en senere import ser om prosessen er endret i ProTop.
+      const process = { ...created, importHash: checksum(processContent(created, diagram)), importOrder: created.order || 0 };
       const check = validateDiagram(diagram, {});
       const message = check.ok ? (publish.processes ? 'Publiseres' : 'Sendes til godkjenning') : `Lagres som utkast: ${check.errors[0].message}`;
       out.processes.push({ ...res, key: row.key, process, validation: check });
       note('processes', row.key, `${process.code ? `${process.code} ` : ''}${process.title}`, 'ny', message);
+    }
+    /*
+     * Prosesser som finnes fra før: er de endret i pakken og urørt i ProTop, får de ny versjon
+     * (publisert versjon står til den nye er godkjent). Endret i ProTop: røres ikke.
+     */
+    for (const { row, ik, current } of procUpdates) {
+      const label = `${row.code || current.code || ''} ${row.title || current.title}`.trim();
+      const local = [];
+      const diagram = row.diagram ? diagramFromPackage(row.diagram, refs, local) : null;
+      const meta = {
+        title: row.title || current.title,
+        code: row.code ?? current.code,
+        purpose: row.purpose ?? current.purpose,
+        inputs: row.inputs ?? current.inputs,
+        outputs: row.outputs ?? current.outputs,
+        kpi: row.kpi ?? current.kpi,
+        category: PROCESS_CATEGORIES.some((c) => c.id === row.category) ? row.category : current.category,
+        documentIds: row.documentKeys ? uniq(arr(row.documentKeys).map((k) => refs.documents.get(k)).filter(Boolean)) : (current.documentIds || []),
+      };
+      const nextDiagram = diagram || currentDiagram(current);
+      const contentChanged = processContent(meta, nextDiagram) !== processContent(current, currentDiagram(current));
+      // Rekkefølgen er visning: følger pakken så lenge den ikke er flyttet i ProTop.
+      const order = Number(row.order) || 0;
+      const orderChanged = !!order && order !== (Number(current.order) || 0)
+        && (current.importOrder == null || Number(current.importOrder) === (Number(current.order) || 0));
+      if (current.archived || (!contentChanged && !orderChanged)) { note('processes', row.key, label, 'finnes', current.archived ? 'Arkivert i ProTop. Oppdateres ikke.' : ''); continue; }
+      if (contentChanged && !untouchedSinceImport(current)) {
+        note('processes', row.key, label, 'finnes', 'Endret i pakken, men også endret i ProTop etter importen. Oppdateres ikke – rett den i prosessen.');
+        continue;
+      }
+      if (!contentChanged) {
+        const moved = bump({ ...current, order, importOrder: order }, actor, now);
+        const event = auditEvent({ entityType: 'process', entityId: current.id, action: 'iso.process.reordered', actor, before: { order: current.order || 0 }, after: { order }, now });
+        out.processes.push({ ok: true, key: row.key, process: moved, events: [event], validation: { ok: true }, skipStatus: true });
+        note('processes', row.key, label, 'endres', `Ny plass i prosesslandskapet: ${order}`);
+        continue;
+      }
+      issues.push(...local.map((m) => `${row.code || row.title}: ${m}`));
+      const events = [];
+      let base = current;
+      const open = draftVersion(base);
+      if (!open) {
+        const nv = startNewVersion(base, { actor, now, changeNote: row.changeNote || `Oppdatert fra «${pkg.title || pkg.id}»` });
+        if (!nv.ok) { note('processes', row.key, label, 'feil', nv.error); continue; }
+        base = nv.process;
+        events.push(...nv.events);
+      } else if (open.state !== 'utkast') {
+        // Urørt importutkast som venter på godkjenning: tas tilbake og sendes inn på nytt med det nye innholdet.
+        base = { ...base, versions: base.versions.map((v) => (v.version === open.version ? { ...v, state: 'utkast', hash: '' } : v)) };
+      }
+      const saved = saveDraftDiagram(base, nextDiagram, { actor, now, meta: { ...meta, order: order || current.order } });
+      if (!saved.ok) { note('processes', row.key, label, 'feil', saved.error); continue; }
+      const process = { ...saved.process, importKey: ik, importHash: checksum(processContent(saved.process, nextDiagram)), importOrder: order || current.order || 0 };
+      const version = draftVersion(process)?.version;
+      const check = validateDiagram(nextDiagram, {});
+      out.processes.push({ ok: true, key: row.key, process, events: [...events, ...(saved.events || [])], validation: check });
+      const what = check.ok ? (publish.processes ? 'publiseres' : 'sendes til godkjenning') : `lagres som utkast: ${check.errors[0].message}`;
+      note('processes', row.key, label, 'endres', `Endret i pakken: ny versjon v${version} ${what}. Gjeldende versjon står til den nye er godkjent.`);
     }
     // Dokumenter som hører til prosessene (styrende dokumenter) får prosesskoblingen.
     for (const d of docRows) {
@@ -619,7 +726,7 @@ export function buildImport(state, pkg, {
     processes: [...(state.processes || []), ...out.processes.map((p) => p.process)],
   };
   out.processes = out.processes.map((p) => {
-    if (!p.validation.ok) return p;
+    if (p.skipStatus || !p.validation.ok) return p;
     // Diagramreferanser til skjema/dokument valideres mot det som er publisert; uten kontekst ved innsending.
     const sub = submitForApproval(p.process, {}, { actor, caps, now });
     if (!sub.ok) {
@@ -833,6 +940,7 @@ export function planImport(state, pkg, opts = {}) {
   for (const [section, rows] of Object.entries(res.plan)) {
     counts[section] = {
       ny: rows.filter((r) => r.status === 'ny').length,
+      endres: rows.filter((r) => r.status === 'endres').length,
       finnes: rows.filter((r) => r.status === 'finnes').length,
       feil: rows.filter((r) => r.status === 'feil').length,
     };
@@ -845,7 +953,7 @@ export function approvalTaskFor(pkg, built) {
   const docs = built.out.documents
     .filter((d) => !String(d.document.importKey || '').endsWith(':__oppfolging'))
     .filter((d) => !built.out.publishDocuments.some((p) => p.document.id === d.document.id)).length;
-  const procs = built.out.processes.filter((p) => p.process.versions?.[0]?.state === 'til_godkjenning' && !built.out.publishProcesses.some((x) => x.process.id === p.process.id)).length;
+  const procs = built.out.processes.filter((p) => draftVersion(p.process)?.state === 'til_godkjenning' && !built.out.publishProcesses.some((x) => x.process.id === p.process.id)).length;
   if (!docs && !procs) return null;
   return {
     type: 'requestApproval',

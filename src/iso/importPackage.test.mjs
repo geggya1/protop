@@ -328,3 +328,43 @@ test('kompetanse legges i CV-en til den ansatte uten duplikater', () => {
   const again = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, employees: [{ ...employees[0], employee: built.out.competence[0].employee }] });
   assert.equal(again.out.competence.length, 0);
 });
+
+test('oppfølgingslisten fra pakken blir et utkast i Dokumenter, gruppert og bare én gang', () => {
+  const p = parsePackage(pkg({ review: ['Prosesser: B-01-001 har to startpunkter.', 'Dokumenter: F-01-016 viser til feil paragraf.', 'Dokumenter: Ingenting er godkjent.', 'Løst punkt uten del'] })).pkg;
+  const built = buildImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW });
+  const doc = built.out.documents.find((d) => d.document.importKey === importKeyFor(p, 'documents', '__oppfolging'))?.document;
+  assert.ok(doc, 'oppfølgingsdokumentet lages');
+  assert.equal(doc.docType, 'rapport');
+  assert.equal(doc.accessClass, 'begrenset');
+  assert.equal(doc.revisions[0].state, 'utkast', 'arbeidsliste, ikke til godkjenning');
+  const md = doc.revisions[0].content;
+  assert.match(md, /## Prosesser \(1\)\n\n- B-01-001 har to startpunkter\./);
+  assert.match(md, /## Dokumenter \(2\)/);
+  assert.match(md, /## Generelt \(1\)\n\n- Løst punkt uten del/);
+  // Godkjenneroppgaven teller ikke arbeidslisten.
+  const task = approvalTaskFor(p, built);
+  assert.match(task.title, /2 dokumenter/);
+  // Importert før: finnes.
+  const again = planImport({ ...emptyIsoState(), documents: [doc] }, p, { actor: BOSS, caps: ADMIN, now: NOW });
+  assert.equal(again.plan.documents.find((r) => r.key === '__oppfolging').status, 'finnes');
+});
+
+test('eiere som er roller får egen merknad, personnavn som ikke finnes får rådet om Ansatte', () => {
+  const p = parsePackage(pkg({
+    records: {
+      risiko: [
+        { key: 'R1', kind: 'Risiko', title: 'Tap av kunde', category: 'strategisk', ownerName: 'Tilbudsansvarlig / Prosjektleder' },
+        { key: 'R2', kind: 'Risiko', title: 'Feil i tilbud', category: 'kvalitet', ownerName: 'Kvalitetsansvarlig' },
+        { key: 'R3', kind: 'Risiko', title: 'Sykdom', category: 'arbeidsmiljo', ownerName: 'Ola Utenfor' },
+        { key: 'R4', kind: 'Risiko', title: 'Brann', category: 'beredskap', ownerName: 'Ikke tildelt' },
+      ],
+    },
+  })).pkg;
+  const res = planImport(emptyIsoState(), p, { actor: BOSS, caps: ADMIN, now: NOW, people: [{ name: 'Siri Leder', uid: 'u3' }] });
+  const roleNote = res.issues.find((i) => /eiere er roller/.test(i));
+  assert.ok(roleNote, res.issues.join('\n'));
+  assert.match(roleNote, /Tilbudsansvarlig \/ Prosjektleder, Kvalitetsansvarlig/);
+  assert.doesNotMatch(roleNote, /Ola Utenfor/);
+  assert.ok(res.issues.some((i) => /Fant ikke disse blant de ansatte, så de står som tekst: Ola Utenfor\. Legg dem inn i Ansatte/.test(i)));
+  assert.ok(res.issues.some((i) => /ingen eier i kilden \(«Ikke tildelt»\)/.test(i)));
+});

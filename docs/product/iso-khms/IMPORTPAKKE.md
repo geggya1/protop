@@ -53,6 +53,10 @@ Format for å flytte et eksisterende ledelsessystem inn i ProTop ISO, for eksemp
 }
 ```
 
+**`review`** er punkter til oppfølging. De vises i forhåndsvisningen og lagres ved import som dokumentet «Oppfølging etter import – <tittel>» (type rapport, begrenset tilgang, utkast), gruppert på «Del: tekst». Dokumentet lages bare én gang per pakke.
+
+**Eiere og personer.** Navn i person-felt kobles til de ansatte. Det som ikke finnes, står som tekst. Roller (for eksempel «Prosjektleder» eller «Kvalitetsansvarlig») og plassholdere som «Ikke tildelt» får egne merknader, så de ikke forveksles med ansatte som mangler.
+
 **`key`** er påkrevd i alle lister og må være unik innen delen. Bruk kildens kode der den finnes, for eksempel `F-01-009` eller `R01`.
 
 ## `system`: oppsett

@@ -293,7 +293,7 @@ ${used.map((_, index) => `<Relationship Id="rId${index + 1}" Type="http://schema
   ]);
 }
 
-function pdfEscape(text) {
+export function pdfEscape(text) {
   let out = '';
   const source = String(text ?? '')
     .replace(/[\u2013\u2014\u2212]/g, '-')
@@ -332,7 +332,7 @@ function bytesToHex(bytes) {
   return out;
 }
 
-function pdfDocument(streams, image = null) {
+export function pdfDocument(streams, image = null) {
   const imageId = image ? 5 + streams.length * 2 : 0;
   const xobject = image ? ` /XObject << /Im1 ${imageId} 0 R >>` : '';
   const objects = [

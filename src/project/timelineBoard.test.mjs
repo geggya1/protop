@@ -166,6 +166,8 @@ const projects = [
   { id: 'p2', number: '1002', name: 'Bru', phase: 'planlegging', contractId: 'k1' },
   { id: 'p3', number: '1003', name: 'Uten datoer', phase: 'produksjon' },
   { id: 'p4', number: '0900', name: 'Gammel', phase: 'avsluttet', start: '2024-01-01', end: '2024-06-30' },
+  { id: 'p5', number: '1005', name: 'Bare start', phase: 'produksjon', start: '2025-03-01' },
+  { id: 'p6', number: '1006', name: 'Bare start, stille', phase: 'produksjon', start: '2025-03-01' },
 ];
 const contracts = [
   { id: 'k1', title: 'Rammeavtale', start: '2026-06-01', end: '2027-01-31', renewal: { type: 'opsjon', until: '2027-12-31' } },
@@ -174,6 +176,8 @@ const timeEntries = [
   { projectId: 'p1', employeeId: 'a', date: '2026-10-19', hours: 40 },
   { projectId: 'p1', employeeId: 'a', date: '2026-10-12', hours: 6 },
   { projectId: 'p2', employeeId: 'a', date: '2026-10-20', hours: 3 },
+  { projectId: 'p5', employeeId: 'a', date: '2026-09-02', hours: 5 },
+  { projectId: 'p6', employeeId: 'a', date: '2026-08-10', hours: 5 },
 ];
 const props = {
   colors, projects, contracts, timeEntries, fullWeekHours: 40, today: '2026-10-27',
@@ -187,10 +191,12 @@ function render(overrides = {}) {
 
 const closed = render({ 5: 1240 });
 const closedIds = ids(closed);
-for (const id of ['fremdrift-board', 'fremdrift-matrix', 'fremdrift-row-p1', 'fremdrift-row-p2', 'fremdrift-row-p3', 'fremdrift-drawer']) {
+for (const id of ['fremdrift-board', 'fremdrift-matrix', 'fremdrift-row-p1', 'fremdrift-row-p2', 'fremdrift-row-p5', 'fremdrift-drawer']) {
   assert.ok(closedIds.includes(id), `mangler ${id}`);
 }
 assert.equal(closedIds.includes('fremdrift-row-p4'), false, 'avsluttet ligger i lukket skuff');
+assert.equal(closedIds.includes('fremdrift-row-p3'), false, 'uten datoer og uten timer ligger i skuffen');
+assert.equal(closedIds.includes('fremdrift-row-p6'), false, 'bare start og siste timer over 2 måneder siden ligger i skuffen');
 assert.ok(closedIds.includes('fremdrift-plan-p1'), 'planlagt stolpe fra prosjektet');
 assert.ok(closedIds.includes('fremdrift-plan-p2'), 'planlagt stolpe fra avtalen');
 assert.ok(closedIds.includes('fremdrift-option-p2'), 'opsjon fra avtalen');
@@ -200,8 +206,9 @@ assert.equal(closedIds.some((id) => id.startsWith('fremdrift-detail-')), false);
 
 const text = texts(closed);
 assert.match(text, /Aktive prosjekter/);
-assert.match(text, /Avsluttede og arkiverte prosjekter \(1\)/);
-assert.match(text, /Ingen planlagt periode/, 'prosjekt uten datoer sier fra');
+assert.match(text, /Deaktiverte prosjekter \(3\)/);
+assert.match(text, /Ingen timer siste 2 måneder/);
+assert.match(text, /3 deaktivert i skuffen/);
 assert.match(text, /Q4 2026/);
 assert.match(text, /apr 2026 – mar 2027/);
 
@@ -218,12 +225,16 @@ assert.equal(full.backgroundColor, planApi.INTENSITY_SCALE[5].color, '40 t er en
 
 const open = render({ 3: 'p2', 4: true, 5: 1240 });
 const openIds = ids(open);
-assert.ok(openIds.includes('fremdrift-row-p4'), 'skuffen åpner avsluttede');
+for (const id of ['fremdrift-row-p3', 'fremdrift-row-p4', 'fremdrift-row-p6']) {
+  assert.ok(openIds.includes(id), `skuffen viser ${id}`);
+}
+assert.match(texts(open), /Ingen planlagt periode/, 'prosjekt uten datoer sier fra');
 const detail = texts(byId(open, 'fremdrift-detail-p2'));
 assert.match(detail, /01\.06\.2026 – 31\.01\.2027/);
 assert.match(detail, /Avtale · Rammeavtale/);
 assert.match(detail, /til 31\.12\.2027/);
 assert.match(detail, /3 t siden/);
+assert.match(detail, /Aktiv · timer siste 2 måneder/);
 
 const searched = render({ 2: 'sandnes', 5: 1240 });
 const searchedIds = ids(searched);

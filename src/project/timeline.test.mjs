@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
 import {
+  ACTIVE_MONTHS,
+  activityCutoff,
   activitySegments,
+  addMonthsKey,
   formatDay,
   hoursRangeFor,
   isoDay,
   monthWindow,
+  placementLabel,
   plannedSpan,
   projectWeekHours,
   quarterBands,
+  rowPlacement,
   shiftAnchor,
   spanPlacement,
   spanSourceLabel,
@@ -131,21 +136,68 @@ assert.deepEqual(activitySegments(new Map(), months, 30), []);
 
 // Rader og nøkkeltall.
 const rows = timelineRows({ projects, contracts, timeEntries: entries, today: '2026-10-27' });
-assert.deepEqual(rows.active.map((row) => row.id), ['p1', 'p2']);
-assert.deepEqual(rows.inactive.map((row) => row.id), ['p3', 'p4']);
+assert.deepEqual(rows.active.map((row) => row.id), ['p1'], 'p1 har timer siste 2 måneder');
+assert.deepEqual(rows.inactive.map((row) => row.id), ['p3', 'p2', 'p4'], 'p2 har passert slutt og ingen timer');
+assert.equal(rows.active[0].placement.reason, 'timer');
+assert.equal(rows.active[0].lastActivity, '2026-10-26');
+assert.equal(rows.inactive[1].placement.reason, 'stille');
+assert.equal(rows.inactive[0].placement.reason, 'lukket');
 assert.equal(rows.active[0].label, '1001 Skole');
 assert.equal(rows.active[0].phase, 'Pågående');
 assert.equal(rows.active[0].recentHours, 55.5);
-assert.equal(rows.inactive[1].phase, 'Arkivert');
+assert.equal(rows.inactive[2].phase, 'Arkivert');
 assert.deepEqual(
   timelineRows({ projects, contracts, query: 'sandnes' }).active.map((row) => row.id),
   ['p1'],
 );
 
 const stats = timelineStats(rows.active, '2026-10-27');
-assert.deepEqual(stats, { active: 2, working: 1, endingSoon: 1, missing: 0 });
+assert.deepEqual(stats, { active: 1, working: 1, endingSoon: 1, missing: 0 });
 
 assert.deepEqual(hoursRangeFor(months, '2026-10-27'), { fromDate: '2026-04-01', toDate: '2026-10-27' });
-assert.deepEqual(hoursRangeFor(monthWindow('2027-06-01', 12, 0), '2026-10-27'), { fromDate: '2026-09-28', toDate: '2026-10-27' });
+assert.deepEqual(
+  hoursRangeFor(monthWindow('2027-06-01', 12, 0), '2026-10-27'),
+  { fromDate: '2026-08-27', toDate: '2026-10-27' },
+  'timene dekker alltid siste 2 måneder, også når vinduet ligger frem i tid',
+);
+
+// Skuffen: timer siste 2 måneder, ellers start og slutt som ikke er passert.
+assert.equal(ACTIVE_MONTHS, 2);
+assert.equal(addMonthsKey('2026-12-31', -2), '2026-10-31');
+assert.equal(addMonthsKey('2026-04-30', -2), '2026-02-28');
+assert.equal(addMonthsKey('2026-01-15', -2), '2025-11-15');
+assert.equal(activityCutoff('2026-10-27'), '2026-08-27');
+const today = '2026-10-27';
+const place = (span, lastWorked = '', project = { id: 'x', phase: 'produksjon' }) => (
+  rowPlacement({ project, span, lastWorked, today })
+);
+const onlyStart = { start: '2025-01-01', end: '' };
+const none = { start: '', end: '' };
+const running = { start: '2025-01-01', end: '2027-03-31' };
+const future = { start: '2027-01-01', end: '2027-06-30' };
+const passed = { start: '2025-01-01', end: '2026-09-30' };
+assert.deepEqual(place(onlyStart), { active: false, reason: 'stille' }, 'bare start, ingen timer');
+assert.deepEqual(place(onlyStart, '2026-09-15'), { active: true, reason: 'timer' }, 'bare start, timer i september');
+assert.deepEqual(place(none), { active: false, reason: 'stille' }, 'ingen datoer, ingen timer');
+assert.deepEqual(place(none, '2026-10-06'), { active: true, reason: 'timer' }, 'ingen datoer, timer nylig');
+assert.deepEqual(place(running), { active: true, reason: 'periode' }, 'start og slutt frem i tid');
+assert.deepEqual(place(future), { active: true, reason: 'periode' }, 'planlagt frem i tid');
+assert.deepEqual(place({ start: '2025-01-01', end: today }), { active: true, reason: 'periode' }, 'slutt i dag er ikke passert');
+assert.deepEqual(place(passed), { active: false, reason: 'stille' }, 'slutt passert, ingen timer');
+assert.deepEqual(place(passed, '2026-10-20'), { active: true, reason: 'timer' }, 'slutt passert, men timer nylig');
+assert.deepEqual(place(onlyStart, '2026-08-27'), { active: true, reason: 'timer' }, 'akkurat 2 måneder teller');
+assert.deepEqual(place(onlyStart, '2026-08-26'), { active: false, reason: 'stille' }, 'over 2 måneder siden');
+assert.deepEqual(
+  place(running, '', { id: 'x', phase: 'avsluttet' }),
+  { active: false, reason: 'lukket' },
+  'avsluttet prosjekt med slutt frem i tid ligger i skuffen',
+);
+assert.deepEqual(
+  place(running, '2026-10-01', { id: 'x', status: 'arkivert' }),
+  { active: true, reason: 'timer' },
+  'timer siste 2 måneder vinner også for arkivert',
+);
+assert.match(placementLabel({ placement: { reason: 'periode' }, span: running, phase: 'Pågående' }), /til 31\.03\.2027/);
+assert.match(placementLabel({ placement: { reason: 'stille' }, span: none, phase: 'Pågående' }), /ingen timer siste 2 måneder/);
 
 console.log('timeline.test.mjs: ok');

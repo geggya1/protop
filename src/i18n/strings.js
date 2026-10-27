@@ -846,10 +846,7 @@ export const TABLE = {
     sectionFriends: L('Venner', 'Friends', 'Venner', 'Vänner', 'Kaverit', 'Przyjaciele', 'Amigos', 'Amis', 'Freunde'),
   },
   homeOnboarding: {
-    preparing: L('Setter opp hjemmet ditt…', 'Setting up your home…', 'Sætter dit hjem op…', 'Förbereder ditt hem…', 'Valmistellaan kotiasi…', 'Przygotowujemy twój dom…', 'Preparando tu inicio…', 'Préparation de ton accueil…', 'Dein Zuhause wird eingerichtet…'),
-    title: L('Tilpass hjemskjermen', 'Customise your home screen', 'Tilpas din startskærm', 'Anpassa din hemskärm', 'Mukauta kotinäyttöä', 'Dostosuj ekran główny', 'Personaliza tu inicio', 'Personnalise l’accueil', 'Startbildschirm anpassen'),
-    lead: L('Velg bakgrunn, widgets og bunnmeny — eller hopp over og gjør det senere.', 'Pick a background, widgets and bottom menu — or skip and do it later.', 'Vælg baggrund, widgets og bundmenu — eller spring over.', 'Välj bakgrund, widgets och bottenmeny — eller hoppa över.', 'Valitse tausta, widgetit ja alapalkki — tai ohita.', 'Wybierz tło, widgety i menu — albo pomiń.', 'Elige fondo, widgets y menú — o sáltalo.', 'Choisis fond, widgets et menu — ou passe.', 'Hintergrund, Widgets und Menü wählen — oder überspringen.'),
-    skipAll: L('Hopp over — gå til hjem', 'Skip — go to home', 'Spring over — gå til hjem', 'Hoppa över — gå till hem', 'Ohita — siirry kotiin', 'Pomiń — idź do domu', 'Saltar — ir al inicio', 'Passer — aller à l’accueil', 'Überspringen — zum Start'),
+    preparing: L('Gjør klart arbeidsområdet ditt…', 'Preparing your workspace…', 'Gør dit arbejdsområde klar…', 'Förbereder din arbetsyta…', 'Valmistellaan työtilaasi…', 'Przygotowujemy twoją przestrzeń roboczą…', 'Preparando tu espacio de trabajo…', 'Préparation de ton espace de travail…', 'Dein Arbeitsbereich wird eingerichtet…'),
     continueHome: L('Fortsett til hjem', 'Continue to home', 'Fortsæt til hjem', 'Fortsätt till hem', 'Jatka kotiin', 'Przejdź do domu', 'Continuar al inicio', 'Continuer vers l’accueil', 'Weiter zum Start'),
   },
   familyNudge: {

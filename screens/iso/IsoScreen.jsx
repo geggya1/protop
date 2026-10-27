@@ -184,6 +184,8 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   };
 
   const Current = PAGES[page] || IsoDashboard;
+  // Prosesslandskapet og prosesskartene bruker hele bredden; de andre sidene leses best smalere.
+  const fullWidth = wide && page === 'prosesser';
   const needsSetup = !store.loading && !isSetUp(store.state) && page !== 'innstillinger';
   const isSettings = page === 'innstillinger';
 
@@ -232,7 +234,7 @@ export default function IsoScreen({ subView = 'oversikt' }) {
       ref={scrollRef}
       onLayout={(e) => setBoxWidth(Math.round(e.nativeEvent.layout.width))}
       style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ padding: 16, paddingBottom: 96, gap: 14, maxWidth: wide ? 1280 : 980, width: '100%', alignSelf: 'flex-start' }}
+      contentContainerStyle={{ padding: 16, paddingBottom: 96, gap: 14, maxWidth: fullWidth ? undefined : (wide ? 1280 : 980), width: '100%', alignSelf: 'flex-start' }}
       keyboardShouldPersistTaps="handled"
     >
       {store.loadError ? <Banner tone={store.source === 'cache' ? 'warn' : 'danger'} text={store.loadError} /> : null}

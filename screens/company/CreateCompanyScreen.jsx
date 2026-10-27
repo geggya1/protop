@@ -5,21 +5,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { httpsCallable } from 'firebase/functions';
-import { auth, functions } from '../../firebase';
-import { findCompanyByOrgnr } from '../../src/project/companyLookupClient';
+import { auth } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { createGroup, updateGroup } from '../../src/utils/groups';
 import { searchBrregEnheter } from '../../src/utils/boligmappaApis';
 import { companyFromBrreg } from '../../src/project/company';
 import { dismissCompanyOffer } from '../../src/project/companyOffer';
-import { fetchCompanyCpv } from '../../src/anbud/doffinClient';
-import {
-  companyRegistrationDecision,
-  digitsOrgnr,
-  manualCompany,
-} from '../../src/project/companyRegistry';
+import { manualCompany } from '../../src/project/companyRegistry';
+import { companyChoice, registerCompany, requestCompanyAccess } from '../../src/project/companyJoinFlow';
 
 export default function CreateCompanyScreen() {
   const colors = useColors();
@@ -51,28 +44,18 @@ export default function CreateCompanyScreen() {
     }
   }
 
-  async function existingOrganization(orgnr) {
-    const id = digitsOrgnr(orgnr);
-    if (id.length !== 9) return null;
-    // Andres bedrifter kan ikke leses fra appen. Serveren svarer med id og navn.
-    const found = await findCompanyByOrgnr(id);
-    if (!found?.id) return null;
-    return { id: found.id, name: found.name, member: !!found.member, company: { navn: found.name, organisasjonsnummer: id } };
-  }
-
   async function chooseHit(hit) {
     const nextCompany = companyFromBrreg(hit);
     if (!nextCompany || busy) return;
     setBusy(true);
     setError('');
     try {
-      const existing = await existingOrganization(nextCompany.organisasjonsnummer);
-      if (existing?.member) {
-        await selectFamily?.(existing.id, { id: existing.id, name: existing.name, type: 'organization' });
+      const decision = await companyChoice(nextCompany);
+      if (decision.kind === 'member') {
+        await selectFamily?.(decision.id, { id: decision.id, name: decision.name, type: 'organization' });
         nav.navigate('Home');
         return;
       }
-      const decision = companyRegistrationDecision(existing);
       if (decision.kind === 'join') {
         setJoinTarget({ ...decision, company: nextCompany });
         return;
@@ -86,36 +69,9 @@ export default function CreateCompanyScreen() {
   }
 
   async function registerNew(nextCompany) {
-    const user = auth.currentUser;
-    if (!user) throw new Error('Du må være innlogget.');
-    const id = await createGroup({
-      name: nextCompany.navn,
-      type: 'organization',
-      language: 'nb',
-      user,
-      profile: userProfile,
-    });
-    const patch = {
-      company: nextCompany,
-      orgnr: digitsOrgnr(nextCompany.organisasjonsnummer),
-      projects: [],
-      tenders: [],
-      cpvCodes: [],
-      cpvSource: '',
-    };
-    if (patch.orgnr) {
-      try {
-        const data = await fetchCompanyCpv(patch.orgnr);
-        patch.cpvCodes = data.cpvCodes || [];
-        patch.cpvSource = patch.cpvCodes.length ? 'doffin' : '';
-        if (data.company?.name) patch.company = { ...nextCompany, navn: data.company.name };
-      } catch {
-        patch.cpvSource = '';
-      }
-    }
-    await updateGroup(id, patch);
+    const { id, patch } = await registerCompany(nextCompany, { profile: userProfile });
     await selectFamily?.(id, { id, name: patch.company.navn, type: 'organization', ...patch });
-    dismissCompanyOffer(uid || user.uid);
+    dismissCompanyOffer(uid || auth.currentUser?.uid);
     nav.navigate('Home');
   }
 
@@ -142,17 +98,13 @@ export default function CreateCompanyScreen() {
     setBusy(true);
     setError('');
     try {
-      const res = await httpsCallable(functions, 'requestCompanyJoin')({
+      const res = await requestCompanyAccess({
         companyId: joinTarget.companyId,
+        companyName: joinTarget.companyName,
         name: userProfile?.displayName || userProfile?.name || user.displayName || '',
       });
-      if (!res?.data?.ok) {
-        throw new Error(res?.data?.error === 'already-member'
-          ? 'Du er allerede med i bedriften.'
-          : 'Fant ikke bedriften.');
-      }
       dismissCompanyOffer(uid || user.uid);
-      setSent({ createdAt: res.data.createdAt, companyName: res.data.companyName || joinTarget.companyName });
+      setSent(res);
       setJoinTarget(null);
     } catch (e) {
       setError(e?.message || 'Kunne ikke sende forespørselen.');

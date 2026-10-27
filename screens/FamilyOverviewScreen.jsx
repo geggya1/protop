@@ -28,6 +28,7 @@ import {
 import { archiveEmptyDuplicateClassrooms } from '../src/utils/classroom';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { inviteResponseMessage } from '../src/utils/groupInviteLogic';
+import CompanyJoinModal from '../components/CompanyJoinModal';
 import { isSyntheticEmail } from '../src/utils/usernamesLogic';
 
 function inviteAnswerError(e, t) {
@@ -123,6 +124,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(false);
   const [pendingReactivate, setPendingReactivate] = useState(null);
   const [reactivateBusy, setReactivateBusy] = useState(false);
   const [pendingInvites, setPendingInvites] = useState([]);
@@ -306,7 +308,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
   const pickCreate = (action) => {
     setCreateOpen(false);
     if (action === 'join') {
-      navigation.navigate('GroupJoin', { platformType: 'organization' });
+      setJoinOpen(true);
       return;
     }
     navigation.navigate('CreateCompany');
@@ -454,7 +456,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.sheetRowTitle}>Be om innpass</Text>
-                <Text style={styles.sheetRowSub}>Kode fra en administrator i firmaet</Text>
+                <Text style={styles.sheetRowSub}>Finn bedriften i Brønnøysund og be om tilgang</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.muted} />
             </TouchableOpacity>
@@ -465,6 +467,8 @@ export default function FamilyOverviewScreen({ reloadKey }) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <CompanyJoinModal visible={joinOpen} onClose={() => setJoinOpen(false)} />
 
       <ConfirmActionModal
         visible={!!pendingReactivate}

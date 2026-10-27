@@ -25,6 +25,9 @@ function sourceName(row) {
 
 export default function TenderHitCards({
   rows,
+  total = null,
+  footer = null,
+  fitOf = null,
   columns,
   colors,
   sort,
@@ -86,7 +89,7 @@ export default function TenderHitCards({
             </View>
           ))}
         </FilterMenu>
-        <Text style={{ color: colors.muted, fontSize: 13 }}>{rows.length} treff</Text>
+        <Text style={{ color: colors.muted, fontSize: 13 }}>{total ?? rows.length} treff</Text>
       </View>
       {rows.map((row) => {
         const open = openId === row.id;
@@ -96,7 +99,7 @@ export default function TenderHitCards({
         const deadline = deadlineInfo(row.deadline);
         const soon = deadline.tone === 'danger' || deadline.tone === 'warn';
         const place = Array.isArray(row.places) ? row.places.filter(Boolean).join(', ') : String(row.places || '');
-        const fit = scoreNoticeFit(row, matchWatch);
+        const fit = fitOf ? fitOf(row) : scoreNoticeFit(row, matchWatch);
         const body = formatNoticeText(row.dossier?.description || row.description || row.noticeType || '');
         const url = officialNoticeUrl(row);
         return (
@@ -194,6 +197,7 @@ export default function TenderHitCards({
           {emptyText || (syncing ? 'Henter treff …' : 'Ingen treff i listen. Oppdater for å søke.')}
         </Text>
       ) : null}
+      {footer}
     </View>
   );
 }

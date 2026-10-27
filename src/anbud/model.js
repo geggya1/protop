@@ -261,10 +261,16 @@ function pickReviewedNotice(left, right) {
         ? b
         : (isDecided(b.decision) && !isDecided(a.decision) ? b : a));
   const other = winner === a ? b : a;
+  const winnerText = String(winner.description || '');
+  const otherText = String(other.description || '');
   return {
     ...other,
     ...winner,
     id: winner.id || other.id,
+    // En kortet kopi (lagret treffliste) skal ikke erstatte hele teksten, AI-vurderingen eller kartpunktet.
+    description: otherText.length > winnerText.length ? other.description : winner.description,
+    aiFit: winner.aiFit || other.aiFit || null,
+    geo: winner.geo || other.geo || null,
     decision: DECISIONS.has(winner.decision) ? winner.decision : (other.decision || 'ubestemt'),
     reviewedAt: winner.reviewedAt || other.reviewedAt || null,
     interestAt: winner.interestAt || other.interestAt || null,
@@ -308,6 +314,11 @@ function mergeNoticeLists(left, right) {
   }
   notices.sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')));
   return notices;
+}
+
+/** Slår sammen to trefflister. Nyeste vurdering vinner, og ingen treff forsvinner. */
+export function mergeNotices(left, right) {
+  return mergeNoticeLists(left, right);
 }
 
 function mergeById(left, right) {

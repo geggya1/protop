@@ -31,6 +31,7 @@ export const FILES = [
   'src/anbud/tenderProxyUrl.test.mjs',
   'src/anbud/competitionUrl.test.mjs',
   'src/anbud/openDocument.test.mjs',
+  'src/anbud/hitStore.test.mjs',
   'functions/interpretAvtale.smoke.test.mjs',
   'functions/anbudForm.smoke.test.mjs',
   'functions/slimDeploy.test.mjs',

@@ -84,7 +84,8 @@ export function defaultOwner(system) {
 /**
  * Hvem som eier en post med denne eierteksten (som ikke er en ansatt):
  *   person   – flere navn («Kari / Ola»): den første som er en ansatt (bare med people)
- *   rolle    – personen med rollen («Daglig leder» → den som er øverste ledelse)
+ *   rolle       – personen med rollen («Daglig leder» → den som er øverste ledelse)
+ *   ledig_rolle – rollen finnes i ProTop, men ingen har den ennå: rollenavnet blir eier (uten bruker)
  *   standard – ingen eier eller en funksjon ProTop ikke har → kvalitetsleder/systemansvarlig, må gjennomgås
  *   null     – ser ut som et personnavn; står som tekst til noen velger personen
  * fallback: false når feltet ikke skal få standard eier (f.eks. deltakere).
@@ -104,16 +105,18 @@ export function roleOwner(value, system, { fallback = true, people = null } = {}
   for (const role of ids) {
     if (roles[role]?.name) return { kind: 'rolle', role, name: text(roles[role].name, 160), uid: text(roles[role].uid, 128), from: raw };
   }
+  // En ProTop-rolle som ingen har ennå: rollenavnet blir stående, så «Koble rolle-eiere til personer»
+  // kan gi posten til personen når rollen er satt. Ingen standard eier.
+  const vacant = ids.find((r) => r !== 'employee');
+  if (vacant) return { kind: 'ledig_rolle', role: vacant, name: roleLabel(vacant), uid: '', from: raw };
   if (!fallback) return null;
   const blank = !raw || parts.every((p) => isBlankOwner(p) || isoRoleIdFor(p) === 'employee');
-  if (!blank && !ids.length && !isRoleName(raw)) return null;
+  if (!blank && !isRoleName(raw)) return null;
   const def = defaultOwner(system);
   if (!def) return null;
   const why = blank
     ? (raw ? `Eier mangler i kilden («${raw}»).` : 'Eier mangler i kilden.')
-    : (ids.length
-      ? `«${raw}» er rollen ${ids.map((r) => roleLabel(r)).join(' / ')}, som ingen har ennå.`
-      : `«${raw}» er ikke en rolle i ProTop.`);
+    : `«${raw}» er ikke en rolle i ProTop.`;
   return {
     kind: 'standard',
     role: def.role,
@@ -160,7 +163,9 @@ export function roleOwnerFixes(state, { people = [], actor = null, now = new Dat
   const resolve = (value, fallback = true) => {
     const name = text(value, 300);
     if (!name || matchPerson(people, name)) return null;
-    return roleOwner(name, system, { fallback, people });
+    const hit = roleOwner(name, system, { fallback, people });
+    // Ingen har rollen ennå: ingenting å koble til.
+    return hit && hit.kind !== 'ledig_rolle' ? hit : null;
   };
   const push = (kind, entity, title, hit, patch, entityType) => {
     const note = `«${hit.from}» → ${hit.name}`;

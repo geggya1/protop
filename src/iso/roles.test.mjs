@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { isoRoleFor } from './planning.js';
 import { isoRoleIdFor, isRoleName, ownerParts, roleOwner, roleOwnerFixes } from './roles.js';
-import { recommendedRoleAccess, roleAccessCheck, ROLE_ACCESS } from './access.js';
+import {
+  employeeForRole, employeeIsoRank, recommendedRoleAccess, roleAccessCheck, ROLE_ACCESS,
+} from './access.js';
 import { ISO_ROLES } from './catalog.js';
 import { levelById } from '../access/companyAccess.js';
 
@@ -50,7 +52,7 @@ test('roleOwner: rolle → person, ellers kvalitetsleder med merknad; personnavn
   assert.equal(blank.uid, 'q1');
   assert.match(blank.note, /Eier mangler i kilden/);
   assert.match(roleOwner('Innkjøpsansvarlig', SYSTEM).note, /ikke en rolle i ProTop/);
-  assert.match(roleOwner('Internrevisor', SYSTEM).note, /rollen Internrevisor, som ingen har ennå/);
+  assert.deepEqual((({ kind, name, uid }) => ({ kind, name, uid }))(roleOwner('Internrevisor', SYSTEM)), { kind: 'ledig_rolle', name: 'Internrevisor', uid: '' }, 'rollen står til noen har den');
   assert.equal(roleOwner('Ola Nordmann', SYSTEM), null);
   assert.equal(roleOwner('Ikke tildelt', SYSTEM, { fallback: false }), null);
   assert.equal(roleOwner('Ukjent / Per Prosjekt', SYSTEM, { people: [{ name: 'Per Prosjekt', uid: 'p1' }] }).kind, 'person');
@@ -81,6 +83,11 @@ test('roleOwnerFixes kobler eksisterende rolle-eiere og lar personer og låste p
   assert.equal(by('p1').ownerUid, 'u3');
   assert.ok(fixes.every((f) => f.event.action.endsWith('.owner_linked')));
   assert.equal(roleOwnerFixes(state, { people, build: false }).length, 4, 'oversikten teller det samme');
+  // En rolle ingen har ennå, kobles ikke (ingen å koble til) – men kobles når rollen er satt.
+  const vacant = { ...state, records: { risiko: [{ id: 'r9', register: 'risiko', title: 'X', ownerName: 'Internrevisor' }] }, documents: [], processes: [] };
+  assert.equal(roleOwnerFixes(vacant, { people }).length, 0);
+  const filled = { ...vacant, system: { ...SYSTEM, roleMap: { ...SYSTEM.roleMap, internal_auditor: { name: 'Per Prosjekt', uid: 'p1' } } } };
+  assert.equal(roleOwnerFixes(filled, { people }).at(0)?.entity.ownerUid, 'p1');
 });
 
 test('rollene har beskrivelse, fagansvar og nivå som finnes i tilgangsstyringen', () => {
@@ -125,4 +132,30 @@ test('anbefalt tilgang: bare det som mangler, ett fagansvar per behov, aldri på
   assert.equal(hse.ok, false);
   assert.equal(hse.levelLabel, 'HMS-ansvarlig / verneombud');
   assert.equal(check.find((r) => r.role === 'safety_rep').ok, true, 'verneombud trenger bare Lese');
+});
+
+test('anbefalt tilgang virker også for ansatte uten innlogging (funnet via ansatt-id eller navn)', () => {
+  const employees = [
+    { id: 'e1', personUid: '', company: { status: 'active', accessLevels: ['ansatt'], accessLevel: 'ansatt' } },
+    { id: 'e2', personUid: '', company: { status: 'active', accessLevels: ['ansatt'], accessLevel: 'ansatt' } },
+    { id: 'e3', personUid: '', company: { status: 'active', accessLevels: ['ansatt'], accessLevel: 'ansatt' } },
+  ];
+  const people = [{ id: 'e1', name: 'Ellen Hidle', uid: '' }, { id: 'e2', name: 'Silje Håland', uid: '' }, { id: 'e3', name: 'Ola Navnesen', uid: '' }, { id: 'x', name: 'Ola Navnesen', uid: '' }];
+  const roleMap = {
+    hse_manager: { name: 'Ellen Hidle', uid: '' },
+    project_manager: { name: 'Silje Håland', uid: '', employeeId: 'e2' },
+    internal_auditor: { name: 'Ola Navnesen', uid: '' },
+  };
+  assert.equal(employeeForRole(roleMap.hse_manager, { employees, people })?.id, 'e1', 'navn');
+  assert.equal(employeeForRole(roleMap.project_manager, { employees, people })?.id, 'e2', 'ansatt-id');
+  assert.equal(employeeForRole(roleMap.internal_auditor, { employees, people }), null, 'tvetydig navn gir ingen');
+  const recs = recommendedRoleAccess(roleMap, { employees, people });
+  assert.deepEqual(recs.map((r) => [r.employeeId, r.addLevels, r.linked]), [['e1', ['hms_ansvarlig'], false], ['e2', ['iso_rolle'], false]]);
+  const check = roleAccessCheck(roleMap, () => 0, (person) => {
+    const e = employeeForRole(person, { employees, people });
+    return e ? { rank: employeeIsoRank(null, e), linked: !!e.personUid } : null;
+  });
+  const hse = check.find((r) => r.role === 'hse_manager');
+  assert.deepEqual([hse.has, hse.linked, hse.ok], [1, false, false]);
+  assert.equal(check.find((r) => r.role === 'internal_auditor').has, null);
 });

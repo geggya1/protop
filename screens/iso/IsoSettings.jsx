@@ -7,7 +7,7 @@ import { DEFAULT_RISK_METHOD, ISO_ROLES, STANDARDS } from '../../src/iso/catalog
 import { markForReassessment, requirementIdsForArea } from '../../src/iso/requirements';
 import { setupDefaultsFromCompany } from '../../src/iso/integrations';
 import {
-  APPROVER_ROLES, approverUidsFromRoles, recommendedRoleAccess, roleAccessCheck, restrictedUids,
+  APPROVER_ROLES, approverUidsFromRoles, employeeForRole, employeeIsoRank, recommendedRoleAccess, roleAccessCheck, restrictedUids,
 } from '../../src/iso/access';
 import { aclFor } from '../../src/iso/aclSync';
 import { roleOwnerFixes } from '../../src/iso/roles';
@@ -181,11 +181,31 @@ export default function IsoSettings({ ctx }) {
       return cache.get(u);
     };
   }, [ctx.family, ctx.accessEmployees]);
-  const roleCheck = useMemo(() => roleAccessCheck(v.roleMap, rankFor), [v.roleMap, rankFor]);
+  // Personer som ikke er koblet til en innlogging ennå: nivået står på ansattposten og gjelder når de logger inn.
+  const roleCheck = useMemo(() => roleAccessCheck(v.roleMap, rankFor, (person) => {
+    const employee = employeeForRole(person, { employees: ctx.accessEmployees, people });
+    return employee ? { rank: employeeIsoRank(ctx.accessPolicy, employee), linked: !!employee.personUid } : null;
+  }), [v.roleMap, rankFor, ctx.accessEmployees, ctx.accessPolicy, people]);
   const accessRecs = useMemo(
-    () => recommendedRoleAccess(v.roleMap, { employees: ctx.accessEmployees, policy: ctx.accessPolicy }),
-    [v.roleMap, ctx.accessEmployees, ctx.accessPolicy],
+    () => recommendedRoleAccess(v.roleMap, { employees: ctx.accessEmployees, policy: ctx.accessPolicy, people }),
+    [v.roleMap, ctx.accessEmployees, ctx.accessPolicy, people],
   );
+  const notLinked = roleCheck.filter((r) => r.has != null && !r.linked);
+
+  // Rollene lagrer innloggingen (uid) da personen ble valgt. Er personen koblet til en innlogging
+  // senere, oppdateres rollen, så oppgaver og godkjenning når fram.
+  useEffect(() => {
+    if (first || !caps.admin) return;
+    const map = v.roleMap || {};
+    let changed = false;
+    const next = { ...map };
+    for (const [role, person] of Object.entries(map)) {
+      if (!person?.name) continue;
+      const hit = (people || []).find((p) => (person.employeeId ? p.id === person.employeeId : p.name === person.name) && p.uid);
+      if (hit && hit.uid !== person.uid) { next[role] = { ...person, uid: hit.uid, employeeId: hit.id }; changed = true; }
+    }
+    if (changed) update((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), ...next } }));
+  }, [first, caps.admin, v.roleMap, people, update]);
   const [grant, setGrant] = useState({ busy: false, msg: '', err: '' });
 
   /** Legger til fagansvaret rollene trenger, med samme tak som i tilgangsstyringen. */
@@ -199,7 +219,7 @@ export default function IsoSettings({ ctx }) {
       if (!check.ok) { failed.push(`${rec.name}: ${check.reason}`); continue; }
       try {
         saved.push(await saveEmployee(companyId, rec.next));
-        done.push(`${rec.name} (${rec.addLabels.join(', ')})`);
+        done.push(`${rec.name} (${rec.addLabels.join(', ')}${rec.linked ? '' : ', gjelder fra innlogging'})`);
       } catch (e) {
         failed.push(`${rec.name}: ${e?.message || 'kunne ikke lagre'}`);
       }
@@ -418,7 +438,7 @@ export default function IsoSettings({ ctx }) {
           {ISO_ROLES.filter((r) => !['employee', 'system_owner'].includes(r.id)).map((r) => (
             <View key={r.id} style={wide ? { flexBasis: '48%', flexGrow: 1 } : { width: '100%' }}>
               <Field label={r.label} hint={r.summary}>
-                <PersonPick people={people} value={v.roleMap?.[r.id]?.name || ''} onChange={(p) => update((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), [r.id]: p.name ? { name: p.name, uid: p.uid, label: r.label } : null } }))} />
+                <PersonPick people={people} value={v.roleMap?.[r.id]?.name || ''} onChange={(p) => update((cur) => ({ ...cur, roleMap: { ...(cur.roleMap || {}), [r.id]: p.name ? { name: p.name, uid: p.uid, employeeId: p.employeeId || '', label: r.label } : null } }))} />
               </Field>
             </View>
           ))}
@@ -428,7 +448,9 @@ export default function IsoSettings({ ctx }) {
       <Card title="Roller og tilgang" subtitle="Hver rolle trenger Begrenset redigering på ISO (verneombud: Lese). Fagansvaret i tilgangsstyringen gir det uten å endre personens vanlige nivå. Systemansvarlig, kvalitetsleder, HMS-leder og øverste ledelse kan i tillegg godkjenne, publisere og lukke.">
         {!roleCheck.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Velg personer til rollene over.</Text> : null}
         {roleCheck.map((r) => {
-          const rec = accessRecs.find((x) => x.uid === r.person.uid);
+          const employee = employeeForRole(r.person, { employees: ctx.accessEmployees, people });
+          const rec = accessRecs.find((x) => x.employeeId === employee?.id);
+          const login = r.linked ? '' : ' · ikke koblet til innlogging ennå';
           return (
             <ListRow
               key={r.role}
@@ -436,13 +458,19 @@ export default function IsoSettings({ ctx }) {
               tone={r.ok ? 'ok' : 'warn'}
               title={`${ISO_ROLES.find((x) => x.id === r.role)?.label || r.role}: ${r.person.name}`}
               subtitle={r.has == null
-                ? 'Ikke koblet til en bruker. Personen må ha innlogging og være koblet under Ansatte.'
+                ? 'Finnes ikke i Ansatte. Velg personen fra listen i Roller over.'
                 : (r.ok
-                  ? `Har ${r.hasLabel}${APPROVER_ROLES.includes(r.role) ? ' · kan godkjenne' : ''}`
-                  : `Trenger ISO · ${r.needLabel}, har ${r.hasLabel}. Anbefalt: fagansvar «${rec?.addLabels.join('», «') || r.levelLabel}».`)}
+                  ? `Har ${r.hasLabel}${APPROVER_ROLES.includes(r.role) ? ' · kan godkjenne' : ''}${login}`
+                  : `Trenger ISO · ${r.needLabel}, har ${r.hasLabel}${login}. Anbefalt: fagansvar «${rec?.addLabels.join('», «') || r.levelLabel}».`)}
             />
           );
         })}
+        {notLinked.length ? (
+          <Banner
+            tone="warn"
+            text={`${notLinked.length === 1 ? 'Én person' : `${notLinked.length} personer`} i rollene er ikke koblet til en innlogging. Tilgangen står på ansattposten og gjelder fra de logger inn, men før det får de ikke oppgaver og kan ikke godkjenne. Inviter dem under Ansatte → Inviter brukere.`}
+          />
+        ) : null}
         {grant.msg ? <Banner tone="ok" text={grant.msg} /> : null}
         {grant.err ? <Banner tone="danger" text={grant.err} /> : null}
         <Row>

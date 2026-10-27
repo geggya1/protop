@@ -437,14 +437,15 @@ export function buildImport(state, pkg, {
     people: Array.isArray(people) && people.length ? people : null,
     unmatched: new Set(),
     linked: new Map(),
+    vacant: new Map(),
     defaulted: new Map(),
   };
   /** Rolletekst → personen med rollen (eller standard eier). Teller for oppsummeringen. */
   refs.owner = (value, opts) => {
     const hit = roleOwner(value, work.system, { ...opts, people: refs.people });
     if (!hit || hit.kind === 'person') return hit;
-    const bucket = hit.kind === 'rolle' ? refs.linked : refs.defaulted;
-    const k = hit.kind === 'rolle' ? `${hit.from}→${hit.name}→${hit.role}` : (hit.from || 'uten eier');
+    const bucket = hit.kind === 'rolle' ? refs.linked : (hit.kind === 'ledig_rolle' ? refs.vacant : refs.defaulted);
+    const k = hit.kind === 'rolle' ? `${hit.from}→${hit.name}→${hit.role}` : (hit.kind === 'ledig_rolle' ? hit.name : (hit.from || 'uten eier'));
     bucket.set(k, (bucket.get(k) || 0) + 1);
     return hit;
   };
@@ -790,6 +791,11 @@ export function buildImport(state, pkg, {
     const total = rows.reduce((sum, r) => sum + r.n, 0);
     const shown = rows.slice(0, 8).map((r) => `«${r.from}» → ${r.name} (${roleLabel(r.role)}, ${r.n})`).join(', ');
     issues.push(`Roller er koblet til personene som har dem i Innstillinger → Roller (${total} ${total === 1 ? 'post' : 'poster'}): ${shown}${rows.length > 8 ? ` og ${rows.length - 8} til` : ''}.`);
+  }
+  if (refs.vacant.size) {
+    const rows = [...refs.vacant.entries()].sort((a, b) => b[1] - a[1]);
+    const total = rows.reduce((sum, [, n]) => sum + n, 0);
+    issues.push(`${total} ${total === 1 ? 'post har' : 'poster har'} en rolle som eier som ingen har ennå: ${rows.map(([r, n]) => `${r} (${n})`).join(', ')}. Velg personene i ISO / K-HMS → Innstillinger → Roller, og trykk «Koble rolle-eiere til personer» der.`);
   }
   if (refs.defaulted.size) {
     const def = defaultOwnerLabel(work.system);

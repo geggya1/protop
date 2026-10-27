@@ -390,6 +390,8 @@ export default function ProjectDetail({
             colors={colors}
             isAdmin={full && isAdmin}
             employeeId={ownOnly}
+            myEmployeeId={myEmployeeId}
+            employees={employees}
             onChangeState={onChangeState}
           />
         ) : null}

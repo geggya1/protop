@@ -48,6 +48,10 @@ assert.doesNotMatch(readFileSync(join(ROOT, 'components/arbeid/AbsenceOrganizePa
 // Compact overview should stay readable without heavy type.
 assert.doesNotMatch(desktop, /fontWeight:\s*['"](?:[56789]00|bold)['"]/);
 assert.doesNotMatch(phone, /fontWeight:\s*['"](?:[56789]00|bold)['"]/);
+// Ansattens Oversikt: normal vekt, Siste fravær til høyre på bred web.
+assert.doesNotMatch(person, /fontWeight:\s*['"](?:[56789]00|bold)['"]/);
+assert.match(person, /const sideRecent = Platform\.OS === 'web'/);
+assert.match(person, /recentSide: \{ width: 420/);
 
 const filterValue = person.match(/filterValue:\s*\{[^}]+\}/)?.[0] || '';
 const filterLabel = person.match(/filterLabel:\s*\{[^}]+\}/)?.[0] || '';

@@ -360,9 +360,11 @@ export function AbsenceOverviewView({
   // Nøkkeltall for hele bedriften vises bare for den som kan velge blant flere ansatte.
   showKpis = true,
 }) {
-  const { width } = useLayout();
+  const { width, hasRail, railWidth } = useLayout();
   const hostedHero = useModuleHeroHosted();
   const wide = width >= 1180;
+  // Web med god plass: Siste fravær i eget felt til høyre.
+  const sideRecent = Platform.OS === 'web' && width - (hasRail ? railWidth : 0) >= 1360;
   const [menu, setMenu] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [editingOpening, setEditingOpening] = useState(false);
@@ -371,55 +373,18 @@ export function AbsenceOverviewView({
   const types = absencePickerTypes(catalog);
   const employeeName = employees.find((row) => row.id === employeeId)?.name || '';
   const typeName = typeId ? absenceTypeById(typeId, catalog).label : '';
-  const visiblePeriods = showAll ? dashboard.periods : dashboard.periods.slice(0, 5);
+  const visiblePeriods = showAll ? dashboard.periods : dashboard.periods.slice(0, sideRecent ? 12 : 5);
+  // Én ansatt: navnet står allerede øverst.
+  const recentColumns = canChooseEmployee
+    ? ['Dato', 'Ansatt', 'Type', 'Tidsrom', 'Status']
+    : ['Dato', 'Type', 'Tidsrom', 'Status'];
   const spotlight = dashboard.periods.find((row) => (
     row.type === dashboard.balanceType && (row.status === 'pagar' || row.status === 'planlagt')
   )) || dashboard.periods.find((row) => row.type === dashboard.balanceType);
   const registerLabel = dashboard.balanceType === 'ferie' ? '+ Registrer ferie' : `+ Registrer ${dashboard.balanceTitle.toLowerCase()}`;
 
-  const body = (
-    <View style={[styles.frame, wide && styles.frameWide]}>
-      {embedded ? null : (
-      <>
-      <View style={styles.companyRow}>
-        {onBack ? (
-          <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel="Tilbake til ansatt" style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={18} color={ui.ink} />
-          </TouchableOpacity>
-        ) : null}
-        <TouchableOpacity
-          style={styles.companyBtn}
-          onPress={() => setMenu(menu === 'company' ? '' : 'company')}
-          accessibilityRole="button"
-          accessibilityLabel="Velg selskap"
-        >
-          <Text style={styles.companyName} numberOfLines={1}>{companyName.toUpperCase()}</Text>
-          <Ionicons name="chevron-down" size={14} color={ui.ink} />
-        </TouchableOpacity>
-      </View>
-      {menu === 'company' ? (
-        <ChoiceList
-          options={companies.map((row) => ({ id: row.id, label: row.name }))}
-          selected={companyId}
-          onPick={(id) => { setMenu(''); onSelectCompany?.(id); }}
-        />
-      ) : null}
-      </>
-      )}
-
-      {hostedHero || embedded ? null : (
-      <View style={[styles.heroBlock, wide && styles.heroBlockWide]}>
-        <View style={[styles.heroCopy, wide && styles.heroCopyWide]}>
-          <Text accessibilityRole="header" style={styles.title}>Fraværsoversikt</Text>
-          <Text style={styles.lead}>Få full oversikt over ferie og annet fravær for dine ansatte.</Text>
-        </View>
-        <View style={[styles.hero, wide && styles.heroWide]} pointerEvents="none">
-          <Image source={HERO} resizeMode="cover" style={styles.heroImage} />
-          <View style={styles.heroFade} />
-        </View>
-      </View>
-      )}
-
+  const main = (
+    <>
       <View style={styles.filterCard}>
         <FilterField
           icon="person-outline"
@@ -575,7 +540,11 @@ export function AbsenceOverviewView({
           </View>
         </View>
       ) : null}
+    </>
+  );
 
+  const recent = (
+    <View style={sideRecent ? styles.recentSide : styles.recent} nativeID="fravaer-siste">
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>Siste fravær</Text>
         <TouchableOpacity onPress={() => setShowAll((value) => !value)} accessibilityRole="button" nativeID="fravaer-se-alle">
@@ -584,7 +553,7 @@ export function AbsenceOverviewView({
       </View>
       <View style={styles.card}>
         <View style={styles.tableHead}>
-          {['Dato', 'Ansatt', 'Type', 'Tidsrom', 'Status'].map((label) => (
+          {recentColumns.map((label) => (
             <Text key={label} style={styles.th}>{label}</Text>
           ))}
         </View>
@@ -593,7 +562,7 @@ export function AbsenceOverviewView({
           return (
             <View key={row.id} style={styles.tr}>
               <Text style={styles.td} numberOfLines={1}>{row.dateLabel}</Text>
-              <Text style={styles.td} numberOfLines={1}>{row.employeeName}</Text>
+              {canChooseEmployee ? <Text style={styles.td} numberOfLines={1}>{row.employeeName}</Text> : null}
               <Text style={styles.td} numberOfLines={1}>{row.typeLabel}</Text>
               <Text style={styles.td} numberOfLines={1}>{row.rangeLabel}</Text>
               <View style={styles.td}>
@@ -612,6 +581,63 @@ export function AbsenceOverviewView({
           </View>
         )}
       </View>
+    </View>
+  );
+
+  const body = (
+    <View style={[styles.frame, wide && styles.frameWide, sideRecent && styles.frameSide]}>
+      {embedded ? null : (
+      <>
+      <View style={styles.companyRow}>
+        {onBack ? (
+          <TouchableOpacity onPress={onBack} accessibilityRole="button" accessibilityLabel="Tilbake til ansatt" style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={18} color={ui.ink} />
+          </TouchableOpacity>
+        ) : null}
+        <TouchableOpacity
+          style={styles.companyBtn}
+          onPress={() => setMenu(menu === 'company' ? '' : 'company')}
+          accessibilityRole="button"
+          accessibilityLabel="Velg selskap"
+        >
+          <Text style={styles.companyName} numberOfLines={1}>{companyName.toUpperCase()}</Text>
+          <Ionicons name="chevron-down" size={14} color={ui.ink} />
+        </TouchableOpacity>
+      </View>
+      {menu === 'company' ? (
+        <ChoiceList
+          options={companies.map((row) => ({ id: row.id, label: row.name }))}
+          selected={companyId}
+          onPick={(id) => { setMenu(''); onSelectCompany?.(id); }}
+        />
+      ) : null}
+      </>
+      )}
+
+      {hostedHero || embedded ? null : (
+      <View style={[styles.heroBlock, wide && styles.heroBlockWide]}>
+        <View style={[styles.heroCopy, wide && styles.heroCopyWide]}>
+          <Text accessibilityRole="header" style={styles.title}>Fraværsoversikt</Text>
+          <Text style={styles.lead}>Få full oversikt over ferie og annet fravær for dine ansatte.</Text>
+        </View>
+        <View style={[styles.hero, wide && styles.heroWide]} pointerEvents="none">
+          <Image source={HERO} resizeMode="cover" style={styles.heroImage} />
+          <View style={styles.heroFade} />
+        </View>
+      </View>
+      )}
+
+      {sideRecent ? (
+        <View style={styles.split}>
+          <View style={styles.splitMain}>{main}</View>
+          {recent}
+        </View>
+      ) : (
+        <>
+          {main}
+          {recent}
+        </>
+      )}
     </View>
   );
 
@@ -815,15 +841,20 @@ const styles = StyleSheet.create({
   // Venstrestilt som selskapssiden og resten av appen.
   frame: { paddingHorizontal: 16, paddingTop: 6, gap: 12, width: '100%', maxWidth: 1120, alignSelf: 'flex-start' },
   frameWide: { paddingTop: 10 },
+  frameSide: { maxWidth: 1600 },
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  splitMain: { flex: 1, minWidth: 0, gap: 12 },
+  recent: { gap: 12 },
+  recentSide: { width: 420, flexShrink: 0, gap: 10 },
   companyRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   companyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, maxWidth: '86%' },
-  companyName: { color: ui.ink, fontSize: 13, fontWeight: '800', letterSpacing: 0.4 },
+  companyName: { color: ui.ink, fontSize: 13, fontWeight: '400', letterSpacing: 0.4 },
   heroBlock: { minHeight: 132, justifyContent: 'center', position: 'relative', paddingRight: 108, overflow: 'hidden' },
   heroBlockWide: { minHeight: 150, paddingRight: 280 },
   heroCopy: { zIndex: 1, maxWidth: 250, gap: 6 },
   heroCopyWide: { maxWidth: 520 },
-  title: { color: ui.ink, fontSize: 32, lineHeight: 36, fontWeight: '800', letterSpacing: -0.8 },
+  title: { color: ui.ink, fontSize: 32, lineHeight: 36, fontWeight: '400', letterSpacing: -0.8 },
   lead: { color: ui.muted, fontSize: 14, lineHeight: 20 },
   hero: {
     position: 'absolute',
@@ -878,7 +909,7 @@ const styles = StyleSheet.create({
   },
   choice: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
   choiceText: { color: ui.ink, fontSize: 14, flex: 1 },
-  choiceOn: { color: ui.blue, fontWeight: '700' },
+  choiceOn: { color: ui.blue, fontWeight: '400' },
   error: { color: ui.danger, fontSize: 13 },
   kpis: { flexDirection: 'row', gap: 10 },
   kpi: {
@@ -893,7 +924,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   kpiIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  kpiValue: { color: ui.ink, fontSize: 20, fontWeight: '800' },
+  kpiValue: { color: ui.ink, fontSize: 20, fontWeight: '400' },
   kpiLabel: { color: ui.muted, fontSize: 12 },
   columns: { gap: 12 },
   columnsWide: { flexDirection: 'row', alignItems: 'stretch' },
@@ -903,7 +934,7 @@ const styles = StyleSheet.create({
   ferieCard: { gap: 14 },
   ferieHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   palm: { width: 36, height: 36, borderRadius: 18, backgroundColor: ui.peach, alignItems: 'center', justifyContent: 'center' },
-  ferieTitle: { color: ui.ink, fontSize: 20, fontWeight: '800' },
+  ferieTitle: { color: ui.ink, fontSize: 20, fontWeight: '400' },
   ferieLead: { color: ui.muted, fontSize: 13, marginTop: 1 },
   ferieBody: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stats: { flex: 1, gap: 8, minWidth: 0 },
@@ -913,10 +944,10 @@ const styles = StyleSheet.create({
     minWidth: 42, height: 32, paddingHorizontal: 8, borderRadius: 10, backgroundColor: ui.sunken,
     alignItems: 'center', justifyContent: 'center',
   },
-  statValueText: { color: ui.ink, fontWeight: '800', fontSize: 14 },
+  statValueText: { color: ui.ink, fontWeight: '400', fontSize: 14 },
   donutCenter: { position: 'absolute', left: 18, right: 18, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' },
-  donutValue: { color: ui.ink, fontSize: 26, fontWeight: '800', lineHeight: 28 },
-  donutOf: { color: ui.ink, fontSize: 12, fontWeight: '700', lineHeight: 14 },
+  donutValue: { color: ui.ink, fontSize: 26, fontWeight: '400', lineHeight: 28 },
+  donutOf: { color: ui.ink, fontSize: 12, fontWeight: '400', lineHeight: 14 },
   donutCaption: { color: ui.muted, fontSize: 10, lineHeight: 12, marginTop: 1 },
   openingRow: { gap: 8 },
   openingInput: {
@@ -924,7 +955,7 @@ const styles = StyleSheet.create({
     color: ui.ink, backgroundColor: ui.card, fontSize: 15,
   },
   openingSave: { backgroundColor: ui.blue, borderRadius: 999, paddingVertical: 10, alignItems: 'center' },
-  openingSaveText: { color: '#fff', fontWeight: '700' },
+  openingSaveText: { color: '#fff', fontWeight: '400' },
   track: { height: 8, borderRadius: 99, backgroundColor: ui.track, overflow: 'hidden' },
   trackFill: { height: 8, borderRadius: 99, backgroundColor: ui.sand },
   trackLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -6 },
@@ -942,13 +973,13 @@ const styles = StyleSheet.create({
   beachFrameWide: { width: 240, height: 210 },
   beachFill: { width: '100%', height: '100%', transform: [{ scale: PAGE_ART_SCALE }] },
   beachCopy: { flex: 1, paddingVertical: 16, paddingRight: 16, paddingLeft: 12, gap: 8 },
-  beachTitle: { color: ui.ink, fontSize: 16, fontWeight: '800', lineHeight: 21 },
+  beachTitle: { color: ui.ink, fontSize: 16, fontWeight: '400', lineHeight: 21 },
   beachBody: { color: '#66758A', fontSize: 13, lineHeight: 18 },
   cta: {
     alignSelf: 'flex-start', backgroundColor: ui.blue, borderRadius: 999,
     paddingHorizontal: 14, paddingVertical: 10, marginTop: 2,
   },
-  ctaText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  ctaText: { color: '#fff', fontWeight: '400', fontSize: 14 },
   chartLayout: { gap: 8 },
   chartLayoutWide: { flexDirection: 'row', alignItems: 'center' },
   chartPlot: { flexDirection: 'row', alignItems: 'flex-end' },
@@ -961,28 +992,28 @@ const styles = StyleSheet.create({
   legendSwatch: { width: 10, height: 10, borderRadius: 5 },
   legendText: { color: ui.ink, fontSize: 13 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  sectionTitle: { color: ui.ink, fontSize: 22, fontWeight: '800' },
-  seeAll: { color: ui.muted, fontSize: 14, fontWeight: '600' },
+  sectionTitle: { color: ui.ink, fontSize: 18, fontWeight: '400' },
+  seeAll: { color: ui.muted, fontSize: 14, fontWeight: '400' },
   tableHead: { flexDirection: 'row', paddingBottom: 8, gap: 4 },
-  th: { flex: 1, color: ui.faint, fontSize: 12, fontWeight: '600' },
+  th: { flex: 1, color: ui.faint, fontSize: 12, fontWeight: '400' },
   tr: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8, borderTopWidth: 1, borderTopColor: ui.line },
   td: { flex: 1, color: ui.ink, fontSize: 12 },
-  status: { alignSelf: 'flex-start', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, fontSize: 10, fontWeight: '700' },
+  status: { alignSelf: 'flex-start', overflow: 'hidden', borderRadius: 999, paddingHorizontal: 6, paddingVertical: 2, fontSize: 10, fontWeight: '400' },
   emptyTable: { alignItems: 'center', paddingVertical: 22, gap: 4 },
   emptyIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   emptySearch: { position: 'absolute', right: 0, bottom: 2 },
-  emptyTitle: { color: ui.ink, fontWeight: '800', fontSize: 15 },
+  emptyTitle: { color: ui.ink, fontWeight: '400', fontSize: 15 },
   emptyBody: { color: ui.muted, fontSize: 13, textAlign: 'center' },
   modalBg: { flex: 1, backgroundColor: 'rgba(16, 24, 40, 0.35)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: ui.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, gap: 10,
     ...(Platform.OS === 'web' ? { maxWidth: 520, width: '100%', alignSelf: 'center', borderRadius: 24, marginBottom: 24 } : null),
   },
-  sheetTitle: { color: ui.ink, fontSize: 20, fontWeight: '800' },
+  sheetTitle: { color: ui.ink, fontSize: 20, fontWeight: '400' },
   sheetLead: { color: ui.muted, fontSize: 13 },
   sheetField: { gap: 6 },
-  sheetLabel: { color: ui.muted, fontSize: 12, fontWeight: '700' },
+  sheetLabel: { color: ui.muted, fontSize: 12, fontWeight: '400' },
   sheetActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 6 },
   sheetGhost: { paddingHorizontal: 14, paddingVertical: 10 },
-  sheetGhostText: { color: ui.ink, fontWeight: '700' },
+  sheetGhostText: { color: ui.ink, fontWeight: '400' },
 });

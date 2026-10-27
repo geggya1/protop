@@ -27,6 +27,25 @@ export function expenseStatusLabel(status) {
   return EXPENSE_STATUSES.find((row) => row.id === status)?.label || text(status) || 'Utkast';
 }
 
+/**
+ * Utlegg for én medarbeider (Prosjektutlegg på ansattsiden).
+ * Rader uten kobling følger eksternt ansattnummer eller navn, som ved import.
+ */
+export function expensesForEmployee(rows, employee) {
+  const id = text(employee?.id);
+  if (!id) return [];
+  const first = text(employee?.person?.firstName);
+  const last = text(employee?.person?.lastName);
+  const names = new Set([fold(`${first} ${last}`), fold(`${last} ${first}`)].filter(Boolean));
+  const number = text(employee?.company?.externalEmployeeNumber);
+  return (Array.isArray(rows) ? rows : []).filter((row) => {
+    const owner = text(row?.employeeId);
+    if (owner) return owner === id;
+    if (number && text(row?.employeeNumber) === number) return true;
+    return names.size > 0 && names.has(fold(row?.employeeName));
+  });
+}
+
 export function filterExpenses(rows, {
   query = '',
   employeeId = '',

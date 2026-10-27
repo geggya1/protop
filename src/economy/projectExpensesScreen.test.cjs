@@ -14,6 +14,17 @@ const colors = {
   card: '#fff', bg: '#F4F7FB', sunken: '#F3F6FA', danger: '#b42318',
 };
 
+const people = [
+  { id: 'a', person: { firstName: 'Aina', lastName: 'Jespersen' } },
+  { id: 'b', person: { firstName: 'Anas', lastName: 'Elbakri' } },
+];
+let workspace = {
+  workspaceId: 'co',
+  lockedId: '',
+  employees: people,
+  state: { expenses: [], projects: [] },
+};
+
 function host(name) {
   return function Host(props) {
     return React.createElement(name, props, props && props.children);
@@ -52,17 +63,7 @@ function loadJsx(rel) {
     if (id.endsWith('src/theme')) return { useLayout: () => ({ width: 800 }) };
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
     if (id.includes('useTimesheetWorkspace')) {
-      return {
-        useTimesheetWorkspace: () => ({
-          workspaceId: 'co',
-          lockedId: '',
-          employees: [
-            { id: 'a', person: { firstName: 'Aina', lastName: 'Jespersen' } },
-            { id: 'b', person: { firstName: 'Anas', lastName: 'Elbakri' } },
-          ],
-          state: { expenses: [], projects: [] },
-        }),
-      };
+      return { useTimesheetWorkspace: () => workspace };
     }
     // Admin på prosjektutlegg: import vises (canImportList).
     if (id.includes('useCompanyAccess')) {
@@ -166,4 +167,29 @@ walk(tree, (element) => {
 assert.ok(ids.includes('prosjektutlegg'));
 assert.ok(ids.includes('expense-import-open'));
 assert.ok(ids.includes('expense-filters'));
+
+// Ansattsiden: utlegg personen har registrert på prosjekt, også importerte uten kobling.
+const expense = (id, extra) => ({
+  id, date: '2026-10-01', description: `Utlegg ${id}`, amountInclVat: 100, projectName: 'Bygg', ...extra,
+});
+workspace = {
+  ...workspace,
+  lockedId: 'a',
+  state: {
+    projects: [],
+    expenses: [
+      expense('egen', { employeeId: 'a', employeeName: 'Aina Jespersen' }),
+      expense('kollega', { employeeId: 'b', employeeName: 'Anas Elbakri' }),
+      expense('navn', { employeeName: 'Jespersen, Aina' }),
+      expense('ukjent', {}),
+    ],
+  },
+};
+const mine = texts(withHooks(() => React.createElement(screen.ProjectExpensesScreen, { lockedEmployeeId: 'a', embedded: true })));
+assert.match(mine, /Utlegg egen/);
+assert.match(mine, /Utlegg navn/);
+assert.doesNotMatch(mine, /Utlegg kollega/);
+assert.doesNotMatch(mine, /Utlegg ukjent/);
+assert.doesNotMatch(mine, /Medarbeider/);
+assert.doesNotMatch(mine, /Filtrer medarbeider/);
 console.log('projectExpensesScreen.test.cjs ok');

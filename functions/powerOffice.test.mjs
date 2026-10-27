@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  createPowerOfficeClient, findClientEnvironment, PowerOfficeError, problemMessage, POWEROFFICE_ENVS,
+  createPowerOfficeClient, findClientEnvironment, PowerOfficeError, powerOfficeErrorText, problemMessage, POWEROFFICE_ENVS,
 } from './powerOfficeApi.js';
 import {
   invoicePatchFromOutgoing,
@@ -509,6 +509,15 @@ function fakeClient(routes) {
     { code: '1', name: 'Timer', salesAccount: 3000, vatCode: '', vatPercent: null },
   ]);
 }
+
+// Feilteksten sier hvilket steg Go avviste.
+assert.equal(
+  powerOfficeErrorText(new PowerOfficeError('One or more validation errors occurred. · Name: required', { status: 400, path: '/Customers' })),
+  'PowerOffice avviste kunden: One or more validation errors occurred. · Name: required',
+);
+assert.match(powerOfficeErrorText(new PowerOfficeError('x', { status: 422, path: '/SalesOrders/Complete' })), /^PowerOffice avviste fakturautkastet: x$/);
+assert.equal(powerOfficeErrorText(new PowerOfficeError('PowerOffice er opptatt.', { status: 503, path: '/SalesOrders/Complete' })), 'PowerOffice er opptatt.');
+assert.equal(powerOfficeErrorText(new PowerOfficeError('Nøklene mangler.')), 'Nøklene mangler.');
 
 console.log('powerOffice.test ok');
 

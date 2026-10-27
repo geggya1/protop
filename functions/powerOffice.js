@@ -16,7 +16,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { assertFamilyAdmin, assertFamilyMember, assertRateLimit, hashRateKey } from './security.js';
 import { resolveRuntimeSecret } from './runtimeSecret.js';
 import {
-  createPowerOfficeClient, findClientEnvironment, POWEROFFICE_ENVS, PowerOfficeError,
+  createPowerOfficeClient, findClientEnvironment, POWEROFFICE_ENVS, PowerOfficeError, powerOfficeErrorText,
 } from './powerOfficeApi.js';
 import { normalizeProductCodes } from './powerOfficeMap.js';
 import { productsWithVat, syncInvoices, transferInvoice } from './powerOfficeSync.js';
@@ -54,7 +54,7 @@ function toHttpsError(err, where) {
     if (err.status === 401 || err.status === 403) return new HttpsError('permission-denied', err.message);
     if (err.status === 429 || err.status === 503) return new HttpsError('resource-exhausted', err.message);
     if (err.status >= 500) return new HttpsError('unavailable', err.message);
-    return new HttpsError('failed-precondition', err.message);
+    return new HttpsError('failed-precondition', powerOfficeErrorText(err));
   }
   if (err?.message) {
     logger.warn(`PowerOffice ${where}`, { message: err.message });

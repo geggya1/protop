@@ -88,6 +88,7 @@ export const FILES = [
   'src/hr/directoryRender.test.mjs',
   'src/hr/dashboard.test.mjs',
   'src/hr/productivity.test.mjs',
+  'src/hr/billable.test.mjs',
   'src/capacity/plan.test.mjs',
   'src/capacity/productivityBoard.test.mjs',
   'src/project/timeline.test.mjs',

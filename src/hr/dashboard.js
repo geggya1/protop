@@ -16,7 +16,6 @@ import {
   recruitmentFunnel,
   upcomingPeopleEvents,
 } from './model.js';
-import { summarizeProductivity } from './productivity.js';
 
 export const DASHBOARD_DAYS = 90;
 const RECENT_HIRES = 5;
@@ -78,7 +77,6 @@ export function complianceByItem(staff, hr = {}) {
  */
 export function hrDashboard(employees, hr = {}, {
   status = 'active',
-  entries = [],
   today = new Date(),
 } = {}) {
   const { staff: allStaff, external: allExternal } = splitHrPeople(employees);
@@ -145,11 +143,6 @@ export function hrDashboard(employees, hr = {}, {
     return days != null && days <= 0 && days >= -DASHBOARD_DAYS;
   }).length;
 
-  const staffIds = new Set(staff.map((row) => String(row.id)));
-  const productivity = summarizeProductivity(
-    (entries || []).filter((row) => staffIds.has(String(row?.employeeId || ''))),
-  );
-
   const externalEvents = upcomingPeopleEvents(externals, { withinDays: DASHBOARD_DAYS, today });
   const externalContracts = contracts.filter((row) => isExternal(row.employeeId));
   const externalRows = externals.map((employee) => {
@@ -194,7 +187,6 @@ export function hrDashboard(employees, hr = {}, {
     },
     compliance: complianceByItem(staff, hr),
     recentHires,
-    productivity,
     external: {
       rows: externalRows,
       total: externals.length,

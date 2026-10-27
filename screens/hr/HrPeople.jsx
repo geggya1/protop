@@ -39,9 +39,9 @@ export default function HrPeople({
   colors, employees, hr, entries, selectedId, onSelect, canWrite, onPatch, onSheet,
   sheet = 'oversikt', familyId, onSaveSalaries,
   focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
-  isoCompetence, onOpenIso,
+  isoCompetence, onOpenIso, listPreset = null,
 }) {
-  const dir = useHrDirectory(employees);
+  const dir = useHrDirectory(employees, { preset: listPreset });
   const rows = useMemo(
     () => dir.rows.map((employee) => ({
       employee,

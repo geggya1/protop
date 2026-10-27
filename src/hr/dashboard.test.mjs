@@ -61,14 +61,8 @@ const hr = {
   compliance: [],
 };
 
-const entries = [
-  { employeeId: 's1', hours: 10, billableHours: 8 },
-  { employeeId: 's2', hours: 10, billableHours: 4 },
-  { employeeId: 'x1', hours: 100, billableHours: 100 },
-];
-
 {
-  const dash = hrDashboard(employees, hr, { status: 'active', entries, today });
+  const dash = hrDashboard(employees, hr, { status: 'active', today });
   assert.deepEqual(dash.counts, {
     staff: { active: 3, inactive: 1 },
     external: { active: 3, inactive: 1 },
@@ -94,9 +88,6 @@ const entries = [
   assert.ok(dash.compliance.items.length > 0);
   assert.equal(dash.compliance.items.find((row) => row.id === 'aml_written_contract').missing, 2, 'Ada har aktiv avtale');
 
-  assert.equal(dash.productivity.total, 20, 'eksterne timer er ikke med');
-  assert.equal(dash.productivity.utilizationPct, 60);
-
   assert.deepEqual(dash.recentHires.map((row) => [row.employee.id, row.upcoming]), [
     ['s3', true], ['s2', false], ['s1', false],
   ]);
@@ -117,7 +108,7 @@ const entries = [
 }
 
 {
-  const dash = hrDashboard(employees, hr, { status: 'inactive', entries, today });
+  const dash = hrDashboard(employees, hr, { status: 'inactive', today });
   assert.deepEqual(dash.staff.map((row) => row.id), ['s4']);
   assert.deepEqual(dash.external.rows.map((row) => row.id), ['x4']);
   assert.equal(dash.milestones.some((row) => row.type === 'contract'), false, 'avtalen til en aktiv ansatt vises ikke blant deaktiverte');
@@ -130,7 +121,6 @@ const entries = [
   assert.equal(dash.milestones.length, 0);
   assert.equal(dash.compliance.people, 0);
   assert.equal(dash.external.rows.length, 0);
-  assert.equal(dash.productivity.total, 0);
 }
 
 {

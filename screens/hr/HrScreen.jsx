@@ -42,6 +42,13 @@ export default function HrScreen({ subView = 'oversikt' }) {
     family, familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
   } = useApp();
   const assigneeName = String(activeProfile?.name || activeProfile?.displayName || '').trim();
+  // Timer ført på eget selskap er ikke fakturerbare.
+  const ownCompanyName = String(family?.company?.navn || family?.name || '').trim();
+  const ownCompanyOrgnr = String(family?.company?.organisasjonsnummer || family?.orgnr || '').trim();
+  const ownCompany = useMemo(
+    () => ({ name: ownCompanyName, orgnr: ownCompanyOrgnr }),
+    [ownCompanyName, ownCompanyOrgnr],
+  );
   const access = useCompanyAccess();
   const forms = useFormContext();
   const page = defaultHrSubView(subView);
@@ -65,6 +72,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [employeeSheet, setEmployeeSheet] = useState('oversikt');
   const [focusCaseId, setFocusCaseId] = useState('');
+  const [peopleFilter, setPeopleFilter] = useState(null);
+  const [recruitFocus, setRecruitFocus] = useState(null);
   const [ready, setReady] = useState(false);
   const hrRef = useRef(hr);
   const familyIdRef = useRef(familyId);
@@ -92,6 +101,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
     setSelectedEmployeeId('');
     setEmployeeSheet('oversikt');
     setFocusCaseId('');
+    setPeopleFilter(null);
+    setRecruitFocus(null);
     setReady(false);
     const companyId = familyId;
     loadHrState(companyId).then((state) => {
@@ -183,6 +194,17 @@ export default function HrScreen({ subView = 'oversikt' }) {
     clearShellIntent?.();
   }, [page, shellIntent, clearShellIntent]);
 
+  // Fra oversikten: Personell med samme utvalg som tallet, og Rekruttering på valgt eller ny stilling.
+  useEffect(() => {
+    if (page === 'personell' && shellIntent?.type === 'hrPeopleFilter') {
+      setPeopleFilter({ kind: shellIntent.kind || '', status: shellIntent.status || '' });
+      clearShellIntent?.();
+    } else if (page === 'rekruttering' && shellIntent?.type === 'hrRecruitment') {
+      setRecruitFocus({ jobId: shellIntent.jobId || '', newJob: !!shellIntent.newJob });
+      clearShellIntent?.();
+    }
+  }, [page, shellIntent, clearShellIntent]);
+
   const openEmployee = useCallback((id, sheet) => {
     setSelectedEmployeeId(id || '');
     setEmployeeSheet(sheet || 'oversikt');
@@ -261,6 +283,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           onCreateFollowUpTask={createTask}
           isoCompetence={isoCompetence}
           onOpenIso={canSeeIso ? openIsoCompetence : null}
+          listPreset={peopleFilter}
         />
       );
     }
@@ -312,6 +335,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           canWrite={canWrite}
           onPatch={onPatch}
           familyId={familyId}
+          focus={recruitFocus}
         />
       );
     }
@@ -320,18 +344,20 @@ export default function HrScreen({ subView = 'oversikt' }) {
         colors={colors}
         employees={employees}
         hr={hr}
-        entries={entries}
         canWrite={canWrite}
         onPatch={onPatch}
-        onOpenPeople={() => go('personell')}
+        onOpenPeople={(filter) => go('personell', filter ? { type: 'hrPeopleFilter', ...filter } : null)}
         onOpenEmployee={openEmployee}
         onOpenFollowUp={() => go('oppfolging')}
         onOpenCase={openCase}
         familyId={familyId}
+        ownCompany={ownCompany}
         assigneeUid={uid || ''}
         assigneeName={assigneeName}
         onCreateFollowUpTask={createTask}
         onOpenRecruitment={() => go('rekruttering')}
+        onOpenJob={(jobId) => go('rekruttering', { type: 'hrRecruitment', jobId })}
+        onNewJob={() => go('rekruttering', { type: 'hrRecruitment', newJob: true })}
         onOpenProductivity={() => go('produktivitet')}
         onOpenCompliance={() => go('compliance')}
         onOpenContracts={() => go('avtaler')}
@@ -342,7 +368,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
     openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
-    isoCompetence, canSeeIso, openIsoCompetence,
+    isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany,
   ]);
 
   if (access.active && access.ready && !canSee) {

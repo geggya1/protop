@@ -25,8 +25,10 @@ import {
 
 const isWeb = Platform.OS === 'web';
 
-export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId }) {
-  const [jobId, setJobId] = useState(hr.jobs?.[0]?.id || '');
+export default function HrRecruitment({
+  colors, hr, canWrite, onPatch, familyId, focus = null,
+}) {
+  const [jobId, setJobId] = useState(focus?.jobId || hr.jobs?.[0]?.id || '');
   const [selectedAppId, setSelectedAppId] = useState('');
   const [jobDraft, setJobDraft] = useState({
     title: '', department: '', location: '', description: '', requirements: '', status: 'open', headcount: '1',
@@ -39,6 +41,11 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
   const [hiring, setHiring] = useState(false);
   const [dragId, setDragId] = useState('');
   const [uploading, setUploading] = useState(false);
+
+  // Fra oversikten: stillingen som ble trykket på.
+  useEffect(() => {
+    if (focus?.jobId) setJobId(focus.jobId);
+  }, [focus]);
 
   const funnel = useMemo(() => recruitmentFunnel(hr.applications), [hr.applications]);
   const activeJobId = jobId || hr.jobs?.[0]?.id || '';
@@ -179,7 +186,13 @@ export default function HrRecruitment({ colors, hr, canWrite, onPatch, familyId 
         ) : null}
         {canWrite ? (
           <View style={styles.form}>
-            <HrField colors={colors} label="Tittel" value={jobDraft.title} onChangeText={(title) => setJobDraft((p) => ({ ...p, title }))} />
+            <HrField
+              colors={colors}
+              label="Tittel"
+              value={jobDraft.title}
+              onChangeText={(title) => setJobDraft((p) => ({ ...p, title }))}
+              autoFocus={!!focus?.newJob}
+            />
             <HrField colors={colors} label="Avdeling" value={jobDraft.department} onChangeText={(department) => setJobDraft((p) => ({ ...p, department }))} />
             <HrField colors={colors} label="Sted" value={jobDraft.location} onChangeText={(location) => setJobDraft((p) => ({ ...p, location }))} />
             <HrField colors={colors} label="Beskrivelse" value={jobDraft.description} onChangeText={(description) => setJobDraft((p) => ({ ...p, description }))} multiline />

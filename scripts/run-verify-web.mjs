@@ -133,6 +133,7 @@ export const FILES = [
   'src/arbeid/employeeScheduleRender.test.cjs',
   // Prosjekt, kjøretøy, (i)-forklaringene og fagansvar, og at selskapet lagres felt for felt.
   'src/access/accessRules.test.mjs',
+  'src/access/accessHeadcount.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',
 ];

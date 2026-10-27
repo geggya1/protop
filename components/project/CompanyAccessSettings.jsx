@@ -41,6 +41,7 @@ import { applyEmployeeClassification, cardSubtitle, commitEmployee, contactLine,
 import { showSaveToast } from '../../src/ui/saveToast';
 import { canGrantLevel, canSetGrant, checkPersonChange, grantsAbove } from '../../src/access/accessCeiling';
 import { accessHelp } from '../../src/access/accessHelp';
+import { accessHeadcount } from '../../src/access/accessHeadcount';
 
 const ACCESS_LEADS = [
   'Åtte standardnivåer ligger til grunn og kan tilpasses. I tillegg finnes tre fagansvar (HMS-ansvarlig, Kvalitetsansvarlig og HR-ansvarlig) som krysses av i tillegg til vanlig nivå. Hvert nivå har egen matrise for alle moduler, undermoduler og innstillinger. Lese = se uten endring. Begrenset redigering = opprette og redigere. Admin = innstillingsknapper og full styring i modulen. Høyere trinn tar med dem under. Trykk (i) i matrisen for å se hva trinnet gir i akkurat den modulen. Flere nivå på samme person krysses av under Personer.',
@@ -385,6 +386,67 @@ function rosterMeta(activeCount, inactiveCount, detail) {
   const activeLabel = activeCount === 1 ? '1 aktiv' : `${activeCount} aktive`;
   const inactiveLabel = inactiveCount === 1 ? '1 deaktivert' : `${inactiveCount} deaktiverte`;
   return `${activeLabel} · ${inactiveLabel}${detail ? ` · ${detail}` : ''}`;
+}
+
+function HeadcountCell({ value, colors, strong = false }) {
+  return (
+    <Text style={[styles.countCell, { color: value ? colors.ink : colors.muted, fontWeight: strong ? '700' : '400' }]}>
+      {value}
+    </Text>
+  );
+}
+
+/** Oversikt øverst: ansatte og eksterne med tilgang, totalt og per gruppe (aktive). */
+function AccessHeadcount({ employees, companyName, colors }) {
+  const sum = useMemo(() => accessHeadcount(employees), [employees]);
+  const tiles = [
+    ['Med tilgang', sum.total.total],
+    ['Ansatte', sum.total.staff],
+    ['Eksterne', sum.total.external],
+    ['Deaktiverte', sum.deactivated],
+  ];
+  return (
+    <View nativeID="company-access-headcount" style={[styles.headcount, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View style={styles.headcountTiles}>
+        {tiles.map(([label, value]) => (
+          <View key={label} style={[styles.headcountTile, { borderColor: colors.line }]}>
+            <Text style={[styles.headcountValue, { color: label === 'Deaktiverte' ? colors.muted : colors.ink }]}>{value}</Text>
+            <Text style={[styles.kind, { color: colors.muted }]}>{label}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={[styles.countRow, styles.countHead, { borderColor: colors.line }]}>
+        <Text style={[styles.countName, { color: colors.muted }]}>Gruppe</Text>
+        <Text style={[styles.countCell, { color: colors.muted }]}>Ansatte</Text>
+        <Text style={[styles.countCell, { color: colors.muted }]}>Eksterne</Text>
+        <Text style={[styles.countCell, { color: colors.muted }]}>Sum</Text>
+      </View>
+      {sum.sections.map((section) => (
+        <View key={section.id} nativeID={`company-access-headcount-${section.id}`}>
+          <Text style={[styles.countSection, { color: colors.ink }]}>{accessSectionTitle(section.id, companyName)}</Text>
+          {section.levels.map((level) => (
+            <View key={level.id} style={[styles.countRow, { borderColor: colors.line }]}>
+              <Text style={[styles.countName, { color: colors.ink }]} numberOfLines={2}>{`${level.order}. ${level.label}`}</Text>
+              <HeadcountCell value={level.staff} colors={colors} />
+              <HeadcountCell value={level.external} colors={colors} />
+              <HeadcountCell value={level.total} colors={colors} strong />
+            </View>
+          ))}
+        </View>
+      ))}
+      {sum.unplaced.total ? (
+        <View style={[styles.countRow, { borderColor: colors.line }]}>
+          <Text style={[styles.countName, { color: colors.ink }]}>Ikke plassert</Text>
+          <HeadcountCell value={sum.unplaced.staff} colors={colors} />
+          <HeadcountCell value={sum.unplaced.external} colors={colors} />
+          <HeadcountCell value={sum.unplaced.total} colors={colors} strong />
+        </View>
+      ) : null}
+      <Text style={[styles.kind, { color: colors.muted }]}>
+        Aktive med tilgang. Innleide regnes som eksterne. Fagansvar telles i tillegg til nivået, men hver person telles én gang i Med tilgang.
+      </Text>
+    </View>
+  );
 }
 
 function MoveTargets({ employee, colors, excludeId, suggestedId, onAssign, allowLevel }) {
@@ -1162,6 +1224,8 @@ export default function CompanyAccessSettings({
       {!!error && <Text style={[styles.error, { color: colors.danger }]}>{error}</Text>}
       {!!note && <Text style={[styles.note, { color: colors.brand }]}>{note}</Text>}
 
+      <AccessHeadcount employees={employees} companyName={companyHeadingName(company)} colors={colors} />
+
       <View style={styles.modeRow}>
         {[['levels', 'Nivåer'], ['people', 'Personer']].map(([id, label]) => {
           const on = mode === id;
@@ -1404,6 +1468,15 @@ const styles = StyleSheet.create({
   error: { fontSize: 14 },
   note: { fontSize: 14 },
   modeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  headcount: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 6, width: '100%' },
+  headcountTiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+  headcountTile: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, minWidth: 104, flexGrow: 1, flexBasis: 104 },
+  headcountValue: { fontSize: 22, fontWeight: '700' },
+  countRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5, borderBottomWidth: StyleSheet.hairlineWidth },
+  countHead: { paddingTop: 2 },
+  countName: { flex: 1, minWidth: 0, fontSize: 14 },
+  countCell: { width: 58, textAlign: 'right', fontSize: 14, fontVariant: ['tabular-nums'] },
+  countSection: { fontSize: 13, fontWeight: '700', marginTop: 8 },
   modeChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   levelRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   levelChip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, minWidth: 140, gap: 2 },

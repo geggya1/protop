@@ -720,21 +720,22 @@ test('alle felt i brevet kan endres før det ferdigstilles', () => {
   const base = letterFromRecord(draft, record, { today: '2026-10-27', includeLogo: false }).letter;
   const fields = letterFieldRows(base);
   const values = Object.fromEntries(fields);
-  const before = values['Merknad 2'];
-  assert.ok(before, 'brevet har minst to merknader');
+  const before = values.Merknad;
+  assert.equal(before, 'Beløpene er eks. mva.');
   values.Tittel = 'Varsel om ny timepris';
   values.Tabell = '14335 Konsulentindeks';
   values['Pris justert'] = '38,41 kr';
-  values['Merknad 2'] = '';
+  values.Merknad = '';
   values.Underskriver = 'Geir Ove';
   const edits = letterEditsFrom(base, values);
-  assert.deepEqual(Object.keys(edits).sort(), ['Merknad 2', 'Pris justert', 'Tabell', 'Tittel', 'Underskriver']);
+  assert.deepEqual(Object.keys(edits).sort(), ['Merknad', 'Pris justert', 'Tabell', 'Tittel', 'Underskriver']);
 
   const edited = applyLetterEdits(base, edits);
   assert.equal(edited.title, 'Varsel om ny timepris');
   assert.equal(edited.notice.title, 'Varsel om ny timepris');
   assert.match(edited.plain, /Tabell \| 14335 Konsulentindeks \| Pris justert \| 38,41 kr/);
-  assert.doesNotMatch(edited.plain, new RegExp(before.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(edited.plain, /Beløpene er eks\. mva\./);
+  assert.doesNotMatch(edited.plain, /Merknader/);
   assert.match(edited.plain, /Geir Ove/);
   const tableRow = edited.notice.sections[2].rows[1];
   assert.equal(tableRow.reduce((sum, item) => sum + (item.span || 1), 0), 6, 'raden beholder seks kolonner');
@@ -749,6 +750,36 @@ test('alle felt i brevet kan endres før det ferdigstilles', () => {
 
   const stored = letterFromRecord(draft, { ...record, letterEdits: edits }, { today: '2026-10-27', includeLogo: false });
   assert.equal(stored.letter.plain, edited.plain, 'lagret sak bygger samme brev med endringene');
+});
+
+test('brevet til kunden har ikke avtalevilkår og beregningsvarsler som merknader', () => {
+  const draft = {
+    supplier: 'Consult1 AS',
+    buyer: 'Breitorget AS',
+    title: 'Breitorget · Prosjektleder',
+    standard: 'NS 8403',
+    model: 'engang',
+    indexId: 'ppi-byggeteknisk',
+    contractDate: '2025-12-19',
+    terms: { frequency: 'quarter', roundToKrone: true, variables: [{ name: 'DOKUMENT 1', value: '251219' }] },
+    lines: [{ text: 'Timepris', unit: 'time', rate: '1350', quantity: '1' }],
+  };
+  const pack = letterFromRecord(draft, {
+    before: 1350, after: 1388.41, increase: 38.41, fromPeriod: '2025K4', fromIndex: 119.5,
+    toPeriod: '2026K2', toIndex: 122.9, effectiveFrom: '2026-01-01',
+  }, { today: '2026-10-27', includeLogo: false });
+  const withWarnings = buildLetter(draft, {
+    ...pack.result,
+    warnings: ['Påslag på 10 % inngår ikke i reguleringsgrunnlaget.', 'Beløpene er eks. mva.'],
+  }, { today: '2026-10-27', includeLogo: false });
+  [pack.letter, withWarnings].forEach((letter) => {
+    assert.deepEqual(letter.notice.notes, []);
+    assert.doesNotMatch(letter.plain, /Avtalt intervall|DOKUMENT 1|Påslag på 10 %|Beløpene er eks\. mva\.|Merknader/);
+    assert.match(letter.plain, /Generelle bestemmelser \| NS 8403 Byggelederoppdrag\n/);
+    assert.doesNotMatch(letter.plain, /NS 8403 \| NS 8403/);
+  });
+  const ekstra = buildLetter({ ...draft, freeText: 'Gjelder alle roller i oppdraget.' }, pack.result, { today: '2026-10-27', includeLogo: false });
+  assert.deepEqual(ekstra.notice.notes, ['Gjelder alle roller i oppdraget.']);
 });
 
 test('indeksbrevet kan bruke bedriftens logo', () => {
@@ -770,9 +801,15 @@ test('indeksbrevet kan bruke bedriftens logo', () => {
   const pdf = new TextDecoder().decode(buildPdf(letter));
   assert.match(pdf, /\/Im1 Do/);
   assert.match(pdf, /DCTDecode/);
+  const [, width, , x] = /([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm/.exec(pdf).map(Number);
+  assert.ok(Math.abs(x + width - 555) < 0.01, 'logoen står i høyre marg');
+  const plainPdf = new TextDecoder().decode(buildPdf(without));
+  const brandCount = (text) => text.split('ProTop Bygg AS').length - 1;
+  assert.equal(brandCount(pdf), brandCount(plainPdf) - 1, 'logoen erstatter firmanavnet øverst');
   const files = exportFiles(draft, result, letter, []);
   const docx = readZip(files[1].bytes);
   assert.ok(docx['word/media/logo.jpg']?.length > 20);
+  assert.match(new TextDecoder().decode(docx['word/document.xml']), /<w:jc w:val="right"\/><\/w:pPr><w:r><w:drawing>/);
   assert.match(new TextDecoder().decode(docx['word/document.xml']), /rIdLogo/);
   assert.match(new TextDecoder().decode(docx['word/document.xml']), /ProTop Bygg AS/);
 });

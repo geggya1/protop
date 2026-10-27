@@ -164,7 +164,7 @@ function docxLogo(logo) {
   const box = fitLogoBox(file.width, file.height, 180, 64);
   const cx = Math.round(box.width * 9525);
   const cy = Math.round(box.height * 9525);
-  const drawing = `<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="1" name="Bedriftslogo"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="logo.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+  const drawing = `<w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="1" name="Bedriftslogo"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="0" name="logo.jpg"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
   return { drawing, bytes: file.bytes };
 }
 
@@ -173,7 +173,7 @@ export function buildDocx(letter, result) {
   const logo = letter.notice?.logo ? docxLogo(letter.notice.logo) : null;
   if (letter.notice) {
     if (logo) blocks.push(logo.drawing);
-    blocks.push(paragraph(letter.notice.brand, true, 32));
+    else blocks.push(paragraph(letter.notice.brand, true, 32));
     blocks.push(paragraph(letter.notice.title, true, 28));
     blocks.push(paragraph(letter.notice.intro, false, 21));
     letter.notice.sections.forEach((section) => {
@@ -449,23 +449,15 @@ function noticeStreams(letter, showLogo) {
     });
   }
 
+  // Logoen står øverst til høyre i stedet for firmanavnet. Uten logo står navnet der.
   if (showLogo && notice.logo) {
     const box = fitLogoBox(notice.logo.width, notice.logo.height);
     const imageY = pageH - y - box.height;
     ops().push('q');
-    ops().push(`${box.width.toFixed(2)} 0 0 ${box.height.toFixed(2)} ${margin.toFixed(2)} ${imageY.toFixed(2)} cm`);
+    ops().push(`${box.width.toFixed(2)} 0 0 ${box.height.toFixed(2)} ${(555 - box.width).toFixed(2)} ${imageY.toFixed(2)} cm`);
     ops().push('/Im1 Do');
     ops().push('Q');
-    const brandWidth = textWidth(notice.brand, 16);
-    const brandX = 555 - brandWidth;
-    if (margin + box.width + 12 + brandWidth <= 555) {
-      paintText(ops(), notice.brand, brandX, pageH - y - 16, 16, 'F2');
-      y += Math.max(box.height, 22) + 10;
-    } else {
-      y += box.height + 8;
-      paintText(ops(), notice.brand, brandX, pageH - y - 16, 16, 'F2');
-      y += 28;
-    }
+    y += box.height + 12;
   } else {
     const brandWidth = textWidth(notice.brand, 16);
     paintText(ops(), notice.brand, 555 - brandWidth, pageH - y - 16, 16, 'F2');

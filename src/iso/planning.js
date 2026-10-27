@@ -3,7 +3,7 @@
  * Rene funksjoner: organisasjonskart av rollene, myndighetsmatrise, kommunikasjonsplan
  * gruppert, og årshjul som samler planlagte aktiviteter og datoer fra registrene.
  */
-import { roleLabel } from './catalog.js';
+import { isoRoleIdFor, ownerParts } from './roles.js';
 import { ANNUAL_PAGES, MONTH_NAMES, ROLE_LEVELS } from './registers.js';
 import { publishedRevisionOf } from './documents.js';
 
@@ -157,22 +157,10 @@ export function annualWheel(state, { year = new Date().getFullYear() } = {}) {
   }));
 }
 
-const ROLE_ALIASES = {
-  'daglig leder': 'top_management',
-  ledelsen: 'top_management',
-  'øverste ledelse': 'top_management',
-  'hmsk-leder': 'quality_manager',
-  'hms-leder': 'hse_manager',
-  kvalitetsansvarlig: 'quality_manager',
-  verneombud: 'safety_rep',
-};
-
 /** ISO-rollen som svarer til en rolletekst («Kvalitetsleder», «Daglig leder» …). */
-export function isoRoleFor(roleMap, text) {
-  const t = norm(text);
-  if (!t) return null;
-  const key = ROLE_ALIASES[t] || Object.keys(roleMap || {}).find((k) => norm(roleLabel(k)) === t);
-  return key && roleMap?.[key]?.uid ? roleMap[key] : null;
+export function isoRoleFor(roleMap, value) {
+  const key = ownerParts(value).map(isoRoleIdFor).find((k) => roleMap?.[k]?.uid);
+  return key ? roleMap[key] : null;
 }
 
 /**

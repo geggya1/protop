@@ -15,6 +15,7 @@ const expectByLevel = {
   hms_ansvarlig: { bucket: 'staff', capacity: true, consultant: false, rules: false },
   kvalitetsansvarlig: { bucket: 'staff', capacity: true, consultant: false, rules: false },
   hr_ansvarlig: { bucket: 'staff', capacity: true, consultant: false, rules: false },
+  iso_rolle: { bucket: 'staff', capacity: true, consultant: false, rules: false },
 };
 
 for (const level of ACCESS_LEVELS) {

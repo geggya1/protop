@@ -2482,10 +2482,10 @@ export const PROTOP_PAGES = {
     pitch: tx('Her setter administrator opp ledelsessystemet: standarder, omfang, lokasjoner, roller, risikometode og startpakke.', 'The administrator sets up the management system here: standards, scope, locations, roles, risk method and starter pack.'),
     steps: [
       step(tx('Standarder og omfang', 'Standards and scope'), 'Velg ISO 9001, 14001 og/eller 45001, og beskriv omfanget.', 'Choose ISO 9001, 14001 and/or 45001, and describe the scope.', { find: ['Standarder'], anchor: 'content' }),
-      step(tx('Roller', 'Roles'), 'Velg systemansvarlig og gi personer tilgang til skjermede HMS-saker.', 'Pick the system owner and give people access to restricted HSE cases.', { find: ['Systemansvarlig'] }),
+      step(tx('Roller og tilgang', 'Roles and access'), 'Velg personene i rollene. «Gi anbefalt tilgang» krysser av fagansvaret hver rolle trenger, og «Koble rolle-eiere til personer» flytter importerte poster til personen med rollen.', 'Pick the people for each role. “Give recommended access” ticks the specialist responsibility each role needs, and “Link role owners to people” moves imported items to the person holding the role.', { find: ['Roller og tilgang', 'Systemansvarlig'] }),
       step(tx('Aktiver', 'Activate'), '«Aktiver ledelsessystemet» lager startpakken. Alt kan endres etterpå.', '“Activate the management system” creates the starter pack. Everything can change later.', { find: ['Aktiver ledelsessystemet', 'Lagre'] }),
     ],
-    keywords: ['iso innstillinger', 'omfang', 'standarder', 'systemansvarlig', 'risikometode'],
+    keywords: ['iso innstillinger', 'omfang', 'standarder', 'systemansvarlig', 'risikometode', 'roller', 'anbefalt tilgang', 'fagansvar', 'rolle i iso'],
   }),
 };
 

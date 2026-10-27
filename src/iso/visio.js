@@ -8,6 +8,7 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { layoutSwimlanes } from './processLayout.js';
 import { validateDiagram } from './processes.js';
+import { isoRoleIdFor } from './roles.js';
 
 /* ───────── Liten XML-leser (Visio-XML er velformet og regelmessig) ───────── */
 
@@ -310,7 +311,8 @@ export function pageToSpec(page) {
   return {
     title,
     notes: notes.map((s) => s.text),
-    lanes: lanes.map(({ id, label }) => ({ id, label })),
+    // Baner med rollenavn får ProTop-rollen, så stegene tildeles personen med rollen.
+    lanes: lanes.map(({ id, label }) => (isoRoleIdFor(label) ? { id, label, roleKey: isoRoleIdFor(label) } : { id, label })),
     nodes: nodes.map(({ __x, __vid, ...n }) => n),
     edges: specEdges,
     warnings,

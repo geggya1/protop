@@ -530,6 +530,7 @@ describe('tilgang på ansatte: ingen selvoppgradering, tak = eget nivå', () => 
     await assertFails(setDoc(doc(as('les'), 'families', A, 'employees', 'NEWSELF'), { personUid: 'les', company: { accessLevel: 'administrator' } }));
     // Fagansvar (HR, kvalitet, HMS) er like beskyttet som ledernivåene.
     await assertFails(setDoc(doc(as('les'), 'families', A, 'employees', 'NEWHR'), { personUid: 'les', company: { accessLevel: 'ansatt', accessLevels: ['hr_ansvarlig', 'ansatt'] } }));
+    await assertFails(setDoc(doc(as('les'), 'families', A, 'employees', 'NEWISO'), { personUid: 'les', company: { accessLevel: 'ansatt', accessLevels: ['iso_rolle', 'ansatt'] } }));
     await assertSucceeds(setDoc(doc(as('non'), 'families', A, 'employees', 'NEWNON'), { personUid: 'non', company: { accessLevel: 'ansatt', accessRole: 'Ansatt' } }));
   });
 

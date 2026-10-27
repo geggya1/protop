@@ -250,7 +250,7 @@ export const ISO_MENU = [
   { id: 'revisjon', icon: 'search-outline', label: 'Internrevisjon', group: 'Evaluering' },
   { id: 'ledelse', icon: 'people-outline', label: 'Ledelsens gjennomgang', group: 'Evaluering' },
   { id: 'sertifisering', icon: 'ribbon-outline', label: 'Sertifisering', group: 'Evaluering' },
-  { id: 'innstillinger', icon: 'settings-outline', label: 'Innstillinger', group: 'Evaluering' },
+  { id: 'innstillinger', icon: 'settings-outline', label: 'Innstillinger', group: 'Innstillinger' },
 ];
 
 export const ISO_SUBVIEW_IDS = ISO_MENU.map((item) => item.id);

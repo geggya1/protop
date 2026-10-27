@@ -97,6 +97,7 @@ assert.deepEqual(ids, [
   'hms_ansvarlig',
   'kvalitetsansvarlig',
   'hr_ansvarlig',
+  'iso_rolle',
   'regnskap_ekstern',
   'innleie_ekstern',
   'ansatt',
@@ -109,7 +110,7 @@ assert.deepEqual(ids, [
 const sections = accessLevelSections();
 assert.deepEqual(sections.map((section) => section.id), ['company', 'specialist', 'external']);
 assert.deepEqual(sections[0].levels.map((level) => level.order), [3, 4, 6, 7, 8]);
-assert.deepEqual(sections[1].levels.map((level) => level.order), [9, 10, 11]);
+assert.deepEqual(sections[1].levels.map((level) => level.order), [9, 10, 11, 12]);
 assert.deepEqual(sections[2].levels.map((level) => level.order), [1, 2, 5]);
 assert.equal(accessSectionTitle('specialist', 'CONSULT1 AS'), 'Fagansvar (i tillegg til nivået)');
 assert.equal(accessSectionTitle('company', 'CONSULT1 AS'), 'Ansatt i CONSULT1 AS');
@@ -448,6 +449,12 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
       hide: ['okonomi', 'anbud', 'selskapsinnstillinger', 'projects'],
       edit: [],
       admin: ['iso', 'forms'],
+    },
+    iso_rolle: {
+      show: ['iso'],
+      hide: ['okonomi', 'anbud', 'selskapsinnstillinger', 'projects', 'hr'],
+      edit: ['iso', 'forms'],
+      admin: [],
     },
     hr_ansvarlig: {
       show: ['hr', 'ansatte', 'fravaer', 'iso'],

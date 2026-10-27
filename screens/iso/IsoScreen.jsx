@@ -175,6 +175,10 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     companyId: familyId,
     family,
     accessEmployees: access.employees || [],
+    // Anbefalt tilgang for rollene (Innstillinger): samme tak som i tilgangsstyringen.
+    accessActor: { uid: uid || '', grants: access.actorGrants || access.grants || {}, bypass },
+    accessPolicy: family?.company?.accessPolicy || null,
+    canGrantAccess: bypass || (!!access.ready && !access.previewing && access.canEdit('accessControl')),
     requestTab: requestShellTab,
     prefill: params?.prefill || null,
   };

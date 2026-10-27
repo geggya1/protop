@@ -18,6 +18,8 @@ import { colors, deskType, useLayout } from '../../src/theme';
 import { Screen } from '../../components/ui';
 import HelpTarget from '../../components/HelpTarget';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
+import HelpVideoList from '../../components/HelpVideoList';
+import { listVideos } from '../../src/help/helpVideos';
 import {
   articlesForCategory,
   listHelpCategories,
@@ -221,6 +223,7 @@ export default function HelpSupportScreen() {
     if (article.pageKey) startPageTour?.(article.pageKey);
   };
   const flows = useMemo(() => listProcesses(), []);
+  const videos = useMemo(() => listVideos(lang), [lang]);
   const openForm = (prefill = {}) => {
     if (prefill.title) setFormTitle(prefill.title);
     if (prefill.body) setFormBody(prefill.body);
@@ -427,6 +430,18 @@ export default function HelpSupportScreen() {
               ))}
             </View>
           </View>
+
+          {videos.length ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, compact && styles.sectionTitleDesk]}>
+                {t('helpCard.videos')}
+              </Text>
+              <Text style={styles.deviceHint}>{t('helpCard.videosLead')}</Text>
+              <View style={styles.card}>
+                <HelpVideoList videos={videos} compact={compact} />
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, compact && styles.sectionTitleDesk]}>

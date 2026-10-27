@@ -222,6 +222,15 @@
         ]
       },
       {
+        "source": "help/video/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
+      },
+      {
         "source": "**/*.{js,css,json,svg,jpg,jpeg,gif,webp,eot,otf,ttf,ttc,woff,woff2,wasm}",
         "headers": [
           {

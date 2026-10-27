@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useI18n } from '../src/i18n';
 import { pickIntroText } from '../src/utils/moduleIntros';
 import { processesForPage } from '../src/help/protopProcesses';
+import { videosForPage } from '../src/help/helpVideos';
+import HelpVideoList from './HelpVideoList';
 
 const NATIVE_DRIVER = Platform.OS !== 'web';
 const WEB_MARK = Platform.OS === 'web' ? { dataSet: { helpCard: '1' } } : {};
@@ -40,6 +42,7 @@ export default function HelpPageCard({
   const wide = width >= 760;
   const accent = copy?.accent || '#1099F4';
   const flows = processesForPage(copy?.pageKey);
+  const videos = videosForPage(copy?.pageKey, lang);
 
   useEffect(() => {
     const anim = Animated.parallel([
@@ -177,6 +180,13 @@ export default function HelpPageCard({
                   </TouchableOpacity>
                 );
               })}
+            </View>
+          ) : null}
+
+          {videos.length ? (
+            <View style={styles.section} testID="help-page-card-videos">
+              <Text style={styles.sectionTitle}>{t('helpCard.videos')}</Text>
+              <HelpVideoList videos={videos} accent={accent} />
             </View>
           ) : null}
 

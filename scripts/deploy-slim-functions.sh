@@ -224,6 +224,11 @@ POWEROFFICE="functions:powerOfficeStatus,functions:powerOfficeConnect,functions:
 queue_entry powerOfficeIndex.js "$POWEROFFICE"
 open_for powerOfficeIndex.js "$POWEROFFICE"
 
+# Fakturaer: e-post med PDF og vedlegg, EHF via aksesspunkt og oppslag i Peppol-katalogen.
+INVOICES="functions:sendInvoiceMail,functions:sendInvoiceEhf,functions:lookupPeppolReceiver"
+queue_entry invoiceIndex.js "$INVOICES"
+open_for invoiceIndex.js "$INVOICES"
+
 deploy_queued
 open_queued
 

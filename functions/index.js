@@ -281,6 +281,7 @@ export {
   powerOfficeTransferInvoice,
   powerOfficeSyncInvoices,
 } from './powerOffice.js';
+export { sendInvoiceMail, sendInvoiceEhf, lookupPeppolReceiver } from './invoiceDelivery.js';
 export { fetchOpenFeed, fetchOpenFeedHttp } from './openFeed.js';
 export { searchDoffin, searchTed, lookupCompany, fetchDossier } from './doffinSearch.js';
 export { tenderProxy } from './tenderProxy.js';

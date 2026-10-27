@@ -49,6 +49,30 @@ export function normalizePdfAttachment(raw) {
   return { ok: true, attachment: { filename, contentType: 'application/pdf', content } };
 }
 
+const FILE_TYPES = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  xml: 'application/xml',
+};
+
+/** Vedlegg av typene PDF, JPG, PNG og XML (EHF-kopi). Base64. */
+export function normalizeFileAttachment(raw, { maxBytes = 6_000_000 } = {}) {
+  if (!raw || typeof raw !== 'object') return { ok: false, error: 'Vedlegget er ikke gyldig.' };
+  const content = String(raw.content || '').replace(/\s/g, '');
+  if (!content) return { ok: false, error: 'Vedlegget er tomt.' };
+  if (!/^[A-Za-z0-9+/=]+$/.test(content)) return { ok: false, error: 'Vedlegget er ikke gyldig.' };
+  if (content.length * 0.75 > maxBytes) return { ok: false, error: 'Vedlegget er for stort.' };
+  const cleaned = String(raw.filename || 'vedlegg').replace(/[^\wæøåÆØÅ.\- ()]+/g, '').trim().slice(0, 120) || 'vedlegg';
+  const ext = (cleaned.match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();
+  const fromMime = Object.entries(FILE_TYPES).find(([, mime]) => mime === String(raw.contentType || '').toLowerCase())?.[0] || '';
+  const kind = FILE_TYPES[ext] ? ext : fromMime;
+  if (!kind) return { ok: false, error: 'Bare PDF, JPG, PNG og XML kan legges ved.' };
+  const filename = FILE_TYPES[ext] ? cleaned : `${cleaned}.${kind === 'jpeg' ? 'jpg' : kind}`;
+  return { ok: true, attachment: { filename, contentType: FILE_TYPES[kind], content } };
+}
+
 export function providerAttachments(provider, attachments) {
   const rows = (Array.isArray(attachments) ? attachments : []).filter((row) => row?.content && row?.filename);
   if (!rows.length) return {};
@@ -68,7 +92,12 @@ export function providerAttachments(provider, attachments) {
   };
 }
 
-async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attachments, fromName = FROM_NAME }) {
+function replyAddress(replyTo) {
+  const email = String(replyTo || '').trim();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? email : REPLY_TO;
+}
+
+async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attachments, fromName = FROM_NAME, replyTo = '' }) {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -80,7 +109,7 @@ async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attach
       sender: { name: fromName, email: FROM_EMAIL },
       to: [{ email: to, ...(name ? { name } : {}) }],
       ...(copyRows(cc).length ? { cc: copyRows(cc) } : {}),
-      replyTo: { email: REPLY_TO, name: fromName },
+      replyTo: { email: replyAddress(replyTo), name: fromName },
       subject,
       htmlContent: html,
       textContent: text,
@@ -106,7 +135,7 @@ async function sendWithBrevo(apiKey, { to, cc, name, subject, text, html, attach
   return body;
 }
 
-async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments, fromName = FROM_NAME }) {
+async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments, fromName = FROM_NAME, replyTo = '' }) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -117,7 +146,7 @@ async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments
       from: `${fromName} <${FROM_EMAIL}>`,
       to: [to],
       ...(copyRows(cc).length ? { cc: copyRows(cc).map((row) => row.email) } : {}),
-      reply_to: REPLY_TO,
+      reply_to: replyAddress(replyTo),
       subject,
       html,
       text,
@@ -135,7 +164,7 @@ async function sendWithResend(apiKey, { to, cc, subject, text, html, attachments
   return body;
 }
 
-async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html, attachments, fromName = FROM_NAME }) {
+async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html, attachments, fromName = FROM_NAME, replyTo = '' }) {
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
@@ -148,7 +177,7 @@ async function sendWithSendGrid(apiKey, { to, cc, name, subject, text, html, att
         ...(copyRows(cc).length ? { cc: copyRows(cc) } : {}),
       }],
       from: { email: FROM_EMAIL, name: fromName },
-      reply_to: { email: REPLY_TO, name: fromName },
+      reply_to: { email: replyAddress(replyTo), name: fromName },
       subject,
       content: [
         { type: 'text/plain', value: text },

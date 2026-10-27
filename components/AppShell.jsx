@@ -343,6 +343,15 @@ function AppShellInner() {
     nav.setParams({ openShell: undefined });
   }, [route?.params?.openShell, nav, requestShellTab]);
 
+  // Web: Hjem montert uten openShell mens adressen peker på en side (etter innlogging, ny Hjem-rute) → åpne den.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || route?.params?.openShell?.tab) return;
+    const at = parseShellPath(window.location.pathname);
+    if (!at || at.tab === 'home') return;
+    setMoreSubView(at.subView || null);
+    setTab(at.tab);
+  }, []);
+
   // Web: fanen og undersiden står i adressen (/hjem/iso/avvik), så nettleserens tilbake og fram virker.
   useEffect(() => {
     if (route?.key) setHomeRouteKey(route.key);

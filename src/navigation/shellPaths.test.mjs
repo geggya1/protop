@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  getShellLocation, homePathForLinking, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellLinkState, shellPathFor,
+  getShellLocation, homePathForLinking, isShellPath, parseShellPath, rememberEntryShellPath, setHomeRouteKey, setShellLocation, shellLinkState,
+  shellPathFor, takeEntryShellPath,
 } from './shellPaths.js';
 
 test('skallsti: fane og underside i adressen', () => {
@@ -46,4 +47,15 @@ test('skallsti: linking beholder Hjem-nøkkelen og skallets egen sti', () => {
   assert.equal(getShellLocation(), '/hjem/hr/oversikt', 'bare skallstier lagres');
   assert.equal(homePathForLinking('/hjem/iso/avvik?x=1'), '/hjem/iso/avvik', 'nettleseren står på en skallsti: behold den');
   assert.equal(homePathForLinking('/settings/profile'), '/hjem/hr/oversikt', 'tilbake fra en annen skjerm: siste skallsti');
+});
+
+test('skallsti: lenken siden ble åpnet på, huskes til etter innlogging (én gang)', () => {
+  assert.equal(takeEntryShellPath(), null);
+  rememberEntryShellPath('/login');
+  assert.equal(takeEntryShellPath(), null, 'innloggingssider er ikke skallstier');
+  rememberEntryShellPath('/hjem');
+  assert.equal(takeEntryShellPath(), null, 'hjem alene trenger ingen omvei');
+  rememberEntryShellPath('/Hjem/ISO/avvik/');
+  assert.equal(takeEntryShellPath(), '/hjem/iso/avvik');
+  assert.equal(takeEntryShellPath(), null, 'brukes bare én gang');
 });

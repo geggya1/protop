@@ -59,11 +59,25 @@ export function isShellPath(path) {
 /* Siste skallsti og nøkkelen til Hjem-ruten. Brukes av linking når Hjem får fokus igjen. */
 let currentShellPath = SHELL_ROOT;
 let homeRouteKey = '';
+// Siden siden ble åpnet på. Overlever innloggingen, så en delt lenke (/hjem/iso/avvik) åpner riktig side etterpå.
+let entryShellPath = null;
 
-if (typeof window !== 'undefined' && window.location && isShellPath(window.location.pathname)) {
-  const p = parseShellPath(window.location.pathname);
+/** Husk skallstien siden ble åpnet på. Hjem alene huskes ikke: dit går innloggingen uansett. */
+export function rememberEntryShellPath(path) {
+  const p = parseShellPath(path);
+  if (!p) return;
   currentShellPath = shellPathFor(p.tab, p.subView);
+  entryShellPath = currentShellPath === SHELL_ROOT ? null : currentShellPath;
 }
+
+/** Stien siden ble åpnet på, én gang. Brukes når innloggingen er ferdig. */
+export function takeEntryShellPath() {
+  const p = entryShellPath;
+  entryShellPath = null;
+  return p;
+}
+
+if (typeof window !== 'undefined' && window.location) rememberEntryShellPath(window.location.pathname);
 
 export function setShellLocation(path) {
   if (isShellPath(path)) currentShellPath = path;

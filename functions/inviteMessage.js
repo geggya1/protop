@@ -25,34 +25,34 @@ export function buildInviteMessage({
   const team = isTeamGroupType(groupType);
   const classroom = isClassroomGroupType(groupType);
   const organization = ['organization', 'company'].includes(String(groupType || '').toLowerCase());
-  const product = organization ? 'ProTop' : 'Weekplan';
+  const product = 'ProTop';
   const greet = name || (team || classroom || organization ? '' : 'foresatt');
   const hello = greet ? `Hei ${greet}` : 'Hei';
   const roleText = team
-    ? `Du er invitert til idrettslaget «${label}» på Weekplan.`
+    ? `Du er invitert til idrettslaget «${label}» på ProTop.`
     : (classroom
-      ? `Du er invitert til klassen «${label}» på Weekplan.`
+      ? `Du er invitert til klassen «${label}» på ProTop.`
       : (organization
         ? `Du er invitert inn i bedriften «${label}» på ProTop.`
-        : `Du er invitert som foresatt i familien «${label}» på Weekplan.`));
+        : `Du er invitert som foresatt i familien «${label}» på ProTop.`));
   const roleHtml = team
-    ? `Du er invitert til idrettslaget <strong>${escapeHtml(label)}</strong> på Weekplan.`
+    ? `Du er invitert til idrettslaget <strong>${escapeHtml(label)}</strong> på ProTop.`
     : (classroom
-      ? `Du er invitert til klassen <strong>${escapeHtml(label)}</strong> på Weekplan.`
+      ? `Du er invitert til klassen <strong>${escapeHtml(label)}</strong> på ProTop.`
       : (organization
         ? `Du er invitert inn i bedriften <strong>${escapeHtml(label)}</strong> på ProTop.`
-        : `Du er invitert som foresatt i familien <strong>${escapeHtml(label)}</strong> på Weekplan.`));
+        : `Du er invitert som foresatt i familien <strong>${escapeHtml(label)}</strong> på ProTop.`));
   const accountLine = organization
     ? 'Du har allerede en ProTop-konto. Du blir ikke med i bedriften før du godtar invitasjonen.'
-    : 'Du har allerede en Weekplan-konto.';
+    : 'Du har allerede en ProTop-konto.';
   const accountHtml = organization
     ? 'Du har allerede en ProTop-konto. Du blir ikke med i bedriften før du godtar. Åpne lenken under for å godta eller avslå invitasjonen.'
-    : 'Du har allerede en Weekplan-konto. Åpne lenken under for å godta eller avslå invitasjonen.';
+    : 'Du har allerede en ProTop-konto. Åpne lenken under for å godta eller avslå invitasjonen.';
   // Ny bruker: konto først, så Godta/Avslå når e-posten er bekreftet.
   const registerLine = organization
     ? 'Opprett en konto med denne e-postadressen og bekreft e-posten. Deretter godtar eller avslår du invitasjonen. Du blir ikke med i bedriften før du har godtatt'
     : 'Opprett en konto med denne e-postadressen og bekreft e-posten. Deretter godtar eller avslår du invitasjonen';
-  const signoff = organization ? 'Hilsen ProTop' : 'Hilsen Weekplan-teamet';
+  const signoff = 'Hilsen ProTop';
 
   if (existingUser) {
     return {

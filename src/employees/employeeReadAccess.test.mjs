@@ -107,7 +107,7 @@ const companyAbsence = readFileSync(new URL('../../screens/arbeid/CompanyAbsence
 assert.match(companyAbsence, /\{canChooseEmployee \? \(\s*<View style=\{styles\.kpis\}>/);
 
 // Fravær på ansattsiden: bare den ansatte, uten bedriftens nøkkeltall.
-assert.match(absence, /const visiblePeople = canChooseEmployee\s*\? people\s*: people\.filter/);
+assert.match(absence, /const visiblePeople = useMemo\(\(\) => \(canChooseEmployee\s*\? people\s*: people\.filter/);
 assert.match(absence, /showKpis=\{canChooseEmployee\}/);
 assert.match(absence, /\{wide && showKpis \? \(/);
 

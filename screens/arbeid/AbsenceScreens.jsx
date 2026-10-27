@@ -9,7 +9,7 @@ import { absenceRoster, absencesForRoster, eachWeekday } from '../../src/arbeid/
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { employeeActivityTab } from '../../src/employees/model.js';
-import { toDateKey } from '../../src/arbeid/calendar.js';
+import { monthDateRange, toDateKey } from '../../src/arbeid/calendar.js';
 import { parseHours } from '../../src/arbeid/hours.js';
 import {
   ABSENCE_IMPORT_ACCEPT,
@@ -65,12 +65,12 @@ async function bytesFromFile(file) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-function usePeople(lockedEmployeeId) {
-  const year = new Date().getFullYear();
+/** hours: datovindu for timeføringer. Fraværssidene bruker ikke timer og henter ingen. */
+function usePeople(lockedEmployeeId, hours = null) {
   const workspace = useTimesheetWorkspace({
     lockedEmployeeId,
-    fromDate: `${year - 1}-01-01`,
-    toDate: `${year + 1}-12-31`,
+    fromDate: hours?.fromDate || '',
+    toDate: hours?.toDate || '',
     absences: { all: true },
     liveAbsences: true,
   });
@@ -644,9 +644,13 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
 
 export function MyOverviewScreen({ lockedEmployeeId = '', embedded = false } = {}) {
   const colors = useColors();
-  const { workspace, activeId, employee } = usePeople(lockedEmployeeId);
   const today = toDateKey(new Date());
   const month = today.slice(0, 7);
+  // Bare «Timer denne måneden» bruker timer.
+  const { workspace, activeId, employee } = usePeople(
+    lockedEmployeeId,
+    monthDateRange(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1),
+  );
   const hours = (workspace.state.timeEntries || [])
     .filter((row) => row.employeeId === activeId && String(row.date || '').startsWith(month))
     .reduce((sum, row) => sum + Number(row.hours || 0), 0);

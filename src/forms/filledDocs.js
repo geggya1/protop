@@ -99,7 +99,7 @@ export function setFilledValue(doc, fieldId, value, { actor = null, now = new Da
     updatedAt: now.toISOString(),
     updatedBy: actorOf(actor),
     fields: doc.fields.map((field) => (field.id === fieldId && field.editor !== 'fast'
-      ? { ...field, value: coerceAnswer(field.kind, value) }
+      ? { ...field, value: coerceAnswer(field.kind, value, { typing: true }) }
       : field)),
   };
 }

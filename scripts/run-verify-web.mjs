@@ -76,6 +76,7 @@ export const FILES = [
   'src/utils/webBuildRefresh.test.mjs',
   'src/utils/googleLocalAuth.test.mjs',
   'src/ui/saveToast.test.mjs',
+  'src/ui/typedText.test.mjs',
   'src/economy/productSalesView.test.mjs',
   'src/economy/productSaleEdit.test.mjs',
   'src/economy/productSalesImport.test.mjs',
@@ -312,6 +313,8 @@ export const FILES = [
   // Konto: første innlogging, invitasjonslenke, brukernavn, familieproduktet og venneinvitasjoner.
   'src/utils/personalShell.test.mjs',
   'src/utils/authBootGate.test.mjs',
+  // Bekreftelseslenken: App.jsx leser inn bekreftet e-post på nytt (SLUTT-01).
+  'src/utils/authImports.test.mjs',
   'src/utils/inviteLinkJoin.test.mjs',
   'src/navigation/familyProduct.test.mjs',
   'functions/friendInvite.copy.test.mjs',

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, TextInput,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -12,6 +12,8 @@ import { Screen, Title, Mute, ScrollBody, BigButton } from '../../components/ui'
 import CompactBackLink from '../../components/CompactBackLink';
 import BrandToggle from '../../components/BrandToggle';
 import CustodyRuleCard from '../../components/CustodyRuleCard';
+import TypedInput from '../../src/ui/TypedInput';
+import { sameOrCleared } from '../../src/ui/typedText';
 import EdgeSwipeBack from '../../components/EdgeSwipeBack';
 import { InfoDialog } from '../../components/ConfirmDialog';
 import {
@@ -288,7 +290,9 @@ export default function CustodySettingsScreen({ inShell = false, onBack, child: 
 
             <View style={styles.sideBlock}>
               <Text style={styles.sideLbl}>Andre forelders perioder (oransje)</Text>
-              <TextInput
+              {/* Tomt navn blir «Andre forelder»/«Meg», så feltet kan tømmes og skrives på nytt. */}
+              <TypedInput
+                same={sameOrCleared}
                 value={form.myParentSlot === 'parentB' ? form.parentALabel : form.parentBLabel}
                 onChangeText={(parentBLabel) => patchForm(
                   form.myParentSlot === 'parentB'

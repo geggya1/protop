@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
+import TypedInput from '../../src/ui/TypedInput';
 import { updateProject } from '../../src/project/engine.js';
 import {
   PRICING_MODELS,
@@ -503,7 +504,7 @@ function InvoiceSettingsForm({
             ['addressLineBelow', 'Tilleggslinje under selskapsnavn'],
           ].map(([key, label]) => (
             <FormRow key={key} label={label}>
-              <TextInput
+              <TypedInput
                 editable={isAdmin}
                 value={draft[key] || ''}
                 onChangeText={(v) => onChange(key, v)}
@@ -512,7 +513,7 @@ function InvoiceSettingsForm({
             </FormRow>
           ))}
           <FormRow label="Standard innledende tekst" hint={`standardverdi: ${company.introText || '(tom)'}`}>
-            <TextInput
+            <TypedInput
               editable={isAdmin}
               multiline
               value={draft.introText == null ? '' : draft.introText}
@@ -523,7 +524,7 @@ function InvoiceSettingsForm({
             />
           </FormRow>
           <FormRow label="Standard bunntekst" hint={`standardverdi: ${company.footerText || '(tom)'}`}>
-            <TextInput
+            <TypedInput
               editable={isAdmin}
               multiline
               value={draft.footerText == null ? '' : draft.footerText}
@@ -585,7 +586,7 @@ function InvoiceSettingsForm({
             </FormRow>
           ))}
           <FormRow label="Standard fakturalinjetekst for timer">
-            <TextInput
+            <TypedInput
               editable={isAdmin}
               value={draft.standardLineTextHours == null ? '' : draft.standardLineTextHours}
               onChangeText={(v) => onChange('standardLineTextHours', v === '' ? null : v)}
@@ -681,7 +682,7 @@ function InvoiceSettingsForm({
             </FormRow>
           ))}
           <FormRow label="Standard regnskapsavdeling">
-            <TextInput
+            <TypedInput
               editable={isAdmin}
               value={draft.accountingDepartment || ''}
               onChangeText={(v) => onChange('accountingDepartment', v === '' ? null : v)}
@@ -691,7 +692,7 @@ function InvoiceSettingsForm({
             />
           </FormRow>
           <FormRow label="Standard regnskapsprosjekt">
-            <TextInput
+            <TypedInput
               editable={isAdmin}
               value={draft.accountingProject || ''}
               onChangeText={(v) => onChange('accountingProject', v === '' ? null : v)}

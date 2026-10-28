@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../../components/OptionPicker';
+import TypedInput from '../../src/ui/TypedInput';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_ROWS,
@@ -17,6 +18,11 @@ function move(list, index, delta) {
   const [item] = next.splice(index, 1);
   next.splice(to, 0, item);
   return next;
+}
+
+/** Valgene i en avkrysningskolonne: «J, N, I» → ['J', 'N', 'I']. */
+function markOptions(textValue) {
+  return String(textValue || '').split(',').map((row) => row.trim()).filter(Boolean).slice(0, 6);
 }
 
 /** Linjer → rader. «# Overskrift» eller en linje som slutter på kolon blir mellomoverskrift. */
@@ -87,9 +93,10 @@ export default function FormTableEditor({ field, colors, onPatch }) {
               />
             </View>
             {col.type === 'mark' ? (
-              <TextInput
+              <TypedInput
                 value={(col.options || []).join(', ')}
-                onChangeText={(value) => patchColumn(index, { options: value.split(',').map((row) => row.trim()).filter(Boolean).slice(0, 6) })}
+                onChangeText={(value) => patchColumn(index, { options: markOptions(value) })}
+                same={(typed, stored) => markOptions(typed).join(', ') === stored}
                 placeholder="J, N, I"
                 placeholderTextColor={colors.placeholder}
                 style={[styles.options, { color: colors.ink, borderBottomColor: colors.line }]}

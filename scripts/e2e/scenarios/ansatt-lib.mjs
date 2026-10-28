@@ -147,6 +147,7 @@ export async function skipTour(bot, rounds = 3) {
     if (!busy) break;
     await bot.page.waitForTimeout(1000);
   }
+  await bot.dismissStorageNotice?.();
   for (let i = 0; i < rounds; i += 1) {
     const el = bot.page.getByText('Hopp over rundturen', { exact: true });
     let hit = false;
@@ -275,6 +276,10 @@ export async function pageAccess(bot, tab, sub = null) {
     text = await bot.visibleText();
   }
   if (/Ingen tilgang\s*\n\s*Du har ikke tilgang til denne delen av bedriften/.test(text)) return 'denied';
+  // FL-16: avsluttet ansettelse får en egen side i stedet for «Ingen tilgang» (også sperret).
+  if (/Kontoen din i [^\n]+ er avsluttet/.test(text)) return 'denied';
+  // Tatt ut av bedriften (members): skallet står i Privat og bedriftssidene finnes ikke.
+  if (/Du er ikke i en bedrift nå/.test(text)) return 'denied';
   if (/Modulen er slått av|er slått av for bedriften/i.test(text)) return 'locked';
   return 'allowed';
 }
@@ -294,6 +299,12 @@ export async function navText(bot) {
 
 /* ───────── Flyter som flere skript bruker ───────── */
 
+/**
+ * Profilsteget («Velkommen» + «Navnet ditt er nok …» + Fortsett). Rundturen heter «Velkommen inn»,
+ * så «Velkommen» alene skiller ikke de to.
+ */
+export const PROFILE_STEP = /Navnet ditt er nok til å komme i gang/;
+
 /** Første innlogging for en konto uten profil: profilsteget «Velkommen» → Fortsett. */
 export async function loginAndSettle(bot, { name = '' } = {}) {
   await loginUI(bot);
@@ -302,7 +313,7 @@ export async function loginAndSettle(bot, { name = '' } = {}) {
   while (Date.now() < until) {
     text = await bot.visibleText().catch(() => '');
     if (/Bedriftsinvitasjon/i.test(text)) break;
-    if (/Velkommen/.test(text) && /Fortsett/.test(text)) {
+    if (PROFILE_STEP.test(text) && /Fortsett/.test(text)) {
       if (name) {
         const field = bot.page.locator('input').first();
         if (!(await field.inputValue().catch(() => ''))) await field.fill(name).catch(() => {});
@@ -319,6 +330,22 @@ export async function loginAndSettle(bot, { name = '' } = {}) {
   return bot.visibleText();
 }
 
+/**
+ * «Opprett bedrift» krever at vilkårene og databehandleravtalen godtas på vegne av bedriften
+ * (personvern: avtalen lagres på bedriften). Krysser av hvis den ikke er krysset av.
+ */
+export async function acceptCompanyTerms(bot) {
+  const label = 'Jeg godtar vilkårene og databehandleravtalen på vegne av bedriften';
+  const box = bot.page.getByRole('checkbox', { name: label });
+  if (await box.count()) {
+    const on = await box.first().getAttribute('aria-checked').catch(() => null);
+    if (on !== 'true') await box.first().click({ timeout: 20000 });
+  } else {
+    await tap(bot, label);
+  }
+  await bot.page.waitForTimeout(300);
+}
+
 /** Privat/Bedrift → Opprett ny bedrift → Registrer manuelt. */
 export async function createCompanyUI(bot, name, address = '') {
   await skipTour(bot);
@@ -330,6 +357,7 @@ export async function createCompanyUI(bot, name, address = '') {
   await waitText(bot, /Opprett bedrift/, 30000);
   await bot.fill('Bedriftsnavn', name);
   if (address) await bot.fill('Adresse, hvis kjent', address);
+  await acceptCompanyTerms(bot);
   await tap(bot, 'Registrer manuelt');
   await waitText(bot, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 30000);
   await waitShell(bot).catch(() => {});

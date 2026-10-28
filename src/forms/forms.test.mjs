@@ -82,6 +82,14 @@ assert.equal(shown[3].added, true);
 assert.equal(shown[3].cells.punkt, 'Eget punkt');
 assert.equal(removeTableRow(filled, addedId).added.length, 0);
 
+// Mellomrom og linjeskift står mens cellen skrives.
+value = setTableCell({ ...table, value }, addedId, 'punkt', 'Eget ');
+assert.equal(value.added[0].cells.punkt, 'Eget ');
+value = setTableCell({ ...table, value }, addedId, 'punkt', 'Eget punkt\n');
+assert.equal(value.added[0].cells.punkt, 'Eget punkt\n');
+assert.equal(setTableCell({ ...table, value }, addedId, 'punkt', '  ').added[0].cells.punkt, undefined, 'bare blanke tegn er tomt');
+value = setTableCell({ ...table, value }, addedId, 'punkt', 'Eget punkt');
+
 const roundTrip = normalizeResponses([{ id: 's1', answers: { tab: filled.value } }]);
 assert.equal(roundTrip[0].answers.tab.added[0].cells.punkt, 'Eget punkt');
 
@@ -190,5 +198,20 @@ assert.equal(setFilledValue(done.doc, dateField.id, '2026-01-01').fields.find((r
 assert.equal(reopenFilledDoc(done.doc, { actor }).status, 'utkast');
 assert.equal(filledForTemplate([done.doc], { libraryKey: 'hms-aarlig' }).length, 1);
 assert.equal(newFilledDoc(libraryForm('taushetserklaering'), { scope: 'hr' }).scope, 'hr');
+
+// Mellomrom og linjeskift forsvinner ikke mens man skriver; de trimmes først ved lagring.
+const nda = newFilledDoc(libraryForm('taushetserklaering'), { scope: 'hr' });
+const textField = nda.fields.find((row) => row.kind === 'text');
+let typing = setFilledValue(nda, textField.id, 'Prosjekt- ', { actor });
+assert.equal(typing.fields.find((row) => row.id === textField.id).value, 'Prosjekt- ');
+typing = setFilledValue(typing, textField.id, 'Prosjekt- og byggeleder', { actor });
+assert.equal(typing.fields.find((row) => row.id === textField.id).value, 'Prosjekt- og byggeleder');
+typing = setFilledValue(typing, textField.id, '   ', { actor });
+assert.equal(typing.fields.find((row) => row.id === textField.id).value, '', 'bare blanke tegn er tomt');
+const longField = { ...blankField('long'), id: 'avsnitt', label: 'Avsnitt' };
+typing = setFilledValue({ ...nda, fields: [...nda.fields, longField] }, 'avsnitt', 'Linje 1\n', { actor });
+assert.equal(typing.fields.find((row) => row.id === 'avsnitt').value, 'Linje 1\n');
+const stored = normalizeFilledDoc(setFilledValue(nda, textField.id, ' Prosjektleder ', { actor }));
+assert.equal(stored.fields.find((row) => row.id === textField.id).value, 'Prosjektleder', 'lagret tekst trimmes');
 
 console.log('forms.test.mjs ok');

@@ -64,6 +64,7 @@ function loadJsx(rel) {
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id.endsWith('src/theme')) return { useLayout: () => ({ width: 800 }) };
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
+    if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };
     if (id.includes('useTimesheetWorkspace')) {
       return { useTimesheetWorkspace: () => workspace };
     }

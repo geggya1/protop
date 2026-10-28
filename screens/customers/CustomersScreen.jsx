@@ -37,6 +37,7 @@ import { importResult } from '../../src/imports/review';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
+import EmptyState from '../../components/EmptyState';
 import FilterMenu from '../../components/FilterMenu';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 import ReportTable from '../../components/table/ReportTable';
@@ -868,7 +869,23 @@ export default function CustomersScreen() {
         </Text>
       ) : null}
       {listReady && !loadProblem && !numbered.length ? (
-        <Text style={{ color: colors.muted }}>Ingen kunder er registrert ennå.</Text>
+        <EmptyState
+          nativeID="customers-empty"
+          icon="people-outline"
+          title="Ingen kunder ennå"
+          text="Kundene brukes på prosjekter, kontrakter og fakturaer. Legg inn den første, eller hent hele kundelisten fra Excel."
+          actions={[
+            { id: 'new', label: 'Ny kunde', icon: 'add', primary: true, onPress: startNew, nativeID: 'customers-empty-new' },
+            ...(canImport ? [{
+              id: 'import',
+              label: importing ? 'Tolker filen…' : 'Importer fra Excel',
+              icon: 'cloud-upload-outline',
+              onPress: importFile,
+              disabled: importing,
+              nativeID: 'customers-empty-import',
+            }] : []),
+          ]}
+        />
       ) : null}
       {numbered.length ? (
         <ReportTable

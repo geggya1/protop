@@ -7,6 +7,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { isSuperAdmin } from '../../src/utils/groups';
 import CompanyDesktopLanding from './CompanyDesktopLanding';
+import CompanyStartChecklist from '../../components/home/CompanyStartChecklist';
 
 /**
  * Selskap: offentlig bedriftsinfo og nyhetsvegg.
@@ -51,6 +52,8 @@ export default function CompanyLanding({ subView = '' } = {}) {
       showsVerticalScrollIndicator={false}
     >
       <View nativeID="company-profile-sheet" id="company-profile-sheet" style={[styles.sheet, { padding: pad }]}>
+        {/* Bedriftens forside: «Kom i gang» til oppsettet er ferdig. */}
+        <CompanyStartChecklist style={styles.startCard} />
         <CompanyDesktopLanding
           stored={stored}
           initialTab={subView === 'nyheter' ? 'nyheter' : ''}
@@ -73,6 +76,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     ...(Platform.OS === 'web' ? { marginLeft: 0, marginRight: 'auto' } : null),
   },
+  startCard: { marginBottom: 16 },
   emptyBody: { flexGrow: 1, gap: 16, paddingBottom: 28 },
   emptyLead: { fontSize: 15, lineHeight: 22, fontWeight: '400' },
   emptyBtn: {

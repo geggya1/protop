@@ -10,10 +10,28 @@ import { acceptLegalConsents } from '../src/utils/consents';
  * Privacy and terms on the sign-in card (Google / Microsoft / Apple / email).
  * Replaces the standalone «Før vi starter» screen.
  * `footer` pins the block under the sign-in action, as the last thing on the card.
+ * `remembered`: denne versjonen er allerede godtatt på enheten. Da vises en bekreftelse
+ * i stedet for avkrysningen, så første trykk på «Logg inn» ikke gir feil.
  */
-export default function SignInLegalConsent({ accepted, onAcceptedChange, showError, footer = false }) {
+export default function SignInLegalConsent({ accepted, onAcceptedChange, showError, footer = false, remembered = false }) {
   const { t } = useI18n();
   const [docOpen, setDocOpen] = useState(false);
+
+  if (remembered && accepted) {
+    return (
+      <View style={[styles.remembered, footer && styles.wrapFooter]} nativeID="signin-consent-remembered">
+        <Text style={styles.rememberedTxt}>
+          {'✓ '}
+          {t('legal.acceptedOnDevice')}
+          {' '}
+          <Text style={styles.inlineLink} onPress={() => setDocOpen(true)} accessibilityRole="link">
+            {t('legal.openDoc')}
+          </Text>
+        </Text>
+        <LegalDocumentModal visible={docOpen} onClose={() => setDocOpen(false)} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.wrap, footer && styles.wrapFooter]}>
@@ -66,4 +84,7 @@ const styles = StyleSheet.create({
   linkHint: { marginTop: 2, color: colors.muted, fontWeight: '400', fontSize: 13 },
   check: { minHeight: 40, alignItems: 'flex-start' },
   hint: { color: colors.warn, fontWeight: '400', fontSize: 13 },
+  remembered: { marginBottom: 16 },
+  rememberedTxt: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  inlineLink: { color: colors.brand, textDecorationLine: 'underline' },
 });

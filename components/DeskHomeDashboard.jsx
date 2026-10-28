@@ -17,6 +17,8 @@ import { firstNameFromProfile, formatGreetingDate } from '../src/utils/timeGreet
 import { roundTemp } from '../src/utils/weather';
 import WeatherPeriodsView from './WeatherPeriodsView';
 import LiveHomeWidgets from './LiveHomeWidgets';
+import CompanyOfferCard from './home/CompanyOfferCard';
+import CompanyStartChecklist from './home/CompanyStartChecklist';
 import { isDoneOn } from '../src/utils/todos';
 import { addDays, dateKey } from '../src/utils/dates';
 import {
@@ -214,6 +216,9 @@ export default function DeskHomeDashboard({
           </TouchableOpacity>
         </View>
       </View>
+
+      <CompanyOfferCard style={styles.startCard} />
+      <CompanyStartChecklist />
 
       <View style={styles.main}>
         <View style={styles.agendaCol}>
@@ -464,6 +469,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   pageShort: { padding: 10, paddingBottom: 8, gap: 8 },
+  startCard: { maxWidth: 880 },
   hero: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16,
   },

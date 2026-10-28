@@ -34,6 +34,8 @@ export function resolveActiveParentBottomId(tab, moreSubView, ids = []) {
   if (tab === 'mail' && idSet.has('mail')) return 'mail';
   if (tab === 'notes' && idSet.has('notes')) return 'notes';
   if (tab === 'chores' && idSet.has('chores')) return 'chores';
+  // Bedriftens timeliste (Arbeid) er samme sted som «Timer» i docken.
+  if (tab === 'arbeid' && (!sub || sub === 'timeliste') && idSet.has('timeliste')) return 'timeliste';
 
   if (tab === 'more') {
     if (sub && idSet.has(sub)) return sub;

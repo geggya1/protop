@@ -6,7 +6,10 @@
 import { pickIntroText } from '../utils/moduleIntros.js';
 import { getModuleConfig, SHELL_SKIP_MODULE_IDS, ILLUSTRATION_FILES } from './moduleActivationRegistry.js';
 import { localizeModuleFields } from '../i18n/moduleCatalog.js';
-import { COMPANY_HERO, companyHeroId } from './companyHero.js';
+import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
+import { GROUP_PALETTE } from './groupPalette.js';
+import { PROTOP_PRODUCT_MODULE_IDS } from '../navigation/protopShell.js';
+import { isModuleStartPage } from '../navigation/navTrail.js';
 
 const t = (nb, en) => ({ nb, en });
 
@@ -210,8 +213,8 @@ export const MODULE_HERO = {
     kicker: t('Venner', 'Friends'),
     title: t('Venner', 'Friends'),
     pitch: t(
-      'Familien din vises øverst. Venner er personlige — de får ikke tilgang til familieplattformen.',
-      'Your family is shown first. Friends are personal — they never get family platform access.',
+      'Venner er personlige. De får ikke tilgang til bedriften eller kalenderen din.',
+      'Friends are personal. They never get access to your company or calendar.',
     ),
   },
   chat: {
@@ -344,24 +347,48 @@ export function shellHeroModuleId(tab, moreSubView = null) {
 }
 
 /**
+ * Båndet med illustrasjon og salgstekst vises bare på modulens startside.
+ * Undersider (Godkjenninger, Til fakturering, Lønn …) får en kompakt tittelrad
+ * med brødsmule, så innholdet starter høyere opp. Personlige sider har ingen
+ * undersider og beholder båndet.
+ */
+export function shellHeroCompact(tab, moreSubView = null) {
+  if (!shellHeroModuleId(tab, moreSubView)) return false;
+  return !isModuleStartPage(tab, moreSubView);
+}
+
+/**
  * Phone chrome heading: the pastel band is the top heading under the logo bar.
  * Hides family name + large page title. Add overlays the lower-right edge.
  * Help is a separate overlay under the profile photo, above this band.
  * Tablet/web keep the heading in the content band (`null` here).
+ * Undersider har ikke båndet: toppfeltet viser sidetittelen i stedet.
  */
 export function phoneChromeHeroId(tab, moreSubView = null, isPhone = false) {
-  if (!isPhone) return null;
+  if (!isPhone || shellHeroCompact(tab, moreSubView)) return null;
   return shellHeroModuleId(tab, moreSubView);
+}
+
+/**
+ * Menygruppen et bånd hører til: bedriftssidene følger bedriftsmenyen, og ProTops
+ * personlige moduler (Kalender, Oppgaver, Notat …) er Personlig. Samme gruppe gir
+ * samme farge i båndet og i hjelpen.
+ */
+export function heroGroupId(moduleId) {
+  const id = resolveHeroModuleId(moduleId);
+  if (COMPANY_HERO[id]) return companyHeroGroup(id);
+  return PROTOP_PRODUCT_MODULE_IDS.includes(id) ? 'personal' : '';
 }
 
 export function resolveModuleHero(moduleId, lang = 'nb') {
   const id = resolveHeroModuleId(moduleId);
   const catalog = localizeModuleFields(getModuleConfig(id), lang);
   const custom = MODULE_HERO[id] || COMPANY_HERO[id] || {};
+  const group = GROUP_PALETTE[heroGroupId(id)] || null;
   const palette = {
-    bg: custom.bg || DEFAULT_PALETTE.bg,
-    bg2: custom.bg2 || DEFAULT_PALETTE.bg2,
-    accent: custom.accent || DEFAULT_PALETTE.accent,
+    bg: group?.bg || custom.bg || DEFAULT_PALETTE.bg,
+    bg2: group?.bg2 || custom.bg2 || DEFAULT_PALETTE.bg2,
+    accent: group?.accent || custom.accent || DEFAULT_PALETTE.accent,
     ink: custom.ink || '',
     muted: custom.muted || '',
   };

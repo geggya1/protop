@@ -25,6 +25,8 @@ import {
   splitApprovalQueues,
   sumHours,
 } from '../../src/arbeid/timesheetReview.js';
+import { billingReadyLabel } from '../../src/economy/billingChain.js';
+import Breadcrumb from '../../components/Breadcrumb';
 
 function applyMutation(workspace, result) {
   if (!result.ok) {
@@ -42,11 +44,19 @@ function periodLabel(lock) {
   return `Nytt siden ${since}, låst til ${lock.throughDate}`;
 }
 
+/**
+ * chainLine: prosesslinjen Timer → Godkjenn → Til fakturering → Faktura (fra skjermen rundt).
+ * readyCount: prosjekter med godkjente timer som ikke er fakturert.
+ */
 export function ApprovalsBody({
   workspace,
   hostedHero = false,
   colors,
   scan,
+  chainLine = null,
+  readyCount = null,
+  onOpenBilling = null,
+  onApproved = null,
 }) {
   const { width } = useWindowDimensions();
   const wide = width >= 960;
@@ -55,6 +65,7 @@ export function ApprovalsBody({
   const [aiFindings, setAiFindings] = useState([]);
   const [aiNote, setAiNote] = useState('');
   const [queue, setQueue] = useState('locked');
+  const [approvedName, setApprovedName] = useState('');
 
   const people = useMemo(() => {
     const active = filterEmployeesForPicker(workspace.employees, '')
@@ -157,6 +168,8 @@ export function ApprovalsBody({
       employeeId: control.employee.id,
       approvedByUid: workspace.uid,
     }))) {
+      onApproved?.(control.employee);
+      setApprovedName(control.employee.name);
       setControlId('');
     }
   }
@@ -249,14 +262,36 @@ export function ApprovalsBody({
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="godkjenninger">
       {hostedHero ? null : (
         <>
-          <Text style={[styles.crumb, { color: colors.muted }]}>Bedrift / Arbeid / Godkjenninger</Text>
+          <Breadcrumb tab="arbeid" subView="godkjenning" />
           <Text style={[styles.title, { color: colors.ink }]}>Godkjenninger</Text>
         </>
       )}
+      {chainLine}
       <Text style={{ color: colors.muted }}>
         Låste lister kontrolleres før godkjenning. Timene er klare for fakturering først når de er godkjent.
       </Text>
       {workspace.error ? <Text style={{ color: colors.danger || '#b42318' }}>{workspace.error}</Text> : null}
+      {approvedName ? (
+        <View
+          style={[styles.done, { borderColor: colors.line, backgroundColor: colors.card }]}
+          nativeID="godkjenning-ferdig"
+          accessibilityLiveRegion="polite"
+        >
+          <Text style={{ color: colors.ink, flex: 1, minWidth: 200 }}>
+            Timelisten til {approvedName} er godkjent. Timene er klare for fakturering.
+          </Text>
+          {onOpenBilling ? (
+            <TouchableOpacity
+              onPress={onOpenBilling}
+              accessibilityRole="link"
+              nativeID="godkjenning-til-fakturering"
+              style={[styles.btn, { backgroundColor: colors.brand }]}
+            >
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{billingReadyLabel(readyCount)}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
       {!wide ? (
         <View
           style={[styles.switchTrack, { borderColor: colors.line, backgroundColor: colors.sunken || '#f4f6f9' }]}
@@ -359,7 +394,6 @@ export function ApprovalsBody({
 
 const styles = StyleSheet.create({
   body: { padding: 16, gap: 10, paddingBottom: 48 },
-  crumb: { fontSize: 12 },
   title: { fontSize: 22, fontWeight: '700' },
   split: { gap: 16 },
   splitWide: { flexDirection: 'row', alignItems: 'flex-start' },
@@ -400,6 +434,7 @@ const styles = StyleSheet.create({
   col: { width: 88, fontSize: 13 },
   colWide: { flex: 1.4, fontSize: 13 },
   btn: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  done: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, padding: 12 },
   head: { flexDirection: 'row', gap: 8, borderRadius: 8, padding: 8 },
   headCell: { flex: 1, fontSize: 12, fontWeight: '700' },
   entry: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 6 },

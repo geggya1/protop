@@ -13,13 +13,13 @@ import {
   eventSourceHint,
   joinFirstNames,
   upcomingDayEvents,
+  buildRemainingHints,
 } from '../../src/utils/deskHome';
 import { firstNameFromProfile, formatGreetingDate } from '../../src/utils/timeGreeting';
 import { roundTemp } from '../../src/utils/weather';
 import { addDays, dateKey, startOfWeekMonday } from '../../src/utils/dates';
 import { listenChildTodos } from '../../src/utils/todos';
 import { kidProgressRows } from '../../src/utils/familyProgress';
-import { homeRemainingHints } from '../../src/utils/homeRemainingHints';
 import {
   custodyEnabled,
   custodyParentSlotForDate,
@@ -224,13 +224,14 @@ export function useParentHomeModel({
     };
   }, [eventsToday, eventsTomorrow, taskCount, activeKids, now]);
 
-  // Bare hint for moduler som finnes i ProTop (ikke «Planlegg middag» uten måltider).
-  const remaining = useMemo(
-    () => homeRemainingHints({ shopCount, hasDinner: !!dinner, taskCount }),
-    [shopCount, dinner, taskCount],
-  );
-  const remainingHints = remaining.hints;
-  const remainingCount = remaining.count;
+  // «Husk» viser arbeidsdagen: åpne oppgaver og dagens kalender. ProTop har ikke
+  // handleliste og middagsplan, så de nevnes ikke (de ga «Planlegg middag» i bedriften).
+  const remainingHints = useMemo(() => buildRemainingHints({
+    taskCount,
+    eventsToday: eventsToday?.length || 0,
+  }), [taskCount, eventsToday]);
+
+  const remainingCount = remainingHints.length;
 
   const appById = useMemo(() => {
     const map = {};
@@ -385,7 +386,7 @@ export function useParentHomeModel({
     notes,
     noteCount,
     remainingHints,
-    remainingCount: Math.min(remainingCount, 2),
+    remainingCount,
     custodyWeekLabel,
     weekStats,
     activeKids,

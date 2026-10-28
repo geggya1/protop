@@ -32,6 +32,7 @@ import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { companyDisplayName } from '../../src/utils/companyName';
+import Breadcrumb from '../../components/Breadcrumb';
 
 function todayKey() {
   return toDateKey(new Date());
@@ -167,9 +168,7 @@ export default function TimesaldoScreen({
         nativeID="timesaldo-screen"
       >
         {hostedHero || embedded ? null : (
-          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 8 }]}>
-            Arbeid / Timesaldo
-          </Text>
+          <Breadcrumb tab="arbeid" subView="timesaldo" style={{ marginBottom: 8 }} />
         )}
         <TimesheetEmployeePicker
           colors={colors}
@@ -199,9 +198,9 @@ export default function TimesaldoScreen({
     <View style={[styles.screenRoot, { backgroundColor: colors.bg }]} nativeID="timesaldo-screen">
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.body}>
         {hostedHero || embedded ? null : (
-          <Text style={[styles.crumb, { color: colors.muted }]}>
-            {lockedId ? 'Ansatte / Timesaldo' : 'Arbeid / Timesaldo'}
-          </Text>
+          lockedId
+            ? <Breadcrumb tab="ansatte" current="Timesaldo" />
+            : <Breadcrumb tab="arbeid" subView="timesaldo" />
         )}
         <View style={styles.head}>
           {embedded ? null : (
@@ -379,7 +378,6 @@ const styles = StyleSheet.create({
   screenRoot: { flex: 1, minHeight: 0 },
   screen: { flex: 1, padding: 16, minHeight: 420 },
   body: { padding: 16, gap: 4, paddingBottom: 40 },
-  crumb: { fontSize: 12, marginBottom: 4 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginBottom: 8 },
   empBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
   avatar: {

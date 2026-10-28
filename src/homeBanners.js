@@ -718,10 +718,11 @@ export function homeSceneTitle(dayPart) {
 
 export const HOME_SCENE_SUBTITLE = 'Oversikt for jobb og næringsliv.';
 
+/** Linjen under hilsenen på Hjem. Om arbeidsdagen, ikke familiehverdagen. */
 export function homeSceneTagline(dayPart) {
-  if (dayPart === 'evening') return 'Roligere dager skaper sterkere dager';
-  if (dayPart === 'afternoon') return 'En roligere ettermiddag gir mer overskudd';
-  return 'En roligere morgen gir en bedre dag';
+  if (dayPart === 'evening') return 'Godt jobbet i dag';
+  if (dayPart === 'afternoon') return 'Husk å føre timene før du går';
+  return 'Klar for dagens oppdrag';
 }
 
 export const HOME_FOOTER_LINE = 'Jobb, nettverk og oversikt';

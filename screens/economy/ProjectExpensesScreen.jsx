@@ -42,6 +42,7 @@ import { createId } from '../../src/project/engine';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
+import Breadcrumb from '../../components/Breadcrumb';
 
 function money(value) {
   return typeof formatMoney === 'function' ? formatMoney(value) : String(value ?? '');
@@ -355,7 +356,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
       <View style={sideFilters ? styles.mainCol : styles.stack}>
       {hostedHero || embedded ? null : (
         <>
-          <Text style={[styles.crumb, { color: colors.muted }]}>Økonomi / Prosjektutlegg</Text>
+          <Breadcrumb tab="arbeid" subView="utlegg" />
           <Text style={[styles.title, { color: colors.ink }]}>Prosjektutlegg</Text>
           <Text style={{ color: colors.muted }}>Utlegg som hører til prosjektet</Text>
         </>
@@ -436,7 +437,6 @@ const styles = StyleSheet.create({
   desk: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 10 },
   side: { width: 300, flexShrink: 0 },
-  crumb: { fontSize: 12 },
   title: { fontSize: 22, fontWeight: '700' },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   importBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },

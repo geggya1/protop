@@ -528,6 +528,32 @@ export async function loadTimeEntriesByInvoice(companyId, invoiceId) {
 }
 
 /**
+ * Timer som står i kjeden mellom føring og faktura: låste (venter på kontroll) og
+ * godkjente som ikke er lagt på en faktura. Bare likhetsfiltre, så ingen ny indeks trengs.
+ */
+export async function loadOpenChainEntries(companyId) {
+  const id = text(companyId);
+  if (!id) return [];
+  await hydrateDeletedTimeEntries(id);
+  const bits = await firestoreBits();
+  const col = entriesCol(bits, id);
+  const [locked, approved] = await Promise.all([
+    bits.getDocs(bits.query(col, bits.where('status', '==', 'låst'))),
+    bits.getDocs(bits.query(col, bits.where('status', '==', 'godkjent'), bits.where('invoiceId', '==', null))),
+  ]);
+  return withoutDeletedTimeEntries(id, rowsFromDocs([...locked.docs, ...approved.docs]));
+}
+
+/** Om bedriften har ført minst én time (for «Kom i gang»). Leser bare ett dokument. */
+export async function hasTimeEntries(companyId) {
+  const id = text(companyId);
+  if (!id) return false;
+  const [{ limit }, bits] = await Promise.all([import('firebase/firestore'), firestoreBits()]);
+  const snap = await bits.getDocs(bits.query(entriesCol(bits, id), limit(1)));
+  return !snap.empty;
+}
+
+/**
  * Slett en føring. log: true (eller entry) legger en rad i families/{id}/timeEntryDeletions,
  * så slettingen kan spores (L-13). Opprydding av rader som allerede er slettet, logges ikke.
  */

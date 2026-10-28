@@ -27,6 +27,7 @@ import {
 } from '../src/utils/authProviders';
 import SocialAuthButtons, { OrDivider } from '../components/SocialAuthButtons';
 import SignInLegalConsent, { persistSignInConsent } from '../components/SignInLegalConsent';
+import { consentsComplete, loadLocalConsents } from '../src/utils/consents';
 import BrandLogo from '../components/BrandLogo';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
@@ -66,8 +67,9 @@ function withDeadline(promise, ms, label) {
 
 /**
  * Login card:
- * Google & Microsoft → OR → username/password → Log in → sign up
- * Privacy and terms sit last, under the sign-in action.
+ * privacy and terms → Google & Microsoft → OR → username/password → Log in → sign up
+ * Samtykket står over knappene, så første trykk på «Logg inn» ikke gir feil.
+ * Er gjeldende versjon allerede godtatt på enheten, vises bare en bekreftelse.
  */
 export default function LoginScreen({ navigation }) {
   const { t, lang } = useI18n();
@@ -85,6 +87,17 @@ export default function LoginScreen({ navigation }) {
   const [unverifiedInfo, setUnverifiedInfo] = useState(false);
   const [legalOk, setLegalOk] = useState(false);
   const [legalError, setLegalError] = useState(false);
+  const [legalRemembered, setLegalRemembered] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    loadLocalConsents().then((stored) => {
+      if (!live || !consentsComplete(stored)) return;
+      setLegalOk(true);
+      setLegalRemembered(true);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   const emailTrimmed = email.trim().toLowerCase();
   const emailValid = useMemo(
@@ -284,6 +297,16 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.sub}>{t('auth.loginSocialHint')}</Text>
           <PendingAddFriendBanner />
 
+          <SignInLegalConsent
+            accepted={legalOk}
+            remembered={legalRemembered}
+            showError={legalError}
+            onAcceptedChange={(next) => {
+              setLegalOk(next);
+              if (next) setLegalError(false);
+            }}
+          />
+
           <SocialAuthButtons
             busy={busy}
             googleLabel={t('auth.googleLogin')}
@@ -368,15 +391,6 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <SignInLegalConsent
-            footer
-            accepted={legalOk}
-            showError={legalError}
-            onAcceptedChange={(next) => {
-              setLegalOk(next);
-              if (next) setLegalError(false);
-            }}
-          />
         </View>
         </ScrollView>
       </SafeAreaView>

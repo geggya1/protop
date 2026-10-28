@@ -20,9 +20,10 @@ const zOf = (name) => {
 };
 assert.ok(zOf('chromeRow') > zOf('switchRow'), 'logo-raden (med lyspæren) ligger over Privat/Bedrift');
 assert.ok(zOf('chromeRow') > 1, 'logo-raden ligger over modulbåndet (heroChrome zIndex 1)');
-assert.match(header, /helpOnAvatar:\s*\{[^}]*top:\s*'100%'/, 'mobil: lyspæren henger under profilbildet');
-assert.match(header, /<HelpButton inline/, 'PC: lyspæren står i knapperaden');
-assert.match(header, /hangingHelp: false/, 'PC-raden har ikke hengende lyspære');
+// EGEN-03: lyspæren står i raden på telefon også, og henger ikke over toppfeltet eller innholdet.
+assert.doesNotMatch(header, /helpOnAvatar|hangingHelp|<HelpButton\s+floating/, 'ingen hengende lyspære');
+assert.equal((header.match(/<HelpButton inline/g) || []).length, 3, 'lyspæren står i knapperaden i alle tre variantene');
+assert.match(header, /<HelpButton inline compact color=\{colors\.ink\} borderColor=\{colors\.line\} \/>/, 'mobil: ved menyknappen');
 
 const bulb = read('components/HelpButton.jsx');
 assert.match(bulb, /HelpTarget id="helpBtn"/);

@@ -25,6 +25,8 @@ import {
 } from '../../src/utils/parentBottomNav';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { COMPANY_BOTTOM_NAV } from '../../src/companyHome/model';
+import { privateDockPreset } from '../../src/navigation/protopShell';
+import { isLiveOrganization } from '../../src/project/companyOffer';
 
 /**
  * Customizable bottom dock, mounted in AppShell so it stays on every module.
@@ -43,7 +45,7 @@ export default function ParentShellBottomNav({
   const colors = useColors();
   const { hasRail } = useLayout();
   const {
-    isParent, isChild, isActingAsChild, familyId, family, kids, uid, activeChild, meChild,
+    isParent, isChild, isActingAsChild, familyId, family, families, kids, uid, activeChild, meChild,
   } = useApp();
   const { unreadByModule } = useUnread();
   const chatDockPreferred = useChatDockPreferred();
@@ -71,8 +73,19 @@ export default function ParentShellBottomNav({
   const companyLocked = !asChildView && isOrganizationType(family?.type);
   const ready = asChildView ? childHome.ready : (companyLocked || parentTheme.ready);
   const theme = parentTheme.theme;
-  const bottomShortcutIds = companyLocked
-    ? COMPANY_BOTTOM_NAV.map((item) => item.id)
+  const hasCompany = useMemo(() => (families || []).some(isLiveOrganization), [families]);
+  // Privat: samme dock som i bedriften (Timer, Oppgaver og Meny på samme plass), med mindre
+  // personen har valgt egne snarveier.
+  const privatePreset = useMemo(
+    () => (companyLocked || asChildView ? null : privateDockPreset({
+      hasCompany,
+      bottomShortcutIds: parentTheme.bottomShortcutIds,
+    })),
+    [companyLocked, asChildView, hasCompany, parentTheme.bottomShortcutIds],
+  );
+  const presetItems = companyLocked ? COMPANY_BOTTOM_NAV : privatePreset;
+  const bottomShortcutIds = presetItems
+    ? presetItems.map((item) => item.id)
     : (asChildView ? childHome.layout.bottomIds : parentTheme.bottomShortcutIds);
   const show = focused && shouldShowParentBottomNav({
     ready,
@@ -158,7 +171,7 @@ export default function ParentShellBottomNav({
       badgeById={badgeById}
       activeId={activeId}
       onSelect={onSelect}
-      tokens={companyLocked ? {
+      tokens={presetItems ? {
         surface: '#ffffff',
         border: '#E6EAF0',
         accent: colors.brand,
@@ -167,8 +180,8 @@ export default function ParentShellBottomNav({
       } : theme?.tokens}
       includeSafeArea
       onLayout={onLayout}
-      glass={companyLocked ? false : glass}
-      presetItems={companyLocked ? COMPANY_BOTTOM_NAV : null}
+      glass={presetItems ? false : glass}
+      presetItems={presetItems}
     />
   );
 

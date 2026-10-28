@@ -79,6 +79,7 @@ import { displayName } from '../../src/employees/model.js';
 import { parseDate } from '../../src/economy/invoices.js';
 import { pickableProjects } from '../../src/project/myProjects';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import Breadcrumb from '../../components/Breadcrumb';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -1027,7 +1028,7 @@ export default function EconomyHours({
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
               {hostedHero || embedded ? null : (
                 <>
-                  <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
+                  <Breadcrumb tab="arbeid" subView="timerapport" />
                   <Text style={[styles.headingPhone, { color: colors.ink }]}>Timerapport</Text>
                 </>
               )}
@@ -1108,7 +1109,7 @@ export default function EconomyHours({
             <View style={{ flex: 1, gap: 4 }}>
               {hostedHero || embedded ? null : (
                 <>
-                  <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
+                  <Breadcrumb tab="arbeid" subView="timerapport" />
                   <Text style={[styles.heading, { color: colors.ink }]}>Timerapport</Text>
                 </>
               )}
@@ -1176,7 +1177,6 @@ const styles = StyleSheet.create({
   phoneInner: { padding: 12, paddingBottom: 40, gap: 12, width: '100%' },
   phoneTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   phoneActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
-  crumb: { fontSize: 12, marginBottom: 2 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   ghostBtn: {
     borderWidth: 1,

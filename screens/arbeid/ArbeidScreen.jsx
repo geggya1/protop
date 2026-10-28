@@ -81,6 +81,8 @@ import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePi
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
 import ScrollSheet from '../../components/ScrollSheet';
+import BillingChainLine from '../economy/billing/BillingChainLine';
+import Breadcrumb from '../../components/Breadcrumb';
 import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
 import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
@@ -1047,6 +1049,12 @@ export default function ArbeidScreen({
 
   const companyLabel = companyDisplayName(policySource);
   const crumb = timesheetCrumb({ personal, locked: !!lockedId, companyLabel });
+  // Bedriftens timeliste: brødsmule fra menyen. Personlig: «Timeliste · bedrift».
+  const crumbNode = personal
+    ? <Text style={[styles.crumb, { color: colors.muted }]}>{crumb}</Text>
+    : (lockedId
+      ? <Breadcrumb tab="ansatte" current="Timeliste" style={styles.crumbRow} />
+      : <Breadcrumb tab="arbeid" subView="timeliste" style={styles.crumbRow} />);
   const canSwitchPerson = canSwitchTimesheetPerson({ personal, locked: !!lockedId, manager });
   const needsPersonStep = needsTimesheetPersonStep({
     personal,
@@ -1057,14 +1065,26 @@ export default function ArbeidScreen({
   const identity = timesheetIdentity({ personal, compact: isPhone });
   const currentMonthLabel = monthLabel(year, monthIndex);
 
+  // Leder: hvor timene står i kjeden mot faktura (Timer → Godkjenn → Til fakturering → Faktura).
+  const chainLine = !personal && !lockedId && !embedded && manager ? (
+    <View style={styles.chainLine}>
+      <BillingChainLine
+        current="timer"
+        locks={state.timesheetLocks || []}
+        employees={employees.filter(isActiveEmployee)}
+      />
+    </View>
+  ) : null;
+
   if (needsPersonStep) {
     return (
       <View
         style={[styles.screen, { backgroundColor: colors.bg, position: 'relative' }]}
         nativeID="arbeid-screen"
       >
+        {chainLine}
         {embedded ? null : (
-          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 8 }]}>{crumb}</Text>
+          <View style={{ marginBottom: 8 }}>{crumbNode}</View>
         )}
         <TimesheetEmployeePicker
           colors={colors}
@@ -1091,12 +1111,11 @@ export default function ArbeidScreen({
 
   return (
     <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
+      {chainLine}
       <View style={[styles.topBar, (personal || isPhone) && styles.topBarPersonal, isPhone && styles.topBarPhone]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           {embedded ? null : (
-            <Text style={[styles.crumb, { color: colors.muted }]}>
-              {crumb}
-            </Text>
+            crumbNode
           )}
           {embedded ? null : (
           <TouchableOpacity
@@ -1247,9 +1266,9 @@ export default function ArbeidScreen({
           keyboardShouldPersistTaps="handled"
           nativeID="arbeid-phone-timeliste"
         >
-          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 0 }]}>
-            {personal ? 'Timeliste' : 'Arbeid / Timeliste'}
-          </Text>
+          {personal
+            ? <Text style={[styles.crumb, { color: colors.muted, marginBottom: 0 }]}>Timeliste</Text>
+            : <Breadcrumb tab="arbeid" subView="timeliste" compact />}
           <TimesheetDayView
             colors={colors}
             dateKey={activeKey}
@@ -1490,6 +1509,7 @@ export default function ArbeidScreen({
 }
 
 const styles = StyleSheet.create({
+  chainLine: { marginBottom: 10 },
   screen: { flex: 1, padding: 16, minHeight: 0 },
   screenPersonal: { paddingTop: 8 },
   gridBleed: {
@@ -1509,6 +1529,7 @@ const styles = StyleSheet.create({
   topBarPersonal: { alignItems: 'center' },
   topBarPhone: { marginBottom: 6, gap: 8 },
   crumb: { fontSize: 12, marginBottom: 4 },
+  crumbRow: { marginBottom: 4 },
   title: { letterSpacing: -0.3 },
   empBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   empBtnPersonal: { gap: 6, minWidth: 0, flexShrink: 1 },

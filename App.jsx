@@ -939,9 +939,9 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   }
 
   const initial = forceCalendarOauth ? 'CalendarOAuthRedirect'
-    // Web: never default to legacy Welcome — login/signup paths use welcomePathEntry;
-    // /hjem|/start redirect to the marketing homepage above.
-    : stage === 'welcome' ? (welcomePathEntry || (Platform.OS === 'web' ? 'Login' : 'Welcome'))
+    // Utlogget går til Login på alle plattformer (ikke familieappens velkomstside i app-butikk-appen).
+    // Web: login/signup paths use welcomePathEntry; /hjem|/start redirect to the marketing homepage above.
+    : stage === 'welcome' ? (welcomePathEntry || 'Login')
     : stage === 'language' ? 'PickLanguage'
     : stage === 'auth' ? 'AuthChoice'
     : stage === 'verify' ? 'VerifyEmail'

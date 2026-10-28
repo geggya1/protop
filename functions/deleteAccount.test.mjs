@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { isDeleteConfirmed, planFamilyExit, withoutUid } from './deleteAccountLogic.js';
+import {
+  accountingBlockMessage,
+  googleTokensToRevoke,
+  isCompanyGroup,
+  isDeleteConfirmed,
+  planFamilyExit,
+  withoutUid,
+} from './deleteAccountLogic.js';
 
 assert.equal(isDeleteConfirmed('DELETE'), true);
 assert.equal(isDeleteConfirmed(' delete '), true);
@@ -40,3 +47,31 @@ const memberOnly = planFamilyExit('me', {
 });
 assert.equal(memberOnly.action, 'leave');
 assert.equal(memberOnly.nextOwner, null);
+
+// Siste person i en bedrift med utstedte fakturaer: kontoen slettes ikke (bokføringsloven § 13).
+const company = { ownerUid: 'me', adminUids: ['me'], members: ['me'], type: 'organization', company: { navn: 'Bygg AS' } };
+const blocked = planFamilyExit('me', { id: 'c1', data: company, otherLiveParentUids: [], hasAccounting: true });
+assert.equal(blocked.action, 'blocked');
+assert.equal(blocked.reason, 'accounting');
+// Uten fakturaer, eller med andre igjen i bedriften, går det som før.
+assert.equal(planFamilyExit('me', { id: 'c1', data: company, otherLiveParentUids: [], hasAccounting: false }).action, 'archive');
+const handover = planFamilyExit('me', { id: 'c1', data: company, otherLiveParentUids: ['emp'], hasAccounting: true });
+assert.equal(handover.action, 'leave');
+assert.equal(handover.nextOwner, 'emp');
+// Familier har ikke regnskap i ProTop.
+assert.equal(planFamilyExit('me', { id: 'f1', data: { ownerUid: 'me' }, otherLiveParentUids: [], hasAccounting: true }).action, 'archive');
+assert.equal(isCompanyGroup({ company: { navn: 'X AS' } }), true);
+assert.equal(isCompanyGroup({ type: 'family' }), false);
+assert.match(accountingBlockMessage(['Bygg AS', 'Bygg AS']), /«Bygg AS», som har utstedte fakturaer/);
+assert.match(accountingBlockMessage([]), /bedriften/);
+assert.match(accountingBlockMessage(['A']), /support@protop\.no/);
+
+assert.deepEqual(googleTokensToRevoke([
+  { type: 'google', refreshToken: 'r1', accessToken: 'a1' },
+  { type: 'google', accessToken: 'a2' },
+  { type: 'microsoft', refreshToken: 'm1' },
+  { type: 'google', refreshToken: 'r1' },
+  null,
+]), ['r1', 'a2']);
+
+console.log('deleteAccount.test.mjs: ok');

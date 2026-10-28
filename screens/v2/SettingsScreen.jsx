@@ -348,6 +348,7 @@ export default function SettingsScreen({ setSubView } = {}) {
           <Row icon="document-text" label={t('more.legal')} onPress={() => requestShellTab('more', 'legal')} />
           {/* /personvern på protop.no har ingen egen side ennå. Vis erklæringen i appen. */}
           <Row icon="shield-checkmark-outline" label={t('settings.privacyPolicy')} onPress={() => requestShellTab('more', 'legal', 'legal-privacy')} />
+          <Row icon="download-outline" label="Last ned mine data" onPress={() => requestShellTab('more', 'legal', 'legal-export')} />
           <Row icon="mail-outline" label={t('settings.contactSupport')} onPress={() => openUrl(supportUrl)} />
           <Row icon="help-circle" label={t('help.title')} onPress={() => requestShellTab('more', 'help')} />
           <Row

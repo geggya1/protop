@@ -29,6 +29,8 @@ export const FILES = [
   'src/privacy/companyPrivacy.test.mjs',
   'functions/usageLog.test.mjs',
   'functions/aiCompanyGate.test.mjs',
+  'src/privacy/myDataExport.test.mjs',
+  'functions/deleteAccount.test.mjs',
   'functions/anbudIntake.smoke.test.mjs',
   'functions/anbud/intakeScan.test.mjs',
   'src/anbud/intake.test.mjs',

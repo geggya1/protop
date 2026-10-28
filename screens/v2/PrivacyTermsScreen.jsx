@@ -21,8 +21,9 @@ import {
   persistUserConsents,
 } from '../../src/utils/consents';
 import { consentHistoryLabel } from '../../src/utils/consentState';
+import { downloadMyData } from '../../src/privacy/myDataExportClient';
 
-const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'dpa', 'licenses', 'consent'];
+const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'dpa', 'export', 'licenses', 'consent'];
 
 /** Servertid fra samtykkeloggen (Firestore Timestamp). */
 function formatConsentTime(at) {
@@ -108,7 +109,9 @@ export default function PrivacyTermsScreen({
   const { t, lang } = useI18n();
   const { isDesktop, hasRail, pad } = useLayout();
   const compact = isDesktop;
-  const { uid, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const {
+    uid, user, families, userProfile, requestShellTab, shellIntent, clearShellIntent,
+  } = useApp();
   const startPage = PAGES.includes(initialPage) ? initialPage : 'hub';
   const [page, setPage] = useState(startPage);
   const [consents, setConsents] = useState(emptyConsents());
@@ -117,6 +120,8 @@ export default function PrivacyTermsScreen({
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState('');
 
   const refresh = useCallback(async () => {
     const local = await loadLocalConsents();
@@ -186,6 +191,20 @@ export default function PrivacyTermsScreen({
     if (uid) await persistUserConsents(uid, next, { marketing: true }).catch(() => {});
   };
 
+  const exportMyData = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportNote('');
+    try {
+      const result = await downloadMyData({ user, families });
+      setExportNote(`${result.filename} er laget med ${result.count} rader.`);
+    } catch (err) {
+      setExportNote(err?.message || 'Kunne ikke hente dataene. Prøv igjen.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const saveConsent = async () => {
     if (!agreed || !openedDoc) return;
     setSaving(true);
@@ -217,6 +236,7 @@ export default function PrivacyTermsScreen({
     terms: t('legal.terms'),
     privacy: t('legal.privacy'),
     dpa: 'Databehandleravtale',
+    export: 'Last ned mine data',
     licenses: 'Lisenser',
     consent: 'Bekreft samtykke',
   }[page];
@@ -281,6 +301,15 @@ export default function PrivacyTermsScreen({
                     title={t('legal.privacy')}
                     sub="Hvordan ProTop behandler personopplysninger"
                     onPress={() => setPage('privacy')}
+                  />
+                </View>
+                <View style={compact ? styles.cellDesk : styles.cell}>
+                  <HubTile
+                    compact={compact}
+                    icon="download-outline"
+                    title="Last ned mine data"
+                    sub="Kopi av dine egne data som JSON-fil"
+                    onPress={() => setPage('export')}
                   />
                 </View>
                 <View style={compact ? styles.cellDesk : styles.cell}>
@@ -364,6 +393,36 @@ export default function PrivacyTermsScreen({
           {page === 'terms' ? <DocBody paragraphs={termsParas} compact={compact} /> : null}
           {page === 'privacy' ? <DocBody paragraphs={privacyParas} compact={compact} /> : null}
           {page === 'dpa' ? <DocBody paragraphs={dpaParas} compact={compact} /> : null}
+
+          {page === 'export' ? (
+            <View style={[styles.panel, compact && styles.panelDesk]} nativeID="my-data-export">
+              <Text style={[styles.panelBody, compact && styles.panelBodyDesk]}>
+                Filen inneholder profilen din, samtykker, notater, oppgaver og kalender, egne timer,
+                fravær og utlegg, og chatmeldinger i trådene du er med i. Den lages på enheten din
+                med den tilgangen du allerede har.
+              </Text>
+              <Text style={[styles.fine, compact && styles.fineDesk]}>
+                Opplysninger bedriften har registrert om deg, for eksempel lønn, arbeidsavtale og
+                HR-saker, får du ved å spørre bedriften. ProTop hjelper bedriften med å svare.
+                Spørsmål: {LEGAL_ENTITY.email}.
+              </Text>
+              <TouchableOpacity
+                onPress={exportMyData}
+                disabled={exporting}
+                style={[styles.cta, compact && styles.ctaDesk, exporting && styles.ctaDisabled]}
+                accessibilityRole="button"
+              >
+                {exporting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.ctaTxt}>Last ned mine data</Text>
+                )}
+              </TouchableOpacity>
+              {exportNote ? (
+                <Text style={styles.notice} accessibilityLiveRegion="polite">{exportNote}</Text>
+              ) : null}
+            </View>
+          ) : null}
 
           {page === 'licenses' ? (
             <>

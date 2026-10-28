@@ -20,10 +20,17 @@ export function withoutUid(value, uid) {
   return [];
 }
 
+/** Bedrift (ikke familie eller lag). */
+export function isCompanyGroup(data) {
+  return data?.type === 'organization' || !!data?.company?.navn;
+}
+
 /**
  * How to leave one family when the auth user deletes their account.
  * No other live adults → archive the family (do not strand it).
  * Other adults → transfer ownership if this user owns or admins it.
+ * Last person in a company with issued invoices → blocked: the accounting records must
+ * stay available for five years (bokføringsloven § 13), so the account is not deleted.
  */
 export function planFamilyExit(uid, family) {
   const data = family?.data || {};
@@ -35,6 +42,9 @@ export function planFamilyExit(uid, family) {
     || (Array.isArray(data.adminUids) && data.adminUids.includes(uid));
 
   if (!others.length) {
+    if (isCompanyGroup(data) && family?.hasAccounting === true) {
+      return { familyId: family?.id || null, action: 'blocked', reason: 'accounting', nextOwner: null };
+    }
     return { familyId: family?.id || null, action: 'archive', nextOwner: null };
   }
 
@@ -50,4 +60,23 @@ export function planFamilyExit(uid, family) {
     action: 'leave',
     nextOwner: owns ? (otherAdmins[0] || others[0]) : null,
   };
+}
+
+/** Melding når kontoen ikke kan slettes fordi regnskapet ellers blir utilgjengelig. */
+export function accountingBlockMessage(names = []) {
+  const list = uniqueIds(names).map((name) => `«${name}»`).join(', ') || 'bedriften';
+  return `Kontoen kan ikke slettes ennå. Du er den siste i ${list}, som har utstedte fakturaer. `
+    + 'Bokføringsloven krever at regnskapet oppbevares i fem år. Inviter en annen person og gi '
+    + 'vedkommende administratortilgang før du sletter kontoen, eller kontakt support@protop.no.';
+}
+
+/** Google-kalenderkoblinger som har et token som kan trekkes tilbake. */
+export function googleTokensToRevoke(connections = []) {
+  const tokens = [];
+  for (const row of connections || []) {
+    if (row?.type !== 'google') continue;
+    const token = String(row.refreshToken || row.accessToken || '').trim();
+    if (token) tokens.push(token);
+  }
+  return [...new Set(tokens)];
 }

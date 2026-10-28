@@ -38,6 +38,7 @@ import InvoiceLinesEditor from './InvoiceLinesEditor';
 import InvoiceSidebar from './InvoiceSidebar';
 import { CreditDialog, DeleteDraftDialog, LossDialog, PaymentDialog, SendDialog } from './InvoiceDialogs';
 import * as actions from './invoiceActions';
+import { navTrailText } from '../../../src/navigation/navTrail';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -473,7 +474,7 @@ export default function InvoicePage({
       <View style={styles.top}>
         <TouchableOpacity onPress={onBack} accessibilityRole="button" style={styles.back} nativeID="invoice-back">
           <Ionicons name="arrow-back" size={16} color={colors.brand} />
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>Økonomi / Fakturaer</Text>
+          <Text style={{ color: colors.brand, fontWeight: '600' }}>{navTrailText('okonomi', 'faktura', { compact: true })}</Text>
         </TouchableOpacity>
         <View style={[styles.nav, { borderColor: colors.line }]}>
           {[

@@ -65,6 +65,8 @@ async function ensureList() {
       const text = (el.innerText || '').trim();
       return text === 'Økonomi / Fakturaer'
         || text === '← Økonomi / Fakturaer'
+        || text === 'Økonomi › Faktura'
+        || el.id === 'invoice-back'
         || /Tilbake til listen/.test(text)
         || text === 'Avbryt';
     });

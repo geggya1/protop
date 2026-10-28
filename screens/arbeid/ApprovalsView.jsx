@@ -26,6 +26,7 @@ import {
   sumHours,
 } from '../../src/arbeid/timesheetReview.js';
 import { billingReadyLabel } from '../../src/economy/billingChain.js';
+import Breadcrumb from '../../components/Breadcrumb';
 
 function applyMutation(workspace, result) {
   if (!result.ok) {
@@ -261,7 +262,7 @@ export function ApprovalsBody({
     <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={styles.body} nativeID="godkjenninger">
       {hostedHero ? null : (
         <>
-          <Text style={[styles.crumb, { color: colors.muted }]}>Bedrift / Arbeid / Godkjenninger</Text>
+          <Breadcrumb tab="arbeid" subView="godkjenning" />
           <Text style={[styles.title, { color: colors.ink }]}>Godkjenninger</Text>
         </>
       )}
@@ -393,7 +394,6 @@ export function ApprovalsBody({
 
 const styles = StyleSheet.create({
   body: { padding: 16, gap: 10, paddingBottom: 48 },
-  crumb: { fontSize: 12 },
   title: { fontSize: 22, fontWeight: '700' },
   split: { gap: 16 },
   splitWide: { flexDirection: 'row', alignItems: 'flex-start' },

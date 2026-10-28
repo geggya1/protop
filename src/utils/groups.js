@@ -245,11 +245,6 @@ export async function addChildMember({
   if (await usernameTaken(uname)) throw new Error('taken');
   const authEmail = usernameToEmail(uname);
   const uid = await createAuthUser(authEmail, password);
-  try {
-    await claimUsername(uname, uid, 'child');
-  } catch (e) {
-    throw e;
-  }
   const now = serverTimestamp();
   const payload = {
     ...buildChildMemberRecord({
@@ -287,6 +282,9 @@ export async function addChildMember({
     activeUsers: arrayUnion(uid),
     updatedAt: now,
   });
+  // Brukernavnet tas når barneprofilen finnes: reglene lar bare en foresatt til barnet
+  // ta et navn som peker på barnet (SEC-19).
+  await claimUsername(uname, uid, 'child');
   // Passordet settes i Auth via serveren; det lagres ikke i Firestore (SEC-21).
   if (password) {
     await setMemberPassword({ uid, password, familyId }).catch(() => {});

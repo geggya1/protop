@@ -304,6 +304,20 @@ let followHtml = '';
   assert.match(partial, /Forfalt · Settes fra avtalen\. Mangler: .*Framgangsmåte ved opphør/);
   assert.match(partial, /Pensjon og andre trygdeordninger/);
 
+  // HMS-kort: registreres på personen, med varsel når kortet er utløpt.
+  assert.match(html, /Gyldig HMS-kort/);
+  assert.match(html, /id="hr-compliance-hms-card"/);
+  assert.match(html, /Registrer kortnummer og utløpsdato under/);
+  assert.match(html, /Ikke aktuelt: arbeider ikke på byggeplass/);
+  const expired = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    hr: { ...hr, hmsCards: [{ employeeId: 'e1', number: 'HMS 42', validTo: '2020-01-31' }] },
+    selectedId: 'e1',
+    sheet: 'compliance',
+  }));
+  assert.match(expired, /Forfalt · HMS 42 · Utløpt 31\.01\.2020/);
+  assert.match(expired, /HMS-kortet er utløpt \(31\.01\.2020\)\. Bestill nytt kort\./);
+
   // Uten tilgang til ISO: bare henvisningen, ingen knapp.
   const plain = renderToStaticMarkup(React.createElement(HrPeople, {
     ...peopleProps,
@@ -388,6 +402,11 @@ let followHtml = '';
   assert.match(html, /Sjekkliste for egne ansatte/);
   assert.match(html, /Ada Nordmann/);
   assert.match(html, /Skriftlig arbeidsavtale/);
+  // HMS-kort og oversiktsliste for byggeplass under sjekklisten.
+  assert.match(html, /id="hr-hms-cards"/);
+  assert.match(html, /HMS-kort og oversiktsliste/);
+  assert.match(html, /Ingen HMS-kort er utløpt/);
+  assert.match(html, /Last ned oversiktsliste \(CSV\)/);
   assert.match(html, /Åpne sjekkliste/);
   assert.match(html, /Aktive/);
   assert.match(html, /Deaktiverte/);

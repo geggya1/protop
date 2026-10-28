@@ -296,6 +296,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           hr={hr}
           entries={entries}
           onOpenEmployee={openEmployee}
+          company={ownCompany}
         />
       );
     }

@@ -194,6 +194,7 @@ export default function HrContracts({
         employeeId: activeId,
         contracts: nextContracts,
         reviews: state.reviews || [],
+        hmsCards: state.hmsCards || [],
       });
       return { contracts: nextContracts, compliance };
     });

@@ -151,6 +151,7 @@ function person(id, {
       ],
       tasks: [{ id: 't1', employeeId: 'e1', status: 'open' }],
       compliance: [],
+      hmsCards: [{ employeeId: 'e1', number: 'HMS 123', validTo: '2099-12-31' }],
     },
     entries: [{ employeeId: 'e1', hours: 10, billableHours: 8 }],
   });
@@ -163,14 +164,15 @@ function person(id, {
   assert.equal(cells.openCases, '1');
   assert.equal(cells.openTasks, '1');
   assert.equal(cells.kindLabel, 'Intern');
-  assert.equal(cells.checklistOk, 3);
+  assert.equal(cells.checklistOk, 4, 'avtale, minimumskrav, samtale og gyldig HMS-kort');
   // HMS-introduksjon og kompetanse følges opp i ISO, ikke i HR-sjekklisten.
   assert.equal(cells.checklistGaps, 'Personverninformasjon gitt');
   assert.doesNotMatch(cells.checklistGaps, /Skriftlig arbeidsavtale/);
 
   // Avtale uten punktene fra 2024: minimumskravet står som mangel.
   const older = normalizeContract({ ...contract, pensionInsurance: '', competenceDevelopment: '' });
-  const olderCells = hrControlCells(employee, { hr: { contracts: [older], compliance: [] }, entries: [] });
+  const olderCells = hrControlCells(employee, { hr: { contracts: [older], compliance: [], hmsCards: [] }, entries: [] });
+  assert.match(olderCells.checklistGaps, /Gyldig HMS-kort/, 'uten registrert HMS-kort er punktet en mangel');
   assert.match(olderCells.contract, /^AML \d+ %$/);
   assert.notEqual(olderCells.contract, 'AML 100 %');
   assert.match(olderCells.checklistGaps, /Avtalen dekker minimumskrav/);

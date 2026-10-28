@@ -1,9 +1,10 @@
 /**
- * Lovpålagt oppfølging per ansatt: arbeidsavtale, oppfølging, verneutstyr og personvern.
+ * Lovpålagt oppfølging per ansatt: arbeidsavtale, oppfølging, verneutstyr, HMS-kort og personvern.
  * Kilder: AML §§ 4-2/4-3/14-5/14-6/15-6 (§ 14-6 slik den lyder fra 1.7.2024) og personvernforordningen.
  * Kompetanse, opplæring, HMS-introduksjon og avviksrutine følges opp i ISO / K-HMS → Kompetanse.
- * Punkter med derived settes fra dataene (avtalen), ikke ved avkrysning.
+ * Punkter med derived settes fra dataene (avtalen, HMS-kortet), ikke ved avkrysning.
  */
+import { hmsCardFor, hmsComplianceStatus } from './hmsCard.js';
 
 export const COMPLIANCE_SOURCES = [
   { id: 'aml', label: 'Arbeidsmiljøloven' },
@@ -48,6 +49,14 @@ export const COMPLIANCE_CATALOG = [
     label: 'Verneutstyr utlevert (ved behov)',
     hint: 'Når rollen krever det. Arbeidsgiver stiller verneutstyret til rådighet.',
     required: false,
+  },
+  {
+    id: 'hms_card',
+    source: 'aml',
+    label: 'Gyldig HMS-kort',
+    hint: 'Alle som arbeider på bygge- eller anleggsplass, skal ha gyldig HMS-kort (forskrift om HMS-kort). Velg «Ikke aktuelt» for den som ikke er på byggeplass. Varsel 30 dager før kortet går ut.',
+    required: true,
+    derived: 'hmsCard',
   },
   {
     id: 'gdpr_privacy_notice',
@@ -296,6 +305,7 @@ export function syncComplianceFromEvidence(compliance, {
   employeeId,
   contracts = [],
   reviews = [],
+  hmsCards = [],
   today = '',
 } = {}) {
   const emp = String(employeeId || '').trim();
@@ -322,6 +332,21 @@ export function syncComplianceFromEvidence(compliance, {
       if (row.status === status && row.dueDate === dueDate && !row.completedAt) return row;
       return { ...row, status, dueDate, completedAt: '', updatedAt: new Date().toISOString() };
     }
+    // HMS-kort følger kortet som er registrert: OK når det er gyldig, forfalt når det er utløpt.
+    if (row.catalogId === 'hms_card' && row.status !== 'na') {
+      const card = hmsCardFor(emp, hmsCards);
+      const status = hmsComplianceStatus(card, now);
+      const dueDate = card?.validTo || '';
+      if (row.status === status && row.dueDate === dueDate) return row;
+      return {
+        ...row,
+        status,
+        dueDate,
+        completedAt: status === 'ok' ? (row.completedAt || now) : '',
+        note: status === 'ok' && card?.number ? `HMS-kort ${card.number}` : row.note,
+        updatedAt: new Date().toISOString(),
+      };
+    }
     if (row.status === 'ok' || row.status === 'na') return row;
     if (row.catalogId === 'aml_written_contract' && active) {
       return markOk(row, 'Aktiv arbeidsavtale i HR');
@@ -342,7 +367,9 @@ export function syncComplianceFromEvidence(compliance, {
 export function companyComplianceOverview(employees, compliance, {
   contracts = [],
   reviews = [],
+  hmsCards = [],
   applyEvidence = true,
+  today = '',
 } = {}) {
   const rows = [];
   for (const emp of employees || []) {
@@ -354,6 +381,8 @@ export function companyComplianceOverview(employees, compliance, {
         employeeId: id,
         contracts,
         reviews,
+        hmsCards,
+        today,
       })
       : (compliance || []);
     const items = ensureEmployeeCompliance(sourced, id);

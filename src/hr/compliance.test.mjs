@@ -18,8 +18,9 @@ import {
   syncComplianceFromEvidence,
 } from './compliance.js';
 
-// Bare det HR eier: arbeidsmiljøloven og personvern. Kompetanse og opplæring ligger i ISO.
-assert.equal(COMPLIANCE_CATALOG.length, 6);
+// Bare det HR eier: arbeidsmiljøloven (med HMS-kort) og personvern. Kompetanse og opplæring ligger i ISO.
+assert.equal(COMPLIANCE_CATALOG.length, 7);
+assert.equal(COMPLIANCE_CATALOG.find((row) => row.id === 'hms_card').derived, 'hmsCard');
 assert.ok(COMPLIANCE_CATALOG.every((row) => ['aml', 'gdpr'].includes(row.source)));
 assert.ok(!COMPLIANCE_CATALOG.some((row) => MOVED_TO_ISO.some((moved) => moved.id === row.id)));
 assert.ok(COMPLIANCE_CATALOG.some((row) => row.id === 'aml_written_contract' && row.required));

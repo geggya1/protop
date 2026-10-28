@@ -11,6 +11,7 @@ import {
   syncComplianceFromEvidence,
 } from '../../src/hr/compliance';
 import { activeContractFor, formatNbDate, localIsoDate } from '../../src/hr/model';
+import { hmsCardFor, hmsCardStatus, upsertHmsCard } from '../../src/hr/hmsCard';
 import { showSaveToast } from '../../src/ui/saveToast';
 import OptionPicker from '../../components/OptionPicker';
 import {
@@ -49,17 +50,24 @@ export default function HrCompliance({
       employeeId: activeId,
       contracts: hr.contracts || [],
       reviews: hr.reviews || [],
+      hmsCards: hr.hmsCards || [],
     });
     return ensureEmployeeCompliance(sourced, activeId);
-  }, [hr.compliance, hr.contracts, hr.reviews, activeId]);
+  }, [hr.compliance, hr.contracts, hr.reviews, hr.hmsCards, activeId]);
   const visible = sourceFilter === 'all'
     ? rows
     : rows.filter((row) => row.source === sourceFilter);
   const summary = complianceSummary(rows);
   const activeContract = activeId ? activeContractFor(activeId, hr.contracts || []) : null;
+  const hmsCard = activeId ? hmsCardFor(activeId, hr.hmsCards || []) : null;
 
   /** Punkter som settes fra dataene: hva som mangler, i stedet for avkrysning. */
   function derivedText(row, cat) {
+    if (cat?.derived === 'hmsCard') {
+      if (row.status === 'na') return 'Arbeider ikke på byggeplass.';
+      const state = hmsCardStatus(hmsCard);
+      return hmsCard?.number ? `${hmsCard.number} · ${state.label}.` : 'Registrer kortnummer og utløpsdato under.';
+    }
     if (cat?.derived !== 'contract') return '';
     const due = row.dueDate && row.status !== 'ok' ? ` Frist ${formatNbDate(row.dueDate)}.` : '';
     if (!activeContract) return `Ingen aktiv arbeidsavtale. Registrer den under Ansettelsesavtale.${due}`;
@@ -74,7 +82,9 @@ export default function HrCompliance({
 
   function setStatus(catalogId, status) {
     if (!canWrite || !activeId) return;
-    if (COMPLIANCE_CATALOG.find((c) => c.id === catalogId)?.derived) return;
+    const derived = COMPLIANCE_CATALOG.find((c) => c.id === catalogId)?.derived;
+    // HMS-kort kan settes til «Ikke aktuelt» og tilbake. Resten følger dataene.
+    if (derived && !(derived === 'hmsCard' && (status === 'na' || status === 'missing'))) return;
     onPatch?.((state) => {
       const nextRows = ensureEmployeeCompliance(state.compliance || [], activeId).map((row) => (
         row.catalogId === catalogId
@@ -109,10 +119,26 @@ export default function HrCompliance({
         employeeId: activeId,
         contracts: state.contracts || [],
         reviews: state.reviews || [],
+        hmsCards: state.hmsCards || [],
       });
       return { compliance };
     });
     showSaveToast?.('Compliance synket fra avtaler og samtaler');
+  }
+
+  function saveHmsCard(draft) {
+    if (!canWrite || !activeId) return;
+    onPatch?.((state) => {
+      const hmsCards = upsertHmsCard(state.hmsCards || [], { ...draft, employeeId: activeId, updatedAt: new Date().toISOString() });
+      const compliance = syncComplianceFromEvidence(state.compliance || [], {
+        employeeId: activeId,
+        contracts: state.contracts || [],
+        reviews: state.reviews || [],
+        hmsCards,
+      });
+      return { hmsCards, compliance };
+    });
+    showSaveToast?.('HMS-kortet er lagret');
   }
 
   return (
@@ -126,7 +152,7 @@ export default function HrCompliance({
           <HrSectionTitle
             colors={colors}
             title="Lovpålagt"
-            subtitle="Arbeidsavtale, oppfølging, verneutstyr og personvern for denne personen"
+            subtitle="Arbeidsavtale, oppfølging, verneutstyr, HMS-kort og personvern for denne personen"
           />
           <Text style={[styles.summary, { color: colors.ink }]}>
             {`OK: ${summary.ok}/${summary.total} (${summary.pct} %) · Mangler: ${summary.missing}`}
@@ -170,7 +196,19 @@ export default function HrCompliance({
                   >
                     {`${STATUS.find((s) => s.id === row.status)?.label || row.status} · ${derivedText(row, cat)}`}
                   </Text>
-                ) : (
+                ) : null}
+                {cat?.derived === 'hmsCard' ? (
+                  <HmsCardEditor
+                    key={`${activeId}:${hmsCard?.updatedAt || ''}`}
+                    colors={colors}
+                    card={hmsCard}
+                    canWrite={canWrite}
+                    notApplicable={row.status === 'na'}
+                    onSave={saveHmsCard}
+                    onApplicable={(applicable) => setStatus('hms_card', applicable ? 'missing' : 'na')}
+                  />
+                ) : null}
+                {cat?.derived ? null : (
                   <View style={styles.chips}>
                     {STATUS.map((s) => (
                       <HrChip
@@ -214,7 +252,7 @@ export default function HrCompliance({
       {canWrite && activeId ? (
         <HrButton
           colors={colors}
-          label="Marker alle påkrevde som OK (unntatt det som settes fra avtalen)"
+          label="Marker alle påkrevde som OK (unntatt avtalen og HMS-kortet, som settes fra dataene)"
           primary
           onPress={() => {
             onPatch?.((state) => {
@@ -232,6 +270,41 @@ export default function HrCompliance({
               return { compliance: replaceEmployeeCompliance(state.compliance, activeId, nextRows) };
             });
           }}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/** HMS-kort: kortnummer, utløpsdato og arbeidsgivers org.nr. Varsel vises når kortet går ut. */
+function HmsCardEditor({ colors, card, canWrite, notApplicable, onSave, onApplicable }) {
+  const [draft, setDraft] = useState(() => ({
+    number: card?.number || '',
+    validTo: card?.validTo || '',
+    employerOrgnr: card?.employerOrgnr || '',
+  }));
+  const state = hmsCardStatus(card);
+  const alert = state.id === 'expired' || state.id === 'expiring';
+  return (
+    <View style={styles.hmsBox} nativeID="hr-compliance-hms-card">
+      {alert && !notApplicable ? (
+        <Text style={[styles.itemHint, { color: colors.danger, fontWeight: '600' }]} nativeID="hr-compliance-hms-alert">
+          {state.id === 'expired' ? `HMS-kortet er utløpt (${state.label.replace(/^Utløpt /, '')}). Bestill nytt kort.` : `HMS-kortet ${state.label.toLowerCase()}. Bestill nytt kort i tide.`}
+        </Text>
+      ) : null}
+      {canWrite && !notApplicable ? (
+        <>
+          <HrField colors={colors} label="Kortnummer" value={draft.number} onChangeText={(number) => setDraft((prev) => ({ ...prev, number }))} />
+          <HrField colors={colors} label="Gyldig til (dd.mm.åååå)" value={draft.validTo} onChangeText={(validTo) => setDraft((prev) => ({ ...prev, validTo }))} placeholder="31.12.2027" />
+          <HrField colors={colors} label="Arbeidsgivers org.nr. på kortet (tomt: selskapets)" value={draft.employerOrgnr} onChangeText={(employerOrgnr) => setDraft((prev) => ({ ...prev, employerOrgnr }))} keyboardType="number-pad" />
+          <HrButton colors={colors} label="Lagre HMS-kort" icon="card-outline" nativeID="hr-compliance-hms-save" onPress={() => onSave?.(draft)} />
+        </>
+      ) : null}
+      {canWrite ? (
+        <HrButton
+          colors={colors}
+          label={notApplicable ? 'Arbeider på byggeplass (HMS-kort kreves)' : 'Ikke aktuelt: arbeider ikke på byggeplass'}
+          onPress={() => onApplicable?.(notApplicable)}
         />
       ) : null}
     </View>
@@ -277,6 +350,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   summary: { fontSize: 15, fontWeight: '600' },
   item: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
+  hmsBox: { gap: 8 },
   itemTitle: { fontSize: 14, fontWeight: '600' },
   itemHint: { fontSize: 12, lineHeight: 17 },
   isoRow: {

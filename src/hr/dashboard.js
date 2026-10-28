@@ -45,6 +45,7 @@ export function complianceByItem(staff, hr = {}) {
   const rows = companyComplianceOverview(staff, hr.compliance, {
     contracts: hr.contracts,
     reviews: hr.reviews,
+    hmsCards: hr.hmsCards,
     applyEvidence: true,
   });
   const ok = rows.reduce((sum, row) => sum + row.ok, 0);

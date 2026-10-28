@@ -100,6 +100,7 @@ export function hrControlCells(employee, { hr = {}, entries = [] } = {}) {
   const overview = companyComplianceOverview([employee], hr.compliance, {
     contracts: hr.contracts,
     reviews: hr.reviews,
+    hmsCards: hr.hmsCards,
     applyEvidence: true,
   })[0];
   const contract = id ? activeContractFor(id, hr.contracts) : null;

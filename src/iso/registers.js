@@ -480,7 +480,7 @@ export function createRecord(key, values, { actor, existing = [], now = new Date
     number: nextNumber(def.prefix, existing, now),
     ...data,
     state: def.states[0],
-    ...(key === 'risiko' || key === 'fare' ? { methodVersion: riskMethod.version, methodName: riskMethod.name } : {}),
+    ...(key === 'risiko' || key === 'fare' ? methodFields(riskMethod) : {}),
     createdAt: nowIso(now),
     createdBy: text(actor?.name, 160),
     history: pushHistory({}, 'Opprettet', actor, '', now),
@@ -489,16 +489,36 @@ export function createRecord(key, values, { actor, existing = [], now = new Date
   return { ok: true, record, events: [auditEvent({ entityType: key, entityId: record.id, action: `iso.${key}.created`, actor, after: record, now })] };
 }
 
-export function updateRecord(record, values, { actor, now = new Date(), note = '' } = {}) {
+/** Metoden vurderingen gjøres etter, lagret på posten: tersklene gjelder vurderingen også når metoden endres senere. */
+function methodFields(method) {
+  const m = method || DEFAULT_RISK_METHOD;
+  return { methodVersion: m.version, methodName: m.name, methodThresholds: { ...(m.thresholds || DEFAULT_RISK_METHOD.thresholds) } };
+}
+
+const RISK_SCORES = ['inherentL', 'inherentC', 'residualL', 'residualC'];
+
+/** Er sannsynlighet eller konsekvens endret? Da er det en ny vurdering etter gjeldende metode. */
+export function riskScoresChanged(record, values) {
+  return RISK_SCORES.some((k) => values?.[k] !== undefined && String(values[k] ?? '') !== String(record?.[k] ?? ''));
+}
+
+export function updateRecord(record, values, { actor, now = new Date(), note = '', riskMethod = null } = {}) {
   if (!record) return fail('Fant ikke posten.');
   if (record.locked) return fail('Posten er godkjent og låst. Lag ny vurdering.');
   if (record.register === 'leverandor') values = withDefaults('leverandor', { supplierClass: record.supplierClass, criticality: record.criticality, ...values });
   const merged = { ...record, ...values };
   const errors = validateRecord(record.register, merged);
   if (errors.length) return fail(errors[0], { errors });
-  const next = bump({ ...record, ...clean(record.register, values), history: pushHistory(record, 'Endret', actor, note, now) }, actor, now);
+  // Ny vurdering (endrede tall) gjøres etter gjeldende metode; ellers beholder posten metoden den ble vurdert etter.
+  const reassessed = riskMethod && ['risiko', 'fare'].includes(record.register) && riskScoresChanged(record, values) ? methodFields(riskMethod) : {};
+  const next = bump({ ...record, ...clean(record.register, values), ...reassessed, history: pushHistory(record, 'Endret', actor, note, now) }, actor, now);
   return { ok: true, record: next, events: [auditEvent({ entityType: record.register, entityId: record.id, action: `iso.${record.register}.updated`, actor, before: record, after: next, now })] };
 }
+
+/** Registre der godkjenning låser posten (rapport og referat er bevis). */
+const LOCKING_REGISTERS = ['ledelse', 'revisjon'];
+/** Statuser etter godkjenning. Låsen beholdes; bare å gå tilbake til før godkjenning opphever den. */
+const APPROVED_STATES = ['godkjent', 'oppfolging', 'lukket'];
 
 export function setRecordState(record, state, { actor, now = new Date(), note = '', caps = null } = {}) {
   const def = registerDef(record?.register);
@@ -506,21 +526,43 @@ export function setRecordState(record, state, { actor, now = new Date(), note = 
   if (!def.states.includes(state)) return fail('Ugyldig status.');
   if (caps && !caps.manage) return fail('Du har ikke tilgang til å endre status.');
   if (['godkjent', 'lukket'].includes(state) && caps && !caps.approve) return fail('Godkjenning krever en godkjennerrolle i ISO.');
+  if (record.locked && caps && !caps.approve) return fail('Posten er godkjent og låst. Bare en godkjenner kan endre status.');
+  // Tilbake til før godkjenning (f.eks. «planlagt») opphever godkjenningen: krever begrunnelse, og ny godkjenning låser igjen.
+  const revoke = !!record.locked && !APPROVED_STATES.includes(state);
+  if (revoke && text(note).length < 5) return fail('Begrunn hvorfor godkjenningen oppheves.');
+  const locked = LOCKING_REGISTERS.includes(record.register) && (state === 'godkjent' || (!!record.locked && !revoke));
   const next = bump({
     ...record,
     state,
-    locked: ['godkjent'].includes(state) && ['ledelse', 'revisjon'].includes(record.register),
-    history: pushHistory(record, `Status: ${state}`, actor, note, now),
+    locked,
+    history: pushHistory(record, revoke ? `Godkjenning opphevet – status: ${state}` : `Status: ${state}`, actor, note, now),
   }, actor, now);
   return { ok: true, record: next, events: [auditEvent({ entityType: record.register, entityId: record.id, action: `iso.${record.register}.state`, actor, before: record, after: next, reason: note, now })] };
 }
 
 /* ───────── Risiko ───────── */
 
+/**
+ * Metoden en vurdering ble gjort etter: terskler lagret på posten, ellers versjonen i metodehistorikken
+ * (method.history), ellers gjeldende metode. Eldre vurderinger klassifiseres dermed ikke om når tersklene endres.
+ */
+export function recordRiskMethod(record, method = DEFAULT_RISK_METHOD) {
+  const current = method || DEFAULT_RISK_METHOD;
+  if (record?.methodThresholds) {
+    return { ...current, version: record.methodVersion || current.version, name: record.methodName || current.name, thresholds: record.methodThresholds };
+  }
+  if (record?.methodVersion && record.methodVersion !== current.version) {
+    const old = (current.history || []).find((m) => m?.version === record.methodVersion && m?.thresholds);
+    if (old) return { ...current, ...old };
+  }
+  return current;
+}
+
 export function riskSummary(record, method = DEFAULT_RISK_METHOD) {
+  const used = recordRiskMethod(record, method);
   return {
-    inherent: riskLevel(record?.inherentL, record?.inherentC, method),
-    residual: riskLevel(record?.residualL, record?.residualC, method),
+    inherent: riskLevel(record?.inherentL, record?.inherentC, used),
+    residual: riskLevel(record?.residualL, record?.residualC, used),
   };
 }
 
@@ -538,6 +580,22 @@ export function riskMatrix(records, which = 'inherent') {
 }
 
 /* ───────── Kompetanse ───────── */
+
+/** Siste gyldighetsdag for et bevis: «gyldig til», ellers «gyldig fra» + kravets gyldighet. Tom = varig eller udatert. */
+export function proofEnd(record, requirement) {
+  if (record?.validTo) return record.validTo;
+  if (record?.validFrom && Number(requirement?.validityMonths) > 0) return addDays(record.validFrom, Math.round(requirement.validityMonths * 30.4));
+  return '';
+}
+
+const PROOF_RANK = { gyldig: 0, utloper: 1, utlopt: 2 };
+
+/** Beste bevis for et krav: gyldig foran utløpende foran utløpt, og blant like det som varer lengst. */
+export function bestProof(records, requirement, now = new Date()) {
+  return (records || [])
+    .map((r) => ({ r, status: competenceStatus(r, requirement, now), end: proofEnd(r, requirement) || '9999-12-31' }))
+    .sort((a, b) => (PROOF_RANK[a.status] - PROOF_RANK[b.status]) || b.end.localeCompare(a.end))[0]?.r || null;
+}
 
 export function competenceStatus(record, requirement, now = new Date()) {
   if (!record) return 'mangler';
@@ -581,12 +639,26 @@ export function unassignedRequirements(requirements, roles) {
   }));
 }
 
-/** Står kompetansen i CV-en (sertifisering, kurs eller utdanning)? */
+/** Ord i en tittel. Bindestrek hører til ordet: «HMS-introduksjon» er ett ord, ikke «HMS». */
+function titleWords(s) {
+  return lowerText(s).split(/[^\p{L}\p{N}-]+/u).filter(Boolean);
+}
+
+/** Står ordene i needle som hele ord, i samme rekkefølge, i hay? */
+function containsWords(hay, needle) {
+  if (!needle.length || needle.length > hay.length) return false;
+  for (let i = 0; i + needle.length <= hay.length; i += 1) {
+    if (needle.every((w, j) => hay[i + j] === w)) return true;
+  }
+  return false;
+}
+
+/** Står kompetansen i CV-en (sertifisering, kurs eller utdanning)? Hele ord, ikke delord («HMS» ≠ «HMS-introduksjon»). */
 export function cvEvidence(person, req) {
   const cv = person?.cv;
-  const t = lowerText(req?.title);
-  if (!cv || t.length < 3) return null;
-  const hit = (s) => { const x = lowerText(s); return x && (x.includes(t) || t.includes(x)); };
+  const t = titleWords(req?.title);
+  if (!cv || lowerText(req?.title).length < 3) return null;
+  const hit = (s) => { const x = titleWords(s); return x.length > 0 && (containsWords(x, t) || containsWords(t, x)); };
   const cert = (cv.certifications || []).find((c) => hit(c.title));
   if (cert) return { kind: 'Sertifisering', title: cert.title };
   const course = (cv.courses || []).find((c) => hit(c.title));
@@ -611,7 +683,7 @@ export function competenceMatrix(people, requirements, records, now = new Date()
       if (scope !== 'ja') return { requirement: req, record: null, status: 'na', unassigned: scope === 'uten' };
       const mine = (records || []).filter((r) => r.state !== 'arkivert' && r.requirementId === req.id
         && ((p.uid && r.personUid === p.uid) || (!r.personUid && r.personName === p.name)));
-      const best = mine.sort((a, b) => String(b.validTo || '9999').localeCompare(String(a.validTo || '9999')))[0] || null;
+      const best = bestProof(mine, req, now);
       if (!best) {
         const cv = cvEvidence(p, req);
         if (cv) return { requirement: req, record: null, cv, status: Number(req.validityMonths) > 0 ? 'cv' : 'gyldig' };
@@ -638,6 +710,26 @@ export function competenceGaps(matrix) {
 
 /* ───────── Mål og målinger ───────── */
 
+/**
+ * Sorteringsnøkkel for en måleperiode: slutten av perioden. Årsmåling «2026» kommer etter «2026-05»
+ * (og etter «2026-12»), kvartal etter månedene i kvartalet.
+ */
+export function periodSortKey(period) {
+  const p = String(period || '');
+  let m = /^(\d{4})$/.exec(p);
+  if (m) return `${m[1]}-12-3`;
+  m = /^(\d{4})-Q([1-4])$/.exec(p);
+  if (m) return `${m[1]}-${String(Number(m[2]) * 3).padStart(2, '0')}-2`;
+  m = /^(\d{4})-(\d{2})/.exec(p);
+  if (m) return `${m[1]}-${m[2]}-1`;
+  return p;
+}
+
+/** Målingene i periodeorden (eldste først). */
+export function sortedMeasurements(record) {
+  return [...(record?.measurements || [])].sort((a, b) => periodSortKey(a.period).localeCompare(periodSortKey(b.period)));
+}
+
 export function addMeasurement(record, input, { actor, now = new Date() } = {}) {
   if (record?.register !== 'mal') return fail('Ikke et mål.');
   const value = Number(String(input?.value ?? '').replace(',', '.'));
@@ -645,19 +737,20 @@ export function addMeasurement(record, input, { actor, now = new Date() } = {}) 
   const period = text(input?.period, 20);
   if (!/^\d{4}(-\d{2})?(-Q[1-4])?$/.test(period)) return fail('Periode som ÅÅÅÅ-MM eller ÅÅÅÅ.');
   const quality = ['Målt', 'Estimert', 'Ukjent'].includes(input?.quality) ? input.quality : 'Målt';
-  const measurements = [...(record.measurements || []).filter((m) => m.period !== period), {
+  const measurements = sortedMeasurements({ measurements: [...(record.measurements || []).filter((m) => m.period !== period), {
     period, value, quality, source: text(input?.source, 300), at: nowIso(now), by: text(actor?.name, 160),
-  }].sort((a, b) => a.period.localeCompare(b.period));
+  }] });
   const next = bump({ ...record, measurements, history: pushHistory(record, `Måling ${period}`, actor, String(value), now) }, actor, now);
   return { ok: true, record: next, events: [auditEvent({ entityType: 'mal', entityId: record.id, action: 'iso.objective.measured', actor, before: record, after: next, now })] };
 }
 
-/** Måloppnåelse. Uten måling: ingen datagrunnlag (aldri 100 %). */
+/** Måloppnåelse. Uten måling: ingen datagrunnlag (aldri 100 %). Uten utgangsverdi: ingen prosent. */
 export function objectiveProgress(record) {
-  const last = (record?.measurements || []).at(-1);
+  const last = sortedMeasurements(record).at(-1);
   if (!last) return { status: 'ingen_data', label: 'Ingen datagrunnlag', value: null };
   const target = Number(record.target);
-  const base = Number(record.baseline);
+  // Number(null) og Number('') er 0: tom utgangsverdi ble regnet som 0 og ga «100 % av veien».
+  const base = record.baseline == null || String(record.baseline).trim() === '' ? NaN : Number(record.baseline);
   const up = record.direction !== 'Redusere';
   const reached = up ? last.value >= target : last.value <= target;
   let pct = null;
@@ -675,7 +768,7 @@ export const AUDIT_FINDING_CLASSES = [
 
 export function addAuditFinding(audit, input, { actor, now = new Date() } = {}) {
   if (audit?.register !== 'revisjon') return fail('Ikke en revisjon.');
-  if (['lukket', 'avlyst', 'godkjent'].includes(audit.state)) return fail('Revisjonen er avsluttet eller godkjent og låst.');
+  if (audit.locked || ['lukket', 'avlyst', 'godkjent'].includes(audit.state)) return fail('Revisjonen er avsluttet eller godkjent og låst.');
   if (!AUDIT_FINDING_CLASSES.some((c) => c.id === input?.classification)) return fail('Klassifiser funnet.');
   if (!text(input?.description)) return fail('Beskriv funnet.');
   if (input.classification !== 'samsvar' && !text(input?.evidence)) return fail('Beskriv objektivt bevis for funnet.');
@@ -750,20 +843,45 @@ export function addReviewDecision(record, input, { actor, now = new Date() } = {
   return { ok: true, record: next, decision: row, events: [auditEvent({ entityType: 'ledelse', entityId: record.id, action: 'iso.review.decision', actor, before: record, after: next, now })] };
 }
 
-export function markDecisionDone(record, decisionId, { actor, now = new Date() } = {}) {
-  const decisions = (record?.decisions || []).map((d) => (d.id === decisionId ? { ...d, done: true, doneAt: nowIso(now), doneBy: text(actor?.name, 160) } : d));
-  const next = bump({ ...record, decisions, history: pushHistory(record, 'Beslutning gjennomført', actor, '', now) }, actor, now);
-  return { ok: true, record: next, events: [] };
+/**
+ * Vedtaket er gjennomført. Kan gjøres av den ansvarlige også når referatet er godkjent og låst:
+ * bare vedtaket endres (reglene sjekker det via doneDecisionIndex), ikke resten av referatet.
+ */
+export function markDecisionDone(record, decisionId, { actor, now = new Date(), caps = null } = {}) {
+  if (record?.register !== 'ledelse') return fail('Ikke en ledelsens gjennomgang.');
+  const index = (record.decisions || []).findIndex((d) => d.id === decisionId);
+  const row = index >= 0 ? record.decisions[index] : null;
+  if (!row) return fail('Fant ikke vedtaket.');
+  if (row.done) return fail('Vedtaket er allerede gjennomført.');
+  if (caps && !caps.manage && !(row.ownerUid && row.ownerUid === text(actor?.uid, 128))) return fail('Bare ansvarlig for vedtaket eller en saksbehandler kan merke det gjennomført.');
+  const decisions = record.decisions.map((d, i) => (i === index ? { ...d, done: true, doneAt: nowIso(now), doneBy: text(actor?.name, 160), doneByUid: text(actor?.uid, 128) } : d));
+  const next = bump({ ...record, decisions, doneDecisionIndex: index, history: pushHistory(record, 'Beslutning gjennomført', actor, row.decision, now) }, actor, now);
+  return { ok: true, record: next, events: [auditEvent({ entityType: 'ledelse', entityId: record.id, action: 'iso.review.decision_done', actor, before: record, after: next, now })] };
+}
+
+/** Vedtak som er gjennomført i ISO, eller der oppgaven er markert ferdig i Oppgaver. */
+export function decisionCompleted(decision, taskStatus = null) {
+  if (decision?.done) return true;
+  const key = String(decision?.taskKey || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 140);
+  return !!(key && taskStatus?.[key]?.done);
 }
 
 /* ───────── Beredskap ───────── */
 
+/**
+ * Registrerer en øvelse og flytter neste øvelse frem: valgt dato, ellers 12 måneder etter øvelsen.
+ * En neste øvelse som allerede er planlagt senere, beholdes.
+ */
 export function addExercise(record, input, { actor, now = new Date() } = {}) {
   if (record?.register !== 'beredskap') return fail('Ikke et beredskapsscenario.');
   if (!isoDate(input?.date)) return fail('Sett dato for øvelsen.');
   if (!text(input?.evaluation)) return fail('Skriv evalueringen.');
+  if (input?.nextExercise && !isoDate(input.nextExercise)) return fail('Ugyldig dato for neste øvelse.');
   const row = { id: newId('ovl'), date: isoDate(input.date), participants: text(input.participants, 1000), evaluation: text(input.evaluation, 3000), improvement: !!input.improvement, by: text(actor?.name, 160), at: nowIso(now) };
-  const next = bump({ ...record, exercises: [...(record.exercises || []), row], history: pushHistory(record, 'Øvelse registrert', actor, row.evaluation, now) }, actor, now);
+  if (input?.nextExercise && isoDate(input.nextExercise) <= row.date) return fail('Neste øvelse må være etter denne øvelsen.');
+  const yearAfter = addDays(row.date, Math.round(12 * 30.4));
+  const nextExercise = isoDate(input?.nextExercise) || (record.nextExercise && record.nextExercise > yearAfter ? record.nextExercise : yearAfter);
+  const next = bump({ ...record, exercises: [...(record.exercises || []), row], nextExercise, history: pushHistory(record, 'Øvelse registrert', actor, `${row.evaluation} · neste øvelse ${nextExercise}`, now) }, actor, now);
   return { ok: true, record: next, exercise: row, events: [auditEvent({ entityType: 'beredskap', entityId: record.id, action: 'iso.emergency.exercise', actor, before: record, after: next, now })] };
 }
 

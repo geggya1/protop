@@ -10,9 +10,12 @@
 import {
   addDays, auditEvent, bump, fail, isoDate, newId, nextNumber, nowIso, pushHistory, text, todayKey, uniq,
 } from './core.js';
-import { FINDING_TYPES, SEVERITIES, findingDomain } from './catalog.js';
+import { FINDING_TYPES, INJURY_CLASSES, SEVERITIES, findingDomain, seriousInjury } from './catalog.js';
 
 const OPEN_ACTION = new Set(['apen', 'pagar', 'til_verifisering', 'returnert']);
+
+/** Personskade, nestenulykke og miljøhendelse: årsaken vurderes alltid (ISO 45001 10.2 b). */
+export const HSE_FINDING_TYPES = ['hms', 'nestenulykke', 'miljo'];
 
 function result(before, after, action, actor, now, reason = '') {
   return {
@@ -42,6 +45,20 @@ export function validateNewFinding(input) {
   return errors;
 }
 
+/**
+ * Triage samme dag: kritisk alvorlighet, mulig meldeplikt eller alvorlig personskade/dødsfall.
+ * Ellers tre dager (rutinen for avvik).
+ */
+export function urgentTriage(input) {
+  return input?.severity === 'kritisk' || !!input?.authorityNotificationRequired || seriousInjury(input?.injuryClass);
+}
+
+/** Oppgaven til den som sørger for varsling til myndighet. Nøkkelen følger personen, så ny ansvarlig får egen oppgave. */
+export function notificationTaskKey(finding) {
+  const uid = text(finding?.notificationAssigneeUid, 128);
+  return finding?.id && uid ? `iso_${finding.id}_varsling_${uid}` : '';
+}
+
 export function createFinding(input, { actor, existing = [], now = new Date() } = {}) {
   const errors = validateNewFinding(input);
   if (errors.length) return fail(errors[0], { errors });
@@ -66,6 +83,7 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
     potentialConsequence: text(input.potentialConsequence, 2000),
     immediateAction: text(input.immediateAction, 2000),
     severity: SEVERITIES.some((s) => s.id === input.severity) ? input.severity : '',
+    injuryClass: INJURY_CLASSES.some((c) => c.id === input.injuryClass) ? input.injuryClass : '',
     restricted,
     personalDetails: restricted ? text(input.personalDetails, 4000) : '',
     customerImpact: text(input.customerImpact, 1000),
@@ -73,11 +91,12 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
     environmentalMedium: text(input.environmentalMedium, 200),
     authorityNotificationRequired: !!input.authorityNotificationRequired,
     notificationAssignee: text(input.notificationAssignee, 160),
-    notificationDue: isoDate(input.notificationDue),
+    notificationAssigneeUid: input.authorityNotificationRequired ? text(input.notificationAssigneeUid, 128) : '',
+    notificationDue: isoDate(input.notificationDue) || (input.authorityNotificationRequired ? today : ''),
     notificationDone: false,
     assigneeUid: text(input.assigneeUid, 128),
     assigneeName: text(input.assigneeName, 160),
-    triageDue: addDays(today, input.severity === 'kritisk' ? 0 : 3),
+    triageDue: addDays(today, urgentTriage(input) ? 0 : 3),
     dueAt: isoDate(input.dueAt) || '',
     state: 'registrert',
     triage: null,
@@ -116,15 +135,21 @@ export function triageFinding(finding, input, { actor, now = new Date() } = {}) 
   if (input?.urgent && !text(input?.immediateAction) && !text(finding.immediateAction)) {
     return fail('Akutt fare: beskriv strakstiltak før saken går videre.');
   }
+  const notifiable = input.notifiable == null ? !!finding.authorityNotificationRequired : !!input.notifiable;
   const next = bump({
     ...finding,
     severity: input.severity,
     assigneeUid: text(input.assigneeUid, 128) || finding.assigneeUid,
     assigneeName: text(input.assigneeName, 160) || finding.assigneeName,
     immediateAction: text(input.immediateAction, 2000) || finding.immediateAction,
-    authorityNotificationRequired: input.notifiable == null ? finding.authorityNotificationRequired : !!input.notifiable,
+    authorityNotificationRequired: notifiable,
     notificationAssignee: text(input.notificationAssignee, 160) || finding.notificationAssignee,
-    notificationDue: isoDate(input.notificationDue) || finding.notificationDue,
+    // Ny person valgt: uid følger navnet (tom hvis personen ikke har innlogging).
+    notificationAssigneeUid: text(input.notificationAssignee, 160) && text(input.notificationAssignee, 160) !== finding.notificationAssignee
+      ? text(input.notificationAssigneeUid, 128)
+      : (text(input.notificationAssigneeUid, 128) || finding.notificationAssigneeUid || ''),
+    notificationDue: isoDate(input.notificationDue) || finding.notificationDue || (notifiable ? todayKey(now) : ''),
+    injuryClass: INJURY_CLASSES.some((c) => c.id === input.injuryClass) ? input.injuryClass : (finding.injuryClass || ''),
     dueAt: isoDate(input.dueAt) || finding.dueAt || addDays(todayKey(now), input.severity === 'kritisk' ? 7 : 30),
     triage: {
       severity: input.severity,
@@ -257,16 +282,29 @@ export function completeAction(finding, actionId, input, { actor, now = new Date
   }
   const next = bump({
     ...finding,
+    // Reglene har ikke løkker: indeksen sier hvilket tiltak tiltakseieren har endret.
+    doneActionIndex: (finding.actions || []).findIndex((a) => a.id === actionId),
     actions: replaceAction(finding, actionId, {
       state: 'til_verifisering',
       completedAt: nowIso(now),
       completedBy: text(actor?.name, 160),
+      completedByUid: text(actor?.uid, 128),
       completionNote: note,
       evidence: [...(action.evidence || []), ...evidence],
     }),
     history: pushHistory(finding, 'Tiltak meldt utført', actor, `${action.title}: ${note}`, now),
   }, actor, now);
   return result(finding, next, 'iso.action.submitted', actor, now);
+}
+
+/**
+ * Er det samme person som meldte tiltaket utført? Sammenlignes på bruker-id; to ansatte kan ha samme navn.
+ * Eldre tiltak uten uid sammenlignes på navn.
+ */
+export function completedBySelf(action, actor) {
+  const uid = text(actor?.uid, 128);
+  if (action?.completedByUid) return !!uid && action.completedByUid === uid;
+  return !!action?.completedBy && action.completedBy === text(actor?.name, 160);
 }
 
 /** Kontroll av gjennomføring: godkjent eller returnert. */
@@ -277,7 +315,8 @@ export function verifyAction(finding, actionId, input, { actor, now = new Date()
   const approved = !!input?.approved;
   const note = text(input?.note, 2000);
   if (!approved && !note) return fail('Skriv hvorfor tiltaket returneres.');
-  if (action.completedBy && action.completedBy === text(actor?.name, 160) && approved && !input?.allowSelf) {
+  const self = completedBySelf(action, actor);
+  if (self && approved && !input?.allowSelf) {
     return fail('Gjennomføringen bør kontrolleres av en annen enn den som utførte tiltaket.');
   }
   const actions = replaceAction(finding, actionId, {
@@ -293,7 +332,7 @@ export function verifyAction(finding, actionId, input, { actor, now = new Date()
     state: done && finding.state === 'tiltak' ? 'effektkontroll' : finding.state,
     history: pushHistory(
       finding,
-      approved ? (input?.allowSelf && action.completedBy === text(actor?.name, 160) ? 'Tiltak kontrollert (egenkontroll)' : 'Tiltak kontrollert') : 'Tiltak returnert',
+      approved ? (input?.allowSelf && self ? 'Tiltak kontrollert (egenkontroll)' : 'Tiltak kontrollert') : 'Tiltak returnert',
       actor,
       note,
       now,
@@ -317,11 +356,22 @@ export function cancelAction(finding, actionId, reason, { actor, now = new Date(
   return result(finding, next, 'iso.action.cancelled', actor, now, reason);
 }
 
+/**
+ * Siste effektkontroll var «ikke verifisert», og ingen tiltak er lagt til etter den.
+ * Da kan effekten ikke kontrolleres på nytt før det er gjort noe nytt.
+ */
+export function needsNewActions(finding) {
+  const last = (finding?.effect?.checks || []).at(-1);
+  if (last?.outcome !== 'ikke_verifisert') return false;
+  return !(finding.actions || []).some((a) => a.state !== 'kansellert' && String(a.createdAt || '') > String(last.at || ''));
+}
+
 /** Effektverifikasjon. «Ikke verifisert» gjenåpner saken for ny vurdering/nye tiltak (T11). */
 export function verifyEffect(finding, input, { actor, now = new Date() } = {}) {
   if (!finding) return fail('Fant ikke saken.');
   const ready = finding.state === 'effektkontroll' || (finding.state === 'vurdert' && allActionsDone(finding.actions));
   if (!ready) return fail('Alle tiltak må være kontrollert før effektvurdering.');
+  if (needsNewActions(finding)) return fail('Effekten ble ikke verifisert sist. Legg inn og gjennomfør nye tiltak før ny effektkontroll.');
   const outcome = input?.outcome;
   if (!['verifisert', 'ikke_verifisert'].includes(outcome)) return fail('Velg utfall av effektkontrollen.');
   if (!text(input?.method)) return fail('Beskriv hvordan effekten er kontrollert.');
@@ -352,6 +402,15 @@ export function verifyEffect(finding, input, { actor, now = new Date() } = {}) {
   return result(finding, next, outcome === 'verifisert' ? 'iso.finding.effect_verified' : 'iso.finding.reopened', actor, now);
 }
 
+/**
+ * Årsaksvurdering kreves for middels og høyere alvorlighet når tiltak er besluttet, og alltid for
+ * personskade, nestenulykke og miljøhendelse, også når det besluttes «ingen tiltak».
+ */
+export function rootCauseRequired(finding) {
+  if (HSE_FINDING_TYPES.includes(finding?.type)) return true;
+  return !!finding?.assessment?.correctiveRequired && ['middels', 'hoy', 'kritisk'].includes(finding?.severity);
+}
+
 /** Hva mangler før saken kan lukkes? Tom liste = kan lukkes. Brukes både i UI og ved lagring. */
 export function closeBlockers(finding) {
   const out = [];
@@ -364,12 +423,8 @@ export function closeBlockers(finding) {
     out.push('Mulig meldeplikt: bekreft at varsling til myndighet er vurdert/utført.');
   }
   const live = (finding.actions || []).filter((a) => a.state !== 'kansellert');
-  if (finding.assessment?.correctiveRequired) {
-    if (!live.length) out.push('Korrigerende tiltak er besluttet, men ingen tiltak er registrert.');
-    if (!finding.rootCause && ['middels', 'hoy', 'kritisk'].includes(finding.severity)) {
-      out.push('Årsaksvurdering mangler.');
-    }
-  }
+  if (finding.assessment?.correctiveRequired && !live.length) out.push('Korrigerende tiltak er besluttet, men ingen tiltak er registrert.');
+  if (!finding.rootCause && rootCauseRequired(finding)) out.push('Årsaksvurdering mangler.');
   const open = live.filter((a) => a.state !== 'verifisert');
   if (open.length) out.push(`${open.length} tiltak er ikke kontrollert.`);
   if (finding.effect?.required && finding.effect?.outcome !== 'verifisert') {
@@ -493,6 +548,13 @@ export function updateFindingLinks(finding, patch, { actor, now = new Date() } =
 export function findingStep(finding) {
   const order = ['registrert', 'triage', 'vurdert', 'tiltak', 'effektkontroll', 'lukket'];
   return Math.max(0, order.indexOf(finding?.state));
+}
+
+/** Hvem som er involvert i en sak (melder, ansvarlig, den som varsler myndighet, tiltakseiere) – brukes av reglene. */
+export function withInvolved(finding) {
+  const notifier = finding?.authorityNotificationRequired ? finding?.notificationAssigneeUid : '';
+  const set = new Set([finding?.reportedByUid, finding?.assigneeUid, notifier, ...((finding?.actions || []).map((a) => a?.ownerUid))].filter(Boolean).map(String));
+  return { ...finding, involvedUids: [...set] };
 }
 
 export function isOpenFinding(finding) {

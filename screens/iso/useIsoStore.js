@@ -5,18 +5,30 @@
  * Feiler lagringen, rulles visningen tilbake og feilen vises.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, todayKey } from '../../src/iso/core';
+import { addDays, checksum, todayKey } from '../../src/iso/core';
+import { notifyUsers } from '../../src/utils/notifications';
 import { emptyIsoState, replaceIn } from '../../src/iso/state';
 import {
-  appendAudit, completeIsoTask, ensureAccessMirror, ensureTask, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
+  appendAudit, appendReadAck, completeIsoTask, ensureAccessMirror, ensureTask, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
 } from '../../src/iso/storage';
 
-/** Oppgaver fra skjermede saker får ingen detaljer i Oppgaver (som alle i selskapet kan se). */
+/** Oppgaver og varsler fra skjermede saker får ingen detaljer i Oppgaver (som alle i selskapet kan se). */
 function safeEffects(effects, entity) {
   if (!entity?.restricted) return effects;
-  return (effects || []).map((e) => (e.type === 'createTask' || e.type === 'requestApproval' || e.type === 'notify'
-    ? { ...e, title: `Skjermet sak ${entity.number || ''}: åpne ISO → Avvik`.replace('  ', ' '), description: 'Detaljer vises bare i ISO for dem som har tilgang til saken.' }
-    : e));
+  const title = `Skjermet sak ${entity.number || ''}: åpne ISO → Avvik`.replace('  ', ' ');
+  return (effects || []).map((e) => {
+    if (e.type === 'push') return { ...e, body: title };
+    return e.type === 'createTask' || e.type === 'requestApproval' || e.type === 'notify'
+      ? { ...e, title, description: 'Detaljer vises bare i ISO for dem som har tilgang til saken.' }
+      : e;
+  });
+}
+
+/** Saksnummeret byttes i tekster når telleren ga et annet nummer enn det klienten regnet ut. */
+function renumberEffects(effects, from, to) {
+  if (!from || !to || from === to) return effects;
+  const swap = (s) => (typeof s === 'string' ? s.split(from).join(to) : s);
+  return (effects || []).map((e) => ({ ...e, title: swap(e.title), description: swap(e.description), body: swap(e.body) }));
 }
 
 export function useIsoStore({ companyId, actor, family = null, employees = null, ready = true }) {
@@ -54,12 +66,21 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Varsel i ProTop (og push på mobil) via den vanlige varselsmekanismen. Feil stopper ikke lagringen.
+  const push = useCallback((uids, title, body) => notifyUsers(uids, {
+    eventType: 'taskReceived', title, body, familyId: companyId, createdBy: actor?.uid || null,
+  }).catch(() => null), [companyId, actor?.uid]);
+
   const runEffects = useCallback(async (effects) => {
     const roleMap = stateRef.current.system?.roleMap || {};
     let created = 0;
     for (const e of effects || []) {
       if (e.type === 'completeTask') {
         await completeIsoTask(companyId, e.key);
+        continue;
+      }
+      if (e.type === 'push') {
+        await push(e.uids || [], e.title || 'ISO / K-HMS', e.body || '');
         continue;
       }
       if (!['createTask', 'requestApproval', 'notify'].includes(e.type)) continue;
@@ -74,10 +95,12 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
         source: 'iso',
       });
       if (id) created += 1;
+      const to = e.assigneeUid || mapped?.uid || '';
+      if (id && e.push && to) await push([to], 'Ny oppgave fra ISO', e.title);
     }
     if (created) refreshTasks();
     return created;
-  }, [companyId, actor?.uid, refreshTasks]);
+  }, [companyId, actor?.uid, refreshTasks, push]);
 
   /**
    * kind: findings | processes | instances | documents | forms | submissions | requirements | records | system
@@ -91,11 +114,23 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     stateRef.current = next;
     setState(next);
     try {
-      await saveEntity(companyId, kind, entity, { previous, createOnly });
+      const saved = await saveEntity(companyId, kind, entity, { previous, createOnly });
+      let final = entity;
+      let events = result.events || [];
+      let todo = [...(effects || []), ...(result.effects || [])];
+      // Ny sak: nummeret tildeles mot telleren i samme transaksjon. Vis og bruk det som ble lagret.
+      if (kind === 'findings' && saved?.number && saved.number !== entity.number) {
+        final = { ...entity, number: saved.number };
+        todo = renumberEffects(todo, entity.number, saved.number);
+        events = events.map((e) => (e.entityId === final.id && e.afterHash ? { ...e, afterHash: checksum(final) } : e));
+        const renumbered = replaceIn(stateRef.current, kind, final);
+        stateRef.current = renumbered;
+        setState(renumbered);
+      }
       const restricted = kind === 'findings' && (!!entity?.restricted || !!previous?.restricted);
-      await appendAudit(companyId, result.events || [], { restricted });
-      await runEffects(safeEffects([...(effects || []), ...(result.effects || [])], kind === 'findings' ? entity : null));
-      return result;
+      await appendAudit(companyId, events, { restricted });
+      await runEffects(safeEffects(todo, kind === 'findings' ? final : null));
+      return final === entity ? result : { ...result, [key]: final, events };
     } catch (err) {
       stateRef.current = before;
       setState(before);
@@ -104,6 +139,32 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
       return { ok: false, error: err?.message || 'Kunne ikke lagre.', conflict };
     }
   }, [companyId, runEffects]);
+
+  /**
+   * Lesebekreftelse (result fra acknowledgeRead). Lagres mot listen slik den står i skyen,
+   * uten revisjonslås, og kvitteringer andre har gjort i mellomtiden tas med.
+   */
+  const commitReadAck = useCallback(async (result) => {
+    if (!result?.ok) return result || { ok: false, error: 'Ukjent feil.' };
+    if (!result.ack) return result;
+    const before = stateRef.current;
+    const optimistic = replaceIn(before, 'documents', result.document);
+    stateRef.current = optimistic;
+    setState(optimistic);
+    try {
+      const acks = await appendReadAck(companyId, result.document.id, result.ack);
+      const current = (stateRef.current.documents || []).find((d) => d.id === result.document.id) || result.document;
+      const next = replaceIn(stateRef.current, 'documents', { ...current, readAcks: acks });
+      stateRef.current = next;
+      setState(next);
+      await appendAudit(companyId, result.events || []);
+      return result;
+    } catch (err) {
+      stateRef.current = before;
+      setState(before);
+      return { ok: false, error: err?.message || 'Kunne ikke lagre.' };
+    }
+  }, [companyId]);
 
   /** Flere lister på en gang (bevis, koblinger, vurderinger). */
   const commitLists = useCallback(async (patch, events = []) => {
@@ -163,7 +224,7 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
   }, [companyId]);
 
   return {
-    state, setState, loading, source, loadError, reload, commit, commitLists, commitMany, runEffects, tasks, refreshTasks, serverIso,
+    state, setState, loading, source, loadError, reload, commit, commitLists, commitMany, commitReadAck, runEffects, tasks, refreshTasks, serverIso,
     current: () => stateRef.current,
   };
 }

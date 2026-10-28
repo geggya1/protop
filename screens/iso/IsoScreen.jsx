@@ -14,6 +14,7 @@ import { defaultIsoSubView } from '../../src/navigation/shellModules';
 import { approverUidsFromRoles, isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
 import { autoQualityPlans, autoTaskEffects } from '../../src/iso/integrations';
+import { loadIsoTasks } from '../../src/iso/storage';
 import { createRecord } from '../../src/iso/registers';
 import { externalFormControls, mergeForms } from '../../src/iso/docControlLink';
 import { useIsoStore } from './useIsoStore';
@@ -139,7 +140,9 @@ export default function IsoScreen({ subView = 'oversikt' }) {
         if (saved.ok) plans += 1;
       }
       if (plans) notes.push(plans === 1 ? 'Ett nytt prosjekt har fått kvalitetsplan automatisk' : `${plans} nye prosjekter har fått kvalitetsplan automatisk`);
-      const effects = autoTaskEffects(store.current(), { people: sources.people });
+      // Status fra Oppgaver: et vedtak som er ferdig der, skal ikke gi påminnelse om forfalt vedtak.
+      const tasks = await loadIsoTasks(familyId);
+      const effects = autoTaskEffects(store.current(), { people: sources.people, tasks });
       const n = effects.length ? await store.runEffects(effects) : 0;
       if (n) notes.push(`${n} påminnelser og eskaleringer ligger som oppgaver i Oppgaver`);
       if (notes.length) setAutoNote(`${notes.join('. ')}.`);

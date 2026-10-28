@@ -170,6 +170,27 @@ export function severityLabel(id) {
   return SEVERITIES.find((row) => row.id === id)?.label || '–';
 }
 
+/**
+ * Skadeklasse for HMS-hendelser (melderens vurdering, kan endres i triage).
+ * serious = mulig meldeplikt til Arbeidstilsynet og politiet (aml § 5-2).
+ */
+export const INJURY_CLASSES = [
+  { id: 'ingen', label: 'Ingen personskade' },
+  { id: 'forstehjelp', label: 'Førstehjelp' },
+  { id: 'medisinsk', label: 'Medisinsk behandling' },
+  { id: 'fravaer', label: 'Skade med fravær' },
+  { id: 'alvorlig', label: 'Alvorlig personskade', serious: true },
+  { id: 'dodsfall', label: 'Dødsfall', serious: true },
+];
+
+export function injuryClassLabel(id) {
+  return INJURY_CLASSES.find((row) => row.id === id)?.label || '';
+}
+
+export function seriousInjury(id) {
+  return !!INJURY_CLASSES.find((row) => row.id === id)?.serious;
+}
+
 export const FINDING_STATES = [
   { id: 'registrert', label: 'Registrert', step: 0 },
   { id: 'triage', label: 'Triage', step: 1 },
@@ -226,6 +247,11 @@ export function riskLevel(likelihood, consequence, method = DEFAULT_RISK_METHOD)
   if (score >= t.high) return { score, id: 'hoy', label: 'Høy' };
   if (score >= t.medium) return { score, id: 'middels', label: 'Middels' };
   return { score, id: 'lav', label: 'Lav' };
+}
+
+/** Nivå per celle i 5×5-matrisen etter virksomhetens terskler: [sannsynlighet 1–5][konsekvens 1–5] → lav | middels | hoy | kritisk. */
+export function riskMatrixLevels(method = DEFAULT_RISK_METHOD) {
+  return [1, 2, 3, 4, 5].map((l) => [1, 2, 3, 4, 5].map((c) => riskLevel(l, c, method).id));
 }
 
 /**

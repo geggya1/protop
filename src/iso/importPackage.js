@@ -710,7 +710,8 @@ export function buildImport(state, pkg, {
     }
     out.documents.push({ ok: true, document, events });
     if (publish.documents && sub.ok && (!caps || caps.approve)) {
-      const pub = approveAndPublishDocument(document, { actor, caps, now, effectiveFrom: d.row.effectiveFrom });
+      // Godkjent i tidligere system: importøren publiserer selv, og det logges som egengodkjenning med begrunnelse.
+      const pub = approveAndPublishDocument(document, { actor, caps, now, effectiveFrom: d.row.effectiveFrom, otherApprovers: false, selfApprovalReason: 'Publisert ved import. Dokumentet er godkjent i tidligere system.' });
       if (pub.ok) out.publishDocuments.push(pub);
     }
   }

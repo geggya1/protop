@@ -565,10 +565,10 @@ export const ASSISTANT_TASKS = [
     q: tx('Hvordan melder jeg et avvik?', 'How do I report a deviation?'),
     title: tx('Melde avvik', 'Report a deviation'),
     ask: tx(['melde avvik', 'meld avvik', 'registrere avvik', 'nytt avvik', 'avvik', 'rue', 'nestenulykke', 'uønsket hendelse', 'skade på jobb', 'ulykke'], ['report deviation', 'report incident', 'near miss', 'deviation', 'incident']),
-    intro: tx('Avvik meldes i ISO / K-HMS — «Meld avvik» er alltid ett trykk unna.', 'Deviations are reported in ISO / QHSE — “Report deviation” is always one tap away.'),
+    intro: tx('Avvik meldes i ISO / K-HMS — «Meld avvik» ligger øverst på Oversikt og på Avvik og forbedring.', 'Deviations are reported in ISO / QHSE — “Report deviation” is at the top of Overview and of Deviations and improvement.'),
     steps: [
       s(tx('Meld avvik', 'Report deviation'), 'Gå til ISO / K-HMS → Avvik og forbedring (eller Oversikt) og trykk «Meld avvik».', 'Go to ISO / QHSE → Deviations and improvement (or Overview) and tap “Report deviation”.', gate('iso.avvik', 0)),
-      s(tx('Fyll ut', 'Fill in'), 'Velg type, skriv «Tittel» (kort hva som skjedde) og «Beskrivelse» med fakta. Sett dato, prosjekt og sted. Ikke legg inn helseopplysninger.', 'Pick the type, write the “Title” (briefly what happened) and a factual “Description”. Set the date, project and place. Don’t add health information.', gate('iso.avvik', 0)),
+      s(tx('Fyll ut', 'Fill in'), 'Velg type, skriv «Tittel» (kort hva som skjedde) og «Beskrivelse» med fakta. Sett dato, prosjekt og sted. Ved personskade velger du skadeklasse, og ved mulig meldeplikt hvem som varsler myndighet. Ikke legg inn helseopplysninger.', 'Pick the type, write the “Title” (briefly what happened) and a factual “Description”. Set the date, project and place. For an injury, pick the injury class, and for a possible duty to notify, who notifies the authorities. Don’t add health information.', gate('iso.avvik', 0)),
       s(tx('Send inn', 'Send'), 'Trykk «Send inn». Ansvarlig vurderer saken og lager tiltak, som blir oppgaver i Oppgaver.', 'Tap “Send”. The person responsible assesses the case and creates actions, which become tasks in Tasks.'),
     ],
     show: [at('iso.avvik', 0)],

@@ -224,7 +224,8 @@ describe('ansatt som melder eget avvik', () => {
     await assertSucceeds(getDocs(query(collection(db, 'families', A, 'isoFindingsRestricted'), where('reportedByUid', '==', 'mel'))));
     await assertSucceeds(getDocs(query(collection(db, 'families', A, 'isoFindingsRestricted'), where('involvedUids', 'array-contains', 'mel'))));
     await assertFails(getDocs(collection(db, 'families', A, 'isoFindingsRestricted')));
-    await assertSucceeds(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), { actions: [{ id: 'a1', state: 'til_verifisering' }], rev: 2 }));
+    // Involverte kan ikke legge til eller skrive om tiltak, bare melde eget tiltak utført (tests/rules/isoLocks.rules.test.mjs).
+    await assertFails(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), { actions: [{ id: 'a1', state: 'til_verifisering' }], rev: 2 }));
     await assertFails(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), { state: 'triage', rev: 2 }));
     await assertFails(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), { personalDetails: 'endret', rev: 2 }));
     await assertFails(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), closable({ closedByUid: 'mel' })));

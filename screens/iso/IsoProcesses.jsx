@@ -9,7 +9,7 @@ import {
   alignNodes, approveAndPublish, archiveProcess, cancelInstance, completeStep, createProcess, diagramToSvg, diffDiagrams, distributeNodes,
   draftVersion, duplicateNodes, exportProcessJson, focusView, groupNodes, groupOf, importProcessJson, makeEdge, makeNode, moveNodes, nodeRole, reorderProcesses,
   nodeType, normalizeDiagram, removeNodes, ungroup,
-  publishedVersionOf, rejectVersion, saveDraftDiagram, snap, startInstance, startNewVersion, submitForApproval,
+  publishedVersionOf, rejectVersion, saveDraftDiagram, snap, startInstance, startNewVersion, stepBlocker, submitForApproval,
   validateDiagram, versionOf,
 } from '../../src/iso/processes';
 import { PROCESS_TEMPLATES, templateByKey } from '../../src/iso/processTemplates';
@@ -527,7 +527,7 @@ function ProcessRun({ ctx, instance, onBack }) {
 
   async function complete(nodeId, input = {}) {
     setErr('');
-    const res = completeStep(instance, proc, nodeId, { ...input, note }, { actor });
+    const res = completeStep(instance, proc, nodeId, { ...input, note }, { actor, caps, roleMap: state.system?.roleMap });
     if (!res.ok) { setErr(res.error); return; }
     // Oppgaven for trinnet krysses av i Oppgaver, så den ikke blir hengende igjen.
     const visit = (instance.visits || {})[nodeId] || 1;
@@ -570,6 +570,9 @@ function ProcessRun({ ctx, instance, onBack }) {
               <TextIn value={note} onChangeText={setNote} placeholder="Merknad (valgfritt)" />
               {n.type === 'decision' ? (
                 <Row>{edges.map((e) => <Btn key={e.id} kind="primary" label={e.label || EDGE_CONDITIONS.find((c) => c.id === e.condition)?.label || 'Velg'} onPress={() => complete(n.id, { decision: e.id })} />)}</Row>
+              ) : n.type === 'approval' && stepBlocker(instance, proc, n.id, { actor, caps, roleMap: state.system?.roleMap }) ? (
+                // Godkjenningstrinn vises bare som knapper for rollen i trinnet eller en godkjenner.
+                <Text style={{ color: colors.muted, fontSize: 13 }}>{stepBlocker(instance, proc, n.id, { actor, caps, roleMap: state.system?.roleMap })}</Text>
               ) : n.type === 'approval' && edges.length > 1 ? (
                 <Row>
                   <Btn kind="primary" icon="checkmark" label="Godkjenn" onPress={() => complete(n.id, { approval: 'approved' })} />

@@ -24,7 +24,8 @@ import { isFirestorePermissionError, waitForFirestoreAccess } from '../utils/fir
 import { COLLECTIONS, collectionFor, emptyIsoState, stateFromCollections } from './state.js';
 import { restrictedUids } from './access.js';
 import { aclIsFresh, isCompanyOwner, planAclSync } from './aclSync.js';
-import { chunkForBatch } from './core.js';
+import { chunkForBatch, numberFromCounter, numberParts } from './core.js';
+import { withInvolved } from './findings.js';
 
 const CACHE_KEY = 'protop.iso.v1';
 const AUTH_MS = 8000;
@@ -248,6 +249,25 @@ export async function loadIsoSystem(companyId) {
 }
 
 /**
+ * Ny sak: saksnummeret tildeles mot telleren i samme transaksjon som saken skrives
+ * (som fakturanummer). Returnerer det som ble lagret, med endelig nummer.
+ * Saken leses ikke først: id-en er ny, og en melder uten særskilt tilgang får ikke lese i skjermet samling.
+ */
+async function saveNumberedFinding(companyId, name, entity) {
+  const counterRef = doc(db, 'families', companyId, 'isoCounters', numberParts(entity.number).series);
+  const ref = doc(db, 'families', companyId, name, entity.id);
+  return runTransaction(db, async (tx) => {
+    const counter = await tx.get(counterRef);
+    const next = numberFromCounter(entity.number, counter.exists() ? counter.data()?.last : 0);
+    const stamp = new Date().toISOString();
+    const data = plain({ ...withInvolved({ ...entity, number: next.number }), savedAt: stamp });
+    tx.set(counterRef, { last: next.last, updatedAt: stamp });
+    tx.set(ref, data);
+    return data;
+  });
+}
+
+/**
  * Lagrer én entitet med revisjonskontroll.
  * kind: findings | processes | instances | documents | forms | submissions | requirements | assessments | evidence | evidenceLinks | records | system
  */
@@ -256,6 +276,21 @@ export async function saveEntity(companyId, kind, entity, { previous = null, cre
   if (!id) throw new Error('Mangler selskap.');
   const authed = await ensureAuth();
   if (!authed) throw new Error('Ikke innlogget. Endringen er ikke lagret.');
+  if (kind === 'findings' && !previous) {
+    if (numberParts(entity?.number)) {
+      try {
+        return await saveNumberedFinding(id, collectionFor(kind, entity), entity);
+      } catch (err) {
+        // Reglene uten telleren (ikke rullet ut ennå): lagre med nummeret klienten regnet ut.
+        if (!isFirestorePermissionError(err)) throw err;
+      }
+    }
+    // Ny sak skrives uten å lese først. En transaksjon leser dokumentet, og en melder uten særskilt
+    // tilgang fikk ikke lese i skjermet samling (også et dokument som ikke finnes): HMS-hendelser feilet.
+    const data = plain({ ...withInvolved(entity), savedAt: new Date().toISOString() });
+    await setDoc(doc(db, 'families', id, collectionFor(kind, entity), entity.id), data);
+    return data;
+  }
   const name = kind === 'system' ? 'isoSystem' : collectionFor(kind, entity);
   const ref = doc(db, 'families', id, name, kind === 'system' ? 'main' : entity.id);
   const data = plain({ ...(kind === 'findings' ? withInvolved(entity) : entity), savedAt: new Date().toISOString() });
@@ -291,6 +326,28 @@ export async function saveEntity(companyId, kind, entity, { previous = null, cre
   return data;
 }
 
+/**
+ * Lesebekreftelse: kvitteringen legges til listen slik den står lagret nå, uten revisjonslås og uten
+ * å endre rev. Mange kan kvittere samtidig, og ingen får «endret av en annen bruker» fordi noen leste.
+ * Returnerer listen slik den ble lagret.
+ */
+export async function appendReadAck(companyId, documentId, ack) {
+  const id = cid(companyId);
+  if (!id || !documentId || !ack?.uid) throw new Error('Mangler dokument eller bruker.');
+  const authed = await ensureAuth();
+  if (!authed) throw new Error('Ikke innlogget. Bekreftelsen er ikke lagret.');
+  const ref = doc(db, 'families', id, 'isoDocuments', String(documentId));
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('Fant ikke dokumentet.');
+    const acks = Array.isArray(snap.data()?.readAcks) ? snap.data().readAcks : [];
+    if (acks.some((a) => a?.uid === ack.uid && a?.revision === ack.revision)) return acks;
+    const next = [...acks, plain(ack)];
+    tx.update(ref, { readAcks: next });
+    return next;
+  });
+}
+
 /** Flere entiteter i én batch (f.eks. bevis + koblinger + vurderinger). Ingen revisjonslås. */
 export async function saveMany(companyId, rows, { onProgress = null } = {}) {
   const id = cid(companyId);
@@ -318,11 +375,8 @@ export async function saveMany(companyId, rows, { onProgress = null } = {}) {
   }
 }
 
-/** Hvem som er involvert i en sak (melder, ansvarlig, tiltakseiere) – brukes av reglene. */
-export function withInvolved(finding) {
-  const set = new Set([finding?.reportedByUid, finding?.assigneeUid, ...((finding?.actions || []).map((a) => a?.ownerUid))].filter(Boolean).map(String));
-  return { ...finding, involvedUids: [...set] };
-}
+/** Hvem som er involvert i en sak – brukes av reglene. Ligger i findings.js (ren funksjon). */
+export { withInvolved };
 
 /** Revisjonsspor: bare nye dokumenter, med hendelsens egen id. Skjermede saker i egen samling. */
 export async function appendAudit(companyId, events, { restricted = false } = {}) {

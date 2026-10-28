@@ -5,17 +5,17 @@ import { prettyDate, todayKey } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, riskLevel } from '../../src/iso/catalog';
 import {
   AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
-  competenceGaps, competenceMatrix, createRecord, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
-  cleanContacts, contactsLabel, personsLabel, registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
+  competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
+  cleanContacts, contactsLabel, personsLabel, proofEnd, recordRiskMethod, registerDef, riskMatrix, riskScoresChanged, riskSummary, setRecordState, updateRecord,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
 import { createFinding } from '../../src/iso/findings';
 import { managementReviewSnapshot } from '../../src/iso/analytics';
-import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
+import { allRequirements, attachEvidence, requirementIdsForArea, statusText } from '../../src/iso/requirements';
 import { visibleFindings } from '../../src/iso/access';
 import { templateIdFor, usableForms } from '../../src/iso/forms';
 import {
-  aspectSuggestions, contractReviewStatus, equipmentStatus, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
+  autoAssignee, aspectSuggestions, contractReviewStatus, equipmentStatus, readinessChecklist, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
   projectQuality, qualityPlanDraft, sickLeaveSeries, stakeholderSuggestions, supplierSuggestions, wasteSummary,
 } from '../../src/iso/integrations';
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
@@ -32,9 +32,10 @@ export const STATE_LABEL = {
 };
 
 /** Knappetekst for statusskifte. «Arkivert» som knapp så ut som en merkelapp, ikke en handling. */
-function stateAction(next, current, first) {
+function stateAction(next, current, first, locked = false) {
   if (next === 'arkivert') return { label: 'Arkiver', icon: 'archive-outline' };
   if (current === 'arkivert' && next === first) return { label: 'Gjenopprett', icon: 'arrow-undo-outline' };
+  if (locked && !['godkjent', 'oppfolging', 'lukket'].includes(next)) return { label: `Opphev godkjenning: ${(STATE_LABEL[next] || next).toLowerCase()}`, icon: 'lock-open-outline' };
   return { label: STATE_LABEL[next] || next };
 }
 
@@ -86,7 +87,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
   async function save() {
     setBusy(true);
     const res = record
-      ? updateRecord(record, v, { actor })
+      ? updateRecord(record, v, { actor, riskMethod: state.system.riskMethod || DEFAULT_RISK_METHOD })
       : createRecord(registerKey, v, { actor, existing: state.records[registerKey], riskMethod: state.system.riskMethod || DEFAULT_RISK_METHOD });
     if (!res.ok) { setErr(res.error); setBusy(false); return; }
     const saved = await store.commit('records', 'record', res, { previous: record || null });
@@ -137,7 +138,10 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
     }
   }
 
-  const level = (registerKey === 'risiko' || registerKey === 'fare') ? riskSummary(v, state.system.riskMethod) : null;
+  // Endrede tall = ny vurdering etter gjeldende metode; ellers vises nivået etter metoden posten ble vurdert etter.
+  const assessed = record && riskScoresChanged(record, v) ? { ...v, methodThresholds: null, methodVersion: '' } : v;
+  const usedMethod = recordRiskMethod(assessed, state.system.riskMethod);
+  const level = (registerKey === 'risiko' || registerKey === 'fare') ? riskSummary(assessed, state.system.riskMethod) : null;
   const aspect = registerKey === 'miljoaspekt' ? aspectSignificance(v, state.system.riskMethod) : null;
   return (
     <Sheet visible={visible} title={record ? `${record.number} · ${def.title}` : `Ny – ${def.title}`} onClose={onClose} wide={ctx.wide} footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Lagre" busy={busy} onPress={save} /></>}>
@@ -149,7 +153,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
         <Row>
           <Pill label={`Iboende: ${level.inherent.label}${level.inherent.score ? ` (${level.inherent.score})` : ''}`} tone={level.inherent.id === 'kritisk' || level.inherent.id === 'hoy' ? 'danger' : 'warn'} />
           <Pill label={`Rest: ${level.residual.label}${level.residual.score ? ` (${level.residual.score})` : ''}`} tone={level.residual.id === 'kritisk' || level.residual.id === 'hoy' ? 'danger' : 'ok'} />
-          <Text style={{ color: colors.muted, fontSize: 11 }}>Metode {state.system.riskMethod?.name} v{state.system.riskMethod?.version}</Text>
+          <Text style={{ color: colors.muted, fontSize: 11 }}>Metode {usedMethod?.name} v{usedMethod?.version}</Text>
         </Row>
       ) : null}
       {level?.inherent?.id && level.inherent.id !== 'ukjent' ? (
@@ -256,11 +260,11 @@ function RecordDetail({ ctx, record, onClose, children }) {
           return <KV key={f.key} label={f.label} value={value} />;
         })}
         {children}
-        {caps.manage && !record.locked ? (
+        {caps.manage && (!record.locked || caps.approve) ? (
           <>
             <Row>
-              <Btn icon="create-outline" label="Rediger" onPress={() => setEdit(true)} />
-              {record.needsReview ? (
+              {!record.locked ? <Btn icon="create-outline" label="Rediger" onPress={() => setEdit(true)} /> : null}
+              {record.needsReview && !record.locked ? (
                 <Btn
                   small
                   icon="checkmark-done-outline"
@@ -274,11 +278,16 @@ function RecordDetail({ ctx, record, onClose, children }) {
                 />
               ) : null}
               {def.states.filter((s) => s !== record.state).map((s) => {
-                const a = stateAction(s, record.state, def.states[0]);
+                const a = stateAction(s, record.state, def.states[0], record.locked);
                 return <Btn key={s} small icon={a.icon} label={a.label} onPress={() => state(s)} />;
               })}
             </Row>
-            <TextIn value={note} onChangeText={setNote} placeholder="Merknad til statusendring" />
+            <TextIn value={note} onChangeText={setNote} placeholder={record.locked ? 'Begrunnelse (påkrevd for å oppheve godkjenningen)' : 'Merknad til statusendring'} />
+            {record.locked ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Posten er godkjent og låst. «Oppfølging» og «Lukket» beholder låsen. Å gå tilbake til en tidligere status opphever godkjenningen, og posten må godkjennes på nytt.
+              </Text>
+            ) : null}
             {def.states.includes('arkivert') ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {record.state === 'arkivert'
@@ -563,7 +572,7 @@ export function RiskPage({ ctx }) {
       {ids ? <Banner tone="info" text={`Viser utvalg: ${params?.label || ''}`} /> : null}
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
         <Card title="Risikomatrise" style={{ flex: 1, width: wide ? undefined : '100%' }} right={<Choice small options={[{ id: 'inherent', label: 'Iboende' }, { id: 'residual', label: 'Rest' }]} value={which} onChange={(x) => setWhich(x || 'inherent')} />}>
-          <RiskMatrix cells={cells} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
+          <RiskMatrix cells={cells} riskMethod={state.system.riskMethod} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
         </Card>
         <Card title="Register" style={{ flex: 1, width: wide ? undefined : '100%' }}>
           <Choice small options={['Risiko', 'Mulighet']} value={kind} onChange={setKind} placeholder="Alle" title="Vis" />
@@ -731,7 +740,7 @@ export function EmergencyPage({ ctx }) {
   const { state, wide, actor, store, caps } = ctx;
   const reg = useRegister(ctx, 'beredskap');
   const [emergency, setEmergency] = useState('');
-  const [ex, setEx] = useState({ date: todayKey(), participants: '', evaluation: '', improvement: false });
+  const [ex, setEx] = useState({ date: todayKey(), participants: '', evaluation: '', improvement: false, nextExercise: '' });
   const [err, setErr] = useState('');
   const scen = reg.rows.filter((r) => r.state !== 'arkivert');
   const shown = scen.find((s) => s.id === emergency);
@@ -765,6 +774,7 @@ export function EmergencyPage({ ctx }) {
               <Field label="Dato"><DateIn value={ex.date} onChange={(x) => setEx({ ...ex, date: x })} /></Field>
               <Field label="Deltakere"><TextIn value={ex.participants} onChangeText={(x) => setEx({ ...ex, participants: x })} /></Field>
               <Field label="Evaluering" required><TextIn multiline value={ex.evaluation} onChangeText={(x) => setEx({ ...ex, evaluation: x })} /></Field>
+              <Field label="Neste øvelse" hint="Tomt = 12 måneder etter denne øvelsen."><DateIn value={ex.nextExercise} onChange={(x) => setEx({ ...ex, nextExercise: x })} /></Field>
               <Check label="Behov for forbedring (oppretter avvikssak)" value={ex.improvement} onChange={(x) => setEx({ ...ex, improvement: x })} />
               <Btn kind="primary" label="Registrer øvelse" onPress={async () => {
                 const res = addExercise(reg.open, ex, { actor });
@@ -772,10 +782,12 @@ export function EmergencyPage({ ctx }) {
                 const saved = await store.commit('records', 'record', res, { previous: reg.open });
                 if (!saved.ok) { setErr(saved.error); return; }
                 if (ex.improvement) {
-                  const f = createFinding({ type: 'forbedring', title: `Forbedring etter øvelse: ${reg.open.title}`, description: ex.evaluation, requirementIds: requirementIdsForArea(state, 'emergency') }, { actor, existing: state.findings });
-                  if (f.ok) await store.commit('findings', 'finding', f);
+                  // Forbedringssaken får ansvarlig og oppgave som andre saker.
+                  const who = autoAssignee(state.system, 'forbedring');
+                  const f = createFinding({ type: 'forbedring', title: `Forbedring etter øvelse: ${reg.open.title}`, description: ex.evaluation, requirementIds: requirementIdsForArea(state, 'emergency'), assigneeName: who?.name || '', assigneeUid: who?.uid || '' }, { actor, existing: state.findings });
+                  if (f.ok) await store.commit('findings', 'finding', f, { effects: who?.uid ? [{ type: 'createTask', key: `iso_${f.finding.id}_triage`, title: `Behandle ${f.finding.number}: ${f.finding.title}`, assigneeUid: who.uid, deadline: f.finding.triageDue }] : [] });
                 }
-                setEx({ date: todayKey(), participants: '', evaluation: '', improvement: false });
+                setEx({ date: todayKey(), participants: '', evaluation: '', improvement: false, nextExercise: '' });
               }} />
               {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
             </>
@@ -871,7 +883,7 @@ export function CompetencePage({ ctx }) {
         <CompetenceProfiles ctx={ctx} people={people} matrix={fullMatrix} q={q} />
       </Card>
       <SimpleRegister ctx={ctx} registerKey="kompetansekrav" subtitle={(r) => `${r.role}${(r.persons || []).length ? ` + ${r.persons.length} valgt` : ''}${r.validityMonths ? ` · gyldig ${r.validityMonths} mnd` : ''}`} />
-      <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => `${r.personName} · ${r.validTo ? `til ${prettyDate(r.validTo)}` : 'varig'}`} />
+      <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => { const end = proofEnd(r, (state.records.kompetansekrav || []).find((k) => k.id === r.requirementId)); return `${r.personName} · ${end ? `til ${prettyDate(end)}` : 'varig'}`; }} />
       {eq.total ? (
         <Card title="Utstyr og infrastruktur (7.1)" subtitle="Fra Utstyr. Service og garanti følges opp der.">
           {eq.inService.slice(0, 5).map((e) => <ListRow key={e.id} icon="construct-outline" tone="warn" title={e.name || e.title || 'Utstyr'} subtitle="På service" />)}
@@ -880,7 +892,7 @@ export function CompetencePage({ ctx }) {
         </Card>
       ) : null}
       <Sheet visible={!!pick} title={pick ? `${pick.person.name} – ${pick.cell.requirement.title}` : ''} onClose={() => setPick(null)}>
-        {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${pick.cell.record.validTo ? `gyldig til ${prettyDate(pick.cell.record.validTo)}` : 'varig'}`} /> : null}
+        {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${proofEnd(pick.cell.record, pick.cell.requirement) ? `gyldig til ${prettyDate(proofEnd(pick.cell.record, pick.cell.requirement))}` : 'varig'}`} /> : null}
         {!pick?.cell.record && pick?.cell.cv ? <KV label={`I CV-en (${pick.cell.cv.kind.toLowerCase()})`} value={`${pick.cell.cv.title}${pick.cell.cv.date ? ` · ${pick.cell.cv.date}` : ''}`} /> : null}
         {!pick?.cell.record && !pick?.cell.cv ? <Text style={{ color: colors.muted }}>Ingen dokumentert kompetanse.</Text> : null}
         <Btn kind="primary" icon="add" label="Registrer bevis" onPress={() => { setCreate({ personName: pick.person.name, personUid: pick.person.uid, requirementId: pick.cell.requirement.id, title: pick.cell.cv?.title || '' }); setPick(null); }} />
@@ -1140,7 +1152,7 @@ export function AuditPage({ ctx }) {
               {f.findingId ? <Btn small label="Åpne avvikssak" onPress={() => go('avvik', { open: f.findingId })} /> : null}
             </View>
           ))}
-          {caps.manage && !['godkjent', 'lukket', 'avlyst'].includes(reg.open.state) ? (
+          {caps.manage && !reg.open.locked && !['godkjent', 'lukket', 'avlyst'].includes(reg.open.state) ? (
             <>
               <Field label="Klassifisering"><Choice options={AUDIT_FINDING_CLASSES} value={af.classification} onChange={(x) => setAf({ ...af, classification: x || 'avvik' })} /></Field>
               <Field label="Funn" required><TextIn multiline value={af.description} onChangeText={(x) => setAf({ ...af, description: x })} /></Field>
@@ -1188,7 +1200,7 @@ export function ReviewPage({ ctx }) {
   }
   const s = reg.open?.snapshot;
   return (
-    <Page wide={wide} title="Ledelsens gjennomgang" intro="Grunnlaget hentes automatisk fra registrene og låses når referatet godkjennes. Vedtak blir oppgaver med ansvar og frist." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny gjennomgang" onPress={() => reg.setCreating(true)} /> : null}>
+    <Page wide={wide} title="Ledelsens gjennomgang" intro="Grunnlaget hentes fra registrene med «Hent grunnlag» inne i gjennomgangen og låses når referatet godkjennes. Vedtak blir oppgaver med ansvar og frist." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny gjennomgang" onPress={() => reg.setCreating(true)} /> : null}>
       <Card title="Gjennomganger">
         <RecordList ctx={ctx} registerKey="ledelse" rows={reg.rows} subtitle={(r) => `${prettyDate(r.meetingDate)} · ${(r.decisions || []).length} vedtak`} onOpen={(r) => reg.setOpenId(r.id)} />
       </Card>
@@ -1210,12 +1222,26 @@ export function ReviewPage({ ctx }) {
           ) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ikke hentet.</Text>}
           {caps.manage && !reg.open.locked ? <Btn icon="download-outline" label={s ? 'Hent grunnlag på nytt' : 'Hent grunnlag'} onPress={snapshot} /> : null}
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Vedtak</Text>
-          {(reg.open.decisions || []).map((x) => (
-            <Row key={x.id}>
-              <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{x.done ? '✓ ' : ''}{x.decision} · {x.ownerName} · {prettyDate(x.dueAt)}</Text>
-              {!x.done && caps.manage ? <Btn small label="Utført" onPress={async () => { const r = markDecisionDone(reg.open, x.id, { actor }); await store.commit('records', 'record', r, { previous: reg.open }); }} /> : null}
-            </Row>
-          ))}
+          {(reg.open.decisions || []).map((x) => {
+            // Ansvarlig kan merke vedtaket utført også når referatet er godkjent og låst.
+            const mine = !!x.ownerUid && x.ownerUid === actor.uid;
+            const inTasks = !x.done && decisionCompleted(x, store.tasks);
+            return (
+              <Row key={x.id}>
+                <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{x.done ? '✓ ' : ''}{x.decision} · {x.ownerName} · {prettyDate(x.dueAt)}{x.done && x.doneBy ? ` · utført ${prettyDate(x.doneAt)} av ${x.doneBy}` : ''}</Text>
+                {inTasks ? <Pill label="Ferdig i Oppgaver" icon="checkbox-outline" tone="ok" /> : null}
+                {!x.done && (caps.manage || mine) ? (
+                  <Btn small label="Utført" onPress={async () => {
+                    setErr('');
+                    const r = markDecisionDone(reg.open, x.id, { actor, caps });
+                    if (!r.ok) { setErr(r.error); return; }
+                    const saved = await store.commit('records', 'record', r, { previous: reg.open, effects: x.taskKey ? [{ type: 'completeTask', key: x.taskKey }] : [] });
+                    if (!saved.ok) setErr(saved.error);
+                  }} />
+                ) : null}
+              </Row>
+            );
+          })}
           {caps.manage && !reg.open.locked ? (
             <>
               <Field label="Vedtak" required><TextIn multiline rows={2} value={d.decision} onChangeText={(x) => setD({ ...d, decision: x })} /></Field>
@@ -1319,9 +1345,12 @@ export function ProjectQualityPage({ ctx }) {
 
 export function CertificationPage({ ctx }) {
   const colors = useColors();
-  const { state, wide, caps } = ctx;
+  const { state, wide, caps, go, people } = ctx;
   const [selected, setSelected] = useState([]);
   const requirements = useMemo(() => allRequirements(state), [state]);
+  // Mangellisten bak «Klar for ekstern revisjon»: samme sjekkliste som «Neste steg» på oversikten.
+  const ready = useMemo(() => readinessChecklist(state, { people }), [state, people]);
+  const missing = ready.items.filter((i) => !i.done);
   const evidence = new Map(state.evidence.map((e) => [e.id, e]));
 
   function exportPackage() {
@@ -1331,14 +1360,14 @@ export function CertificationPage({ ctx }) {
       const r = requirements.find((x) => x.id === id);
       const links = state.evidenceLinks.filter((l) => l.requirementId === id && l.reviewState === 'godkjent');
       const a = state.assessments.find((x) => x.requirementId === id);
-      return { r, a, ev: links.map((l) => evidence.get(l.evidenceId)).filter((e) => e && e.classification !== 'skjermet') };
+      return { r, a, status: statusText(state, id), ev: links.map((l) => evidence.get(l.evidenceId)).filter((e) => e && e.classification !== 'skjermet') };
     }).filter((x) => x.r);
     const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Bevispakke</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#0f172a}td,th{border:1px solid #cbd5e1;padding:6px;font-size:12px;vertical-align:top}table{border-collapse:collapse;width:100%}h1{font-size:20px}.m{color:#475569;font-size:12px}</style></head><body>
 <h1>Bevispakke – ${esc(state.system.name || 'Ledelsessystem')}</h1>
 <p class="m">Eksportert ${new Date().toISOString().slice(0, 16).replace('T', ' ')}. Omfang: ${esc(state.system.scopeText)}. Interne vurderinger – ikke sertifisering. Skjermede HMS-/personopplysninger er utelatt.</p>
 <table><tr><th>Krav</th><th>Intern status</th><th>Vurdert</th><th>Godkjente bevis (revisjon)</th></tr>
-${rows.map(({ r, a, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clause}` : r.kind)} ${esc(r.title)}</td><td>${esc(a?.status || 'ikke_vurdert')}</td><td>${esc(a?.assessedBy || '')} ${esc(String(a?.assessedAt || '').slice(0, 10))}</td><td>${ev.map((e) => `${esc(e.label)}${e.objectRevision ? ` (rev ${esc(e.objectRevision)})` : ''} [${esc(e.hash)}]`).join('<br>') || '–'}</td></tr>`).join('')}
+${rows.map(({ r, a, status, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clause}` : r.kind)} ${esc(r.title)}</td><td>${esc(status)}</td><td>${esc(a?.assessedBy || '')} ${esc(String(a?.assessedAt || '').slice(0, 10))}</td><td>${ev.map((e) => `${esc(e.label)}${e.objectRevision ? ` (rev ${esc(e.objectRevision)})` : ''} [${esc(e.hash)}]`).join('<br>') || '–'}</td></tr>`).join('')}
 </table><script>setTimeout(function(){window.print()},300)</script></body></html>`;
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
@@ -1346,7 +1375,12 @@ ${rows.map(({ r, a, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clau
 
   return (
     <Page wide={wide} title="Sertifisering og revisjonsrom" intro="Sertifikater, eksterne revisjoner og bevispakker. ProTop utsteder ikke sertifikat – det gjør et akkreditert sertifiseringsorgan etter uavhengig revisjon.">
-      <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Klar for ekstern revisjon» er en intern indikator med synlig mangelliste." />
+      <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Klar for ekstern revisjon» er en intern indikator med synlig mangelliste, ikke en sertifiseringsgrad." />
+      <Card title={`Klar for ekstern revisjon: ${ready.done} av ${ready.total}`} subtitle={ready.method}>
+        {missing.length ? missing.map((i) => (
+          <ListRow key={i.key} icon="close-circle-outline" tone="warn" title={i.label} subtitle="Mangler" onPress={() => go(i.page)} />
+        )) : <Banner tone="ok" text="Hovedelementene er på plass. Om kravene er oppfylt, avgjør revisor." />}
+      </Card>
       <SimpleRegister ctx={ctx} registerKey="sertifikat" subtitle={(r) => `${r.certBody}${r.validTo ? ` · gyldig til ${prettyDate(r.validTo)}` : ''}${r.nextAudit ? ` · neste revisjon ${prettyDate(r.nextAudit)}` : ''}`} />
       <Card title="Bevispakke til revisor" subtitle="Velg krav (tomt utvalg = alle). Bare godkjente bevis tas med, og skjermede saker utelates.">
         <Choice small multi title="Krav" options={requirements.map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.title, hint: r.standard ? (r.title || '') : '' }))} value={selected} onChange={setSelected} />

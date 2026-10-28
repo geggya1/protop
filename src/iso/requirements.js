@@ -10,7 +10,7 @@ import {
   addDays, auditEvent, bump, checksum, fail, isoDate, newId, nowIso, pushHistory, text, todayKey, uniq,
 } from './core.js';
 import {
-  ASSESSMENT_STATUSES, REQUIREMENT_KINDS, isoRequirementLibrary, mayBeNotApplicable,
+  ASSESSMENT_STATUSES, REQUIREMENT_KINDS, assessmentLabel, isoRequirementLibrary, mayBeNotApplicable,
 } from './catalog.js';
 
 export function allRequirements(state) {
@@ -64,6 +64,17 @@ export function effectiveStatus(state, requirementId, now = new Date()) {
   if (!a) return 'ikke_vurdert';
   if (a.status === 'internt_verifisert' && a.nextReview && a.nextReview < todayKey(now)) return 'ma_revurderes';
   return a.status || 'ikke_vurdert';
+}
+
+/** Status som tekst (bevispakke, eksport): effektiv status, og utløpt «internt verifisert» vises som utløpt. */
+export function statusText(state, requirementId, now = new Date()) {
+  const a = assessmentFor(state, requirementId);
+  const status = effectiveStatus(state, requirementId, now);
+  if (a?.status === 'internt_verifisert' && status === 'ma_revurderes') {
+    const [y, m, d] = String(a.nextReview || '').slice(0, 10).split('-');
+    return `${assessmentLabel(status)} (verifisering utløpt${d ? ` ${d}.${m}.${y}` : ''})`;
+  }
+  return assessmentLabel(status);
 }
 
 /**

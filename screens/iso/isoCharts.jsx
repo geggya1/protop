@@ -7,6 +7,8 @@ import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { useColors } from '../../src/context/ThemeContext';
 import { monthLabel } from '../../src/iso/core';
+import { DEFAULT_RISK_METHOD, riskMatrixLevels } from '../../src/iso/catalog';
+import { sortedMeasurements } from '../../src/iso/registers';
 import { toneColor } from './isoUi';
 
 function TableToggle({ open, onToggle }) {
@@ -152,21 +154,14 @@ function segmentColor(colors, s) {
   return '#94a3b8';
 }
 
-const RISK_BG = ['#bbf7d0', '#d9f99d', '#fde68a', '#fdba74', '#fca5a5'];
+// Farge per nivå. Nivået regnes med virksomhetens terskler (Innstillinger → Risikometode), så fargen stemmer med nivået i listen.
+const RISK_BG = { lav: '#bbf7d0', middels: '#fde68a', hoy: '#fdba74', kritisk: '#fca5a5' };
 
-function riskTone(l, c) {
-  const s = l * c;
-  if (s >= 15) return 4;
-  if (s >= 10) return 3;
-  if (s >= 5) return 2;
-  if (s >= 3) return 1;
-  return 0;
-}
-
-/** 5×5 risikomatrise (G09). Tall + farge, ikke bare farge. */
-export function RiskMatrix({ cells, onPick, method }) {
+/** 5×5 risikomatrise (G09). Tall + farge, ikke bare farge. riskMethod = virksomhetens metode (terskler). */
+export function RiskMatrix({ cells, onPick, method, riskMethod = DEFAULT_RISK_METHOD }) {
   const colors = useColors();
   const total = cells.flat().reduce((s, x) => s + x.length, 0);
+  const levels = riskMatrixLevels(riskMethod || DEFAULT_RISK_METHOD);
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -185,7 +180,7 @@ export function RiskMatrix({ cells, onPick, method }) {
                     onPress={() => ids.length && onPick?.({ ids, label: `Sannsynlighet ${l} × konsekvens ${c}` })}
                     accessibilityRole="button"
                     accessibilityLabel={`Sannsynlighet ${l}, konsekvens ${c}: ${ids.length}`}
-                    style={{ flex: 1, height: 34, borderRadius: 6, backgroundColor: RISK_BG[riskTone(l, c)], alignItems: 'center', justifyContent: 'center' }}
+                    style={{ flex: 1, height: 34, borderRadius: 6, backgroundColor: RISK_BG[levels[l - 1][c - 1]] || RISK_BG.lav, alignItems: 'center', justifyContent: 'center' }}
                   >
                     <Text style={{ color: '#0f172a', fontWeight: '700', fontSize: 13 }}>{ids.length || ''}</Text>
                   </TouchableOpacity>
@@ -271,7 +266,7 @@ export function CompetenceHeatmap({ matrix, onPick }) {
 /** Måloppnåelse med tidsserie (G11). Stiplet linje = måltall. */
 export function ObjectiveSpark({ record }) {
   const colors = useColors();
-  const pts = (record.measurements || []).slice(-12);
+  const pts = sortedMeasurements(record).slice(-12);
   if (!pts.length) return <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen datagrunnlag ennå.</Text>;
   const target = Number(record.target);
   const values = [...pts.map((p) => p.value), Number.isFinite(target) ? target : null, Number(record.baseline)].filter((v) => Number.isFinite(v));

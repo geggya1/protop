@@ -8,11 +8,11 @@
  */
 import { addDays, isoDate, lastMonths, monthKey, text, todayKey, uniq } from './core.js';
 import { NORWEGIAN_OBLIGATIONS, STANDARDS } from './catalog.js';
-import { isOpenFinding, openActions } from './findings.js';
+import { isOpenFinding, notificationTaskKey, openActions, urgentTriage } from './findings.js';
 import { normalizeDiagram, versionOf } from './processes.js';
 import { documentsDueForReview } from './documents.js';
 import { matrixRows, requirementIdsForArea } from './requirements.js';
-import { competenceMatrix, createRecord, overdueRecords } from './registers.js';
+import { competenceMatrix, createRecord, decisionCompleted, overdueRecords } from './registers.js';
 import { usableForms, templateIdFor } from './forms.js';
 import { annualTaskEffects } from './planning.js';
 
@@ -423,7 +423,66 @@ export function autoAssignee(system, type) {
   return pick?.name ? { name: pick.name, uid: pick.uid || '' } : null;
 }
 
+const NOTIFY_TEXT = 'Mulig meldeplikt. Alvorlig personskade eller dødsfall: ring 113 og varsle Arbeidstilsynet og politiet straks (aml § 5-2). '
+  + 'ProTop melder ikke selv til myndighetene. Bekreft i ISO → Avvik og forbedring når varslingen er vurdert eller utført.';
+
+/** Oppgaven til den som sørger for varsling til myndighet (frist samme dag). Tom liste uten meldeplikt eller uten innlogging. */
+export function notificationTaskEffects(finding) {
+  const key = notificationTaskKey(finding);
+  if (!finding?.authorityNotificationRequired || !key) return [];
+  return [{
+    type: 'createTask',
+    key,
+    title: `Mulig meldeplikt – vurder varsling til myndighet: ${finding.number} ${finding.title}`,
+    assigneeUid: finding.notificationAssigneeUid,
+    deadline: finding.notificationDue || finding.triageDue || null,
+    description: NOTIFY_TEXT,
+    push: true,
+  }];
+}
+
+/**
+ * Oppgaver og varsler når en sak meldes. Behandler får oppgave med triagefristen.
+ * Mulig meldeplikt eller alvorlig skade: oppgaven varsles straks, den som skal varsle myndighet
+ * får egen oppgave med frist samme dag, og HMS-leder og øverste ledelse får varsel.
+ */
+export function newFindingEffects(finding, system) {
+  if (!finding?.id) return [];
+  const roles = system?.roleMap || {};
+  const urgent = urgentTriage(finding);
+  const out = [];
+  if (finding.assigneeUid) {
+    out.push({ type: 'createTask', key: `iso_${finding.id}_triage`, title: `Behandle ${finding.number}: ${finding.title}`, assigneeUid: finding.assigneeUid, deadline: finding.triageDue, ...(urgent ? { push: true } : {}) });
+  }
+  out.push(...notificationTaskEffects(finding));
+  if (urgent) {
+    const told = new Set(out.map((e) => e.assigneeUid).filter(Boolean));
+    const uids = uniq([roles.hse_manager?.uid, roles.top_management?.uid]).filter((uid) => !told.has(uid));
+    if (uids.length) {
+      out.push({
+        type: 'push',
+        uids,
+        title: finding.authorityNotificationRequired ? 'Mulig meldeplikt' : 'Alvorlig hendelse meldt',
+        body: `${finding.number} ${finding.title}`,
+      });
+    }
+  }
+  return out;
+}
+
 /* ───────────────────────── Modenhet / neste steg ───────────────────────── */
+
+/**
+ * Datoen en ledelsens gjennomgang eller internrevisjon regnes som gjennomført: møtedato / revisjonsdato
+ * (planlagt dato) når den er passert, ellers datoen rapporten eller referatet ble godkjent. Aldri siste
+ * endring: en gjennomgang fra 2023 som redigeres i dag, er ikke gjennomført i dag.
+ */
+export function performedDate(record, now = new Date()) {
+  const own = isoDate(record?.register === 'ledelse' ? record?.meetingDate : record?.plannedDate);
+  if (own && own <= todayKey(now)) return own;
+  const approved = [...(record?.history || [])].reverse().find((h) => /^Status: godkjent/.test(String(h?.action || '')))?.at;
+  return isoDate(approved) || '';
+}
 
 /**
  * Intern beredskapsliste (spesifikasjon kap. 9). Ikke en sertifiseringsgrad:
@@ -449,8 +508,8 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
     { key: 'objectives', label: 'Mål med måling er etablert', done: (rec.mal || []).some((m) => (m.measurements || []).length), page: 'mal' },
     { key: 'competence', label: 'Kompetansekrav er definert', done: (rec.kompetansekrav || []).length > 0 && people.length > 0, page: 'kompetanse' },
     { key: 'nonconformity', label: 'Avviksbehandling er i bruk', done: (state.findings || []).length > 0, page: 'avvik' },
-    { key: 'audit', label: 'Internrevisjon gjennomført siste 12 mnd', done: (rec.revisjon || []).some((a) => ['godkjent', 'oppfolging', 'lukket'].includes(a.state) && String(a.updatedAt || '').slice(0, 10) >= year), page: 'revisjon' },
-    { key: 'review', label: 'Ledelsens gjennomgang siste 12 mnd', done: (rec.ledelse || []).some((l) => l.state === 'godkjent' && String(l.updatedAt || '').slice(0, 10) >= year), page: 'ledelse' },
+    { key: 'audit', label: 'Internrevisjon gjennomført siste 12 mnd', done: (rec.revisjon || []).some((a) => ['godkjent', 'oppfolging', 'lukket'].includes(a.state) && performedDate(a, now) >= year), page: 'revisjon' },
+    { key: 'review', label: 'Ledelsens gjennomgang siste 12 mnd', done: (rec.ledelse || []).some((l) => l.state === 'godkjent' && performedDate(l, now) >= year), page: 'ledelse' },
   ];
   const done = items.filter((i) => i.done).length;
   return { items, done, total: items.length, method: 'Intern sjekkliste over hovedelementer i ledelsessystemet. Ikke en sertifiseringsgrad.' };
@@ -463,7 +522,7 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
  * kravvurderinger, leverandørevalueringer, risiko-/aspektrevurderinger, utløpt kompetanse,
  * øvelser og vedtak. Nøkkelen inneholder fristen, så hver frist gir én oppgave (idempotent).
  */
-export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
+export function autoTaskEffects(state, { now = new Date(), people = [], tasks = null } = {}) {
   const roles = state.system?.roleMap || {};
   const owner = (name, uid) => ({ assigneeUid: uid || '', who: name || '' });
   const qm = roles.quality_manager || roles.system_owner || {};
@@ -485,8 +544,9 @@ export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
       push(`comp_${row.person.id || row.person.name}_${cell.requirement.id}_${cell.record?.validTo || ''}`, `Fornye kompetanse «${cell.requirement.title}» for ${row.person.name}`, todayKey(now), qm);
     }
   }
+  // Vedtak som er ferdig i Oppgaver (tasks = status lest fra Oppgaver), gir ingen påminnelse.
   for (const l of state.records.ledelse || []) {
-    for (const d of l.decisions || []) if (!d.done && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
+    for (const d of l.decisions || []) if (!decisionCompleted(d, tasks) && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
   }
   // Årshjulet: aktiviteter merket «Lag oppgave» blir oppgave når måneden starter.
   return [...out, ...annualTaskEffects(state, { now }), ...escalationEffects(state, now)];
@@ -632,11 +692,11 @@ export function deviationRoutineDraft() {
     '# Rutine for avvik, hendelser og forbedring',
     '',
     '1. Alle kan melde avvik, hendelser, nestenulykker og forbedringsforslag i ProTop under ISO → Avvik og forbedring.',
-    '2. Kvalitets- eller HMS-leder triagerer innen tre virkedager, og samme dag ved akutt fare.',
+    '2. Kvalitets- eller HMS-leder triagerer innen tre virkedager, og samme dag ved akutt fare, mulig meldeplikt eller alvorlig personskade.',
     '3. Ved mulig meldeplikt varsles myndighet etter gjeldende regler (alvorlig personskade: Arbeidstilsynet og politi).',
     '4. Det besluttes om korrigerende tiltak trengs. Uten tiltak skal beslutningen begrunnes.',
-    '5. Årsak vurderes for middels og høyere alvorlighet. Tiltak får ansvarlig og frist og blir oppgave i ProTop.',
-    '6. Gjennomføring kontrolleres, og effekten verifiseres før saken lukkes av administrator.',
+    '5. Årsak vurderes for middels og høyere alvorlighet, og alltid for personskade, nestenulykke og miljøhendelse. Tiltak får ansvarlig og frist og blir oppgave i ProTop.',
+    '6. Gjennomføring kontrolleres av en annen enn den som utførte tiltaket, og effekten verifiseres før saken lukkes av en godkjenner.',
     '7. Lukkede saker brukes som bevis i kravmatrisen og i ledelsens gjennomgang.',
     '',
     '_Utkast generert av ProTop og koblet til prosessen «Avviksbehandling». Tilpass og godkjenn._',

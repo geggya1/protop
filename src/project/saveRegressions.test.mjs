@@ -278,4 +278,35 @@ function reset() {
   assert.equal((await storage.pendingProjectChanges(CO)).length, 0);
 }
 
+// ── REV-10: for stort hoveddokument stopper ikke utstyr og katalog ─────────
+
+{
+  reset();
+  const seeded = createProject(emptyProjectState(), { name: 'Hundre', number: '100' }).state;
+  const projectId = seeded.projects[0].id;
+  seedCloud({ ...seeded, documents: [{ id: 'd1', projectId, title: 'Stor', text: 'x'.repeat(1_000_000) }] });
+  const SIDE = `families/${CO}/projects/equipment`;
+  store.set(SIDE, { equipment: [], equipmentBookings: [], personalVehicles: [] });
+  const loaded = await storage.loadProjectState(CO, { force: true });
+  const now = new Date().toISOString();
+  const edited = {
+    ...loaded,
+    equipment: [{ id: 'eq1', name: 'Gravemaskin', updatedAt: now, createdAt: now }],
+    board: [{ id: 'b1', projectId, title: 'Tavle', text: 'Husk', updatedAt: now, createdAt: now }],
+    documents: [...loaded.documents, { id: 'd2', projectId, title: 'Mer', text: 'y'.repeat(60_000), updatedAt: now }],
+  };
+  await assert.rejects(() => storage.persistProjectState(edited, CO), /for store[\s\S]*Utstyr og produkter er lagret/);
+  assert.deepEqual(store.get(SIDE).equipment.map((row) => row.id), ['eq1'], 'utstyret er lagret');
+  assert.equal(cloud().board.length, 0, 'hoveddokumentet er urørt');
+  const pending = await storage.pendingProjectChanges(CO);
+  assert.equal(pending.length, 1);
+  assert.deepEqual(Object.keys(pending[0].lists).sort(), ['board', 'documents'], 'bare hoveddokumentets del venter');
+
+  // Brukeren fjerner det store vedlegget igjen: resten går gjennom.
+  const smaller = { ...edited, documents: loaded.documents };
+  await storage.persistProjectState(smaller, CO);
+  assert.deepEqual(cloud().board.map((row) => row.id), ['b1']);
+  assert.equal((await storage.pendingProjectChanges(CO)).length, 0);
+}
+
 console.log('saveRegressions.test.mjs: ok');

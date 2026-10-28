@@ -781,10 +781,23 @@ export async function pendingProjectChanges(companyId) {
   return (await hydrateOutbox(companyId)).map((row) => row.diff);
 }
 
+/** Delen av en endring som hører til hoveddokumentet (ikke utstyr eller katalog). */
+export function mainDocPart(diff) {
+  if (!diff) return diff;
+  const keep = (key) => !EQUIPMENT_DOC_KEYS.includes(key) && !CATALOG_DOC_KEYS.includes(key);
+  return {
+    ...diff,
+    lists: Object.fromEntries(Object.entries(diff.lists || {}).filter(([key]) => keep(key))),
+    fields: Object.fromEntries(Object.entries(diff.fields || {}).filter(([key]) => keep(key))),
+  };
+}
+
 /**
  * Skriv endringene i én transaksjon: les skyens ferske kopi, legg på endringene og skriv.
  * plan(fresh) gir listen med endringer, eller ingen når ingenting skal skrives.
  * mainForCatalog: produkter skrives også til hoveddokumentet (eldre klienter leser derfra).
+ * Hvert dokument vurderes for seg: er hoveddokumentet for stort, skrives utstyr og katalog likevel
+ * (partial: true), og bare hoveddokumentets del av endringene blir liggende i køen.
  */
 async function commitRemote(companyId, plan, { mainForCatalog = true } = {}) {
   const id = String(companyId || '').trim();
@@ -816,19 +829,30 @@ async function commitRemote(companyId, plan, { mainForCatalog = true } = {}) {
         !EQUIPMENT_DOC_KEYS.includes(key) && !CATALOG_DOC_KEYS.includes(key)
       )) || (touchesCatalog && mainForCatalog);
       const updatedAt = bits.serverTimestamp();
+      // Endringer som bare hører til hoveddokumentet (ikke bare katalogens kopi for eldre klienter).
+      const needsMain = [...touched].some((key) => (
+        !EQUIPMENT_DOC_KEYS.includes(key) && !CATALOG_DOC_KEYS.includes(key)
+      ));
       let bytes = 0;
+      let mainError = null;
       if (touchesMain) {
         // Uten utstyrslistene. Med merge beholdes de gamle listene for eldre klienter.
         const main = withoutEquipmentKeys(payload);
         bytes = encodedBytes(main);
-        if (bytes > DOC_MAX_BYTES) throw tooLargeError(bytes);
-        tx.set(refs.main, { state: main, updatedAt }, { merge: true });
+        if (bytes <= DOC_MAX_BYTES) tx.set(refs.main, { state: main, updatedAt }, { merge: true });
+        else if (needsMain) mainError = tooLargeError(bytes);
       }
+      // For stort hoveddokument stopper ikke utstyr og katalog (egne, små dokumenter).
+      if (mainError && !touchesSide && !touchesCatalog) throw mainError;
       if (touchesSide) tx.set(refs.side, { ...pickEquipmentKeys(payload), updatedAt }, { merge: true });
       if (touchesCatalog) tx.set(refs.catalog, { ...pickCatalogKeys(payload), updatedAt });
-      outcome = { changed: true, state: next, bytes };
+      outcome = { changed: true, state: next, bytes, mainError };
     });
     noteDocSize(id, outcome.bytes);
+    if (outcome.mainError) {
+      const { mainError, ...rest } = outcome;
+      return { ok: false, partial: true, error: mainError, ...rest };
+    }
     return { ok: true, ...outcome };
   } catch (error) {
     return { ok: false, error };
@@ -854,9 +878,11 @@ function scheduleRetry(companyId) {
 }
 
 /** Melding til brukeren når skyen ikke tok imot en lagring. */
-export function remoteFailureText(error) {
+export function remoteFailureText(error, { partial = false } = {}) {
   const raw = String(error?.message || error?.code || '');
-  if (error?.code === 'project-doc-too-large') return raw;
+  if (error?.code === 'project-doc-too-large') {
+    return partial ? `${raw} Utstyr og produkter er lagret.` : raw;
+  }
   if (/exceeds|too big|maximum allowed size/i.test(raw)) {
     return 'Prosjektdataene er for store til å lagres i skyen. Endringen ligger på denne enheten.';
   }
@@ -882,6 +908,13 @@ export function flushProjectChanges(companyId) {
       clearRetry(id);
       retryCounts.delete(id);
       failureShown.delete(id);
+    } else if (result.partial) {
+      // Utstyr og katalog er lagret. Bare hoveddokumentets del blir liggende i køen.
+      const sent = new Map(batch.map((row) => [row.seq, mainDocPart(row.diff)]));
+      OUTBOX.set(id, (OUTBOX.get(id) || [])
+        .map((row) => (sent.has(row.seq) ? { ...row, diff: sent.get(row.seq) } : row))
+        .filter((row) => !isEmptyProjectDiff(row.diff)));
+      persistOutbox(id);
     }
     return result;
   });
@@ -895,7 +928,7 @@ function flushInBackground(companyId) {
     // Lagringen i skyen feilet. Si fra (ikke for hver lagring), og prøv igjen litt senere.
     if (Date.now() - (failureShown.get(companyId) || 0) > FAILURE_TOAST_MS) {
       failureShown.set(companyId, Date.now());
-      showSaveError(remoteFailureText(result.error));
+      showSaveError(remoteFailureText(result.error, { partial: !!result.partial }));
     }
     scheduleRetry(companyId);
   }).catch(() => {});
@@ -1421,7 +1454,9 @@ export async function persistProjectState(state, companyId) {
     if (!remote.ok) {
       scheduleRetry(id);
       const message = remote.error?.message || remote.error?.code || 'Kunne ikke synke prosjekt til skyen.';
-      if (remote.error?.code === 'project-doc-too-large') throw new Error(String(message));
+      if (remote.error?.code === 'project-doc-too-large') {
+        throw new Error(remoteFailureText(remote.error, { partial: !!remote.partial }));
+      }
       throw new Error(
         /exceeds|too big|size|invalid-argument/i.test(String(message))
           ? 'Prosjektdata er for store til å lagres. Timer og fravær lagres nå separat — prøv igjen.'

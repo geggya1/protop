@@ -688,6 +688,61 @@ export function salarySeriesFor(employeeId, salaries) {
     .sort((a, b) => String(a.effectiveDate).localeCompare(String(b.effectiveDate)));
 }
 
+function salaryOrder(a, b) {
+  return String(a.effectiveDate).localeCompare(String(b.effectiveDate))
+    || String(a.createdAt).localeCompare(String(b.createdAt));
+}
+
+function salaryChange(amount, previous) {
+  return previous > 0 ? Math.round(((amount - previous) / previous) * 1000) / 10 : null;
+}
+
+/**
+ * Lønnen en post sammenlignes med: siste gjeldende lønn før postens dato.
+ * excludeId holder posten selv utenfor når den endres.
+ */
+export function salaryBaseFor(employeeId, salaries, { effectiveDate = '', excludeId = '' } = {}) {
+  const date = normalizeIsoDate(effectiveDate);
+  if (!date) return null;
+  const rows = forEmployee(salaries, employeeId)
+    .filter((row) => row.kind === 'actual' && row.effectiveDate && row.effectiveDate < date && row.id !== excludeId)
+    .sort(salaryOrder);
+  return rows[rows.length - 1] || null;
+}
+
+/** Forrige beløp og prosent regnes på nytt for alle lønnsposter til én ansatt. */
+function relinkSalaries(salaries, employeeId) {
+  const id = text(employeeId);
+  return salaries.map((row) => {
+    if (text(row.employeeId) !== id) return row;
+    const base = salaryBaseFor(id, salaries, { effectiveDate: row.effectiveDate, excludeId: row.id });
+    const previousAmount = base ? num(base.annualAmount, 0) : 0;
+    return { ...row, previousAmount, changePercent: salaryChange(num(row.annualAmount, 0), previousAmount) };
+  });
+}
+
+/**
+ * Lagrer en ny eller endret lønnspost. En endret dato eller et endret beløp flytter
+ * sammenligningen for de andre postene, så prosentene til den ansatte regnes på nytt.
+ */
+export function upsertSalary(salaries, row) {
+  const existing = (salaries || []).find((item) => item.id === row?.id);
+  const next = normalizeSalary({
+    ...existing,
+    ...row,
+    createdAt: existing?.createdAt || row?.createdAt,
+    updatedAt: new Date().toISOString(),
+  });
+  const rest = (salaries || []).filter((item) => item.id !== next.id);
+  return relinkSalaries([next, ...rest], next.employeeId);
+}
+
+export function removeSalary(salaries, id) {
+  const target = (salaries || []).find((item) => item.id === id);
+  const rest = (salaries || []).filter((item) => item.id !== id);
+  return target ? relinkSalaries(rest, target.employeeId) : rest;
+}
+
 /** Grafserie med prosentendring mellom punkter. */
 export function salarySeriesWithPercents(employeeId, salaries) {
   const series = salarySeriesFor(employeeId, salaries);

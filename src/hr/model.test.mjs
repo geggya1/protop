@@ -25,7 +25,10 @@ import {
   onboardingTasksFor,
   openFollowUps,
   recruitmentFunnel,
+  removeSalary,
+  salaryBaseFor,
   salarySeriesWithPercents,
+  upsertSalary,
   upcomingPeopleEvents,
   upsertActiveContract,
   upsertRow,
@@ -287,6 +290,39 @@ import {
   assert.equal(urgent.priority, 'high');
   const rejected = normalizeApplication({ name: 'Bo', outcome: 'rejected', rejectReason: 'Annen kandidat' });
   assert.equal(rejected.rejectReason, 'Annen kandidat');
+}
+
+{
+  // Lønnsposter kan endres og slettes, og prosentene følger med.
+  let salaries = upsertSalary([], { id: 's1', employeeId: 'e1', kind: 'actual', effectiveDate: '2024-01-01', annualAmount: 600000 });
+  salaries = upsertSalary(salaries, { id: 's2', employeeId: 'e1', kind: 'actual', effectiveDate: '2025-01-01', annualAmount: 660000 });
+  salaries = upsertSalary(salaries, { id: 'p1', employeeId: 'e1', kind: 'planned', effectiveDate: '2027-01-01', annualAmount: 726000 });
+  salaries = [...salaries, normalizeSalary({ id: 'x1', employeeId: 'e2', kind: 'actual', effectiveDate: '2024-01-01', annualAmount: 500000, changePercent: 3 })];
+  const byId = (list, id) => list.find((row) => row.id === id);
+  assert.equal(byId(salaries, 's1').changePercent, null);
+  assert.equal(byId(salaries, 's2').previousAmount, 600000);
+  assert.equal(byId(salaries, 's2').changePercent, 10);
+  assert.equal(byId(salaries, 'p1').changePercent, 10);
+
+  // Endret beløp på første post flytter prosenten på posten etter.
+  const created = byId(salaries, 's1').createdAt;
+  salaries = upsertSalary(salaries, { id: 's1', employeeId: 'e1', kind: 'actual', effectiveDate: '2024-01-01', annualAmount: 550000, reason: 'Rettet' });
+  assert.equal(salaries.filter((row) => row.id === 's1').length, 1);
+  assert.equal(byId(salaries, 's1').reason, 'Rettet');
+  assert.equal(byId(salaries, 's1').createdAt, created);
+  assert.equal(byId(salaries, 's2').changePercent, 20);
+  // Andre ansatte røres ikke.
+  assert.equal(byId(salaries, 'x1').changePercent, 3);
+
+  // Endret dato: posten sammenlignes med lønnen før den nye datoen.
+  assert.equal(salaryBaseFor('e1', salaries, { effectiveDate: '2025-06-01', excludeId: 's2' }).id, 's1');
+  assert.equal(salaryBaseFor('e1', salaries, { effectiveDate: '2023-06-01' }), null);
+
+  // Sletting kobler planen til lønnen som står igjen.
+  salaries = removeSalary(salaries, 's2');
+  assert.equal(byId(salaries, 's2'), undefined);
+  assert.equal(byId(salaries, 'p1').previousAmount, 550000);
+  assert.equal(byId(salaries, 'p1').changePercent, 32);
 }
 
 console.log('hr/model.test.mjs ok');

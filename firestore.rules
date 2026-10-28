@@ -1575,6 +1575,11 @@ service cloud.firestore {
     // Barnets speilprofil. Foresatte i barnets familie kan stelle den.
     // Den kan bare lages for en barnekonto: finnes profilen users/{childId}, må den være et barn.
     // Ellers kunne hvem som helst bli «foresatt» for en voksen og få users/{voksen} (SEC-05).
+    // En foresatt kan ta barnet ut av familien (familyId tom), når barnet fjernes (REV-02).
+    function releasesChild() {
+      return request.resource.data.get('familyId', null) == null || request.resource.data.get('familyId', null) == '';
+    }
+
     match /children/{childId} {
       allow get: if isSelf(childId) || isFamilyAdult(resource.data.get('familyId', 'none'));
       allow list: if isSignedIn() && (
@@ -1585,6 +1590,7 @@ service cloud.firestore {
         && (!exists(userPath(childId)) || isChildProfile(childId));
       allow update: if (isFamilyAdult(resource.data.get('familyId', 'none'))
           && (request.resource.data.get('familyId', '') == resource.data.get('familyId', '')
+              || releasesChild()
               || isFamilyAdult(request.resource.data.get('familyId', 'none'))))
         || (isSelf(childId) && request.resource.data.get('familyId', '') == resource.data.get('familyId', ''));
     }

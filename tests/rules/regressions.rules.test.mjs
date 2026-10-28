@@ -116,3 +116,47 @@ describe('REV-01: sletting av en rad som allerede er slettet', () => {
     await assertFails(deleteDoc(doc(as('bob'), 'families', A, 'absences', 'ab_eve')));
   });
 });
+
+describe('REV-02: eier fjerner et barn fra familien', () => {
+  // removeMemberFromGroup: medlemsdokumentet, medlemslistene og speilprofilen i samme batch.
+  const removeChild = (uid) => {
+    const db = as(uid);
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'families', F, 'children', 'kid'));
+    batch.update(doc(db, 'families', F), {
+      members: arrayRemove('kid'), activeUsers: arrayRemove('kid'), memberIds: arrayRemove('kid'),
+      adminUids: arrayRemove('kid'), updatedAt: serverTimestamp(),
+    });
+    batch.set(doc(db, 'children', 'kid'), { deleted: true, active: false, familyId: null, wipedAt: serverTimestamp() }, { merge: true });
+    return batch.commit();
+  };
+
+  test('eier setter familyId: null på barnets speilprofil (også etter at medlemsdokumentet er slettet)', async () => {
+    await assertSucceeds(deleteDoc(doc(as('mor'), 'families', F, 'children', 'kid')));
+    await assertSucceeds(setDoc(doc(as('mor'), 'children', 'kid'), {
+      deleted: true, active: false, familyId: null, wipedAt: serverTimestamp(),
+    }, { merge: true }));
+  });
+
+  test('hele fjerningen går i én batch, og barnet står ikke lenger i medlemslistene', async () => {
+    await assertSucceeds(removeChild('mor'));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const family = (await getDoc(doc(ctx.firestore(), 'families', F))).data();
+      assert.equal(family.members.includes('kid'), false);
+      assert.equal(family.activeUsers.includes('kid'), false);
+    });
+  });
+
+  test('en som ikke er admin, får ikke fjernet barnet, og ingenting endres', async () => {
+    await assertFails(removeChild('far'));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      assert.ok((await getDoc(doc(db, 'families', F, 'children', 'kid'))).exists());
+      assert.ok((await getDoc(doc(db, 'families', F))).data().members.includes('kid'));
+    });
+  });
+
+  test('en utenforstående kan ikke flytte barnet ut av familien', async () => {
+    await assertFails(setDoc(doc(as('ext'), 'children', 'kid'), { familyId: null }, { merge: true }));
+  });
+});

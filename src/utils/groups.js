@@ -952,17 +952,25 @@ async function ensureInviteeFamilyInviteInbox({
  * revoke list access by clearing members, activeUsers, memberIds and adminUids.
  * Firestore rules and listMyFamilies deny access even if familyIds is stale.
  */
-export async function revokeMemberFamilyAccess({ familyId, uid }) {
-  if (!familyId || !uid) return;
-  const now = serverTimestamp();
-  await updateDoc(doc(db, 'families', familyId), {
+function familyRevokePatch(uid) {
+  return {
     members: arrayRemove(uid),
     activeUsers: arrayRemove(uid),
     memberIds: arrayRemove(uid),
     adminUids: arrayRemove(uid),
-    updatedAt: now,
-  }).catch(() => {});
+    updatedAt: serverTimestamp(),
+  };
+}
 
+export async function revokeMemberFamilyAccess({ familyId, uid }) {
+  if (!familyId || !uid) return;
+  await updateDoc(doc(db, 'families', familyId), familyRevokePatch(uid)).catch(() => {});
+  await clearMemberIndexes({ familyId, uid });
+}
+
+/** familyIds på users/{uid} og parents/{uid}. Lykkes bare for personen selv (eller serveren). */
+async function clearMemberIndexes({ familyId, uid }) {
+  const now = serverTimestamp();
   const clearIndex = async (collectionName) => {
     const ref = doc(db, collectionName, uid);
     const snap = await getDoc(ref).catch(() => null);
@@ -1152,28 +1160,45 @@ export async function removeMemberFromGroup({ familyId, role, member, wipePerson
   const id = plan.id;
   const keepProfile = plan.keepProfile;
 
+  // Medlemsdokumentet og medlemslistene endres i samme batch. Før kunne fjerningen stoppe
+  // halvveis: dokumentet var borte, men barnet sto fortsatt i members og hadde tilgang.
+  const batch = writeBatch(db);
+  const memberRef = doc(db, 'families', familyId, col, id);
   if (keepProfile) {
-    await updateDoc(doc(db, 'families', familyId, col, id), {
+    batch.update(memberRef, {
       active: false,
       deleted: false,
       leftAt: serverTimestamp(),
       familyId: null,
     });
-    await revokeMemberFamilyAccess({ familyId, uid: id });
-    return { keptProfile: true };
+  } else {
+    batch.delete(memberRef);
   }
-
+  batch.update(doc(db, 'families', familyId), familyRevokePatch(id));
+  if (!keepProfile && role === 'child') {
+    // Speilprofilen finnes ikke for alle eldre barn. Den oppdateres bare når den finnes.
+    const mirror = await getDoc(doc(db, 'children', id)).catch(() => null);
+    if (mirror?.exists() && mirror.data()?.familyId === familyId) {
+      batch.set(doc(db, 'children', id), {
+        deleted: true, active: false, familyId: null, wipedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+  }
+  try {
+    await batch.commit();
+  } catch (cause) {
+    const error = new Error('Medlemmet ble ikke fjernet. Ingenting er endret. Prøv igjen, eller be eieren av gruppen gjøre det.');
+    error.cause = cause;
+    throw error;
+  }
+  await clearMemberIndexes({ familyId, uid: id });
+  if (keepProfile) return { keptProfile: true };
   if (role === 'child') {
     try {
       const todos = await getDocs(collection(db, 'families', familyId, 'children', id, 'todos'));
       await Promise.all(todos.docs.map((d) => deleteDoc(d.ref)));
     } catch {}
-    await deleteDoc(doc(db, 'families', familyId, 'children', id)).catch(() => {});
-    await setDoc(doc(db, 'children', id), { deleted: true, active: false, familyId: null, wipedAt: serverTimestamp() }, { merge: true });
-  } else {
-    await deleteDoc(doc(db, 'families', familyId, 'parents', id)).catch(() => {});
   }
-  await revokeMemberFamilyAccess({ familyId, uid: id });
   const uname = plan.username;
   if (uname) await deleteDoc(doc(db, 'usernames', uname)).catch(() => {});
   return { keptProfile: false };

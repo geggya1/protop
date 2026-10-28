@@ -6,19 +6,14 @@ import {
   addChange,
   addChecklist,
   addContract,
-  addDeviation,
   addDocument,
-  addIncident,
   addInspection,
   addMeeting,
   addProjectMember,
-  addSja,
   addWaste,
   archiveProject,
   checkInCrew,
   checkOutCrew,
-  closeDeviation,
-  closeIncident,
   createProject,
   deleteProjects,
   emptyProjectState,
@@ -34,13 +29,12 @@ import {
   selectProject,
   setActivityProgress,
   setChangeStatus,
-  signSja,
-  updateSja,
   toggleCheckItem,
   toggleMemberStar,
   upsertTimeEntry,
   wasteSummary,
 } from './engine.js';
+import * as engine from './engine.js';
 import { draftMinutes, projectAdvice, projectReport, suggestIso, suggestMeasures } from './assistant.js';
 
 function must(result) {
@@ -67,22 +61,12 @@ state = must(setActivityProgress(state, second.id, 50));
 assert.equal(progressSummary(state, projectId).percent, 75);
 
 state = must(addBoardNote(state, { title: 'Hjelm påbudt', body: 'Hele riggen', kind: 'påbud' }));
-state = must(addSja(state, { task: 'Arbeid i høyden', hazards: 'fall fra tak', measures: '' }));
-assert.equal(signSja(state, state.sja[0].id).ok, false);
-state = must(updateSja(state, state.sja[0].id, {
-  hazards: state.sja[0].hazards,
-  measures: suggestMeasures(state.sja[0].hazards),
-}));
-state = must(signSja(state, state.sja[0].id));
-assert.match(state.sja[0].measures, /Fallsikring/);
-
-state = must(addIncident(state, { title: 'Løs rekkverk', severity: 'kritisk', description: 'Dekke øst' }));
-state = must(closeIncident(state, state.incidents[0].id));
+assert.match(suggestMeasures('fall fra tak'), /Fallsikring/);
+// SJA, RUH og avvik registreres i ISO (isoFindings), ikke i prosjektmotoren (ISO-25).
+assert.equal(typeof engine.addSja, 'undefined');
+assert.equal(typeof engine.addIncident, 'undefined');
+assert.equal(typeof engine.addDeviation, 'undefined');
 state = must(addInspection(state, { area: 'Dekke', date: '2026-09-23', findings: 'Rekkverk rettet' }));
-
-state = must(addDeviation(state, { title: 'Manglende protokoll', type: 'ks', description: 'Støp' }));
-assert.equal(closeDeviation(state, state.deviations[0].id, { cause: '', action: 'Ny protokoll' }).ok, false);
-state = must(closeDeviation(state, state.deviations[0].id, { cause: 'Skjema ble ikke brukt', action: 'KS-mal lagt i perm' }));
 
 state = must(addChecklist(state, { templateId: 'vernerunde' }));
 const list = state.checklists[0];

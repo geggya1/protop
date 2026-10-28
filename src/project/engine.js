@@ -91,6 +91,8 @@ export function emptyProjectState() {
     fullDayHours: 8,
     fullDayHoursCustom: false,
     board: [],
+    // Eldre SJA, RUH og avvik fra prosjektmotoren. Nye registreres i ISO (isoFindings med projectId);
+    // listene leses bare av «Ta inn» i ISO (src/iso/integrations.js).
     sja: [],
     incidents: [],
     inspections: [],
@@ -1195,71 +1197,6 @@ export function addBoardNote(state, input) {
   });
 }
 
-export function addSja(state, input) {
-  return addRow(state, 'sja', input, (projectId) => {
-    const task = text(input.task);
-    if (!task) return { error: 'SJA trenger en arbeidsoperasjon.' };
-    return {
-      row: {
-        id: createId('sja'),
-        projectId,
-        task,
-        hazards: text(input.hazards),
-        measures: text(input.measures),
-        status: 'åpen',
-      },
-    };
-  });
-}
-
-export function updateSja(state, id, input) {
-  if (!state.sja.some((item) => item.id === id)) return fail(state, 'SJA finnes ikke.');
-  return ok({
-    ...state,
-    sja: state.sja.map((item) => (
-      item.id === id
-        ? { ...item, hazards: text(input.hazards), measures: text(input.measures) }
-        : item
-    )),
-  });
-}
-
-export function signSja(state, id) {
-  const row = state.sja.find((item) => item.id === id);
-  if (!row) return fail(state, 'SJA finnes ikke.');
-  if (!text(row.measures)) return fail(state, 'Skriv tiltak før SJA signeres.');
-  return ok({
-    ...state,
-    sja: state.sja.map((item) => (item.id === id ? { ...item, status: 'signert' } : item)),
-  });
-}
-
-export function addIncident(state, input) {
-  return addRow(state, 'incidents', input, (projectId) => {
-    const title = text(input.title);
-    if (!title) return { error: 'RUH trenger en tittel.' };
-    const severity = ['lav', 'middels', 'høy', 'kritisk'].includes(input.severity) ? input.severity : 'middels';
-    return {
-      row: {
-        id: createId('ruh'),
-        projectId,
-        title,
-        description: text(input.description),
-        severity,
-        status: 'åpen',
-      },
-    };
-  });
-}
-
-export function closeIncident(state, id) {
-  if (!state.incidents.some((item) => item.id === id)) return fail(state, 'RUH finnes ikke.');
-  return ok({
-    ...state,
-    incidents: state.incidents.map((item) => (item.id === id ? { ...item, status: 'lukket' } : item)),
-  });
-}
-
 export function addInspection(state, input) {
   return addRow(state, 'inspections', input, (projectId) => {
     const area = text(input.area);
@@ -1273,43 +1210,6 @@ export function addInspection(state, input) {
         findings: text(input.findings),
       },
     };
-  });
-}
-
-export function addDeviation(state, input) {
-  return addRow(state, 'deviations', input, (projectId) => {
-    const title = text(input.title);
-    if (!title) return { error: 'Avviket trenger en tittel.' };
-    const type = ['ks', 'hms', 'iso', 'miljø'].includes(input.type) ? input.type : 'ks';
-    return {
-      row: {
-        id: createId('avv'),
-        projectId,
-        type,
-        title,
-        description: text(input.description),
-        cause: '',
-        action: '',
-        owner: text(input.owner),
-        due: text(input.due),
-        status: 'åpen',
-        iso: text(input.iso) || 'ISO 9001 kap. 10.2',
-      },
-    };
-  });
-}
-
-export function closeDeviation(state, id, input) {
-  const row = state.deviations.find((item) => item.id === id);
-  if (!row) return fail(state, 'Avviket finnes ikke.');
-  const cause = text(input.cause);
-  const action = text(input.action);
-  if (!cause || !action) return fail(state, 'Årsak og tiltak må fylles ut før avviket lukkes.');
-  return ok({
-    ...state,
-    deviations: state.deviations.map((item) => (
-      item.id === id ? { ...item, cause, action, status: 'lukket' } : item
-    )),
   });
 }
 

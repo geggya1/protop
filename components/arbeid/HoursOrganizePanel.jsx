@@ -196,6 +196,8 @@ export default function HoursOrganizePanel({
               { id: '', label: 'Alle' },
               { id: 'billable', label: 'Fakturerbart' },
               { id: 'nonbillable', label: 'Ikke fakturerbart' },
+              { id: 'invoiced', label: 'Fakturert' },
+              { id: 'uninvoiced', label: 'Ikke fakturert' },
             ].map((item) => (
               <Choice
                 key={item.id || 'all'}

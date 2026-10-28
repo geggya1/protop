@@ -39,7 +39,7 @@ function OkTable({ colors, rows, pageSize, onMore, onToggleRow }) {
   return (
     <View style={[styles.table, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="hour-import-ok-table">
       <View style={[styles.tr, styles.head, { borderBottomColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
-        {['Dato', 'Medarbeider', 'Kunde', 'Prosjekt', 'Aktivitet', 'Timer', 'Fakturerbare timer', 'Beskrivelse', ''].map((label) => (
+        {['Dato', 'Medarbeider', 'Kunde', 'Prosjekt', 'Aktivitet', 'Timer', 'Fakturerbare timer', 'Fakturert', 'Beskrivelse', ''].map((label) => (
           <Text key={label || 'act'} style={[styles.th, { color: colors.muted }]}>{label}</Text>
         ))}
       </View>
@@ -64,6 +64,7 @@ function OkTable({ colors, rows, pageSize, onMore, onToggleRow }) {
           <Text style={[styles.td, { color: colors.ink }]} numberOfLines={1}>{row.activityName || '—'}</Text>
           <Text style={[styles.td, styles.hoursCol, { color: colors.ink }]}>{formatHours(row.hours)}</Text>
           <Text style={[styles.td, styles.hoursCol, { color: colors.ink }]}>{formatHours(row.billableHours)}</Text>
+          <Text style={[styles.td, { color: colors.ink }]}>{row.invoiced ? 'Ja' : '—'}</Text>
           <Text style={[styles.td, styles.descCol, { color: colors.ink }]} numberOfLines={2}>{row.description || '—'}</Text>
           <TouchableOpacity onPress={() => onToggleRow(row.id)} accessibilityRole="button" style={styles.actCol}>
             <Text style={{ color: colors.brand, fontSize: 12 }}>
@@ -138,6 +139,11 @@ export default function HoursImportReview({
       {review?.existingCount ? (
         <Text style={{ color: brand, fontWeight: '600' }}>
           {review.existingCount} {existingLabel}
+        </Text>
+      ) : null}
+      {review?.invoicedCount ? (
+        <Text style={{ color: colors.ink }} nativeID="hour-import-invoiced">
+          {review.invoicedCount} av timene er merket som fakturert i filen. De lagres som fakturert og kommer ikke til fakturering.
         </Text>
       ) : null}
       {!!footnote && <Text style={{ color: colors.muted }}>{footnote}</Text>}

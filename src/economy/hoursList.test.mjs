@@ -6,7 +6,9 @@ import {
   filterHours,
   groupHours,
   hourFacets,
+  hourInvoiceLabel,
   hoursOutsideSelection,
+  hourTotals,
   hydrateHourEntry,
   periodBounds,
   periodLoadRange,
@@ -16,6 +18,7 @@ import {
   sortHours,
 } from './hoursList.js';
 import { shortDayLabel } from '../arbeid/calendar.js';
+import { IMPORT_INVOICED_ID, WRITE_OFF_ID } from './invoiceFlow.js';
 
 assert.equal(shortDayLabel('2023-10-09'), '9 okt');
 assert.equal(shortDayLabel(new Date(2023, 9, 9)), '9 okt');
@@ -177,6 +180,22 @@ assert.equal(shiftDateKey('2023-10-09', 1), '2023-10-10');
   assert.equal(gap.hours, 48);
   assert.equal(gap.shown, 8);
   assert.equal(hoursOutsideSelection(entries, entries, hit), null);
+}
+
+{
+  // Fakturert-kolonnen og filteret i Timerapport.
+  const rows = [
+    { id: 'a', date: '2024-01-02', hours: 2, billableHours: 2, invoiceId: IMPORT_INVOICED_ID, source: { values: { Fakturanummer: '10234' } } },
+    { id: 'b', date: '2024-01-03', hours: 1, billableHours: 1, invoiceId: IMPORT_INVOICED_ID, source: { values: { Fakturert: 'Ja' } } },
+    { id: 'c', date: '2024-01-04', hours: 3, billableHours: 3, invoiceId: 'inv1' },
+    { id: 'd', date: '2024-01-05', hours: 4, billableHours: 4, invoiceId: WRITE_OFF_ID },
+    { id: 'e', date: '2024-01-06', hours: 5, billableHours: 5, invoiceId: null },
+    { id: 'f', date: '2024-01-07', hours: 6, billableHours: 0, invoiceId: null },
+  ];
+  assert.deepEqual(rows.map(hourInvoiceLabel), ['Fakturert 10234', 'Fakturert', 'På faktura', 'Avskrevet', '', '']);
+  assert.deepEqual(filterHours(rows, { billable: 'invoiced' }).map((row) => row.id), ['a', 'b', 'c']);
+  assert.deepEqual(filterHours(rows, { billable: 'uninvoiced' }).map((row) => row.id), ['e']);
+  assert.equal(hourTotals(rows).invoiced, 6);
 }
 
 console.log('hoursList.test.mjs: ok');

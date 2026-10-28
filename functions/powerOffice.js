@@ -53,7 +53,7 @@ function toHttpsError(err, where) {
     logger.warn(`PowerOffice ${where}`, { status: err.status, path: err.path, message: err.message });
     if (err.status === 401 || err.status === 403) return new HttpsError('permission-denied', err.message);
     if (err.status === 429 || err.status === 503) return new HttpsError('resource-exhausted', err.message);
-    if (err.status >= 500) return new HttpsError('unavailable', err.message);
+    if (err.status >= 500) return new HttpsError('unavailable', powerOfficeErrorText(err));
     return new HttpsError('failed-precondition', powerOfficeErrorText(err));
   }
   if (err?.message) {

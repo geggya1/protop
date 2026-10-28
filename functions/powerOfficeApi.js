@@ -80,11 +80,20 @@ export function problemMessage(problem, status) {
 
 /** Feilen fra Go med steget som feilet, så brukeren ser om det var kunden eller utkastet. */
 export function powerOfficeErrorText(err) {
-  const message = String(err?.message || '').trim() || 'PowerOffice svarte ikke som ventet.';
-  const path = String(err?.path || '').replace(/^\//, '');
-  if (!err?.status || err.status === 401 || err.status === 403 || err.status === 429 || err.status >= 500) return message;
-  if (/^Customers/i.test(path)) return `PowerOffice avviste kunden: ${message}`;
-  if (/^SalesOrders/i.test(path)) return `PowerOffice avviste fakturautkastet: ${message}`;
+  const message = String(err?.message || '').trim().slice(0, 500) || 'PowerOffice svarte ikke som ventet.';
+  const path = String(err?.path || '').replace(/^\//, '').split('?')[0];
+  const status = Number(err?.status) || 0;
+  let step = '';
+  if (/^Customers/i.test(path)) step = 'kunden';
+  else if (/^SalesOrders/i.test(path)) step = 'fakturautkastet';
+  // Intern feil i Go: ikke noe ProTop sendte. Kallet står med, så PowerOffice-support finner det.
+  if (status >= 500 && status !== 503) {
+    return `PowerOffice fikk en intern feil (${status})${step ? ` på ${step}` : ''}${path ? ` (${path})` : ''}. `
+      + `Feilen ligger hos PowerOffice. Prøv igjen senere, eller send meldingen til PowerOffice: ${message}`;
+  }
+  if (!status || status === 401 || status === 403 || status === 429 || status === 503) return message;
+  if (step === 'kunden') return `PowerOffice avviste kunden: ${message}`;
+  if (step) return `PowerOffice avviste fakturautkastet: ${message}`;
   return `PowerOffice svarte: ${message}`;
 }
 

@@ -22,6 +22,7 @@ import { inviteAdultSmart, resendAdultInvite } from '../../src/utils/groups';
 import { setEmploymentStatus, withdrawEmployeeInvite } from '../../src/employees/membershipClient';
 import { companyMemberIds, isCompanyOwnerUid, membershipUid } from '../../src/employees/membership';
 import { useLeaveCompany } from '../../src/employees/useLeaveCompany';
+import { declineCompanyJoinRequest, watchCompanyJoinRequests } from '../../src/employees/joinRequestsClient';
 import { employeeMatchEmails } from '../../src/employees/invite';
 import { confirmUser } from '../../src/utils/dialog';
 import { recordUsage } from '../../src/employees/usageClient';
@@ -193,6 +194,7 @@ export default function EmployeesScreen() {
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [joinRequests, setJoinRequests] = useState([]);
   const pickedAddress = useRef('');
   const scrollRef = useRef(null);
 
@@ -231,6 +233,15 @@ export default function EmployeesScreen() {
       stop();
     };
   }, [familyId]);
+
+  // «Be om å bli med»: forespørsler vises under Inviter brukere for den som kan invitere.
+  useEffect(() => {
+    if (!familyId || !canInvite) {
+      setJoinRequests([]);
+      return undefined;
+    }
+    return watchCompanyJoinRequests(familyId, setJoinRequests);
+  }, [familyId, canInvite]);
 
   useEffect(() => {
     if (!familyId) {
@@ -555,8 +566,9 @@ export default function EmployeesScreen() {
     return saved;
   }
 
+  /** Legg en ny person klar. Svarer true bare når personen er lagret (skjemaet tømmes da). */
   async function addInvitePerson(draft) {
-    if (!canInvite || busy || !familyId) return;
+    if (!canInvite || busy || !familyId) return false;
     setBusy(true);
     setError('');
     try {
@@ -576,14 +588,32 @@ export default function EmployeesScreen() {
       }, { accessLevel, at: new Date().toISOString() });
       if (!queued.ok) {
         showError(queued.error);
-        return;
+        return false;
       }
       const saved = await rememberInvite(queued.employee);
       if (saved) noteSaved(`${displayName(saved)} er lagt klar. E-post sendes når du trykker Inviter.`);
+      return !!saved;
     } catch (err) {
       showError(err?.message || 'Kunne ikke legge til personen.');
+      return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function declineJoinRequest(request) {
+    if (!canInvite || busy || !familyId || !request) return;
+    const sure = await confirmUser(
+      'Avvise forespørselen?',
+      `${request.name || request.email || 'Personen'} får beskjed om at forespørselen er avslått.`,
+      { ok: 'Avvis' },
+    );
+    if (!sure) return;
+    try {
+      await declineCompanyJoinRequest({ companyId: familyId, request, actorUid: uid, companyName });
+      noteSaved('Forespørselen er avvist.');
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke avvise forespørselen.');
     }
   }
 
@@ -605,12 +635,13 @@ export default function EmployeesScreen() {
     }
   }
 
+  /** Send invitasjoner. Svarer med id-ene som faktisk ble sendt. */
   async function deliverInvites(ids, { known = [] } = {}) {
     const employeeIds = (ids || []).filter(Boolean);
-    if (!canInvite || busy || !familyId) return;
+    if (!canInvite || busy || !familyId) return [];
     if (!employeeIds.length) {
       showError('Ingen personer er klare til invitasjon.');
-      return;
+      return [];
     }
     setBusy(true);
     setError('');
@@ -663,7 +694,7 @@ export default function EmployeesScreen() {
             });
           const next = applyInviteSendResult(current, result, { at });
           await rememberInvite(next);
-          if (result?.emailSent) {
+          if (result?.emailSent || result?.inviteId) {
             sent.push(id);
             recordUsage({
               type: 'invite_sent',
@@ -672,8 +703,11 @@ export default function EmployeesScreen() {
               summary: `Invitasjon sendt til ${email}`,
               detail: { accessLevel: placedAccessLevel(current) },
             }).catch(() => {});
-          } else {
-            failed.push(result?.emailError || `${name || email}: e-post ble ikke sendt.`);
+          }
+          if (!result?.emailSent) {
+            // Eksisterende bruker får invitasjonen i appen selv om e-posten feilet.
+            const delivered = result?.inviteId ? ' Invitasjonen ligger likevel i appen hos personen.' : '';
+            failed.push(`${result?.emailError || `${name || email}: e-post ble ikke sendt.`}${delivered}`);
           }
         } catch (err) {
           failed.push(many ? `${who}: ${inviteDeliveryError(err)}` : inviteDeliveryError(err));
@@ -692,6 +726,7 @@ export default function EmployeesScreen() {
       setInviteProgress(null);
       setBusy(false);
     }
+    return sent;
   }
 
   async function inviteEmployee(employee) {
@@ -815,6 +850,12 @@ export default function EmployeesScreen() {
     if (shellIntent.type === 'openMyAbsence') {
       pendingMyAbsence.current = true;
       clearShellIntent?.();
+      return;
+    }
+    // Varsel om forespørsel om å bli med: rett til Inviter brukere, der forespørselen står.
+    if (shellIntent.type === 'openInvite') {
+      clearShellIntent?.();
+      if (canInvite) openInvite();
       return;
     }
     // Varsel om ny versjon av et dokument: Min side, der dokumentene leses og bekreftes.
@@ -2172,7 +2213,10 @@ export default function EmployeesScreen() {
           onRemove={removeInvitePerson}
           onSend={deliverInvites}
           onResend={(row) => deliverInvites([row.id])}
+          onWithdraw={withdrawInvite}
           onInviteSelected={deliverInvites}
+          joinRequests={joinRequests}
+          onDeclineRequest={declineJoinRequest}
           progress={inviteProgress}
         />
       ) : null}

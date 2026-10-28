@@ -303,6 +303,9 @@ export function applyInviteSendResult(employee, result, { at = '' } = {}) {
   const current = normalizeInviteState(employee?.invite);
   const parentKey = text(result?.invitee?.uid || result?.key || current.parentKey);
   const emailSent = result?.emailSent === true;
+  // Eksisterende bruker: invitasjonen ligger i appen (inviteId) selv om e-posten feilet.
+  // Da er den sendt, og personen kan godta den. E-postfeilen vises fortsatt.
+  const delivered = emailSent || !!text(result?.inviteId);
   const stamp = text(at) || new Date().toISOString();
   const error = text(result?.emailError).slice(0, 280);
   return {
@@ -310,8 +313,8 @@ export function applyInviteSendResult(employee, result, { at = '' } = {}) {
     invite: {
       ...current,
       parentKey,
-      status: emailSent ? 'sent' : (current.status === 'none' ? 'queued' : current.status),
-      sentAt: emailSent ? stamp : current.sentAt,
+      status: delivered ? 'sent' : (current.status === 'none' ? 'queued' : current.status),
+      sentAt: delivered ? stamp : current.sentAt,
       error: emailSent ? '' : error,
     },
   };
@@ -358,8 +361,11 @@ export function claimEmployeeSeatPlan({
   const email = text(authEmail).toLowerCase();
   const stamp = text(now) || new Date().toISOString();
   if (!actor) return { ok: false, error: 'Du må være innlogget.' };
-  if (!email) return { ok: true, skipped: true };
-  const matches = (employees || []).filter((row) => employeeMatchEmails(row).includes(email));
+  // Eksisterende bruker invitert på brukernavn eller telefon: invitasjonens nøkkel er uid-en.
+  const ownKey = (row) => normalizeInviteState(row.invite).parentKey === actor;
+  const matches = (employees || []).filter((row) => (
+    (email && employeeMatchEmails(row).includes(email)) || ownKey(row)
+  ));
   if (!matches.length) return { ok: true, skipped: true };
 
   const accepted = matches.find((row) => (
@@ -378,13 +384,19 @@ export function claimEmployeeSeatPlan({
     };
   }
 
+  const invited = (row) => {
+    const status = normalizeInviteState(row.invite).status;
+    // «queued» med personens uid: invitasjonen i appen kom fram, men e-posten feilet.
+    return status === 'sent' || (status === 'queued' && ownKey(row));
+  };
   const eligible = matches.filter((row) => {
     const linked = text(row.personUid);
     if (linked && linked !== actor) return false;
     const status = normalizeInviteState(row.invite).status;
-    return status === 'sent' || (linked === actor && status !== 'accepted');
+    return invited(row) || (linked === actor && status !== 'accepted');
   });
-  const rank = (row) => (normalizeInviteState(row.invite).status === 'sent' ? 2 : 1);
+  // Aktiv ansettelse før avsluttet, utsendt invitasjon før annen kobling.
+  const rank = (row) => (employmentOpen(row) ? 4 : 0) + (invited(row) ? 2 : 1);
   eligible.sort((a, b) => rank(b) - rank(a));
   const employee = eligible[0];
   if (!employee) {

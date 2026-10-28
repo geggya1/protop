@@ -197,6 +197,15 @@ export const FILES = [
   'functions/mailRelay.test.mjs',
   'functions/tenderProxyAuth.test.mjs',
   'scripts/hosting-csp.test.mjs',
+  // Rester: orgnr, Microsoft-e-post, barnepassord, AI-bryter, brukslogg, lagringstid og innsynslogg.
+  'src/project/orgnrIndex.test.mjs',
+  'functions/microsoftEmail.test.mjs',
+  'src/utils/childPasswordStorage.test.mjs',
+  'src/privacy/aiGuardCoverage.test.mjs',
+  'src/employees/usageBatch.test.mjs',
+  'src/employees/model.test.mjs',
+  'src/hr/retention.test.mjs',
+  'src/hr/accessLog.test.mjs',
 ];
 
 function runFile(file) {

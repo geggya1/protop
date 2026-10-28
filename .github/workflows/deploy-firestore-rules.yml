@@ -30,7 +30,7 @@ jobs:
       - run: npm ci
       - run: npm install --no-save --no-audit --no-fund @firebase/rules-unit-testing@4
       - name: Firestore rules (emulator)
-        run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-concurrency=1 tests/rules/firestore.rules.test.mjs tests/rules/appCollections.rules.test.mjs tests/rules/employeeInvite.rules.test.mjs tests/rules/invoices.rules.test.mjs tests/rules/membership.rules.test.mjs tests/rules/isoLocks.rules.test.mjs tests/rules/notifications.rules.test.mjs"
+        run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-concurrency=1 tests/rules/firestore.rules.test.mjs tests/rules/appCollections.rules.test.mjs tests/rules/employeeInvite.rules.test.mjs tests/rules/invoices.rules.test.mjs tests/rules/membership.rules.test.mjs tests/rules/isoLocks.rules.test.mjs tests/rules/notifications.rules.test.mjs tests/rules/orgnrIndex.rules.test.mjs"
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/330510386923/locations/global/workloadIdentityPools/github/providers/github

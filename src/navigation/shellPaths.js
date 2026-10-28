@@ -87,6 +87,24 @@ export function companyLandingTab(path, { company = false, allowed = true } = {}
   return root || parseShellPath(path)?.tab === 'home' ? 'selskap' : null;
 }
 
+/** Faner som bare finnes i Bedrift. */
+const COMPANY_ONLY_TABS = new Set([
+  'selskap', 'underenheter', 'ansatte', 'hr', 'arbeid', 'okonomi', 'kunder',
+  'anbud', 'kontrakt', 'projects', 'utstyr', 'iso', 'skjema',
+]);
+
+/**
+ * Stien etter et bytte med Privat/Bedrift (EGEN-04). Bryteren velger arbeidsområdet, og siden
+ * følger med: en bedriftsside finnes ikke i Privat, så Privat starter på Hjem i stedet for
+ * «Du er ikke i en bedrift». Sider som finnes begge steder (Kalender, Oppgaver …) blir stående.
+ * null = behold stien.
+ */
+export function shellPathAfterSwitch(path, side) {
+  const at = parseShellPath(path);
+  if (!at || side !== 'personal') return null;
+  return COMPANY_ONLY_TABS.has(at.tab) ? SHELL_ROOT : null;
+}
+
 /* Siste skallsti og nøkkelen til Hjem-ruten. Brukes av linking når Hjem får fokus igjen. */
 let currentShellPath = SHELL_ROOT;
 let homeRouteKey = '';
@@ -116,6 +134,16 @@ export function setShellLocation(path) {
 
 export function getShellLocation() {
   return currentShellPath;
+}
+
+/** Web: rydder adressen før skallet monteres i et annet arbeidsområde (se shellPathAfterSwitch). */
+export function leaveShellPathForSwitch(side) {
+  if (typeof window === 'undefined' || !window.location || !window.history?.replaceState) return null;
+  const next = shellPathAfterSwitch(window.location.pathname, side);
+  if (!next) return null;
+  currentShellPath = next;
+  try { window.history.replaceState({ ...(window.history.state || {}), shell: next }, '', next); } catch { /* ignore */ }
+  return next;
 }
 
 export function setHomeRouteKey(key) {

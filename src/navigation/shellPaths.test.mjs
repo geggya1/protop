@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   companyLandingTab, getShellLocation, homePathForLinking, isShellPath, parseShellPath, rememberEntryShellPath, setHomeRouteKey, setShellLocation,
-  shellLinkState, shellPathFor, shellSearchFor, takeEntryShellPath,
+  shellLinkState, shellPathAfterSwitch, shellPathFor, shellSearchFor, takeEntryShellPath,
 } from './shellPaths.js';
 
 test('skallsti: fane og underside i adressen', () => {
@@ -79,4 +79,15 @@ test('skallsti: bedrift lander på selskapssiden når adressen bare er /hjem', (
   assert.equal(companyLandingTab('/hjem', { company: true, allowed: false }), null, 'uten tilgang til selskapssiden');
   assert.equal(companyLandingTab('/hjem/okonomi/indeks', { company: true }), null, 'en side i adressen åpnes som før');
   assert.equal(companyLandingTab('/settings/profile', { company: true }), null);
+});
+
+test('bytte til Privat: bedriftssider blir ikke med, felles sider blir stående (EGEN-04)', () => {
+  assert.equal(shellPathAfterSwitch('/hjem/selskap', 'personal'), '/hjem');
+  assert.equal(shellPathAfterSwitch('/hjem/okonomi/faktura', 'personal'), '/hjem');
+  assert.equal(shellPathAfterSwitch('/hjem/prosjekt', 'personal'), '/hjem');
+  assert.equal(shellPathAfterSwitch('/hjem/plan', 'personal'), null, 'Kalender finnes i begge');
+  assert.equal(shellPathAfterSwitch('/hjem/timeliste', 'personal'), null, 'egen timeliste finnes i begge');
+  assert.equal(shellPathAfterSwitch('/hjem', 'personal'), null);
+  assert.equal(shellPathAfterSwitch('/hjem/selskap', 'company'), null, 'til Bedrift: stien står');
+  assert.equal(shellPathAfterSwitch('/settings/profile', 'personal'), null, 'ikke en skallsti');
 });

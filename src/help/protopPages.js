@@ -21,7 +21,8 @@ const tx = (nb, en) => ({ nb, en });
 
 /** Menygrupper slik de står i hamburgermenyen og venstremenyen. */
 export const HELP_SECTIONS = [
-  { id: 'personal', icon: 'person-outline', title: tx('Personlig', 'Personal') },
+  // Øverst i menyen, uten overskrift; bryteren Privat/Bedrift velger arbeidsområdet (EGEN-04).
+  { id: 'personal', icon: 'person-outline', title: tx('Hjem og verktøy', 'Home and tools') },
   { id: 'company-org', icon: 'business-outline', title: tx('Bedrift og organisasjon', 'Company and organisation') },
   { id: 'company-people', icon: 'people-outline', title: tx('Ansatte og arbeidstid', 'Employees and working hours') },
   { id: 'company-quality', icon: 'shield-checkmark-outline', title: tx('Kvalitet og styringssystem', 'Quality and management system') },
@@ -69,7 +70,7 @@ export const PROTOP_PAGES = {
   home: page({
     section: 'personal',
     label: tx('Hjem', 'Home'),
-    path: tx('Personlig → Hjem (eller trykk ProTop-logoen)', 'Personal → Home (or tap the ProTop logo)'),
+    path: tx('Menyen → Hjem (eller trykk ProTop-logoen)', 'Menu → Home (or tap the ProTop logo)'),
     nav: { tab: 'home' },
     icon: 'home',
     kicker: tx('Start her hver dag', 'Start here every day'),
@@ -116,7 +117,7 @@ export const PROTOP_PAGES = {
   chat: page({
     section: 'personal',
     label: tx('Chat', 'Chat'),
-    path: tx('Personlig → Chat, eller chat-boblen nede til høyre', 'Personal → Chat, or the chat bubble at the bottom right'),
+    path: tx('Menyen → Chat, eller chat-boblen nede til høyre', 'Menu → Chat, or the chat bubble at the bottom right'),
     nav: { tab: 'chat' },
     icon: 'chatbubbles',
     kicker: tx('Prat og ProTop-assistenten', 'Chat and the ProTop assistant'),
@@ -144,7 +145,7 @@ export const PROTOP_PAGES = {
   friends: page({
     section: 'personal',
     label: tx('Venner', 'Friends'),
-    path: tx('Personlig → Venner', 'Personal → Friends'),
+    path: tx('Menyen → Venner', 'Menu → Friends'),
     nav: { tab: 'more', subView: 'friends' },
     icon: 'people',
     kicker: tx('Kontakter utenfor bedriften', 'Contacts outside the company'),
@@ -172,7 +173,7 @@ export const PROTOP_PAGES = {
   plan: page({
     section: 'personal',
     label: tx('Kalender', 'Calendar'),
-    path: tx('Personlig → Kalender', 'Personal → Calendar'),
+    path: tx('Menyen → Kalender', 'Menu → Calendar'),
     nav: { tab: 'plan' },
     icon: 'calendar',
     kicker: tx('Avtaler og frister', 'Appointments and deadlines'),
@@ -200,7 +201,7 @@ export const PROTOP_PAGES = {
   mail: page({
     section: 'personal',
     label: tx('E-post', 'Mail'),
-    path: tx('Personlig → E-post', 'Personal → Mail'),
+    path: tx('Menyen → E-post', 'Menu → Mail'),
     nav: { tab: 'mail' },
     icon: 'mail',
     kicker: tx('Outlook i ProTop', 'Outlook inside ProTop'),
@@ -228,7 +229,7 @@ export const PROTOP_PAGES = {
   stars: page({
     section: 'personal',
     label: tx('Oppgaver', 'Tasks'),
-    path: tx('Personlig → Oppgaver', 'Personal → Tasks'),
+    path: tx('Menyen → Oppgaver', 'Menu → Tasks'),
     nav: { tab: 'stars' },
     icon: 'checkbox',
     kicker: tx('Huskeliste med frister', 'To-do list with deadlines'),
@@ -262,7 +263,7 @@ export const PROTOP_PAGES = {
   notes: page({
     section: 'personal',
     label: tx('Notat', 'Notes'),
-    path: tx('Personlig → Notat', 'Personal → Notes'),
+    path: tx('Menyen → Notat', 'Menu → Notes'),
     nav: { tab: 'notes' },
     icon: 'document-text',
     kicker: tx('Skriv eller ta opp', 'Write or record'),
@@ -283,7 +284,7 @@ export const PROTOP_PAGES = {
   timeliste: page({
     section: 'personal',
     label: tx('Timeliste (min)', 'Timesheet (mine)'),
-    path: tx('Personlig → Timeliste', 'Personal → Timesheet'),
+    path: tx('Menyen → Timeliste', 'Menu → Timesheet'),
     nav: { tab: 'timeliste' },
     icon: 'time',
     process: 'anbud-til-faktura',

@@ -47,8 +47,8 @@ export const ASSISTANT_TASKS = [
     ),
     steps: [
       s(tx('Åpne timelisten', 'Open the timesheet'),
-        'Gå til Personlig → Timeliste (eller Timer / arbeid per ansatt → Timeliste og velg deg selv).',
-        'Go to Personal → Timesheet (or Hours / work per employee → Timesheet and pick yourself).', { go: true }),
+        'Gå til Menyen → Timeliste (eller Timer / arbeid per ansatt → Timeliste og velg deg selv).',
+        'Go to Menu → Timesheet (or Hours / work per employee → Timesheet and pick yourself).', { go: true }),
       s(tx('Legg til fravær / ferie', 'Add absence / holiday'),
         'Trykk «Legg til fravær / ferie» nederst i timelisten.',
         'Tap “Add absence / holiday” at the bottom of the timesheet.', gate('timeliste', 2)),
@@ -151,7 +151,7 @@ export const ASSISTANT_TASKS = [
     avoid: tx(['flytte', 'flytter', 'slette', 'sletter', 'notat'], ['move', 'delete', 'note']),
     intro: tx('Timer føres per prosjekt og dag i timelisten.', 'Hours are logged per project and day in the timesheet.'),
     steps: [
-      s(tx('Åpne timelisten', 'Open the timesheet'), 'Gå til Personlig → Timeliste (eller Timer / arbeid per ansatt → Timeliste og velg deg selv).', 'Go to Personal → Timesheet (or Hours / work per employee → Timesheet and pick yourself).', { go: true }),
+      s(tx('Åpne timelisten', 'Open the timesheet'), 'Gå til Menyen → Timeliste (eller Timer / arbeid per ansatt → Timeliste og velg deg selv).', 'Go to Menu → Timesheet (or Hours / work per employee → Timesheet and pick yourself).', { go: true }),
       s(tx('Legg til prosjekt', 'Add the project'), 'Første gang: trykk «Legg til prosjekt» og velg prosjektet. Det blir en linje i timelisten.', 'First time: tap “Add project” and pick the project. It becomes a row in the timesheet.', gate('timeliste', 0)),
       s(tx('Trykk dagen', 'Tap the day'), 'Trykk ruten for dagen på prosjektlinjen.', 'Tap the day’s cell on the project row.', gate('timeliste', 1)),
       s(tx('Skriv timene', 'Enter the hours'),
@@ -641,7 +641,7 @@ export const ASSISTANT_TASKS = [
     q: tx('Hvordan legger jeg inn en avtale i kalenderen?', 'How do I add an event to the calendar?'),
     title: tx('Legge inn en hendelse i kalenderen', 'Add an event to the calendar'),
     ask: tx(['avtale i kalenderen', 'hendelse i kalenderen', 'ny hendelse', 'møte i kalenderen', 'legge inn møte', 'kalender'], ['calendar event', 'new event', 'add meeting', 'calendar']),
-    intro: tx('Hendelser legges inn under Personlig → Kalender.', 'Events are added under Personal → Calendar.'),
+    intro: tx('Hendelser legges inn under Menyen → Kalender.', 'Events are added under Menu → Calendar.'),
     steps: [
       s(tx('Ny hendelse', 'New event'), 'Trykk «Ny hendelse» øverst til høyre.', 'Tap “New event” at the top right.'),
       s(tx('Fyll ut og lagre', 'Fill in and save'), 'Gi den tittel, tid og eventuelt gjentakelse, og trykk Lagre.', 'Give it a title, time and optional repeat, and tap Save.'),
@@ -656,8 +656,8 @@ export const ASSISTANT_TASKS = [
     ask: tx(['koble outlook', 'outlook', 'microsoft konto', 'koble kalender', 'koble e-post', 'synkronisere kalender', 'microsoft'], ['connect outlook', 'outlook', 'microsoft account', 'sync calendar']),
     intro: tx('Outlook kobles én gang for kalenderen og én gang for e-posten.', 'Outlook is connected once for the calendar and once for email.'),
     steps: [
-      s(tx('Kalender', 'Calendar'), 'Personlig → Kalender → «Koble til kalender» (også under kalenderinnstillingene), og logg inn med Microsoft.', 'Personal → Calendar → “Connect calendar” (also in the calendar settings), and sign in with Microsoft.'),
-      s(tx('E-post', 'Email'), 'Personlig → E-post → «Innstillinger» ved mappene, og koble Microsoft-kontoen.', 'Personal → Email → “Settings” by the folders, and connect the Microsoft account.'),
+      s(tx('Kalender', 'Calendar'), 'Menyen → Kalender → «Koble til kalender» (også under kalenderinnstillingene), og logg inn med Microsoft.', 'Menu → Calendar → “Connect calendar” (also in the calendar settings), and sign in with Microsoft.'),
+      s(tx('E-post', 'Email'), 'Menyen → E-post → «Innstillinger» ved mappene, og koble Microsoft-kontoen.', 'Menu → Email → “Settings” by the folders, and connect the Microsoft account.'),
     ],
     show: [at('plan', 2)],
     related: ['task.kalender'],
@@ -667,7 +667,7 @@ export const ASSISTANT_TASKS = [
     q: tx('Hvordan lager jeg en oppgave?', 'How do I create a task?'),
     title: tx('Lage en oppgave', 'Create a task'),
     ask: tx(['ny oppgave', 'lage oppgave', 'lage en oppgave', 'gjøremål', 'huskeliste', 'todo'], ['new task', 'create task', 'to-do']),
-    intro: tx('Oppgaver ligger under Personlig → Oppgaver, sammen med tiltak fra HR og ISO.', 'Tasks are under Personal → Tasks, together with actions from HR and ISO.'),
+    intro: tx('Oppgaver ligger under Menyen → Oppgaver, sammen med tiltak fra HR og ISO.', 'Tasks are under Menu → Tasks, together with actions from HR and ISO.'),
     steps: [
       s(tx('Ny oppgave', 'New task'), 'Trykk «Ny oppgave».', 'Tap “New task”.'),
       s(tx('Fyll ut', 'Fill in'), 'Skriv hva som skal gjøres, sett frist og lagre. Kryss av når den er ferdig.', 'Write what needs doing, set a deadline and save. Tick it off when done.'),

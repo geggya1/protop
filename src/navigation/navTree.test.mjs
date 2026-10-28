@@ -121,6 +121,22 @@ test('privat arbeidsområde: ingen bedriftsmeny i noen av variantene', () => {
   assert.deepEqual(shape(rail), shape(withoutChat(drawer)));
 });
 
+test('bryteren Privat/Bedrift styrer menyen; ingen egen «Personlig»-overskrift (EGEN-04)', () => {
+  const bedrift = navSections(buildNavTree(navTreeInput({ t, app: owner })));
+  const privat = navSections(buildNavTree(navTreeInput({
+    t, app: { ...owner, isAdmin: false, family: { id: 'P', isPersonal: true, name: 'Hjelpe' }, familyId: 'P' },
+  })));
+  for (const sections of [bedrift, privat]) {
+    const main = sections.find((section) => section.id === 'main');
+    assert.equal(main.heading, '', 'øverste del har ingen overskrift');
+    assert.equal(main.foldable, false);
+    assert.ok(main.items.some((item) => item.id === 'plan'), 'Kalender står øverst i begge');
+  }
+  assert.equal(bedrift.find((section) => section.id === 'company').heading, 'shell.company');
+  assert.deepEqual(bedrift.map((section) => section.id), ['main', 'company', 'account']);
+  assert.deepEqual(privat.map((section) => section.id), ['main', 'account']);
+});
+
 test('søk viser undersider med modulen åpen og tar bort tomme seksjoner', () => {
   const sections = buildNavTree(navTreeInput({ t, app: owner }));
   const hits = navSections(sections, { query: 'faktura' });

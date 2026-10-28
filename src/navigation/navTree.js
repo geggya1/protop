@@ -17,8 +17,14 @@ import {
 
 export const NAV_VARIANTS = ['rail', 'drawer'];
 
-/** Seksjoner som vises uten overskrift. */
-const HEADLESS_SECTION_IDS = new Set();
+/**
+ * Seksjoner uten overskrift (EGEN-04). Bryteren Privat/Bedrift øverst er den eneste veien
+ * mellom privat og bedrift, og menyen viser det som hører til arbeidsområdet som er valgt
+ * (bedriftsmenyen bare i Bedrift). Hjem, Kalender, E-post, Oppgaver, Notat og Timeliste
+ * finnes i begge, så de står øverst uten en egen «Personlig»-overskrift, som ellers leses
+ * som en ekstra vei til Privat ved siden av bryteren.
+ */
+const HEADLESS_SECTION_IDS = new Set(['main']);
 
 /** Seksjoner som kan lukkes. Bedriftsgruppene lukkes én og én, ikke hele bedriftsmenyen. */
 function sectionFoldable(id) {

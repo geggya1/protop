@@ -294,7 +294,8 @@ const COMPANY_PAGES = [
   ['arbeid', 'fravaer', 'arbeid-fravaer'],
   ['arbeid', 'fravaersrapport', 'arbeid-fravaersrapport'],
   ['arbeid', 'planlagt', 'arbeid-planlagt'],
-  ['arbeid', 'utlegg', 'arbeid-utlegg'],
+  // Prosjektutlegg er en del av Utlegg (UX-17).
+  ['arbeid', 'utlegg', 'okonomi-utlegg'],
   ['arbeid', 'salg', 'arbeid-salg'],
   ['arbeid', 'godkjenning', 'arbeid-godkjenning'],
   ['okonomi', 'oversikt', 'okonomi-oversikt'],
@@ -349,7 +350,6 @@ assert.equal(resolveModuleHero('arbeid-timerapport', 'nb').wideArt, true, 'hours
 assert.equal(resolveModuleHero('arbeid-timesaldo', 'nb').wideArt, true, 'hour balance uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
-assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project expenses use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');

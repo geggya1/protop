@@ -129,7 +129,7 @@ const PRECISE = [
   ['Hvordan regulerer jeg pris med indeks?', 'task.indeks'],
   ['Hvordan lager jeg CV?', 'task.cv'],
   ['Hvordan lukker jeg et avvik?', 'page:iso.avvik#3'],
-  ['Hvordan godkjenner jeg utlegg?', 'page:okonomi.utlegg#1'],
+  ['Hvordan godkjenner jeg utlegg?', 'page:okonomi.utlegg#2'],
   ['Hvordan bytter jeg språk?', 'page:settings#1'],
   ['Hvordan vurderer jeg et anbud?', 'page:anbud.varsling#2'],
   ['Hvordan legger jeg til en aktivitet på prosjektet?', 'page:projects#3'],

@@ -71,16 +71,22 @@ test('utlegget lagres koblet og kan slettes (ikke når det er fakturert)', () =>
 });
 
 test('Økonomi → Utlegg bruker registrene, bekrefter sletting og viser status på norsk', () => {
-  const src = readFileSync(new URL('../../screens/economy/EconomyOps.jsx', import.meta.url), 'utf8');
+  // Utlegg er én side for prosjekt og internt (UX-17); registreringen ligger der.
+  const src = readFileSync(new URL('../../screens/economy/ProjectExpensesScreen.jsx', import.meta.url), 'utf8');
   assert.equal(/label="Kunde" value=\{draft\.customerName/.test(src), false, 'kunde er ikke fritekst');
   assert.equal(/label="Prosjekt" value=\{draft\.projectName/.test(src), false, 'prosjekt er ikke fritekst');
-  assert.match(src, /pickInDraft\('employee'/);
-  assert.match(src, /pickInDraft\('project'/);
-  assert.match(src, /pickInDraft\('customer'/);
+  assert.match(src, /onPick\('employee'/);
+  assert.match(src, /onPick\('project'/);
+  assert.match(src, /onPick\('customer'/);
+  assert.match(src, /expenseRegistryPatch\(kind, id/);
   assert.match(src, /expenseStatusLabel\(row\.status\)/);
   assert.equal(/\{row\.status\} ·/.test(src), false, 'rå status vises ikke');
-  const remove = src.slice(src.indexOf('function removeExpense'), src.indexOf('if (!ready)'));
-  assert.ok(remove.indexOf('setPendingDelete(row.id)') < remove.indexOf('deleteExpense('), 'første trykk ber om bekreftelse');
+  const remove = src.slice(src.indexOf('async function deleteDraft'), src.indexOf('function toggleSort'));
+  assert.ok(remove.indexOf('setPendingDelete(true)') < remove.indexOf('deleteExpense('), 'første trykk ber om bekreftelse');
+  assert.ok(remove.indexOf('setPendingDelete(true)') < remove.indexOf('removeExpenseRow('), 'også for importerte');
+  // Kjøreboken registrerer ikke utlegg selv lenger.
+  const ops = readFileSync(new URL('../../screens/economy/EconomyOps.jsx', import.meta.url), 'utf8');
+  assert.equal(/Nytt utlegg/.test(ops), false);
 });
 
 test('Til fakturering sier fra om utlegg og kjøring som venter på godkjenning', async () => {

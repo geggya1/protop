@@ -196,7 +196,7 @@ function idsIn(sections) {
   assert.ok(companyItems.findIndex((i) => i.id === 'okonomi') < companyItems.findIndex((i) => i.id === 'iso'));
   assert.deepEqual(
     companyItems.find((i) => i.id === 'okonomi').children.map((i) => i.label),
-    ['Oversikt', 'Faktura', 'Til fakturering', 'Utlegg', 'Prosjektutlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
+    ['Oversikt', 'Faktura', 'Til fakturering', 'Utlegg', 'Indeksregulering', 'Indekser', 'Innstillinger'],
   );
   const okonomiKids = companyItems.find((i) => i.id === 'okonomi').children;
   assert.equal(okonomiKids.some((i) => i.id === 'okonomi-inntjening'), false);
@@ -206,8 +206,9 @@ function idsIn(sections) {
   assert.deepEqual(inntjeningKid.activeSubViews, ['inntjening', 'kunder', 'avtaler']);
   assert.equal(okonomiKids.some((i) => i.id === 'okonomi-kunder'), false);
   assert.equal(okonomiKids.some((i) => i.id === 'okonomi-avtaler'), false);
-  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-prosjektutlegg').action.tab, 'arbeid');
-  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-prosjektutlegg').action.subView, 'utlegg');
+  // UX-17: Prosjektutlegg og Utlegg er én side (filteret Prosjekt / Internt / Alle).
+  assert.equal(okonomiKids.some((i) => i.id === 'okonomi-prosjektutlegg'), false);
+  assert.equal(okonomiKids.find((i) => i.id === 'okonomi-utlegg').action.subView, 'utlegg');
   // UX-17: Tilgang under Konto gikk til samme side som Tilgangsstyring, og Skjemabygger ligger i bedriftsmenyen.
   const accountItems = company.find((s) => s.id === 'account').items;
   assert.equal(accountItems.some((i) => i.id === 'tilgang'), false);
@@ -588,7 +589,7 @@ assert.match(readFileSync(new URL('./navTree.js', import.meta.url), 'utf8'), /gr
   assert.equal(drawerSubmenuOpen(produkt, 'arbeid', {}, 'salg'), true);
   assert.equal(drawerSubmenuOpen(produkt, 'okonomi', {}, 'produkter'), true);
   assert.equal(drawerSubmenuOpen(produkt, 'arbeid', {}, 'timeliste'), false);
-  assert.equal(drawerSubmenuOpen(okonomi, 'arbeid', {}, 'utlegg'), true);
+  assert.equal(drawerSubmenuOpen(okonomi, 'okonomi', {}, 'utlegg'), true);
   assert.equal(drawerSubmenuOpen(kunder, 'kunder'), false);
 }
 // Kunder og Avtaler er faner i Inntjening, ikke egne sider med eget navn (UX-17).
@@ -769,7 +770,7 @@ function collectPresented(items, acc = []) {
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
   // Innleide har Tildelte prosjekt, og ser derfor Prosjekt (bare egne prosjekter).
-  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'okonomi-prosjektutlegg', 'produkt-salg', 'utstyr', 'projects']);
+  assert.deepEqual(innleieIds, ['selskap', 'fravaer', 'arbeid', 'produktivitet', 'okonomi-utlegg', 'produkt-salg', 'utstyr', 'projects']);
   assert.equal(innleie.find((item) => item.id === 'company-people').children.find((item) => item.id === 'fravaer').pages.length, 3);
 
   assert.equal(drawerGroupOpen(org, 'home', {}, null), false);

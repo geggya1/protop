@@ -7,6 +7,7 @@
  * mor = foresatt i familien F, kid = barnet, ext = fremmed, gammel = konto med et eldre navnedokument.
  */
 import { after, before, beforeEach, describe, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import {
@@ -111,5 +112,48 @@ describe('brukernavn (SEC-19)', () => {
   test('oppslag før innlogging virker som før', async () => {
     await assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), 'usernames', 'mormor')));
     await assertFails(claim(env.unauthenticatedContext().firestore(), 'anonym', 'x'));
+  });
+});
+
+// SEC-19 (rest): regler kan ikke telle navn per konto, så nye apper tar navn via claimUsername
+// (functions/usernameClaim.js, ett navn per konto). Den gamle veien (direkte opprettelse, som
+// profilsteget i 86332db gjør) står til sluttdatoen i reglene. Her simuleres tiden etter datoen
+// med en kopi av reglene der datoen er flyttet bakover (eget prosjekt i emulatoren).
+describe('brukernavn: direkte opprettelse har en sluttdato (SEC-19)', () => {
+  const SUNSET = /request\.time < timestamp\.date\(2027, 3, 1\)/;
+  let late;
+  const lateAs = (uid) => late.authenticatedContext(uid).firestore();
+
+  before(async () => {
+    const rules = readFileSync('firestore.rules', 'utf8');
+    assert.match(rules, SUNSET, 'den gamle veien har en sluttdato i reglene');
+    late = await initializeTestEnvironment({
+      projectId: 'demo-protop-sunset',
+      firestore: { rules: rules.replace(SUNSET, 'request.time < timestamp.date(2020, 1, 1)'), host: '127.0.0.1', port: 8080 },
+    });
+  });
+
+  after(async () => {
+    await late?.cleanup();
+  });
+
+  beforeEach(async () => {
+    await late.clearFirestore();
+    await late.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'users', 'ext'), { uid: 'ext', displayName: 'ext' });
+      await setDoc(doc(db, 'usernames', 'ekstern1'), { uid: 'ext', type: 'adult', username: 'ekstern1' });
+    });
+  });
+
+  test('før datoen virker profilsteget i eldre apper (transaksjonen over)', async () => {
+    await assertSucceeds(claim(as('ext'), 'ekstern77', 'ext'));
+  });
+
+  test('etter datoen kan ingen klient opprette navn direkte; eget navn kan lagres på nytt og slettes', async () => {
+    await assertFails(claim(lateAs('ext'), 'ekstern2', 'ext'));
+    await assertFails(claim(lateAs('ext'), 'ekstern3', 'ext'));
+    await assertSucceeds(claim(lateAs('ext'), 'ekstern1', 'ext'));
+    await assertSucceeds(deleteDoc(doc(lateAs('ext'), 'usernames', 'ekstern1')));
   });
 });

@@ -1,5 +1,6 @@
 /**
- * Prosjektutlegg skal rendre filter og import, uten den åpne medarbeider-rekka.
+ * Utlegg (UX-17): én side for prosjektutlegg og interne utlegg, med filteret Prosjekt / Internt / Alle,
+ * filter og import, uten den åpne medarbeider-rekka. Ansattsiden bruker samme liste for én person.
  */
 const fs = require('fs');
 const path = require('path');
@@ -18,12 +19,9 @@ const people = [
   { id: 'a', person: { firstName: 'Aina', lastName: 'Jespersen' } },
   { id: 'b', person: { firstName: 'Anas', lastName: 'Elbakri' } },
 ];
-let workspace = {
-  workspaceId: 'co',
-  lockedId: '',
-  employees: people,
-  state: { expenses: [], projects: [] },
-};
+let projectState = { expenses: [], projects: [] };
+// Utlegg (alle filtre) eller bare Prosjektutlegg.
+let seesAll = true;
 
 function host(name) {
   return function Host(props) {
@@ -44,7 +42,7 @@ const rnMock = {
   useWindowDimensions: () => ({ width: screenWidth, height: 800 }),
 };
 
-const companyData = require('../company/companyDataTesting.js').companyDataHooks();
+const companyData = require('../company/companyDataTesting.js').companyDataHooks({ employees: people });
 
 function loadJsx(rel) {
   const full = path.join(ROOT, rel);
@@ -77,12 +75,37 @@ function loadJsx(rel) {
     if (id.endsWith('src/theme')) return { useLayout: () => ({ width: 800 }) };
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
     if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };
-    if (id.includes('useTimesheetWorkspace')) {
-      return { useTimesheetWorkspace: () => workspace };
+    if (id.includes('useProjectStateEditor')) {
+      return { useProjectStateEditor: () => ({ state: projectState, setState: () => true, ready: true }) };
     }
-    // Admin på prosjektutlegg: import vises (canImportList).
+    if (id.includes('context/AppContext')) {
+      return {
+        useApp: () => ({
+          familyId: 'co', user: { uid: 'u1' }, requestShellTab: () => {}, shellIntent: null, clearShellIntent: () => {},
+        }),
+      };
+    }
+    // Admin på prosjektutlegg: import vises (canImportList). seesAll: Utlegg gir alle filtrene.
     if (id.includes('useCompanyAccess')) {
-      return { useCompanyAccess: () => ({ ready: true, canAdmin: () => true, canEdit: () => true, canRead: () => true }) };
+      return {
+        useCompanyAccess: () => ({
+          active: true,
+          ready: true,
+          canView: (res) => (res === 'economyExpenses' ? seesAll : true),
+          canAdmin: () => true,
+          canEdit: (res) => (res === 'economyExpenses' ? seesAll : true),
+          canRead: () => true,
+          tabAllowed: () => true,
+        }),
+      };
+    }
+    if (id.endsWith('src/ui')) {
+      return {
+        Button: (props) => React.createElement('Button', props, props.label),
+        Field: (props) => React.createElement('Field', props, props.label, props.children),
+        Sheet: (props) => React.createElement('Sheet', props, props.title, props.children),
+        TextIn: host('TextIn'),
+      };
     }
     if (id.includes('anbud/storage')) return { loadAnbudState: async () => ({ customers: [] }) };
     if (id.includes('CompanyDataContext')) return companyData;
@@ -166,10 +189,12 @@ function texts(node) {
 }
 
 const screen = loadJsx('screens/economy/ProjectExpensesScreen.jsx');
-const tree = withHooks(() => React.createElement(screen.ProjectExpensesScreen, {}));
+const tree = withHooks(() => React.createElement(screen.ExpensesScreen, {}));
 const body = texts(tree);
-assert.match(body, /Prosjektutlegg/);
+assert.match(body, /^Utlegg$/m);
 assert.match(body, /Importer fra fil/);
+assert.match(body, /Nytt utlegg/);
+assert.match(body, /Eksporter CSV/);
 assert.match(body, /Filtrer medarbeider/);
 assert.match(body, /Filtrer kunde/);
 assert.match(body, /Filtrer prosjekt/);
@@ -180,18 +205,44 @@ const ids = [];
 walk(tree, (element) => {
   if (element.props && element.props.nativeID) ids.push(element.props.nativeID);
 });
-assert.ok(ids.includes('prosjektutlegg'));
+assert.ok(ids.includes('utlegg'));
 assert.ok(ids.includes('expense-import-open'));
 assert.ok(ids.includes('expense-filters'));
+assert.ok(ids.includes('expense-scope'), 'filteret Prosjekt / Internt / Alle');
+assert.ok(ids.includes('expense-new'), 'Nytt utlegg på samme side');
+assert.equal(screen.ProjectExpensesScreen, screen.ExpensesScreen, 'ansattsiden bruker samme liste');
+
+// Prosjekt, Internt og Alle: samme rader, ulikt utvalg.
+projectState = {
+  projects: [],
+  expenses: [
+    { id: 'p', date: '2026-10-01', description: 'Hotell prosjekt', amountInclVat: 100, projectId: 'prj', projectName: 'Bygg' },
+    { id: 'i', date: '2026-10-02', description: 'Kontor internt', amountInclVat: 50 },
+  ],
+};
+const shown = (props) => texts(withHooks(() => React.createElement(screen.ExpensesScreen, props)));
+assert.match(shown({}), /Kontor internt/, 'uten valg: Alle');
+assert.match(shown({}), /Hotell prosjekt/);
+assert.doesNotMatch(shown({ scope: 'internt' }), /Hotell prosjekt/);
+assert.match(shown({ scope: 'internt' }), /Kontor internt/);
+assert.match(shown({ scope: 'prosjekt' }), /Hotell prosjekt/);
+assert.doesNotMatch(shown({ scope: 'prosjekt' }), /Kontor internt/);
+// Bare Prosjektutlegg (f.eks. ansatt): bare utlegg på prosjekt, og ingen filtervelger.
+seesAll = false;
+assert.doesNotMatch(shown({ scope: 'internt' }), /Kontor internt/);
+assert.match(shown({ scope: 'internt' }), /Hotell prosjekt/);
+const projectOnlyIds = [];
+walk(withHooks(() => React.createElement(screen.ExpensesScreen, {})), (element) => {
+  if (element.props && element.props.nativeID) projectOnlyIds.push(element.props.nativeID);
+});
+assert.equal(projectOnlyIds.includes('expense-scope'), false);
+seesAll = true;
 
 // Ansattsiden: utlegg personen har registrert på prosjekt, også importerte uten kobling.
 const expense = (id, extra) => ({
   id, date: '2026-10-01', description: `Utlegg ${id}`, amountInclVat: 100, projectName: 'Bygg', ...extra,
 });
-workspace = {
-  ...workspace,
-  lockedId: 'a',
-  state: {
+projectState = {
     projects: [],
     expenses: [
       expense('egen', { employeeId: 'a', employeeName: 'Aina Jespersen' }),
@@ -199,7 +250,6 @@ workspace = {
       expense('navn', { employeeName: 'Jespersen, Aina' }),
       expense('ukjent', {}),
     ],
-  },
 };
 const mine = texts(withHooks(() => React.createElement(screen.ProjectExpensesScreen, { lockedEmployeeId: 'a', embedded: true })));
 assert.match(mine, /Utlegg egen/);

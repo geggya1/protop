@@ -84,7 +84,7 @@ for (const [file, resource] of [
   ['screens/economy/ProjectExpensesScreen.jsx', 'economyProjectExpenses'],
   ['screens/arbeid/AbsenceScreens.jsx', 'absenceReport'],
 ]) {
-  assert.match(read(file), new RegExp(`canImportList\\(useCompanyAccess\\(\\), '${resource}'\\)`), `${file}: import krever Admin`);
+  assert.match(read(file), new RegExp(`canImportList\\((useCompanyAccess\\(\\)|access), '${resource}'\\)`), `${file}: import krever Admin`);
 }
 assert.match(read('screens/economy/EconomyHours.jsx'), /const canImport = rights === 'admin'/);
 assert.match(read('screens/employees/EmployeesScreen.jsx'), /\.\.\.\(employeesAdmin \? \[\{ id: 'import'/);

@@ -5,13 +5,26 @@ import { MODULE_CATALOG } from '../../src/modules/moduleActivationRegistry';
 import { Screen } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
 import ModuleActivationSettings from '../../components/ModuleActivationSettings';
+import { useModuleAccess, useModuleWriteScope } from '../../src/context/ModuleAccessContext';
+import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 
 /**
  * Family-level activate / deactivate. Welcome returns after deactivate.
+ * I en bedrift (MENY-01) gjelder valget her bare den ansatte selv; hele bedriften endres i
+ * Modulinnstillinger av den som har tilgangen (eier, administrator, Admin på Modulinnstillinger).
  */
 export default function ModuleAccessSettingsScreen({ onBack }) {
   const { isDesktop } = useLayout();
   const reassurance = MODULE_CATALOG?.defaults?.reassuranceText || '';
+  const { isCompany } = useModuleAccess();
+  const scope = useModuleWriteScope();
+  let hint = `Alle moduler vises i menyen. En deaktivert modul viser velkomstskjermen neste gang noen åpner den.${reassurance ? ` ${reassurance}` : ''}`;
+  if (isCompany && scope === 'personal') {
+    hint = 'Valgene her gjelder bare deg. En modul du slår av, viser velkomsten når du åpner den, og du kan slå den på igjen. '
+      + 'Moduler for hele bedriften endres i Modulinnstillinger av den som har tilgang til dem.';
+  } else if (isCompany) {
+    hint = 'Valgene her gjelder hele bedriften, som i Modulinnstillinger. En modul som er slått av, viser velkomsten neste gang noen åpner den.';
+  }
 
   return (
     <Screen>
@@ -20,12 +33,12 @@ export default function ModuleAccessSettingsScreen({ onBack }) {
         showsVerticalScrollIndicator={false}
       >
         {onBack ? <CompactBackLink onPress={onBack} compact={isDesktop} /> : null}
-        <Text style={[styles.title, isDesktop && styles.titleDesk]}>Aktiverte moduler</Text>
-        <Text style={styles.hint}>
-          Alle moduler vises i menyen. En deaktivert modul viser velkomstskjermen neste gang noen åpner den.
-          {reassurance ? ` ${reassurance}` : ''}
-        </Text>
-        <ModuleActivationSettings />
+        {/* Én tittel per side: toppfeltet viser allerede «Aktiverte moduler» i skallet. */}
+        <UnlessShellTitle title="Aktiverte moduler">
+          <Text style={[styles.title, isDesktop && styles.titleDesk]}>Aktiverte moduler</Text>
+        </UnlessShellTitle>
+        <Text style={styles.hint} nativeID="module-access-scope">{hint}</Text>
+        <ModuleActivationSettings scope={scope} />
       </ScrollView>
     </Screen>
   );

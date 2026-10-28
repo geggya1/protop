@@ -75,8 +75,14 @@ export default function ProfileSetupScreen({ onDone, consents, initial }) {
     if (!valid || !user || saving) return;
     setSaving(true);
     try {
-      const uname = await uniqueUsername(name.trim() || user.email || 'user', user.uid);
-      await claimUsername(uname, user.uid, 'adult');
+      // Brukernavnet tas på serveren (SEC-19). Feiler det, lagres profilen uten, som ved
+      // registreringen; navnet kan settes under profilen senere.
+      let uname = '';
+      try {
+        uname = await claimUsername(await uniqueUsername(name.trim() || user.email || 'user', user.uid), user.uid, 'adult');
+      } catch {
+        uname = '';
+      }
       await updateProfile(user, { displayName: name.trim(), photoURL: photoURL || undefined }).catch(() => {});
       const profile = {
         uid: user.uid,

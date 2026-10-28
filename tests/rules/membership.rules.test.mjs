@@ -160,13 +160,23 @@ describe('selskapsdokumentet (SEC-07, SEC-13, FL-02)', () => {
     await assertFails(updateDoc(doc(db, 'families', A), { adminUids: arrayUnion('kpf') }));
   });
 
-  test('vanlige endringer virker som før: navn, telefon, anbud, modulvelkomst og invitasjon på e-post', async () => {
+  test('vanlige endringer virker som før: navn, telefon, anbud og invitasjon på e-post', async () => {
     const db = as('bob');
     await assertSucceeds(updateDoc(doc(db, 'families', A), { name: 'Bygg AS', updatedAt: serverTimestamp() }));
     await assertSucceeds(updateDoc(doc(db, 'families', A), { 'company.telefon': '22334455', 'company.navn': 'Bygg AS' }));
     await assertSucceeds(updateDoc(doc(db, 'families', A), { cpvCodes: [], tenderWatch: { nationwide: true } }));
-    await assertSucceeds(updateDoc(doc(db, 'families', A), { moduleAccessInitialized: true, 'moduleAccess.notes': { state: 'active' } }));
     await assertSucceeds(updateDoc(doc(db, 'families', A), { invitedEmails: arrayUnion('ny@firma.no') }));
+  });
+
+  test('modulvelkomst: bare Admin på Modulinnstillinger slår moduler av og på for hele bedriften (MENY-01)', async () => {
+    const write = { moduleAccessInitialized: true, 'moduleAccess.notes': { state: 'active' } };
+    // En ansatt (og Øverste leder med Lese) lagrer sin egen visning i stedet (users/{uid}/modulePrefs).
+    await assertFails(updateDoc(doc(as('bob'), 'families', A), write));
+    await assertFails(updateDoc(doc(as('ldr'), 'families', A), write));
+    await assertSucceeds(updateDoc(doc(as('kpf'), 'families', A), write));
+    await assertSucceeds(updateDoc(doc(as('adm'), 'families', A), write));
+    // I en familie som før.
+    await assertSucceeds(updateDoc(doc(as('mor'), 'families', F), write));
   });
 
   test('en kan melde seg selv ut, og føre seg selv opp bare med et aktivt medlemsdokument', async () => {

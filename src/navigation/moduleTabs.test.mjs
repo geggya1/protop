@@ -28,7 +28,7 @@ test('modulmeny: Økonomi, Arbeid, Fravær, Produkt og Selskapsinnstillinger', (
   assert.equal(ok.moduleId, 'okonomi');
   assert.equal(ok.activeId, 'okonomi-faktura');
   assert.equal(ok.sections, undefined);
-  assert.equal(moduleTabsFor('arbeid', 'utlegg').moduleId, 'okonomi', 'prosjektutlegg ligger i Økonomi-menyen');
+  assert.equal(moduleTabsFor('okonomi', 'utlegg').activeId, 'okonomi-utlegg', 'Utlegg (prosjekt og internt) ligger i Økonomi-menyen');
   assert.equal(moduleTabsFor('arbeid', 'timesaldo').moduleId, 'arbeid');
   assert.equal(moduleTabsFor('arbeid', 'planlagt').moduleId, 'fravaer');
   assert.equal(moduleTabsFor('okonomi', 'produkter').moduleId, 'produkt');

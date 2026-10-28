@@ -117,7 +117,7 @@ export const ASSISTANT_TOPICS = [
       s({ nb: 'Ansatte', en: 'Employees' }, 'Ansatte → «Ny ansatt» → «Importer liste».', 'Employees → “New employee” → “Import list”.', gate('ansatte', 2)),
       s({ nb: 'Timer', en: 'Hours' }, 'Timer / arbeid per ansatt → Timerapport → «Importer timer».', 'Hours / work per employee → Hour report → “Import hours”.', gate('arbeid.timerapport', 1)),
       s({ nb: 'Fakturaer', en: 'Invoices' }, 'Økonomi → Faktura → «Importer Excel».', 'Finance → Invoices → “Import Excel”.', gate('okonomi.faktura', 4)),
-      s({ nb: 'Utlegg og produktsalg', en: 'Expenses and product sales' }, 'Prosjektutlegg → «Importer fra fil». Produktsalg → «Importer».', 'Project expenses → “Import from file”. Product sales → “Import”.', gate('arbeid.utlegg', 1)),
+      s({ nb: 'Utlegg og produktsalg', en: 'Expenses and product sales' }, 'Økonomi → Utlegg → «Importer fra fil». Produktsalg → «Importer».', 'Finance → Expenses → “Import from file”. Product sales → “Import”.', gate('okonomi.utlegg', 4)),
       s({ nb: 'Kontroller', en: 'Check' }, 'Se over forhåndsvisningen. Duplikater hoppes over.', 'Review the preview. Duplicates are skipped.'),
     ],
     keywords: ['import', 'importere', 'excel', 'csv', 'flytte', 'migrere', 'overføre', 'fil'],

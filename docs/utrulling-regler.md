@@ -62,6 +62,7 @@ både gamle og nye regler, så web trenger ikke rulles tilbake.
 | Notater | Lister med `memberIds`, lager i eget navn, «slett permanent» setter flagg | **Virker**. |
 | Invitasjon av voksen | Plassholder i eget navn, `memberInvites` med `invitedBy` = seg selv, status `pending` | **Virker** (ny invitasjon til en plassholder en annen har laget: se REV-16, rettes av en annen agent). |
 | Melde seg ut, føre seg selv opp | `arrayRemove`/`arrayUnion` av egen uid | **Virker**. |
+| Profilsteget: ta brukernavn | Transaksjon som skriver `usernames/{navn}` med egen uid | **Virker til 1. mars 2027** (SEC-19), se «Brukernavn» under. Nye apper bruker `claimUsername`. |
 | Varsler i andres innboks | `createdBy` = seg selv og `familyId` i en felles gruppe, venner, eller invitasjonen | **Virker** (testet i `notifications.rules.test.mjs`). |
 | ISO: tiltakseier melder tiltak utført | Endrer tiltaket (state, completedAt, completedBy, completionNote, evidence) | **Virker** for de fem første tiltakene i en sak (eldre app sender ikke `doneActionIndex`). |
 | Profilbilde, barneavatar, ikonkatalog (Storage) | Laster opp direkte, leser ikoner på mobil | **Virker** (REV-12). En administrator som bytter bildet til et annet medlem, må ha ny app (den sender `familyId` i metadata). |
@@ -87,7 +88,58 @@ Disse avvises for eldre apper. Det var dette rettingene skulle stoppe.
 | Lager et barnedokument i gruppen uten å være voksen der eller administrator, eller i en bedrift | Dokumentet ga den kontoen medlemskap i gruppen (REV-24) | Ingen vanlig flyt gjør dette. Et barn som lagrer tema før dokumentet finnes, får det bare lagret på enheten. |
 | Starter vennechat med en som ikke er venn (også kollega) | SOS-04, FL-12 | Tråden lages ikke. |
 | Endrer tilgangsmatrisen uten speil, eller orgnr/konto/moduler/personvernvalg uten tilgang | FL-02, SEC-13 | Lagringen feiler for andre enn eier og administratorer. |
+| Slår Kalender, E-post, Oppgaver, Notat eller Chat av eller på i en bedrift (Konto → Aktiverte moduler, eller «Aktiver» i velkomstvinduet) uten Admin på Modulinnstillinger | MENY-01: valget på `families/{id}.moduleAccess` gjaldt hele bedriften | Bryteren og «Aktiver» gjør ingenting (eldre app viser ingen feil). Se «Aktiverte moduler i en bedrift» under. |
 | Overskriver en fil i fakturaarkivet (Storage) | Bokføringsloven § 13 | Et vedlegg med samme filnavn kan ikke lastes opp på nytt i eldre apper. |
+
+### Aktiverte moduler i en bedrift (MENY-01)
+
+Kalender, E-post, Oppgaver, Notat og Chat slås av og på på `families/{id}.moduleAccess`. Før kunne
+enhver ansatt endre dette for hele bedriften fra Konto → Aktiverte moduler (og via REST). Nå:
+
+- **Hele bedriften** endres bare av eier, administratorer (`adminUids`) og den som har Admin på
+  Modulinnstillinger i speilet (`moduleAccessOk` i `firestore.rules`), samme tilgang som
+  Modulinnstillinger. I appen ligger valget i Bedriftsinnstillinger → Modulinnstillinger.
+- **En vanlig ansatt** endrer bare sin egen visning: `users/{uid}/modulePrefs/{bedrift}`
+  (`{ modules: { plan: 'off' | 'on' } }`, dekket av den eksisterende regelen for `users/{uid}/…`).
+  «Av» skjuler modulen for den ansatte (velkomsten vises, og den kan slås på igjen). «På» slår på en
+  modul bedriften ikke har tatt stilling til. En modul bedriften har slått av, kan ikke slås på for
+  seg selv; velkomstvinduet sier da hvem som kan slå den på.
+- Familier og lag: som før (valget gjelder gruppen).
+
+Eldre apper (86332db): en ansatt som slår en modul av eller på under Konto, eller trykker «Aktiver»
+i velkomstvinduet i en bedrift, får skrivingen avvist. Eldre app viser ingen feil; bryteren og
+velkomsten blir stående som før. I en bedrift der ingen med tilgang har slått på f.eks. Kalender,
+ser en ansatt med eldre app velkomsten til appen er oppdatert (web oppdateres med en gang ved
+merge). Eier og administratorer merker ingen forskjell. Rekkefølge: merge (web ute) før reglene,
+som i steg 1–4. Test: `tests/rules/companyModules.rules.test.mjs` (også direkte PATCH mot REST).
+
+### Brukernavn: ett navn per konto, og sluttdato for den gamle veien (SEC-19)
+
+Regler kan ikke telle hvor mange `usernames/{navn}` som peker på én konto. Med direkte skriving kunne
+derfor én konto reservere mange brukernavn med egne skript. Nye apper tar navnet med callablen
+`claimUsername` (`functions/usernameClaim.js`, i slim-deployen via `membershipIndex.js`): den tar det
+nye navnet og frigir kontoens andre navn i samme transaksjon, så en konto har ett aktivt navn (og hvert
+barn ett, tatt av en foresatt). Appen skriver ikke `usernames` selv lenger.
+
+**Hvorfor den gamle veien står til 1. mars 2027:** profilsteget i 86332db (også mobilappene) tar
+brukernavnet med en transaksjon direkte fra appen (`claimUsername` i `src/utils/usernames.js` på
+86332db) og lagrer profilen etterpå. Feiler den skrivingen, blir brukeren stående på profilsteget.
+Reglene kan ikke skille en eldre app fra et skript, så direkte opprettelse må være lov så lenge eldre
+apper er i bruk. Regelen `legacyUsernameCreate()` slipper den gamle veien til
+`request.time < timestamp.date(2027, 3, 1)`; etter det kan ingen klient opprette navn direkte (å lagre
+eller slette sitt eget navn virker fortsatt). Til da står hullet «mange navn med egne skript» åpent
+for direkte skriving (navnet må fortsatt peke på kontoen selv, og være et gyldig brukernavn).
+
+- Før datoen: sjekk at mobilappene i butikkene er oppdatert. Er de ikke det, flytt datoen i regelen
+  (én linje) og deploy reglene på nytt.
+- Etter datoen, med oppdaterte apper: regelen kan stå (den stenger selv), eller `allow create` på
+  `usernames` kan fjernes helt.
+- Kontoer med flere navn fra før ryddes når de tar et navn på nytt (Rediger profil).
+- Rekkefølge: merge først (callablen og appen går ut sammen), så reglene. Uten deployet callable
+  lagres profilen uten brukernavn (registrering og profilsteg stopper ikke).
+
+Tester: `functions/usernameClaim.emulator.test.mjs` (ett navn per konto, foresatt, tatte navn) og
+`tests/rules/usernames.rules.test.mjs` (før og etter datoen, med en kopi av reglene der datoen er flyttet).
 
 ### Private hendelser før bedriften er merket
 

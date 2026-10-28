@@ -30,6 +30,7 @@ import EconomyIndices from './EconomyIndices';
 import EconomyInvoices from './EconomyInvoices';
 import EconomyBilling from './EconomyBilling';
 import EconomyOps from './EconomyOps';
+import ExpensesScreen from './ProjectExpensesScreen';
 import ProductCatalog from './ProductCatalog';
 import EconomyWelcome from './EconomyWelcome';
 import EconomySettingsScreen from './EconomySettingsScreen';
@@ -325,8 +326,9 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return <EconomyBilling />;
   }
 
+  // Prosjektutlegg og interne utlegg på én side (UX-17).
   if (page === 'utlegg') {
-    return <EconomyOps kind="expenses" />;
+    return <ExpensesScreen />;
   }
 
   if (page === 'kjorebok') {

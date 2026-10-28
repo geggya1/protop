@@ -1146,6 +1146,15 @@ service cloud.firestore {
         && !company.hasAny(['privacy', 'dpaAcceptance']);
     }
 
+    // Aktiverte moduler (Kalender, E-post, Oppgaver, Notat, Chat) for hele bedriften: samme tilgang
+    // som Modulinnstillinger, Admin i speilet (MENY-01). Eier og administratorer kommer ikke hit.
+    // En vanlig ansatt lagrer sin egen visning under users/{uid}/modulePrefs. Familier og lag som før.
+    function moduleAccessOk(familyId, keys) {
+      return !keys.hasAny(['moduleAccess', 'moduleAccessInitialized'])
+        || !isCompanyGroup(familyId)
+        || aclRank(familyId, 'moduleSettings') >= 3;
+    }
+
     // Det vanlige medlemmer ikke kan endre på gruppen. Eier og administratorer kan alt
     // (unntatt eierskap).
     function familyUpdateOk(familyId) {
@@ -1154,7 +1163,8 @@ service cloud.firestore {
         && (keys.hasAny(['members']) ? memberListOk(familyId, 'members') : true)
         && (keys.hasAny(['activeUsers']) ? memberListOk(familyId, 'activeUsers') : true)
         && (keys.hasAny(['memberIds']) ? memberListOk(familyId, 'memberIds') : true)
-        && (keys.hasAny(['company', 'orgnr']) ? companyFieldsOk(familyId, keys) : true);
+        && (keys.hasAny(['company', 'orgnr']) ? companyFieldsOk(familyId, keys) : true)
+        && moduleAccessOk(familyId, keys);
     }
 
     // Avslutning av bedriften (GRUNN-03): closure, closedAt og deleteAfter skrives bare av serveren
@@ -1917,11 +1927,19 @@ service cloud.firestore {
         && d.get('type', '') in ['adult', 'child'];
     }
 
+    // Nye navn tas på serveren (claimUsername, functions/usernameClaim.js): ett aktivt navn per
+    // konto, som regler ikke kan telle (SEC-19). Direkte opprettelse er den gamle veien som
+    // profilsteget i 86332db bruker (en transaksjon fra appen). Den står til datoen under, så eldre
+    // apper rekker å bli oppdatert; se docs/utrulling-regler.md før datoen flyttes eller fjernes.
+    function legacyUsernameCreate() {
+      return request.time < timestamp.date(2027, 3, 1);
+    }
+
     // Bare eieren kan ta et ledig navn til seg selv. Et navn til et barn kan bare tas av en
     // foresatt til barnet (barneprofilen finnes), ikke av hvem som helst til en vilkårlig uid.
     match /usernames/{name} {
       allow get: if true;
-      allow create: if isSignedIn() && usernameDocOk(name)
+      allow create: if isSignedIn() && usernameDocOk(name) && legacyUsernameCreate()
         && (request.resource.data.uid == request.auth.uid
           || (request.resource.data.type == 'child' && isGuardianOf(request.resource.data.uid)));
       // Navnet beholder eier og type. Eldre dokumenter uten type kan merkes som voksen.

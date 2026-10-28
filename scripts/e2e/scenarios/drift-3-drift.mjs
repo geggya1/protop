@@ -133,7 +133,8 @@ try {
     const prosjektText = norm(await L.visibleText());
     const prosjekt = prosjektText.includes('Parkering byggeplass');
     const s3 = await L.shot('prosjekt-utlegg');
-    R.check('3.04a', 'Utlegget vises i Arbeid → Prosjektutlegg (250,00 kr)', arbeid && /250,00 kr/.test(arbeidText), { actual: `vises=${arbeid}`, shot: s2 });
+    // Den gamle adressen (Arbeid → Prosjektutlegg) åpner Utlegg med filteret Prosjekt (UX-17).
+    R.check('3.04a', 'Utlegget vises på den gamle adressen Arbeid → Prosjektutlegg (Utlegg, filteret Prosjekt, 250,00 kr)', arbeid && /250,00 kr/.test(arbeidText), { actual: `vises=${arbeid}`, shot: s2 });
     R.check('3.04b', 'Utlegget vises på prosjektet (#100 → Prosjektutlegg, 200,00 kr eks. mva)', prosjekt && /200,00 kr/.test(prosjektText), { actual: `vises=${prosjekt}`, shot: s3 });
     R.check('3.04', 'Utlegget ansatt registrerte vises også i Økonomi → Utlegg', okonomi, {
       expected: 'Samme utlegg i Økonomi → Utlegg', actual: okonomi ? 'vises' : 'vises ikke (Økonomi → Utlegg viser bare utlegg registrert der)', shot: s1,

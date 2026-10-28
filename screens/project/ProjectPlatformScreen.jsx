@@ -293,14 +293,16 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
                 }
               }}
             />
-            {/* Samme valg som Konto → Aktiverte moduler, her sammen med bedriftens moduler (UX-17). */}
+            {/* Aktiverte moduler for hele bedriften (UX-17), med samme tilgang som modulene over (MENY-01). */}
             <SettingsSection
               icon="apps-outline"
               title="Aktiverte moduler"
-              hint="Kalender, E-post, Oppgaver, Notat og Chat står alltid i menyen. En som er slått av, viser velkomsten neste gang den åpnes. Lagres med en gang."
+              hint={companyModules.canManage
+                ? 'Gjelder hele bedriften. Kalender, E-post, Oppgaver, Notat og Chat står alltid i menyen. En som er slått av, viser velkomsten neste gang den åpnes. Lagres med en gang.'
+                : 'Gjelder hele bedriften. Bare den med Admin på Modulinnstillinger kan endre dette.'}
               colors={colors}
             >
-              <ModuleActivationSettings showCategories={false} />
+              <ModuleActivationSettings showCategories={false} scope="company" canEdit={companyModules.canManage} />
             </SettingsSection>
           </>
         ) : (

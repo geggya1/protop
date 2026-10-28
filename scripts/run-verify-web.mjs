@@ -277,6 +277,8 @@ export const FILES = [
   'src/ui/pageTitle.test.mjs',
   'src/ui/tokens.test.mjs',
   'src/ui/designGuard.test.mjs',
+  // UX-23: felles brytepunkter, tettheten følger pekeren.
+  'src/ui/breakpointGuard.test.mjs',
   'src/ui/confirm.test.mjs',
   'src/format/nb.test.mjs',
   'src/i18n/deviceLang.test.mjs',

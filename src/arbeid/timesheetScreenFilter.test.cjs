@@ -90,6 +90,8 @@ const rnMock = {
 };
 
 let gridProjects = [];
+// Personlige valg på den ansatte (employees/{id}/prefs/timesheet), ikke i prosjektdokumentet.
+let prefsForTest = null;
 
 function loadJsx(rel) {
   const full = path.join(ROOT, rel);
@@ -170,6 +172,13 @@ function loadJsx(rel) {
       };
     }
     if (id.includes('absenceStorage')) return { loadAbsences: async () => [] };
+    if (id.includes('timesheetPrefsStorage')) {
+      return {
+        peekTimesheetPrefs: () => prefsForTest,
+        loadTimesheetPrefs: async () => prefsForTest,
+        saveTimesheetPrefs: async () => prefsForTest,
+      };
+    }
     if (id.includes('TimesheetGrid')) {
       return {
         __esModule: true,
@@ -324,6 +333,14 @@ const { default: ArbeidScreen } = loadJsx('screens/arbeid/ArbeidScreen.jsx');
   assert.ok(!fills.includes('#0d9488') && !fills.includes('#0f766e'), `teal knapper igjen: ${fills.join(', ')}`);
   const brandButtons = fills.filter((color) => color === '#1099F4');
   assert.ok(brandButtons.length >= 2, `forventet minst to blå knapper, fikk ${brandButtons.length}`);
+
+  // Egne valg på den ansatte går foran det som ligger igjen i prosjektdokumentet.
+  prefsForTest = { starred: { 'p-old': true, 'p-star': false }, hidden: { 'p-hours': true } };
+  gridProjects = [];
+  collect(await renderScreen(ArbeidScreen), { text: [], styles: [] });
+  const own = gridProjects.map((row) => row.project.id).sort();
+  assert.deepEqual(own, ['p-old'], `synlige prosjekt med egne valg: ${own.join(', ')}`);
+  assert.equal(gridProjects[0].starred, true);
   console.log('timesheetScreenFilter.test.cjs: ok');
 })().catch((error) => {
   console.error(error);

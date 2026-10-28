@@ -174,3 +174,17 @@ describe('invitasjon til ny bruker', () => {
     }));
   });
 });
+
+// Personlige valg i timelisten (stjerner, skjulte prosjekter, faste fraværstyper) ligger på
+// den ansatte, ikke i prosjektdokumentet (src/arbeid/timesheetPrefsStorage.js).
+describe('personlige valg i timelisten', () => {
+  test('medlem kan lese og skrive valgene på en ansatt, andre kan ikke', async () => {
+    const path = ['families', A, 'employees', 'emp_nina', 'prefs', 'timesheet'];
+    const own = as('own');
+    await assertSucceeds(setDoc(doc(own, ...path), { starred: { p1: true }, updatedAt: serverTimestamp() }, { merge: true }));
+    await assertSucceeds(setDoc(doc(own, ...path), { hidden: { p2: true }, absencePins: ['ferie'] }, { merge: true }));
+    await assertSucceeds(getDoc(doc(own, ...path)));
+    await assertFails(getDoc(doc(as('ext'), ...path)));
+    await assertFails(setDoc(doc(as('ext'), ...path), { starred: { p1: false } }, { merge: true }));
+  });
+});

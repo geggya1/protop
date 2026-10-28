@@ -27,7 +27,6 @@ import {
   emptyProjectState,
   mergeMemberLists,
   projectsForEmployee,
-  toggleMemberStar,
   upsertTimeEntry,
   deleteAbsence,
   deleteTimeEntry,
@@ -91,11 +90,17 @@ import { loadAbsences } from '../../src/arbeid/absenceStorage.js';
 import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
 import { isDateLocked } from '../../src/arbeid/locks.js';
 import {
-  hideTimesheetProject,
+  applyTimesheetPrefsPatch,
   lockThroughDate,
-  setAbsencePins,
+  resolveTimesheetPrefs,
+  timesheetPrefsPatch,
   toggleTimesheetLock,
 } from '../../src/arbeid/timesheetState.js';
+import {
+  loadTimesheetPrefs,
+  peekTimesheetPrefs,
+  saveTimesheetPrefs,
+} from '../../src/arbeid/timesheetPrefsStorage.js';
 import { upsertExpense, upsertSale, upsertTrip } from '../../src/economy/opsState.js';
 
 const DAILY = 8;
@@ -173,6 +178,8 @@ export default function ArbeidScreen({
   const [typePicker, setTypePicker] = useState(false);
   const [sideForm, setSideForm] = useState(null);
   const [carriedHours, setCarriedHours] = useState({ key: '', entries: [], absences: [], failed: false });
+  // Stjerner, skjulte prosjekter og faste fraværstyper er personlige og lagres på den ansatte.
+  const [prefs, setPrefs] = useState(null);
 
   // Prosjekt/medlemskap først — ikke vent på hele timehistorikken.
   useEffect(() => {
@@ -252,12 +259,27 @@ export default function ArbeidScreen({
   }, [workspaceId]);
 
   useEffect(() => {
+    if (!workspaceId || !employeeId) {
+      setPrefs(null);
+      return undefined;
+    }
+    let live = true;
+    setPrefs(peekTimesheetPrefs(workspaceId, employeeId));
+    loadTimesheetPrefs(workspaceId, employeeId).then((loaded) => {
+      if (live) setPrefs(loaded);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [workspaceId, employeeId]);
+
+  useEffect(() => {
     if (!ready) return;
     putProjectState(state, workspaceId);
     if (skipSave.current) {
       skipSave.current = false;
       return;
     }
+    // Timer og fravær går til egne samlinger. Prosjektdokumentet får bare radene som faktisk
+    // er endret (lås, medlemskap, utlegg fra sideskjemaet), aldri hele listen fra denne kopien.
     saveProjectState(state, workspaceId).catch(() => setError('Kunne ikke lagre timeføring.'));
   }, [state, ready, workspaceId]);
 
@@ -346,6 +368,11 @@ export default function ArbeidScreen({
 
   const activityRange = useMemo(() => timesheetActivityRange(today), [today]);
 
+  const ownPrefs = useMemo(
+    () => resolveTimesheetPrefs(state, employeeId, prefs),
+    [state.members, state.hiddenTimesheetProjects, state.timesheetPins, employeeId, prefs],
+  );
+
   const myProjects = useMemo(() => {
     if (!employeeId) return [];
     const list = projectsForEmployee(state, employeeId, {
@@ -356,7 +383,7 @@ export default function ArbeidScreen({
     });
     const q = projectQuery.trim().toLowerCase();
     const members = state.members.filter((row) => row.employeeId === employeeId && row.active !== false);
-    const starred = new Set(members.filter((row) => row.starred).map((row) => row.projectId));
+    const { starred } = ownPrefs;
     const roleByProject = new Map(members.map((row) => [row.projectId, row]));
     const mapped = list.map((project) => ({
       project,
@@ -384,7 +411,7 @@ export default function ArbeidScreen({
         if (a.starred !== b.starred) return a.starred ? -1 : 1;
         return String(a.project.number).localeCompare(String(b.project.number), 'nb');
       });
-  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate, activityRange]);
+  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate, activityRange, ownPrefs]);
 
   const joinable = useMemo(() => {
     if (!employeeId || assignedOnly) return [];
@@ -467,16 +494,10 @@ export default function ArbeidScreen({
     return map;
   }, [state.timeEntries, state.absences, employeeId, days]);
 
-  const hiddenIds = useMemo(() => new Set(
-    (state.hiddenTimesheetProjects || [])
-      .filter((row) => row.employeeId === employeeId)
-      .map((row) => row.projectId),
-  ), [state.hiddenTimesheetProjects, employeeId]);
+  const hiddenIds = ownPrefs.hidden;
   const shownProjects = myProjects.filter((row) => !hiddenIds.has(row.project.id));
   const hiddenProjects = myProjects.filter((row) => hiddenIds.has(row.project.id));
-  const pinnedTypes = (state.timesheetPins || [])
-    .filter((row) => row.employeeId === employeeId)
-    .map((row) => row.typeId);
+  const pinnedTypes = ownPrefs.pins;
 
   const payrollByDay = useMemo(() => {
     const map = new Map();
@@ -761,16 +782,30 @@ export default function ArbeidScreen({
       : 'Timelisten er låst opp.');
   }
 
+  /** Personlig valg: skrives på den ansatte, aldri i prosjektdokumentet. */
+  function savePrefs(patch, success) {
+    if (!patch || !employeeId) return false;
+    const id = employeeId;
+    setPrefs((current) => applyTimesheetPrefsPatch(current, patch));
+    saveTimesheetPrefs(workspaceId, id, patch).then(() => {
+      if (success) {
+        setNote(success);
+        showSaveToast(success);
+      }
+    }).catch(() => setError('Kunne ikke lagre valget.'));
+    setError('');
+    return true;
+  }
+
   function hideProject(projectId, hidden) {
     if (readOnly) return;
-    applyResult(hideTimesheetProject(state, { employeeId, projectId, hidden }));
+    savePrefs(timesheetPrefsPatch('hidden', projectId, hidden));
   }
 
   function savePins(typeIds) {
     if (readOnly) return;
-    if (applyResult(setAbsencePins(state, { employeeId, typeIds }), 'Fraværskategorier oppdatert.')) {
-      setTypePicker(false);
-    }
+    const wanted = [...new Set((typeIds || []).map((item) => String(item || '').trim()).filter(Boolean))];
+    if (savePrefs({ absencePins: wanted }, 'Fraværskategorier oppdatert.')) setTypePicker(false);
   }
 
   function saveSide(payload) {
@@ -833,6 +868,7 @@ export default function ArbeidScreen({
       return;
     }
     setState(result.state);
+    savePrefs(timesheetPrefsPatch('starred', project.id, true));
     setAddProjectOpen(false);
     setNote(`Lagt til ${project.name} i listen.`);
     showSaveToast(`Lagt til ${project.name} i listen.`);
@@ -841,8 +877,9 @@ export default function ArbeidScreen({
   function starProject(memberId) {
     if (readOnly) return;
     if (!memberId) return;
-    const result = toggleMemberStar(state, memberId);
-    if (result.ok) setState(result.state);
+    const member = state.members.find((row) => row.id === memberId);
+    if (!member?.projectId) return;
+    savePrefs(timesheetPrefsPatch('starred', member.projectId, !ownPrefs.starred.has(member.projectId)));
   }
 
   function openAbsenceCell(row, day) {

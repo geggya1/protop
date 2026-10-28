@@ -247,6 +247,18 @@ assert.match(edit.text, /gule felt er ikke bekreftet/, 'innsending stoppes til d
 assert.match(edit.text, /Utkast 1/, 'dokumenthodet viser utkast til godkjenning er gitt');
 assert.match(edit.text, /Godkjennes av .*Per Godkjenner/);
 assert.match(edit.text, /Om personalhåndboken/);
+assert.doesNotMatch(edit.text, /Lovsjekk/, 'standardhåndboken består lovsjekken');
+
+/* Lovsjekk av en eldre håndbok: overtid knyttet til kundens betaling, og kapitler som mangler. */
+const olderBook = normalizeHandbook({ chapters: [{ id: 'a', title: 'Arbeidstid', body: 'Overtid kompenseres når den er pålagt av leder, normalt når oppdragsgiver betaler for det.' }] });
+const older = collect(withHooks(() => React.createElement(HrHandbook.default, {
+  colors, hr: { handbook: olderBook }, canWrite: true, onPatch() {}, employees: [], actor: kari, company, logo: '',
+})));
+assert.match(older.text, /Lovsjekk/);
+assert.match(older.text, /knytter overtidstillegget til at oppdragsgiveren betaler/);
+assert.match(older.text, /Rett teksten/);
+assert.match(older.text, /mangler varslingsrutine/);
+assert.match(older.text, /Legg til kapitlet/);
 
 const clean = chapters.map((row) => ({ ...row, body: row.body.replace(/\[\[([^\]]+)\]\]/g, '$1') }));
 const snapshot = dcContent.handbookSnapshot({ chapters: clean });

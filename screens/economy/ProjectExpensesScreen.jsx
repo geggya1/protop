@@ -326,7 +326,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   const [toDate, setToDate] = useState('');
   const [sort, setSort] = useState('date-desc');
   const [pageSize, setPageSize] = useState(60);
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  // Telefon: listen først, filteret bak «Filter og sortering».
+  const [filtersOpen, setFiltersOpen] = useState(!phone);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -701,30 +702,31 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   // På ansattsiden er medarbeideren gitt. Under «Internt» er kunde og prosjekt tomme.
   const showEmployee = !lockedId;
   const showProject = embedded || lockedId || activeScope !== 'internt';
+  // Godkjenn rett i listen på PC. På telefon åpnes utlegget, og knappene står i skjemaet.
+  const quickApprove = !embedded && canManage && !phone;
   // Felles rapporttabell (UX-24): tabell på bred skjerm, kort med beskrivelse, dato, kunde,
-  // beløp og status på telefon. Minstebreddene får plass ved siden av filterpanelet på PC.
+  // beløp og status på telefon. Minstebreddene (med knappen) får plass ved siden av filterpanelet på PC.
+  const w = (wide, narrow) => (quickApprove ? narrow : wide);
   const columns = [
     { key: 'date', label: 'Dato', width: 92, kind: 'date', text: (row) => formatDate(row.date), phone: 'meta' },
-    ...(showEmployee ? [{ key: 'employee', label: 'Medarbeider', width: 120, flex: 1, text: (row) => row.employeeName || '', phone: 'meta' }] : []),
+    ...(showEmployee ? [{ key: 'employee', label: 'Medarbeider', width: w(120, 110), flex: 1, text: (row) => row.employeeName || '', phone: 'meta' }] : []),
     ...(showProject ? [
-      { key: 'customer', label: 'Kunde', width: 120, flex: 1, text: (row) => row.customerName || '', phone: 'meta' },
+      { key: 'customer', label: 'Kunde', width: w(120, 100), flex: 1, text: (row) => row.customerName || '', phone: 'meta' },
       {
         key: 'project',
         label: 'Prosjekt',
-        width: 140,
+        width: w(140, 120),
         flex: 1,
         // Under «Alle» står interne utlegg som «Internt».
         text: (row) => `${row.projectNumber ? `#${row.projectNumber} ` : ''}${row.projectName || ''}`.trim() || (isProjectExpense(row) ? '' : 'Internt'),
         phone: 'meta',
       },
     ] : []),
-    { key: 'description', label: 'Beskrivelse', width: 170, flex: 1.5, text: (row) => row.purpose || row.description || '', sortable: false, phone: 'title' },
-    { key: 'amount', label: 'Beløp', width: 110, kind: 'money', value: (row) => row.amountInclVat, text: (row) => money(row.amountInclVat), phone: 'amount' },
-    { key: 'status', label: 'Status', width: 100, text: (row) => expenseStatusLabel(row.status), phone: 'badge' },
+    { key: 'description', label: 'Beskrivelse', width: w(170, 136), flex: 1.5, text: (row) => row.purpose || row.description || '', sortable: false, phone: 'title' },
+    { key: 'amount', label: 'Beløp', width: w(110, 100), kind: 'money', value: (row) => row.amountInclVat, text: (row) => money(row.amountInclVat), phone: 'amount' },
+    { key: 'status', label: 'Status', width: w(100, 110), text: (row) => expenseStatusLabel(row.status), phone: 'badge' },
   ];
   const totalAmount = visible.reduce((sum, row) => sum + (Number(row.amountInclVat) || 0), 0);
-  // Godkjenn rett i listen på PC. På telefon åpnes utlegget, og knappene står i skjemaet.
-  const quickApprove = !embedded && canManage && !phone;
   const canOpenRows = !embedded;
   const showBilling = !embedded && access.tabAllowed('okonomi', 'fakturagrunnlag');
 
@@ -908,7 +910,7 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
               onPress={() => approveRow(row)}
             />
           ) : null) : undefined}
-          actionWidth={quickApprove ? 104 : 0}
+          actionWidth={quickApprove ? 96 : 0}
           limit={pageSize}
           onMore={() => setPageSize((n) => n + 60)}
           totals={visible.length ? { amount: money(totalAmount) } : null}

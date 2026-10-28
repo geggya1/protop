@@ -27,6 +27,7 @@ import {
   friendChatId,
   friendProfileOwnerUid,
   canMutatePersonalFriends,
+  friendResendNote,
 } from '../../src/utils/friendsLogic';
 import { preferAuthUid } from '../../src/utils/inviteAuthUid';
 import HelpTarget from '../../components/HelpTarget';
@@ -247,7 +248,8 @@ export default function FriendsHubScreen({ inShell = false }) {
         asUid: actingAsChildUid,
         familyId: friendsFamilyId,
       });
-      const parts = [t('friend.resentOk')];
+      const note = friendResendNote(res);
+      const parts = [note || t('friend.resentOk')];
       if (res?.emailSent) parts.push(t('friend.emailSent'));
       else if (res?.emailError) parts.push(`${t('friend.emailFailed')}: ${res.emailError}`);
       if (res?.smsSent) parts.push(t('friend.smsSent'));

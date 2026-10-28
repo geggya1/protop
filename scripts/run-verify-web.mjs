@@ -258,6 +258,9 @@ export const FILES = [
   'src/utils/authBootGate.test.mjs',
   'src/utils/inviteLinkJoin.test.mjs',
   'src/navigation/familyProduct.test.mjs',
+  'functions/friendInvite.copy.test.mjs',
+  'functions/friendInviteLimits.test.mjs',
+  'src/utils/friendResendNote.test.mjs',
 ];
 
 function runFile(file) {

@@ -64,6 +64,7 @@ export {
 
 export { deleteMyAccount } from './deleteAccount.js';
 export { recordConsent } from './consentLog.js';
+export { syncMyProfile } from './profileSync.js';
 
 export { onChatMessageCreated, onFriendChatMessageCreated };
 

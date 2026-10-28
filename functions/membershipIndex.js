@@ -14,3 +14,5 @@ export {
 
 export { deleteMyAccount } from './deleteAccount.js';
 export { recordConsent } from './consentLog.js';
+// «Rediger profil»: navn, bilde og telefon til medlemskapene og koblede ansattkort (DS-07).
+export { syncMyProfile } from './profileSync.js';

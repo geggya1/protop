@@ -102,4 +102,11 @@ assert.ok(called.size > 50, `fant bare ${called.size} callables`);
 const missing = [...called].filter((name) => !NOT_DEPLOYED.has(name) && !new RegExp(`functions:${name}\\b`).test(script));
 assert.deepEqual(missing, [], `callables som appen kaller, men som ikke deployes: ${missing.join(', ')}`);
 
+// «Rediger profil» synker navn og bilde til alle selskapene via serveren (DS-07).
+const membershipIndex = readFileSync(join(root, 'functions/membershipIndex.js'), 'utf8');
+const membershipLine = script.match(/^MEMBERSHIP="([^"]+)"/m)?.[1] || '';
+assert.match(membershipIndex, /\bsyncMyProfile\b/, 'syncMyProfile mangler i membershipIndex.js');
+assert.ok(membershipLine.split(',').includes('functions:syncMyProfile'), 'syncMyProfile mangler i MEMBERSHIP');
+assert.match(script, /open_for membershipIndex\.js "\$MEMBERSHIP"/);
+
 console.log('functions/slimDeploy.test.mjs: ok');

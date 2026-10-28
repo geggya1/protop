@@ -15,6 +15,7 @@ import { claimUsername, isValidUsername, suggestUsername, usernameTaken } from '
 import { hasContactAccount, uniqueUsername } from '../../src/utils/account';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
 import { setMemberPassword } from '../../src/utils/setMemberPassword';
+import { syncMyProfile } from '../../src/employees/profileSyncClient';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
 import { calculateAge, isValidBirthday, toIsoDate } from '../../src/utils/age';
 import { normalizePhone, defaultDialCode, splitPhone } from '../../src/utils/phone';
@@ -268,8 +269,18 @@ export default function EditProfileScreen() {
           ? t('common.loading')
           : null;
 
+  // Slik profilen så ut før lagringen. Serveren bruker det til å se hvilke felt på
+  // ansattkortene som fulgte profilen (DS-07).
+  const profileBefore = () => ({
+    name: initial.displayName || meParent?.name || '',
+    photoURL: initial.photoURL || meParent?.photoURL || meParent?.photoUrl || '',
+    phone: initial.phone || meParent?.phone || '',
+    avatarId: initial.avatarId || meParent?.avatarId || '',
+  });
+
   const persistPhotoEverywhere = async (url, nextAvatarId) => {
     if (!uid) return;
+    const before = profileBefore();
     const photoPayload = {
       photoURL: url || '',
       avatarId: url ? (nextAvatarId || null) : (nextAvatarId || avatarId || 'fox'),
@@ -287,6 +298,8 @@ export default function EditProfileScreen() {
     if (authUser) {
       await updateProfile(authUser, { photoURL: url || undefined }).catch(() => {});
     }
+    // Bildet i alle selskapene og på koblede ansattkort, ikke bare det aktive.
+    syncMyProfile(before);
   };
 
   const sendReset = async () => {
@@ -325,6 +338,7 @@ export default function EditProfileScreen() {
   const save = async () => {
     if (!canSave || !uid || !authUser) return;
     setSaving(true);
+    const before = profileBefore();
     try {
       let uname = usernameIsLocked
         ? lockedUsername
@@ -404,6 +418,9 @@ export default function EditProfileScreen() {
           { merge: true },
         );
       }
+
+      // Navn, bilde og telefon i alle selskapene og på koblede ansattkort (serveren).
+      syncMyProfile(before);
 
       notifyUser(t('common.ok'), t('profile.saved'));
       nav.goBack();

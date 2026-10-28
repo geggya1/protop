@@ -10,6 +10,7 @@ import {
 import {
   PROJECT_AUTO_KEYS,
   PROJECT_LEGACY_KEYS,
+  emptyPricingSettings,
   feeEstimateFromSettings,
   normalizePricingModel,
   normalizePricingSettings,
@@ -18,7 +19,7 @@ import {
   projectNumberKey,
   scrubProjectState,
 } from './projectFields.js';
-import { normalizeProjectInvoiceSettings } from './invoiceSettings.js';
+import { emptyProjectInvoiceSettings, normalizeProjectInvoiceSettings } from './invoiceSettings.js';
 import { defaultWorkSettings } from '../arbeid/roles.js';
 import { parseHours, roundHours } from '../arbeid/hours.js';
 import { isDateLocked, lockThroughDate } from '../arbeid/locks.js';
@@ -437,6 +438,7 @@ export function normalizeProjectState(raw) {
   next.projects = next.projects.map((project) => ({
     ...project,
     workSettings: defaultWorkSettings(project?.workSettings),
+    invoiceSettings: normalizeProjectInvoiceSettings(project?.invoiceSettings),
   }));
   const idRemap = new Map();
   next.projects = dedupeProjectsByNumber(next.projects, idRemap);
@@ -460,6 +462,43 @@ export function normalizeProjectState(raw) {
   const healed = healOrphanProjectRefs(next, idRemap);
   // Nullstill Moment-restfelter og økonomiske verdier som andre moduler fyller automatisk.
   return scrubProjectState(healed);
+}
+
+function withoutDefaults(value, defaults) {
+  if (!value || typeof value !== 'object') return undefined;
+  const kept = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === undefined) continue;
+    if (key in defaults && JSON.stringify(entry) === JSON.stringify(defaults[key])) continue;
+    kept[key] = entry;
+  }
+  return Object.keys(kept).length ? kept : undefined;
+}
+
+/**
+ * Prosjektstate slik den lagres. Alle prosjekter ligger i ett dokument med grense på
+ * 1 MiB, og standardverdiene alene var 2 kB per prosjekt. Fakturainnstillinger som
+ * arver fra selskapet (null eller tom tekst), og pris- og timelisteinnstillinger med
+ * standardverdi, skrives derfor ikke. normalizeProjectState fyller dem inn igjen ved lesing.
+ */
+export function compactProjectStateForStorage(state) {
+  if (!state || typeof state !== 'object' || !Array.isArray(state.projects)) return state;
+  const defaults = {
+    invoiceSettings: emptyProjectInvoiceSettings(),
+    pricingSettings: emptyPricingSettings(),
+    workSettings: defaultWorkSettings({}),
+  };
+  const projects = state.projects.map((project) => {
+    if (!project || typeof project !== 'object') return project;
+    const next = { ...project };
+    for (const [key, base] of Object.entries(defaults)) {
+      const kept = withoutDefaults(project[key], base);
+      if (kept === undefined) delete next[key];
+      else next[key] = kept;
+    }
+    return next;
+  });
+  return { ...state, projects };
 }
 
 function normalizeActivityRow(row) {
@@ -997,14 +1036,16 @@ export function fillProjectPricing(state, row = {}) {
   if (!project || project.status === 'arkivert') return fail(state, 'Prosjektet finnes ikke.');
   const fill = pricingFill(project, row);
   if (!fill) return fail(state, 'Prisene på prosjektet er satt fra før.');
-  // Tomt feeEstimate: prisen skal komme fra innstillingene, ikke fra et gammelt honorarfelt.
-  const result = updateProject(state, project.id, {
+  // Bare prisfeltene endres. feeEstimate følger innstillingene, ikke et gammelt honorarfelt.
+  const fee = feeEstimateFromSettings(fill.pricingModel, fill.pricingSettings);
+  const updated = {
+    ...project,
     pricingModel: fill.pricingModel,
-    pricingSettings: fill.pricingSettings,
-    feeEstimate: '',
-  });
-  if (!result.ok) return result;
-  return { ...result, project: result.state.projects.find((p) => p.id === project.id) };
+    pricingSettings: normalizePricingSettings(fill.pricingSettings, fill.pricingModel),
+    feeEstimate: fee === '' ? null : fee,
+  };
+  const projects = state.projects.map((p) => (p.id === project.id ? updated : p));
+  return { ...ok({ ...state, projects }), project: updated };
 }
 
 /**

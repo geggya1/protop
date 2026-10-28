@@ -389,6 +389,14 @@ import { namesLikelyMatch } from '../anbud/customers.js';
   assert.equal(after['10956'].pricingSettings.fixedFee, 20000);
   assert.equal(after['10957'].pricingSettings.hourlyRate, null);
 
+  // Bare prisfeltene endres. Ingen standardfelt skrives ut på prosjektet.
+  const lean = { id: 'lean', number: '20000', name: 'Gammelt prosjekt', pricingModel: 'hourly', customerId: 'c1' };
+  const leanFilled = importProjects({ ...emptyProjectState(), projects: [lean] }, [{
+    pricingUpdate: true, projectId: 'lean', number: '20000', name: 'Gammelt prosjekt', pricingModel: 'hourly', hourlyRate: 1088,
+  }]).updated[0];
+  assert.deepEqual(Object.keys(leanFilled).sort(), [...Object.keys(lean), 'feeEstimate', 'pricingSettings'].sort());
+  assert.equal(leanFilled.pricingSettings.hourlyRate, 1088);
+
   // Lagret senere: den tømte timeprisen kommer ikke tilbake fra honorarfeltet.
   const saved = updateProject(result.state, after['10955'].id, { manager: 'Ny leder' }).state;
   assert.equal(saved.projects.find((row) => row.number === '10955').pricingSettings.hourlyRate, null);

@@ -4,7 +4,8 @@
  *    og en rad reglene avviser stopper ikke senere lagringer (REV-01),
  *  - ulagrede endringer i den lokale kopien fra forrige versjon går ikke tapt (REV-09),
  *  - et for stort hoveddokument stopper ikke utstyr og katalog (REV-10),
- *  - endringer uten kjent utgangspunkt forkastes ikke i det stille (REV-17).
+ *  - endringer uten kjent utgangspunkt forkastes ikke i det stille (REV-17),
+ *  - standardverdier på prosjektene skrives ikke, så 500 prosjekt får plass under 1 MiB.
  * Firestore er et lite minnelager med transaksjoner, som i concurrentSave.test.mjs.
  */
 import assert from 'node:assert/strict';
@@ -307,6 +308,49 @@ function reset() {
   await storage.persistProjectState(smaller, CO);
   assert.deepEqual(cloud().board.map((row) => row.id), ['b1']);
   assert.equal((await storage.pendingProjectChanges(CO)).length, 0);
+}
+
+// ── Standardverdier på prosjektene skrives ikke: 500 prosjekt får plass ─────
+
+{
+  // En prosjektimport skrev alle standardfeltene på hvert prosjekt (70 tomme fakturafelt),
+  // og dokumentet ble 1761 kB. Lagringen ble avvist som for stor.
+  reset();
+  seedCloud(emptyProjectState());
+  const loaded = await storage.loadProjectState(CO, { force: true });
+  let next = loaded;
+  for (let i = 0; i < 520; i += 1) {
+    next = createProject(next, {
+      name: `Prosjekt ${i} - rehabilitering av fasade og tak`,
+      number: String(10000 + i),
+      customerId: 'c1',
+      client: 'Stavanger Kommune Bymiljø Og Utbygging',
+      manager: 'Torbjørn Øgreid Coll',
+      pricingModel: 'hourly',
+      pricingSettings: i === 0 ? { hourlyRate: 1088, probability: 50 } : { hourlyRate: 1050 },
+      invoiceSettings: i === 0 ? { creditDays: 30, showPeriod: false, theirReference: 'Ref 7' } : {},
+      workSettings: i === 0 ? { showInAllTimesheets: true, requireDescription: false } : {},
+    }).state;
+  }
+  assert.ok(JSON.stringify(normalizeProjectState(next).projects).length > 1_040_000, 'med alle standardfelt er det over grensen');
+  await storage.persistProjectState(next, CO);
+  const bytes = Buffer.byteLength(JSON.stringify(cloud()));
+  assert.ok(bytes < 600_000, `prosjektdokumentet er ${bytes} byte`);
+  assert.deepEqual(
+    normalizeProjectState(cloud()).projects,
+    normalizeProjectState(next).projects,
+    'det som leses tilbake er det samme som ble lagret',
+  );
+  const first = normalizeProjectState(cloud()).projects.find((row) => row.number === '10000');
+  assert.equal(first.invoiceSettings.creditDays, 30);
+  assert.equal(first.invoiceSettings.showPeriod, false);
+  assert.equal(first.invoiceSettings.markupHourly, null, 'tomt felt arver fortsatt fra selskapet');
+  assert.equal(first.pricingSettings.probability, 50);
+  assert.equal(first.workSettings.requireDescription, false);
+  const stored = cloud().projects.find((row) => row.number === '10001');
+  assert.deepEqual(stored.pricingSettings, { hourlyRate: 1050 }, 'bare det som avviker fra standard ligger i skyen');
+  assert.equal(stored.invoiceSettings, undefined);
+  assert.equal(stored.workSettings, undefined);
 }
 
 // ── REV-17: endringer uten kjent utgangspunkt forkastes ikke i det stille ───

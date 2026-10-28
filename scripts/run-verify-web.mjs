@@ -84,6 +84,7 @@ export const FILES = [
   'src/economy/productCatalog.test.mjs',
   'src/project/catalogDoc.test.mjs',
   'src/project/projectFields.test.mjs',
+  'src/project/projectImport.test.mjs',
   'src/project/storage.test.mjs',
   'screens/economy/productDetailRender.test.cjs',
   'components/sales/productSaleSheetRender.test.cjs',

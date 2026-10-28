@@ -4,10 +4,13 @@ import {
   defaultVisibleKeys,
   foldReportText,
   hasColumnFilter,
+  isPhoneWidth,
   matchesColumnFilters,
   nextReportSort,
   normalizeVisibleKeys,
   parseStoredKeys,
+  phoneLayout,
+  phoneMetaLines,
   reportExportRows,
   reportMinWidth,
   reportPrefsKey,
@@ -86,3 +89,30 @@ assert.deepEqual(reportTotals(rows, COLUMNS), { amount: 1300 });
 assert.deepEqual(reportTotals([], COLUMNS), { amount: 0 });
 
 console.log('reportTable.test.mjs: ok');
+
+// Telefon: kort i stedet for tabell under 768 px (UX-24).
+assert.equal(isPhoneWidth(390), true);
+assert.equal(isPhoneWidth(767), true);
+assert.equal(isPhoneWidth(768), false);
+assert.equal(isPhoneWidth(0), false, 'ukjent bredde er ikke telefon');
+{
+  const cols = [
+    { key: 'date', label: 'Dato', kind: 'date', text: (row) => row.date, phone: 'meta' },
+    { key: 'who', label: 'Ansatt', phone: 'meta' },
+    { key: 'what', label: 'Beskrivelse', phone: 'title' },
+    { key: 'sum', label: 'Beløp', kind: 'money', text: (row) => `${row.sum} kr` },
+    { key: 'status', label: 'Status', phone: 'badge' },
+    { key: 'hidden', label: 'Skjult', phone: false },
+  ];
+  const layout = phoneLayout(cols);
+  assert.equal(layout.title.key, 'what');
+  assert.equal(layout.amount.key, 'sum', 'første beløpskolonne blir beløpet');
+  assert.equal(layout.badge.key, 'status');
+  assert.deepEqual(layout.meta.map((group) => group.map((col) => col.key)), [['date', 'who']]);
+  assert.deepEqual(phoneMetaLines({ date: '01.10.2026', who: '' }, layout), ['01.10.2026'], 'tomme felt hoppes over');
+  const auto = phoneLayout([{ key: 'n', label: 'Nr', kind: 'number' }, { key: 'name', label: 'Navn' }, { key: 'a', label: 'A' }, { key: 'b', label: 'B' }, { key: 'c', label: 'C' }, { key: 'd', label: 'D' }, { key: 'e', label: 'E' }]);
+  assert.equal(auto.title.key, 'name', 'første tekstkolonne er tittel');
+  assert.equal(auto.meta.length, 2, 'høyst to meta-linjer');
+  assert.deepEqual(auto.meta[0].map((col) => col.key), ['n', 'a']);
+}
+

@@ -13,7 +13,7 @@ import test from 'node:test';
  * Går det opp, er det nye magiske tall i en skjerm: bytt dem ut med tokens.
  */
 export const BASELINE = {
-  hex: 2791,
+  hex: 2790,
   fontSize: 4052,
   borderRadius: 2135,
 };

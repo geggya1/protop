@@ -210,4 +210,14 @@ const phone = render({ phone: true, renderCard: (row) => React.createElement('Ca
 assert.match(phone, /#card-i1/);
 assert.doesNotMatch(phone, /#invoice-table-head/);
 
+// Mobil uten eget kort: standardkort bygd fra kolonnene (tittel, meta, beløp), som åpner raden.
+const auto = render({ phone: true });
+assert.doesNotMatch(auto, /#invoice-table-head/);
+assert.match(auto, /#invoice-row-i1/);
+assert.match(auto, /@Faktura 10001/);
+assert.match(auto, /Ryfylke Eiendom AS/);
+assert.match(auto, /#invoice-table-sum/);
+const renderPhoneRow = render({ phone: true, renderPhoneRow: (row) => React.createElement('Card', { nativeID: `phone-${row.id}` }) });
+assert.match(renderPhoneRow, /#phone-i2/);
+
 console.log('reportTableRender ok');

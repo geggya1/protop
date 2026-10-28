@@ -116,4 +116,6 @@ test('Page og seksjonstitlene dropper tittelen når skallet viser den, men behol
   }
   assert.match(read('screens/economy/EconomyDesk.jsx'), /useRepeatsShellTitle\('Indeksregulering'\)/);
   assert.match(read('screens/v2/PrivacyTermsScreen.jsx'), /useRepeatsShellTitle\(t\('more\.legal'\)\)/);
+  // Møter (#556): «Møter», «Oppfølging» og «Møtemaler» står i skallet.
+  assert.match(read('screens/meetings/MeetingsModule.jsx'), /const shellHasTitle = useRepeatsShellTitle\(pageTitle\);/);
 });

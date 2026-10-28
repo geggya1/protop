@@ -593,7 +593,7 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
     { key: 'competence', label: 'Kompetansekrav er definert', done: (rec.kompetansekrav || []).length > 0 && people.length > 0, page: 'kompetanse' },
     { key: 'nonconformity', label: 'Avviksbehandling er i bruk', done: (state.findings || []).length > 0, page: 'avvik' },
     { key: 'audit', label: 'Internrevisjon gjennomført siste 12 mnd', done: (rec.revisjon || []).some((a) => ['godkjent', 'oppfolging', 'lukket'].includes(a.state) && performedDate(a, now) >= year), page: 'revisjon' },
-    { key: 'review', label: 'Ledelsens gjennomgang siste 12 mnd', done: (rec.ledelse || []).some((l) => l.state === 'godkjent' && performedDate(l, now) >= year), page: 'ledelse' },
+    { key: 'review', label: 'Ledelsens gjennomgang siste 12 mnd', done: (rec.ledelse || []).some((l) => ['godkjent', 'lukket'].includes(l.state) && performedDate(l, now) >= year), page: 'ledelse' },
   ];
   const done = items.filter((i) => i.done).length;
   return { items, done, total: items.length, method: 'Intern sjekkliste over hovedelementer i ledelsessystemet. Ikke en sertifiseringsgrad.' };

@@ -259,7 +259,7 @@ export const REGISTERS = {
       { key: 'meetingDate', label: 'Møtedato', type: 'date', required: true },
       { key: 'participants', label: 'Deltakere', type: 'long', required: true },
       { key: 'assessment', label: 'Vurdering av systemets egnethet, tilstrekkelighet og effektivitet', type: 'long' },
-    ], states: ['planlagt', 'gjennomfort', 'godkjent'],
+    ], states: ['planlagt', 'gjennomfort', 'godkjent', 'lukket'],
   },
   sertifikat: {
     title: 'Sertifisering', prefix: 'SER', area: 'scope', fields: [
@@ -521,7 +521,48 @@ const LOCKING_REGISTERS = ['ledelse', 'revisjon'];
 /** Statuser etter godkjenning. Låsen beholdes; bare å gå tilbake til før godkjenning opphever den. */
 const APPROVED_STATES = ['godkjent', 'oppfolging', 'lukket'];
 
-export function setRecordState(record, state, { actor, now = new Date(), note = '', caps = null } = {}) {
+/**
+ * Rekkefølgen i internrevisjon og ledelsens gjennomgang. En revisjonsrapport godkjennes bare fra
+ * «Rapport», og rapporten kommer etter at revisjonen er gjennomført. Andre registre settes fritt.
+ */
+const STATE_FLOW = {
+  revisjon: {
+    planlagt: ['pagar', 'avlyst'],
+    pagar: ['rapport', 'planlagt', 'avlyst'],
+    rapport: ['godkjent', 'pagar'],
+    godkjent: ['oppfolging', 'lukket'],
+    oppfolging: ['lukket'],
+    lukket: ['oppfolging'],
+    avlyst: ['planlagt'],
+  },
+  ledelse: {
+    planlagt: ['gjennomfort', 'godkjent'],
+    gjennomfort: ['godkjent', 'planlagt'],
+    godkjent: ['lukket'],
+    lukket: ['godkjent'],
+  },
+};
+/** Der en godkjenner går tilbake til for å oppheve godkjenningen (med begrunnelse). */
+const REVOKE_TO = { revisjon: 'rapport', ledelse: 'gjennomfort' };
+
+/** Statusene posten kan settes til herfra (knappene i UI). */
+export function nextStates(record) {
+  const def = registerDef(record?.register);
+  if (!def) return [];
+  const flow = STATE_FLOW[record.register]?.[record.state];
+  const next = flow ? [...flow] : def.states.filter((s) => s !== record.state);
+  const back = REVOKE_TO[record.register];
+  if (record.locked && back && !next.includes(back)) next.push(back);
+  return next.filter((s) => s !== record.state && def.states.includes(s));
+}
+
+function flowError(record, state) {
+  if (record.register === 'revisjon' && state === 'godkjent') return 'Rapporten godkjennes fra «Rapport». Registrer funn, skriv konklusjonen og sett status til «Rapport» først.';
+  if (record.register === 'revisjon' && state === 'rapport') return 'Revisjonen må være gjennomført («Pågår») før rapporten.';
+  return 'Den statusen kan ikke velges herfra.';
+}
+
+export function setRecordState(record, state, { actor, now = new Date(), note = '', caps = null, tasks = null } = {}) {
   const def = registerDef(record?.register);
   if (!def) return fail('Ukjent register.');
   if (!def.states.includes(state)) return fail('Ugyldig status.');
@@ -531,9 +572,17 @@ export function setRecordState(record, state, { actor, now = new Date(), note = 
   // Tilbake til før godkjenning (f.eks. «planlagt») opphever godkjenningen: krever begrunnelse, og ny godkjenning låser igjen.
   const revoke = !!record.locked && !APPROVED_STATES.includes(state);
   if (revoke && text(note).length < 5) return fail('Begrunn hvorfor godkjenningen oppheves.');
-  // Internrevisjon: konklusjonen skrives før rapport og godkjenning (9.2.2 e).
-  if (record.register === 'revisjon' && ['rapport', 'godkjent'].includes(state) && !APPROVED_STATES.includes(record.state) && text(record.conclusion).length < 10) {
-    return fail('Skriv konklusjonen før revisjonen går til rapport eller godkjenning.');
+  const allowed = STATE_FLOW[record.register]?.[record.state];
+  if (!revoke && allowed && !allowed.includes(state)) return fail(flowError(record, state));
+  // Internrevisjon: funn og konklusjon før rapport og godkjenning (9.2.2 e). «Samsvar» er også et funn.
+  if (record.register === 'revisjon' && ['rapport', 'godkjent'].includes(state) && !APPROVED_STATES.includes(record.state)) {
+    if (!(record.findings || []).length) return fail('Registrer minst ett funn før rapporten («Samsvar» teller også).');
+    if (text(record.conclusion).length < 10) return fail('Skriv konklusjonen før revisjonen går til rapport eller godkjenning.');
+  }
+  // Ledelsens gjennomgang lukkes når alle vedtak er fulgt opp (i ISO eller i Oppgaver).
+  if (record.register === 'ledelse' && state === 'lukket') {
+    const open = (record.decisions || []).filter((d) => !decisionCompleted(d, tasks));
+    if (open.length) return fail(`${open.length} vedtak er ikke gjennomført ennå. Gjennomgangen lukkes når alle vedtak er fulgt opp.`);
   }
   // Ledelsens gjennomgang: grunnlag med alle punktene i 9.3.2, konklusjon og output før godkjenning.
   if (record.register === 'ledelse' && state === 'godkjent' && record.state !== 'godkjent') {

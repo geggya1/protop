@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { auditCoverage, auditIndependenceConflicts, createRecord, setRecordState } from './registers.js';
+import { addAuditFinding, auditCoverage, auditIndependenceConflicts, createRecord, setRecordState } from './registers.js';
 import { certificationReadiness } from './readiness.js';
 import { isoCapabilities } from './access.js';
 
@@ -44,7 +44,8 @@ test('ISO-21: konklusjon kreves før rapport og godkjenning', () => {
   assert.deepEqual(audit.scopeProcessIds, ['p2']);
   assert.equal(setRecordState(audit, 'rapport', { actor: ANNE, caps: APPROVER, now }).ok, false);
   assert.equal(setRecordState(audit, 'godkjent', { actor: ANNE, caps: APPROVER, now }).ok, false);
-  const done = createRecord('revisjon', { ...base, conclusion: 'Avviksprosessen fungerer, men effektkontroll mangler i to saker.' }, { actor: ANNE, now }).record;
+  let done = createRecord('revisjon', { ...base, conclusion: 'Avviksprosessen fungerer, men effektkontroll mangler i to saker.' }, { actor: ANNE, now }).record;
+  done = addAuditFinding(done, { classification: 'samsvar', description: 'Avvikene behandles etter P02.' }, { actor: ANNE, now }).record;
   assert.equal(setRecordState(done, 'rapport', { actor: ANNE, caps: APPROVER, now }).ok, true);
 });
 

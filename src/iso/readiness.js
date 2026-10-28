@@ -91,7 +91,7 @@ const CHECKS = [
   {
     key: 'leadership', chapter: '5', clauses: { ISO9001: '5.1', ISO14001: '5.1', ISO45001: '5.1' }, label: 'Ledelsen deltar (gjennomgang siste 12 mnd)', page: 'ledelse',
     check: ({ rec, year, now }) => {
-      const done = live(rec.ledelse).filter((l) => l.state === 'godkjent' && performedDate(l, now) >= year);
+      const done = live(rec.ledelse).filter((l) => ['godkjent', 'lukket'].includes(l.state) && performedDate(l, now) >= year);
       return { status: pick(done.length, live(rec.ledelse).length), detail: done.length ? `Godkjent gjennomgang ${performedDate(done[0], now)}` : 'Ingen godkjent gjennomgang siste 12 mnd' };
     },
   },
@@ -291,7 +291,7 @@ const CHECKS = [
     key: 'review', chapter: '9', clauses: { ISO9001: '9.3', ISO14001: '9.3', ISO45001: '9.3' }, label: 'Ledelsens gjennomgang med konklusjon', page: 'ledelse',
     check: ({ rec, year, now }) => {
       const rows = live(rec.ledelse);
-      const done = rows.filter((l) => l.state === 'godkjent' && performedDate(l, now) >= year);
+      const done = rows.filter((l) => ['godkjent', 'lukket'].includes(l.state) && performedDate(l, now) >= year);
       const full = done.filter((l) => text(l.assessment).length >= 10 && l.snapshot);
       return { status: pick(full.length, rows.length), detail: full.length ? 'Godkjent med grunnlag og konklusjon' : (done.length ? 'Godkjent, men mangler grunnlag eller konklusjon' : 'Ingen godkjent gjennomgang siste 12 mnd') };
     },

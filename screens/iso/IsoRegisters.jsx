@@ -6,7 +6,7 @@ import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, findingStateLab
 import {
   AUDIT_FINDING_CLASSES, REGISTERS, auditCoverage, auditIndependenceConflicts, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
   competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
-  cleanContacts, contactsLabel, personsLabel, proofEnd, recordRiskMethod, registerDef, riskMatrix, riskScoresChanged, riskSummary, setRecordState, updateRecord,
+  cleanContacts, contactsLabel, nextStates, personsLabel, proofEnd, recordRiskMethod, registerDef, riskMatrix, riskScoresChanged, riskSummary, setRecordState, updateRecord,
   REVIEW_OUTPUTS, reviewApprovalBlockers, setReviewConclusion,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
@@ -238,7 +238,7 @@ function RecordDetail({ ctx, record, onClose, children }) {
   const [err, setErr] = useState('');
   if (!record || !def) return null;
   async function state(next) {
-    const res = setRecordState(record, next, { actor, caps, note });
+    const res = setRecordState(record, next, { actor, caps, note, tasks: store.tasks });
     if (!res.ok) { setErr(res.error); return; }
     const saved = await store.commit('records', 'record', res, { previous: record });
     if (!saved.ok) setErr(saved.error);
@@ -280,7 +280,7 @@ function RecordDetail({ ctx, record, onClose, children }) {
                   }}
                 />
               ) : null}
-              {def.states.filter((s) => s !== record.state).map((s) => {
+              {nextStates(record).map((s) => {
                 const a = stateAction(s, record.state, def.states[0], record.locked);
                 return <Btn key={s} small icon={a.icon} label={a.label} onPress={() => state(s)} />;
               })}
@@ -1247,7 +1247,12 @@ export function AuditPage({ ctx }) {
               <Field label="Objektivt bevis" required={af.classification !== 'samsvar'}><TextIn multiline rows={2} value={af.evidence} onChangeText={(x) => setAf({ ...af, evidence: x })} /></Field>
               <Field label="Krav"><Choice small multi title="Krav" options={requirements.filter((r) => r.kind === 'iso').map((r) => ({ id: r.id, label: `${r.standard.replace('ISO', 'ISO ')} ${r.clause}`, hint: r.title || '' }))} value={af.requirementIds} onChange={(x) => setAf({ ...af, requirementIds: x })} /></Field>
               <Btn kind="primary" label={af.classification === 'samsvar' ? 'Registrer funn' : 'Registrer funn og opprett sak'} onPress={addFinding} />
-              {caps.approve ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
+              {caps.approve && reg.open.state === 'rapport' ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
+              {reg.open.state !== 'rapport' ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                  Rapporten godkjennes når revisjonen står i «Rapport»: registrer funn (også «Samsvar»), skriv konklusjonen og sett status til «Rapport».
+                </Text>
+              ) : null}
             </>
           ) : null}
           {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
@@ -1366,6 +1371,13 @@ export function ReviewPage({ ctx }) {
               </Row>
             );
           })}
+          {reg.open.state === 'godkjent' ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {(reg.open.decisions || []).every((x) => decisionCompleted(x, store.tasks))
+                ? 'Alle vedtak er fulgt opp. En godkjenner kan nå sette gjennomgangen til «Lukket».'
+                : 'Gjennomgangen kan settes til «Lukket» når alle vedtak er gjennomført.'}
+            </Text>
+          ) : null}
           {editable ? (
             <>
               <Field label="Vedtak" required><TextIn multiline rows={2} value={d.decision} onChangeText={(x) => setD({ ...d, decision: x })} /></Field>

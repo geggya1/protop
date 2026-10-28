@@ -320,6 +320,28 @@ export async function saveEntity(companyId, kind, entity, { previous = null, cre
   return data;
 }
 
+/**
+ * Lesebekreftelse: kvitteringen legges til listen slik den står lagret nå, uten revisjonslås og uten
+ * å endre rev. Mange kan kvittere samtidig, og ingen får «endret av en annen bruker» fordi noen leste.
+ * Returnerer listen slik den ble lagret.
+ */
+export async function appendReadAck(companyId, documentId, ack) {
+  const id = cid(companyId);
+  if (!id || !documentId || !ack?.uid) throw new Error('Mangler dokument eller bruker.');
+  const authed = await ensureAuth();
+  if (!authed) throw new Error('Ikke innlogget. Bekreftelsen er ikke lagret.');
+  const ref = doc(db, 'families', id, 'isoDocuments', String(documentId));
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('Fant ikke dokumentet.');
+    const acks = Array.isArray(snap.data()?.readAcks) ? snap.data().readAcks : [];
+    if (acks.some((a) => a?.uid === ack.uid && a?.revision === ack.revision)) return acks;
+    const next = [...acks, plain(ack)];
+    tx.update(ref, { readAcks: next });
+    return next;
+  });
+}
+
 /** Flere entiteter i én batch (f.eks. bevis + koblinger + vurderinger). Ingen revisjonslås. */
 export async function saveMany(companyId, rows, { onProgress = null } = {}) {
   const id = cid(companyId);

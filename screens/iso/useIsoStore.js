@@ -9,7 +9,7 @@ import { addDays, checksum, todayKey } from '../../src/iso/core';
 import { notifyUsers } from '../../src/utils/notifications';
 import { emptyIsoState, replaceIn } from '../../src/iso/state';
 import {
-  appendAudit, completeIsoTask, ensureAccessMirror, ensureTask, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
+  appendAudit, appendReadAck, completeIsoTask, ensureAccessMirror, ensureTask, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
 } from '../../src/iso/storage';
 
 /** Oppgaver og varsler fra skjermede saker får ingen detaljer i Oppgaver (som alle i selskapet kan se). */
@@ -140,6 +140,32 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     }
   }, [companyId, runEffects]);
 
+  /**
+   * Lesebekreftelse (result fra acknowledgeRead). Lagres mot listen slik den står i skyen,
+   * uten revisjonslås, og kvitteringer andre har gjort i mellomtiden tas med.
+   */
+  const commitReadAck = useCallback(async (result) => {
+    if (!result?.ok) return result || { ok: false, error: 'Ukjent feil.' };
+    if (!result.ack) return result;
+    const before = stateRef.current;
+    const optimistic = replaceIn(before, 'documents', result.document);
+    stateRef.current = optimistic;
+    setState(optimistic);
+    try {
+      const acks = await appendReadAck(companyId, result.document.id, result.ack);
+      const current = (stateRef.current.documents || []).find((d) => d.id === result.document.id) || result.document;
+      const next = replaceIn(stateRef.current, 'documents', { ...current, readAcks: acks });
+      stateRef.current = next;
+      setState(next);
+      await appendAudit(companyId, result.events || []);
+      return result;
+    } catch (err) {
+      stateRef.current = before;
+      setState(before);
+      return { ok: false, error: err?.message || 'Kunne ikke lagre.' };
+    }
+  }, [companyId]);
+
   /** Flere lister på en gang (bevis, koblinger, vurderinger). */
   const commitLists = useCallback(async (patch, events = []) => {
     const before = stateRef.current;
@@ -198,7 +224,7 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
   }, [companyId]);
 
   return {
-    state, setState, loading, source, loadError, reload, commit, commitLists, commitMany, runEffects, tasks, refreshTasks, serverIso,
+    state, setState, loading, source, loadError, reload, commit, commitLists, commitMany, commitReadAck, runEffects, tasks, refreshTasks, serverIso,
     current: () => stateRef.current,
   };
 }

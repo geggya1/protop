@@ -163,6 +163,7 @@ export function createDocument(input, { actor, existing = [], now = new Date() }
     ownerName: text(input.ownerName, 160) || text(actor?.name, 160),
     ownerUid: text(input.ownerUid, 128) || text(actor?.uid, 128),
     approverName: text(input.approverName, 160),
+    approverUid: text(input.approverName, 160) ? text(input.approverUid, 128) : '',
     accessClass: ACCESS_CLASSES.some((c) => c.id === input.accessClass) ? input.accessClass : 'intern',
     tags: uniq(input.tags),
     requirementIds: uniq(input.requirementIds),
@@ -223,6 +224,8 @@ export function saveDocumentDraft(doc, input, { actor, now = new Date(), existin
     title: input?.title != null ? (text(input.title, 200) || doc.title) : doc.title,
     ownerName: input?.ownerName != null ? text(input.ownerName, 160) : doc.ownerName,
     approverName: input?.approverName != null ? text(input.approverName, 160) : doc.approverName,
+    // Ny godkjenner: uid følger navnet (tom når personen ikke har innlogging).
+    approverUid: input?.approverName != null ? (text(input.approverName, 160) ? text(input.approverUid, 128) : '') : (doc.approverUid || ''),
     accessClass: input?.accessClass || doc.accessClass,
     requirementIds: input?.requirementIds ? uniq(input.requirementIds) : doc.requirementIds,
     readAckRequired: input?.readAckRequired != null ? !!input.readAckRequired : doc.readAckRequired,
@@ -250,6 +253,7 @@ export function submitDocument(doc, { actor, caps, now = new Date() } = {}) {
       state: 'til_gjennomgang',
       submittedAt: nowIso(now),
       submittedBy: text(actor?.name, 160),
+      submittedByUid: text(actor?.uid, 128),
       contentHash: checksum({ c: work.content, a: work.attachments }),
     }),
     history: pushHistory(doc, `Rev. ${work.revision} sendt til gjennomgang`, actor, '', now),
@@ -270,11 +274,38 @@ export function rejectDocument(doc, note, { actor, caps, now = new Date() } = {}
   return { ok: true, document: next, events: [ev(next, 'iso.document.rejected', actor, doc, now, note)] };
 }
 
-/** Godkjenn og publiser. Forrige publiserte revisjon blir «erstattet» og beholdes uendret. */
-export function approveAndPublishDocument(doc, { actor, caps, now = new Date(), effectiveFrom = '' } = {}) {
+/** Sendte denne personen revisjonen til godkjenning? Bruker-id, ellers navn (eldre revisjoner). */
+export function submittedBySelf(revision, actor) {
+  const uid = text(actor?.uid, 128);
+  if (revision?.submittedByUid) return !!uid && revision.submittedByUid === uid;
+  return !!revision?.submittedBy && revision.submittedBy === text(actor?.name, 160);
+}
+
+/**
+ * Kan denne personen godkjenne revisjonen som venter? Tom streng = ja, ellers hvorfor ikke.
+ * Den som sendte inn, godkjenner ikke selv (ISO 7.5.2). Er en godkjenner valgt på dokumentet, er det den personen.
+ * otherApprovers: finnes det andre godkjennere i virksomheten? Uten andre kan innsender godkjenne med begrunnelse.
+ */
+export function approvalBlocker(doc, actor, { caps = null, otherApprovers = true } = {}) {
+  if (caps && !caps.approve) return 'Du har ikke fullmakt til å godkjenne dokumenter.';
+  if (doc?.approverUid && doc.approverUid !== text(actor?.uid, 128)) return `Dokumentet skal godkjennes av ${doc.approverName || 'valgt godkjenner'}.`;
+  const work = workingRevision(doc);
+  if (work && submittedBySelf(work, actor) && otherApprovers) return 'Du sendte revisjonen til godkjenning. En annen godkjenner må godkjenne den.';
+  return '';
+}
+
+/**
+ * Godkjenn og publiser. Forrige publiserte revisjon blir «erstattet» og beholdes uendret.
+ * selfApprovalReason: når innsender er eneste godkjenner (otherApprovers = false), logges egengodkjenning med begrunnelse.
+ */
+export function approveAndPublishDocument(doc, { actor, caps, now = new Date(), effectiveFrom = '', otherApprovers = true, selfApprovalReason = '' } = {}) {
   if (caps && !caps.approve) return fail('Du har ikke fullmakt til å godkjenne dokumenter.');
   const work = workingRevision(doc);
   if (!work || work.state !== 'til_gjennomgang') return fail('Revisjonen må sendes til gjennomgang først.');
+  const blocker = approvalBlocker(doc, actor, { caps, otherApprovers });
+  if (blocker) return fail(blocker);
+  const self = submittedBySelf(work, actor);
+  if (self && text(selfApprovalReason).length < 10) return fail('Du sendte revisjonen selv og er eneste godkjenner. Begrunn egengodkjenningen.');
   if (work.contentHash && work.contentHash !== checksum({ c: work.content, a: work.attachments })) {
     return fail('Innholdet er endret etter innsending. Send på nytt.');
   }
@@ -282,7 +313,10 @@ export function approveAndPublishDocument(doc, { actor, caps, now = new Date(), 
   const from = isoDate(effectiveFrom) || todayKey(now);
   const revisions = (doc.revisions || []).map((r) => {
     if (r.revision === work.revision) {
-      return { ...r, state: 'publisert', approvedAt: stamp, approvedBy: text(actor?.name, 160), publishedAt: stamp, effectiveFrom: from };
+      return {
+        ...r, state: 'publisert', approvedAt: stamp, approvedBy: text(actor?.name, 160), approvedByUid: text(actor?.uid, 128), publishedAt: stamp, effectiveFrom: from,
+        ...(self ? { selfApproved: true, selfApprovalReason: text(selfApprovalReason, 1000) } : {}),
+      };
     }
     if (r.state === 'publisert') return { ...r, state: 'erstattet', supersededAt: stamp };
     return r;
@@ -292,9 +326,9 @@ export function approveAndPublishDocument(doc, { actor, caps, now = new Date(), 
     revisions,
     publishedRevision: work.revision,
     nextReview: addDays(from, Math.round((doc.reviewIntervalMonths || 12) * 30.4)),
-    history: pushHistory(doc, `Rev. ${work.revision} godkjent og publisert`, actor, '', now),
+    history: pushHistory(doc, self ? `Rev. ${work.revision} godkjent og publisert (egengodkjenning)` : `Rev. ${work.revision} godkjent og publisert`, actor, self ? selfApprovalReason : '', now),
   }, actor, now);
-  return { ok: true, document: next, events: [ev(next, 'iso.document.published', actor, doc, now)] };
+  return { ok: true, document: next, events: [ev(next, 'iso.document.published', actor, doc, now, self ? `Egengodkjenning: ${text(selfApprovalReason, 900)}` : '')] };
 }
 
 export function newDocumentRevision(doc, reason, { actor, now = new Date() } = {}) {
@@ -324,17 +358,37 @@ export function archiveDocument(doc, reason, { actor, caps, now = new Date() } =
   return { ok: true, document: next, events: [ev(next, 'iso.document.archived', actor, doc, now, reason)] };
 }
 
+/**
+ * Lesebekreftelse. Kvitteringen legges til listen slik den står lagret (se appendReadAck), uten ny rev og
+ * uten «endret av»: mange kan kvittere samtidig, og kvitteringer stopper ikke den som redigerer dokumentet.
+ * Listen kuttes ikke; reglene krever nøyaktig én ny kvittering per skriving.
+ */
 export function acknowledgeRead(doc, { actor, now = new Date() } = {}) {
   const pub = publishedRevisionOf(doc);
   if (!pub) return fail('Dokumentet er ikke publisert.');
+  if (doc.archived) return fail('Dokumentet er arkivert.');
   const uid = text(actor?.uid, 128);
   if (!uid) return fail('Mangler bruker.');
   if ((doc.readAcks || []).some((a) => a.uid === uid && a.revision === pub.revision)) return { ok: true, document: doc, events: [], already: true };
-  const next = bump({
-    ...doc,
-    readAcks: [...(doc.readAcks || []), { revision: pub.revision, uid, name: text(actor?.name, 160), at: nowIso(now) }].slice(-2000),
-  }, actor, now);
-  return { ok: true, document: next, events: [ev(next, 'iso.document.read_ack', actor, doc, now)] };
+  const ack = { revision: pub.revision, uid, name: text(actor?.name, 160), at: nowIso(now) };
+  const next = { ...doc, readAcks: [...(doc.readAcks || []), ack] };
+  return { ok: true, document: next, ack, events: [ev(next, 'iso.document.read_ack', actor, doc, now)] };
+}
+
+/** Hvem har bekreftet gjeldende revisjon, og hvem av egne ansatte med innlogging mangler. */
+export function readAckStatus(doc, people = []) {
+  const pub = publishedRevisionOf(doc);
+  if (!pub) return { revision: 0, acked: [], missing: [] };
+  const acked = (doc.readAcks || []).filter((a) => a.revision === pub.revision);
+  const done = new Set(acked.map((a) => a.uid));
+  const missing = [];
+  for (const p of people || []) {
+    const uid = text(p?.uid, 128);
+    if (!uid || p.own === false || done.has(uid) || missing.some((m) => m.uid === uid)) continue;
+    missing.push({ uid, name: text(p.name, 160) || 'Ukjent' });
+  }
+  missing.sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+  return { revision: pub.revision, acked, missing };
 }
 
 export function hasAcknowledged(doc, uid) {

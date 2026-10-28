@@ -4,10 +4,11 @@ import { Linking, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
 import {
-  ACCESS_CLASSES, DOC_TYPES, REVISION_STATES, acknowledgeRead, approveAndPublishDocument, archiveDocument, createDocument,
+  ACCESS_CLASSES, DOC_TYPES, REVISION_STATES, acknowledgeRead, approvalBlocker, approveAndPublishDocument, archiveDocument, createDocument,
   docTypeLabel, folderLabel, hasAcknowledged, newDocumentRevision, nextDocumentCode, normalizeDocStructure, publishedRevisionOf,
-  rejectDocument, revisionOf, saveDocumentDraft, submitDocument, workingRevision,
+  readAckStatus, rejectDocument, revisionOf, saveDocumentDraft, submitDocument, submittedBySelf, workingRevision,
 } from '../../src/iso/documents';
+import { approverUidsFromRoles } from '../../src/iso/access';
 import { markdownToPlain, outline } from '../../src/iso/markdown';
 import { allRequirements, attachEvidence, markForReassessment } from '../../src/iso/requirements';
 import { pickDocument, uploadFile } from '../../src/utils/media';
@@ -42,7 +43,8 @@ export default function IsoDocuments({ ctx }) {
   const [awaiting, setAwaiting] = useState(!!params?.awaiting);
   const [creating, setCreating] = useState(false);
   const [wordImport, setWordImport] = useState(false);
-  const blank = { title: '', docType: 'prosedyre', folder: '', code: '', ownerName: '', ownerUid: '', approverName: '', accessClass: 'intern', reviewIntervalMonths: '12', readAckRequired: false };
+  const [showArchived, setShowArchived] = useState(false);
+  const blank = { title: '', docType: 'prosedyre', folder: '', code: '', ownerName: '', ownerUid: '', approverName: '', approverUid: '', accessClass: 'intern', reviewIntervalMonths: '12', readAckRequired: false };
   const [form, setForm] = useState(blank);
   const [err, setErr] = useState('');
   useEffect(() => {
@@ -61,9 +63,12 @@ export default function IsoDocuments({ ctx }) {
 
   const today = todayKey();
   const ql = q.trim().toLowerCase();
+  // Arkiverte dokumenter skjules i listen, men kan åpnes (bare lesing) under «Vis arkiverte».
+  const readable = (d) => (caps.manage || d.publishedRevision) && (caps.restrictedView || d.accessClass !== 'skjermet');
+  const archivedDocs = state.documents.filter((d) => d.archived && readable(d))
+    .sort((a, b) => String(a.code).localeCompare(String(b.code), 'nb', { numeric: true }));
   const visible = state.documents.filter((d) => !d.archived)
-    .filter((d) => caps.manage || d.publishedRevision)
-    .filter((d) => caps.restrictedView || d.accessClass !== 'skjermet')
+    .filter(readable)
     .filter((d) => !type || d.docType === type)
     .filter((d) => !folder || d.folder === folder || String(d.folder || '').startsWith(`${folder}-`))
     .filter((d) => !awaiting || workingRevision(d)?.state === 'til_gjennomgang')
@@ -179,6 +184,22 @@ export default function IsoDocuments({ ctx }) {
           {externalCard(externalHits)}
         </>
       )}
+      {archivedDocs.length ? (
+        <Card title="Arkiverte dokumenter" subtitle="Utgåtte dokumenter. De kan åpnes og leses, men ikke endres.">
+          <Btn small icon={showArchived ? 'chevron-up' : 'archive-outline'} label={showArchived ? 'Skjul arkiverte' : `Vis arkiverte (${archivedDocs.length})`} onPress={() => setShowArchived(!showArchived)} />
+          {showArchived ? archivedDocs.map((d) => (
+            <ListRow
+              key={d.id}
+              icon="archive-outline"
+              tone="muted"
+              title={`${d.code} · ${d.title}`}
+              subtitle={[docTypeLabel(d.docType), d.publishedRevision ? `rev. ${d.publishedRevision}` : 'ikke publisert', d.archivedAt ? `arkivert ${prettyDate(d.archivedAt)}` : ''].filter(Boolean).join(' · ')}
+              right={<Pill label="Arkivert" tone="muted" />}
+              onPress={() => setOpenId(d.id)}
+            />
+          )) : null}
+        </Card>
+      ) : null}
       <Sheet visible={creating} title="Nytt dokument" onClose={() => setCreating(false)} footer={<><Btn label="Avbryt" onPress={() => setCreating(false)} /><Btn kind="primary" label="Opprett" onPress={create} /></>}>
         <Field label="Tittel" required><TextIn value={form.title} onChangeText={(x) => setForm({ ...form, title: x })} /></Field>
         <Field label="Type" required><Choice small options={DOC_TYPES} value={form.docType} onChange={(x) => setForm({ ...form, docType: x || 'prosedyre' })} /></Field>
@@ -189,7 +210,7 @@ export default function IsoDocuments({ ctx }) {
         ) : null}
         <Field label="Dokument-ID" hint="Tomt = neste ledige løpenummer."><TextIn value={form.code} onChangeText={(x) => setForm({ ...form, code: x })} placeholder={form.folder ? nextDocumentCode(form.folder, state.documents) : 'DOK-…'} /></Field>
         <Field label="Eier"><PersonPick people={people} value={form.ownerName} onChange={(p) => setForm({ ...form, ownerName: p.name, ownerUid: p.uid })} /></Field>
-        <Field label="Godkjenner"><PersonPick people={people} value={form.approverName} onChange={(p) => setForm({ ...form, approverName: p.name })} /></Field>
+        <Field label="Godkjenner" hint="Bare valgt godkjenner kan godkjenne. Tomt = en godkjenner i ISO."><PersonPick people={people} value={form.approverName} onChange={(p) => setForm({ ...form, approverName: p.name, approverUid: p.uid || '' })} /></Field>
         <Field label="Tilgang"><Choice options={ACCESS_CLASSES} value={form.accessClass} onChange={(x) => setForm({ ...form, accessClass: x || 'intern' })} /></Field>
         <Field label="Gjennomgang hver (måneder)"><Choice options={['6', '12', '24', '36']} value={form.reviewIntervalMonths} onChange={(x) => setForm({ ...form, reviewIntervalMonths: x || '12' })} /></Field>
         <Check label="Krever lesebekreftelse fra ansatte" value={form.readAckRequired} onChange={(x) => setForm({ ...form, readAckRequired: x })} />
@@ -202,11 +223,18 @@ export default function IsoDocuments({ ctx }) {
 function DocumentDetail({ ctx, doc, structure, onBack }) {
   const colors = useColors();
   const { state, caps, actor, store, wide, go, companyId } = ctx;
-  const work = workingRevision(doc);
+  const archived = !!doc.archived;
+  const work = archived ? null : workingRevision(doc);
   const pub = publishedRevisionOf(doc);
-  const [showRev, setShowRev] = useState((caps.manage ? work?.revision : null) || pub?.revision || work?.revision);
+  const [showRev, setShowRev] = useState((caps.manage ? work?.revision : null) || pub?.revision || work?.revision || (doc.revisions || []).at(-1)?.revision);
   const rev = revisionOf(doc, showRev) || pub || work;
   const editable = caps.manage && work && ['utkast', 'avvist'].includes(work.state) && rev?.revision === work.revision;
+  // Godkjenning: ikke den som sendte inn, og bare valgt godkjenner hvis en er valgt. Uten andre godkjennere kan innsender godkjenne med begrunnelse.
+  const approverUids = Array.isArray(state.system?.approverUids) ? state.system.approverUids : approverUidsFromRoles(state.system?.roleMap, state.system?.ownerUid);
+  const otherApprovers = approverUids.some((uid) => uid && uid !== actor.uid);
+  const blocker = work?.state === 'til_gjennomgang' ? approvalBlocker(doc, actor, { caps, otherApprovers }) : '';
+  const selfApproval = work?.state === 'til_gjennomgang' && !blocker && submittedBySelf(work, actor);
+  const acks = useMemo(() => readAckStatus(doc, ctx.people), [doc, ctx.people]);
   const [content, setContent] = useState(rev?.content || '');
   const [preview, setPreview] = useState(false);
   const [reason, setReason] = useState(work?.changeReason || '');
@@ -234,7 +262,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
   }
 
   async function publish() {
-    const next = await run('Publisert. Forrige revisjon er bevart som «erstattet».', approveAndPublishDocument(doc, { actor, caps }));
+    const next = await run('Publisert. Forrige revisjon er bevart som «erstattet».', approveAndPublishDocument(doc, { actor, caps, otherApprovers, selfApprovalReason: note }));
     if (!next) return;
     // Publisert revisjon blir bevis for koblede krav. Ny revisjon flagger kravene for ny vurdering.
     if ((doc.requirementIds || []).length) {
@@ -281,7 +309,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
       title={doc.title}
       intro={`${doc.code} · ${docTypeLabel(doc.docType)}${doc.folder ? ` · ${folderLabel(structure, doc.folder)}` : ''} · eier ${doc.ownerName || '–'}${doc.approverName ? ` · godkjenner ${doc.approverName}` : ''} · ${ACCESS_CLASSES.find((c) => c.id === doc.accessClass)?.label}`}
       back={{ label: 'Dokumenter', onPress: onBack }}
-      actions={(
+      actions={archived ? null : (
         <>
           <Btn icon="bulb-outline" label="Meld feil eller forbedring" onPress={() => go('avvik', { create: true, prefill: { type: 'forbedring', title: `Forbedring i ${doc.code} ${doc.title}`.slice(0, 200), documentIds: [doc.id] } })} />
         </>
@@ -289,6 +317,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
     >
       {msg ? <Banner tone="ok" text={msg} /> : null}
       {err ? <Banner tone="danger" text={err} /> : null}
+      {archived ? <Banner tone="warn" icon="archive-outline" text={`UTGÅTT – arkivert ${prettyDate(doc.archivedAt)}${doc.archiveReason ? `: ${doc.archiveReason}` : ''}. Dokumentet gjelder ikke lenger og kan bare leses.`} /> : null}
       <Row>
         {(doc.revisions || []).filter((r) => caps.manage || r.state === 'publisert' || r.state === 'erstattet').map((r) => (
           <Btn key={r.revision} small kind={r.revision === rev?.revision ? 'primary' : 'ghost'} label={`Rev. ${r.revision} · ${REVISION_STATES[r.state]}`} onPress={() => setShowRev(r.revision)} />
@@ -350,7 +379,8 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
                 if (!saved) return;
                 const res = submitDocument(saved, { actor, caps });
                 if (!res.ok) { setErr(res.error); return; }
-                const ok = await store.commit('documents', 'document', res, { previous: saved, effects: [{ type: 'requestApproval', key: `isodoc_${doc.id}_r${work.revision}`, title: `Dokument ${doc.code} rev. ${work.revision}`, roleKey: 'top_management', roleLabel: doc.approverName || 'Godkjenner' }] });
+                // Valgt godkjenner får oppgaven; ellers øverste ledelse.
+                const ok = await store.commit('documents', 'document', res, { previous: saved, effects: [{ type: 'requestApproval', key: `isodoc_${doc.id}_r${work.revision}`, title: `Dokument ${doc.code} rev. ${work.revision}`, roleKey: 'top_management', roleLabel: doc.approverName || 'Godkjenner', assigneeUid: saved.approverUid || '' }] });
                 if (ok.ok) setMsg('Sendt til godkjenning.'); else setErr(ok.error);
               }} />
             </Row>
@@ -359,20 +389,29 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
           {rev?.publishedAt ? <Text style={{ color: colors.muted, fontSize: 12 }}>Godkjent og publisert {prettyDate(rev.publishedAt)} av {rev.approvedBy} · gyldig fra {prettyDate(rev.effectiveFrom)}</Text> : null}
         </Card>
         <View style={{ flex: 2, gap: 12, width: wide ? undefined : '100%' }}>
-          {pub && doc.readAckRequired ? (
+          {pub && doc.readAckRequired && !archived ? (
             <Card title="Lesebekreftelse">
-              {hasAcknowledged(doc, actor.uid) ? <Banner tone="ok" text={`Du har bekreftet rev. ${pub.revision}.`} /> : <Btn kind="primary" icon="checkmark-done-outline" label={`Jeg har lest rev. ${pub.revision}`} onPress={() => run('Lesing bekreftet', acknowledgeRead(doc, { actor }))} />}
-              {caps.manage ? <Text style={{ color: colors.muted, fontSize: 12 }}>{(doc.readAcks || []).filter((a) => a.revision === pub.revision).length} har bekreftet gjeldende revisjon.</Text> : null}
+              {hasAcknowledged(doc, actor.uid) ? <Banner tone="ok" text={`Du har bekreftet rev. ${pub.revision}.`} /> : (
+                <Btn kind="primary" icon="checkmark-done-outline" label={`Jeg har lest rev. ${pub.revision}`} onPress={async () => {
+                  setErr(''); setMsg('');
+                  const saved = await store.commitReadAck(acknowledgeRead(doc, { actor }));
+                  if (!saved.ok) setErr(saved.error); else setMsg('Lesing bekreftet.');
+                }} />
+              )}
+              {caps.manage ? <Text style={{ color: colors.muted, fontSize: 12 }}>{acks.acked.length} har bekreftet gjeldende revisjon.</Text> : null}
+              {caps.manage && acks.missing.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Mangler ({acks.missing.length}): {acks.missing.map((p) => p.name).join(', ')}</Text> : null}
             </Card>
           ) : null}
           {caps.approve && work?.state === 'til_gjennomgang' ? (
-            <Card title={`Godkjenning – rev. ${work.revision}`} subtitle={`Sendt av ${work.submittedBy}`}>
-              <Btn kind="primary" icon="checkmark-done" label="Godkjenn og publiser" onPress={publish} />
-              <TextIn value={note} onChangeText={setNote} placeholder="Merknad ved avvisning" />
+            <Card title={`Godkjenning – rev. ${work.revision}`} subtitle={`Sendt av ${work.submittedBy}${doc.approverName ? ` · godkjenner ${doc.approverName}` : ''}`}>
+              {blocker ? <Banner tone="info" text={blocker} /> : null}
+              {selfApproval ? <Banner tone="warn" text="Du sendte revisjonen selv, og det er ingen andre godkjennere. Skriv en begrunnelse; det logges som egengodkjenning." /> : null}
+              {!blocker ? <Btn kind="primary" icon="checkmark-done" label="Godkjenn og publiser" onPress={publish} /> : null}
+              <TextIn value={note} onChangeText={setNote} placeholder={selfApproval ? 'Begrunnelse for egengodkjenning, eller merknad ved avvisning' : 'Merknad ved avvisning'} />
               <Btn kind="danger" label="Avvis" onPress={() => run('Avvist', rejectDocument(doc, note, { actor, caps }))} />
             </Card>
           ) : null}
-          {caps.manage && !work && pub ? (
+          {caps.manage && !archived && !work && pub ? (
             <Card title="Endre dokumentet">
               <TextIn value={note} onChangeText={setNote} placeholder="Hvorfor endres dokumentet?" />
               <Btn icon="git-branch-outline" label="Lag ny revisjon" onPress={() => run('Ny revisjon opprettet', newDocumentRevision(doc, note, { actor }))} />
@@ -385,7 +424,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
           </Card>
           <Card title="Kravkoblinger">
             {linked.length ? linked.map((r) => <Text key={r.id} style={{ color: colors.ink, fontSize: 13 }}>• {r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.kind} {r.title}</Text>) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen krav koblet.</Text>}
-            {caps.manage ? <Btn small icon="link-outline" label="Koble krav" onPress={() => setReqOpen(true)} /> : null}
+            {caps.manage && !archived ? <Btn small icon="link-outline" label="Koble krav" onPress={() => setReqOpen(true)} /> : null}
           </Card>
           <Card title="Metadata" right={editable ? <Btn small icon="create-outline" label="Endre" onPress={() => setMetaOpen(true)} /> : null}>
             <KV label="Dokument-ID" value={doc.code} />
@@ -408,7 +447,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
             ) : null}
             <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13, marginTop: 6 }}>Historikk i ProTop</Text>
             {(doc.history || []).slice().reverse().slice(0, 15).map((h, i) => <Text key={i} style={{ color: colors.muted, fontSize: 12 }}>{prettyDate(h.at)} · {h.action} · {h.by}</Text>)}
-            {caps.approve ? (
+            {caps.approve && !archived ? (
               <>
                 <TextIn value={note} onChangeText={setNote} placeholder="Begrunnelse for arkivering" />
                 <Btn small kind="danger" label="Arkiver" onPress={() => run('Arkivert', archiveDocument(doc, note, { actor, caps }))} />
@@ -429,15 +468,16 @@ function MetaSheet({ ctx, doc, structure, visible, onClose, onSave }) {
   const { state } = ctx;
   const [v, setV] = useState({});
   useEffect(() => {
-    if (visible) setV({ code: doc.code, folder: doc.folder || '', docType: doc.docType, tags: (doc.tags || []).join(', '), processIds: doc.processIds || [] });
+    if (visible) setV({ code: doc.code, folder: doc.folder || '', docType: doc.docType, tags: (doc.tags || []).join(', '), processIds: doc.processIds || [], approverName: doc.approverName || '', approverUid: doc.approverUid || '' });
   }, [visible, doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const folders = structure.flatMap((p) => p.folders);
   return (
-    <Sheet visible={visible} title="Metadata" onClose={onClose} footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Lagre" onPress={() => onSave({ code: v.code, folder: v.folder, docType: v.docType, tags: String(v.tags || '').split(',').map((t) => t.trim()).filter(Boolean), processIds: v.processIds })} /></>}>
+    <Sheet visible={visible} title="Metadata" onClose={onClose} footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Lagre" onPress={() => onSave({ code: v.code, folder: v.folder, docType: v.docType, tags: String(v.tags || '').split(',').map((t) => t.trim()).filter(Boolean), processIds: v.processIds, approverName: v.approverName || '', approverUid: v.approverUid || '' })} /></>}>
       <Field label="Dokument-ID"><TextIn value={v.code} onChangeText={(x) => setV({ ...v, code: x })} /></Field>
       {folders.length ? <Field label="Mappe"><Choice small options={folders.map((f) => ({ id: f.code, label: `${f.code} ${f.title}` }))} value={v.folder} onChange={(x) => setV({ ...v, folder: x || '' })} /></Field> : null}
       <Field label="Type"><Choice small options={DOC_TYPES} value={v.docType} onChange={(x) => setV({ ...v, docType: x || doc.docType })} /></Field>
       <Field label="Stikkord" hint="Skill med komma."><TextIn value={v.tags} onChangeText={(x) => setV({ ...v, tags: x })} /></Field>
+      <Field label="Godkjenner" hint="Bare valgt godkjenner kan godkjenne. Tomt = en godkjenner i ISO."><PersonPick people={ctx.people} value={v.approverName} onChange={(p) => setV({ ...v, approverName: p.name, approverUid: p.uid || '' })} /></Field>
       {(state.processes || []).length ? (
         <Field label="Prosesser">
           <Choice small multi options={(state.processes || []).filter((p) => !p.archived).map((p) => ({ id: p.id, label: `${p.code ? `${p.code} ` : ''}${p.title}` }))} value={v.processIds || []} onChange={(x) => setV({ ...v, processIds: x })} />

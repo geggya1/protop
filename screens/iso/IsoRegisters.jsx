@@ -1200,7 +1200,7 @@ export function ReviewPage({ ctx }) {
   }
   const s = reg.open?.snapshot;
   return (
-    <Page wide={wide} title="Ledelsens gjennomgang" intro="Grunnlaget hentes automatisk fra registrene og låses når referatet godkjennes. Vedtak blir oppgaver med ansvar og frist." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny gjennomgang" onPress={() => reg.setCreating(true)} /> : null}>
+    <Page wide={wide} title="Ledelsens gjennomgang" intro="Grunnlaget hentes fra registrene med «Hent grunnlag» inne i gjennomgangen og låses når referatet godkjennes. Vedtak blir oppgaver med ansvar og frist." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny gjennomgang" onPress={() => reg.setCreating(true)} /> : null}>
       <Card title="Gjennomganger">
         <RecordList ctx={ctx} registerKey="ledelse" rows={reg.rows} subtitle={(r) => `${prettyDate(r.meetingDate)} · ${(r.decisions || []).length} vedtak`} onOpen={(r) => reg.setOpenId(r.id)} />
       </Card>

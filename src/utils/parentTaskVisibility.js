@@ -32,3 +32,14 @@ export function parentTaskVisibleToUser(task, { uid, ids, asChild = false } = {}
 
   return idSet.has(assignee);
 }
+
+/**
+ * Papirkurven: slettede oppgaver brukeren kunne se før de ble slettet, og oppgaver
+ * brukeren selv opprettet (også de som er tildelt andre). Før ble alle slettede
+ * oppgaver filtrert bort av parentTaskVisibleToUser, så papirkurven var alltid tom.
+ */
+export function parentTaskInTrashForUser(task, { uid, ids, asChild = false } = {}) {
+  if (!task || task.deleted !== true || task.active === false) return false;
+  if (uid && task.createdBy === uid) return true;
+  return parentTaskVisibleToUser({ ...task, deleted: false }, { uid, ids, asChild });
+}

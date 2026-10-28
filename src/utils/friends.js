@@ -96,10 +96,12 @@ export async function findExistingUserForFriend(identifier) {
       : (classified.kind === 'email' ? classified.value : raw);
     const res = await fn({ identifier: lookupValue });
     if (res?.data?.ok && res.data.profile?.uid) return res.data.profile;
-    if (res?.data?.ok) {
-      // Fall through for username client fallback
+    // Grensen for oppslag er nådd: si det, i stedet for å behandle personen som ny.
+    if (res?.data?.ok === false && /for mange/i.test(String(res.data.error || ''))) {
+      throw new Error(res.data.error);
     }
-  } catch {
+  } catch (err) {
+    if (/for mange/i.test(String(err?.message || ''))) throw err;
     /* fall through */
   }
 

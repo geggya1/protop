@@ -76,6 +76,19 @@ async function loadPublic(uid) {
   };
 }
 
+/** Venneforespørselen er besvart: varselet skal ikke stå som ulest (SOS-19). */
+async function closeFriendInviteNotice(uid, requestId) {
+  try {
+    await db.doc(`users/${uid}/notifications/friendInvite_${requestId}`).update({
+      seen: true,
+      read: true,
+      seenAt: FieldValue.serverTimestamp(),
+    });
+  } catch {
+    /* varselet finnes ikke */
+  }
+}
+
 /** List accepted friends for the caller (from Admin-managed mirror docs). */
 export const listMyFriends = onCall(
   { region: 'europe-west1', timeoutSeconds: 20, memory: '256MiB', cors: true, invoker: 'public' },
@@ -646,6 +659,7 @@ export const respondFriendRequestAdmin = onCall(
         await db.doc(`users/${fromUid}/outgoingFriendRequests/${requestId}`).set({
           status: 'declined', updatedAt: now,
         }, { merge: true });
+        await closeFriendInviteNotice(uid, requestId);
         return { ok: true, status: 'declined' };
       }
 
@@ -700,6 +714,7 @@ export const respondFriendRequestAdmin = onCall(
         read: false,
       });
       await batch.commit();
+      await closeFriendInviteNotice(uid, requestId);
       return { ok: true, status: 'accepted', friendshipId, friendUid: fromUid };
     } catch (error) {
       if (error instanceof HttpsError) return { ok: false, error: error.message };
@@ -753,6 +768,8 @@ export const sendFriendChatAdmin = onCall(
       await chatRef.update({
         lastText: text.slice(0, 120),
         lastSenderId: senderUid,
+        // Mottakerens reservevarsel viser avsenderen, ikke «Ny melding».
+        lastSenderName: senderName,
         lastAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         unreadStampId: msgRef.id,
@@ -997,15 +1014,12 @@ export const claimFriendInviteAdmin = onCall(
       });
       await batch.commit();
 
-      // Rights check: never add to inviter family
-      const fromUser = await db.doc(`users/${fromUid}`).get();
-      const familyIds = fromUser.data()?.familyIds || [];
+      // Bare vennskapet. Den nye brukeren legges aldri inn i bedriften til den som inviterte,
+      // og får heller ikke vite hvilke grupper den personen er med i.
       return {
         ok: true,
         friendshipId,
         friendUid: fromUid,
-        familyIdsUnchanged: true,
-        inviterFamilyIds: familyIds,
       };
     } catch (error) {
       if (error instanceof HttpsError) return { ok: false, error: error.message };

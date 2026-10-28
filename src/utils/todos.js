@@ -248,7 +248,7 @@ export async function toggleTodo(familyId, childId, task, date) {
   return true;
 }
 
-export { FAMILY_ASSIGNEE, parentTaskVisibleToUser } from './parentTaskVisibility';
+export { FAMILY_ASSIGNEE, parentTaskVisibleToUser, parentTaskInTrashForUser } from './parentTaskVisibility';
 
 export function listenParentTodos(familyId, onChange) {
   if (!familyId) return () => {};

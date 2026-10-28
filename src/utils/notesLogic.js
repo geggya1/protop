@@ -114,3 +114,23 @@ export function familyNoteFromVoiceNote(vn, uid, creatorName) {
     voiceNoteId: vn?.id || null,
   };
 }
+
+function foldText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
+ * Søk i Notater: alle ordene må finnes i tittel, tekst, sammendrag, transkripsjon
+ * eller forfatter. Store/små bokstaver og aksenter teller ikke.
+ */
+export function filterNotesByQuery(notes, query) {
+  const words = foldText(query).split(/\s+/).filter(Boolean);
+  if (!words.length) return notes || [];
+  return (notes || []).filter((n) => {
+    const hay = foldText([n?.title, n?.body, n?.summary, n?.transcript, n?.createdByName].join(' '));
+    return words.every((w) => hay.includes(w));
+  });
+}

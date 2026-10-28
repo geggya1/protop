@@ -19,6 +19,7 @@ import { roundTemp } from '../../src/utils/weather';
 import { addDays, dateKey, startOfWeekMonday } from '../../src/utils/dates';
 import { listenChildTodos } from '../../src/utils/todos';
 import { kidProgressRows } from '../../src/utils/familyProgress';
+import { homeRemainingHints } from '../../src/utils/homeRemainingHints';
 import {
   custodyEnabled,
   custodyParentSlotForDate,
@@ -223,15 +224,13 @@ export function useParentHomeModel({
     };
   }, [eventsToday, eventsTomorrow, taskCount, activeKids, now]);
 
-  const remainingHints = useMemo(() => {
-    const bits = [];
-    if (shopCount > 0) bits.push('Dagligvarer');
-    if (!dinner) bits.push('Planlegg middag');
-    if (taskCount > 0 && bits.length < 2) bits.push('Oppgaver');
-    return bits.slice(0, 2);
-  }, [shopCount, dinner, taskCount]);
-
-  const remainingCount = (taskCount > 0 ? 1 : 0) + (shopCount > 0 ? 1 : 0) + (!dinner ? 1 : 0);
+  // Bare hint for moduler som finnes i ProTop (ikke «Planlegg middag» uten måltider).
+  const remaining = useMemo(
+    () => homeRemainingHints({ shopCount, hasDinner: !!dinner, taskCount }),
+    [shopCount, dinner, taskCount],
+  );
+  const remainingHints = remaining.hints;
+  const remainingCount = remaining.count;
 
   const appById = useMemo(() => {
     const map = {};
@@ -386,7 +385,7 @@ export function useParentHomeModel({
     notes,
     noteCount,
     remainingHints,
-    remainingCount: Math.min(remainingCount, 2) || (taskCount + (shopCount > 0 ? 1 : 0)),
+    remainingCount: Math.min(remainingCount, 2),
     custodyWeekLabel,
     weekStats,
     activeKids,

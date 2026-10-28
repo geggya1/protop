@@ -170,6 +170,7 @@ function CompanyMenu({
               disabled={busy}
               accessibilityRole="menuitem"
               accessibilityState={{ selected }}
+              aria-selected={selected}
               style={[
                 styles.menuRow,
                 selected && { backgroundColor: colors.sunken || '#f4f6f9' },
@@ -281,6 +282,10 @@ function Seg({
         active && { backgroundColor: colors.card },
         active && styles.segActive,
       ]}
+      // react-native-web 0.21 gjør ikke accessibilityState om til aria-*: hvilken side som er valgt,
+      // må stå som aria-selected (og aria-expanded for menyen).
+      aria-selected={!!active}
+      aria-expanded={caret ? !!expanded : undefined}
       accessibilityRole={caret ? 'button' : 'tab'}
       accessibilityState={{ selected: !!active, expanded: caret ? !!expanded : undefined }}
       accessibilityLabel={caret ? 'Bedrift. Velg selskap' : label}

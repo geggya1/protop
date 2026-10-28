@@ -331,7 +331,12 @@ export default function NoteEditorScreen({ noteId, onBack, onOpenSettings, pendi
             </Text>
           )}
           {canManage && onOpenSettings && (
-            <TouchableOpacity style={styles.iconBtn} onPress={openSettings}>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={openSettings}
+              accessibilityRole="button"
+              accessibilityLabel="Notatinnstillinger: deling, arkivering og sletting"
+            >
               <Ionicons name="settings-outline" size={20} color={colors.brand} />
             </TouchableOpacity>
           )}

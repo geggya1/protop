@@ -11,7 +11,7 @@ import { colors, useLayout } from '../../src/theme';
 import {
   addDays, dateKey, startOfWeekMonday, monthGrid, isSameMonth, WEEKDAYS_SHORT, MONTHS_NO, sameDay, isToday, getISOWeek,
 } from '../../src/utils/dates';
-import { calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, shouldListEventAsCalendarLayer, HIDDEN_CALENDAR_LAYERS_KEY, equipmentGroupLayerId, equipmentLayerId } from '../../src/utils/timeGrid';
+import { formatWeekRangeShortNo, calendarIdOf, isCalendarLayerHidden, calendarConnectionLayerId, calendarSubLayerId, connectionDisplayLabel, icsSidebarLabel, shouldListEventAsCalendarLayer, HIDDEN_CALENDAR_LAYERS_KEY, equipmentGroupLayerId, equipmentLayerId } from '../../src/utils/timeGrid';
 import OutlookCalendar from '../../components/OutlookCalendar';
 import { eventOccursOnDate, eventOnOwnCalendar, eventVisibleToUser } from '../../src/utils/events';
 import {
@@ -61,6 +61,7 @@ import {
   saveCustodyOverlayPrefs,
 } from '../../src/utils/custodyOverlayPrefs';
 import { isOrganizationType } from '../../src/utils/groupTypes';
+import { isProtopShellModule } from '../../src/navigation/protopShell';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { loadProjectState } from '../../src/project/storage';
 import {
@@ -1172,7 +1173,8 @@ export default function PlanScreen({ active = true }) {
       <View style={[styles.wrap, { paddingHorizontal: pad }]}>
         <View style={styles.toolbar}>
           <View style={styles.seg}>
-            {[['day', 'Dag'], ['week', 'Uke'], ['month', 'Måned'], ['meals', 'Mat']].map(([m, label]) => (
+            {/* «Mat» hører til måltidsmodulen, som ProTop ikke har. */}
+            {[['day', 'Dag'], ['week', 'Uke'], ['month', 'Måned'], ...(isProtopShellModule('meals') ? [['meals', 'Mat']] : [])].map(([m, label]) => (
               <TouchableOpacity key={m} onPress={() => setMode(m)} style={[styles.segBtn, mode === m && styles.segOn]}>
                 <Text style={[styles.segTxt, mode === m && styles.segTxtOn]}>{label}</Text>
               </TouchableOpacity>
@@ -1274,7 +1276,7 @@ export default function PlanScreen({ active = true }) {
               ? `${MONTHS_NO[anchor.getMonth()]} ${anchor.getFullYear()}`
               : mode === 'day'
                 ? dayLabel
-                : `Uke ${iso.week} · ${weekDays[0].getDate()}.–${weekDays[6].getDate()}. ${MONTHS_NO[anchor.getMonth()].slice(0, 3)}`}
+                : `Uke ${iso.week} · ${formatWeekRangeShortNo(weekDays, MONTHS_NO)}`}
           </Text>
           <TouchableOpacity onPress={() => shift(1)} style={styles.navBtn} accessibilityRole="button" accessibilityLabel="Neste periode">
             <Ionicons name="chevron-forward" size={20} color={colors.ink} />

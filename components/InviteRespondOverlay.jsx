@@ -27,6 +27,9 @@ import {
 } from '../src/utils/familyGamesShared';
 import { respondToGameInvite } from '../src/utils/gameInviteRespond';
 import { groupInviteCopy } from '../src/utils/inviteIdentifiers';
+import { parseFriendInviteFromPath } from '../src/navigation/friendInviteLinks';
+import { staleFriendInviteNoticeIds } from '../src/utils/friendsLogic';
+import { useUnread } from '../src/context/NotificationContext';
 import {
   listenIncomingFriendRequests,
   acceptFriendRequest,
@@ -73,6 +76,8 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   const [gameInvites, setGameInvites] = useState([]);
   const [familyGameInvites, setFamilyGameInvites] = useState([]);
   const [friendInvites, setFriendInvites] = useState([]);
+  const [friendInvitesLoaded, setFriendInvitesLoaded] = useState(false);
+  const { items: inboxItems, markSeen } = useUnread();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [dismissed, setDismissed] = useState(readDismissed);
@@ -179,12 +184,27 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, enabled, familyId]);
 
   useEffect(() => {
+    setFriendInvitesLoaded(false);
     if (!uid || !enabled) {
       setFriendInvites([]);
       return undefined;
     }
-    return listenIncomingFriendRequests(uid, setFriendInvites);
+    return listenIncomingFriendRequests(uid, (list) => {
+      setFriendInvites(list || []);
+      setFriendInvitesLoaded(true);
+    });
   }, [uid, enabled]);
+
+  // Varsel om en forespørsel som er godtatt, avslått eller trukket tilbake, skal ikke
+  // stå igjen under «Ulest» (SOS-19).
+  useEffect(() => {
+    if (!uid || !enabled || !friendInvitesLoaded) return;
+    const stale = staleFriendInviteNoticeIds(
+      inboxItems,
+      friendInvites.map((inv) => inv.requestId || inv.id),
+    );
+    if (stale.length) markSeen(stale).catch(() => {});
+  }, [uid, enabled, friendInvitesLoaded, friendInvites, inboxItems, markSeen]);
 
   const mergedGameInvites = useMemo(() => {
     const byKey = new Map();
@@ -225,10 +245,11 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         window.history.replaceState({}, '', `${window.location.origin}/`);
         return;
       }
-      const friendMatch = String(window.location.pathname || '').match(
-        /\/friend-invite\/([^/?#]+)/i,
+      // /register?friendInvite=<token> er en invitasjon til ny bruker, ikke en forespørsel.
+      const friendLink = parseFriendInviteFromPath(
+        `${window.location.pathname || ''}${window.location.search || ''}`,
       );
-      const friendReq = params.get('friendInvite') || (friendMatch ? decodeURIComponent(friendMatch[1]) : '');
+      const friendReq = friendLink?.requestId || '';
       if (friendReq && !params.get('token')) {
         nav.navigate('FriendInviteRespond', { requestId: friendReq });
         window.history.replaceState({}, '', `${window.location.origin}/`);

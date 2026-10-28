@@ -22,6 +22,7 @@ import {
   markChatRead, resolveChatRecipients, stampChatMessage, uniqueMemberIds,
   ensureChatDoc, listenChatMessages,
 } from '../src/utils/chats';
+import { chatMessageNotice, chatNoticeId } from '../src/utils/chatsLogic';
 import {
   listenFriendChatMessages,
   listFriendChatMessagesViaAdmin,
@@ -268,21 +269,27 @@ function ChatDockPanel({
     try {
       await stampChatMessage(familyId, chatId, {
         senderId: senderUid,
+        senderName: name,
         text: preview,
         memberIds: stampIds,
         unreadFor: recipients.length ? recipients : undefined,
         messageId: msgRef.id,
       });
     } catch { /* ignore */ }
+    // Avsenderens navn (ikke «Ny melding» eller chattens tittel, som for en DM er mottakerens
+    // navn), og samme id som mottakerens reserve, så én melding gir ett varsel (SOS-11, SOS-13).
+    const notice = chatMessageNotice({
+      chatId, chatTitle: win.title, senderName: name, text: preview,
+    });
     try {
       await notifyUsers(recipients, {
         eventType: 'messageReceived',
-        title: t('chat.newMessage'),
-        body: preview,
+        title: notice.title,
+        body: notice.body,
         familyId,
         chatId,
         createdBy: senderUid,
-        notificationId: `msg_${msgRef.id}`,
+        notificationId: chatNoticeId({ chatId, messageId: msgRef.id }),
       });
     } catch { /* ignore */ }
   };
@@ -1512,9 +1519,13 @@ const styles = StyleSheet.create({
     }),
   },
   iconBtn: {
-    alignSelf: 'flex-start', padding: 4 },
+    alignSelf: 'flex-start', padding: 4, flexShrink: 0 },
+  // minWidth 0: et <input> på web krymper ellers ikke under sin naturlige bredde,
+  // og Send-knappen havner utenfor skjermen på mobil (SOS-02).
   input: {
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
     minHeight: 36,
     maxHeight: 80,
     borderRadius: 18,
@@ -1531,6 +1542,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   sendBtnDisabled: { opacity: 0.45 },
   pill: {

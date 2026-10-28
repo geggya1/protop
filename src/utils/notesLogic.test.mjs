@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   canMigrateVoiceNotesInto,
   familyNoteFromVoiceNote,
+  filterNotesByQuery,
   isNoteMissing,
   isOfflineSaveError,
   migratedVoiceNoteId,
@@ -97,4 +98,33 @@ test('notatredigeringen autolagrer og spør ved Tilbake', () => {
   const settings = readFileSync(new URL('../../screens/v2/NoteSettingsScreen.jsx', import.meta.url), 'utf8');
   assert.match(settings, /Notatet finnes ikke/);
   assert.match(settings, /note === undefined/);
+});
+
+test('«Slett permanent» sletter notatdokumentet, ikke bare et flagg (SOS-09)', () => {
+  const src = readFileSync(new URL('./familyNotes.js', import.meta.url), 'utf8');
+  const fn = src.slice(src.indexOf('export async function deleteNote'), src.indexOf('export async function setNoteMembers'));
+  assert.match(fn, /deleteDoc\(noteDoc\(familyId, noteId\)\)/);
+  assert.doesNotMatch(fn, /permanentlyDeleted: true/);
+  // Innstillingene kaller fortsatt deleteNote etter bekreftelse.
+  const settings = readFileSync(new URL('../../screens/v2/NoteSettingsScreen.jsx', import.meta.url), 'utf8');
+  assert.match(settings, /withSaveTimeout\(deleteNote\(familyId, noteId\)\)/);
+});
+
+test('søk i Notater: alle ord, uten hensyn til store bokstaver og aksenter', () => {
+  const notes = [
+    { id: 'a', title: 'Lønnsforhandling 77261', body: 'Kim får 5 % tillegg' },
+    { id: 'b', title: 'Byggemøte', body: 'Agenda for mandag', createdByName: 'Eva Eier' },
+    { id: 'c', title: 'Talenotat', transcript: 'husk å bestille stillas', summary: '' },
+  ];
+  assert.deepEqual(filterNotesByQuery(notes, 'lønnsforhandling').map((n) => n.id), ['a']);
+  assert.deepEqual(filterNotesByQuery(notes, '  STILLAS ').map((n) => n.id), ['c']);
+  assert.deepEqual(filterNotesByQuery(notes, 'eva mandag').map((n) => n.id), ['b']);
+  assert.deepEqual(filterNotesByQuery(notes, 'MØTE').map((n) => n.id), ['b']);
+  assert.deepEqual(filterNotesByQuery([{ id: 'd', title: 'Café-avtale' }], 'cafe').map((n) => n.id), ['d']);
+  assert.deepEqual(filterNotesByQuery(notes, 'eva stillas'), []);
+  assert.equal(filterNotesByQuery(notes, '').length, 3);
+  assert.deepEqual(filterNotesByQuery(null, 'x'), []);
+  const hub = readFileSync(new URL('../../screens/v2/NotesHubScreen.jsx', import.meta.url), 'utf8');
+  assert.match(hub, /filterNotesByQuery\(profileNotes, search\)/);
+  assert.match(hub, /accessibilityLabel="Søk i notater"/);
 });

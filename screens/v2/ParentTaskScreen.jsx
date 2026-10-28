@@ -415,8 +415,8 @@ export default function ParentTaskScreen() {
             : isChild
               ? 'Opprett oppgave og tildel andre. Du ser egne oppgaver og det som er tildelt deg — uten å kunne endre dem etterpå.'
               : isRecurring
-                ? 'Regelmessige oppgaver — kvitteres ut for hver hendelse. Inngår ikke i belønningsprogrammet.'
-                : 'Oppgaver med frist — for deg selv eller tildelt andre. Inngår ikke i belønningsprogrammet.'}
+                ? 'Regelmessige oppgaver — kvitteres ut for hver hendelse.'
+                : 'Oppgaver med frist — for deg selv eller tildelt andre.'}
         </Text>
 
         {/* Title */}
@@ -597,7 +597,7 @@ export default function ParentTaskScreen() {
           </Text>
         ) : (
           <>
-            <Text style={styles.hint}>Inviter familiemedlemmer til å samarbeide på oppgaven.</Text>
+            <Text style={styles.hint}>Inviter andre til å samarbeide på oppgaven.</Text>
             <View style={styles.chipRow}>
               {members.filter((m) => m.role !== 'child').map((m) => {
                 const on = participants.includes(m.uid);

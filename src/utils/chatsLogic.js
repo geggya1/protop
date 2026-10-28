@@ -112,3 +112,34 @@ export function chatMessagePreview(message, imageFallback = '📷 Bilde') {
   if (message.type === 'image') return text || imageFallback;
   return text;
 }
+
+/**
+ * Tittel og tekst i varselet for én chatmelding. Samme hos avsender og mottaker,
+ * så det blir ett varsel med avsenderens navn (SOS-13).
+ * - Direktemelding: avsenderens navn, meldingen som tekst.
+ * - Gruppe/«Alle ansatte»: chattens navn, «Navn: melding» som tekst.
+ */
+export function chatMessageNotice({
+  chatId, chatTitle = '', senderName = '', text = '', isDm,
+} = {}) {
+  const dm = isDm ?? String(chatId || '').startsWith('dm_');
+  const sender = String(senderName || '').trim();
+  const body = String(text || '').slice(0, 280);
+  if (dm) return { title: sender || 'Ny melding', body };
+  const title = String(chatTitle || '').trim();
+  return {
+    title: title && title !== 'Chat' ? title : (sender || 'Ny melding'),
+    body: sender ? `${sender}: ${body}`.slice(0, 280) : body,
+  };
+}
+
+/**
+ * Id for varselet om en chatmelding. Når chatten har meldings-id (unreadStampId),
+ * brukes samme id som avsenderen og serveren, så mottakerens reserve ikke lager et
+ * varsel til (SOS-11). Familie-/bedriftschat: msg_<id>. Vennechat: friendChat_<id>.
+ */
+export function chatNoticeId({ chatId, stampId, messageId, friend = false } = {}) {
+  const id = String(messageId || '').trim();
+  if (id) return friend ? `friendChat_${id}` : `msg_${id}`;
+  return `${friend ? 'friendChat' : 'chat'}_${chatId}_${stampId}`.slice(0, 700);
+}

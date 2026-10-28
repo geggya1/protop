@@ -72,11 +72,13 @@ export const onChatMessageCreated = onDocumentCreated(
           patch.memberIds = familyMembers;
         }
         if (!alreadyStamped) {
+          // Nestede kart: set(…, { merge: true }) tolker ikke `unreadCounts.<uid>` som sti,
+          // men lagrer et toppnivåfelt med punktum i navnet (SOS-14).
           patch.unreadStampId = messageId;
-          patch[`unreadCounts.${senderUid}`] = 0;
-          patch[`reads.${senderUid}`] = FieldValue.serverTimestamp();
+          patch.unreadCounts = { [senderUid]: 0 };
+          patch.reads = { [senderUid]: FieldValue.serverTimestamp() };
           recipients.forEach((id) => {
-            patch[`unreadCounts.${id}`] = FieldValue.increment(1);
+            patch.unreadCounts[id] = FieldValue.increment(1);
           });
         }
         tx.set(chatRef, patch, { merge: true });
@@ -160,11 +162,13 @@ export const onFriendChatMessageCreated = onDocumentCreated(
           if (ids.length) patch.memberIds = ids;
         }
         if (!alreadyStamped) {
+          // Nestede kart: set(…, { merge: true }) tolker ikke `unreadCounts.<uid>` som sti,
+          // men lagrer et toppnivåfelt med punktum i navnet (SOS-14).
           patch.unreadStampId = messageId;
-          patch[`unreadCounts.${senderUid}`] = 0;
-          patch[`reads.${senderUid}`] = FieldValue.serverTimestamp();
+          patch.unreadCounts = { [senderUid]: 0 };
+          patch.reads = { [senderUid]: FieldValue.serverTimestamp() };
           recipients.forEach((id) => {
-            patch[`unreadCounts.${id}`] = FieldValue.increment(1);
+            patch.unreadCounts[id] = FieldValue.increment(1);
           });
         }
         tx.set(chatRef, patch, { merge: true });

@@ -16,6 +16,7 @@ const { getFirestore } = await import('firebase-admin/firestore');
 const { assertCompanyAccess, assertFamilyAdmin, assertFamilyMember } = await import('./security.js');
 const { syncCompany } = await import('./companyAccessSync.js');
 const { lookupAdultProfile, writeMemberPasswordCopies } = await import('./authCallables.js');
+const { listMyFamilies } = await import('./joinCallables.js');
 
 const db = getFirestore();
 const A = 'companyA';
@@ -64,6 +65,28 @@ test('SEC-02: et aktivt medlemsdokument alene gir ikke medlemskap; et deaktivert
   // Eier og administrator kan fortsatt rydde, selv med et deaktivert dokument.
   await db.doc(`families/${A}/parents/adm`).set({ active: false }, { merge: true });
   assert.ok(await assertFamilyMember(db, A, 'adm'));
+});
+
+test('REV-24: et barnedokument i en bedrift verken gir eller stenger tilgang på serveren', async () => {
+  // En kollega (eller eldre data) har laget families/A/children/bob med deleted: true.
+  await db.doc(`families/${A}/children/bob`).set({ uid: 'bob', deleted: true, active: false });
+  assert.ok(await assertFamilyMember(db, A, 'bob'));
+  // Et aktivt barnedokument gir ikke en konto bedriften i listen eller tilgang.
+  await db.doc(`families/${A}/children/snik`).set({ uid: 'snik', active: true });
+  await db.doc('users/snik').set({ uid: 'snik', familyIds: [A] });
+  await denied(assertFamilyMember(db, A, 'snik'));
+  const mine = await listMyFamilies.run({ data: {}, auth: { uid: 'snik', token: {} }, rawRequest: { headers: {} } });
+  assert.equal(mine.families.some((row) => row.id === A), false);
+  // I en familie gjelder barnedokumentet som før: et aktivt barn står i listen.
+  await db.doc('families/F').set({ type: 'family', ownerUid: 'mor', adminUids: ['mor'], members: ['mor', 'barn'] });
+  await db.doc('families/F/children/barn').set({ uid: 'barn', active: true });
+  await db.doc('users/barn').set({ uid: 'barn', role: 'child', familyIds: ['F'] });
+  const child = await listMyFamilies.run({ data: {}, auth: { uid: 'barn', token: {} }, rawRequest: { headers: {} } });
+  assert.ok(child.families.some((row) => row.id === 'F'));
+  assert.ok(await assertFamilyMember(db, 'F', 'barn'));
+  // Et fjernet barn stenges fortsatt ute, selv om det står i listen.
+  await db.doc('families/F/children/barn').set({ leftAt: '2026-10-01T00:00:00.000Z', active: false }, { merge: true });
+  await denied(assertFamilyMember(db, 'F', 'barn'));
 });
 
 test('SEC-03: createdBy, adminUid og admin på medlemsdokumentet gir ikke admin', async () => {

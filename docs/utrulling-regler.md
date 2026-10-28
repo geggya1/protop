@@ -50,6 +50,7 @@ både gamle og nye regler, så web trenger ikke rulles tilbake.
 | Timer, utlegg, fravær, fakturautkast, notater, kalender: sletting | Sletter samme rad to ganger (Arbeid sletter, lagringen sletter igjen) | **Virker** (REV-01): sletting av noe som ikke finnes, godtas. Låst/fakturert rad slettes fortsatt ikke. |
 | Barn: fjerne fra familien | Sletter medlemsdokumentet, setter `familyId: null` på `children/{id}` | **Virker** (REV-02). |
 | Barn: medforelder legger til barn | Medlemsdokument, profiler, så `arrayUnion` i `members` | **Virker** (REV-03), bare for barnekontoer, ikke i bedrifter. |
+| Barn: barnedokumentet i gruppen (`families/{id}/children/{x}`) | Foresatt eller eier lager det sammen med barnekontoen (samtidig med `users/{x}`); barnet og foresatte lagrer valg (tema, posisjon, apper) på det; eier deaktiverer eller fjerner | **Virker** (REV-24). Dokumentet gir barnet medlemskap, så bare en voksen i gruppen eller en administrator lager det, aldri i en bedrift, bare for en barnekonto (eller en ny konto uten profil ennå), og `uid` er dokumentets id. `active`, `deleted`, `leftAt` og `uid` endres bare av dem. Et barnedokument i en bedrift, eller et fjernet eller deaktivert, gir ikke lenger tilgang (heller ikke på serveren). |
 | Kalender i bedrift | Lytter på hele `events` | **Virker** så lenge bedriften ikke har private hendelser. Se under. |
 | Kalender: eldre hendelser uten `audience` | Vises for alle | **Virker** (REV-11): de får `audience` før bedriften merkes. |
 | HR, fravær for alle, faktura (ferdigstille, betale), ansatte (nivå, sletting), ISO | Leser/skriver uten speil | **Virker** når speilet er ferskt. Det fornyes av `recordUsage` (eldre apper) og av web-appen. |
@@ -75,6 +76,7 @@ Disse avvises for eldre apper. Det var dette rettingene skulle stoppe.
 | Hopper i fakturanummer uten begrunnet rad i `jumps` | Bokføringsforskriften § 5-1-1 (L-31) | Gjelder bare import av nummer. |
 | Endrer timer/beløp på en fakturert eller låst føring, eller nullstiller fakturakoblingen fra en gammel kopi | DS-11, L-10 | Lagringen av den raden feiler. I eldre apper kan feilen stoppe senere lagringer i økten til siden lastes på nytt (det er rettet i ny app, REV-01). |
 | Deler et notat en annen har laget | FL-13 | Delingen feiler. |
+| Lager et barnedokument i gruppen uten å være voksen der eller administrator, eller i en bedrift | Dokumentet ga den kontoen medlemskap i gruppen (REV-24) | Ingen vanlig flyt gjør dette. Et barn som lagrer tema før dokumentet finnes, får det bare lagret på enheten. |
 | Starter vennechat med en som ikke er venn (også kollega) | SOS-04, FL-12 | Tråden lages ikke. |
 | Endrer tilgangsmatrisen uten speil, eller orgnr/konto/moduler/personvernvalg uten tilgang | FL-02, SEC-13 | Lagringen feiler for andre enn eier og administratorer. |
 | Overskriver en fil i fakturaarkivet (Storage) | Bokføringsloven § 13 | Et vedlegg med samme filnavn kan ikke lastes opp på nytt i eldre apper. |

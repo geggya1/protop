@@ -25,7 +25,17 @@ service cloud.firestore {
     function isFamilyMember(familyId) {
       return isFamilyMemberLite(familyId)
         || isFamilyAdult(familyId)
-        || (isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/children/$(request.auth.uid)));
+        || isFamilyChild(familyId);
+    }
+
+    // Barn i gruppen: har et aktivt barnedokument der (families/{id}/children/{uid}). Det lages bare
+    // av en foresatt eller administrator (se children under), og i en bedrift teller det aldri (REV-24).
+    function isFamilyChild(familyId) {
+      let path = /databases/$(database)/documents/families/$(familyId)/children/$(request.auth.uid);
+      return isSignedIn()
+        && exists(path)
+        && !isCompanyGroup(familyId)
+        && grantsMembership(get(path).data);
     }
 
     function isFamilyOwner(familyId) {
@@ -921,10 +931,20 @@ service cloud.firestore {
     }
 
     // Har et aktivt medlemsdokument (voksen eller barn) i gruppen. Det skrives av serveren,
-    // eier eller administrator (se families/{id}/parents).
+    // eier eller administrator (se families/{id}/parents), og barnets av en foresatt (children).
     function hasOwnMemberDoc(familyId) {
-      let child = /databases/$(database)/documents/families/$(familyId)/children/$(request.auth.uid);
-      return isFamilyAdult(familyId) || (exists(child) && grantsMembership(get(child).data));
+      return isFamilyAdult(familyId) || isFamilyChild(familyId);
+    }
+
+    // Kan legge til og stelle barn i gruppen: en voksen i gruppen (som addsChild) eller en
+    // administrator, aldri i en bedrift. Barnedokumentet gir medlemskap (REV-24).
+    function childRecordManager(familyId) {
+      return !isCompanyGroup(familyId) && (isFamilyAdult(familyId) || isFamilyAdmin(familyId));
+    }
+
+    // Feltene som avgjør om barnedokumentet gir tilgang (grantsMembership), og hvem det gjelder.
+    function childMembershipKeys() {
+      return ['uid', 'active', 'deleted', 'leftAt', 'placeholder', 'inviteStatus'];
     }
 
     // En foresatt (voksen i gruppen, ikke bedrift) fører opp ett barn hen nettopp har lagt til
@@ -1174,14 +1194,31 @@ service cloud.firestore {
           || (isFamilyMember(familyId) && resource.data.get('invitedBy', '') == request.auth.uid);
       }
 
+      // Barna i gruppen (REV-24). Et aktivt barnedokument gir barnet medlemskap (isFamilyChild).
+      // Det lages bare av en foresatt eller administrator, aldri i en bedrift, bare for en barnekonto
+      // (eller en ny konto uten profil ennå, som addChildMember i eldre apper), og uid er dokumentets id.
+      // Om barnet er med, endres bare av dem. Barnet selv og andre medlemmer lagrer resten som før.
+      // Underlagene (oppgaver, lekser osv.) følger den generelle regelen under.
+      match /children/{childId} {
+        allow create: if childRecordManager(familyId)
+          && request.resource.data.get('uid', childId) == childId
+          && (!exists(userPath(childId)) || isChildProfile(childId));
+        allow update: if isFamilyMember(familyId)
+          && (unchanged('uid') || request.resource.data.get('uid', childId) == childId)
+          && (!changed().hasAny(childMembershipKeys()) || childRecordManager(familyId));
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || isFamilyAdmin(familyId) || childRecordManager(familyId));
+      }
+
       // Alle andre samlinger: som før. ISO-samlingene (iso*) og den speilede
-      // tilgangen (accessAcl) har egne regler under og er unntatt her.
+      // tilgangen (accessAcl) har egne regler under og er unntatt her. Ansatte og barn
+      // har egne skriveregler (employees, children).
       // Samlingsnavnet sjekkes før medlemskapet: det er billig, og ansattreglene er dyre.
       match /{coll}/{docId} {
         allow get: if !isProtected(coll) && isFamilyMember(familyId);
         allow list: if !isProtected(coll) && isFamilyMemberLite(familyId);
-        allow create, update, delete: if coll != 'employees' && !isProtected(coll) && isFamilyMember(familyId);
-        allow create: if coll != 'employees' && !isProtected(coll) && foundsFamily(familyId);
+        allow create, update, delete: if !(coll in ['employees', 'children']) && !isProtected(coll) && isFamilyMember(familyId);
+        allow create: if !(coll in ['employees', 'children']) && !isProtected(coll) && foundsFamily(familyId);
       }
 
       // Underlag (f.eks. oppgavelogg, prefs på ansattposten): som dokumentet de hører til.

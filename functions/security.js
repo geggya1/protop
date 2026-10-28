@@ -230,6 +230,16 @@ export function memberDocGrantsAccess(data) {
 }
 
 /**
+ * Teller barnedokumentet families/{id}/children/{uid} for medlemskapet i gruppen? Bare utenfor
+ * bedrifter. Reglene lar bare foresatte og administratorer lage det, og aldri i en bedrift
+ * (REV-24). Et slikt dokument i en bedrift (eldre data, eller laget av en kollega før reglene
+ * ble strammet inn) verken gir eller stenger tilgang.
+ */
+export function childDocCounts(family) {
+  return !isOrganizationType(family?.type);
+}
+
+/**
  * Eier eller administrator. Bare feltene reglene beskytter teller (ownerUid, ownerId, adminUids).
  * createdBy og adminUid på gruppen og admin på medlemsdokumentet kan medlemmer skrive selv.
  */
@@ -267,9 +277,9 @@ export async function assertFamilyMember(db, familyId, uid) {
 
   const [parent, child] = await Promise.all([
     db.doc(`families/${familyId}/parents/${uid}`).get(),
-    db.doc(`families/${familyId}/children/${uid}`).get(),
+    childDocCounts(data) ? db.doc(`families/${familyId}/children/${uid}`).get() : null,
   ]);
-  const docs = [parent, child].filter((snap) => snap.exists).map((snap) => snap.data());
+  const docs = [parent, child].filter((snap) => snap?.exists).map((snap) => snap.data());
   if (!parent.exists) {
     const parentsSnap = await db.collection(`families/${familyId}/parents`).where('uid', '==', uid).limit(1).get();
     if (!parentsSnap.empty) docs.push(parentsSnap.docs[0].data());

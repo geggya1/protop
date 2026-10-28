@@ -113,6 +113,8 @@ function hookedRequire(orig, id) {
   if (id.includes('BrandBusyOverlay')) return { __esModule: true, default() { return null; } };
   if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
   if (id.includes('ImportReview')) return { ImportResult() { return null; } };
+  // Datovelgeren i timeføringen (TimeEntryModal) leser fargene fra temaet ved lasting.
+  if (id.includes('DateField')) return { __esModule: true, default() { return null; } };
   if (id.includes('HoursOrganizePanel') || id.includes('HoursImportReview') || id.includes('TimesheetDayView')) {
     return { __esModule: true, default() { return null; } };
   }

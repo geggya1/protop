@@ -133,11 +133,16 @@ try {
     await openInvoice(L, 'Faktura 1');
     await clickId(L, 'invoice-action-send');
     await sleep(2000);
+    // Dialogen sjekker først om kunden kan ta imot EHF, og bytter da stille til e-post.
+    await sleep(10000);
+    const auto = await L.page.locator('[id="invoice-channel-email"]').first().getAttribute('aria-selected').catch(() => null);
+    const s1 = await L.shot('send-dialog-etter-ehf-sjekk');
     await clickId(L, 'invoice-channel-ehf', { timeout: 5000 }).catch(() => {});
-    await sleep(8000);
+    await sleep(3000);
     const t = await L.visibleText();
     const msg = (t.match(/EHF kan ikke sendes nå\n[^\n]*/) || [''])[0].replace('\n', ': ');
-    R.info('5.04', 'EHF-fanen viser forklaring når aksesspunktet ikke er koblet (ingen nett i testmiljøet)', msg || 'ingen melding', await L.shot('ehf-dialog'));
+    R.info('5.04', 'EHF i send-dialogen (ingen nett i testmiljøet)', `byttet selv til e-post: ${auto === 'true' ? 'ja, uten forklaring' : 'nei'}; etter trykk på «Send som EHF»: «${msg || 'ingen melding'}»`, await L.shot('ehf-dialog'));
+    void s1;
     await L.page.keyboard.press('Escape').catch(() => {});
   });
 

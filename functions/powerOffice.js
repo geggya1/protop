@@ -214,7 +214,9 @@ async function loadProTopCustomer(db, familyId, invoice) {
   if (!customerId) return null;
   for (const path of [`families/${familyId}/anbud/customers`, `families/${familyId}/anbud/state`]) {
     const snap = await db.doc(path).get().catch(() => null);
-    const list = snap?.exists ? snap.data()?.customers : null;
+    // anbud/state har kundene under state.customers, registeret har dem øverst.
+    const data = snap?.exists ? snap.data() : null;
+    const list = Array.isArray(data?.customers) ? data.customers : data?.state?.customers;
     const hit = Array.isArray(list) ? list.find((row) => row?.id === customerId) : null;
     if (hit) return hit;
   }

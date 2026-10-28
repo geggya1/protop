@@ -8,6 +8,8 @@ import { useHelp } from '../src/context/HelpContext';
 import HelpTarget from './HelpTarget';
 import { useReducedMotion } from '../src/hooks/useReducedMotion';
 import { autoLoopIterations } from '../src/hooks/reducedMotion';
+import { useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 
 const NATIVE_DRIVER = Platform.OS !== 'web';
 const AMBER = '#d97706';
@@ -19,6 +21,7 @@ const AMBER_LINE = '#f5c776';
  * `floating` is the overlay chip that sits under the profile photo (mobil/nettbrett).
  * `inline` sits in the desktop button row next to Varslinger, with a «Hjelp» label.
  * Pair either with `compact` for a smaller control.
+ * Inline er 32 px høy; på berøringsskjerm ligger en gjennomsiktig trykkflate på 44 px rundt (UX-26).
  */
 export default function HelpButton({
   compact = false,
@@ -34,6 +37,7 @@ export default function HelpButton({
   const bob = useRef(new Animated.Value(0)).current;
   // Redusert bevegelse: stå stille. Ellers stopper løkkene før fem sekunder (WCAG 2.2.2).
   const reduced = useReducedMotion();
+  const { isTouch } = useLayout();
 
   useEffect(() => {
     const iterations = autoLoopIterations(1400, { reduced });
@@ -77,32 +81,39 @@ export default function HelpButton({
 
   if (inline) {
     const height = 32;
+    // Med tekst er knappen bredere enn 44 px; da trengs bare høyden.
+    const hit = touchHit(compact ? height : 44, height, { touch: isTouch, os: Platform.OS });
     return (
       <HelpTarget id="helpBtn">
         <Animated.View style={{ transform: [{ scale: pulse }] }}>
           <TouchableOpacity
             onPress={openModuleHelp}
-            style={[
-              styles.inline,
-              {
-                height,
-                paddingHorizontal: compact ? 0 : 10,
-                width: compact ? height : undefined,
-                borderColor: moduleSeen ? borderColor : AMBER_LINE,
-                backgroundColor: moduleSeen ? backgroundColor : AMBER_SOFT,
-              },
-            ]}
+            style={[styles.inlineHit, hit.style]}
+            hitSlop={hit.hitSlop}
             accessibilityRole="button"
             accessibilityLabel={label}
             testID="help-bulb"
           >
-            <Ionicons name="bulb" size={17} color={AMBER} />
-            {!compact ? (
-              <Text style={[styles.inlineTxt, { color }]} numberOfLines={1}>
-                {t('moduleIntro.help')}
-              </Text>
-            ) : null}
-            {!moduleSeen ? <View style={[styles.dot, styles.dotInline]} /> : null}
+            <View
+              style={[
+                styles.inline,
+                {
+                  height,
+                  paddingHorizontal: compact ? 0 : 10,
+                  width: compact ? height : undefined,
+                  borderColor: moduleSeen ? borderColor : AMBER_LINE,
+                  backgroundColor: moduleSeen ? backgroundColor : AMBER_SOFT,
+                },
+              ]}
+            >
+              <Ionicons name="bulb" size={17} color={AMBER} />
+              {!compact ? (
+                <Text style={[styles.inlineTxt, { color }]} numberOfLines={1}>
+                  {t('moduleIntro.help')}
+                </Text>
+              ) : null}
+              {!moduleSeen ? <View style={[styles.dot, styles.dotInline]} /> : null}
+            </View>
           </TouchableOpacity>
         </Animated.View>
       </HelpTarget>
@@ -170,6 +181,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     position: 'relative',
   },
+  inlineHit: { borderRadius: 999 },
   inlineTxt: { fontSize: 13, fontWeight: '500' },
   dot: {
     position: 'absolute',

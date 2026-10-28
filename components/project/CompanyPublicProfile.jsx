@@ -31,6 +31,8 @@ import { useCroppedUpload } from './useCroppedUpload';
 import { useApp } from '../../src/context/AppContext';
 import { parentCompanyDisplayName } from '../../src/utils/companyName';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
+import { useLayout } from '../../src/theme';
+import { touchHit } from '../../src/ui/touchTarget';
 
 const TONES = {
   blue: { bg: '#e8f1ff', fg: '#2563eb' },
@@ -114,6 +116,9 @@ export default function CompanyPublicProfile({
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
+  const { isTouch } = useLayout();
+  // Blyanten er en sirkel på 22 px; trykkflaten rundt er 44 px på berøringsskjerm (UX-26).
+  const pencilHit = touchHit(22, 22, { touch: isTouch, os: Platform.OS });
   const access = useCompanyAccess();
   const { family, families } = useApp();
   // Morselskapet slås opp via parentCompanyId, så et nytt navn der vises her (DS-17).
@@ -467,8 +472,16 @@ export default function CompanyPublicProfile({
                   <Text style={[styles.initials, { color: colors.brand }]}>{companyInitials(name)}</Text>
                 )}
                 {canEdit ? (
-                  <TouchableOpacity onPress={openEdit} style={[styles.pencil, { backgroundColor: colors.sunken }]} accessibilityLabel="Rediger profiltekst">
-                    <Ionicons name="pencil" size={12} color={colors.ink} />
+                  <TouchableOpacity
+                    onPress={openEdit}
+                    style={[styles.pencilHit, pencilHit.style]}
+                    hitSlop={pencilHit.hitSlop}
+                    accessibilityRole="button"
+                    accessibilityLabel="Rediger profiltekst"
+                  >
+                    <View style={[styles.pencil, { backgroundColor: colors.sunken }]}>
+                      <Ionicons name="pencil" size={12} color={colors.ink} />
+                    </View>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -817,7 +830,8 @@ const styles = StyleSheet.create({
   },
   logo: { width: 68, height: 48 },
   initials: { fontSize: 22, fontWeight: '600' },
-  pencil: { position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  pencilHit: { position: 'absolute', top: -6, right: -6, borderRadius: 11 },
+  pencil: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   badgeText: { fontSize: 12 },
   companyName: { fontSize: 26, fontWeight: '600', letterSpacing: -0.3 },

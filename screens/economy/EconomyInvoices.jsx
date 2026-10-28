@@ -15,6 +15,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
 import { useLayout } from '../../src/theme';
+import { touchHit } from '../../src/ui/touchTarget';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -159,7 +160,12 @@ export default function EconomyInvoices({
   // Import av fakturalister krever Admin på Faktura.
   const canImport = canImportList(useCompanyAccess(), 'economyInvoices');
   const hostedHero = useModuleHeroHosted();
-  const { width, isPhone, hasRail, railWidth } = useLayout();
+  const {
+    width, isPhone, hasRail, railWidth, isTouch,
+  } = useLayout();
+  // Ikonknappene ved raden: 18 px ikon med padding 4; trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const rowHit = touchHit(18, 20, { touch: isTouch, os: Platform.OS, inset: 4 });
+  const rowHitSlop = rowHit.hitSlop || { top: 8, bottom: 8, left: 8, right: 8 };
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
   const wideDetail = !isPhone && contentWidth >= 900;
@@ -575,8 +581,8 @@ export default function EconomyInvoices({
         onPress={() => requestDelete(row)}
         accessibilityRole="button"
         accessibilityLabel={`Slett faktura ${row.invoiceNumber}`}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        style={styles.rowDelete}
+        hitSlop={rowHitSlop}
+        style={[styles.rowDelete, rowHit.style]}
       >
         <Ionicons name="trash-outline" size={18} color={colors.danger || '#b42318'} />
       </TouchableOpacity>
@@ -608,8 +614,8 @@ export default function EconomyInvoices({
         onPress={() => openPayment(row)}
         accessibilityRole="button"
         accessibilityLabel={`Registrer betaling på faktura ${row.invoiceNumber}`}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        style={styles.rowDelete}
+        hitSlop={rowHitSlop}
+        style={[styles.rowDelete, rowHit.style]}
         nativeID={`invoice-row-pay-${row.id}`}
       >
         <Ionicons name="cash-outline" size={18} color={colors.success || '#15803d'} />

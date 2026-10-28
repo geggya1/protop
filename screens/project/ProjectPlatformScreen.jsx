@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -23,6 +23,8 @@ import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { UnlessShellTitle } from '../../src/ui/ShellTitles';
+import { useLayout } from '../../src/theme';
+import { touchHit } from '../../src/ui/touchTarget';
 
 function initialCompanyPage(startPage) {
   if (startPage === 'tilgang') return 'tilgang';
@@ -66,6 +68,9 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
 
 export default function ProjectPlatformScreen({ startPage = '' }) {
   const colors = useColors();
+  const { isTouch } = useLayout();
+  // Lukk-krysset er 22 px; trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const closeHit = touchHit(22, 24, { touch: isTouch, os: Platform.OS });
   const nav = useNavigation();
   const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily, shellIntent, clearShellIntent } = useApp();
   // Kom man hit fra en annen modul (f.eks. ISO-oppsettet), vises en vei tilbake dit.
@@ -320,7 +325,13 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
                 {[contextLabel || company.navn, company.organisasjonsnummer].filter(Boolean).join(' · ')}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => requestShellTab?.('selskap')} accessibilityLabel="Lukk innstillinger">
+            <TouchableOpacity
+              onPress={() => requestShellTab?.('selskap')}
+              accessibilityRole="button"
+              accessibilityLabel="Lukk innstillinger"
+              hitSlop={closeHit.hitSlop}
+              style={closeHit.style}
+            >
               <Ionicons name="close" size={22} color={colors.ink} />
             </TouchableOpacity>
           </View>

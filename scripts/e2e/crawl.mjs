@@ -67,13 +67,22 @@ async function inspect(page) {
       const name = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('title') || '').trim();
       if (!name) unnamed.push(`${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}×${Math.round(r.height)}`);
     }
-    // Små trykkflater på berøringsskjerm (< 32px i begge retninger).
+    // Små trykkflater på berøringsskjerm (< 32px i begge retninger), og hvor mange
+    // som er under 44 × 44 (touch.min i src/ui/tokens) i minst én retning.
+    // RN-web tegner ikke hitSlop i DOM, så det som teller her er den faktiske boksen.
     let tiny = 0;
+    let under44 = 0;
+    const tinySample = [];
     if (vw < 700) {
       for (const el of document.querySelectorAll('[role=button],button,a[href],input,[tabindex="0"]')) {
         const r = el.getBoundingClientRect();
         if (r.width === 0 || r.height === 0 || r.right < 0 || r.left > vw) continue;
-        if (r.width < 32 && r.height < 32) tiny += 1;
+        if (r.width < 44 || r.height < 44) under44 += 1;
+        if (r.width < 32 && r.height < 32) {
+          tiny += 1;
+          const name = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('title') || el.tagName).trim().slice(0, 40);
+          if (tinySample.length < 12) tinySample.push(`${name} ${Math.round(r.width)}×${Math.round(r.height)}`);
+        }
       }
     }
     // Titler i skallet og overskrifter i innholdet (dobbel tittel, AGENTS.md). Sammenlignes i node.
@@ -131,6 +140,8 @@ async function inspect(page) {
       unnamed: unnamed.length,
       unnamedSample: unnamed.slice(0, 5),
       tiny,
+      tinySample,
+      under44,
     };
   }, ENGLISH.source);
 }
@@ -176,6 +187,7 @@ async function crawlView(view) {
       row.rawKeys?.length && 'nøkler',
       row.englishHits?.length && 'engelsk',
       row.isoDates?.length && 'iso-dato',
+      row.tiny && `små:${row.tiny}`,
       row.doubleTitles?.length && `dobbel-tittel:${row.doubleTitles.join('/')}`,
       row.shellDouble?.length && `skall-dobbel:${row.shellDouble.join('/')}`,
       row.nearTitles?.length && `nesten-lik-tittel:${row.nearTitles.join('/')}`,
@@ -200,6 +212,15 @@ for (const [view, rows] of Object.entries(report.views)) {
     pages: pages.length, shellPages: shell.length, nearPages: near.length, keys: pages, shellKeys: shell, nearKeys: near,
   };
   console.log(`[${view}] dobbel tittel på ${pages.length} sider, i skallet på ${shell.length}, nesten lik på ${near.length}`);
+}
+// Oppsummering: små trykkflater og rå ISO-datoer per visning.
+report.touch = {};
+for (const [view, rows] of Object.entries(report.views)) {
+  const tiny = rows.reduce((n, r) => n + (r.tiny || 0), 0);
+  const under44 = rows.reduce((n, r) => n + (r.under44 || 0), 0);
+  const iso = rows.filter((r) => r.isoDates?.length).map((r) => r.key);
+  report.touch[view] = { tiny, under44, isoPages: iso };
+  console.log(`[${view}] små trykkflater (< 32 × 32): ${tiny}, under 44 i én retning: ${under44}, sider med rå ISO-dato: ${iso.length}`);
 }
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, 'crawl.json'), JSON.stringify(report, null, 2));

@@ -3,6 +3,8 @@ import {
   Dimensions, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useColors } from '../src/context/ThemeContext';
+import { useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -22,6 +24,9 @@ export default function ScrollSheet({
   placement = 'bottom',
 }) {
   const colors = useColors();
+  const { isTouch } = useLayout();
+  // «Lukk» er en kort tekst; trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const closeHit = touchHit(32, 20, { touch: isTouch, os: Platform.OS });
   const centered = placement === 'center';
   const scrollMax = Math.max(280, Math.round(Dimensions.get('window').height * (centered ? 0.7 : 0.78)));
   const [allowDismiss, setAllowDismiss] = useState(false);
@@ -53,7 +58,7 @@ export default function ScrollSheet({
     >
       <View style={styles.head}>
         <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">{title}</Text>
-        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Lukk">
+        <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Lukk" hitSlop={closeHit.hitSlop} style={closeHit.style}>
           <Text style={{ color: colors.brand }}>Lukk</Text>
         </TouchableOpacity>
       </View>

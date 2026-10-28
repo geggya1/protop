@@ -96,8 +96,14 @@ function compile(filename, code) {
   }
 }
 
+const companyData = require('../company/companyDataTesting.js').companyDataHooks({
+  projects: fixture.projects,
+  customersSource: 'local',
+});
+
 function hookedRequire(orig, id) {
   if (id === 'react') return React;
+  if (id.includes('CompanyDataContext')) return companyData;
   if (id === 'react-native') return rnMock;
   if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
   if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }) };

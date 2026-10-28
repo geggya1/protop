@@ -287,7 +287,11 @@ export function hydrateRefs(row, { directory = null, customers = null, projects 
 
   const projectId = text(row[f.projectId]);
   const customerId = text(row[f.customerId]);
-  const project = projectIndex && projectId ? projectIndex.byId.get(projectId) || null : null;
+  // Uten prosjekt-id (importerte rader): prosjektnummeret. En id som ikke finnes lenger,
+  // slås ikke opp på nummer, så raden ikke havner på et annet prosjekt.
+  let project = null;
+  if (projectIndex && projectId) project = projectIndex.byId.get(projectId) || null;
+  else if (projectIndex) project = resolveProject({ projectNumber: row[f.projectNumber] }, projectIndex);
   if (project) {
     next.projectNumber = text(project.number) || next.projectNumber;
     next.projectName = text(project.name) || next.projectName;

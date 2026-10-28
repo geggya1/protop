@@ -88,6 +88,7 @@ import {
   saveProjectState,
 } from '../../src/project/storage';
 import { projectLookupNumbers } from '../../src/project/projectFields.js';
+import { projectHoursQuery } from '../../src/economy/timeEntryStorage.js';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
 import { searchPlaces } from '../../src/utils/location';
@@ -717,10 +718,7 @@ export default function ProjectWorkScreen() {
     if (!project) return undefined;
     let live = true;
     setProjectHoursLoading(true);
-    ensureProjectHours(familyId, {
-      projectId: project.id,
-      projectNumbers: projectLookupNumbers(project),
-    }).then((loaded) => {
+    ensureProjectHours(familyId, projectHoursQuery(project)).then((loaded) => {
       if (!live) return;
       skipNextSave.current = true;
       setState((current) => adoptLoadedHours(current, loaded, familyId));

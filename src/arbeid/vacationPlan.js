@@ -640,6 +640,8 @@ function groupVacationPeriods(absences, { year, bucket } = {}) {
     }
     periods.push({
       employeeId: row.employeeId,
+      // Kopien på fraværet, bare som reserve når personen ikke finnes i registeret.
+      storedName: text(row.employeeName),
       start: row.date,
       end: row.date,
       hours: round2(Number(row.hours) || 0),
@@ -659,7 +661,7 @@ function decorateVacationPeriods(periods, { today, approvalDays = 14, dayHours =
     return {
       ...period,
       days: round2(period.hours / day),
-      employeeName: names[period.employeeId] || 'Ansatt',
+      employeeName: names[period.employeeId] || period.storedName || 'Ansatt',
       due,
       overdue: !!(today && due && today > due),
       shortNotice: !!(today && period.start <= addIsoDays(today, 60)),

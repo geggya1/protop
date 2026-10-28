@@ -748,6 +748,8 @@ export const sendFriendChatAdmin = onCall(
       await chatRef.update({
         lastText: text.slice(0, 120),
         lastSenderId: senderUid,
+        // Mottakerens reservevarsel viser avsenderen, ikke «Ny melding».
+        lastSenderName: senderName,
         lastAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
         unreadStampId: msgRef.id,

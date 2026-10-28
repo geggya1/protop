@@ -15,7 +15,7 @@ import {
   canManageChatMessage,
   chatMessagePreview,
 } from './chatsLogic';
-import { buildChatStampPatch } from './chatStampLogic';
+import { buildChatStampPatch, nestDottedPatch } from './chatStampLogic';
 import {
   isFirestorePermissionError,
   waitForFirestoreAccess,
@@ -185,12 +185,13 @@ export async function markChatRead(familyId, chatId, uid) {
   try {
     await updateDoc(ref, patch);
   } catch {
-    await setDoc(ref, patch, { merge: true });
+    await setDoc(ref, nestDottedPatch(patch), { merge: true });
   }
 }
 
 export async function stampChatMessage(familyId, chatId, {
   senderId,
+  senderName,
   text,
   memberIds,
   /** Who gets +1 unread. Defaults to memberIds minus sender. Never pass the whole family for a DM. */
@@ -207,6 +208,7 @@ export async function stampChatMessage(familyId, chatId, {
   const { patch, idempotent } = buildChatStampPatch({
     chatId,
     senderId,
+    senderName,
     text,
     memberIds,
     unreadFor,
@@ -214,12 +216,17 @@ export async function stampChatMessage(familyId, chatId, {
     prev: existing,
     now: () => serverTimestamp(),
   });
+  // updateDoc tolker `unreadCounts.<uid>` som sti i kartet. setDoc merge gjør ikke det,
+  // så der må patchen være nestet (SOS-14).
+  const write = () => (snap.exists()
+    ? updateDoc(ref, patch)
+    : setDoc(ref, nestDottedPatch(patch), { merge: true }));
   if (idempotent) {
-    await setDoc(ref, patch, { merge: true });
+    await write();
     return;
   }
   try {
-    await setDoc(ref, patch, { merge: true });
+    await write();
   } catch (err) {
     // Siste utvei: minst lastSenderId/lastAt slik at mottaker ser ulest via chatIsUnread.
     console.warn('[chat] stampChatMessage setDoc failed', err?.code || err?.message);
@@ -228,6 +235,7 @@ export async function stampChatMessage(familyId, chatId, {
       lastAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       lastText: String(text || '').slice(0, 140),
+      ...(senderName ? { lastSenderName: String(senderName).slice(0, 80) } : {}),
       ...(messageId ? { unreadStampId: messageId } : {}),
     }, { merge: true });
   }

@@ -96,6 +96,7 @@ export async function sendFriendChatMessage({
   await updateDoc(chatRef, {
     lastText: preview.slice(0, 120),
     lastSenderId: senderUid,
+    ...(senderName ? { lastSenderName: String(senderName).slice(0, 80) } : {}),
     lastAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     unreadStampId: msgRef.id,
@@ -112,7 +113,8 @@ export async function sendFriendChatMessage({
     friendChat: true,
     friendUid: senderUid,
     createdBy: senderUid,
-    notificationId: `friendChat_${chatId}_${msgRef.id}`,
+    // Samme id som serveren og mottakerens reserve: ett varsel per melding.
+    notificationId: `friendChat_${msgRef.id}`,
   }).catch(() => {});
 
   return msgRef.id;

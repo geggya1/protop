@@ -22,6 +22,7 @@ import {
   markChatRead, resolveChatRecipients, stampChatMessage, uniqueMemberIds,
   ensureChatDoc, listenChatMessages,
 } from '../src/utils/chats';
+import { chatMessageNotice, chatNoticeId } from '../src/utils/chatsLogic';
 import {
   listenFriendChatMessages,
   listFriendChatMessagesViaAdmin,
@@ -267,21 +268,27 @@ function ChatDockPanel({
     try {
       await stampChatMessage(familyId, chatId, {
         senderId: senderUid,
+        senderName: name,
         text: preview,
         memberIds: stampIds,
         unreadFor: recipients.length ? recipients : undefined,
         messageId: msgRef.id,
       });
     } catch { /* ignore */ }
+    // Avsenderens navn (ikke «Ny melding» eller chattens tittel, som for en DM er mottakerens
+    // navn), og samme id som mottakerens reserve, så én melding gir ett varsel (SOS-11, SOS-13).
+    const notice = chatMessageNotice({
+      chatId, chatTitle: win.title, senderName: name, text: preview,
+    });
     try {
       await notifyUsers(recipients, {
         eventType: 'messageReceived',
-        title: t('chat.newMessage'),
-        body: preview,
+        title: notice.title,
+        body: notice.body,
         familyId,
         chatId,
         createdBy: senderUid,
-        notificationId: `msg_${msgRef.id}`,
+        notificationId: chatNoticeId({ chatId, messageId: msgRef.id }),
       });
     } catch { /* ignore */ }
   };

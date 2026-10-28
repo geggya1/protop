@@ -24,6 +24,7 @@ import {
   canManageChatMessage, updateChatMessage, deleteChatMessage,
   listenChatMessages,
 } from '../../src/utils/chats';
+import { chatMessageNotice, chatNoticeId } from '../../src/utils/chatsLogic';
 import {
   SwipeStampRow,
   SwipeTimestampHost,
@@ -110,16 +111,20 @@ export default function ChatThreadScreen() {
     contextMemberIds: (members || []).map((m) => m.uid),
   });
 
-  const notifyRecipients = async (senderUid, body, messageId) => {
+  const notifyRecipients = async (senderUid, preview, messageId) => {
+    // Avsenderens navn i varselet, og samme id som mottakerens reserve (SOS-11, SOS-13).
+    const notice = chatMessageNotice({
+      chatId, chatTitle: title, senderName: name, text: preview,
+    });
     try {
       await notifyUsers(recipientIdsFor(senderUid), {
         eventType: 'messageReceived',
-        title: t('chat.newMessage'),
-        body,
+        title: notice.title,
+        body: notice.body,
         familyId,
         chatId,
         createdBy: senderUid,
-        notificationId: messageId ? `msg_${messageId}` : undefined,
+        notificationId: messageId ? chatNoticeId({ chatId, messageId }) : undefined,
       });
     } catch (err) {
       console.warn('[chat] notifyRecipients', err);
@@ -156,6 +161,7 @@ export default function ChatThreadScreen() {
     try {
       await stampChatMessage(familyId, chatId, {
         senderId: senderUid,
+        senderName: name,
         text: preview,
         memberIds: stampIds,
         unreadFor: recipients.length ? recipients : undefined,

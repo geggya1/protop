@@ -69,6 +69,7 @@ export function resolveShellHeaderTitle({
   asChildView = false,
   childHomeTitle = null,
   modulesHub = false,
+  menuHub = false,
 } = {}) {
   if (tab === 'home' && asChildView) return childHomeTitle;
   if (tab === 'home') return t('tabs.home');
@@ -94,6 +95,8 @@ export function resolveShellHeaderTitle({
   if (tab === 'notes') return t('tabs.notes');
   if (tab === 'more') {
     if (!moreSubView && modulesHub) return t('moreHub.modulesTitle');
+    // Meny i docken: samme meny som skuffen, så den heter det samme som knappen.
+    if (!moreSubView && menuHub) return t('tabs.menu');
     return moreSubviewTitle(moreSubView, t);
   }
   return t('tabs.home');

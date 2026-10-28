@@ -927,7 +927,8 @@ function AppShellInner() {
     t,
     asChildView,
     childHomeTitle: asChildView ? childShellTitle(now, { child: viewingChild }) : null,
-    modulesHub: isPhone && !simpleChildUi && (asChildView || isParent),
+    modulesHub: isPhone && !simpleChildUi && asChildView,
+    menuHub: !simpleChildUi && !asChildView && isParent,
   }), [tab, moreSubView, t, asChildView, now, viewingChild, isPhone, isParent, simpleChildUi]);
 
   // Hjelpen følger undersiden (anbud.varsling, iso.avvik …), ikke bare fanen.

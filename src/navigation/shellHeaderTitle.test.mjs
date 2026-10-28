@@ -71,6 +71,15 @@ const t = (k) => LABELS[k] || k;
     resolveShellHeaderTitle({ tab: 'more', moreSubView: 'shop', t, modulesHub: true }),
     'Handleliste',
   );
+  // Meny i docken viser samme meny som skuffen og heter som knappen.
+  assert.equal(
+    resolveShellHeaderTitle({ tab: 'more', moreSubView: null, t: (k) => (k === 'tabs.menu' ? 'Meny' : t(k)), menuHub: true }),
+    'Meny',
+  );
+  assert.equal(
+    resolveShellHeaderTitle({ tab: 'more', moreSubView: 'settings', t, menuHub: true }),
+    moreSubviewTitle('settings', t),
+  );
 }
 
 {

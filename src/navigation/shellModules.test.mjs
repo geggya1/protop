@@ -538,19 +538,17 @@ assert.match(shellSrc, /defaultOkonomiSubView/);
 assert.match(shellSrc, /subView=\{moreSubView\}/);
 assert.match(shellSrc, /ContractScreen/);
 const moreHubSrc = readFileSync(new URL('../../screens/v2/MoreHubScreen.jsx', import.meta.url), 'utf8');
-assert.match(moreHubSrc, /drawerHasSubmenuToggle/);
-assert.match(moreHubSrc, /drawerSubmenuOpen/);
-assert.match(moreHubSrc, /module-nav-expand-/);
-const drawerSrc = readFileSync(new URL('../../components/ShellDrawer.jsx', import.meta.url), 'utf8');
-assert.match(drawerSrc, /drawerSubmenuOpen/);
-assert.match(drawerSrc, /groupCompanyDrawerItems/);
-assert.match(drawerSrc, /module-nav-expand-/);
-assert.match(drawerSrc, /onToggle=\{expandable/);
-const railSrc = readFileSync(new URL('../../components/DesktopRail.jsx', import.meta.url), 'utf8');
-assert.match(railSrc, /drawerHasSubmenuToggle/);
-assert.match(railSrc, /drawerSubmenuOpen/);
-assert.match(railSrc, /groupCompanyDrawerItems/);
-assert.match(railSrc, /module-nav-expand-/);
+// Meny-siden i docken tegner samme meny som skuffen (NavTree).
+assert.match(moreHubSrc, /useNavTree\(/);
+assert.match(moreHubSrc, /<NavTree\b/);
+assert.equal(moreHubSrc.includes('companyMenuItems('), false);
+// Skuffen og sidemenyen tegner menyen med NavTree (UX-22); se navTree.test.mjs.
+const navTreeSrc = readFileSync(new URL('../../components/NavTree.jsx', import.meta.url), 'utf8');
+assert.match(navTreeSrc, /drawerHasSubmenuToggle/);
+assert.match(navTreeSrc, /drawerSubmenuOpen/);
+assert.match(navTreeSrc, /module-nav-expand-/);
+assert.match(navTreeSrc, /onToggle=\{expandable/);
+assert.match(readFileSync(new URL('./navTree.js', import.meta.url), 'utf8'), /groupCompanyDrawerItems/);
 {
   const items = companyNavItems();
   const selskap = items.find((item) => item.id === 'selskap');

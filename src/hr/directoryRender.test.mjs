@@ -346,6 +346,30 @@ let followHtml = '';
   }));
   const html = controlHtml;
   assert.match(html, /Gjeldende lønn/);
+  // Lønnskartlegging fordelt på kjønn (ARP) under lønnslisten.
+  assert.match(html, /id="hr-pay-gap"/);
+  assert.match(html, /Lønnskartlegging fordelt på kjønn/);
+  assert.match(html, /Ingen ansatte har både registrert lønn og kjønn ennå/);
+
+  const staff = ['K1', 'K2', 'K3', 'M1', 'M2', 'M3'].map((id) => ({
+    id,
+    person: { firstName: id, lastName: 'Test', gender: id.startsWith('K') ? 'Kvinne' : 'Mann' },
+    company: { status: 'active', personnelKind: 'staff', title: 'Ingeniør' },
+  }));
+  const pay = renderToStaticMarkup(React.createElement(HrControl, {
+    colors,
+    page: 'lonn',
+    employees: staff,
+    hr: {
+      ...hr,
+      salaries: staff.map((row, i) => ({ id: `s${i}`, employeeId: row.id, kind: 'actual', effectiveDate: '2026-01-01', annualAmount: row.id.startsWith('K') ? 630000 : 700000 })),
+    },
+    entries: [],
+    onOpenEmployee: () => {},
+  }));
+  assert.match(pay, /Kvinners lønn av menns/);
+  assert.match(pay, /Ingeniør/);
+  assert.match(pay, /90 %/);
   assert.match(html, /Ada Nordmann/);
   assert.match(html, /Mangler/);
   assert.match(html, /Aktive/);

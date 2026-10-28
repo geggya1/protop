@@ -104,6 +104,7 @@ export const FILES = [
   'src/project/timelineBoard.test.mjs',
   'src/hr/compliance.test.mjs',
   'src/hr/hmsCard.test.mjs',
+  'src/hr/payGap.test.mjs',
   'src/hr/contractOcr.test.mjs',
   'src/hr/forms.test.mjs',
   'src/forms/forms.test.mjs',

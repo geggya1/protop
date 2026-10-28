@@ -5,6 +5,7 @@ import { hrControlCells } from '../../src/hr/directory';
 import { HrCard, HrSectionTitle } from './HrShared';
 import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
 import HrHmsCards from './HrHmsCards';
+import HrPayGap from './HrPayGap';
 
 const PAGES = {
   avtaler: {
@@ -171,6 +172,7 @@ export default function HrControl({
       {page === 'compliance' ? (
         <HrHmsCards colors={colors} employees={rows.map((row) => row.employee)} hr={hr} entries={entries} company={company} />
       ) : null}
+      {page === 'lonn' ? <HrPayGap colors={colors} employees={rows.map((row) => row.employee)} hr={hr} /> : null}
     </View>
   );
 }

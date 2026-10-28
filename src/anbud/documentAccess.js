@@ -127,6 +127,32 @@ export function documentPreviewLabel(kind) {
   }
 }
 
+/**
+ * Filtyper som kan kjøre skript når nettleseren viser dem direkte (HTML, SVG, XML, skript).
+ * En blob-URL har samme opphav som protop.no, så slike filer må aldri vises som side der.
+ */
+export function isActiveContentMime(mime) {
+  const m = String(mime || '').split(';')[0].trim().toLowerCase();
+  if (!m) return false;
+  if (m === 'text/html' || m === 'application/xhtml+xml' || m === 'image/svg+xml') return true;
+  if (m === 'text/xml' || m === 'application/xml' || m.endsWith('+xml')) return true;
+  if (m.includes('javascript') || m.includes('ecmascript')) return true;
+  return m === 'text/xsl' || m === 'multipart/x-mixed-replace' || m === 'application/x-shockwave-flash';
+}
+
+/** Typen en blob-URL på protop.no får. Aktivt innhold vises som ren tekst, aldri som side. */
+export function safeBlobMime(mime) {
+  const m = String(mime || '').trim();
+  if (!m) return 'application/octet-stream';
+  return isActiveContentMime(m) ? 'text/plain;charset=utf-8' : m;
+}
+
+/**
+ * sandbox for opplastet HTML i forhåndsvisningen: tom liste = ingen skript, eget tomt
+ * opphav (ingen tilgang til innloggingen), ingen skjema og ingen popups.
+ */
+export const UNTRUSTED_HTML_SANDBOX = '';
+
 /** Office Online embed krever en offentlig https-URL (ikke data:/blob:). */
 export function documentSupportsOfficeEmbed(doc) {
   const kind = documentPreviewKind(doc);

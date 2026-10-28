@@ -3,7 +3,7 @@
  * Vi leser bytes (direkte, eller via downloadStorageFile) og lager en blob-URL.
  */
 
-import { documentPreviewKind } from './documentAccess.js';
+import { documentPreviewKind, safeBlobMime } from './documentAccess.js';
 
 const CACHE_MAX = 4;
 const byteCache = new Map();
@@ -109,7 +109,8 @@ export function rememberAgreementBlobUrl(doc, file) {
   const existing = urlCache.get(key);
   if (existing) return existing;
   if (!file?.bytes?.length || typeof URL === 'undefined' || typeof Blob === 'undefined') return '';
-  const url = URL.createObjectURL(new Blob([file.bytes], { type: file.mime || 'application/octet-stream' }));
+  // Blob-URL-en har protop.no som opphav. HTML/SVG blir ren tekst, så opplastede filer ikke kjører skript her.
+  const url = URL.createObjectURL(new Blob([file.bytes], { type: safeBlobMime(file.mime) }));
   rememberLimited(urlCache, key, url, (prev) => {
     if (typeof prev === 'string' && prev.startsWith('blob:')) {
       try { URL.revokeObjectURL(prev); } catch { /* ignore */ }

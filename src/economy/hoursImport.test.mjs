@@ -6,11 +6,15 @@ import {
   hourColumnField,
   hourFingerprint,
   hoursLookDuplicate,
+  importInvoiceId,
+  importedInvoice,
+  importedInvoiceFromSource,
   linkImportPlanEmployee,
   linkImportPlanProject,
   matchEmployee,
   normalizeEmployeeNumber,
   parseImportHours,
+  parseInvoicedFlag,
   planHourImport,
   readHourTable,
   reviewRowsForHourPlan,
@@ -24,6 +28,9 @@ import {
   addProjectMember,
 } from '../project/engine.js';
 import { displayName } from '../employees/model.js';
+import { normalizeTimeEntryRow } from '../project/engine.js';
+import { isOpenEntry } from './billingReady.js';
+import { IMPORT_INVOICED_ID } from './invoiceFlow.js';
 
 {
   assert.equal(hourColumnField('Dato'), 'date');
@@ -48,7 +55,18 @@ import { displayName } from '../employees/model.js';
   assert.equal(hourColumnField('Estimerte timer'), '');
   assert.equal(hourColumnField('Planlagte timer'), '');
   assert.equal(hourColumnField('Rest Registrerte timer'), '');
-  assert.equal(hourColumnField('Fakturadato'), '');
+  // Fakturadato er ikke arbeidsdato, men viser at timen er fakturert.
+  assert.equal(hourColumnField('Fakturadato'), 'invoiceDate');
+  assert.equal(hourColumnField('Fakturert'), 'invoiced');
+  assert.equal(hourColumnField('Fakturert?'), 'invoiced');
+  assert.equal(hourColumnField('Fakturastatus'), 'invoiced');
+  assert.equal(hourColumnField('Invoiced'), 'invoiced');
+  assert.equal(hourColumnField('Fakturanummer'), 'invoiceNumber');
+  assert.equal(hourColumnField('Faktura nr.'), 'invoiceNumber');
+  assert.equal(hourColumnField('Fakturerte timer'), 'invoicedHours');
+  assert.equal(hourColumnField('Ikke fakturerte timer'), '');
+  assert.equal(hourColumnField('Fakturerbart'), 'billable');
+  assert.equal(hourColumnField('Fakturerbare timer'), 'billableHours');
   assert.equal(splitEmployeeHint('Geir Andersen (12)').name, 'Geir Andersen');
   assert.equal(splitEmployeeHint('Geir Andersen (12)').number, '12');
 }
@@ -646,6 +664,83 @@ import { displayName } from '../employees/model.js';
   assert.equal(planned.rows[0].entry.billableHours, 7.5);
   assert.equal(planned.rows[0].entry.employeeId, 'emp1');
   assert.equal(planned.rows[0].entry.employeeNumber, '12');
+}
+
+{
+  // Fakturert-kolonnen: Ja/Nei, tekst, dato og tall.
+  assert.equal(parseInvoicedFlag('Ja'), true);
+  assert.equal(parseInvoicedFlag('Nei'), false);
+  assert.equal(parseInvoicedFlag('Fakturert'), true);
+  assert.equal(parseInvoicedFlag('Ikke fakturert'), false);
+  assert.equal(parseInvoicedFlag('15.03.2024'), true);
+  assert.equal(parseInvoicedFlag('10234'), true);
+  assert.equal(parseInvoicedFlag('0,00'), false);
+  assert.equal(parseInvoicedFlag(''), null);
+  assert.equal(parseInvoicedFlag('Klar'), null);
+  // Navn i «Fakturert av» skal ikke leses som nei.
+  assert.equal(parseInvoicedFlag('Unni Hansen'), null);
+  assert.equal(parseInvoicedFlag('Mikkel Berg'), null);
+  assert.equal(hourColumnField('Invoice description'), '');
+
+  assert.equal(importedInvoice({ invoiced: 'Ja' }).invoiced, true);
+  assert.equal(importedInvoice({ invoiced: 'Nei', invoiceDate: '15.03.2024' }).invoiced, false);
+  assert.equal(importedInvoice({ status: 'Fakturert' }).invoiced, true);
+  assert.equal(importedInvoice({ status: 'Godkjent' }).invoiced, false);
+  assert.deepEqual(importedInvoice({ invoiceNumber: '10234' }), { invoiced: true, number: '10234', date: '' });
+  assert.equal(importedInvoice({ invoiceNumber: '0' }).invoiced, false);
+  assert.deepEqual(importedInvoice({ invoiceDate: '15.03.2024' }), { invoiced: true, number: '', date: '2024-03-15' });
+  assert.equal(importedInvoice({ invoicedHours: '3:30' }).invoiced, true);
+  assert.equal(importedInvoice({ invoicedHours: '0' }).invoiced, false);
+  assert.equal(importedInvoice({}).invoiced, false);
+}
+
+{
+  // Timer som allerede er fakturert i Moment merkes ved import og kommer ikke til fakturering.
+  const csv = [
+    'Dato;Medarbeider;Prosjektnummer;Prosjekt;Timer;Fakturerbare timer;Fakturert;Beskrivelse',
+    '02.01.2024;Geir Andersen;10563;Kvitsøy skole;7:30;7:30;Ja;Tegning',
+    '03.01.2024;Geir Andersen;10563;Kvitsøy skole;2:00;2:00;Nei;Befaring',
+  ].join('\n');
+  const rows = await readHourTable(new TextEncoder().encode(csv), 'moment.csv');
+  const employees = [{ id: 'emp1', person: { firstName: 'Geir', lastName: 'Andersen' }, company: {} }];
+  const projects = [{ id: 'p1', number: '10563', name: 'Kvitsøy skole' }];
+  const planned = planHourImport([], employees, [], projects, rows);
+  assert.equal(planned.rows[0].entry.invoiceId, IMPORT_INVOICED_ID);
+  assert.equal(planned.rows[1].entry.invoiceId, '');
+  const review = buildHourImportReview(planned);
+  assert.equal(review.invoicedCount, 1);
+  assert.deepEqual(review.okRows.map((row) => row.invoiced), [true, false]);
+
+  let state = emptyProjectState();
+  state = createProject(state, { name: 'Kvitsøy skole', number: '10563' }).state;
+  const projectId = state.activeProjectId;
+  const result = importTimeEntries(state, planned.rows.map((row) => ({ ...row.entry, projectId })));
+  assert.equal(result.ok, true);
+  const saved = result.state.timeEntries.filter((row) => row.projectId === projectId);
+  assert.equal(saved.find((row) => row.description === 'Tegning').invoiceId, IMPORT_INVOICED_ID);
+  assert.equal(saved.find((row) => row.description === 'Befaring').invoiceId, null);
+  assert.deepEqual(saved.filter(isOpenEntry).map((row) => row.description), ['Befaring']);
+}
+
+{
+  // Allerede importerte timer: fakturastatus leses fra den lagrede Excel-raden.
+  const source = (values) => ({ filename: 'moment.xlsx', importedAt: '2026-10-01', values });
+  const base = { projectId: 'p1', employeeId: 'emp1', date: '2024-01-02', hours: 2, status: 'registrert' };
+  const invoiced = normalizeTimeEntryRow({ ...base, source: source({ Dato: '02.01.2024', Fakturert: 'Ja' }) });
+  const open = normalizeTimeEntryRow({ ...base, source: source({ Dato: '02.01.2024', Fakturert: 'Nei' }) });
+  const byDate = normalizeTimeEntryRow({ ...base, source: source({ Fakturadato: '31.01.2024' }) });
+  const manual = normalizeTimeEntryRow(base);
+  const onInvoice = normalizeTimeEntryRow({ ...base, invoiceId: 'inv1', source: source({ Fakturert: 'Ja' }) });
+  assert.equal(invoiced.invoiceId, IMPORT_INVOICED_ID);
+  assert.equal(open.invoiceId, null);
+  assert.equal(byDate.invoiceId, IMPORT_INVOICED_ID);
+  assert.equal(manual.invoiceId, null);
+  assert.equal(onInvoice.invoiceId, 'inv1');
+  assert.equal(isOpenEntry(invoiced), false);
+  assert.equal(isOpenEntry(open), true);
+  assert.equal(importInvoiceId(null), '');
+  assert.equal(importedInvoiceFromSource({ Dato: '02.01.2024' }), null);
+  assert.equal(importedInvoiceFromSource({ Fakturanummer: '10234' }).number, '10234');
 }
 
 console.log('hoursImport.test.mjs: ok');

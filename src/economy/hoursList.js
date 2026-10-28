@@ -5,6 +5,8 @@ import { formatHours, parseHours, roundHours, sumHours } from '../arbeid/hours.j
 import { displayName } from '../employees/model.js';
 import { projectLookupNumbers, projectNumberKey } from '../project/projectFields.js';
 import { formatDate, fold, parseDate, text } from './invoices.js';
+import { IMPORT_INVOICED_ID, WRITE_OFF_ID } from './invoiceFlow.js';
+import { importedInvoiceFromSource } from './hoursImport.js';
 
 export { formatHours, formatDate, sumHours };
 
@@ -31,6 +33,7 @@ export const HOUR_COLUMNS = [
   { key: 'activityName', label: 'Aktivitet', width: 120 },
   { key: 'hours', label: 'Timer', width: 72 },
   { key: 'billableHours', label: 'Fakturerbare timer', width: 120 },
+  { key: 'invoiced', label: 'Fakturert', width: 130 },
   { key: 'description', label: 'Beskrivelse', flex: true, minWidth: 160 },
   { key: 'status', label: 'Status', width: 100 },
   { key: 'internalNote', label: 'Internt notat', flex: true, minWidth: 140 },
@@ -38,8 +41,25 @@ export const HOUR_COLUMNS = [
 
 export const HOUR_COLUMN_KEYS = HOUR_COLUMNS.map((column) => column.key);
 export const DEFAULT_HOUR_COLUMNS = [
-  'date', 'employeeName', 'customerName', 'projectName', 'activityName', 'hours', 'billableHours', 'description',
+  'date', 'employeeName', 'customerName', 'projectName', 'activityName', 'hours', 'billableHours', 'invoiced', 'description',
 ];
+
+/** Fakturert i ProTop eller i systemet timene ble importert fra. Avskrevne teller ikke. */
+export function isInvoicedHour(row) {
+  const id = text(row?.invoiceId);
+  return Boolean(id) && id !== WRITE_OFF_ID;
+}
+
+/** Tekst i Fakturert-kolonnen: «Fakturert 10234», «På faktura», «Avskrevet» eller tom. */
+export function hourInvoiceLabel(row) {
+  const id = text(row?.invoiceId);
+  if (!id) return '';
+  if (id === WRITE_OFF_ID) return 'Avskrevet';
+  if (id !== IMPORT_INVOICED_ID) return 'På faktura';
+  const info = importedInvoiceFromSource(row?.source?.values);
+  const detail = info?.number || (info?.date ? formatDate(info.date) : '');
+  return detail ? `Fakturert ${detail}` : 'Fakturert';
+}
 
 export const HOUR_PERIODS = [
   { id: 'all', label: 'Alle' },
@@ -141,6 +161,8 @@ export function filterHours(entries, {
     if (maxDate && text(row.date) > maxDate) return false;
     if (billable === 'billable' && !(parseHours(row.billableHours ?? row.hours) > 0)) return false;
     if (billable === 'nonbillable' && parseHours(row.billableHours ?? 0) > 0) return false;
+    if (billable === 'invoiced' && !isInvoicedHour(row)) return false;
+    if (billable === 'uninvoiced' && (text(row.invoiceId) || !(parseHours(row.billableHours ?? row.hours) > 0))) return false;
     if (!q) return true;
     const hay = fold([
       row.employeeName,
@@ -394,6 +416,7 @@ export function hourTotals(entries) {
     hours,
     billable,
     nonBillable: roundHours(hours - billable),
+    invoiced: sumHours(rows.filter(isInvoicedHour), 'billableHours'),
   };
 }
 

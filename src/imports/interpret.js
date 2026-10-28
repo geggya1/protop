@@ -100,6 +100,7 @@ export const HOUR_AI_FIELDS = {
   activityName: 'Aktivitet eller oppgave',
   hours: 'Registrerte timer',
   billableHours: 'Fakturerbare timer',
+  invoiced: 'Fakturert (ja/nei, fakturanummer eller fakturadato)',
   description: 'Beskrivelse av arbeidet',
   internalNote: 'Intern merknad',
   department: 'Avdeling',

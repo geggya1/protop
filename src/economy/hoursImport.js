@@ -17,6 +17,7 @@ import {
   customerIdentityKey,
   normalizeProjectNumber,
 } from './invoiceImport.js';
+import { IMPORT_INVOICED_ID } from './invoiceFlow.js';
 import { parseDate, fold, text } from './invoices.js';
 
 export { matchCustomer, matchProject, customerIdentityKey, normalizeProjectNumber };
@@ -55,6 +56,13 @@ const FIELD_ALIASES = [
     'fakturerbaretimer', 'billablehours', 'timerfakturerbart', 'hoursbillable',
   ]],
   ['billable', ['fakturerbart', 'billable', 'isfacturable', 'isfakturerbar']],
+  ['invoiced', [
+    'fakturert', 'invoiced', 'erfakturert', 'isinvoiced',
+    'fakturastatus', 'faktureringsstatus', 'invoicestatus',
+  ]],
+  ['invoiceNumber', ['faktura', 'fakturanr', 'fakturanummer', 'invoice', 'invoiceno', 'invoicenumber']],
+  ['invoiceDate', ['fakturadato', 'invoicedate', 'fakturertdato', 'invoiceddate']],
+  ['invoicedHours', ['fakturertetimer', 'invoicedhours', 'timerfakturert']],
   ['description', ['beskrivelse', 'description', 'tekst', 'kommentar', 'comment', 'note', 'notes']],
   ['internalNote', [
     'internmerknad', 'internkommentar', 'internalnote', 'internalcomment',
@@ -84,6 +92,7 @@ function isNonEntryHoursHeader(key) {
   if (key.includes('andel')) return true;
   if (key.includes('visfaktisk') || key.includes('vispafaktura') || key.includes('vispåfaktura')) return true;
   if (key.includes('ikkefakturerbar') || key.includes('nonbillable')) return true;
+  if (key.includes('ikkefakturert') || key.includes('ufakturert') || key.includes('uninvoiced') || key.includes('notinvoiced')) return true;
   if (key.includes('opparbeidet') || key.includes('inntekt') || key.includes('profitt')) return true;
   return false;
 }
@@ -93,8 +102,10 @@ export function hourColumnField(header) {
   if (!key) return '';
   if (SKIP_HEADERS.some((skip) => key === skip || key.startsWith(skip))) return '';
   if (isNonEntryHoursHeader(key)) return '';
-  // Fakturadato er ikke arbeidsdato.
-  if (key.includes('fakturadato') || key.includes('invoicedate')) return '';
+  // Fakturadato er ikke arbeidsdato, men viser at timen er fakturert.
+  if (key.includes('fakturadato') || key.includes('invoicedate') || (key.includes('fakturert') && key.endsWith('dato'))) {
+    return 'invoiceDate';
+  }
   for (const [field, aliases] of FIELD_ALIASES) {
     if (aliases.some((alias) => fold(alias) === key)) return field;
     if (fold(field) === key) return field;
@@ -103,6 +114,12 @@ export function hourColumnField(header) {
     return 'billableHours';
   }
   if (key === 'fakturerbart' || key === 'billable') return 'billable';
+  if ((key.includes('fakturert') && key.includes('timer')) || key.includes('invoicedhours')) return 'invoicedHours';
+  if (key.includes('fakturanr') || key.includes('fakturanummer') || key.includes('invoicenumber')) return 'invoiceNumber';
+  if (
+    key.includes('fakturert') || key.includes('fakturastatus')
+    || key.includes('faktureringsstatus') || key.includes('invoicestatus')
+  ) return 'invoiced';
   // Registrerte timer / antall timer i perioden — ikke «avtalte timer i valgt periode».
   if (key.includes('registrertetimer') || key === 'registeredhours') return 'hours';
   if (
@@ -111,7 +128,6 @@ export function hourColumnField(header) {
   ) return 'hours';
   if (key.includes('timerivalgt') && key.includes('antall')) return 'hours';
   if (key === 'timer' || key === 'hours') return 'hours';
-  if (key.includes('fakturertetimer') || key.includes('invoicedhours')) return 'hours';
   if (key.includes('arbeidsdato') || key.includes('workdate') || key.includes('opprettetdato') || key.includes('createddate')) {
     return 'date';
   }
@@ -165,6 +181,88 @@ export function parseBillableFlag(value) {
   if (['ja', 'yes', 'true', '1', 'x', 'ok'].includes(key)) return true;
   if (['nei', 'no', 'false', '0'].includes(key)) return false;
   return null;
+}
+
+function isoDay(value) {
+  const day = parseDate(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : '';
+}
+
+/** Fakturert-kolonne: Ja/Nei, «Fakturert»/«Ikke fakturert», dato eller tall. Ukjent tekst = null. */
+export function parseInvoicedFlag(value) {
+  const raw = text(value);
+  const key = fold(raw);
+  if (!key) return null;
+  const flag = parseBillableFlag(raw);
+  if (flag != null) return flag;
+  if (['ikke', 'ufakturert', 'notinvoiced', 'uninvoiced', 'notbilled', 'unbilled'].some((word) => key.startsWith(word))) return false;
+  if (key.includes('fakturert') || key.includes('invoiced') || key === 'billed') return true;
+  if (isoDay(raw)) return true;
+  // Beløp, timer eller fakturanummer: alt annet enn null betyr fakturert.
+  if (/^[\d\s.,:]+$/.test(raw)) return /[1-9]/.test(raw);
+  return null;
+}
+
+/** Fakturanummer fra filen. «0», «-» og Ja/Nei er ikke nummer. */
+function invoiceNumberOf(value) {
+  const raw = text(value);
+  const key = fold(raw);
+  if (!key || parseBillableFlag(raw) != null || key.startsWith('ikke')) return '';
+  return /[1-9a-z]/.test(key) ? raw : '';
+}
+
+/**
+ * Var timen fakturert i systemet den kom fra? Leser Fakturert/Fakturastatus,
+ * Status, Fakturanummer, Fakturadato og Fakturerte timer. «Nei» vinner.
+ */
+export function importedInvoice(mapped = {}) {
+  const flag = parseInvoicedFlag(mapped.invoiced);
+  const number = invoiceNumberOf(mapped.invoiceNumber);
+  const date = isoDay(mapped.invoiceDate);
+  const status = fold(mapped.status);
+  const invoiced = flag === false
+    ? false
+    : flag === true
+      || status === 'fakturert' || status === 'invoiced'
+      || Boolean(number) || parseBillableFlag(mapped.invoiceNumber) === true
+      || Boolean(date)
+      || parseImportHours(mapped.invoicedHours) > 0;
+  return { invoiced, number, date };
+}
+
+const INVOICE_FIELDS = new Set(['invoiced', 'invoiceNumber', 'invoiceDate', 'invoicedHours', 'status']);
+const headerFields = new Map();
+// Tusenvis av rader deler de samme verdiene (Ja/Nei); svaret gjenbrukes ved hver lesing.
+const sourceInvoices = new Map();
+
+/** Fakturastatus fra Excel-raden som ble lagret med timen (source.values). */
+export function importedInvoiceFromSource(values) {
+  if (!values || typeof values !== 'object') return null;
+  const mapped = {};
+  let found = false;
+  for (const header in values) {
+    if (!headerFields.has(header)) headerFields.set(header, hourColumnField(header));
+    const field = headerFields.get(header);
+    if (!INVOICE_FIELDS.has(field) || mapped[field] || !text(values[header])) continue;
+    mapped[field] = values[header];
+    found = true;
+  }
+  if (!found) return null;
+  const key = [mapped.invoiced, mapped.invoiceNumber, mapped.invoiceDate, mapped.invoicedHours, mapped.status]
+    .map((value) => value || '')
+    .join('\u0001');
+  let info = sourceInvoices.get(key);
+  if (!info) {
+    if (sourceInvoices.size > 5000) sourceInvoices.clear();
+    info = importedInvoice(mapped);
+    sourceInvoices.set(key, info);
+  }
+  return info;
+}
+
+/** Faktura-id for en importert time som allerede var fakturert, ellers tom. */
+export function importInvoiceId(source) {
+  return importedInvoiceFromSource(source?.values)?.invoiced ? IMPORT_INVOICED_ID : '';
 }
 
 function headerIndex(table) {
@@ -468,6 +566,8 @@ function resolveBillableHours(mapped, hours) {
 export function hourEntryFromMappedRow(mapped, originalValues = {}, meta = {}) {
   const date = parseDate(mapped.date) || text(mapped.date);
   let hours = parseImportHours(mapped.hours);
+  // Fakturerte timer er timetallet når filen ikke har egen timekolonne.
+  if (!(hours > 0)) hours = parseImportHours(mapped.invoicedHours);
   let billableHours = resolveBillableHours(mapped, hours);
   // Moment: «Registrerte timer» tom, faktisk tid ligger ofte i fakturerbare (døgnbrøk).
   if (!(hours > 0) && billableHours > 0) hours = billableHours;
@@ -502,6 +602,8 @@ export function hourEntryFromMappedRow(mapped, originalValues = {}, meta = {}) {
     rate: mapped.rate,
     amount: mapped.amount,
     externalId: text(mapped.externalId),
+    // Fakturert før import: aldri til fakturering igjen.
+    invoiceId: importedInvoice(mapped).invoiced ? IMPORT_INVOICED_ID : '',
     source: {
       filename: text(meta.filename),
       importedAt: text(meta.importedAt) || new Date().toISOString(),
@@ -899,7 +1001,7 @@ export async function readHourTable(bytes, filename = '', { columnFields } = {})
     if (columnFields && columnFields[String(index)]) return columnFields[String(index)];
     return hourColumnField(cell);
   });
-  if (!fields.includes('date') && !fields.includes('hours')) {
+  if (!fields.includes('date') && !fields.includes('hours') && !fields.includes('invoicedHours')) {
     throw new Error('Listen mangler kolonne for dato eller timer. Bruk en eksport med «Dato»/«Opprettet dato» og «Timer»/«Antall timer i valgt periode».');
   }
   const importedAt = new Date().toISOString();
@@ -1054,6 +1156,7 @@ export function buildHourImportReview(plan, { dropped = new Set() } = {}) {
       activityName: entry.activityName || '',
       hours: entry.hours,
       billableHours: entry.billableHours,
+      invoiced: entry.invoiceId === IMPORT_INVOICED_ID,
       description: entry.description || '',
     };
   });
@@ -1074,11 +1177,13 @@ export function buildHourImportReview(plan, { dropped = new Set() } = {}) {
   }
 
   let readyCount = 0;
+  let invoicedCount = 0;
   rows.forEach((row, index) => {
     if (row.severity === 'block' || row.severity === 'existing' || !row.entry) return;
     if (dropped.has(String(index))) return;
     if (!row.entry.employeeId || !row.entry.projectId) return;
     readyCount += 1;
+    if (row.entry.invoiceId === IMPORT_INVOICED_ID) invoicedCount += 1;
   });
 
   return {
@@ -1088,6 +1193,7 @@ export function buildHourImportReview(plan, { dropped = new Set() } = {}) {
     existingCount: existingIndexes.length,
     blockCount: blockIndexes.length,
     readyCount,
+    invoicedCount,
   };
 }
 

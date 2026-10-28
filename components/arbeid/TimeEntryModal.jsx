@@ -48,6 +48,7 @@ export default function TimeEntryModal({
   requireDescription = true,
   requireClock = false,
   locked = false,
+  lockedLabel = 'Låst — klar for fakturering.',
   // Lesetilgang: føringen vises, men kan ikke endres.
   readOnly = false,
   // Uten Admin: endre, men ikke slette.
@@ -300,7 +301,7 @@ export default function TimeEntryModal({
 
             {dateLabel ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>{dateLabel}</Text> : null}
             {project ? <Text style={{ color: colors.muted, fontSize: 12 }}>#{project.number} {project.name}</Text> : null}
-            {locked ? <Text style={{ color: '#0f766e', marginTop: 6 }}>Låst — klar for fakturering.</Text> : null}
+            {locked ? <Text style={{ color: '#0f766e', marginTop: 6 }}>{lockedLabel}</Text> : null}
             {readOnly ? (
               <Text style={{ color: colors.muted, marginTop: 6 }} nativeID="time-entry-readonly">
                 Du har lesetilgang. Føringen kan ses, men ikke endres.

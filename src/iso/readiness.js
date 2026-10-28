@@ -11,7 +11,7 @@ import { STANDARDS, standardLabel } from './catalog.js';
 import { documentsDueForReview } from './documents.js';
 import { isOpenFinding, overdueActions } from './findings.js';
 import { matrixRows } from './requirements.js';
-import { competenceGaps, competenceMatrix, overdueRecords, periodSortKey } from './registers.js';
+import { auditCoverage, competenceGaps, competenceMatrix, overdueRecords, periodSortKey } from './registers.js';
 import { contractReviewStatus, performedDate } from './integrations.js';
 import { templateIdFor } from './forms.js';
 import { gearControls } from '../equipment/model.js';
@@ -276,6 +276,15 @@ const CHECKS = [
       const done = rows.filter((a) => ['godkjent', 'oppfolging', 'lukket'].includes(a.state) && performedDate(a, now) >= year);
       const planned = rows.filter((a) => ['planlagt', 'pagar', 'rapport'].includes(a.state));
       return { status: pick(done.length, planned.length), detail: done.length ? `Godkjent rapport ${performedDate(done[0], now)}` : (planned.length ? 'Planlagt, ikke gjennomført' : 'Ingen revisjon av denne standarden') };
+    },
+  },
+  {
+    key: 'auditProgram', chapter: '9', clauses: { ISO9001: '9.2.2', ISO14001: '9.2.2', ISO45001: '9.2.2' }, label: 'Revisjonsprogrammet dekker prosessene (3 år)', page: 'revisjon',
+    check: ({ rec, state, now }) => {
+      const cov = auditCoverage(rec.revisjon, state.processes, { now });
+      if (!cov.rows.length) return { status: 'mangler', detail: 'Ingen publiserte prosesser å revidere' };
+      const covered = cov.rows.length - cov.uncovered.length;
+      return { status: pick(!cov.uncovered.length, covered), detail: `${covered} av ${cov.rows.length} prosesser revidert ${cov.years[0]}–${cov.years.at(-1)}` };
     },
   },
   {

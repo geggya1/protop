@@ -242,6 +242,7 @@ export const REGISTERS = {
     title: 'Internrevisjon', prefix: 'REV', area: 'internalAudit', fields: [
       { key: 'title', label: 'Revisjon', type: 'text', required: true },
       { key: 'scope', label: 'Omfang (prosesser/enheter)', type: 'long', required: true },
+      { key: 'scopeProcessIds', label: 'Prosesser i omfanget (revisjonsprogrammet)', type: 'refmulti', ref: 'process' },
       { key: 'criteria', label: 'Kriterier', type: 'long', required: true },
       { key: 'standards', label: 'Standarder', type: 'multi', options: opt(['ISO 9001', 'ISO 14001', 'ISO 45001', 'Lovkrav']) },
       { key: 'auditorName', label: 'Revisor', type: 'person', required: true },
@@ -530,6 +531,10 @@ export function setRecordState(record, state, { actor, now = new Date(), note = 
   // Tilbake til før godkjenning (f.eks. «planlagt») opphever godkjenningen: krever begrunnelse, og ny godkjenning låser igjen.
   const revoke = !!record.locked && !APPROVED_STATES.includes(state);
   if (revoke && text(note).length < 5) return fail('Begrunn hvorfor godkjenningen oppheves.');
+  // Internrevisjon: konklusjonen skrives før rapport og godkjenning (9.2.2 e).
+  if (record.register === 'revisjon' && ['rapport', 'godkjent'].includes(state) && !APPROVED_STATES.includes(record.state) && text(record.conclusion).length < 10) {
+    return fail('Skriv konklusjonen før revisjonen går til rapport eller godkjenning.');
+  }
   // Ledelsens gjennomgang: grunnlag med alle punktene i 9.3.2, konklusjon og output før godkjenning.
   if (record.register === 'ledelse' && state === 'godkjent' && record.state !== 'godkjent') {
     const blockers = reviewApprovalBlockers(record);
@@ -770,6 +775,37 @@ export const AUDIT_FINDING_CLASSES = [
   { id: 'forbedring', label: 'Forbedringsmulighet' },
   { id: 'avvik', label: 'Avvik' },
 ];
+
+/**
+ * Uavhengighet (9.2.2 c): prosesser i omfanget som revisor selv eier. Revisor skal ikke revidere eget arbeid;
+ * avkrysningen alene er ikke nok.
+ */
+export function auditIndependenceConflicts(audit, processes = []) {
+  const ids = new Set(audit?.scopeProcessIds || []);
+  const uid = text(audit?.auditorUid, 128);
+  const name = text(audit?.auditorName, 160).toLowerCase();
+  return (processes || []).filter((p) => ids.has(p.id) && ((uid && p.ownerUid === uid) || (name && text(p.ownerName, 160).toLowerCase() === name)));
+}
+
+/**
+ * Revisjonsprogram (9.2.2 a): hvilke publiserte prosesser er revidert de siste årene (revisjoner med
+ * prosessene i omfanget, ikke avlyst). Gir rader per prosess med revisjonene per år, og prosessene som ikke
+ * er revidert i perioden.
+ */
+export function auditCoverage(records, processes = [], { years = 3, now = new Date() } = {}) {
+  const last = (now instanceof Date ? now : new Date(now)).getFullYear();
+  const span = Array.from({ length: years }, (_, i) => last - years + 1 + i);
+  const audits = (records || []).filter((a) => a.state !== 'avlyst' && (a.scopeProcessIds || []).length);
+  const rows = (processes || []).filter((p) => p.publishedVersion && !p.archived).map((p) => {
+    const byYear = {};
+    for (const y of span) {
+      byYear[y] = audits.filter((a) => (a.scopeProcessIds || []).includes(p.id) && Number(String(a.plannedDate || '').slice(0, 4)) === y)
+        .map((a) => ({ id: a.id, number: a.number, state: a.state }));
+    }
+    return { process: p, byYear, covered: span.some((y) => byYear[y].length) };
+  });
+  return { years: span, rows, uncovered: rows.filter((r) => !r.covered).map((r) => r.process) };
+}
 
 export function addAuditFinding(audit, input, { actor, now = new Date() } = {}) {
   if (audit?.register !== 'revisjon') return fail('Ikke en revisjon.');

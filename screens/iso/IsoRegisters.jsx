@@ -4,7 +4,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, findingStateLabel, riskLevel } from '../../src/iso/catalog';
 import {
-  AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
+  AUDIT_FINDING_CLASSES, REGISTERS, auditCoverage, auditIndependenceConflicts, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
   competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
   cleanContacts, contactsLabel, personsLabel, proofEnd, recordRiskMethod, registerDef, riskMatrix, riskScoresChanged, riskSummary, setRecordState, updateRecord,
   REVIEW_OUTPUTS, reviewApprovalBlockers, setReviewConclusion,
@@ -1167,6 +1167,9 @@ export function AuditPage({ ctx }) {
   const requirements = useMemo(() => allRequirements(state), [state]);
   const today = todayKey();
   const program = reg.rows.slice().sort((a, b) => String(a.plannedDate).localeCompare(String(b.plannedDate)));
+  // Revisjonsprogrammet (ISO-21): hvilke prosesser er revidert de siste tre årene, og er revisor uavhengig.
+  const coverage = useMemo(() => auditCoverage(reg.rows, state.processes), [reg.rows, state.processes]);
+  const conflicts = reg.open ? auditIndependenceConflicts(reg.open, state.processes) : [];
 
   async function addFinding() {
     setErr('');
@@ -1205,6 +1208,20 @@ export function AuditPage({ ctx }) {
           return <ListRow key={a.id} icon="search-outline" tone={late ? 'danger' : 'muted'} title={`${a.number} · ${a.title}`} subtitle={`${prettyDate(a.plannedDate)} · ${a.auditorName}${late ? ' · forsinket' : ''} · ${(a.findings || []).length} funn`} right={<Pill label={STATE_LABEL[a.state]} tone={a.state === 'godkjent' || a.state === 'lukket' ? 'ok' : (late ? 'danger' : 'info')} />} onPress={() => reg.setOpenId(a.id)} />;
         })}
       </Card>
+      {coverage.rows.length ? (
+        <Card title="Dekning siste tre år" subtitle="Publiserte prosesser og revisjonene som har dem i omfanget («Prosesser i omfanget» på revisjonen). Alle prosesser bør revideres innen programperioden, oftere ved høy risiko eller mange avvik.">
+          {coverage.uncovered.length ? <Banner tone="warn" text={`${coverage.uncovered.length} av ${coverage.rows.length} prosesser er ikke revidert i ${coverage.years[0]}–${coverage.years.at(-1)}.`} /> : <Banner tone="ok" text="Alle publiserte prosesser er revidert i programperioden." />}
+          {coverage.rows.map((r) => (
+            <ListRow
+              key={r.process.id}
+              icon={r.covered ? 'checkmark-circle-outline' : 'alert-circle-outline'}
+              tone={r.covered ? 'ok' : 'warn'}
+              title={`${r.process.code ? `${r.process.code} ` : ''}${r.process.title}`}
+              subtitle={coverage.years.map((y) => `${y}: ${r.byYear[y].length ? r.byYear[y].map((a) => a.number).join(', ') : '–'}`).join(' · ')}
+            />
+          ))}
+        </Card>
+      ) : null}
       {legacyAudits?.length ? (
         <Card title="Tidligere registrerte revisjoner (prosjekt)" subtitle="Fra den gamle ISO-siden. Beholdes uendret.">
           {legacyAudits.map((a) => <Text key={a.id} style={{ color: colors.ink, fontSize: 13 }}>{a.standard}: {a.findings} {a.projectName ? `· ${a.projectName}` : ''}</Text>)}
@@ -1213,6 +1230,8 @@ export function AuditPage({ ctx }) {
       <RecordSheet ctx={ctx} registerKey="revisjon" visible={reg.creating} onClose={() => reg.setCreating(false)} />
       {reg.open ? (
         <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')}>
+          {conflicts.length ? <Banner tone="warn" text={`Revisor eier ${conflicts.map((p) => p.title).join(', ')} i omfanget, og reviderer da eget arbeid (9.2.2 c). Velg en annen revisor eller ta prosessen ut av omfanget.`} /> : null}
+          {!['godkjent', 'oppfolging', 'lukket', 'avlyst'].includes(reg.open.state) && String(reg.open.conclusion || '').trim().length < 10 ? <Text style={{ color: colors.muted, fontSize: 12 }}>Skriv konklusjonen under «Rediger» før rapporten godkjennes.</Text> : null}
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Funn ({(reg.open.findings || []).length})</Text>
           {(reg.open.findings || []).map((f) => (
             <View key={f.id} style={{ gap: 2, paddingVertical: 4 }}>

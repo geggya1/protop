@@ -22,7 +22,7 @@ const MANAGER = isoCapabilities({ grants: { iso: 'read' }, uid: 'u2' });
 const READER = isoCapabilities({ grants: { iso: 'see' }, uid: 'u9' });
 
 function approvedAudit() {
-  const audit = createRecord('revisjon', { title: 'Prosjektstyring', scope: 'Prosjekt', criteria: 'ISO 9001 kap 8', auditorName: 'Revisor', independence: true, plannedDate: '2026-10-01' }, { actor: ANNE, now }).record;
+  const audit = createRecord('revisjon', { title: 'Prosjektstyring', scope: 'Prosjekt', criteria: 'ISO 9001 kap 8', auditorName: 'Revisor', independence: true, plannedDate: '2026-10-01', conclusion: 'Prosessen er i hovedsak i samsvar.' }, { actor: ANNE, now }).record;
   const res = setRecordState(audit, 'godkjent', { actor: ANNE, caps: APPROVER, now });
   assert.equal(res.ok, true, res.error);
   assert.equal(res.record.locked, true);

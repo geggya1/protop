@@ -56,9 +56,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: radius.md, padding: 16,
     borderWidth: 2, borderColor: colors.brandSoft,
   },
-  linkTxt: { fontWeight: '400', fontSize: 17, color: colors.brand },
+  linkTxt: { fontWeight: '400', fontSize: 17, color: colors.brandInk },
   linkHint: { marginTop: 6, color: colors.muted, fontWeight: '400', fontSize: 14 },
   version: { color: colors.muted, fontSize: 13 },
-  openedOk: { color: colors.success, fontWeight: '400' },
-  hint: { color: colors.warn, fontWeight: '400' },
+  openedOk: { color: colors.successInk, fontWeight: '400' },
+  hint: { color: colors.warnInk, fontWeight: '400' },
 });

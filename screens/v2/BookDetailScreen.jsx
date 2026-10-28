@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   quickBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   finishBtn: {
     alignSelf: 'flex-start',
-    marginTop: 4, backgroundColor: colors.success || '#16a34a', borderRadius: 14,
+    marginTop: 4, backgroundColor: colors.success, borderRadius: 14,
     paddingVertical: 16, alignItems: 'center', flexDirection: 'row',
     justifyContent: 'center', gap: 8,
   },

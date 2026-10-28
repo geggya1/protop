@@ -28,7 +28,7 @@ export default function CompanyAccountEnded({ colors, employee }) {
   const leaving = useLeaveCompany();
   const name = companyDisplayName(family, 'bedriften');
   const contact = ownerName(family, members);
-  const danger = colors.danger || '#b42318';
+  const danger = colors.dangerInk || colors.danger;
   return (
     <View nativeID="company-account-ended" style={styles.root}>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>

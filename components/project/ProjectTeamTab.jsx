@@ -163,7 +163,13 @@ export default function ProjectTeamTab({
             </View>
             <View style={styles.td}>
               {isAdmin ? (
-                <TouchableOpacity onPress={() => setMenuId(menuId === row.id ? '' : row.id)} hitSlop={8}>
+                <TouchableOpacity
+                  onPress={() => setMenuId(menuId === row.id ? '' : row.id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Valg for ${row.employeeName || 'personen'}`}
+                  accessibilityState={{ expanded: menuId === row.id }}
+                >
                   <Ionicons name="ellipsis-vertical" size={18} color={colors.muted} />
                 </TouchableOpacity>
               ) : null}

@@ -18,7 +18,7 @@ export default function ImportReview({
   onOpenExisting,
   renderRowExtra,
 }) {
-  const danger = colors.danger || '#b42318';
+  const danger = colors.dangerInk || colors.danger;
   const sections = reviewSections(rows);
   const ready = (rows || []).reduce((sum, row) => {
     if (!row || row.severity === 'block' || row.severity === 'existing' || row.included === false || row.ready === false) {
@@ -39,12 +39,12 @@ export default function ImportReview({
       <Text style={{ color: colors.muted }}>{lead}</Text>
       {sections.map(([id, title, sectionRows]) => (
         <View key={id} style={{ gap: 8 }}>
-          <Text style={{ color: id === 'block' ? danger : id === 'review' ? AMBER : id === 'existing' ? (colors.brand || '#175cd3') : colors.ink, fontWeight: '700' }}>
+          <Text style={{ color: id === 'block' ? danger : id === 'review' ? AMBER : id === 'existing' ? (colors.brandInk || colors.brand) : colors.ink, fontWeight: '700' }}>
             {title}
           </Text>
           {sectionRows.map((row) => {
             const locked = row.severity === 'block' || row.locked;
-            const border = row.severity === 'block' ? danger : row.severity === 'review' ? AMBER : row.severity === 'existing' ? (colors.brand || '#175cd3') : colors.line;
+            const border = row.severity === 'block' ? danger : row.severity === 'review' ? AMBER : row.severity === 'existing' ? (colors.brandInk || colors.brand) : colors.line;
             return (
               <View
                 key={row.id}
@@ -71,12 +71,12 @@ export default function ImportReview({
                 {typeof renderRowExtra === 'function' ? renderRowExtra(row) : null}
                 {locked ? (
                   <>
-                    <Text style={{ color: row.severity === 'existing' ? (colors.brand || '#175cd3') : danger }}>
+                    <Text style={{ color: row.severity === 'existing' ? (colors.brandInk || colors.brand) : danger }}>
                       {row.severity === 'existing' ? 'Finnes allerede og blir ikke importert.' : 'Blir ikke importert.'}
                     </Text>
                     {row.severity === 'existing' && row.matchId && typeof onOpenExisting === 'function' ? (
                       <TouchableOpacity onPress={() => onOpenExisting(row.matchId)} accessibilityRole="button">
-                        <Text style={{ color: colors.brand }}>
+                        <Text style={{ color: colors.brandInk || colors.brand }}>
                           {row.matchCustomerNumber
                             ? `Åpne Nr ${row.matchCustomerNumber} i kunderegisteret`
                             : 'Åpne i kunderegisteret'}
@@ -86,7 +86,7 @@ export default function ImportReview({
                   </>
                 ) : (
                   <TouchableOpacity onPress={() => onToggle(row.id)} accessibilityRole="button">
-                    <Text style={{ color: colors.brand }}>{row.included ? 'Ta ut av importen' : 'Ta med likevel'}</Text>
+                    <Text style={{ color: colors.brandInk || colors.brand }}>{row.included ? 'Ta ut av importen' : 'Ta med likevel'}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -102,9 +102,9 @@ export default function ImportReview({
           onPress={onConfirm}
           disabled={busy || !ready}
           accessibilityRole="button"
-          style={{ backgroundColor: colors.brand, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, opacity: busy || !ready ? 0.6 : 1 }}
+          style={{ backgroundColor: colors.brandInk || colors.brand, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, opacity: busy || !ready ? 0.6 : 1 }}
         >
-          <Text style={{ color: '#fff' }}>{busy ? 'Lagrer…' : confirmLabel(ready)}</Text>
+          <Text style={{ color: colors.onBrand }}>{busy ? 'Lagrer…' : confirmLabel(ready)}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -113,7 +113,7 @@ export default function ImportReview({
 
 export function ImportResult({ colors, result }) {
   if (!result) return null;
-  const danger = colors.danger || '#b42318';
+  const danger = colors.dangerInk || colors.danger;
   const status = result.complete
     ? 'success'
     : (result.missed?.length ? 'error' : 'partial');

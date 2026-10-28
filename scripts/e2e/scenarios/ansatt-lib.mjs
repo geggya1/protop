@@ -335,11 +335,11 @@ export async function createCompanyUI(bot, name, address = '') {
   await waitShell(bot).catch(() => {});
 }
 
-/** Ansatte → Ny medarbeider → Inviter brukere. */
+/** Ansatte → Ny ansatt → Inviter brukere. */
 export async function openInvitePanel(bot) {
   await bot.open('ansatte');
   await skipTour(bot);
-  await tap(bot, 'Ny medarbeider').catch(() => {});
+  await tap(bot, 'Ny ansatt').catch(() => {});
   await tap(bot, 'Inviter brukere');
   await waitText(bot, /Inviter brukere/, 10000);
 }

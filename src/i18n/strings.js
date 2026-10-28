@@ -66,6 +66,10 @@ export const TABLE = {
   },
   lang: {
     title: L('Velg språk', 'Choose language', 'Vælg sprog', 'Välj språk', 'Valitse kieli', 'Wybierz język', 'Elige idioma', 'Choisir la langue', 'Sprache wählen'),
+    modulesNorwegian: {
+      nb: 'Bedriftsmodulene (timer, fravær, prosjekt, økonomi og KS) er foreløpig bare på norsk.',
+      en: 'The company modules (hours, absence, projects, finance and quality) are in Norwegian only for now.',
+    },
     subtitle: L('Du kan endre dette senere i innstillinger.', 'You can change this later in settings.', 'Du kan ændre det senere under indstillinger.', 'Du kan ändra detta senare i inställningar.', 'Voit vaihtaa tämän myöhemmin asetuksissa.', 'Możesz zmienić to później w ustawieniach.', 'Puedes cambiarlo más tarde en ajustes.', 'Vous pourrez le changer plus tard.', 'Das kannst du später in den Einstellungen ändern.'),
   },
   legal: {

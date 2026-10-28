@@ -27,6 +27,8 @@ function softChildColors() {
     line: soft.line,
     brand: soft.sage || baseColors.brand,
     brandSoft: soft.brandSoft || baseColors.brandSoft,
+    brandInk: soft.sage || baseColors.brandInk,
+    onBrand: '#ffffff',
     accent: soft.sage || baseColors.accent,
   };
 }
@@ -72,6 +74,8 @@ export function ThemeProvider({ children }) {
           ...themed,
           ...pal,
           brand: themed.brand,
+          brandInk: themed.brandInk,
+          onBrand: themed.onBrand,
           fab: themed.fab,
           accent: themed.accent,
           kid: themed.kid,

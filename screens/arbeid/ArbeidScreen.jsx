@@ -1157,7 +1157,7 @@ export default function ArbeidScreen({
           )}
         </View>
         <View style={styles.monthNav}>
-          <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
+          <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Forrige måned" style={styles.navHit}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -1168,7 +1168,7 @@ export default function ArbeidScreen({
           >
             <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{currentMonthLabel}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
+          <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Neste måned" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
           {readOnly || hideReportTools ? null : (
@@ -1248,7 +1248,7 @@ export default function ArbeidScreen({
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
       {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text> : null}
 
-      <View style={[styles.searchWrap, (isPhone || personal) && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, (isPhone || personal) && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Ionicons name="search" size={16} color={colors.muted} />
         <TextInput
           value={projectQuery}

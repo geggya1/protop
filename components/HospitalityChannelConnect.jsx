@@ -473,7 +473,7 @@ const styles = StyleSheet.create({
   callout: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     padding: 12, borderRadius: radius.md,
-    backgroundColor: colors.brandSoft || '#dbeafe',
+    backgroundColor: colors.brandSoft,
   },
   calloutCompact: {
     padding: 10, borderRadius: radius.md,
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 12, borderRadius: radius.md,
-    backgroundColor: colors.brandSoft || '#dbeafe',
+    backgroundColor: colors.brandSoft,
   },
   syncAllBtnDisabled: { opacity: 0.6 },
   syncAllTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },

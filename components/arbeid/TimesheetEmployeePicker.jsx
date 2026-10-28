@@ -171,7 +171,7 @@ export default function TimesheetEmployeePicker({
           {subtitle ? <Text style={{ color: colors.muted, fontSize: 13 }}>{subtitle}</Text> : null}
         </View>
       )}
-      <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View dataSet={{ focusWithin: '1' }} style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Ionicons name="search" size={16} color={colors.muted} />
         <TextInput
           ref={searchRef}

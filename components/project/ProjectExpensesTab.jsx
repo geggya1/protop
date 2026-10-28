@@ -218,7 +218,13 @@ export default function ProjectExpensesTab({
               </View>
               <View style={styles.td}>
                 {isAdmin ? (
-                  <TouchableOpacity onPress={() => setMenuId(menuId === row.id ? '' : row.id)}>
+                  <TouchableOpacity
+                    onPress={() => setMenuId(menuId === row.id ? '' : row.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Valg for utlegget ${row.description || ''}`.trim()}
+                    accessibilityState={{ expanded: menuId === row.id }}
+                    hitSlop={8}
+                  >
                     <Ionicons name="ellipsis-vertical" size={16} color={colors.muted} />
                   </TouchableOpacity>
                 ) : null}

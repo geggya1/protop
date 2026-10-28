@@ -83,8 +83,8 @@ const styles = StyleSheet.create({
   cardDesk: { left: 20, bottom: 20, width: 380 },
   body: { fontSize: 13, lineHeight: 19, color: colors.ink },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
-  cta: { backgroundColor: colors.brand, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 16 },
-  ctaTxt: { color: '#fff', fontSize: 13 },
+  cta: { backgroundColor: colors.brandInk, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 16 },
+  ctaTxt: { color: colors.onBrand, fontSize: 13 },
   more: { paddingVertical: 6 },
-  moreTxt: { color: colors.brand, fontSize: 13 },
+  moreTxt: { color: colors.brandInk, fontSize: 13 },
 });

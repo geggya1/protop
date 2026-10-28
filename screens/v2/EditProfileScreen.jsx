@@ -719,6 +719,7 @@ export default function EditProfileScreen() {
               );
             })}
           </View>
+          <Text style={[styles.hint, { marginTop: 10, marginBottom: 0 }]}>{t('lang.modulesNorwegian')}</Text>
         </View>
 
         <SectionHeader title={t('tabs.notifications')} />

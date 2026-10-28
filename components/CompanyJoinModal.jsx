@@ -330,9 +330,9 @@ const styles = StyleSheet.create({
   },
   hitName: { fontSize: 15, fontWeight: '400', color: colors.ink },
   codeLink: { alignSelf: 'flex-start', paddingVertical: 6 },
-  codeLinkTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
+  codeLinkTxt: { color: colors.brandInk, fontWeight: '400', fontSize: 13 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: 4 },
-  backTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
+  backTxt: { color: colors.brandInk, fontWeight: '400', fontSize: 13 },
   pickedCard: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -345,10 +345,10 @@ const styles = StyleSheet.create({
   badgeOn: { backgroundColor: colors.brandSoft },
   badgeOff: { backgroundColor: colors.sunken },
   badgeTxt: { fontSize: 12, fontWeight: '400' },
-  badgeOnTxt: { color: colors.brand },
+  badgeOnTxt: { color: colors.brandInk },
   badgeOffTxt: { color: colors.muted },
   primary: {
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     borderRadius: 12,
     minHeight: 46,
     alignItems: 'center',
@@ -356,6 +356,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignSelf: 'flex-start',
   },
-  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
+  primaryTxt: { color: colors.onBrand, fontWeight: '400', fontSize: 15 },
   disabled: { opacity: 0.6 },
 });

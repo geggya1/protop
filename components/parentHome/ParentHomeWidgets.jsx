@@ -911,7 +911,7 @@ export function FamilyDayBanner({
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.bannerDate}>{dateLabel}</Text>
-        <Text style={styles.bannerTitle}>{title || 'Dagens avtaler'}</Text>
+        <Text style={styles.bannerTitle}>{title || 'I dag i kalenderen'}</Text>
         <Text style={styles.bannerSub}>
           {`${eventCount} avtaler · ${taskCount} oppgaver · Alt under kontroll`}
         </Text>

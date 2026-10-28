@@ -391,7 +391,7 @@ export default function ProductCatalog() {
       </View>
 
       <View style={[styles.toolbar, narrow ? { flexDirection: 'column', alignItems: 'stretch' } : null]}>
-        <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }, narrow ? null : { width: 340 }]}>
+        <View dataSet={{ focusWithin: '1' }} style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }, narrow ? null : { width: 340 }]}>
           <Ionicons name="search" size={16} color={colors.muted} />
           <TextInput
             nativeID="produkt-sok"

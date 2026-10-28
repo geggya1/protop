@@ -76,7 +76,7 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
             accessibilityState={{ selected }}
             style={[styles.option, { borderColor: selected ? colors.brand : colors.line, backgroundColor: selected ? colors.brandSoft : colors.card }]}
           >
-            <Text style={{ color: selected ? colors.brand : colors.ink, flex: 1 }}>{option.label}</Text>
+            <Text style={{ color: selected ? colors.brandInk : colors.ink, flex: 1 }}>{option.label}</Text>
             {selected ? <Ionicons name="checkmark" size={18} color={colors.brand} /> : null}
           </TouchableOpacity>
         );
@@ -114,7 +114,7 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
                   accessibilityState={{ selected }}
                   style={[styles.chip, { borderColor: selected ? colors.brand : colors.line, backgroundColor: selected ? colors.brandSoft : colors.card }]}
                 >
-                  <Text style={{ color: selected ? colors.brand : colors.ink }}>{option.label}</Text>
+                  <Text style={{ color: selected ? colors.brandInk : colors.ink }}>{option.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -164,7 +164,7 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
       </ScrollView>
       {labels.length || searching ? (
         <TouchableOpacity onPress={reset} accessibilityRole="button">
-          <Text style={{ color: colors.brand }}>Nullstill</Text>
+          <Text style={{ color: colors.brandInk }}>Nullstill</Text>
         </TouchableOpacity>
       ) : null}
       <TouchableOpacity onPress={() => setOpen(false)} accessibilityRole="button">
@@ -208,7 +208,7 @@ export default function FilterMenu({ groups = [], children = null, marked = fals
         style={[styles.button, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }]}
       >
         <Ionicons name={search && !labels.length ? 'search' : 'funnel-outline'} size={16} color={on ? colors.brand : colors.ink} />
-        <Text style={{ color: on ? colors.brand : colors.ink, flexShrink: 1 }} numberOfLines={1}>{buttonLabel}</Text>
+        <Text style={{ color: on ? colors.brandInk : colors.ink, flexShrink: 1 }} numberOfLines={1}>{buttonLabel}</Text>
       </TouchableOpacity>
       {dialog}
     </>

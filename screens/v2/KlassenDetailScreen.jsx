@@ -864,7 +864,7 @@ function makeStyles(colors, { pad, isDesktop }) {
     },
     tabActive: {
       borderColor: colors.brand,
-      backgroundColor: colors.brandSoft || '#e8eefc',
+      backgroundColor: colors.brandSoft,
     },
     tabTxt: { fontSize: 13, fontWeight: '400', color: colors.muted },
     tabTxtActive: { color: colors.brand },
@@ -930,7 +930,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       paddingVertical: 12,
       marginTop: 8,
     },
-    dangerBtnTxt: { color: colors.danger || '#b91c1c', fontWeight: '400' },
+    dangerBtnTxt: { color: colors.dangerInk, fontWeight: '400' },
     formBox: {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
@@ -953,7 +953,7 @@ function makeStyles(colors, { pad, isDesktop }) {
     rowMeta: { fontSize: 13, color: colors.muted, marginTop: 2 },
     rowContact: { fontSize: 14, color: colors.text, marginTop: 2 },
     muted: { color: colors.muted, fontSize: 14, marginBottom: 8 },
-    error: { color: colors.danger || '#b91c1c', marginBottom: 8 },
+    error: { color: colors.dangerInk, marginBottom: 8 },
     meetingCard: {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
@@ -981,7 +981,7 @@ function makeStyles(colors, { pad, isDesktop }) {
     importCard: {
       borderWidth: 1,
       borderColor: colors.brand,
-      backgroundColor: colors.brandSoft || '#eef4ff',
+      backgroundColor: colors.brandSoft,
       borderRadius: radius.lg,
       padding: 14,
       marginBottom: 16,
@@ -1011,7 +1011,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       padding: 20,
     },
     modalCard: {
-      backgroundColor: colors.bg || '#fff',
+      backgroundColor: colors.bg,
       borderRadius: 16,
       padding: 18,
       maxHeight: '85%',
@@ -1028,6 +1028,6 @@ function makeStyles(colors, { pad, isDesktop }) {
       borderRadius: 10,
       marginBottom: 4,
     },
-    importRowOn: { backgroundColor: colors.brandSoft || '#eef4ff' },
+    importRowOn: { backgroundColor: colors.brandSoft },
   });
 }

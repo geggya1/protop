@@ -111,9 +111,12 @@ import {
 import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
 import { companyDisplayName } from '../src/utils/companyName';
+import ConfirmHost from './ConfirmHost';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
+  // Ikonet beholder merkefargen; teksten bruker brandInk så den kan leses.
+  const labelColor = active ? colors.brandInk : colors.muted;
   const icon = (
     <IconBadge count={badgeCount} size={desktop ? 15 : 16} offset={desktop ? -6 : -7}>
       <Ionicons name={active ? tab.icon : `${tab.icon}-outline`} size={desktop ? 20 : 24} color={color} />
@@ -134,7 +137,7 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
         {...(Platform.OS === 'web' ? { dataSet: { wpNav: '1', wpNavActive: active ? '1' : '0' } } : null)}
       >
         {icon}
-        <Text style={[styles.railRowLabel, { color }]} numberOfLines={1}>{tab.label}</Text>
+        <Text style={[styles.railRowLabel, { color: labelColor }]} numberOfLines={1}>{tab.label}</Text>
       </TouchableOpacity>
     );
   }
@@ -150,8 +153,28 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
       nativeID={`module-nav-${tab.id}`}
     >
       {icon}
-      <Text style={[styles.tabLabel, { color }]} numberOfLines={1}>{tab.label}</Text>
+      <Text style={[styles.tabLabel, { color: labelColor }]} numberOfLines={1}>{tab.label}</Text>
     </TouchableOpacity>
+  );
+}
+
+/**
+ * Hopp-lenke på web (WCAG 2.4.1): første Tab-stopp på siden, synlig bare med fokus.
+ * Flytter fokus til hovedinnholdet uten å endre adressen (navigasjonen leser stien).
+ */
+function SkipToContent() {
+  if (Platform.OS !== 'web') return null;
+  const jump = (event) => {
+    event.preventDefault();
+    const main = typeof document !== 'undefined' ? document.getElementById('shell-scroll') : null;
+    if (!main) return;
+    if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+    main.focus({ preventScroll: false });
+  };
+  return (
+    <a href="#shell-scroll" className="wp-skip-link" onClick={jump}>
+      Hopp til innholdet
+    </a>
   );
 }
 
@@ -1008,13 +1031,17 @@ function AppShellInner() {
     <ShellPageHeroContext.Provider value={shellPageHeroApi}>
     <View style={[styles.safe, { backgroundColor: immersiveHome ? '#1a2430' : colors.bg }]}>
       <UsageRecorder companyId={familyId} tab={tab} subView={moreSubView} />
+      <SkipToContent />
       {immersiveHome ? (
         <HomeBackdrop bannerId={backdropBannerId} customUri={backdropCustomUri} />
       ) : null}
       <SafeAreaView edges={safeEdges} style={[styles.safe, styles.shellAboveBackdrop]}>
       <View style={[styles.wrap, hasRail && !kitchenMode && styles.wrapRow, immersiveHome && styles.immersiveLayer]}>
         {hasRail && !kitchenMode && (
-          <View style={[
+          <View
+            role="navigation"
+            aria-label="Hovedmeny"
+            style={[
             styles.rail,
             {
               width: isDesktop ? (railCollapsed ? 52 : railWidth) : railWidth,
@@ -1073,7 +1100,7 @@ function AppShellInner() {
                     <IconBadge count={countForModule(unreadByModule, 'more')} size={15} offset={-6}>
                       <Ionicons name="grid-outline" size={18} color={colors.brand} />
                     </IconBadge>
-                    <Text style={[styles.railToolsTxt, { color: colors.brand }]}>Mer</Text>
+                    <Text style={[styles.railToolsTxt, { color: colors.brandInk }]}>Mer</Text>
                   </TouchableOpacity>
                 )}
               </HelpTarget>
@@ -1135,6 +1162,7 @@ function AppShellInner() {
           ) : null}
           <View
             nativeID="shell-scroll"
+            role="main"
             style={[
             styles.contentArea,
             !isDesktop && styles.contentClip,
@@ -1202,6 +1230,8 @@ function AppShellInner() {
           glass={immersiveHome}
         />
       </View>
+
+      <ConfirmHost />
 
       {!simpleChildUi && !kitchenMode && (
         <ShellDrawer

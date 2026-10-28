@@ -4,6 +4,7 @@ import { useColors } from '../src/context/ThemeContext';
 
 /**
  * Vannrett meny inne i en modul (se src/navigation/moduleTabs.js).
+ * Aktiv fane har brandInk-tekst (kontrast 4,5:1); streken under bruker merkefargen.
  * Én rad med faner. Har modulen deler (ISO), velger første rad del og andre rad side.
  * Raden ruller sidelengs på smale skjermer, og aktiv fane rulles fram.
  */
@@ -50,7 +51,7 @@ function TabRow({ items, activeId, onPress, variant = 'tab', label }) {
           >
             <Text
               numberOfLines={1}
-              style={[pill ? styles.pillText : styles.tabText, { color: on ? colors.brand : (pill ? colors.ink : colors.muted), fontWeight: on ? '600' : '400' }]}
+              style={[pill ? styles.pillText : styles.tabText, { color: on ? colors.brandInk : (pill ? colors.ink : colors.muted), fontWeight: on ? '600' : '400' }]}
             >
               {item.label}
             </Text>

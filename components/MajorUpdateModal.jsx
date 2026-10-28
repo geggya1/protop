@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
     borderRadius: 12,
-    backgroundColor: colors.bg || '#f1f5f9',
+    backgroundColor: colors.bg,
   },
   secondaryTxt: {
     fontSize: 14,

@@ -82,7 +82,7 @@ export default function BrandBusyOverlay({
 
           <Text style={[styles.caption, { color: NAVY }]}>{label}</Text>
           {!!detail && !hasMeter ? (
-            <Text style={[styles.detail, { color: colors.muted || '#5b6b82' }]}>{detail}</Text>
+            <Text style={[styles.detail, { color: colors.muted }]}>{detail}</Text>
           ) : null}
 
           {hasMeter ? (

@@ -118,7 +118,7 @@ const t = (k) => LABELS[k] || k;
 
 {
   assert.equal(resolveShellHeaderTitle({ tab: 'home', t }), 'Hjem');
-  assert.equal(resolveShellHeaderTitle({ tab: 'selskap', t }), 'Selskap');
+  assert.equal(resolveShellHeaderTitle({ tab: 'selskap', t }), 'Bedriften');
   assert.equal(resolveShellHeaderTitle({ tab: 'selskap', moreSubView: 'underenheter', t }), 'Underenheter');
   assert.equal(resolveShellHeaderTitle({ tab: 'selskap', moreSubView: 'tilgang', t }), 'Tilgangsstyring');
   assert.equal(resolveShellHeaderTitle({ tab: 'underenheter', t }), 'Underenheter');
@@ -132,7 +132,7 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'avrop', t }), 'Anbud');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'pipeline', t }), '3. Tilbud');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'innstillinger', t }), 'Innstillinger');
-  assert.equal(resolveShellHeaderTitle({ tab: 'kontrakt', t }), 'Kontrakt / avtale');
+  assert.equal(resolveShellHeaderTitle({ tab: 'kontrakt', t }), 'Kontrakter');
   assert.equal(resolveShellHeaderTitle({ tab: 'kunder', t }), 'Kunder');
   assert.equal(resolveShellHeaderTitle({ tab: 'utstyr', t }), 'Utstyr');
   assert.equal(resolveShellHeaderTitle({ tab: 'ansatte', t }), 'Ansatte og eksterne');
@@ -142,7 +142,7 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'avtaler', t }), 'Avtalesummer');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'faktura', t }), 'Faktura');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'indeks', t }), 'Indeksregulering');
-  assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', t }), 'Timer / arbeid per ansatt');
+  assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', t }), 'Timer');
   assert.equal(resolveShellHeaderTitle({ tab: 'timeliste', t }), 'Timeliste');
   assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', moreSubView: 'timeliste', t }), 'Timeliste');
   assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', moreSubView: 'timerapport', t }), 'Timerapport');

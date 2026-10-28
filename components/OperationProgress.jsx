@@ -30,26 +30,26 @@ export default function OperationProgress({
     : (status === 'running' ? null : 100);
 
   const tone = status === 'success'
-    ? (colors.success || '#16a34a')
+    ? colors.success
     : status === 'error'
-      ? (colors.danger || '#b42318')
+      ? colors.dangerInk
       : status === 'partial'
         ? AMBER
-        : (colors.brand || '#1099F4');
+        : colors.brand;
 
   const trackBg = status === 'success'
-    ? (colors.successSoft || '#e4f5ea')
+    ? colors.successSoft
     : status === 'error'
       ? 'rgba(220, 38, 38, 0.12)'
       : status === 'partial'
         ? 'rgba(154, 103, 0, 0.12)'
-        : (colors.brandSoft || '#E5F6FE');
+        : colors.brandSoft;
 
   const border = status === 'error'
-    ? (colors.danger || '#b42318')
+    ? colors.dangerInk
     : status === 'partial'
       ? AMBER
-      : (colors.line || '#e2e8f0');
+      : colors.line;
 
   const title = label
     || (safeTotal > 0

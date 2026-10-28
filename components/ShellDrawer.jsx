@@ -100,11 +100,11 @@ function DrawerRow({
           highlight && styles.iconWrapHighlight,
         ]}
         >
-          <IconBadge count={badgeCount} size={14} offset={-6} borderColor={highlight ? colors.brand : '#fff'}>
+          <IconBadge count={badgeCount} size={14} offset={-6} borderColor={highlight ? colors.brandInk : '#fff'}>
             <Ionicons
               name={iconName}
               size={16}
-              color={highlight ? '#fff' : active ? colors.brand : colors.ink}
+              color={highlight ? colors.onBrand : active ? colors.brand : colors.ink}
             />
           </IconBadge>
         </View>
@@ -136,7 +136,7 @@ function DrawerRow({
           <Ionicons
             name={expanded ? 'chevron-down' : 'chevron-forward'}
             size={18}
-            color={highlight ? '#fff' : active ? colors.brand : colors.ink}
+            color={highlight ? colors.onBrand : active ? colors.brand : colors.ink}
           />
         </TouchableOpacity>
       ) : null}
@@ -669,11 +669,11 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     paddingHorizontal: 5,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sectionBadgeTxt: { color: '#fff', fontSize: 10, fontWeight: '400' },
+  sectionBadgeTxt: { color: colors.onBrand, fontSize: 10, fontWeight: '400' },
   sectionTitle: {
     fontSize: 12, fontWeight: '400', color: colors.muted,
     textTransform: 'uppercase', letterSpacing: 0.4,
@@ -718,7 +718,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.ink,
   },
-  groupTitleActive: { color: colors.brand },
+  groupTitleActive: { color: colors.brandInk },
   groupBody: { paddingLeft: 10, paddingTop: 2, gap: 1 },
   groupBodyProcess: { paddingLeft: 12 },
   processRail: {
@@ -767,7 +767,7 @@ const styles = StyleSheet.create({
   rowLocked: { opacity: 0.75, cursor: 'not-allowed' },
   lockedText: { flex: 1, minWidth: 0 },
   lockedNote: { fontSize: 11, lineHeight: 14, marginTop: 1 },
-  rowHighlight: { backgroundColor: colors.brand },
+  rowHighlight: { backgroundColor: colors.brandInk },
   iconWrap: {
     width: 26, height: 26, borderRadius: 7,
     backgroundColor: colors.bg,
@@ -777,6 +777,6 @@ const styles = StyleSheet.create({
   iconWrapActive: { backgroundColor: colors.card },
   iconWrapHighlight: { backgroundColor: 'rgba(255,255,255,0.2)' },
   rowLabel: { flex: 1, fontSize: 13, fontWeight: '400', color: colors.ink },
-  rowLabelActive: { color: colors.brand },
-  rowLabelHighlight: { color: '#fff' },
+  rowLabelActive: { color: colors.brandInk },
+  rowLabelHighlight: { color: colors.onBrand },
 });

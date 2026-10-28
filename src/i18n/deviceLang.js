@@ -1,13 +1,13 @@
-import { LANG_IDS } from './langs.js';
+import { activeLanguage } from './langs.js';
 
-/** Map a BCP 47 tag to a ProTop language. Unknown tags fall back to English. */
+/**
+ * Map a BCP 47 tag to a ProTop language. Skallet er låst til norsk og engelsk (UX-08):
+ * norsk, dansk og svensk gir norsk, alt annet engelsk.
+ */
 export function mapLanguageCode(tag) {
   const raw = String(tag || '').trim().toLowerCase().replace(/_/g, '-');
   if (!raw) return 'nb';
-  const primary = raw.split('-')[0];
-  if (primary === 'no' || primary === 'nb' || primary === 'nn') return 'nb';
-  if (LANG_IDS.includes(primary)) return primary;
-  return 'en';
+  return activeLanguage(raw.split('-')[0]);
 }
 
 /** Device language tag. Safe when expo-localization is unavailable (tests, web). */

@@ -4,8 +4,19 @@
  *
  * Kolonne: { key, label, width, flex?, kind?: 'text'|'number'|'money'|'date',
  *   value?(row), text?(row), exportValue?(row), filter?: false, sortable?: false,
- *   export?: false, defaultVisible?: false, align?: 'right', strong?: true }
+ *   export?: false, defaultVisible?: false, align?: 'right', strong?: true,
+ *   phone?: 'title'|'meta'|'amount'|'badge'|false }
+ *
+ * På telefon blir hver rad et kort (UX-24): tittel, to meta-linjer, beløp og
+ * statusmerke. phone på kolonnen styrer plassen; uten den velges den automatisk.
  */
+
+/** Telefonbredde, samme grense som BREAKPOINTS.tablet i src/theme.js. */
+export const REPORT_PHONE_MAX_WIDTH = 767;
+
+export function isPhoneWidth(width) {
+  return Number(width) > 0 && Number(width) <= REPORT_PHONE_MAX_WIDTH;
+}
 
 export function foldReportText(value) {
   return String(value ?? '')
@@ -165,3 +176,34 @@ export function reportTotals(rows, columns) {
 export function reportPrefsKey(name, uid) {
   return `protop.report.${name}.columns.v1.${uid || 'anon'}`;
 }
+
+/**
+ * Hvilke kolonner som vises hvor på telefonkortet.
+ * title: kolonne med phone 'title', ellers første tekstkolonne.
+ * amount: phone 'amount', ellers første beløpskolonne. badge: phone 'badge'.
+ * meta: phone 'meta' i rekkefølge, ellers resten; to per linje, høyst to linjer.
+ */
+export function phoneLayout(columns) {
+  const list = (columns || []).filter((col) => col && col.phone !== false);
+  const pick = (role) => list.find((col) => col.phone === role) || null;
+  const title = pick('title')
+    || list.find((col) => !col.kind || col.kind === 'text')
+    || list[0]
+    || null;
+  const amount = pick('amount') || list.find((col) => col !== title && col.kind === 'money') || null;
+  const badge = pick('badge');
+  const used = new Set([title, amount, badge].filter(Boolean));
+  const marked = list.filter((col) => col.phone === 'meta');
+  const rest = (marked.length ? marked : list).filter((col) => !used.has(col)).slice(0, 4);
+  const meta = [];
+  for (let i = 0; i < rest.length; i += 2) meta.push(rest.slice(i, i + 2));
+  return { title, meta, amount, badge };
+}
+
+/** Meta-linjene på kortet som tekst: «03.10.2026 · Ola Nordmann». Tomme felt hoppes over. */
+export function phoneMetaLines(row, layout) {
+  return (layout?.meta || [])
+    .map((group) => group.map((col) => columnText(row, col)).filter((value) => String(value || '').trim()).join(' · '))
+    .filter(Boolean);
+}
+

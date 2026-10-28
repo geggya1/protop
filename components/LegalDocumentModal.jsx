@@ -59,10 +59,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     backgroundColor: colors.brandSoft, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999,
   },
-  closeTxt: { fontWeight: '400', color: colors.brand },
+  closeTxt: { fontWeight: '400', color: colors.brandInk },
   body: { padding: 16, gap: 16, paddingBottom: 32 },
   section: { backgroundColor: colors.card, borderRadius: radius.md, padding: 14, gap: 8 },
-  h: { fontWeight: '400', fontSize: 17, color: colors.brand },
+  h: { fontWeight: '400', fontSize: 17, color: colors.brandInk },
   sub: { fontWeight: '600', fontSize: 14, lineHeight: 21, color: colors.ink, marginTop: 4 },
   p: { fontSize: 14, lineHeight: 21, color: colors.ink },
 });

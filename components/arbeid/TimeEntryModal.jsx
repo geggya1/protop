@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,17 +11,21 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
-import { formatHours, parseHours } from '../../src/arbeid/hours.js';
+import DateField from '../DateField';
+import { parseHours } from '../../src/arbeid/hours.js';
 import { TIME_TYPES } from '../../src/arbeid/overtime.js';
 import { timeEntryHistoryLines } from '../../src/arbeid/timeEntryHistory.js';
+import { hoursInputText } from '../../src/format/nb.js';
+import { dateKey as toDateKey } from '../../src/utils/dates';
 
-const QUICK = ['0:30', '1:00', '2:00', '4:00', '7:30', '8:00'];
+// Timer skrives som desimaltall («7,5»), som telefonens talltastatur kan skrive (UX-14).
+const QUICK = ['0,5', '1', '2', '4', '7,5', '8'];
 
 function blankBlock(activities, seed) {
   return {
     key: seed?.id || `new-${Math.random().toString(36).slice(2, 7)}`,
     id: seed?.id || '',
-    hours: formatHours(seed?.hours || 0),
+    hours: hoursInputText(seed?.hours || 0),
     description: seed?.description || '',
     internalNote: seed?.internalNote || '',
     activityId: seed?.activityId || activities[0]?.id || '',
@@ -187,16 +190,19 @@ export default function TimeEntryModal({
                       <TextInput
                         value={block.hours}
                         onChangeText={(hours) => patchBlock(block.key, { hours })}
-                        placeholder="0:00"
+                        accessibilityLabel="Timer"
+                        placeholder="7,5"
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
-                        keyboardType={Platform.OS === 'web' ? 'default' : 'decimal-pad'}
+                        keyboardType="decimal-pad"
+                        inputMode="decimal"
                         style={[styles.hours, { color: colors.ink, borderColor: colors.line }]}
                       />
                       <TextInput
                         value={block.description}
                         onChangeText={(description) => patchBlock(block.key, { description })}
-                        placeholder="Eksternt notat - synlig for kunde"
+                        accessibilityLabel="Eksternt notat, synlig for kunde"
+                        placeholder="Eksternt notat – synlig for kunde"
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
                         multiline
@@ -216,7 +222,8 @@ export default function TimeEntryModal({
                       <TextInput
                         value={block.internalNote}
                         onChangeText={(internalNote) => patchBlock(block.key, { internalNote })}
-                        placeholder="Internt notat — kun synlig internt"
+                        accessibilityLabel="Internt notat, bare synlig internt"
+                        placeholder="Internt notat – bare synlig internt"
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
                         multiline
@@ -228,6 +235,7 @@ export default function TimeEntryModal({
                         <TextInput
                           value={block.clockIn}
                           onChangeText={(clockIn) => patchBlock(block.key, { clockIn })}
+                          accessibilityLabel="Kom, klokkeslett"
                           placeholder="Kom 08:00"
                           placeholderTextColor={colors.placeholder}
                           style={[styles.clock, { color: colors.ink, borderColor: colors.line }]}
@@ -235,6 +243,7 @@ export default function TimeEntryModal({
                         <TextInput
                           value={block.clockOut}
                           onChangeText={(clockOut) => patchBlock(block.key, { clockOut })}
+                          accessibilityLabel="Gå, klokkeslett"
                           placeholder="Gå 16:00"
                           placeholderTextColor={colors.placeholder}
                           style={[styles.clock, { color: colors.ink, borderColor: colors.line }]}
@@ -244,6 +253,9 @@ export default function TimeEntryModal({
                     <TouchableOpacity
                       onPress={() => setActivityOpen((current) => (current === block.key ? '' : block.key))}
                       disabled={readOnly}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Aktivitet: ${activityName}`}
+                      accessibilityState={{ expanded: activityOpen === block.key, disabled: !!readOnly }}
                       style={[styles.activity, { borderColor: colors.line }]}
                     >
                       <Text style={{ color: colors.ink, flex: 1 }}>{activityName}</Text>
@@ -276,13 +288,15 @@ export default function TimeEntryModal({
               {showMove && !readOnly ? (
                 <View style={[styles.move, { borderColor: colors.line }]}>
                   <Text style={{ color: colors.ink, fontWeight: '600', marginBottom: 6 }}>Flytt til annen dag/prosjekt</Text>
-                  <TextInput
-                    value={moveDate}
-                    onChangeText={setMoveDate}
-                    placeholder="ÅÅÅÅ-MM-DD"
-                    placeholderTextColor={colors.placeholder}
-                    style={[styles.clock, { color: colors.ink, borderColor: colors.line, marginBottom: 8 }]}
-                  />
+                  <View style={[styles.moveDate, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="time-entry-move-date">
+                    <DateField
+                      value={moveDate || null}
+                      placeholder="Velg dag"
+                      onChange={(day) => setMoveDate(day ? toDateKey(day) : '')}
+                      textStyle={{ color: moveDate ? colors.ink : colors.placeholder }}
+                      iconColor={colors.brand}
+                    />
+                  </View>
                   <ScrollView style={{ maxHeight: 140 }}>
                     {projects.map((row) => (
                       <TouchableOpacity key={row.id} onPress={() => setMoveProjectId(row.id)} style={styles.activityItem}>
@@ -424,6 +438,7 @@ const styles = StyleSheet.create({
   quick: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: '#fff' },
   clockRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   clock: { flex: 1, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: '#fff' },
+  moveDate: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 8 },
   menu: {
     position: 'absolute',
     top: 36,

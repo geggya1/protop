@@ -13,6 +13,8 @@ import {
   registrationLevels,
 } from '../../src/employees/register';
 import { PHONE_COUNTRIES, parsePhoneInput } from '../../src/utils/phone';
+import { dateKey } from '../../src/utils/dates';
+import DateField from '../../components/DateField';
 
 const LANGUAGE_IDS = {
   'Norsk bokmål': 'nb',
@@ -223,6 +225,8 @@ export default function RegisterEmployeeDialog({
             <Field colors={colors} label="E-post">
               <TextInput
                 nativeID="employee-register-email"
+                accessibilityLabel="E-post"
+                autoComplete="email"
                 value={email}
                 onChangeText={(value) => { setEmail(value); setFormError(''); }}
                 autoCapitalize="none"
@@ -267,6 +271,7 @@ export default function RegisterEmployeeDialog({
                 <Field colors={colors} label="Fornavn">
                   <TextInput
                     nativeID="employee-register-first"
+                    accessibilityLabel="Fornavn"
                     value={firstName}
                     onChangeText={setFirstName}
                     placeholder="Fornavn"
@@ -277,6 +282,7 @@ export default function RegisterEmployeeDialog({
                 <Field colors={colors} label="Etternavn">
                   <TextInput
                     nativeID="employee-register-last"
+                    accessibilityLabel="Etternavn"
                     value={lastName}
                     onChangeText={setLastName}
                     placeholder="Etternavn"
@@ -303,6 +309,7 @@ export default function RegisterEmployeeDialog({
                     </View>
                     <TextInput
                       nativeID="employee-register-phone"
+                      accessibilityLabel="Mobiltelefon"
                       value={national}
                       onChangeText={setNational}
                       keyboardType="phone-pad"
@@ -330,6 +337,7 @@ export default function RegisterEmployeeDialog({
                 <Field colors={colors} label="Eksternt ansattnummer">
                   <TextInput
                     nativeID="employee-register-number"
+                    accessibilityLabel="Eksternt ansattnummer"
                     value={externalNumber}
                     onChangeText={setExternalNumber}
                     placeholderTextColor={colors.placeholder}
@@ -426,14 +434,16 @@ export default function RegisterEmployeeDialog({
                   />
                 </Field>
                 <Field colors={colors} label="Ansatt siden">
-                  <TextInput
-                    nativeID="employee-register-since"
-                    value={periodFrom}
-                    onChangeText={setPeriodFrom}
-                    placeholder="dd.mm.åååå"
-                    placeholderTextColor={colors.placeholder}
-                    style={inputStyle}
-                  />
+                  {/* Datovelger i stedet for fritekst (UX-14). Lagres som ISO-dato, som registreringen leser. */}
+                  <View nativeID="employee-register-since" style={[inputStyle, styles.dateBox]}>
+                    <DateField
+                      value={periodFrom || null}
+                      placeholder="Velg dato"
+                      onChange={(day) => setPeriodFrom(day ? dateKey(day) : '')}
+                      textStyle={{ color: periodFrom ? colors.ink : colors.placeholder }}
+                      iconColor={colors.brand}
+                    />
+                  </View>
                 </Field>
                 <Field colors={colors} label="">
                 <TouchableOpacity
@@ -510,6 +520,7 @@ const styles = StyleSheet.create({
   label: { width: 148, paddingTop: 10, fontSize: 14 },
   control: { flexGrow: 1, flexBasis: 220, minWidth: 180 },
   input: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15 },
+  dateBox: { paddingVertical: 2, justifyContent: 'center' },
   phoneRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
   dial: { width: 118 },
   phoneInput: { flex: 1 },

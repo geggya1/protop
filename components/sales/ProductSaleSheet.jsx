@@ -327,7 +327,7 @@ function SaleEditForm({ sale, colors, narrow, projects, customers, employees, bu
           {preview.priceChanged ? ' Beløpet regnes ut på nytt fra antall, pris og rabatt.' : ''}
         </Text>
       ) : null}
-      {localError || error ? <Text style={{ color: colors.danger || '#b42318' }}>{localError || error}</Text> : null}
+      {localError || error ? <Text style={{ color: (colors.dangerInk || colors.danger) }}>{localError || error}</Text> : null}
       <View style={ui.actions}>
         <Btn label={busy ? 'Lagrer…' : submitLabel} icon="checkmark" primary onPress={submit} disabled={busy} colors={colors} nativeID="produktsalg-rediger-lagre" />
         <Btn label="Avbryt" onPress={onCancel} disabled={busy} colors={colors} />
@@ -458,7 +458,7 @@ export default function ProductSaleSheet({
             ) : (
               <>
                 <SaleFacts sale={sale} colors={colors} onOpenProject={onOpenProject} onOpenInvoice={onOpenInvoice} />
-                {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+                {error ? <Text style={{ color: (colors.dangerInk || colors.danger) }}>{error}</Text> : null}
                 {!locked && (canEdit || canDelete) ? (
                   <View style={ui.actions}>
                     {canEdit ? (

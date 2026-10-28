@@ -15,7 +15,7 @@ import { PRICING_VISIBLE } from '../utils/billingMethods.js';
 /**
  * Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet
  * frem til tilbudet. Når tilbudsarbeidet er ferdig, er neste ledd
- * Kontrakt / avtale i bedriftsmenyen, ikke et fjerde steg under Anbud.
+ * Kontrakter i bedriftsmenyen, ikke et fjerde steg under Anbud.
  */
 export const ANBUD_MENU = [
   { id: 'varsling', icon: 'notifications', label: '1.1 Anbudsvarsling' },
@@ -43,7 +43,7 @@ export function anbudMenuTitle(subView) {
 /**
  * Moduler som hører til bedriften. Nye bedriftsmoduler legges her,
  * ikke blant de personlige punktene i Personlig.
- * Anbud har egen undermeny. Kunder og Kontrakt / avtale er fulle registre
+ * Anbud har egen undermeny. Kunder og Kontrakter er fulle registre
  * i bedriftsmenyen; under Økonomi finnes tilsvarende punkter med økonomisk utsnitt.
  * Ansatte er et eget register: ansettelsen følger selskapet, CV-en følger personen.
  * Hamburgermeny og desktop-rail viser punktene i COMPANY_DRAWER_GROUPS.
@@ -53,10 +53,11 @@ export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
   if (subView === 'moduler') return 'Modulinnstillinger';
   if (subView === 'tilgang') return 'Tilgangsstyring';
-  if (subView === 'innstillinger') return 'Selskapsinnstillinger';
+  if (subView === 'innstillinger') return 'Bedriftsinnstillinger';
   if (subView === 'fravaerstyper' || subView === 'fridager') return 'Fraværsinnstillinger';
   if (subView === 'kontoplan' || subView === 'regnskapskontoer') return 'Økonomiinnstillinger';
-  return 'Selskap';
+  // «Bedrift» i alt brukeren ser; «selskap» bare i juridisk sammenheng (UX-10).
+  return 'Bedriften';
 }
 
 /**
@@ -103,7 +104,7 @@ export function arbeidMenuTitle(subView) {
   if (subView === 'utlegg') return 'Prosjektutlegg';
   if (subView === 'salg') return 'Produktsalg';
   const row = ARBEID_MENU.find((item) => item.id === subView);
-  return row?.label || 'Timer / arbeid per ansatt';
+  return row?.label || 'Timer';
 }
 
 export const FRAVAER_MENU = [
@@ -128,7 +129,7 @@ export const PRODUKT_MENU = [
  * Sider under Økonomi og fakturering.
  * Inntjening (med kunde-, prosjekt- og avtalesummer) ligger under Produktivitet og
  * inntjening i bedriftsmenyen. Siden åpnes fortsatt via økonomi-fanen.
- * Fulle registre ligger som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
+ * Fulle registre ligger som egne punkter (Kunder, Kontrakter) i bedriftsmenyen.
  * I hamburgermeny og desktop-rail løftes sidene rett under gruppen, så
  * «Økonomi» ikke blir et ekstra nivå mellom gruppen og sidene.
  * Timerapport ligger under Arbeid. Produktkatalog ligger under Produkt.
@@ -298,7 +299,7 @@ function arbeidNavItem() {
   return {
     id: 'arbeid',
     icon: 'time',
-    label: 'Timer / arbeid per ansatt',
+    label: 'Timer',
     action: { type: 'tab', tab: 'arbeid', subView: 'timeliste' },
     children: ARBEID_MENU.map((item) => ({
       id: `arbeid-${item.id}`,
@@ -342,7 +343,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     {
       id: 'selskap',
       icon: 'business',
-      label: 'Selskap',
+      label: 'Bedriften',
       action: { type: 'tab', tab: 'selskap' },
     },
   ];
@@ -358,7 +359,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     {
       id: 'selskapsinnstillinger',
       icon: 'settings-outline',
-      label: 'Selskapsinnstillinger',
+      label: 'Bedriftsinnstillinger',
       action: { type: 'tab', tab: 'selskap', subView: 'innstillinger' },
       activeSubViews: ['innstillinger', 'moduler', 'tilgang'],
       children: [
@@ -414,7 +415,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
         },
       ],
     },
-    { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
+    { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakter', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
     {
       id: 'produkt',
@@ -516,7 +517,7 @@ export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView
 export const COMPANY_DRAWER_GROUPS = [
   {
     id: 'company-org',
-    label: 'Selskap og organisasjon',
+    label: 'Bedrift og organisasjon',
     icon: 'business',
     itemIds: ['selskap', 'underenheter', 'selskapsinnstillinger'],
   },

@@ -99,7 +99,7 @@ function idsIn(sections) {
       'okonomi-inntjening', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
     ],
   );
-  assert.equal(companyItems[0].label, 'Selskap');
+  assert.equal(companyItems[0].label, 'Bedriften');
   assert.equal(companyItems[0].action.tab, 'selskap');
   assert.equal(companyItems[0].children, undefined);
   assert.equal(companyItems[0].forceOpen, undefined);
@@ -131,7 +131,7 @@ function idsIn(sections) {
   assert.ok(withUnitIds.indexOf('selskap') < withUnitIds.indexOf('underenheter'));
   assert.ok(withUnitIds.indexOf('underenheter') < withUnitIds.indexOf('selskapsinnstillinger'));
   const settings = companyItems.find((i) => i.id === 'selskapsinnstillinger');
-  assert.equal(settings.label, 'Selskapsinnstillinger');
+  assert.equal(settings.label, 'Bedriftsinnstillinger');
   assert.equal(settings.action.subView, 'innstillinger');
   assert.deepEqual(
     settings.children.map((i) => i.label),
@@ -151,7 +151,7 @@ function idsIn(sections) {
     'innstillinger',
   );
   assert.equal(companyItems.find((i) => i.id === 'kunder').action.tab, 'kunder');
-  assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
+  assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakter');
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').action.tab, 'kontrakt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
@@ -681,7 +681,7 @@ function collectPresented(items, acc = []) {
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.label),
     [
-      'Selskap og organisasjon',
+      'Bedrift og organisasjon',
       'Ansatte og arbeidstid',
       'Kvalitet og styringssystem',
       'Produktivitet og inntjening',

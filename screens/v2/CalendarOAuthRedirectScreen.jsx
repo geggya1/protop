@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: colors.bg || '#f8fafc',
+    backgroundColor: colors.bg,
   },
   title: {
     marginTop: 16,

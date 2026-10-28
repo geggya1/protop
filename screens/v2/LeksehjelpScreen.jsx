@@ -851,9 +851,9 @@ export default function LeksehjelpScreen() {
                     <Ionicons
                       name={fasitReady ? 'eye-outline' : 'lock-closed-outline'}
                       size={18}
-                      color={colors.warn || '#d97706'}
+                      color={colors.warn}
                     />
-                    <Text style={[stylesDyn.actionTxt, { color: colors.warn || '#d97706' }]}>
+                    <Text style={[stylesDyn.actionTxt, { color: colors.warnInk }]}>
                       {fasitReady ? 'Fasit' : 'Fasit (lås)'}
                     </Text>
                   </TouchableOpacity>
@@ -976,7 +976,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     },
     masteryLinkTxt: { fontWeight: '400', fontSize: 13, color: colors.brand, flex: 1 },
     helpAside: {
-      backgroundColor: colors.successSoft || '#ecfdf5',
+      backgroundColor: colors.successSoft,
       borderRadius: radius.md,
       padding: 16,
       gap: 12,
@@ -1108,7 +1108,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.line,
-      backgroundColor: colors.card || '#fff',
+      backgroundColor: colors.card,
       marginBottom: 6,
     },
     missionIcon: {

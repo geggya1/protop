@@ -24,7 +24,7 @@ export default function ShellAddButton({ label, onPress, accessibilityLabel }) {
         accessibilityLabel={accessibilityLabel || label || 'Legg til'}
         accessibilityRole="button"
       >
-        <Ionicons name="add" size={iconOnly ? (isDesktop ? 20 : 22) : (isDesktop ? 15 : 16)} color="#fff" />
+        <Ionicons name="add" size={iconOnly ? (isDesktop ? 20 : 22) : (isDesktop ? 15 : 16)} color={colors.onBrand} />
         {label ? (
           <Text style={[styles.txt, isDesktop && styles.txtDesk]} numberOfLines={1}>{label}</Text>
         ) : null}
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     borderRadius: 12,
     paddingHorizontal: 10,
     height: 40,
@@ -66,6 +66,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     maxWidth: 32,
   },
-  txt: { color: '#fff', fontWeight: '500', fontSize: 13, flexShrink: 1 },
+  txt: { color: colors.onBrand, fontWeight: '500', fontSize: 13, flexShrink: 1 },
   txtDesk: { fontWeight: '500', fontSize: 13 },
 });

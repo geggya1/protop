@@ -136,7 +136,7 @@ try {
     await openCase(E);
     await E.page.getByRole('radio', { name: 'Middels' }).first().click();
     await pickPerson(E, 'Per Prosjektleder');
-    await E.click('Lagre triage');
+    await E.click('Lagre første vurdering');
     await sleep(3000);
     await E.page.getByRole('radio', { name: 'Ja' }).first().click();
     await E.click('Lagre beslutning');

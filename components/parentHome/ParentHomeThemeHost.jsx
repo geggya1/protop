@@ -15,6 +15,7 @@ import { homeSceneTitle, homeSceneTagline, HOME_SCENE_SUBTITLE } from '../../src
 import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
 import WidgetBoard from '../home/WidgetBoard';
 import CompanyOfferCard from '../home/CompanyOfferCard';
+import CompanyStartChecklist from '../home/CompanyStartChecklist';
 
 /**
  * Fixed parent home — same tidy widget layout for every login.
@@ -121,7 +122,12 @@ export default function ParentHomeThemeHost({
           onCycleSize={home.cycleSize}
           onResetWidgets={home.resetWidgets}
           onDraggingChange={setDragging}
-          topSlot={<CompanyOfferCard style={styles.startCard} />}
+          topSlot={(
+            <>
+              <CompanyOfferCard style={styles.startCard} />
+              <CompanyStartChecklist style={styles.startCard} />
+            </>
+          )}
         />
       </ScrollView>
     </View>

@@ -453,6 +453,15 @@ export async function loadOpenChainEntries(companyId) {
   return withoutDeletedTimeEntries(id, rowsFromDocs([...locked.docs, ...approved.docs]));
 }
 
+/** Om bedriften har ført minst én time (for «Kom i gang»). Leser bare ett dokument. */
+export async function hasTimeEntries(companyId) {
+  const id = text(companyId);
+  if (!id) return false;
+  const [{ limit }, bits] = await Promise.all([import('firebase/firestore'), firestoreBits()]);
+  const snap = await bits.getDocs(bits.query(entriesCol(bits, id), limit(1)));
+  return !snap.empty;
+}
+
 export async function removeTimeEntry(companyId, entryId) {
   const id = text(entryId);
   if (!companyId || !id) return;

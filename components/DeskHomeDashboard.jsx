@@ -18,6 +18,7 @@ import { roundTemp } from '../src/utils/weather';
 import WeatherPeriodsView from './WeatherPeriodsView';
 import LiveHomeWidgets from './LiveHomeWidgets';
 import CompanyOfferCard from './home/CompanyOfferCard';
+import CompanyStartChecklist from './home/CompanyStartChecklist';
 import { isDoneOn } from '../src/utils/todos';
 import { addDays, dateKey } from '../src/utils/dates';
 import {
@@ -217,6 +218,7 @@ export default function DeskHomeDashboard({
       </View>
 
       <CompanyOfferCard style={styles.startCard} />
+      <CompanyStartChecklist />
 
       <View style={styles.main}>
         <View style={styles.agendaCol}>

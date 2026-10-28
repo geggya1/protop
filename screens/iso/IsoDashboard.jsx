@@ -17,6 +17,7 @@ import { annualWheel, pageLabel } from '../../src/iso/planning';
 import { RiskMatrix, StatusDonut, TrendBars, HBars } from './isoCharts';
 import { postDate, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, Choice, Empty, ListRow, Page, Pill, Row } from './isoUi';
+import QuickReportButton from './QuickReport';
 
 export default function IsoDashboard({ ctx }) {
   const colors = useColors();
@@ -81,6 +82,7 @@ export default function IsoDashboard({ ctx }) {
         </>
       )}
     >
+      <QuickReportButton onSent={ctx.onQuickSent} />
       <Banner tone="info" text="Statusene her er interne vurderinger av eget ledelsessystem. De er ikke en sertifisering eller bekreftet lovetterlevelse." />
 
       {profile?.vision || profile?.values?.length || policies.length || news.length ? (

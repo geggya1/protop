@@ -12,6 +12,14 @@ import {
 } from './core.js';
 import { FINDING_TYPES, INJURY_CLASSES, SEVERITIES, findingDomain, seriousInjury } from './catalog.js';
 
+/** Vedlegg på saken (foto fra byggeplassen): bare lenke og sti. */
+function findingAttachments(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((a) => ({ label: text(a?.label, 200) || 'Foto', url: text(a?.url, 2000), path: text(a?.path, 500), kind: a?.kind === 'fil' ? 'fil' : 'foto', at: text(a?.at, 40) }))
+    .filter((a) => a.url)
+    .slice(0, 6);
+}
+
 const OPEN_ACTION = new Set(['apen', 'pagar', 'til_verifisering', 'returnert']);
 
 /** Personskade, nestenulykke og miljøhendelse: årsaken vurderes alltid (ISO 45001 10.2 b). */
@@ -114,6 +122,9 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
       auditFindingRef: text(input.auditFindingRef, 120),
     },
     sourceRef: input.sourceRef?.id ? { module: text(input.sourceRef.module, 60), id: text(input.sourceRef.id, 120) } : null,
+    attachments: findingAttachments(input.attachments),
+    // Meldt med hurtigmeldingen (tre trykk fra telefonen); resten fylles inn i triage.
+    quick: !!input.quick,
     formKey: 'SF16_AVVIK',
     formVersion: '1.0',
     createdAt: nowIso(now),

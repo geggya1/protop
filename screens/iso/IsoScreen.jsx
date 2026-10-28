@@ -16,6 +16,8 @@ import { isSetUp } from '../../src/iso/state';
 import { autoQualityPlans, autoTaskEffects } from '../../src/iso/integrations';
 import { loadIsoTasks } from '../../src/iso/storage';
 import { createRecord } from '../../src/iso/registers';
+import { replaceIn } from '../../src/iso/state';
+import QuickReportButton from './QuickReport';
 import { externalFormControls, mergeForms } from '../../src/iso/docControlLink';
 import { useIsoStore } from './useIsoStore';
 import { useIsoSources } from './useIsoSources';
@@ -184,6 +186,8 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     canGrantAccess: bypass || (!!access.ready && !access.previewing && access.canEdit('accessControl')),
     requestTab: requestShellTab,
     prefill: params?.prefill || null,
+    // Hurtigmelding (Meld RUH): saken vises med en gang, uten å laste ISO på nytt.
+    onQuickSent: (list) => store.setState((cur) => (list || []).reduce((acc, f) => (f?.id ? replaceIn(acc, 'findings', f) : acc), cur)),
   };
 
   const Current = PAGES[page] || IsoDashboard;
@@ -224,6 +228,7 @@ export default function IsoScreen({ subView = 'oversikt' }) {
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             {caps.admin ? <Btn kind="primary" icon="flash-outline" label="Sett opp ledelsessystemet" onPress={() => go('innstillinger')} /> : null}
             <Btn icon="add" label="Meld avvik" onPress={() => go('avvik', { create: true })} />
+            <QuickReportButton variant="button" />
           </View>
         )}
       />

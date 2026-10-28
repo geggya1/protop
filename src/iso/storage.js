@@ -267,6 +267,61 @@ async function saveNumberedFinding(companyId, name, entity) {
   });
 }
 
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error('Tidsavbrudd: ingen kontakt med skyen.');
+        err.code = 'iso/offline';
+        reject(err);
+      }, ms);
+    }),
+  ]);
+}
+
+/**
+ * Hurtigmelding (RUH fra telefonen): én sak skrives uten at resten av ISO lastes.
+ * Saken har fast id fra telefonen. Finnes den allerede (sendt fra køen før svaret kom), skrives ingenting
+ * på nytt. Nummeret tildeles mot telleren i samme transaksjon. Uten nett: feil med kode «iso/offline».
+ */
+export async function saveQuickFinding(companyId, entity, { timeoutMs = 15000 } = {}) {
+  const id = cid(companyId);
+  if (!id || !entity?.id) throw new Error('Mangler selskap eller sak.');
+  const authed = await ensureAuth();
+  if (!authed) {
+    const err = new Error('Ikke innlogget mot skyen.');
+    err.code = 'iso/offline';
+    throw err;
+  }
+  const ref = doc(db, 'families', id, collectionFor('findings', entity), entity.id);
+  const parts = numberParts(entity.number);
+  const counterRef = parts ? doc(db, 'families', id, 'isoCounters', parts.series) : null;
+  const write = async () => {
+    try {
+      return await runTransaction(db, async (tx) => {
+        const existing = await tx.get(ref);
+        if (existing.exists()) return { ...existing.data(), id: entity.id, duplicate: true };
+        const counter = counterRef ? await tx.get(counterRef) : null;
+        const next = counterRef ? numberFromCounter(entity.number, counter?.exists() ? counter.data()?.last : 0) : null;
+        const stamp = new Date().toISOString();
+        const data = plain({ ...withInvolved({ ...entity, number: next?.number || entity.number }), savedAt: stamp });
+        if (next) tx.set(counterRef, { last: next.last, updatedAt: stamp });
+        tx.set(ref, data);
+        return data;
+      });
+    } catch (err) {
+      // Regler uten teller eller uten lesing av egen sak (ikke rullet ut ennå): skriv saken direkte.
+      if (!isFirestorePermissionError(err)) throw err;
+      const data = plain({ ...withInvolved(entity), savedAt: new Date().toISOString() });
+      await setDoc(ref, data);
+      return data;
+    }
+  };
+  return withTimeout(write(), timeoutMs);
+}
+
 /**
  * Lagrer én entitet med revisjonskontroll.
  * kind: findings | processes | instances | documents | forms | submissions | requirements | assessments | evidence | evidenceLinks | records | system

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Image, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
 import {
@@ -16,6 +16,7 @@ import { loadAuditFor } from '../../src/iso/storage';
 import { autoAssignee, legacyProjectCases, newFindingEffects, notificationTaskEffects, requirementIdsForFinding } from '../../src/iso/integrations';
 import { publishedVersionOf, normalizeDiagram } from '../../src/iso/processes';
 import IsoDiagram, { fitView } from './IsoDiagram';
+import QuickReportButton from './QuickReport';
 import {
   Banner, Btn, Card, Check, Choice, DateIn, Divider, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
 } from './isoUi';
@@ -75,7 +76,12 @@ export default function IsoFindings({ ctx }) {
       crumb={['Avvik og forbedring']}
       title="Avvik og forbedring"
       intro="Meld avvik, hendelser, kundeklager og forbedringsforslag. Saken følges gjennom triage, tiltak og effektkontroll før den lukkes."
-      actions={<Btn kind="primary" icon="add" label="Meld avvik" onPress={() => setCreating(true)} />}
+      actions={(
+        <>
+          <QuickReportButton variant="button" onSent={ctx.onQuickSent} />
+          <Btn kind="primary" icon="add" label="Meld avvik" onPress={() => setCreating(true)} />
+        </>
+      )}
     >
       {drillIds ? <Banner tone="info" text={`Viser utvalg fra oversikten: ${params?.label || ''} (${rows.length})`} /> : null}
       <Card>
@@ -111,7 +117,7 @@ export default function IsoFindings({ ctx }) {
             icon={f.restricted ? 'lock-closed-outline' : 'flag-outline'}
             tone={f.severity === 'kritisk' || f.severity === 'hoy' ? 'danger' : 'muted'}
             title={`${f.number} · ${f.title}`}
-            subtitle={[findingTypeLabel(f.type), f.severity ? severityLabel(f.severity) : 'Ikke triagert', f.projectName, prettyDate(f.occurredAt), f.assigneeName].filter(Boolean).join(' · ')}
+            subtitle={[findingTypeLabel(f.type), f.severity ? severityLabel(f.severity) : 'Ikke triagert', f.projectName, prettyDate(f.occurredAt), f.assigneeName, f.quick ? 'hurtigmelding' : '', (f.attachments || []).length ? `${f.attachments.length} foto` : ''].filter(Boolean).join(' · ')}
             right={<Pill label={findingStateLabel(f.state)} tone={STATE_TONE[f.state]} />}
             onPress={() => setOpenId(f.id)}
           />
@@ -338,6 +344,17 @@ function FindingDetail({ ctx, finding, onBack }) {
             <KV label="Sted" value={finding.location} />
             <KV label="Leveranse" value={finding.deliverableRef} />
             <KV label="Skadeklasse" value={injuryClassLabel(finding.injuryClass)} />
+            {(finding.attachments || []).length ? (
+              <Row>
+                {finding.attachments.map((a) => (
+                  <TouchableOpacity key={a.url} onPress={() => Linking.openURL(a.url).catch(() => {})} accessibilityRole="link" accessibilityLabel={`Åpne ${a.label}`}>
+                    {a.kind === 'foto'
+                      ? <Image source={{ uri: a.url }} style={{ width: 96, height: 96, borderRadius: 10, backgroundColor: colors.line }} />
+                      : <Pill label={a.label} icon="attach-outline" />}
+                  </TouchableOpacity>
+                ))}
+              </Row>
+            ) : null}
             {finding.restricted && caps.restrictedView ? <KV label="Personopplysninger (skjermet)" value={finding.personalDetails} /> : null}
           </Card>
 

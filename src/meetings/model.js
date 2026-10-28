@@ -54,7 +54,7 @@ const ATTENDANCE_IDS = new Set(ATTENDANCE.map((row) => row.id));
 
 export const VISIBILITY = [
   { id: 'alle', label: 'Alle i bedriften', hint: 'Alle med tilgang til Møter ser møtet og referatet.' },
-  { id: 'deltakere', label: 'Bare deltakerne', hint: 'Bare deltakerne og administratorer ser møtet.' },
+  { id: 'deltakere', label: 'Bare deltakerne', hint: 'Bare deltakerne og bedriftens administratorer ser møtet.' },
 ];
 
 export const RECURRENCE = [
@@ -338,6 +338,7 @@ export function normalizeRecurrence(raw = {}) {
 export function normalizeMeeting(raw = {}) {
   const list = (value) => (Array.isArray(value) ? value : []);
   const status = STATUS_IDS.has(raw.status) ? raw.status : 'utkast';
+  const participants = list(raw.participants).map(normalizeParticipant);
   return {
     id: text(raw.id) || createMeetingId(),
     title: text(raw.title) || 'Møte uten tittel',
@@ -358,7 +359,12 @@ export function normalizeMeeting(raw = {}) {
     purpose: String(raw.purpose ?? '').trim(),
     visibility: raw.visibility === 'deltakere' ? 'deltakere' : 'alle',
     chapters: list(raw.chapters).map(normalizeChapter),
-    participants: list(raw.participants).map(normalizeParticipant),
+    participants,
+    /**
+     * Innloggede deltakere og den som opprettet møtet. Firestore-reglene bruker listen:
+     * et møte som bare er for deltakerne, kan bare leses av dem og administratorene.
+     */
+    memberUids: [...new Set([text(raw.createdBy), ...participants.map((p) => p.uid)].filter(Boolean))],
     summary: String(raw.summary ?? '').trim(),
     summarySource: raw.summarySource === 'ai' ? 'ai' : (text(raw.summary) ? 'manuell' : ''),
     nextDate: isoDate(raw.nextDate),

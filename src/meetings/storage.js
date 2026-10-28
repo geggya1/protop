@@ -18,10 +18,15 @@ async function firestore() {
   return { ...fs, db };
 }
 
-async function readCache(companyId) {
+/** Hver bruker har sin egen kopi, så møter for bare deltakerne ikke vises for andre på samme enhet. */
+function cacheKey(companyId, uid) {
+  return `${CACHE_PREFIX}${companyId}.${uid || 'anon'}`;
+}
+
+async function readCache(key) {
   try {
     const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
-    const raw = await AsyncStorage.getItem(`${CACHE_PREFIX}${companyId}`);
+    const raw = await AsyncStorage.getItem(key);
     const rows = raw ? JSON.parse(raw) : null;
     return Array.isArray(rows) ? rows.map(normalizeMeeting) : null;
   } catch {
@@ -29,12 +34,12 @@ async function readCache(companyId) {
   }
 }
 
-async function writeCache(companyId, rows) {
+async function writeCache(key, rows) {
   try {
     const raw = JSON.stringify(rows);
     if (raw.length > CACHE_MAX_CHARS) return;
     const { default: AsyncStorage } = await import('@react-native-async-storage/async-storage');
-    await AsyncStorage.setItem(`${CACHE_PREFIX}${companyId}`, raw);
+    await AsyncStorage.setItem(key, raw);
   } catch {
     // Kvote eller utilgjengelig lagring: listen kommer fra Firestore uansett.
   }
@@ -124,9 +129,16 @@ export async function loadFormSources(companyId) {
   return [...mine, ...library];
 }
 
+/** Bedriftens administratorer (eier og adminUids) ser alle møter, også de som bare er for deltakerne. */
+export function seesAllMeetings(family, uid) {
+  const id = text(uid);
+  if (!id || !family) return false;
+  return family.ownerUid === id || family.ownerId === id || (Array.isArray(family.adminUids) && family.adminUids.includes(id));
+}
+
 /**
  * Store mot Firestore for én bedrift.
- * `actor` = { uid, name, email } brukes til kalender og arkiv.
+ * `actor` = { uid, name, email, seeAll } brukes til spørringer, kalender og arkiv.
  */
 export function createMeetingStore(companyId, actor = {}) {
   const id = text(companyId);
@@ -134,19 +146,37 @@ export function createMeetingStore(companyId, actor = {}) {
     demo: false,
     companyId: id,
 
+    /**
+     * Administratorer (actor.seeAll) leser hele samlingen. Andre spør med filter, slik
+     * Firestore-reglene krever: møter som er åpne for alle, og møter de selv er med i.
+     */
     watchMeetings(onData, onError) {
       let live = true;
-      let unsub = () => {};
-      readCache(id).then((rows) => { if (live && rows) onData(rows, { source: 'cache' }); });
-      firestore().then(({ db, collection, onSnapshot }) => {
+      const unsubs = [];
+      const key = cacheKey(id, actor.uid);
+      let remote = false;
+      readCache(key).then((rows) => { if (live && rows && !remote) onData(rows, { source: 'cache' }); });
+      firestore().then(({ db, collection, onSnapshot, query, where }) => {
         if (!live) return;
-        unsub = onSnapshot(collection(db, 'families', id, 'meetings'), (snap) => {
-          const rows = snap.docs.map((d) => normalizeMeeting({ ...d.data(), id: d.id }));
-          onData(rows, { source: 'remote' });
-          writeCache(id, rows);
-        }, (error) => onError?.(error));
+        const col = collection(db, 'families', id, 'meetings');
+        const sources = actor.seeAll
+          ? [col]
+          : [query(col, where('visibility', '==', 'alle')), ...(actor.uid ? [query(col, where('memberUids', 'array-contains', actor.uid))] : [])];
+        const parts = sources.map(() => null);
+        sources.forEach((source, index) => {
+          unsubs.push(onSnapshot(source, (snap) => {
+            parts[index] = snap.docs.map((d) => normalizeMeeting({ ...d.data(), id: d.id }));
+            if (parts.some((part) => part == null)) return;
+            const byId = new Map();
+            for (const part of parts) for (const row of part) byId.set(row.id, row);
+            const rows = [...byId.values()];
+            remote = true;
+            onData(rows, { source: 'remote' });
+            writeCache(key, rows);
+          }, (error) => onError?.(error)));
+        });
       }).catch((error) => onError?.(error));
-      return () => { live = false; unsub(); };
+      return () => { live = false; unsubs.forEach((stop) => stop()); };
     },
 
     /**

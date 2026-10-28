@@ -188,7 +188,7 @@ export const ACCESS_HELP = {
   meetings: {
     see: 'Ser møter som er åpne for alle i bedriften, og møter en selv er med i. Laster ned referat.',
     read: 'Som Lese, og kan opprette møter og styre møter der en er møteleder eller referent.',
-    write: 'Ser og styrer alle møter, også møter som bare er for deltakerne, og møtemalene.',
+    write: 'Styrer alle møter som er åpne for bedriften, og møtemalene. Møter som bare er for deltakerne, ser bare deltakerne og bedriftens administratorer.',
   },
   mileage: {
     see: 'Åpner kjøreboken og ser kjøreturene.',

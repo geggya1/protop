@@ -7,7 +7,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { displayName, employeeEmails, ownEmployee, personnelKind } from '../../src/employees/model';
 import { loadProjectState, peekProjectState } from '../../src/project/storage';
 import { pickableProjects } from '../../src/project/myProjects';
-import { createMeetingStore } from '../../src/meetings/storage';
+import { createMeetingStore, seesAllMeetings } from '../../src/meetings/storage';
 import MeetingsModule from './MeetingsModule';
 
 function personFromEmployee(emp, companyName) {
@@ -67,8 +67,10 @@ export default function MeetingsScreen({ subView = 'oversikt' }) {
   }, [projectState, me, employees, access]);
 
   const store = useMemo(
-    () => (familyId ? createMeetingStore(familyId, { uid: viewer.uid, name: viewer.name, email: viewer.email }) : null),
-    [familyId, viewer.uid, viewer.name, viewer.email],
+    () => (familyId ? createMeetingStore(familyId, {
+      uid: viewer.uid, name: viewer.name, email: viewer.email, seeAll: seesAllMeetings(family, viewer.uid),
+    }) : null),
+    [familyId, family, viewer.uid, viewer.name, viewer.email],
   );
 
   const intent = shellIntent && (shellIntent.type === 'openMeeting' || shellIntent.type === 'newMeeting') ? shellIntent : null;

@@ -10,23 +10,23 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import {
   agendaStats, canSeeMeeting, collectActions, meetingPhase, shortDate, sortMeetings, timeRange, todayOslo,
 } from '../../src/meetings/model';
-import { createMeetingStore } from '../../src/meetings/storage';
+import { createMeetingStore, seesAllMeetings } from '../../src/meetings/storage';
 import { meetingType } from '../../src/meetings/templates';
 import {
   Btn, DateTile, Empty, NumberChip, PhasePill, Pill, SectionHead,
 } from '../../screens/meetings/meetingUi';
 
 export default function ProjectMeetingsTab({ familyId, project, colors, uid }) {
-  const { requestShellTab, user } = useApp();
+  const { requestShellTab, user, family } = useApp();
   const access = useCompanyAccess();
   const [meetings, setMeetings] = useState(null);
   const today = todayOslo();
 
   useEffect(() => {
     if (!familyId) return undefined;
-    const store = createMeetingStore(familyId, { uid });
+    const store = createMeetingStore(familyId, { uid, seeAll: seesAllMeetings(family, uid) });
     return store.watchMeetings((rows) => setMeetings(rows), () => setMeetings([]));
-  }, [familyId, uid]);
+  }, [familyId, uid, family]);
 
   const viewer = { uid, email: user?.email || '', admin: access.canAdmin('meetings') };
   const rows = useMemo(() => sortMeetings(

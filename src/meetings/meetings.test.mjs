@@ -299,3 +299,17 @@ console.log('meetings: ok');
   assert.equal(kino.next.number, 4);
 }
 console.log('meetings merge: ok');
+
+/* ───────── Tilgang i Firestore ───────── */
+{
+  const m = normalizeMeeting({
+    createdBy: 'u-creator',
+    visibility: 'deltakere',
+    participants: [{ name: 'A', uid: 'u-a' }, { name: 'B', email: 'b@x.no' }, { name: 'C', uid: 'u-a' }],
+  });
+  assert.deepEqual(m.memberUids, ['u-creator', 'u-a'], 'memberUids: den som opprettet og innloggede deltakere, uten duplikater');
+  assert.equal(m.visibility, 'deltakere');
+  assert.deepEqual(normalizeMeeting({}).memberUids, []);
+  assert.equal(normalizeMeeting({ visibility: 'tull' }).visibility, 'alle');
+}
+console.log('meetings access: ok');

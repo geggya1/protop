@@ -1913,8 +1913,8 @@ export const PROTOP_PAGES = {
       {
         q: tx('Hvem ser møtene?', 'Who can see the meetings?'),
         a: tx(
-          'Alle med tilgang til Møter ser møter som er åpne for bedriften. Møter som bare er for deltakerne, som styremøter og ledermøter, ser bare deltakerne og administratorer for Møter.',
-          'Everyone with access to Meetings sees meetings open to the company. Meetings for participants only, such as board and management meetings, are visible only to participants and Meetings administrators.',
+          'Alle med tilgang til Møter ser møter som er åpne for bedriften. Møter som bare er for deltakerne, som styremøter og ledermøter, ser bare deltakerne og bedriftens administratorer.',
+          'Everyone with access to Meetings sees meetings open to the company. Meetings for participants only, such as board and management meetings, are visible only to participants and company administrators.',
         ),
       },
       {

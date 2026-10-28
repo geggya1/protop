@@ -129,10 +129,19 @@ export class Report {
     return ok;
   }
 
-  /** Kjør et steg; kast → AVVIK med feilmelding (merket som mulig bot-feil). */
+  /** Kjør et steg; kast → AVVIK med feilmelding (merket som mulig bot-feil).
+   *  Krasjer en fane (minnepress i testmiljøet), startes den på nytt og steget kjøres én gang til. */
   async step(id, step, expected, fn, { bot = null } = {}) {
     try {
-      const r = await fn();
+      let r;
+      try {
+        r = await fn();
+      } catch (err) {
+        if (!/crash|Target closed|has been closed/i.test(String(err?.message || err)) || !this.bots) throw err;
+        this.info(`${id}: nettleserfanen krasjet (miljø) — starter på nytt og prøver steget igjen`);
+        for (const b of this.bots) await revive(b);
+        r = await fn();
+      }
       const ok = typeof r === 'object' && r !== null ? r.ok : !!r;
       const actual = typeof r === 'object' && r !== null ? r.actual : '';
       const shot = typeof r === 'object' && r !== null ? r.shot : '';
@@ -145,10 +154,20 @@ export class Report {
 
   info(line) { this.log(`INFO  ${line}`); }
 
+  /** UX-observasjon: logges og havner i rapporten, men gir ikke exit 1. */
+  ux(id, step, expected, ok, actual = '', shot = '') {
+    const row = { id, step, expected, actual: String(actual || '').slice(0, 500), ok: !!ok, ux: true, shot: shot ? shot.replace(`${ROOT}/`, '') : '' };
+    this.rows.push(row);
+    this.log(`${ok ? 'UX-OK' : 'UX   '} [${id}] ${step}${actual ? ` — ${row.actual}` : ''}${row.shot ? ` (${row.shot})` : ''}`);
+    return ok;
+  }
+
   finish(extra = {}) {
-    const bad = this.rows.filter((r) => !r.ok);
+    const bad = this.rows.filter((r) => !r.ok && !r.ux);
+    const uxBad = this.rows.filter((r) => !r.ok && r.ux);
+    const total = this.rows.filter((r) => !r.ux).length;
     writeFileSync(join(OUT, `${this.name}.json`), JSON.stringify({ name: this.name, at: new Date().toISOString(), rows: this.rows, ...extra }, null, 2));
-    this.log(`\n${this.name}: ${this.rows.length - bad.length} OK, ${bad.length} AVVIK`);
+    this.log(`\n${this.name}: ${total - bad.length} OK, ${bad.length} AVVIK (+ ${uxBad.length} UX-merknader)`);
     return bad.length;
   }
 }
@@ -194,7 +213,15 @@ export async function tap(bot, text, { exact = true, last = false, nth = 0, time
     const vis = await visibleIdx(loc);
     if (vis.length > nth) {
       const i = last ? vis[vis.length - 1] : vis[nth];
-      await loc.nth(i).click({ timeout: 5000, force });
+      try {
+        await loc.nth(i).click({ timeout: 5000, force });
+      } catch (err) {
+        // Et varsel-popup eller en rundtur kan ligge over: lukk og prøv én gang til.
+        if (!/intercepts pointer events|Timeout/.test(String(err?.message || err))) throw err;
+        await clearOverlays(bot);
+        await dismissPopup(bot);
+        await loc.nth(i).click({ timeout: 5000, force });
+      }
       await bot.page.waitForTimeout(400);
       return true;
     }
@@ -239,6 +266,133 @@ export async function gone(bot, text, timeout = 15000, { exact = false } = {}) {
   while (Date.now() < end) {
     if (!(await visibleIdx(loc)).length) return true;
     await bot.page.waitForTimeout(300);
+  }
+  return false;
+}
+
+/**
+ * Klikker et punkt ved høyre kant av raden som inneholder teksten (for ikonknapper
+ * uten navn, f.eks. avkrysningsboksen på oppgaver). dx = avstand fra høyre kant.
+ */
+export async function clickRowEnd(bot, text, dx = 28, { minWidth = 280 } = {}) {
+  const loc = bot.page.getByText(text, { exact: false });
+  const vis = await visibleIdx(loc);
+  if (!vis.length) throw new Error(`Fant ikke raden «${text}»`);
+  const handle = await loc.nth(vis[0]).elementHandle();
+  const box = await bot.page.evaluate(([el, mw]) => {
+    let cur = el;
+    while (cur && cur.getBoundingClientRect().width < mw) cur = cur.parentElement;
+    const r = (cur || el).getBoundingClientRect();
+    return { x: r.right, y: r.top + r.height / 2 };
+  }, [handle, minWidth]);
+  await bot.page.mouse.click(box.x - dx, box.y);
+  await bot.page.waitForTimeout(600);
+}
+
+/** Som clickRowEnd, men fra venstre kant (avkrysning på PC-tabellen). */
+export async function clickRowStart(bot, text, dx = 28, { minWidth = 600 } = {}) {
+  const loc = bot.page.getByText(text, { exact: false });
+  const vis = await visibleIdx(loc);
+  if (!vis.length) throw new Error(`Fant ikke raden «${text}»`);
+  const handle = await loc.nth(vis[0]).elementHandle();
+  const box = await bot.page.evaluate(([el, mw]) => {
+    let cur = el;
+    while (cur && cur.getBoundingClientRect().width < mw) cur = cur.parentElement;
+    const r = (cur || el).getBoundingClientRect();
+    return { x: r.left, y: r.top + r.height / 2 };
+  }, [handle, minWidth]);
+  await bot.page.mouse.click(box.x + dx, box.y);
+  await bot.page.waitForTimeout(600);
+}
+
+/**
+ * Starter og logger inn flere boter samtidig. spec: [['eier','desktop'], ...].
+ * Hver bot får .dialogs (window.alert/confirm-tekster, godtas automatisk).
+ */
+export async function startBots(world, spec, BotClass) {
+  const bots = {};
+  await Promise.all(spec.map(async ([who, view, name]) => {
+    const b = await new BotClass(name || who, { ...world.people[who], view, outDir: OUT }).start();
+    b.dialogs = [];
+    b.page.on('dialog', async (d) => { b.dialogs.push(d.message()); await d.accept().catch(() => {}); });
+    watchCrash(b);
+    await b.login();
+    await waitCompany(b);
+    await clearOverlays(b);
+    bots[name || who] = b;
+  }));
+  return bots;
+}
+
+/** Tekst til venstre for/etter et merke (kort utdrag for rapporten). */
+export function snippet(text, marker, len = 200) {
+  const i = String(text || '').indexOf(marker);
+  if (i < 0) return '';
+  return text.slice(i, i + len).replace(/\s+/g, ' ');
+}
+
+/** Lukker ChatDock-vinduer og popup-er som kan ligge over innholdet. */
+export async function closeDock(bot) {
+  for (let i = 0; i < 3; i += 1) {
+    const loc = bot.page.getByLabel('Lukk', { exact: true });
+    const vis = await visibleIdx(loc);
+    if (!vis.length) break;
+    await loc.nth(vis[vis.length - 1]).click({ force: true }).catch(() => {});
+    await bot.page.waitForTimeout(300);
+  }
+}
+
+/** Lukker en varsel-popup («Lukk»/«Åpne») hvis den vises. */
+export async function dismissPopup(bot) {
+  const loc = bot.page.getByText('Lukk', { exact: true });
+  const vis = await visibleIdx(loc);
+  if (vis.length) await loc.nth(vis[vis.length - 1]).click({ force: true }).catch(() => {});
+  await bot.page.waitForTimeout(300);
+}
+
+/** Varsler i innboksen til en bruker (admin-lesing). */
+export async function notifs(listDocs, uid) {
+  return (await listDocs(`users/${uid}/notifications`)).map((n) => ({
+    id: n.id, eventType: n.eventType, title: n.title, body: n.body, chatId: n.chatId, seen: n.seen, read: n.read,
+  }));
+}
+
+
+/** Følger med på om fanen krasjer (minnepress når mange boter kjører). */
+export function watchCrash(bot) {
+  bot.page.on('crash', () => { bot.crashed = true; });
+}
+
+/** Ny fane i samme kontekst (innloggingen ligger i IndexedDB) etter krasj. */
+export async function revive(bot) {
+  if (!bot.crashed && !bot.page.isClosed()) return false;
+  try { await bot.page.close(); } catch { /* ignore */ }
+  bot.page = await bot.ctx.newPage();
+  bot.crashed = false;
+  watchCrash(bot);
+  bot.page.on('dialog', async (d) => { (bot.dialogs ||= []).push(d.message()); await d.accept().catch(() => {}); });
+  await bot.goto('/');
+  await bot.waitShell();
+  await clearOverlays(bot);
+  return true;
+}
+
+
+/**
+ * Venter til bedriften er lastet og «Bedrift» er valgt (under last kan skallet en stund
+ * stå i «Privat» med plassholdernavnet «Familien»). Velger «Bedrift» selv om nødvendig.
+ */
+export async function waitCompany(bot, timeout = 90000) {
+  const sel = '#platform-switch-bedrift';
+  const end = Date.now() + timeout;
+  while (Date.now() < end) {
+    const st = await bot.page.evaluate((q) => {
+      const el = document.querySelector(q);
+      return el ? el.getAttribute('aria-selected') : null;
+    }, sel).catch(() => null);
+    if (st === 'true') return true;
+    if (st === 'false') await bot.page.locator(sel).first().click({ force: true }).catch(() => {});
+    await bot.page.waitForTimeout(1000);
   }
   return false;
 }

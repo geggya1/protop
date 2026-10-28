@@ -160,18 +160,38 @@ export async function skipTour(bot, rounds = 3) {
   }
 }
 
-/** Trykker synlig tekst etter å ha lukket rundturen. */
+/** Trykker synlig tekst. Legger rundturen seg over, lukkes den og det prøves igjen. */
 export async function tap(bot, text, opts = {}) {
   await skipTour(bot, 1);
-  return bot.click(text, opts);
+  let last;
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      return await bot.click(text, { timeout: 8000, ...opts });
+    } catch (err) {
+      last = err;
+      await skipTour(bot, 3);
+      await bot.page.keyboard.press('Escape').catch(() => {});
+    }
+  }
+  throw last;
 }
 
 export async function tapId(bot, id, { timeout = 8000 } = {}) {
   await skipTour(bot, 1);
   const loc = bot.page.locator(`[id="${id}"]`);
-  await loc.first().waitFor({ state: 'visible', timeout });
-  await loc.first().click();
-  await bot.page.waitForTimeout(500);
+  let last;
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      await loc.first().waitFor({ state: 'visible', timeout });
+      await loc.first().click({ timeout: 4000 });
+      await bot.page.waitForTimeout(500);
+      return;
+    } catch (err) {
+      last = err;
+      await skipTour(bot, 3);
+    }
+  }
+  throw last;
 }
 
 export async function fillId(bot, id, value) {
@@ -211,9 +231,10 @@ export async function loginUI(bot, { wait = 8000 } = {}) {
   await bot.page.waitForTimeout(wait);
 }
 
-/** Venter til skallet er oppe (test-kroken finnes) og lukker rundturen. */
-export async function waitShell(bot, timeout = 120000) {
-  await bot.page.waitForFunction(() => !!window.__protopBot, null, { timeout });
+/** Venter til skallet er oppe (bryteren Privat/Bedrift finnes) og lukker rundturen. */
+export async function waitShell(bot, timeout = 150000) {
+  await bot.page.waitForFunction(() => !!window.__protopBot && !!document.querySelector('[id="platform-switch"]')
+    && !/Laster ProTop…/.test(document.body.innerText || ''), null, { timeout });
   await bot.page.waitForTimeout(2500);
   await skipTour(bot);
 }
@@ -243,4 +264,89 @@ export async function navText(bot) {
     const rail = document.querySelector('[data-wp-rail], nav, [role="navigation"]');
     return (rail?.innerText || '').trim();
   });
+}
+
+/* ───────── Flyter som flere skript bruker ───────── */
+
+/** Første innlogging for en konto uten profil: profilsteget «Velkommen» → Fortsett. */
+export async function loginAndSettle(bot, { name = '' } = {}) {
+  await loginUI(bot);
+  const until = Date.now() + 90000;
+  let text = '';
+  while (Date.now() < until) {
+    text = await bot.visibleText().catch(() => '');
+    if (/Bedriftsinvitasjon/i.test(text)) break;
+    if (/Velkommen/.test(text) && /Fortsett/.test(text)) {
+      if (name) {
+        const field = bot.page.locator('input').first();
+        if (!(await field.inputValue().catch(() => ''))) await field.fill(name).catch(() => {});
+      }
+      await bot.page.getByText('Fortsett', { exact: true }).first().click({ timeout: 3000 }).catch(() => {});
+      await bot.page.waitForTimeout(2000);
+      continue;
+    }
+    if (await bot.page.evaluate(() => !!window.__protopBot).catch(() => false)) break;
+    await bot.page.waitForTimeout(1000);
+  }
+  await bot.page.waitForTimeout(2500);
+  await skipTour(bot);
+  return bot.visibleText();
+}
+
+/** Privat/Bedrift → Opprett ny bedrift → Registrer manuelt. */
+export async function createCompanyUI(bot, name, address = '') {
+  await skipTour(bot);
+  await tapId(bot, 'platform-switch-bedrift');
+  await bot.page.waitForTimeout(1500);
+  const t = await bot.visibleText();
+  if (!/Opprett ny bedrift/.test(t)) {
+    // Har allerede bedrift: menyen åpnes. Bruk profilmenyen i stedet.
+    await bot.page.keyboard.press('Escape').catch(() => {});
+    await bot.page.evaluate(() => window.__protopBot.openShell('home', null));
+    await bot.page.waitForTimeout(800);
+    await bot.page.goto(`${BASE}/CreateCompany`, { waitUntil: 'domcontentloaded' });
+  } else {
+    await tap(bot, 'Opprett ny bedrift');
+  }
+  await waitText(bot, /Opprett bedrift/, 30000);
+  await bot.fill('Bedriftsnavn', name);
+  if (address) await bot.fill('Adresse, hvis kjent', address);
+  await tap(bot, 'Registrer manuelt');
+  await waitText(bot, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 30000);
+  await waitShell(bot).catch(() => {});
+}
+
+/** Ansatte → Ny medarbeider → Inviter brukere. */
+export async function openInvitePanel(bot) {
+  await bot.open('ansatte');
+  await skipTour(bot);
+  await tap(bot, 'Ny medarbeider').catch(() => {});
+  await tap(bot, 'Inviter brukere');
+  await waitText(bot, /Inviter brukere/, 10000);
+}
+
+/** Legger én person i køen i «Inviter brukere». Panelet må være åpent. */
+export async function addInvitePerson(bot, { first, last, email, level }) {
+  await fillId(bot, 'employee-invite-first', first);
+  await fillId(bot, 'employee-invite-last', last);
+  await fillId(bot, 'employee-invite-email', email);
+  await tap(bot, 'Velg');
+  await bot.page.waitForTimeout(500);
+  const opt = bot.page.getByText(level, { exact: true });
+  const n = await opt.count();
+  for (let i = n - 1; i >= 0; i -= 1) {
+    if (await opt.nth(i).isVisible().catch(() => false)) { await opt.nth(i).click(); break; }
+  }
+  await bot.page.waitForTimeout(400);
+  await tapId(bot, 'employee-invite-add');
+  await bot.page.waitForTimeout(2500);
+  return bot.visibleText();
+}
+
+/** Trykker Inviter og venter på svaret. */
+export async function sendQueued(bot) {
+  await tapId(bot, 'employee-invite-send');
+  const t = await waitText(bot, /\d+ invitasjoner er sendt|Invitasjonen er sendt|ikke sendt|Kunne ikke|allerede|Du kan ikke/, 90000) || '';
+  await bot.page.waitForTimeout(1500);
+  return t;
 }

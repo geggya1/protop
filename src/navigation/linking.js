@@ -270,6 +270,16 @@ export const linking = {
       },
       PickLanguage: 'language',
       Legal: 'legal',
+      // Offentlige lenker til dokumentene (app.config, butikkoppføringer og Innstillinger).
+      LegalDoc: {
+        path: ':doc(personvern|vilkar|databehandleravtale)',
+        parse: {
+          doc: (v) => ({ personvern: 'privacy', vilkar: 'terms', databehandleravtale: 'dpa' }[v] || 'terms'),
+        },
+        stringify: {
+          doc: (v) => ({ privacy: 'personvern', terms: 'vilkar', dpa: 'databehandleravtale' }[v] || 'vilkar'),
+        },
+      },
       ProfileSetup: 'profile-setup',
       HomeSetupOnboarding: 'home-setup',
       GetStarted: 'get-started',

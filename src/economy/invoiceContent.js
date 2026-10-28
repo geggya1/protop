@@ -29,6 +29,7 @@ export function supplierHasAddress(supplier = {}) {
 
 /** true, false eller null når det er ukjent om selskapet står i Merverdiavgiftsregisteret. */
 export function supplierVatStatus(supplier = {}) {
+  if (supplier.vatKnown === false) return null;
   if (supplier.vatRegistered === true || supplier.vatRegistered === false) return supplier.vatRegistered;
   return null;
 }
@@ -99,10 +100,12 @@ export function invoiceContentChecks(invoice, { supplier = null, mode = 'protop'
       add(blocking, 'supplierAddress', 'Bedriftens adresse mangler i selskapsprofilen. Fakturaen skal ha selgers adresse (bokføringsforskriften § 5-1-1). Legg den inn under Selskap.', 'supplier');
     }
     const vatStatus = supplierVatStatus(supplier);
-    if (Math.abs(totals.vat) >= 0.005 && vatStatus !== true) {
-      add(blocking, 'supplierVat', vatStatus === false
-        ? 'Bedriften står ikke i Merverdiavgiftsregisteret, men fakturaen har mva. Bruk en mva-kode uten mva på linjene, eller oppdater registreringen under Selskap.'
-        : 'Det er ukjent om bedriften står i Merverdiavgiftsregisteret. Fakturaen har mva, og da skal org.nr. stå med «MVA». Trykk «Hent på nytt fra Brønnøysund» under Selskap.', 'supplier');
+    if (Math.abs(totals.vat) >= 0.005 && vatStatus === false) {
+      add(blocking, 'supplierVat', 'Bedriften står ikke i Merverdiavgiftsregisteret, men fakturaen har mva. Bruk en mva-kode uten mva på linjene, eller oppdater registreringen under Selskap.', 'supplier');
+    } else if (Math.abs(totals.vat) >= 0.005 && vatStatus === null) {
+      // Eldre selskaper har ikke hentet registreringen. Fakturaen merkes «MVA» som før,
+      // men brukeren bes bekrefte, så merkingen stemmer med Merverdiavgiftsregisteret.
+      add(warnings, 'supplierVat', 'Det er ikke bekreftet at bedriften står i Merverdiavgiftsregisteret. Org.nr. merkes «MVA» fordi fakturaen har mva. Trykk «Hent på nytt fra Brønnøysund» under Selskap for å bekrefte.', 'supplier');
     }
   }
   return { blocking, warnings };

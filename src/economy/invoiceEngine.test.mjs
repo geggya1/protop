@@ -285,15 +285,16 @@ assert.match(invoice.events.at(-1).text, /^ferdigstilte faktura 16722 \(fakturad
   assert.ok(noSupplierAddress.blocking.some((row) => row.id === 'supplierAddress'));
   const labelOnly = issueChecks(edited.invoice, { supplier: { ...supplierFull, address: 'Svanholmen 7, 4313 Sandnes', postalCode: '', city: '' }, today: '2026-09-30' });
   assert.equal(labelOnly.ok, true, 'adresselinjen fra Brønnøysund holder');
-  const vatUnknown = issueChecks(edited.invoice, { supplier: { ...supplierFull, vatRegistered: null }, today: '2026-09-30' });
-  assert.match(vatUnknown.blocking.find((row) => row.id === 'supplierVat').text, /Brønnøysund/);
+  const vatUnknown = issueChecks(edited.invoice, { supplier: { ...supplierFull, vatKnown: false }, today: '2026-09-30' });
+  assert.ok(!vatUnknown.blocking.some((row) => row.id === 'supplierVat'), 'ukjent registrering stopper ikke fakturaen');
+  assert.match(vatUnknown.warnings.find((row) => row.id === 'supplierVat').text, /Brønnøysund/);
   const vatNo = issueChecks(edited.invoice, { supplier: { ...supplierFull, vatRegistered: false }, today: '2026-09-30' });
   assert.match(vatNo.blocking.find((row) => row.id === 'supplierVat').text, /står ikke i Merverdiavgiftsregisteret/);
   // Ferdigstillingen stopper også, selv om noen hopper over kontrollen.
   const hard = issueInvoice({ ...edited.invoice, customerAddress: {} }, { number: '99', date: '2026-09-30' });
   assert.equal(hard.ok, false);
   assert.match(hard.error, /Kundens adresse mangler/);
-  const hardSupplier = issueInvoice(edited.invoice, { number: '99', date: '2026-09-30', supplier: { ...supplierFull, vatRegistered: null } });
+  const hardSupplier = issueInvoice(edited.invoice, { number: '99', date: '2026-09-30', supplier: { ...supplierFull, vatRegistered: false } });
   assert.equal(hardSupplier.ok, false);
   assert.match(hardSupplier.error, /Merverdiavgiftsregisteret/);
   assert.equal(issueInvoice(edited.invoice, { number: '99', date: '2026-09-30', supplier: supplierFull }).ok, true);

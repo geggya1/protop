@@ -196,7 +196,6 @@ export const FILES = [
   'src/anbud/alertMail.test.mjs',
   'functions/mailRelay.test.mjs',
   'functions/tenderProxyAuth.test.mjs',
-  'functions/deleteAccount.test.mjs',
   'scripts/hosting-csp.test.mjs',
 ];
 

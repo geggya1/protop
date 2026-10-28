@@ -29,12 +29,14 @@ assert.equal(supplier.inForetaksregisteret, true);
 assert.equal(supplier.vatRegistered, true);
 assert.equal(supplierLegalLine(supplier), 'Foretaksregisteret NO 916 538 804 MVA');
 assert.equal(supplierLegalLine({ ...supplier, inForetaksregisteret: false, vatRegistered: false }), 'NO 916 538 804');
-// Ukjent mva-registrering gir ikke «MVA» (bokføringsforskriften § 5-1-1). Beskrivelsen fra Brønnøysund gir foretaksform.
+// Ukjent mva-registrering: merkes «MVA» som før, men vatKnown er false så kontrollen ber om bekreftelse.
+// Beskrivelsen fra Brønnøysund gir foretaksform.
 {
   const unknown = supplierFromCompany({ navn: 'Ny AS', organisasjonsnummer: '916538804', organisasjonsform: 'Aksjeselskap', addressLabel: 'Gate 1, 4313 Sandnes' });
-  assert.equal(unknown.vatRegistered, null);
+  assert.equal(unknown.vatRegistered, true);
+  assert.equal(unknown.vatKnown, false);
   assert.equal(unknown.inForetaksregisteret, true);
-  assert.equal(supplierLegalLine(unknown), 'Foretaksregisteret NO 916 538 804');
+  assert.equal(supplierLegalLine(unknown), 'Foretaksregisteret NO 916 538 804 MVA');
   const enk = supplierFromCompany({ navn: 'Ola', organisasjonsnummer: '916538804', organisasjonsform: 'Enkeltpersonforetak', mva: false });
   assert.equal(enk.inForetaksregisteret, false);
   assert.equal(supplierLegalLine(enk), 'NO 916 538 804');
@@ -141,7 +143,7 @@ assert.ok(pdfBase64(pdf).startsWith('JVBERi0xLjQ'));
   const noPeriodEhf = buildEhfXml(noPeriod, { supplier });
   assert.ok(noPeriodEhf.xml.includes('<cbc:ActualDeliveryDate>2026-10-05</cbc:ActualDeliveryDate>'));
   // Selskap som ikke er mva-registrert: ingen MVA-id i EHF.
-  const plain = buildEhfXml(noPeriod, { supplier: { ...supplier, vatRegistered: null } });
+  const plain = buildEhfXml(noPeriod, { supplier: { ...supplier, vatRegistered: false } });
   assert.ok(!plain.xml.includes('NO916538804MVA'));
 }
 

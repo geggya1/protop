@@ -170,6 +170,8 @@ export async function finalize(ctx, invoice, { date = '', dueDate = '' } = {}) {
       kidMethod: settings.kidMethod || 'mod10',
       projectInvoiceCount: isCreditNote(base) ? null : projectInvoiceCountFor(ctx.invoices || [], base.projectId, base.id),
       actor: ctx.actor,
+      // Påbudt innhold sjekkes også for selger ved utstedelse (bokføringsforskriften § 5-1-1).
+      supplier: ctx.supplier || null,
     });
     if (!issued.ok) return issued;
     const voucher = ledgerVoucher(issued.invoice, {
@@ -181,7 +183,11 @@ export async function finalize(ctx, invoice, { date = '', dueDate = '' } = {}) {
   };
   let issued;
   if (typeof ctx.store.issueInvoiceWithNumber === 'function' && !demo(ctx)) {
-    issued = await ctx.store.issueInvoiceWithNumber(ctx.familyId, invoice, { minimum, build });
+    issued = await ctx.store.issueInvoiceWithNumber(ctx.familyId, invoice, {
+      minimum,
+      build,
+      numberJumps: settings.numberJumps || [],
+    });
   } else {
     const result = build(minimum, null);
     if (!result.ok) throw new Error(result.error);

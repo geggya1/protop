@@ -58,9 +58,11 @@ export function supplierFromCompany(company, fallbackName = '') {
     ? addr.lines.filter(Boolean).join(', ')
     : text(addr?.label || company?.addressLabel);
   const foretak = flag(company?.foretak) ?? flag(company?.registrertIForetaksregisteret) ?? FORETAK_FORMS.has(formCode(company));
-  // «MVA» etter org.nr. bare når registreringen er kjent (Brønnøysund eller valgt i profilen).
-  // Ukjent er null: da stopper fakturakontrollen linjer med mva til registreringen er hentet.
-  const vat = flag(company?.mva) ?? flag(company?.registrertIMvaregisteret) ?? flag(company?.vatRegistered);
+  // Bedrifter som fakturerer med mva er mva-registrert. Står det eksplisitt nei, følges det.
+  // vatKnown sier om registreringen faktisk er hentet (Brønnøysund eller valgt i profilen);
+  // fakturakontrollen ber da om å bekrefte den, men stopper ikke fakturaen.
+  const vatFlag = flag(company?.mva) ?? flag(company?.registrertIMvaregisteret) ?? flag(company?.vatRegistered);
+  const vat = vatFlag ?? true;
   return {
     name: text(company?.navn) || text(fallbackName) || 'Selskap',
     orgnr: text(company?.organisasjonsnummer).replace(/\s/g, ''),
@@ -76,6 +78,7 @@ export function supplierFromCompany(company, fallbackName = '') {
     phone: text(company?.telefon || company?.mobil),
     website: text(company?.hjemmeside),
     vatRegistered: vat,
+    vatKnown: vatFlag !== null && vatFlag !== undefined,
     inForetaksregisteret: foretak,
   };
 }

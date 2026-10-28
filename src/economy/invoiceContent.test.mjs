@@ -50,6 +50,7 @@ assert.equal(supplierHasAddress({}), false);
 assert.equal(supplierVatStatus({ vatRegistered: true }), true);
 assert.equal(supplierVatStatus({ vatRegistered: false }), false);
 assert.equal(supplierVatStatus({}), null);
+assert.equal(supplierVatStatus({ vatRegistered: true, vatKnown: false }), null);
 assert.equal(supplierVatStatus({ vatRegistered: 'ja' }), null);
 
 {
@@ -68,9 +69,13 @@ assert.equal(supplierVatStatus({ vatRegistered: 'ja' }), null);
 }
 
 {
-  // Mva på linjene krever at selskapet står i Merverdiavgiftsregisteret.
-  const unknown = invoiceContentChecks(invoice, { supplier: { ...supplier, vatRegistered: null } });
-  assert.deepEqual(ids(unknown.blocking), ['supplierVat']);
+  // Mva på linjene og selskap som eksplisitt ikke er registrert: stopper.
+  const notRegistered = invoiceContentChecks(invoice, { supplier: { ...supplier, vatRegistered: false } });
+  assert.deepEqual(ids(notRegistered.blocking), ['supplierVat']);
+  // Ukjent registrering stopper ikke, men gir varsel om å bekrefte.
+  const unknown = invoiceContentChecks(invoice, { supplier: { ...supplier, vatRegistered: true, vatKnown: false } });
+  assert.deepEqual(ids(unknown.blocking), []);
+  assert.ok(ids(unknown.warnings).includes('supplierVat'));
   // Uten mva er det ikke noe krav om registrering.
   const zero = {
     ...invoice,

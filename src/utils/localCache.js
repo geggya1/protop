@@ -54,12 +54,14 @@ export async function clearPersonalCaches(storage) {
  * Lastes dynamisk, så App.jsx ikke drar inn Firestore-modulene ved oppstart.
  */
 export async function clearSessionData() {
-  const [{ default: AsyncStorage }, hr, absences] = await Promise.all([
+  const [{ default: AsyncStorage }, hr, absences, mirror] = await Promise.all([
     import('@react-native-async-storage/async-storage'),
     import('../hr/storage.js').catch(() => null),
     import('../arbeid/absenceStorage.js').catch(() => null),
+    import('../access/accessMirror.js').catch(() => null),
   ]);
   try { hr?.clearHrMemory?.(); } catch { /* ignore */ }
   try { absences?.clearAbsenceScopes?.(); } catch { /* ignore */ }
+  try { mirror?.forgetAccessMirrors?.(); } catch { /* ignore */ }
   return clearPersonalCaches(AsyncStorage);
 }

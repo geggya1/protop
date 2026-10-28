@@ -185,6 +185,8 @@ export const FILES = [
   'functions/security.test.mjs',
   'functions/memberPassword.test.mjs',
   'src/access/accessMirror.test.mjs',
+  'src/access/mirrorRefresh.test.mjs',
+  'src/hr/hrPending.test.mjs',
   'src/utils/companyChat.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',

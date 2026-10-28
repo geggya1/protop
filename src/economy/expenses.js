@@ -27,16 +27,6 @@ export const EXPENSE_STATUSES = [
   { id: 'reimbursed', label: 'Utbetalt' },
 ];
 
-/**
- * Status slik den vises. Et utlegg som ikke er godkjent ennå, venter på godkjenning
- * (det kommer ikke med i Til fakturering før det er godkjent).
- */
-export function expenseStatusLabel(status) {
-  const id = String(status || '').trim() || 'draft';
-  if (id === 'draft' || id === 'submitted') return 'Venter på godkjenning';
-  return EXPENSE_STATUSES.find((row) => row.id === id)?.label || 'Venter på godkjenning';
-}
-
 export const RECEIPT_REQUIRED_INCL = 1000;
 
 /**

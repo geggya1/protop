@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { expenseRegistryPatch } from './expenseRegistry.js';
-import { expenseStatusLabel } from './expenses.js';
+import { expenseStatusLabel } from './expenseList.js';
 import { deleteExpense, upsertExpense } from './opsState.js';
 import { emptyProjectState } from '../project/engine.js';
 

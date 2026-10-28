@@ -29,9 +29,9 @@ import {
   EXPENSE_CATEGORIES,
   EXPENSE_CHARGE_TYPES,
   emptyExpense,
-  expenseStatusLabel,
   expensesToCsv,
 } from '../../src/economy/expenses.js';
+import { expenseStatusLabel } from '../../src/economy/expenseList.js';
 import { expenseRegistryPatch } from '../../src/economy/expenseRegistry.js';
 import {
   MILEAGE_RATE_TAX_FREE,

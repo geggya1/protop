@@ -23,8 +23,14 @@ export const EXPENSE_SORT_OPTIONS = [
   { id: 'status', label: 'Status' },
 ];
 
+/**
+ * Status slik den vises. Et utlegg som ikke er godkjent ennå, venter på godkjenning
+ * (det kommer ikke med i Til fakturering før det er godkjent).
+ */
 export function expenseStatusLabel(status) {
-  return EXPENSE_STATUSES.find((row) => row.id === status)?.label || text(status) || 'Utkast';
+  const id = text(status) || 'draft';
+  if (id === 'draft' || id === 'submitted') return 'Venter på godkjenning';
+  return EXPENSE_STATUSES.find((row) => row.id === id)?.label || text(status);
 }
 
 /**

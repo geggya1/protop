@@ -243,6 +243,13 @@ export const FILES = [
   // Drift (testbot C): fakturatilgang for utsending, lås mot gammel kopi og tregt nett.
   'functions/invoiceMailGuard.test.mjs',
   'src/arbeid/timesheetGuard.test.mjs',
+  'src/arbeid/timesheetRules.test.mjs',
+  'src/arbeid/vacationPlan.test.mjs',
+  'src/economy/expenseRegistry.test.mjs',
+  'src/economy/invoiceWorkText.test.mjs',
+  'src/economy/driftUx.test.mjs',
+  'src/project/statusFilter.test.mjs',
+  'src/company/companySetup.test.mjs',
 ];
 
 function runFile(file) {

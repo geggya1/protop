@@ -2,7 +2,7 @@
  * Administratorlisten følger nivået Administrator (FL-08). Ren logikk, ingen Firebase.
  */
 import assert from 'node:assert/strict';
-import { planAdminUids } from './aclSync.js';
+import { planAdminLevelMigration, planAdminUids } from './aclSync.js';
 
 const emp = (personUid, levels, status = 'active') => ({ id: `emp_${personUid}`, personUid, company: { accessLevels: levels, status } });
 
@@ -43,6 +43,47 @@ const employees = [
   assert.deepEqual(planAdminUids({ family: { ownerUid: 'own', members: ['own'] }, employees: [] }).add, ['own']);
   const same = planAdminUids({ family: { ownerUid: 'own', adminUids: ['own'], members: ['own'] }, employees: [] });
   assert.deepEqual([same.add, same.remove], [[], []]);
+}
+
+{
+  // REV-06: før første synk etter deploy. Den som er gjort til administrator via adminUids
+  // (Gruppeinnstillinger), og har en koblet post med et annet nivå, får nivået Administrator
+  // lagt til, og mister dermed ikke admin.
+  const before = { type: 'company', ownerUid: 'own', adminUids: ['own', 'regn', 'kari', 'ola'], members: ['own', 'regn', 'kari', 'ola', 'ans'] };
+  const rows = [
+    emp('regn', ['regnskap_ekstern']),
+    emp('kari', ['leder']),
+    emp('ola', ['administrator']),
+    emp('ans', ['ansatt']),
+  ];
+  const promoted = planAdminLevelMigration({ family: before, employees: rows });
+  assert.deepEqual(promoted.map((row) => row.id), ['emp_regn', 'emp_kari']);
+  assert.ok(promoted[1].patch['company.accessLevels'].includes('administrator'));
+  assert.ok(promoted[1].patch['company.accessLevels'].includes('leder'), 'nivået personen hadde, står');
+  const after = rows.map((row) => promoted.find((p) => p.id === row.id)?.employee || row);
+  const plan = planAdminUids({ family: before, employees: after });
+  assert.deepEqual(plan.remove, []);
+  assert.deepEqual(plan.adminUids, ['own', 'regn', 'kari', 'ola']);
+  // Uten overføringen ville begge mistet admin (slik gjennomgangen viste).
+  assert.deepEqual(planAdminUids({ family: before, employees: rows }).remove, ['regn', 'kari']);
+}
+
+{
+  // Overføringen rører ikke eieren, ikke-medlemmer, avsluttede poster eller personer uten post.
+  const promoted = planAdminLevelMigration({
+    family: { ownerUid: 'own', adminUids: ['own', 'borte', 'slutt', 'ukoblet'], members: ['own', 'slutt', 'ukoblet'] },
+    employees: [emp('own', ['ansatt']), emp('borte', ['leder']), emp('slutt', ['leder'], 'inactive')],
+  });
+  assert.deepEqual(promoted, []);
+}
+
+{
+  // Bedriften står aldri uten administrator.
+  const plan = planAdminUids({
+    family: { adminUids: ['a'], members: ['a'] },
+    employees: [emp('a', ['leder'])],
+  });
+  assert.deepEqual(plan, { adminUids: ['a'], add: [], remove: [] });
 }
 
 console.log('aclSync.test.mjs: ok');

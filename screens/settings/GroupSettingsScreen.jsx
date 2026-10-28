@@ -33,7 +33,7 @@ import {
 } from '../../src/utils/grandparentAccess';
 import { goPlatformOverview } from '../../src/utils/platformNav';
 import { isTeamType } from '../../src/utils/teams';
-import { isClassroomType } from '../../src/utils/groupTypes';
+import { isClassroomType, isOrganizationType } from '../../src/utils/groupTypes';
 import { useOptionalRoute } from '../../src/hooks/useOptionalRoute';
 import { useRouteFamily } from '../../src/hooks/useRouteFamily';
 import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
@@ -905,7 +905,14 @@ export function MemberSettingsScreen() {
           </View>
         ) : null}
 
-        {role === 'parent' && superOk && !isOwner && !isGrandparentMember(m) ? (
+        {/* Bedrift: administrator er et tilgangsnivå på ansattposten, og administratorlisten følger
+            nivået (REV-06). En egen bryter her ville blitt satt tilbake ved neste synk. */}
+        {role === 'parent' && superOk && !isOwner && isOrganizationType(family?.type) ? (
+          <Text style={[ms.mutedPad, { paddingHorizontal: 0 }]}>
+            Administrator velges som tilgangsnivå under Ansatte eller Tilgangsstyring.
+          </Text>
+        ) : null}
+        {role === 'parent' && superOk && !isOwner && !isGrandparentMember(m) && !isOrganizationType(family?.type) ? (
           <TouchableOpacity style={ms.actionRow} onPress={toggleAdmin}>
             <View style={ms.actionIcon}>
               <Ionicons name={m.admin ? 'shield-checkmark' : 'shield-outline'} size={18} color={colors.brand} />

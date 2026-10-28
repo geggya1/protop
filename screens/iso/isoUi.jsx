@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import DateField from '../../components/DateField';
+import TimeField from '../../components/TimeField';
 import OptionPicker from '../../components/OptionPicker';
 import { dateKey } from '../../src/utils/dates';
 
@@ -186,9 +187,9 @@ export function TextIn({ value, onChangeText, multiline, placeholder, keyboardTy
 
 /**
  * Valg i ISO. Under 5 valg: knapper side om side. 5 eller flere: liste med søk (felles velger for hele appen).
- * placeholder vises i feltet når ingenting er valgt (f.eks. «Alle» i filtre).
+ * placeholder vises i feltet når ingenting er valgt (f.eks. «Alle» i filtre). chipLimit={0} gir alltid nedtrekksliste.
  */
-export function Choice({ options, value, onChange, multi = false, small, placeholder = 'Velg', title, clearLabel, clearable }) {
+export function Choice({ options, value, onChange, multi = false, small, placeholder = 'Velg', title, clearLabel, clearable, chipLimit }) {
   // Tømme valget: i filtre («Alle …») og valgfrie felt. Påkrevde felt og vippebrytere utenfor felt kan ikke tømmes.
   const field = useContext(FieldContext);
   const filter = /^Alle\b/.test(String(placeholder || ''));
@@ -204,6 +205,7 @@ export function Choice({ options, value, onChange, multi = false, small, placeho
       title={title || field?.label || undefined}
       clearable={canClear}
       clearLabel={clearLabel || (filter ? placeholder : 'Ingen valgt')}
+      chipLimit={chipLimit}
     />
   );
 }
@@ -219,6 +221,97 @@ export function DateIn({ value, onChange, placeholder = 'Velg dato' }) {
         textStyle={{ color: value ? colors.ink : colors.placeholder }}
         iconColor={colors.brand}
       />
+    </View>
+  );
+}
+
+/** Klokkeslett «TT:MM». Tomt er lov (klokkeslett er valgfritt der feltet brukes). */
+export function TimeIn({ value, onChange, placeholder = 'Klokkeslett' }) {
+  const colors = useColors();
+  return (
+    <View style={[styles.input, { borderColor: colors.line, backgroundColor: colors.card, paddingVertical: 2 }]}>
+      <TimeField
+        value={value || ''}
+        placeholder={placeholder}
+        onChange={(t) => onChange(t || '')}
+        textStyle={{ color: value ? colors.ink : colors.placeholder }}
+        iconColor={colors.brand}
+      />
+    </View>
+  );
+}
+
+/**
+ * Valgbrikker: alle valg synlige, ett trykk slår av og på. For korte lister (kategorier, årsaker)
+ * der en nedtrekksliste skjuler valgene. multi=false gir ett valg (trykk igjen fjerner det).
+ */
+export function Chips({ options, value, onChange, multi = true }) {
+  const colors = useColors();
+  const list = (options || []).map((o) => (typeof o === 'string' ? { id: o, label: o } : o));
+  const picked = multi ? (Array.isArray(value) ? value : []) : (value ? [value] : []);
+  const toggle = (id) => {
+    if (!multi) { onChange(picked.includes(id) ? '' : id); return; }
+    onChange(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
+  };
+  return (
+    <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]}>
+      {list.map((o) => {
+        const on = picked.includes(o.id);
+        return (
+          <TouchableOpacity
+            key={o.id}
+            onPress={() => toggle(o.id)}
+            accessibilityRole={multi ? 'checkbox' : 'radio'}
+            accessibilityState={{ checked: on }}
+            style={[styles.chip, { minHeight: 32, paddingVertical: 6, borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.sunken }]}
+          >
+            {on ? <Ionicons name="checkmark" size={14} color={colors.brand} /> : null}
+            <Text style={{ color: on ? colors.brand : colors.ink, fontSize: 13, fontWeight: on ? '600' : '400' }}>{o.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Faner med antall (Alle 54 · Nye 33 …). tone på en fane farger telleren (f.eks. danger for forfalte). */
+export function Tabs({ tabs, value, onChange }) {
+  const colors = useColors();
+  return (
+    <View style={[styles.row, { flexWrap: 'wrap', gap: 4, padding: 4, borderRadius: 12, backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line, alignSelf: 'flex-start' }]} accessibilityRole="tablist">
+      {tabs.map((t) => {
+        const on = t.id === value;
+        const c = t.tone ? toneColor(colors, t.tone) : (on ? colors.brand : colors.muted);
+        return (
+          <TouchableOpacity
+            key={t.id}
+            onPress={() => onChange(t.id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={`${t.label}${t.count != null ? `, ${t.count}` : ''}`}
+            style={[styles.row, { gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, minHeight: 34, backgroundColor: on ? colors.card : 'transparent', ...(on && Platform.OS === 'web' ? { boxShadow: '0 1px 3px rgba(15, 23, 42, 0.12)' } : {}) }]}
+          >
+            <Text style={{ color: colors.ink, fontSize: 13, fontWeight: on ? '700' : '500' }}>{t.label}</Text>
+            {t.count != null ? (
+              <View style={{ minWidth: 22, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, backgroundColor: `${c}1c`, alignItems: 'center' }}>
+                <Text style={{ color: c, fontSize: 11, fontWeight: '700' }}>{t.count}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Initialer i en rund brikke (saksbehandler i lister). */
+export function Initials({ name, size = 26 }) {
+  const colors = useColors();
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const letters = parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : (parts[0] || '?').slice(0, 2);
+  return (
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={{ color: colors.brand, fontSize: Math.round(size * 0.42), fontWeight: '700' }}>{letters.toUpperCase()}</Text>
     </View>
   );
 }

@@ -343,3 +343,73 @@ export function MonthBars({ rows, parts, unit = '', empty = 'Ingen data.' }) {
     </View>
   );
 }
+
+/**
+ * Stablede månedsstolper med rutenett og tallakse (saker per måned etter gruppe).
+ * rows: [{ key: 'ÅÅÅÅ-MM', [part.key]: antall }], parts: [{ key, label, color }]. onPick({ key, label }) per måned.
+ */
+export function StackedMonthBars({ rows, parts, height = 170, onPick, empty = 'Ingen saker i perioden.' }) {
+  const colors = useColors();
+  const [table, setTable] = useState(false);
+  const total = (r) => parts.reduce((s, p) => s + (Number(r[p.key]) || 0), 0);
+  const peak = Math.max(0, ...rows.map(total));
+  if (!peak) return <Text style={{ color: colors.muted, fontSize: 13 }}>{empty}</Text>;
+  // Hele tall på aksen: 4 trinn, avrundet opp.
+  const step = Math.max(1, Math.ceil(peak / 4));
+  const top = step * 4;
+  const ticks = [4, 3, 2, 1, 0].map((i) => i * step);
+  // Plass under stolpene til månedsetiketter på to linjer.
+  const plot = height - 34;
+  return (
+    <View style={{ gap: 8 }}>
+      {table ? (
+        <DataTable head={['Måned', ...parts.map((p) => p.label), 'Sum']} rows={rows.map((r) => [monthLabel(r.key), ...parts.map((p) => r[p.key] || 0), total(r)])} />
+      ) : (
+        <View style={{ flexDirection: 'row', height, gap: 6 }} accessibilityLabel={`Saker per måned: ${rows.map((r) => `${monthLabel(r.key)} ${total(r)}`).join(', ')}`}>
+          <View style={{ width: 18, height: plot, justifyContent: 'space-between' }}>
+            {ticks.map((t) => <Text key={t} style={{ color: colors.muted, fontSize: 10, textAlign: 'right', lineHeight: 12, marginTop: -6, marginBottom: -6 }}>{t}</Text>)}
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ height: plot, justifyContent: 'space-between', position: 'absolute', left: 0, right: 0, top: 0 }}>
+              {ticks.map((t) => <View key={t} style={{ height: 1, backgroundColor: colors.line }} />)}
+            </View>
+            <View style={{ flexDirection: 'row', height: plot, alignItems: 'flex-end' }}>
+              {rows.map((r) => {
+                const n = total(r);
+                return (
+                  <TouchableOpacity
+                    key={r.key}
+                    disabled={!n || !onPick}
+                    onPress={() => onPick?.({ key: r.key, label: monthLabel(r.key) })}
+                    accessibilityRole={n && onPick ? 'button' : undefined}
+                    accessibilityLabel={`${monthLabel(r.key)}: ${parts.map((p) => `${p.label} ${r[p.key] || 0}`).join(', ')}`}
+                    style={{ flex: 1, alignItems: 'center', height: plot, justifyContent: 'flex-end' }}
+                  >
+                    <View style={{ width: '56%', maxWidth: 30 }}>
+                      {parts.slice().reverse().map((p) => {
+                        const v = Number(r[p.key]) || 0;
+                        if (!v) return null;
+                        return <View key={p.key} style={{ height: (v / top) * plot, backgroundColor: p.color }} />;
+                      })}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={{ flexDirection: 'row', marginTop: 6 }}>
+              {/* Måned på første linje; året bare i første kolonne og i januar, så etikettene får plass på mobil. */}
+              {rows.map((r, i) => {
+                const [mon, yy] = monthLabel(r.key).split(' ');
+                return <Text key={r.key} style={{ flex: 1, textAlign: 'center', color: colors.muted, fontSize: 10, lineHeight: 13 }} numberOfLines={2}>{i === 0 || mon === 'jan' ? `${mon}\n${yy}` : mon}</Text>;
+              })}
+            </View>
+          </View>
+        </View>
+      )}
+      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        {parts.map((p) => <Legend key={p.key} color={p.color} label={p.label} />)}
+        <TableToggle open={table} onToggle={() => setTable(!table)} />
+      </View>
+    </View>
+  );
+}

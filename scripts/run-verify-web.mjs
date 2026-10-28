@@ -105,6 +105,7 @@ export const FILES = [
   'src/doccontrol/doccontrol.test.mjs',
   'src/hr/kinReminder.test.mjs',
   'screens/anbud/formFillRender.test.cjs',
+  'screens/iso/findingsRender.test.cjs',
   'src/anbud/formBuilder.test.mjs',
   'src/hr/reviewPdf.test.mjs',
   'src/hr/storage.test.mjs',

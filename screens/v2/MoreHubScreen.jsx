@@ -73,6 +73,7 @@ import { countForItem } from '../../src/utils/notifications';
 import { allowedAppsForChild, isChildAppAllowed } from '../../src/utils/childApps';
 import { grandparentModulesFor, isGrandparentAppAllowed } from '../../src/utils/grandparentAccess';
 import HelpTarget from '../../components/HelpTarget';
+import { isFamilyProductMoreView } from '../../src/navigation/familyProduct';
 
 function Row({
   icon, label, onPress, highlight, badgeCount = 0, compact = false, showChevron = true, moduleId,
@@ -365,7 +366,8 @@ export default function MoreHubScreen({ subView, setSubView }) {
     );
   }
 
-  if (subView && SUB_SCREENS[subView]) {
+  // Familiesidene (/hjem/apper/…) finnes ikke i ProTop-bygget (L-35).
+  if (subView && SUB_SCREENS[subView] && !isFamilyProductMoreView(subView)) {
     const Sub = SUB_SCREENS[subView];
     const subTitle = moreSubviewTitle(subView, t);
     const firstName = profileChild?.name?.split(' ')[0] || t('settings.child');

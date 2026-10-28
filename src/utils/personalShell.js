@@ -48,12 +48,38 @@ export function personalShellDisplayName(profile) {
 }
 
 /**
+ * Opprettelser som pågår eller er gjort i denne økten, per bruker. Profilsteget og RootNav kan
+ * be om skallet samtidig, og listen over grupper oppdateres ikke av seg selv etter opprettelsen.
+ * Da fikk brukeren to personlige arbeidsområder (ANSATT-02). Alle kall for samme bruker får
+ * samme svar.
+ */
+const shellJobs = new Map();
+
+function liveGroups(families) {
+  return (families || []).filter(
+    (f) => f
+      && f.deleted !== true
+      && f.hiddenFromApp !== true
+      && f.archived !== true
+      && f.active !== false,
+  );
+}
+
+/** Det personlige arbeidsområdet brukeren eier fra før (fra databasen), eller null. */
+export function pickOwnPersonalShell(families, uid) {
+  return liveGroups(families).find((f) => isPersonalShell(f) && (!uid || f.ownerUid === uid)) || null;
+}
+
+/**
  * Ensure the user has a usable family workspace.
  * - Invited users who already have a group: no-op (returns existing).
  * - Solo users with no groups: create isPersonal shell.
  * - Solo users who already have a personal shell: return it.
+ * Opprettelsen er idempotent: samtidige og senere kall i økten gir samme arbeidsområde, og et
+ * arbeidsområde brukeren eier i databasen (men som listen ikke har fått med seg) brukes om igjen.
  *
  * @param {object} opts.createGroupFn — injectable for tests; defaults to groups.createGroup
+ * @param {object} opts.findOwnShellsFn — injectable for tests; defaults to groups.listOwnedGroups
  */
 export async function ensurePersonalShellForUser({
   user,
@@ -61,18 +87,15 @@ export async function ensurePersonalShellForUser({
   language = 'nb',
   existingFamilies = [],
   createGroupFn,
+  findOwnShellsFn,
 } = {}) {
   if (!user?.uid) throw new Error('missing-user');
 
-  const live = (existingFamilies || []).filter(
-    (f) => f
-      && f.deleted !== true
-      && f.hiddenFromApp !== true
-      && f.archived !== true
-      && f.active !== false,
-  );
+  const live = liveGroups(existingFamilies);
 
   if (live.length > 0) {
+    // Listen har tatt igjen databasen; neste gang avgjør den.
+    shellJobs.delete(user.uid);
     const personal = findPersonalShell(live);
     const pick = personal || live[0];
     return {
@@ -83,34 +106,58 @@ export async function ensurePersonalShellForUser({
     };
   }
 
-  const create = createGroupFn || (await import('./groups.js')).createGroup;
-  const name = personalShellDisplayName(profile);
-  const id = await create({
-    name,
-    type: 'family',
-    language,
-    user,
-    profile,
-    isPersonal: true,
-  });
+  const running = shellJobs.get(user.uid);
+  if (running) return running;
 
-  return {
-    id,
-    family: {
-      id,
+  const job = (async () => {
+    // Uten injisert opprettelse (appen): se etter et arbeidsområde brukeren allerede eier.
+    const findOwn = findOwnShellsFn
+      || (createGroupFn ? null : (await import('./groups.js')).listOwnedGroups);
+    if (findOwn) {
+      const owned = pickOwnPersonalShell(await findOwn(user.uid).catch(() => []), user.uid);
+      if (owned) {
+        return {
+          id: owned.id, family: owned, created: false, isPersonal: true,
+        };
+      }
+    }
+    const create = createGroupFn || (await import('./groups.js')).createGroup;
+    const name = personalShellDisplayName(profile);
+    const id = await create({
       name,
       type: 'family',
-      ownerUid: user.uid,
-      adminUids: [user.uid],
-      members: [user.uid],
+      language,
+      user,
+      profile,
       isPersonal: true,
-      active: true,
-      archived: false,
-      deleted: false,
-    },
-    created: true,
-    isPersonal: true,
-  };
+    });
+
+    return {
+      id,
+      family: {
+        id,
+        name,
+        type: 'family',
+        ownerUid: user.uid,
+        adminUids: [user.uid],
+        members: [user.uid],
+        isPersonal: true,
+        active: true,
+        archived: false,
+        deleted: false,
+      },
+      created: true,
+      isPersonal: true,
+    };
+  })();
+  shellJobs.set(user.uid, job);
+  try {
+    return await job;
+  } catch (err) {
+    // Feilet: neste kall prøver på nytt.
+    if (shellJobs.get(user.uid) === job) shellJobs.delete(user.uid);
+    throw err;
+  }
 }
 
 /** Name the personal shell and make it a normal family. */

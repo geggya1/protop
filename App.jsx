@@ -178,6 +178,8 @@ import {
   isHomeSetupCompleteSession,
 } from './src/utils/personalShell';
 import { clearSessionData } from './src/utils/localCache';
+import { useInviteLinkJoin } from './src/hooks/useInviteLinkJoin';
+import { blockedFamilyProductRoute, childLoginAllowed } from './src/navigation/familyProduct';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -548,6 +550,13 @@ export default function App() {
       }
       if (sessionUid && sessionUid !== u.uid) clearSessionData().catch(() => {});
       sessionUid = u.uid;
+      // Barnekontoer hører til familieproduktet og har ingen vilkårsgodkjenning fra
+      // foresatte. I ProTop logges de ut (L-35); innloggingen sier fra (LoginScreen).
+      if (isChildEmail(u.email) && !childLoginAllowed()) {
+        console.warn('[auth] barnekonto logges ut: familieproduktet er ikke med i ProTop');
+        signOut(auth).catch(() => {});
+        return;
+      }
       try {
         // Network / IDB stalls must not leave the app on a forever white spinner.
         const withTimeout = (promise, ms, label) => Promise.race([
@@ -705,14 +714,20 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   const { langPicked, ready, t, lang } = useI18n();
   const {
     userProfile, families, familiesReady, familiesLoadError, userProfileReady,
-    family, familyId, selectFamily,
+    family, familyId, selectFamily, requestShellTab,
   } = useApp();
   const [localConsents, setLocalConsents] = useState(null);
   const [consentReady, setConsentReady] = useState(false);
   // Hard fail-safe: never leave returning parents on a blank boot spinner forever.
   const [bootTimedOut, setBootTimedOut] = useState(false);
   const [shellEnsureBusy, setShellEnsureBusy] = useState(false);
+  // Brukeren (uid) som har fått svar på opprettelsen av arbeidsområdet i denne økten.
+  const [shellEnsureSettled, setShellEnsureSettled] = useState(null);
   const shellEnsureAttemptedRef = React.useRef(null);
+  // Registrert fra en invitasjonslenke: invitasjonen godtas når e-posten er bekreftet (UX-30).
+  const inviteJoin = useInviteLinkJoin({
+    user, userProfile, families, familiesReady, selectFamily, requestShellTab,
+  });
 
   useEffect(() => {
     setBootTimedOut(false);
@@ -772,6 +787,12 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     if (!user?.uid || userRole !== 'parent') return undefined;
     if (!userProfile?.profileComplete) return undefined;
     if (!familiesReady) return undefined;
+    // Personen blir med i bedriften fra invitasjonslenken; da trengs ikke et eget skall først.
+    if (inviteJoin.joining) return undefined;
+    // Profilen lagres alt ved registreringen (UX-30). Arbeidsområdet lages først når e-posten
+    // er bekreftet, så den som kommer fra en invitasjonslenke går rett inn i bedriften.
+    const provider = user?.providerData?.[0]?.providerId;
+    if ((!provider || provider === 'password') && !user.emailVerified) return undefined;
     const live = (families || []).filter(
       (f) => f.deleted !== true && f.hiddenFromApp !== true
         && f.archived !== true && f.active !== false,
@@ -787,11 +808,13 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     }
     shellEnsureAttemptedRef.current = user.uid;
     let alive = true;
+    let finished = false;
     setShellEnsureBusy(true);
     const shellTimeout = setTimeout(() => {
       if (!alive) return;
       console.warn('[RootNav] personal shell timed out');
       setShellEnsureBusy(false);
+      setShellEnsureSettled(user.uid);
     }, 12000);
     (async () => {
       try {
@@ -808,8 +831,12 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         // Allow one retry on next familiesReady cycle if list stays empty.
         if (alive) shellEnsureAttemptedRef.current = null;
       } finally {
+        finished = true;
         clearTimeout(shellTimeout);
-        if (alive) setShellEnsureBusy(false);
+        if (alive) {
+          setShellEnsureBusy(false);
+          setShellEnsureSettled(user.uid);
+        }
       }
     })();
     return () => {
@@ -818,9 +845,14 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       // A new profile/family snapshot used to leave this flag true, so the
       // boot spinner never ended even after the family list arrived.
       setShellEnsureBusy(false);
+      // Opprettelsen skriver selv users/{uid}, så effekten kjøres på nytt før svaret kommer.
+      // Neste runde venter på samme opprettelse og velger arbeidsområdet. Før ble svaret
+      // kastet, og «Laster ProTop…» sto til siden ble lastet på nytt (ANSATT-08).
+      if (!finished) shellEnsureAttemptedRef.current = null;
     };
   }, [
-    user, userRole, userProfile, familiesReady, families, selectFamily, lang,
+    user, user?.emailVerified, userRole, userProfile, familiesReady, families, selectFamily, lang,
+    inviteJoin.joining,
   ]);
 
   const consented = userRole === 'child'
@@ -935,13 +967,17 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     else if (needsVerify) stage = 'verify';
     else if (user && userRole === 'parent' && !bootTimedOut && (!familiesReady || (!userProfileReady && !hasGroups))) stage = 'boot';
     else if (!langPicked && user) stage = 'language';
+    else if (inviteJoin.joining) stage = 'boot';
     // Never eject incomplete profiles to GetStarted — bootTimedOut only clears the
     // white spinner (boot stage). Kicking off ProfileSetup mid-birthday-picker left
     // new users on «Fant ikke familien din».
     else if (user && !profileOk) stage = 'profile';
     // Personal shell is created in the background; show a short boot while ensuring.
     else if (user && userRole === 'parent' && !hasGroups && !family?.id && !familyId) {
-      stage = shouldHoldFamilyBootSpinner({ bootTimedOut }) ? 'boot' : 'homeSetup';
+      stage = shouldHoldFamilyBootSpinner({
+        bootTimedOut,
+        ensuring: shellEnsureBusy || shellEnsureSettled !== user.uid,
+      }) ? 'boot' : 'homeSetup';
     }
     else if (needsHomeSetup) stage = 'homeSetup';
     else stage = 'app';
@@ -989,13 +1025,14 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
           }
         } catch { /* ignore */ }
-        if (!isAuthEntryPath(path)) return;
+        // Bekreftelseslenken (/verify-email?vt=…) skal ikke åpnes på nytt når bedriften er klar.
+        if (!isAuthEntryPath(path) && !path.startsWith('/verify-email')) return;
       }
       navRef.current.reset({ index: 0, routes: [{ name: initial }] });
     }
   }, [stage, initial, forceCalendarOauth]);
 
-  if (stage === 'boot') return <LoadingView label="Laster ProTop…" />;
+  if (stage === 'boot') return <LoadingView label={inviteJoin.joining ? 'Åpner bedriften…' : 'Laster ProTop…'} />;
 
   // SessionOverlays must mount for any signed-in user past boot — not only
   // stage==='app'. Users on legal/profile/language/start otherwise never see
@@ -1007,6 +1044,13 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       ref={navRef}
       linking={linking}
       onReady={() => setAppNav(navRef.current)}
+      // Familieskjermene finnes ikke i ProTop (L-35). Lenker går til Hjem (linking.js);
+      // kommer en navigering dit likevel, sendes brukeren til Hjem.
+      onStateChange={(state) => {
+        if (blockedFamilyProductRoute(state) && navRef.current) {
+          navRef.current.reset({ index: 0, routes: [{ name: 'Home' }] });
+        }
+      }}
     >
       <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, title: 'ProTop', contentStyle: { flex: 1 }, gestureEnabled: true, fullScreenGestureEnabled: true }}>
         <Stack.Screen name="Welcome">

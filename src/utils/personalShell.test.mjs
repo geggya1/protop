@@ -134,4 +134,68 @@ assert.equal(shouldShowFamilyNudge({
   assert.equal(result.isPersonal, true);
 }
 
+// ANSATT-02: profilsteget og RootNav ber om skallet samtidig. Bare ett lages.
+{
+  let calls = 0;
+  const createGroupFn = async () => {
+    calls += 1;
+    await new Promise((r) => setTimeout(r, 20));
+    return `fam-${calls}`;
+  };
+  const user = { uid: 'u-race' };
+  const [a, b] = await Promise.all([
+    ensurePersonalShellForUser({ user, existingFamilies: [], createGroupFn }),
+    ensurePersonalShellForUser({ user, existingFamilies: [], createGroupFn }),
+  ]);
+  assert.equal(calls, 1);
+  assert.equal(a.id, 'fam-1');
+  assert.equal(b.id, 'fam-1');
+  // Listen er ikke oppdatert ennå (tom): samme skall, ingen ny opprettelse.
+  const c = await ensurePersonalShellForUser({ user, existingFamilies: [], createGroupFn });
+  assert.equal(c.id, 'fam-1');
+  assert.equal(calls, 1);
+}
+
+// Feilet opprettelse kan prøves igjen.
+{
+  let calls = 0;
+  const user = { uid: 'u-retry' };
+  await assert.rejects(ensurePersonalShellForUser({
+    user,
+    existingFamilies: [],
+    createGroupFn: async () => { calls += 1; throw new Error('offline'); },
+  }));
+  const ok = await ensurePersonalShellForUser({
+    user,
+    existingFamilies: [],
+    createGroupFn: async () => { calls += 1; return 'fam-retry'; },
+  });
+  assert.equal(ok.id, 'fam-retry');
+  assert.equal(calls, 2);
+}
+
+// Et skall brukeren eier i databasen (men som listen mangler) brukes om igjen.
+{
+  const result = await ensurePersonalShellForUser({
+    user: { uid: 'u-owned' },
+    existingFamilies: [],
+    findOwnShellsFn: async () => [
+      { id: 'company', type: 'organization', ownerUid: 'u-owned', active: true },
+      { id: 'old', isPersonal: true, ownerUid: 'u-owned', deleted: true },
+      { id: 'shell', isPersonal: true, ownerUid: 'u-owned', active: true },
+    ],
+    createGroupFn: async () => {
+      throw new Error('should-not-create');
+    },
+  });
+  assert.equal(result.id, 'shell');
+  assert.equal(result.created, false);
+}
+
+{
+  const { pickOwnPersonalShell } = await import('./personalShell.js');
+  assert.equal(pickOwnPersonalShell([{ id: 'x', isPersonal: true, ownerUid: 'other', active: true }], 'me'), null);
+  assert.equal(pickOwnPersonalShell([{ id: 'x', isPersonal: true, ownerUid: 'me', archived: true }], 'me'), null);
+}
+
 console.log('personalShell.test.mjs: ok');

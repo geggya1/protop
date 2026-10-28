@@ -1679,16 +1679,35 @@ service cloud.firestore {
     }
 
     /* ───────── Oppslag ───────── */
-    // Brukernavn slås opp før innlogging. Bare eieren (eller et nytt barn) kan ta et ledig navn.
+    // Brukernavn slås opp før innlogging. Navnet er dokument-id-en og må være et gyldig
+    // brukernavn (ikke en e-postadresse), og dokumentet peker bare på en uid: ingen e-post
+    // eller andre felt som innloggingen kunne stole på (SEC-19).
+    function usernameDocOk(name) {
+      let d = request.resource.data;
+      return name.matches('^[a-z0-9._-]{3,24}$')
+        && d.keys().hasOnly(['uid', 'type', 'username', 'updatedAt', 'createdAt'])
+        && d.get('username', name) == name
+        && d.get('uid', '') is string && d.get('uid', '') != ''
+        && d.get('type', '') in ['adult', 'child'];
+    }
+
+    // Bare eieren kan ta et ledig navn til seg selv. Et navn til et barn kan bare tas av en
+    // foresatt til barnet (barneprofilen finnes), ikke av hvem som helst til en vilkårlig uid.
     match /usernames/{name} {
       allow get: if true;
-      allow create: if isSignedIn()
-        && request.resource.data.get('type', '') in ['adult', 'child']
-        && (request.resource.data.get('uid', '') == request.auth.uid || request.resource.data.get('type', '') == 'child');
-      allow update: if isSignedIn()
-        && resource.data.get('uid', '') == request.auth.uid
-        && request.resource.data.get('uid', '') == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.get('uid', '') == request.auth.uid;
+      allow create: if isSignedIn() && usernameDocOk(name)
+        && (request.resource.data.uid == request.auth.uid
+          || (request.resource.data.type == 'child' && isGuardianOf(request.resource.data.uid)));
+      // Navnet beholder eier og type. Eldre dokumenter uten type kan merkes som voksen.
+      allow update: if isSignedIn() && usernameDocOk(name)
+        && request.resource.data.uid == resource.data.get('uid', '')
+        && (request.resource.data.type == resource.data.get('type', '')
+          || (resource.data.get('type', '') == '' && request.resource.data.type == 'adult'))
+        && (resource.data.get('uid', '') == request.auth.uid
+          || (resource.data.get('type', '') == 'child' && isGuardianOf(resource.data.get('uid', ''))));
+      allow delete: if isSignedIn()
+        && (resource.data.get('uid', '') == request.auth.uid
+          || (resource.data.get('type', '') == 'child' && isGuardianOf(resource.data.get('uid', ''))));
     }
 
     // Kode → gruppe. Bare kode, gruppe-id og type (ingen navn eller personopplysninger).

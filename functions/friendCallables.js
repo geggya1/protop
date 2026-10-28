@@ -17,6 +17,7 @@ import { sendMail } from './mail.js';
 import { sendSms } from './sms.js';
 import { resolveMailApiKey } from './mailApiKey.js';
 import { buildFriendInviteMessage, buildFriendInviteSms } from './friendInviteCopy.js';
+import { reminderDeliveryAllowed } from './friendInviteLimits.js';
 import { assertParentCanManageChildFriends, resolveFriendActorUid } from './friendActor.js';
 
 if (!getApps().length) initializeApp();
@@ -318,6 +319,9 @@ export const dismissOutgoingFriendRequestAdmin = onCall(
 
 /**
  * Resend reminder for a pending outgoing friend request (inbox + e-post/SMS when possible).
+ * Ingen purringer uten samtykke (L-33, markedsføringsloven § 15): den som ikke har konto, får
+ * ingen ny e-post eller SMS, og en med konto får e-post/SMS høyst hver 7. dag (varselet i appen
+ * oppdateres alltid).
  */
 export const resendFriendRequestAdmin = onCall(
   { region: 'europe-west1', timeoutSeconds: 30, memory: '256MiB', cors: true },
@@ -353,6 +357,7 @@ export const resendFriendRequestAdmin = onCall(
       let emailError = null;
       let smsSent = false;
       let smsError = null;
+      let reminderLimited = false;
 
       if (toUid) {
         const invitee = await loadPublic(toUid);
@@ -378,122 +383,63 @@ export const resendFriendRequestAdmin = onCall(
         await outRef.set({ updatedAt: now, fromName, lastResentAt: now }, { merge: true });
 
         const acceptUrl = `https://www.protop.no/friend-invite/${encodeURIComponent(requestId)}`;
-        try {
-          const toEmail = await loadContactEmail(toUid);
-          const apiKey = await resolveMailApiKey();
-          if (toEmail && apiKey) {
-            await sendMail(
-              apiKey,
-              buildFriendInviteMessage({
-                to: toEmail,
-                name: invitee.name,
-                fromName,
-                registerUrl: acceptUrl,
-                existingUser: true,
-              }),
-            );
-            emailSent = true;
-          } else if (toEmail && !apiKey) {
-            emailError = 'mail-key-missing';
-          }
-        } catch (mailErr) {
-          emailError = mailErr?.message || 'mail-failed';
-        }
-
-        try {
-          const toPhone = String(out.toPhone || '').trim() || await loadContactPhone(toUid);
-          const apiKey = await resolveMailApiKey();
-          if (toPhone && apiKey) {
-            await sendSms(apiKey, {
-              to: toPhone,
-              content: buildFriendInviteSms({
-                name: invitee.name,
-                fromName,
-                registerUrl: acceptUrl,
-                existingUser: true,
-              }),
-            });
-            smsSent = true;
-          } else if (toPhone && !apiKey) {
-            smsError = 'mail-key-missing';
-          }
-        } catch (smsErr) {
-          smsError = smsErr?.message || 'sms-failed';
-        }
-      } else {
-        // New-user pending invite: re-queue outbox + mail/SMS when contact present.
-        const toEmail = String(out.toEmail || '').trim().toLowerCase();
-        const toPhone = String(out.toPhone || '').trim();
-        const pendingId = out.pendingInviteId || requestId;
-        const token = out.token || '';
-        const registerUrl = token
-          ? `https://www.protop.no/register?friendInvite=${encodeURIComponent(token)}&email=${encodeURIComponent(toEmail || '')}`
-          : `https://www.protop.no/register`;
-        await outRef.set({ updatedAt: now, lastResentAt: now, fromName }, { merge: true });
-        await db.doc(`friendInviteOutbox/out_${pendingId}`).set({
-          pendingInviteId: pendingId,
-          fromUid: uid,
-          fromName,
-          toName: out.toName || '',
-          toEmail,
-          toPhone,
-          registerUrl,
-          existingUser: false,
-          channels: [
-            ...(toEmail ? ['email'] : []),
-            ...(toPhone ? ['sms'] : []),
-          ],
-          status: 'queued',
-          deliveryAttempted: false,
-          resentAt: now,
-          createdAt: now,
-        }, { merge: true });
-        const apiKey = await resolveMailApiKey().catch(() => '');
-        if (toEmail) {
+        const mayRemind = reminderDeliveryAllowed(out.lastReminderSentAt);
+        reminderLimited = !mayRemind;
+        if (mayRemind) {
           try {
-            if (apiKey) {
+            const toEmail = await loadContactEmail(toUid);
+            const apiKey = await resolveMailApiKey();
+            if (toEmail && apiKey) {
               await sendMail(
                 apiKey,
                 buildFriendInviteMessage({
                   to: toEmail,
-                  name: out.toName || '',
+                  name: invitee.name,
                   fromName,
-                  registerUrl,
-                  existingUser: false,
+                  registerUrl: acceptUrl,
+                  existingUser: true,
                 }),
               );
               emailSent = true;
-            } else {
+            } else if (toEmail && !apiKey) {
               emailError = 'mail-key-missing';
             }
           } catch (mailErr) {
             emailError = mailErr?.message || 'mail-failed';
           }
-        }
-        if (toPhone) {
+
           try {
-            if (apiKey) {
+            const toPhone = String(out.toPhone || '').trim() || await loadContactPhone(toUid);
+            const apiKey = await resolveMailApiKey();
+            if (toPhone && apiKey) {
               await sendSms(apiKey, {
                 to: toPhone,
                 content: buildFriendInviteSms({
-                  name: out.toName || '',
+                  name: invitee.name,
                   fromName,
-                  registerUrl,
-                  existingUser: false,
+                  registerUrl: acceptUrl,
+                  existingUser: true,
                 }),
               });
               smsSent = true;
-            } else {
+            } else if (toPhone && !apiKey) {
               smsError = 'mail-key-missing';
             }
           } catch (smsErr) {
             smsError = smsErr?.message || 'sms-failed';
           }
+          if (emailSent || smsSent) await outRef.set({ lastReminderSentAt: now }, { merge: true });
         }
+      } else {
+        // Ny bruker uten konto: ingen ny e-post eller SMS (ingen purringer uten samtykke, L-33).
+        await outRef.set({ updatedAt: now, fromName }, { merge: true });
+        return {
+          ok: true, requestId, emailSent: false, smsSent: false, noReminder: true,
+        };
       }
 
       return {
-        ok: true, requestId, emailSent, emailError, smsSent, smsError,
+        ok: true, requestId, emailSent, emailError, smsSent, smsError, reminderLimited,
       };
     } catch (error) {
       if (error instanceof HttpsError) return { ok: false, error: error.message };

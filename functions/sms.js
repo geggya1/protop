@@ -120,8 +120,12 @@ export async function sendSms(apiKey, message) {
   return sendWithBrevoSms(key, message);
 }
 
-export function buildInviteSms({ name, familyName, groupType, joinCode, registerUrl, existingUser = false }) {
+export function buildInviteSms({
+  name, familyName, groupType, joinCode, registerUrl, existingUser = false, inviterName = '',
+}) {
   const label = familyName || 'gruppen';
+  // Hvem som inviterte, fra serveren (ANSATT-05).
+  const by = String(inviterName || '').trim() ? `${String(inviterName).trim()} har invitert deg` : 'Du er invitert';
   const team = ['team', 'club'].includes(String(groupType || '').toLowerCase());
   const classroom = ['class', 'classroom'].includes(String(groupType || '').toLowerCase());
   const who = name ? `Hei ${name}!` : 'Hei!';
@@ -129,12 +133,12 @@ export function buildInviteSms({ name, familyName, groupType, joinCode, register
   const url = registerUrl || 'https://www.protop.no/register';
   const organization = ['organization', 'company'].includes(String(groupType || '').toLowerCase());
   const role = organization
-    ? `Du er invitert inn i bedriften «${label}» på ProTop.`
+    ? `${by} inn i bedriften «${label}» på ProTop.`
     : team
-    ? `Du er invitert til idrettslaget «${label}» på ProTop.`
+    ? `${by} til idrettslaget «${label}» på ProTop.`
     : (classroom
-      ? `Du er invitert til klassen «${label}» på ProTop.`
-      : `Du er invitert til familien «${label}» på ProTop.`);
+      ? `${by} til klassen «${label}» på ProTop.`
+      : `${by} til familien «${label}» på ProTop.`);
   if (existingUser) {
     return `${who} ${role}${codeBit} Du har allerede konto — godta eller avslå invitasjonen: ${url}`;
   }

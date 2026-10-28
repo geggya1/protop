@@ -223,3 +223,15 @@ export function staleFriendInviteNoticeIds(items, pendingIds, { nowMs = Date.now
     .map((n) => n.id)
     .filter(Boolean);
 }
+
+/**
+ * «Send på nytt» uten ny e-post eller SMS (L-33): den som ikke har konto, får ingen purringer,
+ * og en med konto får e-post/SMS høyst én gang i uken. Teksten erstatter «sendt på nytt».
+ */
+export function friendResendNote(res) {
+  if (res?.noReminder) {
+    return 'Personen har ikke konto ennå. ProTop sender ikke purringer på e-post eller SMS; lenken i invitasjonen gjelder fortsatt.';
+  }
+  if (res?.reminderLimited) return 'Varselet i appen er fornyet. E-post og SMS sendes høyst én gang i uken.';
+  return '';
+}

@@ -140,6 +140,13 @@ export async function createGroup({
   return famRef.id;
 }
 
+/** Grupper brukeren eier (ownerUid), rett fra databasen. Brukes før et personlig skall lages. */
+export async function listOwnedGroups(uid) {
+  if (!uid) return [];
+  const snap = await getDocs(query(collection(db, 'families'), where('ownerUid', '==', uid), limit(20)));
+  return snap.docs.map((row) => ({ id: row.id, ...row.data() }));
+}
+
 export async function updateGroup(familyId, patch) {
   // Gruppetype er låst etter opprettelse (familie ≠ idrettslag ≠ …).
   const { type: _ignoredType, ...safe } = patch || {};
@@ -233,11 +240,6 @@ export async function addChildMember({
   if (await usernameTaken(uname)) throw new Error('taken');
   const authEmail = usernameToEmail(uname);
   const uid = await createAuthUser(authEmail, password);
-  try {
-    await claimUsername(uname, uid, 'child');
-  } catch (e) {
-    throw e;
-  }
   const now = serverTimestamp();
   const payload = {
     ...buildChildMemberRecord({
@@ -289,6 +291,9 @@ export async function addChildMember({
     error.cause = cause;
     throw error;
   }
+  // Brukernavnet tas når barneprofilen finnes: reglene lar bare en foresatt til barnet
+  // ta et navn som peker på barnet (SEC-19).
+  await claimUsername(uname, uid, 'child');
   // Passordet settes i Auth via serveren; det lagres ikke i Firestore (SEC-21).
   if (password) {
     await setMemberPassword({ uid, password, familyId }).catch(() => {});

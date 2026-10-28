@@ -279,6 +279,15 @@ export const FILES = [
   'src/economy/driftUx.test.mjs',
   'src/project/statusFilter.test.mjs',
   'src/company/companySetup.test.mjs',
+  // Konto: første innlogging, invitasjonslenke, brukernavn, familieproduktet og venneinvitasjoner.
+  'src/utils/personalShell.test.mjs',
+  'src/utils/authBootGate.test.mjs',
+  'src/utils/inviteLinkJoin.test.mjs',
+  'src/navigation/familyProduct.test.mjs',
+  'functions/friendInvite.copy.test.mjs',
+  'functions/friendInviteLimits.test.mjs',
+  'src/utils/friendResendNote.test.mjs',
+  'functions/inviteMessage.test.mjs',
 ];
 
 function runFile(file) {

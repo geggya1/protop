@@ -5,6 +5,8 @@
  * AppShell eier stien (pushState ved bytte, popstate ved tilbake). linking.js tolker den ved oppstart og tilbake.
  */
 
+import { isFamilyProductMoreView } from './familyProduct.js';
+
 export const SHELL_ROOT = '/hjem';
 
 /** Faner med eget navn i adressen (resten bruker fane-id-en, som allerede er norsk). */
@@ -105,6 +107,8 @@ export function parseShellPath(path) {
     if (third) return null;
     return sub ? { tab, subView: null, detail: sub } : { tab, subView: null };
   }
+  // Familiesidene (/hjem/apper/spill …) finnes ikke i ProTop-bygget (L-35).
+  if (tab === 'more' && isFamilyProductMoreView(sub)) return { tab: 'home', subView: null };
   if (third) return shellDetailKind(tab, sub) ? { tab, subView: sub, detail: third } : null;
   return { tab, subView: sub || null };
 }

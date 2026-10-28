@@ -9,6 +9,7 @@ import {
 import { visibleCompanyWorkspaces } from '../../src/utils/platformSwitch';
 import { watchEmployees } from '../../src/employees/storage';
 import ArbeidScreen from './ArbeidScreen';
+import JoinCompanyWelcome from '../../components/JoinCompanyWelcome';
 
 /**
  * Timeliste under Personlig: samme føring som under Arbeid, låst til innlogget bruker.
@@ -70,6 +71,7 @@ export default function PersonalTimesheet() {
   if (loading && !company) {
     return (
       <View style={[styles.empty, { backgroundColor: colors.bg }]} nativeID="personal-timeliste-loading">
+        <JoinCompanyWelcome />
         <Text style={{ color: colors.muted }}>Laster timeliste…</Text>
       </View>
     );
@@ -78,6 +80,7 @@ export default function PersonalTimesheet() {
   if (!company) {
     return (
       <View style={[styles.empty, { backgroundColor: colors.bg }]} nativeID="personal-timeliste-empty">
+        <JoinCompanyWelcome />
         <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '600' }}>Timeliste</Text>
         <Text style={{ color: colors.muted, marginTop: 8, maxWidth: 480, lineHeight: 20 }}>
           Timelisten åpnes for deg når du er knyttet til en bedrift med rett til å føre egne timer.
@@ -88,6 +91,8 @@ export default function PersonalTimesheet() {
 
   return (
     <View style={styles.wrap} nativeID="personal-timeliste">
+      {/* Nettopp med fra en invitasjonslenke: «Slik fører du timer» (UX-30). */}
+      <JoinCompanyWelcome />
       {companies.length > 1 ? (
         <View style={styles.companiesBar} nativeID="personal-timeliste-companies">
           <ScrollView

@@ -26,6 +26,16 @@ export const LEGAL_ENTITY = {
 
 export const LEGAL_UPDATED = { nb: '27. oktober 2026', en: '27 October 2026' };
 
+/**
+ * Abonnementsvilkår mangler (L-33). Prisvisningen er av (PRICING_VISIBLE i billingMethods.js),
+ * men appen har abonnement og prøveperiode. Plassholderen står i vilkårene til en jurist har
+ * skrevet teksten. Når teksten er på plass: bytt ut plassholderen og øk LEGAL_VERSION.
+ */
+export const SUBSCRIPTION_PLACEHOLDER = {
+  nb: '[TIL JURIST – abonnementsvilkår må fylles ut før prisen vises i appen] Pris per bedrift eller per bruker, med og uten merverdiavgift · prøveperiode og hva som skjer når den er over (fornyes abonnementet automatisk?) · bindingstid · hvordan og når abonnementet sies opp, og når oppsigelsen får virkning · fakturering og betalingsfrist · angrerett og angreskjema hvis forbrukere kan kjøpe (angrerettloven).',
+  en: '[FOR LEGAL REVIEW – subscription terms must be completed before prices are shown in the app] Price per company or per user, with and without VAT · trial period and what happens when it ends (does the subscription renew automatically?) · minimum term · how and when to cancel, and when cancellation takes effect · invoicing and payment terms · right of withdrawal and withdrawal form if consumers can buy.',
+};
+
 function formatOrgnr(value) {
   const digits = String(value || '').replace(/\D/g, '');
   return digits.length === 9 ? `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}` : '';
@@ -197,6 +207,7 @@ function termsNb(entity) {
     'Du skal ikke bruke tjenesten til noe ulovlig, laste opp innhold du ikke har rett til, forsøke å omgå sikkerhet eller tilgangsstyring, eller registrere helseopplysninger eller personnummer i fritekst uten grunn. Ved brudd kan vi begrense eller stenge tilgangen og fjerne innholdet.',
     '6. Pris og betaling',
     'Priser og betalingsvilkår står i appen før kjøp eller i egen avtale. Vi varsler prisendringer minst 30 dager før de gjelder.',
+    SUBSCRIPTION_PLACEHOLDER.nb,
     '7. Innhold og rettigheter',
     'Bedriften og brukerne eier innholdet sitt. ProTop får rett til å lagre, behandle og vise innholdet for å levere tjenesten. ProTop eier programvaren, designet og merkevaren.',
     '8. Tredjepartstjenester',
@@ -232,6 +243,7 @@ function termsEn(entity) {
     'Do not use the service for anything unlawful, upload content you lack rights to, try to bypass security or access control, or record health data or identity numbers in free text without reason. On breach we may restrict or close access and remove the content.',
     '6. Prices and payment',
     'Prices and payment terms are shown in the app before purchase or in a separate agreement. We give at least 30 days’ notice of price changes.',
+    SUBSCRIPTION_PLACEHOLDER.en,
     '7. Content and rights',
     'The company and users own their content. ProTop may store, process and display it to provide the service. ProTop owns the software, design and brand.',
     '8. Third-party services',

@@ -19,7 +19,13 @@ import {
   setDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
 import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
-import { suggestUsername } from '../src/utils/usernames';
+import { claimUsername } from '../src/utils/usernames';
+import { uniqueUsername } from '../src/utils/account';
+import { persistUserConsents } from '../src/utils/consents';
+import { isCompanyGroupType } from '../src/utils/groupInviteLogic';
+import { inviteContextRecord, joinInviteRecord } from '../src/utils/inviteLinkJoin';
+import { rememberInviteContext } from '../src/utils/inviteLinkJoinClient';
+import { registrationProfile } from '../src/utils/registrationProfile';
 import { passwordStrength, isValidEmail, isSyntheticEmail } from '../src/utils/accountContact';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
@@ -144,6 +150,13 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
           type: res.type || 'family',
           joinCode: '',
         });
+        // Logger personen inn med Microsoft eller Google i stedet, husker appen invitasjonen
+        // og kan be om å bekrefte e-posten for å bli med (UX-30).
+        if (isCompanyGroupType(res.type)) {
+          rememberInviteContext(inviteContextRecord({
+            familyId: invite.familyId, email: invite.email, groupType: res.type, groupName: res.name,
+          }));
+        }
       })
       .catch(() => {
         if (alive) setInviteGroup({ missing: true, id: invite.familyId });
@@ -167,6 +180,8 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const emailLocked = !!invite.email;
   const isTeamInvite = inviteGroup && !inviteGroup.missing && isTeamType(inviteGroup.type);
   const isClassInvite = inviteGroup && !inviteGroup.missing && isClassroomType(inviteGroup.type);
+  // Bedriftsinvitasjon: registreringen er svaret. Invitasjonen godtas når e-posten er bekreftet (UX-30).
+  const isCompanyInvite = inviteGroup && !inviteGroup.missing && isCompanyGroupType(inviteGroup.type);
 
   const handleRegister = async () => {
     if (!legalOk) {
@@ -174,7 +189,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
       setTriedSubmit(true);
       return;
     }
-    await persistSignInConsent(lang);
+    const consents = await persistSignInConsent(lang);
     setTriedSubmit(true);
     setEmailSubmitError(null);
     setSubmitError('');
@@ -195,26 +210,61 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
     setLoading(true);
     try {
       const cred = await createUserWithEmailAndPassword(auth, emailTrimmed, password);
-      const sendMailP = sendVerificationEmailV2(emailTrimmed);
       await updateProfile(cred.user, { displayName: nameTrimmed });
-      await sendMailP;
 
-      const username = suggestUsername(nameTrimmed || emailTrimmed);
-      await setDoc(doc(db, 'parents', cred.user.uid), {
-        uid: cred.user.uid,
-        name: nameTrimmed,
-        email: emailTrimmed,
-        username,
-        usernameLower: username,
-        linkedChildren: [],
-        createdAt: serverTimestamp(),
-        emailVerified: false,
-        active: true,
-        provider: 'password',
-      }, { merge: true });
-
-      // Gruppeinvitasjoner godtas ikke her. Når e-posten er bekreftet, får personen
-      // invitasjonen med Godta/Avslå (syncMyInvites i InviteRespondOverlay).
+      // Profilen lagres før bekreftelses-e-posten sendes, så den finnes når lenken åpnes.
+      // Navnet er gitt her, så profilsteget hoppes over (UX-30). Fra en bedriftsinvitasjon
+      // lagres ønsket om å bli med: når e-posten er bekreftet, godtar appen invitasjonen
+      // (serveren sjekker at den gjelder denne e-posten). Andre gruppeinvitasjoner får
+      // Godta/Avslå som før (syncMyInvites i InviteRespondOverlay).
+      try {
+        // Brukernavn til oppslag (venner, innlogging med brukernavn). Feiler reservasjonen,
+        // lagres profilen uten; brukernavnet kan settes under profilen senere.
+        let username = '';
+        try {
+          username = await claimUsername(
+            await uniqueUsername(nameTrimmed || emailTrimmed, cred.user.uid),
+            cred.user.uid,
+            'adult',
+          );
+        } catch {
+          username = '';
+        }
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          ...registrationProfile({
+            uid: cred.user.uid,
+            name: nameTrimmed,
+            email: emailTrimmed,
+            username,
+            language: lang,
+            joinInvite: isCompanyInvite ? joinInviteRecord({
+              familyId: inviteGroup.id,
+              email: emailTrimmed,
+              groupType: inviteGroup.type,
+              groupName: inviteGroup.name,
+            }) : null,
+          }),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+        await setDoc(doc(db, 'parents', cred.user.uid), {
+          uid: cred.user.uid,
+          name: nameTrimmed,
+          email: emailTrimmed,
+          username,
+          usernameLower: username,
+          linkedChildren: [],
+          createdAt: serverTimestamp(),
+          emailVerified: false,
+          active: true,
+          provider: 'password',
+        }, { merge: true });
+        if (consents) await persistUserConsents(cred.user.uid, consents).catch(() => {});
+      } catch (profileErr) {
+        // Uten lagret profil kommer profilsteget etter bekreftelsen, som før.
+        console.warn('Profil ved registrering ble ikke lagret', profileErr?.message || profileErr);
+      }
+      await sendVerificationEmailV2(emailTrimmed);
 
       if (invite.friendInvite) {
         try {
@@ -315,7 +365,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                         ? 'Du er invitert til laget. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'
                         : (isClassInvite
                           ? 'Du er invitert til klassen som lærer eller ansatt. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'
-                          : 'Du er invitert inn i bedriften. Opprett konto og bekreft e-posten. Deretter må du godta invitasjonen før du blir med i bedriften. Du kan også avslå.')}
+                          : 'Opprett konto og bekreft e-posten, så er du med i bedriften. Er invitasjonen ikke til deg, kan du avslå den etterpå.')}
                     </Text>
                     {!!inviteGroup?.joinCode && (isTeamInvite || isClassInvite) ? (
                       <Text style={styles.inviteCode}>
@@ -428,14 +478,21 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
             >
               {loading ? <ActivityIndicator color="#fff" /> : (
                 <Text style={styles.primaryBtnText}>
-                  {inviteGroup && !inviteGroup.missing ? 'Registrer og se invitasjonen' : 'Registrer'}
+                  {isCompanyInvite
+                    ? 'Registrer og bli med'
+                    : (inviteGroup && !inviteGroup.missing ? 'Registrer og se invitasjonen' : 'Registrer')}
                 </Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.signupRow}>
               <Text style={styles.signupMuted}>Har du allerede konto? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Login', invite.familyId
+                  ? { email: invite.email, familyId: invite.familyId }
+                  : undefined)}
+                disabled={loading}
+              >
                 <Text style={styles.linkInline}>Logg inn</Text>
               </TouchableOpacity>
             </View>

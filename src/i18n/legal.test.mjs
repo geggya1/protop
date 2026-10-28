@@ -49,4 +49,15 @@ assert.match(filled, /ProTop AS, org\.nr\. 987 654 321/);
 assert.equal(isLegalHeading('3. Opplysninger vi behandler', 5), true);
 assert.equal(isLegalHeading('• Konto og profil: navn', 6), false);
 
+// Abonnementsvilkår mangler: tydelig plassholder for jurist under «Pris og betaling» (L-33).
+const terms = getTerms('nb');
+const price = terms.indexOf('6. Pris og betaling');
+assert.ok(price > 0);
+assert.match(terms.slice(price, price + 4).join('\n'), /\[TIL JURIST – abonnementsvilkår/);
+for (const needle of ['merverdiavgift', 'prøveperiode', 'bindingstid', 'sies opp', 'angrerett']) {
+  assert.ok(terms.join('\n').includes(needle), `vilkårene nevner ikke «${needle}»`);
+}
+assert.match(getTerms('en').join('\n'), /\[FOR LEGAL REVIEW – subscription terms/);
+assert.equal(isLegalHeading(terms[price + 2], price + 2), false);
+
 console.log('legal.test.mjs: ok');

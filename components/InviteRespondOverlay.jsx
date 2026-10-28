@@ -28,6 +28,7 @@ import {
 import { respondToGameInvite } from '../src/utils/gameInviteRespond';
 import { groupInviteCopy } from '../src/utils/inviteIdentifiers';
 import { parseFriendInviteFromPath } from '../src/navigation/friendInviteLinks';
+import { FAMILY_PRODUCT_ENABLED, groupInviteAllowed } from '../src/navigation/familyProduct';
 import { staleFriendInviteNoticeIds } from '../src/utils/friendsLogic';
 import { useUnread } from '../src/context/NotificationContext';
 import {
@@ -87,11 +88,15 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
       setFamilyInvites([]);
       return undefined;
     }
-    return listenIncomingFamilyInvites(uid, setFamilyInvites);
+    // ProTop: bare bedriftsinvitasjoner. Familie, lag og klasse finnes ikke her (L-35).
+    return listenIncomingFamilyInvites(uid, (list) => {
+      setFamilyInvites((list || []).filter((inv) => groupInviteAllowed(inv?.groupType)));
+    });
   }, [uid, enabled]);
 
   useEffect(() => {
-    if (!uid || !enabled) {
+    // Spillinvitasjoner hører til familiespillene, som ikke er med i ProTop (L-35).
+    if (!uid || !enabled || !FAMILY_PRODUCT_ENABLED) {
       setGameInvites([]);
       return undefined;
     }
@@ -176,7 +181,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, enabled, runInviteSync]);
 
   useEffect(() => {
-    if (!uid || !enabled || !familyId) {
+    if (!uid || !enabled || !familyId || !FAMILY_PRODUCT_ENABLED) {
       setFamilyGameInvites([]);
       return undefined;
     }

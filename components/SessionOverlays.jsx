@@ -12,6 +12,7 @@ import PendingAddFriendPrompt from './PendingAddFriendPrompt';
 import FamilySetupNudgeModal from './FamilySetupNudgeModal';
 import MajorUpdateModal from './MajorUpdateModal';
 import LegalUpdateNotice from './LegalUpdateNotice';
+import JoinVerifyNotice from './JoinVerifyNotice';
 import {
   loadKitchenDisplaySettings,
   subscribeKitchenDisplay,
@@ -93,6 +94,8 @@ export default function SessionOverlays() {
         enabled={!loading && invitesEnabled && !hasPendingInvites}
       />
       {invitesEnabled && !hasPendingInvites ? <LegalUpdateNotice /> : null}
+      {/* Invitasjonslenke, men e-posten er ikke bekreftet (f.eks. Microsoft): vei videre (UX-30). */}
+      {invitesEnabled && !hasPendingInvites ? <JoinVerifyNotice /> : null}
       {!kitchenMode ? <BiometricLockOverlay uid={uid} /> : null}
       <ChatDockHost />
     </NavigationRouteContext.Provider>

@@ -37,6 +37,7 @@ import FormBuilderScreen from '../screens/anbud/FormBuilderScreen';
 import EconomyScreen from '../screens/economy/EconomyScreen';
 import EconomySettingsScreen from '../screens/economy/EconomySettingsScreen';
 import EquipmentScreen from '../screens/equipment/EquipmentScreen';
+import MeetingsScreen from '../screens/meetings/MeetingsScreen';
 import CompanyUnitsScreen from '../screens/project/CompanyUnitsScreen';
 import EmployeesScreen from '../screens/employees/EmployeesScreen';
 import HrScreen from '../screens/hr/HrScreen';
@@ -45,7 +46,7 @@ import ArbeidHub from '../screens/arbeid/ArbeidHub';
 import AbsenceSettingsScreen from '../screens/arbeid/AbsenceSettingsScreen';
 import PersonalTimesheet from '../screens/arbeid/PersonalTimesheet';
 import { isOrganizationType } from '../src/utils/groupTypes';
-import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
+import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defaultArbeidSubView, defaultHrSubView, defaultIsoSubView, defaultMoterSubView, defaultOkonomiSubView, normalizeShellSelection } from '../src/navigation/shellModules';
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
 import ModuleTabs from './ModuleTabs';
 import { companyLandingTab, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor, shellSearchFor } from '../src/navigation/shellPaths';
@@ -595,6 +596,11 @@ function AppShellInner() {
       setTab('hr');
       return;
     }
+    if (id === 'moter') {
+      setMoreSubView(defaultMoterSubView(subView));
+      setTab('moter');
+      return;
+    }
     setMoreSubView(subView);
     setTab(id);
   };
@@ -746,6 +752,7 @@ function AppShellInner() {
     if (tab === 'iso') return <IsoScreen subView={moreSubView} />;
     if (tab === 'okonomi') return <EconomyScreen subView={moreSubView} />;
     if (tab === 'utstyr') return <EquipmentScreen />;
+    if (tab === 'moter') return <MeetingsScreen subView={defaultMoterSubView(moreSubView)} />;
     if (tab === 'selskap' && moreSubView === 'moduler') return <ProjectPlatformScreen startPage="moduler" />;
     if (tab === 'selskap' && moreSubView === 'tilgang') return <ProjectPlatformScreen startPage="tilgang" />;
     if (tab === 'selskap' && moreSubView === 'innstillinger') return <ProjectPlatformScreen />;
@@ -952,7 +959,7 @@ function AppShellInner() {
   const subAside = subDesk && width >= SUBPAGE_ASIDE_MIN_WIDTH && SUBPAGE_ASIDE[tab](moreSubView) !== 'oversikt';
   const showDeskAside = isDesktop && !kitchenMode && (subDesk || (
     tab !== 'home' && tab !== 'plan' && tab !== 'chat' && tab !== 'mail' && tab !== 'anbud' && tab !== 'kunder' && tab !== 'kontrakt' && tab !== 'skjema' && tab !== 'okonomi' && tab !== 'selskap' && tab !== 'underenheter'
-    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'ansatte'));
+    && tab !== 'projects' && tab !== 'arbeid' && tab !== 'timeliste' && tab !== 'ansatte' && tab !== 'moter'));
 
   // Bottom nav owns home-indicator padding; keep shell flush to the viewport bottom.
   // Use object edges: on web, omitting a side from an array still applies additive inset

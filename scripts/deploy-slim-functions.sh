@@ -229,6 +229,11 @@ INVOICES="functions:sendInvoiceMail,functions:sendInvoiceEhf,functions:lookupPep
 queue_entry invoiceIndex.js "$INVOICES"
 open_for invoiceIndex.js "$INVOICES"
 
+# Møter: innkalling og referat på e-post, og AI-hjelp til dagsorden og referat.
+MEETINGS="functions:sendMeetingMail,functions:aiMeeting"
+queue_entry meetingIndex.js "$MEETINGS"
+open_for meetingIndex.js "$MEETINGS"
+
 deploy_queued
 open_queued
 

@@ -55,9 +55,10 @@ const FILE_TYPES = {
   jpeg: 'image/jpeg',
   png: 'image/png',
   xml: 'application/xml',
+  ics: 'text/calendar',
 };
 
-/** Vedlegg av typene PDF, JPG, PNG og XML (EHF-kopi). Base64. */
+/** Vedlegg av typene PDF, JPG, PNG, XML (EHF-kopi) og ICS (kalender). Base64. */
 export function normalizeFileAttachment(raw, { maxBytes = 6_000_000 } = {}) {
   if (!raw || typeof raw !== 'object') return { ok: false, error: 'Vedlegget er ikke gyldig.' };
   const content = String(raw.content || '').replace(/\s/g, '');
@@ -68,7 +69,7 @@ export function normalizeFileAttachment(raw, { maxBytes = 6_000_000 } = {}) {
   const ext = (cleaned.match(/\.([a-z0-9]+)$/i)?.[1] || '').toLowerCase();
   const fromMime = Object.entries(FILE_TYPES).find(([, mime]) => mime === String(raw.contentType || '').toLowerCase())?.[0] || '';
   const kind = FILE_TYPES[ext] ? ext : fromMime;
-  if (!kind) return { ok: false, error: 'Bare PDF, JPG, PNG og XML kan legges ved.' };
+  if (!kind) return { ok: false, error: 'Bare PDF, JPG, PNG, XML og kalenderfiler (ICS) kan legges ved.' };
   const filename = FILE_TYPES[ext] ? cleaned : `${cleaned}.${kind === 'jpeg' ? 'jpg' : kind}`;
   return { ok: true, attachment: { filename, contentType: FILE_TYPES[kind], content } };
 }

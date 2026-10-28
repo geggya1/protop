@@ -329,6 +329,7 @@ export const linking = {
       Confirmation: 'confirmation',
       // Auth-frie forhåndsvisninger (samme path som welcomePathEntry i App.jsx).
       FakturaDemo: 'faktura-demo',
+      MeetingsDemo: 'moter-demo',
       AnbudDemo: 'anbud-demo',
       DashboardThemeGallery: 'dashboard-themes',
       ChildDashboardThemeGallery: 'child-dashboard-themes',

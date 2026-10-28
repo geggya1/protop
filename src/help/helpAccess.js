@@ -88,6 +88,7 @@ export const PAGE_ACCESS = {
   'anbud.innstillinger': { res: 'tenderSettings', steps: [W, W, W, W] },
 
   utstyr: { res: 'equipment', steps: [R, R, R] },
+  moter: { res: 'meetings', steps: [R, R, R, R, R] },
   skjema: { res: 'forms', steps: [R, R, R, S, R, R, R] },
 
   'iso.oversikt': { res: 'iso', steps: [W, S, R, R] },

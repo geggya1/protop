@@ -47,6 +47,7 @@ export const HELP_SECTIONS = [
   { id: 'company-resources', icon: 'cube-outline', title: tx('Produkter og driftsressurser', 'Products and resources') },
   { id: 'company-tenders', icon: 'megaphone-outline', title: tx('Anbud', 'Tenders') },
   { id: 'company-customers', icon: 'briefcase-outline', title: tx('Kunder og oppdrag', 'Customers and assignments') },
+  { id: 'company-meetings', icon: 'people-circle-outline', title: tx('Møter og referat', 'Meetings and minutes') },
   { id: 'account', icon: 'settings-outline', title: tx('Konto og hjelp', 'Account and help') },
 ];
 
@@ -1869,6 +1870,62 @@ export const PROTOP_PAGES = {
         { find: ['Legg til e-post', 'Send varsel nå'] }),
     ],
     keywords: ['anbudsinnstillinger', 'cpv', 'søkeord', 'næringskode', 'varsel anbud', 'ai-profil', 'kanaler'],
+  }),
+
+  /* ───────────────────── Møter og referat ───────────────────── */
+  moter: page({
+    section: 'company-meetings',
+    label: tx('Møter', 'Meetings'),
+    path: tx('Bedrift → Møter og referat → Møter', 'Company → Meetings and minutes → Meetings'),
+    nav: { tab: 'moter' },
+    icon: 'people-circle',
+    accent: BLUE,
+    soft: BLUE_SOFT,
+    kicker: tx('Fra innkalling til ferdig referat', 'From invitation to finished minutes'),
+    title: tx('Møter, referat og oppfølging', 'Meetings, minutes and follow-up'),
+    pitch: tx(
+      'Planlegg møtet fra en mal, et skjema eller med AI, send innkalling, før referatet mens dere sitter i møtet, og ferdigstill det som en ryddig PDF. Åpne oppfølgingspunkter følger med til neste møte i serien.',
+      'Plan the meeting from a template, a form or with AI, send the invitation, take minutes during the meeting and finalise them as a tidy PDF. Open action items carry over to the next meeting in the series.',
+    ),
+    steps: [
+      step(tx('Nytt møte', 'New meeting'),
+        'Trykk «Nytt møte» og velg hvordan du vil starte: fra en møtemal, fra et skjema i Skjemabygger, med AI som setter opp dagsordenen, eller blankt. Faste møter fortsetter serien med neste nummer.',
+        'Tap “Nytt møte” and choose how to start: from a meeting template, from a form in the form builder, with AI drafting the agenda, or blank. Recurring meetings continue the series with the next number.',
+        { find: ['Nytt møte'] }),
+      step(tx('Dagsorden og deltakere', 'Agenda and participants'),
+        'Åpne møtet. Under «Dagsorden» legger du til kapitler og punkter med varighet og innleder. Under «Deltakere» velger du ansatte eller eksterne, og hvem som er møteleder og referent.',
+        'Open the meeting. Under “Dagsorden” add chapters and items with duration and presenter. Under “Deltakere” pick employees or external guests, and who chairs and takes minutes.',
+        { find: ['Dagsorden', 'Deltakere'] }),
+      step(tx('Send innkalling', 'Send the invitation'),
+        '«Send innkalling» sender dagsordenen som PDF og en kalenderfil til deltakerne, og legger møtet i kalenderen deres i ProTop.',
+        '“Send innkalling” sends the agenda as a PDF and a calendar file to the participants, and adds the meeting to their ProTop calendar.',
+        { find: ['Send innkalling'] }),
+      step(tx('Gjennomfør', 'Run the meeting'),
+        '«Start møtet» åpner møtemodus: ett punkt om gangen med klokke, notater, beslutninger og oppfølgingspunkter med ansvarlig og frist. «Rydd med AI» gjør stikkord om til ferdig referattekst.',
+        '“Start møtet” opens meeting mode: one item at a time with a clock, notes, decisions and action items with owner and deadline. “Rydd med AI” turns keywords into finished minutes.',
+        { find: ['Start møtet'] }),
+      step(tx('Ferdigstill og send referat', 'Finalise and send the minutes'),
+        '«Ferdigstill referat» låser referatet og lager PDF-en. «Send referat» sender den til deltakerne. Må noe rettes, gjenåpner du referatet med en begrunnelse, og neste versjon får ny revisjon.',
+        '“Ferdigstill referat” locks the minutes and creates the PDF. “Send referat” emails it to the participants. If something must be corrected, reopen the minutes with a reason, and the next version gets a new revision.',
+        { find: ['Ferdigstill referat', 'Send referat'] }),
+    ],
+    faq: [
+      {
+        q: tx('Hvem ser møtene?', 'Who can see the meetings?'),
+        a: tx(
+          'Alle med tilgang til Møter ser møter som er åpne for bedriften. Møter som bare er for deltakerne, som styremøter og ledermøter, ser bare deltakerne og bedriftens administratorer.',
+          'Everyone with access to Meetings sees meetings open to the company. Meetings for participants only, such as board and management meetings, are visible only to participants and company administrators.',
+        ),
+      },
+      {
+        q: tx('Hva skjer med oppfølgingspunktene?', 'What happens to the action items?'),
+        a: tx(
+          'Åpne punkter følger med til neste møte i serien, merket med hvilket møte de kom fra. Under «Oppfølging» ser du alle åpne punkter på tvers av møtene, med forfalte øverst.',
+          'Open items carry over to the next meeting in the series, marked with the meeting they came from. Under “Oppfølging” you see all open items across meetings, with overdue ones first.',
+        ),
+      },
+    ],
+    keywords: ['møte', 'møter', 'referat', 'innkalling', 'dagsorden', 'agenda', 'byggemøte', 'styremøte', 'ledermøte', 'oppfølging', 'aksjon', 'beslutning', 'møtemal'],
   }),
 
   /* ───────────────────── Produkter og driftsressurser ───────────────────── */

@@ -264,6 +264,42 @@ export function isoMenuTitle(subView) {
   return row && row.id !== 'oversikt' ? row.label : 'ISO / K-HMS';
 }
 
+/**
+ * Møter: liste over møter, oppfølgingspunkter på tvers og bedriftens møtemaler.
+ * Et åpent møte er en tilstand i siden, ikke en egen underside.
+ */
+export const MOTER_MENU = [
+  { id: 'oversikt', icon: 'calendar-outline', label: 'Møter' },
+  { id: 'oppfolging', icon: 'checkbox-outline', label: 'Oppfølging' },
+  { id: 'maler', icon: 'albums-outline', label: 'Møtemaler' },
+];
+
+export const MOTER_SUBVIEW_IDS = MOTER_MENU.map((item) => item.id);
+
+export function defaultMoterSubView(subView) {
+  return MOTER_SUBVIEW_IDS.includes(subView) ? subView : 'oversikt';
+}
+
+export function moterMenuTitle(subView) {
+  const row = MOTER_MENU.find((item) => item.id === subView);
+  return row && row.id !== 'oversikt' ? `Møter · ${row.label}` : 'Møter';
+}
+
+function moterNavItem() {
+  return {
+    id: 'moter',
+    icon: 'people-circle',
+    label: 'Møter',
+    action: { type: 'tab', tab: 'moter', subView: 'oversikt' },
+    children: MOTER_MENU.map((item) => ({
+      id: `moter-${item.id}`,
+      icon: item.icon,
+      label: item.label,
+      action: { type: 'tab', tab: 'moter', subView: item.id },
+    })),
+  };
+}
+
 function isoNavItem() {
   return {
     id: 'iso',
@@ -416,6 +452,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     },
     { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
+    moterNavItem(),
     {
       id: 'produkt',
       icon: 'cube',
@@ -562,6 +599,12 @@ export const COMPANY_DRAWER_GROUPS = [
     icon: 'briefcase',
     itemIds: ['kunder', 'kontrakt', 'projects'],
     processOrder: true,
+  },
+  {
+    id: 'company-meetings',
+    label: 'Møter og referat',
+    icon: 'people-circle',
+    itemIds: ['moter'],
   },
 ];
 

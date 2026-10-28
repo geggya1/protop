@@ -241,7 +241,7 @@ function parseDateFromKey(k) {
 
 function memberName(members, id) {
   if (!id) return 'Ukjent';
-  if (id === FAMILY_ASSIGNEE) return 'Hele familien';
+  if (id === FAMILY_ASSIGNEE) return 'Alle';
   const m = members.find((x) => x.id === id || x.uid === id || x.childId === id);
   return m?.name?.split(' ')[0] || 'Ukjent';
 }
@@ -789,8 +789,8 @@ export default function RewardsScreen({ variant = 'auto' }) {
             {!isDesktop && (
               <Text style={styles.moduleIntro}>
                 {isChild
-                  ? 'Opprett oppgaver og tildel andre. Du ser egne og oppgaver tildelt deg — uten belønning.'
-                  : 'Fristbaserte oppgaver for deg eller tildelt av andre — uten belønning.'}
+                  ? 'Opprett oppgaver og tildel andre. Du ser egne og oppgaver tildelt deg.'
+                  : 'Oppgaver med frist, for deg selv eller tildelt av andre.'}
               </Text>
             )}
 

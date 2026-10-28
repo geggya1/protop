@@ -438,7 +438,8 @@ export default function CalendarSettingsScreen({
           Koble til ekstern kalender (Outlook, Google, ICS) for å se avtalene dine — kun synlig for deg.
         </Text>
 
-        {isParent ? (
+        {/* Delt bosted gjelder barn. Uten barn (de fleste i en bedrift) vises det ikke. */}
+        {isParent && activeKids.length > 0 ? (
           <>
             <Text style={styles.section}>Delt bosted</Text>
             <View style={styles.card}>

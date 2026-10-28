@@ -28,7 +28,7 @@ import OptionPicker from '../../components/OptionPicker';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import { notifyUsers } from '../../src/utils/notifications';
 import { syncCalendarEventFriendShares } from '../../src/utils/friends';
-import { friendUidsFromPicked, synligForSummary } from '../../src/utils/eventSharing';
+import { friendUidsFromPicked, synligForSummary, wholeGroupLabel } from '../../src/utils/eventSharing';
 import { resolveEventWriteTarget } from '../../src/utils/eventWriteTarget';
 import {
   isExternalCalendarEvent,
@@ -1206,7 +1206,7 @@ export default function EventFormScreen() {
           <Text style={styles.whoLabel}>Hvem skal se denne?</Text>
           {canEditVisibility ? (
             <Mute style={styles.whoMute}>
-              Standard er bare deg. «Hele familien» = alle.
+              Standard er bare deg. «{wholeGroupLabel(family?.type)}» = alle.
             </Mute>
           ) : null}
           <View style={[styles.wrap, !canEditVisibility && styles.wrapReadonly]} pointerEvents={canEditVisibility ? 'auto' : 'none'}>
@@ -1220,7 +1220,7 @@ export default function EventFormScreen() {
                 !canEditVisibility && styles.chipReadonly,
               ]}
             >
-              <Text style={[styles.chipTxt, wholeFamily && { color: '#fff' }]}>Hele familien</Text>
+              <Text style={[styles.chipTxt, wholeFamily && { color: '#fff' }]}>{wholeGroupLabel(family?.type)}</Text>
             </TouchableOpacity>
             {members.map((m) => {
               const mid = memberPickId(m);
@@ -1269,6 +1269,7 @@ export default function EventFormScreen() {
               picked,
               members,
               friendPeople,
+              groupType: family?.type,
             })}
           </Text>
         </GroupCard>

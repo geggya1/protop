@@ -229,6 +229,13 @@ export default function AddFriendScreen({
             placeholderTextColor={colors.muted}
           />
           <Text style={styles.hint}>{t('friend.identifierHint')}</Text>
+          {/* Knappen er grå ved ugyldig verdi: si hvorfor (f.eks. «ola@»). */}
+          {classified.kind === 'invalid-email' ? (
+            <Text style={styles.error} accessibilityLiveRegion="polite">{t('auth.emailInvalid')}</Text>
+          ) : null}
+          {classified.kind === 'invalid-username' ? (
+            <Text style={styles.error} accessibilityLiveRegion="polite">{t('friend.identifierInvalidUsername')}</Text>
+          ) : null}
         </>
       ) : (
         <>

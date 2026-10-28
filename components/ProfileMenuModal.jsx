@@ -13,6 +13,7 @@ import FriendQrModal from './FriendQrModal';
 import { useProfileNavigation } from '../src/hooks/useProfileNavigation';
 import { useApp } from '../src/context/AppContext';
 import { notifyUser } from '../src/utils/dialog';
+import { signOutKeepingWork } from '../src/utils/localCache';
 import { goPlatformOverview } from '../src/utils/platformNav';
 import { openNotifications } from '../src/navigation/openNotifications';
 import { desktopMenu } from '../src/desktop';
@@ -51,7 +52,7 @@ export default function ProfileMenuModal({ visible, onClose }) {
     if (signingOut) return;
     setSigningOut(true);
     try {
-      await signOut(auth);
+      await signOutKeepingWork(() => signOut(auth));
       nav.reset({ index: 0, routes: [{ name: 'Login' }] });
     } catch (e) {
       notifyUser('Kunne ikke logge ut', e?.message || 'Ukjent feil');

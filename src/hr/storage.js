@@ -199,6 +199,8 @@ async function awaitAccessMirror(companyId, { force = false } = {}) {
 
 // Selskaper der en avvist HR-lesing er prøvd igjen etter ny synk av speilet (én gang per økt).
 const permissionRetried = new Set();
+// Sending av ulagrede endringer som lastingen startet (per selskap).
+const pushes = new Map();
 
 const BATCH_SIZE = 400;
 // Utsnittene er sjekket mot HR-dokumentet i denne økten (per selskap).
@@ -324,7 +326,7 @@ export async function loadHrState(companyId) {
         await writeLocal(companyId, kept);
         ensureHrSelf(companyId, remote.state).catch(() => {});
         // Egne endringer som ikke nådde skyen sist (uten nett, avvist eller logget ut): send dem nå.
-        if (mine) saveHrState(kept, companyId).catch(() => {});
+        if (mine) pushes.set(key, saveHrState(kept, companyId).catch(() => null));
         return kept;
       }
       // Skyen er nyere enn de ulagrede endringene: den gjelder.
@@ -443,6 +445,23 @@ export async function saveHrState(state, companyId) {
 }
 
 /** Test/hjelp: tøm modulminne. */
+/**
+ * Send egne ulagrede HR-endringer nå (før utlogging). Skyen leses først, så lønn og nyere
+ * endringer fra andre ikke overskrives. Gir true når køen er tom etterpå.
+ */
+export async function flushHrPending(companyId) {
+  const key = memoryKey(companyId);
+  const pending = await readHrPending(companyId);
+  if (!pending || pending.uid !== currentUid()) return !pending;
+  MEMORY.delete(key);
+  loadMeta.delete(key);
+  await loadHrState(companyId);
+  await pushes.get(key);
+  pushes.delete(key);
+  const left = await readHrPending(companyId);
+  return !(left && left.uid === currentUid());
+}
+
 export function clearHrMemory() {
   MEMORY.clear();
   inflight.clear();

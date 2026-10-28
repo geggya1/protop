@@ -23,6 +23,7 @@ import {
   softDeleteParentFromFamily,
 } from '../src/utils/groups';
 import { syncMyInvites } from '../src/utils/invite';
+import { signOutKeepingWork } from '../src/utils/localCache';
 
 let Cropper = null;
 if (Platform.OS === 'web') {
@@ -683,7 +684,10 @@ export default function ParentProfileScreen() {
         onCancel={() => setConfirm({ open: false, kind: null })}
         onConfirm={async () => {
           setConfirm({ open: false, kind: null });
-          try { await firebaseSignOut(auth); navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); } catch {}
+          try {
+            await signOutKeepingWork(() => firebaseSignOut(auth));
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          } catch {}
         }}
       />
     </View>

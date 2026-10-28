@@ -18,6 +18,7 @@ import {
   saveGreetingPrefs,
 } from '../../src/utils/greetingPrefs';
 import { guardedCallable } from '../../src/utils/guardedCallable';
+import { signOutKeepingWork } from '../../src/utils/localCache';
 import { isDeleteAccountConfirmed } from '../../src/utils/deleteAccount';
 import { getAppVersion } from '../../src/utils/appUpdates';
 import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
@@ -370,7 +371,7 @@ export default function SettingsScreen({ setSubView } = {}) {
 
         {/* Logg ut */}
         <View style={[styles.group, { marginTop: 12 }]}>
-          <Row icon="log-out" label={t('more.logout')} danger onPress={() => signOut(auth)} />
+          <Row icon="log-out" label={t('more.logout')} danger onPress={() => { signOutKeepingWork(() => signOut(auth)).catch(() => {}); }} />
           <Row
             icon="trash-outline"
             label={t('settings.deleteAccount')}

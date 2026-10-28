@@ -164,4 +164,39 @@ function newSession(uid) {
   assert.deepEqual(await hr.pendingHrCompanies('hr1'), []);
 }
 
+// REV-15: utlogging sender ulagrede endringer først, og sier fra om noe blir liggende igjen.
+{
+  const { prepareSignOut, signOutKeepingWork, PENDING_SIGN_OUT_TEXT } = await import('../utils/localCache.js');
+  const { subscribeSaveToast, resetSaveToastForTests } = await import('../ui/saveToast.js');
+  const loaded = hr.peekHrState(CO);
+
+  // Uten nett ved lagring: endringen er i køen. Nettet er tilbake når brukeren logger ut.
+  env.offline = true;
+  const offline = { ...loaded, memos: [...loaded.memos, memo('m3', 'Uten nett', '2026-10-28T10:00:00.000Z')], updatedAt: '2026-10-28T10:00:00.000Z' };
+  await assert.rejects(() => hr.saveHrState(offline, CO));
+  env.offline = false;
+  assert.deepEqual(await prepareSignOut(), { pendingHr: 0 }, 'sendt før utlogging');
+  assert.deepEqual(env.store.get(HR_PATH).memos.map((row) => row.title), ['Fra skyen', 'Ulagret', 'Uten nett']);
+
+  // Skyen avviser fortsatt: brukeren får beskjed, og køen står etter utloggingen.
+  const toasts = [];
+  resetSaveToastForTests();
+  const stop = subscribeSaveToast((toast) => toasts.push(toast));
+  env.acl.delete('hr1');
+  const again = hr.peekHrState(CO);
+  const stuck = { ...again, memos: [...again.memos, memo('m4', 'Avvist', '2026-10-28T11:00:00.000Z')], updatedAt: '2026-10-28T11:00:00.000Z' };
+  await assert.rejects(() => hr.saveHrState(stuck, CO));
+  env.hrUsers.delete('hr1');
+  let signedOut = false;
+  await signOutKeepingWork(async () => { signedOut = true; });
+  assert.equal(signedOut, true);
+  assert.equal(toasts.length, 1);
+  assert.equal(toasts[0].kind, 'error');
+  assert.equal(toasts[0].detail, PENDING_SIGN_OUT_TEXT);
+  await clearPersonalCaches(AsyncStorage);
+  assert.ok(env.local.has(`protop.hrPending.v1.${CO}`), 'køen står etter utlogging');
+  stop();
+  env.hrUsers.add('hr1');
+}
+
 console.log('hrPending.test.mjs: ok');

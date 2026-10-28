@@ -65,3 +65,39 @@ export async function clearSessionData() {
   try { mirror?.forgetAccessMirrors?.(); } catch { /* ignore */ }
   return clearPersonalCaches(AsyncStorage);
 }
+
+export const PENDING_SIGN_OUT_TEXT = 'Noen HR-endringer er ikke lagret i skyen ennå. De ligger på denne enheten og sendes neste gang du logger inn her.';
+
+function within(job, timeoutMs) {
+  let timer = null;
+  return Promise.race([
+    job,
+    new Promise((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Før utlogging: send HR-endringer som ikke har nådd skyen, mens brukeren fortsatt er innlogget.
+ * Det som ikke kom fram, blir liggende i køen på enheten (bare for denne brukeren, se hr/storage.js)
+ * og ryddes ikke av clearSessionData. Gir antall selskaper med ulagrede HR-endringer.
+ */
+export async function prepareSignOut({ timeoutMs = 6000 } = {}) {
+  const hr = await import('../hr/storage.js').catch(() => null);
+  if (!hr?.pendingHrCompanies) return { pendingHr: 0 };
+  const companies = await hr.pendingHrCompanies().catch(() => []);
+  for (const companyId of companies) {
+    await within(hr.flushHrPending(companyId).catch(() => false), timeoutMs);
+  }
+  const left = companies.length ? await hr.pendingHrCompanies().catch(() => []) : [];
+  return { pendingHr: left.length };
+}
+
+/** Logg ut (signOut), men send ulagrede endringer først og si fra om noe ble liggende igjen. */
+export async function signOutKeepingWork(signOut) {
+  const { pendingHr } = await prepareSignOut().catch(() => ({ pendingHr: 0 }));
+  await signOut();
+  if (pendingHr) {
+    const { showSaveError } = await import('../ui/saveToast.js');
+    showSaveError(PENDING_SIGN_OUT_TEXT);
+  }
+}

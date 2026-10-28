@@ -140,7 +140,7 @@ export function inviteMatchedBy(identifierKind) {
  * Invitasjonen gjelder alltid kontoen (inviteeUid). Bekreftet e-post trengs bare når kontoen
  * ble funnet på e-postadressen: e-postinvitasjonen fra syncMyInvites (source 'email') eller
  * oppslag på e-post hos den som inviterte (matchedBy 'email'). Funnet på brukernavn, telefon
- * eller valgt direkte: ingen e-post å bekrefte. Eldre invitasjoner uten matchedBy regnes som
+ * (bare et nummer bekreftet med SMS, REV-22) eller valgt direkte: ingen e-post å bekrefte. Eldre invitasjoner uten matchedBy regnes som
  * funnet på e-post når de har en e-post.
  */
 export function inviteNeedsVerifiedEmail(invite) {

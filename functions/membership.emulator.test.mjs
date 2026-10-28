@@ -11,6 +11,9 @@ import { beforeEach, test } from 'node:test';
 
 process.env.GCLOUD_PROJECT ||= 'demo-protop';
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
+// Auth-emulatoren kjører ikke i testoppsettet. Oppslag i Auth (telefon) går til en lukket port og
+// feiler med en gang, så de aldri når en ekte Auth-tjeneste.
+process.env.FIREBASE_AUTH_EMULATOR_HOST ||= '127.0.0.1:9';
 
 const { getFirestore } = await import('firebase-admin/firestore');
 const { assertCompanyAccess, assertFamilyAdmin, assertFamilyMember } = await import('./security.js');
@@ -213,4 +216,21 @@ test('SEC-22: uid-oppslaget svarer bare den som kan invitere til gruppen', async
     assert.equal(res.profile.name, 'Kari');
     assert.equal(res.profile.phone, '', 'telefonnummeret sendes ikke');
   }
+});
+
+test('REV-22: telefonoppslaget treffer ikke en konto som bare har skrevet nummeret i profilen', async () => {
+  const lookup = (uid, data) => lookupAdultProfile.run({
+    data, auth: { uid, token: { email: `${uid}@firma.no`, email_verified: true } }, rawRequest: { headers: {}, ip: '127.0.0.1' },
+  });
+  // Angriperen har ført opp Karis nummer i sin egen profil (users.phone og parents.phone skriver brukeren selv).
+  await db.doc('users/mal').set({ phone: '+4799999999', displayName: 'Ikke Kari' }, { merge: true });
+  await db.doc('parents/mal').set({ phone: '+4799999999' }, { merge: true });
+  for (const identifier of ['99999999', '+47 999 99 999', '4799999999']) {
+    const res = await lookup('adm', { identifier, familyId: A });
+    assert.equal(res.ok, true, identifier);
+    assert.equal(res.profile, null, identifier);
+  }
+  // Oppslag på e-post og brukernavn er som før.
+  await db.doc('users/kari').set({ email: 'kari@firma.no', displayName: 'Kari' });
+  assert.equal((await lookup('adm', { identifier: 'kari@firma.no', familyId: A })).profile.uid, 'kari');
 });

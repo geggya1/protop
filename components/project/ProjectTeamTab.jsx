@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
 import { PROJECT_ROLES, employeeDisplayName } from '../../src/arbeid/roles.js';
+import { isActiveEmployee } from '../../src/employees/model';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { memberHoursMap } from '../../src/project/projectDashboard.js';
 import {
@@ -43,7 +44,7 @@ export default function ProjectTeamTab({
 
   const rows = useMemo(() => memberHoursMap(timeEntries, members), [timeEntries, members]);
   const available = employees.filter((row) => (
-    row.company?.status !== 'former'
+    isActiveEmployee(row)
     && !members.some((mem) => mem.employeeId === row.id)
   ));
 

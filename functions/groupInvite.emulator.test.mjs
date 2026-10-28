@@ -283,3 +283,76 @@ describe('invitasjon fra en som ikke er administrator', () => {
     assert.ok((await data(`families/${A}`)).adminUids.includes('eve'));
   });
 });
+
+describe('invitasjoner som ikke lenger gjelder (FL-05, FL-10)', () => {
+  test('slettet bedrift: Avslå lykkes og Godta feiler, og innboksen lukkes begge ganger', async () => {
+    await db.doc(`families/${A}`).update({ deleted: true, hiddenFromApp: true });
+    const accept = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' });
+    assert.deepEqual(accept, { ok: false, error: 'gone' });
+    assert.equal((await data(`users/eve/familyInvites/inv_eve`)).status, 'cancelled');
+    await db.doc(`users/eve/familyInvites/inv_eve`).set({ status: 'pending' }, { merge: true });
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ status: 'pending' });
+    const decline = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'declined' });
+    assert.equal(decline.ok, true);
+    assert.equal(decline.stale, 'gone');
+    assert.equal((await data(`users/eve/familyInvites/inv_eve`)).status, 'cancelled');
+  });
+
+  test('invitasjon som ikke finnes eller er besvart: innboksen lukkes', async () => {
+    await db.doc(`users/eve/familyInvites/borte`).set({ status: 'pending', familyId: A, inviteeUid: 'eve' });
+    assert.deepEqual(
+      await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'borte', response: 'accepted' }),
+      { ok: false, error: 'not-found' },
+    );
+    assert.equal((await data('users/eve/familyInvites/borte')).status, 'expired');
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ status: 'declined' });
+    const decline = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'declined' });
+    assert.equal(decline.ok, true);
+    assert.equal((await data('users/eve/familyInvites/inv_eve')).status, 'declined');
+  });
+
+  test('utløpt invitasjon kan ikke godtas', async () => {
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ expiresAt: '2020-01-01T00:00:00.000Z' });
+    assert.deepEqual(
+      await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }),
+      { ok: false, error: 'expired' },
+    );
+    assert.equal((await data(`families/${A}/memberInvites/inv_eve`)).status, 'expired');
+    assert.equal((await data('users/eve/familyInvites/inv_eve')).status, 'expired');
+    assert.equal((await data(`families/${A}/parents/eve`)).inviteStatus, 'expired', 'kan inviteres på nytt');
+    assert.ok(!(await members()).includes('eve'));
+  });
+
+  test('bedriftsinvitasjon uten aktiv medarbeider avvises og trekkes tilbake', async () => {
+    await db.doc(`families/${A}/employees/emp_eve`).delete();
+    assert.deepEqual(
+      await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }),
+      { ok: false, error: 'no-employee' },
+    );
+    assert.equal((await data(`families/${A}/memberInvites/inv_eve`)).status, 'revoked');
+    assert.equal((await data('users/eve/familyInvites/inv_eve')).status, 'revoked');
+    assert.ok(!(await members()).includes('eve'));
+  });
+
+  test('deaktivert medarbeider: invitasjonen gir ikke medlemskap', async () => {
+    await db.doc(`families/${A}/employees/emp_eve`).set({ company: { status: 'inactive' } }, { merge: true });
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' });
+    assert.equal(res.error, 'no-employee');
+    assert.ok(!(await members()).includes('eve'));
+  });
+
+  test('utløpt plassholder for ny bruker gir ingen invitasjon i innboksen', async () => {
+    await db.doc(`families/${A}/parents/ninafirmano`).update({ inviteExpiresAt: '2020-01-01T00:00:00.000Z' });
+    await db.doc(`families/${A}/employees/emp_nina`).set({ invite: { sentAt: '2020-01-01T00:00:00.000Z' } }, { merge: true });
+    assert.equal((await call(syncMyInvites, 'nina', {})).invites.length, 0);
+  });
+});
+
+describe('«Be om å bli med» (FL-15)', () => {
+  test('forespørselen lukkes når personen godtar invitasjonen', async () => {
+    await db.doc(`families/${A}/joinRequests/eve`).set({ uid: 'eve', status: 'pending', kind: 'member', source: 'orgnr' });
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' });
+    assert.equal(res.ok, true);
+    assert.equal((await data(`families/${A}/joinRequests/eve`)).status, 'accepted');
+  });
+});

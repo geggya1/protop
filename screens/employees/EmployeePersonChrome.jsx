@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   cardSubtitle,
   displayName,
+  employmentState,
   statusLabel,
 } from '../../src/employees/model';
 import { EMPLOYEE_DETAIL_TABS, employeeViewToTab } from '../../src/employees/personTabs.js';
@@ -13,9 +14,11 @@ import { useLayout } from '../../src/theme';
 
 export { EMPLOYEE_DETAIL_TABS, employeeViewToTab };
 
-function accountDeactivated(employee) {
-  const status = employee?.company?.status || 'active';
-  return status === 'inactive' || status === 'deleted' || status === 'former';
+/** Tekst på banneret når ansettelsen er avsluttet. */
+function closedNote(state) {
+  if (state === 'deleted') return 'Kontoen er deaktivert og ligger i papirkurven.';
+  if (state === 'ended') return 'Sluttdatoen («Ansatt til») er passert. Personen har ingen tilgang.';
+  return 'Kontoen er deaktivert. Personen har ikke vanlig tilgang.';
 }
 
 /**
@@ -39,7 +42,8 @@ export default function EmployeePersonChrome({
   const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
   const name = displayName(employee);
   const status = statusLabel(employee?.company?.status);
-  const deactivated = accountDeactivated(employee);
+  const state = employmentState(employee);
+  const deactivated = state !== 'active' && state !== 'leave';
   const subtitle = cardSubtitle(employee, companyName);
 
   return (
@@ -57,7 +61,7 @@ export default function EmployeePersonChrome({
           <Text accessibilityRole="header" style={[styles.name, { color: colors.ink }]}>{name}</Text>
           <Text style={{ color: colors.muted, fontSize: 14 }}>
             {deactivated ? (
-              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>Deaktivert</Text>
+              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
             ) : (
               <Text style={{ color: colors.muted }}>{status}</Text>
             )}
@@ -101,11 +105,9 @@ export default function EmployeePersonChrome({
         >
           <Ionicons name="remove-circle" size={18} color={colors.danger || '#dc2626'} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>Deaktivert</Text>
+            <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
             <Text style={{ color: colors.danger || '#dc2626', fontSize: 13, lineHeight: 18 }}>
-              {employee?.company?.status === 'deleted'
-                ? 'Kontoen er deaktivert og ligger i papirkurven.'
-                : 'Kontoen er deaktivert. Personen har ikke vanlig tilgang.'}
+              {closedNote(state)}
             </Text>
           </View>
         </View>

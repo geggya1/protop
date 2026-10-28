@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
-import { ownEmployee } from '../../src/employees/model';
+import { isActiveEmployee, ownEmployee } from '../../src/employees/model';
 import { watchEmployees } from '../../src/employees/storage';
 import { canManageTimesheets, findLinkedEmployee } from '../../src/arbeid/roles.js';
 import { emptyProjectState, normalizeAbsenceRow } from '../../src/project/engine';
@@ -207,7 +207,7 @@ export function useTimesheetWorkspace({
     const row = previewed || (personal
       ? ownEmployee(employees, { uid, emails: [user?.email], name: user?.displayName || '' })
       : findLinkedEmployee(employees, uid));
-    if (!row || row.company?.status === 'former' || row.company?.status === 'deleted') return null;
+    if (!row || !isActiveEmployee(row)) return null;
     return row;
   }, [employees, uid, personal, user?.email, user?.displayName, access.previewing, access.viewingAs]);
 

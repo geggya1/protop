@@ -3,7 +3,9 @@ import {
   Image, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
+import {
+  accountDeactivated, employeeLevelIds, levelById, placedLevelId,
+} from '../../src/access/companyAccess';
 import { employeeInviteState, inviteStatusLabel } from '../../src/employees/invite';
 import {
   choiceLabel,
@@ -176,11 +178,6 @@ function AccessCorner({ employee, colors }) {
       <Text style={{ color: colors.muted, fontSize: 12, maxWidth: 140 }}>{label}</Text>
     </View>
   );
-}
-
-function accountDeactivated(employee) {
-  const status = employee?.company?.status || 'active';
-  return status === 'inactive' || status === 'deleted' || status === 'former';
 }
 
 function FactRow({

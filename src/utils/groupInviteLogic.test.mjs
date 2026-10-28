@@ -58,3 +58,40 @@ test('tekster for bedrift og feilkoder', () => {
   assert.match(inviteResponseMessage('email-not-verified'), /Bekreft e-posten/);
   assert.equal(inviteResponseMessage('ukjent'), '');
 });
+
+test('FL-23: plassholdernøkkelen er en hash av hele e-posten', async () => {
+  const { invitePlaceholderKey } = await import('./groupInviteLogic.js');
+  const a = invitePlaceholderKey({ email: 'ola.n@firma.no' });
+  const b = invitePlaceholderKey({ email: 'olan@firma.no' });
+  assert.notEqual(a, b);
+  assert.equal(a, invitePlaceholderKey({ email: 'OLA.N@firma.no ' }));
+  assert.match(a, /^inv_[0-9a-z]+$/);
+  assert.notEqual(invitePlaceholderKey({ phone: '+4799887766' }), invitePlaceholderKey({ phone: '+4799887767' }));
+});
+
+test('FL-10: invitasjonen utløper etter 30 dager', async () => {
+  const { inviteExpired, inviteExpiresAt, INVITE_TTL_DAYS } = await import('./groupInviteLogic.js');
+  const now = new Date('2026-10-27T12:00:00.000Z');
+  assert.equal(INVITE_TTL_DAYS, 30);
+  assert.equal(inviteExpiresAt(now), '2026-11-26T12:00:00.000Z');
+  assert.equal(inviteExpired({ expiresAt: '2026-10-27T11:59:00.000Z' }, now), true);
+  assert.equal(inviteExpired({ expiresAt: '2026-11-01T00:00:00.000Z' }, now), false);
+  // Eldre invitasjoner uten frist: 30 dager etter opprettelsen.
+  assert.equal(inviteExpired({ createdAt: '2026-09-01T00:00:00.000Z' }, now), true);
+  assert.equal(inviteExpired({ createdAt: { toMillis: () => Date.parse('2026-10-20T00:00:00.000Z') } }, now), false);
+  assert.equal(inviteExpired({}, now), false);
+  const invite = inviteFromPlaceholder({ placeholder: {}, family: {}, uid: 'x', now: '2026-10-27T12:00:00.000Z' });
+  assert.equal(invite.expiresAt, '2026-11-26T12:00:00.000Z');
+});
+
+test('FL-05: invitasjoner som ikke lenger gjelder, lukkes i innboksen', async () => {
+  const { isStaleInviteCode, staleInboxStatus } = await import('./groupInviteLogic.js');
+  for (const code of ['not-found', 'gone', 'already-handled', 'expired', 'revoked', 'no-employee', 'forbidden']) {
+    assert.equal(isStaleInviteCode(code), true, code);
+  }
+  assert.equal(isStaleInviteCode('email-not-verified'), false);
+  assert.equal(staleInboxStatus('accepted'), 'accepted');
+  assert.equal(staleInboxStatus('pending'), 'expired');
+  assert.match(inviteResponseMessage('expired'), /utløpt/);
+  assert.match(inviteResponseMessage('no-employee'), /trukket tilbake/);
+});

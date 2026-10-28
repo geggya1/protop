@@ -222,7 +222,10 @@ assert.equal(externalByLabel['Inkluder i selskapets kapasitetsoversikt'].checked
 assert.equal(externalByLabel['Inkluder i selskapets kapasitetsoversikt'].pressable, false);
 assert.equal(externalByLabel['Skal låse timelisten'].pressable, false);
 assert.equal(externalByLabel['Skal spesifisere kom- og gå-tid'].pressable, false);
-assert.equal(externalByLabel['Kan logge inn'].pressable, true);
+// «Kan logge inn» er ikke et eget valg lenger (innlogging følger kobling og aktiv ansettelse).
+assert.equal(externalByLabel['Kan logge inn'], undefined);
+assert.equal(externalByLabel['Har et aktivt arbeidsforhold'].checked, true);
+assert.equal(externalByLabel['Har et aktivt arbeidsforhold'].pressable, true);
 assert.equal(externalByLabel['Mertid teller i lønn'].pressable, true);
 
 const staffRows = settingsRows({

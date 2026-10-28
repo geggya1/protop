@@ -24,6 +24,9 @@ import {
   groupInviteCopy,
 } from './inviteIdentifiers';
 import { setMemberPassword } from './setMemberPassword';
+import {
+  inviteExpired, inviteExpiresAt, invitePlaceholderKey, isStaleInviteCode,
+} from './groupInviteLogic';
 import { canInviteToCompany } from '../notifications/audience';
 import { companyFieldChanges } from '../project/companyFields';
 import { isOrganizationType } from './groupTypes';
@@ -186,6 +189,9 @@ export async function deleteGroup(familyId) {
   const snap = await getDoc(doc(db, 'families', familyId));
   const prev = snap.exists() ? (snap.data() || {}) : {};
   const prevCode = prev.joinCode || null;
+  // Ventende invitasjoner lukkes før gruppen skjules, så ingen blir stående med et
+  // invitasjonsvindu til en gruppe som ikke finnes.
+  await cancelPendingInvites(familyId).catch(() => {});
   await updateGroup(familyId, {
     ...deleteGroupPatch(prev),
     deletedAt: serverTimestamp(),
@@ -193,6 +199,25 @@ export async function deleteGroup(familyId) {
   });
   if (prevCode) {
     await deleteDoc(doc(db, 'joinCodes', prevCode)).catch(() => {});
+  }
+}
+
+/** Marker ventende invitasjoner som avbrutt, også i mottakernes innboks. */
+async function cancelPendingInvites(familyId) {
+  const pending = await getDocs(query(
+    collection(db, 'families', familyId, 'memberInvites'),
+    where('status', '==', 'pending'),
+    limit(200),
+  ));
+  const now = serverTimestamp();
+  for (const row of pending.docs) {
+    const invite = row.data() || {};
+    await updateDoc(row.ref, { status: 'cancelled', cancelledAt: now, updatedAt: now }).catch(() => {});
+    if (invite.inviteeUid) {
+      await updateDoc(doc(db, 'users', invite.inviteeUid, 'familyInvites', row.id), {
+        status: 'cancelled', updatedAt: now,
+      }).catch(() => {});
+    }
   }
 }
 
@@ -313,8 +338,10 @@ export async function addAdultManual({
   return { uid, username: uname, login: email || uname };
 }
 
+// Hash av hele e-posten: ola.n@ og olan@ ga før samme nøkkel, og den andre invitasjonen
+// overskrev plassholderen til den første.
 function inviteParentKey({ email, phone, name }) {
-  return (email || phone || name).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40) || `inv${Date.now()}`;
+  return invitePlaceholderKey({ email, phone, name });
 }
 
 async function deliverParentInviteEmail({ email, name, familyId, familyName, groupType }) {
@@ -433,6 +460,7 @@ export async function inviteAdult({
     createdAt: now,
     invitedAt: now,
     inviteStatus: 'pending',
+    inviteExpiresAt: inviteExpiresAt(),
     // Klienten sender e-post/SMS via callable — trigger skal ikke sende dobbelt
     clientSendsInvite: true,
     active: false,
@@ -510,7 +538,11 @@ export async function inviteAdult({
   return { key, emailSent, emailError, smsSent, smsError, inviteStatus: 'pending' };
 }
 
-/** Send invitasjon på nytt (e-post og/eller SMS) til ventende foresatt. */
+/**
+ * Send invitasjon på nytt (e-post og/eller SMS) til ventende foresatt.
+ * Eksisterende bruker: en invitasjon som er besvart, utløpt eller trukket tilbake, åpnes ikke
+ * igjen – da lages en ny. Er personen allerede medlem, røres ingenting (already-member).
+ */
 export async function resendAdultInvite({ familyId, parentId, familyName, groupType, joinCode }) {
   if (!familyId || !parentId) throw new Error('missing-parent');
   const ref = doc(db, 'families', familyId, 'parents', parentId);
@@ -520,6 +552,43 @@ export async function resendAdultInvite({ familyId, parentId, familyName, groupT
   const email = String(data.email || '').toLowerCase().trim();
   const phone = normalizePhone(data.phone) || String(data.phone || '').trim();
   if (!email && !phone) throw new Error('no-contact');
+  if (data.inviteKind === 'existing') {
+    const inviteeUid = data.uid || parentId;
+    const famSnap = await getDoc(doc(db, 'families', familyId));
+    const members = famSnap.exists() ? (famSnap.data()?.members || []) : [];
+    if (members.includes(inviteeUid)) throw new Error('already-member');
+    const inviteSnap = data.inviteId
+      ? await getDoc(doc(db, 'families', familyId, 'memberInvites', data.inviteId)).catch(() => null)
+      : null;
+    const current = inviteSnap?.exists() ? inviteSnap.data() || {} : null;
+    if (!current || current.status !== 'pending' || inviteExpired(current)) {
+      // Den gamle invitasjonen gjelder ikke lenger. Den og plassholderen lukkes, og en ny lages.
+      if (current?.status === 'pending') {
+        await updateDoc(doc(db, 'families', familyId, 'memberInvites', data.inviteId), {
+          status: 'expired', updatedAt: serverTimestamp(),
+        }).catch(() => {});
+        await updateDoc(doc(db, 'users', inviteeUid, 'familyInvites', data.inviteId), {
+          status: 'expired', updatedAt: serverTimestamp(),
+        }).catch(() => {});
+      }
+      await updateDoc(ref, { inviteStatus: 'expired', updatedAt: serverTimestamp() }).catch(() => {});
+      return inviteExistingAdult({
+        familyId,
+        inviteeUid,
+        createdBy: auth.currentUser?.uid || data.createdBy || data.invitedBy,
+        asAdmin: !!data.admin,
+        familyName,
+        groupType,
+        deliveryEmail: email,
+        deliveryPhone: phone,
+      });
+    }
+    // Fortsatt ventende: ny frist fra nå.
+    await updateDoc(doc(db, 'families', familyId, 'memberInvites', data.inviteId), {
+      expiresAt: inviteExpiresAt(),
+      updatedAt: serverTimestamp(),
+    }).catch(() => {});
+  }
 
   let resolvedName = familyName || '';
   let resolvedType = groupType || '';
@@ -550,6 +619,7 @@ export async function resendAdultInvite({ familyId, parentId, familyName, groupT
     await updateDoc(ref, {
       deleted: false,
       archived: false,
+      inviteExpiresAt: inviteExpiresAt(),
       migratedToUid: deleteField(),
       inviteId: deleteField(),
       inviteeUid: deleteField(),
@@ -1314,6 +1384,7 @@ export async function inviteExistingAdult({
     familyId,
     familyName: resolvedName,
     groupType: resolvedType,
+    expiresAt: inviteExpiresAt(),
     createdAt: now,
     updatedAt: now,
   };
@@ -1522,6 +1593,15 @@ async function activateExistingMember({
   }, { merge: true });
 }
 
+/** Lukk egen innboks når invitasjonen ikke lenger gjelder, så invitasjonsvinduet forsvinner. */
+async function closeOwnInbox(uid, inviteId, status = 'expired') {
+  if (!uid || !inviteId) return;
+  await updateDoc(doc(db, 'users', uid, 'familyInvites', inviteId), {
+    status,
+    updatedAt: serverTimestamp(),
+  }).catch(() => {});
+}
+
 /**
  * Svar på serveren: medlemskap, administrator og (for bedrifter) medarbeider og tilgangsnivå
  * settes samlet. null betyr at serveren ikke kunne nås, og klienten svarer selv.
@@ -1544,19 +1624,28 @@ async function respondOnServer({ familyId, inviteId, response }) {
 
 export async function acceptFamilyMemberInvite({ familyId, inviteId, uid }) {
   if (!familyId || !inviteId || !uid) throw new Error('missing-params');
-  const server = await respondOnServer({ familyId, inviteId, response: 'accepted' });
+  let server;
+  try {
+    server = await respondOnServer({ familyId, inviteId, response: 'accepted' });
+  } catch (err) {
+    if (isStaleInviteCode(err?.message)) await closeOwnInbox(uid, inviteId);
+    throw err;
+  }
   if (server) return server;
   const inviteRef = doc(db, 'families', familyId, 'memberInvites', inviteId);
-  const inviteSnap = await getDoc(inviteRef);
-  if (!inviteSnap.exists()) throw new Error('not-found');
+  const inviteSnap = await getDoc(inviteRef).catch(() => null);
+  const stale = async (code) => {
+    await closeOwnInbox(uid, inviteId);
+    throw new Error(code);
+  };
+  if (!inviteSnap?.exists()) return stale('not-found');
   const invite = inviteSnap.data() || {};
-  if (invite.inviteeUid !== uid) throw new Error('forbidden');
-  if (invite.status !== 'pending') throw new Error('already-handled');
+  if (invite.inviteeUid !== uid) return stale('forbidden');
+  if (invite.status !== 'pending') return stale('already-handled');
+  if (inviteExpired(invite)) return stale('expired');
 
   const famSnap = await getDoc(doc(db, 'families', familyId));
-  if (!famSnap.exists() || isGroupDeleted(famSnap.data())) {
-    throw new Error('Familien er slettet.');
-  }
+  if (!famSnap.exists() || isGroupDeleted(famSnap.data())) return stale('gone');
 
   const now = serverTimestamp();
   await activateExistingMember({
@@ -1596,16 +1685,25 @@ export async function acceptFamilyMemberInvite({ familyId, inviteId, uid }) {
   return { familyId, familyName: invite.familyName || famSnap.data()?.name || '' };
 }
 
+/** Avslå lykkes alltid: gjelder invitasjonen ikke lenger, lukkes den bare i innboksen. */
 export async function declineFamilyMemberInvite({ familyId, inviteId, uid }) {
   if (!familyId || !inviteId || !uid) throw new Error('missing-params');
-  const server = await respondOnServer({ familyId, inviteId, response: 'declined' });
+  let server;
+  try {
+    server = await respondOnServer({ familyId, inviteId, response: 'declined' });
+  } catch (err) {
+    if (!isStaleInviteCode(err?.message)) throw err;
+    await closeOwnInbox(uid, inviteId);
+    return { familyId, stale: err.message };
+  }
   if (server) return { familyId: server.familyId };
   const inviteRef = doc(db, 'families', familyId, 'memberInvites', inviteId);
-  const inviteSnap = await getDoc(inviteRef);
-  if (!inviteSnap.exists()) throw new Error('not-found');
-  const invite = inviteSnap.data() || {};
-  if (invite.inviteeUid !== uid) throw new Error('forbidden');
-  if (invite.status !== 'pending') throw new Error('already-handled');
+  const inviteSnap = await getDoc(inviteRef).catch(() => null);
+  const invite = inviteSnap?.exists() ? inviteSnap.data() || {} : null;
+  if (!invite || invite.inviteeUid !== uid || invite.status !== 'pending') {
+    await closeOwnInbox(uid, inviteId);
+    return { familyId, stale: !invite ? 'not-found' : 'already-handled' };
+  }
 
   const now = serverTimestamp();
   await updateDoc(inviteRef, {

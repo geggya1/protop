@@ -1,14 +1,44 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { collection, deleteDoc, doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
+import {
+  collection, doc, getDoc, onSnapshot, runTransaction, setDoc,
+} from 'firebase/firestore';
 import { db } from '../../firebase';
 import { employeeListKey, persistEmployeeList } from './localCache.js';
-import { newId, normalizeEmployee, normalizeProfile, sortEmployees } from './model.js';
+import {
+  mergeEmployeeEdit, newId, normalizeEmployee, normalizeProfile, sortEmployees,
+} from './model.js';
+import { employmentChangeNeedsServer } from './membership.js';
+import { setEmploymentStatus } from './membershipClient.js';
 import { aliasSourceIds, subscribeCompanyAliases } from '../project/companyAlias.js';
 
 const sourceByEmployee = new Map();
 
 function sourceKey(companyId, employeeId) {
   return `${String(companyId || '')}:${String(employeeId || '')}`;
+}
+
+// Versjoner vi har sett av hver ansatt (fra skyen, lokal kopi og egne lagringer), slått opp
+// på updatedAt. En redigeringskopi har updatedAt fra versjonen den ble laget fra; da vet
+// lagringen hva som faktisk er endret, og kan slå det sammen med nyeste versjon.
+const versionsByEmployee = new Map();
+const VERSIONS_KEPT = 8;
+
+function rememberVersion(companyId, row) {
+  const stamp = String(row?.updatedAt || '');
+  if (!row?.id || !stamp) return;
+  const key = sourceKey(companyId, row.id);
+  const list = versionsByEmployee.get(key) || new Map();
+  if (list.has(stamp)) return;
+  list.set(stamp, row);
+  while (list.size > VERSIONS_KEPT) list.delete(list.keys().next().value);
+  versionsByEmployee.set(key, list);
+}
+
+/** Versjonen en redigeringskopi ble laget fra, eller null. */
+export function employeeVersion(companyId, employeeId, updatedAt) {
+  const stamp = String(updatedAt || '');
+  if (!stamp) return null;
+  return versionsByEmployee.get(sourceKey(companyId, employeeId))?.get(stamp) || null;
 }
 
 const PROFILE_KEY = 'protop.professionalProfile.v1';
@@ -27,7 +57,9 @@ async function readLocal(companyId) {
     const raw = await AsyncStorage.getItem(listKey(companyId));
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return sortEmployees((Array.isArray(parsed) ? parsed : []).map((row) => normalizeEmployee(row)));
+    const rows = (Array.isArray(parsed) ? parsed : []).map((row) => normalizeEmployee(row));
+    rows.forEach((row) => rememberVersion(companyId, row));
+    return sortEmployees(rows);
   } catch {
     return [];
   }
@@ -79,6 +111,7 @@ export function watchEmployees(companyId, onData, onError) {
       const unsub = onSnapshot(collection(db, 'families', id, 'employees'), (snap) => {
         if (stop || token !== generation) return;
         const rows = snap.docs.map((item) => normalizeEmployee({ ...item.data(), id: item.id }));
+        rows.forEach((row) => rememberVersion(companyId, row));
         buckets.set(id, rows);
         if (id === companyId) writeLocal(companyId, rows).catch(() => {});
         emit();
@@ -104,16 +137,52 @@ export function watchEmployees(companyId, onData, onError) {
   };
 }
 
-export async function saveEmployee(companyId, employee) {
+/**
+ * Lagre en ansatt. Bare feltene som er endret i forhold til versjonen kopien ble laget fra,
+ * skrives, slått sammen med nyeste versjon i skyen i en transaksjon. Kobling og invitasjon
+ * som serveren har satt i mellomtiden, overskrives ikke. base kan gis når kallet vet den.
+ *
+ * Avsluttes ansettelsen (deaktivert, papirkurv, sluttdato passert) eller tas den opp igjen,
+ * settes status og sluttdato av serveren først, sammen med medlemskapet. Feiler det, lagres
+ * ingenting, og feilen kastes videre. onEmployment får svaret fra serveren (membership:
+ * removed | restored | needs-invite | kept | none).
+ */
+export async function saveEmployee(companyId, employee, { base = null, onEmployment = null } = {}) {
   const target = sourceByEmployee.get(sourceKey(companyId, employee?.id))
     || String(employee?.sourceCompanyId || companyId || '').trim();
-  const next = normalizeEmployee({
-    ...employee,
-    id: employee?.id || newId('emp'),
-    updatedAt: new Date().toISOString(),
-    createdAt: employee?.createdAt || new Date().toISOString(),
+  const id = employee?.id || newId('emp');
+  const ref = employeeRef(target || companyId, id);
+  const from = base || employeeVersion(companyId, id, employee?.updatedAt);
+  const stored = await getDoc(ref);
+  if (stored.exists()) {
+    const remote = normalizeEmployee({ ...stored.data(), id });
+    const wanted = mergeEmployeeEdit({ remote, base: from, next: { ...employee, id } });
+    if (employmentChangeNeedsServer(remote, wanted)) {
+      const result = await setEmploymentStatus({
+        companyId,
+        employeeId: id,
+        employeeCompanyId: target || companyId,
+        status: wanted.company.status,
+        periodTo: wanted.company.periodTo,
+      });
+      onEmployment?.(result);
+    }
+  }
+  const stamp = new Date().toISOString();
+  const next = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const remote = snap.exists() ? normalizeEmployee({ ...snap.data(), id }) : null;
+    const merged = mergeEmployeeEdit({ remote, base: from, next: { ...employee, id } });
+    const row = normalizeEmployee({
+      ...merged,
+      id,
+      updatedAt: stamp,
+      createdAt: merged.createdAt || remote?.createdAt || employee?.createdAt || stamp,
+    });
+    tx.set(ref, row);
+    return row;
   });
-  await setDoc(employeeRef(target || companyId, next.id), next);
+  rememberVersion(companyId, next);
   try {
     const current = await readLocal(companyId);
     await writeLocal(companyId, sortEmployees([...current.filter((row) => row.id !== next.id), next]));
@@ -123,12 +192,21 @@ export async function saveEmployee(companyId, employee) {
   return next;
 }
 
+/**
+ * Slett permanent (fra papirkurven). Serveren sletter posten og sørger for at personen
+ * ikke lenger er medlem av bedriften.
+ */
 export async function removeEmployee(companyId, employeeId) {
   const id = String(employeeId || '');
   if (!companyId || !id) return;
   const target = sourceByEmployee.get(sourceKey(companyId, id)) || companyId;
+  await setEmploymentStatus({
+    companyId,
+    employeeId: id,
+    employeeCompanyId: target,
+    purge: true,
+  });
   sourceByEmployee.delete(sourceKey(companyId, id));
-  await deleteDoc(employeeRef(target, id));
   try {
     const current = await readLocal(companyId);
     await writeLocal(companyId, current.filter((row) => row.id !== id));

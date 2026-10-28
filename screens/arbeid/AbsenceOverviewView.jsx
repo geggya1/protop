@@ -125,7 +125,7 @@ export function AbsenceOverviewScreen({
   const locked = !!workspace.lockedId;
   const canChooseEmployee = !!workspace.manager && !locked;
   const people = useMemo(
-    () => filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted'),
+    () => filterEmployeesForPicker(workspace.employees, '', { includeClosed: true }),
     [workspace.employees],
   );
   const employeeId = locked

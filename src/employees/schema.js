@@ -95,7 +95,6 @@ export const FORM_SECTIONS = [
     fields: [
       { key: 'company.personnelKind', label: 'Personell', type: 'choice', options: PERSONNEL_KIND_OPTIONS, requiredFor: 'register' },
       { key: 'company.status', label: 'Status', type: 'choice', options: STATUS_OPTIONS, requiredFor: 'register' },
-      { key: 'company.canLogin', label: 'Kan logge inn', type: 'bool' },
       { key: 'company.hasLicense', label: 'Bruker en lisens', type: 'bool' },
       { key: 'company.departmentIds', label: 'Avdeling', type: 'departments' },
       { key: 'company.title', label: 'Tittel', type: 'text', requiredFor: 'cv', placeholder: 'Prosjekt- og byggeleder' },

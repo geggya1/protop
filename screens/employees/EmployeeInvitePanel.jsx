@@ -14,9 +14,12 @@ import {
   invitesAwaitingSend,
   invitesDeclined,
   inviteStatusLabel,
+  matchEmployeeByEmail,
+  normalizeInviteState,
   placedAccessLevel,
 } from '../../src/employees/invite';
 import { displayName } from '../../src/employees/model';
+import { splitRequestName } from '../../src/employees/joinRequestsClient';
 
 export default function EmployeeInvitePanel({
   colors,
@@ -27,7 +30,10 @@ export default function EmployeeInvitePanel({
   onRemove,
   onSend,
   onResend,
+  onWithdraw,
   onInviteSelected,
+  joinRequests = [],
+  onDeclineRequest,
   progress = null,
 }) {
   const [firstName, setFirstName] = useState('');
@@ -39,7 +45,17 @@ export default function EmployeeInvitePanel({
   const sent = invitesAwaitingAccept(employees);
   const declined = invitesDeclined(employees);
 
-  function addPerson() {
+  /** «Be om å bli med»: fyll ut skjemaet med navn og e-post fra forespørselen. */
+  function prefillFromRequest(request) {
+    const names = splitRequestName(request.name);
+    setFirstName(names.firstName);
+    setLastName(names.lastName);
+    setEmail(request.email || '');
+    setFormError(canEditAccess ? 'Velg tilgangsnivå og trykk Legg til, deretter Inviter.' : '');
+  }
+
+  /** Skjemaet tømmes bare når personen faktisk er lagt til. */
+  async function addPerson() {
     const level = canEditAccess ? accessLevel : (accessLevel || 'ansatt');
     if (!firstName.trim() || !lastName.trim()) {
       setFormError('Fornavn og etternavn må fylles ut.');
@@ -54,12 +70,13 @@ export default function EmployeeInvitePanel({
       return;
     }
     setFormError('');
-    onAdd?.({
+    const ok = await onAdd?.({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim().toLowerCase(),
       accessLevel: level,
     });
+    if (!ok) return;
     setFirstName('');
     setLastName('');
     setEmail('');
@@ -68,6 +85,47 @@ export default function EmployeeInvitePanel({
 
   return (
     <View nativeID="employee-invite" style={styles.stack}>
+      {joinRequests.length ? (
+        <View nativeID="employee-join-requests" style={[styles.card, { backgroundColor: colors.card, borderColor: colors.brand }]}>
+          <Text style={[styles.heading, { color: colors.ink }]}>{`Ber om å bli med (${joinRequests.length})`}</Text>
+          <Text style={{ color: colors.muted }}>
+            Disse har funnet bedriften på organisasjonsnummeret og bedt om å bli med. Inviter fyller ut skjemaet under. Forespørselen lukkes når personen godtar invitasjonen.
+          </Text>
+          {joinRequests.map((request) => {
+            const row = matchEmployeeByEmail(employees, request.email);
+            const status = row ? normalizeInviteState(row.invite).status : '';
+            return (
+              <View key={request.id} style={[styles.person, { borderColor: colors.line }]}>
+                <View style={styles.grow}>
+                  <Text style={{ color: colors.ink, fontWeight: '700' }}>{request.name || request.email || 'Uten navn'}</Text>
+                  {request.email ? <Text style={{ color: colors.muted }}>{request.email}</Text> : null}
+                  {status === 'sent' || status === 'queued' ? (
+                    <Text style={{ color: colors.muted }}>{inviteStatusLabel(status)}</Text>
+                  ) : null}
+                </View>
+                {status !== 'sent' && status !== 'queued' ? (
+                  <TouchableOpacity
+                    nativeID={`employee-join-invite-${request.id}`}
+                    onPress={() => prefillFromRequest(request)}
+                    disabled={busy}
+                    accessibilityRole="button"
+                  >
+                    <Text style={{ color: colors.brand }}>Inviter</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
+                  nativeID={`employee-join-decline-${request.id}`}
+                  onPress={() => onDeclineRequest?.(request)}
+                  disabled={busy}
+                  accessibilityRole="button"
+                >
+                  <Text style={{ color: colors.muted }}>Avvis</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </View>
+      ) : null}
       <NotInvitedSection
         colors={colors}
         employees={employees}
@@ -163,7 +221,7 @@ export default function EmployeeInvitePanel({
       {sent.length ? (
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
           <Text style={[styles.heading, { color: colors.ink }]}>Sendt, venter på svar</Text>
-          <Text style={{ color: colors.muted }}>Personen må godta invitasjonen før hen kommer inn i bedriften.</Text>
+          <Text style={{ color: colors.muted }}>Personen må godta invitasjonen før hen kommer inn i bedriften. En invitasjon som ikke er besvart, utløper etter 30 dager.</Text>
           {sent.map((row) => (
             <View key={row.id} style={[styles.person, { borderColor: colors.line }]}>
               <View style={styles.grow}>
@@ -174,6 +232,16 @@ export default function EmployeeInvitePanel({
               <TouchableOpacity onPress={() => onResend?.(row)} disabled={busy} accessibilityRole="button">
                 <Text style={{ color: colors.brand }}>Send på nytt</Text>
               </TouchableOpacity>
+              {onWithdraw ? (
+                <TouchableOpacity
+                  nativeID={`employee-invite-withdraw-${row.id}`}
+                  onPress={() => onWithdraw(row)}
+                  disabled={busy}
+                  accessibilityRole="button"
+                >
+                  <Text style={{ color: colors.muted }}>Trekk tilbake</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           ))}
         </View>
@@ -243,11 +311,13 @@ function NotInvitedSection({ colors, employees, busy, progress, onInvite }) {
     });
   }
 
+  /** Bare de som faktisk fikk invitasjonen, tas ut av valget. De som feilet, står igjen. */
   async function inviteChosen() {
     const ids = chosen.map((row) => row.id);
     if (!ids.length) return;
-    await onInvite?.(ids);
-    setPicked(new Set());
+    const sent = await onInvite?.(ids);
+    const done = new Set(Array.isArray(sent) ? sent : []);
+    setPicked((current) => new Set([...current].filter((id) => !done.has(id))));
   }
 
   const missingNames = missing.slice(0, 8).map((row) => displayName(row) || 'Uten navn');

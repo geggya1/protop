@@ -100,7 +100,7 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   const canImport = !!workspace.manager && adminImport;
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const people = useMemo(
-    () => filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted'),
+    () => filterEmployeesForPicker(workspace.employees, '', { includeClosed: true }),
     [workspace.employees],
   );
   const roster = useMemo(() => absenceRoster(people), [people]);

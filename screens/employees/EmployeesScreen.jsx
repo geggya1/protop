@@ -9,6 +9,7 @@ import {
   draftInviteEmployee,
   employeeContactEmail,
   employeeInviteState,
+  employeeMatchEmails,
   inviteDeliveryError,
   inviteLevelFor,
   inviteOverview,
@@ -19,6 +20,11 @@ import {
   unqueueEmployeeInvite,
 } from '../../src/employees/invite';
 import { inviteAdultSmart, resendAdultInvite } from '../../src/utils/groups';
+import { setEmploymentStatus, withdrawEmployeeInvite } from '../../src/employees/membershipClient';
+import { companyMemberIds, isCompanyOwnerUid, membershipUid } from '../../src/employees/membership';
+import { useLeaveCompany } from '../../src/employees/useLeaveCompany';
+import { declineCompanyJoinRequest, watchCompanyJoinRequests } from '../../src/employees/joinRequestsClient';
+import { confirmUser } from '../../src/utils/dialog';
 import { recordUsage } from '../../src/employees/usageClient';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -56,12 +62,15 @@ import {
   displayName,
   employeeFromProfile,
   emptyEmployee,
+  employmentState,
   filterEmployees,
   gapReport,
   hasPersonContent,
   initials,
+  isActiveEmployee,
   isDeletedEmployee,
   linkClash,
+  mergeEmployeeEdit,
   newId,
   ownEmployee,
   presentEmployee,
@@ -72,6 +81,7 @@ import {
 
 import { cvEditorSections } from '../../src/employees/schema';
 import {
+  employeeVersion,
   loadProfessionalProfile,
   removeEmployee,
   saveEmployee,
@@ -127,6 +137,7 @@ export default function EmployeesScreen() {
   const colors = useColors();
   const { isDesktop } = useLayout();
   const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const leaving = useLeaveCompany();
   const access = useCompanyAccess();
   // isAdmin = begrenset redigering (hovedsiden kan redigeres); employeesAdmin = Admin (alt annet).
   // Bare tilgangsstyringen gjelder. Administratorlisten på selskapet (adminUids) gir ikke Admin her;
@@ -183,6 +194,7 @@ export default function EmployeesScreen() {
   const [dropped, setDropped] = useState(() => new Set());
   const [importReport, setImportReport] = useState(null);
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [joinRequests, setJoinRequests] = useState([]);
   const pickedAddress = useRef('');
   const scrollRef = useRef(null);
 
@@ -221,6 +233,15 @@ export default function EmployeesScreen() {
       stop();
     };
   }, [familyId]);
+
+  // «Be om å bli med»: forespørsler vises under Inviter brukere for den som kan invitere.
+  useEffect(() => {
+    if (!familyId || !canInvite) {
+      setJoinRequests([]);
+      return undefined;
+    }
+    return watchCompanyJoinRequests(familyId, setJoinRequests);
+  }, [familyId, canInvite]);
 
   useEffect(() => {
     if (!familyId) {
@@ -269,6 +290,18 @@ export default function EmployeesScreen() {
   }, [view, draft?.person?.address1]);
 
   const selected = rows.find((row) => row.id === selectedId) || null;
+
+  // Personen er endret i skyen mens hen er åpen (f.eks. godtatt invitasjon, eller endret av en
+  // annen): legg endringene inn i redigeringskopien. Egne, ulagrede endringer beholdes, og en
+  // senere lagring skriver ikke tilbake gammel kobling eller invitasjon.
+  useEffect(() => {
+    if (!selected?.updatedAt || view === 'mine') return;
+    setDraft((current) => {
+      if (!current || current.id !== selected.id || current.updatedAt === selected.updatedAt) return current;
+      const base = employeeVersion(familyId, current.id, current.updatedAt);
+      return presentEmployee(mergeEmployeeEdit({ remote: selected, base, next: current }));
+    });
+  }, [selected?.id, selected?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   // Andre ansatte: Lese ser bare hovedsiden, begrenset redigering ser også
   // Oversikt, Timer og Fraværsoversikt (uten å endre). Resten krever Admin.
   // «Vis som»: den valgte ansatte er «meg», også når profilen ikke er knyttet til en bruker.
@@ -330,6 +363,23 @@ export default function EmployeesScreen() {
     [linked, mine, profile, familyId],
   );
   const inviteCounts = useMemo(() => inviteOverview(rows), [rows]);
+  // Avsluttede ansettelser der personen fortsatt står som medlem: deaktivert før tilgangen ble
+  // stengt på serveren, eller sluttdatoen har passert. Administrator rydder med ett trykk.
+  const lingering = useMemo(() => {
+    if (!canInvite || !family) return [];
+    const listed = companyMemberIds(family);
+    return rows.filter((row) => {
+      if (isActiveEmployee(row)) return false;
+      const member = membershipUid(family, row);
+      if (!member || member === uid || !listed.has(member) || isCompanyOwnerUid(family, member)) return false;
+      return !rows.some((other) => other.id !== row.id && other.personUid === member && isActiveEmployee(other));
+    });
+  }, [canInvite, family, rows, uid]);
+  // «Gjenopprett min profil» bare når personen aldri har hatt en ansettelse her, eller er eier.
+  // En ansettelse som er slettet permanent, skal ikke kunne gjenskapes av personen selv.
+  const mineLink = (profile?.links || []).find((row) => row.companyId === familyId) || null;
+  const mineRemoved = !!mineLink?.employeeId && !rows.some((row) => row.id === mineLink.employeeId);
+  const canRestoreMine = !mine && directoryReady && (isSuperAdmin(family, uid) || !mineRemoved);
   const visible = useMemo(
     () => filterEmployees(rows, {
       status: 'all',
@@ -516,8 +566,9 @@ export default function EmployeesScreen() {
     return saved;
   }
 
+  /** Legg en ny person klar. Svarer true bare når personen er lagret (skjemaet tømmes da). */
   async function addInvitePerson(draft) {
-    if (!canInvite || busy || !familyId) return;
+    if (!canInvite || busy || !familyId) return false;
     setBusy(true);
     setError('');
     try {
@@ -537,14 +588,32 @@ export default function EmployeesScreen() {
       }, { accessLevel, at: new Date().toISOString() });
       if (!queued.ok) {
         showError(queued.error);
-        return;
+        return false;
       }
       const saved = await rememberInvite(queued.employee);
       if (saved) noteSaved(`${displayName(saved)} er lagt klar. E-post sendes når du trykker Inviter.`);
+      return !!saved;
     } catch (err) {
       showError(err?.message || 'Kunne ikke legge til personen.');
+      return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function declineJoinRequest(request) {
+    if (!canInvite || busy || !familyId || !request) return;
+    const sure = await confirmUser(
+      'Avvise forespørselen?',
+      `${request.name || request.email || 'Personen'} får beskjed om at forespørselen er avslått.`,
+      { ok: 'Avvis' },
+    );
+    if (!sure) return;
+    try {
+      await declineCompanyJoinRequest({ companyId: familyId, request, actorUid: uid, companyName });
+      noteSaved('Forespørselen er avvist.');
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke avvise forespørselen.');
     }
   }
 
@@ -566,12 +635,13 @@ export default function EmployeesScreen() {
     }
   }
 
+  /** Send invitasjoner. Svarer med id-ene som faktisk ble sendt. */
   async function deliverInvites(ids, { known = [] } = {}) {
     const employeeIds = (ids || []).filter(Boolean);
-    if (!canInvite || busy || !familyId) return;
+    if (!canInvite || busy || !familyId) return [];
     if (!employeeIds.length) {
       showError('Ingen personer er klare til invitasjon.');
-      return;
+      return [];
     }
     setBusy(true);
     setError('');
@@ -624,7 +694,7 @@ export default function EmployeesScreen() {
             });
           const next = applyInviteSendResult(current, result, { at });
           await rememberInvite(next);
-          if (result?.emailSent) {
+          if (result?.emailSent || result?.inviteId) {
             sent.push(id);
             recordUsage({
               type: 'invite_sent',
@@ -633,8 +703,11 @@ export default function EmployeesScreen() {
               summary: `Invitasjon sendt til ${email}`,
               detail: { accessLevel: placedAccessLevel(current) },
             }).catch(() => {});
-          } else {
-            failed.push(result?.emailError || `${name || email}: e-post ble ikke sendt.`);
+          }
+          if (!result?.emailSent) {
+            // Eksisterende bruker får invitasjonen i appen selv om e-posten feilet.
+            const delivered = result?.inviteId ? ' Invitasjonen ligger likevel i appen hos personen.' : '';
+            failed.push(`${result?.emailError || `${name || email}: e-post ble ikke sendt.`}${delivered}`);
           }
         } catch (err) {
           failed.push(many ? `${who}: ${inviteDeliveryError(err)}` : inviteDeliveryError(err));
@@ -653,6 +726,7 @@ export default function EmployeesScreen() {
       setInviteProgress(null);
       setBusy(false);
     }
+    return sent;
   }
 
   async function inviteEmployee(employee) {
@@ -778,6 +852,12 @@ export default function EmployeesScreen() {
       clearShellIntent?.();
       return;
     }
+    // Varsel om forespørsel om å bli med: rett til Inviter brukere, der forespørselen står.
+    if (shellIntent.type === 'openInvite') {
+      clearShellIntent?.();
+      if (canInvite) openInvite();
+      return;
+    }
     // Varsel om ny versjon av et dokument: Min side, der dokumentene leses og bekreftes.
     if (shellIntent.type === 'myDocuments') {
       pendingMine.current = true;
@@ -885,11 +965,20 @@ export default function EmployeesScreen() {
   }, [rows, directoryReady, linked, mine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveWork(employee) {
-    const saved = await saveEmployee(familyId, employee);
-    setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
-    setSelectedId(saved.id);
-    setDraft(presentEmployee(saved));
-    noteSaved('Innstillingene er lagret.');
+    let membership = '';
+    try {
+      const saved = await saveEmployee(familyId, employee, {
+        onEmployment: (res) => { membership = res?.membership || ''; },
+      });
+      setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
+      setSelectedId(saved.id);
+      setDraft(presentEmployee(saved));
+      noteSaved(membershipNote(saved, membership) || 'Innstillingene er lagret.');
+      return true;
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke lagre innstillingene.');
+      return false;
+    }
   }
 
   async function importCvFile() {
@@ -979,6 +1068,12 @@ export default function EmployeesScreen() {
     if (mine) {
       setQuery('');
       if (!mine.personUid && uid) {
+        // Knytt bare en aktiv ansettelse med samme e-post som innloggingen.
+        const myEmail = String(user?.email || '').trim().toLowerCase();
+        if (!isActiveEmployee(mine) || !myEmail || !employeeMatchEmails(mine).includes(myEmail)) {
+          showError('Be en administrator om å knytte ansettelsen til deg.');
+          return;
+        }
         setBusy(true);
         try {
           const saved = await saveEmployee(familyId, { ...mine, personUid: uid });
@@ -994,8 +1089,12 @@ export default function EmployeesScreen() {
       openDetail(mine);
       return;
     }
+    if (!canRestoreMine) {
+      showError('Ansettelsen din er fjernet fra bedriften. Kontakt en administrator.');
+      return;
+    }
     const hint = userProfile?.displayName || user?.displayName || '';
-    const link = (profile?.links || []).find((row) => row.companyId === familyId);
+    const link = mineLink;
     const draft = employeeFromProfile(profile, {
       id: link?.employeeId || '',
       uid,
@@ -1134,11 +1233,20 @@ export default function EmployeesScreen() {
   async function classifyEmployee(patch) {
     const levelSet = Object.prototype.hasOwnProperty.call(patch, 'accessLevels');
     const accessChange = levelSet || Object.prototype.hasOwnProperty.call(patch, 'accessLevel');
-    if (busy) return;
-    if (accessChange ? !canEditAccess : !isAdmin) return;
+    if (busy) return false;
+    if (accessChange ? !canEditAccess : !isAdmin) return false;
     const current = draft && draft.id === selectedId ? draft : selected;
-    if (!current) return;
-    const next = levelSet
+    if (!current) return false;
+    // Deaktivering tar personen ut av bedriften. Spør først.
+    if (patch.status === 'inactive' && isActiveEmployee(current)) {
+      const sure = await confirmUser(
+        `Deaktivere ${displayName(current)}?`,
+        'Personen tas ut av bedriften, logges ut og mister all tilgang. Timer, fravær og dokumenter blir liggende. Du kan aktivere kontoen igjen senere.',
+        { ok: 'Deaktiver' },
+      );
+      if (!sure) return false;
+    }
+    let next = levelSet
       ? {
         ...current,
         company: {
@@ -1149,19 +1257,26 @@ export default function EmployeesScreen() {
         },
       }
       : applyEmployeeClassification(current, patch);
+    // Aktiver: en passert sluttdato ville holdt ansettelsen avsluttet.
+    if (patch.status === 'active' && employmentState(next) === 'ended') {
+      next = { ...next, company: { ...next.company, periodTo: '' } };
+    }
     setDraft(next);
     const result = commitEmployee(next, { scope: 'company' });
     if (!result.ok) {
       showError(result.errors.join('\n'));
-      return;
+      return false;
     }
     if (!familyId) {
       showError('Åpne selskapet før du lagrer en ansettelse.');
-      return;
+      return false;
     }
     setBusy(true);
+    let membership = '';
     try {
-      const saved = await saveEmployee(familyId, result.employee);
+      const saved = await saveEmployee(familyId, result.employee, {
+        onEmployment: (res) => { membership = res?.membership || ''; },
+      });
       setRows((rowsNow) => sortEmployees([...rowsNow.filter((row) => row.id !== saved.id), saved]));
       setDraft(presentEmployee(saved));
       setSelectedId(saved.id);
@@ -1170,9 +1285,13 @@ export default function EmployeesScreen() {
         ? (levelNames.length ? `${displayName(saved)} har ${levelNames.join(', ')}.` : `${displayName(saved)} har ingen tilgangsnivå.`)
         : (accessChange
           ? `${displayName(current)} er nå ${levelById(patch.accessLevel)?.label || 'oppdatert'}.`
-          : classificationNote(saved, patch)));
+          : (membershipNote(saved, membership) || classificationNote(saved, patch))));
+      return true;
     } catch (err) {
+      // Lagringen feilet: vis det som ligger i skyen, ikke kopien som ikke ble lagret.
+      setDraft(presentEmployee(selected || current));
       showError(err?.message || 'Kunne ikke lagre.');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -1207,6 +1326,17 @@ export default function EmployeesScreen() {
     if (clash) {
       showError(`${displayName(clash)} er allerede knyttet til denne personen.`);
       return false;
+    }
+    // Status eller en passert «Ansatt til» avslutter ansettelsen: personen tas ut av bedriften.
+    const before = scope === 'company' ? rows.find((row) => row.id === result.employee.id) : null;
+    if (before && isActiveEmployee(before) && !isActiveEmployee(result.employee)) {
+      const ended = employmentState(result.employee) === 'ended';
+      const sure = await confirmUser(
+        `Avslutte ansettelsen til ${displayName(before)}?`,
+        `${ended ? 'Sluttdatoen («Ansatt til») er passert. ' : ''}Personen tas ut av bedriften, logges ut og mister all tilgang.`,
+        { ok: 'Lagre og avslutt' },
+      );
+      if (!sure) return false;
     }
     const pendingImages = countInlineCvImages(result.employee);
     setBusy(true);
@@ -1281,7 +1411,10 @@ export default function EmployeesScreen() {
           : 'Profilen er lagret. Den følger deg, og kan knyttes til et selskap senere.');
         return true;
       }
-      const saved = await saveEmployee(familyId, employee);
+      let membership = '';
+      const saved = await saveEmployee(familyId, employee, {
+        onEmployment: (res) => { membership = res?.membership || ''; },
+      });
       setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
       if (!kinMissing(saved)) closeKinTask(familyId, saved.id, { uid });
       if (saved.personUid && saved.personUid === uid) {
@@ -1301,7 +1434,9 @@ export default function EmployeesScreen() {
       }
       setDraft(presentEmployee(saved));
       setView('detail');
-      noteSaved('Medarbeideren er lagret.');
+      noteSaved(membershipNote(saved, membership)
+        ? `Medarbeideren er lagret. ${membershipNote(saved, membership)}`
+        : 'Medarbeideren er lagret.');
       recordUsage({
         type: 'change',
         companyId: familyId,
@@ -1361,7 +1496,7 @@ export default function EmployeesScreen() {
         setSelectedId('');
         setDraft(null);
         setView('list');
-        noteSaved('Medarbeideren er slettet permanent.');
+        noteSaved('Medarbeideren er slettet permanent. Personen har ikke lenger tilgang til bedriften.');
       } else {
         const next = applyEmployeeClassification(current, { status: 'deleted' });
         const committed = commitEmployee(next, { scope: 'company' });
@@ -1369,16 +1504,21 @@ export default function EmployeesScreen() {
           showError(committed.errors.join('\n'));
           return;
         }
-        const saved = await saveEmployee(familyId, committed.employee);
+        let membership = '';
+        const saved = await saveEmployee(familyId, committed.employee, {
+          onEmployment: (res) => { membership = res?.membership || ''; },
+        });
         setRows((list) => sortEmployees([...list.filter((row) => row.id !== saved.id), saved]));
         setDraft(presentEmployee(saved));
         setSelectedId(saved.id);
-        noteSaved('Medarbeideren er flyttet til papirkurven.');
+        noteSaved(membership === 'removed'
+          ? 'Medarbeideren er flyttet til papirkurven og tatt ut av bedriften.'
+          : 'Medarbeideren er flyttet til papirkurven.');
         setView('list');
         setFocusSection('trash');
       }
     } catch (err) {
-      setError(err?.message || 'Kunne ikke slette.');
+      showError(err?.message || 'Kunne ikke slette.');
     } finally {
       setBusy(false);
       setConfirmDelete(false);
@@ -1388,9 +1528,63 @@ export default function EmployeesScreen() {
   async function restoreEmployee() {
     const current = draft && draft.id === selectedId ? draft : selected;
     if (!current || busy || !isDeletedEmployee(current)) return;
-    await classifyEmployee({ status: 'active' });
+    // classifyEmployee melder selv om resultatet (og om personen må inviteres på nytt).
+    const ok = await classifyEmployee({ status: 'active' });
+    if (!ok) return;
     setFocusSection(placedLevelId(current) && levelById(placedLevelId(current))?.section === 'external' ? 'external' : 'company');
-    noteSaved('Medarbeideren er gjenopprettet som aktiv.');
+  }
+
+  /** Ta ut av bedriften alle som er avsluttet, men fortsatt står som medlem. */
+  async function removeLingeringAccess() {
+    if (!lingering.length || busy || !familyId) return;
+    const sure = await confirmUser(
+      'Fjerne tilgangen?',
+      `${lingering.length === 1 ? 'Personen' : `De ${lingering.length}`} tas ut av bedriften og logges ut. Timer, fravær og dokumenter blir liggende.`,
+      { ok: 'Fjern tilgangen' },
+    );
+    if (!sure) return;
+    setBusy(true);
+    const failed = [];
+    let removed = 0;
+    try {
+      for (const row of lingering) {
+        try {
+          const res = await setEmploymentStatus({
+            companyId: familyId,
+            employeeId: row.id,
+            employeeCompanyId: row.sourceCompanyId || familyId,
+            status: row.company?.status || 'inactive',
+          });
+          if (res?.membership === 'removed') removed += 1;
+        } catch (err) {
+          failed.push(`${displayName(row)}: ${err?.message || 'feilet'}`);
+        }
+      }
+      if (failed.length) showError(failed.join('\n'));
+      if (removed) noteSaved(removed === 1 ? '1 person er tatt ut av bedriften.' : `${removed} personer er tatt ut av bedriften.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Trekk tilbake en sendt invitasjon som ikke er besvart. */
+  async function withdrawInvite(employee) {
+    if (!employee?.id || !canInvite || busy || !familyId) return;
+    const sure = await confirmUser(
+      'Trekke tilbake invitasjonen?',
+      `${displayName(employee)} kan ikke lenger godta invitasjonen. Du kan invitere på nytt senere.`,
+      { ok: 'Trekk tilbake' },
+    );
+    if (!sure) return;
+    setBusy(true);
+    try {
+      await withdrawEmployeeInvite({ companyId: familyId, employeeId: employee.id });
+      noteSaved(`Invitasjonen til ${displayName(employee)} er trukket tilbake.`);
+    } catch (err) {
+      showError(err?.message || 'Kunne ikke trekke tilbake invitasjonen.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   const cvEmployee = view === 'cv' && draft && draft.id === selectedId ? draft : selected;
@@ -1576,7 +1770,28 @@ export default function EmployeesScreen() {
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
           />
-          {!mine ? (
+          {lingering.length ? (
+            <View nativeID="employees-lingering" style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.danger || '#b42318' }]}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>
+                {lingering.length === 1
+                  ? '1 avsluttet ansettelse har fortsatt tilgang til bedriften'
+                  : `${lingering.length} avsluttede ansettelser har fortsatt tilgang til bedriften`}
+              </Text>
+              <Text style={{ color: colors.muted }}>
+                {`${lingering.slice(0, 6).map((row) => displayName(row)).join(', ')}${lingering.length > 6 ? ' med flere' : ''} er deaktivert eller har passert sluttdatoen, men står fortsatt som medlem. Fjern tilgangen, så tas de ut av bedriften og logges ut.`}
+              </Text>
+              <TouchableOpacity
+                nativeID="employees-lingering-remove"
+                onPress={removeLingeringAccess}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.primary, { marginTop: 6, backgroundColor: colors.danger || '#b42318', opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.primaryText}>Fjern tilgangen</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {canRestoreMine ? (
             <View style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>Profilen din ligger ikke i listen</Text>
               <Text style={{ color: colors.muted }}>
@@ -1726,6 +1941,7 @@ export default function EmployeesScreen() {
               canInvite={canInvite}
               onClassify={classifyEmployee}
               onInvite={() => inviteEmployee(personEmployee)}
+              onWithdrawInvite={() => withdrawInvite(personEmployee)}
               onOpenAccess={canOpenAccessPage ? () => openAccessPage(personEmployee) : undefined}
             />
           ) : null}
@@ -2013,7 +2229,10 @@ export default function EmployeesScreen() {
           onRemove={removeInvitePerson}
           onSend={deliverInvites}
           onResend={(row) => deliverInvites([row.id])}
+          onWithdraw={withdrawInvite}
           onInviteSelected={deliverInvites}
+          joinRequests={joinRequests}
+          onDeclineRequest={declineJoinRequest}
           progress={inviteProgress}
         />
       ) : null}
@@ -2088,6 +2307,24 @@ export default function EmployeesScreen() {
           >
             <Text style={styles.primaryText}>{busyLabel('Lagre')}</Text>
           </TouchableOpacity>
+          {view === 'mine' && leaving.canLeave && !access.previewing ? (
+            <View nativeID="employee-leave-company" style={[styles.stats, { backgroundColor: colors.card, borderColor: colors.line }]}>
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>Forlat bedriften</Text>
+              <Text style={{ color: colors.muted }}>
+                {`Du tas ut av «${leaving.companyName}» og mister tilgangen med en gang. Profilen og CV-en din på Min side følger deg videre.`}
+              </Text>
+              {leaving.error ? <Text style={{ color: colors.danger || '#b42318' }}>{leaving.error}</Text> : null}
+              <TouchableOpacity
+                nativeID="employee-leave-company-confirm"
+                onPress={leaving.leave}
+                disabled={leaving.busy}
+                accessibilityRole="button"
+                style={[styles.secondary, { borderColor: colors.danger || '#b42318', opacity: leaving.busy ? 0.6 : 1 }]}
+              >
+                <Text style={{ color: colors.danger || '#b42318' }}>{leaving.busy ? 'Forlater…' : 'Forlat bedriften'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -2157,15 +2394,27 @@ function withInviteFields(draft, saved) {
 
 const INVITE_CHIP_KEYS = new Set(['none', 'missingEmail', 'queued', 'sent', 'declined']);
 
-/** Lagremelding etter aktivering, deaktivering eller innlogging på Brukerkonto. */
+/** Lagremelding etter aktivering eller deaktivering på Brukerkonto. */
 function classificationNote(employee, patch) {
   const name = displayName(employee);
   if (patch.status === 'active') return `${name} er aktivert.`;
   if (patch.status === 'inactive') return `${name} er deaktivert og kan ikke logge inn.`;
-  if (Object.prototype.hasOwnProperty.call(patch, 'canLogin')) {
-    return employee.company?.canLogin ? `${name} kan logge inn.` : `${name} kan ikke logge inn.`;
-  }
   return 'Tilknytningen er lagret.';
+}
+
+/** Hva serveren gjorde med medlemskapet, sagt rett ut. Tom når ingenting endret seg. */
+function membershipNote(employee, membership) {
+  const name = displayName(employee);
+  if (membership === 'removed') {
+    const state = employmentState(employee);
+    const what = state === 'ended' ? 'har sluttet' : (state === 'deleted' ? 'ligger i papirkurven' : 'er deaktivert');
+    return `${name} ${what}, er tatt ut av bedriften og logget ut.`;
+  }
+  if (membership === 'restored') return `${name} er aktivert og har tilgang til bedriften igjen.`;
+  if (membership === 'needs-invite') {
+    return `${name} er aktivert, men er ikke medlem av bedriften. Send en ny invitasjon for å gi tilgang.`;
+  }
+  return '';
 }
 
 /** Invitasjonsstatus på personen i listen (bare for den som kan invitere). */

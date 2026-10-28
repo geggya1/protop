@@ -19,7 +19,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
-import { ownEmployee } from '../../src/employees/model';
+import { isActiveEmployee, ownEmployee } from '../../src/employees/model';
 import { recordUsage } from '../../src/employees/usageClient';
 import {
   addAbsence,
@@ -295,7 +295,7 @@ export default function ArbeidScreen({
         name: user?.displayName || '',
       })
       : findLinkedEmployee(employees, uid));
-    if (!row || row.company?.status === 'former' || row.company?.status === 'deleted') return null;
+    if (!row || !isActiveEmployee(row)) return null;
     return row;
   }, [employees, uid, personal, user?.email, user?.displayName, access.previewing, access.viewingAs]);
   // Andres timer følger bare tilgangsstyringen, ikke administratorlisten på selskapet (adminUids).

@@ -125,7 +125,9 @@ export const claimEmployeeInvite = onCall(CALL, async (req) => {
   const employee = employees.find((row) => row.id === plan.employeeId) || null;
   const companyName = text(companySnap.data()?.company?.navn || companySnap.data()?.name) || 'Bedriften';
   const name = displayName(employee) || text(req.auth?.token?.name);
-  const asAdmin = plan.accessLevel === 'administrator';
+  // Administrator gis bare når koblingen skjer. Kalles ved hver økt (UsageRecorder), og skal
+  // ikke legge personen tilbake i adminUids etter at eieren har fjernet det.
+  const asAdmin = !plan.already && plan.accessLevel === 'administrator';
   if (!plan.already && employee) {
     await db.doc(`families/${companyId}/employees/${plan.employeeId}`).update({
       personUid: uid,

@@ -22,6 +22,8 @@ import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import CompanyLanding from '../screens/project/CompanyLanding';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import CompanyAccountEnded from './CompanyAccountEnded';
+import { isActiveEmployee } from '../src/employees/model';
 import { CompanyModuleLocked } from './project/CompanyModuleSettings';
 import { useCompanyModules } from '../src/access/useCompanyModules';
 import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
@@ -686,6 +688,10 @@ function AppShellInner() {
       );
     }
     if (COMPANY_TAB_IDS.includes(tab) && companyAccess.active && !companyAccess.tabAllowed(tab, moreSubView)) {
+      // Egen ansettelse er avsluttet: forklar det, i stedet for «Ingen tilgang» på hver side.
+      if (!companyAccess.previewing && companyAccess.employee && !isActiveEmployee(companyAccess.employee)) {
+        return <CompanyAccountEnded colors={colors} employee={companyAccess.employee} />;
+      }
       return <CompanyAccessDenied colors={colors} />;
     }
     if (tab === 'plan') return null;

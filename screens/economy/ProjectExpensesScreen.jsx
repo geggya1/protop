@@ -277,21 +277,22 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
   const showEmployee = !workspace.lockedId;
   // Felles rapporttabell (UX-24): tabell på bred skjerm, kort med beskrivelse, dato, kunde,
   // beløp og status på telefon. Før var tabellen 980 px bred også på telefon.
+  // Minstebreddene (852 px) får plass ved siden av filterpanelet på PC; flex fordeler resten.
   const columns = [
-    { key: 'date', label: 'Dato', width: 110, kind: 'date', text: (row) => formatDate(row.date), phone: 'meta' },
-    ...(showEmployee ? [{ key: 'employee', label: 'Medarbeider', width: 160, flex: 1, text: (row) => row.employeeName || '', phone: 'meta' }] : []),
-    { key: 'customer', label: 'Kunde', width: 160, flex: 1, text: (row) => row.customerName || '', phone: 'meta' },
+    { key: 'date', label: 'Dato', width: 92, kind: 'date', text: (row) => formatDate(row.date), phone: 'meta' },
+    ...(showEmployee ? [{ key: 'employee', label: 'Medarbeider', width: 120, flex: 1, text: (row) => row.employeeName || '', phone: 'meta' }] : []),
+    { key: 'customer', label: 'Kunde', width: 120, flex: 1, text: (row) => row.customerName || '', phone: 'meta' },
     {
       key: 'project',
       label: 'Prosjekt',
-      width: 180,
+      width: 140,
       flex: 1,
       text: (row) => `${row.projectNumber ? `#${row.projectNumber} ` : ''}${row.projectName || ''}`.trim(),
       phone: 'meta',
     },
-    { key: 'description', label: 'Beskrivelse', width: 220, flex: 1.5, text: (row) => row.purpose || row.description || '', sortable: false, phone: 'title' },
-    { key: 'amount', label: 'Beløp', width: 120, kind: 'money', value: (row) => row.amountInclVat, text: (row) => money(row.amountInclVat), phone: 'amount' },
-    { key: 'status', label: 'Status', width: 110, text: (row) => expenseStatusLabel(row.status), phone: 'badge' },
+    { key: 'description', label: 'Beskrivelse', width: 170, flex: 1.5, text: (row) => row.purpose || row.description || '', sortable: false, phone: 'title' },
+    { key: 'amount', label: 'Beløp', width: 110, kind: 'money', value: (row) => row.amountInclVat, text: (row) => money(row.amountInclVat), phone: 'amount' },
+    { key: 'status', label: 'Status', width: 100, text: (row) => expenseStatusLabel(row.status), phone: 'badge' },
   ];
   const totalAmount = visible.reduce((sum, row) => sum + (Number(row.amountInclVat) || 0), 0);
 

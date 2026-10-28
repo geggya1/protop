@@ -28,6 +28,7 @@ import {
 import { billingReadyLabel } from '../../src/economy/billingChain.js';
 import Breadcrumb from '../../components/Breadcrumb';
 import { radius } from '../../src/ui/tokens';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { formatDate } from '../../src/format/nb';
 
 function applyMutation(workspace, result) {
@@ -61,7 +62,7 @@ export function ApprovalsBody({
   onApproved = null,
 }) {
   const { width } = useWindowDimensions();
-  const wide = width >= 960;
+  const wide = width >= BREAKPOINTS.desktop;
   const [controlId, setControlId] = useState('');
   const [drafts, setDrafts] = useState({});
   const [aiFindings, setAiFindings] = useState([]);

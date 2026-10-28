@@ -334,15 +334,17 @@ select:focus-visible {
   }
 }
 
-/* Desktop / PC: nesten full viewport — shell styrer layout */
+/*
+ * Desktop / PC: nesten full viewport — shell styrer layout.
+ * Bredden avgjør oppsettet; tettheten følger pekeren (UX-23). En iPad i liggende
+ * format er ≥ 1024 px, men styres med fingre: den beholder runde hjørner, 16 px i
+ * feltene (ellers zoomer iOS) og får ingen hover-effekter. Se reglene med
+ * (pointer: fine) og (hover: hover) under.
+ */
 @media (min-width: 1024px) {
   :root {
     --app-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     --display-font: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --wp-radius-sm: 5px;
-    --wp-radius-md: 7px;
-    --wp-radius-lg: 9px;
-    --wp-radius-pill: 999px;
   }
 
   html, body, #root {
@@ -363,69 +365,20 @@ select:focus-visible {
     touch-action: auto;
   }
 
-  /* Desktop trenger ikke 16px-gulv (det er for iOS-zoom). */
-  input,
-  textarea,
-  select,
-  [contenteditable="true"] {
-    font-size: 14px !important;
-  }
-
   button, [role="button"] {
     transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
   }
 
-  [role="button"]:hover {
-    box-shadow: inset 0 0 0 999px rgba(15, 23, 42, 0.035);
-  }
-
-  [data-wp-nav="1"]:hover {
-    background-color: #f1f5f9;
-    box-shadow: none;
-  }
-
-  [data-wp-nav-active="1"],
-  [data-wp-nav-active="1"]:hover {
+  [data-wp-nav-active="1"] {
     box-shadow: inset 3px 0 0 #1099F4;
-  }
-
-  [data-wp-section="1"]:hover {
-    background-color: #f8fafc;
-    box-shadow: none;
-  }
-
-  html[data-wp-appearance="dark"] [role="button"]:hover {
-    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.05);
-  }
-  html[data-wp-appearance="dark"] [data-wp-nav="1"]:hover {
-    background-color: #2c2c2e;
-    box-shadow: none;
-  }
-  html[data-wp-appearance="dark"] [data-wp-section="1"]:hover {
-    background-color: #1c1c1e;
-    box-shadow: none;
   }
 
   [data-wp-cal-slot] {
     z-index: 2;
   }
-  [data-wp-cal-slot]:hover {
-    background-color: rgba(37, 99, 235, 0.05);
-    box-shadow: none;
-  }
-  [data-wp-cal-plus] {
-    opacity: 0 !important;
-  }
-  [data-wp-cal-slot]:hover [data-wp-cal-plus] {
-    opacity: 1 !important;
-  }
   [data-wp-cal-event] {
     z-index: 5 !important;
     isolation: isolate;
-  }
-  [data-wp-cal-event]:hover {
-    filter: brightness(0.96);
-    box-shadow: none;
   }
 
   /* Prosjekttabell: sidelengs + vertikal scroll i viewport, ikke først nederst på siden */
@@ -469,6 +422,73 @@ select:focus-visible {
   ::selection {
     background: #dbeafe;
     color: #1e3a8a;
+  }
+}
+
+/* PC med mus: skarpere hjørner og tettere felt (density 'mouse', UX-23). */
+@media (min-width: 1024px) and (pointer: fine) {
+  :root {
+    --wp-radius-sm: 5px;
+    --wp-radius-md: 7px;
+    --wp-radius-lg: 9px;
+    --wp-radius-pill: 999px;
+  }
+
+  /* Mus trenger ikke 16px-gulvet (det er for iOS-zoom). */
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 14px !important;
+  }
+}
+
+/* Hover bare der pekeren kan sveve; på berøringsskjerm blir hover hengende etter trykk. */
+@media (min-width: 1024px) and (hover: hover) {
+  [role="button"]:hover {
+    box-shadow: inset 0 0 0 999px rgba(15, 23, 42, 0.035);
+  }
+
+  [data-wp-nav="1"]:hover {
+    background-color: #f1f5f9;
+    box-shadow: none;
+  }
+
+  [data-wp-nav-active="1"]:hover {
+    box-shadow: inset 3px 0 0 #1099F4;
+  }
+
+  [data-wp-section="1"]:hover {
+    background-color: #f8fafc;
+    box-shadow: none;
+  }
+
+  html[data-wp-appearance="dark"] [role="button"]:hover {
+    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.05);
+  }
+  html[data-wp-appearance="dark"] [data-wp-nav="1"]:hover {
+    background-color: #2c2c2e;
+    box-shadow: none;
+  }
+  html[data-wp-appearance="dark"] [data-wp-section="1"]:hover {
+    background-color: #1c1c1e;
+    box-shadow: none;
+  }
+
+  /* Kalenderen: «+» i ledige felt vises ved hover. Uten hover står den synlig (som på nettbrett). */
+  [data-wp-cal-slot]:hover {
+    background-color: rgba(37, 99, 235, 0.05);
+    box-shadow: none;
+  }
+  [data-wp-cal-plus] {
+    opacity: 0 !important;
+  }
+  [data-wp-cal-slot]:hover [data-wp-cal-plus] {
+    opacity: 1 !important;
+  }
+  [data-wp-cal-event]:hover {
+    filter: brightness(0.96);
+    box-shadow: none;
   }
 }
 

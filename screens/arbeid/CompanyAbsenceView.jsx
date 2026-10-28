@@ -97,9 +97,9 @@ export function CompanyAbsenceView({
   onOpenSource,
   types: catalog,
 }) {
-  const { width, isDesktop } = useLayout();
+  const { isDesktop } = useLayout();
   const hosted = useModuleHeroHosted();
-  const wide = width >= 980;
+  const wide = isDesktop;
   const [menu, setMenu] = useState('');
   const [chartWidth, setChartWidth] = useState(150);
   const actions = useRef({});

@@ -2,6 +2,7 @@
  * Pure layout helpers for the help overlay: spotlight holes, card placement,
  * curved arrows and step anchors. No React Native imports — safe for node tests.
  */
+import { BREAKPOINTS } from '../ui/layout.js';
 
 export function matchesWhen(when = {}, layout = {}) {
   if (!when || typeof when !== 'object') return true;
@@ -247,7 +248,7 @@ export function phoneFitCap({ winH, hole, cap, inset = {} } = {}) {
 
 /** Høyeste rundturkort: mobil = phoneCardCap, ellers nesten hele høyden. */
 export function tourCardCap({ winH, winW, isPhone, inset = {} } = {}) {
-  if (isPhone || winW < 768) return phoneCardCap(winH);
+  if (isPhone || winW < BREAKPOINTS.tablet) return phoneCardCap(winH);
   return Math.max(260, winH - 48 - (inset.top || 0) - (inset.bottom || 0));
 }
 
@@ -293,7 +294,7 @@ export function placeCard({
   const topSafe = inset.top || 0;
   const hasHole = !!(hole && hole.w > 0 && hole.h > 0);
 
-  if (isPhone || winW < 768) {
+  if (isPhone || winW < BREAKPOINTS.tablet) {
     const w = Math.min(cardW, winW - m * 2);
     const h = Math.min(cardH, phoneCardCap(winH));
     const x = (winW - w) / 2;

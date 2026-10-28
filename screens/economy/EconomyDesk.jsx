@@ -26,6 +26,7 @@ import {
 import { periodLabel } from '../../src/indeksregulering/engine';
 import { formatIndex, formatPercent } from '../../src/indeksregulering/letter';
 import { useRepeatsShellTitle } from '../../src/ui/ShellTitles';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 function toneColor(tone, colors) {
   if (tone === 'danger') return colors.danger || '#dc2626';
@@ -67,8 +68,8 @@ export default function EconomyDesk({
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
-  const wide = width >= 980;
-  const narrow = width < 720;
+  const wide = width >= BREAKPOINTS.desktop;
+  const narrow = width < BREAKPOINTS.tablet;
   const [query, setQuery] = useState('');
   const [band, setBand] = useState('kan_reguleres');
   const [selectedId, setSelectedId] = useState('');

@@ -363,9 +363,9 @@ export function AbsenceOverviewView({
   // Nøkkeltall for hele bedriften vises bare for den som kan velge blant flere ansatte.
   showKpis = true,
 }) {
-  const { width, hasRail, railWidth } = useLayout();
+  const { width, hasRail, railWidth, isWide } = useLayout();
   const hostedHero = useModuleHeroHosted();
-  const wide = width >= 1180;
+  const wide = isWide;
   // Web med god plass: Siste fravær i eget felt til høyre.
   const sideRecent = Platform.OS === 'web' && width - (hasRail ? railWidth : 0) >= 1360;
   const [menu, setMenu] = useState('');

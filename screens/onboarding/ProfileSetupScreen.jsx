@@ -7,7 +7,7 @@ import { updateProfile } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { useI18n } from '../../src/i18n';
-import { colors, radius } from '../../src/theme';
+import { BREAKPOINTS, colors, radius } from '../../src/theme';
 import { claimUsername } from '../../src/utils/usernames';
 import { uniqueUsername } from '../../src/utils/account';
 import { pickImage, uploadImage, alertPhotoError } from '../../src/utils/media';
@@ -58,7 +58,7 @@ function Portrait({ photoURL, gender, size }) {
 export default function ProfileSetupScreen({ onDone, consents, initial }) {
   const { t, lang } = useI18n();
   const { width } = useWindowDimensions();
-  const compact = width < 480;
+  const compact = width < BREAKPOINTS.tablet;
   const user = auth.currentUser;
   const googlePhoto = user?.photoURL || initial?.photoURL || '';
   const [name, setName] = useState(initial?.displayName || user?.displayName || '');

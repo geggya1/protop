@@ -7,6 +7,7 @@ import { buildGroupChart, stakesFromInvestments } from '../../src/project/groupC
 import { loadEntityFigures, loadGroupSources, mapPool } from '../../src/project/groupChartData';
 import { digitsOrgnr } from '../../src/project/companyRegistry';
 import { departmentsOf } from '../../src/project/companyUnits';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 function openUrl(url) {
   const raw = String(url || '').trim();
@@ -340,7 +341,7 @@ export default function CompanyGroupChart({
     openUrl(node.brregUrl);
   }
 
-  const tight = width < 760;
+  const tight = width < BREAKPOINTS.tablet;
   const useFork = model.children.length > 0 && model.children.length <= 3;
   const departmentCount = departmentsOf(company?.subUnits).length;
   const warnings = sources?.warnings || [];

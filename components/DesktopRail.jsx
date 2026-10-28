@@ -5,7 +5,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
-import { colors } from '../src/theme';
+import { colors, useLayout } from '../src/theme';
+import { touch } from '../src/ui/tokens';
 import { useColors } from '../src/context/ThemeContext';
 import { isNavItemActive } from '../src/navigation/shellModules';
 import { collapsedNavItems, navSections, railBackground, runNavAction } from '../src/navigation/navTree';
@@ -23,6 +24,7 @@ import { companyDisplayName } from '../src/utils/companyName';
 /**
  * Desktop-sidemeny. Innholdet er det samme som i skuffen på telefon (NavTree, src/navigation/navTree.js);
  * her kommer bare søket og kollaps til bare ikoner.
+ * På berøringsskjerm (iPad i liggende format) er søkefeltet og kollaps-knappen 44 px høye (UX-23).
  */
 export default function DesktopRail({
   activeTab,
@@ -33,6 +35,8 @@ export default function DesktopRail({
 }) {
   const nav = useNavigation();
   const colors = useColors();
+  const { isTouch } = useLayout();
+  const t = isTouch ? touchStyles : null;
   const { scheme } = useAppearance();
   // Hvit logo når sidemenyen er mørk, som i skuffen.
   const logoTone = brandLogoToneForBackground(railBackground(colors, scheme));
@@ -93,7 +97,7 @@ export default function DesktopRail({
           ))}
         </ScrollView>
         <TouchableOpacity
-          style={styles.collapseBtn}
+          style={[styles.collapseBtn, t?.collapseBtn]}
           onPress={onToggleCollapse}
           accessibilityRole="button"
           accessibilityLabel="Utvid meny"
@@ -109,7 +113,7 @@ export default function DesktopRail({
       <BrandLogo variant="full" tone={logoTone} height={52} maxWidth={200} style={styles.brandLogo} />
       <Text style={[styles.fam, { color: colors.muted }]} numberOfLines={1}>{companyDisplayName(family, 'Familien')}</Text>
 
-      <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, { backgroundColor: colors.card, borderColor: colors.line }]}>
+      <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, t?.searchWrap, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Ionicons name="search" size={14} color={colors.muted} />
         <TextInput
           ref={searchRef}
@@ -124,7 +128,7 @@ export default function DesktopRail({
           accessibilityLabel="Søk i menyen"
         />
         {query ? (
-          <TouchableOpacity onPress={() => setQuery('')} accessibilityLabel="Tøm søk">
+          <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Tøm søk" style={t?.clearBtn}>
             <Ionicons name="close-circle" size={14} color={colors.muted} />
           </TouchableOpacity>
         ) : null}
@@ -147,7 +151,7 @@ export default function DesktopRail({
       </ScrollView>
 
       <TouchableOpacity
-        style={styles.collapseBtn}
+        style={[styles.collapseBtn, t?.collapseBtn]}
         onPress={onToggleCollapse}
         accessibilityRole="button"
         accessibilityLabel="Kollaps meny"
@@ -194,4 +198,11 @@ const styles = StyleSheet.create({
     paddingVertical: 6, marginTop: 2,
   },
   collapseTxt: { fontWeight: '400', fontSize: 12, color: colors.muted },
+});
+
+/** Berøringsskjerm: felt og knapper på minst touch.min. */
+const touchStyles = StyleSheet.create({
+  searchWrap: { minHeight: touch.min },
+  clearBtn: { minWidth: touch.min, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
+  collapseBtn: { minHeight: touch.min },
 });

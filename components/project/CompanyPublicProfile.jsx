@@ -30,6 +30,7 @@ import CompanyPageEditor from './CompanyPageEditor';
 import { useCroppedUpload } from './useCroppedUpload';
 import { useApp } from '../../src/context/AppContext';
 import { parentCompanyDisplayName } from '../../src/utils/companyName';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 const TONES = {
   blue: { bg: '#e8f1ff', fg: '#2563eb' },
@@ -117,8 +118,8 @@ export default function CompanyPublicProfile({
   const { family, families } = useApp();
   // Morselskapet slås opp via parentCompanyId, så et nytt navn der vises her (DS-17).
   const parentName = parentCompanyDisplayName(family, families) || stored?.parentCompanyName;
-  const wide = width >= 980;
-  const stacked = width < 760;
+  const wide = width >= BREAKPOINTS.desktop;
+  const stacked = width < BREAKPOINTS.tablet;
   const page = useMemo(() => normalizeCompanyPage(stored?.publicPage), [stored?.publicPage]);
   const [tab, setTab] = useState(initialTab || 'oversikt');
   // Lenker fra andre moduler (f.eks. ISO → «Skriv nyhet») åpner nyhetene direkte.

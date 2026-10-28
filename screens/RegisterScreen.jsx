@@ -9,7 +9,7 @@ import {
   fetchSignInMethodsForEmail,
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { colors, radius } from '../src/theme';
+import { BREAKPOINTS, colors, radius } from '../src/theme';
 import { sendVerificationEmailV2 } from '../src/utils/sendVerificationEmail';
 import { fetchInvitePreview } from '../src/utils/invite';
 import { claimPendingFriendInvite } from '../src/utils/friends';
@@ -100,7 +100,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
     if (invite.friendInvite) storeFriendInvite({ friendInvite: invite.friendInvite, email: invite.email });
   }, [invite.friendInvite, invite.email]);
   const { width } = useWindowDimensions();
-  const wide = width >= 480;
+  const wide = width >= BREAKPOINTS.tablet;
   const goBack = navigation.canGoBack() ? () => navigation.goBack() : undefined;
 
   const [name, setName] = useState('');

@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 import CompanyLogoChoice from '../../components/CompanyLogoChoice';
 import OptionPicker from '../../components/OptionPicker';
 import { confirmUser } from '../../src/utils/dialog';
@@ -102,7 +103,7 @@ export default function IndexWorkspace({
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
-  const wide = width >= 980;
+  const wide = width >= BREAKPOINTS.desktop;
   const cases = contract?.indexCases || [];
   const existing = cases.find((row) => row.id === caseId) || null;
   const [screen, setScreen] = useState(screenFromView(initialView));

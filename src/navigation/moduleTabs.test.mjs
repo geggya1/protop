@@ -159,9 +159,11 @@ test('hamburgermeny: to nivåer, og modulen er aktiv på alle sine sider', () =>
   assert.ok(search[0].children[0].children.length > 0);
 });
 
-test('modulmeny: én komponent for alle, med 44 px trykkflate på telefon', () => {
+test('modulmeny: én komponent for alle, med 44 px trykkflate på berøringsskjerm', () => {
   const tabs = readFileSync(new URL('../../components/ModuleTabs.jsx', import.meta.url), 'utf8');
-  assert.match(tabs, /tabPhone: \{ minHeight: touch\.min/);
+  assert.match(tabs, /tabTouch: \{ minHeight: touch\.min/);
+  // Tettheten følger pekeren (UX-23): også nettbrett og iPad i liggende format får 44 px.
+  assert.match(tabs, /touchSize=\{isTouch\}/);
   assert.match(tabs, /module-tabs-more/);
   const src = readFileSync(new URL('./moduleTabs.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /OWN_NAV/, 'ingen moduler med egen meny');

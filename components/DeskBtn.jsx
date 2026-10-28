@@ -1,10 +1,15 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../src/theme';
+import { colors, useLayout } from '../src/theme';
+import { touch } from '../src/ui/tokens';
 import HelpTarget from './HelpTarget';
 
-/** Kompakt desktop-knapp — aldri full bredde. */
+/**
+ * Kompakt desktop-knapp — aldri full bredde.
+ * Tettheten følger pekeren (UX-23): med mus 32 px høy, på berøringsskjerm (iPad i liggende
+ * format) minst touch.min høy med litt større tekst.
+ */
 export function DeskBtn({
   label,
   icon,
@@ -13,10 +18,11 @@ export function DeskBtn({
   muted = false,
   accessibilityLabel,
 }) {
+  const { isTouch } = useLayout();
   const btn = (
     <TouchableOpacity
       onPress={onPress}
-      style={[styles.btn, primary && styles.primary, muted && styles.muted]}
+      style={[styles.btn, isTouch && styles.btnTouch, primary && styles.primary, muted && styles.muted]}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel || label}
     >
@@ -24,7 +30,7 @@ export function DeskBtn({
         <Ionicons name={icon} size={15} color={primary ? colors.onBrand : colors.brand} />
       ) : null}
       {label ? (
-        <Text style={[styles.txt, primary && styles.txtPrimary]}>{label}</Text>
+        <Text style={[styles.txt, isTouch && styles.txtTouch, primary && styles.txtPrimary]}>{label}</Text>
       ) : null}
     </TouchableOpacity>
   );
@@ -48,6 +54,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     alignSelf: 'flex-start',
   },
+  btnTouch: { height: 'auto', minHeight: touch.min, paddingHorizontal: 14 },
   primary: {
     backgroundColor: colors.brandInk,
     borderColor: colors.brandInk,
@@ -57,5 +64,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   txt: { fontWeight: '500', fontSize: 13, color: colors.brandInk },
+  txtTouch: { fontSize: 15 },
   txtPrimary: { color: colors.onBrand },
 });

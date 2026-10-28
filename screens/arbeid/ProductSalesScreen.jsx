@@ -44,6 +44,7 @@ import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, patchProjectOperations, peekProjectState } from '../../src/project/storage.js';
 import { importResult } from '../../src/imports/review';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { dateKey } from '../../src/utils/dates';
 import { pickDocument } from '../../src/utils/media';
 import { ProductSalesList } from './ProductSalesList';
@@ -110,7 +111,7 @@ export function ProductSalesScreen() {
   const canEdit = !!access?.ready && !!access.canEdit?.('productSales');
   const canDelete = !!access?.ready && !!access.canAdmin?.('productSales');
   const { width } = useWindowDimensions();
-  const narrow = width < 720;
+  const narrow = width < BREAKPOINTS.tablet;
   const companyId = String(familyId || '').trim();
   const [projectState, setProjectState] = useState(() => peekProjectState(companyId) || emptyProjectState());
   const [projectReady, setProjectReady] = useState(() => !!peekProjectState(companyId));

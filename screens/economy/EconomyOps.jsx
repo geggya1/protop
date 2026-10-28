@@ -20,6 +20,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { useProjectStateEditor } from '../../src/project/useProjectStateEditor';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { useCompanyRefs } from '../../src/context/CompanyDataContext';
@@ -96,7 +97,7 @@ function tripSortValue(row, key) {
 
 function TripReport({ trips, colors, onOpen, onDelete, onApprove, pendingId }) {
   const { width } = useWindowDimensions();
-  const narrow = width < 760;
+  const narrow = width < BREAKPOINTS.tablet;
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState({ key: 'date', dir: 'desc' });
   const needle = query.trim().toLowerCase();

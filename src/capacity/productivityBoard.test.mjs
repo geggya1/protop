@@ -152,7 +152,8 @@ const Board = boardModule.default;
 const { WeekSumChart, labelColumnWidth, editorLeft, editorTop, gestureIntent } = boardModule;
 
 assert.equal(labelColumnWidth(390), 132);
-assert.equal(labelColumnWidth(700), 180);
+assert.equal(labelColumnWidth(700), 132);
+assert.equal(labelColumnWidth(900), 180);
 assert.equal(labelColumnWidth(1280), 228);
 assert.equal(labelColumnWidth(0), 228);
 assert.equal(editorTop(20), 38);

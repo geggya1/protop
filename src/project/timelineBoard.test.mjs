@@ -158,7 +158,8 @@ function styleOf(node) {
 const boardModule = loadJsx('screens/arbeid/ProjectTimelineBoard.jsx');
 const Board = boardModule.default;
 assert.equal(boardModule.timelineLabelWidth(390), 132);
-assert.equal(boardModule.timelineLabelWidth(700), 190);
+assert.equal(boardModule.timelineLabelWidth(700), 132);
+assert.equal(boardModule.timelineLabelWidth(900), 190);
 assert.equal(boardModule.timelineLabelWidth(1280), 260);
 
 const projects = [

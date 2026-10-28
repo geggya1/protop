@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
 import { CHIP_LIMIT, SEARCH_FROM, filterOptions, normalizeOptions, optionSummary, pickerMode } from '../src/utils/optionPicker';
+import { BREAKPOINTS } from '../src/ui/layout.js';
 
 export { CHIP_LIMIT };
 
@@ -146,7 +147,7 @@ export default function OptionPicker({
 
   const useChips = pickerMode(list.length, { chipLimit, custom: !!onCustom }) === 'chips';
   const canSearch = searchable ?? (list.length > SEARCH_FROM || !!onCustom);
-  const sheet = Platform.OS !== 'web' || !createPortal || winW < 600;
+  const sheet = Platform.OS !== 'web' || !createPortal || winW < BREAKPOINTS.tablet;
   const summary = optionSummary(list, value, multiple, placeholder);
   const clearRow = !multiple && clearable && value ? clearLabel : null;
 

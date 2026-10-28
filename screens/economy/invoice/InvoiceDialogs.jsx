@@ -6,6 +6,7 @@ import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View,
 import { Ionicons } from '@expo/vector-icons';
 import DateField from '../../../components/DateField';
 import { dateKey } from '../../../src/utils/dates';
+import { BREAKPOINTS } from '../../../src/ui/layout.js';
 import { formatDate } from '../../../src/economy/invoices.js';
 import { dueDateFor, invoiceTotals, isCreditNote, issueDates } from '../../../src/economy/invoiceFlow.js';
 import { sectionLabel } from '../../../src/economy/invoiceLines.js';
@@ -250,7 +251,7 @@ export function SendDialog({
   const blocking = checks?.blocking || [];
   const warnings = checks?.warnings || [];
   const chosen = recipients.filter((row) => row.on).map((row) => row.email);
-  const narrow = useWindowDimensions().width < 520;
+  const narrow = useWindowDimensions().width < BREAKPOINTS.tablet;
   const needsMail = send && (channel === 'email' || (channel === 'ehf' && alsoEmail));
   const dueBeforeDate = finalize && !powerOffice && !credit && !!dueDate && !!date && dueDate < date;
   // Til PowerOffice sendes ingenting herfra, så mottakere og kanal spiller ingen rolle.

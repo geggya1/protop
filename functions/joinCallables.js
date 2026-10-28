@@ -6,7 +6,9 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
-import { requireAuth, assertRateLimit, hashRateKey, memberDocGrantsAccess } from './security.js';
+import {
+  requireAuth, assertRateLimit, hashRateKey, isFamilyOwnerOrAdmin, memberDocGrantsAccess,
+} from './security.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -216,14 +218,11 @@ export const listMyFamilies = onCall(
       // document-id path families/*/parents/{uid} via collectionGroup doc id is not
       // queryable the same way — get known ids only.
 
+      // familyIds på users/parents skriver brukeren selv: de er bare kandidater.
+      // Tilgangen avgjøres av gruppen (eier, administrator, medlemslister og medlemsdokument).
       const uidHasLiveAccess = async (familyId, famData) => {
         const data = famData || {};
-        const adminUids = Array.isArray(data.adminUids) ? data.adminUids : [];
-        const isOwnerOrAdmin =
-          data.ownerUid === uid
-          || data.ownerId === uid
-          || data.createdBy === uid
-          || adminUids.includes(uid);
+        const isOwnerOrAdmin = isFamilyOwnerOrAdmin(data, uid);
 
         const parent = await db.doc(`families/${familyId}/parents/${uid}`).get();
         if (parent.exists) {
@@ -278,27 +277,16 @@ export const listMyFamilies = onCall(
   },
 );
 
-// Klasse: rollene i STAFF_ROLES (src/utils/classroom.js) som er admin.
-const CLASSROOM_ADMIN_ROLES = ['principal', 'teacher', 'admin'];
 const TEAM_TYPES = ['team', 'club'];
 const COMPANY_TYPES = ['company', 'organization'];
 const CLASSROOM_TYPES = ['class', 'classroom'];
 
-async function memberRecord(familyId, uid) {
-  const byId = await db.doc(`families/${familyId}/parents/${uid}`).get();
-  if (byId.exists) return byId.data() || {};
-  const byUid = await db.collection(`families/${familyId}/parents`).where('uid', '==', uid).limit(1).get();
-  return byUid.empty ? null : (byUid.docs[0].data() || {});
-}
-
-async function canApproveJoin(familyId, family, uid) {
-  if (family.ownerUid === uid || family.ownerId === uid) return true;
-  if (Array.isArray(family.adminUids) && family.adminUids.includes(uid)) return true;
-  const me = await memberRecord(familyId, uid);
-  if (!me || me.active === false || me.deleted === true) return false;
-  if (me.admin === true || me.superAdmin === true) return true;
-  return CLASSROOM_TYPES.includes(String(family.type || '').toLowerCase())
-    && CLASSROOM_ADMIN_ROLES.includes(me.staffRole);
+/**
+ * Eier og administratorer (adminUids) godkjenner. admin, superAdmin og staffRole på
+ * medlemsdokumentet teller ikke: klassens lærerroller står i adminUids (setStaffRole).
+ */
+function canApproveJoin(family, uid) {
+  return isFamilyOwnerOrAdmin(family, uid);
 }
 
 /**
@@ -322,7 +310,7 @@ export const approveJoinRequest = onCall(
     if (!family || family.deleted === true || family.hiddenFromApp === true) {
       throw new HttpsError('not-found', 'Fant ikke gruppen.');
     }
-    if (!(await canApproveJoin(familyId, family, uid))) {
+    if (!canApproveJoin(family, uid)) {
       throw new HttpsError('permission-denied', 'Kun administrator kan godkjenne.');
     }
     if (!reqSnap.exists) throw new HttpsError('not-found', 'Fant ikke forespørselen.');

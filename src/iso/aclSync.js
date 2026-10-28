@@ -8,7 +8,7 @@
  *
  * Ren modul – brukes av Cloud Function, av eierens reserve-synk i appen og av tester.
  */
-import { resolveActorAccess } from '../access/companyAccess.js';
+import { accountDeactivated, employeeLevelIds, resolveActorAccess } from '../access/companyAccess.js';
 
 /** Dokumentet utløper og må fornyes. Tilbaketrekking slår da inn senest etter dette. */
 export const ACL_TTL_HOURS = 12;
@@ -66,6 +66,44 @@ export function planAclSync({ family, employees = [], existingUids = [], now = n
   const write = members.map((uid) => aclFor({ family, employees, uid, now }));
   const remove = (existingUids || []).filter((uid) => !memberSet.has(uid));
   return { write, remove };
+}
+
+/**
+ * Administratorlisten (families/{id}.adminUids) følger nivået Administrator i tilgangsstyringen.
+ * - Eieren står alltid på listen.
+ * - Et medlem med en aktiv ansattpost med nivået Administrator legges til.
+ * - En på listen som har koblet ansattpost, men ikke lenger er aktiv administrator (nedgradert,
+ *   deaktivert eller slettet), tas bort. Det samme gjelder den som ikke lenger er medlem.
+ * - En på listen uten koblet ansattpost røres ikke: det finnes ikke noe nivå å følge.
+ */
+export function planAdminUids({ family, employees = [] }) {
+  const owners = [family?.ownerUid, family?.ownerId].filter((uid) => typeof uid === 'string' && uid);
+  const current = (Array.isArray(family?.adminUids) ? family.adminUids : []).filter((uid) => typeof uid === 'string' && uid);
+  const members = new Set(companyMemberUids(family));
+  const linked = new Map();
+  for (const row of employees || []) {
+    const uid = String(row?.personUid || '').trim();
+    if (!uid) continue;
+    linked.set(uid, [...(linked.get(uid) || []), row]);
+  }
+  const activeAdmin = (uid) => (linked.get(uid) || [])
+    .some((row) => !accountDeactivated(row) && employeeLevelIds(row).includes('administrator'));
+  const next = [];
+  const add = (uid) => { if (!next.includes(uid)) next.push(uid); };
+  owners.forEach(add);
+  for (const uid of current) {
+    if (!members.has(uid)) continue;
+    if (linked.has(uid) && !activeAdmin(uid)) continue;
+    add(uid);
+  }
+  for (const uid of members) {
+    if (activeAdmin(uid)) add(uid);
+  }
+  return {
+    adminUids: next,
+    add: next.filter((uid) => !current.includes(uid)),
+    remove: current.filter((uid) => !next.includes(uid)),
+  };
 }
 
 /** Er ACL-dokumentet gyldig nå? (samme sjekk som reglene gjør) */

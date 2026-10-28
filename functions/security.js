@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { FieldValue } from 'firebase-admin/firestore';
+import { allows, resolveActorAccess } from '../src/access/companyAccess.js';
 import { canInviteToCompany } from '../src/notifications/audience.js';
 import { isOrganizationType } from '../src/utils/groupTypes.js';
 
@@ -228,55 +229,55 @@ export function memberDocGrantsAccess(data) {
   return data.active !== false;
 }
 
+/**
+ * Eier eller administrator. Bare feltene reglene beskytter teller (ownerUid, ownerId, adminUids).
+ * createdBy og adminUid på gruppen og admin på medlemsdokumentet kan medlemmer skrive selv.
+ */
+export function isFamilyOwnerOrAdmin(family, uid) {
+  if (!uid || !family) return false;
+  return family.ownerUid === uid
+    || family.ownerId === uid
+    || (Array.isArray(family.adminUids) && family.adminUids.includes(uid));
+}
+
+/** Står i medlemslistene på gruppen. Listene skrives av serveren, eier og administratorer. */
+export function listedOnFamily(family, uid) {
+  if (!uid || !family) return false;
+  return ['members', 'activeUsers', 'memberIds'].some((key) => {
+    const list = family[key];
+    if (Array.isArray(list)) return list.includes(uid);
+    return !!(list && typeof list === 'object' && list[uid]);
+  });
+}
+
+/**
+ * Medlem av gruppen: eier, administrator eller oppført i medlemslistene.
+ * Profildokumentene parents/{uid} og users/{uid} (familyId, familyIds) skriver brukeren
+ * selv, så de gir aldri tilgang. Et deaktivert, slettet eller ventende medlemsdokument
+ * i gruppen vinner over medlemslistene (men ikke over eier og administrator, som må
+ * kunne rydde opp i gruppen).
+ */
 export async function assertFamilyMember(db, familyId, uid) {
   if (!familyId) throw new HttpsError('invalid-argument', 'familyId mangler.');
   if (!uid) throw new HttpsError('unauthenticated', 'Du må være innlogget.');
   const fam = await db.doc(`families/${familyId}`).get();
   if (!fam.exists) throw new HttpsError('not-found', 'Familie ikke funnet.');
   const data = fam.data() || {};
-  const adminUids = Array.isArray(data.adminUids) ? data.adminUids : [];
-  const isOwnerOrAdmin =
-    data.ownerUid === uid
-    || data.ownerId === uid
-    || data.createdBy === uid
-    || data.adminUid === uid
-    || adminUids.includes(uid);
+  if (isFamilyOwnerOrAdmin(data, uid)) return fam;
 
-  let revokedParentOrChild = false;
-
-  const parent = await db.doc(`families/${familyId}/parents/${uid}`).get();
-  if (parent.exists) {
-    if (memberDocGrantsAccess(parent.data())) return fam;
-    revokedParentOrChild = true;
-  } else {
+  const [parent, child] = await Promise.all([
+    db.doc(`families/${familyId}/parents/${uid}`).get(),
+    db.doc(`families/${familyId}/children/${uid}`).get(),
+  ]);
+  const docs = [parent, child].filter((snap) => snap.exists).map((snap) => snap.data());
+  if (!parent.exists) {
     const parentsSnap = await db.collection(`families/${familyId}/parents`).where('uid', '==', uid).limit(1).get();
-    if (!parentsSnap.empty) {
-      if (memberDocGrantsAccess(parentsSnap.docs[0].data())) return fam;
-      revokedParentOrChild = true;
-    }
+    if (!parentsSnap.empty) docs.push(parentsSnap.docs[0].data());
   }
-
-  const child = await db.doc(`families/${familyId}/children/${uid}`).get();
-  if (child.exists) {
-    if (memberDocGrantsAccess(child.data())) return fam;
-    revokedParentOrChild = true;
-  }
-
-  // Soft-deleted / deactivated membership docs win over stale members[] indexes,
-  // except for the family owner/admin who must still be able to recover the family.
-  if (revokedParentOrChild && !isOwnerOrAdmin) {
+  if (docs.some((row) => !memberDocGrantsAccess(row))) {
     throw new HttpsError('permission-denied', 'Ingen tilgang til denne familien.');
   }
-
-  if (isOwnerOrAdmin) return fam;
-
-  const top = await db.doc(`parents/${uid}`).get();
-  if (top.exists && top.data()?.familyId === familyId && top.data()?.active !== false && top.data()?.deleted !== true) {
-    return fam;
-  }
-  const members = data.memberIds || data.members || [];
-  if (Array.isArray(members) && members.includes(uid)) return fam;
-  if (members && typeof members === 'object' && !Array.isArray(members) && members[uid]) return fam;
+  if (listedOnFamily(data, uid)) return fam;
   throw new HttpsError('permission-denied', 'Ingen tilgang til denne familien.');
 }
 
@@ -301,19 +302,29 @@ export async function assertCanInvite(db, familyId, uid) {
   }
 }
 
+/** Eier eller administrator (ownerUid, ownerId, adminUids). */
 export async function assertFamilyAdmin(db, familyId, uid) {
   const fam = await assertFamilyMember(db, familyId, uid);
-  const data = fam.data() || {};
-  const adminUids = Array.isArray(data.adminUids) ? data.adminUids : [];
-  const ok =
-    data.ownerUid === uid
-    || data.ownerId === uid
-    || data.createdBy === uid
-    || adminUids.includes(uid);
-  if (!ok) {
-    const parent = await db.doc(`families/${familyId}/parents/${uid}`).get();
-    if (parent.exists && parent.data()?.admin === true) return fam;
+  if (!isFamilyOwnerOrAdmin(fam.data() || {}, uid)) {
     throw new HttpsError('permission-denied', 'Bare admin kan gjøre dette.');
   }
   return fam;
+}
+
+/**
+ * Rettighet i bedriftens tilgangsstyring, beregnet på serveren fra matrisen og personens
+ * egen ansattpost (samme beregning som appen, resolveActorAccess). Eier og administratorer
+ * har alt. action følger appen: 'see' = Lese, 'read' = Begrenset redigering, 'write' = Admin.
+ */
+export async function assertCompanyAccess(db, familyId, uid, { resource, action, message } = {}) {
+  const fam = await assertFamilyMember(db, familyId, uid);
+  const family = fam.data() || {};
+  if (isFamilyOwnerOrAdmin(family, uid)) return fam;
+  const denied = new HttpsError('permission-denied', message || 'Du har ikke tilgang til dette.');
+  if (!isOrganizationType(family.type)) throw denied;
+  const own = await db.collection(`families/${familyId}/employees`).where('personUid', '==', uid).limit(5).get();
+  const employees = own.docs.map((row) => ({ id: row.id, ...row.data() }));
+  const actor = resolveActorAccess({ policy: family.company?.accessPolicy, employees, uid });
+  if (allows(actor.grants, resource, action)) return fam;
+  throw denied;
 }

@@ -453,12 +453,18 @@ describe('selskapsdokumentet (gjelder alle moduler)', () => {
     await assertSucceeds(updateDoc(doc(as('own'), 'families', A), { ownerUid: 'adm' }));
   });
 
-  test('selskap som ikke bruker ISO (uten speil) beholder tidligere oppførsel for tilgangsmatrisen', async () => {
+  // Tidligere slapp alle medlemmer til i selskaper uten speil (FL-02/SEC-13). Nå ber appen om
+  // speilet når skallet åpnes, og uten det kan bare eier og administratorer endre matrisen.
+  test('selskap uten speil: bare eier og administratorer kan endre tilgangsmatrisen', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'families', 'companyC'), { ownerUid: 'c1', members: ['c1', 'c2'], company: { accessPolicy: {} } });
+      await setDoc(doc(ctx.firestore(), 'families', 'companyC'), {
+        ownerUid: 'c1', adminUids: ['c1', 'c3'], members: ['c1', 'c2', 'c3'], company: { accessPolicy: {} },
+      });
     });
-    await assertSucceeds(updateDoc(doc(as('c2'), 'families', 'companyC'), { 'company.accessPolicy': { v: 1 } }));
+    await assertFails(updateDoc(doc(as('c2'), 'families', 'companyC'), { 'company.accessPolicy': { v: 1 } }));
     await assertFails(updateDoc(doc(as('c2'), 'families', 'companyC'), { ownerUid: 'c2' }));
+    await assertSucceeds(updateDoc(doc(as('c3'), 'families', 'companyC'), { 'company.accessPolicy': { v: 2 } }));
+    await assertSucceeds(updateDoc(doc(as('c1'), 'families', 'companyC'), { 'company.accessPolicy': { v: 3 } }));
   });
 });
 

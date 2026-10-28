@@ -37,7 +37,8 @@ async function seed() {
     await setDoc(doc(db, 'families', F, 'children', 'kid'), { uid: 'kid', familyId: F, name: 'Kid' });
     await setDoc(doc(db, 'children', 'kid'), { uid: 'kid', familyId: F, name: 'Kid' });
     for (const uid of ['mor', 'kid', 'ola', 'ext']) {
-      await setDoc(doc(db, 'users', uid), { uid, displayName: uid });
+      // Barnets profil er merket som barn, slik addChildMember lager den.
+      await setDoc(doc(db, 'users', uid), { uid, displayName: uid, ...(uid === 'kid' ? { role: 'child' } : {}) });
       await setDoc(doc(db, 'parents', uid), { uid, name: uid, familyId: uid === 'mor' ? F : '' });
     }
     await setDoc(doc(db, 'users', 'mor', 'friends', 'ola'), { uid: 'ola', status: 'active' });

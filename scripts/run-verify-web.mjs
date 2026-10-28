@@ -169,6 +169,10 @@ export const FILES = [
   // Prosjekt, kjøretøy, (i)-forklaringene og fagansvar, og at selskapet lagres felt for felt.
   'src/access/accessRules.test.mjs',
   'src/access/accessHeadcount.test.mjs',
+  // Medlemskap og administrator på serveren, passord på underkontoer og tilgangsspeilet.
+  'functions/security.test.mjs',
+  'functions/memberPassword.test.mjs',
+  'src/access/accessMirror.test.mjs',
   'src/utils/companyChat.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',

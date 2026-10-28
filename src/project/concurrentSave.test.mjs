@@ -460,4 +460,79 @@ function reset() {
   assert.equal(store.has(`families/${CO}/timeEntries/t3`), false);
 }
 
+// DRIFT-15: tregt nett. Timelisten åpnes i en tom nettleser, lesingen av prosjektdokumentet gir
+// opp, og den ansatte låser timelisten fra den tomme kopien. Ingen prosjekter, deltakere eller
+// aktiviteter slettes i skyen, og neste lasting prøver skyen igjen i stedet for den tomme reserven.
+{
+  reset();
+  // En nettleser som aldri har åpnet selskapet: ingen lokal kopi.
+  const fresh = await import('./storage.js?enhet=tom-nettleser');
+  const { addProjectMember, ensureMainActivity } = await import('./engine.js');
+  const { toggleTimesheetLock } = await import('../arbeid/timesheetState.js');
+  const seeded = createProject(emptyProjectState(), { name: 'Hundre', number: '100' }).state;
+  const withActivity = ensureMainActivity(seeded, seeded.projects[0].id).state;
+  const withMember = addProjectMember(withActivity, { projectId: seeded.projects[0].id, employeeId: 'e1', employeeName: 'Anne' });
+  assert.equal(withMember.ok, true, withMember.error);
+  seedCloud(withMember.state);
+  const before = cloud();
+  assert.equal(before.members.length, 1);
+  assert.ok(before.activities.length >= 1);
+
+  globalThis.__projectTestOffline = true;
+  const empty = await fresh.loadProjectState(CO, { hours: false });
+  assert.equal(fresh.projectLoadMeta(CO), 'error');
+  assert.deepEqual(empty.projects, [], 'timelisten fikk ingen prosjekter');
+  // Nettet svarer igjen idet den ansatte låser (det var bare lesingen som gikk ut på tid).
+  globalThis.__projectTestOffline = false;
+  const locked = toggleTimesheetLock(empty, { employeeId: 'e1', throughDate: '2026-10-28' });
+  assert.equal(locked.ok, true, locked.error);
+  await fresh.persistProjectState(locked.state, CO);
+  const after = cloud();
+  assert.deepEqual(after.projects.map((row) => row.number), ['100'], 'prosjektet står');
+  assert.equal(after.members.length, before.members.length, 'deltakerne står');
+  assert.equal(after.activities.length, before.activities.length, 'aktivitetene står');
+  assert.equal(after.timesheetLocks.length, 1, 'bare låsen er lagt til');
+
+  // Neste skjerm leser skyen igjen i stedet for å bruke den tomme reserven i minnet.
+  const next = await fresh.loadProjectState(CO, { hours: false });
+  assert.equal(fresh.projectLoadMeta(CO), 'ok');
+  assert.deepEqual(next.projects.map((row) => row.number), ['100']);
+}
+
+// DRIFT-05 og DRIFT-06: den ansatte har timelisten åpen fra før lederen godkjente.
+{
+  reset();
+  const { approveTimesheetLock, toggleTimesheetLock } = await import('../arbeid/timesheetState.js');
+  const { mergeFreshTimesheet } = await import('../arbeid/timesheetGuard.js');
+  const seeded = createProject(emptyProjectState(), { name: 'Hundre', number: '100' }).state;
+  seedCloud(toggleTimesheetLock(seeded, { employeeId: 'e1', throughDate: '2026-10-27' }).state);
+  const anne = await deviceA.loadProjectState(CO, { force: true });
+  const leader = await deviceB.loadProjectState(CO, { force: true });
+  const approved = approveTimesheetLock(leader, { employeeId: 'e1', approvedByUid: 'leder' });
+  assert.equal(approved.ok, true, approved.error);
+  await deviceB.persistProjectState(approved.state, CO);
+  assert.ok(cloud().timesheetLocks[0].approvedAt);
+
+  // DRIFT-05: en endring fra den gamle kopien (her et utlegg) angrer ikke godkjenningen.
+  const withExpense = upsertExpense(anne, { ...expense('E-anne', anne.projects[0].id), id: '' });
+  await deviceA.persistProjectState(withExpense.state, CO);
+  const lock = cloud().timesheetLocks[0];
+  assert.ok(lock.approvedAt, 'godkjenningen står');
+  assert.equal(lock.readyForBilling, true);
+
+  // DRIFT-06: med den gamle kopien ser låsen ikke godkjent ut. Med fersk status fra skyen
+  // kan den ansatte ikke låse opp, men lederen kan.
+  const stale = toggleTimesheetLock(anne, { employeeId: 'e1', throughDate: '2026-10-27', canReopen: false });
+  assert.equal(stale.ok, true, 'den gamle kopien alene ville sluppet opplåsingen gjennom');
+  const remote = await deviceA.readProjectStateFromCloud(CO);
+  assert.equal(remote.ok, true);
+  const fresh = mergeFreshTimesheet(anne, { locks: remote.state.timesheetLocks, archive: remote.state.timesheetLockArchive });
+  const refused = toggleTimesheetLock(fresh, { employeeId: 'e1', throughDate: '2026-10-27', canReopen: false });
+  assert.equal(refused.ok, false);
+  assert.match(refused.error, /godkjent og kan ikke låses opp/);
+  assert.equal(toggleTimesheetLock(fresh, { employeeId: 'e1', throughDate: '2026-10-27', canReopen: true }).ok, true);
+  // Lesingen rørte ikke minnet: skjermens kopi er uendret til den selv tar imot den ferske.
+  assert.equal(deviceA.peekProjectState(CO).timesheetLocks[0].approvedAt, '');
+}
+
 console.log('concurrentSave.test.mjs: ok');

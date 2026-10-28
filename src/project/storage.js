@@ -597,6 +597,15 @@ export function projectLoadMeta(companyId) {
   return loadMeta.get(memoryKey(companyId)) || '';
 }
 
+/**
+ * Prosjektdokumentet slik det ligger i skyen nå, uten å røre minnet eller køen:
+ * { ok, state }. Brukes til å sjekke fersk status (f.eks. låsen) før en endring.
+ */
+export async function readProjectStateFromCloud(companyId) {
+  const remote = await readRemote(companyId);
+  return { ok: !!remote.ok, state: remote.ok ? normalizeProjectState(remote.state) : null };
+}
+
 function withoutBaseRev(state) {
   if (!state || typeof state !== 'object' || !('baseRev' in state)) return state;
   const { baseRev, ...rest } = state;
@@ -1050,11 +1059,14 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
   const { force = false } = opts;
   const hoursOpts = resolveHoursOpts(opts.hours);
   const key = memoryKey(companyId);
-  if (!force && MEMORY.has(key) && hoursOpts.hours === false) {
+  // Kopien i minnet er bare god nok når siste lesing nådde skyen. Etter et tidsavbrudd
+  // er den reserven (ofte tom), så neste skjerm prøver skyen igjen i stedet for å vise den.
+  const lastFailed = loadMeta.get(key) === 'error';
+  if (!force && !lastFailed && MEMORY.has(key) && hoursOpts.hours === false) {
     loadMeta.set(key, 'ok');
     return MEMORY.get(key);
   }
-  if (!force && MEMORY.has(key) && !hoursOpts.all && (
+  if (!force && !lastFailed && MEMORY.has(key) && !hoursOpts.all && (
     hoursOpts.fromDate || hoursOpts.toDate || hoursOpts.employeeId
     || hoursOpts.projectId || (hoursOpts.projectNumbers || []).length
   )) {

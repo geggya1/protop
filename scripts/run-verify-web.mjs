@@ -240,6 +240,9 @@ export const FILES = [
   'src/employees/model.test.mjs',
   'src/hr/retention.test.mjs',
   'src/hr/accessLog.test.mjs',
+  // Drift (testbot C): fakturatilgang for utsending, lås mot gammel kopi og tregt nett.
+  'functions/invoiceMailGuard.test.mjs',
+  'src/arbeid/timesheetGuard.test.mjs',
 ];
 
 function runFile(file) {

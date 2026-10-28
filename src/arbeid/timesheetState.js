@@ -173,8 +173,46 @@ function archiveLock(state, row, extra = {}) {
   return [entry, ...list(state, 'timesheetLockArchive')].slice(0, 400);
 }
 
-/** Lås alle timer til og med dagen. Samme dag på nytt låser opp. */
-export function toggleTimesheetLock(state, { employeeId, throughDate, lockedByUid } = {}) {
+/** Datoen timene er godkjent til: låsen selv, eller forrige godkjenning når listen er låst videre. */
+export function approvedThroughDate(row) {
+  if (!row) return '';
+  return text(row.approvedAt ? row.throughDate : row.approvedThrough);
+}
+
+/**
+ * Hvorfor låsen ikke kan flyttes til target ('' = låse opp helt), eller ''.
+ * Bare den som styrer andres timer (canReopen) kan åpne godkjente eller fakturerte timer igjen.
+ * state bør ha fersk status fra skyen (låsen og timene), ikke en kopi fra før godkjenningen.
+ */
+export function timesheetReopenBlock(state, { employeeId, target = '', canReopen = true } = {}) {
+  if (canReopen) return '';
+  const id = text(employeeId);
+  const row = lockRowFor(state?.timesheetLocks, id);
+  if (!row) return '';
+  const through = text(row.throughDate);
+  const goal = text(target);
+  const invoiced = list(state, 'timeEntries').some((entry) => (
+    entry.employeeId === id && entry.invoiceId
+    && text(entry.date) <= through && (!goal || text(entry.date) > goal)
+  ));
+  if (invoiced) {
+    return 'Timer i perioden er fakturert og kan ikke låses opp. Be økonomi om en kreditnota hvis noe må rettes.';
+  }
+  const approved = approvedThroughDate(row);
+  if (approved && (!goal || goal < approved)) {
+    return `Timene til ${approved} er godkjent og kan ikke låses opp. Be leder åpne timelisten hvis noe må rettes.`;
+  }
+  return '';
+}
+
+/**
+ * Lås alle timer til og med dagen. Samme dag på nytt låser opp.
+ * canReopen: false for den som bare fører egne timer. Da kan godkjente eller fakturerte timer
+ * ikke låses opp, og en lås forlenget etter en godkjenning låses bare opp til godkjenningen.
+ */
+export function toggleTimesheetLock(state, {
+  employeeId, throughDate, lockedByUid, canReopen = true,
+} = {}) {
   const id = text(employeeId);
   const date = text(throughDate);
   if (!id) return fail(state, 'Velg medarbeider.');
@@ -182,6 +220,18 @@ export function toggleTimesheetLock(state, { employeeId, throughDate, lockedByUi
   const current = list(state, 'timesheetLocks').filter((row) => row.employeeId !== id);
   const existingRow = lockRowFor(state.timesheetLocks, id);
   const existing = existingRow?.throughDate || '';
+  const approved = approvedThroughDate(existingRow);
+  if (existing === date && !canReopen && approved && !existingRow.approvedAt && approved < date) {
+    // Låst videre etter en godkjenning: bare det nye låses opp, det godkjente står låst.
+    const back = toggleTimesheetLock(state, { employeeId: id, throughDate: approved, lockedByUid, canReopen });
+    return back.ok ? { ...back, notice: `Timelisten er låst opp etter ${approved}. Godkjente timer står låst.` } : back;
+  }
+  const blocked = timesheetReopenBlock(state, {
+    employeeId: id,
+    target: existing === date ? '' : date,
+    canReopen,
+  });
+  if (blocked && (existing === date || date < existing)) return fail(state, blocked);
   if (existing === date) {
     const cleared = applyLockStatus(state, id, '');
     return ok({

@@ -109,4 +109,10 @@ assert.match(membershipIndex, /\bsyncMyProfile\b/, 'syncMyProfile mangler i memb
 assert.ok(membershipLine.split(',').includes('functions:syncMyProfile'), 'syncMyProfile mangler i MEMBERSHIP');
 assert.match(script, /open_for membershipIndex\.js "\$MEMBERSHIP"/);
 
+// Avslutning, eksport og sletting av en bedrift (GRUNN-03). purgeClosedCompanies kalles av driften, ikke appen.
+for (const name of ['closeCompany', 'reopenCompany', 'exportCompanyData', 'purgeClosedCompanies']) {
+  assert.match(membershipIndex, new RegExp(`\\b${name}\\b`), `${name} mangler i membershipIndex.js`);
+  assert.ok(membershipLine.split(',').includes(`functions:${name}`), `${name} mangler i MEMBERSHIP`);
+}
+
 console.log('functions/slimDeploy.test.mjs: ok');

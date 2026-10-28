@@ -61,7 +61,9 @@ Det finnes ingen Storage-triggere, Auth-triggere eller Pub/Sub-funksjoner utover
 
 Nyere rettinger (runde 1–4) har ikke lagt til nye triggere eller jobber. Sletting av brukslogg
 skjer ved innlogging og lesing (`functions/usageLog.js`), profilsynk og samtykkelogg er callables,
-og ISO-automatikken kjører i skallet (`screens/iso/IsoAutomation.jsx`).
+og ISO-automatikken kjører i skallet (`screens/iso/IsoAutomation.jsx`). Sletting av en avsluttet bedrift etter
+90 dager (GRUNN-03) er en callable (`purgeClosedCompanies`) og et skript, ikke en planlagt jobb. Se
+[sletting av bedrift](sletting-av-bedrift.md), som også har et forslag til en jobb som kan deployes for hånd.
 
 ## Forslag til trygg utrulling
 

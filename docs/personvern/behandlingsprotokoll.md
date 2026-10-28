@@ -120,7 +120,7 @@ OSRM-demotjeneren har ingen avtale og ukjent driftssted. **[bekreft]** eller byt
 | Faktura og bilag | Minst 5 år | `firestore.rules` (utstedt faktura kan ikke slettes) | Ingen sletting etter fristen. |
 | Lokale kopier på enheten | Slettes ved utlogging eller annen bruker | `src/utils/localCache.js` | – |
 | Slettemarkeringer i prosjektdokumentet | 180 dager | `src/project/engine.js` | – |
-| Bedriftens data etter opphør | Databehandleravtalen lover sletting innen 90 dager | – | **Ingen funksjon for å slette en bedrift i koden.** Må gjøres manuelt. **[bekreft]** rutine. |
+| Bedriftens data etter opphør | Eier/admin avslutter (`closeCompany`), sletting 90 dager etter, eksport først | `functions/companyClosure*.js`, `src/privacy/companyClosure.js`, `scripts/purge-closed-companies.mjs` | GRUNN-03. Slettingen kjøres av driften (ingen planlagt jobb i CI). **[bekreft]** rutinen: hvem kjører den, og hvor ofte. Se `docs/drift/sletting-av-bedrift.md`. |
 | Fravær, timer, kjørebok, ISO, chat, kunder, innsynslogg, varsler, support | Ingen regel | – | Må fastsettes (se åpne spørsmål). |
 | Sikkerhetskopier | Ukjent | – | **[bekreft]** om Firestore har sikkerhetskopi eller gjenoppretting til tidspunkt, og hvor lenge. |
 
@@ -156,6 +156,8 @@ Mer i [ROS-analysen](ros-analyse.md).
 6. Lagringstid for fravær (sykefravær), timer, kjørebok, ISO-saker og personskader, chat, kundedata,
    innsynslogg, varsler og support. Hvem sletter, og hvordan?
 7. Rutine for å slette en bedrifts data innen 90 dager etter opphør, slik databehandleravtalen lover.
+   Funksjonen finnes (GRUNN-03, `docs/drift/sletting-av-bedrift.md`). Eieren må bestemme hvem som kjører
+   slettingen og hvor ofte, og om avtaleteksten om regnskapsmateriale skal endres.
 8. Sikkerhetskopier: finnes de, hvor lenge, og hvordan slettes data der?
 9. ~~`helpKnowledgeCandidates`: fjern uid eller sett en lagringstid.~~ Gjort (GRUNN-01): uten uid, ett år.
 10. Skal samtykkeloggen beholdes etter at kontoen er slettet?

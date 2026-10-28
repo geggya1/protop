@@ -1,18 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Linking, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
 import {
-  FINDING_STATES, FINDING_TYPES, SEVERITIES, actionStateLabel, findingStateLabel, findingTypeLabel, severityLabel,
+  FINDING_STATES, FINDING_TYPES, INJURY_CLASSES, SEVERITIES, actionStateLabel, findingStateLabel, findingTypeLabel, injuryClassLabel, seriousInjury, severityLabel,
 } from '../../src/iso/catalog';
 import {
-  CHANGE_FIELDS, addAction, assessChange, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, confirmNotification,
-  createFinding, defaultRestricted, findingStep, isOpenFinding, recordRootCause, reopenFinding, triageFinding, updateFindingLinks, verifyAction, verifyEffect,
+  CHANGE_FIELDS, addAction, assessChange, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, completedBySelf, confirmNotification,
+  createFinding, defaultRestricted, findingStep, isOpenFinding, needsNewActions, notificationTaskKey, recordRootCause, reopenFinding, rootCauseRequired, triageFinding,
+  updateFindingLinks, verifyAction, verifyEffect,
 } from '../../src/iso/findings';
 import { canCloseFinding, canManageFinding, visibleFindings } from '../../src/iso/access';
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
 import { loadAuditFor } from '../../src/iso/storage';
-import { autoAssignee, legacyProjectCases, requirementIdsForFinding } from '../../src/iso/integrations';
+import { autoAssignee, legacyProjectCases, newFindingEffects, notificationTaskEffects, requirementIdsForFinding } from '../../src/iso/integrations';
 import { publishedVersionOf, normalizeDiagram } from '../../src/iso/processes';
 import IsoDiagram, { fitView } from './IsoDiagram';
 import {
@@ -124,7 +125,7 @@ export default function IsoFindings({ ctx }) {
 function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   const colors = useColors();
   const { state, actor, projects, people, store, wide, prefill } = ctx;
-  const blank = { type: 'prosess', title: '', description: '', occurredAt: todayKey(), projectId: '', location: '', actualConsequence: '', potentialConsequence: '', immediateAction: '', restricted: null, personalDetails: '', authorityNotificationRequired: false, notificationAssignee: '', deliverableRef: '', environmentalMedium: '', customerImpact: '' };
+  const blank = { type: 'prosess', title: '', description: '', occurredAt: todayKey(), projectId: '', location: '', actualConsequence: '', potentialConsequence: '', immediateAction: '', restricted: null, personalDetails: '', authorityNotificationRequired: false, notificationAssignee: '', notificationAssigneeUid: '', deliverableRef: '', environmentalMedium: '', customerImpact: '', severity: '', injuryClass: '' };
   const [v, setV] = useState(blank);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -132,6 +133,9 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   const set = (k) => (val) => setV((x) => ({ ...x, [k]: val }));
   const domain = FINDING_TYPES.find((t) => t.id === v.type)?.domain;
   const restricted = v.restricted == null ? defaultRestricted(v.type) : v.restricted;
+  const injury = ['hms', 'nestenulykke'].includes(v.type);
+  // Alvorlig personskade eller dødsfall: foreslå meldeplikt med en gang.
+  const pickInjury = (x) => setV((cur) => ({ ...cur, injuryClass: x || '', authorityNotificationRequired: seriousInjury(x) ? true : cur.authorityNotificationRequired }));
 
   async function save() {
     setBusy(true);
@@ -146,8 +150,9 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       projectName: project ? `${project.number || ''} ${project.name || ''}`.trim() : '',
     }, { actor, existing: state.findings, now: new Date() });
     if (!res.ok) { setError(res.error); setBusy(false); return; }
-    // Behandler får oppgave i Oppgaver med en gang (fast nøkkel → én oppgave).
-    const effects = who?.uid ? [{ type: 'createTask', key: `iso_${res.finding.id}_triage`, title: `Behandle ${res.finding.number}: ${res.finding.title}`, assigneeUid: who.uid, deadline: res.finding.triageDue }] : [];
+    // Behandler får oppgave i Oppgaver med en gang (fast nøkkel → én oppgave). Mulig meldeplikt:
+    // den som varsler myndighet får egen oppgave med frist i dag, og de ansvarlige varsles straks.
+    const effects = newFindingEffects(res.finding, state.system);
     const saved = await store.commit('findings', 'finding', res, { effects });
     setBusy(false);
     if (!saved.ok) { setError(saved.error); return; }
@@ -167,6 +172,14 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       <Field label="Tittel" required><TextIn value={v.title} onChangeText={set('title')} placeholder="Kort hva som skjedde" /></Field>
       <Field label="Beskrivelse" required hint="Beskriv fakta. Ikke legg inn helseopplysninger her."><TextIn multiline value={v.description} onChangeText={set('description')} /></Field>
       <Field label="Dato"><DateIn value={v.occurredAt} onChange={set('occurredAt')} /></Field>
+      {injury ? (
+        <Field label="Skadeklasse" hint="Din vurdering. Behandler kan endre den i triage.">
+          <Choice small options={INJURY_CLASSES.map((c) => ({ id: c.id, label: c.label }))} value={v.injuryClass} onChange={pickInjury} placeholder="Velg" title="Skadeklasse" />
+        </Field>
+      ) : null}
+      <Field label="Alvorlighet" hint="Din vurdering. «Kritisk» gir behandling i dag.">
+        <Choice small options={SEVERITIES.map((x) => ({ id: x.id, label: x.label }))} value={v.severity} onChange={(x) => set('severity')(x || '')} placeholder="Vet ikke" title="Alvorlighet" />
+      </Field>
       {projects.length ? (
         <Field label="Prosjekt"><Choice small title="Prosjekt" options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={v.projectId} onChange={set('projectId')} /></Field>
       ) : null}
@@ -184,10 +197,20 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       <Check label="Skjermet sak (HMS/personopplysninger) – bare særskilt tilgang og involverte ser saken" value={restricted} onChange={set('restricted')} />
       {restricted ? <Field label="Personopplysninger (skjermet)" hint="Bare det som er nødvendig. Vises ikke i lister eller eksport."><TextIn multiline rows={2} value={v.personalDetails} onChangeText={set('personalDetails')} /></Field> : null}
       <Check label="Mulig meldeplikt til myndighet (f.eks. alvorlig personskade eller utslipp)" value={v.authorityNotificationRequired} onChange={set('authorityNotificationRequired')} />
+      {v.authorityNotificationRequired || seriousInjury(v.injuryClass) ? (
+        <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 2, borderColor: colors.danger }}>
+          <Text style={{ color: colors.danger, fontWeight: '800', fontSize: 15 }}>Alvorlig personskade eller dødsfall</Text>
+          <Text style={{ color: colors.ink, fontSize: 14 }}>Ring 113 ved behov for ambulanse. Varsle Arbeidstilsynet og politiet straks (aml § 5-2). ProTop melder ikke til myndighetene.</Text>
+          <Row>
+            <Btn kind="danger" icon="call-outline" label="Ring 113" onPress={() => Linking.openURL('tel:113').catch(() => {})} />
+            <Btn icon="call-outline" label="Ring politiet 112" onPress={() => Linking.openURL('tel:112').catch(() => {})} />
+          </Row>
+        </View>
+      ) : null}
       {v.authorityNotificationRequired ? (
         <>
-          <Banner tone="warn" text="ProTop melder ikke til myndighetene. Intern registrering oppfyller ikke ekstern meldeplikt. Alvorlige arbeidsulykker meldes til Arbeidstilsynet og politiet." />
-          <Field label="Hvem sørger for varsling" required><PersonPick people={people} value={v.notificationAssignee} onChange={(p) => set('notificationAssignee')(p.name)} /></Field>
+          <Banner tone="warn" text="Intern registrering oppfyller ikke ekstern meldeplikt. Den du velger, får oppgave med frist i dag, og behandler, HMS-leder og øverste ledelse varsles." />
+          <Field label="Hvem sørger for varsling" required><PersonPick people={people} value={v.notificationAssignee} onChange={(p) => setV((x) => ({ ...x, notificationAssignee: p.name, notificationAssigneeUid: p.uid || '' }))} /></Field>
         </>
       ) : null}
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
@@ -238,7 +261,7 @@ function FindingDetail({ ctx, finding, onBack }) {
   }
 
   // Triage
-  const [tri, setTri] = useState({ severity: finding.severity || '', urgent: false, assigneeName: finding.assigneeName, assigneeUid: finding.assigneeUid, immediateAction: finding.immediateAction, notifiable: finding.authorityNotificationRequired, notificationAssignee: finding.notificationAssignee, dueAt: finding.dueAt, note: '' });
+  const [tri, setTri] = useState({ severity: finding.severity || '', urgent: false, assigneeName: finding.assigneeName, assigneeUid: finding.assigneeUid, immediateAction: finding.immediateAction, notifiable: finding.authorityNotificationRequired, notificationAssignee: finding.notificationAssignee, notificationAssigneeUid: finding.notificationAssigneeUid || '', injuryClass: finding.injuryClass || '', dueAt: finding.dueAt, note: '' });
   // Vurdering
   const [asm, setAsm] = useState({ correctiveRequired: finding.assessment?.correctiveRequired ?? null, rationale: '', correction: '' });
   const [chg, setChg] = useState(() => ({ ...(finding.change || {}) }));
@@ -314,16 +337,17 @@ function FindingDetail({ ctx, finding, onBack }) {
             <KV label="Strakstiltak" value={finding.immediateAction} />
             <KV label="Sted" value={finding.location} />
             <KV label="Leveranse" value={finding.deliverableRef} />
+            <KV label="Skadeklasse" value={injuryClassLabel(finding.injuryClass)} />
             {finding.restricted && caps.restrictedView ? <KV label="Personopplysninger (skjermet)" value={finding.personalDetails} /> : null}
           </Card>
 
           {finding.authorityNotificationRequired ? (
             <Card title="Meldeplikt">
-              <Banner tone={finding.notificationDone ? 'ok' : 'warn'} text={finding.notificationDone ? `Bekreftet: ${finding.notificationNote}` : `Mulig meldeplikt. Ansvarlig: ${finding.notificationAssignee || 'ikke satt'}. ProTop melder ikke selv til myndigheter.`} />
-              {!finding.notificationDone && manage ? (
+              <Banner tone={finding.notificationDone ? 'ok' : 'warn'} text={finding.notificationDone ? `Bekreftet: ${finding.notificationNote}` : `Mulig meldeplikt. Ansvarlig: ${finding.notificationAssignee || 'ikke satt'}${finding.notificationDue ? `, frist ${prettyDate(finding.notificationDue)}` : ''}. ProTop melder ikke selv til myndigheter.`} />
+              {!finding.notificationDone && (manage || (finding.notificationAssigneeUid && finding.notificationAssigneeUid === actor.uid)) ? (
                 <>
                   <TextIn value={notifNote} onChangeText={setNotifNote} placeholder="Hvem ble varslet, når og referanse" />
-                  <Btn label="Bekreft varsling vurdert/utført" onPress={() => run('Varsling bekreftet', confirmNotification(finding, notifNote, { actor }))} />
+                  <Btn label="Bekreft varsling vurdert/utført" onPress={() => run('Varsling bekreftet', confirmNotification(finding, notifNote, { actor }), { effects: notificationTaskKey(finding) ? [{ type: 'completeTask', key: notificationTaskKey(finding) }] : [] })} />
                 </>
               ) : null}
             </Card>
@@ -347,17 +371,26 @@ function FindingDetail({ ctx, finding, onBack }) {
           {['registrert', 'triage'].includes(finding.state) && manage ? (
             <Card title="1. Triage og klassifisering">
               <Field label="Alvorlighet" required><Choice options={SEVERITIES.map((s) => ({ id: s.id, label: s.label }))} value={tri.severity} onChange={(x) => setTri({ ...tri, severity: x })} /></Field>
+              {['hms', 'nestenulykke'].includes(finding.type) ? (
+                <Field label="Skadeklasse"><Choice small options={INJURY_CLASSES.map((c) => ({ id: c.id, label: c.label }))} value={tri.injuryClass} onChange={(x) => setTri({ ...tri, injuryClass: x || '', notifiable: seriousInjury(x) ? true : tri.notifiable })} placeholder="Velg" title="Skadeklasse" /></Field>
+              ) : null}
               <Check label="Akutt fare eller konsekvens" value={tri.urgent} onChange={(x) => setTri({ ...tri, urgent: x })} />
               {tri.urgent ? <Field label="Strakstiltak" required><TextIn value={tri.immediateAction} onChangeText={(x) => setTri({ ...tri, immediateAction: x })} /></Field> : null}
               <Field label="Ansvarlig for behandling" required><PersonPick people={people} value={tri.assigneeName} onChange={(p) => setTri({ ...tri, assigneeName: p.name, assigneeUid: p.uid })} /></Field>
               <Field label="Frist for saken"><DateIn value={tri.dueAt} onChange={(x) => setTri({ ...tri, dueAt: x })} /></Field>
               <Check label="Mulig meldeplikt til myndighet" value={!!tri.notifiable} onChange={(x) => setTri({ ...tri, notifiable: x })} />
-              {tri.notifiable ? <Field label="Hvem varsler"><PersonPick people={people} value={tri.notificationAssignee} onChange={(p) => setTri({ ...tri, notificationAssignee: p.name })} /></Field> : null}
+              {tri.notifiable ? <Field label="Hvem varsler" hint="Får oppgave med frist i dag."><PersonPick people={people} value={tri.notificationAssignee} onChange={(p) => setTri({ ...tri, notificationAssignee: p.name, notificationAssigneeUid: p.uid || '' })} /></Field> : null}
               <Field label="Merknad"><TextIn value={tri.note} onChangeText={(x) => setTri({ ...tri, note: x })} /></Field>
-              <Btn kind="primary" label="Lagre triage" busy={busy === 'Triage'} onPress={() => run('Triage', triageFinding(finding, tri, { actor }), { effects: [
-                ...(tri.assigneeUid && tri.assigneeUid !== finding.assigneeUid ? [{ type: 'createTask', key: `iso_${finding.id}_behandle`, title: `Følg opp ${finding.number}: ${finding.title}`, assigneeUid: tri.assigneeUid, deadline: tri.dueAt || null }] : []),
-                { type: 'completeTask', key: `iso_${finding.id}_triage` },
-              ] })} />
+              <Btn kind="primary" label="Lagre triage" busy={busy === 'Triage'} onPress={() => {
+                const res = triageFinding(finding, tri, { actor });
+                // Ny eller endret varslingsansvarlig får egen oppgave (nøkkelen følger personen).
+                const notify = res.ok && notificationTaskKey(res.finding) !== notificationTaskKey(finding) ? notificationTaskEffects(res.finding) : [];
+                return run('Triage', res, { effects: [
+                  ...(tri.assigneeUid && tri.assigneeUid !== finding.assigneeUid ? [{ type: 'createTask', key: `iso_${finding.id}_behandle`, title: `Følg opp ${finding.number}: ${finding.title}`, assigneeUid: tri.assigneeUid, deadline: tri.dueAt || null }] : []),
+                  ...notify,
+                  { type: 'completeTask', key: `iso_${finding.id}_triage` },
+                ] });
+              }} />
             </Card>
           ) : null}
 
@@ -366,14 +399,14 @@ function FindingDetail({ ctx, finding, onBack }) {
               <Field label="Trengs korrigerende tiltak?" required>
                 <Choice options={[{ id: 'ja', label: 'Ja' }, { id: 'nei', label: 'Nei, begrunnet' }]} value={asm.correctiveRequired === true ? 'ja' : (asm.correctiveRequired === false ? 'nei' : '')} onChange={(x) => setAsm({ ...asm, correctiveRequired: x === 'ja' ? true : (x === 'nei' ? false : null) })} />
               </Field>
-              {asm.correctiveRequired === false ? <Field label="Begrunnelse" required hint="Godkjennes ved lukking av administrator."><TextIn multiline value={asm.rationale} onChangeText={(x) => setAsm({ ...asm, rationale: x })} /></Field> : null}
+              {asm.correctiveRequired === false ? <Field label="Begrunnelse" required hint="Vurderes ved lukking av en godkjenner."><TextIn multiline value={asm.rationale} onChangeText={(x) => setAsm({ ...asm, rationale: x })} /></Field> : null}
               <Field label="Korreksjon (det som rettes umiddelbart)"><TextIn value={asm.correction} onChangeText={(x) => setAsm({ ...asm, correction: x })} /></Field>
               <Btn kind="primary" label="Lagre beslutning" onPress={() => run('Beslutning', assessFinding(finding, asm, { actor }))} />
             </Card>
           ) : null}
 
-          {finding.assessment?.correctiveRequired && !closed && manage ? (
-            <Card title="3. Årsaksvurdering" subtitle="5 × hvorfor eller fritekst. Påkrevd for middels og høyere alvorlighet.">
+          {finding.assessment && (finding.assessment.correctiveRequired || rootCauseRequired(finding)) && !closed && manage ? (
+            <Card title="3. Årsaksvurdering" subtitle="5 × hvorfor eller fritekst. Påkrevd for middels og høyere alvorlighet når tiltak er besluttet, og alltid for personskade, nestenulykke og miljøhendelse.">
               {finding.rootCause ? (
                 <>
                   {(finding.rootCause.whys || []).map((w, i) => <KV key={i} label={`Hvorfor ${i + 1}`} value={w} />)}
@@ -421,7 +454,7 @@ function FindingDetail({ ctx, finding, onBack }) {
                   ) : null}
                   {a.state === 'til_verifisering' && manage ? (
                     <>
-                      {a.completedBy === actor.name ? <Check label="Jeg kontrollerer mitt eget tiltak (logges som egenkontroll)" value={!!selfOk[a.id]} onChange={(x) => setSelfOk({ ...selfOk, [a.id]: x })} /> : null}
+                      {completedBySelf(a, actor) ? <Check label="Jeg kontrollerer mitt eget tiltak (logges som egenkontroll)" value={!!selfOk[a.id]} onChange={(x) => setSelfOk({ ...selfOk, [a.id]: x })} /> : null}
                       <Row>
                         <Btn small kind="primary" label="Godkjenn gjennomføring" onPress={() => run('Tiltak kontrollert', verifyAction(finding, a.id, { approved: true, allowSelf: !!selfOk[a.id] }, { actor }))} />
                         <Btn small label="Returner" onPress={() => run('Tiltak returnert', verifyAction(finding, a.id, { approved: false, note: reason || 'Ikke tilstrekkelig dokumentert' }, { actor }))} />
@@ -432,12 +465,14 @@ function FindingDetail({ ctx, finding, onBack }) {
                 </View>
               );
             })}
-            {!closed && manage ? <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse ved retur/kansellering" /> : null}
+            {!closed && manage ? <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse ved retur eller kansellering av tiltak" /> : null}
           </Card>
 
           {(finding.state === 'effektkontroll' || (finding.state === 'vurdert' && finding.effect?.checks?.length)) && manage ? (
             <Card title="4. Effektkontroll" subtitle="Har tiltakene hatt ønsket effekt? «Ikke verifisert» gjenåpner saken.">
-              {finding.effect?.outcome === 'verifisert' ? <Banner tone="ok" text={`Effekt verifisert av ${finding.effect.checkedBy}: ${finding.effect.method}`} /> : (
+              {finding.effect?.outcome === 'verifisert' ? <Banner tone="ok" text={`Effekt verifisert av ${finding.effect.checkedBy}: ${finding.effect.method}`} /> : needsNewActions(finding) ? (
+                <Banner tone="warn" text="Effekten ble ikke verifisert ved forrige kontroll. Legg inn nye tiltak under Tiltak. Når de er gjennomført og kontrollert, kan effekten kontrolleres på nytt." />
+              ) : (
                 <>
                   <Field label="Metode" required><TextIn value={effect.method} onChangeText={(x) => setEffect({ ...effect, method: x })} placeholder="Stikkprøve, måling, oppfølgingssamtale …" /></Field>
                   <Field label="Resultat" required><TextIn multiline rows={2} value={effect.note} onChangeText={(x) => setEffect({ ...effect, note: x })} /></Field>
@@ -457,9 +492,10 @@ function FindingDetail({ ctx, finding, onBack }) {
                   <Field label="Læring / erfaringsoverføring"><TextIn value={learning} onChangeText={setLearning} /></Field>
                   <Btn kind="primary" icon="lock-closed-outline" label="Godkjenn lukking" disabled={!!blockers.length} onPress={doClose} />
                   <Divider />
+                  <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse for kansellering" />
                   <Btn kind="danger" label="Kanseller saken" onPress={() => run('Saken er kansellert', cancelFinding(finding, reason, { actor, caps }))} />
                 </>
-              ) : <Text style={{ color: colors.muted, fontSize: 12 }}>Lukking krever administrator-tilgang i ISO{finding.restricted ? ' og særskilt fullmakt for skjermede saker' : ''}.</Text>}
+              ) : <Text style={{ color: colors.muted, fontSize: 12 }}>Lukking krever en godkjennerrolle i ISO{finding.restricted ? ' og særskilt fullmakt for skjermede saker' : ''}.</Text>}
             </Card>
           ) : (
             <Card title={finding.state === 'lukket' ? 'Lukket' : 'Kansellert'}>

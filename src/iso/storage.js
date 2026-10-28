@@ -24,7 +24,8 @@ import { isFirestorePermissionError, waitForFirestoreAccess } from '../utils/fir
 import { COLLECTIONS, collectionFor, emptyIsoState, stateFromCollections } from './state.js';
 import { restrictedUids } from './access.js';
 import { aclIsFresh, isCompanyOwner, planAclSync } from './aclSync.js';
-import { chunkForBatch } from './core.js';
+import { chunkForBatch, numberFromCounter, numberParts } from './core.js';
+import { withInvolved } from './findings.js';
 
 const CACHE_KEY = 'protop.iso.v1';
 const AUTH_MS = 8000;
@@ -248,6 +249,26 @@ export async function loadIsoSystem(companyId) {
 }
 
 /**
+ * Ny sak: saksnummeret tildeles mot telleren i samme transaksjon som saken skrives
+ * (som fakturanummer). Returnerer det som ble lagret, med endelig nummer.
+ */
+async function saveNumberedFinding(companyId, name, entity) {
+  const counterRef = doc(db, 'families', companyId, 'isoCounters', numberParts(entity.number).series);
+  const ref = doc(db, 'families', companyId, name, entity.id);
+  return runTransaction(db, async (tx) => {
+    const counter = await tx.get(counterRef);
+    const snap = await tx.get(ref);
+    if (snap.exists()) throw new ConflictError('Finnes allerede.');
+    const next = numberFromCounter(entity.number, counter.exists() ? counter.data()?.last : 0);
+    const stamp = new Date().toISOString();
+    const data = plain({ ...withInvolved({ ...entity, number: next.number }), savedAt: stamp });
+    tx.set(counterRef, { last: next.last, updatedAt: stamp });
+    tx.set(ref, data);
+    return data;
+  });
+}
+
+/**
  * Lagrer én entitet med revisjonskontroll.
  * kind: findings | processes | instances | documents | forms | submissions | requirements | assessments | evidence | evidenceLinks | records | system
  */
@@ -256,6 +277,14 @@ export async function saveEntity(companyId, kind, entity, { previous = null, cre
   if (!id) throw new Error('Mangler selskap.');
   const authed = await ensureAuth();
   if (!authed) throw new Error('Ikke innlogget. Endringen er ikke lagret.');
+  if (kind === 'findings' && !previous && numberParts(entity?.number)) {
+    try {
+      return await saveNumberedFinding(id, collectionFor(kind, entity), entity);
+    } catch (err) {
+      // Reglene uten telleren (ikke rullet ut ennå): lagre som før med nummeret klienten regnet ut.
+      if (!isFirestorePermissionError(err)) throw err;
+    }
+  }
   const name = kind === 'system' ? 'isoSystem' : collectionFor(kind, entity);
   const ref = doc(db, 'families', id, name, kind === 'system' ? 'main' : entity.id);
   const data = plain({ ...(kind === 'findings' ? withInvolved(entity) : entity), savedAt: new Date().toISOString() });
@@ -318,11 +347,8 @@ export async function saveMany(companyId, rows, { onProgress = null } = {}) {
   }
 }
 
-/** Hvem som er involvert i en sak (melder, ansvarlig, tiltakseiere) – brukes av reglene. */
-export function withInvolved(finding) {
-  const set = new Set([finding?.reportedByUid, finding?.assigneeUid, ...((finding?.actions || []).map((a) => a?.ownerUid))].filter(Boolean).map(String));
-  return { ...finding, involvedUids: [...set] };
-}
+/** Hvem som er involvert i en sak – brukes av reglene. Ligger i findings.js (ren funksjon). */
+export { withInvolved };
 
 /** Revisjonsspor: bare nye dokumenter, med hendelsens egen id. Skjermede saker i egen samling. */
 export async function appendAudit(companyId, events, { restricted = false } = {}) {

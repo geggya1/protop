@@ -500,17 +500,27 @@ export function updateRecord(record, values, { actor, now = new Date(), note = '
   return { ok: true, record: next, events: [auditEvent({ entityType: record.register, entityId: record.id, action: `iso.${record.register}.updated`, actor, before: record, after: next, now })] };
 }
 
+/** Registre der godkjenning låser posten (rapport og referat er bevis). */
+const LOCKING_REGISTERS = ['ledelse', 'revisjon'];
+/** Statuser etter godkjenning. Låsen beholdes; bare å gå tilbake til før godkjenning opphever den. */
+const APPROVED_STATES = ['godkjent', 'oppfolging', 'lukket'];
+
 export function setRecordState(record, state, { actor, now = new Date(), note = '', caps = null } = {}) {
   const def = registerDef(record?.register);
   if (!def) return fail('Ukjent register.');
   if (!def.states.includes(state)) return fail('Ugyldig status.');
   if (caps && !caps.manage) return fail('Du har ikke tilgang til å endre status.');
   if (['godkjent', 'lukket'].includes(state) && caps && !caps.approve) return fail('Godkjenning krever en godkjennerrolle i ISO.');
+  if (record.locked && caps && !caps.approve) return fail('Posten er godkjent og låst. Bare en godkjenner kan endre status.');
+  // Tilbake til før godkjenning (f.eks. «planlagt») opphever godkjenningen: krever begrunnelse, og ny godkjenning låser igjen.
+  const revoke = !!record.locked && !APPROVED_STATES.includes(state);
+  if (revoke && text(note).length < 5) return fail('Begrunn hvorfor godkjenningen oppheves.');
+  const locked = LOCKING_REGISTERS.includes(record.register) && (state === 'godkjent' || (!!record.locked && !revoke));
   const next = bump({
     ...record,
     state,
-    locked: ['godkjent'].includes(state) && ['ledelse', 'revisjon'].includes(record.register),
-    history: pushHistory(record, `Status: ${state}`, actor, note, now),
+    locked,
+    history: pushHistory(record, revoke ? `Godkjenning opphevet – status: ${state}` : `Status: ${state}`, actor, note, now),
   }, actor, now);
   return { ok: true, record: next, events: [auditEvent({ entityType: record.register, entityId: record.id, action: `iso.${record.register}.state`, actor, before: record, after: next, reason: note, now })] };
 }
@@ -675,7 +685,7 @@ export const AUDIT_FINDING_CLASSES = [
 
 export function addAuditFinding(audit, input, { actor, now = new Date() } = {}) {
   if (audit?.register !== 'revisjon') return fail('Ikke en revisjon.');
-  if (['lukket', 'avlyst', 'godkjent'].includes(audit.state)) return fail('Revisjonen er avsluttet eller godkjent og låst.');
+  if (audit.locked || ['lukket', 'avlyst', 'godkjent'].includes(audit.state)) return fail('Revisjonen er avsluttet eller godkjent og låst.');
   if (!AUDIT_FINDING_CLASSES.some((c) => c.id === input?.classification)) return fail('Klassifiser funnet.');
   if (!text(input?.description)) return fail('Beskriv funnet.');
   if (input.classification !== 'samsvar' && !text(input?.evidence)) return fail('Beskriv objektivt bevis for funnet.');
@@ -750,10 +760,27 @@ export function addReviewDecision(record, input, { actor, now = new Date() } = {
   return { ok: true, record: next, decision: row, events: [auditEvent({ entityType: 'ledelse', entityId: record.id, action: 'iso.review.decision', actor, before: record, after: next, now })] };
 }
 
-export function markDecisionDone(record, decisionId, { actor, now = new Date() } = {}) {
-  const decisions = (record?.decisions || []).map((d) => (d.id === decisionId ? { ...d, done: true, doneAt: nowIso(now), doneBy: text(actor?.name, 160) } : d));
-  const next = bump({ ...record, decisions, history: pushHistory(record, 'Beslutning gjennomført', actor, '', now) }, actor, now);
-  return { ok: true, record: next, events: [] };
+/**
+ * Vedtaket er gjennomført. Kan gjøres av den ansvarlige også når referatet er godkjent og låst:
+ * bare vedtaket endres (reglene sjekker det via doneDecisionIndex), ikke resten av referatet.
+ */
+export function markDecisionDone(record, decisionId, { actor, now = new Date(), caps = null } = {}) {
+  if (record?.register !== 'ledelse') return fail('Ikke en ledelsens gjennomgang.');
+  const index = (record.decisions || []).findIndex((d) => d.id === decisionId);
+  const row = index >= 0 ? record.decisions[index] : null;
+  if (!row) return fail('Fant ikke vedtaket.');
+  if (row.done) return fail('Vedtaket er allerede gjennomført.');
+  if (caps && !caps.manage && !(row.ownerUid && row.ownerUid === text(actor?.uid, 128))) return fail('Bare ansvarlig for vedtaket eller en saksbehandler kan merke det gjennomført.');
+  const decisions = record.decisions.map((d, i) => (i === index ? { ...d, done: true, doneAt: nowIso(now), doneBy: text(actor?.name, 160), doneByUid: text(actor?.uid, 128) } : d));
+  const next = bump({ ...record, decisions, doneDecisionIndex: index, history: pushHistory(record, 'Beslutning gjennomført', actor, row.decision, now) }, actor, now);
+  return { ok: true, record: next, events: [auditEvent({ entityType: 'ledelse', entityId: record.id, action: 'iso.review.decision_done', actor, before: record, after: next, now })] };
+}
+
+/** Vedtak som er gjennomført i ISO, eller der oppgaven er markert ferdig i Oppgaver. */
+export function decisionCompleted(decision, taskStatus = null) {
+  if (decision?.done) return true;
+  const key = String(decision?.taskKey || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 140);
+  return !!(key && taskStatus?.[key]?.done);
 }
 
 /* ───────── Beredskap ───────── */

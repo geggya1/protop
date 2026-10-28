@@ -202,6 +202,38 @@ service cloud.firestore {
         && resource.data.get('state', '') != 'kansellert';
     }
 
+    // Én post i en liste er endret (indeks i). Resten av listen er uendret og like lang.
+    // Et tomt utsnitt (a[0:0]) gir feil i reglene, derfor sjekkes endene først.
+    function onlyItemChanged(key, i) {
+      let a = request.resource.data.get(key, []);
+      let b = resource.data.get(key, []);
+      return i < b.size() && a.size() == b.size()
+        && (i == 0 || a[0:i] == b[0:i])
+        && (i + 1 == b.size() || a[i + 1:a.size()] == b[i + 1:b.size()]);
+    }
+
+    // Tiltakseier melder sitt eget tiltak utført: bare til «til_verifisering» og bare utførelsesfeltene.
+    // Kontroll, verifisering og endring av andres tiltak krever saksbehandler.
+    // Billige sjekker først: reglene tåler bare 1000 uttrykk per skriving.
+    function ownActionDoneAt(i) {
+      return i is int && i >= 0
+        && i < resource.data.get('actions', []).size()
+        && i < request.resource.data.get('actions', []).size()
+        && request.resource.data.actions[i].get('state', '') == 'til_verifisering'
+        && resource.data.actions[i].get('state', '') in ['apen', 'pagar', 'returnert']
+        && resource.data.actions[i].get('ownerUid', '') == request.auth.uid
+        && request.resource.data.actions[i].diff(resource.data.actions[i]).affectedKeys()
+          .hasOnly(['state', 'completedAt', 'completedBy', 'completedByUid', 'completionNote', 'evidence'])
+        && onlyItemChanged('actions', i);
+    }
+
+    // Reglene har ikke løkker. Appen oppgir hvilket tiltak som er meldt utført (doneActionIndex);
+    // eldre versjoner av appen gjør det ikke, og da sjekkes de fem første tiltakene.
+    function ownActionDone() {
+      return ownActionDoneAt(request.resource.data.get('doneActionIndex', -1))
+        || ownActionDoneAt(0) || ownActionDoneAt(1) || ownActionDoneAt(2) || ownActionDoneAt(3) || ownActionDoneAt(4);
+    }
+
     // Felles regler for oppdatering av en sak (åpen eller skjermet).
     function findingUpdateAllowed(familyId, managerOk) {
       return request.resource.data.get('restricted', false) == resource.data.get('restricted', false)
@@ -212,12 +244,45 @@ service cloud.firestore {
         && (cancelsFinding() ? (managerOk && isoApprover(familyId)) : true)
         && (
           managerOk
-          // Melder og involverte (tiltaksansvarlige) kan bare oppdatere tiltak og historikk.
+          // Melder og involverte: bare historikk, og tiltakseier kan melde eget tiltak utført.
           || (involved(resource.data)
               && isoRank(familyId) >= 1
               && unchanged('state')
-              && changed().hasOnly(bumpKeys().concat(['actions', 'involvedUids'])))
+              && changed().hasOnly(bumpKeys().concat(['actions', 'involvedUids', 'doneActionIndex']))
+              && (unchanged('actions') || ownActionDone()))
+          // Den som skal varsle myndighet, bekrefter at varslingen er vurdert eller utført.
+          || (resource.data.get('notificationAssigneeUid', '') == request.auth.uid
+              && isoRank(familyId) >= 1
+              && changed().hasOnly(bumpKeys().concat(['notificationDone', 'notificationNote', 'notificationAt']))
+              && request.resource.data.get('notificationDone', false) == true)
         );
+    }
+
+    // Vedtak i ledelsens gjennomgang merkes utført av den ansvarlige (eller en saksbehandler),
+    // også når referatet er godkjent og låst: bare ett vedtak, bare til «utført».
+    function decisionDoneAt(familyId, i) {
+      return i is int && i >= 0
+        && i < resource.data.get('decisions', []).size()
+        && i < request.resource.data.get('decisions', []).size()
+        && request.resource.data.decisions[i].get('done', false) == true
+        && resource.data.decisions[i].get('done', false) != true
+        && (resource.data.decisions[i].get('ownerUid', '') == request.auth.uid || isoRank(familyId) >= 2)
+        && request.resource.data.decisions[i].diff(resource.data.decisions[i]).affectedKeys()
+          .hasOnly(['done', 'doneAt', 'doneBy', 'doneByUid'])
+        && onlyItemChanged('decisions', i);
+    }
+
+    // Appen oppgir hvilket vedtak som er merket utført (doneDecisionIndex), så reglene slipper å lete.
+    function decisionDone(familyId) {
+      return resource.data.get('register', '') == 'ledelse'
+        && changed().hasOnly(bumpKeys().concat(['decisions', 'doneDecisionIndex']))
+        && decisionDoneAt(familyId, request.resource.data.get('doneDecisionIndex', -1));
+    }
+
+    // Teller for saksnummer: bare oppover, bare feltene «last» og «updatedAt».
+    function isoCounterOk(old) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['last', 'updatedAt']) && d.get('last', 0) is int && d.get('last', 0) > old;
     }
 
     // Publiserte versjoner er låst: bare en godkjenner kan publisere eller endre dem.
@@ -585,7 +650,8 @@ service cloud.firestore {
       }
 
       match /isoFindingsRestricted/{id} {
-        allow get: if isoMember(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data));
+        // Et dokument som ikke finnes, kan sjekkes (ny sak lagres i en transaksjon som leser først).
+        allow get: if isoMember(familyId, 1) && (resource == null || isRestrictedListed(familyId) || involved(resource.data));
         allow list: if isoMemberLite(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data));
         allow create: if isoMember(familyId, 1)
           && request.resource.data.get('restricted', false) == true
@@ -699,10 +765,21 @@ service cloud.firestore {
         allow get: if isoMember(familyId, 1);
         allow list: if isoMemberLite(familyId, 1);
         allow create: if isoMember(familyId, 2) && request.resource.data.get('locked', false) != true;
-        allow update: if (isoMember(familyId, 2) && isoApprover(familyId))
+        // Vedtak merket utført sjekkes først: det er billig, og reglene tåler bare 1000 uttrykk per skriving.
+        allow update: if (isoMember(familyId, 1) && decisionDone(familyId))
+          || (isoMember(familyId, 2) && isoApprover(familyId))
           || (isoMember(familyId, 2)
               && resource.data.get('locked', false) != true
               && request.resource.data.get('locked', false) != true);
+        allow delete: if false;
+      }
+
+      // Teller for saksnummer per serie og år (AVV-2026). Nummeret tildeles i samme transaksjon som saken lagres.
+      match /isoCounters/{series} {
+        allow get: if isoMember(familyId, 1);
+        allow list: if false;
+        allow create: if isoMember(familyId, 1) && isoCounterOk(0);
+        allow update: if isoMember(familyId, 1) && isoCounterOk(resource.data.get('last', 0));
         allow delete: if false;
       }
 

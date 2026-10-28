@@ -5,7 +5,7 @@ import { prettyDate, todayKey } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, riskLevel } from '../../src/iso/catalog';
 import {
   AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
-  competenceGaps, competenceMatrix, createRecord, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
+  competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
   cleanContacts, contactsLabel, personsLabel, registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
@@ -32,9 +32,10 @@ export const STATE_LABEL = {
 };
 
 /** Knappetekst for statusskifte. «Arkivert» som knapp så ut som en merkelapp, ikke en handling. */
-function stateAction(next, current, first) {
+function stateAction(next, current, first, locked = false) {
   if (next === 'arkivert') return { label: 'Arkiver', icon: 'archive-outline' };
   if (current === 'arkivert' && next === first) return { label: 'Gjenopprett', icon: 'arrow-undo-outline' };
+  if (locked && !['godkjent', 'oppfolging', 'lukket'].includes(next)) return { label: `Opphev godkjenning: ${(STATE_LABEL[next] || next).toLowerCase()}`, icon: 'lock-open-outline' };
   return { label: STATE_LABEL[next] || next };
 }
 
@@ -256,11 +257,11 @@ function RecordDetail({ ctx, record, onClose, children }) {
           return <KV key={f.key} label={f.label} value={value} />;
         })}
         {children}
-        {caps.manage && !record.locked ? (
+        {caps.manage && (!record.locked || caps.approve) ? (
           <>
             <Row>
-              <Btn icon="create-outline" label="Rediger" onPress={() => setEdit(true)} />
-              {record.needsReview ? (
+              {!record.locked ? <Btn icon="create-outline" label="Rediger" onPress={() => setEdit(true)} /> : null}
+              {record.needsReview && !record.locked ? (
                 <Btn
                   small
                   icon="checkmark-done-outline"
@@ -274,11 +275,16 @@ function RecordDetail({ ctx, record, onClose, children }) {
                 />
               ) : null}
               {def.states.filter((s) => s !== record.state).map((s) => {
-                const a = stateAction(s, record.state, def.states[0]);
+                const a = stateAction(s, record.state, def.states[0], record.locked);
                 return <Btn key={s} small icon={a.icon} label={a.label} onPress={() => state(s)} />;
               })}
             </Row>
-            <TextIn value={note} onChangeText={setNote} placeholder="Merknad til statusendring" />
+            <TextIn value={note} onChangeText={setNote} placeholder={record.locked ? 'Begrunnelse (påkrevd for å oppheve godkjenningen)' : 'Merknad til statusendring'} />
+            {record.locked ? (
+              <Text style={{ color: colors.muted, fontSize: 12 }}>
+                Posten er godkjent og låst. «Oppfølging» og «Lukket» beholder låsen. Å gå tilbake til en tidligere status opphever godkjenningen, og posten må godkjennes på nytt.
+              </Text>
+            ) : null}
             {def.states.includes('arkivert') ? (
               <Text style={{ color: colors.muted, fontSize: 12 }}>
                 {record.state === 'arkivert'
@@ -1140,7 +1146,7 @@ export function AuditPage({ ctx }) {
               {f.findingId ? <Btn small label="Åpne avvikssak" onPress={() => go('avvik', { open: f.findingId })} /> : null}
             </View>
           ))}
-          {caps.manage && !['godkjent', 'lukket', 'avlyst'].includes(reg.open.state) ? (
+          {caps.manage && !reg.open.locked && !['godkjent', 'lukket', 'avlyst'].includes(reg.open.state) ? (
             <>
               <Field label="Klassifisering"><Choice options={AUDIT_FINDING_CLASSES} value={af.classification} onChange={(x) => setAf({ ...af, classification: x || 'avvik' })} /></Field>
               <Field label="Funn" required><TextIn multiline value={af.description} onChangeText={(x) => setAf({ ...af, description: x })} /></Field>
@@ -1210,12 +1216,26 @@ export function ReviewPage({ ctx }) {
           ) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ikke hentet.</Text>}
           {caps.manage && !reg.open.locked ? <Btn icon="download-outline" label={s ? 'Hent grunnlag på nytt' : 'Hent grunnlag'} onPress={snapshot} /> : null}
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Vedtak</Text>
-          {(reg.open.decisions || []).map((x) => (
-            <Row key={x.id}>
-              <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{x.done ? '✓ ' : ''}{x.decision} · {x.ownerName} · {prettyDate(x.dueAt)}</Text>
-              {!x.done && caps.manage ? <Btn small label="Utført" onPress={async () => { const r = markDecisionDone(reg.open, x.id, { actor }); await store.commit('records', 'record', r, { previous: reg.open }); }} /> : null}
-            </Row>
-          ))}
+          {(reg.open.decisions || []).map((x) => {
+            // Ansvarlig kan merke vedtaket utført også når referatet er godkjent og låst.
+            const mine = !!x.ownerUid && x.ownerUid === actor.uid;
+            const inTasks = !x.done && decisionCompleted(x, store.tasks);
+            return (
+              <Row key={x.id}>
+                <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{x.done ? '✓ ' : ''}{x.decision} · {x.ownerName} · {prettyDate(x.dueAt)}{x.done && x.doneBy ? ` · utført ${prettyDate(x.doneAt)} av ${x.doneBy}` : ''}</Text>
+                {inTasks ? <Pill label="Ferdig i Oppgaver" icon="checkbox-outline" tone="ok" /> : null}
+                {!x.done && (caps.manage || mine) ? (
+                  <Btn small label="Utført" onPress={async () => {
+                    setErr('');
+                    const r = markDecisionDone(reg.open, x.id, { actor, caps });
+                    if (!r.ok) { setErr(r.error); return; }
+                    const saved = await store.commit('records', 'record', r, { previous: reg.open, effects: x.taskKey ? [{ type: 'completeTask', key: x.taskKey }] : [] });
+                    if (!saved.ok) setErr(saved.error);
+                  }} />
+                ) : null}
+              </Row>
+            );
+          })}
           {caps.manage && !reg.open.locked ? (
             <>
               <Field label="Vedtak" required><TextIn multiline rows={2} value={d.decision} onChangeText={(x) => setD({ ...d, decision: x })} /></Field>

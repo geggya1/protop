@@ -170,6 +170,27 @@ export function severityLabel(id) {
   return SEVERITIES.find((row) => row.id === id)?.label || '–';
 }
 
+/**
+ * Skadeklasse for HMS-hendelser (melderens vurdering, kan endres i triage).
+ * serious = mulig meldeplikt til Arbeidstilsynet og politiet (aml § 5-2).
+ */
+export const INJURY_CLASSES = [
+  { id: 'ingen', label: 'Ingen personskade' },
+  { id: 'forstehjelp', label: 'Førstehjelp' },
+  { id: 'medisinsk', label: 'Medisinsk behandling' },
+  { id: 'fravaer', label: 'Skade med fravær' },
+  { id: 'alvorlig', label: 'Alvorlig personskade', serious: true },
+  { id: 'dodsfall', label: 'Dødsfall', serious: true },
+];
+
+export function injuryClassLabel(id) {
+  return INJURY_CLASSES.find((row) => row.id === id)?.label || '';
+}
+
+export function seriousInjury(id) {
+  return !!INJURY_CLASSES.find((row) => row.id === id)?.serious;
+}
+
 export const FINDING_STATES = [
   { id: 'registrert', label: 'Registrert', step: 0 },
   { id: 'triage', label: 'Triage', step: 1 },

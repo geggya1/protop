@@ -8,11 +8,11 @@
  */
 import { addDays, isoDate, lastMonths, monthKey, text, todayKey, uniq } from './core.js';
 import { NORWEGIAN_OBLIGATIONS, STANDARDS } from './catalog.js';
-import { isOpenFinding, openActions } from './findings.js';
+import { isOpenFinding, notificationTaskKey, openActions, urgentTriage } from './findings.js';
 import { normalizeDiagram, versionOf } from './processes.js';
 import { documentsDueForReview } from './documents.js';
 import { matrixRows, requirementIdsForArea } from './requirements.js';
-import { competenceMatrix, createRecord, overdueRecords } from './registers.js';
+import { competenceMatrix, createRecord, decisionCompleted, overdueRecords } from './registers.js';
 import { usableForms, templateIdFor } from './forms.js';
 import { annualTaskEffects } from './planning.js';
 
@@ -423,6 +423,53 @@ export function autoAssignee(system, type) {
   return pick?.name ? { name: pick.name, uid: pick.uid || '' } : null;
 }
 
+const NOTIFY_TEXT = 'Mulig meldeplikt. Alvorlig personskade eller dødsfall: ring 113 og varsle Arbeidstilsynet og politiet straks (aml § 5-2). '
+  + 'ProTop melder ikke selv til myndighetene. Bekreft i ISO → Avvik og forbedring når varslingen er vurdert eller utført.';
+
+/** Oppgaven til den som sørger for varsling til myndighet (frist samme dag). Tom liste uten meldeplikt eller uten innlogging. */
+export function notificationTaskEffects(finding) {
+  const key = notificationTaskKey(finding);
+  if (!finding?.authorityNotificationRequired || !key) return [];
+  return [{
+    type: 'createTask',
+    key,
+    title: `Mulig meldeplikt – vurder varsling til myndighet: ${finding.number} ${finding.title}`,
+    assigneeUid: finding.notificationAssigneeUid,
+    deadline: finding.notificationDue || finding.triageDue || null,
+    description: NOTIFY_TEXT,
+    push: true,
+  }];
+}
+
+/**
+ * Oppgaver og varsler når en sak meldes. Behandler får oppgave med triagefristen.
+ * Mulig meldeplikt eller alvorlig skade: oppgaven varsles straks, den som skal varsle myndighet
+ * får egen oppgave med frist samme dag, og HMS-leder og øverste ledelse får varsel.
+ */
+export function newFindingEffects(finding, system) {
+  if (!finding?.id) return [];
+  const roles = system?.roleMap || {};
+  const urgent = urgentTriage(finding);
+  const out = [];
+  if (finding.assigneeUid) {
+    out.push({ type: 'createTask', key: `iso_${finding.id}_triage`, title: `Behandle ${finding.number}: ${finding.title}`, assigneeUid: finding.assigneeUid, deadline: finding.triageDue, ...(urgent ? { push: true } : {}) });
+  }
+  out.push(...notificationTaskEffects(finding));
+  if (urgent) {
+    const told = new Set(out.map((e) => e.assigneeUid).filter(Boolean));
+    const uids = uniq([roles.hse_manager?.uid, roles.top_management?.uid]).filter((uid) => !told.has(uid));
+    if (uids.length) {
+      out.push({
+        type: 'push',
+        uids,
+        title: finding.authorityNotificationRequired ? 'Mulig meldeplikt' : 'Alvorlig hendelse meldt',
+        body: `${finding.number} ${finding.title}`,
+      });
+    }
+  }
+  return out;
+}
+
 /* ───────────────────────── Modenhet / neste steg ───────────────────────── */
 
 /**
@@ -463,7 +510,7 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
  * kravvurderinger, leverandørevalueringer, risiko-/aspektrevurderinger, utløpt kompetanse,
  * øvelser og vedtak. Nøkkelen inneholder fristen, så hver frist gir én oppgave (idempotent).
  */
-export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
+export function autoTaskEffects(state, { now = new Date(), people = [], tasks = null } = {}) {
   const roles = state.system?.roleMap || {};
   const owner = (name, uid) => ({ assigneeUid: uid || '', who: name || '' });
   const qm = roles.quality_manager || roles.system_owner || {};
@@ -485,8 +532,9 @@ export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
       push(`comp_${row.person.id || row.person.name}_${cell.requirement.id}_${cell.record?.validTo || ''}`, `Fornye kompetanse «${cell.requirement.title}» for ${row.person.name}`, todayKey(now), qm);
     }
   }
+  // Vedtak som er ferdig i Oppgaver (tasks = status lest fra Oppgaver), gir ingen påminnelse.
   for (const l of state.records.ledelse || []) {
-    for (const d of l.decisions || []) if (!d.done && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
+    for (const d of l.decisions || []) if (!decisionCompleted(d, tasks) && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
   }
   // Årshjulet: aktiviteter merket «Lag oppgave» blir oppgave når måneden starter.
   return [...out, ...annualTaskEffects(state, { now }), ...escalationEffects(state, now)];

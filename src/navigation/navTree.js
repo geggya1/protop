@@ -170,6 +170,14 @@ export function collapsedNavItems(sections) {
   return { main, company };
 }
 
+/**
+ * Bakgrunnen til sidemenyen på PC: litt grå i lyst (sunken), kortfarge i mørkt, så både
+ * vanlig og dempet menytekst har minst 4,5:1 (UX-05). Skuffen og Meny-siden bruker kortfargen.
+ */
+export function railBackground(colors, scheme = 'light') {
+  return scheme === 'dark' ? colors.card : colors.sunken;
+}
+
 /** Utfører et menyvalg likt i alle menyene. */
 export function runNavAction(action, { onSelectTab, navigate } = {}) {
   if (!action) return false;

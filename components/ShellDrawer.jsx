@@ -182,19 +182,19 @@ export default function ShellDrawer({
             },
           ]}
         >
-          <View style={styles.drawerHead}>
+          <View style={[styles.drawerHead, { borderBottomColor: colors.line }]}>
             <View style={styles.logoRow}>
               <BrandLogo variant="full" tone={logoTone} height={40} maxWidth={180} style={styles.logo} />
               <TouchableOpacity
                 onPress={handleClose}
-                style={styles.closeBtn}
+                style={[styles.closeBtn, { backgroundColor: colors.bg }]}
                 accessibilityLabel="Lukk"
               >
                 <Ionicons name="close" size={18} color={colors.muted} />
               </TouchableOpacity>
             </View>
             {asParent || asChild ? (
-              <Text style={styles.hint}>Apper er gruppert — trykk en mappe for å åpne</Text>
+              <Text style={[styles.hint, { color: colors.muted }]}>Apper er gruppert — trykk en mappe for å åpne</Text>
             ) : null}
           </View>
 

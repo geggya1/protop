@@ -72,6 +72,7 @@ import NavTree, { useNavTreeState } from '../../components/NavTree';
 import { useNavTree } from '../../src/hooks/useNavTree';
 import { navSections } from '../../src/navigation/navTree';
 import { Card } from '../../src/ui';
+import { useColors } from '../../src/context/ThemeContext';
 import { space } from '../../src/ui/tokens';
 
 function Row({
@@ -230,6 +231,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
   const companyModules = useCompanyModules();
   const { unreadByModule } = useUnread();
   // Meny-siden i docken viser samme meny som skuffen og sidemenyen (UX-22).
+  const palette = useColors();
   const navTree = useNavTree();
   const navState = useNavTreeState(navTree, 'more', subView || null);
   const navShown = useMemo(() => navSections(navTree), [navTree]);
@@ -410,7 +412,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
       <Screen>
         <ScrollBody pad={pad}>
           <Card style={styles.navCard}>
-            <Text style={styles.intro}>{hasRail ? t('moreHub.railIntro') : t('moreHub.phoneIntro')}</Text>
+            <Text style={[styles.intro, { color: palette.muted }]}>{hasRail ? t('moreHub.railIntro') : t('moreHub.phoneIntro')}</Text>
             <View nativeID="more-nav-tree">
               <NavTree
                 variant="drawer"

@@ -37,6 +37,23 @@ function groupIcon(item, containsActive) {
   return base.endsWith('-outline') ? base : `${base}-outline`;
 }
 
+/**
+ * Farger fra useColors() i lyst og mørkt. Stilarkene under har bare oppsett (og lyse reserver),
+ * så menyen ikke blir lys med lys tekst i mørk modus.
+ */
+function paint(colors) {
+  return {
+    title: { color: colors.ink },
+    titleOn: { color: colors.brandInk },
+    muted: { color: colors.muted },
+    line: { borderTopColor: colors.line },
+    well: { backgroundColor: colors.bg },
+    wellOn: { backgroundColor: colors.card },
+    appSection: { backgroundColor: colors.card, borderColor: colors.line },
+    appHead: { backgroundColor: colors.sunken },
+  };
+}
+
 /** Hvilke grupper og undermenyer som er åpne. Bor hos menyen, så valgene står mens den er i bruk. */
 export function useNavTreeState(sections, activeTab, activeSubView) {
   const [open, setOpen] = useState({});
@@ -62,6 +79,7 @@ export function NavRow({
   expanded = false, onToggle,
 }) {
   const colors = useColors();
+  const tone = useMemo(() => paint(colors), [colors]);
   const rail = variant === 'rail';
   const s = rail ? railStyles : drawerStyles;
   const highlight = !rail && !!item.highlight;
@@ -86,7 +104,7 @@ export function NavRow({
         {...(Platform.OS === 'web' ? { dataSet: { moduleLocked: '1' }, title: `${item.label} – ${note}` } : null)}
       >
         <View style={s.rowMain}>
-          {rail ? icon : <View style={s.iconWrap}>{icon}</View>}
+          {rail ? icon : <View style={[s.iconWrap, tone.well]}>{icon}</View>}
           {collapsed ? null : (
             <View style={s.lockedText}>
               <Text style={[s.rowLabel, { color: colors.muted }]} numberOfLines={1}>{item.label}</Text>
@@ -108,7 +126,7 @@ export function NavRow({
       count={badgeCount}
       size={rail ? 13 : 14}
       offset={rail ? -5 : -6}
-      {...(rail ? null : { borderColor: highlight ? colors.brandInk : '#fff' })}
+      {...(rail ? null : { borderColor: highlight ? colors.brandInk : colors.card })}
     >
       {icon}
     </IconBadge>
@@ -134,7 +152,7 @@ export function NavRow({
         {...(Platform.OS === 'web' && rail ? { dataSet: { wpNav: '1', wpNavActive: active ? '1' : '0' } } : null)}
       >
         {rail ? badge : (
-          <View style={[s.iconWrap, active && s.iconWrapActive, highlight && s.iconWrapHighlight]}>
+          <View style={[s.iconWrap, tone.well, active && tone.wellOn, highlight && s.iconWrapHighlight]}>
             {badge}
           </View>
         )}
@@ -142,7 +160,9 @@ export function NavRow({
           <Text
             style={[
               s.rowLabel,
+              tone.title,
               active && s.rowLabelActive,
+              active && tone.titleOn,
               highlight && { color: colors.onBrand },
             ]}
             numberOfLines={1}
@@ -157,7 +177,7 @@ export function NavRow({
             event?.stopPropagation?.();
             onToggle();
           }}
-          style={[s.expandBtn, highlight && s.expandBtnHighlight]}
+          style={[s.expandBtn, tone.well, highlight && s.expandBtnHighlight]}
           accessibilityRole="button"
           accessibilityLabel={`${expanded ? 'Skjul' : 'Vis'} undermeny, ${item.label}`}
           accessibilityState={{ expanded: !!expanded }}
@@ -193,6 +213,7 @@ export default function NavTree({
   rowRef,
 }) {
   const colors = useColors();
+  const tone = useMemo(() => paint(colors), [colors]);
   const rail = variant === 'rail';
   const s = rail ? railStyles : drawerStyles;
   const searching = !!String(query || '').trim();
@@ -238,7 +259,7 @@ export default function NavTree({
     const expanded = searching || drawerGroupOpen(item, activeTab, groupOpen, activeSubView);
     const containsActive = (item.children || []).some((child) => isActive(child));
     return (
-      <View key={item.id} style={[s.groupBlock, index === 0 && s.groupBlockFirst]}>
+      <View key={item.id} style={[s.groupBlock, tone.line, index === 0 && s.groupBlockFirst]}>
         <TouchableOpacity
           style={[s.groupHead, containsActive && { backgroundColor: colors.brandSoft }]}
           onPress={() => setGroupOpen((prev) => ({
@@ -251,14 +272,14 @@ export default function NavTree({
           nativeID={`module-nav-${item.id}`}
           {...(Platform.OS === 'web' && !rail ? { id: `module-nav-${item.id}` } : null)}
         >
-          <View style={[s.groupIconWrap, containsActive && s.groupIconWrapActive]}>
+          <View style={[s.groupIconWrap, tone.well, containsActive && tone.wellOn]}>
             <Ionicons
               name={groupIcon(item, containsActive)}
               size={rail ? 14 : 16}
               color={containsActive ? colors.brand : colors.ink}
             />
           </View>
-          <Text style={[s.groupTitle, containsActive && s.groupTitleActive]} numberOfLines={2}>
+          <Text style={[s.groupTitle, tone.title, containsActive && tone.titleOn]} numberOfLines={2}>
             {item.label}
           </Text>
           <Ionicons
@@ -295,14 +316,14 @@ export default function NavTree({
     if (section.heading && section.foldable) {
       head = (
         <TouchableOpacity
-          style={[s.sectionHead, section.appFolder && s.appSectionHead]}
+          style={[s.sectionHead, section.appFolder && s.appSectionHead, section.appFolder && tone.appHead]}
           onPress={() => setOpen((prev) => ({ ...prev, [section.id]: !expanded }))}
           accessibilityRole="button"
           accessibilityState={{ expanded }}
           accessibilityLabel={`${section.heading}, ${expanded ? 'åpen' : 'lukket'}`}
           {...(Platform.OS === 'web' && rail ? { dataSet: { wpSection: '1' } } : null)}
         >
-          <Text style={[s.sectionTitle, s.sectionTitleFold, section.appFolder && s.appSectionTitle]}>
+          <Text style={[s.sectionTitle, tone.muted, s.sectionTitleFold, section.appFolder && s.appSectionTitle, section.appFolder && tone.title]}>
             {section.heading}
           </Text>
           <View style={s.sectionRight}>
@@ -320,12 +341,18 @@ export default function NavTree({
         </TouchableOpacity>
       );
     } else if (section.heading) {
-      head = <Text style={[s.sectionTitle, s.sectionTitlePlain]} accessibilityRole="header">{section.heading}</Text>;
+      head = <Text style={[s.sectionTitle, tone.muted, s.sectionTitlePlain]} accessibilityRole="header">{section.heading}</Text>;
     }
     return (
       <View
         key={section.id}
-        style={[s.section, section.appFolder && s.appSection, section.id === 'company' && s.companySection]}
+        style={[
+          s.section,
+          section.appFolder && s.appSection,
+          section.appFolder && tone.appSection,
+          section.id === 'company' && s.companySection,
+          section.id === 'company' && tone.line,
+        ]}
       >
         {head}
         {expanded ? (section.items || []).map(renderGroup) : null}

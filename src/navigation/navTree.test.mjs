@@ -8,8 +8,10 @@ import {
   navSectionExpanded,
   navSections,
   navTreeInput,
+  railBackground,
   runNavAction,
 } from './navTree.js';
+import { DARK, LIGHT } from '../appearance/palette.js';
 import { COMPANY_DRAWER_GROUPS } from './shellModules.js';
 import { standardGrants } from '../access/companyAccess.js';
 import { setCompanyModuleActive } from '../access/companyModules.js';
@@ -212,4 +214,36 @@ test('sidemenyen, skuffen og Meny-siden tegner menyen med NavTree, ikke hver for
   assert.match(tree, /drawerGroupOpen/);
   assert.match(tree, /module-nav-expand-/);
   assert.match(tree, /navSectionExpanded/);
+});
+
+// WCAG 2.x: menyteksten skal ha minst 4,5:1 i lyst og mørkt (UX-05: sidemenyen var lys med lys tekst i mørk modus).
+function luminance(hex) {
+  const h = String(hex).replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
+    .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a, b) {
+  const x = luminance(a);
+  const y = luminance(b);
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+test('menyteksten har minst 4,5:1 i lyst og mørkt, på PC og telefon', () => {
+  for (const [scheme, pal] of [['light', LIGHT], ['dark', DARK]]) {
+    const surfaces = { sidemeny: railBackground(pal, scheme), skuff: pal.card };
+    for (const [where, surface] of Object.entries(surfaces)) {
+      for (const key of ['ink', 'muted']) {
+        const ratio = contrast(pal[key], surface);
+        assert.ok(ratio >= 4.5, `${scheme} ${where}: ${key} ${pal[key]} på ${surface} gir ${ratio.toFixed(2)}:1`);
+      }
+    }
+    const active = contrast(pal.brandInk, pal.brandSoft);
+    assert.ok(active >= 4.5, `${scheme}: aktiv rad brandInk på brandSoft gir ${active.toFixed(2)}:1`);
+  }
+  const tree = readFileSync(new URL('../../components/NavTree.jsx', import.meta.url), 'utf8');
+  assert.match(tree, /function paint\(colors\)/, 'NavTree farger fra useColors()');
+  const shell = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
+  assert.match(shell, /railBackground\(colors, appearance\.scheme\)/, 'sidemenyens bakgrunn følger lyst og mørkt');
 });

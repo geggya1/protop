@@ -8,7 +8,9 @@ import { useApp } from '../src/context/AppContext';
 import { colors } from '../src/theme';
 import { useColors } from '../src/context/ThemeContext';
 import { isNavItemActive } from '../src/navigation/shellModules';
-import { collapsedNavItems, navSections, runNavAction } from '../src/navigation/navTree';
+import { collapsedNavItems, navSections, railBackground, runNavAction } from '../src/navigation/navTree';
+import { useAppearance } from '../src/appearance/AppearanceContext';
+import { brandLogoToneForBackground } from '../src/brand/brandLogoTone';
 import { useNavTree } from '../src/hooks/useNavTree';
 import { useChatDockPreferred } from '../src/context/ChatDockContext';
 import NavTree, { NavRow, useNavTreeState } from './NavTree';
@@ -31,6 +33,9 @@ export default function DesktopRail({
 }) {
   const nav = useNavigation();
   const colors = useColors();
+  const { scheme } = useAppearance();
+  // Hvit logo når sidemenyen er mørk, som i skuffen.
+  const logoTone = brandLogoToneForBackground(railBackground(colors, scheme));
   const searchRef = useRef(null);
   const [query, setQuery] = useState('');
   const { family } = useApp();
@@ -61,7 +66,7 @@ export default function DesktopRail({
     const isItemActive = (item) => isNavItemActive(item, activeTab, activeSubView);
     return (
       <HelpTarget id="rail" style={styles.collapsedWrap}>
-        <BrandLogo variant="mark" height={36} style={styles.brandMarkImg} />
+        <BrandLogo variant="mark" tone={logoTone} height={36} style={styles.brandMarkImg} />
         <ScrollView contentContainerStyle={styles.collapsedList} showsVerticalScrollIndicator={false}>
           {main.map((item) => (
             <NavRow
@@ -74,7 +79,7 @@ export default function DesktopRail({
               onPress={() => runAction(item.action)}
             />
           ))}
-          {company.length ? <View style={styles.collapsedDivider} /> : null}
+          {company.length ? <View style={[styles.collapsedDivider, { backgroundColor: colors.line }]} /> : null}
           {company.map((item) => (
             <NavRow
               key={item.id}
@@ -101,10 +106,10 @@ export default function DesktopRail({
 
   return (
     <HelpTarget id="rail" style={styles.wrap}>
-      <BrandLogo variant="full" height={52} maxWidth={200} style={styles.brandLogo} />
-      <Text style={styles.fam} numberOfLines={1}>{companyDisplayName(family, 'Familien')}</Text>
+      <BrandLogo variant="full" tone={logoTone} height={52} maxWidth={200} style={styles.brandLogo} />
+      <Text style={[styles.fam, { color: colors.muted }]} numberOfLines={1}>{companyDisplayName(family, 'Familien')}</Text>
 
-      <View dataSet={{ focusWithin: '1' }} style={styles.searchWrap}>
+      <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Ionicons name="search" size={14} color={colors.muted} />
         <TextInput
           ref={searchRef}
@@ -112,7 +117,7 @@ export default function DesktopRail({
           onChangeText={setQuery}
           placeholder="Søk…"
           placeholderTextColor={colors.muted}
-          style={[styles.searchInput, Platform.OS === 'web' && { outlineStyle: 'none' }]}
+          style={[styles.searchInput, { color: colors.ink }, Platform.OS === 'web' && { outlineStyle: 'none' }]}
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
@@ -137,7 +142,7 @@ export default function DesktopRail({
           onAction={(item) => runAction(item.action)}
         />
         {query.trim() && shown.length === 0 ? (
-          <Text style={styles.empty}>Ingen treff</Text>
+          <Text style={[styles.empty, { color: colors.muted }]}>Ingen treff</Text>
         ) : null}
       </ScrollView>
 
@@ -149,7 +154,7 @@ export default function DesktopRail({
         {...(Platform.OS === 'web' ? { dataSet: { wpNav: '1' } } : null)}
       >
         <Ionicons name="chevron-back" size={14} color={colors.muted} />
-        <Text style={styles.collapseTxt}>Kollaps</Text>
+        <Text style={[styles.collapseTxt, { color: colors.muted }]}>Kollaps</Text>
       </TouchableOpacity>
     </HelpTarget>
   );

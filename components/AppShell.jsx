@@ -61,6 +61,8 @@ import { SHELL_TABS } from './ShellTabBar';
 import ShellHeader, { ShellPageHeroContext, ShellTitleRightContext } from './ShellHeader';
 import ShellDrawer from './ShellDrawer';
 import DesktopRail from './DesktopRail';
+import { useAppearance } from '../src/appearance/AppearanceContext';
+import { railBackground } from '../src/navigation/navTree';
 import BrandLogo from './BrandLogo';
 import EdgeSwipeBack from './EdgeSwipeBack';
 import IconBadge from './IconBadge';
@@ -189,6 +191,7 @@ function AppShellInner() {
   const route = useOptionalRoute();
   const { t } = useI18n();
   const colors = useColors();
+  const appearance = useAppearance();
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
   const { highChildFriendliness } = useThemeMeta();
@@ -1051,6 +1054,8 @@ function AppShellInner() {
               backgroundColor: colors.card,
             },
             isDesktop && styles.railDesktop,
+            // Sidemenyen på PC følger lyst og mørkt (UX-05/UX-22).
+            isDesktop && { backgroundColor: railBackground(colors, appearance.scheme) },
           ]}
           >
             {isDesktop ? (

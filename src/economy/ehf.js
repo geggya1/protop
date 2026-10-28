@@ -26,9 +26,30 @@ function orgDigits(orgnr) {
  */
 const FORETAK_FORMS = new Set(['AS', 'ASA', 'ANS', 'DA', 'SA', 'BA', 'KS', 'NUF', 'SE', 'PRE', 'SF']);
 
+/** Selskapsprofilen fra Brønnøysund har ofte beskrivelsen («Aksjeselskap»), ikke koden. */
+const FORM_CODES = {
+  aksjeselskap: 'AS',
+  allmennaksjeselskap: 'ASA',
+  'ansvarlig selskap med solidarisk ansvar': 'ANS',
+  'ansvarlig selskap med delt ansvar': 'DA',
+  'selskap med delt ansvar': 'DA',
+  samvirkeforetak: 'SA',
+  'selskap med begrenset ansvar': 'BA',
+  kommandittselskap: 'KS',
+  'norskregistrert utenlandsk foretak': 'NUF',
+  'europeisk selskap': 'SE',
+  partsrederi: 'PRE',
+  statsforetak: 'SF',
+};
+
 function flag(value) {
   if (value === true || value === false) return value;
   return null;
+}
+
+function formCode(company) {
+  const raw = text(company?.organisasjonsformKode || company?.organisasjonsform?.kode || company?.organisasjonsform);
+  return FORM_CODES[raw.toLowerCase()] || raw.toUpperCase();
 }
 
 export function supplierFromCompany(company, fallbackName = '') {
@@ -36,10 +57,10 @@ export function supplierFromCompany(company, fallbackName = '') {
   const street = Array.isArray(addr?.lines) && addr.lines.length
     ? addr.lines.filter(Boolean).join(', ')
     : text(addr?.label || company?.addressLabel);
-  const form = text(company?.organisasjonsformKode || company?.organisasjonsform?.kode || company?.organisasjonsform).toUpperCase();
-  const foretak = flag(company?.foretak) ?? flag(company?.registrertIForetaksregisteret) ?? FORETAK_FORMS.has(form);
-  // Bedrifter som fakturerer med mva er mva-registrert. Står det eksplisitt nei, følges det.
-  const vat = flag(company?.mva) ?? flag(company?.registrertIMvaregisteret) ?? flag(company?.vatRegistered) ?? true;
+  const foretak = flag(company?.foretak) ?? flag(company?.registrertIForetaksregisteret) ?? FORETAK_FORMS.has(formCode(company));
+  // «MVA» etter org.nr. bare når registreringen er kjent (Brønnøysund eller valgt i profilen).
+  // Ukjent er null: da stopper fakturakontrollen linjer med mva til registreringen er hentet.
+  const vat = flag(company?.mva) ?? flag(company?.registrertIMvaregisteret) ?? flag(company?.vatRegistered);
   return {
     name: text(company?.navn) || text(fallbackName) || 'Selskap',
     orgnr: text(company?.organisasjonsnummer).replace(/\s/g, ''),
@@ -301,7 +322,9 @@ export function buildEhfXml(invoice, { supplier = {}, attachments = [] } = {}) {
     || (text(invoice.orderReference) ? '' : text(invoice.customerContact) || text(invoice.projectNumber) || invoiceId);
   const addr = invoice.customerAddress || {};
   const vatOutside = (totals.groups || []).some((g) => (g.category || taxCategory(g.vatCode, g.vatPercent)) === 'O');
-  const supplierVat = supplier.vatRegistered !== false && !vatOutside ? `NO${supplierOrgnr}MVA` : '';
+  // Uten periode er fakturadatoen leveringsdato, som på PDF-en (bokføringsforskriften § 5-1-1).
+  const deliveryDate = text(invoice.periodEnd) || text(invoice.periodStart) || (credit ? '' : issueDate);
+  const supplierVat = supplier.vatRegistered === true && !vatOutside ? `NO${supplierOrgnr}MVA` : '';
   const notes = [text(invoice.invoiceText), credit && text(invoice.creditReason) ? `Årsak: ${text(invoice.creditReason)}` : '']
     .filter(Boolean)
     .map((note) => `
@@ -362,9 +385,9 @@ export function buildEhfXml(invoice, { supplier = {}, attachments = [] } = {}) {
     companyId: customerOrgnr,
     contact: { name: invoice.customerContact, email: invoice.customerEmail },
   })}
-  </cac:AccountingCustomerParty>${text(invoice.periodEnd) ? `
+  </cac:AccountingCustomerParty>${deliveryDate ? `
   <cac:Delivery>
-    <cbc:ActualDeliveryDate>${esc(invoice.periodEnd)}</cbc:ActualDeliveryDate>
+    <cbc:ActualDeliveryDate>${esc(deliveryDate)}</cbc:ActualDeliveryDate>
   </cac:Delivery>` : ''}${credit ? '' : `
   <cac:PaymentMeans>
     <cbc:PaymentMeansCode>30</cbc:PaymentMeansCode>${kid ? `

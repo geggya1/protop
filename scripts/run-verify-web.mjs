@@ -63,6 +63,7 @@ export const FILES = [
   'src/economy/invoiceEngine.test.mjs',
   'src/economy/invoiceAccounts.test.mjs',
   'src/economy/invoiceDocs.test.mjs',
+  'src/economy/invoiceContent.test.mjs',
   'functions/invoiceDelivery.test.mjs',
   'src/anbud/customerReport.test.mjs',
   'src/anbud/customers.test.mjs',

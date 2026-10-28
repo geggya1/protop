@@ -264,22 +264,36 @@ export async function addChildMember({
     createdAt: now,
     updatedAt: now,
   };
-  await Promise.all([
-    setDoc(doc(db, 'families', familyId, 'children', uid), payload, { merge: true }).catch(() => {}),
-    setDoc(doc(db, 'children', uid), payload, { merge: true }).catch(() => {}),
-    setDoc(doc(db, 'users', uid), {
+  // Rekkefølgen følger reglene: barnets speilprofil (children/{uid}) gjør den som legger til
+  // barnet til foresatt, så barneprofilen (users/{uid}, role: child) kan lages. Medlemsdokumentet
+  // og medlemslistene skrives i samme batch, så barnet enten er med i gruppen eller ikke.
+  try {
+    await setDoc(doc(db, 'children', uid), payload, { merge: true });
+    await setDoc(doc(db, 'users', uid), {
       uid, role: 'child', displayName: name.trim(), username: uname, usernameLower: uname,
       email: payload.email || authEmail, phone: phone || '', birthday, age, gender, location, photoURL, avatarId,
       createdAt: now, updatedAt: now,
-    }, { merge: true }).catch(() => {}),
-  ]);
-  // LIST of chats/messages requires members[] / activeUsers (isFamilyMemberLite).
-  // Do not swallow — orphaned children get push/inbox but an empty message thread.
-  await updateDoc(doc(db, 'families', familyId), {
-    members: arrayUnion(uid),
-    activeUsers: arrayUnion(uid),
-    updatedAt: now,
-  });
+    }, { merge: true });
+    // LIST of chats/messages requires members[] / activeUsers (isFamilyMemberLite).
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'families', familyId, 'children', uid), payload, { merge: true });
+    batch.update(doc(db, 'families', familyId), {
+      members: arrayUnion(uid),
+      activeUsers: arrayUnion(uid),
+      updatedAt: now,
+    });
+    await batch.commit();
+  } catch (cause) {
+    // Ikke la en barnekonto bli liggende halvveis: speilprofil og barneprofil ryddes.
+    // Kontoen og brukernavnet står (bare barnet selv eller serveren kan slette dem).
+    await deleteDoc(doc(db, 'users', uid)).catch(() => {});
+    await setDoc(doc(db, 'children', uid), {
+      deleted: true, active: false, familyId: null, updatedAt: serverTimestamp(),
+    }, { merge: true }).catch(() => {});
+    const error = new Error('child-not-listed');
+    error.cause = cause;
+    throw error;
+  }
   // Passordet settes i Auth via serveren; det lagres ikke i Firestore (SEC-21).
   if (password) {
     await setMemberPassword({ uid, password, familyId }).catch(() => {});

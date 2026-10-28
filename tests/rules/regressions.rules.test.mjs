@@ -160,3 +160,49 @@ describe('REV-02: eier fjerner et barn fra familien', () => {
     await assertFails(setDoc(doc(as('ext'), 'children', 'kid'), { familyId: null }, { merge: true }));
   });
 });
+
+describe('REV-03: medforelder uten admin legger til et barn', () => {
+  const childPayload = (uid) => ({ uid, familyId: F, name: 'Nytt barn', active: true, createdBy: 'far' });
+
+  // addChildMember: speilprofil, barneprofil, så medlemsdokument og medlemslister i én batch.
+  async function addChild(actor, uid, { profile = true } = {}) {
+    const db = as(actor);
+    await setDoc(doc(db, 'children', uid), childPayload(uid), { merge: true });
+    if (profile) await setDoc(doc(db, 'users', uid), { uid, role: 'child', displayName: 'Nytt barn' }, { merge: true });
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'families', F, 'children', uid), childPayload(uid), { merge: true });
+    batch.update(doc(db, 'families', F), { members: arrayUnion(uid), activeUsers: arrayUnion(uid), updatedAt: serverTimestamp() });
+    return batch.commit();
+  }
+
+  test('far legger til et barn han nettopp har laget', async () => {
+    await assertSucceeds(addChild('far', 'kid1'));
+  });
+
+  test('eldre app: medlemsdokument og profiler først, så medlemslistene i en egen skriving', async () => {
+    const db = as('far');
+    await assertSucceeds(setDoc(doc(db, 'families', F, 'children', 'kid2'), childPayload('kid2'), { merge: true }));
+    await assertSucceeds(setDoc(doc(db, 'children', 'kid2'), childPayload('kid2'), { merge: true }));
+    await assertSucceeds(setDoc(doc(db, 'users', 'kid2'), { uid: 'kid2', role: 'child' }, { merge: true }));
+    await assertSucceeds(updateDoc(doc(db, 'families', F), {
+      members: arrayUnion('kid2'), activeUsers: arrayUnion('kid2'), updatedAt: serverTimestamp(),
+    }));
+  });
+
+  test('en voksen konto kan ikke legges til som barn, og bare ett barn om gangen', async () => {
+    const db = as('far');
+    await assertSucceeds(setDoc(doc(db, 'families', F, 'children', 'voksen'), childPayload('voksen'), { merge: true }));
+    await assertFails(updateDoc(doc(db, 'families', F), { members: arrayUnion('voksen') }));
+    await assertFails(addChild('far', 'kid3', { profile: false }));
+    await setDoc(doc(db, 'children', 'kid4'), childPayload('kid4'));
+    await setDoc(doc(db, 'users', 'kid4'), { uid: 'kid4', role: 'child' });
+    await setDoc(doc(db, 'families', F, 'children', 'kid4'), childPayload('kid4'));
+    await assertFails(updateDoc(doc(db, 'families', F), { members: arrayUnion('kid4', 'voksen') }));
+  });
+
+  test('i en bedrift legger ingen ansatte til barn i medlemslistene', async () => {
+    const db = as('bob');
+    await setDoc(doc(db, 'families', A, 'children', 'kidA'), { uid: 'kidA', familyId: A, name: 'Barn' });
+    await assertFails(updateDoc(doc(db, 'families', A), { members: arrayUnion('kidA') }));
+  });
+});

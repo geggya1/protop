@@ -898,15 +898,30 @@ service cloud.firestore {
       return isFamilyAdult(familyId) || (exists(child) && grantsMembership(get(child).data));
     }
 
+    // En foresatt (voksen i gruppen, ikke bedrift) fører opp ett barn hen nettopp har lagt til
+    // (addChildMember): barnet har medlemsdokument i gruppen etter skrivingen og en barneprofil.
+    // arrayUnion legger den nye sist i listen. En voksen konto kan ikke føres opp slik (SEC-05).
+    function addsChild(familyId, key) {
+      let list = request.resource.data.get(key, []);
+      let added = list.size() > 0 ? list[list.size() - 1] : '';
+      return added is string && added != ''
+        && list.toSet().difference(resource.data.get(key, []).toSet()).hasOnly([added])
+        && !isCompanyGroup(familyId)
+        && isFamilyAdult(familyId)
+        && existsAfter(/databases/$(database)/documents/families/$(familyId)/children/$(added))
+        && isChildProfile(added);
+    }
+
     // Medlemslistene: en kan melde seg selv ut, og føre seg selv opp når medlemskapet allerede
-    // er gitt av et aktivt medlemsdokument (ensureListedOnFamily). Alt annet gjør eier,
-    // administrator eller serveren.
+    // er gitt av et aktivt medlemsdokument (ensureListedOnFamily). En foresatt kan føre opp et
+    // nytt barn (addsChild). Alt annet gjør eier, administrator eller serveren.
     function memberListOk(familyId, key) {
       let before = resource.data.get(key, []).toSet();
       let after = request.resource.data.get(key, []).toSet();
       return before.difference(after).hasOnly([request.auth.uid])
         && (after.difference(before).size() == 0
-            || (after.difference(before).hasOnly([request.auth.uid]) && hasOwnMemberDoc(familyId)));
+            || (after.difference(before).hasOnly([request.auth.uid]) && hasOwnMemberDoc(familyId))
+            || addsChild(familyId, key));
     }
 
     // Selskapets identitet og konto (brukes på fakturaer og i EHF).

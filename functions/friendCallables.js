@@ -719,8 +719,13 @@ export const sendFriendChatAdmin = onCall(
       const senderName = String(req.data?.senderName || '').slice(0, 80);
       if (!friendUid || !text) return { ok: false, error: 'missing-params' };
 
-      const friendDoc = await db.doc(`users/${senderUid}/friends/${friendUid}`).get();
-      if (!friendDoc.exists || friendDoc.data()?.status === 'removed') {
+      // Vennskap begge veier, som firestore.rules for friendChats (SOS-04, FL-12).
+      const [friendDoc, backDoc] = await Promise.all([
+        db.doc(`users/${senderUid}/friends/${friendUid}`).get(),
+        db.doc(`users/${friendUid}/friends/${senderUid}`).get(),
+      ]);
+      if (!friendDoc.exists || friendDoc.data()?.status === 'removed'
+        || !backDoc.exists || backDoc.data()?.status === 'removed') {
         return { ok: false, error: 'not-friends' };
       }
 

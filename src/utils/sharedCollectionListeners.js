@@ -3,9 +3,12 @@
  * Multiple hooks/screens can subscribe to the same family collection
  * without opening duplicate onSnapshot streams (each billed separately).
  */
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../../firebase';
+import {
+  collection, doc, onSnapshot, query, updateDoc, where,
+} from 'firebase/firestore';
+import { auth, db } from '../../firebase';
 import { trackListenerOpen, releaseListener } from './costGuards';
+import { isFamilyAudience } from './events.js';
 
 /** @type {Map<string, {
  *   refCount: number,
@@ -35,6 +38,60 @@ function emitToSubscriber(hub, sub) {
   }
 }
 
+// Eldre egne hendelser uten audience får feltet, så kollegene ser felles hendelser (én gang per økt).
+const markedEvents = new Set();
+
+function markOwnLegacyEvents(familyId, docs) {
+  for (const item of docs || []) {
+    const data = item.data() || {};
+    const key = `${familyId}/${item.id}`;
+    if (data.audience || markedEvents.has(key)) continue;
+    markedEvents.add(key);
+    // Samme tolkning som kalenderen: uten mottakere = hele gruppen.
+    updateDoc(doc(db, 'families', familyId, 'events', item.id), {
+      audience: isFamilyAudience(data) ? 'family' : 'selected',
+    }).catch(() => {});
+  }
+}
+
+/**
+ * Kalenderen i en bedrift: hendelser for «bare utvalgte» leses bare av den som laget dem og de
+ * inviterte (firestore.rules, SOS-08), så en lytter på hele samlingen avvises. Da hentes
+ * hendelsene i tre spørringer – felles, der en er invitert, og egne – og slås sammen.
+ */
+function attachVisibleEvents(hub, familyId) {
+  const uid = auth?.currentUser?.uid || '';
+  if (!uid) return false;
+  try { hub.unsub?.(); } catch { /* ignore */ }
+  const col = collection(db, 'families', familyId, 'events');
+  const parts = [
+    query(col, where('audience', '==', 'family')),
+    query(col, where('memberIds', 'array-contains', uid)),
+    query(col, where('createdBy', '==', uid)),
+  ];
+  const seen = parts.map(() => null);
+  const emit = () => {
+    if (seen.some((list) => list == null)) return;
+    const byId = new Map();
+    seen.forEach((list) => list.forEach((item) => byId.set(item.id, item)));
+    hub.snap = { docs: [...byId.values()], size: byId.size, empty: byId.size === 0 };
+    hub.error = false;
+    hub.ready = true;
+    hub.subscribers.forEach((sub) => emitToSubscriber(hub, sub));
+  };
+  const unsubs = parts.map((q, i) => onSnapshot(q, (snap) => {
+    seen[i] = snap.docs;
+    if (i === 2) markOwnLegacyEvents(familyId, snap.docs);
+    emit();
+  }, () => {
+    seen[i] = [];
+    emit();
+  }));
+  hub.visibleOnly = true;
+  hub.unsub = () => unsubs.forEach((fn) => fn());
+  return true;
+}
+
 function attachHubSnapshot(hub, familyId, collectionName, key) {
   try { hub.unsub?.(); } catch { /* ignore */ }
   hub.unsub = onSnapshot(
@@ -46,7 +103,13 @@ function attachHubSnapshot(hub, familyId, collectionName, key) {
       hub.retryCount = 0;
       hub.subscribers.forEach((sub) => emitToSubscriber(hub, sub));
     },
-    () => {
+    (error) => {
+      // Bedriftskalender med private hendelser: bytt til spørringene reglene godtar.
+      // Først etter ett nytt forsøk, så en kort Auth-forsinkelse ved oppstart ikke teller.
+      if (collectionName === 'events' && hub.retryCount >= 1 && error?.code === 'permission-denied'
+        && hub.refCount > 0 && hubs.has(key) && attachVisibleEvents(hub, familyId)) {
+        return;
+      }
       hub.snap = null;
       hub.error = true;
       hub.ready = true;

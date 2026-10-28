@@ -20,8 +20,9 @@ function PlainHomeHeader({ greeting, weather, onEdit }) {
   return (
     <View style={styles.plain} testID="home-banner-plain">
       <View style={styles.plainCopy}>
+        {/* Hilsen, ikke sidetittel: skallet eier tittelen «Hjem» (én tittel per side). */}
         {greeting ? (
-          <Text style={styles.plainHi} accessibilityRole="header" numberOfLines={2}>{greeting}</Text>
+          <Text style={styles.plainHi} numberOfLines={2}>{greeting}</Text>
         ) : null}
         <View style={styles.plainSubRow}>
           <Text style={styles.plainDate} numberOfLines={1}>{dateLabel}</Text>

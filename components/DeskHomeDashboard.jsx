@@ -178,8 +178,8 @@ export default function DeskHomeDashboard({
     <View style={[styles.page, short && styles.pageShort]}>
       <View style={styles.hero}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          {/* Samme hilsen som Hjem på telefon (UX-05), uten emoji. */}
-          <Text style={[styles.hello, short && styles.helloShort]} numberOfLines={1} accessibilityRole="header">
+          {/* Samme hilsen som Hjem på telefon (UX-05), uten emoji. Skallet eier sidetittelen «Hjem». */}
+          <Text style={[styles.hello, short && styles.helloShort]} numberOfLines={1}>
             {deskGreetingTitle(now, firstNameMe)}
           </Text>
           <View style={styles.heroSubRow}>

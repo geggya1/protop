@@ -151,7 +151,10 @@ describe('selskapsisolasjon og ugyldig tilgang', () => {
     const db = as('non');
     await assertFails(getDoc(doc(db, 'families', A, 'isoFindings', 'F1')));
     await assertFails(getDoc(doc(db, 'families', A, 'isoSystem', 'main')));
-    await assertFails(setDoc(doc(db, 'families', A, 'isoFindings', 'N1'), finding({ reportedByUid: 'non' })));
+    // Meldetilgang (ISO-04): alle i selskapet kan melde en ny sak i eget navn, men ikke mer.
+    await assertSucceeds(setDoc(doc(db, 'families', A, 'isoFindings', 'N1'), finding({ reportedByUid: 'non', state: 'registrert', triage: null, assessment: null, actions: [] })));
+    await assertFails(setDoc(doc(db, 'families', A, 'isoFindings', 'N2'), finding({ reportedByUid: 'non', state: 'triage' })));
+    await assertFails(getDoc(doc(db, 'families', A, 'isoFindings', 'F1')), 'ikke andres saker');
     await assertSucceeds(getDoc(doc(db, 'families', A, 'parentTodos', 'T1')));
     await assertSucceeds(setDoc(doc(db, 'families', A, 'projects', 'PR2'), { name: 'Nytt' }));
   });

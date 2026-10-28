@@ -156,7 +156,7 @@ function groupMeta(group, grants, base) {
     ? group.resources.filter((row) => (base[row.id] || 'none') !== (grants?.[row.id] || 'none')).length
     : 0;
   const parts = [`${granted} av ${total} med tilgang`];
-  if (overrides) parts.push(overrides === 1 ? '1 avvik' : `${overrides} avvik`);
+  if (overrides) parts.push(overrides === 1 ? '1 unntak' : `${overrides} unntak`);
   return parts.join(' · ');
 }
 
@@ -186,7 +186,7 @@ function GroupDrawer({ group, grants, base, colors, children }) {
   );
 }
 
-function AreaLabel({ row, colors, overridden, overrideLabel = 'Avvik fra nivået' }) {
+function AreaLabel({ row, colors, overridden, overrideLabel = 'Unntak fra nivået' }) {
   const { item, depth, heading } = row;
   return (
     <View style={[styles.areaCell, depth ? styles.areaChild : null]}>
@@ -681,7 +681,7 @@ export function PersonAccessSheet({
       </View>
       <ScrollView style={{ maxHeight: scrollMax }} contentContainerStyle={styles.stack}>
         <Text style={[styles.kind, { color: colors.muted }]}>
-          Avvikene under gjelder bare denne personen, oppå nivåene som er krysset av. Endringer lagres med en gang.
+          Unntakene under gjelder bare denne personen, oppå nivåene som er krysset av. Endringer lagres med en gang.
         </Text>
         {lockedReason ? <Text style={[styles.kind, { color: colors.danger }]}>{lockedReason}</Text> : null}
         <Matrix
@@ -702,7 +702,7 @@ export function PersonAccessSheet({
                 onPress={onSave}
                 style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: !dirty || busy ? 0.5 : 1 }]}
               >
-                <Text style={styles.primaryText}>Lagre avvik for personen</Text>
+                <Text style={styles.primaryText}>Lagre unntak for personen</Text>
               </Pressable>
             ) : null}
             <Pressable
@@ -1092,7 +1092,7 @@ export default function CompanyAccessSettings({
         accessOverrides: compactOverrides(personBase, grantsNext),
       },
     });
-    savePerson(next, `Avvikene for ${displayName(person)} er lagret.`);
+    savePerson(next, `Unntakene for ${displayName(person)} er lagret.`);
   }
 
   function clearPersonGrants() {

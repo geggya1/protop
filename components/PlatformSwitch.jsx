@@ -283,7 +283,7 @@ function Seg({
       ]}
       accessibilityRole={caret ? 'button' : 'tab'}
       accessibilityState={{ selected: !!active, expanded: caret ? !!expanded : undefined }}
-      accessibilityLabel={caret ? 'Bedrift. Velg selskap' : label}
+      accessibilityLabel={caret ? 'Bedrift. Velg bedrift' : label}
     >
       <Text
         style={[

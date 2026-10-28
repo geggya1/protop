@@ -131,7 +131,7 @@ assert.equal(homeFocusIsTomorrow(new Date('2026-09-08T17:00:00')), true);
 const focusToday = homeFocusCopy(false);
 assert.equal(focusToday.focusLabel, 'I dag');
 assert.equal(focusToday.focusCta, 'Se dagens plan');
-assert.equal(focusToday.appointmentsTitle, 'Dagens avtaler');
+assert.equal(focusToday.appointmentsTitle, 'I dag i kalenderen');
 const focusTomorrowCopy = homeFocusCopy(true);
 assert.equal(focusTomorrowCopy.focusLabel, 'I morgen');
 assert.equal(focusTomorrowCopy.focusCta, 'Se morgendagens plan');

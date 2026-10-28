@@ -194,7 +194,7 @@ export default function TimeEntryModal({
                         value={block.description}
                         onChangeText={(description) => patchBlock(block.key, { description })}
                         accessibilityLabel="Eksternt notat, synlig for kunde"
-                        placeholder="Eksternt notat - synlig for kunde"
+                        placeholder="Eksternt notat – synlig for kunde"
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
                         multiline
@@ -215,7 +215,7 @@ export default function TimeEntryModal({
                         value={block.internalNote}
                         onChangeText={(internalNote) => patchBlock(block.key, { internalNote })}
                         accessibilityLabel="Internt notat, bare synlig internt"
-                        placeholder="Internt notat — kun synlig internt"
+                        placeholder="Internt notat – bare synlig internt"
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
                         multiline

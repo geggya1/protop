@@ -242,7 +242,7 @@ async function ensureOwner() {
 async function inviteFromPanel(b, people) {
   await b.open('ansatte');
   await skipTour(b);
-  await tap(b, 'Ny medarbeider').catch(() => {});
+  await tap(b, 'Ny ansatt').catch(() => {});
   await tap(b, 'Inviter brukere');
   await waitText(b, /Inviter brukere/, 10000);
   for (const p of people) {
@@ -544,7 +544,7 @@ async function phase5() {
   S.check(!(comp3.members || []).includes(st.per.uid) && perEmp?.invite?.status === 'declined', 'I28 Per er ikke medlem og posten står som avslått', 'Ikke i members, invite.status=declined', `members=${(comp3.members || []).includes(st.per.uid)}, status=${perEmp?.invite?.status}`);
   // Eva ser avslaget.
   await b.open('ansatte');
-  await tap(b, 'Ny medarbeider').catch(() => {});
+  await tap(b, 'Ny ansatt').catch(() => {});
   await tap(b, 'Inviter brukere').catch(() => {});
   const ev = await waitText(b, /Avslått/, 20000) || '';
   S.check(/Avslått/.test(ev) && /Per Persen/.test(ev) && /Inviter på nytt/.test(ev), 'I29 Eva ser avslaget med «Inviter på nytt»', 'Seksjon «Avslått» med Per', /Avslått/.test(ev) ? 'Vist' : 'Ikke vist', { shot: await shot(b, 'eva-ser-avslag') });
@@ -562,7 +562,7 @@ async function phase5b() {
     return;
   }
   await b.open('ansatte');
-  await tap(b, 'Ny medarbeider').catch(() => {});
+  await tap(b, 'Ny ansatt').catch(() => {});
   await tap(b, 'Inviter brukere');
   await waitText(b, /Avslått/, 15000);
   await tap(b, 'Inviter på nytt');

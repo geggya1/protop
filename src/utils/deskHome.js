@@ -347,7 +347,7 @@ export function homeFocusCopy(focusTomorrow = false) {
     focusLabel: 'I dag',
     focusEyebrow: 'DAGENS FOKUS',
     focusCta: 'Se dagens plan',
-    appointmentsTitle: 'Dagens avtaler',
+    appointmentsTitle: 'I dag i kalenderen',
     planTitle: 'Dagens plan',
     focusSubWithEvent: 'Et viktig punkt i dag. Her er dagens planer klare.',
     focusSubEmpty: 'Ingen faste avtaler – nyt dagen.',

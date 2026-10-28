@@ -13,7 +13,7 @@ export const COMPANY_HOME_SHORTCUTS = [
 export const COMPANY_BOTTOM_NAV = [
   { id: 'home', label: 'Hjem', icon: 'home-outline', iconActive: 'home', action: { type: 'tab', tab: 'home' } },
   { id: 'projects', label: 'Prosjekter', icon: 'business-outline', action: { type: 'tab', tab: 'projects' } },
-  { id: 'timeliste', label: 'Time', icon: 'time-outline', action: { type: 'tab', tab: 'timeliste' } },
+  { id: 'timeliste', label: 'Timer', icon: 'time-outline', action: { type: 'tab', tab: 'timeliste' } },
   { id: 'stars', label: 'Oppgaver', icon: 'create-outline', action: { type: 'tab', tab: 'stars' } },
   { id: 'more', label: 'Mer', icon: 'menu-outline', action: { type: 'tab', tab: 'more' } },
 ];

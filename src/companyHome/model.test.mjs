@@ -47,7 +47,7 @@ assert.equal(absenceShortcut.tab, 'ansatte');
 assert.equal(absenceShortcut.subView, null);
 assert.deepEqual(absenceShortcut.intent, { type: 'openMyAbsence' });
 assert.deepEqual(COMPANY_BOTTOM_NAV.map((row) => row.label), [
-  'Hjem', 'Prosjekter', 'Time', 'Oppgaver', 'Mer',
+  'Hjem', 'Prosjekter', 'Timer', 'Oppgaver', 'Mer',
 ]);
 
 const phoneHome = readFileSync(new URL('../../screens/project/CompanyHomePhone.jsx', import.meta.url), 'utf8');

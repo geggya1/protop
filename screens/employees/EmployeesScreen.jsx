@@ -1743,8 +1743,8 @@ export default function EmployeesScreen() {
       ) : null}
       {view === 'list' ? (
         <CreateMenu
-          label={isAdmin ? 'Ny medarbeider' : 'Min side'}
-          title="Ny medarbeider"
+          label={isAdmin ? 'Ny ansatt' : 'Min side'}
+          title="Ny ansatt"
           info={isAdmin ? 'Første registrering samler navn, kontakt og tilgang. Personen får en lenke for å sette passord.' : ''}
           actions={isAdmin ? [
             { id: 'new', nativeID: 'employees-new', label: 'Registrer medarbeider', primary: true, onPress: openNew },

@@ -111,7 +111,7 @@ export default function IsoFindings({ ctx }) {
             icon={f.restricted ? 'lock-closed-outline' : 'flag-outline'}
             tone={f.severity === 'kritisk' || f.severity === 'hoy' ? 'danger' : 'muted'}
             title={`${f.number} · ${f.title}`}
-            subtitle={[findingTypeLabel(f.type), f.severity ? severityLabel(f.severity) : 'Ikke triagert', f.projectName, prettyDate(f.occurredAt), f.assigneeName].filter(Boolean).join(' · ')}
+            subtitle={[findingTypeLabel(f.type), f.severity ? severityLabel(f.severity) : 'Ikke vurdert', f.projectName, prettyDate(f.occurredAt), f.assigneeName].filter(Boolean).join(' · ')}
             right={<Pill label={findingStateLabel(f.state)} tone={STATE_TONE[f.state]} />}
             onPress={() => setOpenId(f.id)}
           />
@@ -218,7 +218,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   );
 }
 
-const STEPS = ['Registrert', 'Triage', 'Vurdert', 'Tiltak', 'Effekt', 'Lukket'];
+const STEPS = ['Registrert', 'Første vurdering', 'Vurdert', 'Tiltak', 'Effekt', 'Lukket'];
 
 function Stepper({ step, closed }) {
   const colors = useColors();
@@ -369,7 +369,7 @@ function FindingDetail({ ctx, finding, onBack }) {
           ) : null}
 
           {['registrert', 'triage'].includes(finding.state) && manage ? (
-            <Card title="1. Triage og klassifisering">
+            <Card title="1. Første vurdering og klassifisering">
               <Field label="Alvorlighet" required><Choice options={SEVERITIES.map((s) => ({ id: s.id, label: s.label }))} value={tri.severity} onChange={(x) => setTri({ ...tri, severity: x })} /></Field>
               {['hms', 'nestenulykke'].includes(finding.type) ? (
                 <Field label="Skadeklasse"><Choice small options={INJURY_CLASSES.map((c) => ({ id: c.id, label: c.label }))} value={tri.injuryClass} onChange={(x) => setTri({ ...tri, injuryClass: x || '', notifiable: seriousInjury(x) ? true : tri.notifiable })} placeholder="Velg" title="Skadeklasse" /></Field>
@@ -381,11 +381,11 @@ function FindingDetail({ ctx, finding, onBack }) {
               <Check label="Mulig meldeplikt til myndighet" value={!!tri.notifiable} onChange={(x) => setTri({ ...tri, notifiable: x })} />
               {tri.notifiable ? <Field label="Hvem varsler" hint="Får oppgave med frist i dag."><PersonPick people={people} value={tri.notificationAssignee} onChange={(p) => setTri({ ...tri, notificationAssignee: p.name, notificationAssigneeUid: p.uid || '' })} /></Field> : null}
               <Field label="Merknad"><TextIn value={tri.note} onChangeText={(x) => setTri({ ...tri, note: x })} /></Field>
-              <Btn kind="primary" label="Lagre triage" busy={busy === 'Triage'} onPress={() => {
+              <Btn kind="primary" label="Lagre første vurdering" busy={busy === 'Første vurdering'} onPress={() => {
                 const res = triageFinding(finding, tri, { actor });
                 // Ny eller endret varslingsansvarlig får egen oppgave (nøkkelen følger personen).
                 const notify = res.ok && notificationTaskKey(res.finding) !== notificationTaskKey(finding) ? notificationTaskEffects(res.finding) : [];
-                return run('Triage', res, { effects: [
+                return run('Første vurdering', res, { effects: [
                   ...(tri.assigneeUid && tri.assigneeUid !== finding.assigneeUid ? [{ type: 'createTask', key: `iso_${finding.id}_behandle`, title: `Følg opp ${finding.number}: ${finding.title}`, assigneeUid: tri.assigneeUid, deadline: tri.dueAt || null }] : []),
                   ...notify,
                   { type: 'completeTask', key: `iso_${finding.id}_triage` },

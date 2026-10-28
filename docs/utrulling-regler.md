@@ -55,6 +55,7 @@ både gamle og nye regler, så web trenger ikke rulles tilbake.
 | Kalender: eldre hendelser uten `audience` | Vises for alle | **Virker** (REV-11): de får `audience` før bedriften merkes. |
 | HR, fravær for alle, faktura (ferdigstille, betale), ansatte (nivå, sletting), ISO | Leser/skriver uten speil | **Virker** når speilet er ferskt. Det fornyes av `recordUsage` (eldre apper) og av web-appen. |
 | Timer: redigere egen føring | `set` med `merge`, hele raden | **Virker**. Historikken røres ikke av eldre apper. |
+| Ansatte: status og «Ansatt til» på andres post | Lagrer hele posten direkte (eldre apper avslutter en ansettelse uten serveren) | **Virker** for permisjon, innlogging og en sluttdato fram i tid med Begrenset redigering på Ansatte, og for alt med Admin på Ansatte eller Tilgangsstyring (REV-21). Å avslutte eller ta opp igjen ansettelsen, se under. |
 | Notater | Lister med `memberIds`, lager i eget navn, «slett permanent» setter flagg | **Virker**. |
 | Invitasjon av voksen | Plassholder i eget navn, `memberInvites` med `invitedBy` = seg selv, status `pending` | **Virker** (ny invitasjon til en plassholder en annen har laget: se REV-16, rettes av en annen agent). |
 | Melde seg ut, føre seg selv opp | `arrayRemove`/`arrayUnion` av egen uid | **Virker**. |
@@ -76,6 +77,7 @@ Disse avvises for eldre apper. Det var dette rettingene skulle stoppe.
 | Hopper i fakturanummer uten begrunnet rad i `jumps` | Bokføringsforskriften § 5-1-1 (L-31) | Gjelder bare import av nummer. |
 | Endrer timer/beløp på en fakturert eller låst føring, eller nullstiller fakturakoblingen fra en gammel kopi | DS-11, L-10 | Lagringen av den raden feiler. I eldre apper kan feilen stoppe senere lagringer i økten til siden lastes på nytt (det er rettet i ny app, REV-01). |
 | Deler et notat en annen har laget | FL-13 | Delingen feiler. |
+| Deaktiverer, aktiverer, legger i papirkurven eller setter en passert sluttdato på en annens ansattpost med bare Begrenset redigering på Ansatte (avdelingsleder) | Appen og serveren krever Admin på Ansatte eller Tilgangsstyring (REV-07, REV-21) | Lagringen av posten feiler. En med Admin på Ansatte gjør det (i ny app via serveren). |
 | Lager et barnedokument i gruppen uten å være voksen der eller administrator, eller i en bedrift | Dokumentet ga den kontoen medlemskap i gruppen (REV-24) | Ingen vanlig flyt gjør dette. Et barn som lagrer tema før dokumentet finnes, får det bare lagret på enheten. |
 | Starter vennechat med en som ikke er venn (også kollega) | SOS-04, FL-12 | Tråden lages ikke. |
 | Endrer tilgangsmatrisen uten speil, eller orgnr/konto/moduler/personvernvalg uten tilgang | FL-02, SEC-13 | Lagringen feiler for andre enn eier og administratorer. |

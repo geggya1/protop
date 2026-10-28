@@ -422,11 +422,27 @@ describe('ansatte (SEC-04, FL-01)', () => {
     await assertSucceeds(updateDoc(doc(as('bob'), 'families', A, 'employees', 'emp_bob'), { 'person.firstName': 'Bob', 'company.accessLevels': ['ansatt'] }));
   });
 
-  test('aktivere og deaktivere andre krever Begrenset redigering på Ansatte', async () => {
-    await assertFails(updateDoc(doc(as('bob'), 'families', A, 'employees', 'emp_eve'), { 'company.status': 'active' }));
-    await assertFails(updateDoc(doc(as('bob'), 'families', A, 'employees', 'emp_ldr'), { 'company.status': 'inactive', 'company.canLogin': false }));
-    await assertSucceeds(updateDoc(doc(as('avd'), 'families', A, 'employees', 'emp_bob'), { 'company.status': 'inactive', 'company.canLogin': false }));
-    await assertSucceeds(updateDoc(doc(as('adm'), 'families', A, 'employees', 'emp_eve'), { 'company.status': 'active', 'company.canLogin': true }));
+  test('avslutte og ta opp igjen en ansettelse krever Admin på Ansatte eller Tilgangsstyring, som appen og serveren (REV-21)', async () => {
+    const post = (uid, id) => doc(as(uid), 'families', A, 'employees', id);
+    await assertFails(updateDoc(post('bob', 'emp_eve'), { 'company.status': 'active' }));
+    await assertFails(updateDoc(post('bob', 'emp_ldr'), { 'company.status': 'inactive', 'company.canLogin': false }));
+    // Begrenset redigering på Ansatte (avdelingsleder): ikke deaktivere, legge i papirkurven, aktivere
+    // eller sette en sluttdato som er passert.
+    await assertFails(updateDoc(post('avd', 'emp_bob'), { 'company.status': 'inactive', 'company.canLogin': false }));
+    await assertFails(updateDoc(post('avd', 'emp_bob'), { 'company.status': 'deleted' }));
+    await assertFails(updateDoc(post('avd', 'emp_eve'), { 'company.status': 'active', 'company.canLogin': true }));
+    await assertFails(updateDoc(post('avd', 'emp_bob'), { 'company.periodTo': '2020-01-31' }));
+    // Permisjon, innlogging og en sluttdato fram i tid som før (også i eldre apper).
+    await assertSucceeds(updateDoc(post('avd', 'emp_bob'), { 'company.status': 'leave' }));
+    await assertSucceeds(updateDoc(post('avd', 'emp_bob'), { 'company.periodTo': '2099-12-31' }));
+    await assertSucceeds(updateDoc(post('avd', 'emp_bob'), { 'company.canLogin': false }));
+    await assertSucceeds(updateDoc(post('avd', 'emp_bob'), { 'company.status': 'active', 'company.canLogin': true }));
+    // Admin på Ansatte (HR, leder), Admin på Tilgangsstyring og administrator.
+    await assertSucceeds(updateDoc(post('hr', 'emp_bob'), { 'company.status': 'inactive', 'company.canLogin': false }));
+    await assertSucceeds(updateDoc(post('kpf', 'emp_bob'), { 'company.status': 'active' }));
+    await assertSucceeds(updateDoc(post('ldr', 'emp_bob'), { 'company.periodTo': '2020-01-31' }));
+    await assertFails(updateDoc(post('avd', 'emp_bob'), { 'company.periodTo': '' }));
+    await assertSucceeds(updateDoc(post('adm', 'emp_eve'), { 'company.status': 'active', 'company.canLogin': true }));
   });
 
   test('invitasjon og ledernivå på andres post: leder kan opp til eget nivå, uten speil bare eier og administrator', async () => {

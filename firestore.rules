@@ -558,9 +558,39 @@ service cloud.firestore {
       return isFamilyAdmin(familyId) || aclRank(familyId, 'accessControl') >= 2;
     }
 
-    // Kan aktivere og deaktivere andre: som over, eller Begrenset redigering på Ansatte (som appen).
+    // Kan endre status (permisjon) og innlogging på andre: som over, eller Begrenset redigering på Ansatte.
     function empStaffManager(familyId) {
       return empAccessManager(familyId) || aclRank(familyId, 'employees') >= 2;
+    }
+
+    // Kan avslutte og ta opp igjen en ansettelse: eier, administrator, eller Admin på Ansatte eller
+    // Tilgangsstyring (canChangeEmployment i appen, setEmploymentStatus på serveren, REV-07, REV-21).
+    function empEmploymentManager(familyId) {
+      let g = aclGrants(familyId);
+      return isFamilyAdmin(familyId) || grantAtLeast(g, 'employees', 3) || grantAtLeast(g, 'accessControl', 3);
+    }
+
+    // Aktiv eller i permisjon. Manglende status og eldre navn regnes som aktiv (employmentState i appen).
+    function empStatusOpen(c) {
+      return lowerText(c.get('status', '')) in ['', 'active', 'current', 'leave'];
+    }
+
+    // «Ansatt til» som ikke er passert (tom = nåværende). Datoen lagres som åååå-mm-dd og gjelder hele
+    // dagen; 22 timer etter midnatt UTC er midnatt i Norge om sommeren, så heller litt for tidlig enn sent.
+    function empEndOpen(p) {
+      return p == '' || (p is string && p.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && timestamp.date(int(p.split('-')[0]), int(p.split('-')[1]), int(p.split('-')[2])) + duration.value(22, 'h') > request.time);
+    }
+
+    // Skrivingen verken avslutter eller åpner ansettelsen: samme status (eller aktiv og permisjon), og
+    // samme sluttdato (eller to som ikke er passert). Som employmentChangeNeedsServer i appen.
+    function empEmploymentStable(d, old) {
+      let c = d.get('company', {});
+      let oc = old.get('company', {});
+      let p = c.get('periodTo', '');
+      let op = oc.get('periodTo', '');
+      return (lowerText(c.get('status', '')) == lowerText(oc.get('status', '')) || (empStatusOpen(c) && empStatusOpen(oc)))
+        && (p == op || (empEndOpen(p) && empEndOpen(op)));
     }
 
     function empCreateOk(familyId) {
@@ -595,16 +625,22 @@ service cloud.firestore {
       return selfOld
         // Egen post: aldri eget nivå. Kobling, invitasjon, status og innlogging bare av tilgangsstyrer,
         // så en deaktivert ansatt ikke kan aktivere seg selv (FL-01).
+        // Å avslutte eller ta opp igjen ansettelsen (status eller passert sluttdato) krever Admin (REV-21).
         ? accessStable && ((bound && statusStable) ? true : empAccessManager(familyId))
+          && (empEmploymentStable(d, old) ? true : empEmploymentManager(familyId))
         : (selfNew
           // Kobler seg selv til en post: bare uten ledernivå, eller når serveren godtok invitasjonen
           // for en selv (invite.acceptedUid kan ikke settes av vanlige medlemmer, se under).
-          ? accessStable && statusStable && bound
+          ? accessStable && statusStable && bound && empEmploymentStable(d, old)
             && (!empPrivileged(oldLevels, oc) || old.get('invite', {}).get('acceptedUid', '') == me)
-          // Andres post. Status og innlogging krever Begrenset redigering på Ansatte (som appen).
+          // Andres post. Permisjon og innlogging krever Begrenset redigering på Ansatte, å avslutte eller
+          // ta opp igjen ansettelsen Admin (som appen og serveren, REV-21). Admin dekker det første, og
+          // reglene tåler bare 1000 uttrykk per skriving, så bare én av dem sjekkes.
           // Har posten ledernivå, kan bare en tilgangsstyrer endre kobling, invitasjon eller e-post,
           // så ingen kan sende seg selv en invitasjon til en ledertilgang.
-          : (statusStable ? true : empStaffManager(familyId))
+          : (empEmploymentStable(d, old)
+              ? (statusStable ? true : empStaffManager(familyId))
+              : empEmploymentManager(familyId))
             && ((accessStable
                   && (!(empPrivileged(oldLevels, oc) || empPrivileged(levels, c)) || (bound && empEmailsStable(d, old))))
                 ? true

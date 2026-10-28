@@ -10,7 +10,7 @@ import {
   createFinding, defaultRestricted, findingStep, isOpenFinding, needsNewActions, notificationTaskKey, recordRootCause, reopenFinding, rootCauseRequired, triageFinding,
   updateFindingLinks, verifyAction, verifyEffect,
 } from '../../src/iso/findings';
-import { canCloseFinding, canManageFinding, visibleFindings } from '../../src/iso/access';
+import { canCloseFinding, canManageFinding, displayFinding, visibleFindings } from '../../src/iso/access';
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
 import { loadAuditFor } from '../../src/iso/storage';
 import { autoAssignee, legacyProjectCases, newFindingEffects, notificationTaskEffects, requirementIdsForFinding } from '../../src/iso/integrations';
@@ -272,6 +272,8 @@ function FindingDetail({ ctx, finding, onBack }) {
   const closeable = canCloseFinding(caps, finding);
   const blockers = closeBlockers(finding);
   const closed = ['lukket', 'kansellert'].includes(finding.state);
+  // Melderens navn vises bare for saksbehandlere og melderen selv.
+  const shown = useMemo(() => displayFinding(caps, finding), [caps, finding]);
 
   async function run(label, result, extra = {}) {
     setErr('');
@@ -341,7 +343,7 @@ function FindingDetail({ ctx, finding, onBack }) {
       wide={wide}
       crumb={['Avvik og forbedring', finding.number]}
       title={finding.title}
-      intro={`${findingTypeLabel(finding.type)} · meldt ${prettyDate(finding.reportedAt)} av ${finding.reportedBy}${finding.projectName ? ` · ${finding.projectName}` : ''}`}
+      intro={`${findingTypeLabel(finding.type)} · meldt ${prettyDate(finding.reportedAt)} av ${shown.reportedBy}${finding.projectName ? ` · ${finding.projectName}` : ''}`}
       back={{ label: 'Avvik og forbedring', onPress: onBack }}
     >
       <Row>
@@ -604,14 +606,15 @@ function FindingDetail({ ctx, finding, onBack }) {
             ) : null}
           </Card>
           <Card title="Historikk">
-            {(finding.history || []).slice().reverse().map((h, i) => (
+            {(shown.history || []).slice().reverse().map((h, i) => (
               <View key={i} style={{ gap: 2, paddingBottom: 6 }}>
                 <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>{h.action}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>{h.by} · {prettyDate(h.at)} {String(h.at).slice(11, 16)}</Text>
                 {h.note ? <Text style={{ color: colors.ink, fontSize: 12 }}>{h.note}</Text> : null}
               </View>
             ))}
-            <Btn small label={audit ? 'Skjul revisjonsspor' : 'Vis revisjonsspor'} onPress={async () => setAudit(audit ? null : await loadAuditFor(ctx.companyId, finding.id, { restricted: !!finding.restricted }))} />
+            {/* Revisjonssporet har navn på alle som har endret saken, også melderen: bare for saksbehandlere. */}
+            {caps.manage ? <Btn small label={audit ? 'Skjul revisjonsspor' : 'Vis revisjonsspor'} onPress={async () => setAudit(audit ? null : await loadAuditFor(ctx.companyId, finding.id, { restricted: !!finding.restricted }))} /> : null}
             {audit ? audit.map((e) => <Text key={e.id} style={{ color: colors.muted, fontSize: 11 }}>{String(e.at).replace('T', ' ').slice(0, 16)} · {e.action} · {e.actorName} · {e.beforeHash || '–'}→{e.afterHash}</Text>) : null}
           </Card>
         </View>

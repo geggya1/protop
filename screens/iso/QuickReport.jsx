@@ -313,6 +313,7 @@ export function QuickReportSheet({
         {allowAnonymous ? (
           <Check label="Meld anonymt (navnet ditt lagres ikke, og du kan ikke følge saken)" value={anonymous} onChange={setAnonymous} />
         ) : null}
+        {!anonymous ? <Text style={{ color: colors.muted, fontSize: 12 }}>Bare de som behandler saken, ser hvem som meldte.</Text> : null}
         {error ? <Banner tone="danger" text={error} /> : null}
       </View>
     );

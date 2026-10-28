@@ -177,6 +177,7 @@ import {
   isPersonalShell,
   isHomeSetupCompleteSession,
 } from './src/utils/personalShell';
+import { clearSessionData } from './src/utils/localCache';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -525,8 +526,13 @@ export default function App() {
 
   useEffect(() => {
     if (!authBootstrapped) return undefined;
+    // Den som var innlogget i denne økten. Lokale kopier av ansatt-, HR- og fraværsdata fjernes
+    // når hen logger ut eller en annen bruker logger inn (L-03), ikke ved en kald start uten bruker.
+    let sessionUid = null;
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (!u) {
+        const leaving = sessionUid;
+        sessionUid = null;
         setUser(null);
         setUserRole(null);
         setChildData(null);
@@ -537,8 +543,11 @@ export default function App() {
           const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
           await AsyncStorage.removeItem('protop.familyId');
         } catch { /* ignore */ }
+        if (leaving) clearSessionData().catch(() => {});
         return;
       }
+      if (sessionUid && sessionUid !== u.uid) clearSessionData().catch(() => {});
+      sessionUid = u.uid;
       try {
         // Network / IDB stalls must not leave the app on a forever white spinner.
         const withTimeout = (promise, ms, label) => Promise.race([

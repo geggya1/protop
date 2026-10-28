@@ -37,7 +37,9 @@ export function normalizeUsageSummary(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const summary = emptyUsageSummary();
   summary.lastActiveAt = text(source.lastActiveAt);
-  summary.lastActiveIp = text(source.lastActiveIp);
+  // IP-adressen står bare i hendelsene (usage-underlaget), som bare den ansatte selv og
+  // administratorer kan lese. Sammendraget ligger på ansattposten, som alle medlemmer ser (L-03).
+  summary.lastActiveIp = '';
   summary.lastLoginAt = text(source.lastLoginAt);
   summary.lastHourAt = text(source.lastHourAt);
   summary.lastHourSummary = text(source.lastHourSummary).slice(0, 180);
@@ -131,18 +133,15 @@ export function applyUsageSummary(summary, event) {
   next.lastEventLabel = text(event.summary).slice(0, 180);
   if (event.type === 'active' || event.type === 'login' || event.type === 'navigation') {
     next.lastActiveAt = event.at;
-    if (event.ip) next.lastActiveIp = event.ip;
   }
   if (event.type === 'login') next.lastLoginAt = event.at;
   if (event.type === 'hour') {
     next.lastHourAt = event.at;
     next.lastHourSummary = text(event.summary).slice(0, 180);
     next.lastActiveAt = event.at;
-    if (event.ip) next.lastActiveIp = event.ip;
   }
   if (event.type === 'hour_deleted') {
     next.lastActiveAt = event.at;
-    if (event.ip) next.lastActiveIp = event.ip;
   }
   return next;
 }

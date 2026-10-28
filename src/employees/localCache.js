@@ -1,4 +1,5 @@
 import { normalizeEmployee } from './model.js';
+import { withoutPrivate } from './privateFields.js';
 
 const LIST_KEY = 'protop.employees.v1';
 
@@ -21,9 +22,12 @@ function keepRemoteUrl(value) {
   return raw;
 }
 
-/** Lokal kopi uten innebygde bilder. De fyller Safari sin kvote og stopper lagring. */
+/**
+ * Lokal kopi uten innebygde bilder. De fyller Safari sin kvote og stopper lagring.
+ * Personnummer, pårørende og intern kommentar lagres ikke på enheten (L-03).
+ */
 export function employeeForCache(employee) {
-  const next = normalizeEmployee(employee);
+  const next = normalizeEmployee(withoutPrivate(normalizeEmployee(employee)));
   next.person.photoUrl = keepRemoteUrl(next.person.photoUrl);
   next.cv.projects = (next.cv.projects || []).map((project) => ({
     ...project,

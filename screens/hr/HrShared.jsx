@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { toneColor, pctWidth } from '../../src/hr/uiHelpers';
+import { useRepeatsShellTitle } from '../../src/ui/ShellTitles';
 
 export function HrCard({ colors, children, style }) {
   return (
@@ -13,11 +14,14 @@ export function HrCard({ colors, children, style }) {
   );
 }
 
+/** Seksjonstittel. Samme tekst som sidetittelen i skallet (HR · Personell) vises ikke igjen. */
 export function HrSectionTitle({ colors, title, subtitle, right }) {
+  const shellHasTitle = useRepeatsShellTitle(title);
+  if (shellHasTitle && !subtitle && !right) return null;
   return (
     <View style={styles.sectionHead}>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[styles.sectionTitle, { color: colors.ink }]}>{title}</Text>
+        {shellHasTitle ? null : <Text style={[styles.sectionTitle, { color: colors.ink }]}>{title}</Text>}
         {subtitle ? <Text style={[styles.sectionSub, { color: colors.muted }]}>{subtitle}</Text> : null}
       </View>
       {right || null}

@@ -33,8 +33,9 @@ E-post og SMS sendes ikke ut. `mailcatcher.js` fanger dem i `e2e-out/mail.jsonl`
 - engelsk tekst i norsk visning
 - knapper uten tilgjengelig navn
 - små trykkflater på telefon
+- dobbel tittel: en overskrift i innholdet med samme tekst som skallets sidetittel (toppfeltet, tittelraden med brødsmule eller modulbåndet), og skallet som viser samme tittel to steder. Regelen ligger i `src/ui/pageTitle.js`, samme som appen bruker
 
-Resultatet skrives til `<out>/crawl.json`.
+Resultatet skrives til `<out>/crawl.json`, med antall sider med dobbel tittel per visning under `doubleTitles`.
 
 ## Bibliotek
 

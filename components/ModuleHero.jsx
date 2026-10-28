@@ -6,6 +6,7 @@ import { LIGHT } from '../src/appearance/palette';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
 import { resolveModuleHero } from '../src/modules/moduleHero';
 import Breadcrumb from './Breadcrumb';
+import { normalizeTitle } from '../src/ui/pageTitle';
 
 /** 2mm at the CSS reference pixel (96px = 1in). The picture scales to this inset. */
 const ART_INSET = 8;
@@ -20,6 +21,8 @@ const ART_INSET = 8;
  * Help sits under the profile, above this band. Family name and the large
  * page title are hidden on phone. The phone band stays short so the page
  * body starts almost in the header.
+ * Overskriften i båndet er sidens overskrift for skjermlesere (nivå 1); toppfeltet
+ * på PC gjentar den ikke.
  */
 export default function ModuleHero({
   moduleId,
@@ -47,7 +50,8 @@ export default function ModuleHero({
 
   const heading = title || hero.title;
   const lead = subtitle || hero.pitch;
-  const overline = kicker || hero.kicker;
+  // Overlinjen er modulnavnet; den står ikke over en overskrift med samme tekst (én tittel per side).
+  const overline = normalizeTitle(kicker || hero.kicker) === normalizeTitle(heading) ? '' : (kicker || hero.kicker);
   const chromePhone = chrome && isPhone;
   const heroH = isDesktop ? 148 : isPhone ? 112 : 136;
   const artH = heroH - ART_INSET * 2;
@@ -65,7 +69,6 @@ export default function ModuleHero({
   return (
     <View
       nativeID="module-hero"
-      accessibilityRole="header"
       style={[
         styles.hero,
         { height: heroH, backgroundColor: hero.bg, borderColor: hero.ink ? 'rgba(255,255,255,0.14)' : `${hero.accent}22` },
@@ -87,7 +90,7 @@ export default function ModuleHero({
             {overline}
           </Text>
         ) : null}
-        <Text style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, { color: titleColor }]} numberOfLines={2}>
+        <Text nativeID="module-hero-title" accessibilityRole="header" aria-level={1} style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, { color: titleColor }]} numberOfLines={2}>
           {heading}
         </Text>
         {lead ? (

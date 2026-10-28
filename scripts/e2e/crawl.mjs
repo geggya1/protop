@@ -8,12 +8,16 @@
  *  - rå ISO-datoer (2026-09-30) der appen skal vise norsk dato
  *  - engelske ord som har sluppet gjennom i norsk visning
  *  - knapper og lenker uten tilgjengelig navn
+ *  - dobbel tittel: en overskrift i innholdet sier det samme som skallets
+ *    sidetittel (toppfeltet, tittelraden med brødsmule eller modulbåndet), og
+ *    skallet som viser samme tittel to ganger (toppfelt + tittelrad)
  *
  *   node scripts/e2e/crawl.mjs --views=phone,desktop --out=e2e-out/crawl
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PROTOP_PAGES } from '../../src/help/protopPages.js';
+import { titleDoubles } from '../../src/ui/pageTitle.js';
 import { BOT_USER, seed } from '../help-bot/seed.mjs';
 import { Bot, closeBrowser } from './lib/bot.mjs';
 
@@ -72,7 +76,50 @@ async function inspect(page) {
         if (r.width < 32 && r.height < 32) tiny += 1;
       }
     }
+    // Titler i skallet og overskrifter i innholdet (dobbel tittel, AGENTS.md). Sammenlignes i node.
+    const seen = (el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0 || r.right <= 0 || r.left >= vw || r.bottom <= 0) return false;
+      return el.checkVisibility ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : true;
+    };
+    const own = (el) => (el.innerText || '').replace(/\s+/g, ' ').trim();
+    const main = document.getElementById('shell-scroll');
+    const shellBits = '#module-title-row, #module-hero, #module-hero-slot';
+    const shellTitles = [];
+    for (const el of document.querySelectorAll('[role=heading], h1, h2, h3')) {
+      if (!seen(el) || (main && main.contains(el) && !el.closest(shellBits)) || el.closest('[role=dialog]')) continue;
+      if (el.closest('#module-hero')) continue;
+      shellTitles.push({ text: own(el), where: el.closest('#module-title-row') ? 'tittelrad' : 'toppfelt' });
+    }
+    // Modulbåndet: navn (overlinje) og overskrift er hver sin tekst.
+    for (const hero of document.querySelectorAll('#module-hero')) {
+      if (!seen(hero)) continue;
+      const title = hero.querySelector('#module-hero-title');
+      const lines = title
+        ? [...hero.querySelectorAll('div, span')].filter((el) => !el.children.length && seen(el)).map(own).filter(Boolean)
+        : (hero.innerText || '').split('\n').map((l) => l.trim()).filter(Boolean);
+      const titleAt = title ? Math.max(0, lines.indexOf(own(title))) : 1;
+      for (const line of lines.slice(0, titleAt + 1)) shellTitles.push({ text: line, where: 'bånd' });
+    }
+    const contentHeadings = [];
+    if (main) {
+      const skip = `${shellBits}, [role=dialog], [role=tab], [role=tablist], [role=navigation], [role=button], [role=link], button, a`;
+      for (const el of main.querySelectorAll('[role=heading], h1, h2, h3')) {
+        if (!seen(el) || el.closest(skip)) continue;
+        contentHeadings.push({ text: own(el), kind: 'overskrift', level: el.getAttribute('aria-level') || el.tagName.toLowerCase() });
+      }
+      // Stor, halvfet tekst som ser ut som en tittel uten å være merket som overskrift.
+      for (const el of main.querySelectorAll('div, span')) {
+        if (el.children.length || !seen(el) || el.closest(skip) || el.closest('[role=heading]')) continue;
+        const cs = getComputedStyle(el);
+        if (parseFloat(cs.fontSize) >= 17 && Number(cs.fontWeight) >= 600) {
+          contentHeadings.push({ text: own(el), kind: 'stor tekst', level: cs.fontSize });
+        }
+      }
+    }
     return {
+      shellTitles,
+      contentHeadings,
       title: document.title,
       scrollWidth: document.documentElement.scrollWidth,
       vw,
@@ -113,6 +160,12 @@ async function crawlView(view) {
     row.jsErrors = bot.errors.slice(errBefore).map((e) => e.message);
     row.failedCalls = bot.failedCalls.slice(callsBefore);
     row.missing = (bot.missing || []).slice(missBefore);
+    if (row.shellTitles) {
+      const found = titleDoubles({ shell: row.shellTitles, content: row.contentHeadings });
+      row.doubleTitles = found.doubles;
+      row.shellDouble = found.shellDouble;
+      row.nearTitles = found.near;
+    }
     rows.push(row);
     const flags = [
       row.error && 'FEIL',
@@ -123,6 +176,9 @@ async function crawlView(view) {
       row.rawKeys?.length && 'nøkler',
       row.englishHits?.length && 'engelsk',
       row.isoDates?.length && 'iso-dato',
+      row.doubleTitles?.length && `dobbel-tittel:${row.doubleTitles.join('/')}`,
+      row.shellDouble?.length && `skall-dobbel:${row.shellDouble.join('/')}`,
+      row.nearTitles?.length && `nesten-lik-tittel:${row.nearTitles.join('/')}`,
     ].filter(Boolean);
     console.log(`[${view}] ${key} ${flags.join(' ') || 'ok'}`);
   }
@@ -134,6 +190,17 @@ await seed();
 const report = { startedAt: new Date().toISOString(), views: {} };
 for (const view of VIEW_LIST) report.views[view] = await crawlView(view);
 await closeBrowser();
+// Oppsummering: sider med dobbel tittel per visning.
+report.doubleTitles = {};
+for (const [view, rows] of Object.entries(report.views)) {
+  const pages = rows.filter((r) => r.doubleTitles?.length).map((r) => r.key);
+  const shell = rows.filter((r) => r.shellDouble?.length).map((r) => r.key);
+  const near = rows.filter((r) => r.nearTitles?.length).map((r) => r.key);
+  report.doubleTitles[view] = {
+    pages: pages.length, shellPages: shell.length, nearPages: near.length, keys: pages, shellKeys: shell, nearKeys: near,
+  };
+  console.log(`[${view}] dobbel tittel på ${pages.length} sider, i skallet på ${shell.length}, nesten lik på ${near.length}`);
+}
 mkdirSync(OUT, { recursive: true });
 writeFileSync(join(OUT, 'crawl.json'), JSON.stringify(report, null, 2));
 console.log('Ferdig:', join(OUT, 'crawl.json'));

@@ -274,6 +274,7 @@ export const FILES = [
   'src/ui/focusRing.test.mjs',
   'src/ui/a11yLabels.test.mjs',
   'src/ui/landmarks.test.mjs',
+  'src/ui/pageTitle.test.mjs',
   'src/ui/tokens.test.mjs',
   'src/ui/designGuard.test.mjs',
   'src/ui/confirm.test.mjs',

@@ -19,6 +19,7 @@ import { normalizeVacationPlan } from '../../src/arbeid/vacationPlan.js';
 import { saveProjectState } from '../../src/project/storage';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { companyDisplayName } from '../../src/utils/companyName';
+import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 
 const TABS = [
   { id: 'fravaerstyper', label: 'Fraværstyper', icon: 'sunny-outline', hint: 'Betalt fravær, timebalanse og fakturerbart arbeid' },
@@ -181,9 +182,11 @@ export default function AbsenceSettingsScreen({ startTab = 'fravaerstyper' } = {
       nativeID="absence-settings"
       id="absence-settings"
     >
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-        Fraværsinnstillinger
-      </Text>
+      <UnlessShellTitle title="Fraværsinnstillinger">
+        <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
+          Fraværsinnstillinger
+        </Text>
+      </UnlessShellTitle>
       <Text style={[styles.lead, { color: colors.muted }]}>
         Typene, fridagene og ferieplanen styrer hvordan fravær beregnes i timeliste, lønn og fakturerbart arbeid.
       </Text>

@@ -50,6 +50,8 @@ export const ShellPageHeroContext = createContext(null);
  * Når `hero` er satt (modulheading på telefon), er pastellbåndet selve
  * toppheadingen — rett under logo/meny, uten familienavn og uten stor
  * sidetittel. titleRight (blå «+ …») overlapper nedre høyre kant av båndet.
+ * titleInPage: modulbåndet eller tittelraden i innholdet (ModuleHero/ModuleTitleRow) viser
+ * sidetittelen på PC og nettbrett, så toppfeltet gjentar den ikke (én tittel per side).
  */
 export default function ShellHeader({
   title = 'Hjem',
@@ -65,6 +67,7 @@ export default function ShellHeader({
   viewAs = null,
   coverStatusBar = false,
   meta = '',
+  titleInPage = false,
 }) {
   const nav = useNavigation();
   const { t } = useI18n();
@@ -163,9 +166,11 @@ export default function ShellHeader({
               </TouchableOpacity>
             )}
             <View style={styles.textColCompact}>
-              <Text accessibilityRole="header" style={[styles.pageTitleCompact, { color: colors.ink }]} numberOfLines={1}>
-                {pageTitle}
-              </Text>
+              {titleInPage ? null : (
+                <Text nativeID="shell-page-title" accessibilityRole="header" aria-level={1} style={[styles.pageTitleCompact, { color: colors.ink }]} numberOfLines={1}>
+                  {pageTitle}
+                </Text>
+              )}
               <Text style={[styles.metaCompact, { color: colors.muted }]} numberOfLines={1}>
                 {familyName}
               </Text>
@@ -288,20 +293,26 @@ export default function ShellHeader({
                 <Text style={[styles.familyName, { color: colors.muted }]} numberOfLines={1}>
                   {meta || familyName}
                 </Text>
-                <View style={styles.pageTitleRow}>
-                  <Text
-                    accessibilityRole="header"
-                    style={[styles.pageTitle, showFamilyHint && styles.pageTitleTablet, { color: colors.ink }]}
-                    numberOfLines={1}
-                  >
-                    {pageTitle}
-                  </Text>
-                  {titleRight ? (
-                    <View style={styles.titleRightCol}>
-                      <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
-                    </View>
-                  ) : null}
-                </View>
+                {titleInPage && !titleRight ? null : (
+                  <View style={styles.pageTitleRow}>
+                    {titleInPage ? <View style={styles.pageTitle} /> : (
+                      <Text
+                        nativeID="shell-page-title"
+                        accessibilityRole="header"
+                        aria-level={1}
+                        style={[styles.pageTitle, showFamilyHint && styles.pageTitleTablet, { color: colors.ink }]}
+                        numberOfLines={1}
+                      >
+                        {pageTitle}
+                      </Text>
+                    )}
+                    {titleRight ? (
+                      <View style={styles.titleRightCol}>
+                        <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
+                      </View>
+                    ) : null}
+                  </View>
+                )}
               </>
             )}
           </View>

@@ -22,6 +22,7 @@ import {
 } from '../../src/utils/consents';
 import { consentHistoryLabel } from '../../src/utils/consentState';
 import { downloadMyData } from '../../src/privacy/myDataExportClient';
+import { useRepeatsShellTitle } from '../../src/ui/ShellTitles';
 
 const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'dpa', 'export', 'licenses', 'consent'];
 
@@ -220,6 +221,9 @@ export default function PrivacyTermsScreen({
     }
   };
 
+  // Skallet viser navets tittel («Personvern og vilkår»); da står bare forklaringen (én tittel per side).
+  const hubTitleInShell = useRepeatsShellTitle(t('more.legal'));
+
   if (!inShell && hasRail) {
     return (
       <Screen>
@@ -254,7 +258,7 @@ export default function PrivacyTermsScreen({
 
           {showScreenTitle ? (
             <>
-              <Title size={22}>{pageTitle}</Title>
+              {page === 'hub' && hubTitleInShell ? null : <Title size={22}>{pageTitle}</Title>}
               {page === 'hub' ? (
                 <Mute>Vilkår, personvern, lisenser og samtykke for ProTop.</Mute>
               ) : null}

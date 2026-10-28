@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { watchEmployees } from '../employees/storage';
-import { isSuperAdmin } from '../utils/groups';
+import { isGroupAdmin, isSuperAdmin } from '../utils/groups';
 import { isOrganizationType } from '../utils/groupTypes';
+import { accessSignature, scheduleAccessSync } from './accessMirror';
 import {
+  allows,
   companyTabAllowed,
   loadingGrants,
   resolveActorAccess,
@@ -112,6 +114,24 @@ export function useCompanyAccess() {
   }, [org, familyId]);
 
   const selectedId = selection.key === viewAsKey(uid, familyId) ? selection.employeeId : '';
+
+  // Tilgangsspeilet (accessAcl) og administratorlisten beregnes på serveren for alle selskaper,
+  // ikke bare når ISO åpnes: én gang når skallet åpnes, og straks når den som kan endre tilgang
+  // ser at matrisen, et nivå eller en status er endret.
+  const accessPolicy = family?.company?.accessPolicy;
+  const accessKey = useMemo(
+    () => (org && ready ? accessSignature(accessPolicy, employees) : ''),
+    [org, ready, accessPolicy, employees],
+  );
+  useEffect(() => {
+    if (!org || !familyId || !uid || !ready) return undefined;
+    const grants = bypass ? null : resolveActorAccess({ policy: accessPolicy, employees, uid }).grants;
+    const manager = bypass || isGroupAdmin(family, uid)
+      || allows(grants, 'accessControl', 'read') || allows(grants, 'employees', 'read');
+    return scheduleAccessSync(familyId, { key: accessKey, force: manager });
+    // accessKey dekker matrisen og ansatte.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org, familyId, uid, ready, accessKey, bypass]);
 
   useEffect(() => {
     // Tom liste = ikke lastet ennå (f.eks. rett etter omlasting): behold valget.

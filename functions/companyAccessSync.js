@@ -3,8 +3,12 @@
  * for ISO / K-HMS leser. Beregningen er den samme som i appen (src/iso/aclSync.js →
  * resolveActorAccess), så det finnes én kilde til sannhet: tilgangsmatrisen.
  *
- * syncCompanyAccess (callable): kalles av appen når ISO åpnes. Ethvert medlem kan be
- * om ny beregning; resultatet avhenger bare av data i selskapet, ikke av hvem som spør.
+ * syncCompanyAccess (callable): kalles av appen når et bedriftsskall åpnes, når ISO åpnes og
+ * når et tilgangsnivå endres. Ethvert medlem kan be om ny beregning; resultatet avhenger bare
+ * av data i selskapet, ikke av hvem som spør. Speilet gjelder dermed alle selskaper, og
+ * Firestore-reglene bruker det for selskapsdokumentet og ansatte, ikke bare for ISO.
+ * Samme kall holder administratorlisten (adminUids) i takt med nivået Administrator
+ * (planAdminUids). Eieren mister aldri administratorrettigheten.
  *
  * onCompanyAccessChanged / onEmployeeAccessChanged (Firestore-triggere): beregner på
  * nytt straks matrisen, eierskap, medlemskap eller en ansatt endres, så tilbaketrekking
@@ -16,8 +20,11 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { logger } from 'firebase-functions';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { planAclSync } from '../src/iso/aclSync.js';
-import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
+import { planAclSync, planAdminUids } from '../src/iso/aclSync.js';
+import { isOrganizationType } from '../src/utils/groupTypes.js';
+import {
+  assertRateLimit, hashRateKey, isFamilyOwnerOrAdmin, listedOnFamily, requireAuth,
+} from './security.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -36,7 +43,25 @@ function cleanId(value) {
 }
 
 function isMember(family, uid) {
-  return ['members', 'activeUsers', 'memberIds'].some((key) => Array.isArray(family?.[key]) && family[key].includes(uid));
+  return listedOnFamily(family, uid) || isFamilyOwnerOrAdmin(family, uid);
+}
+
+/**
+ * Administratorlisten følger nivået Administrator (bare bedrifter). Skrives i en transaksjon
+ * mot den ferske gruppen, så en samtidig endring av medlemmer ikke går tapt.
+ */
+async function syncAdminUids(familyRef, employees) {
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(familyRef);
+    if (!snap.exists) return { add: [], remove: [] };
+    const family = snap.data() || {};
+    if (!isOrganizationType(family.type)) return { add: [], remove: [] };
+    const plan = planAdminUids({ family, employees });
+    if (plan.add.length || plan.remove.length) {
+      tx.update(familyRef, { adminUids: plan.adminUids, updatedAt: new Date().toISOString() });
+    }
+    return { add: plan.add, remove: plan.remove };
+  });
 }
 
 /** Beregn og skriv alle accessAcl-dokumenter for selskapet. */
@@ -65,7 +90,11 @@ export async function syncCompany(companyId, now = new Date()) {
     await batch.commit();
   }
   for (const row of plan.write) acl[row.uid] = row;
-  return { written: plan.write.length, removed: plan.remove.length, acl };
+  const admins = await syncAdminUids(familyRef, employees);
+  if (admins.add.length || admins.remove.length) {
+    logger.info('companyAccessSync adminUids', { companyId, add: admins.add, remove: admins.remove });
+  }
+  return { written: plan.write.length, removed: plan.remove.length, acl, admins };
 }
 
 export const syncCompanyAccess = onCall(CALL, async (request) => {

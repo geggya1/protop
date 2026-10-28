@@ -1055,6 +1055,13 @@ service cloud.firestore {
         && (keys.hasAny(['company', 'orgnr']) ? companyFieldsOk(familyId, keys) : true);
     }
 
+    // Avslutning av bedriften (GRUNN-03): closure, closedAt og deleteAfter skrives bare av serveren
+    // (closeCompany, reopenCompany). Ingen klient, heller ikke eier, kan sette, endre eller fjerne dem.
+    // Slettingen leser fristen fra companyClosures/{id}, som ingen klient kan lese eller skrive.
+    function closureUnchanged() {
+      return !changed().hasAny(['closure', 'closedAt', 'deleteAfter']);
+    }
+
     match /families/{familyId} {
       // Gruppens eget dokument. Eierskap, administratorliste, medlemslister, tilgangsmatrisen,
       // moduler, orgnr og kontonummer kan ikke endres av vanlige medlemmer (familyUpdateOk).
@@ -1068,6 +1075,7 @@ service cloud.firestore {
             || unchanged('adminUids')
             || request.auth.uid in resource.data.get('adminUids', []))
         && privateEventsKept()
+        && closureUnchanged()
         && (isFamilyAdmin(familyId) ? true : familyUpdateOk(familyId));
 
       match /{path=**}/shoppingLists/{listId} {

@@ -11,6 +11,7 @@ import {
   GEMINI_MODEL,
 } from './aiShared.js';
 import { assertFamilyMember } from './security.js';
+import { HELP_CANDIDATES, helpKnowledgeCandidate, tidyHelpKnowledge } from './helpKnowledge.js';
 
 const ESCALATE_AFTER = 4;
 
@@ -236,20 +237,16 @@ export async function handleAiSupportChat(data, auth) {
     });
   }
 
-  // Learn: store anonymized Q→A candidates for later curation
+  // Spørsmål og svar til forbedring av hjelpen: uten uid, med e-post og telefon maskert (GRUNN-01).
+  // Eldre rader med uid anonymiseres og rader over lagringstiden slettes i samme slengen.
   try {
-    await db.collection('helpKnowledgeCandidates').add({
-      uid: auth.uid,
-      question: message.slice(0, 500),
-      answer: String(reply).slice(0, 2000),
-      audience,
-      device,
-      lang,
-      engine,
+    await db.collection(HELP_CANDIDATES).add({
+      ...helpKnowledgeCandidate({
+        question: message, answer: reply, audience, device, lang, engine,
+      }),
       createdAt: FieldValue.serverTimestamp(),
-      createdAtMs: Date.now(),
-      reviewed: false,
     });
+    await tidyHelpKnowledge(db);
   } catch {
     // non-fatal
   }

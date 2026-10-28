@@ -65,6 +65,10 @@ export {
 export { deleteMyAccount } from './deleteAccount.js';
 export { recordConsent } from './consentLog.js';
 export { syncMyProfile } from './profileSync.js';
+// Avslutning, eksport og sletting av en bedrift (GRUNN-03).
+export {
+  closeCompany, reopenCompany, exportCompanyData, purgeClosedCompanies,
+} from './companyClosure.js';
 
 export { onChatMessageCreated, onFriendChatMessageCreated };
 

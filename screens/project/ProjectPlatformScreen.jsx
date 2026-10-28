@@ -17,6 +17,7 @@ import CompanyStructureSettings from '../../components/project/CompanyStructureS
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import CompanyModuleSettings from '../../components/project/CompanyModuleSettings';
 import CompanyPrivacySettings from '../../components/company/CompanyPrivacySettings';
+import CompanyClosure from '../../components/company/CompanyClosure';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
@@ -410,6 +411,15 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               onSaveCompany={(next) => savePatch(familyId, { company: next })}
               canEdit={canEdit}
             />
+          </SettingsSection>
+
+          <SettingsSection
+            icon="archive-outline"
+            title="Avslutt bedriften"
+            hint="Eksport av alle data, og sletting etter 90 dager"
+            colors={colors}
+          >
+            <CompanyClosure family={family} familyId={familyId} uid={uid} colors={colors} />
           </SettingsSection>
 
           {canEdit ? (

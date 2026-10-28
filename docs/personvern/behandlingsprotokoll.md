@@ -39,7 +39,7 @@ særlig for barn (art. 8).
 | A1 | Brukerkonto og innlogging | Gi tilgang til tjenesten | Avtale (art. 6 nr. 1 b) | Alle brukere | Navn, e-post, telefon, brukernavn, profilbilde, språk, fødselsdato (valgfritt), innloggingsmetode (Google, Microsoft, Apple eller e-post og passord). Passord bare som hash hos Firebase Auth. | Firebase Auth, `users/{uid}`, `usernames/{navn}` | Til kontoen slettes (`functions/deleteAccount.js`). |
 | A2 | Medlemskap i bedrifter | Knytte brukeren til riktig bedrift og tilgang | Avtale (b) | Brukere i bedrifter | uid, navn, e-post, bilde, rolle, aktiv/inaktiv | `families/{id}/parents/{uid}`, `memberInvites`, `joinRequests`, `joinCodes`, `orgnrIndex` | Så lenge medlemskapet finnes. Fjernes ved utmelding eller avsluttet ansettelse (`functions/companyMembership.js`). |
 | A3 | Samtykker og vilkår | Dokumentere at vilkår, personvernerklæring og databehandleravtale er godtatt | Rettslig plikt / berettiget interesse (c/f) | Brukere, bedriftens eier/administrator | Dokument, versjon, språk, plattform, servertid | `consentLog/{id}` (bare server, `functions/consentLog.js`), kopi i `users/{uid}.consentHistory` | Slettes med kontoen. **[bekreft]** Om loggen bør beholdes lenger som dokumentasjon. |
-| A4 | Support og hjelpeassistent | Svare på spørsmål og forbedre hjelpen | Avtale / berettiget interesse (b/f) | Brukere som spør | Spørsmål og svar, uid, språk, enhet | `functions/aiSupport.js`: `users/{uid}/supportTickets`, `supportInbox`, `helpKnowledgeCandidates` | Ingen sletting i koden. `helpKnowledgeCandidates` lagrer uid sammen med spørsmålet (kalt «anonymisert» i koden, men er det ikke). |
+| A4 | Support og hjelpeassistent | Svare på spørsmål og forbedre hjelpen | Avtale / berettiget interesse (b/f) | Brukere som spør | Spørsmål og svar, uid (supportsaker), språk, enhet | `functions/aiSupport.js`: `users/{uid}/supportTickets`, `supportInbox`, `helpKnowledgeCandidates` | Supportsaker: ingen sletting i koden. `helpKnowledgeCandidates` (GRUNN-01): lagres uten uid, med e-post, telefon og fødselsnummer maskert (`functions/helpKnowledge.js`). Rader eldre enn ett år slettes, og eldre rader med uid anonymiseres, når assistenten brukes neste gang. Navn i fritekst maskeres ikke. |
 | A5 | Varsler fra tjenesten | Push og e-post om hendelser brukeren følger | Avtale (b) | Brukere | Varseltekst, tidspunkt, push-abonnement (web og app), varselinnstillinger | `users/{uid}/notifications`, `users/{uid}/pushSubscriptions`, `functions/pushDelivery.js`, `notifyEmail.js` | Ingen sletting av gamle varsler i koden. |
 | A6 | Koblinger til Outlook/Microsoft 365 og Google Kalender | Vise e-post og hendelser i ProTop | Avtale (b), brukeren kobler selv | Brukeren | Tilgangsnøkler, e-post og hendelser som hentes | `users/{uid}/calendarConnections`, `functions/msOauth.js`, `outlookMail.js`, `calendarIntegration.js` | Til brukeren kobler fra eller sletter kontoen (Google-tokens trekkes tilbake ved sletting). |
 | A7 | Sikkerhet, misbruk og feilretting | Hindre misbruk, rette feil | Berettiget interesse (f) | Brukere | Tellere per bruker/handling (`rateLimits`), feillogger i Cloud Logging (uid, selskaps-id, feilmeldinger) | `functions/security.js` (`assertRateLimit`), `logger.*` i funksjonene | `rateLimits`: ingen sletting i koden. Cloud Logging: standard oppbevaring hos Google. **[bekreft]** |
@@ -68,7 +68,7 @@ Bedriften bestemmer formål og tilgang. Tilgangen styres per modul i tilgangsmat
 | B9 | ISO / K-HMS | Ansatte, innleide, melder av avvik, skadde, revisorer | Avvik, RUH, personskader med skadeklasse, varsling, tiltak, revisjoner, kompetansebevis, risiko, dokumentstyring og lesebekreftelser, revisjonsspor, bilder | **Helse**: personskade og skadeklasse. Skjermede saker (varsling etter aml. kap. 2 A, personskade) i egne samlinger | `iso*`, `isoFindingsRestricted`, `isoRestricted`, `isoAudit*`, `docControl`, `docAcks`, `src/iso/` | Ingen automatisk sletting. |
 | B10 | Samhandling | Ansatte, gjester i chat | Chat og meldinger, nyhetsvegg, kalender, notater, oppgaver, dokumenter | Kan forekomme i fritekst | `chats/**`, `companyWallPosts`, `events`, `notes`, `parentTodos`, `documentFolders` | Ingen automatisk sletting. Ved sletting av konto fjernes navn og bilde på egne meldinger. |
 | B11 | Brukslogg | Brukere i bedriften | Innlogging, aktivitet omtrent hvert 4. minutt, sidevisninger, tidspunkt, IP-adresse, nettleser, endringer i timer, sendte invitasjoner | Overvåking av ansatte | `employees/{id}/usage`, `functions/usageLog.js` | 90 dager. Slettes ved innlogging og lesing. Bedriften kan slå av (`company.privacy.usageLog`). |
-| B12 | Innsynslogg | Ansatte som får sin HR, lønn, fravær eller fødselsnummer åpnet | Hvem, hva og når (ingen verdier) | – | `accessLog`, `functions/accessLog.js` | Ingen lagringstid satt. |
+| B12 | Innsynslogg | Ansatte som får sin HR, lønn, fravær eller fødselsnummer åpnet | Hvem, hva og når (ingen verdier) | – | `accessLog`, `functions/accessLog.js` | 2 år (GRUNN-04). Eldre rader slettes når loggen skrives eller leses. |
 | B13 | AI på bedriftens vegne | Det som står i teksten eller bildet | Importfiler, CV, arbeidsavtaler, kvitteringer, timelister, anbud og avtaler, talenotater | Kan inneholde helse og fødselsnummer (11-sifrede tall maskeres ved import av kolonner) | `functions/ai*.js`, `importInterpret.js`, `timesheetReviewAi.js`, `anbud*Ai.js`, `aiDrafts`, `aiUsage` | Utkast utløper etter 48 timer, slettes etter 30 dager, midlertidige bilder etter 48 timer, `aiUsage` etter 90 dager (`functions/aiCleanup.js`). Krever at den planlagte jobben kjører (DS-16). Bedriften kan slå av AI (`company.privacy.ai`). |
 | B14 | Tilgangsstyring | Brukere i bedriften | Beregnet tilgang per område, nivå, ansatt-id, utløpstid | – | `accessAcl/{uid}`, `functions/companyAccessSync.js` | Utløper etter 12 timer og skrives på nytt. |
 
@@ -94,8 +94,8 @@ hvilken region data faktisk behandles i, og grunnlaget for overføring.
 | Statens vegvesen | Kjøretøyoppslag | Reg.nr. | Norge | Nei | `functions/vegvesenLookup.js` |
 | Doffin, TED, Mercell, Tendsign, EU-Supply, Artifik, Hyyr | Anbud | Søkeord, kunngjøringer (kontaktpersoner i kunngjøringer) | EU/Norge | Nei | `functions/doffin*.js`, `tenderProxy.js`, `src/anbud/` |
 | SSB | Indeksregulering | Ingen personopplysninger | Norge | Nei | `functions/indeksreguleringAi.js` |
-| OpenStreetMap/Nominatim, Photon (komoot), Geonorge/Kartverket | Adressesøk og kart | Søketekst, IP | EU/Norge | Nei | `src/utils/location.js`, `src/anbud/geocodePlace.js` |
-| BigDataCloud | Adresse fra posisjon (kjørebok «Her») | Koordinater, IP | Australia | **Ja** | `src/utils/location.js` |
+| OpenStreetMap/Nominatim, Photon (komoot), Geonorge/Kartverket | Adressesøk, kart og adresse fra posisjon (kjørebok «Her», vær) | Søketekst eller koordinater, IP | EU/Norge, Storbritannia (Nominatim) | Nei (Storbritannia har tilstrekkelighetsvedtak) | `src/utils/location.js`, `src/utils/reverseGeocode.js`, `src/anbud/geocodePlace.js` |
+| ~~BigDataCloud~~ | Fjernet (GRUNN-02). Adresse fra posisjon går nå til Kartverket, så Photon og Nominatim | – | – | – | `src/utils/reverseGeocode.js` |
 | OSRM (router.project-osrm.org) | Reserve for kjørerute | Koordinater | Offentlig demotjener | Ukjent | `src/mileage/drivingRoute.js` |
 | MET Norway, Open-Meteo | Vær på forsiden | Omtrentlig posisjon | Norge, Sveits | Nei (Sveits har tilstrekkelighetsvedtak) | `src/utils/weather.js` |
 | Google Fonts, unpkg | Skrift og kartbibliotek | IP-adresse | USA | **Ja** | `app.web.css`, `src/mileage/routeMapHtml.js`, `src/anbud/tenderMapHtml.js` |
@@ -105,7 +105,9 @@ hvilken region data faktisk behandles i, og grunnlaget for overføring.
 
 Personvernerklæringen sier at overføring skjer etter EU–US Data Privacy Framework når leverandøren er
 sertifisert, ellers etter EUs standardkontraktsklausuler (art. 46). **[bekreft]** for hver leverandør i
-tabellen merket «Ja». BigDataCloud (Australia), Expo og OSRM er ikke nevnt i personvernerklæringen.
+tabellen merket «Ja». Expo, OSRM, Google Routes, vær, kart og talegjenkjenning står i personvernerklæringen fra
+28. oktober 2026 (GRUNN-02, merket for juristgjennomgang i `src/i18n/legal.js`). BigDataCloud er fjernet fra koden.
+OSRM-demotjeneren har ingen avtale og ukjent driftssted. **[bekreft]** eller bytt til egen tjener.
 
 ## 6. Lagringstid og sletting slik koden gjør det
 
@@ -118,8 +120,9 @@ tabellen merket «Ja». BigDataCloud (Australia), Expo og OSRM er ikke nevnt i p
 | Faktura og bilag | Minst 5 år | `firestore.rules` (utstedt faktura kan ikke slettes) | Ingen sletting etter fristen. |
 | Lokale kopier på enheten | Slettes ved utlogging eller annen bruker | `src/utils/localCache.js` | – |
 | Slettemarkeringer i prosjektdokumentet | 180 dager | `src/project/engine.js` | – |
-| Bedriftens data etter opphør | Databehandleravtalen lover sletting innen 90 dager | – | **Ingen funksjon for å slette en bedrift i koden.** Må gjøres manuelt. **[bekreft]** rutine. |
-| Fravær, timer, kjørebok, ISO, chat, kunder, innsynslogg, varsler, support | Ingen regel | – | Må fastsettes (se åpne spørsmål). |
+| Bedriftens data etter opphør | Eier/admin avslutter (`closeCompany`), sletting 90 dager etter, eksport først | `functions/companyClosure*.js`, `src/privacy/companyClosure.js`, `scripts/purge-closed-companies.mjs` | GRUNN-03. Slettingen kjøres av driften (ingen planlagt jobb i CI). **[bekreft]** rutinen: hvem kjører den, og hvor ofte. Se `docs/drift/sletting-av-bedrift.md`. |
+| Innsynslogg | 2 år | `functions/accessLog.js`, `src/privacy/retentionPolicy.js` | GRUNN-04. Slettes ved skriving og lesing. |
+| Fravær, timer, kjørebok, ISO, chat, kunder, varsler, support | Forslag, ikke slått på | `src/privacy/retentionPolicy.js` | Se [lagringstider](lagringstider.md). Eieren bestemmer. |
 | Sikkerhetskopier | Ukjent | – | **[bekreft]** om Firestore har sikkerhetskopi eller gjenoppretting til tidspunkt, og hvor lenge. |
 
 ## 7. Tekniske og organisatoriske tiltak (oversikt)
@@ -146,15 +149,19 @@ Mer i [ROS-analysen](ros-analyse.md).
 
 1. Fyll inn juridisk navn, org.nr., adresse og eventuelt personvernombud (`LEGAL_ENTITY`).
 2. Bekreft databehandleravtaler og overføringsgrunnlag for hver underleverandør i punkt 4.
-   Legg til BigDataCloud, Expo, OSRM og talegjenkjenning i personvernerklæringen, eller fjern dem fra koden.
+   ~~Legg til BigDataCloud, Expo, OSRM og talegjenkjenning i personvernerklæringen, eller fjern dem fra koden.~~
+   Gjort (GRUNN-02): BigDataCloud fjernet, de andre står i erklæringen. Juristen må kontrollere grunnlaget.
 3. Bekreft region for Firestore og Storage, og hvor Firebase Auth lagrer data.
 4. Gemini Developer API eller Vertex AI i EU? Brukes betalt nivå (ingen bruk av data til trening)?
 5. Hvilken e-postleverandør brukes i produksjon (Brevo, Resend eller SendGrid)?
 6. Lagringstid for fravær (sykefravær), timer, kjørebok, ISO-saker og personskader, chat, kundedata,
-   innsynslogg, varsler og support. Hvem sletter, og hvordan?
+   innsynslogg, varsler og support. Hvem sletter, og hvordan? Forslag i [lagringstider](lagringstider.md)
+   (GRUNN-04). Innsynsloggen er satt til to år.
 7. Rutine for å slette en bedrifts data innen 90 dager etter opphør, slik databehandleravtalen lover.
+   Funksjonen finnes (GRUNN-03, `docs/drift/sletting-av-bedrift.md`). Eieren må bestemme hvem som kjører
+   slettingen og hvor ofte, og om avtaleteksten om regnskapsmateriale skal endres.
 8. Sikkerhetskopier: finnes de, hvor lenge, og hvordan slettes data der?
-9. `helpKnowledgeCandidates`: fjern uid eller sett en lagringstid.
+9. ~~`helpKnowledgeCandidates`: fjern uid eller sett en lagringstid.~~ Gjort (GRUNN-01): uten uid, ett år.
 10. Skal samtykkeloggen beholdes etter at kontoen er slettet?
 11. Er familie-, skole-, barnehage-, utleie- og treningsfunksjonene i drift (L-35)?
 12. Er de planlagte jobbene som sletter data (`aiCleanupScheduled`) faktisk i drift (DS-16)?

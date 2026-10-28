@@ -9,7 +9,6 @@ import { localizeModuleFields } from '../i18n/moduleCatalog.js';
 import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
 import { GROUP_PALETTE } from './groupPalette.js';
 import { PROTOP_PRODUCT_MODULE_IDS } from '../navigation/protopShell.js';
-import { isModuleStartPage } from '../navigation/navTrail.js';
 
 const t = (nb, en) => ({ nb, en });
 
@@ -347,14 +346,12 @@ export function shellHeroModuleId(tab, moreSubView = null) {
 }
 
 /**
- * Båndet med illustrasjon og salgstekst vises bare på modulens startside.
- * Undersider (Godkjenninger, Til fakturering, Lønn …) får en kompakt tittelrad
- * med brødsmule, så innholdet starter høyere opp. Personlige sider har ingen
- * undersider og beholder båndet.
+ * Kompakt tittelrad i stedet for båndet? Nei: modulbåndet er toppoverskriften og står på
+ * alle sidene i modulen, også undersidene (eierbeslutning 28.10.2026, erstatter UX-25).
+ * Funksjonen står igjen, så skallet har ett sted å endre dette.
  */
-export function shellHeroCompact(tab, moreSubView = null) {
-  if (!shellHeroModuleId(tab, moreSubView)) return false;
-  return !isModuleStartPage(tab, moreSubView);
+export function shellHeroCompact() {
+  return false;
 }
 
 /**
@@ -362,7 +359,6 @@ export function shellHeroCompact(tab, moreSubView = null) {
  * Hides family name + large page title. Add overlays the lower-right edge.
  * Help is a separate overlay under the profile photo, above this band.
  * Tablet/web keep the heading in the content band (`null` here).
- * Undersider har ikke båndet: toppfeltet viser sidetittelen i stedet.
  */
 export function phoneChromeHeroId(tab, moreSubView = null, isPhone = false) {
   if (!isPhone || shellHeroCompact(tab, moreSubView)) return null;

@@ -170,3 +170,18 @@ test('modulmeny: én komponent for alle, med 44 px trykkflate på berøringsskje
   const hr = readFileSync(new URL('../../screens/hr/HrScreen.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(hr, /HrSectionNav/);
 });
+
+test('modulmeny: ISO har delene som første rad og sidene i delen som andre rad', () => {
+  const m = moduleTabsFor('iso', 'prosesser');
+  assert.deepEqual(m.sections.map((s) => s.label), ['Oversikt', 'Styring', 'Drift', 'Evaluering', 'Innstillinger']);
+  assert.equal(m.activeSectionId, 'styring');
+  const styring = m.sections.find((s) => s.id === 'styring');
+  assert.deepEqual(styring.pages.slice(0, 3).map((p) => p.label), ['Prosesser', 'Dokumenter', 'Skjemaer'], 'menyrekkefølge i delen');
+  assert.equal(moduleTabsFor('iso', 'beredskap').activeSectionId, 'drift');
+  assert.equal(moduleTabsFor('iso', 'ledelse').activeSectionId, 'evaluering');
+  assert.equal(moduleTabsFor('iso', null).activeSectionId, 'oversikt');
+  assert.equal(moduleTabsFor('iso', 'innstillinger').activeSectionId, 'innstillinger');
+  const all = m.sections.flatMap((s) => s.pages.map((p) => p.id));
+  assert.equal(new Set(all).size, m.pages.length, 'alle ISO-sidene står i en del');
+  assert.equal(moduleTabsFor('hr', 'lonn').sections, undefined, 'andre moduler har én rad med «Mer»');
+});

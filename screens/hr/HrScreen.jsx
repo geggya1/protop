@@ -13,9 +13,7 @@ import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { companyRetention, hrRetentionPlan, retentionToast } from '../../src/hr/retention';
 import { logSensitiveAccess } from '../../src/hr/accessLogClient';
 import { defaultHrSubView } from '../../src/navigation/shellModules';
-import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
-import HrSectionNav from './HrSectionNav';
 import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
 import HrRecruitment from './HrRecruitment';
@@ -38,7 +36,6 @@ function periodWindow(months = 3) {
 
 export default function HrScreen({ subView = 'oversikt' }) {
   const colors = useColors();
-  const { isPhone } = useLayout();
   const nav = useNavigation();
   const {
     family, familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
@@ -418,11 +415,11 @@ export default function HrScreen({ subView = 'oversikt' }) {
     return <CompanyAccessDenied />;
   }
 
+  // Undersidene ligger i modulmenyen i skallet (ModuleTabs), som i de andre modulene.
   // Skjemaer har egen rulling og full høyde ved utfylling.
   if (page === 'skjema') {
     return (
       <View style={[styles.scroll, styles.content, { backgroundColor: colors.bg }]} nativeID="hr-screen">
-        <HrSectionNav colors={colors} page={page} isPhone={isPhone} onChange={go} />
         {ready ? <View key={familyId || 'hr'} style={{ flex: 1, minHeight: 0 }}>{body}</View> : null}
       </View>
     );
@@ -434,7 +431,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
       contentContainerStyle={styles.content}
       nativeID="hr-screen"
     >
-      <HrSectionNav colors={colors} page={page} isPhone={isPhone} onChange={go} />
       {ready ? <View key={familyId || 'hr'}>{body}</View> : null}
     </ScrollView>
   );

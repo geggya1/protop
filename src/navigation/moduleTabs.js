@@ -1,45 +1,80 @@
 /**
  * Vannrett meny inne i en modul: undersidene som tidligere lå som undermeny i hamburgermenyen.
  * Kilden er bedriftsmenyen (companyMenuItems), så tilgang og låste moduler følger samme regler.
- * HR og Anbud har sin egen meny på siden og får ikke en til.
+ * Alle moduler har samme meny (også HR og Anbud): fanene som får plass, og resten under «Mer» (UX-19).
  */
-import { ISO_MENU, companyNavItems, defaultIsoSubView, isNavItemActive } from './shellModules.js';
+import {
+  ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultIsoSubView, isNavItemActive,
+} from './shellModules.js';
 
-const OWN_NAV = new Set(['hr', 'anbud']);
-
-/** ISO har mange sider: først et valg av del, så sidene i delen. Oversikt og Innstillinger er egne faner. */
-const ISO_SECTIONS = [
-  { id: 'oversikt', label: 'Oversikt', group: null },
+/** ISO har mange sider. Delene blir titler i «Mer»-arket. Oversikt står alltid i raden. */
+const ISO_GROUPS = [
   { id: 'styring', label: 'Styring', group: 'Styring' },
   { id: 'drift', label: 'Drift', group: 'Operativt' },
   { id: 'evaluering', label: 'Evaluering', group: 'Evaluering' },
   { id: 'innstillinger', label: 'Innstillinger', group: 'Innstillinger' },
 ];
 
+/** Sidene som står først i raden. Resten følger i menyrekkefølge. ISO: de mest brukte sidene. */
+const PRIMARY = {
+  iso: ['oversikt', 'avvik', 'risiko', 'hms', 'dokumenter', 'prosesser', 'kompetanse', 'revisjon'],
+};
+
+/** Kortnavn på fanen på telefon, så 3–4 faner får plass. Arket og sidetittelen bruker hele navnet. */
+const SHORT = {
+  'anbud-varsling': 'Varsling',
+  'anbud-foresporsel': 'Forespørsel',
+  'anbud-vurdering': 'Vurdering',
+  'anbud-tilbud': 'Tilbud',
+  'iso-avvik': 'Avvik',
+  'fravaer-fravaer': 'Oversikt',
+  'fravaer-fravaersrapport': 'Rapport',
+  'fravaer-planlagt': 'Planlagt',
+  'selskapsinnstillinger-moduler': 'Moduler',
+  'selskapsinnstillinger-tilgang': 'Tilgang',
+  'iso-lovkrav': 'Lovkrav',
+  'iso-organisasjon': 'Roller',
+  'iso-ledelse': 'Ledelse',
+};
+
+/** Modulene som viser en standard underside når adressen ikke har en (/hjem/hr → Oversikt). */
+const DEFAULT_SUB = {
+  iso: defaultIsoSubView,
+  hr: defaultHrSubView,
+  anbud: (sub) => (sub === 'pipeline' ? 'tilbud' : defaultAnbudSubView(sub)),
+};
+
 const sameAction = (a, b) => !!a && !!b && a.tab === b.tab && (a.subView || null) === (b.subView || null);
 
-function isoSections(pages, active) {
-  const groupOf = new Map(ISO_MENU.map((m) => [`iso-${m.id}`, m.id === 'oversikt' ? null : m.group]));
-  const sections = ISO_SECTIONS.map((s) => ({
-    id: s.id,
-    label: s.label,
-    pages: pages.filter((p) => (s.group === null ? groupOf.get(p.id) === null : groupOf.get(p.id) === s.group)),
-  })).filter((s) => s.pages.length);
-  const activeSection = sections.find((s) => s.pages.some((p) => p.id === active?.id)) || sections[0] || null;
-  return { sections, activeSectionId: activeSection?.id || null };
+function ordered(moduleId, pages) {
+  const first = (PRIMARY[moduleId] || []).map((id) => `${moduleId}-${id}`);
+  if (!first.length) return pages;
+  const rank = (p) => (first.includes(p.id) ? first.indexOf(p.id) : first.length);
+  return pages.map((p, i) => ({ p, i })).sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i).map((x) => x.p);
+}
+
+function isoGroups(pages) {
+  const have = new Set(pages.map((p) => p.id));
+  return ISO_GROUPS.map((g) => ({
+    id: g.id,
+    label: g.label,
+    pageIds: ISO_MENU
+      .filter((m) => m.group === g.group && m.id !== 'oversikt' && have.has(`iso-${m.id}`))
+      .map((m) => `iso-${m.id}`),
+  })).filter((g) => g.pageIds.length);
 }
 
 /**
  * Menyen for fanen og undersiden, eller null når modulen ikke har undersider.
  * items: bedriftsmenyen etter tilgang (companyMenuItems). Uten den brukes hele menyen.
- * Svar: { moduleId, label, pages: [{ id, label, icon, action }], activeId, sections?, activeSectionId? }
+ * Svar: { moduleId, label, pages: [{ id, label, short, icon, action }], activeId, groups? }
+ * pages står i visningsrekkefølge. groups (ISO) er titlene i «Mer»-arket.
  */
 export function moduleTabsFor(tab, subView, items = null) {
   if (!tab) return null;
   const list = items || companyNavItems({ includeUnderenheter: true });
-  const sub = tab === 'iso' ? defaultIsoSubView(subView) : (subView || null);
-  const module = list.find((item) => !OWN_NAV.has(item.id) && !item.locked && (item.children || []).length
-    && isNavItemActive(item, tab, sub));
+  const sub = DEFAULT_SUB[tab] ? DEFAULT_SUB[tab](subView) : (subView || null);
+  const module = list.find((item) => !item.locked && (item.children || []).length && isNavItemActive(item, tab, sub));
   if (!module) return null;
   let pages = module.children.filter((p) => !p.locked && p.action?.type === 'tab');
   // Modulens egen side først når den ikke er en av undersidene (Selskapsinnstillinger → Generelt).
@@ -47,8 +82,66 @@ export function moduleTabsFor(tab, subView, items = null) {
     pages = [{ id: `${module.id}-start`, label: 'Generelt', icon: module.icon, action: module.action }, ...pages];
   }
   if (pages.length < 2) return null;
+  pages = ordered(module.id, pages).map((p) => (SHORT[p.id] ? { ...p, short: SHORT[p.id] } : p));
   const active = pages.find((p) => isNavItemActive(p, tab, sub)) || null;
   const out = { moduleId: module.id, label: module.label, pages, activeId: active?.id || null };
-  if (module.id === 'iso') Object.assign(out, isoSections(pages, active));
+  if (module.id === 'iso') out.groups = isoGroups(pages);
   return out;
+}
+
+/** Omtrentlig bredde på en fane: 14 px tekst (≈ 7,2 px per tegn) og 12 px luft på hver side. */
+export function tabWidth(label) {
+  return Math.ceil(String(label || '').length * 7.2) + 26;
+}
+
+/** «Mer»-knappen har en pil i tillegg til teksten. */
+const MORE_ICON = 20;
+export const PHONE_MAX_TABS = 4;
+
+/**
+ * Hvilke faner som står i raden, og hvilke som ligger under «Mer».
+ * width: plassen raden har (px). max: høyst så mange faner i raden (telefon: 4). short: bruk kortnavn.
+ * Siden du står på, er alltid i raden: ligger den under «Mer», tar den plassen til den siste fanen
+ * som får plass (som GitHubs UnderlineNav), så du ser hvor du er.
+ * Svar: { visible: [page], more: [{ id, label, pages }] }
+ */
+export function splitModuleTabs(menu, { width = Infinity, max = Infinity, short = false } = {}) {
+  const pages = menu?.pages || [];
+  const w = (p) => tabWidth((short && p.short) || p.label);
+  const total = pages.reduce((n, p) => n + w(p), 0);
+  if (pages.length <= max && total <= width) return { visible: pages, more: [] };
+  const room = width - tabWidth('Mer') - MORE_ICON;
+  let used = 0;
+  let count = 0;
+  for (const p of pages) {
+    if (count >= max || used + w(p) > room) break;
+    used += w(p);
+    count += 1;
+  }
+  count = Math.min(Math.max(1, count), pages.length - 1);
+  let visible = pages.slice(0, count);
+  const active = pages.find((p) => p.id === menu.activeId) || null;
+  if (active && !visible.includes(active)) {
+    // Gi plass til den aktive siden fra slutten av raden. Den første fanen blir alltid stående.
+    const sum = (list) => list.reduce((n, p) => n + w(p), 0);
+    visible = visible.slice(0, Math.min(visible.length, max - 1));
+    while (visible.length > 1 && sum(visible) + w(active) > room) visible = visible.slice(0, -1);
+    visible = [...visible, active];
+  }
+  const shown = new Set(visible.map((p) => p.id));
+  const rest = pages.filter((p) => !shown.has(p.id));
+  // Arket viser resten, med delene som titler når modulen har dem (ISO, i menyrekkefølge).
+  let more;
+  if (menu.groups?.length) {
+    const byId = new Map(rest.map((p) => [p.id, p]));
+    more = menu.groups
+      .map((g) => ({ id: g.id, label: g.label, pages: g.pageIds.map((id) => byId.get(id)).filter(Boolean) }))
+      .filter((g) => g.pages.length);
+    const grouped = new Set(more.flatMap((g) => g.pages.map((p) => p.id)));
+    const loose = rest.filter((p) => !grouped.has(p.id));
+    if (loose.length) more = [{ id: 'andre', label: null, pages: loose }, ...more];
+  } else {
+    more = [{ id: 'alle', label: null, pages: rest }];
+  }
+  return { visible, more };
 }

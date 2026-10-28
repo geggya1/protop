@@ -209,8 +209,8 @@ function person(id, {
   assert.match(people, /Fakturerbarhet/);
   assert.doesNotMatch(people, /Hurtigregistrer kontrakt/);
   assert.match(screen, /HrControl/);
-  assert.match(screen, /HrSectionNav/);
-  assert.match(screen, /isPhone/);
+  // Undersidene ligger i modulmenyen i skallet (ModuleTabs), ikke i en egen HR-meny (UX-19).
+  assert.doesNotMatch(screen, /HrSectionNav/);
   assert.doesNotMatch(screen, /from '\.\/HrContracts'/);
 }
 

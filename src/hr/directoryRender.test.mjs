@@ -609,57 +609,40 @@ let caseHtml = '';
   assert.match(caseHtml, /Ada Nordmann/);
 }
 
-const HrSectionNav = component('screens/hr/HrSectionNav.jsx');
+// HR bruker modulmenyen i skallet (ModuleTabs), som de andre modulene (UX-19).
+const ModuleTabs = component('components/ModuleTabs.jsx');
+const { moduleTabsFor } = load(path.join(ROOT, 'src/navigation/moduleTabs.js'));
 const sectionLabels = ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lovpålagt', 'Rekruttering'];
 
 let phoneNavHtml = '';
 let phoneSheetHtml = '';
-let desktopNavHtml = '';
 {
-  phoneNavHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
-    colors,
-    page: 'oversikt',
-    isPhone: true,
-    onChange: () => {},
+  // Testmiljøet er 390 px bredt (telefon): tre faner og «Mer».
+  phoneNavHtml = renderToStaticMarkup(React.createElement(ModuleTabs, {
+    menu: moduleTabsFor('hr', 'oversikt'),
+    onSelect: () => {},
   }));
-  assert.match(phoneNavHtml, /id="hr-section-picker"/);
-  assert.match(phoneNavHtml, /Bytt seksjon, Oversikt/);
-  assert.match(phoneNavHtml, /Oversikt/);
-  assert.equal(phoneNavHtml.includes('id="hr-tabs"'), false);
-  for (const label of sectionLabels.slice(1)) {
-    assert.equal(phoneNavHtml.includes(label), false, `lukket mobilmeny skal ikke vise ${label}`);
+  assert.match(phoneNavHtml, /id="module-tab-hr-oversikt"/);
+  assert.match(phoneNavHtml, /id="module-tab-hr-personell"/);
+  assert.match(phoneNavHtml, /id="module-tabs-more"/);
+  assert.match(phoneNavHtml, /Flere sider i HR \(6\)/);
+  for (const label of ['Lønn', 'Rekruttering', 'Personalhåndbok']) {
+    assert.equal(phoneNavHtml.includes(label), false, `lukket «Mer» skal ikke vise ${label}`);
   }
 }
 
 {
-  phoneSheetHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
-    colors,
-    page: 'oversikt',
-    isPhone: true,
-    sheetOpen: true,
-    onChange: () => {},
+  phoneSheetHtml = renderToStaticMarkup(React.createElement(ModuleTabs, {
+    menu: moduleTabsFor('hr', 'oversikt'),
+    onSelect: () => {},
+    moreOpen: true,
   }));
-  assert.match(phoneSheetHtml, /id="hr-section-picker"/);
-  assert.match(phoneSheetHtml, /Seksjon/);
+  assert.match(phoneSheetHtml, /id="module-tabs-sheet"/);
   for (const label of sectionLabels) {
     assert.match(phoneSheetHtml, new RegExp(label.replace('&', '&amp;')));
   }
-  assert.match(phoneSheetHtml, /id="hr-section-personell"/);
-  assert.match(phoneSheetHtml, /id="hr-section-rekruttering"/);
-}
-
-{
-  desktopNavHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
-    colors,
-    page: 'personell',
-    isPhone: false,
-    onChange: () => {},
-  }));
-  assert.match(desktopNavHtml, /id="hr-tabs"/);
-  assert.equal(desktopNavHtml.includes('id="hr-section-picker"'), false);
-  for (const label of sectionLabels) {
-    assert.match(desktopNavHtml, new RegExp(label.replace('&', '&amp;')));
-  }
+  assert.match(phoneSheetHtml, /id="module-tab-hr-lonn"/);
+  assert.match(phoneSheetHtml, /id="module-tab-hr-rekruttering"/);
 }
 
 const previewDir = '/opt/cursor/artifacts';

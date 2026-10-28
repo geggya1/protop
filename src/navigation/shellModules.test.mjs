@@ -399,7 +399,9 @@ assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
 const anbudScreen = readFileSync(new URL('../../screens/anbud/AnbudScreen.jsx', import.meta.url), 'utf8');
 assert.match(anbudScreen, /TenderInquiry/);
 assert.match(anbudScreen, /WatchSettings/);
-assert.match(anbudScreen, /ScrollSheet/);
+// Stegene ligger i modulmenyen i skallet (UX-19), med tallene på fanene.
+assert.match(anbudScreen, /setModuleTabBadges/);
+assert.equal(anbudScreen.includes('PhoneStepFilter'), false);
 assert.match(anbudScreen, /go\('innstillinger'\)/);
 assert.match(anbudScreen, /step === 'innstillinger'/);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);

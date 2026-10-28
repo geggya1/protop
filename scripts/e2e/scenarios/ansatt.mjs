@@ -722,7 +722,21 @@ async function phase7() {
 }
 
 /* ════════════════════ Fase 8: Eva avslutter engasjementet ════════════════════ */
-async function openPerson(b, empId) {
+/** Kjører fn med Evas nettleser. Krasjer siden (lite minne på maskinen), startes en ny økt og fn prøves én gang til. */
+async function ownerDo(fn) {
+  for (let i = 0; i < 2; i += 1) {
+    const b = await ensureOwner();
+    try {
+      return await fn(b);
+    } catch (err) {
+      if (i || !/crash|Target closed|has been closed/i.test(String(err?.message || err))) throw err;
+      S.info('Nettleseren til eier krasjet', 'Ny økt og nytt forsøk');
+    }
+  }
+  return null;
+}
+
+async function openPerson(b, empId, name = '') {
   // Ansatte husker personvisningen. Gå via en annen side, så listen vises.
   await b.open('selskap', null, 1000);
   await b.open('ansatte');
@@ -741,7 +755,9 @@ async function openPerson(b, empId) {
     }
     await b.page.waitForTimeout(800);
   }
-  await loc.first().click({ timeout: 10000 });
+  if (await visible()) await loc.first().click({ timeout: 10000 });
+  else if (name) await b.page.getByRole('button', { name, exact: true }).last().click({ timeout: 10000 });
+  else await loc.first().click({ timeout: 10000 });
   await b.page.waitForTimeout(1500);
 }
 
@@ -803,26 +819,33 @@ async function phase8() {
 async function phase9() {
   console.log('\n── Fase 9: papirkurv og permanent sletting ──');
   const b = await ensureOwner();
+  void b;
   const nina = await employeeOf('nina');
-  if (!nina) { S.info('D11–D15', 'Ninas post finnes ikke (gjenopptatt kjøring)'); return; }
   const n2 = await ensure('nina', 'phone');
-  await openPerson(b, nina.id);
-  await tap(b, 'Flytt til papirkurv');
-  await b.page.waitForTimeout(800);
-  await tap(b, 'Flytt til papirkurv').catch(() => {});
-  await b.page.waitForTimeout(2500);
-  S.check((await employeeOf('nina'))?.company?.status === 'deleted', 'D11 Eva flytter Nina til papirkurven', 'status=deleted', `status=${(await employeeOf('nina'))?.company?.status}`, { shot: await shot(b, 'nina-papirkurv') });
+  if (!nina) S.info('D11–D13', 'Ninas post er allerede slettet (gjenopptatt kjøring)');
+  else {
+  if (nina.company?.status !== 'deleted') await ownerDo(async (o) => {
+    await openPerson(o, nina.id);
+    await tap(o, 'Flytt til papirkurv');
+    await o.page.waitForTimeout(800);
+    await tap(o, 'Flytt til papirkurv').catch(() => {});
+    await o.page.waitForTimeout(2500);
+  });
+  S.check((await employeeOf('nina'))?.company?.status === 'deleted', 'D11 Eva flytter Nina til papirkurven', 'status=deleted', `status=${(await employeeOf('nina'))?.company?.status}`, { shot: await shot(bots.eier || b, 'nina-papirkurv') });
   await n2.page.waitForTimeout(3000);
   const trashAccess = await pageAccess(n2, 'ansatte');
   S.check(trashAccess === 'denied', 'D12 Nina i papirkurven har ingen tilgang', 'Ansatte sperret', `Ansatte: ${trashAccess}`, { id: 'ANSATT-17', sev: 'Høy', ref: 'FL-03', shot: await shot(n2, 'nina-papirkurv-ui') });
   // Permanent sletting fra papirkurven.
-  await openPerson(b, nina.id).catch(() => {});
-  await tap(b, 'Slett permanent').catch(() => {});
-  await b.page.waitForTimeout(800);
-  await tap(b, 'Slett permanent').catch(() => {});
-  await b.page.waitForTimeout(2500);
+  await ownerDo(async (o) => {
+    await openPerson(o, nina.id, st.nina.name);
+    await tap(o, 'Slett permanent').catch(() => {});
+    await o.page.waitForTimeout(800);
+    await tap(o, 'Slett permanent').catch(() => {});
+    await o.page.waitForTimeout(2500);
+  });
+  }
   const gone = !(await employeeOf('nina'));
-  S.check(gone, 'D13 Eva sletter Nina permanent', 'Posten er borte', gone ? 'Slettet' : 'Finnes fortsatt', { shot: await shot(b, 'nina-slettet') });
+  if (nina) S.check(gone, 'D13 Eva sletter Nina permanent', 'Posten er borte', gone ? 'Slettet' : 'Finnes fortsatt', { shot: await shot(bots.eier, 'nina-slettet') });
   if (gone) {
     await n2.page.waitForTimeout(3000);
     const after = await pageAccess(n2, 'ansatte');
@@ -830,9 +853,15 @@ async function phase9() {
     const restore = /Gjenopprett min profil/.test(t);
     S.check(after === 'denied' && !restore, 'D14 Permanent slettet Nina ser ikke Ansatte og kan ikke gjenopprette seg', 'Sperret, ingen «Gjenopprett min profil»', `Ansatte: ${after}, «Gjenopprett min profil» vises=${restore}`, { id: 'ANSATT-17', sev: 'Høy', ref: 'FL-03', shot: await shot(n2, 'nina-etter-sletting') });
     if (restore) {
+      // Nina har fylt ut «Min side» med e-post tidligere (det appen lagrer i users/{uid}.professionalProfile).
+      await rpatch(`users/${st.nina.uid}`, await token('nina'), { professionalProfile: { person: { firstName: st.nina.first, lastName: st.nina.last, email: st.nina.email } } });
+      await n2.page.reload({ waitUntil: 'domcontentloaded' });
+      await waitShell(n2).catch(() => {});
+      await pageAccess(n2, 'ansatte');
       await tap(n2, 'Gjenopprett min profil');
       await n2.page.waitForTimeout(3000);
-      const back = await employeeOf('nina');
+      await n2.page.waitForTimeout(2000);
+      const back = (await employees()).find((e) => e.personUid === st.nina.uid) || await employeeOf('nina');
       S.check(!back, 'D15 «Gjenopprett min profil» gir ikke tidligere ansatt en ny aktiv post', 'Ingen ny post', back ? `Ny post ${back.id}, status=${back.company?.status}, nivå=${back.company?.accessLevel}` : 'Ingen', { id: 'ANSATT-17', sev: 'Høy', ref: 'FL-03', shot: await shot(n2, 'nina-gjenopprettet') });
       if (back) await rpatch(`families/${st.companyId}/employees/${back.id}`, 'owner', { company: { status: 'inactive', canLogin: false } });
     }

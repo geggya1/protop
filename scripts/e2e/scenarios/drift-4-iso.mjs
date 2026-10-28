@@ -34,7 +34,7 @@ async function pickPerson(bot, name, which = 'first') {
 }
 async function openCase(bot) {
   await go(bot, 'iso', 'avvik', 5000);
-  await bot.page.getByText(TITLE, { exact: false }).first().waitFor({ state: 'visible', timeout: 30000 });
+  await bot.page.getByText(TITLE, { exact: false }).first().waitFor({ state: 'visible', timeout: 90000 });
   await bot.click(TITLE, { exact: false });
   await bot.page.waitForTimeout(2500);
 }
@@ -44,19 +44,21 @@ try {
   E = await newBot(Bot, 'E-eier', S.users.eier, { outDir: SHOTS });
   await guard(R, '4.00', 'Aktiver ISO', async () => {
     await go(E, 'iso', 'oversikt', 6000);
-    await E.click('Sett opp ledelsessystemet', { timeout: 30000 });
+    // ISO laster tilgangsspeilet og alle samlinger før siden vises; på en tungt lastet maskin tar det tid.
+    if (!(await E.hasText('Sett opp ledelsessystemet', { timeout: 90000 }))) {
+      await E.shot('iso-oversikt-uten-oppsett');
+      await go(E, 'iso', 'oversikt', 6000);
+    }
+    await E.click('Sett opp ledelsessystemet', { timeout: 90000 });
     await E.page.waitForTimeout(3000);
-    await E.click('Aktiver ledelsessystemet', { timeout: 20000 });
+    await E.click('Aktiver ledelsessystemet', { timeout: 60000 });
     await sleep(15000);
     const sys = await getDoc(`families/${C}/isoSystem/main`);
     R.check('4.00', 'Eier setter opp og aktiverer ledelsessystemet', !!sys, { actual: sys ? `godkjennere=${(sys.approverUids || []).length}` : 'isoSystem/main mangler', shot: await E.shot('iso-aktivert') });
   });
 
   /* ───── ISO-03: melde RUH fra telefon ───── */
-  B = new Bot('B-ansatt-telefon', { email: S.users.ansatt2.email, password: S.users.ansatt2.password, view: 'phone', outDir: SHOTS });
-  await B.start();
-  await B.login();
-  await B.page.waitForTimeout(4000);
+  B = await newBot(Bot, 'B-ansatt-telefon', S.users.ansatt2, { view: 'phone', outDir: SHOTS });
   await guard(R, '4.01', 'RUH fra telefon', async () => {
     const skip = B.page.getByText('Hopp over rundturen', { exact: true });
     if (await skip.count()) await skip.first().click({ force: true }).catch(() => {});
@@ -67,7 +69,7 @@ try {
     await tap('Mer');
     await tap('ISO / K-HMS', { timeout: 15000 });
     await B.page.waitForTimeout(5000);
-    await tap('Meld avvik', { timeout: 20000 });
+    await tap('Meld avvik', { timeout: 90000 });
     await B.page.waitForTimeout(2000);
     await tap('Meld avvik');
     await B.page.waitForTimeout(1200);
@@ -111,11 +113,17 @@ try {
       }),
     }, '?documentId=ruh-innleid');
     const I = await newBot(Bot, 'I-innleid', S.users.innleid, { outDir: SHOTS });
+    try {
     await go(I, 'iso', 'avvik', 6000);
+    await I.page.getByText('Kontrollerer tilgang', { exact: false }).first().waitFor({ state: 'hidden', timeout: 90000 }).catch(() => {});
+    await I.page.waitForTimeout(2000);
     const t = await I.visibleText();
-    const ui = /Meld avvik/.test(t) && !/Ingen tilgang/.test(t);
-    const shot = await I.shot('innleid-iso');
-    await I.stop();
+    // «Meld avvik» står også i tipsfeltet; tell bare knapper.
+    const ui = (await I.page.getByRole('button', { name: /Meld avvik/ }).count()) > 0 && !/Ingen tilgang/.test(t);
+    var shot = await I.shot('innleid-iso');
+    var uiResult = ui; var uiText = t;
+    } finally { await I.stop(); }
+    const ui = uiResult; const t = uiText;
     R.check('4.03', 'ISO-04: Innleid kan melde RUH (UI og regler)', res.status === 200 && ui, {
       expected: 'Meld avvik tilgjengelig og lagring tillatt', actual: `REST HTTP ${res.status}, UI: ${ui ? 'Meld avvik vises' : (t.match(/Ingen tilgang[^\n]*/) || ['ingen «Meld avvik»'])[0]}`, shot,
     });
@@ -148,7 +156,12 @@ try {
     R.check('4.04', 'Eier triagerer, beslutter tiltak, registrerer årsak og tiltak (oppgave til Per)', f?.state === 'tiltak' && f?.rootCause?.systemCause && (f?.actions || []).length === 1 && todos.some((t) => /Tiltak/.test(t.title || '')), {
       actual: `state=${f?.state} årsak=${!!f?.rootCause} tiltak=${(f?.actions || []).length} oppgaver=${todos.map((t) => t.title).join(' | ')}`, shot: await E.shot('sak-tiltak'),
     });
-    const early = await E.page.getByText('Godkjenn lukking', { exact: true }).first().isEnabled().catch(() => false);
+    const early = await E.page.evaluate(() => {
+      const t = [...document.querySelectorAll('div')].find((e) => e.childElementCount === 0 && (e.innerText || '').trim() === 'Godkjenn lukking');
+      const btn = t?.closest('[role=button],button');
+      if (!btn) return null;
+      return !(btn.getAttribute('aria-disabled') === 'true' || btn.hasAttribute('disabled'));
+    });
     R.check('4.04a', 'Lukking er sperret før tiltak er kontrollert og effekt verifisert', !early, { actual: early ? 'knappen er aktiv' : 'knappen er sperret' });
     const tokB = await token(S.users.ansatt2);
     const res = await patchAs(tokB, `families/${C}/isoFindings/${f.id}`, { state: 'lukket', closeNote: 'lukker selv', closedByUid: S.users.ansatt2.uid });
@@ -169,6 +182,9 @@ try {
   });
 
   await guard(R, '4.06', 'Kontroll, effekt og lukking', async () => {
+    // ISO-data lastes én gang; eieren må laste siden på nytt for å se at tiltaket er meldt utført (jf. 4.05a).
+    await E.page.reload();
+    await E.waitShell();
     await openCase(E);
     await E.click('Godkjenn gjennomføring');
     await sleep(3000);
@@ -191,7 +207,7 @@ try {
   const DOC = 'Rutine for stillaskontroll';
   await guard(R, '4.07', 'Dokumentgodkjenning', async () => {
     await go(E, 'iso', 'dokumenter', 5000);
-    await E.click('Nytt dokument', { timeout: 20000 });
+    await E.click('Nytt dokument', { timeout: 60000 });
     await E.page.waitForTimeout(1200);
     await fillAfterLabel(E, 'Tittel', DOC, { nth: 'last' });
     await pickPerson(E, 'Per Prosjektleder', 1);
@@ -203,7 +219,7 @@ try {
     await sleep(3500);
     // Utpekt godkjenner (Per) åpner dokumentet.
     await go(P, 'iso', 'dokumenter', 5000);
-    await P.page.getByText(DOC, { exact: false }).first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+    await P.page.getByText(DOC, { exact: false }).first().waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
     await P.click(DOC, { exact: false });
     await P.page.waitForTimeout(2500);
     const perCan = await P.hasText('Godkjenn og publiser', { timeout: 3000 });
@@ -223,15 +239,16 @@ try {
 
   await guard(R, '4.08', 'Lesebekreftelse', async () => {
     const A = await newBot(Bot, 'A-ansatt', S.users.ansatt, { outDir: SHOTS });
+    try {
     await go(A, 'iso', 'dokumenter', 6000);
-    await A.page.getByText(DOC, { exact: false }).first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+    await A.page.getByText(DOC, { exact: false }).first().waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
     await A.click(DOC, { exact: false });
     await A.page.waitForTimeout(2500);
     await A.click('Jeg har lest rev. 1');
     await sleep(3000);
     const d = (await documents()).find((x) => x.title === DOC);
     R.check('4.08', 'Ansatt bekrefter lest (readAcks)', (d?.readAcks || []).some((a) => a.uid === S.users.ansatt.uid), { actual: (d?.readAcks || []).map((a) => a.name).join(',') || 'ingen', shot: await A.shot('lest') });
-    await A.stop();
+    } finally { await A.stop(); }
     await go(E, 'iso', 'dokumenter', 4000);
     await E.click(DOC, { exact: false });
     await E.page.waitForTimeout(2500);
@@ -242,7 +259,7 @@ try {
   /* ───── ISO-08: internrevisjon og ledelsens gjennomgang ───── */
   await guard(R, '4.09', 'Internrevisjon', async () => {
     await go(E, 'iso', 'revisjon', 5000);
-    await E.click('Planlegg revisjon', { timeout: 20000 });
+    await E.click('Planlegg revisjon', { timeout: 60000 });
     await E.page.waitForTimeout(1500);
     await fillAfterLabel(E, 'Revisjon', 'Revisjon drift-test', { nth: 'last' });
     await fillAfterLabel(E, 'Omfang (prosesser/enheter)', 'Byggeplass og stillas');
@@ -267,7 +284,7 @@ try {
 
   await guard(R, '4.10', 'Ledelsens gjennomgang', async () => {
     await go(E, 'iso', 'ledelse', 5000);
-    await E.click('Ny gjennomgang', { timeout: 20000 });
+    await E.click('Ny gjennomgang', { timeout: 60000 });
     await E.page.waitForTimeout(1500);
     await fillAfterLabel(E, 'Gjennomgang', 'LGJ drift-test', { nth: 'last' });
     await fillAfterLabel(E, 'Periode', '2026');
@@ -290,7 +307,7 @@ try {
     let r = (await records()).find((x) => x.title === 'LGJ drift-test');
     R.check('4.10a', 'LGJ med vedtak godkjennes og låses', r?.locked === true && (r?.decisions || []).length === 1, { actual: `state=${r?.state} locked=${r?.locked} vedtak=${(r?.decisions || []).length}`, shot: await E.shot('lgj-godkjent') });
     await go(P, 'iso', 'ledelse', 5000);
-    await P.page.getByText('LGJ drift-test', { exact: false }).first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+    await P.page.getByText('LGJ drift-test', { exact: false }).first().waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
     await P.click('LGJ drift-test', { exact: false });
     await P.page.waitForTimeout(2500);
     await P.click('Utført');

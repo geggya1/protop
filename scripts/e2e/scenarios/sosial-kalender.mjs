@@ -107,6 +107,9 @@ try {
   });
 
   await R.step('K-07', 'Eva endrer tittel → Kim ser endringen i sanntid', 'Ny tittel hos Kim uten omlasting', async () => {
+    if (!(await seen(eier, title, 2000))) await go(eier, 'plan', null, 3000);
+    if (!(await seen(kollega, title, 2000))) await go(kollega, 'plan', null, 3000);
+    await dismissPopup(kollega);
     await tap(eier, title);
     await sleep(1500);
     const inputs = eier.page.locator('input');
@@ -124,6 +127,10 @@ try {
   }, { bot: kollega });
 
   await R.step('K-08', 'Eva sletter hendelsen → bekreftelse, borte hos Kim i sanntid', '«Dette kan ikke angres», hendelsen forsvinner hos begge', async () => {
+    if (!(await seen(eier, title2, 2000))) await go(eier, 'plan', null, 3000);
+    if (!(await seen(kollega, title2, 2000))) await go(kollega, 'plan', null, 3000);
+    const kimHad = await seen(kollega, title2, 8000);
+    await dismissPopup(kollega);
     await tap(eier, title2);
     await sleep(1500);
     await tap(eier, 'Slett hendelse', { last: true });
@@ -134,7 +141,7 @@ try {
     const e = await gone(eier, title2, 8000);
     const k = await gone(kollega, title2, 20000);
     const shot = await kollega.shot('k08-slettet-hos-kim');
-    return { ok: asked && e && k && !(await event(title2)), actual: `bekreftelse=${asked} borte hos Eva=${e} Kim=${k}`, shot: shot || shotC };
+    return { ok: asked && kimHad && e && k && !(await event(title2)), actual: `bekreftelse=${asked} (Kim så den først=${kimHad}) borte hos Eva=${e} Kim=${k}`, shot: shot || shotC };
   }, { bot: eier });
 
   // ── Punkt 6: koble eksterne kontoer uten nett ──

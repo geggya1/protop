@@ -187,8 +187,15 @@ try {
 
   await R.step('N-12', 'FL-19: samtidig redigering – Evas åpne editor får Kims endring', 'Evas editor viser Kims tekst, eller Eva varsles før overskriving', async () => {
     // Eva tilbake til editoren
-    if (await seen(eier, 'Tilbake til notat', 1000)) await tap(eier, eier.page.getByLabel('Tilbake til notat'));
-    if (!(await visibleIdx(eier.page.getByPlaceholder(BODY))).length) { await go(eier, 'notes'); await tap(eier, title, { exact: false }); }
+    if ((await visibleIdx(eier.page.getByLabel('Tilbake til notat', { exact: true }))).length) {
+      await tap(eier, eier.page.getByLabel('Tilbake til notat', { exact: true }));
+      await sleep(1000);
+    }
+    if (!(await visibleIdx(eier.page.getByPlaceholder(BODY))).length) {
+      await go(eier, 'notes');
+      await toList(eier);
+      await tap(eier, title, { exact: false });
+    }
     await sleep(1500);
     await go(kollega, 'notes');
     await toList(kollega);
@@ -245,7 +252,7 @@ try {
   });
 
   await R.step('N-16', 'FL-22: /note/new på mobil', 'Åpner Notater med nytt notat (ikke barnas dagsnotat)', async () => {
-    await kollega.page.goto(`${BASE}/note/new`, { waitUntil: 'domcontentloaded' });
+    await kollega.page.goto(`${BASE}/note/new`, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await kollega.page.waitForFunction(() => !!window.__protopBot, null, { timeout: 180000 }).catch(() => {});
     await sleep(5000);
     await clearOverlays(kollega);

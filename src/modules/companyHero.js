@@ -329,16 +329,6 @@ export const COMPANY_HERO = {
       'See holiday and leave that is still ahead.',
     ),
   },
-  'arbeid-utlegg': {
-    wideArt: true,
-    name: 'Prosjektutlegg',
-    kicker: t('Arbeid', 'Work'),
-    title: t('Prosjektutlegg', 'Project expenses'),
-    pitch: t(
-      'Utlegg som hører til prosjektet.',
-      'Expenses that belong to the project.',
-    ),
-  },
   'arbeid-salg': {
     wideArt: true,
     name: 'Produktsalg',
@@ -423,8 +413,8 @@ export const COMPANY_HERO = {
     kicker: t('Økonomi', 'Finance'),
     title: t('Utlegg', 'Expenses'),
     pitch: t(
-      'Utlegg som skal viderefaktureres eller bokføres.',
-      'Expenses to recharge or book.',
+      'Utlegg på prosjekt og interne utlegg på ett sted. Registrer, godkjenn og importer.',
+      'Project expenses and internal expenses in one place. Register, approve and import.',
     ),
   },
   'okonomi-kjorebok': {
@@ -494,6 +484,8 @@ export function companyHeroId(tab, moreSubView = null) {
     return 'selskap';
   }
   if (tab === 'anbud') return `anbud-${defaultAnbudSubView(moreSubView)}`;
+  // Den gamle adressen til Prosjektutlegg viser Utlegg til skallet har sendt videre (UX-17).
+  if (tab === 'arbeid' && moreSubView === 'utlegg') return 'okonomi-utlegg';
   if (tab === 'arbeid') return `arbeid-${defaultArbeidSubView(moreSubView)}`;
   if (tab === 'okonomi') return `okonomi-${defaultOkonomiSubView(moreSubView)}`;
   if (tab === 'utstyr') return 'utstyr';

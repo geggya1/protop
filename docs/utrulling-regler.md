@@ -12,7 +12,8 @@ eldre app (86332db) ikke lenger får gjøre.
   rammer eldre apper til de er oppdatert.
 
 Regeltestene for eldre apper ligger i `tests/rules/regressions.rules.test.mjs` (de gjør det 86332db gjør)
-og `tests/storage/storage.rules.test.mjs`.
+og `tests/storage/storage.rules.test.mjs`. Kobling av ansattposter (SEC-26): `tests/rules/employeeLink.rules.test.mjs`
+og, med serveren, `functions/employeeLink.emulator.test.mjs`.
 
 ## Rekkefølge
 
@@ -34,6 +35,12 @@ og `tests/storage/storage.rules.test.mjs`.
    GOOGLE_APPLICATION_CREDENTIALS=sa.json node scripts/seal-company-calendars.mjs --apply
    ```
 4. **Deploy `firestore.rules`** (workflow «Deploy Firestore rules»; den kjører alle regeltestene først).
+   Ikke vent lenger enn nødvendig (SEC-26): serveren gir ikke lenger ledertilgang på invitasjonens
+   nøkkel alene (`claimEmployeeInvite`, `respondGroupInvite`; ledernivå krever bekreftet e-post lik
+   invitasjonsadressen), men med reglene fra 86332db kan et medlem fortsatt koble seg direkte til en
+   ventende lederpost (`invite.acceptedUid`, så `personUid`) eller skrive sin egen bekreftede adresse
+   som invitasjonsadresse. `syncCompanyAccess` eller `claimEmployeeInvite` gir da administrator.
+   Bare de nye reglene stenger det.
 5. **Deploy `storage.rules`** manuelt, etter sammenligning med produksjonsreglene (grenser som
    produksjon har i dag, f.eks. for album, må tas med).
 6. Følg med på `permission-denied` i loggene første døgn (særlig fra mobilappene).
@@ -59,9 +66,11 @@ både gamle og nye regler, så web trenger ikke rulles tilbake.
 | Timer: låse og låse opp egen timeliste | Setter `låst`/`registrert` på egne åpne føringer og skriver låseraden i `projects/state` | **Virker** (DRIFT-06). Godkjente føringer røres ikke av låsingen. |
 | Timer: leder godkjenner eller åpner igjen, Til fakturering godkjenner | Setter `godkjent` på føringene (Godkjenninger, fakturagrunnlaget), eller tar den bort | **Virker** for eier, administrator, Begrenset redigering på Andres timer og Til fakturering/Faktura (med ferskt speil, som HR og faktura). Se «Timelistelåsene» under. |
 | Ansatte: status og «Ansatt til» på andres post | Lagrer hele posten direkte (eldre apper avslutter en ansettelse uten serveren) | **Virker** for permisjon, innlogging og en sluttdato fram i tid med Begrenset redigering på Ansatte, og for alt med Admin på Ansatte eller Tilgangsstyring (REV-21). Å avslutte eller ta opp igjen ansettelsen, se under. |
+| Ansatte: kobling til en konto (`personUid`) | Invitasjonen kobles av serveren ved Godta og ved innlogging (`respondGroupInvite`, `claimEmployeeInvite`). «Gjenopprett min profil» kobler en ukoblet post som har samme e-post eller samme navn som innloggingen. Administrator velger «Person i ProTop» på posten | **Virker** for serveren (uendret, REV-05), for «Gjenopprett min profil» når innloggingens bekreftede e-post står på posten (person, firma eller invitasjon), og for eier, administrator, Admin på Ansatte og Tilgangsstyring. En post som allerede er koblet til en selv, lagres som før (SEC-26). Kobling på navn alene, se under. |
 | Notater | Lister med `memberIds`, lager i eget navn, «slett permanent» setter flagg | **Virker**. |
 | Invitasjon av voksen | Plassholder i eget navn, `memberInvites` med `invitedBy` = seg selv, status `pending` | **Virker** (ny invitasjon til en plassholder en annen har laget: se REV-16, rettes av en annen agent). |
 | Melde seg ut, føre seg selv opp | `arrayRemove`/`arrayUnion` av egen uid | **Virker**. |
+| Profilsteget: ta brukernavn | Transaksjon som skriver `usernames/{navn}` med egen uid | **Virker til 1. mars 2027** (SEC-19), se «Brukernavn» under. Nye apper bruker `claimUsername`. |
 | Varsler i andres innboks | `createdBy` = seg selv og `familyId` i en felles gruppe, venner, eller invitasjonen | **Virker** (testet i `notifications.rules.test.mjs`). |
 | ISO: tiltakseier melder tiltak utført | Endrer tiltaket (state, completedAt, completedBy, completionNote, evidence) | **Virker** for de fem første tiltakene i en sak (eldre app sender ikke `doneActionIndex`). |
 | Profilbilde, barneavatar, ikonkatalog (Storage) | Laster opp direkte, leser ikoner på mobil | **Virker** (REV-12). En administrator som bytter bildet til et annet medlem, må ha ny app (den sender `familyId` i metadata). |
@@ -81,13 +90,66 @@ Disse avvises for eldre apper. Det var dette rettingene skulle stoppe.
 | Endrer timer/beløp på en fakturert eller låst føring, eller nullstiller fakturakoblingen fra en gammel kopi | DS-11, L-10 | Lagringen av den raden feiler. I eldre apper kan feilen stoppe senere lagringer i økten til siden lastes på nytt (det er rettet i ny app, REV-01). |
 | Endrer timer, dato, prosjekt, timeart eller status på en godkjent føring, eller sletter den, uten godkjenningsrett (også egne timer, og etter at leder har åpnet listen i en eldre app) | DRIFT-06, DRIFT-07: godkjente timer er grunnlaget for fakturering | Lagringen av den raden feiler (teksten kan fortsatt rettes). I ny app tar leder bort godkjenningen når listen åpnes igjen, så den ansatte kan rette. Med eldre app retter leder timene selv, eller åpner listen i ny app. |
 | Godkjenner timer (`godkjent`) uten godkjenningsrett, også egne, eller lager en føring som godkjent (også import av godkjente timer) | DRIFT-06, DRIFT-07 | Den raden lagres ikke. |
-| Endrer, låser, låser opp eller sletter en kollegas åpne timer, fører timer på en annen, eller flytter en føring til eller fra en annen ansatt, uten rett til andres timer | DRIFT-07: en vanlig ansatt fører bare egne timer | Ingen vanlig flyt i appen gjør dette for en vanlig ansatt. Avvises stille i to bakgrunnsjobber (eldre og ny app) når en vanlig ansatt har lastet andres timer: flytting av svært gamle timer fra `projects/state` til `timeEntries`, og retting av prosjekt-id på timer som lastes for et prosjekt. Timene vises som før, og jobbene gjøres neste gang en leder åpner timene. Personlig timeliste på en ansattpost som bare er funnet på e-post eller navn (ikke koblet med `personUid`), lagres ikke; posten må kobles (invitasjon eller «Gjenopprett min profil»). |
+| Endrer, låser, låser opp eller sletter en kollegas åpne timer, fører timer på en annen, eller flytter en føring til eller fra en annen ansatt, uten rett til andres timer | DRIFT-07: en vanlig ansatt fører bare egne timer | Ingen vanlig flyt i appen gjør dette for en vanlig ansatt. Avvises stille i to bakgrunnsjobber (eldre og ny app) når en vanlig ansatt har lastet andres timer: flytting av svært gamle timer fra `projects/state` til `timeEntries`, og retting av prosjekt-id på timer som lastes for et prosjekt. Timene vises som før, og jobbene gjøres neste gang en leder åpner timene. Personlig timeliste på en ansattpost som bare er funnet på e-post eller navn (ikke koblet med `personUid`), lagres ikke; posten må kobles (invitasjon, eller «Gjenopprett min profil» med bekreftet e-post på posten, SEC-26). |
 | Deler et notat en annen har laget | FL-13 | Delingen feiler. |
 | Deaktiverer, aktiverer, legger i papirkurven eller setter en passert sluttdato på en annens ansattpost med bare Begrenset redigering på Ansatte (avdelingsleder) | Appen og serveren krever Admin på Ansatte eller Tilgangsstyring (REV-07, REV-21) | Lagringen av posten feiler. En med Admin på Ansatte gjør det (i ny app via serveren). |
+| «Gjenopprett min profil» kobler en ukoblet ansattpost som bare har samme navn (eller en e-post som ikke er innloggingens bekreftede e-post) til den innloggede | SEC-26: et medlem kunne koble en kollegas post til seg selv, lese personnummeret i `employeesPrivate` og føre timene på posten | Knappen gir en feilmelding. Personen kobles av serveren ved innlogging når administrator har lagt inn e-posten og sendt invitasjonen (`claimEmployeeInvite`), eller administrator velger personen på posten. Ny app sier fra før den prøver («Be en administrator om å knytte ansettelsen til deg.»). |
+| Endrer kobling (`personUid`), e-post (person, firma, invitasjon) eller invitasjonen (status, `acceptedUid`, `parentKey`) på en annens ansattpost uten Admin på Ansatte eller Tilgangsstyring | SEC-26: serveren kobler invitasjonen på e-posten og på `invite.parentKey` (også uten bekreftet e-post, REV-05). Et medlem kunne sette sin egen uid som nøkkel på en ventende invitasjon og bli koblet ved neste innlogging, også til en administratorinvitasjon | Ingen vanlig flyt i appen gjør dette uten Admin på Ansatte (Ansatte viser andres poster uten redigering, og invitasjonen sendes bare med Admin). Andre felt på en kollegas post lagres som før. Serveren kobler fortsatt en vanlig ansatt på nøkkelen (brukernavn, telefon, Microsoft uten bekreftet e-post), men en post med ledernivå bare på bekreftet e-post lik invitasjonsadressen; ellers svarer den `email-not-verified` eller `other-email`, og invitasjonen står (administrator kan knytte posten). Permanent sletting fjerner også `employeesPrivate` og `hrSelf` for posten. |
 | Lager et barnedokument i gruppen uten å være voksen der eller administrator, eller i en bedrift | Dokumentet ga den kontoen medlemskap i gruppen (REV-24) | Ingen vanlig flyt gjør dette. Et barn som lagrer tema før dokumentet finnes, får det bare lagret på enheten. |
 | Starter vennechat med en som ikke er venn (også kollega) | SOS-04, FL-12 | Tråden lages ikke. |
 | Endrer tilgangsmatrisen uten speil, eller orgnr/konto/moduler/personvernvalg uten tilgang | FL-02, SEC-13 | Lagringen feiler for andre enn eier og administratorer. |
+| Slår Kalender, E-post, Oppgaver, Notat eller Chat av eller på i en bedrift (Konto → Aktiverte moduler, eller «Aktiver» i velkomstvinduet) uten Admin på Modulinnstillinger | MENY-01: valget på `families/{id}.moduleAccess` gjaldt hele bedriften | Bryteren og «Aktiver» gjør ingenting (eldre app viser ingen feil). Se «Aktiverte moduler i en bedrift» under. |
 | Overskriver en fil i fakturaarkivet (Storage) | Bokføringsloven § 13 | Et vedlegg med samme filnavn kan ikke lastes opp på nytt i eldre apper. |
+
+### Aktiverte moduler i en bedrift (MENY-01)
+
+Kalender, E-post, Oppgaver, Notat og Chat slås av og på på `families/{id}.moduleAccess`. Før kunne
+enhver ansatt endre dette for hele bedriften fra Konto → Aktiverte moduler (og via REST). Nå:
+
+- **Hele bedriften** endres bare av eier, administratorer (`adminUids`) og den som har Admin på
+  Modulinnstillinger i speilet (`moduleAccessOk` i `firestore.rules`), samme tilgang som
+  Modulinnstillinger. I appen ligger valget i Bedriftsinnstillinger → Modulinnstillinger.
+- **En vanlig ansatt** endrer bare sin egen visning: `users/{uid}/modulePrefs/{bedrift}`
+  (`{ modules: { plan: 'off' | 'on' } }`, dekket av den eksisterende regelen for `users/{uid}/…`).
+  «Av» skjuler modulen for den ansatte (velkomsten vises, og den kan slås på igjen). «På» slår på en
+  modul bedriften ikke har tatt stilling til. En modul bedriften har slått av, kan ikke slås på for
+  seg selv; velkomstvinduet sier da hvem som kan slå den på.
+- Familier og lag: som før (valget gjelder gruppen).
+
+Eldre apper (86332db): en ansatt som slår en modul av eller på under Konto, eller trykker «Aktiver»
+i velkomstvinduet i en bedrift, får skrivingen avvist. Eldre app viser ingen feil; bryteren og
+velkomsten blir stående som før. I en bedrift der ingen med tilgang har slått på f.eks. Kalender,
+ser en ansatt med eldre app velkomsten til appen er oppdatert (web oppdateres med en gang ved
+merge). Eier og administratorer merker ingen forskjell. Rekkefølge: merge (web ute) før reglene,
+som i steg 1–4. Test: `tests/rules/companyModules.rules.test.mjs` (også direkte PATCH mot REST).
+
+### Brukernavn: ett navn per konto, og sluttdato for den gamle veien (SEC-19)
+
+Regler kan ikke telle hvor mange `usernames/{navn}` som peker på én konto. Med direkte skriving kunne
+derfor én konto reservere mange brukernavn med egne skript. Nye apper tar navnet med callablen
+`claimUsername` (`functions/usernameClaim.js`, i slim-deployen via `membershipIndex.js`): den tar det
+nye navnet og frigir kontoens andre navn i samme transaksjon, så en konto har ett aktivt navn (og hvert
+barn ett, tatt av en foresatt). Appen skriver ikke `usernames` selv lenger.
+
+**Hvorfor den gamle veien står til 1. mars 2027:** profilsteget i 86332db (også mobilappene) tar
+brukernavnet med en transaksjon direkte fra appen (`claimUsername` i `src/utils/usernames.js` på
+86332db) og lagrer profilen etterpå. Feiler den skrivingen, blir brukeren stående på profilsteget.
+Reglene kan ikke skille en eldre app fra et skript, så direkte opprettelse må være lov så lenge eldre
+apper er i bruk. Regelen `legacyUsernameCreate()` slipper den gamle veien til
+`request.time < timestamp.date(2027, 3, 1)`; etter det kan ingen klient opprette navn direkte (å lagre
+eller slette sitt eget navn virker fortsatt). Til da står hullet «mange navn med egne skript» åpent
+for direkte skriving (navnet må fortsatt peke på kontoen selv, og være et gyldig brukernavn).
+
+- Før datoen: sjekk at mobilappene i butikkene er oppdatert. Er de ikke det, flytt datoen i regelen
+  (én linje) og deploy reglene på nytt.
+- Etter datoen, med oppdaterte apper: regelen kan stå (den stenger selv), eller `allow create` på
+  `usernames` kan fjernes helt.
+- Kontoer med flere navn fra før ryddes når de tar et navn på nytt (Rediger profil).
+- Rekkefølge: merge først (callablen og appen går ut sammen), så reglene. Uten deployet callable
+  lagres profilen uten brukernavn (registrering og profilsteg stopper ikke).
+
+Tester: `functions/usernameClaim.emulator.test.mjs` (ett navn per konto, foresatt, tatte navn) og
+`tests/rules/usernames.rules.test.mjs` (før og etter datoen, med en kopi av reglene der datoen er flyttet).
 
 ### Private hendelser før bedriften er merket
 

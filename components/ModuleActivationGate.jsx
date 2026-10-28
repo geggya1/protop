@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import ModuleWelcomeModal, { ModuleActivationScrim } from './ModuleWelcomeModal';
-import { useModuleAccess } from '../src/context/ModuleAccessContext';
+import { useModuleAccess, useModuleWriteScope } from '../src/context/ModuleAccessContext';
 import { getModuleConfig, isActivatableModule } from '../src/modules/moduleActivationRegistry';
 import { reassuranceForRole } from '../src/modules/moduleActivationLogic';
 import { localizeModuleFields, localizeCatalogDefaults } from '../src/i18n/moduleCatalog';
@@ -16,7 +16,11 @@ import { canActivateModule, getModuleAccess } from '../src/utils/moduleAccess';
 /**
  * Viser den virkelige modulsiden i bakgrunnen og aktiveringsvinduet over
  * når modulen ikke er aktivert for familien.
+ * I en bedrift slår en vanlig ansatt modulen på bare for seg selv (MENY-01). En modul bedriften
+ * har slått av, kan bare slås på igjen av den som har tilgang til Modulinnstillinger.
  */
+const LOCKED_TEXT = 'Modulen er slått av for hele bedriften. Den som har tilgang til Modulinnstillinger, kan slå den på igjen.';
+
 export default function ModuleActivationGate({
   moduleId,
   children,
@@ -26,8 +30,9 @@ export default function ModuleActivationGate({
   const nav = useNavigation();
   const { lang } = useI18n();
   const {
-    needsWelcome, activateModule, userRole, accessMap,
+    needsWelcome, activateModule, userRole, accessMap, companyLocked,
   } = useModuleAccess();
+  const scope = useModuleWriteScope();
   const viewedRef = useRef(null);
   const rawConfig = getModuleConfig(moduleId);
   const config = rawConfig
@@ -39,7 +44,8 @@ export default function ModuleActivationGate({
   const access = getModuleAccess(accessMap, moduleId);
   const showWelcome = enabled && isActivatableModule(moduleId) && needsWelcome(moduleId);
   const asChild = userRole === 'child';
-  const canActivate = canActivateModule(access, { isChild: asChild });
+  const locked = scope === 'personal' && companyLocked(moduleId);
+  const canActivate = !locked && canActivateModule(access, { isChild: asChild });
 
   useEffect(() => {
     if (!showWelcome || !moduleId) return undefined;
@@ -63,8 +69,8 @@ export default function ModuleActivationGate({
   }, [onBack, nav, moduleId, userRole]);
 
   const handleActivate = useCallback(() => {
-    activateModule(moduleId, { source: 'welcome' });
-  }, [activateModule, moduleId]);
+    activateModule(moduleId, { source: 'welcome', scope });
+  }, [activateModule, moduleId, scope]);
 
   useEffect(() => {
     return () => {
@@ -83,9 +89,15 @@ export default function ModuleActivationGate({
     ...config,
     illustration: config.illustrationPath || `/assets/module-activation/${config.illustration}`,
     illustrationPath: config.illustrationPath,
-    reassuranceText: reassuranceForRole(config, { isChild: asChild, compact: false }),
-    mobileReassuranceText: reassuranceForRole(config, { isChild: asChild, compact: true }),
-    reassuranceTextCompact: reassuranceForRole(config, { isChild: asChild, compact: true }),
+    ...(locked ? {
+      reassuranceText: LOCKED_TEXT,
+      mobileReassuranceText: LOCKED_TEXT,
+      reassuranceTextCompact: LOCKED_TEXT,
+    } : {
+      reassuranceText: reassuranceForRole(config, { isChild: asChild, compact: false }),
+      mobileReassuranceText: reassuranceForRole(config, { isChild: asChild, compact: true }),
+      reassuranceTextCompact: reassuranceForRole(config, { isChild: asChild, compact: true }),
+    }),
   };
 
   return (

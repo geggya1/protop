@@ -1,7 +1,8 @@
 import {
-  doc, getDoc, runTransaction, serverTimestamp, collection, query, where, getDocs, limit,
+  doc, getDoc, collection, query, where, getDocs, limit,
 } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../../firebase';
 import {
   slugName,
   suggestUsername,
@@ -35,18 +36,27 @@ export async function usernameTaken(raw, exceptUid) {
   return false;
 }
 
+/**
+ * Ta brukernavnet på serveren (claimUsername, functions/usernameClaim.js, SEC-19): kontoen får
+ * ett aktivt navn, og et eldre navn på samme konto frigis. Voksne tar navn til seg selv; uid
+ * brukes bare for barn (av en foresatt). Feil: 'taken' når navnet er tatt, ellers 'invalid-username'
+ * eller serverens melding. Appen skriver ikke usernames/{navn} direkte lenger.
+ */
 export async function claimUsername(raw, uid, type = 'adult') {
   const u = normalizeUsername(raw);
   if (!isValidUsername(u) || !uid) throw new Error('invalid-username');
-  const ref = doc(db, 'usernames', u);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (snap.exists() && snap.data()?.uid && snap.data().uid !== uid) {
-      throw new Error('taken');
-    }
-    tx.set(ref, { uid, type, username: u, updatedAt: serverTimestamp() });
-  });
-  return u;
+  // Et voksent navn tas bare av kontoen selv (serveren avviser også en annen uid).
+  if (type !== 'child' && auth?.currentUser?.uid && auth.currentUser.uid !== uid) throw new Error('not-allowed');
+  try {
+    const call = httpsCallable(functions, 'claimUsername', { timeout: 20000 });
+    const result = await call({ username: u, uid, type: type === 'child' ? 'child' : 'adult' });
+    return result.data?.username || u;
+  } catch (error) {
+    const code = String(error?.code || '');
+    if (code.endsWith('already-exists')) throw new Error('taken');
+    if (code.endsWith('invalid-argument')) throw new Error('invalid-username');
+    throw error;
+  }
 }
 
 export async function resolveLoginEmail(identifier) {

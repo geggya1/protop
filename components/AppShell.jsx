@@ -53,6 +53,7 @@ import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defau
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
 import ModuleTabs from './ModuleTabs';
 import { companyLandingTab, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor, shellSearchFor } from '../src/navigation/shellPaths';
+import { movedExpensePage } from '../src/economy/expenseScope';
 import { ShellDetailContext } from '../src/navigation/shellDetail';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
@@ -483,6 +484,15 @@ function AppShellInner() {
       window.removeEventListener('keydown', onInput, true);
     };
   }, []);
+
+  // Prosjektutlegg er en del av Utlegg (UX-17): den gamle adressen (/hjem/arbeid/utlegg, også fra lenker
+  // i appen) åpner Økonomi → Utlegg med filteret Prosjekt. Byttet erstatter oppføringen i historikken.
+  useEffect(() => {
+    const moved = movedExpensePage(tab, moreSubView);
+    if (!moved) return;
+    urlNavAtRef.current = Date.now();
+    requestShellTab(moved.tab, moved.subView, moved.intent);
+  }, [tab, moreSubView, requestShellTab]);
 
   // Web, Bedrift: /hjem lander på selskapssiden. Én gang per oppstart, før brukeren har trykket noe,
   // og bare når adressen ikke peker på en annen side.

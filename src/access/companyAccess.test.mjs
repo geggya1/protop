@@ -144,6 +144,8 @@ assert.equal(accessSectionTitle('external', 'CONSULT1 AS'), 'Eksternt');
   assert.equal(companyTabAllowed('projects', null, innleie), true);
   assert.equal(companyTabAllowed('arbeid', null, innleie), true);
   assert.equal(companyTabAllowed('arbeid', 'utlegg', innleie), true);
+  // Utlegg (UX-17): Prosjektutlegg alene åpner Utlegg (filteret Prosjekt), ikke resten av Økonomi.
+  assert.equal(companyTabAllowed('okonomi', 'utlegg', innleie), true);
   assert.equal(companyTabAllowed('selskap', null, innleie), true);
   assert.equal(companyTabAllowed('selskap', 'tilgang', innleie), false);
   assert.equal(companyTabAllowed('selskap', 'innstillinger', innleie), false);
@@ -332,7 +334,7 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.equal(visible.includes('kjorebok'), false);
   assert.equal(visible.includes('selskapsinnstillinger'), false);
   const innleieOkonomi = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'okonomi');
-  assert.deepEqual(innleieOkonomi.children.map((child) => child.id), ['okonomi-prosjektutlegg']);
+  assert.deepEqual(innleieOkonomi.children.map((child) => child.id), ['okonomi-utlegg']);
   const innleieFravaer = filterCompanyNav(companyNavItems(), innleie).find((item) => item.id === 'fravaer');
   assert.deepEqual(innleieFravaer.children.map((child) => child.id), ['fravaer-fravaer', 'fravaer-fravaersrapport', 'fravaer-planlagt']);
 
@@ -552,7 +554,7 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.deepEqual(
     filterCompanyNav(companyNavItems(), full.grants).find((item) => item.id === 'okonomi')
       .children.map((child) => child.id),
-    ['okonomi-prosjektutlegg'],
+    ['okonomi-utlegg'],
   );
   const hidden = hiddenCompanyModules(full.grants).map((row) => row.id);
   assert.ok(hidden.includes('okonomi-oversikt'));
@@ -594,7 +596,7 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   assert.equal(nav.some((item) => item.id === 'okonomi'), false);
   assert.equal(nav.some((item) => item.id === 'kjorebok'), true);
   assert.equal(companyTabAllowed('okonomi', 'kjorebok', mileageOnly), true);
-  // Prosjektutlegg alene peker til Arbeid → Utlegg, som er tillatt.
+  // Prosjektutlegg alene peker til Økonomi → Utlegg, som er tillatt (UX-17).
   const expenses = filterCompanyNav(companyNavItems(), standardGrants('ansatt')).find((item) => item.id === 'okonomi');
   assert.equal(companyTabAllowed(expenses.action.tab, expenses.action.subView, standardGrants('ansatt')), true);
   // Ingen menypunkter skal peke til en side personen ikke har tilgang til.

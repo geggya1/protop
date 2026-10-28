@@ -278,6 +278,8 @@ describe('Microsoft-konto uten bekreftet e-post (REV-05)', () => {
 
   test('invitasjon til kontoen (funnet på brukernavn) kan godtas, og medarbeideren knyttes på uid', async () => {
     await db.doc(`families/${A}/memberInvites/inv_eve`).update({ matchedBy: 'username' });
+    // Vanlig ansatt. Ledertilgang krever bekreftet e-post (neste test).
+    await db.doc(`families/${A}/employees/emp_eve`).set(employee('emp_eve', 'Eve', 'eve@firma.no', 'ansatt'));
     await db.doc(`families/${A}/employees/emp_eve`).update({ 'invite.parentKey': 'eve' });
     const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }, ms);
     assert.equal(res.ok, true);
@@ -289,6 +291,23 @@ describe('Microsoft-konto uten bekreftet e-post (REV-05)', () => {
     const claim = await call(claimEmployeeInvite, 'eve', { familyId: A }, ms);
     assert.equal(claim.ok, true);
     assert.notEqual(claim.needsVerifiedEmail, true);
+  });
+
+  test('SEC-26: administratorinvitasjon på kontoen krever bekreftet e-post lik invitasjonsadressen', async () => {
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ matchedBy: 'username' });
+    await db.doc(`families/${A}/employees/emp_eve`).update({ 'invite.parentKey': 'eve' });
+    // Nøkkelen alene (ubekreftet e-post): invitasjonen står, ingen kobling og ikke administrator.
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }, ms);
+    assert.deepEqual(res, { ok: false, error: 'email-not-verified' });
+    assert.equal((await data(`families/${A}/memberInvites/inv_eve`)).status, 'pending');
+    assert.ok(!(await members()).includes('eve'));
+    assert.equal((await data(`families/${A}/employees/emp_eve`)).personUid, undefined);
+    assert.ok(!((await data(`families/${A}`)).adminUids || []).includes('eve'));
+    // Bekreftet adresse lik invitasjonen (lenken fra ProTop eller confirmMicrosoftEmail): virker.
+    const ok = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }, { provider: 'microsoft.com' });
+    assert.equal(ok.ok, true);
+    assert.equal((await data(`families/${A}/employees/emp_eve`)).personUid, 'eve');
+    assert.ok((await data(`families/${A}`)).adminUids.includes('eve'));
   });
 
   test('ubekreftet e-post tar ingen plass som bare passer på e-post, og invitasjonen står', async () => {

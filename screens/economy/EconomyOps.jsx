@@ -1,5 +1,6 @@
 /**
- * Økonomi · Utlegg / Kjørebok — registrering, godkjenning, CSV.
+ * Økonomi · Kjørebok — registrering, godkjenning, CSV.
+ * Utlegg har egen side (ProjectExpensesScreen: prosjekt og internt på ett sted, UX-17).
  * Produkter har egen side (ProductCatalog).
  */
 import React, { useEffect, useMemo, useState } from 'react';
@@ -15,7 +16,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import OptionPicker from '../../components/OptionPicker';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
@@ -27,27 +27,13 @@ import { useCompanyRefs } from '../../src/context/CompanyDataContext';
 import { freshRows, hydrateRows, liveCustomerList } from '../../src/company/companyData.js';
 import { formatMoney } from '../../src/economy/invoices.js';
 import {
-  EXPENSE_CATEGORIES,
-  EXPENSE_CHARGE_TYPES,
-  emptyExpense,
-  expensesToCsv,
-} from '../../src/economy/expenses.js';
-import { expenseStatusLabel } from '../../src/economy/expenseList.js';
-import { expenseRegistryPatch } from '../../src/economy/expenseRegistry.js';
-import {
   MILEAGE_RATE_TAX_FREE,
   tripsToCsv,
   yearlyDutyKm,
 } from '../../src/economy/mileage.js';
 import { setMileageRate } from '../../src/equipment/state';
 import { mileageRate } from '../../src/mileage/flow';
-import {
-  deleteExpense,
-  deleteTrip,
-  setExpenseStatus,
-  setTripStatus,
-  upsertExpense,
-} from '../../src/economy/opsState.js';
+import { deleteTrip, setTripStatus } from '../../src/economy/opsState.js';
 import MileageWizard from './MileageWizard';
 import { formatDate } from '../../src/format/nb';
 
@@ -229,10 +215,10 @@ function Field({ label, value, onChange, colors, placeholder, keyboardType }) {
   );
 }
 
-export default function EconomyOps({ kind = 'expenses', company = null }) {
+export default function EconomyOps({ kind = 'mileage', company = null }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { familyId, requestShellTab, user } = useApp();
+  const { familyId, requestShellTab } = useApp();
   const access = useCompanyAccess();
   const [customers, setCustomers] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -240,7 +226,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const [note, setNote] = useState('');
   const [rateOpen, setRateOpen] = useState(false);
   const [rateDraft, setRateDraft] = useState('');
-  const [draft, setDraft] = useState({});
   const [editingTrip, setEditingTrip] = useState(null);
   const [pendingDelete, setPendingDelete] = useState('');
 
@@ -259,8 +244,7 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
     return () => { live = false; };
   }, [familyId]);
 
-  const title = kind === 'mileage' ? 'Kjørebok' : 'Utlegg';
-  const expenses = state.expenses || [];
+  const title = 'Kjørebok';
   const trips = state.mileageTrips || [];
   // Person, kunde og prosjekt slås opp når listen vises (DS-08). Kopien på raden er reserve.
   const refs = useCompanyRefs(familyId);
@@ -269,19 +253,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
     customers: liveCustomerList(refs.customers, customers),
     projects: freshRows(state.projects || [], refs.projects),
   }), [refs, customers, state.projects]);
-  const shownExpenses = useMemo(() => hydrateRows(expenses, lookup), [expenses, lookup]);
-  // Ansatt, kunde og prosjekt velges fra registrene, så utlegget er koblet (DRIFT-24).
-  const people = useMemo(() => (refs.directory?.rows || [])
-    .filter((row) => row.employeeId && row.active !== false)
-    .map((row) => ({ id: row.employeeId, label: row.name || 'Uten navn', uid: row.uid })), [refs.directory]);
-  const projectOptions = useMemo(() => (lookup.projects || [])
-    .filter((row) => row?.id && row.status !== 'arkivert')
-    .map((row) => ({ id: row.id, label: [row.number ? `#${row.number}` : '', row.name].filter(Boolean).join(' ') })), [lookup.projects]);
-  const customerOptions = useMemo(() => (lookup.customers || [])
-    .filter((row) => row?.id)
-    .map((row) => ({ id: row.id, label: [row.customerNumber || row.number, row.name].filter(Boolean).join(' · ') })), [lookup.customers]);
-  const ownEmployeeId = people.find((row) => row.uid && row.uid === user?.uid)?.id || '';
-  const draftEmployeeId = draft.employeeId ?? ownEmployeeId;
   const shownTrips = useMemo(() => hydrateRows(trips, lookup), [trips, lookup]);
   const dutyKm = useMemo(() => yearlyDutyKm(trips, new Date().getFullYear()), [trips]);
   const rateInfo = mileageRate(state.mileagePolicies);
@@ -317,38 +288,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
     if (result.ok && editingTrip?.id === trip.id) setEditingTrip(null);
   }
 
-  function pickInDraft(kind, id) {
-    setDraft((current) => ({
-      ...current,
-      ...expenseRegistryPatch(kind, id, {
-        people,
-        projects: lookup.projects || [],
-        customers: lookup.customers || [],
-        current: { ...current, employeeId: current.employeeId ?? ownEmployeeId },
-      }),
-    }));
-  }
-
-  function saveExpense() {
-    const employee = people.find((row) => row.id === draftEmployeeId);
-    const result = apply(upsertExpense(state, {
-      ...emptyExpense(draft),
-      employeeId: draftEmployeeId,
-      employeeName: employee?.label || '',
-      date: draft.date || new Date().toISOString().slice(0, 10),
-    }));
-    if (result.ok) setDraft({});
-  }
-
-  function removeExpense(row) {
-    if (pendingDelete !== row.id) {
-      setPendingDelete(row.id);
-      return;
-    }
-    setPendingDelete('');
-    apply(deleteExpense(state, row.id));
-  }
-
   if (!ready) {
     return (
       <View style={[styles.wrap, { backgroundColor: colors.bg }]}>
@@ -362,11 +301,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
       {hostedHero ? null : (
         <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
       )}
-      {kind === 'expenses' ? (
-        <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 720 }}>
-          Ansattutlegg med kategori, MVA og viderefakturering. Kvittering kreves over 1 000 kr ved innsatsfaktor (bokføringsforskriften).
-        </Text>
-      ) : null}
       {kind === 'mileage' ? (
         <View style={{ gap: 8, maxWidth: 720 }}>
           <View style={[styles.row, { alignItems: 'center' }]}>
@@ -436,79 +370,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
         />
       ) : null}
 
-      {kind === 'expenses' ? (
-        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700', marginBottom: 8 }}>Nytt utlegg</Text>
-          <View style={styles.row}>
-            <Field label="Dato" value={draft.date || ''} onChange={(v) => setDraft((d) => ({ ...d, date: v }))} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
-            <Field label="Beløp eks. mva" value={String(draft.amountExVat ?? '')} onChange={(v) => setDraft((d) => ({ ...d, amountExVat: v }))} colors={colors} keyboardType="decimal-pad" />
-            <Field label="Beskrivelse" value={draft.description || ''} onChange={(v) => setDraft((d) => ({ ...d, description: v }))} colors={colors} />
-            <Field label="Formål" value={draft.purpose || ''} onChange={(v) => setDraft((d) => ({ ...d, purpose: v }))} colors={colors} />
-            <Field label="Kvittering (URI)" value={draft.receiptUri || ''} onChange={(v) => setDraft((d) => ({ ...d, receiptUri: v }))} colors={colors} placeholder="fil:// eller https://" />
-            <Field label="Påslag %" value={String(draft.markupPercent ?? '')} onChange={(v) => setDraft((d) => ({ ...d, markupPercent: v }))} colors={colors} keyboardType="decimal-pad" />
-          </View>
-          <View style={{ marginTop: 8, gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Ansatt</Text>
-            <OptionPicker
-              options={people}
-              value={draftEmployeeId}
-              onChange={(id) => pickInDraft('employee', id)}
-              title="Ansatt"
-              placeholder="Velg ansatt"
-              accessibilityLabel="Ansatt som har lagt ut"
-            />
-          </View>
-          <View style={{ marginTop: 8, gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Prosjekt</Text>
-            <OptionPicker
-              options={projectOptions}
-              value={draft.projectId || ''}
-              onChange={(id) => pickInDraft('project', id)}
-              title="Prosjekt"
-              placeholder="Velg prosjekt"
-              clearLabel="Uten prosjekt"
-              accessibilityLabel="Prosjekt"
-            />
-          </View>
-          <View style={{ marginTop: 8, gap: 4 }}>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Kunde</Text>
-            <OptionPicker
-              options={customerOptions}
-              value={draft.customerId || ''}
-              onChange={(id) => pickInDraft('customer', id)}
-              title="Kunde"
-              placeholder="Velg kunde"
-              clearLabel="Uten kunde"
-              accessibilityLabel="Kunde"
-            />
-          </View>
-          <View style={{ marginTop: 8 }}>
-            <OptionPicker
-              options={EXPENSE_CATEGORIES.map((row) => ({ id: row.id, label: row.label }))}
-              value={draft.category || 'other'}
-              onChange={(id) => { if (id) setDraft((d) => ({ ...d, category: id })); }}
-              title="Kategori"
-              clearable={false}
-            />
-          </View>
-          <View style={{ marginTop: 8 }}>
-            <OptionPicker
-              options={EXPENSE_CHARGE_TYPES.map((row) => ({ id: row.id, label: row.label }))}
-              value={draft.chargeType || 'reinvoice'}
-              onChange={(id) => { if (id) setDraft((d) => ({ ...d, chargeType: id, ...(id === 'outlay' ? { markupPercent: 0 } : {}) })); }}
-              title="Faktureres som"
-              clearable={false}
-            />
-            <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-              {EXPENSE_CHARGE_TYPES.find((row) => row.id === (draft.chargeType || 'reinvoice'))?.hint}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={saveExpense} style={[styles.btn, { backgroundColor: colors.brand, marginTop: 12, alignSelf: 'flex-start' }]}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre utlegg</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-
       {kind === 'mileage' ? (
         <MileageWizard
           colors={colors}
@@ -520,67 +381,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
           onOpenBilling={() => requestShellTab?.('okonomi', 'fakturagrunnlag')}
         />
       ) : null}
-
-      {kind === 'expenses' ? shownExpenses.map((row) => {
-        const trip = row.tripId ? shownTrips.find((item) => item.id === row.tripId) : null;
-        return (
-          <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-            <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.description || row.purpose} · {formatMoney(row.amountInclVat)}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              {[
-                row.date,
-                expenseStatusLabel(row.status),
-                row.employeeName || 'uten ansatt',
-                row.projectName ? [row.projectNumber ? `#${row.projectNumber}` : '', row.projectName].filter(Boolean).join(' ') : 'uten prosjekt',
-                row.customerName || 'uten kunde',
-              ].join(' · ')}
-            </Text>
-            <View style={[styles.row, { marginTop: 8 }]}>
-              {trip ? (
-                <>
-                  <TouchableOpacity onPress={() => openTrip(trip)} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
-                    <Text style={{ color: colors.ink }}>Rediger tur</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => removeTrip(trip)} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]} accessibilityRole="button" accessibilityLabel="Slett tur">
-                    <Text style={{ color: colors.dangerInk || colors.danger, fontWeight: '700' }}>{pendingDelete === trip.id ? 'Slett nå' : 'Slett tur'}</Text>
-                  </TouchableOpacity>
-                  {pendingDelete === trip.id ? (
-                    <Text style={{ color: colors.ink, fontSize: 13, flexBasis: '100%' }}>
-                      Trykk «Slett nå» for å fjerne kjøreturen fra utlegg, kjørebok og prosjekt.
-                    </Text>
-                  ) : null}
-                </>
-              ) : null}
-              {!trip && row.status !== 'approved' && row.status !== 'invoiced' ? (
-                <TouchableOpacity onPress={() => apply(setExpenseStatus(state, row.id, 'approved'))} style={[styles.btnGhost, { borderColor: colors.line }]}>
-                  <Text style={{ color: colors.ink }}>Godkjenn</Text>
-                </TouchableOpacity>
-              ) : null}
-              {!trip && row.status !== 'invoiced' ? (
-                <TouchableOpacity
-                  onPress={() => removeExpense(row)}
-                  style={[styles.btnGhost, { borderColor: colors.line }]}
-                  accessibilityRole="button"
-                  accessibilityLabel={pendingDelete === row.id ? `Bekreft sletting av ${row.description || 'utlegget'}` : `Slett ${row.description || 'utlegget'}`}
-                  nativeID={`expense-delete-${row.id}`}
-                >
-                  <Text style={{ color: colors.dangerInk || colors.danger, fontWeight: '700' }}>{pendingDelete === row.id ? 'Slett nå' : 'Slett'}</Text>
-                </TouchableOpacity>
-              ) : null}
-              {!trip && pendingDelete === row.id ? (
-                <>
-                  <TouchableOpacity onPress={() => setPendingDelete('')} style={[styles.btnGhost, { borderColor: colors.line }]}>
-                    <Text style={{ color: colors.ink }}>Avbryt</Text>
-                  </TouchableOpacity>
-                  <Text style={{ color: colors.ink, fontSize: 13, flexBasis: '100%' }}>
-                    Trykk «Slett nå» for å slette utlegget. Det kan ikke angres.
-                  </Text>
-                </>
-              ) : null}
-            </View>
-          </View>
-        );
-      }) : null}
 
       {kind === 'mileage' ? (
         <TripReport
@@ -594,12 +394,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
       ) : null}
 
       <View style={[styles.row, { alignSelf: 'flex-start' }]}>
-        {kind === 'expenses' ? (
-          <TouchableOpacity onPress={() => downloadCsv('utlegg.csv', expensesToCsv(expenses))} style={[styles.btnGhost, { borderColor: colors.line }]}>
-            <Ionicons name="download-outline" size={16} color={colors.ink} />
-            <Text style={{ color: colors.ink }}>Eksporter CSV</Text>
-          </TouchableOpacity>
-        ) : null}
         {kind === 'mileage' ? (
           <TouchableOpacity onPress={() => downloadCsv('kjorebok.csv', tripsToCsv(trips))} style={[styles.btnGhost, { borderColor: colors.line }]}>
             <Ionicons name="download-outline" size={16} color={colors.ink} />

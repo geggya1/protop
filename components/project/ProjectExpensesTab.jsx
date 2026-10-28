@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -17,6 +17,11 @@ import { expenseStatusLabel, filterExpenses } from '../../src/economy/expenseLis
 import { deleteExpense, upsertExpense } from '../../src/economy/opsState.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
 import { expenseSummaryForProject } from '../../src/project/projectDashboard.js';
+import { projectExpenseRows } from '../../src/economy/expenseScope.js';
+import { isExternalExpense, loadProjectExpenses, mergeExpenseLists } from '../../src/economy/expenseStorage.js';
+import { removeExpenseRow, saveExpenseChange } from '../../src/economy/expenseSave.js';
+import { useApp } from '../../src/context/AppContext';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { showSaveToast } from '../../src/ui/saveToast';
 
 function statusTone(status) {
@@ -26,6 +31,8 @@ function statusTone(status) {
 
 /**
  * Prosjektutlegg med filter, oppsummering og full CRUD.
+ * Samme utlegg som Økonomi → Utlegg og Til fakturering (UX-17): registrerte i prosjektdokumentet
+ * og importerte (families/{id}/projectExpenses). Importerte endres og slettes der de ligger.
  */
 export default function ProjectExpensesTab({
   state,
@@ -37,8 +44,11 @@ export default function ProjectExpensesTab({
   // Den som registrerer. Utlegget vises da under Prosjektutlegg på ansattsiden.
   myEmployeeId = '',
   employees = [],
+  familyId = '',
   onChangeState,
 }) {
+  const { requestShellTab } = useApp();
+  const access = useCompanyAccess();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState('');
@@ -47,12 +57,20 @@ export default function ProjectExpensesTab({
   // Sletting krever et ekstra trykk («Slett» → «Ja, slett»).
   const [confirmId, setConfirmId] = useState('');
   const [error, setError] = useState('');
+  const [imported, setImported] = useState([]);
+
+  useEffect(() => {
+    let live = true;
+    if (!familyId) return undefined;
+    loadProjectExpenses(familyId).then((rows) => {
+      if (live) setImported(rows);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [familyId]);
 
   const all = useMemo(
-    () => (state.expenses || []).filter((row) => (
-      row.projectId === project.id && (!employeeId || row.employeeId === employeeId)
-    )),
-    [state.expenses, project.id, employeeId],
+    () => projectExpenseRows(state.expenses, imported, project.id, { employeeId }),
+    [state.expenses, imported, project.id, employeeId],
   );
   const rows = useMemo(
     () => filterExpenses(all, { query, status, projectId: project.id }),
@@ -93,15 +111,27 @@ export default function ProjectExpensesTab({
     setError('');
   }
 
-  function save() {
+  async function save() {
     if (!editor) return;
-    const result = upsertExpense(state, {
+    const input = {
       ...editor,
       employeeName: personName(editor.employeeId) || editor.employeeName || '',
       projectId: project.id,
       projectNumber: project.number,
       projectName: project.name,
-    });
+    };
+    if (isExternalExpense(input)) {
+      const saved = await saveExpenseChange(familyId, input);
+      if (!saved.ok) {
+        setError(saved.error);
+        return;
+      }
+      setImported((current) => mergeExpenseLists(current, [input]));
+      setEditor(null);
+      showSaveToast('Utlegget er lagret.');
+      return;
+    }
+    const result = upsertExpense(state, input);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -111,9 +141,22 @@ export default function ProjectExpensesTab({
     showSaveToast('Utlegget er lagret.');
   }
 
-  function remove(id) {
+  async function remove(id) {
     if (confirmId !== id) {
       setConfirmId(id);
+      return;
+    }
+    const row = all.find((item) => item.id === id);
+    if (isExternalExpense(row)) {
+      setConfirmId('');
+      const removed = await removeExpenseRow(familyId, row);
+      if (!removed.ok) {
+        setError(removed.error);
+        return;
+      }
+      setImported((current) => current.filter((item) => item.id !== id));
+      setMenuId('');
+      showSaveToast('Utlegget er slettet.');
       return;
     }
     const result = deleteExpense(state, id);
@@ -181,6 +224,17 @@ export default function ProjectExpensesTab({
           />
         </View>
         <View style={styles.actions}>
+          {access.tabAllowed('okonomi', 'utlegg') ? (
+            <TouchableOpacity
+              onPress={() => requestShellTab?.('okonomi', 'utlegg', { type: 'expenseScope', scope: 'prosjekt', project: project.number || project.name || '' })}
+              style={[styles.ghost, { borderColor: colors.line }]}
+              accessibilityRole="link"
+              nativeID="project-expenses-open-all"
+            >
+              <Ionicons name="open-outline" size={16} color={colors.ink} />
+              <Text style={{ color: colors.ink }}>Åpne i Utlegg</Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity onPress={exportCsv} style={[styles.ghost, { borderColor: colors.line }]}>
             <Ionicons name="download-outline" size={16} color={colors.ink} />
             <Text style={{ color: colors.ink }}>Eksporter</Text>

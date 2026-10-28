@@ -11,6 +11,8 @@ import {
 } from '../../src/employees/model';
 import { EMPLOYEE_DETAIL_TABS, employeeViewToTab } from '../../src/employees/personTabs.js';
 import { useLayout } from '../../src/theme';
+import BackLink from '../../src/ui/BackLink';
+import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
 
 export { EMPLOYEE_DETAIL_TABS, employeeViewToTab };
 
@@ -48,13 +50,7 @@ export default function EmployeePersonChrome({
 
   return (
     <View nativeID="employee-person-chrome" style={styles.root}>
-      <View style={styles.crumbRow}>
-        <TouchableOpacity onPress={onBack} accessibilityRole="button" style={styles.crumbBtn}>
-          <Text style={{ color: colors.brand, fontSize: 13 }}>Ansatte</Text>
-        </TouchableOpacity>
-        <Text style={{ color: colors.muted, fontSize: 13 }}> / </Text>
-        <Text style={{ color: colors.muted, fontSize: 13 }}>Oversikt</Text>
-      </View>
+      <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
 
       <View style={[styles.titleRow, isPhone && styles.titleRowPhone]}>
         <View style={styles.titleBlock}>
@@ -160,8 +156,6 @@ export default function EmployeePersonChrome({
 
 const styles = StyleSheet.create({
   root: { gap: 10, width: '100%', flexShrink: 0 },
-  crumbRow: { flexDirection: 'row', alignItems: 'center' },
-  crumbBtn: { paddingVertical: 2 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   titleRowPhone: { flexDirection: 'column' },
   titleBlock: { flex: 1, gap: 4, minWidth: 180 },

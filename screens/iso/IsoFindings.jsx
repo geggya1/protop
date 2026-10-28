@@ -21,6 +21,8 @@ import { ksDeviationCandidates } from '../../src/iso/forms';
 import { publishedVersionOf, normalizeDiagram } from '../../src/iso/processes';
 import IsoDiagram, { fitView } from './IsoDiagram';
 import QuickReportButton from './QuickReport';
+import { useShellDetail } from '../../src/navigation/shellDetail';
+import { DetailMissing } from '../../src/ui/BackLink';
 import {
   Banner, Btn, Card, Check, Choice, DateIn, Divider, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
 } from './isoUi';
@@ -75,8 +77,14 @@ export default function IsoFindings({ ctx }) {
     }
   }
 
+  // Saken har egen adresse (/hjem/iso/avvik/:id). Tilbake i nettleseren går til listen.
+  const link = useShellDetail('finding', openId, { onOpen: setOpenId, onClose: () => setOpenId('') });
   const selected = visible.find((f) => f.id === openId) || null;
   if (selected) return <FindingDetail ctx={ctx} finding={selected} onBack={() => setOpenId('')} />;
+  // Lenke til en sak som ikke finnes her, er skjermet eller tilhører en annen bedrift.
+  if (openId && !store.loading) {
+    return <DetailMissing list={link.list} thing={link.thing} onBack={() => setOpenId('')} />;
+  }
 
   return (
     <Page

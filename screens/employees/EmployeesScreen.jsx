@@ -93,6 +93,8 @@ import {
 } from '../../src/employees/storage';
 import EmployeeCvView from './EmployeeCvView';
 import EmployeeDetailView from './EmployeeDetailView';
+import { useShellDetail } from '../../src/navigation/shellDetail';
+import { DetailMissing } from '../../src/ui/BackLink';
 import EmployeePersonChrome from './EmployeePersonChrome';
 import ArbeidScreen from '../arbeid/ArbeidScreen';
 import EconomyHours from '../economy/EconomyHours';
@@ -296,6 +298,24 @@ export default function EmployeesScreen() {
   }, [view, draft?.person?.address1]);
 
   const selected = rows.find((row) => row.id === selectedId) || null;
+  // Personen har egen adresse (/hjem/ansatte/:id) på alle fanene sine. Tilbake i nettleseren går til listen.
+  const link = useShellDetail('employee', PERSON_VIEWS.has(view) ? selectedId : '', {
+    onOpen: (id) => {
+      const row = rows.find((item) => item.id === id) || null;
+      resetMessage();
+      clearSectionEdit();
+      setSelectedId(id);
+      setDraft(row ? presentEmployee(row) : null);
+      setView('detail');
+    },
+    onClose: () => {
+      if (PERSON_VIEWS.has(view)) openList();
+    },
+  });
+  // Åpnet fra en lenke før registeret var lest: redigeringskopien fylles når personen kommer.
+  useEffect(() => {
+    if (view === 'detail' && selected && !draft) setDraft(presentEmployee(selected));
+  }, [view, selected, draft]);
 
   // Personen er endret i skyen mens hen er åpen (f.eks. godtatt invitasjon, eller endret av en
   // annen): legg endringene inn i redigeringskopien. Egne, ulagrede endringer beholdes, og en
@@ -1636,6 +1656,15 @@ export default function EmployeesScreen() {
       logSensitiveAccess({ familyId, kind: 'absence', employeeId: selected.id });
     }
   }, [familyId, view, selected?.id, loggedNationalId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lenke til en person som ikke finnes i registeret her (annen bedrift, slettet eller uten tilgang).
+  if (PERSON_VIEWS.has(view) && selectedId && !selected && directoryReady) {
+    return (
+      <View nativeID="employees-page" style={[styles.screen, { backgroundColor: colors.bg }]}>
+        <DetailMissing list={link.list} thing={link.thing} onBack={openList} />
+      </View>
+    );
+  }
 
   return (
     <>

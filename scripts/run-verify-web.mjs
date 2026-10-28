@@ -165,6 +165,9 @@ export const FILES = [
   'src/navigation/protopDock.test.mjs',
   // Én modulmeny for alle moduler, med «Mer» på telefon (UX-19).
   'src/navigation/moduleTabs.test.mjs',
+  // Detaljsider med egen adresse og én tilbakelenke (UX-20).
+  'src/navigation/shellPaths.test.mjs',
+  'src/ui/backLinkText.test.mjs',
   'screens/economy/indexDeskRender.test.cjs',
   'src/project/projectCrossView.test.mjs',
   'src/arbeid/timesheetReview.test.mjs',

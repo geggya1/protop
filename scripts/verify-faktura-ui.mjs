@@ -66,6 +66,7 @@ async function ensureList() {
       return text === 'Økonomi / Fakturaer'
         || text === '← Økonomi / Fakturaer'
         || text === 'Økonomi › Faktura'
+        || text === '‹ Fakturaer'
         || el.id === 'invoice-back'
         || /Tilbake til listen/.test(text)
         || text === 'Avbryt';
@@ -194,6 +195,7 @@ try {
     () => /Fakturafremvisning/i.test(document.body?.innerText || '')
       && (/Økonomi \/ Fakturaer/i.test(document.body?.innerText || '')
         || /Tilbake til listen/i.test(document.body?.innerText || '')
+        || /‹ Fakturaer/.test(document.body?.innerText || '')
         || /Fakturaoversikt/i.test(document.body?.innerText || '')),
     { timeout: 60000 },
   );

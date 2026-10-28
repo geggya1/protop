@@ -40,6 +40,7 @@ export const FILES = [
   // Datavern: HR-utsnitt, fravær, skjermede ansattfelt, lokale kopier og Storage-tilgang.
   'src/hr/selfService.test.mjs',
   'src/arbeid/absenceScope.test.mjs',
+  'src/platform/childAbsences.test.mjs',
   'src/employees/privateFields.test.mjs',
   'src/utils/localCache.test.mjs',
   'functions/storageAccess.test.mjs',

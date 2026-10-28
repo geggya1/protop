@@ -21,6 +21,9 @@ import {
   approveJoinRequest as approveJoinRequestCallable,
   submitJoinRequestByCode as submitJoinRequestCallable,
 } from '../utils/joinRequests';
+import {
+  CHILD_ABSENCES, CHILD_ABSENCE_LIMIT, LEGACY_CHILD_ABSENCES, mergeChildAbsences,
+} from './childAbsences';
 
 export function generateJoinCode(length = 8) {
   return generateSecureJoinCode(length);
@@ -457,24 +460,44 @@ export async function upsertRhythmSlot(groupId, slotId, { time, label, descripti
   return ref.id;
 }
 
-/** ——— Barnehage: fravær ——— */
+/** ——— Barnehage: fravær ———
+ * Nye meldinger i childAbsences; eldre ligger i absences, som ProTop også bruker til ansattes
+ * fravær (DS-22). Begge leses, og ansattfravær holdes utenfor (childAbsences.js).
+ */
 export function listenAbsences(groupId, cb) {
-  const qy = query(
-    collection(db, 'families', groupId, 'absences'),
-    orderBy('dateKey', 'desc'),
-    limit(30,
+  const lists = { fresh: null, legacy: null };
+  const emit = () => {
+    if (lists.fresh === null || lists.legacy === null) return;
+    cb(mergeChildAbsences(lists.fresh, lists.legacy, CHILD_ABSENCE_LIMIT));
+  };
+  const listen = (name, key) => onSnapshot(
+    query(
+      collection(db, 'families', groupId, name),
+      orderBy('dateKey', 'desc'),
+      limit(CHILD_ABSENCE_LIMIT),
     ),
+    (snap) => {
+      lists[key] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      emit();
+    },
+    () => {
+      lists[key] = [];
+      emit();
+    },
   );
-  return onSnapshot(qy, (snap) => {
-    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-  }, () => cb([]));
+  const stopFresh = listen(CHILD_ABSENCES, 'fresh');
+  const stopLegacy = listen(LEGACY_CHILD_ABSENCES, 'legacy');
+  return () => {
+    stopFresh();
+    stopLegacy();
+  };
 }
 
 export async function reportAbsence({
   groupId, childId, childName, dateKey, reason, authorUid, authorName,
 }) {
   if (!childName?.trim() || !dateKey) throw new Error('Barn og dato kreves.');
-  const ref = await addDoc(collection(db, 'families', groupId, 'absences'), {
+  const ref = await addDoc(collection(db, 'families', groupId, CHILD_ABSENCES), {
     childId: childId || null,
     childName: childName.trim(),
     dateKey,

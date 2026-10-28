@@ -612,6 +612,8 @@ export function normalizeAbsenceRow(row) {
   if (!row || typeof row !== 'object') return null;
   const employeeId = text(row.employeeId);
   const date = text(row.date);
+  // Uten ansatt og dato er det ikke ProTop-fravær. Det holder også barnehagens eldre meldinger
+  // (childName, dateKey) i samme samling ute av timelister, rapporter og sletting (DS-22).
   if (!employeeId || !date) return null;
   // Ikke lagre hele Excel-raden (values) — det sprenger cache/batch ved store importer.
   const source = row.source && typeof row.source === 'object'

@@ -4,10 +4,10 @@
  *   npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop \
  *     "node --test --test-concurrency=1 tests/rules/dataProtection.rules.test.mjs"
  *
- * HR (L-01, SEC-06, DS-10), fravær (L-02), personnummer og pårørende (L-03), notater (FL-13),
- * vennechat (FL-12, SOS-04), kalender (SOS-08), faktura, nummerserie, timer og utlegg (SEC-14,
- * L-10, L-31, DS-11), endringshistorikk og slettelogg for timer, innsynsloggen og
- * personvernvalgene på selskapet. Rettighetene kommer fra speilet accessAcl/{uid}, som i appen.
+ * HR (L-01, SEC-06, DS-10), fravær (L-02), barnehagens fravær (DS-22), personnummer og
+ * pårørende (L-03), notater (FL-13), vennechat (FL-12, SOS-04), kalender (SOS-08), faktura,
+ * nummerserie, timer og utlegg (SEC-14, L-10, L-31, DS-11), endringshistorikk og slettelogg for
+ * timer, innsynsloggen og personvernvalgene på selskapet. Rettighetene kommer fra speilet accessAcl/{uid}, som i appen.
  *
  * Bedrift A: own = eier, adm = administrator, hr = HR-ansvarlig, avd = avdelingsleder (HR Lese,
  * Andres timer Begrenset redigering), bob og eve = ansatte, okon = Faktura Begrenset redigering,
@@ -251,6 +251,31 @@ describe('fravær (L-02)', () => {
     await assertSucceeds(getDocs(collection(as('far'), 'families', D, 'absences')));
     await assertSucceeds(setDoc(doc(as('far'), 'families', D, 'absences', 'b2'), { childId: 'k2', dateKey: '2026-10-21', authorUid: 'far' }));
     await assertFails(getDocs(collection(as('ext'), 'families', D, 'absences')));
+  });
+
+  test('barnehage: nye meldinger i childAbsences, i eget navn (DS-22)', async () => {
+    const msg = (authorUid, over = {}) => ({ childId: 'k1', childName: 'Kari', dateKey: '2026-10-22', reason: 'Syk', status: 'pending', authorUid, ...over });
+    await assertSucceeds(setDoc(doc(as('far'), 'families', D, 'childAbsences', 'c1'), msg('far')));
+    await assertFails(setDoc(doc(as('far'), 'families', D, 'childAbsences', 'c2'), msg('mor')));
+    await assertSucceeds(getDocs(collection(as('mor'), 'families', D, 'childAbsences')));
+    await assertSucceeds(getDoc(doc(as('mor'), 'families', D, 'childAbsences', 'c1')));
+    await assertFails(getDocs(collection(as('ext'), 'families', D, 'childAbsences')));
+    await assertFails(setDoc(doc(as('ext'), 'families', D, 'childAbsences', 'c3'), msg('ext')));
+    // Den som meldte, og eieren, endrer og sletter. Andre foresatte gjør ikke det.
+    await assertSucceeds(updateDoc(doc(as('far'), 'families', D, 'childAbsences', 'c1'), { reason: 'Feber' }));
+    await assertFails(updateDoc(doc(as('far'), 'families', D, 'childAbsences', 'c1'), { authorUid: 'mor' }));
+    await assertSucceeds(updateDoc(doc(as('mor'), 'families', D, 'childAbsences', 'c1'), { status: 'seen' }));
+    await assertSucceeds(setDoc(doc(as('mor'), 'families', D, 'childAbsences', 'c4'), msg('mor')));
+    await assertFails(updateDoc(doc(as('far'), 'families', D, 'childAbsences', 'c4'), { reason: 'x' }));
+    await assertFails(deleteDoc(doc(as('far'), 'families', D, 'childAbsences', 'c4')));
+    await assertSucceeds(deleteDoc(doc(as('far'), 'families', D, 'childAbsences', 'c1')));
+  });
+
+  test('bedrift: childAbsences finnes ikke, og den generelle regelen slipper ikke til', async () => {
+    const msg = { childId: 'k1', childName: 'Kari', dateKey: '2026-10-22', authorUid: 'bob' };
+    await assertFails(setDoc(doc(as('bob'), 'families', A, 'childAbsences', 'c1'), msg));
+    await assertFails(setDoc(doc(as('own'), 'families', A, 'childAbsences', 'c2'), { ...msg, authorUid: 'own' }));
+    await assertFails(getDocs(collection(as('own'), 'families', A, 'childAbsences')));
   });
 });
 

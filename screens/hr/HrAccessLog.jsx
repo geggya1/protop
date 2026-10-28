@@ -35,7 +35,7 @@ export default function HrAccessLog({ colors, familyId, employeeId = '', title =
           subtitle={subtitle || 'Hvem som har åpnet en annens HR-mappe, lønn, fravær eller personnummer, og når. Verdiene logges ikke, og loggen kan ikke endres.'}
         />
         {state.loading ? <ActivityIndicator color={colors.brand} /> : null}
-        {state.error ? <Text style={{ color: colors.danger || '#b42318' }}>{state.error}</Text> : null}
+        {state.error ? <Text style={{ color: colors.dangerInk || colors.danger }}>{state.error}</Text> : null}
         {!state.loading && !state.error && !lines.length ? <EmptyHint colors={colors} text="Ingen innsyn er logget ennå." /> : null}
         {lines.map((line) => (
           <View key={line.id} style={[styles.row, { borderBottomColor: colors.line }]}>

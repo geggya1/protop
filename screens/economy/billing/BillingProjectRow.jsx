@@ -12,6 +12,7 @@ import { periodLabel } from '../../../src/economy/invoiceLines.js';
 import { invoiceTotals } from '../../../src/economy/invoiceFlow.js';
 import { selectableKeys, selectionAmount } from '../../../src/economy/billingReady.js';
 import { rateSourceLabel } from '../../../src/economy/hourlyRate.js';
+import { type } from '../../../src/ui/tokens';
 import {
   Banner, Button, Check, Chip, LinkText, MiniTable, SectionTitle, TotalRow, money,
 } from './ui';
@@ -176,7 +177,7 @@ export default function BillingProjectRow({
         // Hvor satsen kommer fra (DS-12): prisversjon i avtalen eller prosjektets timepris.
         <View style={{ alignItems: stacked ? 'flex-start' : 'flex-end' }}>
           <Text style={{ color: colors.ink, fontSize: 13 }}>{money(row.rate)}</Text>
-          {row.rateSource ? <Text style={{ color: colors.muted, fontSize: 11 }}>{rateSourceLabel(row.rateSource)}</Text> : null}
+          {row.rateSource ? <Text style={[type.caption, { color: colors.muted }]}>{rateSourceLabel(row.rateSource)}</Text> : null}
         </View>
       )) },
     { key: 'base', label: 'Totalt u/påslag', width: 112, align: 'right', render: (row) => money(row.base) },

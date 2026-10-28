@@ -1220,7 +1220,7 @@ export default function EventFormScreen() {
                 !canEditVisibility && styles.chipReadonly,
               ]}
             >
-              <Text style={[styles.chipTxt, wholeFamily && { color: '#fff' }]}>{wholeGroupLabel(family?.type)}</Text>
+              <Text style={[styles.chipTxt, wholeFamily && { color: colors.onBrand }]}>{wholeGroupLabel(family?.type)}</Text>
             </TouchableOpacity>
             {members.map((m) => {
               const mid = memberPickId(m);

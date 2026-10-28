@@ -27,6 +27,7 @@ import {
 } from '../../src/arbeid/timesheetReview.js';
 import { billingReadyLabel } from '../../src/economy/billingChain.js';
 import Breadcrumb from '../../components/Breadcrumb';
+import { radius } from '../../src/ui/tokens';
 
 function applyMutation(workspace, result) {
   if (!result.ok) {
@@ -287,7 +288,7 @@ export function ApprovalsBody({
               nativeID="godkjenning-til-fakturering"
               style={[styles.btn, { backgroundColor: colors.brand }]}
             >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{billingReadyLabel(readyCount)}</Text>
+              <Text style={{ color: colors.onBrand, fontWeight: '700' }}>{billingReadyLabel(readyCount)}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -434,7 +435,7 @@ const styles = StyleSheet.create({
   col: { width: 88, fontSize: 13 },
   colWide: { flex: 1.4, fontSize: 13 },
   btn: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  done: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 10, padding: 12 },
+  done: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: radius.card, padding: 12 },
   head: { flexDirection: 'row', gap: 8, borderRadius: 8, padding: 8 },
   headCell: { flex: 1, fontSize: 12, fontWeight: '700' },
   entry: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 6 },

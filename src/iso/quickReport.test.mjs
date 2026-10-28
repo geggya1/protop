@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  QUICK_TYPES, buildQuickFinding, isOfflineError, lastProjectFromHours, queueAdd, queueFailed, queueItem, queueRemove, quickTitle,
+  QUICK_TYPES, buildQuickFinding, isOfflineError, lastProjectFromHours, queueAdd, queueFailed, queueItem, queueRemove, quickSheetTitle, quickTitle,
+  reporterEmployee,
 } from './quickReport.js';
 import { newFindingEffects } from './integrations.js';
 
@@ -126,4 +127,20 @@ test('ISO-04: anonym melding lagrer verken navn eller bruker-id, heller ikke i h
   assert.ok(res.events.every((e) => !e.actorUid));
   // Med innlogget melder er saken ikke anonym, selv om valget er satt (reglene krever tom bruker-id).
   assert.equal(buildQuickFinding({ type: 'miljo', text: 'Søl', anonymous: true }, { actor: PER, system: SYSTEM, now }).finding.anonymous, false);
+});
+
+test('ISO-03: overskriften i arket beholder RUH med store bokstaver', () => {
+  assert.equal(quickSheetTitle('nestenulykke'), 'Meld RUH');
+  assert.equal(quickSheetTitle('prosess'), 'Meld kvalitetsavvik');
+  assert.equal(quickSheetTitle('ukjent'), 'Meld RUH');
+});
+
+test('ISO-03: eier uten ansattpost fra tilgangen finner egen post via personUid, så prosjektet foreslås', () => {
+  const employees = [{ id: 'e1', personUid: 'u9' }, { id: 'e2', personUid: 'u2' }];
+  assert.equal(reporterEmployee(null, employees, 'u2').id, 'e2');
+  assert.equal(reporterEmployee({ id: 'e1' }, employees, 'u2').id, 'e1');
+  assert.equal(reporterEmployee(null, employees, ''), null);
+  assert.equal(reporterEmployee(null, employees, 'ukjent'), null);
+  const hours = [{ employeeId: 'e2', projectId: 'p1', date: '2026-10-27' }];
+  assert.equal(lastProjectFromHours(hours, reporterEmployee(null, employees, 'u2').id, [{ id: 'p1', number: '1042', name: 'Fjordgata' }], now).id, 'p1');
 });

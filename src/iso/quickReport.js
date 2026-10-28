@@ -14,15 +14,31 @@ import { autoAssignee, requirementIdsForFinding } from './integrations.js';
 
 /** Typene i hurtigmeldingen. Store knapper; flere typer finnes i det fulle skjemaet. */
 export const QUICK_TYPES = [
-  { id: 'nestenulykke', label: 'RUH / nestenulykke', icon: 'warning-outline', hint: 'Noe som kunne gått galt' },
-  { id: 'hms', label: 'Personskade', icon: 'medkit-outline', hint: 'Noen er skadet' },
-  { id: 'miljo', label: 'Miljø', icon: 'leaf-outline', hint: 'Utslipp, søl eller avfall' },
-  { id: 'prosess', label: 'Kvalitet', icon: 'construct-outline', hint: 'Feil i arbeid eller leveranse' },
-  { id: 'forbedring', label: 'Forbedring', icon: 'bulb-outline', hint: 'Forslag til noe som kan bli bedre' },
+  { id: 'nestenulykke', label: 'RUH / nestenulykke', sheet: 'Meld RUH', icon: 'warning-outline', hint: 'Noe som kunne gått galt' },
+  { id: 'hms', label: 'Personskade', sheet: 'Meld personskade', icon: 'medkit-outline', hint: 'Noen er skadet' },
+  { id: 'miljo', label: 'Miljø', sheet: 'Meld miljøavvik', icon: 'leaf-outline', hint: 'Utslipp, søl eller avfall' },
+  { id: 'prosess', label: 'Kvalitet', sheet: 'Meld kvalitetsavvik', icon: 'construct-outline', hint: 'Feil i arbeid eller leveranse' },
+  { id: 'forbedring', label: 'Forbedring', sheet: 'Foreslå forbedring', icon: 'bulb-outline', hint: 'Forslag til noe som kan bli bedre' },
 ];
 
 export function quickTypeLabel(id) {
   return QUICK_TYPES.find((t) => t.id === id)?.label || 'Melding';
+}
+
+/** Overskriften i meldearket når typen er valgt («Meld RUH», ikke «Meld ruh / nestenulykke»). */
+export function quickSheetTitle(id) {
+  return QUICK_TYPES.find((t) => t.id === id)?.sheet || 'Meld RUH';
+}
+
+/**
+ * Ansattposten til den som melder. Eier og administrator får ingen ansattpost fra tilgangsoppsettet
+ * (de har full tilgang uansett), men er ofte på byggeplassen selv: da finnes posten via personUid.
+ */
+export function reporterEmployee(employee, employees, uid) {
+  if (employee?.id) return employee;
+  const id = text(uid, 128);
+  if (!id) return null;
+  return (employees || []).find((e) => e?.id && e.personUid === id) || null;
 }
 
 /** Tittel fra teksten: første linje eller setning, høyst 80 tegn. */

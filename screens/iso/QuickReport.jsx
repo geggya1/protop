@@ -16,7 +16,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { addDays, todayKey } from '../../src/iso/core';
-import { QUICK_TYPES, lastProjectFromHours, projectLabel, quickTypeLabel } from '../../src/iso/quickReport';
+import { QUICK_TYPES, lastProjectFromHours, projectLabel, quickSheetTitle, reporterEmployee } from '../../src/iso/quickReport';
 import { findingStateLabel, findingTypeLabel } from '../../src/iso/catalog';
 import { prettyDate } from '../../src/iso/core';
 import { loadMyReports } from '../../src/iso/storage';
@@ -321,7 +321,7 @@ export function QuickReportSheet({
   return (
     <Sheet
       visible={visible}
-      title={done ? 'Takk for meldingen' : (chosen ? `Meld ${quickTypeLabel(type).toLowerCase()}` : 'Meld RUH')}
+      title={done ? 'Takk for meldingen' : (chosen ? quickSheetTitle(type) : 'Meld RUH')}
       onClose={onClose}
       footer={!done && chosen ? (
         <>
@@ -357,7 +357,7 @@ export default function QuickReportButton({ variant = 'tile', label = 'Meld RUH'
       onClose={() => setOpen(false)}
       companyId={familyId}
       actor={actor}
-      employee={access.employee}
+      employee={reporterEmployee(access.employee, access.employees, uid)}
       employees={access.employees || []}
       allProjects={allProjects}
       onSent={onSent}

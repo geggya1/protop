@@ -1,22 +1,55 @@
 /**
  * Same-origin proxy for Doffin, TED and register calls the browser cannot make.
+ * Krever innlogget bruker (Bearer-token) og har grense per bruker, særlig for
+ * AI-handlingene som kaller Gemini.
  */
-import { onRequest } from 'firebase-functions/v2/https';
+import { onRequest, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { requireBearerUid } from './httpAuth.js';
+import { assertRateLimit, hashRateKey } from './security.js';
 import { searchDoffinNotices } from './anbud/doffinQuery.js';
 import { searchTedNotices } from './anbud/tedQuery.js';
 import { lookupCompanyCpv } from './anbud/companyLookup.js';
 import { allowedDownloadUrl, readPortalCatalog } from './anbud/portalCatalog.js';
 import { downloadGroundFile, readCompetitionGround } from './anbud/kgvSource.js';
 
+// Slim deploy-inngangen (tenderIndex.js) starter ikke Admin. Token-sjekk og grense trenger den.
+if (!getApps().length) initializeApp();
+
 const ACCOUNTS = 'https://data.brreg.no/regnskapsregisteret/regnskap';
+
+/** Handlinger som kaller Gemini. De koster, og får en lavere grense. */
+export const AI_ACTIONS = new Set(['interpret-profile', 'rank-hits', 'interpret-bid', 'read-documents']);
+const HOUR = 60 * 60 * 1000;
+
+/** Grense per bruker og time: { key, limit } for handlingen. */
+export function proxyRateLimit(action) {
+  if (AI_ACTIONS.has(action)) return { key: 'ai', limit: 60 };
+  return { key: 'all', limit: 600 };
+}
+
+async function limitProxy(uid, action) {
+  const { key, limit } = proxyRateLimit(action);
+  try {
+    await assertRateLimit(getFirestore(), { key: hashRateKey(['tender-proxy', key, uid]), limit, windowMs: HOUR });
+    return true;
+  } catch (err) {
+    if (err instanceof HttpsError && err.code === 'resource-exhausted') throw err;
+    // Grensetelleren er nede: AI-kall stoppes, vanlige søk går.
+    logger.warn('tenderProxy rate limit failed', { message: err?.message, action });
+    if (AI_ACTIONS.has(action)) throw new HttpsError('unavailable', 'Prøv igjen om litt.');
+    return true;
+  }
+}
 const FULLMAKT = 'https://data.brreg.no/fullmakt/enheter';
 const NOTICE = 'https://api.doffin.no/webclient/api/v2/notices-api/notices';
 
 function cors(res) {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
 async function readJson(url) {
@@ -38,9 +71,18 @@ export const tenderProxy = onRequest(
       res.status(405).json({ ok: false, error: 'Bruk POST.' });
       return;
     }
+    const uid = await requireBearerUid(req, res);
+    if (!uid) return;
+    const action = String(req.body?.action || 'search');
+    try {
+      await limitProxy(uid, action);
+    } catch (err) {
+      const status = err?.code === 'resource-exhausted' ? 429 : 503;
+      res.status(status).json({ ok: false, error: err?.message || 'Prøv igjen om litt.' });
+      return;
+    }
     try {
       const body = req.body || {};
-      const action = String(body.action || 'search');
       if (action === 'register') {
         const id = String(body.orgnr || '').replace(/\D/g, '');
         if (id.length !== 9) {

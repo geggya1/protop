@@ -11,6 +11,7 @@ import {
   nbDate,
   storedCompanyProfile,
 } from '../../src/project/companyPublic';
+import { proxyAuthHeaders } from '../../src/anbud/proxyAuth';
 import { companyLogoOf } from '../../src/project/companyLogo';
 
 function Fact({ label, value, colors }) {
@@ -49,11 +50,13 @@ export default function EconomyWelcome({ stored, familyId }) {
     if (id.length !== 9) return undefined;
     let alive = true;
     setHistoryLoading(true);
-    fetch(accountHistoryEndpoint(), {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'account-history', orgnr: id }),
-    })
+    // Proxyen krever innlogget bruker.
+    proxyAuthHeaders()
+      .then((headers) => fetch(accountHistoryEndpoint(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'account-history', orgnr: id }),
+      }))
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!alive) return;

@@ -3,14 +3,17 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 import { db } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useI18n } from '../../src/i18n';
 import { colors, radius } from '../../src/theme';
 import { Screen } from '../../components/ui';
+import CompactBackLink from '../../components/CompactBackLink';
 import { acceptFriendRequest, declineFriendRequest } from '../../src/utils/friends';
+
+const FRIENDS_SHELL = { openShell: { tab: 'more', subView: 'friends' } };
 
 export default function FriendInviteRespondScreen() {
   const nav = useNavigation();
@@ -24,30 +27,35 @@ export default function FriendInviteRespondScreen() {
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
 
+  // Lytt på forespørselen: trekkes den tilbake mens siden er åpen, forsvinner Godta/Avslå.
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!uid || !requestId) {
-        setLoading(false);
+    if (!uid || !requestId) {
+      setLoading(false);
+      setError(t('friend.inviteNotFound'));
+      return undefined;
+    }
+    return onSnapshot(doc(db, 'users', uid, 'friendRequests', requestId), (snap) => {
+      if (!snap.exists()) {
+        setInvite(null);
         setError(t('friend.inviteNotFound'));
-        return;
+      } else {
+        setInvite({ id: snap.id, ...snap.data() });
+        setError('');
       }
-      try {
-        const snap = await getDoc(doc(db, 'users', uid, 'friendRequests', requestId));
-        if (!alive) return;
-        if (!snap.exists()) {
-          setError(t('friend.inviteNotFound'));
-        } else {
-          setInvite({ id: snap.id, ...snap.data() });
-        }
-      } catch {
-        if (alive) setError(t('common.error'));
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
+      setLoading(false);
+    }, () => {
+      setError(t('common.error'));
+      setLoading(false);
+    });
   }, [uid, requestId, t]);
+
+  // Lenken kommer ofte fra en e-post, uten noe å gå tilbake til: da går vi til Venner.
+  const leave = () => {
+    if (nav.canGoBack?.()) nav.goBack();
+    else nav.navigate('Home', FRIENDS_SHELL);
+  };
+  const status = String(invite?.status || 'pending');
+  const handled = !done && invite && status !== 'pending';
 
   const accept = async () => {
     if (busy || !uid || !requestId) return;
@@ -81,9 +89,20 @@ export default function FriendInviteRespondScreen() {
     }
   };
 
+  const backLink = (
+    <View style={styles.backRow}>
+      <CompactBackLink
+        onPress={leave}
+        label={t('friend.title')}
+        accessibilityLabel={t('friend.goToFriends')}
+      />
+    </View>
+  );
+
   if (loading) {
     return (
       <Screen>
+        {backLink}
         <View style={styles.center}>
           <ActivityIndicator color={colors.brand} />
         </View>
@@ -93,21 +112,32 @@ export default function FriendInviteRespondScreen() {
 
   return (
     <Screen>
+      {backLink}
       <View style={styles.wrap}>
         <Ionicons name="people" size={48} color={colors.brand} />
         <Text style={styles.title}>{t('friend.requestTitle')}</Text>
         {done === 'accepted' ? (
           <>
             <Text style={styles.body}>{t('friend.acceptedBody')}</Text>
-            <TouchableOpacity style={styles.primary} onPress={() => nav.navigate('Home', { openShell: { tab: 'more', subView: 'friends' } })}>
+            <TouchableOpacity style={styles.primary} onPress={() => nav.navigate('Home', FRIENDS_SHELL)}>
               <Text style={styles.primaryTxt}>{t('friend.goToFriends')}</Text>
             </TouchableOpacity>
           </>
         ) : done === 'declined' ? (
           <>
             <Text style={styles.body}>{t('friend.declinedBody')}</Text>
-            <TouchableOpacity style={styles.primary} onPress={() => nav.goBack()}>
+            <TouchableOpacity style={styles.primary} onPress={leave}>
               <Text style={styles.primaryTxt}>{t('common.ok')}</Text>
+            </TouchableOpacity>
+          </>
+        ) : handled || (!invite && error) ? (
+          <>
+            <Text style={styles.body}>
+              {!invite ? error
+                : status === 'withdrawn' ? t('friend.withdrawnBody') : t('friend.alreadyHandled')}
+            </Text>
+            <TouchableOpacity style={styles.primary} onPress={() => nav.navigate('Home', FRIENDS_SHELL)}>
+              <Text style={styles.primaryTxt}>{t('friend.goToFriends')}</Text>
             </TouchableOpacity>
           </>
         ) : (
@@ -134,6 +164,7 @@ export default function FriendInviteRespondScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  backRow: { paddingHorizontal: 16, paddingTop: 8 },
   wrap: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 22, fontWeight: '400', color: colors.text, marginTop: 16, marginBottom: 8 },
   body: { fontSize: 15, color: colors.text, textAlign: 'center', lineHeight: 22, marginBottom: 12 },

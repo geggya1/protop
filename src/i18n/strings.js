@@ -811,6 +811,7 @@ export const TABLE = {
     statusPending: L('Venter', 'Pending', 'Afventer', 'Väntar', 'Odottaa', 'Oczekuje', 'Pendiente', 'En attente', 'Ausstehend'),
     statusDeclined: L('Avslått', 'Declined', 'Afvist', 'Avböjd', 'Hylätty', 'Odrzucone', 'Rechazada', 'Refusée', 'Abgelehnt'),
     statusWithdrawn: L('Trukket tilbake', 'Withdrawn', 'Tilbagetrukket', 'Återkallad', 'Peruttu', 'Wycofane', 'Retirada', 'Retirée', 'Zurückgezogen'),
+    withdrawnBody: L('Forespørselen er trukket tilbake og kan ikke lenger besvares.', 'The request was withdrawn and can no longer be answered.', 'Anmodningen er trukket tilbage og kan ikke længere besvares.', 'Förfrågan har återkallats och kan inte längre besvaras.', 'Pyyntö on peruttu, eikä siihen voi enää vastata.', 'Zaproszenie zostało wycofane i nie można już na nie odpowiedzieć.', 'La solicitud se retiró y ya no se puede responder.', 'La demande a été retirée et ne peut plus recevoir de réponse.', 'Die Anfrage wurde zurückgezogen und kann nicht mehr beantwortet werden.'),
     resendInvite: L('Send på nytt', 'Resend', 'Send igen', 'Skicka igen', 'Lähetä uudelleen', 'Wyślij ponownie', 'Reenviar', 'Renvoyer', 'Erneut senden'),
     withdrawInvite: L('Trekk tilbake', 'Withdraw', 'Træk tilbage', 'Ångra', 'Peru', 'Wycofaj', 'Retirar', 'Retirer', 'Zurückziehen'),
     withdrawTitle: L('Trekke tilbake forespørsel?', 'Withdraw request?', 'Trække anmodning tilbage?', 'Ångra förfrågan?', 'Perutaanko pyyntö?', 'Wycofać zaproszenie?', '¿Retirar solicitud?', 'Retirer la demande ?', 'Anfrage zurückziehen?'),

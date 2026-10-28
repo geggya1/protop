@@ -9,6 +9,7 @@ import {
   combineProjectDiffs,
   diffProjectStates,
   isEmptyProjectDiff,
+  legacyLocalChanges,
   projectDiffKeys,
 } from './stateDiff.js';
 import { showSaveError } from '../ui/saveToast.js';
@@ -39,6 +40,8 @@ const KEY = 'protop.projectPlatform.v2';
 const RETIRED_KEYS = ['protop.projectPlatform.v1'];
 /** Endringer som ikke har nådd skyen ennå (f.eks. uten nett). Ligger på enheten til de er lagret. */
 const OUTBOX_KEY = 'protop.projectOutbox.v1';
+/** Satt når den lokale kopien fra en eldre versjon (før køen) er sjekket for ulagrede endringer. */
+const LEGACY_CHECKED_KEY = 'protop.projectLocalChecked.v1';
 const OUTBOX_MAX_DAYS = 30;
 const OUTBOX = new Map();
 const outboxLoaded = new Map();
@@ -681,7 +684,14 @@ function rememberBase(companyId, state) {
 
 function baseFor(companyId, rev) {
   if (!rev) return null;
-  return BASES.get(memoryKey(companyId))?.get(rev) || null;
+  const map = BASES.get(memoryKey(companyId));
+  const base = map?.get(rev) || null;
+  if (base) {
+    // Sist brukt bakerst, så utgangspunktet til en skjerm som fortsatt lagrer, ikke presses ut.
+    map.delete(rev);
+    map.set(rev, base);
+  }
+  return base;
 }
 
 /** Legg state i minnet som ny versjon. Skjermer som laster herfra, regner endringer mot den. */
@@ -747,15 +757,63 @@ function enqueueProjectDiff(companyId, diff) {
   return true;
 }
 
+/** Legg en endring først i køen (eldre enn det som allerede ligger der). */
+function prependProjectDiff(companyId, diff) {
+  const id = String(companyId || '').trim();
+  if (!id || isEmptyProjectDiff(diff)) return false;
+  outboxSeq += 1;
+  const entry = { seq: `${SESSION}.${outboxSeq}`, at: new Date().toISOString(), diff };
+  OUTBOX.set(id, [entry, ...(OUTBOX.get(id) || [])]);
+  persistOutbox(id);
+  return true;
+}
+
+/**
+ * Første lasting med skyen etter oppgraderingen: ulagrede endringer i den lokale kopien fra den
+ * eldre versjonen legges i køen (legacyLocalChanges), så de ikke forsvinner. Bare én gang per selskap.
+ */
+async function takeLegacyLocalChanges(companyId, local, remoteState) {
+  const key = `${LEGACY_CHECKED_KEY}.${companyId}`;
+  try {
+    if (await AsyncStorage.getItem(key)) return null;
+  } catch {
+    return null;
+  }
+  const diff = legacyLocalChanges(
+    withoutBaseRev(stripTimeEntriesFromState(local)),
+    withoutBaseRev(stripTimeEntriesFromState(remoteState)),
+  );
+  if (diff) prependProjectDiff(companyId, diff);
+  try {
+    await AsyncStorage.setItem(key, new Date().toISOString());
+  } catch {
+    // Uten disk sjekkes kopien igjen neste gang. Endringene er de samme, så de legges likt på.
+  }
+  return diff;
+}
+
 /** Ventende endringer for selskapet (lest fra enheten første gang). */
 export async function pendingProjectChanges(companyId) {
   return (await hydrateOutbox(companyId)).map((row) => row.diff);
+}
+
+/** Delen av en endring som hører til hoveddokumentet (ikke utstyr eller katalog). */
+export function mainDocPart(diff) {
+  if (!diff) return diff;
+  const keep = (key) => !EQUIPMENT_DOC_KEYS.includes(key) && !CATALOG_DOC_KEYS.includes(key);
+  return {
+    ...diff,
+    lists: Object.fromEntries(Object.entries(diff.lists || {}).filter(([key]) => keep(key))),
+    fields: Object.fromEntries(Object.entries(diff.fields || {}).filter(([key]) => keep(key))),
+  };
 }
 
 /**
  * Skriv endringene i én transaksjon: les skyens ferske kopi, legg på endringene og skriv.
  * plan(fresh) gir listen med endringer, eller ingen når ingenting skal skrives.
  * mainForCatalog: produkter skrives også til hoveddokumentet (eldre klienter leser derfra).
+ * Hvert dokument vurderes for seg: er hoveddokumentet for stort, skrives utstyr og katalog likevel
+ * (partial: true), og bare hoveddokumentets del av endringene blir liggende i køen.
  */
 async function commitRemote(companyId, plan, { mainForCatalog = true } = {}) {
   const id = String(companyId || '').trim();
@@ -776,8 +834,11 @@ async function commitRemote(companyId, plan, { mainForCatalog = true } = {}) {
       if (!diffs.length) return;
       const touched = new Set();
       for (const diff of diffs) projectDiffKeys(diff).forEach((key) => touched.add(key));
+      // Endringer uten kjent utgangspunkt som skyen hadde noe annet for (REV-17).
+      const skipped = new Set();
+      const onSkip = (key) => skipped.add(key);
       const next = normalizeProjectState({
-        ...diffs.reduce((state, diff) => applyProjectDiff(state, diff), fresh),
+        ...diffs.reduce((state, diff) => applyProjectDiff(state, diff, { onSkip }), fresh),
         syncedAt: new Date().toISOString(),
       });
       const payload = firestorePayload(next);
@@ -787,19 +848,30 @@ async function commitRemote(companyId, plan, { mainForCatalog = true } = {}) {
         !EQUIPMENT_DOC_KEYS.includes(key) && !CATALOG_DOC_KEYS.includes(key)
       )) || (touchesCatalog && mainForCatalog);
       const updatedAt = bits.serverTimestamp();
+      // Endringer som bare hører til hoveddokumentet (ikke bare katalogens kopi for eldre klienter).
+      const needsMain = [...touched].some((key) => (
+        !EQUIPMENT_DOC_KEYS.includes(key) && !CATALOG_DOC_KEYS.includes(key)
+      ));
       let bytes = 0;
+      let mainError = null;
       if (touchesMain) {
         // Uten utstyrslistene. Med merge beholdes de gamle listene for eldre klienter.
         const main = withoutEquipmentKeys(payload);
         bytes = encodedBytes(main);
-        if (bytes > DOC_MAX_BYTES) throw tooLargeError(bytes);
-        tx.set(refs.main, { state: main, updatedAt }, { merge: true });
+        if (bytes <= DOC_MAX_BYTES) tx.set(refs.main, { state: main, updatedAt }, { merge: true });
+        else if (needsMain) mainError = tooLargeError(bytes);
       }
+      // For stort hoveddokument stopper ikke utstyr og katalog (egne, små dokumenter).
+      if (mainError && !touchesSide && !touchesCatalog) throw mainError;
       if (touchesSide) tx.set(refs.side, { ...pickEquipmentKeys(payload), updatedAt }, { merge: true });
       if (touchesCatalog) tx.set(refs.catalog, { ...pickCatalogKeys(payload), updatedAt });
-      outcome = { changed: true, state: next, bytes };
+      outcome = { changed: true, state: next, bytes, mainError, skipped: [...skipped] };
     });
     noteDocSize(id, outcome.bytes);
+    if (outcome.mainError) {
+      const { mainError, ...rest } = outcome;
+      return { ok: false, partial: true, error: mainError, ...rest };
+    }
     return { ok: true, ...outcome };
   } catch (error) {
     return { ok: false, error };
@@ -824,10 +896,14 @@ function scheduleRetry(companyId) {
   retryTimers.set(companyId, timer);
 }
 
+export const SKIPPED_CHANGES_TEXT = 'Noen endringer ble ikke lagret, fordi siden ikke var ferdig lastet og skyen hadde nyere innhold. Last siden på nytt og gjør endringen igjen.';
+
 /** Melding til brukeren når skyen ikke tok imot en lagring. */
-export function remoteFailureText(error) {
+export function remoteFailureText(error, { partial = false } = {}) {
   const raw = String(error?.message || error?.code || '');
-  if (error?.code === 'project-doc-too-large') return raw;
+  if (error?.code === 'project-doc-too-large') {
+    return partial ? `${raw} Utstyr og produkter er lagret.` : raw;
+  }
   if (/exceeds|too big|maximum allowed size/i.test(raw)) {
     return 'Prosjektdataene er for store til å lagres i skyen. Endringen ligger på denne enheten.';
   }
@@ -853,6 +929,15 @@ export function flushProjectChanges(companyId) {
       clearRetry(id);
       retryCounts.delete(id);
       failureShown.delete(id);
+      // Lagret, men noe ble ikke lagt på: si fra i stedet for å vise bare «Lagret».
+      if (result.skipped?.length) showSaveError(SKIPPED_CHANGES_TEXT);
+    } else if (result.partial) {
+      // Utstyr og katalog er lagret. Bare hoveddokumentets del blir liggende i køen.
+      const sent = new Map(batch.map((row) => [row.seq, mainDocPart(row.diff)]));
+      OUTBOX.set(id, (OUTBOX.get(id) || [])
+        .map((row) => (sent.has(row.seq) ? { ...row, diff: sent.get(row.seq) } : row))
+        .filter((row) => !isEmptyProjectDiff(row.diff)));
+      persistOutbox(id);
     }
     return result;
   });
@@ -866,7 +951,7 @@ function flushInBackground(companyId) {
     // Lagringen i skyen feilet. Si fra (ikke for hver lagring), og prøv igjen litt senere.
     if (Date.now() - (failureShown.get(companyId) || 0) > FAILURE_TOAST_MS) {
       failureShown.set(companyId, Date.now());
-      showSaveError(remoteFailureText(result.error));
+      showSaveError(remoteFailureText(result.error, { partial: !!result.partial }));
     }
     scheduleRetry(companyId);
   }).catch(() => {});
@@ -897,6 +982,53 @@ function queueProjectChanges(companyId, state, slim) {
   return { queued, rev };
 }
 
+/**
+ * Feil som ikke går over ved å prøve igjen: reglene sier nei (låst, fakturert, mangler tilgang)
+ * eller raden finnes ikke. Nett og tidsavbrudd prøves igjen ved neste lagring.
+ */
+export function permanentWriteError(error) {
+  const code = String(error?.code || '');
+  return code.includes('permission-denied') || code.includes('not-found')
+    || /missing or insufficient permissions/i.test(String(error?.message || ''));
+}
+
+export const REFUSED_ROWS_CODE = 'rows-refused';
+
+/** Feilen brukeren ser når noen rader ble avvist, men resten er lagret. */
+export function refusedRowsError(kind, count) {
+  const what = kind === 'absence'
+    ? (count === 1 ? '1 fraværsrad' : `${count} fraværsrader`)
+    : (count === 1 ? '1 timeføring' : `${count} timeføringer`);
+  const error = new Error(`${what} ble ikke lagret eller slettet i skyen: raden er låst, fakturert, eller du mangler tilgang. Resten er lagret. Last siden på nytt for å se hva som ligger i skyen.`);
+  error.code = REFUSED_ROWS_CODE;
+  error.kind = kind;
+  error.count = count;
+  return error;
+}
+
+/**
+ * Lagre radene samlet. Avviser reglene én av dem, lagres de én og én, så én låst rad ikke
+ * stopper resten. Gir id-ene som ble avvist. Andre feil kastes (prøves igjen senere).
+ */
+async function saveRowsIsolated(list, save) {
+  try {
+    await save(list);
+    return [];
+  } catch (error) {
+    if (!permanentWriteError(error)) throw error;
+  }
+  const refused = [];
+  for (const row of list) {
+    try {
+      await save([row]);
+    } catch (error) {
+      if (!permanentWriteError(error)) throw error;
+      refused.push(row?.id);
+    }
+  }
+  return refused;
+}
+
 async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { allowRemovals = true } = {}) {
   const id = String(companyId || '').trim();
   if (!id) return;
@@ -909,18 +1041,26 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
     if (!bySource.has(source)) bySource.set(source, []);
     bySource.get(source).push(row);
   }
+  const refused = [];
   for (const [source, list] of bySource) {
     // Bare endrede felt: en eldre kopi skal ikke nullstille faktura, status eller låsing.
-    await saveTimeEntries(source, list, { previous: previousEntries });
+    refused.push(...await saveRowsIsolated(list, (rows) => saveTimeEntries(source, rows, { previous: previousEntries })));
   }
   const removable = planTimeEntryRemovals(previousEntries, nextEntries, window, { allowRemovals });
   if (removable.length) {
     const prevById = new Map((previousEntries || []).map((row) => [row?.id, row]));
     for (const entryId of removable) {
       const source = String(prevById.get(entryId)?.sourceCompanyId || id).trim() || id;
-      await removeTimeEntry(source, entryId, { entry: prevById.get(entryId) || null, log: true });
+      try {
+        await removeTimeEntry(source, entryId, { entry: prevById.get(entryId) || null, log: true });
+      } catch (error) {
+        if (!permanentWriteError(error)) throw error;
+        refused.push(entryId);
+      }
     }
   }
+  // Avviste rader regnes som ferdige: de prøves ikke igjen ved hver lagring i økten (da
+  // stoppet én låst rad all senere lagring). Neste lasting viser det som ligger i skyen.
   const nextClean = withoutDeletedTimeEntries(id, nextEntries);
   if (allowRemovals && window?.all === true) {
     markTimeEntriesSynced(id, nextClean);
@@ -928,6 +1068,7 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
     // Delvis vindu: behold id-er utenfor vinduet, men slipp dem brukeren slettet.
     markTimeEntriesSyncedMerge(id, nextClean);
   }
+  if (refused.length) throw refusedRowsError('time', refused.length);
 }
 
 async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { allowRemovals = true } = {}) {
@@ -946,8 +1087,9 @@ async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { all
     if (!bySource.has(source)) bySource.set(source, []);
     bySource.get(source).push(row);
   }
+  const refused = [];
   for (const [source, list] of bySource) {
-    await saveAbsences(source, list);
+    refused.push(...await saveRowsIsolated(list, (rows) => saveAbsences(source, rows)));
   }
   const removable = allowRemovals && window?.all === true
     ? removed
@@ -956,7 +1098,12 @@ async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { all
     const prevById = new Map((previousEntries || []).map((row) => [row?.id, row]));
     for (const entryId of removable) {
       const source = String(prevById.get(entryId)?.sourceCompanyId || id).trim() || id;
-      await removeAbsence(source, entryId);
+      try {
+        await removeAbsence(source, entryId);
+      } catch (error) {
+        if (!permanentWriteError(error)) throw error;
+        refused.push(entryId);
+      }
     }
   }
   const nextClean = withoutDeletedAbsences(id, nextEntries);
@@ -965,6 +1112,28 @@ async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { all
   } else {
     markAbsencesSyncedMerge(id, nextClean);
   }
+  if (refused.length) throw refusedRowsError('absence', refused.length);
+}
+
+/**
+ * Timer og fravær til egne samlinger. Rader reglene avviste, stopper ikke resten: fraværet
+ * synkes selv om en timeføring ble avvist, og feilen gis tilbake. Andre feil kastes med en gang.
+ */
+async function syncRowsRemote(companyId, previousEntries, nextEntries, previousAbsences, nextAbsences, options) {
+  let refused = null;
+  try {
+    await syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { allowRemovals: options.allowRemovals });
+  } catch (error) {
+    if (error?.code !== REFUSED_ROWS_CODE) throw error;
+    refused = error;
+  }
+  try {
+    await syncAbsencesRemote(companyId, previousAbsences, nextAbsences, { allowRemovals: options.allowAbsenceRemovals });
+  } catch (error) {
+    if (error?.code !== REFUSED_ROWS_CODE) throw error;
+    refused = refused || error;
+  }
+  return refused;
 }
 
 function resolveHoursOpts(hours) {
@@ -1091,13 +1260,18 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
       return adoptBase(companyId, await loadStateWithHealedHours(companyId, applied.state, hoursOpts));
     }
     let state = applied.state;
+    const legacy = applied.upload ? null : await takeLegacyLocalChanges(companyId, local, applied.state);
+    const queued = legacy ? [legacy, ...waiting] : waiting;
     if (applied.upload) {
-      enqueueProjectDiff(companyId, diffProjectStates(null, withoutBaseRev(stripTimeEntriesFromState(state))));
-    } else if (waiting.length) {
+      // Skyen har ikke dokumentet: alt i kopien lastes opp, også felt som dagsnorm og prosedyrer
+      // (mot en tom kopi, ikke uten utgangspunkt, som bare fylte tomme felt).
+      const empty = withoutBaseRev(stripTimeEntriesFromState(emptyProjectState()));
+      enqueueProjectDiff(companyId, diffProjectStates(empty, withoutBaseRev(stripTimeEntriesFromState(state))));
+    } else if (queued.length) {
       // Endringer som ikke nådde skyen sist, vises med en gang og sendes nå.
-      state = normalizeProjectState(waiting.reduce((current, diff) => applyProjectDiff(current, diff), state));
+      state = normalizeProjectState(queued.reduce((current, diff) => applyProjectDiff(current, diff), state));
     }
-    let flush = applied.upload || waiting.length > 0;
+    let flush = applied.upload || queued.length > 0;
     if ((applied.state.timeEntries || []).length && (hoursOpts.all || hoursOpts.fromDate)) {
       // Gamle timer i hoveddokumentet er flyttet til egen samling. Skrivingen fjerner dem der.
       flush = enqueueProjectDiff(companyId, { lists: {}, fields: { timeEntries: [] }, deletedRows: [], strict: false }) || flush;
@@ -1245,11 +1419,12 @@ export async function saveProjectState(state, companyId) {
   const allowRemovals = allowTimeEntryRemovals(peekHoursMode(companyId), HOURS_WINDOW.get(memoryKey(companyId)) || null);
   const allowAbsenceRemovals = ABSENCE_MODE.get(memoryKey(companyId)) === 'all';
 
+  let refused = null;
   if (companyId) {
     try {
-      await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
-      await syncAbsencesRemote(companyId, previousAbsences, full.absences || [], {
-        allowRemovals: allowAbsenceRemovals,
+      refused = await syncRowsRemote(companyId, previousEntries, full.timeEntries || [], previousAbsences, full.absences || [], {
+        allowRemovals,
+        allowAbsenceRemovals,
       });
     } catch (error) {
       scheduleFlush(companyId);
@@ -1265,12 +1440,15 @@ export async function saveProjectState(state, companyId) {
 
   await writeLocal(companyId, nextSlim);
   scheduleFlush(companyId);
-  return putProjectState({
+  const stored = putProjectState({
     ...nextSlim,
     timeEntries: full.timeEntries || [],
     absences: full.absences || [],
     baseRev: rev,
   }, companyId);
+  // Resten er lagret. Brukeren får vite at noen rader ble avvist.
+  if (refused) throw refused;
+  return stored;
 }
 
 /** Lagrer med en gang og venter på Firestore (prosjekt + timeEntries + absences). */
@@ -1287,11 +1465,12 @@ export async function persistProjectState(state, companyId) {
   const allowAbsenceRemovals = ABSENCE_MODE.get(memoryKey(companyId)) === 'all';
   const id = String(companyId || '').trim();
 
+  let refused = null;
   if (id) {
     try {
-      await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
-      await syncAbsencesRemote(companyId, previousAbsences, full.absences || [], {
-        allowRemovals: allowAbsenceRemovals,
+      refused = await syncRowsRemote(companyId, previousEntries, full.timeEntries || [], previousAbsences, full.absences || [], {
+        allowRemovals,
+        allowAbsenceRemovals,
       });
     } catch (error) {
       scheduleFlush(id);
@@ -1305,7 +1484,9 @@ export async function persistProjectState(state, companyId) {
     if (!remote.ok) {
       scheduleRetry(id);
       const message = remote.error?.message || remote.error?.code || 'Kunne ikke synke prosjekt til skyen.';
-      if (remote.error?.code === 'project-doc-too-large') throw new Error(String(message));
+      if (remote.error?.code === 'project-doc-too-large') {
+        throw new Error(remoteFailureText(remote.error, { partial: !!remote.partial }));
+      }
       throw new Error(
         /exceeds|too big|size|invalid-argument/i.test(String(message))
           ? 'Prosjektdata er for store til å lagres. Timer og fravær lagres nå separat — prøv igjen.'
@@ -1313,12 +1494,14 @@ export async function persistProjectState(state, companyId) {
       );
     }
   }
-  return putProjectState({
+  const stored = putProjectState({
     ...nextSlim,
     timeEntries: full.timeEntries || [],
     absences: full.absences || [],
     baseRev: rev,
   }, companyId);
+  if (refused) throw refused;
+  return stored;
 }
 
 /**

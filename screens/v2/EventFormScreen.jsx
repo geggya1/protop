@@ -30,6 +30,7 @@ import { notifyUsers } from '../../src/utils/notifications';
 import { syncCalendarEventFriendShares } from '../../src/utils/friends';
 import { friendUidsFromPicked, synligForSummary, wholeGroupLabel } from '../../src/utils/eventSharing';
 import { resolveEventWriteTarget } from '../../src/utils/eventWriteTarget';
+import { sealCompanyCalendar } from '../../src/utils/calendarSeal';
 import {
   isExternalCalendarEvent,
   externalEventVisibilityDocId,
@@ -718,6 +719,10 @@ export default function EventFormScreen() {
       const familyNotifyIds = wholeFamily
         ? []
         : selectedIds.filter((id) => id && id !== uid && familyUids.has(id));
+
+      // Første private hendelse i en bedrift: eldre hendelser får audience og bedriften merkes
+      // først, så reglene skjermer hendelsen fra start (REV-11). Feiler det, lagres hendelsen likevel.
+      if (!wholeFamily) await sealCompanyCalendar(familyId).catch(() => {});
 
       let savedEventId = eventDocId;
       if (isEdit) {

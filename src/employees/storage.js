@@ -14,6 +14,7 @@ import {
 import { employmentChangeNeedsServer } from './membership.js';
 import { setEmploymentStatus } from './membershipClient.js';
 import { aliasSourceIds, subscribeCompanyAliases } from '../project/companyAlias.js';
+import { subscribeAccessMirror } from '../access/accessMirror.js';
 
 const sourceByEmployee = new Map();
 
@@ -217,9 +218,18 @@ export function watchEmployees(companyId, onData, onError) {
   const off = subscribeCompanyAliases((key) => {
     if (key === companyId) bind();
   });
+  // Lytteren på skjermede felt kan bli avvist før tilgangsspeilet finnes (rett etter innlogging).
+  // Koble til én gang til når speilet er skrevet; en vanlig ansatt blir avvist igjen og bruker egne poster.
+  let privateRetried = false;
+  const offMirror = subscribeAccessMirror((key) => {
+    if (stop || key !== companyId || privateRetried || secrets.get(companyId) !== null) return;
+    privateRetried = true;
+    bind();
+  });
   return () => {
     stop = true;
     off();
+    offMirror();
     unsubs.forEach((fn) => fn());
   };
 }

@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from 'react';
+import { AppState } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { useEmployees } from '../context/CompanyDataContext';
 import { isGroupAdmin, isSuperAdmin } from '../utils/groups';
 import { isOrganizationType } from '../utils/groupTypes';
-import { accessSignature, scheduleAccessSync } from './accessMirror';
+import { accessSignature, keepAccessMirrorFresh, scheduleAccessSync } from './accessMirror';
 import {
   allows,
   companyTabAllowed,
@@ -20,6 +21,14 @@ import {
 } from './viewAsStore';
 
 const NO_EMPLOYEES = [];
+
+/** Kaller fn når appen blir aktiv igjen (fra bakgrunnen, eller fanen vises igjen på web). */
+function onAppResume(fn) {
+  const sub = AppState.addEventListener?.('change', (next) => {
+    if (next === 'active') fn();
+  });
+  return () => sub?.remove?.();
+}
 
 const idle = {
   active: false,
@@ -121,6 +130,13 @@ export function useCompanyAccess() {
     // accessKey dekker matrisen og ansatte.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, familyId, uid, ready, accessKey, bypass]);
+
+  // Speilet varer i 12 timer. En fane som står åpen eller en app som hentes fra bakgrunnen,
+  // fornyer det før det går ut (ellers avviser reglene HR, fravær og faktura midt i økten).
+  useEffect(() => {
+    if (!org || !familyId || !uid) return undefined;
+    return keepAccessMirrorFresh(familyId, uid, { onResume: onAppResume });
+  }, [org, familyId, uid]);
 
   useEffect(() => {
     // Tom liste = ikke lastet ennå (f.eks. rett etter omlasting): behold valget.

@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { db, storage } from '../firebase';
+import { auth, db, storage } from '../firebase';
 import { doc, updateDoc, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Feather } from '@expo/vector-icons';
@@ -29,6 +29,9 @@ let Cropper = null;
 if (Platform.OS === 'web') {
   try { Cropper = require('react-easy-crop').default; } catch {}
 }
+
+// Avataren er et JPEG-bilde (storage.rules krever bildetype), og den som lastet opp står i metadata.
+const AVATAR_META = () => ({ contentType: 'image/jpeg', customMetadata: { uploadedBy: auth?.currentUser?.uid || '' } });
 
 export default function ChildProfileScreen({ route, navigation }) {
   const child = route?.params?.child || {};
@@ -104,7 +107,7 @@ export default function ChildProfileScreen({ route, navigation }) {
       const blob = await resp.blob();
       const path = `child_avatars/${childDocId}-${Date.now()}.jpg`;
       const sref = ref(storage, path);
-      await uploadBytes(sref, blob);
+      await uploadBytes(sref, blob, AVATAR_META());
       const url = await getDownloadURL(sref);
       await afterUpload(url);
       Alert.alert('Profilbilde oppdatert!');
@@ -155,7 +158,7 @@ export default function ChildProfileScreen({ route, navigation }) {
       const blob = await getCroppedImage(selectedImageUri, croppedAreaPixels);
       const path = `child_avatars/${childDocId}-${Date.now()}.jpg`;
       const storageRefObj = ref(storage, path);
-      await uploadBytes(storageRefObj, blob);
+      await uploadBytes(storageRefObj, blob, AVATAR_META());
       const url = await getDownloadURL(storageRefObj);
       await afterUpload(url);
       setCropVisible(false);

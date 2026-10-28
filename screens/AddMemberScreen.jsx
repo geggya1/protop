@@ -8,7 +8,7 @@ import { useApp } from '../src/context/AppContext';
 import { colors, radius } from '../src/theme';
 import { isValidUsername, suggestUsername, usernameTaken } from '../src/utils/usernames';
 import {
-  addChildMember, addAdultManual, inviteAdultSmart, isSuperAdmin,
+  addChildMember, addAdultManual, inviteAdultSmart, isGroupAdmin, isSuperAdmin,
 } from '../src/utils/groups';
 import { pickImage, uploadImage, alertPhotoError } from '../src/utils/media';
 import { calculateAge, isValidBirthday } from '../src/utils/age';
@@ -33,6 +33,9 @@ export default function AddMemberScreen({
   const { family, familyId, uid, requestShellTab } = useApp();
   const fid = familyIdProp || params?.familyId || familyId;
   const superOk = isSuperAdmin(family, uid);
+  // Bare eier og administratorer kan legge inn en voksen med konto direkte (reglene).
+  // Andre voksne inviterer, og kan legge til barn.
+  const adminOk = isGroupAdmin(family, uid);
 
   const [kind, setKind] = useState(null);
   const [how, setHow] = useState(null);
@@ -231,7 +234,9 @@ export default function AddMemberScreen({
             : code === 'invite-pending' ? t('member.invitePending')
               : code === 'cannot-invite-self' ? t('member.cannotInviteSelf')
                 : code === 'contact-required' ? t('member.emailOrPhone')
-                  : t('common.error');
+                  : code === 'child-not-listed'
+                    ? 'Barnet ble ikke lagt til i gruppen, og ingenting er lagret der. Be eieren eller en administrator legge det til.'
+                    : t('common.error');
       Alert.alert(t('common.error'), msg);
     } finally {
       setSaving(false);
@@ -267,7 +272,13 @@ export default function AddMemberScreen({
     return (
       <Wizard title={t('member.addTitle')} subtitle={t('member.who')} onBack={asModal ? undefined : leave} {...wizardProps}>
         <Choice compact={compactChoice} huge={!compactChoice} emoji="🧒" label={t('member.child')} onPress={() => { setKind('child'); setHow('manual'); }} />
-        <Choice compact={compactChoice} huge={!compactChoice} emoji="🧑" label={t('member.adult')} onPress={() => setKind('adult')} />
+        <Choice
+          compact={compactChoice}
+          huge={!compactChoice}
+          emoji="🧑"
+          label={t('member.adult')}
+          onPress={() => { setKind('adult'); if (!adminOk) setHow('invite'); }}
+        />
       </Wizard>
     );
   }
@@ -283,7 +294,11 @@ export default function AddMemberScreen({
 
   if (kind === 'adult' && how && !adultKind) {
     return (
-      <Wizard title={t('member.adultRoleTitle')} onBack={() => setHow(null)} {...wizardProps}>
+      <Wizard
+        title={t('member.adultRoleTitle')}
+        onBack={() => { setHow(null); if (!adminOk) setKind(null); }}
+        {...wizardProps}
+      >
         <Text style={styles.hint}>{t('member.adultRoleHint')}</Text>
         <Choice
           compact={compactChoice}

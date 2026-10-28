@@ -23,6 +23,7 @@ import {
   softDeleteParentFromFamily,
 } from '../src/utils/groups';
 import { syncMyInvites } from '../src/utils/invite';
+import { signOutKeepingWork } from '../src/utils/localCache';
 
 let Cropper = null;
 if (Platform.OS === 'web') {
@@ -241,12 +242,14 @@ export default function ParentProfileScreen() {
     setDeletePhotoRequested(false);
     const path = `profiles/${uid}/parent-${uid}-${Date.now()}.jpg`;
     const storageRefObj = ref(storage, path);
-    await uploadBytes(storageRefObj, blob, { contentType: 'image/jpeg' });
+    // Gruppen i metadata: en administrator kan bytte bildet til et medlem i gruppen (storage.rules).
+    const customMetadata = { uploadedBy: auth.currentUser?.uid || '', ...(familyId ? { familyId } : {}) };
+    await uploadBytes(storageRefObj, blob, { contentType: 'image/jpeg', customMetadata });
     const url = await getDownloadURL(storageRefObj);
     setPendingImageURL(url);
     setPhotoURL(url);
     setCacheBust(Date.now());
-  }, [targetUid]);
+  }, [targetUid, familyId]);
 
   const requestDeletePhoto = useCallback(() => {
     if (!canEditPhoto) return;
@@ -683,7 +686,10 @@ export default function ParentProfileScreen() {
         onCancel={() => setConfirm({ open: false, kind: null })}
         onConfirm={async () => {
           setConfirm({ open: false, kind: null });
-          try { await firebaseSignOut(auth); navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); } catch {}
+          try {
+            await signOutKeepingWork(() => firebaseSignOut(auth));
+            navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          } catch {}
         }}
       />
     </View>

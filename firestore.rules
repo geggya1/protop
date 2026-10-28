@@ -643,6 +643,19 @@ service cloud.firestore {
         || resource.data.createdBy == request.auth.uid;
     }
 
+    // Bedriften har hendelser for «bare utvalgte» (privateEvents på gruppen, satt av appen når den
+    // første lages eller finnes, etter at eldre hendelser har fått audience). Før det har kalenderen
+    // ingen private hendelser, og hele samlingen kan listes som før, også av eldre apper (REV-11).
+    function companyPrivateEvents(familyId) {
+      return get(familyPath(familyId)).data.get('privateEvents', false) == true;
+    }
+
+    // Når kalenderen først har private hendelser, kan ingen (heller ikke eier) slå det av igjen.
+    function privateEventsKept() {
+      return resource.data.get('privateEvents', false) != true
+        || request.resource.data.get('privateEvents', false) == true;
+    }
+
     // Underlag på ansattposten med egne regler: bruksloggen (IP-adresser) skrives bare av serveren.
     function isProtectedSub(coll, sub) {
       return coll == 'employees' && sub == 'usage';
@@ -914,15 +927,30 @@ service cloud.firestore {
       return isFamilyAdult(familyId) || (exists(child) && grantsMembership(get(child).data));
     }
 
+    // En foresatt (voksen i gruppen, ikke bedrift) fører opp ett barn hen nettopp har lagt til
+    // (addChildMember): barnet har medlemsdokument i gruppen etter skrivingen og en barneprofil.
+    // arrayUnion legger den nye sist i listen. En voksen konto kan ikke føres opp slik (SEC-05).
+    function addsChild(familyId, key) {
+      let list = request.resource.data.get(key, []);
+      let added = list.size() > 0 ? list[list.size() - 1] : '';
+      return added is string && added != ''
+        && list.toSet().difference(resource.data.get(key, []).toSet()).hasOnly([added])
+        && !isCompanyGroup(familyId)
+        && isFamilyAdult(familyId)
+        && existsAfter(/databases/$(database)/documents/families/$(familyId)/children/$(added))
+        && isChildProfile(added);
+    }
+
     // Medlemslistene: en kan melde seg selv ut, og føre seg selv opp når medlemskapet allerede
-    // er gitt av et aktivt medlemsdokument (ensureListedOnFamily). Alt annet gjør eier,
-    // administrator eller serveren.
+    // er gitt av et aktivt medlemsdokument (ensureListedOnFamily). En foresatt kan føre opp et
+    // nytt barn (addsChild). Alt annet gjør eier, administrator eller serveren.
     function memberListOk(familyId, key) {
       let before = resource.data.get(key, []).toSet();
       let after = request.resource.data.get(key, []).toSet();
       return before.difference(after).hasOnly([request.auth.uid])
         && (after.difference(before).size() == 0
-            || (after.difference(before).hasOnly([request.auth.uid]) && hasOwnMemberDoc(familyId)));
+            || (after.difference(before).hasOnly([request.auth.uid]) && hasOwnMemberDoc(familyId))
+            || addsChild(familyId, key));
     }
 
     // Selskapets identitet og konto (brukes på fakturaer og i EHF).
@@ -965,6 +993,7 @@ service cloud.firestore {
         && (isFamilyOwner(familyId)
             || unchanged('adminUids')
             || request.auth.uid in resource.data.get('adminUids', []))
+        && privateEventsKept()
         && (isFamilyAdmin(familyId) ? true : familyUpdateOk(familyId));
 
       match /{path=**}/shoppingLists/{listId} {
@@ -1005,8 +1034,10 @@ service cloud.firestore {
           && (!isCompanyGroup(familyId) || absenceForAll(familyId, 2)
               || (ownAbsenceDoc(familyId, resource.data) && ownAbsenceDoc(familyId, request.resource.data)
                   && ownAbsenceStatusOk()));
+        // Et dokument som ikke finnes, kan «slettes» (to skjermer sletter samme rad, eller en sletting prøves igjen).
         allow delete: if isFamilyMember(familyId)
-          && (!isCompanyGroup(familyId) || absenceForAll(familyId, 2) || ownAbsenceDoc(familyId, resource.data));
+          && (resource == null || !isCompanyGroup(familyId) || absenceForAll(familyId, 2)
+              || ownAbsenceDoc(familyId, resource.data));
       }
 
       // Barnehagens fravær for barna (DS-22): eget samlingsnavn, så det ikke blandes med ansattes
@@ -1034,13 +1065,16 @@ service cloud.firestore {
         allow delete: if isFamilyAdmin(familyId);
       }
 
-      // Kalenderen. I bedrifter må en liste filtrere på felles hendelser (audience == 'family'),
-      // egne (createdBy) eller der en er invitert (memberIds), som appen gjør.
+      // Kalenderen. I bedrifter med private hendelser må en liste filtrere på felles hendelser
+      // (audience == 'family'), egne (createdBy) eller der en er invitert (memberIds), som appen gjør.
       match /events/{eventId} {
         allow get: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
-        allow list: if isFamilyMemberLite(familyId) && (!isCompanyGroup(familyId) || eventListVisible());
+        allow list: if isFamilyMemberLite(familyId)
+          && (!isCompanyGroup(familyId) || !companyPrivateEvents(familyId) || eventListVisible());
         allow create: if isFamilyMember(familyId) || foundsFamily(familyId);
-        allow update, delete: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
+        allow update: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || !isCompanyGroup(familyId) || eventVisible(resource.data));
 
         match /{sub}/{rest=**} {
           allow read, write: if isFamilyMember(familyId)
@@ -1065,12 +1099,15 @@ service cloud.firestore {
           && (resource.data.get('createdBy', '') == request.auth.uid
               || (request.resource.data.get('memberIds', []).toSet() == resource.data.get('memberIds', []).toSet()
                   && unchanged('visibility')));
-        allow delete: if isFamilyMember(familyId) && resource.data.get('createdBy', '') == request.auth.uid;
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || resource.data.get('createdBy', '') == request.auth.uid);
       }
 
       // Timer og prosjektutlegg: som før for alle medlemmer, men en fakturert eller låst rad
       // beholder timer, beløp, dato, ansatt og prosjekt, og slettes ikke (DS-11, L-10).
       // Koblingen til fakturaen settes og tas bort av den som fakturerer.
+      // En rad som allerede er slettet, kan slettes igjen (appen kan slette samme rad fra to
+      // steder samtidig, og eldre versjoner gjør det). Det avslører ikke noe medlemmer ikke kan lese.
       match /timeEntries/{entryId} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
@@ -1080,7 +1117,7 @@ service cloud.firestore {
           && (sameInvoiceLink() || invoiceBiller(familyId))
           && (!entryLocked(resource.data, 'låst') || timeEntryCoreKept())
           && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId));
-        allow delete: if isFamilyMember(familyId) && !entryLocked(resource.data, 'låst');
+        allow delete: if isFamilyMember(familyId) && (resource == null || !entryLocked(resource.data, 'låst'));
       }
 
       // Slettelogg for timer: nye rader i eget navn, aldri endret eller slettet.
@@ -1103,7 +1140,7 @@ service cloud.firestore {
           && (sameInvoiceLink() || invoiceBiller(familyId))
           && (!entryLocked(resource.data, 'invoiced') || expenseCoreKept())
           && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId));
-        allow delete: if isFamilyMember(familyId) && !entryLocked(resource.data, 'invoiced');
+        allow delete: if isFamilyMember(familyId) && (resource == null || !entryLocked(resource.data, 'invoiced'));
       }
 
       // Medlemsdokumentene: se memberDocCreateOk / memberDocUpdateOk.
@@ -1175,7 +1212,7 @@ service cloud.firestore {
             && invoiceEventsAppended()
             && invoiceArchiveKept())
         );
-        allow delete: if isFamilyMember(familyId) && !invoiceIssued(resource.data);
+        allow delete: if isFamilyMember(familyId) && (resource == null || !invoiceIssued(resource.data));
       }
 
       // Telleren for fakturanummer: ett steg om gangen, eller et begrunnet hopp. Aldri slettet.
@@ -1600,6 +1637,11 @@ service cloud.firestore {
     // Barnets speilprofil. Foresatte i barnets familie kan stelle den.
     // Den kan bare lages for en barnekonto: finnes profilen users/{childId}, må den være et barn.
     // Ellers kunne hvem som helst bli «foresatt» for en voksen og få users/{voksen} (SEC-05).
+    // En foresatt kan ta barnet ut av familien (familyId tom), når barnet fjernes (REV-02).
+    function releasesChild() {
+      return request.resource.data.get('familyId', null) == null || request.resource.data.get('familyId', null) == '';
+    }
+
     match /children/{childId} {
       allow get: if isSelf(childId) || isFamilyAdult(resource.data.get('familyId', 'none'));
       allow list: if isSignedIn() && (
@@ -1610,6 +1652,7 @@ service cloud.firestore {
         && (!exists(userPath(childId)) || isChildProfile(childId));
       allow update: if (isFamilyAdult(resource.data.get('familyId', 'none'))
           && (request.resource.data.get('familyId', '') == resource.data.get('familyId', '')
+              || releasesChild()
               || isFamilyAdult(request.resource.data.get('familyId', 'none'))))
         || (isSelf(childId) && request.resource.data.get('familyId', '') == resource.data.get('familyId', ''));
     }

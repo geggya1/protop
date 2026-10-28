@@ -194,11 +194,16 @@ export const FILES = [
   'functions/security.test.mjs',
   'functions/memberPassword.test.mjs',
   'src/access/accessMirror.test.mjs',
+  'src/access/mirrorRefresh.test.mjs',
+  'src/hr/hrPending.test.mjs',
   'src/utils/companyChat.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',
   // To brukere som lagrer samtidig: ingen tapte eller gjenopplivede prosjekter, utlegg og kunder.
   'src/project/concurrentSave.test.mjs',
+  'src/project/saveRegressions.test.mjs',
+  'src/utils/memberChanges.test.mjs',
+  'src/utils/calendarSeal.test.mjs',
   'src/project/useProjectStateEditor.test.mjs',
   'src/anbud/customerSave.test.mjs',
   // Felles lesing i skallet: én lytter per kilde, og nye navn slår gjennom i listene.

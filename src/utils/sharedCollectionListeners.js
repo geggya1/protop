@@ -9,6 +9,8 @@ import {
 import { auth, db } from '../../firebase';
 import { trackListenerOpen, releaseListener } from './costGuards';
 import { isFamilyAudience } from './events.js';
+import { subscribeAccessMirror } from '../access/accessMirror.js';
+import { hasPrivateEvents, sealCompanyCalendar } from './calendarSeal.js';
 
 /** @type {Map<string, {
  *   refCount: number,
@@ -52,6 +54,16 @@ function markOwnLegacyEvents(familyId, docs) {
       audience: isFamilyAudience(data) ? 'family' : 'selected',
     }).catch(() => {});
   }
+}
+
+/**
+ * Hele kalenderen kunne listes, og den har en privat hendelse (laget før reglene, eller av en eldre
+ * app): eldre hendelser får audience, og bedriften merkes, så reglene skjermer de private (REV-11).
+ */
+function sealIfPrivate(familyId, docs) {
+  const rows = (docs || []).map((item) => ({ id: item.id, ...(item.data() || {}) }));
+  if (!hasPrivateEvents(rows)) return;
+  sealCompanyCalendar(familyId, rows).catch(() => {});
 }
 
 /**
@@ -102,6 +114,7 @@ function attachHubSnapshot(hub, familyId, collectionName, key) {
       hub.ready = true;
       hub.retryCount = 0;
       hub.subscribers.forEach((sub) => emitToSubscriber(hub, sub));
+      if (collectionName === 'events') sealIfPrivate(familyId, snap.docs);
     },
     (error) => {
       // Bedriftskalender med private hendelser: bytt til spørringene reglene godtar.
@@ -126,6 +139,23 @@ function attachHubSnapshot(hub, familyId, collectionName, key) {
     },
   );
 }
+
+/**
+ * Tilgangsspeilet (accessAcl) er skrevet for selskapet: lyttere som ble avvist (f.eks. fravær
+ * for hele bedriften rett etter innlogging, før speilet fantes) kobler til på nytt.
+ */
+export function reattachDeniedHubs(familyId) {
+  const prefix = `${familyId}::`;
+  hubs.forEach((hub, key) => {
+    if (!key.startsWith(prefix) || !hub.error || hub.refCount <= 0) return;
+    if (hub.retryTimer) clearTimeout(hub.retryTimer);
+    hub.retryTimer = null;
+    hub.retryCount = 0;
+    attachHubSnapshot(hub, familyId, key.slice(prefix.length), key);
+  });
+}
+
+subscribeAccessMirror((familyId) => reattachDeniedHubs(familyId));
 
 /**
  * Subscribe to families/{familyId}/{collectionName} with shared onSnapshot.

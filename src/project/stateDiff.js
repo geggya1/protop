@@ -119,6 +119,62 @@ export function diffProjectStates(base, next, { at = new Date().toISOString() } 
   return diff;
 }
 
+/**
+ * Den lokale kopien fra en eldre versjon av appen (før køen) kan ha endringer som aldri nådde
+ * skyen (uten nett, eller dokumentet var for stort). Den gamle versjonen slo kopien inn i skyen
+ * ved neste lasting. Nå legges bare det som trygt kan være ulagret, i køen én gang:
+ *  - en rad som finnes i skyen, når den lokale er nyere (updatedAt),
+ *  - en ny rad, når den er laget eller endret etter at skyen sist ble lagret (da kan ingen andre ha
+ *    sett og slettet den), og ikke er merket slettet,
+ *  - andre felt, når den lokale kopien er lagret etter skyen.
+ * Ingenting slettes. Gir endringen mot skyens kopi, eller null.
+ */
+export function legacyLocalChanges(local, remote) {
+  const mine = local && typeof local === 'object' ? local : {};
+  const cloud = remote && typeof remote === 'object' ? remote : {};
+  const cloudAt = Date.parse(cloud.syncedAt || '') || 0;
+  const localAt = Date.parse(mine.syncedAt || '') || 0;
+  const gone = new Set((cloud.deletedRows || []).map((row) => `${row?.key}|${text(row?.id)}`));
+  const goneProjects = new Set((cloud.deletedProjects || []).map((row) => text(row?.id)).filter(Boolean));
+  const next = { ...cloud };
+  let touched = false;
+  for (const [key, value] of Object.entries(mine)) {
+    if (SKIP_KEYS.has(key) || key === 'deletedRows' || key === 'deletedProjects' || value === undefined) continue;
+    const current = cloud[key];
+    if (isRowList(value) && (current === undefined || isRowList(current))) {
+      const rows = Array.isArray(current) ? [...current] : [];
+      const index = new Map(rows.map((row, i) => [text(row.id), i]));
+      const added = [];
+      for (const row of value) {
+        const id = text(row.id);
+        if (index.has(id)) {
+          const theirs = rows[index.get(id)];
+          if (stampMs(row) > stampMs(theirs) && json(row) !== json(theirs)) {
+            rows[index.get(id)] = row;
+            touched = true;
+          }
+          continue;
+        }
+        const deleted = gone.has(`${key}|${id}`) || goneProjects.has(text(row.projectId))
+          || (key === 'projects' && goneProjects.has(id));
+        if (cloudAt && stampMs(row) > cloudAt && !deleted) {
+          added.push(row);
+          touched = true;
+        }
+      }
+      next[key] = [...added, ...rows];
+      continue;
+    }
+    if (cloudAt && localAt > cloudAt && json(value) !== json(current)) {
+      next[key] = value;
+      touched = true;
+    }
+  }
+  if (!touched) return null;
+  const diff = diffProjectStates(cloud, next);
+  return isEmptyProjectDiff(diff) ? null : diff;
+}
+
 export function isEmptyProjectDiff(diff) {
   if (!diff) return true;
   if (Object.keys(diff.fields || {}).length) return false;
@@ -176,8 +232,10 @@ export function combineProjectDiffs(a, b) {
  * Legg endringen på ferske data. Raden vinner hvis ingen andre har endret den siden
  * vi lastet. Har noen gjort det, vinner nyeste updatedAt (lik tid: vår endring).
  * Uten kjent utgangspunkt (strict) legges raden bare på når den er ny eller nyere.
+ * onSkip(key, id) kalles når en endring uten kjent utgangspunkt ikke ble lagt på (skyen
+ * hadde noe annet), så tapet kan vises for brukeren i stedet for å skje i det stille.
  */
-export function applyProjectDiff(fresh, diff) {
+export function applyProjectDiff(fresh, diff, { onSkip = null } = {}) {
   const next = { ...(fresh && typeof fresh === 'object' ? fresh : {}) };
   if (!diff) return next;
   for (const [key, entry] of Object.entries(diff.lists || {})) {
@@ -194,6 +252,7 @@ export function applyProjectDiff(fresh, diff) {
         upsert.delete(id);
         const untouched = !diff.strict && baseSigs[id] && baseSigs[id] === rowSignature(row);
         const newer = diff.strict ? stampMs(mine) > stampMs(row) : stampMs(mine) >= stampMs(row);
+        if (diff.strict && !newer && json(mine) !== json(row)) onSkip?.(key, id);
         out.push(untouched || newer ? mine : row);
         continue;
       }
@@ -204,7 +263,10 @@ export function applyProjectDiff(fresh, diff) {
   }
   for (const [key, value] of Object.entries(diff.fields || {})) {
     if (diff.strict && next[key] !== undefined && next[key] !== null
-      && !(Array.isArray(next[key]) && !next[key].length)) continue;
+      && !(Array.isArray(next[key]) && !next[key].length)) {
+      if (json(next[key]) !== json(value)) onSkip?.(key, '');
+      continue;
+    }
     next[key] = value;
   }
   if ((diff.deletedRows || []).length) {

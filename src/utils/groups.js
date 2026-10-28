@@ -259,22 +259,36 @@ export async function addChildMember({
     createdAt: now,
     updatedAt: now,
   };
-  await Promise.all([
-    setDoc(doc(db, 'families', familyId, 'children', uid), payload, { merge: true }).catch(() => {}),
-    setDoc(doc(db, 'children', uid), payload, { merge: true }).catch(() => {}),
-    setDoc(doc(db, 'users', uid), {
+  // Rekkefølgen følger reglene: barnets speilprofil (children/{uid}) gjør den som legger til
+  // barnet til foresatt, så barneprofilen (users/{uid}, role: child) kan lages. Medlemsdokumentet
+  // og medlemslistene skrives i samme batch, så barnet enten er med i gruppen eller ikke.
+  try {
+    await setDoc(doc(db, 'children', uid), payload, { merge: true });
+    await setDoc(doc(db, 'users', uid), {
       uid, role: 'child', displayName: name.trim(), username: uname, usernameLower: uname,
       email: payload.email || authEmail, phone: phone || '', birthday, age, gender, location, photoURL, avatarId,
       createdAt: now, updatedAt: now,
-    }, { merge: true }).catch(() => {}),
-  ]);
-  // LIST of chats/messages requires members[] / activeUsers (isFamilyMemberLite).
-  // Do not swallow — orphaned children get push/inbox but an empty message thread.
-  await updateDoc(doc(db, 'families', familyId), {
-    members: arrayUnion(uid),
-    activeUsers: arrayUnion(uid),
-    updatedAt: now,
-  });
+    }, { merge: true });
+    // LIST of chats/messages requires members[] / activeUsers (isFamilyMemberLite).
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'families', familyId, 'children', uid), payload, { merge: true });
+    batch.update(doc(db, 'families', familyId), {
+      members: arrayUnion(uid),
+      activeUsers: arrayUnion(uid),
+      updatedAt: now,
+    });
+    await batch.commit();
+  } catch (cause) {
+    // Ikke la en barnekonto bli liggende halvveis: speilprofil og barneprofil ryddes.
+    // Kontoen og brukernavnet står (bare barnet selv eller serveren kan slette dem).
+    await deleteDoc(doc(db, 'users', uid)).catch(() => {});
+    await setDoc(doc(db, 'children', uid), {
+      deleted: true, active: false, familyId: null, updatedAt: serverTimestamp(),
+    }, { merge: true }).catch(() => {});
+    const error = new Error('child-not-listed');
+    error.cause = cause;
+    throw error;
+  }
   // Passordet settes i Auth via serveren; det lagres ikke i Firestore (SEC-21).
   if (password) {
     await setMemberPassword({ uid, password, familyId }).catch(() => {});
@@ -949,17 +963,25 @@ async function ensureInviteeFamilyInviteInbox({
  * revoke list access by clearing members, activeUsers, memberIds and adminUids.
  * Firestore rules and listMyFamilies deny access even if familyIds is stale.
  */
-export async function revokeMemberFamilyAccess({ familyId, uid }) {
-  if (!familyId || !uid) return;
-  const now = serverTimestamp();
-  await updateDoc(doc(db, 'families', familyId), {
+function familyRevokePatch(uid) {
+  return {
     members: arrayRemove(uid),
     activeUsers: arrayRemove(uid),
     memberIds: arrayRemove(uid),
     adminUids: arrayRemove(uid),
-    updatedAt: now,
-  }).catch(() => {});
+    updatedAt: serverTimestamp(),
+  };
+}
 
+export async function revokeMemberFamilyAccess({ familyId, uid }) {
+  if (!familyId || !uid) return;
+  await updateDoc(doc(db, 'families', familyId), familyRevokePatch(uid)).catch(() => {});
+  await clearMemberIndexes({ familyId, uid });
+}
+
+/** familyIds på users/{uid} og parents/{uid}. Lykkes bare for personen selv (eller serveren). */
+async function clearMemberIndexes({ familyId, uid }) {
+  const now = serverTimestamp();
   const clearIndex = async (collectionName) => {
     const ref = doc(db, collectionName, uid);
     const snap = await getDoc(ref).catch(() => null);
@@ -1149,28 +1171,45 @@ export async function removeMemberFromGroup({ familyId, role, member, wipePerson
   const id = plan.id;
   const keepProfile = plan.keepProfile;
 
+  // Medlemsdokumentet og medlemslistene endres i samme batch. Før kunne fjerningen stoppe
+  // halvveis: dokumentet var borte, men barnet sto fortsatt i members og hadde tilgang.
+  const batch = writeBatch(db);
+  const memberRef = doc(db, 'families', familyId, col, id);
   if (keepProfile) {
-    await updateDoc(doc(db, 'families', familyId, col, id), {
+    batch.update(memberRef, {
       active: false,
       deleted: false,
       leftAt: serverTimestamp(),
       familyId: null,
     });
-    await revokeMemberFamilyAccess({ familyId, uid: id });
-    return { keptProfile: true };
+  } else {
+    batch.delete(memberRef);
   }
-
+  batch.update(doc(db, 'families', familyId), familyRevokePatch(id));
+  if (!keepProfile && role === 'child') {
+    // Speilprofilen finnes ikke for alle eldre barn. Den oppdateres bare når den finnes.
+    const mirror = await getDoc(doc(db, 'children', id)).catch(() => null);
+    if (mirror?.exists() && mirror.data()?.familyId === familyId) {
+      batch.set(doc(db, 'children', id), {
+        deleted: true, active: false, familyId: null, wipedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+  }
+  try {
+    await batch.commit();
+  } catch (cause) {
+    const error = new Error('Medlemmet ble ikke fjernet. Ingenting er endret. Prøv igjen, eller be eieren av gruppen gjøre det.');
+    error.cause = cause;
+    throw error;
+  }
+  await clearMemberIndexes({ familyId, uid: id });
+  if (keepProfile) return { keptProfile: true };
   if (role === 'child') {
     try {
       const todos = await getDocs(collection(db, 'families', familyId, 'children', id, 'todos'));
       await Promise.all(todos.docs.map((d) => deleteDoc(d.ref)));
     } catch {}
-    await deleteDoc(doc(db, 'families', familyId, 'children', id)).catch(() => {});
-    await setDoc(doc(db, 'children', id), { deleted: true, active: false, familyId: null, wipedAt: serverTimestamp() }, { merge: true });
-  } else {
-    await deleteDoc(doc(db, 'families', familyId, 'parents', id)).catch(() => {});
   }
-  await revokeMemberFamilyAccess({ familyId, uid: id });
   const uname = plan.username;
   if (uname) await deleteDoc(doc(db, 'usernames', uname)).catch(() => {});
   return { keptProfile: false };

@@ -226,11 +226,13 @@ function registry() {
   for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(seen.at(-1).source, 'remote');
   const before = registry().find((row) => row.id === 'K2');
-  await deviceB.saveCustomers(CO, [{ ...before, name: 'Kunde2 nytt navn', updatedAt: '2026-10-28T12:00:00Z' }]);
+  // Nyeste endring vinner. Stempelet må være senere enn B sin forrige retting, som fikk klokka da testen kjørte.
+  const later = (minutes) => new Date(Date.parse(before.updatedAt) + minutes * 60_000).toISOString();
+  await deviceB.saveCustomers(CO, [{ ...before, name: 'Kunde2 nytt navn', updatedAt: later(1) }]);
   assert.equal(seen.at(-1).k2, 'Kunde2 nytt navn', 'lytteren får endringen fra den andre enheten');
   stop();
   const count = seen.length;
-  await deviceB.saveCustomers(CO, [{ ...before, name: 'Etter stopp', updatedAt: '2026-10-28T13:00:00Z' }]);
+  await deviceB.saveCustomers(CO, [{ ...before, name: 'Etter stopp', updatedAt: later(2) }]);
   assert.equal(seen.length, count, 'stoppet lytter får ikke flere endringer');
 }
 

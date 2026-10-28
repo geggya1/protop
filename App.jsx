@@ -30,7 +30,6 @@ import {
 
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
-import RegisterInvitedUserScreen from './screens/RegisterInvitedUserScreen';
 import VerifyEmailScreen from './screens/VerifyEmailScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import FamilyOverviewScreen from './screens/FamilyOverviewScreen';
@@ -1069,7 +1068,6 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
           <Stack.Screen name="Register">
             {(props) => <RegisterScreen {...props} setJustRegisteredEmail={setJustRegisteredEmail} />}
           </Stack.Screen>
-          <Stack.Screen name="RegisterInvitedUser" component={RegisterInvitedUserScreen} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         </Stack.Group>
 

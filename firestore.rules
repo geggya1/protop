@@ -746,14 +746,54 @@ service cloud.firestore {
       }
 
       match /notifications/{id} {
+        // Mottakeren er med i gruppen varselet gjelder (lister på gruppen, eller et
+        // medlemsdokument der). Gruppedokumentet leses én gang.
+        function notifRecipientInFamily(fid) {
+          let family = get(familyPath(fid)).data;
+          return uid in family.get('members', [])
+            || uid in family.get('activeUsers', [])
+            || uid in family.get('memberIds', [])
+            || family.get('ownerUid', '') == uid
+            || exists(/databases/$(database)/documents/families/$(fid)/parents/$(uid))
+            || exists(/databases/$(database)/documents/families/$(fid)/children/$(uid));
+        }
+
+        // Avsender og mottaker er i samme gruppe (familyId på varselet).
+        function notifSharesFamily() {
+          let fid = request.resource.data.get('familyId', '');
+          return fid is string && fid != ''
+            && isFamilyMemberLite(fid)
+            && notifRecipientInFamily(fid);
+        }
+
+        // Gruppeinvitasjon: invitasjonen ligger i mottakerens innboks og er sendt av
+        // avsenderen, eller svaret går tilbake til den som inviterte.
+        function notifInviteLink() {
+          let d = request.resource.data;
+          let inviteId = d.get('inviteId', '');
+          let inbox = /databases/$(database)/documents/users/$(uid)/familyInvites/$(inviteId);
+          let ownInbox = /databases/$(database)/documents/users/$(request.auth.uid)/familyInvites/$(inviteId);
+          return inviteId is string && inviteId != '' && (
+            (d.get('eventType', '') == 'familyInvite'
+              && exists(inbox)
+              && get(inbox).data.get('invitedBy', '') == request.auth.uid)
+            || (d.get('eventType', '') in ['familyInviteAccepted', 'familyInviteDeclined']
+              && exists(ownInbox)
+              && get(ownInbox).data.get('invitedBy', '') == uid)
+          );
+        }
+
         allow read, write: if isGuardianOf(uid);
         // Bare opprettelse. Et eksisterende varsel kan ikke overskrives av andre.
+        // Avsenderen må ha en reell forbindelse til mottakeren: samme gruppe, venn, eller
+        // en ekte gruppeinvitasjon mellom dem. Ellers kunne hvem som helst legge et
+        // villedende varsel (med push og e-post) i en annens innboks.
         // Uten avsender må begge være medlemmer i gruppen varselet gjelder.
         allow create: if isSignedIn() && (
-          request.resource.data.get('createdBy', '') == request.auth.uid
+          (request.resource.data.get('createdBy', '') == request.auth.uid
+            && (notifSharesFamily() || isFriendOf(uid) || notifInviteLink()))
           || (request.resource.data.get('createdBy', null) == null
-              && isFamilyMemberLite(request.resource.data.get('familyId', 'none'))
-              && uid in get(familyPath(request.resource.data.get('familyId', 'none'))).data.get('members', []))
+              && notifSharesFamily())
         );
       }
 

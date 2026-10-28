@@ -5,10 +5,13 @@
  */
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from '../../firebase';
-import { createGroup, updateGroup } from '../utils/groups';
+import { createGroup } from '../utils/groups';
 import { fetchCompanyCpv } from '../anbud/doffinClient';
 import { findCompanyByOrgnr } from './companyLookupClient';
-import { companyRegistrationDecision, digitsOrgnr } from './companyRegistry';
+import { companyRegistrationDecision, digitsOrgnr, newCompanyFields } from './companyRegistry';
+
+/** Doffin får litt tid. Svarer den ikke, opprettes bedriften uten CPV-koder. */
+const CPV_LOOKUP_MS = 20000;
 
 /** Bedriften i ProTop med samme organisasjonsnummer: { id, name, member, company } eller null. */
 export async function existingOrganization(orgnr) {
@@ -30,36 +33,38 @@ export async function companyChoice(company) {
   return companyRegistrationDecision(existing);
 }
 
-/** Opprett bedriften. Returnerer id og feltene som ble lagret. */
+/**
+ * Opprett bedriften. Orgnr, selskapsdata og CPV skrives i samme batch som selskapet,
+ * så et avbrudd ikke gir en bedrift uten orgnr (og et duplikat senere).
+ * Returnerer id og feltene som ble lagret.
+ */
 export async function registerCompany(nextCompany, { profile } = {}) {
   const user = auth.currentUser;
   if (!user) throw new Error('Du må være innlogget.');
+  const orgnr = digitsOrgnr(nextCompany?.organisasjonsnummer);
+  let cpvData = null;
+  if (orgnr) {
+    let timer = null;
+    try {
+      cpvData = await Promise.race([
+        fetchCompanyCpv(orgnr),
+        new Promise((resolve) => { timer = setTimeout(() => resolve(null), CPV_LOOKUP_MS); }),
+      ]);
+    } catch {
+      cpvData = null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  const patch = newCompanyFields(nextCompany, cpvData);
   const id = await createGroup({
     name: nextCompany.navn,
     type: 'organization',
     language: 'nb',
     user,
     profile,
+    fields: patch,
   });
-  const patch = {
-    company: nextCompany,
-    orgnr: digitsOrgnr(nextCompany.organisasjonsnummer),
-    projects: [],
-    tenders: [],
-    cpvCodes: [],
-    cpvSource: '',
-  };
-  if (patch.orgnr) {
-    try {
-      const data = await fetchCompanyCpv(patch.orgnr);
-      patch.cpvCodes = data.cpvCodes || [];
-      patch.cpvSource = patch.cpvCodes.length ? 'doffin' : '';
-      if (data.company?.name) patch.company = { ...nextCompany, navn: data.company.name };
-    } catch {
-      patch.cpvSource = '';
-    }
-  }
-  await updateGroup(id, patch);
   return { id, patch };
 }
 

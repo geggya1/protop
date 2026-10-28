@@ -89,10 +89,12 @@ describe('profil og innboks', () => {
 
   test('varsel til en annen: bare nytt varsel i eget navn, aldri overskriving', async () => {
     const db = as('ext');
-    await assertSucceeds(setDoc(doc(db, 'users', 'mor', 'notifications', 'n2'), {
-      title: 'Melding', createdBy: 'ext', seen: false, createdAt: serverTimestamp(),
+    // Venn (ola) kan varsle mor. En fremmed kan ikke (se tests/rules/notifications.rules.test.mjs).
+    await assertSucceeds(setDoc(doc(as('ola'), 'users', 'mor', 'notifications', 'n2'), {
+      title: 'Melding', createdBy: 'ola', seen: false, createdAt: serverTimestamp(),
     }));
-    await assertSucceeds(addDoc(collection(db, 'users', 'mor', 'notifications'), { title: 'x', createdBy: 'ext' }));
+    await assertSucceeds(addDoc(collection(as('ola'), 'users', 'mor', 'notifications'), { title: 'x', createdBy: 'ola' }));
+    await assertFails(addDoc(collection(db, 'users', 'mor', 'notifications'), { title: 'x', createdBy: 'ext' }));
     await assertFails(setDoc(doc(db, 'users', 'mor', 'notifications', 'n3'), { title: 'Falsk', createdBy: 'ola' }));
     await assertFails(setDoc(doc(db, 'users', 'mor', 'notifications', 'n1'), { title: 'Overskrevet', createdBy: 'ext' }));
     // Uten avsender: bare mellom medlemmer i samme gruppe (påminnelser, geofence).

@@ -7,6 +7,7 @@ import {
   startOfWeekMonday, addDays,
 } from './dates.js';
 import {
+  canPurgeParentTodo,
   isAttestedOn,
   isDoneOn,
   isPendingAttestOn,
@@ -285,6 +286,7 @@ export async function purgeParentTodo(familyId, task) {
   const fid = task?.familyId || familyId;
   const tid = task?.sourceTodoId || task?.id;
   if (!fid || !tid) return;
+  if (!canPurgeParentTodo(task)) throw new Error('Bare oppgaver i papirkurven kan slettes permanent.');
   const ref = doc(db, 'families', fid, 'parentTodos', tid);
   await deleteDoc(ref);
 }

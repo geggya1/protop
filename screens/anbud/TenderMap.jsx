@@ -59,6 +59,8 @@ export default function TenderMap({
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     function onMessage(event) {
+      // Bare meldinger fra vårt eget kart (iframen har ikke samme opphav som appen).
+      if (iframeRef.current && event?.source !== iframeRef.current.contentWindow) return;
       const type = event?.data?.type;
       const id = event?.data?.tenderId;
       if (!id) return;
@@ -210,7 +212,8 @@ export default function TenderMap({
             ref: iframeRef,
             title: mapTitle,
             srcDoc: html,
-            sandbox: 'allow-scripts allow-same-origin',
+            // Uten allow-same-origin: kartet snakker med appen bare via postMessage.
+            sandbox: 'allow-scripts',
             style: { border: 0, width: '100%', height: '100%', borderRadius: 12 },
             onLoad: () => {
               syncMap();

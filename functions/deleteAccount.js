@@ -98,6 +98,14 @@ async function leaveFamily(uid, familyId) {
   const data = famSnap.data() || {};
   const others = await otherLiveParents(familyId, uid);
   const plan = planFamilyExit(uid, { id: familyId, data, otherLiveParentUids: others });
+  if (plan.action === 'skip') {
+    // Id-en kom fra felt brukeren skriver selv (familyIds). Selskapet røres ikke,
+    // bare brukerens egne medlemsdokumenter der markeres.
+    logger.warn('deleteMyAccount skipped family without membership', { familyId });
+    await markMembershipLeft(familyId, 'parents', uid);
+    await markMembershipLeft(familyId, 'children', uid);
+    return;
+  }
   const patch = {
     members: withoutUid(data.members, uid),
     adminUids: withoutUid(data.adminUids, uid),

@@ -4,6 +4,7 @@
  */
 const SOURCES = new Map();
 const LISTENERS = new Set();
+let OPEN_COMPANY = '';
 
 function keyOf(companyId) {
   return String(companyId || '').trim();
@@ -11,6 +12,7 @@ function keyOf(companyId) {
 
 export function bindCompanyAliases(companyId, aliasIds = []) {
   const key = keyOf(companyId);
+  OPEN_COMPANY = key;
   const next = [...new Set((aliasIds || []).map((id) => keyOf(id)).filter((id) => id && id !== key))];
   const prev = SOURCES.get(key) || [];
   if (prev.join('|') === next.join('|')) return;
@@ -18,6 +20,11 @@ export function bindCompanyAliases(companyId, aliasIds = []) {
   LISTENERS.forEach((fn) => {
     try { fn(key); } catch { /* en lytter skal ikke stoppe de andre */ }
   });
+}
+
+/** Id-en til selskapet som er åpent (satt av AppContext), eller ''. */
+export function openCompanyId() {
+  return OPEN_COMPANY;
 }
 
 export function aliasSourceIds(companyId) {

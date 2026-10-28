@@ -1,11 +1,12 @@
 /** Kall mot anbudsdisken. Lokal tolkning brukes når proxyen ikke svarer. */
 import { tenderProxyUrl } from './tenderProxyUrl.js';
+import { proxyAuthHeaders } from './proxyAuth.js';
 import { askNotice, buildBrief, draftFromLibrary, qualifyNotice, tasksFromNotice } from './desk.js';
 
 async function post(action, body) {
   const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: await proxyAuthHeaders(),
     body: JSON.stringify({ action, ...body }),
   });
   const data = await res.json().catch(() => ({}));

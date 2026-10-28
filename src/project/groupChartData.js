@@ -5,6 +5,7 @@
  * når nettleseren ikke får lov til å lese det selv.
  */
 import { accountHistoryEndpoint } from './companyPublic.js';
+import { proxyAuthHeaders } from '../anbud/proxyAuth.js';
 import { digitsOrgnr } from './companyRegistry.js';
 
 const BRREG = 'https://data.brreg.no/enhetsregisteret/api';
@@ -40,9 +41,10 @@ async function attempt(run) {
 }
 
 async function postJson(url, body, fetchImpl, signal) {
+  // Proxyen (begge adressene) krever innlogget bruker.
   const res = await fetchImpl(url, {
     method: 'POST',
-    headers: { ...headers(), 'Content-Type': 'application/json' },
+    headers: await proxyAuthHeaders({ ...headers(), 'Content-Type': 'application/json' }),
     body: JSON.stringify(body),
     signal,
   });

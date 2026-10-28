@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
-  Platform, Image, ActivityIndicator, Alert, FlatList,
+  Platform, Image, ActivityIndicator, FlatList,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -30,6 +30,7 @@ import {
   normalizeRecurrenceStartKey,
   repeatSummaryLabel,
 } from '../../src/utils/todoRecurrence';
+import { confirmUser, notifyUser } from '../../src/utils/dialog';
 
 function recurrenceStateFromTask(task) {
   if (!task) {
@@ -238,7 +239,7 @@ export default function ParentTaskScreen() {
         nav.goBack();
       }
     } catch {
-      Alert.alert('Feil', 'Klarte ikke lagre oppgaven.');
+      notifyUser('Feil', 'Klarte ikke lagre oppgaven.');
     } finally {
       setSaving(false);
     }
@@ -295,7 +296,7 @@ export default function ParentTaskScreen() {
 
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (perm.status !== 'granted') { Alert.alert('Tilgang nektet'); return; }
+      if (perm.status !== 'granted') { notifyUser('Tilgang nektet'); return; }
       const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
       if (res.canceled) return;
 
@@ -319,7 +320,7 @@ export default function ParentTaskScreen() {
       setAttachments((prev) => [...prev, { url, name: `Vedlegg ${prev.length + 1}`, addedBy: myName }]);
       if (taskId) await addLogEntry(`La til vedlegg`);
     } catch (e) {
-      Alert.alert('Feil', e?.message || 'Klarte ikke laste opp vedlegg.');
+      notifyUser('Feil', e?.message || 'Klarte ikke laste opp vedlegg.');
     } finally {
       setUploading(false);
     }
@@ -341,24 +342,21 @@ export default function ParentTaskScreen() {
       });
       setNewComment('');
     } catch {
-      Alert.alert('Feil', 'Klarte ikke legge til kommentar.');
+      notifyUser('Feil', 'Klarte ikke legge til kommentar.');
     }
   }, [newComment, familyId, taskId, uid, myName]);
 
-  const deleteTask = useCallback(() => {
+  const deleteTask = useCallback(async () => {
     if (readOnly) return;
-    Alert.alert('Slett oppgave', `Slette «${title}»?`, [
-      { text: 'Avbryt', style: 'cancel' },
-      {
-        text: 'Slett', style: 'destructive',
-        onPress: async () => {
-          try {
-            if (taskDocRef) await updateDoc(taskDocRef, { deleted: true });
-            nav.goBack();
-          } catch {}
-        },
-      },
-    ]);
+    // confirmUser har web-fallback (Alert.alert gjør ingenting på web).
+    const ok = await confirmUser('Slett oppgave', `Slette «${title}»?`, { ok: 'Slett' });
+    if (!ok) return;
+    try {
+      if (taskDocRef) await updateDoc(taskDocRef, { deleted: true });
+      nav.goBack();
+    } catch (e) {
+      notifyUser('Feil', e?.message || 'Klarte ikke slette oppgaven.');
+    }
   }, [title, taskDocRef, nav, readOnly]);
 
   const formatTs = (ts) => {

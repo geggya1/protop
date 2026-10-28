@@ -43,6 +43,23 @@ export function showSaveError(detail = '') {
   return toast;
 }
 
+/** Feil som ellers ville blitt svelget, vises i samme popup (kind 'error'). */
+export function errorToastPayload(title, detail = '') {
+  const head = String(title ?? '').replace(/\s+/g, ' ').trim();
+  const text = String(detail ?? '').replace(/\s+/g, ' ').trim();
+  return {
+    kind: 'error',
+    title: head || 'Noe gikk galt',
+    detail: text && text !== head ? text : '',
+  };
+}
+
+export function showErrorToast(title, detail = '') {
+  const toast = { id: ++seq, ...errorToastPayload(title, detail) };
+  for (const listener of listeners) listener(toast);
+  return toast;
+}
+
 export function subscribeSaveToast(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);

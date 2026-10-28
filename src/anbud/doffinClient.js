@@ -5,6 +5,7 @@ import { summarizeNotice } from './dossier';
 import { interestUrlFromDocs } from './portalCatalog';
 import { collectWatchHits } from './watchHits';
 import { tenderProxyUrl } from './tenderProxyUrl';
+import { proxyAuthHeaders } from './proxyAuth.js';
 
 const LOCAL_SEARCH = 'http://127.0.0.1:8787/search';
 const LOCAL_COMPANY = 'http://127.0.0.1:8787/company';
@@ -39,7 +40,7 @@ async function companyViaProxy(orgnr) {
 export async function fetchTenderHits(query) {
   const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: await proxyAuthHeaders(),
     body: JSON.stringify({ action: 'search', ...query }),
   });
   const data = await res.json().catch(() => ({}));
@@ -63,7 +64,7 @@ export function fetchWatchHits(query) {
 export async function fetchRegisterExtras(orgnr) {
   const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: await proxyAuthHeaders(),
     body: JSON.stringify({ action: 'register', orgnr }),
   });
   if (!res.ok) return { accounts: null, signature: null };
@@ -104,7 +105,7 @@ export async function fetchPortalCatalog(url) {
   try {
     const res = await fetch(tenderProxyUrl(), {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: await proxyAuthHeaders(),
       body: JSON.stringify({ action: 'catalog', url }),
     });
     const data = await res.json().catch(() => ({}));
@@ -143,7 +144,7 @@ async function postGround(body) {
   for (let attempt = 0; ; attempt += 1) {
     const res = await fetch(tenderProxyUrl(), {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: await proxyAuthHeaders(),
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => null);
@@ -187,7 +188,7 @@ export async function downloadGroundFile(file) {
 export async function downloadPublicFile(url) {
   const res = await fetch(tenderProxyUrl(), {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    headers: await proxyAuthHeaders(),
     body: JSON.stringify({ action: 'download', url }),
   });
   const data = await res.json().catch(() => ({}));
@@ -231,7 +232,7 @@ export async function fetchCompetitionFile(id) {
   try {
     const res = await fetch(tenderProxyUrl(), {
       method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      headers: await proxyAuthHeaders(),
       body: JSON.stringify({ action: 'dossier', id }),
     });
     const data = await res.json().catch(() => ({}));

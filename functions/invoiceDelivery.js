@@ -5,16 +5,25 @@
  * (har nummer). PDF og vedlegg hentes fra bedriftens egen mappe i Storage, så
  * appen ikke kan legge ved filer fra andre bedrifter.
  * Leveransen registreres på fakturaen av appen, med svaret herfra.
+ * EHF: avsenderens orgnr hentes fra bedriften her, og en lås (ehfGuard.js) hindrer
+ * at samme faktura sendes to ganger uten at noen har valgt «Send på nytt».
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { assertFamilyMember, assertRateLimit, hashRateKey, isValidEmail } from './security.js';
 import { resolveMailApiKey } from './mailApiKey.js';
 import { friendlyMailError, normalizeFileAttachment, sendMail } from './mail.js';
 import { mediaBucket } from './storageBucket.js';
 import { allowedPath, storagePathFromUrl } from './invoiceFiles.js';
+import {
+  EHF_DECISION_MESSAGES,
+  ehfLockId,
+  ehfSendDecision,
+  senderOrgnrFromFamily,
+  xmlSupplierOrgnr,
+} from './ehfGuard.js';
 import {
   PeppolError,
   PeppolNotConfigured,
@@ -174,17 +183,72 @@ export const sendInvoiceEhf = onCall(CALL, async (request) => {
   if (!xml.includes(`<cbc:ID>${String(invoice.invoiceNumber).replace(/[<&>]/g, '')}</cbc:ID>`)) {
     throw new HttpsError('invalid-argument', 'EHF-fila hører ikke til denne fakturaen.');
   }
+
+  // Avsender er bedriften selv, fra selskapsdokumentet. Det appen sender med, brukes ikke.
+  const family = (await db.doc(`families/${familyId}`).get()).data() || {};
+  const senderOrgnr = senderOrgnrFromFamily(family);
+  if (!senderOrgnr) {
+    throw new HttpsError('failed-precondition', 'Bedriften mangler organisasjonsnummer. Legg det inn under Selskap før EHF sendes.');
+  }
+  if (xmlSupplierOrgnr(xml) !== senderOrgnr) {
+    throw new HttpsError('invalid-argument', 'EHF-fila har en annen avsender enn bedriften. Last siden på nytt og prøv igjen.');
+  }
+  if (data.senderOrgnr && String(data.senderOrgnr).replace(/\D/g, '') !== senderOrgnr) {
+    logger.warn('Invoice EHF sender from app ignored', { familyId, invoiceId: invoice.id, uid });
+  }
+
+  // Lås: én sending om gangen, og ingen ny sending uten «Send på nytt».
+  const lockRef = db.doc(`ehfDeliveries/${ehfLockId(familyId, invoice.id)}`);
+  const resend = data.resend === true;
+  await db.runTransaction(async (tx) => {
+    const lockSnap = await tx.get(lockRef);
+    const lock = lockSnap.exists ? (lockSnap.data() || {}) : null;
+    const decision = ehfSendDecision(lock, { resend, invoice, now: Date.now() });
+    if (decision !== 'send') {
+      const code = decision === 'already-sent' ? 'already-exists' : 'aborted';
+      throw new HttpsError(code, EHF_DECISION_MESSAGES[decision], {
+        reason: decision,
+        providerId: lock?.providerId || '',
+        lastSentAtMs: Number(lock?.lastSentAtMs || 0),
+      });
+    }
+    tx.set(lockRef, {
+      familyId,
+      invoiceId: invoice.id,
+      invoiceNumber: String(invoice.invoiceNumber || ''),
+      status: 'sending',
+      startedAtMs: Date.now(),
+      startedBy: uid,
+      resend,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+
   try {
     const result = await deliverEhf({
       xml,
-      senderOrgnr: data.senderOrgnr,
+      senderOrgnr,
       receiverOrgnr: invoice.orgnr || data.receiverOrgnr,
       documentId: invoice.invoiceNumber,
       creditNote: invoice.kind === 'credit_note' || !!invoice.creditNoteForId,
     });
+    await lockRef.set({
+      status: 'sent',
+      lastSentAtMs: Date.now(),
+      providerId: String(result?.providerId || '').slice(0, 120),
+      sentBy: uid,
+      count: FieldValue.increment(1),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }).catch((err) => logger.error('Invoice EHF lock not saved', { message: err?.message }));
     logger.info('Invoice EHF sent', { familyId, invoiceId: invoice.id, providerId: result.providerId });
     return { ok: true, ...result };
   } catch (error) {
+    await lockRef.set({
+      status: 'failed',
+      failedAtMs: Date.now(),
+      error: String(error?.message || '').slice(0, 200),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true }).catch(() => {});
     if (error instanceof PeppolNotConfigured) throw new HttpsError('failed-precondition', error.message);
     if (error instanceof PeppolError) throw new HttpsError('unavailable', error.message);
     logger.error('Invoice EHF failed', error);

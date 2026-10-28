@@ -39,7 +39,9 @@ async function callFriendFn(name, data) {
   return res?.data || {};
 }
 
-import { friendshipPairId, friendChatId, friendInviteAcceptUrl } from './friendsLogic';
+import {
+  friendshipPairId, friendChatId, friendInviteAcceptUrl, friendCallableResult, friendPollDelayMs,
+} from './friendsLogic';
 
 export { friendshipPairId, friendChatId, friendInviteAcceptUrl };
 
@@ -529,22 +531,6 @@ export async function sendFriendInviteSms({
   return res.data;
 }
 
-function friendDocPayload(profile, friendshipId, fromUid) {
-  return {
-    friendUid: profile.uid,
-    name: profile.name || 'Venn',
-    username: profile.username || '',
-    photoURL: profile.photoURL || null,
-    avatarId: profile.avatarId || null,
-    role: profile.role || 'adult',
-    friendshipId,
-    status: 'active',
-    addedBy: fromUid || null,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-}
-
 /** Godta venneforespørsel — oppretter speilet vennskap, IKKE familiemedlemskap. */
 export async function acceptFriendRequest({
   uid, requestId, request, asUid = null, familyId = null,
@@ -563,62 +549,14 @@ export async function acceptFriendRequest({
   if (!fromUid) throw new Error('invalid-invite');
   const actorAsUid = String(asUid || '').trim();
 
-  // Prefer Admin callable (works without new client rules).
-  try {
-    const adminRes = await callFriendFn('respondFriendRequestAdmin', {
-      requestId,
-      response: 'accepted',
-      ...(actorAsUid ? { asUid: actorAsUid, familyId: familyId || null } : {}),
-    });
-    if (adminRes?.ok) {
-      return { friendshipId: adminRes.friendshipId || friendshipPairId(uid, fromUid), friendUid: fromUid };
-    }
-    if (adminRes?.error === 'already-handled') throw new Error('already-handled');
-    if (adminRes?.error === 'forbidden') throw new Error('forbidden');
-  } catch (err) {
-    if (['already-handled', 'forbidden'].includes(err?.message)) throw err;
-  }
-
-  const [me, them] = await Promise.all([
-    loadPublicProfile(uid),
-    loadPublicProfile(fromUid),
-  ]);
-  const pairId = friendshipPairId(uid, fromUid);
-  const now = serverTimestamp();
-
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'friendships', pairId), {
-    memberIds: [uid, fromUid].sort(),
-    status: 'active',
-    createdAt: now,
-    updatedAt: now,
-    createdBy: fromUid,
-  }, { merge: true });
-  batch.set(doc(db, 'users', uid, 'friends', fromUid), friendDocPayload(them || { uid: fromUid }, pairId, fromUid), { merge: true });
-  batch.set(doc(db, 'users', fromUid, 'friends', uid), friendDocPayload(me || { uid }, pairId, fromUid), { merge: true });
-  batch.update(doc(db, 'users', uid, 'friendRequests', requestId), {
-    status: 'accepted',
-    acceptedAt: now,
-    updatedAt: now,
-  });
-  try {
-    batch.set(doc(db, 'users', fromUid, 'outgoingFriendRequests', requestId), {
-      status: 'accepted',
-      updatedAt: now,
-    }, { merge: true });
-  } catch { /* ignore */ }
-  await batch.commit();
-
-  await notifyUsers([fromUid], {
-    eventType: 'friendInviteAccepted',
-    title: 'Venneforespørsel godtatt',
-    body: `${me?.name || 'Noen'} godtok venneforespørselen din.`,
-    friendUid: uid,
-    createdBy: uid,
-    notificationId: `friendAccepted_${pairId}`,
-  }).catch(() => {});
-
-  return { friendshipId: pairId, friendUid: fromUid };
+  // Vennskap skrives bare av serveren (reglene stopper klientskriving til friendships og
+  // andres venneliste). Ingen klientreserve: feilen fra callable vises som den er.
+  const adminRes = friendCallableResult(await callFriendFn('respondFriendRequestAdmin', {
+    requestId,
+    response: 'accepted',
+    ...(actorAsUid ? { asUid: actorAsUid, familyId: familyId || null } : {}),
+  }), 'accept-failed');
+  return { friendshipId: adminRes.friendshipId || friendshipPairId(uid, fromUid), friendUid: fromUid };
 }
 
 export async function declineFriendRequest({
@@ -667,109 +605,22 @@ export async function declineFriendRequest({
 export async function claimPendingFriendInvite({ uid, token, profile }) {
   if (!uid || !token) throw new Error('missing-params');
 
-  try {
-    const adminRes = await callFriendFn('claimFriendInviteAdmin', {
-      token,
-      displayName: profile?.displayName || profile?.name || '',
-    });
-    if (adminRes?.ok) {
-      return { friendshipId: adminRes.friendshipId, friendUid: adminRes.friendUid };
-    }
-    if (adminRes?.error === 'already-handled') throw new Error('already-handled');
-    if (adminRes?.error === 'not-found') throw new Error('not-found');
-    if (adminRes?.error === 'invalid-invite') throw new Error('invalid-invite');
-  } catch (err) {
-    if (['already-handled', 'not-found', 'invalid-invite'].includes(err?.message)) throw err;
-  }
-
-  const tokSnap = await getDoc(doc(db, 'friendInviteTokens', token));
-  if (!tokSnap.exists()) throw new Error('not-found');
-  const tok = tokSnap.data() || {};
-  if (tok.status !== 'pending') throw new Error('already-handled');
-  const pendingId = tok.pendingInviteId;
-  if (!pendingId) throw new Error('invalid-invite');
-
-  const pendingSnap = await getDoc(doc(db, 'pendingFriendInvites', pendingId));
-  if (!pendingSnap.exists()) throw new Error('not-found');
-  const pending = pendingSnap.data() || {};
-  if (pending.status !== 'pending') throw new Error('already-handled');
-  const fromUid = pending.fromUid;
-  if (!fromUid || fromUid === uid) throw new Error('invalid-invite');
-
-  const me = {
-    uid,
-    name: profile?.displayName || profile?.name || pending.toName || 'Venn',
-    username: profile?.username || '',
-    photoURL: profile?.photoURL || null,
-    avatarId: profile?.avatarId || null,
-    role: profile?.role === 'child' ? 'child' : 'adult',
-  };
-  const them = await loadPublicProfile(fromUid);
-  const pairId = friendshipPairId(uid, fromUid);
-  const now = serverTimestamp();
-
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'friendships', pairId), {
-    memberIds: [uid, fromUid].sort(),
-    status: 'active',
-    createdAt: now,
-    updatedAt: now,
-    createdBy: fromUid,
-  }, { merge: true });
-  batch.set(doc(db, 'users', uid, 'friends', fromUid), friendDocPayload(them || { uid: fromUid }, pairId, fromUid), { merge: true });
-  batch.set(doc(db, 'users', fromUid, 'friends', uid), friendDocPayload(me, pairId, fromUid), { merge: true });
-  batch.update(doc(db, 'pendingFriendInvites', pendingId), {
-    status: 'accepted',
-    acceptedBy: uid,
-    acceptedAt: now,
-    updatedAt: now,
-  });
-  batch.update(doc(db, 'friendInviteTokens', token), {
-    status: 'accepted',
-    acceptedBy: uid,
-    updatedAt: now,
-  });
-  await batch.commit();
-
-  await notifyUsers([fromUid], {
-    eventType: 'friendInviteAccepted',
-    title: 'Ny venn',
-    body: `${me.name} ble med på ProTop og er nå vennen din.`,
-    friendUid: uid,
-    createdBy: uid,
-    notificationId: `friendClaimed_${pairId}`,
-  }).catch(() => {});
-
-  return { friendshipId: pairId, friendUid: fromUid };
+  // Bare serveren kan godta invitasjonen (friendships og friendInviteTokens er låst i reglene).
+  const adminRes = friendCallableResult(await callFriendFn('claimFriendInviteAdmin', {
+    token,
+    displayName: profile?.displayName || profile?.name || '',
+  }), 'claim-failed');
+  return { friendshipId: adminRes.friendshipId, friendUid: adminRes.friendUid };
 }
 
 export async function removeFriend({ uid, friendUid, asUid = null, familyId = null }) {
   if (!uid || !friendUid) throw new Error('missing-params');
   const actorAsUid = String(asUid || '').trim();
-  try {
-    const adminRes = await callFriendFn('removeFriendAdmin', {
-      friendUid,
-      ...(actorAsUid ? { asUid: actorAsUid, familyId: familyId || null } : {}),
-    });
-    if (adminRes?.ok) return adminRes;
-    if (adminRes?.error === 'forbidden' || adminRes?.error === 'bad-params') {
-      throw new Error(adminRes.error);
-    }
-  } catch (err) {
-    if (['forbidden', 'bad-params'].includes(err?.message)) throw err;
-    // Fall through to client write when callable unavailable (own graph only).
-    if (actorAsUid && actorAsUid !== uid) throw err;
-  }
-  const pairId = friendshipPairId(uid, friendUid);
-  const batch = writeBatch(db);
-  batch.delete(doc(db, 'users', uid, 'friends', friendUid));
-  batch.delete(doc(db, 'users', friendUid, 'friends', uid));
-  batch.set(doc(db, 'friendships', pairId), {
-    status: 'removed',
-    updatedAt: serverTimestamp(),
-    removedBy: uid,
-  }, { merge: true });
-  await batch.commit();
+  // Bare serveren kan merke vennskapet som fjernet (friendships er låst i reglene).
+  return friendCallableResult(await callFriendFn('removeFriendAdmin', {
+    friendUid,
+    ...(actorAsUid ? { asUid: actorAsUid, familyId: familyId || null } : {}),
+  }), 'remove-failed');
 }
 
 export function listenFriends(uid, onData, opts = {}) {
@@ -857,22 +708,27 @@ export function listenIncomingFriendRequests(uid, onData, opts = {}) {
   let cancelled = false;
   let unsubSnap = () => {};
   // Soften poll noise — permission-denied on client rules is expected; admin poll is source of truth.
+  // Ved feil venter pollingen lenger og lenger (backoff), men stopper aldri: når en forelder
+  // handler for et barn, er pollingen eneste kilde.
+  let requestMisses = 0;
+  let timer = null;
   const poll = async () => {
     try {
       const res = await callFriendFn('listFriendRequests', {
         ...(pollAsOther ? { asUid, familyId } : {}),
       });
-      if (!cancelled && res?.ok) onData?.(res.requests || []);
+      if (res?.ok) {
+        requestMisses = 0;
+        if (!cancelled) onData?.(res.requests || []);
+      } else {
+        requestMisses += 1;
+      }
     } catch {
       requestMisses += 1;
     }
+    if (!cancelled) timer = setTimeout(poll, friendPollDelayMs(requestMisses));
   };
   poll();
-  let requestMisses = 0;
-  const interval = setInterval(() => {
-    if (requestMisses >= 1) return;
-    poll().catch(() => { requestMisses += 1; });
-  }, 8000);
   // Client snapshot only works for own inbox (rules).
   if (!pollAsOther) {
     const q = query(
@@ -894,7 +750,7 @@ export function listenIncomingFriendRequests(uid, onData, opts = {}) {
   }
   return () => {
     cancelled = true;
-    clearInterval(interval);
+    clearTimeout(timer);
     try { unsubSnap(); } catch { /* ignore */ }
   };
 }

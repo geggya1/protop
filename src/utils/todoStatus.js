@@ -80,4 +80,27 @@ export function scoreInKeys(todos, keys) {
   return { earned, possible, done, total };
 }
 
+/** Permanent sletting er bare lov for en oppgave som ligger i papirkurven. */
+export function canPurgeParentTodo(task) {
+  return !!task && task.deleted === true;
+}
+
+const TODO_ACTION_ERRORS = {
+  toggle: 'Klarte ikke oppdatere oppgaven.',
+  restore: 'Klarte ikke gjenopprette oppgaven.',
+  purge: 'Klarte ikke slette oppgaven.',
+};
+
+/** Tittel og forklaring for en mislykket oppgavehandling (vises som toast). */
+export function todoActionError(action, err) {
+  const title = TODO_ACTION_ERRORS[action] || 'Noe gikk galt med oppgaven.';
+  const code = String(err?.code || '').replace(/^firestore\//, '');
+  let detail = '';
+  if (code === 'unavailable' || code === 'deadline-exceeded') detail = 'Ingen kontakt med serveren. Sjekk nettet og prøv igjen.';
+  else if (code === 'permission-denied') detail = 'Du har ikke tilgang til å endre denne oppgaven.';
+  else if (code === 'not-found') detail = 'Oppgaven finnes ikke lenger.';
+  else if (err?.message) detail = String(err.message);
+  return { title, detail };
+}
+
 export { parseDateKey };

@@ -1,11 +1,12 @@
 // src/screens/VerifyEmailScreen.jsx
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { onAuthStateChanged, reload, checkActionCode, applyActionCode, signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import { Ionicons } from '@expo/vector-icons';
 import { sendVerificationEmailV2, confirmEmailVerificationV2 } from '../src/utils/sendVerificationEmail';
 import { useI18n } from '../src/i18n';
+import { notifyUser } from '../src/utils/dialog';
 
 const RESEND_LOCK_SECONDS = 60;
 
@@ -91,7 +92,7 @@ export default function VerifyEmailScreen({ route, navigation, email: emailProp,
     if (auth.currentUser?.emailVerified) {
       return;
     }
-    Alert.alert(t('verify.doneTitle'), t('verify.doneLogin'));
+    notifyUser(t('verify.doneTitle'), t('verify.doneLogin'));
     navigation.replace('Login');
   }, [clearJustRegisteredEmail, navigation, onVerified, t]);
 
@@ -121,7 +122,7 @@ export default function VerifyEmailScreen({ route, navigation, email: emailProp,
       await confirmEmailVerificationV2(verifyToken);
       await afterSuccess();
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('verify.fail'));
+      notifyUser(t('common.error'), e?.message || t('verify.fail'));
     } finally {
       setApplying(false);
     }
@@ -143,7 +144,7 @@ export default function VerifyEmailScreen({ route, navigation, email: emailProp,
       await applyActionCode(auth, oobCode);
       await afterSuccess();
     } catch {
-      Alert.alert(t('common.error'), t('verify.fail'));
+      notifyUser(t('common.error'), t('verify.fail'));
     } finally {
       setApplying(false);
     }
@@ -152,19 +153,19 @@ export default function VerifyEmailScreen({ route, navigation, email: emailProp,
   const resend = useCallback(async () => {
     const target = auth.currentUser?.email || email;
     if (!target) {
-      Alert.alert(t('common.error'), t('verify.needLogin'));
+      notifyUser(t('common.error'), t('verify.needLogin'));
       return;
     }
     try {
       setSending(true);
       await sendVerificationEmailV2(target);
       setResendCountdown(RESEND_LOCK_SECONDS);
-      Alert.alert(t('verify.sentTitle'), t('verify.sentBody'));
+      notifyUser(t('verify.sentTitle'), t('verify.sentBody'));
     } catch (e) {
       if (e?.code === 'auth/too-many-requests') {
-        Alert.alert(t('verify.waitTitle'), t('verify.waitBody'));
+        notifyUser(t('verify.waitTitle'), t('verify.waitBody'));
       } else {
-        Alert.alert(t('common.error'), e?.message || t('common.error'));
+        notifyUser(t('common.error'), e?.message || t('common.error'));
       }
     } finally {
       setSending(false);

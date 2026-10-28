@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
   ScrollView, Platform, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,6 +60,8 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailSubmitError, setEmailSubmitError] = useState(null);
+  // Feil vises i skjemaet: Alert.alert gjør ingenting på web.
+  const [submitError, setSubmitError] = useState('');
   const [triedSubmit, setTriedSubmit] = useState(false);
   const [legalOk, setLegalOk] = useState(false);
   const [legalError, setLegalError] = useState(false);
@@ -132,6 +134,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
     await persistSignInConsent(lang);
     setTriedSubmit(true);
     setEmailSubmitError(null);
+    setSubmitError('');
     if (!canSubmit) return;
 
     try {
@@ -139,11 +142,10 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
       if (methods && methods.length > 0) {
         const m = 'E-postadressen er allerede registrert.';
         setEmailSubmitError(m);
-        Alert.alert('E-post opptatt', m);
         return;
       }
     } catch (_) {
-      Alert.alert('Sjekk feilet', 'Kunne ikke verifisere e-post akkurat nå. Prøv igjen.');
+      setSubmitError('Kunne ikke sjekke e-postadressen akkurat nå. Sjekk nettet og prøv igjen.');
       return;
     }
 
@@ -194,8 +196,10 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
         msg = 'Ugyldig e-postadresse.';
       } else if (err?.code === 'auth/weak-password') {
         msg = 'Passordet er for svakt (minst 8 tegn, store/små bokstaver og tall).';
+      } else if (err?.code === 'auth/network-request-failed') {
+        msg = 'Ingen nettforbindelse. Sjekk nettet og prøv igjen.';
       }
-      Alert.alert('Feil', msg);
+      setSubmitError(msg);
     } finally {
       setLoading(false);
     }
@@ -356,6 +360,10 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
               }}
             />
 
+            {!!submitError && (
+              <Text style={[styles.errorText, styles.submitError]} accessibilityRole="alert">{submitError}</Text>
+            )}
+
             <TouchableOpacity
               style={[styles.primaryBtn, (!canSubmit || !legalOk || loading) && styles.btnDisabled]}
               onPress={handleRegister}
@@ -466,6 +474,7 @@ const styles = StyleSheet.create({
   pwInput: { flex: 1, marginBottom: 0 },
   inputError: { borderColor: '#f59e0b' },
   errorText: { color: '#b45309', fontWeight: '400', fontSize: 12, marginTop: -4, marginBottom: 8 },
+  submitError: { fontSize: 13, marginTop: 4 },
   hint: { fontSize: 12, fontWeight: '400', marginTop: -4, marginBottom: 8, color: colors.muted },
   ok: { color: '#16a34a' },
   bad: { color: '#b45309' },

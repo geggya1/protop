@@ -8,7 +8,7 @@ import { colors } from '../src/theme';
 import BrandToggle from './BrandToggle';
 import OptionPicker from './OptionPicker';
 import { MAIL_FONTS, MAIL_FONT_SIZES, resizeLogoDataUrl, buildSignatureHtml } from '../src/utils/mailSignature';
-import { sanitizeHtml } from '../src/utils/sanitizeHtml';
+import { sanitizeInlineHtml } from '../src/utils/sanitizeHtml';
 
 export default function MailSignatureSettings({ prefs, onChange }) {
   const sig = prefs?.signature || {};
@@ -97,7 +97,7 @@ export default function MailSignatureSettings({ prefs, onChange }) {
           <Text style={styles.previewLbl}>Forhåndsvisning</Text>
           {Platform.OS === 'web'
             ? React.createElement('div', {
-              dangerouslySetInnerHTML: { __html: sanitizeHtml(preview) },
+              dangerouslySetInnerHTML: { __html: sanitizeInlineHtml(preview) },
             })
             : <Text style={styles.hint}>Logo og navn vises formatert når du sender.</Text>}
         </View>

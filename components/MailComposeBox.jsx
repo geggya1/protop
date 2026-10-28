@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../src/theme';
 import { DeskBtn } from './DeskBtn';
 import MailRichEditor from './MailRichEditor';
-import { sanitizeHtml } from '../src/utils/sanitizeHtml';
+import { sanitizeInlineHtml } from '../src/utils/sanitizeHtml';
 import { buildSignatureHtml, shouldIncludeSignature } from '../src/utils/mailSignature';
 
 const IMPORTANCE = [
@@ -104,7 +104,7 @@ export default function MailComposeBox({
             <View style={styles.sigBox}>
               <Text style={styles.sigLbl}>Signatur</Text>
               {React.createElement('div', {
-                dangerouslySetInnerHTML: { __html: sanitizeHtml(signatureHtml) },
+                dangerouslySetInnerHTML: { __html: sanitizeInlineHtml(signatureHtml) },
                 style: { fontSize: 12, color: colors.ink },
               })}
             </View>

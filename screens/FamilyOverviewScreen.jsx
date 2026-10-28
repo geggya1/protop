@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   ScrollView, RefreshControl, Modal, Pressable,
 } from 'react-native';
 import { db, auth } from '../firebase';
@@ -41,6 +41,7 @@ import HelpTarget from '../components/HelpTarget';
 import { openPlatformHome } from '../src/utils/platformNav';
 import { AvatarBubble } from '../components/AvatarPicker';
 import ConfirmActionModal from '../components/ConfirmActionModal';
+import { notifyUser } from '../src/utils/dialog';
 
 function GroupCard({
   item, team, classroom, friends, congregation, daycare, flexGroup, deactivated, canReactivate, canManage, onPress, onSettings, onReactivate,
@@ -188,7 +189,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
       } catch { /* behold første liste */ }
       setFamilies(sortAndFilter([...map.values()]));
     } catch {
-      Alert.alert(t('common.error'));
+      notifyUser(t('common.error'));
       setFamilies([]);
     } finally {
       if (fromRefresh) setRefreshing(false); else setLoading(false);
@@ -267,7 +268,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
       setPendingReactivate(null);
       await fetchFamilies();
     } catch {
-      Alert.alert(t('common.error'));
+      notifyUser(t('common.error'));
     } finally {
       setReactivateBusy(false);
     }

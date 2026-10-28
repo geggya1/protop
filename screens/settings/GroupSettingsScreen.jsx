@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Switch, ScrollView, Platform,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Switch, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -52,6 +52,7 @@ import BirthdayPicker from '../../components/BirthdayPicker';
 import PhoneInput from '../../components/PhoneInput';
 import WebImageCropperModal from '../../components/WebImageCropperModal';
 import ConfirmActionModal from '../../components/ConfirmActionModal';
+import { notifyUser } from '../../src/utils/dialog';
 
 function groupLifecycleCopy(t, { isClassroom, isTeam }) {
   if (isClassroom) {
@@ -186,7 +187,7 @@ export function GroupSettingsScreen({ inShell = false }) {
       if (inShell) requestShellTab?.('home');
       else nav.goBack();
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setSaving(false);
     }
@@ -214,7 +215,7 @@ export function GroupSettingsScreen({ inShell = false }) {
       setConfirmKind(null);
       leaveToOverview(next?.id || null);
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setBusyAction(false);
     }
@@ -233,7 +234,7 @@ export function GroupSettingsScreen({ inShell = false }) {
       selectFamily(familyId);
       setConfirmKind(null);
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setBusyAction(false);
     }
@@ -257,7 +258,7 @@ export function GroupSettingsScreen({ inShell = false }) {
       setConfirmKind(null);
       leaveToOverview(next?.id || null);
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setBusyAction(false);
     }
@@ -599,11 +600,11 @@ export function MemberSettingsScreen() {
 
   const savePassword = async () => {
     if (password.length < 6) {
-      Alert.alert(t('common.error'), t('member.passwordSet'));
+      notifyUser(t('common.error'), t('member.passwordSet'));
       return;
     }
     if (password !== password2) {
-      Alert.alert(t('common.error'), t('auth.passwordMismatch'));
+      notifyUser(t('common.error'), t('auth.passwordMismatch'));
       return;
     }
     setPwdBusy(true);
@@ -611,9 +612,9 @@ export function MemberSettingsScreen() {
       await setMemberPassword({ uid: memberUid, password, familyId });
       setPassword('');
       setPassword2('');
-      Alert.alert(t('common.ok'), t('auth.passwordChanged'));
+      notifyUser(t('common.ok'), t('auth.passwordChanged'));
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setPwdBusy(false);
     }
@@ -622,9 +623,9 @@ export function MemberSettingsScreen() {
   const sendReset = async () => {
     try {
       await sendPasswordResetV2(email || m.email);
-      Alert.alert(t('auth.resetSentTitle'), t('auth.resetSentBody'));
+      notifyUser(t('auth.resetSentTitle'), t('auth.resetSentBody'));
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     }
   };
 
@@ -652,7 +653,7 @@ export function MemberSettingsScreen() {
         admin: next ? false : m.admin,
       });
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setBusyAction(false);
     }
@@ -674,7 +675,7 @@ export function MemberSettingsScreen() {
       });
       setM({ ...m, grandparentModules: next });
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setBusyAction(false);
     }
@@ -1029,16 +1030,16 @@ export function ProfileSettingsScreen() {
   const [pwdBusy, setPwdBusy] = useState(false);
 
   const saveLocalPassword = async () => {
-    if (password.length < 6) return Alert.alert(t('common.error'), t('member.passwordSet'));
-    if (password !== password2) return Alert.alert(t('common.error'), t('auth.passwordMismatch'));
+    if (password.length < 6) return notifyUser(t('common.error'), t('member.passwordSet'));
+    if (password !== password2) return notifyUser(t('common.error'), t('auth.passwordMismatch'));
     setPwdBusy(true);
     try {
       await setMemberPassword({ uid: user.uid, password });
       setPassword('');
       setPassword2('');
-      Alert.alert(t('common.ok'), t('auth.passwordChanged'));
+      notifyUser(t('common.ok'), t('auth.passwordChanged'));
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     } finally {
       setPwdBusy(false);
     }
@@ -1047,9 +1048,9 @@ export function ProfileSettingsScreen() {
   const sendReset = async () => {
     try {
       await sendPasswordResetV2(user?.email || userProfile?.email);
-      Alert.alert(t('auth.resetSentTitle'), t('auth.resetSentBody'));
+      notifyUser(t('auth.resetSentTitle'), t('auth.resetSentBody'));
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     }
   };
 

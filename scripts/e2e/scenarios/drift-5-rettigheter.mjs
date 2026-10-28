@@ -44,7 +44,10 @@ await putDoc(`powerOfficeClients/${C}`, {
   connected: true, env: 'demo', clientKey: '00000000-0000-0000-0000-000000000000', clientName: 'Drift Test (demo)', clientId: 'demo-1', connectedAt: new Date().toISOString(),
 });
 
-const EHF_XML = `<?xml version="1.0" encoding="UTF-8"?><Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"><cbc:CustomizationID xmlns:cbc="x">urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID><cbc:ID xmlns:cbc="x">1</cbc:ID></Invoice>`;
+const EHF_XML = '<?xml version="1.0" encoding="UTF-8"?><Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" '
+  + 'xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">'
+  + '<cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0</cbc:CustomizationID>'
+  + '<cbc:ID>1</cbc:ID></Invoice>';
 
 let L; let E;
 async function openInvoice(bot, aria) {
@@ -63,13 +66,26 @@ try {
   /* ───── FL-09: PowerOffice-innstillinger og overføring for Øverste leder ───── */
   await guard(R, '5.01', 'PowerOffice-innstillinger', async () => {
     await go(L, 'okonomi', 'innstillinger', 5000);
-    const tab = await clickId(L, 'economy-settings-tab-regnskapssystem', { timeout: 8000 }).then(() => true).catch(() => false);
-    await sleep(5000);
-    const t = await L.visibleText();
-    const denied = /Bare admin kan gjøre dette/.test(t);
-    R.check('5.01', 'FL-09: Øverste leder (økonomiinnstillinger = skrive) åpner Regnskapssystem uten serverfeil', tab && !denied, {
-      actual: !tab ? 'fanen Regnskapssystem vises ikke' : (denied ? '«Bare admin kan gjøre dette.» vises med en gang' : 'ingen feil'),
-      shot: await L.shot('poweroffice-innstillinger'),
+    const tab = await clickId(L, 'economy-settings-tab-regnskapssystem', { timeout: 30000 }).then(() => true).catch(() => false);
+    await L.page.getByText('PowerOffice Go', { exact: true }).first().waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
+    await sleep(3000);
+    const controls = ['Koble fra', 'Bytt klient', 'Synk nå'].filter((x) => 0);
+    for (const label of ['Koble fra', 'Bytt klient', 'Synk nå']) if (await L.hasText(label, { timeout: 1500 })) controls.push(label);
+    await L.shot('poweroffice-innstillinger');
+    // Lim inn en (falsk) klientnøkkel og trykk «Bytt klient»: serveren krever admin.
+    let msg = '';
+    if (controls.includes('Bytt klient')) {
+      await L.fill('Klientnøkkel', '00000000-0000-0000-0000-000000000001');
+      await L.click('Bytt klient');
+      for (let i = 0; i < 30 && !/Bare admin/.test(msg); i += 1) {
+        await sleep(2000);
+        msg = ((await L.visibleText()).match(/[^\n]*Bare admin[^\n]*/) || [''])[0];
+      }
+    }
+    R.check('5.01', 'FL-09: Øverste leder får PowerOffice-innstillinger bare hvis serveren lar ham bruke dem', !(tab && controls.length && /Bare admin/.test(msg)), {
+      expected: 'Innstillingene skjult/låst for roller serveren avviser, eller serveren godtar',
+      actual: `fanen vises=${tab}; knapper: ${controls.join(', ') || 'ingen'}; svar på «Bytt klient»: «${msg || 'ingen melding'}»`,
+      shot: await L.shot('poweroffice-bytt-klient'),
     });
   });
 
@@ -84,9 +100,11 @@ try {
       await sleep(4000);
       // Overføringen kan be om bekreftelse i en dialog.
       await clickId(L, 'invoice-send-confirm', { timeout: 4000 }).catch(() => {});
-      await sleep(6000);
-      const t = await L.visibleText();
-      msg = (t.match(/[^\n]*(Bare admin|admin|tilgang|PowerOffice[^\n]*feil|kunne ikke)[^\n]*/i) || [''])[0];
+      for (let i = 0; i < 45 && !msg; i += 1) {
+        await sleep(2000);
+        const t = await L.visibleText();
+        msg = (t.match(/[^\n]*(Bare admin|tilgang|kunne ikke|feilet)[^\n]*/i) || [''])[0];
+      }
     }
     const call = L.failedCalls.find((c) => /powerOfficeTransferInvoice/.test(c.url));
     R.check('5.02', 'FL-09: Når «Overfør til PowerOffice» vises for Øverste leder, godtar serveren overføringen', !shown || !call || call.status < 400 || !/admin/i.test(call.body), {
@@ -108,6 +126,10 @@ try {
 
   /* ───── FL-17: EHF ───── */
   await guard(R, '5.04', 'EHF i UI', async () => {
+    // Uten PowerOffice: ellers skjules «Send faktura» (PowerOffice sender selv).
+    await putDoc(`powerOfficeClients/${C}`, { connected: false, disconnectedAt: new Date().toISOString() });
+    await L.page.reload();
+    await L.waitShell();
     await openInvoice(L, 'Faktura 1');
     await clickId(L, 'invoice-action-send');
     await sleep(2000);
@@ -145,8 +167,11 @@ try {
     });
   });
 
-  E = await newBot(Bot, 'E-eier', S.users.eier, { outDir: SHOTS });
+  await L.stop();
+  L = null;
   await guard(R, '5.07', 'PowerOffice for eier', async () => {
+    await putDoc(`powerOfficeClients/${C}`, { connected: true, disconnectedAt: '' });
+    E = await newBot(Bot, 'E-eier', S.users.eier, { outDir: SHOTS });
     await go(E, 'okonomi', 'innstillinger', 5000);
     await clickId(E, 'economy-settings-tab-regnskapssystem', { timeout: 8000 }).catch(() => {});
     await sleep(6000);

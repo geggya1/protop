@@ -1,8 +1,9 @@
 /**
  * Drift-bot 1 – samtidighet og datatap (DS-01, DS-02, DS-03, DS-04, DS-11).
  *
- * Tre ekte nettlesere i samme selskap:
+ * Tre brukere i samme selskap, høyst to nettleserkontekster samtidig:
  *   A = ansatt med Timeliste åpen, L = leder (Øverste leder), E = eier.
+ *   Fase 1 (A+L): DS-01. Fase 2 (L+E): DS-02, DS-03, DS-04. Fase 3 (L+A): godkjenning og DS-11.
  * Hvert steg sjekker FORVENTET korrekt oppførsel og skriver OK/AVVIK.
  * Firestore-dokumentene dumpes før/etter til e2e-out/drift/.
  *
@@ -107,6 +108,9 @@ try {
     });
   });
 
+  // Fase 2: den ansatte logger ut (maks to kontekster). Leder beholder sin kopi i minnet.
+  await A.stop();
+  A = null;
   E = await newBot(Bot, 'E-eier', S.users.eier, { outDir: SHOTS });
   await guard(R, '1.05', 'Eier ser #200', async () => {
     await go(E, 'projects', null, 4000);
@@ -233,8 +237,13 @@ try {
   });
 
   /* ───── Godkjenning: låst liste vises for leder, og godkjenning står seg ───── */
+  // Fase 3: eieren logger ut, den ansatte åpner timelisten igjen (kopien hennes er fra før godkjenningen).
+  await E.stop();
+  E = null;
+  A = await newBot(Bot, 'A-ansatt', S.users.ansatt, { outDir: SHOTS });
   await guard(R, '1.11', 'Låsing og godkjenning', async () => {
-    await go(A, 'arbeid', 'timeliste', 2500);
+    await go(A, 'arbeid', 'timeliste', 4500);
+    await A.page.getByRole('button', { name: `Lås timer til ${today}` }).waitFor({ state: 'visible', timeout: 60000 });
     await A.page.getByRole('button', { name: `Lås timer til ${today}` }).click();
     await sleep(2500);
     await A.shot('timeliste-last');

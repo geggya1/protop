@@ -170,10 +170,30 @@ export async function tap(bot, text, opts = {}) {
     } catch (err) {
       last = err;
       await skipTour(bot, 3);
-      await bot.page.keyboard.press('Escape').catch(() => {});
+    }
+  }
+  // Treg maskin: siste forsøk med lengre tidsfrist på det første synlige treffet.
+  const loc = bot.page.getByText(text, { exact: opts.exact !== false });
+  const n = await loc.count().catch(() => 0);
+  for (let i = 0; i < n; i += 1) {
+    if (await loc.nth(i).isVisible().catch(() => false)) {
+      await loc.nth(i).click({ timeout: 20000 });
+      await bot.page.waitForTimeout(500);
+      return true;
     }
   }
   throw last;
+}
+
+/** Krysser av «Jeg har lest og forstått …» hvis den ikke er krysset av. */
+export async function checkConsent(bot) {
+  const box = bot.page.getByRole('checkbox', { name: /Jeg har lest og forstått/ });
+  if (await box.count()) {
+    const on = await box.first().getAttribute('aria-checked').catch(() => null);
+    if (on !== 'true') await box.first().click({ timeout: 20000 });
+    return;
+  }
+  await tap(bot, 'Jeg har lest og forstått', { exact: false });
 }
 
 export async function tapId(bot, id, { timeout = 8000 } = {}) {
@@ -349,4 +369,19 @@ export async function sendQueued(bot) {
   const t = await waitText(bot, /\d+ invitasjoner er sendt|Invitasjonen er sendt|ikke sendt|Kunne ikke|allerede|Du kan ikke/, 90000) || '';
   await bot.page.waitForTimeout(1500);
   return t;
+}
+
+/** Venter (maks 5 min) til maskinen har nok ledig minne før neste nettleserøkt. Testmaskinen er delt. */
+export async function memGate(minMb = 3500, maxMs = 300000) {
+  const { readFileSync } = await import('node:fs');
+  const until = Date.now() + maxMs;
+  let avail = 0;
+  while (Date.now() < until) {
+    const m = readFileSync('/proc/meminfo', 'utf8').match(/MemAvailable:\s+(\d+)/);
+    avail = m ? Number(m[1]) / 1024 : 99999;
+    if (avail >= minMb) return avail;
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+  console.log(`(lite minne: ${Math.round(avail)} MB ledig – fortsetter likevel)`);
+  return avail;
 }

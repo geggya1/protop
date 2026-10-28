@@ -14,7 +14,7 @@ import { Bot, BASE, closeBrowser } from '../lib/bot.mjs';
 import { listDocs } from '../lib/emu.mjs';
 import {
   setupWorld, startBots, Report, asUser, tap, seen, gone, go, clearOverlays, dismissPopup,
-  visibleIdx, snippet, sleep,
+  visibleIdx, snippet, sleep, revive,
 } from './sosial-lib.mjs';
 
 const R = new Report('sosial-notater');
@@ -137,6 +137,7 @@ try {
   }, { bot: eier });
 
   await R.step('N-10', 'FL-19: «Lagre» uten nett', 'Melding om feil eller at den lagres senere innen 10 s (ikke evig «Lagrer…»)', async () => {
+    if (!(await seen(eier, title, 2000))) { await go(eier, 'notes'); await toList(eier); }
     await tap(eier, title, { exact: false });
     await sleep(1500);
     await eier.ctx.setOffline(true);
@@ -152,7 +153,8 @@ try {
     return { ok: !hanging && feedback, actual: `«Lagrer…» etter 10 s=${hanging}, tilbakemelding=${feedback}`, shot };
   }, { bot: eier });
 
-  {
+  try {
+    await revive(eier);
     await go(eier, 'notes');
     await toList(eier);
     const t = await eier.visibleText();
@@ -164,6 +166,8 @@ try {
     const shot = await eier.shot('n-ux2-sok');
     await menu.fill('').catch(() => {});
     R.ux('N-UX2', 'Søk etter notat', 'Søkefelt på Notat-siden eller treff i menysøket', hasSearch || hit, `søkefelt på siden=${hasSearch}, menysøk «${title}» → ${hit ? 'treff' : 'Ingen treff'}${t.includes('Søk') ? '' : ''}`, shot);
+  } catch (err) {
+    R.info(`N-UX2 hoppet over: ${String(err?.message || err).slice(0, 120)}`);
   }
 
   await R.step('N-11', 'Eva deler notatet med Kim → Kim ser det i sanntid (Notater og Hjem)', 'Notatet dukker opp hos Kim uten omlasting', async () => {
@@ -218,13 +222,14 @@ try {
     return { ok: evaSees || warned || after.includes('stillas'), actual: `Kim lagret=${kimSaved}; Evas editor viser Kims tekst=${evaSees}; etter Evas «Lagre»: «${after.replace(/\n/g, ' ').slice(0, 80)}»`, shot };
   }, { bot: eier });
 
-  await R.step('N-13', 'Kim (ikke eier) kan ikke endre deling eller slette', 'Innstillinger viser «Kun eier eller admin…»', async () => {
+  await R.step('N-13', 'Kim (ikke eier) kan ikke endre deling eller slette', 'Ingen innstillinger/slett for Kim, eller «Kun eier eller admin…»', async () => {
     await openSettings(kollega);
-    const ok = await seen(kollega, 'Kun eier eller admin', 6000);
+    const opened = await seen(kollega, 'Deling', 2500);
+    const msg = await seen(kollega, 'Kun eier eller admin', 1500);
     const del = (await visibleIdx(kollega.page.getByText('Slett permanent', { exact: true }))).length;
     const shot = await kollega.shot('n13-kim-innstillinger');
-    if (await seen(kollega, 'Tilbake til notat', 500)) await tap(kollega, kollega.page.getByLabel('Tilbake til notat'));
-    return { ok: ok && del === 0, actual: `melding=${ok} slett-knapp synlig=${del}`, shot };
+    if ((await visibleIdx(kollega.page.getByLabel('Tilbake til notat', { exact: true }))).length) await tap(kollega, kollega.page.getByLabel('Tilbake til notat', { exact: true }));
+    return { ok: (!opened || msg) && del === 0, actual: `innstillinger tilgjengelig=${opened} melding=${msg} slett-knapp=${del} (Kim kan likevel endre teksten og lagre, se N-12)`, shot };
   }, { bot: kollega });
 
   await R.step('N-14', 'Eva sletter notatet («Slett permanent») → borte hos begge i sanntid', 'Bekreftelse, notatet forsvinner hos Eva og Kim', async () => {

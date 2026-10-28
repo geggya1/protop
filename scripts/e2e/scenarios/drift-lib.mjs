@@ -589,7 +589,16 @@ export async function loginWithRetry(b, tries = 3) {
     } catch (e) {
       if (i === tries) throw e;
       console.log(`  (innlogging for ${b.name} feilet, prøver igjen: ${String(e.message).slice(0, 80)})`);
-      await b.page.waitForTimeout(3000);
+      if (/crash|closed/i.test(String(e.message))) {
+        // Fanen eller nettleseren krasjet (minnemangel): ny kontekst.
+        const { browser, closeBrowser } = await import('../lib/bot.mjs');
+        await b.ctx?.close().catch(() => {});
+        const br = await browser().catch(() => null);
+        if (!br || !br.isConnected()) await closeBrowser();
+        await b.start();
+      } else {
+        await b.page.waitForTimeout(3000);
+      }
     }
   }
 }
@@ -625,4 +634,22 @@ export async function clickId(bot, id, { timeout = 15000 } = {}) {
     await bot.page.waitForTimeout(400);
   }
   throw new Error(`Fant ikke synlig/aktiv #${id} (${bot.where})`);
+}
+
+/** Trykker den siste synlige teksten (knappen i et ark ligger sist i DOM-en). */
+export async function clickLast(bot, text, { timeout = 30000 } = {}) {
+  const loc = bot.page.getByText(text, { exact: true });
+  const until = Date.now() + timeout;
+  while (Date.now() < until) {
+    const n = await loc.count();
+    for (let i = n - 1; i >= 0; i -= 1) {
+      if (await loc.nth(i).isVisible().catch(() => false)) {
+        await loc.nth(i).click({ timeout: 30000 });
+        await bot.page.waitForTimeout(500);
+        return true;
+      }
+    }
+    await bot.page.waitForTimeout(400);
+  }
+  throw new Error(`Fant ikke «${text}» (${bot.where})`);
 }

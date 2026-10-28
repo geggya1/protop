@@ -121,6 +121,20 @@ test('SEC-01: passordkopiene lager aldri medlemsdokumenter i en fremmed gruppe',
   await db.doc(`families/${A}/children/kid`).set({ uid: 'kid', active: true });
   await db.doc('children/kid').set({ uid: 'kid', familyId: A });
   await writeMemberPasswordCopies(db, { uid: 'kid', familyId: A, isChildMember: true, password: 'barn1234' });
-  assert.equal((await data(`families/${A}/children/kid`)).password, 'barn1234');
-  assert.equal((await data('children/kid')).password, 'barn1234');
+  // SEC-21: passordet lagres ikke i klartekst; bare at det er satt.
+  assert.equal((await data(`families/${A}/children/kid`)).password, undefined);
+  assert.equal((await data('children/kid')).password, undefined);
+  assert.ok((await data('children/kid')).passwordSetAt);
+});
+
+test('SEC-21: gamle lesbare barnepassord slettes når passordet settes på nytt', async () => {
+  await db.doc(`families/${A}/children/kid`).set({ uid: 'kid', active: true, password: 'gammelt1' });
+  await db.doc('children/kid').set({ uid: 'kid', familyId: A, password: 'gammelt1' });
+  await db.doc('users/kid').set({ role: 'child', password: 'gammelt1' });
+  await writeMemberPasswordCopies(db, { uid: 'kid', familyId: A, isChildMember: true, password: 'nytt1234' });
+  for (const path of [`families/${A}/children/kid`, 'children/kid', 'users/kid']) {
+    const row = await data(path);
+    assert.equal(row.password, undefined, path);
+    assert.equal(JSON.stringify(row).includes('nytt1234'), false, path);
+  }
 });

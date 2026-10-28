@@ -323,12 +323,14 @@ async function groupsOfAccount(uid) {
 }
 
 /**
- * Lesbar kopi for foresatte (barn) eller sletting av gamle kopier (voksne).
+ * Passord lagres aldri i Firestore (SEC-21): gamle lesbare kopier slettes. På barnets
+ * dokumenter merkes bare at passordet er satt (passwordSetAt), så foresatte ser «Satt».
+ * Foresatte ser passordet én gang når de setter det, og setter et nytt om barnet glemmer det.
  * Bare dokumenter som finnes oppdateres: kallet skal aldri lage medlemsdokumenter.
  */
-export async function writeMemberPasswordCopies(store, { uid, familyId, isChildMember, password }) {
+export async function writeMemberPasswordCopies(store, { uid, familyId, isChildMember }) {
   const wipe = { password: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() };
-  const keep = { password, updatedAt: FieldValue.serverTimestamp() };
+  const keep = { password: FieldValue.delete(), passwordSetAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
   const paths = [`parents/${uid}`, `users/${uid}`];
   const childPaths = [`children/${uid}`];
   if (familyId) {
@@ -400,7 +402,6 @@ export const setMemberPassword = onCall(CALL, async (req) => {
       uid,
       familyId: family ? familyId : '',
       isChildMember,
-      password: pwd,
     });
     logger.info('[setMemberPassword] passord satt', { caller, uid, familyId, self: uid === caller });
     return { ok: true };

@@ -211,6 +211,10 @@ test('avslått invitasjon vises for administrator og kan sendes på nytt som ny 
     now: '2026-10-25T12:00:00.000Z',
   });
   assert.deepEqual(plan.map((row) => row.employeeId), ['emp_eve']);
+  // REV-23: uten bekreftet e-post avslås bare posten som venter på kontoen (invitasjonens nøkkel).
+  assert.deepEqual(declineEmployeeInvitePlan({ employees: [employee, other], authEmail: '', uid: 'eve_uid' })
+    .map((row) => row.employeeId), ['emp_eve']);
+  assert.deepEqual(declineEmployeeInvitePlan({ employees: [employee, other], authEmail: '', uid: 'bo_uid' }), []);
   const declined = normalizeEmployee({ ...employee, ...plan[0].patch });
   assert.equal(declined.invite.status, 'declined');
   assert.equal(declined.invite.declinedAt, '2026-10-25T12:00:00.000Z');

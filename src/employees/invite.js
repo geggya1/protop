@@ -439,16 +439,22 @@ export function sentInviteEmployee({ employees, uid, authEmail } = {}) {
 }
 
 /**
- * Personen avslo bedriftsinvitasjonen. Sendte invitasjoner med samme e-post
- * markeres som avslått, så administrator ser svaret og kan invitere på nytt.
+ * Personen avslo bedriftsinvitasjonen. Sendte invitasjoner med samme e-post, eller som venter
+ * på kontoen (invitasjonens nøkkel er uid-en), markeres som avslått, så administrator ser svaret
+ * og kan invitere på nytt. authEmail skal være bekreftet (inviteDeclineEmail, REV-23).
  */
-export function declineEmployeeInvitePlan({ employees, authEmail, now } = {}) {
+export function declineEmployeeInvitePlan({ employees, authEmail, uid = '', now } = {}) {
   const email = text(authEmail).toLowerCase();
+  const actor = text(uid);
   const stamp = text(now) || new Date().toISOString();
-  if (!email) return [];
+  if (!email && !actor) return [];
+  const ownKey = (row) => !!actor && normalizeInviteState(row.invite).parentKey === actor;
   return (employees || [])
-    .filter((row) => employeeMatchEmails(row).includes(email))
-    .filter((row) => normalizeInviteState(row.invite).status === 'sent' && !text(row.personUid))
+    .filter((row) => (email && employeeMatchEmails(row).includes(email)) || ownKey(row))
+    .filter((row) => {
+      const status = normalizeInviteState(row.invite).status;
+      return (status === 'sent' || (status === 'queued' && ownKey(row))) && !text(row.personUid);
+    })
     .map((row) => ({
       employeeId: text(row.id),
       patch: {

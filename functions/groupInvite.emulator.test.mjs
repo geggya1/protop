@@ -325,6 +325,49 @@ describe('Microsoft-konto uten bekreftet e-post (REV-05)', () => {
   });
 });
 
+describe('Avslå uten bekreftet e-post (REV-23)', () => {
+  const ms = { verified: false, provider: 'microsoft.com' };
+
+  test('en konto med en annens adresse (ubekreftet) avslår bare sin egen invitasjon', async () => {
+    // mal er invitert på brukernavn, men har Ninas adresse som (ubekreftet) e-post på kontoen.
+    await db.doc(`families/${A}/memberInvites/inv_mal`).set({
+      status: 'pending', inviteKind: 'existing', inviteeUid: 'mal', inviteeName: 'Mal', invitedBy: 'own', familyId: A,
+      matchedBy: 'username', groupType: 'organization',
+    });
+    const res = await respondGroupInvite.run({
+      data: { familyId: A, inviteId: 'inv_mal', response: 'declined' },
+      auth: { uid: 'mal', token: { email: 'nina@firma.no', email_verified: false, firebase: { sign_in_provider: 'microsoft.com' } } },
+      rawRequest: { headers: {}, ip: '127.0.0.1' },
+    });
+    assert.equal(res.ok, true);
+    assert.equal((await data(`families/${A}/memberInvites/inv_mal`)).status, 'declined');
+    // Ninas plassholder, invitasjonslisten og medarbeiderposten står urørt.
+    const nina = await data(`families/${A}/parents/ninafirmano`);
+    assert.equal(nina.inviteStatus, 'pending');
+    assert.notEqual(nina.deleted, true);
+    assert.ok((await data(`families/${A}`)).invitedEmails.includes('nina@firma.no'));
+    assert.equal((await data(`families/${A}/employees/emp_nina`)).invite.status, 'sent');
+  });
+
+  test('ubekreftet e-post: invitasjonen, plassholderen og posten som venter på kontoen avslås, e-postplassene står', async () => {
+    await db.doc(`families/${A}/employees/emp_eve`).update({ 'invite.parentKey': 'eve' });
+    await db.doc(`families/${A}/employees/emp_eve2`).set(employee('emp_eve2', 'Eve', 'eve@firma.no', 'ansatt'));
+    await db.doc(`families/${A}/parents/evefirmano`).set({
+      uid: 'evefirmano', email: 'eve@firma.no', familyId: A, createdBy: 'own', inviteStatus: 'pending', placeholder: true, active: false,
+    });
+    await db.doc(`families/${A}`).update({ invitedEmails: ['nina@firma.no', 'eve@firma.no'] });
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'declined' }, ms);
+    assert.equal(res.ok, true);
+    assert.equal((await data(`families/${A}/memberInvites/inv_eve`)).status, 'declined');
+    assert.equal((await data(`families/${A}/parents/eve`)).inviteStatus, 'declined');
+    assert.equal((await data(`families/${A}/employees/emp_eve`)).invite.status, 'declined');
+    // Det som bare passer på adressen, avgjør den som har bekreftet den.
+    assert.equal((await data(`families/${A}/employees/emp_eve2`)).invite.status, 'sent');
+    assert.equal((await data(`families/${A}/parents/evefirmano`)).inviteStatus, 'pending');
+    assert.ok((await data(`families/${A}`)).invitedEmails.includes('eve@firma.no'));
+  });
+});
+
 describe('invitasjon fra en som ikke er administrator', () => {
   test('«asAdmin» fra en Øverste leder gir ikke administratorrettighet', async () => {
     await seed();

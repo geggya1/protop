@@ -169,6 +169,18 @@ export function inviteAcceptEmailCheck({ invite, authEmail, trusted } = {}) {
   return { ok: true, matchEmail };
 }
 
+/**
+ * E-posten Avslå kan merke plassholdere, invitasjonslisten og medarbeiderposter på (REV-23).
+ * Samme regel som Godta (REV-05): bare kontoens bekreftede e-post, og bare når det er adressen
+ * invitasjonen ble sendt til. Ellers avslås bare det som gjelder kontoen (uid), så en konto
+ * med en annens adresse (ubekreftet) ikke kan avslå på vegne av den som eier adressen.
+ */
+export function inviteDeclineEmail({ invite, authEmail, trusted } = {}) {
+  const email = text(authEmail).toLowerCase();
+  if (!trusted || !email) return '';
+  return text(invite?.inviteeEmail).toLowerCase() === email ? email : '';
+}
+
 /** Feilkoder fra respondGroupInvite → tekst i appen. */
 export function inviteResponseMessage(code) {
   const value = text(code);

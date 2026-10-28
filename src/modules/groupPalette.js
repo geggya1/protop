@@ -19,6 +19,7 @@ export const GROUP_PALETTE = {
   'company-resources': { bg: '#fff1e6', bg2: '#fff8f2', accent: '#c2410c', soft: '#ffedd5' },
   'company-tenders': { bg: '#fde8ef', bg2: '#fff7fa', accent: '#be123c', soft: '#ffe4e6' },
   'company-customers': { bg: '#E5F6FE', bg2: '#f7fbff', accent: '#075985', soft: '#dbeafe' },
+  'company-meetings': { bg: '#e3f6f9', bg2: '#f4fbfc', accent: '#0e7490', soft: '#cffafe' },
   account: { bg: '#eef2f7', bg2: '#f8fafc', accent: '#334155', soft: '#e2e8f0' },
 };
 

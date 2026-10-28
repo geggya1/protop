@@ -21,6 +21,8 @@ export const CALLABLE_BUDGETS = {
   replyOutlookMail: { perMinute: 6, perHour: 40, perDay: 100 },
   forwardOutlookMail: { perMinute: 4, perHour: 30, perDay: 80 },
   aiChat: { perMinute: 8, perHour: 50, perDay: 80 },
+  aiMeeting: { perMinute: 6, perHour: 40, perDay: 120 },
+  sendMeetingMail: { perMinute: 4, perHour: 30, perDay: 100 },
   aiImportPlan: { perMinute: 2, perHour: 12, perDay: 30 },
   aiTutor: { perMinute: 6, perHour: 40, perDay: 70 },
   aiVoiceNote: { perMinute: 4, perHour: 30, perDay: 60 },

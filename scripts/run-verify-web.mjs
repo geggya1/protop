@@ -144,6 +144,7 @@ export const FILES = [
   'src/doccontrol/doccontrol.test.mjs',
   'src/hr/kinReminder.test.mjs',
   'screens/anbud/formFillRender.test.cjs',
+  'screens/iso/findingsRender.test.cjs',
   'src/anbud/formBuilder.test.mjs',
   'src/hr/reviewPdf.test.mjs',
   'src/hr/storage.test.mjs',
@@ -205,6 +206,13 @@ export const FILES = [
   'src/access/mirrorRefresh.test.mjs',
   'src/hr/hrPending.test.mjs',
   'src/utils/companyChat.test.mjs',
+  'src/utils/mailModel.test.mjs',
+  'src/utils/mailSync.test.mjs',
+  'src/utils/mailSignature.test.mjs',
+  'src/utils/mailHtml.test.mjs',
+  'src/utils/mailFolderTree.test.mjs',
+  'src/utils/mailUi.test.mjs',
+  'src/utils/mailPanes.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',
   // To brukere som lagrer samtidig: ingen tapte eller gjenopplivede prosjekter, utlegg og kunder.
@@ -300,6 +308,9 @@ export const FILES = [
   'functions/friendInviteLimits.test.mjs',
   'src/utils/friendResendNote.test.mjs',
   'functions/inviteMessage.test.mjs',
+  // Møter: livsløp, serier, oppfølging, maler, skjema, PDF, kalenderfil og utsending.
+  'src/meetings/meetings.test.mjs',
+  'functions/meetingDelivery.test.mjs',
 ];
 
 function runFile(file) {

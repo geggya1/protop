@@ -19,5 +19,8 @@ assert.ok(FILES.includes('src/employees/employeeReadAccess.test.mjs'), 'Lese på
 assert.ok(FILES.includes('src/project/projectAccess.test.mjs'), 'prosjektsiden følger tilgangsstyringen');
 assert.ok(FILES.includes('src/access/accessRules.test.mjs'), 'prosjekt og kjøretøy følger tilgangsstyringen overalt');
 assert.ok(FILES.includes('src/utils/companyChat.test.mjs'), 'chatten i bedriften skiller faste ansatte og eksterne');
+assert.ok(FILES.includes('src/meetings/meetings.test.mjs'), 'møtene, referatet og PDF-en testes i CI');
+
+assert.ok(FILES.includes('src/utils/mailModel.test.mjs'), 'e-post: svar, mottakere, utkast og flagg testes i CI');
 
 console.log('run-verify-web.test.mjs: ok');

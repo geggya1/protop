@@ -1,110 +1,173 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Platform, Image,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { colors } from '../src/theme';
 import BrandToggle from './BrandToggle';
 import OptionPicker from './OptionPicker';
-import { MAIL_FONTS, MAIL_FONT_SIZES, resizeLogoDataUrl, buildSignatureHtml } from '../src/utils/mailSignature';
-import { sanitizeInlineHtml } from '../src/utils/sanitizeHtml';
+import MailRichEditor from './MailRichEditor';
+import { MAIL_FONTS } from '../src/utils/mailSignature';
+import { MAIL_PREF_FONT_SIZES } from '../src/utils/mailComposePrefs';
 
+const NONE = 'none';
+
+/**
+ * Signaturer som i Outlook: flere navngitte signaturer, egen standard for nye
+ * meldinger og for svar. Signaturen kan limes inn rett fra en sendt e-post.
+ */
 export default function MailSignatureSettings({ prefs, onChange }) {
-  const sig = prefs?.signature || {};
+  const sigs = prefs?.signatures || [];
+  const [editingId, setEditingId] = useState(() => sigs[0]?.id || null);
+  const [name, setName] = useState(() => sigs[0]?.name || '');
+  const htmlRef = useRef(sigs[0]?.html || '');
+  const timer = useRef(null);
+  const pending = useRef(null);
+  const latest = useRef({ sigs, onChange });
+  latest.current = { sigs, onChange };
+  const editing = sigs.find((s) => s.id === editingId) || null;
 
-  const patchSig = (patch) => {
-    onChange({ signature: { ...sig, ...patch } });
+  /** Lagrer ventende endring med en gang (bytte av signatur, lukking). */
+  const flush = () => {
+    clearTimeout(timer.current);
+    const p = pending.current;
+    pending.current = null;
+    if (!p) return;
+    const { sigs: list, onChange: save } = latest.current;
+    save({ signatures: list.map((s) => (s.id === p.id ? { ...s, name: p.name, html: p.html } : s)) });
   };
 
-  const pickLogo = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted' && Platform.OS !== 'web') return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.72,
-      base64: true,
-      allowsEditing: Platform.OS !== 'web',
+  useEffect(() => () => flush(), []);
+
+  const schedule = (patch, delay) => {
+    if (!editing) return;
+    pending.current = { id: editing.id, name: patch.name, html: patch.html };
+    clearTimeout(timer.current);
+    timer.current = setTimeout(flush, delay);
+  };
+
+  const select = (s) => {
+    flush();
+    setEditingId(s.id);
+    setName(s.name);
+    htmlRef.current = s.html;
+  };
+
+  const addSignature = () => {
+    flush();
+    const id = `sig-${Date.now()}`;
+    const next = [...sigs, { id, name: sigs.length ? `Signatur ${sigs.length + 1}` : 'Standard', html: '' }];
+    onChange({
+      signatures: next,
+      ...(sigs.length ? {} : { signatureNew: id, signatureReply: id }),
     });
-    if (result.canceled) return;
-    const asset = result.assets?.[0];
-    if (!asset) return;
-    const mime = asset.mimeType || 'image/jpeg';
-    const dataUrl = asset.base64
-      ? `data:${mime};base64,${asset.base64}`
-      : asset.uri;
-    const resized = await resizeLogoDataUrl(dataUrl, 180);
-    patchSig({ logoDataUrl: resized });
+    setEditingId(id);
+    setName(next[next.length - 1].name);
+    htmlRef.current = '';
   };
 
-  const preview = buildSignatureHtml(sig, { preview: true });
+  const removeSignature = () => {
+    if (!editing) return;
+    clearTimeout(timer.current);
+    pending.current = null;
+    const rest = sigs.filter((s) => s.id !== editing.id);
+    onChange({
+      signatures: rest,
+      signatureNew: prefs.signatureNew === editing.id ? '' : prefs.signatureNew,
+      signatureReply: prefs.signatureReply === editing.id ? '' : prefs.signatureReply,
+    });
+    if (rest[0]) select(rest[0]);
+    else {
+      setEditingId(null);
+      setName('');
+      htmlRef.current = '';
+    }
+  };
+
+  const options = [{ id: NONE, label: 'Ingen signatur' }, ...sigs.map((s) => ({ id: s.id, label: s.name }))];
 
   return (
     <View>
-      <Text style={styles.kicker}>Signatur</Text>
-      <View style={styles.optionRow}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.optionLbl}>Bruk e-postsignatur</Text>
-          <Text style={styles.hint}>Legges inn automatisk i nye meldinger, som i Outlook.</Text>
-        </View>
-        <BrandToggle value={sig.enabled !== false} onValueChange={(v) => patchSig({ enabled: v })} />
-      </View>
-      <View style={styles.optionRow}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.optionLbl}>Ta med i svar og videresending</Text>
-        </View>
-        <BrandToggle
-          value={sig.includeOnReply !== false}
-          onValueChange={(v) => patchSig({ includeOnReply: v })}
-        />
-      </View>
+      <Text style={styles.kicker}>Signaturer</Text>
+      <Text style={styles.hint}>
+        Lim inn signaturen din fra Outlook: åpne en e-post du har sendt (her i ProTop eller i Outlook på nett),
+        merk signaturen, kopier og lim inn i feltet under. Logo og bilder kan også legges inn med «Sett inn bilde».
+      </Text>
 
-      <TextInput style={styles.input} value={sig.name} onChangeText={(name) => patchSig({ name })} placeholder="Navn" />
-      <TextInput style={styles.input} value={sig.title} onChangeText={(title) => patchSig({ title })} placeholder="Tittel" />
-      <TextInput style={styles.input} value={sig.company} onChangeText={(company) => patchSig({ company })} placeholder="Firma / avdeling" />
-      <TextInput style={styles.input} value={sig.phone} onChangeText={(phone) => patchSig({ phone })} placeholder="Telefon" keyboardType="phone-pad" />
-      <TextInput style={styles.input} value={sig.website} onChangeText={(website) => patchSig({ website })} placeholder="Nettside" autoCapitalize="none" />
-      <TextInput
-        style={[styles.input, styles.area]}
-        value={sig.extra}
-        onChangeText={(extra) => patchSig({ extra })}
-        placeholder="Ekstra linje (adresse, disclaimer…)"
-        multiline
-      />
-
-      <View style={styles.logoRow}>
-        {sig.logoDataUrl ? (
-          <Image source={{ uri: sig.logoDataUrl }} style={styles.logo} />
-        ) : (
-          <View style={styles.logoEmpty}>
-            <Ionicons name="image-outline" size={18} color={colors.muted} />
-          </View>
-        )}
-        <View style={{ flex: 1, gap: 6 }}>
-          <TouchableOpacity onPress={pickLogo} style={styles.secondaryBtn}>
-            <Text style={styles.secondaryTxt}>{sig.logoDataUrl ? 'Bytt logo' : 'Legg til logo'}</Text>
+      <View style={styles.sigTabs}>
+        {sigs.map((s) => (
+          <TouchableOpacity
+            key={s.id}
+            onPress={() => select(s)}
+            style={[styles.sigTab, s.id === editingId && styles.sigTabOn]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: s.id === editingId }}
+          >
+            <Text style={[styles.sigTabTxt, s.id === editingId && styles.sigTabTxtOn]} numberOfLines={1}>{s.name}</Text>
           </TouchableOpacity>
-          {sig.logoDataUrl ? (
-            <TouchableOpacity onPress={() => patchSig({ logoDataUrl: '' })}>
-              <Text style={styles.linkDanger}>Fjern logo</Text>
+        ))}
+        <TouchableOpacity onPress={addSignature} style={styles.addBtn} accessibilityRole="button">
+          <Ionicons name="add" size={14} color={colors.brand} />
+          <Text style={styles.addTxt}>Ny signatur</Text>
+        </TouchableOpacity>
+      </View>
+
+      {editing ? (
+        <View style={styles.editor}>
+          <View style={styles.nameRow}>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={(v) => {
+                setName(v);
+                schedule({ name: v.trim() || 'Signatur', html: htmlRef.current }, 500);
+              }}
+              placeholder="Navn på signaturen"
+              placeholderTextColor={colors.placeholder}
+            />
+            <TouchableOpacity onPress={removeSignature} accessibilityRole="button" accessibilityLabel="Slett signaturen">
+              <Text style={styles.linkDanger}>Slett</Text>
             </TouchableOpacity>
+          </View>
+          <MailRichEditor
+            key={editing.id}
+            initialHtml={editing.html}
+            placeholder="Lim inn eller skriv signaturen her…"
+            fontFamily={prefs.fontFamily}
+            fontSize={prefs.fontSize}
+            minHeight={160}
+            onChange={(html) => {
+              htmlRef.current = html;
+              schedule({ name: name.trim() || 'Signatur', html }, 700);
+            }}
+          />
+          {Platform.OS !== 'web' ? (
+            <Text style={styles.hint}>Signaturer med bilder redigeres best på PC.</Text>
           ) : null}
         </View>
-      </View>
+      ) : (
+        <Text style={[styles.hint, { marginTop: 8 }]}>Ingen signaturer ennå.</Text>
+      )}
 
-      {preview ? (
-        <View style={styles.preview}>
-          <Text style={styles.previewLbl}>Forhåndsvisning</Text>
-          {Platform.OS === 'web'
-            ? React.createElement('div', {
-              dangerouslySetInnerHTML: { __html: sanitizeInlineHtml(preview) },
-            })
-            : <Text style={styles.hint}>Logo og navn vises formatert når du sender.</Text>}
-        </View>
-      ) : null}
+      <Text style={[styles.optionLbl, { marginTop: 14 }]}>Nye meldinger</Text>
+      <OptionPicker
+        options={options}
+        value={prefs.signatureNew || NONE}
+        onChange={(id) => onChange({ signatureNew: id === NONE ? '' : id })}
+        title="Signatur for nye meldinger"
+        clearable={false}
+      />
+      <Text style={[styles.optionLbl, { marginTop: 10 }]}>Svar og videresending</Text>
+      <OptionPicker
+        options={options}
+        value={prefs.signatureReply || NONE}
+        onChange={(id) => onChange({ signatureReply: id === NONE ? '' : id })}
+        title="Signatur for svar og videresending"
+        clearable={false}
+      />
 
-      <Text style={[styles.kicker, { marginTop: 18 }]}>Skrift og visning</Text>
-      <Text style={styles.optionLbl}>Skrifttype</Text>
+      <Text style={[styles.kicker, { marginTop: 18 }]}>Skriving</Text>
+      <Text style={styles.optionLbl}>Standard skrifttype</Text>
       <OptionPicker
         options={MAIL_FONTS.map((font) => ({ id: font.value, label: font.label }))}
         value={prefs.fontFamily}
@@ -112,9 +175,9 @@ export default function MailSignatureSettings({ prefs, onChange }) {
         title="Skrifttype"
         clearable={false}
       />
-      <Text style={[styles.optionLbl, { marginTop: 10 }]}>Skriftstørrelse</Text>
+      <Text style={[styles.optionLbl, { marginTop: 10 }]}>Standard skriftstørrelse</Text>
       <OptionPicker
-        options={MAIL_FONT_SIZES.map((size) => ({ id: size, label: String(size) }))}
+        options={MAIL_PREF_FONT_SIZES.map((size) => ({ id: size, label: `${size} pt` }))}
         value={prefs.fontSize}
         onChange={(fontSize) => { if (fontSize !== '') onChange({ fontSize }); }}
         title="Skriftstørrelse"
@@ -128,16 +191,26 @@ export default function MailSignatureSettings({ prefs, onChange }) {
       </View>
       <View style={styles.optionRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.optionLbl}>Kompakt meldingsliste</Text>
+          <Text style={styles.optionLbl}>Be om lesekvittering som standard</Text>
+          <Text style={styles.hint}>Mottakers e-postprogram avgjør om kvittering sendes.</Text>
         </View>
-        <BrandToggle value={!!prefs.compactList} onValueChange={(compactList) => onChange({ compactList })} />
+        <BrandToggle value={!!prefs.readReceipt} onValueChange={(readReceipt) => onChange({ readReceipt })} />
+      </View>
+
+      <Text style={[styles.kicker, { marginTop: 18 }]}>Lesing</Text>
+      <View style={styles.optionRow}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.optionLbl}>Merk som lest når meldingen åpnes</Text>
+          <Text style={styles.hint}>Slå av for å merke som lest selv (Ctrl+Q).</Text>
+        </View>
+        <BrandToggle value={prefs.markReadOnOpen !== false} onValueChange={(markReadOnOpen) => onChange({ markReadOnOpen })} />
       </View>
       <View style={styles.optionRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.optionLbl}>Be om lesekvittering som standard</Text>
-          <Text style={styles.hint}>Mottakers e-postklient avgjør om kvittering sendes.</Text>
+          <Text style={styles.optionLbl}>Kompakt meldingsliste</Text>
+          <Text style={styles.hint}>Flere meldinger på skjermen, uten forhåndsvisning.</Text>
         </View>
-        <BrandToggle value={!!prefs.readReceipt} onValueChange={(readReceipt) => onChange({ readReceipt })} />
+        <BrandToggle value={!!prefs.compactList} onValueChange={(compactList) => onChange({ compactList })} />
       </View>
     </View>
   );
@@ -145,44 +218,27 @@ export default function MailSignatureSettings({ prefs, onChange }) {
 
 const styles = StyleSheet.create({
   kicker: {
-    fontSize: 11, fontWeight: '400', color: colors.muted, letterSpacing: 0.42,
-    textTransform: 'uppercase', marginBottom: 8, marginTop: 18,
+    fontSize: 11, color: colors.muted, letterSpacing: 0.42,
+    textTransform: 'uppercase', marginBottom: 6, marginTop: 18,
   },
-  hint: { fontSize: 12, fontWeight: '400', color: colors.muted, lineHeight: 16 },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 8,
+  hint: { fontSize: 12, color: colors.muted, lineHeight: 17 },
+  optionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  optionLbl: { fontSize: 13, fontWeight: '500', color: colors.ink, marginBottom: 4 },
+  sigTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  sigTab: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: colors.line, maxWidth: 200,
   },
-  optionLbl: { fontSize: 13, fontWeight: '500', color: colors.ink, marginBottom: 2 },
+  sigTabOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  sigTabTxt: { fontSize: 12, color: colors.ink },
+  sigTabTxtOn: { color: colors.brand },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
+  addTxt: { fontSize: 12, color: colors.brand },
+  editor: { marginTop: 10, gap: 8 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   input: {
-    borderWidth: 1, borderColor: colors.line, paddingHorizontal: 10, paddingVertical: 8,
-    fontSize: 13, color: colors.ink, marginTop: 8,
+    flex: 1, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 10, paddingVertical: 7,
+    fontSize: 13, color: colors.ink, borderRadius: 4,
+    ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null),
   },
-  area: { minHeight: 64, textAlignVertical: 'top' },
-  logoRow: { flexDirection: 'row', gap: 12, alignItems: 'center', marginTop: 12 },
-  logo: { width: 72, height: 72, borderRadius: 8, backgroundColor: colors.bg },
-  logoEmpty: {
-    width: 72, height: 72, borderRadius: 8, backgroundColor: colors.bg,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
-  },
-  secondaryBtn: {
-    alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.line,
-    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8,
-  },
-  secondaryTxt: { fontSize: 12, fontWeight: '400', color: colors.ink },
-  linkDanger: { color: colors.danger, fontWeight: '400', fontSize: 12 },
-  preview: {
-    marginTop: 12, padding: 10, borderWidth: 1, borderColor: colors.line, backgroundColor: '#f8fafc',
-  },
-  previewLbl: { fontSize: 10, fontWeight: '400', color: colors.muted, textTransform: 'uppercase', marginBottom: 6 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  chip: {
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
-    borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
-  },
-  chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  chipTxt: { fontSize: 12, fontWeight: '400', color: colors.muted },
-  chipTxtOn: { color: colors.brand },
+  linkDanger: { color: colors.danger, fontSize: 12 },
 });

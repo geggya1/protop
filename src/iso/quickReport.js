@@ -110,6 +110,8 @@ export function buildQuickFinding(input, { actor, system = null, id = '', now = 
     title: quickTitle(description, type),
     description: description || 'Meldt med foto fra byggeplassen. Se bildet.',
     occurredAt: todayKey(now),
+    // Klokkeslettet meldingen ble laget (også når den lå i køen uten nett).
+    occurredTime: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
     projectId: text(input?.projectId, 120),
     projectName: text(input?.projectName, 200),
     location: text(input?.location, 300),

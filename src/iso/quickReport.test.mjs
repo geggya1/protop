@@ -9,6 +9,7 @@ import {
   reporterEmployee,
 } from './quickReport.js';
 import { newFindingEffects } from './integrations.js';
+import { isImageAttachment } from './findings.js';
 
 const PER = { uid: 'u2', name: 'Per Montør' };
 const now = new Date('2026-10-28T09:30:00Z');
@@ -49,6 +50,8 @@ test('ISO-03: foto uten tekst er nok; uten tekst og foto avvises', () => {
   assert.equal(photo.ok, true, photo.error);
   assert.equal(photo.finding.attachments.length, 1);
   assert.equal(photo.finding.attachments[0].kind, 'foto');
+  assert.equal(isImageAttachment(photo.finding.attachments[0]), true, 'vises som bilde i saken');
+  assert.equal(photo.finding.occurredTime, `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
   assert.match(photo.finding.title, /foto/i);
 });
 

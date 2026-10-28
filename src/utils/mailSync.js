@@ -112,3 +112,18 @@ export function friendlyMailError(err, fallback = MAIL_FALLBACK) {
   }
   return raw;
 }
+
+/**
+ * Ny første side fra Outlook erstatter det samme tidsrommet i listen.
+ * Meldinger i det tidsrommet som ikke lenger finnes, er flyttet eller slettet.
+ * Eldre meldinger som allerede er lastet (fra «Last flere»), beholdes.
+ */
+export function mergeFirstPage(prev, page, { hasMore = true } = {}) {
+  const fresh = Array.isArray(page) ? page : [];
+  if (!hasMore) return fresh;
+  if (!fresh.length) return Array.isArray(prev) ? prev : [];
+  const ids = new Set(fresh.map((m) => m.id));
+  const oldest = String(fresh[fresh.length - 1]?.receivedAt || '');
+  const rest = (prev || []).filter((m) => m?.id && !ids.has(m.id) && String(m.receivedAt || '') < oldest);
+  return [...fresh, ...rest];
+}

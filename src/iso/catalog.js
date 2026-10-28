@@ -190,22 +190,38 @@ export const NORWEGIAN_OBLIGATIONS = [
 /** Når lovkravbiblioteket sist ble gjennomgått mot kildene (vises ved hvert krav). */
 export const LEGAL_LIBRARY_CHECKED = '2026-10-01';
 
+/**
+ * Typer saker. `quick` vises som kort i «Meld avvik»; resten ligger under «Andre typer».
+ * `group` samler typene i grafene (avvik, HMS, miljø, forbedring).
+ */
 export const FINDING_TYPES = [
-  { id: 'prosess', label: 'Prosessavvik', domain: 'KVALITET' },
-  { id: 'leveranse', label: 'Produkt-/leveranseavvik', domain: 'KVALITET' },
-  { id: 'kundeklage', label: 'Kundeklage', domain: 'KVALITET' },
-  { id: 'leverandor', label: 'Leverandøravvik', domain: 'KVALITET' },
-  { id: 'revisjonsfunn', label: 'Revisjonsfunn', domain: 'KVALITET' },
-  { id: 'risikofunn', label: 'Risikofunn', domain: 'KVALITET' },
-  { id: 'miljo', label: 'Miljøhendelse', domain: 'MILJO' },
-  { id: 'hms', label: 'HMS-hendelse / personskade', domain: 'HMS' },
-  { id: 'nestenulykke', label: 'Nestenulykke / RUH', domain: 'HMS' },
-  { id: 'forbedring', label: 'Forbedringsforslag', domain: 'KVALITET' },
-  { id: 'endringsforslag', label: 'Endringsforslag (endring i drift)', domain: 'KVALITET' },
-  { id: 'positiv', label: 'Positiv tilbakemelding', domain: 'KVALITET' },
-  { id: 'omdomme', label: 'Omdømmesak', domain: 'KVALITET' },
-  { id: 'varsling', label: 'Varsling av kritikkverdige forhold', domain: 'HMS' },
+  { id: 'prosess', label: 'Prosessavvik', domain: 'KVALITET', group: 'avvik', quick: true, hint: 'Rutine, prosedyre eller krav ble ikke fulgt' },
+  { id: 'leveranse', label: 'Produkt-/leveranseavvik', domain: 'KVALITET', group: 'avvik', quick: true, hint: 'Feil i leveranse, materiale eller utført arbeid' },
+  { id: 'kundeklage', label: 'Kundeklage', domain: 'KVALITET', group: 'avvik', quick: true, hint: 'Kunden har klaget eller reklamert' },
+  { id: 'leverandor', label: 'Leverandøravvik', domain: 'KVALITET', group: 'avvik', hint: 'Feil eller mangel fra leverandør eller underleverandør' },
+  { id: 'revisjonsfunn', label: 'Revisjonsfunn', domain: 'KVALITET', group: 'avvik', hint: 'Funn fra intern eller ekstern revisjon' },
+  { id: 'risikofunn', label: 'Risikofunn', domain: 'KVALITET', group: 'avvik', hint: 'Risiko som må følges opp som sak' },
+  { id: 'miljo', label: 'Miljøhendelse', domain: 'MILJO', group: 'miljo', quick: true, hint: 'Utslipp, søl eller feil avfallshåndtering' },
+  { id: 'hms', label: 'HMS-hendelse / personskade', domain: 'HMS', group: 'hms', quick: true, hint: 'Noen ble skadet, eller noe ble ødelagt' },
+  { id: 'nestenulykke', label: 'Nestenulykke / RUH', domain: 'HMS', group: 'hms', quick: true, hint: 'Kunne ført til skade, men gjorde det ikke' },
+  { id: 'forbedring', label: 'Forbedringsforslag', domain: 'KVALITET', group: 'forbedring', quick: true, hint: 'Idé til hvordan vi kan gjøre det bedre' },
+  { id: 'endringsforslag', label: 'Endringsforslag (endring i drift)', domain: 'KVALITET', group: 'forbedring', hint: 'Planlagt endring som skal vurderes før den innføres' },
+  { id: 'positiv', label: 'Positiv tilbakemelding', domain: 'KVALITET', group: 'forbedring', hint: 'Noe som gikk bra og kan læres av' },
+  { id: 'omdomme', label: 'Omdømmesak', domain: 'KVALITET', group: 'avvik', hint: 'Sak som kan skade tilliten til bedriften' },
+  { id: 'varsling', label: 'Varsling av kritikkverdige forhold', domain: 'HMS', group: 'hms', hint: 'Kritikkverdige forhold etter arbeidsmiljøloven kap. 2 A' },
 ];
+
+/** Grupper i grafene. Fargen er en nøkkel i fargepaletten (useColors). */
+export const FINDING_GROUPS = [
+  { id: 'avvik', label: 'Avvik', tone: 'warn' },
+  { id: 'hms', label: 'HMS', tone: 'danger' },
+  { id: 'miljo', label: 'Miljø', tone: 'ok' },
+  { id: 'forbedring', label: 'Forbedring', tone: 'info' },
+];
+
+export function findingGroup(type) {
+  return FINDING_TYPES.find((row) => row.id === type)?.group || 'avvik';
+}
 
 export function findingTypeLabel(id) {
   return FINDING_TYPES.find((row) => row.id === id)?.label || 'Avvik';

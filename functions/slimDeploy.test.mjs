@@ -46,6 +46,9 @@ const required = [
   'functions:stravaSyncActivities',
   'pushIndex.js',
   'functions:onChatMessageCreated',
+  'meetingIndex.js',
+  'functions:sendMeetingMail',
+  'functions:aiMeeting',
 ];
 
 for (const needle of required) {

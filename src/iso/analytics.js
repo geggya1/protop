@@ -4,8 +4,8 @@
  * Ingen «ISO-score». Nevner 0 gir «ingen datagrunnlag», aldri 100 %.
  */
 import { lastMonths, monthKey, todayKey, addDays } from './core.js';
-import { ASSESSMENT_STATUSES, FINDING_TYPES } from './catalog.js';
-import { isOpenFinding, openActions, overdueActions } from './findings.js';
+import { ASSESSMENT_STATUSES, FINDING_GROUPS, FINDING_TYPES, findingGroup } from './catalog.js';
+import { findingPhase, isFindingOverdue, isOpenFinding, openActions, overdueActions } from './findings.js';
 import { documentsAwaitingApproval, documentsDueForReview } from './documents.js';
 import { matrixRows, statusCounts } from './requirements.js';
 import { competenceGaps, competenceMatrix, overdueRecords, riskMatrix, sortedMeasurements } from './registers.js';
@@ -49,6 +49,62 @@ export function findingTrend(findings, { months = 6, now = new Date(), type = ''
     }
   }
   return rows;
+}
+
+function daysBetween(a, b) {
+  const t0 = Date.parse(a);
+  const t1 = Date.parse(b);
+  if (!Number.isFinite(t0) || !Number.isFinite(t1)) return null;
+  return Math.max(0, (t1 - t0) / 86400000);
+}
+
+/**
+ * Nøkkeltall øverst i «Avvik og forbedring»: nye, under behandling, lukket siste 12 måneder
+ * (med snitt behandlingstid fra melding til lukking) og åpne tiltak.
+ */
+export function findingSummary(findings, now = new Date()) {
+  const list = findings || [];
+  const today = todayKey(now);
+  const yearAgo = addDays(today, -365);
+  const nye = list.filter((f) => findingPhase(f) === 'ny');
+  const behandling = list.filter((f) => findingPhase(f) === 'behandling');
+  const closed = list.filter((f) => f.state === 'lukket' && String(f.closedAt || '').slice(0, 10) >= yearAgo);
+  const durations = closed.map((f) => daysBetween(f.reportedAt, f.closedAt)).filter((d) => d != null);
+  const actions = openActions(list);
+  const lateActions = overdueActions(list, now);
+  return {
+    nye: { ids: nye.map((f) => f.id), late: nye.filter((f) => f.triageDue && f.triageDue < today).length },
+    behandling: { ids: behandling.map((f) => f.id), late: behandling.filter((f) => isFindingOverdue(f, now)).length },
+    closed: { ids: closed.map((f) => f.id), avgDays: durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null },
+    actions: { count: actions.length, late: lateActions.length },
+  };
+}
+
+/** Saker per måned etter når de skjedde, stablet på gruppe (avvik, HMS, miljø, forbedring). */
+export function findingsPerMonth(findings, { months = 12, now = new Date() } = {}) {
+  const rows = lastMonths(months, now).map((key) => ({ key, ...Object.fromEntries(FINDING_GROUPS.map((g) => [g.id, 0])) }));
+  const index = new Map(rows.map((r) => [r.key, r]));
+  for (const f of findings || []) {
+    const row = index.get(monthKey(f.occurredAt || f.reportedAt));
+    if (row) row[findingGroup(f.type)] += 1;
+  }
+  return rows;
+}
+
+/** Antall saker per type, flest først. Typer uten saker er utelatt. */
+export function findingsByType(findings) {
+  const counts = new Map();
+  for (const f of findings || []) {
+    const row = counts.get(f.type) || { id: f.type, ids: [] };
+    row.ids.push(f.id);
+    counts.set(f.type, row);
+  }
+  return [...counts.values()]
+    .map((r) => {
+      const t = FINDING_TYPES.find((x) => x.id === r.id);
+      return { ...r, label: t?.label || 'Avvik', group: t?.group || 'avvik', value: r.ids.length };
+    })
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'nb'));
 }
 
 /** «Lukket innen frist» med n/N og ekskluderte. */

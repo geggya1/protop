@@ -11,14 +11,7 @@ import {
   addDays, auditEvent, bump, fail, isoDate, newId, nextNumber, nowIso, pushHistory, text, todayKey, uniq,
 } from './core.js';
 import { FINDING_TYPES, INJURY_CLASSES, SEVERITIES, findingDomain, seriousInjury } from './catalog.js';
-
-/** Vedlegg på saken (foto fra byggeplassen): bare lenke og sti. */
-function findingAttachments(list) {
-  return (Array.isArray(list) ? list : [])
-    .map((a) => ({ label: text(a?.label, 200) || 'Foto', url: text(a?.url, 2000), path: text(a?.path, 500), kind: a?.kind === 'fil' ? 'fil' : 'foto', at: text(a?.at, 40) }))
-    .filter((a) => a.url)
-    .slice(0, 6);
-}
+import { cleanAttachment } from './documents.js';
 
 const OPEN_ACTION = new Set(['apen', 'pagar', 'til_verifisering', 'returnert']);
 
@@ -41,12 +34,40 @@ export function defaultRestricted(type) {
   return type === 'hms' || type === 'varsling';
 }
 
+/** Klokkeslett «TT:MM» (00:00–23:59), ellers tom. */
+export function clockTime(value) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(text(value, 5));
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return '';
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
+/**
+ * Bilder og vedlegg på en sak: samme format som dokumentvedlegg, maks 20.
+ * Foto fra hurtigmeldingen (Meld RUH) beholder kind 'foto' og tidspunktet.
+ */
+export function cleanFindingAttachments(list) {
+  return (Array.isArray(list) ? list : []).map((a) => {
+    const out = cleanAttachment(a);
+    if (out && a?.kind === 'foto') {
+      out.kind = 'foto';
+      if (a.at) out.at = text(a.at, 40);
+    }
+    return out;
+  }).filter(Boolean).slice(0, 20);
+}
+
+export function isImageAttachment(a) {
+  return a?.kind === 'foto' || /^image\//i.test(String(a?.contentType || ''))
+    || /\.(jpe?g|png|gif|webp|heic)($|\?)/i.test(String(a?.label || a?.path || ''));
+}
+
 export function validateNewFinding(input) {
   const errors = [];
   if (!text(input?.title)) errors.push('Skriv en kort tittel.');
   if (!text(input?.description)) errors.push('Beskriv hva som skjedde eller hva som er observert.');
   if (!FINDING_TYPES.some((row) => row.id === input?.type)) errors.push('Velg type.');
   if (input?.occurredAt && !isoDate(input.occurredAt)) errors.push('Ugyldig dato.');
+  if (input?.occurredTime && !clockTime(input.occurredTime)) errors.push('Ugyldig klokkeslett (TT:MM).');
   if (input?.authorityNotificationRequired && !text(input?.notificationAssignee)) {
     errors.push('Velg hvem som sørger for varsling til myndighet.');
   }
@@ -81,6 +102,7 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
     title: text(input.title, 200),
     description: text(input.description, 6000),
     occurredAt: isoDate(input.occurredAt) || today,
+    occurredTime: clockTime(input.occurredTime),
     reportedAt: nowIso(now),
     reportedBy: text(actor?.name, 160),
     reportedByUid: text(actor?.uid, 128),
@@ -95,6 +117,7 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
     restricted,
     personalDetails: restricted ? text(input.personalDetails, 4000) : '',
     customerImpact: text(input.customerImpact, 1000),
+    attachments: cleanFindingAttachments(input.attachments),
     deliverableRef: text(input.deliverableRef, 200),
     environmentalMedium: text(input.environmentalMedium, 200),
     authorityNotificationRequired: !!input.authorityNotificationRequired,
@@ -132,7 +155,6 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
       employeeNames: uniq(input.employeeNames),
     },
     sourceRef: input.sourceRef?.id ? { module: text(input.sourceRef.module, 60), id: text(input.sourceRef.id, 120) } : null,
-    attachments: findingAttachments(input.attachments),
     // Meldt med hurtigmeldingen (tre trykk fra telefonen); resten fylles inn i triage.
     quick: !!input.quick,
     // Anonym melding: melderens navn og bruker-id lagres ikke (heller ikke i historikken).
@@ -649,6 +671,61 @@ export function findingsLinkedTo(findings, kind, id) {
     if (kind === 'employee') return (f.links?.employeeIds || []).includes(key);
     return f.links?.[`${kind}Id`] === key;
   });
+}
+
+/** Bilder og vedlegg lagt til etter innsending (behandler). Melderen legger ved når saken meldes. */
+export function addFindingAttachments(finding, list, { actor, now = new Date() } = {}) {
+  if (!finding) return fail('Fant ikke saken.');
+  if (['lukket', 'kansellert'].includes(finding.state)) return fail('Saken er avsluttet.');
+  const added = cleanFindingAttachments(list);
+  if (!added.length) return fail('Ingen vedlegg å legge til.');
+  const attachments = [...(finding.attachments || []), ...added];
+  if (attachments.length > 20) return fail('En sak kan ha høyst 20 vedlegg.');
+  const next = bump({
+    ...finding,
+    attachments,
+    history: pushHistory(finding, added.length === 1 ? 'Vedlegg lagt til' : `${added.length} vedlegg lagt til`, actor, added.map((a) => a.label).join(', '), now),
+  }, actor, now);
+  return result(finding, next, 'iso.finding.attachment_added', actor, now);
+}
+
+export function removeFindingAttachment(finding, index, { actor, now = new Date() } = {}) {
+  if (!finding) return fail('Fant ikke saken.');
+  if (['lukket', 'kansellert'].includes(finding.state)) return fail('Saken er avsluttet.');
+  const gone = (finding.attachments || [])[index];
+  if (!gone) return fail('Fant ikke vedlegget.');
+  const next = bump({
+    ...finding,
+    attachments: (finding.attachments || []).filter((_, i) => i !== index),
+    history: pushHistory(finding, 'Vedlegg fjernet', actor, gone.label, now),
+  }, actor, now);
+  return result(finding, next, 'iso.finding.attachment_removed', actor, now);
+}
+
+/**
+ * Fase i listen: «ny» (behandling ikke startet), «behandling» eller «avsluttet» (lukket/kansellert).
+ */
+export function findingPhase(finding) {
+  if (!finding) return '';
+  if (['lukket', 'kansellert'].includes(finding.state)) return 'avsluttet';
+  return finding.state === 'registrert' ? 'ny' : 'behandling';
+}
+
+/** Saksfristen er passert og saken er ikke avsluttet. */
+export function isFindingOverdue(finding, now = new Date()) {
+  return !!finding?.dueAt && isOpenFinding(finding) && finding.dueAt < todayKey(now);
+}
+
+/** Tiltak på saken: kontrollerte av alle som ikke er kansellert. */
+export function actionProgress(finding) {
+  const live = (finding?.actions || []).filter((a) => a.state !== 'kansellert');
+  return { done: live.filter((a) => a.state === 'verifisert').length, total: live.length };
+}
+
+/** Saken har tiltak med passert frist som ikke er kontrollert. */
+export function hasOverdueAction(finding, now = new Date()) {
+  const today = todayKey(now);
+  return (finding?.actions || []).some((a) => OPEN_ACTION.has(a.state) && a.dueAt && a.dueAt < today);
 }
 
 /** Fase i flyten — brukes av funnel/fasefordeling og stepper. */

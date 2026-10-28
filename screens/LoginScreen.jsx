@@ -299,7 +299,7 @@ export default function LoginScreen({ navigation }) {
           <TextInput
             style={styles.input}
             placeholder={t('auth.identifier')}
-            placeholderTextColor="#8b98a5"
+            placeholderTextColor={colors.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
             value={email}
@@ -311,7 +311,7 @@ export default function LoginScreen({ navigation }) {
             <TextInput
               style={[styles.input, styles.pwInput]}
               placeholder={t('auth.password')}
-              placeholderTextColor="#8b98a5"
+              placeholderTextColor={colors.placeholder}
               secureTextEntry={!showPw}
               value={password}
               onChangeText={(v) => { setPassword(v); if (formError) setFormError(null); }}
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingHorizontal: 16 },
   scrollBody: { flexGrow: 1, paddingBottom: 24 },
   back: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
-  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
+  backTxt: { fontWeight: '400', color: colors.brandInk, fontSize: 16 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 24,
@@ -438,17 +438,17 @@ const styles = StyleSheet.create({
   pwInput: { paddingRight: 72, marginBottom: 8 },
   eyeBtn: {
     alignSelf: 'flex-start', position: 'absolute', right: 16, top: 14, padding: 4 },
-  eyeTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
+  eyeTxt: { color: colors.brandInk, fontWeight: '400', fontSize: 13 },
   forgotLine: {
     color: colors.muted, fontSize: 13, fontWeight: '500', marginBottom: 14, marginTop: 2,
   },
-  linkInline: { color: colors.brand, fontWeight: '400', textDecorationLine: 'underline' },
+  linkInline: { color: colors.brandInk, fontWeight: '400', textDecorationLine: 'underline' },
   errorText: { color: colors.danger, marginBottom: 10, fontSize: 13, fontWeight: '400' },
-  infoText: { color: colors.brand, marginBottom: 10, fontSize: 12, fontWeight: '400' },
+  infoText: { color: colors.brandInk, marginBottom: 10, fontSize: 12, fontWeight: '400' },
   primaryBtn: {
     alignSelf: 'stretch',
     width: '100%',
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     paddingVertical: 16,
     paddingHorizontal: 22,
     borderRadius: radius.pill,
@@ -457,10 +457,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
     borderWidth: 1,
-    borderColor: colors.brand,
+    borderColor: colors.brandInk,
   },
   primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16, letterSpacing: 0.2 },
+  primaryBtnText: { color: colors.onBrand, fontWeight: '600', fontSize: 16, letterSpacing: 0.2 },
   signupRow: {
     marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
   },

@@ -30,6 +30,15 @@ export function toneColor(colors, tone) {
   return colors.muted;
 }
 
+/** Tekstfarge for en tone: *Ink-variantene gir 4,5:1 mot kort og tonet bakgrunn. */
+export function toneInk(colors, tone) {
+  if (tone === 'ok') return colors.successInk || colors.success;
+  if (tone === 'warn') return colors.warnInk || colors.warn;
+  if (tone === 'danger') return colors.dangerInk || colors.danger;
+  if (tone === 'info') return colors.brandInk || colors.brand;
+  return colors.muted;
+}
+
 /**
  * Sideoverskrift inne i ISO. Modulbåndet (ModuleHero) i skallet viser modulnavnet,
  * så her vises bare undersidens tittel, en kort forklaring og handlinger – som i HR og Økonomi.
@@ -41,7 +50,7 @@ export function Page({ title, intro, actions, children, wide, back }) {
       {back ? (
         <TouchableOpacity onPress={back.onPress} accessibilityRole="link" style={[styles.row, { gap: 4, alignSelf: 'flex-start', minHeight: 32 }]}>
           <Ionicons name="chevron-back" size={16} color={colors.brand} />
-          <Text style={{ color: colors.brand, fontSize: 14, fontWeight: '600' }}>{back.label || 'Tilbake'}</Text>
+          <Text style={{ color: colors.brandInk, fontSize: 14, fontWeight: '600' }}>{back.label || 'Tilbake'}</Text>
         </TouchableOpacity>
       ) : null}
       <View style={[styles.pageHead, { flexDirection: wide ? 'row' : 'column' }]}>
@@ -87,8 +96,8 @@ export function Btn({ label, icon, onPress, kind = 'ghost', disabled, small, bus
   const colors = useColors();
   const primary = kind === 'primary';
   const danger = kind === 'danger';
-  const bg = primary ? colors.brand : (danger ? `${colors.danger}14` : colors.bg);
-  const fg = primary ? '#fff' : (danger ? colors.danger : colors.ink);
+  const bg = primary ? colors.brandInk : (danger ? `${colors.danger}14` : colors.bg);
+  const fg = primary ? colors.onBrand : (danger ? colors.dangerInk : colors.ink);
   return (
     <TouchableOpacity
       onPress={disabled || busy ? undefined : onPress}
@@ -98,7 +107,7 @@ export function Btn({ label, icon, onPress, kind = 'ghost', disabled, small, bus
       style={[
         styles.btn,
         small && styles.btnSmall,
-        { backgroundColor: bg, borderColor: primary ? colors.brand : (danger ? `${colors.danger}55` : colors.line), opacity: disabled ? 0.45 : 1 },
+        { backgroundColor: bg, borderColor: primary ? colors.brandInk : (danger ? `${colors.danger}55` : colors.line), opacity: disabled ? 0.45 : 1 },
       ]}
     >
       {busy ? <ActivityIndicator size="small" color={fg} /> : (icon ? <Ionicons name={icon} size={small ? 14 : 16} color={fg} /> : null)}
@@ -110,11 +119,12 @@ export function Btn({ label, icon, onPress, kind = 'ghost', disabled, small, bus
 export function Pill({ label, tone = 'muted', icon }) {
   const colors = useColors();
   const c = toneColor(colors, tone);
+  const ink = toneInk(colors, tone);
   const hex = /^#/.test(String(c));
   return (
-    <View style={[styles.pill, { backgroundColor: hex ? `${c}1c` : colors.sunken, borderColor: hex ? `${c}44` : colors.line }]}>
+    <View style={[styles.pill, { backgroundColor: hex ? `${c}14` : colors.sunken, borderColor: hex ? `${c}44` : colors.line }]}>
       {icon ? <Ionicons name={icon} size={12} color={c} /> : null}
-      <Text style={{ color: c, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{label}</Text>
+      <Text style={{ color: ink, fontSize: 12, fontWeight: '600' }} numberOfLines={1}>{label}</Text>
     </View>
   );
 }

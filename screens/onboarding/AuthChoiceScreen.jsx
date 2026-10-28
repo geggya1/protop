@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#eff3f4' },
   safe: { flex: 1, paddingHorizontal: 16 },
   back: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
-  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
+  backTxt: { fontWeight: '400', color: colors.brandInk, fontSize: 16 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 24,
@@ -177,16 +177,16 @@ const styles = StyleSheet.create({
   primary: {
     minHeight: 50,
     borderRadius: radius.pill,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
+  primaryTxt: { color: colors.onBrand, fontWeight: '400', fontSize: 16 },
   errorText: { color: '#b91c1c', marginTop: 12, fontSize: 13, fontWeight: '400' },
   signupRow: {
     marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
   },
   signupMuted: { color: '#536471', fontWeight: '500', fontSize: 14 },
-  linkInline: { color: colors.brand, fontWeight: '400', textDecorationLine: 'underline' },
+  linkInline: { color: colors.brandInk, fontWeight: '400', textDecorationLine: 'underline' },
 });

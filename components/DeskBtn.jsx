@@ -21,7 +21,7 @@ export function DeskBtn({
       accessibilityLabel={accessibilityLabel || label}
     >
       {icon ? (
-        <Ionicons name={icon} size={15} color={primary ? '#fff' : colors.brand} />
+        <Ionicons name={icon} size={15} color={primary ? colors.onBrand : colors.brand} />
       ) : null}
       {label ? (
         <Text style={[styles.txt, primary && styles.txtPrimary]}>{label}</Text>
@@ -49,13 +49,13 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   primary: {
-    backgroundColor: colors.brand,
-    borderColor: colors.brand,
+    backgroundColor: colors.brandInk,
+    borderColor: colors.brandInk,
   },
   muted: {
     backgroundColor: 'transparent',
     borderColor: 'transparent',
   },
-  txt: { fontWeight: '500', fontSize: 13, color: colors.brand },
-  txtPrimary: { color: '#fff' },
+  txt: { fontWeight: '500', fontSize: 13, color: colors.brandInk },
+  txtPrimary: { color: colors.onBrand },
 });

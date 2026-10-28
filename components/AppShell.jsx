@@ -111,6 +111,8 @@ import ShellErrorBoundary from './ShellErrorBoundary';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
+  // Ikonet beholder merkefargen; teksten bruker brandInk så den kan leses.
+  const labelColor = active ? colors.brandInk : colors.muted;
   const icon = (
     <IconBadge count={badgeCount} size={desktop ? 15 : 16} offset={desktop ? -6 : -7}>
       <Ionicons name={active ? tab.icon : `${tab.icon}-outline`} size={desktop ? 20 : 24} color={color} />
@@ -131,7 +133,7 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
         {...(Platform.OS === 'web' ? { dataSet: { wpNav: '1', wpNavActive: active ? '1' : '0' } } : null)}
       >
         {icon}
-        <Text style={[styles.railRowLabel, { color }]} numberOfLines={1}>{tab.label}</Text>
+        <Text style={[styles.railRowLabel, { color: labelColor }]} numberOfLines={1}>{tab.label}</Text>
       </TouchableOpacity>
     );
   }
@@ -147,7 +149,7 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
       nativeID={`module-nav-${tab.id}`}
     >
       {icon}
-      <Text style={[styles.tabLabel, { color }]} numberOfLines={1}>{tab.label}</Text>
+      <Text style={[styles.tabLabel, { color: labelColor }]} numberOfLines={1}>{tab.label}</Text>
     </TouchableOpacity>
   );
 }
@@ -1068,7 +1070,7 @@ function AppShellInner() {
                     <IconBadge count={countForModule(unreadByModule, 'more')} size={15} offset={-6}>
                       <Ionicons name="grid-outline" size={18} color={colors.brand} />
                     </IconBadge>
-                    <Text style={[styles.railToolsTxt, { color: colors.brand }]}>Mer</Text>
+                    <Text style={[styles.railToolsTxt, { color: colors.brandInk }]}>Mer</Text>
                   </TouchableOpacity>
                 )}
               </HelpTarget>

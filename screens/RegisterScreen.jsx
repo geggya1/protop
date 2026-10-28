@@ -290,7 +290,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
             <TextInput
               style={styles.input}
               placeholder="Ditt navn"
-              placeholderTextColor="#8b98a5"
+              placeholderTextColor={colors.placeholder}
               value={name}
               onChangeText={setName}
               editable={!loading}
@@ -303,7 +303,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
             <TextInput
               style={[styles.input, email.length > 0 && !emailValid ? styles.inputError : null]}
               placeholder="navn@domene.no"
-              placeholderTextColor="#8b98a5"
+              placeholderTextColor={colors.placeholder}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -330,7 +330,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                   password.length > 0 && !passwordStrong ? styles.inputError : null,
                 ]}
                 placeholder="Minst 8 tegn"
-                placeholderTextColor="#8b98a5"
+                placeholderTextColor={colors.placeholder}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   safe: { flex: 1, paddingHorizontal: 16 },
   back: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
-  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
+  backTxt: { fontWeight: '400', color: colors.brandInk, fontSize: 16 },
   scrollBody: {
     flexGrow: 1,
     paddingBottom: 24,
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
   },
   inviteTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
   inviteSub: { marginTop: 6, fontSize: 13, fontWeight: '400', color: colors.muted, lineHeight: 18 },
-  inviteCode: { marginTop: 8, fontWeight: '400', color: colors.brand, fontSize: 13 },
+  inviteCode: { marginTop: 8, fontWeight: '400', color: colors.brandInk, fontSize: 13 },
   label: { fontWeight: '400', color: colors.ink, marginTop: 4, marginBottom: 6, fontSize: 13 },
   input: {
     width: '100%',
@@ -481,28 +481,28 @@ const styles = StyleSheet.create({
   pwRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   showBtn: {
     alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 12 },
-  showBtnText: { color: colors.brand, fontWeight: '400' },
+  showBtnText: { color: colors.brandInk, fontWeight: '400' },
   rulesBox: { marginTop: 0, marginBottom: 4, gap: 3 },
   ruleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   ruleDot: { fontSize: 10 },
-  ruleOk: { color: '#16a34a' },
-  ruleBad: { color: '#94a3b8' },
+  ruleOk: { color: colors.successInk },
+  ruleBad: { color: colors.muted },
   ruleText: { fontSize: 12, fontWeight: '400' },
   primaryBtn: {
     alignSelf: 'flex-start',
     marginTop: 12,
     minHeight: 50,
     borderRadius: radius.pill,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
   btnDisabled: { opacity: 0.45 },
-  primaryBtnText: { color: '#fff', fontWeight: '400', fontSize: 16 },
+  primaryBtnText: { color: colors.onBrand, fontWeight: '400', fontSize: 16 },
   signupRow: {
     marginTop: 18, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
   },
   signupMuted: { color: colors.muted, fontWeight: '500', fontSize: 14 },
-  linkInline: { color: colors.brand, fontWeight: '400', textDecorationLine: 'underline' },
+  linkInline: { color: colors.brandInk, fontWeight: '400', textDecorationLine: 'underline' },
 });

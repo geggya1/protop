@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.ink,
   },
-  groupTitleActive: { color: colors.brand },
+  groupTitleActive: { color: colors.brandInk },
   groupBody: { paddingLeft: 8, paddingTop: 1 },
   groupBodyProcess: { paddingLeft: 10 },
   processRail: {
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   lockedNote: { fontSize: 11, lineHeight: 14, marginTop: 1 },
   lockIcon: { marginRight: 6 },
   rowLabel: { flex: 1, fontWeight: '400', fontSize: 13, color: colors.ink },
-  rowLabelActive: { fontWeight: '500', color: colors.brand },
+  rowLabelActive: { fontWeight: '500', color: colors.brandInk },
   empty: { color: colors.muted, fontWeight: '400', fontSize: 12, paddingHorizontal: 8, marginTop: 8 },
   collapseBtn: {
     alignSelf: 'flex-start',

@@ -44,7 +44,7 @@ function Chips({ list, value, onChange, multiple, small, clearable, disabled }) 
             style={[styles.chip, small && styles.chipSmall, { borderColor: active ? colors.brand : colors.line, backgroundColor: active ? `${colors.brand}18` : colors.bg, opacity: disabled ? 0.5 : 1 }]}
           >
             {active ? <Ionicons name="checkmark" size={13} color={colors.brand} /> : (o.icon ? <Ionicons name={o.icon} size={13} color={colors.muted} /> : null)}
-            <Text style={{ color: active ? colors.brand : colors.ink, fontSize: small ? 12 : 13, fontWeight: active ? '600' : '400' }}>{o.label}</Text>
+            <Text style={{ color: active ? colors.brandInk : colors.ink, fontSize: small ? 12 : 13, fontWeight: active ? '600' : '400' }}>{o.label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -94,7 +94,7 @@ function OptionList({ list, value, multiple, onPick, onCustom, query, setQuery, 
             return (
               <Pressable key="__custom" onPress={() => onCustom(q)} onHoverIn={() => setHighlight(i)} style={[styles.row, hi && { backgroundColor: colors.sunken }]} accessibilityRole="button">
                 <Ionicons name="add" size={16} color={colors.brand} />
-                <Text style={[styles.rowText, { color: colors.brand }]}>Bruk «{q}»</Text>
+                <Text style={[styles.rowText, { color: colors.brandInk }]}>Bruk «{q}»</Text>
               </Pressable>
             );
           }
@@ -116,7 +116,7 @@ function OptionList({ list, value, multiple, onPick, onCustom, query, setQuery, 
                   <Ionicons name={active ? 'checkbox' : 'square-outline'} size={18} color={active ? colors.brand : colors.muted} />
                 ) : (o.icon ? <Ionicons name={o.icon} size={16} color={active ? colors.brand : colors.muted} /> : null)}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.rowText, { color: active ? colors.brand : colors.ink, fontWeight: active ? '600' : '400' }]} numberOfLines={2}>{o.label}</Text>
+                  <Text style={[styles.rowText, { color: active ? colors.brandInk : colors.ink, fontWeight: active ? '600' : '400' }]} numberOfLines={2}>{o.label}</Text>
                   {o.hint ? <Text style={[styles.rowHint, { color: colors.muted }]} numberOfLines={1}>{o.hint}</Text> : null}
                 </View>
                 {!multiple && active ? <Ionicons name="checkmark" size={16} color={colors.brand} /> : null}
@@ -231,7 +231,7 @@ export default function OptionPicker({
       >
         <Text style={[styles.fieldText, small && { fontSize: 13 }, { color: summary.empty ? colors.placeholder : colors.ink }]} numberOfLines={1}>{summary.text}</Text>
         {multiple && (value || []).length ? (
-          <View style={[styles.count, { backgroundColor: `${colors.brand}18` }]}><Text style={{ color: colors.brand, fontSize: 12, fontWeight: '600' }}>{(value || []).length}</Text></View>
+          <View style={[styles.count, { backgroundColor: `${colors.brand}18` }]}><Text style={{ color: colors.brandInk, fontSize: 12, fontWeight: '600' }}>{(value || []).length}</Text></View>
         ) : null}
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color={colors.muted} />
       </Pressable>
@@ -251,7 +251,7 @@ export default function OptionPicker({
             {multiple ? (
               <View style={[styles.footer, { borderTopColor: colors.line }]}>
                 {(value || []).length ? <TouchableOpacity onPress={() => onChange([])} accessibilityRole="button"><Text style={{ color: colors.muted, fontSize: 13 }}>Fjern alle</Text></TouchableOpacity> : <View />}
-                <TouchableOpacity onPress={close} style={[styles.done, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={styles.doneText}>Ferdig</Text></TouchableOpacity>
+                <TouchableOpacity onPress={close} style={[styles.done, { backgroundColor: colors.brandInk }]} accessibilityRole="button"><Text style={[styles.doneText, { color: colors.onBrand }]}>Ferdig</Text></TouchableOpacity>
               </View>
             ) : null}
           </div>
@@ -274,7 +274,7 @@ export default function OptionPicker({
               {multiple ? (
                 <View style={[styles.footer, { borderTopColor: colors.line }]}>
                   {(value || []).length ? <TouchableOpacity onPress={() => onChange([])} accessibilityRole="button"><Text style={{ color: colors.muted, fontSize: 14 }}>Fjern alle</Text></TouchableOpacity> : <View />}
-                  <TouchableOpacity onPress={close} style={[styles.done, { backgroundColor: colors.brand }]} accessibilityRole="button"><Text style={styles.doneText}>Ferdig</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={close} style={[styles.done, { backgroundColor: colors.brandInk }]} accessibilityRole="button"><Text style={[styles.doneText, { color: colors.onBrand }]}>Ferdig</Text></TouchableOpacity>
                 </View>
               ) : null}
             </View>

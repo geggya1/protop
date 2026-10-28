@@ -7,7 +7,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useUnread } from '../../src/context/NotificationContext';
 import { useChatDock, useChatDockPreferred } from '../../src/context/ChatDockContext';
 import { useLayout } from '../../src/theme';
-import { useColors } from '../../src/context/ThemeContext';
+import { LIGHT } from '../../src/appearance/palette';
 import { useI18n } from '../../src/i18n';
 import { useParentDashboardTheme } from '../../src/hooks/useParentDashboardTheme';
 import { useHomeLayout } from '../../src/hooks/useHomeLayout';
@@ -40,7 +40,6 @@ export default function ParentShellBottomNav({
   const nav = useNavigation();
   const focused = useIsFocused();
   const { t } = useI18n();
-  const colors = useColors();
   const { hasRail } = useLayout();
   const {
     isParent, isChild, isActingAsChild, familyId, family, kids, uid, activeChild, meChild,
@@ -161,9 +160,10 @@ export default function ParentShellBottomNav({
       tokens={companyLocked ? {
         surface: '#ffffff',
         border: '#E6EAF0',
-        accent: colors.brand,
+        // Flaten er alltid hvit. Teksten under ikonene må ha 4,5:1 mot den (lys brandInk og muted).
+        accent: LIGHT.brandInk,
         accentSoft: 'transparent',
-        textMuted: '#8E99A8',
+        textMuted: LIGHT.muted,
       } : theme?.tokens}
       includeSafeArea
       onLayout={onLayout}

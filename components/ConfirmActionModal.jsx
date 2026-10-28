@@ -104,7 +104,7 @@ export default function ConfirmActionModal({
           {busy ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.confirmTxt}>{confirmLabel}</Text>
+            <Text style={[styles.confirmTxt, danger && styles.confirmTxtDanger]}>{confirmLabel}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -244,11 +244,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     minHeight: 46,
     justifyContent: 'center',
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : null),
   },
   confirmDanger: { backgroundColor: colors.danger },
-  confirmTxt: { fontWeight: '400', color: '#fff', fontSize: 15 },
+  confirmTxt: { fontWeight: '400', color: colors.onBrand, fontSize: 15 },
+  confirmTxtDanger: { color: '#fff' },
 });

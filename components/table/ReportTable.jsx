@@ -37,7 +37,7 @@ function HeadCell({ col, sort, onSort, filters, onFilter, colors, idPrefix }) {
         nativeID={`${idPrefix}-sort-${col.key}`}
         style={[styles.sortBtn, right ? { justifyContent: 'flex-end' } : null]}
       >
-        <Text style={[styles.headText, { color: on ? colors.brand : colors.muted }]} numberOfLines={1}>{col.label}</Text>
+        <Text style={[styles.headText, { color: on ? (colors.brandInk || colors.brand) : colors.muted }]} numberOfLines={1}>{col.label}</Text>
         {arrow ? <Ionicons name={arrow} size={12} color={colors.brand} /> : null}
       </TouchableOpacity>
       {onFilter && col.filter !== false ? (
@@ -119,12 +119,12 @@ export default function ReportTable({
       <Text style={{ color: colors.muted, fontSize: 13 }}>{`Viser ${shown.length} av ${rows.length}`}</Text>
       {onMore ? (
         <TouchableOpacity onPress={onMore} accessibilityRole="button" style={[styles.moreBtn, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 13 }}>Vis flere</Text>
+          <Text style={{ color: colors.brandInk || colors.brand, fontWeight: '600', fontSize: 13 }}>Vis flere</Text>
         </TouchableOpacity>
       ) : null}
       {onShowAll ? (
         <TouchableOpacity onPress={onShowAll} accessibilityRole="button" style={styles.moreLink}>
-          <Text style={{ color: colors.brand, fontSize: 13 }}>Vis alle</Text>
+          <Text style={{ color: colors.brandInk || colors.brand, fontSize: 13 }}>Vis alle</Text>
         </TouchableOpacity>
       ) : null}
     </View>

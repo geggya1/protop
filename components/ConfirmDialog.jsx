@@ -73,7 +73,8 @@ export default function ConfirmDialog({
           >
             <Text style={[
               styles.btnTxt,
-              b.style === 'cancel' && { color: '#0f172a' },
+              b.style === 'cancel' && styles.mutedTxt,
+              b.style === 'destructive' && styles.dangerTxt,
             ]}>
               {b.text || 'OK'}
             </Text>
@@ -168,13 +169,16 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 12px 28px rgba(0,0,0,0.15)' }
       : { elevation: 6 }),
   },
-  title: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
-  msg: { marginTop: 8, color: '#334155' },
+  title: { fontSize: 16, fontWeight: '400', color: colors.ink },
+  msg: { marginTop: 8, color: colors.muted },
   row: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, marginTop: 14 },
   btn: {
     alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 },
-  btnTxt: { color: '#fff', fontWeight: '400' },
-  muted: { backgroundColor: '#e5e7eb' },
-  primary: { backgroundColor: colors.brand },
+  // Tekstfargene følger utseendet, så dialogen kan leses i mørk modus.
+  btnTxt: { color: colors.onBrand, fontWeight: '400' },
+  mutedTxt: { color: colors.ink },
+  dangerTxt: { color: '#fff' },
+  muted: { backgroundColor: colors.sunken },
+  primary: { backgroundColor: colors.brandInk },
   danger: { backgroundColor: '#b00020' },
 });

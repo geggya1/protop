@@ -13,7 +13,7 @@ export default function CompactBackLink({
   light = false,
 }) {
   const colors = useColors();
-  const tint = color || (light ? '#FFFFFF' : colors.brand);
+  const tint = color || (light ? '#FFFFFF' : colors.brandInk);
   return (
     <Pressable
       style={({ pressed }) => [

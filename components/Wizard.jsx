@@ -92,7 +92,7 @@ export function Choice({ label, emoji, icon, onPress, active, huge, disabled, co
       ]}
     >
       {icon || (emoji ? <Text style={{ fontSize: compact ? 18 : 32 }}>{emoji}</Text> : null)}
-      <Text style={[styles.choiceTxt, compact && styles.choiceTxtCompact, active && { color: '#fff' }]}>
+      <Text style={[styles.choiceTxt, compact && styles.choiceTxtCompact, active && { color: colors.onBrand }]}>
         {label}
       </Text>
     </TouchableOpacity>
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   sub: { marginBottom: 4 },
   body: { gap: 10, marginTop: 8, marginBottom: 16 },
   back: { alignSelf: 'flex-start', paddingVertical: 4 },
-  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
+  backTxt: { fontWeight: '400', color: colors.brandInk, fontSize: 16 },
   backTxtPlain: { fontWeight: '400', fontSize: 13 },
   plainTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, letterSpacing: -0.2, marginTop: 2 },
   plainSub: { fontSize: 13, fontWeight: '400', color: colors.muted, marginTop: 4, marginBottom: 4 },
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   choiceCompact: {
     minHeight: 44, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5,
   },
-  choiceOn: { backgroundColor: colors.brand, borderColor: colors.brand },
+  choiceOn: { backgroundColor: colors.brandInk, borderColor: colors.brandInk },
   choiceTxt: { flex: 1, fontWeight: '400', fontSize: 18, color: colors.ink },
   choiceTxtCompact: { fontSize: 15 },
   grid: {
@@ -185,5 +185,5 @@ const styles = StyleSheet.create({
     borderColor: colors.brand,
   },
   chipTxt: { fontWeight: '400', fontSize: 14, color: colors.ink },
-  chipTxtOn: { color: colors.brand },
+  chipTxtOn: { color: colors.brandInk },
 });

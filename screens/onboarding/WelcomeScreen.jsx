@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     borderRadius: radius.md,
     paddingVertical: 16,
     paddingHorizontal: 20,
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   },
   ctaTxt: {
     fontFamily: bodyFont,
-    color: '#fff',
+    color: colors.onBrand,
     fontWeight: '400',
     fontSize: 17,
   },
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   loginTxt: {
     fontFamily: bodyFont,
     fontWeight: '400',
-    color: colors.brand,
+    color: colors.brandInk,
     fontSize: 15,
   },
 

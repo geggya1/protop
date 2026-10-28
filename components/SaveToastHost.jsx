@@ -113,21 +113,21 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.successSoft || '#dcfce7',
+    backgroundColor: colors.successSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkMark: {
-    color: colors.success,
+    color: colors.successInk,
     fontSize: 16,
     lineHeight: 18,
     fontWeight: '600',
   },
   fail: {
-    backgroundColor: colors.dangerSoft || '#fee4e2',
+    backgroundColor: colors.dangerSoft,
   },
   failMark: {
-    color: colors.danger || '#b42318',
+    color: colors.dangerInk,
   },
   copy: {
     flex: 1,

@@ -63,7 +63,9 @@ export function Mute({ children, style }) {
 export function BigButton({ label, onPress, color, icon, disabled }) {
   const themeColors = useColors();
   const { isDesktop } = useLayout();
-  const bg = color || themeColors.brand;
+  // Standardknappen er brandInk med onBrand-tekst (4,5:1). Egen farge beholder hvit tekst.
+  const bg = color || themeColors.brandInk;
+  const fg = color ? '#fff' : themeColors.onBrand;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -77,7 +79,7 @@ export function BigButton({ label, onPress, color, icon, disabled }) {
       accessibilityLabel={label}
     >
       {icon}
-      <Text style={[styles.bigBtnTxt, isDesktop && styles.bigBtnTxtDesktop]}>{label}</Text>
+      <Text style={[styles.bigBtnTxt, isDesktop && styles.bigBtnTxtDesktop, { color: fg }]}>{label}</Text>
     </TouchableOpacity>
   );
 }

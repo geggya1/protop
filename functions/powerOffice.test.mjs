@@ -576,6 +576,12 @@ assert.equal(
 assert.match(powerOfficeErrorText(new PowerOfficeError('x', { status: 422, path: '/SalesOrders/Complete' })), /^PowerOffice avviste fakturautkastet: x$/);
 assert.equal(powerOfficeErrorText(new PowerOfficeError('PowerOffice er opptatt.', { status: 503, path: '/SalesOrders/Complete' })), 'PowerOffice er opptatt.');
 assert.equal(powerOfficeErrorText(new PowerOfficeError('Nøklene mangler.')), 'Nøklene mangler.');
+// Intern feil i Go (500): steget og kallet står med, så support kan finne det.
+assert.equal(
+  powerOfficeErrorText(new PowerOfficeError('Resolution failed · Internal Server Error', { status: 500, path: '/SalesOrders/Complete' })),
+  'PowerOffice fikk en intern feil (500) på fakturautkastet (SalesOrders/Complete). Feilen ligger hos PowerOffice. Prøv igjen senere, eller send meldingen til PowerOffice: Resolution failed · Internal Server Error',
+);
+assert.match(powerOfficeErrorText(new PowerOfficeError('x', { status: 500, path: '/Customers' })), /intern feil \(500\) på kunden \(Customers\)/);
 
 console.log('powerOffice.test ok');
 

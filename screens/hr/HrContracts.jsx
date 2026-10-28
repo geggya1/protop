@@ -8,7 +8,15 @@ import {
   upsertActiveContract,
   upsertRow,
 } from '../../src/hr/model';
-import { AML_CONTRACT_FIELDS, amlContractCompleteness, syncComplianceFromEvidence } from '../../src/hr/compliance';
+import {
+  AML_CONTRACT_FIELDS,
+  amlContractCompleteness,
+  amlFieldLabel,
+  amlRequiredKeys,
+  probationIssues,
+  syncComplianceFromEvidence,
+  withAmlStandardTexts,
+} from '../../src/hr/compliance';
 import {
   applyContractFieldsToEmployee,
   interpretEmploymentContract,
@@ -23,29 +31,20 @@ import {
   EmptyHint, HrButton, HrCard, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
 
-const KEY_FIELDS = [
-  'employerName', 'employeeName', 'workplace', 'positionTitle', 'roleDescription',
-  'startDate', 'endDate', 'workPercent', 'salaryAmount', 'workHours',
-  'noticePeriod', 'probationMonths', 'holidayTerms', 'passportOrId', 'loanOrAdvance', 'otherTerms',
-];
+/** Alle punktene i AML § 14-6 (fra 1.7.2024) kan fylles ut i skjemaet. */
+const KEY_FIELDS = AML_CONTRACT_FIELDS.map((field) => field.key);
+
+const MULTILINE_FIELDS = new Set([
+  'roleDescription', 'otherTerms', 'terminationProcedure', 'overtimeTerms', 'holidayTerms',
+  'competenceDevelopment', 'pensionInsurance',
+]);
 
 const EMPTY_CONTRACT_DRAFT = {
   id: '',
   title: 'Arbeidsavtale',
-  startDate: '',
-  endDate: '',
+  ...Object.fromEntries(KEY_FIELDS.map((key) => [key, ''])),
   workPercent: '100',
   employmentType: 'Fast',
-  employerName: '',
-  employeeName: '',
-  workplace: '',
-  positionTitle: '',
-  roleDescription: '',
-  salaryAmount: '',
-  workHours: '',
-  noticePeriod: '',
-  probationMonths: '',
-  holidayTerms: '',
   documentUrl: '',
   documentName: '',
   notes: '',
@@ -195,6 +194,7 @@ export default function HrContracts({
         employeeId: activeId,
         contracts: nextContracts,
         reviews: state.reviews || [],
+        hmsCards: state.hmsCards || [],
       });
       return { contracts: nextContracts, compliance };
     });
@@ -212,7 +212,7 @@ export default function HrContracts({
     showSaveToast?.(
       row.aml?.pct >= 100
         ? 'Avtale lagret · AML og compliance oppdatert'
-        : 'Avtale lagret på person',
+        : `Avtale lagret på person · mangler ${row.aml?.missing?.length || 0} punkter etter AML § 14-6`,
     );
   }
 
@@ -239,6 +239,8 @@ export default function HrContracts({
   }
 
   const completeness = amlContractCompleteness(draft);
+  const required = new Set(amlRequiredKeys(draft));
+  const probation = probationIssues(draft);
   const previewUrl = /^https?:\/\//i.test(String(draft.documentUrl || '')) ? draft.documentUrl : '';
 
   if (!activeId) {
@@ -291,19 +293,37 @@ export default function HrContracts({
           <HrSectionTitle
             colors={colors}
             title="Registrer avtale"
-            subtitle={`AML-minimum: ${completeness.filled}/${completeness.total} (${completeness.pct} %)`}
+            subtitle={`AML § 14-6 (fra 1.7.2024): ${completeness.filled}/${completeness.total} (${completeness.pct} %). Felt med * er påkrevd.`}
           />
+          {completeness.missing.length ? (
+            <Text style={[styles.line, { color: colors.muted }]} nativeID="hr-contract-missing">
+              {`Mangler: ${completeness.missing.map(amlFieldLabel).join(' · ')}. «Lovpålagt» blir grønn først når disse er fylt ut.`}
+            </Text>
+          ) : null}
+          {probation.map((message) => (
+            <Text key={message} style={[styles.line, { color: colors.danger }]} nativeID="hr-contract-probation">{message}</Text>
+          ))}
           <View style={styles.split}>
             <View style={styles.pane}>
+              <HrButton
+                colors={colors}
+                label="Fyll tomme felt med standardtekst etter loven"
+                icon="document-text-outline"
+                nativeID="hr-contract-standard-texts"
+                onPress={() => setDraft((prev) => withAmlStandardTexts(prev))}
+              />
+              <Text style={[styles.line, { color: colors.muted, fontSize: 12 }]}>
+                Gjelder ferie, opphør og søksmålsfrister, overtid, kompetanseutvikling og pensjon. Kontroller teksten mot bedriftens ordninger før avtalen signeres.
+              </Text>
               <HrField colors={colors} label="Tittel på avtalen" value={draft.title} onChangeText={(value) => setField('title', value)} />
               {AML_CONTRACT_FIELDS.filter((field) => KEY_FIELDS.includes(field.key)).map((field) => (
                 <HrField
                   key={field.key}
                   colors={colors}
-                  label={field.label}
+                  label={required.has(field.key) ? `${field.label} *` : field.label}
                   value={String(draft[field.key] || '')}
                   onChangeText={(value) => setField(field.key, value)}
-                  multiline={field.key === 'roleDescription' || field.key === 'otherTerms'}
+                  multiline={MULTILINE_FIELDS.has(field.key)}
                 />
               ))}
               <HrButton colors={colors} label="Lagre avtale på person" primary icon="save-outline" onPress={saveContract} />

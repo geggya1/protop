@@ -16,6 +16,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
+import WorkingTimeWarnings from '../../components/arbeid/WorkingTimeWarnings';
 import { canManageTimesheets, employeeDisplayName } from '../../src/arbeid/roles.js';
 import {
   canSwitchTimesheetPerson,
@@ -324,6 +325,15 @@ export default function TimesaldoScreen({
             </View>
           </View>
         ) : null}
+        {/* Overtid og hviletid (AML kap. 10) for timene som er lastet: fra 1. januar til sluttdatoen. */}
+        <WorkingTimeWarnings
+          colors={colors}
+          entries={workspace.state.timeEntries}
+          employeeId={activeId}
+          from={`${year}-01-01`}
+          to={through}
+          nativeID="timesaldo-working-time"
+        />
       </ScrollView>
 
       <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>

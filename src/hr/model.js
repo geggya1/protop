@@ -8,6 +8,7 @@ import {
   normalizeComplianceItem,
 } from './compliance.js';
 import { emptyHandbook, handbookHasContent, normalizeHandbook } from './handbook.js';
+import { normalizeHmsCard } from './hmsCard.js';
 
 export const HR_VERSION = 2;
 
@@ -107,6 +108,8 @@ export function emptyHrState() {
     applications: [],
     compliance: [],
     files: [],
+    // HMS-kort per ansatt (kortnummer, utløpsdato, arbeidsgivers org.nr.). Se hmsCard.js.
+    hmsCards: [],
     handbook: emptyHandbook(),
     updatedAt: '',
   };
@@ -180,12 +183,18 @@ export function normalizeContract(row = {}) {
     probationMonths: text(row.probationMonths),
     holidayTerms: text(row.holidayTerms),
     noticePeriod: text(row.noticePeriod),
+    terminationProcedure: text(row.terminationProcedure),
     salaryAmount: text(row.salaryAmount),
     salaryExtras: text(row.salaryExtras),
     paySchedule: text(row.paySchedule),
     workHours: text(row.workHours),
+    overtimeTerms: text(row.overtimeTerms),
     breakLength: text(row.breakLength),
+    specialWorkingHours: text(row.specialWorkingHours),
     collectiveAgreement: text(row.collectiveAgreement),
+    hirerIdentity: text(row.hirerIdentity),
+    competenceDevelopment: text(row.competenceDevelopment),
+    pensionInsurance: text(row.pensionInsurance),
     passportOrId: text(row.passportOrId),
     loanOrAdvance: text(row.loanOrAdvance),
     otherTerms: text(row.otherTerms),
@@ -392,6 +401,7 @@ export function normalizeHrState(raw) {
     applications: normalizeList(raw.applications, normalizeApplication),
     compliance: normalizeList(raw.compliance, normalizeComplianceItem),
     files: normalizeList(raw.files, normalizeHrFile),
+    hmsCards: normalizeList(raw.hmsCards, normalizeHmsCard),
     handbook: normalizeHandbook(raw.handbook),
     updatedAt: text(raw.updatedAt),
   };
@@ -443,7 +453,7 @@ export function hrStateHasData(state) {
   const src = normalizeHrState(state);
   return [
     'contracts', 'reviews', 'cases', 'memos', 'tasks',
-    'salaries', 'jobs', 'applications', 'compliance', 'files',
+    'salaries', 'jobs', 'applications', 'compliance', 'files', 'hmsCards',
   ].some((key) => (src[key] || []).length > 0) || handbookHasContent(src.handbook);
 }
 
@@ -459,6 +469,7 @@ export function employeeVisibleSlice(state, employeeId) {
     tasks: forEmployee(src.tasks, id).filter((row) => row.employeeVisible),
     salaries: forEmployee(src.salaries, id).filter((row) => row.employeeVisible),
     contracts: forEmployee(src.contracts, id).filter((row) => row.status === 'active' || row.status === 'ended'),
+    hmsCards: forEmployee(src.hmsCards, id),
     // Memo-filer følger memo-synlighet; standalone krever employeeVisible.
     files: forEmployee(src.files, id).filter((file) => {
       if (file.memoId) return visibleMemoIds.has(file.memoId);

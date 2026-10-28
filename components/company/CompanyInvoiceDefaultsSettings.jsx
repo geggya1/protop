@@ -13,6 +13,14 @@ import {
 } from '../../src/economy/companyInvoiceDefaults.js';
 import { saveCompanyInvoiceDefaults } from '../../src/company/setupState.js';
 import { peekInvoiceNumbers } from '../../src/economy/invoiceStorage.js';
+import {
+  formatNumberRange,
+  isJumpDocumented,
+  numberJumpEntry,
+  numberJumpError,
+  plannedNumberJump,
+} from '../../src/economy/invoiceNumberSeries.js';
+import { useApp } from '../../src/context/AppContext';
 import { loadPowerOfficeStatus } from '../../src/economy/powerOfficeClient.js';
 import { SetupFrame } from './SetupFrame';
 import { useCompanyProject } from './useCompanyProject';
@@ -89,11 +97,19 @@ function wholeNumber(value) {
   return Number.isFinite(n) ? n : NaN;
 }
 
-/** Feil som stopper lagring. */
-export function invoiceDefaultsErrors(draft) {
+/**
+ * Feil som stopper lagring. numbers er { last, highest } i serien. Et startnummer som hopper
+ * over nummer, krever begrunnelse (bokføringsforskriften § 5-1-1 nr. 1).
+ */
+export function invoiceDefaultsErrors(draft, { numbers = null, jumpReason = '' } = {}) {
   const errors = [];
   const start = wholeNumber(draft.invoiceNumberStart || 0);
   if (!Number.isInteger(start) || start < 0) errors.push('Startnummeret må være et helt tall.');
+  else if (numbers) {
+    const jump = plannedNumberJump({ last: numbers.last, highest: numbers.highest, start });
+    const why = numberJumpError(jump, jumpReason, draft.numberJumps);
+    if (why) errors.push(why);
+  }
   const fee = wholeNumber(draft.reminderFee || 0);
   if (!Number.isFinite(fee) || fee < 0) errors.push('Purregebyret må være et beløp.');
   else if (fee > REMINDER_FEE_MAX) errors.push(`Purregebyret kan ikke være over ${REMINDER_FEE_MAX} kr (inkassoforskriften § 1-1).`);
@@ -117,6 +133,8 @@ export default function CompanyInvoiceDefaultsSettings({ familyId, colors, canEd
   const [numbers, setNumbers] = useState(null);
   const [poStatus, setPoStatus] = useState(null);
   const [errors, setErrors] = useState([]);
+  const [jumpReason, setJumpReason] = useState('');
+  const { uid, activeProfile } = useApp();
 
   useEffect(() => {
     if (!dirty) setDraft(resolveCompanyInvoiceDefaults(project.state));
@@ -137,20 +155,29 @@ export default function CompanyInvoiceDefaultsSettings({ familyId, colors, canEd
   }
 
   async function save() {
-    const found = invoiceDefaultsErrors(draft);
+    const found = invoiceDefaultsErrors(draft, { numbers, jumpReason });
     setErrors(found);
     if (found.length) return;
+    const entry = jump && !isJumpDocumented(draft.numberJumps, jump)
+      ? numberJumpEntry(jump, { reason: jumpReason, actor: { byUid: uid || '', byName: activeProfile?.name || '' } })
+      : null;
     const ok = await project.commit(
-      saveCompanyInvoiceDefaults(project.state, draft),
-      'Fakturastandarder er lagret. Prosjekter arver verdiene.',
+      saveCompanyInvoiceDefaults(project.state, draft, { numberJump: entry }),
+      entry
+        ? `Fakturastandarder er lagret. Hoppet over ${formatNumberRange(entry)} er logget med begrunnelse.`
+        : 'Fakturastandarder er lagret. Prosjekter arver verdiene.',
     );
-    if (ok) setDirty(false);
+    if (ok) {
+      setDirty(false);
+      setJumpReason('');
+    }
   }
 
   function reset() {
     setDraft(resolveCompanyInvoiceDefaults(project.state));
     setDirty(false);
     setErrors([]);
+    setJumpReason('');
     project.setError('');
   }
 
@@ -162,6 +189,9 @@ export default function CompanyInvoiceDefaultsSettings({ familyId, colors, canEd
   const props = { canEdit, colors };
   const start = Math.max(0, Math.floor(wholeNumber(draft.invoiceNumberStart || 0)) || 0);
   const nextNumber = numbers ? Math.max(numbers.last + 1, numbers.highest + 1, start || 1) : null;
+  const jump = numbers ? plannedNumberJump({ last: numbers.last, highest: numbers.highest, start }) : null;
+  const jumpOpen = !!jump && !isJumpDocumented(draft.numberJumps, jump);
+  const jumpLog = (draft.numberJumps || []).slice().reverse();
   const poweroffice = !!poStatus?.connected;
 
   return (
@@ -217,6 +247,34 @@ export default function CompanyInvoiceDefaultsSettings({ familyId, colors, canEd
           <Text style={[styles.hint, { color: colors.ink }]} nativeID="company-invoice-next-number">
             {`Neste faktura får nummer ${nextNumber}.`}
           </Text>
+        ) : null}
+        {jumpOpen ? (
+          <View nativeID="company-invoice-number-jump" style={[styles.banner, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Text style={{ color: colors.ink, fontSize: 13, lineHeight: 20 }}>
+              {`Nummer ${formatNumberRange(jump)} blir ikke brukt. Nummerserien skal kunne kontrolleres, så hoppet logges med begrunnelse (bokføringsforskriften § 5-1-1).`}
+            </Text>
+            <TextInput
+              editable={canEdit}
+              multiline
+              value={jumpReason}
+              onChangeText={(v) => { setJumpReason(v); setErrors([]); }}
+              placeholder="Hvorfor hopper serien? For eksempel: nummer 10001–10050 er brukt i forrige fakturasystem."
+              placeholderTextColor={colors.muted}
+              style={[styles.input, styles.area, input]}
+              accessibilityLabel="Begrunnelse for hopp i nummerserien"
+              nativeID="company-invoice-number-jump-reason"
+            />
+          </View>
+        ) : null}
+        {jumpLog.length ? (
+          <View nativeID="company-invoice-number-jump-log" style={{ gap: 4, marginTop: 6 }}>
+            <Text style={[styles.label, { color: colors.ink }]}>Logg over hopp i nummerserien</Text>
+            {jumpLog.map((row) => (
+              <Text key={row.id} style={[styles.hint, { color: colors.ink }]}>
+                {`${row.at.slice(0, 10).split('-').reverse().join('.')} · nummer ${formatNumberRange(row)} hoppet over${row.byName ? ` av ${row.byName}` : ''}: ${row.reason}`}
+              </Text>
+            ))}
+          </View>
         ) : null}
       </Field>
       <Field label="KID" hint="KID gjør at innbetalingen kan avstemmes automatisk mot fakturaen.">

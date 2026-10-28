@@ -214,6 +214,7 @@ export default function HrFollowUp({
         employeeId,
         contracts: state.contracts || [],
         reviews: nextReviews,
+        hmsCards: state.hmsCards || [],
       });
       return { reviews: nextReviews, cases: nextCases, compliance };
     });

@@ -10,6 +10,20 @@ const company = companyFromBrreg({
 });
 assert.equal(company.navn, 'ProTop AS');
 assert.equal(company.organisasjonsnummer, '999999999');
+assert.equal('mva' in company, false, 'ukjent mva-registrering lagres ikke som et svar');
+
+// Registreringene fra Brønnøysund følger med, så fakturaen får «MVA» og «Foretaksregisteret» riktig.
+const fromRegister = companyFromBrreg({
+  organisasjonsnummer: '916538804',
+  navn: 'Consult1 AS',
+  organisasjonsform: 'Aksjeselskap',
+  registrertIForetaksregisteret: true,
+  raw: { organisasjonsform: { kode: 'AS' }, registrertIMvaregisteret: true, registrertIForetaksregisteret: true },
+});
+assert.equal(fromRegister.mva, true);
+assert.equal(fromRegister.foretak, true);
+assert.equal(fromRegister.organisasjonsformKode, 'AS');
+assert.equal(companyFromBrreg({ organisasjonsnummer: '1', navn: 'X', raw: { registrertIMvaregisteret: false } }).mva, false);
 
 assert.equal(createProjectRecord({ name: '', number: '1' }).ok, false);
 assert.equal(createProjectRecord({ name: 'Kai', number: '' }).ok, false);

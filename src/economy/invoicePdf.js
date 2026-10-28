@@ -1,7 +1,8 @@
 /**
  * Faktura, kreditnota og timespesifikasjon som PDF (A4), uten eksterne biblioteker.
  * Innholdet følger bokføringsforskriften § 5-1-1: nummer og dato, partene, ytelsen,
- * leveringsperiode, vederlag, forfall og mva i NOK, og «Foretaksregisteret» i bunnen.
+ * leveringsperiode (ellers fakturadatoen som leveringsdato), vederlag, forfall og mva i NOK,
+ * og «Foretaksregisteret» i bunnen.
  */
 import { pdfDocument, pdfEscape } from '../indeksregulering/office.js';
 import { fitLogoBox, logoForDocument } from '../project/companyLogo.js';
@@ -49,6 +50,7 @@ const LABELS = {
     count: 'Fakturaantall',
     countValue: (n) => `${n} på dette prosjektet`,
     period: 'Leveringsperiode',
+    deliveryDate: 'Leveringsdato',
     theirRef: 'Deres ref.',
     ourRef: 'Vår ref.',
     orderRef: 'Bestilling',
@@ -105,6 +107,7 @@ const LABELS = {
     count: 'Invoice count',
     countValue: (n) => `${n} on this project`,
     period: 'Delivery period',
+    deliveryDate: 'Delivery date',
     theirRef: 'Your ref.',
     ourRef: 'Our ref.',
     orderRef: 'Order',
@@ -458,6 +461,8 @@ function headerBlock(page, invoice, supplier, labels, logo, options) {
     invoice.periodStart || invoice.periodEnd
       ? [labels.period, [formatDate(invoice.periodStart), formatDate(invoice.periodEnd)].filter((v) => v && v !== '—').join(' – ')]
       : null,
+    // Uten periode er fakturadatoen leveringsdato (bokføringsforskriften § 5-1-1).
+    !credit && !invoice.periodStart && !invoice.periodEnd ? [labels.deliveryDate, formatDate(invoice.invoiceDate)] : null,
     [labels.theirRef, invoice.customerReference],
     [labels.ourRef, invoice.ourReference],
     [labels.orderRef, invoice.orderReference],

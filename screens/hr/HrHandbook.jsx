@@ -3,7 +3,9 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import {
   addChapter,
+  applyHandbookFix,
   chaptersFromText,
+  handbookLegalIssues,
   moveChapter,
   normalizeHandbook,
   openPlaceholders,
@@ -197,6 +199,17 @@ export default function HrHandbook({ colors, hr, canWrite, onPatch, employees, a
 
   const book = handbookFromControl(control);
   const open = openPlaceholders(handbook.chapters);
+  const legal = useMemo(() => handbookLegalIssues(handbook), [handbook]);
+
+  /** Retter et funn fra lovsjekken. Nye kapitler legges sist og åpnes. */
+  function fixLegal(issue) {
+    const before = handbookRef.current.chapters.map((row) => row.id);
+    const next = applyHandbookFix(flushEdit(), issue.id);
+    save(next, issue.level === 'feil' ? 'Teksten er rettet. Se over og send til godkjenning.' : 'Kapitlet er lagt til sist. Bekreft de gule feltene og send til godkjenning.');
+    handbookRef.current = next;
+    const added = next.chapters.find((row) => !before.includes(row.id));
+    setSelected(added?.id || issue.chapterId || selected);
+  }
   const chapter = handbook.chapters.find((row) => row.id === selected) || null;
   const me = (employees || []).find((row) => row.personUid && row.personUid === actor?.uid) || null;
   const myAck = latestAck(dc.acks, HANDBOOK_KEY, { uid: actor?.uid, employeeId: me?.id });
@@ -320,6 +333,30 @@ export default function HrHandbook({ colors, hr, canWrite, onPatch, employees, a
                 <HrButton colors={colors} primary icon="book-outline" label="Bruk standard personalhåndbok" onPress={() => applyChapters(standardHandbookChapters(), 'Standardhåndboken er lagt inn. Bekreft de gule feltene og send til godkjenning.')} />
                 <HrButton colors={colors} icon="document-text-outline" label="Les inn fra Word" onPress={importFile} />
                 <HrButton colors={colors} icon="clipboard-outline" label="Lim inn tekst" onPress={() => setPasteOpen(true)} />
+              </View>
+            </HrCard>
+          ) : null}
+
+          {handbook.chapters.length && legal.length ? (
+            <HrCard colors={colors}>
+              <View nativeID="hr-handbook-legal" style={{ gap: 8 }}>
+                <HrSectionTitle
+                  colors={colors}
+                  title="Lovsjekk"
+                  subtitle="Tekst som strider mot loven, og kapitler håndboken bør ha. Rett før neste versjon sendes til godkjenning."
+                />
+                {legal.map((issue) => (
+                  <View key={`${issue.id}_${issue.chapterId}`} style={[styles.legalRow, { borderColor: colors.line }]}>
+                    <Ionicons name={issue.level === 'feil' ? 'alert-circle-outline' : 'add-circle-outline'} size={18} color={issue.level === 'feil' ? colors.danger : colors.brand} />
+                    <Text style={{ color: colors.ink, flex: 1, minWidth: 220 }}>{issue.text}</Text>
+                    <HrButton
+                      colors={colors}
+                      label={issue.level === 'feil' ? 'Rett teksten' : 'Legg til kapitlet'}
+                      nativeID={`hr-handbook-fix-${issue.id}`}
+                      onPress={() => fixLegal(issue)}
+                    />
+                  </View>
+                ))}
               </View>
             </HrCard>
           ) : null}
@@ -474,5 +511,6 @@ const styles = StyleSheet.create({
   readToggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   readBody: { paddingHorizontal: 14, paddingBottom: 14 },
   ackBox: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
+  legalRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
   ackRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, borderBottomWidth: StyleSheet.hairlineWidth },
 });

@@ -4,6 +4,8 @@ import { displayName } from '../../src/employees/model';
 import { hrControlCells } from '../../src/hr/directory';
 import { HrCard, HrSectionTitle } from './HrShared';
 import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
+import HrHmsCards from './HrHmsCards';
+import HrPayGap from './HrPayGap';
 
 const PAGES = {
   avtaler: {
@@ -70,7 +72,7 @@ const PAGES = {
 };
 
 export default function HrControl({
-  colors, page = 'avtaler', employees, hr, entries, onOpenEmployee,
+  colors, page = 'avtaler', employees, hr, entries, onOpenEmployee, company = null,
 }) {
   const spec = PAGES[page] || PAGES.avtaler;
   const dir = useHrDirectory(employees, spec.staffOnly ? { lockedKind: 'internal' } : undefined);
@@ -167,6 +169,10 @@ export default function HrControl({
           onPressRow={openRow}
         />
       </HrCard>
+      {page === 'compliance' ? (
+        <HrHmsCards colors={colors} employees={rows.map((row) => row.employee)} hr={hr} entries={entries} company={company} />
+      ) : null}
+      {page === 'lonn' ? <HrPayGap colors={colors} employees={rows.map((row) => row.employee)} hr={hr} /> : null}
     </View>
   );
 }

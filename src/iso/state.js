@@ -145,6 +145,20 @@ export function migrateRequirementRefs(state) {
   return state;
 }
 
+/**
+ * En sak slik den står i skyen nå (lytter på åpen sak, DRIFT-23). Bare en nyere revisjon enn den
+ * lokale tas inn, så en lagring som er på vei ikke overskrives av et eldre øyeblikksbilde.
+ * Returnerer samme tilstand når ingenting er nytt.
+ */
+export function mergeRemoteFinding(state, remote) {
+  if (!state || !remote?.id) return state;
+  const local = (state.findings || []).find((f) => f.id === remote.id);
+  if (local && (Number(remote.rev) || 0) <= (Number(local.rev) || 0)) return state;
+  const row = { ...remote, restricted: !!remote.restricted };
+  const ids = canonIds(row.links?.requirementIds);
+  return replaceIn(state, 'findings', ids ? { ...row, links: { ...row.links, requirementIds: ids } } : row);
+}
+
 /** Hvilken samling en entitet hører til. Skjermede avvik lagres separat. */
 export function collectionFor(kind, entity) {
   if (kind === 'findings') return entity?.restricted ? COLLECTIONS.restrictedFindings : COLLECTIONS.findings;

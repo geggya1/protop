@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
@@ -10,9 +10,11 @@ import {
   createFinding, defaultRestricted, findingStep, isOpenFinding, needsNewActions, notificationTaskKey, recordRootCause, reopenFinding, rootCauseRequired, triageFinding,
   updateFindingLinks, verifyAction, verifyEffect,
 } from '../../src/iso/findings';
-import { canCloseFinding, canManageFinding, displayFinding, visibleFindings } from '../../src/iso/access';
+import {
+  HIDDEN_REPORTER, canCloseFinding, canManageFinding, displayFinding, reporterVisible, visibleFindings,
+} from '../../src/iso/access';
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
-import { loadAuditFor } from '../../src/iso/storage';
+import { loadAuditFor, watchFinding } from '../../src/iso/storage';
 import { autoAssignee, legacyProjectCases, newFindingEffects, notificationTaskEffects, requirementIdsForFinding } from '../../src/iso/integrations';
 import { ksDeviationCandidates } from '../../src/iso/forms';
 import { publishedVersionOf, normalizeDiagram } from '../../src/iso/processes';
@@ -274,6 +276,21 @@ function FindingDetail({ ctx, finding, onBack }) {
   const closed = ['lukket', 'kansellert'].includes(finding.state);
   // Melderens navn vises bare for saksbehandlere og melderen selv.
   const shown = useMemo(() => displayFinding(caps, finding), [caps, finding]);
+  // Sanntid: det andre lagrer i saken mens den er åpen, vises med en gang (DRIFT-23).
+  const onRemote = ctx.onRemoteFinding;
+  useEffect(
+    () => watchFinding(ctx.companyId, { id: finding.id, restricted: finding.restricted }, (remote) => onRemote?.(remote)),
+    [ctx.companyId, finding.id, finding.restricted], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const [remoteBy, setRemoteBy] = useState('');
+  const seenRev = useRef(finding.rev);
+  useEffect(() => {
+    if (finding.rev !== seenRev.current && finding.updatedByUid && finding.updatedByUid !== actor?.uid) {
+      const hidden = finding.updatedByUid === finding.reportedByUid && !reporterVisible(caps, finding);
+      setRemoteBy(hidden ? HIDDEN_REPORTER : (finding.updatedBy || 'en annen'));
+    }
+    seenRev.current = finding.rev;
+  }, [finding.rev]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function run(label, result, extra = {}) {
     setErr('');
@@ -353,6 +370,7 @@ function FindingDetail({ ctx, finding, onBack }) {
         {finding.dueAt ? <Pill label={`Frist ${prettyDate(finding.dueAt)}`} tone={finding.dueAt < todayKey() && !closed ? 'danger' : 'muted'} /> : null}
       </Row>
       <Stepper step={findingStep(finding)} closed={finding.state === 'lukket'} />
+      {remoteBy ? <Banner tone="info" text={`Saken ble nettopp oppdatert av ${remoteBy}. Du ser siste versjon.`} /> : null}
       {msg ? <Banner tone="ok" text={msg} /> : null}
       {err ? <Banner tone="danger" text={err} /> : null}
 

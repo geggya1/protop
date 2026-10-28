@@ -17,7 +17,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { isFirestorePermissionError, waitForFirestoreAccess } from '../utils/firestoreAccess.js';
@@ -231,6 +231,31 @@ export async function loadIsoState(companyId, { uid = '' } = {}) {
       ? { state: stateFromCollections(cached), source: 'cache', error: `${message} Viser lokal kopi.` }
       : { state: emptyIsoState(), source: 'empty', error: message };
   }
+}
+
+/**
+ * Lytter på én sak mens den er åpen, så det en annen lagrer vises med en gang (DRIFT-23).
+ * Egne lagringer som er på vei hoppes over. Mistet tilgang eller nett gir ingen feil: siste
+ * kjente versjon blir stående. Returnerer en funksjon som stopper lyttingen.
+ */
+export function watchFinding(companyId, finding, onChange) {
+  const id = cid(companyId);
+  const key = String(finding?.id || '').trim();
+  if (!id || !key || typeof onChange !== 'function') return () => {};
+  const restricted = !!finding.restricted;
+  const ref = doc(db, 'families', id, restricted ? COLLECTIONS.restrictedFindings : COLLECTIONS.findings, key);
+  let stop = () => {};
+  try {
+    stop = onSnapshot(ref, (snap) => {
+      if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+      onChange({ ...snap.data(), id: snap.id, restricted });
+    }, () => {});
+  } catch {
+    return () => {};
+  }
+  return () => {
+    try { stop(); } catch { /* allerede stoppet */ }
+  };
 }
 
 export class ConflictError extends Error {

@@ -14,7 +14,7 @@ import { defaultIsoSubView } from '../../src/navigation/shellModules';
 import { approverUidsFromRoles, isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
 import { markRanToday, runIsoAutomation } from './isoAutoRun';
-import { replaceIn } from '../../src/iso/state';
+import { mergeRemoteFinding, replaceIn } from '../../src/iso/state';
 import QuickReportButton, { MyReports } from './QuickReport';
 import { externalFormControls, mergeForms } from '../../src/iso/docControlLink';
 import { useIsoStore } from './useIsoStore';
@@ -182,6 +182,8 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     prefill: params?.prefill || null,
     // Hurtigmelding (Meld RUH): saken vises med en gang, uten å laste ISO på nytt.
     onQuickSent: (list) => store.setState((cur) => (list || []).reduce((acc, f) => (f?.id ? replaceIn(acc, 'findings', f) : acc), cur)),
+    // Åpen sak følges i sanntid: en nyere revisjon fra skyen erstatter den lokale.
+    onRemoteFinding: (remote) => store.setState((cur) => mergeRemoteFinding(cur, remote)),
   };
 
   const Current = PAGES[page] || IsoDashboard;

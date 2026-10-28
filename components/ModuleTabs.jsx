@@ -14,6 +14,8 @@ import ScrollSheet from './ScrollSheet';
  * Telefon: høyst 4 faner og kortnavn. Berøringsskjerm (også nettbrett og iPad i liggende format):
  * trykkflater på minst 44 px (UX-23). Siden du står på, er alltid i raden.
  * Aktiv fane har brandInk-tekst (kontrast 4,5:1); streken under bruker merkefargen.
+ * ISO har deler: første rad er delene (Oversikt, Styring, Drift, Evaluering, Innstillinger),
+ * andre rad er sidene i delen, så alle sidene står synlig uten «Mer».
  */
 function useBadges(moduleId) {
   const [values, setValues] = useState(() => moduleTabBadges(moduleId));
@@ -95,6 +97,104 @@ function MoreSheet({ groups, activeId, onPick, onClose, title, phone }) {
   );
 }
 
+/** Én rad som ruller sidelengs, med aktiv side rullet fram. */
+function ScrollRow({ children, activeId, offsets, label, style }) {
+  const scrollRef = useRef(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const at = offsets.current[activeId];
+    // Rull bare når den aktive fanen ellers ville stått utenfor raden.
+    if (!at || !width || !scrollRef.current || at.x + at.w <= width - 8) return;
+    scrollRef.current.scrollTo?.({ x: Math.max(0, at.x - 24), animated: false });
+  }, [activeId, offsets, width]);
+  return (
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={style}
+      accessibilityRole="tablist"
+      accessibilityLabel={label}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+function SectionTabs({ menu, pages, onSelect, isTouch, isPhone }) {
+  const colors = useColors();
+  const [sectionId, setSectionId] = useState(menu.activeSectionId);
+  useEffect(() => { setSectionId(menu.activeSectionId); }, [menu.activeSectionId, menu.moduleId]);
+  const sectionOffsets = useRef({});
+  const pageOffsets = useRef({});
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const sections = menu.sections.map((sec) => ({ ...sec, pages: sec.pages.map((p) => byId.get(p.id) || p) }));
+  const current = sections.find((sec) => sec.id === sectionId) || sections[0];
+  const go = (page) => onSelect?.(page.action.tab, page.action.subView || null);
+  return (
+    <View
+      style={[styles.wrap, { borderBottomColor: colors.line, backgroundColor: colors.card }]}
+      nativeID="module-tabs"
+      accessibilityLabel={`${menu.label}: meny`}
+    >
+      <ScrollRow activeId={current?.id} offsets={sectionOffsets} label={menu.label} style={styles.tabRow}>
+        {sections.map((sec) => (
+          <TabButton
+            key={sec.id}
+            id={`del-${sec.id}`}
+            label={sec.label}
+            accessibilityLabel={sec.pages.length > 1 ? `${sec.label} (${sec.pages.length} sider)` : sec.label}
+            on={sec.id === current?.id}
+            touchSize={isTouch}
+            onLayout={(e) => { sectionOffsets.current[sec.id] = { x: e.nativeEvent.layout.x, w: e.nativeEvent.layout.width }; }}
+            onPress={() => {
+              setSectionId(sec.id);
+              // En del med én side (Oversikt, Innstillinger) åpner siden. Ellers første side i delen,
+              // med mindre du allerede står i den.
+              if (!sec.pages.some((p) => p.id === menu.activeId)) go(sec.pages[0]);
+            }}
+          />
+        ))}
+      </ScrollRow>
+      {current && current.pages.length > 1 ? (
+        <View style={[styles.second, { borderTopColor: colors.line, backgroundColor: colors.sunken }]}>
+          <ScrollRow activeId={menu.activeId} offsets={pageOffsets} label={current.label} style={styles.pillRow}>
+            {current.pages.map((page) => {
+              const on = page.id === menu.activeId;
+              return (
+                <Pressable
+                  key={page.id}
+                  testID={`module-tab-${page.id}`}
+                  nativeID={`module-tab-${page.id}`}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={page.label}
+                  onLayout={(e) => { pageOffsets.current[page.id] = { x: e.nativeEvent.layout.x, w: e.nativeEvent.layout.width }; }}
+                  onPress={() => go(page)}
+                  style={({ hovered, pressed }) => [
+                    styles.pill,
+                    isTouch && styles.pillTouch,
+                    {
+                      borderColor: on ? colors.brand : 'transparent',
+                      backgroundColor: on ? colors.card : (hovered || pressed ? colors.card : 'transparent'),
+                    },
+                  ]}
+                >
+                  {page.icon ? <Ionicons name={page.icon} size={15} color={on ? colors.brandInk : colors.muted} /> : null}
+                  <Text numberOfLines={1} style={[styles.pillText, { color: on ? colors.brandInk : colors.ink, fontWeight: on ? '600' : '400' }]}>
+                    {(isPhone && page.short) || page.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollRow>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function ModuleTabs({ menu, onSelect, moreOpen = false }) {
   const colors = useColors();
   const {
@@ -128,6 +228,9 @@ export default function ModuleTabs({ menu, onSelect, moreOpen = false }) {
   }, [activeId, rowWidth]);
 
   if (!decorated?.pages?.length) return null;
+  if (decorated.sections?.length) {
+    return <SectionTabs menu={decorated} pages={decorated.pages} onSelect={onSelect} isTouch={isTouch} isPhone={isPhone} />;
+  }
   const go = (page) => onSelect?.(page.action.tab, page.action.subView || null);
   const text = (page) => (isPhone && page.short) || page.label;
   const moreCount = split.more.reduce((n, g) => n + g.pages.length, 0);
@@ -214,4 +317,17 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   sheetLabel: { flex: 1, fontSize: 15 },
+  second: { borderTopWidth: StyleSheet.hairlineWidth },
+  pillRow: { paddingHorizontal: space.sm, paddingVertical: space.xs, gap: space.xxs, alignItems: 'center' },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: space.sm,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  pillTouch: { minHeight: touch.min },
+  pillText: { fontSize: 13 },
 });

@@ -346,9 +346,9 @@ export function shellHeroModuleId(tab, moreSubView = null) {
 }
 
 /**
- * Alle sider, også undersidene (1.2 Anbudsforespørsel, Godkjenninger, Lønn …), har
- * det samme båndet med illustrasjon som modulens startside. Eierens valg: samme
- * hode på alle sider. Den kompakte tittelraden (ModuleTitleRow) brukes ikke lenger.
+ * Kompakt tittelrad i stedet for båndet? Nei: modulbåndet er toppoverskriften og står på
+ * alle sidene i modulen, også undersidene (eierbeslutning 28.10.2026, erstatter UX-25).
+ * Funksjonen står igjen, så skallet har ett sted å endre dette.
  */
 export function shellHeroCompact() {
   return false;
@@ -359,7 +359,6 @@ export function shellHeroCompact() {
  * Hides family name + large page title. Add overlays the lower-right edge.
  * Help is a separate overlay under the profile photo, above this band.
  * Tablet/web keep the heading in the content band (`null` here).
- * Undersider har ikke båndet: toppfeltet viser sidetittelen i stedet.
  */
 export function phoneChromeHeroId(tab, moreSubView = null, isPhone = false) {
   if (!isPhone || shellHeroCompact(tab, moreSubView)) return null;

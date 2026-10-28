@@ -8,7 +8,7 @@ import {
   isNavItemActive,
 } from './shellModules.js';
 
-/** ISO har mange sider. Delene blir titler i «Mer»-arket. Oversikt står alltid i raden. */
+/** ISO har mange sider, ordnet i deler. Oversikt og Innstillinger er egne faner. */
 const ISO_GROUPS = [
   { id: 'styring', label: 'Styring', group: 'Styring' },
   { id: 'drift', label: 'Drift', group: 'Operativt' },
@@ -55,6 +55,21 @@ function ordered(moduleId, pages) {
   return pages.map((p, i) => ({ p, i })).sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i).map((x) => x.p);
 }
 
+/**
+ * ISO-menyen: første rad er delene (Oversikt, Styring, Drift, Evaluering, Innstillinger),
+ * andre rad er sidene i delen du står i, i menyrekkefølge.
+ */
+function isoSections(pages, active) {
+  const byId = new Map(pages.map((p) => [p.id, p]));
+  const pick = (ids) => ids.map((id) => byId.get(id)).filter(Boolean);
+  const sections = [
+    { id: 'oversikt', label: 'Oversikt', pages: pick(['iso-oversikt']) },
+    ...isoGroups(pages).map((g) => ({ id: g.id, label: g.label, pages: pick(g.pageIds) })),
+  ].filter((s) => s.pages.length);
+  const current = sections.find((s) => s.pages.some((p) => p.id === active?.id)) || sections[0] || null;
+  return { sections, activeSectionId: current?.id || null };
+}
+
 function isoGroups(pages) {
   const have = new Set(pages.map((p) => p.id));
   return ISO_GROUPS.map((g) => ({
@@ -69,8 +84,9 @@ function isoGroups(pages) {
 /**
  * Menyen for fanen og undersiden, eller null når modulen ikke har undersider.
  * items: bedriftsmenyen etter tilgang (companyMenuItems). Uten den brukes hele menyen.
- * Svar: { moduleId, label, pages: [{ id, label, short, icon, action }], activeId, groups? }
+ * Svar: { moduleId, label, pages: [{ id, label, short, icon, action }], activeId, groups?, sections?, activeSectionId? }
  * pages står i visningsrekkefølge. groups (ISO) er titlene i «Mer»-arket.
+ * sections (ISO): delene med sidene sine, vist som to rader (ModuleTabs).
  */
 export function moduleTabsFor(tab, subView, items = null) {
   if (!tab) return null;
@@ -87,7 +103,7 @@ export function moduleTabsFor(tab, subView, items = null) {
   pages = ordered(module.id, pages).map((p) => (SHORT[p.id] ? { ...p, short: SHORT[p.id] } : p));
   const active = pages.find((p) => isNavItemActive(p, tab, sub)) || null;
   const out = { moduleId: module.id, label: module.label, pages, activeId: active?.id || null };
-  if (module.id === 'iso') out.groups = isoGroups(pages);
+  if (module.id === 'iso') Object.assign(out, { groups: isoGroups(pages) }, isoSections(pages, active));
   return out;
 }
 

@@ -10,7 +10,6 @@ import { PAGE_ART_SCALE } from '../appearance/pageArtScale.js';
 import {
   MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroCompact, shellHeroModuleId,
 } from './moduleHero.js';
-import { isModuleStartPage } from '../navigation/navTrail.js';
 import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
 import { GROUP_PALETTE } from './groupPalette.js';
 import { getProtopPage, helpPageId } from '../help/protopPages.js';
@@ -294,8 +293,7 @@ const COMPANY_PAGES = [
   ['arbeid', 'fravaer', 'arbeid-fravaer'],
   ['arbeid', 'fravaersrapport', 'arbeid-fravaersrapport'],
   ['arbeid', 'planlagt', 'arbeid-planlagt'],
-  // Prosjektutlegg er en del av Utlegg (UX-17).
-  ['arbeid', 'utlegg', 'okonomi-utlegg'],
+  ['arbeid', 'utlegg', 'arbeid-utlegg'],
   ['arbeid', 'salg', 'arbeid-salg'],
   ['arbeid', 'godkjenning', 'arbeid-godkjenning'],
   ['okonomi', 'oversikt', 'okonomi-oversikt'],
@@ -314,7 +312,7 @@ const COMPANY_PAGES = [
 for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.equal(companyHeroId(tab, sub), id, `${tab}/${sub || ''}`);
   assert.equal(shellHeroModuleId(tab, sub), id, `${id} shell heading`);
-  // Samme bånd med bilde på startsiden og alle undersider (eierens valg).
+  // Båndet er toppoverskriften på alle sidene i modulen, også undersidene (eierbeslutning 28.10).
   assert.equal(shellHeroCompact(tab, sub), false, `${tab}/${sub || ''} har båndet`);
   assert.equal(phoneChromeHeroId(tab, sub, true), id, `${id} phone chrome heading`);
   assert.equal(phoneChromeHeroId(tab, sub, false), null, `${id} tablet/web keeps content-band heading`);
@@ -327,11 +325,11 @@ for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.ok(COMPANY_HERO[id], `${id} company hero`);
 }
 assert.equal(shellHeroCompact('arbeid', 'timeliste'), false, 'Timeliste er startsiden i Timer');
-assert.equal(shellHeroCompact('arbeid', 'godkjenning'), false, 'Godkjenninger har samme bånd som startsiden');
+assert.equal(shellHeroCompact('arbeid', 'godkjenning'), false, 'Godkjenninger er en underside, men har båndet');
 assert.equal(shellHeroCompact('okonomi', 'oversikt'), false);
 assert.equal(shellHeroCompact('okonomi', 'fakturagrunnlag'), false);
 assert.equal(shellHeroCompact('hr', 'lonn'), false);
-assert.equal(shellHeroCompact('anbud', 'foresporsel'), false, '1.2 Anbudsforespørsel har samme bånd som Anbudsvarsling');
+assert.equal(shellHeroCompact('iso', 'prosesser'), false, 'ISO-undersidene har båndet');
 assert.equal(shellHeroCompact('kunder'), false);
 assert.equal(shellHeroCompact('stars'), false, 'personlige sider beholder båndet');
 assert.equal(shellHeroCompact('home'), false, 'Hjem har ikke bånd');
@@ -350,6 +348,7 @@ assert.equal(resolveModuleHero('arbeid-timerapport', 'nb').wideArt, true, 'hours
 assert.equal(resolveModuleHero('arbeid-timesaldo', 'nb').wideArt, true, 'hour balance uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
+assert.equal(resolveModuleHero('arbeid-utlegg', 'nb').wideArt, true, 'project expenses use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');

@@ -6,7 +6,12 @@
  * på e-post, så serveren regner bare e-posten som bekreftet når Microsofts eget ID-token
  * sier det:
  *   - personlig Microsoft-konto (tenant 9188040d-…): Microsoft har bekreftet adressen;
- *   - jobb- eller skolekonto: `xms_edov` (domeneeier bekreftet) eller `email_verified` er sann.
+ *   - jobb- eller skolekonto: `xms_edov` (domeneeier bekreftet) eller `email_verified` er sann,
+ *     eller adressen står i `verified_primary_email`/`verified_secondary_email` (valgfrie claims
+ *     fra brukerens autoritative e-post i Entra ID).
+ * Firebase-tokenet selv har ingen av disse: for microsoft.com gir det bare `email`,
+ * `email_verified` (usann fra Microsoft) og `firebase.identities`. Derfor sjekkes Microsofts
+ * ID-token rett etter innlogging. Uten bekreftelse derfra brukes lenken fra ProTop.
  * Da settes emailVerified på Firebase-kontoen, og invitasjonene virker som for andre.
  *
  * Tokenet sjekkes mot Microsofts nøkler (RS256), utsteder, mottaker (appens klient-id)
@@ -47,6 +52,11 @@ export function decodeJwt(token) {
 
 function truthy(value) {
   return value === true || value === 1 || value === 'true' || value === '1';
+}
+
+function emailList(value) {
+  const list = Array.isArray(value) ? value : [value];
+  return list.map((row) => String(row || '').trim().toLowerCase()).filter(Boolean);
 }
 
 /**
@@ -90,6 +100,8 @@ export function microsoftEmailVerdict(claims, { accountEmail = '' } = {}) {
   const consumer = String(claims?.tid || '') === MICROSOFT_CONSUMER_TENANT;
   const email = String(claims?.email || (consumer ? claims?.preferred_username : '') || '').trim().toLowerCase();
   const account = String(accountEmail || '').trim().toLowerCase();
+  const verifiedEmails = [...emailList(claims?.verified_primary_email), ...emailList(claims?.verified_secondary_email)];
+  if (account && verifiedEmails.includes(account)) return { verified: true, email: account, reason: 'verified_email' };
   if (!email) return { verified: false, email: '', reason: 'no-email' };
   if (!account || email !== account) return { verified: false, email, reason: 'other-email' };
   if (consumer) return { verified: true, email, reason: 'consumer' };

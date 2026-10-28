@@ -273,6 +273,58 @@ describe('eksisterende bruker', () => {
   });
 });
 
+describe('Microsoft-konto uten bekreftet e-post (REV-05)', () => {
+  const ms = { verified: false, provider: 'microsoft.com' };
+
+  test('invitasjon til kontoen (funnet på brukernavn) kan godtas, og medarbeideren knyttes på uid', async () => {
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ matchedBy: 'username' });
+    await db.doc(`families/${A}/employees/emp_eve`).update({ 'invite.parentKey': 'eve' });
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }, ms);
+    assert.equal(res.ok, true);
+    assert.ok((await members()).includes('eve'));
+    const emp = await data(`families/${A}/employees/emp_eve`);
+    assert.equal(emp.personUid, 'eve');
+    // Den ubekreftede adressen skrives ikke inn som invitasjonens e-post.
+    assert.equal(emp.invite.email, 'eve@firma.no');
+    const claim = await call(claimEmployeeInvite, 'eve', { familyId: A }, ms);
+    assert.equal(claim.ok, true);
+    assert.notEqual(claim.needsVerifiedEmail, true);
+  });
+
+  test('ubekreftet e-post tar ingen plass som bare passer på e-post, og invitasjonen står', async () => {
+    // Funnet på brukernavn, men medarbeiderposten er bare knyttet til e-posten.
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ matchedBy: 'username' });
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }, ms);
+    assert.deepEqual(res, { ok: false, error: 'email-not-verified' });
+    assert.equal((await data(`families/${A}/memberInvites/inv_eve`)).status, 'pending');
+    assert.ok(!(await members()).includes('eve'));
+    assert.equal((await data(`families/${A}/employees/emp_eve`)).personUid, undefined);
+  });
+
+  test('invitasjon funnet på e-post krever bekreftet e-post, og samme adresse', async () => {
+    await db.doc(`families/${A}/memberInvites/inv_eve`).update({ matchedBy: 'email' });
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }, ms);
+    assert.deepEqual(res, { ok: false, error: 'email-not-verified' });
+    // Bekreftet, men en annen adresse enn invitasjonen ble sendt til (forfalsket profil-e-post).
+    const other = await respondGroupInvite.run({
+      data: { familyId: A, inviteId: 'inv_eve', response: 'accepted' },
+      auth: { uid: 'eve', token: { email: 'angriper@gmail.com', email_verified: true } },
+      rawRequest: { headers: {}, ip: '127.0.0.1' },
+    });
+    assert.deepEqual(other, { ok: false, error: 'other-email' });
+    assert.ok(!(await members()).includes('eve'));
+    // Bekreftet med lenken fra ProTop (eller confirmMicrosoftEmail): virker.
+    const ok = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }, { provider: 'microsoft.com' });
+    assert.equal(ok.ok, true);
+  });
+
+  test('eldre invitasjon med e-post (uten matchedBy) krever fortsatt bekreftet e-post', async () => {
+    const res = await call(respondGroupInvite, 'eve', { familyId: A, inviteId: 'inv_eve', response: 'accepted' }, ms);
+    assert.deepEqual(res, { ok: false, error: 'email-not-verified' });
+    assert.equal((await data(`families/${A}/memberInvites/inv_eve`)).status, 'pending');
+  });
+});
+
 describe('invitasjon fra en som ikke er administrator', () => {
   test('«asAdmin» fra en Øverste leder gir ikke administratorrettighet', async () => {
     await seed();

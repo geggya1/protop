@@ -129,6 +129,46 @@ export function inviteFromPlaceholder({
   };
 }
 
+/** Hvordan den inviterte ble funnet. Skrives på invitasjonen av den som inviterer (matchedBy). */
+export function inviteMatchedBy(identifierKind) {
+  const kind = text(identifierKind);
+  return ['email', 'phone', 'username', 'uid'].includes(kind) ? kind : '';
+}
+
+/**
+ * Må e-posten være bekreftet for å godta? (REV-05, SEC-17)
+ * Invitasjonen gjelder alltid kontoen (inviteeUid). Bekreftet e-post trengs bare når kontoen
+ * ble funnet på e-postadressen: e-postinvitasjonen fra syncMyInvites (source 'email') eller
+ * oppslag på e-post hos den som inviterte (matchedBy 'email'). Funnet på brukernavn, telefon
+ * eller valgt direkte: ingen e-post å bekrefte. Eldre invitasjoner uten matchedBy regnes som
+ * funnet på e-post når de har en e-post.
+ */
+export function inviteNeedsVerifiedEmail(invite) {
+  const row = invite || {};
+  if (text(row.source) === 'email') return true;
+  const by = text(row.matchedBy);
+  if (by) return by === 'email';
+  return !!text(row.inviteeEmail);
+}
+
+/**
+ * Kan kontoen godta invitasjonen? trusted = bekreftet e-post (emailTrusted på serveren).
+ * Svar: { ok, error?, matchEmail }. matchEmail er e-posten serveren kan knytte plassholdere
+ * og medarbeiderposter på. Den er tom når e-posten ikke er bekreftet, så en ubekreftet
+ * adresse (for eksempel fra Microsoft, nOAuth) aldri tar en annens plass.
+ * Funnet på e-post: kontoens bekreftede e-post må være den invitasjonen ble sendt til.
+ */
+export function inviteAcceptEmailCheck({ invite, authEmail, trusted } = {}) {
+  const email = text(authEmail).toLowerCase();
+  const matchEmail = trusted && email ? email : '';
+  if (!inviteNeedsVerifiedEmail(invite)) return { ok: true, matchEmail };
+  if (!matchEmail) return { ok: false, error: 'email-not-verified', matchEmail };
+  const byEmail = text(invite?.source) === 'email' || text(invite?.matchedBy) === 'email';
+  const to = text(invite?.inviteeEmail).toLowerCase();
+  if (byEmail && to && to !== matchEmail) return { ok: false, error: 'other-email', matchEmail };
+  return { ok: true, matchEmail };
+}
+
 /** Feilkoder fra respondGroupInvite → tekst i appen. */
 export function inviteResponseMessage(code) {
   const value = text(code);
@@ -140,6 +180,12 @@ export function inviteResponseMessage(code) {
   if (value === 'revoked') return 'Invitasjonen er trukket tilbake.';
   if (value === 'no-employee') return 'Invitasjonen er trukket tilbake av bedriften. Kontakt bedriften hvis du skal inn.';
   if (value === 'email-not-verified') return 'Bekreft e-posten din før du godtar invitasjonen.';
+  if (value === 'email-verification-sent') {
+    return 'Bekreft e-posten din først. Vi har sendt en bekreftelseslenke til e-posten du er logget inn med. Trykk lenken, og godta invitasjonen på nytt.';
+  }
+  if (value === 'other-email') {
+    return 'Invitasjonen ble sendt til en annen e-postadresse enn den du er logget inn med. Logg inn med den adressen, eller be om en ny invitasjon.';
+  }
   if (value === 'bad-request') return 'Mangler invitasjon.';
   return '';
 }

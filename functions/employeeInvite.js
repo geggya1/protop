@@ -54,9 +54,11 @@ async function ensureCompanyMembership({
     parentRef.get(),
     memberRef.get(),
   ]);
+  // email er tom når den ikke er bekreftet: da skrives den ikke inn på profilen.
+  const ownEmail = email ? { email } : {};
   const userPatch = {
     uid,
-    email,
+    ...ownEmail,
     familyIds: FieldValue.arrayUnion(companyId),
     updatedAt: now,
   };
@@ -64,7 +66,7 @@ async function ensureCompanyMembership({
   await userRef.set(userPatch, { merge: true });
   const parentPatch = {
     uid,
-    email,
+    ...ownEmail,
     active: true,
     familyIds: FieldValue.arrayUnion(companyId),
     updatedAt: now,
@@ -74,7 +76,7 @@ async function ensureCompanyMembership({
   await parentRef.set(parentPatch, { merge: true });
   const memberPatch = {
     uid,
-    email,
+    ...ownEmail,
     familyId: companyId,
     active: true,
     placeholder: false,
@@ -110,21 +112,22 @@ export const claimEmployeeInvite = onCall(CALL, async (req) => {
   });
   const companySnap = await db.doc(`families/${companyId}`).get();
   if (!companySnap.exists) return { ok: true, skipped: true };
-  // Bare den som har godtatt invitasjonen, og med bekreftet e-post (email_verified, se
-  // emailTrusted), knyttes til en ansatt.
+  // Bare den som har godtatt invitasjonen knyttes til en ansatt. På e-post bare med bekreftet
+  // e-post (email_verified, se emailTrusted). Uten den gjelder bare posten invitasjonen til
+  // kontoen er knyttet til (invite.parentKey = uid), som for Microsoft-kontoer uten xms_edov (REV-05).
   if (!isConfirmedMember(companySnap.data(), uid)) return { ok: true, skipped: true, needsAccept: true };
-  if (!emailTrusted(req.auth)) return { ok: true, skipped: true, needsVerifiedEmail: true };
+  const trusted = emailTrusted(req.auth);
   const snap = await db.collection(`families/${companyId}/employees`).get();
   const employees = snap.docs.map((item) => ({ id: item.id, ...item.data() }));
   const now = new Date().toISOString();
   const plan = claimEmployeeSeatPlan({
     employees,
     uid,
-    authEmail,
+    authEmail: trusted ? authEmail : '',
     now,
     companyId,
   });
-  if (plan.skipped) return { ok: true, skipped: true };
+  if (plan.skipped) return trusted ? { ok: true, skipped: true } : { ok: true, skipped: true, needsVerifiedEmail: true };
   if (!plan.ok) throw new HttpsError('failed-precondition', plan.error);
   const employee = employees.find((row) => row.id === plan.employeeId) || null;
   const companyName = text(companySnap.data()?.company?.navn || companySnap.data()?.name) || 'Bedriften';
@@ -140,7 +143,7 @@ export const claimEmployeeInvite = onCall(CALL, async (req) => {
       'invite.status': 'accepted',
       'invite.acceptedAt': now,
       'invite.acceptedUid': uid,
-      'invite.email': authEmail,
+      'invite.email': trusted ? authEmail : text(employee.invite?.email).toLowerCase(),
       'invite.accessLevel': plan.accessLevel || '',
       'invite.error': '',
       updatedAt: now,
@@ -160,7 +163,7 @@ export const claimEmployeeInvite = onCall(CALL, async (req) => {
     });
   }
   await ensureCompanyMembership({
-    companyId, uid, email: authEmail, name, now, asAdmin,
+    companyId, uid, email: trusted ? authEmail : '', name, now, asAdmin,
   });
   return {
     ok: true,

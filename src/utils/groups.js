@@ -25,8 +25,9 @@ import {
 } from './inviteIdentifiers';
 import { setMemberPassword } from './setMemberPassword';
 import {
-  inviteExpired, inviteExpiresAt, invitePlaceholderKey, isStaleInviteCode,
+  inviteExpired, inviteExpiresAt, inviteMatchedBy, invitePlaceholderKey, isStaleInviteCode,
 } from './groupInviteLogic';
+import { sendVerificationEmailV2 } from './sendVerificationEmail';
 import { canInviteToCompany } from '../notifications/audience';
 import { companyFieldChanges } from '../project/companyFields';
 import { isOrganizationType } from './groupTypes';
@@ -581,6 +582,8 @@ export async function resendAdultInvite({ familyId, parentId, familyName, groupT
         groupType,
         deliveryEmail: email,
         deliveryPhone: phone,
+        // Samme person som sist: samme måte personen ble funnet på.
+        matchedBy: current?.matchedBy || '',
       });
     }
     // Fortsatt ventende: ny frist fra nå.
@@ -1310,6 +1313,7 @@ export async function inviteExistingAdult({
   deliveryPhone,
   email,
   phone,
+  matchedBy = '',
 }) {
   if (!familyId || !createdBy) throw new Error('missing-params');
   const family = await assertCanInviteToFamily(familyId, createdBy);
@@ -1370,9 +1374,13 @@ export async function inviteExistingAdult({
     return '';
   })();
 
+  // Hvordan personen ble funnet. Funnet på e-post må godtas med bekreftet e-post, ellers gjelder
+  // invitasjonen kontoen (REV-05). Ukjent (eldre invitasjoner) regnes som e-post på serveren.
+  const found = inviteMatchedBy(matchedBy || (identifier ? classifyInviteIdentifier(identifier).kind : ''));
   const invitePayload = {
     status: 'pending',
     inviteKind: 'existing',
+    ...(found ? { matchedBy: found } : {}),
     inviteeUid: invitee.uid,
     inviteeName: invitee.name,
     inviteeEmail: emailForDelivery || invitee.email || '',
@@ -1626,11 +1634,39 @@ async function respondOnServer({ familyId, inviteId, response }) {
   }
 }
 
+let verificationSentAt = 0;
+
+/**
+ * Serveren krever bekreftet e-post (invitasjon på e-post, REV-05). Er e-posten bekreftet i
+ * mellomtiden (lenken), hentes et nytt token. Ellers sendes bekreftelseslenken, høyst ett
+ * minutt mellom hver gang, og personen får beskjed om å trykke den og godta på nytt.
+ * Svar: true når kallet kan prøves på nytt.
+ */
+async function confirmEmailForInvite() {
+  const me = auth.currentUser;
+  if (!me?.email) return false;
+  await me.reload().catch(() => {});
+  if (auth.currentUser?.emailVerified) {
+    await auth.currentUser.getIdToken(true).catch(() => {});
+    return true;
+  }
+  if (Date.now() - verificationSentAt > 60 * 1000) {
+    await sendVerificationEmailV2(me.email);
+    verificationSentAt = Date.now();
+  }
+  throw new Error('email-verification-sent');
+}
+
 export async function acceptFamilyMemberInvite({ familyId, inviteId, uid }) {
   if (!familyId || !inviteId || !uid) throw new Error('missing-params');
   let server;
   try {
-    server = await respondOnServer({ familyId, inviteId, response: 'accepted' });
+    try {
+      server = await respondOnServer({ familyId, inviteId, response: 'accepted' });
+    } catch (err) {
+      if (err?.message !== 'email-not-verified' || !(await confirmEmailForInvite())) throw err;
+      server = await respondOnServer({ familyId, inviteId, response: 'accepted' });
+    }
   } catch (err) {
     if (isStaleInviteCode(err?.message)) await closeOwnInbox(uid, inviteId);
     throw err;

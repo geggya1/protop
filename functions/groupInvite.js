@@ -16,6 +16,7 @@ import {
 } from '../src/employees/invite.js';
 import { clientIpFromHeaders, sanitizeIp } from '../src/employees/usage.js';
 import {
+  inviteAcceptEmailCheck,
   inviteExpired,
   inviteFromPlaceholder,
   isCompanyGroupType,
@@ -126,8 +127,13 @@ async function inviterIsAdmin(familyId, family, inviterUid) {
   return isGroupAdminOf(family, inviterUid);
 }
 
-async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
-  const authEmail = authEmailOf(req);
+/**
+ * matchEmail: kontoens e-post når den er bekreftet, ellers tom (inviteAcceptEmailCheck).
+ * Plassholdere, invitasjonslisten og medarbeiderposter knyttes bare på en bekreftet e-post.
+ * Ellers gjelder bare uid-en invitasjonen er adressert til (REV-05, SEC-17).
+ */
+async function acceptInvite({ req, uid, familyId, inviteRef, invite, family, matchEmail = '' }) {
+  const authEmail = matchEmail;
   const now = new Date().toISOString();
   const company = isCompanyGroupType(family.type || invite.groupType);
   const familyName = groupLabel(family);
@@ -137,6 +143,12 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
   if (company) {
     const employees = await companyEmployees(familyId);
     seat = claimEmployeeSeatPlan({ employees, uid, authEmail, now, companyId: familyId });
+    if ((!seat.ok || seat.skipped) && !authEmail) {
+      // Medarbeideren venter bare på e-posten, og den er ikke bekreftet: invitasjonen står,
+      // og personen kan godta når e-posten er bekreftet.
+      const byEmail = claimEmployeeSeatPlan({ employees, uid, authEmail: authEmailOf(req), now, companyId: familyId });
+      if (byEmail.ok && !byEmail.skipped) return { ok: false, error: 'email-not-verified' };
+    }
     // Bedriftsinvitasjon gjelder bare så lenge en aktiv medarbeider venter på personen.
     // Er medarbeideren slettet, deaktivert eller tatt av en annen, trekkes invitasjonen tilbake.
     if (!seat.ok || seat.skipped) {
@@ -217,15 +229,17 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
     }, { merge: true });
   });
 
+  // Profilens e-post brukes til oppslag. Serveren skriver bare en bekreftet adresse dit.
+  const ownEmail = authEmail ? { email: authEmail } : {};
   batch.set(db.doc(`users/${uid}`), {
     uid,
-    email: authEmail,
+    ...ownEmail,
     familyIds: FieldValue.arrayUnion(familyId),
     updatedAt: now,
   }, { merge: true });
   batch.set(db.doc(`parents/${uid}`), {
     uid,
-    email: authEmail,
+    ...ownEmail,
     active: true,
     familyIds: FieldValue.arrayUnion(familyId),
     updatedAt: now,
@@ -258,7 +272,7 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
       'invite.status': 'accepted',
       'invite.acceptedAt': now,
       'invite.acceptedUid': uid,
-      'invite.email': authEmail,
+      'invite.email': authEmail || text(employee?.invite?.email).toLowerCase(),
       'invite.accessLevel': accessLevel,
       'invite.error': '',
       updatedAt: now,
@@ -449,9 +463,14 @@ export const respondGroupInvite = onCall(CALL, async (req) => {
     await releasePlaceholder(familyId, family, uid, 'expired', now);
     return stale('expired');
   }
-  if (response === 'accepted' && !emailTrusted(req.auth)) return { ok: false, error: 'email-not-verified' };
+  // Invitasjonen gjelder kontoen (inviteeUid). Bekreftet e-post kreves bare når kontoen ble
+  // funnet på e-post (REV-05). Ellers knyttes ingenting på den ubekreftede adressen.
+  const emailCheck = inviteAcceptEmailCheck({ invite, authEmail: authEmailOf(req), trusted: emailTrusted(req.auth) });
+  if (response === 'accepted' && !emailCheck.ok) return { ok: false, error: emailCheck.error };
 
-  const args = { req, uid, familyId, inviteRef, invite, family };
+  const args = {
+    req, uid, familyId, inviteRef, invite, family, matchEmail: emailCheck.matchEmail,
+  };
   const result = response === 'accepted' ? await acceptInvite(args) : await declineInvite(args);
   logger.info('[respondGroupInvite]', { familyId, inviteId, response, company: isCompanyGroupType(family.type) });
   return result;
@@ -460,7 +479,8 @@ export const respondGroupInvite = onCall(CALL, async (req) => {
 /**
  * Ny bruker som ble invitert på e-post: når e-posten er bekreftet, legges
  * invitasjonen i innboksen (Godta/Avslå). Ingen blir medlem her.
- * Innlogging med Google, Microsoft eller Apple regnes som bekreftet e-post.
+ * Bekreftet betyr email_verified i tokenet (emailTrusted): Google og Apple, lenken fra ProTop,
+ * eller Microsoft når Microsofts eget token bekrefter adressen (confirmMicrosoftEmail).
  */
 export const syncMyInvites = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);

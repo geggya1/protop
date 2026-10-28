@@ -1,5 +1,6 @@
 /**
- * Timelisten mot gammel kopi og manglende lasting (DRIFT-05, DRIFT-06, DRIFT-09, DRIFT-15).
+ * Timelisten mot gammel kopi og manglende lasting (DRIFT-05, DRIFT-06, DRIFT-09, DRIFT-15),
+ * og hvem som fører andres timer (DRIFT-07).
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -21,6 +22,7 @@ import {
   timesheetSaveErrorText,
 } from './timesheetGuard.js';
 import { createProject, deleteTimeEntry, emptyProjectState, upsertTimeEntry } from '../project/engine.js';
+import { allows, standardGrants } from '../access/companyAccess.js';
 
 function withHours() {
   const created = createProject(emptyProjectState(), { name: 'Hundre', number: '100' });
@@ -202,4 +204,47 @@ test('timelisten bruker fersk status, varsler om manglende lasting og viser et p
   const star = src.slice(src.indexOf('function starProject'), src.indexOf('function openAbsenceCell'));
   assert.match(star, /savePrefs\(/);
   assert.equal(/setState\(/.test(star), false);
+});
+
+// Rettighetene som lar appen føre og endre andres timer: Begrenset redigering på Andres timer
+// (timeliste, timerapport, Godkjenninger), Admin på Timerapport og Ansatte (personens timeliste og
+// timerapport), og Til fakturering/Faktura (godkjenne, legge på og frigjøre fra faktura).
+function editsOthersHours(grants) {
+  return allows(grants, 'hoursOthers', 'read')
+    || allows(grants, 'hoursReport', 'write')
+    || allows(grants, 'employees', 'write')
+    || allows(grants, 'economyBilling', 'read')
+    || allows(grants, 'economyInvoices', 'read');
+}
+
+test('DRIFT-07: reglene lar de samme føre andres timer som appen, og vanlige ansatte bare egne', () => {
+  const rules = readFileSync(new URL('../../firestore.rules', import.meta.url), 'utf8');
+  const start = rules.indexOf('function timeRights');
+  const body = rules.slice(start, rules.indexOf('\n    }\n', start));
+  for (const part of [
+    'isFamilyAdmin(familyId)', "'economyBilling', 2", "'economyInvoices', 2", "'hoursOthers', 2",
+    "'hoursReport', 3", "'employees', 3",
+  ]) {
+    assert.ok(body.includes(part), part);
+  }
+  // Egne timer: ansattposten i employeeId (personUid), før og etter endringen.
+  const block = rules.slice(rules.indexOf('match /timeEntries/{entryId}'), rules.indexOf('match /timeEntryDeletions/'));
+  assert.match(block, /ownTimeEntryByAcl\(familyId, request\.resource\.data\)/);
+  assert.match(block, /timeEntryUpdateOk\(familyId, timeRights\(familyId\)\)/);
+  assert.match(rules, /function timeEntryUpdateOk[\s\S]*?ownTimeEntry\(familyId, resource\.data\) && sameTimeEntryEmployee\(\)/);
+
+  // Appen: samme rettigheter avgjør hvem som velger person og endrer andres føringer.
+  const arbeid = readFileSync(new URL('../../screens/arbeid/ArbeidScreen.jsx', import.meta.url), 'utf8');
+  assert.match(arbeid, /access\.canEdit\('hoursOthers'\)/);
+  const report = readFileSync(new URL('../../screens/economy/EconomyHours.jsx', import.meta.url), 'utf8');
+  assert.match(report, /access\.canAdmin\('hoursReport'\) \? 'admin'/);
+  const staff = readFileSync(new URL('../../screens/employees/EmployeesScreen.jsx', import.meta.url), 'utf8');
+  assert.match(staff, /const employeesAdmin = access\.ready && access\.canAdmin\('employees'\)/);
+
+  for (const id of ['ansatt', 'tilbud', 'ansatt_andre_avdelinger', 'innleie_ekstern', 'regnskap_ekstern']) {
+    assert.equal(editsOthersHours(standardGrants(id)), false, id);
+  }
+  for (const id of ['avdelingsleder', 'leder', 'hr_ansvarlig', 'administrator']) {
+    assert.equal(editsOthersHours(standardGrants(id)), true, id);
+  }
 });

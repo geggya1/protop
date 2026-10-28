@@ -45,6 +45,16 @@ test('lookupFriendProfile bruker grensene og det slanke svaret', () => {
   assert.doesNotMatch(src, /photoURL|avatarId|usernameLower/);
 });
 
+test('SEC-25: telefonoppslaget treffer bare et nummer kontoen har bekreftet med SMS', () => {
+  const src = readFileSync(new URL('./friendLookup.js', import.meta.url), 'utf8');
+  const phone = src.slice(src.indexOf('if (looksLikePhone) {'), src.indexOf("const u = identifier.toLowerCase()"));
+  assert.match(phone, /findVerifiedPhoneUid\(phoneCandidates, adminAuth\)/);
+  // users.phone, parents.phone og children.phone skriver brukeren (eller en foresatt) selv.
+  assert.doesNotMatch(src, /where\('phone'/);
+  // Svaret er bare uid, som før.
+  assert.match(phone, /publicFriendProfile\(uid, \{\}\)/);
+});
+
 test('appen sier fra når grensen er nådd, i stedet for å invitere personen som ny', () => {
   const src = readFileSync(new URL('../src/utils/friends.js', import.meta.url), 'utf8');
   const fn = src.slice(src.indexOf('export async function findExistingUserForFriend'), src.indexOf('export async function inviteExistingFriend'));

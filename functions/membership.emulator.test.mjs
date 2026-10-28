@@ -19,6 +19,7 @@ const { getFirestore } = await import('firebase-admin/firestore');
 const { assertCompanyAccess, assertFamilyAdmin, assertFamilyMember } = await import('./security.js');
 const { syncCompany } = await import('./companyAccessSync.js');
 const { lookupAdultProfile, writeMemberPasswordCopies } = await import('./authCallables.js');
+const { lookupFriendProfile } = await import('./friendLookup.js');
 const { listMyFamilies } = await import('./joinCallables.js');
 
 const db = getFirestore();
@@ -233,4 +234,24 @@ test('REV-22: telefonoppslaget treffer ikke en konto som bare har skrevet nummer
   // Oppslag på e-post og brukernavn er som før.
   await db.doc('users/kari').set({ email: 'kari@firma.no', displayName: 'Kari' });
   assert.equal((await lookup('adm', { identifier: 'kari@firma.no', familyId: A })).profile.uid, 'kari');
+});
+
+test('SEC-25: venneoppslaget på telefon treffer ikke en konto som bare har skrevet nummeret i profilen', async () => {
+  const lookup = (uid, data) => lookupFriendProfile.run({
+    data, auth: { uid, token: { email: `${uid}@firma.no`, email_verified: true } }, rawRequest: { headers: {}, ip: '127.0.0.1' },
+  });
+  // Angriperen har ført opp Karis nummer i sin egen profil, og et barn har det i barneprofilen.
+  await db.doc('users/mal').set({ phone: '+4799999999', displayName: 'Ikke Kari' }, { merge: true });
+  await db.doc('parents/mal').set({ phone: '+4799999999' }, { merge: true });
+  await db.doc('children/barn').set({ uid: 'barn', phone: '99999999' });
+  for (const identifier of ['99999999', '+47 999 99 999', '4799999999', '+4799999999']) {
+    const res = await lookup('bob', { identifier });
+    assert.equal(res.ok, true, identifier);
+    assert.equal(res.profile, null, identifier);
+  }
+  // Oppslag på e-post og brukernavn er som før.
+  await db.doc('users/kari').set({ email: 'kari@firma.no', displayName: 'Kari' });
+  assert.equal((await lookup('bob', { identifier: 'kari@firma.no' })).profile.uid, 'kari');
+  await db.doc('usernames/kari').set({ uid: 'kari', username: 'kari' });
+  assert.equal((await lookup('bob', { identifier: '@kari' })).profile.uid, 'kari');
 });

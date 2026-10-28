@@ -1,8 +1,8 @@
 /**
  * Faktura, kreditnota og timespesifikasjon som PDF (A4), uten eksterne biblioteker.
  * Innholdet følger bokføringsforskriften § 5-1-1: nummer og dato, partene, ytelsen,
- * leveringsperiode (ellers fakturadatoen som leveringsdato), vederlag, forfall og mva i NOK,
- * og «Foretaksregisteret» i bunnen.
+ * leveringsperiode (ellers fakturadatoen som leveringsdato), vederlag, forfall og mva i fakturaens
+ * valuta (NOK som standard), «Omvendt avgiftsplikt» når det gjelder, og «Foretaksregisteret» i bunnen.
  */
 import { pdfDocument, pdfEscape } from '../indeksregulering/office.js';
 import { fitLogoBox, logoForDocument } from '../project/companyLogo.js';
@@ -10,6 +10,7 @@ import { formatDate, text } from './invoices.js';
 import { periodLabel, sectionsOf, totalsFromLines } from './invoiceLines.js';
 import { isCreditNote, isDraftInvoice, paidAmountOf } from './invoiceFlow.js';
 import { supplierLegalLine } from './ehf.js';
+import { isReverseChargeCode } from './vat.js';
 
 const PAGE_W = 595;
 const PAGE_H = 842;
@@ -92,6 +93,7 @@ const LABELS = {
     amount: 'Beløp',
     total: 'Totalt',
     reverse: 'Merverdiavgift er ikke beregnet.',
+    reverseCharge: 'Omvendt avgiftsplikt. Kjøperen beregner og betaler merverdiavgiften (mval. § 11-1).',
   },
   en: {
     invoice: 'INVOICE',
@@ -149,6 +151,7 @@ const LABELS = {
     amount: 'Amount',
     total: 'Total',
     reverse: 'VAT has not been charged.',
+    reverseCharge: 'Omvendt avgiftsplikt (reverse charge). The buyer accounts for and pays the VAT (Norwegian VAT Act § 11-1).',
   },
 };
 LABELS.nn = {
@@ -159,14 +162,25 @@ LABELS.nn = {
   toPay: 'Å betale NOK',
   rest: 'Att å betale NOK',
   reverse: 'Meirverdiavgift er ikkje rekna ut.',
+  reverseCharge: 'Omvendt avgiftsplikt. Kjøparen reknar ut og betaler meirverdiavgifta (mval. § 11-1).',
 };
 
 const SECTION_LABELS = {
   en: { hours: 'Hours', fixed: 'Fixed price and agreements', expenses: 'Re-invoiced expenses', outlays: 'Outlays on behalf of the customer (no VAT)', trips: 'Mileage', products: 'Products', admin: 'Admin costs', other: 'Other' },
 };
 
-function labelsFor(language) {
-  return LABELS[language] || LABELS.nb;
+/**
+ * Etikettene for språket. Beløpene står i fakturaens valuta (L-34): «NOK» i etikettene
+ * byttes med valutakoden når fakturaen har en annen valuta.
+ */
+function labelsFor(language, currency = 'NOK') {
+  const labels = LABELS[language] || LABELS.nb;
+  const code = text(currency).toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code) || code === 'NOK') return labels;
+  return Object.fromEntries(Object.entries(labels).map(([key, value]) => [
+    key,
+    typeof value === 'string' ? value.replace(/ NOK$/, ` ${code}`) : value,
+  ]));
 }
 
 export function textWidth(value, size, bold = false) {
@@ -418,6 +432,14 @@ function drawTotals(page, invoice, labels, totals) {
     page.text(labels.reverse, LEFT, page.y, 8);
     page.y += 12;
   }
+  // Påskriften er påkrevd når en linje har omvendt avgiftsplikt, også sammen med linjer med mva.
+  if ((totals.groups || []).some((group) => isReverseChargeCode(group.vatCode) && Math.abs(group.taxableAmount) >= 0.005)) {
+    wrap(labels.reverseCharge, RIGHT - LEFT, 8, true).forEach((row) => {
+      page.text(row, LEFT, page.y, 8, true);
+      page.y += 10;
+    });
+    page.y += 2;
+  }
 }
 
 function bold(rows) {
@@ -503,7 +525,7 @@ function finish(pages, { supplier, labels, invoice }) {
 
 /** Sidene til fakturaen som PDF-strømmer (brukes også i «Faktura med timespesifikasjoner»). */
 export function invoicePageStreams(invoice, { supplier = {}, logo = null, originalDate = '' } = {}) {
-  const labels = labelsFor(invoice?.language);
+  const labels = labelsFor(invoice?.language, invoice?.currency);
   const totals = totalsFromLines(invoice?.lines || []);
   const doc = invoice?.lines?.length ? invoice : { ...invoice, lines: [] };
   const page = pageWriter({
@@ -525,7 +547,7 @@ export function invoicePageStreams(invoice, { supplier = {}, logo = null, origin
  * show styrer kolonnene (timeSpecShow* i innstillingene).
  */
 export function timeSpecPageStreams(invoice, entries = [], { supplier = {}, settings = {} } = {}) {
-  const labels = labelsFor(invoice?.language);
+  const labels = labelsFor(invoice?.language, invoice?.currency);
   const show = {
     employee: settings.timeSpecShowEmployee !== false,
     activity: settings.timeSpecShowActivity !== false,

@@ -1,11 +1,13 @@
 /**
  * Påbudt innhold i salgsdokumentet (bokføringsforskriften § 5-1-1 og foretaksregisterloven § 10-2):
  * selgers navn, adresse og org.nr. (med «MVA» bare når selskapet står i Merverdiavgiftsregisteret),
- * kjøpers navn og adresse, leveringsdato eller -periode, beskrivelse av ytelsen, beløp, mva og forfall.
+ * kjøpers navn og adresse, leveringsdato eller -periode, beskrivelse av ytelsen, beløp, mva og forfall,
+ * og ved omvendt avgiftsplikt kjøpers org.nr.
  * Rene kontroller. issueChecks viser dem før ferdigstilling, og issueInvoice stopper på dem.
  */
 import { parseDate, text } from './invoices.js';
 import { normalizeLines, totalsFromLines } from './invoiceLines.js';
+import { hasReverseCharge } from './vat.js';
 
 function isCredit(invoice) {
   return invoice?.kind === 'credit_note' || !!text(invoice?.creditNoteForId);
@@ -90,6 +92,13 @@ export function invoiceContentChecks(invoice, { supplier = null, mode = 'protop'
     add(warnings, 'period', 'Leveringsperioden mangler. Fakturadatoen står som leveringsdato på fakturaen.', 'lines');
   }
 
+  // Omvendt avgiftsplikt (mval. § 11-1): bare salg til næringsdrivende. Kjøpers org.nr. skal stå
+  // på fakturaen, og selgeren må være mva-registrert. Påskriften settes på PDF og EHF.
+  const reverse = hasReverseCharge(lines);
+  if (reverse && text(row.orgnr).replace(/\D/g, '').length !== 9) {
+    add(blocking, 'reverseBuyer', 'Omvendt avgiftsplikt gjelder bare salg til næringsdrivende. Kunden må ha org.nr. (9 siffer).', 'orgnr');
+  }
+
   // Selger: navn, adresse, org.nr. og mva-registrering.
   if (mode === 'protop' && supplier) {
     const digits = text(supplier.orgnr).replace(/\D/g, '');
@@ -106,6 +115,11 @@ export function invoiceContentChecks(invoice, { supplier = null, mode = 'protop'
       // Eldre selskaper har ikke hentet registreringen. Fakturaen merkes «MVA» som før,
       // men brukeren bes bekrefte, så merkingen stemmer med Merverdiavgiftsregisteret.
       add(warnings, 'supplierVat', 'Det er ikke bekreftet at bedriften står i Merverdiavgiftsregisteret. Org.nr. merkes «MVA» fordi fakturaen har mva. Trykk «Hent på nytt fra Brønnøysund» under Selskap for å bekrefte.', 'supplier');
+    }
+    if (reverse && vatStatus === false) {
+      add(blocking, 'reverseSupplier', 'Omvendt avgiftsplikt krever at bedriften står i Merverdiavgiftsregisteret. Bruk en annen mva-kode, eller oppdater registreringen under Selskap.', 'supplier');
+    } else if (reverse && vatStatus === null && Math.abs(totals.vat) < 0.005) {
+      add(warnings, 'reverseSupplier', 'Det er ikke bekreftet at bedriften står i Merverdiavgiftsregisteret, som omvendt avgiftsplikt krever. Trykk «Hent på nytt fra Brønnøysund» under Selskap for å bekrefte.', 'supplier');
     }
   }
   return { blocking, warnings };

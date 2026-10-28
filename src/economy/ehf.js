@@ -4,7 +4,7 @@
  * Ref: https://anskaffelser.dev/postaward/g3/spec/current/billing-3.0/norway/
  */
 
-import { vatCodeById } from './vat.js';
+import { REVERSE_CHARGE_TEXT, vatCodeById } from './vat.js';
 import { totalsFromLines } from './invoiceLines.js';
 import { text } from './invoices.js';
 
@@ -120,10 +120,15 @@ const EXEMPTION_REASONS = {
   O: 'Utenfor merverdiavgiftsloven',
 };
 
-function categoryXml(cat, percent) {
-  const reason = EXEMPTION_REASONS[cat];
+// Omvendt avgiftsplikt (AE): fritakskode og påskrift i mva-oppsummeringen (BR-AE-10), ikke på linjene.
+const AE_REASON_CODE = 'VATEX-EU-AE';
+
+function categoryXml(cat, percent, { line = false } = {}) {
+  const reverse = cat === 'AE' && !line;
+  const reason = reverse ? REVERSE_CHARGE_TEXT : EXEMPTION_REASONS[cat];
   return `<cbc:ID>${esc(cat)}</cbc:ID>${cat === 'O' ? '' : `
-        <cbc:Percent>${money(percent)}</cbc:Percent>`}${reason ? `
+        <cbc:Percent>${money(percent)}</cbc:Percent>`}${reverse ? `
+        <cbc:TaxExemptionReasonCode>${AE_REASON_CODE}</cbc:TaxExemptionReasonCode>` : ''}${reason ? `
         <cbc:TaxExemptionReason>${esc(reason)}</cbc:TaxExemptionReason>` : ''}
         <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>`;
 }
@@ -310,7 +315,7 @@ export function buildEhfXml(invoice, { supplier = {}, attachments = [] } = {}) {
     <cac:Item>
       <cbc:Name>${esc(text(line.description).slice(0, 200) || 'Linje')}</cbc:Name>
       <cac:ClassifiedTaxCategory>
-        ${categoryXml(cat, percent)}
+        ${categoryXml(cat, percent, { line: true })}
       </cac:ClassifiedTaxCategory>
     </cac:Item>
     <cac:Price>
@@ -328,6 +333,14 @@ export function buildEhfXml(invoice, { supplier = {}, attachments = [] } = {}) {
   // Uten periode er fakturadatoen leveringsdato, som på PDF-en (bokføringsforskriften § 5-1-1).
   const deliveryDate = text(invoice.periodEnd) || text(invoice.periodStart) || (credit ? '' : issueDate);
   const supplierVat = supplier.vatRegistered === true && !vatOutside ? `NO${supplierOrgnr}MVA` : '';
+  // Omvendt avgiftsplikt: selgers mva-nummer og kjøpers org.nr. må stå i fila (BR-AE-02).
+  const reverse = [...breakdown.values()].some((g) => g.category === 'AE');
+  if (reverse && !supplierVat) {
+    return { ok: false, error: 'Omvendt avgiftsplikt krever at bedriften står i Merverdiavgiftsregisteret (MVA-nummer i EHF).', xml: '' };
+  }
+  if (reverse && customerOrgnr.length !== 9) {
+    return { ok: false, error: 'Omvendt avgiftsplikt krever kundens org.nr. (9 siffer).', xml: '' };
+  }
   const notes = [text(invoice.invoiceText), credit && text(invoice.creditReason) ? `Årsak: ${text(invoice.creditReason)}` : '']
     .filter(Boolean)
     .map((note) => `

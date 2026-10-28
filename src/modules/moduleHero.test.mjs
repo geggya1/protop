@@ -314,10 +314,9 @@ const COMPANY_PAGES = [
 for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.equal(companyHeroId(tab, sub), id, `${tab}/${sub || ''}`);
   assert.equal(shellHeroModuleId(tab, sub), id, `${id} shell heading`);
-  // Båndet bare på modulens startside. Undersider får kompakt tittelrad (UX-25).
-  const start = isModuleStartPage(tab, sub);
-  assert.equal(shellHeroCompact(tab, sub), !start, `${tab}/${sub || ''} kompakt på underside`);
-  assert.equal(phoneChromeHeroId(tab, sub, true), start ? id : null, `${id} phone chrome heading`);
+  // Samme bånd med bilde på startsiden og alle undersider (eierens valg).
+  assert.equal(shellHeroCompact(tab, sub), false, `${tab}/${sub || ''} har båndet`);
+  assert.equal(phoneChromeHeroId(tab, sub, true), id, `${id} phone chrome heading`);
   assert.equal(phoneChromeHeroId(tab, sub, false), null, `${id} tablet/web keeps content-band heading`);
   const hero = resolveModuleHero(id, 'nb');
   const en = resolveModuleHero(id, 'en');
@@ -328,10 +327,11 @@ for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.ok(COMPANY_HERO[id], `${id} company hero`);
 }
 assert.equal(shellHeroCompact('arbeid', 'timeliste'), false, 'Timeliste er startsiden i Timer');
-assert.equal(shellHeroCompact('arbeid', 'godkjenning'), true, 'Godkjenninger er en underside');
+assert.equal(shellHeroCompact('arbeid', 'godkjenning'), false, 'Godkjenninger har samme bånd som startsiden');
 assert.equal(shellHeroCompact('okonomi', 'oversikt'), false);
-assert.equal(shellHeroCompact('okonomi', 'fakturagrunnlag'), true);
-assert.equal(shellHeroCompact('hr', 'lonn'), true);
+assert.equal(shellHeroCompact('okonomi', 'fakturagrunnlag'), false);
+assert.equal(shellHeroCompact('hr', 'lonn'), false);
+assert.equal(shellHeroCompact('anbud', 'foresporsel'), false, '1.2 Anbudsforespørsel har samme bånd som Anbudsvarsling');
 assert.equal(shellHeroCompact('kunder'), false);
 assert.equal(shellHeroCompact('stars'), false, 'personlige sider beholder båndet');
 assert.equal(shellHeroCompact('home'), false, 'Hjem har ikke bånd');

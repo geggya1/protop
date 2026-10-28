@@ -9,7 +9,6 @@ import { localizeModuleFields } from '../i18n/moduleCatalog.js';
 import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
 import { GROUP_PALETTE } from './groupPalette.js';
 import { PROTOP_PRODUCT_MODULE_IDS } from '../navigation/protopShell.js';
-import { isModuleStartPage } from '../navigation/navTrail.js';
 
 const t = (nb, en) => ({ nb, en });
 
@@ -347,14 +346,12 @@ export function shellHeroModuleId(tab, moreSubView = null) {
 }
 
 /**
- * Båndet med illustrasjon og salgstekst vises bare på modulens startside.
- * Undersider (Godkjenninger, Til fakturering, Lønn …) får en kompakt tittelrad
- * med brødsmule, så innholdet starter høyere opp. Personlige sider har ingen
- * undersider og beholder båndet.
+ * Alle sider, også undersidene (1.2 Anbudsforespørsel, Godkjenninger, Lønn …), har
+ * det samme båndet med illustrasjon som modulens startside. Eierens valg: samme
+ * hode på alle sider. Den kompakte tittelraden (ModuleTitleRow) brukes ikke lenger.
  */
-export function shellHeroCompact(tab, moreSubView = null) {
-  if (!shellHeroModuleId(tab, moreSubView)) return false;
-  return !isModuleStartPage(tab, moreSubView);
+export function shellHeroCompact() {
+  return false;
 }
 
 /**

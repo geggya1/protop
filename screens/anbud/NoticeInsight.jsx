@@ -3,6 +3,7 @@ import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { applyAwardContext, applyNoticeReading, awardContextFromHits, qualifyNotice } from '../../src/anbud/desk.js';
 import { askNoticeRemote, qualifyNoticeRemote, readNoticeDocuments } from '../../src/anbud/deskClient';
 import { fetchCompetitionFile, fetchTenderHits } from '../../src/anbud/doffinClient';
+import { formatDate, formatDateTime } from '../../src/format/nb';
 
 export default function NoticeInsight({ notice, state, colors, onCommit }) {
   const [busy, setBusy] = useState('');
@@ -100,12 +101,12 @@ export default function NoticeInsight({ notice, state, colors, onCommit }) {
       ))}
       {updates.map((row) => (
         <Text key={row.at} style={{ color: colors.ink }}>
-          Endring {String(row.at || '').slice(0, 16)}: {(row.changes || []).map((change) => change.label).join(', ')}
+          Endring {formatDateTime(row.at)}: {(row.changes || []).map((change) => change.label).join(', ')}
         </Text>
       ))}
       {award ? (
         <Text style={{ color: colors.ink }}>
-          Forrige tildeling: {award.winner || award.title} {award.publishedAt ? `· ${award.publishedAt.slice(0, 10)}` : ''}. {award.note}
+          Forrige tildeling: {award.winner || award.title} {award.publishedAt ? `· ${formatDate(award.publishedAt)}` : ''}. {award.note}
         </Text>
       ) : null}
       {(notice.qualification || []).map((row) => (

@@ -14,6 +14,7 @@ import SaleStatusBadge from '../../components/sales/SaleStatusBadge';
 import { formatMoney } from '../../src/economy/invoices.js';
 import { SALE_STATUSES } from '../../src/economy/products.js';
 import { saleIsLocked, saleProjectLabel, saleTotals } from '../../src/economy/productSalesView.js';
+import { formatDate } from '../../src/format/nb';
 
 // flex: kolonnen tar resten av bredden, med width som minste bredde.
 const COLUMNS = [
@@ -89,7 +90,7 @@ function SaleRow({ row, colors, onOpen, onOpenProject }) {
     <Pressable
       onPress={() => onOpen?.(row)}
       accessibilityRole="button"
-      accessibilityLabel={`Åpne salg ${row.name} ${row.date}`}
+      accessibilityLabel={`Åpne salg ${row.name} ${formatDate(row.date, { empty: '' })}`}
       nativeID={`produktsalg-row-${row.id}`}
       style={({ hovered }) => [
         styles.line,
@@ -97,7 +98,7 @@ function SaleRow({ row, colors, onOpen, onOpenProject }) {
         hovered ? { backgroundColor: colors.sunken || colors.bg } : null,
       ]}
     >
-      <Text style={[styles.cell, cellBox(COLUMNS[0]), { color: colors.ink }]}>{dash(row.date)}</Text>
+      <Text style={[styles.cell, cellBox(COLUMNS[0]), { color: colors.ink }]}>{formatDate(row.date, { empty: '—' })}</Text>
       <View style={[styles.cell, cellBox(COLUMNS[1])]}>
         <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }} numberOfLines={1}>{row.name}</Text>
         {row.sku ? <Text style={{ color: colors.muted, fontSize: 12 }}>{row.sku}</Text> : null}
@@ -137,7 +138,7 @@ function SaleCard({ row, colors, onOpen }) {
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ color: colors.ink, fontWeight: '600' }} numberOfLines={1}>{row.name}</Text>
         <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>
-          {[row.date, row.customerName].filter(Boolean).join(' · ')}
+          {[formatDate(row.date, { empty: '' }), row.customerName].filter(Boolean).join(' · ')}
         </Text>
         {project ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{project}</Text> : null}
       </View>

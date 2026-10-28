@@ -24,6 +24,7 @@ import {
 import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
+import { formatDate } from '../../src/format/nb';
 
 // «Kan logge inn» er ikke et eget valg: innlogging følger kobling og om ansettelsen er aktiv.
 const CHECKS = [
@@ -55,7 +56,7 @@ export default function EmployeeWorkViews({
         <Text style={[styles.title, { color: colors.ink }]}>Filer</Text>
         {files.map((row) => (
           <Text key={row.id} style={{ color: colors.ink, paddingVertical: 6 }}>
-            {row.date} · {row.receiptName || row.description}
+            {formatDate(row.date)} · {row.receiptName || row.description}
           </Text>
         ))}
         {!files.length ? <Text style={{ color: colors.muted }}>Ingen kvitteringer er knyttet til utlegg ennå.</Text> : null}

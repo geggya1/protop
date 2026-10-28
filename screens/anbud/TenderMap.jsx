@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mapsUrl } from '../../src/utils/locationMaps';
 import { nextMapPinIndex } from '../../src/anbud/noticePlace';
 import { tenderMapDocument } from '../../src/anbud/tenderMapHtml';
+import { dateText } from '../../src/format/nb';
 
 export default function TenderMap({
   pins = [],
@@ -272,7 +273,7 @@ export default function TenderMap({
             <Text style={{ color: colors.brand, fontWeight: '700' }} numberOfLines={compact ? 2 : undefined}>{current.title}</Text>
           </TouchableOpacity>
           {current.buyer ? <Text style={{ color: colors.ink, fontSize: 12 }}>{current.buyer}</Text> : null}
-          {current.deadline ? <Text style={{ color: colors.muted, fontSize: 12 }}>Frist {current.deadline}</Text> : null}
+          {current.deadline ? <Text style={{ color: colors.muted, fontSize: 12 }}>Frist {dateText(current.deadline)}</Text> : null}
           <View style={styles.nav}>
             <TouchableOpacity onPress={() => step(-1)} accessibilityRole="button" accessibilityLabel="Forrige sted" style={[styles.navBtn, { backgroundColor: colors.card }]}>
               <Text style={{ color: colors.ink }}>Forrige</Text>

@@ -18,6 +18,7 @@ import { searchPlaces } from '../../src/utils/location';
 import { alertPhotoError, pickImage, uploadImage } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import MileageWizard from '../../screens/economy/MileageWizard';
+import { formatDate } from '../../src/format/nb';
 
 /**
  * Prosjektinnstillinger: bilde, datoer, adresse, kjøreturer, timeføring.
@@ -290,7 +291,7 @@ export default function ProjectSettingsTab({
           <View key={row.id} style={[styles.trip, { borderColor: colors.line }]}>
             <TouchableOpacity onPress={() => setEditingTrip(row)} style={{ flex: 1 }}>
               <Text style={{ color: colors.ink, fontSize: 13 }}>
-                {row.date} · {row.from} → {row.to} · {row.km} km · {formatMoney(row.amount)}
+                {formatDate(row.date)} · {row.from} → {row.to} · {row.km} km · {formatMoney(row.amount)}
               </Text>
             </TouchableOpacity>
             {isAdmin ? (

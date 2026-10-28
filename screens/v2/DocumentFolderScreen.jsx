@@ -30,6 +30,7 @@ import {
   isImageFile, emptyBilag, formatBilagAmount, filterDocumentFiles, sortFilesForDocumentList,
   isReceiptFile,
 } from '../../src/utils/familyDocuments';
+import { dateText } from '../../src/format/nb';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -230,7 +231,7 @@ export default function DocumentFolderScreen({
       });
       const nextBilag = emptyBilag({ ...bilag, ocrStatus: 'done' });
       const displayName = nextBilag.supplier
-        ? `${nextBilag.supplier}${nextBilag.date ? ` ${nextBilag.date}` : ''}`
+        ? `${nextBilag.supplier}${nextBilag.date ? ` ${dateText(nextBilag.date)}` : ''}`
         : fileMeta.name;
       await updateFolderFile(familyId, folderId, fileMeta.id, {
         kind: 'receipt',

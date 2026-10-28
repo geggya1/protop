@@ -13,6 +13,7 @@ import {
   uploadEmployeeFile,
 } from '../../src/employees/employeeFiles';
 import { folderChildren, folderTrail, formatEntrySize } from '../../src/employees/employeeFilesModel';
+import { formatDate } from '../../src/format/nb';
 
 /**
  * Filer på ansattsiden. Mapper, opplasting og navneendring for den som kan
@@ -222,7 +223,7 @@ export default function EmployeeFilesView({
           <Text style={[styles.sub, { color: colors.ink }]}>Kvitteringer fra utlegg</Text>
           {receipts.map((row) => (
             <Text key={row.id} style={{ color: colors.ink, paddingVertical: 4 }}>
-              {row.date} · {row.receiptName || row.description}
+              {formatDate(row.date)} · {row.receiptName || row.description}
             </Text>
           ))}
         </>

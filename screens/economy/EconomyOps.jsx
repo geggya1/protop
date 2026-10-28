@@ -49,6 +49,7 @@ import {
   upsertExpense,
 } from '../../src/economy/opsState.js';
 import MileageWizard from './MileageWizard';
+import { formatDate } from '../../src/format/nb';
 
 const TRIP_COLUMNS = [
   { key: 'date', label: 'Dato', width: 96 },
@@ -145,8 +146,8 @@ function TripReport({ trips, colors, onOpen, onDelete, onApprove, pendingId }) {
               onDelete={onDelete}
               onApprove={onApprove}
             >
-              <TouchableOpacity onPress={() => onOpen(row)} accessibilityRole="button" accessibilityLabel={`Åpne tur ${row.date}`}>
-                <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }}>{row.date} · {formatMoney(row.amount)}</Text>
+              <TouchableOpacity onPress={() => onOpen(row)} accessibilityRole="button" accessibilityLabel={`Åpne tur ${formatDate(row.date)}`}>
+                <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }}>{formatDate(row.date)} · {formatMoney(row.amount)}</Text>
                 <Text style={{ color: colors.ink, fontSize: 13 }}>{row.from || '—'} → {row.to || '—'}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   {[row.employeeName, row.vehicleName, `${row.km || 0} km`].filter(Boolean).join(' · ')}

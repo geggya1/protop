@@ -13,6 +13,7 @@ import {
   setFullDayHours,
   upsertRedDay,
 } from '../../src/arbeid/timesheetState.js';
+import { formatDate } from '../../src/format/nb';
 
 /** Røde dager og normaldag for selskapet. Lagres i prosjektstate sammen med timelisten. */
 export default function CompanyCalendarSettings({ familyId, colors: colorsProp, canEdit }) {
@@ -137,7 +138,7 @@ export default function CompanyCalendarSettings({ familyId, colors: colorsProp, 
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
       {rows.map((row) => (
         <View key={row.id} style={[styles.day, { borderBottomColor: colors.line }]}>
-          <Text style={{ color: colors.ink, flex: 1 }}>{row.date} · {row.name} · {row.portion === 'half' ? 'halv' : 'hel'}</Text>
+          <Text style={{ color: colors.ink, flex: 1 }}>{formatDate(row.date)} · {row.name} · {row.portion === 'half' ? 'halv' : 'hel'}</Text>
           {canEdit ? (
             <TouchableOpacity onPress={() => commit(deleteRedDay(state, row.id), 'Dagen er fjernet.')} accessibilityLabel={`Fjern ${row.name}`}>
               <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>

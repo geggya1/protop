@@ -527,7 +527,7 @@ export default function ProjectDetail({
             </View>
             {reportEntries.map((row) => (
               <View key={row.id} style={[styles.tableRow, { borderColor: colors.line }]}>
-                <Text style={[styles.td, { color: colors.ink }]}>{row.date}</Text>
+                <Text style={[styles.td, { color: colors.ink }]}>{formatDate(row.date)}</Text>
                 <Text style={[styles.td, { color: colors.ink }]} numberOfLines={1}>{row.employeeName}</Text>
                 <Text style={[styles.td, { color: colors.muted }]} numberOfLines={1}>{row.activityName}</Text>
                 <Text style={[styles.td, { color: colors.ink, flex: 1.4 }]} numberOfLines={2}>{row.description || '—'}</Text>
@@ -540,7 +540,7 @@ export default function ProjectDetail({
                     <TouchableOpacity
                       onPress={() => approveEntry(row.id)}
                       accessibilityRole="button"
-                      accessibilityLabel={`Godkjenn timene ${row.date} for ${row.employeeName || 'den ansatte'}`}
+                      accessibilityLabel={`Godkjenn timene ${formatDate(row.date)} for ${row.employeeName || 'den ansatte'}`}
                     >
                       <Ionicons name="ellipse-outline" size={18} color={colors.muted} />
                     </TouchableOpacity>

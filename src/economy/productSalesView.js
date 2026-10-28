@@ -4,6 +4,7 @@
  * og salg uten ansatt.
  */
 import { normalizeSale, SALE_STATUSES } from './products.js';
+import { formatDate } from '../format/nb.js';
 
 export function saleStatusLabel(status) {
   return SALE_STATUSES.find((row) => row.id === status)?.label || 'Utkast';
@@ -62,6 +63,8 @@ export function filterProductSales(rows = [], query = '', status = '', { project
     if (!q) return true;
     const hay = [
       row.date,
+      // Datoen vises som 16.10.2026, så den skal også kunne søkes slik (UX-14).
+      formatDate(row.date, { empty: '' }),
       row.name,
       row.sku,
       row.customerName,

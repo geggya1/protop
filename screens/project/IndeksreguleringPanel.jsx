@@ -24,6 +24,7 @@ import { companyLogoOf } from '../../src/project/companyLogo';
 import CompanyLogoChoice from '../../components/CompanyLogoChoice';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 import { AI_OFF_MESSAGE } from '../../src/privacy/companyPrivacy';
+import { formatDate } from '../../src/format/nb';
 
 const PAGES = [
   ['forside', 'Fremside'],
@@ -1102,7 +1103,7 @@ export default function IndeksreguleringPanel({
         <View key={row.id} style={[styles.card, { borderColor: row.id === caseId ? colors.brand : colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink }}>{row.title || 'Indeksregulering'}</Text>
           <Text style={{ color: colors.muted }}>
-            {String(row.savedAt || '').slice(0, 10)}
+            {formatDate(row.savedAt, { empty: '' })}
             {row.regulatedPeriod ? ` · ${row.regulatedPeriod}` : ''}
             {' · '}tillegg {formatMoney(row.addition)} kr
             {row.letterPlain ? ' · brev lagret' : ''}

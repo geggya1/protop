@@ -56,6 +56,7 @@ import { useLayout } from '../../src/theme';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 import { feeClassFromSignals, feeClassLabel, VEHICLE_FEE_CLASSES } from '../../src/mileage/vehicleFee';
+import { dateText } from '../../src/format/nb';
 
 const WEEKDAYS = ['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'];
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
@@ -516,7 +517,7 @@ export default function EquipmentScreen() {
         </Text>
         {row.warrantyUntil ? (
           <Text style={{ color: colors.ink, fontSize: 12 }}>
-            Garanti til {row.warrantyUntil}{row.warrantyVendor ? ` · ${row.warrantyVendor}` : ''}
+            Garanti til {dateText(row.warrantyUntil)}{row.warrantyVendor ? ` · ${row.warrantyVendor}` : ''}
           </Text>
         ) : null}
         {row.scope !== 'private' ? (

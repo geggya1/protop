@@ -60,6 +60,7 @@ import { suggestDriving } from '../../src/mileage/suggestRoute';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
 import { getDeviceLocation, reverseGeocode, searchPlaces } from '../../src/utils/location';
 import MileageRouteMap from '../../components/mileage/MileageRouteMap';
+import { formatDate } from '../../src/format/nb';
 
 const STEPS = [
   { id: 'prosjekt', label: 'Prosjekt' },
@@ -1471,7 +1472,7 @@ export default function MileageWizard({
           <View style={[styles.reviewBlock, { borderColor: colors.line }]}>
             <View style={styles.calcRow}>
               <Text style={{ color: colors.muted, fontSize: 13 }}>Dato</Text>
-              <Text style={{ color: colors.ink, fontSize: 14 }}>{draft.date}</Text>
+              <Text style={{ color: colors.ink, fontSize: 14 }}>{formatDate(draft.date)}</Text>
             </View>
             <View style={styles.calcRow}>
               <Text style={{ color: colors.muted, fontSize: 13 }}>Person</Text>

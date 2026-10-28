@@ -30,11 +30,20 @@ const MOCKS = {
     function deepMerge(base, patch) {
       const out = { ...(base || {}) };
       for (const [k, v] of Object.entries(patch)) {
+        if (v && typeof v === 'object' && Array.isArray(v.__union)) {
+          out[k] = [...(Array.isArray(out[k]) ? out[k] : []), ...v.__union];
+          continue;
+        }
         out[k] = v && typeof v === 'object' && !Array.isArray(v) && out[k] && typeof out[k] === 'object' && !Array.isArray(out[k])
           ? deepMerge(out[k], v)
           : v;
       }
       return out;
+    }
+    export const arrayUnion = (...items) => ({ __union: items });
+    export async function addDoc(col, data) {
+      offline();
+      write(col.path + '/auto' + Math.random().toString(36).slice(2), data);
     }
     function write(path, data, opts = {}) {
       const next = opts.merge ? deepMerge(store.get(path), clone(data)) : clone(data);
@@ -411,6 +420,44 @@ function reset() {
   assert.equal(store.get(ref).description, 'Rettet');
   assert.equal(store.get(ref).invoiceId, 'F-17', 'fakturakoblingen står');
   assert.equal(store.get(ref).status, 'godkjent', 'godkjenningen står');
+}
+
+// L-13: endringshistorikken legges til som én ny rad. En eldre kopi fjerner ikke andres rader.
+{
+  reset();
+  const ref = `families/${CO}/timeEntries/t2`;
+  const otherRow = { at: '2026-10-27T08:00:00Z', kind: 'changed', byUid: 'u-annen', byName: 'Annen', changes: [{ field: 'hours', from: '6', to: '7' }] };
+  const read = { id: 't2', projectId: 'p1', employeeId: 'e1', date: '2026-10-01', hours: 7, description: 'Før', createdByUid: 'u1' };
+  // Skyen har fått en rad fra en annen bruker etter at kopien ble lest.
+  store.set(ref, { ...read, history: [otherRow] });
+  const { saveTimeEntries } = await import('../economy/timeEntryStorage.js');
+  await saveTimeEntries(CO, [{ ...read, hours: 8 }], { previous: [read] });
+  const history = store.get(ref).history;
+  assert.equal(history.length, 2, 'raden fra den andre står');
+  assert.deepEqual(history[0], otherRow);
+  assert.equal(history[1].kind, 'changed');
+  assert.equal(history[1].byUid, 'u1');
+  assert.deepEqual(history[1].changes, [{ field: 'hours', from: '7', to: '8' }]);
+  // Uten endring i sporede felt: ingen ny rad.
+  await saveTimeEntries(CO, [{ ...read, hours: 8, internalNote: 'notat' }], { previous: [{ ...read, hours: 8 }] });
+  assert.equal(store.get(ref).history.length, 2);
+  // Ny føring (ikke i previous): «Ført».
+  await saveTimeEntries(CO, [{ ...read, id: 't3' }], { previous: [read] });
+  assert.equal(store.get(`families/${CO}/timeEntries/t3`).history[0].kind, 'created');
+  // Uten kjent forrige versjon skrives ingen historikk, og serverens historikk står.
+  await saveTimeEntries(CO, [{ ...read, hours: 9 }]);
+  assert.equal(store.get(ref).history.length, 2);
+  assert.equal(store.get(ref).hours, 9);
+  // Sletting spores i timeEntryDeletions.
+  const { removeTimeEntry } = await import('../economy/timeEntryStorage.js');
+  await removeTimeEntry(CO, 't3', { entry: { ...read, id: 't3' } });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const deletions = [...store.entries()].filter(([path]) => path.startsWith(`families/${CO}/timeEntryDeletions/`));
+  assert.equal(deletions.length, 1);
+  assert.equal(deletions[0][1].entryId, 't3');
+  assert.equal(deletions[0][1].kind, 'deleted');
+  assert.equal(deletions[0][1].byUid, 'u1');
+  assert.equal(store.has(`families/${CO}/timeEntries/t3`), false);
 }
 
 console.log('concurrentSave.test.mjs: ok');

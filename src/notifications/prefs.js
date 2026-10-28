@@ -49,6 +49,10 @@ export const NOTIFICATION_TYPES = [
     scope: 'company', audience: 'Dokumentets eier og godkjenner, og lesere av merknader',
   },
   { id: 'vacationPlan', group: 'work', label: 'Ferieplan', push: true, email: 'own', recommended: true, scope: 'company', audience: 'Alle ansatte' },
+  {
+    id: 'timeEntryChanged', group: 'work', label: 'Noen har endret timene du førte', push: true, email: false,
+    scope: 'company', audience: 'Den som førte timen, når en annen endrer den',
+  },
   { id: 'companyWallPost', group: 'work', label: 'Nytt innlegg på bedriftsveggen', push: false, email: false, scope: 'company', audience: 'Alle i bedriften' },
   { id: 'messageReceived', group: 'messages', label: 'Ny melding i chat', push: true, email: false, recommended: true },
   { id: 'wallPost', group: 'messages', label: 'Nytt innlegg på veggen', push: false, email: false },

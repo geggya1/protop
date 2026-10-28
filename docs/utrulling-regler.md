@@ -61,6 +61,7 @@ både gamle og nye regler, så web trenger ikke rulles tilbake.
 | Notater | Lister med `memberIds`, lager i eget navn, «slett permanent» setter flagg | **Virker**. |
 | Invitasjon av voksen | Plassholder i eget navn, `memberInvites` med `invitedBy` = seg selv, status `pending` | **Virker** (ny invitasjon til en plassholder en annen har laget: se REV-16, rettes av en annen agent). |
 | Melde seg ut, føre seg selv opp | `arrayRemove`/`arrayUnion` av egen uid | **Virker**. |
+| Profilsteget: ta brukernavn | Transaksjon som skriver `usernames/{navn}` med egen uid | **Virker til 1. mars 2027** (SEC-19), se «Brukernavn» under. Nye apper bruker `claimUsername`. |
 | Varsler i andres innboks | `createdBy` = seg selv og `familyId` i en felles gruppe, venner, eller invitasjonen | **Virker** (testet i `notifications.rules.test.mjs`). |
 | ISO: tiltakseier melder tiltak utført | Endrer tiltaket (state, completedAt, completedBy, completionNote, evidence) | **Virker** for de fem første tiltakene i en sak (eldre app sender ikke `doneActionIndex`). |
 | Profilbilde, barneavatar, ikonkatalog (Storage) | Laster opp direkte, leser ikoner på mobil | **Virker** (REV-12). En administrator som bytter bildet til et annet medlem, må ha ny app (den sender `familyId` i metadata). |
@@ -109,6 +110,34 @@ velkomsten blir stående som før. I en bedrift der ingen med tilgang har slått
 ser en ansatt med eldre app velkomsten til appen er oppdatert (web oppdateres med en gang ved
 merge). Eier og administratorer merker ingen forskjell. Rekkefølge: merge (web ute) før reglene,
 som i steg 1–4. Test: `tests/rules/companyModules.rules.test.mjs` (også direkte PATCH mot REST).
+
+### Brukernavn: ett navn per konto, og sluttdato for den gamle veien (SEC-19)
+
+Regler kan ikke telle hvor mange `usernames/{navn}` som peker på én konto. Med direkte skriving kunne
+derfor én konto reservere mange brukernavn med egne skript. Nye apper tar navnet med callablen
+`claimUsername` (`functions/usernameClaim.js`, i slim-deployen via `membershipIndex.js`): den tar det
+nye navnet og frigir kontoens andre navn i samme transaksjon, så en konto har ett aktivt navn (og hvert
+barn ett, tatt av en foresatt). Appen skriver ikke `usernames` selv lenger.
+
+**Hvorfor den gamle veien står til 1. mars 2027:** profilsteget i 86332db (også mobilappene) tar
+brukernavnet med en transaksjon direkte fra appen (`claimUsername` i `src/utils/usernames.js` på
+86332db) og lagrer profilen etterpå. Feiler den skrivingen, blir brukeren stående på profilsteget.
+Reglene kan ikke skille en eldre app fra et skript, så direkte opprettelse må være lov så lenge eldre
+apper er i bruk. Regelen `legacyUsernameCreate()` slipper den gamle veien til
+`request.time < timestamp.date(2027, 3, 1)`; etter det kan ingen klient opprette navn direkte (å lagre
+eller slette sitt eget navn virker fortsatt). Til da står hullet «mange navn med egne skript» åpent
+for direkte skriving (navnet må fortsatt peke på kontoen selv, og være et gyldig brukernavn).
+
+- Før datoen: sjekk at mobilappene i butikkene er oppdatert. Er de ikke det, flytt datoen i regelen
+  (én linje) og deploy reglene på nytt.
+- Etter datoen, med oppdaterte apper: regelen kan stå (den stenger selv), eller `allow create` på
+  `usernames` kan fjernes helt.
+- Kontoer med flere navn fra før ryddes når de tar et navn på nytt (Rediger profil).
+- Rekkefølge: merge først (callablen og appen går ut sammen), så reglene. Uten deployet callable
+  lagres profilen uten brukernavn (registrering og profilsteg stopper ikke).
+
+Tester: `functions/usernameClaim.emulator.test.mjs` (ett navn per konto, foresatt, tatte navn) og
+`tests/rules/usernames.rules.test.mjs` (før og etter datoen, med en kopi av reglene der datoen er flyttet).
 
 ### Private hendelser før bedriften er merket
 

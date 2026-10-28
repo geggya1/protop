@@ -291,6 +291,8 @@ export const FILES = [
   'src/economy/expenseScope.test.mjs',
   // Aktiverte moduler: bedriften eller bare meg (MENY-01).
   'src/utils/modulePrefs.test.mjs',
+  // Brukernavn tas på serveren, ett per konto (SEC-19).
+  'src/utils/usernameClaim.test.mjs',
   'src/economy/invoiceWorkText.test.mjs',
   'src/economy/driftUx.test.mjs',
   'src/project/statusFilter.test.mjs',

@@ -109,6 +109,12 @@ assert.match(membershipIndex, /\bsyncMyProfile\b/, 'syncMyProfile mangler i memb
 assert.ok(membershipLine.split(',').includes('functions:syncMyProfile'), 'syncMyProfile mangler i MEMBERSHIP');
 assert.match(script, /open_for membershipIndex\.js "\$MEMBERSHIP"/);
 
+// Brukernavn tas på serveren, ett aktivt navn per konto (SEC-19). Uten deploy og åpen tilgang
+// får nye brukere ikke brukernavn (reglene stenger den gamle veien på en fast dato).
+assert.match(membershipIndex, /\bclaimUsername\b/, 'claimUsername mangler i membershipIndex.js');
+assert.ok(membershipLine.split(',').includes('functions:claimUsername'), 'claimUsername mangler i MEMBERSHIP');
+assert.match(readFileSync(join(root, 'functions/index.js'), 'utf8'), /export \{ claimUsername \} from '\.\/usernameClaim\.js'/);
+
 // Avslutning, eksport og sletting av en bedrift (GRUNN-03). purgeClosedCompanies kalles av driften, ikke appen.
 for (const name of ['closeCompany', 'reopenCompany', 'exportCompanyData', 'purgeClosedCompanies']) {
   assert.match(membershipIndex, new RegExp(`\\b${name}\\b`), `${name} mangler i membershipIndex.js`);

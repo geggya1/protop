@@ -200,7 +200,7 @@ open_for vegvesenIndex.js functions:lookupVehicleByReg
 queue_entry companyAccessIndex.js functions:syncCompanyAccess
 open_for companyAccessIndex.js functions:syncCompanyAccess
 
-MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:approveJoinRequest,functions:listMyFamilies,functions:deleteMyAccount,functions:recordConsent,functions:syncMyProfile,functions:closeCompany,functions:reopenCompany,functions:exportCompanyData,functions:purgeClosedCompanies"
+MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:approveJoinRequest,functions:listMyFamilies,functions:deleteMyAccount,functions:recordConsent,functions:syncMyProfile,functions:claimUsername,functions:closeCompany,functions:reopenCompany,functions:exportCompanyData,functions:purgeClosedCompanies"
 queue_entry membershipIndex.js "$MEMBERSHIP"
 open_for membershipIndex.js "$MEMBERSHIP"
 

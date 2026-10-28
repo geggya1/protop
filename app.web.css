@@ -301,6 +301,10 @@ select:focus-visible {
   outline: 2px solid #1099F4;
   outline-offset: 2px;
 }
+/* Faner ligger i en sidelengs rulleflate som klipper alt utenfor raden. Ringen tegnes innenfor fanen. */
+[role="tablist"] [role="tab"]:focus-visible {
+  outline-offset: -2px;
+}
 [data-focus-within="1"]:focus-within {
   outline: 2px solid #1099F4;
   outline-offset: 1px;

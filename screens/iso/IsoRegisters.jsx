@@ -1514,7 +1514,7 @@ function ReadinessMatrix({ ctx }) {
         style={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 8, borderRadius: 10, borderWidth: active ? 2 : 1, borderColor: active ? colors.brand : `${tone}55`, backgroundColor: `${tone}18` }}
       >
         <Text style={{ color: tone, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{meta.label}</Text>
-        <Text style={{ color: colors.muted, fontSize: 11 }}>{done}/{c.items.length}</Text>
+        <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>{wide ? `${done} av ${c.items.length} dekket` : `${done}/${c.items.length}`}</Text>
       </Pressable>
     );
   };

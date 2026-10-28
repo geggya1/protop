@@ -10,7 +10,7 @@ import {
 } from '../../src/iso/analytics';
 import { openActions } from '../../src/iso/findings';
 import {
-  actionsDoneInTasks, contractReviewStatus, hrCarryOver, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, rolesWithoutLogin, sickLeaveSeries,
+  actionsDoneInTasks, contractReviewStatus, equipmentStatus, hrCarryOver, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, rolesWithoutLogin, sickLeaveSeries,
 } from '../../src/iso/integrations';
 import { roleLabel } from '../../src/iso/catalog';
 import { recordsNeedingReview } from '../../src/iso/registers';
@@ -55,6 +55,11 @@ export default function IsoDashboard({ ctx }) {
     // Oppgaver til en rolle uten innlogging går til ISO-ansvarlig, ikke til den som åpnet ISO.
     const noLogin = rolesWithoutLogin(state.system);
     if (noLogin.length) out.push({ key: 'nologin', icon: 'person-remove-outline', tone: 'warn', title: `${noLogin.length} ISO-roller uten innlogging`, text: `${noLogin.slice(0, 3).map((r) => `${roleLabel(r.role)}: ${r.name}`).join(' · ')}. Oppgavene deres går til ISO-ansvarlig til personen er koblet til en bruker.`, page: 'innstillinger' });
+    // Kontroll og kalibrering (7.1.5) fra Utstyr: passert frist sperrer reservasjon.
+    const gear = equipmentStatus(sources.equipment);
+    if (gear.controlsOverdue.length || gear.measuringWithoutControl.length) {
+      out.push({ key: 'gear', icon: 'speedometer-outline', tone: 'warn', title: `${gear.controlsOverdue.length} kontroller eller kalibreringer er forfalt`, text: [gear.controlsOverdue.slice(0, 3).map((x) => `${x.control.label}: ${x.equipment.name}`).join(' · '), gear.measuringWithoutControl.length ? `${gear.measuringWithoutControl.length} måleutstyr uten kalibrering` : ''].filter(Boolean).join(' · '), tab: 'utstyr' });
+    }
     const legacy = legacyProjectCases(sources.projectState, state.findings);
     if (legacy.length) out.push({ key: 'legacy', icon: 'briefcase-outline', tone: 'warn', title: `${legacy.length} avvik/RUH i Prosjekt er ikke behandlet i ISO`, text: 'Ta dem inn med ett trykk – uten ny registrering.', page: 'avvik' });
     const pq = projectQuality(sources.projects, state, findings).filter((r) => !r.plan);
@@ -161,7 +166,7 @@ export default function IsoDashboard({ ctx }) {
 
           {insights.length ? (
             <Card style={{ flex: 1, width: wide ? undefined : '100%' }} title="Fra resten av ProTop" subtitle="Hentet fra Prosjekt, Kontrakt, HR, Kjørebok, Fravær og Oppgaver. Eies fortsatt av modulene.">
-              {insights.map((x) => <ListRow key={x.key} icon={x.icon} tone={x.tone} title={x.title} subtitle={x.text} onPress={() => go(x.page, x.params || {})} />)}
+              {insights.map((x) => <ListRow key={x.key} icon={x.icon} tone={x.tone} title={x.title} subtitle={x.text} onPress={() => (x.tab ? ctx.requestTab?.(x.tab) : go(x.page, x.params || {}))} />)}
             </Card>
           ) : null}
         </View>

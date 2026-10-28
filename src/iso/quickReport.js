@@ -104,6 +104,8 @@ export function buildQuickFinding(input, { actor, system = null, id = '', now = 
     attachments,
     quick: true,
     anonymous: !!input?.anonymous,
+    equipmentId: text(input?.equipmentId, 120),
+    equipmentName: text(input?.equipmentName, 200),
   }, { actor, existing: [], now });
   if (!res.ok) return res;
   const finding = { ...res.finding, id: text(id, 120) || res.finding.id, number: nextNumber('AVV', [], now) };
@@ -128,6 +130,8 @@ export function queueItem(input, { actor, now = new Date() } = {}) {
       location: text(input?.location, 300),
       serious: !!input?.serious,
       anonymous: !!input?.anonymous,
+      equipmentId: text(input?.equipmentId, 120),
+      equipmentName: text(input?.equipmentName, 200),
       // Lokale bilder (fil-uri på telefon, data-url i nettleser) lastes opp når meldingen sendes.
       photos: (input?.photos || []).map((p) => ({ uri: text(p?.uri, 2_000_000), name: text(p?.name, 200) })).filter((p) => p.uri).slice(0, 2),
     },

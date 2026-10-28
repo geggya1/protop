@@ -119,7 +119,7 @@ export async function submitQuick(companyId, input, { actor }) {
     if (!isOfflineError(err)) return { error: err?.message || 'Kunne ikke sende meldingen.' };
     const list = queueAdd(await readQueue(companyId, actor?.uid), item);
     await writeQueue(companyId, actor?.uid, list);
-    return { queued: true, count: list.length };
+    return { queued: true, count: list.length, id: item.id };
   }
 }
 

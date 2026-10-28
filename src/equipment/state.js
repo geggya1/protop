@@ -5,8 +5,11 @@
 import { createId } from '../project/engine.js';
 import { employeeMayBook } from './calendars.js';
 import {
+  controlBlocking,
+  linkControlFinding,
   normalizeBooking,
   normalizeEquipment,
+  recordControl,
   normalizePersonalVehicle,
   validateBooking,
   validateEquipment,
@@ -76,6 +79,11 @@ export function upsertBooking(state, input) {
   const normalizedGear = normalizeEquipment(gear);
   if (normalizedGear.bookable === false || normalizedGear.status === 'retired') {
     return fail(state, 'Utstyret kan ikke reserveres.');
+  }
+  // Kalibrering, sakkyndig kontroll eller EU-kontroll med passert frist: sperret til kontrollen er registrert.
+  const blocked = check.booking.status !== 'cancelled' ? controlBlocking(normalizedGear, check.booking.date) : null;
+  if (blocked) {
+    return fail(state, `${normalizedGear.name}: ${blocked.label.toLowerCase()} forfalt ${blocked.next}. Kan ikke reserveres før kontrollen er registrert.`);
   }
   if (check.booking.recurring && normalizedGear.allowRepeating === false) {
     return fail(state, `${normalizedGear.name} kan ikke bookes regelmessig.`);
@@ -167,6 +175,23 @@ export function cancelEventBookings(state, eventId) {
     }
   }
   return ok(next);
+}
+
+/** Gjennomført kontroll eller kalibrering på utstyret (ny frist ut fra intervallet). */
+export function recordEquipmentControl(state, equipmentId, controlId, input = {}) {
+  const gear = (state.equipment || []).find((row) => row.id === equipmentId);
+  if (!gear) return fail(state, 'Utstyret finnes ikke.');
+  const res = recordControl(gear, controlId, input);
+  if (!res.ok) return fail(state, res.error);
+  const saved = upsertEquipment(state, res.equipment);
+  return saved.ok ? ok(saved.state, { equipment: saved.equipment, control: res.control, deviation: res.deviation }) : saved;
+}
+
+/** Saken som ble meldt for et kontrollavvik, lagres på kontrollen (avvik koblet til utstyret). */
+export function linkEquipmentFinding(state, equipmentId, controlId, finding) {
+  const gear = (state.equipment || []).find((row) => row.id === equipmentId);
+  if (!gear) return fail(state, 'Utstyret finnes ikke.');
+  return upsertEquipment(state, linkControlFinding(gear, controlId, finding));
 }
 
 /** Hvem som kan booke, og om serien kan gjentas. Bare leder og administrator kaller denne. */

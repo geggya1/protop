@@ -5,7 +5,7 @@
 
 import { addDays, dateKey, parseDateKey } from '../utils/dates.js';
 import { eventOccursOnDate } from '../utils/events.js';
-import { equipmentCategory, equipmentGroup } from './catalog.js';
+import { controlKind, equipmentCategory, equipmentGroup } from './catalog.js';
 import { normalizeFeeClass } from '../mileage/vehicleFee.js';
 
 function text(value) {
@@ -84,8 +84,128 @@ export function normalizeEquipment(input = {}) {
     bookingAccess: row.bookingAccess === 'selected' ? 'selected' : 'active',
     bookingEmployeeIds: uniqueIds(row.bookingEmployeeIds),
     allowRepeating: row.allowRepeating !== false,
+    // Måleutstyr (ISO 9001 7.1.5): skal ha kalibrering. Kontrollene har frist og sertifikat.
+    measuring: !!row.measuring,
+    controls: normalizeControls(row.controls),
     createdAt: text(row.createdAt),
     updatedAt: text(row.updatedAt),
+  };
+}
+
+/* ───────── Kontroll, kalibrering og sakkyndig kontroll ───────── */
+
+/** Dato + hele måneder (siste dag i måneden når dagen ikke finnes, 31.01 + 1 = 28/29.02). */
+export function addMonthsKey(key, months) {
+  const day = stampDate(key);
+  const n = Math.round(Number(months) || 0);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !n) return '';
+  const [y, m, d] = day.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
+  const out = new Date(Date.UTC(y, m - 1 + n, Math.min(d, last)));
+  return out.toISOString().slice(0, 10);
+}
+
+function controlLog(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((row) => ({
+      date: stampDate(row?.date),
+      result: row?.result === 'avvik' ? 'avvik' : 'godkjent',
+      certificate: text(row?.certificate),
+      by: text(row?.by),
+      note: text(row?.note),
+      findingId: text(row?.findingId),
+      findingNumber: text(row?.findingNumber),
+    }))
+    .filter((row) => row.date)
+    .slice(-20);
+}
+
+/** Én kontroll: type, intervall, sist kontrollert, neste frist (fra intervallet når den ikke er satt), sertifikat. */
+export function normalizeControl(input = {}, index = 0) {
+  const row = input && typeof input === 'object' ? input : {};
+  const kind = controlKind(row.kind).id;
+  const intervalMonths = Math.max(0, Math.min(120, Math.round(Number(row.intervalMonths) || 0)));
+  const last = stampDate(row.last);
+  return {
+    // Fast id: kontroller fra før id-en fantes, får typen og plassen i listen.
+    id: text(row.id) || `${kind}_${index + 1}`,
+    kind,
+    intervalMonths,
+    last,
+    next: stampDate(row.next) || (last && intervalMonths ? addMonthsKey(last, intervalMonths) : ''),
+    certificate: text(row.certificate),
+    by: text(row.by),
+    result: ['godkjent', 'avvik'].includes(row.result) ? row.result : '',
+    log: controlLog(row.log),
+  };
+}
+
+export function normalizeControls(list) {
+  return (Array.isArray(list) ? list : []).map((c, i) => normalizeControl(c, i)).filter((c) => c.next || c.last || c.intervalMonths).slice(0, 8);
+}
+
+/** Status for én kontroll: forfalt (fristen passert), snart (innen 30 dager), ok, eller mangler frist. */
+export function controlState(control, today = dateKey(new Date())) {
+  const next = stampDate(control?.next);
+  if (!next) return 'mangler';
+  if (next < today) return 'forfalt';
+  if (next <= dateKey(addDays(parseDateKey(today), 30))) return 'snart';
+  return 'ok';
+}
+
+/** Kontrollene på utstyret med status, den mest forfalte først. */
+export function gearControls(gear, today = dateKey(new Date())) {
+  const order = { forfalt: 0, snart: 1, mangler: 2, ok: 3 };
+  return normalizeControls(gear?.controls)
+    .map((c) => ({ ...c, state: controlState(c, today), label: controlKind(c.kind).label }))
+    .sort((a, b) => order[a.state] - order[b.state] || String(a.next).localeCompare(String(b.next)));
+}
+
+/**
+ * Sperres reservasjon på denne datoen? Ja når en kontroll som stopper bruk (kalibrering, sakkyndig, EU)
+ * hadde frist før datoen. Gir kontrollen som sperrer, eller null.
+ */
+export function controlBlocking(gear, date = dateKey(new Date())) {
+  const day = stampDate(date) || dateKey(new Date());
+  return gearControls(gear, day).find((c) => controlKind(c.kind).blocks && c.next && c.next < day) || null;
+}
+
+/**
+ * Registrer en gjennomført kontroll: sist kontrollert, ny frist ut fra intervallet, resultat og sertifikat.
+ * Avvik (f.eks. kalibrering utenfor toleranse) markeres, så det kan meldes som sak koblet til utstyret.
+ */
+export function recordControl(gear, controlId, input = {}) {
+  const row = normalizeEquipment(gear);
+  const control = row.controls.find((c) => c.id === controlId);
+  if (!control) return { ok: false, error: 'Fant ikke kontrollen.' };
+  const date = stampDate(input.date);
+  if (!date) return { ok: false, error: 'Velg dato for kontrollen.' };
+  const result = input.result === 'avvik' ? 'avvik' : 'godkjent';
+  if (result === 'avvik' && !text(input.note)) return { ok: false, error: 'Beskriv avviket.' };
+  const next = stampDate(input.next) || (control.intervalMonths ? addMonthsKey(date, control.intervalMonths) : '');
+  const entry = { date, result, certificate: text(input.certificate), by: text(input.by), note: text(input.note), findingId: text(input.findingId), findingNumber: text(input.findingNumber) };
+  const updated = {
+    ...control,
+    last: date,
+    next,
+    result,
+    certificate: entry.certificate || control.certificate,
+    by: entry.by || control.by,
+    log: controlLog([...control.log, entry]),
+  };
+  return { ok: true, equipment: { ...row, controls: row.controls.map((c) => (c.id === controlId ? updated : c)) }, control: updated, deviation: result === 'avvik' };
+}
+
+/** Saken som ble meldt for et kontrollavvik, på siste logglinje i kontrollen. */
+export function linkControlFinding(gear, controlId, finding) {
+  const row = normalizeEquipment(gear);
+  return {
+    ...row,
+    controls: row.controls.map((c) => {
+      if (c.id !== controlId || !c.log.length) return c;
+      const log = c.log.map((l, i) => (i === c.log.length - 1 ? { ...l, findingId: text(finding?.id), findingNumber: text(finding?.number) } : l));
+      return { ...c, log };
+    }),
   };
 }
 

@@ -535,6 +535,7 @@ function FindingDetail({ ctx, finding, onBack }) {
             {linkedReqs.length ? linkedReqs.map((r) => <ListRow key={r.id} icon="document-text-outline" title={`${r.standard ? r.standard.replace('ISO', 'ISO ') : r.kind} ${r.clause || ''} ${r.title}`} onPress={() => go('krav', { open: r.id })} />) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen krav koblet. Ved lukking kobles saken til kravet om avvik og korrigerende tiltak.</Text>}
             {manage && !closed ? <Btn small icon="link-outline" label="Koble krav" onPress={() => setReqOpen(true)} /> : null}
             {finding.links?.auditId ? <ListRow icon="search-outline" title="Fra internrevisjon" onPress={() => go('revisjon', { open: finding.links.auditId })} /> : null}
+            {finding.links?.equipmentId ? <ListRow icon="construct-outline" title={`Utstyr: ${finding.links.equipmentName || 'utstyr'}`} subtitle="Kontroll og kalibrering i Utstyr" onPress={() => ctx.requestTab?.('utstyr')} /> : null}
             {evidenceReqs.length ? (
               <>
                 <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>Brukt som bevis i kravmatrisen:</Text>

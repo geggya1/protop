@@ -120,6 +120,9 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
       riskIds: uniq(input.riskIds),
       auditId: text(input.auditId, 120),
       auditFindingRef: text(input.auditFindingRef, 120),
+      // Utstyret saken gjelder (kalibrering eller kontroll med avvik, ISO 9001 7.1.5.2).
+      equipmentId: text(input.equipmentId, 120),
+      equipmentName: text(input.equipmentName, 200),
     },
     sourceRef: input.sourceRef?.id ? { module: text(input.sourceRef.module, 60), id: text(input.sourceRef.id, 120) } : null,
     attachments: findingAttachments(input.attachments),

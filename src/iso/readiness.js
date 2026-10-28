@@ -14,6 +14,7 @@ import { matrixRows } from './requirements.js';
 import { competenceGaps, competenceMatrix, overdueRecords, periodSortKey } from './registers.js';
 import { contractReviewStatus, performedDate } from './integrations.js';
 import { templateIdFor } from './forms.js';
+import { gearControls } from '../equipment/model.js';
 
 export const CHAPTERS = [
   { id: '4', title: 'Organisasjonens kontekst' },
@@ -38,11 +39,10 @@ const AUDIT_LABEL = { ISO9001: 'ISO 9001', ISO14001: 'ISO 14001', ISO45001: 'ISO
 /** Kontroll og kalibrering på utstyr (Utstyr eier dataene). Forfalt = neste frist er passert. */
 function equipmentControls(equipment, today) {
   const rows = (equipment || []).filter((e) => e && e.status !== 'retired' && e.scope !== 'private');
-  const controls = rows.flatMap((e) => (Array.isArray(e.controls) ? e.controls : []).filter((c) => c && (c.next || c.last)).map((c) => ({ equipment: e, control: c })));
-  const overdue = controls.filter((x) => x.control.next && x.control.next < today);
-  const measuring = rows.filter((e) => e.measuring);
-  const unchecked = measuring.filter((e) => !(e.controls || []).some((c) => c?.next || c?.last));
-  return { rows, controls, overdue, measuring, unchecked };
+  const controls = rows.flatMap((e) => gearControls(e, today).filter((c) => c.next || c.last).map((c) => ({ equipment: e, control: c })));
+  const overdue = controls.filter((x) => x.control.state === 'forfalt');
+  const unchecked = rows.filter((e) => e.measuring && !gearControls(e, today).some((c) => c.next || c.last));
+  return { rows, controls, overdue, unchecked };
 }
 
 /**

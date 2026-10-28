@@ -15,6 +15,7 @@ import { matrixRows, requirementIdsForArea } from './requirements.js';
 import { competenceMatrix, createRecord, decisionCompleted, overdueRecords } from './registers.js';
 import { usableForms, templateIdFor } from './forms.js';
 import { annualTaskEffects } from './planning.js';
+import { gearControls } from '../equipment/model.js';
 
 const SICK = new Set(['syk_melding', 'egenmelding', 'sykdom', 'syk_uten']);
 
@@ -121,14 +122,49 @@ export function equipmentStatus(equipment, now = new Date()) {
   const today = todayKey(now);
   const soon = addDays(today, 60);
   const active = (equipment || []).filter((e) => e?.status !== 'retired');
+  // Kontroll og kalibrering (7.1.5): Utstyr eier dataene, ISO leser dem.
+  const controls = active.filter((e) => e.scope !== 'private').flatMap((e) => gearControls(e, today).map((c) => ({ equipment: e, control: c })));
   return {
     total: active.length,
     inService: active.filter((e) => e.status === 'service'),
     warrantySoon: active.filter((e) => e.warrantyUntil && e.warrantyUntil >= today && e.warrantyUntil <= soon),
     vehicles: active.filter((e) => e.kind === 'vehicle'),
     electricVehicles: active.filter((e) => e.kind === 'vehicle' && e.electric).length,
+    controls,
+    controlsOverdue: controls.filter((x) => x.control.state === 'forfalt'),
+    controlsSoon: controls.filter((x) => x.control.state === 'snart'),
+    measuringWithoutControl: active.filter((e) => e.measuring && !gearControls(e, today).length),
     source: 'Utstyr',
   };
+}
+
+/**
+ * Påminnelser om kontroll og kalibrering (7.1.5): 30 dager før fristen og når den er passert.
+ * Kalibrering går til kvalitetsleder, sakkyndig kontroll og EU-kontroll til HMS-leder.
+ */
+export function equipmentControlEffects(equipment, system, now = new Date()) {
+  const roles = system?.roleMap || {};
+  const qm = roles.quality_manager || roles.system_owner || {};
+  const hse = roles.hse_manager || qm;
+  const out = [];
+  for (const { equipment: gear, control } of equipmentStatus(equipment, now).controls) {
+    if (!['forfalt', 'snart'].includes(control.state)) continue;
+    const late = control.state === 'forfalt';
+    const [y, m, d] = String(control.next).split('-');
+    out.push({
+      type: 'createTask',
+      key: `isoauto_ctl_${gear.id}_${control.id}_${control.next}`.replace(/[^A-Za-z0-9_-]/g, '_'),
+      title: `${control.label} ${late ? 'forfalt' : 'forfaller'}: ${gear.name} (${d}.${m}.${y})`,
+      deadline: control.next,
+      assigneeUid: (control.kind === 'kalibrering' || control.kind === 'service' ? qm : hse)?.uid || '',
+      description: [
+        `${control.label} av ${gear.name}${gear.serial ? ` (serienr. ${gear.serial})` : ''} har frist ${d}.${m}.${y}.`,
+        late && control.kind !== 'service' ? 'Utstyret kan ikke reserveres før kontrollen er registrert i Utstyr.' : 'Registrer kontrollen i Utstyr når den er gjort.',
+        control.kind === 'kalibrering' ? 'Viser kalibreringen avvik, vurder om målinger gjort siden forrige kalibrering må kontrolleres (ISO 9001 7.1.5.2).' : '',
+      ].filter(Boolean).join('\n'),
+    });
+  }
+  return out;
 }
 
 /* ───────────────────────── HR → kompetanse ───────────────────────── */
@@ -522,7 +558,7 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
  * kravvurderinger, leverandørevalueringer, risiko-/aspektrevurderinger, utløpt kompetanse,
  * øvelser og vedtak. Nøkkelen inneholder fristen, så hver frist gir én oppgave (idempotent).
  */
-export function autoTaskEffects(state, { now = new Date(), people = [], tasks = null } = {}) {
+export function autoTaskEffects(state, { now = new Date(), people = [], tasks = null, equipment = [] } = {}) {
   const roles = state.system?.roleMap || {};
   const owner = (name, uid) => ({ assigneeUid: uid || '', who: name || '' });
   const qm = roles.quality_manager || roles.system_owner || {};
@@ -549,7 +585,8 @@ export function autoTaskEffects(state, { now = new Date(), people = [], tasks = 
     for (const d of l.decisions || []) if (!decisionCompleted(d, tasks) && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
   }
   // Årshjulet: aktiviteter merket «Lag oppgave» blir oppgave når måneden starter.
-  return [...out, ...annualTaskEffects(state, { now }), ...escalationEffects(state, now)];
+  // Kontroll og kalibrering av utstyr (7.1.5): frist om 30 dager eller passert.
+  return [...out, ...equipmentControlEffects(equipment, state.system, now), ...annualTaskEffects(state, { now }), ...escalationEffects(state, now)];
 }
 
 /**

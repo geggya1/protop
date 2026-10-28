@@ -3,7 +3,8 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../src/theme';
+import { colors, useLayout } from '../src/theme';
+import { touch } from '../src/ui/tokens';
 import { useColors } from '../src/context/ThemeContext';
 import {
   drawerGroupOpen,
@@ -21,6 +22,8 @@ import { countForItem } from '../src/utils/notifications';
  * Én meny for PC og telefon (UX-22). Sidemenyen (variant «rail») og skuffen og Meny-siden
  * (variant «drawer») tegner det samme treet fra src/navigation/navTree.js. Variantene har
  * ulik tetthet (mus mot fingre), men samme seksjoner, grupper, rader og regler for åpning.
+ * Tettheten følger pekeren, ikke bredden (UX-23): på berøringsskjerm, også iPad i liggende
+ * format med PC-menyen, er radene og knappene minst touch.min (44 px) høye.
  */
 
 /** Fylt ikon når raden er valgt eller uthevet, ellers outline. */
@@ -80,8 +83,10 @@ export function NavRow({
 }) {
   const colors = useColors();
   const tone = useMemo(() => paint(colors), [colors]);
+  const { isTouch } = useLayout();
   const rail = variant === 'rail';
   const s = rail ? railStyles : drawerStyles;
+  const t = isTouch ? touchStyles : null;
   const highlight = !rail && !!item.highlight;
   const expandable = typeof onToggle === 'function' && !collapsed;
   const nestPad = depth > 0
@@ -94,7 +99,7 @@ export function NavRow({
     const icon = <Ionicons name={rowIcon(item, false)} size={16} color={colors.muted} />;
     return (
       <View
-        style={[s.row, depth > 0 && { paddingLeft: nestPad }, collapsed && s.rowCollapsed, s.rowLocked]}
+        style={[s.row, t?.row, depth > 0 && { paddingLeft: nestPad }, collapsed && s.rowCollapsed, collapsed && t?.rowCollapsed, s.rowLocked]}
         accessible
         accessibilityRole="button"
         accessibilityState={{ disabled: true }}
@@ -135,15 +140,17 @@ export function NavRow({
     <View
       style={[
         s.row,
+        t?.row,
         depth > 0 && { paddingLeft: nestPad },
         active && { backgroundColor: colors.brandSoft },
         highlight && { backgroundColor: colors.brandInk },
         collapsed && s.rowCollapsed,
+        collapsed && t?.rowCollapsed,
       ]}
     >
       <TouchableOpacity
         onPress={onPress}
-        style={s.rowMain}
+        style={[s.rowMain, t?.rowMain]}
         accessibilityRole="button"
         accessibilityLabel={item.label}
         accessibilityState={{ selected: !!active }}
@@ -177,7 +184,7 @@ export function NavRow({
             event?.stopPropagation?.();
             onToggle();
           }}
-          style={[s.expandBtn, tone.well, highlight && s.expandBtnHighlight]}
+          style={[s.expandBtn, t?.expandBtn, tone.well, highlight && s.expandBtnHighlight]}
           accessibilityRole="button"
           accessibilityLabel={`${expanded ? 'Skjul' : 'Vis'} undermeny, ${item.label}`}
           accessibilityState={{ expanded: !!expanded }}
@@ -214,8 +221,10 @@ export default function NavTree({
 }) {
   const colors = useColors();
   const tone = useMemo(() => paint(colors), [colors]);
+  const { isTouch } = useLayout();
   const rail = variant === 'rail';
   const s = rail ? railStyles : drawerStyles;
+  const t = isTouch ? touchStyles : null;
   const searching = !!String(query || '').trim();
   const {
     open, setOpen, groupOpen, setGroupOpen, submenuOpen, setSubmenuOpen,
@@ -261,7 +270,7 @@ export default function NavTree({
     return (
       <View key={item.id} style={[s.groupBlock, tone.line, index === 0 && s.groupBlockFirst]}>
         <TouchableOpacity
-          style={[s.groupHead, containsActive && { backgroundColor: colors.brandSoft }]}
+          style={[s.groupHead, t?.groupHead, containsActive && { backgroundColor: colors.brandSoft }]}
           onPress={() => setGroupOpen((prev) => ({
             ...prev,
             [item.id]: !drawerGroupOpen(item, activeTab, prev, activeSubView),
@@ -316,7 +325,7 @@ export default function NavTree({
     if (section.heading && section.foldable) {
       head = (
         <TouchableOpacity
-          style={[s.sectionHead, section.appFolder && s.appSectionHead, section.appFolder && tone.appHead]}
+          style={[s.sectionHead, t?.sectionHead, section.appFolder && s.appSectionHead, section.appFolder && tone.appHead]}
           onPress={() => setOpen((prev) => ({ ...prev, [section.id]: !expanded }))}
           accessibilityRole="button"
           accessibilityState={{ expanded }}
@@ -610,4 +619,14 @@ const drawerStyles = StyleSheet.create({
   iconWrapActive: { backgroundColor: colors.card },
   iconWrapHighlight: { backgroundColor: 'rgba(255,255,255,0.2)' },
   rowLabel: { flex: 1, fontSize: 13, fontWeight: '400', color: colors.ink },
+});
+
+/** Berøringsskjerm: rader og knapper på minst touch.min, også i PC-menyen på iPad (UX-23/UX-26). */
+const touchStyles = StyleSheet.create({
+  row: { minHeight: touch.min },
+  rowMain: { minHeight: touch.min },
+  rowCollapsed: { width: touch.min },
+  groupHead: { minHeight: touch.min },
+  sectionHead: { minHeight: touch.min },
+  expandBtn: { width: touch.min, height: touch.min },
 });

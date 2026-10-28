@@ -7,7 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
-import { colors } from '../src/theme';
+import { colors, useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 import { useColors } from '../src/context/ThemeContext';
 import { findActiveNavItem, navSections, runNavAction } from '../src/navigation/navTree';
 import { useNavTree } from '../src/hooks/useNavTree';
@@ -35,6 +36,9 @@ export default function ShellDrawer({
   const logoTone = brandLogoToneForBackground(colors.card);
   const insets = useSafeAreaInsets();
   const { width: winW } = useWindowDimensions();
+  const { isTouch } = useLayout();
+  // Lukk-sirkelen er 30 px; trykkflaten rundt er 44 px på berøringsskjerm (UX-26).
+  const closeHit = touchHit(30, 30, { touch: isTouch, os: Platform.OS });
   const drawerW = Math.min(DRAWER_WIDTH, Math.round(winW * 0.78));
   const { isParent, isChild, isActingAsChild } = useApp();
   const asChild = isChild || isActingAsChild;
@@ -187,10 +191,14 @@ export default function ShellDrawer({
               <BrandLogo variant="full" tone={logoTone} height={40} maxWidth={180} style={styles.logo} />
               <TouchableOpacity
                 onPress={handleClose}
-                style={[styles.closeBtn, { backgroundColor: colors.bg }]}
+                style={[styles.closeHit, closeHit.style]}
+                hitSlop={closeHit.hitSlop}
+                accessibilityRole="button"
                 accessibilityLabel="Lukk"
               >
-                <Ionicons name="close" size={18} color={colors.muted} />
+                <View style={[styles.closeBtn, { backgroundColor: colors.bg }]}>
+                  <Ionicons name="close" size={18} color={colors.muted} />
+                </View>
               </TouchableOpacity>
             </View>
             {asParent || asChild ? (
@@ -257,11 +265,11 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   logo: { flexShrink: 1 },
+  closeHit: { borderRadius: 15, flexShrink: 0 },
   closeBtn: {
     width: 30, height: 30, borderRadius: 15,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: colors.bg,
-    flexShrink: 0,
   },
   hint: {
     marginTop: 8,

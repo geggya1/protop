@@ -10,6 +10,7 @@ import {
   overlayDismissAllowedAt,
   OVERLAY_DISMISS_GUARD_MS,
 } from '../src/utils/overlayDismissGuard';
+import { BREAKPOINTS } from '../src/ui/layout.js';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -77,7 +78,7 @@ export default function ModuleWelcomeModal({
   const dialogRef = useRef(null);
   const primaryRef = useRef(null);
   const { width, height } = useWindowDimensions();
-  const split = width >= 768 && height >= 520;
+  const split = width >= BREAKPOINTS.tablet && height >= 520;
   const compact = height < 640 || width < 380;
   const stackedHeight = Math.min(compact ? 620 : 760, Math.max(280, height - 30));
   const artWidth = split ? 312 : (compact ? 160 : 186);
@@ -276,7 +277,7 @@ export default function ModuleWelcomeModal({
 
 export function ModuleActivationScrim({ children, onRequestBack, dismissLabel = 'Lukk uten å aktivere' }) {
   const { width } = useWindowDimensions();
-  const mobile = width < 768;
+  const mobile = width < BREAKPOINTS.tablet;
   const openedAtRef = useRef(Date.now());
 
   useEffect(() => {

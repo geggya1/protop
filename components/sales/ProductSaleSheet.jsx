@@ -27,6 +27,7 @@ import { dateKey } from '../../src/utils/dates';
 import {
   Btn, Fact, Field, PickerField, SectionLabel, qtyText, shortDate, ui,
 } from '../../screens/economy/productUi';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 const VAT_OPTIONS = VAT_CODES.map((row) => ({ id: row.id, label: `${row.label} (${row.percent} %)` }));
 
@@ -357,8 +358,8 @@ export default function ProductSaleSheet({
   isNew = false,
 }) {
   const { width, height } = useWindowDimensions();
-  const side = width >= 900;
-  const narrow = width < 560;
+  const side = width >= BREAKPOINTS.desktop;
+  const narrow = width < BREAKPOINTS.tablet;
   const sale = useMemo(() => (raw ? normalizeSale(raw) : null), [raw]);
   const [mode, setMode] = useState(isNew ? 'edit' : 'view');
   const [busy, setBusy] = useState(false);

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
-  EMPTY, formatDate, formatDateLong, formatDateTime, formatHours, formatKr, formatNumber, hoursInputText, isoDate, toDate, toHours, toNumber,
+  EMPTY, dateText, formatDate, formatDateLong, formatDateTime, formatHours, formatKr, formatNumber, hoursInputText, isoDate, toDate, toHours, toNumber,
 } from './nb.js';
 
 // Mellomrom som ikke brytes, gjort synlig i testene.
@@ -81,3 +81,13 @@ test('timeføring og Ny ansatt bruker riktig felt (UX-14)', () => {
   assert.match(register, /nativeID="employee-register-since"[\s\S]*?<DateField/);
 });
 
+test('dateText: ISO-dato i fritekst blir norsk, annen tekst står som den er (UX-14)', () => {
+  assert.equal(dateText('2026-09-30'), '30.09.2026');
+  assert.equal(dateText('2026-09-30T08:00:00'), '30.09.2026');
+  assert.equal(dateText('2019'), '2019', 'et årstall blir ikke 01.01.2019');
+  assert.equal(dateText('vår 2024'), 'vår 2024');
+  assert.equal(dateText('30.09.2026'), '30.09.2026');
+  assert.equal(dateText('2026-02-31'), '2026-02-31', 'ugyldig dato vises som den står');
+  assert.equal(dateText(''), EMPTY);
+  assert.equal(dateText(null, { empty: '' }), '');
+});

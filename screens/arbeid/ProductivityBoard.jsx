@@ -52,6 +52,7 @@ import {
   weeklyActualHours,
   weekSeries,
 } from '../../src/capacity/plan';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 const WEEK_W = 54;
 const MATRIX_W = 48;
@@ -62,8 +63,8 @@ const POPUP_W = 168;
 
 export function labelColumnWidth(screenWidth) {
   const width = Number(screenWidth) || 0;
-  if (width > 0 && width < 520) return NARROW_LABEL_W;
-  if (width > 0 && width < 900) return 180;
+  if (width > 0 && width < BREAKPOINTS.tablet) return NARROW_LABEL_W;
+  if (width > 0 && width < BREAKPOINTS.desktop) return 180;
   return LABEL_W;
 }
 

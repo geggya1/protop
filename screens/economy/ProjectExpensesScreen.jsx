@@ -94,9 +94,9 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
   // Import av utleggslister krever Admin på Prosjektutlegg.
   const adminImport = canImportList(useCompanyAccess(), 'economyProjectExpenses');
   const canImport = adminImport && canImportProp !== false;
-  const { width } = useLayout();
+  const { isWide } = useLayout();
   // Brede skjermer: filter og sortering i høyre marg, som på Timer.
-  const sideFilters = width >= 1100;
+  const sideFilters = !!isWide;
   const hostedHero = useModuleHeroHosted();
   const workspace = useTimesheetWorkspace({ lockedEmployeeId });
   const refs = useCompanyRefs(workspace.workspaceId);

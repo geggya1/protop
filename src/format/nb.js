@@ -99,6 +99,18 @@ export function formatDateTime(value, { empty = EMPTY } = {}) {
   return `${formatDate(d)} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * Tekst som kan være en ISO-dato (fritekst fra import, CV eller bilag): «2026-03-03» og
+ * «2026-03-03T12:00» vises som «03.03.2026». Annen tekst (årstall, «vår 2024», en dato som
+ * allerede er norsk) står som den er, så den ikke blir til 1. januar.
+ */
+export function dateText(value, { empty = EMPTY } = {}) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return empty;
+  if (!/^\d{4}-\d{2}-\d{2}(?:$|[T ])/.test(raw)) return raw;
+  return formatDate(raw, { empty: raw });
+}
+
 /** ISO-dato for lagring: «2026-03-03». */
 export function isoDate(value) {
   const d = toDate(value);

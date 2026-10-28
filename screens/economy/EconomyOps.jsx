@@ -20,6 +20,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { useProjectStateEditor } from '../../src/project/useProjectStateEditor';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { useCompanyRefs } from '../../src/context/CompanyDataContext';
@@ -48,6 +49,7 @@ import {
   upsertExpense,
 } from '../../src/economy/opsState.js';
 import MileageWizard from './MileageWizard';
+import { formatDate } from '../../src/format/nb';
 
 const TRIP_COLUMNS = [
   { key: 'date', label: 'Dato', width: 96 },
@@ -96,7 +98,7 @@ function tripSortValue(row, key) {
 
 function TripReport({ trips, colors, onOpen, onDelete, onApprove, pendingId }) {
   const { width } = useWindowDimensions();
-  const narrow = width < 760;
+  const narrow = width < BREAKPOINTS.tablet;
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState({ key: 'date', dir: 'desc' });
   const needle = query.trim().toLowerCase();
@@ -144,8 +146,8 @@ function TripReport({ trips, colors, onOpen, onDelete, onApprove, pendingId }) {
               onDelete={onDelete}
               onApprove={onApprove}
             >
-              <TouchableOpacity onPress={() => onOpen(row)} accessibilityRole="button" accessibilityLabel={`Åpne tur ${row.date}`}>
-                <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }}>{row.date} · {formatMoney(row.amount)}</Text>
+              <TouchableOpacity onPress={() => onOpen(row)} accessibilityRole="button" accessibilityLabel={`Åpne tur ${formatDate(row.date)}`}>
+                <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '700' }}>{formatDate(row.date)} · {formatMoney(row.amount)}</Text>
                 <Text style={{ color: colors.ink, fontSize: 13 }}>{row.from || '—'} → {row.to || '—'}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }}>
                   {[row.employeeName, row.vehicleName, `${row.km || 0} km`].filter(Boolean).join(' · ')}

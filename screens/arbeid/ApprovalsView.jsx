@@ -28,6 +28,7 @@ import {
 import { billingReadyLabel } from '../../src/economy/billingChain.js';
 import Breadcrumb from '../../components/Breadcrumb';
 import { radius } from '../../src/ui/tokens';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { formatDate } from '../../src/format/nb';
 
 function applyMutation(workspace, result) {
@@ -42,8 +43,8 @@ function applyMutation(workspace, result) {
 
 function periodLabel(lock) {
   const since = String(lock?.approvedThrough || '').trim();
-  if (!since) return `Låst innhold til ${lock.throughDate}`;
-  return `Nytt siden ${since}, låst til ${lock.throughDate}`;
+  if (!since) return `Låst innhold til ${formatDate(lock.throughDate)}`;
+  return `Nytt siden ${formatDate(since)}, låst til ${formatDate(lock.throughDate)}`;
 }
 
 /**
@@ -61,7 +62,7 @@ export function ApprovalsBody({
   onApproved = null,
 }) {
   const { width } = useWindowDimensions();
-  const wide = width >= 960;
+  const wide = width >= BREAKPOINTS.desktop;
   const [controlId, setControlId] = useState('');
   const [drafts, setDrafts] = useState({});
   const [aiFindings, setAiFindings] = useState([]);
@@ -200,7 +201,7 @@ export function ApprovalsBody({
             <View key={row.id} style={[styles.entry, { borderColor: hasError ? '#b42318' : colors.line, backgroundColor: colors.card }]}>
               <View style={styles.entryTop}>
                 <Text style={[styles.bang, { color: hasError ? '#b42318' : colors.muted }]}>{hasError ? '!' : ''}</Text>
-                <Text style={[styles.meta, { color: colors.ink }]}>{row.date}</Text>
+                <Text style={[styles.meta, { color: colors.ink }]}>{formatDate(row.date)}</Text>
                 <Text style={[styles.meta, { color: colors.ink }]}>{row.projectName || row.projectNumber || '—'}</Text>
                 <Text style={[styles.meta, { color: colors.ink }]}>{row.hours}</Text>
               </View>
@@ -237,7 +238,7 @@ export function ApprovalsBody({
           <View style={{ gap: 4 }}>
             <Text style={{ color: colors.ink, fontWeight: '700' }}>Fravær i perioden</Text>
             {bundle.absences.map((row) => (
-              <Text key={row.id} style={{ color: colors.muted }}>{row.date} · {row.type || 'fravær'} · {row.hours} t</Text>
+              <Text key={row.id} style={{ color: colors.muted }}>{formatDate(row.date)} · {row.type || 'fravær'} · {row.hours} t</Text>
             ))}
           </View>
         ) : null}

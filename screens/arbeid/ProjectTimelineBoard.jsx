@@ -21,6 +21,7 @@ import {
   timelineStats,
   xForDay,
 } from '../../src/project/timeline';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 const ROW_H = 48;
 const PLAN_TOP = 9;
@@ -38,8 +39,8 @@ const TODAY_COLOR = '#e11d48';
 
 export function timelineLabelWidth(screenWidth) {
   const width = Number(screenWidth) || 0;
-  if (width > 0 && width < 520) return 132;
-  if (width > 0 && width < 900) return 190;
+  if (width > 0 && width < BREAKPOINTS.tablet) return 132;
+  if (width > 0 && width < BREAKPOINTS.desktop) return 190;
   return 260;
 }
 

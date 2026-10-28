@@ -10,6 +10,7 @@ import { pickIntroText } from '../src/utils/moduleIntros';
 import { processesForPage } from '../src/help/protopProcesses';
 import { videosForPage } from '../src/help/helpVideos';
 import HelpVideoList from './HelpVideoList';
+import { BREAKPOINTS } from '../src/ui/layout.js';
 
 const NATIVE_DRIVER = Platform.OS !== 'web';
 const WEB_MARK = Platform.OS === 'web' ? { dataSet: { helpCard: '1' } } : {};
@@ -39,7 +40,7 @@ export default function HelpPageCard({
   const fade = useRef(new Animated.Value(0)).current;
   const drop = useRef(new Animated.Value(-18)).current;
   const [openFaq, setOpenFaq] = useState(-1);
-  const wide = width >= 760;
+  const wide = width >= BREAKPOINTS.tablet;
   const accent = copy?.accent || '#1099F4';
   const flows = processesForPage(copy?.pageKey);
   const videos = videosForPage(copy?.pageKey, lang);

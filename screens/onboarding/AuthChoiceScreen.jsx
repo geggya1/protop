@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useI18n } from '../../src/i18n';
-import { colors, radius } from '../../src/theme';
+import { BREAKPOINTS, colors, radius } from '../../src/theme';
 import {
   signInWithGoogle,
   signInWithApple,
@@ -27,7 +27,7 @@ export default function AuthChoiceScreen({ navigation }) {
   const { t, lang } = useI18n();
   const route = useOptionalRoute();
   const { width } = useWindowDimensions();
-  const wide = width >= 480;
+  const wide = width >= BREAKPOINTS.tablet;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [legalOk, setLegalOk] = useState(false);

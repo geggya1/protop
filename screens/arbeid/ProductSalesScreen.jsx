@@ -44,9 +44,11 @@ import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, patchProjectOperations, peekProjectState } from '../../src/project/storage.js';
 import { importResult } from '../../src/imports/review';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { dateKey } from '../../src/utils/dates';
 import { pickDocument } from '../../src/utils/media';
 import { ProductSalesList } from './ProductSalesList';
+import { formatDate } from '../../src/format/nb';
 
 // Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
 const PAGE_SIZE = 100;
@@ -75,7 +77,7 @@ function SaleOkTable({ colors, rows, pageSize, onMore, onToggleRow }) {
       </View>
       {rows.slice(0, pageSize).map((row) => (
         <View key={row.id} style={[styles.tr, { borderBottomColor: colors.line, opacity: row.included ? 1 : 0.5 }]}>
-          <Text style={[styles.td, { color: colors.ink }]}>{row.date}</Text>
+          <Text style={[styles.td, { color: colors.ink }]}>{formatDate(row.date, { empty: '—' })}</Text>
           <Text style={[styles.td, styles.wide, { color: colors.ink }]} numberOfLines={2}>
             {row.sku ? `${row.sku} ` : ''}{row.name}
           </Text>
@@ -110,7 +112,7 @@ export function ProductSalesScreen() {
   const canEdit = !!access?.ready && !!access.canEdit?.('productSales');
   const canDelete = !!access?.ready && !!access.canAdmin?.('productSales');
   const { width } = useWindowDimensions();
-  const narrow = width < 720;
+  const narrow = width < BREAKPOINTS.tablet;
   const companyId = String(familyId || '').trim();
   const [projectState, setProjectState] = useState(() => peekProjectState(companyId) || emptyProjectState());
   const [projectReady, setProjectReady] = useState(() => !!peekProjectState(companyId));

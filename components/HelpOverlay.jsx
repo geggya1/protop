@@ -307,7 +307,7 @@ export default function HelpOverlay() {
 
   // Kortet vokser med teksten opp til taket; bare innholdet over taket ruller.
   const baseCap = tourCardCap({ winH: height, winW: width, isPhone: layout.isPhone, inset: insets });
-  const cardCap = layout.isPhone || width < 768
+  const cardCap = layout.isPhone
     ? phoneFitCap({ winH: height, hole, cap: baseCap, inset: insets })
     : baseCap;
   const cardRect = useMemo(() => placeCard({

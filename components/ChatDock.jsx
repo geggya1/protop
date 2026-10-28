@@ -13,7 +13,8 @@ import { useApp } from '../src/context/AppContext';
 import { useI18n } from '../src/i18n';
 import { useUnread } from '../src/context/NotificationContext';
 import { useChatDock, useChatDockPreferred } from '../src/context/ChatDockContext';
-import { colors } from '../src/theme';
+import { colors, useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 import { AvatarBubble } from './AvatarPicker';
 import { formatMessageStamp } from '../src/utils/aiChats';
 import { setOpenChatId } from '../src/utils/openChat';
@@ -104,6 +105,13 @@ function DockBubble({ item, mine }) {
   );
 }
 
+/** Ikonknappene i chatten er 20 px; trykkflaten er 44 px på berøringsskjerm (UX-26). */
+function useIconHit(size = 20) {
+  const { isTouch } = useLayout();
+  const hit = touchHit(size, size, { touch: isTouch, os: Platform.OS });
+  return { hitSlop: hit.hitSlop || 8, style: hit.style };
+}
+
 function ChatDockPanel({
   window: win, openIndexFromRight = 0, minimizedStackIndex = 0,
   hasMinimizedColumn = false, onClose, onMinimize, drawer = false, onBack = null,
@@ -121,6 +129,7 @@ function ChatDockPanel({
       : null);
   const { markChatSeen } = useUnread();
   const { t } = useI18n();
+  const iconHit = useIconHit();
   const [text, setText] = useState('');
   const [msgs, setMsgs] = useState([]);
   const [memberIds, setMemberIds] = useState(win.memberIds || []);
@@ -401,11 +410,11 @@ function ChatDockPanel({
           <Text style={styles.headSub} numberOfLines={1}>{t('tabs.chat')}</Text>
         </View>
         {!drawer ? (
-          <TouchableOpacity onPress={() => onMinimize(true)} hitSlop={8} accessibilityLabel="Minimer">
+          <TouchableOpacity onPress={() => onMinimize(true)} {...iconHit} accessibilityRole="button" accessibilityLabel="Minimer">
             <Ionicons name="remove" size={20} color="#fff" />
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel="Lukk">
+        <TouchableOpacity onPress={onClose} {...iconHit} accessibilityRole="button" accessibilityLabel="Lukk">
           <Ionicons name="close" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -490,6 +499,7 @@ function ChatDockPanel({
 
 function ComposePicker({ onClose, onPick, drawer = false }) {
   const { t } = useI18n();
+  const iconHit = useIconHit();
   const {
     familyId, family, members, uid, isChild, meChild, friendPeople,
   } = useApp();
@@ -620,7 +630,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
         <Text style={styles.composeTitle}>
           {drawer ? (t('tabs.chat') || 'Chat') : t('chat.newChat')}
         </Text>
-        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('moduleIntro.close')}>
+        <TouchableOpacity onPress={onClose} {...iconHit} accessibilityRole="button" accessibilityLabel={t('moduleIntro.close')}>
           <Ionicons name="close" size={20} color={colors.ink} />
         </TouchableOpacity>
       </View>

@@ -28,6 +28,7 @@ import IsoExcelImport from './IsoExcelImport';
 import {
   Banner, Btn, Card, Check, Choice, ContactsEdit, DateIn, Empty, Field, KV, ListRow, Page, PersonPick, PersonsPick, Pill, Row, Sheet, TextIn, toneColor,
 } from './isoUi';
+import { dateText } from '../../src/format/nb';
 
 export const STATE_LABEL = {
   aktiv: 'Aktiv', arkivert: 'Arkivert', akseptert: 'Akseptert', lukket: 'Lukket', mottatt: 'Mottatt', behandlet: 'Behandlet', tilbakemeldt: 'Tilbakemeldt',
@@ -947,7 +948,7 @@ export function CompetencePage({ ctx }) {
       ) : null}
       <Sheet visible={!!pick} title={pick ? `${pick.person.name} – ${pick.cell.requirement.title}` : ''} onClose={() => setPick(null)}>
         {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${proofEnd(pick.cell.record, pick.cell.requirement) ? `gyldig til ${prettyDate(proofEnd(pick.cell.record, pick.cell.requirement))}` : 'varig'}`} /> : null}
-        {!pick?.cell.record && pick?.cell.cv ? <KV label={`I CV-en (${pick.cell.cv.kind.toLowerCase()})`} value={`${pick.cell.cv.title}${pick.cell.cv.date ? ` · ${pick.cell.cv.date}` : ''}`} /> : null}
+        {!pick?.cell.record && pick?.cell.cv ? <KV label={`I CV-en (${pick.cell.cv.kind.toLowerCase()})`} value={`${pick.cell.cv.title}${pick.cell.cv.date ? ` · ${dateText(pick.cell.cv.date)}` : ''}`} /> : null}
         {!pick?.cell.record && !pick?.cell.cv ? <Text style={{ color: colors.muted }}>Ingen dokumentert kompetanse.</Text> : null}
         <Btn kind="primary" icon="add" label="Registrer bevis" onPress={() => { setCreate({ personName: pick.person.name, personUid: pick.person.uid, requirementId: pick.cell.requirement.id, title: pick.cell.cv?.title || '' }); setPick(null); }} />
       </Sheet>

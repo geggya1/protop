@@ -7,6 +7,7 @@ import { addDays, dateKey, parseDateKey } from '../utils/dates.js';
 import { eventOccursOnDate } from '../utils/events.js';
 import { controlKind, equipmentCategory, equipmentGroup } from './catalog.js';
 import { normalizeFeeClass } from '../mileage/vehicleFee.js';
+import { formatDate } from '../format/nb.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -328,7 +329,7 @@ export function validateBooking(input, bookings = []) {
     const clash = bookingClash(row, bookings);
     if (clash) {
       const who = clash.employeeName || 'en annen';
-      const when = clash.date === row.date ? '' : ` ${clash.date}`;
+      const when = clash.date === row.date ? '' : ` ${formatDate(clash.date)}`;
       return {
         ok: false,
         error: `Opptatt${when} ${clash.start.slice(11)}–${clash.end.slice(11)} (${who}).`,

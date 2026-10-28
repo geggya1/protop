@@ -277,6 +277,10 @@ export const FILES = [
   'src/ui/pageTitle.test.mjs',
   'src/ui/tokens.test.mjs',
   'src/ui/designGuard.test.mjs',
+  // UX-23: felles brytepunkter, tettheten følger pekeren.
+  'src/ui/breakpointGuard.test.mjs',
+  // UX-26: trykkflater på minst 44 × 44 på berøringsskjerm.
+  'src/ui/touchTarget.test.mjs',
   'src/ui/confirm.test.mjs',
   'src/format/nb.test.mjs',
   'src/i18n/deviceLang.test.mjs',

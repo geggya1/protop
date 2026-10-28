@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
 import { useI18n } from '../src/i18n';
 import { useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 import HelpButton from './HelpButton';
 import HelpTarget from './HelpTarget';
 import { AvatarBubble } from './AvatarPicker';
@@ -53,6 +54,30 @@ export const ShellPageHeroContext = createContext(null);
  * titleInPage: modulbåndet eller tittelraden i innholdet (ModuleHero/ModuleTitleRow) viser
  * sidetittelen på PC og nettbrett, så toppfeltet gjentar den ikke (én tittel per side).
  */
+/**
+ * Ikonknapp i toppfeltet: sirkel på 36 px (telefon og nettbrett) eller firkant på 32 px (PC).
+ * På berøringsskjerm ligger en gjennomsiktig trykkflate på 44 px rundt, uten å ta mer plass
+ * i raden (UX-26). Med mus er knappen som før.
+ */
+function HeaderIconButton({
+  compact = false, style, onPress, accessibilityLabel, children,
+}) {
+  const { isTouch } = useLayout();
+  const size = compact ? 32 : 36;
+  const hit = touchHit(size, size, { touch: isTouch, os: Platform.OS });
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={hit.hitSlop}
+      style={[compact ? styles.iconHitCompact : styles.iconHit, hit.style]}
+    >
+      <View style={[styles.iconBtn, compact && styles.iconBtnCompact, style]}>{children}</View>
+    </TouchableOpacity>
+  );
+}
+
 export default function ShellHeader({
   title = 'Hjem',
   onMenuPress,
@@ -72,7 +97,7 @@ export default function ShellHeader({
   const nav = useNavigation();
   const { t } = useI18n();
   const colors = useColors();
-  const { isPhone } = useLayout();
+  const { isPhone, isTouch } = useLayout();
   const insets = useSafeAreaInsets();
   const frame = useVisualViewportFrame();
   const statusPad = coverStatusBar
@@ -93,22 +118,28 @@ export default function ShellHeader({
   const goHomeFromLogo = onLogoHome || onBackHome;
 
   // Lyspæren står i knapperaden på alle flater, aldri over profilbildet eller innholdet.
-  const profileButton = (size) => (
-    <View style={styles.avatarSlot}>
-      <TouchableOpacity
-        style={styles.avatarBtn}
-        onPress={() => setMenuOpen(true)}
-        accessibilityLabel="Profilmeny"
-      >
-        <AvatarBubble
-          avatarId={activeProfile?.avatarId}
-          photoURL={activeProfile?.photoURL}
-          name={activeProfile?.name || '?'}
-          size={size}
-        />
-      </TouchableOpacity>
-    </View>
-  );
+  // Profilbildet har 2 px luft rundt; trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const profileButton = (size) => {
+    const hit = touchHit(size, size, { touch: isTouch, os: Platform.OS, inset: 2 });
+    return (
+      <View style={styles.avatarSlot}>
+        <TouchableOpacity
+          style={[styles.avatarBtn, hit.style]}
+          hitSlop={hit.hitSlop}
+          onPress={() => setMenuOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Profilmeny"
+        >
+          <AvatarBubble
+            avatarId={activeProfile?.avatarId}
+            photoURL={activeProfile?.photoURL}
+            name={activeProfile?.name || '?'}
+            size={size}
+          />
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   if (dense) {
     return (
@@ -116,30 +147,31 @@ export default function ShellHeader({
         <View style={[styles.barDense, { backgroundColor: colors.card, borderBottomColor: colors.line }]}>
           <View style={styles.sideSlot}>
             {!!onMenuPress && (
-              <TouchableOpacity
-                style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+              <HeaderIconButton
+                compact
+                style={{ borderColor: colors.line }}
                 onPress={onMenuPress}
                 accessibilityLabel="Åpne meny"
-                accessibilityRole="button"
               >
                 <IconBadge count={unreadTotal} size={16} offset={-4}>
                   <Ionicons name="menu" size={20} color={colors.ink} />
                 </IconBadge>
-              </TouchableOpacity>
+              </HeaderIconButton>
             )}
           </View>
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
             {viewAs}
             <HelpButton inline compact color={colors.ink} />
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+            <HeaderIconButton
+              compact
+              style={{ borderColor: colors.line }}
               onPress={() => openNotifications(nav)}
               accessibilityLabel="Varslinger"
             >
               <IconBadge count={unreadTotal} size={16} offset={-4}>
                 <Ionicons name="notifications-outline" size={18} color={colors.ink} />
               </IconBadge>
-            </TouchableOpacity>
+            </HeaderIconButton>
             {profileButton(28)}
           </View>
         </View>
@@ -154,16 +186,16 @@ export default function ShellHeader({
         <View style={[styles.barCompact, { backgroundColor: colors.card, borderBottomColor: colors.line }]}>
           <View style={[styles.headerSide, styles.headerSideStart]}>
             {!!onMenuPress && (
-              <TouchableOpacity
-                style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+              <HeaderIconButton
+                compact
+                style={{ borderColor: colors.line }}
                 onPress={onMenuPress}
                 accessibilityLabel="Åpne meny"
-                accessibilityRole="button"
               >
                 <IconBadge count={unreadTotal} size={16} offset={-4}>
                   <Ionicons name="menu" size={18} color={colors.ink} />
                 </IconBadge>
-              </TouchableOpacity>
+              </HeaderIconButton>
             )}
             <View style={styles.textColCompact}>
               {titleInPage ? null : (
@@ -183,15 +215,16 @@ export default function ShellHeader({
               ) : null}
               {viewAs}
               <HelpButton inline color={colors.ink} />
-              <TouchableOpacity
-                style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+              <HeaderIconButton
+                compact
+                style={{ borderColor: colors.line }}
                 onPress={() => openNotifications(nav)}
                 accessibilityLabel="Varslinger"
               >
                 <IconBadge count={unreadTotal} size={16} offset={-4}>
                   <Ionicons name="notifications-outline" size={18} color={colors.ink} />
                 </IconBadge>
-              </TouchableOpacity>
+              </HeaderIconButton>
               {profileButton(28)}
             </View>
           </View>
@@ -223,16 +256,15 @@ export default function ShellHeader({
         <View style={styles.chromeRow}>
           <View style={styles.sideSlot}>
             {!!onMenuPress && (
-              <TouchableOpacity
-                style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+              <HeaderIconButton
+                style={{ borderColor: colors.line, backgroundColor: colors.card }}
                 onPress={onMenuPress}
                 accessibilityLabel="Åpne meny"
-                accessibilityRole="button"
               >
                 <IconBadge count={unreadTotal} size={16} offset={-4}>
                   <Ionicons name="menu" size={22} color={colors.ink} />
                 </IconBadge>
-              </TouchableOpacity>
+              </HeaderIconButton>
             )}
             {/* Lyspæren i raden, ved menyen: dekker verken Privat/Bedrift, båndet eller innholdet. */}
             <HelpButton inline compact color={colors.ink} borderColor={colors.line} />
@@ -253,18 +285,15 @@ export default function ShellHeader({
 
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
             {viewAs}
-            <TouchableOpacity
-              style={[styles.iconBtn, {
-                borderColor: colors.line,
-                backgroundColor: colors.card,
-              }]}
+            <HeaderIconButton
+              style={{ borderColor: colors.line, backgroundColor: colors.card }}
               onPress={() => openNotifications(nav)}
               accessibilityLabel="Varslinger"
             >
               <IconBadge count={unreadTotal} size={16} offset={-4}>
                 <Ionicons name="notifications-outline" size={20} color={colors.ink} />
               </IconBadge>
-            </TouchableOpacity>
+            </HeaderIconButton>
             {profileButton(34)}
           </View>
         </View>
@@ -502,6 +531,9 @@ const styles = StyleSheet.create({
   iconBtnCompact: {
     width: 32, height: 32, borderRadius: 6,
   },
+  // Gjennomsiktig trykkflate rundt ikonknappen; samme hjørner, så hover på PC følger formen.
+  iconHit: { borderRadius: 18 },
+  iconHitCompact: { borderRadius: 6 },
   avatarBtn: {
     alignSelf: 'flex-start', padding: 2 },
 });

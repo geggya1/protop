@@ -11,7 +11,7 @@ import {
   reload,
 } from 'firebase/auth';
 import { auth } from '../firebase';
-import { colors, radius } from '../src/theme';
+import { BREAKPOINTS, colors, radius } from '../src/theme';
 import { useI18n } from '../src/i18n';
 import { sendPasswordResetV2 } from '../src/utils/sendPasswordReset';
 import { resolveLoginEmail } from '../src/utils/usernames';
@@ -76,7 +76,7 @@ export default function LoginScreen({ navigation }) {
   const { t, lang } = useI18n();
   const route = useOptionalRoute();
   const { width } = useWindowDimensions();
-  const wide = width >= 480;
+  const wide = width >= BREAKPOINTS.tablet;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

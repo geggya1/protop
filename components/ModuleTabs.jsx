@@ -11,7 +11,8 @@ import ScrollSheet from './ScrollSheet';
 /**
  * Vannrett meny inne i en modul (se src/navigation/moduleTabs.js). Samme meny i alle moduler (UX-19).
  * Fanene som får plass står i raden; resten ligger under «Mer», som åpner et ark (ISO: med delene som titler).
- * Telefon: høyst 4 faner, kortnavn og trykkflater på minst 44 px. Siden du står på, er alltid i raden.
+ * Telefon: høyst 4 faner og kortnavn. Berøringsskjerm (også nettbrett og iPad i liggende format):
+ * trykkflater på minst 44 px (UX-23). Siden du står på, er alltid i raden.
  * Aktiv fane har brandInk-tekst (kontrast 4,5:1); streken under bruker merkefargen.
  */
 function useBadges(moduleId) {
@@ -23,7 +24,7 @@ function useBadges(moduleId) {
   return values;
 }
 
-function TabButton({ id, label, on, onPress, onLayout, phone, more = false, accessibilityLabel }) {
+function TabButton({ id, label, on, onPress, onLayout, touchSize, more = false, accessibilityLabel }) {
   const colors = useColors();
   return (
     <Pressable
@@ -36,7 +37,7 @@ function TabButton({ id, label, on, onPress, onLayout, phone, more = false, acce
       onPress={onPress}
       style={({ hovered, pressed }) => [
         styles.tab,
-        phone && styles.tabPhone,
+        touchSize && styles.tabTouch,
         { borderBottomColor: on ? colors.brand : 'transparent', backgroundColor: hovered || pressed ? colors.sunken : 'transparent' },
       ]}
     >
@@ -96,7 +97,9 @@ function MoreSheet({ groups, activeId, onPick, onClose, title, phone }) {
 
 export default function ModuleTabs({ menu, onSelect, moreOpen = false }) {
   const colors = useColors();
-  const { isPhone, width: windowWidth, hasRail, railWidth } = useLayout();
+  const {
+    isPhone, isTouch, width: windowWidth, hasRail, railWidth,
+  } = useLayout();
   const badges = useBadges(menu?.moduleId);
   const [rowWidth, setRowWidth] = useState(0);
   const [sheet, setSheet] = useState(moreOpen);
@@ -151,7 +154,7 @@ export default function ModuleTabs({ menu, onSelect, moreOpen = false }) {
             label={text(page)}
             accessibilityLabel={page.label}
             on={page.id === activeId}
-            phone={isPhone}
+            touchSize={isTouch}
             onLayout={(e) => { offsets.current[page.id] = e.nativeEvent.layout.x; }}
             onPress={() => go(page)}
           />
@@ -161,7 +164,7 @@ export default function ModuleTabs({ menu, onSelect, moreOpen = false }) {
             more
             label="Mer"
             on={false}
-            phone={isPhone}
+            touchSize={isTouch}
             accessibilityLabel={`Flere sider i ${menu.label} (${moreCount})`}
             onPress={() => setSheet(true)}
           />
@@ -195,7 +198,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.sm,
     borderBottomWidth: 2,
   },
-  tabPhone: { minHeight: touch.min, justifyContent: 'center' },
+  tabTouch: { minHeight: touch.min, justifyContent: 'center' },
   tabText: { fontSize: type.body.fontSize },
   sheetList: { gap: space.md },
   sheetGroup: { gap: space.xs },

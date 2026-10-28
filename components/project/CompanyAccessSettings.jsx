@@ -42,6 +42,7 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { canGrantLevel, canSetGrant, checkPersonChange, grantsAbove } from '../../src/access/accessCeiling';
 import { accessHelp } from '../../src/access/accessHelp';
 import { sectionHeadcounts } from '../../src/access/accessHeadcount';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 const ACCESS_LEADS = [
   'Åtte standardnivåer ligger til grunn og kan tilpasses. I tillegg finnes tre fagansvar (HMS-ansvarlig, Kvalitetsansvarlig og HR-ansvarlig) som krysses av i tillegg til vanlig nivå. Hvert nivå har egen matrise for alle moduler, undermoduler og innstillinger. Lese = se uten endring. Begrenset redigering = opprette og redigere. Admin = innstillingsknapper og full styring i modulen. Høyere trinn tar med dem under. Trykk (i) i matrisen for å se hva trinnet gir i akkurat den modulen. Flere nivå på samme person krysses av under Personer.',
@@ -799,7 +800,7 @@ export default function CompanyAccessSettings({
     return next;
   });
   const { width } = useWindowDimensions();
-  const compact = layout === 'compact' || (layout !== 'table' && width > 0 && width < 760);
+  const compact = layout === 'compact' || (layout !== 'table' && width > 0 && width < BREAKPOINTS.tablet);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [drag, setDrag] = useState(null);

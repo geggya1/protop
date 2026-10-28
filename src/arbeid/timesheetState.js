@@ -5,6 +5,7 @@
 
 import { norwegianHolidays, resolveRedDays } from './holidays.js';
 import { isDateLocked, lockRowFor, lockThroughDate } from './locks.js';
+import { formatDate } from '../format/nb.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -296,7 +297,7 @@ export function toggleTimesheetLock(state, {
     timesheetLocks: [row, ...current],
     timesheetLockArchive: existingRow ? archiveLock(state, existingRow) : list(state, 'timesheetLockArchive'),
   });
-  const notice = reopenedNotice(reopened?.count || 0, `Timelisten er låst til ${date}.`);
+  const notice = reopenedNotice(reopened?.count || 0, `Timelisten er låst til ${formatDate(date)}.`);
   return notice ? { ...result, notice } : result;
 }
 

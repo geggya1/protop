@@ -1,6 +1,7 @@
 import { Platform, useWindowDimensions } from 'react-native';
 import { adaptiveColor } from './appearance/adaptiveColor';
 import { DARK, LIGHT } from './appearance/palette';
+import { BREAKPOINTS, coarsePointer, layoutFor } from './ui/layout.js';
 
 /**
  * Overflate og tekst følger valgt utseende (lys / mørk / automatisk).
@@ -81,23 +82,25 @@ export const radius = Platform.OS === 'web'
 
 export const radiusMobile = radiusNative;
 
-/** Breakpoints: phone < 768 · tablet 768–1023 · desktop ≥ 1024 */
-export const BREAKPOINTS = {
-  tablet: 768,
-  desktop: 1024,
-};
+/**
+ * Brytepunkter: telefon < 768 · nettbrett 768–1023 · PC ≥ 1024 · bred PC ≥ 1280.
+ * Definert i src/ui/layout.js (UX-23); skjermene bruker useLayout() og ikke egne tall.
+ */
+export { BREAKPOINTS };
 
 /**
- * Responsiv layout-hjelper.
- * Mobil (phone) og nettbrett skal beholde dagens kompakte/runde UI uendret.
- * Desktop får tettere chrome, skarpere former og utnytter bredden.
+ * Responsiv layout-hjelper. All layout går gjennom denne (UX-23).
+ * Bredden avgjør oppsettet: telefon og nettbrett beholder det kompakte/runde UI-et,
+ * PC får tettere chrome, skarpere former og utnytter bredden.
+ * Pekeren avgjør tettheten: isTouch / density 'touch' på telefon, nettbrett og iPad i
+ * liggende format (trykkflater på minst 44 px), 'mouse' på PC med mus.
  */
 export function useLayout() {
   const { width, height } = useWindowDimensions();
-  const isPhone = width < BREAKPOINTS.tablet;
-  const isTablet = width >= BREAKPOINTS.tablet && width < BREAKPOINTS.desktop;
-  const isDesktop = width >= BREAKPOINTS.desktop;
-  const isWide = isDesktop; // bakoverkompatibel alias
+  const touch = Platform.OS !== 'web' || coarsePointer();
+  const {
+    isPhone, isTablet, isDesktop, isWide, isTouch, density,
+  } = layoutFor(width, { touch });
   const hasRail = !isPhone;
 
   return {
@@ -106,7 +109,11 @@ export function useLayout() {
     isPhone,
     isTablet,
     isDesktop,
+    /** Bred PC (≥ 1280): plass til sidekolonner ved siden av hovedinnholdet. */
     isWide,
+    /** Berøringsskjerm: trykkflater på minst touch.min (src/ui/tokens). */
+    isTouch,
+    density,
     hasRail,
     /** Max bredde for hovedinnhold (innenfor main, utenom rail). */
     contentMax: isDesktop ? Math.min(width - 220, 1680) : isTablet ? 720 : width,

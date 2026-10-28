@@ -2025,6 +2025,7 @@ export default function EmployeesScreen() {
           {view === 'settingsLog' && selected ? (
             <EmployeeUsagePanel
               companyId={familyId}
+              company={family?.company}
               employee={selected}
               colors={colors}
               enabled={employeesAdmin || isSelfRow(selected)}

@@ -43,5 +43,10 @@ assert.match(accessPage, /useState\(focusEmployeeId \? 'people' : initialMode\)/
 // Brukerloggen står alene på egen underside, ikke på hovedsiden.
 assert.equal((screen.match(/<EmployeeUsagePanel/g) || []).length, 1);
 assert.match(screen, /view === 'settingsLog' && selected \? \(\s*<EmployeeUsagePanel/);
+// L-08: teksten følger selskapets valg og lagringstiden, ikke en fast tekst.
+const usagePanel = read('../../screens/employees/EmployeeUsagePanel.jsx');
+assert.match(usagePanel, /\{notice \|\| usageLogNotice\(company\)\}/);
+assert.equal(/IP-adressen hentes fra tilkoblingen/.test(usagePanel), false);
+assert.match(screen, /<EmployeeUsagePanel\s+companyId=\{familyId\}\s+company=\{family\?\.company\}/);
 
 console.log('employeeAccount.test.mjs: ok');

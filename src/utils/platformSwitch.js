@@ -348,9 +348,9 @@ export async function applyPlatformSwitch({
     if (current && current !== target) openPlatformHome(navigation, group);
     return { applied: true, kind: 'workspace', id: group.id, same: true };
   }
-  await selectFamily?.(group.id, group);
-  // En bedriftsside blir ikke med over i Privat (EGEN-04).
+  // En bedriftsside blir ikke med over i Privat (EGEN-04). Før byttet, så skallet monteres på Hjem.
   leaveShellPathForSwitch(isLiveOrganization(group) ? 'company' : 'personal');
+  await selectFamily?.(group.id, group);
   openPlatformHome(navigation, group);
   return { applied: true, kind: 'workspace', id: group.id };
 }

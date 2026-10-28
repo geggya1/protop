@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import {
   companyLandingTab, getShellLocation, homePathForLinking, isShellPath, parseShellPath, rememberEntryShellPath, setHomeRouteKey, setShellLocation,
-  shellLinkState, shellPathAfterSwitch, shellPathFor, shellSearchFor, takeEntryShellPath,
+  isCompanyOnlyTab, shellLinkState, shellPathAfterSwitch, shellPathFor, shellSearchFor, takeEntryShellPath,
 } from './shellPaths.js';
 
 test('skallsti: fane og underside i adressen', () => {
@@ -90,4 +91,13 @@ test('bytte til Privat: bedriftssider blir ikke med, felles sider blir stående 
   assert.equal(shellPathAfterSwitch('/hjem', 'personal'), null);
   assert.equal(shellPathAfterSwitch('/hjem/selskap', 'company'), null, 'til Bedrift: stien står');
   assert.equal(shellPathAfterSwitch('/settings/profile', 'personal'), null, 'ikke en skallsti');
+  assert.equal(isCompanyOnlyTab('selskap'), true);
+  assert.equal(isCompanyOnlyTab('plan'), false);
+  const shell = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
+  assert.match(shell, /family\.id !== familyId\) return;/, 'skallet lander ikke på selskapssiden med forrige arbeidsområde');
+  const platformSwitch = readFileSync(new URL('../utils/platformSwitch.js', import.meta.url), 'utf8');
+  assert.ok(
+    platformSwitch.indexOf('leaveShellPathForSwitch(') < platformSwitch.indexOf('await selectFamily?.('),
+    'adressen ryddes før byttet',
+  );
 });

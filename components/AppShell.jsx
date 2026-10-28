@@ -451,6 +451,9 @@ function AppShellInner() {
   const landedRef = useRef(false);
   useEffect(() => {
     if (landedRef.current || Platform.OS !== 'web' || typeof window === 'undefined' || !family) return;
+    // Under bytte med Privat/Bedrift peker familien et øyeblikk på det forrige arbeidsområdet.
+    // Da landes det ikke, ellers ble selskapssiden med over i Privat (EGEN-04).
+    if (familyId && family.id && family.id !== familyId) return;
     const company = isOrganizationType(family.type);
     if (company && companyAccess.active && !companyAccess.ready) return;
     landedRef.current = true;
@@ -462,7 +465,7 @@ function AppShellInner() {
       allowed: companyAccess.tabAllowed('selskap', null),
     });
     if (next) setTab((current) => (current === 'home' ? next : current));
-  }, [family, companyAccess.active, companyAccess.ready]);
+  }, [family, familyId, companyAccess.active, companyAccess.ready]);
 
   // Tilpass hjem → åpne hjem-fanen (editHome leses av theme hosts)
   useEffect(() => {

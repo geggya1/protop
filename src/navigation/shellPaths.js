@@ -102,7 +102,12 @@ const COMPANY_ONLY_TABS = new Set([
 export function shellPathAfterSwitch(path, side) {
   const at = parseShellPath(path);
   if (!at || side !== 'personal') return null;
-  return COMPANY_ONLY_TABS.has(at.tab) ? SHELL_ROOT : null;
+  return isCompanyOnlyTab(at.tab) ? SHELL_ROOT : null;
+}
+
+/** Fanen finnes bare i Bedrift. */
+export function isCompanyOnlyTab(tab) {
+  return COMPANY_ONLY_TABS.has(clean(tab));
 }
 
 /* Siste skallsti og nøkkelen til Hjem-ruten. Brukes av linking når Hjem får fokus igjen. */

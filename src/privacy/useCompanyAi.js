@@ -1,11 +1,13 @@
 import { useCallback } from 'react';
-import { useApp } from '../context/AppContext';
+import { useOptionalApp } from '../context/AppContext';
 import { companyAiAllowed, companyAiCall } from './companyPrivacy';
+
+// useOptionalApp: komponentene rendres også uten AppProvider (forhåndsvisninger og tester).
 
 /** «Tillat AI-funksjoner» for valgt selskap (på når ingenting er valgt). */
 export function useCompanyAiAllowed() {
-  const { family } = useApp();
-  return companyAiAllowed(family?.company);
+  const app = useOptionalApp();
+  return companyAiAllowed(app?.family?.company);
 }
 
 /**
@@ -13,7 +15,7 @@ export function useCompanyAiAllowed() {
  * med en forklaring. Skjermene viser feilen eller leser lokalt som før.
  */
 export function useCompanyAiGuard() {
-  const { family } = useApp();
-  const company = family?.company;
+  const app = useOptionalApp();
+  const company = app?.family?.company;
   return useCallback((call) => companyAiCall(company, call), [company]);
 }

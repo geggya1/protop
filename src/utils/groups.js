@@ -145,6 +145,13 @@ export async function createGroup({
   return famRef.id;
 }
 
+/** Grupper brukeren eier (ownerUid), rett fra databasen. Brukes før et personlig skall lages. */
+export async function listOwnedGroups(uid) {
+  if (!uid) return [];
+  const snap = await getDocs(query(collection(db, 'families'), where('ownerUid', '==', uid), limit(20)));
+  return snap.docs.map((row) => ({ id: row.id, ...row.data() }));
+}
+
 export async function updateGroup(familyId, patch) {
   // Gruppetype er låst etter opprettelse (familie ≠ idrettslag ≠ …).
   const { type: _ignoredType, ...safe } = patch || {};

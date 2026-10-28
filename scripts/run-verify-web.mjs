@@ -253,6 +253,8 @@ export const FILES = [
   'src/format/nb.test.mjs',
   'src/i18n/deviceLang.test.mjs',
   'src/companyHome/model.test.mjs',
+  // Konto: første innlogging, invitasjonslenke, brukernavn, familieproduktet og venneinvitasjoner.
+  'src/utils/personalShell.test.mjs',
 ];
 
 function runFile(file) {

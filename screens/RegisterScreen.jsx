@@ -23,7 +23,8 @@ import { claimUsername } from '../src/utils/usernames';
 import { uniqueUsername } from '../src/utils/account';
 import { persistUserConsents } from '../src/utils/consents';
 import { isCompanyGroupType } from '../src/utils/groupInviteLogic';
-import { joinInviteRecord } from '../src/utils/inviteLinkJoin';
+import { inviteContextRecord, joinInviteRecord } from '../src/utils/inviteLinkJoin';
+import { rememberInviteContext } from '../src/utils/inviteLinkJoinClient';
 import { registrationProfile } from '../src/utils/registrationProfile';
 import { passwordStrength, isValidEmail, isSyntheticEmail } from '../src/utils/accountContact';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
@@ -149,6 +150,13 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
           type: res.type || 'family',
           joinCode: '',
         });
+        // Logger personen inn med Microsoft eller Google i stedet, husker appen invitasjonen
+        // og kan be om å bekrefte e-posten for å bli med (UX-30).
+        if (isCompanyGroupType(res.type)) {
+          rememberInviteContext(inviteContextRecord({
+            familyId: invite.familyId, email: invite.email, groupType: res.type, groupName: res.name,
+          }));
+        }
       })
       .catch(() => {
         if (alive) setInviteGroup({ missing: true, id: invite.familyId });
@@ -479,7 +487,12 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
 
             <View style={styles.signupRow}>
               <Text style={styles.signupMuted}>Har du allerede konto? </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Login')} disabled={loading}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Login', invite.familyId
+                  ? { email: invite.email, familyId: invite.familyId }
+                  : undefined)}
+                disabled={loading}
+              >
                 <Text style={styles.linkInline}>Logg inn</Text>
               </TouchableOpacity>
             </View>

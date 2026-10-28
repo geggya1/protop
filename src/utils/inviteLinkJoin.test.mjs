@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  joinInviteRecord, joinWelcomeVisible, pickJoinInvite, shouldAutoJoin, TIMESHEET_TIPS,
+  INVITE_CONTEXT_MS, inviteContextRecord, joinInviteRecord, joinVerifyState, joinWelcomeVisible, pickJoinInvite,
+  shouldAutoJoin, TIMESHEET_TIPS,
 } from './inviteLinkJoin.js';
 import { registrationProfile } from './registrationProfile.js';
 
@@ -71,4 +72,27 @@ test('registreringen gir ferdig profil uten kjønn, så profilsteget hoppes over
   assert.equal('joinInvite' in registrationProfile({ uid: 'u2', name: 'Ola' }), false);
   // Uten navn: profilsteget vises som før.
   assert.equal(registrationProfile({ uid: 'u3', name: ' ' }).profileComplete, false);
+});
+
+test('Microsoft-konto uten bekreftet e-post etter lenken: «Bekreft e-posten din for å bli med»', () => {
+  const context = inviteContextRecord({
+    familyId: 'co', email: 'Kari@Bygg.no', groupType: 'organization', groupName: 'Bygg AS', now,
+  });
+  assert.equal(context.at, '2026-10-28T08:00:00.000Z');
+  const ms = { email: 'kari@bygg.no', emailVerified: false, providerData: [{ providerId: 'microsoft.com' }] };
+  const at = now.getTime() + 1000;
+  assert.deepEqual(joinVerifyState({ context, user: ms, families: [], now: at }), {
+    kind: 'verify', familyId: 'co', familyName: 'Bygg AS', email: 'kari@bygg.no',
+  });
+  // Annen e-post enn invitasjonen.
+  assert.equal(joinVerifyState({ context, user: { ...ms, email: 'kari@annet.no' }, families: [], now: at }).kind, 'wrong-email');
+  // Bekreftet, passordbruker (egen side), allerede med, gammel lenke, ingen lenke: ingenting.
+  assert.equal(joinVerifyState({ context, user: { ...ms, emailVerified: true }, now: at }), null);
+  assert.equal(joinVerifyState({ context, user: { ...ms, providerData: [{ providerId: 'password' }] }, now: at }), null);
+  assert.equal(joinVerifyState({ context, user: ms, families: [{ id: 'co' }], now: at }), null);
+  assert.equal(joinVerifyState({ context, user: ms, now: at + INVITE_CONTEXT_MS }), null);
+  assert.equal(joinVerifyState({ user: ms, now: at }), null);
+  // Ønsket på profilen gjelder også uten lenken på enheten.
+  const joinInvite = joinInviteRecord({ familyId: 'co', email: 'kari@bygg.no', groupName: 'Bygg AS', now });
+  assert.equal(joinVerifyState({ joinInvite, user: ms, now: at }).kind, 'verify');
 });

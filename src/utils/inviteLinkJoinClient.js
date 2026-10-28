@@ -4,16 +4,58 @@
  * syncMyInvites legger bare inn invitasjoner til personens bekreftede e-post, og
  * respondGroupInvite godtar bare personens egen invitasjon. Se inviteLinkJoin.js.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { deleteField, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { syncMyInvites } from './invite';
+import { sendVerificationEmailV2 } from './sendVerificationEmail';
 import { acceptFamilyMemberInvite } from './groups';
 import { claimEmployeeSeat } from '../employees/inviteClient';
 import { leaveCompany } from '../employees/membershipClient';
 import { JOIN_INVITE_FIELD, pickJoinInvite } from './inviteLinkJoin';
 
+const CONTEXT_KEY = 'protop.inviteLinkContext';
+
+/**
+ * Registreringssiden husker bedriftsinvitasjonen på enheten. Velger personen å logge inn med
+ * Microsoft eller Google i stedet, kan appen fortsatt si «Bekreft e-posten din for å bli med i X».
+ */
+export async function rememberInviteContext(context) {
+  try {
+    if (context?.familyId) await AsyncStorage.setItem(CONTEXT_KEY, JSON.stringify(context));
+    else await AsyncStorage.removeItem(CONTEXT_KEY);
+  } catch { /* privat modus */ }
+}
+
+export async function readInviteContext() {
+  try {
+    const raw = await AsyncStorage.getItem(CONTEXT_KEY);
+    const value = raw ? JSON.parse(raw) : null;
+    return value && typeof value === 'object' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * «Send lenken»: ønsket om å bli med lagres på profilen, og bekreftelseslenken sendes.
+ * Når e-posten er bekreftet, godtas invitasjonen som for den som registrerte seg fra lenken.
+ */
+export async function requestJoinVerification({ uid, email, joinInvite, context }) {
+  if (!uid || !email) throw new Error('missing-params');
+  if (!joinInvite && context?.familyId) {
+    const { at, ...record } = context;
+    await setDoc(doc(db, 'users', uid), {
+      [JOIN_INVITE_FIELD]: { ...record, status: 'pending' },
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+  }
+  await sendVerificationEmailV2(email);
+}
+
 /** Fjern ønsket (vanlig flyt videre, eller kortet er lest). */
 export async function clearJoinInvite(uid) {
+  await rememberInviteContext(null);
   if (!uid) return;
   await updateDoc(doc(db, 'users', uid), {
     [JOIN_INVITE_FIELD]: deleteField(),
@@ -47,6 +89,7 @@ export async function runInviteLinkJoin({ uid, joinInvite }) {
       uid,
     });
     await claimEmployeeSeat(invite.familyId).catch(() => {});
+    await rememberInviteContext(null);
     const familyName = res?.familyName || invite.familyName || joinInvite.familyName || '';
     await setDoc(doc(db, 'users', uid), {
       [JOIN_INVITE_FIELD]: {

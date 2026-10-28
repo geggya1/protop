@@ -35,7 +35,7 @@ import { agreementResponsiblePeople, personOwnsId } from '../../src/anbud/custom
 import { mergeAnbudStates } from '../../src/anbud/model';
 import { processStepsForAgreement } from '../../src/anbud/processTrail';
 import { flushAnbudState, loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { createProject } from '../../src/project/engine';
 import AgreementCustomerField from './AgreementCustomerField';
@@ -99,7 +99,6 @@ export default function AgreementTreatment({
   const { user } = useApp();
   const { isPhone } = useLayout();
   const [state, setState] = useState(null);
-  const [employees, setEmployees] = useState([]);
   const [projects, setProjects] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [versionNo, setVersionNo] = useState(0);
@@ -145,10 +144,7 @@ export default function AgreementTreatment({
     return () => { live = false; stop(); };
   }, [companyId, party]);
 
-  useEffect(() => {
-    if (!companyId || party !== 'avsender') return undefined;
-    return watchEmployees(companyId, setEmployees);
-  }, [companyId, party]);
+  const { employees } = useEmployees(companyId, { enabled: party === 'avsender' });
 
   useEffect(() => {
     if (!companyId || party !== 'avsender') return undefined;

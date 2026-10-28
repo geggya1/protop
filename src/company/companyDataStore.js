@@ -173,6 +173,8 @@ export function createCompanyDataStore(companyId, sources = {}, { graceMs = RELE
     const onData = (value, meta = {}) => {
       if (!running.has(source)) return;
       const from = meta?.source || 'remote';
+      // En lokal kopi som kommer etter svaret fra skyen, er eldre og skal ikke tegnes.
+      if (from !== 'remote' && raw[source].source === 'remote') return;
       if (source === 'employees' || source === 'customers') {
         emit(source, { rows: Array.isArray(value) ? value : [], ready: true, source: from, error: null });
       } else if (source === 'projects') {

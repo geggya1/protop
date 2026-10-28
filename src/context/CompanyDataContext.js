@@ -77,38 +77,41 @@ export function useCompanyDataStore() {
   return useContext(CompanyDataContext);
 }
 
-/** Ansatte i selskapet: { employees, byId, ready, source }. Én lytter for hele skallet. */
-export function useEmployees(companyId = '') {
-  return useSlice('employees', companyId);
+/**
+ * Ansatte i selskapet: { employees, byId, ready, source }. Én lytter for hele skallet.
+ * enabled: false når skjermen ikke trenger listen (ingen lytter startes).
+ */
+export function useEmployees(companyId = '', { enabled = true } = {}) {
+  return useSlice('employees', companyId, enabled);
 }
 
 /**
  * Én rad per person (ansettelse og medlemskap slått sammen): { rows, byEmployeeId, byUid,
  * resolvePerson(id), nameOf(id, reserve), ready }. resolvePerson tåler både uid og ansatt-id.
  */
-export function useCompanyDirectory(companyId = '') {
-  return useSlice('directory', companyId);
+export function useCompanyDirectory(companyId = '', { enabled = true } = {}) {
+  return useSlice('directory', companyId, enabled);
 }
 
 /** Kunderegisteret i sanntid: { customers, byId, byNumber, byOrgnr, resolveCustomer(ref), ready, source }. */
-export function useCustomers(companyId = '') {
-  return useSlice('customers', companyId);
+export function useCustomers(companyId = '', { enabled = true } = {}) {
+  return useSlice('customers', companyId, enabled);
 }
 
 /**
  * Prosjektene i sanntid, bare til lesing: { projects, byId, byNumber, resolveProject(ref), ready }.
  * Lagring går fortsatt via useProjectStateEditor / saveProjectState.
  */
-export function useProjects(companyId = '') {
-  return useSlice('projects', companyId);
+export function useProjects(companyId = '', { enabled = true } = {}) {
+  return useSlice('projects', companyId, enabled);
 }
 
 /**
  * Kontoplan, standardkontoer, fraværstyper, røde dager, normaldag, kjøresatser,
  * fakturastandarder og timepriser, med resolveHourlyRate({ project, contracts, date, employee }).
  */
-export function useCompanySettings(companyId = '') {
-  return useSlice('settings', companyId);
+export function useCompanySettings(companyId = '', { enabled = true } = {}) {
+  return useSlice('settings', companyId, enabled);
 }
 
 /**
@@ -126,11 +129,4 @@ export function useCompanyRefs(companyId = '', { people = true, customers = true
   }), [people, customers, projects, directory, customerSlice, projectSlice]);
 }
 
-/**
- * Kundelisten fra registeret når lytteren har svart fra skyen, ellers listen skjermen
- * selv har lastet (f.eks. fra anbud/state).
- */
-export function liveCustomerList(slice, fallback = []) {
-  if (slice?.ready && slice.source === 'remote') return slice.customers;
-  return Array.isArray(fallback) && fallback.length ? fallback : (slice?.customers || []);
-}
+export { liveCustomerList } from '../company/companyData.js';

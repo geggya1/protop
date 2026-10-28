@@ -22,7 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptionPicker from '../../components/OptionPicker';
 import { useApp } from '../../src/context/AppContext';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import { displayName, ownEmployee } from '../../src/employees/model';
 import { formatMoney } from '../../src/economy/invoices';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
@@ -339,7 +339,7 @@ export default function MileageWizard({
   const frame = mileageModalFrame(width, height, insets);
   const editing = !!editingTrip;
   const [open, setOpen] = useState(editing);
-  const [employees, setEmployees] = useState([]);
+  const { employees } = useEmployees(familyId);
   const [step, setStep] = useState(editing ? 'rute' : 'prosjekt');
   const [query, setQuery] = useState('');
   const [error, setError] = useState('');
@@ -363,8 +363,6 @@ export default function MileageWizard({
   const [draft, setDraft] = useState(() => draftFromTrip(editingTrip));
   const draftRef = useRef(draft);
   draftRef.current = draft;
-
-  useEffect(() => watchEmployees(familyId, (rows) => setEmployees(rows || [])), [familyId]);
 
   const me = ownEmployee(employees, {
     uid: uid || '',

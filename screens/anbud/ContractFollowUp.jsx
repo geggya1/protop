@@ -34,7 +34,7 @@ import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useLayout } from '../../src/theme';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import { dateKey } from '../../src/utils/dates';
 import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
@@ -93,7 +93,7 @@ export default function ContractFollowUp({
   const [state, setState] = useState(null);
   const [note, setNote] = useState('');
   const [projects, setProjects] = useState([]);
-  const [employees, setEmployees] = useState([]);
+  const { employees } = useEmployees(companyId);
   const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState('');
   const [composeParent, setComposeParent] = useState('');
@@ -122,14 +122,6 @@ export default function ContractFollowUp({
     loadProjectState(companyId).then((loaded) => {
       setProjects((loaded.projects || []).filter((row) => row.status !== 'arkivert'));
     });
-  }, [companyId]);
-
-  useEffect(() => {
-    if (!companyId) {
-      setEmployees([]);
-      return undefined;
-    }
-    return watchEmployees(companyId, setEmployees);
   }, [companyId]);
 
   useEffect(() => {

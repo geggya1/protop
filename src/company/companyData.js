@@ -351,3 +351,12 @@ export function freshRows(rows, live) {
   });
   return changed ? out : list;
 }
+
+/**
+ * Kundelisten fra registeret når lytteren har svart fra skyen, ellers listen skjermen
+ * selv har lastet (f.eks. fra anbud/state).
+ */
+export function liveCustomerList(slice, fallback = []) {
+  if (slice?.ready && slice.source === 'remote') return slice.customers;
+  return Array.isArray(fallback) && fallback.length ? fallback : (slice?.customers || []);
+}

@@ -6,7 +6,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
 import { agreementResponsiblePeople } from '../../src/anbud/customers';
 import { loadAnbudState } from '../../src/anbud/storage';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import ContractFollowUp from './ContractFollowUp';
 import AgreementTreatment from './AgreementTreatment';
 import AgreementCreateWizard from './AgreementCreateWizard';
@@ -25,13 +25,8 @@ export default function ContractScreen() {
   const [seedDraft, setSeedDraft] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardSeed, setWizardSeed] = useState(null);
-  const [employees, setEmployees] = useState([]);
+  const { employees } = useEmployees(familyId);
   const [contracts, setContracts] = useState([]);
-
-  useEffect(() => {
-    if (!familyId) return undefined;
-    return watchEmployees(familyId, setEmployees);
-  }, [familyId]);
 
   useEffect(() => {
     if (!familyId) return undefined;

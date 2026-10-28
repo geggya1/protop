@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { watchEmployees } from '../employees/storage';
+import { useEmployees } from '../context/CompanyDataContext';
 import { isGroupAdmin, isSuperAdmin } from '../utils/groups';
 import { isOrganizationType } from '../utils/groupTypes';
 import { accessSignature, scheduleAccessSync } from './accessMirror';
@@ -18,6 +18,8 @@ import {
   useViewAsSelection,
   viewAsKey,
 } from './viewAsStore';
+
+const NO_EMPLOYEES = [];
 
 const idle = {
   active: false,
@@ -94,24 +96,11 @@ export function useCompanyAccess() {
   const org = isOrganizationType(family?.type);
   const bypass = isSuperAdmin(family, uid);
   const selection = useViewAsSelection();
-  const [employees, setEmployees] = useState([]);
-  const [ready, setReady] = useState(!org);
-
-  useEffect(() => {
-    if (!org || !familyId) {
-      setEmployees([]);
-      setReady(true);
-      return undefined;
-    }
-    setReady(false);
-    return watchEmployees(familyId, (rows) => {
-      setEmployees(rows);
-      setReady(true);
-    }, () => {
-      setEmployees([]);
-      setReady(true);
-    });
-  }, [org, familyId]);
+  // Én felles lytter på ansatte i skallet (CompanyDataProvider), ikke én per komponent.
+  const staff = useEmployees(familyId, { enabled: org });
+  const live = !!(org && familyId);
+  const employees = live && !staff.error ? staff.employees : NO_EMPLOYEES;
+  const ready = !live || staff.ready;
 
   const selectedId = selection.key === viewAsKey(uid, familyId) ? selection.employeeId : '';
 

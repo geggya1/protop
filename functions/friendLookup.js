@@ -9,8 +9,9 @@ import {
   requireAuth,
   isValidEmail,
   hashRateKey,
-  assertRateLimit,
+  assertRateLimits,
 } from './security.js';
+import { LOOKUP_LIMITS, lookupProfileFields, lookupRateScopes } from './friendLookupLogic.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -30,23 +31,10 @@ function phoneLookupCandidates(raw) {
   return [...out].filter(Boolean);
 }
 
-function publicFriendProfile(uid, data = {}) {
-  return {
-    uid,
-    name: data.displayName || data.name || data.username || 'Bruker',
-    username: data.username || '',
-    usernameLower: data.usernameLower || String(data.username || '').toLowerCase(),
-    phone: '',
-    email: '',
-    photoURL: data.photoURL || null,
-    avatarId: data.avatarId || null,
-    role: data.role === 'child' || data.type === 'child' ? 'child' : 'adult',
-  };
-}
-
 /**
- * Lookup any ProTop user (adult or child) for friend invites.
- * Returns public display fields only (no email/phone).
+ * Slå opp en ProTop-bruker (voksen eller barn) for en venneforespørsel.
+ * Grense per bruker, lavere for e-post/telefon. Svaret har bare uid
+ * (og navn/brukernavn ved oppslag på @brukernavn), aldri e-post eller telefon.
  */
 export const lookupFriendProfile = onCall(
   {
@@ -58,15 +46,22 @@ export const lookupFriendProfile = onCall(
   async (req) => {
     try {
       const caller = requireAuth(req.auth);
-      await assertRateLimit(db, {
-        key: hashRateKey(['lookup-friend', caller]),
-        limit: 40,
-        windowMs: 60 * 60 * 1000,
-      });
-      const identifier = String(req.data?.identifier || '').trim();
+      const identifier = String(req.data?.identifier || '').trim().slice(0, 200);
       if (!identifier) return { ok: true, profile: null };
 
       const looksLikeEmail = identifier.includes('@') && isValidEmail(identifier);
+      const phoneCandidates = phoneLookupCandidates(identifier);
+      const looksLikePhone = !looksLikeEmail && !identifier.includes('@') && phoneCandidates.length > 0
+        && /^\+?[\d\s().-]+$/.test(identifier);
+      const kind = looksLikeEmail ? 'email' : (looksLikePhone ? 'phone' : 'username');
+      for (const scope of lookupRateScopes(kind)) {
+        await assertRateLimits(db, {
+          key: hashRateKey(['lookup-friend', scope, caller]),
+          ...LOOKUP_LIMITS[scope],
+        });
+      }
+      const publicFriendProfile = (uid, data = {}) => lookupProfileFields(uid, data, kind);
+
       if (looksLikeEmail) {
         const email = identifier.toLowerCase();
         const usersSnap = await db.collection('users').where('email', '==', email).limit(3).get();
@@ -91,9 +86,6 @@ export const lookupFriendProfile = onCall(
         return { ok: true, profile: null };
       }
 
-      const phoneCandidates = phoneLookupCandidates(identifier);
-      const looksLikePhone = !identifier.includes('@') && phoneCandidates.length > 0
-        && /^\+?[\d\s().-]+$/.test(identifier);
       if (looksLikePhone) {
         for (const candidate of phoneCandidates) {
           const usersSnap = await db.collection('users').where('phone', '==', candidate).limit(3).get();
@@ -134,20 +126,11 @@ export const lookupFriendProfile = onCall(
       const userData = userSnap.exists ? userSnap.data() : {};
       const parentData = parentSnap.exists ? parentSnap.data() : {};
       const childData = childSnap.exists ? childSnap.data() : {};
-      const isChild = data.type === 'child' || userData.role === 'child' || childSnap.exists;
       return {
         ok: true,
         profile: publicFriendProfile(uid, {
-          ...parentData,
-          ...childData,
-          ...userData,
           username: userData.username || parentData.username || childData.username || u,
-          usernameLower: u,
           name: userData.displayName || userData.name || parentData.name || childData.name || u,
-          photoURL: userData.photoURL || parentData.photoURL || childData.photoURL || null,
-          avatarId: userData.avatarId || parentData.avatarId || childData.avatarId || null,
-          role: isChild ? 'child' : 'adult',
-          type: isChild ? 'child' : 'adult',
         }),
       };
     } catch (error) {

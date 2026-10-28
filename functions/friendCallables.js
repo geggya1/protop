@@ -992,15 +992,12 @@ export const claimFriendInviteAdmin = onCall(
       });
       await batch.commit();
 
-      // Rights check: never add to inviter family
-      const fromUser = await db.doc(`users/${fromUid}`).get();
-      const familyIds = fromUser.data()?.familyIds || [];
+      // Bare vennskapet. Den nye brukeren legges aldri inn i bedriften til den som inviterte,
+      // og får heller ikke vite hvilke grupper den personen er med i.
       return {
         ok: true,
         friendshipId,
         friendUid: fromUid,
-        familyIdsUnchanged: true,
-        inviterFamilyIds: familyIds,
       };
     } catch (error) {
       if (error instanceof HttpsError) return { ok: false, error: error.message };

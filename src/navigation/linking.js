@@ -13,6 +13,7 @@ import { captureAgreementLinkFromLocation, withAgreementQuery } from '../anbud/a
 import { indexLinkFromPath } from '../indeksregulering/indexLink';
 import { homePathForLinking, shellLinkState } from './shellPaths';
 import { legacyNewNoteState, legacyRegisterInvitedState } from './legacyPaths.js';
+import { parseFriendInviteFromPath, registerFriendInviteParams } from './friendInviteLinks.js';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -76,18 +77,6 @@ function parseFamilyInviteFromPath(path) {
   return null;
 }
 
-function parseFriendInviteFromPath(path) {
-  const raw = String(path || '');
-  const pathOnly = raw.split('?')[0] || '';
-  const query = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : '';
-  const params = new URLSearchParams(query);
-  let requestId = params.get('friendInvite') || params.get('requestId') || '';
-  const m = pathOnly.match(/\/?friend-invite\/([^/?#]+)/i);
-  if (m) requestId = requestId || decodeURIComponent(m[1]);
-  if (requestId) return { requestId, token: params.get('token') || '' };
-  return null;
-}
-
 /** /game-invite/:gameType/:gameId?familyId=… — open online hub to accept. */
 function parseGameInviteFromPath(path) {
   const raw = String(path || '');
@@ -146,6 +135,11 @@ export const linking = {
           },
         ],
       };
+    }
+    // Venneinvitasjon til ny e-post: registreringen beholder token og e-post (SOS-01).
+    const registerInvite = registerFriendInviteParams(path);
+    if (registerInvite && !linkingSignedIn) {
+      return { routes: [{ name: 'Register', params: registerInvite }] };
     }
     const friendInvite = parseFriendInviteFromPath(path);
     if (friendInvite) {

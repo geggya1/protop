@@ -238,7 +238,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                 <Text style={styles.inviteEyebrow}>Venneinvitasjon</Text>
                 <Text style={styles.inviteTitle}>Noen vil gjerne bli venn med deg</Text>
                 <Text style={styles.inviteSub}>
-                  Når du registrerer deg, blir dere venner — uten at du får tilgang til familien deres.
+                  Når du registrerer deg, blir dere venner. Dere får ikke tilgang til hverandres bedrift eller data.
                 </Text>
               </View>
             ) : (

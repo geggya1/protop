@@ -127,7 +127,6 @@ export function createCompanyDataStore(companyId, sources = {}, { graceMs = RELE
   const running = new Map();
   const holds = new Map();
   const timers = new Map();
-  let disposed = false;
 
   function build(key) {
     if (key === 'employees') return employeesSlice(raw);
@@ -157,13 +156,12 @@ export function createCompanyDataStore(companyId, sources = {}, { graceMs = RELE
   }
 
   function emit(source, patch) {
-    if (disposed) return;
     raw = { ...raw, [source]: { ...raw[source], ...patch } };
     touched(slicesFor(source));
   }
 
   function start(source) {
-    if (running.has(source) || disposed || !id) return;
+    if (running.has(source) || !id) return;
     const run = sources[source];
     if (typeof run !== 'function') {
       emit(source, { ready: true, source: 'none' });
@@ -219,7 +217,7 @@ export function createCompanyDataStore(companyId, sources = {}, { graceMs = RELE
       for (const source of needed) {
         const left = (holds.get(source) || 1) - 1;
         holds.set(source, left);
-        if (left > 0 || disposed) continue;
+        if (left > 0) continue;
         clearTimeout(timers.get(source));
         const timer = setTimeout(() => {
           timers.delete(source);
@@ -246,12 +244,15 @@ export function createCompanyDataStore(companyId, sources = {}, { graceMs = RELE
     touched(['directory']);
   }
 
+  /**
+   * Stopp alle lyttere. Ikke endelig: en skjerm som ber om data igjen etterpå (f.eks. når
+   * React kjører effektene på nytt), starter dem på nytt.
+   */
   function dispose() {
-    disposed = true;
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
+    holds.clear();
     for (const source of [...running.keys()]) stopSource(source);
-    listeners.clear();
   }
 
   return {

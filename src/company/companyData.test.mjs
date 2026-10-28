@@ -206,6 +206,11 @@ test('lageret: én lytter per kilde, delt av flere skjermer, og stoppes etter si
   store.retain('settings');
   assert.deepEqual(fake.calls.started.slice(1).sort(), ['earnings', 'projects']);
   store.dispose();
+  assert.deepEqual(store.activeSources(), []);
+  // Etter dispose (f.eks. når React kjører effektene på nytt) kan skjermen be om data igjen.
+  store.retain('employees');
+  assert.deepEqual(store.activeSources(), ['employees']);
+  store.dispose();
 });
 
 test('scenario: nytt navn på ansatt og kunde slår gjennom i listene uten omlasting', () => {

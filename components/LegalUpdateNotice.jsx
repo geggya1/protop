@@ -19,7 +19,9 @@ let dismissedVersion = '';
  * men appen stenges ikke. Brukeren må åpne dokumentet før «Jeg godtar».
  */
 export default function LegalUpdateNotice() {
-  const { uid, userProfile, isChild } = useApp();
+  const {
+    uid, userProfile, userProfileReady, isChild,
+  } = useApp();
   const { lang } = useI18n();
   const { isDesktop } = useLayout();
   const [local, setLocal] = useState(null);
@@ -34,7 +36,8 @@ export default function LegalUpdateNotice() {
     return () => { alive = false; };
   }, [uid]);
 
-  if (!uid || isChild || hidden || !local) return null;
+  // Vent på kontoen, så den som har godtatt på en annen enhet, ikke ser kortet et øyeblikk.
+  if (!uid || isChild || hidden || !local || !userProfileReady) return null;
   if (!needsLegalUpdate(userProfile?.consents, local)) return null;
 
   const accept = async () => {

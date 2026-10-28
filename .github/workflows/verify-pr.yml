@@ -63,5 +63,7 @@ jobs:
       - run: npm ci --prefix functions
       - name: Invitasjoner mot emulator (Cloud Functions)
         run: npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop "node --test --test-concurrency=1 --test-reporter=spec functions/*.emulator.test.mjs"
+      - name: Storage-regler (emulator)
+        run: npx firebase emulators:exec --only firestore,storage --config firebase.storage-rules.json --project demo-protop "node --test --test-concurrency=1 tests/storage/*.test.mjs"
       - name: Pure ISO + access tests
         run: node --test src/iso/*.test.mjs src/access/*.test.mjs

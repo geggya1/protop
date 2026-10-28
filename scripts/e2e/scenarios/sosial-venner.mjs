@@ -133,7 +133,7 @@ try {
     const link = linksIn(m).find((l) => /friend-invite\//.test(l));
     if (!link) return { ok: false, actual: 'ingen lenke i siste e-post' };
     const u = new URL(link);
-    await utenfor.page.goto(`${BASE}${u.pathname}`, { waitUntil: 'domcontentloaded' });
+    await utenfor.page.goto(`${BASE}${u.pathname}`, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await utenfor.waitShell();
     await clearOverlays(utenfor);
     const who = await seen(utenfor, 'Eva Eier', 15000);
@@ -186,7 +186,7 @@ try {
   }, { bot: utenfor });
 
   await R.step('V-11', 'Kim (mobil) åpner QR-lenken /add-friend/<brukernavn>', '«Legg til venn» åpnes med @brukernavn utfylt', async () => {
-    await kollega.page.goto(`${BASE}/add-friend/${P.utenfor.username}`, { waitUntil: 'domcontentloaded' });
+    await kollega.page.goto(`${BASE}/add-friend/${P.utenfor.username}`, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await kollega.waitShell();
     await clearOverlays(kollega);
     const open = await seen(kollega, 'QR-koden pekte på', 15000);

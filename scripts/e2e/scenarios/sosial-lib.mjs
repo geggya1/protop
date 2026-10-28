@@ -214,13 +214,13 @@ export async function tap(bot, text, { exact = true, last = false, nth = 0, time
     if (vis.length > nth) {
       const i = last ? vis[vis.length - 1] : vis[nth];
       try {
-        await loc.nth(i).click({ timeout: 5000, force });
+        await loc.nth(i).click({ timeout: 12000, force });
       } catch (err) {
         // Et varsel-popup eller en rundtur kan ligge over: lukk og prøv én gang til.
         if (!/intercepts pointer events|Timeout/.test(String(err?.message || err))) throw err;
         await clearOverlays(bot);
         await dismissPopup(bot);
-        await loc.nth(i).click({ timeout: 5000, force });
+        await loc.nth(i).click({ timeout: 12000, force });
       }
       await bot.page.waitForTimeout(400);
       return true;
@@ -317,7 +317,13 @@ export async function startBots(world, spec, BotClass) {
     b.page.on('dialog', async (d) => { b.dialogs.push(d.message()); await d.accept().catch(() => {}); });
     watchCrash(b);
     await b.login();
-    await waitCompany(b);
+    if (!(await waitCompany(b))) {
+      // Skallet ble stående i «Privat» (plassholder «Familien») – last siden på nytt én gang.
+      console.log(`INFO  ${b.name}: «Bedrift» ikke valgt etter innlogging — laster på nytt`);
+      await b.goto('/');
+      await b.waitShell();
+      await waitCompany(b, 60000);
+    }
     await clearOverlays(b);
     bots[name || who] = b;
   }));
@@ -380,18 +386,15 @@ export async function revive(bot) {
 
 /**
  * Venter til bedriften er lastet og «Bedrift» er valgt (under last kan skallet en stund
- * stå i «Privat» med plassholdernavnet «Familien»). Velger «Bedrift» selv om nødvendig.
+ * stå i «Privat» med plassholdernavnet «Familien»). Bryteren eksponerer ikke valgt tilstand
+ * (aria-selected mangler), så vi ser etter «Bedrift · …» i toppen (PC) eller bedriftsmenyen
+ * nederst («Prosjekter», «Time») på mobil.
  */
-export async function waitCompany(bot, timeout = 90000) {
-  const sel = '#platform-switch-bedrift';
+export async function waitCompany(bot, timeout = 60000) {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
-    const st = await bot.page.evaluate((q) => {
-      const el = document.querySelector(q);
-      return el ? el.getAttribute('aria-selected') : null;
-    }, sel).catch(() => null);
-    if (st === 'true') return true;
-    if (st === 'false') await bot.page.locator(sel).first().click({ force: true }).catch(() => {});
+    const t = await bot.page.evaluate(() => document.body.innerText || '').catch(() => '');
+    if (/Bedrift · /.test(t) || (/\nProsjekter\n/.test(t) && /\nTime\n/.test(t))) return true;
     await bot.page.waitForTimeout(1000);
   }
   return false;

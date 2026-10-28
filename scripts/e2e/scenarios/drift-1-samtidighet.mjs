@@ -205,6 +205,33 @@ try {
     });
   });
 
+  await guard(R, '1.10c', 'Begge endrer samme e-post', async () => {
+    // Begge har kunden åpen. Eier lagrer først, leder (som ikke har lastet på nytt) lagrer etterpå.
+    for (const b of [E, L]) {
+      await go(b, 'kunder', null, 3000);
+      if (await b.hasText('Til kundelisten', { timeout: 1500 })) await jsClick(b, 'Til kundelisten');
+      await b.page.waitForTimeout(800);
+      await b.click('Kunde En AS');
+      await b.page.waitForTimeout(800);
+    }
+    await jsClick(E, 'Endre kunde');
+    await jsClick(L, 'Endre kunde');
+    await fillAfterLabel(E, 'E-post', 'k1-eier-andre@protop.test');
+    await jsClick(E, 'Lagre kunde');
+    await sleep(3000);
+    await fillAfterLabel(L, 'E-post', 'k1-leder@protop.test');
+    await jsClick(L, 'Lagre kunde');
+    await sleep(3000);
+    const k1 = (await customers(C)).find((c) => c.id === 'cust-k1');
+    const t = await L.visibleText();
+    const warned = /endret av en annen|nyere versjon|konflikt|oppdatert av/i.test(t);
+    dump('1-10c-anbud-customers-begge', await getDoc(`families/${C}/anbud/customers`));
+    R.check('1.10c', 'DS-04: Når to endrer samme e-post, får den som lagrer sist varsel om at kunden er endret av en annen', warned, {
+      expected: 'Konfliktvarsel (eller sammenslåing med beskjed)', actual: `vinner: ${k1?.email}; varsel til leder: ${warned ? 'ja' : 'nei – siste lagring vinner stille'}`,
+      shot: await L.shot('kunde1-begge-endret'),
+    });
+  });
+
   /* ───── Godkjenning: låst liste vises for leder, og godkjenning står seg ───── */
   await guard(R, '1.11', 'Låsing og godkjenning', async () => {
     await go(A, 'arbeid', 'timeliste', 2500);

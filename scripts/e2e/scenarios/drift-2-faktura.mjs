@@ -292,6 +292,16 @@ try {
     await E.shot('samtidig-E');
   });
 
+  await guard(R, '2.14', 'Økonomi → Oversikt', async () => {
+    await go(L, 'okonomi', 'oversikt', 6000);
+    const t = norm(await L.visibleText());
+    const total = (t.match(/Omsetning\n(?:[\s\S]*?)\n\d{4}\n([\d ]+,\d\d)/) || [])[1] || '';
+    // Faktura 1 (7 500) kreditert med kreditnota 2 (−7 500), pluss fakturaene 3 (1 111) og 4 (2 222).
+    R.check('2.14', 'Økonomi → Oversikt: utfakturert i år = 3 333,00 (kreditnota trekkes fra)', /3 333,00/.test(t), {
+      expected: '3 333,00', actual: `omsetning i år: ${total || (t.match(/okt\n([\d ]+,\d\d)/) || ['', '?'])[1]}`, shot: await L.shot('okonomi-oversikt'),
+    });
+  });
+
   await guard(R, '2.13', 'Telleren via REST', async () => {
     const before = (await getDoc(`families/${C}/invoiceSeries/main`)) || { last: 0 };
     const tok = await token(S.users.ansatt2);

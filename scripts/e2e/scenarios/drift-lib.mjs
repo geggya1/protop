@@ -14,6 +14,32 @@ import {
 import { toValue } from '../../help-bot/seed.mjs';
 
 export const OUT = join(ROOT, 'e2e-out', 'drift');
+
+/* Maskinen deles med andre testboter og er tidvis svært tungt lastet (load > 50).
+ * Bot.click fra lib/bot.mjs har 5 s per klikk; her gis drift-botene mer tålmodighet
+ * uten å endre det felles biblioteket. */
+{
+  const { Bot } = await import('../lib/bot.mjs');
+  Bot.prototype.click = async function patientClick(text, { exact = true, timeout = 30000, nth = 0, force = false } = {}) {
+    const loc = this.page.getByText(text, { exact });
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const n = await loc.count();
+      const vis = [];
+      for (let i = 0; i < n; i += 1) {
+        if (await loc.nth(i).isVisible().catch(() => false)) vis.push(i);
+      }
+      if (vis.length > nth) {
+        await loc.nth(vis[nth]).click({ force, timeout: 30000 });
+        await this.page.waitForTimeout(500);
+        return true;
+      }
+      await this.page.waitForTimeout(400);
+    }
+    throw new Error(`Fant ikke «${text}» på skjermen (${this.where})`);
+  };
+}
+
 mkdirSync(OUT, { recursive: true });
 
 export const DOCS = `http://${FS}/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -489,22 +515,94 @@ export async function jsClick(bot, text, nth = 0) {
   await bot.page.waitForTimeout(500);
 }
 
-/** Kjør et steg; feil i boten blir rapportert som BOTFEIL i stedet for å stoppe hele skriptet. */
-export async function guard(report, id, title, fn) {
+export const ACTIVE_BOTS = new Set();
+
+const CRASH = /Target crashed|Target page, context or browser has been closed|Page crashed|has been closed/i;
+
+/** Lager ny fane i samme kontekst når siden har krasjet (minnemangel på delt maskin). Innloggingen ligger i IndexedDB. */
+export async function revive(bot) {
+  let dead = !bot.page || bot.page.isClosed();
+  if (!dead) {
+    dead = await Promise.race([
+      bot.page.evaluate(() => 1).then(() => false).catch(() => true),
+      new Promise((r) => setTimeout(() => r(true), 8000)),
+    ]);
+  }
+  if (!dead) return false;
+  console.log(`  (siden til ${bot.name} krasjet – åpner ny fane og fortsetter)`);
+  try { await bot.page.close(); } catch { /* ignore */ }
   try {
-    return await fn();
-  } catch (e) {
-    report.step(id, `${title} (BOTFEIL)`, { ok: false, actual: String(e?.message || e).slice(0, 300), note: 'botfeil' });
-    return null;
+    bot.page = await bot.ctx.newPage();
+  } catch {
+    // Hele nettleseren er borte (OOM). Start ny nettleser og ny kontekst, og logg inn på nytt.
+    const { browser, closeBrowser } = await import('../lib/bot.mjs');
+    const br = await browser().catch(() => null);
+    if (!br || !br.isConnected()) await closeBrowser();
+    await bot.start();
+    await loginWithRetry(bot);
+    await bot.page.waitForTimeout(3000);
+    return true;
+  }
+  bot.page.on('pageerror', (e) => bot.errors.push({ at: bot.where || '', message: String(e?.message || e).slice(0, 400) }));
+  bot.page.on('response', async (res) => {
+    if (!/127\.0\.0\.1:5001|:5001\//.test(res.url()) || res.status() < 400) return;
+    let body = '';
+    try { body = (await res.text()).slice(0, 300); } catch { /* ignore */ }
+    bot.failedCalls.push({ at: bot.where || '', url: res.url().split('/').pop(), status: res.status(), body });
+  });
+  await bot.goto('/');
+  try {
+    await bot.waitShell();
+  } catch {
+    await loginWithRetry(bot);
+  }
+  await bot.page.waitForTimeout(3000);
+  return true;
+}
+
+/** Kjør et steg; feil i boten blir rapportert som BOTFEIL i stedet for å stoppe hele skriptet.
+ *  Krasjer en fane (minnemangel), åpnes en ny og steget kjøres én gang til. */
+export async function guard(report, id, title, fn) {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      return await fn();
+    } catch (e) {
+      const msg = String(e?.message || e);
+      if (attempt === 1 && CRASH.test(msg)) {
+        let revived = false;
+        for (const b of ACTIVE_BOTS) revived = (await revive(b).catch(() => false)) || revived;
+        if (revived) continue;
+      }
+      report.step(id, `${title} (BOTFEIL)`, { ok: false, actual: msg.slice(0, 300), note: 'botfeil' });
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Innlogging med nye forsøk (maskinen er tungt lastet når flere team kjører samtidig). */
+export async function loginWithRetry(b, tries = 3) {
+  for (let i = 1; i <= tries; i += 1) {
+    try {
+      await b.login();
+      return;
+    } catch (e) {
+      if (i === tries) throw e;
+      console.log(`  (innlogging for ${b.name} feilet, prøver igjen: ${String(e.message).slice(0, 80)})`);
+      await b.page.waitForTimeout(3000);
+    }
   }
 }
 
 export async function newBot(BotClass, name, user, { view = 'desktop', outDir = OUT } = {}) {
   const b = new BotClass(name, { email: user.email, password: user.password, view, outDir });
   await b.start();
-  await b.login();
+  await loginWithRetry(b);
   // Første navigasjon rett etter innlogging kan bli overstyrt av skallets egen startside.
   await b.page.waitForTimeout(4000);
+  ACTIVE_BOTS.add(b);
+  const stop = b.stop.bind(b);
+  b.stop = async () => { ACTIVE_BOTS.delete(b); await stop(); };
   return b;
 }
 

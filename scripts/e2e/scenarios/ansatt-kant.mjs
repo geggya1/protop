@@ -74,6 +74,7 @@ const call = async (name, data, email) => {
 /* ───────── Oppsett: eier og bedrift (UI) ───────── */
 async function setupOwner() {
   st.eier.uid = await createAuthUser({ email: st.eier.email, password: PW, name: st.eier.name });
+  if (bots.eier) await closeBot('eier');
   const b = await bot('eier', 'desktop');
   await loginAndSettle(b, { name: st.eier.name });
   await waitShell(b);
@@ -86,6 +87,46 @@ async function setupOwner() {
   if (!st.companyId) throw new Error('Fikk ikke opprettet bedriften');
   console.log(`Bedrift ${st.company} (${st.companyId})`);
   return b;
+}
+
+/** Evas nettleser. Har siden krasjet (lite minne på maskinen), startes en ny økt. */
+async function owner() {
+  const b = bots.eier;
+  if (b && !b.page.isClosed() && await b.page.evaluate(() => 1).catch(() => 0)) return b;
+  if (b) { await b.stop().catch(() => {}); delete bots.eier; }
+  const nb = await bot('eier', 'desktop');
+  await loginUI(nb);
+  await waitShell(nb);
+  // Sørg for at bedrift A er valgt.
+  const fam = await getDoc(`families/${st.companyId}`);
+  if (fam && !(await nb.visibleText()).includes(st.company)) {
+    await nb.page.locator('[id="platform-switch-bedrift"]').click().catch(() => {});
+    await nb.page.waitForTimeout(1200);
+    await nb.page.getByText(st.company, { exact: false }).last().click().catch(() => {});
+    await nb.page.waitForTimeout(3000);
+  }
+  return nb;
+}
+
+/** Kjører ett kanttilfelle. Krasjer en nettleser, prøves det én gang til med ny økt. */
+async function runTest(name, fn) {
+  for (let i = 0; i < 2; i += 1) {
+    try {
+      await fn();
+      return;
+    } catch (err) {
+      const crash = /crash|Target closed|has been closed/i.test(String(err?.message || err));
+      for (const [k, x] of Object.entries(bots)) await x.shot(`stopp-${name}-${k}`).catch(() => {});
+      if (crash && i === 0) {
+        S.info(`${name}: nettleseren krasjet`, 'Prøver kanttilfellet på nytt med ny økt');
+        for (const k of Object.keys(bots)) if (k !== 'eier') await closeBot(k);
+        continue;
+      }
+      S.record({ step: `${name} stoppet`, expected: 'Kanttilfellet kjører ferdig', actual: String(err?.stack || err).slice(0, 400), ok: false, kind: 'bot' });
+      console.error(err);
+      return;
+    }
+  }
 }
 
 /* ───────── K1–K4: sider uten innlogging og oppstart ───────── */
@@ -464,26 +505,27 @@ async function k13() {
 
 /* ───────── Kjøring ───────── */
 try {
-  if (want('K1')) await k1();
-  if (want('K2')) await k2();
+  if (want('K1')) await runTest('K1', k1);
+  if (want('K2')) await runTest('K2', k2);
   await closeBot('gjest');
-  if (want('K3')) await k3();
-  if (want('K4')) await k4();
+  if (want('K3')) await runTest('K3', k3);
+  if (want('K4')) await runTest('K4', k4);
   const needsOwner = ['K5', 'K6', 'K7', 'K8', 'K9', 'K10', 'K11', 'K12'].some(want);
   if (needsOwner) {
-    const b = await setupOwner();
-    if (want('K5')) await k5(b);
-    if (want('K6') || want('K7')) await k6k7(b);
-    if (want('K8')) await k8(b);
-    if (want('K10')) await k10(b);
-    if (want('K11')) await k11(b);
-    if (want('K12')) await k12(b);
-    if (want('K9')) await k9(b);
+    await runTest('Oppsett', setupOwner);
+    if (!st.companyId) throw new Error('Ingen bedrift – kan ikke kjøre K5–K12');
+    if (want('K5')) await runTest('K5', async () => k5(await owner()));
+    if (want('K6') || want('K7')) await runTest('K6/K7', async () => k6k7(await owner()));
+    if (want('K8')) await runTest('K8', async () => k8(await owner()));
+    if (want('K10')) await runTest('K10', async () => k10(await owner()));
+    if (want('K11')) await runTest('K11', async () => k11(await owner()));
+    if (want('K12')) await runTest('K12', async () => k12(await owner()));
+    if (want('K9')) await runTest('K9', async () => k9(await owner()));
   }
-  if (want('K13')) await k13();
+  await closeBot('eier');
+  if (want('K13')) await runTest('K13', k13);
 } catch (err) {
   S.record({ step: 'Skriptet stoppet', expected: 'Alle kanttilfeller kjører ferdig', actual: String(err?.stack || err).slice(0, 500), ok: false, kind: 'bot' });
-  for (const [k, x] of Object.entries(bots)) await x.shot(`stopp-${k}`).catch(() => {});
   console.error(err);
 } finally {
   writeFileSync(join(OUT_ROOT, `kant-state-${ID}.json`), JSON.stringify(st, null, 2));

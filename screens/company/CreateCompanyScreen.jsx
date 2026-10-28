@@ -45,8 +45,9 @@ export default function CreateCompanyScreen() {
       const res = await searchBrregEnheter(queryText, { size: 8 });
       setHits(res.results || []);
       if (!res.results?.length) setError('Ingen treff i Brønnøysund. Du kan registrere bedriften manuelt under.');
-    } catch (e) {
-      setError(e?.message || 'Søket mot Brønnøysund feilet.');
+    } catch {
+      // Nettverksfeil kommer som rå engelsk tekst («Failed to fetch»), så vis vår egen (ANSATT-04).
+      setError('Fikk ikke kontakt med Brønnøysundregistrene. Sjekk nettet og prøv igjen, eller registrer bedriften manuelt under.');
       setHits([]);
     } finally {
       setSearching(false);

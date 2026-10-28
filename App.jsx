@@ -752,9 +752,18 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   }, []);
 
   useEffect(() => {
-    if (user?.uid && consentsComplete(localConsents) && !consentsComplete(userProfile?.consents)) {
+    if (!user?.uid || consentsComplete(userProfile?.consents)) return undefined;
+    if (consentsComplete(localConsents)) {
       persistUserConsents(user.uid, localConsents).catch(() => {});
+      return undefined;
     }
+    // Innloggingskortet lagrer godkjenningen lokalt etter at oppstarten leste den,
+    // så les på nytt når brukeren er logget inn (ANSATT-03).
+    let alive = true;
+    loadLocalConsents().then((c) => {
+      if (alive && consentsComplete(c)) setLocalConsents(c);
+    }).catch(() => {});
+    return () => { alive = false; };
   }, [user?.uid, localConsents, userProfile?.consents]);
 
   // Solo parents with a finished profile but no group get a personal shell

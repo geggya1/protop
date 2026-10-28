@@ -7,7 +7,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, reload, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { completeRedirectSignIn, isLikelyOauthReturn } from './src/utils/authProviders';
 import { isCalendarOauthReturn } from './src/utils/calendarOAuthCapture';

@@ -312,6 +312,8 @@ export const FILES = [
   // Konto: første innlogging, invitasjonslenke, brukernavn, familieproduktet og venneinvitasjoner.
   'src/utils/personalShell.test.mjs',
   'src/utils/authBootGate.test.mjs',
+  // Bekreftelseslenken: App.jsx leser inn bekreftet e-post på nytt (SLUTT-01).
+  'src/utils/authImports.test.mjs',
   'src/utils/inviteLinkJoin.test.mjs',
   'src/navigation/familyProduct.test.mjs',
   'functions/friendInvite.copy.test.mjs',

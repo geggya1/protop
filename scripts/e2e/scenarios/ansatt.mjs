@@ -22,7 +22,7 @@ import {
   authUserByEmail, callFn, createAuthUser, getDoc, idToken, linksIn, listDocs, mailsTo, putDoc, waitFor,
 } from '../lib/emu.mjs';
 import {
-  OUT_ROOT, Steps, allowed, checkConsent, memGate, denied, fillId, localLink, loginUI, pageAccess, rarray, rget, rlist, rpatch,
+  OUT_ROOT, PROFILE_STEP, Steps, acceptCompanyTerms, allowed, checkConsent, memGate, denied, fillId, localLink, loginUI, pageAccess, rarray, rget, rlist, rpatch,
   skipTour, tap, tapId, tsId, waitShell, waitText,
 } from './ansatt-lib.mjs';
 
@@ -57,6 +57,15 @@ async function bot(key, view) {
   if (bots[key]) return bots[key];
   const who = st[key];
   const b = await new Bot(key, { email: who.email, password: who.password, view, outDir: join(OUT, st.id), consents: false }).start();
+  // Bekreftelser på web er window.confirm (src/utils/dialog.js). Playwright avviser dem uten handler.
+  // dialogMode: 'accept' (standard) eller 'dismiss' (trykk Avbryt). Alle tekster samles i b.dialogs.
+  b.dialogs = [];
+  b.dialogMode = 'accept';
+  b.page.on('dialog', async (d) => {
+    b.dialogs.push(d.message());
+    if (b.dialogMode === 'dismiss') await d.dismiss().catch(() => {});
+    else await d.accept().catch(() => {});
+  });
   bots[key] = b;
   return b;
 }
@@ -91,7 +100,7 @@ const ENGLISH = /\b(Loading|Save|Cancel|Delete|Settings|Submit|Search|Error|Unkn
 async function loginAndSettle(b, { name } = {}) {
   await loginUI(b);
   let text = await waitText(b, /Velkommen|Hei,|Bedriftsinvitasjon|Bekreft e-posten|Selskap|Hjem/i, 60000) || '';
-  if (/Velkommen/.test(text) && /Fortsett/.test(text)) {
+  if (PROFILE_STEP.test(text) && /Fortsett/.test(text)) {
     if (name) {
       const field = b.page.getByPlaceholder(/navn/i);
       if (await field.count()) await field.first().fill(name).catch(() => {});
@@ -103,21 +112,26 @@ async function loginAndSettle(b, { name } = {}) {
 }
 
 /**
- * Hva skjer etter at bekreftelseslenken er åpnet i samme nettleser: 'profil' (riktig), 'login'
- * (sendt ut til innlogging) eller 'fast' (står på «Bekreft e-posten din»). Boten kommer seg videre
- * (logger inn / laster på nytt), slik en bruker måtte gjort.
+ * Hva skjer etter at bekreftelseslenken er åpnet i samme nettleser: 'app' (skallet er oppe – riktig
+ * etter UX-30, der profilen lagres ved registreringen), 'profil' (profilsteget), 'invitasjon'
+ * (invitasjonsvinduet), 'login' (sendt ut til innlogging) eller 'fast' (står på «Bekreft e-posten din»).
+ * Boten kommer seg videre (logger inn / laster på nytt), slik en bruker måtte gjort.
  */
 async function afterVerify(b, steps, { overlayOk = false } = {}) {
   const until = Date.now() + 45000;
   let t = '';
   while (Date.now() < until) {
     t = await b.visibleText().catch(() => '');
-    if (/Velkommen/.test(t) || (overlayOk && /Bedriftsinvitasjon/i.test(t))) return 'profil';
+    if (PROFILE_STEP.test(t)) return 'profil';
+    if (overlayOk && /Bedriftsinvitasjon/i.test(t)) return 'invitasjon';
     if (/Har du ikke konto\?/.test(t)) {
       steps.push('Logg inn på nytt');
       await loginUI(b);
       return 'login';
     }
+    const shell = await b.page.evaluate(() => !!window.__protopBot && !!document.querySelector('[id="platform-switch"]')
+      && !/Laster ProTop…|Åpner bedriften…/.test(document.body.innerText || '')).catch(() => false);
+    if (shell) return 'app';
     await b.page.waitForTimeout(1500);
   }
   if (/Bekreft e-posten din/.test(t)) {
@@ -175,25 +189,28 @@ async function phase1() {
   if (link) {
     await b.page.goto(link, { waitUntil: 'domcontentloaded' });
     steps.push('Åpne lenken i e-posten');
-    const done = await waitText(b, /E-post bekreftet|Velkommen/, 30000);
+    const done = await waitText(b, /E-post bekreftet|Navnet ditt er nok|Hei,|God (morgen|dag|kveld)/, 30000);
     S.info('R8 Første skjerm etter lenken', done ? done.split('\n').filter(Boolean).slice(0, 3).join(' | ') : (await b.visibleText()).split('\n').filter(Boolean).slice(0, 3).join(' | '), await shot(b, 'etter-lenke'));
   }
   const auth = await authUserByEmail(st.eier.email);
   st.eier.uid = auth?.localId;
   S.check(auth?.emailVerified === true, 'R9 Auth: emailVerified=true etter lenken', 'emailVerified true', `emailVerified=${auth?.emailVerified}`);
-  // Etter «E-post bekreftet» skal innlogget bruker videre til profilsteget.
+  // Etter «E-post bekreftet» skal innlogget bruker videre. Etter UX-30 lagres profilen ved
+  // registreringen, så riktig er rett til Hjem (profilsteget hoppes over).
   const outcome = await afterVerify(b, steps);
-  S.check(outcome === 'profil', 'R8b Bekreftelseslenken i samme nettleser fører videre til profilsteget', 'Profilsteget «Velkommen» innen 45 s', outcome === 'login' ? 'Havnet på «Logg inn» og måtte logge inn på nytt' : (outcome === 'fast' ? 'Står fast på «Bekreft e-posten din / Send på nytt» selv om e-posten er bekreftet; måtte laste siden på nytt' : outcome), { id: 'ANSATT-06', sev: 'Middels', shot: await shot(b, `etter-bekreftelse-${outcome}`) });
-  const prof = await waitText(b, /Velkommen/, 30000);
+  S.check(outcome === 'app' || outcome === 'profil', 'R8b Bekreftelseslenken i samme nettleser fører videre i appen', 'Hjem (eller profilsteget) innen 45 s, uten ny innlogging eller omlasting', outcome === 'login' ? 'Havnet på «Logg inn» og måtte logge inn på nytt' : (outcome === 'fast' ? 'Står fast på «Bekreft e-posten din / Send på nytt» selv om e-posten er bekreftet; måtte laste siden på nytt' : outcome), { id: 'SLUTT-01', sev: 'Høy', ref: 'ANSATT-06', shot: await shot(b, `etter-bekreftelse-${outcome}`) });
+  const prof = PROFILE_STEP.test(await b.visibleText()) ? await b.visibleText() : await waitText(b, PROFILE_STEP, outcome === 'app' ? 3000 : 30000);
   if (prof) {
     const nameVal = await b.page.locator('input').first().inputValue().catch(() => '');
-    S.info('R10 Profilsteget «Velkommen» spør om navn og kjønn igjen', `Navnefeltet er forhåndsutfylt med «${nameVal}». Kjønn er valgfritt.`, await shot(b, 'profil'));
+    S.check(false, 'R10 Profilsteget hoppes over etter registrering (UX-30)', 'Rett til Hjem, ingen ny «Velkommen» med navn og kjønn', `Profilsteget «Velkommen» vises likevel (navnefeltet: «${nameVal}»)`, { id: 'SLUTT-01', sev: 'Høy', ref: 'UX-30 / ANSATT-06', shot: await shot(b, 'profil') });
     await tap(b, 'Fortsett');
     steps.push('Trykk «Fortsett» på profilsteget');
+  } else {
+    S.check(true, 'R10 Profilsteget hoppes over etter registrering (UX-30)', 'Rett til Hjem, ingen ny «Velkommen» med navn og kjønn', 'Ingen profilsteg');
   }
   await waitShell(b);
   const hjem = await b.visibleText();
-  S.check(/Hei, Eva|Hjem/.test(hjem), 'R11 Kommer inn på Hjem etter profilsteget', 'Hjem i personlig arbeidsområde', hjem.split('\n').filter(Boolean).slice(0, 3).join(' | '), { shot: await shot(b, 'hjem-privat') });
+  S.check(/Hei, Eva|God (morgen|dag|kveld), Eva|Hjem/.test(hjem), 'R11 Kommer inn på Hjem etter bekreftelsen', 'Hjem i personlig arbeidsområde', hjem.split('\n').filter(Boolean).slice(0, 3).join(' | '), { shot: await shot(b, 'hjem-privat') });
 
   const user = await getDoc(`users/${st.eier.uid}`);
   const shells = [];
@@ -217,14 +234,18 @@ async function phase1() {
   await waitText(b, /Opprett bedrift/, 15000);
   await b.fill('Navn eller organisasjonsnummer', st.company);
   await tap(b, 'Søk');
-  const brreg = await waitText(b, /Failed to fetch|feilet|Ingen treff|Velg denne bedriften/, 20000) || '';
-  S.env('R14 Søk i Brønnøysund', `Uten nett: «${(brreg.match(/Failed to fetch|Søket mot Brønnøysund feilet\.?|Ingen treff[^\n]*/) || ['?'])[0]}»`, await shot(b, 'brreg-sok'));
-  if (/Failed to fetch/.test(brreg)) {
-    S.check(false, 'R15 Feilmeldingen ved Brønnøysund-søk er på norsk', 'Norsk melding, f.eks. «Fikk ikke kontakt med Brønnøysund»', 'Viser rå engelsk «Failed to fetch»', { id: 'ANSATT-04', sev: 'Lav' });
+  const brreg = await waitText(b, /Failed to fetch|feilet|Fikk ikke kontakt|Ingen treff|Velg denne bedriften/, 20000) || '';
+  S.env('R14 Søk i Brønnøysund', `Uten nett: «${(brreg.match(/Failed to fetch|Fikk ikke kontakt[^\n]*|Søket mot Brønnøysund feilet\.?|Ingen treff[^\n]*/) || ['?'])[0]}»`, await shot(b, 'brreg-sok'));
+  {
+    const raw = /Failed to fetch/.test(brreg);
+    const nb = /Fikk ikke kontakt med Brønnøysund/.test(brreg);
+    S.check(!raw && nb, 'R15 Feilmeldingen ved Brønnøysund-søk er på norsk', 'Norsk melding, f.eks. «Fikk ikke kontakt med Brønnøysund»', raw ? 'Viser rå engelsk «Failed to fetch»' : ((brreg.match(/Fikk ikke kontakt[^\n]*|Ingen treff[^\n]*/) || ['(ingen melding)'])[0]), { id: 'ANSATT-04', sev: 'Lav' });
   }
   await b.fill('Bedriftsnavn', st.company);
   await b.fill('Adresse, hvis kjent', 'Storgata 1, 0155 Oslo');
   steps.push('Fyll bedriftsnavn', 'Fyll adresse');
+  await acceptCompanyTerms(b);
+  steps.push('Kryss av vilkår og databehandleravtale for bedriften');
   await tap(b, 'Registrer manuelt');
   steps.push('Trykk «Registrer manuelt»');
   const inside = await waitText(b, new RegExp(st.company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 30000);
@@ -291,7 +312,7 @@ async function inviteFromPanel(b, people) {
   return b.visibleText();
 }
 
-async function inviteMail(email, re = /Invitasjon|invitert/i) {
+async function inviteMail(email, re = /Invitasjon|invitert|inviterer deg/i) {
   return waitFor(() => mailsTo(email).filter((m) => re.test(m.subject)).pop(), { timeout: 30000, label: `invitasjon til ${email}` }).catch(() => null);
 }
 
@@ -334,6 +355,7 @@ async function phase2() {
   await tap(o, 'Opprett ny bedrift');
   await waitText(o, /Opprett bedrift/, 15000);
   await o.fill('Bedriftsnavn', st.companyB);
+  await acceptCompanyTerms(o);
   await tap(o, 'Registrer manuelt');
   await waitText(o, new RegExp(st.companyB), 30000);
   for (const fid of (await getDoc(`users/${st.ola.uid}`))?.familyIds || []) {
@@ -408,8 +430,11 @@ async function phase3() {
   nSteps.push('Fyll navn', 'Fyll passord');
   await checkConsent(n);
   nSteps.push('Kryss av samtykke');
-  await tap(n, 'Registrer og se invitasjonen');
-  nSteps.push('Trykk «Registrer og se invitasjonen»');
+  // UX-30: knappen heter «Registrer og bli med», og invitasjonen godtas når e-posten er bekreftet.
+  const joinBtn = await n.page.getByText('Registrer og bli med', { exact: true }).count();
+  S.check(joinBtn > 0, 'I11a Registreringen fra bedriftsinvitasjonen har knappen «Registrer og bli med» (UX-30)', '«Registrer og bli med»', joinBtn ? 'Vises' : 'Mangler');
+  await tap(n, joinBtn ? 'Registrer og bli med' : 'Registrer og se invitasjonen');
+  nSteps.push('Trykk «Registrer og bli med»');
   await waitText(n, /Bekreft e-posten din/, 30000);
   await shot(n, 'nina-bekreft');
   const vmail = await waitFor(() => mailsTo(st.nina.email).find((m) => /Bekreft/.test(m.subject)), { timeout: 30000, label: 'bekreft nina' }).catch(() => null);
@@ -420,36 +445,40 @@ async function phase3() {
   }
   st.nina.uid = (await authUserByEmail(st.nina.email))?.localId;
   saveState();
-  const nOut = await afterVerify(n, nSteps, { overlayOk: true });
-  S.check(nOut === 'profil', 'I11b Bekreftelseslenken i samme nettleser fører Nina videre', 'Profilsteget eller invitasjonsvinduet innen 45 s', nOut === 'login' ? 'Havnet på «Logg inn»' : (nOut === 'fast' ? 'Står fast på «Bekreft e-posten din»; måtte laste siden på nytt' : nOut), { id: 'ANSATT-06', sev: 'Middels', shot: await shot(n, `nina-etter-bekreftelse-${nOut}`) });
-  // Profilsteget og invitasjonsvinduet kommer om hverandre: vinduet kan legge seg over «Velkommen».
+  // Etter bekreftelsen: «Åpner bedriften…», så bedriften med kortet «Slik fører du timer».
+  // Profilsteget eller invitasjonsvinduet skal ikke komme (UX-30); kommer de likevel, tar boten seg forbi.
   let t = '';
-  let sawBoth = false;
-  const until = Date.now() + 90000;
+  let sawProfile = false;
+  let sawOverlay = false;
+  let sawOpening = false;
+  const until = Date.now() + 120000;
   while (Date.now() < until) {
-    t = await n.visibleText();
-    if (/Bedriftsinvitasjon/i.test(t)) { sawBoth = /Velkommen/.test(t); break; }
-    if (/Velkommen/.test(t) && /Fortsett/.test(t)) {
+    t = await n.visibleText().catch(() => '');
+    if (/Åpner bedriften…/.test(t)) sawOpening = true;
+    if (/Bedriftsinvitasjon/i.test(t)) {
+      sawOverlay = true;
+      await n.page.getByText('Godta invitasjon', { exact: true }).last().click().catch(() => {});
+      nSteps.push('Trykk «Godta invitasjon»');
+      await n.page.waitForTimeout(6000);
+      continue;
+    }
+    if (PROFILE_STEP.test(t) && /Fortsett/.test(t)) {
+      sawProfile = true;
       const ok = await n.page.getByText('Fortsett', { exact: true }).first().click({ timeout: 3000 }).then(() => true).catch(() => false);
       if (ok) nSteps.push('Trykk «Fortsett» på profilsteget');
+      await n.page.waitForTimeout(2000);
+      continue;
     }
+    if (t.includes(st.company) && await n.page.evaluate(() => !!window.__protopBot).catch(() => false)) break;
     await n.page.waitForTimeout(1500);
   }
-  S.info('I12a Hva Nina ser rett etter bekreftelsen', sawBoth ? 'Invitasjonsvinduet legger seg over profilsteget «Velkommen»' : t.split('\n').filter(Boolean).slice(0, 3).join(' | '), await shot(n, 'nina-etter-bekreftelse'));
-  const overlay = /Bedriftsinvitasjon/i.test(t) ? t : null;
-  if (overlay) {
-    await n.page.getByText('Godta invitasjon', { exact: true }).last().click();
-    nSteps.push('Trykk «Godta invitasjon»');
-    await n.page.waitForTimeout(6000);
-  }
-  t = await n.visibleText();
-  if (/Velkommen/.test(t) && /Fortsett/.test(t)) {
-    await tap(n, 'Fortsett');
-    nSteps.push('Trykk «Fortsett» på profilsteget');
-  }
+  S.check(!sawOverlay && !sawProfile, 'I12 Etter bekreftelsen godtas invitasjonen uten eget vindu og uten profilsteg (UX-30)', '«Åpner bedriften…» og så rett inn i bedriften',
+    `Åpner bedriften…=${sawOpening}, invitasjonsvindu=${sawOverlay}, profilsteg=${sawProfile}`, { id: 'SLUTT-01', sev: 'Høy', ref: 'UX-30 / ANSATT-06', shot: await shot(n, 'nina-etter-bekreftelse') });
   await waitShell(n).catch(() => {});
   const inCo = await waitText(n, new RegExp(st.company), 30000);
-  S.check(!!inCo, 'I13 Nina er inne i bedriften etter Godta', 'Bedriftens navn i skallet', inCo ? 'Inne' : (await n.visibleText()).slice(0, 200), { shot: await shot(n, 'nina-inne') });
+  S.check(!!inCo, 'I13 Nina er inne i bedriften etter bekreftelsen', 'Bedriftens navn i skallet', inCo ? 'Inne' : (await n.visibleText()).slice(0, 200), { shot: await shot(n, 'nina-inne') });
+  const welcome = await waitText(n, /Slik fører du timer/, 20000);
+  S.check(!!welcome && /Ikke meg\?/.test(welcome), 'I13b Nina lander på Timer med «Slik fører du timer» og «Ikke meg? Avslå» (UX-30)', 'Kortet vises', welcome ? 'Vises' : 'Vises ikke', { shot: await shot(n, 'nina-slik-forer-du-timer') });
   st.ninaSteps = nSteps.length;
   S.info('I14 Antall handlinger for invitert ny bruker fra e-post til bedriften', `${nSteps.length} handlinger: ${nSteps.join(' → ')}`);
   const comp = await company();
@@ -817,10 +846,12 @@ async function phase8() {
   await openPerson(b, nina.id);
   await tap(b, 'Innstillinger');
   await waitText(b, /Brukerkonto|Konto/, 10000);
+  b.dialogs.length = 0;
   await tapId(b, 'employee-account-deactivate');
-  await b.page.waitForTimeout(2500);
+  await b.page.waitForTimeout(4000);
   const dTxt = await b.visibleText();
-  S.check(/Deaktivert\. Personen kan ikke logge inn/.test(dTxt), 'D1 Eva deaktiverer Nina under Brukerkonto', 'Status «Deaktivert …»', (dTxt.match(/Deaktivert\.[^\n]*/) || ['?'])[0], { shot: await shot(b, 'nina-deaktivert') });
+  const dAsked = b.dialogs.some((m) => /Deaktivere/.test(m));
+  S.check(dAsked && /Deaktivert\. Personen (er tatt ut av bedriften|kan ikke logge inn)/.test(dTxt), 'D1 Eva deaktiverer Nina under Brukerkonto (bekrefter først)', 'Spørsmål «Deaktivere …?», så status «Deaktivert …»', `spørsmål=${dAsked}; ${(dTxt.match(/Deaktivert\.[^\n]*/) || ['?'])[0]}`, { shot: await shot(b, 'nina-deaktivert') });
   const nEmp = await employeeOf('nina');
   S.check(nEmp?.company?.status === 'inactive', 'D2 Ninas post har status inactive', 'company.status=inactive', `status=${nEmp?.company?.status}, canLogin=${nEmp?.company?.canLogin}`);
   // Hva ser Nina i den åpne økten?
@@ -833,13 +864,17 @@ async function phase8() {
   S.check(nPages.every((x) => /denied/.test(x)), 'D3 Deaktivert Nina har ingen sider i bedriften', 'Alle bedriftssider sperret', nPages.join(', '), { shot: await shot(n, 'nina-deaktivert-ui') });
   const nTxt = await n.visibleText();
   S.check(/avsluttet|deaktivert/i.test(nTxt), 'D4 Nina får forklaring på at kontoen er avsluttet', 'Tekst om at kontoen/ansettelsen er avsluttet', (nTxt.match(/Ingen tilgang[\s\S]{0,120}/) || [nTxt.slice(0, 120)])[0].replace(/\n/g, ' '), { id: 'ANSATT-16', sev: 'Middels', ref: 'FL-16' });
-  // FL-16: kan hun forlate bedriften selv? Organisasjonsoversikten («Velg organisasjon») og selskapet.
-  await n.page.goto(`${BASE}/organisasjoner`, { waitUntil: 'domcontentloaded' });
-  await n.page.waitForTimeout(6000);
-  await skipTour(n);
-  const leaveTxt = await n.visibleText();
+  // FL-16: kan hun forlate bedriften selv? Siden «Kontoen din i X er avsluttet» har «Forlat bedriften».
+  const leaveBtn = await n.page.locator('[id="company-account-ended-leave"]').first().isVisible().catch(() => false);
+  let leaveTxt = nTxt;
+  if (!leaveBtn) {
+    await n.page.goto(`${BASE}/organisasjoner`, { waitUntil: 'domcontentloaded' });
+    await n.page.waitForTimeout(6000);
+    await skipTour(n);
+    leaveTxt = await n.visibleText();
+  }
   const listed = leaveTxt.includes(st.company);
-  S.check(/Forlat|Forlate|Gå ut av bedriften|Meld deg ut/i.test(leaveTxt), 'D5 Tidligere ansatt kan forlate bedriften selv', 'Valget «Forlat bedriften»', `Ingen slik knapp på «Velg organisasjon». Bedriften står fortsatt i listen: ${listed}`, { id: 'ANSATT-16', sev: 'Middels', ref: 'FL-16', shot: await shot(n, 'nina-forlat') });
+  S.check(leaveBtn || /Forlat bedriften|Forlate|Gå ut av bedriften|Meld deg ut/i.test(leaveTxt), 'D5 Tidligere ansatt kan forlate bedriften selv', 'Valget «Forlat bedriften»', leaveBtn ? '«Forlat bedriften» på siden «Kontoen din i … er avsluttet»' : `Ingen slik knapp. Bedriften står fortsatt i listen: ${listed}`, { id: 'ANSATT-16', sev: 'Middels', ref: 'FL-16', shot: await shot(n, 'nina-forlat') });
   // Reglene for den deaktiverte.
   const nt = await token('nina');
   const comp = await company();
@@ -930,19 +965,22 @@ async function phase10() {
   await tap(b, 'Innstillinger');
   await tap(b, 'Generelt');
   await waitText(b, /Avslutt medarbeiderkonto/, 10000);
+  // Først «Avbryt» i bekreftelsen: ingenting skal endres. Så «OK».
+  b.dialogs.length = 0;
+  b.dialogMode = 'dismiss';
   await tap(b, 'Avslutt medarbeiderkonto');
-  await b.page.waitForTimeout(1500);
-  const conf = await b.visibleText();
-  const asked = /Er du sikker|Bekreft|Vil du avslutte/i.test(conf);
+  await b.page.waitForTimeout(2500);
+  const asked = b.dialogs.some((m) => /Avslutte medarbeiderkontoen\?/.test(m));
   const olaNow = await employeeOf('ola');
+  const conf = await b.visibleText();
   const note = (conf.match(/Medarbeiderkontoen er avsluttet\.?/) || [''])[0];
-  S.check(asked && olaNow?.company?.status !== 'inactive', 'D16 «Avslutt medarbeiderkonto» ber om bekreftelse', 'Bekreftelsesdialog før kontoen avsluttes', `Dialog=${asked}, status etter ett trykk=${olaNow?.company?.status}${note ? `, melding «${note}»` : ''}`, { id: 'ANSATT-18', sev: 'Middels', ref: 'FL-18', shot: await shot(b, 'ola-avslutt') });
-  if (asked) {
-    for (const label of ['Avslutt', 'Bekreft', 'Ja']) {
-      if (await b.page.getByText(label, { exact: true }).count()) { await tap(b, label).catch(() => {}); break; }
-    }
-    await b.page.waitForTimeout(2000);
-  }
+  S.check(asked && olaNow?.company?.status !== 'inactive' && !note, 'D16 «Avslutt medarbeiderkonto» ber om bekreftelse (Avbryt endrer ingenting)', 'Bekreftelsesdialog før kontoen avsluttes; Avbryt gir ingen endring og ingen suksessmelding', `Dialog=${asked} («${(b.dialogs[0] || '').split('\n')[0]}»), status etter Avbryt=${olaNow?.company?.status}${note ? `, melding «${note}»` : ''}`, { id: 'ANSATT-18', sev: 'Middels', ref: 'FL-18', shot: await shot(b, 'ola-avslutt') });
+  b.dialogMode = 'accept';
+  b.dialogs.length = 0;
+  await tap(b, 'Avslutt medarbeiderkonto');
+  await b.page.waitForTimeout(6000);
+  const olaEnded = await employeeOf('ola');
+  S.check(olaEnded?.company?.status === 'inactive' && !!olaEnded?.company?.periodTo, 'D16b Etter OK er kontoen avsluttet med sluttdato', 'status=inactive, «Ansatt til» satt', `status=${olaEnded?.company?.status}, periodTo=${olaEnded?.company?.periodTo}; dialoger: ${b.dialogs.map((m) => m.split('\n')[0]).join(' | ')}`, { id: 'ANSATT-18', sev: 'Middels', ref: 'FL-18', shot: await shot(b, 'ola-avsluttet') });
   const oComp = await company();
   S.check(!(oComp.members || []).includes(st.ola.uid), 'D17 Avsluttet Ola er fjernet fra members', 'Ikke i members', `members=${(oComp.members || []).includes(st.ola.uid)}, adminUids=${(oComp.adminUids || []).includes(st.ola.uid)}`, { id: 'ANSATT-15', sev: 'Kritisk', ref: 'FL-01' });
 
@@ -959,14 +997,14 @@ async function phase11() {
     await openPerson(b, per.id);
     await tap(b, 'Innstillinger');
     await waitText(b, /Kan logge inn/, 10000);
-    await tapId(b, 'employee-account-login');
-    await b.page.waitForTimeout(2000);
-    const perNow = await employeeOf('per');
-    S.info('D18 Eva fjerner «Kan logge inn» for Per', `company.canLogin=${perNow?.company?.canLogin}`, await shot(b, 'per-kan-ikke-logge-inn'));
+    // FL-04: «Kan logge inn» var et valg uten virkning. Rettingen fjernet valget; Brukerkonto viser
+    // bare om personen kan logge inn (følger kobling og om ansettelsen er aktiv).
+    const toggle = await b.page.locator('[id="employee-account-login"]').count();
+    const accTxt = await b.visibleText();
+    const line = (accTxt.match(/Kan logge inn\s*\n?\s*([^\n]+)/) || ['', ''])[1];
+    S.check(!toggle && /Ja – knyttet/.test(line), 'D18 «Kan logge inn» er ikke et valg uten virkning lenger (FL-04)', 'Ingen avkrysning; «Kan logge inn: Ja – knyttet til en brukerkonto»', `avkrysning=${toggle}, «Kan logge inn: ${line}»`, { id: 'ANSATT-19', sev: 'Høy', ref: 'FL-04', shot: await shot(b, 'per-kan-logge-inn') });
     await closeBot('per');
     const p2 = await ensure('per', 'phone');
-    const pAcc = await pageAccess(p2, 'ansatte');
-    S.check(pAcc === 'denied' || !(await p2.visibleText()).includes(st.company), 'D19 Per uten «Kan logge inn» kommer ikke inn i bedriften', 'Ingen tilgang / ikke innlogget i bedriften', `Ansatte: ${pAcc}`, { id: 'ANSATT-19', sev: 'Høy', ref: 'FL-04', shot: await shot(p2, 'per-etter-kan-ikke-logge-inn') });
     await rpatch(`families/${st.companyId}/employees/${per.id}`, await token('eier'), { company: { canLogin: true, periodTo: '2026-01-31' } });
     await p2.page.waitForTimeout(3000);
     const pAcc2 = await pageAccess(p2, 'ansatte');

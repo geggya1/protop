@@ -24,7 +24,7 @@ import {
   authUserByEmail, callFn, createAuthUser, getDoc, idToken, linksIn, listDocs, mailsTo, putDoc, waitFor,
 } from '../lib/emu.mjs';
 import {
-  OUT_ROOT, Steps, addInvitePerson, memGate, createCompanyUI, loginAndSettle, loginUI, openInvitePanel, rget, rpatch,
+  OUT_ROOT, PROFILE_STEP, Steps, acceptCompanyTerms, addInvitePerson, memGate, createCompanyUI, loginAndSettle, loginUI, openInvitePanel, rget, rpatch,
   sendQueued, skipTour, tap, tsId, waitShell, waitText,
 } from './ansatt-lib.mjs';
 
@@ -41,7 +41,11 @@ console.log(`Kjøring kant-${ID}`);
 const bots = {};
 async function bot(key, view, email = '') {
   if (bots[key]) return bots[key];
-  bots[key] = await new Bot(key, { email: email || st[key]?.email, password: PW, view, outDir: OUT, consents: false }).start();
+  const b = await new Bot(key, { email: email || st[key]?.email, password: PW, view, outDir: OUT, consents: false }).start();
+  // Feil og bekreftelser på web er window.alert/confirm (src/utils/dialog.js, FL-14). Samles i b.dialogs og godtas.
+  b.dialogs = [];
+  b.page.on('dialog', async (d) => { b.dialogs.push(d.message()); await d.accept().catch(() => {}); });
+  bots[key] = b;
   return bots[key];
 }
 async function closeBot(key) {
@@ -77,7 +81,7 @@ async function setupOwner() {
   if (bots.eier) await closeBot('eier');
   const b = await bot('eier', 'desktop');
   await loginAndSettle(b, { name: st.eier.name });
-  if (/Velkommen/.test(await b.visibleText())) {
+  if (PROFILE_STEP.test(await b.visibleText())) {
     // Treg maskin: profilsteget svarte ikke. Last på nytt og prøv igjen.
     await b.page.reload({ waitUntil: 'domcontentloaded' });
     await b.page.waitForTimeout(8000);
@@ -153,8 +157,9 @@ async function k2() {
   await g.goto(`/verify-email?vt=${'0'.repeat(64)}`);
   await g.page.waitForTimeout(9000);
   const t = await g.visibleText();
-  const shown = /ugyldig|utløpt|feil|Kunne ikke|finnes ikke/i.test(t);
-  S.check(shown, 'K2 Ugyldig bekreftelseslenke viser en feilmelding', 'Melding om ugyldig/utløpt lenke', t.trim().split('\n').filter(Boolean).slice(0, 4).join(' | '), { id: 'ANSATT-21', sev: 'Middels', ref: 'FL-14', shot: await g.shot('k2-ugyldig-lenke') });
+  const said = g.dialogs.join(' | ');
+  const shown = /ugyldig|utløpt|feil|Kunne ikke|finnes ikke/i.test(`${t}\n${said}`);
+  S.check(shown, 'K2 Ugyldig bekreftelseslenke viser en feilmelding', 'Melding om ugyldig/utløpt lenke', `${said ? `Melding: «${said.replace(/\n+/g, ' ')}» · ` : ''}${t.trim().split('\n').filter(Boolean).slice(0, 4).join(' | ')}`, { id: 'ANSATT-21', sev: 'Middels', ref: 'FL-14', shot: await g.shot('k2-ugyldig-lenke') });
 }
 
 async function k3() {
@@ -216,7 +221,7 @@ async function k5(b) {
   const kari = await employeeByEmail(upper);
   const fam = await company();
   const lower = upper.toLowerCase();
-  S.check(kari?.invite?.email === lower && (fam.invitedEmails || []).includes(lower) && mailsTo(lower).some((m) => /Invitasjon/.test(m.subject)),
+  S.check(kari?.invite?.email === lower && (fam.invitedEmails || []).includes(lower) && mailsTo(lower).some((m) => /Invitasjon|inviterer deg/i.test(m.subject)),
     'K5b E-post med store bokstaver lagres og sendes med små', `invite.email, invitedEmails og mottaker = ${lower}`, `invite.email=${kari?.invite?.email}, invitedEmails har lower=${(fam.invitedEmails || []).includes(lower)}, mail=${mailsTo(lower).length}`);
   // Kari registrerer seg med store bokstaver og bekrefter.
   const kariUid = await createAuthUser({ email: upper, password: PW, name: 'Kari Stor' });
@@ -298,10 +303,19 @@ async function k6k7(b) {
     await m.page.getByText('Godta invitasjon', { exact: true }).last().click();
     await m.page.waitForTimeout(15000);
     const t1 = await m.visibleText();
-    await m.page.keyboard.press('Escape').catch(() => {});
-    await m.page.waitForTimeout(1000);
-    const still = /Bedriftsinvitasjon/i.test(await m.visibleText());
-    S.check(!still, 'K7c Mia blir ikke låst av en invitasjon som allerede er besvart', 'Ingen vindu, eller vinduet kan lukkes', `Vinduet står etter Godta: «${(t1.match(/Invitasjonen er allerede besvart\.?|[^\n]*besvart[^\n]*|Kunne ikke[^\n]*|[^\n]*feil[^\n]*/i) || ['ingen melding'])[0]}», Escape lukker ikke`, { id: 'ANSATT-24', sev: 'Høy', ref: 'FL-05 / FL-06', shot: await m.shot('k7-mia-last') });
+    // FL-05: vinduet har «Senere», og tilbaketast/Escape lukker.
+    let still = /Bedriftsinvitasjon/i.test(t1);
+    if (still) {
+      await m.page.keyboard.press('Escape').catch(() => {});
+      await m.page.waitForTimeout(1000);
+      still = /Bedriftsinvitasjon/i.test(await m.visibleText());
+    }
+    if (still && await m.page.getByText('Senere', { exact: true }).count()) {
+      await m.page.getByText('Senere', { exact: true }).last().click().catch(() => {});
+      await m.page.waitForTimeout(1000);
+      still = /Bedriftsinvitasjon/i.test(await m.visibleText());
+    }
+    S.check(!still, 'K7c Mia blir ikke låst av en invitasjon som allerede er besvart', 'Ingen vindu, eller vinduet kan lukkes', `Etter Godta: «${(t1.match(/Invitasjonen er allerede besvart\.?|[^\n]*besvart[^\n]*|[^\n]*gjelder ikke[^\n]*|Kunne ikke[^\n]*|[^\n]*feil[^\n]*/i) || ['ingen melding'])[0]}», vinduet står etter Escape/Senere=${still}`, { id: 'ANSATT-24', sev: 'Høy', ref: 'FL-05 / FL-06', shot: await m.shot('k7-mia-last') });
   } else {
     S.check(true, 'K7c Mia blir ikke låst av en invitasjon som allerede er besvart', 'Ingen vindu', 'Ingen vindu', { shot: await m.shot('k7-mia') });
   }
@@ -396,7 +410,12 @@ async function k9(b) {
   const a2 = await j.visibleText();
   await j.page.keyboard.press('Escape').catch(() => {});
   await j.page.waitForTimeout(800);
-  const still = /Bedriftsinvitasjon/i.test(await j.visibleText());
+  let still = /Bedriftsinvitasjon/i.test(await j.visibleText());
+  if (still && await j.page.getByText('Senere', { exact: true }).count()) {
+    await j.page.getByText('Senere', { exact: true }).last().click().catch(() => {});
+    await j.page.waitForTimeout(1000);
+    still = /Bedriftsinvitasjon/i.test(await j.visibleText());
+  }
   const err1 = (a1.match(/[^\n]*(slettet|finnes ikke|Kunne ikke|besvart|feil)[^\n]*/i) || ['ingen melding'])[0];
   const err2 = (a2.match(/[^\n]*(slettet|finnes ikke|Kunne ikke|besvart|feil)[^\n]*/i) || ['ingen melding'])[0];
   S.check(!still, 'K9b Invitasjon til slettet bedrift kan avslås eller lukkes', 'Avslå lykkes eller vinduet forsvinner', `Godta: «${err1}», Avslå: «${err2}», vinduet står etter Escape=${still}`, { id: 'ANSATT-24', sev: 'Høy', ref: 'FL-05', shot: await j.shot('k9-jon-last') });
@@ -496,6 +515,7 @@ async function k13() {
   await waitText(b, /Opprett bedrift/, 60000);
   await b.fill('Bedriftsnavn', name);
   await b.fill('Adresse, hvis kjent', 'Kantveien 2, 0150 Oslo');
+  await acceptCompanyTerms(b);
   await tap(b, 'Registrer manuelt');
   let fid = '';
   const until = Date.now() + 20000;

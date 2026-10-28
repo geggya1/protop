@@ -650,7 +650,7 @@ service cloud.firestore {
       }
 
       match /isoFindingsRestricted/{id} {
-        // Et dokument som ikke finnes, kan sjekkes (ny sak lagres i en transaksjon som leser først).
+        // Et dokument som ikke finnes, kan sjekkes (en transaksjon leser før den skriver; det avslører ingenting).
         allow get: if isoMember(familyId, 1) && (resource == null || isRestrictedListed(familyId) || involved(resource.data));
         allow list: if isoMemberLite(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data));
         allow create: if isoMember(familyId, 1)

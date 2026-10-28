@@ -279,13 +279,18 @@ describe('saksnummer fra teller (ISO-23)', () => {
     await assertSucceeds(updateDoc(doc(db, 'families', A, 'isoCounters', 'AVV-2026'), { last: 5 }));
   });
 
-  test('ny skjermet sak kan lagres i transaksjon av melder (leser et dokument som ikke finnes)', async () => {
+  test('ny skjermet sak (HMS-hendelse) kan lagres av melder uten særskilt tilgang', async () => {
     const db = as('mel');
+    // Slik appen gjør det: telleren leses, saken skrives uten å leses først.
     await assertSucceeds(runTransaction(db, async (tx) => {
       await tx.get(doc(db, 'families', A, 'isoCounters', 'AVV-2026'));
-      await tx.get(doc(db, 'families', A, 'isoFindingsRestricted', 'NEW2'));
       tx.set(doc(db, 'families', A, 'isoCounters', 'AVV-2026'), { last: 4, updatedAt: '2026-10-27' });
       tx.set(doc(db, 'families', A, 'isoFindingsRestricted', 'NEW2'), finding({ number: 'AVV-2026-004', type: 'hms', restricted: true, state: 'registrert', actions: [] }));
+    }));
+    // Lesing av et dokument som ikke finnes, avvises ikke lenger (tidligere «Null value error»).
+    await assertSucceeds(runTransaction(db, async (tx) => {
+      await tx.get(doc(db, 'families', A, 'isoFindingsRestricted', 'NEW3'));
+      tx.set(doc(db, 'families', A, 'isoFindingsRestricted', 'NEW3'), finding({ number: 'AVV-2026-005', type: 'hms', restricted: true, state: 'registrert', actions: [] }));
     }));
     // Andres skjermede saker er fortsatt stengt.
     await assertFails(getDoc(doc(as('les'), 'families', A, 'isoFindingsRestricted', 'R1')));

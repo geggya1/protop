@@ -251,14 +251,13 @@ export async function loadIsoSystem(companyId) {
 /**
  * Ny sak: saksnummeret tildeles mot telleren i samme transaksjon som saken skrives
  * (som fakturanummer). Returnerer det som ble lagret, med endelig nummer.
+ * Saken leses ikke først: id-en er ny, og en melder uten særskilt tilgang får ikke lese i skjermet samling.
  */
 async function saveNumberedFinding(companyId, name, entity) {
   const counterRef = doc(db, 'families', companyId, 'isoCounters', numberParts(entity.number).series);
   const ref = doc(db, 'families', companyId, name, entity.id);
   return runTransaction(db, async (tx) => {
     const counter = await tx.get(counterRef);
-    const snap = await tx.get(ref);
-    if (snap.exists()) throw new ConflictError('Finnes allerede.');
     const next = numberFromCounter(entity.number, counter.exists() ? counter.data()?.last : 0);
     const stamp = new Date().toISOString();
     const data = plain({ ...withInvolved({ ...entity, number: next.number }), savedAt: stamp });
@@ -277,13 +276,20 @@ export async function saveEntity(companyId, kind, entity, { previous = null, cre
   if (!id) throw new Error('Mangler selskap.');
   const authed = await ensureAuth();
   if (!authed) throw new Error('Ikke innlogget. Endringen er ikke lagret.');
-  if (kind === 'findings' && !previous && numberParts(entity?.number)) {
-    try {
-      return await saveNumberedFinding(id, collectionFor(kind, entity), entity);
-    } catch (err) {
-      // Reglene uten telleren (ikke rullet ut ennå): lagre som før med nummeret klienten regnet ut.
-      if (!isFirestorePermissionError(err)) throw err;
+  if (kind === 'findings' && !previous) {
+    if (numberParts(entity?.number)) {
+      try {
+        return await saveNumberedFinding(id, collectionFor(kind, entity), entity);
+      } catch (err) {
+        // Reglene uten telleren (ikke rullet ut ennå): lagre med nummeret klienten regnet ut.
+        if (!isFirestorePermissionError(err)) throw err;
+      }
     }
+    // Ny sak skrives uten å lese først. En transaksjon leser dokumentet, og en melder uten særskilt
+    // tilgang fikk ikke lese i skjermet samling (også et dokument som ikke finnes): HMS-hendelser feilet.
+    const data = plain({ ...withInvolved(entity), savedAt: new Date().toISOString() });
+    await setDoc(doc(db, 'families', id, collectionFor(kind, entity), entity.id), data);
+    return data;
   }
   const name = kind === 'system' ? 'isoSystem' : collectionFor(kind, entity);
   const ref = doc(db, 'families', id, name, kind === 'system' ? 'main' : entity.id);

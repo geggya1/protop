@@ -266,3 +266,45 @@ describe('REV-11: bedriftskalenderen og eldre hendelser', () => {
     await assertSucceeds(getDocs(collection(as('far'), 'families', F, 'events')));
   });
 });
+
+describe('REV-13: det en eldre app (86332db) gjør i vanlig bruk', () => {
+  test('medforelder inviterer en voksen med konto (invitasjon, plassholder, innboks og varsel)', async () => {
+    const db = as('far');
+    const inviteRef = doc(collection(db, 'families', F, 'memberInvites'));
+    const invite = {
+      status: 'pending', inviteKind: 'existing', inviteeUid: 'voksen', inviteeName: 'Vera', invitedBy: 'far',
+      asAdmin: false, adultRole: 'parent', asGrandparent: false, familyId: F, familyName: 'Familien', groupType: 'family',
+    };
+    const batch = writeBatch(db);
+    batch.set(inviteRef, invite);
+    batch.set(doc(db, 'families', F, 'parents', 'voksen'), {
+      uid: 'voksen', name: 'Vera', familyId: F, createdBy: 'far', inviteStatus: 'pending', inviteKind: 'existing',
+      inviteId: inviteRef.id, active: false, placeholder: true, admin: false, superAdmin: false, deleted: false,
+      archived: false, adultRole: 'parent', isGrandparent: false,
+    }, { merge: true });
+    batch.set(doc(db, 'users', 'voksen', 'familyInvites', inviteRef.id), { ...invite, inviteId: inviteRef.id }, { merge: true });
+    await assertSucceeds(batch.commit());
+    await assertSucceeds(setDoc(doc(db, 'users', 'voksen', 'notifications', `familyInvite_${F}_${inviteRef.id}`), {
+      eventType: 'familyInvite', title: 'Invitasjon', body: 'Du er invitert', familyId: F, inviteId: inviteRef.id, createdBy: 'far',
+    }));
+  });
+
+  test('ansatt retter egen føring med hele raden (set merge, uten historikk) etter at ny app har lagt til historikk', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), 'families', A, 'timeEntries', 'te1'), { history: [{ kind: 'created', byUid: 'bob' }] });
+    });
+    await assertSucceeds(setDoc(doc(as('bob'), 'families', A, 'timeEntries', 'te1'), {
+      id: 'te1', projectId: 'p1', employeeId: 'emp_bob', date: '2026-10-20', hours: 3, status: 'registrert',
+      invoiceId: null, description: 'Rettet',
+    }, { merge: true }));
+  });
+
+  test('fravær: eget fravær med employeeId-filter virker; hele bedriftens fravær gjør det ikke', async () => {
+    const col = collection(as('bob'), 'families', A, 'absences');
+    await assertSucceeds(getDocs(query(col, where('employeeId', '==', 'emp_bob'))));
+    await assertSucceeds(setDoc(doc(as('bob'), 'families', A, 'absences', 'ab_ny'), {
+      employeeId: 'emp_bob', date: '2026-10-22', hours: 7.5, status: 'registrert',
+    }));
+    await assertFails(getDocs(query(col, where('date', '>=', '2026-10-01'))));
+  });
+});

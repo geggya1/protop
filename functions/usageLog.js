@@ -8,6 +8,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { allows, grantsForEmployee } from '../src/access/companyAccess.js';
+import { aclFor, aclIsFresh, companyMemberUids } from '../src/iso/aclSync.js';
+import { isOrganizationType } from '../src/utils/groupTypes.js';
 import { assertFamilyMember, assertRateLimit, hashRateKey, requireAuth } from './security.js';
 import {
   applyUsageSummary,
@@ -123,6 +125,25 @@ export async function writeUsageEvent(database, input, { trusted = false } = {})
   return event;
 }
 
+/** Speilet fornyes når det har mindre enn dette igjen (som i appen, src/access/accessMirror.js). */
+const ACL_REFRESH_MS = 3 * 3600 * 1000;
+
+/**
+ * Tilgangsspeilet (accessAcl) trengs for HR, fravær, faktura og ansatte. Eldre apper ber ikke om
+ * det (bare ISO gjorde det), men de logger aktivitet hit. Mangler den innloggedes speil, eller går
+ * det ut innen tre timer, skrives det på nytt for denne personen, med samme beregning som
+ * syncCompanyAccess (aclFor). Administratorlisten røres ikke. Gir true når speilet ble skrevet.
+ */
+export async function refreshCallerAcl(database, companyId, uid, ctx, now = new Date()) {
+  const family = ctx?.data || {};
+  if (!companyId || !uid || !isOrganizationType(family.type) || !companyMemberUids(family).includes(uid)) return false;
+  const ref = database.doc(`families/${companyId}/accessAcl/${uid}`);
+  const snap = await ref.get();
+  if (snap.exists && aclIsFresh(snap.data(), new Date(now.getTime() + ACL_REFRESH_MS))) return false;
+  await ref.set({ ...aclFor({ family, employees: ctx.employees || [], uid, now }), source: 'function' });
+  return true;
+}
+
 /** Endringsspor (timer, invitasjoner) har egen grense, så sidevisninger ikke fortrenger dem. */
 const CHANGE_TYPES = new Set(['hour', 'hour_deleted', 'invite_sent']);
 
@@ -141,6 +162,8 @@ export const recordUsage = onCall(CALL, async (req) => {
   let trusted = false;
   if (companyId) {
     const ctx = await companyContext(companyId, uid);
+    // Eldre apper fornyer ikke tilgangsspeilet selv (REV-13). Feil her stopper ikke loggingen.
+    await refreshCallerAcl(db, companyId, uid, ctx).catch(() => false);
     // Bedriften har slått av aktivitetsloggen: lagre ingenting, verken hos brukeren eller den ansatte.
     if (!usageEventAllowed(ctx.data.company, type)) return { ok: true, skipped: 'company-off' };
     if (type === 'hour' || type === 'hour_deleted') {

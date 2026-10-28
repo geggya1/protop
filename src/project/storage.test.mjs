@@ -49,10 +49,12 @@ local.projects = [{ id: 'p9', number: '9', name: 'Lokal', status: 'aktiv' }];
 const remote = emptyProjectState();
 remote.projects = [{ id: 'p8', number: '8', name: 'Sky', status: 'aktiv' }];
 
-const merged = applyRemoteProjectRead(local, { ok: true, state: remote });
+// Skyen er fasit. Den lokale kopien slås ikke inn (den kan ha rader andre har slettet).
+const merged = applyRemoteProjectRead(local, { ok: true, exists: true, state: remote });
 assert.equal(merged.cache, true);
 assert.equal(merged.meta, 'ok');
-assert.deepEqual(merged.state.projects.map((row) => row.id).sort(), ['p8', 'p9']);
+assert.equal(merged.upload, false);
+assert.deepEqual(merged.state.projects.map((row) => row.id), ['p8']);
 
 const failed = applyRemoteProjectRead(local, { ok: false, state: emptyProjectState() });
 assert.equal(failed.cache, false);
@@ -60,10 +62,15 @@ assert.equal(failed.meta, 'error');
 assert.equal(failed.state.projects.length, 1);
 assert.equal(failed.upload, false);
 
-const emptyRemote = applyRemoteProjectRead(local, { ok: true, state: emptyProjectState() });
+// Uten prosjektdokument i skyen lastes den lokale kopien opp.
+const emptyRemote = applyRemoteProjectRead(local, { ok: true, exists: false, state: emptyProjectState() });
 assert.equal(emptyRemote.cache, true);
 assert.equal(emptyRemote.upload, true);
 assert.equal(emptyRemote.state.projects[0].id, 'p9');
+// Et tømt dokument i skyen er fasit. Den lokale kopien skal ikke fylle det igjen.
+const emptiedRemote = applyRemoteProjectRead(local, { ok: true, exists: true, state: emptyProjectState() });
+assert.equal(emptiedRemote.upload, false);
+assert.equal(emptiedRemote.state.projects.length, 0);
 
 putProjectState(seeded, 'co1');
 assert.equal(await loadProjectState('co1'), peekProjectState('co1'));
@@ -75,13 +82,14 @@ assert.equal(projectLoadMeta('co1'), 'ok');
   const localBefore = { ...state, syncedAt: '2026-01-01T10:00:00.000Z' };
   const deleted = deleteProjects(state, [state.projects.find((row) => row.number === '55').id]);
   const stamped = { ...deleted.state, syncedAt: '2026-01-01T11:00:00.000Z' };
-  // Samme sti som saveProjectState: merge lokal disk med ny state.
+  // Slettemarkeringen holder prosjektet ute når en eldre kopi slås sammen.
   const saved = mergeProjectStates(localBefore, stamped);
   assert.equal(saved.projects.length, 1);
   assert.equal(saved.projects[0].number, '56');
-  const remoteStillHasOld = applyRemoteProjectRead(saved, { ok: true, state: localBefore });
-  assert.equal(remoteStillHasOld.state.projects.length, 1);
-  assert.equal(remoteStillHasOld.state.projects[0].number, '56');
+  // Den gamle lokale kopien henter ikke prosjektet tilbake fra skyens kopi.
+  const fromCloud = applyRemoteProjectRead(localBefore, { ok: true, exists: true, state: saved });
+  assert.equal(fromCloud.state.projects.length, 1);
+  assert.equal(fromCloud.state.projects[0].number, '56');
 }
 
 {

@@ -2,9 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   emptyProjectState,
   mergeMemberLists,
-  mergeProjectStates,
   normalizeProjectState,
 } from './engine.js';
+import {
+  applyProjectDiff,
+  combineProjectDiffs,
+  diffProjectStates,
+  isEmptyProjectDiff,
+  projectDiffKeys,
+} from './stateDiff.js';
+import { showSaveError } from '../ui/saveToast.js';
 import {
   allowTimeEntryRemovals,
   attachTimeEntriesToState,
@@ -30,8 +37,33 @@ import { dropRetiredLocalKeys } from '../utils/retiredLocalKeys.js';
 /** v1 kunne inneholde et annet selskaps prosjekter. Den forkastes. */
 const KEY = 'protop.projectPlatform.v2';
 const RETIRED_KEYS = ['protop.projectPlatform.v1'];
-const remoteTimers = new Map();
-const remotePending = new Map();
+/** Endringer som ikke har nådd skyen ennå (f.eks. uten nett). Ligger på enheten til de er lagret. */
+const OUTBOX_KEY = 'protop.projectOutbox.v1';
+const OUTBOX_MAX_DAYS = 30;
+const OUTBOX = new Map();
+const outboxLoaded = new Map();
+let outboxSeq = 0;
+const flushTimers = new Map();
+const flushChains = new Map();
+const retryTimers = new Map();
+const retryCounts = new Map();
+const RETRY_MS = [20000, 60000, 180000];
+/** Når feilen sist ble vist. Samme feil vises ikke oftere enn hvert minutt. */
+const failureShown = new Map();
+const FAILURE_TOAST_MS = 60000;
+/**
+ * Versjonen av prosjektdokumentet hver skjerm startet fra (baseRev på state).
+ * Lagring regner ut hva brukeren har endret mot denne, ikke mot hele skyen.
+ */
+const BASES = new Map();
+const BASE_CAP = 80;
+const SESSION = Math.random().toString(36).slice(2, 8);
+let baseSeq = 0;
+/** Størrelsen på prosjektdokumentet ved siste lagring, i byte. */
+const DOC_SIZE = new Map();
+const DOC_WARN_BYTES = 700000;
+/** Firestore tar 1 MiB per dokument. Litt margin for tidsstempel og felt-navn. */
+const DOC_MAX_BYTES = 1040000;
 /** Modulminne — unngår ny Firestore/AsyncStorage-runde ved hvert skjermbesøk. */
 const MEMORY = new Map();
 const inflight = new Map();
@@ -351,12 +383,6 @@ function pickCatalogKeys(value) {
   return out;
 }
 
-function withoutCatalogKeys(value) {
-  const out = { ...(value || {}) };
-  for (const key of CATALOG_DOC_KEYS) delete out[key];
-  return out;
-}
-
 function pickEquipmentKeys(value) {
   const out = {};
   for (const key of EQUIPMENT_DOC_KEYS) {
@@ -372,11 +398,27 @@ function withoutEquipmentKeys(value) {
 }
 
 async function firestoreBits() {
-  const [{ doc, getDoc, setDoc, serverTimestamp }, { db }] = await Promise.all([
+  const [{ doc, getDoc, runTransaction, serverTimestamp }, { db }] = await Promise.all([
     import('firebase/firestore'),
     import('../../firebase.js'),
   ]);
-  return { doc, getDoc, setDoc, serverTimestamp, db };
+  return { doc, getDoc, runTransaction, serverTimestamp, db };
+}
+
+function projectRefs(bits, companyId) {
+  return {
+    main: bits.doc(bits.db, 'families', companyId, 'projects', 'state'),
+    side: bits.doc(bits.db, 'families', companyId, 'projects', 'equipment'),
+    catalog: bits.doc(bits.db, 'families', companyId, 'projects', 'catalog'),
+  };
+}
+
+/** Prosjektstate fra de tre dokumentene: hoveddokumentet, utstyr og katalog. */
+function remoteStateFrom(snap, sideSnap, catalogSnap) {
+  const side = sideSnap.exists() ? sideSnap.data() : null;
+  const catalog = catalogSnap.exists() ? catalogSnap.data() : null;
+  const base = snap.exists() ? (snap.data()?.state || snap.data() || {}) : emptyProjectState();
+  return normalizeProjectState(applyCatalogDoc(applyEquipmentDoc(base, side), catalog));
 }
 
 export function peekProjectState(companyId) {
@@ -464,22 +506,20 @@ async function readRemote(companyId) {
   try {
     const authed = await ensureRemoteAuth();
     if (!authed) return { ok: false, state: emptyProjectState() };
-    const { doc, getDoc, db } = await firestoreBits();
-    const ref = doc(db, 'families', id, 'projects', 'state');
-    const sideRef = doc(db, 'families', id, 'projects', 'equipment');
-    const catalogRef = doc(db, 'families', id, 'projects', 'catalog');
+    const bits = await firestoreBits();
+    const refs = projectRefs(bits, id);
+    let timer = null;
     const [snap, sideSnap, catalogSnap] = await Promise.race([
-      Promise.all([getDoc(ref), getDoc(sideRef), getDoc(catalogRef)]),
+      Promise.all([bits.getDoc(refs.main), bits.getDoc(refs.side), bits.getDoc(refs.catalog)]),
       new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('project-read-timeout')), REMOTE_READ_MS);
+        timer = setTimeout(() => reject(new Error('project-read-timeout')), REMOTE_READ_MS);
+        timer?.unref?.();
       }),
-    ]);
-    const side = sideSnap.exists() ? sideSnap.data() : null;
-    const catalog = catalogSnap.exists() ? catalogSnap.data() : null;
-    const base = snap.exists() ? (snap.data()?.state || snap.data() || {}) : emptyProjectState();
+    ]).finally(() => clearTimeout(timer));
     return {
       ok: true,
-      state: normalizeProjectState(applyCatalogDoc(applyEquipmentDoc(base, side), catalog)),
+      exists: snap.exists(),
+      state: remoteStateFrom(snap, sideSnap, catalogSnap),
     };
   } catch {
     return { ok: false, state: emptyProjectState() };
@@ -487,8 +527,10 @@ async function readRemote(companyId) {
 }
 
 /**
- * Vellykket fjernlesing slås sammen og kan mellomlagres.
- * Feilet lesing beholdes som lokal kopi og skal ikke caches som «tomt».
+ * Skyen er fasit. Den lokale kopien er bare reserve når skyen ikke svarer, og slås
+ * ikke inn i skyens kopi: da kom slettede rader tilbake, og en gammel liste kunne
+ * skjule prosjekter andre hadde lagt til. Ventende endringer ligger i en egen kø.
+ * Finnes ikke prosjektdokumentet i det hele tatt, lastes den lokale kopien opp.
  */
 export function applyRemoteProjectRead(local, remote) {
   const base = normalizeProjectState(local);
@@ -496,18 +538,23 @@ export function applyRemoteProjectRead(local, remote) {
     return { cache: false, upload: false, state: base, meta: 'error' };
   }
   const remoteState = normalizeProjectState(remote.state);
-  const merged = mergeProjectStates(base, remoteState);
-  const upload = !!((base.projects?.length || base.timeEntries?.length) && !remoteState.projects?.length);
-  return { cache: true, upload, state: merged, meta: 'ok' };
+  const upload = remote.exists === false && !!base.projects?.length;
+  return { cache: true, upload, state: upload ? base : remoteState, meta: 'ok' };
 }
 
 export function projectLoadMeta(companyId) {
   return loadMeta.get(memoryKey(companyId)) || '';
 }
 
+function withoutBaseRev(state) {
+  if (!state || typeof state !== 'object' || !('baseRev' in state)) return state;
+  const { baseRev, ...rest } = state;
+  return rest;
+}
+
 async function writeLocal(companyId, state) {
   // Ikke lagre timeEntries i prosjekt-blob — egen cache i timeEntryStorage.
-  const slim = stripTimeEntriesFromState(state);
+  const slim = withoutBaseRev(stripTimeEntriesFromState(state));
   const payload = JSON.stringify(slim);
   const key = localKey(companyId);
   try {
@@ -526,107 +573,268 @@ async function writeLocal(companyId, state) {
 function firestorePayload(state) {
   // JSON fjerner undefined, som Firestore avviser og som ellers stopper synk til mobil.
   // timeEntries strippes alltid — monolitt må holde seg under 1 MiB.
-  return JSON.parse(JSON.stringify(stripTimeEntriesFromState(state)));
+  return JSON.parse(JSON.stringify(withoutBaseRev(stripTimeEntriesFromState(state))));
 }
 
-async function writeRemote(companyId, state) {
-  const id = String(companyId || '').trim();
-  if (!id) return { ok: true };
-  const payload = firestorePayload(state);
-  // Utstyret først, i eget dokument. Vanlige lagringer slår sammen etter id, så en
-  // eldre kopi fra en annen skjerm ikke overskriver nyere endringer.
-  const side = await writeEquipmentDoc(id, pickEquipmentKeys(payload), { merge: true });
-  const catalog = await writeCatalogDoc(id, pickCatalogKeys(payload), { merge: true });
+function encodedBytes(value) {
   try {
-    const { doc, setDoc, serverTimestamp, db } = await firestoreBits();
-    const ref = doc(db, 'families', id, 'projects', 'state');
-    // Uten utstyrslistene. Med merge beholdes de gamle listene for eldre klienter.
-    // Produktene skrives også hit, så eldre klienter og en tilbakerulling ser katalogen.
-    await setDoc(ref, {
-      state: withoutEquipmentKeys(payload),
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-    if (!side.ok) return { ok: false, error: side.error };
-    return catalog.ok ? { ok: true } : { ok: false, error: catalog.error };
-  } catch (error) {
-    return { ok: false, error, equipmentSaved: side.ok };
+    const raw = JSON.stringify(value);
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(raw).length;
+    return raw.length;
+  } catch {
+    return 0;
   }
 }
 
-/**
- * Skriv katalogdokumentet. merge: slå sammen med det som ligger der (vanlige
- * lagringer). Uten merge er listene fasit (endringer fra Produkt-siden).
- */
-async function writeCatalogDoc(companyId, lists, { merge = true } = {}) {
+/** Størrelsen på prosjektdokumentet ved siste lagring (byte), til feilsøking. */
+export function projectDocSize(companyId) {
+  return DOC_SIZE.get(memoryKey(companyId)) || 0;
+}
+
+function noteDocSize(companyId, bytes) {
+  if (!bytes) return;
+  DOC_SIZE.set(memoryKey(companyId), bytes);
+  if (bytes > DOC_WARN_BYTES && typeof console !== 'undefined') {
+    console.warn(`[prosjekt] projects/state for ${companyId} er ${Math.round(bytes / 1000)} kB. Grensen i Firestore er 1 MiB.`);
+  }
+}
+
+function tooLargeError(bytes) {
+  const error = new Error(`Prosjektdataene er for store til å lagres i skyen (${Math.round(bytes / 1000)} kB av 1 MiB). Endringen ligger på denne enheten.`);
+  error.code = 'project-doc-too-large';
+  return error;
+}
+
+/* ───────── Versjonen skjermen startet fra ───────── */
+
+/** Husk en versjon som utgangspunkt for senere lagringer, og gi den et nummer (baseRev). */
+function rememberBase(companyId, state) {
+  const key = memoryKey(companyId);
+  baseSeq += 1;
+  const rev = `${SESSION}.${baseSeq}`;
+  const map = BASES.get(key) || new Map();
+  map.set(rev, withoutBaseRev(stripTimeEntriesFromState(state)));
+  while (map.size > BASE_CAP) map.delete(map.keys().next().value);
+  BASES.set(key, map);
+  return rev;
+}
+
+function baseFor(companyId, rev) {
+  if (!rev) return null;
+  return BASES.get(memoryKey(companyId))?.get(rev) || null;
+}
+
+/** Legg state i minnet som ny versjon. Skjermer som laster herfra, regner endringer mot den. */
+function adoptBase(companyId, state) {
+  const rev = rememberBase(companyId, state);
+  return putProjectState({ ...state, baseRev: rev }, companyId);
+}
+
+/* ───────── Kø med endringer som skal til skyen ───────── */
+
+function outboxKey(companyId) {
+  return `${OUTBOX_KEY}.${companyId}`;
+}
+
+async function hydrateOutbox(companyId) {
   const id = String(companyId || '').trim();
-  if (!id || !Object.keys(lists || {}).length) return { ok: true };
-  try {
-    const { doc, getDoc, setDoc, serverTimestamp, db } = await firestoreBits();
-    const ref = doc(db, 'families', id, 'projects', 'catalog');
-    let current = null;
-    if (merge) {
-      const snap = await getDoc(ref);
-      current = snap.exists() ? snap.data() : null;
-      if (!current) {
-        // Første gang: start med produktene i hoveddokumentet, så en tom kopi ikke blir fasit.
-        const main = await getDoc(doc(db, 'families', id, 'projects', 'state'));
-        current = main.exists() ? (main.data()?.state || {}) : null;
+  if (!id) return [];
+  if (!outboxLoaded.has(id)) {
+    outboxLoaded.set(id, (async () => {
+      let stored = [];
+      try {
+        const raw = await AsyncStorage.getItem(outboxKey(id));
+        const parsed = raw ? JSON.parse(raw) : [];
+        const cutoff = Date.now() - OUTBOX_MAX_DAYS * 86400000;
+        stored = (Array.isArray(parsed) ? parsed : [])
+          .filter((row) => row?.diff && (Date.parse(row.at || '') || 0) >= cutoff);
+      } catch {
+        stored = [];
       }
-    }
-    const next = mergeCatalogDoc(current, lists);
-    await setDoc(ref, {
-      ...JSON.parse(JSON.stringify(next)),
-      updatedAt: serverTimestamp(),
-    });
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error };
+      // Endringer lagt i køen mens vi leste, kommer etter de lagrede.
+      OUTBOX.set(id, [...stored, ...(OUTBOX.get(id) || [])]);
+    })());
   }
+  await outboxLoaded.get(id);
+  return OUTBOX.get(id) || [];
 }
 
-/**
- * Skriv utstyrsdokumentet. merge: slå sammen etter id med det som ligger der
- * (vanlige lagringer). Uten merge er listene fasit (sletting fra Utstyr-siden).
- */
-async function writeEquipmentDoc(companyId, lists, { merge = true } = {}) {
-  const id = String(companyId || '').trim();
-  if (!id || !Object.keys(lists || {}).length) return { ok: true };
-  try {
-    const { doc, getDoc, setDoc, serverTimestamp, db } = await firestoreBits();
-    const ref = doc(db, 'families', id, 'projects', 'equipment');
-    let next = lists;
-    if (merge) {
-      const snap = await getDoc(ref);
-      let current = snap.exists() ? snap.data() : null;
-      if (!current) {
-        // Første gang: start med listene i hoveddokumentet, så en tom kopi ikke blir fasit.
-        const main = await getDoc(doc(db, 'families', id, 'projects', 'state'));
-        current = main.exists() ? (main.data()?.state || {}) : null;
-      }
-      next = mergeEquipmentDoc(current, lists);
-    }
-    await setDoc(ref, {
-      ...JSON.parse(JSON.stringify(next)),
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error };
-  }
-}
-
-function queueRemote(companyId, state) {
+function persistOutbox(companyId) {
   const id = String(companyId || '').trim();
   if (!id) return;
-  remotePending.set(id, state);
-  const prev = remoteTimers.get(id);
+  const list = OUTBOX.get(id) || [];
+  try {
+    const job = list.length
+      ? AsyncStorage.setItem(outboxKey(id), JSON.stringify(list))
+      : AsyncStorage.removeItem(outboxKey(id));
+    if (job && typeof job.catch === 'function') job.catch(() => {});
+  } catch {
+    // Disken er best-effort. Køen i minnet gjelder for økten.
+  }
+}
+
+/** Legg en endring i køen. Følger den rett etter en annen, slås de sammen. */
+function enqueueProjectDiff(companyId, diff) {
+  const id = String(companyId || '').trim();
+  if (!id || isEmptyProjectDiff(diff)) return false;
+  const list = OUTBOX.get(id) || [];
+  const last = list[list.length - 1];
+  const combined = last ? combineProjectDiffs(last.diff, diff) : null;
+  outboxSeq += 1;
+  const entry = { seq: `${SESSION}.${outboxSeq}`, at: new Date().toISOString(), diff: combined || diff };
+  OUTBOX.set(id, combined ? [...list.slice(0, -1), entry] : [...list, entry]);
+  persistOutbox(id);
+  return true;
+}
+
+/** Ventende endringer for selskapet (lest fra enheten første gang). */
+export async function pendingProjectChanges(companyId) {
+  return (await hydrateOutbox(companyId)).map((row) => row.diff);
+}
+
+/**
+ * Skriv endringene i én transaksjon: les skyens ferske kopi, legg på endringene og skriv.
+ * plan(fresh) gir listen med endringer, eller ingen når ingenting skal skrives.
+ * mainForCatalog: produkter skrives også til hoveddokumentet (eldre klienter leser derfra).
+ */
+async function commitRemote(companyId, plan, { mainForCatalog = true } = {}) {
+  const id = String(companyId || '').trim();
+  if (!id) return { ok: true, changed: false };
+  try {
+    const authed = await ensureRemoteAuth();
+    if (!authed) return { ok: false, error: new Error('Ikke innlogget mot skyen ennå.') };
+    const bits = await firestoreBits();
+    const refs = projectRefs(bits, id);
+    let outcome = { changed: false, state: null, bytes: 0 };
+    await bits.runTransaction(bits.db, async (tx) => {
+      const snap = await tx.get(refs.main);
+      const sideSnap = await tx.get(refs.side);
+      const catalogSnap = await tx.get(refs.catalog);
+      const fresh = remoteStateFrom(snap, sideSnap, catalogSnap);
+      const diffs = (plan(fresh) || []).filter((diff) => !isEmptyProjectDiff(diff));
+      outcome = { changed: false, state: fresh, bytes: 0 };
+      if (!diffs.length) return;
+      const touched = new Set();
+      for (const diff of diffs) projectDiffKeys(diff).forEach((key) => touched.add(key));
+      const next = normalizeProjectState({
+        ...diffs.reduce((state, diff) => applyProjectDiff(state, diff), fresh),
+        syncedAt: new Date().toISOString(),
+      });
+      const payload = firestorePayload(next);
+      const touchesSide = EQUIPMENT_DOC_KEYS.some((key) => touched.has(key));
+      const touchesCatalog = CATALOG_DOC_KEYS.some((key) => touched.has(key));
+      const touchesMain = [...touched].some((key) => (
+        !EQUIPMENT_DOC_KEYS.includes(key) && !CATALOG_DOC_KEYS.includes(key)
+      )) || (touchesCatalog && mainForCatalog);
+      const updatedAt = bits.serverTimestamp();
+      let bytes = 0;
+      if (touchesMain) {
+        // Uten utstyrslistene. Med merge beholdes de gamle listene for eldre klienter.
+        const main = withoutEquipmentKeys(payload);
+        bytes = encodedBytes(main);
+        if (bytes > DOC_MAX_BYTES) throw tooLargeError(bytes);
+        tx.set(refs.main, { state: main, updatedAt }, { merge: true });
+      }
+      if (touchesSide) tx.set(refs.side, { ...pickEquipmentKeys(payload), updatedAt }, { merge: true });
+      if (touchesCatalog) tx.set(refs.catalog, { ...pickCatalogKeys(payload), updatedAt });
+      outcome = { changed: true, state: next, bytes };
+    });
+    noteDocSize(id, outcome.bytes);
+    return { ok: true, ...outcome };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
+function clearRetry(companyId) {
+  const timer = retryTimers.get(companyId);
+  if (timer) clearTimeout(timer);
+  retryTimers.delete(companyId);
+}
+
+function scheduleRetry(companyId) {
+  const tries = retryCounts.get(companyId) || 0;
+  if (tries >= RETRY_MS.length || retryTimers.has(companyId)) return;
+  retryCounts.set(companyId, tries + 1);
+  const timer = setTimeout(() => {
+    retryTimers.delete(companyId);
+    flushInBackground(companyId);
+  }, RETRY_MS[tries]);
+  timer?.unref?.();
+  retryTimers.set(companyId, timer);
+}
+
+/** Melding til brukeren når skyen ikke tok imot en lagring. */
+export function remoteFailureText(error) {
+  const raw = String(error?.message || error?.code || '');
+  if (error?.code === 'project-doc-too-large') return raw;
+  if (/exceeds|too big|maximum allowed size/i.test(raw)) {
+    return 'Prosjektdataene er for store til å lagres i skyen. Endringen ligger på denne enheten.';
+  }
+  return 'Endringen ligger på denne enheten og sendes når skyen svarer.';
+}
+
+/** Send hele køen til skyen. Én sending om gangen per selskap. */
+export function flushProjectChanges(companyId) {
+  const id = String(companyId || '').trim();
+  if (!id) return Promise.resolve({ ok: true, changed: false });
+  const timer = flushTimers.get(id);
+  if (timer) clearTimeout(timer);
+  flushTimers.delete(id);
+  const previous = flushChains.get(id) || Promise.resolve();
+  const job = previous.then(async () => {
+    const batch = (await hydrateOutbox(id)).slice();
+    if (!batch.length) return { ok: true, changed: false };
+    const result = await commitRemote(id, () => batch.map((row) => row.diff));
+    if (result.ok) {
+      const sent = new Set(batch.map((row) => row.seq));
+      OUTBOX.set(id, (OUTBOX.get(id) || []).filter((row) => !sent.has(row.seq)));
+      persistOutbox(id);
+      clearRetry(id);
+      retryCounts.delete(id);
+      failureShown.delete(id);
+    }
+    return result;
+  });
+  flushChains.set(id, job.catch(() => {}));
+  return job;
+}
+
+function flushInBackground(companyId) {
+  flushProjectChanges(companyId).then((result) => {
+    if (result.ok) return;
+    // Lagringen i skyen feilet. Si fra (ikke for hver lagring), og prøv igjen litt senere.
+    if (Date.now() - (failureShown.get(companyId) || 0) > FAILURE_TOAST_MS) {
+      failureShown.set(companyId, Date.now());
+      showSaveError(remoteFailureText(result.error));
+    }
+    scheduleRetry(companyId);
+  }).catch(() => {});
+}
+
+function scheduleFlush(companyId, delay = 400) {
+  const id = String(companyId || '').trim();
+  if (!id) return;
+  const prev = flushTimers.get(id);
   if (prev) clearTimeout(prev);
-  remoteTimers.set(id, setTimeout(() => {
-    remoteTimers.delete(id);
-    const pending = remotePending.get(id);
-    remotePending.delete(id);
-    if (pending) writeRemote(id, pending).catch(() => {});
-  }, 400));
+  const timer = setTimeout(() => {
+    flushTimers.delete(id);
+    flushInBackground(id);
+  }, delay);
+  timer?.unref?.();
+  flushTimers.set(id, timer);
+}
+
+/**
+ * Regn ut hva brukeren har endret (mot versjonen state ble lastet fra) og legg det i køen.
+ * State-objektet får den nye versjonen, så neste endring på samme skjerm bare sender det nye.
+ */
+function queueProjectChanges(companyId, state, slim) {
+  const base = baseFor(companyId, state?.baseRev);
+  const queued = enqueueProjectDiff(companyId, diffProjectStates(base, withoutBaseRev(slim)));
+  const rev = rememberBase(companyId, slim);
+  if (state && typeof state === 'object' && !Object.isFrozen(state)) state.baseRev = rev;
+  return { queued, rev };
 }
 
 async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { allowRemovals = true } = {}) {
@@ -642,7 +850,8 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
     bySource.get(source).push(row);
   }
   for (const [source, list] of bySource) {
-    await saveTimeEntries(source, list);
+    // Bare endrede felt: en eldre kopi skal ikke nullstille faktura, status eller låsing.
+    await saveTimeEntries(source, list, { previous: previousEntries });
   }
   const removable = planTimeEntryRemovals(previousEntries, nextEntries, window, { allowRemovals });
   if (removable.length) {
@@ -806,24 +1015,33 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     const local = await readLocal(companyId);
     if (!companyId) {
       loadMeta.set(key, 'ok');
-      return putProjectState(local, companyId);
+      return adoptBase(companyId, local);
     }
-    const applied = applyRemoteProjectRead(local, await readRemote(companyId));
+    const [remote, waiting] = await Promise.all([
+      readRemote(companyId),
+      pendingProjectChanges(companyId),
+    ]);
+    const applied = applyRemoteProjectRead(local, remote);
     loadMeta.set(key, applied.meta);
     if (!applied.cache) {
-      return loadStateWithHealedHours(companyId, applied.state, hoursOpts);
+      // Skyen svarer ikke: den lokale kopien er reserve. Den har også endringene i køen.
+      return adoptBase(companyId, await loadStateWithHealedHours(companyId, applied.state, hoursOpts));
     }
+    let state = applied.state;
     if (applied.upload) {
-      queueRemote(companyId, { ...stripTimeEntriesFromState(applied.state), syncedAt: new Date().toISOString() });
+      enqueueProjectDiff(companyId, diffProjectStates(null, withoutBaseRev(stripTimeEntriesFromState(state))));
+    } else if (waiting.length) {
+      // Endringer som ikke nådde skyen sist, vises med en gang og sendes nå.
+      state = normalizeProjectState(waiting.reduce((current, diff) => applyProjectDiff(current, diff), state));
     }
-    const stored = await loadStateWithHealedHours(companyId, applied.state, hoursOpts);
+    let flush = applied.upload || waiting.length > 0;
     if ((applied.state.timeEntries || []).length && (hoursOpts.all || hoursOpts.fromDate)) {
-      queueRemote(companyId, {
-        ...stripTimeEntriesFromState(stored),
-        syncedAt: new Date().toISOString(),
-      });
+      // Gamle timer i hoveddokumentet er flyttet til egen samling. Skrivingen fjerner dem der.
+      flush = enqueueProjectDiff(companyId, { lists: {}, fields: { timeEntries: [] }, deletedRows: [], strict: false }) || flush;
     }
-    return stored;
+    if (flush) scheduleFlush(companyId, 0);
+    const stored = await loadStateWithHealedHours(companyId, state, hoursOpts);
+    return adoptBase(companyId, stored);
   })();
 
   if (hoursOpts.hours === false || hoursOpts.all) {
@@ -953,13 +1171,13 @@ export async function saveProjectState(state, companyId) {
   const full = normalizeProjectState(state);
   const previousEntries = baselineTimeEntries(companyId);
   const previousAbsences = baselineAbsences(companyId);
-  const stamped = {
+  const nextSlim = {
     ...stripTimeEntriesFromState(full),
     syncedAt: new Date().toISOString(),
   };
-  const nextSlim = companyId
-    ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
-    : stamped;
+  // Bare endringene mot versjonen skjermen lastet, går til skyen. Det regnes ut før
+  // nettverkskallene under, så en ny lagring fra samme skjerm regnes mot denne versjonen.
+  const { rev } = queueProjectChanges(companyId, state, nextSlim);
   const allowRemovals = allowTimeEntryRemovals(peekHoursMode(companyId), HOURS_WINDOW.get(memoryKey(companyId)) || null);
   const allowAbsenceRemovals = ABSENCE_MODE.get(memoryKey(companyId)) === 'all';
 
@@ -970,21 +1188,24 @@ export async function saveProjectState(state, companyId) {
         allowRemovals: allowAbsenceRemovals,
       });
     } catch (error) {
+      scheduleFlush(companyId);
       putProjectState({
         ...nextSlim,
         timeEntries: full.timeEntries || [],
         absences: full.absences || [],
+        baseRev: rev,
       }, companyId);
       throw error;
     }
   }
 
   await writeLocal(companyId, nextSlim);
-  queueRemote(companyId, nextSlim);
+  scheduleFlush(companyId);
   return putProjectState({
     ...nextSlim,
     timeEntries: full.timeEntries || [],
     absences: full.absences || [],
+    baseRev: rev,
   }, companyId);
 }
 
@@ -993,33 +1214,34 @@ export async function persistProjectState(state, companyId) {
   const full = normalizeProjectState(state);
   const previousEntries = baselineTimeEntries(companyId);
   const previousAbsences = baselineAbsences(companyId);
-  const stamped = {
+  const nextSlim = {
     ...stripTimeEntriesFromState(full),
     syncedAt: new Date().toISOString(),
   };
-  const nextSlim = companyId
-    ? stripTimeEntriesFromState(mergeProjectStates(await readLocal(companyId), stamped))
-    : stamped;
+  const { rev } = queueProjectChanges(companyId, state, nextSlim);
   const allowRemovals = allowTimeEntryRemovals(peekHoursMode(companyId), HOURS_WINDOW.get(memoryKey(companyId)) || null);
   const allowAbsenceRemovals = ABSENCE_MODE.get(memoryKey(companyId)) === 'all';
+  const id = String(companyId || '').trim();
 
-  if (companyId) {
-    await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
-    await syncAbsencesRemote(companyId, previousAbsences, full.absences || [], {
-      allowRemovals: allowAbsenceRemovals,
-    });
+  if (id) {
+    try {
+      await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
+      await syncAbsencesRemote(companyId, previousAbsences, full.absences || [], {
+        allowRemovals: allowAbsenceRemovals,
+      });
+    } catch (error) {
+      scheduleFlush(id);
+      throw error;
+    }
   }
 
   await writeLocal(companyId, nextSlim);
-  const id = String(companyId || '').trim();
   if (id) {
-    const prev = remoteTimers.get(id);
-    if (prev) clearTimeout(prev);
-    remoteTimers.delete(id);
-    remotePending.delete(id);
-    const remote = await writeRemote(id, nextSlim);
+    const remote = await flushProjectChanges(id);
     if (!remote.ok) {
+      scheduleRetry(id);
       const message = remote.error?.message || remote.error?.code || 'Kunne ikke synke prosjekt til skyen.';
+      if (remote.error?.code === 'project-doc-too-large') throw new Error(String(message));
       throw new Error(
         /exceeds|too big|size|invalid-argument/i.test(String(message))
           ? 'Prosjektdata er for store til å lagres. Timer og fravær lagres nå separat — prøv igjen.'
@@ -1031,52 +1253,56 @@ export async function persistProjectState(state, companyId) {
     ...nextSlim,
     timeEntries: full.timeEntries || [],
     absences: full.absences || [],
+    baseRev: rev,
   }, companyId);
 }
 
 /**
  * Oppdater utlegg/kjøring/varer på prosjektstate uten å synke hele timehistorikken.
- * mutate(state) returnerer felt som skal skrives, eller null når ingenting endres.
+ * mutate(state) får skyens ferske kopi og returnerer felt som skal skrives, eller null
+ * når ingenting endres. Det skjer i en transaksjon, så mutate kan kjøres mer enn én gang.
  */
 export async function patchProjectOperations(companyId, mutate) {
   const id = String(companyId || '').trim();
   if (!id || typeof mutate !== 'function') return { ok: false };
-  const remote = await readRemote(id);
-  if (!remote?.ok) return { ok: false, error: new Error('Fikk ikke lest prosjektdata fra skyen.') };
-  const current = remote.state || emptyProjectState();
-  const patch = mutate(current);
+  let patch = null;
+  // Bare katalogendringer skriver ikke hoveddokumentet. Et fullt hoveddokument stopper dem ikke.
+  const result = await commitRemote(id, (fresh) => {
+    patch = mutate(fresh);
+    if (!patch || typeof patch !== 'object') return [];
+    return [diffProjectStates(fresh, { ...fresh, ...patch })];
+  }, { mainForCatalog: false });
+  if (!result.ok) {
+    const error = result.error || new Error('Fikk ikke lagret prosjektdata i skyen.');
+    return { ok: false, error };
+  }
   if (!patch || typeof patch !== 'object') return { ok: true, changed: false };
-  const sidePatch = pickEquipmentKeys(patch);
-  const catalogPatch = pickCatalogKeys(patch);
-  const mainPatch = withoutCatalogKeys(withoutEquipmentKeys(patch));
-  if (Object.keys(sidePatch).length) {
-    // Listene er regnet ut fra skyens ferske kopi og er fasit (også sletting).
-    const side = await writeEquipmentDoc(id, {
-      ...pickEquipmentKeys(firestorePayload(current)),
-      ...JSON.parse(JSON.stringify(sidePatch)),
-    }, { merge: false });
-    if (!side.ok) return { ok: false, error: side.error };
-  }
-  if (Object.keys(mainPatch).length) {
-    const written = await writeRemote(id, { ...current, ...mainPatch });
-    if (!written?.ok) return { ok: false, error: written.error };
-  }
-  if (Object.keys(catalogPatch).length) {
-    // Bare katalogdokumentet. Et fullt hoveddokument stopper ikke produktendringer.
-    const catalog = await writeCatalogDoc(id, {
-      ...pickCatalogKeys(firestorePayload(current)),
-      ...JSON.parse(JSON.stringify(catalogPatch)),
-    }, { merge: false });
-    if (!catalog.ok) return { ok: false, error: catalog.error };
-  }
   const key = memoryKey(id);
-  if (MEMORY.has(key)) {
-    putProjectState({ ...MEMORY.get(key), ...patch }, id);
+  if (MEMORY.has(key) && result.state) {
+    // Listene er regnet ut fra skyens ferske kopi. Minnet får dem som ny versjon.
+    const fresh = {};
+    for (const name of Object.keys(patch)) {
+      if (result.state[name] !== undefined) fresh[name] = result.state[name];
+    }
+    adoptBase(id, { ...MEMORY.get(key), ...fresh });
   }
   return { ok: true, changed: true };
 }
 
-/** Test/hjelper: tøm minne mellom tester. */
+function clearSyncState(id) {
+  for (const timers of [flushTimers, retryTimers]) {
+    const timer = timers.get(id);
+    if (timer) clearTimeout(timer);
+    timers.delete(id);
+  }
+  OUTBOX.delete(id);
+  outboxLoaded.delete(id);
+  flushChains.delete(id);
+  retryCounts.delete(id);
+  failureShown.delete(id);
+}
+
+/** Test/hjelper: tøm minne mellom tester. Køen på disken blir liggende. */
 export function clearProjectStateMemory(companyId) {
   if (companyId !== undefined) {
     const key = memoryKey(companyId);
@@ -1090,6 +1316,9 @@ export function clearProjectStateMemory(companyId) {
     HOURS_COVERED.delete(key);
     ABSENCE_MODE.delete(key);
     ABSENCE_WINDOW.delete(key);
+    BASES.delete(key);
+    DOC_SIZE.delete(key);
+    clearSyncState(String(companyId || '').trim());
     clearDeletedTimeEntries(key);
     return;
   }
@@ -1103,6 +1332,11 @@ export function clearProjectStateMemory(companyId) {
   HOURS_COVERED.clear();
   ABSENCE_MODE.clear();
   ABSENCE_WINDOW.clear();
+  BASES.clear();
+  DOC_SIZE.clear();
+  for (const id of new Set([...flushTimers.keys(), ...retryTimers.keys(), ...OUTBOX.keys(), ...outboxLoaded.keys()])) {
+    clearSyncState(id);
+  }
   hoursInflight.clear();
   absencesInflight.clear();
   clearDeletedTimeEntries();

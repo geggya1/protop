@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 import { colors, radius } from '../src/theme';
-import { SAVE_TOAST_MS, subscribeSaveToast } from '../src/ui/saveToast';
+import { SAVE_ERROR_MS, SAVE_TOAST_MS, subscribeSaveToast } from '../src/ui/saveToast';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -36,7 +36,7 @@ export default function SaveToastHost() {
       ]).start(({ finished }) => {
         if (finished) setToast((current) => (current && current.id === toast.id ? null : current));
       });
-    }, SAVE_TOAST_MS);
+    }, toast.kind === 'error' ? SAVE_ERROR_MS : SAVE_TOAST_MS);
     return () => {
       clearTimeout(timer);
       intro.stop();
@@ -46,6 +46,7 @@ export default function SaveToastHost() {
   }, [toast, opacity, shift]);
 
   if (!toast) return null;
+  const failed = toast.kind === 'error';
 
   const card = (
     <View pointerEvents="none" style={styles.host} nativeID="save-toast-host">
@@ -55,13 +56,13 @@ export default function SaveToastHost() {
         accessibilityLiveRegion="polite"
         style={[styles.card, { opacity, transform: [{ translateY: shift }] }]}
       >
-        <View style={styles.check}>
-          <Text style={styles.checkMark}>✓</Text>
+        <View style={[styles.check, failed && styles.fail]}>
+          <Text style={[styles.checkMark, failed && styles.failMark]}>{failed ? '!' : '✓'}</Text>
         </View>
         <View style={styles.copy}>
           <Text style={styles.title}>{toast.title}</Text>
           {toast.detail ? (
-            <Text style={styles.detail} numberOfLines={2}>{toast.detail}</Text>
+            <Text style={styles.detail} numberOfLines={failed ? 3 : 2}>{toast.detail}</Text>
           ) : null}
         </View>
       </Animated.View>
@@ -121,6 +122,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 18,
     fontWeight: '600',
+  },
+  fail: {
+    backgroundColor: colors.dangerSoft || '#fee4e2',
+  },
+  failMark: {
+    color: colors.danger || '#b42318',
   },
   copy: {
     flex: 1,

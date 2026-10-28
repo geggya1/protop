@@ -723,9 +723,25 @@ async function phase7() {
 
 /* ════════════════════ Fase 8: Eva avslutter engasjementet ════════════════════ */
 async function openPerson(b, empId) {
+  // Ansatte husker personvisningen. Gå via en annen side, så listen vises.
+  await b.open('selskap', null, 1000);
   await b.open('ansatte');
   await skipTour(b);
-  await b.page.locator(`[id="employee-open-${empId}"]`).first().click({ timeout: 10000 });
+  const crumb = b.page.getByText('Ansatte', { exact: true });
+  const loc = b.page.locator(`[id="employee-open-${empId}"]`);
+  const visible = async () => loc.first().isVisible().catch(() => false);
+  if (!(await visible()) && await crumb.count()) await crumb.first().click().catch(() => {});
+  await b.page.waitForTimeout(800);
+  for (const label of [/^Deaktiverte/, /^Papirkurv/]) {
+    if (await visible()) break;
+    const el = b.page.getByText(label);
+    const n = await el.count();
+    for (let i = 0; i < n; i += 1) {
+      if (await el.nth(i).isVisible().catch(() => false)) { await el.nth(i).click().catch(() => {}); break; }
+    }
+    await b.page.waitForTimeout(800);
+  }
+  await loc.first().click({ timeout: 10000 });
   await b.page.waitForTimeout(1500);
 }
 
@@ -800,12 +816,7 @@ async function phase9() {
   const trashAccess = await pageAccess(n2, 'ansatte');
   S.check(trashAccess === 'denied', 'D12 Nina i papirkurven har ingen tilgang', 'Ansatte sperret', `Ansatte: ${trashAccess}`, { id: 'ANSATT-17', sev: 'Høy', ref: 'FL-03', shot: await shot(n2, 'nina-papirkurv-ui') });
   // Permanent sletting fra papirkurven.
-  await b.open('ansatte');
-  await skipTour(b);
-  await tap(b, 'Papirkurv', { exact: false }).catch(() => {});
-  await b.page.waitForTimeout(800);
-  await b.page.locator(`[id="employee-open-${nina.id}"]`).first().click({ timeout: 8000 }).catch(() => {});
-  await b.page.waitForTimeout(1200);
+  await openPerson(b, nina.id).catch(() => {});
   await tap(b, 'Slett permanent').catch(() => {});
   await b.page.waitForTimeout(800);
   await tap(b, 'Slett permanent').catch(() => {});

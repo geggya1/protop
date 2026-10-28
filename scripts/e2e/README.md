@@ -29,6 +29,7 @@ E-post og SMS sendes ikke ut. `mailcatcher.js` fanger dem i `e2e-out/mail.jsonl`
 - JS-feil og funksjonskall som feiler
 - vannrett rulling (innhold som er bredere enn telefonen)
 - `undefined`, `NaN`, `[object Object]` og rå i18n-nøkler i synlig tekst
+- rå ISO-datoer (2026-09-30) der appen skal vise norsk dato
 - engelsk tekst i norsk visning
 - knapper uten tilgjengelig navn
 - små trykkflater på telefon

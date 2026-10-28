@@ -5,6 +5,7 @@
  *  - JS-feil og feilende funksjonskall
  *  - vannrett rulling på skjermen (innhold bredere enn telefonen)
  *  - «undefined», «NaN», «[object Object]» og rå i18n-nøkler i synlig tekst
+ *  - rå ISO-datoer (2026-09-30) der appen skal vise norsk dato
  *  - engelske ord som har sluppet gjennom i norsk visning
  *  - knapper og lenker uten tilgjengelig navn
  *
@@ -41,6 +42,8 @@ async function inspect(page) {
     const rawKeys = [...text.matchAll(/\b[a-z][a-zA-Z]+(\.[a-z][a-zA-Z0-9]+){2,}\b/g)].map((m) => m[0])
       .filter((k) => !/protop\.no|\.(no|com|pdf|png|jpg|xlsx|docx)$/.test(k));
     const englishHits = [...new Set(text.split('\n').filter((l) => english.test(l)).map((l) => l.trim().slice(0, 80)))].slice(0, 8);
+    // Rå ISO-datoer i visningstekst (skal være 30.09.2026 eller 30. sep.).
+    const isoDates = [...new Set(text.split('\n').filter((l) => /\b(19|20)\d{2}-\d{2}-\d{2}\b/.test(l)).map((l) => l.trim().slice(0, 80)))].slice(0, 8);
     // Elementer som stikker ut til høyre (vannrett rulling).
     const overflow = [];
     if (document.documentElement.scrollWidth > vw + 2) {
@@ -76,6 +79,7 @@ async function inspect(page) {
       bad: [...new Set(bad)],
       rawKeys: [...new Set(rawKeys)].slice(0, 8),
       englishHits,
+      isoDates,
       overflow,
       unnamed: unnamed.length,
       unnamedSample: unnamed.slice(0, 5),
@@ -118,6 +122,7 @@ async function crawlView(view) {
       row.bad?.length && `tekst:${row.bad.join('/')}`,
       row.rawKeys?.length && 'nøkler',
       row.englishHits?.length && 'engelsk',
+      row.isoDates?.length && 'iso-dato',
     ].filter(Boolean);
     console.log(`[${view}] ${key} ${flags.join(' ') || 'ok'}`);
   }

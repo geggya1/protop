@@ -397,7 +397,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           <SettingsSection
             icon="shield-checkmark-outline"
             title="Personvern"
-            hint="Databehandleravtale for bedriften"
+            hint="Databehandleravtale og brukslogg"
             colors={colors}
           >
             <CompanyPrivacySettings
@@ -408,6 +408,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
               userName={userProfile?.displayName || userProfile?.name || ''}
               colors={colors}
               onSaveCompany={(next) => savePatch(familyId, { company: next })}
+              canEdit={canEdit}
             />
           </SettingsSection>
 

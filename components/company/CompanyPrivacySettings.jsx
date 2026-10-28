@@ -1,19 +1,36 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { serverTimestamp } from 'firebase/firestore';
+import BrandToggle from '../BrandToggle';
 import LegalDocumentModal from '../LegalDocumentModal';
 import { DPA_VERSION } from '../../src/i18n/langs';
 import {
-  canAcceptDpa, dpaAccepted, dpaAcceptedLabel, dpaAcceptanceRecord,
+  canAcceptDpa, companyPrivacySettings, dpaAccepted, dpaAcceptedLabel, dpaAcceptanceRecord,
+  usageLogNotice, withCompanyPrivacy,
 } from '../../src/privacy/companyPrivacy';
 import { logConsent } from '../../src/utils/consents';
 
+function PrivacySwitch({
+  title, body, value, disabled, onChange, colors, nativeID,
+}) {
+  return (
+    <View style={styles.switchRow} nativeID={nativeID}>
+      <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+        <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
+        <Text style={[styles.lead, { color: colors.muted }]}>{body}</Text>
+      </View>
+      <BrandToggle value={value} onValueChange={onChange} disabled={disabled} />
+    </View>
+  );
+}
+
 /**
- * Selskapsinnstillinger → Personvern: databehandleravtalen.
- * `onSaveCompany(next)` lagrer selskapet felt for felt.
+ * Selskapsinnstillinger → Personvern: databehandleravtalen og selskapets valg
+ * for brukslogg. `onSaveCompany(next)` lagrer selskapet felt for felt.
+ * Valgene kan endres av den som kan endre selskapsinnstillingene (`canEdit`).
  */
 export default function CompanyPrivacySettings({
-  family, familyId, company, uid, userName = '', colors, onSaveCompany,
+  family, familyId, company, uid, userName = '', colors, onSaveCompany, canEdit = false,
 }) {
   const [docOpen, setDocOpen] = useState(false);
   const [opened, setOpened] = useState(false);
@@ -22,6 +39,20 @@ export default function CompanyPrivacySettings({
   const accepted = dpaAccepted(company);
   const label = dpaAcceptedLabel(company);
   const mayAccept = canAcceptDpa(family, uid);
+  const settings = companyPrivacySettings(company);
+
+  async function setPrivacy(key, value) {
+    if (!canEdit || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onSaveCompany({ ...company, privacy: withCompanyPrivacy(company, key, value) });
+    } catch (e) {
+      setError(e?.message || 'Kunne ikke lagre valget.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function accept() {
     if (!mayAccept || busy || !opened) return;
@@ -75,6 +106,16 @@ export default function CompanyPrivacySettings({
       {!accepted && !mayAccept ? (
         <Text style={[styles.lead, { color: colors.muted }]}>Eier eller administrator må godta avtalen.</Text>
       ) : null}
+      <View style={[styles.divider, { backgroundColor: colors.line }]} />
+      <PrivacySwitch
+        nativeID="company-usage-log"
+        title="Brukslogg for ansatte"
+        body={usageLogNotice(company)}
+        value={settings.usageLog}
+        disabled={!canEdit || busy}
+        onChange={(next) => setPrivacy('usageLog', next)}
+        colors={colors}
+      />
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       <LegalDocumentModal visible={docOpen} doc="dpa" onClose={() => setDocOpen(false)} />
     </View>
@@ -91,4 +132,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', borderRadius: 12, minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 8,
   },
   off: { opacity: 0.5 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 4 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 });

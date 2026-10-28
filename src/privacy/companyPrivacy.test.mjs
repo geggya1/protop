@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { DPA_VERSION } from '../i18n/langs.js';
 import {
-  canAcceptDpa, dpaAccepted, dpaAcceptedLabel, dpaAcceptance, dpaAcceptanceRecord,
+  ACTIVITY_USAGE_TYPES, USAGE_RETENTION_DAYS, canAcceptDpa, companyAiAllowed, companyPrivacySettings,
+  companyUsageLogEnabled, dpaAccepted, dpaAcceptedLabel, dpaAcceptance, dpaAcceptanceRecord,
+  usageCutoffIso, usageEventAllowed, usageLogNotice, withCompanyPrivacy, withinUsageRetention,
 } from './companyPrivacy.js';
 
 // Databehandleravtalen: eier eller administrator godtar på vegne av bedriften.
@@ -29,5 +31,35 @@ assert.match(dpaAcceptedLabel({ dpaAcceptance: server }), /^Godtatt 28\. okt\.? 
 // Rett etter opprettelse ligger serverTimestamp()-plassholderen lokalt: bruk enhetens tid.
 assert.match(dpaAcceptedLabel({ dpaAcceptance: { ...record, acceptedAt: {} } }), /27\. okt/);
 assert.equal(dpaAcceptedLabel({}), '');
+
+// Brukslogg og AI er på for selskaper som ikke har valgt noe (som før).
+assert.deepEqual(companyPrivacySettings({}), { usageLog: true, ai: true });
+assert.deepEqual(companyPrivacySettings({ privacy: { usageLog: false } }), { usageLog: false, ai: true });
+assert.equal(companyAiAllowed({ privacy: { ai: false } }), false);
+assert.equal(companyAiAllowed(null), true);
+assert.equal(companyUsageLogEnabled({ privacy: { usageLog: 'nei' } }), true, 'bare false slår av');
+assert.deepEqual(withCompanyPrivacy({ privacy: { ai: false } }, 'usageLog', false), { ai: false, usageLog: false });
+
+// Av: innlogging, aktivitet og sidevisninger lagres ikke. Timer og invitasjoner er endringsspor.
+const off = { privacy: { usageLog: false } };
+for (const type of ACTIVITY_USAGE_TYPES) assert.equal(usageEventAllowed(off, type), false, type);
+assert.equal(usageEventAllowed(off, 'hour'), true);
+assert.equal(usageEventAllowed(off, 'invite_sent'), true);
+assert.equal(usageEventAllowed({}, 'login'), true);
+
+// Lagringstid 90 dager.
+const now = new Date('2026-10-27T12:00:00.000Z');
+assert.equal(USAGE_RETENTION_DAYS, 90);
+assert.equal(usageCutoffIso(now), '2026-07-29T12:00:00.000Z');
+const events = [
+  { id: 'ny', at: '2026-10-26T08:00:00.000Z' },
+  { id: 'grense', at: '2026-07-29T12:00:00.000Z' },
+  { id: 'gammel', at: '2026-07-01T08:00:00.000Z' },
+  { id: 'uten' },
+];
+assert.deepEqual(withinUsageRetention(events, now).map((row) => row.id), ['ny', 'grense']);
+assert.match(usageLogNotice({}), /IP-adresse/);
+assert.match(usageLogNotice({}), /90 dager/);
+assert.match(usageLogNotice(off), /slått av/);
 
 console.log('companyPrivacy.test.mjs: ok');

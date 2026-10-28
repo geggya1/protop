@@ -52,3 +52,60 @@ export function dpaAcceptedLabel(company) {
   const who = row.acceptedByName ? `av ${row.acceptedByName}` : '';
   return ['Godtatt', when, who].filter(Boolean).join(' ') + ` · versjon ${row.version}`;
 }
+
+/*
+ * Selskapets valg (company.privacy). Begge er på når ingenting er lagret, slik at
+ * selskaper som finnes fra før, virker som før til en administrator slår dem av.
+ *   company.privacy.usageLog — brukslogg av innlogging, aktivitet og sidevisninger
+ *   company.privacy.ai       — AI-funksjoner (Google Gemini) i bedriftsmodulene
+ */
+export function companyPrivacySettings(company) {
+  const raw = company?.privacy && typeof company.privacy === 'object' ? company.privacy : {};
+  return { usageLog: raw.usageLog !== false, ai: raw.ai !== false };
+}
+
+export function companyUsageLogEnabled(company) {
+  return companyPrivacySettings(company).usageLog;
+}
+
+export function companyAiAllowed(company) {
+  return companyPrivacySettings(company).ai;
+}
+
+/** Ny company.privacy med ett valg endret. */
+export function withCompanyPrivacy(company, key, value) {
+  return { ...(company?.privacy || {}), [key]: value === true };
+}
+
+/** Brukslogg slettes etter 90 dager. */
+export const USAGE_RETENTION_DAYS = 90;
+
+/** Aktivitetslogging, som bedriften kan slå av. Timer og invitasjoner er endringsspor og logges alltid. */
+export const ACTIVITY_USAGE_TYPES = ['login', 'active', 'navigation'];
+
+export function usageEventAllowed(company, type) {
+  if (!ACTIVITY_USAGE_TYPES.includes(String(type || ''))) return true;
+  return companyUsageLogEnabled(company);
+}
+
+/** Eldste tidspunkt (ISO) som fortsatt er innenfor lagringstiden. */
+export function usageCutoffIso(now = new Date(), days = USAGE_RETENTION_DAYS) {
+  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** Hendelser eldre enn lagringstiden vises ikke (og slettes av serveren). */
+export function withinUsageRetention(events, now = new Date(), days = USAGE_RETENTION_DAYS) {
+  const cutoff = usageCutoffIso(now, days);
+  return (Array.isArray(events) ? events : []).filter((row) => String(row?.at || '') >= cutoff);
+}
+
+/** Teksten de ansatte og den som ser loggen, skal få. */
+export function usageLogNotice(company) {
+  const keep = `Loggen slettes etter ${USAGE_RETENTION_DAYS} dager.`;
+  if (!companyUsageLogEnabled(company)) {
+    return `Bedriften har slått av logging av innlogging, aktivitet og sidevisninger. Endringer i timer og sendte invitasjoner logges fortsatt. ${keep}`;
+  }
+  return 'ProTop logger innlogging, aktivitet og sidevisninger i bedriften med tidspunkt, IP-adresse og nettleser, '
+    + `og i tillegg endringer i timer og sendte invitasjoner. ${keep} `
+    + 'Bedriften kan slå av loggen under Selskapsinnstillinger → Personvern, og skal informere de ansatte om den.';
+}

@@ -92,6 +92,53 @@ export function wasteSummary(waste, projects = []) {
   };
 }
 
+/* ───────────────────────── Timer → skadestatistikk (H-verdi) ───────────────────────── */
+
+/** Skadeklasser med fravær (H1) og alle som krevde medisinsk behandling eller mer (TRIF). */
+const LOST_TIME = new Set(['fravaer', 'alvorlig', 'dodsfall']);
+const RECORDABLE = new Set(['medisinsk', 'fravaer', 'alvorlig', 'dodsfall']);
+
+function entryHours(row) {
+  const n = Number(String(row?.hours ?? '').replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * H-verdi (H1: skader med fravær per million arbeidstimer) og TRIF (alle behandlingskrevende skader per
+ * million timer), regnet fra timene som er ført i ProTop og skadeklassen på HMS-sakene (ISO 45001 9.1).
+ * Siste 12 måneder og per måned. Uten timer: ingen verdi (aldri 0). Skjermede saker telles bare når de er synlige.
+ */
+export function injuryRates(findings, timeEntries, { months = 12, now = new Date() } = {}) {
+  const keys = lastMonths(months, now);
+  const rows = keys.map((key) => ({ key, hours: 0, lostTime: 0, recordable: 0 }));
+  const index = new Map(rows.map((r) => [r.key, r]));
+  for (const t of timeEntries || []) {
+    const row = index.get(monthKey(t?.date));
+    if (row) row.hours += entryHours(t);
+  }
+  for (const f of findings || []) {
+    if (!['hms', 'nestenulykke'].includes(f?.type) || f.state === 'kansellert' || !RECORDABLE.has(f.injuryClass)) continue;
+    const row = index.get(monthKey(f.occurredAt || f.reportedAt));
+    if (!row) continue;
+    row.recordable += 1;
+    if (LOST_TIME.has(f.injuryClass)) row.lostTime += 1;
+  }
+  const hours = Math.round(rows.reduce((s, r) => s + r.hours, 0));
+  const lostTime = rows.reduce((s, r) => s + r.lostTime, 0);
+  const recordable = rows.reduce((s, r) => s + r.recordable, 0);
+  const rate = (n) => (hours ? Math.round(((n * 1_000_000) / hours) * 10) / 10 : null);
+  return {
+    rows: rows.map((r) => ({ ...r, hours: Math.round(r.hours) })),
+    hours,
+    lostTime,
+    recordable,
+    h1: rate(lostTime),
+    trif: rate(recordable),
+    source: 'Timer og HMS-saker',
+    method: 'H1 = skader med fravær × 1 000 000 / arbeidstimer. TRIF = skader som krevde medisinsk behandling eller mer × 1 000 000 / arbeidstimer. Timer fra timeføringen, skadeklasse fra HMS-sakene, siste 12 måneder.',
+  };
+}
+
 /* ───────────────────────── Fravær → HMS-indikator ───────────────────────── */
 
 /** Sykefravær i dagsverk per måned fra fraværsmodulen (8 t = én dag). Ingen personnavn ut. */

@@ -16,7 +16,7 @@ import { allRequirements, attachEvidence, requirementIdsForArea, statusText } fr
 import { visibleFindings } from '../../src/iso/access';
 import { templateIdFor, usableForms } from '../../src/iso/forms';
 import {
-  autoAssignee, aspectSuggestions, contractReviewStatus, equipmentStatus, readinessChecklist, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
+  autoAssignee, aspectSuggestions, contractReviewStatus, equipmentStatus, readinessChecklist, hazardSuggestions, hrCarryOver, hrCarryOverRecords, injuryRates, mileageSeries,
   projectQuality, qualityPlanDraft, sickLeaveSeries, stakeholderSuggestions, supplierSuggestions, wasteSummary,
 } from '../../src/iso/integrations';
 import { CHAPTERS, READY_STATUS, certificationReadiness } from '../../src/iso/readiness';
@@ -710,10 +710,13 @@ export function HmsPage({ ctx }) {
   const colors = useColors();
   const { state, caps, wide, go } = ctx;
   const [fill, setFill] = useState(null);
-  const hmsFindings = visibleFindings(caps, state.findings).filter((f) => ['hms', 'nestenulykke'].includes(f.type));
+  const hmsFindings = useMemo(() => visibleFindings(caps, state.findings).filter((f) => ['hms', 'nestenulykke'].includes(f.type)), [caps, state.findings]);
   const forms = useControlledForms(state, ['SF12_SJA', 'SF13_VERNERUNDE']);
   const src = ctx.sources || {};
   const sick = useMemo(() => sickLeaveSeries(src.absences), [src.absences]);
+  // H-verdi fra timene i ProTop og skadeklassen på HMS-sakene (ISO-24).
+  useEffect(() => { if (caps.manage) src.loadHours?.(); }, [caps.manage]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rates = useMemo(() => (src.hours ? injuryRates(hmsFindings, src.hours) : null), [hmsFindings, src.hours]);
   const hazards = useMemo(() => hazardSuggestions({ projects: src.projects, trips: src.trips, existing: state.records.fare }), [src.projects, src.trips, state.records.fare]);
   const subs = state.submissions || [];
   const lastRound = subs.filter((x) => x.templateId === templateIdFor('SF13_VERNERUNDE')).sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)))[0];
@@ -725,7 +728,16 @@ export function HmsPage({ ctx }) {
         <Stat label="Kartlagte farer" value={(state.records.fare || []).filter((r) => r.state !== 'arkivert').length} />
         <Stat label="Siste vernerunde" value={lastRound ? prettyDate(lastRound.submittedAt) : '–'} hint={lastRound ? lastRound.submittedBy : 'Ingen registrert'} />
         {caps.manage ? <Stat label="Sykefravær siste 12 mnd" value={sick.hasData ? `${sick.totalDays} dagsverk` : '–'} hint="Fra Fravær, uten navn" /> : null}
+        {caps.manage ? <Stat label="H-verdi (H1) siste 12 mnd" value={rates ? (rates.h1 == null ? '–' : String(rates.h1)) : '…'} hint={rates ? `${rates.lostTime} skader med fravær · ${rates.hours.toLocaleString('nb-NO')} timer` : 'Henter timer'} /> : null}
+        {caps.manage ? <Stat label="TRIF siste 12 mnd" value={rates ? (rates.trif == null ? '–' : String(rates.trif)) : '…'} hint={rates ? `${rates.recordable} behandlingskrevende skader` : ''} /> : null}
       </View>
+      {rates && caps.manage ? (
+        <Card title="Skadestatistikk per måned" subtitle={rates.method}>
+          <MonthBars rows={rates.rows} parts={[{ key: 'recordable', label: 'Skader' }, { key: 'lostTime', label: 'Med fravær' }]} unit="" />
+          {!rates.hours ? <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen timer ført siste 12 måneder. H-verdien regnes når timene føres i ProTop.</Text> : null}
+          {hmsFindings.some((f) => !f.injuryClass) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Saker uten skadeklasse telles ikke. Sett skadeklasse i triage.</Text> : null}
+        </Card>
+      ) : null}
       <Card title="Skjema for HMS-arbeid" subtitle="Styrte skjema fra Skjemabygger. Innsendt blir låst bevis.">
         {!forms.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>SJA, vernerunde og medvirkning er ikke godkjent for ISO ennå. Godkjenn dem under Skjemaer.</Text> : null}
         <Row>{forms.map((f) => <Btn key={f.id} icon="clipboard-outline" label={f.title} onPress={() => setFill(f)} />)}</Row>
@@ -1270,7 +1282,10 @@ export function ReviewPage({ ctx }) {
 
   async function snapshot() {
     setErr('');
-    const snap = managementReviewSnapshot(state, caps, { people, record: reg.open, equipment: ctx.sources?.equipment || [] });
+    // H-verdi fra timene i ProTop (ISO-24) tas med under overvåking og måling.
+    const hours = await ctx.sources?.loadHours?.();
+    const safety = hours ? injuryRates(visibleFindings(caps, state.findings), hours) : null;
+    const snap = managementReviewSnapshot(state, caps, { people, record: reg.open, equipment: ctx.sources?.equipment || [], safety });
     const res = attachReviewSnapshot(reg.open, snap, { actor });
     if (!res.ok) { setErr(res.error); return; }
     const saved = await store.commit('records', 'record', res, { previous: reg.open });

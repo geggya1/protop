@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, isDeletedEmployee, isOwnActiveEmployee } from '../../src/employees/model';
-import { ensureProjectAbsences, loadProjectState } from '../../src/project/storage';
+import { ensureProjectAbsences, ensureProjectHours, loadProjectState } from '../../src/project/storage';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { loadHrState } from '../../src/hr/storage';
 import { normalizeFormTemplates } from '../../src/anbud/bidLibrary';
@@ -52,6 +52,8 @@ export function useIsoSources({
   // Utlegg importert i bulk ligger i egen samling (projectExpenses); leverandørforslagene skal se alle.
   const [extraExpenses, setExtraExpenses] = useState([]);
   const [docControls, setDocControls] = useState([]);
+  // Timer for H-verdi (ISO-24): hentes bare når HMS-siden eller ledelsens gjennomgang trenger dem.
+  const [hours, setHours] = useState(null);
 
   useEffect(() => {
     if (!familyId) return undefined;
@@ -101,6 +103,15 @@ export function useIsoSources({
 
   const reloadAnbud = useCallback(() => setStamp((x) => x + 1), []);
 
+  const loadHours = useCallback(async () => {
+    if (!familyId || !canManage) return null;
+    if (hours) return hours;
+    const loaded = await ensureProjectHours(familyId, { fromDate: addDays(todayKey(), -400) }).catch(() => null);
+    const rows = loaded?.timeEntries || [];
+    setHours(rows);
+    return rows;
+  }, [familyId, canManage, hours]);
+
   return useMemo(() => {
     const active = employees.filter((e) => !isDeletedEmployee(e));
     const people = peopleFromEmployees(active);
@@ -129,6 +140,8 @@ export function useIsoSources({
       hrCompliance,
       reloadAnbud,
       docControls,
+      hours,
+      loadHours,
     };
-  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses, docControls, allProjects, allGear, viewer]);
+  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses, docControls, allProjects, allGear, viewer, hours, loadHours]);
 }

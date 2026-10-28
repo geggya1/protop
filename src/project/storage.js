@@ -1124,7 +1124,8 @@ export async function ensureProjectHours(companyId, range = {}) {
   const id = String(companyId || '').trim();
   if (!id) return putProjectState(emptyProjectState(), '');
   const hoursOpts = resolveHoursOpts(range.all ? 'all' : range);
-  if (hoursRangeCovered(id, hoursOpts) && MEMORY.has(memoryKey(id))) {
+  // force: hent vinduet på nytt (f.eks. når en timeliste i vinduet nettopp er låst).
+  if (!range.force && hoursRangeCovered(id, hoursOpts) && MEMORY.has(memoryKey(id))) {
     return MEMORY.get(memoryKey(id));
   }
   const inflightKey = `${id}:${hoursOpts.fromDate || ''}:${hoursOpts.toDate || ''}:${hoursOpts.employeeId || ''}:${hoursOpts.projectId || ''}:${(hoursOpts.projectNumbers || []).join(',')}:${hoursOpts.all ? 'all' : 'w'}`;

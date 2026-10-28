@@ -84,6 +84,8 @@ function projectsSlice(raw) {
   return {
     ...index,
     projects: index.list,
+    // Timelistelåsene ligger i samme dokument. Godkjenninger følger dem i sanntid.
+    timesheetLocks: Array.isArray(state?.timesheetLocks) ? state.timesheetLocks : [],
     ready: raw.projects.ready,
     source: raw.projects.source,
     error: raw.projects.error,

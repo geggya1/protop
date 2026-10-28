@@ -30,6 +30,8 @@ export function ApprovalsScreen() {
   const workspace = useTimesheetWorkspace({
     fromDate: `${year}-01-01`,
     toDate: toDateKey(new Date()),
+    // En timeliste som låses mens siden er åpen, kommer under «Låst til kontroll» med en gang.
+    liveLocks: true,
   });
   const employees = useMemo(() => filterEmployeesForPicker(workspace.employees, ''), [workspace.employees]);
   // Sidens egne timer og låser, så tallene følger med når en liste godkjennes.

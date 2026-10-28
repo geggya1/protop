@@ -851,7 +851,8 @@ export default function ArbeidScreen({
   }
 
   async function toggleLock(dateKey) {
-    if (readOnly || busyLock) return;
+    if (readOnly) return;
+    if (busyLock) return;
     if (loadFailed) {
       setError(PROJECTS_NOT_LOADED);
       return;

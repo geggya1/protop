@@ -21,6 +21,8 @@ import {
 } from '../../src/project/storage';
 import { subscribeFamilyCollection } from '../../src/utils/sharedCollectionListeners';
 import { waitForFirestoreAccess } from '../../src/utils/firestoreAccess';
+import { useProjects } from '../../src/context/CompanyDataContext';
+import { changedLockEmployees, lockSignature } from '../../src/arbeid/timesheetGuard.js';
 
 /** Delt lasting av prosjektstate og medarbeidere for tid-sidene. */
 export function useTimesheetWorkspace({
@@ -33,6 +35,8 @@ export function useTimesheetWorkspace({
   absences = true,
   /** Hold fraværslisten i sanntid (fraværsoversikt og rapport). */
   liveAbsences = false,
+  /** Følg timelistelåsene i sanntid (Godkjenninger): ny lås henter timene på nytt. */
+  liveLocks = false,
 } = {}) {
   const { familyId, user, isAdmin } = useApp();
   const access = useCompanyAccess();
@@ -49,6 +53,12 @@ export function useTimesheetWorkspace({
   const [ready, setReady] = useState(!!cached);
   const [error, setError] = useState('');
   const skipSave = useRef(true);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  // Prosjektdokumentet i sanntid (felles lytter i skallet), bare for låsene.
+  const liveProjects = useProjects(workspaceId, { enabled: !!liveLocks });
+  const remoteLocks = liveLocks && liveProjects?.source === 'remote' ? liveProjects.timesheetLocks : null;
+  const remoteLockSig = remoteLocks ? lockSignature(remoteLocks) : '';
   const absenceAll = absences === true || absences === 'all' || absences?.all === true;
   const absenceOff = absences === false || absences === 'none';
   const absenceFrom = !absenceAll && !absenceOff ? String(absences?.fromDate || fromDate || '') : '';
@@ -92,6 +102,28 @@ export function useTimesheetWorkspace({
     }).catch(() => {});
     return () => { live = false; };
   }, [ready, workspaceId, fromDate, toDate]);
+
+  // En timeliste er låst, låst opp eller godkjent et annet sted: hent låsene og timene til de
+  // ansatte det gjelder på nytt, så listen under «Låst til kontroll» stemmer uten omlasting.
+  useEffect(() => {
+    if (!liveLocks || !ready || !workspaceId || !remoteLocks) return undefined;
+    if (remoteLockSig === lockSignature(stateRef.current?.timesheetLocks)) return undefined;
+    let live = true;
+    const changed = changedLockEmployees(stateRef.current?.timesheetLocks, remoteLocks);
+    (async () => {
+      let loaded = await loadProjectState(workspaceId, { force: true, hours: false });
+      if (fromDate) {
+        for (const employeeId of changed) {
+          loaded = await ensureProjectHours(workspaceId, { fromDate, toDate: toDate || fromDate, employeeId, force: true });
+          if (!live) return;
+        }
+      }
+      if (!live || !loaded) return;
+      skipSave.current = true;
+      setState((current) => applyHoursOntoState(current, loaded));
+    })().catch(() => {});
+    return () => { live = false; };
+  }, [liveLocks, ready, workspaceId, remoteLockSig]);
 
   useEffect(() => {
     if (!workspaceId || absenceOff) {

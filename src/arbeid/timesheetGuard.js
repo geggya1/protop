@@ -53,6 +53,35 @@ export function invoicedEntryBlock(entries) {
   return 'Timene er fakturert og kan ikke endres eller slettes. Be økonomi om en kreditnota hvis noe må rettes.';
 }
 
+function lockKey(row) {
+  return [row?.id, row?.throughDate, row?.lockedAt, row?.approvedAt, row?.readyForBilling ? 1 : 0].map(text).join('|');
+}
+
+/** Kort signatur av låsene, så en skjerm ser når en timeliste er låst, låst opp eller godkjent. */
+export function lockSignature(locks) {
+  return (Array.isArray(locks) ? locks : [])
+    .filter((row) => row?.employeeId)
+    .map((row) => `${text(row.employeeId)}=${lockKey(row)}`)
+    .sort()
+    .join(';');
+}
+
+/** De ansatte som har fått en ny, endret eller fjernet lås fra before til after. */
+export function changedLockEmployees(before, after) {
+  const map = (locks) => {
+    const out = new Map();
+    for (const row of Array.isArray(locks) ? locks : []) {
+      const id = text(row?.employeeId);
+      if (!id) continue;
+      out.set(id, [...(out.get(id) || []), lockKey(row)].sort().join(';'));
+    }
+    return out;
+  };
+  const a = map(before);
+  const b = map(after);
+  return [...new Set([...a.keys(), ...b.keys()])].filter((id) => a.get(id) !== b.get(id)).sort();
+}
+
 /** Forståelig tekst når skyen avviser en lagring fra timelisten. */
 export function timesheetSaveErrorText(error, fallback = 'Kunne ikke lagre timeføring.') {
   const raw = `${error?.code || ''} ${error?.message || ''}`;

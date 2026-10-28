@@ -12,7 +12,9 @@ import {
 } from './timesheetState.js';
 import {
   PROJECTS_NOT_LOADED,
+  changedLockEmployees,
   invoicedEntryBlock,
+  lockSignature,
   lockScopeEntryIds,
   mergeFreshTimesheet,
   timesheetSaveErrorText,
@@ -109,6 +111,27 @@ test('fersk status fra skyen legges på skjermens kopi', () => {
   assert.deepEqual(lockScopeEntryIds(state, 'e1', '2026-10-02').sort(), ['t1', 't2']);
   assert.match(invoicedEntryBlock([{ id: 'a' }, { id: 'b', invoiceId: 'F-2' }]), /fakturert/);
   assert.equal(invoicedEntryBlock([{ id: 'a' }]), '');
+});
+
+test('Godkjenninger ser hvilke timelister som er låst, låst opp eller godkjent (DRIFT-08)', () => {
+  const before = [{ id: 'l1', employeeId: 'e1', throughDate: '2026-10-02', lockedAt: 'a' }];
+  const after = [
+    { id: 'l1', employeeId: 'e1', throughDate: '2026-10-02', lockedAt: 'a' },
+    { id: 'l2', employeeId: 'e2', throughDate: '2026-10-28', lockedAt: 'b' },
+  ];
+  assert.notEqual(lockSignature(before), lockSignature(after));
+  assert.equal(lockSignature([...after].reverse()), lockSignature(after), 'rekkefølgen spiller ingen rolle');
+  assert.deepEqual(changedLockEmployees(before, after), ['e2']);
+  const approved = after.map((row) => (row.employeeId === 'e1' ? { ...row, approvedAt: 'c', readyForBilling: true } : row));
+  assert.deepEqual(changedLockEmployees(after, approved), ['e1']);
+  assert.deepEqual(changedLockEmployees(approved, []), ['e1', 'e2']);
+  assert.deepEqual(changedLockEmployees(after, after), []);
+
+  const screen = readFileSync(new URL('../../screens/arbeid/ApprovalsScreen.jsx', import.meta.url), 'utf8');
+  assert.match(screen, /liveLocks: true/);
+  const hook = readFileSync(new URL('../../screens/arbeid/useTimesheetWorkspace.js', import.meta.url), 'utf8');
+  assert.match(hook, /useProjects\(workspaceId, \{ enabled: !!liveLocks \}\)/);
+  assert.match(hook, /ensureProjectHours\(workspaceId, \{ fromDate, toDate: toDate \|\| fromDate, employeeId, force: true \}\)/);
 });
 
 test('avvist lagring gir forståelig melding', () => {

@@ -308,6 +308,25 @@ service cloud.firestore {
       return d.keys().hasOnly(['last', 'updatedAt']) && d.get('last', 0) is int && d.get('last', 0) > old;
     }
 
+    // Meldetilgang (ISO-04): alle i selskapet, også innleide og eksterne uten ISO-tilgang, kan melde
+    // en ny sak i eget navn eller anonymt, og lese sine egne meldinger. Bare en ny, ubehandlet sak.
+    // Anonym: ingen bruker-id på saken, i historikken eller som sist endret.
+    function isoReportOk(familyId, restricted) {
+      let d = request.resource.data;
+      return isFamilyMember(familyId)
+        && d.get('restricted', false) == restricted
+        && d.get('state', '') == 'registrert'
+        && d.get('triage', null) == null
+        && d.get('assessment', null) == null
+        && d.get('actions', []).size() == 0
+        && (d.get('reportedByUid', '') == request.auth.uid
+            || (d.get('anonymous', false) == true && d.get('reportedByUid', '') == '' && d.get('updatedByUid', '') == ''));
+    }
+
+    function ownReport(d) {
+      return isSignedIn() && d.get('reportedByUid', '') == request.auth.uid;
+    }
+
     // Publiserte versjoner er låst: bare en godkjenner kan publisere eller endre dem.
     function versionsLocked(listKey, publishedKey) {
       let n = resource.data.get(publishedKey, 0);
@@ -840,9 +859,11 @@ service cloud.firestore {
       }
 
       match /isoFindings/{id} {
-        allow get: if isoMember(familyId, 1);
-        allow list: if isoMemberLite(familyId, 1);
-        allow create: if isoMember(familyId, 1)
+        // Melder uten ISO-tilgang (innleid, ekstern) leser bare egne meldinger. Et dokument som ikke finnes,
+        // kan sjekkes (hurtigmeldingen ser etter dobbel sending i samme transaksjon).
+        allow get: if isoMember(familyId, 1) || (isFamilyMember(familyId) && (resource == null || ownReport(resource.data)));
+        allow list: if isoMemberLite(familyId, 1) || (isFamilyMemberLite(familyId) && ownReport(resource.data));
+        allow create: if isoReportOk(familyId, false) || (isoMember(familyId, 1)
           && request.resource.data.get('restricted', false) != true
           && (
             (request.resource.data.get('state', '') == 'registrert'
@@ -851,7 +872,7 @@ service cloud.firestore {
             || (isRestrictedListed(familyId) && isoRank(familyId) >= 2
                 && exists(/databases/$(database)/documents/families/$(familyId)/isoFindingsRestricted/$(id))
                 && !existsAfter(/databases/$(database)/documents/families/$(familyId)/isoFindingsRestricted/$(id)))
-          );
+          ));
         allow update: if isoMember(familyId, 1)
           && findingUpdateAllowed(familyId, isoRank(familyId) >= 2);
         // Bare som del av flytting til skjermet samling (samme batch).
@@ -861,9 +882,11 @@ service cloud.firestore {
 
       match /isoFindingsRestricted/{id} {
         // Et dokument som ikke finnes, kan sjekkes (en transaksjon leser før den skriver; det avslører ingenting).
-        allow get: if isoMember(familyId, 1) && (resource == null || isRestrictedListed(familyId) || involved(resource.data));
-        allow list: if isoMemberLite(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data));
-        allow create: if isoMember(familyId, 1)
+        allow get: if (isoMember(familyId, 1) && (resource == null || isRestrictedListed(familyId) || involved(resource.data)))
+          || (isFamilyMember(familyId) && (resource == null || ownReport(resource.data)));
+        allow list: if (isoMemberLite(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data)))
+          || (isFamilyMemberLite(familyId) && ownReport(resource.data));
+        allow create: if isoReportOk(familyId, true) || (isoMember(familyId, 1)
           && request.resource.data.get('restricted', false) == true
           && (
             (request.resource.data.get('state', '') == 'registrert' && request.resource.data.get('reportedByUid', '') == request.auth.uid)
@@ -872,7 +895,7 @@ service cloud.firestore {
             || (isoRank(familyId) >= 2
                 && exists(/databases/$(database)/documents/families/$(familyId)/isoFindings/$(id))
                 && !existsAfter(/databases/$(database)/documents/families/$(familyId)/isoFindings/$(id)))
-          );
+          ));
         allow update: if isoMember(familyId, 1)
           && findingUpdateAllowed(familyId, isRestrictedListed(familyId) && isoRank(familyId) >= 2);
         // Bare som del av flytting tilbake til åpen samling (samme batch).
@@ -985,11 +1008,14 @@ service cloud.firestore {
       }
 
       // Teller for saksnummer per serie og år (AVV-2026). Nummeret tildeles i samme transaksjon som saken lagres.
+      // Melder uten ISO-tilgang (hurtigmelding) kan bare telle ett steg opp.
       match /isoCounters/{series} {
-        allow get: if isoMember(familyId, 1);
+        allow get: if isFamilyMember(familyId);
         allow list: if false;
-        allow create: if isoMember(familyId, 1) && isoCounterOk(0);
-        allow update: if isoMember(familyId, 1) && isoCounterOk(resource.data.get('last', 0));
+        allow create: if isFamilyMember(familyId) && isoCounterOk(0)
+          && (isoRank(familyId) >= 1 || request.resource.data.get('last', 0) == 1);
+        allow update: if isFamilyMember(familyId) && isoCounterOk(resource.data.get('last', 0))
+          && (isoRank(familyId) >= 1 || request.resource.data.get('last', 0) == resource.data.get('last', 0) + 1);
         allow delete: if false;
       }
 

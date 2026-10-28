@@ -17,11 +17,14 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { addDays, todayKey } from '../../src/iso/core';
 import { QUICK_TYPES, lastProjectFromHours, projectLabel, quickTypeLabel } from '../../src/iso/quickReport';
+import { findingStateLabel, findingTypeLabel } from '../../src/iso/catalog';
+import { prettyDate } from '../../src/iso/core';
+import { loadMyReports } from '../../src/iso/storage';
 import { ensureProjectHours, peekProjectState } from '../../src/project/storage';
 import { pickableProjects } from '../../src/project/myProjects';
 import { flushQueue, onQueueChange, readQueue, submitQuick } from './quickSend';
 import { pickQuickPhoto } from './quickPhoto';
-import { Banner, Btn, Check, Choice, Row, Sheet } from './isoUi';
+import { Banner, Btn, Check, Choice, ListRow, Pill, Row, Sheet } from './isoUi';
 
 /** Antall meldinger i køen, og sending når nettet kommer tilbake (nettleser: «online», telefon: appen åpnes). */
 export function useQuickQueue(companyId, uid, { onSent } = {}) {
@@ -118,11 +121,44 @@ function TypeTile({ type, onPress, colors }) {
 }
 
 /**
+ * Mine meldinger (ISO-04): sakene personen selv har meldt, med status. Virker også uten ISO-tilgang
+ * (innleide og eksterne). Anonyme meldinger er ikke med; de er ikke knyttet til noen.
+ */
+export function MyReports({ companyId, uid, limit = 0, stamp = 0, title = 'Mine meldinger' }) {
+  const colors = useColors();
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let live = true;
+    if (!companyId || !uid) return undefined;
+    loadMyReports(companyId, uid).then((list) => { if (live) setRows(list); });
+    return () => { live = false; };
+  }, [companyId, uid, stamp]);
+  if (!rows) return <Text style={{ color: colors.muted, fontSize: 12 }}>Henter meldingene dine …</Text>;
+  const list = limit ? rows.slice(0, limit) : rows;
+  return (
+    <View style={{ gap: 2 }}>
+      <Text style={{ color: colors.ink, fontWeight: '700' }}>{title}{rows.length ? ` (${rows.length})` : ''}</Text>
+      {!rows.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Du har ikke meldt noe ennå.</Text> : null}
+      {list.map((f) => (
+        <ListRow
+          key={f.id}
+          icon={f.restricted ? 'lock-closed-outline' : 'flag-outline'}
+          title={`${f.number || ''} · ${f.title || ''}`}
+          subtitle={[findingTypeLabel(f.type), prettyDate(f.reportedAt), f.assigneeName ? `behandles av ${f.assigneeName}` : ''].filter(Boolean).join(' · ')}
+          right={<Pill label={findingStateLabel(f.state)} tone={f.state === 'lukket' ? 'ok' : 'info'} />}
+        />
+      ))}
+      {limit && rows.length > limit ? <Text style={{ color: colors.muted, fontSize: 12 }}>{`${rows.length - limit} eldre meldinger vises under Mine meldinger i ISO.`}</Text> : null}
+    </View>
+  );
+}
+
+/**
  * Selve skjemaet. companyId, actor ({ uid, name }), employee (ansattposten, for prosjekt fra timeføring),
  * employees og allProjects (Admin på Prosjekt ser alle prosjekter i velgeren).
  */
 export function QuickReportSheet({
-  visible, onClose, companyId, actor, employee = null, employees = [], allProjects = false, onSent = null, allowAnonymous = false,
+  visible, onClose, companyId, actor, employee = null, employees = [], allProjects = false, onSent = null, allowAnonymous = true,
 }) {
   const colors = useColors();
   const [type, setType] = useState('');
@@ -212,6 +248,7 @@ export function QuickReportSheet({
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {QUICK_TYPES.map((t) => <TypeTile key={t.id} type={t} colors={colors} onPress={() => setType(t.id)} />)}
         </View>
+        <MyReports companyId={companyId} uid={actor?.uid} limit={3} />
       </View>
     );
   } else {

@@ -113,3 +113,17 @@ test('ISO-03: nettfeil legger meldingen i kø, tilgangsfeil vises til brukeren',
   assert.equal(isOfflineError({ code: 'permission-denied', message: 'Missing or insufficient permissions.' }), false);
   assert.equal(isOfflineError(new Error('Velg hva du melder.')), false);
 });
+
+test('ISO-04: anonym melding lagrer verken navn eller bruker-id, heller ikke i historikken', () => {
+  const res = buildQuickFinding({ type: 'nestenulykke', text: 'Stillaset mangler rekkverk', anonymous: true }, { actor: { uid: '', name: 'Anonym melder' }, system: SYSTEM, now });
+  assert.equal(res.ok, true, res.error);
+  const f = res.finding;
+  assert.equal(f.anonymous, true);
+  assert.equal(f.reportedByUid, '');
+  assert.equal(f.reportedBy, 'Anonym melder');
+  assert.equal(f.updatedByUid, '');
+  assert.ok(f.history.every((h) => !h.uid));
+  assert.ok(res.events.every((e) => !e.actorUid));
+  // Med innlogget melder er saken ikke anonym, selv om valget er satt (reglene krever tom bruker-id).
+  assert.equal(buildQuickFinding({ type: 'miljo', text: 'Søl', anonymous: true }, { actor: PER, system: SYSTEM, now }).finding.anonymous, false);
+});

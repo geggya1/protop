@@ -103,6 +103,7 @@ export function buildQuickFinding(input, { actor, system = null, id = '', now = 
     requirementIds: requirementIdsForFinding({ system: system || {}, requirements: [] }, type),
     attachments,
     quick: true,
+    anonymous: !!input?.anonymous,
   }, { actor, existing: [], now });
   if (!res.ok) return res;
   const finding = { ...res.finding, id: text(id, 120) || res.finding.id, number: nextNumber('AVV', [], now) };

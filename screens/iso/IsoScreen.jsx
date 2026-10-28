@@ -15,7 +15,7 @@ import { approverUidsFromRoles, isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
 import { markRanToday, runIsoAutomation } from './isoAutoRun';
 import { replaceIn } from '../../src/iso/state';
-import QuickReportButton from './QuickReport';
+import QuickReportButton, { MyReports } from './QuickReport';
 import { externalFormControls, mergeForms } from '../../src/iso/docControlLink';
 import { useIsoStore } from './useIsoStore';
 import { useIsoSources } from './useIsoSources';
@@ -107,6 +107,7 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   const [page, setPage] = useState(defaultIsoSubView(subView));
   const [params, setParams] = useState({});
   const [autoNote, setAutoNote] = useState('');
+  const [reportStamp, setReportStamp] = useState(0);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -195,15 +196,22 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   } else if (store.loading && store.serverIso == null) {
     body = <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={colors.brand} /><Text style={{ color: colors.muted, marginTop: 8 }}>Kontrollerer tilgang …</Text></View>;
   } else if (!caps.view) {
+    // Meldetilgang (ISO-04): alle i selskapet, også innleide og eksterne, kan melde RUH og se egne meldinger.
     body = (
-      <Empty
-        icon="lock-closed-outline"
-        title="Ingen tilgang"
-        text={store.serverIso === 0 && access.grants?.iso && access.grants.iso !== 'none'
-          ? 'Tilgangen din er ikke bekreftet av serveren ennå. Prøv igjen om litt, eller be eieren av selskapet åpne ISO.'
-          : 'Du har ikke tilgang til ISO / K-HMS. Be en administrator om tilgang under Tilgang.'}
-        action={<Btn icon="refresh" label="Prøv igjen" onPress={store.reload} />}
-      />
+      <View style={{ gap: 14 }}>
+        <QuickReportButton onSent={() => setReportStamp(Date.now())} />
+        <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 14, padding: 14, backgroundColor: colors.card }}>
+          <MyReports companyId={familyId} uid={uid} stamp={reportStamp} />
+        </View>
+        <Empty
+          icon="lock-closed-outline"
+          title="Resten av ISO krever tilgang"
+          text={store.serverIso === 0 && access.grants?.iso && access.grants.iso !== 'none'
+            ? 'Tilgangen din er ikke bekreftet av serveren ennå. Prøv igjen om litt, eller be eieren av selskapet åpne ISO.'
+            : 'Du kan melde avvik og se dine egne meldinger. For prosesser, dokumenter og registre: be en administrator om tilgang under Tilgang.'}
+          action={<Btn icon="refresh" label="Prøv igjen" onPress={store.reload} />}
+        />
+      </View>
     );
   } else if (isSettings && !caps.admin) {
     body = <Empty icon="lock-closed-outline" title="Bare for administrator" text="Innstillingene for ledelsessystemet kan bare endres av administrator i ISO." />;

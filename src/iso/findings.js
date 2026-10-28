@@ -125,6 +125,8 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
     attachments: findingAttachments(input.attachments),
     // Meldt med hurtigmeldingen (tre trykk fra telefonen); resten fylles inn i triage.
     quick: !!input.quick,
+    // Anonym melding: melderens navn og bruker-id lagres ikke (heller ikke i historikken).
+    anonymous: !!input.anonymous && !text(actor?.uid, 128),
     formKey: 'SF16_AVVIK',
     formVersion: '1.0',
     createdAt: nowIso(now),

@@ -521,6 +521,27 @@ export async function ensureTaskResult(companyId, { key, title, description = ''
   }
 }
 
+/**
+ * Mine meldinger (ISO-04): saker brukeren selv har meldt, også uten ISO-tilgang (innleide, eksterne).
+ * Leser bare egne saker i begge samlingene; reglene tillater ikke mer.
+ */
+export async function loadMyReports(companyId, uid) {
+  const id = cid(companyId);
+  if (!id || !uid) return [];
+  const authed = await ensureAuth();
+  if (!authed) return [];
+  const read = async (name, restricted) => {
+    try {
+      const snap = await getDocs(query(col(id, name), where('reportedByUid', '==', String(uid))));
+      return snap.docs.map((d) => ({ ...d.data(), id: d.id, restricted }));
+    } catch {
+      return [];
+    }
+  };
+  const [open, shielded] = await Promise.all([read(COLLECTIONS.findings, false), read(COLLECTIONS.restrictedFindings, true)]);
+  return [...open, ...shielded].sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
+}
+
 /** Dokumentstyringen i Skjemabygger og HR (malene og personalhåndboka). Tom liste uten tilgang. */
 export async function loadDocControls(companyId) {
   const id = cid(companyId);

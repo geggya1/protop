@@ -426,11 +426,13 @@ export async function uploadAttachment(ctx, invoice, file, bytes) {
  * Svarer med forhåndsvisning: { lines, selection, added, removed, changed }.
  */
 export async function refreshPreview(ctx, invoice) {
-  const [{ loadProjectState }, { loadTimeEntries }, { loadProjectExpenses, mergeExpenseLists }, { loadProductSales, mergeSaleLists }] = await Promise.all([
+  const [{ loadProjectState }, { loadTimeEntries }, { loadProjectExpenses }, { loadProductSales }, { combineExpenses }, { combineSales }] = await Promise.all([
     import('../../../src/project/storage'),
     import('../../../src/economy/timeEntryStorage.js'),
     import('../../../src/economy/expenseStorage.js'),
     import('../../../src/economy/productSalesStorage.js'),
+    import('../../../src/economy/expenseSave.js'),
+    import('../../../src/economy/productSaleSave.js'),
   ]);
   const [{ buildReadyProjects, periodEndFor, selectableKeys, selectionFor, approvedOnly }, { refreshDraftLines }, { resolveProjectInvoiceSettings }] = await Promise.all([
     import('../../../src/economy/billingReady.js'),
@@ -455,9 +457,9 @@ export async function refreshPreview(ctx, invoice) {
     projects: [project],
     customers: ctx.customers || [],
     timeEntries: entries.map(reopen),
-    expenses: mergeExpenseLists(extExpenses, state.expenses || []).map(reopen),
+    expenses: combineExpenses(state.expenses, extExpenses).map(reopen),
     trips: (state.mileageTrips || []).map(reopen),
-    sales: mergeSaleLists(extSales, state.sales || []).map(reopen),
+    sales: combineSales(state.sales, extSales).map(reopen),
     invoices: (ctx.invoices || []).filter((row) => row.id !== invoice.id),
     timesheetLocks: state.timesheetLocks || [],
     contracts: ctx.contracts || [],

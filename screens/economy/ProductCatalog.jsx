@@ -42,11 +42,8 @@ import {
   upsertProduct,
   upsertSale,
 } from '../../src/economy/opsState.js';
-import {
-  loadProductSales,
-  mergeSaleLists,
-  withoutExternalSales,
-} from '../../src/economy/productSalesStorage.js';
+import { loadProductSales } from '../../src/economy/productSalesStorage.js';
+import { combineSales } from '../../src/economy/productSaleSave.js';
 import { patchRowsById } from '../../src/equipment/state';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, patchProjectOperations } from '../../src/project/storage';
@@ -229,7 +226,7 @@ export default function ProductCatalog() {
 
   const products = state.products || [];
   const sales = useMemo(
-    () => mergeSaleLists(remoteSales, withoutExternalSales(state.sales)),
+    () => combineSales(state.sales, remoteSales),
     [remoteSales, state.sales],
   );
   const grouped = useMemo(() => salesByProduct(products, sales), [products, sales]);

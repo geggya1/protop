@@ -21,7 +21,7 @@ import {
   saleRowReady,
   toggleProductSaleReviewRow,
 } from '../../src/economy/productSalesImport.js';
-import { removeSale, saveSaleChange } from '../../src/economy/productSaleSave.js';
+import { combineSales, removeSale, saveSaleChange } from '../../src/economy/productSaleSave.js';
 import {
   filterProductSales,
   productSalesExportRows,
@@ -32,11 +32,9 @@ import {
 import {
   loadProductSales,
   mergeRowsById,
-  mergeSaleLists,
   peekProductSales,
   productSalesToStore,
   saveProductSales,
-  withoutExternalSales,
 } from '../../src/economy/productSalesStorage.js';
 import { useProductSales } from '../../src/economy/useProductSales.js';
 import { displayName } from '../../src/employees/model.js';
@@ -168,7 +166,7 @@ export function ProductSalesScreen() {
   }, [query, status, projectFilter, customerFilter, sort]);
 
   const knownSales = useMemo(
-    () => mergeSaleLists(remoteSales, withoutExternalSales(projectState?.sales)),
+    () => combineSales(projectState?.sales, remoteSales),
     [remoteSales, projectState?.sales],
   );
   const ownSales = useMemo(

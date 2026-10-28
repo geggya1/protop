@@ -7,8 +7,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { emptyProjectState } from '../../../src/project/engine';
 import { loadProjectState } from '../../../src/project/storage';
 import { loadTimeEntries, projectHoursQuery } from '../../../src/economy/timeEntryStorage.js';
-import { loadProjectExpenses, mergeExpenseLists } from '../../../src/economy/expenseStorage.js';
-import { loadProductSales, mergeSaleLists } from '../../../src/economy/productSalesStorage.js';
+import { loadProjectExpenses } from '../../../src/economy/expenseStorage.js';
+import { loadProductSales } from '../../../src/economy/productSalesStorage.js';
+import { combineExpenses } from '../../../src/economy/expenseSave.js';
+import { combineSales } from '../../../src/economy/productSaleSave.js';
 import * as invoiceStorage from '../../../src/economy/invoiceStorage.js';
 import { loadAnbudState } from '../../../src/anbud/storage';
 import { mergeIndexSnapshot } from '../../../src/indeksregulering/indexLedger';
@@ -89,8 +91,9 @@ export default function useBillingData({ familyId, projectId = '', project = nul
       if (!active) return;
       setState(projects || emptyProjectState());
       setTimeEntries(entries || []);
-      setExpenses(mergeExpenseLists(remoteExpenses, projects?.expenses || []));
-      setSales(mergeSaleLists(remoteSales, projects?.sales || []));
+      // Utlegg og salg ligger to steder; samme sammenslåing som resten av appen (DS-13).
+      setExpenses(combineExpenses(projects?.expenses, remoteExpenses));
+      setSales(combineSales(projects?.sales, remoteSales));
       setAnbud(loadedAnbud);
       setReady(true);
     }).catch((cause) => {

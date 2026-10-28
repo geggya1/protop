@@ -611,10 +611,10 @@ export function RiskPage({ ctx }) {
     <Page wide={wide} title="Risiko og muligheter" intro="Strategiske, kvalitets-, miljø-, arbeidsmiljø-, prosjekt- og leverandørrisikoer. Iboende og rest-risiko vurderes hver for seg etter dokumentert metode." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny vurdering" onPress={() => reg.setCreating(true)} /> : null}>
       {ids ? <Banner tone="info" text={`Viser utvalg: ${params?.label || ''}`} /> : null}
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
-        <Card title="Risikomatrise" style={{ flex: 1, width: wide ? undefined : '100%' }} right={<Choice small options={[{ id: 'inherent', label: 'Iboende' }, { id: 'residual', label: 'Rest' }]} value={which} onChange={(x) => setWhich(x || 'inherent')} />}>
+        <Card title="Risikomatrise" style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }} right={<Choice small options={[{ id: 'inherent', label: 'Iboende' }, { id: 'residual', label: 'Rest' }]} value={which} onChange={(x) => setWhich(x || 'inherent')} />}>
           <RiskMatrix cells={cells} riskMethod={state.system.riskMethod} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
         </Card>
-        <Card title="Register" style={{ flex: 1, width: wide ? undefined : '100%' }}>
+        <Card title="Register" style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }}>
           <Choice small options={['Risiko', 'Mulighet']} value={kind} onChange={setKind} placeholder="Alle" title="Vis" />
           <RecordList
             ctx={ctx}
@@ -673,12 +673,12 @@ export function EnvironmentPage({ ctx }) {
         <Stat label="Avfall registrert" value={`${waste.totalKg.toLocaleString('nb-NO')} kg`} hint={waste.sortingRate == null ? 'Prosjekt' : `${waste.sortingRate} % sortert · ${waste.projects} prosjekter`} />
       </View>
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
-        <Card title="Kjøring per måned" subtitle="Direkte fra Kjørebok. Målt, ikke estimert." style={{ flex: 1, width: wide ? undefined : '100%' }}
+        <Card title="Kjøring per måned" subtitle="Direkte fra Kjørebok. Målt, ikke estimert." style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }}
           right={caps.manage && km.totalKm ? <Btn small icon="download-outline" label="Bruk som miljødata" onPress={() => setAdopt({ title: 'Kjøring i tjeneste', unit: 'km', quality: 'Målt', method: 'Kjørebok i ProTop', period: km.rows[km.rows.length - 2]?.key, value: km.rows[km.rows.length - 2]?.total })} /> : null}>
           <MonthBars rows={km.rows} parts={[{ key: 'fossil', label: 'Fossil' }, { key: 'electric', label: 'Elbil', color: colors.success }]} unit=" km" empty="Ingen turer i Kjørebok siste 12 måneder." />
           {ctx.requestTab ? <Btn small icon="open-outline" label="Åpne Kjørebok" onPress={() => ctx.requestTab('okonomi', 'kjorebok')} /> : null}
         </Card>
-        <Card title="Avfall per fraksjon" subtitle="Fra avfallsregistreringene i prosjektene." style={{ flex: 1, width: wide ? undefined : '100%' }}>
+        <Card title="Avfall per fraksjon" subtitle="Fra avfallsregistreringene i prosjektene." style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }}>
           <HBars rows={waste.rows} unit=" kg" empty="Ingen avfall registrert på prosjekter." onPick={ctx.requestTab ? () => ctx.requestTab('projects') : undefined} />
         </Card>
       </View>

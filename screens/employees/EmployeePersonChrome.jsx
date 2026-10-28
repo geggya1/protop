@@ -13,6 +13,7 @@ import { EMPLOYEE_DETAIL_TABS, employeeViewToTab } from '../../src/employees/per
 import { useLayout } from '../../src/theme';
 import BackLink from '../../src/ui/BackLink';
 import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
+import { radius, type } from '../../src/ui/tokens';
 
 export { EMPLOYEE_DETAIL_TABS, employeeViewToTab };
 
@@ -49,50 +50,94 @@ export default function EmployeePersonChrome({
   const subtitle = cardSubtitle(employee, companyName);
 
   return (
-    <View nativeID="employee-person-chrome" style={styles.root}>
-      <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
+    <View nativeID="employee-person-chrome" style={[styles.root, isPhone && styles.rootPhone]}>
+      {isPhone ? (
+        <>
+          {/* Mobil: tilbake og bla mellom ansatte på én linje, navnet mindre, så sideinnholdet får plassen. */}
+          <View style={styles.phoneBar}>
+            <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
+            <View style={styles.navActions}>
+              <TouchableOpacity
+                onPress={() => prev && onSelect?.(prev)}
+                disabled={!prev}
+                accessibilityRole="button"
+                accessibilityLabel="Forrige medarbeider"
+                hitSlop={4}
+                style={[styles.navIcon, { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 }]}
+              >
+                <Ionicons name="chevron-back" size={18} color={colors.ink} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => next && onSelect?.(next)}
+                disabled={!next}
+                accessibilityRole="button"
+                accessibilityLabel="Neste medarbeider"
+                hitSlop={4}
+                style={[styles.navIcon, { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 }]}
+              >
+                <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.phoneTitle}>
+            <Text accessibilityRole="header" numberOfLines={1} style={[type.h2, { color: colors.ink }]}>{name}</Text>
+            <Text numberOfLines={1} style={[type.caption, { color: colors.muted }]}>
+              {deactivated ? (
+                <Text style={{ color: colors.danger || '#dc2626', fontWeight: '600' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
+              ) : (
+                <Text style={{ color: colors.muted }}>{status}</Text>
+              )}
+              {subtitle ? ` · ${subtitle}` : ''}
+            </Text>
+          </View>
+        </>
+      ) : (
+        <>
+          <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
 
-      <View style={[styles.titleRow, isPhone && styles.titleRowPhone]}>
-        <View style={styles.titleBlock}>
-          <Text accessibilityRole="header" style={[styles.name, { color: colors.ink }]}>{name}</Text>
-          <Text style={{ color: colors.muted, fontSize: 14 }}>
-            {deactivated ? (
-              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
-            ) : (
-              <Text style={{ color: colors.muted }}>{status}</Text>
-            )}
-            {subtitle ? ` · ${subtitle}` : ''}
-          </Text>
-        </View>
-        <View style={styles.navActions}>
-          <TouchableOpacity
-            onPress={() => prev && onSelect?.(prev)}
-            disabled={!prev}
-            accessibilityRole="button"
-            accessibilityLabel="Forrige medarbeider"
-            style={[
-              styles.navBtn,
-              { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 },
-            ]}
-          >
-            <Ionicons name="chevron-back" size={16} color={colors.ink} />
-            <Text style={{ color: colors.ink, fontSize: 13 }}>Forrige</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => next && onSelect?.(next)}
-            disabled={!next}
-            accessibilityRole="button"
-            accessibilityLabel="Neste medarbeider"
-            style={[
-              styles.navBtn,
-              { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 },
-            ]}
-          >
-            <Text style={{ color: colors.ink, fontSize: 13 }}>Neste</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.ink} />
-          </TouchableOpacity>
-        </View>
-      </View>
+          <View style={[styles.titleRow, isPhone && styles.titleRowPhone]}>
+            <View style={styles.titleBlock}>
+              <Text accessibilityRole="header" style={[styles.name, { color: colors.ink }]}>{name}</Text>
+              <Text style={{ color: colors.muted, fontSize: 14 }}>
+                {deactivated ? (
+                  <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
+                ) : (
+                  <Text style={{ color: colors.muted }}>{status}</Text>
+                )}
+                {subtitle ? ` · ${subtitle}` : ''}
+              </Text>
+            </View>
+            <View style={styles.navActions}>
+              <TouchableOpacity
+                onPress={() => prev && onSelect?.(prev)}
+                disabled={!prev}
+                accessibilityRole="button"
+                accessibilityLabel="Forrige medarbeider"
+                style={[
+                  styles.navBtn,
+                  { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 },
+                ]}
+              >
+                <Ionicons name="chevron-back" size={16} color={colors.ink} />
+                <Text style={{ color: colors.ink, fontSize: 13 }}>Forrige</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => next && onSelect?.(next)}
+                disabled={!next}
+                accessibilityRole="button"
+                accessibilityLabel="Neste medarbeider"
+                style={[
+                  styles.navBtn,
+                  { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 },
+                ]}
+              >
+                <Text style={{ color: colors.ink, fontSize: 13 }}>Neste</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.ink} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </>
+      )}
 
       {deactivated ? (
         <View
@@ -130,6 +175,7 @@ export default function EmployeePersonChrome({
               {...(Platform.OS === 'web' ? { dataSet: { employeeTab: active ? 'active' : 'idle' } } : null)}
               style={[
                 styles.tab,
+                isPhone && styles.tabPhone,
                 active && {
                   borderBottomColor: colors.brand,
                   backgroundColor: colors.brandSoft || '#E5F6FE',
@@ -158,6 +204,17 @@ const styles = StyleSheet.create({
   root: { gap: 10, width: '100%', flexShrink: 0 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   titleRowPhone: { flexDirection: 'column' },
+  rootPhone: { gap: 6 },
+  phoneBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  phoneTitle: { gap: 2 },
+  navIcon: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: radius.pill,
+  },
   titleBlock: { flex: 1, gap: 4, minWidth: 180 },
   name: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3 },
   navActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
@@ -188,4 +245,5 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
   },
+  tabPhone: { paddingHorizontal: 10, paddingVertical: 8 },
 });

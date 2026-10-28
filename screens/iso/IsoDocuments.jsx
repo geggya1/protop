@@ -328,7 +328,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
       {!pub && rev?.state === 'til_gjennomgang' ? <Banner tone="warn" text="Venter på godkjenning. Dokumentet er ikke synlig for ansatte før det er publisert." /> : null}
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
-        <Card title={`Innhold – rev. ${rev?.revision || ''}`} style={{ flex: 3, width: wide ? undefined : '100%' }} right={editable ? <Btn small icon={preview ? 'create-outline' : 'eye-outline'} label={preview ? 'Rediger' : 'Forhåndsvis'} onPress={() => setPreview(!preview)} /> : null}>
+        <Card title={`Innhold – rev. ${rev?.revision || ''}`} style={{ ...(wide ? { flex: 3 } : { width: '100%' }) }} right={editable ? <Btn small icon={preview ? 'create-outline' : 'eye-outline'} label={preview ? 'Rediger' : 'Forhåndsvis'} onPress={() => setPreview(!preview)} /> : null}>
           {toc.length >= 4 && !(editable && !preview) ? (
             <View style={{ gap: 2, padding: 10, borderRadius: 10, backgroundColor: colors.sunken }}>
               <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700' }}>INNHOLD</Text>
@@ -388,7 +388,7 @@ function DocumentDetail({ ctx, doc, structure, onBack }) {
           {rev?.changeReason ? <KV label="Endringsårsak" value={rev.changeReason} /> : null}
           {rev?.publishedAt ? <Text style={{ color: colors.muted, fontSize: 12 }}>Godkjent og publisert {prettyDate(rev.publishedAt)} av {rev.approvedBy} · gyldig fra {prettyDate(rev.effectiveFrom)}</Text> : null}
         </Card>
-        <View style={{ flex: 2, gap: 12, width: wide ? undefined : '100%' }}>
+        <View style={{ ...(wide ? { flex: 2 } : { width: '100%' }), gap: 12 }}>
           {pub && doc.readAckRequired && !archived ? (
             <Card title="Lesebekreftelse">
               {hasAcknowledged(doc, actor.uid) ? <Banner tone="ok" text={`Du har bekreftet rev. ${pub.revision}.`} /> : (

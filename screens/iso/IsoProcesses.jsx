@@ -147,7 +147,7 @@ function ProcessLibrary({ ctx, onOpen, onRun, onDesign }) {
         {PROCESS_CATEGORIES.map((cat) => {
           const list = sortProcesses(live.filter((p) => p.category === cat.id && visibleToStaff(p)));
           return (
-            <Card key={cat.id} title={cat.label} style={{ flex: 1, width: wide ? undefined : '100%' }}>
+            <Card key={cat.id} title={cat.label} style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }}>
               {!list.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen prosesser.</Text> : null}
               {list.map((p) => {
                 const draft = draftVersion(p);
@@ -353,7 +353,7 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
       </Row>
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
-        <Card title="Prosessbeskrivelse" style={{ flex: 1, width: wide ? undefined : '100%' }}>
+        <Card title="Prosessbeskrivelse" style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }}>
           <KV label="Prosesseier" value={proc.ownerName || 'Ikke satt'} />
           <KV label="Kategori" value={PROCESS_CATEGORIES.find((c) => c.id === proc.category)?.label} />
           <KV label="Input" value={proc.inputs} />
@@ -362,11 +362,11 @@ function ProcessDetail({ ctx, proc, onBack, onDesign, onRun }) {
           <KV label="Publisert" value={pub ? `v${pub.version} ${prettyDate(pub.publishedAt)} av ${pub.publishedBy}` : 'Nei'} />
           {version?.rejectNote ? <Banner tone="danger" text={`Avvist: ${version.rejectNote}`} /> : null}
         </Card>
-        <Card title="Styrende dokumenter" subtitle="Prosedyrer, instrukser og maler for prosessen." style={{ flex: 1, width: wide ? undefined : '100%' }}>
+        <Card title="Styrende dokumenter" subtitle="Prosedyrer, instrukser og maler for prosessen." style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }}>
           {!docs.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen dokumenter koblet. Velg dem under «Rediger utkast».</Text> : null}
           {docs.map((d) => <ListRow key={d.id} icon="document-text-outline" title={`${d.code} · ${d.title}`} subtitle={d.publishedRevision ? `rev. ${d.publishedRevision}` : 'ikke publisert'} onPress={() => ctx.go('dokumenter', { open: d.id })} />)}
         </Card>
-        <Card title="Saker" style={{ flex: 1, width: wide ? undefined : '100%' }}>
+        <Card title="Saker" style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }}>
           {!instances.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen saker er startet.</Text> : null}
           {instances.slice(0, 20).map((i) => (
             <ListRow key={i.id} icon={i.state === 'aktiv' ? 'play-circle-outline' : 'checkmark-done-outline'} title={i.title} subtitle={`v${i.version} · ${i.state === 'aktiv' ? 'pågår' : (i.state === 'fullfort' ? 'fullført' : 'avbrutt')} · ${prettyDate(i.startedAt)}`} onPress={() => onRun(i.id)} />
@@ -598,10 +598,10 @@ function ProcessRun({ ctx, instance, onBack }) {
       />
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
-        <Card title="Neste" style={{ flex: 1, width: wide ? undefined : '100%' }}>
+        <Card title="Neste" style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }}>
           {focus.next.length ? focus.next.map((n) => <Text key={n.id} style={{ color: colors.ink }}>→ {n.label}</Text>) : <Text style={{ color: colors.muted }}>–</Text>}
         </Card>
-        <Card title="Hendelseslogg" style={{ flex: 2, width: wide ? undefined : '100%' }}>
+        <Card title="Hendelseslogg" style={{ ...(wide ? { flex: 2 } : { width: '100%' }) }}>
           {instance.log.slice().reverse().map((l, i) => <Text key={i} style={{ color: colors.muted, fontSize: 12 }}>{String(l.at).replace('T', ' ').slice(0, 16)} · {l.text}</Text>)}
         </Card>
       </View>
@@ -1015,7 +1015,7 @@ function ProcessDesigner({ ctx, proc, onBack }) {
       ) : null}
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
         {palette}
-        <View style={{ flex: 1, gap: 8, width: wide ? undefined : '100%' }}>
+        <View style={{ ...(wide ? { flex: 1 } : { width: '100%' }), gap: 8 }}>
           {connectFrom ? <Banner tone="info" text="Trykk på boksen koblingen skal gå til. Trykk «Velg mål …» igjen for å avbryte." /> : null}
           <IsoDiagram
             design={editable}

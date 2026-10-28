@@ -37,10 +37,11 @@ export default function ProcessLine({ steps = [], onSelect, label = 'Prosess', n
             nativeID={nativeID ? `${nativeID}-${step.id}` : undefined}
             style={({ hovered, pressed }) => [
               styles.step,
+              isPhone && styles.stepPhone,
               (hovered || pressed) && !step.current && { backgroundColor: colors.sunken },
             ]}
           >
-            <View style={styles.rail}>
+            <View style={[styles.rail, isPhone && styles.railPhone]}>
               <View
                 style={[
                   styles.dot,
@@ -56,18 +57,18 @@ export default function ProcessLine({ steps = [], onSelect, label = 'Prosess', n
               {next ? <View style={[styles.line, { backgroundColor: colors.line }]} /> : null}
             </View>
             <Text
-              numberOfLines={2}
+              numberOfLines={isPhone ? 1 : 2}
               style={[
                 styles.label,
                 isPhone && styles.labelPhone,
                 { color: colors.ink, fontWeight: step.current ? '600' : '500' },
               ]}
             >
-              {step.label}
+              {isPhone && step.shortLabel ? step.shortLabel : step.label}
             </Text>
             {step.detail ? (
               <Text
-                numberOfLines={2}
+                numberOfLines={isPhone ? 1 : 2}
                 style={[
                   styles.detail,
                   isPhone && styles.detailPhone,
@@ -95,7 +96,10 @@ const styles = StyleSheet.create({
     gap: 2,
     alignSelf: 'stretch',
   },
-  wrapPhone: { paddingHorizontal: 2 },
+  // Mobil: én linje per tekst og mindre luft, så linjen tar lite høyde over innholdet.
+  wrapPhone: { paddingHorizontal: 2, paddingVertical: 2 },
+  stepPhone: { paddingHorizontal: 6, paddingVertical: 4, gap: 0 },
+  railPhone: { marginBottom: 2 },
   step: {
     flex: 1,
     minWidth: 0,
@@ -113,7 +117,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dotPhone: { width: 22, height: 22, borderRadius: 11 },
+  dotPhone: { width: 20, height: 20, borderRadius: 10 },
   dotText: { fontSize: 12, fontWeight: '600' },
   line: { flex: 1, height: 2, marginLeft: 6, borderRadius: 1 },
   label: { fontSize: 14, lineHeight: 18 },

@@ -285,13 +285,13 @@ export default function IsoFindings({ ctx }) {
           <View style={{ flexDirection: wide ? 'row' : 'column', gap: 8, alignItems: wide ? 'center' : 'stretch', flexWrap: 'wrap' }}>
             <View style={{ flexGrow: 1 }}><Tabs tabs={tabs} value={tab} onChange={setTab} /></View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, flexGrow: 1, flexBasis: wide ? 520 : undefined }}>
-              <View style={{ flex: 1, minWidth: 150 }}>
+              <View style={{ ...(wide ? { flex: 1 } : null), minWidth: 150 }}>
                 <Choice small options={FINDING_TYPES.map((t) => ({ id: t.id, label: t.label }))} value={typeFilter} onChange={setTypeFilter} placeholder="Alle typer" title="Type" chipLimit={0} />
               </View>
-              <View style={{ flex: 1, minWidth: 150 }}>
+              <View style={{ ...(wide ? { flex: 1 } : null), minWidth: 150 }}>
                 <Choice small options={[...assignees.map((n) => ({ id: n, label: n })), { id: '__none', label: 'Ingen saksbehandler' }]} value={assignee} onChange={setAssignee} placeholder="Alle saksbehandlere" title="Saksbehandler" chipLimit={0} />
               </View>
-              <View style={{ flex: 1, minWidth: 160 }}>
+              <View style={{ ...(wide ? { flex: 1 } : null), minWidth: 160 }}>
                 <TextIn value={query} onChangeText={setQuery} placeholder="Søk …" accessibilityLabel="Søk i saksnummer, tittel, prosjekt og sted" />
               </View>
             </View>
@@ -659,7 +659,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       {who ? <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Saken går til {who.name}, som får en oppgave i Oppgaver. Den kobles til relevante krav.</Text> : null}
       <Field label="Tittel" required><TextIn value={v.title} onChangeText={set('title')} placeholder="Kort om hva som skjedde" /></Field>
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 14 }}>
-        <View style={{ flex: 1 }}>
+        <View style={{ ...(wide ? { flex: 1 } : null) }}>
           <Field label="Når skjedde det">
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <View style={{ flex: 3 }}><DateIn value={v.occurredAt} onChange={set('occurredAt')} /></View>
@@ -667,7 +667,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
             </View>
           </Field>
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ ...(wide ? { flex: 1 } : null) }}>
           <Field label="Hvor"><TextIn value={v.location} onChangeText={set('location')} placeholder="F.eks. plan 2, trappeløp B" /></Field>
         </View>
       </View>
@@ -683,13 +683,13 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       <Field label="Hva skjedde" required hint="Beskriv fakta. Ikke legg inn helseopplysninger her."><TextIn multiline rows={3} value={v.description} onChangeText={set('description')} placeholder="Beskriv hendelsen med egne ord." /></Field>
       <Field label="Strakstiltak"><TextIn value={v.immediateAction} onChangeText={set('immediateAction')} placeholder="Hva ble gjort med en gang?" /></Field>
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 14 }}>
-        <View style={{ flex: 1 }}>
+        <View style={{ ...(wide ? { flex: 1 } : null) }}>
           <Field label="Alvorlighet" hint="Din vurdering. «Kritisk» gir behandling i dag.">
             <Choice small options={SEVERITIES.map((x) => ({ id: x.id, label: x.label }))} value={v.severity} onChange={(x) => set('severity')(x || '')} placeholder="Vet ikke" title="Alvorlighet" />
           </Field>
         </View>
         {injury ? (
-          <View style={{ flex: 1 }}>
+          <View style={{ ...(wide ? { flex: 1 } : null) }}>
             <Field label="Skadeklasse" hint="Din vurdering. Saksbehandler kan endre den.">
               <Choice small options={INJURY_CLASSES.map((c) => ({ id: c.id, label: c.label }))} value={v.injuryClass} onChange={pickInjury} placeholder="Velg" title="Skadeklasse" />
             </Field>
@@ -1360,8 +1360,8 @@ function FindingDetail({ ctx, finding, onBack }) {
         <Field label="Tiltak" required><TextIn multiline rows={2} value={act.title} onChangeText={(x) => setAct({ ...act, title: x })} placeholder="Hva skal gjøres?" /></Field>
         <Field label="Type"><Choice options={[{ id: 'korreksjon', label: 'Korreksjon' }, { id: 'korrigerende', label: 'Korrigerende' }, { id: 'forebyggende', label: 'Forebyggende' }]} value={act.type} onChange={(x) => setAct({ ...act, type: x || 'korrigerende' })} /></Field>
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 14 }}>
-          <View style={{ flex: 1 }}><Field label="Ansvarlig" required hint="Får oppgave i Oppgaver."><PersonPick people={people} value={act.ownerName} onChange={(p) => setAct({ ...act, ownerName: p.name, ownerUid: p.uid })} /></Field></View>
-          <View style={{ flex: 1 }}><Field label="Frist" required><DateIn value={act.dueAt} onChange={(x) => setAct({ ...act, dueAt: x })} /></Field></View>
+          <View style={{ ...(wide ? { flex: 1 } : null) }}><Field label="Ansvarlig" required hint="Får oppgave i Oppgaver."><PersonPick people={people} value={act.ownerName} onChange={(p) => setAct({ ...act, ownerName: p.name, ownerUid: p.uid })} /></Field></View>
+          <View style={{ ...(wide ? { flex: 1 } : null) }}><Field label="Frist" required><DateIn value={act.dueAt} onChange={(x) => setAct({ ...act, dueAt: x })} /></Field></View>
         </View>
         <Field label="Påkrevd dokumentasjon"><TextIn value={act.requiredEvidence} onChangeText={(x) => setAct({ ...act, requiredEvidence: x })} placeholder="F.eks. oppdatert prosedyre" /></Field>
         {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}

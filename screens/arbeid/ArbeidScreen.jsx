@@ -1226,7 +1226,7 @@ export default function ArbeidScreen({
 
   // Leder: hvor timene står i kjeden mot faktura (Timer → Godkjenn → Til fakturering → Faktura).
   const chainLine = !personal && !lockedId && !embedded && manager ? (
-    <View style={styles.chainLine}>
+    <View style={[styles.chainLine, isPhone && styles.chainLinePhone]}>
       <BillingChainLine
         current="timer"
         locks={state.timesheetLocks || []}
@@ -1242,7 +1242,8 @@ export default function ArbeidScreen({
         nativeID="arbeid-screen"
       >
         {chainLine}
-        {embedded ? null : (
+        {/* Mobil: fanen over viser allerede «Timeliste», så brødsmulen tas bort. */}
+        {embedded || isPhone ? null : (
           <View style={{ marginBottom: 8 }}>{crumbNode}</View>
         )}
         <TimesheetEmployeePicker
@@ -1269,9 +1270,10 @@ export default function ArbeidScreen({
   }
 
   return (
-    <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
+    <View style={[styles.screen, personal && styles.screenPersonal, embedded && isPhone && styles.screenEmbeddedPhone, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
       {chainLine}
       <View style={[styles.topBar, (personal || isPhone) && styles.topBarPersonal, isPhone && styles.topBarPhone]}>
+        {embedded && isPhone ? null : (
         <View style={{ flex: 1, minWidth: 0 }}>
           {embedded ? null : (
             crumbNode
@@ -1315,7 +1317,8 @@ export default function ArbeidScreen({
           </TouchableOpacity>
           )}
         </View>
-        <View style={styles.monthNav}>
+        )}
+        <View style={[styles.monthNav, embedded && isPhone && styles.monthNavFill]}>
           <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Forrige måned" style={styles.navHit}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
@@ -1337,7 +1340,7 @@ export default function ArbeidScreen({
             accessibilityLabel="Rapport og eksport"
             accessibilityState={{ expanded: reportMenuOpen }}
             nativeID="arbeid-report-gear"
-            style={[styles.gearBtn, { borderColor: reportMenuOpen ? colors.brand : colors.line, backgroundColor: reportMenuOpen ? colors.brandSoft : colors.card, marginLeft: 4 }]}
+            style={[styles.gearBtn, { borderColor: reportMenuOpen ? colors.brand : colors.line, backgroundColor: reportMenuOpen ? colors.brandSoft : colors.card, marginLeft: embedded && isPhone ? 'auto' : 4 }]}
           >
             <Ionicons name="settings-outline" size={18} color={reportMenuOpen ? colors.brand : colors.ink} />
           </TouchableOpacity>
@@ -1700,8 +1703,12 @@ export default function ArbeidScreen({
 
 const styles = StyleSheet.create({
   chainLine: { marginBottom: 10 },
+  chainLinePhone: { marginBottom: 8 },
   screen: { flex: 1, padding: 16, minHeight: 0 },
   screenPersonal: { paddingTop: 8 },
+  // Inne i ansattprofilen på mobil: ingen tom navnekolonne, månedsvelgeren fyller linjen.
+  screenEmbeddedPhone: { paddingTop: 8 },
+  monthNavFill: { flex: 1 },
   gridBleed: {
     flex: 1,
     minHeight: 0,

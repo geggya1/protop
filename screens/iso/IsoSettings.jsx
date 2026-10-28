@@ -484,8 +484,8 @@ export default function IsoSettings({ ctx }) {
         </Field>
         <Field label="Omfangserklæring" required><TextIn multiline rows={3} value={v.scopeText} onChangeText={set('scopeText')} /></Field>
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
-          <View style={{ flex: 1 }}><Field label="Enheter og avdelinger"><TextIn multiline rows={2} value={v.units} onChangeText={set('units')} /></Field></View>
-          <View style={{ flex: 1 }}><Field label="Lokasjoner"><TextIn multiline rows={2} value={v.locations} onChangeText={set('locations')} /></Field></View>
+          <View style={{ ...(wide ? { flex: 1 } : null) }}><Field label="Enheter og avdelinger"><TextIn multiline rows={2} value={v.units} onChangeText={set('units')} /></Field></View>
+          <View style={{ ...(wide ? { flex: 1 } : null) }}><Field label="Lokasjoner"><TextIn multiline rows={2} value={v.locations} onChangeText={set('locations')} /></Field></View>
         </View>
         <Field label="Aktiviteter og tjenester"><TextIn multiline rows={2} value={v.activities} onChangeText={set('activities')} /></Field>
         <Field label="Avgrensninger og begrunnelse" hint="ISO 9001 kap. 8-krav kan begrunnes som ikke anvendbare. Krav i ISO 14001/45001 kan ikke velges bort."><TextIn multiline rows={2} value={v.exclusions} onChangeText={set('exclusions')} /></Field>
@@ -608,12 +608,12 @@ function ProfileCard({ v, update, wide, about = '', onCompanyPage }) {
     <Card title="Visjon, verdier og mål" subtitle="Vises for alle på Oversikt i ISO, sammen med policyene. Hjelper ansatte å forstå hva ledelsessystemet skal oppnå.">
       <Field label="Visjon"><TextIn multiline rows={2} value={p.vision || ''} onChangeText={setP('vision')} /></Field>
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
-        <View style={{ flex: 1 }}>
+        <View style={{ ...(wide ? { flex: 1 } : null) }}>
           <Field label="Verdier" hint="Én per linje.">
             <TextIn multiline rows={3} value={(p.values || []).join('\n')} onChangeText={(x) => setP('values')(String(x).split('\n').map((l) => l.trim()).filter(Boolean))} />
           </Field>
         </View>
-        <View style={{ flex: 1 }}><Field label="Forretningsmål og overordnede mål"><TextIn multiline rows={3} value={p.businessGoals || ''} onChangeText={setP('businessGoals')} /></Field></View>
+        <View style={{ ...(wide ? { flex: 1 } : null) }}><Field label="Forretningsmål og overordnede mål"><TextIn multiline rows={3} value={p.businessGoals || ''} onChangeText={setP('businessGoals')} /></Field></View>
       </View>
       {/* «Om oss» eies av bedriftssiden i Selskap; ISO viser den, så teksten ikke finnes to steder. */}
       <Field label="Om virksomheten (fra Selskap)" hint="Endres på bedriftssiden: Selskap → Rediger side.">

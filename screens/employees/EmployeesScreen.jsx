@@ -143,7 +143,7 @@ const SELF_EDITOR_VIEWS = new Set(['detail', 'hours', 'report', 'saldo', 'absenc
 
 export default function EmployeesScreen() {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop, isPhone } = useLayout();
   const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const leaving = useLeaveCompany();
   const access = useCompanyAccess();
@@ -1689,7 +1689,7 @@ export default function EmployeesScreen() {
     <>
     <View nativeID="employees-page" id="employees-page" style={[styles.screen, { backgroundColor: colors.bg }]}>
     {personMode ? (
-      <View style={[styles.personChrome, { backgroundColor: colors.bg, borderBottomColor: colors.line }]}>
+      <View style={[styles.personChrome, isPhone && styles.personChromePhone, { backgroundColor: colors.bg, borderBottomColor: colors.line }]}>
         <EmployeePersonChrome
           employee={personEmployee}
           colors={colors}
@@ -1706,7 +1706,7 @@ export default function EmployeesScreen() {
               .filter((sub) => personViewAllowed(selected, sub.id));
             if (subs.length < 2) return null;
             return (
-              <View nativeID="employee-sub-tabs" accessibilityRole="tablist" style={styles.subTabs}>
+              <View nativeID="employee-sub-tabs" accessibilityRole="tablist" style={[styles.subTabs, isPhone && styles.subTabsPhone]}>
                 {subs.map((sub) => {
                   const active = sub.id === view;
                   return (
@@ -1716,7 +1716,7 @@ export default function EmployeesScreen() {
                       accessibilityRole="tab"
                       accessibilityState={{ selected: active }}
                       onPress={() => openPersonView(sub.id)}
-                      style={[styles.subTab, {
+                      style={[styles.subTab, isPhone && styles.subTabPhone, {
                         borderColor: active ? colors.brand : colors.line,
                         backgroundColor: active ? colors.brandSoft : colors.card,
                       }]}
@@ -2565,6 +2565,10 @@ const styles = StyleSheet.create({
   hoursHost: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
   absenceHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
   subTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  // Mobil: lavere topp på ansattprofilen, så timelisten og de andre fanene får plassen.
+  personChromePhone: { paddingTop: 4, paddingBottom: 8, paddingHorizontal: 12 },
+  subTabsPhone: { gap: 4, flexWrap: 'nowrap' },
+  subTabPhone: { paddingHorizontal: 10, paddingVertical: 4 },
   subTab: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   // Fraværsoversikten fyller området under fanene og må rulle selv.
   absenceInner: { flexGrow: 1, paddingBottom: 28 },

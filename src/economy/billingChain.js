@@ -7,7 +7,7 @@
 export const BILLING_CHAIN = [
   { id: 'timer', label: 'Timer', tab: 'arbeid', subView: 'timeliste' },
   { id: 'godkjenn', label: 'Godkjenn', tab: 'arbeid', subView: 'godkjenning' },
-  { id: 'fakturering', label: 'Til fakturering', tab: 'okonomi', subView: 'fakturagrunnlag' },
+  { id: 'fakturering', label: 'Til fakturering', shortLabel: 'Fakturering', tab: 'okonomi', subView: 'fakturagrunnlag' },
   { id: 'faktura', label: 'Faktura', tab: 'okonomi', subView: 'faktura' },
 ];
 

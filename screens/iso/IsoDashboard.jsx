@@ -101,14 +101,14 @@ export default function IsoDashboard({ ctx }) {
       {profile?.vision || profile?.values?.length || policies.length || news.length ? (
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'stretch' }}>
           {profile?.vision || profile?.values?.length || policies.length ? (
-            <Card style={{ flex: 3 }} title="Visjon, verdier og policy">
+            <Card style={{ ...(wide ? { flex: 3 } : null) }} title="Visjon, verdier og policy">
               {profile?.vision ? <Text style={{ color: colors.ink, fontSize: 15, fontStyle: 'italic' }}>«{profile.vision}»</Text> : null}
               {profile?.values?.length ? <Row>{profile.values.map((v) => <Pill key={v} label={v} tone="info" />)}</Row> : null}
               {policies.map((d) => <ListRow key={d.id} icon="ribbon-outline" title={`${d.code} · ${d.title}`} subtitle={`rev. ${d.publishedRevision}`} onPress={() => go('dokumenter', { open: d.id })} />)}
             </Card>
           ) : null}
           {news.length ? (
-            <Card style={{ flex: 2 }} title="Nyheter" subtitle="Fra Selskap → Nyheter" right={<Btn small label="Alle" onPress={openNews} />}>
+            <Card style={{ ...(wide ? { flex: 2 } : null) }} title="Nyheter" subtitle="Fra Selskap → Nyheter" right={<Btn small label="Alle" onPress={openNews} />}>
               {news.map((p) => <ListRow key={p.id} icon="megaphone-outline" title={p.title || String(p.body || '').slice(0, 80)} subtitle={postDate(p) ? prettyDate(postDate(p)) : p.authorName} onPress={openNews} />)}
             </Card>
           ) : null}
@@ -154,7 +154,7 @@ export default function IsoDashboard({ ctx }) {
       {(caps.manage && ready.done < ready.total) || insights.length ? (
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
       {caps.manage && ready.done < ready.total ? (
-            <Card style={{ flex: 1, width: wide ? undefined : '100%' }} title={`Neste steg · ${ready.done} av ${ready.total} på plass`} subtitle={ready.method}>
+            <Card style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }} title={`Neste steg · ${ready.done} av ${ready.total} på plass`} subtitle={ready.method}>
               <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.sunken }}>
                 <View style={{ width: `${Math.round((ready.done / ready.total) * 100)}%`, height: 6, borderRadius: 3, backgroundColor: colors.brand }} />
               </View>
@@ -165,7 +165,7 @@ export default function IsoDashboard({ ctx }) {
           ) : null}
 
           {insights.length ? (
-            <Card style={{ flex: 1, width: wide ? undefined : '100%' }} title="Fra resten av ProTop" subtitle="Hentet fra Prosjekt, Kontrakt, HR, Kjørebok, Fravær og Oppgaver. Eies fortsatt av modulene.">
+            <Card style={{ ...(wide ? { flex: 1 } : { width: '100%' }) }} title="Fra resten av ProTop" subtitle="Hentet fra Prosjekt, Kontrakt, HR, Kjørebok, Fravær og Oppgaver. Eies fortsatt av modulene.">
               {insights.map((x) => <ListRow key={x.key} icon={x.icon} tone={x.tone} title={x.title} subtitle={x.text} onPress={() => (x.tab ? ctx.requestTab?.(x.tab) : go(x.page, x.params || {}))} />)}
             </Card>
           ) : null}
@@ -173,28 +173,28 @@ export default function IsoDashboard({ ctx }) {
       ) : null}
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
-        <Card style={{ flex: 3 }} title="Nye og lukkede avvik" right={<Choice small options={[{ id: '6', label: '6 mnd' }, { id: '12', label: '12 mnd' }]} value={months} onChange={(v) => setMonths(v || '6')} />}>
+        <Card style={{ ...(wide ? { flex: 3 } : null) }} title="Nye og lukkede avvik" right={<Choice small options={[{ id: '6', label: '6 mnd' }, { id: '12', label: '12 mnd' }]} value={months} onChange={(v) => setMonths(v || '6')} />}>
           <TrendBars rows={trend} onPick={(p) => go('avvik', { ids: p.ids, label: p.label })} />
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             Lukket innen frist: {onTime.pct == null ? 'ingen datagrunnlag' : `${onTime.pct} % (${onTime.numerator}/${onTime.denominator})`}{onTime.excluded ? ` · ${onTime.excluded} uten frist er holdt utenfor` : ''}
           </Text>
         </Card>
-        <Card style={{ flex: 2 }} title="Intern vurderingsstatus – krav">
+        <Card style={{ ...(wide ? { flex: 2 } : null) }} title="Intern vurderingsstatus – krav">
           <StatusDonut data={dist} onPick={(s) => go('krav', { status: s.id })} />
         </Card>
       </View>
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
-        <Card style={{ flex: 3 }} title="Risikobilde" right={<Choice small options={[{ id: 'inherent', label: 'Iboende' }, { id: 'residual', label: 'Rest' }]} value={riskView} onChange={(v) => setRiskView(v || 'inherent')} />}>
+        <Card style={{ ...(wide ? { flex: 3 } : null) }} title="Risikobilde" right={<Choice small options={[{ id: 'inherent', label: 'Iboende' }, { id: 'residual', label: 'Rest' }]} value={riskView} onChange={(v) => setRiskView(v || 'inherent')} />}>
           <RiskMatrix cells={risk} riskMethod={state.system.riskMethod} method={`Metode: ${state.system.riskMethod?.name || ''} v${state.system.riskMethod?.version || ''}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
         </Card>
-        <Card style={{ flex: 2 }} title="Avvik etter fase">
+        <Card style={{ ...(wide ? { flex: 2 } : null) }} title="Avvik etter fase">
           <HBars rows={funnel} onPick={(r) => go('avvik', { ids: r.ids, label: r.label })} empty="Ingen åpne saker." />
         </Card>
       </View>
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
-        <Card style={{ flex: 1 }} title="Mine oppgaver" subtitle="Tiltak og aktive prosesstrinn">
+        <Card style={{ ...(wide ? { flex: 1 } : null) }} title="Mine oppgaver" subtitle="Tiltak og aktive prosesstrinn">
           {!mine.length && !active.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen åpne oppgaver på deg.</Text> : null}
           {mine.slice(0, 6).map((a) => (
             <ListRow key={a.id} icon="checkbox-outline" title={a.title} subtitle={`${a.findingNumber} · frist ${prettyDate(a.dueAt)}`} onPress={() => go('avvik', { open: a.findingId })} />
@@ -203,7 +203,7 @@ export default function IsoDashboard({ ctx }) {
             <ListRow key={i.id} icon="git-network-outline" title={i.title} subtitle={`${i.processTitle} v${i.version} · ${i.active.length} aktive trinn`} onPress={() => go('prosesser', { instance: i.id })} />
           ))}
         </Card>
-        <Card style={{ flex: 1 }} title="Kommende aktiviteter" right={<Btn small icon="calendar-outline" label="Årshjul" onPress={() => go('arshjul')} />}>
+        <Card style={{ ...(wide ? { flex: 1 } : null) }} title="Kommende aktiviteter" right={<Btn small icon="calendar-outline" label="Årshjul" onPress={() => go('arshjul')} />}>
           {wheelNow.planned.map((r) => (
             <ListRow key={r.id} icon="ellipse-outline" tone="info" title={r.title} subtitle={[`Årshjul ${wheelNow.name.toLowerCase()}`, r.ownerName || r.responsibleRole, pageLabel(r.page)].filter(Boolean).join(' · ')} onPress={() => go(r.page || 'arshjul')} />
           ))}

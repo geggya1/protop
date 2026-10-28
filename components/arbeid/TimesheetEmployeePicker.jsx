@@ -104,7 +104,7 @@ export default function TimesheetEmployeePicker({
   const [externalOpen, setExternalOpen] = useState(true);
   const [companyTab, setCompanyTab] = useState('active');
   const [externalTab, setExternalTab] = useState('active');
-  const { isDesktop } = useLayout();
+  const { isDesktop, isPhone } = useLayout();
   const split = !compact && isDesktop;
 
   const groups = useMemo(
@@ -167,8 +167,8 @@ export default function TimesheetEmployeePicker({
     >
       {compact ? null : (
         <View style={styles.intro}>
-          <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
-          {subtitle ? <Text style={{ color: colors.muted, fontSize: 13 }}>{subtitle}</Text> : null}
+          <Text style={[styles.title, isPhone && styles.titlePhone, { color: colors.ink }]}>{title}</Text>
+          {subtitle && !isPhone ? <Text style={{ color: colors.muted, fontSize: 13 }}>{subtitle}</Text> : null}
         </View>
       )}
       <View dataSet={{ focusWithin: '1' }} style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
@@ -262,6 +262,8 @@ const styles = StyleSheet.create({
   rootCompact: { maxHeight: 420 },
   intro: { gap: 4 },
   title: { fontSize: 20, fontWeight: '700', letterSpacing: -0.2 },
+  // Mobil: kort overskrift uten forklaringslinje, så listen kommer høyere opp.
+  titlePhone: { fontSize: 17 },
   search: {
     flexDirection: 'row',
     alignItems: 'center',

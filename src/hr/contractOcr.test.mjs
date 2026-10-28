@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import {
-  applyContractFieldsToEmployee,
   mergeContractExtract,
   parseEmploymentContractText,
 } from './contractOcr.js';
@@ -45,18 +44,6 @@ Framgangsmåte ved opphør: Skriftlig oppsigelse, søksmål innen 8 uker
   const merged = mergeContractExtract({ positionTitle: 'Behold' }, { positionTitle: 'Ny', workplace: 'Bergen' });
   assert.equal(merged.positionTitle, 'Behold');
   assert.equal(merged.workplace, 'Bergen');
-}
-
-{
-  const emp = applyContractFieldsToEmployee(
-    { person: {}, company: {} },
-    { employeeName: 'Ada Lovelace', positionTitle: 'Konsulent', startDate: '2024-03-01', workPercent: '80', roleDescription: 'Rådgivning' },
-  );
-  assert.equal(emp.person.firstName, 'Ada');
-  assert.equal(emp.person.lastName, 'Lovelace');
-  assert.equal(emp.company.title, 'Konsulent');
-  assert.equal(emp.company.workPercent, '80');
-  assert.match(emp.company.comment, /Rådgivning/);
 }
 
 console.log('hr/contractOcr.test.mjs ok');

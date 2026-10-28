@@ -139,25 +139,3 @@ export async function interpretEmploymentContract({
     };
   }
 }
-
-/** Map ekstraherte avtalefelt inn i ansatt-stamdata. */
-export function applyContractFieldsToEmployee(employee, fields = {}) {
-  const next = JSON.parse(JSON.stringify(employee || {}));
-  if (!next.person) next.person = {};
-  if (!next.company) next.company = {};
-  if (fields.employeeName && !next.person.firstName) {
-    const parts = String(fields.employeeName).split(/\s+/).filter(Boolean);
-    next.person.firstName = parts[0] || '';
-    next.person.lastName = parts.slice(1).join(' ');
-  }
-  if (fields.positionTitle || fields.title) {
-    next.company.title = fields.positionTitle || fields.title;
-  }
-  if (fields.startDate) next.company.periodFrom = fields.startDate;
-  if (fields.endDate) next.company.periodTo = fields.endDate;
-  if (fields.workPercent) next.company.workPercent = String(fields.workPercent).replace(/[^\d.]/g, '') || next.company.workPercent;
-  if (fields.roleDescription) {
-    next.company.comment = [next.company.comment, fields.roleDescription].filter(Boolean).join('\n');
-  }
-  return next;
-}

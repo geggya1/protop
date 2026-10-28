@@ -16,7 +16,7 @@
 export const REF_PREFIX = 'ProTop';
 
 /** MVA-satsene i ProTop. Hver trenger et produkt i Go som styrer salgskonto og MVA. */
-export const PRODUCT_VAT_CODES = ['HIGH', 'MID', 'LOW', 'ZERO', 'EXEMPT', 'OUTLAY', 'OUTSIDE'];
+export const PRODUCT_VAT_CODES = ['HIGH', 'MID', 'LOW', 'ZERO', 'EXEMPT', 'OUTLAY', 'OUTSIDE', 'REVERSE'];
 
 const DELIVERY_TYPES = {
   EHF: { id: 'ehf', label: 'EHF' },

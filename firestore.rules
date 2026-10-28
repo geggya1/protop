@@ -621,7 +621,7 @@ service cloud.firestore {
         || coll == 'docComments' || coll == 'docControlSettings' || coll == 'docControl' || coll == 'docAcks'
         || coll == 'invoices' || coll == 'invoiceSeries'
         || coll == 'parents' || coll == 'memberInvites'
-        || coll == 'hr' || coll == 'hrSelf' || coll == 'absences' || coll == 'employeesPrivate'
+        || coll == 'hr' || coll == 'hrSelf' || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
         || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
         || coll == 'timeEntryDeletions' || coll == 'accessLog';
     }
@@ -991,6 +991,22 @@ service cloud.firestore {
                   && ownAbsenceStatusOk()));
         allow delete: if isFamilyMember(familyId)
           && (!isCompanyGroup(familyId) || absenceForAll(familyId, 2) || ownAbsenceDoc(familyId, resource.data));
+      }
+
+      // Barnehagens fravær for barna (DS-22): eget samlingsnavn, så det ikke blandes med ansattes
+      // fravær i absences. Bare utenfor bedrifter. Lesing som for barnehagens eldre meldinger i
+      // absences; meldingen står i eget navn, og bare den som meldte og administratorene endrer
+      // eller sletter den.
+      match /childAbsences/{absenceId} {
+        allow get: if isFamilyMember(familyId) && !isCompanyGroup(familyId);
+        allow list: if isFamilyMemberLite(familyId) && !isCompanyGroup(familyId);
+        allow create: if isFamilyMember(familyId) && !isCompanyGroup(familyId)
+          && request.resource.data.get('authorUid', '') == request.auth.uid;
+        allow update: if isFamilyMember(familyId) && !isCompanyGroup(familyId)
+          && (resource.data.get('authorUid', '') == request.auth.uid || isFamilyAdmin(familyId))
+          && request.resource.data.get('authorUid', '') == resource.data.get('authorUid', '');
+        allow delete: if isFamilyMember(familyId) && !isCompanyGroup(familyId)
+          && (resource.data.get('authorUid', '') == request.auth.uid || isFamilyAdmin(familyId));
       }
 
       // Personnummer, pårørende og intern kommentar per ansatt (L-03). Ikke i ansattlisten.

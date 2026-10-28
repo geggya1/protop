@@ -1,6 +1,7 @@
 /**
  * Norske momskoder / MVA-satser for faktura og EHF.
- * Ref: merverdiavgiftsloven — ordinær 25 %, næringsmidler 15 %, persontransport/kultur 12 %, fritatt/utenfor 0 %.
+ * Ref: merverdiavgiftsloven — ordinær 25 %, næringsmidler 15 %, persontransport/kultur 12 %, fritatt/utenfor 0 %,
+ * og omvendt avgiftsplikt (§ 11-1), der kjøperen beregner avgiften.
  */
 
 export const VAT_CODES = [
@@ -62,7 +63,36 @@ export const VAT_CODES = [
     account: '',
     description: 'Utenfor merverdiavgiftsloven',
   },
+  {
+    // Kjøperen beregner og betaler mva (mval. § 11-1). Fakturaen skal ha påskriften
+    // «Omvendt avgiftsplikt» og kjøpers org.nr. EHF: kategori AE med fritaksgrunn.
+    // Velges med en salgskonto med regnskapets mva-kode 51 (innenlands omsetning
+    // med omvendt avgiftsplikt), se vatCodeForAccount.
+    id: 'REVERSE',
+    label: 'Omvendt avgiftsplikt',
+    percent: 0,
+    category: 'AE',
+    account: '',
+    description: 'Omvendt avgiftsplikt: kjøperen beregner og betaler merverdiavgiften (mval. § 11-1)',
+  },
 ];
+
+/** Påskriften fakturaen skal ha når en linje har omvendt avgiftsplikt. */
+export const REVERSE_CHARGE_TEXT = 'Omvendt avgiftsplikt';
+
+/** Regnskapets mva-kode for innenlands omsetning med omvendt avgiftsplikt (SAF-T 51). */
+export const REVERSE_CHARGE_ACCOUNT_VAT_CODE = '51';
+
+export function isReverseChargeCode(code) {
+  return vatCodeById(code)?.category === 'AE';
+}
+
+/** Har fakturaen linjer med omvendt avgiftsplikt (med beløp)? */
+export function hasReverseCharge(lines = []) {
+  return (Array.isArray(lines) ? lines : []).some((line) => (
+    isReverseChargeCode(line?.vatCode) && Math.abs(Number(line?.amountExVat) || 0) >= 0.005
+  ));
+}
 
 export function vatCodeById(id) {
   return VAT_CODES.find((row) => row.id === String(id || '').toUpperCase()) || null;

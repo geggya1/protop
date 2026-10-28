@@ -10,6 +10,7 @@ import { emptyInvoice, newInvoiceId, text } from './invoices.js';
 import { normalizeLine, normalizeLines, round2 } from './invoiceLines.js';
 import { dueDateFor, recalcInvoice, withEvent } from './invoiceFlow.js';
 import { customerFieldsFrom } from './invoiceCustomer.js';
+import { REVERSE_CHARGE_ACCOUNT_VAT_CODE } from './vat.js';
 
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 
@@ -31,6 +32,8 @@ function monthBounds(day) {
 /** Mva-kode ut fra kontoens sats i kontoplanen. Ukjent konto gir høy sats. */
 export function vatCodeForAccount(code, chart = []) {
   const row = (chart || []).find((item) => item.code === code);
+  // Mva-kode 51: innenlands omsetning med omvendt avgiftsplikt (kjøperen beregner mva).
+  if (String(row?.vatCode || '').trim() === REVERSE_CHARGE_ACCOUNT_VAT_CODE) return 'REVERSE';
   const rate = row?.vatRate;
   if (rate == null) return 'HIGH';
   if (rate >= 25) return 'HIGH';

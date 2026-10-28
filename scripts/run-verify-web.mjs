@@ -40,6 +40,7 @@ export const FILES = [
   // Datavern: HR-utsnitt, fravær, skjermede ansattfelt, lokale kopier og Storage-tilgang.
   'src/hr/selfService.test.mjs',
   'src/arbeid/absenceScope.test.mjs',
+  'src/platform/childAbsences.test.mjs',
   'src/employees/privateFields.test.mjs',
   'src/utils/localCache.test.mjs',
   'functions/storageAccess.test.mjs',
@@ -86,6 +87,7 @@ export const FILES = [
   'src/economy/invoiceAccounts.test.mjs',
   'src/economy/invoiceDocs.test.mjs',
   'src/economy/invoiceContent.test.mjs',
+  'src/economy/reverseCharge.test.mjs',
   'src/economy/invoiceNumberSeries.test.mjs',
   'functions/invoiceDelivery.test.mjs',
   'src/anbud/customerReport.test.mjs',
@@ -129,6 +131,7 @@ export const FILES = [
   'src/hr/hmsCard.test.mjs',
   'src/hr/payGap.test.mjs',
   'src/hr/contractOcr.test.mjs',
+  'src/hr/contractCard.test.mjs',
   'src/hr/forms.test.mjs',
   'src/forms/forms.test.mjs',
   'src/hr/handbook.test.mjs',

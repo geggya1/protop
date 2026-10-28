@@ -1,8 +1,9 @@
 /**
- * Storage-reglene (storage.rules) mot Storage- og Firestore-emulatoren (SEC-15, L-18):
+ * Storage-reglene (storage.rules) mot Storage- og Firestore-emulatoren (SEC-15, L-18).
+ * Ligger utenfor tests/rules (CI kjører tests/rules/*.rules.test.mjs med bare Firestore-emulatoren). Kjøres slik:
  *
  *   npx firebase emulators:exec --only firestore,storage --config firebase.storage-rules.json --project demo-protop \
- *     "node --test --test-concurrency=1 tests/rules/storage.rules.test.mjs"
+ *     "node --test --test-concurrency=1 tests/storage/storage.rules.test.mjs"
  *
  * Bedrift A: own = eier, hr = HR-ansvarlig, bob = ansatt (post emp_bob), okon = Faktura
  * Begrenset redigering. ext = bruker utenfor.

@@ -171,8 +171,12 @@ async function k3() {
   const final = await g.visibleText();
   const confirmed = /E-post bekreftet|bekreftet/i.test(final) || /Logg inn/.test(final);
   S.check(verified && confirmed && !/Send på nytt/.test(final), 'K3 Lenken åpnet i en annen nettleser sier at e-posten er bekreftet', '«E-post bekreftet» (eller innlogging), ikke «Bekreft e-posten din / Send på nytt»', `Auth emailVerified=${verified}. Skjermen: ${seen.join(' → ')}`, { id: 'ANSATT-07', sev: 'Middels', ref: 'FL-14', shot: await g.shot('k3-lenke-annen-nettleser') });
+  // Samme nettleser: logger inn (krysser av samtykket) og fullfører profilsteget.
+  await loginAndSettle(g, { name: 'Vera Verifiser' });
+  await g.page.waitForTimeout(3000);
+  const c = (await getDoc(`users/${uid}`))?.consents || {};
+  S.check(!!(c.termsAt && c.privacyAt), 'K3b Samtykket som krysses av ved innlogging lagres med tidspunkt', 'users/{uid}.consents.termsAt/privacyAt satt', `termsAt=${c.termsAt}, privacyAt=${c.privacyAt}, versjon=${c.version}`, { id: 'ANSATT-03', sev: 'Middels', shot: await g.shot('k3-samtykke') });
   await closeBot('annen');
-  void uid;
 }
 
 async function k4() {

@@ -261,6 +261,7 @@ export const FILES = [
   'functions/friendInvite.copy.test.mjs',
   'functions/friendInviteLimits.test.mjs',
   'src/utils/friendResendNote.test.mjs',
+  'functions/inviteMessage.test.mjs',
 ];
 
 function runFile(file) {

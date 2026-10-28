@@ -18,30 +18,43 @@ function isClassroomGroupType(type) {
 
 export { escapeHtml };
 
+function organizationSubject(organization, label, inviter) {
+  if (!organization) return '';
+  return inviter ? `${inviter} inviterer deg til bedriften ${label} på ProTop` : `Invitasjon til bedriften ${label} på ProTop`;
+}
+
+/**
+ * `inviterName`: den som inviterte, hentet på serveren fra den innloggede avsenderen
+ * (functions/senderName.js), aldri fritekst fra klienten (ANSATT-05).
+ */
 export function buildInviteMessage({
-  to, name, familyId, familyName, groupType, registerUrl, existingUser = false,
+  to, name, familyId, familyName, groupType, registerUrl, existingUser = false, inviterName = '',
 }) {
   const label = familyName || familyId || 'gruppen';
+  const inviter = String(inviterName || '').trim();
   const team = isTeamGroupType(groupType);
   const classroom = isClassroomGroupType(groupType);
   const organization = ['organization', 'company'].includes(String(groupType || '').toLowerCase());
   const product = 'ProTop';
   const greet = name || (team || classroom || organization ? '' : 'foresatt');
   const hello = greet ? `Hei ${greet}` : 'Hei';
+  // «Ola Nordmann har invitert deg …» når serveren vet hvem som inviterte.
+  const by = inviter ? `${inviter} har invitert deg` : 'Du er invitert';
+  const byHtml = inviter ? `<strong>${escapeHtml(inviter)}</strong> har invitert deg` : 'Du er invitert';
   const roleText = team
-    ? `Du er invitert til idrettslaget «${label}» på ProTop.`
+    ? `${by} til idrettslaget «${label}» på ProTop.`
     : (classroom
-      ? `Du er invitert til klassen «${label}» på ProTop.`
+      ? `${by} til klassen «${label}» på ProTop.`
       : (organization
-        ? `Du er invitert inn i bedriften «${label}» på ProTop.`
-        : `Du er invitert som foresatt i familien «${label}» på ProTop.`));
+        ? `${by} inn i bedriften «${label}» på ProTop.`
+        : `${by} som foresatt i familien «${label}» på ProTop.`));
   const roleHtml = team
-    ? `Du er invitert til idrettslaget <strong>${escapeHtml(label)}</strong> på ProTop.`
+    ? `${byHtml} til idrettslaget <strong>${escapeHtml(label)}</strong> på ProTop.`
     : (classroom
-      ? `Du er invitert til klassen <strong>${escapeHtml(label)}</strong> på ProTop.`
+      ? `${byHtml} til klassen <strong>${escapeHtml(label)}</strong> på ProTop.`
       : (organization
-        ? `Du er invitert inn i bedriften <strong>${escapeHtml(label)}</strong> på ProTop.`
-        : `Du er invitert som foresatt i familien <strong>${escapeHtml(label)}</strong> på ProTop.`));
+        ? `${byHtml} inn i bedriften <strong>${escapeHtml(label)}</strong> på ProTop.`
+        : `${byHtml} som foresatt i familien <strong>${escapeHtml(label)}</strong> på ProTop.`));
   const accountLine = organization
     ? 'Du har allerede en ProTop-konto. Du blir ikke med i bedriften før du godtar invitasjonen.'
     : 'Du har allerede en ProTop-konto.';
@@ -60,7 +73,7 @@ export function buildInviteMessage({
     return {
       to,
       name,
-      subject: organization ? `Invitasjon til bedriften ${label} på ProTop` : `Du er invitert til ${label} på ${product}`,
+      subject: organizationSubject(organization, label, inviter) || `Du er invitert til ${label} på ${product}`,
       text:
         `${hello},\n\n` +
         `${roleText}\n\n` +
@@ -87,7 +100,7 @@ export function buildInviteMessage({
   return {
     to,
     name,
-    subject: organization ? `Invitasjon til bedriften ${label} på ProTop` : `Invitasjon til ${label} på ${product}`,
+    subject: organizationSubject(organization, label, inviter) || `Invitasjon til ${label} på ${product}`,
     text:
       `${hello},\n\n` +
       `${roleText}\n\n` +

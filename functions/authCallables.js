@@ -19,6 +19,7 @@ import {
   VERIFY_TTL_MS,
 } from './emailVerify.js';
 import { resolveMailApiKey } from './mailApiKey.js';
+import { loadSenderName } from './senderName.js';
 import {
   assertCanInvite,
   assertRateLimit,
@@ -140,6 +141,8 @@ export const sendInviteV2 = onCall(CALL, async (req) => {
     const url = assertSafeAppContinueUrl(registerUrl || inviteLink || fallbackUrl, fallbackUrl);
     const apiKey = await resolveMailApiKey();
     if (!apiKey) return { ok: false, error: 'E-post er ikke konfigurert (MAIL_API_KEY mangler).' };
+    // Hvem som inviterte: den innloggede avsenderen, slått opp her (ANSATT-05).
+    const inviterName = await loadSenderName(db, callerUid, { familyId, tokenName: req.auth?.token?.name });
     await sendMail(apiKey, buildInviteMessage({
       to: email,
       name,
@@ -148,6 +151,7 @@ export const sendInviteV2 = onCall(CALL, async (req) => {
       groupType: ctx.groupType,
       registerUrl: url,
       existingUser: isExisting,
+      inviterName,
     }));
     logger.info('[sendInviteV2] E-post sendt', {
       to: redactEmail(email),
@@ -185,6 +189,7 @@ export const sendInviteSmsV2 = onCall(CALL, async (req) => {
     const url = assertSafeAppContinueUrl(registerUrl || fallbackUrl, fallbackUrl);
     const apiKey = await resolveMailApiKey();
     if (!apiKey) return { ok: false, error: 'SMS er ikke konfigurert (MAIL_API_KEY mangler).' };
+    const inviterName = await loadSenderName(db, callerUid, { familyId, tokenName: req.auth?.token?.name });
     await sendSms(apiKey, {
       to,
       content: buildInviteSms({
@@ -194,6 +199,7 @@ export const sendInviteSmsV2 = onCall(CALL, async (req) => {
         joinCode,
         registerUrl: url,
         existingUser: isExisting,
+        inviterName,
       }),
     });
     logger.info('[sendInviteSmsV2] SMS sendt', { toLast4: to.slice(-4), callerUid });

@@ -43,8 +43,12 @@ beforeEach(async () => {
     status: 'pending', parentUid: 'mor', parentName: 'Mor', childFirstName: 'Ola', childLastName: 'N', childName: 'Ola N',
   });
 
-  await db.doc('families/klassen').set({ name: '5B', type: 'classroom', ownerUid: 'rektor', members: ['rektor', 'laerer'] });
-  await db.doc('families/klassen/parents/laerer').set({ uid: 'laerer', active: true, staffRole: 'teacher' });
+  // setStaffRole (src/utils/classroom.js) fører lærere og skoleadmin inn i adminUids.
+  await db.doc('families/klassen').set({
+    name: '5B', type: 'classroom', ownerUid: 'rektor', adminUids: ['rektor', 'laerer'], members: ['rektor', 'laerer', 'assistent'],
+  });
+  await db.doc('families/klassen/parents/laerer').set({ uid: 'laerer', active: true, staffRole: 'teacher', admin: true });
+  await db.doc('families/klassen/parents/assistent').set({ uid: 'assistent', active: true, staffRole: 'teacher', admin: true });
   await db.doc('families/klassen/joinRequests/r3').set({
     status: 'pending', parentUid: 'far', parentName: 'Far', childFirstName: 'Kari', childLastName: 'N', childName: 'Kari N',
   });
@@ -94,6 +98,10 @@ test('klasse: lærer kan godkjenne, eleven får rollen student', async () => {
 
 test('vanlig medlem, bedrift, ukjent forespørsel og slettet gruppe avvises', async () => {
   await rejects(call('medlem', { familyId: 'venner', requestId: 'r1' }), 'permission-denied');
+  // admin og staffRole på eget medlemsdokument gir ikke godkjenning: bare eier og adminUids (SEC-03).
+  await db.doc('families/venner/parents/medlem').set({ admin: true, superAdmin: true }, { merge: true });
+  await rejects(call('medlem', { familyId: 'venner', requestId: 'r1' }), 'permission-denied');
+  await rejects(call('assistent', { familyId: 'klassen', requestId: 'r3' }), 'permission-denied');
   await rejects(call('ny', { familyId: 'venner', requestId: 'r1' }), 'permission-denied');
   assert.equal((await db.doc('families/venner/joinRequests/r1').get()).data().status, 'pending');
   await rejects(call('eier', { familyId: 'venner', requestId: 'finnes-ikke' }), 'not-found');

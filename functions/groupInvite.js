@@ -114,13 +114,14 @@ async function companyEmployees(familyId) {
   return snap.docs.map((row) => ({ id: row.id, ...row.data() }));
 }
 
-/** Var den som inviterte administrator i gruppen (samme som assertFamilyAdmin)? */
+/**
+ * Var den som inviterte administrator i gruppen (samme som assertFamilyAdmin)?
+ * Bare eier og adminUids teller. createdBy på gruppen og admin på medlemsdokumentet kan
+ * medlemmer skrive selv. invitedBy er avsenderen selv (reglene krever det for nye invitasjoner).
+ */
 async function inviterIsAdmin(familyId, family, inviterUid) {
   if (!inviterUid) return false;
-  if (isGroupAdminOf(family, inviterUid) || text(family?.createdBy) === inviterUid) return true;
-  const snap = await db.doc(`families/${familyId}/parents/${inviterUid}`).get();
-  const row = snap.exists ? snap.data() || {} : {};
-  return row.admin === true && row.active !== false && row.deleted !== true;
+  return isGroupAdminOf(family, inviterUid);
 }
 
 async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {

@@ -6,6 +6,8 @@ import {
   redactEmail,
   isValidEmail,
   hashRateKey,
+  isFamilyOwnerOrAdmin,
+  listedOnFamily,
   memberDocGrantsAccess,
 } from './security.js';
 
@@ -52,5 +54,16 @@ assert.equal(memberDocGrantsAccess({ active: false, inviteStatus: 'pending' }), 
 assert.equal(memberDocGrantsAccess({ placeholder: true, inviteStatus: 'pending', active: false }), false);
 assert.equal(memberDocGrantsAccess({ active: true, inviteStatus: 'accepted', placeholder: false }), true);
 assert.equal(memberDocGrantsAccess({ leftAt: {} }), false);
+
+// Bare feltene reglene beskytter gir eier/admin. createdBy og adminUid kan medlemmer skrive.
+const fam = { ownerUid: 'own', adminUids: ['adm'], createdBy: 'bob', adminUid: 'bob', members: ['own', 'adm', 'bob'] };
+assert.equal(isFamilyOwnerOrAdmin(fam, 'own'), true);
+assert.equal(isFamilyOwnerOrAdmin(fam, 'adm'), true);
+assert.equal(isFamilyOwnerOrAdmin(fam, 'bob'), false);
+assert.equal(isFamilyOwnerOrAdmin({ ownerId: 'gml' }, 'gml'), true);
+assert.equal(listedOnFamily(fam, 'bob'), true);
+assert.equal(listedOnFamily({ activeUsers: ['x'] }, 'x'), true);
+assert.equal(listedOnFamily({ memberIds: { x: true } }, 'x'), true);
+assert.equal(listedOnFamily(fam, 'mal'), false);
 
 console.log('security.test.mjs: ok');

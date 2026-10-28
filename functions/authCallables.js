@@ -30,7 +30,7 @@ import {
   redactEmail,
   requireAuth,
 } from './security.js';
-import { memberPasswordDecision } from './memberPassword.js';
+import { childHomeAnchored, memberPasswordDecision } from './memberPassword.js';
 import { confirmMicrosoftEmailFor } from './microsoftEmail.js';
 
 if (!getApps().length) initializeApp();
@@ -387,8 +387,23 @@ export const setMemberPassword = onCall(CALL, async (req) => {
       groups = await groupsOfAccount(uid);
     }
     const authUser = await adminAuth.getUser(uid).catch(() => null);
+    // Barnets egen familie (children/{uid}.familyId): der bestemmer foresatte med admin (REV-14).
+    let home = null;
+    if (uid !== caller && authUser) {
+      const childSnap = await db.doc(`children/${uid}`).get();
+      const homeId = childSnap.exists ? String(childSnap.data()?.familyId || '').trim() : '';
+      const anchored = homeId && !homeId.includes('/') && childHomeAnchored({
+        childCreatedMs: childSnap.createTime?.toMillis?.() || 0,
+        authCreatedMs: Date.parse(authUser.metadata?.creationTime || ''),
+      });
+      if (anchored) {
+        const homeSnap = homeId === familyId ? null : await db.doc(`families/${homeId}`).get();
+        const data = homeId === familyId ? family : (homeSnap?.exists ? homeSnap.data() || {} : null);
+        home = data ? { id: homeId, ...data } : null;
+      }
+    }
     const decision = memberPasswordDecision({
-      caller, uid, family, memberDoc, groups, authUser,
+      caller, uid, family, memberDoc, groups, authUser, home,
     });
     if (!decision.ok) {
       logger.warn('[setMemberPassword] avvist', { caller, uid, familyId, error: decision.error });

@@ -3,8 +3,11 @@
  *
  * Bare underkontoer som gruppen har laget: barn og voksne uten egen e-post, som logger inn
  * med brukernavn (brukernavn-e-post på konto.protop.no) og bare har passord som innlogging.
- * Den som setter passordet må være eier eller administrator (ownerUid/adminUids) i alle
- * gruppene kontoen er med i, og kontoen må være et aktivt medlem av gruppen.
+ * Den som setter passordet må være eier eller administrator (ownerUid/adminUids) i gruppen,
+ * og kontoen må være et aktivt medlem av den. For et barn holder det å være foresatt med admin
+ * i barnets egen familie (children/{uid}.familyId), selv om barnet også er med i den andre
+ * forelderens familie, et lag eller en klasse (REV-14). Ellers kreves admin i alle gruppene
+ * kontoen er med i.
  * En konto med egen e-post, eller med Google, Microsoft eller Apple, bytter passord selv
  * med «Glemt passord».
  *
@@ -24,13 +27,30 @@ const NOT_IN_GROUP = 'Personen er ikke i gruppen.';
 const OWN_LOGIN = 'Personen har egen innlogging og må bytte passord selv med «Glemt passord».';
 const NOT_ADMIN = 'Bare administrator i alle gruppene personen er med i kan bytte passordet.';
 
+/** Barnets familie teller bare når children/{uid} ble laget sammen med kontoen (addChildMember). */
+const HOME_WINDOW_MS = 24 * 3600 * 1000;
+
+/**
+ * Er children/{uid}.familyId barnets egen familie? Reglene lar bare voksne i den gamle familien
+ * flytte barnet, men et children-dokument som mangler, kan en voksen i en annen gruppe lage.
+ * Derfor gjelder det bare når dokumentet ble laget sammen med kontoen (innen et døgn).
+ * childCreatedMs: Firestores createTime for children/{uid}. authCreatedMs: kontoens opprettelse.
+ */
+export function childHomeAnchored({ childCreatedMs, authCreatedMs } = {}) {
+  const child = Number(childCreatedMs);
+  const account = Number(authCreatedMs);
+  if (!Number.isFinite(child) || !Number.isFinite(account) || child <= 0 || account <= 0) return false;
+  return child - account <= HOME_WINDOW_MS;
+}
+
 /**
  * Avgjør om caller kan sette passord på uid i familyId.
  * family: gruppen. memberDoc: families/{familyId}/children|parents/{uid} (data eller null).
  * groups: alle grupper kontoen er med i ({ id, ...data }). authUser: Auth-kontoen til uid.
+ * home: barnets egen familie ({ id, ...data }) når childHomeAnchored sier ja, ellers null.
  */
 export function memberPasswordDecision({
-  caller, uid, family, memberDoc, groups = [], authUser,
+  caller, uid, family, memberDoc, groups = [], authUser, home = null,
 } = {}) {
   if (!caller || !uid) return { ok: false, error: 'Du må være innlogget.' };
   if (uid === caller) {
@@ -42,11 +62,13 @@ export function memberPasswordDecision({
   if (!listedOnFamily(family, uid) || !memberDoc || !memberDocGrantsAccess(memberDoc)) {
     return { ok: false, error: NOT_IN_GROUP };
   }
+  // Foresatt med admin i barnets egen familie, der barnet står som medlem.
+  const guardian = !!home && home.deleted !== true && isFamilyOwnerOrAdmin(home, caller) && listedOnFamily(home, uid);
   for (const group of groups) {
     if (!group || group.deleted === true) continue;
     // Eier eller administrator av en gruppe er en egen voksen konto.
     if (group.ownerUid === uid || group.ownerId === uid) return { ok: false, error: OWN_LOGIN };
-    if (!isFamilyOwnerOrAdmin(group, caller)) return { ok: false, error: NOT_ADMIN };
+    if (!guardian && !isFamilyOwnerOrAdmin(group, caller)) return { ok: false, error: NOT_ADMIN };
     if (Array.isArray(group.adminUids) && group.adminUids.includes(uid)
       && group.ownerUid !== caller && group.ownerId !== caller) {
       return { ok: false, error: NOT_ADMIN };

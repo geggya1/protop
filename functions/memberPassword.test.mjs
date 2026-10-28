@@ -2,7 +2,7 @@
  * setMemberPassword: hvem kan sette passord på en annen konto (SEC-01).
  */
 import assert from 'node:assert/strict';
-import { isGroupSubAccount, memberPasswordDecision } from './memberPassword.js';
+import { childHomeAnchored, isGroupSubAccount, memberPasswordDecision } from './memberPassword.js';
 
 const child = { email: 'ola12@konto.protop.no', providerData: [{ providerId: 'password' }] };
 const adult = { email: 'eier@firma.no', providerData: [{ providerId: 'password' }] };
@@ -58,6 +58,42 @@ assert.equal(memberPasswordDecision({
 assert.equal(memberPasswordDecision({
   ...base, caller: 'mor', uid: 'besta', family: withLocalAdmin, memberDoc: { active: true }, groups: [withLocalAdmin],
 }).ok, true);
+
+// REV-14: barnet er også med i fars familie og i et lag. Foresatt med admin i barnets egen
+// familie (children/{uid}.familyId) kan bytte passordet likevel.
+{
+  const fars = { id: 'G', type: 'family', ownerUid: 'farsen', adminUids: ['farsen'], members: ['farsen', 'kid'] };
+  const lag = { id: 'L', type: 'team', ownerUid: 'trener', adminUids: ['trener'], members: ['trener', 'kid'] };
+  const groups = [family, fars, lag];
+  assert.deepEqual(memberPasswordDecision({ ...base, groups, home: family }), { ok: true });
+  // Fra lagets side (mor er ikke admin i laget): nei, admin i gruppen kallet gjelder trengs fortsatt.
+  assert.equal(memberPasswordDecision({ ...base, family: lag, groups, home: family }).ok, false);
+  // Faren (admin i sin egen familie, ikke i barnets): nei.
+  assert.equal(memberPasswordDecision({ ...base, caller: 'farsen', family: fars, groups, home: family }).ok, false);
+  // Vanlig medlem av barnets familie: nei.
+  assert.equal(memberPasswordDecision({ ...base, caller: 'besta', groups, home: family }).ok, false);
+  // Barnet må stå i barnets familie, og eier ikke en gruppe.
+  assert.equal(memberPasswordDecision({ ...base, groups, home: { ...family, members: ['mor', 'far'] } }).ok, false);
+  assert.equal(memberPasswordDecision({
+    ...base, groups: [...groups, { id: 'X', ownerUid: 'kid', adminUids: ['kid'], members: ['kid'] }], home: family,
+  }).ok, false);
+  // Uten kjent egen familie gjelder regelen for alle grupper som før.
+  assert.equal(memberPasswordDecision({ ...base, groups }).ok, false);
+  // Angriperens egen familie som «barnets familie» godtas ikke (se childHomeAnchored).
+  assert.equal(memberPasswordDecision({
+    caller: 'mal', uid: 'kid', family: mal, memberDoc: { active: true }, groups: [mal, family], authUser: child, home: null,
+  }).ok, false);
+}
+
+// Barnets familie teller bare når children/{uid} ble laget sammen med kontoen (addChildMember).
+// Et children-dokument laget senere (av en annen) gir ingen egen familie.
+{
+  const created = Date.parse('2026-01-01T10:00:00.000Z');
+  assert.equal(childHomeAnchored({ childCreatedMs: created + 5000, authCreatedMs: created }), true);
+  assert.equal(childHomeAnchored({ childCreatedMs: created + 30 * 24 * 3600e3, authCreatedMs: created }), false);
+  assert.equal(childHomeAnchored({ childCreatedMs: 0, authCreatedMs: created }), false);
+  assert.equal(childHomeAnchored({ childCreatedMs: created, authCreatedMs: NaN }), false);
+}
 
 // Eget passord: bare for brukernavn-kontoer. Andre bruker «Glemt passord».
 assert.deepEqual(memberPasswordDecision({ caller: 'kid', uid: 'kid', authUser: child }), { ok: true });

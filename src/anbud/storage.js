@@ -352,6 +352,58 @@ export async function loadCustomerList(companyId, { onCache } = {}) {
   return picked;
 }
 
+/**
+ * Kunderegisteret i sanntid (anbud/customers). Lokal kopi først, så registeret ved hver
+ * endring, også endringer andre brukere gjør. Mangler registeret (eldre selskap), leses
+ * kundene én gang fra anbud/state, som da også oppretter registeret.
+ * onData(customers, { source: 'local' | 'remote' }).
+ */
+export function watchCustomerList(companyId, onData, onError) {
+  const ref = customerDoc(companyId);
+  if (!ref) {
+    onData([], { source: 'local' });
+    return () => {};
+  }
+  let stop = false;
+  let remoteSeen = false;
+  let unsub = null;
+  readCustomerCache(companyId).then((rows) => {
+    if (!stop && !remoteSeen) onData(rows, { source: 'local' });
+  }).catch(() => {});
+  (async () => {
+    const authed = await ensureRemoteAuth();
+    if (stop) return;
+    if (!authed) {
+      onError?.(new Error('auth-timeout'));
+      return;
+    }
+    const { onSnapshot } = await import('firebase/firestore');
+    if (stop) return;
+    unsub = onSnapshot(ref, (snap) => {
+      if (stop) return;
+      if (!snap.exists()) {
+        loadAnbudState(companyId).then((state) => {
+          if (stop || remoteSeen) return;
+          onData(normalizeCustomers(state?.customers), { source: anbudLoadMeta(companyId) === 'ok' ? 'remote' : 'local' });
+        }).catch((error) => { if (!stop) onError?.(error); });
+        return;
+      }
+      remoteSeen = true;
+      const customers = normalizeCustomers(snap.data()?.customers);
+      if (customers.length) writeCustomerCache(companyId, customers).catch(() => {});
+      onData(customers, { source: 'remote' });
+    }, (error) => {
+      if (!stop) onError?.(error);
+    });
+  })().catch((error) => {
+    if (!stop) onError?.(error);
+  });
+  return () => {
+    stop = true;
+    unsub?.();
+  };
+}
+
 /** Lagrer kundene uten å lese eller skrive resten av anbudsdokumentet. Gir listen slik den ble lagret. */
 export async function saveCustomers(companyId, customers) {
   const list = normalizeCustomers(customers);

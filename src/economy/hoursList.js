@@ -2,6 +2,7 @@
  * Filtrering, sortering og summering av timeføringer under Arbeid · Timerapport.
  */
 import { formatHours, parseHours, roundHours, sumHours } from '../arbeid/hours.js';
+import { hydrateRefs } from '../company/companyData.js';
 import { displayName } from '../employees/model.js';
 import { projectLookupNumbers, projectNumberKey } from '../project/projectFields.js';
 import { formatDate, fold, parseDate, text } from './invoices.js';
@@ -271,69 +272,18 @@ export function hourFacets(entries) {
 /**
  * Visningsnavn fra register når id finnes — unngår at chip og tabell
  * viser ulike personer for samme employeeId (f.eks. Tom vs Geir).
+ * Den generelle versjonen er hydrateRefs (src/company/companyData.js).
  */
 export function hydrateHourEntry(row, {
   employeesById = null,
   projectsById = null,
   customersById = null,
 } = {}) {
-  if (!row || typeof row !== 'object') return row;
-  let employeeName = text(row.employeeName);
-  let customerName = text(row.customerName);
-  let customerNumber = text(row.customerNumber);
-  let projectNumber = text(row.projectNumber);
-  let projectName = text(row.projectName);
-  const employeeId = text(row.employeeId);
-  const projectId = text(row.projectId);
-  const customerId = text(row.customerId);
-
-  if (employeeId && employeesById) {
-    const employee = employeesById.get(employeeId);
-    if (employee) employeeName = displayName(employee) || employeeName;
-  }
-  if (projectId && projectsById) {
-    const project = projectsById.get(projectId);
-    if (project) {
-      projectNumber = text(project.number) || projectNumber;
-      projectName = text(project.name) || projectName;
-      if (!customerId && project.customerId && customersById) {
-        const fromProject = customersById.get(project.customerId);
-        if (fromProject) {
-          customerName = text(fromProject.name) || customerName;
-          customerNumber = text(fromProject.customerNumber) || customerNumber;
-        } else if (project.client) {
-          customerName = text(project.client) || customerName;
-        }
-      } else if (!customerName && project.client) {
-        customerName = text(project.client);
-      }
-    }
-  }
-  if (customerId && customersById) {
-    const customer = customersById.get(customerId);
-    if (customer) {
-      customerName = text(customer.name) || customerName;
-      customerNumber = text(customer.customerNumber) || customerNumber;
-    }
-  }
-
-  if (
-    employeeName === text(row.employeeName)
-    && customerName === text(row.customerName)
-    && customerNumber === text(row.customerNumber)
-    && projectNumber === text(row.projectNumber)
-    && projectName === text(row.projectName)
-  ) {
-    return row;
-  }
-  return {
-    ...row,
-    employeeName,
-    customerName,
-    customerNumber,
-    projectNumber,
-    projectName,
-  };
+  return hydrateRefs(row, {
+    directory: employeesById,
+    projects: projectsById,
+    customers: customersById,
+  });
 }
 
 /** Prosjekt fra filteret i timerapporten (id eller number:10001). */

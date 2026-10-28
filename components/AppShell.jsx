@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { radius, useLayout } from '../src/theme';
 import { useApp } from '../src/context/AppContext';
+import { CompanyDataProvider } from '../src/context/CompanyDataContext';
 import { useColors, useThemeMeta } from '../src/context/ThemeContext';
 import { isTeamType } from '../src/utils/teams';
 import { isClassroomType } from '../src/utils/groupTypes';
@@ -1229,8 +1230,15 @@ function AppShellInner() {
 }
 
 export default function AppShell() {
-  const { familyId, family } = useApp();
-  return <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />;
+  const { familyId, family, parents, userProfile, uid } = useApp();
+  // Felles lesing for bedriften (ansatte, personer, kunder, prosjekter, innstillinger).
+  const companyId = family?.id === familyId && isOrganizationType(family?.type) ? familyId : '';
+  const me = useMemo(() => (uid ? { ...(userProfile || {}), uid } : null), [uid, userProfile]);
+  return (
+    <CompanyDataProvider companyId={companyId} members={parents} me={me}>
+      <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />
+    </CompanyDataProvider>
+  );
 }
 
 const styles = StyleSheet.create({

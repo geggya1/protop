@@ -542,6 +542,57 @@ export function applyRemoteProjectRead(local, remote) {
   return { cache: true, upload, state: upload ? base : remoteState, meta: 'ok' };
 }
 
+/**
+ * Prosjektdokumentet (projects/state) i sanntid, bare til lesing: prosjektlisten og
+ * selskapsinnstillingene som ligger der. Kopien i minnet eller nettleseren tegnes først.
+ * Minnet til loadProjectState røres ikke; lagring går som før via saveProjectState.
+ * onData(state, { source: 'memory' | 'local' | 'remote' }).
+ */
+export function watchProjectState(companyId, onData, onError) {
+  const id = String(companyId || '').trim();
+  if (!id) {
+    onData(emptyProjectState(), { source: 'local' });
+    return () => {};
+  }
+  let stop = false;
+  let remoteSeen = false;
+  let unsub = null;
+  const warm = MEMORY.get(memoryKey(id));
+  if (warm) {
+    onData(warm, { source: 'memory' });
+  } else {
+    readLocal(id).then((local) => {
+      if (!stop && !remoteSeen) onData(local, { source: 'local' });
+    }).catch(() => {});
+  }
+  (async () => {
+    const authed = await ensureRemoteAuth();
+    if (stop) return;
+    if (!authed) {
+      onError?.(new Error('auth-timeout'));
+      return;
+    }
+    const [{ doc, onSnapshot }, { db }] = await Promise.all([
+      import('firebase/firestore'),
+      import('../../firebase.js'),
+    ]);
+    if (stop) return;
+    unsub = onSnapshot(doc(db, 'families', id, 'projects', 'state'), (snap) => {
+      if (stop || !snap.exists()) return;
+      remoteSeen = true;
+      onData(normalizeProjectState(snap.data()?.state || snap.data() || {}), { source: 'remote' });
+    }, (error) => {
+      if (!stop) onError?.(error);
+    });
+  })().catch((error) => {
+    if (!stop) onError?.(error);
+  });
+  return () => {
+    stop = true;
+    unsub?.();
+  };
+}
+
 export function projectLoadMeta(companyId) {
   return loadMeta.get(memoryKey(companyId)) || '';
 }

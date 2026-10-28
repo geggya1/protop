@@ -245,12 +245,14 @@ export function SendDialog({
   const narrow = useWindowDimensions().width < 520;
   const needsMail = send && (channel === 'email' || (channel === 'ehf' && alsoEmail));
   const dueBeforeDate = finalize && !powerOffice && !credit && !!dueDate && !!date && dueDate < date;
-  const canGo = !blocking.length && !dueBeforeDate
-    && (!send || channel === 'manual' || (channel === 'email' && chosen.length) || (channel === 'ehf' && ehfReady && (!alsoEmail || chosen.length)));
+  // Til PowerOffice sendes ingenting herfra, så mottakere og kanal spiller ingen rolle.
+  const canGo = !blocking.length && (powerOffice || (!dueBeforeDate
+    && (!send || channel === 'manual' || (channel === 'email' && chosen.length) || (channel === 'ehf' && ehfReady && (!alsoEmail || chosen.length)))));
   const title = finalize ? (credit ? 'Ferdigstill kreditnota' : 'Ferdigstill faktura') : (credit ? 'Send kreditnota' : 'Send faktura');
   let action = 'Send';
   if (finalize) action = send && !powerOffice ? 'Ferdigstill og send' : 'Ferdigstill';
-  if (powerOffice) action = 'Overfør til PowerOffice';
+  const again = powerOffice && invoice?.poweroffice?.state === 'missing';
+  if (powerOffice) action = again ? 'Overfør på nytt' : 'Overfør til PowerOffice';
 
   const channelTabs = [
     { id: 'ehf', label: narrow ? 'EHF' : 'Send som EHF' },
@@ -335,10 +337,23 @@ export function SendDialog({
               </Text>
             </>
           ) : (
-            <Text style={{ color: colors.ink, lineHeight: 20 }}>
-              Utkastet overføres til PowerOffice Go, som setter fakturanummer og KID. Kontroller og send fakturaen fra PowerOffice.
-              Nummer, KID, sending og betaling hentes tilbake hit.
-            </Text>
+            <>
+              {again ? (
+                <Banner tone="warn" colors={colors} title="Utkastet finnes ikke lenger i PowerOffice">
+                  <Text style={{ color: colors.ink, fontSize: 13 }}>
+                    Overfør på nytt bare hvis det ble slettet der. Ble det slått sammen med et annet utkast, blir kunden fakturert to ganger.
+                  </Text>
+                </Banner>
+              ) : null}
+              <Text style={{ color: colors.ink, lineHeight: 20 }}>
+                Utkastet overføres til PowerOffice Go, som setter fakturanummer og KID. Kontroller og send fakturaen fra PowerOffice.
+                Nummer, KID, sending og betaling hentes tilbake hit.
+                {invoice?.invoiceDate ? `\n\nOrdredato i PowerOffice: ${formatDate(invoice.invoiceDate)}. ` : '\n\n'}
+                {invoice?.dueDateSet && invoice?.creditDays != null && Number.isFinite(Number(invoice.creditDays))
+                  ? `Betalingsfristen blir ${Number(invoice.creditDays)} dager fra dagen fakturaen sendes fra PowerOffice.`
+                  : 'Betalingsfristen følger betalingsbetingelsen i PowerOffice.'}
+              </Text>
+            </>
           )}
         </View>
       ) : null}

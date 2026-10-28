@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  createPowerOfficeClient, findClientEnvironment, PowerOfficeError, problemMessage, POWEROFFICE_ENVS,
+  createPowerOfficeClient, findClientEnvironment, PowerOfficeError, powerOfficeErrorText, problemMessage, POWEROFFICE_ENVS,
 } from './powerOfficeApi.js';
 import {
   invoicePatchFromOutgoing,
@@ -230,6 +230,14 @@ assert.equal(orderRefFromLineRef('noe annet'), '');
   assert.deepEqual(missing.missingVatCodes, ['OUTSIDE']);
   assert.match(missing.error, /OUTSIDE/);
   assert.equal(salesOrderFromInvoice({ lines: [] }, { customerId: 1, ref: 'r' }).ok, false);
+
+  // Betalingsfrist valgt i ProTop går som betalingsbetingelse. Ellers bestemmer Go.
+  assert.equal('PaymentTerm' in order, false);
+  const term = (patch) => salesOrderFromInvoice({ ...invoice, ...patch }, { customerId: 55, productCodes, ref: 'r' }).order.PaymentTerm;
+  assert.equal(term({ dueDateSet: true, creditDays: 14 }), 14);
+  assert.equal(term({ dueDateSet: true, creditDays: 0 }), 0);
+  assert.equal(term({ dueDateSet: true, creditDays: null }), undefined);
+  assert.equal(term({ dueDateSet: false, creditDays: 14 }), undefined);
 }
 
 {
@@ -501,6 +509,15 @@ function fakeClient(routes) {
     { code: '1', name: 'Timer', salesAccount: 3000, vatCode: '', vatPercent: null },
   ]);
 }
+
+// Feilteksten sier hvilket steg Go avviste.
+assert.equal(
+  powerOfficeErrorText(new PowerOfficeError('One or more validation errors occurred. · Name: required', { status: 400, path: '/Customers' })),
+  'PowerOffice avviste kunden: One or more validation errors occurred. · Name: required',
+);
+assert.match(powerOfficeErrorText(new PowerOfficeError('x', { status: 422, path: '/SalesOrders/Complete' })), /^PowerOffice avviste fakturautkastet: x$/);
+assert.equal(powerOfficeErrorText(new PowerOfficeError('PowerOffice er opptatt.', { status: 503, path: '/SalesOrders/Complete' })), 'PowerOffice er opptatt.');
+assert.equal(powerOfficeErrorText(new PowerOfficeError('Nøklene mangler.')), 'Nøklene mangler.');
 
 console.log('powerOffice.test ok');
 

@@ -189,7 +189,6 @@ export default function EconomyInvoices({
   const [watch, setWatch] = useState(null);
   const [poStatus, setPoStatus] = useState(null);
   const [transferring, setTransferring] = useState(false);
-  const [confirmRetransfer, setConfirmRetransfer] = useState(false);
   const [progress, setProgress] = useState(null); // { label, done?, total? }
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(new Set());
@@ -512,28 +511,20 @@ export default function EconomyInvoices({
     });
   }, [selected?.projectId, watch, projects]);
 
-  async function transferSelectedInvoice(options = {}) {
-    if (!selected || !canManage || transferring || deleting) return;
-    const again = selected.poweroffice?.state === 'missing';
-    if (again && !options.confirmed) {
-      setConfirmRetransfer(true);
-      return;
-    }
-    setConfirmRetransfer(false);
+  /** Overfør utkastet. Fakturasiden viser resultatet, så feil kastes videre dit. */
+  async function transferSelectedInvoice({ again = false } = {}) {
+    if (!selected || !canManage || transferring || deleting) return null;
     setTransferring(true);
-    setError('');
-    setNote('');
     try {
       const result = await transferInvoiceToPowerOffice(familyId, selected.id, { again });
       const row = typeof loadInvoice === 'function' ? await loadInvoice(familyId, selected.id).catch(() => null) : null;
       if (row) setSelected(row);
       const orderNo = result?.poweroffice?.orderNo;
-      setNote(result?.already
-        ? 'Utkastet ligger allerede i PowerOffice.'
-        : `Overført til PowerOffice${orderNo ? ` som utkast nr. ${orderNo}` : ''}. Kontroller og send fakturaen der.`);
-      showSaveToast('Overført til PowerOffice.');
-    } catch (cause) {
-      setError(cause?.message || 'Kunne ikke overføre til PowerOffice.');
+      return {
+        message: result?.already
+          ? 'Utkastet ligger allerede i PowerOffice.'
+          : `Overført til PowerOffice${orderNo ? ` som utkast nr. ${orderNo}` : ''}. Kontroller og send fakturaen der.`,
+      };
     } finally {
       setTransferring(false);
     }
@@ -797,20 +788,10 @@ export default function EconomyInvoices({
             setSelected(null);
             setNote(message || '');
           }}
-          onTransfer={() => transferSelectedInvoice({ force: true })}
+          onTransfer={transferSelectedInvoice}
           transferring={transferring}
         />
         {busyOverlay}
-        <ConfirmDialog
-          visible={confirmRetransfer}
-          title="Overføre på nytt?"
-          message="Utkastet finnes ikke lenger i PowerOffice. Overfør på nytt bare hvis det ble slettet der. Ble det slått sammen med et annet utkast, blir kunden fakturert to ganger."
-          confirmText="Overfør på nytt"
-          cancelText="Avbryt"
-          onCancel={() => setConfirmRetransfer(false)}
-          onConfirm={() => transferSelectedInvoice({ force: true, confirmed: true })}
-          onClose={() => setConfirmRetransfer(false)}
-        />
       </View>
     );
   }

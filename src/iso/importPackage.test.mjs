@@ -396,3 +396,70 @@ test('eiere som er roller går til personen med rollen; uten eier eller ukjent f
   assert.equal(bare.out.records.find((r) => r.record.importKey.endsWith(':R4')).record.ownerUid, BOSS.uid);
   assert.ok(bare.issues.some((i) => /en rolle som eier som ingen har ennå: .*Kvalitetsleder \(1\)/.test(i) && /Koble rolle-eiere til personer/.test(i)), bare.issues.join('\n'));
 });
+
+test('ny import av endret pakke: urørte prosesser får ny versjon, endret i ProTop røres ikke', () => {
+  const opts = { actor: BOSS, caps: ADMIN, now: NOW };
+  const { pkg: p } = parsePackage(pkg());
+  const first = buildImport(emptyIsoState(), p, { ...opts, options: { publish: { documents: true, processes: true } } });
+  const published = first.out.publishProcesses[0].process;
+  assert.ok(published.importHash, 'importen lagrer fingeravtrykk');
+  const stateWith = (proc) => {
+    const s = emptyIsoState();
+    s.system = first.out.system;
+    s.documents = first.out.publishDocuments.map((d) => d.document);
+    s.processes = [proc];
+    return s;
+  };
+  // Samme pakke: ingenting endres.
+  assert.equal(planImport(stateWith(published), p, opts).counts.processes.finnes, 1);
+
+  // Pakken er endret: nytt navn, nytt trinn og ny plass i landskapet.
+  const changed = pkg();
+  const row = changed.processes[0];
+  row.title = 'Tilbud og kontrakt';
+  row.order = 3;
+  row.diagram.nodes.splice(3, 0, { id: 'k', type: 'activity', label: 'Kvalitetssikre tilbudet', lane: 'dl' });
+  row.diagram.edges = row.diagram.edges.map((e) => (e.from === 'b' ? { ...e, from: 'k' } : e)).concat({ from: 'b', to: 'k' });
+  const { pkg: p2 } = parsePackage(changed);
+  const plan = planImport(stateWith(published), p2, opts);
+  assert.equal(plan.counts.processes.endres, 1);
+  assert.match(plan.plan.processes[0].message, /ny versjon v2/);
+
+  const upd = buildImport(stateWith(published), p2, { ...opts, options: { publish: { processes: true } } });
+  const v2 = upd.out.publishProcesses[0].process;
+  assert.equal(v2.id, published.id, 'samme prosess, ikke en kopi');
+  assert.equal(v2.publishedVersion, 2);
+  assert.deepEqual(v2.versions.map((v) => v.state), ['erstattet', 'publisert'], 'forrige versjon bevares');
+  assert.equal(v2.title, 'Tilbud og kontrakt');
+  assert.equal(v2.order, 3);
+  assert.ok(v2.versions[1].diagram.nodes.some((n) => n.label === 'Kvalitetssikre tilbudet'));
+  assert.equal(planImport(stateWith(v2), p2, opts).counts.processes.finnes, 1, 'oppdatert prosess er i takt med pakken');
+
+  // Uten direkte publisering: ny versjon venter på godkjenning, gjeldende versjon står.
+  const pending = buildImport(stateWith(published), p2, opts).out.processes[0].process;
+  assert.equal(pending.publishedVersion, 1);
+  assert.deepEqual(pending.versions.map((v) => v.state), ['publisert', 'til_godkjenning']);
+
+  // Endret i ProTop etter importen (egen versjon): røres ikke.
+  const edited = { ...published, versions: [...published.versions, { ...published.versions[0], version: 2, state: 'utkast', diagram: { ...published.versions[0].diagram, nodes: published.versions[0].diagram.nodes.slice(0, -1) } }] };
+  const kept = planImport(stateWith(edited), p2, opts);
+  assert.equal(kept.counts.processes.endres, 0);
+  assert.match(kept.plan.processes[0].message, /endret i ProTop/);
+
+  // Eldre import uten fingeravtrykk: én versjon fra importen regnes som urørt.
+  const legacy = { ...published };
+  delete legacy.importHash;
+  delete legacy.importOrder;
+  assert.equal(planImport(stateWith(legacy), p2, opts).counts.processes.endres, 1);
+
+  // Bare ny plass i landskapet: ingen ny versjon.
+  const moved = pkg();
+  moved.processes[0].order = 5;
+  const { pkg: p3 } = parsePackage(moved);
+  const onlyOrder = buildImport(stateWith(published), p3, opts).out.processes[0];
+  assert.equal(onlyOrder.process.order, 5);
+  assert.equal(onlyOrder.process.versions.length, 1);
+  // … men er den flyttet i ProTop, gjelder det.
+  const reordered = { ...published, order: 7 };
+  assert.equal(planImport(stateWith(reordered), p3, opts).counts.processes.finnes, 1);
+});

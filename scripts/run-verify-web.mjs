@@ -130,6 +130,7 @@ export const FILES = [
   'src/hr/hmsCard.test.mjs',
   'src/hr/payGap.test.mjs',
   'src/hr/contractOcr.test.mjs',
+  'src/hr/contractCard.test.mjs',
   'src/hr/forms.test.mjs',
   'src/forms/forms.test.mjs',
   'src/hr/handbook.test.mjs',

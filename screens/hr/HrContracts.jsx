@@ -18,10 +18,10 @@ import {
   withAmlStandardTexts,
 } from '../../src/hr/compliance';
 import {
-  applyContractFieldsToEmployee,
   interpretEmploymentContract,
   parseEmploymentContractText,
 } from '../../src/hr/contractOcr';
+import { contractDraftFromEmployee, employeeWithContractChanges } from '../../src/hr/contractCard';
 import { employmentContractFormTemplate } from '../../src/hr/forms';
 import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
@@ -82,27 +82,34 @@ export default function HrContracts({
   const [uploading, setUploading] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState(EMPTY_CONTRACT_DRAFT);
+  // Utkastet slik det var da det ble åpnet. Bare felt HR endrer etter det, går til ansattkortet.
+  const draftBase = useRef(EMPTY_CONTRACT_DRAFT);
 
   useEffect(() => {
     setComposerOpen(false);
     setOcrText('');
     setDraft(EMPTY_CONTRACT_DRAFT);
+    draftBase.current = EMPTY_CONTRACT_DRAFT;
   }, [activeId]);
 
   function setField(key, value) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
-  function openNew() {
-    setDraft({ ...EMPTY_CONTRACT_DRAFT });
+  function openDraft(next) {
+    draftBase.current = next;
+    setDraft(next);
     setOcrText('');
     setComposerOpen(true);
   }
 
+  // Ansattkortet er fasit: stilling, prosent, ansettelsesform og datoer hentes derfra (DS-14).
+  function openNew() {
+    openDraft(contractDraftFromEmployee({ ...EMPTY_CONTRACT_DRAFT }, selected));
+  }
+
   function openExisting(row) {
-    setDraft(draftFromContract(row));
-    setOcrText('');
-    setComposerOpen(true);
+    openDraft(draftFromContract(row));
   }
 
   async function runOcr() {
@@ -205,10 +212,15 @@ export default function HrContracts({
     setComposerOpen(false);
     setDraft(EMPTY_CONTRACT_DRAFT);
 
-    if (selected && familyId) {
+    // Bare den aktive avtalen oppdaterer ansattkortet, og bare med feltene HR endret nå.
+    // En eldre avtale som rettes, skriver ikke gamle vilkår tilbake på kortet.
+    const card = selected && familyId && keepStatus === 'active'
+      ? employeeWithContractChanges(selected, draftBase.current, draft)
+      : null;
+    draftBase.current = EMPTY_CONTRACT_DRAFT;
+    if (card?.changed.length) {
       try {
-        const merged = applyContractFieldsToEmployee(selected, draft);
-        await saveEmployee(familyId, merged);
+        await saveEmployee(familyId, card.employee);
       } catch {
         /* HR-kontrakt er lagret uansett */
       }
@@ -299,6 +311,9 @@ export default function HrContracts({
             title="Registrer avtale"
             subtitle={`AML § 14-6 (fra 1.7.2024): ${completeness.filled}/${completeness.total} (${completeness.pct} %). Felt med * er påkrevd.`}
           />
+          <Text style={[styles.line, { color: colors.muted }]} nativeID="hr-contract-card">
+            Stilling, stillingsprosent, ansettelsesform og datoer hentes fra ansattkortet. Endrer du stilling, prosent eller datoer i den aktive avtalen, oppdateres ansattkortet når avtalen lagres.
+          </Text>
           {completeness.missing.length ? (
             <Text style={[styles.line, { color: colors.muted }]} nativeID="hr-contract-missing">
               {`Mangler: ${completeness.missing.map(amlFieldLabel).join(' · ')}. «Lovpålagt» blir grønn først når disse er fylt ut.`}

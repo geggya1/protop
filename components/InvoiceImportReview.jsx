@@ -106,8 +106,8 @@ export default function InvoiceImportReview({
   title = 'Kontroller fakturaimport',
   lead = '',
 }) {
-  const danger = colors.danger || '#b42318';
-  const brand = colors.brand || '#175cd3';
+  const danger = colors.dangerInk || colors.danger;
+  const brand = colors.brand;
   const [okPage, setOkPage] = useState(40);
   const [reviewPage, setReviewPage] = useState(40);
   const cards = review?.cards || [];

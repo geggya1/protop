@@ -622,7 +622,7 @@ function makeStyles(colors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: colors.successSoft || '#ecfdf5',
+      backgroundColor: colors.successSoft,
       borderRadius: radius.md,
       padding: 12,
     },

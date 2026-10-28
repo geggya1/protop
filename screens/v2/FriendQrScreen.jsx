@@ -111,7 +111,7 @@ export default function FriendQrScreen({ asModal = false, onClose } = {}) {
               value={shareUrl}
               size={asModal ? 168 : 180}
               backgroundColor="#fff"
-              color={colors.ink || '#0f172a'}
+              color={colors.ink}
             />
           </View>
           <Text style={styles.scanHint}>{t('friend.qrScanHint')}</Text>

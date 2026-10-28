@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   outgoingActions: { alignItems: 'flex-end', gap: 4 },
   resendBtn: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.brandSoft || '#eff6ff',
+    backgroundColor: colors.brandSoft,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,

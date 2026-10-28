@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft, marginTop: 4,
   },
   input: {
-    backgroundColor: colors.bg || '#f8fafc',
+    backgroundColor: colors.bg,
     borderRadius: 10, borderWidth: 1, borderColor: colors.line,
     paddingHorizontal: 12, paddingVertical: 11,
     fontSize: 15, color: colors.ink, fontWeight: '400',
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   selectSep: { color: colors.muted },
   itemRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: colors.bg || '#f8fafc',
+    backgroundColor: colors.bg,
     borderRadius: 12, padding: 10,
     borderWidth: 1, borderColor: colors.line,
   },

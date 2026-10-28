@@ -1645,7 +1645,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#f4f6f8',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line || '#e5e7eb',
+    borderColor: colors.line,
   },
   composeSearch: {
     flex: 1,

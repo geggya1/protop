@@ -481,7 +481,7 @@ const styles = StyleSheet.create({
     marginBottom: 8, marginLeft: 4, marginTop: -4,
   },
   nestedBlock: {
-    backgroundColor: colors.sunken || '#f8fafc',
+    backgroundColor: colors.sunken,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
   },

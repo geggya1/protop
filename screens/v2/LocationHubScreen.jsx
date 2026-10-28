@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
   placeMeta: { color: colors.muted, fontSize: 12, marginTop: 2, fontWeight: '400' },
   placeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   placeAddChip: {
-    backgroundColor: colors.brandSoft || '#eef6ff', borderRadius: 10,
+    backgroundColor: colors.brandSoft, borderRadius: 10,
     paddingHorizontal: 12, paddingVertical: 8,
   },
   placeAddTxt: { color: colors.brand, fontWeight: '500', fontSize: 13 },

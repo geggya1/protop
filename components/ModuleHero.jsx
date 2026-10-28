@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, StyleSheet, Platform } from 'react-native';
 import { useI18n } from '../src/i18n';
 import { colors, useLayout } from '../src/theme';
+import { LIGHT } from '../src/appearance/palette';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
 import { resolveModuleHero } from '../src/modules/moduleHero';
 import Breadcrumb from './Breadcrumb';
@@ -50,8 +51,10 @@ export default function ModuleHero({
   const chromePhone = chrome && isPhone;
   const heroH = isDesktop ? 148 : isPhone ? 112 : 136;
   const artH = heroH - ART_INSET * 2;
-  const titleColor = hero.ink || colors.ink;
-  const pitchColor = hero.muted || colors.muted;
+  // Pastellbåndet er lyst også i mørkt utseende, så teksten på det er alltid den mørke
+  // (LIGHT.ink/muted, minst 4,5:1 mot alle gruppefargene). colors.ink ble lys på lyst i mørkt.
+  const titleColor = hero.ink || LIGHT.ink;
+  const pitchColor = hero.muted || LIGHT.muted;
   const webBand = Platform.OS === 'web'
     ? { backgroundImage: `linear-gradient(105deg, ${hero.bg} 0%, ${hero.bg2} 55%, ${hero.bg} 100%)` }
     : null;

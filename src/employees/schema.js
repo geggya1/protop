@@ -142,10 +142,12 @@ export const FORM_SECTIONS = [
     fields: [
       { key: 'person.birthDate', label: 'Fødselsdato', type: 'date', requiredFor: 'person', placeholder: 'dd.mm.åååå' },
       { key: 'person.gender', label: 'Kjønn', type: 'suggest', options: GENDER_OPTIONS },
-      { key: 'person.nationalId', label: 'Personnummer', type: 'text', requiredFor: 'person', sensitive: true, placeholder: '11 siffer' },
+      // Valgfritt (L-17): trengs bare for lønn, A-melding og HMS-kort, og vises bare for den som kan se sensitive felt.
+      { key: 'person.nationalId', label: 'Personnummer', type: 'text', sensitive: true, placeholder: 'Valgfritt · 11 siffer (lønn, A-melding)' },
       { key: 'person.language', label: 'Språk', type: 'suggest', options: LANGUAGE_OPTIONS },
       { key: 'person.nationality', label: 'Nasjonalitet', type: 'suggest', options: NATIONALITY_OPTIONS, requiredFor: 'cv' },
-      { key: 'person.maritalStatus', label: 'Sivil status', type: 'suggest', options: MARITAL_OPTIONS, requiredFor: 'cv' },
+      // Sivil status kreves ikke for CV (L-17): den har ingen plass i en CV for anbud.
+      { key: 'person.maritalStatus', label: 'Sivil status', type: 'suggest', options: MARITAL_OPTIONS },
       { key: 'person.examYear', label: 'Eksamensår', type: 'text', placeholder: '2012' },
       { key: 'person.educationLevel', label: 'Utdanningsnivå', type: 'text' },
       { key: 'person.competence', label: 'Kompetanse', type: 'textarea' },

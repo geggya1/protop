@@ -2,7 +2,7 @@
  * Conservative HTML sanitizer for untrusted Outlook message bodies.
  * Regex-basert, så den er ikke vanntett. Bruk den bare der resultatet vises i en
  * iframe med sandbox="" (e-postvisningen). HTML som settes rett inn i appen
- * (dangerouslySetInnerHTML), skal gjennom sanitizeInlineHtml.
+ * (dangerouslySetInnerHTML, innerHTML i skrivefeltet), skal gjennom sanitizeInlineHtml.
  */
 export function sanitizeHtml(html) {
   let s = String(html || '');
@@ -39,6 +39,8 @@ const ALLOWED_ATTRS = new Set([
   'href', 'src', 'alt', 'title', 'width', 'height', 'align', 'valign', 'color', 'bgcolor', 'border',
   'cellpadding', 'cellspacing', 'colspan', 'rowspan', 'style', 'dir', 'lang', 'face', 'size',
   'target', 'rel',
+  // Markøren for signaturblokken i skrivefeltet (byttes ut når signaturen endres).
+  'data-wp-signature',
 ]);
 
 function compact(value) {
@@ -92,7 +94,7 @@ function cleanChildren(node) {
 }
 
 /**
- * Streng sanitizer for HTML som settes rett inn i appen (signaturer).
+ * Streng sanitizer for HTML som settes rett inn i appen (signaturer, utkast og innliming i skrivefeltet).
  * Bruker nettleserens parser (DOMParser lager et inert dokument) og en tillatt-liste over
  * elementer, attributter og lenkeprotokoller. Uten DOMParser (native) faller den tilbake
  * til sanitizeHtml, men der vises HTML-en uansett ikke som HTML.

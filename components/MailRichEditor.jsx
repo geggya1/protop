@@ -8,6 +8,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { colors } from '../src/theme';
 import { wrapPlainSelection } from '../src/utils/mailHtml';
 import { stripForeignStyles } from '../src/utils/mailModel';
+import { sanitizeInlineHtml } from '../src/utils/sanitizeHtml';
 import { MAIL_FONTS } from '../src/utils/mailSignature';
 import { MailMenu, useMenuAnchor } from './mail/MailMenu';
 import { useTitleRef } from './mail/useDomHover';
@@ -159,7 +160,9 @@ const MailRichEditor = forwardRef(function MailRichEditor({
     if (!web) return;
     ensureEditorCss();
     const el = editorRef.current;
-    if (el) el.innerHTML = initialHtml || '';
+    // Utkast fra Outlook kan inneholde videresendt e-post. Feltet er en del av appen (ingen sandkasse),
+    // så HTML-en renses som signaturen før den settes inn.
+    if (el) el.innerHTML = sanitizeInlineHtml(initialHtml || '');
     // Bare ved oppstart; videre redigering eies av feltet.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -261,7 +264,7 @@ const MailRichEditor = forwardRef(function MailRichEditor({
         clean = clean.replace(/<img[^>]+src=["']file:[^>]*>/gi, '');
         onNotice?.('Noen bilder kunne ikke limes inn fra Outlook. Legg dem inn med «Sett inn bilde».');
       }
-      document.execCommand('insertHTML', false, clean);
+      document.execCommand('insertHTML', false, sanitizeInlineHtml(clean));
       emit();
     }
   };
@@ -349,12 +352,13 @@ const MailRichEditor = forwardRef(function MailRichEditor({
       const el = editorRef.current;
       if (!el) return;
       const existing = el.querySelector('[data-wp-signature="1"]');
-      if (!html) {
+      const safe = sanitizeInlineHtml(html);
+      if (!safe) {
         existing?.remove();
       } else if (existing) {
-        existing.outerHTML = html;
+        existing.outerHTML = safe;
       } else {
-        el.insertAdjacentHTML('beforeend', html);
+        el.insertAdjacentHTML('beforeend', safe);
       }
       emit();
     },

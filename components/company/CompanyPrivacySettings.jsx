@@ -5,10 +5,41 @@ import BrandToggle from '../BrandToggle';
 import LegalDocumentModal from '../LegalDocumentModal';
 import { DPA_VERSION } from '../../src/i18n/langs';
 import {
-  canAcceptDpa, companyPrivacySettings, dpaAccepted, dpaAcceptedLabel, dpaAcceptanceRecord,
+  USAGE_RETENTION_DAYS, canAcceptDpa, companyPrivacySettings, dpaAccepted, dpaAcceptedLabel, dpaAcceptanceRecord,
   usageLogNotice, withCompanyPrivacy,
 } from '../../src/privacy/companyPrivacy';
 import { logConsent } from '../../src/utils/consents';
+import { PAYROLL_YEARS, companyRetention, withCompanyRetention } from '../../src/hr/retention';
+
+const APPLICANT_CHOICES = [3, 6, 12, 24];
+const FORMER_CHOICES = [1, 2, 3, 5, 10];
+
+function RetentionChoice({
+  label, choices, value, unit, disabled, onChange, colors, nativeID,
+}) {
+  return (
+    <View style={{ gap: 6 }} nativeID={nativeID}>
+      <Text style={[styles.lead, { color: colors.ink }]}>{label}</Text>
+      <View style={styles.row}>
+        {choices.map((choice) => {
+          const active = choice === value;
+          return (
+            <TouchableOpacity
+              key={choice}
+              onPress={() => onChange(choice)}
+              disabled={disabled || active}
+              style={[styles.chip, { borderColor: active ? colors.brand : colors.line, backgroundColor: active ? colors.brand : 'transparent' }, disabled && !active && styles.off]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active, disabled }}
+            >
+              <Text style={{ color: active ? '#fff' : colors.ink }}>{`${choice} ${unit(choice)}`}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
 
 function PrivacySwitch({
   title, body, value, disabled, onChange, colors, nativeID,
@@ -40,6 +71,20 @@ export default function CompanyPrivacySettings({
   const label = dpaAcceptedLabel(company);
   const mayAccept = canAcceptDpa(family, uid);
   const settings = companyPrivacySettings(company);
+  const retention = companyRetention(company);
+
+  async function setRetention(key, value) {
+    if (!canEdit || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await onSaveCompany({ ...company, privacy: withCompanyRetention(company, key, value) });
+    } catch (e) {
+      setError(e?.message || 'Kunne ikke lagre lagringstiden.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function setPrivacy(key, value) {
     if (!canEdit || busy) return;
@@ -127,6 +172,33 @@ export default function CompanyPrivacySettings({
         onChange={(next) => setPrivacy('ai', next)}
         colors={colors}
       />
+      <View style={[styles.divider, { backgroundColor: colors.line }]} />
+      <View style={{ gap: 8 }} nativeID="company-retention">
+        <Text style={[styles.title, { color: colors.ink }]}>Lagringstid</Text>
+        <Text style={[styles.lead, { color: colors.muted }]}>
+          {`Når noen med Admin på HR åpner HR, slettes det som har passert lagringstiden. Lønnshistorikken beholdes i ${PAYROLL_YEARS} år etter sluttdato (bokføringsloven). Timer og fravær er regnskaps- og lønnsgrunnlag og slettes ikke her. Bruksloggen slettes etter ${USAGE_RETENTION_DAYS} dager.`}
+        </Text>
+        <RetentionChoice
+          nativeID="company-retention-applicants"
+          label="Avslåtte søknader slettes etter"
+          choices={APPLICANT_CHOICES}
+          value={retention.applicantMonths}
+          unit={() => 'mnd'}
+          disabled={!canEdit || busy}
+          onChange={(value) => setRetention('applicantMonths', value)}
+          colors={colors}
+        />
+        <RetentionChoice
+          nativeID="company-retention-former"
+          label="Personalmappen for tidligere ansatte slettes etter sluttdato"
+          choices={FORMER_CHOICES}
+          value={retention.formerEmployeeYears}
+          unit={() => 'år'}
+          disabled={!canEdit || busy}
+          onChange={(value) => setRetention('formerEmployeeYears', value)}
+          colors={colors}
+        />
+      </View>
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
       <LegalDocumentModal visible={docOpen} doc="dpa" onClose={() => setDocOpen(false)} />
     </View>
@@ -145,4 +217,7 @@ const styles = StyleSheet.create({
   off: { opacity: 0.5 },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: 4 },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  chip: {
+    borderWidth: 1, borderRadius: 999, minHeight: 36, paddingHorizontal: 14, paddingVertical: 6, alignItems: 'center', justifyContent: 'center',
+  },
 });

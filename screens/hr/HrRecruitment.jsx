@@ -8,6 +8,7 @@ import {
   employeeDraftFromApplication,
   formatNbDate,
   JOB_STATUSES,
+  localIsoDate,
   moveApplicationBoard,
   normalizeApplication,
   normalizeJob,
@@ -15,6 +16,9 @@ import {
   recruitmentFunnel,
 } from '../../src/hr/model';
 import { emptyEmployee, normalizeEmployee } from '../../src/employees/model';
+import {
+  RETENTION_DEFAULTS, addMonths, applicationClosed, applicationDeleteOn, deleteCountdownLabel,
+} from '../../src/hr/retention';
 import { saveEmployee } from '../../src/employees/storage';
 import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -25,8 +29,11 @@ import {
 
 const isWeb = Platform.OS === 'web';
 
+/** Samtykke fra søkeren: søknaden beholdes så lenge, regnet fra i dag. */
+const CONSENT_MONTHS = 12;
+
 export default function HrRecruitment({
-  colors, hr, canWrite, onPatch, familyId, focus = null,
+  colors, hr, canWrite, onPatch, familyId, focus = null, retention = RETENTION_DEFAULTS,
 }) {
   const [jobId, setJobId] = useState(focus?.jobId || hr.jobs?.[0]?.id || '');
   const [selectedAppId, setSelectedAppId] = useState('');
@@ -284,6 +291,11 @@ export default function HrRecruitment({
                       : choiceLabel(APPLICATION_OUTCOMES, app.outcome)}
                   </Text>
                 ) : null}
+                {applicationClosed(app) ? (
+                  <Text style={[styles.cardMeta, { color: colors.muted }]} nativeID={`hr-app-retention-${app.id}`}>
+                    {deleteCountdownLabel(applicationDeleteOn(app, retention))}
+                  </Text>
+                ) : null}
                 {canWrite ? (
                   <View style={styles.cardActions}>
                     {APPLICATION_BOARD.filter((b) => b.id !== col.id).map((b) => (
@@ -329,6 +341,34 @@ export default function HrRecruitment({
           <Text style={[styles.cardMeta, { color: colors.muted }]}>
             {`Søkt ${formatNbDate(selectedApp.appliedAt)} · ${choiceLabel(APPLICATION_BOARD, selectedApp.board)}`}
           </Text>
+          {applicationClosed(selectedApp) ? (
+            <View style={styles.chips} nativeID="hr-app-retention">
+              <Text style={[styles.cardMeta, { color: colors.muted, flexShrink: 1 }]}>
+                {selectedApp.consentToKeep
+                  ? `Søkeren har samtykket til at søknaden beholdes til ${formatNbDate(selectedApp.retainUntil)}. ${deleteCountdownLabel(applicationDeleteOn(selectedApp, retention))}.`
+                  : `Avslåtte søknader slettes ${retention.applicantMonths} måneder etter avgjørelsen. ${deleteCountdownLabel(applicationDeleteOn(selectedApp, retention))}.`}
+              </Text>
+              <HrChip
+                colors={colors}
+                label={selectedApp.consentToKeep ? 'Fjern samtykket' : `Søkeren samtykker: behold i ${CONSENT_MONTHS} mnd`}
+                active={!!selectedApp.consentToKeep}
+                onPress={() => {
+                  const appId = selectedApp.id;
+                  const keep = !selectedApp.consentToKeep;
+                  patchApps((apps) => apps.map((row) => (
+                    row.id === appId
+                      ? normalizeApplication({
+                        ...row,
+                        consentToKeep: keep,
+                        retainUntil: keep ? addMonths(localIsoDate(), CONSENT_MONTHS) : '',
+                        updatedAt: new Date().toISOString(),
+                      })
+                      : row
+                  )));
+                }}
+              />
+            </View>
+          ) : null}
           {(selectedApp.attachments || []).map((att) => (
             <RowLink
               key={att.id}

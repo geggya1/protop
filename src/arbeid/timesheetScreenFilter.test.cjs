@@ -197,6 +197,7 @@ function loadJsx(rel) {
       || id.includes('AbsenceTypeModal')
       || id.includes('TimesheetSideForm')
       || id.includes('ScrollSheet')
+      || id.includes('BillingChainLine')
     ) {
       return { __esModule: true, default: function Stub() { return null; } };
     }

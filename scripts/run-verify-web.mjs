@@ -83,6 +83,7 @@ export const FILES = [
   'src/anbud/customerReport.test.mjs',
   'src/anbud/customers.test.mjs',
   'src/economy/powerOfficeView.test.mjs',
+  'src/economy/billingChain.test.mjs',
   'src/arbeid/productSalesList.test.mjs',
   'src/arbeid/absenceDashboard.test.mjs',
   'src/arbeid/workingTimeRules.test.mjs',

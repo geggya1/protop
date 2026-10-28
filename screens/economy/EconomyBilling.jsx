@@ -20,6 +20,9 @@ import useBillingData from './billing/useBillingData';
 import useBillingWorkflow from './billing/useBillingWorkflow';
 import { Banner, Button, Check, money } from './billing/ui';
 import { withIndexWarnings } from './billing/indexWarnings';
+import BillingChainLine, { useSeesBillingChain } from './billing/BillingChainLine';
+import useBillingChain, { forgetBillingChain } from './billing/useBillingChain';
+import { approvalsBackLabel } from '../../src/economy/billingChain.js';
 
 const SCOPES = [
   { id: 'all', label: 'Alle prosjekter' },
@@ -54,6 +57,14 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
   const periodEnd = periodEndFor(period, today, customDate);
   const supplier = useMemo(() => (demo?.supplier || supplierFromCompany(family?.company, family?.name)), [family, demo]);
   const actor = useMemo(() => ({ byUid: uid || '', byName: activeProfile?.name || '' }), [uid, activeProfile?.name]);
+  // Prosesslinjen og lenken tilbake til Godkjenninger bruker samme tall.
+  const seesChain = useSeesBillingChain() && !demo;
+  const chain = useBillingChain({
+    entries: data.ready ? data.timeEntries : null,
+    locks: data.ready ? data.timesheetLocks : null,
+    invoices: data.ready ? data.invoices : null,
+    enabled: seesChain,
+  });
 
   const ready = useMemo(() => {
     if (!data.ready) return [];
@@ -99,6 +110,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
       setError(failed.length ? failed.map((row) => `${row.project ? `#${row.project.number} ${row.project.name}: ` : ''}${row.error}`).join('\n') : '');
       setCreatedDrafts(created);
       if (created.length) {
+        forgetBillingChain(familyId);
         const text = created.length === 1
           ? 'Fakturautkastet er laget.'
           : `${created.length} fakturautkast er laget.`;
@@ -163,10 +175,22 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
     <View style={[styles.wrap, { backgroundColor: colors.bg }]} nativeID="economy-billing">
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         {hostedHero ? null : <Text style={[styles.title, { color: colors.ink }]}>Til fakturering</Text>}
+        {seesChain ? <BillingChainLine current="fakturering" counts={chain} /> : null}
         <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 760, lineHeight: 19 }}>
           Ufakturerte timer, utlegg, kjøring og salg per prosjekt. Åpne et prosjekt for å se linjene,
           godkjenn og lag fakturautkast. Utkastene får nummer først når de ferdigstilles.
         </Text>
+        {seesChain ? (
+          <TouchableOpacity
+            onPress={() => requestShellTab?.('arbeid', 'godkjenning')}
+            accessibilityRole="link"
+            nativeID="billing-back-approvals"
+            style={styles.backLink}
+          >
+            <Ionicons name="arrow-back" size={14} color={colors.brand} />
+            <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>{approvalsBackLabel(chain.godkjenn)}</Text>
+          </TouchableOpacity>
+        ) : null}
 
         <View style={styles.toolbar}>
           <View style={styles.chipRow}>
@@ -360,6 +384,7 @@ const styles = StyleSheet.create({
   wrap: { flex: 1 },
   inner: { padding: 16, gap: 12, paddingBottom: 48 },
   title: { fontSize: 22, fontWeight: '700' },
+  backLink: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
   toolbar: { gap: 8 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },

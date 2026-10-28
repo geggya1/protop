@@ -436,6 +436,23 @@ export async function loadTimeEntriesByInvoice(companyId, invoiceId) {
   return snap.docs.map((item) => normalizeTimeEntryRow({ ...item.data(), id: item.id })).filter(Boolean);
 }
 
+/**
+ * Timer som står i kjeden mellom føring og faktura: låste (venter på kontroll) og
+ * godkjente som ikke er lagt på en faktura. Bare likhetsfiltre, så ingen ny indeks trengs.
+ */
+export async function loadOpenChainEntries(companyId) {
+  const id = text(companyId);
+  if (!id) return [];
+  await hydrateDeletedTimeEntries(id);
+  const bits = await firestoreBits();
+  const col = entriesCol(bits, id);
+  const [locked, approved] = await Promise.all([
+    bits.getDocs(bits.query(col, bits.where('status', '==', 'låst'))),
+    bits.getDocs(bits.query(col, bits.where('status', '==', 'godkjent'), bits.where('invoiceId', '==', null))),
+  ]);
+  return withoutDeletedTimeEntries(id, rowsFromDocs([...locked.docs, ...approved.docs]));
+}
+
 export async function removeTimeEntry(companyId, entryId) {
   const id = text(entryId);
   if (!companyId || !id) return;

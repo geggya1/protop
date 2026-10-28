@@ -20,6 +20,7 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import FilterMenu from '../../components/FilterMenu';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import BillingChainLine from './billing/BillingChainLine';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
@@ -1018,6 +1019,7 @@ export default function EconomyInvoices({
 
   const top = (
     <>
+      {demoProjectState ? null : <BillingChainLine current="faktura" invoices={ready ? invoices : null} />}
       <View style={styles.toolbar}>
         <View style={{ flex: 1, gap: 4 }}>
           {hostedHero ? null : (

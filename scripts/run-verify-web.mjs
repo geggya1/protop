@@ -151,6 +151,24 @@ export const FILES = [
   'src/utils/companyChat.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',
+  // Flyter og sikkerhet: feil vises på web, notater, oppgaver, venner, EHF, e-postrelé, proxy og XSS.
+  'src/utils/webAlerts.test.mjs',
+  'src/utils/notesLogic.test.mjs',
+  'src/utils/todoActions.test.mjs',
+  'src/navigation/legacyPaths.test.mjs',
+  'src/utils/friendSend.test.mjs',
+  'src/project/companyCreate.test.mjs',
+  'functions/vegvesenFallback.test.mjs',
+  'functions/ehfGuard.test.mjs',
+  'src/economy/ehfResend.test.mjs',
+  'src/anbud/documentSandbox.test.mjs',
+  'src/utils/sanitizeInlineHtml.test.mjs',
+  'src/utils/sanitizeHtml.test.mjs',
+  'src/anbud/alertMail.test.mjs',
+  'functions/mailRelay.test.mjs',
+  'functions/tenderProxyAuth.test.mjs',
+  'functions/deleteAccount.test.mjs',
+  'scripts/hosting-csp.test.mjs',
 ];
 
 function runFile(file) {

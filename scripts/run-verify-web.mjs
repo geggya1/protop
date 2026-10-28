@@ -37,6 +37,7 @@ export const FILES = [
   'src/privacy/companyClosure.test.mjs',
   'src/privacy/companyArchive.test.mjs',
   'src/privacy/companyClosureRender.test.cjs',
+  'src/privacy/retentionPolicy.test.mjs',
   'src/privacy/storageNotice.test.mjs',
   'src/i18n/htmlLang.test.mjs',
   'src/i18n/welcomeB2b.test.mjs',

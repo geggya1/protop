@@ -87,3 +87,19 @@ test('eier og Admin på HR ser hele loggen; en ansatt ser bare innsyn i egne opp
   await assert.rejects(call(listAccessLog, 'per', { familyId: A, employeeId: 'emp-ola' }), (err) => err.code === 'permission-denied');
   await assert.rejects(call(listAccessLog, 'fremmed', { familyId: A }), (err) => err.code === 'permission-denied');
 });
+
+test('innsyn eldre enn to år slettes når loggen leses eller skrives (GRUNN-04)', async () => {
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  await writeAccessEvent(db, { familyId: A, uid: 'hr', actorName: 'Hanne', event: { kind: 'salary', employeeId: 'emp-per' }, now: now - 800 * day });
+  await writeAccessEvent(db, { familyId: A, uid: 'hr', actorName: 'Hanne', event: { kind: 'absence', employeeId: 'emp-per' }, now: now - 365 * day });
+  assert.equal((await logRows()).length, 2);
+  const res = await call(listAccessLog, 'own', { familyId: A });
+  assert.deepEqual(res.rows.map((row) => row.kind), ['absence']);
+  assert.equal(res.retentionDays, 730);
+  assert.deepEqual((await logRows()).map((row) => row.kind), ['absence']);
+  // Ny skriving rydder også.
+  await writeAccessEvent(db, { familyId: A, uid: 'hr', actorName: 'Hanne', event: { kind: 'nationalId', employeeId: 'emp-ola' }, now: now - 900 * day });
+  await call(logSensitiveAccess, 'hr', { familyId: A, kind: 'hrFolder', employeeId: 'emp-ola' });
+  assert.deepEqual((await logRows()).map((row) => row.kind).sort(), ['absence', 'hrFolder']);
+});

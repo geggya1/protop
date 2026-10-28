@@ -3,12 +3,14 @@
  * Serveren skriver loggen (tid, hvem og navn kan ikke settes av klienten) i
  * families/{id}/accessLog, og bare serveren leser den: eier, administratorer og Admin på HR
  * ser alt, den ansatte ser innsyn i egne opplysninger. Ingen verdier logges.
+ * Lagringstid to år (GRUNN-04): eldre rader slettes når loggen skrives eller leses.
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { allows, resolveActorAccess } from '../src/access/companyAccess.js';
 import { accessLogDocId, normalizeAccessEvent } from '../src/hr/accessLog.js';
+import { ACCESS_LOG_RETENTION_DAYS } from '../src/privacy/retentionPolicy.js';
 import {
   assertFamilyMember, assertRateLimit, hashRateKey, isFamilyOwnerOrAdmin, requireAuth,
 } from './security.js';
@@ -46,6 +48,31 @@ export async function canReadAccessLog(store, familyId, uid, family) {
   return allows(actor.grants, 'hr', 'write');
 }
 
+function accessCutoffIso(now = Date.now()) {
+  return new Date(now - ACCESS_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** Sletter rader eldre enn lagringstiden (inntil 200 per kall). Svar: antall slettet. */
+export async function purgeOldAccessLog(store, familyId, now = Date.now()) {
+  const snap = await store.collection(`families/${familyId}/accessLog`)
+    .where('at', '<', accessCutoffIso(now))
+    .limit(200)
+    .get();
+  if (snap.empty) return 0;
+  const batch = store.batch();
+  snap.docs.forEach((row) => batch.delete(row.ref));
+  await batch.commit();
+  return snap.size;
+}
+
+async function tidyAccessLog(store, familyId, now) {
+  try {
+    await purgeOldAccessLog(store, familyId, now);
+  } catch {
+    // Ryddingen skal ikke stoppe loggen. Neste kall prøver igjen.
+  }
+}
+
 /** Skriv én hendelse. Eget innsyn logges ikke. Svar: { ok, logged } */
 export async function writeAccessEvent(store, { familyId, uid, actorName = '', event, now = Date.now() }) {
   const own = await ownEmployees(store, familyId, uid);
@@ -72,6 +99,7 @@ export async function writeAccessEvent(store, { familyId, uid, actorName = '', e
     if (error?.code === 6 || /already exists/i.test(String(error?.message || ''))) return { ok: true, logged: false, again: true };
     throw error;
   }
+  await tidyAccessLog(store, familyId, now);
   return { ok: true, logged: true };
 }
 
@@ -108,6 +136,8 @@ export const listAccessLog = onCall(CALL, async (req) => {
       throw new HttpsError('permission-denied', 'Du kan ikke se innsynsloggen.');
     }
   }
+  await tidyAccessLog(db, familyId, Date.now());
+  const cutoff = accessCutoffIso();
   const col = db.collection(`families/${familyId}/accessLog`);
   const snap = employeeId
     ? await col.where('employeeId', '==', employeeId).limit(300).get()
@@ -122,6 +152,8 @@ export const listAccessLog = onCall(CALL, async (req) => {
       employeeId: text(data.employeeId, 120),
       employeeName: text(data.employeeName, 120),
     };
-  }).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, 200);
-  return { ok: true, rows, scope: admin ? 'company' : 'self' };
+  }).filter((row) => row.at >= cutoff).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, 200);
+  return {
+    ok: true, rows, scope: admin ? 'company' : 'self', retentionDays: ACCESS_LOG_RETENTION_DAYS,
+  };
 });

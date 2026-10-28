@@ -39,6 +39,9 @@ const privacyEnText = getPrivacy('en').join('\n');
 for (const needle of ['Expo', 'OSRM', 'Speech recognition', 'Open-Meteo', 'Photon']) {
   assert.ok(privacyEnText.includes(needle), `privacy (en) mangler «${needle}»`);
 }
+// Lagringstid for innsynsloggen og for bedriften etter avslutning (GRUNN-03, GRUNN-04).
+assert.match(privacy, /Innsynslogg \(hvem som har åpnet en annens HR-mappe, lønn, fravær eller personnummer\): to år/);
+assert.match(privacy, /slettes alle bedriftens data og filer 90 dager etter avslutningen/);
 // Databehandleravtalen har den samme listen.
 assert.ok(getDpa('nb').join('\n').includes('Expo (650 Industries'));
 assert.ok(getPrivacy('en').join('\n').includes('processor'));

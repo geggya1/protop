@@ -68,7 +68,7 @@ Bedriften bestemmer formål og tilgang. Tilgangen styres per modul i tilgangsmat
 | B9 | ISO / K-HMS | Ansatte, innleide, melder av avvik, skadde, revisorer | Avvik, RUH, personskader med skadeklasse, varsling, tiltak, revisjoner, kompetansebevis, risiko, dokumentstyring og lesebekreftelser, revisjonsspor, bilder | **Helse**: personskade og skadeklasse. Skjermede saker (varsling etter aml. kap. 2 A, personskade) i egne samlinger | `iso*`, `isoFindingsRestricted`, `isoRestricted`, `isoAudit*`, `docControl`, `docAcks`, `src/iso/` | Ingen automatisk sletting. |
 | B10 | Samhandling | Ansatte, gjester i chat | Chat og meldinger, nyhetsvegg, kalender, notater, oppgaver, dokumenter | Kan forekomme i fritekst | `chats/**`, `companyWallPosts`, `events`, `notes`, `parentTodos`, `documentFolders` | Ingen automatisk sletting. Ved sletting av konto fjernes navn og bilde på egne meldinger. |
 | B11 | Brukslogg | Brukere i bedriften | Innlogging, aktivitet omtrent hvert 4. minutt, sidevisninger, tidspunkt, IP-adresse, nettleser, endringer i timer, sendte invitasjoner | Overvåking av ansatte | `employees/{id}/usage`, `functions/usageLog.js` | 90 dager. Slettes ved innlogging og lesing. Bedriften kan slå av (`company.privacy.usageLog`). |
-| B12 | Innsynslogg | Ansatte som får sin HR, lønn, fravær eller fødselsnummer åpnet | Hvem, hva og når (ingen verdier) | – | `accessLog`, `functions/accessLog.js` | Ingen lagringstid satt. |
+| B12 | Innsynslogg | Ansatte som får sin HR, lønn, fravær eller fødselsnummer åpnet | Hvem, hva og når (ingen verdier) | – | `accessLog`, `functions/accessLog.js` | 2 år (GRUNN-04). Eldre rader slettes når loggen skrives eller leses. |
 | B13 | AI på bedriftens vegne | Det som står i teksten eller bildet | Importfiler, CV, arbeidsavtaler, kvitteringer, timelister, anbud og avtaler, talenotater | Kan inneholde helse og fødselsnummer (11-sifrede tall maskeres ved import av kolonner) | `functions/ai*.js`, `importInterpret.js`, `timesheetReviewAi.js`, `anbud*Ai.js`, `aiDrafts`, `aiUsage` | Utkast utløper etter 48 timer, slettes etter 30 dager, midlertidige bilder etter 48 timer, `aiUsage` etter 90 dager (`functions/aiCleanup.js`). Krever at den planlagte jobben kjører (DS-16). Bedriften kan slå av AI (`company.privacy.ai`). |
 | B14 | Tilgangsstyring | Brukere i bedriften | Beregnet tilgang per område, nivå, ansatt-id, utløpstid | – | `accessAcl/{uid}`, `functions/companyAccessSync.js` | Utløper etter 12 timer og skrives på nytt. |
 
@@ -121,7 +121,8 @@ OSRM-demotjeneren har ingen avtale og ukjent driftssted. **[bekreft]** eller byt
 | Lokale kopier på enheten | Slettes ved utlogging eller annen bruker | `src/utils/localCache.js` | – |
 | Slettemarkeringer i prosjektdokumentet | 180 dager | `src/project/engine.js` | – |
 | Bedriftens data etter opphør | Eier/admin avslutter (`closeCompany`), sletting 90 dager etter, eksport først | `functions/companyClosure*.js`, `src/privacy/companyClosure.js`, `scripts/purge-closed-companies.mjs` | GRUNN-03. Slettingen kjøres av driften (ingen planlagt jobb i CI). **[bekreft]** rutinen: hvem kjører den, og hvor ofte. Se `docs/drift/sletting-av-bedrift.md`. |
-| Fravær, timer, kjørebok, ISO, chat, kunder, innsynslogg, varsler, support | Ingen regel | – | Må fastsettes (se åpne spørsmål). |
+| Innsynslogg | 2 år | `functions/accessLog.js`, `src/privacy/retentionPolicy.js` | GRUNN-04. Slettes ved skriving og lesing. |
+| Fravær, timer, kjørebok, ISO, chat, kunder, varsler, support | Forslag, ikke slått på | `src/privacy/retentionPolicy.js` | Se [lagringstider](lagringstider.md). Eieren bestemmer. |
 | Sikkerhetskopier | Ukjent | – | **[bekreft]** om Firestore har sikkerhetskopi eller gjenoppretting til tidspunkt, og hvor lenge. |
 
 ## 7. Tekniske og organisatoriske tiltak (oversikt)
@@ -154,7 +155,8 @@ Mer i [ROS-analysen](ros-analyse.md).
 4. Gemini Developer API eller Vertex AI i EU? Brukes betalt nivå (ingen bruk av data til trening)?
 5. Hvilken e-postleverandør brukes i produksjon (Brevo, Resend eller SendGrid)?
 6. Lagringstid for fravær (sykefravær), timer, kjørebok, ISO-saker og personskader, chat, kundedata,
-   innsynslogg, varsler og support. Hvem sletter, og hvordan?
+   innsynslogg, varsler og support. Hvem sletter, og hvordan? Forslag i [lagringstider](lagringstider.md)
+   (GRUNN-04). Innsynsloggen er satt til to år.
 7. Rutine for å slette en bedrifts data innen 90 dager etter opphør, slik databehandleravtalen lover.
    Funksjonen finnes (GRUNN-03, `docs/drift/sletting-av-bedrift.md`). Eieren må bestemme hvem som kjører
    slettingen og hvor ofte, og om avtaleteksten om regnskapsmateriale skal endres.

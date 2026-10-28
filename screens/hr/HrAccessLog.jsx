@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { listAccessLog } from '../../src/hr/accessLogClient';
 import { accessLogLines } from '../../src/hr/accessLog';
+import { ACCESS_LOG_RETENTION_DAYS } from '../../src/privacy/retentionPolicy';
 import { EmptyHint, HrCard, HrSectionTitle } from './HrShared';
 
 /**
@@ -32,7 +33,7 @@ export default function HrAccessLog({ colors, familyId, employeeId = '', title =
         <HrSectionTitle
           colors={colors}
           title={title}
-          subtitle={subtitle || 'Hvem som har åpnet en annens HR-mappe, lønn, fravær eller personnummer, og når. Verdiene logges ikke, og loggen kan ikke endres.'}
+          subtitle={subtitle || `Hvem som har åpnet en annens HR-mappe, lønn, fravær eller personnummer, og når. Verdiene logges ikke, og loggen kan ikke endres. Innsyn slettes etter ${ACCESS_LOG_RETENTION_DAYS / 365} år.`}
         />
         {state.loading ? <ActivityIndicator color={colors.brand} /> : null}
         {state.error ? <Text style={{ color: colors.dangerInk || colors.danger }}>{state.error}</Text> : null}

@@ -8,10 +8,11 @@
  * assistenten brukes neste gang (tidyHelpKnowledge). Ingen planlagt jobb trengs.
  */
 import { FieldValue } from 'firebase-admin/firestore';
+import { HELP_CANDIDATE_RETENTION_DAYS } from '../src/privacy/retentionPolicy.js';
 
 export const HELP_CANDIDATES = 'helpKnowledgeCandidates';
-/** Rader eldre enn dette slettes (ett år). */
-export const HELP_CANDIDATE_RETENTION_DAYS = 365;
+/** Rader eldre enn dette slettes (ett år, src/privacy/retentionPolicy.js). */
+export { HELP_CANDIDATE_RETENTION_DAYS };
 /** Antall rader som ryddes per kall, så ett spørsmål aldri blir tregt. */
 const TIDY_LIMIT = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;

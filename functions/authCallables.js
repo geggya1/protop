@@ -437,14 +437,26 @@ export const confirmMicrosoftEmail = onCall(CALL, async (req) => {
   }
 });
 
+/**
+ * Oppslaget e-post/telefon/brukernavn → uid er bare for den som kan invitere til gruppen
+ * (SEC-22). Andre får ingen profil, så uid-er og kontoer ikke kan kartlegges.
+ */
+export const LOOKUP_FORBIDDEN = 'Bare den som kan invitere til gruppen, kan slå opp brukere.';
+
 export const lookupAdultProfile = onCall(
   { ...CALL, timeoutSeconds: 20 },
   async (req) => {
     try {
       const caller = requireAuth(req.auth);
+      const familyId = String(req.data?.familyId || '').trim();
+      const family = familyId && !familyId.includes('/')
+        ? await assertCanInvite(db, familyId, caller).catch(() => null)
+        : null;
+      if (!family) return { ok: false, error: LOOKUP_FORBIDDEN, profile: null };
+      const type = String(family.data()?.type || '').toLowerCase();
       await assertRateLimit(db, {
         key: hashRateKey(['lookup-adult', caller]),
-        limit: await orgAdminLimit(caller, req.data?.familyId, 40),
+        limit: ['organization', 'company'].includes(type) ? ORG_INVITE_LIMIT : 40,
         windowMs: 60 * 60 * 1000,
       });
       const identifier = String(req.data?.identifier || '').trim();

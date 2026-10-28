@@ -99,4 +99,16 @@ assert.ok(cors[0].origin.includes('https://protop.no'));
 assert.ok(cors[0].method.includes('OPTIONS'));
 assert.ok(cors[0].responseHeader.includes('x-firebase-storage-version'));
 
+// SEC-22: applyStorageCors krever custom claim admin eller servernøkkelen, ikke bare innlogging.
+const { storageCorsAllowed, handleApplyStorageCors } = await import('./uploadStorage.js');
+const env = { STORAGE_CORS_KEY: 'hemmelig-nokkel-123' };
+assert.equal(storageCorsAllowed({ uid: 'u', token: {} }, {}, env), false);
+assert.equal(storageCorsAllowed({ uid: 'u', token: { admin: 'true' } }, {}, env), false);
+assert.equal(storageCorsAllowed({ uid: 'u', token: { admin: true } }, {}, env), true);
+assert.equal(storageCorsAllowed({ uid: 'u', token: {} }, { key: 'hemmelig-nokkel-123' }, env), true);
+assert.equal(storageCorsAllowed({ uid: 'u', token: {} }, { key: 'hemmelig-nokkel-124' }, env), false);
+assert.equal(storageCorsAllowed({ uid: 'u', token: {} }, { key: '' }, {}), false, 'uten nøkkel i miljøet hjelper ingen nøkkel');
+assert.equal(storageCorsAllowed(null, { key: 'hemmelig-nokkel-123' }, env), false);
+await assert.rejects(handleApplyStorageCors({}, { uid: 'u', token: {} }), /Bare driften/);
+
 console.log('uploadStorage.test.mjs: ok');

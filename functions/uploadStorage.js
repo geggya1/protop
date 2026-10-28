@@ -4,7 +4,7 @@
  * på opplastingsstien kan henge / feile og blokkere CV-bilder.
  */
 import { getFirestore } from 'firebase-admin/firestore';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'crypto';
 import { assertFamilyMember } from './security.js';
 import { ensureStorageCors } from './storageCors.js';
 import { mediaBucket } from './storageBucket.js';
@@ -129,9 +129,24 @@ export async function handleUploadStorageFile(data, auth) {
   return { downloadUrl, storagePath: objectPath, size: buffer.length, bucket: bucket.name };
 }
 
+/**
+ * Bucket-CORS gjelder hele appen, så bare driften kan sette den (SEC-22): en konto med
+ * custom claim `admin` (settes bare med Admin SDK) eller kallet med servernøkkelen
+ * STORAGE_CORS_KEY. Appen kaller aldri denne.
+ */
+export function storageCorsAllowed(auth, data, env = process.env) {
+  if (!auth?.uid) return false;
+  if (auth.token?.admin === true) return true;
+  const expected = String(env?.STORAGE_CORS_KEY || '');
+  const given = String(data?.key || '');
+  if (!expected || given.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+}
+
 /** Engangs/periodisk: sett bucket-CORS fra Admin SDK. */
-export async function handleApplyStorageCors(_data, auth) {
+export async function handleApplyStorageCors(data, auth) {
   if (!auth?.uid) throw new Error('Ikke innlogget');
+  if (!storageCorsAllowed(auth, data)) throw new Error('Bare driften kan endre Storage CORS.');
   const result = await ensureStorageCors({ force: true });
   if (!result?.ok) throw new Error(result?.error || 'Klarte ikke sette Storage CORS.');
   return { ok: true, origins: result.origins || 0 };

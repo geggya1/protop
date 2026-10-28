@@ -30,6 +30,7 @@ import {
   CALENDAR_SOURCE_META,
 } from '../../src/utils/calendarIntegration';
 import BrandToggle from '../../components/BrandToggle';
+import { friendlyCallableError } from '../../src/utils/callableErrors';
 import {
   childrenWithCustody,
   custodySummaryLabel,
@@ -208,7 +209,7 @@ export default function CalendarSettingsScreen({
         hasClientSecret: !!cfg?.microsoft?.hasClientSecret,
       });
     } catch (e) {
-      showInfo('Feil', e?.message || 'Klarte ikke laste kalenderinnstillinger.');
+      showInfo('Feil', friendlyCallableError(e, 'Klarte ikke laste kalenderinnstillinger.'));
     } finally {
       setLoading(false);
     }
@@ -284,7 +285,7 @@ export default function CalendarSettingsScreen({
       await reload();
       showInfo('Lagt til', 'ICS-kalenderen vises nå i kalenderen din.');
     } catch (e) {
-      showInfo('Feil', e?.message || 'Kunne ikke legge til ICS-kalender.');
+      showInfo('Feil', friendlyCallableError(e, 'Kunne ikke legge til ICS-kalender.'));
     } finally {
       setBusy(false);
     }
@@ -301,7 +302,7 @@ export default function CalendarSettingsScreen({
       await removeCalendarConnection(id);
       await reload();
     } catch (e) {
-      showInfo('Feil', e?.message || 'Klarte ikke fjerne kalenderen.');
+      showInfo('Feil', friendlyCallableError(e, 'Klarte ikke fjerne kalenderen.'));
     } finally {
       setBusy(false);
     }
@@ -313,7 +314,7 @@ export default function CalendarSettingsScreen({
     try {
       probe = await fetchExternalCalendarEvents(week[0], week[week.length - 1], { force: true });
     } catch (e) {
-      probe = { events: [], errors: [{ message: e?.message || 'Klarte ikke hente hendelser' }] };
+      probe = { events: [], errors: [{ message: friendlyCallableError(e, 'Klarte ikke hente hendelser.') }] };
     }
     const list = await listCalendarConnections();
     setConnections(list);
@@ -373,7 +374,7 @@ export default function CalendarSettingsScreen({
           );
           return;
         }
-        showInfo('Feil', friendlyMicrosoftAuthMessage(e?.message || 'Innlogging avbrutt.'));
+        showInfo('Feil', friendlyMicrosoftAuthMessage(friendlyCallableError(e, 'Innlogging avbrutt.')));
       });
       return;
     }
@@ -383,7 +384,7 @@ export default function CalendarSettingsScreen({
       await finishConnectProbe();
     } catch (e) {
       if (e?.message === 'cancelled') return;
-      showInfo('Feil', friendlyMicrosoftAuthMessage(e?.message || 'Innlogging avbrutt.'));
+      showInfo('Feil', friendlyMicrosoftAuthMessage(friendlyCallableError(e, 'Innlogging avbrutt.')));
     } finally {
       setBusy(false);
     }
@@ -400,7 +401,7 @@ export default function CalendarSettingsScreen({
         );
         return;
       }
-      showInfo('Feil', friendlyMicrosoftAuthMessage(e?.message || 'Innlogging avbrutt.'));
+      showInfo('Feil', friendlyMicrosoftAuthMessage(friendlyCallableError(e, 'Innlogging avbrutt.')));
     });
   };
 

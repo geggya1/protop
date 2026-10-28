@@ -21,6 +21,7 @@ import {
   getCalendarOAuthConfig,
   removeCalendarConnection,
   OAUTH_COMPLETE_MESSAGE,
+  friendlyMicrosoftAuthMessage,
 } from '../../src/utils/calendarIntegration';
 import { peekCalendarConnectionsCache } from '../../src/utils/calendarConnectionsCache';
 import {
@@ -86,6 +87,7 @@ import {
 } from '../../src/utils/mailComposePrefs';
 import { appendSignatureHtml, prepareHtmlForSend, shouldIncludeSignature } from '../../src/utils/mailSignature';
 import { composeBodyToHtml, escapeHtml } from '../../src/utils/mailHtml';
+import { friendlyCallableError } from '../../src/utils/callableErrors';
 
 const PANE_KEY = 'protop.mail.panes';
 const EXPAND_KEY = 'protop.mail.expanded';
@@ -427,7 +429,7 @@ export default function MailHubScreen() {
       });
       lastAccountFetchRef.current = Date.now();
     } catch (e) {
-      setError(e?.message || 'Klarte ikke hente kontoer');
+      setError(friendlyCallableError(e, 'Klarte ikke hente kontoer.'));
     }
   }, []);
 
@@ -819,7 +821,7 @@ export default function MailHubScreen() {
       if (defaultAccountId === id) persistDefaultAccount(null);
       await reloadAccounts();
     } catch (e) {
-      setError(e?.message || 'Klarte ikke fjerne kontoen');
+      setError(friendlyCallableError(e, 'Klarte ikke fjerne kontoen.'));
     }
   };
 
@@ -836,7 +838,7 @@ export default function MailHubScreen() {
       });
     } catch (e) {
       if (e?.message === 'cancelled') return;
-      setError(e?.message || 'Klarte ikke be om e-posttilgang');
+      setError(friendlyMicrosoftAuthMessage(friendlyCallableError(e, 'Klarte ikke koble til e-postkontoen.')));
     } finally {
       setGrantBusy(false);
     }
@@ -988,6 +990,9 @@ export default function MailHubScreen() {
       onConnect={() => grantMail(undefined)}
       onGrant={grantMail}
       onRemove={removeAccount}
+      // Feilen vises i vinduet brukeren ser på, ikke på siden bak (SOS-17).
+      error={settingsOpen ? error : ''}
+      onDismissError={() => setError('')}
       composePrefs={composePrefs}
       onComposePrefsChange={persistComposePrefs}
     />

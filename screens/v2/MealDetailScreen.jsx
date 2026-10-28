@@ -491,5 +491,5 @@ const styles = StyleSheet.create({
   listOpenerSub: { color: colors.muted, fontWeight: '400', fontSize: 12, marginTop: 2 },
   deleteBtn: {
     alignSelf: 'flex-start', alignItems: 'center', paddingVertical: 12, marginTop: 8 },
-  deleteTxt: { color: '#b91c1c', fontWeight: '400' },
+  deleteTxt: { color: colors.dangerInk, fontWeight: '400' },
 });

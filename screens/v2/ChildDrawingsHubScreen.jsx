@@ -494,7 +494,7 @@ export default function ChildDrawingsHubScreen({ inShell = false }) {
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>{editingId ? 'Rediger tegning' : 'Ny tegning'}</Text>
               <TouchableOpacity onPress={closeEditor} hitSlop={10}>
-                <Ionicons name="close" size={22} color={colors.text} />
+                <Ionicons name="close" size={22} color={colors.ink} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
@@ -701,7 +701,7 @@ export default function ChildDrawingsHubScreen({ inShell = false }) {
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   body: { padding: 16, paddingBottom: 32, gap: 12 },
-  title: { fontSize: 24, fontWeight: '400', color: colors.text, marginBottom: 4 },
+  title: { fontSize: 24, fontWeight: '400', color: colors.ink, marginBottom: 4 },
   stats: { flexDirection: 'row', gap: 10 },
   statCard: {
     flex: 1,
@@ -711,7 +711,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(60,40,20,0.08)',
   },
-  statNum: { fontSize: 22, fontWeight: '400', color: colors.text },
+  statNum: { fontSize: 22, fontWeight: '400', color: colors.ink },
   statLbl: { fontSize: 12, color: colors.muted, marginTop: 2 },
   sceneTabs: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   roomRow: { flexDirection: 'row', gap: 10, paddingVertical: 4 },
@@ -742,7 +742,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(60,40,20,0.1)',
   },
   sceneTabOn: { backgroundColor: '#5C4033', borderColor: '#5C4033' },
-  sceneTabTxt: { fontSize: 13, color: colors.text, fontWeight: '400' },
+  sceneTabTxt: { fontSize: 13, color: colors.ink, fontWeight: '400' },
   sceneTabTxtOn: { color: '#fff' },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
@@ -754,7 +754,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(60,40,20,0.1)',
   },
   chipOn: { backgroundColor: '#8B6914', borderColor: '#8B6914' },
-  chipTxt: { fontSize: 13, color: colors.text },
+  chipTxt: { fontSize: 13, color: colors.ink },
   chipTxtOn: { color: '#fff', fontWeight: '400' },
   addBtn: {
     alignSelf: 'flex-start',
@@ -775,9 +775,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(60,40,20,0.08)',
     gap: 6,
   },
-  detailTitle: { fontSize: 18, fontWeight: '400', color: colors.text },
+  detailTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
   detailMeta: { fontSize: 13, color: colors.muted },
-  detailNote: { fontSize: 14, color: colors.text, marginTop: 4 },
+  detailNote: { fontSize: 14, color: colors.ink, marginTop: 4 },
   detailActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
   secondaryBtn: {
     alignSelf: 'flex-start',
@@ -798,7 +798,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '400',
-    color: colors.text,
+    color: colors.ink,
     marginTop: 8,
   },
   albumGrid: {
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
   },
   modalSheet: {
     maxHeight: '92%',
-    backgroundColor: '#f7f1e8',
+    backgroundColor: colors.card,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     overflow: 'hidden',
@@ -841,7 +841,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(60,40,20,0.1)',
   },
-  modalTitle: { fontSize: 17, fontWeight: '400', color: colors.text },
+  modalTitle: { fontSize: 17, fontWeight: '400', color: colors.ink },
   modalBody: { padding: 16, gap: 8, paddingBottom: 40 },
   previewWrap: { alignItems: 'center', marginBottom: 8 },
   label: {
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
-    color: colors.text,
+    color: colors.ink,
   },
   inputMulti: { minHeight: 72, textAlignVertical: 'top' },
   row2: { flexDirection: 'row', gap: 10 },

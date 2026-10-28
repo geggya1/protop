@@ -449,7 +449,7 @@ export default function AddMemberScreen({
         </TouchableOpacity>
         {photoURL ? (
           <TouchableOpacity
-            style={[styles.chip, { backgroundColor: '#e2e8f0' }]}
+            style={[styles.chip, { backgroundColor: colors.sunken }]}
             onPress={() => setPhotoURL('')}
             disabled={photoBusy}
           >
@@ -513,13 +513,13 @@ const styles = StyleSheet.create({
   credModal: { fontSize: 20, fontWeight: '400' },
   missingBox: {
     marginTop: 12, padding: 12, borderRadius: radius.md,
-    backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa',
+    backgroundColor: colors.starSoft, borderWidth: 1, borderColor: '#fed7aa',
   },
   missingTitle: { fontWeight: '400', color: colors.ink, marginBottom: 4 },
   missingItem: { color: colors.warn, fontWeight: '400' },
   foundBox: {
     marginTop: 8, padding: 12, borderRadius: radius.md,
-    backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0', gap: 2,
+    backgroundColor: colors.successSoft, borderWidth: 1, borderColor: '#a7f3d0', gap: 2,
   },
   foundTitle: { fontWeight: '400', color: colors.ink, marginBottom: 4 },
   foundName: { fontWeight: '400', color: colors.ink, fontSize: 16 },

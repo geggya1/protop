@@ -832,7 +832,7 @@ const styles = StyleSheet.create({
   },
   listRowDesk: { paddingVertical: 8, gap: 8 },
   listIcon: {
-    width: 36, height: 36, borderRadius: 9, backgroundColor: '#eef6ff',
+    width: 36, height: 36, borderRadius: 9, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
   },
   listIconDesk: { width: 32, height: 32, borderRadius: 7 },
@@ -844,7 +844,7 @@ const styles = StyleSheet.create({
   listMeta: { color: colors.muted, fontWeight: '400', fontSize: 12, marginTop: 2 },
   listMetaDesk: { fontSize: 11 },
   lockPill: {
-    width: 22, height: 22, borderRadius: 11, backgroundColor: '#f1f5f9',
+    width: 22, height: 22, borderRadius: 11, backgroundColor: colors.sunken,
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -893,7 +893,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontWeight: '400', fontSize: 17, color: colors.ink, marginBottom: 12 },
   modalTitleDesk: { fontWeight: '500', fontSize: 16, marginBottom: 10 },
   input: {
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 15, fontWeight: '400', color: colors.ink, marginBottom: 12,
   },

@@ -183,7 +183,7 @@ function makeStyles({ cardWidth, gap, simpleUi, isDesktop }) {
     },
     card: {
       width: cardWidth,
-      backgroundColor: 'rgba(255,255,255,0.94)',
+      backgroundColor: colors.card,
       borderRadius: 16,
       paddingVertical: 14,
       paddingHorizontal: 6,

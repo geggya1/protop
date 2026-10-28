@@ -468,13 +468,13 @@ const styles = StyleSheet.create({
   },
 
   iconCircle: {
-    width: 32, height: 32, borderRadius: 8, backgroundColor: '#eef6ff',
+    width: 32, height: 32, borderRadius: 8, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   iconCircleCompact: {
     width: 28, height: 28, borderRadius: 6,
   },
-  iconDanger: { backgroundColor: '#fee2e2' },
+  iconDanger: { backgroundColor: colors.dangerSoft },
 
   label: { flex: 1, fontWeight: '400', fontSize: 15, color: colors.ink },
   labelCompact: { fontSize: 13, fontWeight: '500' },

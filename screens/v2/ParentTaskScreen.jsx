@@ -837,13 +837,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: 10, padding: 10, marginBottom: 6,
     borderWidth: 1, borderColor: colors.line,
   },
-  attThumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: '#e2e8f0' },
+  attThumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: colors.line },
   attName: { fontWeight: '500', color: colors.ink, fontSize: 14 },
   attBy: { color: '#94a3b8', fontSize: 11, fontWeight: '400' },
   addAttBtn: {
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#eef6ff', borderRadius: 10, paddingVertical: 10, marginBottom: 12,
+    backgroundColor: colors.brandSoft, borderRadius: 10, paddingVertical: 10, marginBottom: 12,
     borderWidth: 1, borderColor: '#93c5fd', borderStyle: 'dashed',
   },
   addAttTxt: { color: colors.brand, fontWeight: '400' },
@@ -856,7 +856,7 @@ const styles = StyleSheet.create({
 
   commentRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   commentAvatar: {
-    width: 32, height: 32, borderRadius: 16, backgroundColor: '#eef6ff',
+    width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
   commentHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -883,8 +883,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 20, paddingVertical: 12, borderRadius: 10,
-    backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca',
+    backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: '#fecaca',
   },
-  deleteTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 14 },
+  deleteTxt: { color: colors.dangerInk, fontWeight: '400', fontSize: 14 },
 });
 

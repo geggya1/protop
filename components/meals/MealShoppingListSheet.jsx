@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.sunken,
   },
   portionsWrap: { marginBottom: 12 },
   scroll: { flexGrow: 0 },
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   },
   ghostTxt: { color: colors.brand, fontWeight: '400' },
   group: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
     borderRadius: 12,
     padding: 10,
     gap: 2,

@@ -452,7 +452,7 @@ export default function FamilyOverviewScreen({ reloadKey }) {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.sheetRow} onPress={() => pickCreate('join')}>
-              <View style={[styles.sheetIcon, { backgroundColor: '#f1f5f9' }]}>
+              <View style={[styles.sheetIcon, { backgroundColor: colors.sunken }]}>
                 <Ionicons name="key-outline" size={22} color={colors.ink} />
               </View>
               <View style={{ flex: 1 }}>
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     alignItems: 'flex-start',
-    backgroundColor: '#eff6ff',
+    backgroundColor: colors.brandSoft,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.brand,
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     width: 320,
     maxWidth: '100%',
-    backgroundColor: '#eff6ff',
+    backgroundColor: colors.brandSoft,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.brand,
@@ -636,10 +636,10 @@ const styles = StyleSheet.create({
   groupCardTeam: { borderColor: '#cce7df' },
   groupCardClass: { borderColor: '#c7d2fe' },
   groupCardFriends: { borderColor: '#bae6fd' },
-  groupCardCongregation: { borderColor: '#cbd5e1' },
+  groupCardCongregation: { borderColor: colors.line },
   groupCardDaycare: { borderColor: '#fecdd3' },
-  groupCardFlex: { borderColor: '#cbd5e1' },
-  groupCardOff: { backgroundColor: '#eef1f5', borderColor: '#d5dbe3' },
+  groupCardFlex: { borderColor: colors.line },
+  groupCardOff: { backgroundColor: colors.sunken, borderColor: '#d5dbe3' },
   groupName: { fontSize: 16, fontWeight: '400', color: colors.ink },
   groupNameOff: { color: '#94a3b8' },
   groupSub: { marginTop: 2, fontSize: 12, color: colors.muted, fontWeight: '400' },
@@ -648,7 +648,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     fontSize: 11,
     fontWeight: '400',
-    color: '#64748b',
+    color: colors.muted,
     letterSpacing: 0.2,
     textTransform: 'uppercase',
   },
@@ -664,7 +664,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.line,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
   },
   settingsTxt: {
     color: colors.brand,
@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
   },
   reactivateBtn: {
     alignSelf: 'flex-start',
-    backgroundColor: '#e4f5ea',
+    backgroundColor: colors.successSoft,
     marginLeft: 12,
     marginBottom: 12,
     paddingVertical: 6,

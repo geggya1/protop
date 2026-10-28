@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg,
   },
   chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brand },
-  chipOnB: { backgroundColor: '#ffedd5', borderColor: '#ea580c' },
+  chipOnB: { backgroundColor: colors.starSoft, borderColor: '#ea580c' },
   chipTxt: { fontWeight: '400', fontSize: 13, color: colors.ink },
   chipTxtOn: { color: colors.brand },
   addBtn: {

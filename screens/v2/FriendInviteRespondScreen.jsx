@@ -166,8 +166,8 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   backRow: { paddingHorizontal: 16, paddingTop: 8 },
   wrap: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, fontWeight: '400', color: colors.text, marginTop: 16, marginBottom: 8 },
-  body: { fontSize: 15, color: colors.text, textAlign: 'center', lineHeight: 22, marginBottom: 12 },
+  title: { fontSize: 22, fontWeight: '400', color: colors.ink, marginTop: 16, marginBottom: 8 },
+  body: { fontSize: 15, color: colors.ink, textAlign: 'center', lineHeight: 22, marginBottom: 12 },
   privacy: { fontSize: 13, color: colors.muted, textAlign: 'center', lineHeight: 18, marginBottom: 20 },
   error: { color: '#dc2626', marginBottom: 12 },
   primary: {

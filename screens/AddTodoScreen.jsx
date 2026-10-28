@@ -48,7 +48,7 @@ const STOP_PRESETS = [
   { id: 'date', label: 'På en dato' },
 ];
 const INTERVAL_OPTIONS = Array.from({ length: 30 }, (_, i) => i + 1);
-const DATE_FIELD_STYLE = { backgroundColor: colors.card, borderRadius: 10, borderColor: '#e5e7eb' };
+const DATE_FIELD_STYLE = { backgroundColor: colors.card, borderRadius: 10, borderColor: colors.line };
 
 export default function AddTodoScreen({ route, navigation }) {
   const {
@@ -376,7 +376,7 @@ export default function AddTodoScreen({ route, navigation }) {
       prefix="Fra: "
       placeholder="Velg startdato"
       style={[DATE_FIELD_STYLE, styleExtra]}
-      textStyle={{ fontWeight: '400', color: '#0b1f33' }}
+      textStyle={{ fontWeight: '400', color: colors.ink }}
     />
   );
   /** MAL-IKONER — on web skip Storage (CORS blocks it), use emoji fallback instead */
@@ -787,12 +787,12 @@ export default function AddTodoScreen({ route, navigation }) {
                   {rewardModeTitle(rewardMode)}
                 </Text>
                 {showsBudget(rewardMode) ? (
-                  <Text style={{ fontSize: 12, color: '#6b7280' }}>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>
                     Budsjett: {weeklyBudget || 0} {rewardUnitLabel(rewardMode) === 'stjerner' ? '⭐' : 'kr'} / uke
                     {budgetIso?.week ? ` · uke ${budgetIso.week}` : ''}
                   </Text>
                 ) : (
-                  <Text style={{ fontSize: 12, color: '#6b7280' }}>Uten poeng/penger</Text>
+                  <Text style={{ fontSize: 12, color: colors.muted }}>Uten poeng/penger</Text>
                 )}
               </View>
               {showsBudget(rewardMode) ? (
@@ -819,7 +819,7 @@ export default function AddTodoScreen({ route, navigation }) {
                   </View>
                 </View>
               ) : (
-                <Text style={{ marginTop: 6, color: '#64748b', fontSize: 13, lineHeight: 18 }}>
+                <Text style={{ marginTop: 6, color: colors.muted, fontSize: 13, lineHeight: 18 }}>
                   Dette er bare en sjekkliste. Ingen belønningstall på oppgaven.
                 </Text>
               )}
@@ -854,22 +854,22 @@ export default function AddTodoScreen({ route, navigation }) {
                     onClick={() => applyTemplate(item)}
                     style={{
                       minWidth: 118, width: 118, padding: 8, borderRadius: 12,
-                      backgroundColor: sel ? '#dbeafe' : '#fff',
-                      border: sel ? '2px solid #0b74d1' : '1px solid #e5e7eb',
+                      backgroundColor: sel ? colors.brandSoft : colors.card,
+                      border: sel ? '2px solid #0b74d1' : `1px solid ${colors.line}`,
                       cursor: 'pointer', flexShrink: 0, textAlign: 'center',
                       boxShadow: sel ? '0 2px 8px rgba(11,116,209,0.18)' : '0 1px 4px rgba(0,0,0,0.06)',
                     }}
                   >
                     <div style={{ fontSize: 36, lineHeight: '56px', textAlign: 'center' }}>{item.icon || '✅'}</div>
                     <div style={{
-                      fontSize: 12, fontWeight: '400', color: '#0b1f33', marginTop: 4,
+                      fontSize: 12, fontWeight: '400', color: colors.ink, marginTop: 4,
                       lineHeight: '16px', minHeight: 32,
                       display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                       overflow: 'hidden', wordBreak: 'break-word',
                     }}>
                       {item.title}
                     </div>
-                    {sel && <div style={{ fontSize: 10, fontWeight: '400', color: '#0b74d1', marginTop: 2 }}>✓ Valgt</div>}
+                    {sel && <div style={{ fontSize: 10, fontWeight: '400', color: colors.brandInk, marginTop: 2 }}>✓ Valgt</div>}
                   </div>
                 );
               })}
@@ -887,18 +887,18 @@ export default function AddTodoScreen({ route, navigation }) {
                 return (
                   <TouchableOpacity
                     key={item.file + idx}
-                    style={[styles.tile, sel && { borderColor: '#0b74d1', borderWidth: 2, backgroundColor: '#dbeafe' }]}
+                    style={[styles.tile, sel && { borderColor: '#0b74d1', borderWidth: 2, backgroundColor: colors.brandSoft }]}
                     onPress={() => applyTemplate(item)}
                     accessibilityRole="button"
                   >
                     {url ? (
                       <Image source={{ uri: url }} style={styles.tileImg} />
                     ) : (
-                      <View style={[styles.tileImg, { alignItems:'center', justifyContent:'center', backgroundColor:'#eef2ff' }]}>
+                      <View style={[styles.tileImg, { alignItems:'center', justifyContent:'center', backgroundColor:colors.brandSoft }]}>
                         <Text style={{ fontSize: 36 }}>{item.icon || '✅'}</Text>
                       </View>
                     )}
-                    <Text style={[styles.tileTxt, sel && { color: '#0b74d1' }]} numberOfLines={2}>{item.title}</Text>
+                    <Text style={[styles.tileTxt, sel && { color: colors.brandInk }]} numberOfLines={2}>{item.title}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -933,7 +933,7 @@ export default function AddTodoScreen({ route, navigation }) {
               <TextInput style={styles.input} value={String(moneyValue)} onChangeText={setMoneyValue} keyboardType="number-pad" placeholder="10" />
             </>
           ) : rewardMode === 'none' ? (
-            <Text style={{ color: '#64748b', marginBottom: 8, lineHeight: 20 }}>
+            <Text style={{ color: colors.muted, marginBottom: 8, lineHeight: 20 }}>
               Ingen stjerner eller kroner på dette gjøremålet — det er bare en sjekkliste.
             </Text>
           ) : (
@@ -956,7 +956,7 @@ export default function AddTodoScreen({ route, navigation }) {
             <>
               <Text style={styles.subLabel}>Startdato</Text>
               {renderRecurrenceStartField(null)}
-              <Text style={{ color: '#6b7280', marginTop: 6, marginBottom: 4 }}>
+              <Text style={{ color: colors.muted, marginTop: 6, marginBottom: 4 }}>
                 {weeklyPatternMondayLabel
                   ? `Valgt dato beholdes i skjemaet; mønsteret teller fra mandag ${weeklyPatternMondayLabel}.`
                   : 'Fra mandag i valgt uke telles mønsteret (f.eks. annenhver uke man–søn).'}
@@ -979,7 +979,7 @@ export default function AddTodoScreen({ route, navigation }) {
                   icon="stop-circle-outline"
                   min={recurrenceStartKey}
                   style={[DATE_FIELD_STYLE, { marginTop: 8 }]}
-                  textStyle={{ fontWeight: '400', color: '#0b1f33' }}
+                  textStyle={{ fontWeight: '400', color: colors.ink }}
                 />
               ) : null}
 
@@ -1016,7 +1016,7 @@ export default function AddTodoScreen({ route, navigation }) {
                 onChange={setStartDate}
                 placeholder="Velg startdato"
                 style={DATE_FIELD_STYLE}
-                textStyle={{ fontWeight: '400', color: '#0b1f33' }}
+                textStyle={{ fontWeight: '400', color: colors.ink }}
                 iconColor="#0b74d1"
               />
 
@@ -1026,10 +1026,10 @@ export default function AddTodoScreen({ route, navigation }) {
                 onChange={setDueDate}
                 placeholder="Velg dato"
                 style={DATE_FIELD_STYLE}
-                textStyle={{ fontWeight: '400', color: '#0b1f33' }}
+                textStyle={{ fontWeight: '400', color: colors.ink }}
                 iconColor="#0b74d1"
               />
-              <Text style={{ color:'#6b7280', marginTop:6 }}>
+              <Text style={{ color:colors.muted, marginTop:6 }}>
                 {isLekserForm
                   ? 'Leksen vises alle dager fra–til. Kryss av én gang = ferdig for hele perioden.'
                   : 'Engangs-oppgaver teller ikke mot ukebudsjett før datoen inntreffer.'}
@@ -1207,7 +1207,7 @@ export default function AddTodoScreen({ route, navigation }) {
 
             <View style={[styles.customCard, { marginTop: 12 }]}>
               <Text style={styles.customRowLabel}>Startdato</Text>
-              <Text style={{ color: '#6b7280', fontSize: 13, marginTop: 4, marginBottom: 10 }}>
+              <Text style={{ color: colors.muted, fontSize: 13, marginTop: 4, marginBottom: 10 }}>
                 {weeklyPatternMondayLabel
                   ? `Valgt dato beholdes i skjemaet; mønsteret teller fra mandag ${weeklyPatternMondayLabel}.`
                   : 'Fra mandag i valgt uke (ukedager i samme uke følger med)'}
@@ -1294,135 +1294,135 @@ export default function AddTodoScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, backgroundColor: '#f6f9fc', padding: 14 },
-  h1: { fontSize: 22, fontWeight: '400', color: '#0b1f33' },
-  help: { color: '#64748b', marginTop: 4, marginBottom: 10 },
+  wrap: { flex: 1, backgroundColor: colors.bg, padding: 14 },
+  h1: { fontSize: 22, fontWeight: '400', color: colors.ink },
+  help: { color: colors.muted, marginTop: 4, marginBottom: 10 },
 
-  budgetCard: { backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' },
-  lockTxt: { marginTop: 6, fontSize: 12, color: '#6b7280' },
+  budgetCard: { backgroundColor: colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: colors.line },
+  lockTxt: { marginTop: 6, fontSize: 12, color: colors.muted },
   budgetRow: { marginTop: 8, gap: 6 },
-  budgetPill: { flexDirection:'row', alignItems:'center', gap:6, backgroundColor:'#eef6ff', paddingVertical:6, paddingHorizontal:8, borderRadius:8 },
-  pillTxt: { color:'#0b1f33', fontWeight: '400', fontSize:12 },
+  budgetPill: { flexDirection:'row', alignItems:'center', gap:6, backgroundColor:colors.brandSoft, paddingVertical:6, paddingHorizontal:8, borderRadius:8 },
+  pillTxt: { color:colors.ink, fontWeight: '400', fontSize:12 },
 
   overBudgetBanner: {
     marginTop: 8, flexDirection:'row', gap:8, alignItems:'center',
-    backgroundColor:'#fee2e2', borderColor:'#fecaca', borderWidth:1,
+    backgroundColor:colors.dangerSoft, borderColor:colors.dangerSoft, borderWidth:1,
     paddingHorizontal:10, paddingVertical:8, borderRadius:8
   },
-  overBudgetText: { color:'#991b1b', fontWeight: '400', flexShrink:1 },
+  overBudgetText: { color:colors.dangerInk, fontWeight: '400', flexShrink:1 },
 
-  section: { marginTop: 12, marginBottom: 8, fontWeight: '400', color: '#0b1f33', fontSize: 16 },
-  sectionSmall: { fontWeight: '400', color:'#0b1f33', fontSize:14 },
+  section: { marginTop: 12, marginBottom: 8, fontWeight: '400', color: colors.ink, fontSize: 16 },
+  sectionSmall: { fontWeight: '400', color:colors.ink, fontSize:14 },
 
   tile: {
     width: 120, padding: 8, borderRadius: 12, backgroundColor: colors.card,
     ...(Platform.OS === 'web' ? { boxShadow: '0 2px 10px rgba(2,6,23,0.06)' } : { elevation: 1 })
   },
-  tileImg: { width: '100%', height: 80, borderRadius: 10, backgroundColor: '#eef2ff' },
-  tileTxt: { marginTop: 6, fontSize: 12, fontWeight: '400', color: '#0b1f33', lineHeight: 16, minHeight: 32, textAlign: 'center' },
+  tileImg: { width: '100%', height: 80, borderRadius: 10, backgroundColor: colors.brandSoft },
+  tileTxt: { marginTop: 6, fontSize: 12, fontWeight: '400', color: colors.ink, lineHeight: 16, minHeight: 32, textAlign: 'center' },
 
-  label: { marginTop: 10, marginBottom: 6, fontWeight: '400', color: '#0b1f33' },
-  subLabel: { marginTop: 8, marginBottom: 6, fontWeight: '400', color: '#334155' },
-  input: { backgroundColor: colors.card, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#e5e7eb' },
+  label: { marginTop: 10, marginBottom: 6, fontWeight: '400', color: colors.ink },
+  subLabel: { marginTop: 8, marginBottom: 6, fontWeight: '400', color: colors.ink },
+  input: { backgroundColor: colors.card, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: colors.line },
 
   chips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  chip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: '#e7f2fb' },
+  chip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.brandSoft },
   chipActive: { backgroundColor: '#0b74d1' },
-  chipText: { color: '#0b74d1', fontWeight: '400' },
+  chipText: { color: colors.brandInk, fontWeight: '400' },
   chipTextActive: { color: '#fff' },
 
   dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, padding: 10, borderRadius: 10, marginBottom: 6 },
-  dayLabel: { fontWeight: '400', color: '#0b1f33' },
+  dayLabel: { fontWeight: '400', color: colors.ink },
 
   formRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.card, borderWidth: 1, borderColor: '#e5e7eb',
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8,
   },
-  formRowLabel: { fontWeight: '400', color: '#0b1f33', fontSize: 15 },
+  formRowLabel: { fontWeight: '400', color: colors.ink, fontSize: 15 },
   formRowRight: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
-  formRowValue: { fontWeight: '400', color: '#64748b', fontSize: 14, textAlign: 'right' },
-  repeatHint: { marginTop: 4, marginBottom: 8, color: '#64748b', fontSize: 13, fontWeight: '400' },
+  formRowValue: { fontWeight: '400', color: colors.muted, fontSize: 14, textAlign: 'right' },
+  repeatHint: { marginTop: 4, marginBottom: 8, color: colors.muted, fontSize: 13, fontWeight: '400' },
 
   weekChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
   weekChip: {
     paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999,
-    backgroundColor: colors.card, borderWidth: 1, borderColor: '#e5e7eb',
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
   },
   weekChipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
-  weekChipTxt: { fontWeight: '400', color: '#0b1f33', fontSize: 13 },
+  weekChipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   weekChipTxtOn: { color: '#fff' },
 
   sheet: {
     backgroundColor: colors.card, borderRadius: 16, overflow: 'hidden', width: '100%', maxWidth: 420,
   },
   sheetTitle: {
-    fontWeight: '400', fontSize: 16, color: '#0b1f33', textAlign: 'center',
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
+    fontWeight: '400', fontSize: 16, color: colors.ink, textAlign: 'center',
+    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.line,
   },
   sheetRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
+    paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.line,
   },
   sheetRowLast: { borderBottomWidth: 0 },
-  sheetRowTxt: { fontWeight: '400', fontSize: 16, color: '#0b1f33' },
-  sheetCancel: { paddingVertical: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#e5e7eb' },
+  sheetRowTxt: { fontWeight: '400', fontSize: 16, color: colors.ink },
+  sheetCancel: { paddingVertical: 16, alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.line },
   sheetCancelTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
 
-  customModalWrap: { flex: 1, backgroundColor: '#f3f4f6' },
+  customModalWrap: { flex: 1, backgroundColor: colors.sunken },
   customScreen: { flex: 1, padding: 16 },
   customHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16,
   },
   customBack: { padding: 4, width: 60 },
-  customTitle: { fontWeight: '400', fontSize: 18, color: '#0b1f33' },
+  customTitle: { fontWeight: '400', fontSize: 18, color: colors.ink },
   customDone: { width: 60, alignItems: 'flex-end' },
   customDoneTxt: { color: colors.brand, fontWeight: '400', fontSize: 16 },
   customCard: {
-    backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb',
+    backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.line,
     padding: 14, marginBottom: 12,
   },
   customRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  customRowLabel: { fontWeight: '400', color: '#0b1f33', fontSize: 15 },
-  customDivider: { height: 1, backgroundColor: '#e5e7eb', marginVertical: 12 },
+  customRowLabel: { fontWeight: '400', color: colors.ink, fontSize: 15 },
+  customDivider: { height: 1, backgroundColor: colors.line, marginVertical: 12 },
   intervalPickerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   intervalScroll: { flex: 1, maxHeight: 140 },
   intervalPickerCol: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   intervalPill: {
     minWidth: 36, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10,
-    backgroundColor: '#f3f4f6', alignItems: 'center',
+    backgroundColor: colors.sunken, alignItems: 'center',
   },
   intervalPillOn: { backgroundColor: colors.brand },
-  intervalPillTxt: { fontWeight: '400', color: '#0b1f33', fontSize: 15 },
+  intervalPillTxt: { fontWeight: '400', color: colors.ink, fontSize: 15 },
   intervalPillTxtOn: { color: '#fff' },
-  intervalUnit: { fontWeight: '400', color: '#64748b', fontSize: 16, minWidth: 48 },
+  intervalUnit: { fontWeight: '400', color: colors.muted, fontSize: 16, minWidth: 48 },
 
   iconRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
-  iconPreview: { width: 64, height: 64, borderRadius: 12, backgroundColor: '#e2e8f0' },
+  iconPreview: { width: 64, height: 64, borderRadius: 12, backgroundColor: colors.line },
 
   secondaryBtn: {
-    alignSelf: 'flex-start', backgroundColor: '#e7f2fb', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  secondaryTxt: { color: '#0b74d1', fontWeight: '400' },
+    alignSelf: 'flex-start', backgroundColor: colors.brandSoft, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
+  secondaryTxt: { color: colors.brandInk, fontWeight: '400' },
 
-  inlineError: { marginTop: 12, backgroundColor:'#fee2e2', borderColor:'#fecaca', borderWidth:1, padding:10, borderRadius:10, flexDirection:'row', alignItems:'center', gap:8 },
-  inlineErrorText: { color:'#991b1b', fontWeight: '400', flexShrink:1 },
+  inlineError: { marginTop: 12, backgroundColor:colors.dangerSoft, borderColor:colors.dangerSoft, borderWidth:1, padding:10, borderRadius:10, flexDirection:'row', alignItems:'center', gap:8 },
+  inlineErrorText: { color:colors.dangerInk, fontWeight: '400', flexShrink:1 },
 
   saveBtn: {
     alignSelf: 'flex-start', marginTop: 14, backgroundColor: '#0b74d1', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   saveTxt: { color: '#fff', fontWeight: '400' },
 
   deleteBtn: {
-    alignSelf: 'flex-start', marginTop: 12, backgroundColor: '#fee2e2', paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#fecaca' },
-  deleteTxt: { color: '#b91c1c', fontWeight: '400' },
+    alignSelf: 'flex-start', marginTop: 12, backgroundColor: colors.dangerSoft, paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.dangerSoft },
+  deleteTxt: { color: colors.dangerInk, fontWeight: '400' },
 
   // Dialoger
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   dialog: {
     backgroundColor: colors.card, width: '100%', maxWidth: 420, borderRadius: 16,
-    padding: 18, borderWidth: 1, borderColor: '#e2e8f0'
+    padding: 18, borderWidth: 1, borderColor: colors.line
   },
-  dialogTitle: { fontSize: 18, fontWeight: '400', color: '#0f172a' },
-  dialogMsg: { color: '#0f172a', marginTop: 8, fontWeight: '400' },
+  dialogTitle: { fontSize: 18, fontWeight: '400', color: colors.ink },
+  dialogMsg: { color: colors.ink, marginTop: 8, fontWeight: '400' },
 
   actionBar: {
     marginTop: 14,
@@ -1437,11 +1437,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#0b74d1', minWidth: 120, alignItems: 'center', justifyContent: 'center'
   },
   actionBtnDestructive: { backgroundColor: '#dc2626' },
-  actionBtnCancel: { backgroundColor: '#e5e7eb' },
+  actionBtnCancel: { backgroundColor: colors.line },
   actionBtnTxt: { color: '#fff', fontWeight: '400' },
 
   confirmIconWrap: {
-    width: 56, height: 56, borderRadius: 28, backgroundColor: '#ecfdf5',
+    width: 56, height: 56, borderRadius: 28, backgroundColor: colors.successSoft,
     alignItems: 'center', justifyContent: 'center', alignSelf: 'center'
   },
 });

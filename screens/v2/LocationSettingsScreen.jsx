@@ -150,10 +150,10 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, marginTop: 12, fontWeight: '400' },
   infoBox: {
     flexDirection: 'row', gap: 10, marginTop: 16, padding: 14,
-    backgroundColor: '#ecfdf5', borderRadius: radius.sm,
+    backgroundColor: colors.successSoft, borderRadius: radius.sm,
     borderWidth: StyleSheet.hairlineWidth, borderColor: '#a7f3d0',
   },
-  infoTxt: { flex: 1, color: '#065f46', fontWeight: '500', fontSize: 13, lineHeight: 19 },
+  infoTxt: { flex: 1, color: colors.successInk, fontWeight: '500', fontSize: 13, lineHeight: 19 },
   noteBox: {
     flexDirection: 'row', gap: 10, marginTop: 12, padding: 14,
     backgroundColor: colors.brandSoft, borderRadius: radius.sm,

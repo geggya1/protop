@@ -667,7 +667,7 @@ const styles = StyleSheet.create({
   cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   fairRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
   fairTrack: {
-    height: 8, borderRadius: 6, backgroundColor: '#e2e8f0', overflow: 'hidden', marginTop: 6,
+    height: 8, borderRadius: 6, backgroundColor: colors.line, overflow: 'hidden', marginTop: 6,
   },
   fairFill: { height: '100%', borderRadius: 6 },
   kidName: { fontWeight: '500', fontSize: 14, color: colors.ink },
@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
   kidPts: { color: colors.star, fontWeight: '500', fontSize: 12 },
   pendingHint: { marginTop: 3, color: colors.warn, fontWeight: '500', fontSize: 11 },
   kidBar: {
-    marginTop: 8, height: 5, backgroundColor: '#e7effe', borderRadius: 999, overflow: 'hidden',
+    marginTop: 8, height: 5, backgroundColor: colors.brandSoft, borderRadius: 999, overflow: 'hidden',
   },
   kidBarFill: { height: 5, backgroundColor: colors.brand, borderRadius: 999 },
   kidBarDone: { backgroundColor: colors.success },
@@ -704,11 +704,11 @@ const styles = StyleSheet.create({
   miniAttestTxt: { color: '#fff', fontWeight: '400', fontSize: 11 },
 
   warnBox: {
-    backgroundColor: '#fff7ed', borderRadius: 10, padding: 10,
+    backgroundColor: colors.starSoft, borderRadius: 10, padding: 10,
     borderWidth: 1, borderColor: '#fed7aa',
   },
-  warnTitle: { fontWeight: '400', color: '#9a3412', marginBottom: 4, fontSize: 13 },
-  warnLine: { color: '#9a3412', fontWeight: '400', fontSize: 12, marginBottom: 3, lineHeight: 17 },
+  warnTitle: { fontWeight: '400', color: colors.warnInk, marginBottom: 4, fontSize: 13 },
+  warnLine: { color: colors.warnInk, fontWeight: '400', fontSize: 12, marginBottom: 3, lineHeight: 17 },
   okDup: { color: colors.success, fontWeight: '500', fontSize: 12 },
   dayChips: { gap: 6, alignItems: 'center', height: 32, paddingVertical: 0 },
   dayChip: {

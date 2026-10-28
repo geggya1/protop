@@ -42,7 +42,7 @@ function StepRail({ steps, colors }) {
           <View
             key={s.id || i}
             style={[
-              styles.stepPill,
+              styles.stepPill, { backgroundColor: colors.card, borderColor: colors.line },
               done && { backgroundColor: colors.successSoft, borderColor: colors.success },
               cur && { backgroundColor: colors.brandSoft, borderColor: colors.brand },
             ]}
@@ -60,7 +60,7 @@ function StepRail({ steps, colors }) {
               )}
             </View>
             <Text
-              style={[styles.stepTitle, cur && { color: colors.brand, fontWeight: '400' }]}
+              style={[styles.stepTitle, { color: colors.muted }, cur && { color: colors.brand, fontWeight: '400' }]}
               numberOfLines={1}
             >
               {s.title}
@@ -85,11 +85,11 @@ function Bubble({ role, text, colors }) {
         styles.bubble,
         mine
           ? { backgroundColor: colors.brand, borderBottomRightRadius: 6 }
-          : { backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1, borderBottomLeftRadius: 6 },
+          : { backgroundColor: colors.card, borderColor: colors.line, borderWidth: 1, borderBottomLeftRadius: 6 },
       ]}
       >
         <MathText
-          style={[styles.bubbleTxt, mine && { color: '#fff' }]}
+          style={[styles.bubbleTxt, { color: colors.ink }, mine && { color: '#fff' }]}
           accentColor={mine ? '#fde68a' : '#b45309'}
         >
           {text}
@@ -938,7 +938,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     startGridDesk: { flexDirection: 'row', alignItems: 'flex-start' },
     startMain: {
       flex: 1,
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: radius.md,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.line,
@@ -948,10 +948,10 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       overflow: 'visible',
     },
     masteryStrip: {
-      backgroundColor: '#fffbeb',
+      backgroundColor: colors.starSoft,
       borderRadius: 14,
       borderWidth: 1,
-      borderColor: '#fde68a',
+      borderColor: colors.line,
       padding: 12,
       gap: 8,
       marginBottom: 12,
@@ -961,7 +961,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       alignItems: 'center',
       gap: 6,
       alignSelf: 'flex-start',
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderRadius: 999,
@@ -985,7 +985,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     helpTitle: { fontWeight: '400', fontSize: 15, color: colors.ink, marginBottom: 4 },
     helpRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     helpIcon: {
-      width: 28, height: 28, borderRadius: 14, backgroundColor: '#fff',
+      width: 28, height: 28, borderRadius: 14, backgroundColor: colors.card,
       alignItems: 'center', justifyContent: 'center',
     },
     helpTxt: { flex: 1, fontWeight: '500', fontSize: 13, color: colors.ink },
@@ -1007,7 +1007,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 10,
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.line,
     },
@@ -1069,7 +1069,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     subjectChip: {
       flexDirection: 'row', alignItems: 'center', gap: 5,
       paddingHorizontal: 10, paddingVertical: 5, borderRadius: 16,
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderWidth: 1, borderColor: colors.line,
     },
     subjectTxt: { fontWeight: '500', fontSize: 13, color: colors.ink },
@@ -1120,7 +1120,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     input: {
       minHeight: inputMinH,
       width: '100%',
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: 14,
       borderWidth: 1.5,
       borderColor: colors.line,
@@ -1138,7 +1138,7 @@ function makeStyles(colors, { isPhone = false, inputMinH = 116 } = {}) {
     photoBtn: {
       alignSelf: 'flex-start',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: '#fff', borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12,
+      backgroundColor: colors.card, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 12,
       borderWidth: 1, borderColor: colors.line,
     },
     photoTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
@@ -1304,14 +1304,14 @@ const styles = StyleSheet.create({
   stepPill: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12,
-    backgroundColor: '#fff', borderWidth: StyleSheet.hairlineWidth, borderColor: '#e2e8f0', marginRight: 8,
+    borderWidth: StyleSheet.hairlineWidth, marginRight: 8,
   },
   stepDot: {
     width: 18, height: 18, borderRadius: 9, backgroundColor: '#94a3b8',
     alignItems: 'center', justifyContent: 'center',
   },
   stepDotTxt: { color: '#fff', fontSize: 10, fontWeight: '400' },
-  stepTitle: { fontSize: 12, fontWeight: '500', color: '#5b6b82', maxWidth: 110 },
+  stepTitle: { fontSize: 12, fontWeight: '500', maxWidth: 110 },
   bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 10, maxWidth: '100%' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   avatar: {
@@ -1320,5 +1320,5 @@ const styles = StyleSheet.create({
   bubble: {
     maxWidth: '82%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10,
   },
-  bubbleTxt: { fontSize: 14, lineHeight: 20, fontWeight: '500', color: '#1a2744' },
+  bubbleTxt: { fontSize: 14, lineHeight: 20, fontWeight: '500' },
 });

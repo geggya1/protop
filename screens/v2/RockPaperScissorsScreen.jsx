@@ -437,7 +437,7 @@ function makeStyles(simpleUi, contentMax, layout) {
     inviteName: { flex: 1, fontWeight: '500', color: colors.ink, fontSize: 14 },
     inviteStatus: { fontWeight: '400', color: colors.muted, fontSize: 13 },
     inviteOk: { color: colors.brand },
-    inviteNo: { color: '#b91c1c' },
+    inviteNo: { color: colors.dangerInk },
     scoreBoard: {
       backgroundColor: colors.card, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.line, padding: 8,

@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   inviteName: { flex: 1, fontWeight: '500', color: colors.ink, fontSize: 14 },
   inviteStatus: { fontWeight: '400', color: colors.muted, fontSize: 13 },
   inviteOk: { color: colors.brand },
-  inviteNo: { color: '#b91c1c' },
+  inviteNo: { color: colors.dangerInk },
   qCard: {
     marginTop: 12, backgroundColor: colors.card, borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, padding: 16, gap: 12,
@@ -508,5 +508,5 @@ const styles = StyleSheet.create({
   scorePts: { fontWeight: '400', color: colors.brand, fontSize: 17 },
   empty: { color: colors.muted, padding: 10, textAlign: 'center' },
   dangerLink: { alignItems: 'center', paddingVertical: 10 },
-  dangerTxt: { color: '#b91c1c', fontWeight: '500', fontSize: 13 },
+  dangerTxt: { color: colors.dangerInk, fontWeight: '500', fontSize: 13 },
 });

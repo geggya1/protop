@@ -675,7 +675,7 @@ const styles = StyleSheet.create({
   goalMeta: { color: colors.muted, fontSize: 12, marginTop: 2, fontWeight: '400' },
   progressLbl: { marginTop: 12, fontWeight: '400', color: colors.ink, fontSize: 13 },
   bar: {
-    marginTop: 6, height: 8, backgroundColor: '#e2e8f0', borderRadius: 999, overflow: 'hidden',
+    marginTop: 6, height: 8, backgroundColor: colors.line, borderRadius: 999, overflow: 'hidden',
   },
   barFill: { height: 8, backgroundColor: colors.star, borderRadius: 999 },
   levelRow: {
@@ -691,10 +691,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
   },
   claimBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
-  claimedBadge: { color: '#15803d', fontWeight: '400', fontSize: 12 },
+  claimedBadge: { color: colors.successInk, fontWeight: '400', fontSize: 12 },
   locked: { color: colors.muted, fontWeight: '400', fontSize: 12 },
   archiveLink: { marginTop: 12, alignSelf: 'flex-start' },
-  archiveLinkTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 13 },
+  archiveLinkTxt: { color: colors.dangerInk, fontWeight: '400', fontSize: 13 },
   milestoneCard: {
     backgroundColor: colors.sunken, borderRadius: 12, padding: 12, marginBottom: 10,
     borderWidth: 1, borderColor: colors.line,

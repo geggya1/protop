@@ -305,7 +305,7 @@ export default function AddHomeworkScreen() {
             const d = parseDateKey(dueDate);
             if (!d) return null;
             const diff = Math.ceil((d - new Date()) / 86400000);
-            if (diff < 0) return <Text style={[styles.hint, { color: '#b91c1c' }]}>Fristen er utløpt</Text>;
+            if (diff < 0) return <Text style={[styles.hint, { color: colors.dangerInk }]}>Fristen er utløpt</Text>;
             if (diff === 0) return <Text style={[styles.hint, { color: '#f59e0b' }]}>Fristen er i dag</Text>;
             return <Text style={styles.hint}>{diff} dager igjen</Text>;
           })() : null}
@@ -360,7 +360,7 @@ export default function AddHomeworkScreen() {
                 style={{ padding: 8 }}
                 accessibilityLabel="Fjern vedlegg"
               >
-                <Ionicons name="trash-outline" size={16} color="#b91c1c" />
+                <Ionicons name="trash-outline" size={16} color={colors.dangerInk} />
               </TouchableOpacity>
             )}
           </View>
@@ -400,7 +400,7 @@ export default function AddHomeworkScreen() {
 
       {!isNew && !readOnly && homeworkId ? (
         <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
-          <Ionicons name="trash-outline" size={18} color="#b91c1c" />
+          <Ionicons name="trash-outline" size={18} color={colors.dangerInk} />
           <Text style={styles.deleteTxt}>Slett lekse</Text>
         </TouchableOpacity>
       ) : null}
@@ -481,7 +481,7 @@ function makeStyles(colors) {
     hint: { fontSize: 12, color: '#94a3b8', marginBottom: 8, marginTop: 4 },
     input: {
       borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 12,
-      fontSize: 15, backgroundColor: '#fff', color: colors.ink, marginBottom: 4,
+      fontSize: 15, backgroundColor: colors.card, color: colors.ink, marginBottom: 4,
     },
     inputReadonly: { backgroundColor: colors.sunken },
     readonlyValue: {
@@ -512,7 +512,7 @@ function makeStyles(colors) {
       borderRadius: 10,
       borderWidth: 1,
       borderColor: colors.brand,
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
     },
     pickerBtnTxt: { flex: 1, fontSize: 14, fontWeight: '500', color: colors.ink },
     pickerPlaceholder: { color: colors.muted, fontWeight: '400' },
@@ -523,17 +523,17 @@ function makeStyles(colors) {
     deadlineRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
     attRow: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
-      backgroundColor: '#fff', borderRadius: 10, padding: 10, marginBottom: 6,
+      backgroundColor: colors.card, borderRadius: 10, padding: 10, marginBottom: 6,
       borderWidth: 1, borderColor: colors.line,
     },
-    attThumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: '#e2e8f0' },
-    attFile: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#eff6ff' },
+    attThumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: colors.line },
+    attFile: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.brandSoft },
     attName: { fontWeight: '500', color: colors.ink, fontSize: 14 },
     attBy: { color: '#94a3b8', fontSize: 11 },
     addAttBtn: {
       alignSelf: 'flex-start',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      backgroundColor: '#eef6ff', borderRadius: 10, paddingVertical: 10, marginBottom: 12,
+      backgroundColor: colors.brandSoft, borderRadius: 10, paddingVertical: 10, marginBottom: 12,
       borderWidth: 1, borderColor: '#93c5fd', borderStyle: 'dashed',
     },
     addAttTxt: { color: colors.brand, fontWeight: '400' },
@@ -544,7 +544,7 @@ function makeStyles(colors) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       marginTop: 8, marginBottom: 12,
       borderWidth: 1, borderColor: colors.brand, borderRadius: radius.md,
-      paddingVertical: 12, backgroundColor: '#fff',
+      paddingVertical: 12, backgroundColor: colors.card,
     },
     helpBtnTxt: { color: colors.brand, fontWeight: '500', fontSize: 14 },
     emptyTxt: { color: '#94a3b8', fontSize: 13, marginBottom: 8 },
@@ -552,8 +552,8 @@ function makeStyles(colors) {
       alignSelf: 'flex-start',
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       marginTop: 12, paddingVertical: 12, borderRadius: 10,
-      backgroundColor: '#fee2e2', borderWidth: 1, borderColor: '#fecaca',
+      backgroundColor: colors.dangerSoft, borderWidth: 1, borderColor: '#fecaca',
     },
-    deleteTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 14 },
+    deleteTxt: { color: colors.dangerInk, fontWeight: '400', fontSize: 14 },
   });
 }

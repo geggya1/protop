@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, marginBottom: 6,
   },
   memberRowDesk: { paddingVertical: 8 },
-  memberRowOn: { borderColor: '#C7D2FE', backgroundColor: '#EEF2FF' },
+  memberRowOn: { borderColor: '#C7D2FE', backgroundColor: colors.brandSoft },
   memberName: { fontWeight: '500', color: colors.ink, fontSize: 13 },
   deleteBtn: {
     alignSelf: 'flex-start',

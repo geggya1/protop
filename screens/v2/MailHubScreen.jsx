@@ -1963,9 +1963,9 @@ const styles = StyleSheet.create({
   search: { flex: 1, fontSize: 13, color: colors.ink, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null) },
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#fff7ed', paddingHorizontal: 10, paddingVertical: 8, marginHorizontal: 10, marginTop: 8, borderRadius: 4,
+    backgroundColor: colors.starSoft, paddingHorizontal: 10, paddingVertical: 8, marginHorizontal: 10, marginTop: 8, borderRadius: 4,
   },
-  bannerTxt: { color: '#9a3412', fontSize: 12, flex: 1 },
+  bannerTxt: { color: colors.warnInk, fontSize: 12, flex: 1 },
   bannerAction: { color: colors.brand, fontSize: 12 },
   panes: { flex: 1, flexDirection: 'row', minHeight: 0, position: 'relative', alignItems: 'stretch' },
   paneScroll: { flex: 1, minHeight: 0 },

@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   },
   pendingWrap: { position: 'relative', alignSelf: 'stretch', marginTop: 10 },
   pendingImage: {
-    width: '100%', height: 160, borderRadius: 12, backgroundColor: '#e2e8f0',
+    width: '100%', height: 160, borderRadius: 12, backgroundColor: colors.line,
   },
   pendingRemove: {
     position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14,
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
   author: { fontWeight: '500', color: colors.ink },
   when: { color: colors.muted, fontSize: 12, fontWeight: '400' },
   postBody: { color: colors.ink, fontSize: 15, lineHeight: 22, fontWeight: '400' },
-  image: { width: '100%', height: 200, borderRadius: 12, backgroundColor: '#e2e8f0' },
+  image: { width: '100%', height: 200, borderRadius: 12, backgroundColor: colors.line },
   linkBtn: {
     alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,

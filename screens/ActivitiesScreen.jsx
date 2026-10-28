@@ -1421,7 +1421,7 @@ const styles = StyleSheet.create({
   programRowBorder: {
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
   },
-  programRowOn: { backgroundColor: '#f8fafc', marginHorizontal: -6, paddingHorizontal: 6, borderRadius: 8 },
+  programRowOn: { backgroundColor: colors.sunken, marginHorizontal: -6, paddingHorizontal: 6, borderRadius: 8 },
   programTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
   programTitleDesk: { fontWeight: '500', fontSize: 13 },
   programMeta: { color: colors.brand, fontWeight: '500', fontSize: 11, marginTop: 2 },
@@ -1503,7 +1503,7 @@ const styles = StyleSheet.create({
   },
   importHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   miniMap: {
-    width: '100%', borderRadius: 8, backgroundColor: '#f1f5f9', overflow: 'hidden',
+    width: '100%', borderRadius: 8, backgroundColor: colors.sunken, overflow: 'hidden',
   },
 
   sheetHandle: {

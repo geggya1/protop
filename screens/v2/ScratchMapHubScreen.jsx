@@ -922,7 +922,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
   },
   countryRowOn: {
-    backgroundColor: '#ecfdf5',
+    backgroundColor: colors.successSoft,
     borderColor: '#99f6e4',
   },
   flag: { fontSize: 22, width: 32, textAlign: 'center' },
@@ -1049,7 +1049,7 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: radius.sm,
     overflow: 'hidden',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
   },
   imagePreview: { width: '100%', height: 160 },
   imageEmpty: { height: 120, alignItems: 'center', justifyContent: 'center', gap: 6 },

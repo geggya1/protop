@@ -67,10 +67,10 @@ const SUN = '#f59e0b';
 const PAST_INK = '#94a3b8';
 
 const STATUS_META = {
-  upcoming: { label: 'Kommende', color: ACCENT, soft: ACCENT_SOFT },
-  active: { label: 'Pågår nå', color: '#ea580c', soft: '#ffedd5' },
-  past: { label: 'Fullført', color: PAST_INK, soft: '#f1f5f9' },
-  draft: { label: 'Uten dato', color: colors.muted, soft: '#f8fafc' },
+  upcoming: { label: 'Kommende', color: ACCENT, soft: colors.successSoft },
+  active: { label: 'Pågår nå', color: '#ea580c', soft: colors.starSoft },
+  past: { label: 'Fullført', color: PAST_INK, soft: colors.sunken },
+  draft: { label: 'Uten dato', color: colors.muted, soft: colors.sunken },
 };
 
 function memberKey(m) {
@@ -1370,7 +1370,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   tripCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: colors.card,
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
@@ -1399,7 +1399,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: colors.card,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: ACCENT_SOFT,
@@ -1416,7 +1416,7 @@ const styles = StyleSheet.create({
   },
   detailHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
   nowNext: {
-    backgroundColor: '#ffedd5',
+    backgroundColor: colors.starSoft,
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
@@ -1424,27 +1424,27 @@ const styles = StyleSheet.create({
     borderColor: '#fdba74',
   },
   nowNextKicker: {
-    fontSize: 11, fontWeight: '400', letterSpacing: 0.5, color: '#c2410c', textTransform: 'uppercase',
+    fontSize: 11, fontWeight: '400', letterSpacing: 0.5, color: colors.warnInk, textTransform: 'uppercase',
   },
   nowNextTitle: { fontSize: 18, fontWeight: '400', color: colors.ink, marginTop: 2 },
   nowNextSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12, marginBottom: 4 },
   readerBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#f1f5f9', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: colors.sunken, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
   },
   readerBadgeTxt: { fontSize: 13, color: colors.muted, fontWeight: '400' },
   destCard: {
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.line,
     position: 'relative',
     overflow: 'visible',
   },
   destCardFocus: { borderColor: ACCENT },
-  destCardIn: { borderColor: '#5eead4', backgroundColor: '#f0fdfa' },
+  destCardIn: { borderColor: '#5eead4', backgroundColor: colors.successSoft },
   destRail: {
     position: 'absolute',
     left: 27,
@@ -1484,15 +1484,15 @@ const styles = StyleSheet.create({
   itemLink: { fontSize: 13, color: colors.brand, marginTop: 2, fontWeight: '400' },
   itemImg: { width: '100%', height: 120, borderRadius: 12, marginTop: 6 },
   dayBlock: {
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: colors.card,
     borderRadius: 14,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.line,
     position: 'relative',
     overflow: 'visible',
   },
-  dayBlockPast: { backgroundColor: 'rgba(248,250,252,0.85)', borderColor: '#e2e8f0' },
+  dayBlockPast: { backgroundColor: colors.sunken, borderColor: colors.line },
   timelineRail: {
     position: 'absolute',
     left: 14,
@@ -1502,7 +1502,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#99f6e4',
     zIndex: 0,
   },
-  timelineRailPast: { backgroundColor: '#e2e8f0' },
+  timelineRailPast: { backgroundColor: colors.line },
   timelineEmpty: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1528,12 +1528,12 @@ const styles = StyleSheet.create({
     width: 28, height: 28, borderRadius: 14,
     backgroundColor: ACCENT_SOFT, alignItems: 'center', justifyContent: 'center',
   },
-  eventIconPast: { backgroundColor: '#f1f5f9' },
+  eventIconPast: { backgroundColor: colors.sunken },
   eventTitle: { fontSize: 14, fontWeight: '400', color: colors.ink },
   eventSub: { fontSize: 12, color: colors.muted },
   pastCollapse: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    padding: 10, borderRadius: 12, backgroundColor: '#f8fafc',
+    padding: 10, borderRadius: 12, backgroundColor: colors.sunken,
   },
   pastCollapseTxt: { fontSize: 13, color: PAST_INK, fontWeight: '400' },
   linkBtn: {
@@ -1604,7 +1604,7 @@ const styles = StyleSheet.create({
   },
   hitTxt: { flex: 1, fontSize: 13, color: colors.ink },
   placeOk: { marginTop: 6, fontSize: 12, color: '#0f766e', fontWeight: '400' },
-  placeWarn: { marginTop: 6, fontSize: 12, color: '#b45309' },
+  placeWarn: { marginTop: 6, fontSize: 12, color: colors.warnInk },
   dateTimeRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   dateFieldFlex: { flex: 1 },
   timeFieldFixed: { width: 118, flexShrink: 0 },
@@ -1612,7 +1612,7 @@ const styles = StyleSheet.create({
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 },
   typeChip: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.sunken,
   },
   typeChipOn: { backgroundColor: ACCENT_SOFT },
   typeChipTxt: { fontSize: 12, fontWeight: '400', color: colors.muted },

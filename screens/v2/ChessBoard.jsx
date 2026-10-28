@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: colors.line,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
   },
   chipSimple: { paddingVertical: 10, paddingHorizontal: 14 },
   chipOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
   },
   promoBox: {
     marginTop: 14,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.line,

@@ -472,7 +472,7 @@ function makeStyles(colors, isPhone) {
     },
     starBadge: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
-      backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 6,
+      backgroundColor: colors.card, paddingHorizontal: 10, paddingVertical: 6,
       borderRadius: 999, borderWidth: 1, borderColor: colors.line,
     },
     starBadgeTxt: { fontWeight: '400', color: colors.ink },
@@ -495,12 +495,12 @@ function makeStyles(colors, isPhone) {
     subjectChip: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16,
-      borderWidth: 1, borderColor: colors.line, backgroundColor: '#fff',
+      borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
     },
     subjectTxt: { fontWeight: '400', fontSize: 13, color: colors.ink },
     modeCard: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: '#fff', borderRadius: 14, padding: 12,
+      backgroundColor: colors.card, borderRadius: 14, padding: 12,
       borderWidth: 1, borderColor: colors.line, marginBottom: 6,
     },
     modeIcon: {
@@ -541,7 +541,7 @@ function makeStyles(colors, isPhone) {
     },
     bubbleMe: { backgroundColor: colors.brand, alignSelf: 'flex-end' },
     bubbleAi: {
-      backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, alignSelf: 'flex-start',
+      backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, alignSelf: 'flex-start',
     },
     bubbleTxt: { fontSize: 15, color: colors.ink, lineHeight: 21 },
     aiActions: { flexDirection: 'row', gap: 8, marginTop: 8 },
@@ -558,7 +558,7 @@ function makeStyles(colors, isPhone) {
     sendTxt: { color: '#fff', fontWeight: '400' },
     quickPrompts: { gap: 6, marginTop: 10 },
     quick: {
-      padding: 12, borderRadius: 12, backgroundColor: '#fff',
+      padding: 12, borderRadius: 12, backgroundColor: colors.card,
       borderWidth: 1, borderColor: colors.line,
     },
     quickTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },

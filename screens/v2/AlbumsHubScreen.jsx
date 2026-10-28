@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line,
   },
   albumMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cover: { width: 56, height: 56, borderRadius: 10, backgroundColor: '#e2e8f0' },
+  cover: { width: 56, height: 56, borderRadius: 10, backgroundColor: colors.line },
   coverEmpty: { alignItems: 'center', justifyContent: 'center' },
   sharedCover: { backgroundColor: colors.brandSoft },
   sharedHeading: {
@@ -879,7 +879,7 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: 10,
     overflow: 'hidden',
-    backgroundColor: '#e2e8f0',
+    backgroundColor: colors.line,
     position: 'relative',
   },
   thumbSelected: {

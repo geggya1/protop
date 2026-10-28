@@ -1068,7 +1068,7 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#e8eef6',
+    backgroundColor: colors.brandSoft,
     borderRadius: Platform.OS === 'web' ? 10 : radius.sm,
     padding: 2,
     gap: 2,
@@ -1164,7 +1164,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     width: '100%',
     maxWidth: '100%',
-    backgroundColor: '#eef3f9',
+    backgroundColor: colors.brandSoft,
     borderRadius: Platform.OS === 'web' ? 14 : radius.md,
     borderWidth: 1,
     borderColor: colors.line,
@@ -1172,7 +1172,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   pedigreeCard: {
-    backgroundColor: '#eef3f9',
+    backgroundColor: colors.brandSoft,
     borderRadius: Platform.OS === 'web' ? 14 : radius.md,
     borderWidth: 1,
     borderColor: colors.line,

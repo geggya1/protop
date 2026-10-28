@@ -840,7 +840,7 @@ function makeStyles(colors, { pad, isDesktop }) {
     h1: {
       fontSize: 24,
       fontWeight: '500',
-      color: colors.text,
+      color: colors.ink,
       marginBottom: 12,
     },
     lead: {
@@ -881,7 +881,7 @@ function makeStyles(colors, { pad, isDesktop }) {
     fieldLabel: {
       fontSize: 13,
       fontWeight: '400',
-      color: colors.text,
+      color: colors.ink,
       marginTop: 8,
       marginBottom: 4,
     },
@@ -892,7 +892,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       paddingHorizontal: 12,
       paddingVertical: Platform.OS === 'ios' ? 12 : 10,
       fontSize: 16,
-      color: colors.text,
+      color: colors.ink,
       backgroundColor: colors.bg,
       marginBottom: 4,
     },
@@ -949,9 +949,9 @@ function makeStyles(colors, { pad, isDesktop }) {
       borderBottomColor: colors.border,
     },
     rowBody: { flex: 1, minWidth: 0 },
-    rowTitle: { fontSize: 16, fontWeight: '500', color: colors.text },
+    rowTitle: { fontSize: 16, fontWeight: '500', color: colors.ink },
     rowMeta: { fontSize: 13, color: colors.muted, marginTop: 2 },
-    rowContact: { fontSize: 14, color: colors.text, marginTop: 2 },
+    rowContact: { fontSize: 14, color: colors.ink, marginTop: 2 },
     muted: { color: colors.muted, fontSize: 14, marginBottom: 8 },
     error: { color: colors.dangerInk, marginBottom: 8 },
     meetingCard: {
@@ -988,7 +988,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       gap: 12,
     },
     importHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-    importTitle: { fontSize: 16, fontWeight: '400', color: colors.text },
+    importTitle: { fontSize: 16, fontWeight: '400', color: colors.ink },
     importBlurb: { fontSize: 13, color: colors.muted, marginTop: 4, lineHeight: 18 },
     importActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     importBtn: {
@@ -996,7 +996,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: 12,
       borderWidth: 1,
       borderColor: colors.line,
@@ -1016,7 +1016,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       padding: 18,
       maxHeight: '85%',
     },
-    modalTitle: { fontSize: 18, fontWeight: '400', color: colors.text, marginBottom: 6 },
+    modalTitle: { fontSize: 18, fontWeight: '400', color: colors.ink, marginBottom: 6 },
     modalBody: { fontSize: 14, color: colors.muted, lineHeight: 20, marginBottom: 12 },
     modalList: { maxHeight: 320, marginBottom: 8 },
     importRow: {

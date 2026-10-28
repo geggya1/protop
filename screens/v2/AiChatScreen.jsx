@@ -448,18 +448,18 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', padding: 2 },
   iconBtn: {
     width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
   },
   headerTitle: { fontWeight: '400', fontSize: 15, color: colors.ink },
   headerSub: { color: colors.muted, fontWeight: '400', fontSize: 11 },
 
   disclaimer: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#fffbeb', paddingHorizontal: 10, paddingVertical: 6,
+    backgroundColor: colors.starSoft, paddingHorizontal: 10, paddingVertical: 6,
     marginHorizontal: 10, marginTop: 6,
     borderRadius: 8, borderWidth: 1, borderColor: '#fde68a',
   },
-  disclaimerTxt: { flex: 1, color: '#92400e', fontSize: 11, fontWeight: '400' },
+  disclaimerTxt: { flex: 1, color: colors.warnInk, fontSize: 11, fontWeight: '400' },
 
   chipsRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   },
   chip: {
     flexShrink: 0,
-    backgroundColor: '#eef6ff', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
     borderWidth: StyleSheet.hairlineWidth, borderColor: '#bfdbfe',
     maxHeight: 28, justifyContent: 'center',
   },
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
-  historyRowActive: { backgroundColor: '#eef6ff', marginHorizontal: -6, paddingHorizontal: 6, borderRadius: 10 },
+  historyRowActive: { backgroundColor: colors.brandSoft, marginHorizontal: -6, paddingHorizontal: 6, borderRadius: 10 },
   historyName: { fontWeight: '400', fontSize: 14, color: colors.ink },
   historyPreview: { fontSize: 12, fontWeight: '500', color: colors.muted, marginTop: 2 },
   historyTime: { fontSize: 11, fontWeight: '400', color: colors.muted },
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
   bubbleUser: { justifyContent: 'flex-end' },
   bubbleAi: { justifyContent: 'flex-start' },
   aiAvatar: {
-    width: 28, height: 28, borderRadius: 14, backgroundColor: '#eef6ff',
+    width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
   bubbleContent: { maxWidth: '78%', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14 },
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.line,
   },
   input: {
-    flex: 1, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.line,
+    flex: 1, backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
     borderRadius: 18, paddingHorizontal: 14, paddingVertical: 8,
     fontSize: 16, fontWeight: '500', color: colors.ink, maxHeight: 90,
   },
@@ -550,5 +550,5 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brand,
     alignItems: 'center', justifyContent: 'center',
   },
-  sendBtnDisabled: { backgroundColor: '#e2e8f0' },
+  sendBtnDisabled: { backgroundColor: colors.line },
 });

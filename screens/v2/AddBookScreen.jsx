@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   isbnInput: { flex: 1, marginBottom: 0 },
   iconBtn: {
     width: 44, height: 44, borderRadius: 12,
-    backgroundColor: '#eef6ff', borderWidth: 1, borderColor: colors.brandSoft,
+    backgroundColor: colors.brandSoft, borderWidth: 1, borderColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   searchBtn: {
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   hint: { color: colors.muted, fontSize: 12, fontWeight: '400', marginTop: 8, lineHeight: 17 },
   coverPreview: {
     width: 72, height: 100, borderRadius: 8, alignSelf: 'center',
-    marginTop: 12, backgroundColor: '#e2e8f0',
+    marginTop: 12, backgroundColor: colors.line,
   },
   lbl: { fontWeight: '400', color: colors.ink, fontSize: 13, marginTop: 10, marginBottom: 6 },
   input: {

@@ -877,7 +877,7 @@ export default function ShoppingListScreen({
                 </TouchableOpacity>
               )}
               {trashCount > 0 && filter === 'trash' && canEdit && (
-                <TouchableOpacity style={[styles.countBadge, { backgroundColor: '#fee2e2' }]} onPress={emptyTrash}>
+                <TouchableOpacity style={[styles.countBadge, { backgroundColor: colors.dangerSoft }]} onPress={emptyTrash}>
                   <Text style={[styles.countTxt, { color: '#b91c1c' }]}>Tøm</Text>
                   <Ionicons name="trash" size={12} color="#b91c1c" />
                 </TouchableOpacity>
@@ -1026,7 +1026,7 @@ export default function ShoppingListScreen({
 
               {addSuccessMsg ? (
                 <View style={styles.addSuccessBanner} accessibilityLiveRegion="polite">
-                  <Ionicons name="checkmark-circle" size={18} color="#166534" />
+                  <Ionicons name="checkmark-circle" size={18} color={colors.successInk} />
                   <Text style={styles.addSuccessTxt}>{addSuccessMsg}</Text>
                 </View>
               ) : null}
@@ -1427,18 +1427,18 @@ const styles = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 2, alignSelf: 'flex-start' },
   backTxt: { fontWeight: '400', color: colors.brand, fontSize: 13 },
   settingsBtn: {
-    width: 36, height: 36, borderRadius: 8, backgroundColor: '#eef6ff',
+    width: 36, height: 36, borderRadius: 8, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
   },
   scanBtn: {
-    width: 36, height: 36, borderRadius: 8, backgroundColor: '#eef6ff',
+    width: 36, height: 36, borderRadius: 8, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
     overflow: 'visible',
   },
   sessionBtnOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   sessionBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#eef6ff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: colors.brandSoft, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
     borderWidth: 1, borderColor: '#bfdbfe',
   },
   sessionBannerTxt: { flex: 1, color: colors.ink, fontWeight: '400', fontSize: 12 },
@@ -1493,14 +1493,14 @@ const styles = StyleSheet.create({
   addSheetTitleDesk: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
   addSuccessBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#dcfce7', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10,
+    backgroundColor: colors.successSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10,
     borderWidth: 1, borderColor: '#86efac', marginBottom: 6,
   },
-  addSuccessTxt: { flex: 1, fontWeight: '400', color: '#166534', fontSize: 13 },
+  addSuccessTxt: { flex: 1, fontWeight: '400', color: colors.successInk, fontSize: 13 },
   scanLink: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10,
-    borderRadius: 8, backgroundColor: '#eef6ff', borderWidth: 1, borderColor: '#93c5fd',
+    borderRadius: 8, backgroundColor: colors.brandSoft, borderWidth: 1, borderColor: '#93c5fd',
     marginBottom: 2,
   },
   scanLinkDesk: { paddingVertical: 5, borderRadius: 6 },
@@ -1510,7 +1510,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderRadius: 10, borderWidth: 1, borderColor: colors.line,
-    backgroundColor: '#f8fafc', paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: colors.sunken, paddingVertical: 10, paddingHorizontal: 12,
   },
   imageAttachBtnDesk: { borderRadius: 8, paddingVertical: 8 },
   imageAttachTitle: { fontWeight: '400', color: colors.ink, fontSize: 13 },
@@ -1518,12 +1518,12 @@ const styles = StyleSheet.create({
   imageAttachedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     borderRadius: 10, borderWidth: 1, borderColor: colors.line,
-    backgroundColor: '#f8fafc', padding: 8,
+    backgroundColor: colors.sunken, padding: 8,
   },
-  imageAttachedThumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: '#e2e8f0' },
+  imageAttachedThumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: colors.line },
   imageAttachedMeta: { flex: 1, gap: 2 },
   imageRemoveBtn: { alignSelf: 'flex-start', paddingVertical: 2 },
-  imageRemoveTxt: { color: '#b91c1c', fontWeight: '500', fontSize: 12 },
+  imageRemoveTxt: { color: colors.dangerInk, fontWeight: '500', fontSize: 12 },
 
   autoCatRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -1536,13 +1536,13 @@ const styles = StyleSheet.create({
   catExpandBtn: {
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#f8fafc', borderRadius: 8, padding: 10,
+    backgroundColor: colors.sunken, borderRadius: 8, padding: 10,
     borderWidth: 1, borderColor: colors.line,
   },
   catExpandLbl: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   catExpandHint: { fontWeight: '400', color: colors.muted, fontSize: 12, marginTop: 2 },
   catChips: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  catChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: colors.line },
+  catChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7, backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line },
   catChipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
   catChipTxt: { fontWeight: '500', color: colors.ink, fontSize: 12 },
   catChipTxtActive: { color: '#fff' },
@@ -1559,11 +1559,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card,
     borderRadius: 10, padding: 10, marginBottom: 6, borderWidth: 1, borderColor: colors.line,
   },
-  itemDone: { opacity: 0.65, backgroundColor: '#f0fdf4' },
-  trashRow: { opacity: 0.9, backgroundColor: '#f8fafc' },
+  itemDone: { opacity: 0.65, backgroundColor: colors.successSoft },
+  trashRow: { opacity: 0.9, backgroundColor: colors.sunken },
   restoreBtn: {
     alignSelf: 'flex-start',
-    padding: 8, borderRadius: 8, backgroundColor: '#eef6ff',
+    padding: 8, borderRadius: 8, backgroundColor: colors.brandSoft,
     borderWidth: 1, borderColor: '#93c5fd',
   },
   checkArea: { padding: 4 },
@@ -1576,7 +1576,7 @@ const styles = StyleSheet.create({
   itemTitleDone: { textDecorationLine: 'line-through', color: colors.muted },
   itemDesc: { marginTop: 2, fontWeight: '400', fontSize: 12, color: colors.muted },
   itemDescDone: { textDecorationLine: 'line-through' },
-  itemThumb: { width: 36, height: 36, borderRadius: 7, backgroundColor: '#f1f5f9' },
+  itemThumb: { width: 36, height: 36, borderRadius: 7, backgroundColor: colors.sunken },
   recurBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.brandSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   recurTxt: { fontWeight: '500', color: colors.brand, fontSize: 10 },
   addedBy: { color: colors.muted, fontWeight: '400', fontSize: 11 },
@@ -1596,14 +1596,14 @@ const styles = StyleSheet.create({
   modalLabel: { fontWeight: '500', color: colors.ink, fontSize: 13, marginTop: 2 },
   modalLabelDesk: { fontWeight: '500', fontSize: 12 },
   modalInput: {
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.line, borderRadius: 10,
+    backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line, borderRadius: 10,
     padding: 12, fontSize: 15, fontWeight: '400', color: colors.ink,
   },
   modalInputDesk: { paddingVertical: 8, paddingHorizontal: 12, fontSize: 14, borderRadius: 8 },
   modalDescInput: { minHeight: 44, textAlignVertical: 'top' },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 },
   modalCancelBtn: {
-    alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: '#e5e7eb' },
+    alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, backgroundColor: colors.sunken },
   modalCancelTxt: { fontWeight: '500', color: colors.ink, fontSize: 14 },
   modalSaveBtn: {
     alignSelf: 'flex-start', paddingVertical: 9, paddingHorizontal: 16, borderRadius: 8, backgroundColor: colors.brand },

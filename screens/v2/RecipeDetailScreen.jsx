@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   heroImage: {
-    width: '100%', height: 200, borderRadius: radius.lg, marginBottom: 16, backgroundColor: '#f1f5f9',
+    width: '100%', height: 200, borderRadius: radius.lg, marginBottom: 16, backgroundColor: colors.sunken,
   },
   heroImageDesk: {
     height: undefined,
@@ -539,14 +539,14 @@ const styles = StyleSheet.create({
   ownBadgeTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
   systemBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#eef6ff', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14,
+    backgroundColor: colors.brandSoft, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14,
   },
   systemBadgeTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   pillsDesk: { marginBottom: 12, gap: 6 },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#eef6ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
+    backgroundColor: colors.brandSoft, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20,
   },
   pillTxt: { fontWeight: '400', fontSize: 12, color: colors.brand },
   linkRow: {

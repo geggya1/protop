@@ -1769,7 +1769,7 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10,
-    backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
   },
   chipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   chipTxt: { fontWeight: '500', color: colors.muted, fontSize: 12 },

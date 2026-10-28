@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 150,
     borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
   },
   heroFallback: {
     marginTop: 12,
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   descLarge: { fontSize: 16, lineHeight: 22 },
   progressLbl: { marginTop: 12, fontWeight: '400', color: colors.ink, fontSize: 13 },
   bar: {
-    marginTop: 6, height: 8, width: '100%', backgroundColor: '#e2e8f0', borderRadius: 999, overflow: 'hidden',
+    marginTop: 6, height: 8, width: '100%', backgroundColor: colors.line, borderRadius: 999, overflow: 'hidden',
   },
   barFill: { height: 8, backgroundColor: colors.star, borderRadius: 999 },
   status: { marginTop: 8, color: colors.ink, fontWeight: '400', fontSize: 13 },
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
   },
-  thumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: '#f1f5f9' },
+  thumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: colors.sunken },
   levelEmoji: { fontSize: 22, width: 44, textAlign: 'center' },
   levelTitle: { fontWeight: '400', color: colors.ink },
   levelClaimed: { textDecorationLine: 'line-through', color: colors.muted },
@@ -240,8 +240,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
   },
   claimBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
-  claimedBadge: { color: '#15803d', fontWeight: '400', fontSize: 12 },
+  claimedBadge: { color: colors.successInk, fontWeight: '400', fontSize: 12 },
   locked: { color: colors.muted, fontWeight: '400', fontSize: 12 },
   archiveLink: { marginTop: 12, alignSelf: 'flex-start' },
-  archiveLinkTxt: { color: '#b91c1c', fontWeight: '400', fontSize: 13 },
+  archiveLinkTxt: { color: colors.dangerInk, fontWeight: '400', fontSize: 13 },
 });

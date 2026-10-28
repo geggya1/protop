@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#eef6ff',
+    backgroundColor: colors.brandSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
   },
   brandChipTxt: { fontSize: 11, fontWeight: '400', color: colors.ink },
   cta: {

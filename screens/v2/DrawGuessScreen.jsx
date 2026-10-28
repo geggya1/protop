@@ -620,6 +620,6 @@ function makeStyles(simpleUi, contentMax, layout) {
     },
     primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
     dangerLink: { alignItems: 'center', paddingVertical: 14 },
-    dangerTxt: { color: '#b91c1c', fontWeight: '400' },
+    dangerTxt: { color: colors.dangerInk, fontWeight: '400' },
   });
 }

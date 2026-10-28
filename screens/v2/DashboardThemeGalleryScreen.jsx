@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   },
   // Same white logo bar as on modules (meny / logo / varsler / profil).
   chromeImmersive: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderBottomColor: colors.line,
   },
   logo: { fontSize: 18, color: colors.brandInk, fontWeight: '600' },

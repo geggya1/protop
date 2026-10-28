@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     fontSize: 13, color: colors.muted, fontWeight: '400', marginBottom: 16, lineHeight: 18,
   },
   importCard: {
-    backgroundColor: '#eef6ff',
+    backgroundColor: colors.brandSoft,
     borderRadius: radius.lg,
     padding: 14,
     borderWidth: 1,
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 13,
     fontWeight: '400',
-    color: '#b91c1c',
+    color: colors.dangerInk,
     lineHeight: 18,
   },
   photoRow: {

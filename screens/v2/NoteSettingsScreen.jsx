@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
-    backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
   },
   chipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
   chipOwner: { opacity: 0.85 },
@@ -262,11 +262,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.card,
     borderRadius: radius.md, padding: 14, borderWidth: 1, borderColor: colors.line, marginBottom: 8,
   },
-  actionDanger: { borderColor: '#fecaca', backgroundColor: '#fff1f2' },
+  actionDanger: { borderColor: '#fecaca', backgroundColor: colors.dangerSoft },
   actionTxt: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 15 },
   infoBox: {
-    backgroundColor: '#fff7ed', borderRadius: radius.md, padding: 12, marginTop: 12,
+    backgroundColor: colors.starSoft, borderRadius: radius.md, padding: 12, marginTop: 12,
     borderWidth: 1, borderColor: '#fed7aa',
   },
-  infoTxt: { color: '#9a3412', fontWeight: '400', fontSize: 13 },
+  infoTxt: { color: colors.warnInk, fontWeight: '400', fontSize: 13 },
 });

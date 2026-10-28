@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     paddingLeft: 24,
   },
   coverPh: {
-    borderRadius: 4, backgroundColor: '#f1f5f9',
+    borderRadius: 4, backgroundColor: colors.sunken,
     alignItems: 'center', justifyContent: 'center',
   },
   bookTitle: { fontWeight: '400', fontSize: 13, color: colors.ink },
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   },
   parentIconDesk: { width: 32, height: 32, borderRadius: 16 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  progressTrack: { flex: 1, height: 4, backgroundColor: '#e2e8f0', borderRadius: 2, overflow: 'hidden' },
+  progressTrack: { flex: 1, height: 4, backgroundColor: colors.line, borderRadius: 2, overflow: 'hidden' },
   progressFill: { height: 4, backgroundColor: colors.brand, borderRadius: 2 },
   progressTxt: { fontSize: 10, fontWeight: '400', color: colors.muted, minWidth: 28 },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 },

@@ -507,11 +507,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.line, borderRadius: radius.md, padding: 14, marginBottom: 8,
   },
-  actionDanger: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+  actionDanger: { backgroundColor: colors.dangerSoft, borderColor: '#fecaca' },
   actionTxt: { fontWeight: '400', color: colors.ink, fontSize: 15 },
   infoBox: {
-    backgroundColor: '#fff7ed', borderRadius: radius.md, padding: 12, marginTop: 12,
+    backgroundColor: colors.starSoft, borderRadius: radius.md, padding: 12, marginTop: 12,
     borderWidth: 1, borderColor: '#fed7aa',
   },
-  infoTxt: { color: '#9a3412', fontWeight: '400', fontSize: 13 },
+  infoTxt: { color: colors.warnInk, fontWeight: '400', fontSize: 13 },
 });

@@ -801,7 +801,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.brandSoft, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999,
   },
-  chipMuted: { backgroundColor: '#e2e8f0' },
+  chipMuted: { backgroundColor: colors.line },
   chipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
   saveHint: {
     marginTop: 8, textAlign: 'center', color: colors.muted, fontWeight: '400', fontSize: 13,

@@ -397,7 +397,7 @@ export default function FriendsHubScreen({ inShell = false }) {
 
           {toast ? (
             <View style={styles.toast} accessibilityLiveRegion="polite">
-              <Ionicons name="checkmark-circle" size={16} color="#166534" />
+              <Ionicons name="checkmark-circle" size={16} color={colors.successInk} />
               <Text style={styles.toastTxt}>{toast}</Text>
             </View>
           ) : null}
@@ -584,7 +584,7 @@ export default function FriendsHubScreen({ inShell = false }) {
 
 const styles = StyleSheet.create({
   body: { padding: 16, paddingBottom: 40 },
-  pageTitle: { fontSize: 22, fontWeight: '400', color: colors.text, marginBottom: 6 },
+  pageTitle: { fontSize: 22, fontWeight: '400', color: colors.ink, marginBottom: 6 },
   hint: { color: colors.muted, fontSize: 14, marginBottom: 12, lineHeight: 20 },
   actionRow: { flexDirection: 'row', gap: 10, marginBottom: 14, alignItems: 'stretch' },
   addBtn: {
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#f0fdf4',
+    backgroundColor: colors.successSoft,
     borderWidth: 1,
     borderColor: '#bbf7d0',
     borderRadius: 8,
@@ -624,9 +624,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 12,
   },
-  toastTxt: { flex: 1, color: '#166534', fontSize: 13, fontWeight: '400' },
+  toastTxt: { flex: 1, color: colors.successInk, fontSize: 13, fontWeight: '400' },
   section: { marginBottom: 22 },
-  sectionTitle: { fontSize: 15, fontWeight: '400', color: colors.text, marginBottom: 4 },
+  sectionTitle: { fontSize: 15, fontWeight: '400', color: colors.ink, marginBottom: 4 },
   sectionHint: { fontSize: 12, color: colors.muted, marginBottom: 10, lineHeight: 17 },
   empty: { color: colors.muted, fontSize: 13, paddingVertical: 8 },
   personRow: {
@@ -639,7 +639,7 @@ const styles = StyleSheet.create({
   },
   personMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   personBody: { flex: 1, minWidth: 0 },
-  personName: { fontSize: 15, fontWeight: '400', color: colors.text },
+  personName: { fontSize: 15, fontWeight: '400', color: colors.ink },
   personSub: { fontSize: 12, color: colors.muted, marginTop: 1 },
   moreBtn: {
     alignSelf: 'flex-start', padding: 8 },
@@ -678,8 +678,8 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     overflow: 'hidden',
   },
-  statusPending: { color: '#b45309' },
-  statusDeclined: { color: '#b91c1c' },
+  statusPending: { color: colors.warnInk },
+  statusDeclined: { color: colors.dangerInk },
   statusWithdrawn: { color: colors.muted },
   outgoingActions: { alignItems: 'flex-end', gap: 4 },
   resendBtn: {

@@ -490,12 +490,12 @@ const styles = StyleSheet.create({
   statCount: { fontSize: 20, fontWeight: '500', color: colors.ink },
   statLabel: { fontSize: 11, fontWeight: '400', color: colors.muted },
   warnCard: {
-    marginTop: 12, backgroundColor: '#fff7ed', borderRadius: 12, padding: 12,
+    marginTop: 12, backgroundColor: colors.starSoft, borderRadius: 12, padding: 12,
     borderWidth: 1, borderColor: '#fed7aa', gap: 4,
   },
-  warnTitle: { fontWeight: '500', color: '#9a3412', marginBottom: 2, fontSize: 13 },
-  warnRow: { color: '#9a3412', fontWeight: '400', fontSize: 13 },
-  warnExpired: { color: '#b91c1c' },
+  warnTitle: { fontWeight: '500', color: colors.warnInk, marginBottom: 2, fontSize: 13 },
+  warnRow: { color: colors.warnInk, fontWeight: '400', fontSize: 13 },
+  warnExpired: { color: colors.dangerInk },
   empty: {
     marginTop: 28, alignItems: 'center', paddingHorizontal: 12, gap: 8,
   },

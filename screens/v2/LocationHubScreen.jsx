@@ -501,7 +501,7 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, fontWeight: '400', fontSize: 14, lineHeight: 20, marginBottom: 14 },
   enableBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#eef6ff', borderRadius: radius.md, padding: 14,
+    backgroundColor: colors.brandSoft, borderRadius: radius.md, padding: 14,
     borderWidth: 1, borderColor: '#bfdbfe', marginBottom: 14,
   },
   enableTitle: { fontWeight: '500', color: colors.ink, fontSize: 15 },
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
   chipNameSelected: { color: colors.brand },
   mapWrap: {
     height: 260, borderRadius: radius.lg, overflow: 'hidden',
-    backgroundColor: '#e5eef8', borderWidth: 1, borderColor: colors.line, marginBottom: 14,
+    backgroundColor: colors.brandSoft, borderWidth: 1, borderColor: colors.line, marginBottom: 14,
   },
   mapPlaceholder: {
     flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20, gap: 8,

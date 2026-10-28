@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: '#f4f6f8',
+    backgroundColor: colors.sunken,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
   },

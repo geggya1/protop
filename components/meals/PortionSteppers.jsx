@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 8,
     borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
   },
   title: { fontWeight: '400', fontSize: 15, color: colors.ink },
   titleCompact: { fontSize: 14, fontWeight: '400' },
@@ -82,14 +82,14 @@ const styles = StyleSheet.create({
   stepLabel: { fontWeight: '400', fontSize: 12, color: colors.muted, textTransform: 'uppercase' },
   stepRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: '#f8fafc', borderRadius: 12, padding: 6, borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.sunken, borderRadius: 12, padding: 6, borderWidth: 1, borderColor: colors.line,
   },
   stepRowCompact: { backgroundColor: colors.card, padding: 4 },
   stepBtn: {
     width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#eef6ff',
+    backgroundColor: colors.brandSoft,
   },
-  stepBtnOff: { backgroundColor: '#f1f5f9' },
+  stepBtnOff: { backgroundColor: colors.sunken },
   stepVal: { fontWeight: '400', fontSize: 20, color: colors.ink, minWidth: 28, textAlign: 'center' },
   stepValCompact: { fontSize: 18 },
 });

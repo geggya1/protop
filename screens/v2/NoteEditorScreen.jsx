@@ -455,17 +455,17 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   statusTxt: { color: colors.muted, fontSize: 12, fontWeight: '400', flexShrink: 1, textAlign: 'right' },
-  statusWarn: { color: '#b45309' },
+  statusWarn: { color: colors.warnInk },
   warnBar: {
-    paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#fff7ed',
+    paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.starSoft,
     borderBottomWidth: 1, borderBottomColor: '#fed7aa',
   },
-  warnTxt: { color: '#9a3412', fontSize: 13, fontWeight: '400' },
+  warnTxt: { color: colors.warnInk, fontSize: 13, fontWeight: '400' },
   centerBox: { padding: 24, alignItems: 'center', gap: 10 },
   missingTitle: { fontSize: 18, fontWeight: '500', color: colors.ink },
   missingTxt: { fontSize: 14, color: colors.muted, textAlign: 'center', marginBottom: 6 },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 10, backgroundColor: '#eef6ff',
+    width: 40, height: 40, borderRadius: 10, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,
   },
   saveBtn: {
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 8,
   },
   toolbar: {
-    flexDirection: 'row', gap: 8, marginBottom: 10, backgroundColor: '#f8fafc',
+    flexDirection: 'row', gap: 8, marginBottom: 10, backgroundColor: colors.sunken,
     borderRadius: radius.md, padding: 8, borderWidth: 1, borderColor: colors.line,
   },
   fmtBtn: {

@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   },
   expandBtnHighlight: { backgroundColor: 'rgba(255,255,255,0.22)' },
   iconCircle: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: '#eef6ff',
+    width: 36, height: 36, borderRadius: 10, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center',
     overflow: 'visible',
   },

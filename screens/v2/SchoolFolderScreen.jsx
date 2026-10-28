@@ -143,7 +143,7 @@ function makeStyles(colors, layout = {}) {
     },
     appCard: {
       width: cardWidth,
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: 16,
       paddingVertical: 16,
       paddingHorizontal: 8,
@@ -205,7 +205,7 @@ function makeStyles(colors, layout = {}) {
       lineHeight: 12,
     },
     empty: {
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: radius.md,
       padding: 18,
       borderWidth: 1,

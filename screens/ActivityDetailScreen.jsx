@@ -779,7 +779,7 @@ export default function ActivityDetailScreen({ route, navigation }) {
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => setSettingsOpen(false)}>
-                <Text style={[styles.btnTxt, { color: '#0f172a' }]}>Lukk</Text>
+                <Text style={[styles.btnTxt, { color: colors.ink }]}>Lukk</Text>
               </TouchableOpacity>
               {canManage && (
                 <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveSettings} disabled={settingsBusy}>
@@ -810,7 +810,7 @@ export default function ActivityDetailScreen({ route, navigation }) {
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => setManageOpen(false)}>
-                <Text style={[styles.btnTxt, { color: '#0f172a' }]}>Avbryt</Text>
+                <Text style={[styles.btnTxt, { color: colors.ink }]}>Avbryt</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveParticipants} disabled={manageBusy}>
                 <Text style={[styles.btnTxt, { color: '#fff' }]}>{manageBusy ? 'Lagrer…' : 'Lagre'}</Text>
@@ -850,7 +850,7 @@ export default function ActivityDetailScreen({ route, navigation }) {
               </ScrollView>
               <View style={styles.presetWrap}>
                 {presetsForActivity(activityTypeId, presetFilter).length === 0 ? (
-                  <Text style={{ color: '#64748b', fontWeight: '400', fontSize: 12 }}>
+                  <Text style={{ color: colors.muted, fontWeight: '400', fontSize: 12 }}>
                     Ingen forslag i denne kategorien. Skriv eget navn under.
                   </Text>
                 ) : (
@@ -986,7 +986,7 @@ export default function ActivityDetailScreen({ route, navigation }) {
 
             <View style={styles.modalActions}>
               <TouchableOpacity style={[styles.btn, styles.btnGhost]} onPress={() => setExModalOpen(false)} disabled={exBusy}>
-                <Text style={[styles.btnTxt, { color: '#0f172a' }]}>Avbryt</Text>
+                <Text style={[styles.btnTxt, { color: colors.ink }]}>Avbryt</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={saveExercise} disabled={exBusy}>
                 <Text style={[styles.btnTxt, { color: '#fff' }]}>{exBusy ? 'Lagrer…' : 'Lagre'}</Text>
@@ -1042,7 +1042,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  chipDanger: { borderColor: '#fecaca', backgroundColor: '#fef2f2' },
+  chipDanger: { borderColor: '#fecaca', backgroundColor: colors.dangerSoft },
   chipTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
 
   programBlock: { marginTop: 18 },

@@ -1348,7 +1348,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2,
   },
   countDotOn: { backgroundColor: 'rgba(255,255,255,0.25)', borderColor: '#fff' },
-  countDotTxt: { fontSize: 8, fontWeight: '500', color: '#b45309' },
+  countDotTxt: { fontSize: 8, fontWeight: '500', color: colors.warnInk },
   countDotTxtOn: { color: '#fff' },
   listCard: {
     backgroundColor: colors.card, borderRadius: 14, borderWidth: 1,
@@ -1392,7 +1392,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
   },
   taskRowDone: { backgroundColor: colors.successSoft },
-  taskRowOverdue: { backgroundColor: '#fef2f2' },
+  taskRowOverdue: { backgroundColor: colors.dangerSoft },
   overdueMark: {
     width: 4, alignSelf: 'stretch', backgroundColor: colors.danger,
     borderRadius: 4, marginVertical: 6, marginLeft: 4,
@@ -1472,14 +1472,14 @@ const styles = StyleSheet.create({
   bal: { fontSize: 40, fontWeight: '400', color: colors.star },
   balLbl: { fontWeight: '500', color: colors.ink, fontSize: 14 },
   budgetBar: {
-    marginTop: 8, height: 6, backgroundColor: '#e2e8f0', borderRadius: 999, overflow: 'hidden',
+    marginTop: 8, height: 6, backgroundColor: colors.line, borderRadius: 999, overflow: 'hidden',
   },
   scoreHint: {
     marginTop: 6, color: colors.muted, fontWeight: '400', fontSize: 11,
   },
   goalPreviewWrap: { marginBottom: 12, gap: 8 },
   goalPreview: {
-    backgroundColor: '#fffbeb', borderRadius: 12, padding: 12,
+    backgroundColor: colors.starSoft, borderRadius: 12, padding: 12,
     borderWidth: 1, borderColor: '#fde68a',
   },
   goalPreviewTitle: { fontWeight: '400', color: colors.ink, fontSize: 14 },
@@ -1516,7 +1516,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.line,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
   },
   taskTableThCheck: { width: 36 },
   taskTableThTitle: { flex: 1, fontWeight: '500', fontSize: 12, color: colors.muted },
@@ -1538,7 +1538,7 @@ const styles = StyleSheet.create({
   tableCellImportance: { width: 104, alignItems: 'flex-start' },
   tableImportanceTxt: { fontWeight: '500', fontSize: 12 },
   importanceHigh: { color: '#dc2626' },
-  importanceMid: { color: '#b45309' },
+  importanceMid: { color: colors.warnInk },
   importanceDone: { color: colors.muted },
 
   taskGrid: {

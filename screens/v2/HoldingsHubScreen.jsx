@@ -1039,8 +1039,8 @@ const styles = StyleSheet.create({
     fontSize: 11, fontWeight: '400', color: colors.ink, backgroundColor: colors.sunken,
     borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4,
   },
-  chipWarn: { backgroundColor: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' },
-  chipSoon: { backgroundColor: '#fff7ed', borderColor: '#fed7aa', color: '#9a3412' },
+  chipWarn: { backgroundColor: colors.dangerSoft, borderColor: '#fecaca', color: colors.dangerInk },
+  chipSoon: { backgroundColor: colors.starSoft, borderColor: '#fed7aa', color: colors.warnInk },
   emptyBox: { marginTop: 28, alignItems: 'center', gap: 8, paddingHorizontal: 12 },
   emptyTitle: { fontWeight: '500', fontSize: 17, color: colors.ink, textAlign: 'center' },
   emptySub: {

@@ -164,8 +164,8 @@ function ConfirmModal({ visible, title, message, confirmText, confirmDanger, onC
         <Text style={styles.menuTitle}>{title}</Text>
         <Text style={styles.confirmMsg}>{message}</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
-          <TouchableOpacity onPress={onCancel} style={[styles.smallBtn, { backgroundColor: '#e5e7eb' }]}>
-            <Text style={[styles.smallBtnTxt, { color: '#0f172a' }]}>Avbryt</Text>
+          <TouchableOpacity onPress={onCancel} style={[styles.smallBtn, { backgroundColor: colors.sunken }]}>
+            <Text style={[styles.smallBtnTxt, { color: colors.ink }]}>Avbryt</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onConfirm}
@@ -188,7 +188,7 @@ function ParentActionModal({ visible, parent, onClose, onChoose }) {
       <View style={styles.menuCard}>
         <Text style={styles.menuTitle}>{parent.name || parent.email || 'Foresatt'}</Text>
         <TouchableOpacity style={styles.menuItem} onPress={() => onChoose(inactive ? 'p-activate' : 'p-deactivate')}>
-          <Ionicons name={inactive ? 'play-circle-outline' : 'pause-circle-outline'} size={18} color="#0b1f33" />
+          <Ionicons name={inactive ? 'play-circle-outline' : 'pause-circle-outline'} size={18} color={colors.ink} />
           <Text style={styles.menuItemTxt}>{inactive ? 'Aktiver' : 'Deaktiver'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => onChoose('p-delete')}>
@@ -560,7 +560,7 @@ export default function FamilyDashboardScreen() {
                 style={styles.dotBtn}
                 onPress={() => navigation.navigate('ChildProfile', { child: item, familyId })}
               >
-                <Ionicons name="ellipsis-vertical" size={16} color="#0f172a" />
+                <Ionicons name="ellipsis-vertical" size={16} color={colors.ink} />
               </TouchableOpacity>
             </View>
 
@@ -587,7 +587,7 @@ export default function FamilyDashboardScreen() {
     const dn = fullWeekdayNO[new Date().getDay()];
     const wk = getISOWeek(new Date());
     return (
-      <View style={{ flex: 1, backgroundColor: '#f6f9fc' }}>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <TopNavBar
           title={familyName || familyDoc?.name || 'Familiedashboard'}
           subtitle={`${dn}  •  Uke ${wk.week} ${wk.year}`}
@@ -757,7 +757,7 @@ export default function FamilyDashboardScreen() {
                   {item.name || item.displayName || item.email || 'Ukjent'}
                 </Text>
                 {isAdmin && (
-                  <Text style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                  <Text style={{ fontSize: 10, color: colors.muted, marginTop: 2 }}>
                     {item.active === false ? 'Deaktivert' : (isUnverified ? 'Ikke verifisert' : ' ')}
                   </Text>
                 )}
@@ -781,7 +781,7 @@ export default function FamilyDashboardScreen() {
             </TouchableOpacity>
           </View>
         }
-        contentContainerStyle={{ gap: 12, paddingBottom: 4, backgroundColor: '#f6f9fc' }}
+        contentContainerStyle={{ gap: 12, paddingBottom: 4, backgroundColor: colors.bg }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0b74d1" />}
         showsVerticalScrollIndicator={false}
         style={{ opacity: !familyActive && !familyDeleted ? 0.35 : 1 }}
@@ -801,7 +801,7 @@ export default function FamilyDashboardScreen() {
             <Text style={styles.section}>Barn</Text>
           </View>
         }
-        contentContainerStyle={{ gap: 12, paddingBottom: 28, backgroundColor: '#f6f9fc' }}
+        contentContainerStyle={{ gap: 12, paddingBottom: 28, backgroundColor: colors.bg }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0b74d1" />}
         showsVerticalScrollIndicator={false}
         style={{ opacity: !familyActive && !familyDeleted ? 0.35 : 1 }}
@@ -842,10 +842,10 @@ export default function FamilyDashboardScreen() {
               <Ionicons name="chevron-forward" size={18} color="#fff" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: '#e5e7eb' }]} onPress={() => setAddSheetOpen(false)}>
-              <View style={[styles.sheetBtnIcon, { backgroundColor: '#cbd5e1' }]}><Ionicons name="close" size={18} color="#0f172a" /></View>
-              <Text style={[styles.sheetBtnTxt, { color: '#0f172a' }]}>Lukk</Text>
-              <Ionicons name="chevron-down" size={18} color="#0f172a" />
+            <TouchableOpacity style={[styles.sheetBtn, { backgroundColor: colors.sunken }]} onPress={() => setAddSheetOpen(false)}>
+              <View style={[styles.sheetBtnIcon, { backgroundColor: colors.line }]}><Ionicons name="close" size={18} color={colors.ink} /></View>
+              <Text style={[styles.sheetBtnTxt, { color: colors.ink }]}>Lukk</Text>
+              <Ionicons name="chevron-down" size={18} color={colors.ink} />
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -861,12 +861,12 @@ export default function FamilyDashboardScreen() {
             style={styles.menuItem}
             onPress={() => { setMenuOpen(false); navigation.navigate('Activities', { familyId }); }}
           >
-            <Ionicons name="fitness-outline" size={18} color="#0b1f33" />
+            <Ionicons name="fitness-outline" size={18} color={colors.ink} />
             <Text style={styles.menuItemTxt}>Aktiviteter</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuOpen(false); pickAndUploadFamilyImage(); }}>
-            <Ionicons name="image-outline" size={18} color="#0b1f33" />
+            <Ionicons name="image-outline" size={18} color={colors.ink} />
             <Text style={styles.menuItemTxt}>Bytt bakgrunnsbilde</Text>
           </TouchableOpacity>
 
@@ -874,7 +874,7 @@ export default function FamilyDashboardScreen() {
             style={styles.menuItem}
             onPress={() => { setMenuOpen(false); setNewFamilyName(familyDoc?.name || ''); setRenameOpen(true); }}
           >
-            <Ionicons name="create-outline" size={18} color="#0b1f33" />
+            <Ionicons name="create-outline" size={18} color={colors.ink} />
             <Text style={styles.menuItemTxt}>Endre familienavn</Text>
           </TouchableOpacity>
 
@@ -886,7 +886,7 @@ export default function FamilyDashboardScreen() {
               <Ionicons
                 name={familyActive ? 'pause-circle-outline' : 'play-circle-outline'}
                 size={18}
-                color={familyActive ? '#b00020' : '#0b1f33'}
+                color={familyActive ? '#b00020' : colors.ink}
               />
               <Text style={[styles.menuItemTxt, familyActive && { color: '#b00020' }]}>
                 {familyActive ? 'Deaktiver familie' : 'Aktiver familie'}
@@ -913,8 +913,8 @@ export default function FamilyDashboardScreen() {
           <Text style={styles.menuTitle}>Endre familienavn</Text>
           <TextInput value={newFamilyName} onChangeText={setNewFamilyName} placeholder="Familienavn" placeholderTextColor={colors.placeholder} style={styles.input} />
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
-            <TouchableOpacity onPress={() => setRenameOpen(false)} style={[styles.smallBtn, { backgroundColor: '#e5e7eb' }]}>
-              <Text style={[styles.smallBtnTxt, { color: '#0f172a' }]}>Avbryt</Text>
+            <TouchableOpacity onPress={() => setRenameOpen(false)} style={[styles.smallBtn, { backgroundColor: colors.sunken }]}>
+              <Text style={[styles.smallBtnTxt, { color: colors.ink }]}>Avbryt</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleRenameFamily} style={styles.smallBtn}>
               <Text style={styles.smallBtnTxt}>Lagre</Text>
@@ -966,17 +966,17 @@ export default function FamilyDashboardScreen() {
 }
 
 /* ------------------ styles ------------------ */
-const CARD_BG = 'rgba(255,255,255,0.92)';
+const CARD_BG = colors.card;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f6f9fc' },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f6f9fc' },
+  container: { flex: 1, backgroundColor: colors.bg },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
 
   heroWrap: { height: 160, backgroundColor: '#eaf2f9' },
   heroImage: { width: '100%', height: '100%' },
   heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.45)' },
 
-  section: { fontSize: 16, fontWeight: '400', color: '#0f172a', marginBottom: 8 },
+  section: { fontSize: 16, fontWeight: '400', color: colors.ink, marginBottom: 8 },
 
   parentChip: {
     backgroundColor: CARD_BG,
@@ -990,8 +990,8 @@ const styles = StyleSheet.create({
     flex: 1,
     margin: 6,
   },
-  parentAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#e2e8f0' },
-  parentName: { marginTop: 6, fontSize: 12, textAlign: 'center', color: '#0f172a', fontWeight: '400' },
+  parentAvatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.line },
+  parentName: { marginTop: 6, fontSize: 12, textAlign: 'center', color: colors.ink, fontWeight: '400' },
 
   childCard: {
     backgroundColor: CARD_BG,
@@ -1003,19 +1003,19 @@ const styles = StyleSheet.create({
       : { elevation: 2 }),
   },
   childHeader: { flexDirection: 'row', alignItems: 'center' },
-  childAvatarSm: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e2e8f0' },
-  childName: { flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '400', color: '#0f172a' },
+  childAvatarSm: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.line },
+  childName: { flex: 1, marginLeft: 10, fontSize: 15, fontWeight: '400', color: colors.ink },
   dotBtn: {
     alignSelf: 'flex-start', paddingHorizontal: 4, paddingVertical: 2 },
 
   donutWrap: { alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 4 },
   donutCenter: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  donutValue: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
-  donutSub: { fontSize: 12, fontWeight: '400', color: '#64748b', marginTop: 2 },
+  donutValue: { fontSize: 16, fontWeight: '400', color: colors.ink },
+  donutSub: { fontSize: 12, fontWeight: '400', color: colors.muted, marginTop: 2 },
   donutFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#eef2ff',
+    backgroundColor: colors.brandSoft,
     borderWidth: 6,
     borderColor: '#c7ddff',
   },
@@ -1026,18 +1026,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
-    backgroundColor: '#f1f5f9',
-    color: '#0f172a',
+    backgroundColor: colors.sunken,
+    color: colors.ink,
     textAlign: 'center',
   },
 
   inactiveBanner: {
-    backgroundColor: '#ffe6e6',
+    backgroundColor: colors.dangerSoft,
     padding: 10,
     borderRadius: 8,
     textAlign: 'center',
     fontSize: 14,
-    color: '#b91c1c',
+    color: colors.dangerInk,
     marginBottom: 10,
     fontWeight: '400',
   },
@@ -1069,9 +1069,9 @@ const styles = StyleSheet.create({
     width: 260,
     zIndex: 10,
   },
-  menuTitle: { fontSize: 14, fontWeight: '400', color: '#0f172a', marginBottom: 6 },
+  menuTitle: { fontSize: 14, fontWeight: '400', color: colors.ink, marginBottom: 6 },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  menuItemTxt: { fontSize: 14, color: '#0b1f33' },
+  menuItemTxt: { fontSize: 14, color: colors.ink },
 
   confirmCard: {
     position: 'absolute',
@@ -1085,7 +1085,7 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 12px 28px rgba(0,0,0,0.15)' }
       : { elevation: 6 }),
   },
-  confirmMsg: { color: '#334155', marginTop: 6 },
+  confirmMsg: { color: colors.ink, marginTop: 6 },
 
   renameCard: {
     position: 'absolute',
@@ -1101,12 +1101,12 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: colors.line,
     borderRadius: 10,
     padding: 10,
     backgroundColor: colors.card,
     fontSize: 14,
-    color: '#0f172a',
+    color: colors.ink,
   },
   smallBtn: {
     alignSelf: 'flex-start', backgroundColor: '#0b74d1', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
@@ -1149,10 +1149,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 5,
     borderRadius: 4,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: colors.line,
     marginBottom: 8,
   },
-  sheetTitle: { fontSize: 16, fontWeight: '400', color: '#0f172a', marginBottom: 8 },
+  sheetTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, marginBottom: 8 },
   sheetBtn: {
     alignSelf: 'flex-start',
     backgroundColor: '#0b74d1',

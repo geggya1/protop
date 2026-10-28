@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   },
   sub: { color: colors.muted, fontWeight: '400', marginBottom: 16, lineHeight: 20 },
   inviteBox: {
-    backgroundColor: '#eff6ff',
+    backgroundColor: colors.brandSoft,
     borderRadius: 14,
     padding: 14,
     marginBottom: 14,
@@ -552,11 +552,11 @@ const styles = StyleSheet.create({
     borderColor: '#bfdbfe',
   },
   inviteBoxTeam: {
-    backgroundColor: '#ecfdf5',
+    backgroundColor: colors.successSoft,
     borderColor: '#a7f3d0',
   },
   inviteBoxClass: {
-    backgroundColor: '#eef2ff',
+    backgroundColor: colors.brandSoft,
     borderColor: '#c7d2fe',
   },
   inviteEyebrow: {
@@ -586,11 +586,11 @@ const styles = StyleSheet.create({
   },
   pwInput: { flex: 1, marginBottom: 0 },
   inputError: { borderColor: '#f59e0b' },
-  errorText: { color: '#b45309', fontWeight: '400', fontSize: 12, marginTop: -4, marginBottom: 8 },
+  errorText: { color: colors.warnInk, fontWeight: '400', fontSize: 12, marginTop: -4, marginBottom: 8 },
   submitError: { fontSize: 13, marginTop: 4 },
   hint: { fontSize: 12, fontWeight: '400', marginTop: -4, marginBottom: 8, color: colors.muted },
   ok: { color: '#16a34a' },
-  bad: { color: '#b45309' },
+  bad: { color: colors.warnInk },
   pwRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   showBtn: {
     alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 12 },

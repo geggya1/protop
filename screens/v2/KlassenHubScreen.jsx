@@ -328,7 +328,7 @@ function makeStyles(colors, { pad, isDesktop }) {
     fieldLabel: {
       fontSize: 13,
       fontWeight: '500',
-      color: colors.text,
+      color: colors.ink,
       marginTop: 6,
     },
     input: {
@@ -338,7 +338,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       paddingHorizontal: 12,
       paddingVertical: Platform.OS === 'ios' ? 12 : 10,
       fontSize: 16,
-      color: colors.text,
+      color: colors.ink,
       backgroundColor: colors.bg,
       marginBottom: 4,
     },
@@ -364,7 +364,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       justifyContent: 'center',
     },
     cardBody: { flex: 1, minWidth: 0 },
-    cardTitle: { fontSize: 16, fontWeight: '500', color: colors.text },
+    cardTitle: { fontSize: 16, fontWeight: '500', color: colors.ink },
     cardSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
     empty: {
       alignItems: 'center',
@@ -372,7 +372,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       paddingHorizontal: 16,
       gap: 8,
     },
-    emptyTitle: { fontSize: 17, fontWeight: '500', color: colors.text },
+    emptyTitle: { fontSize: 17, fontWeight: '500', color: colors.ink },
     emptyTxt: { fontSize: 14, color: colors.muted, textAlign: 'center', lineHeight: 20 },
     modalBackdrop: {
       flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end',
@@ -389,6 +389,6 @@ function makeStyles(colors, { pad, isDesktop }) {
       width: 36, height: 4, borderRadius: 2, backgroundColor: colors.line,
       alignSelf: 'center', marginBottom: 12,
     },
-    modalTitle: { fontSize: 17, fontWeight: '500', color: colors.text || colors.ink, marginBottom: 8 },
+    modalTitle: { fontSize: 17, fontWeight: '500', color: colors.ink, marginBottom: 8 },
   });
 }

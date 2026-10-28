@@ -75,10 +75,10 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 18,
     fontWeight: '400',
-    color: colors.ink || colors.text || '#0f172a',
+    color: colors.ink || '#0f172a',
     textAlign: 'center',
   },
-  titleErr: { color: '#b91c1c' },
+  titleErr: { color: colors.dangerInk },
   sub: {
     marginTop: 8,
     fontSize: 14,

@@ -871,7 +871,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.line, minHeight: 52,
   },
   slotEmpty: {
-    backgroundColor: '#f8fafc', borderRadius: 8, padding: 6,
+    backgroundColor: colors.sunken, borderRadius: 8, padding: 6,
     borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed',
     minHeight: 52, alignItems: 'center', justifyContent: 'center',
   },
@@ -1028,7 +1028,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
   pickRowRated: {
-    backgroundColor: '#fffbeb',
+    backgroundColor: colors.starSoft,
     marginHorizontal: -6,
     paddingHorizontal: 6,
     borderRadius: 8,

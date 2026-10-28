@@ -400,7 +400,7 @@ export default function LekserHubScreen({ inShell = false, onBack } = {}) {
               width: isDesktop ? 32 : 36, height: isDesktop ? 32 : 36,
               borderRadius: isDesktop ? 6 : 10,
               alignItems: 'center', justifyContent: 'center',
-              backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line,
+              backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
             }}
           >
             <Ionicons name="cloud-upload-outline" size={18} color={colors.brand} />
@@ -498,7 +498,7 @@ function makeStyles(colors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.line,
@@ -512,7 +512,7 @@ function makeStyles(colors) {
     sideCol: { gap: 10 },
     sideColDesk: { width: 260, flexShrink: 0 },
     progressCard: {
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.line,
@@ -541,7 +541,7 @@ function makeStyles(colors) {
     row: {
       flexDirection: 'row',
       alignItems: 'stretch',
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: radius.md,
       marginBottom: 8,
       borderWidth: 1,
@@ -579,7 +579,7 @@ function makeStyles(colors) {
     meta: { fontSize: 12, color: colors.muted, fontWeight: '400', marginTop: 4 },
     startBtnTxt: { color: colors.brand, fontWeight: '500', fontSize: 12 },
     hintCard: {
-      backgroundColor: '#fff',
+      backgroundColor: colors.card,
       borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.line,
@@ -599,10 +599,10 @@ function makeStyles(colors) {
     },
     hintBtnTxt: { color: colors.brand, fontWeight: '500', fontSize: 13 },
     playCard: {
-      backgroundColor: '#ecfeff',
+      backgroundColor: colors.brandSoft,
       borderRadius: radius.md,
       borderWidth: 1,
-      borderColor: '#a5f3fc',
+      borderColor: colors.line,
       padding: 16,
       gap: 8,
     },
@@ -630,7 +630,7 @@ function makeStyles(colors) {
     emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 },
     emptyTitle: { fontWeight: '500', fontSize: 18, color: colors.ink, marginTop: 8 },
     emptyCard: {
-      alignItems: 'center', padding: 28, backgroundColor: '#fff',
+      alignItems: 'center', padding: 28, backgroundColor: colors.card,
       borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, gap: 8,
     },
     emptyCardTxt: { fontWeight: '500', fontSize: 15, color: colors.ink, textAlign: 'center' },

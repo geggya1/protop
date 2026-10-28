@@ -267,7 +267,7 @@ export default function ChildScheduleScreen() {
             width: isDesktop ? 32 : 36, height: isDesktop ? 32 : 36,
             borderRadius: isDesktop ? 6 : 10,
             alignItems: 'center', justifyContent: 'center',
-            backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line,
+            backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
           }}
         >
           <Ionicons name="cloud-upload-outline" size={16} color={colors.brand} />
@@ -394,7 +394,7 @@ export default function ChildScheduleScreen() {
           {reminders.map((item) => (
             <View key={item.id} style={styles.rememberRow}>
               <View style={styles.checkBox}>
-                <Ionicons name="square-outline" size={18} color="#15803d" />
+                <Ionicons name="square-outline" size={18} color={colors.successInk} />
               </View>
               <Text style={styles.rememberTxt}>{item.label}</Text>
             </View>
@@ -569,13 +569,13 @@ function makeStyles(colors, isDesktop) {
     iconBtn: {
       width: 36, height: 36, borderRadius: 18,
       alignItems: 'center', justifyContent: 'center',
-      backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line,
+      backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
     },
     rangeWrap: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
     rangeTxt: { fontWeight: '500', fontSize: 14, color: colors.ink },
     seg: {
       flexDirection: 'row',
-      backgroundColor: '#eef2f7',
+      backgroundColor: colors.sunken,
       borderRadius: 12,
       padding: 3,
       alignSelf: isDesktop ? 'center' : 'stretch',
@@ -604,7 +604,7 @@ function makeStyles(colors, isDesktop) {
     mainCol: { flex: 1, minWidth: 0 },
     sideCol: { width: isDesktop ? 240 : undefined, gap: 12, marginTop: isDesktop ? 0 : 12 },
     calCard: {
-      backgroundColor: '#fff', borderRadius: 18, padding: 14,
+      backgroundColor: colors.card, borderRadius: 18, padding: 14,
       borderWidth: 1, borderColor: colors.line, overflow: 'hidden',
     },
     calHead: {
@@ -618,14 +618,14 @@ function makeStyles(colors, isDesktop) {
       fontSize: 13, color: colors.muted, textAlign: 'center', fontWeight: '400', lineHeight: 18,
     },
     rememberCard: {
-      backgroundColor: '#ecfdf3', borderRadius: 16, padding: 14, gap: 10,
+      backgroundColor: colors.successSoft, borderRadius: 16, padding: 14, gap: 10,
     },
-    rememberTitle: { fontWeight: '500', fontSize: 14, color: '#14532d' },
+    rememberTitle: { fontWeight: '500', fontSize: 14, color: colors.successInk },
     rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     checkBox: { width: 22, alignItems: 'center' },
-    rememberTxt: { fontWeight: '400', fontSize: 14, color: '#166534' },
+    rememberTxt: { fontWeight: '400', fontSize: 14, color: colors.successInk },
     endCard: {
-      backgroundColor: '#fff', borderRadius: 16, padding: 14,
+      backgroundColor: colors.card, borderRadius: 16, padding: 14,
       borderWidth: 1, borderColor: colors.line,
     },
     endLabel: { fontWeight: '400', fontSize: 13, color: colors.muted, marginBottom: 4 },
@@ -635,7 +635,7 @@ function makeStyles(colors, isDesktop) {
     },
     modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'flex-end' },
     modalSheet: {
-      backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18,
+      backgroundColor: colors.card, borderTopLeftRadius: 18, borderTopRightRadius: 18,
       padding: 18, gap: 6, paddingBottom: 32,
     },
     modalSheetDesk: {

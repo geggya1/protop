@@ -401,6 +401,6 @@ function makeStyles(simpleUi, contentMax, board) {
     statusWin: { backgroundColor: colors.successSoft, borderWidth: 1, borderColor: colors.success },
     winner: { textAlign: 'center', fontWeight: '400', fontSize: 20, color: colors.success },
     dangerLink: { alignItems: 'center', paddingVertical: 14 },
-    dangerTxt: { color: '#b91c1c', fontWeight: '400' },
+    dangerTxt: { color: colors.dangerInk, fontWeight: '400' },
   });
 }

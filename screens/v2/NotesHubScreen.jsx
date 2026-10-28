@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   },
   noteRowDesk: { paddingVertical: 8, gap: 8 },
   noteIcon: {
-    width: 40, height: 40, borderRadius: 10, backgroundColor: '#eef6ff',
+    width: 40, height: 40, borderRadius: 10, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   noteIconDesk: { width: 32, height: 32, borderRadius: 7 },
@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
   modalTitle: { fontWeight: '400', fontSize: 18, color: colors.ink, marginBottom: 12 },
   modalTitleDesk: { fontWeight: '500', fontSize: 16, marginBottom: 10 },
   modalInput: {
-    backgroundColor: '#f8fafc', borderWidth: 1, borderColor: colors.line,
+    backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line,
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
     fontSize: 15, fontWeight: '500', color: colors.ink, marginBottom: 12,
   },

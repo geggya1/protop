@@ -668,7 +668,7 @@ const styles = StyleSheet.create({
   cardSubDesk: { fontSize: 11, fontWeight: '400' },
   rowInactive: {
     opacity: 0.55,
-    backgroundColor: '#fef2f2',
+    backgroundColor: colors.dangerSoft,
     borderColor: '#fecaca',
   },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' },
@@ -678,10 +678,10 @@ const styles = StyleSheet.create({
   },
   name: { fontWeight: '400', fontSize: 14, color: colors.ink },
   nameDesk: { fontSize: 13, fontWeight: '400' },
-  nameInactive: { color: '#7f1d1d' },
+  nameInactive: { color: colors.dangerInk },
   sub: { color: colors.muted, fontWeight: '400', fontSize: 12 },
   subDesk: { fontSize: 11 },
-  subInactive: { color: '#b91c1c' },
+  subInactive: { color: colors.dangerInk },
   empty: { color: colors.muted, fontWeight: '500', fontSize: 13, marginBottom: 8 },
   actions: { marginTop: 16, gap: 8, alignItems: 'flex-start' },
   secondary: {

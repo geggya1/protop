@@ -1094,7 +1094,7 @@ const styles = StyleSheet.create({
   },
   cardThumbWrap: { position: 'relative' },
   cardThumb: {
-    width: 48, height: 48, borderRadius: 10, backgroundColor: '#eef2f7',
+    width: 48, height: 48, borderRadius: 10, backgroundColor: colors.sunken,
   },
   thumbReservedBadge: {
     position: 'absolute', right: -3, bottom: -3,
@@ -1150,7 +1150,7 @@ const styles = StyleSheet.create({
   modalTitleDesk: { fontWeight: '500', fontSize: 15, marginBottom: 8 },
   imagePicker: {
     borderRadius: 10, overflow: 'hidden', marginBottom: 10,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, backgroundColor: '#f8fbff',
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, backgroundColor: colors.brandSoft,
   },
   imagePickerDesk: { borderRadius: 8 },
   imagePickerPreview: { width: '100%', aspectRatio: 1.6 },
@@ -1167,7 +1167,7 @@ const styles = StyleSheet.create({
   },
   scanLinkTxt: { fontWeight: '500', color: colors.brand, fontSize: 13 },
   input: {
-    backgroundColor: '#f8fafc', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line,
+    backgroundColor: colors.sunken, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line,
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
     fontSize: 14, fontWeight: '500', color: colors.ink, marginBottom: 8,
   },

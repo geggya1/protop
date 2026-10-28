@@ -940,7 +940,7 @@ const styles = StyleSheet.create({
   },
   catTileDesk: { width: '31%', minHeight: 84, padding: 12, borderRadius: 8 },
   catIcon: {
-    width: 34, height: 34, borderRadius: 10, backgroundColor: '#eef6ff',
+    width: 34, height: 34, borderRadius: 10, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
   catTitle: { fontSize: 14, fontWeight: '400', color: colors.ink },
@@ -966,8 +966,8 @@ const styles = StyleSheet.create({
     fontSize: 11, fontWeight: '400', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
     overflow: 'hidden',
   },
-  newsBadgeMajor: { backgroundColor: '#dbeafe', color: colors.brand },
-  newsBadgeFix: { backgroundColor: '#f1f5f9', color: colors.muted },
+  newsBadgeMajor: { backgroundColor: colors.brandSoft, color: colors.brand },
+  newsBadgeFix: { backgroundColor: colors.sunken, color: colors.muted },
   newsVersion: { fontSize: 12, fontWeight: '400', color: colors.muted },
 
   heroBand: { borderRadius: 16, padding: 16, marginBottom: 12 },
@@ -979,9 +979,9 @@ const styles = StyleSheet.create({
 
   tipBox: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    backgroundColor: '#eef6ff', borderRadius: 12, padding: 12, marginBottom: 10,
+    backgroundColor: colors.brandSoft, borderRadius: 12, padding: 12, marginBottom: 10,
   },
-  tipBoxSoft: { backgroundColor: '#f8fafc' },
+  tipBoxSoft: { backgroundColor: colors.sunken },
   tipTxt: { flex: 1, fontSize: 13, fontWeight: '400', color: colors.ink, lineHeight: 19 },
 
   stepRow: {
@@ -994,13 +994,13 @@ const styles = StyleSheet.create({
   },
   stepNumTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
   stepNumLocked: { backgroundColor: '#d97706' },
-  stepLockTxt: { marginTop: 6, fontSize: 13, color: '#92400e', lineHeight: 18 },
+  stepLockTxt: { marginTop: 6, fontSize: 13, color: colors.warnInk, lineHeight: 18 },
   lockBox: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    backgroundColor: '#fffbeb', borderColor: '#fcd34d', borderWidth: 1,
+    backgroundColor: colors.starSoft, borderColor: '#fcd34d', borderWidth: 1,
     borderRadius: 12, padding: 12, marginBottom: 12,
   },
-  lockTxt: { flex: 1, fontSize: 13.5, color: '#92400e', lineHeight: 19, fontWeight: '600' },
+  lockTxt: { flex: 1, fontSize: 13.5, color: colors.warnInk, lineHeight: 19, fontWeight: '600' },
   lockWhoBox: { marginTop: 8, marginBottom: 0 },
   stepTxt: { flex: 1, fontSize: 14, fontWeight: '400', color: colors.ink, lineHeight: 20 },
   stepTitleTxt: { fontWeight: '600' },
@@ -1075,7 +1075,7 @@ const styles = StyleSheet.create({
   ticketNum: { fontSize: 12, fontWeight: '400', color: colors.brand },
   ticketHeader: { marginBottom: 12 },
   statusPill: {
-    backgroundColor: '#eef6ff', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
   },
   statusPillTxt: { fontSize: 11, fontWeight: '400', color: colors.brand },
 
@@ -1092,7 +1092,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   attachTxt: { color: colors.brand, fontWeight: '400', fontSize: 14 },
-  attachPreview: { width: '100%', height: 160, borderRadius: 12, marginBottom: 12, backgroundColor: '#e2e8f0' },
+  attachPreview: { width: '100%', height: 160, borderRadius: 12, marginBottom: 12, backgroundColor: colors.line },
   msgImage: { width: 180, height: 120, borderRadius: 10, marginTop: 8 },
 
   empty: { padding: 16, textAlign: 'center', color: colors.muted, fontWeight: '400' },

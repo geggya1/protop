@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
   listCardDesk: { borderRadius: 8, padding: 10 },
   listCardHighlight: {
     borderColor: '#bfdbfe',
-    backgroundColor: '#f8fbff',
+    backgroundColor: colors.brandSoft,
   },
   inviteCard: { borderColor: '#bfdbfe' },
   sectionHead: {
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
     borderWidth: 1,
     borderColor: colors.line,
   },

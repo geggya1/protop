@@ -53,7 +53,7 @@ export default function RecipeThumb({
 }
 
 const styles = StyleSheet.create({
-  image: { backgroundColor: '#f1f5f9' },
+  image: { backgroundColor: colors.sunken },
   fallback: {
     backgroundColor: colors.brandSoft,
     alignItems: 'center',

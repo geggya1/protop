@@ -1296,7 +1296,7 @@ const styles = StyleSheet.create({
   navRowLabelDesk: { fontSize: 13, fontWeight: '500' },
   navRowDetail: { fontSize: 13, fontWeight: '400', color: colors.muted, maxWidth: '40%' },
   iconCircle: {
-    width: 32, height: 32, borderRadius: 8, backgroundColor: '#eef6ff',
+    width: 32, height: 32, borderRadius: 8, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   iconCircleCompact: { width: 28, height: 28, borderRadius: 6 },
@@ -1429,7 +1429,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.brandSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 9,
   },
-  photoChipDanger: { backgroundColor: '#fee2e2' },
+  photoChipDanger: { backgroundColor: colors.dangerSoft },
   photoChipTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
 
   avatarToggle: {
@@ -1467,10 +1467,10 @@ const styles = StyleSheet.create({
   aiFooter: { padding: 14, gap: 10 },
   aiDisclaimer: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#fffbeb', padding: 10, borderRadius: 10,
+    backgroundColor: colors.starSoft, padding: 10, borderRadius: 10,
     borderWidth: 1, borderColor: '#fde68a',
   },
-  aiDisclaimerTxt: { flex: 1, color: '#92400e', fontSize: 12, fontWeight: '400', lineHeight: 18 },
+  aiDisclaimerTxt: { flex: 1, color: colors.warnInk, fontSize: 12, fontWeight: '400', lineHeight: 18 },
 
   importPlanBtn: {
     alignSelf: 'flex-start',

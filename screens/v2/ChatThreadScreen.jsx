@@ -504,15 +504,15 @@ const styles = StyleSheet.create({
   msgActionDanger: { color: colors.danger },
   deletedBubble: { opacity: 0.85 },
   mineDeleted: { alignSelf: 'flex-end', backgroundColor: '#cbd5e1' },
-  theirsDeleted: { alignSelf: 'flex-start', backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: colors.line },
-  deletedTxt: { fontSize: 13, fontWeight: '400', color: '#64748b', fontStyle: 'italic' },
-  chatImage: { width: 180, height: 180, borderRadius: 10, backgroundColor: '#e2e8f0' },
+  theirsDeleted: { alignSelf: 'flex-start', backgroundColor: colors.sunken, borderWidth: 1, borderColor: colors.line },
+  deletedTxt: { fontSize: 13, fontWeight: '400', color: colors.muted, fontStyle: 'italic' },
+  chatImage: { width: 180, height: 180, borderRadius: 10, backgroundColor: colors.line },
   composer: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: colors.card,
     borderTopWidth: 1, borderTopColor: colors.line, alignItems: 'center',
   },
   attachBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: '#eef6ff',
+    width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   input: {

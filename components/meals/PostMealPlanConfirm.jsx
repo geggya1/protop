@@ -101,7 +101,7 @@ export default function PostMealPlanConfirm({
               <Text style={styles.msg}>{confirmMessage}</Text>
               <View style={styles.row}>
                 <TouchableOpacity style={[styles.btn, styles.muted]} onPress={handleNo}>
-                  <Text style={[styles.btnTxt, { color: '#0f172a' }]}>Nei</Text>
+                  <Text style={[styles.btnTxt, { color: colors.ink }]}>Nei</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.btn, styles.primary]} onPress={handleYes}>
                   <Text style={styles.btnTxt}>Ja</Text>
@@ -158,7 +158,7 @@ export default function PostMealPlanConfirm({
                   style={[styles.btn, styles.muted]}
                   onPress={() => setStep('ask')}
                 >
-                  <Text style={[styles.btnTxt, { color: '#0f172a' }]}>Tilbake</Text>
+                  <Text style={[styles.btnTxt, { color: colors.ink }]}>Tilbake</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.btn, styles.primary, !selectedId && styles.btnDisabled]}
@@ -191,8 +191,8 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
-  title: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
-  msg: { marginTop: 8, color: '#334155', lineHeight: 20, fontWeight: '500' },
+  title: { fontSize: 16, fontWeight: '400', color: colors.ink },
+  msg: { marginTop: 8, color: colors.ink, lineHeight: 20, fontWeight: '500' },
   row: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   btn: {
     alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 },
   btnTxt: { color: '#fff', fontWeight: '400' },
-  muted: { backgroundColor: '#e5e7eb' },
+  muted: { backgroundColor: colors.sunken },
   primary: { backgroundColor: colors.brand },
   btnDisabled: { opacity: 0.45 },
   listScroll: { maxHeight: 280, marginTop: 10 },

@@ -24,6 +24,8 @@ function host(name) {
 
 // Dokumentstyringen som useDocControl finner i minnet (peekDocControl). Settes per test.
 const DC = { controls: [], settings: null, acks: [] };
+// Vindu for useLayout. isWide gir tabell i KS-skuffene, ellers én blokk per dokument.
+const LAYOUT = { isWide: false, isPhone: false, isTouch: false };
 
 const MOCKS = {
   'src/utils/media': { pickImage: async () => null, pickDocument: async () => null },
@@ -57,6 +59,7 @@ const MOCKS = {
     }),
   },
   'src/context/ThemeContext': { useColors: () => colors },
+  'src/theme': { useLayout: () => LAYOUT },
   'src/anbud/storage': { loadAnbudState: async () => ({ formTemplates: [] }), saveAnbudState: async () => {}, peekAnbudState: () => null },
   'src/forms/filledStore': {
     loadFilledDocs: async () => [],
@@ -340,13 +343,52 @@ const list = collect(withHooks(() => React.createElement(FormBuilderScreen, { st
 assert.match(list.text, /KS-maler/);
 assert.match(list.text, /Bedriftens maler/);
 assert.match(list.text, /Utfylte dokumenter/);
-assert.match(list.text, /Sjekkliste for gjennomføring av SJA/);
-assert.match(list.text, /ISO \/ K-HMS › Avvik og forbedring/, 'avviksrapport peker til avviksregisteret');
-assert.match(list.text, /HR › Personalhåndbok/);
-assert.match(list.text, /@Fyll ut Møtereferat/);
 assert.match(list.text, /Dokumentstyring/);
-assert.match(list.text, /Versjon 1 gjeldende/, 'godkjent KS-mal viser versjonen');
-assert.match(list.text, /Ikke godkjent/, 'KS-maler som ikke er godkjent er merket');
+/* KS-malene ligger i én skuff per kategori, lukket til man åpner dem. */
+['Generelt', 'HMS', 'Miljø', 'Personal', 'Styring og kvalitet'].forEach((label) => assert.ok(list.texts.includes(label), `skuff for ${label}`));
+assert.match(list.text, /@HMS, \d+ dokumenter/);
+assert.match(list.text, /Åpne alle/);
+assert.match(list.text, /\d+ av \d+ godkjent/, 'skuffen sier hvor mange maler som er godkjent');
+assert.doesNotMatch(list.text, /@Fyll ut Møtereferat/, 'lukket skuff viser ikke radene');
+
+const KsLibraryList = loadLocal(path.join(ROOT, 'screens/anbud/KsLibraryList.jsx')).default;
+const { libraryGroups, searchLibrary } = loadLocal(path.join(ROOT, 'src/forms/ksLibrary.js'));
+const allGroups = libraryGroups();
+const libDc = { controlFor: (key) => DC.controls.find((row) => row.id === key) || null };
+const libProps = {
+  colors, groups: allGroups, dc: libDc, templates: [], filledDocs: [], onFill() {}, onEdit() {}, onModule() {},
+  drawers: { browse: Object.fromEntries(allGroups.map((group) => [group.id, true])) },
+};
+const checkRows = (out) => {
+  assert.match(out.text, /Sjekkliste for gjennomføring av SJA/);
+  assert.match(out.text, /C1-B-03-003/, 'KS-nummeret står som ID');
+  assert.match(out.text, /ISO \/ K-HMS › Avvik og forbedring/, 'avviksrapport peker til avviksregisteret');
+  assert.match(out.text, /HR › Personalhåndbok/);
+  assert.match(out.text, /@Fyll ut Møtereferat/);
+  assert.match(out.text, /@Rediger malen Møtereferat/);
+  assert.match(out.text, /Versjon 1 gjeldende/, 'godkjent KS-mal viser versjonen');
+  assert.match(out.text, /Ikke godkjent/, 'KS-maler som ikke er godkjent er merket');
+  assert.match(out.text, /Standard KS-mal/);
+  assert.match(out.text, /Egen modul/);
+  assert.match(out.text, /Lukk alle/);
+};
+LAYOUT.isWide = true;
+const libTable = collect(withHooks(() => React.createElement(KsLibraryList, libProps)));
+checkRows(libTable);
+['ID', 'Dokument', 'Status', 'Kilde', 'Utfylt'].forEach((head) => assert.ok(libTable.texts.includes(head), `kolonnen ${head}`));
+assert.ok(libTable.texts.indexOf('Generelt') < libTable.texts.indexOf('ID'), 'kategorien står før ID');
+assert.ok(libTable.texts.indexOf('C1-E-05-001') < libTable.texts.indexOf('Brev'), 'ID står før dokumentet');
+LAYOUT.isWide = false;
+const libBlocks = collect(withHooks(() => React.createElement(KsLibraryList, libProps)));
+checkRows(libBlocks);
+assert.ok(!libBlocks.texts.includes('Kilde'), 'smal flate har ingen tabellhode');
+/* Søk åpner skuffene med treff, også når ingen var åpne. */
+const sjaQuery = 'SJA';
+const hits = new Set(searchLibrary(sjaQuery).map((row) => row.key));
+const sjaGroups = allGroups.map((group) => ({ ...group, entries: group.entries.filter((row) => hits.has(row.key)) })).filter((group) => group.entries.length);
+const searched = collect(withHooks(() => React.createElement(KsLibraryList, { ...libProps, groups: sjaGroups, query: sjaQuery, drawers: {} })));
+assert.match(searched.text, /Sjekkliste for gjennomføring av SJA/);
+assert.doesNotMatch(searched.text, /Møtereferat/);
 
 /* HR › Skjemaer viser personalskjemaene. */
 const HrForms = loadLocal(path.join(ROOT, 'screens/hr/HrForms.jsx')).default;

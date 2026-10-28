@@ -17,7 +17,6 @@ import { askCompanyForm, FORM_IMPORT_ACCEPT, readFormImport } from '../../src/an
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import {
   KS_LIBRARY,
-  entryTitle,
   libraryEntry,
   libraryForm,
   libraryGroups,
@@ -67,6 +66,7 @@ import DocControlPanel from '../doccontrol/DocControlPanel';
 import DocComments from '../doccontrol/DocComments';
 import DocOverview from '../doccontrol/DocOverview';
 import { StatusChip } from '../doccontrol/parts';
+import KsLibraryList, { NOT_CONTROLLED } from './KsLibraryList';
 import { printHandbook } from '../hr/handbookPrint';
 import { printForm } from './formPrint';
 
@@ -83,8 +83,6 @@ const TABS = [
   { id: 'utfylt', label: 'Utfylte dokumenter' },
   { id: 'styring', label: 'Dokumentstyring' },
 ];
-
-const NOT_CONTROLLED = { label: 'Ikke godkjent', tone: 'warn' };
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -134,6 +132,8 @@ export default function FormBuilderScreen({
   const [localState, setLocalState] = useState(null);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('bibliotek');
+  // Åpne KS-skuffer. Står her, så de er som før når man kommer tilbake fra en utfylling.
+  const [libraryDrawers, setLibraryDrawers] = useState({});
   const [draft, setDraft] = useState(null);
   const [filled, setFilled] = useState(null);
   const [filledDocs, setFilledDocs] = useState(() => peekFilledDocs(familyId) || []);
@@ -673,64 +673,19 @@ export default function FormBuilderScreen({
         {!!note && <Text style={{ color: noteBad ? colors.danger : colors.brand }}>{note}</Text>}
 
         {tab === 'bibliotek' ? (
-          <>
-            <Text style={{ color: colors.muted, lineHeight: 20 }}>
-              Hele KS-systemet er lagt inn her. Malene fylles ut og skrives ut fra ProTop, uten Word eller Excel. Det som har en egen modul, åpnes der, så det ikke registreres to steder.
-            </Text>
-            {groups.map((group) => (
-              <View key={group.id} style={{ gap: 8 }}>
-                <View style={styles.groupHead}>
-                  <Ionicons name={group.icon} size={16} color={colors.brand} />
-                  <Text style={[styles.kicker, { color: colors.muted }]}>{group.label}</Text>
-                </View>
-                <View style={styles.grid}>
-                  {group.entries.map((entry) => {
-                    const own = entry.kind === 'mal' && templates.some((row) => row.id === libraryTemplateId(entry.key));
-                    const done = entry.kind === 'mal' ? filledDocs.filter((row) => row.libraryKey === entry.key).length : 0;
-                    const control = entry.kind === 'mal' ? dc.controlFor(controlKey('template', libraryTemplateId(entry.key))) : null;
-                    return (
-                      <View key={entry.key} style={[styles.libCard, { borderColor: colors.line, backgroundColor: colors.card }]}>
-                        <View style={styles.libHead}>
-                          <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>{entryTitle(entry)}</Text>
-                          <Text style={{ color: colors.muted, fontSize: 11 }}>{entry.ref}</Text>
-                        </View>
-                        <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>{entry.summary}</Text>
-                        {entry.kind === 'mal' ? (
-                          <>
-                            <StatusChip status={control ? controlStatus(control) : NOT_CONTROLLED} colors={colors} />
-                            <Text style={{ color: colors.muted, fontSize: 12 }}>
-                              {own ? 'Tilpasset av bedriften' : 'Standard KS-mal'}
-                              {entry.hr ? ' · lagres i HR' : ''}
-                              {done ? ` · ${done} utfylt` : ''}
-                            </Text>
-                            <View style={styles.row}>
-                              <TouchableOpacity onPress={() => fillLibrary(entry.key)} accessibilityRole="button" accessibilityLabel={`Fyll ut ${entryTitle(entry)}`} style={[styles.primary, { backgroundColor: colors.brand }]}>
-                                <Text style={{ color: '#fff', fontWeight: '600' }}>Fyll ut</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity onPress={() => openLibrary(entry.key)} accessibilityRole="button" accessibilityLabel={`Rediger malen ${entryTitle(entry)}`}>
-                                <Text style={{ color: colors.brand }}>Rediger malen</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </>
-                        ) : (
-                          <TouchableOpacity
-                            onPress={() => requestShellTab?.(entry.target.tab, entry.target.subView || null)}
-                            accessibilityRole="button"
-                            style={[styles.moduleLink, { borderColor: colors.brand }]}
-                          >
-                            <Ionicons name="arrow-forward-circle-outline" size={16} color={colors.brand} />
-                            <Text style={{ color: colors.brand, fontWeight: '600' }}>{entry.target.label}</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-            {!groups.length ? <Text style={{ color: colors.muted }}>Ingen KS-maler treffer søket.</Text> : null}
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{KS_LIBRARY.length} dokumenter fra KS-systemet.</Text>
-          </>
+          <KsLibraryList
+            colors={colors}
+            groups={groups}
+            query={query}
+            drawers={libraryDrawers}
+            onDrawers={setLibraryDrawers}
+            templates={templates}
+            filledDocs={filledDocs}
+            dc={dc}
+            onFill={fillLibrary}
+            onEdit={openLibrary}
+            onModule={(target) => requestShellTab?.(target.tab, target.subView || null)}
+          />
         ) : null}
 
         {tab === 'maler' ? (
@@ -877,11 +832,6 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
   filledRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  groupHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  libCard: { flexGrow: 1, flexBasis: 300, maxWidth: 520, borderWidth: 1, borderRadius: 14, padding: 12, gap: 6 },
-  libHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  primary: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
-  moduleLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
   starter: { width: 168, flexGrow: 1, borderWidth: 1, borderRadius: 16, padding: 12, gap: 6 },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },

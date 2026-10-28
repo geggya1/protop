@@ -97,9 +97,21 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 - [ ] Ny kunde (finnes ikke i Go) blir opprettet med org.nr., e-post og adresse.
 - [ ] En ny overføring av samme utkast lager ikke duplikat. «Allerede overført» vises.
 - [ ] Send utkastet fra Go. «Synk nå» gir fakturanummer, KID, forsendelse og restbeløp i ProTop.
+- [ ] «Test tilbakehenting» med en faktura sendt fra Go viser fakturanummer, KID, forsendelse og restbeløp.
 - [ ] Registrer innbetaling i Go. Synk gir status «Betalt».
 - [ ] Slå sammen to utkast for samme kunde i Go. Synk finner det nye utkastet («slått sammen»).
 - [ ] Slett et overført utkast i Go. Synk viser «Finnes ikke lenger i PowerOffice». «Overfør på nytt» virker.
+
+### Status 28.10.2026
+
+- Kunde uten e-post opprettes nå med EHF (org.nr.) eller papir som forsendelse. Go avviste først kunden
+  fordi standard forsendelse er e-post. Testkunden «Hillevågsveien 59-63 AS» ble opprettet som 10024.
+- `POST /SalesOrders/Complete` svarer 500 («IVoucherContentStateMaintainer») i demo. PowerOffice har
+  bekreftet at feilen er deres, at den rammer flere kall som lager utkast, og at rettelsen kommer i neste
+  publisering av API-et. Integrasjonen trenger ingen endring. Følg endringsloggen for Go API.
+- Til da: send en faktura laget manuelt i Go og bruk «Test tilbakehenting» under Regnskapssystem.
+  Den slår opp fakturanummeret (`GET /OutgoingInvoices?invoiceNos=`), leser fakturaen på id
+  (`GET /OutgoingInvoices/{id}`) og viser fakturanummer, KID, forsendelse og restbeløp. Ingenting lagres.
 
 ## Utkast til svar til PowerOffice (sendes når testlisten er grønn)
 

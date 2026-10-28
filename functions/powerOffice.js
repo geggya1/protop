@@ -19,7 +19,7 @@ import {
   createPowerOfficeClient, findClientEnvironment, POWEROFFICE_ENVS, PowerOfficeError, powerOfficeErrorText,
 } from './powerOfficeApi.js';
 import { normalizeProductCodes } from './powerOfficeMap.js';
-import { productsWithVat, syncInvoices, transferInvoice } from './powerOfficeSync.js';
+import { lookupOutgoingInvoice, productsWithVat, syncInvoices, transferInvoice } from './powerOfficeSync.js';
 
 if (!getApps().length) initializeApp();
 
@@ -314,5 +314,21 @@ export const powerOfficeSyncInvoices = onCall(CALL, async (request) => {
     return { connected: true, counts: result.counts, updated: result.patches.map((row) => row.id) };
   } catch (err) {
     throw toHttpsError(err, 'sync');
+  }
+});
+
+/** Les én faktura fra Go på fakturanummer, uten å lagre noe. Tester tilbakehentingen. */
+export const powerOfficeLookupInvoice = onCall(CALL, async (request) => {
+  const uid = requireUid(request);
+  const familyId = familyIdFrom(request);
+  const db = getFirestore();
+  await assertFamilyAdmin(db, familyId, uid);
+  await limitCalls(db, uid, 'lookup', 120);
+  const status = await readStatus(db, familyId);
+  try {
+    const client = await clientFor(db, familyId, status);
+    return await lookupOutgoingInvoice(client, { invoiceNo: request.data?.invoiceNo });
+  } catch (err) {
+    throw toHttpsError(err, 'lookup');
   }
 });

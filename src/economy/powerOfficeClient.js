@@ -42,3 +42,8 @@ export function transferInvoiceToPowerOffice(familyId, invoiceId, { again = fals
 export function syncPowerOfficeInvoices(familyId) {
   return call('powerOfficeSyncInvoices', { familyId }, 120000);
 }
+
+/** Les én sendt faktura fra Go på fakturanummer. Lagrer ingenting. */
+export function lookupPowerOfficeInvoice(familyId, invoiceNo) {
+  return call('powerOfficeLookupInvoice', { familyId, invoiceNo: String(invoiceNo || '').trim() }, 60000);
+}

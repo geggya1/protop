@@ -8,10 +8,12 @@ import {
   disconnectPowerOffice,
   listPowerOfficeProducts,
   loadPowerOfficeStatus,
+  lookupPowerOfficeInvoice,
   syncPowerOfficeInvoices,
 } from '../../src/economy/powerOfficeClient.js';
 import {
   envTag,
+  lookupRows,
   POWEROFFICE_GUI,
   POWEROFFICE_VAT_ROWS,
   productOptionsForRow,
@@ -32,6 +34,8 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [lookupNo, setLookupNo] = useState('');
+  const [lookup, setLookup] = useState(null);
 
   function applyStatus(next) {
     setStatus(next);
@@ -99,6 +103,13 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
     const next = await loadPowerOfficeStatus(familyId).catch(() => null);
     if (next) applyStatus(next);
     setNote(`Synket med PowerOffice: ${syncCountsText(result.counts)}.`);
+  }
+
+  // Leser én sendt faktura fra Go slik synken gjør. Lagrer ingenting.
+  async function lookupInvoice() {
+    setLookup(null);
+    const result = await run('lookup', () => lookupPowerOfficeInvoice(familyId, lookupNo));
+    if (result) setLookup(result);
   }
 
   async function disconnect() {
@@ -263,6 +274,42 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
           {products && !products.length ? (
             <Text style={{ color: colors.muted }}>Fant ingen produkter i PowerOffice. Opprett dem der først.</Text>
           ) : null}
+        </View>
+      ) : null}
+
+      {connected ? (
+        <View nativeID="poweroffice-lookup" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={[styles.heading, { color: colors.ink }]}>Test tilbakehenting</Text>
+          <Text style={{ color: colors.muted, lineHeight: 20 }}>
+            Send en faktura fra PowerOffice Go og skriv inn fakturanummeret. ProTop henter fakturaen slik synken gjør,
+            og viser fakturanummer, KID, forsendelse og restbeløp. Ingenting lagres i ProTop.
+          </Text>
+          <View style={styles.row}>
+            <TextInput
+              value={lookupNo}
+              onChangeText={setLookupNo}
+              placeholder="Fakturanummer i PowerOffice"
+              placeholderTextColor={colors.placeholder}
+              keyboardType="number-pad"
+              editable={canEdit}
+              onSubmitEditing={() => lookupNo.trim() && lookupInvoice()}
+              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+            />
+            {button(busy === 'lookup' ? 'Henter…' : 'Hent faktura', lookupInvoice, {
+              key: 'lookup', primary: true, disabled: !lookupNo.trim(),
+            })}
+          </View>
+          {lookup && !lookup.found ? (
+            <Text style={{ color: danger }}>
+              {`Fant ingen sendt faktura med nummer ${lookup.invoiceNo} i PowerOffice. Utkast får fakturanummer først når de sendes.`}
+            </Text>
+          ) : null}
+          {lookupRows(lookup).map(([label, value]) => (
+            <View key={label} style={styles.row}>
+              <Text style={{ color: colors.muted, width: 200 }}>{label}</Text>
+              <Text style={{ color: colors.ink, flex: 1 }}>{String(value)}</Text>
+            </View>
+          ))}
         </View>
       ) : null}
     </View>

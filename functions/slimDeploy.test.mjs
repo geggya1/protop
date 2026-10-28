@@ -43,6 +43,7 @@ const required = [
   'powerOfficeIndex.js',
   'functions:powerOfficeTransferInvoice',
   'functions:powerOfficeSyncInvoices',
+  'functions:powerOfficeLookupInvoice',
   'functions:stravaSyncActivities',
   'pushIndex.js',
   'functions:onChatMessageCreated',

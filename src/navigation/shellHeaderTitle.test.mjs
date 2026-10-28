@@ -132,7 +132,8 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'selskap', moreSubView: 'tilgang', t }), 'Tilgangsstyring');
   assert.equal(resolveShellHeaderTitle({ tab: 'underenheter', t }), 'Underenheter');
   assert.equal(resolveShellHeaderTitle({ tab: 'plan', t }), 'Kalender');
-  assert.equal(resolveShellHeaderTitle({ tab: 'skjema', t }), 'Skjema');
+  // Samme navn som i menyen (UX-17).
+  assert.equal(resolveShellHeaderTitle({ tab: 'skjema', t }), 'Skjemabygger');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'varsling', t }), '1.1 Anbudsvarsling');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'foresporsel', t }), '1.2 Anbudsforespørsel');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'vurdering', t }), '2. Vurdering av aktuelle');

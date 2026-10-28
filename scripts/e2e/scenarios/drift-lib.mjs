@@ -298,7 +298,12 @@ export async function seedCompany(tag, { roles = Object.keys(ROLE_DEFS), company
   const members = [];
   for (const p of projects) {
     for (const u of Object.values(users)) {
-      members.push({ id: `mem-${p.id}-${u.role}`, projectId: p.id, employeeId: u.empId, name: u.name, role: u.role === 'pl' ? 'Prosjektleder' : 'Prosjektmedlem' });
+      // Stjerne på prosjekt 100 for alle, så det vises i timelisten uten tidligere timer.
+      // Prosjekt 101 er uten stjerne (slik Team-fanen legger til deltakere).
+      members.push({
+        id: `mem-${p.id}-${u.role}`, projectId: p.id, employeeId: u.empId, employeeName: u.name, active: true,
+        starred: p.id === 'prj-100', role: u.role === 'pl' ? 'Prosjektleder' : 'Prosjektmedlem', addedAt: iso,
+      });
     }
   }
   await putDoc(`families/${companyId}/projects/state`, {
@@ -331,10 +336,15 @@ export async function fillAfterLabel(bot, label, value, { nth = 0, within = null
     const vis = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
     // Sidemenyen på PC (venstre 220 px) har egne punkter som «E-post» og «Notat».
     const side = window.innerWidth > 1000 ? 222 : -1;
+    const clean = (t) => String(t || '').replace(/\s+/g, ' ').replace(/\s*\*$/, '').trim();
+    const want = clean(lbl);
     const labels = [...root.querySelectorAll('div,span,label,p')].filter((e) => vis(e)
       && e.getBoundingClientRect().left > side
-      && e.childElementCount === 0 && (e.innerText || '').trim() === lbl);
-    const lab = labels[n];
+      && e.childElementCount <= 2 && !e.querySelector('input,textarea')
+      && clean(e.innerText) === want)
+      // Dypeste treff først (etiketten selv, ikke beholderen).
+      .filter((e, _, all) => !all.some((o) => o !== e && e.contains(o)));
+    const lab = n === 'last' ? labels[labels.length - 1] : labels[n];
     if (!lab) return false;
     const inputs = [...document.querySelectorAll('input,textarea')].filter(vis);
     const hit = inputs.find((i) => lab.compareDocumentPosition(i) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -392,4 +402,129 @@ export async function clickInRow(bot, rowText, pick = 'last', { minChildren = 3 
   if (ok !== true) throw new Error(`clickInRow «${rowText}»: ${ok}`);
   await bot.page.locator('[data-drift-click]').first().click();
   await bot.page.waitForTimeout(500);
+}
+
+/* ───────── Timeliste ───────── */
+
+/** Åpner føringsdialogen for prosjektraden og dagen (1–31) i månedsrutenettet (PC-visning). */
+export async function openTimesheetCell(bot, projectLabel, day) {
+  await bot.page.getByText(projectLabel, { exact: true }).first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+  const r = await bot.page.evaluate(([label, d]) => {
+    document.querySelectorAll('[data-drift-cell]').forEach((e) => e.removeAttribute('data-drift-cell'));
+    const el = [...document.querySelectorAll('div')].find((e) => e.childElementCount === 0 && (e.innerText || '').trim() === label);
+    if (!el) return 'nolabel';
+    let row = el;
+    while (row && !(row.querySelectorAll(':scope > [role=button]').length >= 28)) row = row.parentElement;
+    if (!row) return 'norow';
+    const cells = row.querySelectorAll(':scope > [role=button]');
+    if (!cells[d - 1]) return 'nocell';
+    cells[d - 1].setAttribute('data-drift-cell', '1');
+    return true;
+  }, [projectLabel, day]);
+  if (r !== true) throw new Error(`Timeliste: fant ikke cellen ${projectLabel}/${day}: ${r}`);
+  await bot.page.locator('[data-drift-cell]').click();
+  await bot.page.waitForTimeout(1000);
+}
+
+/** Fører timer i åpen føringsdialog. */
+export async function enterHours(bot, hours, description = '') {
+  const input = bot.page.locator('input').filter({ hasNot: bot.page.locator('[placeholder]') });
+  // Timefeltet er det første tallfeltet i dialogen (verdi «0:00» eller «7:30»).
+  const hit = await bot.page.evaluate(() => {
+    document.querySelectorAll('[data-drift-hours]').forEach((e) => e.removeAttribute('data-drift-hours'));
+    const el = [...document.querySelectorAll('input')].find((i) => /^\d{1,2}:\d{2}$/.test(i.value) && i.getBoundingClientRect().width > 0);
+    if (!el) return false;
+    el.setAttribute('data-drift-hours', '1');
+    return true;
+  });
+  if (!hit) throw new Error('Fant ikke timefeltet i føringsdialogen');
+  void input;
+  await bot.page.locator('[data-drift-hours]').fill(String(hours));
+  if (description) await bot.fill('Eksternt notat', description);
+  await bot.click('Lagre');
+  await bot.page.waitForTimeout(2500);
+}
+
+export async function timeEntries(companyId) {
+  return (await listDocsSafe(`families/${companyId}/timeEntries`));
+}
+
+async function listDocsSafe(path) {
+  const { listDocs } = await import('../lib/emu.mjs');
+  return listDocs(path);
+}
+
+/** Dagen i måneden (1–31) for i dag i Oslo-tid. */
+export function osloDay() {
+  return Number(new Intl.DateTimeFormat('nb-NO', { timeZone: 'Europe/Oslo', day: 'numeric' }).format(new Date()));
+}
+
+export function osloDate() {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Oslo' }).format(new Date());
+}
+
+/** Åpner side og lukker velkomstrunden om den dukker opp. */
+export async function go(bot, tab, sub = null, wait = 3000) {
+  // Skallet kan overstyre en tidlig navigasjon (startsiden «Selskap» lastes etter innlogging).
+  // Åpne derfor to ganger; andre gang er uten virkning når vi allerede står der.
+  await bot.open(tab, sub, 1200);
+  await bot.open(tab, sub, wait);
+  const skip = bot.page.getByText('Hopp over rundturen', { exact: true });
+  if (await skip.count().catch(() => 0)) {
+    if (await skip.first().isVisible().catch(() => false)) {
+      await skip.first().click({ force: true }).catch(() => {});
+      await bot.page.waitForTimeout(400);
+    }
+  }
+}
+
+/** JS-klikk på tekst (når et annet element ligger over knappen). */
+export async function jsClick(bot, text, nth = 0) {
+  const loc = bot.page.getByText(text, { exact: true });
+  const n = await loc.count();
+  const vis = [];
+  for (let i = 0; i < n; i += 1) if (await loc.nth(i).isVisible().catch(() => false)) vis.push(i);
+  if (vis.length <= nth) throw new Error(`Fant ikke «${text}» (${bot.where})`);
+  await loc.nth(vis[nth]).evaluate((el) => el.click());
+  await bot.page.waitForTimeout(500);
+}
+
+/** Kjør et steg; feil i boten blir rapportert som BOTFEIL i stedet for å stoppe hele skriptet. */
+export async function guard(report, id, title, fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    report.step(id, `${title} (BOTFEIL)`, { ok: false, actual: String(e?.message || e).slice(0, 300), note: 'botfeil' });
+    return null;
+  }
+}
+
+export async function newBot(BotClass, name, user, { view = 'desktop', outDir = OUT } = {}) {
+  const b = new BotClass(name, { email: user.email, password: user.password, view, outDir });
+  await b.start();
+  await b.login();
+  // Første navigasjon rett etter innlogging kan bli overstyrt av skallets egen startside.
+  await b.page.waitForTimeout(4000);
+  return b;
+}
+
+/** Trykker første synlige element med nativeID (#id). Noen id-er finnes både i mobil- og PC-oppsett. */
+export async function clickId(bot, id, { timeout = 15000 } = {}) {
+  const loc = bot.page.locator(`[id="${id}"]`);
+  const until = Date.now() + timeout;
+  while (Date.now() < until) {
+    const n = await loc.count();
+    for (let i = 0; i < n; i += 1) {
+      const el = loc.nth(i);
+      if (await el.isVisible().catch(() => false)) {
+        const disabled = await el.getAttribute('aria-disabled').catch(() => null);
+        if (disabled === 'true') break;
+        await el.click({ timeout: 5000 }).catch(async () => { await el.evaluate((e) => e.click()); });
+        await bot.page.waitForTimeout(500);
+        return true;
+      }
+    }
+    await bot.page.waitForTimeout(400);
+  }
+  throw new Error(`Fant ikke synlig/aktiv #${id} (${bot.where})`);
 }

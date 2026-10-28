@@ -17,7 +17,7 @@ import {
   toggleTodo, toggleParentTodo, restoreParentTodo, purgeParentTodo, valueForTask,
   sortParentTasksByDeadline,
   isParentTaskOverdue, formatDeadlineLabel, formatDeadlineDate,
-  parentTaskVisibleToUser, FAMILY_ASSIGNEE,
+  parentTaskVisibleToUser, parentTaskInTrashForUser, FAMILY_ASSIGNEE,
   parentTodosOnDate, isParentTaskOpen,
 } from '../../src/utils/todos';
 import { weekRewardCap } from '../../src/utils/todoBudget';
@@ -521,7 +521,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
   );
   const trashTasks = useMemo(
     () => sortParentTasksByDeadline(
-      (parentTodos || []).filter((t) => t.deleted && parentTaskVisibleToUser(t, {
+      (parentTodos || []).filter((t) => parentTaskInTrashForUser(t, {
         uid,
         ids: myIds,
         asChild: !!viewingChild,

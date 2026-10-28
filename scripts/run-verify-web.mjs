@@ -137,6 +137,7 @@ export const FILES = [
   'src/notifications/audience.test.mjs',
   'src/access/companyAccess.test.mjs',
   'src/modules/moduleHero.test.mjs',
+  'src/modules/groupPalette.test.mjs',
   'src/help/protopPages.test.mjs',
   'src/help/protopProcesses.test.mjs',
   'src/help/assistantEngine.test.mjs',

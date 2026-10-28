@@ -11,7 +11,9 @@ import {
   MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroCompact, shellHeroModuleId,
 } from './moduleHero.js';
 import { isModuleStartPage } from '../navigation/navTrail.js';
-import { COMPANY_HERO, companyHeroId } from './companyHero.js';
+import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
+import { GROUP_PALETTE } from './groupPalette.js';
+import { getProtopPage, helpPageId } from '../help/protopPages.js';
 import {
   ACTIVATABLE_MODULE_IDS,
   getModuleConfig,
@@ -371,36 +373,33 @@ assert.equal(resolveModuleHero('friends', 'nb').wideArt, true, 'friends use the 
 assert.equal(shellHeroModuleId('more', 'friends'), 'friends', 'venner uses the shared heading');
 assert.equal(resolveModuleHero('plan', 'nb').title, 'Din kalender, én plan', 'calendar title stays');
 assert.equal(resolveModuleHero('friends', 'nb').title, 'Venner', 'friends title stays the page name');
-const TEXT_ONLY_PASTEL = {
-  underenheter: ['#e8eef6', '#f7f9fc', '#1d4ed8'],
-  'anbud-foresporsel': ['#E5F6FE', '#f7fbff', '#1099F4'],
-  'anbud-vurdering': ['#E5F6FE', '#f7fbff', '#1099F4'],
-  'arbeid-timerapport': ['#e6f5fb', '#f4fbfe', '#0284c7'],
-  'arbeid-timesaldo': ['#e6f5fb', '#f4fbfe', '#0284c7'],
-  'arbeid-planlagt': ['#f4efe6', '#fbf8f2', '#b45309'],
-  'okonomi-kunder': ['#e7f7ee', '#f5fcf8', '#15803d'],
-  'okonomi-avtaler': ['#e7f7ee', '#f5fcf8', '#15803d'],
-  'hr-oversikt': ['#e7f7ee', '#f5fcf8', '#15803d'],
-  'hr-personell': ['#e7f7ee', '#f5fcf8', '#15803d'],
-  'hr-avtaler': ['#f4efe6', '#fbf8f2', '#b45309'],
-  'arbeid-produktivitet': ['#e6f5fb', '#f4fbfe', '#0284c7'],
-  'arbeid-fremdrift': ['#e6f5fb', '#f4fbfe', '#0284c7'],
-  'hr-lonn': ['#f4efe6', '#fbf8f2', '#b45309'],
-  'hr-oppfolging': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
-  'hr-compliance': ['#e8eef6', '#f7f9fc', '#1d4ed8'],
-};
+// Én farge per menygruppe (UX-06): båndet skifter ikke farge mellom fanene i en modul,
+// og hjelpen bruker samme farge for samme side.
 for (const id of Object.keys(COMPANY_HERO)) {
   const band = resolveModuleHero(id, 'nb');
   assert.equal(band.ink, '', `${id} keeps dark text on the pastel band`);
   assert.equal(band.muted, '', `${id} keeps the default muted pitch`);
   assert.notEqual(band.bg, '#1B2026', `${id} is not anthracite`);
-  const pastel = TEXT_ONLY_PASTEL[id] || ['#E5F6FE', '#f7fbff', '#1099F4'];
-  assert.equal(band.bg, pastel[0], `${id} pastel bg`);
-  assert.equal(band.bg2, pastel[1], `${id} pastel bg2`);
-  assert.equal(band.accent, pastel[2], `${id} pastel accent`);
+  const group = companyHeroGroup(id);
+  assert.ok(GROUP_PALETTE[group], `${id} hører til en menygruppe`);
+  assert.equal(band.bg, GROUP_PALETTE[group].bg, `${id} bg følger gruppen ${group}`);
+  assert.equal(band.bg2, GROUP_PALETTE[group].bg2, `${id} bg2 følger gruppen ${group}`);
+  assert.equal(band.accent, GROUP_PALETTE[group].accent, `${id} accent følger gruppen ${group}`);
+}
+const hrColors = new Set(['hr-oversikt', 'hr-personell', 'hr-avtaler', 'hr-lonn', 'hr-oppfolging', 'hr-compliance']
+  .map((id) => resolveModuleHero(id, 'nb').bg));
+assert.equal(hrColors.size, 1, 'HR har én farge på alle fanene');
+assert.equal(resolveModuleHero('okonomi-faktura', 'nb').accent, resolveModuleHero('okonomi-oversikt', 'nb').accent);
+assert.equal(resolveModuleHero('notes', 'nb').bg, GROUP_PALETTE.personal.bg, 'Notat følger Personlig');
+for (const [tab, sub, id] of COMPANY_PAGES) {
+  const help = getProtopPage(helpPageId(tab, sub));
+  if (!help) continue;
+  // Hjelpen og menyen plasserer siden i samme gruppe, og fargen er den samme.
+  assert.equal(help.section, companyHeroGroup(id), `${tab}/${sub || ''}: samme gruppe i hjelp og meny`);
+  assert.equal(help.accent, resolveModuleHero(id, 'nb').accent, `${tab}/${sub || ''}: samme farge i bånd og hjelp`);
 }
 assert.equal(resolveModuleHero('okonomi-utlegg', 'nb').wideArt, true, 'economy expenses use the illustration');
-assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'ukeplan palette stays sand');
+assert.equal(resolveModuleHero('week-plan', 'nb').bg, '#f4efe6', 'ukeplan palette stays sand (ikke en ProTop-modul)');
 assert.equal(resolveModuleHero('week-plan', 'nb').wideArt, false, 'ukeplan art slot is unchanged');
 assert.doesNotMatch(heroSrc, /width:\s*'64%'/, 'phone wide art is not a 64% absolute crop');
 assert.doesNotMatch(heroSrc, /objectFit:\s*'cover'/, 'hero art stays contain, not cover');

@@ -9,19 +9,18 @@ import {
   defaultHrSubView,
   defaultOkonomiSubView,
 } from '../navigation/shellModules.js';
+import { companyNavGroupId } from '../navigation/navTrail.js';
 
 const t = (nb, en) => ({ nb, en });
 
-/** Lys blå pastell som går i ett med de blå illustrasjonene. Mørk tekst, som ukeplan. */
-const BLUE = { bg: '#E5F6FE', bg2: '#f7fbff', accent: '#1099F4' };
-const MINT = { bg: '#e7f7ee', bg2: '#f5fcf8', accent: '#15803d' };
-const CYAN = { bg: '#e6f5fb', bg2: '#f4fbfe', accent: '#0284c7' };
-const SAND = { bg: '#f4efe6', bg2: '#fbf8f2', accent: '#b45309' };
-const SLATE = { bg: '#e8eef6', bg2: '#f7f9fc', accent: '#1d4ed8' };
+/*
+ * Fargen kommer fra menygruppen siden ligger i (src/modules/groupPalette.js), ikke fra
+ * hver side. Da har HR, Økonomi og de andre modulene én farge på alle fanene, og samme
+ * farge som i hjelpen (UX-06).
+ */
 
 export const COMPANY_HERO = {
   projects: {
-    ...BLUE,
     wideArt: true,
     name: 'Prosjekt',
     kicker: t('Prosjekt', 'Projects'),
@@ -32,7 +31,6 @@ export const COMPANY_HERO = {
     ),
   },
   ansatte: {
-    ...BLUE,
     wideArt: true,
     name: 'Ansatte og eksterne',
     kicker: t('Ansatte og eksterne', 'Employees and externals'),
@@ -43,7 +41,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-oversikt': {
-    ...MINT,
     wideArt: true,
     name: 'HR',
     kicker: t('HR', 'HR'),
@@ -54,7 +51,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-personell': {
-    ...MINT,
     wideArt: true,
     name: 'Personell',
     kicker: t('HR', 'HR'),
@@ -65,7 +61,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-avtaler': {
-    ...SAND,
     wideArt: true,
     name: 'Avtaler',
     kicker: t('HR', 'HR'),
@@ -76,7 +71,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-produktivitet': {
-    ...CYAN,
     wideArt: true,
     name: 'Produktivitet',
     kicker: t('Arbeid', 'Work'),
@@ -87,7 +81,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-fremdrift': {
-    ...CYAN,
     wideArt: true,
     name: 'Prosjektfremdrift',
     kicker: t('Produktivitet', 'Productivity'),
@@ -98,7 +91,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-lonn': {
-    ...SAND,
     wideArt: true,
     name: 'Lønn',
     kicker: t('HR', 'HR'),
@@ -109,7 +101,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-oppfolging': {
-    ...SLATE,
     wideArt: true,
     name: 'Oppfølging',
     kicker: t('HR', 'HR'),
@@ -120,7 +111,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-compliance': {
-    ...SLATE,
     wideArt: true,
     name: 'Lovpålagt',
     kicker: t('HR', 'HR'),
@@ -131,7 +121,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-handbok': {
-    ...BLUE,
     wideArt: true,
     name: 'Personalhåndbok',
     kicker: t('HR', 'HR'),
@@ -142,7 +131,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-skjema': {
-    ...BLUE,
     wideArt: true,
     name: 'Skjemaer',
     kicker: t('HR', 'HR'),
@@ -153,7 +141,6 @@ export const COMPANY_HERO = {
     ),
   },
   'hr-rekruttering': {
-    ...BLUE,
     wideArt: true,
     name: 'Rekruttering',
     kicker: t('HR', 'HR'),
@@ -164,7 +151,6 @@ export const COMPANY_HERO = {
     ),
   },
   kunder: {
-    ...BLUE,
     wideArt: true,
     name: 'Kunder',
     kicker: t('Kunder', 'Customers'),
@@ -175,7 +161,6 @@ export const COMPANY_HERO = {
     ),
   },
   kontrakt: {
-    ...BLUE,
     wideArt: true,
     name: 'Kontrakt / avtale',
     kicker: t('Kontrakt', 'Contract'),
@@ -186,7 +171,6 @@ export const COMPANY_HERO = {
     ),
   },
   skjema: {
-    ...BLUE,
     wideArt: true,
     name: 'Skjema',
     kicker: t('Skjema', 'Forms'),
@@ -197,7 +181,6 @@ export const COMPANY_HERO = {
     ),
   },
   iso: {
-    ...BLUE,
     wideArt: true,
     name: 'ISO',
     kicker: t('ISO', 'ISO'),
@@ -208,7 +191,6 @@ export const COMPANY_HERO = {
     ),
   },
   timeliste: {
-    ...BLUE,
     wideArt: true,
     name: 'Timeliste',
     kicker: t('Time', 'Time'),
@@ -219,7 +201,6 @@ export const COMPANY_HERO = {
     ),
   },
   selskap: {
-    ...BLUE,
     wideArt: true,
     name: 'Selskap',
     kicker: t('Selskap', 'Company'),
@@ -230,7 +211,6 @@ export const COMPANY_HERO = {
     ),
   },
   'selskap-tilgang': {
-    ...BLUE,
     wideArt: true,
     name: 'Tilgang',
     kicker: t('Selskap', 'Company'),
@@ -241,7 +221,6 @@ export const COMPANY_HERO = {
     ),
   },
   underenheter: {
-    ...SLATE,
     wideArt: true,
     name: 'Underenheter',
     kicker: t('Selskap', 'Company'),
@@ -252,7 +231,6 @@ export const COMPANY_HERO = {
     ),
   },
   'anbud-varsling': {
-    ...BLUE,
     wideArt: true,
     name: 'Anbudsvarsling',
     kicker: t('Anbud', 'Tenders'),
@@ -263,7 +241,6 @@ export const COMPANY_HERO = {
     ),
   },
   'anbud-foresporsel': {
-    ...BLUE,
     wideArt: true,
     name: 'Anbudsforespørsel',
     kicker: t('Anbud', 'Tenders'),
@@ -274,7 +251,6 @@ export const COMPANY_HERO = {
     ),
   },
   'anbud-vurdering': {
-    ...BLUE,
     wideArt: true,
     name: 'Vurdering',
     kicker: t('Anbud', 'Tenders'),
@@ -285,7 +261,6 @@ export const COMPANY_HERO = {
     ),
   },
   'anbud-tilbud': {
-    ...BLUE,
     wideArt: true,
     name: 'Tilbud',
     kicker: t('Anbud', 'Tenders'),
@@ -296,7 +271,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-timeliste': {
-    ...BLUE,
     wideArt: true,
     name: 'Timeliste',
     kicker: t('Arbeid', 'Work'),
@@ -307,7 +281,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-timerapport': {
-    ...CYAN,
     wideArt: true,
     name: 'Timerapport',
     kicker: t('Arbeid', 'Work'),
@@ -318,7 +291,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-timesaldo': {
-    ...CYAN,
     wideArt: true,
     name: 'Timesaldo',
     kicker: t('Arbeid', 'Work'),
@@ -329,7 +301,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-fravaer': {
-    ...BLUE,
     wideArt: true,
     name: 'Fraværsoversikt',
     kicker: t('Arbeid', 'Work'),
@@ -340,7 +311,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-fravaersrapport': {
-    ...BLUE,
     wideArt: true,
     name: 'Fraværsrapport',
     kicker: t('Arbeid', 'Work'),
@@ -351,7 +321,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-planlagt': {
-    ...SAND,
     name: 'Planlagt fravær',
     kicker: t('Arbeid', 'Work'),
     title: t('Planlagt fravær', 'Planned absence'),
@@ -361,7 +330,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-utlegg': {
-    ...BLUE,
     wideArt: true,
     name: 'Prosjektutlegg',
     kicker: t('Arbeid', 'Work'),
@@ -372,7 +340,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-salg': {
-    ...BLUE,
     wideArt: true,
     name: 'Produktsalg',
     kicker: t('Arbeid', 'Work'),
@@ -383,7 +350,6 @@ export const COMPANY_HERO = {
     ),
   },
   'arbeid-godkjenning': {
-    ...BLUE,
     wideArt: true,
     name: 'Godkjenninger',
     kicker: t('Arbeid', 'Work'),
@@ -394,7 +360,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-oversikt': {
-    ...BLUE,
     wideArt: true,
     name: 'Økonomi',
     kicker: t('Økonomi', 'Finance'),
@@ -405,7 +370,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-inntjening': {
-    ...BLUE,
     name: 'Inntjening',
     kicker: t('Produktivitet og inntjening', 'Productivity and earnings'),
     title: t('Inntjening', 'Earnings'),
@@ -415,7 +379,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-kunder': {
-    ...MINT,
     name: 'Kundesummer',
     kicker: t('Økonomi', 'Finance'),
     title: t('Kundesummer', 'Customer totals'),
@@ -425,7 +388,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-avtaler': {
-    ...MINT,
     name: 'Avtalesummer',
     kicker: t('Økonomi', 'Finance'),
     title: t('Avtalesummer', 'Agreement totals'),
@@ -435,7 +397,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-faktura': {
-    ...BLUE,
     wideArt: true,
     name: 'Faktura',
     kicker: t('Økonomi', 'Finance'),
@@ -446,7 +407,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-fakturagrunnlag': {
-    ...BLUE,
     wideArt: true,
     name: 'Til fakturering',
     kicker: t('Økonomi', 'Finance'),
@@ -457,7 +417,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-utlegg': {
-    ...BLUE,
     wideArt: true,
     name: 'Utlegg',
     kicker: t('Økonomi', 'Finance'),
@@ -468,7 +427,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-kjorebok': {
-    ...BLUE,
     wideArt: true,
     name: 'Kjørebok',
     kicker: t('Økonomi', 'Finance'),
@@ -479,7 +437,6 @@ export const COMPANY_HERO = {
     ),
   },
   utstyr: {
-    ...BLUE,
     wideArt: true,
     name: 'Utstyr',
     kicker: t('Utstyr', 'Equipment'),
@@ -490,7 +447,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-produkter': {
-    ...BLUE,
     wideArt: true,
     name: 'Produkter',
     kicker: t('Økonomi', 'Finance'),
@@ -501,7 +457,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-indeks': {
-    ...BLUE,
     wideArt: true,
     name: 'Indeksregulering',
     kicker: t('Økonomi', 'Finance'),
@@ -512,7 +467,6 @@ export const COMPANY_HERO = {
     ),
   },
   'okonomi-indekser': {
-    ...BLUE,
     name: 'Indekser',
     kicker: t('Økonomi', 'Finance'),
     title: t('Indekser', 'Index series'),
@@ -543,4 +497,31 @@ export function companyHeroId(tab, moreSubView = null) {
   if (tab === 'okonomi') return `okonomi-${defaultOkonomiSubView(moreSubView)}`;
   if (tab === 'utstyr') return 'utstyr';
   return null;
+}
+
+const ROUTE_PREFIXES = ['hr', 'anbud', 'arbeid', 'okonomi', 'selskap'];
+
+/** Fane og underside for en bånd-id (motsatt vei av companyHeroId). */
+export function companyHeroRoute(id) {
+  const key = String(id || '');
+  if (key === 'underenheter') return { tab: 'selskap', subView: 'underenheter' };
+  // ISO har ett bånd for alle undersidene; oversikten er startsiden.
+  if (key === 'iso') return { tab: 'iso', subView: 'oversikt' };
+  const dash = key.indexOf('-');
+  if (dash > 0 && ROUTE_PREFIXES.includes(key.slice(0, dash))) {
+    return { tab: key.slice(0, dash), subView: key.slice(dash + 1) };
+  }
+  return { tab: key, subView: null };
+}
+
+/**
+ * Menygruppen båndet hører til. Timeliste ligger under Personlig og Skjemabygger
+ * under Konto; resten følger bedriftsmenyen. Ukjent side: tom streng.
+ */
+export function companyHeroGroup(id) {
+  if (!COMPANY_HERO[id]) return '';
+  if (id === 'timeliste') return 'personal';
+  if (id === 'skjema') return 'account';
+  const { tab, subView } = companyHeroRoute(id);
+  return companyNavGroupId(tab, subView) || companyNavGroupId(tab, null);
 }

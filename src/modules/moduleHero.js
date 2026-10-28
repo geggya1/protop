@@ -6,7 +6,9 @@
 import { pickIntroText } from '../utils/moduleIntros.js';
 import { getModuleConfig, SHELL_SKIP_MODULE_IDS, ILLUSTRATION_FILES } from './moduleActivationRegistry.js';
 import { localizeModuleFields } from '../i18n/moduleCatalog.js';
-import { COMPANY_HERO, companyHeroId } from './companyHero.js';
+import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
+import { GROUP_PALETTE } from './groupPalette.js';
+import { PROTOP_PRODUCT_MODULE_IDS } from '../navigation/protopShell.js';
 import { isModuleStartPage } from '../navigation/navTrail.js';
 
 const t = (nb, en) => ({ nb, en });
@@ -367,14 +369,26 @@ export function phoneChromeHeroId(tab, moreSubView = null, isPhone = false) {
   return shellHeroModuleId(tab, moreSubView);
 }
 
+/**
+ * Menygruppen et bånd hører til: bedriftssidene følger bedriftsmenyen, og ProTops
+ * personlige moduler (Kalender, Oppgaver, Notat …) er Personlig. Samme gruppe gir
+ * samme farge i båndet og i hjelpen.
+ */
+export function heroGroupId(moduleId) {
+  const id = resolveHeroModuleId(moduleId);
+  if (COMPANY_HERO[id]) return companyHeroGroup(id);
+  return PROTOP_PRODUCT_MODULE_IDS.includes(id) ? 'personal' : '';
+}
+
 export function resolveModuleHero(moduleId, lang = 'nb') {
   const id = resolveHeroModuleId(moduleId);
   const catalog = localizeModuleFields(getModuleConfig(id), lang);
   const custom = MODULE_HERO[id] || COMPANY_HERO[id] || {};
+  const group = GROUP_PALETTE[heroGroupId(id)] || null;
   const palette = {
-    bg: custom.bg || DEFAULT_PALETTE.bg,
-    bg2: custom.bg2 || DEFAULT_PALETTE.bg2,
-    accent: custom.accent || DEFAULT_PALETTE.accent,
+    bg: group?.bg || custom.bg || DEFAULT_PALETTE.bg,
+    bg2: group?.bg2 || custom.bg2 || DEFAULT_PALETTE.bg2,
+    accent: group?.accent || custom.accent || DEFAULT_PALETTE.accent,
     ink: custom.ink || '',
     muted: custom.muted || '',
   };

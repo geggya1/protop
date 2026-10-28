@@ -20,8 +20,18 @@ import {
   acceptedConsentRecord, consentsComplete, emptyConsents, loadLocalConsents, saveLocalConsents,
   persistUserConsents,
 } from '../../src/utils/consents';
+import { consentHistoryLabel } from '../../src/utils/consentState';
 
 const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'licenses', 'consent'];
+
+/** Servertid fra samtykkeloggen (Firestore Timestamp). */
+function formatConsentTime(at) {
+  const date = typeof at?.toDate === 'function' ? at.toDate() : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('nb-NO', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
 
 function formatConsentDate(iso) {
   if (!iso) return null;
@@ -136,6 +146,10 @@ export default function PrivacyTermsScreen({
   }, [shellIntent, clearShellIntent]);
 
   const current = consentsComplete(consents);
+  const history = useMemo(
+    () => (Array.isArray(userProfile?.consentHistory) ? [...userProfile.consentHistory].reverse() : []),
+    [userProfile?.consentHistory],
+  );
   const termsStamp = current ? formatConsentDate(consents.termsAt || consents.privacyAt) : null;
   const marketingStamp = formatConsentDate(consents.marketingAt);
   const termsParas = useMemo(() => getTerms(lang), [lang]);
@@ -168,7 +182,7 @@ export default function PrivacyTermsScreen({
     };
     setConsents(next);
     await saveLocalConsents(next);
-    if (uid) await persistUserConsents(uid, next).catch(() => {});
+    if (uid) await persistUserConsents(uid, next, { marketing: true }).catch(() => {});
   };
 
   const saveConsent = async () => {
@@ -407,6 +421,20 @@ export default function PrivacyTermsScreen({
                   <Text style={styles.ctaTxt}>{t('common.save')}</Text>
                 )}
               </TouchableOpacity>
+              {history.length ? (
+                <View style={styles.history} nativeID="consent-history">
+                  <Text style={[styles.panelTitle, compact && styles.panelTitleDesk]}>Historikk</Text>
+                  {history.map((row, idx) => (
+                    <Text key={`${row.kind}-${idx}`} style={[styles.meta, compact && styles.metaDesk]}>
+                      {consentHistoryLabel(row)}
+                      {formatConsentTime(row.at) ? ` · ${formatConsentTime(row.at)}` : ''}
+                    </Text>
+                  ))}
+                  <Text style={[styles.meta, compact && styles.metaDesk]}>
+                    Tidspunktene er satt av serveren.
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -549,4 +577,5 @@ const styles = StyleSheet.create({
   },
   mailTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   notice: { marginTop: 12, color: colors.success, fontWeight: '400', fontSize: 13 },
+  history: { marginTop: 16, gap: 2 },
 });

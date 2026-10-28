@@ -73,10 +73,46 @@ export function consentLogEntry(input, { uid } = {}) {
     language: clean(input?.language, 8) || null,
     platform: ['web', 'ios', 'android'].includes(input?.platform) ? input.platform : 'unknown',
   };
+  const clientAt = String(input?.clientAt || '');
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(clientAt)) entry.clientAt = clientAt;
   if (kind === 'dpa') {
     const familyId = clean(input?.familyId, 80);
     if (!familyId) return null;
     entry.familyId = familyId;
   }
   return entry;
+}
+
+/**
+ * Samme godkjenning (bruker, type, versjon og klokkeslett på enheten) gir samme rad,
+ * så appen kan sende den flere ganger uten at loggen får duplikater.
+ */
+export function consentLogId(entry) {
+  if (!entry?.clientAt) return '';
+  const stamp = entry.clientAt.replace(/\D/g, '');
+  return [entry.uid, entry.kind, entry.familyId || '', entry.version, stamp]
+    .map((part) => String(part).replace(/[^\w.-]/g, ''))
+    .join('_')
+    .slice(0, 400);
+}
+
+/** Historikken som vises i appen: de siste godkjenningene, nyeste sist. */
+export function appendConsentHistory(history, entry, at, max = 20) {
+  const list = Array.isArray(history) ? history.filter((row) => row && row.kind) : [];
+  const row = { kind: entry.kind, version: entry.version, accepted: entry.accepted, at };
+  if (entry.familyId) row.familyId = entry.familyId;
+  return [...list, row].slice(-max);
+}
+
+const KIND_LABELS = {
+  terms: 'Vilkår og personvern',
+  marketing: 'Produkttips på e-post',
+  dpa: 'Databehandleravtale',
+};
+
+/** Linjer for visning: «Vilkår og personvern 3.0.0 · godtatt». */
+export function consentHistoryLabel(row) {
+  const label = KIND_LABELS[row?.kind] || 'Samtykke';
+  const verb = row?.kind === 'marketing' ? (row.accepted ? 'slått på' : 'slått av') : 'godtatt';
+  return `${label} ${row?.version || ''}`.trim() + ` · ${verb}`;
 }

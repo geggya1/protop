@@ -28,6 +28,7 @@ const required = [
   'membershipIndex.js',
   'functions:listMyFamilies',
   'functions:deleteMyAccount',
+  'functions:recordConsent',
   'authIndex.js',
   'functions:sendPasswordResetV2',
   'functions:sendInviteV2',

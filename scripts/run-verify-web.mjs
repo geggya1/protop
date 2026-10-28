@@ -25,6 +25,7 @@ export const FILES = [
   // Personvern: vilkår, samtykker, databehandleravtale, eksport og sletting.
   'src/i18n/legal.test.mjs',
   'src/utils/consentState.test.mjs',
+  'functions/consentLog.test.mjs',
   'functions/anbudIntake.smoke.test.mjs',
   'functions/anbud/intakeScan.test.mjs',
   'src/anbud/intake.test.mjs',

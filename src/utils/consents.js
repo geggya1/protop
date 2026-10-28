@@ -1,8 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../../firebase';
 import { CONSENT_KEY } from '../i18n/langs';
-import { acceptedConsentRecord, emptyConsents } from './consentState';
+import { acceptedConsentRecord, consentsComplete, emptyConsents } from './consentState';
 
 export {
   acceptedConsentRecord, consentsComplete, emptyConsents, needsLegalUpdate,
@@ -28,11 +30,42 @@ export async function acceptLegalConsents(language) {
   return next;
 }
 
-export async function persistUserConsents(uid, consents) {
+/**
+ * Samtykkeloggen på serveren (versjon og servertid). Feiler stille: godkjenningen
+ * er allerede lagret på kontoen, og samme godkjenning kan sendes på nytt uten duplikat.
+ */
+export async function logConsent({ kind, version, accepted, language, clientAt, familyId } = {}) {
+  try {
+    const call = httpsCallable(functions, 'recordConsent', { timeout: 15000 });
+    await call({
+      kind, version, accepted, language, clientAt, familyId, platform: Platform.OS,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** `marketing: true` logger også valget om produkttips. */
+export async function persistUserConsents(uid, consents, { marketing = false } = {}) {
   if (!uid) return;
   await setDoc(doc(db, 'users', uid), {
     consents,
     consentsVersion: consents.version,
     updatedAt: serverTimestamp(),
   }, { merge: true });
+  if (consentsComplete(consents)) {
+    logConsent({
+      kind: 'terms', version: consents.version, language: consents.language, clientAt: consents.termsAt,
+    });
+  }
+  if (marketing) {
+    logConsent({
+      kind: 'marketing',
+      version: consents.version,
+      accepted: !!consents.marketingOptIn,
+      language: consents.language,
+      clientAt: consents.marketingAt,
+    });
+  }
 }

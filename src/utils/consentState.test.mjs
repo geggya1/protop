@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { DPA_VERSION, LEGAL_VERSION } from '../i18n/langs.js';
 import {
-  acceptedConsentRecord, consentLogEntry, consentsComplete, emptyConsents, needsLegalUpdate,
+  acceptedConsentRecord, appendConsentHistory, consentHistoryLabel, consentLogEntry, consentLogId,
+  consentsComplete, emptyConsents, needsLegalUpdate,
 } from './consentState.js';
 
 const old = { version: '2.0.0', termsAt: '2026-08-20T10:00:00.000Z', privacyAt: '2026-08-20T10:00:00.000Z' };
@@ -33,5 +34,23 @@ assert.equal(consentLogEntry({ kind: 'dpa' }, { uid: 'u1' }), null, 'databehandl
 const dpa = consentLogEntry({ kind: 'dpa', familyId: 'fam/../1' }, { uid: 'u1' });
 assert.equal(dpa.familyId, 'fam..1');
 assert.equal(dpa.version, DPA_VERSION);
+
+// Samme godkjenning sendt to ganger gir samme rad i loggen.
+const stamped = consentLogEntry({ kind: 'terms', clientAt: fresh.termsAt }, { uid: 'u1' });
+assert.equal(stamped.clientAt, '2026-10-27T08:00:00.000Z');
+assert.equal(consentLogId(stamped), consentLogId(consentLogEntry({ kind: 'terms', clientAt: fresh.termsAt }, { uid: 'u1' })));
+assert.equal(consentLogId(stamped), `u1_terms__${LEGAL_VERSION}_20261027080000000`);
+assert.equal(consentLogEntry({ kind: 'terms', clientAt: 'i går' }, { uid: 'u1' }).clientAt, undefined);
+assert.equal(consentLogId(consentLogEntry({ kind: 'terms' }, { uid: 'u1' })), '');
+
+// Historikken på kontoen holder de siste 20.
+let history = [];
+for (let i = 0; i < 25; i += 1) history = appendConsentHistory(history, { kind: 'terms', version: `v${i}`, accepted: true }, i);
+assert.equal(history.length, 20);
+assert.equal(history[0].version, 'v5');
+assert.equal(history.at(-1).at, 24);
+assert.equal(appendConsentHistory(null, dpa, 1)[0].familyId, 'fam..1');
+assert.equal(consentHistoryLabel({ kind: 'terms', version: '3.0.0' }), 'Vilkår og personvern 3.0.0 · godtatt');
+assert.equal(consentHistoryLabel({ kind: 'marketing', version: '3.0.0', accepted: false }), 'Produkttips på e-post 3.0.0 · slått av');
 
 console.log('consentState.test.mjs: ok');

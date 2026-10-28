@@ -44,6 +44,8 @@ import {
   archiveInvoice,
   fileBase64,
   sendInvoiceEhf,
+  ehfAlreadySent,
+  ehfResendWanted,
   sendInvoiceMail,
   storeInvoiceFile,
 } from '../../../src/economy/invoiceDelivery.js';
@@ -271,8 +273,29 @@ export async function send(ctx, invoice, options = {}) {
     }
     const built = buildEhfXml(current, { supplier: ctx.supplier, attachments: embedded });
     if (!built.ok) throw new Error(built.error);
+    const ehfTo = [`0192:${String(current.orgnr).replace(/\D/g, '')}`];
+    let result = null;
     try {
-      const result = await sendInvoiceEhf({ familyId: ctx.familyId, invoiceId: current.id, xml: built.xml, senderOrgnr: ctx.supplier?.orgnr });
+      // Avsenderens orgnr hentes av serveren. senderOrgnr sendes bare med for eldre servere.
+      result = await sendInvoiceEhf({
+        familyId: ctx.familyId,
+        invoiceId: current.id,
+        xml: built.xml,
+        senderOrgnr: ctx.supplier?.orgnr,
+        resend: ehfResendWanted(current),
+      });
+    } catch (cause) {
+      const already = ehfAlreadySent(cause);
+      if (!already) {
+        current = recordDelivery(current, { channel: 'ehf', status: 'failed', message: String(cause?.message || cause), actor: ctx.actor });
+        current = await save(ctx, current);
+        throw new Error(`EHF-sendingen feilet: ${String(cause?.message || cause)}`);
+      }
+      // Sendt før (svaret kom aldri fram): registrer leveransen i stedet for å sende igjen.
+      current = recordDelivery(current, { channel: 'ehf', to: ehfTo, providerId: already.providerId, actor: ctx.actor });
+      messages.push('var allerede sendt som EHF');
+    }
+    if (result) {
       let archive = current.archive || {};
       try {
         const xmlFile = await storeInvoiceFile(ctx.familyId, current.id, `${invoicePdfName(current).replace(/\.pdf$/, '')}-EHF.xml`, new TextEncoder().encode(built.xml), 'application/xml');
@@ -280,12 +303,8 @@ export async function send(ctx, invoice, options = {}) {
       } catch {
         // XML-arkivet er en kopi. PDF-en ligger allerede i arkivet.
       }
-      current = recordDelivery({ ...current, archive }, { channel: 'ehf', to: [`0192:${String(current.orgnr).replace(/\D/g, '')}`], providerId: result.providerId, actor: ctx.actor });
+      current = recordDelivery({ ...current, archive }, { channel: 'ehf', to: ehfTo, providerId: result.providerId, actor: ctx.actor });
       messages.push('sendt som EHF');
-    } catch (cause) {
-      current = recordDelivery(current, { channel: 'ehf', status: 'failed', message: String(cause?.message || cause), actor: ctx.actor });
-      current = await save(ctx, current);
-      throw new Error(`EHF-sendingen feilet: ${String(cause?.message || cause)}`);
     }
   }
 

@@ -91,6 +91,25 @@ export async function sendInvoiceEhf(input) {
   return callable('sendInvoiceEhf', input, 60000);
 }
 
+/**
+ * Er fakturaen sendt som EHF før? Da sender appen med resend: true («Send på nytt»).
+ * Uten det avviser serveren en ny sending, så et dobbeltklikk eller et nytt forsøk etter
+ * at svaret ble borte ikke gir kunden to EHF-er.
+ */
+export function ehfResendWanted(invoice) {
+  if (text(invoice?.sentAt)) return true;
+  return (invoice?.deliveries || []).some((row) => row?.channel === 'ehf' && row?.status === 'sent');
+}
+
+/** Serveren svarte at EHF-en allerede er sendt: { providerId } ellers null. */
+export function ehfAlreadySent(error) {
+  const code = String(error?.code || '');
+  if (!code.endsWith('already-exists')) return null;
+  const details = error?.details || {};
+  if (details.reason && details.reason !== 'already-sent') return null;
+  return { providerId: text(details.providerId) };
+}
+
 /** { connected, receiver: { found, invoice, creditNote, name }, error } */
 export async function lookupPeppolReceiver(familyId, orgnr) {
   const digits = String(orgnr || '').replace(/\D/g, '');

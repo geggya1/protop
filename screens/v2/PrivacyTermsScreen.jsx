@@ -14,7 +14,7 @@ import CheckBox from '../../components/CheckBox';
 import LegalDocumentModal from '../../components/LegalDocumentModal';
 import { LEGAL_VERSION } from '../../src/i18n/langs';
 import {
-  getTerms, getPrivacy, isLegalHeading, APP_LICENSES, LEGAL_ENTITY,
+  getTerms, getPrivacy, getDpa, isLegalHeading, APP_LICENSES, LEGAL_ENTITY,
 } from '../../src/i18n/legal';
 import {
   acceptedConsentRecord, consentsComplete, emptyConsents, loadLocalConsents, saveLocalConsents,
@@ -22,7 +22,7 @@ import {
 } from '../../src/utils/consents';
 import { consentHistoryLabel } from '../../src/utils/consentState';
 
-const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'licenses', 'consent'];
+const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'dpa', 'licenses', 'consent'];
 
 /** Servertid fra samtykkeloggen (Firestore Timestamp). */
 function formatConsentTime(at) {
@@ -154,6 +154,7 @@ export default function PrivacyTermsScreen({
   const marketingStamp = formatConsentDate(consents.marketingAt);
   const termsParas = useMemo(() => getTerms(lang), [lang]);
   const privacyParas = useMemo(() => getPrivacy(lang), [lang]);
+  const dpaParas = useMemo(() => getDpa(lang), [lang]);
 
   const goHub = () => {
     setPage('hub');
@@ -215,6 +216,7 @@ export default function PrivacyTermsScreen({
     marketing: 'Markedsføring',
     terms: t('legal.terms'),
     privacy: t('legal.privacy'),
+    dpa: 'Databehandleravtale',
     licenses: 'Lisenser',
     consent: 'Bekreft samtykke',
   }[page];
@@ -279,6 +281,15 @@ export default function PrivacyTermsScreen({
                     title={t('legal.privacy')}
                     sub="Hvordan ProTop behandler personopplysninger"
                     onPress={() => setPage('privacy')}
+                  />
+                </View>
+                <View style={compact ? styles.cellDesk : styles.cell}>
+                  <HubTile
+                    compact={compact}
+                    icon="briefcase-outline"
+                    title="Databehandleravtale"
+                    sub="For bedrifter: ProTop som databehandler"
+                    onPress={() => setPage('dpa')}
                   />
                 </View>
                 <View style={compact ? styles.cellDesk : styles.cell}>
@@ -352,6 +363,7 @@ export default function PrivacyTermsScreen({
 
           {page === 'terms' ? <DocBody paragraphs={termsParas} compact={compact} /> : null}
           {page === 'privacy' ? <DocBody paragraphs={privacyParas} compact={compact} /> : null}
+          {page === 'dpa' ? <DocBody paragraphs={dpaParas} compact={compact} /> : null}
 
           {page === 'licenses' ? (
             <>

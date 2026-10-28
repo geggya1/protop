@@ -26,6 +26,7 @@ export const FILES = [
   'src/i18n/legal.test.mjs',
   'src/utils/consentState.test.mjs',
   'functions/consentLog.test.mjs',
+  'src/privacy/companyPrivacy.test.mjs',
   'functions/anbudIntake.smoke.test.mjs',
   'functions/anbud/intakeScan.test.mjs',
   'src/anbud/intake.test.mjs',

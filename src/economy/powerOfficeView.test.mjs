@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { canDeleteInvoice, invoiceListSource, normalizeInvoice } from './invoices.js';
 import {
   canTransferToPowerOffice,
+  lookupRows,
   POWEROFFICE_VAT_ROWS,
   powerOfficeSummary,
   productOptionsForRow,
@@ -80,6 +81,25 @@ assert.deepEqual(POWEROFFICE_VAT_ROWS.map((row) => row.id), ['HIGH', 'MID', 'LOW
   assert.equal(productVatWarning(high, products, '9'), 'Produktet gir 0 % MVA i PowerOffice, ikke 25 %.');
   assert.equal(productVatWarning(high, products, '7'), '');
   assert.equal(productVatWarning(high, products, ''), '');
+}
+
+{
+  // Oppslaget viser det Go svarte og det ProTop ville lagret.
+  const rows = Object.fromEntries(lookupRows({
+    found: true,
+    readById: true,
+    outgoing: { id: 'so-77', invoiceNo: '20077', cid: '200770000012', deliveryType: 'EHF', sentDateTime: '2026-10-28T10:00:00+01:00', totalAmount: 1250, balance: 0, customerNo: '10024' },
+    protop: { invoiceNumber: '20077', kid: '200770000012', sentAt: '2026-10-28', invoiceDate: '2026-10-28', dueDate: '2026-11-11', status: 'paid', outstandingAmount: 0 },
+  }));
+  assert.equal(rows.Fakturanummer, '20077');
+  assert.equal(rows.KID, '200770000012');
+  assert.equal(rows.Forsendelse, 'EHF');
+  assert.equal(rows.Sendt, '28.10.2026');
+  assert.equal(rows.Forfall, '11.11.2026');
+  assert.equal(rows['Status i ProTop'], 'Betalt');
+  assert.equal(rows['Lest på id'], 'Ja (so-77)');
+  assert.match(rows.Restbeløp, /^0/);
+  assert.deepEqual(lookupRows({ found: false, invoiceNo: '1' }), []);
 }
 
 console.log('powerOfficeView.test ok');

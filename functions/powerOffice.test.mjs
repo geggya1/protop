@@ -16,7 +16,7 @@ import {
   salesOrderRef,
 } from './powerOfficeMap.js';
 import {
-  customerRef, productsWithVat, syncInvoices, transferInvoice, vatRatePercent,
+  customerRef, lookupOutgoingInvoice, productsWithVat, syncInvoices, transferInvoice, vatRatePercent,
 } from './powerOfficeSync.js';
 
 function jsonResponse(status, body, headers = {}) {
@@ -566,6 +566,31 @@ assert.equal(customerDelivery({ orgnr: '918 269 819' }).InvoiceDeliveryType, 'EH
   assert.deepEqual(await productsWithVat(denied), [
     { code: '1', name: 'Timer', salesAccount: 3000, vatCode: '', vatPercent: null },
   ]);
+}
+
+{
+  // Oppslag på fakturanummer: finner fakturaen, leser den på id og viser det ProTop ville lagret.
+  const outgoing = {
+    Id: 'so-77', InvoiceNo: 20077, Cid: '200770000012', InvoiceDeliveryType: 'EHF',
+    SentDateTimeOffset: '2026-10-28T10:00:00+01:00', VoucherDate: '2026-10-28T00:00:00', DueDate: '2026-11-11T00:00:00',
+    TotalAmount: 1250, Balance: 1250, CustomerNo: 10024,
+  };
+  const client = fakeClient({
+    'GET /OutgoingInvoices': ({ query }) => (query.invoiceNos === '20077' ? [{ Id: 'so-77', InvoiceNo: 20077 }] : []),
+    'GET /OutgoingInvoices/so-77': outgoing,
+  });
+  const found = await lookupOutgoingInvoice(client, { invoiceNo: ' 20077 ', at: 'x' });
+  assert.equal(found.found, true);
+  assert.equal(found.readById, true);
+  assert.equal(found.outgoing.cid, '200770000012');
+  assert.equal(found.outgoing.customerNo, '10024');
+  assert.deepEqual(found.protop, {
+    invoiceNumber: '20077', kid: '200770000012', deliveryMethod: 'ehf', sentAt: '2026-10-28',
+    invoiceDate: '2026-10-28', dueDate: '2026-11-11', status: 'sent', outstandingAmount: 1250,
+  });
+  assert.equal(client.log.some((row) => row.method !== 'GET'), false, 'oppslaget endrer ingenting');
+  assert.deepEqual(await lookupOutgoingInvoice(client, { invoiceNo: '999' }), { found: false, invoiceNo: '999' });
+  await assert.rejects(lookupOutgoingInvoice(client, { invoiceNo: 'abc' }), /fakturanummeret/);
 }
 
 // Feilteksten sier hvilket steg Go avviste.

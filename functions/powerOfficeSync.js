@@ -286,3 +286,51 @@ export async function syncInvoices(client, { invoices = [], cursor = '', at = ne
 
   return { patches, cursor: nextCursor, counts };
 }
+
+function amount(value) {
+  const n = Number(value);
+  return value == null || value === '' || !Number.isFinite(n) ? null : n;
+}
+
+/**
+ * Én sendt faktura i Go, slått opp på fakturanummer og lest på id slik synken gjør.
+ * Lagrer ingenting. Brukes til å teste tilbakehentingen med en faktura laget i Go.
+ */
+export async function lookupOutgoingInvoice(client, { invoiceNo, at = new Date().toISOString() }) {
+  const no = text(invoiceNo).replace(/\D/g, '');
+  if (!no) throw new Error('Skriv inn fakturanummeret fra PowerOffice.');
+  const list = await client.request('GET', '/OutgoingInvoices', { query: { invoiceNos: no } });
+  const row = (Array.isArray(list) ? list : []).find((item) => text(item?.InvoiceNo) === no);
+  if (!row) return { found: false, invoiceNo: no };
+  const byId = row.Id != null ? await client.request('GET', `/OutgoingInvoices/${encodeURIComponent(row.Id)}`) : null;
+  const outgoing = byId || row;
+  const patch = invoicePatchFromOutgoing({}, outgoing, { at });
+  return {
+    found: true,
+    invoiceNo: no,
+    readById: !!byId,
+    outgoing: {
+      id: text(outgoing.Id),
+      invoiceNo: text(outgoing.InvoiceNo),
+      cid: text(outgoing.Cid),
+      deliveryType: text(outgoing.InvoiceDeliveryType),
+      sentDateTime: text(outgoing.SentDateTimeOffset),
+      voucherDate: text(outgoing.VoucherDate).slice(0, 10),
+      dueDate: text(outgoing.DueDate).slice(0, 10),
+      totalAmount: amount(outgoing.TotalAmount),
+      balance: amount(outgoing.Balance),
+      customerNo: text(outgoing.CustomerNo),
+      externalImportReference: text(outgoing.ExternalImportReference),
+    },
+    protop: {
+      invoiceNumber: patch.invoiceNumber || '',
+      kid: patch.kid || '',
+      deliveryMethod: patch.deliveryMethod || '',
+      sentAt: patch.sentAt || '',
+      invoiceDate: patch.invoiceDate || '',
+      dueDate: patch.dueDate || '',
+      status: patch.status,
+      outstandingAmount: patch.outstandingAmount,
+    },
+  };
+}

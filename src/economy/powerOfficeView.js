@@ -58,6 +58,36 @@ export function deliveryTypeLabel(type) {
   return DELIVERY_LABELS[key] || key;
 }
 
+const PROTOP_STATUS = { sent: 'Sendt', paid: 'Betalt', credited: 'Kreditert' };
+
+function dateTimeText(value) {
+  const day = String(value || '').slice(0, 10);
+  return day ? formatDate(day) : '';
+}
+
+/**
+ * Rader for oppslaget av én faktura i Go: det Go svarte, og det ProTop ville lagret.
+ * Tom liste når fakturaen ikke ble funnet.
+ */
+export function lookupRows(result) {
+  if (!result?.found) return [];
+  const go = result.outgoing || {};
+  const protop = result.protop || {};
+  return [
+    ['Fakturanummer', protop.invoiceNumber || go.invoiceNo],
+    ['KID', protop.kid || 'Ingen KID'],
+    ['Forsendelse', deliveryTypeLabel(go.deliveryType) || 'Ikke oppgitt'],
+    ['Sendt', dateTimeText(go.sentDateTime || protop.sentAt)],
+    ['Fakturadato', dateTimeText(protop.invoiceDate)],
+    ['Forfall', dateTimeText(protop.dueDate)],
+    ['Beløp', go.totalAmount == null ? '' : formatMoney(go.totalAmount)],
+    ['Restbeløp', go.balance == null ? '' : formatMoney(go.balance)],
+    ['Status i ProTop', PROTOP_STATUS[protop.status] || protop.status || ''],
+    ['Kundenr. i PowerOffice', go.customerNo],
+    ['Lest på id', result.readById ? `Ja (${go.id})` : 'Nei, bare fra søket'],
+  ].filter(([, value]) => value !== '' && value != null);
+}
+
 /**
  * Produksjon er det vanlige og får ingen merkelapp. En testklient (PowerOffice sitt
  * demomiljø) merkes tydelig, så ingen tror testfakturaer er ekte.

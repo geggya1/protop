@@ -8,13 +8,6 @@ import {
   normalizeInvoice,
 } from './invoices.js';
 import { invoiceTimeEntryIds } from './invoiceRelease.js';
-import {
-  clearEntriesInvoice,
-  markEntriesInvoiced,
-} from './billingFromHours.js';
-import {
-  clearProposalInvoice,
-} from './billingFromOperations.js';
 import { clearOperationsInvoice, markOperationsInvoiced } from './opsState.js';
 
 const draft = normalizeInvoice({
@@ -42,33 +35,26 @@ assert.deepEqual(invoiceTimeEntryIds({
   lines: [{ timeEntryIds: ['t2', ''] }],
 }), ['t1', 't2']);
 
+// Timer merkes og frigjøres i egen samling (billingWork / invoiceRelease). Her: utlegg, kjøring og salg.
 let state = {
-  timeEntries: [
-    { id: 't1', status: 'godkjent', invoiceId: '', hours: 2 },
-    { id: 't2', status: 'godkjent', invoiceId: '', hours: 1 },
-  ],
   expenses: [{ id: 'e1', status: 'approved', invoiceId: '', amount: 100 }],
   mileageTrips: [{ id: 'm1', status: 'approved', invoiceId: '', distanceKm: 10 }],
   sales: [{ id: 's1', status: 'approved', invoiceId: '', amountExVat: 50 }],
 };
 
-state = markEntriesInvoiced(state, ['t1', 't2'], 'inv_16714');
 state = markOperationsInvoiced(state, {
   expenseIds: ['e1'],
   tripIds: ['m1'],
   saleIds: ['s1'],
   invoiceId: 'inv_16714',
 });
-assert.ok(state.timeEntries.every((row) => row.invoiceId === 'inv_16714' && row.status === 'låst'));
 assert.ok(state.expenses.every((row) => row.invoiceId === 'inv_16714' && row.status === 'invoiced'));
 
-state = clearProposalInvoice(state, 'inv_16714');
-assert.ok(state.timeEntries.every((row) => row.invoiceId === '' && row.status === 'godkjent'));
+state = clearOperationsInvoice(state, 'inv_16714');
 assert.ok(state.expenses.every((row) => row.invoiceId === '' && row.status === 'approved'));
 assert.ok(state.mileageTrips.every((row) => row.invoiceId === '' && row.status === 'approved'));
 assert.ok(state.sales.every((row) => row.invoiceId === '' && row.status === 'approved'));
 
-assert.equal(clearEntriesInvoice(state, 'missing'), state);
 assert.equal(clearOperationsInvoice(state, ''), state);
 
 console.log('invoiceLifecycle.test.mjs: ok');

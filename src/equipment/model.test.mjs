@@ -19,7 +19,7 @@ import {
   upsertPersonalVehicle,
 } from './state.js';
 import { deleteTrip, recordDutyTrip } from '../economy/opsState.js';
-import { buildOperationsProposals } from '../economy/billingFromOperations.js';
+import { buildReadyProjects } from '../economy/billingReady.js';
 import { normalizeTrip } from '../economy/mileage.js';
 import { feeClassFromSignals } from '../mileage/vehicleFee.js';
 import {
@@ -223,10 +223,16 @@ const fromCharges = normalizeTrip({
   routeCharges: [{ id: 'x', name: 'Oslo bomring', kind: 'toll', amount: 74, passes: 2, unitPrice: 37 }],
 });
 assert.equal(fromCharges.tolls, 74);
-const proposal = buildOperationsProposals(saved.state).find((row) => row.trips?.length);
+const proposal = buildReadyProjects({
+  projects: saved.state.projects,
+  expenses: saved.state.expenses,
+  trips: saved.state.mileageTrips,
+  periodEnd: '2026-12-31',
+  today: '2026-12-31',
+}).find((row) => row.trips?.length);
 assert.equal(proposal.trips.length, 1);
 assert.equal(proposal.expenses.length, 0);
-assert.equal(proposal.amountExVat, saved.trip.amount);
+assert.equal(proposal.trips[0].amount, saved.trip.amount);
 const roundTrip = normalizeProjectState(saved.state);
 assert.equal(roundTrip.equipment.length, 1);
 assert.equal(roundTrip.personalVehicles.length, 1);

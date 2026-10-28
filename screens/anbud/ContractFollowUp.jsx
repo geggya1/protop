@@ -34,6 +34,7 @@ import { loadProjectState, saveProjectState } from '../../src/project/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useLayout } from '../../src/theme';
+import { type } from '../../src/ui/tokens';
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import { dateKey } from '../../src/utils/dates';
 import DirectAgreementForm from './DirectAgreementForm';
@@ -340,7 +341,66 @@ export default function ContractFollowUp({
 
   return (
     <View style={{ gap: 12 }}>
-      {view !== 'detail' && view !== 'compose' ? (
+      {view !== 'detail' && view !== 'compose' && isPhone ? (
+        // Mobil: søk og filterknapp på én linje. Kunde, datoer og status ligger i filtermenyen.
+        <View style={styles.phoneFilterBar}>
+          <TextInput
+            value={filters.query}
+            onChangeText={(query) => { setFilters((current) => ({ ...current, query })); setPage(0); }}
+            placeholder="Søk i avtale, kunde, nummer, dokument"
+            placeholderTextColor={colors.placeholder}
+            style={[styles.input, styles.searchPhone, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+          />
+          <FilterMenu
+            marked={!!(filters.buyer || filters.from || filters.to)}
+            groups={[{
+              id: 'status',
+              label: 'Status',
+              value: filters.status || 'alle',
+              idle: 'alle',
+              onChange: (status) => { setFilters((current) => ({ ...current, status })); setPage(0); },
+              options: STATUS_FILTERS.map(([id, label]) => ({
+                id,
+                label: `${label} (${statusCounts[id] || 0})`,
+              })),
+            }]}
+          >
+            <View style={styles.filterStack}>
+              <TextInput
+                value={filters.buyer}
+                onChangeText={(buyer) => { setFilters((current) => ({ ...current, buyer })); setPage(0); }}
+                placeholder="Kunde"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+              />
+              <View style={styles.dateRow}>
+              <View style={[styles.dateBox, styles.dateBoxPhone, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+                <DateField
+                  value={filters.from || null}
+                  onChange={(date) => { setFilters((current) => ({ ...current, from: isoFromDate(date) })); setPage(0); }}
+                  placeholder="Fra"
+                  iconColor={colors.brand}
+                  style={styles.dateField}
+                  textStyle={{ color: filters.from ? colors.ink : colors.placeholder, fontSize: type.body.fontSize }}
+                />
+              </View>
+              <View style={[styles.dateBox, styles.dateBoxPhone, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+                <DateField
+                  value={filters.to || null}
+                  onChange={(date) => { setFilters((current) => ({ ...current, to: isoFromDate(date) })); setPage(0); }}
+                  placeholder="Til"
+                  iconColor={colors.brand}
+                  style={styles.dateField}
+                  textStyle={{ color: filters.to ? colors.ink : colors.placeholder, fontSize: type.body.fontSize }}
+                />
+              </View>
+              </View>
+            </View>
+            <Text style={{ color: colors.muted, fontSize: type.caption.fontSize }}>Alle beløp er eks. mva.</Text>
+          </FilterMenu>
+        </View>
+      ) : null}
+      {view !== 'detail' && view !== 'compose' && !isPhone ? (
         <View style={[styles.filters, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <TextInput
             value={filters.query}
@@ -476,16 +536,18 @@ export default function ContractFollowUp({
                     <TouchableOpacity
                       onPress={() => { setSelectedId(row.id); setView('detail'); }}
                       accessibilityRole="button"
-                      style={{ gap: 4 }}
+                      style={{ gap: 2 }}
                     >
-                      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }}>{cell(row, 'title')}</Text>
-                      <Text style={{ color: colors.muted }}>{cell(row, 'buyer')} · {cell(row, 'kind')}</Text>
-                      <Text style={{ color: colors.ink }}>{cell(row, 'period')}</Text>
-                      <Text style={{ color: colors.ink }}>{cell(row, 'value')}</Text>
-                      <View style={[styles.badge, { backgroundColor: tone.bg, alignSelf: 'flex-start' }]}>
+                      <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 16 }} numberOfLines={2}>{cell(row, 'title')}</Text>
+                      <Text style={{ color: colors.muted }} numberOfLines={1}>{cell(row, 'buyer')} · {cell(row, 'kind')}</Text>
+                      <Text style={{ color: colors.ink }} numberOfLines={1}>
+                        {[cell(row, 'period'), cell(row, 'value')].filter((v) => v && v !== '—').join(' · ') || '—'}
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={styles.cardFoot}>
+                      <View style={[styles.badge, { backgroundColor: tone.bg }]}>
                         <Text style={{ color: tone.ink, fontSize: 12, fontWeight: '700' }}>{cell(row, 'status')}</Text>
                       </View>
-                    </TouchableOpacity>
                     {row.deletedAt ? (
                       <View style={styles.row}>
                         <TouchableOpacity onPress={() => restoreRow(row)} accessibilityRole="button">
@@ -498,10 +560,11 @@ export default function ContractFollowUp({
                         ) : null}
                       </View>
                     ) : (
-                      <TouchableOpacity onPress={() => setDeleteTarget(row)} accessibilityRole="button">
+                      <TouchableOpacity onPress={() => setDeleteTarget(row)} accessibilityRole="button" hitSlop={8}>
                         <Text style={{ color: colors.danger || '#b42318', fontWeight: '600' }}>Slett</Text>
                       </TouchableOpacity>
                     )}
+                    </View>
                   </View>
                 );
               })}
@@ -665,10 +728,16 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'stretch' },
   filters: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
+  phoneFilterBar: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  searchPhone: { flex: 1, minWidth: 0 },
+  filterStack: { gap: 8 },
+  dateRow: { flexDirection: 'row', gap: 8 },
+  dateBoxPhone: { flex: 1, minWidth: 0 },
   dateBox: { borderWidth: 1, borderRadius: 10, minWidth: 148, justifyContent: 'center' },
   dateField: { paddingHorizontal: 10, paddingVertical: 8, minHeight: 40 },
   tableWrap: { borderWidth: 1, borderRadius: 14 },
-  phoneCard: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 8 },
+  phoneCard: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 6 },
+  cardFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   tr: { flexDirection: 'row', borderBottomWidth: 1, minHeight: 52, alignItems: 'center' },
   head: { minHeight: 44 },
   th: { paddingHorizontal: 12, paddingVertical: 10, fontSize: 11, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },

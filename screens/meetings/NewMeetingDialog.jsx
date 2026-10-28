@@ -36,6 +36,7 @@ import {
 } from '../../src/meetings/templates';
 import { suggestAgenda } from '../../src/meetings/ai';
 import AgendaPreview from './AgendaPreview';
+import { radius, type } from '../../src/ui/tokens';
 import { Banner, Btn, Choice, Field, Label, Pill, SearchBox, TypeIcon } from './meetingUi';
 
 const STARTS = [
@@ -62,7 +63,7 @@ function tomorrow(today) {
   return d;
 }
 
-function StartCard({ item, onPress }) {
+function StartCard({ item, onPress, compact = false }) {
   const colors = useColors();
   return (
     <Pressable
@@ -70,13 +71,24 @@ function StartCard({ item, onPress }) {
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={item.title}
-      style={({ hovered }) => [styles.start, { borderColor: hovered ? item.color : colors.line, backgroundColor: colors.card }, hovered && styles.lift]}
+      style={({ hovered }) => [styles.start, compact && styles.startCompact, { borderColor: hovered ? item.color : colors.line, backgroundColor: colors.card }, hovered && styles.lift]}
     >
-      <View style={[styles.startIcon, { backgroundColor: `${item.color}18` }]}>
-        <Ionicons name={item.icon} size={22} color={item.color} />
+      <View style={[styles.startIcon, compact && styles.startIconCompact, { backgroundColor: `${item.color}18` }]}>
+        <Ionicons name={item.icon} size={compact ? 18 : 22} color={item.color} />
       </View>
-      <Text style={{ fontSize: 15, fontWeight: '700', color: colors.ink }}>{item.title}</Text>
-      <Text style={{ fontSize: 12.5, color: colors.muted, lineHeight: 18 }}>{item.text}</Text>
+      {compact ? (
+        // Mobil: ikon til venstre, tittel og forklaring til høyre, så alle valgene får plass uten å rulle.
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text style={[type.bodyStrong, { color: colors.ink }]}>{item.title}</Text>
+          <Text style={[type.caption, { color: colors.muted }]} numberOfLines={2}>{item.text}</Text>
+        </View>
+      ) : (
+        <>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.ink }}>{item.title}</Text>
+          <Text style={{ fontSize: 12.5, color: colors.muted, lineHeight: 18 }}>{item.text}</Text>
+        </>
+      )}
+      {compact ? <Ionicons name="chevron-forward" size={18} color={colors.muted} /> : null}
     </Pressable>
   );
 }
@@ -369,9 +381,9 @@ export default function NewMeetingDialog({
       {error ? <Banner tone="danger" icon="alert-circle">{error}</Banner> : null}
 
       {step === 'start' ? (
-        <View style={{ gap: 18 }}>
-          <View style={[styles.startGrid, phone && { flexDirection: 'column' }]}>
-            {STARTS.map((item) => <StartCard key={item.id} item={item} onPress={() => pickStart(item.id)} />)}
+        <View style={{ gap: phone ? 12 : 18 }}>
+          <View style={[styles.startGrid, phone && styles.startGridPhone]}>
+            {STARTS.map((item) => <StartCard key={item.id} item={item} compact={phone} onPress={() => pickStart(item.id)} />)}
           </View>
           {series.length && onNext ? (
             <View style={{ gap: 8 }}>
@@ -401,13 +413,14 @@ export default function NewMeetingDialog({
 
       {step === 'mal' ? (
         <View style={[styles.split, phone && { flexDirection: 'column' }]}>
-          <View style={{ flex: 1.1, gap: 10, minWidth: 0 }}>
+          <View style={{ ...(phone ? null : { flex: 1.1 }), gap: 10, minWidth: 0 }}>
             <SearchBox value={query} onChange={setQuery} placeholder="Søk i maler" />
             <View style={{ gap: 8 }}>
               {visibleTemplates.map((t) => <TemplateCard key={t.id} template={t} active={t.id === templateId} onPress={() => setTemplateId(t.id)} />)}
             </View>
           </View>
-          <View style={[styles.previewPane, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
+          {selectedTemplate || !phone ? (
+          <View style={[styles.previewPane, phone && styles.previewPhone, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
             {selectedTemplate ? (
               <View style={{ gap: 10 }}>
                 <Text style={{ fontSize: 16, fontWeight: '800', color: colors.ink }}>{selectedTemplate.name}</Text>
@@ -418,12 +431,13 @@ export default function NewMeetingDialog({
               <Text style={{ color: colors.muted, fontSize: 13 }}>Velg en mal for å se dagsordenen.</Text>
             )}
           </View>
+          ) : null}
         </View>
       ) : null}
 
       {step === 'skjema' ? (
         <View style={[styles.split, phone && { flexDirection: 'column' }]}>
-          <View style={{ flex: 1.1, gap: 10, minWidth: 0 }}>
+          <View style={{ ...(phone ? null : { flex: 1.1 }), gap: 10, minWidth: 0 }}>
             <SearchBox value={query} onChange={setQuery} placeholder="Søk i skjemaer" />
             {forms == null ? <ActivityIndicator color={colors.brand} style={{ padding: 20 }} /> : null}
             {(forms || []).length ? (
@@ -455,7 +469,8 @@ export default function NewMeetingDialog({
               <Btn small label="Lag et nytt skjema i Skjemabygger" icon="open-outline" tone="plain" onPress={onOpenFormBuilder} />
             ) : null}
           </View>
-          <View style={[styles.previewPane, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
+          {selectedForm || !phone ? (
+          <View style={[styles.previewPane, phone && styles.previewPhone, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
             {selectedForm ? (
               <View style={{ gap: 10 }}>
                 <Text style={{ fontSize: 16, fontWeight: '800', color: colors.ink }}>{selectedForm.title}</Text>
@@ -468,6 +483,7 @@ export default function NewMeetingDialog({
               <Text style={{ color: colors.muted, fontSize: 13 }}>Velg et skjema for å se hvordan det blir som dagsorden.</Text>
             )}
           </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -511,11 +527,11 @@ export default function NewMeetingDialog({
               />
             </View>
           </View>
-          <View style={[styles.previewPane, { borderColor: aiResult ? '#ddd6fe' : colors.line, backgroundColor: aiResult ? '#faf8ff' : colors.sunken }]}>
+          <View style={[styles.previewPane, phone && styles.previewPhone, { borderColor: aiResult ? colors.accent : colors.line, backgroundColor: colors.sunken }]}>
             {busy ? (
               <View style={{ alignItems: 'center', gap: 12, paddingVertical: 40 }}>
                 <ActivityIndicator color="#7c3aed" />
-                <Text style={{ color: '#6d28d9', fontWeight: '600' }}>AI setter opp dagsordenen …</Text>
+                <Text style={{ color: colors.accent, fontWeight: '600' }}>AI setter opp dagsordenen …</Text>
                 <Text style={{ color: colors.muted, fontSize: 12.5, textAlign: 'center' }}>Kapitler, punkter, veiledning og tid per punkt.</Text>
               </View>
             ) : aiResult ? (
@@ -615,7 +631,7 @@ export default function NewMeetingDialog({
               <Choice options={VISIBILITY.map((v) => ({ id: v.id, label: v.label, icon: v.id === 'deltakere' ? 'lock-closed-outline' : 'people-outline' }))} value={visibility} onChange={setVisibility} nativeIDPrefix="new-vis" />
               <Text style={{ fontSize: 12, color: colors.muted }}>{VISIBILITY.find((v) => v.id === visibility)?.hint}</Text>
             </View>
-            <View style={[styles.previewPane, { borderColor: colors.line, backgroundColor: colors.sunken, flex: 0 }]}>
+            <View style={[styles.previewPane, phone && styles.previewPhone, { borderColor: colors.line, backgroundColor: colors.sunken, flex: 0 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: colors.ink, flex: 1 }}>Dagsorden</Text>
                 <Pill
@@ -638,6 +654,10 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' },
   startGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   start: { flexGrow: 1, flexBasis: 160, borderWidth: 1.5, borderRadius: 16, padding: 16, gap: 8, minHeight: 168 },
+  startGridPhone: { flexDirection: 'column', gap: 8 },
+  startCompact: { flexDirection: 'row', alignItems: 'center', flexBasis: 'auto', flexGrow: 0, minHeight: 0, padding: 12, gap: 12, borderWidth: 1 },
+  startIconCompact: { width: 36, height: 36, borderRadius: radius.control, marginBottom: 0 },
+  previewPhone: { flex: 0, alignSelf: 'auto' },
   lift: { shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
   startIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   seriesRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 12, padding: 12 },

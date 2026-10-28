@@ -54,6 +54,8 @@ export default function TimeEntryModal({
   locked = false,
   // Hvorfor føringen er låst (f.eks. fakturert). Tom = dagen er låst til kontroll.
   lockedText = '',
+  // Teksten fra Timerapport (fakturanummer for importerte og fakturerte timer).
+  lockedLabel = '',
   // Lesetilgang: føringen vises, men kan ikke endres.
   readOnly = false,
   // Uten Admin: endre, men ikke slette.
@@ -338,7 +340,7 @@ export default function TimeEntryModal({
                 )) : null}
               </View>
             ) : null}
-            {locked ? <Text style={{ color: '#0f766e', marginTop: 6 }}>{lockedText || 'Låst — klar for fakturering.'}</Text> : null}
+            {locked ? <Text style={{ color: '#0f766e', marginTop: 6 }}>{lockedText || lockedLabel || 'Låst — klar for fakturering.'}</Text> : null}
             {readOnly ? (
               <Text style={{ color: colors.muted, marginTop: 6 }} nativeID="time-entry-readonly">
                 Du har lesetilgang. Føringen kan ses, men ikke endres.

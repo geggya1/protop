@@ -48,6 +48,24 @@ const fixture = {
     activityId: 'a1',
     activityName: 'Hovedaktivitet',
     status: 'registrert',
+  }, {
+    // Importert fra Moment, der timen allerede var fakturert.
+    id: 't2',
+    projectId: 'p1',
+    projectNumber: '10640',
+    projectName: 'Myklebust barnehage',
+    employeeId: 'e1',
+    employeeName: 'Geir Ove Andersen',
+    customerName: 'Sola Kommune',
+    date: today,
+    hours: 2,
+    billableHours: 2,
+    description: 'Befaring',
+    activityId: 'a1',
+    activityName: 'Hovedaktivitet',
+    status: 'registrert',
+    invoiceId: 'fakturert-for-import',
+    source: { filename: 'moment.xlsx', importedAt: today, values: { Fakturanummer: '10234' } },
   }],
   timesheetLocks: [],
   absences: [],
@@ -291,6 +309,10 @@ async function settle() {
 
 (async () => {
   const tree = await settle();
+  const table = collectText(tree).join('\n');
+  assert.match(table, /^Fakturert$/m);
+  assert.match(table, /Fakturert 10234/);
+  assert.match(table, /Fakturert \n2:00/);
   const open = findPress(tree, 'hour-row-t1');
   assert.equal(typeof open, 'function');
   open();

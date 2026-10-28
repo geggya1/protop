@@ -145,36 +145,59 @@ function paymentTerm(row) {
   return Number.isFinite(days) && days >= 0 ? Math.round(days) : null;
 }
 
-/** ProTop-kunde → CustomerPostDto. */
-export function customerPostFromProTop(customer, { ref } = {}) {
+/**
+ * Forsendelse for en ny kunde i Go. Go bruker ellers e-post, og avviser kunden når
+ * e-postadressen mangler. Med e-post: PDF på e-post. Uten: EHF når kunden har
+ * org.nr., ellers papir. Purring og inkassovarsel kan bare gå på e-post eller papir.
+ */
+export function customerDelivery({ email = '', orgnr = '', isPerson = false } = {}) {
+  if (text(email)) {
+    return { InvoiceDeliveryType: 'PdfByEmail', ReminderDeliveryType: 'PdfByEmail', NoticeOfDebtCollectionDeliveryType: 'PdfByEmail' };
+  }
+  const ehf = !isPerson && text(orgnr).replace(/\D/g, '').length === 9;
+  return { InvoiceDeliveryType: ehf ? 'EHF' : 'Print', ReminderDeliveryType: 'Print', NoticeOfDebtCollectionDeliveryType: 'Print' };
+}
+
+/**
+ * ProTop-kunde → CustomerPostDto. Mangler kunderegisteret e-post eller adresse,
+ * brukes det som står på fakturaen.
+ */
+export function customerPostFromProTop(customer, { ref, invoice = null } = {}) {
   const row = customer && typeof customer === 'object' ? customer : {};
-  const name = text(row.name || row.customerName).slice(0, 160);
+  const inv = invoice && typeof invoice === 'object' ? invoice : {};
+  const name = text(row.name || row.customerName || inv.customerName).slice(0, 160);
   if (!name) return { ok: false, error: 'Kunden mangler navn.' };
   const email = text(row.email);
-  const invoiceEmail = text(row.invoiceEmail) || email;
+  const invoiceEmail = text(row.invoiceEmail) || email || text(inv.customerEmail);
+  const isPerson = row.kind === 'person';
+  const orgnr = text(row.orgnr || inv.orgnr).replace(/\s/g, '');
   const body = {
     Name: name,
     ExternalImportReference: ref || null,
-    EmailAddress: email || null,
+    EmailAddress: email || invoiceEmail || null,
     InvoiceEmailAddress: invoiceEmail || null,
     PhoneNumber: text(row.phone) || null,
+    ...customerDelivery({ email: invoiceEmail, orgnr, isPerson }),
   };
-  if (row.kind === 'person') {
+  if (isPerson) {
     const parts = name.split(' ');
     body.IsPerson = true;
     body.FirstName = parts.slice(0, -1).join(' ') || name;
     body.LastName = parts.length > 1 ? parts[parts.length - 1] : name;
   } else {
-    body.OrganizationNumber = text(row.orgnr).replace(/\s/g, '') || null;
+    body.OrganizationNumber = orgnr || null;
   }
-  const zip = text(row.postalCode);
-  const city = text(row.place);
-  if (text(row.address) || zip || city) {
+  const addr = inv.customerAddress && typeof inv.customerAddress === 'object' ? inv.customerAddress : {};
+  const fromRegister = !!(text(row.address) || text(row.postalCode) || text(row.place));
+  const street = fromRegister ? text(row.address) : text(addr.street);
+  const zip = fromRegister ? text(row.postalCode) : text(addr.postalCode);
+  const city = fromRegister ? text(row.place) : text(addr.city);
+  if (street || zip || city) {
     body.MailAddress = {
-      AddressLine1: text(row.address) || null,
+      AddressLine1: street || null,
       ZipCode: zip || null,
       City: city || null,
-      CountryCode: 'NO',
+      CountryCode: (fromRegister ? '' : text(addr.country).toUpperCase().slice(0, 2)) || 'NO',
     };
   }
   for (const key of Object.keys(body)) {

@@ -24,6 +24,9 @@ import { invoiceContentChecks, missingContentError } from './invoiceContent.js';
 /** Poster som ikke skal faktureres, merkes med denne i stedet for en faktura-id. */
 export const WRITE_OFF_ID = 'avskrevet';
 
+/** Timer som allerede var fakturert i systemet de ble importert fra (f.eks. Moment). */
+export const IMPORT_INVOICED_ID = 'fakturert-for-import';
+
 export const DELIVERY_CHANNELS = [
   { id: 'ehf', label: 'EHF (e-faktura)' },
   { id: 'email', label: 'E-post' },

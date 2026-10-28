@@ -21,7 +21,7 @@ import { normalizeProjectInvoiceSettings } from './invoiceSettings.js';
 import { defaultWorkSettings } from '../arbeid/roles.js';
 import { parseHours, roundHours } from '../arbeid/hours.js';
 import { isDateLocked, lockThroughDate } from '../arbeid/locks.js';
-import { collectHourFingerprints, hourFingerprint } from '../economy/hoursImport.js';
+import { collectHourFingerprints, hourFingerprint, importInvoiceId } from '../economy/hoursImport.js';
 import { parseDate } from '../economy/invoices.js';
 
 export function createId(prefix) {
@@ -586,7 +586,8 @@ export function normalizeTimeEntryRow(row) {
     clockOut: text(row.clockOut),
     department: text(row.department),
     timeType: text(row.timeType) || 'ordinary',
-    invoiceId: text(row.invoiceId) || null,
+    // Importerte timer som var fakturert i forrige system, leses fra den lagrede Excel-raden.
+    invoiceId: text(row.invoiceId) || importInvoiceId(source) || null,
     status: ['registrert', 'godkjent', 'låst'].includes(row.status) ? row.status : 'registrert',
     importFingerprint: text(row.importFingerprint),
     externalId: text(row.externalId),
@@ -2019,6 +2020,7 @@ export function importTimeEntries(state, drafts = []) {
       status: ['registrert', 'godkjent', 'låst'].includes(draft.status) ? draft.status : 'registrert',
       importFingerprint: fingerprint,
       externalId: text(draft.externalId),
+      invoiceId: text(draft.invoiceId),
       source: draft.source,
       createdAt: now,
       updatedAt: now,

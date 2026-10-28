@@ -7,6 +7,8 @@ import {
   createPowerOfficeClient, findClientEnvironment, PowerOfficeError, powerOfficeErrorText, problemMessage, POWEROFFICE_ENVS,
 } from './powerOfficeApi.js';
 import {
+  customerDelivery,
+  customerPostFromProTop,
   invoicePatchFromOutgoing,
   matchCustomer,
   orderRefFromLineRef,
@@ -377,8 +379,64 @@ function fakeClient(routes) {
   assert.equal(created.body.OrganizationNumber, '123456789');
   assert.equal(created.body.ExternalImportReference, customerRef('c9'));
   assert.deepEqual(created.body.MailAddress, { AddressLine1: 'Gate 1', ZipCode: '4006', City: 'Stavanger', CountryCode: 'NO' });
+  assert.equal(created.body.InvoiceDeliveryType, 'PdfByEmail');
+  assert.equal(created.body.InvoiceEmailAddress, 'post@ny.no');
   assert.deepEqual(result.customerLink, { id: 900, no: 10500 });
 }
+
+{
+  // Uten e-post: Go avviser kunden med e-post som forsendelse. EHF med org.nr.,
+  // purring og inkassovarsel på papir. Adressen hentes fra fakturaen.
+  const client = fakeClient({
+    'GET /Customers': () => [],
+    'POST /Customers': ({ body }) => ({ Id: 901, Number: 10501, ...body }),
+    'POST /SalesOrders/Complete': () => ({ Id: 'so-3' }),
+  });
+  const customer = { id: 'c10', name: 'Hillevågsveien 59-63 AS', orgnr: '918269819' };
+  await transferInvoice(client, {
+    invoice: { ...invoice, customerId: 'c10', customerNumber: '', customerEmail: '', customerAddress: { street: 'Gate 2', postalCode: '4010', city: 'Stavanger', country: 'NO' } },
+    customer,
+    productCodes,
+  });
+  const created = client.log.find((row) => row.method === 'POST' && row.path === '/Customers');
+  assert.equal(created.body.InvoiceDeliveryType, 'EHF');
+  assert.equal(created.body.ReminderDeliveryType, 'Print');
+  assert.equal(created.body.NoticeOfDebtCollectionDeliveryType, 'Print');
+  assert.equal('InvoiceEmailAddress' in created.body, false);
+  assert.deepEqual(created.body.MailAddress, { AddressLine1: 'Gate 2', ZipCode: '4010', City: 'Stavanger', CountryCode: 'NO' });
+}
+
+{
+  // Avviser Go EHF, prøves kunden én gang til med papir.
+  let tries = 0;
+  const client = fakeClient({
+    'GET /Customers': () => [],
+    'POST /Customers': ({ body }) => {
+      tries += 1;
+      if (body.InvoiceDeliveryType === 'EHF') {
+        const err = new Error('Customer is not an EHF receiver');
+        err.status = 400;
+        throw err;
+      }
+      return { Id: 902, Number: 10502, ...body };
+    },
+    'POST /SalesOrders/Complete': () => ({ Id: 'so-4' }),
+  });
+  const result = await transferInvoice(client, {
+    invoice: { ...invoice, customerId: 'c11', customerNumber: '', customerEmail: '' },
+    customer: { id: 'c11', name: 'Uten EHF AS', orgnr: '999888777' },
+    productCodes,
+  });
+  assert.equal(tries, 2);
+  assert.deepEqual(result.customerLink, { id: 902, no: 10502 });
+  const posts = client.log.filter((row) => row.method === 'POST' && row.path === '/Customers');
+  assert.equal(posts[1].body.InvoiceDeliveryType, 'Print');
+}
+
+// E-post på fakturaen holder når kunderegisteret mangler den. Person uten e-post: papir.
+assert.equal(customerPostFromProTop({ name: 'A AS', orgnr: '918269819' }, { invoice: { customerEmail: 'f@a.no' } }).customer.InvoiceDeliveryType, 'PdfByEmail');
+assert.equal(customerDelivery({ email: '', orgnr: '', isPerson: true }).InvoiceDeliveryType, 'Print');
+assert.equal(customerDelivery({ orgnr: '918 269 819' }).InvoiceDeliveryType, 'EHF');
 
 {
   // Forrige forsøk laget utkastet, men svaret kom aldri: referansen er tatt.

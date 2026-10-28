@@ -111,9 +111,16 @@ export async function resolveCustomer(client, { invoice, customer = null, known 
   const built = customerPostFromProTop(customer || {
     name: invoice?.customerName,
     orgnr,
-  }, { ref: protopId ? customerRef(protopId) : null });
+  }, { ref: protopId ? customerRef(protopId) : null, invoice });
   if (!built.ok) throw new Error(built.error);
-  const created = await client.request('POST', '/Customers', { body: built.customer });
+  let created;
+  try {
+    created = await client.request('POST', '/Customers', { body: built.customer });
+  } catch (err) {
+    // EHF krever at mottakeren kan ta imot. Avviser Go det, opprettes kunden med papir.
+    if (err?.status !== 400 || built.customer.InvoiceDeliveryType !== 'EHF') throw err;
+    created = await client.request('POST', '/Customers', { body: { ...built.customer, InvoiceDeliveryType: 'Print' } });
+  }
   if (!created?.Id) throw new Error('PowerOffice opprettet ikke kunden.');
   return { customer: created, created: true };
 }

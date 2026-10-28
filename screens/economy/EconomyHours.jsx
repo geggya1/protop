@@ -44,6 +44,7 @@ import {
   formatHours,
   groupHours,
   hourFacets,
+  hourInvoiceLabel,
   hoursOutsideSelection,
   hourTotals,
   periodLoadRange,
@@ -335,8 +336,9 @@ export default function EconomyHours({
   const facets = useMemo(() => hourFacets(scoped), [scoped]);
   const columns = useMemo(() => {
     const keys = new Set(visibleColumns.length ? visibleColumns : DEFAULT_HOUR_COLUMNS);
-    const picked = HOUR_COLUMNS.filter((column) => keys.has(column.key) && !(hideBillable && column.key === 'billableHours'));
-    return picked.length ? picked : HOUR_COLUMNS.filter((column) => DEFAULT_HOUR_COLUMNS.includes(column.key) && !(hideBillable && column.key === 'billableHours'));
+    const hidden = (key) => hideBillable && (key === 'billableHours' || key === 'invoiced');
+    const picked = HOUR_COLUMNS.filter((column) => keys.has(column.key) && !hidden(column.key));
+    return picked.length ? picked : HOUR_COLUMNS.filter((column) => DEFAULT_HOUR_COLUMNS.includes(column.key) && !hidden(column.key));
   }, [visibleColumns, hideBillable]);
   const webGrid = Platform.OS === 'web' && !isPhone;
   // Tabellen holder seg innenfor skjermhøyden, så rullefeltene ikke havner under bretten.
@@ -568,6 +570,7 @@ export default function EconomyHours({
   function cellValue(row, key) {
     if (key === 'date') return formatDate(row.date);
     if (key === 'hours' || key === 'billableHours') return formatHours(row[key]);
+    if (key === 'invoiced') return hourInvoiceLabel(row) || '—';
     if (key === 'projectName') {
       return row.projectNumber
         ? `${row.projectNumber} ${row.projectName || ''}`.trim()
@@ -902,6 +905,7 @@ export default function EconomyHours({
       })}
       requireDescription={editing?.project?.workSettings?.requireDescription !== false}
       locked={!!editing?.locked}
+      lockedLabel={editing?.row?.invoiceId ? `${hourInvoiceLabel(editing.row)}. Føringen kan ikke endres.` : undefined}
       readOnly={editing?.rights === 'read'}
       canDelete={editing?.rights === 'admin'}
       onSave={saveEditing}
@@ -1073,6 +1077,7 @@ export default function EconomyHours({
           <View style={styles.summaryRow}>
             <Text style={{ color: colors.muted }}>Timer {formatHours(totals.hours)}</Text>
             {hideBillable ? null : <Text style={{ color: colors.muted }}>Fakt. {formatHours(totals.billable)}</Text>}
+            {hideBillable || !(totals.invoiced > 0) ? null : <Text style={{ color: colors.muted }}>Fakturert {formatHours(totals.invoiced)}</Text>}
             <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
           </View>
           {periodHint}
@@ -1152,6 +1157,7 @@ export default function EconomyHours({
           <View style={styles.summaryRow}>
             <Text style={{ color: colors.muted }}>Timer {formatHours(totals.hours)}</Text>
             {hideBillable ? null : <Text style={{ color: colors.muted }}>Fakturerbart {formatHours(totals.billable)}</Text>}
+            {hideBillable || !(totals.invoiced > 0) ? null : <Text style={{ color: colors.muted }}>Fakturert {formatHours(totals.invoiced)}</Text>}
             <Text style={{ color: colors.muted }}>{totals.count} føringer</Text>
           </View>
           {periodHint}

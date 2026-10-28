@@ -530,6 +530,11 @@ export function setRecordState(record, state, { actor, now = new Date(), note = 
   // Tilbake til før godkjenning (f.eks. «planlagt») opphever godkjenningen: krever begrunnelse, og ny godkjenning låser igjen.
   const revoke = !!record.locked && !APPROVED_STATES.includes(state);
   if (revoke && text(note).length < 5) return fail('Begrunn hvorfor godkjenningen oppheves.');
+  // Ledelsens gjennomgang: grunnlag med alle punktene i 9.3.2, konklusjon og output før godkjenning.
+  if (record.register === 'ledelse' && state === 'godkjent' && record.state !== 'godkjent') {
+    const blockers = reviewApprovalBlockers(record);
+    if (blockers.length) return fail(blockers[0], { blockers });
+  }
   const locked = LOCKING_REGISTERS.includes(record.register) && (state === 'godkjent' || (!!record.locked && !revoke));
   const next = bump({
     ...record,
@@ -813,6 +818,63 @@ export function linkAuditFinding(audit, auditFindingId, findingId) {
 }
 
 /* ───────── Ledelsens gjennomgang ───────── */
+
+/** Punktene i 9.3.2 a–f som grunnlaget alltid skal dekke (seksjonene i reviewInput.js). */
+export const REVIEW_INPUTS = ['previous', 'context', 'satisfaction', 'objectives', 'process', 'nonconformity', 'monitoring', 'audits', 'suppliers', 'resources', 'risks', 'improvement'];
+
+/** Punkter et lagret grunnlag mangler. Eldre grunnlag (før seksjonene) mangler alle. */
+export function missingReviewInputs(snapshot) {
+  const have = new Set((snapshot?.sections || []).map((x) => x.key));
+  return REVIEW_INPUTS.filter((k) => !have.has(k));
+}
+
+/** Output fra gjennomgangen (9.3.3): forbedringer, endringsbehov og ressursbehov. Hver krever vedtak eller begrunnet «ingen». */
+export const REVIEW_OUTPUTS = [
+  { kind: 'forbedring', label: 'Muligheter for forbedring' },
+  { kind: 'endring', label: 'Behov for endringer i ledelsessystemet' },
+  { kind: 'ressurs', label: 'Behov for ressurser' },
+];
+
+/**
+ * Hva mangler før referatet kan godkjennes? Grunnlag med alle punktene i 9.3.2, konklusjon om systemets
+ * egnethet, tilstrekkelighet og effektivitet, og vedtak eller begrunnet «ingen» per output i 9.3.3.
+ * Grunnlag uten skjermede HMS-saker krever bekreftelse (restrictedConfirmed).
+ */
+export function reviewApprovalBlockers(record, { restrictedConfirmed = false } = {}) {
+  if (record?.register !== 'ledelse') return [];
+  const out = [];
+  const snap = record.snapshot;
+  if (!snap) out.push('Hent grunnlaget før referatet godkjennes.');
+  else {
+    const missing = missingReviewInputs(snap);
+    if (missing.length) out.push('Grunnlaget er hentet med en eldre versjon og mangler punkter i 9.3.2. Hent grunnlaget på nytt.');
+    if (snap.restrictedIncluded === false && !restrictedConfirmed && !record.restrictedConfirmed) {
+      out.push('Grunnlaget er hentet uten skjermede HMS-saker. La en med særskilt tilgang hente det, eller bekreft at det ikke finnes skjermede saker i perioden.');
+    }
+  }
+  if (text(record.assessment).length < 20) out.push('Skriv konklusjonen: er systemet egnet, tilstrekkelig og effektivt?');
+  for (const o of REVIEW_OUTPUTS) {
+    const decided = (record.decisions || []).some((d) => d.kind === o.kind);
+    if (!decided && text(record.outputs?.[o.kind]).length < 5) out.push(`${o.label}: legg inn vedtak, eller begrunn at det ikke trengs.`);
+  }
+  return out;
+}
+
+/** Konklusjon og begrunnelse for output uten vedtak (9.3.3). Ikke etter godkjenning. */
+export function setReviewConclusion(record, input, { actor, now = new Date() } = {}) {
+  if (record?.register !== 'ledelse') return fail('Ikke en ledelsens gjennomgang.');
+  if (record.locked) return fail('Referatet er godkjent og låst.');
+  const outputs = {};
+  for (const o of REVIEW_OUTPUTS) outputs[o.kind] = text(input?.outputs?.[o.kind] ?? record.outputs?.[o.kind], 2000);
+  const next = bump({
+    ...record,
+    assessment: text(input?.assessment ?? record.assessment, 6000),
+    outputs,
+    restrictedConfirmed: input?.restrictedConfirmed == null ? !!record.restrictedConfirmed : !!input.restrictedConfirmed,
+    history: pushHistory(record, 'Konklusjon lagret', actor, '', now),
+  }, actor, now);
+  return { ok: true, record: next, events: [auditEvent({ entityType: 'ledelse', entityId: record.id, action: 'iso.review.conclusion', actor, before: record, after: next, now })] };
+}
 
 /** Låser inndata som snapshot når referatet godkjennes (T17). */
 export function attachReviewSnapshot(record, snapshot, { actor, now = new Date() } = {}) {

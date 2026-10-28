@@ -7,6 +7,7 @@ import {
   AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
   competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
   cleanContacts, contactsLabel, personsLabel, proofEnd, recordRiskMethod, registerDef, riskMatrix, riskScoresChanged, riskSummary, setRecordState, updateRecord,
+  REVIEW_OUTPUTS, reviewApprovalBlockers, setReviewConclusion,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
 import { createFinding } from '../../src/iso/findings';
@@ -1170,15 +1171,51 @@ export function AuditPage({ ctx }) {
   );
 }
 
+/** Grunnlaget slik det er lagret: seksjonene i 9.3.2 (nye) eller nøkkeltallene (eldre referater). */
+function ReviewInputView({ snapshot: s }) {
+  const colors = useColors();
+  if (!s) return <Text style={{ color: colors.muted, fontSize: 13 }}>Ikke hentet.</Text>;
+  const head = <Text style={{ color: colors.muted, fontSize: 12 }}>Hentet {prettyDate(s.takenAt)} av {s.takenBy}{s.period ? ` · periode ${s.period.label} (${prettyDate(s.period.from)}–${prettyDate(s.period.to)})` : ''}</Text>;
+  if (s.sections?.length) {
+    return (
+      <View style={{ gap: 8 }}>
+        {head}
+        {s.restrictedNote ? <Banner tone="warn" text={s.restrictedNote} /> : null}
+        {s.sections.map((x) => (
+          <View key={x.key} style={{ gap: 2, paddingVertical: 4, borderBottomWidth: 1, borderColor: colors.line }}>
+            <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '700' }}>{x.clause} · {x.label}</Text>
+            {(x.lines || []).map((line, i) => <Text key={i} style={{ color: colors.ink, fontSize: 13 }}>{line}</Text>)}
+          </View>
+        ))}
+      </View>
+    );
+  }
+  return (
+    <View style={{ gap: 4 }}>
+      {head}
+      <Banner tone="warn" text="Eldre grunnlag uten alle punktene i 9.3.2. Hent grunnlaget på nytt før godkjenning." />
+      {(s.kpis || []).map((k) => <Text key={k.key} style={{ color: colors.ink, fontSize: 13 }}>{k.label}: {k.value ?? '–'}</Text>)}
+      {s.findings ? <Text style={{ color: colors.ink, fontSize: 13 }}>Avvik: {s.findings.open} åpne, {s.findings.closed} lukket</Text> : null}
+      <Text style={{ color: colors.ink, fontSize: 13 }}>Tidligere vedtak: {(s.previousDecisions || []).filter((x) => !x.done).length} åpne av {(s.previousDecisions || []).length}</Text>
+    </View>
+  );
+}
+
 export function ReviewPage({ ctx }) {
   const colors = useColors();
-  const { state, wide, actor, store, caps, people, runEffectsFor } = ctx;
+  const { state, wide, actor, store, caps, people } = ctx;
   const reg = useRegister(ctx, 'ledelse');
   const [d, setD] = useState({ decision: '', kind: 'forbedring', ownerName: '', ownerUid: '', dueAt: '' });
+  const [c, setC] = useState({ assessment: '', outputs: {}, restrictedConfirmed: false });
   const [err, setErr] = useState('');
+  const openId = reg.open?.id || '';
+  useEffect(() => {
+    if (reg.open) setC({ assessment: reg.open.assessment || '', outputs: { ...(reg.open.outputs || {}) }, restrictedConfirmed: !!reg.open.restrictedConfirmed });
+  }, [openId, reg.open?.rev]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function snapshot() {
-    const snap = managementReviewSnapshot(state, caps, { people });
+    setErr('');
+    const snap = managementReviewSnapshot(state, caps, { people, record: reg.open, equipment: ctx.sources?.equipment || [] });
     const res = attachReviewSnapshot(reg.open, snap, { actor });
     if (!res.ok) { setErr(res.error); return; }
     const saved = await store.commit('records', 'record', res, { previous: reg.open });
@@ -1190,8 +1227,14 @@ export function ReviewPage({ ctx }) {
     const saved = await store.commit('records', 'record', res, { previous: reg.open, effects: [{ type: 'createTask', key: res.decision.taskKey, title: `Vedtak ${reg.open.number}: ${res.decision.decision}`, assigneeUid: res.decision.ownerUid, deadline: res.decision.dueAt }] });
     if (!saved.ok) setErr(saved.error); else setD({ decision: '', kind: 'forbedring', ownerName: '', ownerUid: '', dueAt: '' });
   }
+  async function saveConclusion() {
+    setErr('');
+    const res = setReviewConclusion(reg.open, c, { actor });
+    if (!res.ok) { setErr(res.error); return; }
+    const saved = await store.commit('records', 'record', res, { previous: reg.open });
+    if (!saved.ok) setErr(saved.error);
+  }
   async function approve() {
-    if (!reg.open.snapshot) { setErr('Hent grunnlaget før referatet godkjennes.'); return; }
     const res = setRecordState(reg.open, 'godkjent', { actor, caps, note: 'Referat godkjent' });
     if (!res.ok) { setErr(res.error); return; }
     const saved = await store.commit('records', 'record', res, { previous: reg.open });
@@ -1200,36 +1243,27 @@ export function ReviewPage({ ctx }) {
     if (att.ok) await store.commitLists({ evidence: att.evidence, evidenceLinks: att.evidenceLinks, assessments: att.assessments }, att.events);
   }
   const s = reg.open?.snapshot;
+  const blockers = reg.open ? reviewApprovalBlockers(reg.open) : [];
+  const editable = caps.manage && reg.open && !reg.open.locked;
   return (
-    <Page wide={wide} title="Ledelsens gjennomgang" intro="Grunnlaget hentes fra registrene med «Hent grunnlag» inne i gjennomgangen og låses når referatet godkjennes. Vedtak blir oppgaver med ansvar og frist." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny gjennomgang" onPress={() => reg.setCreating(true)} /> : null}>
+    <Page wide={wide} title="Ledelsens gjennomgang" intro="«Hent grunnlag» samler alle punktene i 9.3.2 for perioden: tiltak fra forrige gjennomgang, endringer i kontekst og klima, kundetilfredshet, mål, prosessytelse, avvik, målinger, revisjoner, leverandører, ressurser, risiko og forbedring. Grunnlaget låses når referatet godkjennes, og godkjenning krever konklusjon og vedtak. Vedtak blir oppgaver med ansvar og frist." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny gjennomgang" onPress={() => reg.setCreating(true)} /> : null}>
       <Card title="Gjennomganger">
-        <RecordList ctx={ctx} registerKey="ledelse" rows={reg.rows} subtitle={(r) => `${prettyDate(r.meetingDate)} · ${(r.decisions || []).length} vedtak`} onOpen={(r) => reg.setOpenId(r.id)} />
+        <RecordList ctx={ctx} registerKey="ledelse" rows={reg.rows} subtitle={(r) => `${prettyDate(r.meetingDate)} · ${(r.decisions || []).length} vedtak${r.state !== 'godkjent' && reviewApprovalBlockers(r).length ? ` · ${reviewApprovalBlockers(r).length} punkter før godkjenning` : ''}`} onOpen={(r) => reg.setOpenId(r.id)} />
       </Card>
       <RecordSheet ctx={ctx} registerKey="ledelse" visible={reg.creating} onClose={() => reg.setCreating(false)} />
       {reg.open ? (
         <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Grunnlag</Text>
-          {s ? (
-            <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Hentet {prettyDate(s.takenAt)} av {s.takenBy}</Text>
-              {s.kpis.map((k) => <Text key={k.key} style={{ color: colors.ink, fontSize: 13 }}>{k.label}: {k.value ?? '–'}</Text>)}
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Avvik: {s.findings.open} åpne, {s.findings.closed} lukket · lukket innen frist: {s.findings.closedWithinDeadline.pct == null ? 'ingen datagrunnlag' : `${s.findings.closedWithinDeadline.pct} %`}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Krav: {s.requirements.segments.map((x) => `${x.label} ${x.value}`).join(', ') || '–'}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Revisjoner: {s.audits.map((a) => `${a.number} (${a.nonconformities} avvik)`).join(', ') || '–'}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Mål: {s.objectives.map((o) => `${o.title} ${o.last ?? '–'}/${o.target} ${o.unit}`).join('; ') || '–'}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Samsvarsvurderinger: {s.compliance.map((c) => `${c.title}: ${c.result}`).join('; ') || '–'}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Tidligere vedtak: {s.previousDecisions.filter((x) => !x.done).length} åpne av {s.previousDecisions.length}</Text>
-            </View>
-          ) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ikke hentet.</Text>}
-          {caps.manage && !reg.open.locked ? <Btn icon="download-outline" label={s ? 'Hent grunnlag på nytt' : 'Hent grunnlag'} onPress={snapshot} /> : null}
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Vedtak</Text>
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Grunnlag (9.3.2)</Text>
+          <ReviewInputView snapshot={s} />
+          {editable ? <Btn icon="download-outline" label={s ? 'Hent grunnlag på nytt' : 'Hent grunnlag'} onPress={snapshot} /> : null}
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Vedtak (9.3.3)</Text>
           {(reg.open.decisions || []).map((x) => {
             // Ansvarlig kan merke vedtaket utført også når referatet er godkjent og låst.
             const mine = !!x.ownerUid && x.ownerUid === actor.uid;
             const inTasks = !x.done && decisionCompleted(x, store.tasks);
             return (
               <Row key={x.id}>
-                <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{x.done ? '✓ ' : ''}{x.decision} · {x.ownerName} · {prettyDate(x.dueAt)}{x.done && x.doneBy ? ` · utført ${prettyDate(x.doneAt)} av ${x.doneBy}` : ''}</Text>
+                <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{x.done ? '✓ ' : ''}{x.decision} · {REVIEW_OUTPUTS.find((o) => o.kind === x.kind)?.label || 'Annet'} · {x.ownerName} · {prettyDate(x.dueAt)}{x.done && x.doneBy ? ` · utført ${prettyDate(x.doneAt)} av ${x.doneBy}` : ''}</Text>
                 {inTasks ? <Pill label="Ferdig i Oppgaver" icon="checkbox-outline" tone="ok" /> : null}
                 {!x.done && (caps.manage || mine) ? (
                   <Btn small label="Utført" onPress={async () => {
@@ -1243,16 +1277,31 @@ export function ReviewPage({ ctx }) {
               </Row>
             );
           })}
-          {caps.manage && !reg.open.locked ? (
+          {editable ? (
             <>
               <Field label="Vedtak" required><TextIn multiline rows={2} value={d.decision} onChangeText={(x) => setD({ ...d, decision: x })} /></Field>
-              <Choice small options={[{ id: 'forbedring', label: 'Forbedring' }, { id: 'ressurs', label: 'Ressurs' }, { id: 'endring', label: 'Endring' }, { id: 'annet', label: 'Annet' }]} value={d.kind} onChange={(x) => setD({ ...d, kind: x || 'forbedring' })} />
+              <Choice small options={[{ id: 'forbedring', label: 'Forbedring' }, { id: 'endring', label: 'Endring i systemet' }, { id: 'ressurs', label: 'Ressurser' }, { id: 'annet', label: 'Annet' }]} value={d.kind} onChange={(x) => setD({ ...d, kind: x || 'forbedring' })} />
               <Field label="Ansvarlig" required><PersonPick people={people} value={d.ownerName} onChange={(p) => setD({ ...d, ownerName: p.name, ownerUid: p.uid })} /></Field>
               <Field label="Frist" required><DateIn value={d.dueAt} onChange={(x) => setD({ ...d, dueAt: x })} /></Field>
               <Btn label="Legg til vedtak og lag oppgave" onPress={decision} />
-              {caps.approve ? <Btn kind="primary" icon="lock-closed-outline" label="Godkjenn referat (låser grunnlag)" onPress={approve} /> : null}
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>Konklusjon</Text>
+              <Field label="Er systemet egnet, tilstrekkelig og effektivt?" required hint="Påkrevd før godkjenning (9.3.3)."><TextIn multiline rows={3} value={c.assessment} onChangeText={(x) => setC({ ...c, assessment: x })} /></Field>
+              {REVIEW_OUTPUTS.filter((o) => !(reg.open.decisions || []).some((x) => x.kind === o.kind)).map((o) => (
+                <Field key={o.kind} label={`${o.label}: ingen vedtak – begrunn`} hint="Eller legg inn et vedtak av denne typen over.">
+                  <TextIn value={c.outputs?.[o.kind] || ''} onChangeText={(x) => setC({ ...c, outputs: { ...c.outputs, [o.kind]: x } })} />
+                </Field>
+              ))}
+              {s?.restrictedIncluded === false ? <Check label="Jeg bekrefter at det ikke finnes skjermede HMS-saker i perioden som mangler i grunnlaget" value={!!c.restrictedConfirmed} onChange={(x) => setC({ ...c, restrictedConfirmed: x })} /> : null}
+              <Btn icon="save-outline" label="Lagre konklusjon" onPress={saveConclusion} />
+              {blockers.length ? (
+                <View style={{ gap: 2 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>Før godkjenning:</Text>
+                  {blockers.map((b) => <Text key={b} style={{ color: colors.warn, fontSize: 13 }}>• {b}</Text>)}
+                </View>
+              ) : null}
+              {caps.approve ? <Btn kind="primary" icon="lock-closed-outline" label="Godkjenn referat (låser grunnlag)" disabled={!!blockers.length} onPress={approve} /> : null}
             </>
-          ) : null}
+          ) : (reg.open.assessment ? <KV label="Konklusjon" value={reg.open.assessment} /> : null)}
           {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
         </RecordDetail>
       ) : null}

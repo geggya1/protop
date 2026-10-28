@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   addAuditFinding, addExercise, addMeasurement, addReviewDecision, competenceMatrix, createRecord, cvEvidence, decisionCompleted, markDecisionDone,
-  objectiveProgress, periodSortKey, riskSummary, setRecordState, updateRecord,
+  objectiveProgress, periodSortKey, riskSummary, setRecordState, updateRecord, attachReviewSnapshot, setReviewConclusion, REVIEW_INPUTS,
 } from './registers.js';
 import { DEFAULT_RISK_METHOD, riskMatrixLevels } from './catalog.js';
 import { autoTaskEffects } from './integrations.js';
@@ -53,6 +53,9 @@ function approvedReview() {
   let review = createRecord('ledelse', { title: 'LGJ 2026', period: '2026', meetingDate: '2026-10-01', participants: 'Ledergruppen' }, { actor: ANNE, now }).record;
   review = addReviewDecision(review, { decision: 'Innfør ukentlig vernerunde', ownerName: LES.name, ownerUid: LES.uid, dueAt: '2026-10-15' }, { actor: ANNE, now }).record;
   review = addReviewDecision(review, { decision: 'Ny leverandørrutine', ownerName: ANNE.name, ownerUid: ANNE.uid, dueAt: '2026-10-20' }, { actor: ANNE, now }).record;
+  // Godkjenning krever fullt grunnlag (9.3.2), konklusjon og output (ISO-07).
+  review = attachReviewSnapshot(review, { sections: REVIEW_INPUTS.map((key) => ({ key, lines: [] })), restrictedIncluded: true }, { actor: ANNE, now }).record;
+  review = setReviewConclusion(review, { assessment: 'Systemet er egnet og tilstrekkelig.', outputs: { endring: 'Ingen endringer trengs.', ressurs: 'Ressursene er nok.' } }, { actor: ANNE, now }).record;
   return setRecordState(review, 'godkjent', { actor: ANNE, caps: APPROVER, now }).record;
 }
 

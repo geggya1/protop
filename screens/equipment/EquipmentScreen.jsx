@@ -565,7 +565,7 @@ export default function EquipmentScreen() {
 
   return (
     <Body {...bodyProps}>
-      {hostedHero ? null : <Text style={styles.title}>Utstyr</Text>}
+      {hostedHero ? null : <Text style={[styles.title, { color: colors.ink }]}>Utstyr</Text>}
       <View style={styles.row}>
         <Chip nativeID="equipment-tab-bedrift" label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
         <Chip nativeID="equipment-tab-privat" label="Privat" active={tab === 'privat' && !formOpen} onPress={() => { setTab('privat'); closeForm(); setQuery(''); }} colors={colors} />
@@ -946,7 +946,7 @@ const styles = StyleSheet.create({
   wrap: { flex: 1 },
   wrapFill: { padding: 16, gap: 12, minHeight: 0 },
   calendarFrame: { flex: 1, minHeight: 480, borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
-  title: { fontSize: 22, fontWeight: '700', color: '#102033' },
+  title: { fontSize: 22, fontWeight: '700' },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   card: { borderWidth: 1, borderRadius: 10, padding: 14, gap: 6 },

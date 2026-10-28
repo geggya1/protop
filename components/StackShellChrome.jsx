@@ -12,6 +12,7 @@ import DesktopRail from './DesktopRail';
 import ModuleHero from './ModuleHero';
 import { ModuleHeroHostProvider } from './ModulePageBg';
 import EdgeSwipeBack from './EdgeSwipeBack';
+import { railBackground } from '../src/navigation/navTree';
 
 /**
  * Toppfelt + meny for stack-skjermer utenfor AppShell (Skole m.m.).
@@ -22,7 +23,7 @@ import EdgeSwipeBack from './EdgeSwipeBack';
 export default function StackShellChrome({ title = 'Hjem', moduleId = null, children }) {
   const nav = useNavigation();
   const colors = useColors();
-  const { highChildFriendliness } = useThemeMeta();
+  const { highChildFriendliness, scheme } = useThemeMeta();
   const { isDesktop, isPhone, railWidth } = useLayout();
   const { requestShellTab } = useApp();
   const simpleChildUi = !!highChildFriendliness;
@@ -93,6 +94,7 @@ export default function StackShellChrome({ title = 'Hjem', moduleId = null, chil
               {
                 width: railCollapsed ? 52 : railWidth,
                 borderRightColor: colors.line,
+                backgroundColor: railBackground(colors, scheme),
               },
             ]}
             >

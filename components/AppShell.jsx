@@ -1180,7 +1180,7 @@ function AppShellInner() {
 
                 {!simpleChildUi && (
                   <TouchableOpacity
-                    style={[styles.railToolsBtn, { borderColor: colors.line }]}
+                    style={[styles.railToolsBtn, { borderColor: colors.line, backgroundColor: colors.sunken }]}
                     onPress={() => setDrawerOpen(true)}
                     accessibilityRole="button"
                     accessibilityLabel="Mer"
@@ -1427,7 +1427,7 @@ const styles = StyleSheet.create({
   railToolsBtn: {
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 12, borderRadius: 12, borderWidth: 1, backgroundColor: '#f8fafc',
+    paddingVertical: 12, borderRadius: 12, borderWidth: 1,
     marginTop: 8,
   },
   railToolsBtnDesktop: {

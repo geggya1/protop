@@ -216,11 +216,11 @@ const styles = StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 16 },
   iconWrap: {
-    width: 52, height: 52, borderRadius: 14, backgroundColor: '#eef6ff',
+    width: 52, height: 52, borderRadius: 14, backgroundColor: colors.brandSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   thumb: {
-    width: 52, height: 52, borderRadius: 14, backgroundColor: '#e2e8f0',
+    width: 52, height: 52, borderRadius: 14, backgroundColor: colors.sunken,
   },
   previewWrap: {
     marginBottom: 16, borderRadius: radius.md, overflow: 'hidden',
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   title: { fontWeight: '400', fontSize: 18, color: colors.ink },
   sub: { fontSize: 13, color: colors.muted, fontWeight: '400', marginTop: 4 },
   infoCard: {
-    backgroundColor: '#f8fafc', borderRadius: radius.md, paddingHorizontal: 14,
+    backgroundColor: colors.sunken, borderRadius: radius.md, paddingHorizontal: 14,
     marginBottom: 16, borderWidth: 1, borderColor: colors.line,
   },
   infoRow: {

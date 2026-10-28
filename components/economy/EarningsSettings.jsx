@@ -37,7 +37,7 @@ function FieldInput({ value, onCommit, colors, nativeID, label, editable = true 
       onBlur={() => onCommit(parsePlain(text))}
       accessibilityLabel={label}
       keyboardType="decimal-pad"
-      style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+      style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.starSoft }]}
     />
   );
 }
@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
   group: { fontSize: 16, fontWeight: '700' },
   line: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   grow: { flexGrow: 1, flexShrink: 1, minWidth: 160 },
-  input: { width: 120, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: '#fff4cc', textAlign: 'right' },
+  input: { width: 120, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, textAlign: 'right' },
   text: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },

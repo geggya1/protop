@@ -437,10 +437,10 @@ function ChatDockPanel({
 
       {sendError ? (
         <View style={styles.sendError} accessibilityRole="alert" accessibilityLiveRegion="polite">
-          <Ionicons name="alert-circle-outline" size={16} color="#b91c1c" />
+          <Ionicons name="alert-circle-outline" size={16} color={colors.dangerInk} />
           <Text style={styles.sendErrorTxt}>{sendError}</Text>
           <TouchableOpacity onPress={() => setSendError('')} accessibilityLabel="Lukk">
-            <Ionicons name="close" size={16} color="#64748b" />
+            <Ionicons name="close" size={16} color={colors.muted} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -1488,7 +1488,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   mine: { backgroundColor: colors.brand, borderBottomRightRadius: 4 },
-  theirs: { backgroundColor: '#eef1f4', borderBottomLeftRadius: 4 },
+  theirs: { backgroundColor: colors.sunken, borderBottomLeftRadius: 4 },
   deletedBubble: { opacity: 0.7 },
   who: { fontSize: 11, fontWeight: '400', color: colors.muted, marginBottom: 2 },
   body: { fontSize: 14, fontWeight: '500', color: colors.ink, lineHeight: 19 },
@@ -1503,13 +1503,13 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    backgroundColor: '#fef2f2',
+    backgroundColor: colors.dangerSoft,
     borderTopWidth: 1,
     borderTopColor: '#fecaca',
   },
   sendErrorTxt: {
     flex: 1,
-    color: '#991b1b',
+    color: colors.dangerInk,
     fontSize: 12,
     lineHeight: 16,
   },
@@ -1539,7 +1539,7 @@ const styles = StyleSheet.create({
     minHeight: 36,
     maxHeight: 80,
     borderRadius: 18,
-    backgroundColor: '#f0f2f5',
+    backgroundColor: colors.sunken,
     paddingHorizontal: 14,
     paddingVertical: 8,
     fontSize: 14,
@@ -1597,7 +1597,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.line,
     ...Platform.select({
       web: {
         pointerEvents: 'auto',
@@ -1629,7 +1629,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.line,
     overflow: 'hidden',
     ...Platform.select({
       web: {
@@ -1666,7 +1666,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: '#f4f6f8',
+    backgroundColor: colors.sunken,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.line,
   },

@@ -125,6 +125,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
-    backgroundColor: '#fafbfc',
+    backgroundColor: colors.sunken,
   },
 });

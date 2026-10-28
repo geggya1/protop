@@ -174,7 +174,7 @@ export default function TimeEntryModal({
             </View>
 
             {showMenu && !readOnly ? (
-              <View style={[styles.menu, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+              <View style={[styles.menu, { borderColor: colors.line, backgroundColor: colors.card }]}>
                 <MenuItem label="Vis internt notat" onPress={() => { setShowInternal(true); setShowMenu(false); }} colors={colors} />
                 <MenuItem label={showQuick ? 'Skjul hurtigvalg for timer' : 'Vis hurtigvalg for timer'} onPress={() => { setShowQuick((value) => !value); setShowMenu(false); }} colors={colors} />
                 <MenuItem label="Flytt til annen dag/prosjekt" icon="swap-horizontal" onPress={() => { setShowMove(true); setShowMenu(false); }} colors={colors} />
@@ -200,7 +200,7 @@ export default function TimeEntryModal({
                         editable={!frozen}
                         keyboardType="decimal-pad"
                         inputMode="decimal"
-                        style={[styles.hours, { color: colors.ink, borderColor: colors.line }]}
+                        style={[styles.hours, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
                       />
                       <TextInput
                         value={block.description}
@@ -210,13 +210,13 @@ export default function TimeEntryModal({
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
                         multiline
-                        style={[styles.area, { color: colors.ink, borderColor: colors.line, backgroundColor: '#f8f3df' }]}
+                        style={[styles.area, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.starSoft }]}
                       />
                     </View>
                     {showQuick && !readOnly ? (
                       <View style={styles.quickRow}>
                         {QUICK.map((item) => (
-                          <TouchableOpacity key={item} onPress={() => patchBlock(block.key, { hours: item })} style={[styles.quick, { borderColor: colors.line }]}>
+                          <TouchableOpacity key={item} onPress={() => patchBlock(block.key, { hours: item })} style={[styles.quick, { borderColor: colors.line, backgroundColor: colors.card }]}>
                             <Text style={{ color: colors.ink, fontSize: 12 }}>{item}</Text>
                           </TouchableOpacity>
                         ))}
@@ -242,7 +242,7 @@ export default function TimeEntryModal({
                           accessibilityLabel="Kom, klokkeslett"
                           placeholder="Kom 08:00"
                           placeholderTextColor={colors.placeholder}
-                          style={[styles.clock, { color: colors.ink, borderColor: colors.line }]}
+                          style={[styles.clock, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
                         />
                         <TextInput
                           value={block.clockOut}
@@ -250,7 +250,7 @@ export default function TimeEntryModal({
                           accessibilityLabel="Gå, klokkeslett"
                           placeholder="Gå 16:00"
                           placeholderTextColor={colors.placeholder}
-                          style={[styles.clock, { color: colors.ink, borderColor: colors.line }]}
+                          style={[styles.clock, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
                         />
                       </View>
                     ) : null}
@@ -260,7 +260,7 @@ export default function TimeEntryModal({
                       accessibilityRole="button"
                       accessibilityLabel={`Aktivitet: ${activityName}`}
                       accessibilityState={{ expanded: activityOpen === block.key, disabled: !!readOnly }}
-                      style={[styles.activity, { borderColor: colors.line }]}
+                      style={[styles.activity, { borderColor: colors.line, backgroundColor: colors.card }]}
                     >
                       <Text style={{ color: colors.ink, flex: 1 }}>{activityName}</Text>
                       <Ionicons name="chevron-down" size={16} color={colors.muted} />
@@ -340,7 +340,7 @@ export default function TimeEntryModal({
                 )) : null}
               </View>
             ) : null}
-            {locked ? <Text style={{ color: '#0f766e', marginTop: 6 }}>{lockedText || lockedLabel || 'Låst — klar for fakturering.'}</Text> : null}
+            {locked ? <Text style={{ color: colors.successInk, marginTop: 6 }}>{lockedText || lockedLabel || 'Låst — klar for fakturering.'}</Text> : null}
             {readOnly ? (
               <Text style={{ color: colors.muted, marginTop: 6 }} nativeID="time-entry-readonly">
                 Du har lesetilgang. Føringen kan ses, men ikke endres.
@@ -414,7 +414,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
     fontSize: 16,
-    backgroundColor: '#fff',
   },
   area: {
     flex: 1,
@@ -434,14 +433,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
   },
   activityList: { borderWidth: 1, borderRadius: 6, marginTop: 4 },
   activityItem: { paddingHorizontal: 10, paddingVertical: 8 },
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  quick: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: '#fff' },
+  quick: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5 },
   clockRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  clock: { flex: 1, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 8, backgroundColor: '#fff' },
+  clock: { flex: 1, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 8 },
   moveDate: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 8 },
   menu: {
     position: 'absolute',

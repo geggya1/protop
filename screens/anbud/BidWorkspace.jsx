@@ -719,7 +719,7 @@ export default function BidWorkspace({
               <Text style={{ color: colors.brand }}>{busy ? 'Henter …' : 'Hent publiserte svar på nytt'}</Text>
             </TouchableOpacity>
             {dossier.qa?.length ? dossier.qa.map((row) => (
-              <View key={row.id || `${row.question}-${row.answer}`} style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+              <View key={row.id || `${row.question}-${row.answer}`} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
                 {row.fresh || row.changed ? (
                   <Text style={{ color: colors.brand, fontWeight: '700' }}>{row.fresh ? 'Nytt' : 'Endret svar'}</Text>
                 ) : null}
@@ -736,7 +736,7 @@ export default function BidWorkspace({
             />
             <Text style={{ color: colors.ink, fontWeight: '600' }}>Egne spørsmål</Text>
             {(bid.questions || []).map((row) => (
-              <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+              <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
                 <Text style={{ color: colors.ink }}>{row.question}</Text>
                 <TypedInput
                   value={row.answer}
@@ -853,7 +853,7 @@ export default function BidWorkspace({
                     onPress={() => commit(togglePendingWorkItem(state, bid.id, row.id))}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: row.selected !== false }}
-                    style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}
+                    style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}
                   >
                     <Text style={{ color: colors.ink, fontWeight: '600' }}>
                       {row.selected === false ? '○' : '✓'} {row.title}
@@ -1086,7 +1086,7 @@ export default function BidWorkspace({
 
 function Section({ title, icon, colors, well, children }) {
   return (
-    <View style={[styles.section, well ? styles.well : styles.sectionCard, { borderColor: colors.line }]}>
+    <View style={[styles.section, { borderColor: colors.line, backgroundColor: well ? colors.card : colors.sunken }]}>
       <View style={styles.sectionHead}>
         {icon ? (
           <View style={[styles.sectionIcon, { backgroundColor: colors.brandSoft }]}>
@@ -1124,7 +1124,7 @@ function WorkItemCard({
   const [open, setOpen] = useState(false);
   const attachments = filesForCheck(bid.files, item.id);
   return (
-    <View style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff', gap: 8 }]}>
+    <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, gap: 8 }]}>
       <TouchableOpacity onPress={() => setOpen((value) => !value)} accessibilityRole="button">
         <Text style={{ color: colors.ink, fontWeight: '600' }}>{open ? '▾' : '▸'} {item.title}</Text>
         <Text style={{ color: colors.muted }}>{workItemKindLabel(item.kind)} · {workItemStatusLabel(item.status)}</Text>
@@ -1856,8 +1856,6 @@ const styles = StyleSheet.create({
   long: { minHeight: 120, textAlignVertical: 'top' },
   chip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   section: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 },
-  well: { backgroundColor: '#ffffff' },
-  sectionCard: { backgroundColor: '#f8fafc' },
   drop: {
     borderWidth: 1,
     borderStyle: Platform.OS === 'web' ? 'dashed' : 'solid',

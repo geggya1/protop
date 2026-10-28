@@ -292,7 +292,7 @@ export default function EconomyEarnings({
               editable={canEdit}
               keyboardType="decimal-pad"
               accessibilityLabel="Standard faktureringsgrad"
-              style={[styles.billableInput, { color: colors.ink, borderColor: colors.line }]}
+              style={[styles.billableInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.starSoft }]}
             />
             <Text style={{ color: colors.muted }}>%</Text>
           </View>
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   tab: { paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   toolbar: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   billable: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12 },
-  billableInput: { width: 72, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: '#fff4cc', textAlign: 'right' },
+  billableInput: { width: 72, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, textAlign: 'right' },
   grow: { flexGrow: 1, flexShrink: 1 },
   gap: { gap: 10 },
   search: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },

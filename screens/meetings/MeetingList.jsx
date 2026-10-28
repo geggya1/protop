@@ -163,15 +163,15 @@ function MeetingRow({ meeting, today, onOpen, compact, viewer }) {
       {!compact ? (
         <View style={styles.rowSide}>
           {stats.openActions ? (
-            <View style={[styles.counter, { backgroundColor: '#fef3c7' }]} accessibilityLabel={`${stats.openActions} åpne oppfølgingspunkter`}>
-              <Ionicons name="flag" size={12} color="#92400e" />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400e' }}>{stats.openActions}</Text>
+            <View style={[styles.counter, { backgroundColor: colors.starSoft }]} accessibilityLabel={`${stats.openActions} åpne oppfølgingspunkter`}>
+              <Ionicons name="flag" size={12} color={colors.warnInk} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.warnInk }}>{stats.openActions}</Text>
             </View>
           ) : null}
           {stats.decisions ? (
-            <View style={[styles.counter, { backgroundColor: '#dcfce7' }]} accessibilityLabel={`${stats.decisions} beslutninger`}>
-              <Ionicons name="checkmark-done" size={12} color="#166534" />
-              <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>{stats.decisions}</Text>
+            <View style={[styles.counter, { backgroundColor: colors.successSoft }]} accessibilityLabel={`${stats.decisions} beslutninger`}>
+              <Ionicons name="checkmark-done" size={12} color={colors.successInk} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.successInk }}>{stats.decisions}</Text>
             </View>
           ) : null}
           <AvatarStack people={people} max={3} />

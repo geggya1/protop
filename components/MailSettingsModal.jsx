@@ -178,9 +178,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
+    backgroundColor: colors.dangerSoft,
   },
-  errorTxt: { flex: 1, minWidth: 0, color: '#991b1b', fontSize: 13, lineHeight: 18 },
+  errorTxt: { flex: 1, minWidth: 0, color: colors.dangerInk, fontSize: 13, lineHeight: 18 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.42)',

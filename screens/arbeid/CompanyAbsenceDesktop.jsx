@@ -987,7 +987,7 @@ export function AbsenceReportDesktop({
               {canImport && selectedIds.size > 0 && onDeleteSelected ? (
                 <TouchableOpacity
                   onPress={() => onDeleteSelected([...selectedIds])}
-                  style={[reportStyles.ghostBtn, { borderColor: colors.danger || '#b42318' }]}
+                  style={[reportStyles.ghostBtn, { borderColor: colors.danger || '#b42318', backgroundColor: colors.card }]}
                   accessibilityRole="button"
                   accessibilityLabel={`Slett ${selectedIds.size} valgte fravær`}
                   nativeID="absence-report-delete-selected"
@@ -1011,7 +1011,7 @@ export function AbsenceReportDesktop({
                   reportStyles.ghostBtn,
                   {
                     borderColor: filterOpen || filtersActive ? colors.brand : colors.line,
-                    backgroundColor: filterOpen || filtersActive ? (colors.brandSoft || '#E8F1FF') : '#fff',
+                    backgroundColor: filterOpen || filtersActive ? (colors.brandSoft || '#E8F1FF') : colors.card,
                   },
                 ]}
               >
@@ -1037,7 +1037,7 @@ export function AbsenceReportDesktop({
                     reportStyles.iconBtn,
                     {
                       borderColor: settingsOpen ? colors.brand : colors.line,
-                      backgroundColor: settingsOpen ? (colors.brandSoft || '#E8F1FF') : '#fff',
+                      backgroundColor: settingsOpen ? (colors.brandSoft || '#E8F1FF') : colors.card,
                     },
                   ]}
                 >
@@ -1112,7 +1112,7 @@ export function AbsenceReportDesktop({
                     setSettingsOpen(false);
                     onClearImported();
                   }}
-                  style={[reportStyles.ghostBtn, { borderColor: colors.line }]}
+                  style={[reportStyles.ghostBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
                   accessibilityRole="button"
                   accessibilityLabel="Fjern importert fravær"
                   nativeID="fravaer-clear-imported"

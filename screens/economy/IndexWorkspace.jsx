@@ -1410,7 +1410,7 @@ function CalcTable({ math, colors }) {
 function LetterPreview({ letter, colors }) {
   const notice = letter.notice;
   return (
-    <View nativeID="index-letter-preview" style={[styles.letter, { borderColor: colors.line, backgroundColor: '#fff' }]}>
+    <View nativeID="index-letter-preview" style={[styles.letter, { borderColor: colors.line, backgroundColor: colors.card }]}>
       {notice.logo?.dataUrl ? (
         <Image
           source={{ uri: notice.logo.dataUrl }}

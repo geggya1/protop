@@ -88,7 +88,7 @@ export default function StandardAccountSettings({ familyId, colors, canEdit }) {
       />
       {canEdit ? (
         <View style={styles.actions}>
-          <TouchableOpacity onPress={reset} style={[styles.btn, { backgroundColor: '#fff', borderColor: colors.line, borderWidth: 1 }]}>
+          <TouchableOpacity onPress={reset} style={[styles.btn, { backgroundColor: colors.card, borderColor: colors.line, borderWidth: 1 }]}>
             <Text style={{ color: colors.ink }}>Avbryt</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={save} nativeID="save-standard-accounts" style={[styles.btn, { backgroundColor: colors.brand }]}>

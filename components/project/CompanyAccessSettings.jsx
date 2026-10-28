@@ -1372,7 +1372,7 @@ export default function CompanyAccessSettings({
         </View>
       )}
       {drag && typeof document !== 'undefined' ? createPortal(
-        <View style={[styles.dragGhost, { left: drag.x + 14, top: drag.y + 16, borderColor: colors.brand, pointerEvents: 'none' }]}>
+        <View style={[styles.dragGhost, { left: drag.x + 14, top: drag.y + 16, borderColor: colors.brand, backgroundColor: colors.card, pointerEvents: 'none' }]}>
           <Text style={[styles.personName, { color: colors.ink }]}>{drag.name}</Text>
           <Text style={[styles.kind, { color: colors.brand }]}>{dropHint(drag.drop)}</Text>
         </View>,
@@ -1518,7 +1518,7 @@ const styles = StyleSheet.create({
   dragHandle: { width: 36, minHeight: 44, alignItems: 'center', justifyContent: 'center', cursor: 'grab' },
   dropOverlay: { position: 'absolute', right: 56, top: 8, bottom: 8, width: 280, flexDirection: 'row', gap: 8 },
   dropChip: { flex: 1, borderWidth: 1, borderRadius: 12, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
-  dragGhost: { position: 'fixed', zIndex: 80, borderWidth: 1, borderRadius: 12, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 8, maxWidth: 240 },
+  dragGhost: { position: 'fixed', zIndex: 80, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, maxWidth: 240 },
   avatarBtn: { position: 'relative', width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   avatarClip: { width: 28, height: 28, borderRadius: 14, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   avatarImg: { width: 28, height: 28 },

@@ -581,7 +581,7 @@ export default function OutlookCalendar({
             accessibilityRole="button"
             accessibilityLabel={syncNotice.message}
           >
-            <Ionicons name="warning-outline" size={16} color="#92400e" />
+            <Ionicons name="warning-outline" size={16} color={colors.warnInk} />
             <Text style={styles.syncBannerTxt}>{syncNotice.message}</Text>
             <Text style={styles.syncBannerLink}>{syncNotice.reconnect ? 'Koble til' : 'Åpne'}</Text>
           </TouchableOpacity>
@@ -831,14 +831,14 @@ const styles = StyleSheet.create({
     gap: 8,
     marginHorizontal: 10,
     marginTop: 8,
-    backgroundColor: '#fff7ed',
+    backgroundColor: colors.starSoft,
     borderWidth: 1,
     borderColor: '#fdba74',
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
-  syncBannerTxt: { flex: 1, color: '#9a3412', fontWeight: '400', fontSize: 12, lineHeight: 16 },
-  syncBannerLink: { color: '#9a3412', fontWeight: '400', fontSize: 12 },
+  syncBannerTxt: { flex: 1, color: colors.warnInk, fontWeight: '400', fontSize: 12, lineHeight: 16 },
+  syncBannerLink: { color: colors.warnInk, fontWeight: '400', fontSize: 12 },
   iconBtn: {
     width: 28, height: 28, alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: colors.line,
@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
   gutterHead: { width: GUTTER },
   colHead: { flex: 1, minWidth: 0, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
   colHeadToday: { borderBottomWidth: 2, borderBottomColor: colors.brand },
-  colHeadOn: { backgroundColor: '#f8fafc' },
+  colHeadOn: { backgroundColor: colors.sunken },
   colDow: { fontSize: 13, fontWeight: '400', color: colors.ink, textTransform: 'lowercase' },
   colTodayTxt: { color: colors.brand, fontWeight: '400' },
   allDayRow: {
@@ -885,13 +885,13 @@ const styles = StyleSheet.create({
   },
   halfLine: {
     position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth,
-    backgroundColor: '#eef2f6', zIndex: 0,
+    backgroundColor: colors.line, zIndex: 0,
   },
   lane: {
     flex: 1, minWidth: 0, position: 'relative', zIndex: 1,
     borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.line,
   },
-  laneToday: { backgroundColor: '#f8fbff' },
+  laneToday: { backgroundColor: colors.sunken },
   slot: { position: 'absolute', left: 0, right: 0, zIndex: 2 },
   slotPlus: {
     position: 'absolute', top: 2, right: 2, width: 16, height: 16,
@@ -935,7 +935,7 @@ const styles = StyleSheet.create({
     width: `${100 / 7}%`, minHeight: 96, padding: 4,
     borderRightWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.line,
   },
-  monthCellToday: { backgroundColor: '#f8fbff' },
+  monthCellToday: { backgroundColor: colors.sunken },
   monthCellTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   monthNumBtn: {
     alignSelf: 'flex-start', minWidth: 22, height: 22, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },

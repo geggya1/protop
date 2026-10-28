@@ -63,6 +63,7 @@ function HeaderIconButton({
   compact = false, style, onPress, accessibilityLabel, children,
 }) {
   const { isTouch } = useLayout();
+  const colors = useColors();
   const size = compact ? 32 : 36;
   const hit = touchHit(size, size, { touch: isTouch, os: Platform.OS });
   return (
@@ -73,7 +74,7 @@ function HeaderIconButton({
       hitSlop={hit.hitSlop}
       style={[compact ? styles.iconHitCompact : styles.iconHit, hit.style]}
     >
-      <View style={[styles.iconBtn, compact && styles.iconBtnCompact, style]}>{children}</View>
+      <View style={[styles.iconBtn, { backgroundColor: colors.card }, compact && styles.iconBtnCompact, style]}>{children}</View>
     </TouchableOpacity>
   );
 }
@@ -415,7 +416,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    backgroundColor: '#fff',
     width: '100%',
     minHeight: 52,
     overflow: 'visible',
@@ -443,7 +443,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    backgroundColor: '#fff',
     minHeight: 48,
     overflow: 'visible',
   },
@@ -526,7 +525,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#fff', borderWidth: 1,
+    borderWidth: 1,
   },
   iconBtnCompact: {
     width: 32, height: 32, borderRadius: 6,

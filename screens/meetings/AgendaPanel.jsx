@@ -90,8 +90,8 @@ function OutlineItem({ row, active, current, onPress, start, live }) {
         {current ? <View style={[styles.nowDot]} /> : null}
         {item.carried ? <Ionicons name="return-down-forward" size={13} color="#b45309" accessibilityLabel="Videreført" /> : null}
         {hasNotes ? <Ionicons name="document-text" size={13} color={colors.brand} accessibilityLabel="Har notater" /> : null}
-        {item.decisions.length ? <Text style={[styles.mark, { color: '#166534', backgroundColor: '#dcfce7' }]}>{item.decisions.length}</Text> : null}
-        {open ? <Text style={[styles.mark, { color: '#92400e', backgroundColor: '#fef3c7' }]}>{open}</Text> : null}
+        {item.decisions.length ? <Text style={[styles.mark, { color: colors.successInk, backgroundColor: colors.successSoft }]}>{item.decisions.length}</Text> : null}
+        {open ? <Text style={[styles.mark, { color: colors.warnInk, backgroundColor: colors.starSoft }]}>{open}</Text> : null}
         {!live && start ? <Text style={[styles.oTime, { color: colors.muted }]}>{start.replace(':', '.')}</Text> : null}
       </View>
     </Pressable>
@@ -350,10 +350,10 @@ function ActionRow({ action, participants, readOnly, onPatch, onRemove, today })
 function TidySuggestion({ result, onApply, onDismiss }) {
   const colors = useColors();
   return (
-    <View style={[styles.tidy, { borderColor: '#ddd6fe' }]} nativeID="ai-tidy-result">
+    <View style={[styles.tidy, { borderColor: '#ddd6fe', backgroundColor: colors.sunken }]} nativeID="ai-tidy-result">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Ionicons name="sparkles" size={16} color="#7c3aed" />
-        <Text style={{ fontWeight: '700', color: '#5b21b6', flex: 1 }}>{result.engine === 'lokal' ? 'Ryddet lokalt' : 'Forslag fra AI'}</Text>
+        <Text style={{ fontWeight: '700', color: colors.accent, flex: 1 }}>{result.engine === 'lokal' ? 'Ryddet lokalt' : 'Forslag fra AI'}</Text>
       </View>
       {result.note ? <Text style={{ fontSize: 12.5, color: colors.muted }}>{result.note}</Text> : null}
       {result.notes ? <Text style={{ fontSize: 14, color: colors.ink, lineHeight: 21 }}>{result.notes}</Text> : null}
@@ -526,7 +526,7 @@ function ItemEditor({
             <Text style={{ color: colors.muted, fontSize: 12 }}>{item.decisions.length || ''}</Text>
           </View>
           {item.decisions.map((d) => (
-            <View key={d.id} style={styles.decision}>
+            <View key={d.id} style={[styles.decision, { backgroundColor: colors.successSoft }]}>
               {readOnly ? (
                 <Text style={{ flex: 1, fontSize: 14, color: colors.ink }}>{d.text}</Text>
               ) : (
@@ -912,7 +912,7 @@ const styles = StyleSheet.create({
   minutesBox: { borderWidth: 1.5, borderRadius: 14, padding: 14, gap: 14 },
   subHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   subTitle: { fontSize: 13.5, fontWeight: '700' },
-  decision: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#f0fdf4', borderLeftWidth: 3, borderLeftColor: '#16a34a', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  decision: { flexDirection: 'row', alignItems: 'center', gap: 8, borderLeftWidth: 3, borderLeftColor: '#16a34a', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   inlineText: { fontSize: 14, paddingVertical: 4, outlineStyle: 'none', minHeight: 26 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderStyle: 'dashed', borderRadius: 10, paddingHorizontal: 10, minHeight: 40 },
   addInput: { flex: 1, fontSize: 14, paddingVertical: 8, outlineStyle: 'none' },
@@ -920,7 +920,7 @@ const styles = StyleSheet.create({
   actionMeta: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   actionSide: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   dateBox: { borderWidth: 1, borderRadius: 8, minHeight: 34, paddingHorizontal: 8 },
-  tidy: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8, backgroundColor: '#faf8ff' },
+  tidy: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },
   tidyRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   chItem: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
   nextBox: { borderWidth: 1, borderRadius: 12, padding: 12, gap: 8 },

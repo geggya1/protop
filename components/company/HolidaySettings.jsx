@@ -155,16 +155,16 @@ export default function HolidaySettings({ familyId, colors, canEdit }) {
         </View>
       ) : null}
       <View style={[styles.table, { borderColor: colors.line }]}>
-        <View style={[styles.header, { backgroundColor: '#e7e4fb' }]}>
+        <View style={[styles.header, { backgroundColor: colors.sunken }]}>
           <Text style={[styles.headerText, { color: colors.ink }]}>Fridag</Text>
         </View>
         {rows.map((row, index) => (
-          <View key={row.id} style={[styles.row, { backgroundColor: index % 2 ? '#f3f4f6' : '#fff' }]}>
+          <View key={row.id} style={[styles.row, { backgroundColor: index % 2 ? colors.sunken : colors.card }]}>
             <View style={styles.name}>
               <Text style={{ color: colors.ink }}>{row.name}</Text>
               {row.source === 'system' ? (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Systemgenerert</Text>
+                <View style={[styles.badge, { borderColor: colors.line }]}>
+                  <Text style={[styles.badgeText, { color: colors.muted }]}>Systemgenerert</Text>
                 </View>
               ) : null}
             </View>
@@ -212,6 +212,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   name: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   badge: { borderWidth: 1, borderColor: '#d0d5dd', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
-  badgeText: { color: '#475467', fontSize: 12 },
+  badgeText: { fontSize: 12 },
   empty: { padding: 16 },
 });

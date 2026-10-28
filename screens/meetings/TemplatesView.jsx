@@ -199,7 +199,7 @@ function TemplateEditor({ visible, template, onClose, onSave, store, companyId, 
             </View>
           ) : null}
           {mode === 'ai' ? (
-            <View style={[styles.panel, { borderColor: '#ddd6fe', backgroundColor: '#faf8ff', gap: 8 }]}>
+            <View style={[styles.panel, { borderColor: '#ddd6fe', backgroundColor: colors.sunken, gap: 8 }]}>
               <Field value={aiText} onChange={setAiText} multiline minHeight={70} placeholder="Beskriv møtet malen er for" />
               <Btn small label="Lag forslag" icon="sparkles" tone="ai" busy={busy} onPress={fromAi} style={{ alignSelf: 'flex-start' }} />
             </View>

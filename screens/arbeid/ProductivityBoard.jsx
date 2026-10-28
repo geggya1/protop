@@ -859,16 +859,16 @@ export default function ProductivityBoard({
                     <View style={[styles.labelHead, { borderColor: colors.line }]}>
                       <Text style={[styles.sectionLabel, { color: colors.muted }]}>Prosjekt</Text>
                     </View>
-                    <View style={[styles.labelSum, { borderColor: colors.line, backgroundColor: '#fff1f2' }]}>
+                    <View style={[styles.labelSum, { borderColor: colors.line, backgroundColor: colors.dangerSoft }]}>
                       <Text numberOfLines={2} style={[styles.sumLabel, { color: colors.ink }]}>Ledig kapasitet</Text>
                     </View>
                     <View style={[styles.labelSum, { borderColor: colors.line, backgroundColor: colors.bg }]}>
                       <Text numberOfLines={2} style={[styles.sumLabel, { color: colors.ink }]}>Sum timer</Text>
                     </View>
                     {hasAbsence ? (
-                      <View style={[styles.labelCell, { borderColor: colors.line, backgroundColor: '#fff7ed' }]}>
-                        <Text numberOfLines={1} style={[styles.rowName, { color: '#9a3412' }]}>Fravær</Text>
-                        <Text numberOfLines={1} style={[styles.rowMeta, { color: '#c2410c' }]}>Registrert</Text>
+                      <View style={[styles.labelCell, { borderColor: colors.line, backgroundColor: colors.starSoft }]}>
+                        <Text numberOfLines={1} style={[styles.rowName, { color: colors.warnInk }]}>Fravær</Text>
+                        <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.warnInk }]}>Registrert</Text>
                       </View>
                     ) : null}
                     {rows.map((row) => (
@@ -912,7 +912,7 @@ export default function ProductivityBoard({
                         })}
                       </View>
                       <View
-                        style={[styles.sumRow, { backgroundColor: '#fff1f2' }]}
+                        style={[styles.sumRow, { backgroundColor: colors.dangerSoft }]}
                         nativeID={`produktivitet-ledig-pct-${person.id}`}
                       >
                         {weeks.map((key) => {
@@ -1038,7 +1038,7 @@ export default function ProductivityBoard({
                                       },
                                     ]}
                                   />
-                                  <Text numberOfLines={1} style={styles.actualPct}>
+                                  <Text numberOfLines={1} style={[styles.actualPct, { color: colors.brandInk }]}>
                                     {formatPercent(pct)}
                                   </Text>
                                 </View>
@@ -1078,7 +1078,7 @@ export default function ProductivityBoard({
                                     },
                                   ]}
                                 >
-                                  <Text numberOfLines={1} style={styles.barPct}>{formatPercent(pct)}</Text>
+                                  <Text numberOfLines={1} style={[styles.barPct, { color: colors.brandInk }]}>{formatPercent(pct)}</Text>
                                   <View
                                     style={styles.resize}
                                     onTouchStart={(event) => event?.stopPropagation?.()}

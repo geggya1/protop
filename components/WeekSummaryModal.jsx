@@ -139,7 +139,7 @@ export default function WeekSummaryModal({
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={styles.card} onStartShouldSetResponder={() => true}>
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Lukk">
-            <Ionicons name="close" size={20} color="#334155" />
+            <Ionicons name="close" size={20} color={colors.ink} />
           </TouchableOpacity>
 
           <ScrollView
@@ -175,7 +175,7 @@ export default function WeekSummaryModal({
 
               {remaining > 0 && pct < 100 ? (
                 <View style={styles.remainChip}>
-                  <Ionicons name="sparkles" size={14} color="#b45309" />
+                  <Ionicons name="sparkles" size={14} color={colors.warnInk} />
                   <Text style={styles.remainTxt}>
                     {remaining} {unit} igjen å hente
                   </Text>
@@ -184,7 +184,7 @@ export default function WeekSummaryModal({
 
               {pct >= 100 ? (
                 <View style={[styles.remainChip, styles.doneChip]}>
-                  <Ionicons name="checkmark-circle" size={16} color="#047857" />
+                  <Ionicons name="checkmark-circle" size={16} color={colors.successInk} />
                   <Text style={[styles.remainTxt, styles.doneTxt]}>Alt hentet denne uka</Text>
                 </View>
               ) : null}
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
     padding: 6,
     borderRadius: 12,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.sunken,
   },
   scroll: { padding: 18, paddingTop: 20, paddingBottom: 22 },
 
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   hero: {
     marginTop: 8,
     alignItems: 'center',
-    backgroundColor: '#f0f9ff',
+    backgroundColor: colors.brandSoft,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 14,
     fontWeight: '400',
-    color: '#475569',
+    color: colors.muted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -388,7 +388,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
     height: 14,
     width: '100%',
-    backgroundColor: '#e2e8f0',
+    backgroundColor: colors.line,
     borderRadius: 999,
     overflow: 'hidden',
   },
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     fontWeight: '400',
-    color: '#0f172a',
+    color: colors.ink,
   },
 
   remainChip: {
@@ -409,16 +409,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginTop: 12,
-    backgroundColor: '#fffbeb',
+    backgroundColor: colors.starSoft,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderWidth: 1,
     borderColor: '#fde68a',
   },
-  remainTxt: { fontWeight: '400', fontSize: 13, color: '#92400e' },
-  doneChip: { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' },
-  doneTxt: { color: '#047857' },
+  remainTxt: { fontWeight: '400', fontSize: 13, color: colors.warnInk },
+  doneChip: { backgroundColor: colors.successSoft, borderColor: '#a7f3d0' },
+  doneTxt: { color: colors.successInk },
 
   expandBlock: {
     marginTop: 12,
@@ -434,14 +434,14 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.sunken,
   },
   expandTitle: { flex: 1, fontWeight: '400', fontSize: 14, color: colors.ink },
   expandBadge: {
     fontWeight: '400',
     fontSize: 12,
     color: colors.brand,
-    backgroundColor: '#eef6ff',
+    backgroundColor: colors.brandSoft,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
   },
   dayRowToday: { borderLeftWidth: 3, borderLeftColor: colors.brand, paddingLeft: 8 },
-  dayRowActive: { backgroundColor: '#f8fafc', borderRadius: 8, paddingHorizontal: 6 },
+  dayRowActive: { backgroundColor: colors.sunken, borderRadius: 8, paddingHorizontal: 6 },
   dayTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -462,18 +462,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dayName: { flex: 1, fontWeight: '400', color: colors.ink, fontSize: 13 },
-  dayNameActive: { color: '#0b3d91' },
+  dayNameActive: { color: colors.brandInk },
   dayScore: {
     fontWeight: '400',
     fontSize: 12,
     color: colors.muted,
     fontVariant: ['tabular-nums'],
   },
-  dayScoreDone: { color: '#047857' },
+  dayScoreDone: { color: colors.successInk },
   miniTrack: {
     marginTop: 6,
     height: 6,
-    backgroundColor: '#e7effe',
+    backgroundColor: colors.brandSoft,
     borderRadius: 999,
     overflow: 'hidden',
   },

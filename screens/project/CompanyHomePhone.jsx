@@ -148,14 +148,14 @@ export default function CompanyHomePhone() {
         {COMPANY_HOME_SHORTCUTS.map((item) => (
           <TouchableOpacity
             key={item.id}
-            style={styles.shortcut}
+            style={[styles.shortcut, { backgroundColor: colors.card }]}
             onPress={() => openShortcut(item)}
             accessibilityRole="button"
             accessibilityLabel={item.label}
             testID={`company-shortcut-${item.id}`}
           >
             <Ionicons name={item.icon} size={26} color={colors.brand} />
-            <Text style={styles.shortcutLabel} numberOfLines={2}>{item.label}</Text>
+            <Text style={[styles.shortcutLabel, { color: colors.ink }]} numberOfLines={2}>{item.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -165,15 +165,16 @@ export default function CompanyHomePhone() {
         style={[
           styles.sheet,
           {
+            backgroundColor: colors.bg,
             paddingBottom: contentPaddingBottom,
             minHeight: Math.max(160, frameHeight - topHeight),
           },
         ]}
         testID="company-home-sheet"
       >
-        <View style={styles.taskCard} testID="company-home-tasks">
+        <View style={[styles.taskCard, { backgroundColor: colors.card }]} testID="company-home-tasks">
           <View style={styles.taskHead}>
-            <Text style={styles.taskTitle}>Mine gjøremål</Text>
+            <Text style={[styles.taskTitle, { color: colors.ink }]}>Mine gjøremål</Text>
             <TouchableOpacity
               onPress={() => requestShellTab?.('stars')}
               accessibilityRole="button"
@@ -185,14 +186,14 @@ export default function CompanyHomePhone() {
           {tasks.length ? tasks.map((row) => (
             <TouchableOpacity
               key={row.id}
-              style={styles.taskRow}
+              style={[styles.taskRow, { borderTopColor: colors.line }]}
               onPress={() => toggleTask(row)}
               accessibilityRole="checkbox"
               accessibilityState={{ checked: false }}
               accessibilityLabel={row.title}
             >
               <Ionicons name="ellipse-outline" size={22} color="#C5CDD8" />
-              <Text style={styles.taskLabel} numberOfLines={2}>{row.title}</Text>
+              <Text style={[styles.taskLabel, { color: colors.ink }]} numberOfLines={2}>{row.title}</Text>
               {row.badge > 0 ? (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{row.badge}</Text>
@@ -200,7 +201,7 @@ export default function CompanyHomePhone() {
               ) : null}
             </TouchableOpacity>
           )) : (
-            <Text style={styles.empty}>Ingen gjøremål akkurat nå.</Text>
+            <Text style={[styles.empty, { color: colors.muted }]}>Ingen gjøremål akkurat nå.</Text>
           )}
         </View>
       </View>

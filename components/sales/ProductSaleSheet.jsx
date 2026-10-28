@@ -431,9 +431,9 @@ export default function ProductSaleSheet({
           </View>
           <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 32 }}>
             {locked ? (
-              <View style={[ui.notice, { borderColor: '#86efac', backgroundColor: '#f0fdf4', flexDirection: 'row', alignItems: 'flex-start' }]} nativeID="produktsalg-detalj-laast">
-                <Ionicons name="lock-closed" size={16} color="#166534" style={{ marginTop: 2 }} />
-                <Text style={{ color: '#14532d', fontSize: 13, flex: 1, lineHeight: 19 }}>
+              <View style={[ui.notice, { borderColor: '#86efac', backgroundColor: colors.successSoft, flexDirection: 'row', alignItems: 'flex-start' }]} nativeID="produktsalg-detalj-laast">
+                <Ionicons name="lock-closed" size={16} color={colors.successInk} style={{ marginTop: 2 }} />
+                <Text style={{ color: colors.successInk, fontSize: 13, flex: 1, lineHeight: 19 }}>
                   Salget er fakturert og låst. Det kan ikke endres eller slettes her. Feil rettes med kreditnota i Økonomi.
                 </Text>
               </View>

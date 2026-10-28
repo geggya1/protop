@@ -387,7 +387,7 @@ export function GroupSettingsScreen({ inShell = false }) {
               disabled={busyAction}
               accessibilityRole="button"
             >
-              <View style={[gs.actionIcon, isDesktop && gs.actionIconDesk, { backgroundColor: '#e4f5ea' }]}>
+              <View style={[gs.actionIcon, isDesktop && gs.actionIconDesk, { backgroundColor: colors.successSoft }]}>
                 <Ionicons name="refresh-outline" size={16} color={colors.success} />
               </View>
               <Text style={[gs.actionTxt, { color: colors.success }]}>{life.reactivate}</Text>
@@ -398,7 +398,7 @@ export function GroupSettingsScreen({ inShell = false }) {
               onPress={() => setConfirmKind('deactivate')}
               accessibilityRole="button"
             >
-              <View style={[gs.actionIcon, isDesktop && gs.actionIconDesk, { backgroundColor: '#fff7ed' }]}>
+              <View style={[gs.actionIcon, isDesktop && gs.actionIconDesk, { backgroundColor: colors.starSoft }]}>
                 <Ionicons name="pause-circle-outline" size={16} color={colors.warn} />
               </View>
               <Text style={[gs.actionTxt, { color: colors.warn }]}>{life.deactivate}</Text>
@@ -411,7 +411,7 @@ export function GroupSettingsScreen({ inShell = false }) {
               onPress={() => setConfirmKind('delete')}
               accessibilityRole="button"
             >
-              <View style={[gs.actionIcon, isDesktop && gs.actionIconDesk, { backgroundColor: '#fef2f2' }]}>
+              <View style={[gs.actionIcon, isDesktop && gs.actionIconDesk, { backgroundColor: colors.dangerSoft }]}>
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
               </View>
               <Text style={[gs.actionTxt, { color: colors.danger }]}>{life.delete}</Text>
@@ -929,7 +929,7 @@ export function MemberSettingsScreen() {
 
         <Text style={[ms.section, { marginTop: 16 }]}>Administrasjon</Text>
         <TouchableOpacity style={ms.actionRow} onPress={toggleActive}>
-          <View style={[ms.actionIcon, { backgroundColor: '#fff7ed' }]}>
+          <View style={[ms.actionIcon, { backgroundColor: colors.starSoft }]}>
             <Ionicons
               name={pendingInvite ? 'mail-outline' : (inactive ? 'play-circle-outline' : 'pause-circle-outline')}
               size={18}
@@ -945,7 +945,7 @@ export function MemberSettingsScreen() {
 
         {!isOwner ? (
           <TouchableOpacity style={ms.actionRow} onPress={deleteMember}>
-            <View style={[ms.actionIcon, { backgroundColor: '#fef2f2' }]}>
+            <View style={[ms.actionIcon, { backgroundColor: colors.dangerSoft }]}>
               <Ionicons name="trash-outline" size={18} color={colors.danger} />
             </View>
             <Text style={[ms.actionTxt, { color: colors.danger }]}>{t('common.delete')}</Text>
@@ -1100,7 +1100,7 @@ const styles = StyleSheet.create({
   sub: { color: colors.brand, fontWeight: '400' },
   lbl: { fontWeight: '400', color: colors.ink, marginTop: 6 },
   deactBanner: {
-    backgroundColor: '#fef2f2', borderRadius: 14, padding: 14, marginBottom: 8,
+    backgroundColor: colors.dangerSoft, borderRadius: 14, padding: 14, marginBottom: 8,
     borderWidth: 1, borderColor: '#fecaca',
   },
   deactBannerTxt: {
@@ -1225,7 +1225,7 @@ const ms = StyleSheet.create({
   },
   saveBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 15 },
   deactBanner: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: colors.dangerSoft,
     borderRadius: 14,
     padding: 14,
     marginBottom: 4,
@@ -1331,7 +1331,7 @@ const gs = StyleSheet.create({
     paddingVertical: 7,
   },
   photoBtnDesk: { borderRadius: 6, paddingVertical: 6 },
-  photoBtnDanger: { borderColor: '#fecaca', backgroundColor: '#fef2f2' },
+  photoBtnDanger: { borderColor: '#fecaca', backgroundColor: colors.dangerSoft },
   photoBtnTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
   input: {
     backgroundColor: colors.bg,
@@ -1387,7 +1387,7 @@ const gs = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: colors.sunken,
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,

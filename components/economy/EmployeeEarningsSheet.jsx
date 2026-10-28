@@ -48,7 +48,7 @@ function AmountInput({ value, onCommit, colors, editable, nativeID, suffix = '' 
         onBlur={() => onCommit(parsePlain(text))}
         keyboardType="decimal-pad"
         accessibilityLabel={nativeID || 'Beløp'}
-        style={[styles.amountInput, { color: colors.ink, borderColor: colors.line }]}
+        style={[styles.amountInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.starSoft }]}
       />
       {suffix ? <Text style={{ color: colors.muted }}>{suffix.trim()}</Text> : null}
     </View>
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
   lineLabel: { flexGrow: 1, flexShrink: 1, minWidth: 160, gap: 2 },
   amountWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   amountText: { minWidth: 120, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  amountInput: { minWidth: 120, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: '#fff4cc', textAlign: 'right' },
+  amountInput: { minWidth: 120, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, textAlign: 'right' },
   sumRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingTop: 4 },
   field: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

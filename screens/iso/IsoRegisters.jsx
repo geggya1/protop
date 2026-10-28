@@ -20,6 +20,7 @@ import {
   projectQuality, qualityPlanDraft, sickLeaveSeries, stakeholderSuggestions, supplierSuggestions, wasteSummary,
 } from '../../src/iso/integrations';
 import { CHAPTERS, READY_STATUS, certificationReadiness } from '../../src/iso/readiness';
+import { climateDecided, climateRiskSuggestions, setClimateDecision } from '../../src/iso/climate';
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
 import { FormFillSheet } from './IsoForms';
 import IsoExcelImport from './IsoExcelImport';
@@ -525,6 +526,39 @@ function ContextView({ ctx, rows, onOpen }) {
   );
 }
 
+/** Klimaendringer på systemnivå (ISO-18, Amd 1:2024): relevant eller ikke, med begrunnelse og dato. */
+function ClimateCard({ ctx }) {
+  const colors = useColors();
+  const { state, caps, actor, store } = ctx;
+  const c = state.system?.climate || null;
+  const [v, setV] = useState({ relevant: c?.relevant ?? null, rationale: c?.rationale || '' });
+  const [err, setErr] = useState('');
+  const decided = climateDecided(state.system);
+  async function save() {
+    setErr('');
+    const res = setClimateDecision(state.system, v, { actor, caps });
+    if (!res.ok) { setErr(res.error); return; }
+    const saved = await store.commit('system', 'system', res, { previous: state.system });
+    if (!saved.ok) setErr(saved.error);
+  }
+  return (
+    <Card title="Klimaendringer (Amd 1:2024)" subtitle="Virksomheten skal avgjøre om klimaendringer er et relevant forhold for ledelsessystemet (4.1), og om interessenter har klimakrav (4.2).">
+      {decided
+        ? <Banner tone="ok" text={`${c.relevant ? 'Relevant' : 'Ikke relevant'} · vurdert ${prettyDate(c.assessedAt)}${c.by ? ` av ${c.by}` : ''}: ${c.rationale}`} />
+        : <Banner tone="warn" text="Ikke avgjort ennå. Revisor vil spørre etter vurderingen og begrunnelsen." />}
+      {caps.admin ? (
+        <>
+          <Choice options={[{ id: 'ja', label: 'Ja, relevant' }, { id: 'nei', label: 'Nei, ikke relevant' }]} value={v.relevant === true ? 'ja' : (v.relevant === false ? 'nei' : '')} onChange={(x) => setV({ ...v, relevant: x === 'ja' ? true : (x === 'nei' ? false : null) })} />
+          <Field label="Begrunnelse" required><TextIn multiline rows={2} value={v.rationale} onChangeText={(x) => setV({ ...v, rationale: x })} placeholder="F.eks. ekstremvær stopper arbeid ute, og kunder stiller klimakrav i anbud." /></Field>
+          <Btn kind="primary" icon="save-outline" label={decided ? 'Lagre ny vurdering' : 'Lagre vurdering'} onPress={save} />
+        </>
+      ) : (!decided ? <Text style={{ color: colors.muted, fontSize: 12 }}>Administrator i ISO avgjør dette.</Text> : null)}
+      {c?.relevant ? <Text style={{ color: colors.muted, fontSize: 12 }}>Klimarisikoer foreslås under Risiko. Klimakrav fra interessenter registreres på interessenten.</Text> : null}
+      {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
+    </Card>
+  );
+}
+
 export function ContextPage({ ctx }) {
   const { state, sources } = ctx;
   // Interessenter lagt til fra forslagene i denne økten, så de er lette å kjenne igjen i listen.
@@ -534,6 +568,7 @@ export function ContextPage({ ctx }) {
   }), [sources?.customers, sources?.contracts, state]);
   return (
     <Page wide={ctx.wide} title="Kontekst og interessenter" intro="Interne og eksterne forhold og interessenter som påvirker ledelsessystemet. Endringer kan utløse ny risikovurdering.">
+      <ClimateCard ctx={ctx} />
       <SimpleRegister
         ctx={ctx}
         registerKey="kontekst"
@@ -569,6 +604,7 @@ export function RiskPage({ ctx }) {
   const ids = params?.ids || null;
   const risks = reg.rows.filter((r) => r.state !== 'arkivert' && (!ids || ids.includes(r.id)) && (!kind || r.kind === kind));
   const cells = riskMatrix(reg.rows.filter((r) => r.kind !== 'Mulighet'), which);
+  const climateRisks = useMemo(() => climateRiskSuggestions(state), [state]);
   return (
     <Page wide={wide} title="Risiko og muligheter" intro="Strategiske, kvalitets-, miljø-, arbeidsmiljø-, prosjekt- og leverandørrisikoer. Iboende og rest-risiko vurderes hver for seg etter dokumentert metode." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny vurdering" onPress={() => reg.setCreating(true)} /> : null}>
       {ids ? <Banner tone="info" text={`Viser utvalg: ${params?.label || ''}`} /> : null}
@@ -596,6 +632,9 @@ export function RiskPage({ ctx }) {
         </Card>
       </View>
       <RiskCriteria method={state.system.riskMethod} />
+      {climateRisks.length && caps.manage ? (
+        <Suggestions ctx={ctx} registerKey="risiko" rows={climateRisks} title="Foreslåtte klimarisikoer" subtitle="Klimaendringer er vurdert som relevant (Kontekst). Vurder sannsynlighet, konsekvens og eier før de lagres." describe={(r) => r.kind} />
+      ) : null}
       <RecordSheet ctx={ctx} registerKey="risiko" visible={reg.creating} onClose={() => { reg.setCreating(false); if (params?.create) go('risiko', {}); }} preset={{ kind: 'Risiko' }} />
       {reg.open ? <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')} /> : null}
     </Page>

@@ -21,7 +21,7 @@ export function editionChanges(prev, cur, actor = null, now = new Date()) {
 /** Feltene skjemaet lagrer. */
 export const SETTINGS_FIELDS = [
   'name', 'standards', 'scopeText', 'units', 'locations', 'activities', 'exclusions', 'ownerName', 'ownerUid',
-  'roleMap', 'riskMethod', 'autoQualityPlan', 'docStructure', 'profile', 'editions', 'climate',
+  'roleMap', 'riskMethod', 'autoQualityPlan', 'docStructure', 'profile', 'editions',
 ];
 
 /** Systemansvarlig i rollelisten settes alltid fra ownerName/ownerUid ved lagring, så den teller ikke selv. */
@@ -52,7 +52,6 @@ export function settingsKey(x) {
     docStructure: normalizeDocStructure(x?.docStructure || []),
     profile: x?.profile || null,
     editions: x?.editions || {},
-    climate: x?.climate || null,
   });
 }
 

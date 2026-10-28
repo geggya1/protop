@@ -73,6 +73,7 @@ export const REGISTERS = {
       { key: 'influence', label: 'Påvirkning på ledelsessystemet', type: 'select', options: opt(['Høy', 'Middels', 'Lav']) },
       { key: 'followUp', label: 'Hvordan følges forventningene opp', type: 'long' },
       { key: 'binding', label: 'Bindende forpliktelse', type: 'select', options: opt(['Ja', 'Nei']) },
+      { key: 'climate', label: 'Klimakrav og -forventninger (Amd 1:2024)', type: 'long' },
       { key: 'ownerName', label: 'Eier', type: 'person' },
       { key: 'nextReview', label: 'Neste vurdering', type: 'date' },
     ], states: ['aktiv', 'arkivert'],

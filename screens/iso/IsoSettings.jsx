@@ -237,6 +237,8 @@ export default function IsoSettings({ ctx }) {
       // Felt som også kan settes av importen: behold det som er lagret hvis skjemaet ikke har dem.
       docStructure: cur.docStructure !== undefined ? normalizeDocStructure(cur.docStructure) : (prev.docStructure || []),
       profile: cur.profile !== undefined ? cur.profile : (prev.profile || null),
+      // Klimavurderingen eies av Kontekst-siden; skjemaet her skal ikke skrive en eldre kopi tilbake.
+      climate: prev.climate || null,
       // Ny metodeversjon: forrige versjon legges i historikken, så eldre vurderinger beholder sine terskler.
       riskMethod: methodChanged && prev.setupAt ? {
         ...cur.riskMethod,

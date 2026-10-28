@@ -18,6 +18,9 @@ const MOCKS = {
     export const query = (col) => col;
     export const where = () => null;
     export async function updateDoc() {}
+    export async function getDoc() { return { exists: () => false, data: () => ({}) }; }
+    export async function getDocs() { return { docs: [] }; }
+    export function writeBatch() { return { update() {}, async commit() {} }; }
     export function onSnapshot(ref, next, fail) {
       state.listens.push(ref.path);
       setTimeout(() => {

@@ -643,6 +643,19 @@ service cloud.firestore {
         || resource.data.createdBy == request.auth.uid;
     }
 
+    // Bedriften har hendelser for «bare utvalgte» (privateEvents på gruppen, satt av appen når den
+    // første lages eller finnes, etter at eldre hendelser har fått audience). Før det har kalenderen
+    // ingen private hendelser, og hele samlingen kan listes som før, også av eldre apper (REV-11).
+    function companyPrivateEvents(familyId) {
+      return get(familyPath(familyId)).data.get('privateEvents', false) == true;
+    }
+
+    // Når kalenderen først har private hendelser, kan ingen (heller ikke eier) slå det av igjen.
+    function privateEventsKept() {
+      return resource.data.get('privateEvents', false) != true
+        || request.resource.data.get('privateEvents', false) == true;
+    }
+
     // Underlag på ansattposten med egne regler: bruksloggen (IP-adresser) skrives bare av serveren.
     function isProtectedSub(coll, sub) {
       return coll == 'employees' && sub == 'usage';
@@ -964,6 +977,7 @@ service cloud.firestore {
         && (isFamilyOwner(familyId)
             || unchanged('adminUids')
             || request.auth.uid in resource.data.get('adminUids', []))
+        && privateEventsKept()
         && (isFamilyAdmin(familyId) ? true : familyUpdateOk(familyId));
 
       match /{path=**}/shoppingLists/{listId} {
@@ -1019,11 +1033,12 @@ service cloud.firestore {
         allow delete: if isFamilyAdmin(familyId);
       }
 
-      // Kalenderen. I bedrifter må en liste filtrere på felles hendelser (audience == 'family'),
-      // egne (createdBy) eller der en er invitert (memberIds), som appen gjør.
+      // Kalenderen. I bedrifter med private hendelser må en liste filtrere på felles hendelser
+      // (audience == 'family'), egne (createdBy) eller der en er invitert (memberIds), som appen gjør.
       match /events/{eventId} {
         allow get: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
-        allow list: if isFamilyMemberLite(familyId) && (!isCompanyGroup(familyId) || eventListVisible());
+        allow list: if isFamilyMemberLite(familyId)
+          && (!isCompanyGroup(familyId) || !companyPrivateEvents(familyId) || eventListVisible());
         allow create: if isFamilyMember(familyId) || foundsFamily(familyId);
         allow update: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
         allow delete: if isFamilyMember(familyId)

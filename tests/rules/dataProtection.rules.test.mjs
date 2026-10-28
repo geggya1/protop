@@ -76,6 +76,8 @@ async function seed() {
     const members = ['own', 'adm', 'hr', 'avd', 'bob', 'eve', 'okon', 'bill', 'kpf', 'noacl', 'gml'];
     await setDoc(doc(db, 'families', A), {
       name: 'Bygg AS', type: 'company', ownerUid: 'own', adminUids: ['own', 'adm'], members, activeUsers: members,
+      // Kalenderen har private hendelser (satt av appen, se regressions.rules.test.mjs for en bedrift uten).
+      privateEvents: true,
       company: { navn: 'Bygg AS', accessPolicy: { v: 1 }, privacy: { usageLog: true, ai: true } },
     });
     for (const uid of members) {

@@ -59,6 +59,9 @@ async function seed() {
     await setDoc(doc(db, 'families', A, 'projectExpenses', 'ex1'), { projectId: 'p1', employeeId: 'emp_bob', amountExVat: 100 });
     await setDoc(doc(db, 'families', A, 'absences', 'ab1'), { employeeId: 'emp_bob', date: '2026-10-20', hours: 7.5, status: 'registrert' });
     await setDoc(doc(db, 'families', A, 'absences', 'ab_eve'), { employeeId: 'emp_eve', date: '2026-10-20', hours: 7.5, status: 'registrert' });
+    // Kalender uten private hendelser ennå: en felles og en eldre uten audience (laget av bob).
+    await setDoc(doc(db, 'families', A, 'events', 'ev_all'), { title: 'Julebord', audience: 'family', memberIds: [], createdBy: 'own' });
+    await setDoc(doc(db, 'families', A, 'events', 'ev_old'), { title: 'Sommerfest', memberIds: [], createdBy: 'bob' });
 
     // Familie: mor er eier/admin, far er godtatt medforelder uten admin, kid er barnekonto.
     await setDoc(doc(db, 'families', F), {
@@ -204,5 +207,62 @@ describe('REV-03: medforelder uten admin legger til et barn', () => {
     const db = as('bob');
     await setDoc(doc(db, 'families', A, 'children', 'kidA'), { uid: 'kidA', familyId: A, name: 'Barn' });
     await assertFails(updateDoc(doc(db, 'families', A), { members: arrayUnion('kidA') }));
+  });
+});
+
+describe('REV-11: bedriftskalenderen og eldre hendelser', () => {
+  const visibleIds = async (uid) => {
+    const col = collection(as(uid), 'families', A, 'events');
+    const parts = await Promise.all([
+      getDocs(query(col, where('audience', '==', 'family'))),
+      getDocs(query(col, where('memberIds', 'array-contains', uid))),
+      getDocs(query(col, where('createdBy', '==', uid))),
+    ]);
+    return [...new Set(parts.flatMap((part) => part.docs.map((item) => item.id)))].sort();
+  };
+
+  // sealCompanyCalendar: eldre hendelser får audience, så merkes bedriften.
+  const seal = async (uid) => {
+    const db = as(uid);
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'families', A, 'events', 'ev_old'), { audience: 'family' });
+    await batch.commit();
+    await updateDoc(doc(db, 'families', A), { privateEvents: true });
+  };
+
+  test('uten private hendelser lister eldre apper hele kalenderen, med eldre hendelser', async () => {
+    const all = await assertSucceeds(getDocs(collection(as('eve'), 'families', A, 'events')));
+    assert.deepEqual(all.docs.map((item) => item.id).sort(), ['ev_all', 'ev_old']);
+    await assertSucceeds(getDocs(collection(as('noacl'), 'families', A, 'events')));
+    await assertFails(getDocs(collection(as('ext'), 'families', A, 'events')));
+  });
+
+  test('når bedriften merkes, ser kollegene fortsatt den eldre hendelsen', async () => {
+    await assertSucceeds(seal('eve'));
+    assert.deepEqual(await visibleIds('eve'), ['ev_all', 'ev_old']);
+    assert.deepEqual(await visibleIds('adm'), ['ev_all', 'ev_old']);
+  });
+
+  test('etter merkingen er private hendelser skjermet, også for eldre apper som lister alt', async () => {
+    await seal('bob');
+    await assertSucceeds(setDoc(doc(as('bob'), 'families', A, 'events', 'ev_priv'), {
+      title: 'Lønnssamtale', audience: 'selected', memberIds: ['bob'], createdBy: 'bob',
+    }));
+    await assertFails(getDocs(collection(as('eve'), 'families', A, 'events')));
+    assert.deepEqual(await visibleIds('eve'), ['ev_all', 'ev_old']);
+    assert.deepEqual(await visibleIds('bob'), ['ev_all', 'ev_old', 'ev_priv']);
+    await assertFails(getDoc(doc(as('eve'), 'families', A, 'events', 'ev_priv')));
+  });
+
+  test('merkingen kan ikke slås av, heller ikke av eier eller administrator', async () => {
+    await seal('bob');
+    await assertFails(updateDoc(doc(as('own'), 'families', A), { privateEvents: false }));
+    await assertFails(updateDoc(doc(as('adm'), 'families', A), { privateEvents: false }));
+    await assertFails(updateDoc(doc(as('eve'), 'families', A), { privateEvents: false }));
+    await assertSucceeds(updateDoc(doc(as('own'), 'families', A), { name: 'Bygg AS Nord' }));
+  });
+
+  test('i en familie gjelder ikke merkingen: hele kalenderen listes som før', async () => {
+    await assertSucceeds(getDocs(collection(as('far'), 'families', F, 'events')));
   });
 });

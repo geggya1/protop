@@ -194,6 +194,7 @@ export const FILES = [
   'src/project/concurrentSave.test.mjs',
   'src/project/saveRegressions.test.mjs',
   'src/utils/memberChanges.test.mjs',
+  'src/utils/calendarSeal.test.mjs',
   'src/project/useProjectStateEditor.test.mjs',
   'src/anbud/customerSave.test.mjs',
   // Felles lesing i skallet: én lytter per kilde, og nye navn slår gjennom i listene.

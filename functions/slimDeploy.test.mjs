@@ -72,7 +72,7 @@ for (const name of ['respondGroupInvite', 'syncMyInvites', 'invitePreview', 'fin
 // tilgang svarer de 404 eller 403, og ingen kan deaktiveres.
 const inviteIndex = readFileSync(join(root, 'functions/employeeInviteIndex.js'), 'utf8');
 const invitesLine = script.match(/^INVITES="([^"]+)"/m)?.[1] || '';
-for (const name of ['setEmploymentStatus', 'withdrawEmployeeInvite', 'leaveCompany']) {
+for (const name of ['setEmploymentStatus', 'withdrawEmployeeInvite', 'leaveCompany', 'claimCompanyOrgnr']) {
   assert.match(inviteIndex, new RegExp(`\\b${name}\\b`), `${name} mangler i employeeInviteIndex.js`);
   assert.ok(invitesLine.split(',').includes(`functions:${name}`), `${name} mangler i INVITES`);
 }

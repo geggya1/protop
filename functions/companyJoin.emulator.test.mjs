@@ -11,7 +11,7 @@ process.env.GCLOUD_PROJECT ||= 'demo-protop';
 process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
 
 const { getFirestore } = await import('firebase-admin/firestore');
-const { findCompanyByOrgnr, requestCompanyJoin } = await import('./companyJoin.js');
+const { claimCompanyOrgnr, findCompanyByOrgnr, requestCompanyJoin } = await import('./companyJoin.js');
 const { assertCanInvite } = await import('./security.js');
 
 const db = getFirestore();
@@ -109,5 +109,62 @@ test('de som får forespørselen kan også invitere; andre kan ikke', async () =
   await db.doc('families/F/parents/sjef').set({ uid: 'sjef', admin: false, active: true });
   await db.doc('families/F/employees/emp-sjef').set({ personUid: 'sjef', company: { accessLevel: 'leder', status: 'active' } });
   await assert.rejects(assertCanInvite(db, 'F', 'sjef'), (err) => err.code === 'permission-denied');
+});
+
+/* ───────── SEC-18 / FL-26: orgnummeret eies av én bedrift ───────── */
+
+test('ny bedrift med et orgnr som er i bruk, tar ikke over oppslaget', async () => {
+  // Første oppslag knytter orgnummeret til A.
+  assert.equal((await call(findCompanyByOrgnr, 'ny', { orgnr: '999888777' })).company.id, 'A');
+  assert.equal((await db.doc('orgnrIndex/999888777').get()).data().familyId, 'A');
+  // Angriperen lager en bedrift med samme orgnr og en forfalsket, gammel createdAt.
+  // Id-en sorterer før A, så «første treff» ville gitt angriperen.
+  await db.doc('families/0-kapring').set({
+    name: 'Falsk AS', type: 'organization', orgnr: '999888777', ownerUid: 'angriper', members: ['angriper'],
+    company: { navn: 'Falsk AS', organisasjonsnummer: '999888777' }, createdAt: new Date('2001-01-01'),
+  });
+  assert.deepEqual(await call(claimCompanyOrgnr, 'angriper', { familyId: '0-kapring' }), {
+    ok: true, claimed: false, orgnr: '999888777', taken: { id: 'A', name: 'Rådgiver AS' },
+  });
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal((await call(findCompanyByOrgnr, 'ny', { orgnr: '999888777' })).company.id, 'A');
+  }
+  assert.equal((await db.doc('orgnrIndex/999888777').get()).data().familyId, 'A');
+  // Slettes A, går oppslaget videre til den eldste levende bedriften.
+  await db.doc('families/A').set({ deleted: true }, { merge: true });
+  assert.equal((await call(findCompanyByOrgnr, 'ny', { orgnr: '999888777' })).company.id, '0-kapring');
+});
+
+test('uten indeks vinner den eldste bedriften etter Firestores opprettelsestid, ikke createdAt', async () => {
+  // A finnes fra beforeEach. Den nye bedriften later som den er eldst.
+  await db.doc('families/0-yngre').set({
+    name: 'Yngre AS', type: 'organization', orgnr: '999888777', ownerUid: 'x', members: ['x'],
+    createdAt: new Date('2001-01-01'),
+  });
+  assert.equal((await db.doc('orgnrIndex/999888777').get()).exists, false);
+  assert.equal((await call(findCompanyByOrgnr, 'ny', { orgnr: '999888777' })).company.id, 'A');
+  // Eldre bedrift som bare har orgnummeret i selskapsprofilen, blir også funnet.
+  await db.doc('families/profil').set({ name: 'Profil AS', company: { navn: 'Profil AS', organisasjonsnummer: '555444333' } });
+  assert.equal((await call(findCompanyByOrgnr, 'ny', { orgnr: '555444333' })).company.id, 'profil');
+});
+
+test('bare eier eller administrator i en bedrift kan knytte orgnummeret', async () => {
+  await db.doc('families/ny-bedrift').set({
+    name: 'Ny Bedrift AS', type: 'organization', orgnr: '123456785', ownerUid: 'eier', adminUids: ['eier'], members: ['eier', 'ans'],
+  });
+  assert.deepEqual(await call(claimCompanyOrgnr, 'ans', { familyId: 'ny-bedrift' }), { ok: false, error: 'forbidden' });
+  assert.deepEqual(await call(claimCompanyOrgnr, 'fremmed', { familyId: 'ny-bedrift' }), { ok: false, error: 'forbidden' });
+  assert.equal((await db.doc('orgnrIndex/123456785').get()).exists, false);
+  assert.deepEqual(await call(claimCompanyOrgnr, 'eier', { familyId: 'ny-bedrift' }), { ok: true, claimed: true, orgnr: '123456785' });
+  const index = (await db.doc('orgnrIndex/123456785').get()).data();
+  assert.equal(index.familyId, 'ny-bedrift');
+  assert.equal(index.source, 'claim');
+  assert.equal(index.claimedBy, 'eier');
+  // Familie, ukjent og bedrift uten orgnr.
+  await db.doc('families/fam').set({ type: 'family', ownerUid: 'eier', orgnr: '123456785' });
+  assert.deepEqual(await call(claimCompanyOrgnr, 'eier', { familyId: 'fam' }), { ok: false, error: 'not-company' });
+  assert.deepEqual(await call(claimCompanyOrgnr, 'eier', { familyId: 'finnes-ikke' }), { ok: false, error: 'not-found' });
+  await db.doc('families/uten').set({ type: 'organization', ownerUid: 'eier' });
+  assert.deepEqual(await call(claimCompanyOrgnr, 'eier', { familyId: 'uten' }), { ok: true, claimed: false, orgnr: '' });
 });
 

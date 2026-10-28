@@ -63,41 +63,6 @@ export const DARK = {
   accent: '#c4b5fd',
 };
 
-/** Hjem-flaten (soft) — lys krem i lyst, samme mørke flater i mørkt. */
-export const SOFT_LIGHT = {
-  bg: '#F5F2EC',
-  card: '#FFFFFF',
-  ink: '#12171E',
-  muted: '#2C3644',
-  quiet: '#455062',
-  line: '#E8E4DC',
-  mint: '#E8F3EC',
-  peach: '#F8EDE6',
-  lavender: '#EEF0F8',
-  sky: '#E8F0F6',
-  cream: '#FAF7F2',
-  family: '#F7F3EA',
-  sage: '#345743',
-  brandSoft: '#DCE8E0',
-};
-
-export const SOFT_DARK = {
-  bg: '#000000',
-  card: '#1c1c1e',
-  ink: '#f2f2f7',
-  muted: '#8e8e93',
-  quiet: '#636366',
-  line: '#38383a',
-  mint: '#1a3326',
-  peach: '#3a2a22',
-  lavender: '#242838',
-  sky: '#1a2833',
-  cream: '#1c1c1e',
-  family: '#161618',
-  sage: '#9dbea6',
-  brandSoft: '#24382c',
-};
-
 export function paletteFor(scheme) {
   return scheme === 'dark' ? DARK : LIGHT;
 }

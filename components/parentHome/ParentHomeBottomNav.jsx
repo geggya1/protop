@@ -6,7 +6,7 @@ import IconBadge from '../IconBadge';
 import { parentAppShortLabel } from '../../src/utils/parentHomeShortcuts';
 import { MAX_PARENT_BOTTOM_SHORTCUTS } from '../../src/parentDashboardThemes';
 import { useI18n } from '../../src/i18n';
-import { soft } from './softTheme';
+import { colors } from '../../src/theme';
 import { IMMERSIVE_GLASS_BG, immersiveGlassBarStyle } from '../../src/theme/immersiveGlass';
 import { isStandaloneWeb, tabBarBottomPad } from '../../src/shell/standaloneChrome';
 import { useVisualViewportFrame } from '../../src/shell/useVisualViewportFrame';
@@ -29,11 +29,11 @@ function builtinNav(t) {
 
 function navPalette(tokens) {
   return {
-    bg: tokens?.surface || soft.card,
-    line: tokens?.border || soft.line,
-    accent: tokens?.accent || soft.sage,
-    accentSoft: tokens?.accentSoft || soft.brandSoft,
-    muted: tokens?.textMuted || tokens?.textSecondary || soft.muted,
+    bg: tokens?.surface || colors.card,
+    line: tokens?.border || colors.line,
+    accent: tokens?.accent || colors.brandInk,
+    accentSoft: tokens?.accentSoft || 'transparent',
+    muted: tokens?.textMuted || tokens?.textSecondary || colors.muted,
   };
 }
 
@@ -180,10 +180,9 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontWeight: soft.wReg,
-    fontFamily: soft.body,
+    fontWeight: '400',
   },
   labelOn: {
-    fontWeight: soft.wMed,
+    fontWeight: '600',
   },
 });

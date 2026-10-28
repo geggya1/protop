@@ -1,6 +1,9 @@
 import { Platform } from 'react-native';
 
 /**
+ * Familieproduktets soft-palett (barnas Hjem og familiewidgetene). ProTop bruker den
+ * ikke: Hjem, docken og hjelpen bruker ProTop-tokens (UX-05, src/appearance/homeSurface.test.mjs).
+ *
  * Soft dashboard look — matches design mockups.
  * Hierarchy via size. Titles are 500, body stays 400. Never bold.
  * Inter reads lighter than Nunito at the same numeric weight.

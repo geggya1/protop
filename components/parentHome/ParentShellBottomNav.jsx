@@ -6,8 +6,7 @@ import HelpTarget from '../HelpTarget';
 import { useApp } from '../../src/context/AppContext';
 import { useUnread } from '../../src/context/NotificationContext';
 import { useChatDock, useChatDockPreferred } from '../../src/context/ChatDockContext';
-import { useLayout } from '../../src/theme';
-import { LIGHT } from '../../src/appearance/palette';
+import { colors, useLayout } from '../../src/theme';
 import { useI18n } from '../../src/i18n';
 import { useParentDashboardTheme } from '../../src/hooks/useParentDashboardTheme';
 import { useHomeLayout } from '../../src/hooks/useHomeLayout';
@@ -27,6 +26,18 @@ import { isOrganizationType } from '../../src/utils/groupTypes';
 import { COMPANY_BOTTOM_NAV } from '../../src/companyHome/model';
 import { privateDockPreset } from '../../src/navigation/protopShell';
 import { isLiveOrganization } from '../../src/project/companyOffer';
+
+/**
+ * Docken har ProTop-farger i lyst og mørkt (UX-05), uansett gammelt dashbord-tema.
+ * Teksten under ikonene har 4,5:1 mot flaten (brandInk og muted på colors.card).
+ */
+const DOCK_TOKENS = {
+  surface: colors.card,
+  border: colors.line,
+  accent: colors.brandInk,
+  accentSoft: 'transparent',
+  textMuted: colors.muted,
+};
 
 /**
  * Customizable bottom dock, mounted in AppShell so it stays on every module.
@@ -170,14 +181,7 @@ export default function ParentShellBottomNav({
       badgeById={badgeById}
       activeId={activeId}
       onSelect={onSelect}
-      tokens={presetItems ? {
-        surface: '#ffffff',
-        border: '#E6EAF0',
-        // Flaten er alltid hvit. Teksten under ikonene må ha 4,5:1 mot den (lys brandInk og muted).
-        accent: LIGHT.brandInk,
-        accentSoft: 'transparent',
-        textMuted: LIGHT.muted,
-      } : theme?.tokens}
+      tokens={DOCK_TOKENS}
       includeSafeArea
       onLayout={onLayout}
       glass={presetItems ? false : glass}

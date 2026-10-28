@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import test from 'node:test';
 import { DARK, LIGHT } from './palette.js';
 
@@ -95,4 +96,38 @@ test('rader inne i kortene bruker sidens bakgrunn, ikke sunken (muted på sunken
   for (const path of HOME_FILES) {
     assert.equal(read(path).includes('colors.sunken'), false, `${path} bruker colors.sunken`);
   }
+});
+
+test('soft-paletten er tatt ut av ProTop og ligger bare igjen for familieproduktet', () => {
+  const root = new URL('../../', import.meta.url).pathname;
+  // Barnas Hjem, familiewidgetene og barneprofilens tema (ThemeContext) er familieproduktet.
+  const allowed = new Set([
+    'components/childHome/softTheme.js',
+    'components/childHome/ChildDashboardThemeHost.jsx',
+    'components/parentHome/ParentHomeWidgets.jsx',
+    'src/context/ThemeContext.jsx',
+  ]);
+  const users = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      if (name === 'node_modules' || name.startsWith('.')) continue;
+      const full = join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.(js|jsx|ts|tsx)$/.test(name) && !/\.test\./.test(name)) {
+        if (/from '[^']*softTheme'/.test(readFileSync(full, 'utf8'))) users.push(relative(root, full));
+      }
+    }
+  };
+  for (const dir of ['components', 'screens', 'src']) walk(join(root, dir));
+  assert.deepEqual(users.filter((path) => !allowed.has(path)), [], 'ProTop-filer importerer soft-paletten');
+
+  assert.equal(/SOFT_LIGHT|SOFT_DARK/.test(read('src/appearance/palette.js')), false, 'paletten har ikke soft-farger');
+  assert.equal(read('app.web.css').includes('--wp-soft-'), false);
+  assert.equal(read('src/appearance/applyAppearance.js').includes('--wp-soft-'), false);
+  // Docken og hjelpekortet ser like ut i Privat og Bedrift, i lyst og mørkt.
+  const dock = read('components/parentHome/ParentShellBottomNav.jsx');
+  assert.match(dock, /tokens=\{DOCK_TOKENS\}/);
+  assert.match(dock, /accent: colors\.brandInk,/);
+  assert.equal(read('components/parentHome/ParentHomeBottomNav.jsx').includes('soft'), false);
+  assert.equal(read('components/HelpOverlay.jsx').includes('cardSoft'), false);
 });

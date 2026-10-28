@@ -24,6 +24,7 @@ import { watchInvoices } from '../../src/economy/invoiceStorage';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
+import EmptyState from '../../components/EmptyState';
 import FilterMenu from '../../components/FilterMenu';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
@@ -1654,7 +1655,7 @@ export default function ProjectWorkScreen() {
   const projectCountLabel = !ready
     ? 'Henter prosjekter…'
     : !visibleProjects.length
-      ? 'Ingen prosjekter ennå.'
+      ? ((state.projects || []).length ? 'Ingen prosjekter passer søket eller filteret.' : '0 prosjekter')
       : `${visibleProjects.length} ${visibleProjects.length === 1 ? 'prosjekt' : 'prosjekter'}${canDeleteProjects && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`;
   const filterGroups = [
     {
@@ -2033,6 +2034,27 @@ export default function ProjectWorkScreen() {
             })}
           </ProjectTable>
         </View>
+      ) : null}
+      {ready && !(state.projects || []).length ? (
+        <EmptyState
+          nativeID="projects-empty"
+          icon="business-outline"
+          title="Ingen prosjekter ennå"
+          text={isAdmin
+            ? 'Timer, utlegg, avtaler og faktura samles på prosjektet. Opprett det første, eller hent prosjektlisten fra Excel.'
+            : 'Timer, utlegg og faktura samles på prosjektet. En administrator legger inn prosjektene.'}
+          actions={isAdmin ? [
+            { id: 'new', label: 'Nytt prosjekt', icon: 'add', primary: true, onPress: startNew, nativeID: 'projects-empty-new' },
+            {
+              id: 'import',
+              label: importing ? 'Tolker filen…' : 'Importer fra Excel',
+              icon: 'cloud-upload-outline',
+              onPress: importFile,
+              disabled: importing,
+              nativeID: 'projects-empty-import',
+            },
+          ] : []}
+        />
       ) : null}
     </View>
   ) : null;

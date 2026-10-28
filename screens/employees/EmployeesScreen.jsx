@@ -48,6 +48,7 @@ import { employeeReviewSeverity, importResult } from '../../src/imports/review';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
+import EmptyState from '../../components/EmptyState';
 import EmployeeDirectory from '../../components/employees/EmployeeDirectory';
 import {
   absorbCompanyIntoProfile,
@@ -1834,7 +1835,25 @@ export default function EmployeesScreen() {
             </View>
           ) : null}
           {!rows.length ? (
-            <Text style={{ color: colors.muted }}>Ingen medarbeidere er registrert ennå.</Text>
+            <EmptyState
+              nativeID="employees-empty"
+              icon="id-card-outline"
+              title="Ingen ansatte ennå"
+              text={isAdmin
+                ? 'Ansatte fører timer, fravær og utlegg, og får tilgang til det de skal se. Legg inn den første, eller hent listen fra Excel.'
+                : 'Ansatte legges inn av en administrator i bedriften.'}
+              actions={isAdmin ? [
+                { id: 'new', label: 'Ny medarbeider', icon: 'add', primary: true, onPress: openNew, nativeID: 'employees-empty-new' },
+                ...(employeesAdmin ? [{
+                  id: 'import',
+                  label: busy ? 'Tolker filen…' : 'Importer fra Excel',
+                  icon: 'cloud-upload-outline',
+                  onPress: openImport,
+                  disabled: busy,
+                  nativeID: 'employees-empty-import',
+                }] : []),
+              ] : []}
+            />
           ) : (
             <EmployeeDirectory
               rows={visible}

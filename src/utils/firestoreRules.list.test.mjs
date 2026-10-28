@@ -28,23 +28,26 @@ assert.doesNotMatch(
   /allow list: if isFamilyMember\(familyId\)/,
 );
 
-// HR under families/{familyId}/hr — membership-scoped (not cross-company).
+// HR under families/{familyId}/hr — medlemskap og HR-tilgang i speilet (L-01), ikke på tvers av selskaper.
 assert.match(familyBlock, /match \/hr\/\{document=\*\*\}/);
 const hrIdx = familyBlock.indexOf('match /hr/{document=**}');
 assert.ok(hrIdx >= 0, 'hr match missing');
-const hrBlock = familyBlock.slice(hrIdx, familyBlock.indexOf('match /{coll}/{document=**}', hrIdx));
-assert.match(hrBlock, /allow get: if isFamilyMember\(familyId\)/);
-assert.match(hrBlock, /allow list: if isFamilyMemberLite\(familyId\)/);
+const hrBlock = familyBlock.slice(hrIdx, familyBlock.indexOf('match /hrSelf/', hrIdx));
+assert.match(hrBlock, /allow get: if isFamilyMember\(familyId\) && hrReader\(familyId\)/);
+assert.match(hrBlock, /allow list: if isFamilyMemberLite\(familyId\) && hrReader\(familyId\)/);
+assert.match(rules, /coll == 'hr' \|\| coll == 'hrSelf'/, 'hr må være unntatt fra den generelle regelen');
 
 // Catch-all family subcollections (incl. chats/.../messages): GET uses full
 // isFamilyMember (parent/child docs OK), LIST uses Lite (members/activeUsers).
-// ISO-samlingene og accessAcl er unntatt (isProtected) og har egne regler.
-const catchAllIdx = familyBlock.lastIndexOf('match /{coll}/{document=**}');
+// ISO-samlingene, accessAcl og de skjermede samlingene er unntatt (isProtected) og har egne regler.
+// Dokumentnivå og underlag er delt i to, så bruksloggen på ansattposten kan skjermes (isProtectedSub).
+const catchAllIdx = familyBlock.indexOf('match /{coll}/{docId} {');
 assert.ok(catchAllIdx >= 0, 'family catch-all match missing');
 assert.ok(hrIdx < catchAllIdx, 'hr match must precede catch-all');
 const catchAll = familyBlock.slice(catchAllIdx);
-assert.match(catchAll, /allow get: if isFamilyMember\(familyId\)/);
-assert.match(catchAll, /allow list: if isFamilyMemberLite\(familyId\)/);
+assert.match(catchAll, /match \/\{coll\}\/\{docId\}\/\{sub\}\/\{rest=\*\*\}/);
+assert.match(catchAll, /allow get: if !isProtected\(coll\) && isFamilyMember\(familyId\)/);
+assert.match(catchAll, /allow list: if !isProtected\(coll\) && isFamilyMemberLite\(familyId\)/);
 
 const open = (rules.match(/\{/g) || []).length;
 const close = (rules.match(/\}/g) || []).length;

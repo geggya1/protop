@@ -5,6 +5,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import {
   requireAuth,
   isValidEmail,
@@ -12,9 +13,11 @@ import {
   assertRateLimits,
 } from './security.js';
 import { LOOKUP_LIMITS, lookupProfileFields, lookupRateScopes } from './friendLookupLogic.js';
+import { findVerifiedPhoneUid } from './verifiedPhone.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
+const adminAuth = getAuth();
 
 function phoneLookupCandidates(raw) {
   const s = String(raw || '').trim();
@@ -87,28 +90,18 @@ export const lookupFriendProfile = onCall(
       }
 
       if (looksLikePhone) {
-        for (const candidate of phoneCandidates) {
-          const usersSnap = await db.collection('users').where('phone', '==', candidate).limit(3).get();
-          for (const d of usersSnap.docs) {
-            return { ok: true, profile: publicFriendProfile(d.id, d.data() || {}) };
-          }
-          const parentsSnap = await db.collection('parents').where('phone', '==', candidate).limit(5).get();
-          for (const d of parentsSnap.docs) {
-            const data = d.data() || {};
-            if (data.placeholder === true && !data.uid) continue;
-            const uid = data.uid || (String(d.id).length >= 20 ? d.id : null);
-            if (!uid) continue;
-            return { ok: true, profile: publicFriendProfile(uid, data) };
-          }
-          const childrenSnap = await db.collection('children').where('phone', '==', candidate).limit(5).get();
-          for (const d of childrenSnap.docs) {
-            const data = d.data() || {};
-            const uid = data.uid || d.id;
-            if (!uid) continue;
-            return { ok: true, profile: publicFriendProfile(uid, { ...data, role: 'child' }) };
-          }
-        }
-        return { ok: true, profile: null };
+        // Bare et nummer kontoen har bekreftet med SMS (Auth phoneNumber). users.phone, parents.phone
+        // og children.phone skriver brukeren (eller en foresatt) selv, så de kan peke på en annens
+        // nummer (SEC-25, som REV-22). Uten treff inviterer appen nummeret med SMS.
+        const uid = await findVerifiedPhoneUid(phoneCandidates, adminAuth);
+        if (!uid) return { ok: true, profile: null };
+        const snaps = await Promise.all([
+          db.doc(`users/${uid}`).get(),
+          db.doc(`parents/${uid}`).get(),
+          db.doc(`children/${uid}`).get(),
+        ]);
+        if (!snaps.some((snap) => snap.exists)) return { ok: true, profile: null };
+        return { ok: true, profile: publicFriendProfile(uid, {}) };
       }
 
       const u = identifier.toLowerCase().replace(/^@/, '');

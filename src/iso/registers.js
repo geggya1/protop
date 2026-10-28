@@ -468,11 +468,12 @@ function clean(key, values) {
   return out;
 }
 
-export function createRecord(key, values, { actor, existing = [], now = new Date(), riskMethod = DEFAULT_RISK_METHOD } = {}) {
+export function createRecord(key, values, { actor, existing = [], now = new Date(), riskMethod = DEFAULT_RISK_METHOD, draft = false } = {}) {
   const def = registerDef(key);
   if (!def) return fail('Ukjent register.');
   values = withDefaults(key, values);
-  const errors = validateRecord(key, values);
+  // Utkast (startpakken): påkrevde felt kan mangle, de fylles ut før posten tas i bruk. Feil format stoppes likevel.
+  const errors = validateRecord(key, values).filter((e) => !(draft && / må fylles ut\.$/.test(e)));
   if (errors.length) return fail(errors[0], { errors });
   const data = clean(key, values);
   const record = bump({
@@ -574,6 +575,11 @@ export function setRecordState(record, state, { actor, now = new Date(), note = 
   if (revoke && text(note).length < 5) return fail('Begrunn hvorfor godkjenningen oppheves.');
   const allowed = STATE_FLOW[record.register]?.[record.state];
   if (!revoke && allowed && !allowed.includes(state)) return fail(flowError(record, state));
+  // Internrevisjon: revisor er valgt og uavhengigheten bekreftet før revisjonen starter (9.2.2 c).
+  if (record.register === 'revisjon' && ['pagar', 'rapport', 'godkjent'].includes(state) && !APPROVED_STATES.includes(record.state)) {
+    const missing = auditReadyError(record);
+    if (missing) return fail(missing);
+  }
   // Internrevisjon: funn og konklusjon før rapport og godkjenning (9.2.2 e). «Samsvar» er også et funn.
   if (record.register === 'revisjon' && ['rapport', 'godkjent'].includes(state) && !APPROVED_STATES.includes(record.state)) {
     if (!(record.findings || []).length) return fail('Registrer minst ett funn før rapporten («Samsvar» teller også).');
@@ -856,9 +862,18 @@ export function auditCoverage(records, processes = [], { years = 3, now = new Da
   return { years: span, rows, uncovered: rows.filter((r) => !r.covered).map((r) => r.process) };
 }
 
+/** Hva som mangler før revisjonen kan starte: revisor og bekreftet uavhengighet. Tom tekst = klar. */
+export function auditReadyError(audit) {
+  if (!text(audit?.auditorName)) return 'Velg revisor før revisjonen starter.';
+  if (!audit?.independence) return 'Bekreft at revisor ikke reviderer eget arbeid før revisjonen starter.';
+  return '';
+}
+
 export function addAuditFinding(audit, input, { actor, now = new Date() } = {}) {
   if (audit?.register !== 'revisjon') return fail('Ikke en revisjon.');
   if (audit.locked || ['lukket', 'avlyst', 'godkjent'].includes(audit.state)) return fail('Revisjonen er avsluttet eller godkjent og låst.');
+  const notReady = auditReadyError(audit);
+  if (notReady) return fail(notReady);
   if (!AUDIT_FINDING_CLASSES.some((c) => c.id === input?.classification)) return fail('Klassifiser funnet.');
   if (!text(input?.description)) return fail('Beskriv funnet.');
   if (input.classification !== 'samsvar' && !text(input?.evidence)) return fail('Beskriv objektivt bevis for funnet.');

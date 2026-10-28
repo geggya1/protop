@@ -4,7 +4,7 @@ import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, findingStateLabel, riskLevel } from '../../src/iso/catalog';
 import {
-  AUDIT_FINDING_CLASSES, REGISTERS, auditCoverage, auditIndependenceConflicts, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
+  AUDIT_FINDING_CLASSES, REGISTERS, auditCoverage, auditIndependenceConflicts, auditReadyError, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
   competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
   cleanContacts, contactsLabel, nextStates, personsLabel, proofEnd, recordRiskMethod, registerDef, riskMatrix, riskScoresChanged, riskSummary, setRecordState, updateRecord,
   REVIEW_OUTPUTS, reviewApprovalBlockers, setReviewConclusion,
@@ -109,7 +109,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
       case 'scale': return <Choice title={f.label} options={['1', '2', '3', '4', '5']} value={value == null ? '' : String(value)} onChange={(x) => set(f.key)(x ? Number(x) : null)} clearable={!f.required} />;
       case 'select': return <Choice title={f.label} options={f.options} value={value} onChange={set(f.key)} clearable={!f.required} />;
       case 'multi': return <Choice multi title={f.label} options={f.options} value={value || []} onChange={set(f.key)} />;
-      case 'check': return <Check label={f.label} value={!!value} onChange={set(f.key)} />;
+      case 'check': return <Check label={f.label} required={f.required} value={!!value} onChange={set(f.key)} />;
       case 'person': return (
         <PersonPick
           people={people}
@@ -1205,7 +1205,7 @@ export function AuditPage({ ctx }) {
         {!program.length ? <Empty icon="search-outline" title="Ingen revisjoner planlagt" text="Frekvens fastsettes i et risikobasert program, ikke automatisk." /> : null}
         {program.map((a) => {
           const late = a.state === 'planlagt' && a.plannedDate && a.plannedDate < today;
-          return <ListRow key={a.id} icon="search-outline" tone={late ? 'danger' : 'muted'} title={`${a.number} · ${a.title}`} subtitle={`${prettyDate(a.plannedDate)} · ${a.auditorName}${late ? ' · forsinket' : ''} · ${(a.findings || []).length} funn`} right={<Pill label={STATE_LABEL[a.state]} tone={a.state === 'godkjent' || a.state === 'lukket' ? 'ok' : (late ? 'danger' : 'info')} />} onPress={() => reg.setOpenId(a.id)} />;
+          return <ListRow key={a.id} icon="search-outline" tone={late ? 'danger' : 'muted'} title={`${a.number} · ${a.title}`} subtitle={`${prettyDate(a.plannedDate)} · ${a.auditorName || 'revisor ikke valgt'}${late ? ' · forsinket' : ''} · ${(a.findings || []).length} funn`} right={<Pill label={STATE_LABEL[a.state]} tone={a.state === 'godkjent' || a.state === 'lukket' ? 'ok' : (late ? 'danger' : 'info')} />} onPress={() => reg.setOpenId(a.id)} />;
         })}
       </Card>
       {coverage.rows.length ? (
@@ -1230,6 +1230,7 @@ export function AuditPage({ ctx }) {
       <RecordSheet ctx={ctx} registerKey="revisjon" visible={reg.creating} onClose={() => reg.setCreating(false)} />
       {reg.open ? (
         <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')}>
+          {!reg.open.locked && ['planlagt', 'pagar'].includes(reg.open.state) && auditReadyError(reg.open) ? <Banner tone="warn" text={`${auditReadyError(reg.open)} Gjøres under «Rediger».`} /> : null}
           {conflicts.length ? <Banner tone="warn" text={`Revisor eier ${conflicts.map((p) => p.title).join(', ')} i omfanget, og reviderer da eget arbeid (9.2.2 c). Velg en annen revisor eller ta prosessen ut av omfanget.`} /> : null}
           {!['godkjent', 'oppfolging', 'lukket', 'avlyst'].includes(reg.open.state) && String(reg.open.conclusion || '').trim().length < 10 ? <Text style={{ color: colors.muted, fontSize: 12 }}>Skriv konklusjonen under «Rediger» før rapporten godkjennes.</Text> : null}
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Funn ({(reg.open.findings || []).length})</Text>

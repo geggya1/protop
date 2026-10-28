@@ -785,6 +785,26 @@ export function starterPlan(system, now = new Date()) {
   };
 }
 
+/**
+ * Revisor i startpakken: internrevisor-rollen, ellers kvalitetsleder eller HMS-leder som verken eier
+ * ledelsessystemet eller aktiverer det. Ingen treff gir ingen revisor (velges på revisjonen).
+ * Uavhengigheten krysses aldri av automatisk: den bekreftes av den som planlegger revisjonen.
+ */
+export function starterAuditor(system, actor) {
+  const rm = system?.roleMap || {};
+  const person = (p) => ({ name: String(p.name).trim(), uid: String(p.uid || '') });
+  if (rm.internal_auditor?.name) return person(rm.internal_auditor);
+  const uids = new Set([system?.ownerUid, actor?.uid].filter(Boolean).map(String));
+  const names = new Set([system?.ownerName, actor?.name].filter(Boolean).map((n) => String(n).trim().toLowerCase()));
+  for (const role of ['quality_manager', 'hse_manager']) {
+    const p = rm[role];
+    if (!p?.name) continue;
+    if ((p.uid && uids.has(String(p.uid))) || names.has(String(p.name).trim().toLowerCase())) continue;
+    return person(p);
+  }
+  return null;
+}
+
 export function policyDraft(system) {
   const std = STANDARDS.filter((s) => (system?.standards || []).includes(s.code));
   const name = system?.name?.replace(/^Integrert ledelsessystem – /, '') || 'Virksomheten';

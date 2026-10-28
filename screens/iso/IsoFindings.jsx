@@ -24,6 +24,8 @@ import {
   Banner, Btn, Card, Check, Choice, DateIn, Divider, Empty, Field, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, TextIn,
 } from './isoUi';
 
+/** Handlinger nederst i saken: feilen vises ved knappen, ikke øverst på siden. */
+const INLINE_ERRORS = ['Effektkontroll', 'Saken er lukket', 'Saken er kansellert', 'Gjenåpnet'];
 const STATE_TONE = { registrert: 'warn', triage: 'warn', vurdert: 'info', tiltak: 'info', effektkontroll: 'info', lukket: 'ok', kansellert: 'muted' };
 
 export default function IsoFindings({ ctx }) {
@@ -292,16 +294,20 @@ function FindingDetail({ ctx, finding, onBack }) {
     seenRev.current = finding.rev;
   }, [finding.rev]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Feil vises ved knappen som ble trykket der det finnes en egen plass (f.eks. effektkontroll nederst).
+  const [errAt, setErrAt] = useState('');
   async function run(label, result, extra = {}) {
     setErr('');
+    setErrAt('');
     setMsg('');
-    if (!result.ok) { setErr(result.error); return result; }
+    if (!result.ok) { setErr(result.error); setErrAt(label); return result; }
     setBusy(label);
     const saved = await store.commit('findings', 'finding', result, { previous: finding, ...extra });
     setBusy('');
-    if (!saved.ok) setErr(saved.error); else setMsg(`${label} – lagret.`);
+    if (!saved.ok) { setErr(saved.error); setErrAt(label); } else setMsg(`${label} – lagret.`);
     return saved;
   }
+  const errHere = (...labels) => (err && labels.includes(errAt) ? <Banner tone="danger" text={err} /> : null);
 
   // Triage
   const [tri, setTri] = useState({ severity: finding.severity || '', urgent: false, assigneeName: finding.assigneeName, assigneeUid: finding.assigneeUid, immediateAction: finding.immediateAction, notifiable: finding.authorityNotificationRequired, notificationAssignee: finding.notificationAssignee, notificationAssigneeUid: finding.notificationAssigneeUid || '', injuryClass: finding.injuryClass || '', dueAt: finding.dueAt, note: '' });
@@ -372,7 +378,7 @@ function FindingDetail({ ctx, finding, onBack }) {
       <Stepper step={findingStep(finding)} closed={finding.state === 'lukket'} />
       {remoteBy ? <Banner tone="info" text={`Saken ble nettopp oppdatert av ${remoteBy}. Du ser siste versjon.`} /> : null}
       {msg ? <Banner tone="ok" text={msg} /> : null}
-      {err ? <Banner tone="danger" text={err} /> : null}
+      {err && !INLINE_ERRORS.includes(errAt) ? <Banner tone="danger" text={err} /> : null}
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
         <View style={{ flex: 3, gap: 12, width: wide ? undefined : '100%' }}>
@@ -570,6 +576,7 @@ function FindingDetail({ ctx, finding, onBack }) {
                   <Field label="Resultat" required><TextIn multiline rows={2} value={effect.note} onChangeText={(x) => setEffect({ ...effect, note: x })} /></Field>
                   <Choice options={[{ id: 'verifisert', label: 'Effekt verifisert' }, { id: 'ikke_verifisert', label: 'Ikke verifisert' }]} value={effect.outcome} onChange={(x) => setEffect({ ...effect, outcome: x })} />
                   <Btn kind="primary" label="Lagre effektkontroll" onPress={() => run('Effektkontroll', verifyEffect(finding, effect, { actor }))} />
+                  {errHere('Effektkontroll')}
                 </>
               )}
             </Card>
@@ -583,9 +590,11 @@ function FindingDetail({ ctx, finding, onBack }) {
                   <Field label="Lukkebegrunnelse" required><TextIn value={closeNote} onChangeText={setCloseNote} /></Field>
                   <Field label="Læring / erfaringsoverføring"><TextIn value={learning} onChangeText={setLearning} /></Field>
                   <Btn kind="primary" icon="lock-closed-outline" label="Godkjenn lukking" disabled={!!blockers.length} onPress={doClose} />
+                  {errHere('Saken er lukket')}
                   <Divider />
                   <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse for kansellering" />
                   <Btn kind="danger" label="Kanseller saken" onPress={() => run('Saken er kansellert', cancelFinding(finding, reason, { actor, caps }))} />
+                  {errHere('Saken er kansellert')}
                 </>
               ) : <Text style={{ color: colors.muted, fontSize: 12 }}>Lukking krever en godkjennerrolle i ISO{finding.restricted ? ' og særskilt fullmakt for skjermede saker' : ''}.</Text>}
             </Card>
@@ -598,6 +607,7 @@ function FindingDetail({ ctx, finding, onBack }) {
                 <>
                   <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse for gjenåpning" />
                   <Btn label="Gjenåpne" onPress={() => run('Gjenåpnet', reopenFinding(finding, reason, { actor, caps }))} />
+                  {errHere('Gjenåpnet')}
                 </>
               ) : null}
             </Card>

@@ -10,13 +10,17 @@
  * Låseraden i projects/state viser godkjenningen i timelisten, men gir ingen rett til å endre timer.
  *
  * Bedrift A: own = eier, adm = administrator, ldr = leder (Andres timer: Admin), avd = avdelingsleder
- * (Andres timer: Begrenset redigering), bill = Til fakturering, bob og eve = ansatte, noacl = uten speil.
+ * (Andres timer: Begrenset redigering), bill = Til fakturering, bob og eve = ansatte, noacl = uten speil,
+ * hr = Lese på Andres timer, rep = Admin på Timerapport, hra = HR med Admin på Ansatte.
+ *
+ * Hvem som eier en føring, avgjøres av ansattposten i employeeId: posten er koblet til kontoen
+ * (personUid). En vanlig ansatt fører, endrer og sletter bare egne timer (DRIFT-07).
  */
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import {
-  Timestamp, deleteDoc, doc, getDoc, setDoc, updateDoc,
+  Timestamp, deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch,
 } from 'firebase/firestore';
 
 // RULES_FILE: en annen regelfil (f.eks. reglene før rettingen, for å se hva som var mulig).
@@ -36,7 +40,11 @@ const ACL = {
   bob: { levelId: 'ansatt', grants: ansatt },
   eve: { levelId: 'ansatt', grants: ansatt },
   hr: { levelId: 'ansatt', grants: { ...ansatt, hoursOthers: 'see' } },
+  rep: { levelId: 'ansatt', grants: { ...ansatt, hoursReport: 'write' } },
+  hra: { levelId: 'hr_ansvarlig', grants: { ...ansatt, employees: 'write', hoursOthers: 'see' } },
 };
+// Ansatte uten konto (leder fører for dem), til lagring av mange personers timer i én skriving.
+const CREW = Array.from({ length: 24 }, (_, i) => `emp_x${String(i + 1).padStart(2, '0')}`);
 
 const entry = (employeeId, date, over = {}) => ({
   projectId: 'p1', employeeId, date, hours: 7.5, billableHours: 7.5, description: 'Mur', status: 'registrert',
@@ -47,7 +55,7 @@ async function seed() {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    const members = ['own', 'adm', 'ldr', 'avd', 'bill', 'bob', 'eve', 'hr', 'noacl'];
+    const members = ['own', 'adm', 'ldr', 'avd', 'bill', 'bob', 'eve', 'hr', 'rep', 'hra', 'noacl'];
     await setDoc(doc(db, 'families', A), {
       name: 'Bygg AS', type: 'company', ownerUid: 'own', adminUids: ['own', 'adm'], members, activeUsers: members,
       company: { navn: 'Bygg AS' },
@@ -57,6 +65,11 @@ async function seed() {
       await setDoc(doc(db, 'families', A, 'employees', `emp_${uid}`), {
         personUid: uid, person: { firstName: uid }, company: { accessLevels: ['ansatt'], status: 'active' },
         invite: { status: 'accepted', acceptedUid: uid },
+      });
+    }
+    for (const id of CREW) {
+      await setDoc(doc(db, 'families', A, 'employees', id), {
+        personUid: '', person: { firstName: id }, company: { accessLevels: ['ansatt'], status: 'active' },
       });
     }
     for (const [uid, row] of Object.entries(ACL)) {
@@ -156,5 +169,83 @@ describe('DRIFT-06/07: åpne timer og låsing som før', () => {
     await assertFails(deleteDoc(te('bob', 'bob_ok')));
     const snap = await assertSucceeds(getDoc(te('bob', 'bob_ok')));
     if (snap.data().status !== 'godkjent') throw new Error('godkjenningen ble borte');
+  });
+});
+
+describe('DRIFT-07: egne og andres åpne timer', () => {
+  test('en kollega endrer, låser opp, tar over eller sletter ikke andres åpne eller låste timer', async () => {
+    await assertFails(updateDoc(te('eve', 'bob_open'), { hours: 1, billableHours: 1 }));
+    await assertFails(updateDoc(te('eve', 'bob_open'), { description: 'Feil' }));
+    await assertFails(updateDoc(te('eve', 'bob_open'), { status: 'låst' }));
+    await assertFails(updateDoc(te('eve', 'bob_locked'), { status: 'registrert' }));
+    await assertFails(updateDoc(te('eve', 'bob_open'), { employeeId: 'emp_eve' }));
+    await assertFails(deleteDoc(te('eve', 'bob_open')));
+    // Eldre app: hele raden med merge.
+    await assertFails(setDoc(te('eve', 'bob_open'), entry('emp_bob', '2026-10-27', { hours: 2 }), { merge: true }));
+    // Lese på Andres timer og en uten speil gir heller ingen rett.
+    await assertFails(updateDoc(te('hr', 'bob_open'), { hours: 2 }));
+    await assertFails(deleteDoc(te('noacl', 'bob_open')));
+  });
+
+  test('en kollega fører ikke timer på en annen, og flytter ikke egne timer over til en annen', async () => {
+    await assertFails(setDoc(te('eve', 'eve_paa_bob'), entry('emp_bob', '2026-10-28')));
+    await assertFails(setDoc(te('eve', 'eve_paa_x'), entry('emp_x01', '2026-10-28')));
+    await assertFails(setDoc(te('eve', 'eve_uten_post'), entry('emp_finnes_ikke', '2026-10-28')));
+    await assertFails(updateDoc(te('eve', 'eve_open'), { employeeId: 'emp_bob' }));
+  });
+
+  test('den ansatte fører og endrer egne timer også uten speil', async () => {
+    await assertSucceeds(setDoc(te('noacl', 'noacl_ny'), entry('emp_noacl', '2026-10-28')));
+    await assertSucceeds(updateDoc(te('noacl', 'noacl_ny'), { hours: 6, billableHours: 6 }));
+    await assertSucceeds(deleteDoc(te('noacl', 'noacl_ny')));
+    await assertSucceeds(updateDoc(te('eve', 'eve_open'), { description: 'Forskaling' }));
+    // En eldre ansettelse (avsluttet post, også koblet til Bob): speilet peker på den nye posten,
+    // men timene på den gamle er fortsatt hans.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore();
+      await setDoc(doc(db, 'families', A, 'employees', 'emp_bob_2024'), {
+        personUid: 'bob', person: { firstName: 'bob' }, company: { accessLevels: ['ansatt'], status: 'inactive' },
+      });
+      await setDoc(doc(db, 'families', A, 'timeEntries', 'bob_2024'), entry('emp_bob_2024', '2024-06-03'));
+    });
+    await assertSucceeds(updateDoc(te('bob', 'bob_2024'), { description: 'Gammel føring rettet' }));
+    await assertFails(updateDoc(te('eve', 'bob_2024'), { description: 'Feil' }));
+  });
+
+  test('leder, eier, administrator, Admin på Timerapport og Admin på Ansatte fører og endrer andres timer', async () => {
+    await assertSucceeds(updateDoc(te('avd', 'bob_open'), { hours: 6, billableHours: 6 }));
+    await assertSucceeds(updateDoc(te('ldr', 'bob_locked'), { status: 'registrert' }));
+    await assertSucceeds(setDoc(te('ldr', 'ldr_for_x'), entry('emp_x01', '2026-10-28')));
+    await assertSucceeds(updateDoc(te('own', 'eve_open'), { description: 'Rettet av eier' }));
+    await assertSucceeds(updateDoc(te('rep', 'eve_open'), { hours: 7, billableHours: 7 }));
+    await assertSucceeds(updateDoc(te('hra', 'eve_open'), { hours: 6.5, billableHours: 6.5 }));
+    await assertSucceeds(deleteDoc(te('ldr', 'ldr_for_x')));
+    await assertSucceeds(deleteDoc(te('adm', 'bob_open')));
+    // Leder uten ferskt speil fører ikke for andre (som godkjenning).
+    await assertFails(updateDoc(te('noacl', 'eve_open'), { hours: 1 }));
+  });
+
+  test('eldre app (86332db): leder lagrer timer for mange ansatte i én skriving, den ansatte mange egne', async () => {
+    // Samme Firestore-instans for skrivingen og radene i den.
+    const batchOf = (uid) => {
+      const db = as(uid);
+      return { batch: writeBatch(db), ref: (id) => doc(db, 'families', A, 'timeEntries', id) };
+    };
+    const lead = batchOf('ldr');
+    CREW.forEach((id, i) => {
+      lead.batch.set(lead.ref(`crew_${i}`), { id: `crew_${i}`, ...entry(id, '2026-10-26') }, { merge: true });
+    });
+    await assertSucceeds(lead.batch.commit());
+    const own = batchOf('bob');
+    for (let i = 0; i < 30; i += 1) {
+      const id = `bob_batch_${i}`;
+      own.batch.set(own.ref(id), { id, ...entry('emp_bob', `2026-09-${String(i + 1).padStart(2, '0')}`) }, { merge: true });
+    }
+    await assertSucceeds(own.batch.commit());
+    // Den samme skrivingen fra en kollega avvises (én rad er nok til å stoppe den).
+    const mixed = batchOf('eve');
+    mixed.batch.set(mixed.ref('eve_batch_1'), entry('emp_eve', '2026-10-26'), { merge: true });
+    mixed.batch.set(mixed.ref('crew_0'), { ...entry(CREW[0], '2026-10-26'), hours: 1 }, { merge: true });
+    await assertFails(mixed.batch.commit());
   });
 });

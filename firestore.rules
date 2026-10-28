@@ -867,13 +867,76 @@ service cloud.firestore {
         || grantAtLeast(g, 'economyBilling', 1);
     }
 
-    // Godkjenner timer (status 'godkjent'): eier, administrator, Begrenset redigering på Andres timer
-    // (leder, som Godkjenninger i appen) eller den som fakturerer (Til fakturering godkjenner
-    // fakturagrunnlaget). Uten ferskt speil bare eier og administratorer (DRIFT-06, DRIFT-07).
-    function timeApprover(familyId) {
+    // Rettighetene på timer, regnet ut én gang per skriving (reglene tåler bare 1000 uttrykk):
+    // - biller: kobler timer til fakturaer (som invoiceBiller).
+    // - approver: godkjenner timer (status 'godkjent'): eier, administrator, Begrenset redigering på
+    //   Andres timer (leder, som Godkjenninger i appen) eller den som fakturerer (Til fakturering
+    //   godkjenner fakturagrunnlaget). Uten ferskt speil bare eier og administratorer (DRIFT-06, DRIFT-07).
+    // - editor: fører, endrer og sletter andres timer: den som godkjenner, og Admin på Timerapport eller
+    //   Ansatte (timerapporten og personens timeliste under Ansatte, som i appen). Andre fører bare egne
+    //   timer (DRIFT-07). Sjekkes før ansattposten leses, så en leder som lagrer mange personers timer
+    //   i én skriving, ikke leser hver ansattpost.
+    function timeRights(familyId) {
       let g = aclGrants(familyId);
-      return isFamilyAdmin(familyId) || grantAtLeast(g, 'hoursOthers', 2)
-        || grantAtLeast(g, 'economyBilling', 2) || grantAtLeast(g, 'economyInvoices', 2);
+      let biller = isFamilyAdmin(familyId) || grantAtLeast(g, 'economyBilling', 2) || grantAtLeast(g, 'economyInvoices', 2);
+      let approver = biller || grantAtLeast(g, 'hoursOthers', 2);
+      return {
+        'biller': biller,
+        'approver': approver,
+        'editor': approver || grantAtLeast(g, 'hoursReport', 3) || grantAtLeast(g, 'employees', 3),
+      };
+    }
+
+    // Den vanlige lagringen av egne timer: speilet viser at føringen er ens egen. Da regnes ikke
+    // rettighetene ut. Godkjenning og fakturakobling prøves på nytt med timeRights (leder, økonomi).
+    function timeRightsOwn() {
+      return { 'biller': false, 'approver': false, 'editor': false };
+    }
+
+    // Egen føring etter speilet: posten speilet er beregnet for. Leser ikke mer enn speilet.
+    function ownTimeEntryByAcl(familyId, d) {
+      let emp = aclEmployeeId(familyId);
+      return emp != '' && d.get('employeeId', '') == emp;
+    }
+
+    // Egen føring etter ansattposten i employeeId (koblet med personUid): uten ferskt speil, eller en
+    // annen egen post. Alle føringer har employeeId, også eldre rader. En føring uten post er ingens egen.
+    function ownTimeEntry(familyId, d) {
+      return ownEmployeePost(familyId, d.get('employeeId', ''));
+    }
+
+    // Føringen blir på samme ansatt (en ansatt flytter ikke en føring til eller fra en annen).
+    function sameTimeEntryEmployee() {
+      return request.resource.data.get('employeeId', '') == resource.data.get('employeeId', '');
+    }
+
+    function timeEntryCreateOk(familyId, r) {
+      return (r.editor || ownTimeEntry(familyId, request.resource.data))
+        && (request.resource.data.get('status', '') != 'godkjent' || r.approver);
+    }
+
+    // Det som krever rettigheter (fakturakobling, godkjenning) prøves først, så en lagring som trenger
+    // dem, går raskt videre fra timeRightsOwn til timeRights.
+    function timeEntryChangeOk(r) {
+      return (sameInvoiceLink() || r.biller)
+        && (timeApprovalKept() || r.approver)
+        && (!entryInvoiced(resource.data) || unchanged('status') || r.biller)
+        && (!entryLocked(resource.data, 'låst') || timeEntryCoreKept())
+        && timeEntryHistoryAppended();
+    }
+
+    function timeEntryUpdateOk(familyId, r) {
+      return (r.editor || (ownTimeEntry(familyId, resource.data) && sameTimeEntryEmployee()))
+        && timeEntryChangeOk(r);
+    }
+
+    function timeEntryRemovable(r) {
+      return !entryLocked(resource.data, 'låst')
+        && (resource.data.get('status', '') != 'godkjent' || r.approver);
+    }
+
+    function timeEntryDeleteOk(familyId, r) {
+      return (r.editor || ownTimeEntry(familyId, resource.data)) && timeEntryRemovable(r);
     }
 
     // Godkjenningen står: en føring blir ikke godkjent, og en godkjent føring beholder status, timer,
@@ -1177,9 +1240,12 @@ service cloud.firestore {
           && (resource == null || resource.data.get('createdBy', '') == request.auth.uid);
       }
 
-      // Timer og prosjektutlegg: som før for alle medlemmer, men en fakturert eller låst rad
-      // beholder timer, beløp, dato, ansatt og prosjekt, og slettes ikke (DS-11, L-10).
-      // Koblingen til fakturaen settes og tas bort av den som fakturerer.
+      // Timer og prosjektutlegg: en fakturert eller låst rad beholder timer, beløp, dato, ansatt og
+      // prosjekt, og slettes ikke (DS-11, L-10). Koblingen til fakturaen settes og tas bort av den
+      // som fakturerer.
+      // Timer: en ansatt fører, endrer og sletter bare egne timer (ansattposten i employeeId, før og
+      // etter); leder og de andre med editor i timeRights også andres (DRIFT-07). Prosjektutlegg: som
+      // før for alle medlemmer.
       // Godkjenning (status 'godkjent') settes og fjernes bare av den som godkjenner timer, og en
       // godkjent rad endres og slettes bare av dem, også egne timer (DRIFT-06, DRIFT-07).
       // En rad som allerede er slettet, kan slettes igjen (appen kan slette samme rad fra to
@@ -1188,17 +1254,17 @@ service cloud.firestore {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
         allow create: if isFamilyMember(familyId)
-          && (request.resource.data.get('status', '') != 'godkjent' || timeApprover(familyId));
+          && ((ownTimeEntryByAcl(familyId, request.resource.data)
+                && request.resource.data.get('status', '') != 'godkjent')
+            || timeEntryCreateOk(familyId, timeRights(familyId)));
         allow update: if isFamilyMember(familyId)
-          && timeEntryHistoryAppended()
-          && (sameInvoiceLink() || invoiceBiller(familyId))
-          && (!entryLocked(resource.data, 'låst') || timeEntryCoreKept())
-          && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId))
-          && (timeApprovalKept() || timeApprover(familyId));
+          && ((ownTimeEntryByAcl(familyId, resource.data) && sameTimeEntryEmployee()
+                && timeEntryChangeOk(timeRightsOwn()))
+            || timeEntryUpdateOk(familyId, timeRights(familyId)));
         allow delete: if isFamilyMember(familyId)
           && (resource == null
-            || (!entryLocked(resource.data, 'låst')
-              && (resource.data.get('status', '') != 'godkjent' || timeApprover(familyId))));
+            || (ownTimeEntryByAcl(familyId, resource.data) && timeEntryRemovable(timeRightsOwn()))
+            || timeEntryDeleteOk(familyId, timeRights(familyId)));
       }
 
       // Slettelogg for timer: nye rader i eget navn, aldri endret eller slettet.

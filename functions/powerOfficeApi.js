@@ -78,6 +78,16 @@ export function problemMessage(problem, status) {
   return `PowerOffice svarte ${status || 'uten status'}.`;
 }
 
+/** Feilen fra Go med steget som feilet, så brukeren ser om det var kunden eller utkastet. */
+export function powerOfficeErrorText(err) {
+  const message = String(err?.message || '').trim() || 'PowerOffice svarte ikke som ventet.';
+  const path = String(err?.path || '').replace(/^\//, '');
+  if (!err?.status || err.status === 401 || err.status === 403 || err.status === 429 || err.status >= 500) return message;
+  if (/^Customers/i.test(path)) return `PowerOffice avviste kunden: ${message}`;
+  if (/^SalesOrders/i.test(path)) return `PowerOffice avviste fakturautkastet: ${message}`;
+  return `PowerOffice svarte: ${message}`;
+}
+
 /**
  * Finn hvilket miljø en klientnøkkel hører til. Brukeren skal ikke velge det:
  * nøkkelen fra Utvidelser i Go virker bare i ett miljø. Produksjon prøves først.

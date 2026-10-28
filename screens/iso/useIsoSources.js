@@ -17,6 +17,26 @@ import { loadDocControls } from '../../src/iso/storage';
 import { myProjectIds } from '../../src/project/myProjects';
 import { employeeMaySeeGear } from '../../src/equipment/calendars';
 
+/** Ansatte som personer i ISO (velgere, kompetanse, beredskap). Egne aktive ansatte først. */
+export function peopleFromEmployees(employees) {
+  return (employees || [])
+    .filter((e) => e && !isDeletedEmployee(e))
+    .map((e) => ({
+      id: e.id,
+      name: displayName(e),
+      uid: e.personUid || '',
+      title: e.company?.title || e.company?.position || '',
+      own: isOwnActiveEmployee(e),
+      // Kontakt, avdeling og CV eies av Ansatte; ISO bruker dem i velgere, beredskap og kompetanse.
+      phone: e.person?.phone || '',
+      email: e.company?.email || e.person?.email || '',
+      departmentIds: e.company?.departmentIds || [],
+      cv: e.cv || null,
+    }))
+    .filter((p) => p.name && p.name !== 'Uten navn')
+    .sort((a, b) => Number(b.own) - Number(a.own));
+}
+
 /**
  * allProjects / allGear: hele listen. Ellers bare prosjektene personen er med i og utstyret
  * personen har rettighet på (`viewer` = personens ansattpost), som i Prosjekt og Utstyr.
@@ -83,22 +103,7 @@ export function useIsoSources({
 
   return useMemo(() => {
     const active = employees.filter((e) => !isDeletedEmployee(e));
-    // Egne aktive ansatte først; de er standardforslagene i personvelgerne.
-    const people = active
-      .map((e) => ({
-        id: e.id,
-        name: displayName(e),
-        uid: e.personUid || '',
-        title: e.company?.title || e.company?.position || '',
-        own: isOwnActiveEmployee(e),
-        // Kontakt, avdeling og CV eies av Ansatte; ISO bruker dem i velgere, beredskap og kompetanse.
-        phone: e.person?.phone || '',
-        email: e.company?.email || e.person?.email || '',
-        departmentIds: e.company?.departmentIds || [],
-        cv: e.cv || null,
-      }))
-      .filter((p) => p.name && p.name !== 'Uten navn')
-      .sort((a, b) => Number(b.own) - Number(a.own));
+    const people = peopleFromEmployees(active);
     const own = allProjects ? null : myProjectIds(projectState, viewer, employees);
     const projects = (projectState?.projects || [])
       .filter((p) => p.status !== 'arkivert' && (!own || own.has(p.id)));

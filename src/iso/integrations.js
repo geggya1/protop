@@ -552,6 +552,40 @@ export function autoTaskEffects(state, { now = new Date(), people = [], tasks = 
   return [...out, ...annualTaskEffects(state, { now }), ...escalationEffects(state, now)];
 }
 
+/**
+ * Hvem en ISO-oppgave går til: personen som er valgt, ellers personen i rollen, ellers ISO-ansvarlig
+ * (systemansvarlig, kvalitetsleder, eieren av ledelsessystemet). Aldri den som tilfeldigvis kjørte
+ * automatikken. via: valgt | rolle | ansvarlig | ingen.
+ */
+export function taskRecipient(effect, system) {
+  const roles = system?.roleMap || {};
+  const mapped = roles[effect?.roleKey] || Object.values(roles).find((r) => r?.label && r.label === effect?.roleLabel) || null;
+  const chosen = text(effect?.assigneeUid, 128);
+  if (chosen) return { uid: chosen, via: 'valgt' };
+  if (mapped?.uid) return { uid: text(mapped.uid, 128), via: 'rolle' };
+  const responsible = text(roles.system_owner?.uid || roles.quality_manager?.uid || system?.ownerUid, 128);
+  return responsible ? { uid: responsible, via: 'ansvarlig' } : { uid: '', via: 'ingen' };
+}
+
+/** «Oppgave tildelt» for nye ISO-oppgaver, som HR: én melding per mottaker, flere oppgaver samles i én. */
+export function assignmentNotices(created) {
+  const by = new Map();
+  for (const c of created || []) {
+    const uid = text(c?.uid, 128);
+    if (!uid || !text(c?.title)) continue;
+    if (!by.has(uid)) by.set(uid, []);
+    by.get(uid).push(text(c.title, 200));
+  }
+  return [...by.entries()].map(([uid, titles]) => (titles.length === 1
+    ? { uid, title: 'Ny oppgave fra ISO', body: titles[0] }
+    : { uid, title: `${titles.length} nye oppgaver fra ISO`, body: `${titles.slice(0, 3).join(' · ')}${titles.length > 3 ? ' …' : ''}` }));
+}
+
+/** Roller med navn men uten innlogging: de får ingen oppgaver, som går til ISO-ansvarlig i stedet. */
+export function rolesWithoutLogin(system) {
+  return Object.entries(system?.roleMap || {}).filter(([, p]) => p?.name && !p.uid).map(([role, p]) => ({ role, name: p.name }));
+}
+
 /* ───────────────────────── Varsling og eskalering ───────────────────────── */
 
 const DAY = 24 * 3600 * 1000;

@@ -463,11 +463,20 @@ export async function loadAuditFor(companyId, entityId, { restricted = false } =
 /**
  * Oppretter oppgave i ProTops oppgavemodul. Deterministisk dokument-id gjør
  * operasjonen idempotent: gjentatt kall (retry, dobbeltklikk) gir én oppgave (A15/T27).
+ * Returnerer id-en (også når oppgaven fantes fra før).
  */
-export async function ensureTask(companyId, { key, title, description = '', assigneeUid = '', deadline = null, createdByUid = '', source = 'iso' }) {
+export async function ensureTask(companyId, input) {
+  return (await ensureTaskResult(companyId, input)).id;
+}
+
+/**
+ * Som ensureTask, men sier om oppgaven ble laget nå ({ id, created }), så «oppgave tildelt» bare varsles én gang.
+ * Uten mottaker står oppgaven uten tildeling; den gis ikke til den som tilfeldigvis kjørte automatikken.
+ */
+export async function ensureTaskResult(companyId, { key, title, description = '', assigneeUid = '', deadline = null, createdByUid = '', source = 'iso' }) {
   const id = cid(companyId);
   const docId = String(key || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 140);
-  if (!id || !docId || !title) return '';
+  if (!id || !docId || !title) return { id: '', created: false };
   const ref = doc(db, 'families', id, 'parentTodos', docId);
   try {
     const created = await runTransaction(db, async (tx) => {
@@ -479,7 +488,7 @@ export async function ensureTask(companyId, { key, title, description = '', assi
         deadline: deadline || null,
         deadlineTime: null,
         participants: [],
-        assignedTo: assigneeUid || createdByUid || null,
+        assignedTo: assigneeUid || null,
         attachments: [],
         done: false,
         active: true,
@@ -506,9 +515,9 @@ export async function ensureTask(companyId, { key, title, description = '', assi
         });
       } catch { /* oppgaven er lagret */ }
     }
-    return docId;
+    return { id: docId, created };
   } catch {
-    return '';
+    return { id: '', created: false };
   }
 }
 

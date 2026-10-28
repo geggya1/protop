@@ -10,8 +10,9 @@ import {
 } from '../../src/iso/analytics';
 import { openActions } from '../../src/iso/findings';
 import {
-  actionsDoneInTasks, contractReviewStatus, hrCarryOver, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, sickLeaveSeries,
+  actionsDoneInTasks, contractReviewStatus, hrCarryOver, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, rolesWithoutLogin, sickLeaveSeries,
 } from '../../src/iso/integrations';
+import { roleLabel } from '../../src/iso/catalog';
 import { recordsNeedingReview } from '../../src/iso/registers';
 import { annualWheel, pageLabel } from '../../src/iso/planning';
 import { READY_STATUS, certificationReadiness } from '../../src/iso/readiness';
@@ -51,6 +52,9 @@ export default function IsoDashboard({ ctx }) {
     const out = [];
     const doneInTasks = actionsDoneInTasks(findings, store?.tasks);
     if (doneInTasks.length) out.push({ key: 'tasks', icon: 'checkmark-done-outline', tone: 'info', title: `${doneInTasks.length} tiltak er ferdig i Oppgaver`, text: 'Kontroller og meld dem utført i saken.', page: 'avvik', params: { ids: doneInTasks.map((a) => a.findingId), label: 'Ferdig i Oppgaver' } });
+    // Oppgaver til en rolle uten innlogging går til ISO-ansvarlig, ikke til den som åpnet ISO.
+    const noLogin = rolesWithoutLogin(state.system);
+    if (noLogin.length) out.push({ key: 'nologin', icon: 'person-remove-outline', tone: 'warn', title: `${noLogin.length} ISO-roller uten innlogging`, text: `${noLogin.slice(0, 3).map((r) => `${roleLabel(r.role)}: ${r.name}`).join(' · ')}. Oppgavene deres går til ISO-ansvarlig til personen er koblet til en bruker.`, page: 'innstillinger' });
     const legacy = legacyProjectCases(sources.projectState, state.findings);
     if (legacy.length) out.push({ key: 'legacy', icon: 'briefcase-outline', tone: 'warn', title: `${legacy.length} avvik/RUH i Prosjekt er ikke behandlet i ISO`, text: 'Ta dem inn med ett trykk – uten ny registrering.', page: 'avvik' });
     const pq = projectQuality(sources.projects, state, findings).filter((r) => !r.plan);

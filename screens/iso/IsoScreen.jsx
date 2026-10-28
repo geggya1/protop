@@ -13,9 +13,7 @@ import { isSuperAdmin } from '../../src/utils/groups';
 import { defaultIsoSubView } from '../../src/navigation/shellModules';
 import { approverUidsFromRoles, isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
-import { autoQualityPlans, autoTaskEffects } from '../../src/iso/integrations';
-import { loadIsoTasks } from '../../src/iso/storage';
-import { createRecord } from '../../src/iso/registers';
+import { markRanToday, runIsoAutomation } from './isoAutoRun';
 import { replaceIn } from '../../src/iso/state';
 import QuickReportButton from './QuickReport';
 import { externalFormControls, mergeForms } from '../../src/iso/docControlLink';
@@ -128,28 +126,23 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     if (AUTO_RAN.has(key)) return;
     AUTO_RAN.add(key);
     (async () => {
-      const notes = [];
-      // Nye prosjekter får kvalitetsplan automatisk (utkast fylt ut fra prosjekt og kontrakt).
-      let plans = 0;
-      for (const row of autoQualityPlans(store.state, sources.projects, { contracts: sources.contracts })) {
-        const res = createRecord('kvalitetsplan', row.draft, { actor, existing: store.current().records.kvalitetsplan });
-        if (!res.ok) continue;
-        const record = { ...res.record, id: row.id };
-        const saved = await store.commit('records', 'record', { ...res, record }, {
-          createOnly: true,
-          effects: row.notifyUid ? [{ type: 'createTask', key: `iso_${row.id}_gjennomga`, title: `Gå gjennom kvalitetsplan: ${row.draft.projectName}`, assigneeUid: row.notifyUid, dueDays: 7, description: 'Kvalitetsplanen er laget automatisk fra prosjektet og kontrakten. Kontroller og godkjenn den i ISO → Prosjektkvalitet.' }] : [],
-        });
-        if (saved.ok) plans += 1;
-      }
-      if (plans) notes.push(plans === 1 ? 'Ett nytt prosjekt har fått kvalitetsplan automatisk' : `${plans} nye prosjekter har fått kvalitetsplan automatisk`);
-      // Status fra Oppgaver: et vedtak som er ferdig der, skal ikke gi påminnelse om forfalt vedtak.
-      const tasks = await loadIsoTasks(familyId);
-      const effects = autoTaskEffects(store.current(), { people: sources.people, tasks });
-      const n = effects.length ? await store.runEffects(effects) : 0;
-      if (n) notes.push(`${n} påminnelser og eskaleringer ligger som oppgaver i Oppgaver`);
-      if (notes.length) setAutoNote(`${notes.join('. ')}.`);
+      const res = await runIsoAutomation({
+        companyId: familyId,
+        actor,
+        state: store.current(),
+        people: sources.people,
+        projects: sources.projects,
+        contracts: sources.contracts,
+        equipment: sources.equipment,
+        // Nye prosjekter får kvalitetsplan automatisk (utkast fylt ut fra prosjekt og kontrakt).
+        saveRecord: (result, effects) => store.commit('records', 'record', result, { createOnly: true, effects }),
+        runEffects: store.runEffects,
+      });
+      // Skallet (IsoAutomation) trenger ikke kjøre det samme igjen i dag.
+      await markRanToday(familyId, uid);
+      if (res.notes.length) setAutoNote(`${res.notes.join('. ')}.`);
     })();
-  }, [familyId, store.loading, caps.manage, store.state, sources.ready, sources.people, sources.projects, sources.contracts, store, actor]);
+  }, [familyId, store.loading, caps.manage, store.state, sources.ready, sources.people, sources.projects, sources.contracts, sources.equipment, store, actor, uid]);
 
   const go = useCallback((next, nextParams = {}) => {
     const target = defaultIsoSubView(next);

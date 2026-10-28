@@ -48,7 +48,7 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
   useEffect(() => { reload(); }, [reload]);
 
   const runEffects = useCallback(async (effects) => {
-    const created = await runIsoEffects(companyId, effects, { actor, roleMap: stateRef.current.system?.roleMap || {} });
+    const created = await runIsoEffects(companyId, effects, { actor, system: stateRef.current.system });
     if (created) refreshTasks();
     return created;
   }, [companyId, actor, refreshTasks]);

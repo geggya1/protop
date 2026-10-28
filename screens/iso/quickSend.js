@@ -100,7 +100,7 @@ export async function sendQueued(companyId, item) {
   const effects = renumberEffects(newFindingEffects(finding, system), built.finding.number, finding.number);
   // Revisjonssporet skrives i eget navn; en anonym melding får bare historikken på saken.
   if (!anonymous) await appendAudit(companyId, built.events, { restricted: !!finding.restricted });
-  await runIsoEffects(companyId, safeEffects(effects, finding), { actor: anonymous ? null : actor, roleMap: system?.roleMap || {} });
+  await runIsoEffects(companyId, safeEffects(effects, finding), { actor: anonymous ? null : actor, system });
   return { finding, photoFailed: failed, assigneeName: finding.assigneeName || '' };
 }
 

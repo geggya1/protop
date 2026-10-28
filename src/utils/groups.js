@@ -101,8 +101,12 @@ export async function createAuthUser(email, password) {
   return uid;
 }
 
+/**
+ * `fields`: ekstra felt på gruppedokumentet ved opprettelsen (f.eks. orgnr og company for en
+ * bedrift), skrevet i samme batch. Eierskap, medlemmer og type kan ikke overstyres.
+ */
 export async function createGroup({
-  name, type, language, user, profile, isPersonal = false,
+  name, type, language, user, profile, isPersonal = false, fields = null,
 }) {
   const resolvedType = type || 'family';
   assertCanCreatePlatformType(resolvedType, user);
@@ -118,6 +122,7 @@ export async function createGroup({
     updatedAt: now,
   };
   batch.set(famRef, {
+    ...(fields && typeof fields === 'object' ? fields : {}),
     ...records.family,
     createdAt: now,
     updatedAt: now,

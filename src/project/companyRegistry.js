@@ -24,6 +24,23 @@ export function companyRegistrationDecision(existing) {
   return { kind: 'create' };
 }
 
+/**
+ * Feltene en ny bedrift får ved opprettelsen. De skrives i samme batch som selskapet,
+ * så en bedrift aldri blir liggende uten orgnr (og blir funnet av «Be om innpass»).
+ * cpvData er svaret fra Doffin (lookupCompany), eller null.
+ */
+export function newCompanyFields(nextCompany, cpvData = null) {
+  const cpvCodes = Array.isArray(cpvData?.cpvCodes) ? cpvData.cpvCodes : [];
+  return {
+    company: cpvData?.company?.name ? { ...nextCompany, navn: cpvData.company.name } : nextCompany,
+    orgnr: digitsOrgnr(nextCompany?.organisasjonsnummer),
+    projects: [],
+    tenders: [],
+    cpvCodes,
+    cpvSource: cpvCodes.length ? 'doffin' : '',
+  };
+}
+
 export function buildJoinRequest({ uid, name, email, at }) {
   return {
     uid: String(uid || ''),

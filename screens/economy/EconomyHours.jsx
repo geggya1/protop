@@ -25,7 +25,6 @@ import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import HoursOrganizePanel from '../../components/arbeid/HoursOrganizePanel';
-import { loadAnbudState } from '../../src/anbud/storage';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
@@ -72,7 +71,7 @@ import {
 } from '../../src/project/storage';
 import { readCachedTimeEntries, saveTimeEntryImport } from '../../src/economy/timeEntryStorage.js';
 import {
-  liveCustomerList, useCompanyDirectory, useCustomers, useEmployees, useProjects,
+  useCompanyDirectory, useCustomers, useEmployees, useProjects,
 } from '../../src/context/CompanyDataContext';
 import { freshRows, hydrateRows } from '../../src/company/companyData.js';
 import { recordUsage } from '../../src/employees/usageClient';
@@ -149,7 +148,6 @@ export default function EconomyHours({
   const directory = useCompanyDirectory(resolvedFamilyId);
   const liveCustomers = useCustomers(resolvedFamilyId, { enabled: !customersProp.length });
   const liveProjects = useProjects(resolvedFamilyId, { enabled: !projectsProp.length });
-  const [anbudCustomers, setAnbudCustomers] = useState([]);
   const [ready, setReady] = useState(() => !!peekProjectState(resolvedFamilyId));
   const [view, setView] = useState('list');
   /** Mobil: listekort vs tabell. */
@@ -245,18 +243,9 @@ export default function EconomyHours({
     return () => { live = false; };
   }, [ready, resolvedFamilyId, period, fromDate, toDate]);
 
-  useEffect(() => {
-    if (customersProp.length) return undefined;
-    let live = true;
-    loadAnbudState(resolvedFamilyId).then((loaded) => {
-      if (!live) return;
-      setAnbudCustomers(loaded?.customers || []);
-    });
-    return () => { live = false; };
-  }, [resolvedFamilyId, customersProp.length]);
-
   const loadedEntries = state.timeEntries || [];
-  const customers = customersProp.length ? customersProp : liveCustomerList(liveCustomers, anbudCustomers);
+  // Kunderegisteret fra skallet (det leser selv anbud/state for eldre selskaper uten register).
+  const customers = customersProp.length ? customersProp : liveCustomers.customers;
   const projectList = useMemo(
     () => (projectsProp.length ? projectsProp : freshRows(state.projects || [], liveProjects)),
     [projectsProp, state.projects, liveProjects],

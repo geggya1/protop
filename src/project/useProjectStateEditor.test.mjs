@@ -30,7 +30,14 @@ registerHooks({
         source: `
           const calls = globalThis.__editorTestCalls;
           export function peekProjectState() { return null; }
-          export async function loadProjectState() { calls.load += 1; return globalThis.__editorTestLoaded; }
+          export async function loadProjectState(id) {
+            calls.load += 1;
+            if (id === 'co2') {
+              await globalThis.__editorTestGate;
+              return globalThis.__editorTestLoaded2;
+            }
+            return globalThis.__editorTestLoaded;
+          }
           export function putProjectState(state) { calls.put += 1; return state; }
           export async function saveProjectState(state) { calls.save.push(state); return state; }
         `,
@@ -40,7 +47,7 @@ registerHooks({
   },
 });
 
-const { useProjectStateEditor } = await import('./useProjectStateEditor.js');
+const { NOT_READY_TEXT, useProjectStateEditor } = await import('./useProjectStateEditor.js');
 
 function createHooks() {
   const frame = { values: [], i: 0, effects: [] };
@@ -96,6 +103,8 @@ const internals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_
 assert.ok(internals, 'React 19 client internals missing');
 const hooks = createHooks();
 let api = null;
+let currentId = 'co1';
+const errors = [];
 
 async function render() {
   for (let pass = 0; pass < 10; pass += 1) {
@@ -103,7 +112,7 @@ async function render() {
     const previous = internals.H;
     internals.H = hooks.dispatcher;
     try {
-      api = useProjectStateEditor('co1');
+      api = useProjectStateEditor(currentId, { onError: (cause) => errors.push(cause) });
     } finally {
       internals.H = previous;
     }
@@ -129,6 +138,31 @@ assert.equal(calls.put, 1);
 
 await render();
 assert.equal(calls.save.length, 1, 'ny visning uten endring lagrer ikke på nytt');
+
+// REV-18: bytte av selskap. ready er false til det nye selskapet er lastet, forrige selskaps
+// prosjekter vises ikke imens, og en endring før lastingen tas ikke imot (og lagres ikke).
+let release = null;
+globalThis.__editorTestGate = new Promise((resolve) => { release = resolve; });
+globalThis.__editorTestLoaded2 = { projects: [{ id: 'q1', number: '900' }], baseRev: 'r2' };
+currentId = 'co2';
+await render();
+assert.equal(api.ready, false, 'ready nullstilles ved bytte av selskap');
+assert.deepEqual(api.state.projects, [], 'forrige selskap vises ikke');
+assert.equal(api.setState({ ...api.state, projects: [{ id: 'x', number: '1' }] }), false);
+assert.equal(errors.at(-1)?.message, NOT_READY_TEXT, 'brukeren får beskjed');
+await render();
+assert.equal(calls.save.length, 1, 'ingenting lagret før lastingen er ferdig');
+release();
+await render();
+await render();
+assert.equal(api.ready, true);
+assert.equal(api.state, globalThis.__editorTestLoaded2, 'det som lastes, overskriver ingen endring');
+assert.equal(calls.save.length, 1);
+const second = { ...api.state, projects: [...api.state.projects, { id: 'q2', number: '901' }] };
+assert.equal(api.setState(second), true);
+await render();
+assert.equal(calls.save.length, 2);
+assert.equal(calls.save[1], second);
 
 // Skjermene som lagret rett etter lasting, bruker nå vernet (eller lagrer ikke i det hele tatt).
 const economy = fs.readFileSync(path.join(ROOT, 'screens/economy/EconomyScreen.jsx'), 'utf8');

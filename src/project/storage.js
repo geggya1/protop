@@ -888,6 +888,53 @@ function queueProjectChanges(companyId, state, slim) {
   return { queued, rev };
 }
 
+/**
+ * Feil som ikke går over ved å prøve igjen: reglene sier nei (låst, fakturert, mangler tilgang)
+ * eller raden finnes ikke. Nett og tidsavbrudd prøves igjen ved neste lagring.
+ */
+export function permanentWriteError(error) {
+  const code = String(error?.code || '');
+  return code.includes('permission-denied') || code.includes('not-found')
+    || /missing or insufficient permissions/i.test(String(error?.message || ''));
+}
+
+export const REFUSED_ROWS_CODE = 'rows-refused';
+
+/** Feilen brukeren ser når noen rader ble avvist, men resten er lagret. */
+export function refusedRowsError(kind, count) {
+  const what = kind === 'absence'
+    ? (count === 1 ? '1 fraværsrad' : `${count} fraværsrader`)
+    : (count === 1 ? '1 timeføring' : `${count} timeføringer`);
+  const error = new Error(`${what} ble ikke lagret eller slettet i skyen: raden er låst, fakturert, eller du mangler tilgang. Resten er lagret. Last siden på nytt for å se hva som ligger i skyen.`);
+  error.code = REFUSED_ROWS_CODE;
+  error.kind = kind;
+  error.count = count;
+  return error;
+}
+
+/**
+ * Lagre radene samlet. Avviser reglene én av dem, lagres de én og én, så én låst rad ikke
+ * stopper resten. Gir id-ene som ble avvist. Andre feil kastes (prøves igjen senere).
+ */
+async function saveRowsIsolated(list, save) {
+  try {
+    await save(list);
+    return [];
+  } catch (error) {
+    if (!permanentWriteError(error)) throw error;
+  }
+  const refused = [];
+  for (const row of list) {
+    try {
+      await save([row]);
+    } catch (error) {
+      if (!permanentWriteError(error)) throw error;
+      refused.push(row?.id);
+    }
+  }
+  return refused;
+}
+
 async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { allowRemovals = true } = {}) {
   const id = String(companyId || '').trim();
   if (!id) return;
@@ -900,18 +947,26 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
     if (!bySource.has(source)) bySource.set(source, []);
     bySource.get(source).push(row);
   }
+  const refused = [];
   for (const [source, list] of bySource) {
     // Bare endrede felt: en eldre kopi skal ikke nullstille faktura, status eller låsing.
-    await saveTimeEntries(source, list, { previous: previousEntries });
+    refused.push(...await saveRowsIsolated(list, (rows) => saveTimeEntries(source, rows, { previous: previousEntries })));
   }
   const removable = planTimeEntryRemovals(previousEntries, nextEntries, window, { allowRemovals });
   if (removable.length) {
     const prevById = new Map((previousEntries || []).map((row) => [row?.id, row]));
     for (const entryId of removable) {
       const source = String(prevById.get(entryId)?.sourceCompanyId || id).trim() || id;
-      await removeTimeEntry(source, entryId, { entry: prevById.get(entryId) || null, log: true });
+      try {
+        await removeTimeEntry(source, entryId, { entry: prevById.get(entryId) || null, log: true });
+      } catch (error) {
+        if (!permanentWriteError(error)) throw error;
+        refused.push(entryId);
+      }
     }
   }
+  // Avviste rader regnes som ferdige: de prøves ikke igjen ved hver lagring i økten (da
+  // stoppet én låst rad all senere lagring). Neste lasting viser det som ligger i skyen.
   const nextClean = withoutDeletedTimeEntries(id, nextEntries);
   if (allowRemovals && window?.all === true) {
     markTimeEntriesSynced(id, nextClean);
@@ -919,6 +974,7 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
     // Delvis vindu: behold id-er utenfor vinduet, men slipp dem brukeren slettet.
     markTimeEntriesSyncedMerge(id, nextClean);
   }
+  if (refused.length) throw refusedRowsError('time', refused.length);
 }
 
 async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { allowRemovals = true } = {}) {
@@ -937,8 +993,9 @@ async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { all
     if (!bySource.has(source)) bySource.set(source, []);
     bySource.get(source).push(row);
   }
+  const refused = [];
   for (const [source, list] of bySource) {
-    await saveAbsences(source, list);
+    refused.push(...await saveRowsIsolated(list, (rows) => saveAbsences(source, rows)));
   }
   const removable = allowRemovals && window?.all === true
     ? removed
@@ -947,7 +1004,12 @@ async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { all
     const prevById = new Map((previousEntries || []).map((row) => [row?.id, row]));
     for (const entryId of removable) {
       const source = String(prevById.get(entryId)?.sourceCompanyId || id).trim() || id;
-      await removeAbsence(source, entryId);
+      try {
+        await removeAbsence(source, entryId);
+      } catch (error) {
+        if (!permanentWriteError(error)) throw error;
+        refused.push(entryId);
+      }
     }
   }
   const nextClean = withoutDeletedAbsences(id, nextEntries);
@@ -956,6 +1018,28 @@ async function syncAbsencesRemote(companyId, previousEntries, nextEntries, { all
   } else {
     markAbsencesSyncedMerge(id, nextClean);
   }
+  if (refused.length) throw refusedRowsError('absence', refused.length);
+}
+
+/**
+ * Timer og fravær til egne samlinger. Rader reglene avviste, stopper ikke resten: fraværet
+ * synkes selv om en timeføring ble avvist, og feilen gis tilbake. Andre feil kastes med en gang.
+ */
+async function syncRowsRemote(companyId, previousEntries, nextEntries, previousAbsences, nextAbsences, options) {
+  let refused = null;
+  try {
+    await syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { allowRemovals: options.allowRemovals });
+  } catch (error) {
+    if (error?.code !== REFUSED_ROWS_CODE) throw error;
+    refused = error;
+  }
+  try {
+    await syncAbsencesRemote(companyId, previousAbsences, nextAbsences, { allowRemovals: options.allowAbsenceRemovals });
+  } catch (error) {
+    if (error?.code !== REFUSED_ROWS_CODE) throw error;
+    refused = refused || error;
+  }
+  return refused;
 }
 
 function resolveHoursOpts(hours) {
@@ -1232,11 +1316,12 @@ export async function saveProjectState(state, companyId) {
   const allowRemovals = allowTimeEntryRemovals(peekHoursMode(companyId), HOURS_WINDOW.get(memoryKey(companyId)) || null);
   const allowAbsenceRemovals = ABSENCE_MODE.get(memoryKey(companyId)) === 'all';
 
+  let refused = null;
   if (companyId) {
     try {
-      await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
-      await syncAbsencesRemote(companyId, previousAbsences, full.absences || [], {
-        allowRemovals: allowAbsenceRemovals,
+      refused = await syncRowsRemote(companyId, previousEntries, full.timeEntries || [], previousAbsences, full.absences || [], {
+        allowRemovals,
+        allowAbsenceRemovals,
       });
     } catch (error) {
       scheduleFlush(companyId);
@@ -1252,12 +1337,15 @@ export async function saveProjectState(state, companyId) {
 
   await writeLocal(companyId, nextSlim);
   scheduleFlush(companyId);
-  return putProjectState({
+  const stored = putProjectState({
     ...nextSlim,
     timeEntries: full.timeEntries || [],
     absences: full.absences || [],
     baseRev: rev,
   }, companyId);
+  // Resten er lagret. Brukeren får vite at noen rader ble avvist.
+  if (refused) throw refused;
+  return stored;
 }
 
 /** Lagrer med en gang og venter på Firestore (prosjekt + timeEntries + absences). */
@@ -1274,11 +1362,12 @@ export async function persistProjectState(state, companyId) {
   const allowAbsenceRemovals = ABSENCE_MODE.get(memoryKey(companyId)) === 'all';
   const id = String(companyId || '').trim();
 
+  let refused = null;
   if (id) {
     try {
-      await syncTimeEntriesRemote(companyId, previousEntries, full.timeEntries || [], { allowRemovals });
-      await syncAbsencesRemote(companyId, previousAbsences, full.absences || [], {
-        allowRemovals: allowAbsenceRemovals,
+      refused = await syncRowsRemote(companyId, previousEntries, full.timeEntries || [], previousAbsences, full.absences || [], {
+        allowRemovals,
+        allowAbsenceRemovals,
       });
     } catch (error) {
       scheduleFlush(id);
@@ -1300,12 +1389,14 @@ export async function persistProjectState(state, companyId) {
       );
     }
   }
-  return putProjectState({
+  const stored = putProjectState({
     ...nextSlim,
     timeEntries: full.timeEntries || [],
     absences: full.absences || [],
     baseRev: rev,
   }, companyId);
+  if (refused) throw refused;
+  return stored;
 }
 
 /**

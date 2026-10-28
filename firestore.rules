@@ -989,8 +989,10 @@ service cloud.firestore {
           && (!isCompanyGroup(familyId) || absenceForAll(familyId, 2)
               || (ownAbsenceDoc(familyId, resource.data) && ownAbsenceDoc(familyId, request.resource.data)
                   && ownAbsenceStatusOk()));
+        // Et dokument som ikke finnes, kan «slettes» (to skjermer sletter samme rad, eller en sletting prøves igjen).
         allow delete: if isFamilyMember(familyId)
-          && (!isCompanyGroup(familyId) || absenceForAll(familyId, 2) || ownAbsenceDoc(familyId, resource.data));
+          && (resource == null || !isCompanyGroup(familyId) || absenceForAll(familyId, 2)
+              || ownAbsenceDoc(familyId, resource.data));
       }
 
       // Personnummer, pårørende og intern kommentar per ansatt (L-03). Ikke i ansattlisten.
@@ -1008,7 +1010,9 @@ service cloud.firestore {
         allow get: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
         allow list: if isFamilyMemberLite(familyId) && (!isCompanyGroup(familyId) || eventListVisible());
         allow create: if isFamilyMember(familyId) || foundsFamily(familyId);
-        allow update, delete: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
+        allow update: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || !isCompanyGroup(familyId) || eventVisible(resource.data));
 
         match /{sub}/{rest=**} {
           allow read, write: if isFamilyMember(familyId)
@@ -1033,12 +1037,15 @@ service cloud.firestore {
           && (resource.data.get('createdBy', '') == request.auth.uid
               || (request.resource.data.get('memberIds', []).toSet() == resource.data.get('memberIds', []).toSet()
                   && unchanged('visibility')));
-        allow delete: if isFamilyMember(familyId) && resource.data.get('createdBy', '') == request.auth.uid;
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || resource.data.get('createdBy', '') == request.auth.uid);
       }
 
       // Timer og prosjektutlegg: som før for alle medlemmer, men en fakturert eller låst rad
       // beholder timer, beløp, dato, ansatt og prosjekt, og slettes ikke (DS-11, L-10).
       // Koblingen til fakturaen settes og tas bort av den som fakturerer.
+      // En rad som allerede er slettet, kan slettes igjen (appen kan slette samme rad fra to
+      // steder samtidig, og eldre versjoner gjør det). Det avslører ikke noe medlemmer ikke kan lese.
       match /timeEntries/{entryId} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
@@ -1048,7 +1055,7 @@ service cloud.firestore {
           && (sameInvoiceLink() || invoiceBiller(familyId))
           && (!entryLocked(resource.data, 'låst') || timeEntryCoreKept())
           && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId));
-        allow delete: if isFamilyMember(familyId) && !entryLocked(resource.data, 'låst');
+        allow delete: if isFamilyMember(familyId) && (resource == null || !entryLocked(resource.data, 'låst'));
       }
 
       // Slettelogg for timer: nye rader i eget navn, aldri endret eller slettet.
@@ -1071,7 +1078,7 @@ service cloud.firestore {
           && (sameInvoiceLink() || invoiceBiller(familyId))
           && (!entryLocked(resource.data, 'invoiced') || expenseCoreKept())
           && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId));
-        allow delete: if isFamilyMember(familyId) && !entryLocked(resource.data, 'invoiced');
+        allow delete: if isFamilyMember(familyId) && (resource == null || !entryLocked(resource.data, 'invoiced'));
       }
 
       // Medlemsdokumentene: se memberDocCreateOk / memberDocUpdateOk.
@@ -1143,7 +1150,7 @@ service cloud.firestore {
             && invoiceEventsAppended()
             && invoiceArchiveKept())
         );
-        allow delete: if isFamilyMember(familyId) && !invoiceIssued(resource.data);
+        allow delete: if isFamilyMember(familyId) && (resource == null || !invoiceIssued(resource.data));
       }
 
       // Telleren for fakturanummer: ett steg om gangen, eller et begrunnet hopp. Aldri slettet.

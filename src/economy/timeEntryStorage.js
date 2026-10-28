@@ -553,13 +553,38 @@ export async function hasTimeEntries(companyId) {
   return !snap.empty;
 }
 
+/** Slettinger som pågår, og rader som er slettet i skyen i denne økten (per selskap/id). */
+const REMOVING = new Map();
+const REMOVED = new Set();
+const REMOVED_CAP = 5000;
+
+function removalKey(companyId, id) {
+  return `${text(companyId)}/${text(id)}`;
+}
+
 /**
  * Slett en føring. log: true (eller entry) legger en rad i families/{id}/timeEntryDeletions,
  * så slettingen kan spores (L-13). Opprydding av rader som allerede er slettet, logges ikke.
+ * Arbeid sletter raden selv og lagringen etterpå sletter den samme: da slettes den bare én gang.
  */
-export async function removeTimeEntry(companyId, entryId, { entry = null, log = !!entry, reason = '' } = {}) {
+export async function removeTimeEntry(companyId, entryId, options = {}) {
   const id = text(entryId);
   if (!companyId || !id) return;
+  const key = removalKey(companyId, id);
+  if (REMOVING.has(key)) return REMOVING.get(key);
+  if (REMOVED.has(key)) return;
+  const job = removeTimeEntryOnce(companyId, id, options);
+  REMOVING.set(key, job);
+  try {
+    await job;
+    REMOVED.add(key);
+    if (REMOVED.size > REMOVED_CAP) REMOVED.delete(REMOVED.values().next().value);
+  } finally {
+    if (REMOVING.get(key) === job) REMOVING.delete(key);
+  }
+}
+
+async function removeTimeEntryOnce(companyId, id, { entry = null, log = !!entry, reason = '' } = {}) {
   // Merk før nettverket, så en parallell lagring ikke skriver raden tilbake.
   const already = deletedTimeEntryIds(companyId).has(id);
   rememberDeletedTimeEntries(companyId, [id]);
@@ -727,6 +752,7 @@ export function rememberDeletedTimeEntries(companyId, ids = []) {
 }
 
 export function forgetDeletedTimeEntries(companyId, ids = []) {
+  for (const id of ids) REMOVED.delete(removalKey(companyId, id));
   const set = TOMBSTONES.get(text(companyId));
   if (!set) return;
   for (const id of ids) set.delete(text(id));
@@ -762,6 +788,9 @@ export function clearDeletedTimeEntries(companyId) {
   if (companyId !== undefined) {
     const key = text(companyId);
     TOMBSTONES.delete(key);
+    for (const done of [...REMOVED]) {
+      if (done.startsWith(`${key}/`)) REMOVED.delete(done);
+    }
     try {
       const remove = AsyncStorage.removeItem(tombKey(key));
       if (remove && typeof remove.catch === 'function') remove.catch(() => {});
@@ -771,6 +800,7 @@ export function clearDeletedTimeEntries(companyId) {
     return;
   }
   TOMBSTONES.clear();
+  REMOVED.clear();
 }
 
 /**
@@ -811,6 +841,8 @@ async function finishLoadedEntries(companyId, rows, writeCache) {
     // Cache er best-effort. Timene skal vises selv om disken er treg.
   }
   for (const row of revived) {
+    // Raden er i skyen igjen (f.eks. skrevet tilbake av en eldre app): slett den på nytt.
+    REMOVED.delete(removalKey(companyId, row.id));
     removeTimeEntry(companyId, row.id).catch(() => {});
   }
   return clean;

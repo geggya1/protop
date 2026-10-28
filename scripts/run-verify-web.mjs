@@ -34,6 +34,8 @@ export const FILES = [
   'src/privacy/storageNotice.test.mjs',
   'src/i18n/htmlLang.test.mjs',
   'src/hooks/reducedMotion.test.mjs',
+  'src/arbeid/absenceHealth.test.mjs',
+  'functions/importInterpret.test.mjs',
   'functions/anbudIntake.smoke.test.mjs',
   'functions/anbud/intakeScan.test.mjs',
   'src/anbud/intake.test.mjs',

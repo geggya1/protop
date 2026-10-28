@@ -88,7 +88,7 @@ import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
 import { monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
 import { loadTimeEntries, readCachedTimeEntries } from '../../src/economy/timeEntryStorage.js';
 import { loadAbsences } from '../../src/arbeid/absenceStorage.js';
-import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
+import { HEALTH_FREE_TEXT_NOTICE, absenceTypeById, isHealthAbsence } from '../../src/arbeid/absenceCatalog.js';
 import { isDateLocked } from '../../src/arbeid/locks.js';
 import {
   hideTimesheetProject,
@@ -1428,8 +1428,12 @@ export default function ArbeidScreen({
             <TextInput
               value={absenceForm.description}
               onChangeText={(description) => setAbsenceForm((f) => ({ ...f, description }))}
+              accessibilityLabel="Merknad"
               style={[styles.field, { color: colors.ink, borderColor: colors.line }]}
             />
+            {isHealthAbsence(absenceForm.type) ? (
+              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>{HEALTH_FREE_TEXT_NOTICE}</Text>
+            ) : null}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               <TouchableOpacity onPress={() => setAbsenceOpen(false)} style={[styles.ctaGhost, { flex: 1, borderColor: colors.line }]}>
                 <Text style={{ color: colors.ink }}>Avbryt</Text>

@@ -82,10 +82,18 @@ function clean(value, max) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+/**
+ * Fødselsnummer (11 siffer) sendes ikke til AI når bare kolonnene skal tolkes.
+ * Modellen trenger bare å se at kolonnen har elleve siffer.
+ */
+export function maskIdentityNumbers(value) {
+  return String(value || '').replace(/(^|\D)\d{6}[\s.-]?\d{5}(?!\d)/g, '$1[11 siffer]');
+}
+
 function tableMessage(data) {
   const headers = (Array.isArray(data?.headers) ? data.headers : []).slice(0, 40).map((header) => clean(header, 80));
   const samples = (Array.isArray(data?.samples) ? data.samples : []).slice(0, 3).map((row) => (
-    headers.map((_, index) => clean(row?.[index], 80))
+    headers.map((_, index) => maskIdentityNumbers(clean(row?.[index], 80)))
   ));
   const lines = headers.map((header, index) => {
     const examples = samples.map((row) => row[index]).filter(Boolean).slice(0, 3);

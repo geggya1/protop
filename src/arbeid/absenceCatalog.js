@@ -121,6 +121,20 @@ export function absenceTypeById(id, catalog) {
   });
 }
 
+/** Legebesøk og sykdom er helseopplysninger (GDPR art. 9), også når typen er laget av bedriften. */
+const HEALTH_TYPE_IDS = new Set(['egenmelding', 'syk_melding', 'syk_uten', 'sykt_barn', 'sykdom', 'lege_med', 'lege_uten']);
+
+export function isHealthAbsence(typeId, catalog) {
+  const key = String(typeId || '').trim();
+  if (!key) return false;
+  if (HEALTH_TYPE_IDS.has(key)) return true;
+  const row = absenceTypeById(key, catalog);
+  return row.category === 'Sykdom' || /lege|syk/i.test(row.label);
+}
+
+/** Vises ved fritekst når fraværet gjelder sykdom eller legebesøk. */
+export const HEALTH_FREE_TEXT_NOTICE = 'Ikke skriv diagnose eller andre helseopplysninger her. Typen fravær er nok.';
+
 /** Typer som vises når man legger fravær inn i timelisten. */
 export function absencePickerTypes(catalog) {
   const list = Array.isArray(catalog) ? catalog : defaultAbsenceTypes();

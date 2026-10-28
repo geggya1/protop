@@ -193,6 +193,7 @@ export const FILES = [
   // Medlemskap og administrator på serveren, passord på underkontoer og tilgangsspeilet.
   'functions/security.test.mjs',
   'functions/memberPassword.test.mjs',
+  'functions/verifiedPhone.test.mjs',
   'src/access/accessMirror.test.mjs',
   'src/access/mirrorRefresh.test.mjs',
   'src/hr/hrPending.test.mjs',

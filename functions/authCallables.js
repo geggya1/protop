@@ -33,6 +33,7 @@ import {
 } from './security.js';
 import { childHomeAnchored, memberPasswordDecision } from './memberPassword.js';
 import { confirmMicrosoftEmailFor } from './microsoftEmail.js';
+import { findVerifiedPhoneUid } from './verifiedPhone.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -507,23 +508,19 @@ export const lookupAdultProfile = onCall(
       const looksLikePhone = !identifier.includes('@') && phoneCandidates.length > 0
         && /^\+?[\d\s().-]+$/.test(identifier);
       if (looksLikePhone) {
-        for (const candidate of phoneCandidates) {
-          const usersSnap = await db.collection('users').where('phone', '==', candidate).limit(3).get();
-          for (const d of usersSnap.docs) {
-            const data = d.data() || {};
-            if (data.role === 'child' || data.type === 'child') continue;
-            return { ok: true, profile: publicAdultProfile(d.id, data) };
-          }
-          const parentsSnap = await db.collection('parents').where('phone', '==', candidate).limit(5).get();
-          for (const d of parentsSnap.docs) {
-            const data = d.data() || {};
-            if (data.placeholder === true && !data.uid) continue;
-            const uid = data.uid || (String(d.id).length >= 20 ? d.id : null);
-            if (!uid) continue;
-            return { ok: true, profile: publicAdultProfile(uid, data) };
-          }
-        }
-        return { ok: true, profile: null };
+        // Bare et nummer kontoen har bekreftet med SMS (Auth phoneNumber). users.phone og
+        // parents.phone skriver brukeren selv, så de kan peke på en annens nummer (REV-22).
+        // Uten treff inviterer appen nummeret med SMS, og personen godtar selv.
+        const uid = await findVerifiedPhoneUid(phoneCandidates, adminAuth);
+        if (!uid) return { ok: true, profile: null };
+        const [userSnap, parentSnap] = await Promise.all([
+          db.doc(`users/${uid}`).get(),
+          db.doc(`parents/${uid}`).get(),
+        ]);
+        const userData = userSnap.exists ? userSnap.data() || {} : {};
+        if (userData.role === 'child' || userData.type === 'child') return { ok: true, profile: null };
+        const parentData = parentSnap.exists ? parentSnap.data() || {} : {};
+        return { ok: true, profile: publicAdultProfile(uid, { ...parentData, ...userData }) };
       }
 
       const u = identifier.toLowerCase().replace(/^@/, '');

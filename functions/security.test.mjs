@@ -9,6 +9,7 @@ import {
   isFamilyOwnerOrAdmin,
   listedOnFamily,
   memberDocGrantsAccess,
+  childDocCounts,
 } from './security.js';
 
 assert.equal(isBlockedOutboundHost('127.0.0.1'), true);
@@ -54,6 +55,11 @@ assert.equal(memberDocGrantsAccess({ active: false, inviteStatus: 'pending' }), 
 assert.equal(memberDocGrantsAccess({ placeholder: true, inviteStatus: 'pending', active: false }), false);
 assert.equal(memberDocGrantsAccess({ active: true, inviteStatus: 'accepted', placeholder: false }), true);
 assert.equal(memberDocGrantsAccess({ leftAt: {} }), false);
+// REV-24: barnedokumentet teller ikke i en bedrift (ingen kan lage det der).
+assert.equal(childDocCounts({ type: 'company' }), false);
+assert.equal(childDocCounts({ type: 'organization' }), false);
+assert.equal(childDocCounts({ type: 'family' }), true);
+assert.equal(childDocCounts({}), true);
 
 // Bare feltene reglene beskytter gir eier/admin. createdBy og adminUid kan medlemmer skrive.
 const fam = { ownerUid: 'own', adminUids: ['adm'], createdBy: 'bob', adminUid: 'bob', members: ['own', 'adm', 'bob'] };

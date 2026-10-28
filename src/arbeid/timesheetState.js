@@ -159,6 +159,29 @@ function applyLockStatus(state, employeeId, throughDate) {
   return { timeEntries, absences };
 }
 
+/**
+ * Leder åpner timer igjen (canReopen): godkjente føringer etter after og til og med through som ikke
+ * er fakturert, blir registrert igjen, så den ansatte kan rette dem og neste godkjenning tar dem med.
+ * Reglene lar bare den som godkjenner timer endre en godkjent føring (DRIFT-06).
+ */
+function reopenApprovedEntries(timeEntries, employeeId, { after = '', through = '' } = {}) {
+  const now = stamp();
+  let count = 0;
+  const rows = timeEntries.map((row) => {
+    if (row.employeeId !== employeeId || row.invoiceId || row.status !== 'godkjent') return row;
+    const date = text(row.date);
+    if (!date || (after && date <= after) || (through && date > through)) return row;
+    count += 1;
+    return { ...row, status: 'registrert', updatedAt: now };
+  });
+  return { timeEntries: rows, count };
+}
+
+function reopenedNotice(count, base) {
+  if (!count) return null;
+  return `${base} Godkjenningen er tatt bort på ${count} ${count === 1 ? 'føring' : 'føringer'}, så de kan rettes og godkjennes på nytt.`;
+}
+
 function archiveLock(state, row, extra = {}) {
   if (!row) return list(state, 'timesheetLockArchive');
   const entry = {
@@ -232,18 +255,26 @@ export function toggleTimesheetLock(state, {
     canReopen,
   });
   if (blocked && (existing === date || date < existing)) return fail(state, blocked);
+  // Leder som låser opp eller flytter låsen bakover, åpner også godkjente timer i perioden.
+  const reopen = canReopen && existing && (existing === date || date < existing);
   if (existing === date) {
     const cleared = applyLockStatus(state, id, '');
-    return ok({
+    const reopened = reopen ? reopenApprovedEntries(cleared.timeEntries, id, { through: existing }) : null;
+    const result = ok({
       ...state,
       ...cleared,
+      ...(reopened ? { timeEntries: reopened.timeEntries } : {}),
       timesheetLocks: current,
       timesheetLockArchive: archiveLock(state, existingRow, { unlockedAt: stamp() }),
     });
+    const notice = reopenedNotice(reopened?.count || 0, 'Timelisten er låst opp.');
+    return notice ? { ...result, notice } : result;
   }
-  const approvedThrough = existingRow?.approvedAt
+  let approvedThrough = existingRow?.approvedAt
     ? existingRow.throughDate
     : (existingRow?.approvedThrough || '');
+  // Det som er åpnet igjen, er ikke godkjent lenger: neste godkjenning tar det med.
+  if (reopen && approvedThrough && date < approvedThrough) approvedThrough = date;
   const row = {
     id: existingRow?.id || createId('las'),
     employeeId: id,
@@ -257,12 +288,16 @@ export function toggleTimesheetLock(state, {
     dismissedFindingIds: [],
   };
   const locked = applyLockStatus(state, id, date);
-  return ok({
+  const reopened = reopen ? reopenApprovedEntries(locked.timeEntries, id, { after: date, through: existing }) : null;
+  const result = ok({
     ...state,
     ...locked,
+    ...(reopened ? { timeEntries: reopened.timeEntries } : {}),
     timesheetLocks: [row, ...current],
     timesheetLockArchive: existingRow ? archiveLock(state, existingRow) : list(state, 'timesheetLockArchive'),
   });
+  const notice = reopenedNotice(reopened?.count || 0, `Timelisten er låst til ${date}.`);
+  return notice ? { ...result, notice } : result;
 }
 
 function inOpenControl(row, lock) {

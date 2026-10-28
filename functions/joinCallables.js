@@ -7,7 +7,7 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import {
-  requireAuth, assertRateLimit, hashRateKey, isFamilyOwnerOrAdmin, memberDocGrantsAccess,
+  requireAuth, assertRateLimit, childDocCounts, hashRateKey, isFamilyOwnerOrAdmin, memberDocGrantsAccess,
 } from './security.js';
 
 if (!getApps().length) initializeApp();
@@ -234,8 +234,9 @@ export const listMyFamilies = onCall(
           if (memberDocGrantsAccess(parentsSnap.docs[0].data() || {})) return true;
           return isOwnerOrAdmin;
         }
-        const child = await db.doc(`families/${familyId}/children/${uid}`).get();
-        if (child.exists) {
+        // Barnedokumentet teller ikke i en bedrift (REV-24, childDocCounts).
+        const child = childDocCounts(data) ? await db.doc(`families/${familyId}/children/${uid}`).get() : null;
+        if (child?.exists) {
           return memberDocGrantsAccess(child.data() || {});
         }
         if (isOwnerOrAdmin) return true;

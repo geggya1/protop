@@ -17,6 +17,7 @@ import {
 import { clientIpFromHeaders, sanitizeIp } from '../src/employees/usage.js';
 import {
   inviteAcceptEmailCheck,
+  inviteDeclineEmail,
   inviteExpired,
   inviteFromPlaceholder,
   isCompanyGroupType,
@@ -314,12 +315,17 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family, mat
   };
 }
 
+/**
+ * Avslå. Invitasjonen, innboksen og en ventende plassholder på uid-en avslås alltid. Plassholdere,
+ * invitasjonslisten og medarbeiderposter på e-post bare når kontoens bekreftede e-post er adressen
+ * invitasjonen ble sendt til (inviteDeclineEmail, samme regel som Godta, REV-23).
+ */
 async function declineInvite({ req, uid, familyId, inviteRef, invite, family }) {
-  const authEmail = authEmailOf(req);
+  const authEmail = inviteDeclineEmail({ invite, authEmail: authEmailOf(req), trusted: emailTrusted(req.auth) });
   const now = new Date().toISOString();
   const company = isCompanyGroupType(family.type || invite.groupType);
   const familyName = groupLabel(family);
-  const emails = [...new Set([authEmail, text(invite.inviteeEmail).toLowerCase()].filter(Boolean))];
+  const emails = authEmail ? [authEmail] : [];
 
   const memberRef = db.doc(`families/${familyId}/parents/${uid}`);
   const [memberSnap, placeholders, employees] = await Promise.all([
@@ -364,7 +370,7 @@ async function declineInvite({ req, uid, familyId, inviteRef, invite, family }) 
       updatedAt: now,
     });
   }
-  const declined = company ? declineEmployeeInvitePlan({ employees, authEmail, now }) : [];
+  const declined = company ? declineEmployeeInvitePlan({ employees, authEmail, uid, now }) : [];
   declined.forEach((row) => {
     batch.update(db.doc(`families/${familyId}/employees/${row.employeeId}`), {
       'invite.status': 'declined',

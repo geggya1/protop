@@ -53,6 +53,26 @@ export function invoicedEntryBlock(entries) {
   return 'Timene er fakturert og kan ikke endres eller slettes. Be økonomi om en kreditnota hvis noe må rettes.';
 }
 
+/**
+ * Melding når en godkjent føring (fersk fra skyen) ville fått nye timer eller ny timeart, eller blitt
+ * slettet, av en som ikke godkjenner timer, ellers ''. Reglene avviser det (DRIFT-06, DRIFT-07);
+ * teksten kan rettes. blocks: det som lagres ({ id, hours, timeType }); uten blocks er det sletting.
+ * Fakturerte føringer stoppes av invoicedEntryBlock.
+ */
+export function approvedEntryBlock(entries, { blocks = null, canApprove = false } = {}) {
+  if (canApprove) return '';
+  const wanted = new Map((blocks || []).filter((row) => row?.id && Number(row.hours) > 0).map((row) => [row.id, row]));
+  const touched = (entries || []).some((row) => {
+    if (row?.status !== 'godkjent' || text(row.invoiceId)) return false;
+    const next = blocks ? wanted.get(row.id) : null;
+    if (!next) return true;
+    return Number(next.hours) !== Number(row.hours)
+      || (text(next.timeType) || 'ordinary') !== (text(row.timeType) || 'ordinary');
+  });
+  if (!touched) return '';
+  return 'Timene er godkjent og kan ikke endres eller slettes. Be leder åpne timelisten igjen hvis noe må rettes.';
+}
+
 function lockKey(row) {
   return [row?.id, row?.throughDate, row?.lockedAt, row?.approvedAt, row?.readyForBilling ? 1 : 0].map(text).join('|');
 }

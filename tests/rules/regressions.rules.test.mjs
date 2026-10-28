@@ -1,5 +1,5 @@
 /**
- * Regresjoner fra gjennomgangen av rettingene (REV-01, 02, 03, 11, 13), kjørt mot Firestore-emulatoren:
+ * Regresjoner fra gjennomgangen av rettingene (REV-01, 02, 03, 11, 13, 24), kjørt mot Firestore-emulatoren:
  *
  *   npx firebase emulators:exec --only firestore --config firebase.rules.json --project demo-protop \
  *     "node --test --test-concurrency=1 tests/rules/regressions.rules.test.mjs"
@@ -194,7 +194,11 @@ describe('REV-03: medforelder uten admin legger til et barn', () => {
 
   test('en voksen konto kan ikke legges til som barn, og bare ett barn om gangen', async () => {
     const db = as('far');
-    await assertSucceeds(setDoc(doc(db, 'families', F, 'children', 'voksen'), childPayload('voksen'), { merge: true }));
+    // Barnedokumentet for en voksen konto lages ikke lenger (REV-24), og listene avvises uansett.
+    await assertFails(setDoc(doc(db, 'families', F, 'children', 'voksen'), childPayload('voksen'), { merge: true }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'families', F, 'children', 'voksen'), childPayload('voksen'));
+    });
     await assertFails(updateDoc(doc(db, 'families', F), { members: arrayUnion('voksen') }));
     await assertFails(addChild('far', 'kid3', { profile: false }));
     await setDoc(doc(db, 'children', 'kid4'), childPayload('kid4'));
@@ -205,8 +209,73 @@ describe('REV-03: medforelder uten admin legger til et barn', () => {
 
   test('i en bedrift legger ingen ansatte til barn i medlemslistene', async () => {
     const db = as('bob');
-    await setDoc(doc(db, 'families', A, 'children', 'kidA'), { uid: 'kidA', familyId: A, name: 'Barn' });
+    await assertFails(setDoc(doc(db, 'families', A, 'children', 'kidA'), { uid: 'kidA', familyId: A, name: 'Barn' }));
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'families', A, 'children', 'kidA'), { uid: 'kidA', familyId: A, name: 'Barn' });
+      await setDoc(doc(ctx.firestore(), 'users', 'kidA'), { uid: 'kidA', role: 'child' });
+    });
     await assertFails(updateDoc(doc(db, 'families', A), { members: arrayUnion('kidA') }));
+  });
+});
+
+describe('REV-24: barnedokumentet i gruppen gir medlemskap, så bare en foresatt lager det', () => {
+  const child = (uid, over = {}) => ({ uid, familyId: F, name: 'Barn', active: true, createdBy: 'far', ...over });
+  const seedDocs = (rows) => env.withSecurityRulesDisabled(async (ctx) => {
+    for (const [path, data] of rows) await setDoc(doc(ctx.firestore(), ...path.split('/')), data);
+  });
+
+  test('i en bedrift lager ingen et barnedokument, heller ikke eier eller administrator', async () => {
+    for (const uid of ['bob', 'adm', 'own']) {
+      await assertFails(setDoc(doc(as(uid), 'families', A, 'children', `x_${uid}`), { uid: `x_${uid}`, active: true }), uid);
+    }
+    // En ansatt kan ikke gi en annen konto (eller sin egen andre konto) tilgang til bedriften.
+    await assertFails(setDoc(doc(as('bob'), 'families', A, 'children', 'bob2'), { uid: 'bob2', active: true }, { merge: true }));
+  });
+
+  test('et barnedokument i en bedrift (eldre data) gir ikke tilgang og kan ikke brukes til å føre seg opp', async () => {
+    await seedDocs([[`families/${A}/children/snik`, { uid: 'snik', active: true }]]);
+    await assertFails(getDoc(doc(as('snik'), 'families', A)));
+    await assertFails(getDoc(doc(as('snik'), 'families', A, 'projects', 'state')));
+    await assertFails(setDoc(doc(as('snik'), 'families', A, 'projects', 'state'), { x: 1 }, { merge: true }));
+    await assertFails(updateDoc(doc(as('snik'), 'families', A), { members: arrayUnion('snik') }));
+  });
+
+  test('i en familie: et barn eller en utenforstående lager ikke barnedokument, og uid må være dokumentets id', async () => {
+    await assertFails(setDoc(doc(as('kid'), 'families', F, 'children', 'venn'), child('venn')));
+    await assertFails(setDoc(doc(as('ext'), 'families', F, 'children', 'ext'), child('ext')));
+    await assertFails(setDoc(doc(as('far'), 'families', F, 'children', 'voksen'), child('voksen')));
+    // Et dokument med et annet barns uid ville fått appen til å tro at barnet er med i familien.
+    await assertFails(setDoc(doc(as('far'), 'families', F, 'children', 'kid9'), child('kid')));
+    // Foresatte og eieren legger til barn som før (ny konto uten profil ennå, eller barneprofil).
+    await assertSucceeds(setDoc(doc(as('far'), 'families', F, 'children', 'kid9'), child('kid9')));
+    await assertSucceeds(setDoc(doc(as('mor'), 'families', F, 'children', 'kid8'), child('kid8', { createdBy: 'mor' })));
+  });
+
+  test('et fjernet eller deaktivert barn har ikke tilgang via dokumentet; et aktivt barn har det som før', async () => {
+    await seedDocs([
+      [`families/${F}/children/gammel`, child('gammel', { active: false, leftAt: '2026-10-01T00:00:00.000Z', familyId: null })],
+      [`families/${F}/children/kid7`, child('kid7')],
+      ['users/kid7', { uid: 'kid7', role: 'child' }],
+    ]);
+    await assertFails(getDoc(doc(as('gammel'), 'families', F)));
+    await assertSucceeds(getDoc(doc(as('kid7'), 'families', F)));
+  });
+
+  test('bare foresatte og administratorer endrer om barnet er med; barnet selv lagrer egne valg', async () => {
+    await seedDocs([
+      [`families/${F}/children/kid`, child('kid', { active: false, archived: true })],
+      [`families/${F}/children/kid2`, child('kid2')],
+    ]);
+    // Barnet (fortsatt i medlemslistene) aktiverer ikke seg selv igjen, og sletter ikke søskens dokument.
+    await assertFails(updateDoc(doc(as('kid'), 'families', F, 'children', 'kid'), { active: true, archived: false }));
+    await assertFails(updateDoc(doc(as('kid'), 'families', F, 'children', 'kid2'), { deleted: true }));
+    await assertFails(deleteDoc(doc(as('kid'), 'families', F, 'children', 'kid2')));
+    await assertFails(updateDoc(doc(as('kid'), 'families', F, 'children', 'kid'), { uid: 'kid2' }));
+    await assertSucceeds(setDoc(doc(as('kid'), 'families', F, 'children', 'kid'), { dashboardThemeId: 'hav' }, { merge: true }));
+    // Foresatt (ChildProfileScreen) og eier (setMemberActive, fjerning).
+    await assertSucceeds(updateDoc(doc(as('far'), 'families', F, 'children', 'kid'), { active: true, archived: false }));
+    await assertSucceeds(updateDoc(doc(as('far'), 'families', F, 'children', 'kid2'), { active: false, deleted: true }));
+    await assertSucceeds(deleteDoc(doc(as('mor'), 'families', F, 'children', 'kid2')));
   });
 });
 

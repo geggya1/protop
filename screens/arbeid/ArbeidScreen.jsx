@@ -48,6 +48,7 @@ import { loadTimeEntriesByIds, removeTimeEntry } from '../../src/economy/timeEnt
 import {
   FRESH_CHECK_FAILED,
   PROJECTS_NOT_LOADED,
+  approvedEntryBlock,
   invoicedEntryBlock,
   lockScopeEntryIds,
   mergeFreshTimesheet,
@@ -740,9 +741,13 @@ export default function ArbeidScreen({
     if (previous.length) {
       // Uten svar fra skyen brukes kopien. Reglene avviser fortsatt endring av fakturerte timer.
       const fresh = await freshEntries(previous.map((row) => row.id));
-      const blocked = invoicedEntryBlock(fresh || []);
+      // Godkjente timer endres og slettes bare av den som godkjenner (reglene avviser ellers).
+      const blocked = invoicedEntryBlock(fresh || []) || approvedEntryBlock(fresh || previous, {
+        canApprove: !!manager,
+        blocks: list.map((row) => ({ id: row?.id, hours: parseHours(row?.hours), timeType: row?.timeType || 'ordinary' })),
+      });
       if (blocked) {
-        refuseInvoiced(state, fresh, blocked);
+        refuseInvoiced(state, fresh || [], blocked);
         return;
       }
       if (fresh?.length) next = mergeFreshTimesheet(state, { entries: fresh });
@@ -808,9 +813,12 @@ export default function ArbeidScreen({
     const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
     let next = state;
     const fresh = await freshEntries(list);
-    const blocked = invoicedEntryBlock(fresh || []);
+    const blocked = invoicedEntryBlock(fresh || []) || approvedEntryBlock(
+      fresh || (state.timeEntries || []).filter((row) => list.includes(row.id)),
+      { canApprove: !!manager },
+    );
     if (blocked) {
-      refuseInvoiced(state, fresh, blocked);
+      refuseInvoiced(state, fresh || [], blocked);
       return;
     }
     if (fresh?.length) next = mergeFreshTimesheet(state, { entries: fresh });

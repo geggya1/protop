@@ -140,7 +140,7 @@ export function inviteMatchedBy(identifierKind) {
  * Invitasjonen gjelder alltid kontoen (inviteeUid). Bekreftet e-post trengs bare når kontoen
  * ble funnet på e-postadressen: e-postinvitasjonen fra syncMyInvites (source 'email') eller
  * oppslag på e-post hos den som inviterte (matchedBy 'email'). Funnet på brukernavn, telefon
- * eller valgt direkte: ingen e-post å bekrefte. Eldre invitasjoner uten matchedBy regnes som
+ * (bare et nummer bekreftet med SMS, REV-22) eller valgt direkte: ingen e-post å bekrefte. Eldre invitasjoner uten matchedBy regnes som
  * funnet på e-post når de har en e-post.
  */
 export function inviteNeedsVerifiedEmail(invite) {
@@ -167,6 +167,18 @@ export function inviteAcceptEmailCheck({ invite, authEmail, trusted } = {}) {
   const to = text(invite?.inviteeEmail).toLowerCase();
   if (byEmail && to && to !== matchEmail) return { ok: false, error: 'other-email', matchEmail };
   return { ok: true, matchEmail };
+}
+
+/**
+ * E-posten Avslå kan merke plassholdere, invitasjonslisten og medarbeiderposter på (REV-23).
+ * Samme regel som Godta (REV-05): bare kontoens bekreftede e-post, og bare når det er adressen
+ * invitasjonen ble sendt til. Ellers avslås bare det som gjelder kontoen (uid), så en konto
+ * med en annens adresse (ubekreftet) ikke kan avslå på vegne av den som eier adressen.
+ */
+export function inviteDeclineEmail({ invite, authEmail, trusted } = {}) {
+  const email = text(authEmail).toLowerCase();
+  if (!trusted || !email) return '';
+  return text(invite?.inviteeEmail).toLowerCase() === email ? email : '';
 }
 
 /** Feilkoder fra respondGroupInvite → tekst i appen. */

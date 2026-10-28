@@ -133,3 +133,16 @@ test('REV-05: invitasjon til kontoen krever ikke bekreftet e-post, invitasjon p�
   assert.match(inviteResponseMessage('email-verification-sent'), /bekreftelseslenke/);
   assert.match(inviteResponseMessage('other-email'), /annen e-postadresse/);
 });
+
+test('REV-23: Avsl책 merker plasser p책 e-posten bare n책r den er bekreftet og er invitasjonsadressen', async () => {
+  const { inviteDeclineEmail } = await import('./groupInviteLogic.js');
+  const invite = { inviteeUid: 'ola', inviteeEmail: 'Ola@firma.no' };
+  assert.equal(inviteDeclineEmail({ invite, authEmail: 'ola@FIRMA.no', trusted: true }), 'ola@firma.no');
+  // Ubekreftet (for eksempel Microsoft uten bekreftet e-post): bare kontoen (uid).
+  assert.equal(inviteDeclineEmail({ invite, authEmail: 'ola@firma.no', trusted: false }), '');
+  // Bekreftet, men en annen adresse enn invitasjonen ble sendt til.
+  assert.equal(inviteDeclineEmail({ invite, authEmail: 'annen@firma.no', trusted: true }), '');
+  // Invitasjon uten adresse (funnet p책 brukernavn): ingen e-post 책 avsl책 p책.
+  assert.equal(inviteDeclineEmail({ invite: { inviteeUid: 'ola' }, authEmail: 'ola@firma.no', trusted: true }), '');
+});
+

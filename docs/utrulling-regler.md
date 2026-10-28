@@ -50,10 +50,14 @@ både gamle og nye regler, så web trenger ikke rulles tilbake.
 | Timer, utlegg, fravær, fakturautkast, notater, kalender: sletting | Sletter samme rad to ganger (Arbeid sletter, lagringen sletter igjen) | **Virker** (REV-01): sletting av noe som ikke finnes, godtas. Låst/fakturert rad slettes fortsatt ikke. |
 | Barn: fjerne fra familien | Sletter medlemsdokumentet, setter `familyId: null` på `children/{id}` | **Virker** (REV-02). |
 | Barn: medforelder legger til barn | Medlemsdokument, profiler, så `arrayUnion` i `members` | **Virker** (REV-03), bare for barnekontoer, ikke i bedrifter. |
+| Barn: barnedokumentet i gruppen (`families/{id}/children/{x}`) | Foresatt eller eier lager det sammen med barnekontoen (samtidig med `users/{x}`); barnet og foresatte lagrer valg (tema, posisjon, apper) på det; eier deaktiverer eller fjerner | **Virker** (REV-24). Dokumentet gir barnet medlemskap, så bare en voksen i gruppen eller en administrator lager det, aldri i en bedrift, bare for en barnekonto (eller en ny konto uten profil ennå), og `uid` er dokumentets id. `active`, `deleted`, `leftAt` og `uid` endres bare av dem. Et barnedokument i en bedrift, eller et fjernet eller deaktivert, gir ikke lenger tilgang (heller ikke på serveren). |
 | Kalender i bedrift | Lytter på hele `events` | **Virker** så lenge bedriften ikke har private hendelser. Se under. |
 | Kalender: eldre hendelser uten `audience` | Vises for alle | **Virker** (REV-11): de får `audience` før bedriften merkes. |
 | HR, fravær for alle, faktura (ferdigstille, betale), ansatte (nivå, sletting), ISO | Leser/skriver uten speil | **Virker** når speilet er ferskt. Det fornyes av `recordUsage` (eldre apper) og av web-appen. |
 | Timer: redigere egen føring | `set` med `merge`, hele raden | **Virker**. Historikken røres ikke av eldre apper. |
+| Timer: låse og låse opp egen timeliste | Setter `låst`/`registrert` på egne åpne føringer og skriver låseraden i `projects/state` | **Virker** (DRIFT-06). Godkjente føringer røres ikke av låsingen. |
+| Timer: leder godkjenner eller åpner igjen, Til fakturering godkjenner | Setter `godkjent` på føringene (Godkjenninger, fakturagrunnlaget), eller tar den bort | **Virker** for eier, administrator, Begrenset redigering på Andres timer og Til fakturering/Faktura (med ferskt speil, som HR og faktura). Se «Timelistelåsene» under. |
+| Ansatte: status og «Ansatt til» på andres post | Lagrer hele posten direkte (eldre apper avslutter en ansettelse uten serveren) | **Virker** for permisjon, innlogging og en sluttdato fram i tid med Begrenset redigering på Ansatte, og for alt med Admin på Ansatte eller Tilgangsstyring (REV-21). Å avslutte eller ta opp igjen ansettelsen, se under. |
 | Notater | Lister med `memberIds`, lager i eget navn, «slett permanent» setter flagg | **Virker**. |
 | Invitasjon av voksen | Plassholder i eget navn, `memberInvites` med `invitedBy` = seg selv, status `pending` | **Virker** (ny invitasjon til en plassholder en annen har laget: se REV-16, rettes av en annen agent). |
 | Melde seg ut, føre seg selv opp | `arrayRemove`/`arrayUnion` av egen uid | **Virker**. |
@@ -74,7 +78,11 @@ Disse avvises for eldre apper. Det var dette rettingene skulle stoppe.
 | Ferdigstiller eller registrerer betaling uten Begrenset redigering på Faktura | Regnskap (SEC-14, L-10) | Knappen feiler. |
 | Hopper i fakturanummer uten begrunnet rad i `jumps` | Bokføringsforskriften § 5-1-1 (L-31) | Gjelder bare import av nummer. |
 | Endrer timer/beløp på en fakturert eller låst føring, eller nullstiller fakturakoblingen fra en gammel kopi | DS-11, L-10 | Lagringen av den raden feiler. I eldre apper kan feilen stoppe senere lagringer i økten til siden lastes på nytt (det er rettet i ny app, REV-01). |
+| Endrer timer, dato, prosjekt, timeart eller status på en godkjent føring, eller sletter den, uten godkjenningsrett (også egne timer, og etter at leder har åpnet listen i en eldre app) | DRIFT-06, DRIFT-07: godkjente timer er grunnlaget for fakturering | Lagringen av den raden feiler (teksten kan fortsatt rettes). I ny app tar leder bort godkjenningen når listen åpnes igjen, så den ansatte kan rette. Med eldre app retter leder timene selv, eller åpner listen i ny app. |
+| Godkjenner timer (`godkjent`) uten godkjenningsrett, også egne, eller lager en føring som godkjent (også import av godkjente timer) | DRIFT-06, DRIFT-07 | Den raden lagres ikke. |
 | Deler et notat en annen har laget | FL-13 | Delingen feiler. |
+| Deaktiverer, aktiverer, legger i papirkurven eller setter en passert sluttdato på en annens ansattpost med bare Begrenset redigering på Ansatte (avdelingsleder) | Appen og serveren krever Admin på Ansatte eller Tilgangsstyring (REV-07, REV-21) | Lagringen av posten feiler. En med Admin på Ansatte gjør det (i ny app via serveren). |
+| Lager et barnedokument i gruppen uten å være voksen der eller administrator, eller i en bedrift | Dokumentet ga den kontoen medlemskap i gruppen (REV-24) | Ingen vanlig flyt gjør dette. Et barn som lagrer tema før dokumentet finnes, får det bare lagret på enheten. |
 | Starter vennechat med en som ikke er venn (også kollega) | SOS-04, FL-12 | Tråden lages ikke. |
 | Endrer tilgangsmatrisen uten speil, eller orgnr/konto/moduler/personvernvalg uten tilgang | FL-02, SEC-13 | Lagringen feiler for andre enn eier og administratorer. |
 | Overskriver en fil i fakturaarkivet (Storage) | Bokføringsloven § 13 | Et vedlegg med samme filnavn kan ikke lastes opp på nytt i eldre apper. |
@@ -86,6 +94,22 @@ eller når `scripts/seal-company-calendars.mjs` er kjørt. Før det kan hele kal
 dag. Lager en eldre app den første private hendelsen i en bedrift som ikke er merket, kan kolleger med
 eldre app se den i kalenderdataene til noen åpner kalenderen i ny app (som merker bedriften). Det er
 slik det er i dag for alle bedrifter. Kjør skriptet i steg 3 på nytt om ønskelig etter noen uker.
+
+### Timelistelåsene
+
+Låsene (`timesheetLocks`) ligger fortsatt i `projects/state`, som alle medlemmer kan skrive. De er ikke
+flyttet, og ingenting er migrert. Godkjenningen som teller, er statusen på hver timeføring (`godkjent`).
+Fakturagrunnlaget og Til fakturering leser bare den, og reglene lar bare den som godkjenner timer sette,
+endre eller fjerne den (DRIFT-06, DRIFT-07). En ansatt som via REST fjerner godkjenningen på sin egen
+låserad (eller godkjenner den selv), får ikke endret eller slettet godkjente timer, og timer blir ikke
+godkjent av det. Følgen er bare visningen: listen kan se åpen (eller godkjent) ut i timelisten og på
+Godkjenninger til lederen låser og godkjenner på nytt. `tests/rules/timesheet.rules.test.mjs` viser dette.
+
+- Eldre apper (86332db) låser, låser opp og godkjenner som før (godkjenning med ferskt speil).
+- Når en leder i ny app låser opp eller flytter låsen bakover, tas godkjenningen bort på timene i
+  perioden som ikke er fakturert, og meldingen sier hvor mange. Neste godkjenning tar dem med.
+- Når en leder i en eldre app låser opp en godkjent liste, står timene som godkjent. Den ansatte
+  kan ikke endre dem før lederen retter dem selv eller åpner listen i ny app.
 
 ### Tilgangsspeilet og eldre apper
 

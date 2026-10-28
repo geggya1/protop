@@ -142,6 +142,7 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
       await Promise.all([
         inviteRef.update({ status: 'revoked', revokedAt: now, revokedReason: 'no-employee', updatedAt: now }),
         closeInbox(uid, inviteRef.id, 'revoked', now),
+        releasePlaceholder(familyId, family, uid, 'revoked', now),
       ]);
       logger.info('[respondGroupInvite] no active employee', { familyId, inviteId: inviteRef.id, reason: seat.error || 'skipped' });
       return { ok: false, error: 'no-employee' };
@@ -376,6 +377,19 @@ async function declineInvite({ req, uid, familyId, inviteRef, invite, family }) 
   return { ok: true, response: 'declined', familyId, familyName, groupType: family.type || invite.groupType || 'family' };
 }
 
+/**
+ * Ventende plassholder (families/{id}/parents/{uid}) for en eksisterende bruker frigjøres når
+ * invitasjonen ikke lenger gjelder. Ellers stopper en ny invitasjon på «invite-pending».
+ */
+async function releasePlaceholder(familyId, family, uid, status, now) {
+  if (isConfirmedMember(family, uid)) return;
+  const ref = db.doc(`families/${familyId}/parents/${uid}`);
+  const snap = await ref.get();
+  const row = snap.exists ? snap.data() || {} : null;
+  if (!row || (row.placeholder !== true && row.inviteStatus !== 'pending')) return;
+  await ref.set({ inviteStatus: status, active: false, updatedAt: now }, { merge: true });
+}
+
 /** Lukk invitasjonen i personens innboks, så invitasjonsvinduet ikke kommer tilbake. */
 async function closeInbox(uid, inviteId, status, now) {
   const ref = db.doc(`users/${uid}/familyInvites/${inviteId}`);
@@ -426,6 +440,7 @@ export const respondGroupInvite = onCall(CALL, async (req) => {
   }
   if (inviteExpired(invite, new Date(now))) {
     await inviteRef.update({ status: 'expired', expiredAt: now, updatedAt: now });
+    await releasePlaceholder(familyId, family, uid, 'expired', now);
     return stale('expired');
   }
   if (response === 'accepted' && !emailTrusted(req.auth)) return { ok: false, error: 'email-not-verified' };

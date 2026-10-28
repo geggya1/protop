@@ -155,7 +155,7 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }
     const end = employmentEndDate(employee);
     if (!end || end > today) next = setEmployeePath(next, 'company.periodTo', today);
     const ok = await onSave?.(next);
-    if (ok) setNote(`Medarbeiderkontoen er avsluttet. ${name} er tatt ut av bedriften.`);
+    if (ok) setNote('Medarbeiderkontoen er avsluttet.');
     else setError('Kontoen ble ikke avsluttet. Se feilmeldingen øverst og prøv igjen.');
   }
 

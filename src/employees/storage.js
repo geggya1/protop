@@ -153,9 +153,9 @@ export async function saveEmployee(companyId, employee, { base = null, onEmploym
   const id = employee?.id || newId('emp');
   const ref = employeeRef(target || companyId, id);
   const from = base || employeeVersion(companyId, id, employee?.updatedAt);
-  const current = await getDoc(ref);
-  if (current.exists()) {
-    const remote = normalizeEmployee({ ...current.data(), id });
+  const stored = await getDoc(ref);
+  if (stored.exists()) {
+    const remote = normalizeEmployee({ ...stored.data(), id });
     const wanted = mergeEmployeeEdit({ remote, base: from, next: { ...employee, id } });
     if (employmentChangeNeedsServer(remote, wanted)) {
       const result = await setEmploymentStatus({

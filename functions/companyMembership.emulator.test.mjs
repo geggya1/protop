@@ -248,12 +248,17 @@ describe('Forlat bedriften', () => {
 
 describe('Trekk tilbake invitasjon', () => {
   test('sendt invitasjon trekkes tilbake, og kan ikke godtas etterpå', async () => {
+    await db.doc(`families/${A}/parents/nina`).set({
+      uid: 'nina', inviteStatus: 'pending', inviteKind: 'existing', inviteId: 'inv_nina', placeholder: true, active: false,
+    });
     await assert.rejects(
       call(withdrawEmployeeInvite, 'ans', { companyId: A, employeeId: 'emp_nina' }),
       (err) => err.code === 'permission-denied',
     );
     const res = await call(withdrawEmployeeInvite, 'adm', { companyId: A, employeeId: 'emp_nina' });
     assert.equal(res.revokedInvites, 1);
+    // Plassholderen er frigjort, så personen kan inviteres på nytt.
+    assert.equal((await data(`families/${A}/parents/nina`)).inviteStatus, 'revoked');
     assert.equal((await data(`families/${A}/memberInvites/inv_nina`)).status, 'revoked');
     assert.equal((await data('users/nina/familyInvites/inv_nina')).status, 'revoked');
     const emp = await data(`families/${A}/employees/emp_nina`);

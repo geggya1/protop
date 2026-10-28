@@ -319,6 +319,7 @@ describe('invitasjoner som ikke lenger gjelder (FL-05, FL-10)', () => {
     );
     assert.equal((await data(`families/${A}/memberInvites/inv_eve`)).status, 'expired');
     assert.equal((await data('users/eve/familyInvites/inv_eve')).status, 'expired');
+    assert.equal((await data(`families/${A}/parents/eve`)).inviteStatus, 'expired', 'kan inviteres på nytt');
     assert.ok(!(await members()).includes('eve'));
   });
 

@@ -139,9 +139,12 @@ async function displayNameOf(uid) {
  * Trekk tilbake ventende invitasjoner for personen: memberInvites og innboksen settes til
  * «revoked», e-posten tas av invitasjonslisten og ventende plassholdere ryddes.
  */
-async function revokePendingInvites({ companyId, uid = '', emails = [], at, actorUid }) {
+async function revokePendingInvites({
+  companyId, family, uid = '', emails = [], at, actorUid,
+}) {
   const batch = db.batch();
   let count = 0;
+  const listed = companyMemberIds(family);
   const snap = await db.collection(`families/${companyId}/memberInvites`).where('status', '==', 'pending').get();
   for (const row of snap.docs) {
     const invite = row.data() || {};
@@ -152,6 +155,14 @@ async function revokePendingInvites({ companyId, uid = '', emails = [], at, acto
       batch.set(db.doc(`users/${invitee}/familyInvites/${row.id}`), {
         status: 'revoked', revokedAt: at, updatedAt: at,
       }, { merge: true });
+      // Plassholderen for en eksisterende bruker frigjøres, så personen kan inviteres på nytt.
+      if (!listed.has(invitee)) {
+        const memberSnap = await db.doc(`families/${companyId}/parents/${invitee}`).get();
+        const member = memberSnap.exists ? memberSnap.data() || {} : null;
+        if (member && (member.placeholder === true || member.inviteStatus === 'pending')) {
+          batch.set(memberSnap.ref, { inviteStatus: 'revoked', active: false, updatedAt: at }, { merge: true });
+        }
+      }
     }
     count += 1;
   }
@@ -340,6 +351,7 @@ export const setEmploymentStatus = onCall(CALL, async (req) => {
   if (closing) {
     revokedInvites = await revokePendingInvites({
       companyId,
+      family,
       uid: plan.uid,
       emails: inviteEmailsToRevoke(after, roster),
       at,
@@ -409,6 +421,7 @@ export const withdrawEmployeeInvite = onCall(CALL, async (req) => {
   const inviteeUid = invite.parentKey && !listed.has(invite.parentKey) ? invite.parentKey : '';
   const revoked = await revokePendingInvites({
     companyId,
+    family,
     uid: inviteeUid,
     emails: inviteEmailsToRevoke(employee, employees),
     at,

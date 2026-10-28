@@ -9,6 +9,7 @@ import {
   draftInviteEmployee,
   employeeContactEmail,
   employeeInviteState,
+  employeeMatchEmails,
   inviteDeliveryError,
   inviteLevelFor,
   inviteOverview,
@@ -23,7 +24,6 @@ import { setEmploymentStatus, withdrawEmployeeInvite } from '../../src/employees
 import { companyMemberIds, isCompanyOwnerUid, membershipUid } from '../../src/employees/membership';
 import { useLeaveCompany } from '../../src/employees/useLeaveCompany';
 import { declineCompanyJoinRequest, watchCompanyJoinRequests } from '../../src/employees/joinRequestsClient';
-import { employeeMatchEmails } from '../../src/employees/invite';
 import { confirmUser } from '../../src/utils/dialog';
 import { recordUsage } from '../../src/employees/usageClient';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';

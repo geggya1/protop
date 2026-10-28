@@ -6,6 +6,7 @@ import { allows, effectiveLevelId } from '../access/companyAccess';
 import {
   accessContacts,
   evaluateHelpAccess,
+  helpArticleVisible,
   levelLabel,
   lockedParts,
   processStepNeed,
@@ -30,9 +31,16 @@ export function useHelpAccess() {
 
   return useMemo(() => {
     // Ikke bedrift, eller tilgangen lastes ennå: ingen sperrer (ingen blinkende lås).
+    // Uten bedrift vises ikke bedriftshjelpen. Mens tilgangen lastes vises alt (ingen blinking).
     if (!access?.active || !access.ready) {
+      const member = !!access?.active;
       return {
-        active: false, level: '', check: () => OPEN, checkProcessStep: () => OPEN, checkNeed: () => OPEN,
+        active: false,
+        level: '',
+        check: () => OPEN,
+        checkProcessStep: () => OPEN,
+        checkNeed: () => OPEN,
+        canSee: (article) => helpArticleVisible(article, { member, bypass: true }),
       };
     }
     const bypass = !!access.bypass && !access.previewing;
@@ -83,8 +91,10 @@ export function useHelpAccess() {
       if (!need || bypass || allows(grants, need.resource, need.action)) return OPEN;
       return describe({ ok: false, need, page: false }, null);
     };
+    /** Vises artikkelen eller flyten i lister og søk? «Se som bruker» gir den personens utvalg. */
+    const canSee = (article) => helpArticleVisible(article, { member: true, grants, bypass });
     return {
-      active: true, level, check, checkProcessStep, checkNeed,
+      active: true, level, check, checkProcessStep, checkNeed, canSee,
     };
   }, [access, policy, lang, ownerA, ownerB]);
 }

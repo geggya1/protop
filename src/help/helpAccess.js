@@ -305,3 +305,52 @@ export function lockedParts({ need, page = false, pageLabel = '', level = '', co
   const mine = level ? `Ditt nivå: ${level}. ` : '';
   return { head, who: `${mine}Spør ${names} — de kan gjøre det eller gi deg tilgang.` };
 }
+
+/** Siden hører til bedriften (menygruppene «company-…»), ikke privat eller konto. */
+export function isCompanyPage(pageKey) {
+  const key = resolvePageKey(pageKey);
+  const section = key ? PROTOP_PAGES[key]?.section : '';
+  return String(section || '').startsWith('company-');
+}
+
+/**
+ * Hvor mange steg i arbeidsflyten brukeren selv kan gjøre (siden åpen og trinnet gitt).
+ * Eier og «ingen begrensning» kan alle.
+ */
+export function processOpenSteps(processId, { grants = null, bypass = false } = {}) {
+  const proc = PROTOP_PROCESSES[processId];
+  const steps = proc?.steps || [];
+  if (bypass || !grants) return { open: steps.length, total: steps.length };
+  let open = 0;
+  steps.forEach((row, index) => {
+    const page = evaluateHelpAccess({ grants, pageKey: row.page });
+    if (!page.ok) return;
+    const need = processStepNeed(processId, index);
+    if (!need || allows(grants, need.resource, need.action)) open += 1;
+  });
+  return { open, total: steps.length };
+}
+
+/**
+ * Skal hjelpen vise artikkelen eller arbeidsflyten i lister og søk?
+ * - Bedriftshjelp vises bare for den som hører til en bedrift (`member`).
+ * - En side vises bare når brukeren kan åpne den (Tilgangsstyring).
+ * - En arbeidsflyt vises når brukeren kan gjøre minst halvparten av stegene selv,
+ *   så flyter for administrator, HR eller økonomi ikke vises for alle.
+ * Personlige sider, konto og tips vises alltid. Eier ser alt.
+ * En artikkel som åpnes direkte (lyspæren, lenke) vises fortsatt, med låseteksten.
+ */
+export function helpArticleVisible(article, { member = false, grants = null, bypass = false } = {}) {
+  if (!article) return false;
+  if (article.processId) {
+    if (!member) return false;
+    const { open, total } = processOpenSteps(article.processId, { grants, bypass });
+    return total === 0 || open * 2 >= total;
+  }
+  if (article.pageKey && isCompanyPage(article.pageKey)) {
+    if (!member) return false;
+    if (bypass || !grants) return true;
+    return evaluateHelpAccess({ grants, pageKey: article.pageKey }).ok;
+  }
+  return true;
+}

@@ -6,6 +6,7 @@ import {
   areaLabel,
   condenseStepLocks,
   evaluateHelpAccess,
+  helpArticleVisible,
   lockedText,
   processStepNeed,
   stepNeed,
@@ -128,3 +129,27 @@ const adminGate = { ok: false, need: { resource: 'projects', action: 'write' }, 
 assert.equal(condenseStepLocks([readGate, adminGate]).who, 'Spør Eier.', 'kontaktene for det strengeste kravet');
 
 console.log('helpAccess.test.mjs: ok');
+
+// Hjelpen viser bare det brukeren har bruk for: bedrift, rolle og Tilgangsstyring.
+{
+  const visibleFlows = (levelId) => Object.keys(PROTOP_PROCESSES)
+    .filter((id) => helpArticleVisible({ processId: id }, { member: true, grants: standardGrants(levelId) }));
+  // Uten bedrift: ingen arbeidsflyter og ingen bedriftssider, men personlige sider og tips vises.
+  assert.equal(helpArticleVisible({ processId: 'ferie' }, { member: false }), false);
+  assert.equal(helpArticleVisible({ pageKey: 'ansatte' }, { member: false }), false);
+  const personal = Object.keys(PROTOP_PAGES).find((key) => PROTOP_PAGES[key].section === 'personal');
+  assert.equal(helpArticleVisible({ pageKey: personal }, { member: false }), true);
+  assert.equal(helpArticleVisible({ id: 'tips.x' }, { member: false }), true);
+  // Eier ser alt.
+  assert.equal(helpArticleVisible({ processId: 'oppstart' }, { member: true, bypass: true }), true);
+  // Administrator ser alle flytene; en vanlig ansatt ser ikke oppstart, ny ansatt eller anbud til faktura.
+  assert.deepEqual(visibleFlows('administrator').sort(), Object.keys(PROTOP_PROCESSES).sort());
+  const employee = visibleFlows('ansatt');
+  for (const id of ['oppstart', 'ny-ansatt', 'anbud-til-faktura']) {
+    assert.ok(!employee.includes(id), `ansatt skal ikke se flyten ${id}`);
+  }
+  assert.ok(employee.includes('avvik'), 'ansatt kan melde avvik');
+  // En side uten tilgang vises ikke i lister.
+  assert.equal(helpArticleVisible({ pageKey: 'okonomi.faktura' }, { member: true, grants: {} }), false);
+  assert.equal(helpArticleVisible({ pageKey: 'okonomi.faktura' }, { member: true, grants: standardGrants('administrator') }), true);
+}

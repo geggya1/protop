@@ -22,6 +22,7 @@ import HelpVideoList from '../../components/HelpVideoList';
 import { listVideos } from '../../src/help/helpVideos';
 import {
   articlesForCategory,
+  listHelpArticles,
   listHelpCategories,
   localizeHelpArticle,
   getHelpArticle,
@@ -135,19 +136,32 @@ export default function HelpSupportScreen() {
   const [replyText, setReplyText] = useState('');
   const [replyBusy, setReplyBusy] = useState(false);
 
-  const categories = useMemo(() => listHelpCategories(lang), [lang]);
+  // Tilgang: bare hjelp brukeren har bruk for (bedrift, rolle og Tilgangsstyring).
+  const helpAccess = useHelpAccess();
+  const visibleArticleIds = useMemo(
+    () => new Set(listHelpArticles().filter((a) => helpAccess.canSee(a)).map((a) => a.id)),
+    [helpAccess],
+  );
+  const categories = useMemo(
+    () => listHelpCategories(lang)
+      .map((c) => ({ ...c, count: listHelpArticles().filter((a) => a.categoryId === c.id && visibleArticleIds.has(a.id)).length }))
+      .filter((c) => c.count > 0),
+    [lang, visibleArticleIds],
+  );
   const news = useMemo(() => listHelpNews({ lang, limit: 40 }), [lang]);
   const newsByDay = useMemo(() => groupUpdatesByDay(news), [news]);
 
   const searchResults = useMemo(
-    () => searchHelpArticles(query, { lang, audience, device, limit: 30 }),
-    [query, lang, audience, device],
+    () => searchHelpArticles(query, { lang, audience, device, limit: 60 })
+      .filter((a) => visibleArticleIds.has(a.id))
+      .slice(0, 30),
+    [query, lang, audience, device, visibleArticleIds],
   );
 
   const categoryArticles = useMemo(() => {
     if (!categoryId) return [];
-    return articlesForCategory(categoryId, { lang, audience, device });
-  }, [categoryId, lang, audience, device]);
+    return articlesForCategory(categoryId, { lang, audience, device }).filter((a) => visibleArticleIds.has(a.id));
+  }, [categoryId, lang, audience, device, visibleArticleIds]);
 
   const activeArticle = useMemo(() => {
     if (!articleId) return null;
@@ -156,7 +170,6 @@ export default function HelpSupportScreen() {
   }, [articleId, lang, audience, device]);
 
   // Tilgang: hjelpen sier fra når siden eller et steg krever mer enn brukeren har.
-  const helpAccess = useHelpAccess();
   const articleLock = useMemo(() => {
     if (!activeArticle?.pageKey) return null;
     const gate = helpAccess.check(activeArticle.pageKey, null);
@@ -222,7 +235,10 @@ export default function HelpSupportScreen() {
     requestShellTab?.(article.nav.tab, article.nav.subView || null);
     if (article.pageKey) startPageTour?.(article.pageKey);
   };
-  const flows = useMemo(() => listProcesses(), []);
+  const flows = useMemo(
+    () => listProcesses().filter((f) => visibleArticleIds.has(`process.${f.id}`)),
+    [visibleArticleIds],
+  );
   const videos = useMemo(() => listVideos(lang), [lang]);
   const openForm = (prefill = {}) => {
     if (prefill.title) setFormTitle(prefill.title);
@@ -393,43 +409,45 @@ export default function HelpSupportScreen() {
         </View>
       ) : (
         <>
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, compact && styles.sectionTitleDesk]}>
-              {t('helpCard.workflows')}
-            </Text>
-            <Text style={styles.deviceHint}>{t('helpCard.workflowsLead')}</Text>
-            <View style={styles.card}>
-              {flows.map((f) => (
-                <View key={f.id} style={styles.flowRow}>
-                  <View style={[styles.articleIcon, { backgroundColor: `${f.accent}1A` }]}>
-                    <Ionicons name={`${f.icon || 'git-merge'}-outline`} size={compact ? 16 : 18} color={f.accent} />
+          {flows.length ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, compact && styles.sectionTitleDesk]}>
+                {t('helpCard.workflows')}
+              </Text>
+              <Text style={styles.deviceHint}>{t('helpCard.workflowsLead')}</Text>
+              <View style={styles.card}>
+                {flows.map((f) => (
+                  <View key={f.id} style={styles.flowRow}>
+                    <View style={[styles.articleIcon, { backgroundColor: `${f.accent}1A` }]}>
+                      <Ionicons name={`${f.icon || 'git-merge'}-outline`} size={compact ? 16 : 18} color={f.accent} />
+                    </View>
+                    <TouchableOpacity
+                      style={{ flex: 1 }}
+                      onPress={() => openArticle(`process.${f.id}`)}
+                      accessibilityRole="button"
+                    >
+                      <Text style={[styles.articleTitle, compact && styles.articleTitleDesk]} numberOfLines={1}>
+                        {pickIntroText(f.title, lang)}
+                      </Text>
+                      <Text style={[styles.articleSub, compact && styles.articleSubDesk]} numberOfLines={2}>
+                        {f.steps.length} {t('helpCard.steps')} · {pickIntroText(f.pitch, lang)}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.flowStart, { backgroundColor: f.accent }]}
+                      onPress={() => startProcessTour?.(f.id, 0)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t('helpCard.startFlow')}: ${pickIntroText(f.title, lang)}`}
+                      testID="help-flow-start"
+                    >
+                      <Ionicons name="play" size={13} color="#fff" />
+                      <Text style={styles.flowStartTxt}>{t('helpCard.startFlow')}</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={{ flex: 1 }}
-                    onPress={() => openArticle(`process.${f.id}`)}
-                    accessibilityRole="button"
-                  >
-                    <Text style={[styles.articleTitle, compact && styles.articleTitleDesk]} numberOfLines={1}>
-                      {pickIntroText(f.title, lang)}
-                    </Text>
-                    <Text style={[styles.articleSub, compact && styles.articleSubDesk]} numberOfLines={2}>
-                      {f.steps.length} {t('helpCard.steps')} · {pickIntroText(f.pitch, lang)}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.flowStart, { backgroundColor: f.accent }]}
-                    onPress={() => startProcessTour?.(f.id, 0)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${t('helpCard.startFlow')}: ${pickIntroText(f.title, lang)}`}
-                    testID="help-flow-start"
-                  >
-                    <Ionicons name="play" size={13} color="#fff" />
-                    <Text style={styles.flowStartTxt}>{t('helpCard.startFlow')}</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
-          </View>
+          ) : null}
 
           {videos.length ? (
             <View style={styles.section}>

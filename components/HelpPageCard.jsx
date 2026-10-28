@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useI18n } from '../src/i18n';
 import { pickIntroText } from '../src/utils/moduleIntros';
 import { processesForPage } from '../src/help/protopProcesses';
+import { useHelpAccess } from '../src/help/useHelpAccess';
 import { videosForPage } from '../src/help/helpVideos';
 import HelpVideoList from './HelpVideoList';
 import { BREAKPOINTS } from '../src/ui/layout.js';
@@ -42,7 +43,9 @@ export default function HelpPageCard({
   const [openFaq, setOpenFaq] = useState(-1);
   const wide = width >= BREAKPOINTS.tablet;
   const accent = copy?.accent || '#1099F4';
-  const flows = processesForPage(copy?.pageKey);
+  const helpAccess = useHelpAccess();
+  // Bare arbeidsflyter brukeren selv kan gjøre (rolle og Tilgangsstyring).
+  const flows = processesForPage(copy?.pageKey).filter((f) => helpAccess.canSee({ processId: f.id }));
   const videos = videosForPage(copy?.pageKey, lang);
 
   useEffect(() => {

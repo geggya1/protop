@@ -10,7 +10,6 @@ import { PAGE_ART_SCALE } from '../appearance/pageArtScale.js';
 import {
   MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroCompact, shellHeroModuleId,
 } from './moduleHero.js';
-import { isModuleStartPage } from '../navigation/navTrail.js';
 import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
 import { GROUP_PALETTE } from './groupPalette.js';
 import { getProtopPage, helpPageId } from '../help/protopPages.js';
@@ -313,10 +312,9 @@ const COMPANY_PAGES = [
 for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.equal(companyHeroId(tab, sub), id, `${tab}/${sub || ''}`);
   assert.equal(shellHeroModuleId(tab, sub), id, `${id} shell heading`);
-  // Båndet bare på modulens startside. Undersider får kompakt tittelrad (UX-25).
-  const start = isModuleStartPage(tab, sub);
-  assert.equal(shellHeroCompact(tab, sub), !start, `${tab}/${sub || ''} kompakt på underside`);
-  assert.equal(phoneChromeHeroId(tab, sub, true), start ? id : null, `${id} phone chrome heading`);
+  // Båndet er toppoverskriften på alle sidene i modulen, også undersidene (eierbeslutning 28.10).
+  assert.equal(shellHeroCompact(tab, sub), false, `${tab}/${sub || ''} har båndet`);
+  assert.equal(phoneChromeHeroId(tab, sub, true), id, `${id} phone chrome heading`);
   assert.equal(phoneChromeHeroId(tab, sub, false), null, `${id} tablet/web keeps content-band heading`);
   const hero = resolveModuleHero(id, 'nb');
   const en = resolveModuleHero(id, 'en');
@@ -327,10 +325,11 @@ for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.ok(COMPANY_HERO[id], `${id} company hero`);
 }
 assert.equal(shellHeroCompact('arbeid', 'timeliste'), false, 'Timeliste er startsiden i Timer');
-assert.equal(shellHeroCompact('arbeid', 'godkjenning'), true, 'Godkjenninger er en underside');
+assert.equal(shellHeroCompact('arbeid', 'godkjenning'), false, 'Godkjenninger er en underside, men har båndet');
 assert.equal(shellHeroCompact('okonomi', 'oversikt'), false);
-assert.equal(shellHeroCompact('okonomi', 'fakturagrunnlag'), true);
-assert.equal(shellHeroCompact('hr', 'lonn'), true);
+assert.equal(shellHeroCompact('okonomi', 'fakturagrunnlag'), false);
+assert.equal(shellHeroCompact('hr', 'lonn'), false);
+assert.equal(shellHeroCompact('iso', 'prosesser'), false, 'ISO-undersidene har båndet');
 assert.equal(shellHeroCompact('kunder'), false);
 assert.equal(shellHeroCompact('stars'), false, 'personlige sider beholder båndet');
 assert.equal(shellHeroCompact('home'), false, 'Hjem har ikke bånd');

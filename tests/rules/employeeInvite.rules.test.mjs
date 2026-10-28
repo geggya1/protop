@@ -79,6 +79,8 @@ describe('invitasjon til eksisterende bruker', () => {
   });
 
   test('administrator kan varsle mottakeren', async () => {
+    // Som i appen: invitasjonen (og innboksen hos mottakeren) skrives før varselet.
+    await assertSucceeds(existingInviteBatch(as('own')).commit());
     await assertSucceeds(setDoc(doc(as('own'), 'users', 'eve', 'notifications', `familyInvite_${A}_${INVITE}`), {
       eventType: 'familyInvite', title: 'Bedriftsinvitasjon', body: 'Du er invitert', familyId: A,
       inviteId: INVITE, createdBy: 'own', seen: false, createdAt: serverTimestamp(),

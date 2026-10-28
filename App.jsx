@@ -712,6 +712,8 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   // Hard fail-safe: never leave returning parents on a blank boot spinner forever.
   const [bootTimedOut, setBootTimedOut] = useState(false);
   const [shellEnsureBusy, setShellEnsureBusy] = useState(false);
+  // Brukeren (uid) som har fått svar på opprettelsen av arbeidsområdet i denne økten.
+  const [shellEnsureSettled, setShellEnsureSettled] = useState(null);
   const shellEnsureAttemptedRef = React.useRef(null);
 
   useEffect(() => {
@@ -778,11 +780,13 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     }
     shellEnsureAttemptedRef.current = user.uid;
     let alive = true;
+    let finished = false;
     setShellEnsureBusy(true);
     const shellTimeout = setTimeout(() => {
       if (!alive) return;
       console.warn('[RootNav] personal shell timed out');
       setShellEnsureBusy(false);
+      setShellEnsureSettled(user.uid);
     }, 12000);
     (async () => {
       try {
@@ -799,8 +803,12 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
         // Allow one retry on next familiesReady cycle if list stays empty.
         if (alive) shellEnsureAttemptedRef.current = null;
       } finally {
+        finished = true;
         clearTimeout(shellTimeout);
-        if (alive) setShellEnsureBusy(false);
+        if (alive) {
+          setShellEnsureBusy(false);
+          setShellEnsureSettled(user.uid);
+        }
       }
     })();
     return () => {
@@ -809,6 +817,10 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       // A new profile/family snapshot used to leave this flag true, so the
       // boot spinner never ended even after the family list arrived.
       setShellEnsureBusy(false);
+      // Opprettelsen skriver selv users/{uid}, så effekten kjøres på nytt før svaret kommer.
+      // Neste runde venter på samme opprettelse og velger arbeidsområdet. Før ble svaret
+      // kastet, og «Laster ProTop…» sto til siden ble lastet på nytt (ANSATT-08).
+      if (!finished) shellEnsureAttemptedRef.current = null;
     };
   }, [
     user, userRole, userProfile, familiesReady, families, selectFamily, lang,
@@ -932,7 +944,10 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     else if (user && !profileOk) stage = 'profile';
     // Personal shell is created in the background; show a short boot while ensuring.
     else if (user && userRole === 'parent' && !hasGroups && !family?.id && !familyId) {
-      stage = shouldHoldFamilyBootSpinner({ bootTimedOut }) ? 'boot' : 'homeSetup';
+      stage = shouldHoldFamilyBootSpinner({
+        bootTimedOut,
+        ensuring: shellEnsureBusy || shellEnsureSettled !== user.uid,
+      }) ? 'boot' : 'homeSetup';
     }
     else if (needsHomeSetup) stage = 'homeSetup';
     else stage = 'app';

@@ -71,4 +71,12 @@ assert.equal(
   'a shell that is still being created must not keep the spinner',
 );
 
+// ANSATT-08: profil og gruppeliste er lest (ingen tidsavbrudd), og opprettelsen har svart.
+assert.equal(shouldHoldFamilyBootSpinner({ bootTimedOut: false, ensuring: true }), true);
+assert.equal(
+  shouldHoldFamilyBootSpinner({ bootTimedOut: false, ensuring: false }),
+  false,
+  'a finished (or failed) create must release the spinner without waiting for a timeout',
+);
+
 console.log('authBootGate tests ok');

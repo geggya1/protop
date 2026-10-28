@@ -255,6 +255,7 @@ export const FILES = [
   'src/companyHome/model.test.mjs',
   // Konto: første innlogging, invitasjonslenke, brukernavn, familieproduktet og venneinvitasjoner.
   'src/utils/personalShell.test.mjs',
+  'src/utils/authBootGate.test.mjs',
 ];
 
 function runFile(file) {

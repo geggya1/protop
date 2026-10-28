@@ -134,6 +134,18 @@ export class Bot {
         await this.page.waitForTimeout(400);
       }
     }
+    await this.dismissStorageNotice();
+  }
+
+  /** Meldingen om lagring i nettleseren (L-20) ligger nederst og kan dekke knapper. «OK» lukker den. */
+  async dismissStorageNotice() {
+    const ok = this.page.locator('[id="storage-notice"]').getByRole('button', { name: 'OK', exact: true });
+    if (await ok.count().catch(() => 0)) {
+      if (await ok.first().isVisible().catch(() => false)) {
+        await ok.first().click({ force: true }).catch(() => {});
+        await this.page.waitForTimeout(300);
+      }
+    }
   }
 
   /** Åpner en side i skallet direkte (test-krok, bare i emulator-bygg). */

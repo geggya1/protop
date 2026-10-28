@@ -523,7 +523,7 @@ export function CompanyAbsenceDesktop({
                   <>
                     <Text style={styles.hint}>Dager per måned. Til gode = startsaldo minus registrert ferie.</Text>
                     {board.staff.length ? (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matrixScroll}>
                         <View style={styles.matrix}>
                           <View style={styles.matrixHead}>
                             <Text style={[styles.nameCol, styles.headTxt]}>Ansatt</Text>
@@ -1989,12 +1989,14 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: line, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, minWidth: 72, color: ink, fontSize: 13, fontWeight: '400' },
   save: { backgroundColor: blue, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
   saveTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
-  matrix: { minWidth: 920, gap: 0 },
+  // Årstabellen fyller kortets bredde; under 920 px ruller den sideveis.
+  matrixScroll: { flexGrow: 1 },
+  matrix: { flexGrow: 1, minWidth: 920, gap: 0 },
   matrixHead: { flexDirection: 'row', alignItems: 'center', paddingBottom: 4 },
   matrixRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 5 },
-  nameCol: { width: 150 },
-  monthCol: { width: 48, textAlign: 'center' },
-  numCol: { width: 72, textAlign: 'right' },
+  nameCol: { flexGrow: 3, flexShrink: 0, flexBasis: 150, minWidth: 150 },
+  monthCol: { flexGrow: 1, flexShrink: 0, flexBasis: 48, minWidth: 48, textAlign: 'center' },
+  numCol: { flexGrow: 1, flexShrink: 0, flexBasis: 72, minWidth: 72, textAlign: 'right' },
   headTxt: { color: muted, fontSize: 13, fontWeight: '400' },
   nameTxt: { color: ink, fontWeight: '400', fontSize: 13 },
   monthNum: { fontSize: 13, fontWeight: '400' },

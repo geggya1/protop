@@ -31,6 +31,7 @@ export const FILES = [
   'functions/aiCompanyGate.test.mjs',
   'src/privacy/myDataExport.test.mjs',
   'functions/deleteAccount.test.mjs',
+  'src/privacy/storageNotice.test.mjs',
   'functions/anbudIntake.smoke.test.mjs',
   'functions/anbud/intakeScan.test.mjs',
   'src/anbud/intake.test.mjs',

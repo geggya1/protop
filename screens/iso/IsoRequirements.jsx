@@ -31,7 +31,7 @@ function downloadCsv(rows, name) {
 export default function IsoRequirements({ ctx, legal = false }) {
   const colors = useColors();
   const { state, caps, wide, params, actor, store } = ctx;
-  const [standard, setStandard] = useState('');
+  const [standard, setStandard] = useState(params?.standard || '');
   const [kind, setKind] = useState(legal ? 'lov' : '');
   const [status, setStatus] = useState(params?.status || '');
   const [q, setQ] = useState('');
@@ -39,7 +39,7 @@ export default function IsoRequirements({ ctx, legal = false }) {
   const [overdue, setOverdue] = useState(false);
   const [openId, setOpenId] = useState(params?.open || '');
   const [creating, setCreating] = useState(false);
-  useEffect(() => { if (params?.status) setStatus(params.status); if (params?.open) setOpenId(params.open); }, [params]);
+  useEffect(() => { if (params?.status) setStatus(params.status); if (params?.open) setOpenId(params.open); if (params?.standard) setStandard(params.standard); }, [params]);
   const rows = useMemo(() => matrixRows(state, { standard, kind, status, search: q, onlyNoEvidence: noEvidence, onlyOverdue: overdue }), [state, standard, kind, status, q, noEvidence, overdue]);
   const active = STANDARDS.filter((s) => state.system.standards.includes(s.code));
   const existingKeys = new Set(state.requirements.map((r) => r.templateKey).filter(Boolean));

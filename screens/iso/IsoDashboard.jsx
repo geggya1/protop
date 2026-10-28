@@ -14,6 +14,7 @@ import {
 } from '../../src/iso/integrations';
 import { recordsNeedingReview } from '../../src/iso/registers';
 import { annualWheel, pageLabel } from '../../src/iso/planning';
+import { READY_STATUS, certificationReadiness } from '../../src/iso/readiness';
 import { RiskMatrix, StatusDonut, TrendBars, HBars } from './isoCharts';
 import { postDate, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, Choice, Empty, ListRow, Page, Pill, Row } from './isoUi';
@@ -36,6 +37,9 @@ export default function IsoDashboard({ ctx }) {
   const mine = useMemo(() => openActions(findings).filter((a) => a.ownerUid && a.ownerUid === actor.uid), [findings, actor.uid]);
   const active = (state.instances || []).filter((i) => i.state === 'aktiv');
   const ready = useMemo(() => readinessChecklist(state, { people }), [state, people]);
+  const certReady = useMemo(() => (caps.manage ? certificationReadiness(state, {
+    people, projects: sources.projects, contracts: sources.contracts, equipment: sources.equipment,
+  }) : null), [caps.manage, state, people, sources.projects, sources.contracts, sources.equipment]);
   const profile = state.system?.profile || null;
   const published = useMemo(() => (state.documents || []).filter((d) => !d.archived && d.publishedRevision), [state.documents]);
   const policies = published.filter((d) => d.docType === 'policy').sort((a, b) => String(a.code).localeCompare(String(b.code), 'nb', { numeric: true }));
@@ -127,6 +131,16 @@ export default function IsoDashboard({ ctx }) {
           </View>
         ))}
       </View>
+
+      {certReady?.standards.length ? (
+        <Card title="Sertifiseringsklar" subtitle="Kapittel 4–10 per standard, regnet fra dataene i ProTop." onPress={() => go('sertifisering')} accessibilityLabel="Åpne sertifiseringsklar">
+          <Row>
+            {certReady.standards.map((x) => (
+              <Pill key={x.code} icon={READY_STATUS[x.status].icon} tone={READY_STATUS[x.status].tone} label={`${x.label}: ${x.counts.mangler} mangler · ${x.counts.delvis} delvis`} />
+            ))}
+          </Row>
+        </Card>
+      ) : null}
 
       {(caps.manage && ready.done < ready.total) || insights.length ? (
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>

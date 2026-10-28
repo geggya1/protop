@@ -18,6 +18,7 @@ import {
   autoAssignee, aspectSuggestions, contractReviewStatus, equipmentStatus, readinessChecklist, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
   projectQuality, qualityPlanDraft, sickLeaveSeries, stakeholderSuggestions, supplierSuggestions, wasteSummary,
 } from '../../src/iso/integrations';
+import { CHAPTERS, READY_STATUS, certificationReadiness } from '../../src/iso/readiness';
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
 import { FormFillSheet } from './IsoForms';
 import IsoExcelImport from './IsoExcelImport';
@@ -1343,6 +1344,82 @@ export function ProjectQualityPage({ ctx }) {
   );
 }
 
+/**
+ * Sertifiseringsklar (ISO-06): kapittel 4–10 som rader og standardene som kolonner, med status regnet fra
+ * dataene i ProTop. Trykk på en celle for punktene i kapitlet, og på et punkt for å gå dit hullet fikses.
+ */
+function ReadinessMatrix({ ctx }) {
+  const colors = useColors();
+  const { state, people, projects, sources, go, wide } = ctx;
+  const ready = useMemo(() => certificationReadiness(state, {
+    people, projects, contracts: sources?.contracts || [], equipment: sources?.equipment || [],
+  }), [state, people, projects, sources?.contracts, sources?.equipment]);
+  const [code, setCode] = useState('');
+  const [chapter, setChapter] = useState('');
+  const std = ready.standards.find((x) => x.code === code) || ready.standards[0] || null;
+  if (!std) return <Empty icon="ribbon-outline" title="Ingen standarder valgt" text="Velg standarder i Innstillinger." />;
+  const fix = (item) => (item.tab ? ctx.requestTab?.(item.tab) : go(item.page, item.params || {}));
+  const ch = std.chapters.find((c) => c.id === chapter) || null;
+  const items = ch ? ch.items : std.chapters.flatMap((c) => c.items).filter((i) => i.status !== 'dekket');
+  const cell = (s, c) => {
+    const meta = READY_STATUS[c.status];
+    const tone = toneColor(colors, meta.tone);
+    const active = std.code === s.code && chapter === c.id;
+    const done = c.items.filter((i) => i.status === 'dekket').length;
+    return (
+      <Pressable
+        key={s.code}
+        onPress={() => { setCode(s.code); setChapter(active ? '' : c.id); }}
+        accessibilityRole="button"
+        accessibilityLabel={`${s.label} kapittel ${c.id}: ${meta.label}, ${done} av ${c.items.length} dekket`}
+        nativeID={`ready-${s.short}-${c.id}`}
+        style={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 8, borderRadius: 10, borderWidth: active ? 2 : 1, borderColor: active ? colors.brand : `${tone}55`, backgroundColor: `${tone}18` }}
+      >
+        <Text style={{ color: tone, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{meta.label}</Text>
+        <Text style={{ color: colors.muted, fontSize: 11 }}>{done}/{c.items.length}</Text>
+      </Pressable>
+    );
+  };
+  return (
+    <Card title="Sertifiseringsklar per standard og kapittel" subtitle={ready.method}>
+      <Row>
+        {ready.standards.map((x) => (
+          <Pill key={x.code} label={`${x.label}: ${x.counts.dekket} dekket · ${x.counts.delvis} delvis · ${x.counts.mangler} mangler`} tone={READY_STATUS[x.status].tone} />
+        ))}
+      </Row>
+      <View style={{ gap: 6 }}>
+        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          <Text style={{ width: wide ? 220 : 104, color: colors.muted, fontSize: 11, fontWeight: '800' }}>KAPITTEL</Text>
+          {ready.standards.map((x) => <Text key={x.code} style={{ flex: 1, textAlign: 'center', color: colors.muted, fontSize: 11, fontWeight: '800' }}>{`ISO ${x.short}`}</Text>)}
+        </View>
+        {CHAPTERS.map((c) => (
+          <View key={c.id} style={{ flexDirection: 'row', gap: 6, alignItems: 'stretch' }}>
+            <View style={{ width: wide ? 220 : 104, justifyContent: 'center' }}>
+              <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }} numberOfLines={2}>{c.id} {c.title}</Text>
+            </View>
+            {ready.standards.map((x) => cell(x, x.chapters.find((y) => y.id === c.id)))}
+          </View>
+        ))}
+      </View>
+      <Text style={{ color: colors.ink, fontWeight: '700', marginTop: 4 }}>
+        {ch ? `${std.label} · kapittel ${ch.id} ${ch.title}` : `Hull å fikse i ${std.label} (${items.length})`}
+      </Text>
+      {!items.length ? <Banner tone="ok" text="Alt i utvalget er dekket av registreringer i ProTop. Om kravene er oppfylt, avgjør revisor." /> : null}
+      {items.map((i) => (
+        <ListRow
+          key={`${std.code}-${i.key}`}
+          icon={READY_STATUS[i.status].icon}
+          tone={READY_STATUS[i.status].tone}
+          title={`${i.clause} · ${i.label}`}
+          subtitle={`${i.detail}${i.status !== 'dekket' ? (i.tab ? ' · fikses i Utstyr' : ' · trykk for å fikse') : ''}`}
+          right={<Pill label={READY_STATUS[i.status].label} tone={READY_STATUS[i.status].tone} />}
+          onPress={() => fix(i)}
+        />
+      ))}
+    </Card>
+  );
+}
+
 export function CertificationPage({ ctx }) {
   const colors = useColors();
   const { state, wide, caps, go, people } = ctx;
@@ -1375,12 +1452,13 @@ ${rows.map(({ r, a, status, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} 
 
   return (
     <Page wide={wide} title="Sertifisering og revisjonsrom" intro="Sertifikater, eksterne revisjoner og bevispakker. ProTop utsteder ikke sertifikat – det gjør et akkreditert sertifiseringsorgan etter uavhengig revisjon.">
-      <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Klar for ekstern revisjon» er en intern indikator med synlig mangelliste, ikke en sertifiseringsgrad." />
-      <Card title={`Klar for ekstern revisjon: ${ready.done} av ${ready.total}`} subtitle={ready.method}>
-        {missing.length ? missing.map((i) => (
-          <ListRow key={i.key} icon="close-circle-outline" tone="warn" title={i.label} subtitle="Mangler" onPress={() => go(i.page)} />
-        )) : <Banner tone="ok" text="Hovedelementene er på plass. Om kravene er oppfylt, avgjør revisor." />}
-      </Card>
+      <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Sertifiseringsklar» er en intern indikator med synlig mangelliste per kapittel, ikke en sertifiseringsgrad." />
+      <ReadinessMatrix ctx={ctx} />
+      {missing.length ? (
+        <Card title={`Hovedelementer: ${ready.done} av ${ready.total} på plass`} subtitle={ready.method}>
+          {missing.map((i) => <ListRow key={i.key} icon="close-circle-outline" tone="warn" title={i.label} subtitle="Mangler" onPress={() => go(i.page)} />)}
+        </Card>
+      ) : null}
       <SimpleRegister ctx={ctx} registerKey="sertifikat" subtitle={(r) => `${r.certBody}${r.validTo ? ` · gyldig til ${prettyDate(r.validTo)}` : ''}${r.nextAudit ? ` · neste revisjon ${prettyDate(r.nextAudit)}` : ''}`} />
       <Card title="Bevispakke til revisor" subtitle="Velg krav (tomt utvalg = alle). Bare godkjente bevis tas med, og skjermede saker utelates.">
         <Choice small multi title="Krav" options={requirements.map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.title, hint: r.standard ? (r.title || '') : '' }))} value={selected} onChange={setSelected} />

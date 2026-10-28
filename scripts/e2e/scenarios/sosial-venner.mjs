@@ -15,7 +15,7 @@
  */
 import { Bot, BASE, closeBrowser } from '../lib/bot.mjs';
 import {
-  listDocs, mailsTo, linksIn,
+  listDocs, mailsTo, linksIn, callFn,
 } from '../lib/emu.mjs';
 import {
   setupWorld, startBots, Report, asUser, tap, seen, gone, go, clearOverlays, closeDock,
@@ -320,13 +320,19 @@ try {
     return { ok: r.status === 403, actual: `HTTP ${r.status}` };
   });
 
-  await R.step('V-20', 'Fremmed (Kari, aldri venn med Ulf) oppretter DM-tråd og skriver til Ulf via REST', 'Firestore avviser (403)', async () => {
+  await R.step('V-20', 'Fremmed (Kari, aldri venn med Ulf) slår opp Ulf på e-post og skriver til ham via REST', 'Firestore avviser; Ulf får ikke varsel', async () => {
     const kari = await asUser(P.kollega2);
-    const cid = chatIdOf(P.kollega2.uid, P.utenfor.uid);
-    const c = await kari.patch(`friendChats/${cid}`, { type: 'dm', title: 'Chat', memberIds: [P.kollega2.uid, P.utenfor.uid].sort(), lastText: 'spam', lastSenderId: P.kollega2.uid });
+    const look = await callFn('lookupFriendProfile', { identifier: P.utenfor.email }, kari.token);
+    const ulfUid = look?.result?.profile?.uid || null;
+    if (!ulfUid) return { ok: true, actual: `oppslag ga ingen uid (${JSON.stringify(look).slice(0, 120)})` };
+    const cid = chatIdOf(P.kollega2.uid, ulfUid);
+    const c = await kari.patch(`friendChats/${cid}`, { type: 'dm', title: 'Chat', memberIds: [P.kollega2.uid, ulfUid].sort(), lastText: 'Hei fra en fremmed', lastSenderId: P.kollega2.uid });
     const m = await kari.create(`friendChats/${cid}/messages`, { text: 'Hei fra en fremmed', type: 'text', senderId: P.kollega2.uid, senderName: 'Kari', createdAtMs: Date.now() });
-    return { ok: c.status === 403 && m.status === 403, actual: `opprett tråd HTTP ${c.status}, melding HTTP ${m.status}` };
-  });
+    await sleep(5000);
+    const n = (await notifs(listDocs, P.utenfor.uid)).filter((x) => x.body === 'Hei fra en fremmed');
+    const shot = await utenfor.shot('v20-melding-fra-fremmed');
+    return { ok: c.status === 403 && m.status === 403 && n.length === 0, actual: `lookupFriendProfile ga uid=${ulfUid === P.utenfor.uid}; opprett tråd HTTP ${c.status}, melding HTTP ${m.status}; varsler hos Ulf=${n.length} (${n.map((x) => `«${x.title}»`).join(', ')})`, shot };
+  }, { bot: utenfor });
 
   // ── V-21..23: FL-25 feilmeldinger på mobil ──
   await closeDock(kollega);

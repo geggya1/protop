@@ -212,7 +212,6 @@ export const FILES = [
   'src/utils/chatComposerLayout.test.mjs',
   'src/utils/chatNotice.test.mjs',
   'src/utils/parentTaskVisibility.test.mjs',
-  'src/utils/homeRemainingHints.test.mjs',
   'src/utils/callableErrors.test.mjs',
   'src/utils/timeGrid.test.mjs',
   'src/utils/friendInviteNotices.test.mjs',

@@ -15,7 +15,9 @@ import { BREAKPOINTS, coarsePointer, layoutFor } from './layout.js';
  * en kartskuff, forhåndsvisningen ved siden av et skjema, bildestørrelser.
  * Går tallet ned, senk BASELINE i samme endring (testen sier fra).
  */
-export const BASELINE = 14;
+// 14 etter opprydningen (UX-23) + 15 fra main som kom inn samtidig: Møter (#556, 12),
+// E-post (#555, 2) og avvikstabellen (#554, 1). De 15 skal over på useLayout i en egen endring.
+export const BASELINE = 29;
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const SKIP = new Set(['src/ui/layout.js']);

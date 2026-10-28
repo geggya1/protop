@@ -1292,7 +1292,7 @@ export function setFormValue(state, bidId, formId, fieldId, value) {
   if (form.status === 'ferdig') return fail(state, 'Skjemaet er markert ferdig. Åpne det før du endrer.');
   const field = form.fields.find((row) => row.id === fieldId);
   if (!field) return fail(state, 'Feltet finnes ikke.');
-  const nextValue = coerceAnswer(field.kind, value);
+  const nextValue = coerceAnswer(field.kind, value, { typing: true });
   return ok(replaceBid(state, bidId, {
     ...bid,
     forms: bid.forms.map((row) => (row.id === formId ? {

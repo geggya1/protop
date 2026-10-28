@@ -64,6 +64,12 @@ function text(value) {
   return String(value || '').trim();
 }
 
+/** Tekst mens den skrives: mellomrom og linjeskift står til den lagres. Bare blanke tegn er tomt. */
+function typedText(value) {
+  const raw = String(value || '');
+  return raw.trim() ? raw : '';
+}
+
 function createId(prefix) {
   return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -155,10 +161,10 @@ export function blankTableValue() {
 function cellValue(type, value) {
   if (type === 'check') return !!value;
   if (type === 'mark') return text(value).slice(0, 16);
-  return text(value).slice(0, CELL_MAX);
+  return typedText(value).slice(0, CELL_MAX);
 }
 
-function cleanCells(source) {
+function cleanCells(source, typing = false) {
   const out = {};
   const raw = source && typeof source === 'object' ? source : {};
   for (const [key, value] of Object.entries(raw).slice(0, MAX_TABLE_COLUMNS * 2)) {
@@ -168,24 +174,24 @@ function cleanCells(source) {
       if (value) out[id] = true;
       continue;
     }
-    const cell = text(value).slice(0, CELL_MAX);
+    const cell = (typing ? typedText(value) : text(value)).slice(0, CELL_MAX);
     if (cell) out[id] = cell;
   }
   return out;
 }
 
-function coerceTable(value) {
+function coerceTable(value, typing = false) {
   const src = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const cells = {};
   const rows = src.cells && typeof src.cells === 'object' ? src.cells : {};
   for (const [rowId, rowCells] of Object.entries(rows).slice(0, MAX_TABLE_ROWS)) {
     const id = text(rowId).slice(0, 40);
-    const clean = cleanCells(rowCells);
+    const clean = cleanCells(rowCells, typing);
     if (id && Object.keys(clean).length) cells[id] = clean;
   }
   const added = (Array.isArray(src.added) ? src.added : []).slice(0, MAX_ADDED_ROWS).map((row) => ({
     id: text(row?.id).slice(0, 40) || createId('rad'),
-    cells: cleanCells(row?.cells),
+    cells: cleanCells(row?.cells, typing),
   }));
   return { cells, added };
 }
@@ -212,11 +218,11 @@ export function tableRows(field) {
   return [...base, ...extra];
 }
 
-/** Sett én celle. Returnerer ny verdi; malen endres ikke. */
+/** Sett én celle mens den skrives. Returnerer ny verdi; malen endres ikke. */
 export function setTableCell(field, rowId, columnId, next) {
   const column = (field?.columns || []).find((col) => col.id === columnId);
   const type = column?.type || 'text';
-  const value = coerceTable(field?.value);
+  const value = coerceTable(field?.value, true);
   const clean = cellValue(type, next);
   const apply = (cells) => {
     const out = { ...(cells || {}) };
@@ -428,9 +434,14 @@ function normalizeOptions(input) {
   return out;
 }
 
-export function coerceAnswer(kind, value) {
+/**
+ * Svaret i riktig form for felttypen. Med typing (hvert tastetrykk) står mellomrom og
+ * linjeskift slik de er skrevet; uten (lagring og innlasting) trimmes teksten.
+ */
+export function coerceAnswer(kind, value, { typing = false } = {}) {
+  const clean = typing ? typedText : text;
   if (kind === 'title' || kind === 'note') return '';
-  if (kind === 'table') return coerceTable(value);
+  if (kind === 'table') return coerceTable(value, typing);
   if (kind === 'sign') return coerceSign(value);
   if (kind === 'check') return !!value;
   if (kind === 'scale') {
@@ -441,7 +452,7 @@ export function coerceAnswer(kind, value) {
   if (kind === 'time') return text(value).slice(0, 8);
   if (kind === 'checks') {
     const list = Array.isArray(value) ? value : [];
-    return [...new Set(list.map((row) => text(row)).filter(Boolean))].slice(0, 12);
+    return [...new Set(list.map((row) => clean(row)).filter(Boolean))].slice(0, 12);
   }
   if (kind === 'image' || kind === 'file') {
     if (!value || typeof value !== 'object') return null;
@@ -455,7 +466,7 @@ export function coerceAnswer(kind, value) {
       dataUrl: stored,
     };
   }
-  return text(value).slice(0, 8000);
+  return clean(value).slice(0, 8000);
 }
 
 export function normalizeBuilderField(raw) {

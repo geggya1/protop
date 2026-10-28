@@ -6,7 +6,7 @@
  */
 import React, { createContext, useContext } from 'react';
 import {
-  ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions,
+  ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../context/ThemeContext';
@@ -17,6 +17,7 @@ import { dateKey } from '../utils/dates';
 import { BREAKPOINTS } from '../theme';
 import { elevationStyle, radius, space, type } from './tokens';
 import BackLink from './BackLink';
+import TypedInput from './TypedInput';
 import { useRepeatsShellTitle } from './ShellTitles';
 
 export function useWide() {
@@ -211,8 +212,8 @@ export function TextIn({ value, onChangeText, multiline, placeholder, keyboardTy
   const colors = useColors();
   const field = useContext(FieldContext);
   return (
-    <TextInput
-      value={value == null ? '' : String(value)}
+    <TypedInput
+      value={value}
       onChangeText={onChangeText}
       multiline={multiline}
       editable={editable}

@@ -6,6 +6,8 @@ import { blankRepeatItem, readPath, setEmployeePath } from '../../src/employees/
 import { OWNER_LABEL, PURPOSE_LABEL, sectionsFor } from '../../src/employees/schema';
 import { PHONE_COUNTRIES, parsePhoneInput, splitPhone } from '../../src/utils/phone';
 import OptionPicker from '../../components/OptionPicker';
+import TypedInput from '../../src/ui/TypedInput';
+import { sameExceptSpace, shownText } from '../../src/ui/typedText';
 
 function Chip({ label, on, onPress, colors, disabled }) {
   return (
@@ -268,7 +270,7 @@ export default function EmployeeFields({
               <Text style={[styles.label, { color: colors.muted }]}>
                 {field.label} · {OWNER_LABEL[field.owner] || 'Felt'}
               </Text>
-              <TextInput
+              <TypedInput
                 value={field.value}
                 editable={editable}
                 onChangeText={(value) => onChange({
@@ -396,7 +398,7 @@ export function EmployeeField({
           clearable={field.key !== 'company.accessRole'}
         />
         {field.type === 'suggest' ? (
-          <TextInput
+          <TypedInput
             value={String(value || '')}
             onChangeText={(next) => onChange(field.key, next)}
             editable={editable}
@@ -533,7 +535,7 @@ export function EmployeeField({
   return (
     <View style={styles.field}>
       {label}
-      <TextInput
+      <TypedInput
         value={String(value || '')}
         onChangeText={(next) => onChange(field.key, next)}
         editable={editable}
@@ -573,12 +575,21 @@ function FormatChip({ label, onPress, colors, disabled }) {
 function RichTextField({ value, onChangeText, editable, placeholder, colors }) {
   const [expanded, setExpanded] = useState(false);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const [typed, setTyped] = useState(null);
   const inputRef = useRef(null);
+  // Teksten trimmes på veien tilbake. Feltet og knappene bruker det som er skrevet, med
+  // mellomrom og linjeskift. Det nullstilles ikke ved blur, for knappene tar fokus.
+  const shown = shownText(typed, value, sameExceptSpace);
+
+  function change(next) {
+    setTyped(next);
+    onChangeText(next);
+  }
 
   function applyWrap(prefix, suffix) {
     if (!editable) return;
-    const next = wrapSelection(value, selection.start, selection.end, prefix, suffix);
-    onChangeText(next.text);
+    const next = wrapSelection(shown, selection.start, selection.end, prefix, suffix);
+    change(next.text);
     const sel = { start: next.start, end: next.end };
     setSelection(sel);
     if (Platform.OS === 'web') {
@@ -588,8 +599,8 @@ function RichTextField({ value, onChangeText, editable, placeholder, colors }) {
 
   function applyBullet() {
     if (!editable) return;
-    const next = insertBullet(value, selection.start);
-    onChangeText(next.text);
+    const next = insertBullet(shown, selection.start);
+    change(next.text);
     const sel = { start: next.caret, end: next.caret };
     setSelection(sel);
   }
@@ -611,8 +622,8 @@ function RichTextField({ value, onChangeText, editable, placeholder, colors }) {
       ) : null}
       <TextInput
         ref={inputRef}
-        value={String(value || '')}
-        onChangeText={onChangeText}
+        value={shown}
+        onChangeText={change}
         editable={editable}
         multiline
         placeholder={placeholder || ''}
@@ -853,7 +864,7 @@ function RepeatBlock({
             ) : (
               <View key={field.key} style={styles.field}>
                 <Text style={[styles.label, { color: colors.muted }]}>{field.label}</Text>
-                <TextInput
+                <TypedInput
                   value={String(item[field.key] || '')}
                   onChangeText={(value) => patch(index, field.key, value)}
                   editable={editable}

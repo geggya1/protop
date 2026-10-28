@@ -28,6 +28,8 @@ import {
 import CompanyNewsWall from './CompanyNewsWall';
 import CompanyPageEditor from './CompanyPageEditor';
 import { useCroppedUpload } from './useCroppedUpload';
+import { useApp } from '../../src/context/AppContext';
+import { parentCompanyDisplayName } from '../../src/utils/companyName';
 
 const TONES = {
   blue: { bg: '#e8f1ff', fg: '#2563eb' },
@@ -112,6 +114,9 @@ export default function CompanyPublicProfile({
   const colors = useColors();
   const { width } = useWindowDimensions();
   const access = useCompanyAccess();
+  const { family, families } = useApp();
+  // Morselskapet slås opp via parentCompanyId, så et nytt navn der vises her (DS-17).
+  const parentName = parentCompanyDisplayName(family, families) || stored?.parentCompanyName;
   const wide = width >= 980;
   const stacked = width < 760;
   const page = useMemo(() => normalizeCompanyPage(stored?.publicPage), [stored?.publicPage]);
@@ -153,10 +158,10 @@ export default function CompanyPublicProfile({
   const overview = useMemo(() => groupOverview({
     konsern: profile?.konsern === true,
     morselskap: live?.accounts?.morselskap === true,
-    parentCompanyName: parentLabel || stored?.parentCompanyName,
+    parentCompanyName: parentLabel || parentName,
     publicUnits: live?.units || [],
     registered: stored?.subUnits,
-  }), [profile?.konsern, live?.accounts?.morselskap, parentLabel, stored?.parentCompanyName, stored?.subUnits, live?.units]);
+  }), [profile?.konsern, live?.accounts?.morselskap, parentLabel, parentName, stored?.subUnits, live?.units]);
 
   const facts = [
     { icon: 'document-text-outline', label: 'Organisasjonsnummer', value: formatOrgNumber(profile?.organisasjonsnummer || stored?.organisasjonsnummer) },

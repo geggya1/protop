@@ -663,7 +663,8 @@ export function AbsenceReportDesktop({
       if (!row.employeeId) continue;
       const current = byId.get(row.employeeId) || {
         id: row.employeeId,
-        name: row.employeeName || names[row.employeeId] || 'Ansatt',
+        // Registeret først. Kopien på fraværet er reserve for slettede personer (DS-08).
+        name: names[row.employeeId] || row.employeeName || 'Ansatt',
         hours: 0,
       };
       current.hours += Number(row.hours) || 0;

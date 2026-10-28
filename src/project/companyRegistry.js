@@ -1,4 +1,5 @@
 /** Avgjør om et orgnummer allerede er en bedrift, og bygger innpass-forespørsel. */
+import { companyDisplayName } from '../utils/companyName.js';
 
 export function digitsOrgnr(value) {
   return String(value || '').replace(/\D/g, '').slice(0, 9);
@@ -18,7 +19,7 @@ export function companyRegistrationDecision(existing) {
     return {
       kind: 'join',
       companyId: existing.id,
-      companyName: existing.company?.navn || existing.name || 'Bedriften',
+      companyName: companyDisplayName(existing, 'Bedriften'),
     };
   }
   return { kind: 'create' };

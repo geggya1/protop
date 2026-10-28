@@ -4,6 +4,7 @@
  */
 import { isOrganizationType } from '../utils/groupTypes.js';
 import { isPersonalShell } from '../utils/personalShell.js';
+import { companyDisplayName } from '../utils/companyName.js';
 
 /** Vises først etter at personen har landet på dashbordet. */
 export const COMPANY_OFFER_DELAY_MS = 2 * 60 * 1000;
@@ -66,6 +67,6 @@ function shellTime(group) {
 /** Label shown in the shell when the open workspace is a company. */
 export function companyContextLabel(family) {
   if (!family || !isOrganizationType(family.type)) return '';
-  const name = String(family.company?.navn || family.name || '').trim();
+  const name = companyDisplayName(family);
   return name ? `Bedrift · ${name}` : 'Bedrift';
 }

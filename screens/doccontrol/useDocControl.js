@@ -20,7 +20,7 @@ import {
   saveControl,
   saveSettings,
 } from '../../src/doccontrol/store';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import { displayName } from '../../src/employees/model';
 import { filterHrEmployees } from '../../src/hr/model';
 import { notifyUsers } from '../../src/utils/notifications';
@@ -38,7 +38,7 @@ export function useDocControl() {
   const [settings, setSettings] = useState(cached?.settings || normalizeSettings(null));
   const [acks, setAcks] = useState(cached?.acks || []);
   const [comments, setComments] = useState([]);
-  const [allEmployees, setAllEmployees] = useState([]);
+  const { employees: allEmployees } = useEmployees(familyId);
   const [ready, setReady] = useState(!!cached);
 
   const isAdmin = !!uid && (family?.ownerUid === uid || family?.ownerId === uid || (family?.adminUids || []).includes(uid));
@@ -60,10 +60,6 @@ export function useDocControl() {
 
   useEffect(() => { reload(); }, [reload]);
 
-  useEffect(() => {
-    if (!familyId) return undefined;
-    return watchEmployees(familyId, (rows) => setAllEmployees(rows || []));
-  }, [familyId]);
 
   const employees = useMemo(() => filterHrEmployees(allEmployees, 'active'), [allEmployees]);
 

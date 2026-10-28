@@ -11,6 +11,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeTimeEntryRow } from '../project/engine.js';
+import { projectLookupNumbers } from '../project/projectFields.js';
 import { aliasSourceIds } from '../project/companyAlias.js';
 import { text } from './invoices.js';
 
@@ -178,6 +179,15 @@ function mergeEntryLists(...lists) {
     }
   }
   return [...byId.values()];
+}
+
+/**
+ * Timene til et prosjekt: på prosjekt-id og på prosjektnummer. Id-en finner timene også
+ * etter at prosjektet har fått nytt nummer; nummeret finner importerte timer uten id.
+ */
+export function projectHoursQuery(project) {
+  const projectId = text(project?.id);
+  return { projectId, projectNumbers: projectLookupNumbers(project) };
 }
 
 function projectNumberList(value) {

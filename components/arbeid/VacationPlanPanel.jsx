@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import IsoDateField from './IsoDateField';
+import { useCompanyDirectory } from '../../src/context/CompanyDataContext';
 import {
   FIXED_EXTRA_TEMPLATES,
   approvedVacationRequests,
@@ -88,24 +89,38 @@ export default function VacationPlanPanel({
   }, [employees, canManage, focusEmployeeId]);
   const window = planningWindow(current, today);
   const announced = !!current.announcedAt;
+  // Navn fra registeret også for ferie ført på uid eller på personer utenfor utvalget (DS-08).
+  const directory = useCompanyDirectory();
+  const lookupNames = useMemo(() => {
+    let out = names;
+    for (const row of absences || []) {
+      const id = String(row?.employeeId || '');
+      if (!id || out[id]) continue;
+      const name = directory.resolvePerson?.(id)?.name;
+      if (!name) continue;
+      if (out === names) out = { ...names };
+      out[id] = name;
+    }
+    return out;
+  }, [names, absences, directory]);
   const pending = useMemo(() => (
     canManage ? pendingVacationRequests(absences, {
       year: current.year,
       today,
       approvalDays: current.approvalDays,
       dayHours,
-      names,
+      names: lookupNames,
     }) : []
-  ), [absences, canManage, current.year, current.approvalDays, today, dayHours, names]);
+  ), [absences, canManage, current.year, current.approvalDays, today, dayHours, lookupNames]);
   const approved = useMemo(() => (
     canManage ? approvedVacationRequests(absences, {
       year: current.year,
       today,
       approvalDays: current.approvalDays,
       dayHours,
-      names,
+      names: lookupNames,
     }) : []
-  ), [absences, canManage, current.year, current.approvalDays, today, dayHours, names]);
+  ), [absences, canManage, current.year, current.approvalDays, today, dayHours, lookupNames]);
   const sample = vacationQuota({ id: '_sample', person: {}, company: { status: 'active' } }, { ...current, grants: {} }, { today, dayHours });
   const upcomingYear = isUpcomingVacationPlanYear(current.year, today);
   const balanceTitle = openingBalanceYearLabel(current.year, today);

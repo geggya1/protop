@@ -5,6 +5,7 @@
  * Ingen blir medlem uten å trykke Godta. En ny bruker som ble invitert på e-post
  * får invitasjonen i innboksen når e-posten er bekreftet, og svarer der.
  */
+import { companyDisplayName } from './companyName.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -121,7 +122,7 @@ export function inviteFromPlaceholder({
     adultRole: row.adultRole || null,
     asGrandparent: isGrandparent,
     familyId: text(familyId),
-    familyName: text(group.name) || text(group.company?.navn),
+    familyName: companyDisplayName(group),
     groupType: text(group.type) || 'family',
     createdAt: now,
     updatedAt: now,

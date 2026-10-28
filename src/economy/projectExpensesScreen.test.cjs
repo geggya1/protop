@@ -41,6 +41,8 @@ const rnMock = {
   Platform: { OS: 'web', select: (options) => options && (options.web || options.default) },
 };
 
+const companyData = require('../company/companyDataTesting.js').companyDataHooks();
+
 function loadJsx(rel) {
   const full = path.join(ROOT, rel);
   const code = fs.readFileSync(full, 'utf8');
@@ -70,6 +72,7 @@ function loadJsx(rel) {
       return { useCompanyAccess: () => ({ ready: true, canAdmin: () => true, canEdit: () => true, canRead: () => true }) };
     }
     if (id.includes('anbud/storage')) return { loadAnbudState: async () => ({ customers: [] }) };
+    if (id.includes('CompanyDataContext')) return companyData;
     if (id.includes('expenseStorage')) {
       return {
         isExternalExpense: () => false,

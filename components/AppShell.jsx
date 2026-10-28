@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { radius, useLayout } from '../src/theme';
 import { useApp } from '../src/context/AppContext';
+import { CompanyDataProvider } from '../src/context/CompanyDataContext';
 import { useColors, useThemeMeta } from '../src/context/ThemeContext';
 import { isTeamType } from '../src/utils/teams';
 import { isClassroomType } from '../src/utils/groupTypes';
@@ -108,6 +109,7 @@ import {
 } from '../src/utils/childHomeLayout';
 import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
+import { companyDisplayName } from '../src/utils/companyName';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -709,7 +711,7 @@ function AppShellInner() {
         .filter((row) => row?.id && row.id !== familyId && isOrganizationType(row.type))
         .map((row) => ({
           id: row.id,
-          name: row.company?.navn || row.name || 'Selskap',
+          name: companyDisplayName(row, 'Selskap'),
           organization: true,
           type: row.type,
         }));
@@ -721,7 +723,7 @@ function AppShellInner() {
           companies={relatedCompanies}
           company={{
             id: familyId,
-            name: family?.company?.navn || family?.name || '',
+            name: companyDisplayName(family),
             orgnr: family?.company?.organisasjonsnummer || '',
             cpvCodes: family?.cpvCodes || [],
             cpvSource: family?.cpvSource || '',
@@ -1031,7 +1033,7 @@ function AppShellInner() {
               <HelpTarget id="rail" style={{ flex: 1 }}>
                 <BrandLogo variant="full" height={48} maxWidth={180} style={styles.brandLogo} />
                 <Text style={[styles.fam, { color: colors.muted }]} numberOfLines={1}>
-                  {family?.name || 'Familien'}
+                  {companyDisplayName(family, 'Familien')}
                 </Text>
 
                 <ScrollView
@@ -1229,8 +1231,15 @@ function AppShellInner() {
 }
 
 export default function AppShell() {
-  const { familyId, family } = useApp();
-  return <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />;
+  const { familyId, family, parents, userProfile, uid } = useApp();
+  // Felles lesing for bedriften (ansatte, personer, kunder, prosjekter, innstillinger).
+  const companyId = family?.id === familyId && isOrganizationType(family?.type) ? familyId : '';
+  const me = useMemo(() => (uid ? { ...(userProfile || {}), uid } : null), [uid, userProfile]);
+  return (
+    <CompanyDataProvider companyId={companyId} members={parents} me={me}>
+      <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />
+    </CompanyDataProvider>
+  );
 }
 
 const styles = StyleSheet.create({

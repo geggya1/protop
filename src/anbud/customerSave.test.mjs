@@ -29,8 +29,20 @@ const MOCKS = {
       const data = store.get(ref.path);
       return { exists: () => data !== undefined, data: () => clone(data) };
     }
+    const listeners = globalThis.__anbudTestListeners;
     export async function setDoc(ref, data, opts = {}) {
       store.set(ref.path, opts.merge ? deepMerge(store.get(ref.path), clone(data)) : clone(data));
+      for (const fire of listeners.get(ref.path) || []) fire();
+    }
+    export function onSnapshot(ref, next) {
+      const fire = () => {
+        const data = store.get(ref.path);
+        next({ exists: () => data !== undefined, data: () => clone(data) });
+      };
+      if (!listeners.has(ref.path)) listeners.set(ref.path, new Set());
+      listeners.get(ref.path).add(fire);
+      fire();
+      return () => listeners.get(ref.path).delete(fire);
     }
     export async function runTransaction(db, fn) {
       const writes = [];
@@ -60,6 +72,8 @@ const MOCKS = {
     };
   `,
 };
+
+globalThis.__anbudTestListeners = new Map();
 
 registerHooks({
   resolve(specifier, context, next) {
@@ -201,6 +215,23 @@ function registry() {
   };
   await assert.rejects(() => deviceA.persistAnbudState(huge, CO), /for store/);
   assert.deepEqual(store.get(STATE).state.contracts.map((row) => row.id), ['kon_0'], 'skyen er ikke skrevet med forkortet tekst');
+}
+
+// Sanntid (datasynk fase 1): A lytter på registeret og ser kunden B gir nytt navn, uten ny lesing.
+{
+  const seen = [];
+  const stop = deviceA.watchCustomerList(CO, (rows, meta) => {
+    seen.push({ source: meta.source, k2: rows.find((row) => row.id === 'K2')?.name || '' });
+  });
+  for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(seen.at(-1).source, 'remote');
+  const before = registry().find((row) => row.id === 'K2');
+  await deviceB.saveCustomers(CO, [{ ...before, name: 'Kunde2 nytt navn', updatedAt: '2026-10-28T12:00:00Z' }]);
+  assert.equal(seen.at(-1).k2, 'Kunde2 nytt navn', 'lytteren får endringen fra den andre enheten');
+  stop();
+  const count = seen.length;
+  await deviceB.saveCustomers(CO, [{ ...before, name: 'Etter stopp', updatedAt: '2026-10-28T13:00:00Z' }]);
+  assert.equal(seen.length, count, 'stoppet lytter får ikke flere endringer');
 }
 
 console.log('customerSave.test.mjs: ok');

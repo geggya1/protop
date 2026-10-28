@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
 import { employmentState } from '../src/employees/model';
 import { useLeaveCompany } from '../src/employees/useLeaveCompany';
+import { companyDisplayName } from '../src/utils/companyName';
 
 function ownerName(family, members) {
   const owner = family?.ownerUid || family?.ownerId || '';
@@ -25,7 +26,7 @@ function reasonText(state) {
 export default function CompanyAccountEnded({ colors, employee }) {
   const { family, members } = useApp();
   const leaving = useLeaveCompany();
-  const name = family?.company?.navn || family?.name || 'bedriften';
+  const name = companyDisplayName(family, 'bedriften');
   const contact = ownerName(family, members);
   const danger = colors.danger || '#b42318';
   return (

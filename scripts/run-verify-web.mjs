@@ -180,6 +180,14 @@ export const FILES = [
   'src/project/concurrentSave.test.mjs',
   'src/project/useProjectStateEditor.test.mjs',
   'src/anbud/customerSave.test.mjs',
+  // Felles lesing i skallet: én lytter per kilde, og nye navn slår gjennom i listene.
+  'src/company/companyData.test.mjs',
+  'src/context/companyDataContext.test.mjs',
+  'src/economy/projectHours.test.mjs',
+  'src/economy/invoiceCustomer.test.mjs',
+  'src/employees/profileSync.test.mjs',
+  'src/utils/companyName.test.mjs',
+  'src/economy/operationStores.test.mjs',
   // Flyter og sikkerhet: feil vises på web, notater, oppgaver, venner, EHF, e-postrelé, proxy og XSS.
   'src/utils/webAlerts.test.mjs',
   'src/utils/notesLogic.test.mjs',

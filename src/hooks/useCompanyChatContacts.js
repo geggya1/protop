@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { watchEmployees } from '../employees/storage';
+import { useEmployees } from '../context/CompanyDataContext';
 import { isOrganizationType } from '../utils/groupTypes';
 import { companyChatContacts } from '../utils/companyChat';
 import { subscribeFamilyCollection } from '../utils/sharedCollectionListeners';
@@ -15,32 +15,21 @@ import { subscribeFamilyCollection } from '../utils/sharedCollectionListeners';
 export function useCompanyChatContacts() {
   const { familyId, family, parents, uid } = useApp();
   const company = isOrganizationType(family?.type);
-  const [state, setState] = useState({
-    key: '', employees: [], loaded: false, ready: false,
-  });
   const [threads, setThreads] = useState({ key: '', map: {} });
-
-  useEffect(() => {
-    if (!company || !familyId) return undefined;
-    setState({
-      key: familyId, employees: [], loaded: false, ready: false,
-    });
-    return watchEmployees(familyId, (rows, meta) => {
-      setState((prev) => {
-        const same = prev.key === familyId;
-        const remote = meta?.source === 'remote';
-        return {
-          key: familyId,
-          employees: rows || [],
-          // Tom lokal kopi betyr bare at den ikke finnes ennå.
-          loaded: (same && prev.loaded) || remote || (rows || []).length > 0,
-          ready: (same && prev.ready) || remote,
-        };
-      });
-    }, () => setState({
-      key: familyId, employees: [], loaded: true, ready: false,
-    }));
-  }, [company, familyId]);
+  // Felles lytter på ansatte i skallet.
+  const staff = useEmployees(familyId, { enabled: company });
+  const state = useMemo(() => {
+    if (!company || !familyId) return { key: '', employees: [], loaded: false, ready: false };
+    if (staff.error) return { key: familyId, employees: [], loaded: true, ready: false };
+    const remote = staff.source === 'remote';
+    return {
+      key: familyId,
+      employees: staff.employees,
+      // Tom lokal kopi betyr bare at den ikke finnes ennå.
+      loaded: remote || staff.employees.length > 0,
+      ready: remote,
+    };
+  }, [company, familyId, staff]);
 
   useEffect(() => {
     if (!company || !familyId) return undefined;

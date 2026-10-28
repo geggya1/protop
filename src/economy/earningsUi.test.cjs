@@ -75,7 +75,10 @@ function compile(filename, code) {
   }
 }
 
+const companyData = require('../company/companyDataTesting.js').companyDataHooks({ employees: people });
+
 function hookedRequire(orig, id) {
+  if (id.includes('CompanyDataContext')) return companyData;
   if (id === 'react') return React;
   if (id === 'react-native') return rnMock;
   if (id.includes('@expo/vector-icons')) return { Ionicons() { return null; } };

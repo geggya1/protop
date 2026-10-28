@@ -357,6 +357,24 @@ function normalizeAddress(raw) {
   };
 }
 
+/** Mottakerfeltene et utkast henter fra kunderegisteret (se invoiceCustomer.js). */
+export const CUSTOMER_COPY_KEYS = [
+  'customerNumber', 'customerName', 'orgnr', 'customerAddress', 'customerEmail', 'customerContact',
+];
+
+/** Kunden slik den sist ble hentet fra registeret til utkastet. null når den mangler. */
+function normalizeCustomerCopy(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    customerNumber: text(raw.customerNumber),
+    customerName: text(raw.customerName),
+    orgnr: text(raw.orgnr).replace(/\s/g, ''),
+    customerAddress: normalizeAddress(raw.customerAddress),
+    customerEmail: text(raw.customerEmail).slice(0, 200),
+    customerContact: text(raw.customerContact).slice(0, 120),
+  };
+}
+
 function normalizeCollection(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   return {
@@ -548,6 +566,8 @@ export function normalizeInvoice(input) {
   };
   const poweroffice = normalizePowerOffice(row.poweroffice);
   if (poweroffice) normalized.poweroffice = poweroffice;
+  const customerCopy = normalizeCustomerCopy(row.customerCopy);
+  if (customerCopy) normalized.customerCopy = customerCopy;
   if (!INVOICE_STATUSES.some((item) => item.id === normalized.status)) {
     normalized.status = deriveInvoiceStatus(normalized);
   }

@@ -44,6 +44,8 @@ const rnMock = {
   useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1, scale: 2 }),
 };
 
+const companyData = require('../../src/company/companyDataTesting.js').companyDataHooks();
+
 function loadJsx(rel) {
   const full = path.join(ROOT, rel);
   const code = fs.readFileSync(full, 'utf8');
@@ -90,6 +92,7 @@ function loadJsx(rel) {
       };
     }
     if (id.includes('employees/storage')) return { watchEmployees: () => () => {} };
+    if (id.includes('CompanyDataContext')) return companyData;
     if (id.includes('employees/model')) {
       return { displayName: () => 'Ada', ownEmployee: () => ({ id: 'e1' }) };
     }

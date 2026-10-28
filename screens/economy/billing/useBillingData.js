@@ -6,9 +6,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { emptyProjectState } from '../../../src/project/engine';
 import { loadProjectState } from '../../../src/project/storage';
-import { loadTimeEntries } from '../../../src/economy/timeEntryStorage.js';
-import { loadProjectExpenses, mergeExpenseLists } from '../../../src/economy/expenseStorage.js';
-import { loadProductSales, mergeSaleLists } from '../../../src/economy/productSalesStorage.js';
+import { loadTimeEntries, projectHoursQuery } from '../../../src/economy/timeEntryStorage.js';
+import { loadProjectExpenses } from '../../../src/economy/expenseStorage.js';
+import { loadProductSales } from '../../../src/economy/productSalesStorage.js';
+import { combineExpenses } from '../../../src/economy/expenseSave.js';
+import { combineSales } from '../../../src/economy/productSaleSave.js';
 import * as invoiceStorage from '../../../src/economy/invoiceStorage.js';
 import { loadAnbudState } from '../../../src/anbud/storage';
 import { mergeIndexSnapshot } from '../../../src/indeksregulering/indexLedger';
@@ -19,6 +21,8 @@ import { loadPowerOfficeStatus } from '../../../src/economy/powerOfficeClient.js
 import { resolveProjectInvoiceSettings } from '../../../src/project/invoiceSettings.js';
 import { resolveCompanyAccounts } from '../../../src/economy/companyChart.js';
 import { resolveCompanyInvoiceDefaults } from '../../../src/economy/companyInvoiceDefaults.js';
+import { useCompanyRefs } from '../../../src/context/CompanyDataContext';
+import { freshRows, hydrateRows, liveCustomerList } from '../../../src/company/companyData.js';
 
 /** Hvor langt bakover åpne timer hentes. Eldre ufakturert arbeid er over fristen uansett. */
 export const HOURS_WINDOW_MONTHS = 18;
@@ -33,7 +37,7 @@ function windowStart(today = new Date()) {
  * demo: { state, timeEntries, expenses, sales, customers, contracts } brukes i stedet for skyen
  * (demosiden /faktura-demo). Fakturaene kommer fortsatt fra storage.
  */
-export default function useBillingData({ familyId, projectId = '', canSeePowerOffice = true, storage = null, demo = null } = {}) {
+export default function useBillingData({ familyId, projectId = '', project = null, canSeePowerOffice = true, storage = null, demo = null } = {}) {
   const store = storage || invoiceStorage;
   const [state, setState] = useState(emptyProjectState());
   const [timeEntries, setTimeEntries] = useState([]);
@@ -47,6 +51,9 @@ export default function useBillingData({ familyId, projectId = '', canSeePowerOf
   const [error, setError] = useState('');
   const [stamp, setStamp] = useState(0);
   const live = useRef(true);
+  // Kunder, prosjekter og personer fra skallets lyttere (ikke i demoen).
+  const shared = !demo && !!familyId && familyId !== '__demo__';
+  const refs = useCompanyRefs(familyId, { people: shared, customers: shared, projects: shared });
 
   useEffect(() => {
     live.current = true;
@@ -70,8 +77,9 @@ export default function useBillingData({ familyId, projectId = '', canSeePowerOf
     let active = true;
     setError('');
     const today = new Date().toISOString().slice(0, 10);
+    // Prosjektets timer på id og nummer, så eldre og importerte timer også kommer med.
     const hours = projectId
-      ? loadTimeEntries(familyId, { projectId })
+      ? loadTimeEntries(familyId, project?.id === projectId ? projectHoursQuery(project) : { projectId })
       : loadTimeEntries(familyId, { fromDate: windowStart(), toDate: today });
     Promise.all([
       loadProjectState(familyId, { force: stamp > 0 }),
@@ -83,8 +91,9 @@ export default function useBillingData({ familyId, projectId = '', canSeePowerOf
       if (!active) return;
       setState(projects || emptyProjectState());
       setTimeEntries(entries || []);
-      setExpenses(mergeExpenseLists(remoteExpenses, projects?.expenses || []));
-      setSales(mergeSaleLists(remoteSales, projects?.sales || []));
+      // Utlegg og salg ligger to steder; samme sammenslåing som resten av appen (DS-13).
+      setExpenses(combineExpenses(projects?.expenses, remoteExpenses));
+      setSales(combineSales(projects?.sales, remoteSales));
       setAnbud(loadedAnbud);
       setReady(true);
     }).catch((cause) => {
@@ -132,7 +141,18 @@ export default function useBillingData({ familyId, projectId = '', canSeePowerOf
 
   const reload = useCallback(() => setStamp((value) => value + 1), []);
 
-  const customers = anbud?.customers || [];
+  const customers = liveCustomerList(refs.customers, anbud?.customers || []);
+  const projects = useMemo(() => freshRows(state.projects || [], refs.projects), [state.projects, refs.projects]);
+  // Navn på medarbeider, kunde og prosjekt slås opp før grunnlaget bygges og listen
+  // filtreres (DS-08). Kopiene på radene er reserve for slettede personer og kunder.
+  const lookup = useMemo(
+    () => ({ directory: refs.directory, customers, projects }),
+    [refs.directory, customers, projects],
+  );
+  const shownEntries = useMemo(() => hydrateRows(timeEntries, lookup), [timeEntries, lookup]);
+  const shownExpenses = useMemo(() => hydrateRows(expenses, lookup), [expenses, lookup]);
+  const shownTrips = useMemo(() => hydrateRows(state.mileageTrips || [], lookup), [state.mileageTrips, lookup]);
+  const shownSales = useMemo(() => hydrateRows(sales, lookup), [sales, lookup]);
   const contracts = anbud?.contracts || [];
   const companyDefaults = useMemo(() => resolveCompanyInvoiceDefaults(state), [state]);
   const chart = useMemo(() => resolveCompanyAccounts(state), [state]);
@@ -146,11 +166,11 @@ export default function useBillingData({ familyId, projectId = '', canSeePowerOf
     ready,
     error,
     state,
-    projects: state.projects || [],
-    timeEntries,
-    expenses,
-    trips: state.mileageTrips || [],
-    sales,
+    projects,
+    timeEntries: shownEntries,
+    expenses: shownExpenses,
+    trips: shownTrips,
+    sales: shownSales,
     invoices,
     customers,
     contracts,

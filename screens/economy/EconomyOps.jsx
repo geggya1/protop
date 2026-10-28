@@ -22,6 +22,8 @@ import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { useProjectStateEditor } from '../../src/project/useProjectStateEditor';
 import { loadAnbudState } from '../../src/anbud/storage';
+import { useCompanyRefs } from '../../src/context/CompanyDataContext';
+import { freshRows, hydrateRows, liveCustomerList } from '../../src/company/companyData.js';
 import { formatMoney } from '../../src/economy/invoices.js';
 import {
   EXPENSE_CATEGORIES,
@@ -255,6 +257,15 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const title = kind === 'mileage' ? 'Kjørebok' : 'Utlegg';
   const expenses = state.expenses || [];
   const trips = state.mileageTrips || [];
+  // Person, kunde og prosjekt slås opp når listen vises (DS-08). Kopien på raden er reserve.
+  const refs = useCompanyRefs(familyId);
+  const lookup = useMemo(() => ({
+    directory: refs.directory,
+    customers: liveCustomerList(refs.customers, customers),
+    projects: freshRows(state.projects || [], refs.projects),
+  }), [refs, customers, state.projects]);
+  const shownExpenses = useMemo(() => hydrateRows(expenses, lookup), [expenses, lookup]);
+  const shownTrips = useMemo(() => hydrateRows(trips, lookup), [trips, lookup]);
   const dutyKm = useMemo(() => yearlyDutyKm(trips, new Date().getFullYear()), [trips]);
   const rateInfo = mileageRate(state.mileagePolicies);
   const canEditRate = access.canAdmin('mileage') || access.canAdmin('economySettings');
@@ -435,8 +446,8 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
         />
       ) : null}
 
-      {kind === 'expenses' ? expenses.map((row) => {
-        const trip = row.tripId ? trips.find((item) => item.id === row.tripId) : null;
+      {kind === 'expenses' ? shownExpenses.map((row) => {
+        const trip = row.tripId ? shownTrips.find((item) => item.id === row.tripId) : null;
         return (
           <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.description || row.purpose} · {formatMoney(row.amountInclVat)}</Text>
@@ -469,7 +480,7 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
 
       {kind === 'mileage' ? (
         <TripReport
-          trips={trips}
+          trips={shownTrips}
           colors={colors}
           pendingId={pendingDelete}
           onOpen={openTrip}

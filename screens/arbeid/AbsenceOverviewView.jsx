@@ -37,6 +37,7 @@ import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { CompanyAbsenceView } from './CompanyAbsenceView';
 import { CompanyAbsenceDesktop } from './CompanyAbsenceDesktop';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 const HERO = require('../../assets/absence/hero-construction.png');
 const BEACH = require('../../assets/absence/beach-illustration.png');
@@ -85,7 +86,7 @@ function formatCount(value) {
 }
 
 function companyLabel(group) {
-  return String(group?.company?.navn || group?.name || 'Selskap').trim();
+  return companyDisplayName(group, 'Selskap');
 }
 
 function usePeople(lockedEmployeeId) {

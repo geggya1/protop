@@ -31,6 +31,7 @@ import { setBalanceAdjustment } from '../../src/arbeid/timesheetState.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 function todayKey() {
   return toDateKey(new Date());
@@ -106,7 +107,7 @@ export default function TimesaldoScreen({
   const selectedName = employeeDisplayName(employee) || 'Medarbeider';
   const settings = timeSettingsOf(employee);
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
-  const companyLabel = String(family?.company?.navn || family?.name || '').trim();
+  const companyLabel = companyDisplayName(family);
 
   const report = useMemo(() => {
     if (!activeId) {

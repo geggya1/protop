@@ -56,6 +56,7 @@ import AssistantChat from './assistant/AssistantChat';
 import { assistantThread, isAssistantThread } from '../src/help/assistantBridge';
 import { useCompanyChatContacts } from '../src/hooks/useCompanyChatContacts';
 import { STAFF_CHAT_ID, STAFF_CHAT_TITLE, companyChatLabel } from '../src/utils/companyChat';
+import { companyDisplayName } from '../src/utils/companyName';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -491,7 +492,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
   // I en bedrift: «Alle ansatte» (faste ansatte) og ansattlisten i stedet for familien.
   const companyChat = useCompanyChatContacts();
   const isCompany = !!companyChat;
-  const companyName = family?.company?.navn || family?.name || '';
+  const companyName = companyDisplayName(family);
   const staffChatIds = companyChat?.staffChatIds || [];
   const showStaffChat = !!(companyChat?.ready && companyChat.inStaffChat && staffChatIds.length);
   const others = useMemo(

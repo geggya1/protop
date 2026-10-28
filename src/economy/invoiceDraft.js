@@ -9,6 +9,7 @@ import { timeTypeById } from '../arbeid/overtime.js';
 import { emptyInvoice, newInvoiceId, text } from './invoices.js';
 import { normalizeLine, normalizeLines, round2 } from './invoiceLines.js';
 import { dueDateFor, recalcInvoice, withEvent } from './invoiceFlow.js';
+import { customerFieldsFrom } from './invoiceCustomer.js';
 
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 
@@ -351,12 +352,7 @@ export function isForeignCustomer(customer) {
 }
 
 function customerAddress(customer, project) {
-  return {
-    street: text(customer?.address || project?.address),
-    postalCode: text(customer?.postalCode),
-    city: text(customer?.place),
-    country: text(customer?.country) || 'NO',
-  };
+  return customerFieldsFrom(customer, project).customerAddress;
 }
 
 function ourReference(settings, project, actor) {
@@ -452,6 +448,9 @@ export function buildInvoiceDraft(selection, {
     activities: (entryActivities.length ? entryActivities : activities).join(', '),
     projectTags: Array.isArray(project.tags) ? project.tags.join(', ') : text(project.tags),
     contractId: text(project.contractId),
+    // Det som ble hentet fra kunderegisteret. Utkastet følger registeret til det ferdigstilles,
+    // unntatt felt brukeren endrer selv (invoiceCustomer.withRegistryCustomer).
+    ...(customer?.id ? { customerCopy: customerFieldsFrom(customer, project) } : {}),
     creditDays,
     bankAccount: text(supplier.bankAccount),
     currency: 'NOK',

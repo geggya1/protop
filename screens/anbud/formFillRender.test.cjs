@@ -40,6 +40,7 @@ const MOCKS = {
     saveAck: async (id, ack) => ({ ok: true, ack }),
   },
   'src/employees/storage': { watchEmployees: () => () => {} },
+  'src/context/CompanyDataContext': require('../../src/company/companyDataTesting.js').companyDataHooks(),
   'src/utils/notifications': { notifyUsers: async () => ({ notified: 0 }) },
   'src/access/useCompanyAccess': { useCompanyAccess: () => ({ levelId: 'leder', bypass: false, canView: () => true, canEdit: () => true }) },
   'src/employees/cvImport': { textFromDocx: async () => '' },

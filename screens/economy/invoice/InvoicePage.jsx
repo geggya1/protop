@@ -31,6 +31,7 @@ import {
 } from '../../../src/economy/invoiceDelivery.js';
 import { POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
 import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
+import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 import { Banner, Button, LinkText, money } from '../billing/ui';
 import { InvoiceHeaderEditor, InvoiceHeaderView, InvoiceTexts } from './InvoiceHeader';
 import { InvoiceLinesView, InvoiceTotalsView } from './InvoiceLinesView';
@@ -53,7 +54,7 @@ function titleOf(invoice) {
 }
 
 export default function InvoicePage({
-  invoice,
+  invoice: storedInvoice,
   invoices = [],
   allInvoices = [],
   familyId,
@@ -83,6 +84,8 @@ export default function InvoicePage({
   onTransfer,
   transferring = false,
 }) {
+  // Utkast viser kunden slik den står i registeret nå; den kopieres for godt ved ferdigstilling (DS-09).
+  const invoice = useMemo(() => withRegistryCustomer(storedInvoice, customers), [storedInvoice, customers]);
   const [tab, setTab] = useState('overview');
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(null);

@@ -5,7 +5,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { loadAnbudState, peekAnbudState } from '../../src/anbud/storage';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import { ensureProjectHours, loadProjectState, peekProjectState } from '../../src/project/storage';
 import { myProjectIds } from '../../src/project/myProjects';
 import ProjectTimelineBoard from './ProjectTimelineBoard';
@@ -35,7 +35,6 @@ export default function ProjectTimelineScreen() {
   const [dayHours, setDayHours] = useState(() => Number(cachedProjects?.fullDayHours) || 8);
   const [contracts, setContracts] = useState(() => peekAnbudState(familyId)?.contracts || []);
   const [timeEntries, setTimeEntries] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [range, setRange] = useState(null);
   const [loadingHours, setLoadingHours] = useState(false);
   const familyRef = useRef(familyId);
@@ -44,10 +43,7 @@ export default function ProjectTimelineScreen() {
   const seeOthers = !access.active || access.canView('hoursOthers');
   const allProjects = !access.active || (access.ready && access.canAdmin('projects'));
 
-  useEffect(() => {
-    if (!familyId || (seeOthers && allProjects)) return undefined;
-    return watchEmployees(familyId, (rows) => setEmployees(rows || []));
-  }, [familyId, seeOthers, allProjects]);
+  const { employees } = useEmployees(familyId, { enabled: !(seeOthers && allProjects) });
 
   useEffect(() => {
     let live = true;

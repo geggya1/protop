@@ -88,12 +88,13 @@ import {
   saveProjectState,
 } from '../../src/project/storage';
 import { projectLookupNumbers } from '../../src/project/projectFields.js';
+import { projectHoursQuery } from '../../src/economy/timeEntryStorage.js';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
 import { searchPlaces } from '../../src/utils/location';
 import { addressFieldsFromPlace } from '../../src/mileage/flow';
 import ProjectDetail from '../../components/project/ProjectDetail';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 import ProjectPhoneRow from './ProjectPhoneRow';
 
@@ -338,7 +339,8 @@ export default function ProjectWorkScreen() {
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
   const [anbud, setAnbud] = useState(() => cachedAnbud);
-  const [employees, setEmployees] = useState([]);
+  // Felles lytter på ansatte i skallet.
+  const { employees } = useEmployees(familyId);
   const [invoices, setInvoices] = useState([]);
   const [ready, setReady] = useState(() => (cachedProjects?.projects?.length || 0) > 0);
   const [error, setError] = useState('');
@@ -413,14 +415,6 @@ export default function ProjectWorkScreen() {
     });
     return () => { live = false; };
   }, [familyId, reloadToken]);
-
-  useEffect(() => {
-    if (!familyId) {
-      setEmployees([]);
-      return undefined;
-    }
-    return watchEmployees(familyId, setEmployees, () => setEmployees([]));
-  }, [familyId]);
 
   useEffect(() => {
     if (!familyId) {
@@ -724,10 +718,7 @@ export default function ProjectWorkScreen() {
     if (!project) return undefined;
     let live = true;
     setProjectHoursLoading(true);
-    ensureProjectHours(familyId, {
-      projectId: project.id,
-      projectNumbers: projectLookupNumbers(project),
-    }).then((loaded) => {
+    ensureProjectHours(familyId, projectHoursQuery(project)).then((loaded) => {
       if (!live) return;
       skipNextSave.current = true;
       setState((current) => adoptLoadedHours(current, loaded, familyId));

@@ -184,6 +184,7 @@ export const DRAFT_FIELDS = [
   'contractReference', 'addressLineAbove', 'addressLineBelow', 'externalProjectNumber',
   'invoiceDate', 'dueDate', 'invoiceDateSet', 'dueDateSet', 'creditDays', 'department', 'activities', 'bankAccount', 'kid',
   'invoiceText', 'footerText', 'language', 'lines', 'deliveryMethod', 'currency', 'attachments',
+  'customerCopy',
 ];
 
 /** Endrer utkastet. Godkjenningen faller bort når innholdet endres. */

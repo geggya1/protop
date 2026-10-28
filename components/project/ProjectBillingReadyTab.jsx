@@ -29,7 +29,7 @@ export default function ProjectBillingReadyTab({
   const access = useCompanyAccess();
   const { isPhone, width } = useLayout();
   const canEdit = !!isAdmin || access.canEdit('economyBilling');
-  const data = useBillingData({ familyId, projectId: project.id, canSeePowerOffice: !!isAdmin });
+  const data = useBillingData({ familyId, projectId: project.id, project, canSeePowerOffice: !!isAdmin });
   const today = osloDate();
   const [period, setPeriod] = useState('today');
   const [note, setNote] = useState('');

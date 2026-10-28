@@ -64,6 +64,50 @@ export async function loadEarningsSettings(companyId) {
   return next;
 }
 
+/**
+ * Inntjeningsoppsettet (satsene) i sanntid, til lesing. Kopien i minnet eller nettleseren
+ * først, så skyen ved hver endring. Minnet oppdateres, så neste åpning av Inntjening
+ * viser de nye satsene.
+ */
+export function watchEarningsSettings(companyId, onData, onError) {
+  const id = String(companyId || '').trim();
+  if (!id) {
+    onData(defaultEarningsSettings(), { source: 'local' });
+    return () => {};
+  }
+  let stop = false;
+  let remoteSeen = false;
+  let unsub = null;
+  if (memory.has(id)) {
+    onData(memory.get(id), { source: 'memory' });
+  } else {
+    readLocal(id).then((local) => {
+      if (!stop && !remoteSeen) onData(local || defaultEarningsSettings(), { source: 'local' });
+    }).catch(() => {});
+  }
+  (async () => {
+    const [{ onSnapshot }, bits] = await Promise.all([import('firebase/firestore'), remoteBits()]);
+    if (stop) return;
+    const ref = refFor(bits, id);
+    if (!ref) return;
+    unsub = onSnapshot(ref, (snap) => {
+      if (stop) return;
+      remoteSeen = true;
+      const next = snap.exists() ? normalizeEarningsSettings(snap.data()) : defaultEarningsSettings();
+      if (snap.exists()) memory.set(id, next);
+      onData(next, { source: 'remote' });
+    }, (error) => {
+      if (!stop) onError?.(error);
+    });
+  })().catch((error) => {
+    if (!stop) onError?.(error);
+  });
+  return () => {
+    stop = true;
+    unsub?.();
+  };
+}
+
 export async function saveEarningsSettings(companyId, settings) {
   const id = String(companyId || '').trim();
   const next = normalizeEarningsSettings(settings);

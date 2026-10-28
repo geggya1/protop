@@ -15,6 +15,8 @@ import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import OptionPicker from '../../components/OptionPicker';
 import { useTimesheetWorkspace } from '../arbeid/useTimesheetWorkspace';
 import { loadAnbudState } from '../../src/anbud/storage';
+import { useCompanyRefs } from '../../src/context/CompanyDataContext';
+import { hydrateRows } from '../../src/company/companyData.js';
 import { formatMoney, parseDate } from '../../src/economy/invoices.js';
 import { EXPENSE_STATUSES } from '../../src/economy/expenses.js';
 import { formatDate } from '../../src/economy/hoursList.js';
@@ -78,6 +80,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
   const sideFilters = width >= 1100;
   const hostedHero = useModuleHeroHosted();
   const workspace = useTimesheetWorkspace({ lockedEmployeeId });
+  const refs = useCompanyRefs(workspace.workspaceId);
   const [customers, setCustomers] = useState([]);
   const [remoteExpenses, setRemoteExpenses] = useState([]);
   const [remoteReady, setRemoteReady] = useState(false);
@@ -124,13 +127,14 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
 
   const allRows = useMemo(() => {
     const inline = (workspace.state?.expenses || []).filter((row) => !isExternalExpense(row));
-    const merged = mergeExpenseLists(remoteExpenses, inline);
+    // Person, kunde og prosjekt slås opp før filtrering og sortering (DS-08).
+    const merged = hydrateRows(mergeExpenseLists(remoteExpenses, inline), refs);
     const locked = workspace.lockedId;
     if (!locked) return merged;
     // Ansattsiden: det personen har registrert på prosjekt, også importerte rader uten kobling.
     const person = (workspace.employees || []).find((row) => row.id === locked) || { id: locked };
     return expensesForEmployee(merged, person);
-  }, [workspace.state, remoteExpenses, workspace.lockedId, workspace.employees]);
+  }, [workspace.state, remoteExpenses, workspace.lockedId, workspace.employees, refs]);
 
   const visible = useMemo(() => sortExpenses(filterExpenses(allRows, {
     query,

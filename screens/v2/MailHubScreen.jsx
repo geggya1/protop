@@ -1068,7 +1068,7 @@ export default function MailHubScreen() {
                 </View>
               </View>
               {searchOpen ? (
-                <View style={styles.mobileSearch}>
+                <View dataSet={{ focusWithin: '1' }} style={styles.mobileSearch}>
                   <Ionicons name="search" size={14} color={colors.muted} />
                   <TextInput
                     style={styles.search}
@@ -1141,7 +1141,7 @@ export default function MailHubScreen() {
           <DeskBtn icon="refresh" label="Oppdater" onPress={refreshMailbox} />
           <DeskBtn icon="settings-outline" label="Innstillinger" onPress={() => setSettingsOpen(true)} />
           <View style={{ flex: 1 }} />
-          <View style={styles.searchWrap}>
+          <View dataSet={{ focusWithin: '1' }} style={styles.searchWrap}>
             <Ionicons name="search" size={14} color={colors.muted} />
             <TextInput
               style={styles.search}

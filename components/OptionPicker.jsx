@@ -66,7 +66,7 @@ function OptionList({ list, value, multiple, onPick, onCustom, query, setQuery, 
   return (
     <>
       {searchable ? (
-        <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.bg }]}>
+        <View dataSet={{ focusWithin: '1' }} style={[styles.search, { borderColor: colors.line, backgroundColor: colors.bg }]}>
           <Ionicons name="search" size={15} color={colors.muted} />
           <TextInput
             value={query}

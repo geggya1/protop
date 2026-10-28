@@ -464,7 +464,7 @@ export default function MoreHubScreen({ subView, setSubView }) {
     <Screen>
       <ScrollBody pad={pad}>
         {isDesktop ? (
-          <View style={styles.searchWrap}>
+          <View dataSet={{ focusWithin: '1' }} style={styles.searchWrap}>
             <Ionicons name="search" size={16} color={colors.muted} />
             <TextInput
               ref={searchRef}

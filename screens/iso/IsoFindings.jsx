@@ -6,7 +6,7 @@ import {
   FINDING_STATES, FINDING_TYPES, INJURY_CLASSES, SEVERITIES, actionStateLabel, findingStateLabel, findingTypeLabel, injuryClassLabel, seriousInjury, severityLabel,
 } from '../../src/iso/catalog';
 import {
-  CHANGE_FIELDS, addAction, assessChange, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, completedBySelf, confirmNotification,
+  CHANGE_FIELDS, DISPOSITIONS, addAction, assessChange, confirmReverified, dispositionLabel, setDisposition, assessFinding, cancelAction, cancelFinding, closeBlockers, closeFinding, completeAction, completedBySelf, confirmNotification,
   createFinding, defaultRestricted, findingStep, isOpenFinding, needsNewActions, notificationTaskKey, recordRootCause, reopenFinding, rootCauseRequired, triageFinding,
   updateFindingLinks, verifyAction, verifyEffect,
 } from '../../src/iso/findings';
@@ -304,6 +304,7 @@ function FindingDetail({ ctx, finding, onBack }) {
   const [reason, setReason] = useState('');
   const [reqOpen, setReqOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [dispo, setDispo] = useState({});
   const [selfOk, setSelfOk] = useState({});
 
   const requirements = useMemo(() => allRequirements(state), [state]);
@@ -386,6 +387,41 @@ function FindingDetail({ ctx, finding, onBack }) {
                   <Btn label="Bekreft varsling vurdert/utført" onPress={() => run('Varsling bekreftet', confirmNotification(finding, notifNote, { actor }), { effects: notificationTaskKey(finding) ? [{ type: 'completeTask', key: notificationTaskKey(finding) }] : [] })} />
                 </>
               ) : null}
+            </Card>
+          ) : null}
+
+          {['leveranse', 'kundeklage'].includes(finding.type) ? (
+            <Card title="Disposisjon (8.7)" subtitle="Hva er gjort med den avvikende leveransen, og hvem besluttet. Aksept fra kunden krever bevis.">
+              {finding.disposition?.id ? (
+                <>
+                  <KV label="Disposisjon" value={`${dispositionLabel(finding.disposition.id)} · ${finding.disposition.decidedBy} ${prettyDate(finding.disposition.decidedAt)}`} />
+                  <KV label="Merknad" value={finding.disposition.note} />
+                  {finding.disposition.concessionBy ? <KV label="Godkjent av kunden" value={`${finding.disposition.concessionBy} · ${finding.disposition.concessionRef}`} /> : null}
+                  {finding.disposition.id === 'korrigert' ? (
+                    finding.disposition.reverified
+                      ? <Banner tone="ok" text={`Kontrollert etter retting av ${finding.disposition.reverifiedBy} ${prettyDate(finding.disposition.reverifiedAt)}: ${finding.disposition.reverifyNote}`} />
+                      : (manage && !closed ? (
+                        <>
+                          <TextIn value={dispo.reverify || ''} onChangeText={(x) => setDispo({ ...dispo, reverify: x })} placeholder="Hvordan er leveransen kontrollert etter rettingen?" />
+                          <Btn label="Kontrollert etter retting" onPress={() => run('Kontrollert etter retting', confirmReverified(finding, dispo.reverify, { actor }))} />
+                        </>
+                      ) : <Text style={{ color: colors.warn, fontSize: 13 }}>Venter på kontroll etter retting.</Text>)
+                  ) : null}
+                </>
+              ) : null}
+              {manage && !closed && (!finding.disposition?.id || dispo.change) ? (
+                <>
+                  <Choice options={DISPOSITIONS.map((d) => ({ id: d.id, label: d.label }))} value={dispo.id} onChange={(x) => setDispo({ ...dispo, id: x || '' })} />
+                  <Field label="Merknad"><TextIn value={dispo.note || ''} onChangeText={(x) => setDispo({ ...dispo, note: x })} /></Field>
+                  {DISPOSITIONS.find((d) => d.id === dispo.id)?.concession ? (
+                    <>
+                      <Field label="Hvem hos kunden godkjente" required><TextIn value={dispo.concessionBy || ''} onChangeText={(x) => setDispo({ ...dispo, concessionBy: x })} /></Field>
+                      <Field label="Bevis (e-post, referat, dokument-ID)" required><TextIn value={dispo.concessionRef || ''} onChangeText={(x) => setDispo({ ...dispo, concessionRef: x })} /></Field>
+                    </>
+                  ) : null}
+                  <Btn kind="primary" label="Lagre disposisjon" onPress={async () => { const saved = await run('Disposisjon', setDisposition(finding, dispo, { actor })); if (saved?.ok) setDispo({}); }} />
+                </>
+              ) : (manage && !closed ? <Btn small label="Endre disposisjon" onPress={() => setDispo({ ...finding.disposition, change: true })} /> : null)}
             </Card>
           ) : null}
 

@@ -434,6 +434,66 @@ export function rootCauseRequired(finding) {
   return !!finding?.assessment?.correctiveRequired && ['middels', 'hoy', 'kritisk'].includes(finding?.severity);
 }
 
+/** Disposisjon for avvikende leveranse (ISO 9001 8.7.1–8.7.2). */
+export const DISPOSITIONS = [
+  { id: 'korrigert', label: 'Korrigert (rettet)', reverify: true },
+  { id: 'utskilt', label: 'Skilt ut eller stoppet' },
+  { id: 'returnert', label: 'Returnert til leverandør' },
+  { id: 'kunde_informert', label: 'Kunden informert' },
+  { id: 'akseptert', label: 'Akseptert av kunden (avviksgodkjenning)', concession: true },
+];
+
+export function dispositionLabel(id) {
+  return DISPOSITIONS.find((d) => d.id === id)?.label || '';
+}
+
+const DISPOSITION_TYPES = ['leveranse', 'kundeklage'];
+
+/**
+ * Hva ble gjort med den avvikende leveransen, og hvem besluttet (8.7.2). Aksept fra kunden krever hvem hos
+ * kunden og bevis (e-post, referat). Korrigert leveranse må kontrolleres på nytt før saken lukkes.
+ */
+export function setDisposition(finding, input, { actor, now = new Date() } = {}) {
+  if (!finding) return fail('Fant ikke saken.');
+  if (!DISPOSITION_TYPES.includes(finding.type)) return fail('Disposisjon gjelder leveranseavvik og kundeklager.');
+  if (['lukket', 'kansellert'].includes(finding.state)) return fail('Saken er avsluttet.');
+  const def = DISPOSITIONS.find((d) => d.id === input?.id);
+  if (!def) return fail('Velg hva som er gjort med leveransen.');
+  const concessionBy = text(input?.concessionBy, 200);
+  const concessionRef = text(input?.concessionRef, 500);
+  if (def.concession && (!concessionBy || !concessionRef)) return fail('Aksept fra kunden: skriv hvem som godkjente og hvor det er dokumentert.');
+  const next = bump({
+    ...finding,
+    disposition: {
+      id: def.id,
+      note: text(input?.note, 2000),
+      concessionBy: def.concession ? concessionBy : '',
+      concessionRef: def.concession ? concessionRef : '',
+      decidedAt: nowIso(now),
+      decidedBy: text(actor?.name, 160),
+      decidedByUid: text(actor?.uid, 128),
+      reverified: false,
+      reverifiedAt: '',
+      reverifiedBy: '',
+      reverifyNote: '',
+    },
+    history: pushHistory(finding, `Disposisjon: ${def.label}`, actor, text(input?.note, 300), now),
+  }, actor, now);
+  return result(finding, next, 'iso.finding.disposition', actor, now);
+}
+
+/** Leveransen er kontrollert på nytt etter rettingen (8.7.1, verifisering etter korreksjon). */
+export function confirmReverified(finding, note, { actor, now = new Date() } = {}) {
+  if (finding?.disposition?.id !== 'korrigert') return fail('Gjelder korrigerte leveranser.');
+  if (text(note).length < 5) return fail('Beskriv kontrollen etter rettingen.');
+  const next = bump({
+    ...finding,
+    disposition: { ...finding.disposition, reverified: true, reverifiedAt: nowIso(now), reverifiedBy: text(actor?.name, 160), reverifyNote: text(note, 1000) },
+    history: pushHistory(finding, 'Kontrollert etter retting', actor, note, now),
+  }, actor, now);
+  return result(finding, next, 'iso.finding.reverified', actor, now);
+}
+
 /** Hva mangler før saken kan lukkes? Tom liste = kan lukkes. Brukes både i UI og ved lagring. */
 export function closeBlockers(finding) {
   const out = [];
@@ -442,6 +502,8 @@ export function closeBlockers(finding) {
   if (!finding.triage) out.push('Saken er ikke triagert.');
   if (!finding.assessment) out.push('Tiltaksbeslutning mangler.');
   if (finding.triage?.urgent && !text(finding.immediateAction)) out.push('Strakstiltak er ikke dokumentert.');
+  if (finding.type === 'leveranse' && !finding.disposition?.id) out.push('Velg disposisjon for den avvikende leveransen (8.7).');
+  if (finding.disposition?.id === 'korrigert' && !finding.disposition.reverified) out.push('Kontroller leveransen på nytt etter rettingen.');
   if (finding.authorityNotificationRequired && !finding.notificationDone) {
     out.push('Mulig meldeplikt: bekreft at varsling til myndighet er vurdert/utført.');
   }

@@ -144,6 +144,9 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family, mat
   if (company) {
     const employees = await companyEmployees(familyId);
     seat = claimEmployeeSeatPlan({ employees, uid, authEmail, now, companyId: familyId });
+    // Ledertilgang krever bekreftet e-post lik invitasjonsadressen (SEC-26). Invitasjonen står,
+    // og personen kan godta når e-posten er bekreftet (eller administrator knytter posten).
+    if (seat.code) return { ok: false, error: seat.code };
     if ((!seat.ok || seat.skipped) && !authEmail) {
       // Medarbeideren venter bare på e-posten, og den er ikke bekreftet: invitasjonen står,
       // og personen kan godta når e-posten er bekreftet.

@@ -352,6 +352,48 @@ test('invitert på brukernavn: invitasjonens nøkkel (uid) treffer selv om e-pos
   assert.equal(plan.employeeId, 'emp_x');
 });
 
+test('SEC-26: ledertilgang knyttes bare på bekreftet e-post lik invitasjonsadressen, ikke på nøkkelen alene', () => {
+  const leader = (level, extra = {}) => normalizeEmployee({
+    id: `emp_${level}`,
+    person: { firstName: 'Sjef', email: 'sjef@firma.no' },
+    company: { status: 'active', accessLevel: level, accessLevels: [level], ...extra },
+    invite: { status: 'sent', email: 'sjef@firma.no', accessLevel: level, parentKey: 'eve' },
+  });
+  for (const level of ['administrator', 'leder', 'avdelingsleder', 'hr_ansvarlig', 'iso_rolle']) {
+    // Ubekreftet e-post: bare nøkkelen treffer (et medlem kan ha skrevet den med eldre regler).
+    const plan = claimEmployeeSeatPlan({ employees: [leader(level)], uid: 'eve', authEmail: '' });
+    assert.equal(plan.ok, false, level);
+    assert.equal(plan.code, 'email-not-verified', level);
+    assert.equal(plan.employeePatch, undefined, level);
+    // Bekreftet, men en annen adresse enn invitasjonen ble sendt til.
+    assert.equal(claimEmployeeSeatPlan({ employees: [leader(level)], uid: 'eve', authEmail: 'eve@firma.no' }).code, 'other-email');
+    // Bekreftet adresse lik invitasjonen: knyttes som før.
+    const ok = claimEmployeeSeatPlan({ employees: [leader(level)], uid: 'sjef', authEmail: 'Sjef@firma.no' });
+    assert.equal(ok.ok, true, level);
+    assert.equal(ok.employeePatch.personUid, 'sjef');
+  }
+  // Invitasjonens nivå og avvik fra nivået teller også.
+  const viaInvite = normalizeEmployee({
+    id: 'emp_i', company: { status: 'active', accessLevel: 'ansatt' },
+    invite: { status: 'sent', email: 'sjef@firma.no', accessLevel: 'Øverste leder', parentKey: 'eve' },
+  });
+  assert.equal(claimEmployeeSeatPlan({ employees: [viaInvite], uid: 'eve', authEmail: '' }).code, 'email-not-verified');
+  const withOverrides = leader('ansatt', { accessOverrides: { accessControl: 'write' } });
+  assert.equal(claimEmployeeSeatPlan({ employees: [withOverrides], uid: 'eve', authEmail: '' }).code, 'email-not-verified');
+  // En vanlig ansatt invitert på brukernavn eller telefon knyttes fortsatt på nøkkelen (REV-05).
+  const plain = claimEmployeeSeatPlan({ employees: [leader('ansatt')], uid: 'eve', authEmail: '' });
+  assert.equal(plain.ok, true);
+  assert.equal(plain.employeePatch.personUid, 'eve');
+  // En lederpost som allerede er knyttet til personen (administrator koblet den), står som før.
+  const linked = { ...leader('leder'), personUid: 'eve', invite: { ...leader('leder').invite, status: 'none' } };
+  const kept = claimEmployeeSeatPlan({ employees: [linked], uid: 'eve', authEmail: '' });
+  assert.equal(kept.ok, true);
+  assert.equal(kept.employeeId, 'emp_leder');
+  // Har personen også en vanlig post å knytte, knyttes den, ikke lederposten.
+  const both = claimEmployeeSeatPlan({ employees: [leader('administrator'), { ...leader('ansatt'), id: 'emp_vanlig' }], uid: 'eve', authEmail: '' });
+  assert.equal(both.employeeId, 'emp_vanlig');
+});
+
 test('aktiv ansettelse velges før en avsluttet med samme e-post', () => {
   const rows = [
     normalizeEmployee({ id: 'gml', person: { email: 'a@firma.no' }, company: { status: 'inactive' }, invite: { status: 'sent', email: 'a@firma.no' } }),

@@ -1105,8 +1105,8 @@ export default function EmployeesScreen() {
     if (mine) {
       setQuery('');
       if (!mine.personUid && uid) {
-        // Knytt bare en aktiv ansettelse med samme e-post som innloggingen.
-        const myEmail = String(user?.email || '').trim().toLowerCase();
+        // Knytt bare en aktiv ansettelse med samme bekreftede e-post som innloggingen (som reglene, SEC-26).
+        const myEmail = user?.emailVerified ? String(user?.email || '').trim().toLowerCase() : '';
         if (!isActiveEmployee(mine) || !myEmail || !employeeMatchEmails(mine).includes(myEmail)) {
           showError('Be en administrator om å knytte ansettelsen til deg.');
           return;

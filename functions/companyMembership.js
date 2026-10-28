@@ -327,9 +327,15 @@ export const setEmploymentStatus = onCall(CALL, async (req) => {
     throw new HttpsError('failed-precondition', 'Flytt medarbeideren til papirkurven før du sletter permanent.');
   }
 
-  // 1. Medarbeideren.
+  // 1. Medarbeideren. Permanent sletting tar med personnummer, pårørende og kommentar
+  // (employeesPrivate) og det HR har delt på Min side (hrSelf), så en ny post med samme id
+  // ikke arver dem (den som er koblet til posten, leser dem, SEC-26).
   if (purge) {
-    await employeeRef.delete();
+    const batch = db.batch();
+    batch.delete(employeeRef);
+    batch.delete(db.doc(`families/${sourceId}/employeesPrivate/${employeeId}`));
+    batch.delete(db.doc(`families/${sourceId}/hrSelf/${employeeId}`));
+    await batch.commit();
   } else {
     const patch = { updatedAt: at };
     if (status && status !== employmentStatusOf(before)) patch['company.status'] = status;

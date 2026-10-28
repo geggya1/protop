@@ -527,7 +527,8 @@ service cloud.firestore {
       return v is string ? v.lower() : '';
     }
 
-    // Invitasjonen på posten: hvem som godtok, status og e-posten den ble sendt til.
+    // Invitasjonen på posten: hvem som godtok, status, e-posten den ble sendt til og kontoen den gjelder
+    // (parentKey: serveren kobler posten til den kontoen ved innlogging, også uten bekreftet e-post, REV-05).
     // Tåler at appen normaliserer en manglende status til 'none' og store bokstaver i e-posten.
     function empInviteStable(d, old) {
       let i = d.get('invite', {});
@@ -535,7 +536,8 @@ service cloud.firestore {
       return i.get('acceptedUid', '') == o.get('acceptedUid', '')
         && (i.get('status', '') == o.get('status', '')
             || (i.get('status', '') in ['', 'none'] && o.get('status', '') in ['', 'none']))
-        && lowerText(i.get('email', '')) == lowerText(o.get('email', ''));
+        && lowerText(i.get('email', '')) == lowerText(o.get('email', ''))
+        && i.get('parentKey', '') == o.get('parentKey', '');
     }
 
     // Aktiv og kan logge inn. En post uten status regnes som aktiv, uten canLogin som nei (som appen).
@@ -551,6 +553,16 @@ service cloud.firestore {
     function empEmailsStable(d, old) {
       return lowerText(d.get('person', {}).get('email', '')) == lowerText(old.get('person', {}).get('email', ''))
         && lowerText(d.get('company', {}).get('email', '')) == lowerText(old.get('company', {}).get('email', ''));
+    }
+
+    // Innloggingens bekreftede e-post står på posten (person, firma eller invitasjon), som appen og
+    // claimEmployeeInvite krever før en ukoblet post knyttes til en selv (SEC-26).
+    function empOwnEmail(old) {
+      let email = lowerText(request.auth.token.get('email', ''));
+      return request.auth.token.get('email_verified', false) == true && email != ''
+        && email in [lowerText(old.get('person', {}).get('email', '')),
+          lowerText(old.get('company', {}).get('email', '')),
+          lowerText(old.get('invite', {}).get('email', ''))];
     }
 
     // Kan endre tilgangen til andre: eier, administrator eller Begrenset redigering på Tilgangsstyring.
@@ -629,22 +641,32 @@ service cloud.firestore {
         ? accessStable && ((bound && statusStable) ? true : empAccessManager(familyId))
           && (empEmploymentStable(d, old) ? true : empEmploymentManager(familyId))
         : (selfNew
-          // Kobler seg selv til en post: bare uten ledernivå, eller når serveren godtok invitasjonen
-          // for en selv (invite.acceptedUid kan ikke settes av vanlige medlemmer, se under).
+          // Kobler seg selv til en post: når serveren godtok invitasjonen for en selv (invite.acceptedUid
+          // kan ikke settes av vanlige medlemmer, se under), eller på en post uten ledernivå med en
+          // bekreftet e-post som står på posten (Gjenopprett min profil), eller for den som administrerer
+          // ansatte. Ellers kunne et medlem koble en kollegas post til seg og lese personnummeret (SEC-26).
           ? accessStable && statusStable && bound && empEmploymentStable(d, old)
-            && (!empPrivileged(oldLevels, oc) || old.get('invite', {}).get('acceptedUid', '') == me)
+            && (old.get('invite', {}).get('acceptedUid', '') == me
+                || (!empPrivileged(oldLevels, oc) && (empOwnEmail(old) || empEmploymentManager(familyId))))
           // Andres post. Permisjon og innlogging krever Begrenset redigering på Ansatte, å avslutte eller
           // ta opp igjen ansettelsen Admin (som appen og serveren, REV-21). Admin dekker det første, og
           // reglene tåler bare 1000 uttrykk per skriving, så bare én av dem sjekkes.
-          // Har posten ledernivå, kan bare en tilgangsstyrer endre kobling, invitasjon eller e-post,
-          // så ingen kan sende seg selv en invitasjon til en ledertilgang.
-          : (empEmploymentStable(d, old)
-              ? (statusStable ? true : empStaffManager(familyId))
-              : empEmploymentManager(familyId))
-            && ((accessStable
-                  && (!(empPrivileged(oldLevels, oc) || empPrivileged(levels, c)) || (bound && empEmailsStable(d, old))))
-                ? true
-                : empManageOk(familyId, c, oldLevels.union(levels).hasAny(empAdminLevels()))));
+          // Kobling, invitasjon og e-post (det serveren og «Gjenopprett min profil» kobler på) endres bare
+          // av eier, administrator, Admin på Ansatte eller en tilgangsstyrer (empManageOk), som i appen, så
+          // ingen kobler en kollegas post til seg selv eller en annen konto (SEC-26). Admin på Ansatte dekker
+          // også status og ansettelse, så de sjekkes ikke i tillegg. Har posten ledernivå, bare en
+          // tilgangsstyrer, så ingen kan sende seg selv en invitasjon til en ledertilgang.
+          // Status og ansettelse står to ganger (ikke i en egen funksjon): hvert kall koster uttrykk.
+          : ((accessStable && bound && empEmailsStable(d, old))
+              ? (empEmploymentStable(d, old)
+                  ? (statusStable ? true : empStaffManager(familyId))
+                  : empEmploymentManager(familyId))
+              : ((accessStable && !(empPrivileged(oldLevels, oc) || empPrivileged(levels, c))
+                    && empEmploymentManager(familyId))
+                || ((empEmploymentStable(d, old)
+                      ? (statusStable ? true : empStaffManager(familyId))
+                      : empEmploymentManager(familyId))
+                    && empManageOk(familyId, c, oldLevels.union(levels).hasAny(empAdminLevels()))))));
     }
 
     // Endre andres tilgang: Begrenset redigering på Tilgangsstyring; administrator bare av administrator.

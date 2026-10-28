@@ -12,6 +12,7 @@ process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
 
 const { getFirestore } = await import('firebase-admin/firestore');
 const { approveJoinRequest } = await import('./joinCallables.js');
+const { assertFamilyMember } = await import('./security.js');
 
 const db = getFirestore();
 
@@ -43,8 +44,12 @@ beforeEach(async () => {
     status: 'pending', parentUid: 'mor', parentName: 'Mor', childFirstName: 'Ola', childLastName: 'N', childName: 'Ola N',
   });
 
-  await db.doc('families/klassen').set({ name: '5B', type: 'classroom', ownerUid: 'rektor', members: ['rektor', 'laerer'] });
-  await db.doc('families/klassen/parents/laerer').set({ uid: 'laerer', active: true, staffRole: 'teacher' });
+  // setStaffRole (src/utils/classroom.js) fører lærere og skoleadmin inn i adminUids.
+  await db.doc('families/klassen').set({
+    name: '5B', type: 'classroom', ownerUid: 'rektor', adminUids: ['rektor', 'laerer'], members: ['rektor', 'laerer', 'assistent'],
+  });
+  await db.doc('families/klassen/parents/laerer').set({ uid: 'laerer', active: true, staffRole: 'teacher', admin: true });
+  await db.doc('families/klassen/parents/assistent').set({ uid: 'assistent', active: true, staffRole: 'teacher', admin: true });
   await db.doc('families/klassen/joinRequests/r3').set({
     status: 'pending', parentUid: 'far', parentName: 'Far', childFirstName: 'Kari', childLastName: 'N', childName: 'Kari N',
   });
@@ -92,8 +97,29 @@ test('klasse: lærer kan godkjenne, eleven får rollen student', async () => {
   assert.equal((await db.doc('families/klassen/parents/far').get()).data().staffRole, null);
 });
 
+test('REV-04: et tidligere medlem som godkjennes på nytt, får hele medlemskapet tilbake', async () => {
+  // Fjernet fra gruppen tidligere (softDeleteParentFromFamily / removeMemberFromGroup).
+  await db.doc('families/venner/parents/ny').set({
+    uid: 'ny', active: false, deleted: true, archived: true, leftAt: '2026-09-01T10:00:00Z', leftReason: 'ended', endedBy: 'eier',
+    inviteStatus: 'pending', placeholder: true,
+  });
+  await rejects(assertFamilyMember(db, 'venner', 'ny'), 'permission-denied');
+  await call('eier', { familyId: 'venner', requestId: 'r1' });
+  const member = (await db.doc('families/venner/parents/ny').get()).data();
+  assert.equal(member.leftAt, undefined);
+  assert.equal(member.leftReason, undefined);
+  assert.equal(member.endedBy, undefined);
+  assert.equal(member.deleted, false);
+  assert.equal(member.inviteStatus, 'accepted');
+  await assertFamilyMember(db, 'venner', 'ny');
+});
+
 test('vanlig medlem, bedrift, ukjent forespørsel og slettet gruppe avvises', async () => {
   await rejects(call('medlem', { familyId: 'venner', requestId: 'r1' }), 'permission-denied');
+  // admin og staffRole på eget medlemsdokument gir ikke godkjenning: bare eier og adminUids (SEC-03).
+  await db.doc('families/venner/parents/medlem').set({ admin: true, superAdmin: true }, { merge: true });
+  await rejects(call('medlem', { familyId: 'venner', requestId: 'r1' }), 'permission-denied');
+  await rejects(call('assistent', { familyId: 'klassen', requestId: 'r3' }), 'permission-denied');
   await rejects(call('ny', { familyId: 'venner', requestId: 'r1' }), 'permission-denied');
   assert.equal((await db.doc('families/venner/joinRequests/r1').get()).data().status, 'pending');
   await rejects(call('eier', { familyId: 'venner', requestId: 'finnes-ikke' }), 'not-found');

@@ -7,7 +7,7 @@ import { groupChildAppItems } from './childAppGroups.js';
 import { groupParentAppItems } from './parentAppGroups.js';
 import { applyProtopShellApps, applyProtopShellSections } from './protopShell.js';
 import { isOrganizationType } from '../utils/groupTypes.js';
-import { filterCompanyNav } from '../access/companyAccess.js';
+import { companyTabAllowed, filterCompanyNav } from '../access/companyAccess.js';
 import { lockCompanyNav } from '../access/companyModules.js';
 import { normalizeSubUnits } from '../project/companyUnits.js';
 import { PRICING_VISIBLE } from '../utils/billingMethods.js';
@@ -15,7 +15,7 @@ import { PRICING_VISIBLE } from '../utils/billingMethods.js';
 /**
  * Undermeny når Anbud er valgt. Nummereringen følger anskaffelsesløpet
  * frem til tilbudet. Når tilbudsarbeidet er ferdig, er neste ledd
- * Kontrakt / avtale i bedriftsmenyen, ikke et fjerde steg under Anbud.
+ * Kontrakter i bedriftsmenyen, ikke et fjerde steg under Anbud.
  */
 export const ANBUD_MENU = [
   { id: 'varsling', icon: 'notifications', label: '1.1 Anbudsvarsling' },
@@ -43,7 +43,7 @@ export function anbudMenuTitle(subView) {
 /**
  * Moduler som hører til bedriften. Nye bedriftsmoduler legges her,
  * ikke blant de personlige punktene i Personlig.
- * Anbud har egen undermeny. Kunder og Kontrakt / avtale er fulle registre
+ * Anbud har egen undermeny. Kunder og Kontrakter er fulle registre
  * i bedriftsmenyen; under Økonomi finnes tilsvarende punkter med økonomisk utsnitt.
  * Ansatte er et eget register: ansettelsen følger selskapet, CV-en følger personen.
  * Hamburgermeny og desktop-rail viser punktene i COMPANY_DRAWER_GROUPS.
@@ -53,10 +53,11 @@ export function selskapMenuTitle(subView) {
   if (subView === 'underenheter') return 'Underenheter';
   if (subView === 'moduler') return 'Modulinnstillinger';
   if (subView === 'tilgang') return 'Tilgangsstyring';
-  if (subView === 'innstillinger') return 'Selskapsinnstillinger';
+  if (subView === 'innstillinger') return 'Bedriftsinnstillinger';
   if (subView === 'fravaerstyper' || subView === 'fridager') return 'Fraværsinnstillinger';
   if (subView === 'kontoplan' || subView === 'regnskapskontoer') return 'Økonomiinnstillinger';
-  return 'Selskap';
+  // «Bedrift» i alt brukeren ser; «selskap» bare i juridisk sammenheng (UX-10).
+  return 'Bedriften';
 }
 
 /**
@@ -103,7 +104,7 @@ export function arbeidMenuTitle(subView) {
   if (subView === 'utlegg') return 'Prosjektutlegg';
   if (subView === 'salg') return 'Produktsalg';
   const row = ARBEID_MENU.find((item) => item.id === subView);
-  return row?.label || 'Timer / arbeid per ansatt';
+  return row?.label || 'Timer';
 }
 
 export const FRAVAER_MENU = [
@@ -128,7 +129,7 @@ export const PRODUKT_MENU = [
  * Sider under Økonomi og fakturering.
  * Inntjening (med kunde-, prosjekt- og avtalesummer) ligger under Produktivitet og
  * inntjening i bedriftsmenyen. Siden åpnes fortsatt via økonomi-fanen.
- * Fulle registre ligger som egne punkter (Kunder, Kontrakt / avtale) i bedriftsmenyen.
+ * Fulle registre ligger som egne punkter (Kunder, Kontrakter) i bedriftsmenyen.
  * I hamburgermeny og desktop-rail løftes sidene rett under gruppen, så
  * «Økonomi» ikke blir et ekstra nivå mellom gruppen og sidene.
  * Timerapport ligger under Arbeid. Produktkatalog ligger under Produkt.
@@ -166,8 +167,8 @@ export function defaultOkonomiSubView(subView) {
 export function okonomiMenuTitle(subView) {
   if (subView === 'indeks') return 'Indeksregulering';
   if (subView === 'indekser') return 'Indekser';
-  if (subView === 'kunder') return 'Kundesummer';
-  if (subView === 'avtaler') return 'Avtalesummer';
+  // Kunder og Avtaler er faner i Inntjening (UX-17).
+  if (subView === 'kunder' || subView === 'avtaler') return 'Inntjening';
   if (subView === 'faktura') return 'Faktura';
   if (subView === 'fakturagrunnlag') return 'Til fakturering';
   if (subView === 'utlegg') return 'Utlegg';
@@ -334,7 +335,7 @@ function arbeidNavItem() {
   return {
     id: 'arbeid',
     icon: 'time',
-    label: 'Timer / arbeid per ansatt',
+    label: 'Timer',
     action: { type: 'tab', tab: 'arbeid', subView: 'timeliste' },
     children: ARBEID_MENU.map((item) => ({
       id: `arbeid-${item.id}`,
@@ -378,7 +379,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     {
       id: 'selskap',
       icon: 'business',
-      label: 'Selskap',
+      label: 'Bedriften',
       action: { type: 'tab', tab: 'selskap' },
     },
   ];
@@ -394,7 +395,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
     {
       id: 'selskapsinnstillinger',
       icon: 'settings-outline',
-      label: 'Selskapsinnstillinger',
+      label: 'Bedriftsinnstillinger',
       action: { type: 'tab', tab: 'selskap', subView: 'innstillinger' },
       activeSubViews: ['innstillinger', 'moduler', 'tilgang'],
       children: [
@@ -450,7 +451,7 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
         },
       ],
     },
-    { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakt / avtale', action: { type: 'tab', tab: 'kontrakt' } },
+    { id: 'kontrakt', icon: 'ribbon', label: 'Kontrakter', action: { type: 'tab', tab: 'kontrakt' } },
     { id: 'projects', icon: 'business', label: 'Prosjekt', action: { type: 'tab', tab: 'projects' } },
     moterNavItem(),
     {
@@ -485,6 +486,8 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
       children: OKONOMI_MENU.map(okonomiNavChild),
     },
     isoNavItem(),
+    // Skjema, sjekklister og avtalemaler for hele bedriften; ved ISO / K-HMS, ikke under Konto (UX-17).
+    { id: 'skjema', icon: 'clipboard', label: 'Skjemabygger', action: { type: 'tab', tab: 'skjema' } },
   );
   return items;
 }
@@ -504,22 +507,12 @@ export function companyMenuItems({
   return lockCompanyNav(allowed, modules, lockedNote || undefined);
 }
 
-/** Bedriftsvalg som ligger under Konto (ikke i bedriftslisten). */
-export function companyAccountNavItems() {
-  return [
-    {
-      id: 'tilgang',
-      icon: 'key',
-      label: 'Tilgang',
-      action: { type: 'tab', tab: 'selskap', subView: 'tilgang' },
-    },
-    {
-      id: 'skjema',
-      icon: 'clipboard',
-      label: 'Skjemabygger',
-      action: { type: 'tab', tab: 'skjema' },
-    },
-  ];
+/**
+ * Om Aktiverte moduler (Kalender, E-post, Oppgaver, Notat, Chat) vises inne i Bedriftsinnstillinger →
+ * Modulinnstillinger i stedet for under Konto: i Bedrift, for den som kan åpne Modulinnstillinger.
+ */
+export function showsModulesInCompanySettings({ onCompany = false, companyGrants = null } = {}) {
+  return !!onCompany && companyTabAllowed('selskap', 'moduler', companyGrants);
 }
 
 /** Mobilskuff og desktop-rail: rad med undermeny kan åpnes uten å velge raden. */
@@ -553,7 +546,7 @@ export function drawerSubmenuOpen(item, activeTab, overrides = {}, activeSubView
 export const COMPANY_DRAWER_GROUPS = [
   {
     id: 'company-org',
-    label: 'Selskap og organisasjon',
+    label: 'Bedrift og organisasjon',
     icon: 'business',
     itemIds: ['selskap', 'underenheter', 'selskapsinnstillinger'],
   },
@@ -567,7 +560,7 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-quality',
     label: 'Kvalitet og styringssystem',
     icon: 'shield-checkmark',
-    itemIds: ['iso'],
+    itemIds: ['iso', 'skjema'],
   },
   {
     id: 'company-productivity',
@@ -705,7 +698,6 @@ function collectNavIds(item, ids) {
 function companyAllowIds() {
   const ids = [];
   for (const item of companyNavItems({ includeUnderenheter: true })) collectNavIds(item, ids);
-  for (const item of companyAccountNavItems()) ids.push(item.id);
   return ids;
 }
 
@@ -986,13 +978,18 @@ export function buildShellModules({
     action: { type: 'tab', tab: 'more', subView: 'help' },
   });
 
+  const onCompany = isOrganizationType(family?.type);
   if (asParent && !isGrandparent) {
-    accountItems.push({
-      id: 'moduleAccess',
-      icon: 'apps-outline',
-      label: t('apps.moduleAccess'),
-      action: { type: 'tab', tab: 'more', subView: 'moduleAccess' },
-    });
+    // I Bedrift ligger Aktiverte moduler sammen med bedriftens moduler i Modulinnstillinger for den som
+    // har den siden, så samme ting ikke har to steder (UX-17). Andre ser den her som før.
+    if (!showsModulesInCompanySettings({ onCompany, companyGrants })) {
+      accountItems.push({
+        id: 'moduleAccess',
+        icon: 'apps-outline',
+        label: t('apps.moduleAccess'),
+        action: { type: 'tab', tab: 'more', subView: 'moduleAccess' },
+      });
+    }
     accountItems.push({
       id: 'legal', icon: 'shield-checkmark', label: t('apps.privacy'),
       action: { type: 'tab', tab: 'more', subView: 'legal' },
@@ -1008,12 +1005,6 @@ export function buildShellModules({
       id: 'legal', icon: 'shield-checkmark', label: t('apps.privacy'),
       action: { type: 'tab', tab: 'more', subView: 'legal' },
     });
-  }
-
-  const onCompany = isOrganizationType(family?.type);
-  if (onCompany) {
-    const companyAccount = filterCompanyNav(companyAccountNavItems(), companyGrants);
-    accountItems.unshift(...companyAccount);
   }
 
   sections.push({ id: 'account', title: t('shell.account'), items: accountItems });

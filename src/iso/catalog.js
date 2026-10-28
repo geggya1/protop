@@ -16,6 +16,44 @@ export function standardByCode(code) {
   return STANDARDS.find((row) => row.code === code) || null;
 }
 
+/**
+ * Utgaver per standard (ISO-09). Virksomheten velger utgaven den er sertifisert eller skal sertifiseres
+ * etter (system.editions). Uten valg gjelder utgaven i STANDARDS. Amd 1:2024 (klima) gjelder alle tre.
+ */
+export const STANDARD_EDITIONS = {
+  ISO9001: [{ id: '2015+A1:2024', label: 'ISO 9001:2015 + Amd 1:2024' }, { id: '2026', label: 'ISO 9001:2026' }],
+  ISO14001: [{ id: '2015+A1:2024', label: 'ISO 14001:2015 + Amd 1:2024' }, { id: '2026', label: 'ISO 14001:2026' }],
+  ISO45001: [{ id: '2018+A1:2024', label: 'ISO 45001:2018 + Amd 1:2024' }],
+};
+
+export function standardEdition(code, editions = null) {
+  const list = STANDARD_EDITIONS[code] || [];
+  return list.find((e) => e.id === editions?.[code]) || list.find((e) => e.id === standardByCode(code)?.edition) || list[0] || null;
+}
+
+/** «ISO 9001:2015 + Amd 1:2024» eller «ISO 9001:2026», etter valgt utgave. */
+export function standardLabel(code, editions = null) {
+  return standardEdition(code, editions)?.label || standardByCode(code)?.label || code;
+}
+
+/** Bare gyldige utgaver lagres. */
+export function cleanEditions(raw) {
+  const out = {};
+  for (const [code, list] of Object.entries(STANDARD_EDITIONS)) {
+    if (list.some((e) => e.id === raw?.[code])) out[code] = raw[code];
+  }
+  return out;
+}
+
+/**
+ * Krav-id-er uten utgave (req_9001_context). Eldre id-er hadde utgaven i seg (req_9001_2026_context) og
+ * ville blitt foreldreløse ved bytte av utgave; de gjøres om til samme id uten utgave.
+ */
+export function canonicalRequirementId(id) {
+  const m = /^req_(\d{4,5})_[0-9A-Za-z]+_([A-Za-z]+)$/.exec(String(id || ''));
+  return m ? `req_${m[1]}_${m[2]}` : String(id || '');
+}
+
 /** Kravtyper som alltid skal skilles i UI (A19). */
 export const REQUIREMENT_KINDS = [
   { id: 'iso', label: 'ISO-krav', hint: 'Krav i aktivert ISO-standard. Fagvalideres mot lisensiert tekst.' },
@@ -67,6 +105,7 @@ export const REQUIREMENT_AREAS = [
   { key: 'objectives', title: 'Mål og planer', clauses: { ISO9001: '6.2', ISO14001: '6.2', ISO45001: '6.2' }, summary: 'Målbare mål med eier, ressurser, frist og evaluering er etablert.', module: 'mal' },
   { key: 'change', title: 'Planlegging av endringer', clauses: { ISO9001: '6.3', ISO14001: null, ISO45001: '8.1.3' }, summary: 'Endringer planlegges kontrollert med vurdering av konsekvenser og risiko.', module: 'risiko' },
   { key: 'resources', title: 'Ressurser og organisasjonskunnskap', clauses: { ISO9001: '7.1', ISO14001: '7.1', ISO45001: '7.1' }, summary: 'Nødvendige ressurser, måleutstyr og kunnskap er fastsatt og tilgjengelig.', module: 'ledelse' },
+  { key: 'measuring', title: 'Overvåkings- og måleressurser (kalibrering)', clauses: { ISO9001: '7.1.5', ISO14001: '9.1.1', ISO45001: '9.1.1' }, summary: 'Måleutstyr er kalibrert eller kontrollert mot sporbare standarder, merket og beskyttet, og tidligere resultater vurderes når utstyret viser seg å være feil. Kontroll og kalibrering registreres i Utstyr.', module: 'sertifisering' },
   { key: 'competence', title: 'Kompetanse', clauses: { ISO9001: '7.2', ISO14001: '7.2', ISO45001: '7.2' }, summary: 'Kompetansekrav per rolle, dokumentert kompetanse, opplæring og effektvurdering.', module: 'kompetanse' },
   { key: 'awareness', title: 'Bevissthet', clauses: { ISO9001: '7.3', ISO14001: '7.3', ISO45001: '7.3' }, summary: 'Ansatte kjenner policy, mål, eget bidrag og konsekvenser av avvik.', module: 'dokumenter' },
   { key: 'communication', title: 'Kommunikasjon', clauses: { ISO9001: '7.4', ISO14001: '7.4', ISO45001: '7.4' }, summary: 'Hva, når, med hvem og hvordan det kommuniseres internt og eksternt.', module: 'kommunikasjon' },
@@ -94,27 +133,31 @@ export function mayBeNotApplicable(requirement) {
   return requirement.standard === 'ISO9001' && /^8\./.test(String(requirement.clause || ''));
 }
 
-/** Standard kravbibliotek for valgte standarder. Stabil id per standard/utgave/klausul. */
-export function isoRequirementLibrary(standardCodes = STANDARDS.map((s) => s.code)) {
+/**
+ * Standard kravbibliotek for valgte standarder. Stabil id per standard og kravområde, uten utgave,
+ * så vurderinger og bevis følger med når virksomheten bytter utgave. Utgaven står på kravet.
+ */
+export function isoRequirementLibrary(standardCodes = STANDARDS.map((s) => s.code), editions = null) {
   const out = [];
   for (const code of standardCodes) {
     const std = standardByCode(code);
     if (!std) continue;
+    const edition = standardEdition(code, editions);
     for (const area of REQUIREMENT_AREAS) {
       const clause = area.clauses[code];
       if (!clause) continue;
       out.push({
-        id: `req_${std.number}_${std.edition.replace(/[^0-9A-Za-z]/g, '')}_${area.key}`,
+        id: `req_${std.number}_${area.key}`,
         kind: 'iso',
         standard: code,
-        edition: std.edition,
+        edition: edition?.id || std.edition,
         clause,
         areaKey: area.key,
         title: area.title,
         summary: area.summary,
         module: area.module,
         reviewStatus: 'ikke_faglig_validert',
-        source: `${std.label} (lisensiert tekst kreves for normativ ordlyd)`,
+        source: `${edition?.label || std.label} (lisensiert tekst kreves for normativ ordlyd)`,
       });
     }
   }
@@ -133,7 +176,19 @@ export const NORWEGIAN_OBLIGATIONS = [
   { key: 'forurensning', title: 'Forurensningsloven og avfallsforskriften', authority: 'Miljødirektoratet / kommunen', source: 'https://lovdata.no/dokument/NL/lov/1981-03-13-6', summary: 'Plikter knyttet til forurensning, avfall og eventuelle tillatelser etter aktivitet.', areaKeys: ['aspects', 'obligations'] },
   { key: 'stoffkartotek', title: 'Forskrift om utførelse av arbeid (kjemikalier)', authority: 'Arbeidstilsynet', source: 'https://www.arbeidstilsynet.no/regelverk/forskrifter/forskrift-om-utforelse-av-arbeid/', summary: 'Stoffkartotek og risikovurdering ved bruk av farlige kjemikalier, når virksomheten bruker slike.', areaKeys: ['hazards', 'aspects'] },
   { key: 'personvern', title: 'Personopplysningsloven / GDPR', authority: 'Datatilsynet', source: 'https://lovdata.no/dokument/NL/lov/2018-06-15-38', summary: 'Behandlingsgrunnlag, dataminimering og tilgangsstyring for HMS- og personopplysninger.', areaKeys: ['documented'] },
+  // Bygg og anlegg (ISO-19): krav som gjelder de fleste byggfirma uansett hvilke standarder som er valgt.
+  { key: 'sak10', title: 'Plan- og bygningsloven og byggesaksforskriften (SAK10)', authority: 'Direktoratet for byggkvalitet / kommunen', source: 'https://lovdata.no/dokument/SF/forskrift/2010-03-26-488', summary: 'Ansvarsrett, kvalitetssikring og dokumentasjon av prosjektering, utførelse og kontroll i byggesaker.', areaKeys: ['operation', 'design', 'documented'] },
+  { key: 'tek17', title: 'Byggteknisk forskrift (TEK17) kap. 9', authority: 'Direktoratet for byggkvalitet', source: 'https://lovdata.no/dokument/SF/forskrift/2017-06-19-840', summary: 'Avfallsplan, sorteringsgrad og kartlegging av farlig avfall og miljøsanering ved riving og rehabilitering.', areaKeys: ['aspects', 'operation'] },
+  { key: 'utforelse', title: 'Forskrift om utførelse av arbeid (stillas, høyde, maskiner, sakkyndig kontroll)', authority: 'Arbeidstilsynet', source: 'https://lovdata.no/dokument/SF/forskrift/2011-12-06-1357', summary: 'Arbeid i høyden og på stillas, bruk av arbeidsutstyr og maskiner, og sakkyndig kontroll av løfteutstyr og annet arbeidsutstyr.', areaKeys: ['hazards', 'measuring', 'operation'] },
+  { key: 'arbeidsplass', title: 'Arbeidsplassforskriften', authority: 'Arbeidstilsynet', source: 'https://lovdata.no/dokument/SF/forskrift/2011-12-06-1356', summary: 'Krav til arbeidsplasser og arbeidslokaler, også brakkerigg og velferd på byggeplass.', areaKeys: ['hazards', 'resources'] },
+  { key: 'hmskort', title: 'Forskrift om HMS-kort for bygge- og anleggsplasser', authority: 'Arbeidstilsynet', source: 'https://lovdata.no/dokument/SF/forskrift/2007-06-29-948', summary: 'Alle som arbeider på bygge- og anleggsplasser, også innleide og underentreprenører, skal ha gyldig HMS-kort.', areaKeys: ['suppliers', 'operation', 'competence'] },
+  { key: 'allmenngjoring', title: 'Allmenngjøringsloven: informasjons- og påseplikt', authority: 'Arbeidstilsynet', source: 'https://lovdata.no/dokument/NL/lov/1993-06-04-58', summary: 'Oppdragsgiver skal informere om og påse at underleverandører følger allmenngjorte lønns- og arbeidsvilkår.', areaKeys: ['suppliers'] },
+  { key: 'apenhet', title: 'Åpenhetsloven', authority: 'Forbrukertilsynet', source: 'https://lovdata.no/dokument/NL/lov/2021-06-18-99', summary: 'Aktsomhetsvurderinger av menneskerettigheter og arbeidsforhold i leverandørkjeden for større virksomheter.', areaKeys: ['suppliers'] },
+  { key: 'brann', title: 'Forskrift om brannforebygging (varme arbeider)', authority: 'DSB / brannvesenet', source: 'https://lovdata.no/dokument/SF/forskrift/2015-12-17-1710', summary: 'Risikovurdering og tiltak ved varme arbeider og brannfarlig virksomhet, opplæring og slokkeutstyr.', areaKeys: ['hazards', 'emergency'] },
 ];
+
+/** Når lovkravbiblioteket sist ble gjennomgått mot kildene (vises ved hvert krav). */
+export const LEGAL_LIBRARY_CHECKED = '2026-10-01';
 
 /**
  * Typer saker. `quick` vises som kort i «Meld avvik»; resten ligger under «Andre typer».
@@ -143,6 +198,7 @@ export const FINDING_TYPES = [
   { id: 'prosess', label: 'Prosessavvik', domain: 'KVALITET', group: 'avvik', quick: true, hint: 'Rutine, prosedyre eller krav ble ikke fulgt' },
   { id: 'leveranse', label: 'Produkt-/leveranseavvik', domain: 'KVALITET', group: 'avvik', quick: true, hint: 'Feil i leveranse, materiale eller utført arbeid' },
   { id: 'kundeklage', label: 'Kundeklage', domain: 'KVALITET', group: 'avvik', quick: true, hint: 'Kunden har klaget eller reklamert' },
+  { id: 'leverandor', label: 'Leverandøravvik', domain: 'KVALITET', group: 'avvik', hint: 'Feil eller mangel fra leverandør eller underleverandør' },
   { id: 'revisjonsfunn', label: 'Revisjonsfunn', domain: 'KVALITET', group: 'avvik', hint: 'Funn fra intern eller ekstern revisjon' },
   { id: 'risikofunn', label: 'Risikofunn', domain: 'KVALITET', group: 'avvik', hint: 'Risiko som må følges opp som sak' },
   { id: 'miljo', label: 'Miljøhendelse', domain: 'MILJO', group: 'miljo', quick: true, hint: 'Utslipp, søl eller feil avfallshåndtering' },
@@ -184,6 +240,27 @@ export const SEVERITIES = [
 
 export function severityLabel(id) {
   return SEVERITIES.find((row) => row.id === id)?.label || '–';
+}
+
+/**
+ * Skadeklasse for HMS-hendelser (melderens vurdering, kan endres i triage).
+ * serious = mulig meldeplikt til Arbeidstilsynet og politiet (aml § 5-2).
+ */
+export const INJURY_CLASSES = [
+  { id: 'ingen', label: 'Ingen personskade' },
+  { id: 'forstehjelp', label: 'Førstehjelp' },
+  { id: 'medisinsk', label: 'Medisinsk behandling' },
+  { id: 'fravaer', label: 'Skade med fravær' },
+  { id: 'alvorlig', label: 'Alvorlig personskade', serious: true },
+  { id: 'dodsfall', label: 'Dødsfall', serious: true },
+];
+
+export function injuryClassLabel(id) {
+  return INJURY_CLASSES.find((row) => row.id === id)?.label || '';
+}
+
+export function seriousInjury(id) {
+  return !!INJURY_CLASSES.find((row) => row.id === id)?.serious;
 }
 
 export const FINDING_STATES = [
@@ -242,6 +319,11 @@ export function riskLevel(likelihood, consequence, method = DEFAULT_RISK_METHOD)
   if (score >= t.high) return { score, id: 'hoy', label: 'Høy' };
   if (score >= t.medium) return { score, id: 'middels', label: 'Middels' };
   return { score, id: 'lav', label: 'Lav' };
+}
+
+/** Nivå per celle i 5×5-matrisen etter virksomhetens terskler: [sannsynlighet 1–5][konsekvens 1–5] → lav | middels | hoy | kritisk. */
+export function riskMatrixLevels(method = DEFAULT_RISK_METHOD) {
+  return [1, 2, 3, 4, 5].map((l) => [1, 2, 3, 4, 5].map((c) => riskLevel(l, c, method).id));
 }
 
 /**

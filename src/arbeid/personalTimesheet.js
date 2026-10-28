@@ -7,6 +7,7 @@ import { allows, accountDeactivated, grantsForEmployee } from '../access/company
 import { ownEmployee } from '../employees/model.js';
 import { isLiveOrganization } from '../project/companyOffer.js';
 import { visibleCompanyWorkspaces } from '../utils/platformSwitch.js';
+import { companyDisplayName } from '../utils/companyName.js';
 
 /**
  * Kan personen føre egne timer i denne bedriften?
@@ -49,5 +50,5 @@ export function personalTimesheetCompanies(families = [], currentFamily = null, 
 }
 
 export function companyTimesheetLabel(company) {
-  return String(company?.company?.navn || company?.name || '').trim() || 'Bedrift';
+  return companyDisplayName(company, 'Bedrift');
 }

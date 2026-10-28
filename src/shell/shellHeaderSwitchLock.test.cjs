@@ -85,7 +85,7 @@ function loadShellHeader() {
     if (id.includes('ThemeContext')) return { useColors: () => ({ ink: '#111', muted: '#888', line: '#ddd', card: '#fff' }) };
     if (id.includes('i18n')) return { useI18n: () => ({ t: (key) => key }) };
     if (id.includes('/theme')) return { useLayout: () => ({ isPhone: false }) };
-    if (id.includes('HelpButton')) return { __esModule: true, default: function HelpButton() { return null; } };
+    if (id.includes('HelpButton')) return { __esModule: true, default: host('HelpButton') };
     if (id.includes('HelpTarget')) return { __esModule: true, default: host('HelpTarget') };
     if (id.includes('AvatarPicker')) return { AvatarBubble: function AvatarBubble() { return null; } };
     if (id.includes('ProfileMenuModal')) return { __esModule: true, default: function ProfileMenuModal() { return null; } };
@@ -170,10 +170,13 @@ const phone = renderToStaticMarkup(React.createElement(ShellHeader, {
 }));
 const phoneStyles = [...phone.matchAll(/data-style="([^"]*)"/g)]
   .map((hit) => JSON.parse(decodeAttr(hit[1])));
-const help = phoneStyles.find((style) => style.top === '100%');
-assert.ok(help, 'lyspæren skal starte under profilbildet');
-assert.equal(help.position, 'absolute');
-assert.ok((help.marginTop || 0) >= 4, 'lyspæren skal ha et mellomrom under bildet');
+// EGEN-03: lyspæren står i logo-raden (ved menyknappen), ikke hengende over innholdet.
+assert.equal(phoneStyles.some((style) => style.top === '100%' && style.position === 'absolute'), false,
+  'lyspæren henger ikke under profilbildet');
+const row = phone.indexOf('data-rn="HelpButton"');
+assert.ok(row > 0, 'lyspæren finnes på telefon');
+assert.ok(row < phone.indexOf('data-rn="BrandLogo"') || phone.indexOf('data-rn="BrandLogo"') < 0,
+  'lyspæren står i raden ved menyen, før logoen');
 const switchRow = phoneStyles.find((style) => style.minHeight === 52 && style.zIndex === 3);
 assert.ok(switchRow, 'Privat/Bedrift-baren skal ha full høyde');
 assert.equal(switchRow.overflow, 'visible');

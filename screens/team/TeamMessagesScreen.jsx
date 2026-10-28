@@ -12,6 +12,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useChatDock, useChatDockPreferred } from '../../src/context/ChatDockContext';
 import { formatThreadTime } from '../../src/utils/aiChats';
 import { ensureChatDoc } from '../../src/utils/chats';
+import { isGroupAdmin } from '../../src/utils/groups';
 import { teamColors as c } from '../../src/teamTheme';
 import { AvatarBubble } from '../../components/AvatarPicker';
 
@@ -294,7 +295,7 @@ export default function TeamMessagesScreen({ teamId, team }) {
             <ThreadRow
               key={p.uid}
               name={p.name || 'Medlem'}
-              preview={meta.preview || (p.admin || p.superAdmin ? 'Administrator' : 'Foresatt')}
+              preview={meta.preview || (isGroupAdmin(teamDoc, p.uid) ? 'Administrator' : 'Foresatt')}
               timeLabel={formatThreadTime(meta.at)}
               onPress={() => openDm(p)}
               avatar={(
@@ -349,7 +350,7 @@ export default function TeamMessagesScreen({ teamId, team }) {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.pickName}>{p.name || 'Medlem'}</Text>
                       <Text style={styles.pickSub}>
-                        {p.admin || p.superAdmin ? 'Administrator' : 'Foresatt'}
+                        {isGroupAdmin(teamDoc, p.uid) ? 'Administrator' : 'Foresatt'}
                       </Text>
                     </View>
                     {multiMode && (

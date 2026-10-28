@@ -51,10 +51,17 @@ function shellForEvent(eventType) {
   }
   if (eventType === 'messageReceived') return { tab: 'chat' };
   if (eventType === 'familyInvite') return null;
+  // Venneforespørsel (også en som er trukket tilbake) og godtatt forespørsel: Venner.
+  if (eventType === 'friendInvite' || eventType === 'friendInviteAccepted') {
+    return { tab: 'more', subView: 'friends' };
+  }
   if (eventType === 'gameInvite') return { tab: 'more', subView: 'games' };
   if (eventType === 'attestPending') return { tab: 'more', subView: 'progress', intent: 'attest' };
   if (eventType === 'documentApproval' || eventType === 'documentComment') return { tab: 'skjema', intent: { type: 'docControl', tab: 'styring' } };
   if (eventType === 'documentPublished') return { tab: 'ansatte', intent: { type: 'myDocuments' } };
+  // Forespørsel om å bli med i bedriften: Ansatte → Inviter brukere.
+  if (eventType === 'companyJoinRequest') return { tab: 'ansatte', intent: { type: 'openInvite' } };
+  if (eventType === 'companyMemberLeft') return { tab: 'ansatte' };
   if (eventType === 'birthdayReminder') return { tab: 'home' };
   if (eventType === 'boligReminder') return { tab: 'more', subView: 'boligmappa' };
   return null;

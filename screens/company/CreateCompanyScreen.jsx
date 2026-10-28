@@ -5,6 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { serverTimestamp } from 'firebase/firestore';
 import { auth } from '../../firebase';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
@@ -13,6 +14,10 @@ import { companyFromBrreg } from '../../src/project/company';
 import { dismissCompanyOffer } from '../../src/project/companyOffer';
 import { manualCompany } from '../../src/project/companyRegistry';
 import { companyChoice, registerCompany, requestCompanyAccess } from '../../src/project/companyJoinFlow';
+import { dpaAcceptanceRecord } from '../../src/privacy/companyPrivacy';
+import { logConsent } from '../../src/utils/consents';
+import CheckBox from '../../components/CheckBox';
+import LegalDocumentModal from '../../components/LegalDocumentModal';
 
 export default function CreateCompanyScreen() {
   const colors = useColors();
@@ -27,6 +32,10 @@ export default function CreateCompanyScreen() {
   const [manualAddress, setManualAddress] = useState('');
   const [joinTarget, setJoinTarget] = useState(null);
   const [sent, setSent] = useState(null);
+  // Databehandleravtalen godtas på vegne av bedriften før den opprettes.
+  const [dpaOk, setDpaOk] = useState(false);
+  const [dpaError, setDpaError] = useState(false);
+  const [legalDoc, setLegalDoc] = useState('');
 
   async function search() {
     setError('');
@@ -36,8 +45,9 @@ export default function CreateCompanyScreen() {
       const res = await searchBrregEnheter(queryText, { size: 8 });
       setHits(res.results || []);
       if (!res.results?.length) setError('Ingen treff i Brønnøysund. Du kan registrere bedriften manuelt under.');
-    } catch (e) {
-      setError(e?.message || 'Søket mot Brønnøysund feilet.');
+    } catch {
+      // Nettverksfeil kommer som rå engelsk tekst («Failed to fetch»), så vis vår egen (ANSATT-04).
+      setError('Fikk ikke kontakt med Brønnøysundregistrene. Sjekk nettet og prøv igjen, eller registrer bedriften manuelt under.');
       setHits([]);
     } finally {
       setSearching(false);
@@ -69,8 +79,24 @@ export default function CreateCompanyScreen() {
   }
 
   async function registerNew(nextCompany) {
-    const { id, patch } = await registerCompany(nextCompany, { profile: userProfile });
-    await selectFamily?.(id, { id, name: patch.company.navn, type: 'organization', ...patch });
+    if (!dpaOk) {
+      setDpaError(true);
+      throw new Error('Godta vilkårene og databehandleravtalen for å opprette bedriften.');
+    }
+    const user = auth.currentUser;
+    const acceptance = dpaAcceptanceRecord({
+      uid: uid || user?.uid,
+      name: userProfile?.displayName || userProfile?.name || user?.displayName || user?.email || '',
+    });
+    const { id, patch } = await registerCompany(
+      { ...nextCompany, dpaAcceptance: { ...acceptance, acceptedAt: serverTimestamp() } },
+      { profile: userProfile },
+    );
+    logConsent({
+      kind: 'dpa', familyId: id, version: acceptance.version, clientAt: acceptance.acceptedAtClient,
+    });
+    const company = { ...patch.company, dpaAcceptance: acceptance };
+    await selectFamily?.(id, { id, name: patch.company.navn, type: 'organization', ...patch, company });
     dismissCompanyOffer(uid || auth.currentUser?.uid);
     nav.navigate('Home');
   }
@@ -116,7 +142,7 @@ export default function CreateCompanyScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => nav.goBack()} style={styles.back} accessibilityRole="button">
+        <TouchableOpacity onPress={() => nav.goBack()} style={styles.back} accessibilityRole="button" accessibilityLabel="Tilbake">
           <Ionicons name="arrow-back" size={22} color={colors.ink} />
         </TouchableOpacity>
         <Text style={[styles.kicker, { color: colors.muted }]}>Gratis</Text>
@@ -124,6 +150,24 @@ export default function CreateCompanyScreen() {
         <Text style={[styles.lead, { color: colors.muted }]}>
           Søk i Brønnøysund på navn eller organisasjonsnummer, og velg firmaet. Finnes det fra før, kan du be om å bli lagt til. Finnes det ikke i registeret, registrerer du det manuelt.
         </Text>
+        <View style={[styles.legalBox, { borderColor: dpaError && !dpaOk ? colors.danger : colors.line, backgroundColor: colors.card }]}>
+          <CheckBox
+            checked={dpaOk}
+            onPress={() => { setDpaOk(!dpaOk); setDpaError(false); }}
+            label="Jeg godtar vilkårene og databehandleravtalen på vegne av bedriften"
+          />
+          <View style={styles.legalLinks}>
+            <TouchableOpacity onPress={() => setLegalDoc('all')} accessibilityRole="link">
+              <Text style={[styles.legalLink, { color: colors.brand }]}>Les vilkårene</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setLegalDoc('dpa')} accessibilityRole="link">
+              <Text style={[styles.legalLink, { color: colors.brand }]}>Les databehandleravtalen</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.legalHint, { color: dpaError && !dpaOk ? colors.danger : colors.muted }]}>
+            Du bekrefter at du har fullmakt til å inngå avtalen for bedriften. Versjon, tidspunkt og hvem som godtok, lagres på bedriften.
+          </Text>
+        </View>
         <Text style={[styles.label, { color: colors.muted }]}>Søk i Brønnøysund</Text>
         <TextInput
           value={queryText}
@@ -176,6 +220,8 @@ export default function CreateCompanyScreen() {
           <Text style={[styles.btnText, { color: colors.ink }]}>Registrer manuelt</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <LegalDocumentModal visible={!!legalDoc} doc={legalDoc || 'all'} onClose={() => setLegalDoc('')} />
 
       <Modal visible={!!joinTarget} transparent animationType="fade" onRequestClose={() => setJoinTarget(null)}>
         <Pressable style={styles.backdrop} onPress={() => setJoinTarget(null)}>
@@ -234,4 +280,8 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(26, 39, 68, 0.45)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 10 },
   skip: { alignItems: 'center', paddingVertical: 10 },
+  legalBox: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 6 },
+  legalLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  legalLink: { fontSize: 14 },
+  legalHint: { fontSize: 13, lineHeight: 18 },
 });

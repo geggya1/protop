@@ -42,8 +42,9 @@ import {
     },
   ];
 
-  // Tidligere filter: ikke former/slettet. Deaktiverte (inactive) er med.
-  assert.deepEqual(filterEmployeesForPicker(rows).map((row) => row.id).sort(), ['a', 'b', 'e']);
+  // Valglisten viser bare aktive (samme definisjon som tilgangen). Rapporter tar med avsluttede.
+  assert.deepEqual(filterEmployeesForPicker(rows).map((row) => row.id).sort(), ['a', 'b']);
+  assert.deepEqual(filterEmployeesForPicker(rows, '', { includeClosed: true }).map((row) => row.id).sort(), ['a', 'b', 'c', 'e']);
   assert.deepEqual(filterEmployeesForPicker(rows, 'anders').map((row) => row.id), ['b']);
   assert.deepEqual(filterEmployeesForPicker(rows, 'leder').map((row) => row.id), ['b']);
   assert.deepEqual(filterEmployeesForPicker(rows, '11').map((row) => row.id), ['a']);

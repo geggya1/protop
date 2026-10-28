@@ -9,6 +9,7 @@ import {
   levelById,
   levelIdFromRoleLabel,
 } from '../access/companyAccess.js';
+import { isActiveEmployee } from './employmentState.js';
 
 const STATUSES = new Set(['none', 'queued', 'sent', 'accepted', 'declined']);
 
@@ -302,6 +303,9 @@ export function applyInviteSendResult(employee, result, { at = '' } = {}) {
   const current = normalizeInviteState(employee?.invite);
   const parentKey = text(result?.invitee?.uid || result?.key || current.parentKey);
   const emailSent = result?.emailSent === true;
+  // Eksisterende bruker: invitasjonen ligger i appen (inviteId) selv om e-posten feilet.
+  // Da er den sendt, og personen kan godta den. E-postfeilen vises fortsatt.
+  const delivered = emailSent || !!text(result?.inviteId);
   const stamp = text(at) || new Date().toISOString();
   const error = text(result?.emailError).slice(0, 280);
   return {
@@ -309,16 +313,16 @@ export function applyInviteSendResult(employee, result, { at = '' } = {}) {
     invite: {
       ...current,
       parentKey,
-      status: emailSent ? 'sent' : (current.status === 'none' ? 'queued' : current.status),
-      sentAt: emailSent ? stamp : current.sentAt,
+      status: delivered ? 'sent' : (current.status === 'none' ? 'queued' : current.status),
+      sentAt: delivered ? stamp : current.sentAt,
       error: emailSent ? '' : error,
     },
   };
 }
 
+// Samme definisjon som tilgangen: deaktivert, papirkurv og passert sluttdato er avsluttet.
 function employmentOpen(employee) {
-  const status = text(employee?.company?.status || 'active');
-  return status !== 'deleted' && status !== 'inactive' && status !== 'former';
+  return isActiveEmployee(employee);
 }
 
 function acceptedPatch(employee, actor, email, stamp) {
@@ -357,14 +361,19 @@ export function claimEmployeeSeatPlan({
   const email = text(authEmail).toLowerCase();
   const stamp = text(now) || new Date().toISOString();
   if (!actor) return { ok: false, error: 'Du må være innlogget.' };
-  if (!email) return { ok: true, skipped: true };
-  const matches = (employees || []).filter((row) => employeeMatchEmails(row).includes(email));
+  // Eksisterende bruker invitert på brukernavn eller telefon: invitasjonens nøkkel er uid-en.
+  const ownKey = (row) => normalizeInviteState(row.invite).parentKey === actor;
+  const matches = (employees || []).filter((row) => (
+    (email && employeeMatchEmails(row).includes(email)) || ownKey(row)
+  ));
   if (!matches.length) return { ok: true, skipped: true };
 
   const accepted = matches.find((row) => (
     text(row.personUid) === actor && normalizeInviteState(row.invite).status === 'accepted'
   ));
   if (accepted) {
+    // Avsluttet ansettelse: ingenting skal legges tilbake (medlemskap eller administrator).
+    if (!employmentOpen(accepted)) return { ok: true, skipped: true, closed: true };
     return {
       ok: true,
       already: true,
@@ -375,13 +384,19 @@ export function claimEmployeeSeatPlan({
     };
   }
 
+  const invited = (row) => {
+    const status = normalizeInviteState(row.invite).status;
+    // «queued» med personens uid: invitasjonen i appen kom fram, men e-posten feilet.
+    return status === 'sent' || (status === 'queued' && ownKey(row));
+  };
   const eligible = matches.filter((row) => {
     const linked = text(row.personUid);
     if (linked && linked !== actor) return false;
     const status = normalizeInviteState(row.invite).status;
-    return status === 'sent' || (linked === actor && status !== 'accepted');
+    return invited(row) || (linked === actor && status !== 'accepted');
   });
-  const rank = (row) => (normalizeInviteState(row.invite).status === 'sent' ? 2 : 1);
+  // Aktiv ansettelse før avsluttet, utsendt invitasjon før annen kobling.
+  const rank = (row) => (employmentOpen(row) ? 4 : 0) + (invited(row) ? 2 : 1);
   eligible.sort((a, b) => rank(b) - rank(a));
   const employee = eligible[0];
   if (!employee) {
@@ -424,16 +439,22 @@ export function sentInviteEmployee({ employees, uid, authEmail } = {}) {
 }
 
 /**
- * Personen avslo bedriftsinvitasjonen. Sendte invitasjoner med samme e-post
- * markeres som avslått, så administrator ser svaret og kan invitere på nytt.
+ * Personen avslo bedriftsinvitasjonen. Sendte invitasjoner med samme e-post, eller som venter
+ * på kontoen (invitasjonens nøkkel er uid-en), markeres som avslått, så administrator ser svaret
+ * og kan invitere på nytt. authEmail skal være bekreftet (inviteDeclineEmail, REV-23).
  */
-export function declineEmployeeInvitePlan({ employees, authEmail, now } = {}) {
+export function declineEmployeeInvitePlan({ employees, authEmail, uid = '', now } = {}) {
   const email = text(authEmail).toLowerCase();
+  const actor = text(uid);
   const stamp = text(now) || new Date().toISOString();
-  if (!email) return [];
+  if (!email && !actor) return [];
+  const ownKey = (row) => !!actor && normalizeInviteState(row.invite).parentKey === actor;
   return (employees || [])
-    .filter((row) => employeeMatchEmails(row).includes(email))
-    .filter((row) => normalizeInviteState(row.invite).status === 'sent' && !text(row.personUid))
+    .filter((row) => (email && employeeMatchEmails(row).includes(email)) || ownKey(row))
+    .filter((row) => {
+      const status = normalizeInviteState(row.invite).status;
+      return (status === 'sent' || (status === 'queued' && ownKey(row))) && !text(row.personUid);
+    })
     .map((row) => ({
       employeeId: text(row.id),
       patch: {

@@ -1,6 +1,12 @@
 /**
  * App Store 5.1.1(v): the signed-in user can permanently delete their account.
  * No secrets — safe for the membership deploy path.
+ *
+ * Personvern (GDPR art. 17): i tillegg til kontoen slettes filer under users/{uid}/,
+ * private chatter, brukslogg, samtykkelogg og koblinger (Google-tokens trekkes tilbake).
+ * Meldinger i bedriftens chat beholdes for bedriften, men uten navnet.
+ * Siste person i en bedrift med utstedte fakturaer får ikke slette kontoen, fordi
+ * regnskapet da ville blitt utilgjengelig (bokføringsloven § 13).
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps, initializeApp } from 'firebase-admin/app';
@@ -13,7 +19,15 @@ import {
   hashRateKey,
   memberDocGrantsAccess,
 } from './security.js';
-import { isDeleteConfirmed, planFamilyExit, withoutUid } from './deleteAccountLogic.js';
+import {
+  accountingBlockMessage,
+  googleTokensToRevoke,
+  isCompanyGroup,
+  isDeleteConfirmed,
+  planFamilyExit,
+  withoutUid,
+} from './deleteAccountLogic.js';
+import { mediaBucket } from './storageBucket.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -91,13 +105,39 @@ async function markMembershipLeft(familyId, col, uid) {
   await Promise.all(found.docs.map((d) => d.ref.set(patch, { merge: true })));
 }
 
-async function leaveFamily(uid, familyId) {
-  const famRef = db.doc(`families/${familyId}`);
-  const famSnap = await famRef.get();
-  if (!famSnap.exists) return;
+/** Utstedte fakturaer i bedriften. Ved tvil svarer den ja, så regnskapet ikke arkiveres bort. */
+async function familyHasAccounting(familyId) {
+  try {
+    const snap = await db.collection(`families/${familyId}/invoices`).where('issuedAt', '>', '').limit(1).get();
+    return !snap.empty;
+  } catch (err) {
+    logger.warn('deleteMyAccount invoices check', err?.message || err);
+    return true;
+  }
+}
+
+async function planExit(uid, familyId) {
+  const famSnap = await db.doc(`families/${familyId}`).get();
+  if (!famSnap.exists) return null;
   const data = famSnap.data() || {};
   const others = await otherLiveParents(familyId, uid);
-  const plan = planFamilyExit(uid, { id: familyId, data, otherLiveParentUids: others });
+  const hasAccounting = !others.length && isCompanyGroup(data) ? await familyHasAccounting(familyId) : false;
+  const plan = planFamilyExit(uid, {
+    id: familyId, data, otherLiveParentUids: others, hasAccounting,
+  });
+  return { familyId, data, plan };
+}
+
+async function leaveFamily(uid, { familyId, data, plan }) {
+  if (plan.action === 'skip') {
+    // Id-en kom fra felt brukeren skriver selv (familyIds). Selskapet røres ikke,
+    // bare brukerens egne medlemsdokumenter der markeres.
+    logger.warn('deleteMyAccount skipped family without membership', { familyId });
+    await markMembershipLeft(familyId, 'parents', uid);
+    await markMembershipLeft(familyId, 'children', uid);
+    return;
+  }
+  const famRef = db.doc(`families/${familyId}`);
   const patch = {
     members: withoutUid(data.members, uid),
     adminUids: withoutUid(data.adminUids, uid),
@@ -146,6 +186,74 @@ async function clearUsernames(uid, hints = []) {
   await Promise.all([...ids].map((id) => db.doc(`usernames/${id}`).delete().catch(() => {})));
 }
 
+const FORMER_USER = 'Tidligere bruker';
+
+async function cleanup(label, run) {
+  try {
+    await run();
+  } catch (err) {
+    logger.warn(`deleteMyAccount ${label}`, err?.message || err);
+  }
+}
+
+/** Private chatter med venner (to personer). Den andre har ikke lenger en venn å skrive til. */
+async function clearFriendChats(uid) {
+  const snap = await db.collection('friendChats').where('memberIds', 'array-contains', uid).limit(200).get();
+  for (const chat of snap.docs) await db.recursiveDelete(chat.ref);
+}
+
+/** Bedriftens chat er bedriftens. Meldingene blir liggende, men uten navn og bilde. */
+async function anonymizeCompanyChats(uid, familyIds) {
+  for (const familyId of familyIds) {
+    const chats = await db.collection(`families/${familyId}/chats`).limit(300).get();
+    for (const chat of chats.docs) {
+      const mine = await chat.ref.collection('messages').where('senderId', '==', uid).limit(450).get();
+      if (mine.empty) continue;
+      const batch = db.batch();
+      mine.docs.forEach((msg) => batch.update(msg.ref, {
+        senderName: FORMER_USER,
+        senderPhotoURL: FieldValue.delete(),
+        senderAvatarId: FieldValue.delete(),
+      }));
+      await batch.commit();
+    }
+  }
+}
+
+/** Bruksloggen på ansattposter som er koblet til kontoen. Ansattposten selv er bedriftens. */
+async function clearEmployeeUsage(uid, familyIds) {
+  for (const familyId of familyIds) {
+    const linked = await db.collection(`families/${familyId}/employees`).where('personUid', '==', uid).limit(5).get();
+    for (const employee of linked.docs) {
+      await db.recursiveDelete(employee.ref.collection('usage'));
+      await employee.ref.update({ usage: FieldValue.delete() });
+    }
+  }
+}
+
+/** Google gir en adresse for å trekke tilbake tokenet. Microsoft-koblingen slettes sammen med kontoen. */
+async function revokeGoogleConnections(uid) {
+  const snap = await db.collection(`users/${uid}/calendarConnections`).get();
+  const tokens = googleTokensToRevoke(snap.docs.map((item) => item.data()));
+  await Promise.all(tokens.map((token) => fetch('https://oauth2.googleapis.com/revoke', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `token=${encodeURIComponent(token)}`,
+    signal: AbortSignal.timeout(5000),
+  }).catch(() => null)));
+}
+
+async function clearConsentLog(uid) {
+  const snap = await db.collection('consentLog').where('uid', '==', uid).limit(500).get();
+  await Promise.all(snap.docs.map((item) => item.ref.delete()));
+}
+
+/** Profilbilder, supportbilder og andre filer under brukerens egen sti. */
+async function clearUserFiles(uid) {
+  const bucket = await mediaBucket();
+  await bucket.deleteFiles({ prefix: `users/${uid}/` });
+}
+
 export const deleteMyAccount = onCall(
   { region: 'europe-west1', timeoutSeconds: 120, memory: '512MiB', cors: true },
   async (req) => {
@@ -162,11 +270,25 @@ export const deleteMyAccount = onCall(
     const userSnap = await db.doc(`users/${uid}`).get();
     const user = userSnap.exists ? (userSnap.data() || {}) : {};
     const familyIds = await collectFamilyIds(uid);
-    for (const familyId of familyIds) {
-      await leaveFamily(uid, familyId);
+    const exits = (await Promise.all(familyIds.map((familyId) => planExit(uid, familyId)))).filter(Boolean);
+    // Sjekkes før noe slettes, så kontoen er urørt når den ikke kan slettes.
+    const blocked = exits.filter((exit) => exit.plan.action === 'blocked');
+    if (blocked.length) {
+      throw new HttpsError('failed-precondition', accountingBlockMessage(
+        blocked.map((exit) => exit.data.company?.navn || exit.data.name || ''),
+      ));
+    }
+    for (const exit of exits) {
+      await leaveFamily(uid, exit);
     }
     await clearFriendships(uid);
     await clearUsernames(uid, [user.username, user.usernameLower]);
+    await cleanup('friend chats', () => clearFriendChats(uid));
+    await cleanup('company chats', () => anonymizeCompanyChats(uid, familyIds));
+    await cleanup('usage', () => clearEmployeeUsage(uid, familyIds));
+    await cleanup('oauth', () => revokeGoogleConnections(uid));
+    await cleanup('consent log', () => clearConsentLog(uid));
+    await cleanup('storage', () => clearUserFiles(uid));
     await db.doc(`parents/${uid}`).delete().catch(() => {});
     await db.doc(`children/${uid}`).delete().catch(() => {});
     await db.recursiveDelete(db.doc(`users/${uid}`));

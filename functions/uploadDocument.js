@@ -1,6 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { randomUUID } from 'crypto';
 import { mediaBucket } from './storageBucket.js';
+import { childDocCounts, memberDocGrantsAccess } from './security.js';
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -43,9 +44,12 @@ export async function handleUploadDocument(data, auth) {
       || adminUids.includes(uid)
       || memberList.includes(uid)
       || Object.prototype.hasOwnProperty.call(membersMap, uid);
+    // Bare et aktivt medlemsdokument teller, og barnedokumentet ikke i en bedrift (REV-24).
     const parent = await db.doc(`families/${familyId}/parents/${uid}`).get();
-    const child = await db.doc(`families/${familyId}/children/${uid}`).get();
-    if (!isFamMember && !parent.exists && !child.exists) {
+    const child = childDocCounts(famData) ? await db.doc(`families/${familyId}/children/${uid}`).get() : null;
+    const memberDoc = (parent.exists && memberDocGrantsAccess(parent.data()))
+      || (!!child?.exists && memberDocGrantsAccess(child.data()));
+    if (!isFamMember && !memberDoc) {
       throw new Error('Ingen tilgang til denne mappen.');
     }
   }

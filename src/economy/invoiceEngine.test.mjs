@@ -196,10 +196,13 @@ assert.ok(!refreshed.lines.some((line) => line.section === 'expenses'));
 assert.ok(refreshed.removed > 0);
 
 // Kontroll før ferdigstilling.
-const checks = issueChecks(edited.invoice, { supplier: { name: 'Consult1 AS', orgnr: '916538804', bankAccount: '32010946149', address: 'Svanholmen 7' }, today: '2026-09-30' });
+const supplierFull = { name: 'Consult1 AS', orgnr: '916538804', bankAccount: '32010946149', address: 'Svanholmen 7', postalCode: '4313', city: 'Sandnes', vatRegistered: true };
+const checks = issueChecks(edited.invoice, { supplier: supplierFull, today: '2026-09-30' });
 assert.equal(checks.ok, true, JSON.stringify(checks.blocking));
-const noParty = issueChecks({ ...edited.invoice, orgnr: '', customerAddress: {} }, { supplier: { name: 'X', orgnr: '1', bankAccount: '1' } });
-assert.ok(noParty.blocking.some((row) => row.id === 'party'));
+const noParty = issueChecks({ ...edited.invoice, orgnr: '', customerAddress: {} }, { supplier: supplierFull });
+assert.ok(noParty.blocking.some((row) => row.id === 'address'));
+const noPartyPo = issueChecks({ ...edited.invoice, orgnr: '', customerAddress: {} }, { supplier: supplierFull, mode: 'poweroffice' });
+assert.ok(noPartyPo.blocking.some((row) => row.id === 'party'));
 const late = issueChecks(edited.invoice, { supplier: { name: 'X', orgnr: '1', bankAccount: '1', address: 'a' }, today: '2026-11-15' });
 assert.ok(late.warnings.some((row) => row.id === 'late'));
 const requireApproval = issueChecks(edited.invoice, { supplier: { name: 'X', orgnr: '1', bankAccount: '1' }, settings: { requireDraftApproval: true } });
@@ -268,12 +271,33 @@ assert.match(invoice.events.at(-1).text, /^ferdigstilte faktura 16722 \(fakturad
   assert.equal(normalizeInvoice({ invoiceDateSet: 'ja' }).invoiceDateSet, false);
 }
 
-// Uten adresse, men med org.nr.: et råd, ikke et krav.
+// Kjøpers adresse er påbudt når ProTop utsteder (bokføringsforskriften § 5-1-1).
+// Med PowerOffice har PowerOffice kunderegisteret, så der er det et råd.
 {
-  const supplierOk = { name: 'Consult1 AS', orgnr: '916538804', bankAccount: '32010946149', address: 'Svanholmen 7' };
-  const noAddress = issueChecks({ ...edited.invoice, customerAddress: {} }, { supplier: supplierOk, today: '2026-09-30' });
-  assert.equal(noAddress.ok, true, JSON.stringify(noAddress.blocking));
-  assert.match(noAddress.warnings.find((row) => row.id === 'address').text, /kan sendes uten/);
+  const noAddress = issueChecks({ ...edited.invoice, customerAddress: {} }, { supplier: supplierFull, today: '2026-09-30' });
+  assert.equal(noAddress.ok, false);
+  assert.match(noAddress.blocking.find((row) => row.id === 'address').text, /kjøpers navn og adresse/);
+  const viaPo = issueChecks({ ...edited.invoice, customerAddress: {} }, { supplier: supplierFull, mode: 'poweroffice', today: '2026-09-30' });
+  assert.equal(viaPo.ok, true, JSON.stringify(viaPo.blocking));
+  assert.ok(viaPo.warnings.some((row) => row.id === 'address'));
+  // Selskapets adresse og mva-registrering.
+  const noSupplierAddress = issueChecks(edited.invoice, { supplier: { ...supplierFull, address: '' }, today: '2026-09-30' });
+  assert.ok(noSupplierAddress.blocking.some((row) => row.id === 'supplierAddress'));
+  const labelOnly = issueChecks(edited.invoice, { supplier: { ...supplierFull, address: 'Svanholmen 7, 4313 Sandnes', postalCode: '', city: '' }, today: '2026-09-30' });
+  assert.equal(labelOnly.ok, true, 'adresselinjen fra Brønnøysund holder');
+  const vatUnknown = issueChecks(edited.invoice, { supplier: { ...supplierFull, vatKnown: false }, today: '2026-09-30' });
+  assert.ok(!vatUnknown.blocking.some((row) => row.id === 'supplierVat'), 'ukjent registrering stopper ikke fakturaen');
+  assert.match(vatUnknown.warnings.find((row) => row.id === 'supplierVat').text, /Brønnøysund/);
+  const vatNo = issueChecks(edited.invoice, { supplier: { ...supplierFull, vatRegistered: false }, today: '2026-09-30' });
+  assert.match(vatNo.blocking.find((row) => row.id === 'supplierVat').text, /står ikke i Merverdiavgiftsregisteret/);
+  // Ferdigstillingen stopper også, selv om noen hopper over kontrollen.
+  const hard = issueInvoice({ ...edited.invoice, customerAddress: {} }, { number: '99', date: '2026-09-30' });
+  assert.equal(hard.ok, false);
+  assert.match(hard.error, /Kundens adresse mangler/);
+  const hardSupplier = issueInvoice(edited.invoice, { number: '99', date: '2026-09-30', supplier: { ...supplierFull, vatRegistered: false } });
+  assert.equal(hardSupplier.ok, false);
+  assert.match(hardSupplier.error, /Merverdiavgiftsregisteret/);
+  assert.equal(issueInvoice(edited.invoice, { number: '99', date: '2026-09-30', supplier: supplierFull }).ok, true);
 }
 
 // Bilag i balanse, per konto, med øreavrunding.
@@ -328,7 +352,7 @@ assert.equal(buildCreditNote(edited.invoice, { reason: 'x' }).ok, false, 'utkast
 const cnIssued = issueInvoice(cn, { number: '16723', date: '2026-10-02' });
 assert.ok(cnIssued.ok);
 assert.equal(cnIssued.invoice.kid, '');
-assert.equal(issueChecks(cn, { supplier: { name: 'X', orgnr: '1' } }).ok, true, 'kreditnota trenger ikke kontonummer');
+assert.equal(issueChecks(cn, { supplier: { ...supplierFull, bankAccount: '' } }).ok, true, 'kreditnota trenger ikke kontonummer');
 const credited = applyCreditToOriginal(invoice, cnIssued.invoice);
 assert.equal(credited.status, 'credited');
 assert.equal(credited.outstandingAmount, 0);

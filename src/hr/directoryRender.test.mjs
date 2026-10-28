@@ -285,6 +285,38 @@ let followHtml = '';
   assert.match(html, /1 av 2 krav er gyldige/);
   assert.match(html, /Utløpt · til 31\.01\.2025/);
   assert.match(html, /Åpne Kompetanse i ISO/);
+  // Minimumskravene i AML § 14-6 settes fra avtalen, ikke ved avkrysning.
+  assert.match(html, /id="hr-compliance-derived-aml_contract_minimum"/);
+  assert.match(html, /Mangler · Ingen aktiv arbeidsavtale/);
+
+  // Avtale etter de gamle ni punktene: fortsatt ikke OK, og det står hva som mangler.
+  const oldContract = {
+    id: 'c1', employeeId: 'e1', status: 'active', startDate: '2020-01-01',
+    employerName: 'A', employeeName: 'Ada', workplace: 'Oslo', positionTitle: 'Rådgiver',
+    workPercent: '100', salaryAmount: '1', workHours: '37,5', noticePeriod: '3 mnd',
+  };
+  const partial = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    hr: { ...hr, contracts: [oldContract], compliance: [{ catalogId: 'aml_contract_minimum', employeeId: 'e1', status: 'ok' }] },
+    selectedId: 'e1',
+    sheet: 'compliance',
+  }));
+  assert.match(partial, /Forfalt · Settes fra avtalen\. Mangler: .*Framgangsmåte ved opphør/);
+  assert.match(partial, /Pensjon og andre trygdeordninger/);
+
+  // HMS-kort: registreres på personen, med varsel når kortet er utløpt.
+  assert.match(html, /Gyldig HMS-kort/);
+  assert.match(html, /id="hr-compliance-hms-card"/);
+  assert.match(html, /Registrer kortnummer og utløpsdato under/);
+  assert.match(html, /Ikke aktuelt: arbeider ikke på byggeplass/);
+  const expired = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    hr: { ...hr, hmsCards: [{ employeeId: 'e1', number: 'HMS 42', validTo: '2020-01-31' }] },
+    selectedId: 'e1',
+    sheet: 'compliance',
+  }));
+  assert.match(expired, /Forfalt · HMS 42 · Utløpt 31\.01\.2020/);
+  assert.match(expired, /HMS-kortet er utløpt \(31\.01\.2020\)\. Bestill nytt kort\./);
 
   // Uten tilgang til ISO: bare henvisningen, ingen knapp.
   const plain = renderToStaticMarkup(React.createElement(HrPeople, {
@@ -314,6 +346,30 @@ let followHtml = '';
   }));
   const html = controlHtml;
   assert.match(html, /Gjeldende lønn/);
+  // Lønnskartlegging fordelt på kjønn (ARP) under lønnslisten.
+  assert.match(html, /id="hr-pay-gap"/);
+  assert.match(html, /Lønnskartlegging fordelt på kjønn/);
+  assert.match(html, /Ingen ansatte har både registrert lønn og kjønn ennå/);
+
+  const staff = ['K1', 'K2', 'K3', 'M1', 'M2', 'M3'].map((id) => ({
+    id,
+    person: { firstName: id, lastName: 'Test', gender: id.startsWith('K') ? 'Kvinne' : 'Mann' },
+    company: { status: 'active', personnelKind: 'staff', title: 'Ingeniør' },
+  }));
+  const pay = renderToStaticMarkup(React.createElement(HrControl, {
+    colors,
+    page: 'lonn',
+    employees: staff,
+    hr: {
+      ...hr,
+      salaries: staff.map((row, i) => ({ id: `s${i}`, employeeId: row.id, kind: 'actual', effectiveDate: '2026-01-01', annualAmount: row.id.startsWith('K') ? 630000 : 700000 })),
+    },
+    entries: [],
+    onOpenEmployee: () => {},
+  }));
+  assert.match(pay, /Kvinners lønn av menns/);
+  assert.match(pay, /Ingeniør/);
+  assert.match(pay, /90 %/);
   assert.match(html, /Ada Nordmann/);
   assert.match(html, /Mangler/);
   assert.match(html, /Aktive/);
@@ -370,6 +426,11 @@ let followHtml = '';
   assert.match(html, /Sjekkliste for egne ansatte/);
   assert.match(html, /Ada Nordmann/);
   assert.match(html, /Skriftlig arbeidsavtale/);
+  // HMS-kort og oversiktsliste for byggeplass under sjekklisten.
+  assert.match(html, /id="hr-hms-cards"/);
+  assert.match(html, /HMS-kort og oversiktsliste/);
+  assert.match(html, /Ingen HMS-kort er utløpt/);
+  assert.match(html, /Last ned oversiktsliste \(CSV\)/);
   assert.match(html, /Åpne sjekkliste/);
   assert.match(html, /Aktive/);
   assert.match(html, /Deaktiverte/);
@@ -548,57 +609,40 @@ let caseHtml = '';
   assert.match(caseHtml, /Ada Nordmann/);
 }
 
-const HrSectionNav = component('screens/hr/HrSectionNav.jsx');
+// HR bruker modulmenyen i skallet (ModuleTabs), som de andre modulene (UX-19).
+const ModuleTabs = component('components/ModuleTabs.jsx');
+const { moduleTabsFor } = load(path.join(ROOT, 'src/navigation/moduleTabs.js'));
 const sectionLabels = ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lovpålagt', 'Rekruttering'];
 
 let phoneNavHtml = '';
 let phoneSheetHtml = '';
-let desktopNavHtml = '';
 {
-  phoneNavHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
-    colors,
-    page: 'oversikt',
-    isPhone: true,
-    onChange: () => {},
+  // Testmiljøet er 390 px bredt (telefon): tre faner og «Mer».
+  phoneNavHtml = renderToStaticMarkup(React.createElement(ModuleTabs, {
+    menu: moduleTabsFor('hr', 'oversikt'),
+    onSelect: () => {},
   }));
-  assert.match(phoneNavHtml, /id="hr-section-picker"/);
-  assert.match(phoneNavHtml, /Bytt seksjon, Oversikt/);
-  assert.match(phoneNavHtml, /Oversikt/);
-  assert.equal(phoneNavHtml.includes('id="hr-tabs"'), false);
-  for (const label of sectionLabels.slice(1)) {
-    assert.equal(phoneNavHtml.includes(label), false, `lukket mobilmeny skal ikke vise ${label}`);
+  assert.match(phoneNavHtml, /id="module-tab-hr-oversikt"/);
+  assert.match(phoneNavHtml, /id="module-tab-hr-personell"/);
+  assert.match(phoneNavHtml, /id="module-tabs-more"/);
+  assert.match(phoneNavHtml, /Flere sider i HR \(6\)/);
+  for (const label of ['Lønn', 'Rekruttering', 'Personalhåndbok']) {
+    assert.equal(phoneNavHtml.includes(label), false, `lukket «Mer» skal ikke vise ${label}`);
   }
 }
 
 {
-  phoneSheetHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
-    colors,
-    page: 'oversikt',
-    isPhone: true,
-    sheetOpen: true,
-    onChange: () => {},
+  phoneSheetHtml = renderToStaticMarkup(React.createElement(ModuleTabs, {
+    menu: moduleTabsFor('hr', 'oversikt'),
+    onSelect: () => {},
+    moreOpen: true,
   }));
-  assert.match(phoneSheetHtml, /id="hr-section-picker"/);
-  assert.match(phoneSheetHtml, /Seksjon/);
+  assert.match(phoneSheetHtml, /id="module-tabs-sheet"/);
   for (const label of sectionLabels) {
     assert.match(phoneSheetHtml, new RegExp(label.replace('&', '&amp;')));
   }
-  assert.match(phoneSheetHtml, /id="hr-section-personell"/);
-  assert.match(phoneSheetHtml, /id="hr-section-rekruttering"/);
-}
-
-{
-  desktopNavHtml = renderToStaticMarkup(React.createElement(HrSectionNav, {
-    colors,
-    page: 'personell',
-    isPhone: false,
-    onChange: () => {},
-  }));
-  assert.match(desktopNavHtml, /id="hr-tabs"/);
-  assert.equal(desktopNavHtml.includes('id="hr-section-picker"'), false);
-  for (const label of sectionLabels) {
-    assert.match(desktopNavHtml, new RegExp(label.replace('&', '&amp;')));
-  }
+  assert.match(phoneSheetHtml, /id="module-tab-hr-lonn"/);
+  assert.match(phoneSheetHtml, /id="module-tab-hr-rekruttering"/);
 }
 
 const previewDir = '/opt/cursor/artifacts';

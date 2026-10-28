@@ -60,6 +60,7 @@ import PlatformTasksScreen from '../screens/platform/PlatformTasksScreen';
 import ModuleIntroHost from './ModuleIntroHost';
 import HelpTarget from './HelpTarget';
 import ShellErrorBoundary from './ShellErrorBoundary';
+import { companyDisplayName } from '../src/utils/companyName';
 
 const TITLES = {
   home: 'Hjem',
@@ -212,7 +213,7 @@ export default function SocialPlatformShell({ platformType }) {
         .filter((row) => row?.id && row.id !== familyId && isOrganizationType(row.type))
         .map((row) => ({
           id: row.id,
-          name: row.company?.navn || row.name || 'Selskap',
+          name: companyDisplayName(row, 'Selskap'),
           organization: true,
           type: row.type,
         }));

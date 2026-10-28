@@ -11,6 +11,19 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * JSON som legges rett inn i et <script>. Stedsnavn er fritekst: «</script>» eller «<!--»
+ * i et navn skal ikke kunne avslutte skriptet og legge inn egen HTML.
+ */
+export function scriptSafeJson(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 /** Begrens antall punkter så iframe-payloaden holder seg liten. */
 export function downsampleRoutePoints(points, maxPoints = 120) {
   const rows = (Array.isArray(points) ? points : []).filter((row) => (
@@ -43,7 +56,7 @@ export function routeMapDocument({
     : null;
   if (!start && !end && path.length < 2) return '';
 
-  const payload = JSON.stringify({
+  const payload = scriptSafeJson({
     brand,
     from: start,
     to: end,
@@ -81,17 +94,20 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 const bounds = [];
+function escapeAttr(value) {
+  return String(value || '').replace(/[^#a-zA-Z0-9(),.% ]/g, '');
+}
 function addPin(place, letter, color) {
   if (!place) return;
   const icon = L.divIcon({
     className: '',
-    html: '<div class="pin" style="background:' + color + '">' + letter + '</div>',
+    html: '<div class="pin" style="background:' + escapeAttr(color) + '">' + letter + '</div>',
     iconSize: [28, 28],
     iconAnchor: [14, 14],
   });
   L.marker([place.lat, place.lng], { icon })
     .addTo(map)
-    .bindTooltip(place.label || letter, { permanent: false, direction: 'top' });
+    .bindTooltip(document.createTextNode(String(place.label || letter)), { permanent: false, direction: 'top' });
   bounds.push([place.lat, place.lng]);
 }
 addPin(data.from, 'A', data.brand || '#3D6B8A');

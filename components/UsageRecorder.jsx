@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useApp } from '../src/context/AppContext';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
-import { recordUsage } from '../src/employees/usageClient';
+import { flushUsage, recordUsage } from '../src/employees/usageClient';
 
 function currentPath() {
   if (typeof window === 'undefined') return '';
@@ -11,6 +11,7 @@ function currentPath() {
 /**
  * Skriver innlogging, aktivitet og sideskifte. En sendt bedriftsinvitasjon
  * knyttes til medarbeideren når personen er inne i bedriften.
+ * Sidevisningene samles og sendes én gang i minuttet, og når fanen skjules (EGEN-05).
  */
 export default function UsageRecorder({ companyId = '', tab = '', subView = '' }) {
   const { uid } = useApp();
@@ -53,11 +54,16 @@ export default function UsageRecorder({ companyId = '', tab = '', subView = '' }
     const timer = setInterval(beat, 4 * 60 * 1000);
     const onVisible = () => {
       if (typeof document === 'undefined' || document.visibilityState === 'visible') beat();
+      else flushUsage();
     };
+    const onHide = () => { flushUsage(); };
     document.addEventListener?.('visibilitychange', onVisible);
+    if (typeof window !== 'undefined') window.addEventListener?.('pagehide', onHide);
     return () => {
       clearInterval(timer);
       document.removeEventListener?.('visibilitychange', onVisible);
+      if (typeof window !== 'undefined') window.removeEventListener?.('pagehide', onHide);
+      flushUsage();
     };
   }, [uid, companyId]);
 

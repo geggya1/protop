@@ -2,13 +2,26 @@
  * Autolagring av ISO-oppsettet (Innstillinger): når er skjemaet endret, og hvordan legges
  * brukerens egne endringer oppå et oppsett som er lagret et annet sted i mellomtiden.
  */
-import { stableJson } from './core.js';
+import { stableJson, text } from './core.js';
 import { normalizeDocStructure } from './documents.js';
+import { standardEdition } from './catalog.js';
+
+/** Utgaver som er byttet for standarder som var valgt fra før: [{ code, from, to, at, by }] (ISO-09). */
+export function editionChanges(prev, cur, actor = null, now = new Date()) {
+  const out = [];
+  for (const code of cur?.standards || []) {
+    if (!(prev?.standards || []).includes(code)) continue;
+    const from = standardEdition(code, prev?.editions)?.id;
+    const to = standardEdition(code, cur?.editions)?.id;
+    if (from && to && from !== to) out.push({ code, from, to, at: now.toISOString(), by: text(actor?.name, 160) });
+  }
+  return out;
+}
 
 /** Feltene skjemaet lagrer. */
 export const SETTINGS_FIELDS = [
   'name', 'standards', 'scopeText', 'units', 'locations', 'activities', 'exclusions', 'ownerName', 'ownerUid',
-  'roleMap', 'riskMethod', 'autoQualityPlan', 'docStructure', 'profile',
+  'roleMap', 'riskMethod', 'autoQualityPlan', 'docStructure', 'profile', 'editions',
 ];
 
 /** Systemansvarlig i rollelisten settes alltid fra ownerName/ownerUid ved lagring, så den teller ikke selv. */
@@ -38,6 +51,7 @@ export function settingsKey(x) {
     autoQualityPlan: x?.autoQualityPlan !== false,
     docStructure: normalizeDocStructure(x?.docStructure || []),
     profile: x?.profile || null,
+    editions: x?.editions || {},
   });
 }
 

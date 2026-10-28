@@ -27,6 +27,7 @@ import { dateKey } from '../../src/utils/dates';
 import {
   Btn, Fact, Field, PickerField, SectionLabel, qtyText, shortDate, ui,
 } from '../../screens/economy/productUi';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 const VAT_OPTIONS = VAT_CODES.map((row) => ({ id: row.id, label: `${row.label} (${row.percent} %)` }));
 
@@ -327,7 +328,7 @@ function SaleEditForm({ sale, colors, narrow, projects, customers, employees, bu
           {preview.priceChanged ? ' Beløpet regnes ut på nytt fra antall, pris og rabatt.' : ''}
         </Text>
       ) : null}
-      {localError || error ? <Text style={{ color: colors.danger || '#b42318' }}>{localError || error}</Text> : null}
+      {localError || error ? <Text style={{ color: (colors.dangerInk || colors.danger) }}>{localError || error}</Text> : null}
       <View style={ui.actions}>
         <Btn label={busy ? 'Lagrer…' : submitLabel} icon="checkmark" primary onPress={submit} disabled={busy} colors={colors} nativeID="produktsalg-rediger-lagre" />
         <Btn label="Avbryt" onPress={onCancel} disabled={busy} colors={colors} />
@@ -357,8 +358,8 @@ export default function ProductSaleSheet({
   isNew = false,
 }) {
   const { width, height } = useWindowDimensions();
-  const side = width >= 900;
-  const narrow = width < 560;
+  const side = width >= BREAKPOINTS.desktop;
+  const narrow = width < BREAKPOINTS.tablet;
   const sale = useMemo(() => (raw ? normalizeSale(raw) : null), [raw]);
   const [mode, setMode] = useState(isNew ? 'edit' : 'view');
   const [busy, setBusy] = useState(false);
@@ -458,7 +459,7 @@ export default function ProductSaleSheet({
             ) : (
               <>
                 <SaleFacts sale={sale} colors={colors} onOpenProject={onOpenProject} onOpenInvoice={onOpenInvoice} />
-                {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+                {error ? <Text style={{ color: (colors.dangerInk || colors.danger) }}>{error}</Text> : null}
                 {!locked && (canEdit || canDelete) ? (
                   <View style={ui.actions}>
                     {canEdit ? (

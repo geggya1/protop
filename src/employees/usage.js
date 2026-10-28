@@ -15,7 +15,8 @@ export const USAGE_TYPES = new Set([
   'change',
 ]);
 
-const DETAIL_KEYS = ['tab', 'subView', 'hours', 'date', 'projectName', 'entryId', 'path', 'accessLevel'];
+// pages/count: samlede sidevisninger (usageBatch.js), én hendelse per minutt.
+const DETAIL_KEYS = ['tab', 'subView', 'hours', 'date', 'projectName', 'entryId', 'path', 'accessLevel', 'pages', 'count'];
 
 function text(value) {
   return String(value ?? '').trim();
@@ -37,7 +38,9 @@ export function normalizeUsageSummary(raw) {
   const source = raw && typeof raw === 'object' ? raw : {};
   const summary = emptyUsageSummary();
   summary.lastActiveAt = text(source.lastActiveAt);
-  summary.lastActiveIp = text(source.lastActiveIp);
+  // IP-adressen står bare i hendelsene (usage-underlaget), som bare den ansatte selv og
+  // administratorer kan lese. Sammendraget ligger på ansattposten, som alle medlemmer ser (L-03).
+  summary.lastActiveIp = '';
   summary.lastLoginAt = text(source.lastLoginAt);
   summary.lastHourAt = text(source.lastHourAt);
   summary.lastHourSummary = text(source.lastHourSummary).slice(0, 180);
@@ -74,6 +77,11 @@ function cleanDetail(raw) {
       if (Number.isFinite(hours)) detail.hours = Math.round(hours * 100) / 100;
       continue;
     }
+    if (key === 'count') {
+      const count = Math.round(Number(source[key]));
+      if (Number.isFinite(count) && count > 0) detail.count = Math.min(count, 1000);
+      continue;
+    }
     detail[key] = text(source[key]).slice(0, 120);
   }
   return detail;
@@ -83,7 +91,7 @@ export function usageEventLabel(type, detail = {}) {
   if (type === 'login') return 'Logget inn';
   if (type === 'active') return 'Aktiv i ProTop';
   if (type === 'navigation') {
-    const tab = text(detail.tab || detail.path);
+    const tab = text(detail.pages || detail.tab || detail.path);
     return tab ? `Åpnet ${tab}` : 'Byttet side';
   }
   if (type === 'hour') {
@@ -131,18 +139,15 @@ export function applyUsageSummary(summary, event) {
   next.lastEventLabel = text(event.summary).slice(0, 180);
   if (event.type === 'active' || event.type === 'login' || event.type === 'navigation') {
     next.lastActiveAt = event.at;
-    if (event.ip) next.lastActiveIp = event.ip;
   }
   if (event.type === 'login') next.lastLoginAt = event.at;
   if (event.type === 'hour') {
     next.lastHourAt = event.at;
     next.lastHourSummary = text(event.summary).slice(0, 180);
     next.lastActiveAt = event.at;
-    if (event.ip) next.lastActiveIp = event.ip;
   }
   if (event.type === 'hour_deleted') {
     next.lastActiveAt = event.at;
-    if (event.ip) next.lastActiveIp = event.ip;
   }
   return next;
 }

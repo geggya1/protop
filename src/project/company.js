@@ -3,18 +3,32 @@
 export const PROJECT_PHASES = ['tilbud', 'planlegging', 'produksjon', 'overlevering', 'avsluttet'];
 export const TENDER_STATUSES = ['utkast', 'sendt', 'vunnet', 'tapt'];
 
+function registerFlag(...values) {
+  return values.find((value) => value === true || value === false) ?? null;
+}
+
+/**
+ * Selskapsprofilen fra et treff i Brønnøysund. mva og foretak tas med når registeret svarer,
+ * så fakturaen får «MVA» og «Foretaksregisteret» bare når det stemmer (bokføringsforskriften § 5-1-1).
+ */
 export function companyFromBrreg(hit) {
   if (!hit?.organisasjonsnummer || !hit?.navn) return null;
+  const mva = registerFlag(hit.mva, hit.registrertIMvaregisteret, hit.raw?.registrertIMvaregisteret);
+  const foretak = registerFlag(hit.foretak, hit.registrertIForetaksregisteret, hit.raw?.registrertIForetaksregisteret);
+  const formCode = String(hit.organisasjonsformKode || hit.raw?.organisasjonsform?.kode || '').trim();
   return {
     organisasjonsnummer: hit.organisasjonsnummer,
     navn: hit.navn,
     organisasjonsform: hit.organisasjonsform || '',
+    ...(formCode ? { organisasjonsformKode: formCode } : {}),
     naeringskode: hit.naeringskode || '',
     naeringsbeskrivelse: hit.naeringsbeskrivelse || '',
     addressLabel: hit.addressLabel || '',
     hjemmeside: hit.hjemmeside || '',
     epostadresse: hit.epostadresse || '',
     telefon: hit.telefon || '',
+    ...(mva == null ? {} : { mva }),
+    ...(foretak == null ? {} : { foretak }),
   };
 }
 

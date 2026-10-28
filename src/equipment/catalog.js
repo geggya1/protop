@@ -31,6 +31,21 @@ export function equipmentCategory(id) {
     || EQUIPMENT_CATEGORIES.find((row) => row.id === 'annet');
 }
 
+/**
+ * Kontroller på utstyr (ISO 9001 7.1.5 og forskrift om utførelse av arbeid, sakkyndig kontroll).
+ * blocks: utstyret kan ikke reserveres etter at fristen er passert.
+ */
+export const CONTROL_KINDS = [
+  { id: 'kalibrering', label: 'Kalibrering', blocks: true, hint: 'Måleutstyr: totalstasjon, laser, fuktmåler, momentnøkkel, gassmåler' },
+  { id: 'sakkyndig', label: 'Sakkyndig kontroll', blocks: true, hint: 'Løfteutstyr, stillas, lift og maskiner med krav om sakkyndig kontroll' },
+  { id: 'eu', label: 'EU-kontroll', blocks: true, hint: 'Periodisk kjøretøykontroll' },
+  { id: 'service', label: 'Service', blocks: false, hint: 'Planlagt vedlikehold' },
+];
+
+export function controlKind(id) {
+  return CONTROL_KINDS.find((row) => row.id === id) || CONTROL_KINDS[3];
+}
+
 export function equipmentGroup(id) {
   const direct = EQUIPMENT_GROUPS.find((row) => row.id === id);
   if (direct) return direct;

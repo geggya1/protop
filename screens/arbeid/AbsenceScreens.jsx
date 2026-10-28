@@ -34,6 +34,7 @@ import { clearAbsences, removeAbsences, saveAbsenceImport } from '../../src/arbe
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { useConfirm } from '../../src/ui/useConfirm.js';
 import { importResult } from '../../src/imports/review';
 import {
   addAbsence,
@@ -61,6 +62,7 @@ import {
   normalizeVacationPlan,
   planningWindow,
 } from '../../src/arbeid/vacationPlan.js';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 // Fraværsrapport bruker samme dagstabell + filter på mobil og desktop.
 
@@ -94,13 +96,14 @@ function usePeople(lockedEmployeeId, hours = null) {
 
 export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
+  const confirm = useConfirm();
   const { workspace, activeId } = usePeople(lockedEmployeeId);
   // Import av fraværslister: leder for andres timer med Admin på Fraværsrapport.
   const adminImport = canImportList(useCompanyAccess(), 'absenceReport');
   const canImport = !!workspace.manager && adminImport;
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const people = useMemo(
-    () => filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted'),
+    () => filterEmployeesForPicker(workspace.employees, '', { includeClosed: true }),
     [workspace.employees],
   );
   const roster = useMemo(() => absenceRoster(people), [people]);
@@ -179,7 +182,8 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
     }
   }
 
-  function confirmClearImported() {
+  // Sletting spør alltid i ProTops egen dialog (useConfirm). Før spurte bare nettleseren, og appen slettet uten å spørre.
+  async function confirmClearImported() {
     const imported = (workspace.state.absences || []).filter((row) => (
       row.importFingerprint || row.source?.filename
     ));
@@ -188,12 +192,14 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
       setNote('Ingen fravær å tømme.');
       return;
     }
-    const message = imported.length
-      ? `Fjerne ${imported.length} importerte fraværsdager? Manuelt registrert fravær beholdes. Deretter kan du importere på nytt.`
-      : `Fjerne alle ${count} fraværsdager? Deretter kan du importere på nytt.`;
-    const ok = Platform.OS === 'web' && typeof window !== 'undefined'
-      ? window.confirm(message)
-      : true;
+    const ok = await confirm({
+      title: imported.length ? `Fjerne ${imported.length} importerte fraværsdager?` : `Fjerne alle ${count} fraværsdager?`,
+      message: imported.length
+        ? 'Manuelt registrert fravær beholdes. Deretter kan du importere på nytt.'
+        : 'Deretter kan du importere på nytt.',
+      confirmText: 'Fjern',
+      tone: 'danger',
+    });
     if (!ok) return;
     clearImportedAbsences({ importedOnly: imported.length > 0 });
   }
@@ -234,12 +240,14 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
     if (!workspace.manager || busy) return;
     const unique = [...new Set((ids || []).map((id) => String(id || '').trim()).filter(Boolean))];
     if (!unique.length) return;
-    const message = unique.length === 1
-      ? 'Slette den valgte fraværslinjen?'
-      : `Slette ${unique.length} valgte fraværslinjer?`;
-    const ok = Platform.OS === 'web' && typeof window !== 'undefined'
-      ? window.confirm(message)
-      : true;
+    const ok = await confirm({
+      title: unique.length === 1
+        ? 'Slette den valgte fraværslinjen?'
+        : `Slette ${unique.length} valgte fraværslinjer?`,
+      message: 'Fraværet slettes for godt.',
+      confirmText: 'Slett',
+      tone: 'danger',
+    });
     if (!ok) return;
     setBusy(true);
     setError('');
@@ -549,7 +557,7 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const names = {};
   for (const row of people) names[row.id] = employeeDisplayName(row);
   const canChooseEmployee = !!workspace.manager && !workspace.lockedId;
-  const companyName = String(family?.company?.navn || family?.name || '').trim();
+  const companyName = companyDisplayName(family);
   const window = planningWindow(plan || {}, today);
   const registrationLocked = !!plan?.announcedAt && window.locked && !workspace.manager;
 

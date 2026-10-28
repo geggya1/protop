@@ -25,7 +25,6 @@ import TimesheetDayView from '../../components/arbeid/TimesheetDayView';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import HoursOrganizePanel from '../../components/arbeid/HoursOrganizePanel';
-import { loadAnbudState } from '../../src/anbud/storage';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
 import {
@@ -48,7 +47,6 @@ import {
   hourInvoiceLabel,
   hoursOutsideSelection,
   hourTotals,
-  hydrateHourEntry,
   periodLoadRange,
   projectFromHourFilter,
   projectsMatchingHourQuery,
@@ -73,11 +71,16 @@ import {
   putProjectState,
 } from '../../src/project/storage';
 import { readCachedTimeEntries, saveTimeEntryImport } from '../../src/economy/timeEntryStorage.js';
-import { watchEmployees } from '../../src/employees/storage';
+import {
+  useCompanyDirectory, useCustomers, useEmployees, useProjects,
+} from '../../src/context/CompanyDataContext';
+import { freshRows, hydrateRows } from '../../src/company/companyData.js';
 import { recordUsage } from '../../src/employees/usageClient';
 import { displayName } from '../../src/employees/model.js';
 import { parseDate } from '../../src/economy/invoices.js';
 import { pickableProjects } from '../../src/project/myProjects';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import Breadcrumb from '../../components/Breadcrumb';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -140,9 +143,13 @@ export default function EconomyHours({
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
 
+  const guardAi = useCompanyAiGuard();
   const [state, setState] = useState(() => peekProjectState(resolvedFamilyId) || emptyProjectState());
-  const [employees, setEmployees] = useState([]);
-  const [anbudCustomers, setAnbudCustomers] = useState([]);
+  // Ansatte, kunder og prosjekter fra skallets lyttere: nye navn slår gjennom uten omlasting.
+  const { employees } = useEmployees(resolvedFamilyId);
+  const directory = useCompanyDirectory(resolvedFamilyId);
+  const liveCustomers = useCustomers(resolvedFamilyId, { enabled: !customersProp.length });
+  const liveProjects = useProjects(resolvedFamilyId, { enabled: !projectsProp.length });
   const [ready, setReady] = useState(() => !!peekProjectState(resolvedFamilyId));
   const [view, setView] = useState('list');
   /** Mobil: listekort vs tabell. */
@@ -238,28 +245,13 @@ export default function EconomyHours({
     return () => { live = false; };
   }, [ready, resolvedFamilyId, period, fromDate, toDate]);
 
-  useEffect(() => {
-    const stop = watchEmployees(resolvedFamilyId, setEmployees, () => {});
-    return stop;
-  }, [resolvedFamilyId]);
-
-  useEffect(() => {
-    if (customersProp.length) return undefined;
-    let live = true;
-    loadAnbudState(resolvedFamilyId).then((loaded) => {
-      if (!live) return;
-      setAnbudCustomers(loaded?.customers || []);
-    });
-    return () => { live = false; };
-  }, [resolvedFamilyId, customersProp.length]);
-
   const loadedEntries = state.timeEntries || [];
-  const entries = useMemo(
-    () => (lockedId ? filterHours(loadedEntries, { employeeId: lockedId }) : loadedEntries),
-    [loadedEntries, lockedId],
+  // Kunderegisteret fra skallet (det leser selv anbud/state for eldre selskaper uten register).
+  const customers = customersProp.length ? customersProp : liveCustomers.customers;
+  const projectList = useMemo(
+    () => (projectsProp.length ? projectsProp : freshRows(state.projects || [], liveProjects)),
+    [projectsProp, state.projects, liveProjects],
   );
-  const customers = customersProp.length ? customersProp : anbudCustomers;
-  const projectList = projectsProp.length ? projectsProp : (state.projects || []);
   const hourLookupProjects = useMemo(() => {
     const selected = projectFromHourFilter(projectList, projectFilter);
     const matched = projectsMatchingHourQuery(projectList, query);
@@ -292,32 +284,17 @@ export default function EconomyHours({
     return () => { live = false; };
   }, [ready, resolvedFamilyId, hourLookupKey]);
 
-  const employeesById = useMemo(() => {
-    const map = new Map();
-    for (const employee of employees) {
-      if (employee?.id) map.set(employee.id, employee);
-    }
-    return map;
-  }, [employees]);
-  const projectsById = useMemo(() => {
-    const map = new Map();
-    for (const project of projectList) {
-      if (project?.id) map.set(project.id, project);
-    }
-    return map;
-  }, [projectList]);
-  const customersById = useMemo(() => {
-    const map = new Map();
-    for (const customer of customers) {
-      if (customer?.id) map.set(customer.id, customer);
-    }
-    return map;
-  }, [customers]);
   const hydrateOpts = useMemo(() => ({
-    employeesById,
-    projectsById,
-    customersById,
-  }), [employeesById, projectsById, customersById]);
+    directory,
+    projects: projectList,
+    customers,
+  }), [directory, projectList, customers]);
+  // Navn, kunde og prosjekt slås opp før filtrering, sortering og gruppering (DS-08),
+  // så et nytt navn sorteres og søkes riktig. Kopien på timen er reserve for slettede.
+  const entries = useMemo(() => {
+    const rows = hydrateRows(loadedEntries, hydrateOpts);
+    return lockedId ? filterHours(rows, { employeeId: lockedId }) : rows;
+  }, [loadedEntries, lockedId, hydrateOpts]);
 
   const scoped = useMemo(() => filterHours(entries, {
     query,
@@ -345,16 +322,16 @@ export default function EconomyHours({
 
   const groups = useMemo(() => groupHours(visible, groupBy), [visible, groupBy]);
   const pageRows = useMemo(
-    () => visible.slice(0, pageSize).map((row) => hydrateHourEntry(row, hydrateOpts)),
-    [visible, pageSize, hydrateOpts],
+    () => visible.slice(0, pageSize),
+    [visible, pageSize],
   );
   const totals = useMemo(() => hourTotals(visible), [visible]);
   const employeeOptions = useMemo(
     () => employeeHourOptions(
-      scoped.map((row) => hydrateHourEntry(row, hydrateOpts)),
+      scoped,
       employees,
     ),
-    [scoped, employees, hydrateOpts],
+    [scoped, employees],
   );
   const facets = useMemo(() => hourFacets(scoped), [scoped]);
   const columns = useMemo(() => {
@@ -391,12 +368,12 @@ export default function EconomyHours({
     for (const group of groups) {
       if (remaining <= 0) break;
       out.push({ type: 'header', id: `g-${group.id}`, label: group.label, hours: group.hours, count: group.rows.length });
-      const slice = group.rows.slice(0, remaining).map((row) => hydrateHourEntry(row, hydrateOpts));
+      const slice = group.rows.slice(0, remaining);
       remaining -= slice.length;
       slice.forEach((row) => out.push({ type: 'row', id: row.id, row }));
     }
     return out;
-  }, [groupBy, groups, pageRows, pageSize, hydrateOpts]);
+  }, [groupBy, groups, pageRows, pageSize]);
   const importReview = useMemo(
     () => (importPlan ? buildHourImportReview(importPlan, { dropped }) : null),
     [importPlan, dropped],
@@ -465,7 +442,7 @@ export default function EconomyHours({
         employees,
         customers,
         projects: projectList,
-      }, (payload) => askImportInterpret(payload));
+      }, guardAi((payload) => askImportInterpret(payload)));
       if (!plan.rows.length) {
         setError('Fant ingen timer i filen.');
         return;
@@ -1055,7 +1032,7 @@ export default function EconomyHours({
             <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
               {hostedHero || embedded ? null : (
                 <>
-                  <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
+                  <Breadcrumb tab="arbeid" subView="timerapport" />
                   <Text style={[styles.headingPhone, { color: colors.ink }]}>Timerapport</Text>
                 </>
               )}
@@ -1137,7 +1114,7 @@ export default function EconomyHours({
             <View style={{ flex: 1, gap: 4 }}>
               {hostedHero || embedded ? null : (
                 <>
-                  <Text style={[styles.crumb, { color: colors.muted }]}>Arbeid / Timerapport</Text>
+                  <Breadcrumb tab="arbeid" subView="timerapport" />
                   <Text style={[styles.heading, { color: colors.ink }]}>Timerapport</Text>
                 </>
               )}
@@ -1206,7 +1183,6 @@ const styles = StyleSheet.create({
   phoneInner: { padding: 12, paddingBottom: 40, gap: 12, width: '100%' },
   phoneTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   phoneActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' },
-  crumb: { fontSize: 12, marginBottom: 2 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   ghostBtn: {
     borderWidth: 1,

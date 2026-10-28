@@ -22,6 +22,7 @@ import { absenceRoster, absenceYears, buildAbsencePeriodGrid, buildAbsenceWebBoa
 import { absenceWidgetDestination } from '../../src/arbeid/absenceWidgetNav.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
 import { personnelKind, personnelKindLabel } from '../../src/employees/model.js';
+import Breadcrumb from '../../components/Breadcrumb';
 
 const ink = '#152033';
 const muted = '#8B95A6';
@@ -663,7 +664,8 @@ export function AbsenceReportDesktop({
       if (!row.employeeId) continue;
       const current = byId.get(row.employeeId) || {
         id: row.employeeId,
-        name: row.employeeName || names[row.employeeId] || 'Ansatt',
+        // Registeret først. Kopien på fraværet er reserve for slettede personer (DS-08).
+        name: names[row.employeeId] || row.employeeName || 'Ansatt',
         hours: 0,
       };
       current.hours += Number(row.hours) || 0;
@@ -958,7 +960,7 @@ export function AbsenceReportDesktop({
             <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
               {hostedHero ? null : (
                 <>
-                  <Text style={[reportStyles.crumb, { color: colors.muted }]}>Arbeid / Fraværsrapport</Text>
+                  <Breadcrumb tab="arbeid" subView="fravaersrapport" />
                   <Text style={[reportStyles.heading, { color: colors.ink }]}>Fraværsrapport</Text>
                 </>
               )}
@@ -1727,7 +1729,6 @@ const reportStyles = StyleSheet.create({
   hScroll: { width: '100%', overflowX: 'auto', overflowY: 'visible' },
   desk: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 16, padding: 16, paddingBottom: 48, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 14 },
-  crumb: { fontSize: 12 },
   heading: { fontSize: 22, fontWeight: '400' },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' },
   toolbarRight: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },

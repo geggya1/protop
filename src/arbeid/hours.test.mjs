@@ -174,7 +174,8 @@ assert.ok(merged.members.length >= 1);
   assert.doesNotMatch(economySrc, /visible=\{busy \|\| loadingHours\}/);
   assert.match(economySrc, /visible=\{busy\}/);
   assert.match(economySrc, /TimesheetDayView/);
-  assert.match(economySrc, /Arbeid \/ Timerapport/);
+  // Brødsmulen bygges fra menyen (UX-16), ikke som fast tekst.
+  assert.match(economySrc, /<Breadcrumb tab="arbeid" subView="timerapport" \/>/);
   assert.match(economySrc, /economy-employee-name/);
   assert.match(economySrc, /economy-employee-picker-search/);
   assert.doesNotMatch(economySrc, /statusChips/);

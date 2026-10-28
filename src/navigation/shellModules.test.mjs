@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  COMPANY_DRAWER_GROUPS,
   buildShellModules,
   buildParentDashboardApps,
   buildChildDashboardApps,
@@ -97,9 +98,10 @@ function idsIn(sections) {
     [
       'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
       'okonomi-inntjening', 'kunder', 'anbud', 'kontrakt', 'projects', 'moter', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
+      'skjema',
     ],
   );
-  assert.equal(companyItems[0].label, 'Selskap');
+  assert.equal(companyItems[0].label, 'Bedriften');
   assert.equal(companyItems[0].action.tab, 'selskap');
   assert.equal(companyItems[0].children, undefined);
   assert.equal(companyItems[0].forceOpen, undefined);
@@ -131,7 +133,7 @@ function idsIn(sections) {
   assert.ok(withUnitIds.indexOf('selskap') < withUnitIds.indexOf('underenheter'));
   assert.ok(withUnitIds.indexOf('underenheter') < withUnitIds.indexOf('selskapsinnstillinger'));
   const settings = companyItems.find((i) => i.id === 'selskapsinnstillinger');
-  assert.equal(settings.label, 'Selskapsinnstillinger');
+  assert.equal(settings.label, 'Bedriftsinnstillinger');
   assert.equal(settings.action.subView, 'innstillinger');
   assert.deepEqual(
     settings.children.map((i) => i.label),
@@ -151,7 +153,7 @@ function idsIn(sections) {
     'innstillinger',
   );
   assert.equal(companyItems.find((i) => i.id === 'kunder').action.tab, 'kunder');
-  assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakt / avtale');
+  assert.equal(companyItems.find((i) => i.id === 'kontrakt').label, 'Kontrakter');
   assert.equal(companyItems.find((i) => i.id === 'kontrakt').action.tab, 'kontrakt');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').label, 'Økonomi');
   assert.equal(companyItems.find((i) => i.id === 'okonomi').action.subView, 'oversikt');
@@ -206,12 +208,15 @@ function idsIn(sections) {
   assert.equal(okonomiKids.some((i) => i.id === 'okonomi-avtaler'), false);
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-prosjektutlegg').action.tab, 'arbeid');
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-prosjektutlegg').action.subView, 'utlegg');
+  // UX-17: Tilgang under Konto gikk til samme side som Tilgangsstyring, og Skjemabygger ligger i bedriftsmenyen.
   const accountItems = company.find((s) => s.id === 'account').items;
-  assert.equal(accountItems[0].id, 'tilgang');
-  assert.equal(accountItems[0].action.subView, 'tilgang');
-  assert.equal(accountItems[1].id, 'skjema');
-  assert.equal(accountItems[1].label, 'Skjemabygger');
-  assert.equal(accountItems[1].action.tab, 'skjema');
+  assert.equal(accountItems.some((i) => i.id === 'tilgang'), false);
+  assert.equal(accountItems.some((i) => i.id === 'skjema'), false);
+  const skjema = companyItems.find((i) => i.id === 'skjema');
+  assert.equal(skjema.label, 'Skjemabygger');
+  assert.equal(skjema.action.tab, 'skjema');
+  assert.equal(skjema.children, undefined);
+  assert.deepEqual(COMPANY_DRAWER_GROUPS.find((g) => g.id === 'company-quality').itemIds, ['iso', 'skjema']);
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
   assert.ok(order.indexOf('company') < order.indexOf('account'));
@@ -399,7 +404,9 @@ assert.match(appSrc, /StackShellChrome title="Velg organisasjon"/);
 const anbudScreen = readFileSync(new URL('../../screens/anbud/AnbudScreen.jsx', import.meta.url), 'utf8');
 assert.match(anbudScreen, /TenderInquiry/);
 assert.match(anbudScreen, /WatchSettings/);
-assert.match(anbudScreen, /ScrollSheet/);
+// Stegene ligger i modulmenyen i skallet (UX-19), med tallene på fanene.
+assert.match(anbudScreen, /setModuleTabBadges/);
+assert.equal(anbudScreen.includes('PhoneStepFilter'), false);
 assert.match(anbudScreen, /go\('innstillinger'\)/);
 assert.match(anbudScreen, /step === 'innstillinger'/);
 assert.equal(anbudScreen.includes("['kontrakt', 'Kontrakt']"), false);
@@ -538,19 +545,17 @@ assert.match(shellSrc, /defaultOkonomiSubView/);
 assert.match(shellSrc, /subView=\{moreSubView\}/);
 assert.match(shellSrc, /ContractScreen/);
 const moreHubSrc = readFileSync(new URL('../../screens/v2/MoreHubScreen.jsx', import.meta.url), 'utf8');
-assert.match(moreHubSrc, /drawerHasSubmenuToggle/);
-assert.match(moreHubSrc, /drawerSubmenuOpen/);
-assert.match(moreHubSrc, /module-nav-expand-/);
-const drawerSrc = readFileSync(new URL('../../components/ShellDrawer.jsx', import.meta.url), 'utf8');
-assert.match(drawerSrc, /drawerSubmenuOpen/);
-assert.match(drawerSrc, /groupCompanyDrawerItems/);
-assert.match(drawerSrc, /module-nav-expand-/);
-assert.match(drawerSrc, /onToggle=\{expandable/);
-const railSrc = readFileSync(new URL('../../components/DesktopRail.jsx', import.meta.url), 'utf8');
-assert.match(railSrc, /drawerHasSubmenuToggle/);
-assert.match(railSrc, /drawerSubmenuOpen/);
-assert.match(railSrc, /groupCompanyDrawerItems/);
-assert.match(railSrc, /module-nav-expand-/);
+// Meny-siden i docken tegner samme meny som skuffen (NavTree).
+assert.match(moreHubSrc, /useNavTree\(/);
+assert.match(moreHubSrc, /<NavTree\b/);
+assert.equal(moreHubSrc.includes('companyMenuItems('), false);
+// Skuffen og sidemenyen tegner menyen med NavTree (UX-22); se navTree.test.mjs.
+const navTreeSrc = readFileSync(new URL('../../components/NavTree.jsx', import.meta.url), 'utf8');
+assert.match(navTreeSrc, /drawerHasSubmenuToggle/);
+assert.match(navTreeSrc, /drawerSubmenuOpen/);
+assert.match(navTreeSrc, /module-nav-expand-/);
+assert.match(navTreeSrc, /onToggle=\{expandable/);
+assert.match(readFileSync(new URL('./navTree.js', import.meta.url), 'utf8'), /groupCompanyDrawerItems/);
 {
   const items = companyNavItems();
   const selskap = items.find((item) => item.id === 'selskap');
@@ -586,10 +591,9 @@ assert.match(railSrc, /module-nav-expand-/);
   assert.equal(drawerSubmenuOpen(okonomi, 'arbeid', {}, 'utlegg'), true);
   assert.equal(drawerSubmenuOpen(kunder, 'kunder'), false);
 }
-assert.match(
-  readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8'),
-  /Kundesummer/,
-);
+// Kunder og Avtaler er faner i Inntjening, ikke egne sider med eget navn (UX-17).
+assert.equal(okonomiMenuTitle('kunder'), 'Inntjening');
+assert.equal(okonomiMenuTitle('avtaler'), 'Inntjening');
 assert.equal(
   readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8').includes("label: 'Økonomi',\n      action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },\n      forceOpen: true,"),
   false,
@@ -642,13 +646,14 @@ assert.match(customerScreen, /FilterMenu/);
 for (const file of [
   '../../screens/v2/RecipesHubScreen.jsx',
   '../../screens/v2/MealsHubScreen.jsx',
-  '../../screens/v2/MailHubScreen.jsx',
   '../../screens/v2/BoligmappaHubScreen.jsx',
   '../../screens/ActivitiesScreen.jsx',
   '../../screens/anbud/TenderHitCards.jsx',
 ]) {
   assert.match(readFileSync(new URL(file, import.meta.url), 'utf8'), /FilterMenu/);
 }
+// E-post har eget filter i verktøylinjen, som i Outlook (#555), ikke FilterMenu.
+assert.match(readFileSync(new URL('../../screens/v2/MailHubScreen.jsx', import.meta.url), 'utf8'), /MAIL_FILTERS/);
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /readCustomerImport/);
 assert.match(customerScreen, /identityFieldsForKind/);
@@ -681,7 +686,7 @@ function collectPresented(items, acc = []) {
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.label),
     [
-      'Selskap og organisasjon',
+      'Bedrift og organisasjon',
       'Ansatte og arbeidstid',
       'Kvalitet og styringssystem',
       'Produktivitet og inntjening',
@@ -697,7 +702,7 @@ function collectPresented(items, acc = []) {
     [
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
       ['ansatte', 'hr', 'fravaer', 'arbeid'],
-      ['iso'],
+      ['iso', 'skjema'],
       ['produktivitet', 'fremdrift', 'okonomi-inntjening'],
       ['okonomi'],
       ['produkt', 'utstyr', 'kjorebok'],
@@ -797,10 +802,24 @@ function collectPresented(items, acc = []) {
     personal.find((section) => section.id === 'main').items.map((item) => item.id),
     ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes', 'timeliste'],
   );
+  // Eier i Bedrift: Aktiverte moduler ligger i Modulinnstillinger, ikke under Konto (UX-17).
   assert.deepEqual(
-    personal.find((section) => section.id === 'account').items.map((item) => item.id).slice(0, 2),
-    ['tilgang', 'skjema'],
+    personal.find((section) => section.id === 'account').items.map((item) => item.id),
+    ['settings', 'help', 'legal'],
   );
+  const ansattAccount = buildShellModules({
+    t, asChild: false, asParent: true, isSuperAdmin: false,
+    familyId: 'F', family: { type: 'organization', name: 'ProTop AS' },
+    hasKids: false, childForSchedule: null, firstKid: null,
+    companyGrants: standardGrants('ansatt'),
+  }).find((section) => section.id === 'account').items.map((item) => item.id);
+  assert.ok(ansattAccount.includes('moduleAccess'), 'ansatt uten Modulinnstillinger beholder Aktiverte moduler under Konto');
+  const privatAccount = buildShellModules({
+    t, asChild: false, asParent: true, isSuperAdmin: false,
+    familyId: 'P', family: { type: 'family', isPersonal: true, name: 'Meg' },
+    hasKids: false, childForSchedule: null, firstKid: null,
+  }).find((section) => section.id === 'account').items.map((item) => item.id);
+  assert.ok(privatAccount.includes('moduleAccess'), 'Privat har Aktiverte moduler under Konto');
 }
 
 console.log('shellModules.test.mjs: ok');

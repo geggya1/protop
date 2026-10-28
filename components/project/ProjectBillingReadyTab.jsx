@@ -27,9 +27,9 @@ export default function ProjectBillingReadyTab({
 }) {
   const { familyId, family, uid, activeProfile, isAdmin } = useApp();
   const access = useCompanyAccess();
-  const { isPhone, width } = useLayout();
+  const { isPhone, isWide } = useLayout();
   const canEdit = !!isAdmin || access.canEdit('economyBilling');
-  const data = useBillingData({ familyId, projectId: project.id, canSeePowerOffice: !!isAdmin });
+  const data = useBillingData({ familyId, projectId: project.id, project, canSeePowerOffice: !!isAdmin });
   const today = osloDate();
   const [period, setPeriod] = useState('today');
   const [note, setNote] = useState('');
@@ -121,7 +121,7 @@ export default function ProjectBillingReadyTab({
           showCheck={false}
           fixedAmount={workflow.fixedAmounts[ready.projectId]}
           onFixedAmount={(value) => workflow.setFixedAmount(ready.projectId, value)}
-          stacked={isPhone || width < 1100}
+          stacked={isPhone || !isWide}
           busy={!!workflow.busy}
           canEdit={canEdit}
           onApprove={async () => {

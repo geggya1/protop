@@ -30,8 +30,10 @@ import {
   assert.equal(needsTimesheetPersonStep({ manager: true, chosen: true }), false);
   assert.equal(needsTimesheetPersonStep({ manager: true, locked: true, chosen: false }), false);
   assert.equal(timesheetCrumb({ personal: true, companyLabel: 'CONSULT1 AS' }), 'Timeliste · CONSULT1 AS');
-  assert.equal(timesheetCrumb({ locked: true }), 'Ansatte / Timeføring');
-  assert.equal(timesheetCrumb({}), 'Arbeid / Timeføring');
+  // Samme navn som i menyen, ikke «Arbeid / Timeføring».
+  assert.match(timesheetCrumb({ locked: true }), / › Timeliste$/);
+  assert.match(timesheetCrumb({}), / › Timeliste$/);
+  assert.doesNotMatch(timesheetCrumb({}), /Arbeid \/|Timeføring/);
 }
 
 console.log('timesheetIdentity.test.mjs: ok');

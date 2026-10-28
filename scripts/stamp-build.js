@@ -40,6 +40,10 @@ if (!fs.existsSync(indexPath)) {
 
 let html = fs.readFileSync(indexPath, 'utf8');
 html = html.replace(/<title>.*?<\/title>/, `<title>ProTop (${buildId})</title>`);
+// Bokmål for skjermlesere (WCAG 3.1.1), også om Expo-malen skulle ignorere app.json → web.lang.
+html = /<html[^>]*\blang="/.test(html)
+  ? html.replace(/(<html[^>]*\blang=")[^"]*"/, '$1nb"')
+  : html.replace(/<html/, '<html lang="nb"');
 // Lås skala på mobil: iOS Safari zoomer ellers inn på input < 16px og «sprenger» bredden.
 html = html.replace(
   /content="width=device-width,[^"]*"/,

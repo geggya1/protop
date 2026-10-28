@@ -9,7 +9,7 @@ function text(value) {
  * Be Gemini lese låste føringer. Lokal gjennomgang vises uansett.
  * @returns {Promise<{ findings: object[], engine: string }>}
  */
-export async function scanTimesheetWithAi(entries) {
+export async function scanTimesheetWithAi(entries, { familyId = '' } = {}) {
   const rows = (entries || []).slice(0, 80).map((row) => ({
     id: text(row.id).slice(0, 60),
     date: text(row.date).slice(0, 10),
@@ -19,7 +19,7 @@ export async function scanTimesheetWithAi(entries) {
   })).filter((row) => row.id);
   if (!rows.length) return { findings: [], engine: 'local' };
   const fn = httpsCallable(functions, 'scanTimesheetReview', { timeout: 45000 });
-  const result = await fn({ entries: rows });
+  const result = await fn(familyId ? { entries: rows, familyId } : { entries: rows });
   const data = result?.data || {};
   const findings = Array.isArray(data.findings) ? data.findings : [];
   return { findings, engine: text(data.engine) || 'gemini' };

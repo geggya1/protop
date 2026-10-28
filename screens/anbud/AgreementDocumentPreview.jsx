@@ -8,6 +8,7 @@ import {
   documentPreviewKind,
   documentPreviewLabel,
   documentSupportsOfficeEmbed,
+  UNTRUSTED_HTML_SANDBOX,
 } from '../../src/anbud/documentAccess';
 import {
   loadAgreementBytes,
@@ -41,7 +42,7 @@ function TextPreview({ text, colors }) {
   );
 }
 
-function WebIframe({ src, srcDoc, title, minHeight = 420 }) {
+function WebIframe({ src, srcDoc, title, minHeight = 420, sandbox }) {
   if (Platform.OS !== 'web' || (!src && !srcDoc)) {
     return null;
   }
@@ -49,6 +50,7 @@ function WebIframe({ src, srcDoc, title, minHeight = 420 }) {
     title: title || 'Dokumentforhåndsvisning',
     src: src || undefined,
     srcDoc: srcDoc || undefined,
+    sandbox: typeof sandbox === 'string' ? sandbox : undefined,
     style: {
       display: 'block',
       width: '100%',
@@ -73,11 +75,21 @@ function previewKey(doc) {
   ].join('|');
 }
 
+/** Opplastet HTML som tekst, til forhåndsvisning i en sandkasse uten skript. */
+function htmlFromBytes(bytes) {
+  if (!bytes?.length || typeof TextDecoder === 'undefined') return '';
+  try {
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
 function useAgreementPreview(doc) {
   const kind = documentPreviewKind(doc);
   const embedLocally = kind === 'pdf' || kind === 'image' || kind === 'html';
   const key = previewKey(doc);
-  const [state, setState] = useState({ status: 'idle', src: '', message: '' });
+  const [state, setState] = useState({ status: 'idle', src: '', message: '', html: '' });
 
   useEffect(() => {
     if (!doc || !embedLocally) {
@@ -108,8 +120,9 @@ function useAgreementPreview(doc) {
       if (cancelled) return;
       if (file?.bytes) {
         const src = rememberAgreementBlobUrl(doc, file) || http;
-        if (src) {
-          setState({ status: 'ready', src, message: '' });
+        const html = kind === 'html' ? htmlFromBytes(file.bytes) : '';
+        if (src || html) {
+          setState({ status: 'ready', src, message: '', html });
           return;
         }
       }
@@ -204,17 +217,13 @@ function DocumentBody({ doc, colors, preview, minHeight = 420, onUploadOriginal 
   }
 
   if (kind === 'html' && Platform.OS === 'web') {
-    if (href && !href.startsWith('data:')) {
+    // Opplastet HTML kan inneholde skript. Den vises bare i en sandkasse uten skript og
+    // uten protop.no som opphav, aldri via en blob-URL eller lagringslenke i iframen.
+    const markup = preview?.html || String(doc.text || '');
+    if (markup) {
       return (
         <PreviewFrame colors={colors} title={label} minHeight={minHeight}>
-          <WebIframe src={href} title={doc.name || 'HTML'} minHeight={minHeight} />
-        </PreviewFrame>
-      );
-    }
-    if (doc.text) {
-      return (
-        <PreviewFrame colors={colors} title={label} minHeight={minHeight}>
-          <WebIframe srcDoc={String(doc.text)} title={doc.name || 'HTML'} minHeight={minHeight} />
+          <WebIframe srcDoc={markup} sandbox={UNTRUSTED_HTML_SANDBOX} title={doc.name || 'HTML'} minHeight={minHeight} />
         </PreviewFrame>
       );
     }

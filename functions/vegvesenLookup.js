@@ -44,8 +44,8 @@ function extractRaw(payload) {
   return null;
 }
 
-async function fetchPublicRaw(kjennemerke) {
-  const res = await fetch(`${VEGVESEN_PUBLIC_RAW_BASE}/${encodeURIComponent(kjennemerke)}`, {
+async function fetchPublicRaw(kjennemerke, fetchImpl = fetch) {
+  const res = await fetchImpl(`${VEGVESEN_PUBLIC_RAW_BASE}/${encodeURIComponent(kjennemerke)}`, {
     headers: {
       Accept: 'application/json',
       Origin: 'https://www.vegvesen.no',
@@ -63,25 +63,39 @@ async function fetchPublicRaw(kjennemerke) {
     err.status = res.status;
     throw err;
   }
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
   const raw = extractRaw(data);
   if (!raw) {
-    throw new HttpsError(
-      'not-found',
-      data?.feilmelding || data?.melding || 'Fant ikke kjøretøy med det registreringsnummeret.',
-    );
+    if (data?.feilmelding || data?.melding) {
+      throw new HttpsError('not-found', data.feilmelding || data.melding);
+    }
+    // Ingen kjøretøy og ingen melding: svarformatet er endret. API-nøkkelen kan prøves.
+    const err = new Error('public: uventet svarformat');
+    err.unexpectedFormat = true;
+    throw err;
   }
   return raw;
 }
 
-async function fetchEnkeltoppslag(kjennemerke, apiKey) {
+/**
+ * Skal enkeltoppslag med API-nøkkel prøves når det offentlige oppslaget feilet?
+ * Ja ved tekniske feil, 429 (resource-exhausted) og uventet svarformat.
+ * Nei når kjøretøyet ikke finnes.
+ */
+export function publicLookupFallback(err) {
+  if (err?.unexpectedFormat) return true;
+  if (err instanceof HttpsError) return err.code === 'resource-exhausted';
+  return true;
+}
+
+async function fetchEnkeltoppslag(kjennemerke, apiKey, fetchImpl = fetch) {
   const params = new URLSearchParams();
   if (/^[A-HJ-NPR-Z0-9]{17}$/i.test(kjennemerke)) {
     params.set('understellsnummer', kjennemerke);
   } else {
     params.set('kjennemerke', kjennemerke);
   }
-  const res = await fetch(`${VEGVESEN_KJORETOYDATA_URL}?${params}`, {
+  const res = await fetchImpl(`${VEGVESEN_KJORETOYDATA_URL}?${params}`, {
     headers: {
       Accept: 'application/json',
       'SVV-Authorization': `Apikey ${apiKey}`,
@@ -120,14 +134,19 @@ async function limitLookup(key) {
   }
 }
 
-async function lookupPlate(kjennemerke, who) {
+export async function lookupPlate(kjennemerke, who, { fetchImpl = fetch } = {}) {
   try {
-    const raw = await fetchPublicRaw(kjennemerke);
+    const raw = await fetchPublicRaw(kjennemerke, fetchImpl);
     return { raw, source: 'vegvesen.public' };
   } catch (publicErr) {
-    if (publicErr instanceof HttpsError) throw publicErr;
+    if (!publicLookupFallback(publicErr)) throw publicErr;
     const apiKey = String(process.env.VEGVESEN_API_KEY || '').trim();
     if (!apiKey) {
+      // Uten nøkkel: 429 forblir 429, og et tomt svar betyr «fant ikke».
+      if (publicErr instanceof HttpsError) throw publicErr;
+      if (publicErr?.unexpectedFormat) {
+        throw new HttpsError('not-found', 'Fant ikke kjøretøy med det registreringsnummeret.');
+      }
       logger.warn('lookupVehicle public failed, no API key fallback', {
         message: publicErr?.message,
         status: publicErr?.status,
@@ -140,9 +159,10 @@ async function lookupPlate(kjennemerke, who) {
     }
     logger.warn('lookupVehicle falling back to enkeltoppslag', {
       message: publicErr?.message,
+      code: publicErr?.code,
       who,
     });
-    const raw = await fetchEnkeltoppslag(kjennemerke, apiKey);
+    const raw = await fetchEnkeltoppslag(kjennemerke, apiKey, fetchImpl);
     return { raw, source: 'vegvesen.enkeltoppslag' };
   }
 }

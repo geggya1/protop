@@ -124,6 +124,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
+      "lang": "nb",
       "favicon": "./assets/favicon.png",
       "name": "ProTop",
       "shortName": "ProTop",

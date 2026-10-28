@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { listEmployeeUsage } from '../../src/employees/usageClient';
 import { formatUsageStamp, normalizeUsageSummary, usageSummaryLines } from '../../src/employees/usage';
+import { usageLogNotice } from '../../src/privacy/companyPrivacy';
 
 export default function EmployeeUsagePanel({
   companyId,
+  company = null,
   employee,
   colors,
   enabled = false,
@@ -13,6 +15,8 @@ export default function EmployeeUsagePanel({
   const [error, setError] = useState('');
   const [summary, setSummary] = useState(() => normalizeUsageSummary(employee?.usage));
   const [events, setEvents] = useState([]);
+  // Serverens tekst (listEmployeeUsage) følger selskapets valg; til den kommer, samme tekst lokalt.
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     setSummary(normalizeUsageSummary(employee?.usage));
@@ -32,6 +36,7 @@ export default function EmployeeUsagePanel({
       }
       setSummary(normalizeUsageSummary(result.summary));
       setEvents(Array.isArray(result.events) ? result.events : []);
+      setNotice(String(result.notice || ''));
       setLoading(false);
     }).catch(() => {
       if (!live) return;
@@ -47,8 +52,8 @@ export default function EmployeeUsagePanel({
   return (
     <View nativeID="employee-usage" style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
       <Text style={[styles.heading, { color: colors.ink }]}>Brukerlogg</Text>
-      <Text style={{ color: colors.muted, fontSize: 13 }}>
-        Innlogging, sider, timeføring og invitasjon. IP-adressen hentes fra tilkoblingen når det er mulig.
+      <Text nativeID="employee-usage-notice" style={{ color: colors.muted, fontSize: 13 }}>
+        {notice || usageLogNotice(company)}
       </Text>
       {loading ? <ActivityIndicator color={colors.brand} /> : null}
       {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}

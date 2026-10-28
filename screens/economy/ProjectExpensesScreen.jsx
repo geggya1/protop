@@ -15,6 +15,8 @@ import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import OptionPicker from '../../components/OptionPicker';
 import { useTimesheetWorkspace } from '../arbeid/useTimesheetWorkspace';
 import { loadAnbudState } from '../../src/anbud/storage';
+import { useCompanyRefs } from '../../src/context/CompanyDataContext';
+import { hydrateRows } from '../../src/company/companyData.js';
 import { formatMoney, parseDate } from '../../src/economy/invoices.js';
 import { EXPENSE_STATUSES } from '../../src/economy/expenses.js';
 import { formatDate } from '../../src/economy/hoursList.js';
@@ -40,6 +42,11 @@ import { createId } from '../../src/project/engine';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
+import Breadcrumb from '../../components/Breadcrumb';
+import ReportTable from '../../components/table/ReportTable';
+import InlineError from '../../src/ui/InlineError';
+import Skeleton from '../../src/ui/Skeleton';
+import { radius, space, type } from '../../src/ui/tokens';
 
 function money(value) {
   return typeof formatMoney === 'function' ? formatMoney(value) : String(value ?? '');
@@ -53,6 +60,20 @@ async function bytesFromFile(file) {
     return new Uint8Array(await response.arrayBuffer());
   }
   throw new Error('Kunne ikke lese filen.');
+}
+
+// Status i tabellen og på telefonkortet: grønn når utlegget er godkjent eller betalt, rød når det er avvist.
+function statusTone(status, colors) {
+  if (status === 'approved' || status === 'invoiced' || status === 'reimbursed') return colors.successInk || colors.success;
+  if (status === 'rejected') return colors.dangerInk || colors.danger;
+  if (status === 'submitted') return colors.brandInk || colors.brand;
+  return colors.muted;
+}
+
+// Sorteringen i panelet («date-desc») og i tabellhodet ({ key, dir }) er den samme.
+function sortState(sort) {
+  const [key, dir] = String(sort || '').split('-');
+  return { key: key || 'date', dir: dir === 'desc' ? 'desc' : 'asc' };
 }
 
 function Choice({ label, on, onPress, colors }) {
@@ -73,11 +94,12 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
   // Import av utleggslister krever Admin på Prosjektutlegg.
   const adminImport = canImportList(useCompanyAccess(), 'economyProjectExpenses');
   const canImport = adminImport && canImportProp !== false;
-  const { width } = useLayout();
+  const { isWide } = useLayout();
   // Brede skjermer: filter og sortering i høyre marg, som på Timer.
-  const sideFilters = width >= 1100;
+  const sideFilters = !!isWide;
   const hostedHero = useModuleHeroHosted();
   const workspace = useTimesheetWorkspace({ lockedEmployeeId });
+  const refs = useCompanyRefs(workspace.workspaceId);
   const [customers, setCustomers] = useState([]);
   const [remoteExpenses, setRemoteExpenses] = useState([]);
   const [remoteReady, setRemoteReady] = useState(false);
@@ -98,6 +120,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
   const [linkQuery, setLinkQuery] = useState({});
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let live = true;
@@ -110,6 +133,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
   useEffect(() => {
     let live = true;
     setRemoteReady(false);
+    setError('');
     loadProjectExpenses(workspace.workspaceId).then((rows) => {
       if (!live) return;
       setRemoteExpenses(rows);
@@ -120,17 +144,18 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
       setError(String(cause?.message || '') || 'Kunne ikke laste importerte utlegg.');
     });
     return () => { live = false; };
-  }, [workspace.workspaceId]);
+  }, [workspace.workspaceId, reloadKey]);
 
   const allRows = useMemo(() => {
     const inline = (workspace.state?.expenses || []).filter((row) => !isExternalExpense(row));
-    const merged = mergeExpenseLists(remoteExpenses, inline);
+    // Person, kunde og prosjekt slås opp før filtrering og sortering (DS-08).
+    const merged = hydrateRows(mergeExpenseLists(remoteExpenses, inline), refs);
     const locked = workspace.lockedId;
     if (!locked) return merged;
     // Ansattsiden: det personen har registrert på prosjekt, også importerte rader uten kobling.
     const person = (workspace.employees || []).find((row) => row.id === locked) || { id: locked };
     return expensesForEmployee(merged, person);
-  }, [workspace.state, remoteExpenses, workspace.lockedId, workspace.employees]);
+  }, [workspace.state, remoteExpenses, workspace.lockedId, workspace.employees, refs]);
 
   const visible = useMemo(() => sortExpenses(filterExpenses(allRows, {
     query,
@@ -255,15 +280,26 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
 
   // På ansattsiden er medarbeideren gitt.
   const showEmployee = !workspace.lockedId;
+  // Felles rapporttabell (UX-24): tabell på bred skjerm, kort med beskrivelse, dato, kunde,
+  // beløp og status på telefon. Før var tabellen 980 px bred også på telefon.
+  // Minstebreddene (852 px) får plass ved siden av filterpanelet på PC; flex fordeler resten.
   const columns = [
-    ['date', 'Dato'],
-    ...(showEmployee ? [['employee', 'Medarbeider']] : []),
-    ['customer', 'Kunde'],
-    ['project', 'Prosjekt'],
-    ['description', 'Beskrivelse'],
-    ['amount', 'Beløp'],
-    ['status', 'Status'],
+    { key: 'date', label: 'Dato', width: 92, kind: 'date', text: (row) => formatDate(row.date), phone: 'meta' },
+    ...(showEmployee ? [{ key: 'employee', label: 'Medarbeider', width: 120, flex: 1, text: (row) => row.employeeName || '', phone: 'meta' }] : []),
+    { key: 'customer', label: 'Kunde', width: 120, flex: 1, text: (row) => row.customerName || '', phone: 'meta' },
+    {
+      key: 'project',
+      label: 'Prosjekt',
+      width: 140,
+      flex: 1,
+      text: (row) => `${row.projectNumber ? `#${row.projectNumber} ` : ''}${row.projectName || ''}`.trim(),
+      phone: 'meta',
+    },
+    { key: 'description', label: 'Beskrivelse', width: 170, flex: 1.5, text: (row) => row.purpose || row.description || '', sortable: false, phone: 'title' },
+    { key: 'amount', label: 'Beløp', width: 110, kind: 'money', value: (row) => row.amountInclVat, text: (row) => money(row.amountInclVat), phone: 'amount' },
+    { key: 'status', label: 'Status', width: 100, text: (row) => expenseStatusLabel(row.status), phone: 'badge' },
   ];
+  const totalAmount = visible.reduce((sum, row) => sum + (Number(row.amountInclVat) || 0), 0);
 
   const filterPanel = (
     <View style={[styles.panel, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="expense-filters">
@@ -351,7 +387,7 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
       <View style={sideFilters ? styles.mainCol : styles.stack}>
       {hostedHero || embedded ? null : (
         <>
-          <Text style={[styles.crumb, { color: colors.muted }]}>Økonomi / Prosjektutlegg</Text>
+          <Breadcrumb tab="arbeid" subView="utlegg" />
           <Text style={[styles.title, { color: colors.ink }]}>Prosjektutlegg</Text>
           <Text style={{ color: colors.muted }}>Utlegg som hører til prosjektet</Text>
         </>
@@ -375,7 +411,11 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
         </TouchableOpacity>
         ) : null}
       </View>
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      <InlineError
+        message={error}
+        nativeID="expense-error"
+        onRetry={remoteReady ? () => { setError(''); setReloadKey((n) => n + 1); } : undefined}
+      />
       {!!note && <Text style={{ color: colors.muted }}>{note}</Text>}
       <Text style={{ color: colors.muted }}>
         {remoteReady ? `${visible.length} av ${allRows.length} utlegg` : 'Laster utlegg…'}
@@ -383,42 +423,29 @@ export function ProjectExpensesScreen({ lockedEmployeeId = '', embedded = false,
 
       {!sideFilters && filtersOpen ? filterPanel : null}
 
-      <ScrollView horizontal>
-        <View style={{ minWidth: 980 }}>
-          <View style={[styles.tableRow, { backgroundColor: colors.sunken }]}>
-            {columns.map(([key, label]) => (
-              <TouchableOpacity key={key} onPress={() => toggleSort(key)} accessibilityRole="button">
-                <Text style={[styles.cell, { color: colors.muted, fontWeight: '700' }]}>{label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {visible.slice(0, pageSize).map((row) => (
-            <View key={row.id || row.importFingerprint} style={[styles.tableRow, { borderBottomColor: colors.line }]}>
-              <Text style={[styles.cell, { color: colors.ink }]}>{formatDate(row.date)}</Text>
-              {showEmployee ? (
-                <Text style={[styles.cell, { color: colors.ink }]} numberOfLines={2}>{row.employeeName || '—'}</Text>
-              ) : null}
-              <Text style={[styles.cell, { color: colors.ink }]} numberOfLines={2}>{row.customerName || '—'}</Text>
-              <Text style={[styles.cell, { color: colors.ink }]} numberOfLines={2}>
-                {row.projectNumber ? `#${row.projectNumber}` : ''} {row.projectName || ''}
-              </Text>
-              <Text style={[styles.cell, { color: colors.ink }]} numberOfLines={2}>{row.purpose || row.description || '—'}</Text>
-              <Text style={[styles.cell, { color: colors.ink }]}>{money(row.amountInclVat)}</Text>
-              <Text style={[styles.cell, { color: colors.ink }]}>{expenseStatusLabel(row.status)}</Text>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-      {!visible.length ? (
-        <Text style={{ color: colors.muted, padding: 12 }}>
-          {allRows.length ? 'Ingen utlegg i dette utvalget.' : 'Ingen prosjektutlegg er registrert.'}
-        </Text>
-      ) : null}
-      {visible.length > pageSize ? (
-        <TouchableOpacity onPress={() => setPageSize((n) => n + 60)} accessibilityRole="button">
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>Vis flere ({pageSize} av {visible.length})</Text>
-        </TouchableOpacity>
-      ) : null}
+      {!remoteReady && !allRows.length ? (
+        <Skeleton.Table rows={5} columns={columns.length} label="Laster utlegg" />
+      ) : (
+        <ReportTable
+          nativeID="expense-table"
+          colors={colors}
+          columns={columns}
+          rows={visible}
+          rowKey={(row) => row.id || row.importFingerprint}
+          sort={sortState(sort)}
+          onSort={(col) => toggleSort(col.key)}
+          rowLabel={(row) => [row.purpose || row.description, formatDate(row.date), money(row.amountInclVat)].filter(Boolean).join(', ')}
+          renderCell={(row, col) => (col.key === 'status' ? (
+            <Text style={[styles.status, { color: statusTone(row.status, colors), borderColor: colors.line }]} numberOfLines={1}>
+              {expenseStatusLabel(row.status)}
+            </Text>
+          ) : undefined)}
+          limit={pageSize}
+          onMore={() => setPageSize((n) => n + 60)}
+          totals={visible.length ? { amount: money(totalAmount) } : null}
+          empty={allRows.length ? 'Ingen utlegg i dette utvalget.' : 'Ingen prosjektutlegg er registrert.'}
+        />
+      )}
       </View>
       {sideFilters ? <View style={styles.side}>{filterPanel}</View> : null}
       </View>
@@ -432,7 +459,6 @@ const styles = StyleSheet.create({
   desk: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, width: '100%' },
   mainCol: { flex: 1, minWidth: 0, gap: 10 },
   side: { width: 300, flexShrink: 0 },
-  crumb: { fontSize: 12 },
   title: { fontSize: 22, fontWeight: '700' },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   importBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
@@ -442,6 +468,5 @@ const styles = StyleSheet.create({
   choice: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   dateInput: { minWidth: 140, flexGrow: 1 },
-  tableRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
-  cell: { width: 140, padding: 8, fontSize: 13 },
+  status: { alignSelf: 'flex-start', ...type.caption, fontWeight: '600', borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.xs, paddingVertical: 2, overflow: 'hidden' },
 });

@@ -1,5 +1,14 @@
 import assert from 'node:assert/strict';
-import { isDeleteConfirmed, planFamilyExit, withoutUid } from './deleteAccountLogic.js';
+import { readFileSync } from 'node:fs';
+import {
+  accountingBlockMessage,
+  googleTokensToRevoke,
+  isCompanyGroup,
+  isDeleteConfirmed,
+  isServerMember,
+  planFamilyExit,
+  withoutUid,
+} from './deleteAccountLogic.js';
 
 assert.equal(isDeleteConfirmed('DELETE'), true);
 assert.equal(isDeleteConfirmed(' delete '), true);
@@ -40,3 +49,63 @@ const memberOnly = planFamilyExit('me', {
 });
 assert.equal(memberOnly.action, 'leave');
 assert.equal(memberOnly.nextOwner, null);
+
+// SEC-16: et selskap brukeren bare har skrevet inn i egne familyIds, røres ikke.
+assert.equal(isServerMember({ members: ['me'] }, 'me'), true);
+assert.equal(isServerMember({ members: { me: true } }, 'me'), true);
+assert.equal(isServerMember({ adminUids: ['me'] }, 'me'), true);
+assert.equal(isServerMember({ ownerId: 'me' }, 'me'), true);
+assert.equal(isServerMember({ createdBy: 'me', adminUid: 'me', members: ['boss'] }, 'me'), false);
+
+const foreign = planFamilyExit('attacker', {
+  id: 'victim',
+  data: { ownerUid: 'boss', adminUids: ['boss'], members: ['boss'] },
+  otherLiveParentUids: [],
+});
+assert.equal(foreign.action, 'skip', 'fremmed selskap arkiveres ikke');
+assert.equal(foreign.nextOwner, null);
+
+// createdBy/adminUid (som medlemmer kan skrive) gir ikke eierskap å overføre.
+const selfWritten = planFamilyExit('me', {
+  id: 'fam5',
+  data: { ownerUid: 'boss', adminUids: ['boss'], members: ['boss', 'me', 'p3'], createdBy: 'me', adminUid: 'me' },
+  otherLiveParentUids: ['boss', 'p3'],
+});
+assert.equal(selfWritten.action, 'leave');
+assert.equal(selfWritten.nextOwner, null);
+
+const deleteSrc = readFileSync(new URL('./deleteAccount.js', import.meta.url), 'utf8');
+const leaveSrc = deleteSrc.slice(deleteSrc.indexOf('async function leaveFamily'), deleteSrc.indexOf('async function clearFriendships'));
+assert.ok(leaveSrc.indexOf("plan.action === 'skip'") < leaveSrc.indexOf('famRef.set('), 'skip før selskapet endres');
+
+// Siste person i en bedrift med utstedte fakturaer: kontoen slettes ikke (bokføringsloven § 13).
+const company = { ownerUid: 'me', adminUids: ['me'], members: ['me'], type: 'organization', company: { navn: 'Bygg AS' } };
+const blocked = planFamilyExit('me', { id: 'c1', data: company, otherLiveParentUids: [], hasAccounting: true });
+assert.equal(blocked.action, 'blocked');
+assert.equal(blocked.reason, 'accounting');
+// Uten fakturaer, eller med andre igjen i bedriften, går det som før.
+assert.equal(planFamilyExit('me', { id: 'c1', data: company, otherLiveParentUids: [], hasAccounting: false }).action, 'archive');
+const handover = planFamilyExit('me', { id: 'c1', data: company, otherLiveParentUids: ['emp'], hasAccounting: true });
+assert.equal(handover.action, 'leave');
+assert.equal(handover.nextOwner, 'emp');
+// Familier har ikke regnskap i ProTop.
+assert.equal(planFamilyExit('me', { id: 'f1', data: { ownerUid: 'me' }, otherLiveParentUids: [], hasAccounting: true }).action, 'archive');
+assert.equal(isCompanyGroup({ company: { navn: 'X AS' } }), true);
+assert.equal(isCompanyGroup({ type: 'family' }), false);
+// REV-20: type 'company' uten company.navn er også en bedrift, så regnskapssperren gjelder.
+assert.equal(isCompanyGroup({ type: 'company' }), true);
+assert.equal(isCompanyGroup({ type: 'Organization' }), true);
+assert.equal(planFamilyExit('me', { id: 'c2', data: { type: 'company', ownerUid: 'me', members: ['me'] }, otherLiveParentUids: [], hasAccounting: true }).action, 'blocked');
+assert.match(accountingBlockMessage(['Bygg AS', 'Bygg AS']), /«Bygg AS», som har utstedte fakturaer/);
+assert.match(accountingBlockMessage([]), /bedriften/);
+assert.match(accountingBlockMessage(['A']), /support@protop\.no/);
+
+assert.deepEqual(googleTokensToRevoke([
+  { type: 'google', refreshToken: 'r1', accessToken: 'a1' },
+  { type: 'google', accessToken: 'a2' },
+  { type: 'microsoft', refreshToken: 'm1' },
+  { type: 'google', refreshToken: 'r1' },
+  null,
+]), ['r1', 'a2']);
+
+console.log('deleteAccount.test.mjs: ok');

@@ -266,6 +266,103 @@ export function placeholderParts(line) {
 
 /* ───────── Standardinnhold ───────── */
 
+/** Overtidstillegget kan ikke gjøres avhengig av at kunden betaler (AML § 10-6 (11) og § 1-9). */
+const OVERTIME_TEXT = 'Overtid er arbeid utover lovens grenser for alminnelig arbeidstid, som er 9 timer per døgn og 40 timer per uke (arbeidsmiljøloven §§ 10-4 og 10-6). Overtid skal avtales med eller pålegges av nærmeste leder på forhånd. Arbeid utover arbeidstiden som leder har godtatt eller kjent til, er også overtid. Overtidstillegget er minst 40 % av timelønnen, også når timene ikke kan faktureres til oppdragsgiveren.';
+
+/** Vernet gjelder all forsvarlig varsling, ikke bare varsling i god tro (AML § 2 A-4). */
+const RETALIATION_TEXT = 'Gjengjeldelse mot den som varsler, er forbudt (arbeidsmiljøloven § 2 A-4).';
+
+/** Kapitler som kom i standardhåndboken etter lovgjennomgangen. Brukes også av lovsjekken. */
+const LEGAL_CHAPTERS = {
+  varsling: {
+    title: 'Varsling av kritikkverdige forhold',
+    body: `
+Dette er varslingsrutinen i {{firma}} etter arbeidsmiljøloven kapittel 2 A. Virksomheter med minst fem ansatte skal ha en skriftlig rutine, laget i samarbeid med de ansatte og tillitsvalgte (§ 2 A-3). Rutinen er laget sammen med [[tillitsvalgt / de ansatte, dato]].
+
+## Hva du kan varsle om
+Alle arbeidstakere har rett til å varsle om kritikkverdige forhold i virksomheten (§ 2 A-1). Det gjelder også innleide, om forhold hos {{firma}}. Kritikkverdige forhold er brudd på lover og regler, på virksomhetens etiske retningslinjer eller på alminnelige etiske normer, for eksempel:
+• fare for liv eller helse
+• fare for klima eller miljø
+• korrupsjon eller annen økonomisk kriminalitet
+• myndighetsmisbruk
+• uforsvarlig arbeidsmiljø, mobbing og trakassering
+• brudd på personopplysningssikkerheten
+Uenighet om eget arbeidsforhold er som hovedregel ikke varsling, med mindre forholdet også er kritikkverdig. Ta det opp med nærmeste leder.
+
+## Slik varsler du
+Du kan varsle muntlig eller skriftlig, og du kan be om å være anonym. Du kan varsle til:
+• nærmeste leder eller daglig leder
+• [[varslingsmottaker: navn og e-post]]
+• verneombud eller tillitsvalgt
+• advokat, for å få råd
+• tilsynsmyndigheter eller andre offentlige myndigheter, for eksempel Arbeidstilsynet, Datatilsynet, Økokrim eller politiet
+Varsling i samsvar med denne rutinen, eller til tilsynsmyndigheter, er alltid forsvarlig. Varsling til media eller offentligheten er forsvarlig når du er i god tro om innholdet, forholdet har allmenn interesse og du først har varslet internt, eller har grunn til å tro at det ikke ville være hensiktsmessig (§ 2 A-2).
+
+## Hvordan varselet behandles
+• Mottakeren bekrefter at varselet er mottatt.
+• Varselet undersøkes innen rimelig tid og så konfidensielt som mulig. Bare de som må, får vite hvem som har varslet.
+• Den som varslet, får tilbakemelding om hvordan saken følges opp.
+• Den det varsles om, får vite hva saken gjelder og får uttale seg.
+• Saken dokumenteres og avsluttes skriftlig. Opplysningene slettes når de ikke lenger trengs.
+
+## Vern mot gjengjeldelse
+${RETALIATION_TEXT} Gjengjeldelse er for eksempel trusler, trakassering, usaklig forskjellsbehandling, sosial ekskludering, oppsigelse eller endrede arbeidsoppgaver. Den som har varslet, kan kreve oppreisning og erstatning ved gjengjeldelse.
+`,
+  },
+  personvern: {
+    title: 'Personvern for ansatte',
+    body: `
+{{firma}} er behandlingsansvarlig for personopplysninger om de ansatte. Her står hvilke opplysninger vi behandler, hvorfor, hvem som ser dem og hvor lenge de lagres (personvernforordningen artikkel 13).
+
+## Hvilke opplysninger vi behandler
+• Navn, kontaktopplysninger, fødselsdato, personnummer og nærmeste pårørende
+• Arbeidsavtale, stilling, lønn, skattetrekk og bankkonto
+• Timeføring, fravær og ferie. Sykefravær registreres bare som type fravær, aldri med diagnose.
+• Kompetanse, kurs, HMS-kort og medarbeidersamtaler
+• Bruken av ProTop, se kapitlet om kontrolltiltak
+
+## Hvorfor
+Opplysningene trengs for å oppfylle arbeidsavtalen og lovpålagte plikter: lønn og a-melding, regnskap, arbeidsmiljøloven med arbeidstidsregler og HMS, og ferieloven. Noe behandles fordi bedriften har en berettiget interesse, for eksempel fakturering av timer til kunder.
+
+## Hvem som ser opplysningene
+Nærmeste leder og den som har ansvar for HR og lønn, ser det de trenger for jobben. [[Regnskapsfører / lønnsbyrå]] behandler lønn på vegne av bedriften. ProTop og andre leverandører er databehandlere og behandler opplysningene bare etter avtale med oss.
+
+## Hvor lenge
+• Personalmappen slettes [[3 år]] etter at arbeidsforholdet er slutt, med mindre noe må tas vare på lenger.
+• Timer, lønnsgrunnlag og bilag oppbevares i fem år etter regnskapsårets slutt (bokføringsloven).
+• Søknader fra søkere som ikke blir ansatt, slettes [[6 måneder]] etter at stillingen er besatt.
+
+## Dine rettigheter
+Du har rett til innsyn i opplysningene om deg, og til å få feil rettet. Du kan i noen tilfeller kreve sletting eller begrenset behandling, protestere og få utlevert dine data. Spørsmål rettes til [[personvernansvarlig: navn og e-post]]. Du kan klage til Datatilsynet.
+`,
+  },
+  kontrolltiltak: {
+    title: 'Kontrolltiltak',
+    body: `
+Kontrolltiltak overfor ansatte skal ha saklig grunn og ikke være en uforholdsmessig belastning (arbeidsmiljøloven § 9-1). Tiltakene drøftes med tillitsvalgte så tidlig som mulig, og de ansatte får vite formålet, hvordan tiltaket virker og hvor lenge det varer, før det tas i bruk (§ 9-2). Tiltakene evalueres jevnlig.
+
+## Kontrolltiltak i {{firma}}
+• Timeføring i ProTop: for lønn, fakturering og for å følge arbeidstidsreglene. Leder ser timene til sine ansatte.
+• [[Aktivitetslogg i ProTop: innlogging og sist aktiv, for sikkerhet og support. Slettes etter 90 dager.]]
+• [[Kjørebok for tjenestebil og bompenger.]]
+• [[Adgangskontroll med HMS-kort på byggeplass.]]
+• [[Kameraovervåking: hvor, hvorfor og hvor lenge opptak lagres.]]
+Nye tiltak tas ikke i bruk før de er drøftet og de ansatte er informert.
+
+## Innsyn i e-post og filer
+Bedriften kan bare se i ansattes e-postkasse, filområder og annet elektronisk materiale når det er nødvendig for driften eller andre berettigede interesser, eller ved begrunnet mistanke om grovt brudd på pliktene i arbeidsforholdet (forskrift om arbeidsgivers innsyn i e-postkasse og annet elektronisk lagret materiale). Den ansatte varsles og får uttale seg før innsyn, og kan være til stede med en tillitsvalgt. Innsynet dokumenteres. Opplysninger som åpenbart er private, åpnes ikke.
+`,
+  },
+  hmsKort: {
+    title: 'HMS-kort og adgang til byggeplass',
+    body: `
+Alle som utfører arbeid på bygge- og anleggsplasser, skal ha gyldig HMS-kort og bære det synlig (forskrift om HMS-kort for bygge- og anleggsplasser). Kortet bestilles av arbeidsgiver. Kortnummer og utløpsdato registreres i HR under Lovpålagt, og leder får varsel før kortet går ut.
+
+Byggherren fører en daglig oversiktsliste over hvem som arbeider på plassen (byggherreforskriften § 15). {{firma}} leverer listen fra timeføringen når byggherren ber om den. Mist du kortet, sier du fra til [[nærmeste leder]] samme dag.
+`,
+  },
+};
+
 /**
  * Standard personalhåndbok, bygd på en byggrådgivers personalhåndbok (revisjon 11) og
  * arbeidsmiljøloven. Bedriftens egne valg står i [[…]] og må bekreftes før publisering.
@@ -361,7 +458,7 @@ Krenkende adferd, trakassering, mobbing og utilbørlig språkbruk aksepteres ikk
 Der det er mulig og rimelig, legger selskapet til rette for ansatte med ulike behov knyttet til helse, funksjonsevne, livssituasjon, religion, språk eller familieforpliktelser, i dialog med den enkelte.
 
 ## Ansvar, varsling og oppfølging
-Ledelsen har ansvar for at retningslinjene er kjent og etterleves. Alle ansatte har ansvar for å si fra om kritikkverdige forhold, til nærmeste leder, daglig leder eller gjennom varslingsrutinen. Henvendelser behandles forsvarlig og så konfidensielt som mulig. Gjengjeldelse mot den som varsler i god tro aksepteres ikke. Retningslinjene vurderes jevnlig som en del av det systematiske arbeidsmiljøarbeidet.
+Ledelsen har ansvar for at retningslinjene er kjent og etterleves. Alle ansatte har ansvar for å si fra om kritikkverdige forhold, til nærmeste leder, daglig leder eller gjennom varslingsrutinen. Henvendelser behandles forsvarlig og så konfidensielt som mulig. ${RETALIATION_TEXT} Retningslinjene vurderes jevnlig som en del av det systematiske arbeidsmiljøarbeidet.
 `),
     c('Medarbeidersamtaler, lojalitet og verneombud', `
 ## Medarbeidersamtaler
@@ -412,7 +509,7 @@ Arbeidstiden føres daglig i ProTop (Timeliste) og sendes til godkjenning ukentl
 Den ansatte skal tilstrebe maks [[10 timer plusstid per uke og 25 timer per måned]], og ingen arbeidsdag over [[13 timer]]. Negativ saldo bør ikke overstige [[37,5 timer]]. Plusstid avspaseres time mot time. Er det vanskelig å avspasere i løpet av året, varsles nærmeste leder, som setter opp en avspaseringsplan. Utbetaling av plusstid skjer bare unntaksvis.
 
 ## Overtid og mertid
-Overtid kompenseres når den er pålagt skriftlig av nærmeste leder på forhånd, normalt når oppdragsgiver betaler for det. Det betales [[50 %]] tillegg. Timelønn beregnes som månedslønn delt på [[162,5]] timer. Mertid avspaseres time for time. Ved årsslutt skal saldoen være 0, om ikke annet er avtalt.
+${OVERTIME_TEXT} Det betales [[50 %]] tillegg. Timelønn beregnes som månedslønn delt på [[162,5]] timer. Mertid er arbeid utover avtalt arbeidstid, men innenfor lovens grenser, og avspaseres time for time. Ved årsslutt skal saldoen være 0, om ikke annet er avtalt.
 
 ## Unntatt fra arbeidstidsreglene
 Arbeidstakere i ledende eller særlig uavhengig stilling er unntatt fra arbeidstidsreglene, jf. arbeidsmiljøloven § 10-12. Dette står i arbeidsavtalen.
@@ -508,5 +605,69 @@ Poolbiler bookes i kalenderen og brukes til eksterne møter og prosjekter. Kjør
 ## Telefon
 Selskapet holder mobiltelefon[[ (inntil 10 000 kr)]] og dekker abonnement [[med inntil 8 GB data per måned]]. Dyrere telefon eller privat bruk utover dette trekkes i lønn. Den ansatte er selv ansvarlig for å slå av dataroaming i utlandet.
 `),
+    // Lagt til sist, så id-ene std_1–std_15 på kapitlene over står som før.
+    ...LEGAL_CHAPTER_ORDER.map((key) => c(LEGAL_CHAPTERS[key].title, LEGAL_CHAPTERS[key].body)),
   ].map((row, index) => ({ ...row, id: `std_${index + 1}` })));
+}
+
+/* ───────── Lovsjekk av en håndbok som allerede er i bruk ───────── */
+
+const LEGAL_CHAPTER_ORDER = ['varsling', 'personvern', 'kontrolltiltak', 'hmsKort'];
+
+const OVERTIME_CUSTOMER = /[^.\n]*overtid[^.\n]*(?:oppdragsgiver|kunde)[a-zæøå]*\s+betaler[^.\n]*\.?/gi;
+const GOOD_FAITH = /[^.\n]*gjengjeldelse[^.\n]*i god tro[^.\n]*\.?/gi;
+
+function hasTitle(chapters, pattern) {
+  return chapters.some((row) => pattern.test(row.title));
+}
+
+/**
+ * Tekst i håndboken som strider mot loven, og kapitler som mangler.
+ * [{ id, level: 'feil' | 'mangler', text, chapterId }]. Hvert funn kan rettes med applyHandbookFix.
+ */
+export function handbookLegalIssues(handbook) {
+  const chapters = normalizeHandbook(handbook).chapters;
+  const out = [];
+  for (const row of chapters) {
+    if (row.body.match(OVERTIME_CUSTOMER)) {
+      out.push({ id: 'overtimeCustomer', level: 'feil', chapterId: row.id, text: `«${row.title}» knytter overtidstillegget til at oppdragsgiveren betaler. Tillegget på minst 40 % skal betales uansett (arbeidsmiljøloven § 10-6 (11)).` });
+    }
+    if (row.body.match(GOOD_FAITH)) {
+      out.push({ id: 'goodFaith', level: 'feil', chapterId: row.id, text: `«${row.title}» sier at bare varsling i god tro er vernet. Vernet mot gjengjeldelse gjelder all forsvarlig varsling (arbeidsmiljøloven § 2 A-4).` });
+    }
+  }
+  if (!hasTitle(chapters, /varsl/i)) {
+    out.push({ id: 'varsling', level: 'mangler', chapterId: '', text: 'Håndboken mangler varslingsrutine. Virksomheter med minst fem ansatte skal ha en skriftlig rutine (arbeidsmiljøloven § 2 A-3).' });
+  }
+  if (!hasTitle(chapters, /personvern/i)) {
+    out.push({ id: 'personvern', level: 'mangler', chapterId: '', text: 'Håndboken mangler et kapittel om personvern for ansatte: hvilke opplysninger, hvorfor, hvem som ser dem og hvor lenge (personvernforordningen artikkel 13).' });
+  }
+  if (!hasTitle(chapters, /kontrolltiltak/i)) {
+    out.push({ id: 'kontrolltiltak', level: 'mangler', chapterId: '', text: 'Håndboken mangler et kapittel om kontrolltiltak, som timeføring, aktivitetslogg og innsyn i e-post (arbeidsmiljøloven kapittel 9).' });
+  }
+  if (!hasTitle(chapters, /hms-kort/i)) {
+    out.push({ id: 'hmsKort', level: 'mangler', chapterId: '', text: 'Håndboken mangler et kapittel om HMS-kort og adgang til byggeplass.' });
+  }
+  return out;
+}
+
+/** Retter ett funn fra handbookLegalIssues: bytter ut teksten eller legger til kapitlet sist. */
+export function applyHandbookFix(handbook, issueId, { now = new Date() } = {}) {
+  const h = normalizeHandbook(handbook);
+  if (issueId === 'overtimeCustomer' || issueId === 'goodFaith') {
+    const pattern = issueId === 'overtimeCustomer' ? OVERTIME_CUSTOMER : GOOD_FAITH;
+    const replacement = issueId === 'overtimeCustomer' ? OVERTIME_TEXT : RETALIATION_TEXT;
+    return {
+      ...h,
+      changedAt: now.toISOString(),
+      chapters: h.chapters.map((row) => {
+        if (!row.body.match(pattern)) return row;
+        const body = row.body.replace(pattern, (match) => `${/^\s/.test(match) ? ' ' : ''}${replacement}`);
+        return { ...row, body };
+      }),
+    };
+  }
+  const chapter = LEGAL_CHAPTERS[issueId];
+  if (!chapter) return h;
+  return addChapter(h, { title: chapter.title, body: chapter.body.trim() }, { now }).handbook;
 }

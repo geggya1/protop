@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Platform } from 'react-native';
 import { db } from '../../firebase';
 import { getOpenChatId } from '../utils/openChat';
@@ -8,6 +8,7 @@ import {
   timestampToMs,
   unreadCountForUser,
 } from '../utils/chats';
+import { chatMessageNotice, chatNoticeId } from '../utils/chatsLogic';
 import { pushSupported, showLocalNotification } from '../utils/push';
 import { isChannelOn } from '../utils/notificationPrefs';
 import { notificationNavPayload } from '../utils/inAppNotifications';
@@ -60,10 +61,19 @@ export function useChatSelfNotify(familyId, uid, prefs) {
           if (!unreadFallback) return;
           if (getOpenChatId() === data.id) return;
 
-          const notifId = `chat_${data.id}_${stamp}`.slice(0, 700);
-          const chatTitle = String(data.title || data.name || '').trim() || 'Chat';
-          const title = chatTitle === 'Chat' ? 'Ny melding' : chatTitle;
-          const body = String(data.lastText || '').slice(0, 280);
+          // Samme id som avsenderen og serveren (msg_<meldings-id>), så det blir ett varsel
+          // og ulest 1, ikke 2 (SOS-11).
+          const notifId = chatNoticeId({ chatId: data.id, stampId: stamp, messageId: data.unreadStampId });
+          // DM: chattens tittel er satt av avsenderen til mottakerens navn. Bruk avsenderen (SOS-13).
+          const isDm = String(data.id).startsWith('dm_') || data.type === 'dm';
+          const { title, body } = chatMessageNotice({
+            chatId: data.id,
+            isDm,
+            chatTitle: String(data.title || data.name || '').trim(),
+            senderName: data.lastSenderName,
+            text: data.lastText,
+          });
+          const chatTitle = isDm ? title : (String(data.title || data.name || '').trim() || 'Chat');
           const payload = {
             eventType: 'messageReceived',
             title,
@@ -77,9 +87,13 @@ export function useChatSelfNotify(familyId, uid, prefs) {
             createdBy: uid,
           };
 
-          setDoc(doc(db, 'users', uid, 'notifications', notifId), payload).catch((err) => {
-            console.warn('[protop-notif] chat self-notify inbox', err?.code, err?.message);
-          });
+          // Reserve: skriv bare når avsenderen eller serveren ikke allerede har laget varselet.
+          const notifRef = doc(db, 'users', uid, 'notifications', notifId);
+          getDoc(notifRef)
+            .then((snap) => (snap.exists() ? null : setDoc(notifRef, payload)))
+            .catch((err) => {
+              console.warn('[protop-notif] chat self-notify inbox', err?.code, err?.message);
+            });
           console.log('[protop-notif] chat self-notify queued', {
             chatId: data.id, notifId, unread,
           });

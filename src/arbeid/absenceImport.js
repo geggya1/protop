@@ -79,7 +79,10 @@ const TYPE_ALIASES = new Map([
   [fold('Mammadag'), 'foreldre'],
   [fold('Foreldrepenger'), 'foreldre'],
   [fold('Annet'), 'annet'],
+  // Navn fra eldre eksport (før standardtypene fikk generiske navn) tolkes som før.
   [fold('Reisetid - Frøya (Ikke til lønn) (Annet fravær)'), 'reise_uten_lonn'],
+  [fold('Reisetid - Frøya (Ikke til lønn)'), 'reise_uten_lonn'],
+  [fold('Interntid - Smartplan (Ikke til timebank)'), 'intern_smart'],
 ]);
 
 function isNoiseHoursHeader(key) {

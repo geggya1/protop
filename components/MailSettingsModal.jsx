@@ -24,6 +24,8 @@ export default function MailSettingsModal({
   onConnect,
   onGrant,
   onRemove,
+  error = '',
+  onDismissError,
   composePrefs,
   onComposePrefsChange,
 }) {
@@ -64,6 +66,17 @@ export default function MailSettingsModal({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            {error ? (
+              <View style={styles.errorBox} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                <Ionicons name="alert-circle-outline" size={16} color="#b91c1c" />
+                <Text style={styles.errorTxt}>{error}</Text>
+                {onDismissError ? (
+                  <TouchableOpacity onPress={onDismissError} hitSlop={8} accessibilityRole="button" accessibilityLabel="Lukk feilmeldingen">
+                    <Ionicons name="close" size={16} color={colors.muted} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            ) : null}
             <Text style={styles.kicker}>Kontoer</Text>
             {accounts.length === 0 ? (
               <Text style={styles.hint}>Ingen Outlook-kontoer ennå. Koble til for å lese e-post her.</Text>
@@ -156,6 +169,18 @@ export default function MailSettingsModal({
 }
 
 const styles = StyleSheet.create({
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 10,
+    marginBottom: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+  },
+  errorTxt: { flex: 1, minWidth: 0, color: '#991b1b', fontSize: 13, lineHeight: 18 },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.42)',

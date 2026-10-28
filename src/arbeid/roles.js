@@ -3,6 +3,7 @@
 import {
   employeeActivityTab,
   employeeDirectoryBucket,
+  isActiveEmployee,
 } from '../employees/model.js';
 
 export const PROJECT_ROLES = [
@@ -46,7 +47,7 @@ export function canManageTimesheets({ isAdmin, employee } = {}) {
 /** Finn ansattkobling for innlogget bruker. */
 export function findLinkedEmployee(employees, uid) {
   if (!uid || !Array.isArray(employees)) return null;
-  return employees.find((row) => row.personUid === uid && row.company?.status !== 'former') || null;
+  return employees.find((row) => row.personUid === uid && isActiveEmployee(row)) || null;
 }
 
 export function employeeDisplayName(employee) {
@@ -85,10 +86,12 @@ export function matchEmployeePickerQuery(row, query = '') {
 /**
  * Filtrer aktive medarbeidere for Velg medarbeider-listen.
  * Søker i navn, rolle, tittel, ansattnummer og e-post.
+ * includeClosed: rapporter og historikk tar med deaktiverte og sluttede, men ikke papirkurven.
  */
-export function filterEmployeesForPicker(employees, query = '') {
-  const active = (Array.isArray(employees) ? employees : [])
-    .filter((row) => row?.company?.status !== 'former' && employeeActivityTab(row) !== 'trash');
+export function filterEmployeesForPicker(employees, query = '', { includeClosed = false } = {}) {
+  const active = (Array.isArray(employees) ? employees : []).filter((row) => (
+    includeClosed ? !!row && employeeActivityTab(row) !== 'trash' : isActiveEmployee(row)
+  ));
   if (!String(query || '').trim()) return active;
   return active.filter((row) => matchEmployeePickerQuery(row, query));
 }

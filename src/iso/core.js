@@ -134,6 +134,24 @@ export function nextNumber(prefix, existing, now = new Date()) {
   return `${head}${String(max + 1).padStart(3, '0')}`;
 }
 
+/** «AVV-2026-007» → { series: 'AVV-2026', n: 7 }. Null for andre formater. */
+export function numberParts(number) {
+  const match = /^([A-Z]+-\d{4})-(\d+)$/.exec(String(number || ''));
+  return match ? { series: match[1], n: Number(match[2]) } : null;
+}
+
+/**
+ * Nummer tildelt mot telleren for serien (families/{id}/isoCounters/{serie}): aldri lavere enn
+ * telleren + 1, og aldri lavere enn det klienten regnet ut fra sakene den ser.
+ * To samtidige meldinger, eller en bruker som ikke ser skjermede saker, får dermed ikke samme nummer.
+ */
+export function numberFromCounter(proposed, last) {
+  const parts = numberParts(proposed);
+  if (!parts) return null;
+  const n = Math.max((Number(last) || 0) + 1, parts.n);
+  return { number: `${parts.series}-${String(n).padStart(3, '0')}`, series: parts.series, last: n };
+}
+
 export function byId(list) {
   const map = new Map();
   for (const row of list || []) if (row?.id) map.set(row.id, row);

@@ -25,6 +25,7 @@ import {
 const CATEGORY_META = {
   members: { label: 'Familie', icon: 'people-outline' },
   chat: { label: 'Chat', icon: 'chatbubbles-outline' },
+  friends: { label: 'Venner', icon: 'person-add-outline' },
   plan: { label: 'Kalender', icon: 'calendar-outline' },
   stars: { label: 'Oppgaver', icon: 'star-outline' },
   chores: { label: 'Gjøremål', icon: 'checkmark-circle-outline' },
@@ -195,7 +196,7 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
   const nav = useNavigation();
   const { t } = useI18n();
   const { isDesktop } = useLayout();
-  const { uid, familyId, requestShellTab } = useApp();
+  const { uid, familyId, requestShellTab, selectFamily } = useApp();
   const { items, unreadTotal } = useUnread();
   const [familyInvites, setFamilyInvites] = useState([]);
   const [gameInvites, setGameInvites] = useState([]);
@@ -287,6 +288,19 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
       return;
     }
 
+    // Bedrift: forespørsel om å bli med → Ansatte, Inviter brukere (der forespørselen står).
+    // Noen har forlatt bedriften → Ansatte. Riktig bedrift velges først.
+    if (n.eventType === 'companyJoinRequest' || n.eventType === 'companyMemberLeft') {
+      if (n.familyId && n.familyId !== familyId) await selectFamily?.(n.familyId);
+      nav.navigate('Home', {
+        openShell: {
+          tab: 'ansatte',
+          intent: n.eventType === 'companyJoinRequest' ? { type: 'openInvite' } : null,
+        },
+      });
+      return;
+    }
+
     if (n.eventType === 'gameInvite') {
       if (navigateFromNotification(n)) return;
     }
@@ -322,7 +336,7 @@ export default function NotificationsScreen({ inShell = false, onBack = null }) 
 
     if (navigateFromNotification(n)) return;
     goHome();
-  }, [nav, goHome]);
+  }, [nav, goHome, familyId, selectFamily]);
 
   const openRow = useCallback(async (row) => {
     if (uid) {

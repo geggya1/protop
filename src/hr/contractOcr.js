@@ -43,18 +43,24 @@ export function parseEmploymentContractText(text) {
     positionTitle: pick(/stilling(?:stittel)?[:\s]+([^\n]+)/i) || pick(/tittel[:\s]+([^\n]+)/i),
     roleDescription: pick(/arbeidsoppgaver[:\s]+([^\n]+(?:\n(?![A-ZÆØÅ]).+)*)/i),
     startDate: iso(pick(/tiltrer[:\s]+([^\n]+)/i) || pick(/startdato[:\s]+([^\n]+)/i) || pick(/fra\s+og\s+med[:\s]+([^\n]+)/i)),
+    employmentType: pick(/ansettelsesform[:\s]+([^\n]+)/i),
     endDate: iso(pick(/til\s+og\s+med[:\s]+([^\n]+)/i) || pick(/sluttdato[:\s]+([^\n]+)/i)),
     temporaryBasis: pick(/midlertidig[^.\n]*grunnlag[:\s]+([^\n]+)/i),
     probationMonths: pick(/prøvetid[:\s]+(\d+)\s*måned/i),
     holidayTerms: pick(/ferie[:\s]+([^\n]+)/i),
     noticePeriod: pick(/oppsigelsesfrist[:\s]+([^\n]+)/i),
+    terminationProcedure: pick(/(?:opphør|søksmål)[^:\n]*:\s*([^\n]+)/i),
     salaryAmount: pick(/årslønn[:\s]+([\d\s.]+)/i) || pick(/lønn[:\s]+([\d\s.]+)/i),
     salaryExtras: pick(/tillegg[:\s]+([^\n]+)/i),
     paySchedule: pick(/utbetales[:\s]+([^\n]+)/i),
     workPercent: pick(/stillingsprosent[:\s]+(\d+)/i) || pick(/(\d+)\s*%\s*stilling/i),
     workHours: pick(/arbeidstid[:\s]+([^\n]+)/i),
+    overtimeTerms: pick(/overtid[:\s]+([^\n]+)/i),
     breakLength: pick(/pause[:\s]+([^\n]+)/i),
     collectiveAgreement: pick(/tariffavtale[:\s]+([^\n]+)/i),
+    hirerIdentity: pick(/innleievirksomhet[:\s]+([^\n]+)/i),
+    competenceDevelopment: pick(/kompetanseutvikling[:\s]+([^\n]+)/i),
+    pensionInsurance: pick(/pensjon[:\s]+([^\n]+)/i),
     passportOrId: pick(/pass(?:nummer)?[:\s]+([^\n]+)/i) || pick(/fødselsnummer[:\s]+([^\n]+)/i),
     loanOrAdvance: pick(/lån[:\s]+([^\n]+)/i) || pick(/forskudd[:\s]+([^\n]+)/i),
     otherTerms: '',
@@ -132,26 +138,4 @@ export async function interpretEmploymentContract({
       error: String(error?.message || error || ''),
     };
   }
-}
-
-/** Map ekstraherte avtalefelt inn i ansatt-stamdata. */
-export function applyContractFieldsToEmployee(employee, fields = {}) {
-  const next = JSON.parse(JSON.stringify(employee || {}));
-  if (!next.person) next.person = {};
-  if (!next.company) next.company = {};
-  if (fields.employeeName && !next.person.firstName) {
-    const parts = String(fields.employeeName).split(/\s+/).filter(Boolean);
-    next.person.firstName = parts[0] || '';
-    next.person.lastName = parts.slice(1).join(' ');
-  }
-  if (fields.positionTitle || fields.title) {
-    next.company.title = fields.positionTitle || fields.title;
-  }
-  if (fields.startDate) next.company.periodFrom = fields.startDate;
-  if (fields.endDate) next.company.periodTo = fields.endDate;
-  if (fields.workPercent) next.company.workPercent = String(fields.workPercent).replace(/[^\d.]/g, '') || next.company.workPercent;
-  if (fields.roleDescription) {
-    next.company.comment = [next.company.comment, fields.roleDescription].filter(Boolean).join('\n');
-  }
-  return next;
 }

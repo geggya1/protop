@@ -40,11 +40,11 @@ export function mergeExpenseLists(...lists) {
 }
 
 async function firestoreBits() {
-  const [{ collection, doc, getDocs, writeBatch }, { db }] = await Promise.all([
+  const [{ collection, deleteDoc, doc, getDoc, getDocs, writeBatch }, { db }] = await Promise.all([
     import('firebase/firestore'),
     import('../../firebase.js'),
   ]);
-  return { collection, doc, getDocs, writeBatch, db };
+  return { collection, deleteDoc, doc, getDoc, getDocs, writeBatch, db };
 }
 
 function entryRef(bits, companyId, id) {
@@ -101,4 +101,21 @@ export async function saveProjectExpenses(companyId, rows, { onProgress } = {}) 
     onProgress?.(done, list.length);
   }
   return { saved: list.length };
+}
+
+function invoicedRow(row) {
+  return row?.status === 'invoiced' || !!text(row?.invoiceId);
+}
+
+/** Slett ett importert utlegg fra samlingen. Fakturert utlegg slettes ikke. */
+export async function deleteProjectExpense(companyId, expense) {
+  const id = text(companyId);
+  const expenseId = text(expense?.id);
+  if (!id || !expenseId) throw new Error('Mangler utlegg.');
+  if (invoicedRow(expense)) throw new Error('Fakturert utlegg kan ikke slettes.');
+  const bits = await firestoreBits();
+  const ref = entryRef(bits, id, expenseId);
+  const snap = await bits.getDoc(ref);
+  if (snap.exists() && invoicedRow(snap.data())) throw new Error('Fakturert utlegg kan ikke slettes.');
+  await bits.deleteDoc(ref);
 }

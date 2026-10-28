@@ -9,6 +9,7 @@ import {
   documentPreviewKind,
   documentPreviewLabel,
   documentSupportsOfficeEmbed,
+  isActiveContentMime,
 } from './documentAccess.js';
 import {
   loadAgreementBytes,
@@ -87,7 +88,9 @@ export function openAgreementDocument(doc) {
       try {
         const file = await loadAgreementBytes(doc);
         const blobUrl = file ? rememberAgreementBlobUrl(doc, file) : '';
-        const sessionBlob = String(doc?.uri || '').startsWith('blob:') ? String(doc.uri) : '';
+        // Blob-en fra opplastingen har filens egen type. HTML/SVG åpnes aldri derfra (samme opphav).
+        const activeDoc = documentPreviewKind(doc) === 'html' || isActiveContentMime(doc?.mimeType) || /\.svg$/i.test(String(doc?.name || ''));
+        const sessionBlob = !activeDoc && String(doc?.uri || '').startsWith('blob:') ? String(doc.uri) : '';
         const next = blobUrl || direct || sessionBlob;
         if (next && tab && !tab.closed) {
           try { tab.opener = null; } catch { /* ignore */ }

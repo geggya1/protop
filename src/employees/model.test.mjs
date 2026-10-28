@@ -438,7 +438,10 @@ const FNR = sampleNationalId();
 {
   const gaps = gapReport(emptyEmployee());
   assert.ok(gaps.register.some((item) => item.label === 'Fornavn'));
-  assert.ok(gaps.person.some((item) => item.label === 'Personnummer'));
+  // L-17: personnummer er valgfritt, og sivil status kreves ikke for CV.
+  assert.equal(gaps.person.some((item) => item.label === 'Personnummer'), false);
+  assert.equal(gaps.cv.some((item) => item.label === 'Sivil status'), false);
+  assert.ok(gaps.person.some((item) => item.label === 'Fødselsdato'));
   assert.ok(gaps.person.some((item) => item.owner === 'person' && item.label === 'Pårørende'));
   assert.ok(gaps.cv.some((item) => item.label === 'Utdanning'));
   assert.ok(gaps.cv.some((item) => item.label === 'Erfaring'));

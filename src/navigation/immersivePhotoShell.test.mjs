@@ -18,6 +18,9 @@ assert.equal(isImmersivePhotoShell({ ...parentPhone, tab: 'plan' }), false);
 assert.equal(isImmersivePhotoShell({ ...parentPhone, tab: 'more', isPhone: false }), false);
 assert.equal(isImmersivePhotoShell({ ...parentPhone, tab: 'home', kitchenMode: true }), false);
 assert.equal(isImmersivePhotoShell({ ...parentPhone, tab: 'home', simpleChildUi: true }), false);
+// UX-05: uten bakgrunnsbilde er Hjem den vanlige ProTop-flaten.
+assert.equal(isImmersivePhotoShell({ ...parentPhone, tab: 'home', photo: false }), false);
+assert.equal(isImmersivePhotoShell({ ...parentPhone, tab: 'more', moreSubView: null, photo: false }), false);
 
 const childPhone = {
   isPhone: true,

@@ -19,6 +19,7 @@ import {
 } from './invoices.js';
 import { lineSources, normalizeLines, round2, totalsFromLines } from './invoiceLines.js';
 import { buildKid } from './kid.js';
+import { invoiceContentChecks, missingContentError } from './invoiceContent.js';
 
 /** Poster som ikke skal faktureres, merkes med denne i stedet for en faktura-id. */
 export const WRITE_OFF_ID = 'avskrevet';
@@ -186,6 +187,7 @@ export const DRAFT_FIELDS = [
   'contractReference', 'addressLineAbove', 'addressLineBelow', 'externalProjectNumber',
   'invoiceDate', 'dueDate', 'invoiceDateSet', 'dueDateSet', 'creditDays', 'department', 'activities', 'bankAccount', 'kid',
   'invoiceText', 'footerText', 'language', 'lines', 'deliveryMethod', 'currency', 'attachments',
+  'customerCopy',
 ];
 
 /** Endrer utkastet. Godkjenningen faller bort når innholdet endres. */
@@ -313,14 +315,10 @@ export function isPublicBuyer(invoice) {
   return PUBLIC_BUYER.test(text(invoice?.customerName));
 }
 
-function hasAddress(invoice) {
-  const addr = invoice?.customerAddress || {};
-  return !!(text(addr.street) && (text(addr.postalCode) || text(addr.city)));
-}
-
 /**
  * Kontroll før ferdigstilling. blocking stopper, warnings vises.
  * mode: 'protop' (ProTop utsteder) eller 'poweroffice'.
+ * Påbudt innhold (bokføringsforskriften § 5-1-1) kontrolleres i invoiceContent.js.
  */
 export function issueChecks(invoice, {
   supplier = {},
@@ -330,27 +328,20 @@ export function issueChecks(invoice, {
   today = '',
 } = {}) {
   const row = normalizeInvoice(invoice);
-  const blocking = [];
+  // Partene, ytelsen og selgers registreringer. Selger kontrolleres bare når ProTop utsteder.
+  const content = invoiceContentChecks(row, { supplier: supplier || {}, mode });
+  const blocking = [...content.blocking];
   const warnings = [];
   const add = (list, id, message, field = '') => list.push({ id, text: message, field });
   const lines = row.lines || [];
   const totals = invoiceTotals(row);
 
-  if (!lines.length) add(blocking, 'lines', 'Fakturaen har ingen linjer.', 'lines');
-  else if (!totals.totalDue && !totals.amountExVat) add(blocking, 'amount', 'Beløpet er 0.', 'lines');
-  if (lines.some((line) => !text(line.description))) add(blocking, 'lineText', 'En linje mangler tekst.', 'lines');
   // Bare fakturaer laget i ProTop har linjer med konto. Importerte fakturaer har ingen linjer.
   if (lines.some((line) => !text(line.account))) {
     add(blocking, 'lineAccount', 'En linje mangler konto. Kontoene settes under Økonomi → Innstillinger → Standard regnskapskontoer.', 'lines');
   }
   if (!isCreditNote(row) && lines.some((line) => line.section === 'hours' && !(Number(line.unitPrice) > 0))) {
     add(blocking, 'linePrice', 'En timelinje mangler timepris.', 'lines');
-  }
-  if (!text(row.customerName)) add(blocking, 'customer', 'Kunden mangler.', 'customerName');
-  if (!text(row.orgnr) && !hasAddress(row)) {
-    add(blocking, 'party', 'Kunden må ha org.nr. eller adresse (bokføringsforskriften § 5-1-1).', 'orgnr');
-  } else if (!hasAddress(row)) {
-    add(warnings, 'address', 'Kundens adresse mangler. Fakturaen kan sendes uten, men legg adressen inn på kunden til neste gang.', 'customerAddress');
   }
   if (isCreditNote(row) && !text(row.creditNoteForNumber)) {
     add(blocking, 'creditRef', 'Kreditnotaen mangler henvisning til fakturaen den krediterer (GBS 1).', '');
@@ -369,17 +360,12 @@ export function issueChecks(invoice, {
   }
 
   if (mode === 'protop') {
-    if (!text(supplier.orgnr)) add(blocking, 'supplierOrgnr', 'Bedriftens org.nr. mangler i selskapsprofilen.', 'supplier');
-    if (!text(supplier.name)) add(blocking, 'supplierName', 'Bedriftens navn mangler.', 'supplier');
-    if (!text(row.bankAccount || supplier.bankAccount) && !isCreditNote(row)) {
+    if (!text(row.bankAccount || supplier?.bankAccount) && !isCreditNote(row)) {
       add(blocking, 'bank', 'Kontonummer mangler. Legg det inn under Selskap.', 'bankAccount');
     }
-    if (!text(supplier.address)) add(warnings, 'supplierAddress', 'Bedriftens adresse mangler i selskapsprofilen.', 'supplier');
   }
 
-  if (!row.periodStart && !row.periodEnd) {
-    add(warnings, 'period', 'Leveringsperioden mangler. Fakturadatoen brukes som leveringsdato.', 'lines');
-  }
+  warnings.push(...content.warnings);
   const deadline = issueDeadline(row.periodEnd || row.periodStart);
   const now = text(today) || todayKey();
   if (deadline && deadline < now && !isCreditNote(row)) {
@@ -412,6 +398,8 @@ function kidFor(row, { kidFormat = 'customer_invoice', kidMethod = 'mod10' } = {
 /**
  * Ferdigstiller: nummer, fakturadato, forfall og KID. Låser fakturaen.
  * number tildeles av invoiceSeries (transaksjon), ikke her.
+ * Fakturaen stoppes når påbudt innhold mangler (bokføringsforskriften § 5-1-1). Med supplier
+ * kontrolleres også selgers navn, adresse, org.nr. og mva-registrering.
  */
 export function issueInvoice(invoice, {
   number,
@@ -422,6 +410,7 @@ export function issueInvoice(invoice, {
   kidFormat = 'customer_invoice',
   kidMethod = 'mod10',
   projectInvoiceCount = null,
+  supplier = null,
   actor = null,
   at = '',
 } = {}) {
@@ -435,6 +424,8 @@ export function issueInvoice(invoice, {
     return { ok: false, error: 'Betalingsfristen kan ikke være før fakturadatoen.', invoice };
   }
   let row = recalcInvoice({ ...invoice, invoiceNumber, invoiceDate });
+  const missing = missingContentError(row, { supplier });
+  if (missing) return { ok: false, error: missing, invoice };
   let days = creditDays == null ? row.creditDays : creditDays;
   if (chosenDue) days = daysBetween(invoiceDate, chosenDue);
   row = {

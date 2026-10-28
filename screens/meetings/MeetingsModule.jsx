@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { useRepeatsShellTitle } from '../../src/ui/ShellTitles';
 import { canSeeMeeting, todayOslo } from '../../src/meetings/model';
 import MeetingList from './MeetingList';
 import MeetingWorkspace from './MeetingWorkspace';
@@ -124,6 +125,8 @@ export default function MeetingsModule({
   }
 
   const [pageTitle, pageText] = PAGE_TITLES[subView] || PAGE_TITLES.oversikt;
+  // Én tittel per side: skallet viser «Møter» (og «Møter · Oppfølging»), da står bare forklaringen her.
+  const shellHasTitle = useRepeatsShellTitle(pageTitle);
   const phone = width < 640;
 
   let body = null;
@@ -191,7 +194,7 @@ export default function MeetingsModule({
           {!open ? (
             <View style={[styles.head, phone && { flexDirection: 'column', alignItems: 'flex-start' }]}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">{pageTitle}</Text>
+                {shellHasTitle ? null : <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">{pageTitle}</Text>}
                 <Text style={[styles.subtitle, { color: colors.muted }]}>{pageText}</Text>
               </View>
               {canCreate && subView !== 'maler' ? (

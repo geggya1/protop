@@ -31,15 +31,20 @@ function host(name) {
   };
 }
 
+let screenWidth = 1280;
 const rnMock = {
   View: host('View'),
   Text: host('Text'),
   ScrollView: host('ScrollView'),
   TouchableOpacity: host('TouchableOpacity'),
+  Pressable: host('Pressable'),
   TextInput: host('TextInput'),
   StyleSheet: { create: (styles) => styles, hairlineWidth: 1 },
   Platform: { OS: 'web', select: (options) => options && (options.web || options.default) },
+  useWindowDimensions: () => ({ width: screenWidth, height: 800 }),
 };
+
+const companyData = require('../company/companyDataTesting.js').companyDataHooks();
 
 function loadJsx(rel) {
   const full = path.join(ROOT, rel);
@@ -59,9 +64,19 @@ function loadJsx(rel) {
   m.require = (id) => {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
+    // Felles rapporttabell rendres ekte, så kolonner og telefonkort testes med skjermen.
+    if (id.includes('components/table/ReportTable')) return loadJsx('components/table/ReportTable.jsx');
+    if (id.includes('ui/InlineError')) return { __esModule: true, default: function InlineError() { return null; } };
+    if (id.includes('ui/Skeleton')) {
+      const Skeleton = function Skeleton() { return null; };
+      Skeleton.Table = function SkeletonTable() { return React.createElement('Skeleton', { nativeID: 'skeleton-table' }); };
+      return { __esModule: true, default: Skeleton };
+    }
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id.endsWith('src/theme')) return { useLayout: () => ({ width: 800 }) };
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
+    if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };
     if (id.includes('useTimesheetWorkspace')) {
       return { useTimesheetWorkspace: () => workspace };
     }
@@ -70,6 +85,7 @@ function loadJsx(rel) {
       return { useCompanyAccess: () => ({ ready: true, canAdmin: () => true, canEdit: () => true, canRead: () => true }) };
     }
     if (id.includes('anbud/storage')) return { loadAnbudState: async () => ({ customers: [] }) };
+    if (id.includes('CompanyDataContext')) return companyData;
     if (id.includes('expenseStorage')) {
       return {
         isExternalExpense: () => false,
@@ -192,4 +208,29 @@ assert.doesNotMatch(mine, /Utlegg kollega/);
 assert.doesNotMatch(mine, /Utlegg ukjent/);
 assert.doesNotMatch(mine, /Medarbeider/);
 assert.doesNotMatch(mine, /Filtrer medarbeider/);
+
+// Bred skjerm: felles rapporttabell med sorterbar overskrift og sum. Ingen fast bredde på 980 px.
+const source = fs.readFileSync(path.join(ROOT, 'screens/economy/ProjectExpensesScreen.jsx'), 'utf8');
+assert.equal(source.includes('minWidth: 980'), false);
+const wideIds = [];
+walk(withHooks(() => React.createElement(screen.ProjectExpensesScreen, { lockedEmployeeId: 'a', embedded: true })), (element) => {
+  if (element.props && element.props.nativeID) wideIds.push(element.props.nativeID);
+});
+assert.ok(wideIds.includes('expense-table-head'), 'tabellhode på bred skjerm');
+assert.ok(wideIds.includes('expense-table-sum'), 'sumlinje');
+
+// Telefon (390 px): kort med beskrivelse som tittel, dato og beløp, uten tabellhode.
+screenWidth = 390;
+const phoneTree = withHooks(() => React.createElement(screen.ProjectExpensesScreen, { lockedEmployeeId: 'a', embedded: true }));
+const phoneIds = [];
+walk(phoneTree, (element) => {
+  if (element.props && element.props.nativeID) phoneIds.push(element.props.nativeID);
+});
+assert.equal(phoneIds.includes('expense-table-head'), false, 'ingen tabell på telefon');
+assert.ok(phoneIds.includes('expense-table'));
+const phoneText = texts(phoneTree);
+assert.match(phoneText, /Utlegg egen/);
+assert.match(phoneText, /01\.10\.2026/);
+assert.doesNotMatch(phoneText, /Utlegg kollega/);
+screenWidth = 1280;
 console.log('projectExpensesScreen.test.cjs ok');

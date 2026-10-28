@@ -2,6 +2,7 @@
  * Låst bedriftsforside på telefon. Nettbrett/PC beholder bedriftsoversikten.
  * Privat hjem beholder egne widgets. Bakgrunnsbildet er det samme lageret.
  */
+import { COMPANY_DOCK_IDS, protopDock } from '../navigation/protopShell.js';
 
 export const COMPANY_HOME_SHORTCUTS = [
   { id: 'time', label: 'Timeføring', icon: 'time-outline', tab: 'timeliste', subView: null },
@@ -10,13 +11,8 @@ export const COMPANY_HOME_SHORTCUTS = [
   { id: 'expense', label: 'Utlegg', icon: 'receipt-outline', tab: 'okonomi', subView: 'utlegg' },
 ];
 
-export const COMPANY_BOTTOM_NAV = [
-  { id: 'home', label: 'Hjem', icon: 'home-outline', iconActive: 'home', action: { type: 'tab', tab: 'home' } },
-  { id: 'projects', label: 'Prosjekter', icon: 'business-outline', action: { type: 'tab', tab: 'projects' } },
-  { id: 'timeliste', label: 'Time', icon: 'time-outline', action: { type: 'tab', tab: 'timeliste' } },
-  { id: 'stars', label: 'Oppgaver', icon: 'create-outline', action: { type: 'tab', tab: 'stars' } },
-  { id: 'more', label: 'Mer', icon: 'menu-outline', action: { type: 'tab', tab: 'more' } },
-];
+/** Samme dock som privat (UX-21): Hjem · Timer · Prosjekter · Oppgaver · Meny. */
+export const COMPANY_BOTTOM_NAV = protopDock(COMPANY_DOCK_IDS);
 
 export function companyGreetingHello(date = new Date()) {
   const hour = date.getHours();

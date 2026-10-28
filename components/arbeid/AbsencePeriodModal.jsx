@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,7 +12,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
-import { absencePickerTypes, absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
+import {
+  HEALTH_FREE_TEXT_NOTICE, absencePickerTypes, absenceTypeById, isHealthAbsence,
+} from '../../src/arbeid/absenceCatalog.js';
 import { formatNbDate } from '../../src/arbeid/absenceDashboard.js';
 import { hoursToDays } from '../../src/arbeid/balance.js';
 import { formatHours } from '../../src/arbeid/hours.js';
@@ -135,6 +138,8 @@ export default function AbsencePeriodModal({
                         onChangeText={(value) => setDraft((current) => ({ ...current, hours: value }))}
                         placeholder="Timer"
                         placeholderTextColor={colors.muted}
+                        accessibilityLabel="Timer"
+                        keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
                         style={[styles.input, { borderColor: colors.line, color: colors.ink }]}
                       />
                       <TextInput
@@ -142,8 +147,14 @@ export default function AbsencePeriodModal({
                         onChangeText={(value) => setDraft((current) => ({ ...current, description: value }))}
                         placeholder="Beskrivelse"
                         placeholderTextColor={colors.muted}
+                        accessibilityLabel="Beskrivelse"
                         style={[styles.input, { borderColor: colors.line, color: colors.ink }]}
                       />
+                      {isHealthAbsence(draft.type || period.type, catalog) ? (
+                        <Text style={{ color: colors.muted, fontSize: 12 }} nativeID="absence-health-notice">
+                          {HEALTH_FREE_TEXT_NOTICE}
+                        </Text>
+                      ) : null}
                       <OptionPicker
                         options={absencePickerTypes(catalog).map((type) => ({ id: type.id, label: type.label }))}
                         value={draft.type}

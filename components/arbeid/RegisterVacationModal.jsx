@@ -6,6 +6,7 @@ import IsoDateField from './IsoDateField';
 import { eachWeekday } from '../../src/arbeid/absenceDashboard.js';
 import { EXTRAORDINARY_NOTICE, formatPlanDate } from '../../src/arbeid/vacationPlan.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
+import { HEALTH_FREE_TEXT_NOTICE } from '../../src/arbeid/absenceCatalog.js';
 
 export default function RegisterVacationModal({
   visible,
@@ -15,6 +16,8 @@ export default function RegisterVacationModal({
   requireEmployee = false,
   locked = false,
   vacation = true,
+  /** Sykdom eller legebesøk: be om at merknaden ikke inneholder helseopplysninger. */
+  healthNotice = false,
   onClose,
   onSave,
 }) {
@@ -101,7 +104,9 @@ export default function RegisterVacationModal({
                 placeholderTextColor="#A0A8B8"
                 style={styles.input}
                 nativeID="ferie-merknad"
+                accessibilityLabel="Merknad"
               />
+              {healthNotice ? <Text style={styles.lead}>{HEALTH_FREE_TEXT_NOTICE}</Text> : null}
             </View>
             {localError ? <Text style={styles.error}>{localError}</Text> : null}
             <View style={styles.actions}>

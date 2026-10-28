@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import ParentHomeBottomNav from './ParentHomeBottomNav';
 import HelpTarget from '../HelpTarget';
 import { useApp } from '../../src/context/AppContext';
 import { useUnread } from '../../src/context/NotificationContext';
 import { useChatDock, useChatDockPreferred } from '../../src/context/ChatDockContext';
-import { useLayout } from '../../src/theme';
-import { useColors } from '../../src/context/ThemeContext';
+import { colors, useLayout } from '../../src/theme';
 import { useI18n } from '../../src/i18n';
 import { useParentDashboardTheme } from '../../src/hooks/useParentDashboardTheme';
 import { useHomeLayout } from '../../src/hooks/useHomeLayout';
@@ -25,6 +24,20 @@ import {
 } from '../../src/utils/parentBottomNav';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { COMPANY_BOTTOM_NAV } from '../../src/companyHome/model';
+import { privateDockPreset } from '../../src/navigation/protopShell';
+import { isLiveOrganization } from '../../src/project/companyOffer';
+
+/**
+ * Docken har ProTop-farger i lyst og mørkt (UX-05), uansett gammelt dashbord-tema.
+ * Teksten under ikonene har 4,5:1 mot flaten (brandInk og muted på colors.card).
+ */
+const DOCK_TOKENS = {
+  surface: colors.card,
+  border: colors.line,
+  accent: colors.brandInk,
+  accentSoft: 'transparent',
+  textMuted: colors.muted,
+};
 
 /**
  * Customizable bottom dock, mounted in AppShell so it stays on every module.
@@ -40,10 +53,9 @@ export default function ParentShellBottomNav({
   const nav = useNavigation();
   const focused = useIsFocused();
   const { t } = useI18n();
-  const colors = useColors();
   const { hasRail } = useLayout();
   const {
-    isParent, isChild, isActingAsChild, familyId, family, kids, uid, activeChild, meChild,
+    isParent, isChild, isActingAsChild, familyId, family, families, kids, uid, activeChild, meChild,
   } = useApp();
   const { unreadByModule } = useUnread();
   const chatDockPreferred = useChatDockPreferred();
@@ -71,8 +83,19 @@ export default function ParentShellBottomNav({
   const companyLocked = !asChildView && isOrganizationType(family?.type);
   const ready = asChildView ? childHome.ready : (companyLocked || parentTheme.ready);
   const theme = parentTheme.theme;
-  const bottomShortcutIds = companyLocked
-    ? COMPANY_BOTTOM_NAV.map((item) => item.id)
+  const hasCompany = useMemo(() => (families || []).some(isLiveOrganization), [families]);
+  // Privat: samme dock som i bedriften (Timer, Oppgaver og Meny på samme plass), med mindre
+  // personen har valgt egne snarveier.
+  const privatePreset = useMemo(
+    () => (companyLocked || asChildView ? null : privateDockPreset({
+      hasCompany,
+      bottomShortcutIds: parentTheme.bottomShortcutIds,
+    })),
+    [companyLocked, asChildView, hasCompany, parentTheme.bottomShortcutIds],
+  );
+  const presetItems = companyLocked ? COMPANY_BOTTOM_NAV : privatePreset;
+  const bottomShortcutIds = presetItems
+    ? presetItems.map((item) => item.id)
     : (asChildView ? childHome.layout.bottomIds : parentTheme.bottomShortcutIds);
   const show = focused && shouldShowParentBottomNav({
     ready,
@@ -158,23 +181,19 @@ export default function ParentShellBottomNav({
       badgeById={badgeById}
       activeId={activeId}
       onSelect={onSelect}
-      tokens={companyLocked ? {
-        surface: '#ffffff',
-        border: '#E6EAF0',
-        accent: colors.brand,
-        accentSoft: 'transparent',
-        textMuted: '#8E99A8',
-      } : theme?.tokens}
+      tokens={DOCK_TOKENS}
       includeSafeArea
       onLayout={onLayout}
-      glass={companyLocked ? false : glass}
-      presetItems={companyLocked ? COMPANY_BOTTOM_NAV : null}
+      glass={presetItems ? false : glass}
+      presetItems={presetItems}
     />
   );
 
   return (
     <HelpTarget id="tabs" style={styles.flowDock}>
-      {bar}
+      <View role="navigation" aria-label="Snarveier">
+        {bar}
+      </View>
     </HelpTarget>
   );
 }

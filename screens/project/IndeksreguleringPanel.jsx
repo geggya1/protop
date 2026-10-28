@@ -22,6 +22,9 @@ import AvtaleForside from './AvtaleForside';
 import { pickDocument } from '../../src/utils/media';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import CompanyLogoChoice from '../../components/CompanyLogoChoice';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { AI_OFF_MESSAGE } from '../../src/privacy/companyPrivacy';
+import { formatDate } from '../../src/format/nb';
 
 const PAGES = [
   ['forside', 'Fremside'],
@@ -158,6 +161,7 @@ export default function IndeksreguleringPanel({
 }) {
   const colors = useColors();
   const { family, shellIntent, clearShellIntent } = useApp();
+  const guardAi = useCompanyAiGuard();
   const [draft, setDraft] = useState(() => (
     seedDraft && typeof seedDraft === 'object' ? emptyDraft(seedDraft) : freshDraft(project, '')
   ));
@@ -409,7 +413,7 @@ export default function IndeksreguleringPanel({
     const prepared = preparedDraft({ ...local, documents: docs, sourceName: docs.map((doc) => doc.name).join(', ') });
     await regulatePrepared(prepared, note);
     try {
-      const remote = await interpretAvtale({ documents: docs });
+      const remote = await guardAi(interpretAvtale)({ documents: docs });
       if (remote?.extracted) {
         await regulatePrepared(
           preparedDraft({
@@ -422,8 +426,10 @@ export default function IndeksreguleringPanel({
             : 'Dokumentene er lest lokalt. AI-tjenesten var ikke tilgjengelig.',
         );
       }
-    } catch {
-      setStatus('Dokumentene er lest lokalt. AI-tjenesten svarte ikke.');
+    } catch (err) {
+      setStatus(err?.message === AI_OFF_MESSAGE
+        ? 'Dokumentene er lest lokalt. AI-funksjoner er slått av for bedriften.'
+        : 'Dokumentene er lest lokalt. AI-tjenesten svarte ikke.');
     }
   }
 
@@ -1097,7 +1103,7 @@ export default function IndeksreguleringPanel({
         <View key={row.id} style={[styles.card, { borderColor: row.id === caseId ? colors.brand : colors.line, backgroundColor: colors.card }]}>
           <Text style={{ color: colors.ink }}>{row.title || 'Indeksregulering'}</Text>
           <Text style={{ color: colors.muted }}>
-            {String(row.savedAt || '').slice(0, 10)}
+            {formatDate(row.savedAt, { empty: '' })}
             {row.regulatedPeriod ? ` · ${row.regulatedPeriod}` : ''}
             {' · '}tillegg {formatMoney(row.addition)} kr
             {row.letterPlain ? ' · brev lagret' : ''}

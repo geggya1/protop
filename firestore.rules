@@ -25,7 +25,17 @@ service cloud.firestore {
     function isFamilyMember(familyId) {
       return isFamilyMemberLite(familyId)
         || isFamilyAdult(familyId)
-        || (isSignedIn() && exists(/databases/$(database)/documents/families/$(familyId)/children/$(request.auth.uid)));
+        || isFamilyChild(familyId);
+    }
+
+    // Barn i gruppen: har et aktivt barnedokument der (families/{id}/children/{uid}). Det lages bare
+    // av en foresatt eller administrator (se children under), og i en bedrift teller det aldri (REV-24).
+    function isFamilyChild(familyId) {
+      let path = /databases/$(database)/documents/families/$(familyId)/children/$(request.auth.uid);
+      return isSignedIn()
+        && exists(path)
+        && !isCompanyGroup(familyId)
+        && grantsMembership(get(path).data);
     }
 
     function isFamilyOwner(familyId) {
@@ -66,11 +76,34 @@ service cloud.firestore {
         && grantsMembership(get(path).data);
     }
 
-    // Foresatt kan stelle barnets profil og varsler. Barnets familie står på children/{uid}.
-    function isGuardianOf(uid) {
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    // Barnekonto: profilen ble laget som barn (addChildMember setter role: 'child'), eller en eldre
+    // profil uten rolle som logger inn med brukernavn. En voksen konto (role 'adult', også en voksen
+    // uten egen e-post) kan aldri få foresatte (SEC-05).
+    function isChildProfile(uid) {
+      return exists(userPath(uid)) && childProfileData(get(userPath(uid)).data);
+    }
+
+    function childProfileData(u) {
+      return u.get('role', '') == 'child'
+        || u.get('type', '') == 'child'
+        || (u.get('role', '') == '' && lowerText(u.get('email', '')).matches('.*@konto[.]protop[.]no$'));
+    }
+
+    // Voksen i familien som står på barnets speilprofil children/{uid}.
+    function guardsChildRecord(uid) {
       return isSignedIn()
         && exists(childPath(uid))
         && isFamilyAdult(get(childPath(uid)).data.get('familyId', 'none'));
+    }
+
+    // Foresatt kan stelle barnets profil og varsler. Barnets familie står på children/{uid},
+    // og profilen må være en barnekonto.
+    function isGuardianOf(uid) {
+      return guardsChildRecord(uid) && isChildProfile(uid);
     }
 
     function isFriendOf(uid) {
@@ -202,6 +235,38 @@ service cloud.firestore {
         && resource.data.get('state', '') != 'kansellert';
     }
 
+    // Én post i en liste er endret (indeks i). Resten av listen er uendret og like lang.
+    // Et tomt utsnitt (a[0:0]) gir feil i reglene, derfor sjekkes endene først.
+    function onlyItemChanged(key, i) {
+      let a = request.resource.data.get(key, []);
+      let b = resource.data.get(key, []);
+      return i < b.size() && a.size() == b.size()
+        && (i == 0 || a[0:i] == b[0:i])
+        && (i + 1 == b.size() || a[i + 1:a.size()] == b[i + 1:b.size()]);
+    }
+
+    // Tiltakseier melder sitt eget tiltak utført: bare til «til_verifisering» og bare utførelsesfeltene.
+    // Kontroll, verifisering og endring av andres tiltak krever saksbehandler.
+    // Billige sjekker først: reglene tåler bare 1000 uttrykk per skriving.
+    function ownActionDoneAt(i) {
+      return i is int && i >= 0
+        && i < resource.data.get('actions', []).size()
+        && i < request.resource.data.get('actions', []).size()
+        && request.resource.data.actions[i].get('state', '') == 'til_verifisering'
+        && resource.data.actions[i].get('state', '') in ['apen', 'pagar', 'returnert']
+        && resource.data.actions[i].get('ownerUid', '') == request.auth.uid
+        && request.resource.data.actions[i].diff(resource.data.actions[i]).affectedKeys()
+          .hasOnly(['state', 'completedAt', 'completedBy', 'completedByUid', 'completionNote', 'evidence'])
+        && onlyItemChanged('actions', i);
+    }
+
+    // Reglene har ikke løkker. Appen oppgir hvilket tiltak som er meldt utført (doneActionIndex);
+    // eldre versjoner av appen gjør det ikke, og da sjekkes de fem første tiltakene.
+    function ownActionDone() {
+      return ownActionDoneAt(request.resource.data.get('doneActionIndex', -1))
+        || ownActionDoneAt(0) || ownActionDoneAt(1) || ownActionDoneAt(2) || ownActionDoneAt(3) || ownActionDoneAt(4);
+    }
+
     // Felles regler for oppdatering av en sak (åpen eller skjermet).
     function findingUpdateAllowed(familyId, managerOk) {
       return request.resource.data.get('restricted', false) == resource.data.get('restricted', false)
@@ -212,12 +277,64 @@ service cloud.firestore {
         && (cancelsFinding() ? (managerOk && isoApprover(familyId)) : true)
         && (
           managerOk
-          // Melder og involverte (tiltaksansvarlige) kan bare oppdatere tiltak og historikk.
+          // Melder og involverte: bare historikk, og tiltakseier kan melde eget tiltak utført.
           || (involved(resource.data)
               && isoRank(familyId) >= 1
               && unchanged('state')
-              && changed().hasOnly(bumpKeys().concat(['actions', 'involvedUids'])))
+              && changed().hasOnly(bumpKeys().concat(['actions', 'involvedUids', 'doneActionIndex']))
+              && (unchanged('actions') || ownActionDone()))
+          // Den som skal varsle myndighet, bekrefter at varslingen er vurdert eller utført.
+          || (resource.data.get('notificationAssigneeUid', '') == request.auth.uid
+              && isoRank(familyId) >= 1
+              && changed().hasOnly(bumpKeys().concat(['notificationDone', 'notificationNote', 'notificationAt']))
+              && request.resource.data.get('notificationDone', false) == true)
         );
+    }
+
+    // Vedtak i ledelsens gjennomgang merkes utført av den ansvarlige (eller en saksbehandler),
+    // også når referatet er godkjent og låst: bare ett vedtak, bare til «utført».
+    function decisionDoneAt(familyId, i) {
+      return i is int && i >= 0
+        && i < resource.data.get('decisions', []).size()
+        && i < request.resource.data.get('decisions', []).size()
+        && request.resource.data.decisions[i].get('done', false) == true
+        && resource.data.decisions[i].get('done', false) != true
+        && (resource.data.decisions[i].get('ownerUid', '') == request.auth.uid || isoRank(familyId) >= 2)
+        && request.resource.data.decisions[i].diff(resource.data.decisions[i]).affectedKeys()
+          .hasOnly(['done', 'doneAt', 'doneBy', 'doneByUid'])
+        && onlyItemChanged('decisions', i);
+    }
+
+    // Appen oppgir hvilket vedtak som er merket utført (doneDecisionIndex), så reglene slipper å lete.
+    function decisionDone(familyId) {
+      return resource.data.get('register', '') == 'ledelse'
+        && changed().hasOnly(bumpKeys().concat(['decisions', 'doneDecisionIndex']))
+        && decisionDoneAt(familyId, request.resource.data.get('doneDecisionIndex', -1));
+    }
+
+    // Teller for saksnummer: bare oppover, bare feltene «last» og «updatedAt».
+    function isoCounterOk(old) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['last', 'updatedAt']) && d.get('last', 0) is int && d.get('last', 0) > old;
+    }
+
+    // Meldetilgang (ISO-04): alle i selskapet, også innleide og eksterne uten ISO-tilgang, kan melde
+    // en ny sak i eget navn eller anonymt, og lese sine egne meldinger. Bare en ny, ubehandlet sak.
+    // Anonym: ingen bruker-id på saken, i historikken eller som sist endret.
+    function isoReportOk(familyId, restricted) {
+      let d = request.resource.data;
+      return isFamilyMember(familyId)
+        && d.get('restricted', false) == restricted
+        && d.get('state', '') == 'registrert'
+        && d.get('triage', null) == null
+        && d.get('assessment', null) == null
+        && d.get('actions', []).size() == 0
+        && (d.get('reportedByUid', '') == request.auth.uid
+            || (d.get('anonymous', false) == true && d.get('reportedByUid', '') == '' && d.get('updatedByUid', '') == ''));
+    }
+
+    function ownReport(d) {
+      return isSignedIn() && d.get('reportedByUid', '') == request.auth.uid;
     }
 
     // Publiserte versjoner er låst: bare en godkjenner kan publisere eller endre dem.
@@ -227,10 +344,124 @@ service cloud.firestore {
         && (n == 0 || request.resource.data.get(listKey, [])[0:n] == resource.data.get(listKey, [])[0:n]);
     }
 
+    // Rettighet fra det speilede tilgangsdokumentet: 0 ingen, 1 Lese, 2 Begrenset redigering, 3 Admin.
+    // Mangler speilet eller er det utløpt, gir det ingenting (appen ber om synk når skallet åpnes).
+    function aclRank(familyId, resource) {
+      return hasFreshAcl(familyId)
+        ? grantRank(get(aclPath(familyId)).data.get('grants', {}).get(resource, 'none'))
+        : 0;
+    }
+
+    // Tilgangsmatrisen: eier, administrator eller Admin på Tilgangsstyring i speilet.
+    // Uten speil gis ingen rett (tidligere slapp alle medlemmer til, se FL-02/SEC-13).
     function canAdminAccessMatrix(familyId) {
-      // Uten speilet tilgang (selskapet bruker ikke ISO ennå) gjelder tidligere oppførsel.
-      return !exists(aclPath(familyId))
-        || get(aclPath(familyId)).data.get('grants', {}).get('accessControl', 'none') in ['write', 'delete'];
+      return isFamilyAdmin(familyId) || aclRank(familyId, 'accessControl') >= 3;
+    }
+
+    /* ───────── Skjermede personopplysninger (HR, fravær, personnummer) ─────────
+     * Rettighetene leses fra speilet (accessAcl/{uid}.grants), samme matrise som appen.
+     * Eier og administratorer (adminUids) har alltid tilgang. Mangler speilet eller er det
+     * utløpt, gis ingen tilgang til andres opplysninger (appen ber om speilet når skallet åpnes).
+     */
+    function aclGrants(familyId) {
+      return hasFreshAcl(familyId) ? get(aclPath(familyId)).data.get('grants', {}) : {};
+    }
+
+    // Ansattposten speilet er beregnet for (den koblede posten til den innloggede).
+    function aclEmployeeId(familyId) {
+      return hasFreshAcl(familyId) ? get(aclPath(familyId)).data.get('employeeId', '') : '';
+    }
+
+    function grantAtLeast(g, res, n) {
+      return grantRank(g.get(res, 'none')) >= n;
+    }
+
+    // Ett av HR-områdene (Oversikt, Personell, Avtaler, Lønn, Oppfølging, Lovpålagt, Rekruttering).
+    // HR-modulen åpnes med Lese på én av dem, og lagres med Begrenset redigering (som appen).
+    function hrGrantAtLeast(g, n) {
+      return grantAtLeast(g, 'hr', n) || grantAtLeast(g, 'hrPeople', n) || grantAtLeast(g, 'hrAgreements', n)
+        || grantAtLeast(g, 'hrPayroll', n) || grantAtLeast(g, 'hrFollowup', n)
+        || grantAtLeast(g, 'hrCompliance', n) || grantAtLeast(g, 'hrRecruitment', n);
+    }
+
+    function hrReader(familyId) {
+      return isFamilyAdmin(familyId) || hrGrantAtLeast(aclGrants(familyId), 1);
+    }
+
+    function hrWriter(familyId) {
+      return isFamilyAdmin(familyId) || hrGrantAtLeast(aclGrants(familyId), 2);
+    }
+
+    function employeePath(familyId, empId) {
+      return /databases/$(database)/documents/families/$(familyId)/employees/$(empId);
+    }
+
+    // Den innloggede er koblet til ansattposten (personUid). Trenger ikke speilet.
+    function ownEmployeePost(familyId, empId) {
+      return isSignedIn() && empId is string && empId != ''
+        && exists(employeePath(familyId, empId))
+        && get(employeePath(familyId, empId)).data.get('personUid', '') == request.auth.uid;
+    }
+
+    function isCompanyGroup(familyId) {
+      return get(familyPath(familyId)).data.get('type', '') in ['company', 'organization'];
+    }
+
+    // Fravær for alle (også årsak og sykdom): eier, administrator, HR, Begrenset redigering på
+    // Andres timer, eller Admin på Fraværsoversikt/Fraværsrapport. Andre ser og fører bare sitt eget.
+    function absenceForAll(familyId, hrRank) {
+      let g = aclGrants(familyId);
+      return isFamilyAdmin(familyId)
+        || grantAtLeast(g, 'hoursOthers', 2)
+        || grantAtLeast(g, 'absence', 3)
+        || grantAtLeast(g, 'absenceReport', 3)
+        || hrGrantAtLeast(g, hrRank);
+    }
+
+    // Egen rad etter speilet. Spørringer må filtrere på employeeId (appen gjør det).
+    function ownAbsenceRow(familyId, d) {
+      return aclEmployeeId(familyId) != '' && d.get('employeeId', '') == aclEmployeeId(familyId);
+    }
+
+    function ownAbsenceDoc(familyId, d) {
+      return ownAbsenceRow(familyId, d) || ownEmployeePost(familyId, d.get('employeeId', ''));
+    }
+
+    // Godkjenning gjøres av leder: egen rad kan ikke settes til «godkjent».
+    function ownAbsenceStatusOk() {
+      return request.resource.data.get('status', '') != 'godkjent'
+        || (resource != null && resource.data.get('status', '') == 'godkjent');
+    }
+
+    // Personnummer, pårørende og intern kommentar (employeesPrivate): eier, administrator og HR
+    // med Begrenset redigering på Personell leser. Den ansatte selv leser og skriver sitt eget.
+    function empPrivateReader(familyId) {
+      return isFamilyAdmin(familyId) || grantAtLeast(aclGrants(familyId), 'hrPeople', 2);
+    }
+
+    function empPrivateWriter(familyId) {
+      let g = aclGrants(familyId);
+      return isFamilyAdmin(familyId) || hrGrantAtLeast(g, 2) || grantAtLeast(g, 'employees', 2);
+    }
+
+    // Skjermede felt på selve ansattposten: nye verdier skrives til employeesPrivate.
+    // Et felt kan stå som det står (eldre poster) eller tømmes når verdien flyttes.
+    function keptOrCleared(m, om, k) {
+      return m.get(k, '') == '' || m.get(k, '') == om.get(k, '');
+    }
+
+    // Billig først: bare de skjermede feltene som faktisk er endret, sjekkes (reglene tåler
+    // 1000 uttrykk per skriving, og ansattreglene er dyre).
+    function empPrivateKept(d, old) {
+      let p = d.get('person', {});
+      let op = old.get('person', {});
+      let c = d.get('company', {});
+      let oc = old.get('company', {});
+      return (!p.diff(op).affectedKeys().hasAny(['nationalId', 'kinName', 'kinPhone', 'kinEmail', 'kinNote'])
+          || (keptOrCleared(p, op, 'nationalId') && keptOrCleared(p, op, 'kinName')
+            && keptOrCleared(p, op, 'kinPhone') && keptOrCleared(p, op, 'kinEmail')
+            && keptOrCleared(p, op, 'kinNote')))
+        && (!c.diff(oc).affectedKeys().hasAny(['comment']) || keptOrCleared(c, oc, 'comment'));
     }
 
     /* ───────── Tilgang på ansatte (families/{id}/employees) ─────────
@@ -256,21 +487,31 @@ service cloud.firestore {
       return ['', 'ansatt', 'medarbeider', 'bruker', 'innleie_ekstern', 'regnskap_ekstern', 'innleie eksternt', 'regnskap eksternt'];
     }
 
+    function empAdminLevels() {
+      return ['administrator', 'admin', 'hovedadministrator'];
+    }
+
+    function empPrivilegedLevels() {
+      return ['administrator', 'admin', 'hovedadministrator', 'leder', 'avdelingsleder', 'øverste leder', 'daglig leder',
+        'hr_ansvarlig', 'kvalitetsansvarlig', 'hms_ansvarlig', 'iso_rolle'];
+    }
+
+    // Nivåene posten gir, med invitasjonens nivå. Serveren gir administrator ved godtatt
+    // invitasjon ut fra invite.accessLevel (placedAccessLevel), så det er like beskyttet.
+    function empPostLevels(d) {
+      let level = d.get('invite', {}).get('accessLevel', '');
+      return empLevelSet(d.get('company', {})).union([level is string ? level.lower() : ''].toSet());
+    }
+
     // Uendret tilgang. Tåler at appen normaliserer eldre poster (f.eks. '' → 'ansatt').
-    function empAccessStable(c, o) {
+    function empAccessStable(c, o, levels, oldLevels) {
       return c.get('accessOverrides', {}) == o.get('accessOverrides', {})
-        && empLevelSet(c).difference(empLevelSet(o)).hasOnly(benignLevels())
-        && empLevelSet(o).difference(empLevelSet(c)).hasOnly(benignLevels());
+        && levels.difference(oldLevels).hasOnly(benignLevels())
+        && oldLevels.difference(levels).hasOnly(benignLevels());
     }
 
-    function empIsAdminLevel(c) {
-      return empLevelSet(c).hasAny(['administrator', 'admin', 'hovedadministrator']);
-    }
-
-    function empIsPrivileged(c) {
-      return empLevelSet(c).hasAny(['administrator', 'admin', 'hovedadministrator', 'leder', 'avdelingsleder', 'øverste leder', 'daglig leder',
-          'hr_ansvarlig', 'kvalitetsansvarlig', 'hms_ansvarlig', 'iso_rolle'])
-        || c.get('accessOverrides', {}).size() > 0;
+    function empPrivileged(levels, c) {
+      return levels.hasAny(empPrivilegedLevels()) || c.get('accessOverrides', {}).size() > 0;
     }
 
     // Et avvik kan ikke gi mer enn aktøren har selv i de viktigste innstillingsområdene.
@@ -282,48 +523,239 @@ service cloud.firestore {
         && grantRank(o.get('iso', 'none')) <= grantRank(grants.get('iso', 'none'));
     }
 
+    function lowerText(v) {
+      return v is string ? v.lower() : '';
+    }
+
+    // Invitasjonen på posten: hvem som godtok, status og e-posten den ble sendt til.
+    // Tåler at appen normaliserer en manglende status til 'none' og store bokstaver i e-posten.
+    function empInviteStable(d, old) {
+      let i = d.get('invite', {});
+      let o = old.get('invite', {});
+      return i.get('acceptedUid', '') == o.get('acceptedUid', '')
+        && (i.get('status', '') == o.get('status', '')
+            || (i.get('status', '') in ['', 'none'] && o.get('status', '') in ['', 'none']))
+        && lowerText(i.get('email', '')) == lowerText(o.get('email', ''));
+    }
+
+    // Aktiv og kan logge inn. En post uten status regnes som aktiv, uten canLogin som nei (som appen).
+    function empStatusStable(d, old) {
+      let c = d.get('company', {});
+      let oc = old.get('company', {});
+      return (c.get('status', '') in ['', 'active'] ? 'active' : c.get('status', ''))
+          == (oc.get('status', '') in ['', 'active'] ? 'active' : oc.get('status', ''))
+        && c.get('canLogin', false) == oc.get('canLogin', false);
+    }
+
+    // E-postene invitasjonen kobles på (employeeMatchEmails i src/employees/invite.js).
+    function empEmailsStable(d, old) {
+      return lowerText(d.get('person', {}).get('email', '')) == lowerText(old.get('person', {}).get('email', ''))
+        && lowerText(d.get('company', {}).get('email', '')) == lowerText(old.get('company', {}).get('email', ''));
+    }
+
+    // Kan endre tilgangen til andre: eier, administrator eller Begrenset redigering på Tilgangsstyring.
+    function empAccessManager(familyId) {
+      return isFamilyAdmin(familyId) || aclRank(familyId, 'accessControl') >= 2;
+    }
+
+    // Kan endre status (permisjon) og innlogging på andre: som over, eller Begrenset redigering på Ansatte.
+    function empStaffManager(familyId) {
+      return empAccessManager(familyId) || aclRank(familyId, 'employees') >= 2;
+    }
+
+    // Kan avslutte og ta opp igjen en ansettelse: eier, administrator, eller Admin på Ansatte eller
+    // Tilgangsstyring (canChangeEmployment i appen, setEmploymentStatus på serveren, REV-07, REV-21).
+    function empEmploymentManager(familyId) {
+      let g = aclGrants(familyId);
+      return isFamilyAdmin(familyId) || grantAtLeast(g, 'employees', 3) || grantAtLeast(g, 'accessControl', 3);
+    }
+
+    // Aktiv eller i permisjon. Manglende status og eldre navn regnes som aktiv (employmentState i appen).
+    function empStatusOpen(c) {
+      return lowerText(c.get('status', '')) in ['', 'active', 'current', 'leave'];
+    }
+
+    // «Ansatt til» som ikke er passert (tom = nåværende). Datoen lagres som åååå-mm-dd og gjelder hele
+    // dagen; 22 timer etter midnatt UTC er midnatt i Norge om sommeren, så heller litt for tidlig enn sent.
+    function empEndOpen(p) {
+      return p == '' || (p is string && p.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && timestamp.date(int(p.split('-')[0]), int(p.split('-')[1]), int(p.split('-')[2])) + duration.value(22, 'h') > request.time);
+    }
+
+    // Skrivingen verken avslutter eller åpner ansettelsen: samme status (eller aktiv og permisjon), og
+    // samme sluttdato (eller to som ikke er passert). Som employmentChangeNeedsServer i appen.
+    function empEmploymentStable(d, old) {
+      let c = d.get('company', {});
+      let oc = old.get('company', {});
+      let p = c.get('periodTo', '');
+      let op = oc.get('periodTo', '');
+      return (lowerText(c.get('status', '')) == lowerText(oc.get('status', '')) || (empStatusOpen(c) && empStatusOpen(oc)))
+        && (p == op || (empEndOpen(p) && empEndOpen(op)));
+    }
+
     function empCreateOk(familyId) {
       let d = request.resource.data;
       let c = d.get('company', {});
-      let hasAcl = exists(aclPath(familyId));
-      let acl = hasAcl ? get(aclPath(familyId)).data : {};
-      let admin = request.auth.uid in get(familyPath(familyId)).data.get('adminUids', [])
-        || acl.get('levelId', '') == 'administrator';
+      let levels = empPostLevels(d);
+      // Egen post: bare uten ledernivå. Andres post med ledernivå: som å endre andres tilgang.
       return d.get('personUid', '') == request.auth.uid
-        ? !empIsPrivileged(c)
-        : ((admin || !empIsAdminLevel(c)) && (!hasAcl || empOverridesWithin(c, acl.get('grants', {}))));
+        ? !empPrivileged(levels, c)
+        : (!empPrivileged(levels, c) ? true : empManageOk(familyId, c, levels.hasAny(empAdminLevels())));
     }
 
     function empUpdateOk(familyId) {
       let d = request.resource.data;
       let old = resource.data;
+      let levels = empPostLevels(d);
+      let oldLevels = empPostLevels(old);
+      return empUpdateWith(familyId, d, old, levels, oldLevels,
+        empAccessStable(d.get('company', {}), old.get('company', {}), levels, oldLevels));
+    }
+
+    function empUpdateWith(familyId, d, old, levels, oldLevels, accessStable) {
       let c = d.get('company', {});
       let oc = old.get('company', {});
       let me = request.auth.uid;
       let selfOld = old.get('personUid', '') == me;
       let selfNew = d.get('personUid', '') == me;
-      // Kobler seg selv til en post: bare uten ledernivå, eller når invitasjonen var godtatt av en selv.
-      let linkOk = selfOld || !selfNew || !empIsPrivileged(oc)
-        || old.get('invite', {}).get('acceptedUid', '') == me;
-      return linkOk && (empAccessStable(c, oc) || (!selfOld && !selfNew && empManageOk(familyId, c, oc)));
+      let statusStable = empStatusStable(d, old);
+      // Samme kobling og invitasjon. En ukoblet post kan knyttes til en selv (Gjenopprett min profil).
+      let bound = (d.get('personUid', '') == old.get('personUid', '') || (old.get('personUid', '') == '' && selfNew))
+        && empInviteStable(d, old);
+      return selfOld
+        // Egen post: aldri eget nivå. Kobling, invitasjon, status og innlogging bare av tilgangsstyrer,
+        // så en deaktivert ansatt ikke kan aktivere seg selv (FL-01).
+        // Å avslutte eller ta opp igjen ansettelsen (status eller passert sluttdato) krever Admin (REV-21).
+        ? accessStable && ((bound && statusStable) ? true : empAccessManager(familyId))
+          && (empEmploymentStable(d, old) ? true : empEmploymentManager(familyId))
+        : (selfNew
+          // Kobler seg selv til en post: bare uten ledernivå, eller når serveren godtok invitasjonen
+          // for en selv (invite.acceptedUid kan ikke settes av vanlige medlemmer, se under).
+          ? accessStable && statusStable && bound && empEmploymentStable(d, old)
+            && (!empPrivileged(oldLevels, oc) || old.get('invite', {}).get('acceptedUid', '') == me)
+          // Andres post. Permisjon og innlogging krever Begrenset redigering på Ansatte, å avslutte eller
+          // ta opp igjen ansettelsen Admin (som appen og serveren, REV-21). Admin dekker det første, og
+          // reglene tåler bare 1000 uttrykk per skriving, så bare én av dem sjekkes.
+          // Har posten ledernivå, kan bare en tilgangsstyrer endre kobling, invitasjon eller e-post,
+          // så ingen kan sende seg selv en invitasjon til en ledertilgang.
+          : (empEmploymentStable(d, old)
+              ? (statusStable ? true : empStaffManager(familyId))
+              : empEmploymentManager(familyId))
+            && ((accessStable
+                  && (!(empPrivileged(oldLevels, oc) || empPrivileged(levels, c)) || (bound && empEmailsStable(d, old))))
+                ? true
+                : empManageOk(familyId, c, oldLevels.union(levels).hasAny(empAdminLevels()))));
     }
 
     // Endre andres tilgang: Begrenset redigering på Tilgangsstyring; administrator bare av administrator.
-    function empManageOk(familyId, c, oc) {
-      let hasAcl = exists(aclPath(familyId));
-      let acl = hasAcl ? get(aclPath(familyId)).data : {};
-      let admin = request.auth.uid in get(familyPath(familyId)).data.get('adminUids', [])
-        || acl.get('levelId', '') == 'administrator';
-      return (!hasAcl || grantRank(acl.get('grants', {}).get('accessControl', 'none')) >= 2)
-        && (admin || (!empIsAdminLevel(oc) && !empIsAdminLevel(c)))
-        && (!hasAcl || empOverridesWithin(c, acl.get('grants', {})));
+    // Uten speil bare eier og administratorer (tidligere slapp alle medlemmer til).
+    function empManageOk(familyId, c, touchesAdmin) {
+      let admin = isFamilyAdmin(familyId);
+      let acl = hasFreshAcl(familyId) ? get(aclPath(familyId)).data : {};
+      let grants = acl.get('grants', {});
+      return admin ? true
+        : (grantRank(grants.get('accessControl', 'none')) >= 2
+            && (!touchesAdmin || acl.get('levelId', '') == 'administrator')
+            && empOverridesWithin(c, grants));
     }
 
     // ISO-samlingene og tilgangsspeilet har egne regler og er unntatt fra den generelle regelen.
+    // Det samme gjelder medlemsdokumentene og invitasjonene (parents, memberInvites), og de
+    // skjermede personopplysningene (HR, fravær, personnummer, notater) og timer og utlegg.
     function isProtected(coll) {
       return coll.matches('^iso[A-Z].*') || coll == 'accessAcl'
         || coll == 'docComments' || coll == 'docControlSettings' || coll == 'docControl' || coll == 'docAcks'
-        || coll == 'invoices' || coll == 'invoiceSeries' || coll == 'meetings';
+        || coll == 'invoices' || coll == 'invoiceSeries' || coll == 'meetings'
+        || coll == 'parents' || coll == 'memberInvites'
+        || coll == 'hr' || coll == 'hrSelf' || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
+        || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
+        || coll == 'timeEntryDeletions' || coll == 'accessLog';
+    }
+
+    // Kalenderhendelse i en bedrift: «bare utvalgte» (audience 'selected') leses av den som laget
+    // den og de inviterte (memberIds). Felles hendelser og eldre uten audience som før (SOS-08).
+    function eventVisible(d) {
+      return d.get('audience', '') != 'selected'
+        || request.auth.uid in d.get('memberIds', [])
+        || d.get('createdBy', '') == request.auth.uid;
+    }
+
+    // Samme for lister, uten standardverdier: get('audience', '') != 'selected' er sant for et felt
+    // spørringen ikke filtrerer på, og ville sluppet gjennom en liste over hele samlingen.
+    // Spørringen må derfor filtrere på audience, memberIds eller createdBy.
+    function eventListVisible() {
+      return resource.data.audience != 'selected'
+        || request.auth.uid in resource.data.memberIds
+        || resource.data.createdBy == request.auth.uid;
+    }
+
+    // Bedriften har hendelser for «bare utvalgte» (privateEvents på gruppen, satt av appen når den
+    // første lages eller finnes, etter at eldre hendelser har fått audience). Før det har kalenderen
+    // ingen private hendelser, og hele samlingen kan listes som før, også av eldre apper (REV-11).
+    function companyPrivateEvents(familyId) {
+      return get(familyPath(familyId)).data.get('privateEvents', false) == true;
+    }
+
+    // Når kalenderen først har private hendelser, kan ingen (heller ikke eier) slå det av igjen.
+    function privateEventsKept() {
+      return resource.data.get('privateEvents', false) != true
+        || request.resource.data.get('privateEvents', false) == true;
+    }
+
+    // Underlag på ansattposten med egne regler: bruksloggen (IP-adresser) skrives bare av serveren.
+    function isProtectedSub(coll, sub) {
+      return coll == 'employees' && sub == 'usage';
+    }
+
+    /* ───────── Medlemsdokumentene (families/{id}/parents/{pid}) ─────────
+     * Et aktivt medlemsdokument gir tilgang til gruppen (isFamilyAdult), og serveren leser
+     * ikke lenger admin, superAdmin eller staffRole herfra (bare ownerUid/adminUids).
+     * Eier og administratorer kan alt. Et vanlig medlem kan bare:
+     * - legge en invitasjon (plassholder) i eget navn, som ikke gir tilgang før personen godtar,
+     * - stelle ventende plassholdere (leveringsstatus, send på nytt),
+     * - redigere sitt eget dokument, men ikke rollefeltene og ikke gi seg selv tilgang tilbake.
+     */
+    function memberRoleKeys() {
+      return ['admin', 'superAdmin', 'staffRole', 'role', 'adultRole', 'isGrandparent', 'grandparentModules',
+        'createdBy', 'invitedBy'];
+    }
+
+    function memberDocCreateOk(pid) {
+      let d = request.resource.data;
+      return d.get('admin', false) != true
+        && d.get('superAdmin', false) != true
+        && !d.keys().hasAny(['staffRole', 'role'])
+        && (pid == request.auth.uid
+            || (!grantsMembership(d) && d.get('createdBy', '') == request.auth.uid));
+    }
+
+    function memberDocUpdateOk(pid) {
+      let self = pid == request.auth.uid || resource.data.get('uid', '') == request.auth.uid;
+      return self
+        // Eget dokument: ikke rollefeltene, uid kan bare bli en selv, og en kan ikke gi seg selv
+        // tilgang tilbake.
+        ? (!changed().hasAny(memberRoleKeys())
+            && (unchanged('uid') || request.resource.data.get('uid', '') == request.auth.uid)
+            && (grantsMembership(resource.data) || !grantsMembership(request.resource.data)))
+        // Andres dokument: bare plassholdere som fortsatt ikke gir tilgang, og samme person.
+        // Telefon kan fylles inn der den mangler; e-posten (som invitasjonen kobles på) står.
+        : (!changed().hasAny(['uid', 'email'])
+            && (unchanged('phone') || resource.data.get('phone', '') == '')
+            && !grantsMembership(resource.data)
+            && !grantsMembership(request.resource.data)
+            && (!changed().hasAny(memberRoleKeys()) || memberReinviteOk()));
+    }
+
+    // Ny invitasjon til en eksisterende plassholder eller et tidligere medlem (inviteAdult og
+    // inviteExistingAdult skriver med merge): et medlem kan legge den på nytt i eget navn (REV-16).
+    // Den gir ikke tilgang før personen godtar, og aldri administrator eller en ansattrolle.
+    function memberReinviteOk() {
+      let d = request.resource.data;
+      return d.get('admin', false) != true
+        && d.get('superAdmin', false) != true
+        && !changed().hasAny(['staffRole', 'role'])
+        && (unchanged('createdBy') || d.get('createdBy', '') == request.auth.uid)
+        && (unchanged('invitedBy') || d.get('invitedBy', '') == request.auth.uid);
     }
 
     /* ───────── Fakturaer ─────────
@@ -351,6 +783,218 @@ service cloud.firestore {
       return (before.get('pdf', null) == null || after.get('pdf', null) == before.get('pdf', null))
         && (before.get('xml', null) == null || after.get('xml', null) == before.get('xml', null))
         && (before.get('timeSpec', null) == null || after.get('timeSpec', null) == before.get('timeSpec', null));
+    }
+
+    // Leveringsperiode, fakturatekst, referanser, adresselinjer og språk er en del av den
+    // utstedte fakturaen. Manglende felt regnes som tomme (og språket som bokmål), så appen
+    // kan lagre en eldre faktura på nytt.
+    function invoiceTermsKept() {
+      let d = request.resource.data;
+      let o = resource.data;
+      return d.get('periodStart', '') == o.get('periodStart', '')
+        && d.get('periodEnd', '') == o.get('periodEnd', '')
+        && d.get('invoiceText', '') == o.get('invoiceText', '')
+        && d.get('customerReference', '') == o.get('customerReference', '')
+        && d.get('orderReference', '') == o.get('orderReference', '')
+        && d.get('contractReference', '') == o.get('contractReference', '')
+        && d.get('ourReference', '') == o.get('ourReference', '')
+        && d.get('addressLineAbove', '') == o.get('addressLineAbove', '')
+        && d.get('addressLineBelow', '') == o.get('addressLineBelow', '')
+        && (d.get('language', '') in ['', 'nb'] ? 'nb' : d.get('language', ''))
+          == (o.get('language', '') in ['', 'nb'] ? 'nb' : o.get('language', ''));
+    }
+
+    // Hendelsesloggen på en utstedt faktura kan bare utvides: de gamle hendelsene står som før.
+    function invoiceEventsAppended() {
+      let before = resource.data.get('events', []);
+      let after = request.resource.data.get('events', []);
+      return after is list && after.size() >= before.size()
+        && (before.size() == 0 || after[0:before.size()] == before);
+    }
+
+    // Ferdigstilling, nummerserien, betalinger og alt på en utstedt faktura: Begrenset redigering
+    // på Faktura (som canManage i appen), eier eller administrator (SEC-14, L-10).
+    function invoiceManager(familyId) {
+      return isFamilyAdmin(familyId) || grantAtLeast(aclGrants(familyId), 'economyInvoices', 2);
+    }
+
+    // Kobler timer og utlegg til fakturaer: Til fakturering eller Faktura med Begrenset redigering.
+    function invoiceBiller(familyId) {
+      let g = aclGrants(familyId);
+      return isFamilyAdmin(familyId) || grantAtLeast(g, 'economyBilling', 2) || grantAtLeast(g, 'economyInvoices', 2);
+    }
+
+    // Betaling registreres (merk betalt) på en faktura uten issuedAt (importert).
+    function invoicePaymentChanged() {
+      return changed().hasAny(['payments', 'paidAmount', 'paidAt'])
+        || (request.resource.data.get('status', '') == 'paid' && resource.data.get('status', '') != 'paid');
+    }
+
+    function blankText(v) {
+      return v == null || v == '';
+    }
+
+    function entryInvoiced(d) {
+      return !blankText(d.get('invoiceId', null));
+    }
+
+    function entryLocked(d, lockedStatus) {
+      return entryInvoiced(d) || d.get('status', '') == lockedStatus;
+    }
+
+    // Samme faktura før og etter (tom streng og null er det samme).
+    function sameInvoiceLink() {
+      let a = request.resource.data.get('invoiceId', null);
+      let b = resource.data.get('invoiceId', null);
+      return (blankText(a) && blankText(b)) || a == b;
+    }
+
+    // Endringshistorikken på en timeføring kan bare utvides (appen legger til én rad med arrayUnion).
+    function timeEntryHistoryAppended() {
+      let before = resource.data.get('history', []);
+      let after = request.resource.data.get('history', []);
+      return after is list && after.size() >= before.size()
+        && (before.size() == 0 || after[0:before.size()] == before);
+    }
+
+    // Sletteloggen for timer leses av ledere (Andres timer), HR og økonomi, eier og administratorer.
+    function timeDeletionReader(familyId) {
+      let g = aclGrants(familyId);
+      return isFamilyAdmin(familyId)
+        || grantAtLeast(g, 'hoursOthers', 2)
+        || hrGrantAtLeast(g, 1)
+        || grantAtLeast(g, 'economyInvoices', 1)
+        || grantAtLeast(g, 'economyBilling', 1);
+    }
+
+    // Rettighetene på timer, regnet ut én gang per skriving (reglene tåler bare 1000 uttrykk):
+    // - biller: kobler timer til fakturaer (som invoiceBiller).
+    // - approver: godkjenner timer (status 'godkjent'): eier, administrator, Begrenset redigering på
+    //   Andres timer (leder, som Godkjenninger i appen) eller den som fakturerer (Til fakturering
+    //   godkjenner fakturagrunnlaget). Uten ferskt speil bare eier og administratorer (DRIFT-06, DRIFT-07).
+    // - editor: fører, endrer og sletter andres timer: den som godkjenner, og Admin på Timerapport eller
+    //   Ansatte (timerapporten og personens timeliste under Ansatte, som i appen). Andre fører bare egne
+    //   timer (DRIFT-07). Sjekkes før ansattposten leses, så en leder som lagrer mange personers timer
+    //   i én skriving, ikke leser hver ansattpost.
+    function timeRights(familyId) {
+      let g = aclGrants(familyId);
+      let biller = isFamilyAdmin(familyId) || grantAtLeast(g, 'economyBilling', 2) || grantAtLeast(g, 'economyInvoices', 2);
+      let approver = biller || grantAtLeast(g, 'hoursOthers', 2);
+      return {
+        'biller': biller,
+        'approver': approver,
+        'editor': approver || grantAtLeast(g, 'hoursReport', 3) || grantAtLeast(g, 'employees', 3),
+      };
+    }
+
+    // Den vanlige lagringen av egne timer: speilet viser at føringen er ens egen. Da regnes ikke
+    // rettighetene ut. Godkjenning og fakturakobling prøves på nytt med timeRights (leder, økonomi).
+    function timeRightsOwn() {
+      return { 'biller': false, 'approver': false, 'editor': false };
+    }
+
+    // Egen føring etter speilet: posten speilet er beregnet for. Leser ikke mer enn speilet.
+    function ownTimeEntryByAcl(familyId, d) {
+      let emp = aclEmployeeId(familyId);
+      return emp != '' && d.get('employeeId', '') == emp;
+    }
+
+    // Egen føring etter ansattposten i employeeId (koblet med personUid): uten ferskt speil, eller en
+    // annen egen post. Alle føringer har employeeId, også eldre rader. En føring uten post er ingens egen.
+    function ownTimeEntry(familyId, d) {
+      return ownEmployeePost(familyId, d.get('employeeId', ''));
+    }
+
+    // Føringen blir på samme ansatt (en ansatt flytter ikke en føring til eller fra en annen).
+    function sameTimeEntryEmployee() {
+      return request.resource.data.get('employeeId', '') == resource.data.get('employeeId', '');
+    }
+
+    function timeEntryCreateOk(familyId, r) {
+      return (r.editor || ownTimeEntry(familyId, request.resource.data))
+        && (request.resource.data.get('status', '') != 'godkjent' || r.approver);
+    }
+
+    // Det som krever rettigheter (fakturakobling, godkjenning) prøves først, så en lagring som trenger
+    // dem, går raskt videre fra timeRightsOwn til timeRights.
+    function timeEntryChangeOk(r) {
+      return (sameInvoiceLink() || r.biller)
+        && (timeApprovalKept() || r.approver)
+        && (!entryInvoiced(resource.data) || unchanged('status') || r.biller)
+        && (!entryLocked(resource.data, 'låst') || timeEntryCoreKept())
+        && timeEntryHistoryAppended();
+    }
+
+    function timeEntryUpdateOk(familyId, r) {
+      return (r.editor || (ownTimeEntry(familyId, resource.data) && sameTimeEntryEmployee()))
+        && timeEntryChangeOk(r);
+    }
+
+    function timeEntryRemovable(r) {
+      return !entryLocked(resource.data, 'låst')
+        && (resource.data.get('status', '') != 'godkjent' || r.approver);
+    }
+
+    function timeEntryDeleteOk(familyId, r) {
+      return (r.editor || ownTimeEntry(familyId, resource.data)) && timeEntryRemovable(r);
+    }
+
+    // Godkjenningen står: en føring blir ikke godkjent, og en godkjent føring beholder status, timer,
+    // dato, ansatt og prosjekt (teksten kan rettes). Det er godkjenningen på føringen som teller, ikke
+    // låseraden i projects/state, som alle medlemmer kan skrive.
+    function timeApprovalKept() {
+      return resource.data.get('status', '') == 'godkjent'
+        ? (unchanged('status') && timeEntryCoreKept())
+        : request.resource.data.get('status', '') != 'godkjent';
+    }
+
+    function timeEntryCoreKept() {
+      let d = request.resource.data;
+      let o = resource.data;
+      return d.get('projectId', '') == o.get('projectId', '')
+        && d.get('employeeId', '') == o.get('employeeId', '')
+        && d.get('date', '') == o.get('date', '')
+        && d.get('hours', 0) == o.get('hours', 0)
+        && d.get('billableHours', d.get('hours', 0)) == o.get('billableHours', o.get('hours', 0))
+        && d.get('timeType', 'ordinary') == o.get('timeType', 'ordinary');
+    }
+
+    function expenseCoreKept() {
+      let d = request.resource.data;
+      let o = resource.data;
+      return d.get('projectId', '') == o.get('projectId', '')
+        && d.get('employeeId', '') == o.get('employeeId', '')
+        && d.get('date', '') == o.get('date', '')
+        && d.get('amountExVat', 0) == o.get('amountExVat', 0)
+        && d.get('amountInclVat', 0) == o.get('amountInclVat', 0)
+        && d.get('vatCode', '') == o.get('vatCode', '')
+        && d.get('markupPercent', 0) == o.get('markupPercent', 0)
+        && d.get('billable', true) == o.get('billable', true);
+    }
+
+    // Telleren går ett steg om gangen. Et hopp (nummer som aldri blir brukt) krever en ny rad
+    // sist i loggen jumps med begrunnelse og neste nummer (bokføringsforskriften § 5-1-1, L-31).
+    // Loggen bare vokser; den eldste raden kan falle ut når loggen har 200 rader.
+    function invoiceSeriesStepOk() {
+      let d = request.resource.data;
+      let last = d.get('last', 0);
+      let old = resource.data.get('last', 0);
+      return last is int && last > old
+        && changed().hasOnly(['last', 'updatedAt', 'jumps'])
+        && (last == old + 1 ? unchanged('jumps') || invoiceJumpAppended(last) : invoiceJumpAppended(last));
+    }
+
+    function invoiceJumpAppended(next) {
+      let before = resource.data.get('jumps', []);
+      let after = request.resource.data.get('jumps', []);
+      let n = before.size();
+      return after is list && after.size() >= 1
+        && (after.size() == n + 1
+          ? (n == 0 || after[0:n] == before)
+          : (n >= 200 && after.size() == n && after[0:n - 1] == before[1:n]))
+        && after[after.size() - 1].get('next', 0) == next
+        && after[after.size() - 1].get('reason', '') is string
+        && after[after.size() - 1].get('reason', '').size() >= 10;
     }
 
     function invoiceSeriesPath(familyId) {
@@ -442,9 +1086,87 @@ service cloud.firestore {
         || docCommentReader(familyId);
     }
 
+    // Har et aktivt medlemsdokument (voksen eller barn) i gruppen. Det skrives av serveren,
+    // eier eller administrator (se families/{id}/parents), og barnets av en foresatt (children).
+    function hasOwnMemberDoc(familyId) {
+      return isFamilyAdult(familyId) || isFamilyChild(familyId);
+    }
+
+    // Kan legge til og stelle barn i gruppen: en voksen i gruppen (som addsChild) eller en
+    // administrator, aldri i en bedrift. Barnedokumentet gir medlemskap (REV-24).
+    function childRecordManager(familyId) {
+      return !isCompanyGroup(familyId) && (isFamilyAdult(familyId) || isFamilyAdmin(familyId));
+    }
+
+    // Feltene som avgjør om barnedokumentet gir tilgang (grantsMembership), og hvem det gjelder.
+    function childMembershipKeys() {
+      return ['uid', 'active', 'deleted', 'leftAt', 'placeholder', 'inviteStatus'];
+    }
+
+    // En foresatt (voksen i gruppen, ikke bedrift) fører opp ett barn hen nettopp har lagt til
+    // (addChildMember): barnet har medlemsdokument i gruppen etter skrivingen og en barneprofil.
+    // arrayUnion legger den nye sist i listen. En voksen konto kan ikke føres opp slik (SEC-05).
+    function addsChild(familyId, key) {
+      let list = request.resource.data.get(key, []);
+      let added = list.size() > 0 ? list[list.size() - 1] : '';
+      return added is string && added != ''
+        && list.toSet().difference(resource.data.get(key, []).toSet()).hasOnly([added])
+        && !isCompanyGroup(familyId)
+        && isFamilyAdult(familyId)
+        && existsAfter(/databases/$(database)/documents/families/$(familyId)/children/$(added))
+        && isChildProfile(added);
+    }
+
+    // Medlemslistene: en kan melde seg selv ut, og føre seg selv opp når medlemskapet allerede
+    // er gitt av et aktivt medlemsdokument (ensureListedOnFamily). En foresatt kan føre opp et
+    // nytt barn (addsChild). Alt annet gjør eier, administrator eller serveren.
+    function memberListOk(familyId, key) {
+      let before = resource.data.get(key, []).toSet();
+      let after = request.resource.data.get(key, []).toSet();
+      return before.difference(after).hasOnly([request.auth.uid])
+        && (after.difference(before).size() == 0
+            || (after.difference(before).hasOnly([request.auth.uid]) && hasOwnMemberDoc(familyId))
+            || addsChild(familyId, key));
+    }
+
+    // Selskapets identitet og konto (brukes på fakturaer og i EHF).
+    function companyProfileKeys() {
+      return ['organisasjonsnummer', 'orgnr', 'bankAccount', 'kontonummer', 'iban', 'bic', 'swift', 'bankName', 'bank'];
+    }
+
+    // Felt under company som styres i tilgangsstyringen: Admin på Selskapsinnstillinger (orgnr og
+    // konto), Modulinnstillinger og Tilgangsstyring, som i appen. Personvernvalgene (privacy:
+    // brukslogg og AI) og databehandleravtalen (dpaAcceptance) endres bare av eier og
+    // administratorer, som i appen (de kommer aldri hit).
+    function companyFieldsOk(familyId, keys) {
+      let company = request.resource.data.get('company', {}).diff(resource.data.get('company', {})).affectedKeys();
+      return ((!keys.hasAny(['orgnr']) && !company.hasAny(companyProfileKeys())) || aclRank(familyId, 'companyProfile') >= 3)
+        && (!company.hasAny(['modules']) || aclRank(familyId, 'moduleSettings') >= 3)
+        && (!company.hasAny(['accessPolicy']) || canAdminAccessMatrix(familyId))
+        && !company.hasAny(['privacy', 'dpaAcceptance']);
+    }
+
+    // Det vanlige medlemmer ikke kan endre på gruppen. Eier og administratorer kan alt
+    // (unntatt eierskap).
+    function familyUpdateOk(familyId) {
+      let keys = changed();
+      return !keys.hasAny(['createdBy', 'adminUid'])
+        && (keys.hasAny(['members']) ? memberListOk(familyId, 'members') : true)
+        && (keys.hasAny(['activeUsers']) ? memberListOk(familyId, 'activeUsers') : true)
+        && (keys.hasAny(['memberIds']) ? memberListOk(familyId, 'memberIds') : true)
+        && (keys.hasAny(['company', 'orgnr']) ? companyFieldsOk(familyId, keys) : true);
+    }
+
+    // Avslutning av bedriften (GRUNN-03): closure, closedAt og deleteAfter skrives bare av serveren
+    // (closeCompany, reopenCompany). Ingen klient, heller ikke eier, kan sette, endre eller fjerne dem.
+    // Slettingen leser fristen fra companyClosures/{id}, som ingen klient kan lese eller skrive.
+    function closureUnchanged() {
+      return !changed().hasAny(['closure', 'closedAt', 'deleteAfter']);
+    }
+
     match /families/{familyId} {
-      // Selskapets eget dokument. Eierskap, administratorliste og tilgangsmatrisen
-      // kan ikke endres av vanlige medlemmer.
+      // Gruppens eget dokument. Eierskap, administratorliste, medlemslister, tilgangsmatrisen,
+      // moduler, orgnr og kontonummer kan ikke endres av vanlige medlemmer (familyUpdateOk).
       allow get: if isFamilyMember(familyId);
       allow list: if listsOwnFamily() || isFamilyMemberLite(familyId);
       allow create: if createsOwnFamily();
@@ -454,10 +1176,9 @@ service cloud.firestore {
         && (isFamilyOwner(familyId)
             || unchanged('adminUids')
             || request.auth.uid in resource.data.get('adminUids', []))
-        && (isFamilyOwner(familyId)
-            || request.resource.data.get('company', {}).get('accessPolicy', null) == resource.data.get('company', {}).get('accessPolicy', null)
-            || request.auth.uid in resource.data.get('adminUids', [])
-            || canAdminAccessMatrix(familyId));
+        && privateEventsKept()
+        && closureUnchanged()
+        && (isFamilyAdmin(familyId) ? true : familyUpdateOk(familyId));
 
       match /{path=**}/shoppingLists/{listId} {
         allow get: if isFamilyMember(familyId) && canReadShoppingListData(resource.data);
@@ -466,51 +1187,253 @@ service cloud.firestore {
           && canReadShoppingListData(request.resource.data);
       }
 
-      // HR (lønn, memo, ATS, avtaler). Ikke lesbart på tvers av selskaper —
-      // krever membership i familyId. Finer-grained hr-ressurs håndheves i klienten.
+      // HR (lønn, avtaler, saker, memo, søkere). Bare de med HR-tilgang i speilet, eier og
+      // administratorer (L-01). Den ansatte leser sitt eget utsnitt i hrSelf.
       match /hr/{document=**} {
+        allow get: if isFamilyMember(familyId) && hrReader(familyId);
+        allow list: if isFamilyMemberLite(familyId) && hrReader(familyId);
+        allow create, update, delete: if isFamilyMember(familyId) && hrWriter(familyId);
+      }
+
+      // «Min side»: det HR har delt med én ansatt (egne avtaler, oppgaver, notater, filer og
+      // egen lønn), skrevet av HR når HR lagres. Den ansatte leser sitt eget dokument.
+      match /hrSelf/{empId} {
+        allow get: if isFamilyMember(familyId) && (hrReader(familyId) || ownEmployeePost(familyId, empId));
+        allow list: if isFamilyMemberLite(familyId) && hrReader(familyId);
+        allow create, update, delete: if isFamilyMember(familyId) && hrWriter(familyId);
+      }
+
+      // Fravær (helseopplysninger, L-02). I bedrifter ser og fører hver ansatt sitt eget fravær;
+      // HR, ledere med Andres timer, eier og administratorer ser alle. Andre grupper (barnehage)
+      // bruker samlingen til barnas fravær, som før.
+      match /absences/{absenceId} {
+        allow get: if isFamilyMember(familyId)
+          && (!isCompanyGroup(familyId) || absenceForAll(familyId, 1) || ownAbsenceDoc(familyId, resource.data));
+        allow list: if isFamilyMemberLite(familyId)
+          && (!isCompanyGroup(familyId) || absenceForAll(familyId, 1) || ownAbsenceRow(familyId, resource.data));
+        allow create: if isFamilyMember(familyId)
+          && (!isCompanyGroup(familyId) || absenceForAll(familyId, 2)
+              || (ownAbsenceDoc(familyId, request.resource.data) && ownAbsenceStatusOk()));
+        allow update: if isFamilyMember(familyId)
+          && (!isCompanyGroup(familyId) || absenceForAll(familyId, 2)
+              || (ownAbsenceDoc(familyId, resource.data) && ownAbsenceDoc(familyId, request.resource.data)
+                  && ownAbsenceStatusOk()));
+        // Et dokument som ikke finnes, kan «slettes» (to skjermer sletter samme rad, eller en sletting prøves igjen).
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || !isCompanyGroup(familyId) || absenceForAll(familyId, 2)
+              || ownAbsenceDoc(familyId, resource.data));
+      }
+
+      // Barnehagens fravær for barna (DS-22): eget samlingsnavn, så det ikke blandes med ansattes
+      // fravær i absences. Bare utenfor bedrifter. Lesing som for barnehagens eldre meldinger i
+      // absences; meldingen står i eget navn, og bare den som meldte og administratorene endrer
+      // eller sletter den.
+      match /childAbsences/{absenceId} {
+        allow get: if isFamilyMember(familyId) && !isCompanyGroup(familyId);
+        allow list: if isFamilyMemberLite(familyId) && !isCompanyGroup(familyId);
+        allow create: if isFamilyMember(familyId) && !isCompanyGroup(familyId)
+          && request.resource.data.get('authorUid', '') == request.auth.uid;
+        allow update: if isFamilyMember(familyId) && !isCompanyGroup(familyId)
+          && (resource.data.get('authorUid', '') == request.auth.uid || isFamilyAdmin(familyId))
+          && request.resource.data.get('authorUid', '') == resource.data.get('authorUid', '');
+        allow delete: if isFamilyMember(familyId) && !isCompanyGroup(familyId)
+          && (resource.data.get('authorUid', '') == request.auth.uid || isFamilyAdmin(familyId));
+      }
+
+      // Personnummer, pårørende og intern kommentar per ansatt (L-03). Ikke i ansattlisten.
+      match /employeesPrivate/{empId} {
+        allow get: if isFamilyMember(familyId) && (empPrivateReader(familyId) || ownEmployeePost(familyId, empId));
+        allow list: if isFamilyMemberLite(familyId) && empPrivateReader(familyId);
+        allow create, update: if isFamilyMember(familyId)
+          && (empPrivateWriter(familyId) || ownEmployeePost(familyId, empId));
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      // Kalenderen. I bedrifter med private hendelser må en liste filtrere på felles hendelser
+      // (audience == 'family'), egne (createdBy) eller der en er invitert (memberIds), som appen gjør.
+      match /events/{eventId} {
+        allow get: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
+        allow list: if isFamilyMemberLite(familyId)
+          && (!isCompanyGroup(familyId) || !companyPrivateEvents(familyId) || eventListVisible());
+        allow create: if isFamilyMember(familyId) || foundsFamily(familyId);
+        allow update: if isFamilyMember(familyId) && (!isCompanyGroup(familyId) || eventVisible(resource.data));
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || !isCompanyGroup(familyId) || eventVisible(resource.data));
+
+        match /{sub}/{rest=**} {
+          allow read, write: if isFamilyMember(familyId)
+            && (!isCompanyGroup(familyId)
+                || eventVisible(get(/databases/$(database)/documents/families/$(familyId)/events/$(eventId)).data));
+        }
+      }
+
+      // Notater: bare de som står i memberIds. Bare den som laget notatet, endrer hvem det er delt med (FL-13).
+      // Et permanent slettet notat (eldre klienter satte bare et flagg) kan ikke åpnes (SOS-09); appen
+      // sletter slike notater når den som laget dem, åpner notatlisten.
+      match /notes/{noteId} {
+        allow get: if isFamilyMember(familyId) && request.auth.uid in resource.data.get('memberIds', [])
+          && resource.data.get('permanentlyDeleted', false) != true;
+        allow list: if isFamilyMemberLite(familyId) && request.auth.uid in resource.data.get('memberIds', []);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.get('createdBy', '') == request.auth.uid
+          && request.auth.uid in request.resource.data.get('memberIds', []);
+        allow update: if isFamilyMember(familyId)
+          && request.auth.uid in resource.data.get('memberIds', [])
+          && unchanged('createdBy')
+          && (resource.data.get('createdBy', '') == request.auth.uid
+              || (request.resource.data.get('memberIds', []).toSet() == resource.data.get('memberIds', []).toSet()
+                  && unchanged('visibility')));
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || resource.data.get('createdBy', '') == request.auth.uid);
+      }
+
+      // Timer og prosjektutlegg: en fakturert eller låst rad beholder timer, beløp, dato, ansatt og
+      // prosjekt, og slettes ikke (DS-11, L-10). Koblingen til fakturaen settes og tas bort av den
+      // som fakturerer.
+      // Timer: en ansatt fører, endrer og sletter bare egne timer (ansattposten i employeeId, før og
+      // etter); leder og de andre med editor i timeRights også andres (DRIFT-07). Prosjektutlegg: som
+      // før for alle medlemmer.
+      // Godkjenning (status 'godkjent') settes og fjernes bare av den som godkjenner timer, og en
+      // godkjent rad endres og slettes bare av dem, også egne timer (DRIFT-06, DRIFT-07).
+      // En rad som allerede er slettet, kan slettes igjen (appen kan slette samme rad fra to
+      // steder samtidig, og eldre versjoner gjør det). Det avslører ikke noe medlemmer ikke kan lese.
+      match /timeEntries/{entryId} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
-        allow create, update, delete: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && ((ownTimeEntryByAcl(familyId, request.resource.data)
+                && request.resource.data.get('status', '') != 'godkjent')
+            || timeEntryCreateOk(familyId, timeRights(familyId)));
+        allow update: if isFamilyMember(familyId)
+          && ((ownTimeEntryByAcl(familyId, resource.data) && sameTimeEntryEmployee()
+                && timeEntryChangeOk(timeRightsOwn()))
+            || timeEntryUpdateOk(familyId, timeRights(familyId)));
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null
+            || (ownTimeEntryByAcl(familyId, resource.data) && timeEntryRemovable(timeRightsOwn()))
+            || timeEntryDeleteOk(familyId, timeRights(familyId)));
+      }
+
+      // Slettelogg for timer: nye rader i eget navn, aldri endret eller slettet.
+      match /timeEntryDeletions/{recordId} {
+        allow get: if isFamilyMember(familyId) && timeDeletionReader(familyId);
+        allow list: if isFamilyMemberLite(familyId) && timeDeletionReader(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.get('byUid', '') == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // Logg over innsyn i sensitive opplysninger (accessLog): bare serveren (logSensitiveAccess,
+      // listAccessLog). Ingen klientregler; samlingen står i isProtected.
+
+      match /projectExpenses/{expenseId} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create: if isFamilyMember(familyId);
+        allow update: if isFamilyMember(familyId)
+          && (sameInvoiceLink() || invoiceBiller(familyId))
+          && (!entryLocked(resource.data, 'invoiced') || expenseCoreKept())
+          && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId));
+        allow delete: if isFamilyMember(familyId) && (resource == null || !entryLocked(resource.data, 'invoiced'));
+      }
+
+      // Medlemsdokumentene: se memberDocCreateOk / memberDocUpdateOk.
+      match /parents/{pid} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create: if (foundsFamily(familyId) && pid == request.auth.uid)
+          || (isFamilyAdmin(familyId) ? true : (isFamilyMember(familyId) && memberDocCreateOk(pid)));
+        allow update: if isFamilyAdmin(familyId) ? true : (isFamilyMember(familyId) && memberDocUpdateOk(pid));
+        allow delete: if isFamilyAdmin(familyId);
       }
 
       // Den inviterte kan åpne sin egen invitasjon (e-postlenken). Svaret går via serveren.
+      // Invitasjonen skrives i eget navn (invitedBy), så serveren kan stole på avsenderen når
+      // den vurderer asAdmin. Bare eier og administratorer kan invitere som administrator.
       match /memberInvites/{inviteId} {
         allow get: if isSignedIn() && resource.data.get('inviteeUid', '') == request.auth.uid;
+        allow get: if isFamilyMember(familyId);
+        allow list: if isFamilyMemberLite(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.get('invitedBy', '') == request.auth.uid
+          && request.resource.data.get('status', '') == 'pending'
+          && (request.resource.data.get('asAdmin', false) != true || isFamilyAdmin(familyId));
+        // Svaret (godtatt/avslått) skrives av serveren. Avsender og administratorer kan stelle den.
+        allow update: if isFamilyMember(familyId)
+          && (isFamilyAdmin(familyId) || resource.data.get('invitedBy', '') == request.auth.uid)
+          && unchanged('invitedBy') && unchanged('inviteeUid')
+          && (unchanged('status') || request.resource.data.get('status', '') != 'accepted')
+          && (request.resource.data.get('asAdmin', false) != true || isFamilyAdmin(familyId));
+        allow delete: if isFamilyAdmin(familyId)
+          || (isFamilyMember(familyId) && resource.data.get('invitedBy', '') == request.auth.uid);
+      }
+
+      // Barna i gruppen (REV-24). Et aktivt barnedokument gir barnet medlemskap (isFamilyChild).
+      // Det lages bare av en foresatt eller administrator, aldri i en bedrift, bare for en barnekonto
+      // (eller en ny konto uten profil ennå, som addChildMember i eldre apper), og uid er dokumentets id.
+      // Om barnet er med, endres bare av dem. Barnet selv og andre medlemmer lagrer resten som før.
+      // Underlagene (oppgaver, lekser osv.) følger den generelle regelen under.
+      match /children/{childId} {
+        allow create: if childRecordManager(familyId)
+          && request.resource.data.get('uid', childId) == childId
+          && (!exists(userPath(childId)) || isChildProfile(childId));
+        allow update: if isFamilyMember(familyId)
+          && (unchanged('uid') || request.resource.data.get('uid', childId) == childId)
+          && (!changed().hasAny(childMembershipKeys()) || childRecordManager(familyId));
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null || isFamilyAdmin(familyId) || childRecordManager(familyId));
       }
 
       // Alle andre samlinger: som før. ISO-samlingene (iso*) og den speilede
-      // tilgangen (accessAcl) har egne regler under og er unntatt her.
-      match /{coll}/{document=**} {
-        allow get: if isFamilyMember(familyId) && !isProtected(coll);
-        allow list: if isFamilyMemberLite(familyId) && !isProtected(coll);
-        allow create, update, delete: if isFamilyMember(familyId) && !isProtected(coll) && coll != 'employees';
-        allow create: if foundsFamily(familyId) && !isProtected(coll) && coll != 'employees';
+      // tilgangen (accessAcl) har egne regler under og er unntatt her. Ansatte og barn
+      // har egne skriveregler (employees, children).
+      // Samlingsnavnet sjekkes før medlemskapet: det er billig, og ansattreglene er dyre.
+      match /{coll}/{docId} {
+        allow get: if !isProtected(coll) && isFamilyMember(familyId);
+        allow list: if !isProtected(coll) && isFamilyMemberLite(familyId);
+        allow create, update, delete: if !(coll in ['employees', 'children']) && !isProtected(coll) && isFamilyMember(familyId);
+        allow create: if !(coll in ['employees', 'children']) && !isProtected(coll) && foundsFamily(familyId);
       }
 
+      // Underlag (f.eks. oppgavelogg, prefs på ansattposten): som dokumentet de hører til.
+      match /{coll}/{docId}/{sub}/{rest=**} {
+        allow get: if !isProtected(coll) && !isProtectedSub(coll, sub) && isFamilyMember(familyId);
+        allow list: if !isProtected(coll) && !isProtectedSub(coll, sub) && isFamilyMemberLite(familyId);
+        allow create, update, delete: if coll != 'employees' && !isProtected(coll) && isFamilyMember(familyId);
+        allow create: if coll != 'employees' && !isProtected(coll) && foundsFamily(familyId);
+      }
+
+      // Utkast lages og endres av medlemmer som før. Ferdigstilling, betaling og alt på en
+      // utstedt faktura krever økonomitilgang (invoiceManager).
       match /invoices/{invoiceId} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
         allow create: if isFamilyMember(familyId)
-          && (!invoiceIssued(request.resource.data) || invoiceNumberFromSeries(familyId));
+          && (!invoiceIssued(request.resource.data)
+              || (invoiceManager(familyId) && invoiceNumberFromSeries(familyId)));
         allow update: if isFamilyMember(familyId) && (
           (!invoiceIssued(resource.data)
-            && (!invoiceIssued(request.resource.data) || invoiceNumberFromSeries(familyId)))
+            && (!invoiceIssued(request.resource.data)
+                ? (!invoicePaymentChanged() || invoiceManager(familyId))
+                : (invoiceManager(familyId) && invoiceNumberFromSeries(familyId))))
           || (invoiceIssued(resource.data)
+            && invoiceManager(familyId)
             && !changed().hasAny(invoiceLockedKeys())
+            && invoiceTermsKept()
+            && invoiceEventsAppended()
             && invoiceArchiveKept())
         );
-        allow delete: if isFamilyMember(familyId) && !invoiceIssued(resource.data);
+        allow delete: if isFamilyMember(familyId) && (resource == null || !invoiceIssued(resource.data));
       }
 
-      // Telleren for fakturanummer: bare oppover, aldri slettet.
+      // Telleren for fakturanummer: ett steg om gangen, eller et begrunnet hopp. Aldri slettet.
       match /invoiceSeries/{seriesId} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
-        allow create: if isFamilyMember(familyId) && request.resource.data.get('last', 0) is int
+        allow create: if isFamilyMember(familyId) && invoiceManager(familyId)
+          && request.resource.data.get('last', 0) is int
           && request.resource.data.get('last', 0) >= 1;
-        allow update: if isFamilyMember(familyId) && request.resource.data.get('last', 0) is int
-          && request.resource.data.get('last', 0) > resource.data.get('last', 0);
+        allow update: if isFamilyMember(familyId) && invoiceManager(familyId) && invoiceSeriesStepOk();
         allow delete: if false;
       }
 
@@ -529,14 +1452,27 @@ service cloud.firestore {
           && resource.data.get('deliveries', []).size() == 0;
       }
 
-      // Ansatte: som før, men tilgangsfeltene er beskyttet (se empUpdateOk).
+      // Ansatte: som før, men tilgangs- og kontofeltene er beskyttet (se empUpdateOk).
+      // Sletting krever Admin på Ansatte (som appen); en post med administratornivå bare administrator.
+      // Personnummer, pårørende og intern kommentar skrives til employeesPrivate (empPrivateKept).
       match /employees/{empId} {
-        allow create: if isFamilyMember(familyId) && (isFamilyOwner(familyId) || empCreateOk(familyId));
-        allow update: if isFamilyMember(familyId) && (isFamilyOwner(familyId) || empUpdateOk(familyId));
-        allow delete: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId) && empPrivateKept(request.resource.data, {})
+          && (isFamilyOwner(familyId) ? true : empCreateOk(familyId));
+        allow update: if isFamilyMember(familyId) && empPrivateKept(request.resource.data, resource.data)
+          && (isFamilyOwner(familyId) ? true : empUpdateOk(familyId));
+        allow delete: if isFamilyMember(familyId)
+          && (isFamilyAdmin(familyId)
+              || (aclRank(familyId, 'employees') >= 3 && !empPostLevels(resource.data).hasAny(empAdminLevels())));
 
         match /{subColl}/{subDoc=**} {
-          allow create, update, delete: if isFamilyMember(familyId);
+          allow create, update, delete: if isFamilyMember(familyId) && !isProtectedSub('employees', subColl);
+        }
+
+        // Bruksloggen (tidspunkt og IP-adresse) skrives av serveren. Den ansatte selv, eier og
+        // administratorer kan lese den; appen henter den via listEmployeeUsage.
+        match /usage/{eventId} {
+          allow get, list: if isFamilyMember(familyId)
+            && (isFamilyAdmin(familyId) || ownEmployeePost(familyId, empId));
         }
       }
 
@@ -619,9 +1555,11 @@ service cloud.firestore {
       }
 
       match /isoFindings/{id} {
-        allow get: if isoMember(familyId, 1);
-        allow list: if isoMemberLite(familyId, 1);
-        allow create: if isoMember(familyId, 1)
+        // Melder uten ISO-tilgang (innleid, ekstern) leser bare egne meldinger. Et dokument som ikke finnes,
+        // kan sjekkes (hurtigmeldingen ser etter dobbel sending i samme transaksjon).
+        allow get: if isoMember(familyId, 1) || (isFamilyMember(familyId) && (resource == null || ownReport(resource.data)));
+        allow list: if isoMemberLite(familyId, 1) || (isFamilyMemberLite(familyId) && ownReport(resource.data));
+        allow create: if isoReportOk(familyId, false) || (isoMember(familyId, 1)
           && request.resource.data.get('restricted', false) != true
           && (
             (request.resource.data.get('state', '') == 'registrert'
@@ -630,7 +1568,7 @@ service cloud.firestore {
             || (isRestrictedListed(familyId) && isoRank(familyId) >= 2
                 && exists(/databases/$(database)/documents/families/$(familyId)/isoFindingsRestricted/$(id))
                 && !existsAfter(/databases/$(database)/documents/families/$(familyId)/isoFindingsRestricted/$(id)))
-          );
+          ));
         allow update: if isoMember(familyId, 1)
           && findingUpdateAllowed(familyId, isoRank(familyId) >= 2);
         // Bare som del av flytting til skjermet samling (samme batch).
@@ -639,9 +1577,12 @@ service cloud.firestore {
       }
 
       match /isoFindingsRestricted/{id} {
-        allow get: if isoMember(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data));
-        allow list: if isoMemberLite(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data));
-        allow create: if isoMember(familyId, 1)
+        // Et dokument som ikke finnes, kan sjekkes (en transaksjon leser før den skriver; det avslører ingenting).
+        allow get: if (isoMember(familyId, 1) && (resource == null || isRestrictedListed(familyId) || involved(resource.data)))
+          || (isFamilyMember(familyId) && (resource == null || ownReport(resource.data)));
+        allow list: if (isoMemberLite(familyId, 1) && (isRestrictedListed(familyId) || involved(resource.data)))
+          || (isFamilyMemberLite(familyId) && ownReport(resource.data));
+        allow create: if isoReportOk(familyId, true) || (isoMember(familyId, 1)
           && request.resource.data.get('restricted', false) == true
           && (
             (request.resource.data.get('state', '') == 'registrert' && request.resource.data.get('reportedByUid', '') == request.auth.uid)
@@ -650,7 +1591,7 @@ service cloud.firestore {
             || (isoRank(familyId) >= 2
                 && exists(/databases/$(database)/documents/families/$(familyId)/isoFindings/$(id))
                 && !existsAfter(/databases/$(database)/documents/families/$(familyId)/isoFindings/$(id)))
-          );
+          ));
         allow update: if isoMember(familyId, 1)
           && findingUpdateAllowed(familyId, isRestrictedListed(familyId) && isoRank(familyId) >= 2);
         // Bare som del av flytting tilbake til åpen samling (samme batch).
@@ -753,10 +1694,24 @@ service cloud.firestore {
         allow get: if isoMember(familyId, 1);
         allow list: if isoMemberLite(familyId, 1);
         allow create: if isoMember(familyId, 2) && request.resource.data.get('locked', false) != true;
-        allow update: if (isoMember(familyId, 2) && isoApprover(familyId))
+        // Vedtak merket utført sjekkes først: det er billig, og reglene tåler bare 1000 uttrykk per skriving.
+        allow update: if (isoMember(familyId, 1) && decisionDone(familyId))
+          || (isoMember(familyId, 2) && isoApprover(familyId))
           || (isoMember(familyId, 2)
               && resource.data.get('locked', false) != true
               && request.resource.data.get('locked', false) != true);
+        allow delete: if false;
+      }
+
+      // Teller for saksnummer per serie og år (AVV-2026). Nummeret tildeles i samme transaksjon som saken lagres.
+      // Melder uten ISO-tilgang (hurtigmelding) kan bare telle ett steg opp.
+      match /isoCounters/{series} {
+        allow get: if isFamilyMember(familyId);
+        allow list: if false;
+        allow create: if isFamilyMember(familyId) && isoCounterOk(0)
+          && (isoRank(familyId) >= 1 || request.resource.data.get('last', 0) == 1);
+        allow update: if isFamilyMember(familyId) && isoCounterOk(resource.data.get('last', 0))
+          && (isoRank(familyId) >= 1 || request.resource.data.get('last', 0) == resource.data.get('last', 0) + 1);
         allow delete: if false;
       }
 
@@ -794,20 +1749,71 @@ service cloud.firestore {
      */
     match /users/{uid} {
       allow read, write: if isSelf(uid) || isGuardianOf(uid);
+      // Ny barneprofil: foresatte lager den når barnet opprettes (addChildMember), merket som barn.
+      allow get: if resource == null && guardsChildRecord(uid);
+      allow create: if guardsChildRecord(uid) && request.resource.data.get('role', '') == 'child';
 
       match /{sub}/{doc=**} {
         allow read, write: if isSelf(uid);
       }
 
       match /notifications/{id} {
+        // Mottakeren er med i gruppen varselet gjelder (lister på gruppen, eller et
+        // medlemsdokument der). Gruppedokumentet leses én gang.
+        function notifRecipientInFamily(fid) {
+          let family = get(familyPath(fid)).data;
+          return uid in family.get('members', [])
+            || uid in family.get('activeUsers', [])
+            || uid in family.get('memberIds', [])
+            || family.get('ownerUid', '') == uid
+            || exists(/databases/$(database)/documents/families/$(fid)/parents/$(uid))
+            || exists(/databases/$(database)/documents/families/$(fid)/children/$(uid));
+        }
+
+        // Avsender og mottaker er i samme gruppe (familyId på varselet).
+        function notifSharesFamily() {
+          let fid = request.resource.data.get('familyId', '');
+          return fid is string && fid != ''
+            && isFamilyMemberLite(fid)
+            && notifRecipientInFamily(fid);
+        }
+
+        // Gruppeinvitasjon: invitasjonen ligger i mottakerens innboks og er sendt av
+        // avsenderen, eller svaret går tilbake til den som inviterte.
+        function notifInviteLink() {
+          let d = request.resource.data;
+          let inviteId = d.get('inviteId', '');
+          let inbox = /databases/$(database)/documents/users/$(uid)/familyInvites/$(inviteId);
+          let ownInbox = /databases/$(database)/documents/users/$(request.auth.uid)/familyInvites/$(inviteId);
+          return inviteId is string && inviteId != '' && (
+            (d.get('eventType', '') == 'familyInvite'
+              && exists(inbox)
+              && get(inbox).data.get('invitedBy', '') == request.auth.uid)
+            || (d.get('eventType', '') in ['familyInviteAccepted', 'familyInviteDeclined']
+              && exists(ownInbox)
+              && get(ownInbox).data.get('invitedBy', '') == uid)
+          );
+        }
+
         allow read, write: if isGuardianOf(uid);
         // Bare opprettelse. Et eksisterende varsel kan ikke overskrives av andre.
+        // Avsenderen må ha en reell forbindelse til mottakeren: samme gruppe, venn, eller
+        // en ekte gruppeinvitasjon mellom dem. Ellers kunne hvem som helst legge et
+        // villedende varsel (med push og e-post) i en annens innboks.
         // Uten avsender må begge være medlemmer i gruppen varselet gjelder.
-        allow create: if isSignedIn() && (
-          request.resource.data.get('createdBy', '') == request.auth.uid
+        // Varsel om melding i en vennechat: bare fra en venn (mottakeren har avsenderen som venn,
+        // ikke fjernet), også når de er i samme bedrift (SOS-04).
+        function friendChatNotifOk() {
+          let link = /databases/$(database)/documents/users/$(uid)/friends/$(request.auth.uid);
+          return request.resource.data.get('friendChat', false) != true
+            || (exists(link) && get(link).data.get('status', '') != 'removed');
+        }
+
+        allow create: if isSignedIn() && friendChatNotifOk() && (
+          (request.resource.data.get('createdBy', '') == request.auth.uid
+            && (notifSharesFamily() || isFriendOf(uid) || notifInviteLink()))
           || (request.resource.data.get('createdBy', null) == null
-              && isFamilyMemberLite(request.resource.data.get('familyId', 'none'))
-              && uid in get(familyPath(request.resource.data.get('familyId', 'none'))).data.get('members', []))
+              && notifSharesFamily())
         );
       }
 
@@ -855,14 +1861,25 @@ service cloud.firestore {
     }
 
     // Barnets speilprofil. Foresatte i barnets familie kan stelle den.
+    // Den kan bare lages for en barnekonto: finnes profilen users/{childId}, må den være et barn.
+    // Ellers kunne hvem som helst bli «foresatt» for en voksen og få users/{voksen} (SEC-05).
+    // En foresatt kan ta barnet ut av familien (familyId tom), når barnet fjernes (REV-02).
+    function releasesChild() {
+      return request.resource.data.get('familyId', null) == null || request.resource.data.get('familyId', null) == '';
+    }
+
     match /children/{childId} {
       allow get: if isSelf(childId) || isFamilyAdult(resource.data.get('familyId', 'none'));
       allow list: if isSignedIn() && (
         resource.data.get('uid', '') == request.auth.uid
         || isFamilyMemberLite(resource.data.get('familyId', 'none'))
       );
-      allow create: if isFamilyAdult(request.resource.data.get('familyId', 'none'));
-      allow update: if isFamilyAdult(resource.data.get('familyId', 'none'))
+      allow create: if isFamilyAdult(request.resource.data.get('familyId', 'none'))
+        && (!exists(userPath(childId)) || isChildProfile(childId));
+      allow update: if (isFamilyAdult(resource.data.get('familyId', 'none'))
+          && (request.resource.data.get('familyId', '') == resource.data.get('familyId', '')
+              || releasesChild()
+              || isFamilyAdult(request.resource.data.get('familyId', 'none'))))
         || (isSelf(childId) && request.resource.data.get('familyId', '') == resource.data.get('familyId', ''));
     }
 
@@ -888,23 +1905,52 @@ service cloud.firestore {
     }
 
     /* ───────── Oppslag ───────── */
-    // Brukernavn slås opp før innlogging. Bare eieren (eller et nytt barn) kan ta et ledig navn.
+    // Brukernavn slås opp før innlogging. Navnet er dokument-id-en og må være et gyldig
+    // brukernavn (ikke en e-postadresse), og dokumentet peker bare på en uid: ingen e-post
+    // eller andre felt som innloggingen kunne stole på (SEC-19).
+    function usernameDocOk(name) {
+      let d = request.resource.data;
+      return name.matches('^[a-z0-9._-]{3,24}$')
+        && d.keys().hasOnly(['uid', 'type', 'username', 'updatedAt', 'createdAt'])
+        && d.get('username', name) == name
+        && d.get('uid', '') is string && d.get('uid', '') != ''
+        && d.get('type', '') in ['adult', 'child'];
+    }
+
+    // Bare eieren kan ta et ledig navn til seg selv. Et navn til et barn kan bare tas av en
+    // foresatt til barnet (barneprofilen finnes), ikke av hvem som helst til en vilkårlig uid.
     match /usernames/{name} {
       allow get: if true;
-      allow create: if isSignedIn()
-        && request.resource.data.get('type', '') in ['adult', 'child']
-        && (request.resource.data.get('uid', '') == request.auth.uid || request.resource.data.get('type', '') == 'child');
-      allow update: if isSignedIn()
-        && resource.data.get('uid', '') == request.auth.uid
-        && request.resource.data.get('uid', '') == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.get('uid', '') == request.auth.uid;
+      allow create: if isSignedIn() && usernameDocOk(name)
+        && (request.resource.data.uid == request.auth.uid
+          || (request.resource.data.type == 'child' && isGuardianOf(request.resource.data.uid)));
+      // Navnet beholder eier og type. Eldre dokumenter uten type kan merkes som voksen.
+      allow update: if isSignedIn() && usernameDocOk(name)
+        && request.resource.data.uid == resource.data.get('uid', '')
+        && (request.resource.data.type == resource.data.get('type', '')
+          || (resource.data.get('type', '') == '' && request.resource.data.type == 'adult'))
+        && (resource.data.get('uid', '') == request.auth.uid
+          || (resource.data.get('type', '') == 'child' && isGuardianOf(resource.data.get('uid', ''))));
+      allow delete: if isSignedIn()
+        && (resource.data.get('uid', '') == request.auth.uid
+          || (resource.data.get('type', '') == 'child' && isGuardianOf(resource.data.get('uid', ''))));
     }
 
     // Kode → gruppe. Bare kode, gruppe-id og type (ingen navn eller personopplysninger).
+    // En kode som finnes kan ikke flyttes til en annen gruppe (SEC-18): oppdatering beholder
+    // gruppen, og bare medlemmer av gruppen koden peker på kan slette den.
+    function joinCodeOk(code) {
+      let d = request.resource.data;
+      return isFamilyMember(d.get('familyId', 'none'))
+        && d.keys().hasOnly(['code', 'familyId', 'type', 'updatedAt', 'createdAt'])
+        && d.get('code', code) == code;
+    }
+
     match /joinCodes/{code} {
       allow get: if isSignedIn();
-      allow create, update: if isFamilyMember(request.resource.data.get('familyId', 'none'))
-        && request.resource.data.keys().hasOnly(['code', 'familyId', 'type', 'updatedAt', 'createdAt']);
+      allow create: if joinCodeOk(code);
+      allow update: if joinCodeOk(code)
+        && request.resource.data.get('familyId', '') == resource.data.get('familyId', '');
       allow delete: if isFamilyMember(resource.data.get('familyId', 'none'));
     }
 
@@ -930,20 +1976,42 @@ service cloud.firestore {
       allow get, list: if isSignedIn() && request.auth.uid in resource.data.get('memberIds', []);
       // Appen sjekker om chatten finnes før den lages (id = dm_uidA_uidB).
       allow get: if isSignedIn() && resource == null && request.auth.uid in chatId.split('_');
+      // Ny tråd og nye medlemmer bare mellom venner (SOS-04). Lesekvitteringer og siste melding
+      // kan fortsatt oppdateres i en gammel tråd.
       allow create: if isSignedIn()
         && request.auth.uid in request.resource.data.get('memberIds', [])
-        && request.resource.data.get('memberIds', []).size() == 2;
+        && request.resource.data.get('memberIds', []).size() == 2
+        && mutualFriends(request.resource.data.get('memberIds', []));
       allow update: if isSignedIn()
         && request.auth.uid in resource.data.get('memberIds', [])
         && request.auth.uid in request.resource.data.get('memberIds', [])
-        && request.resource.data.get('memberIds', []).size() == 2;
+        && request.resource.data.get('memberIds', []).size() == 2
+        && (request.resource.data.get('memberIds', []).toSet() == resource.data.get('memberIds', []).toSet()
+            || mutualFriends(request.resource.data.get('memberIds', [])));
+
+      // Avsender og mottaker må fortsatt være venner begge veier (users/{a}/friends/{b}), som
+      // sendFriendChatAdmin: en fjernet venn kan ikke skrive i den gamle tråden (FL-12, SOS-04).
+      function friendChatMembers() {
+        return get(/databases/$(database)/documents/friendChats/$(chatId)).data.get('memberIds', []);
+      }
+
+      // Begge veier: users/{meg}/friends/{den andre} og users/{den andre}/friends/{meg}, ikke fjernet.
+      function mutualFriends(members) {
+        let other = members[0] == request.auth.uid ? members[1] : members[0];
+        let mine = /databases/$(database)/documents/users/$(request.auth.uid)/friends/$(other);
+        let theirs = /databases/$(database)/documents/users/$(other)/friends/$(request.auth.uid);
+        return members.size() == 2 && other != request.auth.uid
+          && exists(mine) && get(mine).data.get('status', '') != 'removed'
+          && exists(theirs) && get(theirs).data.get('status', '') != 'removed';
+      }
 
       match /messages/{messageId} {
         allow read: if isSignedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/friendChats/$(chatId)).data.get('memberIds', []);
+          && request.auth.uid in friendChatMembers();
         allow create: if isSignedIn()
           && request.resource.data.get('senderId', '') == request.auth.uid
-          && request.auth.uid in get(/databases/$(database)/documents/friendChats/$(chatId)).data.get('memberIds', []);
+          && request.auth.uid in friendChatMembers()
+          && mutualFriends(friendChatMembers());
       }
     }
 
@@ -965,6 +2033,12 @@ service cloud.firestore {
     match /system/indeksSsb {
       allow read: if isSignedIn();
       allow write: if false;
+    }
+
+    // Orgnummer → bedrift (SEC-18). Bare serveren (findCompanyByOrgnr, claimCompanyOrgnr)
+    // leser og skriver, i transaksjon, så ingen kan ta over et annet firmas orgnummer.
+    match /orgnrIndex/{orgnr} {
+      allow read, write: if false;
     }
   }
 }

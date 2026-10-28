@@ -4,6 +4,7 @@
  */
 
 import { shapeAccountPayload } from './accountSeries.js';
+import { proxyAuthHeaders } from '../anbud/proxyAuth.js';
 
 const BRREG = 'https://data.brreg.no/enhetsregisteret/api';
 const ACCOUNT_HISTORY = 'https://europe-west1-protop-c189c.cloudfunctions.net/tenderProxy';
@@ -317,11 +318,11 @@ export async function fetchPublicCompany(orgnr, { fetchImpl = fetch } = {}) {
     isUnit
       ? null
       : browser
-        ? fetch('/api/tender-proxy', {
+        ? proxyAuthHeaders().then((proxyHeaders) => fetch('/api/tender-proxy', {
           method: 'POST',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          headers: proxyHeaders,
           body: JSON.stringify({ action: 'register', orgnr: id }),
-        }).then((res) => (res.ok ? res.json() : null)).catch(() => null)
+        })).then((res) => (res.ok ? res.json() : null)).catch(() => null)
         : Promise.all([
           readJson(`${ACCOUNTS}/${id}`, fetchImpl).catch(() => null),
           readJson(`${FULLMAKT}/${id}/signatur`, fetchImpl).catch(() => null),

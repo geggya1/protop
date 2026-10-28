@@ -10,6 +10,7 @@ import StandardAccountSettings from '../../components/company/StandardAccountSet
 import CompanyInvoiceDefaultsSettings from '../../components/company/CompanyInvoiceDefaultsSettings';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import PowerOfficeSettings from './PowerOfficeSettings';
+import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 
 const TABS = [
   { id: 'kontoplan', label: 'Kontoplan', icon: 'list-outline', hint: 'Salgs- og kjøpskontoer med MVA' },
@@ -67,9 +68,11 @@ export default function EconomySettingsScreen({ startTab = 'kontoplan' } = {}) {
       nativeID="economy-settings"
       id="economy-settings"
     >
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-        Økonomiinnstillinger
-      </Text>
+      <UnlessShellTitle title="Økonomiinnstillinger">
+        <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
+          Økonomiinnstillinger
+        </Text>
+      </UnlessShellTitle>
       <Text style={[styles.lead, { color: colors.muted }]}>
         Kontoplan, standardkontoer og fakturastandarder brukes ved fakturering.
         Alle prosjekter arver disse verdiene under Faktureringsvalg — prosjektet kan overstyre enkeltfelt.

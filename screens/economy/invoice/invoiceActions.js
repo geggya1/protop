@@ -44,11 +44,14 @@ import {
   archiveInvoice,
   fileBase64,
   sendInvoiceEhf,
+  ehfAlreadySent,
+  ehfResendWanted,
   sendInvoiceMail,
   storeInvoiceFile,
 } from '../../../src/economy/invoiceDelivery.js';
 import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js';
 import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
+import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 
 function demo(ctx) {
   return !ctx.familyId || ctx.familyId === '__demo__';
@@ -157,7 +160,9 @@ export async function finalize(ctx, invoice, { date = '', dueDate = '' } = {}) {
   const settings = ctx.settings || {};
   const minimum = nextInvoiceNumber(ctx.invoices || [], settings.invoiceNumberStart);
   const build = (number, current) => {
-    const base = current && current.status === 'draft' ? { ...current, ...invoice } : invoice;
+    const merged = current && current.status === 'draft' ? { ...current, ...invoice } : invoice;
+    // Kunden kopieres fra registeret nå, ved ferdigstilling, og låses deretter (DS-09).
+    const base = withRegistryCustomer(merged, ctx.customers || []);
     const issued = issueInvoice(base, {
       number,
       date,
@@ -168,6 +173,8 @@ export async function finalize(ctx, invoice, { date = '', dueDate = '' } = {}) {
       kidMethod: settings.kidMethod || 'mod10',
       projectInvoiceCount: isCreditNote(base) ? null : projectInvoiceCountFor(ctx.invoices || [], base.projectId, base.id),
       actor: ctx.actor,
+      // Påbudt innhold sjekkes også for selger ved utstedelse (bokføringsforskriften § 5-1-1).
+      supplier: ctx.supplier || null,
     });
     if (!issued.ok) return issued;
     const voucher = ledgerVoucher(issued.invoice, {
@@ -179,7 +186,11 @@ export async function finalize(ctx, invoice, { date = '', dueDate = '' } = {}) {
   };
   let issued;
   if (typeof ctx.store.issueInvoiceWithNumber === 'function' && !demo(ctx)) {
-    issued = await ctx.store.issueInvoiceWithNumber(ctx.familyId, invoice, { minimum, build });
+    issued = await ctx.store.issueInvoiceWithNumber(ctx.familyId, invoice, {
+      minimum,
+      build,
+      numberJumps: settings.numberJumps || [],
+    });
   } else {
     const result = build(minimum, null);
     if (!result.ok) throw new Error(result.error);
@@ -271,8 +282,29 @@ export async function send(ctx, invoice, options = {}) {
     }
     const built = buildEhfXml(current, { supplier: ctx.supplier, attachments: embedded });
     if (!built.ok) throw new Error(built.error);
+    const ehfTo = [`0192:${String(current.orgnr).replace(/\D/g, '')}`];
+    let result = null;
     try {
-      const result = await sendInvoiceEhf({ familyId: ctx.familyId, invoiceId: current.id, xml: built.xml, senderOrgnr: ctx.supplier?.orgnr });
+      // Avsenderens orgnr hentes av serveren. senderOrgnr sendes bare med for eldre servere.
+      result = await sendInvoiceEhf({
+        familyId: ctx.familyId,
+        invoiceId: current.id,
+        xml: built.xml,
+        senderOrgnr: ctx.supplier?.orgnr,
+        resend: ehfResendWanted(current),
+      });
+    } catch (cause) {
+      const already = ehfAlreadySent(cause);
+      if (!already) {
+        current = recordDelivery(current, { channel: 'ehf', status: 'failed', message: String(cause?.message || cause), actor: ctx.actor });
+        current = await save(ctx, current);
+        throw new Error(`EHF-sendingen feilet: ${String(cause?.message || cause)}`);
+      }
+      // Sendt før (svaret kom aldri fram): registrer leveransen i stedet for å sende igjen.
+      current = recordDelivery(current, { channel: 'ehf', to: ehfTo, providerId: already.providerId, actor: ctx.actor });
+      messages.push('var allerede sendt som EHF');
+    }
+    if (result) {
       let archive = current.archive || {};
       try {
         const xmlFile = await storeInvoiceFile(ctx.familyId, current.id, `${invoicePdfName(current).replace(/\.pdf$/, '')}-EHF.xml`, new TextEncoder().encode(built.xml), 'application/xml');
@@ -280,12 +312,8 @@ export async function send(ctx, invoice, options = {}) {
       } catch {
         // XML-arkivet er en kopi. PDF-en ligger allerede i arkivet.
       }
-      current = recordDelivery({ ...current, archive }, { channel: 'ehf', to: [`0192:${String(current.orgnr).replace(/\D/g, '')}`], providerId: result.providerId, actor: ctx.actor });
+      current = recordDelivery({ ...current, archive }, { channel: 'ehf', to: ehfTo, providerId: result.providerId, actor: ctx.actor });
       messages.push('sendt som EHF');
-    } catch (cause) {
-      current = recordDelivery(current, { channel: 'ehf', status: 'failed', message: String(cause?.message || cause), actor: ctx.actor });
-      current = await save(ctx, current);
-      throw new Error(`EHF-sendingen feilet: ${String(cause?.message || cause)}`);
     }
   }
 
@@ -380,7 +408,7 @@ export async function postpone(ctx, invoice, date) {
 /** Last opp et vedlegg til fakturaen (PDF eller bilde). */
 export async function uploadAttachment(ctx, invoice, file, bytes) {
   const type = file.mimeType || file.type || 'application/octet-stream';
-  const ref = await storeInvoiceFile(ctx.familyId, invoice.id, file.name || 'vedlegg', bytes, type);
+  const ref = await storeInvoiceFile(ctx.familyId, invoice.id, file.name || 'vedlegg', bytes, type, { unique: true });
   // Importert faktura: den første PDF-en er selve fakturaen fra det andre systemet.
   const imported = !isManagedInvoice(invoice) && !isDraftInvoice(invoice);
   const asDocument = imported && !invoice.attachment?.url && /pdf/i.test(type || ref.name);
@@ -398,11 +426,13 @@ export async function uploadAttachment(ctx, invoice, file, bytes) {
  * Svarer med forhåndsvisning: { lines, selection, added, removed, changed }.
  */
 export async function refreshPreview(ctx, invoice) {
-  const [{ loadProjectState }, { loadTimeEntries }, { loadProjectExpenses, mergeExpenseLists }, { loadProductSales, mergeSaleLists }] = await Promise.all([
+  const [{ loadProjectState }, { loadTimeEntries }, { loadProjectExpenses }, { loadProductSales }, { combineExpenses }, { combineSales }] = await Promise.all([
     import('../../../src/project/storage'),
     import('../../../src/economy/timeEntryStorage.js'),
     import('../../../src/economy/expenseStorage.js'),
     import('../../../src/economy/productSalesStorage.js'),
+    import('../../../src/economy/expenseSave.js'),
+    import('../../../src/economy/productSaleSave.js'),
   ]);
   const [{ buildReadyProjects, periodEndFor, selectableKeys, selectionFor, approvedOnly }, { refreshDraftLines }, { resolveProjectInvoiceSettings }] = await Promise.all([
     import('../../../src/economy/billingReady.js'),
@@ -427,9 +457,9 @@ export async function refreshPreview(ctx, invoice) {
     projects: [project],
     customers: ctx.customers || [],
     timeEntries: entries.map(reopen),
-    expenses: mergeExpenseLists(extExpenses, state.expenses || []).map(reopen),
+    expenses: combineExpenses(state.expenses, extExpenses).map(reopen),
     trips: (state.mileageTrips || []).map(reopen),
-    sales: mergeSaleLists(extSales, state.sales || []).map(reopen),
+    sales: combineSales(state.sales, extSales).map(reopen),
     invoices: (ctx.invoices || []).filter((row) => row.id !== invoice.id),
     timesheetLocks: state.timesheetLocks || [],
     contracts: ctx.contracts || [],

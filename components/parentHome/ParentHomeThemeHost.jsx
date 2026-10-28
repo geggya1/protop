@@ -7,13 +7,15 @@ import { useApp } from '../../src/context/AppContext';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { useOptionalRoute } from '../../src/hooks/useOptionalRoute';
 import { colors, useLayout } from '../../src/theme';
-import { soft } from './softTheme';
 import { useParentHomeModel } from './useParentHomeModel';
 import { usePullToRefresh, hardReloadApp } from '../../src/hooks/usePullToRefresh';
 import { useHomeLayout } from '../../src/hooks/useHomeLayout';
 import { homeSceneTitle, homeSceneTagline, HOME_SCENE_SUBTITLE } from '../../src/homeBanners';
 import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
 import WidgetBoard from '../home/WidgetBoard';
+import CompanyOfferCard from '../home/CompanyOfferCard';
+import CompanyStartChecklist from '../home/CompanyStartChecklist';
+import CompanyQuickReport from '../home/CompanyQuickReport';
 
 /**
  * Fixed parent home — same tidy widget layout for every login.
@@ -76,7 +78,8 @@ export default function ParentHomeThemeHost({
 
   const { isPhone } = useLayout();
   const immersive = useHomeImmersive() && isPhone;
-  const pageBg = immersive ? 'transparent' : soft.bg;
+  // Samme bakgrunn som modulene (UX-05); med bakgrunnsbilde er siden gjennomsiktig.
+  const pageBg = immersive ? 'transparent' : colors.bg;
   const { contentPaddingBottom } = useBottomChromeInset();
 
   if (!model.themeReady || !home.ready) {
@@ -120,6 +123,13 @@ export default function ParentHomeThemeHost({
           onCycleSize={home.cycleSize}
           onResetWidgets={home.resetWidgets}
           onDraggingChange={setDragging}
+          topSlot={(
+            <>
+              <CompanyOfferCard style={styles.startCard} />
+              <CompanyStartChecklist style={styles.startCard} />
+              <CompanyQuickReport style={styles.startCard} />
+            </>
+          )}
         />
       </ScrollView>
     </View>
@@ -134,4 +144,5 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   body: { paddingHorizontal: 10, paddingTop: 0, paddingBottom: 20, backgroundColor: 'transparent' },
+  startCard: { marginTop: 4, marginBottom: 10 },
 });

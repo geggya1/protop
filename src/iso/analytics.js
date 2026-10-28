@@ -8,8 +8,9 @@ import { ASSESSMENT_STATUSES, FINDING_GROUPS, FINDING_TYPES, findingGroup } from
 import { findingPhase, isFindingOverdue, isOpenFinding, openActions, overdueActions } from './findings.js';
 import { documentsAwaitingApproval, documentsDueForReview } from './documents.js';
 import { matrixRows, statusCounts } from './requirements.js';
-import { competenceGaps, competenceMatrix, overdueRecords, riskMatrix } from './registers.js';
+import { competenceGaps, competenceMatrix, overdueRecords, riskMatrix, sortedMeasurements } from './registers.js';
 import { visibleFindings } from './access.js';
+import { reviewSections } from './reviewInput.js';
 
 export function kpis(state, caps, { people = [], now = new Date() } = {}) {
   const findings = visibleFindings(caps, state.findings);
@@ -188,11 +189,19 @@ export function upcomingActivities(state, caps, now = new Date(), days = 120) {
   return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 20);
 }
 
-/** Datapakke til ledelsens gjennomgang (P11 / A16). */
-export function managementReviewSnapshot(state, caps, { people = [], now = new Date() } = {}) {
-  const findings = visibleFindings(caps, state.findings);
+/**
+ * Datapakke til ledelsens gjennomgang (P11 / A16): alle punktene i 9.3.2 for perioden (seksjoner),
+ * og nøkkeltallene som eldre referater viser. record = gjennomgangen (periode og møtedato).
+ */
+export function managementReviewSnapshot(state, caps, { people = [], now = new Date(), record = null, equipment = [], safety = null } = {}) {
+  const input = reviewSections(state, caps, { kpis, closedWithinDeadline, requirementStatusDistribution }, { people, now, record, equipment, safety });
+  const { findings } = input;
   const req = requirementStatusDistribution(state, now);
   return {
+    period: input.period,
+    sections: input.sections,
+    restrictedIncluded: input.restrictedIncluded,
+    restrictedNote: input.restrictedNote,
     kpis: kpis(state, caps, { people, now }).map(({ key, label, value }) => ({ key, label, value })),
     findings: {
       open: findings.filter(isOpenFinding).length,
@@ -201,11 +210,13 @@ export function managementReviewSnapshot(state, caps, { people = [], now = new D
       closedWithinDeadline: closedWithinDeadline(findings),
     },
     requirements: { total: req.total, segments: req.segments.map(({ label, value }) => ({ label, value })) },
-    audits: (state.records.revisjon || []).map((a) => ({ number: a.number, title: a.title, state: a.state, findings: (a.findings || []).length, nonconformities: (a.findings || []).filter((f) => f.classification === 'avvik').length })),
-    objectives: (state.records.mal || []).map((m) => ({ title: m.title, target: m.target, unit: m.unit, last: (m.measurements || []).at(-1)?.value ?? null })),
-    compliance: (state.records.samsvar || []).map((s) => ({ title: s.title, result: s.result, nextReview: s.nextReview })),
-    previousDecisions: (state.records.ledelse || []).flatMap((l) => (l.decisions || []).map((d) => ({ from: l.number, decision: d.decision, done: d.done, dueAt: d.dueAt }))),
-    risks: (state.records.risiko || []).filter((r) => r.state === 'aktiv').length,
+    audits: input.audits.map((a) => ({ number: a.number, title: a.title, state: a.state, findings: (a.findings || []).length, nonconformities: (a.findings || []).filter((f) => f.classification === 'avvik').length })),
+    objectives: input.objectives,
+    compliance: input.compliance,
+    previousDecisions: input.previous,
+    risks: input.risks,
     suppliersDue: overdueRecords(state.records.leverandor, 'nextReview', now).length,
   };
 }
+
+export { REVIEW_INPUTS, missingReviewInputs, reviewPeriod } from './reviewInput.js';

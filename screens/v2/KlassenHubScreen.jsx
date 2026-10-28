@@ -342,7 +342,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       backgroundColor: colors.bg,
       marginBottom: 4,
     },
-    error: { color: colors.danger || '#b91c1c', marginVertical: 6 },
+    error: { color: colors.dangerInk, marginVertical: 6 },
     card: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -359,7 +359,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       width: 42,
       height: 42,
       borderRadius: 12,
-      backgroundColor: colors.brandSoft || '#e8eefc',
+      backgroundColor: colors.brandSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -378,7 +378,7 @@ function makeStyles(colors, { pad, isDesktop }) {
       flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end',
     },
     modalSheet: {
-      backgroundColor: colors.bg || '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+      backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
       padding: 16, paddingBottom: 28, maxHeight: '92%',
     },
     modalSheetDesk: {

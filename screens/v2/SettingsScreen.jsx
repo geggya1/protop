@@ -18,6 +18,7 @@ import {
   saveGreetingPrefs,
 } from '../../src/utils/greetingPrefs';
 import { guardedCallable } from '../../src/utils/guardedCallable';
+import { signOutKeepingWork } from '../../src/utils/localCache';
 import { isDeleteAccountConfirmed } from '../../src/utils/deleteAccount';
 import { getAppVersion } from '../../src/utils/appUpdates';
 import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
@@ -25,6 +26,7 @@ import { Screen } from '../../components/ui';
 import { AvatarBubble } from '../../components/AvatarPicker';
 import AddToHomeGuide from '../../components/AddToHomeGuide';
 import FriendQrModal from '../../components/FriendQrModal';
+import { FAMILY_PRODUCT_ENABLED } from '../../src/navigation/familyProduct';
 
 function SectionHeader({ title }) {
   const { isDesktop } = useLayout();
@@ -127,7 +129,6 @@ export default function SettingsScreen({ setSubView } = {}) {
   };
 
   const appVersion = getAppVersion();
-  const privacyUrl = Constants.expoConfig?.extra?.privacyPolicyUrl || 'https://www.protop.no/personvern';
   const supportUrl = Constants.expoConfig?.extra?.supportUrl || 'https://www.protop.no/kontakt';
   const openUrl = (url) => { Linking.openURL(url).catch(() => {}); };
   const openUpdates = () => requestShellTab('more', 'help', 'help-news');
@@ -189,7 +190,10 @@ export default function SettingsScreen({ setSubView } = {}) {
           />
           <Row icon="qr-code-outline" label={t('friend.qrTitle')} onPress={() => setQrOpen(true)} />
           <Row icon="globe" label={t('more.language')} onPress={() => nav.navigate('PickLanguage')} />
-          <Row icon="navigate-outline" label={t('settings.locationSharing')} onPress={() => nav.navigate('LocationSettings')} />
+          {/* Posisjonsdeling hører til familieproduktet og er av i ProTop (L-35). */}
+          {FAMILY_PRODUCT_ENABLED ? (
+            <Row icon="navigate-outline" label={t('settings.locationSharing')} onPress={() => nav.navigate('LocationSettings')} />
+          ) : null}
           <Row icon="notifications-outline" label={t('tabs.notifications')} onPress={() => openNotifications(nav)} muted />
           <Row icon="options-outline" label="Varselinnstillinger" onPress={() => nav.navigate('NotificationSettings')} />
           {showInstallGuide ? (
@@ -347,7 +351,9 @@ export default function SettingsScreen({ setSubView } = {}) {
         <SectionHeader title={t('settings.about')} />
         <View style={styles.group}>
           <Row icon="document-text" label={t('more.legal')} onPress={() => requestShellTab('more', 'legal')} />
-          <Row icon="shield-checkmark-outline" label={t('settings.privacyPolicy')} onPress={() => openUrl(privacyUrl)} />
+          {/* /personvern på protop.no har ingen egen side ennå. Vis erklæringen i appen. */}
+          <Row icon="shield-checkmark-outline" label={t('settings.privacyPolicy')} onPress={() => requestShellTab('more', 'legal', 'legal-privacy')} />
+          <Row icon="download-outline" label="Last ned mine data" onPress={() => requestShellTab('more', 'legal', 'legal-export')} />
           <Row icon="mail-outline" label={t('settings.contactSupport')} onPress={() => openUrl(supportUrl)} />
           <Row icon="help-circle" label={t('help.title')} onPress={() => requestShellTab('more', 'help')} />
           <Row
@@ -369,7 +375,7 @@ export default function SettingsScreen({ setSubView } = {}) {
 
         {/* Logg ut */}
         <View style={[styles.group, { marginTop: 12 }]}>
-          <Row icon="log-out" label={t('more.logout')} danger onPress={() => signOut(auth)} />
+          <Row icon="log-out" label={t('more.logout')} danger onPress={() => { signOutKeepingWork(() => signOut(auth)).catch(() => {}); }} />
           <Row
             icon="trash-outline"
             label={t('settings.deleteAccount')}
@@ -480,7 +486,7 @@ const styles = StyleSheet.create({
     marginBottom: 8, marginLeft: 4, marginTop: -4,
   },
   nestedBlock: {
-    backgroundColor: colors.sunken || '#f8fafc',
+    backgroundColor: colors.sunken,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.line,
   },

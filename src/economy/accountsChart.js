@@ -47,6 +47,8 @@ export function vatPayableAccount(vatCode = 'HIGH') {
     ZERO: '2704',
     EXEMPT: '',
     OUTSIDE: '',
+    // Omvendt avgiftsplikt: kjøperen fører avgiften, selgeren har ingen utgående mva.
+    REVERSE: '',
   };
   const code = String(vatCode || 'HIGH').toUpperCase();
   if (Object.prototype.hasOwnProperty.call(map, code)) return map[code];

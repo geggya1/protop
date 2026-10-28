@@ -12,6 +12,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useApp } from '../src/context/AppContext';
 import { AvatarBubble } from './AvatarPicker';
 import ProfileMenuModal from './ProfileMenuModal';
+import { BREAKPOINTS } from '../src/ui/layout.js';
 
 function defaultPages(familyId) {
   const pages = [
@@ -49,7 +50,7 @@ export default function TopNavBar({
   const route = useOptionalRoute();
   const { activeProfile } = useApp();
   const { width } = useWindowDimensions();
-  const isWide = width >= 768;
+  const isWide = width >= BREAKPOINTS.tablet;
 
   const [menuOpen, setMenuOpen] = useState(false);
 

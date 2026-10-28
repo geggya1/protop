@@ -16,12 +16,13 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
+import WorkingTimeWarnings from '../../components/arbeid/WorkingTimeWarnings';
 import { canManageTimesheets, employeeDisplayName } from '../../src/arbeid/roles.js';
 import {
   canSwitchTimesheetPerson,
   needsTimesheetPersonStep,
 } from '../../src/arbeid/timesheetIdentity.js';
-import { buildTimesaldo } from '../../src/arbeid/balance.js';
+import { buildTimesaldo, employmentRange } from '../../src/arbeid/balance.js';
 import { agreedHoursForDate, resolveRedDays } from '../../src/arbeid/holidays.js';
 import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
@@ -30,6 +31,8 @@ import { setBalanceAdjustment } from '../../src/arbeid/timesheetState.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import { companyDisplayName } from '../../src/utils/companyName';
+import Breadcrumb from '../../components/Breadcrumb';
 
 function todayKey() {
   return toDateKey(new Date());
@@ -105,7 +108,8 @@ export default function TimesaldoScreen({
   const selectedName = employeeDisplayName(employee) || 'Medarbeider';
   const settings = timeSettingsOf(employee);
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
-  const companyLabel = String(family?.company?.navn || family?.name || '').trim();
+  const companyLabel = companyDisplayName(family);
+  const employedSince = employmentRange(employee).from;
 
   const report = useMemo(() => {
     if (!activeId) {
@@ -114,10 +118,14 @@ export default function TimesaldoScreen({
         payrollIncl: 0, payrollExcl: 0, flex: 0, adjustment: 0, saldo: 0,
       } };
     }
+    // «Ansatt fra/til»: en nyansatt får ikke minus for månedene før hen begynte.
+    const employed = employmentRange(employee);
     return buildTimesaldo({
       year,
       throughDate: through,
       employeeId: activeId,
+      employedFrom: employed.from,
+      employedTo: employed.to,
       entries: workspace.state.timeEntries,
       absences: workspace.state.absences,
       adjustments: workspace.state.balanceAdjustments,
@@ -165,9 +173,7 @@ export default function TimesaldoScreen({
         nativeID="timesaldo-screen"
       >
         {hostedHero || embedded ? null : (
-          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 8 }]}>
-            Arbeid / Timesaldo
-          </Text>
+          <Breadcrumb tab="arbeid" subView="timesaldo" style={{ marginBottom: 8 }} />
         )}
         <TimesheetEmployeePicker
           colors={colors}
@@ -197,9 +203,9 @@ export default function TimesaldoScreen({
     <View style={[styles.screenRoot, { backgroundColor: colors.bg }]} nativeID="timesaldo-screen">
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.body}>
         {hostedHero || embedded ? null : (
-          <Text style={[styles.crumb, { color: colors.muted }]}>
-            {lockedId ? 'Ansatte / Timesaldo' : 'Arbeid / Timesaldo'}
-          </Text>
+          lockedId
+            ? <Breadcrumb tab="ansatte" current="Timesaldo" />
+            : <Breadcrumb tab="arbeid" subView="timesaldo" />
         )}
         <View style={styles.head}>
           {embedded ? null : (
@@ -239,9 +245,10 @@ export default function TimesaldoScreen({
             />
           </View>
         </View>
-        {workspace.error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 8 }}>{workspace.error}</Text> : null}
+        {workspace.error ? <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 8 }}>{workspace.error}</Text> : null}
         <Text style={{ color: colors.muted, marginBottom: 10, maxWidth: 640 }}>
           Saldo er timebank. Justering ned brukes når overtid tas ut i lønn.
+          {employedSince > `${year}-01-01` ? ` Regnes fra «Ansatt fra» ${employedSince.split('-').reverse().join('.')}.` : ''}
         </Text>
         {rights === 'admin' || !access.ready ? null : (
           <Text style={{ color: colors.muted, marginBottom: 10, fontSize: 13 }} nativeID="timesaldo-rights">
@@ -324,6 +331,15 @@ export default function TimesaldoScreen({
             </View>
           </View>
         ) : null}
+        {/* Overtid og hviletid (AML kap. 10) for timene som er lastet: fra 1. januar til sluttdatoen. */}
+        <WorkingTimeWarnings
+          colors={colors}
+          entries={workspace.state.timeEntries}
+          employeeId={activeId}
+          from={`${year}-01-01`}
+          to={through}
+          nativeID="timesaldo-working-time"
+        />
       </ScrollView>
 
       <Modal transparent visible={empPickerOpen} animationType="fade" onRequestClose={() => setEmpPickerOpen(false)}>
@@ -368,7 +384,6 @@ const styles = StyleSheet.create({
   screenRoot: { flex: 1, minHeight: 0 },
   screen: { flex: 1, padding: 16, minHeight: 420 },
   body: { padding: 16, gap: 4, paddingBottom: 40 },
-  crumb: { fontSize: 12, marginBottom: 4 },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginBottom: 8 },
   empBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
   avatar: {

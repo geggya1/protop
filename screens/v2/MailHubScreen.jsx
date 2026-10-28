@@ -26,6 +26,7 @@ import {
   getCalendarOAuthConfig,
   removeCalendarConnection,
   OAUTH_COMPLETE_MESSAGE,
+  friendlyMicrosoftAuthMessage,
 } from '../../src/utils/calendarIntegration';
 import { peekCalendarConnectionsCache } from '../../src/utils/calendarConnectionsCache';
 import {
@@ -110,6 +111,7 @@ import {
   deleteMessages,
   isDirectMail,
 } from '../../src/utils/mailBackend';
+import { friendlyCallableError } from '../../src/utils/callableErrors';
 
 const PANE_KEY = 'protop.mail.panes';
 const EXPAND_KEY = 'protop.mail.expanded';
@@ -497,7 +499,7 @@ export default function MailHubScreen() {
       });
       lastAccountFetchRef.current = Date.now();
     } catch (e) {
-      setError({ text: e?.message || 'Klarte ikke hente kontoer' });
+      setError({ text: friendlyCallableError(e, 'Klarte ikke hente kontoer.') });
     }
   }, []);
 
@@ -1349,7 +1351,7 @@ export default function MailHubScreen() {
       if (defaultAccountId === id) persistDefaultAccount(null);
       await reloadAccounts();
     } catch (e) {
-      setError({ text: e?.message || 'Klarte ikke fjerne kontoen' });
+      setError({ text: friendlyCallableError(e, 'Klarte ikke fjerne kontoen.') });
     }
   };
 
@@ -1362,7 +1364,7 @@ export default function MailHubScreen() {
       await connectMicrosoftMail({ clientId: cfg?.microsoft?.clientId, connectionId: id, loginHint: acc?.email });
     } catch (e) {
       if (e?.message === 'cancelled') return;
-      setError({ text: e?.message || 'Klarte ikke be om e-posttilgang' });
+      setError({ text: friendlyMicrosoftAuthMessage(friendlyCallableError(e, 'Klarte ikke koble til e-postkontoen.')) });
     } finally {
       setGrantBusy(false);
     }
@@ -1700,6 +1702,9 @@ export default function MailHubScreen() {
       onConnect={() => grantMail(undefined)}
       onGrant={grantMail}
       onRemove={removeAccount}
+      // Feilen vises i vinduet brukeren ser på, ikke på siden bak (SOS-17).
+      error={settingsOpen ? error?.text || '' : ''}
+      onDismissError={() => setError(null)}
       composePrefs={composePrefs}
       onComposePrefsChange={persistComposePrefs}
     />
@@ -1795,7 +1800,7 @@ export default function MailHubScreen() {
                 </View>
               </View>
               {searchOpen ? (
-                <View style={styles.mobileSearch}>
+                <View dataSet={{ focusWithin: '1' }} style={styles.mobileSearch}>
                   <Ionicons name="search" size={14} color={colors.muted} />
                   <TextInput
                     style={styles.search}
@@ -1864,7 +1869,7 @@ export default function MailHubScreen() {
           <MailToolButton icon="refresh" label="Oppdater" compact={ribbonCompact} onPress={refreshMailbox} />
           <MailToolButton icon="settings-outline" label="Innstillinger" compact onPress={() => setSettingsOpen(true)} />
           <View style={{ flex: 1 }} />
-          <View style={styles.searchWrap}>
+          <View dataSet={{ focusWithin: '1' }} style={styles.searchWrap}>
             <Ionicons name="search" size={14} color={colors.muted} />
             <TextInput
               style={styles.search}

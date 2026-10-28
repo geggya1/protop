@@ -46,6 +46,31 @@ export function projectPhaseOf(project) {
   return phaseFromProjectStatus(project?.projectStatus);
 }
 
+const PHASE_LABELS = {
+  tilbud: 'Tilbud',
+  planlegging: 'Planlegging',
+  produksjon: 'Produksjon',
+  overlevering: 'Overlevering',
+  garanti: 'Garanti',
+  avsluttet: 'Avsluttet',
+  // Eldre data og import (anbudsfasen) har brukt disse.
+  gjennomforing: 'Gjennomføring',
+  arkivert: 'Arkivert',
+};
+
+/**
+ * Prosjektstatus slik den vises: fri tekst (projectStatus) som den er, ellers fasen på norsk.
+ * Rå id-er som «gjennomforing» skal ikke stå i brukergrensesnittet.
+ */
+export function projectStatusLabel(project, fallback = '') {
+  const free = String(project?.projectStatus || '').trim();
+  if (free) return free;
+  const phase = String(project?.phase || '').trim();
+  if (!phase) return fallback;
+  if (PHASE_LABELS[phase]) return PHASE_LABELS[phase];
+  return phase.charAt(0).toUpperCase() + phase.slice(1);
+}
+
 export function matchesStatusFilter(project, filterId) {
   if (!filterId) return true;
   return projectPhaseOf(project) === filterId;

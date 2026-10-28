@@ -1,4 +1,5 @@
 /** Avgjør om et orgnummer allerede er en bedrift, og bygger innpass-forespørsel. */
+import { companyDisplayName } from '../utils/companyName.js';
 
 export function digitsOrgnr(value) {
   return String(value || '').replace(/\D/g, '').slice(0, 9);
@@ -18,10 +19,27 @@ export function companyRegistrationDecision(existing) {
     return {
       kind: 'join',
       companyId: existing.id,
-      companyName: existing.company?.navn || existing.name || 'Bedriften',
+      companyName: companyDisplayName(existing, 'Bedriften'),
     };
   }
   return { kind: 'create' };
+}
+
+/**
+ * Feltene en ny bedrift får ved opprettelsen. De skrives i samme batch som selskapet,
+ * så en bedrift aldri blir liggende uten orgnr (og blir funnet av «Be om innpass»).
+ * cpvData er svaret fra Doffin (lookupCompany), eller null.
+ */
+export function newCompanyFields(nextCompany, cpvData = null) {
+  const cpvCodes = Array.isArray(cpvData?.cpvCodes) ? cpvData.cpvCodes : [];
+  return {
+    company: cpvData?.company?.name ? { ...nextCompany, navn: cpvData.company.name } : nextCompany,
+    orgnr: digitsOrgnr(nextCompany?.organisasjonsnummer),
+    projects: [],
+    tenders: [],
+    cpvCodes,
+    cpvSource: cpvCodes.length ? 'doffin' : '',
+  };
 }
 
 export function buildJoinRequest({ uid, name, email, at }) {

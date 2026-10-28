@@ -219,6 +219,31 @@ const young = {
   assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', personnelKind: 'external' } }), false);
   assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', external: true } }), false);
   assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', personnelKind: 'staff' } }), true);
+  // Innleid er ikke intern ansatt i ferieplanen, verken som personelltype eller tilgangsnivå.
+  assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', personnelKind: 'innleid' } }), false);
+  assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', employmentType: 'Innleid' } }), false);
+  assert.equal(isPlanningEmployee({ id: 'x', company: { status: 'active', accessLevel: 'innleie_ekstern', levelIds: ['innleie_ekstern'] } }), false);
+}
+
+// DRIFT-12: i oktober er planåret neste år, men ferie søkt for nov/des i år skal godkjennes.
+{
+  const rows = [
+    { id: 'n1', employeeId: 'e1', type: 'ferie', status: 'registrert', date: '2026-11-02', hours: 7.5, createdAt: '2026-10-20' },
+    { id: 'n2', employeeId: 'e1', type: 'ferie', status: 'registrert', date: '2026-11-03', hours: 7.5, createdAt: '2026-10-20' },
+    { id: 'j1', employeeId: 'e2', type: 'ferie', status: 'registrert', date: '2027-07-05', hours: 7.5, createdAt: '2026-10-21' },
+    { id: 'g1', employeeId: 'e3', type: 'ferie', status: 'godkjent', date: '2026-12-21', hours: 7.5 },
+    { id: 'g0', employeeId: 'e3', type: 'ferie', status: 'godkjent', date: '2026-07-01', hours: 7.5 },
+    { id: 'old', employeeId: 'e4', type: 'ferie', status: 'registrert', date: '2025-12-29', hours: 7.5 },
+  ];
+  const opts = { year: 2027, today: '2026-10-28', approvalDays: 14, dayHours: 7.5 };
+  const pending = pendingVacationRequests(rows, opts);
+  assert.deepEqual(pending.map((row) => row.ids.join('+')).sort(), ['j1', 'n1+n2']);
+  const approved = approvedVacationRequests(rows, opts);
+  assert.deepEqual(approved.map((row) => row.ids.join('+')), ['g1'], 'godkjent ferie fra i dag, ikke sommeren som er over');
+  // Planåret er inneværende år: bare det året.
+  assert.deepEqual(pendingVacationRequests(rows, { ...opts, year: 2026 }).map((row) => row.ids.join('+')), ['n1+n2']);
+  // Uten dagens dato: bare planåret, som før.
+  assert.deepEqual(pendingVacationRequests(rows, { ...opts, today: '' }).map((row) => row.ids.join('+')), ['j1']);
 }
 
 {

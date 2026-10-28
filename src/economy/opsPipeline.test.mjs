@@ -37,11 +37,9 @@ import {
   upsertSale,
   upsertTrip,
 } from './opsState.js';
-import {
-  buildOperationsProposals,
-  createInvoiceFromOperations,
-  markProposalInvoiced,
-} from './billingFromOperations.js';
+import { approvedOnly, buildReadyProjects, selectableKeys, selectionFor } from './billingReady.js';
+import { buildInvoiceDraft } from './invoiceDraft.js';
+import { issueInvoice } from './invoiceFlow.js';
 import { validateKid } from './kid.js';
 import { voucherBalances, voucherFromInvoice } from './vouchers.js';
 import { validateEhfBasics } from './ehf.js';
@@ -195,14 +193,38 @@ assert.equal(sal.ok, true, sal.error);
 assert.equal(sal.state.products.find((p) => p.id === cat.product.id).stock, 4);
 state = setSaleStatus(sal.state, sal.sale.id, 'approved').state;
 
-const proposals = buildOperationsProposals(state, { onlyApproved: true });
-assert.equal(proposals.length, 1);
-assert.equal(proposals[0].entries.length, 1);
-assert.equal(proposals[0].expenses.length, 1);
-assert.equal(proposals[0].trips.length, 1);
-assert.equal(proposals[0].sales.length, 1);
+// Til fakturering → utkast → utstedelse, samme vei som appen.
+const accounts = {
+  accountHours: '3000', accountExpenses: '3000', accountOutlays: '3000', accountMileage: '3000', accountProducts: '3000',
+};
+const chart = [{ code: '3000', name: 'Salgsinntekt', vatRate: 25 }];
+const seller = {
+  name: 'ProTop AS', orgnr: '999888777', bankAccount: '12345678903',
+  address: 'Storgata 1', city: 'Oslo', postalCode: '0150', vatRegistered: true,
+};
+const readyFor = (current) => buildReadyProjects({
+  projects: current.projects,
+  customers: [{ id: 'cust1', name: 'Mg Næring AS', customerNumber: '1042', orgnr: '912345678', address: 'Kundevei 1', postalCode: '4010', place: 'Stavanger' }],
+  timeEntries: current.timeEntries,
+  expenses: current.expenses,
+  trips: current.mileageTrips,
+  sales: current.sales,
+  settingsFor: () => accounts,
+  chart,
+  periodEnd: '2026-12-31',
+  today: '2026-12-31',
+});
+const [ready] = readyFor(state);
+assert.equal(readyFor(state).length, 1);
+assert.equal(ready.hourGroups.reduce((sum, group) => sum + group.entries.length, 0), 1);
+assert.equal(ready.expenses.length, 1);
+assert.equal(ready.trips.length, 1);
+assert.equal(ready.sales.length, 1);
 
-const created = createInvoiceFromOperations(proposals[0], { vatCode: 'HIGH' });
+const selection = approvedOnly(selectionFor(ready, new Set(selectableKeys(ready))));
+const draft = buildInvoiceDraft(selection, { settings: accounts, chart, supplier: seller, today: '2026-10-20' });
+assert.equal(draft.ok, true, draft.error);
+const created = issueInvoice(draft.invoice, { number: '10001', date: '2026-10-20', supplier: seller });
 assert.equal(created.ok, true, created.error);
 assert.ok(created.invoice.lines.length >= 4);
 assert.ok(created.invoice.kid);
@@ -223,8 +245,19 @@ const ehf = validateEhfBasics(created.invoice, {
 });
 assert.equal(ehf.ok, true, ehf.error);
 
-state = markProposalInvoiced(state, proposals[0], created.invoice.id);
-assert.equal(buildOperationsProposals(state, { onlyApproved: true }).length, 0);
+// Postene på fakturaen er ikke åpne lenger.
+const billed = (key) => new Set(created.invoice.lines.flatMap((row) => row[key] || []));
+state = markOperationsInvoiced(state, {
+  expenseIds: [...billed('expenseIds')],
+  tripIds: [...billed('tripIds')],
+  saleIds: [...billed('saleIds')],
+  invoiceId: created.invoice.id,
+});
+state = {
+  ...state,
+  timeEntries: state.timeEntries.map((row) => (billed('timeEntryIds').has(row.id) ? { ...row, invoiceId: created.invoice.id, status: 'låst' } : row)),
+};
+assert.equal(readyFor(state).length, 0);
 assert.ok(state.expenses.every((row) => row.status === 'invoiced'));
 assert.ok(state.mileageTrips.every((row) => row.status === 'invoiced'));
 assert.ok(state.sales.every((row) => row.status === 'invoiced'));

@@ -8,9 +8,13 @@ import { logger } from 'firebase-functions';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { buildJoinRequest } from '../src/project/companyRegistry.js';
+import { companyOrgnr, orgnrIndexDecision, orgnrIndexRecord } from '../src/project/orgnrIndex.js';
 import { isConfirmedMember } from '../src/utils/groupInviteLogic.js';
+import { isOrganizationType } from '../src/utils/groupTypes.js';
 import { companyRecipients } from '../src/notifications/audience.js';
-import { assertRateLimit, hashRateKey, requireAuth } from './security.js';
+import {
+  assertRateLimit, hashRateKey, isFamilyOwnerOrAdmin, requireAuth,
+} from './security.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -39,6 +43,43 @@ function label(data) {
   return text(data?.company?.navn || data?.name) || 'Bedriften';
 }
 
+function candidate(snap) {
+  return snap?.exists ? { id: snap.id, data: snap.data() || {}, createTime: snap.createTime || null } : null;
+}
+
+/**
+ * Bedriften som eier orgnummeret, avgjort i én transaksjon mot orgnrIndex/{orgnr}
+ * (se src/project/orgnrIndex.js). Første oppslag etter oppretting eller endring
+ * skriver indeksen; deretter vinner den samme bedriften til den slettes eller bytter orgnr.
+ */
+export async function resolveOrgnrOwner(store, orgnr, { source = 'lookup', uid = '' } = {}) {
+  const indexRef = store.doc(`orgnrIndex/${orgnr}`);
+  return store.runTransaction(async (tx) => {
+    const indexSnap = await tx.get(indexRef);
+    const index = indexSnap.exists ? indexSnap.data() || {} : null;
+    const indexed = index?.familyId ? candidate(await tx.get(store.doc(`families/${index.familyId}`))) : null;
+    let decision = orgnrIndexDecision({ orgnr, index, indexed, candidates: indexed ? [indexed] : [] });
+    if (decision.write || !decision.owner) {
+      // Eldre bedrifter kan mangle toppfeltet orgnr; da står det bare i selskapsprofilen.
+      const [byTop, byProfile] = await Promise.all([
+        tx.get(store.collection('families').where('orgnr', '==', orgnr).limit(20)),
+        tx.get(store.collection('families').where('company.organisasjonsnummer', '==', orgnr).limit(20)),
+      ]);
+      const candidates = [...byTop.docs, ...byProfile.docs].map(candidate);
+      decision = orgnrIndexDecision({ orgnr, index, indexed, candidates });
+    }
+    if (decision.write === 'set') {
+      tx.set(indexRef, {
+        ...orgnrIndexRecord({ orgnr, familyId: decision.owner.id, source, claimedBy: uid }),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else if (decision.write === 'delete') {
+      tx.delete(indexRef);
+    }
+    return decision.owner;
+  });
+}
+
 /** Finnes bedriften i ProTop? Svarer bare med id og navn. */
 export const findCompanyByOrgnr = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);
@@ -49,14 +90,44 @@ export const findCompanyByOrgnr = onCall(CALL, async (req) => {
     limit: 60,
     windowMs: 60 * 60 * 1000,
   });
-  const snap = await db.collection('families').where('orgnr', '==', orgnr).limit(5).get();
-  const row = snap.docs.find((doc) => live(doc.data()));
+  const row = await resolveOrgnrOwner(db, orgnr, { uid });
   if (!row) return { ok: true, company: null };
-  const data = row.data() || {};
+  const data = row.data || {};
   return {
     ok: true,
     company: { id: row.id, name: label(data), member: isConfirmedMember(data, uid) },
   };
+});
+
+/**
+ * Ny bedrift (eller nytt orgnr i selskapsinnstillingene): knytt orgnummeret til bedriften
+ * hvis ingen annen levende bedrift har det fra før. Bare eier eller administrator.
+ * Svar: { ok, claimed } eller { ok, claimed: false, taken: { id, name } } når en annen
+ * bedrift allerede eier orgnummeret (da finner «Be om å bli med» den andre).
+ */
+export const claimCompanyOrgnr = onCall(CALL, async (req) => {
+  const uid = requireAuth(req.auth);
+  const familyId = text(req.data?.familyId);
+  if (!familyId || familyId.includes('/')) return { ok: false, error: 'not-found' };
+  await assertRateLimit(db, {
+    key: hashRateKey(['company-orgnr-claim', uid]),
+    limit: 20,
+    windowMs: 60 * 60 * 1000,
+  });
+  const snap = await db.doc(`families/${familyId}`).get();
+  const family = snap.exists ? snap.data() || {} : null;
+  if (!live(family)) return { ok: false, error: 'not-found' };
+  if (!isFamilyOwnerOrAdmin(family, uid)) return { ok: false, error: 'forbidden' };
+  if (!isOrganizationType(family.type)) return { ok: false, error: 'not-company' };
+  const orgnr = companyOrgnr(family);
+  if (!orgnr) return { ok: true, claimed: false, orgnr: '' };
+  const owner = await resolveOrgnrOwner(db, orgnr, { source: 'claim', uid });
+  if (owner?.id === familyId) return { ok: true, claimed: true, orgnr };
+  if (owner?.id) {
+    logger.warn('orgnr already owned', { orgnr, familyId, owner: owner.id });
+    return { ok: true, claimed: false, orgnr, taken: { id: owner.id, name: label(owner.data) } };
+  }
+  return { ok: true, claimed: false, orgnr };
 });
 
 /**

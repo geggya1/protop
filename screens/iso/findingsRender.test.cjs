@@ -66,6 +66,8 @@ function loadLocal(full) {
     if (id.includes('utils/media')) return { pickDocument: async () => [], pickImage: async () => null, uploadFile: async () => 'https://x/fil' };
     if (id.includes('iso/storage')) return { loadAuditFor: async () => [] };
     if (id === './IsoDiagram') return { __esModule: true, default: host('IsoDiagram'), fitView: () => ({ scale: 1, offset: { x: 0, y: 0 } }) };
+    // «Meld RUH» (hurtigmeldingen) trenger AppContext og Firebase; her holder det at knappen står der.
+    if (id === './QuickReport') return { __esModule: true, default: host('QuickReportButton') };
     if (id.startsWith('.')) {
       const fromDir = path.dirname(full);
       let resolved;
@@ -265,5 +267,16 @@ assert.match(reader, /Løs planke i stillas/);
 assert.equal(reader.includes('@Start behandling'), false);
 assert.equal(reader.includes('@Vurder'), false);
 assert.equal(reader.includes('Dra og slipp filer her'), false);
+
+// ISO-04: en annen ansatt med lesetilgang ser saken, men ikke hvem som meldte den (heller ikke i historikken).
+const other = render({ caps: isoCapabilities({ grants: { iso: 'see' }, uid: 'u2' }), params: { open: fresh.id } });
+assert.match(other, /Løs planke i stillas/);
+assert.match(other, /Melder \(skjult\)/);
+assert.equal(other.includes('Anne Kvalitet'), false, 'melderens navn vises ikke');
+assert.match(newCase, /Anne Kvalitet/, 'saksbehandler ser melderen');
+
+// Skadeklasse og den som varsler myndighet i «Start behandling» (meldeplikt samme dag).
+assert.match(dialogs, /Skadeklasse/);
+assert.match(report, /Alvorlighet/);
 
 console.log('findingsRender ok');

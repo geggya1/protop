@@ -3,7 +3,7 @@
  * Medlemskap gis bare når personen selv trykker Godta. For bedrifter knyttes
  * medarbeideren og tilgangsnivået i samme operasjon.
  */
-import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onCall } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -16,10 +16,14 @@ import {
 } from '../src/employees/invite.js';
 import { clientIpFromHeaders, sanitizeIp } from '../src/employees/usage.js';
 import {
+  inviteAcceptEmailCheck,
+  inviteDeclineEmail,
+  inviteExpired,
   inviteFromPlaceholder,
   isCompanyGroupType,
   isConfirmedMember,
   isPendingPlaceholder,
+  staleInboxStatus,
 } from '../src/utils/groupInviteLogic.js';
 import {
   assertRateLimit, emailTrusted, hashRateKey, requireAuth,
@@ -114,17 +118,23 @@ async function companyEmployees(familyId) {
   return snap.docs.map((row) => ({ id: row.id, ...row.data() }));
 }
 
-/** Var den som inviterte administrator i gruppen (samme som assertFamilyAdmin)? */
+/**
+ * Var den som inviterte administrator i gruppen (samme som assertFamilyAdmin)?
+ * Bare eier og adminUids teller. createdBy på gruppen og admin på medlemsdokumentet kan
+ * medlemmer skrive selv. invitedBy er avsenderen selv (reglene krever det for nye invitasjoner).
+ */
 async function inviterIsAdmin(familyId, family, inviterUid) {
   if (!inviterUid) return false;
-  if (isGroupAdminOf(family, inviterUid) || text(family?.createdBy) === inviterUid) return true;
-  const snap = await db.doc(`families/${familyId}/parents/${inviterUid}`).get();
-  const row = snap.exists ? snap.data() || {} : {};
-  return row.admin === true && row.active !== false && row.deleted !== true;
+  return isGroupAdminOf(family, inviterUid);
 }
 
-async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
-  const authEmail = authEmailOf(req);
+/**
+ * matchEmail: kontoens e-post når den er bekreftet, ellers tom (inviteAcceptEmailCheck).
+ * Plassholdere, invitasjonslisten og medarbeiderposter knyttes bare på en bekreftet e-post.
+ * Ellers gjelder bare uid-en invitasjonen er adressert til (REV-05, SEC-17).
+ */
+async function acceptInvite({ req, uid, familyId, inviteRef, invite, family, matchEmail = '' }) {
+  const authEmail = matchEmail;
   const now = new Date().toISOString();
   const company = isCompanyGroupType(family.type || invite.groupType);
   const familyName = groupLabel(family);
@@ -134,7 +144,23 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
   if (company) {
     const employees = await companyEmployees(familyId);
     seat = claimEmployeeSeatPlan({ employees, uid, authEmail, now, companyId: familyId });
-    if (!seat.ok) throw new HttpsError('failed-precondition', seat.error);
+    if ((!seat.ok || seat.skipped) && !authEmail) {
+      // Medarbeideren venter bare på e-posten, og den er ikke bekreftet: invitasjonen står,
+      // og personen kan godta når e-posten er bekreftet.
+      const byEmail = claimEmployeeSeatPlan({ employees, uid, authEmail: authEmailOf(req), now, companyId: familyId });
+      if (byEmail.ok && !byEmail.skipped) return { ok: false, error: 'email-not-verified' };
+    }
+    // Bedriftsinvitasjon gjelder bare så lenge en aktiv medarbeider venter på personen.
+    // Er medarbeideren slettet, deaktivert eller tatt av en annen, trekkes invitasjonen tilbake.
+    if (!seat.ok || seat.skipped) {
+      await Promise.all([
+        inviteRef.update({ status: 'revoked', revokedAt: now, revokedReason: 'no-employee', updatedAt: now }),
+        closeInbox(uid, inviteRef.id, 'revoked', now),
+        releasePlaceholder(familyId, family, uid, 'revoked', now),
+      ]);
+      logger.info('[respondGroupInvite] no active employee', { familyId, inviteId: inviteRef.id, reason: seat.error || 'skipped' });
+      return { ok: false, error: 'no-employee' };
+    }
     employee = seat.employeeId ? employees.find((row) => row.id === seat.employeeId) || null : null;
   }
   const accessLevel = seat?.accessLevel || '';
@@ -177,6 +203,11 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
     acceptedAt: now,
     deleted: false,
     archived: false,
+    // Kommer personen tilbake (forlot selv, eller ansettelsen ble avsluttet), gjelder ikke
+    // utmeldingen lenger. Ellers stenger leftAt for serveren og reglene (REV-04).
+    leftAt: FieldValue.delete(),
+    leftReason: FieldValue.delete(),
+    endedBy: FieldValue.delete(),
     updatedAt: now,
   };
   if (name) memberPatch.name = name;
@@ -199,15 +230,17 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
     }, { merge: true });
   });
 
+  // Profilens e-post brukes til oppslag. Serveren skriver bare en bekreftet adresse dit.
+  const ownEmail = authEmail ? { email: authEmail } : {};
   batch.set(db.doc(`users/${uid}`), {
     uid,
-    email: authEmail,
+    ...ownEmail,
     familyIds: FieldValue.arrayUnion(familyId),
     updatedAt: now,
   }, { merge: true });
   batch.set(db.doc(`parents/${uid}`), {
     uid,
-    email: authEmail,
+    ...ownEmail,
     active: true,
     familyIds: FieldValue.arrayUnion(familyId),
     updatedAt: now,
@@ -224,6 +257,13 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
     acceptedAt: now,
     updatedAt: now,
   }, { merge: true });
+  // «Be om å bli med»: forespørselen er besvart når personen er inne.
+  if (company) {
+    const request = await db.doc(`families/${familyId}/joinRequests/${uid}`).get();
+    if (request.exists && request.data()?.status === 'pending') {
+      batch.update(request.ref, { status: 'accepted', resolvedAt: now, updatedAt: now });
+    }
+  }
 
   if (company && seat?.employeePatch && seat.employeeId) {
     batch.update(db.doc(`families/${familyId}/employees/${seat.employeeId}`), {
@@ -233,7 +273,7 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
       'invite.status': 'accepted',
       'invite.acceptedAt': now,
       'invite.acceptedUid': uid,
-      'invite.email': authEmail,
+      'invite.email': authEmail || text(employee?.invite?.email).toLowerCase(),
       'invite.accessLevel': accessLevel,
       'invite.error': '',
       updatedAt: now,
@@ -275,12 +315,17 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
   };
 }
 
+/**
+ * Avslå. Invitasjonen, innboksen og en ventende plassholder på uid-en avslås alltid. Plassholdere,
+ * invitasjonslisten og medarbeiderposter på e-post bare når kontoens bekreftede e-post er adressen
+ * invitasjonen ble sendt til (inviteDeclineEmail, samme regel som Godta, REV-23).
+ */
 async function declineInvite({ req, uid, familyId, inviteRef, invite, family }) {
-  const authEmail = authEmailOf(req);
+  const authEmail = inviteDeclineEmail({ invite, authEmail: authEmailOf(req), trusted: emailTrusted(req.auth) });
   const now = new Date().toISOString();
   const company = isCompanyGroupType(family.type || invite.groupType);
   const familyName = groupLabel(family);
-  const emails = [...new Set([authEmail, text(invite.inviteeEmail).toLowerCase()].filter(Boolean))];
+  const emails = authEmail ? [authEmail] : [];
 
   const memberRef = db.doc(`families/${familyId}/parents/${uid}`);
   const [memberSnap, placeholders, employees] = await Promise.all([
@@ -325,7 +370,7 @@ async function declineInvite({ req, uid, familyId, inviteRef, invite, family }) 
       updatedAt: now,
     });
   }
-  const declined = company ? declineEmployeeInvitePlan({ employees, authEmail, now }) : [];
+  const declined = company ? declineEmployeeInvitePlan({ employees, authEmail, uid, now }) : [];
   declined.forEach((row) => {
     batch.update(db.doc(`families/${familyId}/employees/${row.employeeId}`), {
       'invite.status': 'declined',
@@ -358,7 +403,32 @@ async function declineInvite({ req, uid, familyId, inviteRef, invite, family }) 
   return { ok: true, response: 'declined', familyId, familyName, groupType: family.type || invite.groupType || 'family' };
 }
 
-/** Godta eller avslå en invitasjon. Bare personen invitasjonen gjelder kan svare. */
+/**
+ * Ventende plassholder (families/{id}/parents/{uid}) for en eksisterende bruker frigjøres når
+ * invitasjonen ikke lenger gjelder. Ellers stopper en ny invitasjon på «invite-pending».
+ */
+async function releasePlaceholder(familyId, family, uid, status, now) {
+  if (isConfirmedMember(family, uid)) return;
+  const ref = db.doc(`families/${familyId}/parents/${uid}`);
+  const snap = await ref.get();
+  const row = snap.exists ? snap.data() || {} : null;
+  if (!row || (row.placeholder !== true && row.inviteStatus !== 'pending')) return;
+  await ref.set({ inviteStatus: status, active: false, updatedAt: now }, { merge: true });
+}
+
+/** Lukk invitasjonen i personens innboks, så invitasjonsvinduet ikke kommer tilbake. */
+async function closeInbox(uid, inviteId, status, now) {
+  const ref = db.doc(`users/${uid}/familyInvites/${inviteId}`);
+  const snap = await ref.get();
+  if (!snap.exists || snap.data()?.status !== 'pending') return;
+  await ref.set({ status, closedAt: now, updatedAt: now }, { merge: true });
+}
+
+/**
+ * Godta eller avslå en invitasjon. Bare personen invitasjonen gjelder kan svare.
+ * Gjelder invitasjonen ikke lenger (finnes ikke, besvart, utløpt, trukket tilbake eller
+ * gruppen slettet), lukkes innboksen. Avslå lykkes da alltid; Godta gir feilkoden.
+ */
 export const respondGroupInvite = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);
   const familyId = text(req.data?.familyId);
@@ -377,15 +447,36 @@ export const respondGroupInvite = onCall(CALL, async (req) => {
     inviteRef.get(),
     db.doc(`families/${familyId}`).get(),
   ]);
-  if (!inviteSnap.exists) return { ok: false, error: 'not-found' };
+  const now = new Date().toISOString();
+  const stale = async (error, status = 'expired') => {
+    await closeInbox(uid, inviteId, status, now);
+    if (response === 'declined') return { ok: true, response: 'declined', stale: error, familyId };
+    return { ok: false, error };
+  };
+  if (!inviteSnap.exists) return stale('not-found');
   const invite = inviteSnap.data() || {};
-  if (text(invite.inviteeUid) !== uid) return { ok: false, error: 'forbidden' };
-  if (invite.status !== 'pending') return { ok: false, error: 'already-handled' };
+  if (text(invite.inviteeUid) !== uid) return stale('forbidden');
+  if (invite.status !== 'pending') {
+    return stale(invite.status === 'revoked' ? 'revoked' : 'already-handled', staleInboxStatus(invite.status));
+  }
   const family = familySnap.exists ? familySnap.data() || {} : null;
-  if (groupDeleted(family)) return { ok: false, error: 'gone' };
-  if (response === 'accepted' && !emailTrusted(req.auth)) return { ok: false, error: 'email-not-verified' };
+  if (groupDeleted(family)) {
+    await inviteRef.update({ status: 'cancelled', cancelledAt: now, updatedAt: now }).catch(() => {});
+    return stale('gone', 'cancelled');
+  }
+  if (inviteExpired(invite, new Date(now))) {
+    await inviteRef.update({ status: 'expired', expiredAt: now, updatedAt: now });
+    await releasePlaceholder(familyId, family, uid, 'expired', now);
+    return stale('expired');
+  }
+  // Invitasjonen gjelder kontoen (inviteeUid). Bekreftet e-post kreves bare når kontoen ble
+  // funnet på e-post (REV-05). Ellers knyttes ingenting på den ubekreftede adressen.
+  const emailCheck = inviteAcceptEmailCheck({ invite, authEmail: authEmailOf(req), trusted: emailTrusted(req.auth) });
+  if (response === 'accepted' && !emailCheck.ok) return { ok: false, error: emailCheck.error };
 
-  const args = { req, uid, familyId, inviteRef, invite, family };
+  const args = {
+    req, uid, familyId, inviteRef, invite, family, matchEmail: emailCheck.matchEmail,
+  };
   const result = response === 'accepted' ? await acceptInvite(args) : await declineInvite(args);
   logger.info('[respondGroupInvite]', { familyId, inviteId, response, company: isCompanyGroupType(family.type) });
   return result;
@@ -394,7 +485,8 @@ export const respondGroupInvite = onCall(CALL, async (req) => {
 /**
  * Ny bruker som ble invitert på e-post: når e-posten er bekreftet, legges
  * invitasjonen i innboksen (Godta/Avslå). Ingen blir medlem her.
- * Innlogging med Google, Microsoft eller Apple regnes som bekreftet e-post.
+ * Bekreftet betyr email_verified i tokenet (emailTrusted): Google og Apple, lenken fra ProTop,
+ * eller Microsoft når Microsofts eget token bekrefter adressen (confirmMicrosoftEmail).
  */
 export const syncMyInvites = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);
@@ -413,13 +505,17 @@ export const syncMyInvites = onCall(CALL, async (req) => {
     const family = familyDoc.data() || {};
     if (groupDeleted(family) || isConfirmedMember(family, uid)) continue;
     const rows = await placeholdersFor(familyId, [authEmail]);
-    const placeholder = rows.find((row) => row.id !== uid && isPendingPlaceholder(row.data(), authEmail)) || null;
+    // En plassholder som har utløpt (30 dager uten svar), gir ingen invitasjon.
+    const placeholder = rows.find((row) => (
+      row.id !== uid && isPendingPlaceholder(row.data(), authEmail) && !inviteExpired({ inviteExpiresAt: row.data()?.inviteExpiresAt })
+    )) || null;
     let source = placeholder ? { id: placeholder.id, data: placeholder.data() } : null;
     if (!source && isCompanyGroupType(family.type)) {
       // Invitert på nytt fra Ansatte: plassholderen fra en tidligere runde kan være ryddet
       // bort (godtatt, avslått, flyttet til en konto). Medarbeideren med sendt invitasjon gjelder.
       const employee = sentInviteEmployee({ employees: await companyEmployees(familyId), uid, authEmail });
-      if (employee) {
+      // Sendt for mer enn 30 dager siden uten svar: utløpt. Send på nytt gir ny frist.
+      if (employee && !inviteExpired({ createdAt: employee.invite?.sentAt })) {
         const earlier = rows.map((row) => row.data() || {}).find((row) => text(row.createdBy || row.invitedBy)) || {};
         source = {
           id: '',
@@ -440,9 +536,15 @@ export const syncMyInvites = onCall(CALL, async (req) => {
     const now = new Date().toISOString();
     let inviteId;
     let invite;
-    if (!pending.empty) {
-      inviteId = pending.docs[0].id;
-      invite = pending.docs[0].data() || {};
+    let existing = pending.empty ? null : pending.docs[0];
+    if (existing && inviteExpired(existing.data(), new Date(now))) {
+      await existing.ref.update({ status: 'expired', expiredAt: now, updatedAt: now });
+      await closeInbox(uid, existing.id, 'expired', now);
+      existing = null;
+    }
+    if (existing) {
+      inviteId = existing.id;
+      invite = existing.data() || {};
     } else {
       const ref = db.collection(`families/${familyId}/memberInvites`).doc();
       inviteId = ref.id;
@@ -459,7 +561,7 @@ export const syncMyInvites = onCall(CALL, async (req) => {
     }
     await db.doc(`users/${uid}/familyInvites/${inviteId}`).set({ ...invite, inviteId }, { merge: true });
     if (placeholder) await placeholder.ref.set({ inviteId, inviteeUid: uid, updatedAt: now }, { merge: true });
-    if (pending.empty) {
+    if (!existing) {
       await notify(uid, {
         eventType: 'familyInvite',
         ...inviteNotice(invite.groupType, invite.familyName),

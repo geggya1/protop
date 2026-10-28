@@ -7,7 +7,7 @@
 import { colorForExternalCalendar } from '../utils/calendarColors.js';
 import { equipmentGroupLayerId, equipmentLayerId } from '../utils/timeGrid.js';
 import { displayName } from '../employees/model.js';
-import { canAddCompanyVehicle, normalizeBooking, normalizeEquipment } from './model.js';
+import { canAddCompanyVehicle, controlBlocking, normalizeBooking, normalizeEquipment } from './model.js';
 
 export { equipmentGroupLayerId, equipmentLayerId };
 
@@ -38,9 +38,11 @@ export function employeesWhoCanBook(gear, employees = []) {
   return active;
 }
 
-export function employeeMayBook(gear, employee) {
+export function employeeMayBook(gear, employee, date = '') {
   const row = normalizeEquipment(gear);
   if (!row.id || row.scope === 'private' || row.bookable === false || row.status !== 'available') return false;
+  // Kontroll med passert frist (kalibrering, sakkyndig, EU-kontroll) sperrer reservasjon.
+  if (controlBlocking(row, date || undefined)) return false;
   if (!isActiveCompanyEmployee(employee)) return false;
   if (row.bookingAccess === 'selected' && !row.bookingEmployeeIds.includes(employee.id)) return false;
   return true;

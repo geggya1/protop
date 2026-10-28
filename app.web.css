@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600&family=Nunito:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Nunito:wght@400;500;600;700&display=swap');
+/* Inter og Nunito har vektene 400–700 lastet, så 600 og 700 i modulene ikke blir syntetisk fete (UX-03). */
 
 :root {
   --app-font: 'Nunito', 'Segoe UI', sans-serif;
@@ -15,31 +16,23 @@
   --wp-c-line: #e2e8f0;
   --wp-c-brand: #1099F4;
   --wp-c-brandSoft: #E5F6FE;
+  --wp-c-brandInk: #0A70B5;
+  --wp-c-onBrand: #ffffff;
   --wp-c-success: #16a34a;
   --wp-c-successSoft: #e4f5ea;
+  --wp-c-successInk: #15803d;
   --wp-c-warn: #d97706;
+  --wp-c-warnInk: #b45309;
   --wp-c-danger: #dc2626;
+  --wp-c-dangerInk: #b42318;
+  --wp-c-dangerSoft: #fee4e2;
   --wp-c-star: #e2a325;
   --wp-c-starSoft: #fff8e8;
-  --wp-c-placeholder: #94a3b8;
+  --wp-c-placeholder: #64748b;
   --wp-c-kid: #1099F4;
   --wp-c-kidSoft: #E5F6FE;
   --wp-c-fab: #1099F4;
   --wp-c-accent: #6b4ee6;
-  --wp-soft-bg: #F5F2EC;
-  --wp-soft-card: #FFFFFF;
-  --wp-soft-ink: #12171E;
-  --wp-soft-muted: #2C3644;
-  --wp-soft-quiet: #455062;
-  --wp-soft-line: #E8E4DC;
-  --wp-soft-mint: #E8F3EC;
-  --wp-soft-peach: #F8EDE6;
-  --wp-soft-lavender: #EEF0F8;
-  --wp-soft-sky: #E8F0F6;
-  --wp-soft-cream: #FAF7F2;
-  --wp-soft-family: #F7F3EA;
-  --wp-soft-sage: #345743;
-  --wp-soft-brandSoft: #DCE8E0;
   color-scheme: light;
 }
 
@@ -276,6 +269,64 @@ select,
   font-size: 16px !important;
 }
 
+/*
+ * Synlig fokus (WCAG 2.4.7) på alle bredder, også nettbrett, liten bærbar og zoom.
+ * Gjelder knapper, lenker, faner, avkrysning, brytere og alt annet som kan nås med Tab.
+ * Søkefelt som skjuler sin egen ramme, markerer feltet rundt (data-focus-within).
+ */
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="checkbox"]:focus-visible,
+[role="switch"]:focus-visible,
+[role="radio"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="option"]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid #1099F4;
+  outline-offset: 2px;
+}
+/* Faner ligger i en sidelengs rulleflate som klipper alt utenfor raden. Ringen tegnes innenfor fanen. */
+[role="tablist"] [role="tab"]:focus-visible {
+  outline-offset: -2px;
+}
+[data-focus-within="1"]:focus-within {
+  outline: 2px solid #1099F4;
+  outline-offset: 1px;
+}
+[data-focus-within="1"] input:focus-visible,
+[data-focus-within="1"] textarea:focus-visible {
+  outline: none;
+}
+
+/* Hopp-lenken ligger utenfor skjermen til den får fokus med Tab. */
+.wp-skip-link {
+  position: fixed;
+  left: 12px;
+  top: -80px;
+  z-index: 2147483647;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #07274C;
+  color: #ffffff;
+  font-size: 15px;
+  text-decoration: none;
+}
+.wp-skip-link:focus,
+.wp-skip-link:focus-visible {
+  top: 12px;
+  outline: 2px solid #1099F4;
+  outline-offset: 2px;
+}
+#shell-scroll:focus {
+  outline: none;
+}
+
 /* Mobil: full bredde */
 #root { max-width: 100%; margin: 0 auto; }
 
@@ -287,15 +338,17 @@ select,
   }
 }
 
-/* Desktop / PC: nesten full viewport — shell styrer layout */
+/*
+ * Desktop / PC: nesten full viewport — shell styrer layout.
+ * Bredden avgjør oppsettet; tettheten følger pekeren (UX-23). En iPad i liggende
+ * format er ≥ 1024 px, men styres med fingre: den beholder runde hjørner, 16 px i
+ * feltene (ellers zoomer iOS) og får ingen hover-effekter. Se reglene med
+ * (pointer: fine) og (hover: hover) under.
+ */
 @media (min-width: 1024px) {
   :root {
     --app-font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
     --display-font: 'Inter', ui-sans-serif, system-ui, sans-serif;
-    --wp-radius-sm: 5px;
-    --wp-radius-md: 7px;
-    --wp-radius-lg: 9px;
-    --wp-radius-pill: 999px;
   }
 
   html, body, #root {
@@ -316,79 +369,20 @@ select,
     touch-action: auto;
   }
 
-  /* Desktop trenger ikke 16px-gulv (det er for iOS-zoom). */
-  input,
-  textarea,
-  select,
-  [contenteditable="true"] {
-    font-size: 14px !important;
-  }
-
   button, [role="button"] {
     transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, filter 120ms ease;
   }
 
-  [role="button"]:hover {
-    box-shadow: inset 0 0 0 999px rgba(15, 23, 42, 0.035);
-  }
-
-  [role="button"]:focus-visible,
-  button:focus-visible,
-  a:focus-visible,
-  input:focus-visible,
-  textarea:focus-visible,
-  select:focus-visible {
-    outline: 2px solid #1099F4;
-    outline-offset: 2px;
-  }
-
-  [data-wp-nav="1"]:hover {
-    background-color: #f1f5f9;
-    box-shadow: none;
-  }
-
-  [data-wp-nav-active="1"],
-  [data-wp-nav-active="1"]:hover {
+  [data-wp-nav-active="1"] {
     box-shadow: inset 3px 0 0 #1099F4;
-  }
-
-  [data-wp-section="1"]:hover {
-    background-color: #f8fafc;
-    box-shadow: none;
-  }
-
-  html[data-wp-appearance="dark"] [role="button"]:hover {
-    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.05);
-  }
-  html[data-wp-appearance="dark"] [data-wp-nav="1"]:hover {
-    background-color: #2c2c2e;
-    box-shadow: none;
-  }
-  html[data-wp-appearance="dark"] [data-wp-section="1"]:hover {
-    background-color: #1c1c1e;
-    box-shadow: none;
   }
 
   [data-wp-cal-slot] {
     z-index: 2;
   }
-  [data-wp-cal-slot]:hover {
-    background-color: rgba(37, 99, 235, 0.05);
-    box-shadow: none;
-  }
-  [data-wp-cal-plus] {
-    opacity: 0 !important;
-  }
-  [data-wp-cal-slot]:hover [data-wp-cal-plus] {
-    opacity: 1 !important;
-  }
   [data-wp-cal-event] {
     z-index: 5 !important;
     isolation: isolate;
-  }
-  [data-wp-cal-event]:hover {
-    filter: brightness(0.96);
-    box-shadow: none;
   }
 
   /* Prosjekttabell: sidelengs + vertikal scroll i viewport, ikke først nederst på siden */
@@ -432,6 +426,73 @@ select,
   ::selection {
     background: #dbeafe;
     color: #1e3a8a;
+  }
+}
+
+/* PC med mus: skarpere hjørner og tettere felt (density 'mouse', UX-23). */
+@media (min-width: 1024px) and (pointer: fine) {
+  :root {
+    --wp-radius-sm: 5px;
+    --wp-radius-md: 7px;
+    --wp-radius-lg: 9px;
+    --wp-radius-pill: 999px;
+  }
+
+  /* Mus trenger ikke 16px-gulvet (det er for iOS-zoom). */
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    font-size: 14px !important;
+  }
+}
+
+/* Hover bare der pekeren kan sveve; på berøringsskjerm blir hover hengende etter trykk. */
+@media (min-width: 1024px) and (hover: hover) {
+  [role="button"]:hover {
+    box-shadow: inset 0 0 0 999px rgba(15, 23, 42, 0.035);
+  }
+
+  [data-wp-nav="1"]:hover {
+    background-color: #f1f5f9;
+    box-shadow: none;
+  }
+
+  [data-wp-nav-active="1"]:hover {
+    box-shadow: inset 3px 0 0 #1099F4;
+  }
+
+  [data-wp-section="1"]:hover {
+    background-color: #f8fafc;
+    box-shadow: none;
+  }
+
+  html[data-wp-appearance="dark"] [role="button"]:hover {
+    box-shadow: inset 0 0 0 999px rgba(255, 255, 255, 0.05);
+  }
+  html[data-wp-appearance="dark"] [data-wp-nav="1"]:hover {
+    background-color: #2c2c2e;
+    box-shadow: none;
+  }
+  html[data-wp-appearance="dark"] [data-wp-section="1"]:hover {
+    background-color: #1c1c1e;
+    box-shadow: none;
+  }
+
+  /* Kalenderen: «+» i ledige felt vises ved hover. Uten hover står den synlig (som på nettbrett). */
+  [data-wp-cal-slot]:hover {
+    background-color: rgba(37, 99, 235, 0.05);
+    box-shadow: none;
+  }
+  [data-wp-cal-plus] {
+    opacity: 0 !important;
+  }
+  [data-wp-cal-slot]:hover [data-wp-cal-plus] {
+    opacity: 1 !important;
+  }
+  [data-wp-cal-event]:hover {
+    filter: brightness(0.96);
+    box-shadow: none;
   }
 }
 

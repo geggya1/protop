@@ -71,6 +71,15 @@ const t = (k) => LABELS[k] || k;
     resolveShellHeaderTitle({ tab: 'more', moreSubView: 'shop', t, modulesHub: true }),
     'Handleliste',
   );
+  // Meny i docken viser samme meny som skuffen og heter som knappen.
+  assert.equal(
+    resolveShellHeaderTitle({ tab: 'more', moreSubView: null, t: (k) => (k === 'tabs.menu' ? 'Meny' : t(k)), menuHub: true }),
+    'Meny',
+  );
+  assert.equal(
+    resolveShellHeaderTitle({ tab: 'more', moreSubView: 'settings', t, menuHub: true }),
+    moreSubviewTitle('settings', t),
+  );
 }
 
 {
@@ -118,12 +127,13 @@ const t = (k) => LABELS[k] || k;
 
 {
   assert.equal(resolveShellHeaderTitle({ tab: 'home', t }), 'Hjem');
-  assert.equal(resolveShellHeaderTitle({ tab: 'selskap', t }), 'Selskap');
+  assert.equal(resolveShellHeaderTitle({ tab: 'selskap', t }), 'Bedriften');
   assert.equal(resolveShellHeaderTitle({ tab: 'selskap', moreSubView: 'underenheter', t }), 'Underenheter');
   assert.equal(resolveShellHeaderTitle({ tab: 'selskap', moreSubView: 'tilgang', t }), 'Tilgangsstyring');
   assert.equal(resolveShellHeaderTitle({ tab: 'underenheter', t }), 'Underenheter');
   assert.equal(resolveShellHeaderTitle({ tab: 'plan', t }), 'Kalender');
-  assert.equal(resolveShellHeaderTitle({ tab: 'skjema', t }), 'Skjema');
+  // Samme navn som i menyen (UX-17).
+  assert.equal(resolveShellHeaderTitle({ tab: 'skjema', t }), 'Skjemabygger');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'varsling', t }), '1.1 Anbudsvarsling');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'foresporsel', t }), '1.2 Anbudsforespørsel');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'vurdering', t }), '2. Vurdering av aktuelle');
@@ -132,17 +142,18 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'avrop', t }), 'Anbud');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'pipeline', t }), '3. Tilbud');
   assert.equal(resolveShellHeaderTitle({ tab: 'anbud', moreSubView: 'innstillinger', t }), 'Innstillinger');
-  assert.equal(resolveShellHeaderTitle({ tab: 'kontrakt', t }), 'Kontrakt / avtale');
+  assert.equal(resolveShellHeaderTitle({ tab: 'kontrakt', t }), 'Kontrakter');
   assert.equal(resolveShellHeaderTitle({ tab: 'kunder', t }), 'Kunder');
   assert.equal(resolveShellHeaderTitle({ tab: 'utstyr', t }), 'Utstyr');
   assert.equal(resolveShellHeaderTitle({ tab: 'ansatte', t }), 'Ansatte og eksterne');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', t }), 'Økonomi');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'oversikt', t }), 'Økonomi');
-  assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'kunder', t }), 'Kundesummer');
-  assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'avtaler', t }), 'Avtalesummer');
+  // Kunder og Avtaler er faner i Inntjening (UX-17).
+  assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'kunder', t }), 'Inntjening');
+  assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'avtaler', t }), 'Inntjening');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'faktura', t }), 'Faktura');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'indeks', t }), 'Indeksregulering');
-  assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', t }), 'Timer / arbeid per ansatt');
+  assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', t }), 'Timer');
   assert.equal(resolveShellHeaderTitle({ tab: 'timeliste', t }), 'Timeliste');
   assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', moreSubView: 'timeliste', t }), 'Timeliste');
   assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', moreSubView: 'timerapport', t }), 'Timerapport');

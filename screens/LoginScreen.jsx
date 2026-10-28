@@ -11,7 +11,7 @@ import {
   reload,
 } from 'firebase/auth';
 import { auth } from '../firebase';
-import { colors, radius } from '../src/theme';
+import { BREAKPOINTS, colors, radius } from '../src/theme';
 import { useI18n } from '../src/i18n';
 import { sendPasswordResetV2 } from '../src/utils/sendPasswordReset';
 import { resolveLoginEmail } from '../src/utils/usernames';
@@ -27,12 +27,14 @@ import {
 } from '../src/utils/authProviders';
 import SocialAuthButtons, { OrDivider } from '../components/SocialAuthButtons';
 import SignInLegalConsent, { persistSignInConsent } from '../components/SignInLegalConsent';
+import { consentsComplete, loadLocalConsents } from '../src/utils/consents';
 import BrandLogo from '../components/BrandLogo';
 import PendingAddFriendBanner from '../components/PendingAddFriendBanner';
 import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
 import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { syncMyInvites } from '../src/utils/invite';
+import { FAMILY_PRODUCT_UNAVAILABLE, childLoginAllowed } from '../src/navigation/familyProduct';
 
 function confirmAsync(title, message, ok = 'Bli med', cancel = 'Senere') {
   // react-native-web's Alert.alert is a no-op — Promises would hang forever on web.
@@ -66,14 +68,15 @@ function withDeadline(promise, ms, label) {
 
 /**
  * Login card:
- * Google & Microsoft → OR → username/password → Log in → sign up
- * Privacy and terms sit last, under the sign-in action.
+ * privacy and terms → Google & Microsoft → OR → username/password → Log in → sign up
+ * Samtykket står over knappene, så første trykk på «Logg inn» ikke gir feil.
+ * Er gjeldende versjon allerede godtatt på enheten, vises bare en bekreftelse.
  */
 export default function LoginScreen({ navigation }) {
   const { t, lang } = useI18n();
   const route = useOptionalRoute();
   const { width } = useWindowDimensions();
-  const wide = width >= 480;
+  const wide = width >= BREAKPOINTS.tablet;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -85,6 +88,17 @@ export default function LoginScreen({ navigation }) {
   const [unverifiedInfo, setUnverifiedInfo] = useState(false);
   const [legalOk, setLegalOk] = useState(false);
   const [legalError, setLegalError] = useState(false);
+  const [legalRemembered, setLegalRemembered] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    loadLocalConsents().then((stored) => {
+      if (!live || !consentsComplete(stored)) return;
+      setLegalOk(true);
+      setLegalRemembered(true);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, []);
 
   const emailTrimmed = email.trim().toLowerCase();
   const emailValid = useMemo(
@@ -180,6 +194,11 @@ export default function LoginScreen({ navigation }) {
         8000,
         'login-email-timeout',
       ).catch(() => emailTrimmed)) || emailTrimmed;
+      // Brukernavn-kontoer (barn i familieproduktet) kan ikke logge inn i ProTop (L-35).
+      if (isChildEmail(loginEmail) && !childLoginAllowed()) {
+        setFormError(`${FAMILY_PRODUCT_UNAVAILABLE} Logg inn med e-postadressen din.`);
+        return;
+      }
       const signIn = (email) => withDeadline(
         signInWithEmailAndPassword(auth, email, password),
         20000,
@@ -284,6 +303,16 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.sub}>{t('auth.loginSocialHint')}</Text>
           <PendingAddFriendBanner />
 
+          <SignInLegalConsent
+            accepted={legalOk}
+            remembered={legalRemembered}
+            showError={legalError}
+            onAcceptedChange={(next) => {
+              setLegalOk(next);
+              if (next) setLegalError(false);
+            }}
+          />
+
           <SocialAuthButtons
             busy={busy}
             googleLabel={t('auth.googleLogin')}
@@ -299,7 +328,10 @@ export default function LoginScreen({ navigation }) {
           <TextInput
             style={styles.input}
             placeholder={t('auth.identifier')}
-            placeholderTextColor="#8b98a5"
+            placeholderTextColor={colors.placeholder}
+            accessibilityLabel={t('auth.identifier')}
+            autoComplete="username"
+            textContentType="username"
             autoCapitalize="none"
             autoCorrect={false}
             value={email}
@@ -311,13 +343,21 @@ export default function LoginScreen({ navigation }) {
             <TextInput
               style={[styles.input, styles.pwInput]}
               placeholder={t('auth.password')}
-              placeholderTextColor="#8b98a5"
+              placeholderTextColor={colors.placeholder}
+              accessibilityLabel={t('auth.password')}
+              autoComplete="current-password"
+              textContentType="password"
               secureTextEntry={!showPw}
               value={password}
               onChangeText={(v) => { setPassword(v); if (formError) setFormError(null); }}
               editable={!busy}
             />
-            <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPw((s) => !s)}>
+            <TouchableOpacity
+              style={styles.eyeBtn}
+              onPress={() => setShowPw((s) => !s)}
+              accessibilityRole="button"
+              accessibilityState={{ checked: showPw }}
+            >
               <Text style={styles.eyeTxt}>{showPw ? t('auth.hidePassword') : t('auth.showPassword')}</Text>
             </TouchableOpacity>
           </View>
@@ -333,7 +373,9 @@ export default function LoginScreen({ navigation }) {
             ?
           </Text>
 
-          {!!formError && <Text style={styles.errorText}>{formError}</Text>}
+          {!!formError && (
+            <Text style={styles.errorText} accessibilityRole="alert" accessibilityLiveRegion="polite">{formError}</Text>
+          )}
           {unverifiedInfo && (
             <Text style={styles.infoText}>E-posten er ikke bekreftet (sjekk e-post/spam).</Text>
           )}
@@ -368,15 +410,6 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <SignInLegalConsent
-            footer
-            accepted={legalOk}
-            showError={legalError}
-            onAcceptedChange={(next) => {
-              setLegalOk(next);
-              if (next) setLegalError(false);
-            }}
-          />
         </View>
         </ScrollView>
       </SafeAreaView>
@@ -392,7 +425,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingHorizontal: 16 },
   scrollBody: { flexGrow: 1, paddingBottom: 24 },
   back: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
-  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
+  backTxt: { fontWeight: '400', color: colors.brandInk, fontSize: 16 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 24,
@@ -438,17 +471,17 @@ const styles = StyleSheet.create({
   pwInput: { paddingRight: 72, marginBottom: 8 },
   eyeBtn: {
     alignSelf: 'flex-start', position: 'absolute', right: 16, top: 14, padding: 4 },
-  eyeTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
+  eyeTxt: { color: colors.brandInk, fontWeight: '400', fontSize: 13 },
   forgotLine: {
     color: colors.muted, fontSize: 13, fontWeight: '500', marginBottom: 14, marginTop: 2,
   },
-  linkInline: { color: colors.brand, fontWeight: '400', textDecorationLine: 'underline' },
+  linkInline: { color: colors.brandInk, fontWeight: '400', textDecorationLine: 'underline' },
   errorText: { color: colors.danger, marginBottom: 10, fontSize: 13, fontWeight: '400' },
-  infoText: { color: colors.brand, marginBottom: 10, fontSize: 12, fontWeight: '400' },
+  infoText: { color: colors.brandInk, marginBottom: 10, fontSize: 12, fontWeight: '400' },
   primaryBtn: {
     alignSelf: 'stretch',
     width: '100%',
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     paddingVertical: 16,
     paddingHorizontal: 22,
     borderRadius: radius.pill,
@@ -457,10 +490,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
     borderWidth: 1,
-    borderColor: colors.brand,
+    borderColor: colors.brandInk,
   },
   primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnText: { color: '#fff', fontWeight: '600', fontSize: 16, letterSpacing: 0.2 },
+  primaryBtnText: { color: colors.onBrand, fontWeight: '600', fontSize: 16, letterSpacing: 0.2 },
   signupRow: {
     marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
   },

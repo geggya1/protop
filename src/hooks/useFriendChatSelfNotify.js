@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Platform } from 'react-native';
 import { db } from '../../firebase';
 import { getOpenChatId } from '../utils/openChat';
 import { timestampToMs, unreadCountForUser } from '../utils/chats';
+import { chatNoticeId } from '../utils/chatsLogic';
 import { listenFriendChats } from '../utils/friendChats';
 import { otherUidFromFriendChatId } from '../utils/friendsLogic';
 import { pushSupported, showLocalNotification } from '../utils/push';
@@ -53,8 +54,12 @@ export function useFriendChatSelfNotify(uid, prefs) {
         const friendUid = otherUidFromFriendChatId(data.id, uid)
           || data.lastSenderId
           || null;
-        const notifId = `friendChat_${data.id}_${stamp}`.slice(0, 700);
-        const chatTitle = String(data.title || data.names?.[friendUid] || '').trim() || 'Chat';
+        // Samme id som sendFriendChatAdmin og serveren (friendChat_<meldings-id>), så én
+        // melding gir ett varsel og ulest 1 (SOS-11).
+        const notifId = chatNoticeId({
+          chatId: data.id, stampId: stamp, messageId: data.unreadStampId, friend: true,
+        });
+        const chatTitle = String(data.lastSenderName || data.names?.[friendUid] || data.title || '').trim() || 'Chat';
         const title = chatTitle === 'Chat' ? 'Ny melding' : chatTitle;
         const body = String(data.lastText || '').slice(0, 280);
         const payload = {
@@ -70,9 +75,13 @@ export function useFriendChatSelfNotify(uid, prefs) {
           createdBy: uid,
         };
 
-        setDoc(doc(db, 'users', uid, 'notifications', notifId), payload).catch((err) => {
-          console.warn('[protop-notif] friend chat self-notify inbox', err?.code, err?.message);
-        });
+        // Reserve: skriv bare når serveren ikke allerede har laget varselet.
+        const notifRef = doc(db, 'users', uid, 'notifications', notifId);
+        getDoc(notifRef)
+          .then((snap) => (snap.exists() ? null : setDoc(notifRef, payload)))
+          .catch((err) => {
+            console.warn('[protop-notif] friend chat self-notify inbox', err?.code, err?.message);
+          });
 
         if (!pushSupported()) return;
         if (!isChannelOn(prefsRef.current, 'messageReceived', 'push')) return;

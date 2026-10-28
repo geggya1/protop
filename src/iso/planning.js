@@ -163,29 +163,45 @@ export function isoRoleFor(roleMap, value) {
   return key ? roleMap[key] : null;
 }
 
+/** Første måned (0–11) i året som skal ha oppgave: måneden datoen gjelder, 0 før året, 12 etter året. */
+function firstMonthIn(date, year) {
+  const m = monthOf(date);
+  if (!m || m.year < year) return 0;
+  return m.year > year ? 12 : m.month;
+}
+
 /**
- * Oppgaver for årshjulets aktiviteter i inneværende måned. Bare aktiviteter med «Lag oppgave»,
- * med mindre all = true (knappen på siden). Nøkkelen er per aktivitet og måned, så den lages én gang.
+ * Oppgaver for årshjulets aktiviteter. Bare aktiviteter med «Lag oppgave», med mindre all = true
+ * (knappen på siden, bare inneværende måned). Den daglige automatikken tar også igjen passerte måneder
+ * i året som mangler oppgave (ingen åpnet ISO i mars → marsoppgaven lages i april), men ikke måneder
+ * før ledelsessystemet ble satt opp eller aktiviteten ble lagt inn. Nøkkelen er per aktivitet og måned,
+ * så hver måned gir én oppgave uansett hvor ofte det kjøres.
  */
-export function annualTaskEffects(state, { now = new Date(), all = false } = {}) {
-  const month = now.getMonth();
+export function annualTaskEffects(state, { now = new Date(), all = false, catchUp = true } = {}) {
+  const current = now.getMonth();
   const year = now.getFullYear();
-  const name = MONTH_NAMES[month];
-  const deadline = new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10);
   const roles = state?.system?.roleMap || {};
   const fallback = roles.quality_manager || roles.system_owner || {};
-  return live(state?.records?.aarshjul)
-    .filter((r) => (r.months || []).includes(name) && inYear(r, year) && (all || r.createTasks))
-    .map((r) => {
+  const since = firstMonthIn(state?.system?.setupAt, year);
+  const out = [];
+  for (const r of live(state?.records?.aarshjul)) {
+    if (!inYear(r, year) || !(all || r.createTasks)) continue;
+    const first = all || !catchUp ? current : Math.max(since, firstMonthIn(r.createdAt, year));
+    for (let month = first; month <= current; month += 1) {
+      const name = MONTH_NAMES[month];
+      if (!(r.months || []).includes(name)) continue;
       const page = pageLabel(r.page);
-      return {
+      const late = month < current;
+      out.push({
         type: 'createTask',
         key: `isoauto_ahj_${r.id}_${year}_${String(month + 1).padStart(2, '0')}`.replace(/[^A-Za-z0-9_-]/g, '_'),
-        title: `Årshjul ${name.toLowerCase()}: ${r.title}`,
-        deadline,
+        title: `Årshjul ${name.toLowerCase()}${late ? ' (innhentet)' : ''}: ${r.title}`,
+        deadline: new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10),
         assigneeUid: r.ownerUid || isoRoleFor(roles, r.responsibleRole)?.uid || fallback.uid || '',
         roleLabel: r.responsibleRole || '',
-        description: [r.description, page ? `Utføres i ISO → ${page}.` : ''].filter(Boolean).join('\n'),
-      };
-    });
+        description: [r.description, page ? `Utføres i ISO → ${page}.` : '', late ? `Gjaldt ${name.toLowerCase()}, men ble ikke laget da.` : ''].filter(Boolean).join('\n'),
+      });
+    }
+  }
+  return out;
 }

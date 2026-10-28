@@ -151,7 +151,10 @@ describe('selskapsisolasjon og ugyldig tilgang', () => {
     const db = as('non');
     await assertFails(getDoc(doc(db, 'families', A, 'isoFindings', 'F1')));
     await assertFails(getDoc(doc(db, 'families', A, 'isoSystem', 'main')));
-    await assertFails(setDoc(doc(db, 'families', A, 'isoFindings', 'N1'), finding({ reportedByUid: 'non' })));
+    // Meldetilgang (ISO-04): alle i selskapet kan melde en ny sak i eget navn, men ikke mer.
+    await assertSucceeds(setDoc(doc(db, 'families', A, 'isoFindings', 'N1'), finding({ reportedByUid: 'non', state: 'registrert', triage: null, assessment: null, actions: [] })));
+    await assertFails(setDoc(doc(db, 'families', A, 'isoFindings', 'N2'), finding({ reportedByUid: 'non', state: 'triage' })));
+    await assertFails(getDoc(doc(db, 'families', A, 'isoFindings', 'F1')), 'ikke andres saker');
     await assertSucceeds(getDoc(doc(db, 'families', A, 'parentTodos', 'T1')));
     await assertSucceeds(setDoc(doc(db, 'families', A, 'projects', 'PR2'), { name: 'Nytt' }));
   });
@@ -224,7 +227,8 @@ describe('ansatt som melder eget avvik', () => {
     await assertSucceeds(getDocs(query(collection(db, 'families', A, 'isoFindingsRestricted'), where('reportedByUid', '==', 'mel'))));
     await assertSucceeds(getDocs(query(collection(db, 'families', A, 'isoFindingsRestricted'), where('involvedUids', 'array-contains', 'mel'))));
     await assertFails(getDocs(collection(db, 'families', A, 'isoFindingsRestricted')));
-    await assertSucceeds(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), { actions: [{ id: 'a1', state: 'til_verifisering' }], rev: 2 }));
+    // Involverte kan ikke legge til eller skrive om tiltak, bare melde eget tiltak utført (tests/rules/isoLocks.rules.test.mjs).
+    await assertFails(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), { actions: [{ id: 'a1', state: 'til_verifisering' }], rev: 2 }));
     await assertFails(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), { state: 'triage', rev: 2 }));
     await assertFails(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), { personalDetails: 'endret', rev: 2 }));
     await assertFails(updateDoc(doc(db, 'families', A, 'isoFindingsRestricted', 'R1'), closable({ closedByUid: 'mel' })));
@@ -452,23 +456,31 @@ describe('selskapsdokumentet (gjelder alle moduler)', () => {
     await assertSucceeds(updateDoc(doc(as('own'), 'families', A), { ownerUid: 'adm' }));
   });
 
-  test('selskap som ikke bruker ISO (uten speil) beholder tidligere oppførsel for tilgangsmatrisen', async () => {
+  // Tidligere slapp alle medlemmer til i selskaper uten speil (FL-02/SEC-13). Nå ber appen om
+  // speilet når skallet åpnes, og uten det kan bare eier og administratorer endre matrisen.
+  test('selskap uten speil: bare eier og administratorer kan endre tilgangsmatrisen', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'families', 'companyC'), { ownerUid: 'c1', members: ['c1', 'c2'], company: { accessPolicy: {} } });
+      await setDoc(doc(ctx.firestore(), 'families', 'companyC'), {
+        ownerUid: 'c1', adminUids: ['c1', 'c3'], members: ['c1', 'c2', 'c3'], company: { accessPolicy: {} },
+      });
     });
-    await assertSucceeds(updateDoc(doc(as('c2'), 'families', 'companyC'), { 'company.accessPolicy': { v: 1 } }));
+    await assertFails(updateDoc(doc(as('c2'), 'families', 'companyC'), { 'company.accessPolicy': { v: 1 } }));
     await assertFails(updateDoc(doc(as('c2'), 'families', 'companyC'), { ownerUid: 'c2' }));
+    await assertSucceeds(updateDoc(doc(as('c3'), 'families', 'companyC'), { 'company.accessPolicy': { v: 2 } }));
+    await assertSucceeds(updateDoc(doc(as('c1'), 'families', 'companyC'), { 'company.accessPolicy': { v: 3 } }));
   });
 });
 
 describe('regresjon: eksisterende moduler', () => {
-  test('medlemmer leser og skriver som før i Oppgaver, Prosjekt, HR og Ansatte', async () => {
+  test('medlemmer leser og skriver som før i Oppgaver, Prosjekt og Ansatte; HR bare med HR-tilgang', async () => {
     const db = as('les');
     await assertSucceeds(getDoc(doc(db, 'families', A, 'parentTodos', 'T1')));
     await assertSucceeds(updateDoc(doc(db, 'families', A, 'parentTodos', 'T1'), { done: true }));
     await assertSucceeds(setDoc(doc(db, 'families', A, 'parentTodos', 'iso_x'), { title: 'Fra ISO', source: 'iso' }));
     await assertSucceeds(getDocs(collection(db, 'families', A, 'projects')));
-    await assertSucceeds(getDoc(doc(db, 'families', A, 'hr', 'main')));
+    // Tidligere kunne alle medlemmer lese HR (lønn, saker, memo). Nå krever det HR-tilgang (L-01).
+    await assertFails(getDoc(doc(db, 'families', A, 'hr', 'main')));
+    await assertSucceeds(getDoc(doc(as('own'), 'families', A, 'hr', 'main')));
     await assertSucceeds(getDocs(collection(db, 'families', A, 'employees')));
     await assertSucceeds(setDoc(doc(db, 'families', A, 'parentTodos', 'T1', 'log', 'l1'), { text: 'x' }));
     await assertSucceeds(getDoc(doc(db, 'families', A)));

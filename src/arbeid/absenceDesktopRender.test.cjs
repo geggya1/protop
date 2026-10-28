@@ -90,6 +90,7 @@ function loadJsx(rel, { phone = false } = {}) {
       };
     }
     if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => true };
+    if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };
     if (id.includes('AbsenceOrganizePanel')) {
       return {
         __esModule: true,

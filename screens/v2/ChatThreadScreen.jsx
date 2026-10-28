@@ -24,6 +24,7 @@ import {
   canManageChatMessage, updateChatMessage, deleteChatMessage,
   listenChatMessages,
 } from '../../src/utils/chats';
+import { chatMessageNotice, chatNoticeId } from '../../src/utils/chatsLogic';
 import {
   SwipeStampRow,
   SwipeTimestampHost,
@@ -110,16 +111,20 @@ export default function ChatThreadScreen() {
     contextMemberIds: (members || []).map((m) => m.uid),
   });
 
-  const notifyRecipients = async (senderUid, body, messageId) => {
+  const notifyRecipients = async (senderUid, preview, messageId) => {
+    // Avsenderens navn i varselet, og samme id som mottakerens reserve (SOS-11, SOS-13).
+    const notice = chatMessageNotice({
+      chatId, chatTitle: title, senderName: name, text: preview,
+    });
     try {
       await notifyUsers(recipientIdsFor(senderUid), {
         eventType: 'messageReceived',
-        title: t('chat.newMessage'),
-        body,
+        title: notice.title,
+        body: notice.body,
         familyId,
         chatId,
         createdBy: senderUid,
-        notificationId: messageId ? `msg_${messageId}` : undefined,
+        notificationId: messageId ? chatNoticeId({ chatId, messageId }) : undefined,
       });
     } catch (err) {
       console.warn('[chat] notifyRecipients', err);
@@ -156,6 +161,7 @@ export default function ChatThreadScreen() {
     try {
       await stampChatMessage(familyId, chatId, {
         senderId: senderUid,
+        senderName: name,
         text: preview,
         memberIds: stampIds,
         unreadFor: recipients.length ? recipients : undefined,
@@ -385,7 +391,7 @@ export default function ChatThreadScreen() {
               <Ionicons name="image-outline" size={22} color={colors.brand} />
             )}
           </TouchableOpacity>
-          <HelpTarget id="input" style={{ flex: 1 }}>
+          <HelpTarget id="input" style={{ flex: 1, minWidth: 0 }}>
           <TextInput
             value={text}
             onChangeText={setText}
@@ -510,12 +516,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   input: {
-    flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
+    flex: 1, minWidth: 0, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
     paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, backgroundColor: colors.bg,
   },
   send: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brand,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   editBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20,

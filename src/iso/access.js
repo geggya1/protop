@@ -126,6 +126,36 @@ export function redactFinding(caps, finding) {
   };
 }
 
+export const HIDDEN_REPORTER = 'Melder (skjult)';
+
+/**
+ * Hvem som meldte, vises bare for saksbehandlere (Begrenset redigering eller mer) og for melderen selv.
+ * Andre ansatte ser saken og hva som er gjort, ikke hvem som meldte den (meldekultur).
+ */
+export function reporterVisible(caps, finding) {
+  if (!finding) return false;
+  if (caps?.manage) return true;
+  const uid = text(caps?.uid, 128);
+  return !!uid && String(finding.reportedByUid || '') === uid;
+}
+
+/**
+ * Kopi av saken til visning: skjermede detaljer og melderens navn (også i historikken) fjernes for
+ * dem som ikke skal se dem. Bare til visning — aldri til lagring (reglene krever uendret melder).
+ */
+export function displayFinding(caps, finding) {
+  const base = redactFinding(caps, finding);
+  if (!base || base.anonymous || reporterVisible(caps, base)) return base;
+  const name = text(base.reportedBy, 160);
+  const uid = text(base.reportedByUid, 128);
+  const isReporter = (h) => (uid && h?.uid ? String(h.uid) === uid : !!name && h?.by === name);
+  return {
+    ...base,
+    reportedBy: HIDDEN_REPORTER,
+    history: (base.history || []).map((h) => (isReporter(h) ? { ...h, by: HIDDEN_REPORTER } : h)),
+  };
+}
+
 /**
  * Hva hver ISO-rolle trenger i tilgangsstyringen: minste ISO-nivå (1 lese, 2 begrenset redigering)
  * og fagansvaret som gir det. Ingen rolle krever Admin. Admin er bare for innstillingene, og settes

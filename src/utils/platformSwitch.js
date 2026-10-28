@@ -6,6 +6,8 @@ import { isLiveOrganization } from '../project/companyOffer.js';
 import { findPersonalShell, isPersonalShell } from './personalShell.js';
 import { isProtopWorkspace } from './platformAccess.js';
 import { platformHomeRoute } from './groupTypes.js';
+import { companyDisplayName } from './companyName.js';
+import { leaveShellPathForSwitch } from '../navigation/shellPaths.js';
 
 export function liveWorkspaces(families = []) {
   return (families || []).filter((group) => (
@@ -24,7 +26,7 @@ export function personalWorkspace(families = []) {
 }
 
 function companyName(group) {
-  return String(group?.company?.navn || group?.name || '').trim();
+  return companyDisplayName(group);
 }
 
 export function companyOrgnr(group) {
@@ -346,6 +348,8 @@ export async function applyPlatformSwitch({
     if (current && current !== target) openPlatformHome(navigation, group);
     return { applied: true, kind: 'workspace', id: group.id, same: true };
   }
+  // En bedriftsside blir ikke med over i Privat (EGEN-04). Før byttet, så skallet monteres på Hjem.
+  leaveShellPathForSwitch(isLiveOrganization(group) ? 'company' : 'personal');
   await selectFamily?.(group.id, group);
   openPlatformHome(navigation, group);
   return { applied: true, kind: 'workspace', id: group.id };

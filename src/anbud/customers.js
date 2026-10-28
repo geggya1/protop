@@ -1,5 +1,5 @@
 /** Kunderegister for bedriften. Knyttes til avtaler via customerId. */
-import { collapseNameTokens, displayName } from '../employees/model.js';
+import { collapseNameTokens, displayName, isActiveEmployee } from '../employees/model.js';
 
 function text(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -556,15 +556,8 @@ export function companyFollowUpPeople(members) {
   ));
 }
 
-function employmentStatus(employee) {
-  return text(employee?.company?.status || 'active').toLowerCase();
-}
-
 /** Deaktivert, sluttet eller slettet personell skal ikke kunne velges som ansvarlig. */
-export function isActiveEmployee(employee) {
-  const status = employmentStatus(employee);
-  return status !== 'inactive' && status !== 'former' && status !== 'deleted';
-}
+export { isActiveEmployee };
 
 function personIds(person) {
   const listed = Array.isArray(person?.ids) ? person.ids : [];
@@ -605,16 +598,26 @@ function rememberPerson(rows, byName, row) {
 /** Medlemmer og aktive ansatte som kan velges som ansvarlig for avtale/kunde. */
 export function agreementResponsiblePeople(members = [], employees = []) {
   const roster = Array.isArray(employees) ? employees : [];
+  // Medlemmer har uid, ansatte har ansatt-id. En deaktivert ansatt som fortsatt står som
+  // medlem, treffes via personUid. Har samme person også en aktiv ansettelse, gjelder den.
   const inactiveIds = new Set();
+  const activeUids = new Set();
+  const inactiveUids = new Set();
   for (const row of roster) {
     const id = text(row?.id);
-    if (id && !isActiveEmployee(row)) inactiveIds.add(id);
+    const personUid = text(row?.personUid);
+    const active = isActiveEmployee(row);
+    if (id && !active) inactiveIds.add(id);
+    if (!personUid) continue;
+    if (active) activeUids.add(personUid);
+    else inactiveUids.add(personUid);
   }
+  const closed = (uid) => !activeUids.has(uid) && (inactiveUids.has(uid) || inactiveIds.has(uid));
   const rows = [];
   const byName = new Map();
   for (const row of companyFollowUpPeople(members)) {
     const uid = text(row.uid || row.id);
-    if (!uid || inactiveIds.has(uid)) continue;
+    if (!uid || closed(uid)) continue;
     rememberPerson(rows, byName, { uid, name: row.name, source: 'member', ids: [uid] });
   }
   for (const row of roster) {

@@ -478,8 +478,9 @@ test('flere boter: oppslag, flere bedrifter, invitasjon, e-post, deaktivering og
   assert.match(sent.mail.subject, /^Invitasjon til bedriften CONSULT1 AS på ProTop$/);
   assert.match(sent.mail.text, /Du er invitert inn i bedriften «CONSULT1 AS» på ProTop/);
   assert.match(sent.mail.text, /Opprett konto her/);
-  assert.match(sent.mail.text, /Du blir ikke med i bedriften før du har godtatt/);
-  assert.match(sent.mail.html, /Opprett konto og svar på invitasjonen/);
+  assert.match(sent.mail.text, /bekreft e-posten, så er du med i bedriften/);
+  assert.match(sent.mail.text, /Er invitasjonen ikke til deg, kan du avslå den i appen/);
+  assert.match(sent.mail.html, /Opprett konto og bli med/);
   assert.match(sent.mail.html, /Hei Eva &lt;script&gt;/);
   assert.equal(sent.mail.html.includes('<script>'), false);
   assert.match(sent.mail.text, /https:\/\/www\.protop\.no\/register\?email=eva%40example\.com&familyId=/);
@@ -554,10 +555,11 @@ test('flere boter: oppslag, flere bedrifter, invitasjon, e-post, deaktivering og
     queueEmployeeInvite(removed).error,
     'Medarbeideren ligger i papirkurven.',
   );
-  assert.equal(
-    claimInvite(world, { companyId: consult.id, uid: EVA, email: 'eva@example.com' }).already,
-    true,
-  );
+  // Avsluttet ansettelse knyttes ikke på nytt ved innlogging (gir verken medlemskap eller admin tilbake).
+  const reclaim = claimInvite(world, { companyId: consult.id, uid: EVA, email: 'eva@example.com' });
+  assert.equal(reclaim.skipped, true);
+  assert.equal(reclaim.closed, true);
+  assert.equal(consult.members.includes(EVA), false);
 
   const liv = employ(world, {
     companyId: nord.id,

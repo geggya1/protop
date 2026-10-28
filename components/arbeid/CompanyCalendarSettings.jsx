@@ -13,6 +13,7 @@ import {
   setFullDayHours,
   upsertRedDay,
 } from '../../src/arbeid/timesheetState.js';
+import { formatDate } from '../../src/format/nb';
 
 /** Røde dager og normaldag for selskapet. Lagres i prosjektstate sammen med timelisten. */
 export default function CompanyCalendarSettings({ familyId, colors: colorsProp, canEdit }) {
@@ -26,18 +27,28 @@ export default function CompanyCalendarSettings({ familyId, colors: colorsProp, 
   const [hours, setHours] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let live = true;
+    setReady(false);
     loadProjectState(familyId, { hours: false }).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setHours(String(loaded.fullDayHours || 8));
+      setReady(true);
+    }).catch(() => {
+      if (live) setError('Kunne ikke laste kalenderen.');
     });
     return () => { live = false; };
   }, [familyId]);
 
   async function commit(result, success) {
+    // Før lastingen er ferdig vet vi ikke hva som ligger i skyen, og endringen kunne gått tapt.
+    if (!ready) {
+      setError('Vent til kalenderen er lastet, og prøv igjen.');
+      return;
+    }
     if (!result.ok) {
       setError(result.error);
       return;
@@ -127,7 +138,7 @@ export default function CompanyCalendarSettings({ familyId, colors: colorsProp, 
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
       {rows.map((row) => (
         <View key={row.id} style={[styles.day, { borderBottomColor: colors.line }]}>
-          <Text style={{ color: colors.ink, flex: 1 }}>{row.date} · {row.name} · {row.portion === 'half' ? 'halv' : 'hel'}</Text>
+          <Text style={{ color: colors.ink, flex: 1 }}>{formatDate(row.date)} · {row.name} · {row.portion === 'half' ? 'halv' : 'hel'}</Text>
           {canEdit ? (
             <TouchableOpacity onPress={() => commit(deleteRedDay(state, row.id), 'Dagen er fjernet.')} accessibilityLabel={`Fjern ${row.name}`}>
               <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>

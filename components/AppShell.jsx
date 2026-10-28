@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { radius, useLayout } from '../src/theme';
 import { useApp } from '../src/context/AppContext';
+import { CompanyDataProvider } from '../src/context/CompanyDataContext';
 import { useColors, useThemeMeta } from '../src/context/ThemeContext';
 import { isTeamType } from '../src/utils/teams';
 import { isClassroomType } from '../src/utils/groupTypes';
@@ -22,6 +23,8 @@ import MailHubScreen from '../screens/v2/MailHubScreen';
 import ProjectPlatformScreen from '../screens/project/ProjectPlatformScreen';
 import CompanyLanding from '../screens/project/CompanyLanding';
 import { CompanyAccessDenied } from './project/CompanyAccessSettings';
+import CompanyAccountEnded from './CompanyAccountEnded';
+import { isActiveEmployee } from '../src/employees/model';
 import { CompanyModuleLocked } from './project/CompanyModuleSettings';
 import { useCompanyModules } from '../src/access/useCompanyModules';
 import ViewAsControl, { ViewAsModulePlaceholder } from './project/ViewAsBar';
@@ -50,6 +53,7 @@ import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defau
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
 import ModuleTabs from './ModuleTabs';
 import { companyLandingTab, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor, shellSearchFor } from '../src/navigation/shellPaths';
+import { ShellDetailContext } from '../src/navigation/shellDetail';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -59,6 +63,8 @@ import { SHELL_TABS } from './ShellTabBar';
 import ShellHeader, { ShellPageHeroContext, ShellTitleRightContext } from './ShellHeader';
 import ShellDrawer from './ShellDrawer';
 import DesktopRail from './DesktopRail';
+import { useAppearance } from '../src/appearance/AppearanceContext';
+import { railBackground } from '../src/navigation/navTree';
 import BrandLogo from './BrandLogo';
 import EdgeSwipeBack from './EdgeSwipeBack';
 import IconBadge from './IconBadge';
@@ -73,13 +79,16 @@ import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
 import { grandparentModulesFor, isGrandparentAppAllowed } from '../src/utils/grandparentAccess';
 import ModuleIntroHost from './ModuleIntroHost';
 import { helpPageId } from '../src/help/protopPages';
-import ModuleHero from './ModuleHero';
+import ModuleHero, { ModuleTitleRow } from './ModuleHero';
 import HelpTarget from './HelpTarget';
 import ModuleActivationGate from './ModuleActivationGate';
 import { activationModuleIdForShell } from '../src/modules/moduleActivationRegistry';
-import { phoneChromeHeroId, shellHeroModuleId } from '../src/modules/moduleHero';
+import { phoneChromeHeroId, shellHeroCompact, shellHeroModuleId } from '../src/modules/moduleHero';
+import { navTrailParentText } from '../src/navigation/navTrail';
 import ModuleAside, { ModuleAsideProvider, ShellWideContext } from './ModuleAside';
 import { ModuleHeroHostProvider, useShowModuleHero } from './ModulePageBg';
+import { ShellTitlesProvider } from '../src/ui/ShellTitles';
+import { shellPageTitles } from '../src/navigation/shellPageTitles';
 import { useChatDock, useChatDockPreferred } from '../src/context/ChatDockContext';
 import { useModuleAccess } from '../src/context/ModuleAccessContext';
 import { useNow } from '../src/hooks/useNow';
@@ -98,6 +107,7 @@ import {
 import KitchenPinModal from './KitchenPinModal';
 import ParentShellBottomNav from './parentHome/ParentShellBottomNav';
 import HomeBackdrop from './home/HomeBackdrop';
+import { hasHomePhoto } from '../src/homeBanners';
 import { HomeImmersiveProvider } from '../src/context/HomeImmersiveContext';
 import { useParentDashboardTheme } from '../src/hooks/useParentDashboardTheme';
 import { useHomeLayout } from '../src/hooks/useHomeLayout';
@@ -107,9 +117,15 @@ import {
 } from '../src/utils/childHomeLayout';
 import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
+import { companyDisplayName } from '../src/utils/companyName';
+import ConfirmHost from './ConfirmHost';
+import IsoAutomation from '../screens/iso/IsoAutomation';
+import { FAMILY_PRODUCT_ENABLED, isFamilyProductMoreView } from '../src/navigation/familyProduct';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
+  // Ikonet beholder merkefargen; teksten bruker brandInk så den kan leses.
+  const labelColor = active ? colors.brandInk : colors.muted;
   const icon = (
     <IconBadge count={badgeCount} size={desktop ? 15 : 16} offset={desktop ? -6 : -7}>
       <Ionicons name={active ? tab.icon : `${tab.icon}-outline`} size={desktop ? 20 : 24} color={color} />
@@ -130,7 +146,7 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
         {...(Platform.OS === 'web' ? { dataSet: { wpNav: '1', wpNavActive: active ? '1' : '0' } } : null)}
       >
         {icon}
-        <Text style={[styles.railRowLabel, { color }]} numberOfLines={1}>{tab.label}</Text>
+        <Text style={[styles.railRowLabel, { color: labelColor }]} numberOfLines={1}>{tab.label}</Text>
       </TouchableOpacity>
     );
   }
@@ -146,8 +162,28 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
       nativeID={`module-nav-${tab.id}`}
     >
       {icon}
-      <Text style={[styles.tabLabel, { color }]} numberOfLines={1}>{tab.label}</Text>
+      <Text style={[styles.tabLabel, { color: labelColor }]} numberOfLines={1}>{tab.label}</Text>
     </TouchableOpacity>
+  );
+}
+
+/**
+ * Hopp-lenke på web (WCAG 2.4.1): første Tab-stopp på siden, synlig bare med fokus.
+ * Flytter fokus til hovedinnholdet uten å endre adressen (navigasjonen leser stien).
+ */
+function SkipToContent() {
+  if (Platform.OS !== 'web') return null;
+  const jump = (event) => {
+    event.preventDefault();
+    const main = typeof document !== 'undefined' ? document.getElementById('shell-scroll') : null;
+    if (!main) return;
+    if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+    main.focus({ preventScroll: false });
+  };
+  return (
+    <a href="#shell-scroll" className="wp-skip-link" onClick={jump}>
+      Hopp til innholdet
+    </a>
   );
 }
 
@@ -159,8 +195,9 @@ const SUBPAGE_ASIDE_MIN_WIDTH = 1280;
 function AppShellInner() {
   const nav = useNavigation();
   const route = useOptionalRoute();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const colors = useColors();
+  const appearance = useAppearance();
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
   const { highChildFriendliness } = useThemeMeta();
@@ -214,6 +251,11 @@ function AppShellInner() {
     },
   }), []);
   const [moreSubView, setMoreSubView] = useState(null);
+  // Detaljsiden i adressen (/hjem/prosjekt/:id, UX-20): { tab, subView, id }. Gjelder bare på sin egen side.
+  const [shellDetail, setShellDetail] = useState(null);
+  const detailId = shellDetail && shellDetail.tab === tab && (shellDetail.subView || null) === (moreSubView || null)
+    ? shellDetail.id
+    : null;
   const prevNavRef = useRef({ tab: 'home', subView: null });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [addHomeOpen, setAddHomeOpen] = useState(false);
@@ -263,6 +305,8 @@ function AppShellInner() {
 
   // Publiser kun for innlogget identitet — ikke når foresatt bare «ser som barn».
   const locationSharingEnabled = useMemo(() => {
+    // Familieposisjon er ikke med i ProTop (L-35): ingen posisjon publiseres til bedriften.
+    if (!FAMILY_PRODUCT_ENABLED) return false;
     if (isActingAsChild && !isChild) return false;
     return effectiveLocationSharing({
       userProfile,
@@ -337,6 +381,7 @@ function AppShellInner() {
     if (!open?.tab) return;
     setMoreSubView(open.subView || null);
     setTab(open.tab);
+    setShellDetail(open.detail ? { tab: open.tab, subView: open.subView || null, id: open.detail } : null);
     if (open.intent) {
       // requestShellTab setter shellIntent når intent er satt
       requestShellTab(open.tab, open.subView || null, open.intent);
@@ -351,7 +396,14 @@ function AppShellInner() {
     if (!at || at.tab === 'home') return;
     setMoreSubView(at.subView || null);
     setTab(at.tab);
+    if (at.detail) setShellDetail({ tab: at.tab, subView: at.subView || null, id: at.detail });
   }, []);
+
+  // En annen side enn detaljens: glem detaljen, så den ikke åpnes igjen neste gang listen vises.
+  useEffect(() => {
+    if (!shellDetail || detailId) return;
+    setShellDetail((cur) => (cur && (cur.tab !== tab || (cur.subView || null) !== (moreSubView || null)) ? null : cur));
+  }, [shellDetail, detailId, tab, moreSubView]);
 
   // Web: fanen og undersiden står i adressen (/hjem/iso/avvik), så nettleserens tilbake og fram virker.
   useEffect(() => {
@@ -372,7 +424,7 @@ function AppShellInner() {
       shellSyncedRef.current = true;
       return;
     }
-    const path = shellPathFor(tab, moreSubView);
+    const path = shellPathFor(tab, moreSubView, detailId);
     setShellLocation(path);
     const here = window.location.pathname;
     // Ligger en annen skjerm over Hjem, rører vi ikke adressen.
@@ -380,12 +432,25 @@ function AppShellInner() {
     // En annen sides spørring (indeksavtalen) følger ikke med. Ellers åpner en oppdatering den siden igjen.
     const search = shellSearchFor(tab, moreSubView, window.location.search);
     const url = `${path}${search}`;
-    const state = { ...(window.history.state || {}), shell: path };
+    const { shellFrom: cameFrom, ...rest } = window.history.state || {};
+    const state = { ...rest, shell: path };
     // Etter tilbake/fram står nettleseren allerede på stien. Bare en gammel spørring ryddes bort.
     if (here === path) {
       if (search !== (window.location.search || '')) {
-        try { window.history.replaceState(state, '', url); } catch { /* ignore */ }
+        try { window.history.replaceState({ ...state, shellFrom: cameFrom }, '', url); } catch { /* ignore */ }
       }
+      return;
+    }
+    // Detaljsider (UX-20): listen → detaljen legger til en oppføring som husker listen. Tilbake til listen
+    // går da tilbake i historikken (så nettleserens Tilbake ikke åpner detaljen igjen), og detalj → detalj erstatter.
+    const from = parseShellPath(here);
+    const sameList = !!from && from.tab === tab && (from.subView || null) === (moreSubView || null);
+    if (sameList && from.detail && !detailId && cameFrom === path) {
+      try { window.history.back(); } catch { /* ignore */ }
+      return;
+    }
+    if (sameList && from.detail && detailId) {
+      try { window.history.replaceState({ ...state, shellFrom: cameFrom }, '', url); } catch { /* ignore */ }
       return;
     }
     // Omdirigering (/hjem/anbud → /hjem/anbud/varsling) erstatter oppføringen. Ellers ville tilbake havne i en løkke.
@@ -393,10 +458,10 @@ function AppShellInner() {
     const chained = lastEntryRef.current.tab === tab && Date.now() - lastEntryRef.current.at < 400;
     try {
       if (redirect || chained) window.history.replaceState(state, '', url);
-      else window.history.pushState(state, '', url);
+      else window.history.pushState(sameList && detailId ? { ...state, shellFrom: here } : state, '', url);
     } catch { /* ignore */ }
     lastEntryRef.current = { at: Date.now(), tab };
-  }, [tab, moreSubView]);
+  }, [tab, moreSubView, detailId]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -406,6 +471,7 @@ function AppShellInner() {
       urlNavAtRef.current = Date.now();
       setMoreSubView(next.subView || null);
       setTab(next.tab);
+      setShellDetail(next.detail ? { tab: next.tab, subView: next.subView || null, id: next.detail } : null);
     };
     const onInput = () => { inputAtRef.current = Date.now(); };
     window.addEventListener('popstate', onPop);
@@ -692,6 +758,10 @@ function AppShellInner() {
       );
     }
     if (COMPANY_TAB_IDS.includes(tab) && companyAccess.active && !companyAccess.tabAllowed(tab, moreSubView)) {
+      // Egen ansettelse er avsluttet: forklar det, i stedet for «Ingen tilgang» på hver side.
+      if (!companyAccess.previewing && companyAccess.employee && !isActiveEmployee(companyAccess.employee)) {
+        return <CompanyAccountEnded colors={colors} employee={companyAccess.employee} />;
+      }
       return <CompanyAccessDenied colors={colors} />;
     }
     if (tab === 'plan') return null;
@@ -709,7 +779,7 @@ function AppShellInner() {
         .filter((row) => row?.id && row.id !== familyId && isOrganizationType(row.type))
         .map((row) => ({
           id: row.id,
-          name: row.company?.navn || row.name || 'Selskap',
+          name: companyDisplayName(row, 'Selskap'),
           organization: true,
           type: row.type,
         }));
@@ -721,7 +791,7 @@ function AppShellInner() {
           companies={relatedCompanies}
           company={{
             id: familyId,
-            name: family?.company?.navn || family?.name || '',
+            name: companyDisplayName(family),
             orgnr: family?.company?.organisasjonsnummer || '',
             cpvCodes: family?.cpvCodes || [],
             cpvSource: family?.cpvSource || '',
@@ -788,9 +858,18 @@ function AppShellInner() {
     return moduleTabsFor(tab, moreSubView, items);
   }, [kitchenMode, family?.type, family?.company, companyAccess.grants, companyModules.state, companyModules.lockedLabel, tab, moreSubView]);
 
+  const detailContext = useMemo(() => ({
+    tab,
+    subView: moreSubView || null,
+    detailId,
+    setDetail: (to, id) => setShellDetail(id ? { tab: to.tab, subView: to.subView || null, id: String(id) } : null),
+  }), [tab, moreSubView, detailId]);
+
   const moduleBody = (
     <ShellErrorBoundary key={`${tab}:${moreSubView || ''}`}>
-      {otherBody}
+      <ShellDetailContext.Provider value={detailContext}>
+        {otherBody}
+      </ShellDetailContext.Provider>
     </ShellErrorBoundary>
   );
 
@@ -836,6 +915,12 @@ function AppShellInner() {
   }, [companyAccess.previewing, companyAccess.previewStamp, companyAccess.ready, tab, moreSubView]);
 
   useEffect(() => {
+    // Familiesidene under Meny åpnes ikke i ProTop (L-35), heller ikke fra varsler eller lenker.
+    if (tab === 'more' && isFamilyProductMoreView(moreSubView)) {
+      setTab('home');
+      setMoreSubView(null);
+      return;
+    }
     if (tab === 'chores' && !(isChild || isActingAsChild)) {
       setTab('home');
       return;
@@ -901,7 +986,8 @@ function AppShellInner() {
     t,
     asChildView,
     childHomeTitle: asChildView ? childShellTitle(now, { child: viewingChild }) : null,
-    modulesHub: isPhone && !simpleChildUi && (asChildView || isParent),
+    modulesHub: isPhone && !simpleChildUi && asChildView,
+    menuHub: !simpleChildUi && !asChildView && isParent,
   }), [tab, moreSubView, t, asChildView, now, viewingChild, isPhone, isParent, simpleChildUi]);
 
   // Hjelpen følger undersiden (anbud.varsling, iso.avvik …), ikke bare fanen.
@@ -914,8 +1000,24 @@ function AppShellInner() {
   const headerHeroId = (!kitchenMode && showPageHero)
     ? phoneChromeHeroId(tab, moreSubView, isPhone)
     : null;
+  // Undersider: kompakt tittelrad i stedet for båndet (telefon: toppfeltet viser tittelen).
+  const heroCompact = !!pageHeroId && shellHeroCompact(tab, moreSubView);
+  // PC og nettbrett: båndet eller tittelraden i innholdet viser sidetittelen, ikke toppfeltet.
+  const titleInContent = !!pageHeroId && !headerHeroId && !(heroCompact && isPhone);
+  // Én tittel per side: titlene skallet faktisk viser, så sidene ikke gjentar dem (Page i src/ui).
+  const headerShowsTitle = !titleInContent && (isDesktop || !(headerHeroId || shellPageHero));
+  const shellTitles = useMemo(() => (kitchenMode ? null : shellPageTitles({
+    tab,
+    subView: moreSubView,
+    headerTitle: headerShowsTitle ? shellHeaderTitle : '',
+    titleRow: heroCompact,
+    heroId: heroCompact ? null : pageHeroId,
+    lang,
+  })), [kitchenMode, tab, moreSubView, headerShowsTitle, shellHeaderTitle, heroCompact, pageHeroId, lang]);
 
-  const activationModuleId = kitchenMode
+  // Familiesidene under Meny er ikke med i ProTop (L-35): ingen «Aktiver …» for dem.
+  const familyViewBlocked = tab === 'more' && isFamilyProductMoreView(moreSubView);
+  const activationModuleId = kitchenMode || familyViewBlocked
     ? null
     : activationModuleIdForShell(tab, moreSubView);
   const blockingWelcome = needsWelcome(activationModuleId);
@@ -974,6 +1076,7 @@ function AppShellInner() {
     kitchenMode,
     bottomNavEnabled,
   });
+  const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
   const immersiveHome = isImmersivePhotoShell({
     isPhone,
     tab,
@@ -982,8 +1085,8 @@ function AppShellInner() {
     asChildView,
     kitchenMode,
     simpleChildUi,
+    photo: hasHomePhoto(backdropBannerId),
   });
-  const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
   const backdropCustomUri = asChildView ? childHome.layout.customBannerUri : homeCustomBannerUri;
   // ProTop keeps the safe area inside the chrome, not as a gap outside it.
   // On a phone the header is the top layer: its background covers Safari's
@@ -1004,13 +1107,17 @@ function AppShellInner() {
     <ShellPageHeroContext.Provider value={shellPageHeroApi}>
     <View style={[styles.safe, { backgroundColor: immersiveHome ? '#1a2430' : colors.bg }]}>
       <UsageRecorder companyId={familyId} tab={tab} subView={moreSubView} />
+      <SkipToContent />
       {immersiveHome ? (
         <HomeBackdrop bannerId={backdropBannerId} customUri={backdropCustomUri} />
       ) : null}
       <SafeAreaView edges={safeEdges} style={[styles.safe, styles.shellAboveBackdrop]}>
       <View style={[styles.wrap, hasRail && !kitchenMode && styles.wrapRow, immersiveHome && styles.immersiveLayer]}>
         {hasRail && !kitchenMode && (
-          <View style={[
+          <View
+            role="navigation"
+            aria-label="Hovedmeny"
+            style={[
             styles.rail,
             {
               width: isDesktop ? (railCollapsed ? 52 : railWidth) : railWidth,
@@ -1018,6 +1125,8 @@ function AppShellInner() {
               backgroundColor: colors.card,
             },
             isDesktop && styles.railDesktop,
+            // Sidemenyen på PC følger lyst og mørkt (UX-05/UX-22).
+            isDesktop && { backgroundColor: railBackground(colors, appearance.scheme) },
           ]}
           >
             {isDesktop ? (
@@ -1032,7 +1141,7 @@ function AppShellInner() {
               <HelpTarget id="rail" style={{ flex: 1 }}>
                 <BrandLogo variant="full" height={48} maxWidth={180} style={styles.brandLogo} />
                 <Text style={[styles.fam, { color: colors.muted }]} numberOfLines={1}>
-                  {family?.name || 'Familien'}
+                  {companyDisplayName(family, 'Familien')}
                 </Text>
 
                 <ScrollView
@@ -1069,7 +1178,7 @@ function AppShellInner() {
                     <IconBadge count={countForModule(unreadByModule, 'more')} size={15} offset={-6}>
                       <Ionicons name="grid-outline" size={18} color={colors.brand} />
                     </IconBadge>
-                    <Text style={[styles.railToolsTxt, { color: colors.brand }]}>Mer</Text>
+                    <Text style={[styles.railToolsTxt, { color: colors.brandInk }]}>Mer</Text>
                   </TouchableOpacity>
                 )}
               </HelpTarget>
@@ -1100,6 +1209,7 @@ function AppShellInner() {
             </View>
           ) : null}
           <ModuleHeroHostProvider hosted={!!pageHeroId}>
+          <ShellTitlesProvider titles={shellTitles}>
           {!kitchenMode ? (
             <ShellHeader
               title={shellHeaderTitle}
@@ -1119,6 +1229,8 @@ function AppShellInner() {
               titleRight={shellTitleRight}
               viewAs={viewAsControl}
               onLogoHome={goHome}
+              meta={heroCompact && isPhone ? navTrailParentText(tab, moreSubView) : ''}
+              titleInPage={titleInContent}
               hero={shellPageHero || (headerHeroId ? (
                 <ModuleHero moduleId={headerHeroId} flush chrome />
               ) : null)}
@@ -1130,6 +1242,7 @@ function AppShellInner() {
           ) : null}
           <View
             nativeID="shell-scroll"
+            role="main"
             style={[
             styles.contentArea,
             !isDesktop && styles.contentClip,
@@ -1148,12 +1261,14 @@ function AppShellInner() {
               immersiveHome && styles.immersiveLayer,
             ]}
             >
-              {pageHeroId && !headerHeroId ? (
+              {titleInContent ? (
                   <View style={[
                     styles.heroBand,
                     isDesktop ? styles.heroBandDesk : styles.heroBandTablet,
                   ]}>
-                    <ModuleHero moduleId={pageHeroId} flush />
+                    {heroCompact
+                      ? <ModuleTitleRow moduleId={pageHeroId} tab={tab} subView={moreSubView} />
+                      : <ModuleHero moduleId={pageHeroId} flush />}
                   </View>
                 ) : null}
                 {showDeskAside ? (
@@ -1185,6 +1300,7 @@ function AppShellInner() {
               ) : null}
             </View>
           </View>
+          </ShellTitlesProvider>
           </ModuleHeroHostProvider>
         </View>
         <ParentShellBottomNav
@@ -1195,6 +1311,8 @@ function AppShellInner() {
           glass={immersiveHome}
         />
       </View>
+
+      <ConfirmHost />
 
       {!simpleChildUi && !kitchenMode && (
         <ShellDrawer
@@ -1230,8 +1348,29 @@ function AppShellInner() {
 }
 
 export default function AppShell() {
-  const { familyId, family } = useApp();
-  return <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />;
+  const { familyId, family, parents, userProfile, uid } = useApp();
+  // Felles lesing for bedriften (ansatte, personer, kunder, prosjekter, innstillinger).
+  const companyId = family?.id === familyId && isOrganizationType(family?.type) ? familyId : '';
+  const me = useMemo(() => (uid ? { ...(userProfile || {}), uid } : null), [uid, userProfile]);
+  // Under bytte med Privat/Bedrift peker familien et øyeblikk på det forrige arbeidsområdet. Skallet monteres
+  // først når de stemmer, så det ikke tegnes med feil arbeidsområde og tar en bedriftsside med over i Privat
+  // (EGEN-04). Kommer det ikke svar (frakoblet), tegnes det likevel etter et øyeblikk, som før.
+  const switching = !!(family?.id && familyId && family.id !== familyId);
+  const [waitedOut, setWaitedOut] = useState(false);
+  useEffect(() => {
+    setWaitedOut(false);
+    if (!switching) return undefined;
+    const timer = setTimeout(() => setWaitedOut(true), 1500);
+    return () => clearTimeout(timer);
+  }, [switching]);
+  const hold = switching && !waitedOut;
+  return (
+    <CompanyDataProvider companyId={companyId} members={parents} me={me}>
+      {/* ISO-automatikk og køen for hurtigmeldinger (ISO-02/03). Tegner ingenting. */}
+      {companyId ? <IsoAutomation key={`iso-${companyId}`} /> : null}
+      {hold ? null : <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />}
+    </CompanyDataProvider>
+  );
 }
 
 const styles = StyleSheet.create({

@@ -6,7 +6,9 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import RegisterVacationModal from '../../components/arbeid/RegisterVacationModal';
 import { useApp } from '../../src/context/AppContext';
-import { absencePickerTypes, absenceTypeById, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
+import {
+  absencePickerTypes, absenceTypeById, isHealthAbsence, resolveAbsenceTypes,
+} from '../../src/arbeid/absenceCatalog.js';
 import {
   ABSENCE_DAY_HOURS,
   ACTIVE_STAFF_LABEL,
@@ -35,6 +37,7 @@ import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { CompanyAbsenceView } from './CompanyAbsenceView';
 import { CompanyAbsenceDesktop } from './CompanyAbsenceDesktop';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 const HERO = require('../../assets/absence/hero-construction.png');
 const BEACH = require('../../assets/absence/beach-illustration.png');
@@ -83,7 +86,7 @@ function formatCount(value) {
 }
 
 function companyLabel(group) {
-  return String(group?.company?.navn || group?.name || 'Selskap').trim();
+  return companyDisplayName(group, 'Selskap');
 }
 
 function usePeople(lockedEmployeeId) {
@@ -125,7 +128,7 @@ export function AbsenceOverviewScreen({
   const locked = !!workspace.lockedId;
   const canChooseEmployee = !!workspace.manager && !locked;
   const people = useMemo(
-    () => filterEmployeesForPicker(workspace.employees, '').filter((row) => row?.company?.status !== 'deleted'),
+    () => filterEmployeesForPicker(workspace.employees, '', { includeClosed: true }),
     [workspace.employees],
   );
   const employeeId = locked
@@ -360,9 +363,9 @@ export function AbsenceOverviewView({
   // Nøkkeltall for hele bedriften vises bare for den som kan velge blant flere ansatte.
   showKpis = true,
 }) {
-  const { width, hasRail, railWidth } = useLayout();
+  const { width, hasRail, railWidth, isWide } = useLayout();
   const hostedHero = useModuleHeroHosted();
-  const wide = width >= 1180;
+  const wide = isWide;
   // Web med god plass: Siste fravær i eget felt til høyre.
   const sideRecent = Platform.OS === 'web' && width - (hasRail ? railWidth : 0) >= 1360;
   const [menu, setMenu] = useState('');
@@ -650,6 +653,7 @@ export function AbsenceOverviewView({
       requireEmployee={!employeeId}
       locked={registrationLocked && dashboard.balanceType === 'ferie'}
       vacation={dashboard.balanceType === 'ferie'}
+      healthNotice={isHealthAbsence(dashboard.balanceType)}
       onClose={() => setRegisterOpen(false)}
       onSave={(payload) => {
         const ok = onRegister?.(payload);

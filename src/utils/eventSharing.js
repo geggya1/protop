@@ -3,6 +3,13 @@
  * Kept free of Firebase so unit tests can import without stubs.
  */
 
+import { isOrganizationType } from './groupTypes.js';
+
+/** «Alle i bedriften» i en bedrift, ellers «Hele familien» (ProTop Privat og familier). */
+export function wholeGroupLabel(groupType) {
+  return isOrganizationType(groupType) ? 'Alle i bedriften' : 'Hele familien';
+}
+
 /** First name (or full fallback) for a roster person. */
 export function personFirstName(person) {
   const raw = (person?.name || '').trim();
@@ -100,8 +107,9 @@ export function synligForSummary({
   picked = [],
   members = [],
   friendPeople = [],
+  groupType = '',
 } = {}) {
-  if (wholeFamily) return 'Synlig for: hele familien';
+  if (wholeFamily) return `Synlig for: ${wholeGroupLabel(groupType).toLowerCase()}`;
   const ids = [...new Set((picked || []).filter(Boolean))];
   const people = resolveEventPeople(members, ids, friendPeople);
   if (!people.length) return 'Synlig for: deg';

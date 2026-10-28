@@ -17,7 +17,7 @@ import {
   toggleTodo, toggleParentTodo, restoreParentTodo, purgeParentTodo, valueForTask,
   sortParentTasksByDeadline,
   isParentTaskOverdue, formatDeadlineLabel, formatDeadlineDate,
-  parentTaskVisibleToUser, FAMILY_ASSIGNEE,
+  parentTaskVisibleToUser, parentTaskInTrashForUser, FAMILY_ASSIGNEE,
   parentTodosOnDate, isParentTaskOpen,
 } from '../../src/utils/todos';
 import { weekRewardCap } from '../../src/utils/todoBudget';
@@ -51,14 +51,29 @@ import HelpTarget from '../../components/HelpTarget';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import { ModulePageFrame } from '../../components/ModulePageBg';
+import { confirmUser } from '../../src/utils/dialog';
+import { showErrorToast } from '../../src/ui/saveToast';
+import { todoActionError } from '../../src/utils/todoStatus.js';
 
-function TaskCheckbox({ done, onPress, disabled, large = false }) {
+/** Feil i oppgavehandlinger vises som toast i stedet for å svelges. */
+function toastTodoError(action, err) {
+  const { title, detail } = todoActionError(action, err);
+  showErrorToast(title, detail);
+}
+
+function TaskCheckbox({ done, onPress, disabled, large = false, title = '' }) {
+  // Skjermleser: «Ferdig: <oppgave>», avkrysningsboks, avkrysset eller ikke.
+  const name = String(title || '').trim();
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       style={styles.checkHit}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: !!done, disabled: !!disabled }}
+      aria-checked={!!done}
+      accessibilityLabel={name ? `Ferdig: ${name}` : 'Ferdig'}
     >
       <View style={[
         styles.checkbox,
@@ -90,7 +105,7 @@ function ChoreTaskRow({ task, done, unitLabel, onOpen, onToggle, simpleUi = fals
             {task.title}
           </Text>
         </TouchableOpacity>
-        <TaskCheckbox done={done} onPress={onToggle} large />
+        <TaskCheckbox title={task.title} done={done} onPress={onToggle} large />
       </View>
     );
   }
@@ -126,7 +141,7 @@ function ChoreTaskRow({ task, done, unitLabel, onOpen, onToggle, simpleUi = fals
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </TouchableOpacity>
-      <TaskCheckbox done={done} onPress={onToggle} />
+      <TaskCheckbox title={task.title} done={done} onPress={onToggle} />
     </View>
   );
 }
@@ -153,6 +168,7 @@ function ParentTaskRow({ task, done, onToggle, onOpen, readOnly, dayKey }) {
         )}
       </TouchableOpacity>
       <TaskCheckbox
+        title={task.title}
         done={done}
         onPress={onToggle}
         disabled={readOnly}
@@ -190,7 +206,7 @@ function ParentTaskTableRow({
     ]}
     >
       <View style={styles.tableCellCheck}>
-        <TaskCheckbox done={done} onPress={onToggle} disabled={toggleDisabled} />
+        <TaskCheckbox title={task.title} done={done} onPress={onToggle} disabled={toggleDisabled} />
       </View>
 
       <TouchableOpacity
@@ -232,7 +248,7 @@ function parseDateFromKey(k) {
 
 function memberName(members, id) {
   if (!id) return 'Ukjent';
-  if (id === FAMILY_ASSIGNEE) return 'Hele familien';
+  if (id === FAMILY_ASSIGNEE) return 'Alle';
   const m = members.find((x) => x.id === id || x.uid === id || x.childId === id);
   return m?.name?.split(' ')[0] || 'Ukjent';
 }
@@ -512,7 +528,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
   );
   const trashTasks = useMemo(
     () => sortParentTasksByDeadline(
-      (parentTodos || []).filter((t) => t.deleted && parentTaskVisibleToUser(t, {
+      (parentTodos || []).filter((t) => parentTaskInTrashForUser(t, {
         uid,
         ids: myIds,
         asChild: !!viewingChild,
@@ -535,7 +551,9 @@ export default function RewardsScreen({ variant = 'auto' }) {
     try {
       await toggleTodo(familyId, childId, task, anchor);
       if (!wasDone) celebrateComplete(task, { willBeDone: true });
-    } catch { /* ignore future */ }
+    } catch (e) {
+      toastTodoError('toggle', e);
+    }
   };
 
   const onCompleteFromDetail = async () => {
@@ -547,17 +565,23 @@ export default function RewardsScreen({ variant = 'auto' }) {
 
   const onToggleParent = async (task) => {
     if (!familyId) return;
-    try { await toggleParentTodo(familyId, task, anchor); } catch { /* ignore */ }
+    try { await toggleParentTodo(familyId, task, anchor); } catch (e) { toastTodoError('toggle', e); }
   };
 
   const onRestoreParent = async (task) => {
     if (!familyId) return;
-    try { await restoreParentTodo(familyId, task); } catch { /* ignore */ }
+    try { await restoreParentTodo(familyId, task); } catch (e) { toastTodoError('restore', e); }
   };
 
   const onPurgeParent = async (task) => {
     if (!familyId) return;
-    try { await purgeParentTodo(familyId, task); } catch { /* ignore */ }
+    const ok = await confirmUser(
+      'Slette permanent?',
+      `«${task?.title || 'Oppgaven'}» slettes for godt og kan ikke gjenopprettes.`,
+      { ok: 'Slett permanent' },
+    );
+    if (!ok) return;
+    try { await purgeParentTodo(familyId, task); } catch (e) { toastTodoError('purge', e); }
   };
 
   const openTask = (task) => {
@@ -772,8 +796,8 @@ export default function RewardsScreen({ variant = 'auto' }) {
             {!isDesktop && (
               <Text style={styles.moduleIntro}>
                 {isChild
-                  ? 'Opprett oppgaver og tildel andre. Du ser egne og oppgaver tildelt deg — uten belønning.'
-                  : 'Fristbaserte oppgaver for deg eller tildelt av andre — uten belønning.'}
+                  ? 'Opprett oppgaver og tildel andre. Du ser egne og oppgaver tildelt deg.'
+                  : 'Oppgaver med frist, for deg selv eller tildelt av andre.'}
               </Text>
             )}
 
@@ -878,7 +902,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
                             >
                               {importance}
                             </Text>
-                            <TaskCheckbox done={done} onPress={() => onToggleParent(t)} disabled={false} />
+                            <TaskCheckbox title={t.title} done={done} onPress={() => onToggleParent(t)} disabled={false} />
                           </View>
                         </View>
                       );
@@ -1009,7 +1033,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
                             {deadlineLabel ? ` · ${deadlineLabel}` : ''}
                           </Text>
                         </TouchableOpacity>
-                        <TaskCheckbox done={done} disabled />
+                        <TaskCheckbox title={t.title} done={done} disabled />
                       </View>
                     );
                   })

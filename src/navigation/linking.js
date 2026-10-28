@@ -12,6 +12,9 @@ import { linkingPrefixes } from '../utils/hostingChannel';
 import { captureAgreementLinkFromLocation, withAgreementQuery } from '../anbud/agreementLink';
 import { indexLinkFromPath } from '../indeksregulering/indexLink';
 import { homePathForLinking, shellLinkState } from './shellPaths';
+import { legacyNewNoteState, legacyRegisterInvitedState } from './legacyPaths.js';
+import { parseFriendInviteFromPath, registerFriendInviteParams } from './friendInviteLinks.js';
+import { guardFamilyProductState } from './familyProduct.js';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -75,18 +78,6 @@ function parseFamilyInviteFromPath(path) {
   return null;
 }
 
-function parseFriendInviteFromPath(path) {
-  const raw = String(path || '');
-  const pathOnly = raw.split('?')[0] || '';
-  const query = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : '';
-  const params = new URLSearchParams(query);
-  let requestId = params.get('friendInvite') || params.get('requestId') || '';
-  const m = pathOnly.match(/\/?friend-invite\/([^/?#]+)/i);
-  if (m) requestId = requestId || decodeURIComponent(m[1]);
-  if (requestId) return { requestId, token: params.get('token') || '' };
-  return null;
-}
-
 /** /game-invite/:gameType/:gameId?familyId=… — open online hub to accept. */
 function parseGameInviteFromPath(path) {
   const raw = String(path || '');
@@ -124,6 +115,11 @@ export const linking = {
     return withAgreementQuery(defaultGetPathFromState(state, options));
   },
   getStateFromPath(path, options) {
+    // Familieproduktet er ikke med i ProTop: lenker til familieskjermene åpner Hjem (L-35).
+    return guardFamilyProductState(linking.resolveStateFromPath(path, options));
+  },
+  /** Tilstanden for en adresse, før vakten for familieproduktet. */
+  resolveStateFromPath(path, options) {
     try { captureAgreementLinkFromLocation(path); } catch { /* ignore */ }
     const indexLink = indexLinkFromPath(path);
     if (indexLink) {
@@ -145,6 +141,11 @@ export const linking = {
           },
         ],
       };
+    }
+    // Venneinvitasjon til ny e-post: registreringen beholder token og e-post (SOS-01).
+    const registerInvite = registerFriendInviteParams(path);
+    if (registerInvite && !linkingSignedIn) {
+      return { routes: [{ name: 'Register', params: registerInvite }] };
     }
     const friendInvite = parseFriendInviteFromPath(path);
     if (friendInvite) {
@@ -223,6 +224,11 @@ export const linking = {
         }],
       };
     }
+    // Gamle adresser: /register-invited → registrering, /note/new → Notater, nytt notat.
+    const legacyRegister = legacyRegisterInvitedState(path, { signedIn: linkingSignedIn });
+    if (legacyRegister) return legacyRegister;
+    const legacyNote = legacyNewNoteState(path);
+    if (legacyNote) return legacyNote;
     // After Google/Apple/Microsoft from /signup, URL often stays on signup while
     // RootNav enters app stage. Linking must not force AuthChoice again.
     const authOverride = resolveAuthEntryLinkState(path, { signedIn: linkingSignedIn });
@@ -264,6 +270,16 @@ export const linking = {
       },
       PickLanguage: 'language',
       Legal: 'legal',
+      // Offentlige lenker til dokumentene (app.config, butikkoppføringer og Innstillinger).
+      LegalDoc: {
+        path: ':doc(personvern|vilkar|databehandleravtale)',
+        parse: {
+          doc: (v) => ({ personvern: 'privacy', vilkar: 'terms', databehandleravtale: 'dpa' }[v] || 'terms'),
+        },
+        stringify: {
+          doc: (v) => ({ privacy: 'personvern', terms: 'vilkar', dpa: 'databehandleravtale' }[v] || 'vilkar'),
+        },
+      },
       ProfileSetup: 'profile-setup',
       HomeSetupOnboarding: 'home-setup',
       GetStarted: 'get-started',
@@ -317,7 +333,6 @@ export const linking = {
       CalendarOAuthRedirect: 'oauth/calendar',
       StravaOAuthRedirect: 'oauth/strava',
       AirbnbOAuthRedirect: 'oauth/airbnb',
-      RegisterInvitedUser: 'register-invited',
       ForgotPassword: 'forgot-password',
       VerifyEmail: {
         path: 'verify-email',
@@ -371,7 +386,6 @@ export const linking = {
       ParentProfile: 'parent/:parentId',
       SelectFamilyScreen: 'select-family',
       AddTodo: 'todo/new',
-      AddNote: 'note/new',
       Activities: 'activities/:familyId',
       ActivityDetail: 'activities/:familyId/:activityId',
       ChildDashboard: 'child/:familyId',

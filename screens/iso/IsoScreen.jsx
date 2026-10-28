@@ -13,8 +13,9 @@ import { isSuperAdmin } from '../../src/utils/groups';
 import { defaultIsoSubView } from '../../src/navigation/shellModules';
 import { approverUidsFromRoles, isoCapabilities } from '../../src/iso/access';
 import { isSetUp } from '../../src/iso/state';
-import { autoQualityPlans, autoTaskEffects } from '../../src/iso/integrations';
-import { createRecord } from '../../src/iso/registers';
+import { markRanToday, runIsoAutomation } from './isoAutoRun';
+import { mergeRemoteFinding, replaceIn } from '../../src/iso/state';
+import QuickReportButton, { MyReports } from './QuickReport';
 import { externalFormControls, mergeForms } from '../../src/iso/docControlLink';
 import { useIsoStore } from './useIsoStore';
 import { useIsoSources } from './useIsoSources';
@@ -106,6 +107,7 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   const [page, setPage] = useState(defaultIsoSubView(subView));
   const [params, setParams] = useState({});
   const [autoNote, setAutoNote] = useState('');
+  const [reportStamp, setReportStamp] = useState(0);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -125,26 +127,23 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     if (AUTO_RAN.has(key)) return;
     AUTO_RAN.add(key);
     (async () => {
-      const notes = [];
-      // Nye prosjekter får kvalitetsplan automatisk (utkast fylt ut fra prosjekt og kontrakt).
-      let plans = 0;
-      for (const row of autoQualityPlans(store.state, sources.projects, { contracts: sources.contracts })) {
-        const res = createRecord('kvalitetsplan', row.draft, { actor, existing: store.current().records.kvalitetsplan });
-        if (!res.ok) continue;
-        const record = { ...res.record, id: row.id };
-        const saved = await store.commit('records', 'record', { ...res, record }, {
-          createOnly: true,
-          effects: row.notifyUid ? [{ type: 'createTask', key: `iso_${row.id}_gjennomga`, title: `Gå gjennom kvalitetsplan: ${row.draft.projectName}`, assigneeUid: row.notifyUid, dueDays: 7, description: 'Kvalitetsplanen er laget automatisk fra prosjektet og kontrakten. Kontroller og godkjenn den i ISO → Prosjektkvalitet.' }] : [],
-        });
-        if (saved.ok) plans += 1;
-      }
-      if (plans) notes.push(plans === 1 ? 'Ett nytt prosjekt har fått kvalitetsplan automatisk' : `${plans} nye prosjekter har fått kvalitetsplan automatisk`);
-      const effects = autoTaskEffects(store.current(), { people: sources.people });
-      const n = effects.length ? await store.runEffects(effects) : 0;
-      if (n) notes.push(`${n} påminnelser og eskaleringer ligger som oppgaver i Oppgaver`);
-      if (notes.length) setAutoNote(`${notes.join('. ')}.`);
+      const res = await runIsoAutomation({
+        companyId: familyId,
+        actor,
+        state: store.current(),
+        people: sources.people,
+        projects: sources.projects,
+        contracts: sources.contracts,
+        equipment: sources.equipment,
+        // Nye prosjekter får kvalitetsplan automatisk (utkast fylt ut fra prosjekt og kontrakt).
+        saveRecord: (result, effects) => store.commit('records', 'record', result, { createOnly: true, effects }),
+        runEffects: store.runEffects,
+      });
+      // Skallet (IsoAutomation) trenger ikke kjøre det samme igjen i dag.
+      await markRanToday(familyId, uid);
+      if (res.notes.length) setAutoNote(`${res.notes.join('. ')}.`);
     })();
-  }, [familyId, store.loading, caps.manage, store.state, sources.ready, sources.people, sources.projects, sources.contracts, store, actor]);
+  }, [familyId, store.loading, caps.manage, store.state, sources.ready, sources.people, sources.projects, sources.contracts, sources.equipment, store, actor, uid]);
 
   const go = useCallback((next, nextParams = {}) => {
     const target = defaultIsoSubView(next);
@@ -181,6 +180,10 @@ export default function IsoScreen({ subView = 'oversikt' }) {
     canGrantAccess: bypass || (!!access.ready && !access.previewing && access.canEdit('accessControl')),
     requestTab: requestShellTab,
     prefill: params?.prefill || null,
+    // Hurtigmelding (Meld RUH): saken vises med en gang, uten å laste ISO på nytt.
+    onQuickSent: (list) => store.setState((cur) => (list || []).reduce((acc, f) => (f?.id ? replaceIn(acc, 'findings', f) : acc), cur)),
+    // Åpen sak følges i sanntid: en nyere revisjon fra skyen erstatter den lokale.
+    onRemoteFinding: (remote) => store.setState((cur) => mergeRemoteFinding(cur, remote)),
   };
 
   const Current = PAGES[page] || IsoDashboard;
@@ -195,15 +198,22 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   } else if (store.loading && store.serverIso == null) {
     body = <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={colors.brand} /><Text style={{ color: colors.muted, marginTop: 8 }}>Kontrollerer tilgang …</Text></View>;
   } else if (!caps.view) {
+    // Meldetilgang (ISO-04): alle i selskapet, også innleide og eksterne, kan melde RUH og se egne meldinger.
     body = (
-      <Empty
-        icon="lock-closed-outline"
-        title="Ingen tilgang"
-        text={store.serverIso === 0 && access.grants?.iso && access.grants.iso !== 'none'
-          ? 'Tilgangen din er ikke bekreftet av serveren ennå. Prøv igjen om litt, eller be eieren av selskapet åpne ISO.'
-          : 'Du har ikke tilgang til ISO / K-HMS. Be en administrator om tilgang under Tilgang.'}
-        action={<Btn icon="refresh" label="Prøv igjen" onPress={store.reload} />}
-      />
+      <View style={{ gap: 14 }}>
+        <QuickReportButton onSent={() => setReportStamp(Date.now())} />
+        <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 14, padding: 14, backgroundColor: colors.card }}>
+          <MyReports companyId={familyId} uid={uid} stamp={reportStamp} />
+        </View>
+        <Empty
+          icon="lock-closed-outline"
+          title="Resten av ISO krever tilgang"
+          text={store.serverIso === 0 && access.grants?.iso && access.grants.iso !== 'none'
+            ? 'Tilgangen din er ikke bekreftet av serveren ennå. Prøv igjen om litt, eller be eieren av selskapet åpne ISO.'
+            : 'Du kan melde avvik og se dine egne meldinger. For prosesser, dokumenter og registre: be en administrator om tilgang under Tilgang.'}
+          action={<Btn icon="refresh" label="Prøv igjen" onPress={store.reload} />}
+        />
+      </View>
     );
   } else if (isSettings && !caps.admin) {
     body = <Empty icon="lock-closed-outline" title="Bare for administrator" text="Innstillingene for ledelsessystemet kan bare endres av administrator i ISO." />;
@@ -221,6 +231,7 @@ export default function IsoScreen({ subView = 'oversikt' }) {
           <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             {caps.admin ? <Btn kind="primary" icon="flash-outline" label="Sett opp ledelsessystemet" onPress={() => go('innstillinger')} /> : null}
             <Btn icon="add" label="Meld avvik" onPress={() => go('avvik', { create: true })} />
+            <QuickReportButton variant="button" />
           </View>
         )}
       />

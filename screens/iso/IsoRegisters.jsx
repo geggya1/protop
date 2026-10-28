@@ -1,29 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { radius, type } from '../../src/ui/tokens';
 import { prettyDate, todayKey } from '../../src/iso/core';
-import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, riskLevel } from '../../src/iso/catalog';
+import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, findingStateLabel, riskLevel } from '../../src/iso/catalog';
 import {
-  AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
-  competenceGaps, competenceMatrix, createRecord, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
-  cleanContacts, contactsLabel, personsLabel, registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
+  AUDIT_FINDING_CLASSES, REGISTERS, auditCoverage, auditIndependenceConflicts, auditReadyError, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
+  competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
+  cleanContacts, contactsLabel, nextStates, personsLabel, proofEnd, recordRiskMethod, registerDef, riskMatrix, riskScoresChanged, riskSummary, setRecordState, updateRecord,
+  REVIEW_OUTPUTS, reviewApprovalBlockers, setReviewConclusion,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
-import { createFinding } from '../../src/iso/findings';
+import { createFinding, findingsLinkedTo } from '../../src/iso/findings';
 import { managementReviewSnapshot } from '../../src/iso/analytics';
-import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
+import { allRequirements, attachEvidence, requirementIdsForArea, statusText } from '../../src/iso/requirements';
 import { visibleFindings } from '../../src/iso/access';
 import { templateIdFor, usableForms } from '../../src/iso/forms';
 import {
-  aspectSuggestions, contractReviewStatus, equipmentStatus, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
+  autoAssignee, aspectSuggestions, contractReviewStatus, equipmentStatus, readinessChecklist, hazardSuggestions, hrCarryOver, hrCarryOverRecords, injuryRates, mileageSeries,
   projectQuality, qualityPlanDraft, sickLeaveSeries, stakeholderSuggestions, supplierSuggestions, wasteSummary,
 } from '../../src/iso/integrations';
+import { CHAPTERS, READY_STATUS, certificationReadiness } from '../../src/iso/readiness';
+import { climateDecided, climateRiskSuggestions, setClimateDecision } from '../../src/iso/climate';
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
 import { FormFillSheet } from './IsoForms';
 import IsoExcelImport from './IsoExcelImport';
 import {
   Banner, Btn, Card, Check, Choice, ContactsEdit, DateIn, Empty, Field, KV, ListRow, Page, PersonPick, PersonsPick, Pill, Row, Sheet, TextIn, toneColor,
 } from './isoUi';
+import { dateText } from '../../src/format/nb';
 
 export const STATE_LABEL = {
   aktiv: 'Aktiv', arkivert: 'Arkivert', akseptert: 'Akseptert', lukket: 'Lukket', mottatt: 'Mottatt', behandlet: 'Behandlet', tilbakemeldt: 'Tilbakemeldt',
@@ -32,9 +37,10 @@ export const STATE_LABEL = {
 };
 
 /** Knappetekst for statusskifte. «Arkivert» som knapp så ut som en merkelapp, ikke en handling. */
-function stateAction(next, current, first) {
+function stateAction(next, current, first, locked = false) {
   if (next === 'arkivert') return { label: 'Arkiver', icon: 'archive-outline' };
   if (current === 'arkivert' && next === first) return { label: 'Gjenopprett', icon: 'arrow-undo-outline' };
+  if (locked && !['godkjent', 'oppfolging', 'lukket'].includes(next)) return { label: `Opphev godkjenning: ${(STATE_LABEL[next] || next).toLowerCase()}`, icon: 'lock-open-outline' };
   return { label: STATE_LABEL[next] || next };
 }
 
@@ -86,7 +92,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
   async function save() {
     setBusy(true);
     const res = record
-      ? updateRecord(record, v, { actor })
+      ? updateRecord(record, v, { actor, riskMethod: state.system.riskMethod || DEFAULT_RISK_METHOD })
       : createRecord(registerKey, v, { actor, existing: state.records[registerKey], riskMethod: state.system.riskMethod || DEFAULT_RISK_METHOD });
     if (!res.ok) { setErr(res.error); setBusy(false); return; }
     const saved = await store.commit('records', 'record', res, { previous: record || null });
@@ -105,7 +111,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
       case 'scale': return <Choice title={f.label} options={['1', '2', '3', '4', '5']} value={value == null ? '' : String(value)} onChange={(x) => set(f.key)(x ? Number(x) : null)} clearable={!f.required} />;
       case 'select': return <Choice title={f.label} options={f.options} value={value} onChange={set(f.key)} clearable={!f.required} />;
       case 'multi': return <Choice multi title={f.label} options={f.options} value={value || []} onChange={set(f.key)} />;
-      case 'check': return <Check label={f.label} value={!!value} onChange={set(f.key)} />;
+      case 'check': return <Check label={f.label} required={f.required} value={!!value} onChange={set(f.key)} />;
       case 'person': return (
         <PersonPick
           people={people}
@@ -115,7 +121,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
       );
       case 'project': return projects.length
         ? <Choice small title="Prosjekt" clearable={!f.required} options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={value} onChange={(x) => { const p = projects.find((y) => y.id === x); setV((cur) => ({ ...cur, projectId: x, projectName: p ? `${p.number || ''} ${p.name || ''}`.trim() : '' })); }} />
-        : <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen prosjekter registrert i Prosjekt.</Text>;
+        : <Text style={[type.caption, { color: colors.muted }]}>Ingen prosjekter registrert i Prosjekt.</Text>;
       case 'persons': return <PersonsPick people={people} value={Array.isArray(value) ? value : (value ? String(value).split(/[,;]+/).map((n) => ({ name: n.trim() })).filter((x) => x.name) : [])} onChange={set(f.key)} />;
       case 'contacts': return <ContactsEdit people={people} value={value || []} onChange={set(f.key)} />;
       case 'department': {
@@ -128,7 +134,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
       case 'ref':
       case 'refmulti': {
         const opts = refOptions(state, f);
-        if (!opts.length) return <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen å velge mellom ennå.</Text>;
+        if (!opts.length) return <Text style={[type.caption, { color: colors.muted }]}>Ingen å velge mellom ennå.</Text>;
         return f.type === 'refmulti'
           ? <Choice small multi title={f.label} options={opts} value={value || []} onChange={set(f.key)} />
           : <Choice small title={f.label} clearable={!f.required} options={opts} value={value} onChange={set(f.key)} />;
@@ -137,7 +143,10 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
     }
   }
 
-  const level = (registerKey === 'risiko' || registerKey === 'fare') ? riskSummary(v, state.system.riskMethod) : null;
+  // Endrede tall = ny vurdering etter gjeldende metode; ellers vises nivået etter metoden posten ble vurdert etter.
+  const assessed = record && riskScoresChanged(record, v) ? { ...v, methodThresholds: null, methodVersion: '' } : v;
+  const usedMethod = recordRiskMethod(assessed, state.system.riskMethod);
+  const level = (registerKey === 'risiko' || registerKey === 'fare') ? riskSummary(assessed, state.system.riskMethod) : null;
   const aspect = registerKey === 'miljoaspekt' ? aspectSignificance(v, state.system.riskMethod) : null;
   return (
     <Sheet visible={visible} title={record ? `${record.number} · ${def.title}` : `Ny – ${def.title}`} onClose={onClose} wide={ctx.wide} footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Lagre" busy={busy} onPress={save} /></>}>
@@ -149,11 +158,11 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
         <Row>
           <Pill label={`Iboende: ${level.inherent.label}${level.inherent.score ? ` (${level.inherent.score})` : ''}`} tone={level.inherent.id === 'kritisk' || level.inherent.id === 'hoy' ? 'danger' : 'warn'} />
           <Pill label={`Rest: ${level.residual.label}${level.residual.score ? ` (${level.residual.score})` : ''}`} tone={level.residual.id === 'kritisk' || level.residual.id === 'hoy' ? 'danger' : 'ok'} />
-          <Text style={{ color: colors.muted, fontSize: 11 }}>Metode {state.system.riskMethod?.name} v{state.system.riskMethod?.version}</Text>
+          <Text style={{ color: colors.muted, fontSize: 11 }}>Metode {usedMethod?.name} v{usedMethod?.version}</Text>
         </Row>
       ) : null}
       {level?.inherent?.id && level.inherent.id !== 'ukjent' ? (
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
+        <Text style={[type.caption, { color: colors.muted }]}>
           {`${RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.label || ''}: ${RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.text || ''} Aksepteres av ${String(RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.who || '').toLowerCase()}.`}
         </Text>
       ) : null}
@@ -187,14 +196,14 @@ function RiskCriteria({ method }) {
         const a = RISK_GUIDANCE.acceptance[l.id];
         return <ListRow key={l.id} icon="ellipse" tone={l.tone} title={`${a.label} · score ${l.range}`} subtitle={`${a.text} Aksepteres av ${a.who.toLowerCase()}.`} />;
       })}
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{RISK_GUIDANCE.measures}</Text>
+      <Text style={[type.caption, { color: colors.muted }]}>{RISK_GUIDANCE.measures}</Text>
       {open ? (
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Sannsynlighet</Text>
-          {(method?.likelihood || DEFAULT_RISK_METHOD.likelihood).map((x, i) => <Text key={x} style={{ color: colors.ink, fontSize: 12 }}>{i + 1} {x}: {RISK_GUIDANCE.likelihood[i]}</Text>)}
+          {(method?.likelihood || DEFAULT_RISK_METHOD.likelihood).map((x, i) => <Text key={x} style={[type.caption, { color: colors.ink }]}>{i + 1} {x}: {RISK_GUIDANCE.likelihood[i]}</Text>)}
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Konsekvens (verst realistiske utfall)</Text>
           {(method?.consequence || DEFAULT_RISK_METHOD.consequence).map((x, i) => (
-            <Text key={x} style={{ color: colors.ink, fontSize: 12 }}>{i + 1} {x}: {RISK_GUIDANCE.dimensions.map((d, j) => `${d}: ${RISK_GUIDANCE.consequence[i][j]}`).join(' · ')}</Text>
+            <Text key={x} style={[type.caption, { color: colors.ink }]}>{i + 1} {x}: {RISK_GUIDANCE.dimensions.map((d, j) => `${d}: ${RISK_GUIDANCE.consequence[i][j]}`).join(' · ')}</Text>
           ))}
         </View>
       ) : null}
@@ -231,7 +240,7 @@ function RecordDetail({ ctx, record, onClose, children }) {
   const [err, setErr] = useState('');
   if (!record || !def) return null;
   async function state(next) {
-    const res = setRecordState(record, next, { actor, caps, note });
+    const res = setRecordState(record, next, { actor, caps, note, tasks: store.tasks });
     if (!res.ok) { setErr(res.error); return; }
     const saved = await store.commit('records', 'record', res, { previous: record });
     if (!saved.ok) setErr(saved.error);
@@ -243,7 +252,7 @@ function RecordDetail({ ctx, record, onClose, children }) {
         {record.needsReview ? (
           <Banner tone="warn" text={`Må gjennomgås: ${record.reviewNote || 'Kontroller innholdet før posten regnes som gjeldende.'}`} />
         ) : null}
-        {record.origin?.system ? <Text style={{ color: colors.muted, fontSize: 12 }}>Opphav: {record.origin.system}{record.origin.ref ? ` · ${record.origin.ref}` : ''}</Text> : null}
+        {record.origin?.system ? <Text style={[type.caption, { color: colors.muted }]}>Opphav: {record.origin.system}{record.origin.ref ? ` · ${record.origin.ref}` : ''}</Text> : null}
         {def.fields.map((f) => {
           let value = record[f.key];
           if (Array.isArray(value) && !['persons', 'contacts'].includes(f.type)) value = value.join(', ');
@@ -256,11 +265,11 @@ function RecordDetail({ ctx, record, onClose, children }) {
           return <KV key={f.key} label={f.label} value={value} />;
         })}
         {children}
-        {caps.manage && !record.locked ? (
+        {caps.manage && (!record.locked || caps.approve) ? (
           <>
             <Row>
-              <Btn icon="create-outline" label="Rediger" onPress={() => setEdit(true)} />
-              {record.needsReview ? (
+              {!record.locked ? <Btn icon="create-outline" label="Rediger" onPress={() => setEdit(true)} /> : null}
+              {record.needsReview && !record.locked ? (
                 <Btn
                   small
                   icon="checkmark-done-outline"
@@ -273,14 +282,19 @@ function RecordDetail({ ctx, record, onClose, children }) {
                   }}
                 />
               ) : null}
-              {def.states.filter((s) => s !== record.state).map((s) => {
-                const a = stateAction(s, record.state, def.states[0]);
+              {nextStates(record).map((s) => {
+                const a = stateAction(s, record.state, def.states[0], record.locked);
                 return <Btn key={s} small icon={a.icon} label={a.label} onPress={() => state(s)} />;
               })}
             </Row>
-            <TextIn value={note} onChangeText={setNote} placeholder="Merknad til statusendring" />
+            <TextIn value={note} onChangeText={setNote} placeholder={record.locked ? 'Begrunnelse (påkrevd for å oppheve godkjenningen)' : 'Merknad til statusendring'} />
+            {record.locked ? (
+              <Text style={[type.caption, { color: colors.muted }]}>
+                Posten er godkjent og låst. «Oppfølging» og «Lukket» beholder låsen. Å gå tilbake til en tidligere status opphever godkjenningen, og posten må godkjennes på nytt.
+              </Text>
+            ) : null}
             {def.states.includes('arkivert') ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
+              <Text style={[type.caption, { color: colors.muted }]}>
                 {record.state === 'arkivert'
                   ? '«Gjenopprett» setter posten tilbake i listen.'
                   : '«Arkiver» tar posten ut av listen uten å slette den. Arkiverte poster finner du under «Vis arkiverte» nederst i registeret.'}
@@ -290,7 +304,7 @@ function RecordDetail({ ctx, record, onClose, children }) {
         ) : null}
         {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
         <Text style={{ color: colors.ink, fontWeight: '700' }}>Historikk</Text>
-        {(record.history || []).slice().reverse().slice(0, 20).map((h, i) => <Text key={i} style={{ color: colors.muted, fontSize: 12 }}>{prettyDate(h.at)} · {h.action} · {h.by}{h.note ? ` · ${h.note}` : ''}</Text>)}
+        {(record.history || []).slice().reverse().slice(0, 20).map((h, i) => <Text key={i} style={[type.caption, { color: colors.muted }]}>{prettyDate(h.at)} · {h.action} · {h.by}{h.note ? ` · ${h.note}` : ''}</Text>)}
       </Sheet>
       <RecordSheet ctx={ctx} registerKey={record.register} record={record} visible={edit} onClose={() => setEdit(false)} />
     </>
@@ -422,12 +436,12 @@ function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct
       {direct && visible.length > 1 ? <Btn small icon="add-circle-outline" label={`Legg til alle ${Math.min(visible.length, limit)}`} busy={busy} onPress={() => addAll(visible.slice(0, limit))} /> : null}
       {hidden ? (
         <Row>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>{hidden === 1 ? 'Ett forslag er skjult.' : `${hidden} forslag er skjult.`}</Text>
+          <Text style={[type.caption, { color: colors.muted }]}>{hidden === 1 ? 'Ett forslag er skjult.' : `${hidden} forslag er skjult.`}</Text>
           <Btn small icon="eye-outline" label="Vis igjen" onPress={() => setDismissed([])} />
         </Row>
       ) : null}
       {visible.length ? (
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
+        <Text style={[type.caption, { color: colors.muted }]}>
           {direct
             ? `«Legg til» lagrer forslaget i ${target}. × skjuler forslaget.`
             : '«Bruk» åpner registreringen ferdig utfylt. Du vurderer og lagrer.'}
@@ -449,7 +463,7 @@ function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct
 export function Stat({ label, value, hint, tone }) {
   const colors = useColors();
   return (
-    <View style={{ flexGrow: 1, flexBasis: 150, gap: 4, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}>
+    <View style={{ flexGrow: 1, flexBasis: 150, gap: 4, padding: 14, borderRadius: radius.sheet, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}>
       <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
       <Text style={{ color: tone === 'warn' ? colors.warn : colors.ink, fontSize: 24, fontWeight: '700' }}>{value}</Text>
       {hint ? <Text style={{ color: colors.muted, fontSize: 11 }}>{hint}</Text> : null}
@@ -488,13 +502,13 @@ function ContextView({ ctx, rows, onOpen }) {
           {SWOT.map((q) => {
             const items = swot.filter((r) => r.factorType === q.id);
             return (
-              <View key={q.id} style={{ flexGrow: 1, flexBasis: ctx.wide ? '46%' : '100%', padding: 10, gap: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.line, borderLeftWidth: 4, borderLeftColor: toneColor(colors, q.tone), backgroundColor: colors.card }}>
+              <View key={q.id} style={{ flexGrow: 1, flexBasis: ctx.wide ? '46%' : '100%', padding: 10, gap: 4, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line, borderLeftWidth: 4, borderLeftColor: toneColor(colors, q.tone), backgroundColor: colors.card }}>
                 <Text style={{ color: colors.ink, fontWeight: '800' }}>{q.label} <Text style={{ color: colors.muted, fontWeight: '400', fontSize: 12 }}>· {q.hint.toLowerCase()} · {items.length}</Text></Text>
                 {items.length ? items.map((r) => (
                   <Pressable key={r.id} onPress={() => onOpen(r)} accessibilityRole="button" accessibilityLabel={`Åpne ${r.title}`} style={({ pressed }) => ({ paddingVertical: 3, backgroundColor: pressed ? colors.brandSoft : 'transparent', borderRadius: 6 })}>
-                    <Text style={{ color: colors.ink, fontSize: 13 }}>• {r.title}{r.area ? <Text style={{ color: colors.muted, fontSize: 12 }}> ({r.area})</Text> : null}{r.needsReview ? <Text style={{ color: colors.warn, fontSize: 12 }}> · må gjennomgås</Text> : null}</Text>
+                    <Text style={{ color: colors.ink, fontSize: 13 }}>• {r.title}{r.area ? <Text style={[type.caption, { color: colors.muted }]}> ({r.area})</Text> : null}{r.needsReview ? <Text style={[type.caption, { color: colors.warn }]}> · må gjennomgås</Text> : null}</Text>
                   </Pressable>
-                )) : <Text style={{ color: colors.muted, fontSize: 12 }}>–</Text>}
+                )) : <Text style={[type.caption, { color: colors.muted }]}>–</Text>}
               </View>
             );
           })}
@@ -514,6 +528,39 @@ function ContextView({ ctx, rows, onOpen }) {
   );
 }
 
+/** Klimaendringer på systemnivå (ISO-18, Amd 1:2024): relevant eller ikke, med begrunnelse og dato. */
+function ClimateCard({ ctx }) {
+  const colors = useColors();
+  const { state, caps, actor, store } = ctx;
+  const c = state.system?.climate || null;
+  const [v, setV] = useState({ relevant: c?.relevant ?? null, rationale: c?.rationale || '' });
+  const [err, setErr] = useState('');
+  const decided = climateDecided(state.system);
+  async function save() {
+    setErr('');
+    const res = setClimateDecision(state.system, v, { actor, caps });
+    if (!res.ok) { setErr(res.error); return; }
+    const saved = await store.commit('system', 'system', res, { previous: state.system });
+    if (!saved.ok) setErr(saved.error);
+  }
+  return (
+    <Card title="Klimaendringer (Amd 1:2024)" subtitle="Virksomheten skal avgjøre om klimaendringer er et relevant forhold for ledelsessystemet (4.1), og om interessenter har klimakrav (4.2).">
+      {decided
+        ? <Banner tone="ok" text={`${c.relevant ? 'Relevant' : 'Ikke relevant'} · vurdert ${prettyDate(c.assessedAt)}${c.by ? ` av ${c.by}` : ''}: ${c.rationale}`} />
+        : <Banner tone="warn" text="Ikke avgjort ennå. Revisor vil spørre etter vurderingen og begrunnelsen." />}
+      {caps.admin ? (
+        <>
+          <Choice options={[{ id: 'ja', label: 'Ja, relevant' }, { id: 'nei', label: 'Nei, ikke relevant' }]} value={v.relevant === true ? 'ja' : (v.relevant === false ? 'nei' : '')} onChange={(x) => setV({ ...v, relevant: x === 'ja' ? true : (x === 'nei' ? false : null) })} />
+          <Field label="Begrunnelse" required><TextIn multiline rows={2} value={v.rationale} onChangeText={(x) => setV({ ...v, rationale: x })} placeholder="F.eks. ekstremvær stopper arbeid ute, og kunder stiller klimakrav i anbud." /></Field>
+          <Btn kind="primary" icon="save-outline" label={decided ? 'Lagre ny vurdering' : 'Lagre vurdering'} onPress={save} />
+        </>
+      ) : (!decided ? <Text style={[type.caption, { color: colors.muted }]}>Administrator i ISO avgjør dette.</Text> : null)}
+      {c?.relevant ? <Text style={[type.caption, { color: colors.muted }]}>Klimarisikoer foreslås under Risiko. Klimakrav fra interessenter registreres på interessenten.</Text> : null}
+      {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
+    </Card>
+  );
+}
+
 export function ContextPage({ ctx }) {
   const { state, sources } = ctx;
   // Interessenter lagt til fra forslagene i denne økten, så de er lette å kjenne igjen i listen.
@@ -523,6 +570,7 @@ export function ContextPage({ ctx }) {
   }), [sources?.customers, sources?.contracts, state]);
   return (
     <Page wide={ctx.wide} title="Kontekst og interessenter" intro="Interne og eksterne forhold og interessenter som påvirker ledelsessystemet. Endringer kan utløse ny risikovurdering.">
+      <ClimateCard ctx={ctx} />
       <SimpleRegister
         ctx={ctx}
         registerKey="kontekst"
@@ -558,12 +606,13 @@ export function RiskPage({ ctx }) {
   const ids = params?.ids || null;
   const risks = reg.rows.filter((r) => r.state !== 'arkivert' && (!ids || ids.includes(r.id)) && (!kind || r.kind === kind));
   const cells = riskMatrix(reg.rows.filter((r) => r.kind !== 'Mulighet'), which);
+  const climateRisks = useMemo(() => climateRiskSuggestions(state), [state]);
   return (
     <Page wide={wide} title="Risiko og muligheter" intro="Strategiske, kvalitets-, miljø-, arbeidsmiljø-, prosjekt- og leverandørrisikoer. Iboende og rest-risiko vurderes hver for seg etter dokumentert metode." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny vurdering" onPress={() => reg.setCreating(true)} /> : null}>
       {ids ? <Banner tone="info" text={`Viser utvalg: ${params?.label || ''}`} /> : null}
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
         <Card title="Risikomatrise" style={{ flex: 1, width: wide ? undefined : '100%' }} right={<Choice small options={[{ id: 'inherent', label: 'Iboende' }, { id: 'residual', label: 'Rest' }]} value={which} onChange={(x) => setWhich(x || 'inherent')} />}>
-          <RiskMatrix cells={cells} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
+          <RiskMatrix cells={cells} riskMethod={state.system.riskMethod} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
         </Card>
         <Card title="Register" style={{ flex: 1, width: wide ? undefined : '100%' }}>
           <Choice small options={['Risiko', 'Mulighet']} value={kind} onChange={setKind} placeholder="Alle" title="Vis" />
@@ -585,6 +634,9 @@ export function RiskPage({ ctx }) {
         </Card>
       </View>
       <RiskCriteria method={state.system.riskMethod} />
+      {climateRisks.length && caps.manage ? (
+        <Suggestions ctx={ctx} registerKey="risiko" rows={climateRisks} title="Foreslåtte klimarisikoer" subtitle="Klimaendringer er vurdert som relevant (Kontekst). Vurder sannsynlighet, konsekvens og eier før de lagres." describe={(r) => r.kind} />
+      ) : null}
       <RecordSheet ctx={ctx} registerKey="risiko" visible={reg.creating} onClose={() => { reg.setCreating(false); if (params?.create) go('risiko', {}); }} preset={{ kind: 'Risiko' }} />
       {reg.open ? <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')} /> : null}
     </Page>
@@ -648,7 +700,7 @@ export function EnvironmentPage({ ctx }) {
       />
       <Card title="Miljødata – sum per målepunkt">
         <HBars rows={byPoint} empty="Ingen miljødata registrert. Grafen vises bare når det finnes reelle målinger." />
-        <Text style={{ color: colors.muted, fontSize: 12 }}>CO₂e beregnes ikke automatisk. Bruk dokumentert metode og faktor med kilde og år.</Text>
+        <Text style={[type.caption, { color: colors.muted }]}>CO₂e beregnes ikke automatisk. Bruk dokumentert metode og faktor med kilde og år.</Text>
       </Card>
       <SimpleRegister ctx={ctx} registerKey="miljodata" subtitle={(r) => `${r.period} · ${r.value} ${r.unit} · ${r.quality}`} />
       <RecordSheet ctx={ctx} registerKey="miljodata" visible={!!adopt} preset={adopt || {}} onClose={() => setAdopt(null)} />
@@ -660,10 +712,13 @@ export function HmsPage({ ctx }) {
   const colors = useColors();
   const { state, caps, wide, go } = ctx;
   const [fill, setFill] = useState(null);
-  const hmsFindings = visibleFindings(caps, state.findings).filter((f) => ['hms', 'nestenulykke'].includes(f.type));
+  const hmsFindings = useMemo(() => visibleFindings(caps, state.findings).filter((f) => ['hms', 'nestenulykke'].includes(f.type)), [caps, state.findings]);
   const forms = useControlledForms(state, ['SF12_SJA', 'SF13_VERNERUNDE']);
   const src = ctx.sources || {};
   const sick = useMemo(() => sickLeaveSeries(src.absences), [src.absences]);
+  // H-verdi fra timene i ProTop og skadeklassen på HMS-sakene (ISO-24).
+  useEffect(() => { if (caps.manage) src.loadHours?.(); }, [caps.manage]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rates = useMemo(() => (src.hours ? injuryRates(hmsFindings, src.hours) : null), [hmsFindings, src.hours]);
   const hazards = useMemo(() => hazardSuggestions({ projects: src.projects, trips: src.trips, existing: state.records.fare }), [src.projects, src.trips, state.records.fare]);
   const subs = state.submissions || [];
   const lastRound = subs.filter((x) => x.templateId === templateIdFor('SF13_VERNERUNDE')).sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)))[0];
@@ -675,7 +730,16 @@ export function HmsPage({ ctx }) {
         <Stat label="Kartlagte farer" value={(state.records.fare || []).filter((r) => r.state !== 'arkivert').length} />
         <Stat label="Siste vernerunde" value={lastRound ? prettyDate(lastRound.submittedAt) : '–'} hint={lastRound ? lastRound.submittedBy : 'Ingen registrert'} />
         {caps.manage ? <Stat label="Sykefravær siste 12 mnd" value={sick.hasData ? `${sick.totalDays} dagsverk` : '–'} hint="Fra Fravær, uten navn" /> : null}
+        {caps.manage ? <Stat label="H-verdi (H1) siste 12 mnd" value={rates ? (rates.h1 == null ? '–' : String(rates.h1)) : '…'} hint={rates ? `${rates.lostTime} skader med fravær · ${rates.hours.toLocaleString('nb-NO')} timer` : 'Henter timer'} /> : null}
+        {caps.manage ? <Stat label="TRIF siste 12 mnd" value={rates ? (rates.trif == null ? '–' : String(rates.trif)) : '…'} hint={rates ? `${rates.recordable} behandlingskrevende skader` : ''} /> : null}
       </View>
+      {rates && caps.manage ? (
+        <Card title="Skadestatistikk per måned" subtitle={rates.method}>
+          <MonthBars rows={rates.rows} parts={[{ key: 'recordable', label: 'Skader' }, { key: 'lostTime', label: 'Med fravær' }]} unit="" />
+          {!rates.hours ? <Text style={[type.caption, { color: colors.muted }]}>Ingen timer ført siste 12 måneder. H-verdien regnes når timene føres i ProTop.</Text> : null}
+          {hmsFindings.some((f) => !f.injuryClass) ? <Text style={[type.caption, { color: colors.muted }]}>Saker uten skadeklasse telles ikke. Sett skadeklasse i triage.</Text> : null}
+        </Card>
+      ) : null}
       <Card title="Skjema for HMS-arbeid" subtitle="Styrte skjema fra Skjemabygger. Innsendt blir låst bevis.">
         {!forms.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>SJA, vernerunde og medvirkning er ikke godkjent for ISO ennå. Godkjenn dem under Skjemaer.</Text> : null}
         <Row>{forms.map((f) => <Btn key={f.id} icon="clipboard-outline" label={f.title} onPress={() => setFill(f)} />)}</Row>
@@ -731,7 +795,7 @@ export function EmergencyPage({ ctx }) {
   const { state, wide, actor, store, caps } = ctx;
   const reg = useRegister(ctx, 'beredskap');
   const [emergency, setEmergency] = useState('');
-  const [ex, setEx] = useState({ date: todayKey(), participants: '', evaluation: '', improvement: false });
+  const [ex, setEx] = useState({ date: todayKey(), participants: '', evaluation: '', improvement: false, nextExercise: '' });
   const [err, setErr] = useState('');
   const scen = reg.rows.filter((r) => r.state !== 'arkivert');
   const shown = scen.find((s) => s.id === emergency);
@@ -765,6 +829,7 @@ export function EmergencyPage({ ctx }) {
               <Field label="Dato"><DateIn value={ex.date} onChange={(x) => setEx({ ...ex, date: x })} /></Field>
               <Field label="Deltakere"><TextIn value={ex.participants} onChangeText={(x) => setEx({ ...ex, participants: x })} /></Field>
               <Field label="Evaluering" required><TextIn multiline value={ex.evaluation} onChangeText={(x) => setEx({ ...ex, evaluation: x })} /></Field>
+              <Field label="Neste øvelse" hint="Tomt = 12 måneder etter denne øvelsen."><DateIn value={ex.nextExercise} onChange={(x) => setEx({ ...ex, nextExercise: x })} /></Field>
               <Check label="Behov for forbedring (oppretter avvikssak)" value={ex.improvement} onChange={(x) => setEx({ ...ex, improvement: x })} />
               <Btn kind="primary" label="Registrer øvelse" onPress={async () => {
                 const res = addExercise(reg.open, ex, { actor });
@@ -772,10 +837,12 @@ export function EmergencyPage({ ctx }) {
                 const saved = await store.commit('records', 'record', res, { previous: reg.open });
                 if (!saved.ok) { setErr(saved.error); return; }
                 if (ex.improvement) {
-                  const f = createFinding({ type: 'forbedring', title: `Forbedring etter øvelse: ${reg.open.title}`, description: ex.evaluation, requirementIds: requirementIdsForArea(state, 'emergency') }, { actor, existing: state.findings });
-                  if (f.ok) await store.commit('findings', 'finding', f);
+                  // Forbedringssaken får ansvarlig og oppgave som andre saker.
+                  const who = autoAssignee(state.system, 'forbedring');
+                  const f = createFinding({ type: 'forbedring', title: `Forbedring etter øvelse: ${reg.open.title}`, description: ex.evaluation, requirementIds: requirementIdsForArea(state, 'emergency'), assigneeName: who?.name || '', assigneeUid: who?.uid || '' }, { actor, existing: state.findings });
+                  if (f.ok) await store.commit('findings', 'finding', f, { effects: who?.uid ? [{ type: 'createTask', key: `iso_${f.finding.id}_triage`, title: `Behandle ${f.finding.number}: ${f.finding.title}`, assigneeUid: who.uid, deadline: f.finding.triageDue }] : [] });
                 }
-                setEx({ date: todayKey(), participants: '', evaluation: '', improvement: false });
+                setEx({ date: todayKey(), participants: '', evaluation: '', improvement: false, nextExercise: '' });
               }} />
               {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
             </>
@@ -817,9 +884,9 @@ function CompetenceProfiles({ ctx, people, matrix, q }) {
       />
       {openId === (p.id || p.name) ? (
         <View style={{ marginLeft: 28, gap: 2 }}>
-          {lines.map((l, i) => <Text key={i} style={{ color: colors.ink, fontSize: 12 }}><Text style={{ color: colors.muted }}>{l.kind}: </Text>{l.text}</Text>)}
-          {evidence.map((e) => <Text key={e.id} style={{ color: colors.ink, fontSize: 12 }}><Text style={{ color: colors.muted }}>Bevis: </Text>{e.title}{e.validTo ? ` · gyldig til ${prettyDate(e.validTo)}` : ''}</Text>)}
-          {!lines.length && !evidence.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen utdanning, kurs eller sertifiseringer registrert.</Text> : null}
+          {lines.map((l, i) => <Text key={i} style={[type.caption, { color: colors.ink }]}><Text style={{ color: colors.muted }}>{l.kind}: </Text>{l.text}</Text>)}
+          {evidence.map((e) => <Text key={e.id} style={[type.caption, { color: colors.ink }]}><Text style={{ color: colors.muted }}>Bevis: </Text>{e.title}{e.validTo ? ` · gyldig til ${prettyDate(e.validTo)}` : ''}</Text>)}
+          {!lines.length && !evidence.length ? <Text style={[type.caption, { color: colors.muted }]}>Ingen utdanning, kurs eller sertifiseringer registrert.</Text> : null}
           <Row><Btn small icon="create-outline" label="Rediger CV i Ansatte" onPress={() => ctx.requestTab?.('ansatte')} /></Row>
         </View>
       ) : null}
@@ -859,7 +926,7 @@ export function CompetencePage({ ctx }) {
           {unassigned.slice(0, 8).map(({ requirement: r, role }) => (
             <ListRow key={r.id} icon="person-add-outline" tone="warn" title={r.title} subtitle={role ? `Rollen «${role.title}» har ingen innehavere` : `Fant ingen rolle som heter «${r.role}»`} />
           ))}
-          {unassigned.length > 8 ? <Text style={{ color: colors.muted, fontSize: 12 }}>… og {unassigned.length - 8} til.</Text> : null}
+          {unassigned.length > 8 ? <Text style={[type.caption, { color: colors.muted }]}>… og {unassigned.length - 8} til.</Text> : null}
           <Row><Btn icon="people-circle-outline" label="Organisasjon og roller" onPress={() => ctx.go('organisasjon')} /></Row>
         </Card>
       ) : null}
@@ -871,7 +938,7 @@ export function CompetencePage({ ctx }) {
         <CompetenceProfiles ctx={ctx} people={people} matrix={fullMatrix} q={q} />
       </Card>
       <SimpleRegister ctx={ctx} registerKey="kompetansekrav" subtitle={(r) => `${r.role}${(r.persons || []).length ? ` + ${r.persons.length} valgt` : ''}${r.validityMonths ? ` · gyldig ${r.validityMonths} mnd` : ''}`} />
-      <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => `${r.personName} · ${r.validTo ? `til ${prettyDate(r.validTo)}` : 'varig'}`} />
+      <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => { const end = proofEnd(r, (state.records.kompetansekrav || []).find((k) => k.id === r.requirementId)); return `${r.personName} · ${end ? `til ${prettyDate(end)}` : 'varig'}`; }} />
       {eq.total ? (
         <Card title="Utstyr og infrastruktur (7.1)" subtitle="Fra Utstyr. Service og garanti følges opp der.">
           {eq.inService.slice(0, 5).map((e) => <ListRow key={e.id} icon="construct-outline" tone="warn" title={e.name || e.title || 'Utstyr'} subtitle="På service" />)}
@@ -880,8 +947,8 @@ export function CompetencePage({ ctx }) {
         </Card>
       ) : null}
       <Sheet visible={!!pick} title={pick ? `${pick.person.name} – ${pick.cell.requirement.title}` : ''} onClose={() => setPick(null)}>
-        {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${pick.cell.record.validTo ? `gyldig til ${prettyDate(pick.cell.record.validTo)}` : 'varig'}`} /> : null}
-        {!pick?.cell.record && pick?.cell.cv ? <KV label={`I CV-en (${pick.cell.cv.kind.toLowerCase()})`} value={`${pick.cell.cv.title}${pick.cell.cv.date ? ` · ${pick.cell.cv.date}` : ''}`} /> : null}
+        {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${proofEnd(pick.cell.record, pick.cell.requirement) ? `gyldig til ${prettyDate(proofEnd(pick.cell.record, pick.cell.requirement))}` : 'varig'}`} /> : null}
+        {!pick?.cell.record && pick?.cell.cv ? <KV label={`I CV-en (${pick.cell.cv.kind.toLowerCase()})`} value={`${pick.cell.cv.title}${pick.cell.cv.date ? ` · ${dateText(pick.cell.cv.date)}` : ''}`} /> : null}
         {!pick?.cell.record && !pick?.cell.cv ? <Text style={{ color: colors.muted }}>Ingen dokumentert kompetanse.</Text> : null}
         <Btn kind="primary" icon="add" label="Registrer bevis" onPress={() => { setCreate({ personName: pick.person.name, personUid: pick.person.uid, requirementId: pick.cell.requirement.id, title: pick.cell.cv?.title || '' }); setPick(null); }} />
       </Sheet>
@@ -981,10 +1048,10 @@ function SupplierEvaluation({ ctx, record }) {
     <View style={{ gap: 6 }}>
       <Text style={{ color: colors.ink, fontWeight: '700', marginTop: 6 }}>Evalueringer</Text>
       {list.length ? list.map((e) => (
-        <Text key={e.id} style={{ color: colors.ink, fontSize: 12 }}>{prettyDate(e.date)} · {e.decision} · snitt {e.total} ({SUPPLIER_CRITERIA.map((c) => `${c.label.toLowerCase()} ${e[c.key]}`).join(', ')}){e.comment ? ` · ${e.comment}` : ''} · {e.by}</Text>
-      )) : <Text style={{ color: colors.muted, fontSize: 12 }}>Ikke evaluert ennå.</Text>}
+        <Text key={e.id} style={[type.caption, { color: colors.ink }]}>{prettyDate(e.date)} · {e.decision} · snitt {e.total} ({SUPPLIER_CRITERIA.map((c) => `${c.label.toLowerCase()} ${e[c.key]}`).join(', ')}){e.comment ? ` · ${e.comment}` : ''} · {e.by}</Text>
+      )) : <Text style={[type.caption, { color: colors.muted }]}>Ikke evaluert ennå.</Text>}
       {caps.manage ? (
-        <View style={{ gap: 6, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.line }}>
+        <View style={{ gap: 6, padding: 10, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line }}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Evaluer leverandør</Text>
           {SUPPLIER_CRITERIA.map((c) => (
             <Field key={c.key} label={`${c.label} (1–5)`}><Choice options={['1', '2', '3', '4', '5']} value={String(v[c.key] || '')} onChange={(x) => setV({ ...v, [c.key]: x })} /></Field>
@@ -1003,7 +1070,10 @@ function SupplierEvaluation({ ctx, record }) {
 
 export function SupplierPage({ ctx }) {
   const colors = useColors();
-  const { state, wide } = ctx;
+  const { state, wide, caps } = ctx;
+  // «Registrerte avvik» telles fra sakene som er koblet til leverandøren (ikke et Ja/Nei-felt).
+  const supplierFindings = useMemo(() => visibleFindings(caps, state.findings).filter((f) => f.links?.supplierId), [caps, state.findings]);
+  const linked = (r) => findingsLinkedTo(supplierFindings, 'supplier', r.id);
   const due = overdueRecords(state.records.leverandor, 'nextReview');
   const suggestions = useMemo(() => supplierSuggestions(ctx.sources?.expenses, state.records.leverandor)
     .map((r) => ({ title: r.title, criticality: 'Middels', approval: 'Ikke vurdert', category: '', source: `Utlegg (${r.count} bilag)` })), [ctx.sources?.expenses, state.records.leverandor]);
@@ -1011,14 +1081,27 @@ export function SupplierPage({ ctx }) {
     <Page wide={wide} title="Leverandørkontroll" intro="Kvalifisering, evaluering og oppfølging etter kritikalitet. Leverandører foreslås fra utleggene, og evaluering blir oppgave når den forfaller.">
       {due.length ? <Banner tone="warn" text={`${due.length} leverandører har forfalt evaluering.`} /> : null}
       <Suggestions ctx={ctx} registerKey="leverandor" rows={suggestions} direct title="Leverandører fra utleggene" subtitle="Mest brukte leverandører som ikke er vurdert. Legges inn som «Ikke vurdert» med middels kritikalitet." describe={() => 'Ikke vurdert'} limit={8} />
-      <SimpleRegister ctx={ctx} registerKey="leverandor" subtitle={(r) => [r.supplierClass || `${r.criticality} kritikalitet`, r.approval, r.score ? `score ${r.score}` : '', r.services].filter(Boolean).join(' · ')} detail={(r) => <SupplierEvaluation ctx={ctx} record={r} />} />
+      <SimpleRegister
+        ctx={ctx}
+        registerKey="leverandor"
+        subtitle={(r) => [r.supplierClass || `${r.criticality} kritikalitet`, r.approval, r.score ? `score ${r.score}` : '', `${linked(r).length} registrerte avvik`, r.services].filter(Boolean).join(' · ')}
+        detail={(r) => (
+          <>
+            <Text style={{ color: colors.ink, fontWeight: '700', marginTop: 6 }}>Registrerte avvik ({linked(r).length})</Text>
+            {linked(r).length ? linked(r).map((f) => (
+              <ListRow key={f.id} icon="flag-outline" title={`${f.number} · ${f.title}`} subtitle={findingStateLabel(f.state)} onPress={() => ctx.go('avvik', { open: f.id })} />
+            )) : <Text style={[type.caption, { color: colors.muted }]}>Ingen saker er koblet til leverandøren. Koble en sak under Avvik → Koblinger, eller meld et leverandøravvik.</Text>}
+            <SupplierEvaluation ctx={ctx} record={r} />
+          </>
+        )}
+      />
       <Card title="Leverandørklasser" subtitle="Klassen gir kritikalitet og hvor ofte leverandøren evalueres.">
         {SUPPLIER_CLASSES.map((c) => {
           const n = (state.records.leverandor || []).filter((r) => r.state !== 'arkivert' && r.supplierClass === c.id).length;
           return <ListRow key={c.id} icon="cube-outline" title={`${c.id} (${n})`} subtitle={`${c.hint} Kritikalitet ${c.criticality.toLowerCase()}.`} />;
         })}
         {(state.records.leverandor || []).some((r) => r.state !== 'arkivert' && !r.supplierClass)
-          ? <Text style={{ color: colors.muted, fontSize: 12 }}>{(state.records.leverandor || []).filter((r) => r.state !== 'arkivert' && !r.supplierClass).length} leverandører har ingen klasse ennå.</Text>
+          ? <Text style={[type.caption, { color: colors.muted }]}>{(state.records.leverandor || []).filter((r) => r.state !== 'arkivert' && !r.supplierClass).length} leverandører har ingen klasse ennå.</Text>
           : null}
       </Card>
     </Page>
@@ -1041,7 +1124,7 @@ export function ObjectivesPage({ ctx }) {
               <Row>
                 <Pill label={p.label} tone={p.status === 'naadd' ? 'ok' : (p.status === 'ingen_data' ? 'muted' : 'info')} />
                 {p.value != null ? <Text style={{ color: colors.ink, fontWeight: '700' }}>{p.value} {r.unit} ({p.period}{p.quality !== 'Målt' ? `, ${p.quality.toLowerCase()}` : ''})</Text> : null}
-                {p.pct != null ? <Text style={{ color: colors.muted, fontSize: 12 }}>{p.pct} % av veien fra baseline</Text> : null}
+                {p.pct != null ? <Text style={[type.caption, { color: colors.muted }]}>{p.pct} % av veien fra baseline</Text> : null}
               </Row>
               <ObjectiveSpark record={r} />
             </Card>
@@ -1086,6 +1169,9 @@ export function AuditPage({ ctx }) {
   const requirements = useMemo(() => allRequirements(state), [state]);
   const today = todayKey();
   const program = reg.rows.slice().sort((a, b) => String(a.plannedDate).localeCompare(String(b.plannedDate)));
+  // Revisjonsprogrammet (ISO-21): hvilke prosesser er revidert de siste tre årene, og er revisor uavhengig.
+  const coverage = useMemo(() => auditCoverage(reg.rows, state.processes), [reg.rows, state.processes]);
+  const conflicts = reg.open ? auditIndependenceConflicts(reg.open, state.processes) : [];
 
   async function addFinding() {
     setErr('');
@@ -1121,9 +1207,23 @@ export function AuditPage({ ctx }) {
         {!program.length ? <Empty icon="search-outline" title="Ingen revisjoner planlagt" text="Frekvens fastsettes i et risikobasert program, ikke automatisk." /> : null}
         {program.map((a) => {
           const late = a.state === 'planlagt' && a.plannedDate && a.plannedDate < today;
-          return <ListRow key={a.id} icon="search-outline" tone={late ? 'danger' : 'muted'} title={`${a.number} · ${a.title}`} subtitle={`${prettyDate(a.plannedDate)} · ${a.auditorName}${late ? ' · forsinket' : ''} · ${(a.findings || []).length} funn`} right={<Pill label={STATE_LABEL[a.state]} tone={a.state === 'godkjent' || a.state === 'lukket' ? 'ok' : (late ? 'danger' : 'info')} />} onPress={() => reg.setOpenId(a.id)} />;
+          return <ListRow key={a.id} icon="search-outline" tone={late ? 'danger' : 'muted'} title={`${a.number} · ${a.title}`} subtitle={`${prettyDate(a.plannedDate)} · ${a.auditorName || 'revisor ikke valgt'}${late ? ' · forsinket' : ''} · ${(a.findings || []).length} funn`} right={<Pill label={STATE_LABEL[a.state]} tone={a.state === 'godkjent' || a.state === 'lukket' ? 'ok' : (late ? 'danger' : 'info')} />} onPress={() => reg.setOpenId(a.id)} />;
         })}
       </Card>
+      {coverage.rows.length ? (
+        <Card title="Dekning siste tre år" subtitle="Publiserte prosesser og revisjonene som har dem i omfanget («Prosesser i omfanget» på revisjonen). Alle prosesser bør revideres innen programperioden, oftere ved høy risiko eller mange avvik.">
+          {coverage.uncovered.length ? <Banner tone="warn" text={`${coverage.uncovered.length} av ${coverage.rows.length} prosesser er ikke revidert i ${coverage.years[0]}–${coverage.years.at(-1)}.`} /> : <Banner tone="ok" text="Alle publiserte prosesser er revidert i programperioden." />}
+          {coverage.rows.map((r) => (
+            <ListRow
+              key={r.process.id}
+              icon={r.covered ? 'checkmark-circle-outline' : 'alert-circle-outline'}
+              tone={r.covered ? 'ok' : 'warn'}
+              title={`${r.process.code ? `${r.process.code} ` : ''}${r.process.title}`}
+              subtitle={coverage.years.map((y) => `${y}: ${r.byYear[y].length ? r.byYear[y].map((a) => a.number).join(', ') : '–'}`).join(' · ')}
+            />
+          ))}
+        </Card>
+      ) : null}
       {legacyAudits?.length ? (
         <Card title="Tidligere registrerte revisjoner (prosjekt)" subtitle="Fra den gamle ISO-siden. Beholdes uendret.">
           {legacyAudits.map((a) => <Text key={a.id} style={{ color: colors.ink, fontSize: 13 }}>{a.standard}: {a.findings} {a.projectName ? `· ${a.projectName}` : ''}</Text>)}
@@ -1132,22 +1232,30 @@ export function AuditPage({ ctx }) {
       <RecordSheet ctx={ctx} registerKey="revisjon" visible={reg.creating} onClose={() => reg.setCreating(false)} />
       {reg.open ? (
         <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')}>
+          {!reg.open.locked && ['planlagt', 'pagar'].includes(reg.open.state) && auditReadyError(reg.open) ? <Banner tone="warn" text={`${auditReadyError(reg.open)} Gjøres under «Rediger».`} /> : null}
+          {conflicts.length ? <Banner tone="warn" text={`Revisor eier ${conflicts.map((p) => p.title).join(', ')} i omfanget, og reviderer da eget arbeid (9.2.2 c). Velg en annen revisor eller ta prosessen ut av omfanget.`} /> : null}
+          {!['godkjent', 'oppfolging', 'lukket', 'avlyst'].includes(reg.open.state) && String(reg.open.conclusion || '').trim().length < 10 ? <Text style={[type.caption, { color: colors.muted }]}>Skriv konklusjonen under «Rediger» før rapporten godkjennes.</Text> : null}
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Funn ({(reg.open.findings || []).length})</Text>
           {(reg.open.findings || []).map((f) => (
             <View key={f.id} style={{ gap: 2, paddingVertical: 4 }}>
               <Text style={{ color: colors.ink, fontSize: 13 }}><Text style={{ fontWeight: '700' }}>{AUDIT_FINDING_CLASSES.find((c) => c.id === f.classification)?.label}:</Text> {f.description}</Text>
-              {f.evidence ? <Text style={{ color: colors.muted, fontSize: 12 }}>Bevis: {f.evidence}</Text> : null}
+              {f.evidence ? <Text style={[type.caption, { color: colors.muted }]}>Bevis: {f.evidence}</Text> : null}
               {f.findingId ? <Btn small label="Åpne avvikssak" onPress={() => go('avvik', { open: f.findingId })} /> : null}
             </View>
           ))}
-          {caps.manage && !['godkjent', 'lukket', 'avlyst'].includes(reg.open.state) ? (
+          {caps.manage && !reg.open.locked && !['godkjent', 'lukket', 'avlyst'].includes(reg.open.state) ? (
             <>
               <Field label="Klassifisering"><Choice options={AUDIT_FINDING_CLASSES} value={af.classification} onChange={(x) => setAf({ ...af, classification: x || 'avvik' })} /></Field>
               <Field label="Funn" required><TextIn multiline value={af.description} onChangeText={(x) => setAf({ ...af, description: x })} /></Field>
               <Field label="Objektivt bevis" required={af.classification !== 'samsvar'}><TextIn multiline rows={2} value={af.evidence} onChangeText={(x) => setAf({ ...af, evidence: x })} /></Field>
               <Field label="Krav"><Choice small multi title="Krav" options={requirements.filter((r) => r.kind === 'iso').map((r) => ({ id: r.id, label: `${r.standard.replace('ISO', 'ISO ')} ${r.clause}`, hint: r.title || '' }))} value={af.requirementIds} onChange={(x) => setAf({ ...af, requirementIds: x })} /></Field>
               <Btn kind="primary" label={af.classification === 'samsvar' ? 'Registrer funn' : 'Registrer funn og opprett sak'} onPress={addFinding} />
-              {caps.approve ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
+              {caps.approve && reg.open.state === 'rapport' ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
+              {reg.open.state !== 'rapport' ? (
+                <Text style={[type.caption, { color: colors.muted }]}>
+                  Rapporten godkjennes når revisjonen står i «Rapport»: registrer funn (også «Samsvar»), skriv konklusjonen og sett status til «Rapport».
+                </Text>
+              ) : null}
             </>
           ) : null}
           {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
@@ -1157,15 +1265,54 @@ export function AuditPage({ ctx }) {
   );
 }
 
+/** Grunnlaget slik det er lagret: seksjonene i 9.3.2 (nye) eller nøkkeltallene (eldre referater). */
+function ReviewInputView({ snapshot: s }) {
+  const colors = useColors();
+  if (!s) return <Text style={{ color: colors.muted, fontSize: 13 }}>Ikke hentet.</Text>;
+  const head = <Text style={[type.caption, { color: colors.muted }]}>Hentet {prettyDate(s.takenAt)} av {s.takenBy}{s.period ? ` · periode ${s.period.label} (${prettyDate(s.period.from)}–${prettyDate(s.period.to)})` : ''}</Text>;
+  if (s.sections?.length) {
+    return (
+      <View style={{ gap: 8 }}>
+        {head}
+        {s.restrictedNote ? <Banner tone="warn" text={s.restrictedNote} /> : null}
+        {s.sections.map((x) => (
+          <View key={x.key} style={{ gap: 2, paddingVertical: 4, borderBottomWidth: 1, borderColor: colors.line }}>
+            <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '700' }}>{x.clause} · {x.label}</Text>
+            {(x.lines || []).map((line, i) => <Text key={i} style={{ color: colors.ink, fontSize: 13 }}>{line}</Text>)}
+          </View>
+        ))}
+      </View>
+    );
+  }
+  return (
+    <View style={{ gap: 4 }}>
+      {head}
+      <Banner tone="warn" text="Eldre grunnlag uten alle punktene i 9.3.2. Hent grunnlaget på nytt før godkjenning." />
+      {(s.kpis || []).map((k) => <Text key={k.key} style={{ color: colors.ink, fontSize: 13 }}>{k.label}: {k.value ?? '–'}</Text>)}
+      {s.findings ? <Text style={{ color: colors.ink, fontSize: 13 }}>Avvik: {s.findings.open} åpne, {s.findings.closed} lukket</Text> : null}
+      <Text style={{ color: colors.ink, fontSize: 13 }}>Tidligere vedtak: {(s.previousDecisions || []).filter((x) => !x.done).length} åpne av {(s.previousDecisions || []).length}</Text>
+    </View>
+  );
+}
+
 export function ReviewPage({ ctx }) {
   const colors = useColors();
-  const { state, wide, actor, store, caps, people, runEffectsFor } = ctx;
+  const { state, wide, actor, store, caps, people } = ctx;
   const reg = useRegister(ctx, 'ledelse');
   const [d, setD] = useState({ decision: '', kind: 'forbedring', ownerName: '', ownerUid: '', dueAt: '' });
+  const [c, setC] = useState({ assessment: '', outputs: {}, restrictedConfirmed: false });
   const [err, setErr] = useState('');
+  const openId = reg.open?.id || '';
+  useEffect(() => {
+    if (reg.open) setC({ assessment: reg.open.assessment || '', outputs: { ...(reg.open.outputs || {}) }, restrictedConfirmed: !!reg.open.restrictedConfirmed });
+  }, [openId, reg.open?.rev]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function snapshot() {
-    const snap = managementReviewSnapshot(state, caps, { people });
+    setErr('');
+    // H-verdi fra timene i ProTop (ISO-24) tas med under overvåking og måling.
+    const hours = await ctx.sources?.loadHours?.();
+    const safety = hours ? injuryRates(visibleFindings(caps, state.findings), hours) : null;
+    const snap = managementReviewSnapshot(state, caps, { people, record: reg.open, equipment: ctx.sources?.equipment || [], safety });
     const res = attachReviewSnapshot(reg.open, snap, { actor });
     if (!res.ok) { setErr(res.error); return; }
     const saved = await store.commit('records', 'record', res, { previous: reg.open });
@@ -1177,8 +1324,14 @@ export function ReviewPage({ ctx }) {
     const saved = await store.commit('records', 'record', res, { previous: reg.open, effects: [{ type: 'createTask', key: res.decision.taskKey, title: `Vedtak ${reg.open.number}: ${res.decision.decision}`, assigneeUid: res.decision.ownerUid, deadline: res.decision.dueAt }] });
     if (!saved.ok) setErr(saved.error); else setD({ decision: '', kind: 'forbedring', ownerName: '', ownerUid: '', dueAt: '' });
   }
+  async function saveConclusion() {
+    setErr('');
+    const res = setReviewConclusion(reg.open, c, { actor });
+    if (!res.ok) { setErr(res.error); return; }
+    const saved = await store.commit('records', 'record', res, { previous: reg.open });
+    if (!saved.ok) setErr(saved.error);
+  }
   async function approve() {
-    if (!reg.open.snapshot) { setErr('Hent grunnlaget før referatet godkjennes.'); return; }
     const res = setRecordState(reg.open, 'godkjent', { actor, caps, note: 'Referat godkjent' });
     if (!res.ok) { setErr(res.error); return; }
     const saved = await store.commit('records', 'record', res, { previous: reg.open });
@@ -1187,45 +1340,72 @@ export function ReviewPage({ ctx }) {
     if (att.ok) await store.commitLists({ evidence: att.evidence, evidenceLinks: att.evidenceLinks, assessments: att.assessments }, att.events);
   }
   const s = reg.open?.snapshot;
+  const blockers = reg.open ? reviewApprovalBlockers(reg.open) : [];
+  const editable = caps.manage && reg.open && !reg.open.locked;
   return (
-    <Page wide={wide} title="Ledelsens gjennomgang" intro="Grunnlaget hentes automatisk fra registrene og låses når referatet godkjennes. Vedtak blir oppgaver med ansvar og frist." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny gjennomgang" onPress={() => reg.setCreating(true)} /> : null}>
+    <Page wide={wide} title="Ledelsens gjennomgang" intro="«Hent grunnlag» samler alle punktene i 9.3.2 for perioden: tiltak fra forrige gjennomgang, endringer i kontekst og klima, kundetilfredshet, mål, prosessytelse, avvik, målinger, revisjoner, leverandører, ressurser, risiko og forbedring. Grunnlaget låses når referatet godkjennes, og godkjenning krever konklusjon og vedtak. Vedtak blir oppgaver med ansvar og frist." actions={caps.manage ? <Btn kind="primary" icon="add" label="Ny gjennomgang" onPress={() => reg.setCreating(true)} /> : null}>
       <Card title="Gjennomganger">
-        <RecordList ctx={ctx} registerKey="ledelse" rows={reg.rows} subtitle={(r) => `${prettyDate(r.meetingDate)} · ${(r.decisions || []).length} vedtak`} onOpen={(r) => reg.setOpenId(r.id)} />
+        <RecordList ctx={ctx} registerKey="ledelse" rows={reg.rows} subtitle={(r) => `${prettyDate(r.meetingDate)} · ${(r.decisions || []).length} vedtak${r.state !== 'godkjent' && reviewApprovalBlockers(r).length ? ` · ${reviewApprovalBlockers(r).length} punkter før godkjenning` : ''}`} onOpen={(r) => reg.setOpenId(r.id)} />
       </Card>
       <RecordSheet ctx={ctx} registerKey="ledelse" visible={reg.creating} onClose={() => reg.setCreating(false)} />
       {reg.open ? (
         <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Grunnlag</Text>
-          {s ? (
-            <View style={{ gap: 4 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Hentet {prettyDate(s.takenAt)} av {s.takenBy}</Text>
-              {s.kpis.map((k) => <Text key={k.key} style={{ color: colors.ink, fontSize: 13 }}>{k.label}: {k.value ?? '–'}</Text>)}
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Avvik: {s.findings.open} åpne, {s.findings.closed} lukket · lukket innen frist: {s.findings.closedWithinDeadline.pct == null ? 'ingen datagrunnlag' : `${s.findings.closedWithinDeadline.pct} %`}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Krav: {s.requirements.segments.map((x) => `${x.label} ${x.value}`).join(', ') || '–'}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Revisjoner: {s.audits.map((a) => `${a.number} (${a.nonconformities} avvik)`).join(', ') || '–'}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Mål: {s.objectives.map((o) => `${o.title} ${o.last ?? '–'}/${o.target} ${o.unit}`).join('; ') || '–'}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Samsvarsvurderinger: {s.compliance.map((c) => `${c.title}: ${c.result}`).join('; ') || '–'}</Text>
-              <Text style={{ color: colors.ink, fontSize: 13 }}>Tidligere vedtak: {s.previousDecisions.filter((x) => !x.done).length} åpne av {s.previousDecisions.length}</Text>
-            </View>
-          ) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ikke hentet.</Text>}
-          {caps.manage && !reg.open.locked ? <Btn icon="download-outline" label={s ? 'Hent grunnlag på nytt' : 'Hent grunnlag'} onPress={snapshot} /> : null}
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>Vedtak</Text>
-          {(reg.open.decisions || []).map((x) => (
-            <Row key={x.id}>
-              <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{x.done ? '✓ ' : ''}{x.decision} · {x.ownerName} · {prettyDate(x.dueAt)}</Text>
-              {!x.done && caps.manage ? <Btn small label="Utført" onPress={async () => { const r = markDecisionDone(reg.open, x.id, { actor }); await store.commit('records', 'record', r, { previous: reg.open }); }} /> : null}
-            </Row>
-          ))}
-          {caps.manage && !reg.open.locked ? (
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Grunnlag (9.3.2)</Text>
+          <ReviewInputView snapshot={s} />
+          {editable ? <Btn icon="download-outline" label={s ? 'Hent grunnlag på nytt' : 'Hent grunnlag'} onPress={snapshot} /> : null}
+          <Text style={{ color: colors.ink, fontWeight: '700' }}>Vedtak (9.3.3)</Text>
+          {(reg.open.decisions || []).map((x) => {
+            // Ansvarlig kan merke vedtaket utført også når referatet er godkjent og låst.
+            const mine = !!x.ownerUid && x.ownerUid === actor.uid;
+            const inTasks = !x.done && decisionCompleted(x, store.tasks);
+            return (
+              <Row key={x.id}>
+                <Text style={{ color: colors.ink, fontSize: 13, flex: 1 }}>{x.done ? '✓ ' : ''}{x.decision} · {REVIEW_OUTPUTS.find((o) => o.kind === x.kind)?.label || 'Annet'} · {x.ownerName} · {prettyDate(x.dueAt)}{x.done && x.doneBy ? ` · utført ${prettyDate(x.doneAt)} av ${x.doneBy}` : ''}</Text>
+                {inTasks ? <Pill label="Ferdig i Oppgaver" icon="checkbox-outline" tone="ok" /> : null}
+                {!x.done && (caps.manage || mine) ? (
+                  <Btn small label="Utført" onPress={async () => {
+                    setErr('');
+                    const r = markDecisionDone(reg.open, x.id, { actor, caps });
+                    if (!r.ok) { setErr(r.error); return; }
+                    const saved = await store.commit('records', 'record', r, { previous: reg.open, effects: x.taskKey ? [{ type: 'completeTask', key: x.taskKey }] : [] });
+                    if (!saved.ok) setErr(saved.error);
+                  }} />
+                ) : null}
+              </Row>
+            );
+          })}
+          {reg.open.state === 'godkjent' ? (
+            <Text style={[type.caption, { color: colors.muted }]}>
+              {(reg.open.decisions || []).every((x) => decisionCompleted(x, store.tasks))
+                ? 'Alle vedtak er fulgt opp. En godkjenner kan nå sette gjennomgangen til «Lukket».'
+                : 'Gjennomgangen kan settes til «Lukket» når alle vedtak er gjennomført.'}
+            </Text>
+          ) : null}
+          {editable ? (
             <>
               <Field label="Vedtak" required><TextIn multiline rows={2} value={d.decision} onChangeText={(x) => setD({ ...d, decision: x })} /></Field>
-              <Choice small options={[{ id: 'forbedring', label: 'Forbedring' }, { id: 'ressurs', label: 'Ressurs' }, { id: 'endring', label: 'Endring' }, { id: 'annet', label: 'Annet' }]} value={d.kind} onChange={(x) => setD({ ...d, kind: x || 'forbedring' })} />
+              <Choice small options={[{ id: 'forbedring', label: 'Forbedring' }, { id: 'endring', label: 'Endring i systemet' }, { id: 'ressurs', label: 'Ressurser' }, { id: 'annet', label: 'Annet' }]} value={d.kind} onChange={(x) => setD({ ...d, kind: x || 'forbedring' })} />
               <Field label="Ansvarlig" required><PersonPick people={people} value={d.ownerName} onChange={(p) => setD({ ...d, ownerName: p.name, ownerUid: p.uid })} /></Field>
               <Field label="Frist" required><DateIn value={d.dueAt} onChange={(x) => setD({ ...d, dueAt: x })} /></Field>
               <Btn label="Legg til vedtak og lag oppgave" onPress={decision} />
-              {caps.approve ? <Btn kind="primary" icon="lock-closed-outline" label="Godkjenn referat (låser grunnlag)" onPress={approve} /> : null}
+              <Text style={{ color: colors.ink, fontWeight: '700' }}>Konklusjon</Text>
+              <Field label="Er systemet egnet, tilstrekkelig og effektivt?" required hint="Påkrevd før godkjenning (9.3.3)."><TextIn multiline rows={3} value={c.assessment} onChangeText={(x) => setC({ ...c, assessment: x })} /></Field>
+              {REVIEW_OUTPUTS.filter((o) => !(reg.open.decisions || []).some((x) => x.kind === o.kind)).map((o) => (
+                <Field key={o.kind} label={`${o.label}: ingen vedtak – begrunn`} hint="Eller legg inn et vedtak av denne typen over.">
+                  <TextIn value={c.outputs?.[o.kind] || ''} onChangeText={(x) => setC({ ...c, outputs: { ...c.outputs, [o.kind]: x } })} />
+                </Field>
+              ))}
+              {s?.restrictedIncluded === false ? <Check label="Jeg bekrefter at det ikke finnes skjermede HMS-saker i perioden som mangler i grunnlaget" value={!!c.restrictedConfirmed} onChange={(x) => setC({ ...c, restrictedConfirmed: x })} /> : null}
+              <Btn icon="save-outline" label="Lagre konklusjon" onPress={saveConclusion} />
+              {blockers.length ? (
+                <View style={{ gap: 2 }}>
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>Før godkjenning:</Text>
+                  {blockers.map((b) => <Text key={b} style={{ color: colors.warn, fontSize: 13 }}>• {b}</Text>)}
+                </View>
+              ) : null}
+              {caps.approve ? <Btn kind="primary" icon="lock-closed-outline" label="Godkjenn referat (låser grunnlag)" disabled={!!blockers.length} onPress={approve} /> : null}
             </>
-          ) : null}
+          ) : (reg.open.assessment ? <KV label="Konklusjon" value={reg.open.assessment} /> : null)}
           {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
         </RecordDetail>
       ) : null}
@@ -1289,7 +1469,7 @@ export function ProjectQualityPage({ ctx }) {
             />
           );
         })}
-        {caps.manage && withoutPlan.length > 1 ? <Text style={{ color: colors.muted, fontSize: 12 }}>«Lag plan» henter krav fra kontrakten, roller fra innstillingene og standard kontrollplan med faseporter.</Text> : null}
+        {caps.manage && withoutPlan.length > 1 ? <Text style={[type.caption, { color: colors.muted }]}>«Lag plan» henter krav fra kontrakten, roller fra innstillingene og standard kontrollplan med faseporter.</Text> : null}
       </Card>
       {contracts.rows.length ? (
         <Card title="Kontraktsgjennomgang (8.2)" subtitle="Kontrakter fra Kontrakt / avtale. Gjennomgangen lagres som låst bevis.">
@@ -1317,11 +1497,90 @@ export function ProjectQualityPage({ ctx }) {
   );
 }
 
+/**
+ * Sertifiseringsklar (ISO-06): kapittel 4–10 som rader og standardene som kolonner, med status regnet fra
+ * dataene i ProTop. Trykk på en celle for punktene i kapitlet, og på et punkt for å gå dit hullet fikses.
+ */
+function ReadinessMatrix({ ctx }) {
+  const colors = useColors();
+  const { state, people, projects, sources, go, wide } = ctx;
+  const ready = useMemo(() => certificationReadiness(state, {
+    people, projects, contracts: sources?.contracts || [], equipment: sources?.equipment || [],
+  }), [state, people, projects, sources?.contracts, sources?.equipment]);
+  const [code, setCode] = useState('');
+  const [chapter, setChapter] = useState('');
+  const std = ready.standards.find((x) => x.code === code) || ready.standards[0] || null;
+  if (!std) return <Empty icon="ribbon-outline" title="Ingen standarder valgt" text="Velg standarder i Innstillinger." />;
+  const fix = (item) => (item.tab ? ctx.requestTab?.(item.tab) : go(item.page, item.params || {}));
+  const ch = std.chapters.find((c) => c.id === chapter) || null;
+  const items = ch ? ch.items : std.chapters.flatMap((c) => c.items).filter((i) => i.status !== 'dekket');
+  const cell = (s, c) => {
+    const meta = READY_STATUS[c.status];
+    const tone = toneColor(colors, meta.tone);
+    const active = std.code === s.code && chapter === c.id;
+    const done = c.items.filter((i) => i.status === 'dekket').length;
+    return (
+      <Pressable
+        key={s.code}
+        onPress={() => { setCode(s.code); setChapter(active ? '' : c.id); }}
+        accessibilityRole="button"
+        accessibilityLabel={`${s.label} kapittel ${c.id}: ${meta.label}, ${done} av ${c.items.length} dekket`}
+        nativeID={`ready-${s.short}-${c.id}`}
+        style={{ flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2, paddingVertical: 8, borderRadius: 10, borderWidth: active ? 2 : 1, borderColor: active ? colors.brand : `${tone}55`, backgroundColor: `${tone}18` }}
+      >
+        <Text style={{ color: tone, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{meta.label}</Text>
+        <Text style={{ color: colors.muted, fontSize: 11 }} numberOfLines={1}>{wide ? `${done} av ${c.items.length} dekket` : `${done}/${c.items.length}`}</Text>
+      </Pressable>
+    );
+  };
+  return (
+    <Card title="Sertifiseringsklar per standard og kapittel" subtitle={ready.method}>
+      <Row>
+        {ready.standards.map((x) => (
+          <Pill key={x.code} label={`${x.label}: ${x.counts.dekket} dekket · ${x.counts.delvis} delvis · ${x.counts.mangler} mangler`} tone={READY_STATUS[x.status].tone} />
+        ))}
+      </Row>
+      <View style={{ gap: 6 }}>
+        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          <Text style={{ width: wide ? 220 : 104, color: colors.muted, fontSize: 11, fontWeight: '800' }}>KAPITTEL</Text>
+          {ready.standards.map((x) => <Text key={x.code} style={{ flex: 1, textAlign: 'center', color: colors.muted, fontSize: 11, fontWeight: '800' }}>{`ISO ${x.short}`}</Text>)}
+        </View>
+        {CHAPTERS.map((c) => (
+          <View key={c.id} style={{ flexDirection: 'row', gap: 6, alignItems: 'stretch' }}>
+            <View style={{ width: wide ? 220 : 104, justifyContent: 'center' }}>
+              <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }} numberOfLines={2}>{c.id} {c.title}</Text>
+            </View>
+            {ready.standards.map((x) => cell(x, x.chapters.find((y) => y.id === c.id)))}
+          </View>
+        ))}
+      </View>
+      <Text style={{ color: colors.ink, fontWeight: '700', marginTop: 4 }}>
+        {ch ? `${std.label} · kapittel ${ch.id} ${ch.title}` : `Hull å fikse i ${std.label} (${items.length})`}
+      </Text>
+      {!items.length ? <Banner tone="ok" text="Alt i utvalget er dekket av registreringer i ProTop. Om kravene er oppfylt, avgjør revisor." /> : null}
+      {items.map((i) => (
+        <ListRow
+          key={`${std.code}-${i.key}`}
+          icon={READY_STATUS[i.status].icon}
+          tone={READY_STATUS[i.status].tone}
+          title={`${i.clause} · ${i.label}`}
+          subtitle={`${i.detail}${i.status !== 'dekket' ? (i.tab ? ' · fikses i Utstyr' : ' · trykk for å fikse') : ''}`}
+          right={<Pill label={READY_STATUS[i.status].label} tone={READY_STATUS[i.status].tone} />}
+          onPress={() => fix(i)}
+        />
+      ))}
+    </Card>
+  );
+}
+
 export function CertificationPage({ ctx }) {
   const colors = useColors();
-  const { state, wide, caps } = ctx;
+  const { state, wide, caps, go, people } = ctx;
   const [selected, setSelected] = useState([]);
   const requirements = useMemo(() => allRequirements(state), [state]);
+  // Mangellisten bak «Klar for ekstern revisjon»: samme sjekkliste som «Neste steg» på oversikten.
+  const ready = useMemo(() => readinessChecklist(state, { people }), [state, people]);
+  const missing = ready.items.filter((i) => !i.done);
   const evidence = new Map(state.evidence.map((e) => [e.id, e]));
 
   function exportPackage() {
@@ -1331,14 +1590,14 @@ export function CertificationPage({ ctx }) {
       const r = requirements.find((x) => x.id === id);
       const links = state.evidenceLinks.filter((l) => l.requirementId === id && l.reviewState === 'godkjent');
       const a = state.assessments.find((x) => x.requirementId === id);
-      return { r, a, ev: links.map((l) => evidence.get(l.evidenceId)).filter((e) => e && e.classification !== 'skjermet') };
+      return { r, a, status: statusText(state, id), ev: links.map((l) => evidence.get(l.evidenceId)).filter((e) => e && e.classification !== 'skjermet') };
     }).filter((x) => x.r);
     const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Bevispakke</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#0f172a}td,th{border:1px solid #cbd5e1;padding:6px;font-size:12px;vertical-align:top}table{border-collapse:collapse;width:100%}h1{font-size:20px}.m{color:#475569;font-size:12px}</style></head><body>
 <h1>Bevispakke – ${esc(state.system.name || 'Ledelsessystem')}</h1>
 <p class="m">Eksportert ${new Date().toISOString().slice(0, 16).replace('T', ' ')}. Omfang: ${esc(state.system.scopeText)}. Interne vurderinger – ikke sertifisering. Skjermede HMS-/personopplysninger er utelatt.</p>
 <table><tr><th>Krav</th><th>Intern status</th><th>Vurdert</th><th>Godkjente bevis (revisjon)</th></tr>
-${rows.map(({ r, a, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clause}` : r.kind)} ${esc(r.title)}</td><td>${esc(a?.status || 'ikke_vurdert')}</td><td>${esc(a?.assessedBy || '')} ${esc(String(a?.assessedAt || '').slice(0, 10))}</td><td>${ev.map((e) => `${esc(e.label)}${e.objectRevision ? ` (rev ${esc(e.objectRevision)})` : ''} [${esc(e.hash)}]`).join('<br>') || '–'}</td></tr>`).join('')}
+${rows.map(({ r, a, status, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clause}` : r.kind)} ${esc(r.title)}</td><td>${esc(status)}</td><td>${esc(a?.assessedBy || '')} ${esc(String(a?.assessedAt || '').slice(0, 10))}</td><td>${ev.map((e) => `${esc(e.label)}${e.objectRevision ? ` (rev ${esc(e.objectRevision)})` : ''} [${esc(e.hash)}]`).join('<br>') || '–'}</td></tr>`).join('')}
 </table><script>setTimeout(function(){window.print()},300)</script></body></html>`;
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
@@ -1346,12 +1605,18 @@ ${rows.map(({ r, a, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clau
 
   return (
     <Page wide={wide} title="Sertifisering og revisjonsrom" intro="Sertifikater, eksterne revisjoner og bevispakker. ProTop utsteder ikke sertifikat – det gjør et akkreditert sertifiseringsorgan etter uavhengig revisjon.">
-      <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Klar for ekstern revisjon» er en intern indikator med synlig mangelliste." />
+      <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Sertifiseringsklar» er en intern indikator med synlig mangelliste per kapittel, ikke en sertifiseringsgrad." />
+      <ReadinessMatrix ctx={ctx} />
+      {missing.length ? (
+        <Card title={`Hovedelementer: ${ready.done} av ${ready.total} på plass`} subtitle={ready.method}>
+          {missing.map((i) => <ListRow key={i.key} icon="close-circle-outline" tone="warn" title={i.label} subtitle="Mangler" onPress={() => go(i.page)} />)}
+        </Card>
+      ) : null}
       <SimpleRegister ctx={ctx} registerKey="sertifikat" subtitle={(r) => `${r.certBody}${r.validTo ? ` · gyldig til ${prettyDate(r.validTo)}` : ''}${r.nextAudit ? ` · neste revisjon ${prettyDate(r.nextAudit)}` : ''}`} />
       <Card title="Bevispakke til revisor" subtitle="Velg krav (tomt utvalg = alle). Bare godkjente bevis tas med, og skjermede saker utelates.">
         <Choice small multi title="Krav" options={requirements.map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.title, hint: r.standard ? (r.title || '') : '' }))} value={selected} onChange={setSelected} />
         {Platform.OS === 'web' ? <Btn kind="primary" icon="print-outline" label="Lag bevispakke (PDF)" onPress={exportPackage} /> : <Text style={{ color: colors.muted }}>Eksport er tilgjengelig i nettleseren.</Text>}
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Tidsstyrt lesetilgang for ekstern revisor i appen krever egen revisorrolle og er ikke aktivert ennå. Del bevispakken i stedet.</Text>
+        <Text style={[type.caption, { color: colors.muted }]}>Tidsstyrt lesetilgang for ekstern revisor i appen krever egen revisorrolle og er ikke aktivert ennå. Del bevispakken i stedet.</Text>
         {!caps.manage ? null : null}
       </Card>
     </Page>

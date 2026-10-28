@@ -8,7 +8,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { loadVacationPlan } from '../../src/arbeid/vacationPlanStorage';
 import { displayName } from '../../src/employees/model';
 import { matchEmployeePickerQuery } from '../../src/arbeid/roles.js';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import { formatMoney } from '../../src/economy/invoices';
 import {
   calculateRoster,
@@ -83,7 +83,8 @@ export default function EconomyEarnings({
     return canEarnings;
   });
   const current = sections.some((item) => item.id === page) ? page : (sections[0]?.id || '');
-  const [employees, setEmployees] = useState([]);
+  // Felles lytter på ansatte i skallet.
+  const { employees } = useEmployees(familyId, { enabled: !!canSee });
   const [salaries, setSalaries] = useState([]);
   const [vacationPlan, setVacationPlan] = useState(null);
   const [yearEntries, setYearEntries] = useState(null);
@@ -100,11 +101,6 @@ export default function EconomyEarnings({
     setMode('table');
     setEmployeeId('');
   }, [section]);
-
-  useEffect(() => {
-    if (!familyId || !canSee) return undefined;
-    return watchEmployees(familyId, (rows) => setEmployees(rows || []));
-  }, [familyId, canSee]);
 
   useEffect(() => {
     if (!familyId || !canSee) return undefined;

@@ -677,7 +677,7 @@ const styles = StyleSheet.create({
   bar: {
     marginTop: 6, height: 8, backgroundColor: '#e2e8f0', borderRadius: 999, overflow: 'hidden',
   },
-  barFill: { height: 8, backgroundColor: colors.star || '#f59e0b', borderRadius: 999 },
+  barFill: { height: 8, backgroundColor: colors.star, borderRadius: 999 },
   levelRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12,
     paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,

@@ -3,8 +3,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
-import { storage, functions } from '../../firebase';
+import { auth, storage, functions } from '../../firebase';
 import { notifyUser } from './dialog';
+
+/** Hvem som lastet opp filen (storage.rules: kvitteringer og personlige filer eies av den som lastet opp). */
+function uploadMeta(contentType) {
+  const uid = auth?.currentUser?.uid;
+  return uid ? { contentType, customMetadata: { uploadedBy: uid } } : { contentType };
+}
 
 const STORAGE_BUCKET = 'protop-c189c.firebasestorage.app';
 const FILE_UPLOAD_TIMEOUT_MS = 25000;
@@ -148,7 +154,7 @@ export async function uploadWithProgress(path, picked, {
 
   const r = ref(storage, path);
   await new Promise((resolve, reject) => {
-    const task = uploadBytesResumable(r, blob, { contentType: type });
+    const task = uploadBytesResumable(r, blob, uploadMeta(type));
     task.on(
       'state_changed',
       (snap) => {
@@ -591,7 +597,7 @@ export async function uploadDocument({ familyId, folderId, path, picked, content
 
   const r = ref(storage, path);
   await withTimeout(
-    uploadBytes(r, blob, { contentType: type }),
+    uploadBytes(r, blob, uploadMeta(type)),
     restUploadTimeoutMs(blob.size),
     'storage-upload-timeout',
   );
@@ -662,7 +668,7 @@ export async function uploadFile(path, picked, contentType) {
   }
 
   const r = ref(storage, path);
-  await uploadBytes(r, blob, { contentType: type });
+  await uploadBytes(r, blob, uploadMeta(type));
   return getDownloadURL(r);
 }
 
@@ -727,7 +733,7 @@ export async function uploadImage(path, picked) {
     }
 
     const r = ref(storage, path);
-    await uploadBytes(r, blob, { contentType: blob.type || 'image/jpeg' });
+    await uploadBytes(r, blob, uploadMeta(blob.type || 'image/jpeg'));
     return getDownloadURL(r);
   } catch (err) {
     throw err instanceof Error ? err : new Error(String(err || 'Kunne ikke laste opp bildet.'));

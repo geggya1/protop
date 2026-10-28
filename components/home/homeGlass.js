@@ -1,50 +1,46 @@
 /**
- * Immersive home surfaces — frosted glass over the photo (mockup look).
- * Outer frost stays translucent; fill is milkier so ink and module icons
- * stay readable on busy photo backgrounds.
+ * Flatene på Hjem (UX-05). Widgetkortene er vanlige ProTop-kort, de samme som i
+ * modulene: colors.card, strek i colors.line, radius.card og skygge nivå 1. De følger
+ * lyst og mørkt utseende. Med bakgrunnsbilde ligger de samme kortene oppå bildet,
+ * så teksten har samme kontrast som ellers i appen. Bare det som står rett på bildet
+ * (hilsenen og redigeringsknappen) er hvitt eller frostet.
  */
 
 import { Platform, StyleSheet } from 'react-native';
+import { colors } from '../../src/theme';
+import { elevationStyle, radius } from '../../src/ui/tokens';
 
 const webFrost = Platform.OS === 'web' ? {
   backdropFilter: 'blur(22px) saturate(1.18)',
   WebkitBackdropFilter: 'blur(22px) saturate(1.18)',
 } : null;
 
-/** Primary widget card frost — milky fill so dark ink stays readable. */
-export const immersiveCardSurface = {
-  backgroundColor: 'rgba(255,255,255,0.82)',
-  borderWidth: StyleSheet.hairlineWidth,
-  borderColor: 'rgba(255,255,255,0.82)',
-  borderRadius: 18,
-  ...webFrost,
-  ...(Platform.OS === 'web' ? {
-    boxShadow: '0 8px 28px rgba(20, 28, 45, 0.14)',
-  } : null),
+/** Widgetkortet på Hjem: samme kort som i modulene. */
+export const homeCardSurface = {
+  backgroundColor: colors.card,
+  borderWidth: 1,
+  borderColor: colors.line,
+  borderRadius: radius.card,
+  ...elevationStyle(1, Platform.OS === 'web' ? 'web' : 'native'),
 };
 
-/** Nested chips / inner tiles on a glass card. */
+/** Kortet oppå bakgrunnsbildet er det samme ProTop-kortet. */
+export const immersiveCardSurface = homeCardSurface;
+
+/** Rader og fliser inne i et kort: sidens bakgrunn, så dempet tekst holder 4,5:1 også i mørkt. */
 export const immersiveChipSurface = {
-  backgroundColor: 'rgba(255,255,255,0.74)',
+  backgroundColor: colors.bg,
   borderWidth: StyleSheet.hairlineWidth,
-  borderColor: 'rgba(255,255,255,0.7)',
-  ...webFrost,
+  borderColor: colors.line,
 };
 
-/**
- * Solid disc behind module glyphs — pops the icon against frost.
- */
+/** Ikonplate bak modulikoner (snarveier). */
 export const immersiveIconDisc = {
-  backgroundColor: 'rgba(255,255,255,0.94)',
-  borderWidth: StyleSheet.hairlineWidth,
-  borderColor: 'rgba(255,255,255,0.95)',
-  ...(Platform.OS === 'web' ? {
-    boxShadow: '0 2px 8px rgba(20, 28, 45, 0.1)',
-  } : null),
+  backgroundColor: colors.brandSoft,
 };
 
 /**
- * Small chrome (edit pencil, dock-adjacent controls).
+ * Små knapper rett på bildet (blyanten). Frostet, med hvitt ikon.
  */
 export const immersiveGlass = {
   backgroundColor: 'rgba(255,255,255,0.45)',
@@ -57,13 +53,14 @@ export const immersiveGlass = {
 };
 
 /**
- * Grid cell shell — transparent; the pastel card supplies the frost and
- * must fill the cell (height 100%) so content never paints outside it.
+ * Cellen i rutenettet er gjennomsiktig; kortet fyller cellen (height 100%),
+ * så innholdet aldri tegnes utenfor.
  */
 export const immersiveWidgetCell = {
   backgroundColor: 'transparent',
   borderWidth: 0,
 };
 
+/** Tekst rett på bildet (hilsenen): hvit med skygge. */
 export const immersiveHeroText = '#FFFFFF';
 export const immersiveHeroMuted = 'rgba(255,255,255,0.9)';

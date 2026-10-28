@@ -341,7 +341,7 @@ export default function HelpSupportScreen() {
       <Text style={styles.deviceHint}>{deviceHint}</Text>
 
       <HelpTarget id="input" style={{ width: '100%' }}>
-      <View style={styles.searchWrap}>
+      <View dataSet={{ focusWithin: '1' }} style={styles.searchWrap}>
         <Ionicons name="search" size={18} color={colors.muted} />
         <TextInput
           value={query}

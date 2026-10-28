@@ -20,7 +20,9 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { SIDE_WIDTH_KEY, PHONE_PREVIEW_MAP_HEIGHT, clampSideWidth, mapHeightForRail, mapHeightForSide, sideWidthFromDrag } from '../../src/anbud/sideWidth';
 import { departmentsOf } from '../../src/project/companyUnits';
-import { BREAKPOINTS } from '../../src/theme';
+import { BREAKPOINTS, useLayout } from '../../src/theme';
+import { touchHit } from '../../src/ui/touchTarget';
+import { radius } from '../../src/ui/tokens';
 import TenderHitCards from './TenderHitCards';
 import NoticeInsight from './NoticeInsight';
 import NextStep from './NextStep';
@@ -42,6 +44,7 @@ import {
   officialNoticeUrl,
   sourceLabel,
 } from '../../src/anbud/noticeText';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 const FILTERS = [
   ['nye', 'Nye', 'emphasis'],
@@ -170,7 +173,12 @@ export default function TenderAlert({
   stepFilter = null,
 }) {
   const { width } = useWindowDimensions();
+  const { isTouch } = useLayout();
+  // Tannhjulet er et ikon på 22 px eller en sirkel på 30 px; trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const gearHit = touchHit(22, 24, { touch: isTouch, os: Platform.OS });
+  const gearCircleHit = touchHit(30, 30, { touch: isTouch, os: Platform.OS });
   const hostedHero = useModuleHeroHosted();
+  const guardAi = useCompanyAiGuard();
   const [cssPhone, setCssPhone] = useState(false);
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
@@ -449,7 +457,7 @@ export default function TenderAlert({
     }
     setRanking(true);
     try {
-      const data = await rankTenderHits({
+      const data = await guardAi(rankTenderHits)({
         companyName: watch.companyName || company?.name,
         description: profile.description,
         summary: profile.summary,
@@ -911,7 +919,8 @@ export default function TenderAlert({
         onPress={() => onOpenSettings()}
         accessibilityRole="button"
         accessibilityLabel="Åpne innstillinger for CPV og søk"
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        hitSlop={gearHit.hitSlop || { top: 8, bottom: 8, left: 8, right: 8 }}
+        style={gearHit.style}
       >
         <Ionicons name="settings-outline" size={22} color={colors.ink} />
       </TouchableOpacity>
@@ -993,9 +1002,12 @@ export default function TenderAlert({
                   onPress={() => onOpenSettings()}
                   accessibilityRole="button"
                   accessibilityLabel="Åpne innstillinger for CPV og søk"
-                  style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+                  hitSlop={gearCircleHit.hitSlop}
+                  style={[styles.iconHit, gearCircleHit.style]}
                 >
-                  <Ionicons name="settings-outline" size={16} color={colors.ink} />
+                  <View style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}>
+                    <Ionicons name="settings-outline" size={16} color={colors.ink} />
+                  </View>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
@@ -1431,6 +1443,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
+  iconHit: { borderRadius: radius.pill, flexShrink: 0 },
   updateBtn: {
     flexDirection: 'row',
     alignItems: 'center',

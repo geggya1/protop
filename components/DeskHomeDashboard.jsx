@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../src/theme';
+import { elevationStyle, radius, type } from '../src/ui/tokens';
 import { colorForFamilyEvent } from '../src/utils/calendarColors';
 import { useApp } from '../src/context/AppContext';
 import { useUnread } from '../src/context/NotificationContext';
@@ -17,18 +18,18 @@ import { firstNameFromProfile, formatGreetingDate } from '../src/utils/timeGreet
 import { roundTemp } from '../src/utils/weather';
 import WeatherPeriodsView from './WeatherPeriodsView';
 import LiveHomeWidgets from './LiveHomeWidgets';
+import CompanyOfferCard from './home/CompanyOfferCard';
+import CompanyStartChecklist from './home/CompanyStartChecklist';
+import CompanyQuickReport from './home/CompanyQuickReport';
 import { isDoneOn } from '../src/utils/todos';
 import { addDays, dateKey } from '../src/utils/dates';
 import {
-  deskGreetingEmoji,
   deskGreetingTitle,
   eventSourceHint,
   mergeDeskDayEvents,
   taskFocusMeta,
 } from '../src/utils/deskHome';
 import { PRICING_VISIBLE } from '../src/utils/billingMethods';
-
-const R = 16;
 
 function Card({ children, style, onPress, fill }) {
   const inner = (
@@ -177,8 +178,9 @@ export default function DeskHomeDashboard({
     <View style={[styles.page, short && styles.pageShort]}>
       <View style={styles.hero}>
         <View style={{ flex: 1, minWidth: 0 }}>
+          {/* Samme hilsen som Hjem på telefon (UX-05), uten emoji. Skallet eier sidetittelen «Hjem». */}
           <Text style={[styles.hello, short && styles.helloShort]} numberOfLines={1}>
-            {deskGreetingTitle(now, firstNameMe)} {deskGreetingEmoji(now)}
+            {deskGreetingTitle(now, firstNameMe)}
           </Text>
           <View style={styles.heroSubRow}>
             <Text style={styles.heroSub} numberOfLines={1}>{dateLabel}</Text>
@@ -205,7 +207,7 @@ export default function DeskHomeDashboard({
             ) : null}
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryBtn} onPress={onCreate} accessibilityRole="button">
-            <Ionicons name="add" size={16} color="#fff" />
+            <Ionicons name="add" size={16} color={colors.onBrand} />
             <Text style={styles.primaryBtnTxt}>Opprett</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.ghostBtn} onPress={() => onTab?.('plan')} accessibilityRole="button">
@@ -214,6 +216,10 @@ export default function DeskHomeDashboard({
           </TouchableOpacity>
         </View>
       </View>
+
+      <CompanyOfferCard style={styles.startCard} />
+      <CompanyStartChecklist />
+      <CompanyQuickReport style={styles.startCard} />
 
       <View style={styles.main}>
         <View style={styles.agendaCol}>
@@ -348,7 +354,7 @@ export default function DeskHomeDashboard({
             </ScrollView>
           </View>
 
-          <Card style={styles.noteCard} onPress={() => onTab?.('notes')}>
+          <Card onPress={() => onTab?.('notes')}>
             <Text style={styles.noteKicker}>Notat</Text>
             <Text style={styles.noteTitle} numberOfLines={2}>{note?.title || 'Ingen notater ennå'}</Text>
             <Text style={styles.noteBody} numberOfLines={3}>
@@ -445,14 +451,8 @@ export default function DeskHomeDashboard({
   );
 }
 
-const webShadow = Platform.OS === 'web'
-  ? { boxShadow: '0 8px 22px rgba(15, 23, 42, 0.05)' }
-  : {
-    shadowColor: '#0f172a',
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-  };
+// Samme kort som på telefonens Hjem og i modulene (UX-05): colors.card, radius.card, skygge nivå 1.
+const webShadow = elevationStyle(1, Platform.OS === 'web' ? 'web' : 'native');
 
 const styles = StyleSheet.create({
   page: {
@@ -464,11 +464,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   pageShort: { padding: 10, paddingBottom: 8, gap: 8 },
+  startCard: { maxWidth: 880 },
   hero: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16,
   },
-  hello: { fontSize: 28, fontWeight: '400', color: colors.ink, letterSpacing: -0.5 },
-  helloShort: { fontSize: 22 },
+  hello: { ...type.h1, color: colors.ink },
+  helloShort: { fontSize: 22, lineHeight: 28 },
   heroSubRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, flexWrap: 'wrap' },
   heroSub: { fontSize: 13, color: colors.muted, fontWeight: '500' },
   heroWeather: {
@@ -479,7 +480,7 @@ const styles = StyleSheet.create({
   heroWeatherTxt: { fontSize: 12, fontWeight: '400', color: colors.ink },
   heroActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
   iconBtn: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: colors.card,
+    width: 36, height: 36, borderRadius: radius.control, backgroundColor: colors.card,
     borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center',
   },
   badge: {
@@ -490,16 +491,16 @@ const styles = StyleSheet.create({
   primaryBtn: {
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: colors.brand, height: 36, paddingHorizontal: 12, borderRadius: 10,
+    backgroundColor: colors.brandInk, height: 36, paddingHorizontal: 12, borderRadius: radius.control,
   },
-  primaryBtnTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
+  primaryBtnTxt: { color: colors.onBrand, fontWeight: '600', fontSize: 13 },
   ghostBtn: {
     alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: colors.card, height: 36, paddingHorizontal: 11, borderRadius: 10,
+    backgroundColor: colors.card, height: 36, paddingHorizontal: 11, borderRadius: radius.control,
     borderWidth: 1, borderColor: colors.line,
   },
-  ghostBtnTxt: { color: colors.ink, fontWeight: '400', fontSize: 13 },
+  ghostBtnTxt: { color: colors.ink, fontWeight: '600', fontSize: 13 },
   main: Platform.OS === 'web'
     ? {
       flex: 1,
@@ -513,20 +514,20 @@ const styles = StyleSheet.create({
   sideCol: { minWidth: 0, minHeight: 0, flex: 1 },
   sideInner: { gap: 10, paddingBottom: 8 },
   card: {
-    backgroundColor: colors.card, borderRadius: R, padding: 14,
+    backgroundColor: colors.card, borderRadius: radius.card, padding: 14,
     borderWidth: 1, borderColor: colors.line, ...webShadow, minWidth: 0,
   },
   cardFill: { flex: 1, minHeight: 0 },
   cardHeadRow: {
     flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8,
   },
-  cardTitle: { fontSize: 16, fontWeight: '400', color: colors.ink, letterSpacing: -0.3 },
+  cardTitle: { ...type.title, color: colors.ink },
   cardHint: { fontSize: 12, color: colors.muted, fontWeight: '500', marginTop: 2 },
-  link: { color: colors.brand, fontWeight: '400', fontSize: 12, marginTop: 2 },
+  link: { color: colors.brandInk, fontWeight: '500', fontSize: 13, marginTop: 2 },
   empty: { color: colors.muted, fontSize: 12, fontWeight: '500', paddingVertical: 4 },
   emptyCta: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#f8fafc', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10,
+    backgroundColor: colors.bg, borderRadius: radius.card, paddingVertical: 10, paddingHorizontal: 10,
   },
   emptyCtaTitle: { fontSize: 13, fontWeight: '400', color: colors.ink },
   agendaScroll: { flex: 1, minHeight: 0 },
@@ -535,22 +536,22 @@ const styles = StyleSheet.create({
   tasksScroll: { maxHeight: 260 },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
   check: {
-    width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: '#cbd5e1', backgroundColor: colors.card,
+    width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: colors.muted, backgroundColor: colors.card,
   },
   checkOn: { backgroundColor: colors.success, borderColor: colors.success, alignItems: 'center', justifyContent: 'center' },
   taskTitle: { fontSize: 13, fontWeight: '400', color: colors.ink },
   taskDone: { textDecorationLine: 'line-through', color: colors.muted, flex: 1 },
-  doneLbl: { fontSize: 11, fontWeight: '400', color: colors.success },
+  doneLbl: { fontSize: 11, fontWeight: '400', color: colors.successInk },
   taskMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
   taskMeta: { fontSize: 11, color: colors.muted, fontWeight: '400' },
-  overdue: { color: colors.danger, fontWeight: '400' },
+  overdue: { color: colors.dangerInk, fontWeight: '400' },
   tag: { backgroundColor: colors.brandSoft, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 },
-  tagTxt: { fontSize: 10, fontWeight: '400', color: colors.brand, textTransform: 'capitalize' },
+  tagTxt: { fontSize: 11, fontWeight: '400', color: colors.brandInk, textTransform: 'capitalize' },
   tlRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   tlTime: { width: 48, fontSize: 11, fontWeight: '400', color: colors.muted, paddingTop: 1 },
   tlRail: { width: 12, alignItems: 'center', alignSelf: 'stretch' },
   tlDot: { width: 9, height: 9, borderRadius: 5, marginTop: 3 },
-  tlLine: { width: 2, flex: 1, minHeight: 18, backgroundColor: '#e2e8f0', marginTop: 2 },
+  tlLine: { width: 2, flex: 1, minHeight: 18, backgroundColor: colors.line, marginTop: 2 },
   tomorrowBlock: {
     marginTop: 8, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line,
   },
@@ -559,14 +560,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', marginBottom: 6,
   },
   tmRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  noteCard: { backgroundColor: '#fff8dc', borderColor: '#f3e4a8' },
-  noteKicker: { fontSize: 11, fontWeight: '400', color: '#b45309', letterSpacing: 0.3, textTransform: 'uppercase' },
-  noteTitle: { fontSize: 15, fontWeight: '400', color: colors.ink, marginTop: 6, letterSpacing: -0.2 },
-  noteBody: { fontSize: 13, color: '#78716c', fontWeight: '500', lineHeight: 19, marginTop: 6 },
+  noteKicker: { fontSize: 11, fontWeight: '500', color: colors.muted, letterSpacing: 0.3, textTransform: 'uppercase' },
+  noteTitle: { fontSize: 15, fontWeight: '600', color: colors.ink, marginTop: 6, letterSpacing: -0.2 },
+  noteBody: { fontSize: 13, color: colors.muted, fontWeight: '400', lineHeight: 19, marginTop: 6 },
   weatherNow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   weatherTemp: { fontSize: 28, fontWeight: '400', color: colors.ink, letterSpacing: -0.6 },
   forecastRow: { flexDirection: 'row', gap: 6 },
-  forecastCol: { flex: 1, alignItems: 'center', gap: 3, backgroundColor: '#f8fafc', borderRadius: 10, paddingVertical: 8 },
+  forecastCol: { flex: 1, alignItems: 'center', gap: 3, backgroundColor: colors.bg, borderRadius: radius.control, paddingVertical: 8 },
   forecastLbl: { fontSize: 10, fontWeight: '400', color: colors.muted, textTransform: 'capitalize' },
   forecastVal: { fontSize: 11, fontWeight: '400', color: colors.ink },
   weatherDetail: {
@@ -574,10 +574,10 @@ const styles = StyleSheet.create({
   },
   weatherPeriods: { marginTop: 10 },
   weatherDay: {
-    flex: 1, backgroundColor: '#f8fafc', borderRadius: 12, padding: 10, gap: 3,
+    flex: 1, backgroundColor: colors.bg, borderRadius: radius.card, padding: 10, gap: 3,
     borderWidth: 1, borderColor: 'transparent',
   },
-  weatherDayOn: { borderColor: colors.brandSoft, backgroundColor: '#eff6ff' },
+  weatherDayOn: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
   weatherDayHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 4 },
   weatherDayTemp: { fontSize: 22, fontWeight: '400', color: colors.ink, letterSpacing: -0.4 },
   weatherDayBit: { fontSize: 11, fontWeight: '400', color: colors.muted, lineHeight: 15 },

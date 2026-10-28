@@ -114,7 +114,7 @@ export const ASSISTANT_TOPICS = [
     steps: [
       s({ nb: 'Kunder', en: 'Customers' }, 'Kunder → «Ny kunde» → «Importer fil».', 'Customers → “New customer” → “Import file”.', gate('kunder', 3)),
       s({ nb: 'Prosjekter', en: 'Projects' }, 'Prosjekt → «Nytt prosjekt» → «Importer liste».', 'Projects → “New project” → “Import list”.', gate('projects', 4)),
-      s({ nb: 'Ansatte', en: 'Employees' }, 'Ansatte → «Ny medarbeider» → «Importer liste».', 'Employees → “New employee” → “Import list”.', gate('ansatte', 2)),
+      s({ nb: 'Ansatte', en: 'Employees' }, 'Ansatte → «Ny ansatt» → «Importer liste».', 'Employees → “New employee” → “Import list”.', gate('ansatte', 2)),
       s({ nb: 'Timer', en: 'Hours' }, 'Timer / arbeid per ansatt → Timerapport → «Importer timer».', 'Hours / work per employee → Hour report → “Import hours”.', gate('arbeid.timerapport', 1)),
       s({ nb: 'Fakturaer', en: 'Invoices' }, 'Økonomi → Faktura → «Importer Excel».', 'Finance → Invoices → “Import Excel”.', gate('okonomi.faktura', 4)),
       s({ nb: 'Utlegg og produktsalg', en: 'Expenses and product sales' }, 'Prosjektutlegg → «Importer fra fil». Produktsalg → «Importer».', 'Project expenses → “Import from file”. Product sales → “Import”.', gate('arbeid.utlegg', 1)),
@@ -159,8 +159,8 @@ export const ASSISTANT_TOPICS = [
       'If you see a lock, the module is turned off for the company or you lack access. An administrator opens it in Module settings or Access control.',
     ),
     steps: [
-      s({ nb: 'Slått av for bedriften', en: 'Turned off for the company' }, 'Administrator: Selskapsinnstillinger → Modulinnstillinger → slå på og lagre.', 'Admin: Company settings → Module settings → turn on and save.', need('moduleSettings', 'write')),
-      s({ nb: 'Mangler tilgang', en: 'No access' }, 'Administrator: Selskapsinnstillinger → Tilgangsstyring → flytt deg til riktig nivå.', 'Admin: Company settings → Access control → move you to the right level.', need('accessControl', 'write')),
+      s({ nb: 'Slått av for bedriften', en: 'Turned off for the company' }, 'Administrator: Bedriftsinnstillinger → Modulinnstillinger → slå på og lagre.', 'Admin: Company settings → Module settings → turn on and save.', need('moduleSettings', 'write')),
+      s({ nb: 'Mangler tilgang', en: 'No access' }, 'Administrator: Bedriftsinnstillinger → Tilgangsstyring → flytt deg til riktig nivå.', 'Admin: Company settings → Access control → move you to the right level.', need('accessControl', 'write')),
       s({ nb: 'Personlige moduler', en: 'Personal modules' }, 'Kalender, E-post, Oppgaver og Notat aktiverer du selv første gang du åpner dem.', 'Calendar, Mail, Tasks and Notes you enable yourself the first time you open them.'),
     ],
     nav: { tab: 'selskap', subView: 'moduler' },

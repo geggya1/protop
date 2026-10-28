@@ -1,5 +1,5 @@
 import { COMPANY_TAB_IDS, filterCompanyNav } from './companyAccess.js';
-import { companyAccountNavItems, companyNavItems } from '../navigation/shellModules.js';
+import { companyNavItems } from '../navigation/shellModules.js';
 
 /**
  * Øyet hører til bedriftsmodulene.
@@ -21,9 +21,9 @@ function flatten(items, parentId = '') {
   return rows;
 }
 
-/** Bedriftsmeny + bedriftsvalg under Konto (inkl. Underenheter for tilgangssjekk). */
+/** Bedriftsmenyen (inkl. Underenheter for tilgangssjekk). Skjemabygger ligger der, ikke under Konto. */
 function allCompanyMenuItems() {
-  return [...companyNavItems({ includeUnderenheter: true }), ...companyAccountNavItems()];
+  return companyNavItems({ includeUnderenheter: true });
 }
 
 /** Synlige og skjulte moduler i bedriftsmenyen for et gitt rettighetssett. */

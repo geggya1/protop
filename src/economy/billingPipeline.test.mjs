@@ -7,12 +7,9 @@ import {
   upsertTimeEntry,
   updateProject,
 } from '../project/engine.js';
-import {
-  buildBillingProposals,
-  createInvoiceFromProposal,
-  createCreditNoteFromInvoice,
-  markEntriesInvoiced,
-} from './billingFromHours.js';
+import { approvedOnly, buildReadyProjects, selectableKeys, selectionFor } from './billingReady.js';
+import { buildInvoiceDraft } from './invoiceDraft.js';
+import { buildCreditNote, issueInvoice } from './invoiceFlow.js';
 import { buildKid, validateKid, mod10CheckDigit, mod11CheckDigit, appendCheckDigit } from './kid.js';
 import { calcLineVat, invoiceVatTotals, VAT_CODES, vatCodeById, roundMoney } from './vat.js';
 import {
@@ -97,12 +94,42 @@ assert.equal(rateWithOvertime(1000, 'overtime_50'), 1500);
 assert.equal(rateWithOvertime(1000, 'overtime_100'), 2000);
 assert.ok(TIME_TYPES.length >= 4);
 
-// --- Tomt forslag avvises ---
-assert.equal(createInvoiceFromProposal(null).ok, false);
-assert.equal(createInvoiceFromProposal({ entries: [] }).ok, false);
-assert.match(createInvoiceFromProposal({ entries: [] }).error || '', /Ingen timer/);
+// --- Tomt utvalg avvises ---
+assert.equal(buildInvoiceDraft(null).ok, false);
+assert.equal(buildInvoiceDraft({ entries: [] }).ok, false);
+assert.match(buildInvoiceDraft({ entries: [] }).error || '', /ingen fakturalinjer/);
 
-// --- Full pipeline: timer → godkjenning → faktura → bilag → EHF ---
+// --- Full pipeline: timer → godkjenning → Til fakturering → utkast → utstedelse → bilag → EHF ---
+// Samme vei som appen: billingReady → selectionFor → buildInvoiceDraft → issueInvoice.
+const customers = [{
+  id: 'cust1', name: 'Mg Næring AS', customerNumber: '1042', orgnr: '912345678',
+  address: 'Kundevei 1', postalCode: '4010', place: 'Stavanger',
+}];
+const seller = {
+  name: 'ProTop AS', orgnr: '999888777', bankAccount: '12345678903',
+  address: 'Storgata 1', city: 'Oslo', postalCode: '0150', vatRegistered: true,
+};
+const invoiceSettings = { accountHours: '3000', groupHoursBy: 'activity' };
+function readyFor(current) {
+  return buildReadyProjects({
+    projects: current.projects,
+    customers,
+    timeEntries: current.timeEntries,
+    settingsFor: () => invoiceSettings,
+    periodEnd: '2026-12-31',
+    today: '2026-12-31',
+  });
+}
+function issuedFor(current, { number = '10001', kidMethod = 'mod10', vatCode = 'HIGH' } = {}) {
+  const [ready] = readyFor(current);
+  const selection = approvedOnly(selectionFor(ready, new Set(selectableKeys(ready))));
+  const chart = [{ code: '3000', name: 'Salgsinntekt', vatRate: vatCode === 'HIGH' ? 25 : 0, vatLetter: vatCode === 'EXEMPT' ? 'E' : '' }];
+  const draft = buildInvoiceDraft(selection, {
+    settings: invoiceSettings, chart, supplier: seller, today: '2026-10-20',
+  });
+  if (!draft.ok) return draft;
+  return issueInvoice(draft.invoice, { number, date: '2026-10-20', kidMethod, supplier: seller });
+}
 let state = emptyProjectState();
 state = createProject(state, {
   name: 'Foss Eikeland',
@@ -147,16 +174,12 @@ for (const row of state.timeEntries) {
   state = setTimeEntryStatus(state, row.id, 'godkjent').state;
 }
 
-const proposals = buildBillingProposals(state, { onlyApproved: true });
-assert.equal(proposals.length, 1);
-assert.ok(proposals[0].hours >= 9);
+const ready = readyFor(state);
+assert.equal(ready.length, 1);
+assert.ok(ready[0].hourGroups.reduce((sum, group) => sum + group.hours, 0) >= 9);
+assert.ok(ready[0].hourGroups.every((group) => group.rateSource === 'project'), 'timeprisen kommer fra prosjektet');
 
-const created = createInvoiceFromProposal(proposals[0], {
-  existingInvoices: [],
-  vatCode: 'HIGH',
-  groupBy: 'activity',
-  bankAccount: '12345678903',
-});
+const created = issuedFor(state);
 assert.equal(created.ok, true, created.error);
 // Ordinær + overtid skal være egne linjer (ikke blandet sats)
 assert.equal(created.invoice.lines.length, 2);
@@ -167,11 +190,7 @@ assert.equal(validateKid(created.invoice.kid).ok, true);
 assert.ok(created.invoice.amountInclVat > created.invoice.amountExVat);
 
 // MOD11 KID på faktura
-const createdMod11 = createInvoiceFromProposal(proposals[0], {
-  existingInvoices: [{ invoiceNumber: '10001' }],
-  vatCode: 'HIGH',
-  kidMethod: 'mod11',
-});
+const createdMod11 = issuedFor(state, { number: '10002', kidMethod: 'mod11' });
 assert.equal(createdMod11.ok, true, createdMod11.error);
 assert.equal(validateKid(createdMod11.invoice.kid, 'mod11').ok, true);
 
@@ -210,12 +229,9 @@ assert.equal(credit.voucher.lines[0].credit, voucher.voucher.lines[0].debit);
 assert.equal(credit.voucher.lines[0].debit, 0);
 
 // Kreditnota-dokument fra faktura (negative linjer)
-const creditDoc = createCreditNoteFromInvoice(created.invoice, {
-  existingInvoices: [created.invoice],
-  reason: 'Feil timegrunnlag',
-});
+const creditDoc = buildCreditNote(created.invoice, { reason: 'Feil timegrunnlag' });
 assert.equal(creditDoc.ok, true, creditDoc.error);
-assert.equal(creditDoc.invoice.status, 'credited');
+assert.equal(creditDoc.invoice.kind, 'credit_note');
 assert.equal(creditDoc.invoice.creditNoteForId, created.invoice.id);
 assert.equal(creditDoc.invoice.lines.length, created.invoice.lines.length);
 assert.ok(creditDoc.invoice.amountInclVat < 0);
@@ -223,17 +239,13 @@ assert.equal(
   roundMoney(creditDoc.invoice.amountInclVat + created.invoice.amountInclVat),
   0,
 );
-assert.equal(validateKid(creditDoc.invoice.kid).ok, true);
-assert.match(creditDoc.invoice.notes || '', /Feil timegrunnlag/);
-assert.equal(createCreditNoteFromInvoice(creditDoc.invoice).ok, false);
-assert.equal(createCreditNoteFromInvoice(null).ok, false);
+assert.match(creditDoc.invoice.creditReason || '', /Feil timegrunnlag/);
+assert.equal(buildCreditNote(created.invoice).ok, false, 'årsak kreves');
+assert.equal(buildCreditNote(creditDoc.invoice, { reason: 'x' }).ok, false);
 
 // ZERO/EXEMPT bilag uten MVA-linje, fortsatt i balanse
 for (const code of ['ZERO', 'EXEMPT']) {
-  const zInv = createInvoiceFromProposal(proposals[0], {
-    existingInvoices: [{ invoiceNumber: '20000' }],
-    vatCode: code,
-  });
+  const zInv = issuedFor(state, { number: '20000', vatCode: code });
   assert.equal(zInv.ok, true, zInv.error);
   assert.equal(zInv.invoice.vat, 0);
   const zV = voucherFromInvoice(zInv.invoice);
@@ -259,21 +271,14 @@ assert.ok(ehf.xml.includes('CustomizationID'));
 assert.ok(ehf.xml.includes('InvoiceLine'));
 assert.ok(ehf.xml.includes(created.invoice.kid));
 
-state = markEntriesInvoiced(state, created.invoice.timeEntryIds, created.invoice.id);
-assert.ok(state.timeEntries.every((row) => row.invoiceId === created.invoice.id));
-assert.ok(state.timeEntries.every((row) => row.status === 'låst'));
-assert.equal(buildBillingProposals(state, { onlyApproved: true }).length, 0);
-
-// markEntriesInvoiced idempotens: andre kall endrer ikke state-referanse / felt
-const stamped = state.timeEntries.map((row) => ({ ...row }));
-const again = markEntriesInvoiced(state, created.invoice.timeEntryIds, created.invoice.id);
-assert.equal(again, state); // samme objekt når allerede merket
-assert.deepEqual(
-  again.timeEntries.map((r) => ({ id: r.id, invoiceId: r.invoiceId, status: r.status, updatedAt: r.updatedAt })),
-  stamped.map((r) => ({ id: r.id, invoiceId: r.invoiceId, status: r.status, updatedAt: r.updatedAt })),
-);
-assert.equal(buildBillingProposals(again, { onlyApproved: true }).length, 0);
-assert.equal(markEntriesInvoiced(state, [], 'x'), state);
+// Timene på fakturaen er ikke åpne lenger (billingWork merker dem i Firestore).
+const billedIds = new Set(created.invoice.lines.flatMap((row) => row.timeEntryIds || []));
+assert.equal(billedIds.size, state.timeEntries.length);
+state = {
+  ...state,
+  timeEntries: state.timeEntries.map((row) => (billedIds.has(row.id) ? { ...row, invoiceId: created.invoice.id, status: 'låst' } : row)),
+};
+assert.equal(readyFor(state).length, 0);
 
 const summary = reportSummary(state.timeEntries);
 assert.equal(summary.count, 2);

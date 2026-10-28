@@ -211,6 +211,10 @@ test('avslått invitasjon vises for administrator og kan sendes på nytt som ny 
     now: '2026-10-25T12:00:00.000Z',
   });
   assert.deepEqual(plan.map((row) => row.employeeId), ['emp_eve']);
+  // REV-23: uten bekreftet e-post avslås bare posten som venter på kontoen (invitasjonens nøkkel).
+  assert.deepEqual(declineEmployeeInvitePlan({ employees: [employee, other], authEmail: '', uid: 'eve_uid' })
+    .map((row) => row.employeeId), ['emp_eve']);
+  assert.deepEqual(declineEmployeeInvitePlan({ employees: [employee, other], authEmail: '', uid: 'bo_uid' }), []);
   const declined = normalizeEmployee({ ...employee, ...plan[0].patch });
   assert.equal(declined.invite.status, 'declined');
   assert.equal(declined.invite.declinedAt, '2026-10-25T12:00:00.000Z');
@@ -313,4 +317,45 @@ test('Brukerkonto viser når invitasjonen ble sendt og besvart', () => {
   assert.deepEqual(inviteTimeline(answered).map((row) => row.label), ['Sendt', 'Godtatt']);
   const declined = { ...sent, invite: { ...sent.invite, status: 'declined', declinedAt: '2026-10-28T08:00:00.000Z' } };
   assert.deepEqual(inviteTimeline(declined).map((row) => row.label), ['Sendt', 'Avslått']);
+});
+
+test('FL-11: invitasjon i appen er sendt selv om e-posten feilet, og kan godtas', () => {
+  const employee = normalizeEmployee(draftInviteEmployee({
+    firstName: 'Eve', lastName: 'Test', email: 'eve@firma.no', accessLevel: 'avdelingsleder', id: 'emp_eve',
+  }));
+  const result = applyInviteSendResult(employee, {
+    inviteId: 'inv_1', invitee: { uid: 'eve' }, emailSent: false, emailError: 'SMTP nede',
+  }, { at: '2026-10-11T11:00:00.000Z' });
+  assert.equal(result.invite.status, 'sent');
+  assert.equal(result.invite.sentAt, '2026-10-11T11:00:00.000Z');
+  assert.equal(result.invite.parentKey, 'eve');
+  assert.match(result.invite.error, /SMTP/);
+  // Eldre rader står som «queued» med personens uid: Godta knytter og gir valgt nivå.
+  const queued = { ...result, invite: { ...result.invite, status: 'queued' } };
+  const plan = claimEmployeeSeatPlan({ employees: [queued], uid: 'eve', authEmail: 'eve@firma.no' });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.employeeId, 'emp_eve');
+  assert.equal(plan.accessLevel, 'avdelingsleder');
+  // En annen konto kan ikke bruke en kø-rad.
+  assert.equal(claimEmployeeSeatPlan({ employees: [queued], uid: 'annen', authEmail: 'eve@firma.no' }).skipped, true);
+});
+
+test('invitert på brukernavn: invitasjonens nøkkel (uid) treffer selv om e-posten er en annen', () => {
+  const row = normalizeEmployee({
+    id: 'emp_x',
+    person: { firstName: 'X', lastName: 'Y', email: 'jobb@firma.no' },
+    company: { status: 'active', accessLevel: 'ansatt' },
+    invite: { status: 'sent', email: 'jobb@firma.no', parentKey: 'u-x' },
+  });
+  const plan = claimEmployeeSeatPlan({ employees: [row], uid: 'u-x', authEmail: 'privat@gmail.com' });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.employeeId, 'emp_x');
+});
+
+test('aktiv ansettelse velges før en avsluttet med samme e-post', () => {
+  const rows = [
+    normalizeEmployee({ id: 'gml', person: { email: 'a@firma.no' }, company: { status: 'inactive' }, invite: { status: 'sent', email: 'a@firma.no' } }),
+    normalizeEmployee({ id: 'ny', person: { email: 'a@firma.no' }, company: { status: 'active' }, invite: { status: 'sent', email: 'a@firma.no' } }),
+  ];
+  assert.equal(claimEmployeeSeatPlan({ employees: rows, uid: 'u', authEmail: 'a@firma.no' }).employeeId, 'ny');
 });

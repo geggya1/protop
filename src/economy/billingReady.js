@@ -5,7 +5,7 @@
  */
 import { parseHours, roundHours } from '../arbeid/hours.js';
 import { rateWithOvertime, timeTypeById } from '../arbeid/overtime.js';
-import { rateOnDate } from '../indeksregulering/cases.js';
+import { resolveHourlyRate } from './hourlyRate.js';
 import { normalizeExpense } from './expenses.js';
 import { normalizeTrip } from './mileage.js';
 import { normalizeSale } from './products.js';
@@ -34,22 +34,17 @@ export function periodEndFor(id, today = '', custom = '') {
   return iso(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 0)));
 }
 
-function contractVersions(project, contracts) {
-  return (Array.isArray(contracts) ? contracts : []).flatMap((row) => {
-    if (!row) return [];
-    const linked = (project?.id && row.projectId === project.id)
-      || (project?.contractId && row.id === project.contractId);
-    return linked && Array.isArray(row.priceVersions) ? row.priceVersions : [];
-  });
+/** Trinnene i resolveHourlyRate som Til fakturering bruker: avtalen, så prosjektet. */
+const BILLING_RATE_STEPS = ['contract', 'project'];
+
+/** Timepris på datoen med kilde: prisversjon fra avtalen, ellers prosjektets timepris. */
+export function billingRateFor(project, date = '', contracts = []) {
+  return resolveHourlyRate({ project, contracts, date, steps: BILLING_RATE_STEPS });
 }
 
 /** Timepris på datoen: prisversjon fra avtalen, ellers prosjektets timepris. Null når den mangler. */
 export function hourlyRateFor(project, date = '', contracts = []) {
-  const indexed = rateOnDate(contractVersions(project, contracts), date);
-  if (indexed != null && indexed > 0) return indexed;
-  const settings = project?.pricingSettings || {};
-  const rate = Number(settings.hourlyRate ?? settings.ensTimepris ?? settings.rate);
-  return Number.isFinite(rate) && rate > 0 ? rate : null;
+  return billingRateFor(project, date, contracts).rate;
 }
 
 function entryHours(row) {
@@ -77,6 +72,20 @@ export function isOpenOperation(row) {
 
 export function isApprovedOperation(row) {
   return row?.status === 'approved';
+}
+
+/**
+ * Utlegg og kjøring som venter på godkjenning (utkast) i perioden. De tas ikke med i
+ * Til fakturering, så siden sier fra om dem i stedet for å tie.
+ */
+export function pendingOperations({ expenses = [], trips = [], until = '' } = {}) {
+  const waiting = (row) => !!row && row.billable !== false && !text(row.invoiceId)
+    && (!text(row.status) || row.status === 'draft')
+    && (!until || text(row.date) <= until);
+  return {
+    expenses: (expenses || []).filter(waiting).length,
+    trips: (trips || []).filter(waiting).length,
+  };
 }
 
 function monthOf(day) {
@@ -239,7 +248,8 @@ export function buildReadyProjects({
     const model = target.pricingModel;
     if (model === 'not_billable' || model === 'fixed' || model === 'retainer' || model === 'unit') continue;
     const type = timeTypeById(row.timeType || 'ordinary');
-    const base = hourlyRateFor(target.project, row.date, contracts);
+    const priced = billingRateFor(target.project, row.date, contracts);
+    const base = priced.rate;
     const rate = base == null ? null : rateWithOvertime(base, type.id);
     const key = [target.projectId, row.employeeId || row.employeeName, row.activityId || row.activityName, type.id, rate ?? 'x'].join('|');
     if (!hourGroups.has(key)) {
@@ -253,6 +263,7 @@ export function buildReadyProjects({
         timeType: type.id,
         timeTypeLabel: type.id === 'ordinary' ? '' : type.label,
         rate,
+        rateSource: priced.source,
         rateMissing: rate == null,
         markupPercent: hoursMarkup(target.project, target.settings),
         discountPercent: Number(target.settings.discountHours) || 0,

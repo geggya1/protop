@@ -6,7 +6,7 @@ import HomeHeroOverlay from './HomeHeroOverlay';
 import { HomeWeekStrip, HomeFooterLine } from './PastelCards';
 import WidgetGrid from './WidgetGrid';
 import AddWidgetSheet from './AddWidgetSheet';
-import { soft } from '../parentHome/softTheme';
+import { colors } from '../../src/theme';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { useModuleHeroHosted } from '../ModulePageBg';
 import { HOME_FOOTER_LINE } from '../../src/homeBanners';
@@ -68,6 +68,7 @@ export default function WidgetBoard({
   onCycleSize,
   onResetWidgets,
   onDraggingChange,
+  topSlot = null,
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const look = layout?.look || 'oversikt';
@@ -86,8 +87,8 @@ export default function WidgetBoard({
     setAddOpen(true);
   };
 
-  const ink = immersive ? '#fff' : soft.sage;
-  const inkOn = '#fff';
+  const ink = immersive ? '#fff' : colors.brandInk;
+  const inkOn = colors.onBrand;
 
   return (
     <View style={styles.board} testID="home-widget-board">
@@ -112,6 +113,9 @@ export default function WidgetBoard({
       ) : null)}
 
       {immersive ? null : <HomeWeekStrip onPressDay={handlers?.onOpenPlan} />}
+
+      {/* Kort som hører til oppstarten (tilbud om bedrift, Kom i gang), over widgetene. */}
+      {topSlot}
 
       {canEdit ? (
         <View style={styles.editRow}>
@@ -180,7 +184,8 @@ export default function WidgetBoard({
         onCycleSize={onCycleSize}
       />
 
-      {look === 'oversikt' && !editing ? (
+      {/* Slagordet under widgetene hører til barnas Hjem. ProTop slutter med widgetene, som modulene. */}
+      {role === 'child' && look === 'oversikt' && !editing ? (
         <HomeFooterLine text={immersive ? HOME_FOOTER_LINE : undefined} light={immersive} />
       ) : null}
 
@@ -214,19 +219,19 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: soft.cream,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   iconBtnGlass: {
     ...immersiveGlass,
     backgroundColor: 'rgba(255,255,255,0.28)',
   },
   iconBtnOn: {
-    backgroundColor: soft.sage,
-    borderColor: soft.sage,
+    backgroundColor: colors.brandInk,
+    borderColor: colors.brandInk,
   },
-  editHint: { fontSize: 11, color: soft.muted, fontFamily: soft.body, marginBottom: 2, lineHeight: 15 },
+  editHint: { fontSize: 12, color: colors.muted, marginBottom: 2, lineHeight: 16 },
   editHintGlass: {
     color: 'rgba(255,255,255,0.92)',
     textShadowColor: 'rgba(0,0,0,0.35)',

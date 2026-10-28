@@ -738,10 +738,40 @@ export function startInstance(proc, input, { actor, now = new Date() } = {}) {
 }
 
 /**
+ * Hvem som har rollen for et trinn: tildelt på saken (roleAssignments), ellers rollen i ISO-innstillingene
+ * (roleMap, på nøkkel eller navn). Null når rollen ikke er knyttet til en person med innlogging.
+ */
+export function stepAssignee(instance, diagram, node, roleMap = {}) {
+  const role = nodeRole(diagram, node);
+  if (!role) return null;
+  const assigned = instance?.roleAssignments?.[role.key || role.label] || instance?.roleAssignments?.[role.label];
+  if (assigned?.uid) return { uid: assigned.uid, name: assigned.name || role.label, label: role.label };
+  const mapped = (role.key && roleMap?.[role.key]) || Object.values(roleMap || {}).find((r) => r?.label && r.label === role.label) || null;
+  return mapped?.uid ? { uid: mapped.uid, name: mapped.name || role.label, label: role.label } : null;
+}
+
+/**
+ * Kan brukeren fullføre trinnet? Godkjenningstrinn: bare personen med trinnets rolle, eller en godkjenner
+ * i ISO (stedfortreder). Tom streng = ja, ellers hvem som skal godkjenne. Uten caps sjekkes ikke rollen.
+ */
+export function stepBlocker(instance, proc, nodeId, { actor, caps = null, roleMap = {} } = {}) {
+  if (!caps || caps.approve) return '';
+  const version = versionOf(proc, instance?.version);
+  if (!version) return '';
+  const diagram = normalizeDiagram(version.diagram);
+  const node = nodeIn(diagram, nodeId);
+  if (node?.type !== 'approval') return '';
+  const who = stepAssignee(instance, diagram, node, roleMap);
+  if (who?.uid && who.uid === text(actor?.uid, 128)) return '';
+  return `Godkjennes av ${who?.name || nodeRole(diagram, node)?.label || 'en godkjenner'}${who?.name && who.label && who.label !== who.name ? ` (${who.label})` : ''} eller en godkjenner i ISO.`;
+}
+
+/**
  * Fullfører et aktivt trinn. Idempotent: et trinn som ikke er aktivt, kan ikke fullføres igjen (T08/A15).
  * decision: 'yes' | 'no' | edgeId, approval: 'approved' | 'rejected'.
+ * caps + roleMap: godkjenningstrinn kan bare fullføres av rollen i trinnet eller en godkjenner (se stepBlocker).
  */
-export function completeStep(instance, proc, nodeId, input = {}, { actor, now = new Date() } = {}) {
+export function completeStep(instance, proc, nodeId, input = {}, { actor, now = new Date(), caps = null, roleMap = {} } = {}) {
   if (!instance || instance.state !== 'aktiv') return fail('Saken er ikke aktiv.');
   if (!instance.active.includes(nodeId)) return fail('Trinnet er allerede fullført eller ikke aktivt.', { duplicate: true });
   const version = versionOf(proc, instance.version);
@@ -749,6 +779,8 @@ export function completeStep(instance, proc, nodeId, input = {}, { actor, now = 
   const diagram = normalizeDiagram(version.diagram);
   const node = nodeIn(diagram, nodeId);
   if (!node) return fail('Fant ikke trinnet.');
+  const blocker = stepBlocker(instance, proc, nodeId, { actor, caps, roleMap });
+  if (blocker) return fail(blocker);
   const out = outgoing(diagram, nodeId);
   let chosen = out;
   if (node.type === 'decision') {

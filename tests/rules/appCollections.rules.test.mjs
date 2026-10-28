@@ -37,7 +37,8 @@ async function seed() {
     await setDoc(doc(db, 'families', F, 'children', 'kid'), { uid: 'kid', familyId: F, name: 'Kid' });
     await setDoc(doc(db, 'children', 'kid'), { uid: 'kid', familyId: F, name: 'Kid' });
     for (const uid of ['mor', 'kid', 'ola', 'ext']) {
-      await setDoc(doc(db, 'users', uid), { uid, displayName: uid });
+      // Barnets profil er merket som barn, slik addChildMember lager den.
+      await setDoc(doc(db, 'users', uid), { uid, displayName: uid, ...(uid === 'kid' ? { role: 'child' } : {}) });
       await setDoc(doc(db, 'parents', uid), { uid, name: uid, familyId: uid === 'mor' ? F : '' });
     }
     await setDoc(doc(db, 'users', 'mor', 'friends', 'ola'), { uid: 'ola', status: 'active' });
@@ -89,10 +90,12 @@ describe('profil og innboks', () => {
 
   test('varsel til en annen: bare nytt varsel i eget navn, aldri overskriving', async () => {
     const db = as('ext');
-    await assertSucceeds(setDoc(doc(db, 'users', 'mor', 'notifications', 'n2'), {
-      title: 'Melding', createdBy: 'ext', seen: false, createdAt: serverTimestamp(),
+    // Venn (ola) kan varsle mor. En fremmed kan ikke (se tests/rules/notifications.rules.test.mjs).
+    await assertSucceeds(setDoc(doc(as('ola'), 'users', 'mor', 'notifications', 'n2'), {
+      title: 'Melding', createdBy: 'ola', seen: false, createdAt: serverTimestamp(),
     }));
-    await assertSucceeds(addDoc(collection(db, 'users', 'mor', 'notifications'), { title: 'x', createdBy: 'ext' }));
+    await assertSucceeds(addDoc(collection(as('ola'), 'users', 'mor', 'notifications'), { title: 'x', createdBy: 'ola' }));
+    await assertFails(addDoc(collection(db, 'users', 'mor', 'notifications'), { title: 'x', createdBy: 'ext' }));
     await assertFails(setDoc(doc(db, 'users', 'mor', 'notifications', 'n3'), { title: 'Falsk', createdBy: 'ola' }));
     await assertFails(setDoc(doc(db, 'users', 'mor', 'notifications', 'n1'), { title: 'Overskrevet', createdBy: 'ext' }));
     // Uten avsender: bare mellom medlemmer i samme gruppe (påminnelser, geofence).
@@ -221,8 +224,10 @@ describe('venner og klassekart', () => {
     // Ny chat: appen sjekker om den finnes før den lages. Bare de to kan spørre.
     await assertSucceeds(getDoc(doc(as('mor'), 'friendChats', 'dm_kid_mor')));
     await assertFails(getDoc(doc(as('ext'), 'friendChats', 'dm_kid_mor')));
-    await assertSucceeds(setDoc(doc(as('mor'), 'friendChats', 'dm_kid_mor'), { type: 'dm', memberIds: ['kid', 'mor'] }));
-    await assertFails(getDoc(doc(as('ext'), 'friendChats', 'dm_kid_mor')));
+    // Ny tråd bare mellom venner (SOS-04). Tidligere kunne hvem som helst starte en tråd.
+    await assertFails(setDoc(doc(as('mor'), 'friendChats', 'dm_kid_mor'), { type: 'dm', memberIds: ['kid', 'mor'] }));
+    await assertSucceeds(setDoc(doc(as('mor'), 'friendChats', 'dm_mor_ola'), { type: 'dm', memberIds: ['mor', 'ola'] }));
+    await assertFails(getDoc(doc(as('ext'), 'friendChats', 'dm_mor_ola')));
     await assertFails(setDoc(doc(as('ext'), 'friendships', 'ext_mor'), { memberIds: ['ext', 'mor'], status: 'active' }));
   });
 

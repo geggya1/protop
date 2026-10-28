@@ -79,6 +79,8 @@ describe('invitasjon til eksisterende bruker', () => {
   });
 
   test('administrator kan varsle mottakeren', async () => {
+    // Som i appen: invitasjonen (og innboksen hos mottakeren) skrives før varselet.
+    await assertSucceeds(existingInviteBatch(as('own')).commit());
     await assertSucceeds(setDoc(doc(as('own'), 'users', 'eve', 'notifications', `familyInvite_${A}_${INVITE}`), {
       eventType: 'familyInvite', title: 'Bedriftsinvitasjon', body: 'Du er invitert', familyId: A,
       inviteId: INVITE, createdBy: 'own', seen: false, createdAt: serverTimestamp(),
@@ -172,5 +174,19 @@ describe('invitasjon til ny bruker', () => {
       company: { status: 'active', accessLevel: 'ansatt', accessRole: 'Ansatt', canLogin: false, email: 'nina@firma.no' },
       invite: { status: 'queued', email: 'nina@firma.no', accessLevel: 'ansatt' },
     }));
+  });
+});
+
+// Personlige valg i timelisten (stjerner, skjulte prosjekter, faste fraværstyper) ligger på
+// den ansatte, ikke i prosjektdokumentet (src/arbeid/timesheetPrefsStorage.js).
+describe('personlige valg i timelisten', () => {
+  test('medlem kan lese og skrive valgene på en ansatt, andre kan ikke', async () => {
+    const path = ['families', A, 'employees', 'emp_nina', 'prefs', 'timesheet'];
+    const own = as('own');
+    await assertSucceeds(setDoc(doc(own, ...path), { starred: { p1: true }, updatedAt: serverTimestamp() }, { merge: true }));
+    await assertSucceeds(setDoc(doc(own, ...path), { hidden: { p2: true }, absencePins: ['ferie'] }, { merge: true }));
+    await assertSucceeds(getDoc(doc(own, ...path)));
+    await assertFails(getDoc(doc(as('ext'), ...path)));
+    await assertFails(setDoc(doc(as('ext'), ...path), { starred: { p1: false } }, { merge: true }));
   });
 });

@@ -11,7 +11,9 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeTimeEntryRow } from '../project/engine.js';
+import { projectLookupNumbers } from '../project/projectFields.js';
 import { aliasSourceIds } from '../project/companyAlias.js';
+import { changedByOther, deletedTimeEntryRecord, withTimeEntryHistory } from '../arbeid/timeEntryHistory.js';
 import { text } from './invoices.js';
 
 const LIST_KEY = 'protop.timeEntries.v1';
@@ -27,11 +29,22 @@ function windowKey(companyId, fromDate, toDate, employeeId) {
 }
 
 async function firestoreBits() {
-  const [{ collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch }, { db }] = await Promise.all([
+  const [{
+    addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch,
+  }, { auth, db }] = await Promise.all([
     import('firebase/firestore'),
     import('../../firebase.js'),
   ]);
-  return { collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch, db };
+  return {
+    addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch, db, auth,
+  };
+}
+
+/** Den innloggede, til endringshistorikken. */
+function currentActor(bits) {
+  const user = bits?.auth?.currentUser;
+  if (!user?.uid) return null;
+  return { uid: user.uid, name: text(user.displayName) || text(user.email) };
 }
 
 /**
@@ -180,6 +193,15 @@ function mergeEntryLists(...lists) {
   return [...byId.values()];
 }
 
+/**
+ * Timene til et prosjekt: på prosjekt-id og på prosjektnummer. Id-en finner timene også
+ * etter at prosjektet har fått nytt nummer; nummeret finner importerte timer uten id.
+ */
+export function projectHoursQuery(project) {
+  const projectId = text(project?.id);
+  return { projectId, projectNumbers: projectLookupNumbers(project) };
+}
+
 function projectNumberList(value) {
   return [...new Set((Array.isArray(value) ? value : []).map((item) => text(item)).filter(Boolean))].slice(0, 10);
 }
@@ -297,16 +319,108 @@ export async function loadTimeEntries(companyId, opts = {}) {
   }
 }
 
-async function writeBatchSet(companyId, entries, onProgress) {
+/** Feltene som alltid skrives, så dokumentet er en gyldig føring selv om bare én ting er endret. */
+const ENTRY_IDENTITY_KEYS = ['id', 'projectId', 'employeeId', 'date'];
+
+/**
+ * Bare feltene som er endret siden raden ble lest (pluss id, prosjekt, ansatt og dato).
+ * En eldre kopi skal ikke nullstille invoiceId, status eller låsing som andre har satt,
+ * eller overskrive felt den ikke har rørt. Uten forrige versjon skrives hele raden.
+ */
+export function timeEntryWrite(previous, next) {
+  const row = normalizeTimeEntryRow(next);
+  if (!row?.id) return null;
+  const prev = previous ? normalizeTimeEntryRow(previous) : null;
+  if (!prev || prev.id !== row.id) return row;
+  const patch = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (ENTRY_IDENTITY_KEYS.includes(key) || JSON.stringify(prev[key] ?? null) !== JSON.stringify(value ?? null)) {
+      patch[key] = value;
+    }
+  }
+  return Object.keys(patch).length > ENTRY_IDENTITY_KEYS.length ? patch : null;
+}
+
+function withoutHistory(row) {
+  if (!row || typeof row !== 'object') return row;
+  const { history: _history, ...rest } = row;
+  return rest;
+}
+
+/**
+ * Hva som skrives for én føring (L-13): de endrede feltene (timeEntryWrite) og én ny rad
+ * i endringshistorikken. history skrives aldri som hel liste fra klienten, bare som én ny
+ * rad (arrayUnion hos kalleren), så en eldre kopi ikke kan fjerne andres rader.
+ * known = forrige versjon er kjent (previous ble sendt med): en føring som ikke fantes
+ * der, er ny. Uten kjent forrige versjon skrives ingen historikk.
+ * notifyUid: den som førte timen, når en annen endrer den.
+ */
+export function timeEntryWritePlan(previous, next, { known = false, actor = null, at = '', reason = '' } = {}) {
+  const write = timeEntryWrite(previous, next);
+  if (!write?.id) return null;
+  const patch = withoutHistory(write);
+  let historyRow = null;
+  if (previous || known) {
+    // Sammenlign normaliserte rader, så standardverdier (status, timetype) ikke ser ut som endringer.
+    const before = previous ? withoutHistory(normalizeTimeEntryRow(previous)) : null;
+    const after = withoutHistory(normalizeTimeEntryRow(next));
+    const tracked = withTimeEntryHistory(before, after, { actor, at, reason });
+    historyRow = Array.isArray(tracked?.history) ? tracked.history[tracked.history.length - 1] || null : null;
+    // Fakturerbare timer som bare følger timene, er ikke en egen endring.
+    if (historyRow?.changes && before && Number(before.billableHours) === Number(before.hours)
+      && Number(after.billableHours) === Number(after.hours)) {
+      const changes = historyRow.changes.filter((change) => change.field !== 'billableHours');
+      historyRow = changes.length ? { ...historyRow, changes } : null;
+    }
+  }
+  const notifyUid = historyRow && previous && changedByOther(previous, actor?.uid) ? text(previous.createdByUid) : '';
+  return { id: patch.id, patch, historyRow, notifyUid };
+}
+
+/** Én beskjed per person når en annen har endret timene deres. Feiler stille. */
+async function notifyChangedEntries(companyId, plans, actor) {
+  const byUid = new Map();
+  for (const plan of plans) {
+    if (!plan.notifyUid) continue;
+    byUid.set(plan.notifyUid, (byUid.get(plan.notifyUid) || 0) + 1);
+  }
+  if (!byUid.size) return;
+  try {
+    const { notifyUsers } = await import('../utils/notifications.js');
+    const who = text(actor?.name) || 'En leder';
+    await Promise.all([...byUid.entries()].map(([uid, count]) => notifyUsers([uid], {
+      eventType: 'timeEntryChanged',
+      title: 'Timene dine er endret',
+      body: `${who} har endret ${count === 1 ? 'en timeføring' : `${count} timeføringer`} du førte. Se endringene på timen.`,
+      familyId: companyId,
+      createdBy: actor?.uid || null,
+    })));
+  } catch {
+    // Beskjeden er et tillegg. Historikken står på timen uansett.
+  }
+}
+
+async function writeBatchSet(companyId, entries, onProgress, previous = null, { reason = '' } = {}) {
   const bits = await firestoreBits();
   const list = withoutDeletedTimeEntries(companyId, entries);
+  const known = Array.isArray(previous);
+  const before = new Map(
+    (known ? previous : [])
+      .filter((row) => row?.id)
+      .map((row) => [text(row.id), row]),
+  );
+  const actor = currentActor(bits);
+  const at = new Date().toISOString();
+  const plans = [];
   let batch = bits.writeBatch(bits.db);
   let n = 0;
   let done = 0;
   const total = list.length;
   for (const entry of list) {
-    const next = normalizeTimeEntryRow(entry);
-    if (!next?.id) continue;
+    const plan = timeEntryWritePlan(before.get(text(entry?.id)), entry, { known, actor, at, reason });
+    if (!plan) continue;
+    plans.push(plan);
+    const next = plan.historyRow ? { ...plan.patch, history: bits.arrayUnion(plan.historyRow) } : plan.patch;
     batch.set(entryRef(bits, companyId, next.id), next, { merge: true });
     n += 1;
     done += 1;
@@ -321,13 +435,15 @@ async function writeBatchSet(companyId, entries, onProgress) {
     await batch.commit();
     onProgress?.(done, total);
   }
+  notifyChangedEntries(companyId, plans, actor);
 }
 
 /**
  * Lagrer timeføringer til egen subcollection. Kaster ved feil —
  * UI skal ikke vise «lagret» hvis skyen avviser.
+ * previous: radene slik de ble lest. Da skrives bare feltene som er endret.
  */
-export async function saveTimeEntries(companyId, entries, { onProgress } = {}) {
+export async function saveTimeEntries(companyId, entries, { onProgress, previous = null, reason = '' } = {}) {
   if (!companyId) throw new Error('Mangler selskap for timelagring.');
   await hydrateDeletedTimeEntries(companyId);
   const list = withoutDeletedTimeEntries(companyId, (Array.isArray(entries) ? entries : [])
@@ -338,7 +454,7 @@ export async function saveTimeEntries(companyId, entries, { onProgress } = {}) {
     }))
     .filter(Boolean));
   if (!list.length) return { saved: 0, entries: [] };
-  await writeBatchSet(companyId, list, onProgress);
+  await writeBatchSet(companyId, list, onProgress, previous, { reason });
   const current = await readLocal(companyId);
   await writeLocal(companyId, mergeEntryLists(current, list));
   return { saved: list.length, entries: list };
@@ -348,7 +464,8 @@ export async function saveTimeEntryImport(companyId, entries, { onProgress } = {
   if (!companyId) throw new Error('Mangler selskap for timeimport.');
   const list = (Array.isArray(entries) ? entries : []).map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
   if (!list.length) throw new Error('Ingen timer å lagre.');
-  return saveTimeEntries(companyId, list, { onProgress });
+  // Importerte føringer er nye: historikken viser at de kom fra importen.
+  return saveTimeEntries(companyId, list, { onProgress, previous: [], reason: 'Import' });
 }
 
 /**
@@ -363,10 +480,12 @@ export async function releaseTimeEntriesFromInvoice(companyId, invoiceId, entryI
   const bits = await firestoreBits();
   const stamp = new Date().toISOString();
   const updates = [];
+  const previous = [];
   for (const entryId of ids) {
     const snap = await bits.getDoc(entryRef(bits, id, entryId));
     if (!snap.exists()) continue;
     const row = snap.data() || {};
+    previous.push({ ...row, id: snap.id });
     const linked = text(row.invoiceId);
     if (linked && linked !== invoice) continue;
     updates.push({
@@ -378,7 +497,7 @@ export async function releaseTimeEntriesFromInvoice(companyId, invoiceId, entryI
     });
   }
   if (!updates.length) return { released: 0 };
-  await saveTimeEntries(id, updates);
+  await saveTimeEntries(id, updates, { previous, reason: 'Fakturaen er slettet' });
   return { released: updates.length };
 }
 
@@ -389,11 +508,14 @@ export async function loadTimeEntriesByIds(companyId, entryIds = []) {
   if (!id || !ids.length) return [];
   const bits = await firestoreBits();
   const rows = [];
-  for (const entryId of ids) {
-    const snap = await bits.getDoc(entryRef(bits, id, entryId));
-    if (!snap.exists()) continue;
-    const row = normalizeTimeEntryRow({ ...snap.data(), id: snap.id });
-    if (row) rows.push(row);
+  // Noen få om gangen, så en timeliste med mange føringer ikke venter på én og én.
+  for (let at = 0; at < ids.length; at += 20) {
+    const snaps = await Promise.all(ids.slice(at, at + 20).map((entryId) => bits.getDoc(entryRef(bits, id, entryId))));
+    for (const snap of snaps) {
+      if (!snap.exists()) continue;
+      const row = normalizeTimeEntryRow({ ...snap.data(), id: snap.id });
+      if (row) rows.push(row);
+    }
   }
   return rows;
 }
@@ -408,18 +530,80 @@ export async function loadTimeEntriesByInvoice(companyId, invoiceId) {
   return snap.docs.map((item) => normalizeTimeEntryRow({ ...item.data(), id: item.id })).filter(Boolean);
 }
 
-export async function removeTimeEntry(companyId, entryId) {
+/**
+ * Timer som står i kjeden mellom føring og faktura: låste (venter på kontroll) og
+ * godkjente som ikke er lagt på en faktura. Bare likhetsfiltre, så ingen ny indeks trengs.
+ */
+export async function loadOpenChainEntries(companyId) {
+  const id = text(companyId);
+  if (!id) return [];
+  await hydrateDeletedTimeEntries(id);
+  const bits = await firestoreBits();
+  const col = entriesCol(bits, id);
+  const [locked, approved] = await Promise.all([
+    bits.getDocs(bits.query(col, bits.where('status', '==', 'låst'))),
+    bits.getDocs(bits.query(col, bits.where('status', '==', 'godkjent'), bits.where('invoiceId', '==', null))),
+  ]);
+  return withoutDeletedTimeEntries(id, rowsFromDocs([...locked.docs, ...approved.docs]));
+}
+
+/** Om bedriften har ført minst én time (for «Kom i gang»). Leser bare ett dokument. */
+export async function hasTimeEntries(companyId) {
+  const id = text(companyId);
+  if (!id) return false;
+  const [{ limit }, bits] = await Promise.all([import('firebase/firestore'), firestoreBits()]);
+  const snap = await bits.getDocs(bits.query(entriesCol(bits, id), limit(1)));
+  return !snap.empty;
+}
+
+/** Slettinger som pågår, og rader som er slettet i skyen i denne økten (per selskap/id). */
+const REMOVING = new Map();
+const REMOVED = new Set();
+const REMOVED_CAP = 5000;
+
+function removalKey(companyId, id) {
+  return `${text(companyId)}/${text(id)}`;
+}
+
+/**
+ * Slett en føring. log: true (eller entry) legger en rad i families/{id}/timeEntryDeletions,
+ * så slettingen kan spores (L-13). Opprydding av rader som allerede er slettet, logges ikke.
+ * Arbeid sletter raden selv og lagringen etterpå sletter den samme: da slettes den bare én gang.
+ */
+export async function removeTimeEntry(companyId, entryId, options = {}) {
   const id = text(entryId);
   if (!companyId || !id) return;
+  const key = removalKey(companyId, id);
+  if (REMOVING.has(key)) return REMOVING.get(key);
+  if (REMOVED.has(key)) return;
+  const job = removeTimeEntryOnce(companyId, id, options);
+  REMOVING.set(key, job);
+  try {
+    await job;
+    REMOVED.add(key);
+    if (REMOVED.size > REMOVED_CAP) REMOVED.delete(REMOVED.values().next().value);
+  } finally {
+    if (REMOVING.get(key) === job) REMOVING.delete(key);
+  }
+}
+
+async function removeTimeEntryOnce(companyId, id, { entry = null, log = !!entry, reason = '' } = {}) {
   // Merk før nettverket, så en parallell lagring ikke skriver raden tilbake.
   const already = deletedTimeEntryIds(companyId).has(id);
   rememberDeletedTimeEntries(companyId, [id]);
+  let bits = null;
   try {
-    const bits = await firestoreBits();
+    bits = await firestoreBits();
     await bits.deleteDoc(entryRef(bits, companyId, id));
   } catch (error) {
     if (!already) forgetDeletedTimeEntries(companyId, [id]);
     throw error;
+  }
+  if (log && !already) {
+    const record = deletedTimeEntryRecord({ ...(entry || {}), id }, { actor: currentActor(bits), reason });
+    Promise.resolve()
+      .then(() => bits.addDoc(bits.collection(bits.db, 'families', companyId, 'timeEntryDeletions'), record))
+      .catch(() => {});
   }
   const current = await readLocal(companyId);
   await writeLocal(companyId, withoutDeletedTimeEntries(companyId, current));
@@ -571,6 +755,7 @@ export function rememberDeletedTimeEntries(companyId, ids = []) {
 }
 
 export function forgetDeletedTimeEntries(companyId, ids = []) {
+  for (const id of ids) REMOVED.delete(removalKey(companyId, id));
   const set = TOMBSTONES.get(text(companyId));
   if (!set) return;
   for (const id of ids) set.delete(text(id));
@@ -606,6 +791,9 @@ export function clearDeletedTimeEntries(companyId) {
   if (companyId !== undefined) {
     const key = text(companyId);
     TOMBSTONES.delete(key);
+    for (const done of [...REMOVED]) {
+      if (done.startsWith(`${key}/`)) REMOVED.delete(done);
+    }
     try {
       const remove = AsyncStorage.removeItem(tombKey(key));
       if (remove && typeof remove.catch === 'function') remove.catch(() => {});
@@ -615,6 +803,7 @@ export function clearDeletedTimeEntries(companyId) {
     return;
   }
   TOMBSTONES.clear();
+  REMOVED.clear();
 }
 
 /**
@@ -655,6 +844,8 @@ async function finishLoadedEntries(companyId, rows, writeCache) {
     // Cache er best-effort. Timene skal vises selv om disken er treg.
   }
   for (const row of revived) {
+    // Raden er i skyen igjen (f.eks. skrevet tilbake av en eldre app): slett den på nytt.
+    REMOVED.delete(removalKey(companyId, row.id));
     removeTimeEntry(companyId, row.id).catch(() => {});
   }
   return clean;

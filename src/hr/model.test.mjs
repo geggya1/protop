@@ -55,8 +55,23 @@ import {
   assert.equal(contract.startDate, '2020-03-01');
   assert.equal(contract.title, 'Arbeidsavtale');
   assert.equal(contract.positionTitle, 'Konsulent');
+  // De ni punktene fra før 1.7.2024 er ikke nok lenger.
   assert.equal(contract.aml.filled, 9);
-  assert.equal(contract.aml.pct, 100);
+  assert.ok(contract.aml.pct < 100);
+  const complete = normalizeContract({
+    ...contract,
+    holidayTerms: 'Etter ferieloven',
+    terminationProcedure: 'Skriftlig, frister etter §§ 15-3, 17-3 og 17-4',
+    paySchedule: 'Den 15. hver måned',
+    overtimeTerms: 'Minst 40 % tillegg',
+    breakLength: '30 min',
+    collectiveAgreement: 'Ingen',
+    competenceDevelopment: 'Opplæring i stillingen',
+    pensionInsurance: 'OTP og yrkesskadeforsikring',
+  });
+  assert.equal(complete.aml.pct, 100);
+  assert.equal(complete.pensionInsurance, 'OTP og yrkesskadeforsikring');
+  assert.equal(complete.terminationProcedure, 'Skriftlig, frister etter §§ 15-3, 17-3 og 17-4');
 }
 
 {

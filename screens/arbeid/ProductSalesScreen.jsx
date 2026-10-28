@@ -4,7 +4,6 @@ import HoursImportReview from '../../components/arbeid/HoursImportReview';
 import { ImportResult } from '../../components/ImportReview';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import ProductSaleSheet from '../../components/sales/ProductSaleSheet';
-import { loadCustomerList } from '../../src/anbud/storage';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
@@ -22,7 +21,7 @@ import {
   saleRowReady,
   toggleProductSaleReviewRow,
 } from '../../src/economy/productSalesImport.js';
-import { removeSale, saveSaleChange } from '../../src/economy/productSaleSave.js';
+import { combineSales, removeSale, saveSaleChange } from '../../src/economy/productSaleSave.js';
 import {
   filterProductSales,
   productSalesExportRows,
@@ -33,22 +32,23 @@ import {
 import {
   loadProductSales,
   mergeRowsById,
-  mergeSaleLists,
   peekProductSales,
   productSalesToStore,
   saveProductSales,
-  withoutExternalSales,
 } from '../../src/economy/productSalesStorage.js';
 import { useProductSales } from '../../src/economy/useProductSales.js';
 import { displayName } from '../../src/employees/model.js';
-import { watchEmployees } from '../../src/employees/storage';
+import { useCompanyRefs, useEmployees } from '../../src/context/CompanyDataContext';
+import { freshRows, hydrateRows } from '../../src/company/companyData.js';
 import { emptyProjectState } from '../../src/project/engine';
 import { loadProjectState, patchProjectOperations, peekProjectState } from '../../src/project/storage.js';
 import { importResult } from '../../src/imports/review';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 import { dateKey } from '../../src/utils/dates';
 import { pickDocument } from '../../src/utils/media';
 import { ProductSalesList } from './ProductSalesList';
+import { formatDate } from '../../src/format/nb';
 
 // Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
 const PAGE_SIZE = 100;
@@ -77,7 +77,7 @@ function SaleOkTable({ colors, rows, pageSize, onMore, onToggleRow }) {
       </View>
       {rows.slice(0, pageSize).map((row) => (
         <View key={row.id} style={[styles.tr, { borderBottomColor: colors.line, opacity: row.included ? 1 : 0.5 }]}>
-          <Text style={[styles.td, { color: colors.ink }]}>{row.date}</Text>
+          <Text style={[styles.td, { color: colors.ink }]}>{formatDate(row.date, { empty: '—' })}</Text>
           <Text style={[styles.td, styles.wide, { color: colors.ink }]} numberOfLines={2}>
             {row.sku ? `${row.sku} ` : ''}{row.name}
           </Text>
@@ -112,11 +112,10 @@ export function ProductSalesScreen() {
   const canEdit = !!access?.ready && !!access.canEdit?.('productSales');
   const canDelete = !!access?.ready && !!access.canAdmin?.('productSales');
   const { width } = useWindowDimensions();
-  const narrow = width < 720;
+  const narrow = width < BREAKPOINTS.tablet;
   const companyId = String(familyId || '').trim();
   const [projectState, setProjectState] = useState(() => peekProjectState(companyId) || emptyProjectState());
   const [projectReady, setProjectReady] = useState(() => !!peekProjectState(companyId));
-  const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
@@ -125,8 +124,6 @@ export function ProductSalesScreen() {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [openId, setOpenId] = useState('');
   const [exporting, setExporting] = useState(false);
-  const [customers, setCustomers] = useState([]);
-  const [customersReady, setCustomersReady] = useState(false);
   const [view, setView] = useState('list');
   const [importPlan, setImportPlan] = useState(null);
   const [dropped, setDropped] = useState(() => new Set());
@@ -159,49 +156,33 @@ export function ProductSalesScreen() {
     return () => { live = false; };
   }, [companyId]);
 
-  // Kundelisten alene, ikke hele anbudsdokumentet. Trengs til import og redigering.
-  useEffect(() => {
-    let live = true;
-    setCustomersReady(false);
-    loadCustomerList(companyId, {
-      onCache: (rows) => { if (live) setCustomers(rows); },
-    }).then((picked) => {
-      if (!live) return;
-      setCustomers(picked?.customers || []);
-      setCustomersReady(true);
-    }).catch(() => {
-      if (live) setCustomersReady(true);
-    });
-    return () => { live = false; };
-  }, [companyId]);
-
-  useEffect(() => {
-    if (!companyId) {
-      setEmployees([]);
-      return undefined;
-    }
-    let live = true;
-    const stop = watchEmployees(companyId, (rows) => {
-      if (live && Array.isArray(rows) && rows.length) setEmployees(rows);
-    }, () => {});
-    return () => {
-      live = false;
-      stop();
-    };
-  }, [companyId]);
+  // Ansatte, kunderegisteret og prosjektene fra skallets lyttere (ikke hele anbudsdokumentet).
+  // Kundene trengs til import og redigering; importen venter på registeret i skyen.
+  const { employees } = useEmployees(companyId);
+  const refs = useCompanyRefs(companyId);
+  const customers = refs.customers.customers;
+  const customersReady = refs.customers.source === 'remote' || !!refs.customers.error;
 
   useEffect(() => {
     setLimit(PAGE_SIZE);
   }, [query, status, projectFilter, customerFilter, sort]);
 
   const knownSales = useMemo(
-    () => mergeSaleLists(remoteSales, withoutExternalSales(projectState?.sales)),
+    () => combineSales(projectState?.sales, remoteSales),
     [remoteSales, projectState?.sales],
   );
-  const owned = useMemo(
+  const ownSales = useMemo(
     () => productSalesForViewer(knownSales),
     [knownSales],
   );
+  // Medarbeider, kunde og prosjekt slås opp før filtrering og sortering (DS-08).
+  // Kopien på salget er reserve for slettede personer og kunder.
+  const lookup = useMemo(() => ({
+    directory: refs.directory,
+    customers: refs.customers,
+    projects: freshRows(projectState?.projects || [], refs.projects),
+  }), [refs, projectState?.projects]);
+  const owned = useMemo(() => hydrateRows(ownSales, lookup), [ownSales, lookup]);
   const filterOptions = useMemo(() => saleFilterOptions(owned), [owned]);
   // Søket filtrerer etter at tastetrykket er tegnet, så feltet ikke henger med mange rader.
   const searchQuery = useDeferredValue(query);
@@ -219,8 +200,8 @@ export function ProductSalesScreen() {
     [unstatused, status, sort],
   );
   const opened = useMemo(
-    () => (openId ? owned.find((row) => row.id === openId) || null : null),
-    [owned, openId],
+    () => (openId ? ownSales.find((row) => row.id === openId) || null : null),
+    [ownSales, openId],
   );
   const projects = projectState?.projects || [];
   const review = useMemo(

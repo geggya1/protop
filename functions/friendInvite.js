@@ -19,6 +19,8 @@ import {
   assertSafeAppContinueUrl,
 } from './security.js';
 import { buildFriendInviteMessage, buildFriendInviteSms } from './friendInviteCopy.js';
+import { loadSenderName } from './senderName.js';
+import { FRIEND_INVITE_LIMIT_TEXT, claimFriendInviteDelivery } from './friendInviteLimits.js';
 
 export { buildFriendInviteMessage, buildFriendInviteSms };
 export { lookupFriendProfile } from './friendLookup.js';
@@ -37,8 +39,9 @@ export const sendFriendInviteV2 = onCall(
   async (req) => {
     try {
       const callerUid = requireAuth(req.auth);
+      // fromName fra klienten brukes ikke: avsenderen er den innloggede brukeren (L-33).
       const {
-        email, name, fromName, registerUrl, inviteLink, existingUser,
+        email, name, registerUrl, inviteLink, existingUser,
       } = req.data || {};
       if (!isValidEmail(email)) {
         return { ok: false, error: 'Ugyldig e-postadresse' };
@@ -54,6 +57,10 @@ export const sendFriendInviteV2 = onCall(
       });
       const fallbackUrl = `https://www.protop.no/register?email=${encodeURIComponent(email)}`;
       const url = assertSafeAppContinueUrl(registerUrl || inviteLink || fallbackUrl, fallbackUrl);
+      // Én invitasjon per avsender og mottaker, ingen purringer (markedsføringsloven § 15).
+      const gate = await claimFriendInviteDelivery(db, { senderUid: callerUid, recipient: email, channel: 'email' });
+      if (!gate.ok) return { ok: false, error: FRIEND_INVITE_LIMIT_TEXT[gate.reason], reason: gate.reason };
+      const fromName = await loadSenderName(db, callerUid, { tokenName: req.auth?.token?.name });
       await sendMail(
         apiKey,
         buildFriendInviteMessage({
@@ -89,8 +96,9 @@ export const sendFriendInviteSmsV2 = onCall(
   async (req) => {
     try {
       const callerUid = requireAuth(req.auth);
+      // fromName fra klienten brukes ikke: avsenderen er den innloggede brukeren (L-33).
       const {
-        phone, name, fromName, registerUrl, existingUser,
+        phone, name, registerUrl, existingUser,
       } = req.data || {};
       const to = toE164(phone);
       if (!to) {
@@ -107,6 +115,9 @@ export const sendFriendInviteSmsV2 = onCall(
       });
       const fallbackUrl = `https://www.protop.no/register?phone=${encodeURIComponent(to)}`;
       const url = assertSafeAppContinueUrl(registerUrl || fallbackUrl, fallbackUrl);
+      const gate = await claimFriendInviteDelivery(db, { senderUid: callerUid, recipient: to, channel: 'sms' });
+      if (!gate.ok) return { ok: false, error: FRIEND_INVITE_LIMIT_TEXT[gate.reason], reason: gate.reason };
+      const fromName = await loadSenderName(db, callerUid, { tokenName: req.auth?.token?.name });
       await sendSms(apiKey, {
         to,
         content: buildFriendInviteSms({

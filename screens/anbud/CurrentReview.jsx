@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import {
   attachDossier,
@@ -212,10 +212,9 @@ export default function CurrentReview({
   const fetchedIds = useRef(new Set());
   const stateRef = useRef(null);
   stateRef.current = state;
-  const { width } = useWindowDimensions();
-  const { isPhone } = useLayout();
+  const { isPhone, isWide } = useLayout();
   const hostedHero = useModuleHeroHosted();
-  const wide = width >= 1080;
+  const wide = isWide;
 
   const inquiries = Array.isArray(family?.anbudInquiries) ? family.anbudInquiries : (company?.anbudInquiries || []);
   const inbox = Array.isArray(family?.anbudInbox) ? family.anbudInbox : (company?.anbudInbox || []);

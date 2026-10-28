@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../src/context/ThemeContext';
 import { useI18n } from '../src/i18n';
 import { useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 import HelpButton from './HelpButton';
 import HelpTarget from './HelpTarget';
 import { AvatarBubble } from './AvatarPicker';
@@ -39,17 +40,44 @@ export const ShellPageHeroContext = createContext(null);
  * compact (desktop): én linje — tittel + handlinger.
  * Privat/Bedrift er låst i midten av linjen, uavhengig av tittel og sideknapper.
  * Mobil/nettbrett: logo øverst, deretter familie / side.
- * Lyspæren henger på selve profilbildet og starter under det, også når
- * statusfeltet skyver logo-raden ned. Den tar ikke plass i flyten.
+ * Lyspæren står i logo-raden ved siden av menyknappen, på samme linje som
+ * varsler og profil. Den henger ikke lenger over Privat/Bedrift, modulbåndet
+ * eller innholdet (EGEN-03).
  * På Hjem (chromeOnly) er det samme hvite logo-feltet som på modulene —
- * meny, logo, varsler, profil. Logoen (og meny/faner) er veien hjem —
- * ingen egen «Hjem»-tilbakelenke. Lyspæren ligger også her, under profilen.
+ * meny, lyspære, logo, varsler, profil. Logoen (og meny/faner) er veien hjem —
+ * ingen egen «Hjem»-tilbakelenke.
  * Sidetittel og modulheading ligger alltid under logo-raden, aldri over
  * den og aldri i nettleserens adresselinje.
  * Når `hero` er satt (modulheading på telefon), er pastellbåndet selve
  * toppheadingen — rett under logo/meny, uten familienavn og uten stor
  * sidetittel. titleRight (blå «+ …») overlapper nedre høyre kant av båndet.
+ * titleInPage: modulbåndet eller tittelraden i innholdet (ModuleHero/ModuleTitleRow) viser
+ * sidetittelen på PC og nettbrett, så toppfeltet gjentar den ikke (én tittel per side).
  */
+/**
+ * Ikonknapp i toppfeltet: sirkel på 36 px (telefon og nettbrett) eller firkant på 32 px (PC).
+ * På berøringsskjerm ligger en gjennomsiktig trykkflate på 44 px rundt, uten å ta mer plass
+ * i raden (UX-26). Med mus er knappen som før.
+ */
+function HeaderIconButton({
+  compact = false, style, onPress, accessibilityLabel, children,
+}) {
+  const { isTouch } = useLayout();
+  const size = compact ? 32 : 36;
+  const hit = touchHit(size, size, { touch: isTouch, os: Platform.OS });
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={hit.hitSlop}
+      style={[compact ? styles.iconHitCompact : styles.iconHit, hit.style]}
+    >
+      <View style={[styles.iconBtn, compact && styles.iconBtnCompact, style]}>{children}</View>
+    </TouchableOpacity>
+  );
+}
+
 export default function ShellHeader({
   title = 'Hjem',
   onMenuPress,
@@ -63,11 +91,13 @@ export default function ShellHeader({
   hero = null,
   viewAs = null,
   coverStatusBar = false,
+  meta = '',
+  titleInPage = false,
 }) {
   const nav = useNavigation();
   const { t } = useI18n();
   const colors = useColors();
-  const { isPhone } = useLayout();
+  const { isPhone, isTouch } = useLayout();
   const insets = useSafeAreaInsets();
   const frame = useVisualViewportFrame();
   const statusPad = coverStatusBar
@@ -87,34 +117,29 @@ export default function ShellHeader({
   // onBackHome kept as optional fallback for logo tap only (no visible Hjem link).
   const goHomeFromLogo = onLogoHome || onBackHome;
 
-  // Mobil/nettbrett: lyspæren henger under profilbildet (raden ligger over
-  // toppbilde og modulbånd, se chromeRow). PC: lyspæren står i knappeRaden.
-  const profileButton = (size, { hangingHelp = true } = {}) => (
-    <View style={styles.avatarSlot}>
-      <TouchableOpacity
-        style={styles.avatarBtn}
-        onPress={() => setMenuOpen(true)}
-        accessibilityLabel="Profilmeny"
-      >
-        <AvatarBubble
-          avatarId={activeProfile?.avatarId}
-          photoURL={activeProfile?.photoURL}
-          name={activeProfile?.name || '?'}
-          size={size}
-        />
-      </TouchableOpacity>
-      {hangingHelp ? (
-        <View pointerEvents="box-none" style={styles.helpOnAvatar}>
-          <HelpButton
-            floating
-            compact={size < 34}
-            color={colors.ink}
-            borderColor={colors.line}
+  // Lyspæren står i knapperaden på alle flater, aldri over profilbildet eller innholdet.
+  // Profilbildet har 2 px luft rundt; trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const profileButton = (size) => {
+    const hit = touchHit(size, size, { touch: isTouch, os: Platform.OS, inset: 2 });
+    return (
+      <View style={styles.avatarSlot}>
+        <TouchableOpacity
+          style={[styles.avatarBtn, hit.style]}
+          hitSlop={hit.hitSlop}
+          onPress={() => setMenuOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Profilmeny"
+        >
+          <AvatarBubble
+            avatarId={activeProfile?.avatarId}
+            photoURL={activeProfile?.photoURL}
+            name={activeProfile?.name || '?'}
+            size={size}
           />
-        </View>
-      ) : null}
-    </View>
-  );
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   if (dense) {
     return (
@@ -122,31 +147,32 @@ export default function ShellHeader({
         <View style={[styles.barDense, { backgroundColor: colors.card, borderBottomColor: colors.line }]}>
           <View style={styles.sideSlot}>
             {!!onMenuPress && (
-              <TouchableOpacity
-                style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+              <HeaderIconButton
+                compact
+                style={{ borderColor: colors.line }}
                 onPress={onMenuPress}
                 accessibilityLabel="Åpne meny"
-                accessibilityRole="button"
               >
                 <IconBadge count={unreadTotal} size={16} offset={-4}>
                   <Ionicons name="menu" size={20} color={colors.ink} />
                 </IconBadge>
-              </TouchableOpacity>
+              </HeaderIconButton>
             )}
           </View>
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
             {viewAs}
             <HelpButton inline compact color={colors.ink} />
-            <TouchableOpacity
-              style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+            <HeaderIconButton
+              compact
+              style={{ borderColor: colors.line }}
               onPress={() => openNotifications(nav)}
               accessibilityLabel="Varslinger"
             >
               <IconBadge count={unreadTotal} size={16} offset={-4}>
                 <Ionicons name="notifications-outline" size={18} color={colors.ink} />
               </IconBadge>
-            </TouchableOpacity>
-            {profileButton(28, { hangingHelp: false })}
+            </HeaderIconButton>
+            {profileButton(28)}
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -160,21 +186,23 @@ export default function ShellHeader({
         <View style={[styles.barCompact, { backgroundColor: colors.card, borderBottomColor: colors.line }]}>
           <View style={[styles.headerSide, styles.headerSideStart]}>
             {!!onMenuPress && (
-              <TouchableOpacity
-                style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+              <HeaderIconButton
+                compact
+                style={{ borderColor: colors.line }}
                 onPress={onMenuPress}
                 accessibilityLabel="Åpne meny"
-                accessibilityRole="button"
               >
                 <IconBadge count={unreadTotal} size={16} offset={-4}>
                   <Ionicons name="menu" size={18} color={colors.ink} />
                 </IconBadge>
-              </TouchableOpacity>
+              </HeaderIconButton>
             )}
             <View style={styles.textColCompact}>
-              <Text style={[styles.pageTitleCompact, { color: colors.ink }]} numberOfLines={1}>
-                {pageTitle}
-              </Text>
+              {titleInPage ? null : (
+                <Text nativeID="shell-page-title" accessibilityRole="header" aria-level={1} style={[styles.pageTitleCompact, { color: colors.ink }]} numberOfLines={1}>
+                  {pageTitle}
+                </Text>
+              )}
               <Text style={[styles.metaCompact, { color: colors.muted }]} numberOfLines={1}>
                 {familyName}
               </Text>
@@ -187,16 +215,17 @@ export default function ShellHeader({
               ) : null}
               {viewAs}
               <HelpButton inline color={colors.ink} />
-              <TouchableOpacity
-                style={[styles.iconBtn, styles.iconBtnCompact, { borderColor: colors.line }]}
+              <HeaderIconButton
+                compact
+                style={{ borderColor: colors.line }}
                 onPress={() => openNotifications(nav)}
                 accessibilityLabel="Varslinger"
               >
                 <IconBadge count={unreadTotal} size={16} offset={-4}>
                   <Ionicons name="notifications-outline" size={18} color={colors.ink} />
                 </IconBadge>
-              </TouchableOpacity>
-              {profileButton(28, { hangingHelp: false })}
+              </HeaderIconButton>
+              {profileButton(28)}
             </View>
           </View>
           <View pointerEvents="box-none" nativeID="platform-switch-lock" style={styles.switchLock}>
@@ -227,17 +256,18 @@ export default function ShellHeader({
         <View style={styles.chromeRow}>
           <View style={styles.sideSlot}>
             {!!onMenuPress && (
-              <TouchableOpacity
-                style={[styles.iconBtn, { borderColor: colors.line, backgroundColor: colors.card }]}
+              <HeaderIconButton
+                style={{ borderColor: colors.line, backgroundColor: colors.card }}
                 onPress={onMenuPress}
                 accessibilityLabel="Åpne meny"
-                accessibilityRole="button"
               >
                 <IconBadge count={unreadTotal} size={16} offset={-4}>
                   <Ionicons name="menu" size={22} color={colors.ink} />
                 </IconBadge>
-              </TouchableOpacity>
+              </HeaderIconButton>
             )}
+            {/* Lyspæren i raden, ved menyen: dekker verken Privat/Bedrift, båndet eller innholdet. */}
+            <HelpButton inline compact color={colors.ink} borderColor={colors.line} />
           </View>
 
           <View style={styles.logoCenter} pointerEvents="box-none">
@@ -255,18 +285,15 @@ export default function ShellHeader({
 
           <View style={[styles.sideSlot, styles.sideSlotEnd]}>
             {viewAs}
-            <TouchableOpacity
-              style={[styles.iconBtn, {
-                borderColor: colors.line,
-                backgroundColor: colors.card,
-              }]}
+            <HeaderIconButton
+              style={{ borderColor: colors.line, backgroundColor: colors.card }}
               onPress={() => openNotifications(nav)}
               accessibilityLabel="Varslinger"
             >
               <IconBadge count={unreadTotal} size={16} offset={-4}>
                 <Ionicons name="notifications-outline" size={20} color={colors.ink} />
               </IconBadge>
-            </TouchableOpacity>
+            </HeaderIconButton>
             {profileButton(34)}
           </View>
         </View>
@@ -293,21 +320,28 @@ export default function ShellHeader({
             ) : (
               <>
                 <Text style={[styles.familyName, { color: colors.muted }]} numberOfLines={1}>
-                  {familyName}
+                  {meta || familyName}
                 </Text>
-                <View style={styles.pageTitleRow}>
-                  <Text
-                    style={[styles.pageTitle, showFamilyHint && styles.pageTitleTablet, { color: colors.ink }]}
-                    numberOfLines={1}
-                  >
-                    {pageTitle}
-                  </Text>
-                  {titleRight ? (
-                    <View style={styles.titleRightCol}>
-                      <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
-                    </View>
-                  ) : null}
-                </View>
+                {titleInPage && !titleRight ? null : (
+                  <View style={styles.pageTitleRow}>
+                    {titleInPage ? <View style={styles.pageTitle} /> : (
+                      <Text
+                        nativeID="shell-page-title"
+                        accessibilityRole="header"
+                        aria-level={1}
+                        style={[styles.pageTitle, showFamilyHint && styles.pageTitleTablet, { color: colors.ink }]}
+                        numberOfLines={1}
+                      >
+                        {pageTitle}
+                      </Text>
+                    )}
+                    {titleRight ? (
+                      <View style={styles.titleRightCol}>
+                        <HelpTarget id="add" style={styles.titleRight}>{titleRight}</HelpTarget>
+                      </View>
+                    ) : null}
+                  </View>
+                )}
               </>
             )}
           </View>
@@ -370,16 +404,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'visible',
   },
-  /* Starts at the bottom edge of the profile photo, so status-bar padding cannot park it on the picture. */
-  helpOnAvatar: {
-    position: 'absolute',
-    zIndex: 8,
-    top: '100%',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    marginTop: 6,
-  },
   barTablet: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -426,7 +450,7 @@ const styles = StyleSheet.create({
   /*
    * zIndex over switchRow (3) og textCol/modulbåndet: react-native-web gir hver
    * View z-index 0, så uten dette tegnes Privat/Bedrift og toppbildet over
-   * lyspæren som henger under profilbildet, og trykk på den treffer ikke.
+   * knappene i raden (meny, lyspære, varsler, profil).
    */
   chromeRow: {
     flexDirection: 'row',
@@ -507,6 +531,9 @@ const styles = StyleSheet.create({
   iconBtnCompact: {
     width: 32, height: 32, borderRadius: 6,
   },
+  // Gjennomsiktig trykkflate rundt ikonknappen; samme hjørner, så hover på PC følger formen.
+  iconHit: { borderRadius: 18 },
+  iconHitCompact: { borderRadius: 6 },
   avatarBtn: {
     alignSelf: 'flex-start', padding: 2 },
 });

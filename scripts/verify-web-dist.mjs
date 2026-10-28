@@ -21,6 +21,9 @@ if (!/id="root"/.test(index) && !/_expo\//.test(index)) {
   fail('dist/index.html is not the Expo SPA');
 }
 
+// Skjermlesere skal lese bokmål (WCAG 3.1.1). Settes i app.json → expo.web.lang.
+if (!/<html[^>]*\blang="nb"/.test(index)) fail('dist/index.html mangler <html lang="nb">');
+
 // Klienten skal bare snakke med Firebase-prosjektet til ProTop.
 const projectIds = new Set();
 function collectProjectIds(dir) {

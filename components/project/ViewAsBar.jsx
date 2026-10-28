@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
+import { touchHit } from '../../src/ui/touchTarget';
 import {
   accountDeactivated,
   effectiveLevelId,
@@ -19,7 +20,7 @@ import {
   useViewAsSelection,
   viewAsKey,
 } from '../../src/access/viewAsStore';
-import { companyAccountNavItems, companyNavItems } from '../../src/navigation/shellModules';
+import { companyNavItems } from '../../src/navigation/shellModules';
 import { displayName } from '../../src/employees/model';
 
 const RANK_PHRASE = {
@@ -51,7 +52,7 @@ function moduleLabel(tab, subView) {
     }
     return null;
   };
-  return walk([...companyNavItems({ includeUnderenheter: true }), ...companyAccountNavItems()]) || 'denne modulen';
+  return walk(companyNavItems({ includeUnderenheter: true })) || 'denne modulen';
 }
 
 function PersonButton({ person, active, colors, onPress }) {
@@ -313,9 +314,11 @@ function ViewAsSheet({ access, onClose }) {
  */
 export default function ViewAsControl({ access, labeled = false }) {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop, isTouch } = useLayout();
   const { familyId } = useApp();
   const [open, setOpen] = useState(false);
+  // Knappen er 36 px (ikon) eller 32 px høy (med tekst); trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const hit = touchHit(labeled ? 44 : 36, labeled ? 32 : 36, { touch: isTouch, os: Platform.OS });
   const previewing = !!access?.previewing && !!access?.viewingAs;
   const name = previewing ? displayName(access.viewingAs) : '';
 
@@ -332,20 +335,25 @@ export default function ViewAsControl({ access, labeled = false }) {
         accessibilityState={{ expanded: open, selected: previewing }}
         accessibilityLabel={label}
         onPress={() => setOpen(true)}
-        style={[
-          labeled ? styles.headingBtn : styles.iconBtn,
-          {
-            borderColor: previewing ? colors.brand : colors.line,
-            backgroundColor: previewing ? colors.brand : colors.card,
-          },
-        ]}
+        hitSlop={hit.hitSlop}
+        style={[labeled ? styles.headingHit : styles.iconHit, hit.style]}
       >
-        <Ionicons name={previewing ? 'eye' : 'eye-outline'} size={labeled ? 16 : 20} color={iconColor} />
-        {labeled ? (
-          <Text style={[styles.headingLabel, { color: iconColor }]} numberOfLines={1}>
-            Vis som
-          </Text>
-        ) : null}
+        <View
+          style={[
+            labeled ? styles.headingBtn : styles.iconBtn,
+            {
+              borderColor: previewing ? colors.brand : colors.line,
+              backgroundColor: previewing ? colors.brand : colors.card,
+            },
+          ]}
+        >
+          <Ionicons name={previewing ? 'eye' : 'eye-outline'} size={labeled ? 16 : 20} color={iconColor} />
+          {labeled ? (
+            <Text style={[styles.headingLabel, { color: iconColor }]} numberOfLines={1}>
+              Vis som
+            </Text>
+          ) : null}
+        </View>
       </Pressable>
       <Modal
         visible={open}
@@ -385,6 +393,9 @@ const styles = StyleSheet.create({
     maxWidth: 160,
   },
   headingLabel: { fontSize: 13, fontWeight: '600' },
+  // Gjennomsiktig trykkflate rundt knappen, med samme hjørner som knappen.
+  iconHit: { borderRadius: 18 },
+  headingHit: { borderRadius: 8, maxWidth: 160 },
   modalRoot: { flex: 1 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

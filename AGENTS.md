@@ -9,3 +9,7 @@
 ## Testing
 
 - Lag aldri video, skjermopptak eller walkthrough-film. Det gjelder også når en ferdig endring ellers skal vises. Video bare når brukeren ber om det eksplisitt i meldingen.
+
+## Design
+
+- Én tittel per side. Når skallet viser sidetittelen (tittelraden med brødsmule, eller modulbåndet), skal siden ikke gjenta den som egen overskrift. Det gjelder særlig på mobil. Sidens forklaring og knapper kan stå, men ikke en ny tittel med samme tekst.

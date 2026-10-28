@@ -7,14 +7,15 @@
  * ISO før brukeren velger det, og ingenting skrives tilbake til de andre modulene.
  */
 import { addDays, isoDate, lastMonths, monthKey, text, todayKey, uniq } from './core.js';
-import { NORWEGIAN_OBLIGATIONS, STANDARDS } from './catalog.js';
-import { isOpenFinding, openActions } from './findings.js';
+import { NORWEGIAN_OBLIGATIONS, STANDARDS, standardLabel } from './catalog.js';
+import { isOpenFinding, notificationTaskKey, openActions, urgentTriage } from './findings.js';
 import { normalizeDiagram, versionOf } from './processes.js';
 import { documentsDueForReview } from './documents.js';
 import { matrixRows, requirementIdsForArea } from './requirements.js';
-import { competenceMatrix, createRecord, overdueRecords } from './registers.js';
+import { competenceMatrix, createRecord, decisionCompleted, overdueRecords } from './registers.js';
 import { usableForms, templateIdFor } from './forms.js';
 import { annualTaskEffects } from './planning.js';
+import { gearControls } from '../equipment/model.js';
 
 const SICK = new Set(['syk_melding', 'egenmelding', 'sykdom', 'syk_uten']);
 
@@ -91,6 +92,53 @@ export function wasteSummary(waste, projects = []) {
   };
 }
 
+/* ───────────────────────── Timer → skadestatistikk (H-verdi) ───────────────────────── */
+
+/** Skadeklasser med fravær (H1) og alle som krevde medisinsk behandling eller mer (TRIF). */
+const LOST_TIME = new Set(['fravaer', 'alvorlig', 'dodsfall']);
+const RECORDABLE = new Set(['medisinsk', 'fravaer', 'alvorlig', 'dodsfall']);
+
+function entryHours(row) {
+  const n = Number(String(row?.hours ?? '').replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * H-verdi (H1: skader med fravær per million arbeidstimer) og TRIF (alle behandlingskrevende skader per
+ * million timer), regnet fra timene som er ført i ProTop og skadeklassen på HMS-sakene (ISO 45001 9.1).
+ * Siste 12 måneder og per måned. Uten timer: ingen verdi (aldri 0). Skjermede saker telles bare når de er synlige.
+ */
+export function injuryRates(findings, timeEntries, { months = 12, now = new Date() } = {}) {
+  const keys = lastMonths(months, now);
+  const rows = keys.map((key) => ({ key, hours: 0, lostTime: 0, recordable: 0 }));
+  const index = new Map(rows.map((r) => [r.key, r]));
+  for (const t of timeEntries || []) {
+    const row = index.get(monthKey(t?.date));
+    if (row) row.hours += entryHours(t);
+  }
+  for (const f of findings || []) {
+    if (!['hms', 'nestenulykke'].includes(f?.type) || f.state === 'kansellert' || !RECORDABLE.has(f.injuryClass)) continue;
+    const row = index.get(monthKey(f.occurredAt || f.reportedAt));
+    if (!row) continue;
+    row.recordable += 1;
+    if (LOST_TIME.has(f.injuryClass)) row.lostTime += 1;
+  }
+  const hours = Math.round(rows.reduce((s, r) => s + r.hours, 0));
+  const lostTime = rows.reduce((s, r) => s + r.lostTime, 0);
+  const recordable = rows.reduce((s, r) => s + r.recordable, 0);
+  const rate = (n) => (hours ? Math.round(((n * 1_000_000) / hours) * 10) / 10 : null);
+  return {
+    rows: rows.map((r) => ({ ...r, hours: Math.round(r.hours) })),
+    hours,
+    lostTime,
+    recordable,
+    h1: rate(lostTime),
+    trif: rate(recordable),
+    source: 'Timer og HMS-saker',
+    method: 'H1 = skader med fravær × 1 000 000 / arbeidstimer. TRIF = skader som krevde medisinsk behandling eller mer × 1 000 000 / arbeidstimer. Timer fra timeføringen, skadeklasse fra HMS-sakene, siste 12 måneder.',
+  };
+}
+
 /* ───────────────────────── Fravær → HMS-indikator ───────────────────────── */
 
 /** Sykefravær i dagsverk per måned fra fraværsmodulen (8 t = én dag). Ingen personnavn ut. */
@@ -121,14 +169,49 @@ export function equipmentStatus(equipment, now = new Date()) {
   const today = todayKey(now);
   const soon = addDays(today, 60);
   const active = (equipment || []).filter((e) => e?.status !== 'retired');
+  // Kontroll og kalibrering (7.1.5): Utstyr eier dataene, ISO leser dem.
+  const controls = active.filter((e) => e.scope !== 'private').flatMap((e) => gearControls(e, today).map((c) => ({ equipment: e, control: c })));
   return {
     total: active.length,
     inService: active.filter((e) => e.status === 'service'),
     warrantySoon: active.filter((e) => e.warrantyUntil && e.warrantyUntil >= today && e.warrantyUntil <= soon),
     vehicles: active.filter((e) => e.kind === 'vehicle'),
     electricVehicles: active.filter((e) => e.kind === 'vehicle' && e.electric).length,
+    controls,
+    controlsOverdue: controls.filter((x) => x.control.state === 'forfalt'),
+    controlsSoon: controls.filter((x) => x.control.state === 'snart'),
+    measuringWithoutControl: active.filter((e) => e.measuring && !gearControls(e, today).length),
     source: 'Utstyr',
   };
+}
+
+/**
+ * Påminnelser om kontroll og kalibrering (7.1.5): 30 dager før fristen og når den er passert.
+ * Kalibrering går til kvalitetsleder, sakkyndig kontroll og EU-kontroll til HMS-leder.
+ */
+export function equipmentControlEffects(equipment, system, now = new Date()) {
+  const roles = system?.roleMap || {};
+  const qm = roles.quality_manager || roles.system_owner || {};
+  const hse = roles.hse_manager || qm;
+  const out = [];
+  for (const { equipment: gear, control } of equipmentStatus(equipment, now).controls) {
+    if (!['forfalt', 'snart'].includes(control.state)) continue;
+    const late = control.state === 'forfalt';
+    const [y, m, d] = String(control.next).split('-');
+    out.push({
+      type: 'createTask',
+      key: `isoauto_ctl_${gear.id}_${control.id}_${control.next}`.replace(/[^A-Za-z0-9_-]/g, '_'),
+      title: `${control.label} ${late ? 'forfalt' : 'forfaller'}: ${gear.name} (${d}.${m}.${y})`,
+      deadline: control.next,
+      assigneeUid: (control.kind === 'kalibrering' || control.kind === 'service' ? qm : hse)?.uid || '',
+      description: [
+        `${control.label} av ${gear.name}${gear.serial ? ` (serienr. ${gear.serial})` : ''} har frist ${d}.${m}.${y}.`,
+        late && control.kind !== 'service' ? 'Utstyret kan ikke reserveres før kontrollen er registrert i Utstyr.' : 'Registrer kontrollen i Utstyr når den er gjort.',
+        control.kind === 'kalibrering' ? 'Viser kalibreringen avvik, vurder om målinger gjort siden forrige kalibrering må kontrolleres (ISO 9001 7.1.5.2).' : '',
+      ].filter(Boolean).join('\n'),
+    });
+  }
+  return out;
 }
 
 /* ───────────────────────── HR → kompetanse ───────────────────────── */
@@ -367,6 +450,7 @@ const FINDING_AREAS = {
   prosess: ['nonconformity', 'operation'],
   leveranse: ['nonconformity', 'release'],
   kundeklage: ['nonconformity', 'satisfaction'],
+  leverandor: ['nonconformity', 'suppliers'],
   revisjonsfunn: ['nonconformity', 'internalAudit'],
   risikofunn: ['nonconformity', 'risk'],
   miljo: ['nonconformity', 'aspects', 'emergency'],
@@ -423,7 +507,66 @@ export function autoAssignee(system, type) {
   return pick?.name ? { name: pick.name, uid: pick.uid || '' } : null;
 }
 
+const NOTIFY_TEXT = 'Mulig meldeplikt. Alvorlig personskade eller dødsfall: ring 113 og varsle Arbeidstilsynet og politiet straks (aml § 5-2). '
+  + 'ProTop melder ikke selv til myndighetene. Bekreft i ISO → Avvik og forbedring når varslingen er vurdert eller utført.';
+
+/** Oppgaven til den som sørger for varsling til myndighet (frist samme dag). Tom liste uten meldeplikt eller uten innlogging. */
+export function notificationTaskEffects(finding) {
+  const key = notificationTaskKey(finding);
+  if (!finding?.authorityNotificationRequired || !key) return [];
+  return [{
+    type: 'createTask',
+    key,
+    title: `Mulig meldeplikt – vurder varsling til myndighet: ${finding.number} ${finding.title}`,
+    assigneeUid: finding.notificationAssigneeUid,
+    deadline: finding.notificationDue || finding.triageDue || null,
+    description: NOTIFY_TEXT,
+    push: true,
+  }];
+}
+
+/**
+ * Oppgaver og varsler når en sak meldes. Behandler får oppgave med triagefristen.
+ * Mulig meldeplikt eller alvorlig skade: oppgaven varsles straks, den som skal varsle myndighet
+ * får egen oppgave med frist samme dag, og HMS-leder og øverste ledelse får varsel.
+ */
+export function newFindingEffects(finding, system) {
+  if (!finding?.id) return [];
+  const roles = system?.roleMap || {};
+  const urgent = urgentTriage(finding);
+  const out = [];
+  if (finding.assigneeUid) {
+    out.push({ type: 'createTask', key: `iso_${finding.id}_triage`, title: `Behandle ${finding.number}: ${finding.title}`, assigneeUid: finding.assigneeUid, deadline: finding.triageDue, ...(urgent ? { push: true } : {}) });
+  }
+  out.push(...notificationTaskEffects(finding));
+  if (urgent) {
+    const told = new Set(out.map((e) => e.assigneeUid).filter(Boolean));
+    const uids = uniq([roles.hse_manager?.uid, roles.top_management?.uid]).filter((uid) => !told.has(uid));
+    if (uids.length) {
+      out.push({
+        type: 'push',
+        uids,
+        title: finding.authorityNotificationRequired ? 'Mulig meldeplikt' : 'Alvorlig hendelse meldt',
+        body: `${finding.number} ${finding.title}`,
+      });
+    }
+  }
+  return out;
+}
+
 /* ───────────────────────── Modenhet / neste steg ───────────────────────── */
+
+/**
+ * Datoen en ledelsens gjennomgang eller internrevisjon regnes som gjennomført: møtedato / revisjonsdato
+ * (planlagt dato) når den er passert, ellers datoen rapporten eller referatet ble godkjent. Aldri siste
+ * endring: en gjennomgang fra 2023 som redigeres i dag, er ikke gjennomført i dag.
+ */
+export function performedDate(record, now = new Date()) {
+  const own = isoDate(record?.register === 'ledelse' ? record?.meetingDate : record?.plannedDate);
+  if (own && own <= todayKey(now)) return own;
+  const approved = [...(record?.history || [])].reverse().find((h) => /^Status: godkjent/.test(String(h?.action || '')))?.at;
+  return isoDate(approved) || '';
+}
 
 /**
  * Intern beredskapsliste (spesifikasjon kap. 9). Ikke en sertifiseringsgrad:
@@ -449,8 +592,8 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
     { key: 'objectives', label: 'Mål med måling er etablert', done: (rec.mal || []).some((m) => (m.measurements || []).length), page: 'mal' },
     { key: 'competence', label: 'Kompetansekrav er definert', done: (rec.kompetansekrav || []).length > 0 && people.length > 0, page: 'kompetanse' },
     { key: 'nonconformity', label: 'Avviksbehandling er i bruk', done: (state.findings || []).length > 0, page: 'avvik' },
-    { key: 'audit', label: 'Internrevisjon gjennomført siste 12 mnd', done: (rec.revisjon || []).some((a) => ['godkjent', 'oppfolging', 'lukket'].includes(a.state) && String(a.updatedAt || '').slice(0, 10) >= year), page: 'revisjon' },
-    { key: 'review', label: 'Ledelsens gjennomgang siste 12 mnd', done: (rec.ledelse || []).some((l) => l.state === 'godkjent' && String(l.updatedAt || '').slice(0, 10) >= year), page: 'ledelse' },
+    { key: 'audit', label: 'Internrevisjon gjennomført siste 12 mnd', done: (rec.revisjon || []).some((a) => ['godkjent', 'oppfolging', 'lukket'].includes(a.state) && performedDate(a, now) >= year), page: 'revisjon' },
+    { key: 'review', label: 'Ledelsens gjennomgang siste 12 mnd', done: (rec.ledelse || []).some((l) => ['godkjent', 'lukket'].includes(l.state) && performedDate(l, now) >= year), page: 'ledelse' },
   ];
   const done = items.filter((i) => i.done).length;
   return { items, done, total: items.length, method: 'Intern sjekkliste over hovedelementer i ledelsessystemet. Ikke en sertifiseringsgrad.' };
@@ -463,7 +606,7 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
  * kravvurderinger, leverandørevalueringer, risiko-/aspektrevurderinger, utløpt kompetanse,
  * øvelser og vedtak. Nøkkelen inneholder fristen, så hver frist gir én oppgave (idempotent).
  */
-export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
+export function autoTaskEffects(state, { now = new Date(), people = [], tasks = null, equipment = [] } = {}) {
   const roles = state.system?.roleMap || {};
   const owner = (name, uid) => ({ assigneeUid: uid || '', who: name || '' });
   const qm = roles.quality_manager || roles.system_owner || {};
@@ -485,11 +628,47 @@ export function autoTaskEffects(state, { now = new Date(), people = [] } = {}) {
       push(`comp_${row.person.id || row.person.name}_${cell.requirement.id}_${cell.record?.validTo || ''}`, `Fornye kompetanse «${cell.requirement.title}» for ${row.person.name}`, todayKey(now), qm);
     }
   }
+  // Vedtak som er ferdig i Oppgaver (tasks = status lest fra Oppgaver), gir ingen påminnelse.
   for (const l of state.records.ledelse || []) {
-    for (const d of l.decisions || []) if (!d.done && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
+    for (const d of l.decisions || []) if (!decisionCompleted(d, tasks) && d.dueAt && d.dueAt < todayKey(now)) push(`dec_${d.id}_${d.dueAt}`, `Forfalt vedtak: ${d.decision}`, d.dueAt, { uid: d.ownerUid });
   }
   // Årshjulet: aktiviteter merket «Lag oppgave» blir oppgave når måneden starter.
-  return [...out, ...annualTaskEffects(state, { now }), ...escalationEffects(state, now)];
+  // Kontroll og kalibrering av utstyr (7.1.5): frist om 30 dager eller passert.
+  return [...out, ...equipmentControlEffects(equipment, state.system, now), ...annualTaskEffects(state, { now }), ...escalationEffects(state, now)];
+}
+
+/**
+ * Hvem en ISO-oppgave går til: personen som er valgt, ellers personen i rollen, ellers ISO-ansvarlig
+ * (systemansvarlig, kvalitetsleder, eieren av ledelsessystemet). Aldri den som tilfeldigvis kjørte
+ * automatikken. via: valgt | rolle | ansvarlig | ingen.
+ */
+export function taskRecipient(effect, system) {
+  const roles = system?.roleMap || {};
+  const mapped = roles[effect?.roleKey] || Object.values(roles).find((r) => r?.label && r.label === effect?.roleLabel) || null;
+  const chosen = text(effect?.assigneeUid, 128);
+  if (chosen) return { uid: chosen, via: 'valgt' };
+  if (mapped?.uid) return { uid: text(mapped.uid, 128), via: 'rolle' };
+  const responsible = text(roles.system_owner?.uid || roles.quality_manager?.uid || system?.ownerUid, 128);
+  return responsible ? { uid: responsible, via: 'ansvarlig' } : { uid: '', via: 'ingen' };
+}
+
+/** «Oppgave tildelt» for nye ISO-oppgaver, som HR: én melding per mottaker, flere oppgaver samles i én. */
+export function assignmentNotices(created) {
+  const by = new Map();
+  for (const c of created || []) {
+    const uid = text(c?.uid, 128);
+    if (!uid || !text(c?.title)) continue;
+    if (!by.has(uid)) by.set(uid, []);
+    by.get(uid).push(text(c.title, 200));
+  }
+  return [...by.entries()].map(([uid, titles]) => (titles.length === 1
+    ? { uid, title: 'Ny oppgave fra ISO', body: titles[0] }
+    : { uid, title: `${titles.length} nye oppgaver fra ISO`, body: `${titles.slice(0, 3).join(' · ')}${titles.length > 3 ? ' …' : ''}` }));
+}
+
+/** Roller med navn men uten innlogging: de får ingen oppgaver, som går til ISO-ansvarlig i stedet. */
+export function rolesWithoutLogin(system) {
+  return Object.entries(system?.roleMap || {}).filter(([, p]) => p?.name && !p.uid).map(([role, p]) => ({ role, name: p.name }));
 }
 
 /* ───────────────────────── Varsling og eskalering ───────────────────────── */
@@ -594,15 +773,36 @@ export function starterPlan(system, now = new Date()) {
   const year = (now instanceof Date ? now : new Date(now)).getFullYear();
   return {
     processes,
-    obligations: NORWEGIAN_OBLIGATIONS.filter((o) => o.key !== 'bhf' || std.has('ISO45001')).map((o) => o.key),
+    // Byggherreforskriften og de andre byggkravene gjelder uansett hvilke standarder som er valgt (ISO-19).
+    obligations: NORWEGIAN_OBLIGATIONS.map((o) => o.key),
     documents: ['policy', 'avviksrutine'],
     review: { title: `Ledelsens gjennomgang ${year}`, period: String(year), meetingDate: `${year}-12-01` },
     audits: [...std].map((code, i) => ({
-      title: `Internrevisjon ${STANDARDS.find((s) => s.code === code)?.label}`,
+      title: `Internrevisjon ${standardLabel(code, system?.editions)}`,
       plannedDate: addDays(todayKey(now), 60 + i * 60),
       standards: [STANDARDS.find((s) => s.code === code)?.label.replace(/:.*$/, '')],
     })),
   };
+}
+
+/**
+ * Revisor i startpakken: internrevisor-rollen, ellers kvalitetsleder eller HMS-leder som verken eier
+ * ledelsessystemet eller aktiverer det. Ingen treff gir ingen revisor (velges på revisjonen).
+ * Uavhengigheten krysses aldri av automatisk: den bekreftes av den som planlegger revisjonen.
+ */
+export function starterAuditor(system, actor) {
+  const rm = system?.roleMap || {};
+  const person = (p) => ({ name: String(p.name).trim(), uid: String(p.uid || '') });
+  if (rm.internal_auditor?.name) return person(rm.internal_auditor);
+  const uids = new Set([system?.ownerUid, actor?.uid].filter(Boolean).map(String));
+  const names = new Set([system?.ownerName, actor?.name].filter(Boolean).map((n) => String(n).trim().toLowerCase()));
+  for (const role of ['quality_manager', 'hse_manager']) {
+    const p = rm[role];
+    if (!p?.name) continue;
+    if ((p.uid && uids.has(String(p.uid))) || names.has(String(p.name).trim().toLowerCase())) continue;
+    return person(p);
+  }
+  return null;
 }
 
 export function policyDraft(system) {
@@ -632,11 +832,11 @@ export function deviationRoutineDraft() {
     '# Rutine for avvik, hendelser og forbedring',
     '',
     '1. Alle kan melde avvik, hendelser, nestenulykker og forbedringsforslag i ProTop under ISO → Avvik og forbedring.',
-    '2. Kvalitets- eller HMS-leder triagerer innen tre virkedager, og samme dag ved akutt fare.',
+    '2. Kvalitets- eller HMS-leder triagerer innen tre virkedager, og samme dag ved akutt fare, mulig meldeplikt eller alvorlig personskade.',
     '3. Ved mulig meldeplikt varsles myndighet etter gjeldende regler (alvorlig personskade: Arbeidstilsynet og politi).',
     '4. Det besluttes om korrigerende tiltak trengs. Uten tiltak skal beslutningen begrunnes.',
-    '5. Årsak vurderes for middels og høyere alvorlighet. Tiltak får ansvarlig og frist og blir oppgave i ProTop.',
-    '6. Gjennomføring kontrolleres, og effekten verifiseres før saken lukkes av administrator.',
+    '5. Årsak vurderes for middels og høyere alvorlighet, og alltid for personskade, nestenulykke og miljøhendelse. Tiltak får ansvarlig og frist og blir oppgave i ProTop.',
+    '6. Gjennomføring kontrolleres av en annen enn den som utførte tiltaket, og effekten verifiseres før saken lukkes av en godkjenner.',
     '7. Lukkede saker brukes som bevis i kravmatrisen og i ledelsens gjennomgang.',
     '',
     '_Utkast generert av ProTop og koblet til prosessen «Avviksbehandling». Tilpass og godkjenn._',

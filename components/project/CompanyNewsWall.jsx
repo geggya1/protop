@@ -29,6 +29,7 @@ import {
   NEWS_CATEGORIES, POST_ASPECTS, categoryLabel, presentNewsPost,
 } from '../../src/project/companyPage';
 import { useCroppedUpload } from './useCroppedUpload';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 const CATEGORY_COLOR = {
   selskap: '#2563eb',
@@ -106,7 +107,7 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
   // «Vis som» skal vise den valgte ansattes egne innlegg, ikke eierens.
   const actingUid = access.previewing ? (access.viewingAs?.personUid || null) : uid;
   const me = (members || []).find((m) => m.uid === uid);
-  const myName = me?.name || family?.company?.navn || 'Bedriften';
+  const myName = me?.name || companyDisplayName(family, 'Bedriften');
   const [posts, setPosts] = useState([]);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('selskap');

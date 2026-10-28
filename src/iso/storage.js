@@ -17,14 +17,15 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  collection, doc, getDoc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { isFirestorePermissionError, waitForFirestoreAccess } from '../utils/firestoreAccess.js';
 import { COLLECTIONS, collectionFor, emptyIsoState, stateFromCollections } from './state.js';
 import { restrictedUids } from './access.js';
 import { aclIsFresh, isCompanyOwner, planAclSync } from './aclSync.js';
-import { chunkForBatch } from './core.js';
+import { chunkForBatch, numberFromCounter, numberParts } from './core.js';
+import { withInvolved } from './findings.js';
 
 const CACHE_KEY = 'protop.iso.v1';
 const AUTH_MS = 8000;
@@ -232,6 +233,31 @@ export async function loadIsoState(companyId, { uid = '' } = {}) {
   }
 }
 
+/**
+ * Lytter på én sak mens den er åpen, så det en annen lagrer vises med en gang (DRIFT-23).
+ * Egne lagringer som er på vei hoppes over. Mistet tilgang eller nett gir ingen feil: siste
+ * kjente versjon blir stående. Returnerer en funksjon som stopper lyttingen.
+ */
+export function watchFinding(companyId, finding, onChange) {
+  const id = cid(companyId);
+  const key = String(finding?.id || '').trim();
+  if (!id || !key || typeof onChange !== 'function') return () => {};
+  const restricted = !!finding.restricted;
+  const ref = doc(db, 'families', id, restricted ? COLLECTIONS.restrictedFindings : COLLECTIONS.findings, key);
+  let stop = () => {};
+  try {
+    stop = onSnapshot(ref, (snap) => {
+      if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+      onChange({ ...snap.data(), id: snap.id, restricted });
+    }, () => {});
+  } catch {
+    return () => {};
+  }
+  return () => {
+    try { stop(); } catch { /* allerede stoppet */ }
+  };
+}
+
 export class ConflictError extends Error {
   constructor(message) {
     super(message);
@@ -248,6 +274,80 @@ export async function loadIsoSystem(companyId) {
 }
 
 /**
+ * Ny sak: saksnummeret tildeles mot telleren i samme transaksjon som saken skrives
+ * (som fakturanummer). Returnerer det som ble lagret, med endelig nummer.
+ * Saken leses ikke først: id-en er ny, og en melder uten særskilt tilgang får ikke lese i skjermet samling.
+ */
+async function saveNumberedFinding(companyId, name, entity) {
+  const counterRef = doc(db, 'families', companyId, 'isoCounters', numberParts(entity.number).series);
+  const ref = doc(db, 'families', companyId, name, entity.id);
+  return runTransaction(db, async (tx) => {
+    const counter = await tx.get(counterRef);
+    const next = numberFromCounter(entity.number, counter.exists() ? counter.data()?.last : 0);
+    const stamp = new Date().toISOString();
+    const data = plain({ ...withInvolved({ ...entity, number: next.number }), savedAt: stamp });
+    tx.set(counterRef, { last: next.last, updatedAt: stamp });
+    tx.set(ref, data);
+    return data;
+  });
+}
+
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error('Tidsavbrudd: ingen kontakt med skyen.');
+        err.code = 'iso/offline';
+        reject(err);
+      }, ms);
+    }),
+  ]);
+}
+
+/**
+ * Hurtigmelding (RUH fra telefonen): én sak skrives uten at resten av ISO lastes.
+ * Saken har fast id fra telefonen. Finnes den allerede (sendt fra køen før svaret kom), skrives ingenting
+ * på nytt. Nummeret tildeles mot telleren i samme transaksjon. Uten nett: feil med kode «iso/offline».
+ */
+export async function saveQuickFinding(companyId, entity, { timeoutMs = 15000 } = {}) {
+  const id = cid(companyId);
+  if (!id || !entity?.id) throw new Error('Mangler selskap eller sak.');
+  const authed = await ensureAuth();
+  if (!authed) {
+    const err = new Error('Ikke innlogget mot skyen.');
+    err.code = 'iso/offline';
+    throw err;
+  }
+  const ref = doc(db, 'families', id, collectionFor('findings', entity), entity.id);
+  const parts = numberParts(entity.number);
+  const counterRef = parts ? doc(db, 'families', id, 'isoCounters', parts.series) : null;
+  const write = async () => {
+    try {
+      return await runTransaction(db, async (tx) => {
+        const existing = await tx.get(ref);
+        if (existing.exists()) return { ...existing.data(), id: entity.id, duplicate: true };
+        const counter = counterRef ? await tx.get(counterRef) : null;
+        const next = counterRef ? numberFromCounter(entity.number, counter?.exists() ? counter.data()?.last : 0) : null;
+        const stamp = new Date().toISOString();
+        const data = plain({ ...withInvolved({ ...entity, number: next?.number || entity.number }), savedAt: stamp });
+        if (next) tx.set(counterRef, { last: next.last, updatedAt: stamp });
+        tx.set(ref, data);
+        return data;
+      });
+    } catch (err) {
+      // Regler uten teller eller uten lesing av egen sak (ikke rullet ut ennå): skriv saken direkte.
+      if (!isFirestorePermissionError(err)) throw err;
+      const data = plain({ ...withInvolved(entity), savedAt: new Date().toISOString() });
+      await setDoc(ref, data);
+      return data;
+    }
+  };
+  return withTimeout(write(), timeoutMs);
+}
+
+/**
  * Lagrer én entitet med revisjonskontroll.
  * kind: findings | processes | instances | documents | forms | submissions | requirements | assessments | evidence | evidenceLinks | records | system
  */
@@ -256,6 +356,21 @@ export async function saveEntity(companyId, kind, entity, { previous = null, cre
   if (!id) throw new Error('Mangler selskap.');
   const authed = await ensureAuth();
   if (!authed) throw new Error('Ikke innlogget. Endringen er ikke lagret.');
+  if (kind === 'findings' && !previous) {
+    if (numberParts(entity?.number)) {
+      try {
+        return await saveNumberedFinding(id, collectionFor(kind, entity), entity);
+      } catch (err) {
+        // Reglene uten telleren (ikke rullet ut ennå): lagre med nummeret klienten regnet ut.
+        if (!isFirestorePermissionError(err)) throw err;
+      }
+    }
+    // Ny sak skrives uten å lese først. En transaksjon leser dokumentet, og en melder uten særskilt
+    // tilgang fikk ikke lese i skjermet samling (også et dokument som ikke finnes): HMS-hendelser feilet.
+    const data = plain({ ...withInvolved(entity), savedAt: new Date().toISOString() });
+    await setDoc(doc(db, 'families', id, collectionFor(kind, entity), entity.id), data);
+    return data;
+  }
   const name = kind === 'system' ? 'isoSystem' : collectionFor(kind, entity);
   const ref = doc(db, 'families', id, name, kind === 'system' ? 'main' : entity.id);
   const data = plain({ ...(kind === 'findings' ? withInvolved(entity) : entity), savedAt: new Date().toISOString() });
@@ -291,6 +406,28 @@ export async function saveEntity(companyId, kind, entity, { previous = null, cre
   return data;
 }
 
+/**
+ * Lesebekreftelse: kvitteringen legges til listen slik den står lagret nå, uten revisjonslås og uten
+ * å endre rev. Mange kan kvittere samtidig, og ingen får «endret av en annen bruker» fordi noen leste.
+ * Returnerer listen slik den ble lagret.
+ */
+export async function appendReadAck(companyId, documentId, ack) {
+  const id = cid(companyId);
+  if (!id || !documentId || !ack?.uid) throw new Error('Mangler dokument eller bruker.');
+  const authed = await ensureAuth();
+  if (!authed) throw new Error('Ikke innlogget. Bekreftelsen er ikke lagret.');
+  const ref = doc(db, 'families', id, 'isoDocuments', String(documentId));
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('Fant ikke dokumentet.');
+    const acks = Array.isArray(snap.data()?.readAcks) ? snap.data().readAcks : [];
+    if (acks.some((a) => a?.uid === ack.uid && a?.revision === ack.revision)) return acks;
+    const next = [...acks, plain(ack)];
+    tx.update(ref, { readAcks: next });
+    return next;
+  });
+}
+
 /** Flere entiteter i én batch (f.eks. bevis + koblinger + vurderinger). Ingen revisjonslås. */
 export async function saveMany(companyId, rows, { onProgress = null } = {}) {
   const id = cid(companyId);
@@ -318,11 +455,8 @@ export async function saveMany(companyId, rows, { onProgress = null } = {}) {
   }
 }
 
-/** Hvem som er involvert i en sak (melder, ansvarlig, tiltakseiere) – brukes av reglene. */
-export function withInvolved(finding) {
-  const set = new Set([finding?.reportedByUid, finding?.assigneeUid, ...((finding?.actions || []).map((a) => a?.ownerUid))].filter(Boolean).map(String));
-  return { ...finding, involvedUids: [...set] };
-}
+/** Hvem som er involvert i en sak – brukes av reglene. Ligger i findings.js (ren funksjon). */
+export { withInvolved };
 
 /** Revisjonsspor: bare nye dokumenter, med hendelsens egen id. Skjermede saker i egen samling. */
 export async function appendAudit(companyId, events, { restricted = false } = {}) {
@@ -354,11 +488,20 @@ export async function loadAuditFor(companyId, entityId, { restricted = false } =
 /**
  * Oppretter oppgave i ProTops oppgavemodul. Deterministisk dokument-id gjør
  * operasjonen idempotent: gjentatt kall (retry, dobbeltklikk) gir én oppgave (A15/T27).
+ * Returnerer id-en (også når oppgaven fantes fra før).
  */
-export async function ensureTask(companyId, { key, title, description = '', assigneeUid = '', deadline = null, createdByUid = '', source = 'iso' }) {
+export async function ensureTask(companyId, input) {
+  return (await ensureTaskResult(companyId, input)).id;
+}
+
+/**
+ * Som ensureTask, men sier om oppgaven ble laget nå ({ id, created }), så «oppgave tildelt» bare varsles én gang.
+ * Uten mottaker står oppgaven uten tildeling; den gis ikke til den som tilfeldigvis kjørte automatikken.
+ */
+export async function ensureTaskResult(companyId, { key, title, description = '', assigneeUid = '', deadline = null, createdByUid = '', source = 'iso' }) {
   const id = cid(companyId);
   const docId = String(key || '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 140);
-  if (!id || !docId || !title) return '';
+  if (!id || !docId || !title) return { id: '', created: false };
   const ref = doc(db, 'families', id, 'parentTodos', docId);
   try {
     const created = await runTransaction(db, async (tx) => {
@@ -370,7 +513,7 @@ export async function ensureTask(companyId, { key, title, description = '', assi
         deadline: deadline || null,
         deadlineTime: null,
         participants: [],
-        assignedTo: assigneeUid || createdByUid || null,
+        assignedTo: assigneeUid || null,
         attachments: [],
         done: false,
         active: true,
@@ -397,10 +540,31 @@ export async function ensureTask(companyId, { key, title, description = '', assi
         });
       } catch { /* oppgaven er lagret */ }
     }
-    return docId;
+    return { id: docId, created };
   } catch {
-    return '';
+    return { id: '', created: false };
   }
+}
+
+/**
+ * Mine meldinger (ISO-04): saker brukeren selv har meldt, også uten ISO-tilgang (innleide, eksterne).
+ * Leser bare egne saker i begge samlingene; reglene tillater ikke mer.
+ */
+export async function loadMyReports(companyId, uid) {
+  const id = cid(companyId);
+  if (!id || !uid) return [];
+  const authed = await ensureAuth();
+  if (!authed) return [];
+  const read = async (name, restricted) => {
+    try {
+      const snap = await getDocs(query(col(id, name), where('reportedByUid', '==', String(uid))));
+      return snap.docs.map((d) => ({ ...d.data(), id: d.id, restricted }));
+    } catch {
+      return [];
+    }
+  };
+  const [open, shielded] = await Promise.all([read(COLLECTIONS.findings, false), read(COLLECTIONS.restrictedFindings, true)]);
+  return [...open, ...shielded].sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
 }
 
 /** Dokumentstyringen i Skjemabygger og HR (malene og personalhåndboka). Tom liste uten tilgang. */

@@ -20,6 +20,7 @@ import {
 } from './engine.js';
 import { cleanLetterEdits, formatMoney } from './letter.js';
 import { honorarPrice } from './priceText.js';
+import { formatDate } from '../format/nb.js';
 import { effectiveRegulation, frequencyLabel } from './settings.js';
 import { earliestRegulationDate, osloDate } from './watch.js';
 
@@ -723,7 +724,7 @@ export function validateCase(entry, cases, { forApproval = false } = {}) {
   if (!entry?.effectiveFrom) errors.push('Mangler virkningsdato.');
   if (entry?.provisional) errors.push('Indeksen er ikke publisert. Saken kan lagres som utkast, men ikke godkjennes.');
   if (entry?.allowedFrom && entry.effectiveFrom && entry.effectiveFrom < entry.allowedFrom) {
-    errors.push(`Virkningsdato er før avtalt tidligste dato ${entry.allowedFrom}.`);
+    errors.push(`Virkningsdato er før avtalt tidligste dato ${formatDate(entry.allowedFrom)}.`);
   }
   const days = Number(entry?.noticeDays) || 0;
   if (days > 0 && entry.noticeDate && entry.effectiveFrom) {

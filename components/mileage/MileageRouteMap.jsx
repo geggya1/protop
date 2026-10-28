@@ -79,7 +79,8 @@ export default function MileageRouteMap({
       {React.createElement('iframe', {
         title: 'Kart over kjøreturen',
         srcDoc: html,
-        sandbox: 'allow-scripts allow-same-origin',
+        // Uten allow-same-origin: kartet kjører i eget opphav og når ikke innloggingen i appen.
+        sandbox: 'allow-scripts',
         style: { border: 0, width: '100%', height: '100%', borderRadius: 12 },
       })}
     </View>

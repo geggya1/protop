@@ -25,7 +25,7 @@ export function TimesheetDayNav({
       </TouchableOpacity>
       <View style={styles.dayCenter}>
         {onComment ? (
-          <TouchableOpacity onPress={onComment} accessibilityRole="button" style={styles.navHit}>
+          <TouchableOpacity onPress={onComment} accessibilityRole="button" accessibilityLabel="Kommentar til dagen" style={styles.navHit}>
             <Ionicons name="chatbubble-outline" size={18} color={colors.muted} />
           </TouchableOpacity>
         ) : (

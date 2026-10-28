@@ -18,10 +18,10 @@ import { PRICING_VISIBLE } from '../../src/utils/billingMethods';
 const HERO = require('../../assets/hero-family.png');
 
 const BENEFITS = [
-  { icon: 'calendar-outline', title: 'welcome.f1t', body: 'welcome.f1d' },
-  { icon: 'star-outline', title: 'welcome.f2t', body: 'welcome.f2d' },
-  { icon: 'chatbubbles-outline', title: 'welcome.f3t', body: 'welcome.f3d' },
-  { icon: 'shield-checkmark-outline', title: 'welcome.f4t', body: 'welcome.f4d' },
+  { icon: 'time-outline', title: 'welcome.f1t', body: 'welcome.f1d' },
+  { icon: 'business-outline', title: 'welcome.f2t', body: 'welcome.f2d' },
+  { icon: 'shield-checkmark-outline', title: 'welcome.f3t', body: 'welcome.f3d' },
+  { icon: 'document-text-outline', title: 'welcome.f4t', body: 'welcome.f4d' },
 ];
 
 const STEPS = [
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     borderRadius: radius.md,
     paddingVertical: 16,
     paddingHorizontal: 20,
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   },
   ctaTxt: {
     fontFamily: bodyFont,
-    color: '#fff',
+    color: colors.onBrand,
     fontWeight: '400',
     fontSize: 17,
   },
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   loginTxt: {
     fontFamily: bodyFont,
     fontWeight: '400',
-    color: colors.brand,
+    color: colors.brandInk,
     fontSize: 15,
   },
 

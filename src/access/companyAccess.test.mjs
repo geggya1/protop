@@ -556,7 +556,9 @@ assert.equal(toggleGrant('read', 'write', true), 'write');
   );
   const hidden = hiddenCompanyModules(full.grants).map((row) => row.id);
   assert.ok(hidden.includes('okonomi-oversikt'));
-  assert.ok(hidden.includes('tilgang'));
+  // Tilgang ligger bare under Bedriftsinnstillinger (UX-17), som ansatt ikke ser.
+  assert.ok(hidden.includes('selskapsinnstillinger'));
+  assert.equal(hidden.includes('tilgang'), false);
 }
 
 {

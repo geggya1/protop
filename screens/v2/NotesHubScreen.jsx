@@ -15,9 +15,25 @@ import HelpTarget from '../../components/HelpTarget';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import {
-  listenAccessibleNotes, createNote, memberSummary, isPrivateNote, notePreview,
+  listenAccessibleNotes, startCreateNote, memberSummary, isPrivateNote, notePreview,
   filterNotesForProfile, migrateVoiceNotesIntoFamily,
 } from '../../src/utils/familyNotes';
+import { withSaveTimeout, isOfflineSaveError, filterNotesByQuery } from '../../src/utils/notesLogic.js';
+
+/**
+ * Opprett og vent på serveren en stund. Offline ligger notatet likevel lokalt,
+ * så det åpnes (med «Venter på nett») i stedet for at «Opprett» henger.
+ */
+async function createNoteWithTimeout(...args) {
+  const { ref, write } = startCreateNote(...args);
+  try {
+    await withSaveTimeout(write);
+    return { ref, pendingWrite: null };
+  } catch (e) {
+    if (isOfflineSaveError(e)) return { ref, pendingWrite: write };
+    throw e;
+  }
+}
 import { titleFromTranscript } from '../../src/utils/voiceNotes';
 import { summarizeVoiceNote } from '../../src/utils/aiVoiceNoteClient';
 import { structuredNoteBody } from '../../src/utils/noteAi';
@@ -29,7 +45,7 @@ import { ModulePageFrame, ModuleHubIntro } from '../../components/ModulePageBg';
 export default function NotesHubScreen({ compactHeader = false, profileUid = null }) {
   const { t } = useI18n();
   const { isDesktop } = useLayout();
-  const { familyId, uid, members, shellIntent, clearShellIntent } = useApp();
+  const { familyId, family, uid, members, shellIntent, clearShellIntent } = useApp();
   const [notes, setNotes] = useState([]);
   const [archivedNotes, setArchivedNotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,10 +55,12 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
   const [newTitle, setNewTitle] = useState('');
   const [view, setView] = useState('hub');
   const [activeNoteId, setActiveNoteId] = useState(null);
+  const [pendingWrite, setPendingWrite] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualText, setManualText] = useState('');
   const [dialog, setDialog] = useState(null);
+  const [search, setSearch] = useState('');
   useHelpScene(view === 'hub' ? 'hub' : 'inner');
   const {
     recording, liveText, liveScrollRef, supported, startRecording, stopRecording,
@@ -51,15 +69,20 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
 
   const myName = members.find((m) => m.uid === uid)?.name || '';
 
-  const visibleNotes = useMemo(
+  const profileNotes = useMemo(
     () => filterNotesForProfile(notes, profileUid),
     [notes, profileUid],
   );
+  const visibleNotes = useMemo(
+    () => filterNotesByQuery(profileNotes, search),
+    [profileNotes, search],
+  );
 
   const visibleArchivedNotes = useMemo(
-    () => filterNotesForProfile(archivedNotes, profileUid),
-    [archivedNotes, profileUid],
+    () => filterNotesByQuery(filterNotesForProfile(archivedNotes, profileUid), search),
+    [archivedNotes, profileUid, search],
   );
+  const searching = !!search.trim();
 
   useEffect(() => {
     if (!familyId || !uid) return undefined;
@@ -76,10 +99,12 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
     });
   }, [familyId, uid, showArchived]);
 
+  // Gamle personlige talenotater flyttes bare inn i et personlig område, aldri i en bedrift.
+  const groupType = family?.id === familyId ? String(family?.type || 'family') : '';
   useEffect(() => {
-    if (!familyId || !uid) return;
-    migrateVoiceNotesIntoFamily(familyId, uid, myName).catch(() => {});
-  }, [familyId, uid, myName]);
+    if (!familyId || !uid || !groupType) return;
+    migrateVoiceNotesIntoFamily(familyId, uid, myName, { groupType }).catch(() => {});
+  }, [familyId, uid, myName, groupType]);
 
   const openCreate = useCallback(() => {
     setNewTitle('');
@@ -96,10 +121,11 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
     if (!title || !familyId) return;
     setCreating(true);
     try {
-      const ref = await createNote(familyId, uid, title, myName, profileUid);
+      const created = await createNoteWithTimeout(familyId, uid, title, myName, profileUid);
       setNewTitle('');
       setCreateOpen(false);
-      setActiveNoteId(ref.id);
+      setPendingWrite(created.pendingWrite);
+      setActiveNoteId(created.ref.id);
       setView('editor');
     } catch {
       setDialog({ title: 'Feil', message: 'Klarte ikke opprette notat.' });
@@ -132,7 +158,7 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
       // Behold råtranskripsjon — bedre å lagre det som ble sagt enn å miste notatet.
     }
     try {
-      const ref = await createNote(
+      const created = await createNoteWithTimeout(
         familyId,
         uid,
         title,
@@ -147,7 +173,8 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
           durationMs,
         },
       );
-      setActiveNoteId(ref.id);
+      setPendingWrite(created.pendingWrite);
+      setActiveNoteId(created.ref.id);
       setView('editor');
     } catch (e) {
       setDialog({ title: 'Feil', message: e?.message || 'Klarte ikke lagre notatet.' });
@@ -203,7 +230,8 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
     return (
       <NoteEditorScreen
         noteId={activeNoteId}
-        onBack={() => { setView('hub'); setActiveNoteId(null); }}
+        pendingWrite={pendingWrite}
+        onBack={() => { setView('hub'); setActiveNoteId(null); setPendingWrite(null); }}
         onOpenSettings={() => setView('settings')}
       />
     );
@@ -222,7 +250,7 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
   const renderNote = ({ item }) => (
     <TouchableOpacity
       style={[styles.noteRow, isDesktop && styles.noteRowDesk]}
-      onPress={() => { setActiveNoteId(item.id); setView('editor'); }}
+      onPress={() => { setPendingWrite(null); setActiveNoteId(item.id); setView('editor'); }}
       activeOpacity={0.75}
     >
       <View style={[styles.noteIcon, isDesktop && styles.noteIconDesk]}>
@@ -268,6 +296,33 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
         )}
         </ModuleHubIntro>
 
+        {!loading && (profileNotes.length > 0 || searching) ? (
+          <View style={[styles.searchRow, isDesktop && styles.searchRowDesk]}>
+            <Ionicons name="search" size={16} color={colors.muted} />
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Søk i notater"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Søk i notater"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searching ? (
+              <TouchableOpacity
+                onPress={() => setSearch('')}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Tøm søket"
+              >
+                <Ionicons name="close-circle" size={18} color={colors.muted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+
         {loading ? (
           <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />
         ) : (
@@ -277,9 +332,11 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
             </Text>
             {visibleNotes.length === 0 ? (
               <Text style={styles.emptyInline}>
-                {profileUid
-                  ? 'Ingen notater for denne profilen ennå.'
-                  : 'Ingen notater ennå. Opprett ett, eller ta opp med mikrofon.'}
+                {searching
+                  ? `Ingen notater passer «${search.trim()}».`
+                  : profileUid
+                    ? 'Ingen notater for denne profilen ennå.'
+                    : 'Ingen notater ennå. Opprett ett, eller ta opp med mikrofon.'}
               </Text>
             ) : (
               visibleNotes.map((item, i) => (
@@ -445,6 +502,20 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
 }
 
 const styles = StyleSheet.create({
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    minHeight: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.card,
+  },
+  searchRowDesk: { minHeight: 34, marginBottom: 8 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 14, color: colors.ink, paddingVertical: 8 },
   bgWrap: {
     position: 'absolute',
     left: 8,

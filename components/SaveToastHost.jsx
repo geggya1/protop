@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, radius } from '../src/theme';
-import { SAVE_TOAST_MS, subscribeSaveToast } from '../src/ui/saveToast';
+import { runToastAction, subscribeSaveToast, toastDuration } from '../src/ui/saveToast';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -11,6 +11,7 @@ if (Platform.OS === 'web') {
 /**
  * Liten bekreftelse nederst på skjermen. Den blir noen sekunder, så forsvinner den.
  * Nytt kall mens den vises, bytter teksten og starter tiden på nytt.
+ * Har toasten en handling («Angre»), kan den trykkes til tiden er ute.
  */
 export default function SaveToastHost() {
   const [toast, setToast] = useState(null);
@@ -36,7 +37,7 @@ export default function SaveToastHost() {
       ]).start(({ finished }) => {
         if (finished) setToast((current) => (current && current.id === toast.id ? null : current));
       });
-    }, SAVE_TOAST_MS);
+    }, toastDuration(toast));
     return () => {
       clearTimeout(timer);
       intro.stop();
@@ -46,24 +47,42 @@ export default function SaveToastHost() {
   }, [toast, opacity, shift]);
 
   if (!toast) return null;
+  const failed = toast.kind === 'error';
+  const action = toast.action && !toast.action.done ? toast.action : null;
+  const undo = () => {
+    runToastAction(toast);
+    setToast((current) => (current && current.id === toast.id ? null : current));
+  };
 
   const card = (
-    <View pointerEvents="none" style={styles.host} nativeID="save-toast-host">
+    <View pointerEvents={action ? 'box-none' : 'none'} style={styles.host} nativeID="save-toast-host">
       <Animated.View
         nativeID="save-toast"
         accessibilityRole="alert"
         accessibilityLiveRegion="polite"
         style={[styles.card, { opacity, transform: [{ translateY: shift }] }]}
       >
-        <View style={styles.check}>
-          <Text style={styles.checkMark}>✓</Text>
+        <View style={[styles.check, failed && styles.fail]}>
+          <Text style={[styles.checkMark, failed && styles.failMark]}>{failed ? '!' : '✓'}</Text>
         </View>
         <View style={styles.copy}>
           <Text style={styles.title}>{toast.title}</Text>
           {toast.detail ? (
-            <Text style={styles.detail} numberOfLines={2}>{toast.detail}</Text>
+            <Text style={styles.detail} numberOfLines={failed ? 3 : 2}>{toast.detail}</Text>
           ) : null}
         </View>
+        {action ? (
+          <TouchableOpacity
+            onPress={undo}
+            accessibilityRole="button"
+            accessibilityLabel={`${action.label}: ${toast.title}`}
+            nativeID="save-toast-action"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.actionBtn}
+          >
+            <Text style={styles.actionTxt}>{action.label}</Text>
+          </TouchableOpacity>
+        ) : null}
       </Animated.View>
     </View>
   );
@@ -112,15 +131,21 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.successSoft || '#dcfce7',
+    backgroundColor: colors.successSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkMark: {
-    color: colors.success,
+    color: colors.successInk,
     fontSize: 16,
     lineHeight: 18,
     fontWeight: '600',
+  },
+  fail: {
+    backgroundColor: colors.dangerSoft,
+  },
+  failMark: {
+    color: colors.dangerInk,
   },
   copy: {
     flex: 1,
@@ -137,5 +162,19 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 12,
     lineHeight: 16,
+  },
+  actionBtn: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionTxt: {
+    color: colors.brandInk,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -15,11 +15,13 @@ import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { canImportList } from '../../src/access/companyAccess';
 import { useLayout } from '../../src/theme';
+import { touchHit } from '../../src/ui/touchTarget';
 import { showSaveToast } from '../../src/ui/saveToast';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import FilterMenu from '../../components/FilterMenu';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
+import BillingChainLine from './billing/BillingChainLine';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
@@ -74,6 +76,8 @@ import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import InvoicePage from './invoice/InvoicePage';
+import { useShellDetail } from '../../src/navigation/shellDetail';
+import { DetailMissing } from '../../src/ui/BackLink';
 import { DeleteDraftDialog, PaymentDialog } from './invoice/InvoiceDialogs';
 import { deleteDraft, payment } from './invoice/invoiceActions';
 import PowerOfficeSyncLine from './PowerOfficeSyncLine';
@@ -82,6 +86,7 @@ import { isCreditNote, isDraftInvoice } from '../../src/economy/invoiceFlow.js';
 import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings.js';
 import { resolveCompanyInvoiceDefaults } from '../../src/economy/companyInvoiceDefaults.js';
 import { resolveCompanyAccounts } from '../../src/economy/companyChart.js';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -155,12 +160,18 @@ export default function EconomyInvoices({
   // Import av fakturalister krever Admin på Faktura.
   const canImport = canImportList(useCompanyAccess(), 'economyInvoices');
   const hostedHero = useModuleHeroHosted();
-  const { width, isPhone, hasRail, railWidth } = useLayout();
+  const {
+    width, isPhone, hasRail, railWidth, isTouch,
+  } = useLayout();
+  // Ikonknappene ved raden: 18 px ikon med padding 4; trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const rowHit = touchHit(18, 20, { touch: isTouch, os: Platform.OS, inset: 4 });
+  const rowHitSlop = rowHit.hitSlop || { top: 8, bottom: 8, left: 8, right: 8 };
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
   const wideDetail = !isPhone && contentWidth >= 900;
   // Utkast lages, godkjennes og ferdigstilles av alle med redigeringstilgang til Faktura.
   const canManage = !!isAdmin || !!demoProjectState || !!access?.canEdit?.('economyInvoices');
+  const guardAi = useCompanyAiGuard();
   const [columnKeys, setColumnKeys, resetColumns] = useReportColumns('invoices', uid, INVOICE_REPORT_COLUMNS);
   const listColumns = useMemo(() => visibleColumns(INVOICE_REPORT_COLUMNS, columnKeys), [columnKeys]);
 
@@ -195,7 +206,21 @@ export default function EconomyInvoices({
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
   const [limit, setLimit] = useState(PAGE_SIZE);
+  // Fakturaen i en lenke som ikke finnes her eller ikke kan leses.
+  const [missingId, setMissingId] = useState('');
   const hiddenIds = useRef(new Set());
+  // Fakturaen har egen adresse (/hjem/okonomi/faktura/:id). Tilbake i nettleseren går til listen.
+  const link = useShellDetail('invoice', view === 'detail' ? selectedId : '', {
+    onOpen: (id) => {
+      setSelectedId(id);
+      setView('detail');
+      setError('');
+    },
+    onClose: () => {
+      setView('list');
+      setSelectedId('');
+    },
+  });
 
   useEffect(() => {
     let live = true;
@@ -251,14 +276,21 @@ export default function EconomyInvoices({
     const summary = invoices.find((row) => row.id === selectedId) || null;
     if (summary) setSelected((current) => (current?.id === selectedId ? current : summary));
     loadInvoice(familyId, selectedId).then((row) => {
-      if (!live || !row) return;
+      if (!live) return;
+      if (!row) {
+        if (!summary) setMissingId(selectedId);
+        return;
+      }
+      setMissingId('');
       if (row.partial) {
         setSelected((current) => (current?.id === row.id ? current : row));
         return;
       }
       setSelected(row);
       setFullId(row.id);
-    }).catch(() => {});
+    }).catch(() => {
+      if (live && !summary) setMissingId(selectedId);
+    });
     return () => { live = false; };
   }, [selectedId, familyId, invoices]);
 
@@ -363,7 +395,7 @@ export default function EconomyInvoices({
         existingInvoices: invoices,
         customers,
         projects,
-      }, (payload) => askImportInterpret(payload));
+      }, guardAi((payload) => askImportInterpret(payload)));
       if (!plan.rows.length) {
         setError('Fant ingen fakturaer i filen.');
         return;
@@ -549,8 +581,8 @@ export default function EconomyInvoices({
         onPress={() => requestDelete(row)}
         accessibilityRole="button"
         accessibilityLabel={`Slett faktura ${row.invoiceNumber}`}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        style={styles.rowDelete}
+        hitSlop={rowHitSlop}
+        style={[styles.rowDelete, rowHit.style]}
       >
         <Ionicons name="trash-outline" size={18} color={colors.danger || '#b42318'} />
       </TouchableOpacity>
@@ -582,8 +614,8 @@ export default function EconomyInvoices({
         onPress={() => openPayment(row)}
         accessibilityRole="button"
         accessibilityLabel={`Registrer betaling på faktura ${row.invoiceNumber}`}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        style={styles.rowDelete}
+        hitSlop={rowHitSlop}
+        style={[styles.rowDelete, rowHit.style]}
         nativeID={`invoice-row-pay-${row.id}`}
       >
         <Ionicons name="cash-outline" size={18} color={colors.success || '#15803d'} />
@@ -741,6 +773,14 @@ export default function EconomyInvoices({
       onClose={() => setConfirmDelete(null)}
     />
   );
+
+  if (view === 'detail' && !selected && selectedId && missingId === selectedId) {
+    return (
+      <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-invoices">
+        <DetailMissing list={link.list} thing={link.thing} onBack={() => { setView('list'); setSelectedId(''); }} />
+      </View>
+    );
+  }
 
   if (view === 'detail' && selected) {
     const projectState = watch?.projectState || null;
@@ -1016,6 +1056,7 @@ export default function EconomyInvoices({
 
   const top = (
     <>
+      {demoProjectState ? null : <BillingChainLine current="faktura" invoices={ready ? invoices : null} />}
       <View style={styles.toolbar}>
         <View style={{ flex: 1, gap: 4 }}>
           {hostedHero ? null : (

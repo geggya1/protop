@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -16,9 +16,15 @@ import CompanyLogoSettings from '../../components/CompanyLogoSettings';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import CompanyModuleSettings from '../../components/project/CompanyModuleSettings';
+import ModuleActivationSettings from '../../components/ModuleActivationSettings';
+import CompanyPrivacySettings from '../../components/company/CompanyPrivacySettings';
+import CompanyClosure from '../../components/company/CompanyClosure';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
+import { UnlessShellTitle } from '../../src/ui/ShellTitles';
+import { useLayout } from '../../src/theme';
+import { touchHit } from '../../src/ui/touchTarget';
 
 function initialCompanyPage(startPage) {
   if (startPage === 'tilgang') return 'tilgang';
@@ -62,6 +68,9 @@ function Field({ label, value, onChangeText, placeholder, colors, keyboardType, 
 
 export default function ProjectPlatformScreen({ startPage = '' }) {
   const colors = useColors();
+  const { isTouch } = useLayout();
+  // Lukk-krysset er 22 px; trykkflaten er 44 px på berøringsskjerm (UX-26).
+  const closeHit = touchHit(22, 24, { touch: isTouch, os: Platform.OS });
   const nav = useNavigation();
   const { family, familyId, families, applyFamilyPatch, requestShellTab, uid, userProfile, selectFamily, shellIntent, clearShellIntent } = useApp();
   // Kom man hit fra en annen modul (f.eks. ISO-oppsettet), vises en vei tilbake dit.
@@ -225,9 +234,11 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
         ) : canOpenAccess ? (
           <>
-            <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
-              Tilgangsstyring
-            </Text>
+            <UnlessShellTitle title="Tilgangsstyring">
+              <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+                Tilgangsstyring
+              </Text>
+            </UnlessShellTitle>
             <Text style={[styles.lead, { color: colors.muted }]}>
               Rettigheter for hvem som ser og endrer bedriftsmoduler, undersider og innstillinger.
             </Text>
@@ -260,9 +271,11 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
         ) : companyModules.canView ? (
           <>
-            <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
-              Modulinnstillinger
-            </Text>
+            <UnlessShellTitle title="Modulinnstillinger">
+              <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+                Modulinnstillinger
+              </Text>
+            </UnlessShellTitle>
             <Text style={[styles.lead, { color: colors.muted }]}>
               Velg hvilke moduler bedriften abonnerer på. Dette gjelder over tilgangsstyringen: en modul som er av, er av for alle. Ansatte ser den i menyen, men kan ikke åpne den.
             </Text>
@@ -280,6 +293,15 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
                 }
               }}
             />
+            {/* Samme valg som Konto → Aktiverte moduler, her sammen med bedriftens moduler (UX-17). */}
+            <SettingsSection
+              icon="apps-outline"
+              title="Aktiverte moduler"
+              hint="Kalender, E-post, Oppgaver, Notat og Chat står alltid i menyen. En som er slått av, viser velkomsten neste gang den åpnes. Lagres med en gang."
+              colors={colors}
+            >
+              <ModuleActivationSettings showCategories={false} />
+            </SettingsSection>
           </>
         ) : (
           <CompanyAccessDenied colors={colors} />
@@ -303,7 +325,13 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
                 {[contextLabel || company.navn, company.organisasjonsnummer].filter(Boolean).join(' · ')}
               </Text>
             </View>
-            <TouchableOpacity onPress={() => requestShellTab?.('selskap')} accessibilityLabel="Lukk innstillinger">
+            <TouchableOpacity
+              onPress={() => requestShellTab?.('selskap')}
+              accessibilityRole="button"
+              accessibilityLabel="Lukk innstillinger"
+              hitSlop={closeHit.hitSlop}
+              style={closeHit.style}
+            >
               <Ionicons name="close" size={22} color={colors.ink} />
             </TouchableOpacity>
           </View>
@@ -391,6 +419,33 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
             <Field label="Gate og nummer" value={gate} onChangeText={setGate} editable={canEdit} placeholder="Svanholmen 7" colors={colors} />
             <Field label="Postnummer" value={postal} onChangeText={setPostal} editable={canEdit} placeholder="4313" colors={colors} keyboardType="number-pad" />
             <Field label="Poststed" value={place} onChangeText={setPlace} editable={canEdit} placeholder="Sandnes" colors={colors} />
+          </SettingsSection>
+
+          <SettingsSection
+            icon="shield-checkmark-outline"
+            title="Personvern"
+            hint="Databehandleravtale, brukslogg og AI"
+            colors={colors}
+          >
+            <CompanyPrivacySettings
+              family={family}
+              familyId={familyId}
+              company={company}
+              uid={uid}
+              userName={userProfile?.displayName || userProfile?.name || ''}
+              colors={colors}
+              onSaveCompany={(next) => savePatch(familyId, { company: next })}
+              canEdit={canEdit}
+            />
+          </SettingsSection>
+
+          <SettingsSection
+            icon="archive-outline"
+            title="Avslutt bedriften"
+            hint="Eksport av alle data, og sletting etter 90 dager"
+            colors={colors}
+          >
+            <CompanyClosure family={family} familyId={familyId} uid={uid} colors={colors} />
           </SettingsSection>
 
           {canEdit ? (

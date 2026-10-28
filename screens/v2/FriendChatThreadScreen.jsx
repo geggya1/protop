@@ -12,7 +12,7 @@ import { useI18n } from '../../src/i18n';
 import { colors } from '../../src/theme';
 import { Screen } from '../../components/ui';
 import { AvatarBubble } from '../../components/AvatarPicker';
-import { friendChatId, otherUidFromFriendChatId } from '../../src/utils/friendsLogic';
+import { friendChatId, otherUidFromFriendChatId, friendSendErrorText } from '../../src/utils/friendsLogic';
 import { formatMessageStamp } from '../../src/utils/aiChats';
 import { useChatDock, useChatDockPreferred } from '../../src/context/ChatDockContext';
 
@@ -37,6 +37,7 @@ export default function FriendChatThreadScreen() {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
   const listRef = useRef(null);
   const redirected = useRef(false);
 
@@ -101,6 +102,7 @@ export default function FriendChatThreadScreen() {
   const send = async () => {
     if (!text.trim() || sending || !uid || !friendUid) return;
     setSending(true);
+    setSendError('');
     try {
       const fn = httpsCallable(functions, 'sendFriendChatAdmin');
       const res = await fn({
@@ -111,9 +113,12 @@ export default function FriendChatThreadScreen() {
       if (res?.data?.ok) {
         setText('');
         await loadMessages();
+      } else {
+        // f.eks. not-friends: teksten blir stående, og feilen vises i tråden.
+        setSendError(friendSendErrorText(res?.data?.error || 'send-failed'));
       }
-    } catch {
-      /* ignore */
+    } catch (err) {
+      setSendError(friendSendErrorText(err));
     } finally {
       setSending(false);
     }
@@ -182,6 +187,13 @@ export default function FriendChatThreadScreen() {
           )}
         />
 
+        {sendError ? (
+          <View style={styles.sendError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Ionicons name="alert-circle-outline" size={16} color="#b91c1c" />
+            <Text style={styles.sendErrorTxt}>{sendError}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.composer}>
           <TextInput
             style={styles.input}
@@ -238,6 +250,17 @@ const styles = StyleSheet.create({
   msgTxtMine: { color: '#fff' },
   stamp: { fontSize: 10, color: colors.muted, marginTop: 4, fontWeight: '400' },
   stampMine: { color: 'rgba(255,255,255,0.8)' },
+  sendError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#fef2f2',
+    borderTopWidth: 1,
+    borderTopColor: '#fecaca',
+  },
+  sendErrorTxt: { flex: 1, color: '#991b1b', fontSize: 13, lineHeight: 18 },
   composer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -248,8 +271,11 @@ const styles = StyleSheet.create({
     borderTopColor: '#eff3f4',
     backgroundColor: colors.card,
   },
+  // minWidth 0: ellers skyver tekstfeltet Send-knappen ut av skjermen på mobil-web.
   input: {
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
     minHeight: 36,
     maxHeight: 80,
     borderRadius: 18,
@@ -266,6 +292,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   sendBtnDisabled: { opacity: 0.45 },
 });

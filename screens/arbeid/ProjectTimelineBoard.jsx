@@ -21,6 +21,7 @@ import {
   timelineStats,
   xForDay,
 } from '../../src/project/timeline';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 const ROW_H = 48;
 const PLAN_TOP = 9;
@@ -38,8 +39,8 @@ const TODAY_COLOR = '#e11d48';
 
 export function timelineLabelWidth(screenWidth) {
   const width = Number(screenWidth) || 0;
-  if (width > 0 && width < 520) return 132;
-  if (width > 0 && width < 900) return 190;
+  if (width > 0 && width < BREAKPOINTS.tablet) return 132;
+  if (width > 0 && width < BREAKPOINTS.desktop) return 190;
   return 260;
 }
 
@@ -381,13 +382,13 @@ export default function ProjectTimelineBoard({
           })}
         </View>
         <View style={styles.navRow}>
-          <Pressable onPress={() => setAnchor(shiftAnchor(anchor, -3))} style={[styles.iconBtn, { borderColor: colors.line }]} nativeID="fremdrift-prev">
+          <Pressable onPress={() => setAnchor(shiftAnchor(anchor, -3))} accessibilityRole="button" accessibilityLabel="Tre måneder tilbake" style={[styles.iconBtn, { borderColor: colors.line }]} nativeID="fremdrift-prev">
             <Ionicons name="chevron-back" size={18} color={colors.ink} />
           </Pressable>
           <Pressable onPress={() => setAnchor(today)} style={[styles.todayBtn, { borderColor: colors.line }]} nativeID="fremdrift-today">
             <Text style={{ color: colors.ink, fontWeight: '600' }}>{windowLabel(months)}</Text>
           </Pressable>
-          <Pressable onPress={() => setAnchor(shiftAnchor(anchor, 3))} style={[styles.iconBtn, { borderColor: colors.line }]} nativeID="fremdrift-next">
+          <Pressable onPress={() => setAnchor(shiftAnchor(anchor, 3))} accessibilityRole="button" accessibilityLabel="Tre måneder fram" style={[styles.iconBtn, { borderColor: colors.line }]} nativeID="fremdrift-next">
             <Ionicons name="chevron-forward" size={18} color={colors.ink} />
           </Pressable>
           {loadingHours ? <Text style={[styles.loading, { color: colors.muted }]}>Henter timer …</Text> : null}

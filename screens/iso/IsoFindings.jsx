@@ -1,32 +1,43 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Linking, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
+import { radius, type as typeScale } from '../../src/ui/tokens';
 import { monthKey, monthLabel, prettyDate, todayKey } from '../../src/iso/core';
 import {
-  FINDING_GROUPS, FINDING_TYPES, ISO_ROLES, SEVERITIES, actionStateLabel, findingGroup, findingStateLabel, findingTypeLabel, severityLabel,
+  FINDING_GROUPS, FINDING_TYPES, INJURY_CLASSES, ISO_ROLES, SEVERITIES, actionStateLabel, findingGroup, findingStateLabel, findingTypeLabel,
+  injuryClassLabel, seriousInjury, severityLabel,
 } from '../../src/iso/catalog';
 import {
-  CHANGE_FIELDS, actionProgress, addAction, addFindingAttachments, assessChange, assessFinding, cancelAction, cancelFinding, closeBlockers,
-  closeFinding, completeAction, confirmNotification, createFinding, defaultRestricted, findingPhase, findingStep, hasOverdueAction,
-  isFindingOverdue, isImageAttachment, recordRootCause, removeFindingAttachment, reopenFinding, triageFinding, updateFindingLinks,
-  verifyAction, verifyEffect,
+  CHANGE_FIELDS, DISPOSITIONS, actionProgress, addAction, addFindingAttachments, assessChange, assessFinding, cancelAction, cancelFinding,
+  closeBlockers, closeFinding, completeAction, completedBySelf, confirmNotification, confirmReverified, createFinding, defaultRestricted,
+  dispositionLabel, findingPhase, findingStep, hasOverdueAction, isFindingOverdue, isImageAttachment, needsNewActions, notificationTaskKey,
+  recordRootCause, removeFindingAttachment, reopenFinding, rootCauseRequired, setDisposition, triageFinding, updateFindingLinks, verifyAction,
+  verifyEffect,
 } from '../../src/iso/findings';
-import { APPROVER_ROLES, canCloseFinding, canManageFinding, visibleFindings } from '../../src/iso/access';
+import {
+  APPROVER_ROLES, HIDDEN_REPORTER, canCloseFinding, canManageFinding, displayFinding, reporterVisible, visibleFindings,
+} from '../../src/iso/access';
 import { findingSummary, findingsByType, findingsPerMonth } from '../../src/iso/analytics';
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
-import { loadAuditFor } from '../../src/iso/storage';
-import { autoAssignee, legacyProjectCases, requirementIdsForFinding } from '../../src/iso/integrations';
+import { loadAuditFor, watchFinding } from '../../src/iso/storage';
+import { autoAssignee, legacyProjectCases, newFindingEffects, notificationTaskEffects, requirementIdsForFinding } from '../../src/iso/integrations';
+import { ksDeviationCandidates } from '../../src/iso/forms';
 import { publishedVersionOf, normalizeDiagram } from '../../src/iso/processes';
 import { pickDocument, pickImage, uploadFile } from '../../src/utils/media';
+import { useShellDetail } from '../../src/navigation/shellDetail';
+import { DetailMissing } from '../../src/ui/BackLink';
 import FileDropZone from '../anbud/FileDropZone';
 import IsoDiagram, { fitView } from './IsoDiagram';
+import QuickReportButton from './QuickReport';
 import { HBars, StackedMonthBars } from './isoCharts';
 import {
   Banner, Btn, Card, Check, Choice, Chips, DateIn, Divider, Empty, Field, Initials, KV, ListRow, Page, PersonPick, Pill, Row, Sheet, Tabs,
   TextIn, TimeIn, toneColor, usePhone,
 } from './isoUi';
 
+/** Handlinger nederst i saken: feilen vises ved knappen, ikke øverst på siden. Dialogene viser sin egen feil. */
+const INLINE_ERRORS = ['Gjenåpnet'];
 const STATE_TONE = { registrert: 'warn', triage: 'warn', vurdert: 'info', tiltak: 'info', effektkontroll: 'info', lukket: 'ok', kansellert: 'muted' };
 const GROUP_TONE = Object.fromEntries(FINDING_GROUPS.map((g) => [g.id, g.tone]));
 const CAUSE_CATEGORIES = ['Rutine', 'Planlegging', 'Kompetanse', 'Kommunikasjon', 'Utstyr', 'Materiale', 'Tidspress', 'Miljø', 'Ledelse', 'Leverandør'];
@@ -138,6 +149,8 @@ export default function IsoFindings({ ctx }) {
   ];
 
   const legacy = useMemo(() => (caps.manage ? legacyProjectCases(ctx.sources?.projectState, state.findings) : []), [caps.manage, ctx.sources?.projectState, state.findings]);
+  // Avvik i utfylte KS-sjekklister og vernerunder (Skjemabygger) som ikke er sak ennå.
+  const ksRows = useMemo(() => ksDeviationCandidates(ctx.sources?.formTemplates, state.findings), [ctx.sources?.formTemplates, state.findings]);
 
   async function adopt(cases) {
     let existing = store.current().findings;
@@ -145,17 +158,23 @@ export default function IsoFindings({ ctx }) {
       const who = autoAssignee(state.system, c.type);
       const res = createFinding({
         type: c.type, title: c.title, description: c.description || c.title, projectId: c.projectId, projectName: c.projectName,
-        severity: c.severity, sourceRef: { module: c.module, id: c.id }, assigneeName: who?.name, assigneeUid: who?.uid,
-        requirementIds: requirementIdsForFinding(state, c.type),
+        severity: c.severity, sourceRef: c.sourceRef || { module: c.module, id: c.id }, assigneeName: who?.name, assigneeUid: who?.uid,
+        requirementIds: requirementIdsForFinding(state, c.type), immediateAction: c.immediateAction, dueAt: c.dueAt,
       }, { actor: ctx.actor, existing });
       if (!res.ok) continue;
-      const saved = await store.commit('findings', 'finding', res);
+      const saved = await store.commit('findings', 'finding', res, { effects: newFindingEffects(res.finding, state.system) });
       if (saved.ok) existing = [...existing, res.finding];
     }
   }
 
+  // Saken har egen adresse (/hjem/iso/avvik/:id). Tilbake i nettleseren går til listen.
+  const link = useShellDetail('finding', openId, { onOpen: setOpenId, onClose: () => setOpenId('') });
   const selected = visible.find((f) => f.id === openId) || null;
   if (selected) return <FindingDetail ctx={ctx} finding={selected} onBack={() => setOpenId('')} />;
+  // Lenke til en sak som ikke finnes her, er skjermet eller tilhører en annen bedrift.
+  if (openId && !store.loading) {
+    return <DetailMissing list={link.list} thing={link.thing} onBack={() => setOpenId('')} />;
+  }
 
   const parts = FINDING_GROUPS
     .filter((g) => perMonth.some((r) => r[g.id]))
@@ -169,7 +188,12 @@ export default function IsoFindings({ ctx }) {
       crumb={['Avvik og forbedring']}
       title="Avvik og forbedring"
       intro="Avvik, hendelser, kundeklager og forbedringsforslag. Saken følges gjennom vurdering, tiltak og effektkontroll før den lukkes."
-      actions={<Btn kind="primary" icon="add" label="Meld avvik" onPress={() => setCreating(true)} />}
+      actions={(
+        <>
+          <QuickReportButton variant="button" onSent={ctx.onQuickSent} />
+          <Btn kind="primary" icon="add" label="Meld avvik" onPress={() => setCreating(true)} />
+        </>
+      )}
     >
       {drillIds ? (
         <View style={{ gap: 6 }}>
@@ -233,7 +257,7 @@ export default function IsoFindings({ ctx }) {
                 rows={byType.slice(0, 6).map((r) => ({ ...r, color: toneColor(colors, GROUP_TONE[r.group]) }))}
                 onPick={(r) => setTypeFilter(r.id === typeFilter ? '' : r.id)}
               />
-              {byType.length > 6 ? <Text style={{ color: colors.muted, fontSize: 12 }}>{restText(byType.slice(6))}</Text> : null}
+              {byType.length > 6 ? <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>{restText(byType.slice(6))}</Text> : null}
             </Card>
           </View>
         </>
@@ -245,6 +269,14 @@ export default function IsoFindings({ ctx }) {
             <ListRow key={c.id} icon="briefcase-outline" title={c.title} subtitle={`${c.label}${c.projectName ? ` · ${c.projectName}` : ''}`} right={<Btn small label="Ta inn" onPress={() => adopt([c])} />} />
           ))}
           {legacy.length > 1 ? <Btn small icon="download-outline" label={`Ta inn alle ${legacy.length}`} onPress={() => adopt(legacy)} /> : null}
+        </Card>
+      ) : null}
+      {ksRows.length && caps.view ? (
+        <Card title={`Avvik fra sjekklister og vernerunder (${ksRows.length})`} subtitle="Punkter merket «Avvik», «N» eller «Nei» i KS-sjekklistene i Skjemabygger. Ett trykk gjør punktet til en sak med behandler, oppgave og frist.">
+          {ksRows.slice(0, 8).map((c) => (
+            <ListRow key={c.id} icon="clipboard-outline" tone="warn" title={c.title} subtitle={[c.label, c.immediateAction].filter(Boolean).join(' · ')} right={<Btn small kind="primary" label="Opprett sak" onPress={() => adopt([c])} />} />
+          ))}
+          {ksRows.length > 1 ? <Btn small icon="layers-outline" label={`Opprett saker for alle ${ksRows.length}`} onPress={() => adopt(ksRows)} /> : null}
         </Card>
       ) : null}
 
@@ -300,18 +332,18 @@ function Kpi({ label, value, sub, tone, badge, active, onPress, wide }) {
       accessibilityRole="button"
       accessibilityState={{ selected: !!active }}
       accessibilityLabel={`${label}: ${value}. ${sub}`}
-      style={{ flexGrow: 1, flexBasis: wide ? 200 : 150, borderWidth: 1, borderColor: active ? colors.brand : colors.line, backgroundColor: colors.card, borderRadius: 14, padding: 14, gap: 4 }}
+      style={{ flexGrow: 1, flexBasis: wide ? 200 : 150, borderWidth: 1, borderColor: active ? colors.brand : colors.line, backgroundColor: colors.card, borderRadius: radius.card, padding: 14, gap: 4 }}
     >
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
         <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase', flexShrink: 1 }} numberOfLines={2}>{label}</Text>
         {badge ? (
-          <View style={{ minWidth: 22, paddingHorizontal: 7, paddingVertical: 1, borderRadius: 999, backgroundColor: `${colors.danger}1c`, alignItems: 'center' }}>
+          <View style={{ minWidth: 22, paddingHorizontal: 7, paddingVertical: 1, borderRadius: radius.pill, backgroundColor: `${colors.danger}1c`, alignItems: 'center' }}>
             <Text style={{ color: colors.danger, fontSize: 11, fontWeight: '700' }}>{badge}</Text>
           </View>
         ) : null}
       </View>
       <Text style={{ color: tone ? toneColor(colors, tone) : colors.ink, fontSize: 26, fontWeight: '700' }}>{value}</Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{sub}</Text>
+      <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>{sub}</Text>
     </TouchableOpacity>
   );
 }
@@ -320,8 +352,8 @@ function TypeDot({ type, label = true }) {
   const colors = useColors();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0 }}>
-      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: toneColor(colors, GROUP_TONE[findingGroup(type)]) }} />
-      {label ? <Text style={{ color: colors.ink, fontSize: 13, flexShrink: 1 }} numberOfLines={1}>{findingTypeLabel(type)}</Text> : null}
+      <View style={{ width: 8, height: 8, borderRadius: radius.pill, backgroundColor: toneColor(colors, GROUP_TONE[findingGroup(type)]) }} />
+      {label ? <Text style={{ color: colors.ink, fontSize: typeScale.label.fontSize, flexShrink: 1 }} numberOfLines={1}>{findingTypeLabel(type)}</Text> : null}
     </View>
   );
 }
@@ -336,7 +368,7 @@ function FindingTable({ rows, today, onOpen }) {
   const W = { nr: 112, type: 156, date: 92, who: 168, due: 92, act: 56, status: 132 };
   const head = (label, width, align) => <Text style={{ width, flex: width ? undefined : 1, color: colors.muted, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textAlign: align }}>{label}</Text>;
   return (
-    <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 12, overflow: 'hidden' }}>
+    <View style={{ borderWidth: 1, borderColor: colors.line, borderRadius: radius.card, overflow: 'hidden' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.sunken }}>
         {head('NR', W.nr)}
         {head('TITTEL')}
@@ -362,20 +394,20 @@ function FindingTable({ rows, today, onOpen }) {
           >
             <View style={{ width: W.nr, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               {f.restricted ? <Ionicons name="lock-closed" size={12} color={colors.warn} /> : null}
-              <Text style={{ color: colors.muted, fontSize: 12, fontFamily: Platform.OS === 'web' ? 'monospace' : undefined }} numberOfLines={1}>{f.number}</Text>
+              <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize, fontFamily: Platform.OS === 'web' ? 'monospace' : undefined }} numberOfLines={1}>{f.number}</Text>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '700' }} numberOfLines={1}>{f.title}</Text>
-              {f.projectName || f.location ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={1}>{[f.projectName, f.location].filter(Boolean).join(' · ')}</Text> : null}
+              <Text style={{ color: colors.ink, fontSize: typeScale.body.fontSize, fontWeight: '700' }} numberOfLines={1}>{f.title}</Text>
+              {f.projectName || f.location ? <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }} numberOfLines={1}>{[f.projectName, f.location].filter(Boolean).join(' · ')}</Text> : null}
             </View>
             <View style={{ width: W.type }}><TypeDot type={f.type} /></View>
-            <Text style={{ width: W.date, color: colors.ink, fontSize: 13 }}>{prettyDate(f.occurredAt)}</Text>
+            <Text style={{ width: W.date, color: colors.ink, fontSize: typeScale.label.fontSize }}>{prettyDate(f.occurredAt)}</Text>
             <View style={{ width: W.who, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               {f.assigneeName ? <Initials name={f.assigneeName} size={24} /> : null}
-              <Text style={{ color: f.assigneeName ? colors.ink : colors.muted, fontSize: 13, flexShrink: 1 }} numberOfLines={1}>{f.assigneeName || '–'}</Text>
+              <Text style={{ color: f.assigneeName ? colors.ink : colors.muted, fontSize: typeScale.label.fontSize, flexShrink: 1 }} numberOfLines={1}>{f.assigneeName || '–'}</Text>
             </View>
-            <Text style={{ width: W.due, color: late ? colors.danger : colors.muted, fontWeight: late ? '700' : '400', fontSize: 13 }}>{due ? prettyDate(due) : '–'}</Text>
-            <Text style={{ width: W.act, textAlign: 'right', color: hasOverdueAction(f) ? colors.danger : colors.ink, fontSize: 13 }}>{prog.total ? `${prog.done}/${prog.total}` : '–'}</Text>
+            <Text style={{ width: W.due, color: late ? colors.danger : colors.muted, fontWeight: late ? '700' : '400', fontSize: typeScale.label.fontSize }}>{due ? prettyDate(due) : '–'}</Text>
+            <Text style={{ width: W.act, textAlign: 'right', color: hasOverdueAction(f) ? colors.danger : colors.ink, fontSize: typeScale.label.fontSize }}>{prog.total ? `${prog.done}/${prog.total}` : '–'}</Text>
             <View style={{ width: W.status }}><Pill label={findingStateLabel(f.state)} tone={STATE_TONE[f.state]} /></View>
           </TouchableOpacity>
         );
@@ -399,11 +431,11 @@ function FindingRow({ finding: f, today, onOpen }) {
       <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {f.restricted ? <Ionicons name="lock-closed" size={12} color={colors.warn} /> : null}
-          <Text style={{ color: colors.muted, fontSize: 12 }}>{f.number}</Text>
+          <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>{f.number}</Text>
           <TypeDot type={f.type} />
         </View>
-        <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '700' }} numberOfLines={2}>{f.title}</Text>
-        <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>
+        <Text style={{ color: colors.ink, fontSize: typeScale.body.fontSize, fontWeight: '700' }} numberOfLines={2}>{f.title}</Text>
+        <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }} numberOfLines={2}>
           {[prettyDate(f.occurredAt), f.assigneeName || 'Ingen saksbehandler', prog.total ? `tiltak ${prog.done}/${prog.total}` : ''].filter(Boolean).join(' · ')}
           {due ? <Text style={{ color: late ? colors.danger : colors.muted, fontWeight: late ? '700' : '400' }}>{` · frist ${prettyDate(due)}`}</Text> : null}
         </Text>
@@ -429,14 +461,14 @@ function Attachments({ items, onRemove }) {
           {images.map(({ a, i }) => (
             <View key={`${a.url}-${i}`}>
               <TouchableOpacity onPress={() => open(a)} accessibilityRole="link" accessibilityLabel={`Åpne bildet ${a.label}`}>
-                <Image source={{ uri: a.url }} resizeMode="cover" style={{ width: 104, height: 104, borderRadius: 10, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.sunken }} />
+                <Image source={{ uri: a.url }} resizeMode="cover" style={{ width: 104, height: 104, borderRadius: radius.control, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.sunken }} />
               </TouchableOpacity>
               {onRemove ? (
                 <TouchableOpacity
                   onPress={() => onRemove(i)}
                   accessibilityRole="button"
                   accessibilityLabel={`Fjern ${a.label}`}
-                  style={{ position: 'absolute', top: 4, right: 4, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(15,23,42,0.7)', alignItems: 'center', justifyContent: 'center' }}
+                  style={{ position: 'absolute', top: 4, right: 4, width: 26, height: 26, borderRadius: radius.pill, backgroundColor: 'rgba(15,23,42,0.7)', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <Ionicons name="close" size={16} color="#fff" />
                 </TouchableOpacity>
@@ -489,9 +521,9 @@ function AttachmentAdd({ busy, onFiles }) {
           disabled={busy}
           nativeID="iso-finding-drop"
           onFiles={(files) => onFiles(files)}
-          style={{ flexGrow: 1, minWidth: 180, minHeight: 40, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingLeft: 12, paddingRight: 12 }}
+          style={{ flexGrow: 1, minWidth: 180, minHeight: 40, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center', paddingLeft: 12, paddingRight: 12 }}
         >
-          <Text style={{ color: colors.muted, fontSize: 13 }}>{busy ? 'Laster opp …' : 'Dra og slipp filer her'}</Text>
+          <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>{busy ? 'Laster opp …' : 'Dra og slipp filer her'}</Text>
         </FileDropZone>
       ) : null}
       {Platform.OS !== 'web' ? <Btn small icon="camera-outline" label="Ta bilde" disabled={busy} onPress={takePhoto} /> : null}
@@ -518,14 +550,14 @@ function TypeCards({ value, onChange, wide }) {
               accessibilityRole="radio"
               accessibilityState={{ checked: on }}
               accessibilityLabel={`${t.label}. ${t.hint}`}
-              style={{ width: wide ? '31.5%' : '48%', flexGrow: 0, padding: 10, gap: 4, borderRadius: 12, borderWidth: 1, borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }}
+              style={{ width: wide ? '31.5%' : '48%', flexGrow: 0, padding: 10, gap: 4, borderRadius: radius.card, borderWidth: 1, borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft : colors.card }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: toneColor(colors, GROUP_TONE[t.group]) }} />
+                <View style={{ width: 8, height: 8, borderRadius: radius.pill, backgroundColor: toneColor(colors, GROUP_TONE[t.group]) }} />
                 {/* Usynlig bruddpunkt etter «/», så «Produkt-/leveranseavvik» kan deles på smal skjerm. */}
-                <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13, flexShrink: 1 }}>{t.label.replace('/', '/\u200b')}</Text>
+                <Text style={{ color: colors.ink, fontWeight: '700', fontSize: typeScale.label.fontSize, flexShrink: 1 }}>{t.label.replace('/', '/\u200b')}</Text>
               </View>
-              <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 16 }}>{t.hint}</Text>
+              <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize, lineHeight: 16 }}>{t.hint}</Text>
             </TouchableOpacity>
           );
         })}
@@ -550,7 +582,7 @@ function newDraftKey() {
 function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   const colors = useColors();
   const { state, actor, projects, people, store, wide, prefill, companyId } = ctx;
-  const blank = () => ({ type: '', title: '', description: '', occurredAt: todayKey(), occurredTime: clockNow(), projectId: '', location: '', actualConsequence: '', potentialConsequence: '', immediateAction: '', restricted: null, personalDetails: '', authorityNotificationRequired: false, notificationAssignee: '', deliverableRef: '', environmentalMedium: '', customerImpact: '', attachments: [] });
+  const blank = () => ({ type: '', title: '', description: '', occurredAt: todayKey(), occurredTime: clockNow(), projectId: '', location: '', actualConsequence: '', potentialConsequence: '', immediateAction: '', restricted: null, personalDetails: '', authorityNotificationRequired: false, notificationAssignee: '', notificationAssigneeUid: '', deliverableRef: '', environmentalMedium: '', customerImpact: '', severity: '', injuryClass: '', supplierId: '', supplierName: '', customerId: '', customerName: '', attachments: [] });
   const [v, setV] = useState(blank);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -569,6 +601,10 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   const domain = FINDING_TYPES.find((t) => t.id === v.type)?.domain;
   const restricted = v.restricted == null ? defaultRestricted(v.type) : v.restricted;
   const who = v.type ? autoAssignee(state.system, v.type) : null;
+  const injury = ['hms', 'nestenulykke'].includes(v.type);
+  const { suppliers, customers } = linkOptions(ctx);
+  // Alvorlig personskade eller dødsfall: foreslå meldeplikt med en gang.
+  const pickInjury = (x) => setV((cur) => ({ ...cur, injuryClass: x || '', authorityNotificationRequired: seriousInjury(x) ? true : cur.authorityNotificationRequired }));
   const ready = !!v.type && !!v.title.trim() && !!v.description.trim() && (!v.authorityNotificationRequired || !!v.notificationAssignee);
 
   async function addFiles(files, pickError) {
@@ -594,8 +630,9 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       projectName: project ? `${project.number || ''} ${project.name || ''}`.trim() : '',
     }, { actor, existing: state.findings, now: new Date() });
     if (!res.ok) { setError(res.error); setBusy(false); return; }
-    // Behandler får oppgave i Oppgaver med en gang (fast nøkkel → én oppgave).
-    const effects = who?.uid ? [{ type: 'createTask', key: `iso_${res.finding.id}_triage`, title: `Behandle ${res.finding.number}: ${res.finding.title}`, assigneeUid: who.uid, deadline: res.finding.triageDue }] : [];
+    // Behandler får oppgave i Oppgaver med en gang (fast nøkkel → én oppgave). Mulig meldeplikt:
+    // den som varsler myndighet får egen oppgave med frist i dag, og de ansvarlige varsles straks.
+    const effects = newFindingEffects(res.finding, state.system);
     const saved = await store.commit('findings', 'finding', res, { effects });
     setBusy(false);
     if (!saved.ok) { setError(saved.error); return; }
@@ -619,7 +656,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       <Field label="Hva slags sak" required>
         <TypeCards value={v.type} onChange={(x) => set('type')(x)} wide={wide} />
       </Field>
-      {who ? <Text style={{ color: colors.muted, fontSize: 12 }}>Saken går til {who.name}, som får en oppgave i Oppgaver. Den kobles til relevante krav.</Text> : null}
+      {who ? <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Saken går til {who.name}, som får en oppgave i Oppgaver. Den kobles til relevante krav.</Text> : null}
       <Field label="Tittel" required><TextIn value={v.title} onChangeText={set('title')} placeholder="Kort om hva som skjedde" /></Field>
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 14 }}>
         <View style={{ flex: 1 }}>
@@ -637,15 +674,35 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       {projects.length ? (
         <Field label="Prosjekt"><Choice small title="Prosjekt" options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={v.projectId} onChange={set('projectId')} /></Field>
       ) : null}
+      {['leverandor', 'leveranse'].includes(v.type) && suppliers.length ? (
+        <Field label="Leverandør"><Choice small clearable title="Leverandør" options={suppliers} value={v.supplierId} onChange={(x) => setV((cur) => ({ ...cur, supplierId: x || '', supplierName: suppliers.find((o) => o.id === x)?.label || '' }))} /></Field>
+      ) : null}
+      {['kundeklage', 'positiv', 'leveranse'].includes(v.type) && customers.length ? (
+        <Field label="Kunde"><Choice small clearable title="Kunde" options={customers} value={v.customerId} onChange={(x) => setV((cur) => ({ ...cur, customerId: x || '', customerName: customers.find((o) => o.id === x)?.label || '' }))} /></Field>
+      ) : null}
       <Field label="Hva skjedde" required hint="Beskriv fakta. Ikke legg inn helseopplysninger her."><TextIn multiline rows={3} value={v.description} onChangeText={set('description')} placeholder="Beskriv hendelsen med egne ord." /></Field>
       <Field label="Strakstiltak"><TextIn value={v.immediateAction} onChangeText={set('immediateAction')} placeholder="Hva ble gjort med en gang?" /></Field>
+      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 14 }}>
+        <View style={{ flex: 1 }}>
+          <Field label="Alvorlighet" hint="Din vurdering. «Kritisk» gir behandling i dag.">
+            <Choice small options={SEVERITIES.map((x) => ({ id: x.id, label: x.label }))} value={v.severity} onChange={(x) => set('severity')(x || '')} placeholder="Vet ikke" title="Alvorlighet" />
+          </Field>
+        </View>
+        {injury ? (
+          <View style={{ flex: 1 }}>
+            <Field label="Skadeklasse" hint="Din vurdering. Saksbehandler kan endre den.">
+              <Choice small options={INJURY_CLASSES.map((c) => ({ id: c.id, label: c.label }))} value={v.injuryClass} onChange={pickInjury} placeholder="Velg" title="Skadeklasse" />
+            </Field>
+          </View>
+        ) : null}
+      </View>
       <Field label="Bilder og vedlegg" hint={restricted ? 'Skjermet sak: ta bilde av forholdet, ikke av personer.' : undefined}>
         <Attachments items={v.attachments} onRemove={(i) => set('attachments')(v.attachments.filter((_, j) => j !== i))} />
         <AttachmentAdd busy={uploading} onFiles={addFiles} />
       </Field>
       <TouchableOpacity onPress={() => setMore(!more)} accessibilityRole="button" accessibilityState={{ expanded: more }} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', minHeight: 32 }}>
         <Ionicons name={more ? 'chevron-down' : 'chevron-forward'} size={16} color={colors.brand} />
-        <Text style={{ color: colors.brand, fontSize: 14, fontWeight: '600' }}>Flere detaljer ({extras})</Text>
+        <Text style={{ color: colors.brand, fontSize: typeScale.body.fontSize, fontWeight: '600' }}>Flere detaljer ({extras})</Text>
       </TouchableOpacity>
       {more ? (
         <>
@@ -663,10 +720,20 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       <Check label="Skjermet sak (HMS/personopplysninger) – bare særskilt tilgang og involverte ser saken" value={restricted} onChange={set('restricted')} />
       {restricted ? <Field label="Personopplysninger (skjermet)" hint="Bare det som er nødvendig. Vises ikke i lister eller eksport."><TextIn multiline rows={2} value={v.personalDetails} onChangeText={set('personalDetails')} /></Field> : null}
       <Check label="Mulig meldeplikt til myndighet (f.eks. alvorlig personskade eller utslipp)" value={v.authorityNotificationRequired} onChange={set('authorityNotificationRequired')} />
+      {v.authorityNotificationRequired || seriousInjury(v.injuryClass) ? (
+        <View style={{ gap: 8, padding: 12, borderRadius: radius.card, borderWidth: 2, borderColor: colors.danger }}>
+          <Text style={{ ...typeScale.title, color: colors.danger }}>Alvorlig personskade eller dødsfall</Text>
+          <Text style={{ ...typeScale.body, color: colors.ink }}>Ring 113 ved behov for ambulanse. Varsle Arbeidstilsynet og politiet straks (aml § 5-2). ProTop melder ikke til myndighetene.</Text>
+          <Row>
+            <Btn kind="danger" icon="call-outline" label="Ring 113" onPress={() => Linking.openURL('tel:113').catch(() => {})} />
+            <Btn icon="call-outline" label="Ring politiet 112" onPress={() => Linking.openURL('tel:112').catch(() => {})} />
+          </Row>
+        </View>
+      ) : null}
       {v.authorityNotificationRequired ? (
         <>
-          <Banner tone="warn" text="ProTop melder ikke til myndighetene. Intern registrering oppfyller ikke ekstern meldeplikt. Alvorlige arbeidsulykker meldes til Arbeidstilsynet og politiet." />
-          <Field label="Hvem sørger for varsling" required><PersonPick people={people} value={v.notificationAssignee} onChange={(p) => set('notificationAssignee')(p.name)} /></Field>
+          <Banner tone="warn" text="Intern registrering oppfyller ikke ekstern meldeplikt. Den du velger, får oppgave med frist i dag, og behandler, HMS-leder og øverste ledelse varsles." />
+          <Field label="Hvem sørger for varsling" required><PersonPick people={people} value={v.notificationAssignee} onChange={(p) => setV((x) => ({ ...x, notificationAssignee: p.name, notificationAssigneeUid: p.uid || '' }))} /></Field>
         </>
       ) : null}
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
@@ -684,8 +751,8 @@ function Stepper({ step, closed }) {
         const done = i < step || closed;
         const now = i === step && !closed;
         return (
-          <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: now ? colors.brand : colors.line, backgroundColor: done ? colors.successSoft : (now ? colors.brandSoft : colors.card) }}>
-            <Text style={{ color: colors.ink, fontSize: 12, fontWeight: now ? '700' : '400' }}>{done ? '✓ ' : ''}{s}</Text>
+          <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: now ? colors.brand : colors.line, backgroundColor: done ? colors.successSoft : (now ? colors.brandSoft : colors.card) }}>
+            <Text style={{ color: colors.ink, fontSize: typeScale.caption.fontSize, fontWeight: now ? '700' : '400' }}>{done ? '✓ ' : ''}{s}</Text>
           </View>
         );
       })}
@@ -698,9 +765,9 @@ function Line({ label, children }) {
   const colors = useColors();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, minHeight: 28 }}>
-      <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
+      <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>{label}</Text>
       <View style={{ flexShrink: 1, alignItems: 'flex-end' }}>
-        {typeof children === 'string' || typeof children === 'number' ? <Text style={{ color: colors.ink, fontSize: 13, textAlign: 'right' }}>{children}</Text> : children}
+        {typeof children === 'string' || typeof children === 'number' ? <Text style={{ color: colors.ink, fontSize: typeScale.label.fontSize, textAlign: 'right' }}>{children}</Text> : children}
       </View>
     </View>
   );
@@ -723,6 +790,23 @@ function FindingDetail({ ctx, finding, onBack }) {
   const blockers = closeBlockers(finding);
   const closed = ['lukket', 'kansellert'].includes(finding.state);
   const today = todayKey();
+  // Melderens navn vises bare for saksbehandlere og melderen selv (ISO-04).
+  const shown = useMemo(() => displayFinding(caps, finding), [caps, finding]);
+  // Sanntid: det andre lagrer i saken mens den er åpen, vises med en gang (DRIFT-23).
+  const onRemote = ctx.onRemoteFinding;
+  useEffect(
+    () => watchFinding(ctx.companyId, { id: finding.id, restricted: finding.restricted }, (remote) => onRemote?.(remote)),
+    [ctx.companyId, finding.id, finding.restricted], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const [remoteBy, setRemoteBy] = useState('');
+  const seenRev = useRef(finding.rev);
+  useEffect(() => {
+    if (finding.rev !== seenRev.current && finding.updatedByUid && finding.updatedByUid !== actor?.uid) {
+      const hidden = finding.updatedByUid === finding.reportedByUid && !reporterVisible(caps, finding);
+      setRemoteBy(hidden ? HIDDEN_REPORTER : (finding.updatedBy || 'en annen'));
+    }
+    seenRev.current = finding.rev;
+  }, [finding.rev]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [tri, setTri] = useState({});
   const [asm, setAsm] = useState({});
@@ -739,6 +823,7 @@ function FindingDetail({ ctx, finding, onBack }) {
   const [notifNote, setNotifNote] = useState('');
   const [reason, setReason] = useState('');
   const [selfOk, setSelfOk] = useState({});
+  const [dispo, setDispo] = useState({});
 
   const requirements = useMemo(() => allRequirements(state), [state]);
   const linkedReqs = requirements.filter((r) => (finding.links?.requirementIds || []).includes(r.id));
@@ -748,16 +833,20 @@ function FindingDetail({ ctx, finding, onBack }) {
     return requirements.filter((r) => ids.has(r.id));
   }, [state.evidence, state.evidenceLinks, finding.id, requirements]);
 
+  // Feil vises ved knappen som ble trykket der det finnes en egen plass (f.eks. gjenåpning nederst).
+  const [errAt, setErrAt] = useState('');
   async function run(label, result, extra = {}) {
     setErr('');
+    setErrAt('');
     setMsg('');
-    if (!result.ok) { setErr(result.error); return result; }
+    if (!result.ok) { setErr(result.error); setErrAt(label); return result; }
     setBusy(label);
     const saved = await store.commit('findings', 'finding', result, { previous: finding, ...extra });
     setBusy('');
-    if (!saved.ok) setErr(saved.error); else setMsg(`${label} – lagret.`);
+    if (!saved.ok) { setErr(saved.error); setErrAt(label); } else setMsg(`${label} – lagret.`);
     return saved;
   }
+  const errHere = (...labels) => (err && labels.includes(errAt) ? <Banner tone="danger" text={err} /> : null);
 
   /** Lagrer fra en dialog og lukker den når det gikk. */
   async function save(label, result, extra) {
@@ -775,7 +864,7 @@ function FindingDetail({ ctx, finding, onBack }) {
         severity: finding.severity || '', urgent: !!finding.triage?.urgent,
         assigneeName: finding.assigneeName || actor.name, assigneeUid: finding.assigneeName ? finding.assigneeUid : actor.uid,
         immediateAction: finding.immediateAction, notifiable: finding.authorityNotificationRequired, notificationAssignee: finding.notificationAssignee,
-        dueAt: finding.dueAt, note: '',
+        notificationAssigneeUid: finding.notificationAssigneeUid || '', injuryClass: finding.injuryClass || '', dueAt: finding.dueAt, note: '',
       });
     }
     if (name === 'assess') {
@@ -810,8 +899,12 @@ function FindingDetail({ ctx, finding, onBack }) {
   }
 
   function saveTriage() {
-    return save(finding.state === 'registrert' ? 'Behandlingen er startet' : 'Triage', triageFinding(finding, tri, { actor }), { effects: [
+    const res = triageFinding(finding, tri, { actor });
+    // Ny eller endret varslingsansvarlig får egen oppgave med frist i dag (nøkkelen følger personen).
+    const notify = res.ok && notificationTaskKey(res.finding) !== notificationTaskKey(finding) ? notificationTaskEffects(res.finding) : [];
+    return save(finding.state === 'registrert' ? 'Behandlingen er startet' : 'Triage', res, { effects: [
       ...(tri.assigneeUid && tri.assigneeUid !== finding.assigneeUid ? [{ type: 'createTask', key: `iso_${finding.id}_behandle`, title: `Følg opp ${finding.number}: ${finding.title}`, assigneeUid: tri.assigneeUid, deadline: tri.dueAt || null }] : []),
+      ...notify,
       { type: 'completeTask', key: `iso_${finding.id}_triage` },
     ] });
   }
@@ -861,8 +954,10 @@ function FindingDetail({ ctx, finding, onBack }) {
   }
 
   const prog = actionProgress(finding);
-  const effectReady = (finding.state === 'effektkontroll' && finding.effect?.outcome !== 'verifisert')
-    || (finding.state === 'vurdert' && prog.total > 0 && prog.done === prog.total);
+  // Effekten ble ikke verifisert sist: nye tiltak må gjennomføres før neste effektkontroll (ISO-21).
+  const newActionsNeeded = needsNewActions(finding);
+  const effectReady = !newActionsNeeded && ((finding.state === 'effektkontroll' && finding.effect?.outcome !== 'verifisert')
+    || (finding.state === 'vurdert' && prog.total > 0 && prog.done === prog.total));
   const showEffect = finding.effect?.required || finding.state === 'effektkontroll' || (finding.effect?.checks || []).length > 0;
 
   // Neste steg i flyten som én tydelig knapp øverst.
@@ -872,7 +967,9 @@ function FindingDetail({ ctx, finding, onBack }) {
     else if (finding.state === 'triage') next = { sheet: 'assess', label: 'Vurder', icon: 'create-outline' };
     else if (closeable && !blockers.length) next = { sheet: 'close', label: 'Lukk saken', icon: 'checkmark-done-outline' };
     else if (effectReady) next = { sheet: 'effect', label: 'Kontroller effekt', icon: 'analytics-outline' };
-    else if (finding.assessment?.correctiveRequired && !prog.total) next = { sheet: 'action', label: 'Nytt tiltak', icon: 'add' };
+    else if ((finding.assessment?.correctiveRequired && !prog.total) || newActionsNeeded) next = { sheet: 'action', label: 'Nytt tiltak', icon: 'add' };
+    // Årsaken kreves også uten tiltak for personskade, nestenulykke og miljøhendelse.
+    else if (finding.assessment && !finding.rootCause && rootCauseRequired(finding)) next = { sheet: 'assess', label: 'Vurder', icon: 'create-outline' };
   }
   const showClose = !closed && closeable && next?.sheet !== 'close';
 
@@ -906,8 +1003,9 @@ function FindingDetail({ ctx, finding, onBack }) {
         {overdue ? <Pill label={`Frist passert ${prettyDate(finding.dueAt)}`} icon="alarm-outline" tone="danger" /> : null}
       </Row>
       <Stepper step={findingStep(finding)} closed={finding.state === 'lukket'} />
+      {remoteBy ? <Banner tone="info" text={`Saken ble nettopp oppdatert av ${remoteBy}. Du ser siste versjon.`} /> : null}
       {msg ? <Banner tone="ok" text={msg} /> : null}
-      {err && !sheet ? <Banner tone="danger" text={err} /> : null}
+      {err && !sheet && !INLINE_ERRORS.includes(errAt) ? <Banner tone="danger" text={err} /> : null}
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
         <View style={{ flex: wide ? 3 : undefined, gap: 12, width: wide ? undefined : '100%' }}>
@@ -915,7 +1013,7 @@ function FindingDetail({ ctx, finding, onBack }) {
             {finding.links?.auditId ? (
               <TouchableOpacity onPress={() => go('revisjon', { open: finding.links.auditId })} accessibilityRole="link" style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="search-outline" size={14} color={colors.brand} />
-                <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>Fra internrevisjon</Text>
+                <Text style={{ color: colors.brand, fontSize: typeScale.label.fontSize, fontWeight: '600' }}>Fra internrevisjon</Text>
               </TouchableOpacity>
             ) : null}
             <KV label="Hva skjedde" value={finding.description} />
@@ -926,27 +1024,63 @@ function FindingDetail({ ctx, finding, onBack }) {
             <KV label="Leveranse" value={finding.deliverableRef} />
             <KV label="Påvirkning for kunde" value={finding.customerImpact} />
             <KV label="Miljømedium" value={finding.environmentalMedium} />
+            <KV label="Skadeklasse" value={injuryClassLabel(finding.injuryClass)} />
             {finding.restricted && caps.restrictedView ? <KV label="Personopplysninger (skjermet)" value={finding.personalDetails} /> : null}
             <View style={{ gap: 8 }}>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>Bilder og vedlegg</Text>
+              <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Bilder og vedlegg</Text>
               <Attachments
                 items={finding.attachments}
                 onRemove={manage && !closed ? (i) => run('Vedlegg fjernet', removeFindingAttachment(finding, i, { actor })) : undefined}
               />
-              {!(finding.attachments || []).length && !(manage && !closed) ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen vedlegg.</Text> : null}
+              {!(finding.attachments || []).length && !(manage && !closed) ? <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>Ingen vedlegg.</Text> : null}
               {manage && !closed ? <AttachmentAdd busy={uploading} onFiles={addFiles} /> : null}
             </View>
           </Card>
 
           {finding.authorityNotificationRequired ? (
             <Card title="Meldeplikt">
-              <Banner tone={finding.notificationDone ? 'ok' : 'warn'} text={finding.notificationDone ? `Bekreftet: ${finding.notificationNote}` : `Mulig meldeplikt. Ansvarlig: ${finding.notificationAssignee || 'ikke satt'}. ProTop melder ikke selv til myndigheter.`} />
-              {!finding.notificationDone && manage ? (
+              <Banner tone={finding.notificationDone ? 'ok' : 'warn'} text={finding.notificationDone ? `Bekreftet: ${finding.notificationNote}` : `Mulig meldeplikt. Ansvarlig: ${finding.notificationAssignee || 'ikke satt'}${finding.notificationDue ? `, frist ${prettyDate(finding.notificationDue)}` : ''}. ProTop melder ikke selv til myndigheter.`} />
+              {!finding.notificationDone && (manage || (finding.notificationAssigneeUid && finding.notificationAssigneeUid === actor.uid)) ? (
                 <>
                   <TextIn value={notifNote} onChangeText={setNotifNote} placeholder="Hvem ble varslet, når og referanse" />
-                  <Btn label="Bekreft varsling vurdert/utført" onPress={() => run('Varsling bekreftet', confirmNotification(finding, notifNote, { actor }))} />
+                  <Btn label="Bekreft varsling vurdert/utført" onPress={() => run('Varsling bekreftet', confirmNotification(finding, notifNote, { actor }), { effects: notificationTaskKey(finding) ? [{ type: 'completeTask', key: notificationTaskKey(finding) }] : [] })} />
                 </>
               ) : null}
+            </Card>
+          ) : null}
+
+          {['leveranse', 'kundeklage'].includes(finding.type) ? (
+            <Card title="Disposisjon (8.7)" subtitle="Hva er gjort med den avvikende leveransen, og hvem besluttet. Aksept fra kunden krever bevis.">
+              {finding.disposition?.id ? (
+                <>
+                  <KV label="Disposisjon" value={`${dispositionLabel(finding.disposition.id)} · ${finding.disposition.decidedBy} ${prettyDate(finding.disposition.decidedAt)}`} />
+                  <KV label="Merknad" value={finding.disposition.note} />
+                  {finding.disposition.concessionBy ? <KV label="Godkjent av kunden" value={`${finding.disposition.concessionBy} · ${finding.disposition.concessionRef}`} /> : null}
+                  {finding.disposition.id === 'korrigert' ? (
+                    finding.disposition.reverified
+                      ? <Banner tone="ok" text={`Kontrollert etter retting av ${finding.disposition.reverifiedBy} ${prettyDate(finding.disposition.reverifiedAt)}: ${finding.disposition.reverifyNote}`} />
+                      : (manage && !closed ? (
+                        <>
+                          <TextIn value={dispo.reverify || ''} onChangeText={(x) => setDispo({ ...dispo, reverify: x })} placeholder="Hvordan er leveransen kontrollert etter rettingen?" />
+                          <Btn label="Kontrollert etter retting" onPress={() => run('Kontrollert etter retting', confirmReverified(finding, dispo.reverify, { actor }))} />
+                        </>
+                      ) : <Text style={{ color: colors.warn, fontSize: typeScale.label.fontSize }}>Venter på kontroll etter retting.</Text>)
+                  ) : null}
+                </>
+              ) : null}
+              {manage && !closed && (!finding.disposition?.id || dispo.change) ? (
+                <>
+                  <Choice options={DISPOSITIONS.map((d) => ({ id: d.id, label: d.label }))} value={dispo.id} onChange={(x) => setDispo({ ...dispo, id: x || '' })} />
+                  <Field label="Merknad"><TextIn value={dispo.note || ''} onChangeText={(x) => setDispo({ ...dispo, note: x })} /></Field>
+                  {DISPOSITIONS.find((d) => d.id === dispo.id)?.concession ? (
+                    <>
+                      <Field label="Hvem hos kunden godkjente" required><TextIn value={dispo.concessionBy || ''} onChangeText={(x) => setDispo({ ...dispo, concessionBy: x })} /></Field>
+                      <Field label="Bevis (e-post, referat, dokument-ID)" required><TextIn value={dispo.concessionRef || ''} onChangeText={(x) => setDispo({ ...dispo, concessionRef: x })} /></Field>
+                    </>
+                  ) : null}
+                  <Btn kind="primary" label="Lagre disposisjon" onPress={async () => { const saved = await run('Disposisjon', setDisposition(finding, dispo, { actor })); if (saved?.ok) setDispo({}); }} />
+                </>
+              ) : (manage && !closed ? <Btn small label="Endre disposisjon" onPress={() => setDispo({ ...finding.disposition, change: true })} /> : null)}
             </Card>
           ) : null}
 
@@ -961,7 +1095,7 @@ function FindingDetail({ ctx, finding, onBack }) {
                   <Btn kind="primary" label="Lagre endringsvurdering" busy={busy === 'Endringsvurdering'} onPress={() => run('Endringsvurdering', assessChange(finding, chg, { actor }))} />
                 </>
               ) : null}
-              {finding.change?.decision ? <Text style={{ color: colors.muted, fontSize: 12 }}>Endringen er {finding.change.decision.toLowerCase()} av {finding.change.decidedBy} {prettyDate(finding.change.decidedAt)}.</Text> : null}
+              {finding.change?.decision ? <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Endringen er {finding.change.decision.toLowerCase()} av {finding.change.decidedBy} {prettyDate(finding.change.decidedAt)}.</Text> : null}
             </Card>
           ) : null}
 
@@ -993,13 +1127,13 @@ function FindingDetail({ ctx, finding, onBack }) {
                 {(finding.rootCause.categories || []).length ? <Row gap={6}>{finding.rootCause.categories.map((c) => <Pill key={c} label={c} tone="info" />)}</Row> : null}
                 <KV label="Hvorfor skjedde det" value={finding.rootCause.systemCause} />
                 {(finding.rootCause.whys || []).map((w, i) => <KV key={i} label={`Hvorfor ${i + 1}`} value={w} />)}
-                <Text style={{ color: colors.muted, fontSize: 12 }}>Årsak registrert av {finding.rootCause.by}</Text>
+                <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Årsak registrert av {finding.rootCause.by}</Text>
               </>
             ) : null}
             {!finding.triage && !finding.assessment && !finding.rootCause ? (
-              <Text style={{ color: colors.muted, fontSize: 13 }}>{finding.state === 'registrert' ? 'Ikke vurdert ennå. Behandlingen starter med «Start behandling».' : 'Ikke vurdert ennå.'}</Text>
+              <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>{finding.state === 'registrert' ? 'Ikke vurdert ennå. Behandlingen starter med «Start behandling».' : 'Ikke vurdert ennå.'}</Text>
             ) : null}
-            {finding.triage && !finding.assessment && manage && !closed ? <Text style={{ color: colors.muted, fontSize: 13 }}>Neste: bestem om korrigerende tiltak trengs, og hvorfor det skjedde.</Text> : null}
+            {finding.triage && !finding.assessment && manage && !closed ? <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>Neste: bestem om korrigerende tiltak trengs, og hvorfor det skjedde.</Text> : null}
           </Card>
 
           <Card
@@ -1007,7 +1141,7 @@ function FindingDetail({ ctx, finding, onBack }) {
             subtitle={prog.total ? `${prog.done} av ${prog.total} kontrollert` : undefined}
             right={!closed && manage && finding.state !== 'registrert' ? <Btn small icon="add" label="Nytt tiltak" onPress={() => openSheet('action')} /> : null}
           >
-            {!(finding.actions || []).length ? <Text style={{ color: colors.muted, fontSize: 13 }}>{finding.state === 'registrert' ? 'Tiltak legges til når behandlingen er startet.' : 'Ingen tiltak ennå.'}</Text> : null}
+            {!(finding.actions || []).length ? <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>{finding.state === 'registrert' ? 'Tiltak legges til når behandlingen er startet.' : 'Ingen tiltak ennå.'}</Text> : null}
             {(finding.actions || []).map((a) => {
               const mine = a.ownerUid && a.ownerUid === actor.uid;
               const open = ['apen', 'pagar', 'returnert'].includes(a.state);
@@ -1019,10 +1153,10 @@ function FindingDetail({ ctx, finding, onBack }) {
                     <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>{a.title}</Text>
                     <Pill label={actionStateLabel(a.state)} tone={a.state === 'verifisert' ? 'ok' : (a.dueAt < today && open ? 'danger' : 'info')} />
                   </Row>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>{a.ownerName} · frist {prettyDate(a.dueAt)}{a.requiredEvidence ? ` · krever: ${a.requiredEvidence}` : ''}</Text>
-                  {a.completionNote ? <Text style={{ color: colors.ink, fontSize: 13 }}>Utført: {a.completionNote}{(a.evidence || []).length ? ` · bevis: ${a.evidence.map((e) => e.label || e.url).join(', ')}` : ''}</Text> : null}
-                  {a.returnNote ? <Text style={{ color: colors.danger, fontSize: 12 }}>Returnert: {a.returnNote}</Text> : null}
-                  {a.verifiedBy ? <Text style={{ color: colors.muted, fontSize: 12 }}>Kontrollert av {a.verifiedBy}</Text> : null}
+                  <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>{a.ownerName} · frist {prettyDate(a.dueAt)}{a.requiredEvidence ? ` · krever: ${a.requiredEvidence}` : ''}</Text>
+                  {a.completionNote ? <Text style={{ color: colors.ink, fontSize: typeScale.label.fontSize }}>Utført: {a.completionNote}{(a.evidence || []).length ? ` · bevis: ${a.evidence.map((e) => e.label || e.url).join(', ')}` : ''}</Text> : null}
+                  {a.returnNote ? <Text style={{ color: colors.danger, fontSize: typeScale.caption.fontSize }}>Returnert: {a.returnNote}</Text> : null}
+                  {a.verifiedBy ? <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Kontrollert av {a.verifiedBy}</Text> : null}
                   {task ? <Pill label={taskDone ? 'Ferdig i Oppgaver' : 'Ligger i Oppgaver'} icon="checkbox-outline" tone={taskDone ? 'ok' : 'info'} /> : null}
                   {open && taskDone ? <Banner tone="info" text="Oppgaven er markert ferdig i Oppgaver. Meld tiltaket utført her, så det kan kontrolleres." /> : null}
                   {open && (mine || manage) ? (
@@ -1034,7 +1168,7 @@ function FindingDetail({ ctx, finding, onBack }) {
                   ) : null}
                   {a.state === 'til_verifisering' && manage ? (
                     <>
-                      {a.completedBy === actor.name ? <Check label="Jeg kontrollerer mitt eget tiltak (logges som egenkontroll)" value={!!selfOk[a.id]} onChange={(x) => setSelfOk({ ...selfOk, [a.id]: x })} /> : null}
+                      {completedBySelf(a, actor) ? <Check label="Jeg kontrollerer mitt eget tiltak (logges som egenkontroll)" value={!!selfOk[a.id]} onChange={(x) => setSelfOk({ ...selfOk, [a.id]: x })} /> : null}
                       <Row>
                         <Btn small kind="primary" label="Godkjenn gjennomføring" onPress={() => run('Tiltak kontrollert', verifyAction(finding, a.id, { approved: true, allowSelf: !!selfOk[a.id] }, { actor }))} />
                         <Btn small label="Returner" onPress={() => run('Tiltak returnert', verifyAction(finding, a.id, { approved: false, note: reason || 'Ikke tilstrekkelig dokumentert' }, { actor }))} />
@@ -1045,7 +1179,7 @@ function FindingDetail({ ctx, finding, onBack }) {
                 </View>
               );
             })}
-            {!closed && manage && (finding.actions || []).some((a) => ['apen', 'pagar', 'returnert', 'til_verifisering'].includes(a.state)) ? <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse ved retur/kansellering" /> : null}
+            {!closed && manage && (finding.actions || []).some((a) => ['apen', 'pagar', 'returnert', 'til_verifisering'].includes(a.state)) ? <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse ved retur eller kansellering av tiltak" /> : null}
           </Card>
 
           {showEffect ? (
@@ -1058,10 +1192,13 @@ function FindingDetail({ ctx, finding, onBack }) {
                 ? <Banner tone="ok" text={`Effekt verifisert av ${finding.effect.checkedBy}: ${finding.effect.method}`} />
                 : null}
               {finding.effect?.outcome !== 'verifisert' && (finding.effect?.checks || []).length ? (
-                <Text style={{ color: colors.warn, fontSize: 13 }}>Forrige kontroll: ikke verifisert ({finding.effect.checks[finding.effect.checks.length - 1].note}).</Text>
+                <Text style={{ color: colors.warn, fontSize: typeScale.label.fontSize }}>Forrige kontroll: ikke verifisert ({finding.effect.checks[finding.effect.checks.length - 1].note}).</Text>
+              ) : null}
+              {newActionsNeeded && !closed ? (
+                <Banner tone="warn" text="Effekten ble ikke verifisert ved forrige kontroll. Legg inn nye tiltak under Tiltak. Når de er gjennomført og kontrollert, kan effekten kontrolleres på nytt." />
               ) : null}
               {finding.effect?.outcome !== 'verifisert' && !(finding.effect?.checks || []).length ? (
-                <Text style={{ color: colors.muted, fontSize: 13 }}>{effectReady ? 'Alle tiltak er kontrollert. Nå kan effekten kontrolleres.' : 'Gjøres når alle tiltak er kontrollert.'}</Text>
+                <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>{effectReady ? 'Alle tiltak er kontrollert. Nå kan effekten kontrolleres.' : 'Gjøres når alle tiltak er kontrollert.'}</Text>
               ) : null}
             </Card>
           ) : null}
@@ -1075,6 +1212,7 @@ function FindingDetail({ ctx, finding, onBack }) {
                 <>
                   <TextIn value={reason} onChangeText={setReason} placeholder="Begrunnelse for gjenåpning" />
                   <Btn label="Gjenåpne" onPress={() => run('Gjenåpnet', reopenFinding(finding, reason, { actor, caps }))} />
+                  {errHere('Gjenåpnet')}
                 </>
               ) : null}
             </Card>
@@ -1087,57 +1225,64 @@ function FindingDetail({ ctx, finding, onBack }) {
               {finding.assigneeName ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Initials name={finding.assigneeName} size={24} />
-                  <Text style={{ color: colors.ink, fontSize: 13 }}>{finding.assigneeName}</Text>
+                  <Text style={{ color: colors.ink, fontSize: typeScale.label.fontSize }}>{finding.assigneeName}</Text>
                 </View>
-              ) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ikke satt</Text>}
+              ) : <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>Ikke satt</Text>}
             </Line>
             <Line label={finding.state === 'registrert' ? 'Frist for vurdering' : 'Frist'}>
-              <Text style={{ color: due && due < today && !closed ? colors.danger : colors.ink, fontWeight: due && due < today && !closed ? '700' : '400', fontSize: 13 }}>{due ? prettyDate(due) : '–'}</Text>
+              <Text style={{ color: due && due < today && !closed ? colors.danger : colors.ink, fontWeight: due && due < today && !closed ? '700' : '400', fontSize: typeScale.label.fontSize }}>{due ? prettyDate(due) : '–'}</Text>
             </Line>
             <Line label="Alvorlighet">{finding.severity ? severityLabel(finding.severity) : 'Ikke vurdert'}</Line>
             <Line label="Skjedde">{occurredText(finding) || '–'}</Line>
             <Line label="Registrert">{localStamp(finding.reportedAt) || '–'}</Line>
-            <Line label="Registrert av">{finding.reportedBy || '–'}</Line>
+            <Line label="Registrert av">{shown.reportedBy || '–'}</Line>
             {finding.projectName ? <Line label="Prosjekt">{finding.projectName}</Line> : null}
             {!closed ? (
               <>
                 <Divider />
-                <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>Før saken kan lukkes</Text>
+                <Text style={{ color: colors.ink, fontSize: typeScale.label.fontSize, fontWeight: '600' }}>Før saken kan lukkes</Text>
                 {blockers.length
-                  ? blockers.map((b) => <Text key={b} style={{ color: colors.warn, fontSize: 12 }}>• {b}</Text>)
-                  : <Text style={{ color: colors.success, fontSize: 12 }}>Alle krav for lukking er oppfylt.</Text>}
+                  ? blockers.map((b) => <Text key={b} style={{ color: colors.warn, fontSize: typeScale.caption.fontSize }}>• {b}</Text>)
+                  : <Text style={{ color: colors.success, fontSize: typeScale.caption.fontSize }}>Alle krav for lukking er oppfylt.</Text>}
               </>
             ) : null}
             <Divider />
-            <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>
+            <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize, lineHeight: 17 }}>
               Saken behandles av dem med Begrenset redigering i ISO. Lukking krever i tillegg en ledende ISO-rolle
               {approvers.length ? ` (${approvers.map((r) => `${r.role}: ${r.name}`).join(', ')})` : ''}.
               {finding.restricted ? ' Skjermet sak: bare personer med særskilt tilgang kan behandle og lukke den.' : ''}
             </Text>
           </Card>
           <CaseProcess state={state} finding={finding} wide={wide} />
-          <Card title="Koblinger" subtitle="Krav, prosess og revisjon">
-            {linkedReqs.length ? linkedReqs.map((r) => <ListRow key={r.id} icon="document-text-outline" title={`${r.standard ? r.standard.replace('ISO', 'ISO ') : r.kind} ${r.clause || ''} ${r.title}`} onPress={() => go('krav', { open: r.id })} />) : <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen krav koblet. Ved lukking kobles saken til kravet om avvik og korrigerende tiltak.</Text>}
+          <Card title="Koblinger" subtitle="Krav, revisjon, utstyr, leverandør, kunde, prosjekt og ansatte">
+            {linkedReqs.length ? linkedReqs.map((r) => <ListRow key={r.id} icon="document-text-outline" title={`${r.standard ? r.standard.replace('ISO', 'ISO ') : r.kind} ${r.clause || ''} ${r.title}`} onPress={() => go('krav', { open: r.id })} />) : <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>Ingen krav koblet. Ved lukking kobles saken til kravet om avvik og korrigerende tiltak.</Text>}
             {manage && !closed ? <Btn small icon="link-outline" label="Koble krav" onPress={() => openSheet('reqs')} /> : null}
             {finding.links?.auditId ? <ListRow icon="search-outline" title="Fra internrevisjon" onPress={() => go('revisjon', { open: finding.links.auditId })} /> : null}
+            {finding.links?.equipmentId ? <ListRow icon="construct-outline" title={`Utstyr: ${finding.links.equipmentName || 'utstyr'}`} subtitle="Kontroll og kalibrering i Utstyr" onPress={() => ctx.requestTab?.('utstyr')} /> : null}
+            {finding.links?.supplierId ? <ListRow icon="cube-outline" title={`Leverandør: ${finding.links.supplierName || 'leverandør'}`} onPress={() => go('leverandorer', { open: finding.links.supplierId })} /> : null}
+            {finding.links?.customerId ? <ListRow icon="people-outline" title={`Kunde: ${finding.links.customerName || 'kunde'}`} onPress={() => ctx.requestTab?.('kunder')} /> : null}
+            {finding.projectId ? <ListRow icon="briefcase-outline" title={`Prosjekt: ${finding.projectName || 'prosjekt'}`} onPress={() => go('prosjekt')} /> : null}
+            {(finding.links?.employeeIds || []).length && (!finding.restricted || caps.restrictedView) ? <ListRow icon="person-outline" title={`Ansatte: ${(finding.links.employeeNames || []).join(', ') || finding.links.employeeIds.length}`} /> : null}
+            {manage && !closed ? <Btn small icon="git-merge-outline" label="Koble til utstyr, leverandør, kunde, prosjekt eller ansatt" onPress={() => openSheet('links')} /> : null}
             {evidenceReqs.length ? (
               <>
-                <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>Brukt som bevis i kravmatrisen:</Text>
+                <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize, marginTop: 6 }}>Brukt som bevis i kravmatrisen:</Text>
                 {evidenceReqs.map((r) => <ListRow key={r.id} icon="checkmark-done-outline" tone="ok" title={`${r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.kind} ${r.title}`} onPress={() => go('krav', { open: r.id })} />)}
               </>
             ) : null}
           </Card>
           <Card title="Historikk">
-            {(finding.history || []).slice().reverse().map((h, i) => (
+            {(shown.history || []).slice().reverse().map((h, i) => (
               <View key={i} style={{ flexDirection: 'row', gap: 10, paddingBottom: 6 }}>
-                <Text style={{ width: 74, color: colors.muted, fontSize: 12 }}>{localStamp(h.at, true)}</Text>
+                <Text style={{ width: 74, color: colors.muted, fontSize: typeScale.caption.fontSize }}>{localStamp(h.at, true)}</Text>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ color: colors.ink, fontSize: 13 }}><Text style={{ fontWeight: '600' }}>{h.action}</Text>{h.by ? ` · ${h.by}` : ''}</Text>
-                  {h.note ? <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={4}>{h.note}</Text> : null}
+                  <Text style={{ color: colors.ink, fontSize: typeScale.label.fontSize }}><Text style={{ fontWeight: '600' }}>{h.action}</Text>{h.by ? ` · ${h.by}` : ''}</Text>
+                  {h.note ? <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }} numberOfLines={4}>{h.note}</Text> : null}
                 </View>
               </View>
             ))}
-            <Btn small label={audit ? 'Skjul revisjonsspor' : 'Vis revisjonsspor'} onPress={async () => setAudit(audit ? null : await loadAuditFor(ctx.companyId, finding.id, { restricted: !!finding.restricted }))} />
+            {/* Revisjonssporet har navn på alle som har endret saken, også melderen: bare for saksbehandlere. */}
+            {caps.manage ? <Btn small label={audit ? 'Skjul revisjonsspor' : 'Vis revisjonsspor'} onPress={async () => setAudit(audit ? null : await loadAuditFor(ctx.companyId, finding.id, { restricted: !!finding.restricted }))} /> : null}
             {audit ? audit.map((e) => <Text key={e.id} style={{ color: colors.muted, fontSize: 11 }}>{String(e.at).replace('T', ' ').slice(0, 16)} · {e.action} · {e.actorName} · {e.beforeHash || '–'}→{e.afterHash}</Text>) : null}
           </Card>
         </View>
@@ -1150,14 +1295,17 @@ function FindingDetail({ ctx, finding, onBack }) {
         onClose={() => setSheet('')}
         footer={<><Btn label="Avbryt" onPress={() => setSheet('')} /><Btn kind="primary" label={finding.state === 'registrert' ? 'Start behandling' : 'Lagre triage'} busy={!!busy} disabled={!tri.severity || !tri.assigneeName} onPress={saveTriage} /></>}
       >
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{finding.number} · {finding.title}</Text>
+        <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>{finding.number} · {finding.title}</Text>
         <Field label="Alvorlighet" required><Choice options={SEVERITIES.map((s) => ({ id: s.id, label: s.label }))} value={tri.severity} onChange={(x) => setTri({ ...tri, severity: x })} /></Field>
         <Field label="Saksbehandler" required hint="Får saken som oppgave i Oppgaver."><PersonPick people={people} value={tri.assigneeName} onChange={(p) => setTri({ ...tri, assigneeName: p.name, assigneeUid: p.uid })} /></Field>
         <Field label="Frist for saken" hint="Tom frist gir 30 dager (7 dager ved kritisk)."><DateIn value={tri.dueAt} onChange={(x) => setTri({ ...tri, dueAt: x })} /></Field>
+        {['hms', 'nestenulykke'].includes(finding.type) ? (
+          <Field label="Skadeklasse"><Choice small options={INJURY_CLASSES.map((c) => ({ id: c.id, label: c.label }))} value={tri.injuryClass} onChange={(x) => setTri({ ...tri, injuryClass: x || '', notifiable: seriousInjury(x) ? true : tri.notifiable })} placeholder="Velg" title="Skadeklasse" /></Field>
+        ) : null}
         <Check label="Akutt fare eller konsekvens" value={!!tri.urgent} onChange={(x) => setTri({ ...tri, urgent: x })} />
         {tri.urgent ? <Field label="Strakstiltak" required><TextIn value={tri.immediateAction} onChangeText={(x) => setTri({ ...tri, immediateAction: x })} /></Field> : null}
         <Check label="Mulig meldeplikt til myndighet" value={!!tri.notifiable} onChange={(x) => setTri({ ...tri, notifiable: x })} />
-        {tri.notifiable ? <Field label="Hvem varsler" required><PersonPick people={people} value={tri.notificationAssignee} onChange={(p) => setTri({ ...tri, notificationAssignee: p.name })} /></Field> : null}
+        {tri.notifiable ? <Field label="Hvem varsler" required hint="Får oppgave med frist i dag."><PersonPick people={people} value={tri.notificationAssignee} onChange={(p) => setTri({ ...tri, notificationAssignee: p.name, notificationAssigneeUid: p.uid || '' })} /></Field> : null}
         <Field label="Merknad"><TextIn value={tri.note} onChangeText={(x) => setTri({ ...tri, note: x })} /></Field>
         {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
       </Sheet>
@@ -1169,7 +1317,7 @@ function FindingDetail({ ctx, finding, onBack }) {
         onClose={() => setSheet('')}
         footer={<><Btn label="Avbryt" onPress={() => setSheet('')} /><Btn kind="primary" label="Lagre" busy={!!busy} onPress={saveAssessment} /></>}
       >
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{finding.number} · {finding.title}{finding.severity ? ` · alvorlighet ${severityLabel(finding.severity).toLowerCase()}` : ''}</Text>
+        <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>{finding.number} · {finding.title}{finding.severity ? ` · alvorlighet ${severityLabel(finding.severity).toLowerCase()}` : ''}</Text>
         {canDecide ? (
           <>
             <Field label="Trengs korrigerende tiltak?" required>
@@ -1190,8 +1338,8 @@ function FindingDetail({ ctx, finding, onBack }) {
         <Field label="Bakenforliggende årsaker"><Chips options={CAUSE_CATEGORIES} value={rc.categories} onChange={(x) => setRc({ ...rc, categories: x })} /></Field>
         <Field
           label="Hvorfor skjedde det"
-          required={(asm.correctiveRequired ?? finding.assessment?.correctiveRequired) === true && ['middels', 'hoy', 'kritisk'].includes(finding.severity)}
-          hint="Direkte og bakenforliggende årsak, med egne ord. Påkrevd før lukking når tiltak trengs og alvorligheten er middels eller høyere."
+          required={rootCauseRequired({ ...finding, assessment: { correctiveRequired: asm.correctiveRequired ?? finding.assessment?.correctiveRequired } })}
+          hint="Direkte og bakenforliggende årsak, med egne ord. Påkrevd før lukking når tiltak trengs og alvorligheten er middels eller høyere, og alltid for personskade, nestenulykke og miljøhendelse."
         >
           <TextIn multiline rows={3} value={rc.systemCause} onChangeText={(x) => setRc({ ...rc, systemCause: x })} placeholder="Hva i rutiner, planlegging, utstyr eller opplæring gjorde at det skjedde?" />
         </Field>
@@ -1226,7 +1374,7 @@ function FindingDetail({ ctx, finding, onBack }) {
         onClose={() => setSheet('')}
         footer={<><Btn label="Avbryt" onPress={() => setSheet('')} /><Btn kind="primary" label="Lagre effektkontroll" busy={!!busy} disabled={!effect.outcome} onPress={() => save('Effektkontroll', verifyEffect(finding, effect, { actor }))} /></>}
       >
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Har tiltakene hatt ønsket effekt? «Ikke verifisert» gjenåpner saken for nye tiltak.</Text>
+        <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Har tiltakene hatt ønsket effekt? «Ikke verifisert» gjenåpner saken for nye tiltak.</Text>
         <Field label="Metode" required><TextIn value={effect.method} onChangeText={(x) => setEffect({ ...effect, method: x })} placeholder="Stikkprøve, måling, oppfølgingssamtale …" /></Field>
         <Field label="Resultat" required><TextIn multiline rows={2} value={effect.note} onChangeText={(x) => setEffect({ ...effect, note: x })} /></Field>
         <Field label="Utfall" required>
@@ -1242,18 +1390,26 @@ function FindingDetail({ ctx, finding, onBack }) {
         onClose={() => setSheet('')}
         footer={<><Btn label="Avbryt" onPress={() => setSheet('')} /><Btn kind="primary" icon="lock-closed-outline" label="Godkjenn lukking" busy={!!busy} disabled={!!blockers.length || !closeNote.trim()} onPress={doClose} /></>}
       >
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{finding.number} · {finding.title}</Text>
+        <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>{finding.number} · {finding.title}</Text>
         {blockers.length
-          ? <View style={{ gap: 4 }}>{blockers.map((b) => <Text key={b} style={{ color: colors.warn, fontSize: 13 }}>• {b}</Text>)}</View>
+          ? <View style={{ gap: 4 }}>{blockers.map((b) => <Text key={b} style={{ color: colors.warn, fontSize: typeScale.label.fontSize }}>• {b}</Text>)}</View>
           : <Banner tone="ok" text="Alle krav for lukking er oppfylt." />}
         <Field label="Lukkebegrunnelse" required><TextIn value={closeNote} onChangeText={setCloseNote} placeholder="Hva ble gjort, og hvorfor er saken ferdig?" /></Field>
         <Field label="Læring / erfaringsoverføring"><TextIn multiline rows={2} value={learning} onChangeText={setLearning} placeholder="Hva tar vi med oss videre?" /></Field>
         <Divider />
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Er saken feilregistrert eller en dublett? Kanseller den i stedet.</Text>
+        <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Er saken feilregistrert eller en dublett? Kanseller den i stedet.</Text>
         <TextIn value={cancelReason} onChangeText={setCancelReason} placeholder="Begrunnelse for kansellering" />
         <Btn small kind="danger" label="Kanseller saken" disabled={cancelReason.trim().length < 5} onPress={() => save('Saken er kansellert', cancelFinding(finding, cancelReason, { actor, caps }))} />
         {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
       </Sheet>
+
+      <LinkSheet
+        ctx={ctx}
+        finding={finding}
+        visible={sheet === 'links'}
+        onClose={() => setSheet('')}
+        onSave={(patch) => save('Koblinger', updateFindingLinks(finding, patch, { actor }))}
+      />
 
       <RequirementPicker
         visible={sheet === 'reqs'}
@@ -1287,9 +1443,65 @@ function CaseProcess({ state, finding, wide }) {
   return (
     <Card title="Prosessen for saken" subtitle={`${proc.title} v${proc.publishedVersion}`} right={<Btn small label={open ? 'Skjul' : 'Vis'} onPress={() => setOpen(!open)} />}>
       {open ? <IsoDiagram diagram={diagram} scale={view.scale} offset={view.offset} active={active} done={done} height={240} /> : (
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Nå: {active.map((id) => diagram.nodes.find((n) => n.id === id)?.label).filter(Boolean).join(' / ') || (finding.state === 'lukket' ? 'Lukket' : '–')}</Text>
+        <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>Nå: {active.map((id) => diagram.nodes.find((n) => n.id === id)?.label).filter(Boolean).join(' / ') || (finding.state === 'lukket' ? 'Lukket' : '–')}</Text>
       )}
     </Card>
+  );
+}
+
+/** Valgene for koblinger: leverandører i ISO, kunder fra Kunder, utstyr fra Utstyr, prosjekter og ansatte. */
+function linkOptions(ctx) {
+  const { state, sources = {}, projects = [], people = [] } = ctx;
+  return {
+    suppliers: (state.records?.leverandor || []).filter((r) => r.state !== 'arkivert').map((r) => ({ id: r.id, label: r.title })),
+    customers: (sources.customers || []).filter((c) => c?.id && (c.name || c.navn)).map((c) => ({ id: c.id, label: c.name || c.navn })),
+    equipment: (sources.equipment || []).filter((e) => e?.id && e.scope !== 'private' && e.status !== 'retired').map((e) => ({ id: e.id, label: e.name || 'Utstyr' })),
+    projects: (projects || []).map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() })),
+    people: (people || []).filter((p) => p.id).map((p) => ({ id: p.id, label: p.name })),
+  };
+}
+
+/** Rød tråd (ISO-17): koble saken til utstyr, leverandør, kunde, prosjekt og involverte ansatte. */
+function LinkSheet({ ctx, finding, visible, onClose, onSave }) {
+  const colors = useColors();
+  const opts = useMemo(() => linkOptions(ctx), [ctx.state, ctx.sources, ctx.projects, ctx.people]); // eslint-disable-line react-hooks/exhaustive-deps
+  const initial = () => ({
+    equipmentId: finding.links?.equipmentId || '',
+    supplierId: finding.links?.supplierId || '',
+    customerId: finding.links?.customerId || '',
+    projectId: finding.projectId || '',
+    employeeIds: finding.links?.employeeIds || [],
+  });
+  const [v, setV] = useState(initial);
+  useEffect(() => { if (visible) setV(initial()); }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const name = (list, id) => list.find((o) => o.id === id)?.label || '';
+  const pick = (key, list, title) => (list.length
+    ? <Field label={title}><Choice small clearable title={title} options={list} value={v[key]} onChange={(x) => setV({ ...v, [key]: x || '' })} /></Field>
+    : null);
+  return (
+    <Sheet
+      visible={visible}
+      title="Koblinger"
+      onClose={onClose}
+      footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Lagre" onPress={() => onSave({
+        equipmentId: v.equipmentId, equipmentName: name(opts.equipment, v.equipmentId),
+        supplierId: v.supplierId, supplierName: name(opts.suppliers, v.supplierId),
+        customerId: v.customerId, customerName: name(opts.customers, v.customerId),
+        projectId: v.projectId, projectName: name(opts.projects, v.projectId),
+        employeeIds: v.employeeIds, employeeNames: v.employeeIds.map((id) => name(opts.people, id)).filter(Boolean),
+      })} /></>}
+    >
+      <Text style={{ color: colors.muted, fontSize: typeScale.label.fontSize }}>Saken vises på utstyret, leverandøren og prosjektet, og telles i leverandørevalueringen og ledelsens gjennomgang.</Text>
+      {pick('equipmentId', opts.equipment, 'Utstyr')}
+      {pick('supplierId', opts.suppliers, 'Leverandør')}
+      {pick('customerId', opts.customers, 'Kunde')}
+      {pick('projectId', opts.projects, 'Prosjekt')}
+      {opts.people.length ? (
+        <Field label="Involverte ansatte" hint={finding.restricted ? 'Skjermet sak: vises bare for dem med tilgang.' : 'Personopplysninger om skade hører i en skjermet sak.'}>
+          <Choice small multi title="Ansatte" options={opts.people} value={v.employeeIds} onChange={(x) => setV({ ...v, employeeIds: x || [] })} />
+        </Field>
+      ) : null}
+    </Sheet>
   );
 }
 

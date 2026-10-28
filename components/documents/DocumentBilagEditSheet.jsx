@@ -9,6 +9,7 @@ import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { useLayout } from '../../src/theme';
 import ConfirmDialog from '../ConfirmDialog';
 import { emptyBilag, formatBilagAmount } from '../../src/utils/documentBilag';
+import { dateText } from '../../src/format/nb';
 
 function numToStr(v) {
   if (v == null || v === '') return '';
@@ -68,7 +69,7 @@ export default function DocumentBilagEditSheet({
         ocrStatus: form.ocrStatus === 'pending' ? 'edited' : (form.ocrStatus || 'edited'),
       };
       const name = bilag.supplier
-        ? `${bilag.supplier}${bilag.date ? ` ${bilag.date}` : ''}${bilag.amount != null ? ` ${formatBilagAmount(bilag.amount, bilag.currency)}` : ''}`
+        ? `${bilag.supplier}${bilag.date ? ` ${dateText(bilag.date)}` : ''}${bilag.amount != null ? ` ${formatBilagAmount(bilag.amount, bilag.currency)}` : ''}`
         : file.name;
       await onSave?.({ bilag, name: name.slice(0, 120), kind: 'receipt' });
       onClose?.();

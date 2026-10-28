@@ -9,12 +9,17 @@ import {
   shouldOfferAddToHome,
   wasAddHomeDismissed,
 } from '../src/utils/addToHome';
+import { useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 
 /**
  * Smartplan-style top install strip: dark bar, app icon, Installer CTA.
  */
 export default function AddToHomeBanner({ onOpenGuide }) {
   const [visible, setVisible] = useState(false);
+  const { isTouch } = useLayout();
+  // Krysset er en 28 px boks uten bakgrunn; 44 px på berøringsskjerm (UX-26).
+  const closeHit = touchHit(28, 28, { touch: isTouch, os: Platform.OS, fixed: true });
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -39,8 +44,9 @@ export default function AddToHomeBanner({ onOpenGuide }) {
     <View style={styles.wrap} accessibilityRole="summary">
       <TouchableOpacity
         onPress={dismiss}
-        hitSlop={10}
-        style={styles.closeBtn}
+        hitSlop={closeHit.hitSlop || 10}
+        style={[styles.closeBtn, closeHit.style]}
+        accessibilityRole="button"
         accessibilityLabel="Lukk"
       >
         <Ionicons name="close" size={18} color="#cbd5e1" />

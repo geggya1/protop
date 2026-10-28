@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   Image, ActivityIndicator, Platform, ScrollView, Animated, PanResponder,
-  Pressable, useWindowDimensions, KeyboardAvoidingView, Alert,
+  Pressable, useWindowDimensions, KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -13,7 +13,8 @@ import { useApp } from '../src/context/AppContext';
 import { useI18n } from '../src/i18n';
 import { useUnread } from '../src/context/NotificationContext';
 import { useChatDock, useChatDockPreferred } from '../src/context/ChatDockContext';
-import { colors } from '../src/theme';
+import { colors, useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 import { AvatarBubble } from './AvatarPicker';
 import { formatMessageStamp } from '../src/utils/aiChats';
 import { setOpenChatId } from '../src/utils/openChat';
@@ -22,6 +23,7 @@ import {
   markChatRead, resolveChatRecipients, stampChatMessage, uniqueMemberIds,
   ensureChatDoc, listenChatMessages,
 } from '../src/utils/chats';
+import { chatMessageNotice, chatNoticeId } from '../src/utils/chatsLogic';
 import {
   listenFriendChatMessages,
   listFriendChatMessagesViaAdmin,
@@ -31,6 +33,8 @@ import {
 import { isChildAiAllowed } from '../src/utils/childApps';
 import { getAppNav } from '../src/navigation/navRef';
 import { pickImage, uploadImage, alertPhotoError } from '../src/utils/media';
+import { notifyUser } from '../src/utils/dialog';
+import { friendSendErrorText } from '../src/utils/friendsLogic';
 import { useParentBottomNavChrome } from '../src/hooks/useParentBottomNavChrome';
 import { useWebModalOpen } from '../src/hooks/useWebModalOpen';
 import { httpsCallable } from 'firebase/functions';
@@ -54,6 +58,7 @@ import AssistantChat from './assistant/AssistantChat';
 import { assistantThread, isAssistantThread } from '../src/help/assistantBridge';
 import { useCompanyChatContacts } from '../src/hooks/useCompanyChatContacts';
 import { STAFF_CHAT_ID, STAFF_CHAT_TITLE, companyChatLabel } from '../src/utils/companyChat';
+import { companyDisplayName } from '../src/utils/companyName';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -100,6 +105,13 @@ function DockBubble({ item, mine }) {
   );
 }
 
+/** Ikonknappene i chatten er 20 px; trykkflaten er 44 px på berøringsskjerm (UX-26). */
+function useIconHit(size = 20) {
+  const { isTouch } = useLayout();
+  const hit = touchHit(size, size, { touch: isTouch, os: Platform.OS });
+  return { hitSlop: hit.hitSlop || 8, style: hit.style };
+}
+
 function ChatDockPanel({
   window: win, openIndexFromRight = 0, minimizedStackIndex = 0,
   hasMinimizedColumn = false, onClose, onMinimize, drawer = false, onBack = null,
@@ -117,11 +129,14 @@ function ChatDockPanel({
       : null);
   const { markChatSeen } = useUnread();
   const { t } = useI18n();
+  const iconHit = useIconHit();
   const [text, setText] = useState('');
   const [msgs, setMsgs] = useState([]);
   const [memberIds, setMemberIds] = useState(win.memberIds || []);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
+  // Sendefeil vises i tråden (Alert.alert gjør ingenting på web).
+  const [sendError, setSendError] = useState('');
   const listRef = useRef(null);
   const name = meChild?.name || user?.displayName || (user?.email || '').split('@')[0] || 'Meg';
 
@@ -187,6 +202,7 @@ function ChatDockPanel({
       text: msg,
       senderName: name,
     });
+    // Ingen klientreserve: svarer serveren not-friends eller feiler, er det den feilen som vises.
     if (!res?.data?.ok) throw new Error(res?.data?.error || 'send-failed');
   };
 
@@ -201,7 +217,8 @@ function ChatDockPanel({
       const body = payload.type === 'image'
         ? (payload.text?.trim() || '')
         : payload.text;
-      // Prefer Admin for text (creates chat doc if missing); client for images.
+      // Tekst går bare via Admin (sjekker vennskapet og lager chatten). Bilder skrives av
+      // klienten, som også sjekker vennskapet; feiler det, sendes en tekst via Admin.
       if (payload.type === 'image' && payload.imageUrl) {
         try {
           await sendFriendChatMessage({
@@ -213,23 +230,14 @@ function ChatDockPanel({
             imageUrl: payload.imageUrl,
             imagePath: payload.imagePath || null,
           });
-        } catch {
+        } catch (err) {
+          if (err?.message === 'not-friends' || err?.message === 'forbidden') throw err;
           const fallback = String(body || '').trim() || t('chat.imageSent');
           await sendFriendViaAdmin(fallback);
         }
         return;
       }
-      try {
-        await sendFriendViaAdmin(String(body || '').trim());
-      } catch {
-        await sendFriendChatMessage({
-          chatId,
-          senderUid,
-          senderName: name,
-          text: body,
-          type: 'text',
-        });
-      }
+      await sendFriendViaAdmin(String(body || '').trim());
       return;
     }
 
@@ -270,21 +278,27 @@ function ChatDockPanel({
     try {
       await stampChatMessage(familyId, chatId, {
         senderId: senderUid,
+        senderName: name,
         text: preview,
         memberIds: stampIds,
         unreadFor: recipients.length ? recipients : undefined,
         messageId: msgRef.id,
       });
     } catch { /* ignore */ }
+    // Avsenderens navn (ikke «Ny melding» eller chattens tittel, som for en DM er mottakerens
+    // navn), og samme id som mottakerens reserve, så én melding gir ett varsel (SOS-11, SOS-13).
+    const notice = chatMessageNotice({
+      chatId, chatTitle: win.title, senderName: name, text: preview,
+    });
     try {
       await notifyUsers(recipients, {
         eventType: 'messageReceived',
-        title: t('chat.newMessage'),
-        body: preview,
+        title: notice.title,
+        body: notice.body,
         familyId,
         chatId,
         createdBy: senderUid,
-        notificationId: `msg_${msgRef.id}`,
+        notificationId: chatNoticeId({ chatId, messageId: msgRef.id }),
       });
     } catch { /* ignore */ }
   };
@@ -304,6 +318,7 @@ function ChatDockPanel({
     if (!isFriend && (!familyId || !chatId)) return;
     if (isFriend && (!chatId || !friendUid)) return;
     setSending(true);
+    setSendError('');
     setText('');
     try {
       await sendMessage({ type: 'text', text: msg });
@@ -313,10 +328,7 @@ function ChatDockPanel({
     } catch (err) {
       console.warn('[chat] send failed', err?.code || err?.message || err);
       setText(msg);
-      Alert.alert(
-        'Kunne ikke sende',
-        'Meldingen ble ikke sendt. Prøv igjen.',
-      );
+      setSendError(isFriend ? friendSendErrorText(err) : 'Meldingen ble ikke sendt. Prøv igjen.');
     } finally {
       setSending(false);
     }
@@ -335,13 +347,16 @@ function ChatDockPanel({
       const imageUrl = await uploadImage(path, picked);
       const caption = text.trim();
       setText('');
+      setSendError('');
       try {
         await sendMessage({ type: 'image', imageUrl, imagePath: path, text: caption });
         if (isFriend) await refreshFriendMsgs();
       } catch (err) {
         console.warn('[chat] image send failed', err?.code || err?.message || err);
         setText(caption);
-        throw err;
+        // Bildet er lastet opp; det er sendingen som feilet.
+        setSendError(isFriend ? friendSendErrorText(err) : 'Bildet ble ikke sendt. Prøv igjen.');
+        return;
       }
     } catch (err) {
       alertPhotoError(err, t);
@@ -395,11 +410,11 @@ function ChatDockPanel({
           <Text style={styles.headSub} numberOfLines={1}>{t('tabs.chat')}</Text>
         </View>
         {!drawer ? (
-          <TouchableOpacity onPress={() => onMinimize(true)} hitSlop={8} accessibilityLabel="Minimer">
+          <TouchableOpacity onPress={() => onMinimize(true)} {...iconHit} accessibilityRole="button" accessibilityLabel="Minimer">
             <Ionicons name="remove" size={20} color="#fff" />
           </TouchableOpacity>
         ) : null}
-        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityLabel="Lukk">
+        <TouchableOpacity onPress={onClose} {...iconHit} accessibilityRole="button" accessibilityLabel="Lukk">
           <Ionicons name="close" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -419,6 +434,16 @@ function ChatDockPanel({
           keyboardShouldPersistTaps="handled"
         />
       </View>
+
+      {sendError ? (
+        <View style={styles.sendError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          <Ionicons name="alert-circle-outline" size={16} color="#b91c1c" />
+          <Text style={styles.sendErrorTxt}>{sendError}</Text>
+          <TouchableOpacity onPress={() => setSendError('')} accessibilityLabel="Lukk">
+            <Ionicons name="close" size={16} color="#64748b" />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <View style={styles.composer}>
         <TouchableOpacity onPress={attachImage} disabled={uploading} style={styles.iconBtn}>
@@ -474,6 +499,7 @@ function ChatDockPanel({
 
 function ComposePicker({ onClose, onPick, drawer = false }) {
   const { t } = useI18n();
+  const iconHit = useIconHit();
   const {
     familyId, family, members, uid, isChild, meChild, friendPeople,
   } = useApp();
@@ -483,7 +509,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
   // I en bedrift: «Alle ansatte» (faste ansatte) og ansattlisten i stedet for familien.
   const companyChat = useCompanyChatContacts();
   const isCompany = !!companyChat;
-  const companyName = family?.company?.navn || family?.name || '';
+  const companyName = companyDisplayName(family);
   const staffChatIds = companyChat?.staffChatIds || [];
   const showStaffChat = !!(companyChat?.ready && companyChat.inStaffChat && staffChatIds.length);
   const others = useMemo(
@@ -594,7 +620,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
         avatarId: p.avatarId || null,
       });
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     }
   };
 
@@ -604,7 +630,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
         <Text style={styles.composeTitle}>
           {drawer ? (t('tabs.chat') || 'Chat') : t('chat.newChat')}
         </Text>
-        <TouchableOpacity onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('moduleIntro.close')}>
+        <TouchableOpacity onPress={onClose} {...iconHit} accessibilityRole="button" accessibilityLabel={t('moduleIntro.close')}>
           <Ionicons name="close" size={20} color={colors.ink} />
         </TouchableOpacity>
       </View>
@@ -1471,6 +1497,22 @@ const styles = StyleSheet.create({
   stamp: { fontSize: 10, color: colors.muted, marginTop: 4, fontWeight: '400' },
   stampMine: { color: 'rgba(255,255,255,0.8)' },
   chatImage: { width: 180, height: 140, borderRadius: 10, marginBottom: 4 },
+  sendError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#fef2f2',
+    borderTopWidth: 1,
+    borderTopColor: '#fecaca',
+  },
+  sendErrorTxt: {
+    flex: 1,
+    color: '#991b1b',
+    fontSize: 12,
+    lineHeight: 16,
+  },
   composer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1487,9 +1529,13 @@ const styles = StyleSheet.create({
     }),
   },
   iconBtn: {
-    alignSelf: 'flex-start', padding: 4 },
+    alignSelf: 'flex-start', padding: 4, flexShrink: 0 },
+  // minWidth 0: et <input> på web krymper ellers ikke under sin naturlige bredde,
+  // og Send-knappen havner utenfor skjermen på mobil (SOS-02).
   input: {
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
     minHeight: 36,
     maxHeight: 80,
     borderRadius: 18,
@@ -1506,6 +1552,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   sendBtnDisabled: { opacity: 0.45 },
   pill: {
@@ -1621,7 +1668,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#f4f6f8',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line || '#e5e7eb',
+    borderColor: colors.line,
   },
   composeSearch: {
     flex: 1,

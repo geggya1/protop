@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { formatDateTime } from '../../src/format/nb';
 import { periodLabel } from '../../src/indeksregulering/engine';
 import { formatIndex } from '../../src/indeksregulering/letter';
 import {
@@ -21,9 +22,6 @@ function showValue(value) {
   return formatIndex(value);
 }
 
-function stamp(value) {
-  return String(value || '').slice(0, 16).replace('T', ' ');
-}
 
 export default function EconomyIndices({ contracts = [] }) {
   const colors = useColors();
@@ -105,7 +103,7 @@ export default function EconomyIndices({ contracts = [] }) {
       {working ? (
         <Text style={{ color: colors.muted }}>Henter tall fra SSB…</Text>
       ) : checkedAt ? (
-        <Text style={{ color: colors.muted }}>Sist oppdatert {stamp(checkedAt)}</Text>
+        <Text style={{ color: colors.muted }}>Sist oppdatert {formatDateTime(checkedAt)}</Text>
       ) : null}
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
       <View nativeID="economy-index-filters" style={styles.filters}>

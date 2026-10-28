@@ -39,6 +39,7 @@ import {
 import {
   cancelBooking,
   patchRowsById,
+  recordEquipmentControl,
   removeEquipment,
   removePersonalVehicle,
   setEquipmentBookingPolicy,
@@ -47,11 +48,15 @@ import {
   upsertPersonalVehicle,
 } from '../../src/equipment/state';
 import EquipmentBookingAccess from '../../components/equipment/EquipmentBookingAccess';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { ControlStatus, ControlsEditor } from './EquipmentControls';
+import { submitQuick } from '../iso/quickSend';
 import EquipmentCalendar from '../../components/equipment/EquipmentCalendar';
 import { useLayout } from '../../src/theme';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
 import { feeClassFromSignals, feeClassLabel, VEHICLE_FEE_CLASSES } from '../../src/mileage/vehicleFee';
+import { dateText } from '../../src/format/nb';
 
 const WEEKDAYS = ['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'];
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
@@ -144,6 +149,7 @@ const EMPTY_GEAR = {
   status: 'available', purchasedAt: '', warrantyUntil: '', warrantyVendor: '', warrantyNote: '', warrantyUri: '', notes: '',
   vegvesenSummary: '', ownerEmployeeId: '', ownerName: '',
   trackOdometer: false, odometerStart: '', odometerSince: '',
+  measuring: false, controls: [],
 };
 
 function categoryForGroup(group) {
@@ -175,6 +181,10 @@ export default function EquipmentScreen() {
   const [projectQuery, setProjectQuery] = useState('');
   const [projectId, setProjectId] = useState('');
   const [lookupNote, setLookupNote] = useState('');
+  // Sletting bekreftes først (UX-27): utstyret og reservasjonene kan ikke hentes tilbake.
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [controlBusy, setControlBusy] = useState(false);
+  const [notice, setNotice] = useState('');
   const loadedRef = useRef(null);
 
   useEffect(() => {
@@ -414,6 +424,18 @@ export default function EquipmentScreen() {
 
   function deleteGear(item) {
     if (item.scope !== 'private' && !canDelete) return;
+    setPendingDelete(item);
+  }
+
+  function confirmDelete() {
+    const item = pendingDelete;
+    setPendingDelete(null);
+    if (!item) return;
+    if (item.personalCar) {
+      syncEquipment(removePersonalVehicle(state, item.id));
+      return;
+    }
+    if (item.scope !== 'private' && !canDelete) return;
     let next = removeEquipment(state, item.id);
     if (!next.ok) {
       setError(next.error);
@@ -426,6 +448,37 @@ export default function EquipmentScreen() {
       if (car) next = removePersonalVehicle(next.state, car.id);
     }
     syncEquipment(next);
+  }
+
+  /**
+   * Gjennomført kontroll eller kalibrering. Avvik meldes som sak i ISO koblet til utstyret (7.1.5.2),
+   * og saksnummeret lagres på kontrollen.
+   */
+  async function recordControl(item, controlId, input) {
+    if (!canManage) return false;
+    setControlBusy(true);
+    setNotice('');
+    let link = {};
+    if (input.result === 'avvik') {
+      const control = (item.controls || []).find((c) => c.id === controlId);
+      const kind = control?.kind === 'kalibrering' ? 'Kalibrering' : 'Kontroll';
+      const sent = await submitQuick(familyId, {
+        type: 'prosess',
+        text: `${kind} av ${item.name}${item.serial ? ` (serienr. ${item.serial})` : ''} viste avvik: ${input.note}. Vurder om arbeid og målinger siden forrige kontroll${control?.last ? ` (${control.last})` : ''} må kontrolleres.`,
+        equipmentId: item.id,
+        equipmentName: item.name,
+      }, { actor: { uid: uid || '', name: employeeName } });
+      if (sent.error) {
+        setControlBusy(false);
+        setError(sent.error);
+        return false;
+      }
+      link = { findingId: sent.sent?.id || sent.id || '', findingNumber: sent.sent?.number || '' };
+      setNotice(sent.sent ? `Avvik ${sent.sent.number} er meldt i ISO og koblet til ${item.name}.` : 'Ingen nett: avviket er lagret på enheten og meldes når nettet er tilbake.');
+    }
+    const res = await syncEquipment(recordEquipmentControl(state, item.id, controlId, { ...input, ...link }));
+    setControlBusy(false);
+    return !!res?.ok;
   }
 
   function saveBooking() {
@@ -464,8 +517,11 @@ export default function EquipmentScreen() {
         </Text>
         {row.warrantyUntil ? (
           <Text style={{ color: colors.ink, fontSize: 12 }}>
-            Garanti til {row.warrantyUntil}{row.warrantyVendor ? ` · ${row.warrantyVendor}` : ''}
+            Garanti til {dateText(row.warrantyUntil)}{row.warrantyVendor ? ` · ${row.warrantyVendor}` : ''}
           </Text>
+        ) : null}
+        {row.scope !== 'private' ? (
+          <ControlStatus gear={row} colors={colors} canManage={canManage} busy={controlBusy} onRecord={(controlId, input) => recordControl(row, controlId, input)} />
         ) : null}
         {row.group === 'kjoretoy' && row.trackOdometer ? (
           <Text style={{ color: colors.ink, fontSize: 12 }}>
@@ -512,6 +568,18 @@ export default function EquipmentScreen() {
         <Chip nativeID="equipment-tab-kalender" label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); }} colors={colors} />
       </View>
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+      {notice ? <Text style={{ color: colors.brand, fontSize: 13 }}>{notice}</Text> : null}
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title="Slette?"
+        message={pendingDelete ? `«${pendingDelete.name}» slettes${pendingDelete.personalCar ? ' fra kjøreboken' : ', med kontrollhistorikk og tilgang'}. Dette kan ikke angres.` : ''}
+        confirmText="Slett"
+        cancelText="Avbryt"
+        danger
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+        onClose={() => setPendingDelete(null)}
+      />
       {rights === 'admin' || !access.ready || tab === 'privat' ? null : (
         <Text style={{ color: colors.muted, fontSize: 13 }} nativeID="equipment-rights">
           {canManage
@@ -640,6 +708,7 @@ export default function EquipmentScreen() {
                 <Field label="Garantigiver" value={gear.warrantyVendor} onChange={(value) => setGear((row) => ({ ...row, warrantyVendor: value }))} colors={colors} />
               </View>
               <Field label="Garantibevis (lenke)" value={gear.warrantyUri} onChange={(value) => setGear((row) => ({ ...row, warrantyUri: value }))} colors={colors} placeholder="https://" />
+              <ControlsEditor gear={gear} setGear={setGear} colors={colors} />
             </View>
           ) : null}
           {gear.scope !== 'private' ? (
@@ -720,7 +789,7 @@ export default function EquipmentScreen() {
                 colors={colors}
                 onSave={(patch) => syncEquipment(upsertPersonalVehicle(state, { ...car, ...patch }))}
               />
-              <TouchableOpacity onPress={() => syncEquipment(removePersonalVehicle(state, car.id))} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
+              <TouchableOpacity onPress={() => setPendingDelete({ id: car.id, name: vehicleTitle(car), personalCar: true })} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]}>
                 <Text style={{ color: colors.ink }}>Slett</Text>
               </TouchableOpacity>
             </View>

@@ -37,6 +37,7 @@ import { importResult } from '../../src/imports/review';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
+import EmptyState from '../../components/EmptyState';
 import FilterMenu from '../../components/FilterMenu';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 import ReportTable from '../../components/table/ReportTable';
@@ -71,12 +72,14 @@ import { withCustomers } from '../../src/anbud/customerRegistry';
 import { formatNumberId } from '../../src/anbud/numbering';
 import { loadAnbudState, loadCustomerList, peekAnbudState, saveAnbudState, saveCustomers } from '../../src/anbud/storage';
 import { loadProjectState } from '../../src/project/storage';
+import { projectStatusLabel } from '../../src/project/statusFilter';
 import { fetchBrregEnhet, searchBrregCompanies, searchBrregUnderenheter } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import OwnerPicker from '../anbud/OwnerPicker';
 import IndexLetterTable from '../../components/economy/IndexLetterTable';
 import { lettersForCustomer } from '../../src/indeksregulering/groups';
 import CustomerPhoneRow from './CustomerPhoneRow';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 // Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
 const PAGE_SIZE = 100;
@@ -214,6 +217,7 @@ export default function CustomersScreen() {
   const canImport = canImportList(useCompanyAccess(), 'customers');
   // Fakturatallene per kunde vises bare for dem som kan se Faktura.
   const canSeeInvoices = !!access?.ready && !!access.canView?.('economyInvoices');
+  const guardAi = useCompanyAiGuard();
   const [state, setState] = useState(null);
   const [projects, setProjects] = useState([]);
   const [query, setQuery] = useState('');
@@ -542,7 +546,7 @@ export default function CustomersScreen() {
       const bytes = await bytesFromFile(file);
       const interpreted = await readCustomerImport(bytes, file.name, {
         familyId,
-        ask: (payload) => askImportInterpret(payload),
+        ask: guardAi((payload) => askImportInterpret(payload)),
       });
       const loaded = await loadAnbudState(familyId, { force: true });
       const planned = planCustomerImport(loaded, interpreted.rows);
@@ -553,7 +557,7 @@ export default function CustomersScreen() {
       const plan = await enrichCustomerImportPlan(planned, { lookup: lookupBrregCustomer });
       const filled = plan.rows.filter((row) => row.action === 'create' && row.customer?.address).length;
       const understood = interpreted.engine && interpreted.engine !== 'lokal'
-        ? (interpreted.engine.includes('ocr') ? ' Dokumentet er lest med OCR og AI.' : ' Ukjente kolonner er tolket med AI.')
+        ? (interpreted.engine.includes('ocr') ? ' Dokumentet er lest med OCR og AI (Google Gemini).' : ' Ukjente kolonner er tolket med AI (Google Gemini).')
         : '';
       const brregNote = filled
         ? ` Adresse og kontakt er hentet fra Brønnøysund der org.nr fantes.`
@@ -701,7 +705,7 @@ export default function CustomersScreen() {
   }
 
   function cellTone(row, column) {
-    if ((column.key === 'outstanding' || column.key === 'overdue') && row[column.key] > 0) return colors.danger || '#b42318';
+    if ((column.key === 'outstanding' || column.key === 'overdue') && row[column.key] > 0) return colors.dangerInk || colors.danger;
     return null;
   }
 
@@ -818,7 +822,7 @@ export default function CustomersScreen() {
         ]}
       />
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {!!error && <Text style={{ color: colors.dangerInk || colors.danger }}>{error}</Text>}
       {importReport ? <ImportResult colors={colors} result={importReport} /> : null}
       {isPhone ? (
         <View style={styles.filters}>
@@ -861,12 +865,28 @@ export default function CustomersScreen() {
         </View>
       )}
       {loadProblem ? (
-        <Text style={{ color: colors.danger || '#b42318' }}>
+        <Text style={{ color: colors.dangerInk || colors.danger }}>
           Kunne ikke hente kunderegisteret. Last siden på nytt.
         </Text>
       ) : null}
       {listReady && !loadProblem && !numbered.length ? (
-        <Text style={{ color: colors.muted }}>Ingen kunder er registrert ennå.</Text>
+        <EmptyState
+          nativeID="customers-empty"
+          icon="people-outline"
+          title="Ingen kunder ennå"
+          text="Kundene brukes på prosjekter, kontrakter og fakturaer. Legg inn den første, eller hent hele kundelisten fra Excel."
+          actions={[
+            { id: 'new', label: 'Ny kunde', icon: 'add', primary: true, onPress: startNew, nativeID: 'customers-empty-new' },
+            ...(canImport ? [{
+              id: 'import',
+              label: importing ? 'Tolker filen…' : 'Importer fra Excel',
+              icon: 'cloud-upload-outline',
+              onPress: importFile,
+              disabled: importing,
+              nativeID: 'customers-empty-import',
+            }] : []),
+          ]}
+        />
       ) : null}
       {numbered.length ? (
         <ReportTable
@@ -1220,7 +1240,7 @@ export default function CustomersScreen() {
                 </Text>
                 <Text style={{ color: colors.muted }}>
                   {[
-                    row.projectStatus || row.phase,
+                    projectStatusLabel(row),
                     [row.start, row.end].filter(Boolean).join(' – '),
                     row.place || [row.street, row.placeName].filter(Boolean).join(', '),
                     row.manager,

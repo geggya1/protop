@@ -42,6 +42,7 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { canGrantLevel, canSetGrant, checkPersonChange, grantsAbove } from '../../src/access/accessCeiling';
 import { accessHelp } from '../../src/access/accessHelp';
 import { sectionHeadcounts } from '../../src/access/accessHeadcount';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 const ACCESS_LEADS = [
   'Åtte standardnivåer ligger til grunn og kan tilpasses. I tillegg finnes tre fagansvar (HMS-ansvarlig, Kvalitetsansvarlig og HR-ansvarlig) som krysses av i tillegg til vanlig nivå. Hvert nivå har egen matrise for alle moduler, undermoduler og innstillinger. Lese = se uten endring. Begrenset redigering = opprette og redigere. Admin = innstillingsknapper og full styring i modulen. Høyere trinn tar med dem under. Trykk (i) i matrisen for å se hva trinnet gir i akkurat den modulen. Flere nivå på samme person krysses av under Personer.',
@@ -156,7 +157,7 @@ function groupMeta(group, grants, base) {
     ? group.resources.filter((row) => (base[row.id] || 'none') !== (grants?.[row.id] || 'none')).length
     : 0;
   const parts = [`${granted} av ${total} med tilgang`];
-  if (overrides) parts.push(overrides === 1 ? '1 avvik' : `${overrides} avvik`);
+  if (overrides) parts.push(overrides === 1 ? '1 unntak' : `${overrides} unntak`);
   return parts.join(' · ');
 }
 
@@ -186,7 +187,7 @@ function GroupDrawer({ group, grants, base, colors, children }) {
   );
 }
 
-function AreaLabel({ row, colors, overridden, overrideLabel = 'Avvik fra nivået' }) {
+function AreaLabel({ row, colors, overridden, overrideLabel = 'Unntak fra nivået' }) {
   const { item, depth, heading } = row;
   return (
     <View style={[styles.areaCell, depth ? styles.areaChild : null]}>
@@ -681,7 +682,7 @@ export function PersonAccessSheet({
       </View>
       <ScrollView style={{ maxHeight: scrollMax }} contentContainerStyle={styles.stack}>
         <Text style={[styles.kind, { color: colors.muted }]}>
-          Avvikene under gjelder bare denne personen, oppå nivåene som er krysset av. Endringer lagres med en gang.
+          Unntakene under gjelder bare denne personen, oppå nivåene som er krysset av. Endringer lagres med en gang.
         </Text>
         {lockedReason ? <Text style={[styles.kind, { color: colors.danger }]}>{lockedReason}</Text> : null}
         <Matrix
@@ -702,7 +703,7 @@ export function PersonAccessSheet({
                 onPress={onSave}
                 style={[styles.primaryBtn, { backgroundColor: colors.brand, opacity: !dirty || busy ? 0.5 : 1 }]}
               >
-                <Text style={styles.primaryText}>Lagre avvik for personen</Text>
+                <Text style={styles.primaryText}>Lagre unntak for personen</Text>
               </Pressable>
             ) : null}
             <Pressable
@@ -799,7 +800,7 @@ export default function CompanyAccessSettings({
     return next;
   });
   const { width } = useWindowDimensions();
-  const compact = layout === 'compact' || (layout !== 'table' && width > 0 && width < 760);
+  const compact = layout === 'compact' || (layout !== 'table' && width > 0 && width < BREAKPOINTS.tablet);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [drag, setDrag] = useState(null);
@@ -1092,7 +1093,7 @@ export default function CompanyAccessSettings({
         accessOverrides: compactOverrides(personBase, grantsNext),
       },
     });
-    savePerson(next, `Avvikene for ${displayName(person)} er lagret.`);
+    savePerson(next, `Unntakene for ${displayName(person)} er lagret.`);
   }
 
   function clearPersonGrants() {

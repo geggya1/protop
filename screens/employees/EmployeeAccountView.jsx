@@ -7,7 +7,7 @@ import {
 import {
   employeeContactEmail, employeeInviteState, inviteTimeline, normalizeInviteState,
 } from '../../src/employees/invite';
-import { isDeletedEmployee } from '../../src/employees/model';
+import { employmentState, isDeletedEmployee } from '../../src/employees/model';
 import { formatUsageStamp } from '../../src/employees/usage';
 
 // Statusene der administrator kan sende (eller sende på nytt) bedriftsinvitasjonen.
@@ -21,7 +21,7 @@ function inviteButtonLabel(key) {
 
 function inviteHeadline(state, deleted) {
   if (deleted) return 'Ligger i papirkurven';
-  if (state.key === 'closed') return 'Kontoen er deaktivert';
+  if (state.key === 'closed') return 'Kontoen er avsluttet';
   if (state.key === 'member') return 'Knyttet til en bruker';
   return state.label || 'Ikke invitert';
 }
@@ -68,8 +68,22 @@ function Row({ label, value, colors, tone, last }) {
   );
 }
 
+/** Innlogging følger kobling og status. Det finnes ikke et eget valg for det. */
+function loginLine(employee, state) {
+  if (state !== 'active' && state !== 'leave') return 'Nei – ansettelsen er avsluttet';
+  if (employee?.personUid) return 'Ja – knyttet til en brukerkonto';
+  return 'Nei – ikke knyttet til en bruker ennå. Send invitasjon.';
+}
+
+function closedHint(state) {
+  if (state === 'deleted') return 'Ligger i papirkurven. Gjenopprett fra hovedsiden.';
+  if (state === 'ended') return 'Sluttdatoen («Ansatt til») er passert. Personen har ingen rettigheter.';
+  return 'Deaktivert. Personen er tatt ut av bedriften, logget ut og har ingen rettigheter.';
+}
+
 /**
  * Brukerkonto under Innstillinger: aktiver eller deaktiver, inviter og se når invitasjonen gikk.
+ * Deaktivering går via serveren: personen tas ut av bedriften og logges ut.
  * Rettighetene vises bare som oppsummering. De settes i Tilgangsstyring.
  */
 export default function EmployeeAccountView({
@@ -81,6 +95,7 @@ export default function EmployeeAccountView({
   canInvite = false,
   onClassify,
   onInvite,
+  onWithdrawInvite,
   onOpenAccess,
 }) {
   if (!employee) return null;
@@ -88,14 +103,15 @@ export default function EmployeeAccountView({
   const success = colors.success || '#16a34a';
   const deleted = isDeletedEmployee(employee);
   const deactivated = accountDeactivated(employee);
+  const state = employmentState(employee);
   const locked = !canEdit || busy || deleted;
-  const canLogin = !!employee.company?.canLogin;
 
   const inviteState = employeeInviteState(employee);
   const invite = normalizeInviteState(employee.invite);
   const inviteEmail = invite.email || employeeContactEmail(employee);
   const timeline = inviteTimeline(employee);
   const canSend = canInvite && !deleted && INVITABLE.has(inviteState.key);
+  const canWithdraw = canInvite && !deleted && inviteState.key === 'sent' && !!onWithdrawInvite;
 
   const levels = levelSummary(employee, companyName);
   const overrides = Object.keys(employee.company?.accessOverrides || {}).length;
@@ -128,42 +144,22 @@ export default function EmployeeAccountView({
             accessibilityLabel="Deaktiver kontoen"
             accessibilityState={{ selected: deactivated, disabled: locked }}
             disabled={locked || deactivated}
-            onPress={() => onClassify?.({ status: 'inactive', canLogin: false })}
+            onPress={() => onClassify?.({ status: 'inactive' })}
             style={[styles.switchSide, deactivated && { backgroundColor: danger }]}
           >
             <Text style={{ color: deactivated ? '#fff' : colors.muted, fontWeight: '700' }}>Deaktivert</Text>
           </TouchableOpacity>
         </View>
         <Text style={[styles.hint, { color: deactivated ? danger : colors.muted }]}>
-          {deleted
-            ? 'Ligger i papirkurven. Gjenopprett fra hovedsiden.'
-            : (deactivated
-              ? 'Deaktivert. Personen kan ikke logge inn og har ingen rettigheter.'
-              : 'Kontoen er aktiv.')}
+          {deactivated ? closedHint(state) : 'Kontoen er aktiv.'}
         </Text>
-        {!deactivated ? (
-          <TouchableOpacity
-            nativeID="employee-account-login"
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: canLogin, disabled: locked }}
-            disabled={locked}
-            onPress={() => onClassify?.({ canLogin: !canLogin })}
-            style={styles.check}
-          >
-            <View style={[
-              styles.box,
-              {
-                borderColor: canLogin ? colors.brand : colors.line,
-                backgroundColor: canLogin ? colors.brand : colors.card,
-                opacity: locked ? 0.6 : 1,
-              },
-            ]}
-            >
-              {canLogin ? <Ionicons name="checkmark" size={12} color="#fff" /> : null}
-            </View>
-            <Text style={{ color: colors.ink, fontSize: 15 }}>Kan logge inn</Text>
-          </TouchableOpacity>
-        ) : null}
+        <Row
+          label="Kan logge inn"
+          value={loginLine(employee, state)}
+          colors={colors}
+          tone={deactivated ? danger : null}
+          last
+        />
       </Card>
 
       <Card title="Invitasjon" icon="mail-outline" colors={colors} nativeID="employee-account-invite">
@@ -185,16 +181,31 @@ export default function EmployeeAccountView({
         {canInvite && inviteState.key === 'closed' && !deleted ? (
           <Text style={[styles.hint, { color: colors.muted }]}>Aktiver kontoen før du inviterer.</Text>
         ) : null}
-        {canSend ? (
-          <TouchableOpacity
-            nativeID="employee-account-invite-send"
-            onPress={onInvite}
-            disabled={busy}
-            accessibilityRole="button"
-            style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
-          >
-            <Text style={styles.primaryText}>{inviteButtonLabel(inviteState.key)}</Text>
-          </TouchableOpacity>
+        {canSend || canWithdraw ? (
+          <View style={styles.actions}>
+            {canSend ? (
+              <TouchableOpacity
+                nativeID="employee-account-invite-send"
+                onPress={onInvite}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.primary, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={styles.primaryText}>{inviteButtonLabel(inviteState.key)}</Text>
+              </TouchableOpacity>
+            ) : null}
+            {canWithdraw ? (
+              <TouchableOpacity
+                nativeID="employee-account-invite-withdraw"
+                onPress={onWithdrawInvite}
+                disabled={busy}
+                accessibilityRole="button"
+                style={[styles.secondary, { borderColor: colors.line, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={{ color: colors.ink, fontSize: 14 }}>Trekk tilbake invitasjonen</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         ) : null}
       </Card>
 
@@ -251,12 +262,12 @@ const styles = StyleSheet.create({
   switch: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   switchSide: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   hint: { fontSize: 13, lineHeight: 18 },
-  check: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 40, alignSelf: 'flex-start' },
-  box: { width: 22, height: 22, borderRadius: 4, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', gap: 12, paddingVertical: 9, alignItems: 'flex-start' },
   rowLabel: { width: '34%', maxWidth: 180, minWidth: 110, fontSize: 13, lineHeight: 20 },
   rowValue: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 20, fontWeight: '500' },
   primary: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   primaryText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+  secondary: { alignSelf: 'flex-start', borderRadius: 10, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   link: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingVertical: 4 },
 });

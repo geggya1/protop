@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
 import { PROJECT_ROLES, employeeDisplayName } from '../../src/arbeid/roles.js';
+import { isActiveEmployee } from '../../src/employees/model';
 import { formatHours } from '../../src/arbeid/hours.js';
 import { memberHoursMap } from '../../src/project/projectDashboard.js';
 import {
@@ -43,7 +44,7 @@ export default function ProjectTeamTab({
 
   const rows = useMemo(() => memberHoursMap(timeEntries, members), [timeEntries, members]);
   const available = employees.filter((row) => (
-    row.company?.status !== 'former'
+    isActiveEmployee(row)
     && !members.some((mem) => mem.employeeId === row.id)
   ));
 
@@ -162,7 +163,13 @@ export default function ProjectTeamTab({
             </View>
             <View style={styles.td}>
               {isAdmin ? (
-                <TouchableOpacity onPress={() => setMenuId(menuId === row.id ? '' : row.id)} hitSlop={8}>
+                <TouchableOpacity
+                  onPress={() => setMenuId(menuId === row.id ? '' : row.id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Valg for ${row.employeeName || 'personen'}`}
+                  accessibilityState={{ expanded: menuId === row.id }}
+                >
                   <Ionicons name="ellipsis-vertical" size={18} color={colors.muted} />
                 </TouchableOpacity>
               ) : null}

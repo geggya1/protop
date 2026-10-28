@@ -3,7 +3,9 @@ import {
   Image, Linking, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { employeeLevelIds, levelById, placedLevelId } from '../../src/access/companyAccess';
+import {
+  accountDeactivated, employeeLevelIds, levelById, placedLevelId,
+} from '../../src/access/companyAccess';
 import { employeeInviteState, inviteStatusLabel } from '../../src/employees/invite';
 import {
   choiceLabel,
@@ -178,11 +180,6 @@ function AccessCorner({ employee, colors }) {
   );
 }
 
-function accountDeactivated(employee) {
-  const status = employee?.company?.status || 'active';
-  return status === 'inactive' || status === 'deleted' || status === 'former';
-}
-
 function FactRow({
   label, value, colors, last, link, onEdit, editing, editor, emptyLabel = 'Ikke satt',
 }) {
@@ -320,6 +317,8 @@ export default function EmployeeDetailView({
   gaps = null,
   canEdit = false,
   canEditAccess = false,
+  // Sluttdatoen avslutter ansettelsen når den passeres: Admin på Ansatte (REV-07).
+  canEndEmployment = true,
   isAdmin = false,
   isSelf = false,
   confirmDelete = false,
@@ -517,6 +516,9 @@ export default function EmployeeDetailView({
     if (ok !== false) cancelEdit();
   }
 
+  // Status og sluttdato avslutter eller åpner ansettelsen: bare med Admin på Ansatte (REV-07).
+  const employmentLocked = canEndEmployment ? [] : ['company.status', 'company.periodTo'];
+
   function fieldEditor(fieldKey) {
     return (
       <InlineEditor
@@ -524,7 +526,7 @@ export default function EmployeeDetailView({
         employee={employee}
         colors={colors}
         canEditOwner={canEditOwner}
-        lockedKeys={canEditAccess ? [] : ['company.accessRole']}
+        lockedKeys={[...(canEditAccess ? [] : ['company.accessRole']), ...employmentLocked]}
         departments={departments}
         members={members}
         addressHits={addressHits}
@@ -552,6 +554,7 @@ export default function EmployeeDetailView({
           showCustom={false}
           colors={colors}
           canEditOwner={canEditOwner}
+          lockedKeys={employmentLocked}
           departments={departments}
           members={members}
           addressHits={addressHits}

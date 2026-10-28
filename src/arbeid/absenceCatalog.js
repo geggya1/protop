@@ -37,11 +37,12 @@ const DEFAULT_ROWS = [
   { id: 'ferie', label: 'Ferie', category: 'Ferie', paid: false, deductBalance: false, billable: true },
   { id: 'foreldre', label: 'Foreldrepermisjon', category: 'Permisjon', paid: true, deductBalance: false, billable: true },
   { id: 'intern_admin', label: 'Interntid - Administrasjon (Ikke til timebank)', category: 'Annet fravær', paid: false, deductBalance: true, billable: false },
-  { id: 'intern_smart', label: 'Interntid - Smartplan (Ikke til timebank)', category: 'Annet fravær', paid: false, deductBalance: true, billable: false },
+  // Standardnavnene er generiske. Selskaper som har endret typene, har egne navn lagret (absenceTypesCustom).
+  { id: 'intern_smart', label: 'Interntid - Internprosjekt (Ikke til timebank)', category: 'Annet fravær', paid: false, deductBalance: true, billable: false },
   { id: 'lege_med', label: 'Legebesøk med lønn', category: 'Annet fravær', paid: true, deductBalance: false, billable: true },
   { id: 'lege_uten', label: 'Legebesøk uten lønn', category: 'Annet fravær', paid: false, deductBalance: true, billable: false },
   { id: 'permittert', label: 'Permittert', category: 'Annet fravær', paid: false, deductBalance: false, billable: false },
-  { id: 'reise_uten_lonn', label: 'Reisetid - Frøya (Ikke til lønn)', category: 'Annet fravær', paid: false, deductBalance: true, billable: false },
+  { id: 'reise_uten_lonn', label: 'Reisetid (Ikke til lønn)', category: 'Annet fravær', paid: false, deductBalance: true, billable: false },
   { id: 'seminar_med', label: 'Seminar med lønn', category: 'Annet fravær', paid: true, deductBalance: false, billable: true },
   { id: 'seminar_uten', label: 'Seminar uten lønn', category: 'Annet fravær', paid: false, deductBalance: true, billable: false },
   { id: 'egenmelding', label: 'Sykdom med egenmelding', category: 'Sykdom', paid: true, deductBalance: false, billable: true },
@@ -120,6 +121,20 @@ export function absenceTypeById(id, catalog) {
     builtin: false,
   });
 }
+
+/** Legebesøk og sykdom er helseopplysninger (GDPR art. 9), også når typen er laget av bedriften. */
+const HEALTH_TYPE_IDS = new Set(['egenmelding', 'syk_melding', 'syk_uten', 'sykt_barn', 'sykdom', 'lege_med', 'lege_uten']);
+
+export function isHealthAbsence(typeId, catalog) {
+  const key = String(typeId || '').trim();
+  if (!key) return false;
+  if (HEALTH_TYPE_IDS.has(key)) return true;
+  const row = absenceTypeById(key, catalog);
+  return row.category === 'Sykdom' || /lege|syk/i.test(row.label);
+}
+
+/** Vises ved fritekst når fraværet gjelder sykdom eller legebesøk. */
+export const HEALTH_FREE_TEXT_NOTICE = 'Ikke skriv diagnose eller andre helseopplysninger her. Typen fravær er nok.';
 
 /** Typer som vises når man legger fravær inn i timelisten. */
 export function absencePickerTypes(catalog) {

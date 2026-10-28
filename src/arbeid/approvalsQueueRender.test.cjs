@@ -52,6 +52,7 @@ function loadJsx(rel) {
   m.require = (id) => {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id.includes('components/Breadcrumb')) return { __esModule: true, default: function Breadcrumb() { return null; } };
     return orig(id);
   };
   m._compile(out.code, full);

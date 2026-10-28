@@ -3,7 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform, Pressable } from 'r
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../src/context/AppContext';
-import { colors, radius } from '../src/theme';
+import { colors, radius, useLayout } from '../src/theme';
+import { touchHit } from '../src/ui/touchTarget';
 import {
   beginNotificationPermissionFromGesture,
   completePushSubscription,
@@ -13,6 +14,12 @@ import {
   pushSupported,
   sendTestPush,
 } from '../src/utils/push';
+
+/** Lukk-krysset er 18 px; trykkflaten er 44 px på berøringsskjerm (UX-26). */
+function closeHit(isTouch) {
+  const hit = touchHit(18, 20, { touch: isTouch, os: Platform.OS });
+  return { hitSlop: hit.hitSlop || 8, style: hit.style };
+}
 
 const DISMISS_KEY = 'protop_push_banner_v2';
 const DISMISS_TTL_MS = 1000 * 60 * 60 * 24 * 3; // 3 dager — ikke glem for alltid
@@ -82,6 +89,7 @@ function feedbackForResult(result) {
  */
 export default function PushEnableBanner() {
   const { uid } = useApp();
+  const { isTouch } = useLayout();
   const [visible, setVisible] = useState(false);
   const [mode, setMode] = useState('ask'); // ask | denied | ios-tab | resubscribe
   const [busy, setBusy] = useState(false);
@@ -232,14 +240,14 @@ export default function PushEnableBanner() {
         disabled: busy,
         'aria-label': copy.btn,
         style: {
-          backgroundColor: colors.brand,
+          backgroundColor: colors.brandInk,
           borderRadius: 8,
           paddingLeft: 10,
           paddingRight: 10,
           paddingTop: 6,
           paddingBottom: 6,
           border: 'none',
-          color: '#fff',
+          color: colors.onBrand,
           fontWeight: '400',
           fontSize: 12,
           cursor: busy ? 'wait' : 'pointer',
@@ -267,7 +275,12 @@ export default function PushEnableBanner() {
         <Ionicons name="notifications-outline" size={18} color={colors.brand} />
         <Text style={styles.txt}>{feedback || copy.text}</Text>
         {actionBtn}
-        <TouchableOpacity onPress={dismiss} hitSlop={8} accessibilityLabel="Lukk">
+        <TouchableOpacity
+          onPress={dismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Lukk"
+          {...closeHit(isTouch)}
+        >
           <Ionicons name="close" size={18} color={colors.muted} />
         </TouchableOpacity>
       </View>
@@ -294,7 +307,7 @@ const styles = StyleSheet.create({
   txt: { flex: 1, fontSize: 12, fontWeight: '400', color: colors.ink, lineHeight: 16 },
   btn: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -302,5 +315,5 @@ const styles = StyleSheet.create({
   },
   btnPressed: { opacity: 0.88 },
   btnBusy: { opacity: 0.7 },
-  btnTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
+  btnTxt: { color: colors.onBrand, fontWeight: '400', fontSize: 12 },
 });

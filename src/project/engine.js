@@ -59,6 +59,11 @@ export function emptyProjectState() {
     deletedMileageTrips: [],
     /** Tombstones slik at slettede produkter ikke gjenoppstår ved merge. */
     deletedProducts: [],
+    /**
+     * Felles slettemarkering for de andre listene: { key, id, deletedAt }.
+     * En eldre kopi (lokalt eller på en annen enhet) skal ikke hente raden tilbake.
+     */
+    deletedRows: [],
     activities: [],
     members: [],
     timeEntries: [],
@@ -86,6 +91,8 @@ export function emptyProjectState() {
     fullDayHours: 8,
     fullDayHoursCustom: false,
     board: [],
+    // Eldre SJA, RUH og avvik fra prosjektmotoren. Nye registreres i ISO (isoFindings med projectId);
+    // listene leses bare av «Ta inn» i ISO (src/iso/integrations.js).
     sja: [],
     incidents: [],
     inspections: [],
@@ -142,6 +149,102 @@ function withoutDeletedProducts(state) {
       row && typeof row === 'object' && !ids.has(text(row.id))
     )),
   };
+}
+
+/**
+ * Lister der rader får tilfeldig id og kan slettes. De får slettemarkering i deletedRows.
+ * Prosjekter, kjøreturer og produkter har egne markeringer. Innstillingslister
+ * (røde dager, fraværstyper, kontoer) bruker faste id-er som kan legges inn igjen.
+ */
+export const TOMBSTONE_KEYS = [
+  'activities',
+  'members',
+  'expenses',
+  'sales',
+  'equipment',
+  'equipmentBookings',
+  'personalVehicles',
+  'balanceAdjustments',
+  'absenceAdjustments',
+  'board',
+  'sja',
+  'incidents',
+  'inspections',
+  'deviations',
+  'checklists',
+  'documents',
+  'meetings',
+  'changes',
+  'contracts',
+  'entries',
+  'crew',
+  'waste',
+  'audits',
+];
+const TOMBSTONE_KEY_SET = new Set(TOMBSTONE_KEYS);
+/** Markeringer eldre enn dette, eller utover taket, slippes så dokumentet ikke vokser. */
+const DELETED_ROWS_DAYS = 180;
+const DELETED_ROWS_CAP = 1500;
+
+function rowStampMs(row) {
+  return Date.parse(row?.updatedAt || row?.addedAt || row?.createdAt || '') || 0;
+}
+
+function normalizeDeletedRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  const key = text(row.key);
+  const id = text(row.id);
+  if (!key || !id) return null;
+  return { key, id, deletedAt: text(row.deletedAt) || '' };
+}
+
+/** Slå sammen slettemarkeringer. Nyeste deletedAt vinner, gamle markeringer slippes. */
+export function mergeDeletedRows(...lists) {
+  const map = new Map();
+  for (const list of lists) {
+    for (const raw of Array.isArray(list) ? list : []) {
+      const row = normalizeDeletedRow(raw);
+      if (!row) continue;
+      const k = `${row.key}|${row.id}`;
+      const prev = map.get(k);
+      if (!prev || (Date.parse(row.deletedAt) || 0) >= (Date.parse(prev.deletedAt) || 0)) map.set(k, row);
+    }
+  }
+  const cutoff = Date.now() - DELETED_ROWS_DAYS * 86400000;
+  return [...map.values()]
+    .filter((row) => !row.deletedAt || (Date.parse(row.deletedAt) || 0) >= cutoff)
+    .sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)))
+    .slice(0, DELETED_ROWS_CAP);
+}
+
+/** Legg slettemarkering på rader som fjernes fra en liste. */
+export function markRowsDeleted(state, key, ids, at = new Date().toISOString()) {
+  const list = (Array.isArray(ids) ? ids : [ids]).map(text).filter(Boolean);
+  if (!TOMBSTONE_KEY_SET.has(key) || !list.length) return state?.deletedRows || [];
+  return mergeDeletedRows(state?.deletedRows, list.map((id) => ({ key, id, deletedAt: at })));
+}
+
+/**
+ * Fjern rader som er merket slettet. En rad som er endret etter slettingen
+ * (nyere updatedAt), blir stående: da har noen arbeidet videre med den.
+ */
+function withoutDeletedRows(state) {
+  const tombstones = mergeDeletedRows(state.deletedRows);
+  if (!tombstones.length) return { deletedRows: tombstones };
+  const byKey = new Map();
+  for (const row of tombstones) {
+    if (!byKey.has(row.key)) byKey.set(row.key, new Map());
+    byKey.get(row.key).set(row.id, Date.parse(row.deletedAt) || Number.POSITIVE_INFINITY);
+  }
+  const out = { deletedRows: tombstones };
+  for (const [key, gone] of byKey) {
+    if (!TOMBSTONE_KEY_SET.has(key) || !Array.isArray(state[key])) continue;
+    out[key] = state[key].filter((row) => {
+      const at = gone.get(text(row?.id));
+      return at === undefined || rowStampMs(row) > at;
+    });
+  }
+  return out;
 }
 
 function withoutDeletedMileage(state) {
@@ -352,6 +455,7 @@ export function normalizeProjectState(raw) {
   next.deletedProducts = catalog.deletedProducts;
   next.products = catalog.products;
   next.sales = (next.sales || []).filter((row) => row && typeof row === 'object');
+  Object.assign(next, withoutDeletedRows(next));
   const healed = healOrphanProjectRefs(next, idRemap);
   // Nullstill Moment-restfelter og økonomiske verdier som andre moduler fyller automatisk.
   return scrubProjectState(healed);
@@ -491,6 +595,10 @@ export function normalizeTimeEntryRow(row) {
     createdAt: text(row.createdAt) || '',
     updatedAt: text(row.updatedAt) || '',
     createdByUid: text(row.createdByUid),
+    // Endringshistorikk (L-13, src/arbeid/timeEntryHistory.js). Skrives som én ny rad om gangen.
+    ...(Array.isArray(row.history) && row.history.length ? {
+      history: row.history.filter((item) => item && typeof item === 'object').slice(-100),
+    } : {}),
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
     // Avskrevet fra et fakturautkast: skal ikke faktureres (Til fakturering → Slett utkast).
     ...(text(row.writeOffAt) ? {
@@ -505,6 +613,8 @@ export function normalizeAbsenceRow(row) {
   if (!row || typeof row !== 'object') return null;
   const employeeId = text(row.employeeId);
   const date = text(row.date);
+  // Uten ansatt og dato er det ikke ProTop-fravær. Det holder også barnehagens eldre meldinger
+  // (childName, dateKey) i samme samling ute av timelister, rapporter og sletting (DS-22).
   if (!employeeId || !date) return null;
   // Ikke lagre hele Excel-raden (values) — det sprenger cache/batch ved store importer.
   const source = row.source && typeof row.source === 'object'
@@ -1090,71 +1200,6 @@ export function addBoardNote(state, input) {
   });
 }
 
-export function addSja(state, input) {
-  return addRow(state, 'sja', input, (projectId) => {
-    const task = text(input.task);
-    if (!task) return { error: 'SJA trenger en arbeidsoperasjon.' };
-    return {
-      row: {
-        id: createId('sja'),
-        projectId,
-        task,
-        hazards: text(input.hazards),
-        measures: text(input.measures),
-        status: 'åpen',
-      },
-    };
-  });
-}
-
-export function updateSja(state, id, input) {
-  if (!state.sja.some((item) => item.id === id)) return fail(state, 'SJA finnes ikke.');
-  return ok({
-    ...state,
-    sja: state.sja.map((item) => (
-      item.id === id
-        ? { ...item, hazards: text(input.hazards), measures: text(input.measures) }
-        : item
-    )),
-  });
-}
-
-export function signSja(state, id) {
-  const row = state.sja.find((item) => item.id === id);
-  if (!row) return fail(state, 'SJA finnes ikke.');
-  if (!text(row.measures)) return fail(state, 'Skriv tiltak før SJA signeres.');
-  return ok({
-    ...state,
-    sja: state.sja.map((item) => (item.id === id ? { ...item, status: 'signert' } : item)),
-  });
-}
-
-export function addIncident(state, input) {
-  return addRow(state, 'incidents', input, (projectId) => {
-    const title = text(input.title);
-    if (!title) return { error: 'RUH trenger en tittel.' };
-    const severity = ['lav', 'middels', 'høy', 'kritisk'].includes(input.severity) ? input.severity : 'middels';
-    return {
-      row: {
-        id: createId('ruh'),
-        projectId,
-        title,
-        description: text(input.description),
-        severity,
-        status: 'åpen',
-      },
-    };
-  });
-}
-
-export function closeIncident(state, id) {
-  if (!state.incidents.some((item) => item.id === id)) return fail(state, 'RUH finnes ikke.');
-  return ok({
-    ...state,
-    incidents: state.incidents.map((item) => (item.id === id ? { ...item, status: 'lukket' } : item)),
-  });
-}
-
 export function addInspection(state, input) {
   return addRow(state, 'inspections', input, (projectId) => {
     const area = text(input.area);
@@ -1168,43 +1213,6 @@ export function addInspection(state, input) {
         findings: text(input.findings),
       },
     };
-  });
-}
-
-export function addDeviation(state, input) {
-  return addRow(state, 'deviations', input, (projectId) => {
-    const title = text(input.title);
-    if (!title) return { error: 'Avviket trenger en tittel.' };
-    const type = ['ks', 'hms', 'iso', 'miljø'].includes(input.type) ? input.type : 'ks';
-    return {
-      row: {
-        id: createId('avv'),
-        projectId,
-        type,
-        title,
-        description: text(input.description),
-        cause: '',
-        action: '',
-        owner: text(input.owner),
-        due: text(input.due),
-        status: 'åpen',
-        iso: text(input.iso) || 'ISO 9001 kap. 10.2',
-      },
-    };
-  });
-}
-
-export function closeDeviation(state, id, input) {
-  const row = state.deviations.find((item) => item.id === id);
-  if (!row) return fail(state, 'Avviket finnes ikke.');
-  const cause = text(input.cause);
-  const action = text(input.action);
-  if (!cause || !action) return fail(state, 'Årsak og tiltak må fylles ut før avviket lukkes.');
-  return ok({
-    ...state,
-    deviations: state.deviations.map((item) => (
-      item.id === id ? { ...item, cause, action, status: 'lukket' } : item
-    )),
   });
 }
 
@@ -1467,7 +1475,11 @@ export function accounts() {
 
 export function removeRecord(state, key, id) {
   if (!Array.isArray(state[key])) return fail(state, 'Listen finnes ikke.');
-  return ok({ ...state, [key]: state[key].filter((row) => row.id !== id) });
+  return ok({
+    ...state,
+    [key]: state[key].filter((row) => row.id !== id),
+    deletedRows: markRowsDeleted(state, key, id),
+  });
 }
 
 /** Legg til ansatt som deltaker på prosjekt. */
@@ -1616,8 +1628,11 @@ export function upsertTimeEntry(state, input) {
   const existing = existingId
     ? working.timeEntries.find((row) => row.id === existingId)
     : null;
-  if (existing?.status === 'låst' || existing?.invoiceId) {
-    return fail(working, 'Føringen er låst/fakturert og kan ikke endres.');
+  if (existing?.invoiceId) {
+    return fail(working, 'Føringen er fakturert og kan ikke endres. Be økonomi om en kreditnota hvis noe må rettes.');
+  }
+  if (existing?.status === 'låst') {
+    return fail(working, 'Føringen er låst og venter på kontroll.');
   }
   if (isDateLocked(lockThroughDate(working.timesheetLocks, employeeId), date)) {
     return fail(working, 'Dagen er låst og venter på kontroll.');
@@ -1689,6 +1704,7 @@ export function upsertTimeEntry(state, input) {
 export function deleteTimeEntry(state, entryId) {
   const current = state.timeEntries.find((row) => row.id === entryId);
   if (!current) return fail(state, 'Føringen finnes ikke.');
+  if (current.invoiceId) return fail(state, 'Føringen er fakturert og kan ikke slettes.');
   if (current.status === 'låst' || isDateLocked(lockThroughDate(state.timesheetLocks, current.employeeId), current.date)) {
     return fail(state, 'Føringen er låst og kan ikke slettes.');
   }
@@ -2186,6 +2202,7 @@ export function mergeProjectStates(left, right) {
     && key !== 'syncedAt'
     && key !== 'procedures'
     && key !== 'deletedProjects'
+    && key !== 'deletedRows'
     && key !== 'fullDayHours'
     && key !== 'fullDayHoursCustom'
     && key !== 'absenceTypesCustom'
@@ -2196,6 +2213,8 @@ export function mergeProjectStates(left, right) {
     next[key] = mergeRows(a[key] || [], b[key] || []);
   }
   next.deletedProjects = mergeDeletedProjects(a.deletedProjects, b.deletedProjects);
+  // Slettede rader i de andre listene holdes ute av normalizeProjectState nederst.
+  next.deletedRows = mergeDeletedRows(a.deletedRows, b.deletedRows);
   const deletedIds = new Set(next.deletedProjects.map((row) => row.id));
   next.projects = next.projects.filter((row) => !deletedIds.has(row.id));
   for (const key of PROJECT_SCOPED_KEYS) {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useI18n } from '../../src/i18n';
-import { emptyConsents, saveLocalConsents } from '../../src/utils/consents';
+import { acceptedConsentRecord, emptyConsents, saveLocalConsents } from '../../src/utils/consents';
 import { LEGAL_VERSION } from '../../src/i18n/langs';
 import Wizard from '../../components/Wizard';
 import CheckBox from '../../components/CheckBox';
@@ -16,17 +16,7 @@ export default function LegalWizardScreen({ navigation, onDone, existing, nextLa
 
   const finish = async () => {
     if (!ok) return;
-    const now = new Date().toISOString();
-    const nextConsents = {
-      ...(existing || emptyConsents()),
-      termsAt: now,
-      privacyAt: now,
-      gdprAt: now,
-      dataAt: now,
-      copyrightAt: now,
-      language: lang,
-      version: LEGAL_VERSION,
-    };
+    const nextConsents = acceptedConsentRecord(lang, existing || emptyConsents());
     await saveLocalConsents(nextConsents);
     onDone(nextConsents);
   };
@@ -46,6 +36,7 @@ export default function LegalWizardScreen({ navigation, onDone, existing, nextLa
           <Text style={styles.linkHint}>{t('legal.openDocHint')}</Text>
         </TouchableOpacity>
 
+        <Text style={styles.version}>Versjon {LEGAL_VERSION}</Text>
         {opened ? (
           <Text style={styles.openedOk}>{t('legal.docOpened')}</Text>
         ) : null}
@@ -65,8 +56,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: radius.md, padding: 16,
     borderWidth: 2, borderColor: colors.brandSoft,
   },
-  linkTxt: { fontWeight: '400', fontSize: 17, color: colors.brand },
+  linkTxt: { fontWeight: '400', fontSize: 17, color: colors.brandInk },
   linkHint: { marginTop: 6, color: colors.muted, fontWeight: '400', fontSize: 14 },
-  openedOk: { color: colors.success, fontWeight: '400' },
-  hint: { color: colors.warn, fontWeight: '400' },
+  version: { color: colors.muted, fontSize: 13 },
+  openedOk: { color: colors.successInk, fontWeight: '400' },
+  hint: { color: colors.warnInk, fontWeight: '400' },
 });

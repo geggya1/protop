@@ -6,10 +6,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { colors, radius } from '../../src/theme';
 import { Screen } from '../../components/ui';
-import { InfoDialog } from '../../components/ConfirmDialog';
+import ConfirmDialog, { InfoDialog } from '../../components/ConfirmDialog';
 import CompactBackLink from '../../components/CompactBackLink';
 import EdgeSwipeBack from '../../components/EdgeSwipeBack';
 import { listenNote, updateNote, canManageNote } from '../../src/utils/familyNotes';
+import {
+  NOTE_AUTOSAVE_MS, withSaveTimeout, noteDraftDirty, noteDraftPatch, isNoteMissing,
+  noteSaveStatusText, noteSaveStatusFromError, isOfflineSaveError,
+} from '../../src/utils/notesLogic.js';
 import { summarizeVoiceNote } from '../../src/utils/aiVoiceNoteClient';
 import { structuredNoteBody } from '../../src/utils/noteAi';
 import { useVoiceDictation } from '../../src/hooks/useVoiceDictation';
@@ -24,35 +28,153 @@ function FormatBtn({ label, onPress, bold }) {
   );
 }
 
-export default function NoteEditorScreen({ noteId, onBack, onOpenSettings }) {
+export default function NoteEditorScreen({ noteId, onBack, onOpenSettings, pendingWrite = null }) {
   const { familyId, uid, isAdmin } = useApp();
-  useHelpScene('inner', { onRetreat: onBack });
-  const [note, setNote] = useState(null);
+  // undefined = laster, null = finnes ikke (eller ingen tilgang).
+  const [note, setNote] = useState(undefined);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [dialog, setDialog] = useState(null);
+  const [leaveConfirm, setLeaveConfirm] = useState(null);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const bodyRef = useRef(null);
-  const initedRef = useRef(false);
+  // baseRef: utkastet slik det var sist det stemte med serveren. serverRef: det serveren har.
+  const baseRef = useRef(null);
+  const serverRef = useRef(null);
+  const draftRef = useRef({ title: '', body: '' });
+  const saveSeqRef = useRef(0);
+  const landedSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+  const leavingRef = useRef(false);
+  draftRef.current = { title, body };
   const {
     recording, liveText, startRecording, stopRecording,
     speechError, clearSpeechError,
   } = useVoiceDictation();
 
   useEffect(() => {
-    initedRef.current = false;
+    baseRef.current = null;
+    serverRef.current = null;
+    setNote(undefined);
     if (!familyId || !noteId) return undefined;
     return listenNote(familyId, noteId, (data) => {
       setNote(data);
-      if (data && !initedRef.current) {
-        setTitle(data.title || '');
-        setBody(data.body || '');
-        initedRef.current = true;
+      if (!data) return;
+      const remote = { title: data.title || '', body: data.body || '' };
+      // Ekkoet av egen lagring endrer ingenting.
+      if (serverRef.current && !noteDraftDirty(remote, serverRef.current)) return;
+      serverRef.current = remote;
+      // Uten ulagrede endringer her vises siste versjon, også endringer andre har gjort.
+      if (!baseRef.current || !noteDraftDirty(draftRef.current, baseRef.current)) {
+        baseRef.current = remote;
+        draftRef.current = remote;
+        setTitle(remote.title);
+        setBody(remote.body);
       }
     });
   }, [familyId, noteId]);
+
+  /** Lagre utkastet nå. Svarer 'saved', 'offline' (venter på nett) eller 'error'. */
+  const saveNow = useCallback(async () => {
+    if (!familyId || !noteId || !baseRef.current) return 'saved';
+    const draft = { ...draftRef.current };
+    if (!noteDraftDirty(draft, baseRef.current)) return 'saved';
+    const patch = noteDraftPatch(draft.title, draft.body);
+    const seq = ++saveSeqRef.current;
+    setStatus('saving');
+    const write = updateNote(familyId, noteId, patch);
+    write.then(() => {
+      // Gjelder også når skrivingen først kommer fram etter tidsavbruddet (offline).
+      if (seq < landedSeqRef.current) return;
+      landedSeqRef.current = seq;
+      baseRef.current = draft;
+      serverRef.current = patch;
+      if (mountedRef.current) setStatus(noteDraftDirty(draftRef.current, draft) ? 'dirty' : 'saved');
+    }, () => {});
+    try {
+      await withSaveTimeout(write);
+      return 'saved';
+    } catch (e) {
+      const failed = noteSaveStatusFromError(e);
+      if (mountedRef.current && seq === saveSeqRef.current) setStatus(failed);
+      return failed;
+    }
+  }, [familyId, noteId]);
+
+  // Nytt notat laget offline: vis «Venter på nett» til opprettelsen er bekreftet.
+  useEffect(() => {
+    if (!pendingWrite) return;
+    setStatus('offline');
+    pendingWrite.then(() => {
+      if (mountedRef.current) setStatus((prev) => (prev === 'offline' ? 'saved' : prev));
+    }, () => {
+      if (mountedRef.current) setStatus((prev) => (prev === 'offline' ? 'error' : prev));
+    });
+  }, [pendingWrite]);
+
+  // Autolagring når skrivingen tar en pause.
+  useEffect(() => {
+    if (!baseRef.current || !noteDraftDirty({ title, body }, baseRef.current)) return undefined;
+    setStatus((prev) => (prev === 'saving' ? prev : 'dirty'));
+    const timer = setTimeout(() => { saveNow(); }, NOTE_AUTOSAVE_MS);
+    return () => clearTimeout(timer);
+  }, [title, body, saveNow]);
+
+  // Forlates skjermen på annen måte (fanebytte), sendes siste endring likevel.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (familyId && noteId && baseRef.current && noteDraftDirty(draftRef.current, baseRef.current)) {
+        const { title: lastTitle, body: lastBody } = draftRef.current;
+        updateNote(familyId, noteId, noteDraftPatch(lastTitle, lastBody)).catch(() => {});
+      }
+    };
+  }, [familyId, noteId]);
+
+  // Web: nettleseren spør før fanen lukkes med ulagrede endringer.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onUnload = (e) => {
+      if (!baseRef.current || !noteDraftDirty(draftRef.current, baseRef.current)) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => window.removeEventListener('beforeunload', onUnload);
+  }, []);
+
+  /** Tilbake: lagre først. Går det ikke, spør før endringene forlates. */
+  const leave = useCallback(async () => {
+    if (leavingRef.current) return;
+    if (!baseRef.current || !noteDraftDirty(draftRef.current, baseRef.current)) {
+      onBack?.();
+      return;
+    }
+    leavingRef.current = true;
+    let result = 'error';
+    try {
+      result = await saveNow();
+    } finally {
+      leavingRef.current = false;
+    }
+    if (result === 'saved') {
+      onBack?.();
+      return;
+    }
+    setLeaveConfirm({ offline: result === 'offline' });
+  }, [onBack, saveNow]);
+
+  const leaveAnyway = useCallback(() => {
+    setLeaveConfirm(null);
+    // Ingen ny skriving ved avmontering: offline ligger endringen allerede i kø, ellers er den forkastet.
+    baseRef.current = null;
+    onBack?.();
+  }, [onBack]);
+
+  useHelpScene('inner', { onRetreat: leave });
 
   const applyWrap = useCallback((before, after = before) => {
     const { start, end } = selection;
@@ -94,16 +216,23 @@ export default function NoteEditorScreen({ noteId, onBack, onOpenSettings }) {
       // Behold råtekst hvis AI feiler.
     }
     try {
+      const shownTitle = aiOk && nextTitle ? nextTitle : title;
+      const savedTitle = (nextTitle || title || 'Uten tittel').trim();
       if (aiOk && nextTitle) setTitle(nextTitle);
       setBody(nextBody);
-      await updateNote(familyId, noteId, {
-        title: (nextTitle || title || 'Uten tittel').trim(),
+      // Teksten fra AI lagres her, så den regnes ikke som ulagret i autolagringen.
+      baseRef.current = { title: shownTitle, body: nextBody };
+      serverRef.current = { title: savedTitle, body: nextBody };
+      draftRef.current = { title: shownTitle, body: nextBody };
+      await withSaveTimeout(updateNote(familyId, noteId, {
+        title: savedTitle,
         body: nextBody,
         summary,
         keyPoints: [],
         transcript: note?.transcript || (appendTranscript ? source : ''),
         source: note?.source || (appendTranscript ? 'voice' : 'text'),
-      });
+      }));
+      setStatus('saved');
       setDialog({
         title: aiOk ? 'Skrevet om ✓' : 'Lagret uten AI',
         message: aiOk
@@ -111,7 +240,10 @@ export default function NoteEditorScreen({ noteId, onBack, onOpenSettings }) {
           : 'Teksten er lagret. AI-omskriving feilet — prøv «Rydd opp med AI» senere.',
       });
     } catch (e) {
-      setDialog({ title: 'Feil', message: e?.message || 'Klarte ikke lagre notatet.' });
+      setStatus(noteSaveStatusFromError(e));
+      setDialog(isOfflineSaveError(e)
+        ? { title: 'Venter på nett', message: noteSaveStatusText('offline') }
+        : { title: 'Feil', message: e?.message || 'Klarte ikke lagre notatet.' });
     } finally {
       setAiBusy(false);
     }
@@ -147,32 +279,64 @@ export default function NoteEditorScreen({ noteId, onBack, onOpenSettings }) {
     clearSpeechError();
   }, [speechError, clearSpeechError]);
 
-  const save = async () => {
-    if (!familyId || !noteId) return;
-    setSaving(true);
-    try {
-      await updateNote(familyId, noteId, {
-        title: title.trim() || 'Uten tittel',
-        body,
-      });
-      setDialog({ title: 'Lagret ✓', message: 'Notatet er lagret.' });
-    } catch {
-      setDialog({ title: 'Feil', message: 'Klarte ikke lagre notatet. Prøv igjen.' });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const saving = status === 'saving';
+  const save = () => { saveNow(); };
+
+  const openSettings = useCallback(async () => {
+    await saveNow();
+    onOpenSettings?.();
+  }, [saveNow, onOpenSettings]);
 
   const canManage = canManageNote(note, uid, isAdmin);
 
+  if (note === undefined || isNoteMissing(note)) {
+    return (
+      <Screen>
+        <EdgeSwipeBack onBack={onBack}>
+        <View style={styles.header}>
+          <CompactBackLink onPress={onBack} label="Notater" accessibilityLabel="Alle notater" />
+        </View>
+        {note === undefined ? (
+          <View style={styles.centerBox}>
+            <ActivityIndicator color={colors.brand} />
+          </View>
+        ) : (
+          <View style={styles.centerBox}>
+            <Ionicons name="document-text-outline" size={32} color={colors.muted} />
+            <Text style={styles.missingTitle}>Notatet finnes ikke</Text>
+            <Text style={styles.missingTxt}>Det kan være slettet, eller du har ikke lenger tilgang til det.</Text>
+            <TouchableOpacity style={styles.saveBtn} onPress={onBack} accessibilityRole="button">
+              <Text style={styles.saveTxt}>Til notatene</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        </EdgeSwipeBack>
+      </Screen>
+    );
+  }
+
   return (
     <Screen>
-      <EdgeSwipeBack onBack={onBack}>
+      <EdgeSwipeBack onBack={leave}>
       <View style={styles.header}>
-        <CompactBackLink onPress={onBack} label="Notater" accessibilityLabel="Alle notater" />
+        <CompactBackLink onPress={leave} label="Notater" accessibilityLabel="Alle notater" />
         <View style={styles.headerActions}>
+          {!!status && (
+            <Text
+              style={[styles.statusTxt, (status === 'offline' || status === 'error') && styles.statusWarn]}
+              numberOfLines={1}
+              accessibilityLiveRegion="polite"
+            >
+              {status === 'offline' ? 'Venter på nett' : noteSaveStatusText(status)}
+            </Text>
+          )}
           {canManage && onOpenSettings && (
-            <TouchableOpacity style={styles.iconBtn} onPress={onOpenSettings}>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={openSettings}
+              accessibilityRole="button"
+              accessibilityLabel="Notatinnstillinger: deling, arkivering og sletting"
+            >
               <Ionicons name="settings-outline" size={20} color={colors.brand} />
             </TouchableOpacity>
           )}
@@ -181,6 +345,11 @@ export default function NoteEditorScreen({ noteId, onBack, onOpenSettings }) {
           </TouchableOpacity>
         </View>
       </View>
+      {status === 'offline' || status === 'error' ? (
+        <View style={styles.warnBar}>
+          <Text style={styles.warnTxt}>{noteSaveStatusText(status)}</Text>
+        </View>
+      ) : null}
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <TextInput
@@ -257,6 +426,22 @@ export default function NoteEditorScreen({ noteId, onBack, onOpenSettings }) {
         message={dialog?.message}
         onClose={() => setDialog(null)}
       />
+      <ConfirmDialog
+        visible={!!leaveConfirm}
+        title="Ulagrede endringer"
+        message={leaveConfirm?.offline
+          ? 'Notatet er ikke lagret på serveren ennå. Endringene lagres når du er på nett igjen, så lenge appen er åpen.'
+          : 'Klarte ikke lagre endringene. Går du tilbake nå, kan de gå tapt.'}
+        buttons={[
+          { text: 'Bli her', style: 'cancel', onPress: () => setLeaveConfirm(null) },
+          {
+            text: leaveConfirm?.offline ? 'Gå tilbake' : 'Forkast endringene',
+            style: 'destructive',
+            onPress: leaveAnyway,
+          },
+        ]}
+        onClose={() => setLeaveConfirm(null)}
+      />
       </EdgeSwipeBack>
     </Screen>
   );
@@ -268,7 +453,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.line,
     backgroundColor: colors.card,
   },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  statusTxt: { color: colors.muted, fontSize: 12, fontWeight: '400', flexShrink: 1, textAlign: 'right' },
+  statusWarn: { color: '#b45309' },
+  warnBar: {
+    paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#fff7ed',
+    borderBottomWidth: 1, borderBottomColor: '#fed7aa',
+  },
+  warnTxt: { color: '#9a3412', fontSize: 13, fontWeight: '400' },
+  centerBox: { padding: 24, alignItems: 'center', gap: 10 },
+  missingTitle: { fontSize: 18, fontWeight: '500', color: colors.ink },
+  missingTxt: { fontSize: 14, color: colors.muted, textAlign: 'center', marginBottom: 6 },
   iconBtn: {
     width: 40, height: 40, borderRadius: 10, backgroundColor: '#eef6ff',
     alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.line,

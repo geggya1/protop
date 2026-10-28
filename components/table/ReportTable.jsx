@@ -8,9 +8,12 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { columnText, reportMinWidth } from '../../src/ui/reportTable';
+import {
+  columnText, isPhoneWidth, phoneLayout, phoneMetaLines, reportMinWidth,
+} from '../../src/ui/reportTable';
 
 // flex: kolonnen tar resten av bredden, med width som minste bredde.
 function cellBox(col) {
@@ -37,7 +40,7 @@ function HeadCell({ col, sort, onSort, filters, onFilter, colors, idPrefix }) {
         nativeID={`${idPrefix}-sort-${col.key}`}
         style={[styles.sortBtn, right ? { justifyContent: 'flex-end' } : null]}
       >
-        <Text style={[styles.headText, { color: on ? colors.brand : colors.muted }]} numberOfLines={1}>{col.label}</Text>
+        <Text style={[styles.headText, { color: on ? (colors.brandInk || colors.brand) : colors.muted }]} numberOfLines={1}>{col.label}</Text>
         {arrow ? <Ionicons name={arrow} size={12} color={colors.brand} /> : null}
       </TouchableOpacity>
       {onFilter && col.filter !== false ? (
@@ -83,9 +86,58 @@ function Cell({ row, col, colors, renderCell, cellTone }) {
 }
 
 /**
+ * Kort for én rad på telefon (UX-24): tittel, to meta-linjer, beløp og statusmerke.
+ * Hele kortet åpner raden; handlingen (f.eks. slett) står til høyre.
+ */
+function PhoneRow({
+  row, layout, colors, onOpen, rowNativeID, rowLabel, renderCell, cellTone, renderAction,
+}) {
+  const title = layout.title ? columnText(row, layout.title) : '';
+  const lines = phoneMetaLines(row, layout);
+  const amount = layout.amount ? columnText(row, layout.amount) : '';
+  let badge = null;
+  if (layout.badge) {
+    const custom = renderCell ? renderCell(row, layout.badge) : undefined;
+    const label = columnText(row, layout.badge);
+    badge = custom !== undefined ? custom : (label ? (
+      <Text style={[styles.phoneBadge, { color: cellTone?.(row, layout.badge) || colors.muted, borderColor: colors.line }]} numberOfLines={1}>{label}</Text>
+    ) : null);
+  }
+  return (
+    <View style={[styles.phoneRow, { borderBottomColor: colors.line }]}>
+      <Pressable
+        onPress={() => onOpen?.(row)}
+        disabled={!onOpen}
+        accessibilityRole={onOpen ? 'button' : undefined}
+        accessibilityLabel={rowLabel?.(row) || [title, ...lines, amount].filter(Boolean).join(', ')}
+        nativeID={rowNativeID?.(row)}
+        style={({ pressed }) => [styles.phoneMain, pressed ? { backgroundColor: colors.sunken || colors.bg } : null]}
+      >
+        <View style={styles.phoneText}>
+          <Text style={[styles.phoneTitle, { color: title ? colors.ink : colors.muted }]} numberOfLines={2}>{title || '—'}</Text>
+          {lines.map((line, index) => (
+            <Text key={index} style={[styles.phoneMeta, { color: colors.muted }]} numberOfLines={1}>{line}</Text>
+          ))}
+        </View>
+        {amount || badge ? (
+          <View style={styles.phoneSide}>
+            {amount ? <Text style={[styles.phoneAmount, { color: colors.ink }]} numberOfLines={1}>{amount}</Text> : null}
+            {badge}
+          </View>
+        ) : null}
+      </Pressable>
+      {renderAction ? <View style={styles.phoneAction}>{renderAction(row)}</View> : null}
+    </View>
+  );
+}
+
+/**
  * Rapporttabell som prosjektlisten: hele bredden, fast overskrift med sortering og
  * «Filtrer» under hver kolonne, sumlinje nederst og egne kort på mobil.
  * Radene er allerede filtrert og sortert av forelderen.
+ *
+ * Telefon: phone styrer visningen; uten phone blir det kort under 768 px. Kortet er
+ * renderPhoneRow/renderCard når den er gitt, ellers et standardkort bygd fra kolonnene.
  */
 export default function ReportTable({
   nativeID = 'report',
@@ -109,34 +161,62 @@ export default function ReportTable({
   onShowAll,
   totals = null,
   totalsLabel = 'Sum',
-  phone = false,
+  phone,
   renderCard,
+  renderPhoneRow,
   empty = 'Ingen rader treffer filteret.',
 }) {
+  const { width } = useWindowDimensions();
+  const asCards = phone ?? isPhoneWidth(width);
   const shown = rows.slice(0, Math.max(0, limit));
   const more = rows.length > shown.length ? (
     <View style={styles.more} nativeID={`${nativeID}-mer`}>
       <Text style={{ color: colors.muted, fontSize: 13 }}>{`Viser ${shown.length} av ${rows.length}`}</Text>
       {onMore ? (
         <TouchableOpacity onPress={onMore} accessibilityRole="button" style={[styles.moreBtn, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.brand, fontWeight: '600', fontSize: 13 }}>Vis flere</Text>
+          <Text style={{ color: colors.brandInk || colors.brand, fontWeight: '600', fontSize: 13 }}>Vis flere</Text>
         </TouchableOpacity>
       ) : null}
       {onShowAll ? (
         <TouchableOpacity onPress={onShowAll} accessibilityRole="button" style={styles.moreLink}>
-          <Text style={{ color: colors.brand, fontSize: 13 }}>Vis alle</Text>
+          <Text style={{ color: colors.brandInk || colors.brand, fontSize: 13 }}>Vis alle</Text>
         </TouchableOpacity>
       ) : null}
     </View>
   ) : null;
 
-  if (phone) {
+  if (asCards) {
+    const custom = renderPhoneRow || renderCard;
+    const layout = custom ? null : phoneLayout(columns);
+    const sums = totals && rows.length
+      ? columns.filter((col) => totals[col.key] != null).map((col) => `${col.label} ${totals[col.key]}`)
+      : [];
     return (
       <View style={styles.phoneStack}>
-        <View nativeID={nativeID} style={[styles.cards, { borderColor: colors.line, backgroundColor: colors.card }]}>
+        <View nativeID={nativeID} accessibilityRole="list" style={[styles.cards, { borderColor: colors.line, backgroundColor: colors.card }]}>
           {shown.length ? shown.map((row) => (
-            <React.Fragment key={rowKey(row)}>{renderCard?.(row)}</React.Fragment>
-          )) : <Text style={[styles.emptyText, { color: colors.muted }]}>{empty}</Text>}
+            <React.Fragment key={rowKey(row)}>
+              {custom ? custom(row) : (
+                <PhoneRow
+                  row={row}
+                  layout={layout}
+                  colors={colors}
+                  onOpen={onOpen}
+                  rowNativeID={rowNativeID}
+                  rowLabel={rowLabel}
+                  renderCell={renderCell}
+                  cellTone={cellTone}
+                  renderAction={renderAction}
+                />
+              )}
+            </React.Fragment>
+          )) : <Text style={[styles.emptyText, { color: colors.muted }]} nativeID={`${nativeID}-no-hits`}>{empty}</Text>}
+          {sums.length ? (
+            <View nativeID={`${nativeID}-sum`} style={[styles.phoneSum, { borderTopColor: colors.line, backgroundColor: colors.sunken || colors.bg }]}>
+              <Text style={[styles.phoneSumText, { color: colors.ink }]}>{`${totalsLabel} (${rows.length})`}</Text>
+              <Text style={[styles.phoneSumText, styles.num, { color: colors.ink }]}>{sums.join(' · ')}</Text>
+            </View>
+          ) : null}
         </View>
         {more}
       </View>
@@ -286,4 +366,15 @@ const styles = StyleSheet.create({
   moreLink: { paddingVertical: 8 },
   phoneStack: { gap: 10 },
   cards: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
+  phoneRow: { flexDirection: 'row', alignItems: 'stretch', borderBottomWidth: StyleSheet.hairlineWidth },
+  phoneMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingHorizontal: 12, paddingVertical: 12, minHeight: 56 },
+  phoneText: { flex: 1, minWidth: 0, gap: 3 },
+  phoneTitle: { fontSize: 15, fontWeight: '600' },
+  phoneMeta: { fontSize: 13 },
+  phoneSide: { alignItems: 'flex-end', gap: 6, maxWidth: '45%' },
+  phoneAmount: { fontSize: 15, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  phoneBadge: { fontSize: 12, fontWeight: '600', borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
+  phoneAction: { justifyContent: 'center', paddingRight: 4 },
+  phoneSum: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1 },
+  phoneSumText: { fontSize: 13, fontWeight: '600' },
 });

@@ -6,7 +6,7 @@ import { activeEmployees, activeProjects, addDays, emptyPlan, planActivityFrom, 
 import { capacityLoadMeta, loadCapacityPlan, saveCapacityPlan } from '../../src/capacity/storage';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
-import { watchEmployees } from '../../src/employees/storage';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import { ensureProjectAbsences, loadProjectState } from '../../src/project/storage';
 import { myProjectIds } from '../../src/project/myProjects';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -27,7 +27,7 @@ export default function ProductivityScreen() {
   const colors = useColors();
   const { familyId, user } = useApp();
   const access = useCompanyAccess();
-  const [employees, setEmployees] = useState([]);
+  const { employees } = useEmployees(familyId);
   const [projects, setProjects] = useState([]);
   const [members, setMembers] = useState([]);
   const [plan, setPlan] = useState(() => emptyPlan());
@@ -38,11 +38,6 @@ export default function ProductivityScreen() {
   const echo = useRef(true);
   const familyRef = useRef(familyId);
   familyRef.current = familyId;
-
-  useEffect(() => {
-    if (!familyId) return undefined;
-    return watchEmployees(familyId, (rows) => setEmployees(rows || []));
-  }, [familyId]);
 
   useEffect(() => {
     let live = true;

@@ -19,6 +19,7 @@ const supplier = supplierFromCompany({
   navn: 'Consult1 AS',
   organisasjonsnummer: '916538804',
   organisasjonsformKode: 'AS',
+  mva: true,
   forretning: { lines: ['Svanholmen 7'], postnummer: '4313', poststed: 'Sandnes' },
   kontonummer: '32010946149',
   telefon: '+47 52 05 52 10',
@@ -28,6 +29,18 @@ assert.equal(supplier.inForetaksregisteret, true);
 assert.equal(supplier.vatRegistered, true);
 assert.equal(supplierLegalLine(supplier), 'Foretaksregisteret NO 916 538 804 MVA');
 assert.equal(supplierLegalLine({ ...supplier, inForetaksregisteret: false, vatRegistered: false }), 'NO 916 538 804');
+// Ukjent mva-registrering: merkes «MVA» som før, men vatKnown er false så kontrollen ber om bekreftelse.
+// Beskrivelsen fra Brønnøysund gir foretaksform.
+{
+  const unknown = supplierFromCompany({ navn: 'Ny AS', organisasjonsnummer: '916538804', organisasjonsform: 'Aksjeselskap', addressLabel: 'Gate 1, 4313 Sandnes' });
+  assert.equal(unknown.vatRegistered, true);
+  assert.equal(unknown.vatKnown, false);
+  assert.equal(unknown.inForetaksregisteret, true);
+  assert.equal(supplierLegalLine(unknown), 'Foretaksregisteret NO 916 538 804 MVA');
+  const enk = supplierFromCompany({ navn: 'Ola', organisasjonsnummer: '916538804', organisasjonsform: 'Enkeltpersonforetak', mva: false });
+  assert.equal(enk.inForetaksregisteret, false);
+  assert.equal(supplierLegalLine(enk), 'NO 916 538 804');
+}
 
 const draft = recalcInvoice(emptyInvoice({
   id: 'inv_test',
@@ -94,6 +107,8 @@ assert.equal(head, '%PDF-1.4');
 const body = Buffer.from(pdf).toString('latin1');
 assert.ok(body.includes('FAKTURA 16722'));
 assert.ok(body.includes('Foretaksregisteret NO 916 538 804 MVA'));
+assert.ok(body.includes('Leveringsperiode'), 'perioden fra timelinjene står på fakturaen');
+assert.ok(!body.includes('Leveringsdato'));
 assert.ok(body.includes('167221'));
 assert.ok(body.includes('Side 1 av 1'));
 const draftPdf = Buffer.from(buildInvoicePdf(draft, { supplier })).toString('latin1');
@@ -111,6 +126,26 @@ assert.equal(invoicePdfName(invoice), 'Faktura-16722.pdf');
 assert.equal(invoicePdfName(draft), 'Faktura-utkast.pdf');
 assert.equal(invoicePdfName(credit), 'Kreditnota-16723.pdf');
 assert.ok(pdfBase64(pdf).startsWith('JVBERi0xLjQ'));
+
+// Uten periode: fakturadatoen står som leveringsdato på PDF og i EHF.
+{
+  const noPeriod = issueInvoice(recalcInvoice({
+    ...draft,
+    id: 'inv_noperiod',
+    periodStart: '',
+    periodEnd: '',
+    lines: [normalizeLine({ section: 'products', description: 'Vare', quantity: 1, unitPrice: 1000, account: '3000' })],
+  }), { number: '16725', date: '2026-10-05' }).invoice;
+  assert.equal(noPeriod.periodStart, '');
+  const noPeriodPdf = Buffer.from(buildInvoicePdf(noPeriod, { supplier })).toString('latin1');
+  assert.ok(noPeriodPdf.includes('Leveringsdato'));
+  assert.ok(noPeriodPdf.includes('05.10.2026'));
+  const noPeriodEhf = buildEhfXml(noPeriod, { supplier });
+  assert.ok(noPeriodEhf.xml.includes('<cbc:ActualDeliveryDate>2026-10-05</cbc:ActualDeliveryDate>'));
+  // Selskap som ikke er mva-registrert: ingen MVA-id i EHF.
+  const plain = buildEhfXml(noPeriod, { supplier: { ...supplier, vatRegistered: false } });
+  assert.ok(!plain.xml.includes('NO916538804MVA'));
+}
 
 // Mange linjer gir flere sider.
 const long = recalcInvoice({

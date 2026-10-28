@@ -1,12 +1,17 @@
 /**
- * Bedrift tilbys etter innlogging og på organisasjonssiden — ikke under Prosjekt.
- * Opprettelse og innpass er gratis.
+ * Bedrift tilbys som kort øverst på Hjem med en gang etter innlogging, og på
+ * organisasjonssiden — ikke under Prosjekt. Opprettelse og innpass er gratis.
  */
 import { isOrganizationType } from '../utils/groupTypes.js';
 import { isPersonalShell } from '../utils/personalShell.js';
+import { companyDisplayName } from '../utils/companyName.js';
 
-/** Vises først etter at personen har landet på dashbordet. */
-export const COMPANY_OFFER_DELAY_MS = 2 * 60 * 1000;
+/** «Ikke nå» på kortet huskes per bruker på enheten. */
+export const COMPANY_OFFER_HIDDEN_KEY = 'protop.companyOffer.hidden.v1';
+
+export function companyOfferHiddenKey(uid) {
+  return `${COMPANY_OFFER_HIDDEN_KEY}.${uid || ''}`;
+}
 
 const dismissedThisSession = new Set();
 
@@ -66,6 +71,6 @@ function shellTime(group) {
 /** Label shown in the shell when the open workspace is a company. */
 export function companyContextLabel(family) {
   if (!family || !isOrganizationType(family.type)) return '';
-  const name = String(family.company?.navn || family.name || '').trim();
+  const name = companyDisplayName(family);
   return name ? `Bedrift · ${name}` : 'Bedrift';
 }

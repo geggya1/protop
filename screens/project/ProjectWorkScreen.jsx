@@ -15,7 +15,7 @@ import { myProjectIds } from '../../src/project/myProjects';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
-import { showSaveToast } from '../../src/ui/saveToast';
+import { showSaveToast, showUndoToast } from '../../src/ui/saveToast';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { loadAnbudState, peekAnbudState, saveAnbudState } from '../../src/anbud/storage';
@@ -24,6 +24,7 @@ import { watchInvoices } from '../../src/economy/invoiceStorage';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
 import CreateMenu from '../../components/CreateMenu';
+import EmptyState from '../../components/EmptyState';
 import FilterMenu from '../../components/FilterMenu';
 import { importResult } from '../../src/imports/review';
 import { pickDocument } from '../../src/utils/media';
@@ -88,12 +89,15 @@ import {
   saveProjectState,
 } from '../../src/project/storage';
 import { projectLookupNumbers } from '../../src/project/projectFields.js';
+import { projectHoursQuery } from '../../src/economy/timeEntryStorage.js';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
 import { searchPlaces } from '../../src/utils/location';
 import { addressFieldsFromPlace } from '../../src/mileage/flow';
 import ProjectDetail from '../../components/project/ProjectDetail';
-import { watchEmployees } from '../../src/employees/storage';
+import { useShellDetail } from '../../src/navigation/shellDetail';
+import { DetailMissing } from '../../src/ui/BackLink';
+import { useEmployees } from '../../src/context/CompanyDataContext';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 import ProjectPhoneRow from './ProjectPhoneRow';
 
@@ -338,7 +342,8 @@ export default function ProjectWorkScreen() {
   const cachedAnbud = peekAnbudState(familyId);
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
   const [anbud, setAnbud] = useState(() => cachedAnbud);
-  const [employees, setEmployees] = useState([]);
+  // Felles lytter på ansatte i skallet.
+  const { employees, ready: employeesReady } = useEmployees(familyId);
   const [invoices, setInvoices] = useState([]);
   const [ready, setReady] = useState(() => (cachedProjects?.projects?.length || 0) > 0);
   const [error, setError] = useState('');
@@ -346,6 +351,9 @@ export default function ProjectWorkScreen() {
   const [query, setQuery] = useState('');
   const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState('');
+  // Angre etter fjernet dokument skal ikke skrive inn i et annet prosjekt som er åpnet i mellomtiden.
+  const selectedIdRef = useRef('');
+  selectedIdRef.current = selectedId;
   const [form, setForm] = useState(EMPTY_FORM);
   const [gapFilter, setGapFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -413,14 +421,6 @@ export default function ProjectWorkScreen() {
     });
     return () => { live = false; };
   }, [familyId, reloadToken]);
-
-  useEffect(() => {
-    if (!familyId) {
-      setEmployees([]);
-      return undefined;
-    }
-    return watchEmployees(familyId, setEmployees, () => setEmployees([]));
-  }, [familyId]);
 
   useEffect(() => {
     if (!familyId) {
@@ -711,6 +711,28 @@ export default function ProjectWorkScreen() {
   }
 
   const selected = state.projects.find((item) => item.id === selectedId && projectVisible(item)) || null;
+  // Prosjektet har egen adresse (/hjem/prosjekt/:id), også mens det redigeres. Tilbake i nettleseren går til listen.
+  const projectOpen = view === 'detail' || view === 'edit';
+  const link = useShellDetail('project', projectOpen ? selectedId : '', {
+    onOpen: (id) => {
+      const project = (state.projects || []).find((row) => row.id === id);
+      setSelectedId(id);
+      setDetailTab('');
+      setForm(project ? formFromProject(project) : EMPTY_FORM);
+      setError('');
+      setNote('');
+      setConfirmEditDelete(false);
+      setConfirmBulkDelete(false);
+      setView('detail');
+    },
+    onClose: () => {
+      if (!projectOpen) return;
+      setView('list');
+      setSelectedId('');
+    },
+  });
+  // Først når listen og tilgangen er lest, vet vi at prosjektet i lenken ikke finnes eller ikke er ditt.
+  const projectsKnown = ready && access.ready && (seesAllProjects || employeesReady);
   const selectedHourKey = selected
     ? `${selected.id}:${projectLookupNumbers(selected).join(',')}`
     : '';
@@ -724,10 +746,7 @@ export default function ProjectWorkScreen() {
     if (!project) return undefined;
     let live = true;
     setProjectHoursLoading(true);
-    ensureProjectHours(familyId, {
-      projectId: project.id,
-      projectNumbers: projectLookupNumbers(project),
-    }).then((loaded) => {
+    ensureProjectHours(familyId, projectHoursQuery(project)).then((loaded) => {
       if (!live) return;
       skipNextSave.current = true;
       setState((current) => adoptLoadedHours(current, loaded, familyId));
@@ -1323,7 +1342,17 @@ export default function ProjectWorkScreen() {
     showSaveToast('Tilbudsdokumenter er overført til prosjektet.');
   }
 
+  // Fjerning av et dokument kan angres, så ingen dialog, men en toast med «Angre»
+  // som legger listen tilbake slik den var (UX-27).
   function removeDoc(docId, kind) {
+    const key = kind === 'offer' ? 'offerDocuments' : 'agreementDocuments';
+    const before = form[key] || [];
+    const removed = before.find((doc) => doc.id === docId);
+    const projectId = view === 'edit' ? selectedId : '';
+    const offerUndo = () => showUndoToast(
+      `«${removed?.name || removed?.title || 'Dokumentet'}» er fjernet`,
+      () => restoreDocs(key, before, projectId),
+    );
     if (view === 'edit' && selectedId) {
       const result = removeProjectDocument(state, selectedId, docId, kind);
       if (!result.ok) {
@@ -1337,6 +1366,7 @@ export default function ProjectWorkScreen() {
         agreementDocuments: project?.agreementDocuments || [],
         offerDocuments: project?.offerDocuments || [],
       }));
+      offerUndo();
       return;
     }
     setForm((current) => ({
@@ -1348,6 +1378,18 @@ export default function ProjectWorkScreen() {
         ? (current.offerDocuments || []).filter((doc) => doc.id !== docId)
         : current.offerDocuments,
     }));
+    offerUndo();
+  }
+
+  function restoreDocs(key, list, projectId) {
+    if (projectId) {
+      setState((current) => {
+        const result = updateProject(current, projectId, { [key]: list });
+        return result.ok ? result.state : current;
+      });
+      if (selectedIdRef.current !== projectId) return;
+    }
+    setForm((current) => ({ ...current, [key]: list }));
   }
 
   const pricing = form.pricingSettings || emptyPricingSettings();
@@ -1553,7 +1595,7 @@ export default function ProjectWorkScreen() {
       {(form.agreementDocuments || []).map((doc) => (
         <View key={doc.id} style={styles.docRow}>
           <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={2}>{doc.name || doc.title}</Text>
-          <TouchableOpacity onPress={() => removeDoc(doc.id, 'agreement')} accessibilityRole="button">
+          <TouchableOpacity onPress={() => removeDoc(doc.id, 'agreement')} accessibilityRole="button" accessibilityLabel={`Fjern ${doc.name || doc.title || 'dokumentet'}`}>
             <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
           </TouchableOpacity>
         </View>
@@ -1579,7 +1621,7 @@ export default function ProjectWorkScreen() {
             {doc.name || doc.title}
             {doc.source === 'tilbud' ? ' · fra tilbud' : ''}
           </Text>
-          <TouchableOpacity onPress={() => removeDoc(doc.id, 'offer')} accessibilityRole="button">
+          <TouchableOpacity onPress={() => removeDoc(doc.id, 'offer')} accessibilityRole="button" accessibilityLabel={`Fjern ${doc.name || doc.title || 'dokumentet'}`}>
             <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
           </TouchableOpacity>
         </View>
@@ -1654,7 +1696,7 @@ export default function ProjectWorkScreen() {
   const projectCountLabel = !ready
     ? 'Henter prosjekter…'
     : !visibleProjects.length
-      ? 'Ingen prosjekter ennå.'
+      ? ((state.projects || []).length ? 'Ingen prosjekter passer søket eller filteret.' : '0 prosjekter')
       : `${visibleProjects.length} ${visibleProjects.length === 1 ? 'prosjekt' : 'prosjekter'}${canDeleteProjects && checkedVisibleCount ? ` · ${checkedVisibleCount} merket` : ''}`;
   const filterGroups = [
     {
@@ -1874,6 +1916,7 @@ export default function ProjectWorkScreen() {
                     <TouchableOpacity
                       onPress={toggleCheckAllVisible}
                       accessibilityRole="checkbox"
+                      accessibilityLabel="Merk alle prosjektene i listen"
                       accessibilityState={{ checked: allVisibleChecked }}
                     >
                       <Ionicons
@@ -2034,8 +2077,37 @@ export default function ProjectWorkScreen() {
           </ProjectTable>
         </View>
       ) : null}
+      {ready && !(state.projects || []).length ? (
+        <EmptyState
+          nativeID="projects-empty"
+          icon="business-outline"
+          title="Ingen prosjekter ennå"
+          text={isAdmin
+            ? 'Timer, utlegg, avtaler og faktura samles på prosjektet. Opprett det første, eller hent prosjektlisten fra Excel.'
+            : 'Timer, utlegg og faktura samles på prosjektet. En administrator legger inn prosjektene.'}
+          actions={isAdmin ? [
+            { id: 'new', label: 'Nytt prosjekt', icon: 'add', primary: true, onPress: startNew, nativeID: 'projects-empty-new' },
+            {
+              id: 'import',
+              label: importing ? 'Tolker filen…' : 'Importer fra Excel',
+              icon: 'cloud-upload-outline',
+              onPress: importFile,
+              disabled: importing,
+              nativeID: 'projects-empty-import',
+            },
+          ] : []}
+        />
+      ) : null}
     </View>
   ) : null;
+
+  if (view === 'detail' && selectedId && !selected && projectsKnown) {
+    return (
+      <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+        <DetailMissing list={link.list} thing={link.thing} onBack={() => { setView('list'); setSelectedId(''); }} />
+      </View>
+    );
+  }
 
   if (view === 'detail' && selected) {
     return (

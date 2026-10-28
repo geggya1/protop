@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const soft = readFileSync(new URL('../../components/parentHome/softTheme.js', import.meta.url), 'utf8');
+const soft = readFileSync(new URL('../../components/childHome/softTheme.js', import.meta.url), 'utf8');
 assert.equal(soft.includes('adaptiveColor'), false, 'soft dashboard must not follow dark appearance');
 assert.equal(soft.includes('SOFT_DARK'), false);
 assert.match(soft, /ink:\s*'#12171E'/);

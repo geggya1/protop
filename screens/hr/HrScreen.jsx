@@ -10,10 +10,10 @@ import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';
 import { emptyHrState, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
+import { companyRetention, hrRetentionPlan, retentionToast } from '../../src/hr/retention';
+import { logSensitiveAccess } from '../../src/hr/accessLogClient';
 import { defaultHrSubView } from '../../src/navigation/shellModules';
-import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
-import HrSectionNav from './HrSectionNav';
 import HrDashboard from './HrDashboard';
 import HrPeople from './HrPeople';
 import HrRecruitment from './HrRecruitment';
@@ -36,7 +36,6 @@ function periodWindow(months = 3) {
 
 export default function HrScreen({ subView = 'oversikt' }) {
   const colors = useColors();
-  const { isPhone } = useLayout();
   const nav = useNavigation();
   const {
     family, familyId, uid, activeProfile, requestShellTab, shellIntent, clearShellIntent,
@@ -75,6 +74,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [peopleFilter, setPeopleFilter] = useState(null);
   const [recruitFocus, setRecruitFocus] = useState(null);
   const [ready, setReady] = useState(false);
+  // Lagringstiden (L-07) kjøres først når ansattlisten er lest, så tidligere ansatte er kjent.
+  const [employeesLoaded, setEmployeesLoaded] = useState(false);
+  const retentionRanRef = useRef('');
   const hrRef = useRef(hr);
   const familyIdRef = useRef(familyId);
   const saveChainRef = useRef(Promise.resolve());
@@ -82,7 +84,11 @@ export default function HrScreen({ subView = 'oversikt' }) {
 
   useEffect(() => {
     if (!familyId) return undefined;
-    return watchEmployees(familyId, (rows) => setEmployees(rows || []));
+    setEmployeesLoaded(false);
+    return watchEmployees(familyId, (rows) => {
+      setEmployees(rows || []);
+      setEmployeesLoaded(true);
+    });
   }, [familyId]);
 
   // Pårørende fylles inn av den ansatte på profilen. Mangler det, får hen oppgave og varsel.
@@ -176,6 +182,36 @@ export default function HrScreen({ subView = 'oversikt' }) {
     const next = patchHrState(base, partial);
     persist(next);
   }, [persist, canWrite]);
+  // Lagringstid (L-07): når noen med Admin på HR åpner HR, slettes søknader og HR-opplysninger
+  // om tidligere ansatte som har passert fristen (company.privacy.retention). CI deployer ikke
+  // planlagte jobber, så jobben går her. Én gang per selskap og økt, og bare etter sikker lasting.
+  const retention = useMemo(() => companyRetention(family?.company), [family?.company]);
+  useEffect(() => {
+    if (!ready || !employeesLoaded || !familyId || !access.ready || !access.canAdmin('hr')) return;
+    if (retentionRanRef.current === familyId || hrLoadMeta(familyId) !== 'ok') return;
+    retentionRanRef.current = familyId;
+    const plan = hrRetentionPlan(hrRef.current, {
+      employees,
+      policy: retention,
+      now: new Date(),
+      actor: { uid, name: assigneeName },
+    });
+    if (!plan.changed) return;
+    persist(patchHrState(hrRef.current, plan.state));
+    const message = retentionToast(plan);
+    saveChainRef.current.then(() => { if (message) showSaveToast?.(message); }).catch(() => {});
+  }, [ready, employeesLoaded, familyId, access, employees, retention, uid, assigneeName, persist]);
+
+  // Innsynslogg (L-19): en annens HR-mappe eller lønn. Eget innsyn logges ikke (serveren sjekker).
+  useEffect(() => {
+    if (!ready || !familyId || !canSee) return;
+    if (page === 'personell' && selectedEmployeeId) {
+      logSensitiveAccess({ familyId, kind: employeeSheet === 'lonn' ? 'salary' : 'hrFolder', employeeId: selectedEmployeeId });
+    } else if (page === 'lonn') {
+      logSensitiveAccess({ familyId, kind: 'salary' });
+    }
+  }, [ready, familyId, canSee, page, selectedEmployeeId, employeeSheet]);
+
   const go = useCallback((id, intent = null) => {
     if (id === 'produktivitet') {
       requestShellTab?.('arbeid', 'produktivitet');
@@ -296,6 +332,9 @@ export default function HrScreen({ subView = 'oversikt' }) {
           hr={hr}
           entries={entries}
           onOpenEmployee={openEmployee}
+          company={ownCompany}
+          familyId={familyId}
+          canSeeAccessLog={access.ready && access.canAdmin('hr')}
         />
       );
     }
@@ -336,6 +375,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           onPatch={onPatch}
           familyId={familyId}
           focus={recruitFocus}
+          retention={retention}
         />
       );
     }
@@ -368,18 +408,18 @@ export default function HrScreen({ subView = 'oversikt' }) {
     page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
     openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
-    isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany,
+    isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany, retention, access,
   ]);
 
   if (access.active && access.ready && !canSee) {
     return <CompanyAccessDenied />;
   }
 
+  // Undersidene ligger i modulmenyen i skallet (ModuleTabs), som i de andre modulene.
   // Skjemaer har egen rulling og full høyde ved utfylling.
   if (page === 'skjema') {
     return (
       <View style={[styles.scroll, styles.content, { backgroundColor: colors.bg }]} nativeID="hr-screen">
-        <HrSectionNav colors={colors} page={page} isPhone={isPhone} onChange={go} />
         {ready ? <View key={familyId || 'hr'} style={{ flex: 1, minHeight: 0 }}>{body}</View> : null}
       </View>
     );
@@ -391,7 +431,6 @@ export default function HrScreen({ subView = 'oversikt' }) {
       contentContainerStyle={styles.content}
       nativeID="hr-screen"
     >
-      <HrSectionNav colors={colors} page={page} isPhone={isPhone} onChange={go} />
       {ready ? <View key={familyId || 'hr'}>{body}</View> : null}
     </ScrollView>
   );

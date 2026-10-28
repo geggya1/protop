@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Text, Alert, View, StyleSheet, TouchableOpacity, Platform, useWindowDimensions,
+  Text, View, StyleSheet, TouchableOpacity, Platform, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useI18n } from '../../src/i18n';
-import { colors, radius } from '../../src/theme';
+import { BREAKPOINTS, colors, radius } from '../../src/theme';
 import {
   signInWithGoogle,
   signInWithApple,
@@ -27,7 +27,7 @@ export default function AuthChoiceScreen({ navigation }) {
   const { t, lang } = useI18n();
   const route = useOptionalRoute();
   const { width } = useWindowDimensions();
-  const wide = width >= 480;
+  const wide = width >= BREAKPOINTS.tablet;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [legalOk, setLegalOk] = useState(false);
@@ -46,7 +46,6 @@ export default function AuthChoiceScreen({ navigation }) {
     const msg = socialErrorMessage(t, err, stashed.provider);
     if (msg) {
       setError(msg);
-      Alert.alert(t('common.error'), msg);
     }
   }, [t]);
 
@@ -71,7 +70,6 @@ export default function AuthChoiceScreen({ navigation }) {
       const msg = socialErrorMessage(t, e, provider);
       if (msg) {
         setError(msg);
-        Alert.alert(t('common.error'), msg);
       }
     } finally {
       setBusy(false);
@@ -146,7 +144,7 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#eff3f4' },
   safe: { flex: 1, paddingHorizontal: 16 },
   back: { alignSelf: 'flex-start', paddingVertical: 8, paddingHorizontal: 4 },
-  backTxt: { fontWeight: '400', color: colors.brand, fontSize: 16 },
+  backTxt: { fontWeight: '400', color: colors.brandInk, fontSize: 16 },
   card: {
     backgroundColor: colors.card,
     borderRadius: 24,
@@ -179,16 +177,16 @@ const styles = StyleSheet.create({
   primary: {
     minHeight: 50,
     borderRadius: radius.pill,
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
   },
-  primaryTxt: { color: '#fff', fontWeight: '400', fontSize: 16 },
+  primaryTxt: { color: colors.onBrand, fontWeight: '400', fontSize: 16 },
   errorText: { color: '#b91c1c', marginTop: 12, fontSize: 13, fontWeight: '400' },
   signupRow: {
     marginTop: 20, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center',
   },
   signupMuted: { color: '#536471', fontWeight: '500', fontSize: 14 },
-  linkInline: { color: colors.brand, fontWeight: '400', textDecorationLine: 'underline' },
+  linkInline: { color: colors.brandInk, fontWeight: '400', textDecorationLine: 'underline' },
 });

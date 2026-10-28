@@ -644,5 +644,7 @@ export async function signInWithMicrosoft() {
   }
   const credential = provider.credential({ idToken: tokenRes.idToken });
   const cred = await signInWithCredential(auth, credential);
+  const { confirmMicrosoftEmail } = await import('./microsoftEmail');
+  confirmMicrosoftEmail(cred.user, tokenRes.idToken);
   return cred.user;
 }

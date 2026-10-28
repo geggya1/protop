@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { showSaveToast } from '../../src/ui/saveToast';
+import BackLink from '../../src/ui/BackLink';
+import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
 import {
   addActivity,
   updateActivity,
@@ -46,6 +48,7 @@ import ProjectEarningsTab from './ProjectEarningsTab';
 import ProjectMeetingsTab from './ProjectMeetingsTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { teamWithHourParticipants } from '../../src/project/myProjects';
+import { projectStatusLabel } from '../../src/project/statusFilter';
 
 const SALES_MAX_AGE_MS = 2 * 60 * 1000;
 
@@ -141,6 +144,7 @@ export default function ProjectDetail({
   onChangeState,
   onEditForm,
   onBack,
+  backLabel = SHELL_DETAILS.project.list,
   onOpenAgreement,
   onOpenCustomer,
   onOpenInvoice,
@@ -256,10 +260,7 @@ export default function ProjectDetail({
   return (
     <View style={styles.wrap} nativeID="project-detail">
       <View style={styles.headRow}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={18} color={colors.ink} />
-          <Text style={{ color: colors.ink }}>Tilbake til listen</Text>
-        </TouchableOpacity>
+        <BackLink label={backLabel} onPress={onBack} nativeID="project-back" />
         {full || editor ? (
         <TouchableOpacity
           onPress={() => setTab('innstillinger')}
@@ -282,7 +283,7 @@ export default function ProjectDetail({
         <View style={[styles.statusBadge, { backgroundColor: '#dcfce7', borderColor: '#86efac' }]}>
           <View style={[styles.statusDot, { backgroundColor: '#16a34a' }]} />
           <Text style={{ color: '#166534', fontWeight: '600', fontSize: 12 }}>
-            {project.projectStatus || project.phase || 'Under arbeid'}
+            {projectStatusLabel(project, 'Under arbeid')}
           </Text>
         </View>
       </View>
@@ -513,6 +514,8 @@ export default function ProjectDetail({
                       });
                       if (result.ok) onChangeState(result.state);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={row.status === 'avsluttet' ? `Gjenåpne ${row.name}` : `Merk ${row.name} som avsluttet`}
                   >
                     <Ionicons name="create-outline" size={18} color={colors.muted} />
                   </TouchableOpacity>
@@ -533,7 +536,7 @@ export default function ProjectDetail({
             </View>
             {reportEntries.map((row) => (
               <View key={row.id} style={[styles.tableRow, { borderColor: colors.line }]}>
-                <Text style={[styles.td, { color: colors.ink }]}>{row.date}</Text>
+                <Text style={[styles.td, { color: colors.ink }]}>{formatDate(row.date)}</Text>
                 <Text style={[styles.td, { color: colors.ink }]} numberOfLines={1}>{row.employeeName}</Text>
                 <Text style={[styles.td, { color: colors.muted }]} numberOfLines={1}>{row.activityName}</Text>
                 <Text style={[styles.td, { color: colors.ink, flex: 1.4 }]} numberOfLines={2}>{row.description || '—'}</Text>
@@ -543,7 +546,11 @@ export default function ProjectDetail({
                   {row.status === 'godkjent' || row.status === 'låst' ? (
                     <Ionicons name="checkmark-circle" size={18} color={colors.success || '#16a34a'} />
                   ) : full && isAdmin ? (
-                    <TouchableOpacity onPress={() => approveEntry(row.id)}>
+                    <TouchableOpacity
+                      onPress={() => approveEntry(row.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Godkjenn timene ${formatDate(row.date)} for ${row.employeeName || 'den ansatte'}`}
+                    >
                       <Ionicons name="ellipse-outline" size={18} color={colors.muted} />
                     </TouchableOpacity>
                   ) : (
@@ -602,7 +609,6 @@ export default function ProjectDetail({
 const styles = StyleSheet.create({
   wrap: { flex: 1, minHeight: 0 },
   headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',

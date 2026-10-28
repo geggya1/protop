@@ -4,7 +4,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { catalogForRole } from '../../src/homeWidgetCatalog';
-import { soft } from '../parentHome/softTheme';
+import { colors } from '../../src/theme';
+import { radius } from '../../src/ui/tokens';
 import WidgetCatalogGrid from './WidgetCatalogGrid';
 
 export default function AddWidgetSheet({
@@ -46,22 +47,22 @@ export default function AddWidgetSheet({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(40,44,52,0.35)',
+    backgroundColor: 'rgba(15,23,42,0.55)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: soft.bg,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: radius.sheet,
+    borderTopRightRadius: radius.sheet,
     padding: 18,
     paddingBottom: 28,
   },
   handle: {
     alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
-    backgroundColor: soft.line, marginBottom: 12,
+    backgroundColor: colors.line, marginBottom: 12,
   },
-  title: { fontSize: 22, color: soft.ink, fontFamily: soft.display, marginBottom: 4 },
-  lead: { fontSize: 14, color: soft.muted, fontFamily: soft.body, marginBottom: 12, lineHeight: 20 },
+  title: { fontSize: 20, color: colors.ink, fontWeight: '600', marginBottom: 4 },
+  lead: { fontSize: 14, color: colors.muted, marginBottom: 12, lineHeight: 20 },
   close: { alignSelf: 'center', marginTop: 8, padding: 10 },
-  closeTxt: { fontSize: 15, color: soft.sage, fontFamily: soft.body },
+  closeTxt: { fontSize: 15, color: colors.brandInk, fontWeight: '600' },
 });

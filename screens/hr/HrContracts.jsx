@@ -8,12 +8,20 @@ import {
   upsertActiveContract,
   upsertRow,
 } from '../../src/hr/model';
-import { AML_CONTRACT_FIELDS, amlContractCompleteness, syncComplianceFromEvidence } from '../../src/hr/compliance';
 import {
-  applyContractFieldsToEmployee,
+  AML_CONTRACT_FIELDS,
+  amlContractCompleteness,
+  amlFieldLabel,
+  amlRequiredKeys,
+  probationIssues,
+  syncComplianceFromEvidence,
+  withAmlStandardTexts,
+} from '../../src/hr/compliance';
+import {
   interpretEmploymentContract,
   parseEmploymentContractText,
 } from '../../src/hr/contractOcr';
+import { contractDraftFromEmployee, employeeWithContractChanges } from '../../src/hr/contractCard';
 import { employmentContractFormTemplate } from '../../src/hr/forms';
 import { saveFormTemplate } from '../../src/anbud/bidLibrary';
 import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
@@ -22,30 +30,23 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import {
   EmptyHint, HrButton, HrCard, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
+import { useCompanyAiAllowed } from '../../src/privacy/useCompanyAi';
+import AiNotice from '../../components/privacy/AiNotice';
 
-const KEY_FIELDS = [
-  'employerName', 'employeeName', 'workplace', 'positionTitle', 'roleDescription',
-  'startDate', 'endDate', 'workPercent', 'salaryAmount', 'workHours',
-  'noticePeriod', 'probationMonths', 'holidayTerms', 'passportOrId', 'loanOrAdvance', 'otherTerms',
-];
+/** Alle punktene i AML § 14-6 (fra 1.7.2024) kan fylles ut i skjemaet. */
+const KEY_FIELDS = AML_CONTRACT_FIELDS.map((field) => field.key);
+
+const MULTILINE_FIELDS = new Set([
+  'roleDescription', 'otherTerms', 'terminationProcedure', 'overtimeTerms', 'holidayTerms',
+  'competenceDevelopment', 'pensionInsurance',
+]);
 
 const EMPTY_CONTRACT_DRAFT = {
   id: '',
   title: 'Arbeidsavtale',
-  startDate: '',
-  endDate: '',
+  ...Object.fromEntries(KEY_FIELDS.map((key) => [key, ''])),
   workPercent: '100',
   employmentType: 'Fast',
-  employerName: '',
-  employeeName: '',
-  workplace: '',
-  positionTitle: '',
-  roleDescription: '',
-  salaryAmount: '',
-  workHours: '',
-  noticePeriod: '',
-  probationMonths: '',
-  holidayTerms: '',
   documentUrl: '',
   documentName: '',
   notes: '',
@@ -75,32 +76,40 @@ export default function HrContracts({
   );
   const active = activeId ? activeContractFor(activeId, hr.contracts) : null;
 
+  const aiAllowed = useCompanyAiAllowed();
   const [ocrText, setOcrText] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState(EMPTY_CONTRACT_DRAFT);
+  // Utkastet slik det var da det ble åpnet. Bare felt HR endrer etter det, går til ansattkortet.
+  const draftBase = useRef(EMPTY_CONTRACT_DRAFT);
 
   useEffect(() => {
     setComposerOpen(false);
     setOcrText('');
     setDraft(EMPTY_CONTRACT_DRAFT);
+    draftBase.current = EMPTY_CONTRACT_DRAFT;
   }, [activeId]);
 
   function setField(key, value) {
     setDraft((prev) => ({ ...prev, [key]: value }));
   }
 
-  function openNew() {
-    setDraft({ ...EMPTY_CONTRACT_DRAFT });
+  function openDraft(next) {
+    draftBase.current = next;
+    setDraft(next);
     setOcrText('');
     setComposerOpen(true);
   }
 
+  // Ansattkortet er fasit: stilling, prosent, ansettelsesform og datoer hentes derfra (DS-14).
+  function openNew() {
+    openDraft(contractDraftFromEmployee({ ...EMPTY_CONTRACT_DRAFT }, selected));
+  }
+
   function openExisting(row) {
-    setDraft(draftFromContract(row));
-    setOcrText('');
-    setComposerOpen(true);
+    openDraft(draftFromContract(row));
   }
 
   async function runOcr() {
@@ -109,7 +118,8 @@ export default function HrContracts({
     setBusy(true);
     try {
       const result = await interpretEmploymentContract({
-        familyId,
+        // Uten selskap leses teksten lokalt. Det gjelder også når bedriften har slått av AI.
+        familyId: aiAllowed ? familyId : '',
         text: ocrText,
         filename: 'arbeidsavtale.txt',
       });
@@ -195,16 +205,22 @@ export default function HrContracts({
         employeeId: activeId,
         contracts: nextContracts,
         reviews: state.reviews || [],
+        hmsCards: state.hmsCards || [],
       });
       return { contracts: nextContracts, compliance };
     });
     setComposerOpen(false);
     setDraft(EMPTY_CONTRACT_DRAFT);
 
-    if (selected && familyId) {
+    // Bare den aktive avtalen oppdaterer ansattkortet, og bare med feltene HR endret nå.
+    // En eldre avtale som rettes, skriver ikke gamle vilkår tilbake på kortet.
+    const card = selected && familyId && keepStatus === 'active'
+      ? employeeWithContractChanges(selected, draftBase.current, draft)
+      : null;
+    draftBase.current = EMPTY_CONTRACT_DRAFT;
+    if (card?.changed.length) {
       try {
-        const merged = applyContractFieldsToEmployee(selected, draft);
-        await saveEmployee(familyId, merged);
+        await saveEmployee(familyId, card.employee);
       } catch {
         /* HR-kontrakt er lagret uansett */
       }
@@ -212,7 +228,7 @@ export default function HrContracts({
     showSaveToast?.(
       row.aml?.pct >= 100
         ? 'Avtale lagret · AML og compliance oppdatert'
-        : 'Avtale lagret på person',
+        : `Avtale lagret på person · mangler ${row.aml?.missing?.length || 0} punkter etter AML § 14-6`,
     );
   }
 
@@ -239,6 +255,8 @@ export default function HrContracts({
   }
 
   const completeness = amlContractCompleteness(draft);
+  const required = new Set(amlRequiredKeys(draft));
+  const probation = probationIssues(draft);
   const previewUrl = /^https?:\/\//i.test(String(draft.documentUrl || '')) ? draft.documentUrl : '';
 
   if (!activeId) {
@@ -291,19 +309,40 @@ export default function HrContracts({
           <HrSectionTitle
             colors={colors}
             title="Registrer avtale"
-            subtitle={`AML-minimum: ${completeness.filled}/${completeness.total} (${completeness.pct} %)`}
+            subtitle={`AML § 14-6 (fra 1.7.2024): ${completeness.filled}/${completeness.total} (${completeness.pct} %). Felt med * er påkrevd.`}
           />
+          <Text style={[styles.line, { color: colors.muted }]} nativeID="hr-contract-card">
+            Stilling, stillingsprosent, ansettelsesform og datoer hentes fra ansattkortet. Endrer du stilling, prosent eller datoer i den aktive avtalen, oppdateres ansattkortet når avtalen lagres.
+          </Text>
+          {completeness.missing.length ? (
+            <Text style={[styles.line, { color: colors.muted }]} nativeID="hr-contract-missing">
+              {`Mangler: ${completeness.missing.map(amlFieldLabel).join(' · ')}. «Lovpålagt» blir grønn først når disse er fylt ut.`}
+            </Text>
+          ) : null}
+          {probation.map((message) => (
+            <Text key={message} style={[styles.line, { color: colors.danger }]} nativeID="hr-contract-probation">{message}</Text>
+          ))}
           <View style={styles.split}>
             <View style={styles.pane}>
+              <HrButton
+                colors={colors}
+                label="Fyll tomme felt med standardtekst etter loven"
+                icon="document-text-outline"
+                nativeID="hr-contract-standard-texts"
+                onPress={() => setDraft((prev) => withAmlStandardTexts(prev))}
+              />
+              <Text style={[styles.line, { color: colors.muted, fontSize: 12 }]}>
+                Gjelder ferie, opphør og søksmålsfrister, overtid, kompetanseutvikling og pensjon. Kontroller teksten mot bedriftens ordninger før avtalen signeres.
+              </Text>
               <HrField colors={colors} label="Tittel på avtalen" value={draft.title} onChangeText={(value) => setField('title', value)} />
               {AML_CONTRACT_FIELDS.filter((field) => KEY_FIELDS.includes(field.key)).map((field) => (
                 <HrField
                   key={field.key}
                   colors={colors}
-                  label={field.label}
+                  label={required.has(field.key) ? `${field.label} *` : field.label}
                   value={String(draft[field.key] || '')}
                   onChangeText={(value) => setField(field.key, value)}
-                  multiline={field.key === 'roleDescription' || field.key === 'otherTerms'}
+                  multiline={MULTILINE_FIELDS.has(field.key)}
                 />
               ))}
               <HrButton colors={colors} label="Lagre avtale på person" primary icon="save-outline" onPress={saveContract} />
@@ -333,6 +372,7 @@ export default function HrContracts({
                 disabled={busy}
                 onPress={runOcr}
               />
+              <AiNotice allowed={aiAllowed} colors={colors} what="Teksten" />
               <HrButton colors={colors} label="Opprett mal i skjemabygger" icon="clipboard-outline" onPress={ensureFormTemplate} />
               {draft.documentName ? (
                 <Text style={[styles.line, { color: colors.muted }]}>{draft.documentName}</Text>

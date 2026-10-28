@@ -155,6 +155,9 @@ export function resolveColorsForChildTheme(themeId) {
     ...baseColors,
     brand: theme.brand,
     brandSoft: theme.brandSoft,
+    // Barnetemaene beholder sin egen farge på knapper og lenker.
+    brandInk: theme.brand,
+    onBrand: '#ffffff',
     bg: theme.bg,
     fab: theme.brand,
     accent: theme.accent,

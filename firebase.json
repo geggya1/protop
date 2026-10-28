@@ -20,6 +20,10 @@
             "value": "DENY"
           },
           {
+            "key": "Content-Security-Policy",
+            "value": "frame-ancestors 'none'; object-src 'self' blob:; base-uri 'self'"
+          },
+          {
             "key": "Referrer-Policy",
             "value": "strict-origin-when-cross-origin"
           },

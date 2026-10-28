@@ -284,6 +284,27 @@ export function calendarEventSurface(hex) {
   return { bg, ink: EVENT_INK, border, accent };
 }
 
+/** «okt.», «nov.», men «mai» (kort nok fra før). */
+function shortMonthNo(name) {
+  const m = String(name || '').toLowerCase();
+  return m.length <= 3 ? m : `${m.slice(0, 3)}.`;
+}
+
+/**
+ * Kort ukeoverskrift: «19.–25. okt.», og over månedsskiftet «26. okt.–1. nov.».
+ * Før stod bare måneden til dagen man så på («26.–1. Okt»), også når uka gikk inn i neste måned (SOS-18).
+ */
+export function formatWeekRangeShortNo(weekDays, months) {
+  if (!weekDays?.length) return '';
+  const a = weekDays[0];
+  const b = weekDays[weekDays.length - 1];
+  const monthB = shortMonthNo(months[b.getMonth()]);
+  if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
+    return `${a.getDate()}.–${b.getDate()}. ${monthB}`;
+  }
+  return `${a.getDate()}. ${shortMonthNo(months[a.getMonth()])}–${b.getDate()}. ${monthB}`;
+}
+
 export function formatWeekRangeNo(weekDays, months) {
   if (!weekDays?.length) return '';
   const a = weekDays[0];

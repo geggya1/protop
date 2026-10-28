@@ -17,7 +17,8 @@ import {
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { auth } from '../firebase';
 import { syncMyInvites } from '../src/utils/invite';
-import { inviteResponseMessage, isCompanyGroupType } from '../src/utils/groupInviteLogic';
+import { inviteResponseMessage, isCompanyGroupType, isStaleInviteCode } from '../src/utils/groupInviteLogic';
+import { notifyUser } from '../src/utils/dialog';
 import {
   listenIncomingGameInvites,
   listenFamilyPendingGameInvites,
@@ -26,6 +27,10 @@ import {
 } from '../src/utils/familyGamesShared';
 import { respondToGameInvite } from '../src/utils/gameInviteRespond';
 import { groupInviteCopy } from '../src/utils/inviteIdentifiers';
+import { parseFriendInviteFromPath } from '../src/navigation/friendInviteLinks';
+import { FAMILY_PRODUCT_ENABLED, groupInviteAllowed } from '../src/navigation/familyProduct';
+import { staleFriendInviteNoticeIds } from '../src/utils/friendsLogic';
+import { useUnread } from '../src/context/NotificationContext';
 import {
   listenIncomingFriendRequests,
   acceptFriendRequest,
@@ -35,6 +40,23 @@ import {
 /** Ny henting når appen får fokus igjen. Serveren tillater 60 i timen. */
 const INVITE_SYNC_GAP_MS = 2 * 60 * 1000;
 
+/** «Senere» gjelder resten av økten. Invitasjonen ligger fortsatt i Varsler. */
+const DISMISSED_KEY = 'protop.inviteOverlay.later';
+
+function readDismissed() {
+  try {
+    const raw = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(DISMISSED_KEY) : '';
+    const list = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(list) ? list : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function inviteKey(kind, inv) {
+  return `${kind}:${inv?.inviteId || inv?.requestId || inv?.id || `${inv?.gameType || ''}_${inv?.gameId || ''}`}`;
+}
+
 /** Passordbrukere bekrefter på «Bekreft e-posten»-siden og har fått lenken ved registrering. */
 function isPasswordUser(user) {
   const provider = user?.providerData?.[0]?.providerId;
@@ -42,8 +64,10 @@ function isPasswordUser(user) {
 }
 
 /**
- * Full-screen mandatory invite gate after login.
- * Cannot be dismissed without Accept or Decline.
+ * Invitasjonsvindu etter innlogging: Godta, Avslå eller Senere.
+ * «Senere» skjuler invitasjonen resten av økten; den ligger fortsatt i Varsler.
+ * En invitasjon som ikke lenger gjelder (slettet gruppe, besvart, utløpt), lukkes i innboksen,
+ * så vinduet ikke kommer tilbake.
  */
 export default function InviteRespondOverlay({ enabled = true, onPendingChange }) {
   const { t } = useI18n();
@@ -53,19 +77,26 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   const [gameInvites, setGameInvites] = useState([]);
   const [familyGameInvites, setFamilyGameInvites] = useState([]);
   const [friendInvites, setFriendInvites] = useState([]);
+  const [friendInvitesLoaded, setFriendInvitesLoaded] = useState(false);
+  const { items: inboxItems, markSeen } = useUnread();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [dismissed, setDismissed] = useState(readDismissed);
 
   useEffect(() => {
     if (!uid || !enabled) {
       setFamilyInvites([]);
       return undefined;
     }
-    return listenIncomingFamilyInvites(uid, setFamilyInvites);
+    // ProTop: bare bedriftsinvitasjoner. Familie, lag og klasse finnes ikke her (L-35).
+    return listenIncomingFamilyInvites(uid, (list) => {
+      setFamilyInvites((list || []).filter((inv) => groupInviteAllowed(inv?.groupType)));
+    });
   }, [uid, enabled]);
 
   useEffect(() => {
-    if (!uid || !enabled) {
+    // Spillinvitasjoner hører til familiespillene, som ikke er med i ProTop (L-35).
+    if (!uid || !enabled || !FAMILY_PRODUCT_ENABLED) {
       setGameInvites([]);
       return undefined;
     }
@@ -73,8 +104,9 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, enabled]);
 
   // Ny bruker invitert på e-post: serveren legger invitasjonen i innboksen når e-posten er
-  // bekreftet, eller personen er innlogget med Google, Microsoft eller Apple. Hentes ved
-  // innlogging, når e-posten blir bekreftet og når appen får fokus igjen.
+  // bekreftet (lenken fra ProTop, Google/Apple, eller Microsoft når Microsofts token sier det,
+  // se src/utils/microsoftEmail.js). Hentes ved innlogging, når e-posten blir bekreftet og
+  // når appen får fokus igjen.
   const [emailVerified, setEmailVerified] = useState(() => !!auth.currentUser?.emailVerified);
   const syncBusyRef = useRef(false);
   const lastSyncRef = useRef(0);
@@ -149,7 +181,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, enabled, runInviteSync]);
 
   useEffect(() => {
-    if (!uid || !enabled || !familyId) {
+    if (!uid || !enabled || !familyId || !FAMILY_PRODUCT_ENABLED) {
       setFamilyGameInvites([]);
       return undefined;
     }
@@ -157,12 +189,27 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, enabled, familyId]);
 
   useEffect(() => {
+    setFriendInvitesLoaded(false);
     if (!uid || !enabled) {
       setFriendInvites([]);
       return undefined;
     }
-    return listenIncomingFriendRequests(uid, setFriendInvites);
+    return listenIncomingFriendRequests(uid, (list) => {
+      setFriendInvites(list || []);
+      setFriendInvitesLoaded(true);
+    });
   }, [uid, enabled]);
+
+  // Varsel om en forespørsel som er godtatt, avslått eller trukket tilbake, skal ikke
+  // stå igjen under «Ulest» (SOS-19).
+  useEffect(() => {
+    if (!uid || !enabled || !friendInvitesLoaded) return;
+    const stale = staleFriendInviteNoticeIds(
+      inboxItems,
+      friendInvites.map((inv) => inv.requestId || inv.id),
+    );
+    if (stale.length) markSeen(stale).catch(() => {});
+  }, [uid, enabled, friendInvitesLoaded, friendInvites, inboxItems, markSeen]);
 
   const mergedGameInvites = useMemo(() => {
     const byKey = new Map();
@@ -174,7 +221,12 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     return [...byKey.values()];
   }, [gameInvites, familyGameInvites]);
 
-  const pendingCount = familyInvites.length + mergedGameInvites.length + friendInvites.length;
+  // Invitasjoner som venter og ikke er lagt til side med «Senere».
+  const pendingCount = [
+    ...familyInvites.map((inv) => inviteKey('family', inv)),
+    ...friendInvites.map((inv) => inviteKey('friend', inv)),
+    ...mergedGameInvites.map((inv) => inviteKey('game', inv)),
+  ].filter((key) => !dismissed.has(key)).length;
   useEffect(() => {
     onPendingChange?.(enabled ? pendingCount > 0 : false);
   }, [enabled, pendingCount, onPendingChange]);
@@ -198,10 +250,11 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         window.history.replaceState({}, '', `${window.location.origin}/`);
         return;
       }
-      const friendMatch = String(window.location.pathname || '').match(
-        /\/friend-invite\/([^/?#]+)/i,
+      // /register?friendInvite=<token> er en invitasjon til ny bruker, ikke en forespørsel.
+      const friendLink = parseFriendInviteFromPath(
+        `${window.location.pathname || ''}${window.location.search || ''}`,
       );
-      const friendReq = params.get('friendInvite') || (friendMatch ? decodeURIComponent(friendMatch[1]) : '');
+      const friendReq = friendLink?.requestId || '';
       if (friendReq && !params.get('token')) {
         nav.navigate('FriendInviteRespond', { requestId: friendReq });
         window.history.replaceState({}, '', `${window.location.origin}/`);
@@ -210,20 +263,26 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, nav]);
 
   const current = useMemo(() => {
-    if (familyInvites.length) {
-      const inv = familyInvites[0];
-      return { kind: 'family', inv };
-    }
-    if (friendInvites.length) {
-      const inv = friendInvites[0];
-      return { kind: 'friend', inv };
-    }
-    if (mergedGameInvites.length) {
-      const inv = mergedGameInvites[0];
-      return { kind: 'game', inv };
-    }
+    const open = (kind, list) => (list || []).find((inv) => !dismissed.has(inviteKey(kind, inv)));
+    const family = open('family', familyInvites);
+    if (family) return { kind: 'family', inv: family };
+    const friend = open('friend', friendInvites);
+    if (friend) return { kind: 'friend', inv: friend };
+    const game = open('game', mergedGameInvites);
+    if (game) return { kind: 'game', inv: game };
     return null;
-  }, [familyInvites, friendInvites, mergedGameInvites]);
+  }, [familyInvites, friendInvites, mergedGameInvites, dismissed]);
+
+  const later = useCallback(() => {
+    if (!current) return;
+    setError('');
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(inviteKey(current.kind, current.inv));
+      try { sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...next])); } catch { /* privatmodus */ }
+      return next;
+    });
+  }, [current]);
 
   const answerError = (e) => {
     const code = e?.message || '';
@@ -276,6 +335,11 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
         }
       }
     } catch (e) {
+      // Invitasjonen gjelder ikke lenger: den er lukket i innboksen, og vinduet forsvinner.
+      // Si fra i en egen melding, siden feilteksten i vinduet ikke rekker å vises.
+      if (current.kind === 'family' && isStaleInviteCode(e?.message)) {
+        notifyUser(t('member.familyInviteTitle'), answerError(e));
+      }
       setError(answerError(e));
     } finally {
       setBusy(false);
@@ -347,7 +411,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
     : (current.kind === 'friend'
       ? t('friend.privacyNotice')
       : t('member.gameInviteHint'));
-  const remaining = familyInvites.length + gameInvites.length + friendInvites.length;
+  const remaining = pendingCount;
 
   return (
     <Modal
@@ -356,7 +420,7 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
       animationType="fade"
       presentationStyle="overFullScreen"
       statusBarTranslucent
-      onRequestClose={() => { /* must answer — block back dismiss */ }}
+      onRequestClose={later}
     >
       <View style={styles.backdrop} accessibilityViewIsModal>
         <View style={styles.card}>
@@ -381,6 +445,16 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
             </Text>
           ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
+          <TouchableOpacity
+            nativeID="invite-later"
+            onPress={later}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Svar senere"
+            style={styles.laterBtn}
+          >
+            <Text style={styles.laterTxt}>Senere</Text>
+          </TouchableOpacity>
           <View style={styles.row}>
             <TouchableOpacity
               style={[styles.declineBtn, busy && styles.disabled]}
@@ -431,7 +505,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 18,
-    backgroundColor: colors.brandSoft || '#eff6ff',
+    backgroundColor: colors.brandSoft,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -514,4 +588,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   disabled: { opacity: 0.55 },
+  laterBtn: {
+    position: 'absolute',
+    top: 10,
+    right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  laterTxt: {
+    color: colors.muted,
+    fontWeight: '400',
+    fontSize: 14,
+  },
 });

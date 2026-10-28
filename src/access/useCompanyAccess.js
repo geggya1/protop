@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { AppState } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { watchEmployees } from '../employees/storage';
-import { isSuperAdmin } from '../utils/groups';
+import { useEmployees } from '../context/CompanyDataContext';
+import { isGroupAdmin, isSuperAdmin } from '../utils/groups';
 import { isOrganizationType } from '../utils/groupTypes';
+import { accessSignature, keepAccessMirrorFresh, scheduleAccessSync } from './accessMirror';
 import {
+  allows,
   companyTabAllowed,
   loadingGrants,
   resolveActorAccess,
@@ -16,6 +19,16 @@ import {
   useViewAsSelection,
   viewAsKey,
 } from './viewAsStore';
+
+const NO_EMPLOYEES = [];
+
+/** Kaller fn når appen blir aktiv igjen (fra bakgrunnen, eller fanen vises igjen på web). */
+function onAppResume(fn) {
+  const sub = AppState.addEventListener?.('change', (next) => {
+    if (next === 'active') fn();
+  });
+  return () => sub?.remove?.();
+}
 
 const idle = {
   active: false,
@@ -92,26 +105,38 @@ export function useCompanyAccess() {
   const org = isOrganizationType(family?.type);
   const bypass = isSuperAdmin(family, uid);
   const selection = useViewAsSelection();
-  const [employees, setEmployees] = useState([]);
-  const [ready, setReady] = useState(!org);
-
-  useEffect(() => {
-    if (!org || !familyId) {
-      setEmployees([]);
-      setReady(true);
-      return undefined;
-    }
-    setReady(false);
-    return watchEmployees(familyId, (rows) => {
-      setEmployees(rows);
-      setReady(true);
-    }, () => {
-      setEmployees([]);
-      setReady(true);
-    });
-  }, [org, familyId]);
+  // Én felles lytter på ansatte i skallet (CompanyDataProvider), ikke én per komponent.
+  const staff = useEmployees(familyId, { enabled: org });
+  const live = !!(org && familyId);
+  const employees = live && !staff.error ? staff.employees : NO_EMPLOYEES;
+  const ready = !live || staff.ready;
 
   const selectedId = selection.key === viewAsKey(uid, familyId) ? selection.employeeId : '';
+
+  // Tilgangsspeilet (accessAcl) og administratorlisten beregnes på serveren for alle selskaper,
+  // ikke bare når ISO åpnes: én gang når skallet åpnes, og straks når den som kan endre tilgang
+  // ser at matrisen, et nivå eller en status er endret.
+  const accessPolicy = family?.company?.accessPolicy;
+  const accessKey = useMemo(
+    () => (org && ready ? accessSignature(accessPolicy, employees) : ''),
+    [org, ready, accessPolicy, employees],
+  );
+  useEffect(() => {
+    if (!org || !familyId || !uid || !ready) return undefined;
+    const grants = bypass ? null : resolveActorAccess({ policy: accessPolicy, employees, uid }).grants;
+    const manager = bypass || isGroupAdmin(family, uid)
+      || allows(grants, 'accessControl', 'read') || allows(grants, 'employees', 'read');
+    return scheduleAccessSync(familyId, { key: accessKey, force: manager });
+    // accessKey dekker matrisen og ansatte.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [org, familyId, uid, ready, accessKey, bypass]);
+
+  // Speilet varer i 12 timer. En fane som står åpen eller en app som hentes fra bakgrunnen,
+  // fornyer det før det går ut (ellers avviser reglene HR, fravær og faktura midt i økten).
+  useEffect(() => {
+    if (!org || !familyId || !uid) return undefined;
+    return keepAccessMirrorFresh(familyId, uid, { onResume: onAppResume });
+  }, [org, familyId, uid]);
 
   useEffect(() => {
     // Tom liste = ikke lastet ennå (f.eks. rett etter omlasting): behold valget.

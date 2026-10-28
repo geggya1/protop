@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from './OptionPicker';
 import { colors, radius } from '../src/theme';
+import { radius as uiRadius } from '../src/ui/tokens';
 import { useLiveWidgets } from '../src/hooks/useLiveWidgets';
 import {
   LIVE_WIDGETS,
@@ -558,7 +559,7 @@ const styles = StyleSheet.create({
   wrap: { marginTop: 8, marginBottom: 8 },
   wrapFlush: { marginTop: 0, marginBottom: 0 },
   headActions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 8, flexShrink: 0 },
-  customize: { fontSize: 13, fontWeight: '400', color: colors.brand },
+  customize: { fontSize: 13, fontWeight: '500', color: colors.brandInk },
   toolbarOnly: {
     width: '100%',
     flexDirection: 'row',
@@ -570,7 +571,7 @@ const styles = StyleSheet.create({
   cell: { flexGrow: 1, flexBasis: 168, minWidth: 150 },
   card: {
     backgroundColor: colors.card,
-    borderRadius: radius.md,
+    borderRadius: uiRadius.card,
     borderWidth: 1,
     borderColor: colors.line,
     padding: 12,
@@ -580,14 +581,14 @@ const styles = StyleSheet.create({
   newsCardFlush: { padding: 14 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   cardHeadMain: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardTitle: { flexShrink: 1, fontWeight: '400', fontSize: 13, color: colors.ink },
-  cardTitleLarge: { fontSize: 16, letterSpacing: -0.3 },
+  cardTitle: { flexShrink: 1, fontWeight: '600', fontSize: 13, color: colors.ink },
+  cardTitleLarge: { fontSize: 17, letterSpacing: -0.2 },
   cardMeta: { marginLeft: 'auto', fontSize: 11, color: colors.muted, fontWeight: '400' },
   big: { fontSize: 26, fontWeight: '400', color: colors.ink, letterSpacing: -0.4 },
   unit: { fontSize: 14, fontWeight: '400', color: colors.muted },
   delta: { fontSize: 12, color: colors.muted, marginTop: 2 },
   attr: { fontSize: 10, color: colors.muted, marginTop: 6 },
-  error: { color: colors.danger, fontSize: 12, fontWeight: '500', paddingVertical: 4 },
+  error: { color: colors.dangerInk, fontSize: 12, fontWeight: '500', paddingVertical: 4 },
   loadingRow: { paddingVertical: 10, alignItems: 'flex-start' },
   newsRow: { paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line },
   newsTitle: { fontSize: 14, fontWeight: '400', color: colors.ink, lineHeight: 18 },
@@ -608,10 +609,10 @@ const styles = StyleSheet.create({
   stockNums: { alignItems: 'flex-end' },
   stockPrice: { fontSize: 14, fontWeight: '400', color: colors.ink },
   stockChg: { fontSize: 11, fontWeight: '400', marginTop: 1 },
-  stockFail: { flexShrink: 1, maxWidth: 140, fontSize: 11, fontWeight: '400', color: colors.danger, textAlign: 'right' },
+  stockFail: { flexShrink: 1, maxWidth: 140, fontSize: 11, fontWeight: '400', color: colors.dangerInk, textAlign: 'right' },
   editor: {
     backgroundColor: colors.card,
-    borderRadius: radius.md,
+    borderRadius: uiRadius.card,
     borderWidth: 1,
     borderColor: colors.line,
     padding: 10,
@@ -628,7 +629,7 @@ const styles = StyleSheet.create({
   },
   chipOn: { backgroundColor: colors.brandSoft, borderColor: colors.brandSoft },
   chipTxt: { fontSize: 12, fontWeight: '400', color: colors.ink },
-  chipTxtOn: { color: colors.brand },
+  chipTxtOn: { color: colors.brandInk },
   symbolRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   symbolInput: {
     flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.sm,
@@ -636,7 +637,7 @@ const styles = StyleSheet.create({
   },
   followBtn: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.brand, borderRadius: radius.sm, paddingHorizontal: 12, justifyContent: 'center',
+    backgroundColor: colors.brandInk, borderRadius: radius.sm, paddingHorizontal: 12, justifyContent: 'center',
   },
-  followTxt: { color: '#fff', fontWeight: '400', fontSize: 13 },
+  followTxt: { color: colors.onBrand, fontWeight: '600', fontSize: 13 },
 });

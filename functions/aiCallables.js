@@ -38,7 +38,8 @@ import { handleUploadStorageFile, handleDownloadStorageFile, handleApplyStorageC
 import { runAiCleanup } from './aiCleanup.js';
 import { handleAiSupportChat, handleCreateSupportTicket } from './aiSupport.js';
 import { handleScanTimesheet } from './timesheetReviewAi.js';
-import { assertRateLimits, hashRateKey, requireAuth } from './security.js';
+import { assertCompanyAiAllowed } from './aiShared.js';
+import { assertFamilyMember, assertRateLimits, hashRateKey, requireAuth } from './security.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -515,6 +516,12 @@ export const scanTimesheetReview = onCall(
     try {
       const uid = requireAuth(req.auth);
       await guardAiBurst(uid, 'timesheetReview', 30, 80);
+      // Nyere klienter sender bedriften, så en bedrift som har slått av AI, ikke får timelisten sendt.
+      const familyId = String(req.data?.familyId || '').trim();
+      if (familyId) {
+        await assertFamilyMember(db, familyId, uid);
+        await assertCompanyAiAllowed(db, familyId);
+      }
       return await handleScanTimesheet(req.data);
     } catch (error) {
       logger.warn('scanTimesheetReview failed', { message: error?.message });

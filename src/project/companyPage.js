@@ -2,6 +2,7 @@
  * Offentlig bedriftsside: hero, moduler og nyhetskort.
  * Rekkefølgen i modules er prioriteten. Skjulte moduler ligger igjen i listen.
  */
+import { isActiveEmployee } from '../employees/employmentState.js';
 
 export const PAGE_TABS = [
   { id: 'oversikt', label: 'Oversikt' },
@@ -364,10 +365,7 @@ export function videoPreview(url) {
 
 export function publicStaff(employees) {
   return (Array.isArray(employees) ? employees : [])
-    .filter((row) => {
-      const status = text(row?.company?.status || 'active').toLowerCase();
-      return !['inactive', 'former', 'deleted', 'trash'].includes(status);
-    })
+    .filter((row) => isActiveEmployee(row))
     .map((row) => {
       const person = row?.person || {};
       const name = [person.firstName, person.middleName, person.lastName].map(text).filter(Boolean).join(' ');

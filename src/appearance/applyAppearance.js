@@ -1,5 +1,5 @@
 import { Appearance, Platform } from 'react-native';
-import { DARK, LIGHT, SOFT_DARK, SOFT_LIGHT } from './palette';
+import { DARK, LIGHT } from './palette';
 import {
   normalizeAppearancePrefs,
   resolveAppearanceScheme,
@@ -7,15 +7,7 @@ import {
 
 function cssPairs(scheme) {
   const pal = scheme === 'dark' ? DARK : LIGHT;
-  const soft = scheme === 'dark' ? SOFT_DARK : SOFT_LIGHT;
-  const pairs = [];
-  Object.entries(pal).forEach(([key, value]) => {
-    pairs.push([`--wp-c-${key}`, value]);
-  });
-  Object.entries(soft).forEach(([key, value]) => {
-    pairs.push([`--wp-soft-${key}`, value]);
-  });
-  return pairs;
+  return Object.entries(pal).map(([key, value]) => [`--wp-c-${key}`, value]);
 }
 
 export function applyAppearanceScheme(scheme, { followSystem = false } = {}) {

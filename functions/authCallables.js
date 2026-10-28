@@ -19,16 +19,21 @@ import {
   VERIFY_TTL_MS,
 } from './emailVerify.js';
 import { resolveMailApiKey } from './mailApiKey.js';
+import { loadSenderName } from './senderName.js';
 import {
   assertCanInvite,
-  assertFamilyAdmin,
   assertRateLimit,
   assertSafeAppContinueUrl,
   hashRateKey,
+  isFamilyOwnerOrAdmin,
   isValidEmail,
+  listedOnFamily,
   redactEmail,
   requireAuth,
 } from './security.js';
+import { childHomeAnchored, memberPasswordDecision } from './memberPassword.js';
+import { confirmMicrosoftEmailFor } from './microsoftEmail.js';
+import { findVerifiedPhoneUid } from './verifiedPhone.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -137,6 +142,8 @@ export const sendInviteV2 = onCall(CALL, async (req) => {
     const url = assertSafeAppContinueUrl(registerUrl || inviteLink || fallbackUrl, fallbackUrl);
     const apiKey = await resolveMailApiKey();
     if (!apiKey) return { ok: false, error: 'E-post er ikke konfigurert (MAIL_API_KEY mangler).' };
+    // Hvem som inviterte: den innloggede avsenderen, slått opp her (ANSATT-05).
+    const inviterName = await loadSenderName(db, callerUid, { familyId, tokenName: req.auth?.token?.name });
     await sendMail(apiKey, buildInviteMessage({
       to: email,
       name,
@@ -145,6 +152,7 @@ export const sendInviteV2 = onCall(CALL, async (req) => {
       groupType: ctx.groupType,
       registerUrl: url,
       existingUser: isExisting,
+      inviterName,
     }));
     logger.info('[sendInviteV2] E-post sendt', {
       to: redactEmail(email),
@@ -182,6 +190,7 @@ export const sendInviteSmsV2 = onCall(CALL, async (req) => {
     const url = assertSafeAppContinueUrl(registerUrl || fallbackUrl, fallbackUrl);
     const apiKey = await resolveMailApiKey();
     if (!apiKey) return { ok: false, error: 'SMS er ikke konfigurert (MAIL_API_KEY mangler).' };
+    const inviterName = await loadSenderName(db, callerUid, { familyId, tokenName: req.auth?.token?.name });
     await sendSms(apiKey, {
       to,
       content: buildInviteSms({
@@ -191,6 +200,7 @@ export const sendInviteSmsV2 = onCall(CALL, async (req) => {
         joinCode,
         registerUrl: url,
         existingUser: isExisting,
+        inviterName,
       }),
     });
     logger.info('[sendInviteSmsV2] SMS sendt', { toLast4: to.slice(-4), callerUid });
@@ -305,49 +315,117 @@ export const sendPasswordResetV2 = onCall(CALL, async (req) => {
   }
 });
 
+/** Alle grupper kontoen er med i (eier, administrator eller medlemslistene). */
+async function groupsOfAccount(uid) {
+  const snaps = await Promise.all([
+    db.collection('families').where('members', 'array-contains', uid).limit(50).get(),
+    db.collection('families').where('activeUsers', 'array-contains', uid).limit(50).get(),
+    db.collection('families').where('memberIds', 'array-contains', uid).limit(50).get(),
+    db.collection('families').where('adminUids', 'array-contains', uid).limit(50).get(),
+    db.collection('families').where('ownerUid', '==', uid).limit(50).get(),
+  ]);
+  const byId = new Map();
+  for (const snap of snaps) snap.docs.forEach((row) => byId.set(row.id, { id: row.id, ...row.data() }));
+  return [...byId.values()];
+}
+
+/**
+ * Passord lagres aldri i Firestore (SEC-21): gamle lesbare kopier slettes. På barnets
+ * dokumenter merkes bare at passordet er satt (passwordSetAt), så foresatte ser «Satt».
+ * Foresatte ser passordet én gang når de setter det, og setter et nytt om barnet glemmer det.
+ * Bare dokumenter som finnes oppdateres: kallet skal aldri lage medlemsdokumenter.
+ */
+export async function writeMemberPasswordCopies(store, { uid, familyId, isChildMember }) {
+  const wipe = { password: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() };
+  const keep = { password: FieldValue.delete(), passwordSetAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
+  const paths = [`parents/${uid}`, `users/${uid}`];
+  const childPaths = [`children/${uid}`];
+  if (familyId) {
+    childPaths.push(`families/${familyId}/children/${uid}`);
+    paths.push(`families/${familyId}/parents/${uid}`);
+  }
+  const jobs = [
+    ...paths.map((path) => [path, wipe]),
+    ...childPaths.map((path) => [path, isChildMember ? keep : wipe]),
+  ].map(async ([path, patch]) => {
+    const ref = store.doc(path);
+    const snap = await ref.get();
+    if (snap.exists) await ref.update(patch);
+  });
+  await Promise.all(jobs.map((job) => job.catch(() => {})));
+}
+
 export const setMemberPassword = onCall(CALL, async (req) => {
   try {
     const caller = req.auth?.uid;
     if (!caller) return { ok: false, error: 'Du må være innlogget.' };
-    const { uid, password, familyId } = req.data || {};
+    const { uid, password } = req.data || {};
+    const familyId = String(req.data?.familyId || '').trim();
     const pwd = String(password || '');
     if (!uid || pwd.length < 6) return { ok: false, error: 'Passordet må ha minst 6 tegn.' };
     if (pwd.length > 128) return { ok: false, error: 'Passordet er for langt.' };
+    if (familyId.includes('/') || String(uid).includes('/')) return { ok: false, error: 'Mangler gruppe.' };
+    if (uid !== caller && !familyId) return { ok: false, error: 'Mangler gruppe.' };
+    await assertRateLimit(db, {
+      key: hashRateKey(['member-password', caller]),
+      limit: 30,
+      windowMs: 60 * 60 * 1000,
+    });
 
+    let family = null;
+    let memberDoc = null;
     let isChildMember = false;
-    if (uid !== caller) {
-      if (!familyId) return { ok: false, error: 'Mangler gruppe.' };
-      await assertFamilyAdmin(db, familyId, caller);
-      const [child, parent] = await Promise.all([
+    let groups = [];
+    if (familyId) {
+      const [famSnap, child, parent] = await Promise.all([
+        db.doc(`families/${familyId}`).get(),
         db.doc(`families/${familyId}/children/${uid}`).get(),
         db.doc(`families/${familyId}/parents/${uid}`).get(),
       ]);
-      if (!child.exists && !parent.exists) return { ok: false, error: 'Personen er ikke i gruppen.' };
-      isChildMember = child.exists;
-    } else if (familyId) {
-      const child = await db.doc(`families/${familyId}/children/${uid}`).get();
+      family = famSnap.exists ? famSnap.data() || {} : null;
+      memberDoc = child.exists ? child.data() || {} : (parent.exists ? parent.data() || {} : null);
       isChildMember = child.exists;
     } else {
-      const child = await db.doc(`children/${uid}`).get();
-      isChildMember = child.exists;
+      isChildMember = (await db.doc(`children/${uid}`).get()).exists;
     }
+    if (uid !== caller) {
+      // Kontoen må tilhøre gruppen før vi slår opp i Auth eller i andre grupper.
+      if (!family || !isFamilyOwnerOrAdmin(family, caller)) return { ok: false, error: 'Bare admin kan gjøre dette.' };
+      groups = await groupsOfAccount(uid);
+    }
+    const authUser = await adminAuth.getUser(uid).catch(() => null);
+    // Barnets egen familie (children/{uid}.familyId): der bestemmer foresatte med admin (REV-14).
+    let home = null;
+    if (uid !== caller && authUser) {
+      const childSnap = await db.doc(`children/${uid}`).get();
+      const homeId = childSnap.exists ? String(childSnap.data()?.familyId || '').trim() : '';
+      const anchored = homeId && !homeId.includes('/') && childHomeAnchored({
+        childCreatedMs: childSnap.createTime?.toMillis?.() || 0,
+        authCreatedMs: Date.parse(authUser.metadata?.creationTime || ''),
+      });
+      if (anchored) {
+        const homeSnap = homeId === familyId ? null : await db.doc(`families/${homeId}`).get();
+        const data = homeId === familyId ? family : (homeSnap?.exists ? homeSnap.data() || {} : null);
+        home = data ? { id: homeId, ...data } : null;
+      }
+    }
+    const decision = memberPasswordDecision({
+      caller, uid, family, memberDoc, groups, authUser, home,
+    });
+    if (!decision.ok) {
+      logger.warn('[setMemberPassword] avvist', { caller, uid, familyId, error: decision.error });
+      return { ok: false, error: decision.error };
+    }
+    // Egen konto: bare medlemskap i gruppen gir den lesbare kopien.
+    if (uid === caller && familyId && !(family && listedOnFamily(family, uid))) isChildMember = false;
 
     await adminAuth.updateUser(uid, { password: pwd });
-    const wipe = { password: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() };
-    const store = { password: pwd, updatedAt: FieldValue.serverTimestamp() };
-    const jobs = [
-      db.doc(`parents/${uid}`).set(wipe, { merge: true }).catch(() => {}),
-      db.doc(`users/${uid}`).set(wipe, { merge: true }).catch(() => {}),
-    ];
-    if (isChildMember) {
-      jobs.push(db.doc(`children/${uid}`).set(store, { merge: true }).catch(() => {}));
-      if (familyId) jobs.push(db.doc(`families/${familyId}/children/${uid}`).set(store, { merge: true }).catch(() => {}));
-    } else {
-      jobs.push(db.doc(`children/${uid}`).set(wipe, { merge: true }).catch(() => {}));
-      if (familyId) jobs.push(db.doc(`families/${familyId}/children/${uid}`).set(wipe, { merge: true }).catch(() => {}));
-    }
-    if (familyId) jobs.push(db.doc(`families/${familyId}/parents/${uid}`).set(wipe, { merge: true }).catch(() => {}));
-    await Promise.all(jobs);
+    await writeMemberPasswordCopies(db, {
+      uid,
+      familyId: family ? familyId : '',
+      isChildMember,
+    });
+    logger.info('[setMemberPassword] passord satt', { caller, uid, familyId, self: uid === caller });
     return { ok: true };
   } catch (error) {
     if (error instanceof HttpsError) return { ok: false, error: error.message };
@@ -356,14 +434,51 @@ export const setMemberPassword = onCall(CALL, async (req) => {
   }
 });
 
+/**
+ * Etter Microsoft-innlogging: klienten sender Microsofts ID-token. Sier Microsoft at
+ * e-posten er bekreftet (se microsoftEmail.js), merkes Firebase-kontoen som bekreftet,
+ * og invitasjoner på e-post kan knyttes. Ellers må personen bekrefte e-posten selv.
+ */
+export const confirmMicrosoftEmail = onCall(CALL, async (req) => {
+  try {
+    const uid = requireAuth(req.auth);
+    const idToken = String(req.data?.idToken || '');
+    if (!idToken || idToken.length > 20000) return { ok: false, error: 'bad-token' };
+    await assertRateLimit(db, {
+      key: hashRateKey(['ms-email', uid]),
+      limit: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    const res = await confirmMicrosoftEmailFor(uid, idToken, { auth: adminAuth });
+    logger.info('[confirmMicrosoftEmail]', { uid, ok: res.ok, verified: !!res.verified, reason: res.reason || res.error || '' });
+    return res;
+  } catch (error) {
+    if (error instanceof HttpsError) return { ok: false, error: error.message };
+    logger.error('[confirmMicrosoftEmail]', { message: error?.message });
+    return { ok: false, error: 'failed' };
+  }
+});
+
+/**
+ * Oppslaget e-post/telefon/brukernavn → uid er bare for den som kan invitere til gruppen
+ * (SEC-22). Andre får ingen profil, så uid-er og kontoer ikke kan kartlegges.
+ */
+export const LOOKUP_FORBIDDEN = 'Bare den som kan invitere til gruppen, kan slå opp brukere.';
+
 export const lookupAdultProfile = onCall(
   { ...CALL, timeoutSeconds: 20 },
   async (req) => {
     try {
       const caller = requireAuth(req.auth);
+      const familyId = String(req.data?.familyId || '').trim();
+      const family = familyId && !familyId.includes('/')
+        ? await assertCanInvite(db, familyId, caller).catch(() => null)
+        : null;
+      if (!family) return { ok: false, error: LOOKUP_FORBIDDEN, profile: null };
+      const type = String(family.data()?.type || '').toLowerCase();
       await assertRateLimit(db, {
         key: hashRateKey(['lookup-adult', caller]),
-        limit: await orgAdminLimit(caller, req.data?.familyId, 40),
+        limit: ['organization', 'company'].includes(type) ? ORG_INVITE_LIMIT : 40,
         windowMs: 60 * 60 * 1000,
       });
       const identifier = String(req.data?.identifier || '').trim();
@@ -393,23 +508,19 @@ export const lookupAdultProfile = onCall(
       const looksLikePhone = !identifier.includes('@') && phoneCandidates.length > 0
         && /^\+?[\d\s().-]+$/.test(identifier);
       if (looksLikePhone) {
-        for (const candidate of phoneCandidates) {
-          const usersSnap = await db.collection('users').where('phone', '==', candidate).limit(3).get();
-          for (const d of usersSnap.docs) {
-            const data = d.data() || {};
-            if (data.role === 'child' || data.type === 'child') continue;
-            return { ok: true, profile: publicAdultProfile(d.id, data) };
-          }
-          const parentsSnap = await db.collection('parents').where('phone', '==', candidate).limit(5).get();
-          for (const d of parentsSnap.docs) {
-            const data = d.data() || {};
-            if (data.placeholder === true && !data.uid) continue;
-            const uid = data.uid || (String(d.id).length >= 20 ? d.id : null);
-            if (!uid) continue;
-            return { ok: true, profile: publicAdultProfile(uid, data) };
-          }
-        }
-        return { ok: true, profile: null };
+        // Bare et nummer kontoen har bekreftet med SMS (Auth phoneNumber). users.phone og
+        // parents.phone skriver brukeren selv, så de kan peke på en annens nummer (REV-22).
+        // Uten treff inviterer appen nummeret med SMS, og personen godtar selv.
+        const uid = await findVerifiedPhoneUid(phoneCandidates, adminAuth);
+        if (!uid) return { ok: true, profile: null };
+        const [userSnap, parentSnap] = await Promise.all([
+          db.doc(`users/${uid}`).get(),
+          db.doc(`parents/${uid}`).get(),
+        ]);
+        const userData = userSnap.exists ? userSnap.data() || {} : {};
+        if (userData.role === 'child' || userData.type === 'child') return { ok: true, profile: null };
+        const parentData = parentSnap.exists ? parentSnap.data() || {} : {};
+        return { ok: true, profile: publicAdultProfile(uid, { ...parentData, ...userData }) };
       }
 
       const u = identifier.toLowerCase().replace(/^@/, '');

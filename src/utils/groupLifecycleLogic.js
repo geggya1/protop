@@ -13,6 +13,16 @@ export function isGroupAdmin(family, uid) {
   return Array.isArray(family.adminUids) && family.adminUids.includes(uid);
 }
 
+/**
+ * Administrator i et lag (idrettslag, klubb). Samme kilde som serveren og reglene: eier og
+ * adminUids (REV-19). admin/superAdmin på medlemsdokumentet teller ikke lenger der, så de gir
+ * heller ikke admin-knapper her. parents tas imot for eldre kall, men brukes ikke.
+ */
+// eslint-disable-next-line no-unused-vars
+export function isTeamAdmin(team, uid, parents = []) {
+  return isGroupAdmin(team, uid);
+}
+
 /** Rolle for voksne i familien: foresatt eller besteforeldre. */
 export function normalizeAdultRole(value, { asGrandparent = false } = {}) {
   if (value === 'grandparent' || asGrandparent === true) return 'grandparent';

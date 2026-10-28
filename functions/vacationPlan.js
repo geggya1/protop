@@ -10,6 +10,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { sendMail } from './mail.js';
 import { resolveMailApiKey } from './mailApiKey.js';
 import { allows, allowsHr, grantsForEmployee } from '../src/access/companyAccess.js';
+import { isActiveEmployee } from '../src/employees/employmentState.js';
 import {
   assertFamilyMember,
   assertRateLimit,
@@ -50,7 +51,8 @@ async function canManagePlan(companyId, uid) {
   const admin = data.ownerUid === uid || data.ownerId === uid || data.createdBy === uid || adminUids.includes(uid);
   if (admin) return { fam, data };
   const snap = await db.collection(`families/${companyId}/employees`).where('personUid', '==', uid).limit(5).get();
-  const linked = snap.docs.map((item) => ({ id: item.id, ...item.data() })).find((row) => isPlanningEmployee(row));
+  // Hvem som styrer planen følger rettighetene, ikke hvem som er med i den (innleide er ikke det).
+  const linked = snap.docs.map((item) => ({ id: item.id, ...item.data() })).find((row) => isActiveEmployee(row));
   const grants = linked ? grantsForEmployee(data.company?.accessPolicy, linked) : null;
   const allowed = !!(grants && (allows(grants, 'hoursOthers', 'read') || allowsHr(grants, 'write')));
   if (!allowed) throw new HttpsError('permission-denied', 'Bare HR eller leder kan sende ferieplanen.');

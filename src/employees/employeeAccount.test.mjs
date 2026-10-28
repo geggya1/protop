@@ -23,7 +23,11 @@ assert.match(employment, /label="Personell"/);
 
 // Brukerkonto: aktiver/deaktiver, inviter med tidspunkt, rettigheter som oppsummering med lenke.
 assert.match(account, /onClassify\?\.\(\{ status: 'active' \}\)/);
-assert.match(account, /onClassify\?\.\(\{ status: 'inactive', canLogin: false \}\)/);
+assert.match(account, /onClassify\?\.\(\{ status: 'inactive' \}\)/);
+// «Kan logge inn» er ikke et eget valg (gjorde ingenting). Innlogging følger kobling og status.
+assert.equal(/onClassify\?\.\(\{ canLogin/.test(account), false);
+assert.match(account, /label="Kan logge inn"/);
+assert.match(account, /nativeID="employee-account-invite-withdraw"/);
 assert.match(account, /nativeID="employee-account-invite-send"/);
 assert.match(account, /inviteTimeline\(employee\)/);
 assert.match(account, /Rettighetene settes bare i Tilgangsstyring\./);
@@ -39,5 +43,18 @@ assert.match(accessPage, /useState\(focusEmployeeId \? 'people' : initialMode\)/
 // Brukerloggen står alene på egen underside, ikke på hovedsiden.
 assert.equal((screen.match(/<EmployeeUsagePanel/g) || []).length, 1);
 assert.match(screen, /view === 'settingsLog' && selected \? \(\s*<EmployeeUsagePanel/);
+// L-08: teksten følger selskapets valg og lagringstiden, ikke en fast tekst.
+const usagePanel = read('../../screens/employees/EmployeeUsagePanel.jsx');
+assert.match(usagePanel, /\{notice \|\| usageLogNotice\(company\)\}/);
+assert.equal(/IP-adressen hentes fra tilkoblingen/.test(usagePanel), false);
+assert.match(screen, /<EmployeeUsagePanel\s+companyId=\{familyId\}\s+company=\{family\?\.company\}/);
+
+// REV-07: Deaktiver/Aktiver, status og sluttdato bare med Admin på Ansatte (som serveren).
+assert.match(screen, /const canEndEmployment = canChangeEmployment\(access\);/);
+assert.match(screen, /<EmployeeAccountView[\s\S]{0,260}canEdit=\{canEndEmployment\}/);
+assert.equal((screen.match(/employmentChangeBlocked\(/g) || []).length, 3, 'classifyEmployee, save og saveWork');
+assert.equal((screen.match(/canEndEmployment=\{canEndEmployment\}/g) || []).length, 2);
+assert.match(detail, /const employmentLocked = canEndEmployment \? \[\] : \['company\.status', 'company\.periodTo'\]/);
+assert.match(detail, /lockedKeys=\{employmentLocked\}/);
 
 console.log('employeeAccount.test.mjs: ok');

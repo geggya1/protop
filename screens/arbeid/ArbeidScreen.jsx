@@ -16,10 +16,11 @@ import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { grantsForEmployee, hoursOnAssignedOnly } from '../../src/access/companyAccess';
 import { useColors } from '../../src/context/ThemeContext';
+import { radius } from '../../src/ui/tokens';
 import { useLayout } from '../../src/theme';
-import { showSaveToast } from '../../src/ui/saveToast';
+import { showSaveError, showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
-import { ownEmployee } from '../../src/employees/model';
+import { isActiveEmployee, ownEmployee } from '../../src/employees/model';
 import { recordUsage } from '../../src/employees/usageClient';
 import {
   addAbsence,
@@ -27,7 +28,6 @@ import {
   emptyProjectState,
   mergeMemberLists,
   projectsForEmployee,
-  toggleMemberStar,
   upsertTimeEntry,
   deleteAbsence,
   deleteTimeEntry,
@@ -37,11 +37,23 @@ import {
   ensureProjectHours,
   hoursRangeCovered,
   loadProjectState,
+  markTimeEntriesSyncedMerge,
   peekProjectState,
+  projectLoadMeta,
   putProjectState,
+  readProjectStateFromCloud,
   saveProjectState,
 } from '../../src/project/storage';
-import { removeTimeEntry } from '../../src/economy/timeEntryStorage.js';
+import { loadTimeEntriesByIds, removeTimeEntry } from '../../src/economy/timeEntryStorage.js';
+import {
+  FRESH_CHECK_FAILED,
+  PROJECTS_NOT_LOADED,
+  approvedEntryBlock,
+  invoicedEntryBlock,
+  lockScopeEntryIds,
+  mergeFreshTimesheet,
+  timesheetSaveErrorText,
+} from '../../src/arbeid/timesheetGuard.js';
 import {
   canManageTimesheets,
   employeeDisplayName,
@@ -82,21 +94,30 @@ import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePi
 import AbsenceTypeModal from '../../components/arbeid/AbsenceTypeModal';
 import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
 import ScrollSheet from '../../components/ScrollSheet';
+import BillingChainLine from '../economy/billing/BillingChainLine';
+import Breadcrumb from '../../components/Breadcrumb';
 import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
 import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
-import { monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
+import { employmentRange, monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
 import { loadTimeEntries, readCachedTimeEntries } from '../../src/economy/timeEntryStorage.js';
 import { loadAbsences } from '../../src/arbeid/absenceStorage.js';
-import { absenceTypeById } from '../../src/arbeid/absenceCatalog.js';
+import { HEALTH_FREE_TEXT_NOTICE, absenceTypeById, isHealthAbsence } from '../../src/arbeid/absenceCatalog.js';
 import { isDateLocked } from '../../src/arbeid/locks.js';
 import {
-  hideTimesheetProject,
+  applyTimesheetPrefsPatch,
   lockThroughDate,
-  setAbsencePins,
+  resolveTimesheetPrefs,
+  timesheetPrefsPatch,
   toggleTimesheetLock,
 } from '../../src/arbeid/timesheetState.js';
+import {
+  loadTimesheetPrefs,
+  peekTimesheetPrefs,
+  saveTimesheetPrefs,
+} from '../../src/arbeid/timesheetPrefsStorage.js';
 import { upsertExpense, upsertSale, upsertTrip } from '../../src/economy/opsState.js';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 const DAILY = 8;
 
@@ -144,6 +165,10 @@ export default function ArbeidScreen({
   const [hoursLoading, setHoursLoading] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  // Prosjektdokumentet kunne ikke leses fra skyen (tidsavbrudd, ingen nett). Da vises en
+  // reserve, og felles data (lås, deltakelse, utlegg) endres ikke herfra.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [busyLock, setBusyLock] = useState(false);
   const skipSave = useRef(true);
 
   function applyLoadedState(loaded) {
@@ -173,6 +198,8 @@ export default function ArbeidScreen({
   const [typePicker, setTypePicker] = useState(false);
   const [sideForm, setSideForm] = useState(null);
   const [carriedHours, setCarriedHours] = useState({ key: '', entries: [], absences: [], failed: false });
+  // Stjerner, skjulte prosjekter og faste fraværstyper er personlige og lagres på den ansatte.
+  const [prefs, setPrefs] = useState(null);
 
   // Prosjekt/medlemskap først — ikke vent på hele timehistorikken.
   useEffect(() => {
@@ -186,15 +213,31 @@ export default function ArbeidScreen({
     loadProjectState(workspaceId, { hours: false }).then((loaded) => {
       if (!live) return;
       applyLoadedState(loaded);
+      setLoadFailed(!!workspaceId && projectLoadMeta(workspaceId) === 'error');
       setReady(true);
     }).catch(() => {
       if (!live) return;
       skipSave.current = true;
+      setLoadFailed(true);
       setReady(true);
       setError('Kunne ikke laste timeføring.');
     });
     return () => { live = false; };
   }, [workspaceId]);
+
+  /** Prøv å laste prosjektene fra skyen igjen etter et tidsavbrudd. */
+  function reloadProjects() {
+    setError('');
+    loadProjectState(workspaceId, { hours: false, force: true }).then((loaded) => {
+      const failed = projectLoadMeta(workspaceId) === 'error';
+      if (!failed) applyLoadedState(loaded);
+      setLoadFailed(failed);
+      if (failed) setError(PROJECTS_NOT_LOADED);
+    }).catch(() => {
+      setLoadFailed(true);
+      setError(PROJECTS_NOT_LOADED);
+    });
+  }
 
   // Timer for valgt medarbeider: aktivitetsvindu, og eldre måned som eget vindu.
   useEffect(() => {
@@ -252,13 +295,28 @@ export default function ArbeidScreen({
   }, [workspaceId]);
 
   useEffect(() => {
+    if (!workspaceId || !employeeId) {
+      setPrefs(null);
+      return undefined;
+    }
+    let live = true;
+    setPrefs(peekTimesheetPrefs(workspaceId, employeeId));
+    loadTimesheetPrefs(workspaceId, employeeId).then((loaded) => {
+      if (live) setPrefs(loaded);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [workspaceId, employeeId]);
+
+  useEffect(() => {
     if (!ready) return;
     putProjectState(state, workspaceId);
     if (skipSave.current) {
       skipSave.current = false;
       return;
     }
-    saveProjectState(state, workspaceId).catch(() => setError('Kunne ikke lagre timeføring.'));
+    // Timer og fravær går til egne samlinger. Prosjektdokumentet får bare radene som faktisk
+    // er endret (lås, medlemskap, utlegg fra sideskjemaet), aldri hele listen fra denne kopien.
+    saveProjectState(state, workspaceId).catch((cause) => setError(timesheetSaveErrorText(cause)));
   }, [state, ready, workspaceId]);
 
   const linked = useMemo(() => {
@@ -273,7 +331,7 @@ export default function ArbeidScreen({
         name: user?.displayName || '',
       })
       : findLinkedEmployee(employees, uid));
-    if (!row || row.company?.status === 'former' || row.company?.status === 'deleted') return null;
+    if (!row || !isActiveEmployee(row)) return null;
     return row;
   }, [employees, uid, personal, user?.email, user?.displayName, access.previewing, access.viewingAs]);
   // Andres timer følger bare tilgangsstyringen, ikke administratorlisten på selskapet (adminUids).
@@ -346,6 +404,11 @@ export default function ArbeidScreen({
 
   const activityRange = useMemo(() => timesheetActivityRange(today), [today]);
 
+  const ownPrefs = useMemo(
+    () => resolveTimesheetPrefs(state, employeeId, prefs),
+    [state.members, state.hiddenTimesheetProjects, state.timesheetPins, employeeId, prefs],
+  );
+
   const myProjects = useMemo(() => {
     if (!employeeId) return [];
     const list = projectsForEmployee(state, employeeId, {
@@ -356,7 +419,7 @@ export default function ArbeidScreen({
     });
     const q = projectQuery.trim().toLowerCase();
     const members = state.members.filter((row) => row.employeeId === employeeId && row.active !== false);
-    const starred = new Set(members.filter((row) => row.starred).map((row) => row.projectId));
+    const { starred } = ownPrefs;
     const roleByProject = new Map(members.map((row) => [row.projectId, row]));
     const mapped = list.map((project) => ({
       project,
@@ -384,7 +447,7 @@ export default function ArbeidScreen({
         if (a.starred !== b.starred) return a.starred ? -1 : 1;
         return String(a.project.number).localeCompare(String(b.project.number), 'nb');
       });
-  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate, activityRange]);
+  }, [state, employeeId, projectQuery, assignedOnly, monthFromDate, monthToDate, activityRange, ownPrefs]);
 
   const joinable = useMemo(() => {
     if (!employeeId || assignedOnly) return [];
@@ -467,16 +530,10 @@ export default function ArbeidScreen({
     return map;
   }, [state.timeEntries, state.absences, employeeId, days]);
 
-  const hiddenIds = useMemo(() => new Set(
-    (state.hiddenTimesheetProjects || [])
-      .filter((row) => row.employeeId === employeeId)
-      .map((row) => row.projectId),
-  ), [state.hiddenTimesheetProjects, employeeId]);
+  const hiddenIds = ownPrefs.hidden;
   const shownProjects = myProjects.filter((row) => !hiddenIds.has(row.project.id));
   const hiddenProjects = myProjects.filter((row) => hiddenIds.has(row.project.id));
-  const pinnedTypes = (state.timesheetPins || [])
-    .filter((row) => row.employeeId === employeeId)
-    .map((row) => row.typeId);
+  const pinnedTypes = ownPrefs.pins;
 
   const payrollByDay = useMemo(() => {
     const map = new Map();
@@ -533,6 +590,8 @@ export default function ArbeidScreen({
     }).hours;
   }, [selectedEmployee, fullDayHours, redDays]);
 
+  // Samme grunnlag som Timesaldo: til og med i dag, og bare mens personen er ansatt.
+  const employed = employmentRange(selectedEmployee);
   const timebank = useMemo(() => monthTimebank({
     year,
     monthIndex,
@@ -542,7 +601,13 @@ export default function ArbeidScreen({
     adjustments: state.balanceAdjustments,
     agreedForDate,
     types: absenceTypes,
+    throughDate: todayKey,
+    employedFrom: employed.from,
+    employedTo: employed.to,
   }), [
+    todayKey,
+    employed.from,
+    employed.to,
     year,
     monthIndex,
     employeeId,
@@ -600,12 +665,15 @@ export default function ArbeidScreen({
     if (readOnly) return;
     const key = entryKey(project.id, day.key);
     const activities = state.activities.filter((row) => row.projectId === project.id);
+    const entries = entriesForCell.get(key) || [];
+    const invoiced = entries.some((row) => row.invoiceId);
     setEditor({
       project,
       day,
-      entries: entriesForCell.get(key) || [],
+      entries,
       activities,
-      locked: isDateLocked(lockThrough, day.key),
+      locked: invoiced || isDateLocked(lockThrough, day.key),
+      lockedText: invoiced ? 'Fakturert. Timene kan ikke endres. Be økonomi om en kreditnota hvis noe må rettes.' : '',
     });
   }
 
@@ -624,16 +692,43 @@ export default function ArbeidScreen({
   }
 
   async function purgeCloudEntries(ids) {
+    // Slettingen spores (timeEntryDeletions, L-13) med føringen slik den var.
+    const before = new Map((state.timeEntries || []).map((row) => [row.id, row]));
     for (const id of ids) {
       if (!workspaceId || !id) continue;
       try {
-        await removeTimeEntry(workspaceId, id);
+        await removeTimeEntry(workspaceId, id, { entry: before.get(id) || null, log: true });
       } catch (cause) {
         setError(String(cause?.message || '') || 'Kunne ikke slette føringen i skyen.');
         return false;
       }
     }
     return true;
+  }
+
+  /**
+   * Føringene slik de ligger i skyen nå. Synk-grunnlaget og skjermens kopi får dem samtidig,
+   * så neste lagring ikke skriver gamle verdier (faktura, status) tilbake. null = fikk ikke svar.
+   */
+  async function freshEntries(ids) {
+    const wanted = [...new Set((ids || []).filter(Boolean))];
+    if (!wanted.length || !workspaceId) return [];
+    try {
+      const rows = await loadTimeEntriesByIds(workspaceId, wanted);
+      if (rows.length) markTimeEntriesSyncedMerge(workspaceId, rows);
+      return rows;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Fakturert siden timelisten ble åpnet: vis status og si fra, i stedet for å feile stille. */
+  function refuseInvoiced(base, fresh, message) {
+    skipSave.current = true;
+    setState(mergeFreshTimesheet(base, { entries: fresh }));
+    setEditor(null);
+    setError(message);
+    showSaveError(message);
   }
 
   async function saveEntry(blocks) {
@@ -643,6 +738,20 @@ export default function ArbeidScreen({
     const previous = entriesForCell.get(entryKey(editor.project.id, editor.day.key)) || [];
     const kept = new Set(list.filter((row) => row?.id && parseHours(row.hours) > 0).map((row) => row.id));
     let next = state;
+    if (previous.length) {
+      // Uten svar fra skyen brukes kopien. Reglene avviser fortsatt endring av fakturerte timer.
+      const fresh = await freshEntries(previous.map((row) => row.id));
+      // Godkjente timer endres og slettes bare av den som godkjenner (reglene avviser ellers).
+      const blocked = invoicedEntryBlock(fresh || []) || approvedEntryBlock(fresh || previous, {
+        canApprove: !!manager,
+        blocks: list.map((row) => ({ id: row?.id, hours: parseHours(row?.hours), timeType: row?.timeType || 'ordinary' })),
+      });
+      if (blocked) {
+        refuseInvoiced(state, fresh || [], blocked);
+        return;
+      }
+      if (fresh?.length) next = mergeFreshTimesheet(state, { entries: fresh });
+    }
     for (const payload of list) {
       const hours = parseHours(payload.hours);
       if (!(hours > 0)) continue;
@@ -703,6 +812,16 @@ export default function ArbeidScreen({
     if (readOnly) return;
     const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
     let next = state;
+    const fresh = await freshEntries(list);
+    const blocked = invoicedEntryBlock(fresh || []) || approvedEntryBlock(
+      fresh || (state.timeEntries || []).filter((row) => list.includes(row.id)),
+      { canApprove: !!manager },
+    );
+    if (blocked) {
+      refuseInvoiced(state, fresh || [], blocked);
+      return;
+    }
+    if (fresh?.length) next = mergeFreshTimesheet(state, { entries: fresh });
     for (const id of list) {
       const result = deleteTimeEntry(next, id);
       if (!result.ok) {
@@ -748,34 +867,98 @@ export default function ArbeidScreen({
     if (applyResult({ ok: true, state: next }, 'Føringen er flyttet.')) setEditor(null);
   }
 
-  function toggleLock(dateKey) {
+  async function toggleLock(dateKey) {
     if (readOnly) return;
-    const result = toggleTimesheetLock(state, {
+    if (busyLock) return;
+    if (loadFailed) {
+      setError(PROJECTS_NOT_LOADED);
+      return;
+    }
+    // Fersk status: en kopi fra før lederen godkjente eller fakturerte skal ikke låse opp.
+    setBusyLock(true);
+    let working = state;
+    try {
+      const remote = await readProjectStateFromCloud(workspaceId);
+      if (!remote.ok) throw new Error('offline');
+      const through = [dateKey, lockThroughDate(remote.state.timesheetLocks, employeeId), lockThroughDate(state.timesheetLocks, employeeId)]
+        .filter(Boolean).sort().at(-1);
+      const fresh = await freshEntries(lockScopeEntryIds(state, employeeId, through));
+      if (fresh === null) throw new Error('offline');
+      working = mergeFreshTimesheet(state, {
+        locks: remote.state.timesheetLocks,
+        archive: remote.state.timesheetLockArchive,
+        entries: fresh,
+      });
+    } catch {
+      setBusyLock(false);
+      setError(FRESH_CHECK_FAILED);
+      return;
+    }
+    setBusyLock(false);
+    // Brukeren trykket «Lås» på en gammel kopi, men skyen er alt låst til dagen: vis det
+    // i stedet for å tolke trykket som «Lås opp».
+    const wantedUnlock = lockThroughDate(state.timesheetLocks, employeeId) === dateKey;
+    if (!wantedUnlock && lockThroughDate(working.timesheetLocks, employeeId) === dateKey) {
+      skipSave.current = true;
+      setState(working);
+      setError('');
+      setNote(`Timelisten er allerede låst til ${dateKey}.`);
+      return;
+    }
+    const result = toggleTimesheetLock(working, {
       employeeId,
       throughDate: dateKey,
       lockedByUid: uid,
+      // Bare den som styrer andres timer, kan åpne godkjente eller fakturerte timer igjen.
+      canReopen: !!manager,
     });
-    const through = result.ok ? lockThroughDate(result.state.timesheetLocks, employeeId) : '';
-    applyResult(result, through
+    if (!result.ok) {
+      // Vis den ferske statusen (f.eks. «godkjent») selv om endringen ble stoppet.
+      skipSave.current = true;
+      setState(working);
+      setError(result.error);
+      showSaveError(result.error);
+      return;
+    }
+    const through = lockThroughDate(result.state.timesheetLocks, employeeId);
+    applyResult(result, result.notice || (through
       ? `Timelisten er låst til ${through}. Klar for kontroll.`
-      : 'Timelisten er låst opp.');
+      : 'Timelisten er låst opp.'));
+  }
+
+  /** Personlig valg: skrives på den ansatte, aldri i prosjektdokumentet. */
+  function savePrefs(patch, success) {
+    if (!patch || !employeeId) return false;
+    const id = employeeId;
+    setPrefs((current) => applyTimesheetPrefsPatch(current, patch));
+    saveTimesheetPrefs(workspaceId, id, patch).then(() => {
+      if (success) {
+        setNote(success);
+        showSaveToast(success);
+      }
+    }).catch(() => setError('Kunne ikke lagre valget.'));
+    setError('');
+    return true;
   }
 
   function hideProject(projectId, hidden) {
     if (readOnly) return;
-    applyResult(hideTimesheetProject(state, { employeeId, projectId, hidden }));
+    savePrefs(timesheetPrefsPatch('hidden', projectId, hidden));
   }
 
   function savePins(typeIds) {
     if (readOnly) return;
-    if (applyResult(setAbsencePins(state, { employeeId, typeIds }), 'Fraværskategorier oppdatert.')) {
-      setTypePicker(false);
-    }
+    const wanted = [...new Set((typeIds || []).map((item) => String(item || '').trim()).filter(Boolean))];
+    if (savePrefs({ absencePins: wanted }, 'Fraværskategorier oppdatert.')) setTypePicker(false);
   }
 
   function saveSide(payload) {
     if (readOnly) return;
     if (!sideForm) return;
+    if (loadFailed) {
+      setError(PROJECTS_NOT_LOADED);
+      return;
+    }
     const project = state.projects.find((row) => row.id === sideForm.projectId);
     const base = {
       date: sideForm.date,
@@ -818,6 +1001,22 @@ export default function ArbeidScreen({
 
   function joinProject(project) {
     if (readOnly) return;
+    const already = (state.members || []).some((row) => (
+      row.projectId === project.id && row.employeeId === employeeId && row.active !== false
+    ));
+    if (already) {
+      // Allerede deltaker (f.eks. lagt inn fra Team-fanen) men skjult uten nylige timer:
+      // vis prosjektet med stjerne i stedet for å melde feil.
+      savePrefs({ starred: { [project.id]: true }, hidden: { [project.id]: false } });
+      setAddProjectOpen(false);
+      setNote(`${project.name} vises nå i listen.`);
+      showSaveToast(`${project.name} vises nå i listen.`);
+      return;
+    }
+    if (loadFailed) {
+      setError(PROJECTS_NOT_LOADED);
+      return;
+    }
     const result = addProjectMember(state, {
       projectId: project.id,
       employeeId,
@@ -833,6 +1032,7 @@ export default function ArbeidScreen({
       return;
     }
     setState(result.state);
+    savePrefs(timesheetPrefsPatch('starred', project.id, true));
     setAddProjectOpen(false);
     setNote(`Lagt til ${project.name} i listen.`);
     showSaveToast(`Lagt til ${project.name} i listen.`);
@@ -841,8 +1041,9 @@ export default function ArbeidScreen({
   function starProject(memberId) {
     if (readOnly) return;
     if (!memberId) return;
-    const result = toggleMemberStar(state, memberId);
-    if (result.ok) setState(result.state);
+    const member = state.members.find((row) => row.id === memberId);
+    if (!member?.projectId) return;
+    savePrefs(timesheetPrefsPatch('starred', member.projectId, !ownPrefs.starred.has(member.projectId)));
   }
 
   function openAbsenceCell(row, day) {
@@ -1005,8 +1206,14 @@ export default function ArbeidScreen({
     </View>
   );
 
-  const companyLabel = String(policySource?.company?.navn || policySource?.name || '').trim();
+  const companyLabel = companyDisplayName(policySource);
   const crumb = timesheetCrumb({ personal, locked: !!lockedId, companyLabel });
+  // Bedriftens timeliste: brødsmule fra menyen. Personlig: «Timeliste · bedrift».
+  const crumbNode = personal
+    ? <Text style={[styles.crumb, { color: colors.muted }]}>{crumb}</Text>
+    : (lockedId
+      ? <Breadcrumb tab="ansatte" current="Timeliste" style={styles.crumbRow} />
+      : <Breadcrumb tab="arbeid" subView="timeliste" style={styles.crumbRow} />);
   const canSwitchPerson = canSwitchTimesheetPerson({ personal, locked: !!lockedId, manager });
   const needsPersonStep = needsTimesheetPersonStep({
     personal,
@@ -1017,14 +1224,26 @@ export default function ArbeidScreen({
   const identity = timesheetIdentity({ personal, compact: isPhone });
   const currentMonthLabel = monthLabel(year, monthIndex);
 
+  // Leder: hvor timene står i kjeden mot faktura (Timer → Godkjenn → Til fakturering → Faktura).
+  const chainLine = !personal && !lockedId && !embedded && manager ? (
+    <View style={styles.chainLine}>
+      <BillingChainLine
+        current="timer"
+        locks={state.timesheetLocks || []}
+        employees={employees.filter(isActiveEmployee)}
+      />
+    </View>
+  ) : null;
+
   if (needsPersonStep) {
     return (
       <View
         style={[styles.screen, { backgroundColor: colors.bg, position: 'relative' }]}
         nativeID="arbeid-screen"
       >
+        {chainLine}
         {embedded ? null : (
-          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 8 }]}>{crumb}</Text>
+          <View style={{ marginBottom: 8 }}>{crumbNode}</View>
         )}
         <TimesheetEmployeePicker
           colors={colors}
@@ -1051,12 +1270,11 @@ export default function ArbeidScreen({
 
   return (
     <View style={[styles.screen, personal && styles.screenPersonal, { backgroundColor: colors.bg, position: 'relative' }]} nativeID={personal ? 'personal-timeliste-screen' : 'arbeid-screen'}>
+      {chainLine}
       <View style={[styles.topBar, (personal || isPhone) && styles.topBarPersonal, isPhone && styles.topBarPhone]}>
         <View style={{ flex: 1, minWidth: 0 }}>
           {embedded ? null : (
-            <Text style={[styles.crumb, { color: colors.muted }]}>
-              {crumb}
-            </Text>
+            crumbNode
           )}
           {embedded ? null : (
           <TouchableOpacity
@@ -1098,7 +1316,7 @@ export default function ArbeidScreen({
           )}
         </View>
         <View style={styles.monthNav}>
-          <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
+          <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Forrige måned" style={styles.navHit}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -1109,7 +1327,7 @@ export default function ArbeidScreen({
           >
             <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{currentMonthLabel}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
+          <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Neste måned" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
           {readOnly || hideReportTools ? null : (
@@ -1186,10 +1404,40 @@ export default function ArbeidScreen({
           {hoursLoading ? 'Laster timer for måneden…' : 'Henter timeføring…'}
         </Text>
       ) : null}
+      {loadFailed ? (
+        <View
+          nativeID="timesheet-load-failed"
+          accessibilityRole="alert"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+            padding: 10,
+            marginBottom: 8,
+            borderWidth: 1,
+            borderRadius: radius.control,
+            borderColor: colors.dangerInk || colors.danger,
+            backgroundColor: colors.card,
+          }}
+        >
+          <Ionicons name="cloud-offline-outline" size={18} color={colors.dangerInk || colors.danger} />
+          <Text style={{ flex: 1, color: colors.ink, fontSize: 13, lineHeight: 18 }}>{PROJECTS_NOT_LOADED}</Text>
+          <TouchableOpacity
+            onPress={reloadProjects}
+            accessibilityRole="button"
+            accessibilityLabel="Prøv å laste prosjektene igjen"
+            style={{ paddingHorizontal: 10, paddingVertical: 6 }}
+          >
+            <Text style={{ color: colors.brand, fontWeight: '700' }}>Prøv igjen</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
-      {error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text> : null}
+      {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
+        <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
+      ) : null}
 
-      <View style={[styles.searchWrap, (isPhone || personal) && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, (isPhone || personal) && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Ionicons name="search" size={16} color={colors.muted} />
         <TextInput
           value={projectQuery}
@@ -1207,9 +1455,9 @@ export default function ArbeidScreen({
           keyboardShouldPersistTaps="handled"
           nativeID="arbeid-phone-timeliste"
         >
-          <Text style={[styles.crumb, { color: colors.muted, marginBottom: 0 }]}>
-            {personal ? 'Timeliste' : 'Arbeid / Timeliste'}
-          </Text>
+          {personal
+            ? <Text style={[styles.crumb, { color: colors.muted, marginBottom: 0 }]}>Timeliste</Text>
+            : <Breadcrumb tab="arbeid" subView="timeliste" compact />}
           <TimesheetDayView
             colors={colors}
             dateKey={activeKey}
@@ -1320,6 +1568,7 @@ export default function ArbeidScreen({
         requireDescription={editor?.project?.workSettings?.requireDescription !== false}
         requireClock={timeSettings.requireClockTimes}
         locked={!!editor?.locked}
+        lockedText={editor?.lockedText || ''}
         onSave={saveEntry}
         onDelete={removeEntry}
         onClose={() => setEditor(null)}
@@ -1428,8 +1677,12 @@ export default function ArbeidScreen({
             <TextInput
               value={absenceForm.description}
               onChangeText={(description) => setAbsenceForm((f) => ({ ...f, description }))}
+              accessibilityLabel="Merknad"
               style={[styles.field, { color: colors.ink, borderColor: colors.line }]}
             />
+            {isHealthAbsence(absenceForm.type) ? (
+              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>{HEALTH_FREE_TEXT_NOTICE}</Text>
+            ) : null}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               <TouchableOpacity onPress={() => setAbsenceOpen(false)} style={[styles.ctaGhost, { flex: 1, borderColor: colors.line }]}>
                 <Text style={{ color: colors.ink }}>Avbryt</Text>
@@ -1446,6 +1699,7 @@ export default function ArbeidScreen({
 }
 
 const styles = StyleSheet.create({
+  chainLine: { marginBottom: 10 },
   screen: { flex: 1, padding: 16, minHeight: 0 },
   screenPersonal: { paddingTop: 8 },
   gridBleed: {
@@ -1465,6 +1719,7 @@ const styles = StyleSheet.create({
   topBarPersonal: { alignItems: 'center' },
   topBarPhone: { marginBottom: 6, gap: 8 },
   crumb: { fontSize: 12, marginBottom: 4 },
+  crumbRow: { marginBottom: 4 },
   title: { letterSpacing: -0.3 },
   empBtn: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   empBtnPersonal: { gap: 6, minWidth: 0, flexShrink: 1 },

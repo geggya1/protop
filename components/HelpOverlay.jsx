@@ -21,7 +21,6 @@ import { locateStepTarget } from '../src/help/findTarget';
 import { useHelpAccess } from '../src/help/useHelpAccess';
 import { isOrganizationType } from '../src/utils/groupTypes';
 import { openAssistant } from '../src/help/assistantBridge';
-import { soft } from './parentHome/softTheme';
 import { subscribeAppRoute } from '../src/navigation/navRef';
 
 const MASK_ID = 'wp-help-spot';
@@ -115,7 +114,6 @@ export default function HelpOverlay() {
   const tourTotal = mode === 'module'
     ? (adaptedTour.length || copy?.steps?.length || pages.length)
     : pages.length;
-  const softFamilyChrome = scope === 'family' && !asChild && !layout.isDesktop && !company;
 
   const [page, setPage] = useState(0);
   const [routeName, setRouteName] = useState('');
@@ -309,7 +307,7 @@ export default function HelpOverlay() {
 
   // Kortet vokser med teksten opp til taket; bare innholdet over taket ruller.
   const baseCap = tourCardCap({ winH: height, winW: width, isPhone: layout.isPhone, inset: insets });
-  const cardCap = layout.isPhone || width < 768
+  const cardCap = layout.isPhone
     ? phoneFitCap({ winH: height, hole, cap: baseCap, inset: insets })
     : baseCap;
   const cardRect = useMemo(() => placeCard({
@@ -513,15 +511,12 @@ export default function HelpOverlay() {
       <Animated.View
         style={[
           styles.card,
-          softFamilyChrome && styles.cardSoft,
           {
             width: cardRect.w,
             left: cardRect.x,
             top: cardRect.y,
             maxHeight: cardCap,
             transform: [{ translateY: drop }],
-            borderColor: softFamilyChrome ? soft.line : 'transparent',
-            borderWidth: softFamilyChrome ? 1 : 0,
           },
         ]}
         onStartShouldSetResponder={() => true}
@@ -873,12 +868,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 18 },
     elevation: 14,
     overflow: 'hidden',
-  },
-  cardSoft: {
-    backgroundColor: soft.cream,
-    borderRadius: soft.radius,
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
   },
   cardAccent: {
     height: 4,

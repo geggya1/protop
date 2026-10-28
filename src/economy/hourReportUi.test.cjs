@@ -114,11 +114,18 @@ function compile(filename, code) {
   }
 }
 
+const companyData = require('../company/companyDataTesting.js').companyDataHooks({
+  projects: fixture.projects,
+  customersSource: 'local',
+});
+
 function hookedRequire(orig, id) {
   if (id === 'react') return React;
+  if (id.includes('CompanyDataContext')) return companyData;
   if (id === 'react-native') return rnMock;
   if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
-  if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }) };
+  if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }), useOptionalApp: () => ({ familyId: 'co' }) };
+  if (id.includes('useCompanyAi')) return { useCompanyAiGuard: () => (call) => call, useCompanyAiAllowed: () => true };
   if (id.includes('useCompanyAccess')) {
     return { useCompanyAccess: () => ({ ready: true, previewing: false, employee: null, canView: () => true, canEdit: () => true, canAdmin: () => true }) };
   }
@@ -130,6 +137,8 @@ function hookedRequire(orig, id) {
   if (id.includes('BrandBusyOverlay')) return { __esModule: true, default() { return null; } };
   if (id.includes('ModulePageBg')) return { useModuleHeroHosted: () => false };
   if (id.includes('ImportReview')) return { ImportResult() { return null; } };
+  // Datovelgeren i timeføringen (TimeEntryModal) leser fargene fra temaet ved lasting.
+  if (id.includes('DateField')) return { __esModule: true, default() { return null; } };
   if (id.includes('HoursOrganizePanel') || id.includes('HoursImportReview') || id.includes('TimesheetDayView')) {
     return { __esModule: true, default() { return null; } };
   }

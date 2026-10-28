@@ -1,6 +1,7 @@
 import React from 'react';
 import { Linking, Text, TouchableOpacity, View } from 'react-native';
 import { calloffNotices, linkCalloff, suggestFramework } from '../../src/anbud/desk.js';
+import { formatDate } from '../../src/format/nb';
 
 export default function CalloffInbox({ state, colors, onCommit, onOpenBid }) {
   const rows = calloffNotices(state?.notices);
@@ -13,7 +14,7 @@ export default function CalloffInbox({ state, colors, onCommit, onOpenBid }) {
         return (
           <View key={row.id} style={{ gap: 6, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12 }}>
             <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.title}</Text>
-            <Text style={{ color: colors.muted }}>{row.buyer || 'Oppdragsgiver ikke oppgitt'}{row.deadline ? ` · frist ${String(row.deadline).slice(0, 10)}` : ''}</Text>
+            <Text style={{ color: colors.muted }}>{row.buyer || 'Oppdragsgiver ikke oppgitt'}{row.deadline ? ` · frist ${formatDate(row.deadline)}` : ''}</Text>
             <Text style={{ color: colors.ink }}>
               {linked ? `Rammeavtale: ${linked.title || linked.id}` : 'Ingen rammeavtale er koblet.'}
             </Text>

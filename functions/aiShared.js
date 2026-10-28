@@ -1,6 +1,7 @@
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { salvageTruncatedJson } from './timetableParse.js';
 import { mediaBucket } from './storageBucket.js';
+import { AI_OFF_MESSAGE, companyAiAllowed } from '../src/privacy/companyPrivacy.js';
 
 /** Gratis-nivå grenser — juster ved kommersialisering / betalt tier. */
 export const AI_LIMITS = {
@@ -72,6 +73,22 @@ export async function assertFamilyAdult(db, uid, familyId) {
     return { role: top.data()?.admin ? 'admin' : 'parent' };
   }
   throw new Error('Kun foresatte kan bruke denne funksjonen.');
+}
+
+export const COMPANY_AI_OFF_MESSAGE = AI_OFF_MESSAGE;
+
+/**
+ * Bedriften kan slå av AI (company.privacy.ai = false). Da sendes ingenting til Gemini.
+ * Grupper uten selskapsdata (familier) er ikke berørt.
+ */
+export async function assertCompanyAiAllowed(db, familyId) {
+  if (!familyId) return;
+  const fam = await db.doc(`families/${familyId}`).get();
+  const data = fam.exists ? (fam.data() || {}) : {};
+  if (companyAiAllowed(data.company)) return;
+  const err = new Error(COMPANY_AI_OFF_MESSAGE);
+  err.code = 'failed-precondition';
+  throw err;
 }
 
 function usageDocRef(db, familyId, uid, kind) {

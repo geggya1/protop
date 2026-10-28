@@ -4,6 +4,7 @@ import { CASE_STATUS_LABEL, classifyContract, formatKr } from '../../src/indeksr
 import { periodLabel } from '../../src/indeksregulering/engine';
 import { frequencyLabel } from '../../src/indeksregulering/settings';
 import { loadIndexCache } from '../../src/indeksregulering/storage';
+import { formatDate } from '../../src/format/nb';
 
 export default function ProjectIndexArchive({
   project,
@@ -88,7 +89,7 @@ export default function ProjectIndexArchive({
         {!prices.length ? <Text style={{ color: colors.muted }}>Ingen godkjent prisversjon er registrert.</Text> : null}
         {prices.map((row) => (
           <Text key={row.id} style={{ color: colors.ink }}>
-            {row.validFrom} – {row.validTo || 'inntil videre'} · {formatKr(row.rateExVat)} · {row.title}
+            {formatDate(row.validFrom)} – {row.validTo ? formatDate(row.validTo) : 'inntil videre'} · {formatKr(row.rateExVat)} · {row.title}
           </Text>
         ))}
       </View>

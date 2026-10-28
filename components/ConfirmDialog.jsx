@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, Pressable, StyleSheet, Platform } from 'react-native';
 import { colors } from '../src/theme';
+import { LIGHT } from '../src/appearance/palette';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -10,7 +11,9 @@ if (Platform.OS === 'web') {
 /**
  * Én dialog for web og native.
  * - Enkel: confirmText / cancelText / onConfirm / onCancel
- * - Fleksibel: buttons=[{ text, style, onPress }]
+ * - Fleksibel: buttons=[{ text, style, onPress }] (style: 'cancel' | 'default' | 'warn' | 'destructive')
+ * - tone: 'default' | 'warn' | 'danger' farger bekreft-knappen (danger er det gamle flagget).
+ * Escape avbryter på web. Promise-varianten er useConfirm() i src/ui/useConfirm.jsx.
  *
  * Web: portal + position:fixed. Skjult RN Modal kan legge igjen et lag
  * som spiser alle trykk (Dokumenter/album på mobil-Safari).
@@ -22,12 +25,28 @@ export default function ConfirmDialog({
   confirmText = 'OK',
   cancelText = 'Avbryt',
   danger = false,
+  tone,
   onCancel,
   onConfirm,
   buttons,
   onClose,
 }) {
+  const latest = useRef({ onCancel, onClose });
+  latest.current = { onCancel, onClose };
+
+  useEffect(() => {
+    if (!visible || Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onKey = (event) => {
+      if (event.key !== 'Escape') return;
+      latest.current.onClose?.();
+      latest.current.onCancel?.();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [visible]);
+
   if (!visible) return null;
+  const confirmTone = tone || (danger ? 'danger' : 'default');
 
   const close = () => {
     onClose?.();
@@ -41,7 +60,7 @@ export default function ConfirmDialog({
           : []),
         {
           text: confirmText,
-          style: danger ? 'destructive' : 'default',
+          style: confirmTone === 'danger' ? 'destructive' : (confirmTone === 'warn' ? 'warn' : 'default'),
           onPress: onConfirm,
         },
       ];
@@ -53,12 +72,14 @@ export default function ConfirmDialog({
 
   const card = (
     <Pressable style={styles.card} onPress={() => {}} onStartShouldSetResponder={() => true}>
-      {!!title && <Text style={styles.title}>{title}</Text>}
+      {!!title && <Text style={styles.title} accessibilityRole="header">{title}</Text>}
       {!!message && <Text style={styles.msg}>{message}</Text>}
       <View style={styles.row}>
         {resolvedButtons.map((b, idx) => (
           <TouchableOpacity
             key={`${b.text}-${idx}`}
+            accessibilityRole="button"
+            nativeID={b.style === 'cancel' ? 'confirm-dialog-cancel' : (idx === resolvedButtons.length - 1 ? 'confirm-dialog-ok' : undefined)}
             onPress={() => {
               // Kjør handling først — onClose må ikke nullstille state før onPress leser den.
               b.onPress?.();
@@ -68,12 +89,14 @@ export default function ConfirmDialog({
               styles.btn,
               b.style === 'cancel' && styles.muted,
               b.style === 'destructive' && styles.danger,
+              b.style === 'warn' && styles.warn,
               (!b.style || b.style === 'default') && styles.primary,
             ]}
           >
             <Text style={[
               styles.btnTxt,
-              b.style === 'cancel' && { color: '#0f172a' },
+              b.style === 'cancel' && styles.mutedTxt,
+              (b.style === 'destructive' || b.style === 'warn') && styles.dangerTxt,
             ]}>
               {b.text || 'OK'}
             </Text>
@@ -88,7 +111,9 @@ export default function ConfirmDialog({
       <div style={webPortalStyle}>
         <div role="presentation" onClick={dismiss} style={webBackdropStyle} />
         <div
-          role="dialog"
+          role={confirmTone === 'default' ? 'dialog' : 'alertdialog'}
+          aria-modal="true"
+          aria-label={title || undefined}
           onClick={(e) => e.stopPropagation()}
           style={webDialogStyle}
         >
@@ -168,13 +193,18 @@ const styles = StyleSheet.create({
       ? { boxShadow: '0 12px 28px rgba(0,0,0,0.15)' }
       : { elevation: 6 }),
   },
-  title: { fontSize: 16, fontWeight: '400', color: '#0f172a' },
-  msg: { marginTop: 8, color: '#334155' },
+  title: { fontSize: 16, fontWeight: '400', color: colors.ink },
+  msg: { marginTop: 8, color: colors.muted },
   row: { flexDirection: 'row', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, marginTop: 14 },
   btn: {
     alignSelf: 'flex-start', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 },
-  btnTxt: { color: '#fff', fontWeight: '400' },
-  muted: { backgroundColor: '#e5e7eb' },
-  primary: { backgroundColor: colors.brand },
-  danger: { backgroundColor: '#b00020' },
+  // Tekstfargene følger utseendet, så dialogen kan leses i mørk modus.
+  btnTxt: { color: colors.onBrand, fontWeight: '400' },
+  mutedTxt: { color: colors.ink },
+  dangerTxt: { color: '#fff' },
+  muted: { backgroundColor: colors.sunken },
+  primary: { backgroundColor: colors.brandInk },
+  // Fylte knapper har hvit tekst i begge utseender, så fargen er den lyse paletten sin.
+  danger: { backgroundColor: LIGHT.dangerInk },
+  warn: { backgroundColor: LIGHT.warnInk },
 });

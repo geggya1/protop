@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet, Platform, ScrollView } from 'react-native';
+import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { DASHBOARD_CARD_ART } from '../../src/parentDashboardThemes';
@@ -7,9 +7,12 @@ import { parentAppShortLabel, parentAppAccent, MORE_FOLDER_GLYPHS } from '../../
 import IconBadge from '../IconBadge';
 import { AvatarBubble } from '../AvatarPicker';
 import TodoTaskIcon from '../TodoTaskIcon';
-import { soft } from '../parentHome/softTheme';
+import { colors } from '../../src/theme';
+import { radius } from '../../src/ui/tokens';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
-import { immersiveCardSurface, immersiveChipSurface, immersiveIconDisc } from './homeGlass';
+import {
+  homeCardSurface, immersiveCardSurface, immersiveChipSurface, immersiveIconDisc,
+} from './homeGlass';
 
 function useImmersiveCard() {
   const immersive = useHomeImmersive();
@@ -21,29 +24,12 @@ function useImmersiveChip() {
   return immersive ? immersiveChipSurface : null;
 }
 
-/** Module glyph on a solid white disc when immersive — pops against frost. */
-function ModuleHeadIcon({ name, color, size = 15, compact = false }) {
-  const immersive = useHomeImmersive();
-  if (!immersive) {
-    return <Ionicons name={name} size={size} color={color} />;
-  }
-  const disc = compact ? 26 : 28;
-  return (
-    <View
-      style={[
-        styles.headIconDisc,
-        immersiveIconDisc,
-        { width: disc, height: disc, borderRadius: disc / 2 },
-      ]}
-    >
-      <Ionicons name={name} size={Math.round(disc * 0.52)} color={color} />
-    </View>
-  );
+/** Modulikonet i kortets tittelrad: ProTop-blå, som ikonene i modulene (UX-05). */
+function ModuleHeadIcon({ name, size = 15 }) {
+  return <Ionicons name={name} size={size} color={colors.brand} />;
 }
 
 const MEAL_IMG = DASHBOARD_CARD_ART.meal;
-const sans = Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined;
-const display = Platform.OS === 'web' ? 'Fraunces, Georgia, serif' : undefined;
 
 const PERIOD_HOUR = {
   morning: '09',
@@ -129,7 +115,7 @@ export function SoftWeatherCard({ weather, look = 'now', compact = false, onPres
           <Text style={[styles.weatherTemp, (compact || mode === 'now') && styles.weatherTempSm]}>{temp}</Text>
         </View>
         <View style={styles.weatherMeta}>
-          <Ionicons name={weather?.icon || 'partly-sunny'} size={compact ? 22 : 26} color={soft.sage} />
+          <Ionicons name={weather?.icon || 'partly-sunny'} size={compact ? 22 : 26} color={colors.brand} />
           {weather?.high != null || weather?.low != null ? (
             <Text style={styles.weatherHiLo}>
               {weather.high != null ? `H ${weather.high}°` : ''}
@@ -145,7 +131,7 @@ export function SoftWeatherCard({ weather, look = 'now', compact = false, onPres
           {days.map((d, i) => (
             <View key={d.weekday || d.date || i} style={[styles.day, chip]}>
               <Text style={styles.hourLbl} numberOfLines={1}>{d.weekday || 'Dag'}</Text>
-              <Ionicons name={d.icon || 'partly-sunny'} size={16} color={soft.sage} />
+              <Ionicons name={d.icon || 'partly-sunny'} size={16} color={colors.brand} />
               <Text style={styles.hourTemp}>
                 {d.max != null ? `${d.max}°` : '—'}
                 {d.min != null ? ` / ${d.min}°` : ''}
@@ -160,7 +146,7 @@ export function SoftWeatherCard({ weather, look = 'now', compact = false, onPres
           {hours.map((p) => (
             <View key={p.id || p.hour} style={styles.hour}>
               <Text style={styles.hourLbl}>{p.hour}</Text>
-              <Ionicons name={p.icon || 'partly-sunny'} size={14} color={soft.sage} />
+              <Ionicons name={p.icon || 'partly-sunny'} size={14} color={colors.brand} />
               <Text style={styles.hourTemp}>{p.temp != null ? `${p.temp}°` : '—'}</Text>
             </View>
           ))}
@@ -208,14 +194,14 @@ export function NextEventPastel({
     >
       <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>
         <View style={styles.eyebrow}>
-          <Ionicons name="calendar-outline" size={13} color={soft.sage} />
+          <Ionicons name="calendar-outline" size={13} color={colors.brand} />
           <Text style={styles.eyebrowTxt}>Neste avtale</Text>
         </View>
         <Text style={styles.nextTitle} numberOfLines={2}>
           {next?.title || 'Ingen avtaler'}
         </Text>
         <View style={styles.metaRow}>
-          <Ionicons name="time-outline" size={13} color={soft.muted} />
+          <Ionicons name="time-outline" size={13} color={colors.muted} />
           <Text style={styles.metaTxt}>
             {next?.time || 'Ledig dag'}
             {next?.end ? ` – ${next.end}` : ''}
@@ -226,7 +212,7 @@ export function NextEventPastel({
         <Text style={styles.nextEmoji}>{birthday ? '🎂🎈' : '📅'}</Text>
       </View>
       <View style={styles.chev}>
-        <Ionicons name="chevron-forward" size={16} color={soft.sage} />
+        <Ionicons name="chevron-forward" size={16} color={colors.brand} />
       </View>
     </TouchableOpacity>
   );
@@ -254,9 +240,9 @@ export function TasksPastel({
   const immersive = useHomeImmersive();
   const pct = total ? Math.round((done / total) * 100) : 0;
   return (
-    <View style={[styles.card, styles.tasks, useImmersiveCard()]}>
+    <View style={[styles.card, useImmersiveCard()]}>
       <TouchableOpacity style={styles.head} onPress={onOpen} activeOpacity={0.9}>
-        <ModuleHeadIcon name="checkmark-circle" color="#2F8A4C" size={14} compact={compact} />
+        <ModuleHeadIcon name="checkmark-circle" size={14} />
         <Text style={styles.headTitle} numberOfLines={1}>{title}</Text>
       </TouchableOpacity>
       <Text style={styles.progressLbl}>
@@ -321,7 +307,7 @@ export function ChildTasksPastel({
   return (
     <View style={[styles.card, styles.childTasks, useImmersiveCard()]} testID="child-tasks-pastel">
       <TouchableOpacity style={styles.head} onPress={onOpen} activeOpacity={0.9}>
-        <ModuleHeadIcon name="star" color="#E0A106" size={compact ? 14 : 15} compact={compact} />
+        <ModuleHeadIcon name="star" size={compact ? 14 : 15} />
         <Text style={styles.headTitle} numberOfLines={1}>{title}</Text>
         <Text style={styles.childTasksLink}>Se alle ›</Text>
       </TouchableOpacity>
@@ -386,7 +372,7 @@ function ChildTaskRow({ item, done, onPress }) {
           <Ionicons
             name={done ? 'checkmark-circle' : 'star'}
             size={13}
-            color={done ? '#34C759' : '#E0A106'}
+            color={done ? colors.success : colors.star}
           />
         )}
       </View>
@@ -409,9 +395,9 @@ export function ShoppingPastel({ count, items = [], onPress, compact = false, ma
   const limit = maxItems ?? (compact ? 8 : 12);
   const shown = items.slice(0, limit);
   return (
-    <TouchableOpacity style={[styles.card, styles.shop, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
+    <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.head}>
-        <ModuleHeadIcon name="cart" color="#C47A4A" size={16} compact={compact} />
+        <ModuleHeadIcon name="cart" size={16} />
         <Text style={styles.headTitle} numberOfLines={1}>Handleliste</Text>
       </View>
       <Text style={styles.progressLbl}>{count === 1 ? '1 vare igjen' : `${count || 0} varer igjen`}</Text>
@@ -432,9 +418,9 @@ export function ShoppingPastel({ count, items = [], onPress, compact = false, ma
 export function MealsPastel({ dinner, onPress, link = false, compact = false }) {
   const lead = link ? 'Enklere middagshverdag' : 'Enklere hverdager';
   return (
-    <TouchableOpacity style={[styles.card, styles.meals, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
+    <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.head}>
-        <ModuleHeadIcon name="restaurant" color="#C47A4A" size={14} compact={compact} />
+        <ModuleHeadIcon name="restaurant" size={14} />
         <Text style={styles.headTitle} numberOfLines={1}>Måltidsplan</Text>
       </View>
       {!compact ? <Text style={styles.mealsLead}>{lead}</Text> : null}
@@ -454,16 +440,16 @@ export function MealsPastel({ dinner, onPress, link = false, compact = false }) 
 export function CalendarPeek({ events = [], onPress, title = 'Familiekalender', compact = false, linkLabel }) {
   const rows = events.slice(0, compact ? 2 : 3);
   return (
-    <TouchableOpacity style={[styles.card, styles.cal, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
+    <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.head}>
-        <ModuleHeadIcon name="calendar" color="#2F80ED" size={16} compact={compact} />
+        <ModuleHeadIcon name="calendar" size={16} />
         <Text style={styles.headTitle} numberOfLines={1}>{title}</Text>
         {linkLabel ? <Text style={styles.link}>{linkLabel}</Text> : null}
       </View>
       {rows.map((ev) => (
         <View key={ev.id} style={styles.calRow}>
           <Text style={styles.calTime}>{ev.time || ''}</Text>
-          <View style={[styles.dot, { backgroundColor: ev.color || '#34C759' }]} />
+          <View style={[styles.dot, { backgroundColor: ev.color || colors.brand }]} />
           <Text style={styles.calTitle} numberOfLines={1}>{ev.title}</Text>
         </View>
       ))}
@@ -484,14 +470,14 @@ export function WeeklyPlanPastel({
   const rows = lessons.slice(0, compact ? 2 : 4);
   return (
     <TouchableOpacity
-      style={[styles.card, styles.weeklyPlanCard, useImmersiveCard()]}
+      style={[styles.card, useImmersiveCard()]}
       onPress={onPress}
       activeOpacity={0.92}
       accessibilityRole="button"
       accessibilityLabel={`${programTitle}. ${rows.map((r) => r.title).join(', ') || emptyLabel}`}
     >
       <View style={styles.head}>
-        <ModuleHeadIcon name="school" color="#2F80ED" size={16} compact={compact} />
+        <ModuleHeadIcon name="school" size={16} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.headTitle} numberOfLines={1}>Ukeplan</Text>
           <Text style={styles.weeklyPlanSub} numberOfLines={1}>
@@ -540,9 +526,9 @@ export function WeeklyPlanPastel({
 
 export function RewardsPastel({ amount, hint, onPress, unit = 'kr' }) {
   return (
-    <TouchableOpacity style={[styles.card, styles.rewards, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
+    <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.head}>
-        <ModuleHeadIcon name="star" color="#E0A106" size={16} />
+        <ModuleHeadIcon name="star" size={16} />
         <Text style={styles.headTitle}>Belønninger</Text>
       </View>
       <View style={styles.rewardSplit}>
@@ -562,9 +548,9 @@ export function GoalsPastel({ items = [], done = 0, total = 0, onPress, compact 
   const shown = items.slice(0, compact ? 2 : 3);
   const t = total || shown.length;
   return (
-    <TouchableOpacity style={[styles.card, styles.goals, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
+    <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.head}>
-        <ModuleHeadIcon name="flag" color="#1F8A4C" size={16} compact={compact} />
+        <ModuleHeadIcon name="flag" size={16} />
         <Text style={styles.headTitle} numberOfLines={1}>Ukens mål</Text>
       </View>
       <Text style={styles.progressLbl}>{done} av {t || 3}</Text>
@@ -582,12 +568,12 @@ export function KidsProgressPastel({ kids = [], onPress, maxItems = 12 }) {
   const shown = kids.slice(0, maxItems);
   return (
     <TouchableOpacity
-      style={[styles.card, styles.progressCard, useImmersiveCard()]}
+      style={[styles.card, useImmersiveCard()]}
       onPress={onPress}
       activeOpacity={0.92}
     >
       <View style={styles.head}>
-        <ModuleHeadIcon name="stats-chart" color="#2F80ED" size={16} />
+        <ModuleHeadIcon name="stats-chart" size={16} />
         <Text style={styles.headTitle} numberOfLines={1}>Barnas progresjon</Text>
       </View>
       {shown.length ? (
@@ -641,7 +627,7 @@ export function AssistantPastel({ onPress, banner = false }) {
     return (
       <TouchableOpacity style={[styles.aiBanner, glass]} onPress={onPress} activeOpacity={0.92}>
         <View style={[styles.aiIcon, immersiveIconDisc]}>
-          <Ionicons name="sparkles" size={18} color="#7C3AED" />
+          <Ionicons name="sparkles" size={18} color={colors.brand} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.headTitle}>ProTop AI</Text>
@@ -651,15 +637,15 @@ export function AssistantPastel({ onPress, banner = false }) {
         </View>
         <View style={[styles.aiCta, chip, banner && { marginTop: 0 }]}>
           <Text style={styles.aiCtaTxt}>Spør meg</Text>
-          <Ionicons name="chevron-forward" size={14} color="#7C3AED" />
+          <Ionicons name="chevron-forward" size={14} color={colors.brandInk} />
         </View>
       </TouchableOpacity>
     );
   }
   return (
-    <TouchableOpacity style={[styles.card, styles.ai, glass]} onPress={onPress} activeOpacity={0.92}>
+    <TouchableOpacity style={[styles.card, glass]} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.head}>
-        <ModuleHeadIcon name="sparkles" color="#7C3AED" size={16} />
+        <ModuleHeadIcon name="sparkles" size={16} />
         <Text style={styles.headTitle}>ProTop AI</Text>
       </View>
       <Text style={styles.aiBody}>
@@ -667,7 +653,7 @@ export function AssistantPastel({ onPress, banner = false }) {
       </Text>
         <View style={[styles.aiCta, chip, { marginTop: 0 }]}>
           <Text style={styles.aiCtaTxt}>Spør meg</Text>
-          <Ionicons name="chevron-forward" size={14} color="#7C3AED" />
+          <Ionicons name="chevron-forward" size={14} color={colors.brandInk} />
         </View>
       </TouchableOpacity>
     );
@@ -676,9 +662,9 @@ export function AssistantPastel({ onPress, banner = false }) {
 export function NotesPastel({ notes = [], onPress, title = 'Notater' }) {
   const note = notes[0];
   return (
-    <TouchableOpacity style={[styles.card, styles.notes, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
+    <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.head}>
-        <ModuleHeadIcon name="document-text" color="#5B63A6" size={16} />
+        <ModuleHeadIcon name="document-text" size={16} />
         <Text style={styles.headTitle}>{title}</Text>
       </View>
       <Text style={styles.progressLbl}>{notes.length ? `${notes.length} notat` : 'Tomt'}</Text>
@@ -691,18 +677,16 @@ export function NotesPastel({ notes = [], onPress, title = 'Notater' }) {
 
 export function AppsPastel({ apps = [], onPress }) {
   const shown = apps.slice(0, 4);
-  const chip = useImmersiveChip();
-  const immersive = useHomeImmersive();
   return (
-    <View style={[styles.card, styles.apps, useImmersiveCard()]}>
+    <View style={[styles.card, useImmersiveCard()]}>
       <View style={styles.head}>
-        <ModuleHeadIcon name="apps" color="#5B63A6" size={16} />
+        <ModuleHeadIcon name="apps" size={16} />
         <Text style={styles.headTitle}>Apper</Text>
       </View>
       <View style={styles.appGrid}>
         {shown.map((app) => (
-          <TouchableOpacity key={app.id} style={[styles.appCell, chip]} onPress={() => onPress?.(app)} activeOpacity={0.85}>
-            <View style={[styles.appGlyphDisc, immersive && immersiveIconDisc]}>
+          <TouchableOpacity key={app.id} style={styles.appCell} onPress={() => onPress?.(app)} activeOpacity={0.85}>
+            <View style={[styles.appGlyphDisc, immersiveIconDisc]}>
               <Ionicons name={app.icon || 'apps'} size={15} color={parentAppAccent(app.id)} />
             </View>
             <Text style={styles.appLbl} numberOfLines={1}>{parentAppShortLabel(app)}</Text>
@@ -714,7 +698,6 @@ export function AppsPastel({ apps = [], onPress }) {
 }
 
 function FolderGlyph({ size = 40 }) {
-  const immersive = useHomeImmersive();
   const gap = 3;
   const cell = Math.max(12, Math.round((size - 12 - gap) / 2));
   const inner = cell * 2 + gap;
@@ -723,7 +706,7 @@ function FolderGlyph({ size = 40 }) {
       testID="home-shortcut-folder-glyph"
       style={[
         styles.folderGlyph,
-        immersive ? immersiveIconDisc : { backgroundColor: 'rgba(255,255,255,0.9)' },
+        immersiveIconDisc,
         { width: size, height: size, borderRadius: 12 },
       ]}
     >
@@ -749,13 +732,8 @@ function FolderGlyph({ size = 40 }) {
   );
 }
 
-export function ShortcutTile({ app, onPress, index = 0, size = 'row' }) {
-  const immersive = useHomeImmersive();
-  const glass = useImmersiveCard();
+export function ShortcutTile({ app, onPress, size = 'row' }) {
   const board = size === 'board';
-  const bg = immersive
-    ? undefined
-    : ['#E8F3EC', '#F8EDE6', '#EEF0F8', '#E8F0F6'][index % 4];
   const isFolder = !!app?.folder;
   const label = app?.tileLabel || parentAppShortLabel(app);
   return (
@@ -763,8 +741,7 @@ export function ShortcutTile({ app, onPress, index = 0, size = 'row' }) {
       style={[
         styles.shortcut,
         board && styles.shortcutBoard,
-        bg ? { backgroundColor: bg } : null,
-        glass,
+        homeCardSurface,
       ]}
       onPress={() => onPress?.(app)}
       activeOpacity={0.9}
@@ -779,7 +756,7 @@ export function ShortcutTile({ app, onPress, index = 0, size = 'row' }) {
           <View style={[
             styles.shortcutIconDisc,
             board && styles.shortcutIconDiscBoard,
-            immersive ? immersiveIconDisc : { backgroundColor: 'rgba(255,255,255,0.7)' },
+            immersiveIconDisc,
           ]}>
             <Ionicons
               name={app?.icon || 'apps'}
@@ -804,8 +781,8 @@ export function ShortcutTile({ app, onPress, index = 0, size = 'row' }) {
 export function ShortcutRow({ apps = [], onPress }) {
   return (
     <View style={styles.shortcutRow}>
-      {apps.slice(0, 4).map((app, i) => (
-        <ShortcutTile key={app.id} app={app} index={i} onPress={onPress} />
+      {apps.slice(0, 4).map((app) => (
+        <ShortcutTile key={app.id} app={app} onPress={onPress} />
       ))}
     </View>
   );
@@ -818,15 +795,13 @@ export function AppFolderPastel({
   onOpenMore,
   moreLabel = '+ mer',
 }) {
-  const glass = useImmersiveCard();
-  const immersive = useHomeImmersive();
   const slots = [0, 1, 2].map((i) => apps[i] || null);
   return (
     <View style={styles.folderGrid} testID="home-app-folder">
       {slots.map((app, i) => (
         <TouchableOpacity
           key={app?.id || `slot-${i}`}
-          style={[styles.folderCell, glass]}
+          style={[styles.folderCell, homeCardSurface]}
           onPress={() => app && onOpenApp?.(app)}
           activeOpacity={app ? 0.88 : 1}
           disabled={!app}
@@ -836,12 +811,7 @@ export function AppFolderPastel({
           {app ? (
             <>
               <IconBadge count={app.badge || 0} size={11} offset={-2}>
-                <View style={[
-                  styles.folderIcon,
-                  immersive
-                    ? immersiveIconDisc
-                    : { backgroundColor: `${parentAppAccent(app.id)}22` },
-                ]}>
+                <View style={[styles.folderIcon, immersiveIconDisc]}>
                   <Ionicons name={app.icon || 'apps'} size={22} color={parentAppAccent(app.id)} />
                 </View>
               </IconBadge>
@@ -851,18 +821,15 @@ export function AppFolderPastel({
         </TouchableOpacity>
       ))}
       <TouchableOpacity
-        style={[styles.folderCell, glass]}
+        style={[styles.folderCell, homeCardSurface]}
         onPress={onOpenMore}
         activeOpacity={0.88}
         accessibilityRole="button"
         accessibilityLabel="Flere apper"
         testID="home-app-folder-more"
       >
-        <View style={[
-          styles.folderIcon,
-          immersive ? immersiveIconDisc : styles.folderMoreIcon,
-        ]}>
-          <Ionicons name="add" size={22} color={immersive ? '#2F80ED' : soft.sage} />
+        <View style={[styles.folderIcon, immersiveIconDisc]}>
+          <Ionicons name="add" size={22} color={colors.brand} />
         </View>
         <Text style={styles.folderLbl} numberOfLines={1}>{moreLabel}</Text>
       </TouchableOpacity>
@@ -887,7 +854,7 @@ export function TimelinePastel({
     <View style={[styles.timeline, compact && styles.timelineCompact, useImmersiveCard()]}>
       <View style={styles.timelineHead}>
         <View style={styles.head}>
-          <ModuleHeadIcon name={icon} color={soft.sage} size={compact ? 14 : 16} compact={compact} />
+          <ModuleHeadIcon name={icon} size={compact ? 14 : 16} />
           <Text style={styles.headTitle}>{title}</Text>
         </View>
         {onSeeAll ? (
@@ -914,9 +881,9 @@ export function TimelinePastel({
             activeOpacity={0.85}
           >
             <Text style={[styles.tlTime, compact && styles.tlTimeCompact]}>{ev.time || 'Heldag'}</Text>
-            <View style={[styles.dot, { backgroundColor: ev.color || '#2F80ED' }]} />
+            <View style={[styles.dot, { backgroundColor: ev.color || colors.brand }]} />
             <Text style={[styles.tlTitle, compact && styles.tlTitleCompact]} numberOfLines={1}>{ev.title}</Text>
-            <Ionicons name="chevron-forward" size={compact ? 14 : 16} color="#C8CDD6" />
+            <Ionicons name="chevron-forward" size={compact ? 14 : 16} color={colors.muted} />
           </TouchableOpacity>
         )) : <Text style={styles.empty}>{emptyLabel}</Text>}
       </ScrollView>
@@ -934,8 +901,9 @@ export function HomeFooterLine({ text = 'Små steg i dag – en enklere hverdag 
   );
 }
 
+/** Widgetkortet: ProTop-kortet (homeCardSurface) som fyller cellen i rutenettet. */
 const card = {
-  borderRadius: 18,
+  ...homeCardSurface,
   padding: 10,
   overflow: 'hidden',
   minHeight: 0,
@@ -948,55 +916,51 @@ const card = {
 const styles = StyleSheet.create({
   strip: { flexDirection: 'row', gap: 4, marginBottom: 2 },
   stripDay: {
-    flex: 1, alignItems: 'center', paddingVertical: 4, borderRadius: 10, backgroundColor: soft.cream,
+    flex: 1, alignItems: 'center', paddingVertical: 4, borderRadius: radius.control,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
   },
-  stripDayOn: { backgroundColor: soft.sage },
-  stripLbl: { fontSize: 11, color: soft.muted, fontFamily: sans },
-  stripLblOn: { color: 'rgba(255,255,255,0.85)' },
-  stripNum: { fontSize: 15, color: soft.ink, fontFamily: display, marginTop: 2 },
-  stripNumOn: { color: '#fff' },
+  stripDayOn: { backgroundColor: colors.brandInk, borderColor: colors.brandInk },
+  stripLbl: { fontSize: 11, color: colors.muted },
+  stripLblOn: { color: colors.onBrand },
+  stripNum: { fontSize: 15, color: colors.ink, fontWeight: '600', marginTop: 2 },
+  stripNumOn: { color: colors.onBrand },
   weather: {
     ...card,
-    backgroundColor: '#FFFFFF',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
     justifyContent: 'space-between',
   },
   weatherTop: { flexDirection: 'row', alignItems: 'flex-start' },
-  weatherPlace: { fontSize: 12, color: soft.muted, fontFamily: sans },
-  weatherTemp: { fontSize: 26, color: soft.ink, fontFamily: display, lineHeight: 30, marginTop: 0 },
+  weatherPlace: { fontSize: 12, color: colors.muted },
+  weatherTemp: { fontSize: 26, color: colors.ink, fontWeight: '400', lineHeight: 30, marginTop: 0 },
   weatherTempSm: { fontSize: 22, lineHeight: 26 },
   weatherMeta: { alignItems: 'flex-end', maxWidth: 90 },
-  weatherLabel: { fontSize: 12, color: soft.muted, marginTop: 6, fontFamily: sans },
-  weatherHiLo: { fontSize: 11, color: soft.muted, marginTop: 2, fontFamily: sans },
+  weatherLabel: { fontSize: 12, color: colors.muted, marginTop: 6 },
+  weatherHiLo: { fontSize: 11, color: colors.muted, marginTop: 2 },
   hours: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   days: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, gap: 6 },
   day: {
-    flex: 1, alignItems: 'center', gap: 3, backgroundColor: soft.cream,
-    borderRadius: 12, paddingVertical: 6, paddingHorizontal: 4,
+    flex: 1, alignItems: 'center', gap: 3, backgroundColor: colors.bg,
+    borderRadius: radius.control, paddingVertical: 6, paddingHorizontal: 4,
   },
   hour: { alignItems: 'center', gap: 3, flex: 1 },
-  hourLbl: { fontSize: 10, color: soft.muted, fontFamily: sans, textTransform: 'capitalize' },
-  hourTemp: { fontSize: 12, color: soft.ink, fontFamily: sans },
+  hourLbl: { fontSize: 10, color: colors.muted, textTransform: 'capitalize' },
+  hourTemp: { fontSize: 12, color: colors.ink },
   next: {
-    ...card, backgroundColor: '#E7F3EA', flexDirection: 'row', alignItems: 'center',
+    ...card, flexDirection: 'row', alignItems: 'center',
   },
   nextWide: { minHeight: 64 },
-  nextTitle: { fontSize: 15, color: soft.ink, fontFamily: display, marginTop: 1, lineHeight: 19 },
+  nextTitle: { fontSize: 15, color: colors.ink, fontWeight: '600', marginTop: 1, lineHeight: 19 },
   nextArt: { width: 40, alignItems: 'center', justifyContent: 'center' },
   nextEmoji: { fontSize: 24 },
   chev: {
-    width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.82)',
+    width: 26, height: 26, borderRadius: 13, backgroundColor: colors.bg,
     alignItems: 'center', justifyContent: 'center',
   },
   eyebrow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  eyebrowTxt: { fontSize: 11, color: soft.sage, fontFamily: sans },
+  eyebrowTxt: { fontSize: 12, color: colors.brandInk },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  metaTxt: { fontSize: 12, color: soft.muted, fontFamily: sans },
+  metaTxt: { fontSize: 12, color: colors.muted },
   card,
-  tasks: { backgroundColor: '#EAF6EF' },
   childTasks: {
-    backgroundColor: '#FFF6E0',
     minHeight: 0,
     padding: 10,
     flex: 1,
@@ -1019,27 +983,25 @@ const styles = StyleSheet.create({
   },
   childTasksNudge: {
     fontSize: 11,
-    color: soft.muted,
-    fontFamily: sans,
+    color: colors.muted,
     marginBottom: 4,
     fontWeight: '500',
   },
   childTasksLink: {
     fontSize: 11,
-    color: soft.sage,
-    fontFamily: sans,
+    color: colors.brandInk,
     fontWeight: '400',
   },
   childTrack: {
     height: 5,
     borderRadius: 99,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: colors.bg,
     overflow: 'hidden',
     marginBottom: 6,
   },
   childFill: {
     height: '100%',
-    backgroundColor: '#E0A106',
+    backgroundColor: colors.star,
     borderRadius: 99,
   },
   childTaskSection: { gap: 3 },
@@ -1048,36 +1010,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 9,
+    backgroundColor: colors.bg,
+    borderRadius: radius.control,
     paddingVertical: 3,
     paddingHorizontal: 7,
     minHeight: 26,
   },
   childTaskRowDone: {
-    backgroundColor: 'rgba(255,255,255,0.65)',
+    backgroundColor: colors.card,
   },
   childTaskIcon: {
     width: 22,
     height: 22,
     borderRadius: 6,
-    backgroundColor: '#FFF1C2',
+    backgroundColor: colors.starSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   childTaskIconDone: {
-    backgroundColor: '#E4F5E8',
+    backgroundColor: colors.successSoft,
   },
   childTaskIconImg: { width: 14, height: 14 },
   childTaskTitle: {
     fontSize: 12,
-    color: soft.ink,
-    fontFamily: sans,
+    color: colors.ink,
     fontWeight: '400',
   },
   childTaskTitleDone: {
     textDecorationLine: 'line-through',
-    color: soft.muted,
+    color: colors.muted,
     fontWeight: '500',
   },
   childCheck: {
@@ -1085,20 +1046,16 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     borderWidth: 1.5,
-    borderColor: '#E0A106',
-    backgroundColor: '#fff',
+    borderColor: colors.star,
+    backgroundColor: colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   childCheckOn: {
-    backgroundColor: '#34C759',
-    borderColor: '#34C759',
+    backgroundColor: colors.success,
+    borderColor: colors.success,
   },
-  shop: { backgroundColor: '#F8EEE6' },
-  meals: { backgroundColor: '#FAF6EF' },
-  cal: { backgroundColor: '#EEF4EA' },
-  weeklyPlanCard: { backgroundColor: '#E8F0FB' },
-  weeklyPlanSub: { fontSize: 11, color: soft.muted, fontFamily: sans, marginTop: 1 },
+  weeklyPlanSub: { fontSize: 11, color: colors.muted, marginTop: 1 },
   weeklyPlanStrip: {
     flexDirection: 'row',
     gap: 3,
@@ -1112,11 +1069,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 4,
     paddingHorizontal: 2,
-    backgroundColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: colors.bg,
   },
-  weeklyPlanDayOn: { backgroundColor: '#2F80ED' },
-  weeklyPlanDayLbl: { fontSize: 11, color: soft.muted, fontFamily: sans, fontWeight: '400' },
-  weeklyPlanDayLblOn: { color: '#fff' },
+  weeklyPlanDayOn: { backgroundColor: colors.brandInk },
+  weeklyPlanDayLbl: { fontSize: 11, color: colors.muted, fontWeight: '400' },
+  weeklyPlanDayLblOn: { color: colors.onBrand },
   weeklyPlanCols: { gap: 3 },
   weeklyPlanRow: {
     flexDirection: 'row',
@@ -1132,8 +1089,7 @@ const styles = StyleSheet.create({
   weeklyPlanTimeColSm: { width: 42 },
   weeklyPlanTime: {
     fontSize: 11,
-    color: soft.muted,
-    fontFamily: sans,
+    color: colors.muted,
     fontVariant: ['tabular-nums'],
   },
   weeklyPlanSubjectCol: {
@@ -1142,76 +1098,64 @@ const styles = StyleSheet.create({
   },
   weeklyPlanSubject: {
     fontSize: 12,
-    color: soft.ink,
-    fontFamily: sans,
+    color: colors.ink,
     fontWeight: '500',
   },
-  weeklyPlanEmpty: { fontSize: 12, color: soft.muted, fontFamily: sans, marginTop: 2 },
-  rewards: { backgroundColor: '#FBF3D8' },
-  goals: { backgroundColor: '#E8F5EE' },
-  progressCard: { backgroundColor: '#EAF2FB' },
-  ai: { backgroundColor: '#EEE8F8' },
-  notes: { backgroundColor: '#F7F3EA' },
-  apps: { backgroundColor: '#EEF1F6' },
+  weeklyPlanEmpty: { fontSize: 12, color: colors.muted, marginTop: 2 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  headIconDisc: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  headTitle: { fontSize: 13, color: soft.ink, fontFamily: sans, fontWeight: '500', flex: 1 },
-  progressLbl: { fontSize: 11, color: soft.muted, fontFamily: sans, marginBottom: 3, fontWeight: '500' },
-  track: { height: 4, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.85)', overflow: 'hidden', marginBottom: 4 },
-  fill: { height: '100%', backgroundColor: '#34C759', borderRadius: 99 },
+  headTitle: { fontSize: 14, color: colors.ink, fontWeight: '600', flex: 1 },
+  progressLbl: { fontSize: 12, color: colors.muted, marginBottom: 3 },
+  track: { height: 4, borderRadius: 99, backgroundColor: colors.bg, overflow: 'hidden', marginBottom: 4 },
+  fill: { height: '100%', backgroundColor: colors.success, borderRadius: 99 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 18, marginBottom: 0 },
   radio: {
-    width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: '#8AA894',
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: colors.muted,
+    backgroundColor: colors.card,
     alignItems: 'center', justifyContent: 'center',
   },
-  radioOn: { backgroundColor: '#34C759', borderColor: '#34C759' },
-  checkTxt: { fontSize: 12, color: soft.ink, fontFamily: sans, flex: 1, minWidth: 0, fontWeight: '500' },
-  checkDone: { textDecorationLine: 'line-through', color: soft.muted },
+  radioOn: { backgroundColor: colors.success, borderColor: colors.success },
+  checkTxt: { fontSize: 13, color: colors.ink, flex: 1, minWidth: 0 },
+  checkDone: { textDecorationLine: 'line-through', color: colors.muted },
   rewardSplit: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginTop: 2 },
   taskSplit: { flexDirection: 'row', alignItems: 'flex-end', gap: 6 },
   sideEmoji: { fontSize: 26, marginBottom: 0 },
-  link: { fontSize: 11, color: soft.sage, fontFamily: sans, marginTop: 2 },
-  empty: { fontSize: 12, color: soft.muted, fontFamily: sans },
+  link: { fontSize: 12, color: colors.brandInk, marginTop: 2 },
+  empty: { fontSize: 12, color: colors.muted },
   progressKids: { minHeight: 0, justifyContent: 'flex-start', gap: 8 },
   progressKid: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 36 },
   progressKidHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 },
-  progressKidName: { fontSize: 13, color: soft.ink, fontFamily: sans, flex: 1, fontWeight: '500' },
-  progressKidMeta: { fontSize: 11, color: soft.muted, fontFamily: sans, flexShrink: 0 },
-  mealImgFrame: { width: '100%', height: 36, borderRadius: 8, marginBottom: 3, overflow: 'hidden', backgroundColor: '#fff' },
+  progressKidName: { fontSize: 13, color: colors.ink, flex: 1, fontWeight: '500' },
+  progressKidMeta: { fontSize: 11, color: colors.muted, flexShrink: 0 },
+  mealImgFrame: { width: '100%', height: 36, borderRadius: radius.control, marginBottom: 3, overflow: 'hidden', backgroundColor: colors.bg },
   mealImg: { width: '100%', height: '100%', transform: [{ scale: PAGE_ART_SCALE }] },
-  mealsLead: { fontSize: 11, color: soft.muted, fontFamily: sans, marginBottom: 2 },
-  mealName: { fontSize: 12, color: soft.ink, fontFamily: sans },
+  mealsLead: { fontSize: 11, color: colors.muted, marginBottom: 2 },
+  mealName: { fontSize: 12, color: colors.ink },
   calRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 16 },
-  calTitle: { flex: 1, fontSize: 12, color: soft.ink, fontFamily: sans },
-  calTime: { fontSize: 11, color: soft.muted, fontFamily: sans },
+  calTitle: { flex: 1, fontSize: 12, color: colors.ink },
+  calTime: { fontSize: 11, color: colors.muted },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  coin: { fontSize: 20, color: soft.ink, fontFamily: display, marginVertical: 0 },
+  coin: { fontSize: 20, color: colors.ink, fontWeight: '600', marginVertical: 0 },
   aiBanner: {
-    ...card, minHeight: 56, backgroundColor: '#EEE8F8', flexDirection: 'row', alignItems: 'center', gap: 8,
+    ...card, minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 8,
   },
   aiIcon: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center',
   },
-  aiBody: { fontSize: 12, color: soft.muted, fontFamily: sans, lineHeight: 17, marginTop: 2 },
+  aiBody: { fontSize: 12, color: colors.muted, lineHeight: 17, marginTop: 2 },
   aiCta: {
     flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start',
-    backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, marginTop: 6,
+    backgroundColor: colors.bg, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, marginTop: 6,
   },
-  aiCtaTxt: { fontSize: 12, color: '#7C3AED', fontFamily: sans },
-  noteBody: { fontSize: 13, color: soft.ink, fontFamily: sans, lineHeight: 18, marginTop: 2 },
+  aiCtaTxt: { fontSize: 12, color: colors.brandInk },
+  noteBody: { fontSize: 13, color: colors.ink, lineHeight: 18, marginTop: 2 },
   appGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   appCell: {
-    width: '47%', backgroundColor: '#fff', borderRadius: 10, paddingVertical: 6, alignItems: 'center', gap: 3,
+    width: '47%', backgroundColor: colors.bg, borderRadius: radius.control, paddingVertical: 6, alignItems: 'center', gap: 3,
   },
   appGlyphDisc: {
     width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
   },
-  appLbl: { fontSize: 10, color: soft.muted, fontFamily: sans, fontWeight: '400' },
+  appLbl: { fontSize: 10, color: colors.muted, fontWeight: '400' },
   shortcutRow: { flexDirection: 'row', gap: 6 },
   shortcut: {
     flex: 1,
@@ -1240,8 +1184,7 @@ const styles = StyleSheet.create({
   },
   shortcutLbl: {
     fontSize: 12,
-    color: soft.ink,
-    fontFamily: sans,
+    color: colors.ink,
     fontWeight: '500',
     marginTop: 6,
     textAlign: 'center',
@@ -1250,8 +1193,7 @@ const styles = StyleSheet.create({
   shortcutLblBoard: { fontSize: 14, marginTop: 8 },
   shortcutSub: {
     fontSize: 10,
-    color: soft.muted,
-    fontFamily: sans,
+    color: colors.muted,
     marginTop: 1,
     textAlign: 'center',
     alignSelf: 'stretch',
@@ -1283,9 +1225,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    backgroundColor: soft.cream,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
   },
   folderIcon: {
     width: 40,
@@ -1294,8 +1233,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  folderMoreIcon: { backgroundColor: 'rgba(107,143,113,0.16)' },
-  folderLbl: { fontSize: 11, color: soft.ink, fontFamily: sans, fontWeight: '500', textAlign: 'center' },
+  folderLbl: { fontSize: 11, color: colors.ink, fontWeight: '500', textAlign: 'center' },
   timeline: {
     flex: 1,
     alignSelf: 'stretch',
@@ -1303,24 +1241,21 @@ const styles = StyleSheet.create({
     height: '100%',
     overflow: 'hidden',
     minHeight: 0,
-    backgroundColor: '#fff',
-    borderRadius: 18,
+    ...homeCardSurface,
     padding: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
   },
 
   timelineCompact: { paddingVertical: 3, paddingHorizontal: 6 },
   timelineHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 1 },
   tlRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 30 },
   tlRowCompact: { minHeight: 20, gap: 6 },
-  tlBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(61,68,80,0.12)' },
-  tlTime: { width: 48, fontSize: 12, color: soft.ink, fontFamily: sans, fontWeight: '400' },
+  tlBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
+  tlTime: { width: 48, fontSize: 12, color: colors.ink, fontWeight: '400' },
   tlTimeCompact: { width: 44, fontSize: 11 },
-  tlTitle: { flex: 1, fontSize: 13, color: soft.ink, fontFamily: sans, fontWeight: '500' },
+  tlTitle: { flex: 1, fontSize: 13, color: colors.ink, fontWeight: '500' },
   tlTitleCompact: { fontSize: 12 },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 10 },
   footerLeaf: { fontSize: 14 },
-  footerTxt: { fontSize: 12, color: soft.muted, fontFamily: sans, textAlign: 'center', flexShrink: 1 },
+  footerTxt: { fontSize: 12, color: colors.muted, textAlign: 'center', flexShrink: 1 },
   footerTxtLight: { color: 'rgba(255,255,255,0.92)' },
 });

@@ -25,6 +25,8 @@ import {
 } from '../../src/indeksregulering/cases';
 import { periodLabel } from '../../src/indeksregulering/engine';
 import { formatIndex, formatPercent } from '../../src/indeksregulering/letter';
+import { useRepeatsShellTitle } from '../../src/ui/ShellTitles';
+import { BREAKPOINTS } from '../../src/ui/layout.js';
 
 function toneColor(tone, colors) {
   if (tone === 'danger') return colors.danger || '#dc2626';
@@ -66,8 +68,8 @@ export default function EconomyDesk({
 }) {
   const colors = useColors();
   const { width } = useWindowDimensions();
-  const wide = width >= 980;
-  const narrow = width < 720;
+  const wide = width >= BREAKPOINTS.desktop;
+  const narrow = width < BREAKPOINTS.tablet;
   const [query, setQuery] = useState('');
   const [band, setBand] = useState('kan_reguleres');
   const [selectedId, setSelectedId] = useState('');
@@ -92,6 +94,8 @@ export default function EconomyDesk({
   const selected = visible.find((row) => row.contract.id === selectedId) || visible[0] || null;
   const selectedProject = loose.find((row) => row.project.id === selectedId) || (band === 'oppmerksomhet' ? loose[0] : null);
   const followUp = counts.kan_reguleres;
+  // Skallet viser «Indeksregulering» som sidetittel; da står bare tallet til oppfølging her.
+  const shellHasTitle = useRepeatsShellTitle('Indeksregulering');
 
   function choose(row) {
     setSelectedId(row.contract.id);
@@ -110,9 +114,13 @@ export default function EconomyDesk({
     <View nativeID="economy-desk" style={styles.page}>
       <View style={styles.head}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={[styles.title, { color: colors.ink }]}>
-            Indeksregulering{followUp ? ` · ${followUp} til oppfølging` : ''}
-          </Text>
+          {shellHasTitle ? (
+            followUp ? <Text style={{ color: colors.ink, fontWeight: '600' }}>{`${followUp} til oppfølging`}</Text> : null
+          ) : (
+            <Text style={[styles.title, { color: colors.ink }]}>
+              Indeksregulering{followUp ? ` · ${followUp} til oppfølging` : ''}
+            </Text>
+          )}
           <Text style={{ color: colors.muted, fontSize: 13 }}>
             Avtaler som kan reguleres etter vilkår og publisert indeks. Ingenting sendes eller lagres herfra.
           </Text>

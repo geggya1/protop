@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import {
-  applyContractFieldsToEmployee,
   mergeContractExtract,
   parseEmploymentContractText,
 } from './contractOcr.js';
@@ -17,6 +16,10 @@ Stillingsprosent: 100
 Oppsigelsesfrist: 3 måneder
 Prøvetid: 6 måneder
 Arbeidstid: 37,5 timer per uke
+Overtid: 40 % tillegg etter avtale med leder
+Pensjon: OTP 2 % i Storebrand
+Kompetanseutvikling: Kurs etter plan
+Framgangsmåte ved opphør: Skriftlig oppsigelse, søksmål innen 8 uker
 `;
 
 {
@@ -30,24 +33,17 @@ Arbeidstid: 37,5 timer per uke
   assert.equal(fields.workPercent, '100');
   assert.equal(fields.probationMonths, '6');
   assert.ok(fields.salaryAmount.includes('850'));
+  // Punktene fra AML § 14-6 slik den lyder fra 1.7.2024.
+  assert.match(fields.overtimeTerms, /40 %/);
+  assert.match(fields.pensionInsurance, /OTP/);
+  assert.equal(fields.competenceDevelopment, 'Kurs etter plan');
+  assert.match(fields.terminationProcedure, /8 uker/);
 }
 
 {
   const merged = mergeContractExtract({ positionTitle: 'Behold' }, { positionTitle: 'Ny', workplace: 'Bergen' });
   assert.equal(merged.positionTitle, 'Behold');
   assert.equal(merged.workplace, 'Bergen');
-}
-
-{
-  const emp = applyContractFieldsToEmployee(
-    { person: {}, company: {} },
-    { employeeName: 'Ada Lovelace', positionTitle: 'Konsulent', startDate: '2024-03-01', workPercent: '80', roleDescription: 'Rådgivning' },
-  );
-  assert.equal(emp.person.firstName, 'Ada');
-  assert.equal(emp.person.lastName, 'Lovelace');
-  assert.equal(emp.company.title, 'Konsulent');
-  assert.equal(emp.company.workPercent, '80');
-  assert.match(emp.company.comment, /Rådgivning/);
 }
 
 console.log('hr/contractOcr.test.mjs ok');

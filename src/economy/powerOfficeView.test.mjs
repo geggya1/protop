@@ -62,7 +62,7 @@ assert.match(sent.lines[1], /Restbeløp/);
 assert.equal(powerOfficeSummary({ poweroffice: { state: 'paid', balance: 0 } }).tone, 'ok');
 assert.equal(powerOfficeSummary({ poweroffice: { state: 'missing' } }).tone, 'warn');
 
-assert.deepEqual(POWEROFFICE_VAT_ROWS.map((row) => row.id), ['HIGH', 'MID', 'LOW', 'ZERO', 'EXEMPT', 'OUTLAY', 'OUTSIDE']);
+assert.deepEqual(POWEROFFICE_VAT_ROWS.map((row) => row.id), ['HIGH', 'MID', 'LOW', 'ZERO', 'EXEMPT', 'OUTLAY', 'OUTSIDE', 'REVERSE']);
 
 {
   // Produktene som gir radens sats står øverst, med konto og MVA i teksten.

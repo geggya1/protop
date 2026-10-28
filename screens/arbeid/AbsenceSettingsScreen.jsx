@@ -18,6 +18,8 @@ import { publishVacationPlanNotice, sweepVacationPlan } from '../../src/arbeid/v
 import { normalizeVacationPlan } from '../../src/arbeid/vacationPlan.js';
 import { saveProjectState } from '../../src/project/storage';
 import { useTimesheetWorkspace } from './useTimesheetWorkspace';
+import { companyDisplayName } from '../../src/utils/companyName';
+import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 
 const TABS = [
   { id: 'fravaerstyper', label: 'Fraværstyper', icon: 'sunny-outline', hint: 'Betalt fravær, timebalanse og fakturerbart arbeid' },
@@ -65,7 +67,7 @@ function VacationPlanSettings({ colors, canEdit }) {
   const people = (workspace.employees || []).filter((row) => employeeActivityTab(row) !== 'trash');
   const names = {};
   for (const row of people) names[row.id] = employeeDisplayName(row);
-  const companyName = String(family?.company?.navn || family?.name || '').trim();
+  const companyName = companyDisplayName(family);
 
   async function persist(draft, { announce }) {
     if (!canEdit) {
@@ -180,9 +182,11 @@ export default function AbsenceSettingsScreen({ startTab = 'fravaerstyper' } = {
       nativeID="absence-settings"
       id="absence-settings"
     >
-      <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
-        Fraværsinnstillinger
-      </Text>
+      <UnlessShellTitle title="Fraværsinnstillinger">
+        <Text accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
+          Fraværsinnstillinger
+        </Text>
+      </UnlessShellTitle>
       <Text style={[styles.lead, { color: colors.muted }]}>
         Typene, fridagene og ferieplanen styrer hvordan fravær beregnes i timeliste, lønn og fakturerbart arbeid.
       </Text>

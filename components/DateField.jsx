@@ -97,7 +97,12 @@ export default function DateField({
 
   return (
     <>
-      <TouchableOpacity style={[styles.row, style]} onPress={() => setShow(true)}>
+      <TouchableOpacity
+        style={[styles.row, style]}
+        onPress={() => setShow(true)}
+        accessibilityRole="button"
+        accessibilityLabel={date ? `${prefix ? prefix.replace(/:\s*$/, '') : 'Dato'}: ${label}` : display}
+      >
         <Ionicons name={icon} size={18} color={iconColor} />
         <Text style={[styles.txt, textStyle]} numberOfLines={1}>{display}</Text>
       </TouchableOpacity>
@@ -142,5 +147,5 @@ const styles = StyleSheet.create({
   },
   txt: { flex: 1, fontWeight: '400', fontSize: 14, color: colors.ink },
   doneBtn: { alignSelf: 'flex-end', paddingVertical: 8, paddingHorizontal: 4 },
-  doneTxt: { color: colors.brand, fontWeight: '400', fontSize: 15 },
+  doneTxt: { color: colors.brandInk, fontWeight: '400', fontSize: 15 },
 });

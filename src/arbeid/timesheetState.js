@@ -5,6 +5,7 @@
 
 import { norwegianHolidays, resolveRedDays } from './holidays.js';
 import { isDateLocked, lockRowFor, lockThroughDate } from './locks.js';
+import { formatDate } from '../format/nb.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -159,6 +160,29 @@ function applyLockStatus(state, employeeId, throughDate) {
   return { timeEntries, absences };
 }
 
+/**
+ * Leder åpner timer igjen (canReopen): godkjente føringer etter after og til og med through som ikke
+ * er fakturert, blir registrert igjen, så den ansatte kan rette dem og neste godkjenning tar dem med.
+ * Reglene lar bare den som godkjenner timer endre en godkjent føring (DRIFT-06).
+ */
+function reopenApprovedEntries(timeEntries, employeeId, { after = '', through = '' } = {}) {
+  const now = stamp();
+  let count = 0;
+  const rows = timeEntries.map((row) => {
+    if (row.employeeId !== employeeId || row.invoiceId || row.status !== 'godkjent') return row;
+    const date = text(row.date);
+    if (!date || (after && date <= after) || (through && date > through)) return row;
+    count += 1;
+    return { ...row, status: 'registrert', updatedAt: now };
+  });
+  return { timeEntries: rows, count };
+}
+
+function reopenedNotice(count, base) {
+  if (!count) return null;
+  return `${base} Godkjenningen er tatt bort på ${count} ${count === 1 ? 'føring' : 'føringer'}, så de kan rettes og godkjennes på nytt.`;
+}
+
 function archiveLock(state, row, extra = {}) {
   if (!row) return list(state, 'timesheetLockArchive');
   const entry = {
@@ -173,8 +197,46 @@ function archiveLock(state, row, extra = {}) {
   return [entry, ...list(state, 'timesheetLockArchive')].slice(0, 400);
 }
 
-/** Lås alle timer til og med dagen. Samme dag på nytt låser opp. */
-export function toggleTimesheetLock(state, { employeeId, throughDate, lockedByUid } = {}) {
+/** Datoen timene er godkjent til: låsen selv, eller forrige godkjenning når listen er låst videre. */
+export function approvedThroughDate(row) {
+  if (!row) return '';
+  return text(row.approvedAt ? row.throughDate : row.approvedThrough);
+}
+
+/**
+ * Hvorfor låsen ikke kan flyttes til target ('' = låse opp helt), eller ''.
+ * Bare den som styrer andres timer (canReopen) kan åpne godkjente eller fakturerte timer igjen.
+ * state bør ha fersk status fra skyen (låsen og timene), ikke en kopi fra før godkjenningen.
+ */
+export function timesheetReopenBlock(state, { employeeId, target = '', canReopen = true } = {}) {
+  if (canReopen) return '';
+  const id = text(employeeId);
+  const row = lockRowFor(state?.timesheetLocks, id);
+  if (!row) return '';
+  const through = text(row.throughDate);
+  const goal = text(target);
+  const invoiced = list(state, 'timeEntries').some((entry) => (
+    entry.employeeId === id && entry.invoiceId
+    && text(entry.date) <= through && (!goal || text(entry.date) > goal)
+  ));
+  if (invoiced) {
+    return 'Timer i perioden er fakturert og kan ikke låses opp. Be økonomi om en kreditnota hvis noe må rettes.';
+  }
+  const approved = approvedThroughDate(row);
+  if (approved && (!goal || goal < approved)) {
+    return `Timene til ${approved} er godkjent og kan ikke låses opp. Be leder åpne timelisten hvis noe må rettes.`;
+  }
+  return '';
+}
+
+/**
+ * Lås alle timer til og med dagen. Samme dag på nytt låser opp.
+ * canReopen: false for den som bare fører egne timer. Da kan godkjente eller fakturerte timer
+ * ikke låses opp, og en lås forlenget etter en godkjenning låses bare opp til godkjenningen.
+ */
+export function toggleTimesheetLock(state, {
+  employeeId, throughDate, lockedByUid, canReopen = true,
+} = {}) {
   const id = text(employeeId);
   const date = text(throughDate);
   if (!id) return fail(state, 'Velg medarbeider.');
@@ -182,18 +244,38 @@ export function toggleTimesheetLock(state, { employeeId, throughDate, lockedByUi
   const current = list(state, 'timesheetLocks').filter((row) => row.employeeId !== id);
   const existingRow = lockRowFor(state.timesheetLocks, id);
   const existing = existingRow?.throughDate || '';
+  const approved = approvedThroughDate(existingRow);
+  if (existing === date && !canReopen && approved && !existingRow.approvedAt && approved < date) {
+    // Låst videre etter en godkjenning: bare det nye låses opp, det godkjente står låst.
+    const back = toggleTimesheetLock(state, { employeeId: id, throughDate: approved, lockedByUid, canReopen });
+    return back.ok ? { ...back, notice: `Timelisten er låst opp etter ${approved}. Godkjente timer står låst.` } : back;
+  }
+  const blocked = timesheetReopenBlock(state, {
+    employeeId: id,
+    target: existing === date ? '' : date,
+    canReopen,
+  });
+  if (blocked && (existing === date || date < existing)) return fail(state, blocked);
+  // Leder som låser opp eller flytter låsen bakover, åpner også godkjente timer i perioden.
+  const reopen = canReopen && existing && (existing === date || date < existing);
   if (existing === date) {
     const cleared = applyLockStatus(state, id, '');
-    return ok({
+    const reopened = reopen ? reopenApprovedEntries(cleared.timeEntries, id, { through: existing }) : null;
+    const result = ok({
       ...state,
       ...cleared,
+      ...(reopened ? { timeEntries: reopened.timeEntries } : {}),
       timesheetLocks: current,
       timesheetLockArchive: archiveLock(state, existingRow, { unlockedAt: stamp() }),
     });
+    const notice = reopenedNotice(reopened?.count || 0, 'Timelisten er låst opp.');
+    return notice ? { ...result, notice } : result;
   }
-  const approvedThrough = existingRow?.approvedAt
+  let approvedThrough = existingRow?.approvedAt
     ? existingRow.throughDate
     : (existingRow?.approvedThrough || '');
+  // Det som er åpnet igjen, er ikke godkjent lenger: neste godkjenning tar det med.
+  if (reopen && approvedThrough && date < approvedThrough) approvedThrough = date;
   const row = {
     id: existingRow?.id || createId('las'),
     employeeId: id,
@@ -207,12 +289,16 @@ export function toggleTimesheetLock(state, { employeeId, throughDate, lockedByUi
     dismissedFindingIds: [],
   };
   const locked = applyLockStatus(state, id, date);
-  return ok({
+  const reopened = reopen ? reopenApprovedEntries(locked.timeEntries, id, { after: date, through: existing }) : null;
+  const result = ok({
     ...state,
     ...locked,
+    ...(reopened ? { timeEntries: reopened.timeEntries } : {}),
     timesheetLocks: [row, ...current],
     timesheetLockArchive: existingRow ? archiveLock(state, existingRow) : list(state, 'timesheetLockArchive'),
   });
+  const notice = reopenedNotice(reopened?.count || 0, `Timelisten er låst til ${formatDate(date)}.`);
+  return notice ? { ...result, notice } : result;
 }
 
 function inOpenControl(row, lock) {
@@ -357,33 +443,74 @@ export function setAbsenceAdjustment(state, input = {}) {
   return ok({ ...state, absenceAdjustments: next });
 }
 
-export function setAbsencePins(state, { employeeId, typeIds = [] } = {}) {
-  const id = text(employeeId);
-  if (!id) return fail(state, 'Velg medarbeider.');
-  const wanted = [...new Set((typeIds || []).map((item) => text(item)).filter(Boolean))];
-  const rest = list(state, 'timesheetPins').filter((row) => row.employeeId !== id);
-  const pins = wanted.map((typeId) => ({
-    id: `pin_${id}_${typeId}`,
-    employeeId: id,
-    typeId,
-  }));
-  return ok({ ...state, timesheetPins: [...pins, ...rest] });
+/*
+ * Personlige valg i timelisten: stjerne på prosjekt, skjulte prosjekter og faste
+ * fraværskategorier. De ligger på den ansatte (employees/{id}/prefs/timesheet, se
+ * timesheetPrefsStorage.js). Før lå de i prosjektdokumentet, og hver stjerne skrev
+ * projects/state med en kopi som kunne være eldre enn det andre hadde lagret.
+ * Det som fortsatt ligger i prosjektdokumentet, brukes til personen har valgt selv.
+ */
+
+function flagMap(value) {
+  const out = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [key, flag] of Object.entries(value)) {
+    if (text(key) && typeof flag === 'boolean') out[text(key)] = flag;
+  }
+  return out;
 }
 
-export function hideTimesheetProject(state, { employeeId, projectId, hidden = true } = {}) {
-  const employee = text(employeeId);
-  const project = text(projectId);
-  if (!employee || !project) return fail(state, 'Velg prosjekt.');
-  const current = list(state, 'hiddenTimesheetProjects');
-  const without = current.filter((row) => !(row.employeeId === employee && row.projectId === project));
-  if (!hidden) return ok({ ...state, hiddenTimesheetProjects: without });
-  return ok({
-    ...state,
-    hiddenTimesheetProjects: [
-      { id: `hid_${employee}_${project}`, employeeId: employee, projectId: project },
-      ...without,
-    ],
-  });
+export function normalizeTimesheetPrefs(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    starred: flagMap(src.starred),
+    hidden: flagMap(src.hidden),
+    absencePins: Array.isArray(src.absencePins)
+      ? [...new Set(src.absencePins.map((item) => text(item)).filter(Boolean))]
+      : null,
+  };
+}
+
+/** Legg en endring (samme form som det som lagres) på valgene. */
+export function applyTimesheetPrefsPatch(prefs, patch = {}) {
+  const current = normalizeTimesheetPrefs(prefs);
+  const next = normalizeTimesheetPrefs(patch);
+  return {
+    starred: { ...current.starred, ...next.starred },
+    hidden: { ...current.hidden, ...next.hidden },
+    absencePins: Array.isArray(patch?.absencePins) ? next.absencePins : current.absencePins,
+  };
+}
+
+/** Stjernemerkede og skjulte prosjekter og faste fraværstyper for én ansatt. */
+export function resolveTimesheetPrefs(state, employeeId, prefs) {
+  const id = text(employeeId);
+  const own = normalizeTimesheetPrefs(prefs);
+  const starred = new Set(list(state, 'members')
+    .filter((row) => row.employeeId === id && row.active !== false && row.starred)
+    .map((row) => row.projectId));
+  for (const [projectId, on] of Object.entries(own.starred)) {
+    if (on) starred.add(projectId);
+    else starred.delete(projectId);
+  }
+  const hidden = new Set(list(state, 'hiddenTimesheetProjects')
+    .filter((row) => row.employeeId === id)
+    .map((row) => row.projectId));
+  for (const [projectId, on] of Object.entries(own.hidden)) {
+    if (on) hidden.add(projectId);
+    else hidden.delete(projectId);
+  }
+  const pins = own.absencePins || list(state, 'timesheetPins')
+    .filter((row) => row.employeeId === id)
+    .map((row) => row.typeId);
+  return { starred, hidden, pins };
+}
+
+/** Valget som lagres når en stjerne, et skjult prosjekt eller fraværskategoriene endres. */
+export function timesheetPrefsPatch(kind, projectId, on) {
+  const id = text(projectId);
+  if (!id || (kind !== 'starred' && kind !== 'hidden')) return null;
+  return { [kind]: { [id]: !!on } };
 }
 
 export { isDateLocked, lockThroughDate };

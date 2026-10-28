@@ -511,7 +511,7 @@ function makeStyles(colors, isPhone) {
     topicRow: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12,
-      borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card || '#fff',
+      borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card,
       marginBottom: 6,
     },
     topicTitle: { fontWeight: '400', fontSize: 14, color: colors.ink },
@@ -519,7 +519,7 @@ function makeStyles(colors, isPhone) {
     empty: { color: colors.muted, fontSize: 13, marginBottom: 4 },
     tipBox: {
       flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-      marginTop: 10, backgroundColor: colors.successSoft || '#ecfdf5',
+      marginTop: 10, backgroundColor: colors.successSoft,
       borderRadius: 12, padding: 12,
     },
     tipTxt: { flex: 1, fontSize: 13, color: colors.ink, lineHeight: 18, fontWeight: '500' },

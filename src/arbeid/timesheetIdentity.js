@@ -2,13 +2,17 @@
  * På mobil er navnet én linje, i både timeliste og når det er personlig.
  * På stor skjerm under Arbeid står navnet større, og admin kan bla mellom ansatte.
  */
+import { navTrailText } from '../navigation/navTrail.js';
 
+/** Stien over timelisten. Bedriftens timeliste følger menyen (samme som brødsmulen). */
 export function timesheetCrumb({ personal = false, locked = false, companyLabel = '' } = {}) {
   if (personal) {
     const name = String(companyLabel || '').trim();
     return name ? `Timeliste · ${name}` : 'Timeliste';
   }
-  return locked ? 'Ansatte / Timeføring' : 'Arbeid / Timeføring';
+  return locked
+    ? navTrailText('ansatte', null, { compact: true, current: 'Timeliste' })
+    : navTrailText('arbeid', 'timeliste', { compact: true });
 }
 
 export function timesheetIdentity({ personal = false, compact = false } = {}) {

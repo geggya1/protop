@@ -13,10 +13,19 @@ import {
   listenNote, updateNote, archiveNote, deleteNote, setNoteMembers, canManageNote, isPrivateNote,
 } from '../../src/utils/familyNotes';
 import { notifyUsers } from '../../src/utils/notifications';
+import {
+  withSaveTimeout, isNoteMissing, isOfflineSaveError, noteSaveStatusText,
+} from '../../src/utils/notesLogic.js';
+
+function saveErrorDialog(e, fallback) {
+  if (isOfflineSaveError(e)) return { title: 'Venter på nett', message: noteSaveStatusText('offline') };
+  return { title: 'Feil', message: fallback };
+}
 
 export default function NoteSettingsScreen({ noteId, onBack, onDeleted }) {
   const { familyId, uid, members, isAdmin } = useApp();
-  const [note, setNote] = useState(null);
+  // undefined = laster, null = finnes ikke (eller ingen tilgang).
+  const [note, setNote] = useState(undefined);
   const [title, setTitle] = useState('');
   const [pickedMembers, setPickedMembers] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -54,8 +63,10 @@ export default function NoteSettingsScreen({ noteId, onBack, onDeleted }) {
     const ids = [...new Set([note.createdBy, ...pickedMembers])];
     setSaving(true);
     try {
-      await updateNote(familyId, noteId, { title: trimmed });
-      await setNoteMembers(familyId, noteId, ids, ids.length <= 1 ? 'private' : 'shared');
+      await withSaveTimeout(Promise.all([
+        updateNote(familyId, noteId, { title: trimmed }),
+        setNoteMembers(familyId, noteId, ids, ids.length <= 1 ? 'private' : 'shared'),
+      ]));
       const previous = note.memberIds || [];
       const added = ids.filter((id) => id && id !== uid && !previous.includes(id));
       if (added.length) {
@@ -72,8 +83,8 @@ export default function NoteSettingsScreen({ noteId, onBack, onDeleted }) {
         message: 'Innstillingene for notatet er lagret.',
         onOk: () => onBack?.(),
       });
-    } catch {
-      setDialog({ title: 'Feil', message: 'Klarte ikke lagre. Prøv igjen.' });
+    } catch (e) {
+      setDialog(saveErrorDialog(e, 'Klarte ikke lagre. Prøv igjen.'));
     } finally {
       setSaving(false);
     }
@@ -82,29 +93,50 @@ export default function NoteSettingsScreen({ noteId, onBack, onDeleted }) {
   const executeArchive = useCallback(async () => {
     setConfirmArchive(false);
     try {
-      await archiveNote(familyId, noteId, !note?.archived);
+      await withSaveTimeout(archiveNote(familyId, noteId, !note?.archived));
       onBack?.();
-    } catch {
-      setDialog({ title: 'Feil', message: 'Klarte ikke endre arkivstatus.' });
+    } catch (e) {
+      setDialog(saveErrorDialog(e, 'Klarte ikke endre arkivstatus.'));
     }
   }, [familyId, noteId, note?.archived, onBack]);
 
   const executeDelete = useCallback(async () => {
     setConfirmDelete(false);
     try {
-      await deleteNote(familyId, noteId);
+      await withSaveTimeout(deleteNote(familyId, noteId));
       onDeleted?.();
-    } catch {
-      setDialog({ title: 'Feil', message: 'Klarte ikke slette.' });
+    } catch (e) {
+      setDialog(saveErrorDialog(e, 'Klarte ikke slette.'));
     }
   }, [familyId, noteId, onDeleted]);
 
-  if (!note) {
+  if (note === undefined) {
     return (
       <Screen>
-        <View style={{ padding: 24, alignItems: 'center' }}>
-          <ActivityIndicator color={colors.brand} />
-        </View>
+        <EdgeSwipeBack onBack={onBack}>
+        <ScrollBody>
+          <CompactBackLink onPress={onBack} label="Notat" accessibilityLabel="Tilbake til notat" />
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            <ActivityIndicator color={colors.brand} />
+          </View>
+        </ScrollBody>
+        </EdgeSwipeBack>
+      </Screen>
+    );
+  }
+
+  if (isNoteMissing(note)) {
+    const toNotes = onDeleted || onBack;
+    return (
+      <Screen>
+        <EdgeSwipeBack onBack={toNotes}>
+        <ScrollBody>
+          <CompactBackLink onPress={toNotes} label="Notater" accessibilityLabel="Alle notater" />
+          <Title size={22}>Notatet finnes ikke</Title>
+          <Mute>Det kan være slettet, eller du har ikke lenger tilgang til det.</Mute>
+          <BigButton label="Til notatene" onPress={toNotes} />
+        </ScrollBody>
+        </EdgeSwipeBack>
       </Screen>
     );
   }

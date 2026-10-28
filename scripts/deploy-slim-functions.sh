@@ -174,7 +174,7 @@ open_for friendInviteIndex.js "$FRIENDS"
 queue_entry indeksIndex.js functions:interpretIndeksAvtale,functions:sendIndeksLetter
 open_for indeksIndex.js functions:sendIndeksLetter
 queue_entry importIndex.js functions:interpretImport
-INVITES="functions:claimEmployeeInvite,functions:respondGroupInvite,functions:syncMyInvites,functions:invitePreview,functions:findCompanyByOrgnr,functions:requestCompanyJoin,functions:recordUsage,functions:listEmployeeUsage"
+INVITES="functions:claimEmployeeInvite,functions:respondGroupInvite,functions:syncMyInvites,functions:invitePreview,functions:findCompanyByOrgnr,functions:claimCompanyOrgnr,functions:requestCompanyJoin,functions:recordUsage,functions:listEmployeeUsage,functions:logSensitiveAccess,functions:listAccessLog,functions:setEmploymentStatus,functions:withdrawEmployeeInvite,functions:leaveCompany"
 queue_entry employeeInviteIndex.js "$INVITES"
 open_for employeeInviteIndex.js "$INVITES"
 # Opprettelsen feilet før tilgangen ble satt. Oppdateringer gjør ikke callable offentlig.
@@ -200,11 +200,11 @@ open_for vegvesenIndex.js functions:lookupVehicleByReg
 queue_entry companyAccessIndex.js functions:syncCompanyAccess
 open_for companyAccessIndex.js functions:syncCompanyAccess
 
-MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:approveJoinRequest,functions:listMyFamilies,functions:deleteMyAccount"
+MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,functions:approveJoinRequest,functions:listMyFamilies,functions:deleteMyAccount,functions:recordConsent,functions:syncMyProfile,functions:closeCompany,functions:reopenCompany,functions:exportCompanyData,functions:purgeClosedCompanies"
 queue_entry membershipIndex.js "$MEMBERSHIP"
 open_for membershipIndex.js "$MEMBERSHIP"
 
-AUTH="functions:sendInviteV2,functions:sendInviteSmsV2,functions:sendEmailVerificationV2,functions:confirmEmailVerificationV2,functions:sendPasswordResetV2,functions:setMemberPassword,functions:lookupAdultProfile"
+AUTH="functions:sendInviteV2,functions:sendInviteSmsV2,functions:sendEmailVerificationV2,functions:confirmEmailVerificationV2,functions:sendPasswordResetV2,functions:setMemberPassword,functions:lookupAdultProfile,functions:confirmMicrosoftEmail"
 queue_entry authIndex.js "$AUTH"
 open_for authIndex.js "$AUTH"
 

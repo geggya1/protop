@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import {
   companyContextLabel,
   dedupePersonalShells,
+  companyOfferHiddenKey,
   dismissCompanyOffer,
   shouldOfferCompany,
 } from './companyOffer.js';
+import { readFileSync } from 'node:fs';
 
 const personal = (id, createdAt) => ({
   id, isPersonal: true, type: 'family', name: 'Geirs hjem', active: true, createdAt,
@@ -35,5 +37,14 @@ assert.equal(companyContextLabel({
   company: { navn: 'ProTop AS' },
 }), 'Bedrift · ProTop AS');
 assert.equal(companyContextLabel({ type: 'company', name: 'Kai AS' }), 'Bedrift · Kai AS');
+
+// Kortet på Hjem vises med en gang; ingen modal etter to minutter (UX-29).
+assert.equal(companyOfferHiddenKey('u1'), 'protop.companyOffer.hidden.v1.u1');
+const overlays = readFileSync(new URL('../../components/SessionOverlays.jsx', import.meta.url), 'utf8');
+assert.doesNotMatch(overlays, /CompanyOfferModal/);
+const desk = readFileSync(new URL('../../components/DeskHomeDashboard.jsx', import.meta.url), 'utf8');
+assert.match(desk, /<CompanyOfferCard/);
+const phoneHome = readFileSync(new URL('../../components/parentHome/ParentHomeThemeHost.jsx', import.meta.url), 'utf8');
+assert.match(phoneHome, /<CompanyOfferCard/);
 
 console.log('companyOffer.test.mjs ok');

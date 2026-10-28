@@ -150,3 +150,88 @@ export function parseFriendAddUsername(pathOrUrl) {
     return '';
   }
 }
+
+function friendErrorCode(error) {
+  const raw = typeof error === 'string' ? error : (error?.message || error?.code || '');
+  return String(raw || '').replace(/^functions\//, '').trim();
+}
+
+/**
+ * Feiltekst når en vennemelding ikke ble sendt. Vises i tråden, også på web
+ * (Alert.alert gjør ingenting der).
+ */
+export function friendSendErrorText(error) {
+  const code = friendErrorCode(error);
+  if (code === 'not-friends') return 'Dere er ikke venner lenger, så meldingen ble ikke sendt.';
+  if (code === 'forbidden') return 'Du er ikke med i denne samtalen.';
+  if (code === 'missing-params') return 'Meldingen er tom.';
+  if (code === 'unavailable' || code === 'deadline-exceeded' || /network|failed to fetch/i.test(code)) {
+    return 'Ingen kontakt med serveren. Meldingen ble ikke sendt. Prøv igjen.';
+  }
+  return 'Meldingen ble ikke sendt. Prøv igjen.';
+}
+
+/** Svar fra en vennecallable: { ok: true } eller kast feilen den meldte (ingen klientreserve). */
+export function friendCallableResult(res, fallbackError = 'failed') {
+  if (res?.ok) return res;
+  throw new Error(String(res?.error || fallbackError));
+}
+
+export const FRIEND_POLL_MS = 8000;
+export const FRIEND_POLL_MAX_MS = 5 * 60 * 1000;
+
+/** Ventetid før neste polling: dobles etter hver feil, i stedet for å stoppe helt. */
+export function friendPollDelayMs(misses, baseMs = FRIEND_POLL_MS, maxMs = FRIEND_POLL_MAX_MS) {
+  const n = Math.max(0, Math.floor(Number(misses) || 0));
+  return Math.min(maxMs, baseMs * (2 ** Math.min(n, 16)));
+}
+
+function noticeMs(value) {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.seconds === 'number') return value.seconds * 1000;
+  if (value instanceof Date) return value.getTime();
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Forespørselen et venneforespørsel-varsel gjelder (requestId, inviteId eller friendInvite_<id>). */
+export function friendInviteNoticeRequestId(notice) {
+  if (!notice) return '';
+  const direct = String(notice.requestId || notice.inviteId || '').trim();
+  if (direct) return direct;
+  const id = String(notice.id || '');
+  return id.startsWith('friendInvite_') ? id.slice('friendInvite_'.length) : '';
+}
+
+/**
+ * Uleste varsler om venneforespørsler som ikke lenger venter (godtatt, avslått eller
+ * trukket tilbake). De skal ikke bli stående under «Ulest» (SOS-19).
+ * `pendingIds`: forespørslene som fortsatt venter. Varsler nyere enn `graceMs` røres ikke,
+ * så et nytt varsel ikke lukkes før forespørselen har kommet med i listen.
+ */
+export function staleFriendInviteNoticeIds(items, pendingIds, { nowMs = Date.now(), graceMs = 60000 } = {}) {
+  const pending = new Set((pendingIds || []).filter(Boolean).map(String));
+  return (items || [])
+    .filter((n) => n && n.eventType === 'friendInvite' && n.seen !== true)
+    .filter((n) => {
+      const requestId = friendInviteNoticeRequestId(n);
+      if (!requestId || pending.has(requestId)) return false;
+      const at = noticeMs(n.createdAt);
+      return !!at && nowMs - at >= graceMs;
+    })
+    .map((n) => n.id)
+    .filter(Boolean);
+}
+
+/**
+ * «Send på nytt» uten ny e-post eller SMS (L-33): den som ikke har konto, får ingen purringer,
+ * og en med konto får e-post/SMS høyst én gang i uken. Teksten erstatter «sendt på nytt».
+ */
+export function friendResendNote(res) {
+  if (res?.noReminder) {
+    return 'Personen har ikke konto ennå. ProTop sender ikke purringer på e-post eller SMS; lenken i invitasjonen gjelder fortsatt.';
+  }
+  if (res?.reminderLimited) return 'Varselet i appen er fornyet. E-post og SMS sendes høyst én gang i uken.';
+  return '';
+}

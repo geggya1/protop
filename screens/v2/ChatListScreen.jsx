@@ -28,6 +28,7 @@ import { isChildAiAllowed } from '../../src/utils/childApps';
 import { ASSISTANT_ROUTE, assistantThread } from '../../src/help/assistantBridge';
 import { useCompanyChatContacts } from '../../src/hooks/useCompanyChatContacts';
 import { STAFF_CHAT_ID, STAFF_CHAT_TITLE, companyChatLabel } from '../../src/utils/companyChat';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 const AVATAR = 40;
 
@@ -81,7 +82,7 @@ export default function ChatListScreen({ compactHeader = false, showCompose = tr
   // I en bedrift: fellestråd for faste ansatte og ansattlisten i stedet for familien.
   const companyChat = useCompanyChatContacts();
   const isCompany = !!companyChat;
-  const companyName = family?.company?.navn || family?.name || '';
+  const companyName = companyDisplayName(family);
   const staffChatKey = companyChat ? companyChat.staffChatIds.join('|') : '';
   const showStaffChat = !!(companyChat?.ready && companyChat.inStaffChat && staffChatKey);
   const chatDocs = companyChat?.threads || {};
@@ -714,7 +715,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#f4f6f8',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.line || '#e5e7eb',
+    borderColor: colors.line,
   },
   pickerSearch: {
     flex: 1,

@@ -35,7 +35,7 @@ export default function DesktopFormShell({
         accessibilityLabel={title}
       >
         <View style={styles.head}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
+          <Text style={styles.title} numberOfLines={1} accessibilityRole="header">{title}</Text>
           <TouchableOpacity
             onPress={onClose}
             hitSlop={10}

@@ -716,11 +716,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand, borderRadius: radius.md,
     paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center',
   },
-  btnSecondary: { backgroundColor: colors.brandSoft || '#dbeafe' },
+  btnSecondary: { backgroundColor: colors.brandSoft },
   btnTxt: { color: '#fff', fontWeight: '500' },
   btnTxtSecondary: { color: colors.brand },
   card: {
-    borderWidth: 1, borderColor: colors.line || '#e2e8f0',
+    borderWidth: 1, borderColor: colors.line,
     borderRadius: 14, padding: 14, gap: 6, backgroundColor: colors.card,
   },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
   setupBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     padding: 12, borderRadius: radius.md,
-    backgroundColor: colors.brandSoft || '#dbeafe',
+    backgroundColor: colors.brandSoft,
   },
   setupBannerTxt: { flex: 1, fontWeight: '500', color: colors.brand, fontSize: 14 },
   propPick: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

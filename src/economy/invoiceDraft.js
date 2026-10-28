@@ -9,6 +9,8 @@ import { timeTypeById } from '../arbeid/overtime.js';
 import { emptyInvoice, newInvoiceId, text } from './invoices.js';
 import { normalizeLine, normalizeLines, round2 } from './invoiceLines.js';
 import { dueDateFor, recalcInvoice, withEvent } from './invoiceFlow.js';
+import { customerFieldsFrom } from './invoiceCustomer.js';
+import { REVERSE_CHARGE_ACCOUNT_VAT_CODE } from './vat.js';
 
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 
@@ -30,6 +32,8 @@ function monthBounds(day) {
 /** Mva-kode ut fra kontoens sats i kontoplanen. Ukjent konto gir høy sats. */
 export function vatCodeForAccount(code, chart = []) {
   const row = (chart || []).find((item) => item.code === code);
+  // Mva-kode 51: innenlands omsetning med omvendt avgiftsplikt (kjøperen beregner mva).
+  if (String(row?.vatCode || '').trim() === REVERSE_CHARGE_ACCOUNT_VAT_CODE) return 'REVERSE';
   const rate = row?.vatRate;
   if (rate == null) return 'HIGH';
   if (rate >= 25) return 'HIGH';
@@ -93,6 +97,27 @@ const SECTION_SLOT = {
   admin: 'admin',
 };
 
+/** Lengste beskrivelse av arbeidet på en timelinje (resten kortes med «…»). */
+const WORK_TEXT_MAX = 160;
+
+/**
+ * Hva som er gjort, fra beskrivelsene på timene (ulike tekster, i rekkefølge). Fakturalinjen
+ * sier da hva kunden betaler for, ikke bare hvem som gjorde det.
+ */
+export function workDescription(texts = []) {
+  const seen = new Set();
+  const parts = [];
+  for (const raw of texts || []) {
+    const value = text(raw).replace(/\s+/g, ' ');
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    parts.push(value);
+  }
+  const joined = parts.join('; ');
+  return joined.length > WORK_TEXT_MAX ? `${joined.slice(0, WORK_TEXT_MAX - 1).trimEnd()}…` : joined;
+}
+
 /** Timer → linjer etter groupHoursBy: per medarbeider, aktivitet eller samlet, per måned når perioden vises. */
 export function hourLines(entries = [], { settings = {}, accounts, chart = [], markupPercent = 0, discountPercent = 0 } = {}) {
   const mode = ['employee', 'activity', 'total', 'employee_activity'].includes(settings.groupHoursBy)
@@ -132,15 +157,22 @@ export function hourLines(entries = [], { settings = {}, accounts, chart = [], m
         periodStart: row.date,
         periodEnd: row.date,
         timeEntryIds: [],
+        workTexts: [],
       });
     }
     const bucket = buckets.get(key);
     bucket.quantity = roundHours(bucket.quantity + (Number(row._hours) || 0));
     bucket.timeEntryIds.push(row.id);
+    bucket.workTexts.push(row.description);
     if (row.date < bucket.periodStart) bucket.periodStart = row.date;
     if (row.date > bucket.periodEnd) bucket.periodEnd = row.date;
   }
   return [...buckets.values()]
+    .map(({ workTexts, ...line }) => {
+      // «Anne Ansatt – Riving bad; Flislegging» i stedet for bare navnet.
+      const work = workDescription(workTexts);
+      return work ? { ...line, description: `${line.description} – ${work}` } : line;
+    })
     .map((line) => {
       if (!perMonth) return line;
       const bounds = monthBounds(line.periodStart);
@@ -351,12 +383,7 @@ export function isForeignCustomer(customer) {
 }
 
 function customerAddress(customer, project) {
-  return {
-    street: text(customer?.address || project?.address),
-    postalCode: text(customer?.postalCode),
-    city: text(customer?.place),
-    country: text(customer?.country) || 'NO',
-  };
+  return customerFieldsFrom(customer, project).customerAddress;
 }
 
 function ourReference(settings, project, actor) {
@@ -452,6 +479,9 @@ export function buildInvoiceDraft(selection, {
     activities: (entryActivities.length ? entryActivities : activities).join(', '),
     projectTags: Array.isArray(project.tags) ? project.tags.join(', ') : text(project.tags),
     contractId: text(project.contractId),
+    // Det som ble hentet fra kunderegisteret. Utkastet følger registeret til det ferdigstilles,
+    // unntatt felt brukeren endrer selv (invoiceCustomer.withRegistryCustomer).
+    ...(customer?.id ? { customerCopy: customerFieldsFrom(customer, project) } : {}),
     creditDays,
     bankAccount: text(supplier.bankAccount),
     currency: 'NOK',

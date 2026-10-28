@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { liveCustomerList, useCustomers, useProjects } from '../../src/context/CompanyDataContext';
+import { freshRows } from '../../src/company/companyData.js';
 import { companyFollowUpPeople } from '../../src/anbud/customers';
 import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { updateContractDetails } from '../../src/anbud/lifecycle';
@@ -14,7 +16,7 @@ import {
   workspaceHref,
 } from '../../src/indeksregulering/cases';
 import { emptyProjectState } from '../../src/project/engine';
-import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { loadProjectState } from '../../src/project/storage';
 import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
 import { canDeleteCase } from '../../src/indeksregulering/cases';
 import { dueByContractId } from '../../src/indeksregulering/watch';
@@ -52,7 +54,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   } = useApp();
   const page = defaultOkonomiSubView(subView);
   const [state, setState] = useState(emptyProjectState());
-  const [ready, setReady] = useState(false);
   const [anbud, setAnbud] = useState(null);
   const [chosen, setChosen] = useState(null);
   const [indexOpen, setIndexOpen] = useState(false);
@@ -61,6 +62,10 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   const [cases, setCases] = useState([]);
   const [series, setSeries] = useState(null);
   const saveChain = useRef(Promise.resolve());
+  // Kunderegisteret og prosjektene i sanntid fra skallet: fakturaer, desk og inntjening
+  // viser kunden og prosjektet slik de er nå.
+  const liveCustomers = useCustomers(familyId);
+  const liveProjects = useProjects(familyId);
 
   const saveRegulations = useCallback((contractId, entry) => {
     const job = saveChain.current.then(async () => {
@@ -77,6 +82,8 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return job;
   }, [familyId]);
 
+  // Siden leser bare prosjektene. Den skriver dem ikke tilbake: å åpne Økonomi skrev før
+  // kopien i minnet til skyen, og en eldre kopi overskrev da nyere endringer fra andre.
   useEffect(() => {
     let live = true;
     const from = new Date();
@@ -85,14 +92,9 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     loadProjectState(familyId, { hours: { fromDate } }).then((loaded) => {
       if (!live) return;
       setState(loaded);
-      setReady(true);
     });
     return () => { live = false; };
   }, [familyId]);
-
-  useEffect(() => {
-    if (ready) saveProjectState(state, familyId).catch(() => {});
-  }, [state, ready, familyId]);
 
   useEffect(() => {
     loadAnbudState(familyId).then(setAnbud);
@@ -131,10 +133,10 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     rememberIndexUrl(shellIntent.contractId, shellIntent.workspaceCaseId || '', shellIntent.view || '');
   }, [shellIntent]);
 
-  const customers = anbud?.customers || [];
+  const customers = liveCustomerList(liveCustomers, anbud?.customers || []);
   const contracts = anbud?.contracts || [];
   const people = companyFollowUpPeople(members);
-  const projects = state.projects || [];
+  const projects = useMemo(() => freshRows(state.projects || [], liveProjects), [state.projects, liveProjects]);
   const company = family?.company || null;
   const selectedContract = contracts.find((row) => row.id === chosen?.id) || chosen;
   const showIndex = page === 'indeks' && indexOpen && !!(selectedContract?.id || shellIntent?.draft);

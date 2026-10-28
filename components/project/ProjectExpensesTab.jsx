@@ -44,6 +44,8 @@ export default function ProjectExpensesTab({
   const [status, setStatus] = useState('');
   const [editor, setEditor] = useState(null);
   const [menuId, setMenuId] = useState('');
+  // Sletting krever et ekstra trykk («Slett» → «Ja, slett»).
+  const [confirmId, setConfirmId] = useState('');
   const [error, setError] = useState('');
 
   const all = useMemo(
@@ -110,7 +112,12 @@ export default function ProjectExpensesTab({
   }
 
   function remove(id) {
+    if (confirmId !== id) {
+      setConfirmId(id);
+      return;
+    }
     const result = deleteExpense(state, id);
+    setConfirmId('');
     if (!result.ok) {
       setError(result.error);
       return;
@@ -218,7 +225,13 @@ export default function ProjectExpensesTab({
               </View>
               <View style={styles.td}>
                 {isAdmin ? (
-                  <TouchableOpacity onPress={() => setMenuId(menuId === row.id ? '' : row.id)}>
+                  <TouchableOpacity
+                    onPress={() => { setMenuId(menuId === row.id ? '' : row.id); setConfirmId(''); }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Valg for utlegget ${row.description || ''}`.trim()}
+                    accessibilityState={{ expanded: menuId === row.id }}
+                    hitSlop={8}
+                  >
                     <Ionicons name="ellipsis-vertical" size={16} color={colors.muted} />
                   </TouchableOpacity>
                 ) : null}
@@ -228,9 +241,21 @@ export default function ProjectExpensesTab({
                   <TouchableOpacity onPress={() => { setEditor(row); setMenuId(''); }} style={styles.menuItem}>
                     <Text style={{ color: colors.ink }}>Rediger</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => remove(row.id)} style={styles.menuItem}>
-                    <Text style={{ color: colors.danger || '#b42318' }}>Slett</Text>
-                  </TouchableOpacity>
+                  {confirmId === row.id ? (
+                    <>
+                      <Text style={{ color: colors.ink, paddingVertical: 4 }}>Slette utlegget? Det kan ikke angres.</Text>
+                      <TouchableOpacity onPress={() => remove(row.id)} style={styles.menuItem} accessibilityRole="button" nativeID={`project-expense-confirm-delete-${row.id}`}>
+                        <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>Ja, slett</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setConfirmId('')} style={styles.menuItem} accessibilityRole="button">
+                        <Text style={{ color: colors.ink }}>Avbryt</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <TouchableOpacity onPress={() => remove(row.id)} style={styles.menuItem} accessibilityRole="button">
+                      <Text style={{ color: colors.danger || '#b42318' }}>Slett</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               ) : null}
             </View>

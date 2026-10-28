@@ -3,6 +3,7 @@
  * No vendor required: uses gtag/dataLayer when present, else a test hook.
  * Payloads never include module content, PII, or child info.
  */
+import { BREAKPOINTS } from '../ui/layout.js';
 
 export const MODULE_ACTIVATION_EVENTS = {
   viewed: 'module_welcome_viewed',
@@ -22,8 +23,8 @@ function detectPlatform() {
   } catch { /* ignore */ }
   if (typeof window !== 'undefined' && typeof window.innerWidth === 'number') {
     const w = window.innerWidth;
-    if (w < 768) return 'mobile-web';
-    if (w < 1024) return 'tablet-web';
+    if (w < BREAKPOINTS.tablet) return 'mobile-web';
+    if (w < BREAKPOINTS.desktop) return 'tablet-web';
     return 'desktop-web';
   }
   if (typeof document !== 'undefined') return 'web';

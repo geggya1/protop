@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { db, storage } from '../firebase';
+import { auth, db, storage } from '../firebase';
 import { doc, updateDoc, deleteField } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Feather } from '@expo/vector-icons';
@@ -30,6 +30,9 @@ if (Platform.OS === 'web') {
   try { Cropper = require('react-easy-crop').default; } catch {}
 }
 
+// Avataren er et JPEG-bilde (storage.rules krever bildetype), og den som lastet opp står i metadata.
+const AVATAR_META = () => ({ contentType: 'image/jpeg', customMetadata: { uploadedBy: auth?.currentUser?.uid || '' } });
+
 export default function ChildProfileScreen({ route, navigation }) {
   const child = route?.params?.child || {};
   const childDocId = child?.uid || child?.id;
@@ -42,8 +45,10 @@ export default function ChildProfileScreen({ route, navigation }) {
   const [photoUrl, setPhotoUrl] = useState(child.photoUrl || child.photoURL || '');
   const [isActive, setIsActive] = useState(child.active !== false);
   const [username] = useState(child.username || '');
-  const [password, setPassword] = useState(child.password || '');
+  // Passordet lagres ikke i Firestore (SEC-21): feltet er bare for et nytt passord.
+  const [password, setPassword] = useState('');
   const [editingPassword, setEditingPassword] = useState(false);
+  const passwordSet = !!(child.passwordSetAt || child.password);
 
   const [busy, setBusy] = useState(false);
 
@@ -59,8 +64,8 @@ export default function ChildProfileScreen({ route, navigation }) {
     setBirthday(toIsoDate(child.birthday) || '');
     setPhotoUrl(child.photoUrl || child.photoURL || '');
     setIsActive(child.active !== false);
-    setPassword(child.password || '');
-  }, [child?.name, child?.birthday, child?.photoUrl, child?.photoURL, child?.active, child?.password]);
+    setPassword('');
+  }, [child?.name, child?.birthday, child?.photoUrl, child?.photoURL, child?.active]);
 
   const onCropComplete = useCallback((_, croppedPixels) => setCroppedAreaPixels(croppedPixels), []);
 
@@ -102,7 +107,7 @@ export default function ChildProfileScreen({ route, navigation }) {
       const blob = await resp.blob();
       const path = `child_avatars/${childDocId}-${Date.now()}.jpg`;
       const sref = ref(storage, path);
-      await uploadBytes(sref, blob);
+      await uploadBytes(sref, blob, AVATAR_META());
       const url = await getDownloadURL(sref);
       await afterUpload(url);
       Alert.alert('Profilbilde oppdatert!');
@@ -153,7 +158,7 @@ export default function ChildProfileScreen({ route, navigation }) {
       const blob = await getCroppedImage(selectedImageUri, croppedAreaPixels);
       const path = `child_avatars/${childDocId}-${Date.now()}.jpg`;
       const storageRefObj = ref(storage, path);
-      await uploadBytes(storageRefObj, blob);
+      await uploadBytes(storageRefObj, blob, AVATAR_META());
       const url = await getDownloadURL(storageRefObj);
       await afterUpload(url);
       setCropVisible(false);
@@ -312,7 +317,7 @@ export default function ChildProfileScreen({ route, navigation }) {
           {!editingPassword ? (
             <View style={styles.passwordRow}>
               <Text style={styles.loginText}>
-                Passord: <Text style={{ fontWeight: '400' }}>{password}</Text>
+                Passord: <Text style={{ fontWeight: '400' }}>{passwordSet ? 'Satt (vises ikke)' : 'Ikke satt'}</Text>
               </Text>
               <TouchableOpacity onPress={() => setEditingPassword(true)} disabled={busy}>
                 <Feather name="edit-2" size={18} color="#007AFF" style={{ marginLeft: 8 }} />

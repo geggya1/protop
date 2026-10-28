@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Image, StyleSheet, Platform } from 'react-native';
 import { useI18n } from '../src/i18n';
 import { colors, useLayout } from '../src/theme';
+import { LIGHT } from '../src/appearance/palette';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
 import { resolveModuleHero } from '../src/modules/moduleHero';
+import Breadcrumb from './Breadcrumb';
+import { normalizeTitle } from '../src/ui/pageTitle';
 
 /** 2mm at the CSS reference pixel (96px = 1in). The picture scales to this inset. */
 const ART_INSET = 8;
@@ -18,6 +21,8 @@ const ART_INSET = 8;
  * Help sits under the profile, above this band. Family name and the large
  * page title are hidden on phone. The phone band stays short so the page
  * body starts almost in the header.
+ * Overskriften i båndet er sidens overskrift for skjermlesere (nivå 1); toppfeltet
+ * på PC gjentar den ikke.
  */
 export default function ModuleHero({
   moduleId,
@@ -45,12 +50,15 @@ export default function ModuleHero({
 
   const heading = title || hero.title;
   const lead = subtitle || hero.pitch;
-  const overline = kicker || hero.kicker;
+  // Overlinjen er modulnavnet; den står ikke over en overskrift med samme tekst (én tittel per side).
+  const overline = normalizeTitle(kicker || hero.kicker) === normalizeTitle(heading) ? '' : (kicker || hero.kicker);
   const chromePhone = chrome && isPhone;
   const heroH = isDesktop ? 148 : isPhone ? 112 : 136;
   const artH = heroH - ART_INSET * 2;
-  const titleColor = hero.ink || colors.ink;
-  const pitchColor = hero.muted || colors.muted;
+  // Pastellbåndet er lyst også i mørkt utseende, så teksten på det er alltid den mørke
+  // (LIGHT.ink/muted, minst 4,5:1 mot alle gruppefargene). colors.ink ble lys på lyst i mørkt.
+  const titleColor = hero.ink || LIGHT.ink;
+  const pitchColor = hero.muted || LIGHT.muted;
   const webBand = Platform.OS === 'web'
     ? { backgroundImage: `linear-gradient(105deg, ${hero.bg} 0%, ${hero.bg2} 55%, ${hero.bg} 100%)` }
     : null;
@@ -61,7 +69,6 @@ export default function ModuleHero({
   return (
     <View
       nativeID="module-hero"
-      accessibilityRole="header"
       style={[
         styles.hero,
         { height: heroH, backgroundColor: hero.bg, borderColor: hero.ink ? 'rgba(255,255,255,0.14)' : `${hero.accent}22` },
@@ -83,7 +90,7 @@ export default function ModuleHero({
             {overline}
           </Text>
         ) : null}
-        <Text style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, { color: titleColor }]} numberOfLines={2}>
+        <Text nativeID="module-hero-title" accessibilityRole="header" aria-level={1} style={[styles.title, isDesktop && styles.titleDesk, isPhone && styles.titlePhone, { color: titleColor }]} numberOfLines={2}>
           {heading}
         </Text>
         {lead ? (
@@ -132,6 +139,30 @@ export default function ModuleHero({
   );
 }
 
+/**
+ * Kompakt tittelrad på modulens undersider (i stedet for båndet): stripe i modulens
+ * farge og brødsmulen fra menyen, der siste ledd er sidetittelen.
+ * Sider utenfor bedriftsmenyen får modulnavnet som tittel.
+ */
+export function ModuleTitleRow({ moduleId, tab, subView = null }) {
+  const { lang } = useI18n();
+  const hero = useMemo(() => resolveModuleHero(moduleId, lang), [moduleId, lang]);
+  return (
+    <View
+      nativeID="module-title-row"
+      style={[styles.titleRow, { borderLeftColor: hero.accent }]}
+    >
+      <Breadcrumb
+        tab={tab}
+        subView={subView}
+        compact={false}
+        title
+        nativeID="module-title-crumb"
+      />
+    </View>
+  );
+}
+
 const webShadow = Platform.OS === 'web'
   ? { boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)' }
   : {
@@ -142,6 +173,15 @@ const webShadow = Platform.OS === 'web'
   };
 
 const styles = StyleSheet.create({
+  titleRow: {
+    borderLeftWidth: 4,
+    borderRadius: 2,
+    paddingLeft: 12,
+    paddingVertical: 4,
+    marginBottom: 8,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
   hero: {
     flexDirection: 'row',
     alignItems: 'stretch',

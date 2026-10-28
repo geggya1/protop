@@ -197,6 +197,19 @@ export const FILES = [
   'functions/mailRelay.test.mjs',
   'functions/tenderProxyAuth.test.mjs',
   'scripts/hosting-csp.test.mjs',
+  // Designsystem og universell utforming: kontrast, fokus, etiketter, overskrifter, tokens,
+  // sperrehaken for hardkodede verdier, bekreftelse/angre, norsk format og språklås.
+  'src/appearance/contrast.test.mjs',
+  'src/appearance/typography.test.mjs',
+  'src/ui/focusRing.test.mjs',
+  'src/ui/a11yLabels.test.mjs',
+  'src/ui/landmarks.test.mjs',
+  'src/ui/tokens.test.mjs',
+  'src/ui/designGuard.test.mjs',
+  'src/ui/confirm.test.mjs',
+  'src/format/nb.test.mjs',
+  'src/i18n/deviceLang.test.mjs',
+  'src/companyHome/model.test.mjs',
 ];
 
 function runFile(file) {

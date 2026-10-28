@@ -1,5 +1,5 @@
 import {
-  collection, doc, setDoc, updateDoc, getDocs,
+  collection, doc, setDoc, updateDoc, deleteDoc, getDocs,
   onSnapshot, serverTimestamp, query, where, runTransaction,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -125,12 +125,12 @@ export async function archiveNote(familyId, noteId, archived = true) {
   await updateNote(familyId, noteId, { archived });
 }
 
+/**
+ * «Slett permanent»: dokumentet slettes, så teksten ikke blir liggende igjen
+ * (før ble bare deleted/permanentlyDeleted satt, og innholdet kunne fortsatt leses).
+ */
 export async function deleteNote(familyId, noteId) {
-  await updateNote(familyId, noteId, {
-    deleted: true,
-    archived: true,
-    permanentlyDeleted: true,
-  });
+  await deleteDoc(noteDoc(familyId, noteId));
 }
 
 export async function setNoteMembers(familyId, noteId, memberIds, visibility) {

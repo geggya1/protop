@@ -98,3 +98,13 @@ test('notatredigeringen autolagrer og spør ved Tilbake', () => {
   assert.match(settings, /Notatet finnes ikke/);
   assert.match(settings, /note === undefined/);
 });
+
+test('«Slett permanent» sletter notatdokumentet, ikke bare et flagg (SOS-09)', () => {
+  const src = readFileSync(new URL('./familyNotes.js', import.meta.url), 'utf8');
+  const fn = src.slice(src.indexOf('export async function deleteNote'), src.indexOf('export async function setNoteMembers'));
+  assert.match(fn, /deleteDoc\(noteDoc\(familyId, noteId\)\)/);
+  assert.doesNotMatch(fn, /permanentlyDeleted: true/);
+  // Innstillingene kaller fortsatt deleteNote etter bekreftelse.
+  const settings = readFileSync(new URL('../../screens/v2/NoteSettingsScreen.jsx', import.meta.url), 'utf8');
+  assert.match(settings, /withSaveTimeout\(deleteNote\(familyId, noteId\)\)/);
+});

@@ -41,8 +41,10 @@ test('linking og invitasjonsvinduet bruker samme tolkning', () => {
   // Registreringen godtar invitasjonen via serveren etter at kontoen er laget.
   const register = readFileSync(new URL('../../screens/RegisterScreen.jsx', import.meta.url), 'utf8');
   assert.match(register, /claimPendingFriendInvite\(\{/);
-  assert.match(register, /friendInvite: String\(p\.friendInvite/);
-  // Verdiene holdes fast selv om adressen skrives om, og legges tilbake i adressen på web.
+  assert.match(register, /const friendInvite = String\(p\.friendInvite \|\| qs\.friendInvite/);
+  // Verdiene holdes fast selv om ruten nullstilles, og overlever en omlasting i samme fane.
   assert.match(register, /setInvite\(\(prev\) => keepInviteParams\(prev, readInviteParams\(route\)\)\)/);
-  assert.match(register, /qs\.set\('friendInvite', invite\.friendInvite\)/);
+  assert.match(register, /storeFriendInvite\(\{ friendInvite: invite\.friendInvite, email: invite\.email \}\)/);
+  assert.match(register, /friendInvite \|\| String\(stored\.friendInvite/);
+  assert.match(register, /storeFriendInvite\(null\);/);
 });

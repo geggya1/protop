@@ -27,6 +27,29 @@ import BrandLogo from '../components/BrandLogo';
 import SignInLegalConsent, { persistSignInConsent } from '../components/SignInLegalConsent';
 import { useI18n } from '../src/i18n';
 
+// Venneinvitasjonen fra /register?friendInvite=…&email=… (web). Når appen går fra
+// lasting til registrering, nullstilles ruten og adressen blir /register uten parametre,
+// så invitasjonen tas vare på i fanen til personen har registrert seg (SOS-01).
+const FRIEND_INVITE_KEY = 'protop_register_friend_invite';
+
+function readStoredFriendInvite() {
+  try {
+    if (typeof sessionStorage === 'undefined') return {};
+    const raw = JSON.parse(sessionStorage.getItem(FRIEND_INVITE_KEY) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
+function storeFriendInvite(value) {
+  try {
+    if (typeof sessionStorage === 'undefined') return;
+    if (value?.friendInvite) sessionStorage.setItem(FRIEND_INVITE_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(FRIEND_INVITE_KEY);
+  } catch { /* privat modus */ }
+}
+
 function readInviteParams(route) {
   const p = route?.params || {};
   // Web deep links may also land as nested query on first paint
@@ -36,11 +59,13 @@ function readInviteParams(route) {
       qs = Object.fromEntries(new URLSearchParams(window.location.search).entries());
     } catch {}
   }
+  const friendInvite = String(p.friendInvite || qs.friendInvite || '').trim();
+  const stored = friendInvite ? {} : readStoredFriendInvite();
   return {
-    email: String(p.email || qs.email || '').trim().toLowerCase(),
+    email: String(p.email || qs.email || stored.email || '').trim().toLowerCase(),
     familyId: String(p.familyId || qs.familyId || '').trim(),
     phone: String(p.phone || qs.phone || '').trim(),
-    friendInvite: String(p.friendInvite || qs.friendInvite || '').trim(),
+    friendInvite: friendInvite || String(stored.friendInvite || '').trim(),
     addFriend: String(p.addFriend || qs.addFriend || '').trim(),
   };
 }
@@ -64,16 +89,9 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
     setInvite((prev) => keepInviteParams(prev, readInviteParams(route)));
   }, [route]);
 
-  // Web: legg venneinvitasjonen tilbake i adressen, så den overlever en omlasting.
+  // Ta vare på venneinvitasjonen i fanen, så den overlever nullstillingen og en omlasting.
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined' || !invite.friendInvite) return;
-    try {
-      const qs = new URLSearchParams(window.location.search || '');
-      if (qs.get('friendInvite') || !/^\/register\/?$/.test(window.location.pathname || '')) return;
-      qs.set('friendInvite', invite.friendInvite);
-      if (invite.email) qs.set('email', invite.email);
-      window.history.replaceState(window.history.state || {}, '', `${window.location.pathname}?${qs.toString()}`);
-    } catch { /* ignore */ }
+    if (invite.friendInvite) storeFriendInvite({ friendInvite: invite.friendInvite, email: invite.email });
   }, [invite.friendInvite, invite.email]);
   const { width } = useWindowDimensions();
   const wide = width >= 480;
@@ -209,6 +227,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
         } catch (friendErr) {
           console.warn('Friend invite claim failed', friendErr?.message || friendErr);
         }
+        storeFriendInvite(null);
       }
 
       setJustRegisteredEmail?.(emailTrimmed);

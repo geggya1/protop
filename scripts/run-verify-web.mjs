@@ -32,6 +32,7 @@ export const FILES = [
   'functions/aiCompanyGate.test.mjs',
   'src/privacy/myDataExport.test.mjs',
   'functions/deleteAccount.test.mjs',
+  'functions/helpKnowledge.test.mjs',
   'src/privacy/storageNotice.test.mjs',
   'src/i18n/htmlLang.test.mjs',
   'src/i18n/welcomeB2b.test.mjs',

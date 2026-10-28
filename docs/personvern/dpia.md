@@ -75,7 +75,7 @@ vurderingen etter tiltakene som allerede er i koden.
 | D10 | Tilgang som er trukket tilbake, virker en stund | Middels | Middels | Speilet utløper etter 12 timer. Fjernet medlemskap slår inn straks. | **Lav–middels** | Rull ut triggerne for tilgangsspeilet (DS-16). |
 | D11 | En konto med HR- eller administratortilgang blir overtatt | Middels | Høy | Innlogging hos Google/Microsoft/Apple eller passord. Grenser for antall kall. | **Middels–høy** | Krev tofaktor for eier, administrator og HR. |
 | D12 | Filer (CV, HR-dokumenter, kvitteringer) deles videre med lenker som ikke utløper | Lav | Høy | Opplasting og nedlasting via serverfunksjoner med tilgangskontroll. | **Middels** | Erstatt varige nedlastingslenker med signerte lenker med kort levetid (L-18). |
-| D13 | Brukerspørsmål til hjelpeassistenten lagres med uid uten lagringstid | Middels | Lav | – | **Lav–middels** | Fjern uid fra `helpKnowledgeCandidates`, eller slett etter en fast tid. |
+| D13 | Brukerspørsmål til hjelpeassistenten lagres med uid uten lagringstid | Middels | Lav | Gjort (GRUNN-01): uten uid, e-post, telefon og fødselsnummer maskert, slettes etter ett år, eldre rader anonymiseres ved neste bruk | **Lav** | Navn i fritekst fanges ikke opp. Vurder om radene trengs i det hele tatt (ingen leser dem i dag). |
 
 ## 5. Konklusjon (foreløpig)
 

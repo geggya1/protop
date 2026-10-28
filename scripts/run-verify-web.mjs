@@ -236,6 +236,7 @@ export const FILES = [
   'src/project/orgnrIndex.test.mjs',
   'functions/microsoftEmail.test.mjs',
   'src/utils/groupInviteLogic.test.mjs',
+  'src/utils/groupLifecycleLogic.test.mjs',
   'src/utils/childPasswordStorage.test.mjs',
   'src/privacy/aiGuardCoverage.test.mjs',
   'src/employees/usageBatch.test.mjs',

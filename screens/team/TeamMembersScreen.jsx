@@ -236,7 +236,8 @@ export default function TeamMembersScreen({ teamId, team }) {
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{p.name || p.email || 'Ukjent'}</Text>
             <Text style={styles.sub}>
-              {p.admin || p.superAdmin || team?.ownerUid === p.uid || team?.ownerUid === p.id
+              {/* Samme kilde som serveren: eier og adminUids (REV-19). */}
+              {isGroupAdmin(team, p.uid || p.id)
                 ? 'Administrator'
                 : 'Foresatt'}
             </Text>

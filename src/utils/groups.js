@@ -34,6 +34,7 @@ import { isOrganizationType } from './groupTypes';
 import {
   isSuperAdmin,
   isGroupAdmin,
+  isTeamAdmin,
   normalizeAdultRole,
   isGroupDeleted,
   isGroupDeactivated,
@@ -50,6 +51,7 @@ export { memberDocGrantsAccess } from './memberAccess';
 export {
   isSuperAdmin,
   isGroupAdmin,
+  isTeamAdmin,
   normalizeAdultRole,
   isGroupDeleted,
   isGroupDeactivated,
@@ -72,14 +74,6 @@ function adultRoleFields({ asGrandparent = false, adultRole = null, grandparentM
   return fields;
 }
 
-/** Admin via family doc OR parent membership flags (idrettslag). */
-export function isTeamAdmin(team, uid, parents = []) {
-  if (isGroupAdmin(team, uid)) return true;
-  if (!uid) return false;
-  return (parents || []).some((p) => (
-    (p.id === uid || p.uid === uid) && (p.admin || p.superAdmin) && p.active !== false
-  ));
-}
 
 async function secondaryAuth() {
   const opts = getApp().options;

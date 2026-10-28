@@ -629,10 +629,13 @@ export function MemberSettingsScreen() {
     }
   };
 
+  // Administrator er eier og adminUids, som på serveren (REV-19). admin på medlemsdokumentet
+  // følger med for eldre visninger, men avgjør ingenting.
+  const memberIsAdmin = isGroupAdmin(family, m.uid || m.id);
   const toggleAdmin = async () => {
     if (isGrandparentMember(m)) return;
-    await setMemberAdmin({ familyId, uid: m.uid || m.id, admin: !m.admin });
-    setM({ ...m, admin: !m.admin });
+    await setMemberAdmin({ familyId, uid: m.uid || m.id, admin: !memberIsAdmin });
+    setM({ ...m, admin: !memberIsAdmin });
   };
 
   const toggleGrandparent = async () => {
@@ -915,10 +918,10 @@ export function MemberSettingsScreen() {
         {role === 'parent' && superOk && !isOwner && !isGrandparentMember(m) && !isOrganizationType(family?.type) ? (
           <TouchableOpacity style={ms.actionRow} onPress={toggleAdmin}>
             <View style={ms.actionIcon}>
-              <Ionicons name={m.admin ? 'shield-checkmark' : 'shield-outline'} size={18} color={colors.brand} />
+              <Ionicons name={memberIsAdmin ? 'shield-checkmark' : 'shield-outline'} size={18} color={colors.brand} />
             </View>
             <Text style={ms.actionTxt}>
-              {m.admin ? t('group.removeAdmin') : t('group.makeAdmin')}
+              {memberIsAdmin ? t('group.removeAdmin') : t('group.makeAdmin')}
             </Text>
             <Ionicons name="chevron-forward" size={16} color={colors.muted} />
           </TouchableOpacity>

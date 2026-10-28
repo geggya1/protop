@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { watchEmployees } from '../../src/employees/storage';
 import { displayName, isDeletedEmployee, isOwnActiveEmployee } from '../../src/employees/model';
-import { ensureProjectAbsences, loadProjectState } from '../../src/project/storage';
+import { ensureProjectAbsences, ensureProjectHours, loadProjectState } from '../../src/project/storage';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { loadHrState } from '../../src/hr/storage';
 import { normalizeFormTemplates } from '../../src/anbud/bidLibrary';
@@ -16,6 +16,26 @@ import { loadProjectExpenses, mergeExpenseLists } from '../../src/economy/expens
 import { loadDocControls } from '../../src/iso/storage';
 import { myProjectIds } from '../../src/project/myProjects';
 import { employeeMaySeeGear } from '../../src/equipment/calendars';
+
+/** Ansatte som personer i ISO (velgere, kompetanse, beredskap). Egne aktive ansatte først. */
+export function peopleFromEmployees(employees) {
+  return (employees || [])
+    .filter((e) => e && !isDeletedEmployee(e))
+    .map((e) => ({
+      id: e.id,
+      name: displayName(e),
+      uid: e.personUid || '',
+      title: e.company?.title || e.company?.position || '',
+      own: isOwnActiveEmployee(e),
+      // Kontakt, avdeling og CV eies av Ansatte; ISO bruker dem i velgere, beredskap og kompetanse.
+      phone: e.person?.phone || '',
+      email: e.company?.email || e.person?.email || '',
+      departmentIds: e.company?.departmentIds || [],
+      cv: e.cv || null,
+    }))
+    .filter((p) => p.name && p.name !== 'Uten navn')
+    .sort((a, b) => Number(b.own) - Number(a.own));
+}
 
 /**
  * allProjects / allGear: hele listen. Ellers bare prosjektene personen er med i og utstyret
@@ -32,6 +52,8 @@ export function useIsoSources({
   // Utlegg importert i bulk ligger i egen samling (projectExpenses); leverandørforslagene skal se alle.
   const [extraExpenses, setExtraExpenses] = useState([]);
   const [docControls, setDocControls] = useState([]);
+  // Timer for H-verdi (ISO-24): hentes bare når HMS-siden eller ledelsens gjennomgang trenger dem.
+  const [hours, setHours] = useState(null);
 
   useEffect(() => {
     if (!familyId) return undefined;
@@ -81,24 +103,18 @@ export function useIsoSources({
 
   const reloadAnbud = useCallback(() => setStamp((x) => x + 1), []);
 
+  const loadHours = useCallback(async () => {
+    if (!familyId || !canManage) return null;
+    if (hours) return hours;
+    const loaded = await ensureProjectHours(familyId, { fromDate: addDays(todayKey(), -400) }).catch(() => null);
+    const rows = loaded?.timeEntries || [];
+    setHours(rows);
+    return rows;
+  }, [familyId, canManage, hours]);
+
   return useMemo(() => {
     const active = employees.filter((e) => !isDeletedEmployee(e));
-    // Egne aktive ansatte først; de er standardforslagene i personvelgerne.
-    const people = active
-      .map((e) => ({
-        id: e.id,
-        name: displayName(e),
-        uid: e.personUid || '',
-        title: e.company?.title || e.company?.position || '',
-        own: isOwnActiveEmployee(e),
-        // Kontakt, avdeling og CV eies av Ansatte; ISO bruker dem i velgere, beredskap og kompetanse.
-        phone: e.person?.phone || '',
-        email: e.company?.email || e.person?.email || '',
-        departmentIds: e.company?.departmentIds || [],
-        cv: e.cv || null,
-      }))
-      .filter((p) => p.name && p.name !== 'Uten navn')
-      .sort((a, b) => Number(b.own) - Number(a.own));
+    const people = peopleFromEmployees(active);
     const own = allProjects ? null : myProjectIds(projectState, viewer, employees);
     const projects = (projectState?.projects || [])
       .filter((p) => p.status !== 'arkivert' && (!own || own.has(p.id)));
@@ -124,6 +140,8 @@ export function useIsoSources({
       hrCompliance,
       reloadAnbud,
       docControls,
+      hours,
+      loadHours,
     };
-  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses, docControls, allProjects, allGear, viewer]);
+  }, [employees, projectState, anbud, hr, family, canManage, reloadAnbud, extraExpenses, docControls, allProjects, allGear, viewer, hours, loadHours]);
 }

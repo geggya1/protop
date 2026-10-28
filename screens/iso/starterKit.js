@@ -12,7 +12,7 @@ import { createCustomRequirement } from '../../src/iso/requirements';
 import { createDocument } from '../../src/iso/documents';
 import { createRecord } from '../../src/iso/registers';
 import {
-  deviationRoutineDraft, policyDraft, requirementIdsForDocument, starterPlan,
+  deviationRoutineDraft, policyDraft, requirementIdsForDocument, starterAuditor, starterPlan,
 } from '../../src/iso/integrations';
 
 export const STARTER_OPTIONS = [
@@ -120,11 +120,12 @@ export async function runStarterKit({ companyId, state, store, actor, caps, opti
 
   if (options.plan) {
     const audits = [...(state.records?.revisjon || [])];
-    const auditor = system.roleMap?.internal_auditor || system.roleMap?.quality_manager || { name: actor.name, uid: actor.uid };
+    // Revisor er aldri den som eier eller aktiverer systemet, og uavhengigheten bekreftes på revisjonen (9.2.2 c).
+    const auditor = starterAuditor(system, actor);
     let planned = 0;
     if (!audits.length) {
       for (const a of plan.audits) {
-        const res = createRecord('revisjon', { ...a, scope: system.scopeText || 'Hele ledelsessystemet', criteria: `${a.standards?.[0] || 'ISO'}, egne prosesser og lovkrav`, auditorName: auditor.name, auditorUid: auditor.uid, independence: true, riskBasis: 'Første revisjonsprogram etter aktivering. Juster frekvens etter risiko og resultater.' }, { actor, existing: audits });
+        const res = createRecord('revisjon', { ...a, scope: system.scopeText || 'Hele ledelsessystemet', criteria: `${a.standards?.[0] || 'ISO'}, egne prosesser og lovkrav`, auditorName: auditor?.name || '', auditorUid: auditor?.uid || '', independence: false, riskBasis: 'Første revisjonsprogram etter aktivering. Juster frekvens etter risiko og resultater.' }, { actor, existing: audits, draft: true });
         if (!res.ok) continue;
         const saved = await store.commit('records', 'record', res);
         if (saved.ok) { audits.push(res.record); planned += 1; }

@@ -261,12 +261,12 @@ export function DateIn({ value, onChange, placeholder = 'Velg dato' }) {
   );
 }
 
-export function Check({ label, value, onChange }) {
+export function Check({ label, value, onChange, required = false }) {
   const colors = useColors();
   return (
-    <TouchableOpacity onPress={() => onChange(!value)} accessibilityRole="checkbox" accessibilityState={{ checked: !!value }} style={[styles.row, { gap: space.xs, paddingVertical: 4 }]}>
+    <TouchableOpacity onPress={() => onChange(!value)} accessibilityRole="checkbox" accessibilityState={{ checked: !!value }} accessibilityLabel={required ? `${label} (påkrevd)` : label} style={[styles.row, { gap: space.xs, paddingVertical: 4 }]}>
       <Ionicons name={value ? 'checkbox' : 'square-outline'} size={20} color={value ? colors.brand : colors.muted} />
-      <Text style={{ color: colors.ink, flex: 1, fontSize: 14 }}>{label}</Text>
+      <Text style={{ color: colors.ink, flex: 1, fontSize: 14 }}>{label}{required ? <Text style={{ color: colors.dangerInk || colors.danger }}> *</Text> : null}</Text>
     </TouchableOpacity>
   );
 }

@@ -9,7 +9,7 @@
  * Firmaopplysninger skrives som flettefelt ({{firma}}, {{orgnr}} …), se tokens.js.
  * Personopplysninger fra de gamle dokumentene (navn, adresser, fødselsnummer) er ikke med.
  */
-import { blankDocInfo, blankSettings, emptyAnswer, normalizeBuilderField, tableColumn, tableRow } from '../anbud/formBuilder.js';
+import { blankDocInfo, blankSettings, emptyAnswer, normalizeBuilderField, tableColumn, tableRow, tableRows } from '../anbud/formBuilder.js';
 
 export const LIBRARY_GROUPS = [
   { id: 'generelt', label: 'Generelt', icon: 'document-text-outline' },
@@ -833,6 +833,65 @@ export const KS_LIBRARY = [
   SYS('dokumentliste', 'C1-A-01-001', 'styring', 'Dokumentliste internt og eksternt', { tab: 'iso', subView: 'dokumenter', label: 'ISO / K-HMS › Dokumenter' }, 'Dokumentregisteret erstatter listene.'),
   SYS('oppdragsavtale', 'C1-H-03-001', 'generelt', 'Oppdragsavtale NS 8403', { tab: 'kontrakt', label: 'Avtaler' }, 'Avtalemodulen lager, sender og signerer oppdragsavtalen.'),
 ];
+
+/**
+ * KS-sjekklister og vernerunder der et svar betyr avvik (ISO-17). Tabellen og kolonnene finnes på etiketten,
+ * som er fast i malene. ISO viser radene under Avvik, og hver kan bli en sak med ett trykk.
+ * type: sakstypen i ISO (farlige forhold fra vernerunde og kontroller er RUH).
+ */
+export const KS_DEVIATION_MARKS = {
+  sjekkliste: { table: 'Sjekkpunkter', column: 'J/N/I', values: ['N'], point: ['Sjekkpunkt', 'Lokasjon', 'Pos'], comment: 'Status/merk', responsible: 'Ansvar', type: 'prosess' },
+  'el-kontroll': { table: 'Sjekkpunkter', column: 'J/N/I', values: ['N'], point: ['Sjekkpunkt', 'Pos'], comment: 'Status/merk', responsible: 'Ansvar', type: 'nestenulykke' },
+  sja: { table: 'Sjekkpunkter', column: 'Ja/Nei', values: ['Nei'], point: ['Sjekkpunkt', 'Nr'], comment: 'Tekst/tiltak', deadline: 'Frist', type: 'nestenulykke' },
+  vernerunde: { table: 'Sjekkpunkter', column: 'Status', values: ['Avvik'], point: ['Sjekkpunkt'], comment: 'Kommentar / tiltak', deadline: 'Tidsfrist', responsible: 'Ansvarlig', type: 'nestenulykke' },
+};
+
+function columnId(field, label) {
+  return (field?.columns || []).find((c) => String(c.label || '').trim() === label)?.id || '';
+}
+
+/**
+ * Radene som er merket som avvik i en utfylt KS-sjekkliste (malen i Skjemabygger med libraryKey).
+ * Både svar (responses) og det som er fylt ut i selve malen tas med. Hver rad får en fast nøkkel
+ * (mal:svar:felt:rad), så den bare kan bli én sak.
+ */
+export function ksDeviationRows(template) {
+  const mark = KS_DEVIATION_MARKS[template?.libraryKey];
+  if (!mark) return [];
+  const field = (template.fields || []).find((f) => f?.kind === 'table' && String(f.label || '').trim() === mark.table);
+  const markCol = columnId(field, mark.column);
+  if (!field || !markCol) return [];
+  const pointCols = (mark.point || []).map((l) => columnId(field, l)).filter(Boolean);
+  const pick = (cells, preset, label) => {
+    const id = label ? columnId(field, label) : '';
+    return id ? String(cells?.[id] || preset?.[id] || '').trim() : '';
+  };
+  const sources = [
+    { id: 'mal', at: String(template.updatedAt || ''), value: field.value },
+    ...(template.responses || []).map((r) => ({ id: r.id, at: String(r.at || ''), value: r.answers?.[field.id] })),
+  ];
+  const out = [];
+  for (const src of sources) {
+    if (!src.value || typeof src.value !== 'object') continue;
+    for (const row of tableRows({ ...field, value: src.value })) {
+      if (row.group) continue;
+      const value = String(row.cells?.[markCol] || '').trim();
+      if (!mark.values.includes(value)) continue;
+      const point = pointCols.map((id) => String(row.cells?.[id] || row.preset?.[id] || '').trim()).filter(Boolean)[0] || 'Sjekkpunkt';
+      out.push({
+        key: `${template.id}:${src.id}:${field.id}:${row.id}`,
+        point,
+        mark: value,
+        comment: pick(row.cells, row.preset, mark.comment),
+        responsible: pick(row.cells, row.preset, mark.responsible),
+        deadline: pick(row.cells, row.preset, mark.deadline),
+        at: src.at,
+        type: mark.type,
+      });
+    }
+  }
+  return out;
+}
 
 export function libraryEntry(key) {
   return KS_LIBRARY.find((row) => row.key === key) || null;

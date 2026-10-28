@@ -5,31 +5,12 @@
  * Feiler lagringen, rulles visningen tilbake og feilen vises.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, checksum, todayKey } from '../../src/iso/core';
-import { notifyUsers } from '../../src/utils/notifications';
+import { checksum } from '../../src/iso/core';
 import { emptyIsoState, replaceIn } from '../../src/iso/state';
 import {
-  appendAudit, appendReadAck, completeIsoTask, ensureAccessMirror, ensureTask, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
+  appendAudit, appendReadAck, ensureAccessMirror, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
 } from '../../src/iso/storage';
-
-/** Oppgaver og varsler fra skjermede saker får ingen detaljer i Oppgaver (som alle i selskapet kan se). */
-function safeEffects(effects, entity) {
-  if (!entity?.restricted) return effects;
-  const title = `Skjermet sak ${entity.number || ''}: åpne ISO → Avvik`.replace('  ', ' ');
-  return (effects || []).map((e) => {
-    if (e.type === 'push') return { ...e, body: title };
-    return e.type === 'createTask' || e.type === 'requestApproval' || e.type === 'notify'
-      ? { ...e, title, description: 'Detaljer vises bare i ISO for dem som har tilgang til saken.' }
-      : e;
-  });
-}
-
-/** Saksnummeret byttes i tekster når telleren ga et annet nummer enn det klienten regnet ut. */
-function renumberEffects(effects, from, to) {
-  if (!from || !to || from === to) return effects;
-  const swap = (s) => (typeof s === 'string' ? s.split(from).join(to) : s);
-  return (effects || []).map((e) => ({ ...e, title: swap(e.title), description: swap(e.description), body: swap(e.body) }));
-}
+import { renumberEffects, runIsoEffects, safeEffects } from './isoEffects';
 
 export function useIsoStore({ companyId, actor, family = null, employees = null, ready = true }) {
   const [state, setState] = useState(() => peekIsoState(companyId, actor?.uid) || emptyIsoState());
@@ -66,41 +47,11 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Varsel i ProTop (og push på mobil) via den vanlige varselsmekanismen. Feil stopper ikke lagringen.
-  const push = useCallback((uids, title, body) => notifyUsers(uids, {
-    eventType: 'taskReceived', title, body, familyId: companyId, createdBy: actor?.uid || null,
-  }).catch(() => null), [companyId, actor?.uid]);
-
   const runEffects = useCallback(async (effects) => {
-    const roleMap = stateRef.current.system?.roleMap || {};
-    let created = 0;
-    for (const e of effects || []) {
-      if (e.type === 'completeTask') {
-        await completeIsoTask(companyId, e.key);
-        continue;
-      }
-      if (e.type === 'push') {
-        await push(e.uids || [], e.title || 'ISO / K-HMS', e.body || '');
-        continue;
-      }
-      if (!['createTask', 'requestApproval', 'notify'].includes(e.type)) continue;
-      const mapped = roleMap[e.roleKey] || Object.values(roleMap).find((r) => r?.label && r.label === e.roleLabel) || null;
-      const id = await ensureTask(companyId, {
-        key: e.key,
-        title: e.type === 'requestApproval' ? `Godkjenn: ${e.title}` : e.title,
-        description: [e.description, e.roleLabel ? `Ansvarlig rolle: ${e.roleLabel}` : '', 'Opprettet fra ISO / K-HMS.'].filter(Boolean).join('\n'),
-        assigneeUid: e.assigneeUid || mapped?.uid || '',
-        deadline: e.deadline || (e.dueDays != null ? addDays(todayKey(), e.dueDays) : null),
-        createdByUid: actor?.uid || '',
-        source: 'iso',
-      });
-      if (id) created += 1;
-      const to = e.assigneeUid || mapped?.uid || '';
-      if (id && e.push && to) await push([to], 'Ny oppgave fra ISO', e.title);
-    }
+    const created = await runIsoEffects(companyId, effects, { actor, system: stateRef.current.system });
     if (created) refreshTasks();
     return created;
-  }, [companyId, actor?.uid, refreshTasks, push]);
+  }, [companyId, actor, refreshTasks]);
 
   /**
    * kind: findings | processes | instances | documents | forms | submissions | requirements | records | system

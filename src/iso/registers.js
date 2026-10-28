@@ -73,6 +73,7 @@ export const REGISTERS = {
       { key: 'influence', label: 'Påvirkning på ledelsessystemet', type: 'select', options: opt(['Høy', 'Middels', 'Lav']) },
       { key: 'followUp', label: 'Hvordan følges forventningene opp', type: 'long' },
       { key: 'binding', label: 'Bindende forpliktelse', type: 'select', options: opt(['Ja', 'Nei']) },
+      { key: 'climate', label: 'Klimakrav og -forventninger (Amd 1:2024)', type: 'long' },
       { key: 'ownerName', label: 'Eier', type: 'person' },
       { key: 'nextReview', label: 'Neste vurdering', type: 'date' },
     ], states: ['aktiv', 'arkivert'],
@@ -206,7 +207,6 @@ export const REGISTERS = {
       { key: 'certificates', label: 'Sertifikater', type: 'long' },
       { key: 'diligence', label: 'Aktsomhetsvurdering (åpenhetsloven)', type: 'select', options: opt(['Utført', 'Ikke utført', 'Ikke relevant']) },
       { key: 'agreementUrl', label: 'Gyldig avtale (lenke)', type: 'text' },
-      { key: 'deviations', label: 'Registrerte avvik', type: 'select', options: opt(['Nei', 'Ja']) },
       { key: 'approval', label: 'Status', type: 'select', options: opt(['Ikke vurdert', 'Godkjent', 'Betinget godkjent', 'Ikke godkjent']), required: true },
       { key: 'score', label: 'Siste evaluering (1–5)', type: 'scale' },
       { key: 'ownerName', label: 'Ansvarlig', type: 'person' },
@@ -242,6 +242,7 @@ export const REGISTERS = {
     title: 'Internrevisjon', prefix: 'REV', area: 'internalAudit', fields: [
       { key: 'title', label: 'Revisjon', type: 'text', required: true },
       { key: 'scope', label: 'Omfang (prosesser/enheter)', type: 'long', required: true },
+      { key: 'scopeProcessIds', label: 'Prosesser i omfanget (revisjonsprogrammet)', type: 'refmulti', ref: 'process' },
       { key: 'criteria', label: 'Kriterier', type: 'long', required: true },
       { key: 'standards', label: 'Standarder', type: 'multi', options: opt(['ISO 9001', 'ISO 14001', 'ISO 45001', 'Lovkrav']) },
       { key: 'auditorName', label: 'Revisor', type: 'person', required: true },
@@ -258,7 +259,7 @@ export const REGISTERS = {
       { key: 'meetingDate', label: 'Møtedato', type: 'date', required: true },
       { key: 'participants', label: 'Deltakere', type: 'long', required: true },
       { key: 'assessment', label: 'Vurdering av systemets egnethet, tilstrekkelighet og effektivitet', type: 'long' },
-    ], states: ['planlagt', 'gjennomfort', 'godkjent'],
+    ], states: ['planlagt', 'gjennomfort', 'godkjent', 'lukket'],
   },
   sertifikat: {
     title: 'Sertifisering', prefix: 'SER', area: 'scope', fields: [
@@ -467,11 +468,12 @@ function clean(key, values) {
   return out;
 }
 
-export function createRecord(key, values, { actor, existing = [], now = new Date(), riskMethod = DEFAULT_RISK_METHOD } = {}) {
+export function createRecord(key, values, { actor, existing = [], now = new Date(), riskMethod = DEFAULT_RISK_METHOD, draft = false } = {}) {
   const def = registerDef(key);
   if (!def) return fail('Ukjent register.');
   values = withDefaults(key, values);
-  const errors = validateRecord(key, values);
+  // Utkast (startpakken): påkrevde felt kan mangle, de fylles ut før posten tas i bruk. Feil format stoppes likevel.
+  const errors = validateRecord(key, values).filter((e) => !(draft && / må fylles ut\.$/.test(e)));
   if (errors.length) return fail(errors[0], { errors });
   const data = clean(key, values);
   const record = bump({
@@ -520,7 +522,48 @@ const LOCKING_REGISTERS = ['ledelse', 'revisjon'];
 /** Statuser etter godkjenning. Låsen beholdes; bare å gå tilbake til før godkjenning opphever den. */
 const APPROVED_STATES = ['godkjent', 'oppfolging', 'lukket'];
 
-export function setRecordState(record, state, { actor, now = new Date(), note = '', caps = null } = {}) {
+/**
+ * Rekkefølgen i internrevisjon og ledelsens gjennomgang. En revisjonsrapport godkjennes bare fra
+ * «Rapport», og rapporten kommer etter at revisjonen er gjennomført. Andre registre settes fritt.
+ */
+const STATE_FLOW = {
+  revisjon: {
+    planlagt: ['pagar', 'avlyst'],
+    pagar: ['rapport', 'planlagt', 'avlyst'],
+    rapport: ['godkjent', 'pagar'],
+    godkjent: ['oppfolging', 'lukket'],
+    oppfolging: ['lukket'],
+    lukket: ['oppfolging'],
+    avlyst: ['planlagt'],
+  },
+  ledelse: {
+    planlagt: ['gjennomfort', 'godkjent'],
+    gjennomfort: ['godkjent', 'planlagt'],
+    godkjent: ['lukket'],
+    lukket: ['godkjent'],
+  },
+};
+/** Der en godkjenner går tilbake til for å oppheve godkjenningen (med begrunnelse). */
+const REVOKE_TO = { revisjon: 'rapport', ledelse: 'gjennomfort' };
+
+/** Statusene posten kan settes til herfra (knappene i UI). */
+export function nextStates(record) {
+  const def = registerDef(record?.register);
+  if (!def) return [];
+  const flow = STATE_FLOW[record.register]?.[record.state];
+  const next = flow ? [...flow] : def.states.filter((s) => s !== record.state);
+  const back = REVOKE_TO[record.register];
+  if (record.locked && back && !next.includes(back)) next.push(back);
+  return next.filter((s) => s !== record.state && def.states.includes(s));
+}
+
+function flowError(record, state) {
+  if (record.register === 'revisjon' && state === 'godkjent') return 'Rapporten godkjennes fra «Rapport». Registrer funn, skriv konklusjonen og sett status til «Rapport» først.';
+  if (record.register === 'revisjon' && state === 'rapport') return 'Revisjonen må være gjennomført («Pågår») før rapporten.';
+  return 'Den statusen kan ikke velges herfra.';
+}
+
+export function setRecordState(record, state, { actor, now = new Date(), note = '', caps = null, tasks = null } = {}) {
   const def = registerDef(record?.register);
   if (!def) return fail('Ukjent register.');
   if (!def.states.includes(state)) return fail('Ugyldig status.');
@@ -530,6 +573,28 @@ export function setRecordState(record, state, { actor, now = new Date(), note = 
   // Tilbake til før godkjenning (f.eks. «planlagt») opphever godkjenningen: krever begrunnelse, og ny godkjenning låser igjen.
   const revoke = !!record.locked && !APPROVED_STATES.includes(state);
   if (revoke && text(note).length < 5) return fail('Begrunn hvorfor godkjenningen oppheves.');
+  const allowed = STATE_FLOW[record.register]?.[record.state];
+  if (!revoke && allowed && !allowed.includes(state)) return fail(flowError(record, state));
+  // Internrevisjon: revisor er valgt og uavhengigheten bekreftet før revisjonen starter (9.2.2 c).
+  if (record.register === 'revisjon' && ['pagar', 'rapport', 'godkjent'].includes(state) && !APPROVED_STATES.includes(record.state)) {
+    const missing = auditReadyError(record);
+    if (missing) return fail(missing);
+  }
+  // Internrevisjon: funn og konklusjon før rapport og godkjenning (9.2.2 e). «Samsvar» er også et funn.
+  if (record.register === 'revisjon' && ['rapport', 'godkjent'].includes(state) && !APPROVED_STATES.includes(record.state)) {
+    if (!(record.findings || []).length) return fail('Registrer minst ett funn før rapporten («Samsvar» teller også).');
+    if (text(record.conclusion).length < 10) return fail('Skriv konklusjonen før revisjonen går til rapport eller godkjenning.');
+  }
+  // Ledelsens gjennomgang lukkes når alle vedtak er fulgt opp (i ISO eller i Oppgaver).
+  if (record.register === 'ledelse' && state === 'lukket') {
+    const open = (record.decisions || []).filter((d) => !decisionCompleted(d, tasks));
+    if (open.length) return fail(`${open.length} vedtak er ikke gjennomført ennå. Gjennomgangen lukkes når alle vedtak er fulgt opp.`);
+  }
+  // Ledelsens gjennomgang: grunnlag med alle punktene i 9.3.2, konklusjon og output før godkjenning.
+  if (record.register === 'ledelse' && state === 'godkjent' && record.state !== 'godkjent') {
+    const blockers = reviewApprovalBlockers(record);
+    if (blockers.length) return fail(blockers[0], { blockers });
+  }
   const locked = LOCKING_REGISTERS.includes(record.register) && (state === 'godkjent' || (!!record.locked && !revoke));
   const next = bump({
     ...record,
@@ -766,9 +831,49 @@ export const AUDIT_FINDING_CLASSES = [
   { id: 'avvik', label: 'Avvik' },
 ];
 
+/**
+ * Uavhengighet (9.2.2 c): prosesser i omfanget som revisor selv eier. Revisor skal ikke revidere eget arbeid;
+ * avkrysningen alene er ikke nok.
+ */
+export function auditIndependenceConflicts(audit, processes = []) {
+  const ids = new Set(audit?.scopeProcessIds || []);
+  const uid = text(audit?.auditorUid, 128);
+  const name = text(audit?.auditorName, 160).toLowerCase();
+  return (processes || []).filter((p) => ids.has(p.id) && ((uid && p.ownerUid === uid) || (name && text(p.ownerName, 160).toLowerCase() === name)));
+}
+
+/**
+ * Revisjonsprogram (9.2.2 a): hvilke publiserte prosesser er revidert de siste årene (revisjoner med
+ * prosessene i omfanget, ikke avlyst). Gir rader per prosess med revisjonene per år, og prosessene som ikke
+ * er revidert i perioden.
+ */
+export function auditCoverage(records, processes = [], { years = 3, now = new Date() } = {}) {
+  const last = (now instanceof Date ? now : new Date(now)).getFullYear();
+  const span = Array.from({ length: years }, (_, i) => last - years + 1 + i);
+  const audits = (records || []).filter((a) => a.state !== 'avlyst' && (a.scopeProcessIds || []).length);
+  const rows = (processes || []).filter((p) => p.publishedVersion && !p.archived).map((p) => {
+    const byYear = {};
+    for (const y of span) {
+      byYear[y] = audits.filter((a) => (a.scopeProcessIds || []).includes(p.id) && Number(String(a.plannedDate || '').slice(0, 4)) === y)
+        .map((a) => ({ id: a.id, number: a.number, state: a.state }));
+    }
+    return { process: p, byYear, covered: span.some((y) => byYear[y].length) };
+  });
+  return { years: span, rows, uncovered: rows.filter((r) => !r.covered).map((r) => r.process) };
+}
+
+/** Hva som mangler før revisjonen kan starte: revisor og bekreftet uavhengighet. Tom tekst = klar. */
+export function auditReadyError(audit) {
+  if (!text(audit?.auditorName)) return 'Velg revisor før revisjonen starter.';
+  if (!audit?.independence) return 'Bekreft at revisor ikke reviderer eget arbeid før revisjonen starter.';
+  return '';
+}
+
 export function addAuditFinding(audit, input, { actor, now = new Date() } = {}) {
   if (audit?.register !== 'revisjon') return fail('Ikke en revisjon.');
   if (audit.locked || ['lukket', 'avlyst', 'godkjent'].includes(audit.state)) return fail('Revisjonen er avsluttet eller godkjent og låst.');
+  const notReady = auditReadyError(audit);
+  if (notReady) return fail(notReady);
   if (!AUDIT_FINDING_CLASSES.some((c) => c.id === input?.classification)) return fail('Klassifiser funnet.');
   if (!text(input?.description)) return fail('Beskriv funnet.');
   if (input.classification !== 'samsvar' && !text(input?.evidence)) return fail('Beskriv objektivt bevis for funnet.');
@@ -813,6 +918,63 @@ export function linkAuditFinding(audit, auditFindingId, findingId) {
 }
 
 /* ───────── Ledelsens gjennomgang ───────── */
+
+/** Punktene i 9.3.2 a–f som grunnlaget alltid skal dekke (seksjonene i reviewInput.js). */
+export const REVIEW_INPUTS = ['previous', 'context', 'satisfaction', 'objectives', 'process', 'nonconformity', 'monitoring', 'audits', 'suppliers', 'resources', 'risks', 'improvement'];
+
+/** Punkter et lagret grunnlag mangler. Eldre grunnlag (før seksjonene) mangler alle. */
+export function missingReviewInputs(snapshot) {
+  const have = new Set((snapshot?.sections || []).map((x) => x.key));
+  return REVIEW_INPUTS.filter((k) => !have.has(k));
+}
+
+/** Output fra gjennomgangen (9.3.3): forbedringer, endringsbehov og ressursbehov. Hver krever vedtak eller begrunnet «ingen». */
+export const REVIEW_OUTPUTS = [
+  { kind: 'forbedring', label: 'Muligheter for forbedring' },
+  { kind: 'endring', label: 'Behov for endringer i ledelsessystemet' },
+  { kind: 'ressurs', label: 'Behov for ressurser' },
+];
+
+/**
+ * Hva mangler før referatet kan godkjennes? Grunnlag med alle punktene i 9.3.2, konklusjon om systemets
+ * egnethet, tilstrekkelighet og effektivitet, og vedtak eller begrunnet «ingen» per output i 9.3.3.
+ * Grunnlag uten skjermede HMS-saker krever bekreftelse (restrictedConfirmed).
+ */
+export function reviewApprovalBlockers(record, { restrictedConfirmed = false } = {}) {
+  if (record?.register !== 'ledelse') return [];
+  const out = [];
+  const snap = record.snapshot;
+  if (!snap) out.push('Hent grunnlaget før referatet godkjennes.');
+  else {
+    const missing = missingReviewInputs(snap);
+    if (missing.length) out.push('Grunnlaget er hentet med en eldre versjon og mangler punkter i 9.3.2. Hent grunnlaget på nytt.');
+    if (snap.restrictedIncluded === false && !restrictedConfirmed && !record.restrictedConfirmed) {
+      out.push('Grunnlaget er hentet uten skjermede HMS-saker. La en med særskilt tilgang hente det, eller bekreft at det ikke finnes skjermede saker i perioden.');
+    }
+  }
+  if (text(record.assessment).length < 20) out.push('Skriv konklusjonen: er systemet egnet, tilstrekkelig og effektivt?');
+  for (const o of REVIEW_OUTPUTS) {
+    const decided = (record.decisions || []).some((d) => d.kind === o.kind);
+    if (!decided && text(record.outputs?.[o.kind]).length < 5) out.push(`${o.label}: legg inn vedtak, eller begrunn at det ikke trengs.`);
+  }
+  return out;
+}
+
+/** Konklusjon og begrunnelse for output uten vedtak (9.3.3). Ikke etter godkjenning. */
+export function setReviewConclusion(record, input, { actor, now = new Date() } = {}) {
+  if (record?.register !== 'ledelse') return fail('Ikke en ledelsens gjennomgang.');
+  if (record.locked) return fail('Referatet er godkjent og låst.');
+  const outputs = {};
+  for (const o of REVIEW_OUTPUTS) outputs[o.kind] = text(input?.outputs?.[o.kind] ?? record.outputs?.[o.kind], 2000);
+  const next = bump({
+    ...record,
+    assessment: text(input?.assessment ?? record.assessment, 6000),
+    outputs,
+    restrictedConfirmed: input?.restrictedConfirmed == null ? !!record.restrictedConfirmed : !!input.restrictedConfirmed,
+    history: pushHistory(record, 'Konklusjon lagret', actor, '', now),
+  }, actor, now);
+  return { ok: true, record: next, events: [auditEvent({ entityType: 'ledelse', entityId: record.id, action: 'iso.review.conclusion', actor, before: record, after: next, now })] };
+}
 
 /** Låser inndata som snapshot når referatet godkjennes (T17). */
 export function attachReviewSnapshot(record, snapshot, { actor, now = new Date() } = {}) {

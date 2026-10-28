@@ -3,20 +3,23 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate } from '../../src/iso/core';
-import { STANDARDS } from '../../src/iso/catalog';
+import { STANDARDS, standardLabel } from '../../src/iso/catalog';
 import { visibleFindings } from '../../src/iso/access';
 import {
   closedWithinDeadline, findingFunnel, findingTrend, kpis, requirementStatusDistribution, riskMatrixData, upcomingActivities,
 } from '../../src/iso/analytics';
 import { openActions } from '../../src/iso/findings';
 import {
-  actionsDoneInTasks, contractReviewStatus, hrCarryOver, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, sickLeaveSeries,
+  actionsDoneInTasks, contractReviewStatus, equipmentStatus, hrCarryOver, legacyProjectCases, mileageSeries, projectQuality, readinessChecklist, rolesWithoutLogin, sickLeaveSeries,
 } from '../../src/iso/integrations';
+import { roleLabel } from '../../src/iso/catalog';
 import { recordsNeedingReview } from '../../src/iso/registers';
 import { annualWheel, pageLabel } from '../../src/iso/planning';
+import { READY_STATUS, certificationReadiness } from '../../src/iso/readiness';
 import { RiskMatrix, StatusDonut, TrendBars, HBars } from './isoCharts';
 import { postDate, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, Choice, Empty, ListRow, Page, Pill, Row } from './isoUi';
+import QuickReportButton from './QuickReport';
 
 export default function IsoDashboard({ ctx }) {
   const colors = useColors();
@@ -35,6 +38,9 @@ export default function IsoDashboard({ ctx }) {
   const mine = useMemo(() => openActions(findings).filter((a) => a.ownerUid && a.ownerUid === actor.uid), [findings, actor.uid]);
   const active = (state.instances || []).filter((i) => i.state === 'aktiv');
   const ready = useMemo(() => readinessChecklist(state, { people }), [state, people]);
+  const certReady = useMemo(() => (caps.manage ? certificationReadiness(state, {
+    people, projects: sources.projects, contracts: sources.contracts, equipment: sources.equipment,
+  }) : null), [caps.manage, state, people, sources.projects, sources.contracts, sources.equipment]);
   const profile = state.system?.profile || null;
   const published = useMemo(() => (state.documents || []).filter((d) => !d.archived && d.publishedRevision), [state.documents]);
   const policies = published.filter((d) => d.docType === 'policy').sort((a, b) => String(a.code).localeCompare(String(b.code), 'nb', { numeric: true }));
@@ -46,6 +52,14 @@ export default function IsoDashboard({ ctx }) {
     const out = [];
     const doneInTasks = actionsDoneInTasks(findings, store?.tasks);
     if (doneInTasks.length) out.push({ key: 'tasks', icon: 'checkmark-done-outline', tone: 'info', title: `${doneInTasks.length} tiltak er ferdig i Oppgaver`, text: 'Kontroller og meld dem utført i saken.', page: 'avvik', params: { ids: doneInTasks.map((a) => a.findingId), label: 'Ferdig i Oppgaver' } });
+    // Oppgaver til en rolle uten innlogging går til ISO-ansvarlig, ikke til den som åpnet ISO.
+    const noLogin = rolesWithoutLogin(state.system);
+    if (noLogin.length) out.push({ key: 'nologin', icon: 'person-remove-outline', tone: 'warn', title: `${noLogin.length} ISO-roller uten innlogging`, text: `${noLogin.slice(0, 3).map((r) => `${roleLabel(r.role)}: ${r.name}`).join(' · ')}. Oppgavene deres går til ISO-ansvarlig til personen er koblet til en bruker.`, page: 'innstillinger' });
+    // Kontroll og kalibrering (7.1.5) fra Utstyr: passert frist sperrer reservasjon.
+    const gear = equipmentStatus(sources.equipment);
+    if (gear.controlsOverdue.length || gear.measuringWithoutControl.length) {
+      out.push({ key: 'gear', icon: 'speedometer-outline', tone: 'warn', title: `${gear.controlsOverdue.length} kontroller eller kalibreringer er forfalt`, text: [gear.controlsOverdue.slice(0, 3).map((x) => `${x.control.label}: ${x.equipment.name}`).join(' · '), gear.measuringWithoutControl.length ? `${gear.measuringWithoutControl.length} måleutstyr uten kalibrering` : ''].filter(Boolean).join(' · '), tab: 'utstyr' });
+    }
     const legacy = legacyProjectCases(sources.projectState, state.findings);
     if (legacy.length) out.push({ key: 'legacy', icon: 'briefcase-outline', tone: 'warn', title: `${legacy.length} avvik/RUH i Prosjekt er ikke behandlet i ISO`, text: 'Ta dem inn med ett trykk – uten ny registrering.', page: 'avvik' });
     const pq = projectQuality(sources.projects, state, findings).filter((r) => !r.plan);
@@ -72,7 +86,7 @@ export default function IsoDashboard({ ctx }) {
     <Page
       wide={wide}
       title="Oversikt"
-      intro={`${state.system.name || 'Ledelsessystem'} · ${standards.map((s) => s.label).join(' · ') || 'Ingen standarder aktivert'}`}
+      intro={`${state.system.name || 'Ledelsessystem'} · ${standards.map((s) => standardLabel(s.code, state.system.editions)).join(' · ') || 'Ingen standarder aktivert'}`}
       actions={(
         <>
           <Btn kind="primary" icon="add" label="Meld avvik" onPress={() => go('avvik', { create: true })} />
@@ -81,6 +95,7 @@ export default function IsoDashboard({ ctx }) {
         </>
       )}
     >
+      <QuickReportButton onSent={ctx.onQuickSent} />
       <Banner tone="info" text="Statusene her er interne vurderinger av eget ledelsessystem. De er ikke en sertifisering eller bekreftet lovetterlevelse." />
 
       {profile?.vision || profile?.values?.length || policies.length || news.length ? (
@@ -126,6 +141,16 @@ export default function IsoDashboard({ ctx }) {
         ))}
       </View>
 
+      {certReady?.standards.length ? (
+        <Card title="Sertifiseringsklar" subtitle="Kapittel 4–10 per standard, regnet fra dataene i ProTop." onPress={() => go('sertifisering')} accessibilityLabel="Åpne sertifiseringsklar">
+          <Row>
+            {certReady.standards.map((x) => (
+              <Pill key={x.code} icon={READY_STATUS[x.status].icon} tone={READY_STATUS[x.status].tone} label={`${x.label}: ${x.counts.mangler} mangler · ${x.counts.delvis} delvis`} />
+            ))}
+          </Row>
+        </Card>
+      ) : null}
+
       {(caps.manage && ready.done < ready.total) || insights.length ? (
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
       {caps.manage && ready.done < ready.total ? (
@@ -141,7 +166,7 @@ export default function IsoDashboard({ ctx }) {
 
           {insights.length ? (
             <Card style={{ flex: 1, width: wide ? undefined : '100%' }} title="Fra resten av ProTop" subtitle="Hentet fra Prosjekt, Kontrakt, HR, Kjørebok, Fravær og Oppgaver. Eies fortsatt av modulene.">
-              {insights.map((x) => <ListRow key={x.key} icon={x.icon} tone={x.tone} title={x.title} subtitle={x.text} onPress={() => go(x.page, x.params || {})} />)}
+              {insights.map((x) => <ListRow key={x.key} icon={x.icon} tone={x.tone} title={x.title} subtitle={x.text} onPress={() => (x.tab ? ctx.requestTab?.(x.tab) : go(x.page, x.params || {}))} />)}
             </Card>
           ) : null}
         </View>

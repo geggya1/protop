@@ -297,6 +297,68 @@ describe('invitasjoner (SEC-04)', () => {
     await assertSucceeds(getDoc(doc(as('mal'), 'families', A, 'memberInvites', 'inv_ldr')));
   });
 
+  test('REV-16: ny invitasjon til en tidligere ansatt (eksisterende bruker) fra HR, ikke administrator', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      // Medlemsdokumentet etter at ansettelsen ble avsluttet (removeMembership). Laget av eieren.
+      await setDoc(doc(ctx.firestore(), 'families', A, 'parents', 'gammel'), {
+        uid: 'gammel', email: 'gammel@firma.no', familyId: A, createdBy: 'own', active: false, admin: false,
+        placeholder: false, inviteStatus: 'accepted', leftAt: '2026-09-01T10:00:00.000Z', leftReason: 'ended', endedBy: 'own',
+      });
+    });
+    const db = as('hr');
+    const id = 'inv_gammel';
+    const payload = invite({ inviteeUid: 'gammel', inviteeEmail: 'gammel@firma.no', invitedBy: 'hr', matchedBy: 'email' });
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'families', A, 'memberInvites', id), payload);
+    // Det inviteExistingAdult skriver (src/utils/groups.js).
+    batch.set(doc(db, 'families', A, 'parents', 'gammel'), {
+      uid: 'gammel', name: 'Gammel', email: 'gammel@firma.no', phone: '', username: '', usernameLower: '',
+      photoURL: '', avatarId: null, familyId: A, createdBy: 'hr', createdAt: serverTimestamp(), invitedAt: serverTimestamp(),
+      inviteStatus: 'pending', inviteKind: 'existing', inviteId: id, active: false, emailVerified: true,
+      placeholder: true, admin: false, superAdmin: false, deleted: false, archived: false, adultRole: 'parent', isGrandparent: false,
+    }, { merge: true });
+    batch.set(doc(db, 'users', 'gammel', 'familyInvites', id), { ...payload, inviteId: id }, { merge: true });
+    await assertSucceeds(batch.commit());
+  });
+
+  test('REV-16: et medlem legger en plassholder en annen har laget, på nytt i eget navn', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fs = ctx.firestore();
+      await updateDoc(doc(fs, 'families', F), { members: ['mor', 'far', 'kid'], activeUsers: ['mor', 'far', 'kid'] });
+      // Ventende plassholder for bestemor laget av mor (eldre, uten telefonfelt).
+      await setDoc(doc(fs, 'families', F, 'parents', 'ph_bestemor'), {
+        uid: 'ph_bestemor', email: 'bm@x.no', placeholder: true, inviteStatus: 'pending', active: false, createdBy: 'mor',
+        admin: false, adultRole: 'grandparent', isGrandparent: true,
+      });
+    });
+    const far = as('far');
+    // inviteAdult med samme e-post (deterministisk nøkkel og merge).
+    const again = {
+      uid: 'ph_bestemor', name: 'Bestemor', email: 'bm@x.no', phone: '', familyId: F, createdBy: 'far',
+      createdAt: serverTimestamp(), invitedAt: serverTimestamp(), inviteStatus: 'pending', clientSendsInvite: true,
+      active: false, emailVerified: false, placeholder: true, admin: false, superAdmin: false,
+      deleted: false, archived: false, adultRole: 'grandparent', isGrandparent: true,
+    };
+    await assertSucceeds(setDoc(doc(far, 'families', F, 'parents', 'ph_bestemor'), again, { merge: true }));
+    // Men ikke som administrator, ikke i en annens navn, ikke med ny e-post og ikke med rolle.
+    await assertFails(setDoc(doc(far, 'families', F, 'parents', 'ph_bestemor'), { ...again, admin: true, adultRole: 'parent', isGrandparent: false }, { merge: true }));
+    await assertFails(setDoc(doc(far, 'families', F, 'parents', 'ph_bestemor'), { ...again, createdBy: 'mor2' }, { merge: true }));
+    await assertFails(setDoc(doc(far, 'families', F, 'parents', 'ph_bestemor'), { ...again, email: 'annen@x.no' }, { merge: true }));
+    await assertFails(setDoc(doc(far, 'families', F, 'parents', 'ph_bestemor'), { ...again, staffRole: 'teacher' }, { merge: true }));
+    await assertFails(setDoc(doc(far, 'families', F, 'parents', 'ph_bestemor'), { ...again, superAdmin: true }, { merge: true }));
+    // En administratorinvitasjon uten e-post (bare telefon) kan ikke få en e-post fra et medlem:
+    // syncMyInvites kobler plassholderen på e-posten.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'families', F, 'parents', 'ph_onkel'), {
+        uid: 'ph_onkel', email: '', phone: '+4799887766', placeholder: true, inviteStatus: 'pending', active: false,
+        createdBy: 'mor', admin: true,
+      });
+    });
+    await assertFails(updateDoc(doc(far, 'families', F, 'parents', 'ph_onkel'), { email: 'far2@x.no' }));
+    // Et aktivt medlemsdokument kan ikke legges på nytt (det ville endret en annens medlemskap).
+    await assertFails(setDoc(doc(far, 'families', F, 'parents', 'mor'), { createdBy: 'far', inviteStatus: 'pending', placeholder: true, active: false }, { merge: true }));
+  });
+
   test('svaret skrives av serveren: ingen kan merke invitasjonen godtatt eller bytte avsender', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'families', A, 'memberInvites', 'i1'), invite({ inviteeUid: 'mal', invitedBy: 'ldr' }));

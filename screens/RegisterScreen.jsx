@@ -14,7 +14,7 @@ import { sendVerificationEmailV2 } from '../src/utils/sendVerificationEmail';
 import { fetchInvitePreview } from '../src/utils/invite';
 import { claimPendingFriendInvite } from '../src/utils/friends';
 import { isTeamType } from '../src/utils/teams';
-import { isClassroomType, isOrganizationType } from '../src/utils/groupTypes';
+import { isClassroomType } from '../src/utils/groupTypes';
 import {
   setDoc, doc, serverTimestamp,
 } from 'firebase/firestore';
@@ -123,7 +123,6 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const emailLocked = !!invite.email;
   const isTeamInvite = inviteGroup && !inviteGroup.missing && isTeamType(inviteGroup.type);
   const isClassInvite = inviteGroup && !inviteGroup.missing && isClassroomType(inviteGroup.type);
-  const isCompanyInvite = !!(inviteGroup && !inviteGroup.missing && isOrganizationType(inviteGroup.type));
 
   const handleRegister = async () => {
     if (!legalOk) {
@@ -238,7 +237,7 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                 <Text style={styles.inviteEyebrow}>Venneinvitasjon</Text>
                 <Text style={styles.inviteTitle}>Noen vil gjerne bli venn med deg</Text>
                 <Text style={styles.inviteSub}>
-                  Når du registrerer deg, blir dere venner — uten at du får tilgang til familien deres.
+                  Når du registrerer deg, blir dere venner — uten at du får tilgang til bedriften eller kalenderen deres.
                 </Text>
               </View>
             ) : (
@@ -260,21 +259,18 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                 ) : (
                   <>
                     <Text style={styles.inviteEyebrow}>
-                      {isCompanyInvite
-                        ? 'Invitasjon til bedrift'
-                        : (isTeamInvite
-                          ? 'Invitasjon til idrettslag'
-                          : (isClassInvite ? 'Invitasjon til klasserom' : 'Invitasjon til familie'))}
+                      {isTeamInvite
+                        ? 'Invitasjon til idrettslag'
+                        : (isClassInvite ? 'Invitasjon til klasserom' : 'Invitasjon til bedrift')}
                     </Text>
                     <Text style={styles.inviteTitle}>{inviteGroup?.name}</Text>
                     <Text style={styles.inviteSub}>
-                      {isCompanyInvite
-                        ? 'Du er invitert inn i bedriften. Opprett konto og bekreft e-posten. Deretter må du godta invitasjonen før du blir med i bedriften. Du kan også avslå.'
-                        : (isTeamInvite
-                          ? 'Du er invitert til laget. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'
-                          : (isClassInvite
-                            ? 'Du er invitert til klassen som lærer eller ansatt. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'
-                            : 'Du er invitert som foresatt i familien. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'))}
+                      {/* ProTop: invitasjoner som ikke er til lag eller klasse, gjelder en bedrift. */}
+                      {isTeamInvite
+                        ? 'Du er invitert til laget. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'
+                        : (isClassInvite
+                          ? 'Du er invitert til klassen som lærer eller ansatt. Opprett konto og bekreft e-posten. Deretter godtar eller avslår du invitasjonen.'
+                          : 'Du er invitert inn i bedriften. Opprett konto og bekreft e-posten. Deretter må du godta invitasjonen før du blir med i bedriften. Du kan også avslå.')}
                     </Text>
                     {!!inviteGroup?.joinCode && (isTeamInvite || isClassInvite) ? (
                       <Text style={styles.inviteCode}>

@@ -33,6 +33,7 @@ export const FILES = [
   'functions/deleteAccount.test.mjs',
   'src/privacy/storageNotice.test.mjs',
   'src/i18n/htmlLang.test.mjs',
+  'src/i18n/welcomeB2b.test.mjs',
   'src/hooks/reducedMotion.test.mjs',
   'src/arbeid/absenceHealth.test.mjs',
   'functions/importInterpret.test.mjs',

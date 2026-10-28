@@ -213,8 +213,8 @@ export const MODULE_HERO = {
     kicker: t('Venner', 'Friends'),
     title: t('Venner', 'Friends'),
     pitch: t(
-      'Familien din vises øverst. Venner er personlige — de får ikke tilgang til familieplattformen.',
-      'Your family is shown first. Friends are personal — they never get family platform access.',
+      'Venner er personlige. De får ikke tilgang til bedriften eller kalenderen din.',
+      'Friends are personal. They never get access to your company or calendar.',
     ),
   },
   chat: {

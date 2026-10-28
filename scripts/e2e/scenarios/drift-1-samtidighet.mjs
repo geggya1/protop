@@ -48,6 +48,7 @@ let A; let L; let E;
 
 async function createProject(bot, number, name, customerLabel) {
   await go(bot, 'projects', null, 3500);
+  await bot.page.getByRole('button', { name: 'OK', exact: true }).first().click({ timeout: 3000 }).catch(() => {});
   await bot.click('Nytt prosjekt');
   await bot.click('Opprett prosjekt');
   await bot.page.waitForTimeout(1200);
@@ -71,6 +72,8 @@ try {
 
   // Prosjekt der den ansatte er deltaker uten stjerne (slik Team-fanen legger til) – kan hen få det inn i listen?
   await guard(R, '1.02', 'Ansatt legger til prosjekt hen allerede er deltaker på', async () => {
+    // Personvernmeldingen nederst dekker knappen i en ny nettleser.
+    await A.page.getByRole('button', { name: 'OK', exact: true }).first().click({ timeout: 3000 }).catch(() => {});
     await A.click('Legg til prosjekt');
     await A.click('#101 Tilbygg Oslo');
     await A.page.waitForTimeout(1500);
@@ -157,6 +160,8 @@ try {
     const had = await E.hasText('Hotell E2', { timeout: 4000 });
     await clickInRow(E, 'Hotell E2', 'last', { minChildren: 6 });
     await E.click('Slett');
+    // Sletting krever nå bekreftelse («Ja, slett»).
+    if (await E.hasText('Ja, slett', { timeout: 2000 })) await E.click('Ja, slett');
     await sleep(3000);
     const gone = !(await E.hasText('Hotell E2', { timeout: 1000 }));
     const st = await projectState(C);

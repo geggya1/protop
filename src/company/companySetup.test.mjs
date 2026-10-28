@@ -42,7 +42,17 @@ import { resolveProjectInvoiceSettings } from '../project/invoiceSettings.js';
   expectRow('Foreldrepermisjon (Permisjon)', true, false, true);
   expectRow('Interntid - Administrasjon (Ikke til timebank) (Annet fravær)', false, true, false);
   expectRow('Permittert (Annet fravær)', false, false, false);
-  expectRow('Reisetid - Frøya (Ikke til lønn) (Annet fravær)', false, true, false);
+  expectRow('Reisetid (Ikke til lønn) (Annet fravær)', false, true, false);
+  expectRow('Interntid - Internprosjekt (Ikke til timebank) (Annet fravær)', false, true, false);
+  // Standardtypene har ingen kundenavn (DRIFT-UX).
+  assert.ok(!rows.some((row) => /Frøya|Smartplan/.test(row.label)));
+  // Et selskap med egne typer beholder navnene sine.
+  const own = resolveAbsenceTypes({
+    ...emptyProjectState(),
+    absenceTypesCustom: true,
+    absenceTypes: [{ id: 'reise_uten_lonn', label: 'Reisetid - Frøya (Ikke til lønn)', category: 'Annet fravær', deductBalance: true }],
+  });
+  assert.equal(own[0].label, 'Reisetid - Frøya (Ikke til lønn)');
   expectRow('Sykdom med egenmelding (Sykdom)', true, false, true);
   expectRow('Sykefravær uten lønn (Sykdom)', false, true, false);
   expectRow('Sykt barn (Sykdom)', true, false, true);

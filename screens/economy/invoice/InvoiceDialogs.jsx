@@ -9,6 +9,7 @@ import { dateKey } from '../../../src/utils/dates';
 import { formatDate } from '../../../src/economy/invoices.js';
 import { dueDateFor, invoiceTotals, isCreditNote, issueDates } from '../../../src/economy/invoiceFlow.js';
 import { sectionLabel } from '../../../src/economy/invoiceLines.js';
+import { ehfUnavailableText } from '../../../src/economy/ehf.js';
 import DialogShell from './DialogShell';
 import { Banner, Button, Check, Field, money } from '../billing/ui';
 
@@ -197,6 +198,8 @@ export function SendDialog({
   const [date, setDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [dueTouched, setDueTouched] = useState(false);
+  // Hvorfor dialogen byttet fra EHF til e-post (vises på e-postfanen), eller ''.
+  const [ehfFallback, setEhfFallback] = useState('');
 
   const ehfReady = !!(peppol?.connected && peppol?.receiver?.found && peppol?.receiver?.[credit ? 'creditNote' : 'invoice']);
   useEffect(() => {
@@ -219,6 +222,7 @@ export function SendDialog({
     setDate(dates.invoiceDate);
     setDueDate(dates.dueDate);
     setDueTouched(false);
+    setEhfFallback('');
   }, [visible]);
 
   // Ny fakturadato flytter fristen etter kredittiden, til fristen er valgt selv.
@@ -231,10 +235,14 @@ export function SendDialog({
     }));
   }
 
-  // Når EHF ikke kan brukes (ikke koblet eller mottaker ikke funnet), foreslås e-post.
+  // Når EHF ikke kan brukes (ikke koblet eller mottaker ikke funnet), foreslås e-post,
+  // og dialogen sier hvorfor i stedet for å bytte stille.
   useEffect(() => {
     if (!visible || !peppol || peppol.loading) return;
-    if (channel === 'ehf' && !ehfReady && invoice?.customerEmail) setChannel('email');
+    if (channel === 'ehf' && !ehfReady && invoice?.customerEmail) {
+      setEhfFallback(ehfUnavailableText(invoice, peppol));
+      setChannel('email');
+    }
   }, [peppol?.loading, ehfReady]);
 
   const totals = invoiceTotals(invoice || {});
@@ -400,17 +408,20 @@ export function SendDialog({
                   ) : null}
                   {!peppol?.loading && !ehfReady ? (
                     <Banner tone="warn" colors={colors} title="EHF kan ikke sendes nå">
-                      {!String(invoice?.orgnr || '').replace(/\D/g, '')
-                        ? 'Kunden mangler org.nr. Legg det inn under Rediger, eller send på e-post.'
-                        : (!peppol?.connected
-                          ? 'EHF-sendingen er ikke koblet til et aksesspunkt ennå. Send på e-post nå.'
-                          : 'Fant ikke kunden i Peppol-katalogen. Send på e-post.')}
+                      {ehfUnavailableText(invoice, peppol)}
                     </Banner>
                   ) : null}
                   <View style={styles.inline}>
                     <Check checked={alsoEmail} onPress={() => setAlsoEmail(!alsoEmail)} colors={colors} label="Send også på e-post" />
                     <Text style={{ color: colors.ink }}>I tillegg, send på e-post til</Text>
                   </View>
+                </View>
+              ) : null}
+              {channel === 'email' && ehfFallback ? (
+                <View nativeID="invoice-ehf-fallback">
+                  <Banner tone="warn" colors={colors} title="Sendes på e-post fordi EHF ikke kan brukes">
+                    {ehfFallback}
+                  </Banner>
                 </View>
               ) : null}
               {needsMail ? (

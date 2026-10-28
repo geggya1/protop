@@ -438,3 +438,14 @@ export function validateEhfBasics(invoice, supplier = {}) {
   if (checks.length) return { ok: false, error: checks.join('; '), xml: result.xml };
   return result;
 }
+
+/** Hvorfor EHF ikke kan sendes nå: mangler org.nr., aksesspunkt ikke koblet, eller mottaker ikke funnet. */
+export function ehfUnavailableText(invoice, peppol) {
+  if (!String(invoice?.orgnr || '').replace(/\D/g, '')) {
+    return 'Kunden mangler org.nr. Legg det inn under Rediger, eller send på e-post.';
+  }
+  if (!peppol?.connected) {
+    return 'EHF-sendingen er ikke koblet til et aksesspunkt ennå, så EHF kan ikke sendes fra ProTop. Send på e-post nå.';
+  }
+  return 'Fant ikke kunden i Peppol-katalogen. Send på e-post.';
+}

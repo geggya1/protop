@@ -45,6 +45,7 @@ import ProjectIndexArchive from './ProjectIndexArchive';
 import ProjectEarningsTab from './ProjectEarningsTab';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { teamWithHourParticipants } from '../../src/project/myProjects';
+import { projectStatusLabel } from '../../src/project/statusFilter';
 
 const SALES_MAX_AGE_MS = 2 * 60 * 1000;
 
@@ -277,7 +278,7 @@ export default function ProjectDetail({
         <View style={[styles.statusBadge, { backgroundColor: '#dcfce7', borderColor: '#86efac' }]}>
           <View style={[styles.statusDot, { backgroundColor: '#16a34a' }]} />
           <Text style={{ color: '#166534', fontWeight: '600', fontSize: 12 }}>
-            {project.projectStatus || project.phase || 'Under arbeid'}
+            {projectStatusLabel(project, 'Under arbeid')}
           </Text>
         </View>
       </View>

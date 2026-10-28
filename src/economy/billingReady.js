@@ -74,6 +74,20 @@ export function isApprovedOperation(row) {
   return row?.status === 'approved';
 }
 
+/**
+ * Utlegg og kjøring som venter på godkjenning (utkast) i perioden. De tas ikke med i
+ * Til fakturering, så siden sier fra om dem i stedet for å tie.
+ */
+export function pendingOperations({ expenses = [], trips = [], until = '' } = {}) {
+  const waiting = (row) => !!row && row.billable !== false && !text(row.invoiceId)
+    && (!text(row.status) || row.status === 'draft')
+    && (!until || text(row.date) <= until);
+  return {
+    expenses: (expenses || []).filter(waiting).length,
+    trips: (trips || []).filter(waiting).length,
+  };
+}
+
 function monthOf(day) {
   return text(day).slice(0, 7);
 }

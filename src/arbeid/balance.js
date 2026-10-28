@@ -30,6 +30,40 @@ function sumWhere(rows, from, to, pick) {
   return roundHours(total);
 }
 
+function isoDate(value) {
+  const key = String(value || '').trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(key) ? key : '';
+}
+
+/**
+ * Perioden personen er ansatt («Ansatt fra» / «Ansatt til» på ansattkortet), som datoer.
+ * Avtalte timer før og etter teller ikke i timebanken.
+ */
+export function employmentRange(employee) {
+  const company = employee?.company || {};
+  return { from: isoDate(company.periodFrom), to: isoDate(company.periodTo) };
+}
+
+/** Avtalte timer for dagen, 0 utenfor ansettelsen. */
+function agreedWithin(agreedForDate, key, employedFrom, employedTo) {
+  if (!agreedForDate) return 0;
+  if (employedFrom && key < employedFrom) return 0;
+  if (employedTo && key > employedTo) return 0;
+  return Number(agreedForDate(key)) || 0;
+}
+
+/**
+ * Registrert per dag i timebanken: timer, og fravær som dekker avtalen
+ * (alt unntatt avspasering, som tas ut av timebanken). Samme grunnlag i Timeliste og Timesaldo.
+ */
+function registeredByDate(entries, absences, employeeId, types) {
+  const registered = new Map();
+  const seen = new Set();
+  addRegisteredHours(registered, seen, 'e', entries, employeeId);
+  addRegisteredHours(registered, seen, 'a', absences, employeeId, (row) => !absenceTypeById(row.type, types).flex);
+  return registered;
+}
+
 export function adjustmentHours(adjustments, employeeId, month) {
   const id = String(employeeId || '');
   const key = String(month || '');
@@ -44,6 +78,9 @@ export function adjustmentHours(adjustments, employeeId, month) {
 
 /**
  * @param agreedForDate (dateKey) => hours
+ * employedFrom / employedTo: «Ansatt fra/til». Avtalte timer utenfor teller ikke (en nyansatt
+ * får ikke minus for månedene før hen begynte).
+ * Fleks per dag er registrert (timer og fravær som dekker avtalen) − avtalt, som i timelisten.
  */
 export function buildTimesaldo({
   year,
@@ -55,14 +92,19 @@ export function buildTimesaldo({
   agreedForDate,
   flexCountsAsPay = true,
   types,
+  employedFrom = '',
+  employedTo = '',
 } = {}) {
   const y = Number(year);
   const end = String(throughDate || `${y}-12-31`);
+  const startKey = isoDate(employedFrom);
+  const stopKey = isoDate(employedTo);
   const endYear = Number(end.slice(0, 4)) || y;
   const endMonth = Number(end.slice(5, 7)) - 1;
   const opening = adjustmentHours(adjustments, employeeId, 'opening');
   const mineEntries = (entries || []).filter((row) => row.employeeId === employeeId);
   const mineAbsences = (absences || []).filter((row) => row.employeeId === employeeId);
+  const registered = registeredByDate(mineEntries, mineAbsences, employeeId, types);
   const rows = [{
     id: 'opening',
     kind: 'opening',
@@ -92,10 +134,14 @@ export function buildTimesaldo({
     const partial = to < monthEnd;
     let agreed = 0;
     let agreedFull = 0;
+    let flex = 0;
     for (const day of grid.days) {
-      const hours = agreedForDate ? Number(agreedForDate(day.key)) || 0 : 0;
+      const hours = agreedWithin(agreedForDate, day.key, startKey, stopKey);
       agreedFull = roundHours(agreedFull + hours);
-      if (day.key <= to) agreed = roundHours(agreed + hours);
+      if (day.key <= to) {
+        agreed = roundHours(agreed + hours);
+        flex = roundHours(flex + (registered.get(day.key) || 0) - hours);
+      }
     }
     const actual = sumWhere(mineEntries, from, to);
     const paidAbsence = sumWhere(mineAbsences, from, to, (row) => {
@@ -110,7 +156,6 @@ export function buildTimesaldo({
     const payrollWork = flexCountsAsPay ? actual : roundHours(actual - overtime);
     const payrollIncl = roundHours(payrollWork + paidAbsence);
     const payrollExcl = roundHours(payrollIncl - (flexCountsAsPay ? overtime : 0));
-    const flex = roundHours(actual - agreed);
     const adjustment = adjustmentHours(adjustments, employeeId, `${y}-${String(month + 1).padStart(2, '0')}`);
     saldo = roundHours(saldo + flex + adjustment);
     totals.agreed = roundHours(totals.agreed + agreed);
@@ -166,6 +211,8 @@ function addRegisteredHours(map, seen, prefix, rows, employeeId, allow) {
  * Hver dag er avviket registrert − avtalt. Fravær dekker avtalen, unntatt
  * avspasering som tas ut av timebanken. Inngående er saldo ved månedsskifte
  * (startsaldo + tidligere måneder i året). Utgående bæres til neste måned.
+ * throughDate (i dag): dager etter teller ikke ennå, så «Utgående» er lik saldoen i Timesaldo.
+ * employedFrom / employedTo: avtalte timer utenfor ansettelsen teller ikke.
  */
 export function monthTimebank({
   year,
@@ -176,20 +223,25 @@ export function monthTimebank({
   adjustments = [],
   agreedForDate,
   types,
+  throughDate = '',
+  employedFrom = '',
+  employedTo = '',
 } = {}) {
   const y = Number(year);
   const month = Number(monthIndex);
-  const registered = new Map();
-  const seen = new Set();
-  addRegisteredHours(registered, seen, 'e', entries, employeeId);
-  addRegisteredHours(registered, seen, 'a', absences, employeeId, (row) => !absenceTypeById(row.type, types).flex);
+  const registered = registeredByDate(entries, absences, employeeId, types);
+  const through = isoDate(throughDate);
+  const startKey = isoDate(employedFrom);
+  const stopKey = isoDate(employedTo);
+  const counts = (key) => !through || key <= through;
 
   let incoming = adjustmentHours(adjustments, employeeId, 'opening');
   for (let index = 0; index < month; index += 1) {
     const grid = buildMonthGrid(y, index);
     let flex = 0;
     for (const day of grid.days) {
-      const agreed = agreedForDate ? Number(agreedForDate(day.key)) || 0 : 0;
+      if (!counts(day.key)) continue;
+      const agreed = agreedWithin(agreedForDate, day.key, startKey, stopKey);
       flex += (registered.get(day.key) || 0) - agreed;
     }
     const key = `${y}-${String(index + 1).padStart(2, '0')}`;
@@ -200,7 +252,11 @@ export function monthTimebank({
   const byDate = new Map();
   let monthFlex = 0;
   for (const day of grid.days) {
-    const agreed = agreedForDate ? Number(agreedForDate(day.key)) || 0 : 0;
+    if (!counts(day.key)) {
+      byDate.set(day.key, 0);
+      continue;
+    }
+    const agreed = agreedWithin(agreedForDate, day.key, startKey, stopKey);
     const delta = roundHours((registered.get(day.key) || 0) - agreed);
     byDate.set(day.key, delta);
     monthFlex += delta;

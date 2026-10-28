@@ -1725,8 +1725,11 @@ export function upsertTimeEntry(state, input) {
   const existing = existingId
     ? working.timeEntries.find((row) => row.id === existingId)
     : null;
-  if (existing?.status === 'låst' || existing?.invoiceId) {
-    return fail(working, 'Føringen er låst/fakturert og kan ikke endres.');
+  if (existing?.invoiceId) {
+    return fail(working, 'Føringen er fakturert og kan ikke endres. Be økonomi om en kreditnota hvis noe må rettes.');
+  }
+  if (existing?.status === 'låst') {
+    return fail(working, 'Føringen er låst og venter på kontroll.');
   }
   if (isDateLocked(lockThroughDate(working.timesheetLocks, employeeId), date)) {
     return fail(working, 'Dagen er låst og venter på kontroll.');
@@ -1798,6 +1801,7 @@ export function upsertTimeEntry(state, input) {
 export function deleteTimeEntry(state, entryId) {
   const current = state.timeEntries.find((row) => row.id === entryId);
   if (!current) return fail(state, 'Føringen finnes ikke.');
+  if (current.invoiceId) return fail(state, 'Føringen er fakturert og kan ikke slettes.');
   if (current.status === 'låst' || isDateLocked(lockThroughDate(state.timesheetLocks, current.employeeId), current.date)) {
     return fail(state, 'Føringen er låst og kan ikke slettes.');
   }

@@ -22,7 +22,7 @@ import {
   canSwitchTimesheetPerson,
   needsTimesheetPersonStep,
 } from '../../src/arbeid/timesheetIdentity.js';
-import { buildTimesaldo } from '../../src/arbeid/balance.js';
+import { buildTimesaldo, employmentRange } from '../../src/arbeid/balance.js';
 import { agreedHoursForDate, resolveRedDays } from '../../src/arbeid/holidays.js';
 import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
@@ -109,6 +109,7 @@ export default function TimesaldoScreen({
   const settings = timeSettingsOf(employee);
   const fullDay = Number(workspace.state.fullDayHours) > 0 ? Number(workspace.state.fullDayHours) : 7.5;
   const companyLabel = companyDisplayName(family);
+  const employedSince = employmentRange(employee).from;
 
   const report = useMemo(() => {
     if (!activeId) {
@@ -117,10 +118,14 @@ export default function TimesaldoScreen({
         payrollIncl: 0, payrollExcl: 0, flex: 0, adjustment: 0, saldo: 0,
       } };
     }
+    // «Ansatt fra/til»: en nyansatt får ikke minus for månedene før hen begynte.
+    const employed = employmentRange(employee);
     return buildTimesaldo({
       year,
       throughDate: through,
       employeeId: activeId,
+      employedFrom: employed.from,
+      employedTo: employed.to,
       entries: workspace.state.timeEntries,
       absences: workspace.state.absences,
       adjustments: workspace.state.balanceAdjustments,
@@ -243,6 +248,7 @@ export default function TimesaldoScreen({
         {workspace.error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 8 }}>{workspace.error}</Text> : null}
         <Text style={{ color: colors.muted, marginBottom: 10, maxWidth: 640 }}>
           Saldo er timebank. Justering ned brukes når overtid tas ut i lønn.
+          {employedSince > `${year}-01-01` ? ` Regnes fra «Ansatt fra» ${employedSince.split('-').reverse().join('.')}.` : ''}
         </Text>
         {rights === 'admin' || !access.ready ? null : (
           <Text style={{ color: colors.muted, marginBottom: 10, fontSize: 13 }} nativeID="timesaldo-rights">

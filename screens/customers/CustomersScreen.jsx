@@ -72,6 +72,7 @@ import { withCustomers } from '../../src/anbud/customerRegistry';
 import { formatNumberId } from '../../src/anbud/numbering';
 import { loadAnbudState, loadCustomerList, peekAnbudState, saveAnbudState, saveCustomers } from '../../src/anbud/storage';
 import { loadProjectState } from '../../src/project/storage';
+import { projectStatusLabel } from '../../src/project/statusFilter';
 import { fetchBrregEnhet, searchBrregCompanies, searchBrregUnderenheter } from '../../src/utils/boligmappaApis';
 import { pickDocument } from '../../src/utils/media';
 import OwnerPicker from '../anbud/OwnerPicker';
@@ -1239,7 +1240,7 @@ export default function CustomersScreen() {
                 </Text>
                 <Text style={{ color: colors.muted }}>
                   {[
-                    row.projectStatus || row.phase,
+                    projectStatusLabel(row),
                     [row.start, row.end].filter(Boolean).join(' – '),
                     row.place || [row.street, row.placeName].filter(Boolean).join(', '),
                     row.manager,

@@ -9,6 +9,8 @@
  * mandag–lørdag; to uker uten lørdag er 10).
  */
 
+import { kindOf } from '../employees/employmentFlags.js';
+
 export const VACATION_PLAN_DEFAULTS = {
   ordinaryDays: 25,
   seniorEnabled: true,
@@ -284,12 +286,14 @@ export function vacationPlanForYear(plan, year) {
   });
 }
 
-/** Aktive interne ansatte — ekstern/innleid-utenfor og avsluttet status telles ikke. */
+/** Aktive interne ansatte — eksternt og innleid personell og avsluttet status telles ikke. */
 export function isPlanningEmployee(employee) {
   const company = employee?.company || {};
   const status = text(company.status) || 'active';
   if (status !== 'active') return false;
   if (company.personnelKind === 'external' || company.external === true) return false;
+  // Innleide (nivå eller personelltype) har ferien sin hos utleieren, ikke i denne planen.
+  if (kindOf(employee) !== 'staff') return false;
   return !!text(employee?.id);
 }
 
@@ -618,12 +622,29 @@ function vacationStatusBucket(status) {
   return '';
 }
 
-function groupVacationPeriods(absences, { year, bucket } = {}) {
-  const y = String(year || '');
+/**
+ * Datoene søknadslistene gjelder. Fra oktober er planåret neste år, men ferie søkt for resten
+ * av inneværende år skal fortsatt kunne godkjennes: ventende ferie i inneværende år, og
+ * godkjent ferie fra i dag, tas med.
+ */
+function requestDateFilter({ year, today, bucket }) {
+  const planYear = String(year || '');
+  const key = isIsoDate(today) ? today : '';
+  const currentYear = key.slice(0, 4);
+  const carry = !!currentYear && Number(planYear) > Number(currentYear);
+  return (date) => {
+    if (date.startsWith(planYear)) return true;
+    if (!carry || !date.startsWith(currentYear)) return false;
+    return bucket === 'pending' || date >= key;
+  };
+}
+
+function groupVacationPeriods(absences, { year, bucket, today = '' } = {}) {
+  const inRange = requestDateFilter({ year, today, bucket });
   const rows = (absences || [])
     .filter((row) => row && (row.type || 'ferie') === 'ferie')
     .filter((row) => vacationStatusBucket(row.status) === bucket)
-    .filter((row) => text(row.date).startsWith(y))
+    .filter((row) => inRange(text(row.date)))
     .map((row) => ({ ...row, date: text(row.date).slice(0, 10) }))
     .sort((a, b) => text(a.employeeId).localeCompare(text(b.employeeId)) || a.date.localeCompare(b.date));
   const periods = [];
@@ -671,14 +692,14 @@ function decorateVacationPeriods(periods, { today, approvalDays = 14, dayHours =
 
 export function pendingVacationRequests(absences, opts = {}) {
   return decorateVacationPeriods(
-    groupVacationPeriods(absences, { year: opts.year, bucket: 'pending' }),
+    groupVacationPeriods(absences, { year: opts.year, bucket: 'pending', today: opts.today }),
     opts,
   );
 }
 
 export function approvedVacationRequests(absences, opts = {}) {
   return decorateVacationPeriods(
-    groupVacationPeriods(absences, { year: opts.year, bucket: 'approved' }),
+    groupVacationPeriods(absences, { year: opts.year, bucket: 'approved', today: opts.today }),
     opts,
   );
 }

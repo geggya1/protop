@@ -508,11 +508,14 @@ export async function loadTimeEntriesByIds(companyId, entryIds = []) {
   if (!id || !ids.length) return [];
   const bits = await firestoreBits();
   const rows = [];
-  for (const entryId of ids) {
-    const snap = await bits.getDoc(entryRef(bits, id, entryId));
-    if (!snap.exists()) continue;
-    const row = normalizeTimeEntryRow({ ...snap.data(), id: snap.id });
-    if (row) rows.push(row);
+  // Noen få om gangen, så en timeliste med mange føringer ikke venter på én og én.
+  for (let at = 0; at < ids.length; at += 20) {
+    const snaps = await Promise.all(ids.slice(at, at + 20).map((entryId) => bits.getDoc(entryRef(bits, id, entryId))));
+    for (const snap of snaps) {
+      if (!snap.exists()) continue;
+      const row = normalizeTimeEntryRow({ ...snap.data(), id: snap.id });
+      if (row) rows.push(row);
+    }
   }
   return rows;
 }

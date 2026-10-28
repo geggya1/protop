@@ -1,9 +1,11 @@
 /**
  * Utsending av ferdigstilte fakturaer: e-post med PDF og vedlegg, og EHF via aksesspunkt.
  *
- * Bare medlemmer av bedriften kan sende, og bare fakturaer som er ferdigstilt
- * (har nummer). PDF og vedlegg hentes fra bedriftens egen mappe i Storage, så
- * appen ikke kan legge ved filer fra andre bedrifter.
+ * Bare den som har fakturatilgang i bedriften (samme nivå som appen bruker for
+ * «Send faktura», se invoiceMailGuard.js) kan sende, og bare fakturaer som er
+ * ferdigstilt (har nummer). Avsendernavnet er selskapets, og adresser utenfor
+ * fakturaen logges med hvem som sendte. PDF og vedlegg hentes fra bedriftens egen
+ * mappe i Storage, så appen ikke kan legge ved filer fra andre bedrifter.
  * Leveransen registreres på fakturaen av appen, med svaret herfra.
  * EHF: avsenderens orgnr hentes fra bedriften her, og en lås (ehfGuard.js) hindrer
  * at samme faktura sendes to ganger uten at noen har valgt «Send på nytt».
@@ -12,7 +14,9 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-import { assertFamilyMember, assertRateLimit, hashRateKey, isValidEmail } from './security.js';
+import {
+  assertCompanyAccess, assertFamilyMember, assertRateLimit, hashRateKey, isValidEmail,
+} from './security.js';
 import { resolveMailApiKey } from './mailApiKey.js';
 import { friendlyMailError, normalizeFileAttachment, sendMail } from './mail.js';
 import { mediaBucket } from './storageBucket.js';
@@ -31,6 +35,12 @@ import {
   lookupReceiver,
   peppolConfig,
 } from './peppolProvider.js';
+import {
+  INVOICE_SEND_ACCESS,
+  invoiceMailFromName,
+  invoiceMailRecipients,
+  mailDomain,
+} from './invoiceMailGuard.js';
 
 if (!getApps().length) initializeApp();
 
@@ -107,7 +117,7 @@ export const sendInvoiceMail = onCall(CALL, async (request) => {
   const data = request.data || {};
   const familyId = familyIdFrom(data);
   const db = getFirestore();
-  await assertFamilyMember(db, familyId, uid);
+  const familySnap = await assertCompanyAccess(db, familyId, uid, INVOICE_SEND_ACCESS);
   await limit(db, uid, 'mail', 200);
   const invoice = await issuedInvoice(db, familyId, data.invoiceId);
 
@@ -120,7 +130,9 @@ export const sendInvoiceMail = onCall(CALL, async (request) => {
   const text = String(data.text || '').trim().slice(0, 20000);
   if (text.length < 10) throw new HttpsError('invalid-argument', 'Skriv en melding til mottakeren.');
   const replyTo = isValidEmail(String(data.replyTo || '').trim()) ? String(data.replyTo).trim() : '';
-  const fromName = String(data.fromName || '').replace(/[<>"]/g, '').trim().slice(0, 80) || 'ProTop';
+  // Avsender er selskapet selv. Navnet appen sender med, brukes ikke.
+  const fromName = invoiceMailFromName(familySnap.data() || {});
+  const { outside } = invoiceMailRecipients(invoice, all);
 
   const files = Array.isArray(data.files) ? data.files.slice(0, 15) : [];
   const attachments = [];
@@ -154,9 +166,21 @@ export const sendInvoiceMail = onCall(CALL, async (request) => {
       replyTo,
       attachments,
     });
-    logger.info('Invoice mail sent', { familyId, invoiceId: invoice.id, count: all.length, files: attachments.length });
+    logger.info('Invoice mail sent', {
+      familyId,
+      invoiceId: invoice.id,
+      invoiceNumber: String(invoice.invoiceNumber || ''),
+      sentBy: uid,
+      count: all.length,
+      // Adresser fakturaen ikke peker på (lagt inn av avsenderen selv).
+      outsideCount: outside.length,
+      outsideDomains: [...new Set(outside.map(mailDomain))],
+      replyToDomain: mailDomain(replyTo),
+      files: attachments.length,
+    });
     return {
       ok: true,
+      sentBy: uid,
       providerId: String(sent?.messageId || sent?.id || '').slice(0, 120),
       to: all,
       files: attachments.map((row) => row.filename),
@@ -172,7 +196,7 @@ export const sendInvoiceEhf = onCall(CALL, async (request) => {
   const data = request.data || {};
   const familyId = familyIdFrom(data);
   const db = getFirestore();
-  await assertFamilyMember(db, familyId, uid);
+  await assertCompanyAccess(db, familyId, uid, INVOICE_SEND_ACCESS);
   await limit(db, uid, 'ehf', 200);
   const invoice = await issuedInvoice(db, familyId, data.invoiceId);
   const xml = String(data.xml || '');

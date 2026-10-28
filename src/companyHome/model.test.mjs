@@ -47,8 +47,9 @@ assert.equal(absenceShortcut.tab, 'ansatte');
 assert.equal(absenceShortcut.subView, null);
 assert.deepEqual(absenceShortcut.intent, { type: 'openMyAbsence' });
 assert.deepEqual(COMPANY_BOTTOM_NAV.map((row) => row.label), [
-  'Hjem', 'Prosjekter', 'Time', 'Oppgaver', 'Mer',
+  'Hjem', 'Timer', 'Prosjekter', 'Oppgaver', 'Meny',
 ]);
+assert.equal(COMPANY_BOTTOM_NAV.find((row) => row.id === 'stars').icon, 'checkbox-outline', 'samme ikon som privat');
 
 const phoneHome = readFileSync(new URL('../../screens/project/CompanyHomePhone.jsx', import.meta.url), 'utf8');
 const landing = readFileSync(new URL('../../screens/project/CompanyLanding.jsx', import.meta.url), 'utf8');

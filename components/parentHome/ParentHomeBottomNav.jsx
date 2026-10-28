@@ -16,8 +16,9 @@ function builtinNav(t) {
     home: { id: 'home', label: t('tabs.home'), icon: 'home' },
     plan: { id: 'plan', label: t('nav.planShort'), icon: 'calendar' },
     family: { id: 'family', label: t('nav.family'), icon: 'people' },
-    more: { id: 'more', label: t('tabs.more'), icon: 'ellipsis-horizontal' },
-    stars: { id: 'stars', label: t('tabs.tasks'), icon: 'checkmark-circle' },
+    // Samme navn og ikon som i bedriftens dock (src/navigation/protopShell.js).
+    more: { id: 'more', label: t('tabs.menu'), icon: 'menu-outline', iconActive: 'menu' },
+    stars: { id: 'stars', label: t('tabs.tasks'), icon: 'checkbox-outline', iconActive: 'checkbox' },
     chores: { id: 'chores', label: t('tabs.chores'), icon: 'star' },
     shop: { id: 'shop', label: t('tabs.shop'), icon: 'cart' },
     chat: { id: 'chat', label: t('tabs.chat'), icon: 'chatbubbles' },

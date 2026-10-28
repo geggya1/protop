@@ -20,6 +20,11 @@ assert.equal(resolveActiveParentBottomId('more', 'members', ['home', 'family', '
 assert.equal(resolveActiveParentBottomId('notes', null, ids), 'more');
 assert.equal(resolveActiveParentBottomId('notes', null, ['home', 'plan']), null);
 assert.equal(resolveActiveParentBottomId('home', null, []), null);
+const dock = ['home', 'timeliste', 'projects', 'stars', 'more'];
+assert.equal(resolveActiveParentBottomId('timeliste', null, dock), 'timeliste');
+assert.equal(resolveActiveParentBottomId('arbeid', 'timeliste', dock), 'timeliste', 'bedriftens timeliste markerer Timer');
+assert.equal(resolveActiveParentBottomId('arbeid', 'godkjenning', dock), 'more');
+assert.equal(resolveActiveParentBottomId('projects', null, dock), 'projects');
 
 assert.deepEqual(
   resolveParentBottomNavAction({ id: 'home' }),

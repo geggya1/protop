@@ -154,6 +154,7 @@ export const FILES = [
   'src/utils/firestoreRules.list.test.mjs',
   'src/navigation/shellHeaderTitle.test.mjs',
   'src/navigation/navTrail.test.mjs',
+  'src/navigation/protopDock.test.mjs',
   'screens/economy/indexDeskRender.test.cjs',
   'src/project/projectCrossView.test.mjs',
   'src/arbeid/timesheetReview.test.mjs',

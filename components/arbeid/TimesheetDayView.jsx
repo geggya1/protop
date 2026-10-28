@@ -19,7 +19,7 @@ export function TimesheetDayNav({
   onToggleLock,
 }) {
   return (
-    <View style={styles.dayNav} nativeID="timesheet-day-nav">
+    <View style={[styles.dayNav, { borderBottomColor: colors.line }]} nativeID="timesheet-day-nav">
       <TouchableOpacity onPress={onPrev} accessibilityRole="button" accessibilityLabel="Forrige dag" style={styles.navHit}>
         <Ionicons name="chevron-back" size={22} color={colors.ink} />
       </TouchableOpacity>
@@ -74,7 +74,7 @@ export function TimesheetProjectRow({
       accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={`${number || ''} ${name || ''} ${hasHours ? formatHours(hours) : 'ingen timer'}`}
       nativeID={testID}
-      style={[styles.row, { borderBottomColor: colors.line }]}
+      style={[styles.row, { borderBottomColor: colors.line, backgroundColor: colors.card }]}
     >
       <View style={styles.rowMain}>
         <Text style={[styles.projectTitle, { color: colors.ink }]} numberOfLines={2}>
@@ -196,7 +196,6 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     borderBottomWidth: StyleSheet.hairlineWidth,
     minHeight: 56,
-    backgroundColor: '#fff',
   },
   rowMain: {
     flex: 1,

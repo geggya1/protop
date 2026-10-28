@@ -30,6 +30,16 @@ const COLUMNS = [
 const OPEN_WIDTH = 28;
 const MIN_WIDTH = COLUMNS.reduce((sum, col) => sum + col.width, OPEN_WIDTH);
 
+// Sortering på mobil, der tabellhodet ikke vises.
+const SORT_OPTIONS = [
+  { id: 'date:desc', label: 'Nyeste først' },
+  { id: 'date:asc', label: 'Eldste først' },
+  { id: 'amount:desc', label: 'Høyeste beløp' },
+  { id: 'amount:asc', label: 'Laveste beløp' },
+  { id: 'name:asc', label: 'Produkt A–Å' },
+  { id: 'customer:asc', label: 'Kunde A–Å' },
+];
+
 function dash(value) {
   const text = String(value || '').trim();
   return text || '—';
@@ -167,6 +177,7 @@ export function ProductSalesList({
   filterOptions = null,
   sort = { key: 'date', dir: 'desc' },
   onSort,
+  onSortSet,
   limit = rows.length,
   onMore,
   onShowAll,
@@ -177,93 +188,159 @@ export function ProductSalesList({
   narrow = false,
 }) {
   const [boxWidth, setBoxWidth] = useState(0);
+  // Mobil: filter og sortering ligger bak en knapp, så listen kommer høyere opp.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const totals = saleTotals(rows);
   const filters = [{ id: '', label: 'Alle' }, ...SALE_STATUSES];
   const shown = rows.slice(0, Math.max(0, limit));
   const projectOptions = filterOptions?.projects || [];
   const customerOptions = filterOptions?.customers || [];
   const filtered = !!(query || status || project || customer);
+  const activeFilters = [status, project, customer].filter(Boolean).length;
   return (
     <View style={styles.stack} nativeID="produktsalg-liste">
-      <View style={styles.toolbar}>
-        <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Ionicons name="search" size={16} color={colors.muted} />
-          <TextInput
-            nativeID="produktsalg-search"
-            value={query}
-            onChangeText={onQuery}
-            placeholder="Søk i produkt, varenr, kunde, prosjekt eller dato"
-            placeholderTextColor={colors.placeholder || colors.muted}
-            accessibilityLabel="Søk i produktsalg"
-            style={[styles.searchInput, { color: colors.ink }]}
-          />
-        </View>
-        {projectOptions.length ? (
-          <View style={styles.picker} nativeID="produktsalg-filter-prosjekt">
-            <OptionPicker
-              options={projectOptions}
-              value={project}
-              onChange={(id) => onProject?.(id || '')}
-              placeholder="Alle prosjekter"
-              clearLabel="Alle prosjekter"
-              chipLimit={0}
-              title="Prosjekt"
-              accessibilityLabel="Filtrer på prosjekt"
+      {narrow ? (
+        <View style={styles.toolbar}>
+          <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <Ionicons name="search" size={16} color={colors.muted} />
+            <TextInput
+              nativeID="produktsalg-search"
+              value={query}
+              onChangeText={onQuery}
+              placeholder="Søk i produkt, varenr, kunde, prosjekt eller dato"
+              placeholderTextColor={colors.placeholder || colors.muted}
+              accessibilityLabel="Søk i produktsalg"
+              style={[styles.searchInput, { color: colors.ink }]}
             />
           </View>
-        ) : null}
-        {customerOptions.length ? (
-          <View style={styles.picker} nativeID="produktsalg-filter-kunde">
-            <OptionPicker
-              options={customerOptions}
-              value={customer}
-              onChange={(id) => onCustomer?.(id || '')}
-              placeholder="Alle kunder"
-              clearLabel="Alle kunder"
-              chipLimit={0}
-              title="Kunde"
-              accessibilityLabel="Filtrer på kunde"
-            />
-          </View>
-        ) : null}
-        {onExport ? (
           <TouchableOpacity
-            onPress={onExport}
-            disabled={exporting || !rows.length}
+            onPress={() => setFiltersOpen((open) => !open)}
             accessibilityRole="button"
-            accessibilityLabel="Eksporter til Excel"
-            nativeID="produktsalg-eksport"
-            style={[styles.exportBtn, { borderColor: colors.line, backgroundColor: colors.card, opacity: exporting || !rows.length ? 0.55 : 1 }]}
+            accessibilityState={{ expanded: filtersOpen }}
+            accessibilityLabel={filtersOpen ? 'Skjul filter og sortering' : 'Vis filter og sortering'}
+            nativeID="produktsalg-filter-toggle"
+            style={[styles.filterBtn, {
+              borderColor: filtersOpen || activeFilters ? colors.brand : colors.line,
+              backgroundColor: filtersOpen ? `${colors.brand}18` : colors.card,
+            }]}
           >
-            <Ionicons name="download-outline" size={16} color={colors.ink} />
-            <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>{exporting ? 'Eksporterer…' : 'Eksporter til Excel'}</Text>
+            <Ionicons name="options-outline" size={18} color={colors.ink} />
+            <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Filter</Text>
+            {activeFilters ? (
+              <View style={[styles.badge, { backgroundColor: colors.brand }]}>
+                <Text style={styles.badgeText}>{activeFilters}</Text>
+              </View>
+            ) : null}
           </TouchableOpacity>
-        ) : null}
-      </View>
-      <View style={styles.chips}>
-        {filters.map((row) => {
-          const on = status === row.id;
-          const count = counts ? counts[row.id || 'all'] : null;
-          return (
-            <TouchableOpacity
-              key={row.id || 'all'}
-              nativeID={`produktsalg-status-${row.id || 'all'}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: on }}
-              onPress={() => onStatus?.(row.id)}
-              style={[styles.chip, {
-                borderColor: on ? colors.brand : colors.line,
-                backgroundColor: on ? `${colors.brand}18` : colors.card,
-              }]}
-            >
-              <Text style={{ color: colors.ink, fontSize: 13 }}>
-                {row.label}
-                {count != null ? <Text style={{ color: colors.muted }}>{` ${count}`}</Text> : null}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+        </View>
+      ) : null}
+      {narrow && !filtersOpen ? null : (
+        <View
+          style={narrow ? [styles.panel, { borderColor: colors.line, backgroundColor: colors.card }] : styles.stack}
+          nativeID="produktsalg-filterpanel"
+        >
+          <View style={styles.toolbar}>
+            {narrow ? null : (
+              <>
+                <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
+                  <Ionicons name="search" size={16} color={colors.muted} />
+                  <TextInput
+                    nativeID="produktsalg-search"
+                    value={query}
+                    onChangeText={onQuery}
+                    placeholder="Søk i produkt, varenr, kunde, prosjekt eller dato"
+                    placeholderTextColor={colors.placeholder || colors.muted}
+                    accessibilityLabel="Søk i produktsalg"
+                    style={[styles.searchInput, { color: colors.ink }]}
+                  />
+                </View>
+              </>
+            )}
+            {projectOptions.length ? (
+              <View style={styles.picker} nativeID="produktsalg-filter-prosjekt">
+                <OptionPicker
+                  options={projectOptions}
+                  value={project}
+                  onChange={(id) => onProject?.(id || '')}
+                  placeholder="Alle prosjekter"
+                  clearLabel="Alle prosjekter"
+                  chipLimit={0}
+                  title="Prosjekt"
+                  accessibilityLabel="Filtrer på prosjekt"
+                />
+              </View>
+            ) : null}
+            {customerOptions.length ? (
+              <View style={styles.picker} nativeID="produktsalg-filter-kunde">
+                <OptionPicker
+                  options={customerOptions}
+                  value={customer}
+                  onChange={(id) => onCustomer?.(id || '')}
+                  placeholder="Alle kunder"
+                  clearLabel="Alle kunder"
+                  chipLimit={0}
+                  title="Kunde"
+                  accessibilityLabel="Filtrer på kunde"
+                />
+              </View>
+            ) : null}
+            {narrow && onSortSet ? (
+              <View style={styles.picker} nativeID="produktsalg-sortering">
+                <OptionPicker
+                  options={SORT_OPTIONS}
+                  value={`${sort?.key}:${sort?.dir}`}
+                  onChange={(id) => {
+                    const [key, dir] = String(id || 'date:desc').split(':');
+                    onSortSet({ key, dir });
+                  }}
+                  placeholder="Sortering"
+                  clearable={false}
+                  chipLimit={0}
+                  title="Sortering"
+                  accessibilityLabel="Sorter produktsalg"
+                />
+              </View>
+            ) : null}
+            {onExport ? (
+              <TouchableOpacity
+                onPress={onExport}
+                disabled={exporting || !rows.length}
+                accessibilityRole="button"
+                accessibilityLabel="Eksporter til Excel"
+                nativeID="produktsalg-eksport"
+                style={[styles.exportBtn, { borderColor: colors.line, backgroundColor: colors.card, opacity: exporting || !rows.length ? 0.55 : 1 }]}
+              >
+                <Ionicons name="download-outline" size={16} color={colors.ink} />
+                <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>{exporting ? 'Eksporterer…' : 'Eksporter til Excel'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <View style={styles.chips}>
+            {filters.map((row) => {
+              const on = status === row.id;
+              const count = counts ? counts[row.id || 'all'] : null;
+              return (
+                <TouchableOpacity
+                  key={row.id || 'all'}
+                  nativeID={`produktsalg-status-${row.id || 'all'}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => onStatus?.(row.id)}
+                  style={[styles.chip, {
+                    borderColor: on ? colors.brand : colors.line,
+                    backgroundColor: on ? `${colors.brand}18` : colors.card,
+                  }]}
+                >
+                  <Text style={{ color: colors.ink, fontSize: 13 }}>
+                    {row.label}
+                    {count != null ? <Text style={{ color: colors.muted }}>{` ${count}`}</Text> : null}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
       <Text style={{ color: colors.muted, fontSize: 13 }} nativeID="produktsalg-summary">
         {!ready
           ? 'Henter produktsalg…'
@@ -338,6 +415,10 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 8 },
   picker: { flexBasis: 220, flexGrow: 0, flexShrink: 1, minWidth: 180 },
   exportBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, minHeight: 40 },
+  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, minHeight: 40 },
+  badge: { minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  panel: { gap: 10, borderWidth: 1, borderRadius: 10, padding: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   table: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },

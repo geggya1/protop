@@ -52,6 +52,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { ControlStatus, ControlsEditor } from './EquipmentControls';
 import { submitQuick } from '../iso/quickSend';
 import EquipmentCalendar from '../../components/equipment/EquipmentCalendar';
+import { Ionicons } from '@expo/vector-icons';
 import { useLayout } from '../../src/theme';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
@@ -163,7 +164,9 @@ export default function EquipmentScreen() {
   const hostedHero = useModuleHeroHosted();
   const { familyId, user, uid, activeProfile } = useApp();
   const access = useCompanyAccess();
-  const { isDesktop } = useLayout();
+  const { isDesktop, isPhone } = useLayout();
+  // Mobil: «Registrer» ligger bak innstillingsknappen ved fanene, så listen får plassen.
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [state, setState] = useState(emptyProjectState());
   const [ready, setReady] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -553,6 +556,7 @@ export default function EquipmentScreen() {
   }
 
   const showRegister = tab === 'privat' || canManage;
+  const phoneTools = isPhone && !formOpen && (tab === 'bedrift' || tab === 'privat') && showRegister;
   // Kalenderen fyller hele flaten. Da ruller den selv, ikke siden.
   const Body = deskCalendar ? View : ScrollView;
   const bodyProps = deskCalendar
@@ -565,8 +569,35 @@ export default function EquipmentScreen() {
       <View style={styles.row}>
         <Chip nativeID="equipment-tab-bedrift" label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
         <Chip nativeID="equipment-tab-privat" label="Privat" active={tab === 'privat' && !formOpen} onPress={() => { setTab('privat'); closeForm(); setQuery(''); }} colors={colors} />
-        <Chip nativeID="equipment-tab-kalender" label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); }} colors={colors} />
+        <Chip nativeID="equipment-tab-kalender" label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); setToolsOpen(false); }} colors={colors} />
+        {phoneTools ? (
+          <TouchableOpacity
+            onPress={() => setToolsOpen((open) => !open)}
+            accessibilityRole="button"
+            accessibilityLabel="Innstillinger og registrering"
+            accessibilityState={{ expanded: toolsOpen }}
+            nativeID="equipment-tools"
+            style={[styles.iconBtn, { marginLeft: 'auto', borderColor: toolsOpen ? colors.brand : colors.line, backgroundColor: colors.card }]}
+          >
+            <Ionicons name="settings-outline" size={18} color={colors.ink} />
+          </TouchableOpacity>
+        ) : null}
       </View>
+      {phoneTools && toolsOpen ? (
+        <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="equipment-tools-menu">
+          <TouchableOpacity
+            onPress={() => { setToolsOpen(false); openForm(tab === 'privat' ? 'private' : 'company'); }}
+            accessibilityRole="button"
+            nativeID="equipment-register"
+            style={styles.menuItem}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={colors.brand} />
+            <Text style={{ color: colors.ink, fontWeight: '600' }}>
+              {tab === 'privat' ? 'Registrer privat utstyr eller bil' : 'Registrer nytt utstyr'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
       {notice ? <Text style={{ color: colors.brand, fontSize: 13 }}>{notice}</Text> : null}
       <ConfirmDialog
@@ -750,7 +781,7 @@ export default function EquipmentScreen() {
           </Text>
           <View style={[styles.row, { alignItems: 'flex-end' }]}>
             <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Søk i listen" />
-            {showRegister ? (
+            {showRegister && !isPhone ? (
               <TouchableOpacity onPress={() => openForm('company')} style={[styles.btn, { backgroundColor: colors.brand }]}>
                 <Text style={{ color: '#fff', fontWeight: '600' }}>Registrer</Text>
               </TouchableOpacity>
@@ -772,9 +803,11 @@ export default function EquipmentScreen() {
           </Text>
           <View style={[styles.row, { alignItems: 'flex-end' }]}>
             <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Søk i listen" />
-            <TouchableOpacity onPress={() => openForm('private')} style={[styles.btn, { backgroundColor: colors.brand }]}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Registrer</Text>
-            </TouchableOpacity>
+            {isPhone ? null : (
+              <TouchableOpacity onPress={() => openForm('private')} style={[styles.btn, { backgroundColor: colors.brand }]}>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Registrer</Text>
+              </TouchableOpacity>
+            )}
           </View>
           {visiblePrivate.map(renderGear)}
           {visibleCars.map((car) => (
@@ -919,6 +952,8 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 10, padding: 14, gap: 6 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  iconBtn: { width: 38, height: 38, borderWidth: 1, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   btnGhost: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
   week: { flexDirection: 'row', flexWrap: 'wrap' },
   dayLabel: { width: '14.28%', textAlign: 'center', fontSize: 11, paddingBottom: 4 },

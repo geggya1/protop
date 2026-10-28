@@ -451,6 +451,7 @@ export function ProductSalesScreen() {
         filterOptions={filterOptions}
         sort={sort}
         onSort={toggleSort}
+        onSortSet={setSort}
         limit={limit}
         onMore={() => setLimit((current) => current + PAGE_SIZE)}
         onShowAll={() => setLimit(rows.length)}

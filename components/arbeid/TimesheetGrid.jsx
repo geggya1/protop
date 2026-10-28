@@ -51,10 +51,10 @@ export default function TimesheetGrid({
   const dayLocked = (day) => isDateLocked(lockLine, day.key);
 
   function cellBg(day, { hours = 0, selected = false } = {}) {
-    if (lockLine && day.key === lockLine) return '#d7f7f3';
+    if (lockLine && day.key === lockLine) return colors.successSoft || '#d7f7f3';
     if (day.key === todayKey) return `${colors.brand || '#6d28d9'}14`;
-    if (selected && hours) return '#fef3c7';
-    if (day.red && !day.half) return '#fff7f7';
+    if (selected && hours) return colors.starSoft || '#fef3c7';
+    if (day.red && !day.half) return colors.dangerSoft || '#fff7f7';
     if (hours) return `${colors.brand || '#6d28d9'}08`;
     return 'transparent';
   }
@@ -166,9 +166,9 @@ export default function TimesheetGrid({
       />
       {showFlex ? (
         <View style={styles.row} nativeID="timesheet-balance-row">
-          <View style={[styles.labelCell, { width: labelW, borderColor: colors.line, backgroundColor: '#f8fafc' }]}>
+          <View style={[styles.labelCell, { width: labelW, borderColor: colors.line, backgroundColor: colors.sunken || '#f8fafc' }]}>
             <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }} dataSet={{ ts: 'strong' }}>Timebalanse</Text>
-            <Text style={styles.bankCaption}>Inngående</Text>
+            <Text style={[styles.bankCaption, { color: colors.muted }]}>Inngående</Text>
             <Text
               nativeID="timesheet-balance-in"
               style={[styles.bankFigure, { color: balanceColor(incomingBalance, colors) }]}
@@ -193,9 +193,9 @@ export default function TimesheetGrid({
           })}
           <View
             nativeID="timesheet-balance-out"
-            style={[styles.totalCell, styles.bankOut, { width: totalW, borderColor: colors.line, backgroundColor: '#f8fafc' }]}
+            style={[styles.totalCell, styles.bankOut, { width: totalW, borderColor: colors.line, backgroundColor: colors.sunken || '#f8fafc' }]}
           >
-            <Text style={styles.bankCaption}>Utgående</Text>
+            <Text style={[styles.bankCaption, { color: colors.muted }]}>Utgående</Text>
             <Text style={[styles.bankFigure, { color: balanceColor(outgoingBalance, colors) }]} dataSet={{ ts: 'strong' }}>
               {balanceReady ? formatHours(outgoingBalance, { signed: true }) : '…'}
             </Text>
@@ -233,7 +233,7 @@ export default function TimesheetGrid({
           locked={dayLocked}
           selectedDay={selectedDay}
           onPressDay={(day) => onOpenAbsence?.(row, day)}
-          tint="#fffbeb"
+          tint={colors.starSoft || '#fffbeb'}
           labelW={labelW}
           dayW={dayW}
           totalW={totalW}
@@ -262,7 +262,7 @@ export default function TimesheetGrid({
       ))}
 
       {hiddenProjects.length ? (
-        <View style={[styles.row, { backgroundColor: '#fefce8' }]}>
+        <View style={[styles.row, { backgroundColor: colors.starSoft || '#fefce8' }]}>
           <View style={[styles.labelCell, { width: labelW, borderColor: colors.line }]}>
             <Text style={{ color: colors.ink, fontSize: 13 }} numberOfLines={2}>
               Skjulte prosjekter ({hiddenProjects.map((row) => `#${row.project.number}`).join(', ')})
@@ -392,7 +392,7 @@ function HourRow({
 function Total({ value, colors, signed = false, strong = false, totalW }) {
   const color = signed ? balanceColor(value, colors) : colors.ink;
   return (
-    <View style={[styles.totalCell, { width: totalW, borderColor: colors.line, backgroundColor: '#f8fafc' }]}>
+    <View style={[styles.totalCell, { width: totalW, borderColor: colors.line, backgroundColor: colors.sunken || '#f8fafc' }]}>
       <Text
         style={[styles.cellText, { color, fontWeight: strong ? '700' : '600' }]}
         dataSet={{ ts: 'strong' }}
@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   cellText: { fontSize: 12, fontVariant: ['tabular-nums'] },
-  bankCaption: { color: '#64748b', fontSize: 10, marginTop: 2 },
+  bankCaption: { fontSize: 10, marginTop: 2 },
   bankFigure: { fontSize: 12, fontVariant: ['tabular-nums'], fontWeight: '600' },
   bankOut: { paddingVertical: 4 },
   lockMark: {

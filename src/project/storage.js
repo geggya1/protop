@@ -675,7 +675,14 @@ function rememberBase(companyId, state) {
 
 function baseFor(companyId, rev) {
   if (!rev) return null;
-  return BASES.get(memoryKey(companyId))?.get(rev) || null;
+  const map = BASES.get(memoryKey(companyId));
+  const base = map?.get(rev) || null;
+  if (base) {
+    // Sist brukt bakerst, så utgangspunktet til en skjerm som fortsatt lagrer, ikke presses ut.
+    map.delete(rev);
+    map.set(rev, base);
+  }
+  return base;
 }
 
 /** Legg state i minnet som ny versjon. Skjermer som laster herfra, regner endringer mot den. */
@@ -818,8 +825,11 @@ async function commitRemote(companyId, plan, { mainForCatalog = true } = {}) {
       if (!diffs.length) return;
       const touched = new Set();
       for (const diff of diffs) projectDiffKeys(diff).forEach((key) => touched.add(key));
+      // Endringer uten kjent utgangspunkt som skyen hadde noe annet for (REV-17).
+      const skipped = new Set();
+      const onSkip = (key) => skipped.add(key);
       const next = normalizeProjectState({
-        ...diffs.reduce((state, diff) => applyProjectDiff(state, diff), fresh),
+        ...diffs.reduce((state, diff) => applyProjectDiff(state, diff, { onSkip }), fresh),
         syncedAt: new Date().toISOString(),
       });
       const payload = firestorePayload(next);
@@ -846,7 +856,7 @@ async function commitRemote(companyId, plan, { mainForCatalog = true } = {}) {
       if (mainError && !touchesSide && !touchesCatalog) throw mainError;
       if (touchesSide) tx.set(refs.side, { ...pickEquipmentKeys(payload), updatedAt }, { merge: true });
       if (touchesCatalog) tx.set(refs.catalog, { ...pickCatalogKeys(payload), updatedAt });
-      outcome = { changed: true, state: next, bytes, mainError };
+      outcome = { changed: true, state: next, bytes, mainError, skipped: [...skipped] };
     });
     noteDocSize(id, outcome.bytes);
     if (outcome.mainError) {
@@ -876,6 +886,8 @@ function scheduleRetry(companyId) {
   timer?.unref?.();
   retryTimers.set(companyId, timer);
 }
+
+export const SKIPPED_CHANGES_TEXT = 'Noen endringer ble ikke lagret, fordi siden ikke var ferdig lastet og skyen hadde nyere innhold. Last siden på nytt og gjør endringen igjen.';
 
 /** Melding til brukeren når skyen ikke tok imot en lagring. */
 export function remoteFailureText(error, { partial = false } = {}) {
@@ -908,6 +920,8 @@ export function flushProjectChanges(companyId) {
       clearRetry(id);
       retryCounts.delete(id);
       failureShown.delete(id);
+      // Lagret, men noe ble ikke lagt på: si fra i stedet for å vise bare «Lagret».
+      if (result.skipped?.length) showSaveError(SKIPPED_CHANGES_TEXT);
     } else if (result.partial) {
       // Utstyr og katalog er lagret. Bare hoveddokumentets del blir liggende i køen.
       const sent = new Map(batch.map((row) => [row.seq, mainDocPart(row.diff)]));
@@ -1237,7 +1251,10 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
     const legacy = applied.upload ? null : await takeLegacyLocalChanges(companyId, local, applied.state);
     const queued = legacy ? [legacy, ...waiting] : waiting;
     if (applied.upload) {
-      enqueueProjectDiff(companyId, diffProjectStates(null, withoutBaseRev(stripTimeEntriesFromState(state))));
+      // Skyen har ikke dokumentet: alt i kopien lastes opp, også felt som dagsnorm og prosedyrer
+      // (mot en tom kopi, ikke uten utgangspunkt, som bare fylte tomme felt).
+      const empty = withoutBaseRev(stripTimeEntriesFromState(emptyProjectState()));
+      enqueueProjectDiff(companyId, diffProjectStates(empty, withoutBaseRev(stripTimeEntriesFromState(state))));
     } else if (queued.length) {
       // Endringer som ikke nådde skyen sist, vises med en gang og sendes nå.
       state = normalizeProjectState(queued.reduce((current, diff) => applyProjectDiff(current, diff), state));

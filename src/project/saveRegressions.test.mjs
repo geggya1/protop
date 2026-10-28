@@ -309,4 +309,43 @@ function reset() {
   assert.equal((await storage.pendingProjectChanges(CO)).length, 0);
 }
 
+// ── REV-17: endringer uten kjent utgangspunkt forkastes ikke i det stille ───
+
+{
+  // Skyen mangler prosjektdokumentet: egen dagsnorm og prosedyrer lastes opp, ikke bare tomme felt.
+  reset();
+  const seeded = createProject(emptyProjectState(), { name: 'Hundre', number: '100' }).state;
+  globalThis.__saveTestLocal.set(`protop.projectPlatform.v2.${CO}`, JSON.stringify(normalizeProjectState({
+    ...seeded, fullDayHours: 7, fullDayHoursCustom: true, procedures: [{ id: 'pr1', title: 'Egen prosedyre' }],
+  })));
+  await storage.loadProjectState(CO, { force: true });
+  await wait(30);
+  assert.equal(cloud().fullDayHours, 7, 'dagsnormen er lastet opp');
+  assert.equal(cloud().fullDayHoursCustom, true);
+  assert.deepEqual(cloud().procedures.map((row) => row.id), ['pr1']);
+  assert.equal(cloud().projects.length, 1);
+}
+
+{
+  // En skjerm lagrer før den har lastet (ingen baseRev): skyen har noe annet. Brukeren får beskjed.
+  reset();
+  const { subscribeSaveToast, resetSaveToastForTests } = await import('../ui/saveToast.js');
+  resetSaveToastForTests();
+  const toasts = [];
+  const stop = subscribeSaveToast((toast) => toasts.push(toast));
+  seedCloud({ ...createProject(emptyProjectState(), { name: 'Hundre', number: '100' }).state, fullDayHours: 7, fullDayHoursCustom: true });
+  await storage.persistProjectState({ ...emptyProjectState(), fullDayHours: 6, fullDayHoursCustom: true }, CO);
+  assert.equal(cloud().fullDayHours, 7, 'skyen er ikke overskrevet uten kjent utgangspunkt');
+  assert.equal(toasts.length, 1);
+  assert.equal(toasts[0].kind, 'error');
+  assert.equal(toasts[0].detail, storage.SKIPPED_CHANGES_TEXT);
+  // Med kjent utgangspunkt går samme endring gjennom uten feil.
+  const loaded = await storage.loadProjectState(CO, { force: true });
+  await storage.persistProjectState({ ...loaded, fullDayHours: 6, fullDayHoursCustom: true }, CO);
+  assert.equal(cloud().fullDayHours, 6);
+  assert.equal(toasts.length, 1);
+  stop();
+  resetSaveToastForTests();
+}
+
 console.log('saveRegressions.test.mjs: ok');

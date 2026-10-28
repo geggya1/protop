@@ -26,18 +26,28 @@ export default function CompanyCalendarSettings({ familyId, colors: colorsProp, 
   const [hours, setHours] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let live = true;
+    setReady(false);
     loadProjectState(familyId, { hours: false }).then((loaded) => {
       if (!live) return;
       setState(loaded);
       setHours(String(loaded.fullDayHours || 8));
+      setReady(true);
+    }).catch(() => {
+      if (live) setError('Kunne ikke laste kalenderen.');
     });
     return () => { live = false; };
   }, [familyId]);
 
   async function commit(result, success) {
+    // Før lastingen er ferdig vet vi ikke hva som ligger i skyen, og endringen kunne gått tapt.
+    if (!ready) {
+      setError('Vent til kalenderen er lastet, og prøv igjen.');
+      return;
+    }
     if (!result.ok) {
       setError(result.error);
       return;

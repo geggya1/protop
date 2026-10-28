@@ -232,8 +232,10 @@ export function combineProjectDiffs(a, b) {
  * Legg endringen på ferske data. Raden vinner hvis ingen andre har endret den siden
  * vi lastet. Har noen gjort det, vinner nyeste updatedAt (lik tid: vår endring).
  * Uten kjent utgangspunkt (strict) legges raden bare på når den er ny eller nyere.
+ * onSkip(key, id) kalles når en endring uten kjent utgangspunkt ikke ble lagt på (skyen
+ * hadde noe annet), så tapet kan vises for brukeren i stedet for å skje i det stille.
  */
-export function applyProjectDiff(fresh, diff) {
+export function applyProjectDiff(fresh, diff, { onSkip = null } = {}) {
   const next = { ...(fresh && typeof fresh === 'object' ? fresh : {}) };
   if (!diff) return next;
   for (const [key, entry] of Object.entries(diff.lists || {})) {
@@ -250,6 +252,7 @@ export function applyProjectDiff(fresh, diff) {
         upsert.delete(id);
         const untouched = !diff.strict && baseSigs[id] && baseSigs[id] === rowSignature(row);
         const newer = diff.strict ? stampMs(mine) > stampMs(row) : stampMs(mine) >= stampMs(row);
+        if (diff.strict && !newer && json(mine) !== json(row)) onSkip?.(key, id);
         out.push(untouched || newer ? mine : row);
         continue;
       }
@@ -260,7 +263,10 @@ export function applyProjectDiff(fresh, diff) {
   }
   for (const [key, value] of Object.entries(diff.fields || {})) {
     if (diff.strict && next[key] !== undefined && next[key] !== null
-      && !(Array.isArray(next[key]) && !next[key].length)) continue;
+      && !(Array.isArray(next[key]) && !next[key].length)) {
+      if (json(next[key]) !== json(value)) onSkip?.(key, '');
+      continue;
+    }
     next[key] = value;
   }
   if ((diff.deletedRows || []).length) {

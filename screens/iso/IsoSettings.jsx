@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { radius } from '../../src/ui/tokens';
 import { auditEvent, bump, nowIso, prettyDate } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, ISO_ROLES, STANDARDS, STANDARD_EDITIONS, standardEdition, standardLabel } from '../../src/iso/catalog';
 import { allRequirements, markForReassessment, requirementIdsForArea } from '../../src/iso/requirements';
@@ -637,7 +638,7 @@ function DocStructureCard({ v, update }) {
     <Card title="Dokumentstruktur" subtitle="Deler og mapper for styrende dokumenter. Dokumenter vises gruppert slik, og nye dokumenter får neste ledige kode i mappen (f.eks. F-01-017). Tom struktur = gruppering etter dokumenttype.">
       {!parts.length ? <Text style={{ color: colors.muted, fontSize: 13 }}>Ingen struktur ennå.</Text> : null}
       {parts.map((p, i) => (
-        <View key={`${p.code}${i}`} style={{ gap: 6, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.line }}>
+        <View key={`${p.code}${i}`} style={{ gap: 6, padding: 10, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line }}>
           <Row>
             <View style={{ width: 70 }}><TextIn value={p.code} onChangeText={(x) => patchPart(i, { code: String(x).toUpperCase() })} accessibilityLabel="Kode for del" /></View>
             <View style={{ flex: 1, minWidth: 160 }}><TextIn value={p.title} onChangeText={(x) => patchPart(i, { title: x })} accessibilityLabel="Navn på del" /></View>

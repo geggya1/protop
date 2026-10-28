@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { radius, type } from '../../src/ui/tokens';
 import { prettyDate, todayKey } from '../../src/iso/core';
 import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, findingStateLabel, riskLevel } from '../../src/iso/catalog';
 import {
@@ -119,7 +120,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
       );
       case 'project': return projects.length
         ? <Choice small title="Prosjekt" clearable={!f.required} options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={value} onChange={(x) => { const p = projects.find((y) => y.id === x); setV((cur) => ({ ...cur, projectId: x, projectName: p ? `${p.number || ''} ${p.name || ''}`.trim() : '' })); }} />
-        : <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen prosjekter registrert i Prosjekt.</Text>;
+        : <Text style={[type.caption, { color: colors.muted }]}>Ingen prosjekter registrert i Prosjekt.</Text>;
       case 'persons': return <PersonsPick people={people} value={Array.isArray(value) ? value : (value ? String(value).split(/[,;]+/).map((n) => ({ name: n.trim() })).filter((x) => x.name) : [])} onChange={set(f.key)} />;
       case 'contacts': return <ContactsEdit people={people} value={value || []} onChange={set(f.key)} />;
       case 'department': {
@@ -132,7 +133,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
       case 'ref':
       case 'refmulti': {
         const opts = refOptions(state, f);
-        if (!opts.length) return <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen å velge mellom ennå.</Text>;
+        if (!opts.length) return <Text style={[type.caption, { color: colors.muted }]}>Ingen å velge mellom ennå.</Text>;
         return f.type === 'refmulti'
           ? <Choice small multi title={f.label} options={opts} value={value || []} onChange={set(f.key)} />
           : <Choice small title={f.label} clearable={!f.required} options={opts} value={value} onChange={set(f.key)} />;
@@ -160,7 +161,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
         </Row>
       ) : null}
       {level?.inherent?.id && level.inherent.id !== 'ukjent' ? (
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
+        <Text style={[type.caption, { color: colors.muted }]}>
           {`${RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.label || ''}: ${RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.text || ''} Aksepteres av ${String(RISK_GUIDANCE.acceptance[(level.residual.score ? level.residual : level.inherent).id]?.who || '').toLowerCase()}.`}
         </Text>
       ) : null}
@@ -194,14 +195,14 @@ function RiskCriteria({ method }) {
         const a = RISK_GUIDANCE.acceptance[l.id];
         return <ListRow key={l.id} icon="ellipse" tone={l.tone} title={`${a.label} · score ${l.range}`} subtitle={`${a.text} Aksepteres av ${a.who.toLowerCase()}.`} />;
       })}
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{RISK_GUIDANCE.measures}</Text>
+      <Text style={[type.caption, { color: colors.muted }]}>{RISK_GUIDANCE.measures}</Text>
       {open ? (
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Sannsynlighet</Text>
-          {(method?.likelihood || DEFAULT_RISK_METHOD.likelihood).map((x, i) => <Text key={x} style={{ color: colors.ink, fontSize: 12 }}>{i + 1} {x}: {RISK_GUIDANCE.likelihood[i]}</Text>)}
+          {(method?.likelihood || DEFAULT_RISK_METHOD.likelihood).map((x, i) => <Text key={x} style={[type.caption, { color: colors.ink }]}>{i + 1} {x}: {RISK_GUIDANCE.likelihood[i]}</Text>)}
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Konsekvens (verst realistiske utfall)</Text>
           {(method?.consequence || DEFAULT_RISK_METHOD.consequence).map((x, i) => (
-            <Text key={x} style={{ color: colors.ink, fontSize: 12 }}>{i + 1} {x}: {RISK_GUIDANCE.dimensions.map((d, j) => `${d}: ${RISK_GUIDANCE.consequence[i][j]}`).join(' · ')}</Text>
+            <Text key={x} style={[type.caption, { color: colors.ink }]}>{i + 1} {x}: {RISK_GUIDANCE.dimensions.map((d, j) => `${d}: ${RISK_GUIDANCE.consequence[i][j]}`).join(' · ')}</Text>
           ))}
         </View>
       ) : null}
@@ -250,7 +251,7 @@ function RecordDetail({ ctx, record, onClose, children }) {
         {record.needsReview ? (
           <Banner tone="warn" text={`Må gjennomgås: ${record.reviewNote || 'Kontroller innholdet før posten regnes som gjeldende.'}`} />
         ) : null}
-        {record.origin?.system ? <Text style={{ color: colors.muted, fontSize: 12 }}>Opphav: {record.origin.system}{record.origin.ref ? ` · ${record.origin.ref}` : ''}</Text> : null}
+        {record.origin?.system ? <Text style={[type.caption, { color: colors.muted }]}>Opphav: {record.origin.system}{record.origin.ref ? ` · ${record.origin.ref}` : ''}</Text> : null}
         {def.fields.map((f) => {
           let value = record[f.key];
           if (Array.isArray(value) && !['persons', 'contacts'].includes(f.type)) value = value.join(', ');
@@ -287,12 +288,12 @@ function RecordDetail({ ctx, record, onClose, children }) {
             </Row>
             <TextIn value={note} onChangeText={setNote} placeholder={record.locked ? 'Begrunnelse (påkrevd for å oppheve godkjenningen)' : 'Merknad til statusendring'} />
             {record.locked ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
+              <Text style={[type.caption, { color: colors.muted }]}>
                 Posten er godkjent og låst. «Oppfølging» og «Lukket» beholder låsen. Å gå tilbake til en tidligere status opphever godkjenningen, og posten må godkjennes på nytt.
               </Text>
             ) : null}
             {def.states.includes('arkivert') ? (
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
+              <Text style={[type.caption, { color: colors.muted }]}>
                 {record.state === 'arkivert'
                   ? '«Gjenopprett» setter posten tilbake i listen.'
                   : '«Arkiver» tar posten ut av listen uten å slette den. Arkiverte poster finner du under «Vis arkiverte» nederst i registeret.'}
@@ -302,7 +303,7 @@ function RecordDetail({ ctx, record, onClose, children }) {
         ) : null}
         {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
         <Text style={{ color: colors.ink, fontWeight: '700' }}>Historikk</Text>
-        {(record.history || []).slice().reverse().slice(0, 20).map((h, i) => <Text key={i} style={{ color: colors.muted, fontSize: 12 }}>{prettyDate(h.at)} · {h.action} · {h.by}{h.note ? ` · ${h.note}` : ''}</Text>)}
+        {(record.history || []).slice().reverse().slice(0, 20).map((h, i) => <Text key={i} style={[type.caption, { color: colors.muted }]}>{prettyDate(h.at)} · {h.action} · {h.by}{h.note ? ` · ${h.note}` : ''}</Text>)}
       </Sheet>
       <RecordSheet ctx={ctx} registerKey={record.register} record={record} visible={edit} onClose={() => setEdit(false)} />
     </>
@@ -434,12 +435,12 @@ function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct
       {direct && visible.length > 1 ? <Btn small icon="add-circle-outline" label={`Legg til alle ${Math.min(visible.length, limit)}`} busy={busy} onPress={() => addAll(visible.slice(0, limit))} /> : null}
       {hidden ? (
         <Row>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>{hidden === 1 ? 'Ett forslag er skjult.' : `${hidden} forslag er skjult.`}</Text>
+          <Text style={[type.caption, { color: colors.muted }]}>{hidden === 1 ? 'Ett forslag er skjult.' : `${hidden} forslag er skjult.`}</Text>
           <Btn small icon="eye-outline" label="Vis igjen" onPress={() => setDismissed([])} />
         </Row>
       ) : null}
       {visible.length ? (
-        <Text style={{ color: colors.muted, fontSize: 12 }}>
+        <Text style={[type.caption, { color: colors.muted }]}>
           {direct
             ? `«Legg til» lagrer forslaget i ${target}. × skjuler forslaget.`
             : '«Bruk» åpner registreringen ferdig utfylt. Du vurderer og lagrer.'}
@@ -461,7 +462,7 @@ function Suggestions({ ctx, registerKey, rows, title, subtitle, describe, direct
 export function Stat({ label, value, hint, tone }) {
   const colors = useColors();
   return (
-    <View style={{ flexGrow: 1, flexBasis: 150, gap: 4, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}>
+    <View style={{ flexGrow: 1, flexBasis: 150, gap: 4, padding: 14, borderRadius: radius.sheet, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.card }}>
       <Text style={{ color: colors.muted, fontSize: 13 }}>{label}</Text>
       <Text style={{ color: tone === 'warn' ? colors.warn : colors.ink, fontSize: 24, fontWeight: '700' }}>{value}</Text>
       {hint ? <Text style={{ color: colors.muted, fontSize: 11 }}>{hint}</Text> : null}
@@ -500,13 +501,13 @@ function ContextView({ ctx, rows, onOpen }) {
           {SWOT.map((q) => {
             const items = swot.filter((r) => r.factorType === q.id);
             return (
-              <View key={q.id} style={{ flexGrow: 1, flexBasis: ctx.wide ? '46%' : '100%', padding: 10, gap: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.line, borderLeftWidth: 4, borderLeftColor: toneColor(colors, q.tone), backgroundColor: colors.card }}>
+              <View key={q.id} style={{ flexGrow: 1, flexBasis: ctx.wide ? '46%' : '100%', padding: 10, gap: 4, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line, borderLeftWidth: 4, borderLeftColor: toneColor(colors, q.tone), backgroundColor: colors.card }}>
                 <Text style={{ color: colors.ink, fontWeight: '800' }}>{q.label} <Text style={{ color: colors.muted, fontWeight: '400', fontSize: 12 }}>· {q.hint.toLowerCase()} · {items.length}</Text></Text>
                 {items.length ? items.map((r) => (
                   <Pressable key={r.id} onPress={() => onOpen(r)} accessibilityRole="button" accessibilityLabel={`Åpne ${r.title}`} style={({ pressed }) => ({ paddingVertical: 3, backgroundColor: pressed ? colors.brandSoft : 'transparent', borderRadius: 6 })}>
-                    <Text style={{ color: colors.ink, fontSize: 13 }}>• {r.title}{r.area ? <Text style={{ color: colors.muted, fontSize: 12 }}> ({r.area})</Text> : null}{r.needsReview ? <Text style={{ color: colors.warn, fontSize: 12 }}> · må gjennomgås</Text> : null}</Text>
+                    <Text style={{ color: colors.ink, fontSize: 13 }}>• {r.title}{r.area ? <Text style={[type.caption, { color: colors.muted }]}> ({r.area})</Text> : null}{r.needsReview ? <Text style={[type.caption, { color: colors.warn }]}> · må gjennomgås</Text> : null}</Text>
                   </Pressable>
-                )) : <Text style={{ color: colors.muted, fontSize: 12 }}>–</Text>}
+                )) : <Text style={[type.caption, { color: colors.muted }]}>–</Text>}
               </View>
             );
           })}
@@ -552,8 +553,8 @@ function ClimateCard({ ctx }) {
           <Field label="Begrunnelse" required><TextIn multiline rows={2} value={v.rationale} onChangeText={(x) => setV({ ...v, rationale: x })} placeholder="F.eks. ekstremvær stopper arbeid ute, og kunder stiller klimakrav i anbud." /></Field>
           <Btn kind="primary" icon="save-outline" label={decided ? 'Lagre ny vurdering' : 'Lagre vurdering'} onPress={save} />
         </>
-      ) : (!decided ? <Text style={{ color: colors.muted, fontSize: 12 }}>Administrator i ISO avgjør dette.</Text> : null)}
-      {c?.relevant ? <Text style={{ color: colors.muted, fontSize: 12 }}>Klimarisikoer foreslås under Risiko. Klimakrav fra interessenter registreres på interessenten.</Text> : null}
+      ) : (!decided ? <Text style={[type.caption, { color: colors.muted }]}>Administrator i ISO avgjør dette.</Text> : null)}
+      {c?.relevant ? <Text style={[type.caption, { color: colors.muted }]}>Klimarisikoer foreslås under Risiko. Klimakrav fra interessenter registreres på interessenten.</Text> : null}
       {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
     </Card>
   );
@@ -698,7 +699,7 @@ export function EnvironmentPage({ ctx }) {
       />
       <Card title="Miljødata – sum per målepunkt">
         <HBars rows={byPoint} empty="Ingen miljødata registrert. Grafen vises bare når det finnes reelle målinger." />
-        <Text style={{ color: colors.muted, fontSize: 12 }}>CO₂e beregnes ikke automatisk. Bruk dokumentert metode og faktor med kilde og år.</Text>
+        <Text style={[type.caption, { color: colors.muted }]}>CO₂e beregnes ikke automatisk. Bruk dokumentert metode og faktor med kilde og år.</Text>
       </Card>
       <SimpleRegister ctx={ctx} registerKey="miljodata" subtitle={(r) => `${r.period} · ${r.value} ${r.unit} · ${r.quality}`} />
       <RecordSheet ctx={ctx} registerKey="miljodata" visible={!!adopt} preset={adopt || {}} onClose={() => setAdopt(null)} />
@@ -734,8 +735,8 @@ export function HmsPage({ ctx }) {
       {rates && caps.manage ? (
         <Card title="Skadestatistikk per måned" subtitle={rates.method}>
           <MonthBars rows={rates.rows} parts={[{ key: 'recordable', label: 'Skader' }, { key: 'lostTime', label: 'Med fravær' }]} unit="" />
-          {!rates.hours ? <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen timer ført siste 12 måneder. H-verdien regnes når timene føres i ProTop.</Text> : null}
-          {hmsFindings.some((f) => !f.injuryClass) ? <Text style={{ color: colors.muted, fontSize: 12 }}>Saker uten skadeklasse telles ikke. Sett skadeklasse i triage.</Text> : null}
+          {!rates.hours ? <Text style={[type.caption, { color: colors.muted }]}>Ingen timer ført siste 12 måneder. H-verdien regnes når timene føres i ProTop.</Text> : null}
+          {hmsFindings.some((f) => !f.injuryClass) ? <Text style={[type.caption, { color: colors.muted }]}>Saker uten skadeklasse telles ikke. Sett skadeklasse i triage.</Text> : null}
         </Card>
       ) : null}
       <Card title="Skjema for HMS-arbeid" subtitle="Styrte skjema fra Skjemabygger. Innsendt blir låst bevis.">
@@ -882,9 +883,9 @@ function CompetenceProfiles({ ctx, people, matrix, q }) {
       />
       {openId === (p.id || p.name) ? (
         <View style={{ marginLeft: 28, gap: 2 }}>
-          {lines.map((l, i) => <Text key={i} style={{ color: colors.ink, fontSize: 12 }}><Text style={{ color: colors.muted }}>{l.kind}: </Text>{l.text}</Text>)}
-          {evidence.map((e) => <Text key={e.id} style={{ color: colors.ink, fontSize: 12 }}><Text style={{ color: colors.muted }}>Bevis: </Text>{e.title}{e.validTo ? ` · gyldig til ${prettyDate(e.validTo)}` : ''}</Text>)}
-          {!lines.length && !evidence.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen utdanning, kurs eller sertifiseringer registrert.</Text> : null}
+          {lines.map((l, i) => <Text key={i} style={[type.caption, { color: colors.ink }]}><Text style={{ color: colors.muted }}>{l.kind}: </Text>{l.text}</Text>)}
+          {evidence.map((e) => <Text key={e.id} style={[type.caption, { color: colors.ink }]}><Text style={{ color: colors.muted }}>Bevis: </Text>{e.title}{e.validTo ? ` · gyldig til ${prettyDate(e.validTo)}` : ''}</Text>)}
+          {!lines.length && !evidence.length ? <Text style={[type.caption, { color: colors.muted }]}>Ingen utdanning, kurs eller sertifiseringer registrert.</Text> : null}
           <Row><Btn small icon="create-outline" label="Rediger CV i Ansatte" onPress={() => ctx.requestTab?.('ansatte')} /></Row>
         </View>
       ) : null}
@@ -924,7 +925,7 @@ export function CompetencePage({ ctx }) {
           {unassigned.slice(0, 8).map(({ requirement: r, role }) => (
             <ListRow key={r.id} icon="person-add-outline" tone="warn" title={r.title} subtitle={role ? `Rollen «${role.title}» har ingen innehavere` : `Fant ingen rolle som heter «${r.role}»`} />
           ))}
-          {unassigned.length > 8 ? <Text style={{ color: colors.muted, fontSize: 12 }}>… og {unassigned.length - 8} til.</Text> : null}
+          {unassigned.length > 8 ? <Text style={[type.caption, { color: colors.muted }]}>… og {unassigned.length - 8} til.</Text> : null}
           <Row><Btn icon="people-circle-outline" label="Organisasjon og roller" onPress={() => ctx.go('organisasjon')} /></Row>
         </Card>
       ) : null}
@@ -1046,10 +1047,10 @@ function SupplierEvaluation({ ctx, record }) {
     <View style={{ gap: 6 }}>
       <Text style={{ color: colors.ink, fontWeight: '700', marginTop: 6 }}>Evalueringer</Text>
       {list.length ? list.map((e) => (
-        <Text key={e.id} style={{ color: colors.ink, fontSize: 12 }}>{prettyDate(e.date)} · {e.decision} · snitt {e.total} ({SUPPLIER_CRITERIA.map((c) => `${c.label.toLowerCase()} ${e[c.key]}`).join(', ')}){e.comment ? ` · ${e.comment}` : ''} · {e.by}</Text>
-      )) : <Text style={{ color: colors.muted, fontSize: 12 }}>Ikke evaluert ennå.</Text>}
+        <Text key={e.id} style={[type.caption, { color: colors.ink }]}>{prettyDate(e.date)} · {e.decision} · snitt {e.total} ({SUPPLIER_CRITERIA.map((c) => `${c.label.toLowerCase()} ${e[c.key]}`).join(', ')}){e.comment ? ` · ${e.comment}` : ''} · {e.by}</Text>
+      )) : <Text style={[type.caption, { color: colors.muted }]}>Ikke evaluert ennå.</Text>}
       {caps.manage ? (
-        <View style={{ gap: 6, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: colors.line }}>
+        <View style={{ gap: 6, padding: 10, borderRadius: radius.card, borderWidth: 1, borderColor: colors.line }}>
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Evaluer leverandør</Text>
           {SUPPLIER_CRITERIA.map((c) => (
             <Field key={c.key} label={`${c.label} (1–5)`}><Choice options={['1', '2', '3', '4', '5']} value={String(v[c.key] || '')} onChange={(x) => setV({ ...v, [c.key]: x })} /></Field>
@@ -1088,7 +1089,7 @@ export function SupplierPage({ ctx }) {
             <Text style={{ color: colors.ink, fontWeight: '700', marginTop: 6 }}>Registrerte avvik ({linked(r).length})</Text>
             {linked(r).length ? linked(r).map((f) => (
               <ListRow key={f.id} icon="flag-outline" title={`${f.number} · ${f.title}`} subtitle={findingStateLabel(f.state)} onPress={() => ctx.go('avvik', { open: f.id })} />
-            )) : <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen saker er koblet til leverandøren. Koble en sak under Avvik → Koblinger, eller meld et leverandøravvik.</Text>}
+            )) : <Text style={[type.caption, { color: colors.muted }]}>Ingen saker er koblet til leverandøren. Koble en sak under Avvik → Koblinger, eller meld et leverandøravvik.</Text>}
             <SupplierEvaluation ctx={ctx} record={r} />
           </>
         )}
@@ -1099,7 +1100,7 @@ export function SupplierPage({ ctx }) {
           return <ListRow key={c.id} icon="cube-outline" title={`${c.id} (${n})`} subtitle={`${c.hint} Kritikalitet ${c.criticality.toLowerCase()}.`} />;
         })}
         {(state.records.leverandor || []).some((r) => r.state !== 'arkivert' && !r.supplierClass)
-          ? <Text style={{ color: colors.muted, fontSize: 12 }}>{(state.records.leverandor || []).filter((r) => r.state !== 'arkivert' && !r.supplierClass).length} leverandører har ingen klasse ennå.</Text>
+          ? <Text style={[type.caption, { color: colors.muted }]}>{(state.records.leverandor || []).filter((r) => r.state !== 'arkivert' && !r.supplierClass).length} leverandører har ingen klasse ennå.</Text>
           : null}
       </Card>
     </Page>
@@ -1122,7 +1123,7 @@ export function ObjectivesPage({ ctx }) {
               <Row>
                 <Pill label={p.label} tone={p.status === 'naadd' ? 'ok' : (p.status === 'ingen_data' ? 'muted' : 'info')} />
                 {p.value != null ? <Text style={{ color: colors.ink, fontWeight: '700' }}>{p.value} {r.unit} ({p.period}{p.quality !== 'Målt' ? `, ${p.quality.toLowerCase()}` : ''})</Text> : null}
-                {p.pct != null ? <Text style={{ color: colors.muted, fontSize: 12 }}>{p.pct} % av veien fra baseline</Text> : null}
+                {p.pct != null ? <Text style={[type.caption, { color: colors.muted }]}>{p.pct} % av veien fra baseline</Text> : null}
               </Row>
               <ObjectiveSpark record={r} />
             </Card>
@@ -1232,12 +1233,12 @@ export function AuditPage({ ctx }) {
         <RecordDetail ctx={ctx} record={reg.open} onClose={() => reg.setOpenId('')}>
           {!reg.open.locked && ['planlagt', 'pagar'].includes(reg.open.state) && auditReadyError(reg.open) ? <Banner tone="warn" text={`${auditReadyError(reg.open)} Gjøres under «Rediger».`} /> : null}
           {conflicts.length ? <Banner tone="warn" text={`Revisor eier ${conflicts.map((p) => p.title).join(', ')} i omfanget, og reviderer da eget arbeid (9.2.2 c). Velg en annen revisor eller ta prosessen ut av omfanget.`} /> : null}
-          {!['godkjent', 'oppfolging', 'lukket', 'avlyst'].includes(reg.open.state) && String(reg.open.conclusion || '').trim().length < 10 ? <Text style={{ color: colors.muted, fontSize: 12 }}>Skriv konklusjonen under «Rediger» før rapporten godkjennes.</Text> : null}
+          {!['godkjent', 'oppfolging', 'lukket', 'avlyst'].includes(reg.open.state) && String(reg.open.conclusion || '').trim().length < 10 ? <Text style={[type.caption, { color: colors.muted }]}>Skriv konklusjonen under «Rediger» før rapporten godkjennes.</Text> : null}
           <Text style={{ color: colors.ink, fontWeight: '700' }}>Funn ({(reg.open.findings || []).length})</Text>
           {(reg.open.findings || []).map((f) => (
             <View key={f.id} style={{ gap: 2, paddingVertical: 4 }}>
               <Text style={{ color: colors.ink, fontSize: 13 }}><Text style={{ fontWeight: '700' }}>{AUDIT_FINDING_CLASSES.find((c) => c.id === f.classification)?.label}:</Text> {f.description}</Text>
-              {f.evidence ? <Text style={{ color: colors.muted, fontSize: 12 }}>Bevis: {f.evidence}</Text> : null}
+              {f.evidence ? <Text style={[type.caption, { color: colors.muted }]}>Bevis: {f.evidence}</Text> : null}
               {f.findingId ? <Btn small label="Åpne avvikssak" onPress={() => go('avvik', { open: f.findingId })} /> : null}
             </View>
           ))}
@@ -1250,7 +1251,7 @@ export function AuditPage({ ctx }) {
               <Btn kind="primary" label={af.classification === 'samsvar' ? 'Registrer funn' : 'Registrer funn og opprett sak'} onPress={addFinding} />
               {caps.approve && reg.open.state === 'rapport' ? <Btn icon="checkmark-done" label="Godkjenn rapport (låser)" onPress={approveReport} /> : null}
               {reg.open.state !== 'rapport' ? (
-                <Text style={{ color: colors.muted, fontSize: 12 }}>
+                <Text style={[type.caption, { color: colors.muted }]}>
                   Rapporten godkjennes når revisjonen står i «Rapport»: registrer funn (også «Samsvar»), skriv konklusjonen og sett status til «Rapport».
                 </Text>
               ) : null}
@@ -1267,7 +1268,7 @@ export function AuditPage({ ctx }) {
 function ReviewInputView({ snapshot: s }) {
   const colors = useColors();
   if (!s) return <Text style={{ color: colors.muted, fontSize: 13 }}>Ikke hentet.</Text>;
-  const head = <Text style={{ color: colors.muted, fontSize: 12 }}>Hentet {prettyDate(s.takenAt)} av {s.takenBy}{s.period ? ` · periode ${s.period.label} (${prettyDate(s.period.from)}–${prettyDate(s.period.to)})` : ''}</Text>;
+  const head = <Text style={[type.caption, { color: colors.muted }]}>Hentet {prettyDate(s.takenAt)} av {s.takenBy}{s.period ? ` · periode ${s.period.label} (${prettyDate(s.period.from)}–${prettyDate(s.period.to)})` : ''}</Text>;
   if (s.sections?.length) {
     return (
       <View style={{ gap: 8 }}>
@@ -1373,7 +1374,7 @@ export function ReviewPage({ ctx }) {
             );
           })}
           {reg.open.state === 'godkjent' ? (
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
+            <Text style={[type.caption, { color: colors.muted }]}>
               {(reg.open.decisions || []).every((x) => decisionCompleted(x, store.tasks))
                 ? 'Alle vedtak er fulgt opp. En godkjenner kan nå sette gjennomgangen til «Lukket».'
                 : 'Gjennomgangen kan settes til «Lukket» når alle vedtak er gjennomført.'}
@@ -1467,7 +1468,7 @@ export function ProjectQualityPage({ ctx }) {
             />
           );
         })}
-        {caps.manage && withoutPlan.length > 1 ? <Text style={{ color: colors.muted, fontSize: 12 }}>«Lag plan» henter krav fra kontrakten, roller fra innstillingene og standard kontrollplan med faseporter.</Text> : null}
+        {caps.manage && withoutPlan.length > 1 ? <Text style={[type.caption, { color: colors.muted }]}>«Lag plan» henter krav fra kontrakten, roller fra innstillingene og standard kontrollplan med faseporter.</Text> : null}
       </Card>
       {contracts.rows.length ? (
         <Card title="Kontraktsgjennomgang (8.2)" subtitle="Kontrakter fra Kontrakt / avtale. Gjennomgangen lagres som låst bevis.">
@@ -1614,7 +1615,7 @@ ${rows.map(({ r, a, status, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} 
       <Card title="Bevispakke til revisor" subtitle="Velg krav (tomt utvalg = alle). Bare godkjente bevis tas med, og skjermede saker utelates.">
         <Choice small multi title="Krav" options={requirements.map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.title, hint: r.standard ? (r.title || '') : '' }))} value={selected} onChange={setSelected} />
         {Platform.OS === 'web' ? <Btn kind="primary" icon="print-outline" label="Lag bevispakke (PDF)" onPress={exportPackage} /> : <Text style={{ color: colors.muted }}>Eksport er tilgjengelig i nettleseren.</Text>}
-        <Text style={{ color: colors.muted, fontSize: 12 }}>Tidsstyrt lesetilgang for ekstern revisor i appen krever egen revisorrolle og er ikke aktivert ennå. Del bevispakken i stedet.</Text>
+        <Text style={[type.caption, { color: colors.muted }]}>Tidsstyrt lesetilgang for ekstern revisor i appen krever egen revisorrolle og er ikke aktivert ennå. Del bevispakken i stedet.</Text>
         {!caps.manage ? null : null}
       </Card>
     </Page>

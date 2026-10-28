@@ -112,6 +112,7 @@ import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
 import { companyDisplayName } from '../src/utils/companyName';
 import ConfirmHost from './ConfirmHost';
+import IsoAutomation from '../screens/iso/IsoAutomation';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -1273,6 +1274,8 @@ export default function AppShell() {
   const me = useMemo(() => (uid ? { ...(userProfile || {}), uid } : null), [uid, userProfile]);
   return (
     <CompanyDataProvider companyId={companyId} members={parents} me={me}>
+      {/* ISO-automatikk og køen for hurtigmeldinger (ISO-02/03). Tegner ingenting. */}
+      {companyId ? <IsoAutomation key={`iso-${companyId}`} /> : null}
       <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />
     </CompanyDataProvider>
   );

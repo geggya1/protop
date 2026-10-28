@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
+import { radius } from '../../src/ui/tokens';
 import { prettyDate, todayKey } from '../../src/iso/core';
 import {
   FINDING_STATES, FINDING_TYPES, INJURY_CLASSES, SEVERITIES, actionStateLabel, findingStateLabel, findingTypeLabel, injuryClassLabel, seriousInjury, severityLabel,
@@ -226,7 +227,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       {restricted ? <Field label="Personopplysninger (skjermet)" hint="Bare det som er nødvendig. Vises ikke i lister eller eksport."><TextIn multiline rows={2} value={v.personalDetails} onChangeText={set('personalDetails')} /></Field> : null}
       <Check label="Mulig meldeplikt til myndighet (f.eks. alvorlig personskade eller utslipp)" value={v.authorityNotificationRequired} onChange={set('authorityNotificationRequired')} />
       {v.authorityNotificationRequired || seriousInjury(v.injuryClass) ? (
-        <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 2, borderColor: colors.danger }}>
+        <View style={{ gap: 8, padding: 12, borderRadius: radius.card, borderWidth: 2, borderColor: colors.danger }}>
           <Text style={{ color: colors.danger, fontWeight: '800', fontSize: 15 }}>Alvorlig personskade eller dødsfall</Text>
           <Text style={{ color: colors.ink, fontSize: 14 }}>Ring 113 ved behov for ambulanse. Varsle Arbeidstilsynet og politiet straks (aml § 5-2). ProTop melder ikke til myndighetene.</Text>
           <Row>
@@ -256,7 +257,7 @@ function Stepper({ step, closed }) {
         const done = i < step || closed;
         const now = i === step && !closed;
         return (
-          <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: now ? colors.brand : colors.line, backgroundColor: done ? colors.successSoft : (now ? colors.brandSoft : colors.card) }}>
+          <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: now ? colors.brand : colors.line, backgroundColor: done ? colors.successSoft : (now ? colors.brandSoft : colors.card) }}>
             <Text style={{ color: colors.ink, fontSize: 12, fontWeight: now ? '700' : '400' }}>{done ? '✓ ' : ''}{s}</Text>
           </View>
         );

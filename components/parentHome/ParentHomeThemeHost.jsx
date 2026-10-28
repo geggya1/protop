@@ -16,6 +16,7 @@ import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
 import WidgetBoard from '../home/WidgetBoard';
 import CompanyOfferCard from '../home/CompanyOfferCard';
 import CompanyStartChecklist from '../home/CompanyStartChecklist';
+import CompanyQuickReport from '../home/CompanyQuickReport';
 
 /**
  * Fixed parent home — same tidy widget layout for every login.
@@ -126,6 +127,7 @@ export default function ParentHomeThemeHost({
             <>
               <CompanyOfferCard style={styles.startCard} />
               <CompanyStartChecklist style={styles.startCard} />
+              <CompanyQuickReport style={styles.startCard} />
             </>
           )}
         />

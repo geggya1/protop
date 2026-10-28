@@ -8,6 +8,7 @@ import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-nativ
 import { CONTROL_KINDS, controlKind } from '../../src/equipment/catalog';
 import { addMonthsKey, controlBlocking, gearControls } from '../../src/equipment/model';
 import { createId } from '../../src/project/engine';
+import { radius, type } from '../../src/ui/tokens';
 
 const STATE_TEXT = { forfalt: 'Forfalt', snart: 'Forfaller snart', ok: 'OK', mangler: 'Mangler frist' };
 
@@ -37,7 +38,7 @@ function Input({ label, value, onChange, colors, placeholder, keyboardType, nati
 function Chip({ label, active, onPress, colors }) {
   return (
     <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!active }} style={[styles.chip, { borderColor: active ? colors.brand : colors.line, backgroundColor: active ? `${colors.brand}18` : colors.card }]}>
-      <Text style={{ color: colors.ink, fontSize: 12 }}>{label}</Text>
+      <Text style={[type.caption, { color: colors.ink }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -82,7 +83,7 @@ export function ControlsEditor({ gear, setGear, colors }) {
             <Input label="Kontrollert av" value={c.by || ''} onChange={(v) => patch(c.id, { by: v })} colors={colors} placeholder="Firma eller person" />
           </View>
           <TouchableOpacity onPress={() => setGear((row) => ({ ...row, controls: (row.controls || []).filter((x) => x.id !== c.id) }))} accessibilityRole="button">
-            <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Fjern kontrollen</Text>
+            <Text style={{ color: colors.dangerInk || colors.danger, fontSize: 12 }}>Fjern kontrollen</Text>
           </TouchableOpacity>
         </View>
       ))}
@@ -107,11 +108,11 @@ export function ControlStatus({ gear, colors, canManage, onRecord, busy = false 
   const controls = gearControls(gear);
   const blocked = controlBlocking(gear);
   if (!controls.length && !gear.measuring) return null;
-  const tone = (s) => (s === 'forfalt' ? (colors.danger || '#b42318') : (s === 'snart' ? (colors.warn || '#b45309') : colors.muted));
+  const tone = (s) => (s === 'forfalt' ? (colors.dangerInk || colors.danger) : (s === 'snart' ? (colors.warnInk || colors.warn) : colors.muted));
   return (
     <View style={{ gap: 4 }}>
-      {gear.measuring && !controls.length ? <Text style={{ color: colors.warn || '#b45309', fontSize: 12 }}>Måleutstyr uten kalibrering registrert.</Text> : null}
-      {blocked ? <Text style={{ color: colors.danger || '#b42318', fontSize: 12, fontWeight: '700' }}>Sperret for reservasjon: {blocked.label.toLowerCase()} forfalt {pretty(blocked.next)}.</Text> : null}
+      {gear.measuring && !controls.length ? <Text style={{ color: colors.warnInk || colors.warn, fontSize: 12 }}>Måleutstyr uten kalibrering registrert.</Text> : null}
+      {blocked ? <Text style={{ color: colors.dangerInk || colors.danger, fontSize: 12, fontWeight: '700' }}>Sperret for reservasjon: {blocked.label.toLowerCase()} forfalt {pretty(blocked.next)}.</Text> : null}
       {controls.map((c) => {
         const last = c.log.at(-1);
         return (
@@ -121,11 +122,11 @@ export function ControlStatus({ gear, colors, canManage, onRecord, busy = false 
               {c.last ? ` · sist ${pretty(c.last)}` : ''}{c.certificate ? ` · sertifikat ${c.certificate}` : ''}
             </Text>
             {last?.result === 'avvik' ? (
-              <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Avvik {pretty(last.date)}: {last.note}{last.findingNumber ? ` · sak ${last.findingNumber}` : ''}</Text>
+              <Text style={{ color: colors.dangerInk || colors.danger, fontSize: 12 }}>Avvik {pretty(last.date)}: {last.note}{last.findingNumber ? ` · sak ${last.findingNumber}` : ''}</Text>
             ) : null}
             {canManage && form?.controlId !== c.id ? (
               <TouchableOpacity onPress={() => setForm({ controlId: c.id, date: new Date().toISOString().slice(0, 10), result: 'godkjent', certificate: '', by: '', note: '' })} accessibilityRole="button">
-                <Text style={{ color: colors.brand, fontSize: 12 }}>Registrer {c.label.toLowerCase()}</Text>
+                <Text style={[type.caption, { color: colors.brand }]}>Registrer {c.label.toLowerCase()}</Text>
               </TouchableOpacity>
             ) : null}
             {form?.controlId === c.id ? (
@@ -142,7 +143,7 @@ export function ControlStatus({ gear, colors, canManage, onRecord, busy = false 
                 {form.result === 'avvik' ? (
                   <>
                     <Input label="Hva var feil?" value={form.note} onChange={(v) => setForm({ ...form, note: v })} colors={colors} placeholder="F.eks. måler 4 mm feil på 50 m" />
-                    <Text style={{ color: colors.muted, fontSize: 12 }}>Avviket meldes som sak i ISO, koblet til utstyret, så målinger siden forrige kontroll kan vurderes.</Text>
+                    <Text style={[type.caption, { color: colors.muted }]}>Avviket meldes som sak i ISO, koblet til utstyret, så målinger siden forrige kontroll kan vurderes.</Text>
                   </>
                 ) : null}
                 <View style={styles.row}>
@@ -152,7 +153,7 @@ export function ControlStatus({ gear, colors, canManage, onRecord, busy = false 
                     style={[styles.btn, { backgroundColor: colors.brand, opacity: busy ? 0.6 : 1 }]}
                     accessibilityRole="button"
                   >
-                    <Text style={{ color: '#fff', fontWeight: '600' }}>{form.result === 'avvik' ? 'Lagre og meld avvik' : 'Lagre kontroll'}</Text>
+                    <Text style={{ color: colors.onBrand, fontWeight: '600' }}>{form.result === 'avvik' ? 'Lagre og meld avvik' : 'Lagre kontroll'}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => setForm(null)} style={[styles.btnGhost, { borderColor: colors.line }]} accessibilityRole="button">
                     <Text style={{ color: colors.ink }}>Avbryt</Text>
@@ -169,9 +170,9 @@ export function ControlStatus({ gear, colors, canManage, onRecord, busy = false 
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' },
-  chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
-  btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  btnGhost: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
+  chip: { borderWidth: 1, borderRadius: radius.control, paddingHorizontal: 10, paddingVertical: 8 },
+  input: { borderWidth: 1, borderRadius: radius.control, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
+  btn: { borderRadius: radius.control, paddingHorizontal: 14, paddingVertical: 10 },
+  btnGhost: { borderWidth: 1, borderRadius: radius.control, paddingHorizontal: 12, paddingVertical: 9 },
   box: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
 });

@@ -19,6 +19,7 @@ import WeatherPeriodsView from './WeatherPeriodsView';
 import LiveHomeWidgets from './LiveHomeWidgets';
 import CompanyOfferCard from './home/CompanyOfferCard';
 import CompanyStartChecklist from './home/CompanyStartChecklist';
+import CompanyQuickReport from './home/CompanyQuickReport';
 import { isDoneOn } from '../src/utils/todos';
 import { addDays, dateKey } from '../src/utils/dates';
 import {
@@ -219,6 +220,7 @@ export default function DeskHomeDashboard({
 
       <CompanyOfferCard style={styles.startCard} />
       <CompanyStartChecklist />
+      <CompanyQuickReport style={styles.startCard} />
 
       <View style={styles.main}>
         <View style={styles.agendaCol}>

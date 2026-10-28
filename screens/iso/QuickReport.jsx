@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
+import { radius, type as typeScale } from '../../src/ui/tokens';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { addDays, todayKey } from '../../src/iso/core';
 import { QUICK_TYPES, lastProjectFromHours, projectLabel, quickSheetTitle, reporterEmployee } from '../../src/iso/quickReport';
@@ -115,7 +116,7 @@ function TypeTile({ type, onPress, colors }) {
     >
       <Ionicons name={type.icon} size={24} color={type.id === 'hms' ? colors.danger : colors.brand} />
       <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 15 }}>{type.label}</Text>
-      <Text style={{ color: colors.muted, fontSize: 12 }}>{type.hint}</Text>
+      <Text style={[typeScale.caption, { color: colors.muted }]}>{type.hint}</Text>
     </TouchableOpacity>
   );
 }
@@ -133,12 +134,12 @@ export function MyReports({ companyId, uid, limit = 0, stamp = 0, title = 'Mine 
     loadMyReports(companyId, uid).then((list) => { if (live) setRows(list); });
     return () => { live = false; };
   }, [companyId, uid, stamp]);
-  if (!rows) return <Text style={{ color: colors.muted, fontSize: 12 }}>Henter meldingene dine …</Text>;
+  if (!rows) return <Text style={[typeScale.caption, { color: colors.muted }]}>Henter meldingene dine …</Text>;
   const list = limit ? rows.slice(0, limit) : rows;
   return (
     <View style={{ gap: 2 }}>
       <Text style={{ color: colors.ink, fontWeight: '700' }}>{title}{rows.length ? ` (${rows.length})` : ''}</Text>
-      {!rows.length ? <Text style={{ color: colors.muted, fontSize: 12 }}>Du har ikke meldt noe ennå.</Text> : null}
+      {!rows.length ? <Text style={[typeScale.caption, { color: colors.muted }]}>Du har ikke meldt noe ennå.</Text> : null}
       {list.map((f) => (
         <ListRow
           key={f.id}
@@ -148,7 +149,7 @@ export function MyReports({ companyId, uid, limit = 0, stamp = 0, title = 'Mine 
           right={<Pill label={findingStateLabel(f.state)} tone={f.state === 'lukket' ? 'ok' : 'info'} />}
         />
       ))}
-      {limit && rows.length > limit ? <Text style={{ color: colors.muted, fontSize: 12 }}>{`${rows.length - limit} eldre meldinger vises under Mine meldinger i ISO.`}</Text> : null}
+      {limit && rows.length > limit ? <Text style={[typeScale.caption, { color: colors.muted }]}>{`${rows.length - limit} eldre meldinger vises under Mine meldinger i ISO.`}</Text> : null}
     </View>
   );
 }
@@ -259,7 +260,7 @@ export function QuickReportSheet({
           <Btn small label="Endre type" onPress={() => setType('')} />
         </Row>
         {type === 'hms' ? (
-          <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 2, borderColor: colors.danger }}>
+          <View style={{ gap: 8, padding: 12, borderRadius: radius.card, borderWidth: 2, borderColor: colors.danger }}>
             <Text style={{ color: colors.danger, fontWeight: '800' }}>Alvorlig skade? Ring 113 først.</Text>
             <Row>
               <Btn kind="danger" icon="call-outline" label="Ring 113" onPress={() => Linking.openURL('tel:113').catch(() => {})} />
@@ -278,12 +279,12 @@ export function QuickReportSheet({
             placeholderTextColor={colors.muted}
             accessibilityLabel="Hva skjedde"
             nativeID="quick-text"
-            style={{ minHeight: 110, borderWidth: 1, borderRadius: 12, borderColor: colors.line, backgroundColor: colors.bg, color: colors.ink, padding: 12, fontSize: 16, textAlignVertical: 'top' }}
+            style={{ minHeight: 110, borderWidth: 1, borderRadius: radius.card, borderColor: colors.line, backgroundColor: colors.bg, color: colors.ink, padding: 12, fontSize: 16, textAlignVertical: 'top' }}
           />
           {dictation.supported ? (
             <Btn small icon={dictation.listening ? 'stop-circle-outline' : 'mic-outline'} label={dictation.listening ? 'Stopp opptak' : 'Snakk'} onPress={dictation.listening ? dictation.stop : dictation.start} />
           ) : (
-            <Text style={{ color: colors.muted, fontSize: 12 }}>Vil du heller snakke? Trykk mikrofonen på tastaturet.</Text>
+            <Text style={[typeScale.caption, { color: colors.muted }]}>Vil du heller snakke? Trykk mikrofonen på tastaturet.</Text>
           )}
         </View>
         <Row>
@@ -291,12 +292,12 @@ export function QuickReportSheet({
           {Platform.OS === 'web' ? null : <Btn icon="image-outline" label="Velg bilde" onPress={() => addPhoto(false)} disabled={photos.length >= 2} />}
           {photos.map((p, i) => (
             <TouchableOpacity key={i} onPress={() => setPhotos((cur) => cur.filter((_, j) => j !== i))} accessibilityLabel="Fjern bildet">
-              <Image source={{ uri: p.uri }} style={{ width: 52, height: 52, borderRadius: 8, backgroundColor: colors.line }} />
+              <Image source={{ uri: p.uri }} style={{ width: 52, height: 52, borderRadius: radius.control, backgroundColor: colors.line }} />
             </TouchableOpacity>
           ))}
         </Row>
         <View style={{ gap: 4 }}>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={[typeScale.caption, { color: colors.muted }]}>
             {project ? `Prosjekt: ${project.label}${project.auto === false ? '' : ' (fra siste timeføring)'}` : 'Ingen prosjekt valgt.'}
           </Text>
           {pickProject && projects.length ? (
@@ -313,7 +314,7 @@ export function QuickReportSheet({
         {allowAnonymous ? (
           <Check label="Meld anonymt (navnet ditt lagres ikke, og du kan ikke følge saken)" value={anonymous} onChange={setAnonymous} />
         ) : null}
-        {!anonymous ? <Text style={{ color: colors.muted, fontSize: 12 }}>Bare de som behandler saken, ser hvem som meldte.</Text> : null}
+        {!anonymous ? <Text style={[typeScale.caption, { color: colors.muted }]}>Bare de som behandler saken, ser hvem som meldte.</Text> : null}
         {error ? <Banner tone="danger" text={error} /> : null}
       </View>
     );
@@ -385,7 +386,7 @@ export default function QuickReportButton({ variant = 'tile', label = 'Meld RUH'
         <Ionicons name="warning-outline" size={22} color={colors.danger} />
         <View style={{ flex: 1 }}>
           <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 15 }}>{label}</Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>{queue.count ? `${queue.count} melding${queue.count === 1 ? '' : 'er'} venter på nett` : 'Avvik, nestenulykke eller skade – tre trykk'}</Text>
+          <Text style={[typeScale.caption, { color: colors.muted }]}>{queue.count ? `${queue.count} melding${queue.count === 1 ? '' : 'er'} venter på nett` : 'Avvik, nestenulykke eller skade – tre trykk'}</Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </TouchableOpacity>

@@ -20,6 +20,7 @@ import CompanyPrivacySettings from '../../components/company/CompanyPrivacySetti
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
+import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 
 function initialCompanyPage(startPage) {
   if (startPage === 'tilgang') return 'tilgang';
@@ -226,9 +227,11 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
         ) : canOpenAccess ? (
           <>
-            <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
-              Tilgangsstyring
-            </Text>
+            <UnlessShellTitle title="Tilgangsstyring">
+              <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+                Tilgangsstyring
+              </Text>
+            </UnlessShellTitle>
             <Text style={[styles.lead, { color: colors.muted }]}>
               Rettigheter for hvem som ser og endrer bedriftsmoduler, undersider og innstillinger.
             </Text>
@@ -261,9 +264,11 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           <Text style={[styles.lead, { color: colors.muted }]}>Henter tilgang…</Text>
         ) : companyModules.canView ? (
           <>
-            <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
-              Modulinnstillinger
-            </Text>
+            <UnlessShellTitle title="Modulinnstillinger">
+              <Text accessibilityRole="header" dataSet={{ heading: '1' }} style={[styles.title, { color: colors.ink }]}>
+                Modulinnstillinger
+              </Text>
+            </UnlessShellTitle>
             <Text style={[styles.lead, { color: colors.muted }]}>
               Velg hvilke moduler bedriften abonnerer på. Dette gjelder over tilgangsstyringen: en modul som er av, er av for alle. Ansatte ser den i menyen, men kan ikke åpne den.
             </Text>

@@ -138,6 +138,8 @@ const dispatcher = {
   useLayoutEffect() {},
   useRef(value) { return { current: value }; },
   useCallback(fn) { return fn; },
+  // Utenfor skallet: standardverdien (ingen skalltittel, siden viser sin egen).
+  useContext(context) { return context._currentValue; },
 };
 
 function withHooks(fn) {

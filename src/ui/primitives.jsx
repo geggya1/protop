@@ -16,6 +16,7 @@ import { dateKey } from '../utils/dates';
 import { BREAKPOINTS } from '../theme';
 import { elevationStyle, radius, space } from './tokens';
 import BackLink from './BackLink';
+import { useRepeatsShellTitle } from './ShellTitles';
 
 export function useWide() {
   const { width } = useWindowDimensions();
@@ -48,20 +49,28 @@ export function toneInk(colors, tone) {
 /**
  * Sideoverskrift. Modulbåndet (ModuleHero) i skallet viser modulnavnet,
  * så her vises bare undersidens tittel, en kort forklaring og handlinger.
+ * Når skallet allerede viser samme tittel (toppfeltet eller tittelraden), står bare
+ * forklaringen og knappene igjen: én tittel per side (AGENTS.md).
  * back: { label, onPress } gir tilbakelenken «‹ {label}» (BackLink) over tittelen.
  */
 export function Page({ title, intro, actions, children, wide, back }) {
   const colors = useColors();
+  const shellHasTitle = useRepeatsShellTitle(title);
+  const head = !shellHasTitle || intro || actions;
   return (
     <View style={{ gap: 14 }}>
       {back ? <BackLink label={back.label} onPress={back.onPress} nativeID={back.nativeID} /> : null}
-      <View style={[styles.pageHead, { flexDirection: wide ? 'row' : 'column' }]}>
-        <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
-          <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header" aria-level={2}>{title}</Text>
-          {intro ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{intro}</Text> : null}
+      {head ? (
+        <View style={[styles.pageHead, { flexDirection: wide ? 'row' : 'column' }]}>
+          <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
+            {shellHasTitle ? null : (
+              <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header" aria-level={2}>{title}</Text>
+            )}
+            {intro ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 19 }}>{intro}</Text> : null}
+          </View>
+          {actions ? <View style={[styles.row, { flexWrap: 'wrap', gap: space.xs }]}>{actions}</View> : null}
         </View>
-        {actions ? <View style={[styles.row, { flexWrap: 'wrap', gap: space.xs }]}>{actions}</View> : null}
-      </View>
+      ) : null}
       {children}
     </View>
   );

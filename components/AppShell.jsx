@@ -84,6 +84,8 @@ import { phoneChromeHeroId, shellHeroCompact, shellHeroModuleId } from '../src/m
 import { navTrailParentText } from '../src/navigation/navTrail';
 import ModuleAside, { ModuleAsideProvider, ShellWideContext } from './ModuleAside';
 import { ModuleHeroHostProvider, useShowModuleHero } from './ModulePageBg';
+import { ShellTitlesProvider } from '../src/ui/ShellTitles';
+import { shellPageTitles } from '../src/navigation/shellPageTitles';
 import { useChatDock, useChatDockPreferred } from '../src/context/ChatDockContext';
 import { useModuleAccess } from '../src/context/ModuleAccessContext';
 import { useNow } from '../src/hooks/useNow';
@@ -189,7 +191,7 @@ const SUBPAGE_ASIDE_MIN_WIDTH = 1280;
 function AppShellInner() {
   const nav = useNavigation();
   const route = useOptionalRoute();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const colors = useColors();
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
@@ -988,6 +990,18 @@ function AppShellInner() {
     : null;
   // Undersider: kompakt tittelrad i stedet for båndet (telefon: toppfeltet viser tittelen).
   const heroCompact = !!pageHeroId && shellHeroCompact(tab, moreSubView);
+  // PC og nettbrett: båndet eller tittelraden i innholdet viser sidetittelen, ikke toppfeltet.
+  const titleInContent = !!pageHeroId && !headerHeroId && !(heroCompact && isPhone);
+  // Én tittel per side: titlene skallet faktisk viser, så sidene ikke gjentar dem (Page i src/ui).
+  const headerShowsTitle = !titleInContent && (isDesktop || !(headerHeroId || shellPageHero));
+  const shellTitles = useMemo(() => (kitchenMode ? null : shellPageTitles({
+    tab,
+    subView: moreSubView,
+    headerTitle: headerShowsTitle ? shellHeaderTitle : '',
+    titleRow: heroCompact,
+    heroId: heroCompact ? null : pageHeroId,
+    lang,
+  })), [kitchenMode, tab, moreSubView, headerShowsTitle, shellHeaderTitle, heroCompact, pageHeroId, lang]);
 
   // Familiesidene under Meny er ikke med i ProTop (L-35): ingen «Aktiver …» for dem.
   const familyViewBlocked = tab === 'more' && isFamilyProductMoreView(moreSubView);
@@ -1180,6 +1194,7 @@ function AppShellInner() {
             </View>
           ) : null}
           <ModuleHeroHostProvider hosted={!!pageHeroId}>
+          <ShellTitlesProvider titles={shellTitles}>
           {!kitchenMode ? (
             <ShellHeader
               title={shellHeaderTitle}
@@ -1200,6 +1215,7 @@ function AppShellInner() {
               viewAs={viewAsControl}
               onLogoHome={goHome}
               meta={heroCompact && isPhone ? navTrailParentText(tab, moreSubView) : ''}
+              titleInPage={titleInContent}
               hero={shellPageHero || (headerHeroId ? (
                 <ModuleHero moduleId={headerHeroId} flush chrome />
               ) : null)}
@@ -1230,7 +1246,7 @@ function AppShellInner() {
               immersiveHome && styles.immersiveLayer,
             ]}
             >
-              {pageHeroId && !headerHeroId && !(heroCompact && isPhone) ? (
+              {titleInContent ? (
                   <View style={[
                     styles.heroBand,
                     isDesktop ? styles.heroBandDesk : styles.heroBandTablet,
@@ -1269,6 +1285,7 @@ function AppShellInner() {
               ) : null}
             </View>
           </View>
+          </ShellTitlesProvider>
           </ModuleHeroHostProvider>
         </View>
         <ParentShellBottomNav

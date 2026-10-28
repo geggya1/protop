@@ -13,7 +13,8 @@ import { companyNavTrail, navTrailSegments } from '../src/navigation/navTrail';
  *
  * current: et ekstra siste ledd, f.eks. fakturanummeret på en detaljside.
  * onPage: gjør sideleddet til en lenke (f.eks. tilbake til listen fra en detaljside).
- * title: siste ledd vises som sidetittel (kompakt tittelrad på undersider).
+ * title: siste ledd vises som sidetittel (kompakt tittelrad på undersider), og er sidens
+ * overskrift for skjermlesere (nivå 1). Toppfeltet og siden gjentar den ikke.
  */
 export default function Breadcrumb({
   tab,
@@ -65,6 +66,7 @@ export default function Breadcrumb({
             ) : (
               <Text
                 accessibilityRole={title && last ? 'header' : undefined}
+                aria-level={title && last ? 1 : undefined}
                 aria-current={last ? 'page' : undefined}
                 style={[
                   styles.text,

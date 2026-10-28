@@ -31,6 +31,9 @@ export {
 export { default as BackLink, DetailMissing, backLinkText } from './BackLink';
 export { default as InlineError } from './InlineError';
 export { default as Skeleton } from './Skeleton';
+export {
+  ShellTitlesProvider, UnlessShellTitle, useRepeatsShellTitle, useShellTitles,
+} from './ShellTitles';
 export { useConfirm } from './useConfirm';
 export { confirmOptions, requestConfirm } from './confirm';
 export {

@@ -1,10 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  displayName, employmentEndDate, isActiveEmployee, newId, setEmployeePath,
-} from '../../src/employees/model';
-import { todayKey } from '../../src/employees/employmentState';
+import { displayName, newId, setEmployeePath } from '../../src/employees/model';
+import { employmentEndDate, isActiveEmployee, todayKey } from '../../src/employees/employmentState';
 import { confirmUser } from '../../src/utils/dialog';
 import { employmentFlags } from '../../src/employees/employmentFlags';
 import {

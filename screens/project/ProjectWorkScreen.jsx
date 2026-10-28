@@ -1070,9 +1070,14 @@ export default function ProjectWorkScreen() {
       setDropped(new Set());
       setImportReport(null);
       setLinkQuery({});
-      setNote(!(loadedAnbud.customers || []).length
-        ? 'Kunderegisteret er tomt. Importer kundene først for automatisk kobling.'
-        : '');
+      setNote([
+        !(loadedAnbud.customers || []).length
+          ? 'Kunderegisteret er tomt. Importer kundene først for automatisk kobling.'
+          : '',
+        plan.shorterPeriodHint
+          ? 'Eksporten fra Moment dekker hele prosjektperioden, så indeksregulerte timepriser vises bare som snitt. Eksporter prosjektrapporten med en kort periode fram til i dag (f.eks. siste tre måneder) og importer den i stedet. Da brukes siste timepris der prosjektet har timer i perioden.'
+          : '',
+      ].filter(Boolean).join(' '));
       setView('import');
     } catch (cause) {
       const message = String(cause?.message || '');

@@ -112,31 +112,55 @@ function kr(value) {
   return formatKr(value, { decimals: 0 });
 }
 
-const RATE_AVERAGE = 'Timeprisen må settes for hånd. Moment viser bare et snitt av flere satser.';
+const RATE_AVERAGE = 'Timeprisen må settes for hånd. Moment viser et snitt av flere satser, for eksempel før og etter indeksregulering.';
 const RATE_NONE = 'Timeprisen må settes for hånd. Moment har ingen fakturerbare timer å regne den ut fra.';
 const RATE_WRONG = 'Timeprisen var lik honorarestimatet fra Moment og blir rettet.';
 
 /**
  * Timeprisen Moment har brukt: inntekt på timer delt på fakturerbare timer.
- * Prosjektlisten fra Moment har ikke satsen som egen kolonne. Går regnestykket
- * opp i hele kroner, har prosjektet hatt én sats (exact). Ellers er det et snitt
- * av flere satser, og satsen må settes for hånd.
+ * Prosjektlisten fra Moment har ikke satsen som egen kolonne. Det er ikke påslag
+ * på timeprisen, så inntekten er timer × sats. Satsen kan være indeksregulert
+ * underveis, og da er det den siste som gjelder. Derfor går perioden i eksporten
+ * (f.eks. siste tre måneder) foran totalen for hele prosjektet. Totalen brukes
+ * bare når prosjektet ikke har timer i perioden.
+ * Går regnestykket opp i hele kroner, har det vært én sats i tidsrommet (exact).
+ * Ellers er det et snitt av flere satser, og satsen må settes for hånd.
  */
 export function momentHourlyRate(row = {}) {
-  const pairs = [
-    [row.hoursIncomeTotal, row.billableHoursTotal],
-    [row.hoursIncomePeriod, row.billableHours],
+  const spans = [
+    ['period', row.hoursIncomePeriod, row.billableHours],
+    ['total', row.hoursIncomeTotal, row.billableHoursTotal],
   ];
-  for (const [incomeValue, hoursValue] of pairs) {
+  for (const [span, incomeValue, hoursValue] of spans) {
     const income = positive(incomeValue);
     const hours = positive(hoursValue);
     if (income == null || hours == null) continue;
     const average = income / hours;
     const rate = Math.round(average);
     const exact = Math.abs(average - rate) < 0.01 && rate < HOURLY_RATE_CEILING;
-    return { rate, average, exact, income, hours };
+    return { rate, average, exact, income, hours, span };
   }
   return null;
+}
+
+/**
+ * Perioden i Moment-eksporten dekker hele prosjektets historikk: periodetallene er
+ * like totalene på alle timeprisprosjekt med timer. Da kan en sats som er
+ * indeksregulert underveis ikke leses, bare snittet. Fastpris telles ikke, der
+ * har perioden med periodisering.
+ */
+function periodIsWholeHistory(rows) {
+  let withHours = 0;
+  for (const row of rows) {
+    if (normalizePricingModel(row?.pricingModel) !== 'hourly') continue;
+    const total = positive(row.billableHoursTotal);
+    if (total == null) continue;
+    withHours += 1;
+    const sameHours = amount(row.billableHours) === total;
+    const sameIncome = amount(row.hoursIncomePeriod) === amount(row.hoursIncomeTotal);
+    if (!sameHours || !sameIncome) return false;
+  }
+  return withHours > 0;
 }
 
 /** Prisene importen gir prosjektet, som tekst i kontrollen før lagring. */
@@ -625,7 +649,12 @@ export function planProjectImport(projectState, customers, contracts, rows) {
     }
     planned.push(row);
   }
-  return { rows: planned };
+  const averaged = planned.some((row) => (row.issues || []).includes(RATE_AVERAGE));
+  return {
+    rows: planned,
+    // Snittsatser og eksport for hele historikken: en kortere periode gir siste sats.
+    shorterPeriodHint: averaged && periodIsWholeHistory(Array.isArray(rows) ? rows : []),
+  };
 }
 
 export async function readCompanyProjectTable(bytes, filename = '') {

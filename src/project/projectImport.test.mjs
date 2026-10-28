@@ -242,15 +242,28 @@ import { namesLikelyMatch } from '../anbud/customers.js';
   // Moment eksporterer ikke timeprisen. Den regnes ut av inntekt på timer og fakturerbare timer.
   assert.deepEqual(
     momentHourlyRate({ hoursIncomeTotal: '10314.0', billableHoursTotal: '9.0' }),
-    { rate: 1146, average: 1146, exact: true, income: 10314, hours: 9 },
+    { rate: 1146, average: 1146, exact: true, income: 10314, hours: 9, span: 'total' },
   );
   const average = momentHourlyRate({ hoursIncomeTotal: '292790.0', billableHoursTotal: '233.5' });
   assert.equal(average.exact, false);
   assert.equal(average.rate, 1254);
-  // Uten totalkolonnene brukes perioden.
   assert.equal(momentHourlyRate({ hoursIncomePeriod: '8021,0', billableHours: '6,5' }).rate, 1234);
   assert.equal(momentHourlyRate({ hoursIncomeTotal: '0.0', billableHoursTotal: '82.0' }), null);
   assert.equal(momentHourlyRate({}), null);
+  // Indeksregulert underveis: snittet for hele prosjektet er ikke satsen. Perioden fram til i dag er siste sats.
+  const regulated = {
+    hoursIncomeTotal: '240600.0', billableHoursTotal: '220.0', // 100 t × 1050 + 120 t × 1130
+    hoursIncomePeriod: '45200.0', billableHours: '40.0',
+  };
+  assert.equal(momentHourlyRate({ hoursIncomeTotal: '240600.0', billableHoursTotal: '220.0' }).exact, false);
+  assert.deepEqual(
+    { ...momentHourlyRate(regulated), average: undefined },
+    { rate: 1130, average: undefined, exact: true, income: 45200, hours: 40, span: 'period' },
+  );
+  // Ingen timer i perioden: totalen brukes.
+  assert.equal(momentHourlyRate({ ...regulated, hoursIncomePeriod: '0.0', billableHours: '0.0' }).span, 'total');
+  // Flere satser også i perioden: ingen sats, selv om totalen skulle gå opp.
+  assert.equal(momentHourlyRate({ hoursIncomeTotal: '22000', billableHoursTotal: '20', hoursIncomePeriod: '11770', billableHours: '10.5' }).exact, false);
 }
 
 {
@@ -412,6 +425,30 @@ import { namesLikelyMatch } from '../anbud/customers.js';
   assert.equal(after['10900'].pricingModel, 'hourly');
   assert.equal(after['10900'].pricingSettings.hourlyRate, 1150);
   assert.equal(after['10901'].pricingSettings.fixedFee, 45000);
+}
+
+{
+  // Eksporten dekker hele historikken (periode = total) og har snittsatser: importen ber om kortere periode.
+  const mixed = { pricingModel: 'hourlyRate', hoursIncomeTotal: '240600.0', billableHoursTotal: '220.0' };
+  const whole = planProjectImport(emptyProjectState(), [], [], [
+    { number: '1', name: 'A', ...mixed, hoursIncomePeriod: '240600.0', billableHours: '220.0' },
+    { number: '2', name: 'B', pricingModel: 'hourlyRate', hoursIncomeTotal: '10314', billableHoursTotal: '9', hoursIncomePeriod: '10314', billableHours: '9' },
+  ]);
+  assert.equal(whole.shorterPeriodHint, true);
+  // Fastpris og summeringsraden har periodisering i perioden. De teller ikke.
+  const withFixed = planProjectImport(emptyProjectState(), [], [], [
+    { number: '1', name: 'A', ...mixed, hoursIncomePeriod: '240600.0', billableHours: '220.0' },
+    { number: '4', name: 'Fast', pricingModel: 'fixedPrice', hoursIncomeTotal: '200000', billableHoursTotal: '114.5', hoursIncomePeriod: '238925', billableHours: '114.5' },
+    { number: 'Totalt', name: '', hoursIncomeTotal: '196097357', billableHoursTotal: '173061', hoursIncomePeriod: '196641108', billableHours: '173061' },
+  ]);
+  assert.equal(withFixed.shorterPeriodHint, true);
+  const recent = planProjectImport(emptyProjectState(), [], [], [
+    { number: '1', name: 'A', ...mixed, hoursIncomePeriod: '45200.0', billableHours: '40.0' },
+    { number: '3', name: 'C', ...mixed, hoursIncomePeriod: '0', billableHours: '0' },
+  ]);
+  assert.equal(recent.shorterPeriodHint, false);
+  assert.equal(recent.rows[0].pricingOffer.hourlyRate, 1130);
+  assert.equal(recent.rows[1].pricingOffer.hourlyRate, null);
 }
 
 {

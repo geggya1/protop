@@ -62,6 +62,8 @@ import { SHELL_TABS } from './ShellTabBar';
 import ShellHeader, { ShellPageHeroContext, ShellTitleRightContext } from './ShellHeader';
 import ShellDrawer from './ShellDrawer';
 import DesktopRail from './DesktopRail';
+import { useAppearance } from '../src/appearance/AppearanceContext';
+import { railBackground } from '../src/navigation/navTree';
 import BrandLogo from './BrandLogo';
 import EdgeSwipeBack from './EdgeSwipeBack';
 import IconBadge from './IconBadge';
@@ -192,6 +194,7 @@ function AppShellInner() {
   const route = useOptionalRoute();
   const { t } = useI18n();
   const colors = useColors();
+  const appearance = useAppearance();
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
   const { highChildFriendliness } = useThemeMeta();
@@ -974,7 +977,8 @@ function AppShellInner() {
     t,
     asChildView,
     childHomeTitle: asChildView ? childShellTitle(now, { child: viewingChild }) : null,
-    modulesHub: isPhone && !simpleChildUi && (asChildView || isParent),
+    modulesHub: isPhone && !simpleChildUi && asChildView,
+    menuHub: !simpleChildUi && !asChildView && isParent,
   }), [tab, moreSubView, t, asChildView, now, viewingChild, isPhone, isParent, simpleChildUi]);
 
   // Hjelpen følger undersiden (anbud.varsling, iso.avvik …), ikke bare fanen.
@@ -1100,6 +1104,8 @@ function AppShellInner() {
               backgroundColor: colors.card,
             },
             isDesktop && styles.railDesktop,
+            // Sidemenyen på PC følger lyst og mørkt (UX-05/UX-22).
+            isDesktop && { backgroundColor: railBackground(colors, appearance.scheme) },
           ]}
           >
             {isDesktop ? (
@@ -1322,11 +1328,23 @@ export default function AppShell() {
   // Felles lesing for bedriften (ansatte, personer, kunder, prosjekter, innstillinger).
   const companyId = family?.id === familyId && isOrganizationType(family?.type) ? familyId : '';
   const me = useMemo(() => (uid ? { ...(userProfile || {}), uid } : null), [uid, userProfile]);
+  // Under bytte med Privat/Bedrift peker familien et øyeblikk på det forrige arbeidsområdet. Skallet monteres
+  // først når de stemmer, så det ikke tegnes med feil arbeidsområde og tar en bedriftsside med over i Privat
+  // (EGEN-04). Kommer det ikke svar (frakoblet), tegnes det likevel etter et øyeblikk, som før.
+  const switching = !!(family?.id && familyId && family.id !== familyId);
+  const [waitedOut, setWaitedOut] = useState(false);
+  useEffect(() => {
+    setWaitedOut(false);
+    if (!switching) return undefined;
+    const timer = setTimeout(() => setWaitedOut(true), 1500);
+    return () => clearTimeout(timer);
+  }, [switching]);
+  const hold = switching && !waitedOut;
   return (
     <CompanyDataProvider companyId={companyId} members={parents} me={me}>
       {/* ISO-automatikk og køen for hurtigmeldinger (ISO-02/03). Tegner ingenting. */}
       {companyId ? <IsoAutomation key={`iso-${companyId}`} /> : null}
-      <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />
+      {hold ? null : <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />}
     </CompanyDataProvider>
   );
 }

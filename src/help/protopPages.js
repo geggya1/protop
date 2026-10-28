@@ -21,7 +21,8 @@ const tx = (nb, en) => ({ nb, en });
 
 /** Menygrupper slik de står i hamburgermenyen og venstremenyen. */
 export const HELP_SECTIONS = [
-  { id: 'personal', icon: 'person-outline', title: tx('Personlig', 'Personal') },
+  // Øverst i menyen, uten overskrift; bryteren Privat/Bedrift velger arbeidsområdet (EGEN-04).
+  { id: 'personal', icon: 'person-outline', title: tx('Hjem og verktøy', 'Home and tools') },
   { id: 'company-org', icon: 'business-outline', title: tx('Bedrift og organisasjon', 'Company and organisation') },
   { id: 'company-people', icon: 'people-outline', title: tx('Ansatte og arbeidstid', 'Employees and working hours') },
   { id: 'company-quality', icon: 'shield-checkmark-outline', title: tx('Kvalitet og styringssystem', 'Quality and management system') },
@@ -69,7 +70,7 @@ export const PROTOP_PAGES = {
   home: page({
     section: 'personal',
     label: tx('Hjem', 'Home'),
-    path: tx('Personlig → Hjem (eller trykk ProTop-logoen)', 'Personal → Home (or tap the ProTop logo)'),
+    path: tx('Menyen → Hjem (eller trykk ProTop-logoen)', 'Menu → Home (or tap the ProTop logo)'),
     nav: { tab: 'home' },
     icon: 'home',
     kicker: tx('Start her hver dag', 'Start here every day'),
@@ -116,7 +117,7 @@ export const PROTOP_PAGES = {
   chat: page({
     section: 'personal',
     label: tx('Chat', 'Chat'),
-    path: tx('Personlig → Chat, eller chat-boblen nede til høyre', 'Personal → Chat, or the chat bubble at the bottom right'),
+    path: tx('Menyen → Chat, eller chat-boblen nede til høyre', 'Menu → Chat, or the chat bubble at the bottom right'),
     nav: { tab: 'chat' },
     icon: 'chatbubbles',
     kicker: tx('Prat og ProTop-assistenten', 'Chat and the ProTop assistant'),
@@ -144,7 +145,7 @@ export const PROTOP_PAGES = {
   friends: page({
     section: 'personal',
     label: tx('Venner', 'Friends'),
-    path: tx('Personlig → Venner', 'Personal → Friends'),
+    path: tx('Menyen → Venner', 'Menu → Friends'),
     nav: { tab: 'more', subView: 'friends' },
     icon: 'people',
     kicker: tx('Kontakter utenfor bedriften', 'Contacts outside the company'),
@@ -172,7 +173,7 @@ export const PROTOP_PAGES = {
   plan: page({
     section: 'personal',
     label: tx('Kalender', 'Calendar'),
-    path: tx('Personlig → Kalender', 'Personal → Calendar'),
+    path: tx('Menyen → Kalender', 'Menu → Calendar'),
     nav: { tab: 'plan' },
     icon: 'calendar',
     kicker: tx('Avtaler og frister', 'Appointments and deadlines'),
@@ -200,7 +201,7 @@ export const PROTOP_PAGES = {
   mail: page({
     section: 'personal',
     label: tx('E-post', 'Mail'),
-    path: tx('Personlig → E-post', 'Personal → Mail'),
+    path: tx('Menyen → E-post', 'Menu → Mail'),
     nav: { tab: 'mail' },
     icon: 'mail',
     kicker: tx('Outlook i ProTop', 'Outlook inside ProTop'),
@@ -228,7 +229,7 @@ export const PROTOP_PAGES = {
   stars: page({
     section: 'personal',
     label: tx('Oppgaver', 'Tasks'),
-    path: tx('Personlig → Oppgaver', 'Personal → Tasks'),
+    path: tx('Menyen → Oppgaver', 'Menu → Tasks'),
     nav: { tab: 'stars' },
     icon: 'checkbox',
     kicker: tx('Huskeliste med frister', 'To-do list with deadlines'),
@@ -262,7 +263,7 @@ export const PROTOP_PAGES = {
   notes: page({
     section: 'personal',
     label: tx('Notat', 'Notes'),
-    path: tx('Personlig → Notat', 'Personal → Notes'),
+    path: tx('Menyen → Notat', 'Menu → Notes'),
     nav: { tab: 'notes' },
     icon: 'document-text',
     kicker: tx('Skriv eller ta opp', 'Write or record'),
@@ -283,7 +284,7 @@ export const PROTOP_PAGES = {
   timeliste: page({
     section: 'personal',
     label: tx('Timeliste (min)', 'Timesheet (mine)'),
-    path: tx('Personlig → Timeliste', 'Personal → Timesheet'),
+    path: tx('Menyen → Timeliste', 'Menu → Timesheet'),
     nav: { tab: 'timeliste' },
     icon: 'time',
     process: 'anbud-til-faktura',
@@ -372,14 +373,14 @@ export const PROTOP_PAGES = {
   moduleAccess: page({
     section: 'account',
     label: tx('Aktiverte moduler', 'Enabled modules'),
-    path: tx('Konto → Aktiverte moduler', 'Account → Enabled modules'),
+    path: tx('Konto → Aktiverte moduler (i Bedrift: Bedriftsinnstillinger → Modulinnstillinger)', 'Account → Enabled modules (in Company: Company settings → Module settings)'),
     nav: { tab: 'more', subView: 'moduleAccess' },
     icon: 'apps',
-    kicker: tx('Dine personlige moduler', 'Your personal modules'),
-    title: tx('Slå personlige moduler av og på', 'Turn personal modules on and off'),
+    kicker: tx('Kalender, e-post og verktøy', 'Calendar, mail and tools'),
+    title: tx('Slå moduler av og på', 'Turn modules on and off'),
     pitch: tx(
-      'Velg hvilke personlige moduler (Kalender, E-post, Oppgaver, Notat …) du bruker. Bedriftens moduler styres i Modulinnstillinger.',
-      'Choose which personal modules (Calendar, Mail, Tasks, Notes …) you use. Company modules are managed in Module settings.',
+      'Velg hvilke moduler (Kalender, E-post, Oppgaver, Notat …) som er aktivert. I Bedrift ligger valget sammen med bedriftens moduler i Modulinnstillinger for den som har den siden.',
+      'Choose which modules (Calendar, Mail, Tasks, Notes …) are enabled. In Company the choice sits with the company modules in Module settings for whoever has that page.',
     ),
     steps: [
       step(tx('Aktiver eller deaktiver', 'Enable or disable'),
@@ -513,8 +514,12 @@ export const PROTOP_PAGES = {
         '«Lagre moduler» tar endringen i bruk for alle. «Angre endringer» setter tilbake.',
         '“Save modules” applies the change for everyone. “Undo changes” reverts.',
         { find: ['Lagre moduler', 'Angre endringer'] }),
+      step(tx('Aktiverte moduler', 'Enabled modules'),
+        'Nederst: Kalender, E-post, Oppgaver, Notat og Chat. De står alltid i menyen; en som er slått av, viser velkomsten neste gang den åpnes. Lagres med en gang.',
+        'At the bottom: Calendar, Mail, Tasks, Notes and Chat. They are always in the menu; one that is off shows the welcome next time it opens. Saved at once.',
+        { find: ['Aktiverte moduler'] }),
     ],
-    keywords: ['moduler', 'modulinnstillinger', 'slå av', 'deaktivert', 'låst modul', 'aktivere modul'],
+    keywords: ['moduler', 'modulinnstillinger', 'slå av', 'deaktivert', 'låst modul', 'aktivere modul', 'aktiverte moduler'],
   }),
   'selskap.tilgang': page({
     section: 'company-org',
@@ -1802,9 +1807,9 @@ export const PROTOP_PAGES = {
 
   /* ───────────────────── Skjemabygger ───────────────────── */
   skjema: page({
-    section: 'account',
+    section: 'company-quality',
     label: tx('Skjemabygger', 'Form builder'),
-    path: tx('Konto → Skjemabygger', 'Account → Form builder'),
+    path: tx('Bedrift → Kvalitet og styringssystem → Skjemabygger', 'Company → Quality and management system → Form builder'),
     nav: { tab: 'skjema' },
     icon: 'clipboard',
     kicker: tx('Skjema, sjekklister og avtalemaler', 'Forms, checklists and agreement templates'),

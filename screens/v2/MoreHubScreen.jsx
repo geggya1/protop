@@ -59,12 +59,7 @@ import {
   buildChildDashboardApps,
   buildParentDashboardApps,
   buildShellModules,
-  companyHasRegisteredUnits,
-  companyMenuItems,
-  drawerHasSubmenuToggle,
-  drawerSubmenuOpen,
 } from '../../src/navigation/shellModules';
-import { isOrganizationType } from '../../src/utils/groupTypes';
 import HomeModulesBoard from '../../components/home/HomeModulesBoard';
 import { moreSubviewTitle } from '../../src/navigation/shellHeaderTitle';
 import IconBadge from '../../components/IconBadge';
@@ -74,6 +69,12 @@ import { allowedAppsForChild, isChildAppAllowed } from '../../src/utils/childApp
 import { grandparentModulesFor, isGrandparentAppAllowed } from '../../src/utils/grandparentAccess';
 import HelpTarget from '../../components/HelpTarget';
 import { isFamilyProductMoreView } from '../../src/navigation/familyProduct';
+import NavTree, { useNavTreeState } from '../../components/NavTree';
+import { useNavTree } from '../../src/hooks/useNavTree';
+import { navSections } from '../../src/navigation/navTree';
+import { Card } from '../../src/ui';
+import { useColors } from '../../src/context/ThemeContext';
+import { space } from '../../src/ui/tokens';
 
 function Row({
   icon, label, onPress, highlight, badgeCount = 0, compact = false, showChevron = true, moduleId,
@@ -213,7 +214,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
   const multiCol = hasRail && !isDesktop;
   const colWidth = isDesktop ? '100%' : isTablet ? '48.5%' : '100%';
   const [query, setQuery] = useState('');
-  const [submenuOpen, setSubmenuOpen] = useState({});
   const searchRef = useRef(null);
 
   const {
@@ -231,6 +231,11 @@ export default function MoreHubScreen({ subView, setSubView }) {
   const companyAccess = useCompanyAccess();
   const companyModules = useCompanyModules();
   const { unreadByModule } = useUnread();
+  // Meny-siden i docken viser samme meny som skuffen og sidemenyen (UX-22).
+  const palette = useColors();
+  const navTree = useNavTree();
+  const navState = useNavTreeState(navTree, 'more', subView || null);
+  const navShown = useMemo(() => navSections(navTree), [navTree]);
   const profileChild = isChild ? meChild : (isActingAsChild ? activeChild : null);
   const childForSchedule = profileChild;
   const allowedApps = asChild ? allowedAppsForChild(profileChild) : null;
@@ -404,7 +409,31 @@ export default function MoreHubScreen({ subView, setSubView }) {
     );
   }
 
-  if ((asParent || asChild) && isPhone && !subView) {
+  if (!subView && !asChild) {
+    return (
+      <Screen>
+        <ScrollBody pad={pad}>
+          <Card style={styles.navCard}>
+            <Text style={[styles.intro, { color: palette.muted }]}>{hasRail ? t('moreHub.railIntro') : t('moreHub.phoneIntro')}</Text>
+            <View nativeID="more-nav-tree">
+              <NavTree
+                variant="drawer"
+                sections={navShown}
+                state={navState}
+                activeTab="more"
+                activeSubView={null}
+                unreadByModule={unreadByModule}
+                onAction={(item) => runAction(item.action, item.id)}
+              />
+            </View>
+          </Card>
+          <View style={{ height: 24 }} />
+        </ScrollBody>
+      </Screen>
+    );
+  }
+
+  if (asChild && isPhone && !subView) {
     return (
       <Screen>
         <HomeModulesBoard
@@ -413,44 +442,6 @@ export default function MoreHubScreen({ subView, setSubView }) {
           onPress={(app) => runAction(app.action, app.id)}
           title={t('moreHub.modulesTitle')}
           subtitle={t('moreHub.modulesSub')}
-          footer={isOrganizationType(family?.type) ? (
-            <View style={styles.companyBlock}>
-              <Text style={styles.companyHeading}>{t('shell.company')}</Text>
-              {companyMenuItems({
-                includeUnderenheter: companyHasRegisteredUnits(family?.company),
-                grants: companyAccess.grants,
-                modules: companyModules.state,
-                lockedNote: companyModules.lockedLabel,
-              }).map((item) => {
-                const renderNavBranch = (row, depth = 0) => {
-                  const expandable = !row.locked && drawerHasSubmenuToggle(row);
-                  const submenuExpanded = drawerSubmenuOpen(row, null, submenuOpen, null);
-                  return (
-                    <View key={row.id}>
-                      <Row
-                        icon={row.icon}
-                        label={row.label}
-                        moduleId={row.id}
-                        locked={row.locked}
-                        lockedNote={row.lockedNote}
-                        compact={depth > 0}
-                        expanded={submenuExpanded}
-                        onToggle={expandable ? () => setSubmenuOpen((prev) => ({
-                          ...prev,
-                          [row.id]: !drawerSubmenuOpen(row, null, prev, null),
-                        })) : undefined}
-                        onPress={() => runAction(row.action, row.id)}
-                      />
-                      {expandable && submenuExpanded
-                        ? (row.children || []).map((child) => renderNavBranch(child, depth + 1))
-                        : null}
-                    </View>
-                  );
-                };
-                return renderNavBranch(item);
-              })}
-            </View>
-          ) : null}
         />
         <AiImportChildPicker
           visible={childPickerOpen}
@@ -573,6 +564,7 @@ const styles = StyleSheet.create({
     color: colors.muted, fontWeight: '400', fontSize: 13, lineHeight: 18,
     marginBottom: 4, marginTop: 4,
   },
+  navCard: { paddingHorizontal: space.xs, gap: space.xxs, marginTop: space.xs },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -635,8 +627,6 @@ const styles = StyleSheet.create({
   deskList: {
     gap: 1,
   },
-  companyBlock: { marginTop: 18, paddingHorizontal: 6 },
-  companyHeading: { fontSize: 13, fontWeight: '600', color: colors.muted, marginBottom: 8, marginLeft: 4 },
   rowWrap: {
     flexDirection: 'row',
     alignItems: 'center',

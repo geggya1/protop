@@ -13,7 +13,6 @@ import {
   ISO_SUBVIEW_IDS,
   OKONOMI_ROUTE_IDS,
   ANBUD_SUBVIEW_IDS,
-  companyAccountNavItems,
   companyNavItems,
 } from '../navigation/shellModules.js';
 import { PROTOP_SHELL_MODULE_IDS } from '../navigation/protopShell.js';
@@ -67,7 +66,6 @@ function routesOf(items) {
 }
 const routes = [
   ...routesOf(companyNavItems({ includeUnderenheter: true })),
-  ...routesOf(companyAccountNavItems()),
   ...ARBEID_ROUTE_IDS.map((id) => ['arbeid', id, `arbeid-${id}`]),
   ...OKONOMI_ROUTE_IDS.map((id) => ['okonomi', id, `okonomi-${id}`]),
   ...HR_SUBVIEW_IDS.map((id) => ['hr', id, `hr-${id}`]),

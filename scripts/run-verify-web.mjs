@@ -171,6 +171,7 @@ export const FILES = [
   'src/utils/firestoreRules.list.test.mjs',
   'src/navigation/shellHeaderTitle.test.mjs',
   'src/navigation/navTrail.test.mjs',
+  'src/navigation/navTree.test.mjs',
   'src/navigation/protopDock.test.mjs',
   // Én modulmeny for alle moduler, med «Mer» på telefon (UX-19).
   'src/navigation/moduleTabs.test.mjs',

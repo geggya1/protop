@@ -20,8 +20,9 @@ const CATEGORY_KEYS = {
 
 /**
  * Foreldre kan slå av en modul. Neste åpning viser velkomstskjermen igjen.
+ * showCategories={false}: uten kategorioverskrift, når siden har sin egen (Modulinnstillinger).
  */
-export default function ModuleActivationSettings() {
+export default function ModuleActivationSettings({ showCategories = true }) {
   const { isDesktop } = useLayout();
   const { t, lang } = useI18n();
   const { isActivated, activateModule, deactivateModule, canManage } = useModuleAccess();
@@ -43,7 +44,7 @@ export default function ModuleActivationSettings() {
     <View>
       {sections.map((section) => (
         <View key={section.id} style={styles.block}>
-          <Text style={[styles.cat, isDesktop && styles.catDesk]}>{section.title}</Text>
+          {showCategories ? <Text style={[styles.cat, isDesktop && styles.catDesk]}>{section.title}</Text> : null}
           <View style={styles.group}>
             {section.items.map((mod) => {
               const on = isActivated(mod.id);

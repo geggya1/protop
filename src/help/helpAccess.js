@@ -36,7 +36,7 @@ const on = (need, res) => ({ need, res });
 export const PAGE_ACCESS = {
   selskap: { res: 'companyPublic', steps: [W, S, on(S, 'companyProfile')] },
   'selskap.innstillinger': { res: 'companyProfile', steps: [W, W, W, W] },
-  'selskap.moduler': { res: 'moduleSettings', steps: [W, W] },
+  'selskap.moduler': { res: 'moduleSettings', steps: [W, W, S] },
   'selskap.tilgang': { res: 'accessControl', steps: [S, W, W, on(S, 'viewAs')] },
   'selskap.underenheter': { res: 'units', steps: [W, W] },
   'selskap.fravaerstyper': { res: 'absenceSettings', steps: [W, W, W] },

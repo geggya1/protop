@@ -378,22 +378,23 @@ export const COMPANY_HERO = {
       'Employees, contractors, customers, projects and agreements. Salary and hours come from the system.',
     ),
   },
+  // Kunder og Avtaler er faner i Inntjening, ikke egne sider (UX-17).
   'okonomi-kunder': {
-    name: 'Kundesummer',
-    kicker: t('Økonomi', 'Finance'),
-    title: t('Kundesummer', 'Customer totals'),
+    name: 'Inntjening',
+    kicker: t('Produktivitet og inntjening', 'Productivity and earnings'),
+    title: t('Inntjening', 'Earnings'),
     pitch: t(
-      'Omsetning og utestående per kunde.',
-      'Revenue and outstanding amounts per customer.',
+      'Kunder: omsetning og utestående per kunde.',
+      'Customers: revenue and outstanding amounts per customer.',
     ),
   },
   'okonomi-avtaler': {
-    name: 'Avtalesummer',
-    kicker: t('Økonomi', 'Finance'),
-    title: t('Avtalesummer', 'Agreement totals'),
+    name: 'Inntjening',
+    kicker: t('Produktivitet og inntjening', 'Productivity and earnings'),
+    title: t('Inntjening', 'Earnings'),
     pitch: t(
-      'Beløp knyttet til avtalene.',
-      'Amounts tied to the agreements.',
+      'Avtaler: beløp knyttet til avtalene.',
+      'Agreements: amounts tied to the agreements.',
     ),
   },
   'okonomi-faktura': {
@@ -515,13 +516,12 @@ export function companyHeroRoute(id) {
 }
 
 /**
- * Menygruppen båndet hører til. Timeliste ligger under Personlig og Skjemabygger
- * under Konto; resten følger bedriftsmenyen. Ukjent side: tom streng.
+ * Menygruppen båndet hører til. Timeliste ligger øverst i menyen (personlig);
+ * resten følger bedriftsmenyen. Ukjent side: tom streng.
  */
 export function companyHeroGroup(id) {
   if (!COMPANY_HERO[id]) return '';
   if (id === 'timeliste') return 'personal';
-  if (id === 'skjema') return 'account';
   const { tab, subView } = companyHeroRoute(id);
   return companyNavGroupId(tab, subView) || companyNavGroupId(tab, null);
 }

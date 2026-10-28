@@ -7,7 +7,7 @@ import { groupChildAppItems } from './childAppGroups.js';
 import { groupParentAppItems } from './parentAppGroups.js';
 import { applyProtopShellApps, applyProtopShellSections } from './protopShell.js';
 import { isOrganizationType } from '../utils/groupTypes.js';
-import { filterCompanyNav } from '../access/companyAccess.js';
+import { companyTabAllowed, filterCompanyNav } from '../access/companyAccess.js';
 import { lockCompanyNav } from '../access/companyModules.js';
 import { normalizeSubUnits } from '../project/companyUnits.js';
 import { PRICING_VISIBLE } from '../utils/billingMethods.js';
@@ -167,8 +167,8 @@ export function defaultOkonomiSubView(subView) {
 export function okonomiMenuTitle(subView) {
   if (subView === 'indeks') return 'Indeksregulering';
   if (subView === 'indekser') return 'Indekser';
-  if (subView === 'kunder') return 'Kundesummer';
-  if (subView === 'avtaler') return 'Avtalesummer';
+  // Kunder og Avtaler er faner i Inntjening (UX-17).
+  if (subView === 'kunder' || subView === 'avtaler') return 'Inntjening';
   if (subView === 'faktura') return 'Faktura';
   if (subView === 'fakturagrunnlag') return 'Til fakturering';
   if (subView === 'utlegg') return 'Utlegg';
@@ -449,6 +449,8 @@ export function companyNavItems({ includeUnderenheter = false } = {}) {
       children: OKONOMI_MENU.map(okonomiNavChild),
     },
     isoNavItem(),
+    // Skjema, sjekklister og avtalemaler for hele bedriften; ved ISO / K-HMS, ikke under Konto (UX-17).
+    { id: 'skjema', icon: 'clipboard', label: 'Skjemabygger', action: { type: 'tab', tab: 'skjema' } },
   );
   return items;
 }
@@ -468,22 +470,12 @@ export function companyMenuItems({
   return lockCompanyNav(allowed, modules, lockedNote || undefined);
 }
 
-/** Bedriftsvalg som ligger under Konto (ikke i bedriftslisten). */
-export function companyAccountNavItems() {
-  return [
-    {
-      id: 'tilgang',
-      icon: 'key',
-      label: 'Tilgang',
-      action: { type: 'tab', tab: 'selskap', subView: 'tilgang' },
-    },
-    {
-      id: 'skjema',
-      icon: 'clipboard',
-      label: 'Skjemabygger',
-      action: { type: 'tab', tab: 'skjema' },
-    },
-  ];
+/**
+ * Om Aktiverte moduler (Kalender, E-post, Oppgaver, Notat, Chat) vises inne i Bedriftsinnstillinger →
+ * Modulinnstillinger i stedet for under Konto: i Bedrift, for den som kan åpne Modulinnstillinger.
+ */
+export function showsModulesInCompanySettings({ onCompany = false, companyGrants = null } = {}) {
+  return !!onCompany && companyTabAllowed('selskap', 'moduler', companyGrants);
 }
 
 /** Mobilskuff og desktop-rail: rad med undermeny kan åpnes uten å velge raden. */
@@ -531,7 +523,7 @@ export const COMPANY_DRAWER_GROUPS = [
     id: 'company-quality',
     label: 'Kvalitet og styringssystem',
     icon: 'shield-checkmark',
-    itemIds: ['iso'],
+    itemIds: ['iso', 'skjema'],
   },
   {
     id: 'company-productivity',
@@ -663,7 +655,6 @@ function collectNavIds(item, ids) {
 function companyAllowIds() {
   const ids = [];
   for (const item of companyNavItems({ includeUnderenheter: true })) collectNavIds(item, ids);
-  for (const item of companyAccountNavItems()) ids.push(item.id);
   return ids;
 }
 
@@ -944,13 +935,18 @@ export function buildShellModules({
     action: { type: 'tab', tab: 'more', subView: 'help' },
   });
 
+  const onCompany = isOrganizationType(family?.type);
   if (asParent && !isGrandparent) {
-    accountItems.push({
-      id: 'moduleAccess',
-      icon: 'apps-outline',
-      label: t('apps.moduleAccess'),
-      action: { type: 'tab', tab: 'more', subView: 'moduleAccess' },
-    });
+    // I Bedrift ligger Aktiverte moduler sammen med bedriftens moduler i Modulinnstillinger for den som
+    // har den siden, så samme ting ikke har to steder (UX-17). Andre ser den her som før.
+    if (!showsModulesInCompanySettings({ onCompany, companyGrants })) {
+      accountItems.push({
+        id: 'moduleAccess',
+        icon: 'apps-outline',
+        label: t('apps.moduleAccess'),
+        action: { type: 'tab', tab: 'more', subView: 'moduleAccess' },
+      });
+    }
     accountItems.push({
       id: 'legal', icon: 'shield-checkmark', label: t('apps.privacy'),
       action: { type: 'tab', tab: 'more', subView: 'legal' },
@@ -966,12 +962,6 @@ export function buildShellModules({
       id: 'legal', icon: 'shield-checkmark', label: t('apps.privacy'),
       action: { type: 'tab', tab: 'more', subView: 'legal' },
     });
-  }
-
-  const onCompany = isOrganizationType(family?.type);
-  if (onCompany) {
-    const companyAccount = filterCompanyNav(companyAccountNavItems(), companyGrants);
-    accountItems.unshift(...companyAccount);
   }
 
   sections.push({ id: 'account', title: t('shell.account'), items: accountItems });

@@ -234,4 +234,48 @@ function reset() {
   assert.ok(store.has(entryPath('t6')));
 }
 
+// ── REV-09: ulagrede endringer i den lokale kopien fra forrige versjon ───────
+
+{
+  reset();
+  const seeded = createProject(emptyProjectState(), { name: 'Hundre', number: '100' }).state;
+  const projectId = seeded.projects[0].id;
+  const row = (id, at, extra = {}) => ({
+    id, projectId, date: '2026-10-01', description: `Utlegg ${id}`, amountExVat: 100, category: 'other',
+    updatedAt: at, createdAt: at, ...extra,
+  });
+  const T0 = '2026-10-20T08:00:00.000Z';
+  const T1 = '2026-10-21T08:00:00.000Z';
+  seedCloud({ ...seeded, syncedAt: T0, fullDayHours: 7.5, expenses: [row('E1', T0), row('E3', T0)] });
+  // Den eldre versjonen lagret uten nett: E1 rettet, E2 ny og eget dagsnormtall. E_gammel er en
+  // rad fra før skyen sist ble lagret (slettet av en annen), og skal ikke komme tilbake.
+  globalThis.__saveTestLocal.set(`protop.projectPlatform.v2.${CO}`, JSON.stringify(normalizeProjectState({
+    ...seeded,
+    syncedAt: T1,
+    fullDayHours: 7,
+    expenses: [
+      row('E1', T1, { description: 'Rettet uten nett' }),
+      row('E2', T1, { description: 'Ny uten nett' }),
+      row('E3', T0),
+      row('E_gammel', '2026-10-01T08:00:00.000Z'),
+    ],
+  })));
+  const loaded = await storage.loadProjectState(CO, { force: true });
+  assert.deepEqual(loaded.expenses.map((e) => e.id).sort(), ['E1', 'E2', 'E3']);
+  assert.equal(loaded.expenses.find((e) => e.id === 'E1').description, 'Rettet uten nett');
+  assert.equal(loaded.fullDayHours, 7);
+  await wait(30);
+  assert.deepEqual(cloud().expenses.map((e) => e.id).sort(), ['E1', 'E2', 'E3'], 'sendt til skyen, ingenting gjenopplivet');
+  assert.equal(cloud().expenses.find((e) => e.id === 'E1').description, 'Rettet uten nett');
+  assert.equal(cloud().fullDayHours, 7);
+  assert.equal((await storage.pendingProjectChanges(CO)).length, 0);
+
+  // Bare én gang: en kollega retter E1 etterpå, og neste lasting skriver ikke den gamle kopien tilbake.
+  store.get(MAIN).state.expenses = cloud().expenses.map((e) => (e.id === 'E1' ? { ...e, description: 'Kollega', updatedAt: '2026-10-22T08:00:00.000Z' } : e));
+  storage.clearProjectStateMemory(CO);
+  const again = await storage.loadProjectState(CO, { force: true });
+  assert.equal(again.expenses.find((e) => e.id === 'E1').description, 'Kollega');
+  assert.equal((await storage.pendingProjectChanges(CO)).length, 0);
+}
+
 console.log('saveRegressions.test.mjs: ok');

@@ -9,6 +9,7 @@ import {
   combineProjectDiffs,
   diffProjectStates,
   isEmptyProjectDiff,
+  legacyLocalChanges,
   projectDiffKeys,
 } from './stateDiff.js';
 import { showSaveError } from '../ui/saveToast.js';
@@ -39,6 +40,8 @@ const KEY = 'protop.projectPlatform.v2';
 const RETIRED_KEYS = ['protop.projectPlatform.v1'];
 /** Endringer som ikke har nådd skyen ennå (f.eks. uten nett). Ligger på enheten til de er lagret. */
 const OUTBOX_KEY = 'protop.projectOutbox.v1';
+/** Satt når den lokale kopien fra en eldre versjon (før køen) er sjekket for ulagrede endringer. */
+const LEGACY_CHECKED_KEY = 'protop.projectLocalChecked.v1';
 const OUTBOX_MAX_DAYS = 30;
 const OUTBOX = new Map();
 const outboxLoaded = new Map();
@@ -738,6 +741,41 @@ function enqueueProjectDiff(companyId, diff) {
   return true;
 }
 
+/** Legg en endring først i køen (eldre enn det som allerede ligger der). */
+function prependProjectDiff(companyId, diff) {
+  const id = String(companyId || '').trim();
+  if (!id || isEmptyProjectDiff(diff)) return false;
+  outboxSeq += 1;
+  const entry = { seq: `${SESSION}.${outboxSeq}`, at: new Date().toISOString(), diff };
+  OUTBOX.set(id, [entry, ...(OUTBOX.get(id) || [])]);
+  persistOutbox(id);
+  return true;
+}
+
+/**
+ * Første lasting med skyen etter oppgraderingen: ulagrede endringer i den lokale kopien fra den
+ * eldre versjonen legges i køen (legacyLocalChanges), så de ikke forsvinner. Bare én gang per selskap.
+ */
+async function takeLegacyLocalChanges(companyId, local, remoteState) {
+  const key = `${LEGACY_CHECKED_KEY}.${companyId}`;
+  try {
+    if (await AsyncStorage.getItem(key)) return null;
+  } catch {
+    return null;
+  }
+  const diff = legacyLocalChanges(
+    withoutBaseRev(stripTimeEntriesFromState(local)),
+    withoutBaseRev(stripTimeEntriesFromState(remoteState)),
+  );
+  if (diff) prependProjectDiff(companyId, diff);
+  try {
+    await AsyncStorage.setItem(key, new Date().toISOString());
+  } catch {
+    // Uten disk sjekkes kopien igjen neste gang. Endringene er de samme, så de legges likt på.
+  }
+  return diff;
+}
+
 /** Ventende endringer for selskapet (lest fra enheten første gang). */
 export async function pendingProjectChanges(companyId) {
   return (await hydrateOutbox(companyId)).map((row) => row.diff);
@@ -1163,13 +1201,15 @@ export async function loadProjectState(companyIdOrOpts, maybeOpts) {
       return adoptBase(companyId, await loadStateWithHealedHours(companyId, applied.state, hoursOpts));
     }
     let state = applied.state;
+    const legacy = applied.upload ? null : await takeLegacyLocalChanges(companyId, local, applied.state);
+    const queued = legacy ? [legacy, ...waiting] : waiting;
     if (applied.upload) {
       enqueueProjectDiff(companyId, diffProjectStates(null, withoutBaseRev(stripTimeEntriesFromState(state))));
-    } else if (waiting.length) {
+    } else if (queued.length) {
       // Endringer som ikke nådde skyen sist, vises med en gang og sendes nå.
-      state = normalizeProjectState(waiting.reduce((current, diff) => applyProjectDiff(current, diff), state));
+      state = normalizeProjectState(queued.reduce((current, diff) => applyProjectDiff(current, diff), state));
     }
-    let flush = applied.upload || waiting.length > 0;
+    let flush = applied.upload || queued.length > 0;
     if ((applied.state.timeEntries || []).length && (hoursOpts.all || hoursOpts.fromDate)) {
       // Gamle timer i hoveddokumentet er flyttet til egen samling. Skrivingen fjerner dem der.
       flush = enqueueProjectDiff(companyId, { lists: {}, fields: { timeEntries: [] }, deletedRows: [], strict: false }) || flush;

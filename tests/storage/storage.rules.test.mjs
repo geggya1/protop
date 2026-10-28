@@ -50,6 +50,14 @@ beforeEach(async () => {
     await seed(`families/${A}/invoices/inv1/Faktura-100.pdf`, 'okon');
     await seed(`families/${A}/mileage/1-kvittering.jpg`, 'okon');
     await seed('families/personal/mileage/1-eve.jpg', 'eve');
+    // Familie F: mor er eier, far er foresatt, kid er barnet. Familie G: ext er eier.
+    await setDoc(doc(db, 'families', 'F'), { type: 'family', ownerUid: 'mor', adminUids: ['mor'], members: ['mor', 'far', 'kid'] });
+    await setDoc(doc(db, 'families', 'F', 'parents', 'mor'), { uid: 'mor', active: true });
+    await setDoc(doc(db, 'families', 'F', 'parents', 'far'), { uid: 'far', active: true });
+    await setDoc(doc(db, 'children', 'kid'), { uid: 'kid', familyId: 'F' });
+    await setDoc(doc(db, 'families', 'G'), { type: 'family', ownerUid: 'ext', adminUids: ['ext'], members: ['ext'] });
+    await setDoc(doc(db, 'families', 'G', 'parents', 'ext'), { uid: 'ext', active: true });
+    await s.ref('icons/catalog/tannpuss.png').putString('x', 'raw', { contentType: 'image/png' });
   });
 });
 
@@ -95,5 +103,37 @@ describe('Storage-regler', () => {
     await assertSucceeds(put('bob', `groups/${A}-1730000000000.jpg`));
     await assertFails(put('ext', `groups/${A}-1730000000001.jpg`));
     await assertSucceeds(read('ext', 'groups/bob-1730000000000.jpg'));
+  });
+});
+
+describe('Storage-regler: profilbilder, barneavatarer og ikonkatalogen (REV-12)', () => {
+  const image = (uid, path, meta = {}) => store(uid).ref(path).putString('x', 'raw', { contentType: 'image/jpeg', ...meta });
+
+  test('profilbilde: personen selv, eller administrator i en felles gruppe (familyId i metadata)', async () => {
+    await assertSucceeds(image('far', 'profiles/far/parent-far-1.jpg', { customMetadata: { uploadedBy: 'far' } }));
+    await assertFails(image('bob', 'profiles/far/parent-far-2.jpg'));
+    await assertSucceeds(image('mor', 'profiles/far/parent-far-3.jpg', { customMetadata: { uploadedBy: 'mor', familyId: 'F' } }));
+    await assertFails(image('ext', 'profiles/far/parent-far-4.jpg', { customMetadata: { uploadedBy: 'ext', familyId: 'G' } }));
+    await assertFails(image('far', 'profiles/far/notat.txt', { contentType: 'text/plain' }));
+    await assertFails(store('far').ref('profiles/far/parent-far-5.jpg').putString('x', 'raw', { contentType: 'text/html' }));
+    await assertSucceeds(read('kid', 'profiles/far/parent-far-1.jpg'));
+  });
+
+  test('barneavatar: en voksen i barnets familie eller barnet selv, også fra eldre apper', async () => {
+    await assertSucceeds(image('mor', 'child_avatars/kid-1.jpg'));
+    await assertSucceeds(image('far', 'child_avatars/kid-2.jpg'));
+    await assertSucceeds(image('kid', 'child_avatars/kid-3.jpg'));
+    // Eldre app: blob uten innholdstype.
+    await assertSucceeds(store('far').ref('child_avatars/kid-4.jpg').putString('x', 'raw', { contentType: 'application/octet-stream' }));
+    await assertFails(image('ext', 'child_avatars/kid-5.jpg'));
+    await assertFails(image('bob', 'child_avatars/kid-6.jpg'));
+    await assertFails(store('mor').ref('child_avatars/kid-7.jpg').putString('x', 'raw', { contentType: 'application/pdf' }));
+    await assertSucceeds(read('ext', 'child_avatars/kid-1.jpg'));
+  });
+
+  test('ikonkatalogen: alle innloggede leser, ingen skriver', async () => {
+    await assertSucceeds(read('kid', 'icons/catalog/tannpuss.png'));
+    await assertFails(env.unauthenticatedContext().storage().ref('icons/catalog/tannpuss.png').getMetadata());
+    await assertFails(image('mor', 'icons/catalog/ny.png'));
   });
 });

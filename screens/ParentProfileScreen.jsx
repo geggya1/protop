@@ -242,12 +242,14 @@ export default function ParentProfileScreen() {
     setDeletePhotoRequested(false);
     const path = `profiles/${uid}/parent-${uid}-${Date.now()}.jpg`;
     const storageRefObj = ref(storage, path);
-    await uploadBytes(storageRefObj, blob, { contentType: 'image/jpeg' });
+    // Gruppen i metadata: en administrator kan bytte bildet til et medlem i gruppen (storage.rules).
+    const customMetadata = { uploadedBy: auth.currentUser?.uid || '', ...(familyId ? { familyId } : {}) };
+    await uploadBytes(storageRefObj, blob, { contentType: 'image/jpeg', customMetadata });
     const url = await getDownloadURL(storageRefObj);
     setPendingImageURL(url);
     setPhotoURL(url);
     setCacheBust(Date.now());
-  }, [targetUid]);
+  }, [targetUid, familyId]);
 
   const requestDeletePhoto = useCallback(() => {
     if (!canEditPhoto) return;

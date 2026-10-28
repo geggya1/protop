@@ -84,6 +84,56 @@ service firebase.storage {
       allow read, write: if signedIn() && uid() == owner;
     }
 
+    // Profil- og avatarbilder: et bilde på høyst 10 MB. Eldre apper laster opp uten innholdstype
+    // (blob fra bildevelgeren), da står den som application/octet-stream.
+    function imageUpload() {
+      return request.resource != null
+        && request.resource.size < 10 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/octet-stream');
+    }
+
+    // Aktivt foresatt-/ansattdokument i gruppen (som isFamilyAdult i firestore.rules).
+    function isFamilyAdult(familyId) {
+      let path = /databases/(default)/documents/families/$(familyId)/parents/$(uid());
+      return signedIn() && firestore.exists(path)
+        && firestore.get(path).data.get('active', true) != false
+        && firestore.get(path).data.get('deleted', false) != true
+        && firestore.get(path).data.get('placeholder', false) != true;
+    }
+
+    // Profilbilde for en voksen (ParentProfileScreen): personen selv, eller eier/administrator i en
+    // gruppe personen er med i (appen oppgir gruppen i metadata familyId). Alle innloggede ser bildet.
+    match /profiles/{owner}/{name} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && imageUpload()
+        && name.matches('^[A-Za-z0-9_.-]+[.](jpg|jpeg|png|webp|heic)$')
+        && (uid() == owner
+          || (request.resource.metadata != null
+            && request.resource.metadata.get('familyId', '') != ''
+            && isFamilyAdmin(request.resource.metadata.familyId)
+            && owner in familyDoc(request.resource.metadata.familyId).get('members', [])));
+      allow delete: if signedIn() && uid() == owner;
+    }
+
+    // Barnets avatar (ChildProfileScreen): child_avatars/{barnets id}-{tid}.jpg. En voksen i barnets
+    // familie (children/{id}.familyId) eller barnet selv. Alle innloggede ser bildet.
+    match /child_avatars/{name} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && imageUpload()
+        && name.matches('^[A-Za-z0-9_]+-[0-9]+[.](jpg|jpeg|png|webp|heic)$')
+        && (name.split('-')[0] == uid()
+          || (firestore.exists(/databases/(default)/documents/children/$(name.split('-')[0]))
+            && isFamilyAdult(firestore.get(/databases/(default)/documents/children/$(name.split('-')[0])).data.get('familyId', 'none'))));
+    }
+
+    // Ikonkatalogen for oppgaver (AddTodoScreen, ChildDashboard på mobil). Bare til lesing;
+    // filene legges inn av ProTop.
+    match /icons/catalog/{file} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
     // Personlig arbeidsområde uten bedrift: bare den som lastet opp kan lese eller overskrive.
     match /families/personal/{rest=**} {
       allow read: if signedIn() && ownsOrLegacy();

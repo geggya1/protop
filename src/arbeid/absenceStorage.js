@@ -4,11 +4,15 @@
  *
  * Holdes utenfor prosjekt-monolitten fordi Moment-eksporter kan ha flere
  * tusen dagsrader og sprenge Firestore sitt 1 MiB-dokumenttak.
+ *
+ * Fravær er helseopplysninger. I bedrifter leser bare HR, ledere med Andres timer, eier og
+ * administratorer alt; andre henter bare sitt eget (absenceScope.js, firestore.rules).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeAbsenceRow } from '../project/engine.js';
 import { aliasSourceIds } from '../project/companyAlias.js';
 import { text } from '../economy/invoices.js';
+import { absenceScopeFor, scopedAbsenceRange } from './absenceScope.js';
 
 const LIST_KEY = 'protop.absences.v1';
 const WINDOW_KEY = 'protop.absences.window.v1';
@@ -23,11 +27,51 @@ function windowKey(companyId, fromDate, toDate, employeeId) {
 }
 
 async function firestoreBits() {
-  const [{ collection, deleteDoc, doc, getDocs, query, where, writeBatch }, { db }] = await Promise.all([
+  const [{ collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch }, { auth, db }] = await Promise.all([
     import('firebase/firestore'),
     import('../../firebase.js'),
   ]);
-  return { collection, deleteDoc, doc, getDocs, query, where, writeBatch, db };
+  return { collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch, db, auth };
+}
+
+const SCOPE_MS = 5 * 60 * 1000;
+const scopes = new Map();
+
+/**
+ * Hva den innloggede kan lese i selskapet: alt, eller bare egen ansattpost (fra speilet).
+ * Holdes noen minutter per selskap og bruker, så hver lasting ikke leser speilet på nytt.
+ */
+async function readAbsenceScope(bits, companyId) {
+  const uid = text(bits.auth?.currentUser?.uid);
+  const key = `${companyId}:${uid}`;
+  const hit = scopes.get(key);
+  if (hit && Date.now() - hit.at < SCOPE_MS) return hit.scope;
+  let family = null;
+  let acl = null;
+  try {
+    const snap = await bits.getDoc(bits.doc(bits.db, 'families', companyId));
+    family = snap.exists() ? snap.data() : null;
+  } catch {
+    family = null;
+  }
+  if (uid && family) {
+    try {
+      const snap = await bits.getDoc(bits.doc(bits.db, 'families', companyId, 'accessAcl', uid));
+      acl = snap.exists() ? snap.data() : null;
+    } catch {
+      acl = null;
+    }
+  }
+  // Ukjent gruppe (lesefeil): som før, reglene avgjør.
+  const scope = family ? absenceScopeFor({ family, uid, acl }) : { all: true, employeeId: '' };
+  // Uten speil spørres det på nytt neste gang: appen ber om speilet når skallet åpnes.
+  if (family && (acl || scope.all)) scopes.set(key, { at: Date.now(), scope });
+  return scope;
+}
+
+/** Test/hjelp og utlogging: glem tilgangen som er slått opp. */
+export function clearAbsenceScopes() {
+  scopes.clear();
 }
 
 function entryRef(bits, companyId, entryId) {
@@ -172,6 +216,20 @@ export async function loadAbsences(companyId, opts = {}) {
 
   try {
     const bits = await firestoreBits();
+    const scope = await readAbsenceScope(bits, companyId);
+    if (!scope.all) {
+      // Bare eget fravær: spørringen filtrerer på egen ansattpost (reglene krever det),
+      // og den lokale kopien av hele selskapets fravær fjernes.
+      AsyncStorage.removeItem(listKey(companyId)).catch(() => {});
+      const own = scopedAbsenceRange(scope, range);
+      if (!own) return [];
+      try {
+        const rows = await queryAbsences(bits, companyId, own);
+        return finishLoaded(companyId, rows, (clean) => writeLocalWindow(companyId, clean, own));
+      } catch {
+        return withoutDeletedAbsences(companyId, await readLocalWindow(companyId, own));
+      }
+    }
     if (all) {
       const snap = await bits.getDocs(entriesCol(bits, companyId));
       const rows = snap.docs
@@ -360,9 +418,22 @@ export async function attachAbsencesToState(companyId, state, opts = {}) {
       : await readLocalWindow(companyId, opts);
   }
 
-  const legacyInRange = withoutDeletedAbsences(companyId, opts.all
+  let legacyInRange = withoutDeletedAbsences(companyId, opts.all
     ? legacy
     : filterAbsencesByRange(legacy, opts));
+  if (legacyInRange.length) {
+    // Eldre fravær i prosjektdokumentet: uten full tilgang bare eget (ikke kollegers sykefravær).
+    try {
+      const scope = await readAbsenceScope(await firestoreBits(), companyId);
+      if (!scope.all) {
+        legacyInRange = scope.employeeId
+          ? filterAbsencesByRange(legacyInRange, { employeeId: scope.employeeId })
+          : [];
+      }
+    } catch {
+      // Uten oppslag: reglene avgjør hva som kan skrives.
+    }
+  }
   const remoteClean = withoutDeletedAbsences(companyId, remote);
   const merged = mergeAbsenceLists(remoteClean, legacyInRange);
   const remoteIds = new Set(remoteClean.map((row) => row.id));

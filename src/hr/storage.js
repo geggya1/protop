@@ -2,9 +2,15 @@
  * HR-tilstand: families/{companyId}/hr/state + lokal cache.
  * Venter på Auth før sky-lesing/skriving, slik at permission-denied
  * under boot ikke tømmer skydata med en tom lokal kopi.
+ *
+ * Bare de med HR-tilgang kan lese hr/state (firestore.rules). Den ansatte leser sitt eget
+ * utsnitt i hrSelf/{ansatt-id}, som HR skriver når HR lagres (selfService.js).
+ * Den lokale kopien inneholder ikke lønn, og fjernes når skyen sier nei.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  collection, doc, getDoc, getDocs, setDoc, writeBatch,
+} from 'firebase/firestore';
 import { db } from '../../firebase';
 import {
   isFirestorePermissionError,
@@ -16,6 +22,9 @@ import {
   hrStateHasData,
   normalizeHrState,
 } from './model.js';
+import {
+  hrSelfDocs, hrSelfSlice, hrStateForDevice, planHrSelf, withCloudPay,
+} from './selfService.js';
 
 const KEY = 'protop.hr.v1';
 const REMOTE_AUTH_MS = 8000;
@@ -36,6 +45,13 @@ function hrDoc(companyId) {
   const id = String(companyId || '').trim();
   if (!id) return null;
   return doc(db, 'families', id, 'hr', 'state');
+}
+
+function selfDoc(companyId, employeeId) {
+  const id = String(companyId || '').trim();
+  const emp = String(employeeId || '').trim();
+  if (!id || !emp) return null;
+  return doc(db, 'families', id, 'hrSelf', emp);
 }
 
 export function peekHrState(companyId) {
@@ -87,9 +103,62 @@ async function readLocal(companyId) {
 
 async function writeLocal(companyId, state) {
   try {
-    await AsyncStorage.setItem(localKey(companyId), JSON.stringify(normalizeHrState(state)));
+    await AsyncStorage.setItem(localKey(companyId), JSON.stringify(hrStateForDevice(state)));
   } catch {
     /* ignore */
+  }
+}
+
+async function dropLocal(companyId) {
+  try {
+    await AsyncStorage.removeItem(localKey(companyId));
+  } catch {
+    /* ignore */
+  }
+}
+
+const BATCH_SIZE = 400;
+// Utsnittene er sjekket mot HR-dokumentet i denne økten (per selskap).
+const selfChecked = new Set();
+
+async function writeHrSelf(companyId, rows) {
+  const list = (Array.isArray(rows) ? rows : []).filter((row) => row?.employeeId);
+  if (!list.length) return 0;
+  const stamp = new Date().toISOString();
+  for (let i = 0; i < list.length; i += BATCH_SIZE) {
+    const batch = writeBatch(db);
+    for (const row of list.slice(i, i + BATCH_SIZE)) {
+      batch.set(selfDoc(companyId, row.employeeId), { ...row, updatedAt: stamp });
+    }
+    await batch.commit();
+  }
+  return list.length;
+}
+
+/**
+ * Første gang HR leses i økten: skriv utsnittene som mangler eller er utdatert, også for
+ * HR som fantes før utsnittene. Uten skrivetilgang til HR skjer ingenting.
+ */
+async function ensureHrSelf(companyId, state) {
+  const key = memoryKey(companyId);
+  if (selfChecked.has(key) || !hrStateHasData(state)) return;
+  selfChecked.add(key);
+  try {
+    const snap = await getDocs(collection(db, 'families', String(companyId).trim(), 'hrSelf'));
+    const existing = {};
+    snap.docs.forEach((row) => { existing[row.id] = row.data() || {}; });
+    await writeHrSelf(companyId, planHrSelf({ state, existing }));
+  } catch {
+    // Lese- eller skrivetilgang mangler: utsnittene skrives av den som har HR-tilgang.
+  }
+}
+
+/** Etter lagring: bare utsnittene denne lagringen endrer. */
+async function updateHrSelf(companyId, previous, next) {
+  try {
+    await writeHrSelf(companyId, planHrSelf({ state: next, existing: hrSelfDocs(previous) }));
+  } catch (err) {
+    console.warn('[hr] Min side-utsnitt ble ikke oppdatert', err?.message || err);
   }
 }
 
@@ -123,6 +192,14 @@ export async function loadHrState(companyId) {
     // Vis lokal cache med en gang, men ikke marker ok før skyen svarer.
     putMemory(companyId, local);
     const remote = await readRemote(companyId);
+    if (!remote.ok && remote.reason === 'permission') {
+      // Uten HR-tilgang: ingen kopi av andres HR-data på enheten (også fra før reglene).
+      await dropLocal(companyId);
+      const empty = emptyHrState();
+      putMemory(companyId, empty);
+      loadMeta.set(key, 'error');
+      return empty;
+    }
     if (remote.ok && remote.reason === 'missing') {
       // Tom sky: behold lokal data hvis den finnes (offline / ikke synket ennå).
       if (hrStateHasData(local)) {
@@ -142,14 +219,19 @@ export async function loadHrState(companyId) {
         || String(local.updatedAt) > String(remote.state.updatedAt)
       ));
       // Behold lokal når skyen er tom eller eldre (offline-lagring som ikke nådde skyen).
+      // Lønn ligger ikke på enheten, så den hentes fra skyen.
       if (localHas && (!remoteHas || localNewer)) {
+        const kept = withCloudPay(local, remote.state);
         loadMeta.set(key, 'local');
-        putMemory(companyId, local);
-        return local;
+        putMemory(companyId, kept);
+        await writeLocal(companyId, kept);
+        ensureHrSelf(companyId, remote.state).catch(() => {});
+        return kept;
       }
       loadMeta.set(key, 'ok');
       putMemory(companyId, remote.state);
       await writeLocal(companyId, remote.state);
+      ensureHrSelf(companyId, remote.state).catch(() => {});
       return remote.state;
     }
     // Auth/permission/nettverk: behold lokal — ikke late som om skyen var tom.
@@ -165,23 +247,41 @@ export async function loadHrState(companyId) {
   }
 }
 
+async function readSelf(companyId, employeeId) {
+  const ref = selfDoc(companyId, employeeId);
+  if (!ref) return { ok: false, slice: null };
+  const authed = await ensureRemoteAuth();
+  if (!authed) return { ok: false, slice: null };
+  try {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return { ok: true, slice: null };
+    return { ok: true, slice: hrSelfSlice(snap.data(), employeeId) };
+  } catch {
+    return { ok: false, slice: null };
+  }
+}
+
 /**
- * Min side: hent bare synlig snitt for én ansatt.
- * Hydrer ikke MEMORY/AsyncStorage med hele selskapets HR-dokument.
+ * Min side: hent bare synlig snitt for én ansatt, fra utsnittet hrSelf/{ansatt-id}.
+ * Hydrer ikke MEMORY/AsyncStorage med hele selskapets HR-dokument, og les det ikke
+ * for vanlige ansatte. HR (som har lastet HR) regner ut snittet selv.
  */
 export async function loadEmployeeHrSlice(companyId, employeeId) {
   const empId = String(employeeId || '').trim();
   if (!companyId || !empId) return employeeVisibleSlice(emptyHrState(), empId);
 
   const cached = peekHrState(companyId);
-  if (cached) return employeeVisibleSlice(cached, empId);
+  if (cached && hrLoadMeta(companyId) === 'ok') return employeeVisibleSlice(cached, empId);
 
+  const own = await readSelf(companyId, empId);
+  if (own.ok && own.slice) return own.slice;
+
+  // Utsnittet finnes ikke ennå: med HR-tilgang regnes det ut av HR-dokumentet.
   const remote = await readRemote(companyId);
   if (remote.ok && remote.state) {
     return employeeVisibleSlice(remote.state, empId);
   }
-  const local = await readLocal(companyId);
-  return employeeVisibleSlice(local, empId);
+  return employeeVisibleSlice(emptyHrState(), empId);
 }
 
 export async function saveHrState(state, companyId) {
@@ -226,6 +326,7 @@ export async function saveHrState(state, companyId) {
   try {
     await setDoc(ref, next, { merge: true });
     loadMeta.set(memoryKey(companyId), 'ok');
+    updateHrSelf(companyId, cached || emptyHrState(), next).catch(() => {});
   } catch (err) {
     if (isFirestorePermissionError(err)) {
       const denied = new Error('Mangler tilgang til å lagre HR i skyen');
@@ -242,4 +343,5 @@ export function clearHrMemory() {
   MEMORY.clear();
   inflight.clear();
   loadMeta.clear();
+  selfChecked.clear();
 }

@@ -1,5 +1,5 @@
 import {
-  collection, doc, setDoc, updateDoc, getDocs,
+  collection, deleteDoc, doc, setDoc, updateDoc, getDocs,
   onSnapshot, serverTimestamp, query, where, runTransaction,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -16,10 +16,24 @@ export function noteDoc(familyId, noteId) {
   return doc(db, 'families', familyId, 'notes', noteId);
 }
 
+// Eldre «Slett permanent» satte bare et flagg. Den som laget notatet, sletter det når listen åpnes.
+const purgedNotes = new Set();
+
+function purgeFlaggedNotes(familyId, uid, docs) {
+  for (const item of docs) {
+    const data = item.data() || {};
+    const key = `${familyId}/${item.id}`;
+    if (data.permanentlyDeleted !== true || data.createdBy !== uid || purgedNotes.has(key)) continue;
+    purgedNotes.add(key);
+    deleteDoc(noteDoc(familyId, item.id)).catch(() => {});
+  }
+}
+
 export function listenAccessibleNotes(familyId, uid, { includeArchived = false } = {}, cb) {
   if (!familyId || !uid) return () => {};
   const q = query(notesCol(familyId), where('memberIds', 'array-contains', uid));
   return onSnapshot(q, (snap) => {
+    purgeFlaggedNotes(familyId, uid, snap.docs);
     const notes = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .filter((n) => !n.deleted && !n.permanentlyDeleted)
@@ -125,12 +139,12 @@ export async function archiveNote(familyId, noteId, archived = true) {
   await updateNote(familyId, noteId, { archived });
 }
 
+/**
+ * «Slett permanent»: dokumentet slettes, så teksten ikke blir liggende (SOS-09).
+ * Bare den som laget notatet kan slette det (firestore.rules).
+ */
 export async function deleteNote(familyId, noteId) {
-  await updateNote(familyId, noteId, {
-    deleted: true,
-    archived: true,
-    permanentlyDeleted: true,
-  });
+  await deleteDoc(noteDoc(familyId, noteId));
 }
 
 export async function setNoteMembers(familyId, noteId, memberIds, visibility) {
@@ -141,9 +155,13 @@ export async function setNoteMembers(familyId, noteId, memberIds, visibility) {
   });
 }
 
-export function canManageNote(note, uid, isAdmin) {
+/**
+ * Navn, deling, arkiv og sletting: bare den som laget notatet, som i reglene (FL-13).
+ * Administratorer ser ikke andres private notater og kan ikke dele dem videre.
+ */
+export function canManageNote(note, uid, _isAdmin) {
   if (!note || !uid) return false;
-  return note.createdBy === uid || isAdmin;
+  return note.createdBy === uid;
 }
 
 export function isPrivateNote(note) {

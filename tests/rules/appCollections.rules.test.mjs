@@ -224,8 +224,10 @@ describe('venner og klassekart', () => {
     // Ny chat: appen sjekker om den finnes før den lages. Bare de to kan spørre.
     await assertSucceeds(getDoc(doc(as('mor'), 'friendChats', 'dm_kid_mor')));
     await assertFails(getDoc(doc(as('ext'), 'friendChats', 'dm_kid_mor')));
-    await assertSucceeds(setDoc(doc(as('mor'), 'friendChats', 'dm_kid_mor'), { type: 'dm', memberIds: ['kid', 'mor'] }));
-    await assertFails(getDoc(doc(as('ext'), 'friendChats', 'dm_kid_mor')));
+    // Ny tråd bare mellom venner (SOS-04). Tidligere kunne hvem som helst starte en tråd.
+    await assertFails(setDoc(doc(as('mor'), 'friendChats', 'dm_kid_mor'), { type: 'dm', memberIds: ['kid', 'mor'] }));
+    await assertSucceeds(setDoc(doc(as('mor'), 'friendChats', 'dm_mor_ola'), { type: 'dm', memberIds: ['mor', 'ola'] }));
+    await assertFails(getDoc(doc(as('ext'), 'friendChats', 'dm_mor_ola')));
     await assertFails(setDoc(doc(as('ext'), 'friendships', 'ext_mor'), { memberIds: ['ext', 'mor'], status: 'active' }));
   });
 

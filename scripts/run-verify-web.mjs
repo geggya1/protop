@@ -35,6 +35,12 @@ export const FILES = [
   'src/i18n/htmlLang.test.mjs',
   'src/hooks/reducedMotion.test.mjs',
   'src/arbeid/absenceHealth.test.mjs',
+  // Datavern: HR-utsnitt, fravær, skjermede ansattfelt, lokale kopier og Storage-tilgang.
+  'src/hr/selfService.test.mjs',
+  'src/arbeid/absenceScope.test.mjs',
+  'src/employees/privateFields.test.mjs',
+  'src/utils/localCache.test.mjs',
+  'functions/storageAccess.test.mjs',
   'functions/importInterpret.test.mjs',
   'functions/anbudIntake.smoke.test.mjs',
   'functions/anbud/intakeScan.test.mjs',

@@ -469,13 +469,15 @@ describe('selskapsdokumentet (gjelder alle moduler)', () => {
 });
 
 describe('regresjon: eksisterende moduler', () => {
-  test('medlemmer leser og skriver som før i Oppgaver, Prosjekt, HR og Ansatte', async () => {
+  test('medlemmer leser og skriver som før i Oppgaver, Prosjekt og Ansatte; HR bare med HR-tilgang', async () => {
     const db = as('les');
     await assertSucceeds(getDoc(doc(db, 'families', A, 'parentTodos', 'T1')));
     await assertSucceeds(updateDoc(doc(db, 'families', A, 'parentTodos', 'T1'), { done: true }));
     await assertSucceeds(setDoc(doc(db, 'families', A, 'parentTodos', 'iso_x'), { title: 'Fra ISO', source: 'iso' }));
     await assertSucceeds(getDocs(collection(db, 'families', A, 'projects')));
-    await assertSucceeds(getDoc(doc(db, 'families', A, 'hr', 'main')));
+    // Tidligere kunne alle medlemmer lese HR (lønn, saker, memo). Nå krever det HR-tilgang (L-01).
+    await assertFails(getDoc(doc(db, 'families', A, 'hr', 'main')));
+    await assertSucceeds(getDoc(doc(as('own'), 'families', A, 'hr', 'main')));
     await assertSucceeds(getDocs(collection(db, 'families', A, 'employees')));
     await assertSucceeds(setDoc(doc(db, 'families', A, 'parentTodos', 'T1', 'log', 'l1'), { text: 'x' }));
     await assertSucceeds(getDoc(doc(db, 'families', A)));

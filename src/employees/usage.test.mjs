@@ -35,7 +35,8 @@ test('hendelser normaliseres og oppdaterer sist aktiv og sist time', () => {
   assert.equal(hour.ip, '203.0.113.8');
   const summary = applyUsageSummary(null, hour);
   assert.equal(summary.lastHourAt, hour.at);
-  assert.equal(summary.lastActiveIp, '203.0.113.8');
+  // IP-adressen står i hendelsen, ikke i sammendraget på ansattposten (L-03).
+  assert.equal(summary.lastActiveIp, '');
   assert.match(summary.lastHourSummary, /Broa/);
 
   const login = normalizeUsageEvent({ type: 'login' }, {
@@ -60,7 +61,9 @@ test('sammendraget kan vises og følger med på medarbeideren', () => {
     },
   });
   const lines = usageSummaryLines(employee.usage);
-  assert.equal(lines.find((row) => row.id === 'ip')?.value, '203.0.113.8');
+  // Eldre sammendrag med IP-adresse: vises ikke, og fjernes neste gang posten lagres.
+  assert.equal(lines.find((row) => row.id === 'ip'), undefined);
+  assert.equal(employee.usage.lastActiveIp, '');
   assert.match(lines.find((row) => row.id === 'hour')?.value, /7\.5 t/);
   assert.match(formatUsageStamp('2026-10-11T15:04:00.000Z'), /\d{2}\.\d{2}\.2026/);
 });

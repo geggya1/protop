@@ -6,6 +6,7 @@ import { watchEmployees } from '../../src/employees/storage';
 import { canManageTimesheets, findLinkedEmployee } from '../../src/arbeid/roles.js';
 import { emptyProjectState, normalizeAbsenceRow } from '../../src/project/engine';
 import { withoutDeletedAbsences } from '../../src/arbeid/absenceStorage.js';
+import { absenceGrantsSeeAll } from '../../src/arbeid/absenceScope.js';
 import {
   applyAbsencesOntoState,
   applyHoursOntoState,
@@ -53,6 +54,10 @@ export function useTimesheetWorkspace({
   const absenceFrom = !absenceAll && !absenceOff ? String(absences?.fromDate || fromDate || '') : '';
   const absenceTo = !absenceAll && !absenceOff ? String(absences?.toDate || toDate || fromDate || '') : '';
   const absenceEmployee = !absenceAll && !absenceOff ? String(absences?.employeeId || '') : '';
+  // Sanntid på hele fraværslisten bare for dem som kan lese alt fravær (L-02). Andre får
+  // sitt eget fravær fra lastingen over (reglene avviser en lytter på hele samlingen).
+  const absenceLive = liveAbsences && absenceAll
+    && (!access.active || access.bypass || !!isAdmin || absenceGrantsSeeAll(access.actorGrants || {}));
 
   useEffect(() => {
     let live = true;
@@ -115,7 +120,7 @@ export function useTimesheetWorkspace({
   // Åpne fraværsstrømmen mens prosjektstate lastes. Lesingen og lytteren under
   // bruker samme strøm, så fraværet hentes parallelt og bare én gang.
   useEffect(() => {
-    if (!workspaceId || !uid || !liveAbsences || !absenceAll) return undefined;
+    if (!workspaceId || !uid || !absenceLive) return undefined;
     let live = true;
     let stop = null;
     let failed = false;
@@ -135,10 +140,10 @@ export function useTimesheetWorkspace({
       live = false;
       stop?.();
     };
-  }, [workspaceId, uid, liveAbsences, absenceAll]);
+  }, [workspaceId, uid, absenceLive]);
 
   useEffect(() => {
-    if (!ready || !workspaceId || !liveAbsences || !absenceAll) return undefined;
+    if (!ready || !workspaceId || !absenceLive) return undefined;
     return subscribeFamilyCollection(
       workspaceId,
       'absences',
@@ -157,7 +162,7 @@ export function useTimesheetWorkspace({
         });
       },
     );
-  }, [ready, workspaceId, liveAbsences, absenceAll]);
+  }, [ready, workspaceId, absenceLive]);
 
   useEffect(() => {
     if (!workspaceId) {

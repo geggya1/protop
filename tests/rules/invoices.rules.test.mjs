@@ -7,12 +7,15 @@
  * Et utkast kan endres og slettes. En ferdigstilt faktura (issuedAt) er låst: nummer, dato,
  * kunde, linjer og beløp endres ikke, og den slettes ikke. Nummeret må komme fra telleren
  * invoiceSeries/main i samme skriving, og telleren går bare oppover.
- * own = eier, ans = ansatt, ext = bruker i et annet selskap.
+ * own = eier, ans = ansatt med Begrenset redigering på Faktura (speilet), ext = bruker i et
+ * annet selskap. Ferdigstilling og betaling krever økonomitilgang (se dataProtection.rules.test.mjs).
  */
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import {
+  Timestamp, deleteDoc, doc, getDoc, setDoc, updateDoc, writeBatch,
+} from 'firebase/firestore';
 
 const A = 'companyA';
 const B = 'companyB';
@@ -37,6 +40,10 @@ async function seed() {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'families', A), { name: 'Rådgiver AS', type: 'company', ownerUid: 'own', adminUids: ['own'], members: ['own', 'ans'] });
+    // ans fører fakturaene: Begrenset redigering på Faktura i tilgangsspeilet (som canManage i appen).
+    await setDoc(doc(db, 'families', A, 'accessAcl', 'ans'), {
+      uid: 'ans', iso: 0, grants: { economyInvoices: 'read' }, expiresAt: Timestamp.fromMillis(Date.now() + 6 * 3600 * 1000),
+    });
     await setDoc(doc(db, 'families', B), { name: 'Annet AS', type: 'company', ownerUid: 'ext', members: ['ext'] });
     await setDoc(doc(db, 'families', A, 'invoiceSeries', 'main'), { last: 100 });
     await setDoc(doc(db, 'families', A, 'invoices', 'D1'), invoice());
@@ -137,7 +144,12 @@ describe('ferdigstilling med nummer fra serien', () => {
     await assertFails(updateDoc(doc(db, 'families', A, 'invoiceSeries', 'main'), { last: 99 }));
     await assertFails(updateDoc(doc(db, 'families', A, 'invoiceSeries', 'main'), { last: '101' }));
     await assertFails(deleteDoc(doc(db, 'families', A, 'invoiceSeries', 'main')));
-    await assertSucceeds(updateDoc(doc(db, 'families', A, 'invoiceSeries', 'main'), { last: 120 }));
+    // Tidligere kunne telleren hoppe vilkårlig (L-31). Et hopp krever nå en begrunnet rad i jumps.
+    await assertFails(updateDoc(doc(db, 'families', A, 'invoiceSeries', 'main'), { last: 120 }));
+    await assertSucceeds(updateDoc(doc(db, 'families', A, 'invoiceSeries', 'main'), {
+      last: 120, jumps: [{ from: 101, to: 119, next: 120, reason: 'Nummer brukt i forrige fakturasystem' }],
+    }));
+    await assertSucceeds(updateDoc(doc(db, 'families', A, 'invoiceSeries', 'main'), { last: 121 }));
   });
 });
 

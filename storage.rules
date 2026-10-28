@@ -1,0 +1,155 @@
+rules_version = '2';
+
+// Storage-regler for ProTop (SEC-15, L-18). Speiler tilgangen i functions/storageAccess.js,
+// som uploadStorageFile/downloadStorageFile bruker. Web laster opp via funksjonene; appen på
+// telefon og opplasting med fremdrift (XHR) går direkte mot Storage og følger disse reglene.
+// Alt som ikke er nevnt her, er stengt (ingen «auth != null» på hele bøtta).
+//
+// VIKTIG: Reglene deployes ikke av CI. Produksjonsreglene må sammenlignes med denne filen i
+// Firebase-konsollet (Storage → Regler) og deployes manuelt:
+//   npx firebase deploy --only storage --config <config med "storage": {"rules": "storage.rules"}> --project protop-c189c
+// Kryssjekk mot Firestore (firestore.get) krever at Storage har tilgang til Firestore (konsollet spør
+// om dette første gang).
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function familyDoc(familyId) {
+      return firestore.get(/databases/(default)/documents/families/$(familyId)).data;
+    }
+
+    function isFamilyAdmin(familyId) {
+      let f = familyDoc(familyId);
+      return f.get('ownerUid', '') == uid() || f.get('ownerId', '') == uid() || uid() in f.get('adminUids', []);
+    }
+
+    function isFamilyMember(familyId) {
+      let f = familyDoc(familyId);
+      return signedIn() && (
+        f.get('ownerUid', '') == uid() || f.get('ownerId', '') == uid() || uid() in f.get('adminUids', [])
+        || uid() in f.get('members', []) || uid() in f.get('activeUsers', []) || uid() in f.get('memberIds', [])
+      );
+    }
+
+    function isOrganization(familyId) {
+      return familyDoc(familyId).get('type', '') in ['company', 'organization'];
+    }
+
+    // Tilgangsspeilet (families/{id}/accessAcl/{uid}), samme som i firestore.rules.
+    function acl(familyId) {
+      let path = /databases/(default)/documents/families/$(familyId)/accessAcl/$(uid());
+      return firestore.exists(path) && firestore.get(path).data.get('expiresAt', request.time) > request.time
+        ? firestore.get(path).data
+        : {};
+    }
+
+    function grantRank(g) {
+      return g == 'see' ? 1 : (g == 'read' ? 2 : ((g == 'write' || g == 'delete') ? 3 : 0));
+    }
+
+    function grantAtLeast(g, res, n) {
+      return grantRank(g.get(res, 'none')) >= n;
+    }
+
+    function hrAtLeast(g, n) {
+      return grantAtLeast(g, 'hr', n) || grantAtLeast(g, 'hrPeople', n) || grantAtLeast(g, 'hrAgreements', n)
+        || grantAtLeast(g, 'hrPayroll', n) || grantAtLeast(g, 'hrFollowup', n)
+        || grantAtLeast(g, 'hrCompliance', n) || grantAtLeast(g, 'hrRecruitment', n);
+    }
+
+    function economyReader(g) {
+      return grantAtLeast(g, 'economy', 1) || grantAtLeast(g, 'economyOverview', 1) || grantAtLeast(g, 'economyInvoices', 1)
+        || grantAtLeast(g, 'economyBilling', 1) || grantAtLeast(g, 'economyExpenses', 1) || grantAtLeast(g, 'mileage', 1);
+    }
+
+    // Uten bedrift (familie, venner) eller eier/administrator: som medlem.
+    function fullAccess(familyId) {
+      return !isOrganization(familyId) || isFamilyAdmin(familyId);
+    }
+
+    // Filen eies av den som lastet den opp (metadata uploadedBy). Eldre filer uten eier står som før.
+    function ownsOrLegacy() {
+      return resource == null || resource.metadata == null
+        || !('uploadedBy' in resource.metadata) || resource.metadata.uploadedBy == uid();
+    }
+
+    // Egen mappe: brukerens egne filer.
+    match /users/{owner}/{rest=**} {
+      allow read, write: if signedIn() && uid() == owner;
+    }
+
+    // Personlig arbeidsområde uten bedrift: bare den som lastet opp kan lese eller overskrive.
+    match /families/personal/{rest=**} {
+      allow read: if signedIn() && ownsOrLegacy();
+      allow write: if signedIn() && ownsOrLegacy();
+    }
+
+    // Gruppebilder: alle innloggede ser dem; nye bilder har egen uid eller en gruppe en er med i.
+    match /groups/{name} {
+      allow read: if signedIn();
+      allow write: if signedIn() && ownsOrLegacy()
+        && name.matches('^[A-Za-z0-9_-]+-[0-9]+[.][A-Za-z0-9]+$')
+        && (name.split('-')[0] == uid() || isFamilyMember(name.split('-')[0]));
+    }
+
+    // HR: arbeidsavtaler og HR-vedlegg per ansatt. Den ansatte leser sin egen mappe (speilets employeeId).
+    match /families/{familyId}/hr/{employeeId}/{rest=**} {
+      allow read: if isFamilyMember(familyId) && (fullAccess(familyId)
+        || hrAtLeast(acl(familyId).get('grants', {}), 1)
+        || (employeeId != 'applications' && acl(familyId).get('employeeId', '') == employeeId));
+      allow write: if isFamilyMember(familyId) && (fullAccess(familyId) || hrAtLeast(acl(familyId).get('grants', {}), 2));
+    }
+
+    // Filer per ansatt (CV, attester): den ansatte selv, HR, Begrenset redigering på Ansatte.
+    match /families/{familyId}/employeeFiles/{employeeId}/{rest=**} {
+      allow read: if isFamilyMember(familyId) && (fullAccess(familyId)
+        || acl(familyId).get('employeeId', '') == employeeId
+        || hrAtLeast(acl(familyId).get('grants', {}), 1)
+        || grantAtLeast(acl(familyId).get('grants', {}), 'employees', 2));
+      allow write: if isFamilyMember(familyId) && (fullAccess(familyId)
+        || acl(familyId).get('employeeId', '') == employeeId
+        || hrAtLeast(acl(familyId).get('grants', {}), 2)
+        || grantAtLeast(acl(familyId).get('grants', {}), 'employees', 2));
+    }
+
+    // Fakturaarkivet (PDF, EHF, vedlegg): økonomi. En fil som finnes, overskrives og slettes ikke.
+    match /families/{familyId}/invoices/{invoiceId}/{rest=**} {
+      allow read: if isFamilyMember(familyId) && (fullAccess(familyId) || economyReader(acl(familyId).get('grants', {})));
+      allow write: if resource == null && request.resource != null
+        && isFamilyMember(familyId)
+        && (fullAccess(familyId) || grantAtLeast(acl(familyId).get('grants', {}), 'economyInvoices', 2));
+    }
+
+    // Kvitteringer i kjøreboken: den som lastet opp, økonomi og administratorer.
+    match /families/{familyId}/mileage/{rest=**} {
+      allow read: if isFamilyMember(familyId) && (fullAccess(familyId)
+        || (resource != null && resource.metadata != null && resource.metadata.get('uploadedBy', '') == uid())
+        || economyReader(acl(familyId).get('grants', {})));
+      allow write: if isFamilyMember(familyId) && ownsOrLegacy();
+    }
+
+    // Resten av gruppens filer (bilder, chatvedlegg, dokumenter): medlemmer som før.
+    match /families/{familyId}/{folder}/{rest=**} {
+      allow read, write: if familyId != 'personal'
+        && !(folder in ['hr', 'employeeFiles', 'invoices', 'mileage'])
+        && isFamilyMember(familyId);
+    }
+
+    // Filer direkte i gruppens mappe (banner).
+    match /families/{familyId}/{name} {
+      allow read, write: if familyId != 'personal' && isFamilyMember(familyId);
+    }
+
+    // Bilder i vennechat: de to i chatten.
+    match /friendChats/{chatId}/{rest=**} {
+      allow read, write: if signedIn()
+        && uid() in firestore.get(/databases/(default)/documents/friendChats/$(chatId)).data.get('memberIds', []);
+    }
+  }
+}

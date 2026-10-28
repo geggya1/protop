@@ -76,7 +76,7 @@ export default function ImportReview({
                     </Text>
                     {row.severity === 'existing' && row.matchId && typeof onOpenExisting === 'function' ? (
                       <TouchableOpacity onPress={() => onOpenExisting(row.matchId)} accessibilityRole="button">
-                        <Text style={{ color: colors.brand }}>
+                        <Text style={{ color: colors.brandInk || colors.brand }}>
                           {row.matchCustomerNumber
                             ? `Åpne Nr ${row.matchCustomerNumber} i kunderegisteret`
                             : 'Åpne i kunderegisteret'}
@@ -86,7 +86,7 @@ export default function ImportReview({
                   </>
                 ) : (
                   <TouchableOpacity onPress={() => onToggle(row.id)} accessibilityRole="button">
-                    <Text style={{ color: colors.brand }}>{row.included ? 'Ta ut av importen' : 'Ta med likevel'}</Text>
+                    <Text style={{ color: colors.brandInk || colors.brand }}>{row.included ? 'Ta ut av importen' : 'Ta med likevel'}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -102,9 +102,9 @@ export default function ImportReview({
           onPress={onConfirm}
           disabled={busy || !ready}
           accessibilityRole="button"
-          style={{ backgroundColor: colors.brand, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, opacity: busy || !ready ? 0.6 : 1 }}
+          style={{ backgroundColor: colors.brandInk || colors.brand, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, opacity: busy || !ready ? 0.6 : 1 }}
         >
-          <Text style={{ color: '#fff' }}>{busy ? 'Lagrer…' : confirmLabel(ready)}</Text>
+          <Text style={{ color: colors.onBrand }}>{busy ? 'Lagrer…' : confirmLabel(ready)}</Text>
         </TouchableOpacity>
       </View>
     </View>

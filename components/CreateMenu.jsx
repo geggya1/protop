@@ -94,13 +94,13 @@ export default function CreateMenu({
             style={[
               styles.action,
               action.primary
-                ? { backgroundColor: colors.brand }
+                ? { backgroundColor: colors.brandInk }
                 : { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line },
               action.disabled && styles.disabled,
             ]}
           >
             <View style={styles.actionText}>
-              <Text style={{ color: action.primary ? '#fff' : colors.ink, fontWeight: '600' }}>
+              <Text style={{ color: action.primary ? colors.onBrand : colors.ink, fontWeight: '600' }}>
                 {action.label}
               </Text>
               {action.hint ? (

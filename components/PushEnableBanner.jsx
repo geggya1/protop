@@ -232,14 +232,14 @@ export default function PushEnableBanner() {
         disabled: busy,
         'aria-label': copy.btn,
         style: {
-          backgroundColor: colors.brand,
+          backgroundColor: colors.brandInk,
           borderRadius: 8,
           paddingLeft: 10,
           paddingRight: 10,
           paddingTop: 6,
           paddingBottom: 6,
           border: 'none',
-          color: '#fff',
+          color: colors.onBrand,
           fontWeight: '400',
           fontSize: 12,
           cursor: busy ? 'wait' : 'pointer',
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   txt: { flex: 1, fontSize: 12, fontWeight: '400', color: colors.ink, lineHeight: 16 },
   btn: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.brand,
+    backgroundColor: colors.brandInk,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -302,5 +302,5 @@ const styles = StyleSheet.create({
   },
   btnPressed: { opacity: 0.88 },
   btnBusy: { opacity: 0.7 },
-  btnTxt: { color: '#fff', fontWeight: '400', fontSize: 12 },
+  btnTxt: { color: colors.onBrand, fontWeight: '400', fontSize: 12 },
 });

@@ -67,6 +67,12 @@ export async function sendFriendChatMessage({
   const chat = chatSnap.data() || {};
   const memberIds = uniqueMemberIds(chat.memberIds);
   if (!memberIds.includes(senderUid)) throw new Error('forbidden');
+  // Samme sjekk som sendFriendChatAdmin: en fjernet venn kan ikke sende i den gamle tråden.
+  const otherUid = memberIds.find((id) => id !== senderUid);
+  if (otherUid) {
+    const friendSnap = await getDoc(doc(db, 'users', senderUid, 'friends', otherUid));
+    if (!friendSnap.exists() || friendSnap.data()?.status === 'removed') throw new Error('not-friends');
+  }
 
   const payload = {
     text: body,

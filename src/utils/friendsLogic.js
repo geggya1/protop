@@ -150,3 +150,38 @@ export function parseFriendAddUsername(pathOrUrl) {
     return '';
   }
 }
+
+function friendErrorCode(error) {
+  const raw = typeof error === 'string' ? error : (error?.message || error?.code || '');
+  return String(raw || '').replace(/^functions\//, '').trim();
+}
+
+/**
+ * Feiltekst når en vennemelding ikke ble sendt. Vises i tråden, også på web
+ * (Alert.alert gjør ingenting der).
+ */
+export function friendSendErrorText(error) {
+  const code = friendErrorCode(error);
+  if (code === 'not-friends') return 'Dere er ikke venner lenger, så meldingen ble ikke sendt.';
+  if (code === 'forbidden') return 'Du er ikke med i denne samtalen.';
+  if (code === 'missing-params') return 'Meldingen er tom.';
+  if (code === 'unavailable' || code === 'deadline-exceeded' || /network|failed to fetch/i.test(code)) {
+    return 'Ingen kontakt med serveren. Meldingen ble ikke sendt. Prøv igjen.';
+  }
+  return 'Meldingen ble ikke sendt. Prøv igjen.';
+}
+
+/** Svar fra en vennecallable: { ok: true } eller kast feilen den meldte (ingen klientreserve). */
+export function friendCallableResult(res, fallbackError = 'failed') {
+  if (res?.ok) return res;
+  throw new Error(String(res?.error || fallbackError));
+}
+
+export const FRIEND_POLL_MS = 8000;
+export const FRIEND_POLL_MAX_MS = 5 * 60 * 1000;
+
+/** Ventetid før neste polling: dobles etter hver feil, i stedet for å stoppe helt. */
+export function friendPollDelayMs(misses, baseMs = FRIEND_POLL_MS, maxMs = FRIEND_POLL_MAX_MS) {
+  const n = Math.max(0, Math.floor(Number(misses) || 0));
+  return Math.min(maxMs, baseMs * (2 ** Math.min(n, 16)));
+}

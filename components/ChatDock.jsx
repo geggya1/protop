@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   Image, ActivityIndicator, Platform, ScrollView, Animated, PanResponder,
-  Pressable, useWindowDimensions, KeyboardAvoidingView, Alert,
+  Pressable, useWindowDimensions, KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -31,6 +31,8 @@ import {
 import { isChildAiAllowed } from '../src/utils/childApps';
 import { getAppNav } from '../src/navigation/navRef';
 import { pickImage, uploadImage, alertPhotoError } from '../src/utils/media';
+import { notifyUser } from '../src/utils/dialog';
+import { friendSendErrorText } from '../src/utils/friendsLogic';
 import { useParentBottomNavChrome } from '../src/hooks/useParentBottomNavChrome';
 import { useWebModalOpen } from '../src/hooks/useWebModalOpen';
 import { httpsCallable } from 'firebase/functions';
@@ -122,6 +124,8 @@ function ChatDockPanel({
   const [memberIds, setMemberIds] = useState(win.memberIds || []);
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
+  // Sendefeil vises i tråden (Alert.alert gjør ingenting på web).
+  const [sendError, setSendError] = useState('');
   const listRef = useRef(null);
   const name = meChild?.name || user?.displayName || (user?.email || '').split('@')[0] || 'Meg';
 
@@ -187,6 +191,7 @@ function ChatDockPanel({
       text: msg,
       senderName: name,
     });
+    // Ingen klientreserve: svarer serveren not-friends eller feiler, er det den feilen som vises.
     if (!res?.data?.ok) throw new Error(res?.data?.error || 'send-failed');
   };
 
@@ -201,7 +206,8 @@ function ChatDockPanel({
       const body = payload.type === 'image'
         ? (payload.text?.trim() || '')
         : payload.text;
-      // Prefer Admin for text (creates chat doc if missing); client for images.
+      // Tekst går bare via Admin (sjekker vennskapet og lager chatten). Bilder skrives av
+      // klienten, som også sjekker vennskapet; feiler det, sendes en tekst via Admin.
       if (payload.type === 'image' && payload.imageUrl) {
         try {
           await sendFriendChatMessage({
@@ -213,23 +219,14 @@ function ChatDockPanel({
             imageUrl: payload.imageUrl,
             imagePath: payload.imagePath || null,
           });
-        } catch {
+        } catch (err) {
+          if (err?.message === 'not-friends' || err?.message === 'forbidden') throw err;
           const fallback = String(body || '').trim() || t('chat.imageSent');
           await sendFriendViaAdmin(fallback);
         }
         return;
       }
-      try {
-        await sendFriendViaAdmin(String(body || '').trim());
-      } catch {
-        await sendFriendChatMessage({
-          chatId,
-          senderUid,
-          senderName: name,
-          text: body,
-          type: 'text',
-        });
-      }
+      await sendFriendViaAdmin(String(body || '').trim());
       return;
     }
 
@@ -304,6 +301,7 @@ function ChatDockPanel({
     if (!isFriend && (!familyId || !chatId)) return;
     if (isFriend && (!chatId || !friendUid)) return;
     setSending(true);
+    setSendError('');
     setText('');
     try {
       await sendMessage({ type: 'text', text: msg });
@@ -313,10 +311,7 @@ function ChatDockPanel({
     } catch (err) {
       console.warn('[chat] send failed', err?.code || err?.message || err);
       setText(msg);
-      Alert.alert(
-        'Kunne ikke sende',
-        'Meldingen ble ikke sendt. Prøv igjen.',
-      );
+      setSendError(isFriend ? friendSendErrorText(err) : 'Meldingen ble ikke sendt. Prøv igjen.');
     } finally {
       setSending(false);
     }
@@ -335,13 +330,16 @@ function ChatDockPanel({
       const imageUrl = await uploadImage(path, picked);
       const caption = text.trim();
       setText('');
+      setSendError('');
       try {
         await sendMessage({ type: 'image', imageUrl, imagePath: path, text: caption });
         if (isFriend) await refreshFriendMsgs();
       } catch (err) {
         console.warn('[chat] image send failed', err?.code || err?.message || err);
         setText(caption);
-        throw err;
+        // Bildet er lastet opp; det er sendingen som feilet.
+        setSendError(isFriend ? friendSendErrorText(err) : 'Bildet ble ikke sendt. Prøv igjen.');
+        return;
       }
     } catch (err) {
       alertPhotoError(err, t);
@@ -419,6 +417,16 @@ function ChatDockPanel({
           keyboardShouldPersistTaps="handled"
         />
       </View>
+
+      {sendError ? (
+        <View style={styles.sendError} accessibilityRole="alert" accessibilityLiveRegion="polite">
+          <Ionicons name="alert-circle-outline" size={16} color="#b91c1c" />
+          <Text style={styles.sendErrorTxt}>{sendError}</Text>
+          <TouchableOpacity onPress={() => setSendError('')} accessibilityLabel="Lukk">
+            <Ionicons name="close" size={16} color="#64748b" />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <View style={styles.composer}>
         <TouchableOpacity onPress={attachImage} disabled={uploading} style={styles.iconBtn}>
@@ -594,7 +602,7 @@ function ComposePicker({ onClose, onPick, drawer = false }) {
         avatarId: p.avatarId || null,
       });
     } catch (e) {
-      Alert.alert(t('common.error'), e?.message || t('common.error'));
+      notifyUser(t('common.error'), e?.message || t('common.error'));
     }
   };
 
@@ -1471,6 +1479,22 @@ const styles = StyleSheet.create({
   stamp: { fontSize: 10, color: colors.muted, marginTop: 4, fontWeight: '400' },
   stampMine: { color: 'rgba(255,255,255,0.8)' },
   chatImage: { width: 180, height: 140, borderRadius: 10, marginBottom: 4 },
+  sendError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#fef2f2',
+    borderTopWidth: 1,
+    borderTopColor: '#fecaca',
+  },
+  sendErrorTxt: {
+    flex: 1,
+    color: '#991b1b',
+    fontSize: 12,
+    lineHeight: 16,
+  },
   composer: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -214,7 +214,7 @@ export default function HomeSetupForm({
 
   const imageStep = (
     <>
-      <Text style={[styles.section, { color: colors.muted }]}>Velg et ferdig bilde</Text>
+      <Text style={[styles.section, { color: colors.muted }]}>Bakgrunn</Text>
       <View style={styles.chipRow}>
         {HOME_BANNER_GROUPS.map((g) => {
           const on = g.id === groupId;
@@ -427,11 +427,11 @@ export default function HomeSetupForm({
     body = (
       <>
         <Text style={[styles.stepEyebrow, { color: colors.muted }]}>Steg {stepIndex + 1} av {steps.length}</Text>
-        <Text style={[styles.stepTitle, { color: colors.ink }]}>Velg bilde</Text>
+        <Text style={[styles.stepTitle, { color: colors.ink }]}>Velg bakgrunn</Text>
         <Text style={[styles.stepLead, { color: colors.muted }]}>
           {isLastForm
-            ? 'På telefon dekker bildet hele hjemskjermen bak widgetene. Neste åpner hjem med standard widgets — du kan endre eller hoppe over der.'
-            : 'På telefon dekker bildet hele hjemskjermen bak widgetene. Velg et ferdig bilde, eller last opp ditt eget.'}
+            ? 'Uten bilde ser Hjem ut som resten av ProTop. Et bilde dekker hjemskjermen bak widgetene på telefon. Neste åpner hjem med standard widgets — du kan endre eller hoppe over der.'
+            : 'Uten bilde ser Hjem ut som resten av ProTop. Et bilde dekker hjemskjermen bak widgetene på telefon. Velg et ferdig bilde, eller last opp ditt eget.'}
         </Text>
         {imageStep}
       </>

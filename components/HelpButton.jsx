@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useI18n } from '../src/i18n';
 import { useHelp } from '../src/context/HelpContext';
 import HelpTarget from './HelpTarget';
+import { useReducedMotion } from '../src/hooks/useReducedMotion';
+import { autoLoopIterations } from '../src/hooks/reducedMotion';
 
 const NATIVE_DRIVER = Platform.OS !== 'web';
 const AMBER = '#d97706';
@@ -30,9 +32,12 @@ export default function HelpButton({
   const { hasHelp, moduleSeen, openModuleHelp, mode, moduleId } = useHelp();
   const pulse = useRef(new Animated.Value(1)).current;
   const bob = useRef(new Animated.Value(0)).current;
+  // Redusert bevegelse: stå stille. Ellers stopper løkkene før fem sekunder (WCAG 2.2.2).
+  const reduced = useReducedMotion();
 
   useEffect(() => {
-    if (!hasHelp || moduleSeen || mode) {
+    const iterations = autoLoopIterations(1400, { reduced });
+    if (!hasHelp || moduleSeen || mode || !iterations) {
       pulse.setValue(1);
       return undefined;
     }
@@ -41,15 +46,17 @@ export default function HelpButton({
         Animated.timing(pulse, { toValue: 1.08, duration: 700, useNativeDriver: NATIVE_DRIVER }),
         Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: NATIVE_DRIVER }),
       ]),
+      { iterations },
     );
     loop.start();
     return () => loop.stop();
-  }, [hasHelp, moduleSeen, mode, pulse]);
+  }, [hasHelp, moduleSeen, mode, pulse, reduced]);
 
   const lively = floating && !compact;
 
   useEffect(() => {
-    if (!lively || !hasHelp) {
+    const iterations = autoLoopIterations(3600, { reduced });
+    if (!lively || !hasHelp || !iterations) {
       bob.setValue(0);
       return undefined;
     }
@@ -58,10 +65,11 @@ export default function HelpButton({
         Animated.timing(bob, { toValue: 1, duration: 1800, useNativeDriver: NATIVE_DRIVER }),
         Animated.timing(bob, { toValue: 0, duration: 1800, useNativeDriver: NATIVE_DRIVER }),
       ]),
+      { iterations },
     );
     loop.start();
     return () => loop.stop();
-  }, [lively, hasHelp, bob]);
+  }, [lively, hasHelp, bob, reduced]);
 
   if (!hasHelp && !moduleId) return null;
 

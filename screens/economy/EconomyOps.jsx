@@ -445,7 +445,8 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
             <Field label="Kvittering (URI)" value={draft.receiptUri || ''} onChange={(v) => setDraft((d) => ({ ...d, receiptUri: v }))} colors={colors} placeholder="fil:// eller https://" />
             <Field label="Påslag %" value={String(draft.markupPercent ?? '')} onChange={(v) => setDraft((d) => ({ ...d, markupPercent: v }))} colors={colors} keyboardType="decimal-pad" />
           </View>
-          <View style={{ marginTop: 8 }}>
+          <View style={{ marginTop: 8, gap: 4 }}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Ansatt</Text>
             <OptionPicker
               options={people}
               value={draftEmployeeId}
@@ -455,7 +456,8 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
               accessibilityLabel="Ansatt som har lagt ut"
             />
           </View>
-          <View style={{ marginTop: 8 }}>
+          <View style={{ marginTop: 8, gap: 4 }}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Prosjekt</Text>
             <OptionPicker
               options={projectOptions}
               value={draft.projectId || ''}
@@ -466,7 +468,8 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
               accessibilityLabel="Prosjekt"
             />
           </View>
-          <View style={{ marginTop: 8 }}>
+          <View style={{ marginTop: 8, gap: 4 }}>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>Kunde</Text>
             <OptionPicker
               options={customerOptions}
               value={draft.customerId || ''}

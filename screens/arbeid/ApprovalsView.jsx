@@ -28,6 +28,7 @@ import {
 import { billingReadyLabel } from '../../src/economy/billingChain.js';
 import Breadcrumb from '../../components/Breadcrumb';
 import { radius } from '../../src/ui/tokens';
+import { formatDate } from '../../src/format/nb';
 
 function applyMutation(workspace, result) {
   if (!result.ok) {
@@ -350,7 +351,7 @@ export function ApprovalsBody({
             return (
               <View key={row.employee.id} style={[styles.tableRow, { borderColor: colors.line, backgroundColor: colors.card }]}>
                 <Text style={[styles.colName, { color: colors.ink, fontWeight: '700' }]}>{row.employee.name}</Text>
-                <Text style={[styles.col, { color: colors.ink }]}>{row.lock.throughDate}</Text>
+                <Text style={[styles.col, { color: colors.ink }]}>{formatDate(row.lock.throughDate)}</Text>
                 <Text style={[styles.col, { color: colors.ink }]}>{sumHours(period.hours)}</Text>
                 {workspace.manager && waiting ? (
                   <TouchableOpacity

@@ -92,6 +92,13 @@ export function formatDateLong(value, { empty = EMPTY } = {}) {
   return `${d.getDate()}. ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+/** «03.03.2026 kl. 14:05» i lokal tid. Brukes for tidsstempler som «Sist oppdatert». */
+export function formatDateTime(value, { empty = EMPTY } = {}) {
+  const d = toDate(value);
+  if (!d) return empty;
+  return `${formatDate(d)} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /** ISO-dato for lagring: «2026-03-03». */
 export function isoDate(value) {
   const d = toDate(value);

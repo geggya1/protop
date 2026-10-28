@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
-  EMPTY, formatDate, formatDateLong, formatHours, formatKr, formatNumber, hoursInputText, isoDate, toDate, toHours, toNumber,
+  EMPTY, formatDate, formatDateLong, formatDateTime, formatHours, formatKr, formatNumber, hoursInputText, isoDate, toDate, toHours, toNumber,
 } from './nb.js';
 
 // Mellomrom som ikke brytes, gjort synlig i testene.
@@ -37,6 +37,8 @@ test('dato: dd.mm.åååå og lang form', () => {
   assert.equal(formatDate(''), EMPTY);
   assert.equal(formatDate('31.02.2026'), EMPTY, 'ugyldig dato');
   assert.equal(formatDateLong('2026-03-03'), '3. mars 2026');
+  assert.equal(formatDateTime(new Date(2026, 9, 28, 4, 5)), '28.10.2026 kl. 04:05');
+  assert.equal(formatDateTime(''), EMPTY);
   assert.equal(formatDateLong({ toDate: () => new Date(2026, 4, 17) }), '17. mai 2026');
   assert.equal(isoDate('24.12.2026'), '2026-12-24');
   assert.equal(toDate('2026-13-40'), null, 'ugyldig ISO-dato');

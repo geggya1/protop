@@ -205,6 +205,63 @@ export function normalizePricingSettings(raw = {}, pricingModel = '') {
   return next;
 }
 
+/** Ingen timepris er så høy. Et større tall i timeprisfeltet er et totalbeløp. */
+export const HOURLY_RATE_CEILING = 10000;
+
+function positiveAmount(value) {
+  if (value === '' || value == null) return null;
+  const n = Number(String(value).replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * Prismodell og priser en prosjektliste kan fylle inn på et prosjekt som finnes.
+ * Bare tomme felt fylles, og bare når listen har samme prismodell som prosjektet.
+ * Unntaket er en timepris over taket som er lik honorarestimatet i listen: den kom
+ * fra en eldre import som la Moments honorarestimat i timeprisfeltet. Den byttes ut,
+ * eller tømmes når listen ikke har en sikker timepris.
+ * offer: { pricingModel, hourlyRate, fixedFee, estimatedTotalFee }.
+ * Svarer { pricingModel, pricingSettings, changes, previous } eller null når ingenting endres.
+ */
+export function pricingFill(project = {}, offer = {}) {
+  const ownModel = normalizePricingModel(project?.pricingModel);
+  const offerModel = normalizePricingModel(offer?.pricingModel);
+  const model = ownModel || offerModel;
+  if (!model || (offerModel && offerModel !== model)) return null;
+  const previous = normalizePricingSettings(
+    { ...(project?.pricingSettings || {}), feeEstimate: project?.feeEstimate },
+    model,
+  );
+  const settings = { ...previous };
+  const changes = [];
+  if (!ownModel) changes.push('pricingModel');
+  const rate = positiveAmount(offer?.hourlyRate);
+  const fixedFee = positiveAmount(offer?.fixedFee);
+  const estimate = positiveAmount(offer?.estimatedTotalFee);
+  if (model === 'hourly') {
+    const wrongRate = previous.hourlyRate != null
+      && previous.hourlyRate >= HOURLY_RATE_CEILING
+      && previous.hourlyRate === estimate;
+    if (wrongRate) {
+      settings.hourlyRate = rate;
+      changes.push(rate == null ? 'hourlyRateCleared' : 'hourlyRateReplaced');
+    } else if (previous.hourlyRate == null && rate != null) {
+      settings.hourlyRate = rate;
+      changes.push('hourlyRate');
+    }
+  }
+  if (model === 'fixed' && previous.fixedFee == null && fixedFee != null) {
+    settings.fixedFee = fixedFee;
+    changes.push('fixedFee');
+  }
+  if (previous.estimatedTotalFee == null && estimate != null) {
+    settings.estimatedTotalFee = estimate;
+    changes.push('estimatedTotalFee');
+  }
+  if (!changes.length) return null;
+  return { pricingModel: model, pricingSettings: settings, changes, previous };
+}
+
 export function feeEstimateFromSettings(pricingModel, settings = {}) {
   const model = normalizePricingModel(pricingModel);
   const s = normalizePricingSettings(settings, model);

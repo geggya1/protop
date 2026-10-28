@@ -14,6 +14,7 @@ import {
   normalizePricingModel,
   normalizePricingSettings,
   numbersInProjectName,
+  pricingFill,
   projectNumberKey,
   scrubProjectState,
 } from './projectFields.js';
@@ -988,8 +989,28 @@ export function updateProject(state, projectId, patch) {
 }
 
 /**
+ * Fyller inn prismodell og priser fra en prosjektliste på et prosjekt som finnes.
+ * Satser som er satt i ProTop blir stående (se pricingFill).
+ */
+export function fillProjectPricing(state, row = {}) {
+  const project = state.projects.find((p) => p.id === row.projectId);
+  if (!project || project.status === 'arkivert') return fail(state, 'Prosjektet finnes ikke.');
+  const fill = pricingFill(project, row);
+  if (!fill) return fail(state, 'Prisene på prosjektet er satt fra før.');
+  // Tomt feeEstimate: prisen skal komme fra innstillingene, ikke fra et gammelt honorarfelt.
+  const result = updateProject(state, project.id, {
+    pricingModel: fill.pricingModel,
+    pricingSettings: fill.pricingSettings,
+    feeEstimate: '',
+  });
+  if (!result.ok) return result;
+  return { ...result, project: result.state.projects.find((p) => p.id === project.id) };
+}
+
+/**
  * Hurtigimport av nye prosjekt. Eksisterende prosjektnummer hoppes over,
- * slik at listen ikke overskriver det som allerede er lagret.
+ * slik at listen ikke overskriver det som allerede er lagret. Rader merket
+ * pricingUpdate fyller bare inn priser som mangler på et prosjekt som finnes.
  */
 export function importProjects(state, rows) {
   let next = state;
@@ -997,6 +1018,16 @@ export function importProjects(state, rows) {
   const updated = [];
   const skipped = [];
   for (const row of Array.isArray(rows) ? rows : []) {
+    if (row?.pricingUpdate) {
+      const result = fillProjectPricing(next, row);
+      if (!result.ok) {
+        skipped.push({ number: text(row.number), name: text(row.name), reason: result.error });
+        continue;
+      }
+      next = result.state;
+      updated.push(result.project);
+      continue;
+    }
     const number = canonicalProjectNumber(row?.number);
     const name = text(row?.name);
     if (!number || !name) {
@@ -1034,7 +1065,7 @@ export function importProjects(state, rows) {
     next = result.state;
     created.push(next.projects[0]);
   }
-  if (!created.length) {
+  if (!created.length && !updated.length) {
     return fail(state, skipped[0]?.reason || 'Ingen prosjekter ble importert.');
   }
   return { ok: true, state: next, error: null, created, updated, skipped };

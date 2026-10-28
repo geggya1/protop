@@ -75,7 +75,7 @@ function TripActions({ row, colors, pending, onOpen, onDelete, onApprove, childr
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity onPress={() => onDelete(row)} accessibilityRole="button" accessibilityLabel="Slett tur">
-          <Text style={{ color: colors.danger || '#b42318', fontSize: 14, fontWeight: '700' }}>
+          <Text style={{ color: colors.dangerInk || colors.danger, fontSize: 14, fontWeight: '700' }}>
             {pending ? 'Slett nå' : 'Slett'}
           </Text>
         </TouchableOpacity>
@@ -414,7 +414,7 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
         </View>
       ) : null}
 
-      {error ? <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text> : null}
+      {error ? <Text style={{ color: colors.dangerInk || colors.danger }}>{error}</Text> : null}
       {note ? <Text style={{ color: colors.brand }}>{note}</Text> : null}
 
       {editingTrip ? (
@@ -540,7 +540,7 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
                     <Text style={{ color: colors.ink }}>Rediger tur</Text>
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => removeTrip(trip)} style={[styles.btnGhost, { borderColor: colors.line, alignSelf: 'flex-start' }]} accessibilityRole="button" accessibilityLabel="Slett tur">
-                    <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>{pendingDelete === trip.id ? 'Slett nå' : 'Slett tur'}</Text>
+                    <Text style={{ color: colors.dangerInk || colors.danger, fontWeight: '700' }}>{pendingDelete === trip.id ? 'Slett nå' : 'Slett tur'}</Text>
                   </TouchableOpacity>
                   {pendingDelete === trip.id ? (
                     <Text style={{ color: colors.ink, fontSize: 13, flexBasis: '100%' }}>
@@ -562,7 +562,7 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
                   accessibilityLabel={pendingDelete === row.id ? `Bekreft sletting av ${row.description || 'utlegget'}` : `Slett ${row.description || 'utlegget'}`}
                   nativeID={`expense-delete-${row.id}`}
                 >
-                  <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>{pendingDelete === row.id ? 'Slett nå' : 'Slett'}</Text>
+                  <Text style={{ color: colors.dangerInk || colors.danger, fontWeight: '700' }}>{pendingDelete === row.id ? 'Slett nå' : 'Slett'}</Text>
                 </TouchableOpacity>
               ) : null}
               {!trip && pendingDelete === row.id ? (

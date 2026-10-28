@@ -16,6 +16,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { grantsForEmployee, hoursOnAssignedOnly } from '../../src/access/companyAccess';
 import { useColors } from '../../src/context/ThemeContext';
+import { radius } from '../../src/ui/tokens';
 import { useLayout } from '../../src/theme';
 import { showSaveError, showSaveToast } from '../../src/ui/saveToast';
 import { watchEmployees } from '../../src/employees/storage';
@@ -1406,12 +1407,12 @@ export default function ArbeidScreen({
             padding: 10,
             marginBottom: 8,
             borderWidth: 1,
-            borderRadius: 8,
-            borderColor: colors.danger || '#b42318',
+            borderRadius: radius.control,
+            borderColor: colors.dangerInk || colors.danger,
             backgroundColor: colors.card,
           }}
         >
-          <Ionicons name="cloud-offline-outline" size={18} color={colors.danger || '#b42318'} />
+          <Ionicons name="cloud-offline-outline" size={18} color={colors.dangerInk || colors.danger} />
           <Text style={{ flex: 1, color: colors.ink, fontSize: 13, lineHeight: 18 }}>{PROJECTS_NOT_LOADED}</Text>
           <TouchableOpacity
             onPress={reloadProjects}
@@ -1425,7 +1426,7 @@ export default function ArbeidScreen({
       ) : null}
       {note ? <Text style={{ color: colors.brand, marginBottom: 6 }}>{note}</Text> : null}
       {error && !(loadFailed && error === PROJECTS_NOT_LOADED) ? (
-        <Text style={{ color: colors.danger || '#b42318', marginBottom: 6 }}>{error}</Text>
+        <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 6 }}>{error}</Text>
       ) : null}
 
       <View dataSet={{ focusWithin: '1' }} style={[styles.searchWrap, (isPhone || personal) && styles.searchWrapPhone, { borderColor: colors.line, backgroundColor: colors.card }]}>

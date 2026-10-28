@@ -245,7 +245,7 @@ export default function TimesaldoScreen({
             />
           </View>
         </View>
-        {workspace.error ? <Text style={{ color: colors.danger || '#b42318', marginBottom: 8 }}>{workspace.error}</Text> : null}
+        {workspace.error ? <Text style={{ color: colors.dangerInk || colors.danger, marginBottom: 8 }}>{workspace.error}</Text> : null}
         <Text style={{ color: colors.muted, marginBottom: 10, maxWidth: 640 }}>
           Saldo er timebank. Justering ned brukes når overtid tas ut i lønn.
           {employedSince > `${year}-01-01` ? ` Regnes fra «Ansatt fra» ${employedSince.split('-').reverse().join('.')}.` : ''}

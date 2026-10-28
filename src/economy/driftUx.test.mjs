@@ -23,7 +23,7 @@ test('prosjektutlegg: sletting krever bekreftelse, og «⋮» har navn', () => {
   const tab = readFileSync(new URL('../../components/project/ProjectExpensesTab.jsx', import.meta.url), 'utf8');
   const remove = tab.slice(tab.indexOf('function remove(id)'), tab.indexOf('function exportCsv'));
   assert.ok(remove.indexOf('setConfirmId(id)') < remove.indexOf('deleteExpense('), 'første trykk spør');
-  assert.match(tab, /accessibilityLabel=\{`Flere valg for \$\{row\.description \|\| 'utlegget'\}`\}/);
+  assert.match(tab, /accessibilityLabel=\{`Valg for utlegget \$\{row\.description \|\| ''\}`\.trim\(\)\}/);
   assert.match(tab, /Ja, slett/);
 });
 

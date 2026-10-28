@@ -337,7 +337,7 @@ export function SendDialog({
                 )}
               </View>
               {dueBeforeDate ? (
-                <Text style={{ color: colors.danger || '#b42318', fontSize: 12 }}>Betalingsfristen er før fakturadatoen.</Text>
+                <Text style={{ color: colors.dangerInk || colors.danger, fontSize: 12 }}>Betalingsfristen er før fakturadatoen.</Text>
               ) : null}
               <Text style={{ color: colors.muted, fontSize: 12, lineHeight: 17 }}>
                 Fakturaen får neste nummer i nummerserien og låses. Etterpå kan den bare rettes med kreditnota.

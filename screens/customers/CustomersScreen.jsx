@@ -705,7 +705,7 @@ export default function CustomersScreen() {
   }
 
   function cellTone(row, column) {
-    if ((column.key === 'outstanding' || column.key === 'overdue') && row[column.key] > 0) return colors.danger || '#b42318';
+    if ((column.key === 'outstanding' || column.key === 'overdue') && row[column.key] > 0) return colors.dangerInk || colors.danger;
     return null;
   }
 
@@ -822,7 +822,7 @@ export default function CustomersScreen() {
         ]}
       />
       {!!note && <Text style={{ color: colors.brand }}>{note}</Text>}
-      {!!error && <Text style={{ color: colors.danger || '#b42318' }}>{error}</Text>}
+      {!!error && <Text style={{ color: colors.dangerInk || colors.danger }}>{error}</Text>}
       {importReport ? <ImportResult colors={colors} result={importReport} /> : null}
       {isPhone ? (
         <View style={styles.filters}>
@@ -865,7 +865,7 @@ export default function CustomersScreen() {
         </View>
       )}
       {loadProblem ? (
-        <Text style={{ color: colors.danger || '#b42318' }}>
+        <Text style={{ color: colors.dangerInk || colors.danger }}>
           Kunne ikke hente kunderegisteret. Last siden på nytt.
         </Text>
       ) : null}

@@ -61,13 +61,19 @@ function toastTodoError(action, err) {
   showErrorToast(title, detail);
 }
 
-function TaskCheckbox({ done, onPress, disabled, large = false }) {
+function TaskCheckbox({ done, onPress, disabled, large = false, title = '' }) {
+  // Skjermleser: «Ferdig: <oppgave>», avkrysningsboks, avkrysset eller ikke.
+  const name = String(title || '').trim();
   return (
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
       style={styles.checkHit}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: !!done, disabled: !!disabled }}
+      aria-checked={!!done}
+      accessibilityLabel={name ? `Ferdig: ${name}` : 'Ferdig'}
     >
       <View style={[
         styles.checkbox,
@@ -99,7 +105,7 @@ function ChoreTaskRow({ task, done, unitLabel, onOpen, onToggle, simpleUi = fals
             {task.title}
           </Text>
         </TouchableOpacity>
-        <TaskCheckbox done={done} onPress={onToggle} large />
+        <TaskCheckbox title={task.title} done={done} onPress={onToggle} large />
       </View>
     );
   }
@@ -135,7 +141,7 @@ function ChoreTaskRow({ task, done, unitLabel, onOpen, onToggle, simpleUi = fals
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
       </TouchableOpacity>
-      <TaskCheckbox done={done} onPress={onToggle} />
+      <TaskCheckbox title={task.title} done={done} onPress={onToggle} />
     </View>
   );
 }
@@ -162,6 +168,7 @@ function ParentTaskRow({ task, done, onToggle, onOpen, readOnly, dayKey }) {
         )}
       </TouchableOpacity>
       <TaskCheckbox
+        title={task.title}
         done={done}
         onPress={onToggle}
         disabled={readOnly}
@@ -199,7 +206,7 @@ function ParentTaskTableRow({
     ]}
     >
       <View style={styles.tableCellCheck}>
-        <TaskCheckbox done={done} onPress={onToggle} disabled={toggleDisabled} />
+        <TaskCheckbox title={task.title} done={done} onPress={onToggle} disabled={toggleDisabled} />
       </View>
 
       <TouchableOpacity
@@ -895,7 +902,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
                             >
                               {importance}
                             </Text>
-                            <TaskCheckbox done={done} onPress={() => onToggleParent(t)} disabled={false} />
+                            <TaskCheckbox title={t.title} done={done} onPress={() => onToggleParent(t)} disabled={false} />
                           </View>
                         </View>
                       );
@@ -1026,7 +1033,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
                             {deadlineLabel ? ` · ${deadlineLabel}` : ''}
                           </Text>
                         </TouchableOpacity>
-                        <TaskCheckbox done={done} disabled />
+                        <TaskCheckbox title={t.title} done={done} disabled />
                       </View>
                     );
                   })

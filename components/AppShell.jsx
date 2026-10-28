@@ -52,6 +52,7 @@ import { companyHasRegisteredUnits, companyMenuItems, defaultAnbudSubView, defau
 import { moduleTabsFor } from '../src/navigation/moduleTabs';
 import ModuleTabs from './ModuleTabs';
 import { companyLandingTab, isShellPath, parseShellPath, setHomeRouteKey, setShellLocation, shellPathFor, shellSearchFor } from '../src/navigation/shellPaths';
+import { ShellDetailContext } from '../src/navigation/shellDetail';
 import {
   OPEN_CALENDAR_SETTINGS_KEY,
   OAUTH_COMPLETE_MESSAGE,
@@ -242,6 +243,11 @@ function AppShellInner() {
     },
   }), []);
   const [moreSubView, setMoreSubView] = useState(null);
+  // Detaljsiden i adressen (/hjem/prosjekt/:id, UX-20): { tab, subView, id }. Gjelder bare på sin egen side.
+  const [shellDetail, setShellDetail] = useState(null);
+  const detailId = shellDetail && shellDetail.tab === tab && (shellDetail.subView || null) === (moreSubView || null)
+    ? shellDetail.id
+    : null;
   const prevNavRef = useRef({ tab: 'home', subView: null });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [addHomeOpen, setAddHomeOpen] = useState(false);
@@ -365,6 +371,7 @@ function AppShellInner() {
     if (!open?.tab) return;
     setMoreSubView(open.subView || null);
     setTab(open.tab);
+    setShellDetail(open.detail ? { tab: open.tab, subView: open.subView || null, id: open.detail } : null);
     if (open.intent) {
       // requestShellTab setter shellIntent når intent er satt
       requestShellTab(open.tab, open.subView || null, open.intent);
@@ -379,7 +386,14 @@ function AppShellInner() {
     if (!at || at.tab === 'home') return;
     setMoreSubView(at.subView || null);
     setTab(at.tab);
+    if (at.detail) setShellDetail({ tab: at.tab, subView: at.subView || null, id: at.detail });
   }, []);
+
+  // En annen side enn detaljens: glem detaljen, så den ikke åpnes igjen neste gang listen vises.
+  useEffect(() => {
+    if (!shellDetail || detailId) return;
+    setShellDetail((cur) => (cur && (cur.tab !== tab || (cur.subView || null) !== (moreSubView || null)) ? null : cur));
+  }, [shellDetail, detailId, tab, moreSubView]);
 
   // Web: fanen og undersiden står i adressen (/hjem/iso/avvik), så nettleserens tilbake og fram virker.
   useEffect(() => {
@@ -400,7 +414,7 @@ function AppShellInner() {
       shellSyncedRef.current = true;
       return;
     }
-    const path = shellPathFor(tab, moreSubView);
+    const path = shellPathFor(tab, moreSubView, detailId);
     setShellLocation(path);
     const here = window.location.pathname;
     // Ligger en annen skjerm over Hjem, rører vi ikke adressen.
@@ -408,12 +422,25 @@ function AppShellInner() {
     // En annen sides spørring (indeksavtalen) følger ikke med. Ellers åpner en oppdatering den siden igjen.
     const search = shellSearchFor(tab, moreSubView, window.location.search);
     const url = `${path}${search}`;
-    const state = { ...(window.history.state || {}), shell: path };
+    const { shellFrom: cameFrom, ...rest } = window.history.state || {};
+    const state = { ...rest, shell: path };
     // Etter tilbake/fram står nettleseren allerede på stien. Bare en gammel spørring ryddes bort.
     if (here === path) {
       if (search !== (window.location.search || '')) {
-        try { window.history.replaceState(state, '', url); } catch { /* ignore */ }
+        try { window.history.replaceState({ ...state, shellFrom: cameFrom }, '', url); } catch { /* ignore */ }
       }
+      return;
+    }
+    // Detaljsider (UX-20): listen → detaljen legger til en oppføring som husker listen. Tilbake til listen
+    // går da tilbake i historikken (så nettleserens Tilbake ikke åpner detaljen igjen), og detalj → detalj erstatter.
+    const from = parseShellPath(here);
+    const sameList = !!from && from.tab === tab && (from.subView || null) === (moreSubView || null);
+    if (sameList && from.detail && !detailId && cameFrom === path) {
+      try { window.history.back(); } catch { /* ignore */ }
+      return;
+    }
+    if (sameList && from.detail && detailId) {
+      try { window.history.replaceState({ ...state, shellFrom: cameFrom }, '', url); } catch { /* ignore */ }
       return;
     }
     // Omdirigering (/hjem/anbud → /hjem/anbud/varsling) erstatter oppføringen. Ellers ville tilbake havne i en løkke.
@@ -421,10 +448,10 @@ function AppShellInner() {
     const chained = lastEntryRef.current.tab === tab && Date.now() - lastEntryRef.current.at < 400;
     try {
       if (redirect || chained) window.history.replaceState(state, '', url);
-      else window.history.pushState(state, '', url);
+      else window.history.pushState(sameList && detailId ? { ...state, shellFrom: here } : state, '', url);
     } catch { /* ignore */ }
     lastEntryRef.current = { at: Date.now(), tab };
-  }, [tab, moreSubView]);
+  }, [tab, moreSubView, detailId]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
@@ -434,6 +461,7 @@ function AppShellInner() {
       urlNavAtRef.current = Date.now();
       setMoreSubView(next.subView || null);
       setTab(next.tab);
+      setShellDetail(next.detail ? { tab: next.tab, subView: next.subView || null, id: next.detail } : null);
     };
     const onInput = () => { inputAtRef.current = Date.now(); };
     window.addEventListener('popstate', onPop);
@@ -814,9 +842,18 @@ function AppShellInner() {
     return moduleTabsFor(tab, moreSubView, items);
   }, [kitchenMode, family?.type, family?.company, companyAccess.grants, companyModules.state, companyModules.lockedLabel, tab, moreSubView]);
 
+  const detailContext = useMemo(() => ({
+    tab,
+    subView: moreSubView || null,
+    detailId,
+    setDetail: (to, id) => setShellDetail(id ? { tab: to.tab, subView: to.subView || null, id: String(id) } : null),
+  }), [tab, moreSubView, detailId]);
+
   const moduleBody = (
     <ShellErrorBoundary key={`${tab}:${moreSubView || ''}`}>
-      {otherBody}
+      <ShellDetailContext.Provider value={detailContext}>
+        {otherBody}
+      </ShellDetailContext.Provider>
     </ShellErrorBoundary>
   );
 

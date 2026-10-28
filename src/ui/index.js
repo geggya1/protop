@@ -1,7 +1,7 @@
 /**
  * ProTops designsystem. Nye skjermer importerer herfra:
  *
- *   import { Button, Card, Field, Badge, EmptyState, Sheet, Page, useConfirm } from '../../src/ui';
+ *   import { Button, Card, Field, Badge, EmptyState, Sheet, Page, BackLink, useConfirm } from '../../src/ui';
  *
  * Tokens (avstand, hjørner, skrift, skygge) ligger i ./tokens, farger i useColors().
  */
@@ -28,6 +28,7 @@ export {
   usePhone,
   useWide,
 } from './primitives';
+export { default as BackLink, DetailMissing, backLinkText } from './BackLink';
 export { default as InlineError } from './InlineError';
 export { default as Skeleton } from './Skeleton';
 export { useConfirm } from './useConfirm';

@@ -75,6 +75,8 @@ import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
 import { loadCases, loadIndexCache } from '../../src/indeksregulering/storage';
 import { dueByContractId, osloDate } from '../../src/indeksregulering/watch';
 import InvoicePage from './invoice/InvoicePage';
+import { useShellDetail } from '../../src/navigation/shellDetail';
+import { DetailMissing } from '../../src/ui/BackLink';
 import { DeleteDraftDialog, PaymentDialog } from './invoice/InvoiceDialogs';
 import { deleteDraft, payment } from './invoice/invoiceActions';
 import PowerOfficeSyncLine from './PowerOfficeSyncLine';
@@ -198,7 +200,21 @@ export default function EconomyInvoices({
   const [importReport, setImportReport] = useState(null);
   const [linkQuery, setLinkQuery] = useState({});
   const [limit, setLimit] = useState(PAGE_SIZE);
+  // Fakturaen i en lenke som ikke finnes her eller ikke kan leses.
+  const [missingId, setMissingId] = useState('');
   const hiddenIds = useRef(new Set());
+  // Fakturaen har egen adresse (/hjem/okonomi/faktura/:id). Tilbake i nettleseren går til listen.
+  const link = useShellDetail('invoice', view === 'detail' ? selectedId : '', {
+    onOpen: (id) => {
+      setSelectedId(id);
+      setView('detail');
+      setError('');
+    },
+    onClose: () => {
+      setView('list');
+      setSelectedId('');
+    },
+  });
 
   useEffect(() => {
     let live = true;
@@ -254,14 +270,21 @@ export default function EconomyInvoices({
     const summary = invoices.find((row) => row.id === selectedId) || null;
     if (summary) setSelected((current) => (current?.id === selectedId ? current : summary));
     loadInvoice(familyId, selectedId).then((row) => {
-      if (!live || !row) return;
+      if (!live) return;
+      if (!row) {
+        if (!summary) setMissingId(selectedId);
+        return;
+      }
+      setMissingId('');
       if (row.partial) {
         setSelected((current) => (current?.id === row.id ? current : row));
         return;
       }
       setSelected(row);
       setFullId(row.id);
-    }).catch(() => {});
+    }).catch(() => {
+      if (live && !summary) setMissingId(selectedId);
+    });
     return () => { live = false; };
   }, [selectedId, familyId, invoices]);
 
@@ -744,6 +767,14 @@ export default function EconomyInvoices({
       onClose={() => setConfirmDelete(null)}
     />
   );
+
+  if (view === 'detail' && !selected && selectedId && missingId === selectedId) {
+    return (
+      <View style={[styles.screen, { backgroundColor: colors.bg }]} nativeID="economy-invoices">
+        <DetailMissing list={link.list} thing={link.thing} onBack={() => { setView('list'); setSelectedId(''); }} />
+      </View>
+    );
+  }
 
   if (view === 'detail' && selected) {
     const projectState = watch?.projectState || null;

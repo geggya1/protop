@@ -39,7 +39,8 @@ import InvoiceLinesEditor from './InvoiceLinesEditor';
 import InvoiceSidebar from './InvoiceSidebar';
 import { CreditDialog, DeleteDraftDialog, LossDialog, PaymentDialog, SendDialog } from './InvoiceDialogs';
 import * as actions from './invoiceActions';
-import { navTrailText } from '../../../src/navigation/navTrail';
+import { SHELL_DETAILS } from '../../../src/navigation/shellPaths';
+import BackLink from '../../../src/ui/BackLink';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -475,10 +476,7 @@ export default function InvoicePage({
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.inner, wide && styles.innerWide]} keyboardShouldPersistTaps="handled" nativeID="economy-invoice-detail">
       <View style={styles.top}>
-        <TouchableOpacity onPress={onBack} accessibilityRole="button" style={styles.back} nativeID="invoice-back">
-          <Ionicons name="arrow-back" size={16} color={colors.brand} />
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>{navTrailText('okonomi', 'faktura', { compact: true })}</Text>
-        </TouchableOpacity>
+        <BackLink label={SHELL_DETAILS.invoice.list} onPress={onBack} nativeID="invoice-back" />
         <View style={[styles.nav, { borderColor: colors.line }]}>
           {[
             ['Forrige', prev],
@@ -607,7 +605,6 @@ const styles = StyleSheet.create({
   inner: { padding: 16, gap: 12, paddingBottom: 48 },
   innerWide: { paddingHorizontal: 24 },
   top: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
-  back: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   nav: { flexDirection: 'row', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
   navButton: { paddingHorizontal: 12, paddingVertical: 7, borderRightWidth: 1 },
   title: { fontSize: 22, fontWeight: '700' },

@@ -15,6 +15,7 @@ import OptionPicker from '../../components/OptionPicker';
 import { dateKey } from '../utils/dates';
 import { BREAKPOINTS } from '../theme';
 import { elevationStyle, radius, space } from './tokens';
+import BackLink from './BackLink';
 
 export function useWide() {
   const { width } = useWindowDimensions();
@@ -47,17 +48,13 @@ export function toneInk(colors, tone) {
 /**
  * Sideoverskrift. Modulbåndet (ModuleHero) i skallet viser modulnavnet,
  * så her vises bare undersidens tittel, en kort forklaring og handlinger.
+ * back: { label, onPress } gir tilbakelenken «‹ {label}» (BackLink) over tittelen.
  */
 export function Page({ title, intro, actions, children, wide, back }) {
   const colors = useColors();
   return (
     <View style={{ gap: 14 }}>
-      {back ? (
-        <TouchableOpacity onPress={back.onPress} accessibilityRole="link" style={[styles.row, { gap: 4, alignSelf: 'flex-start', minHeight: 32 }]}>
-          <Ionicons name="chevron-back" size={16} color={colors.brand} />
-          <Text style={{ color: colors.brandInk, fontSize: 14, fontWeight: '600' }}>{back.label || 'Tilbake'}</Text>
-        </TouchableOpacity>
-      ) : null}
+      {back ? <BackLink label={back.label} onPress={back.onPress} nativeID={back.nativeID} /> : null}
       <View style={[styles.pageHead, { flexDirection: wide ? 'row' : 'column' }]}>
         <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
           <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header" aria-level={2}>{title}</Text>

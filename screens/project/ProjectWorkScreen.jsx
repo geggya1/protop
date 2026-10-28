@@ -95,6 +95,8 @@ import SearchSelect from '../../components/project/SearchSelect';
 import { searchPlaces } from '../../src/utils/location';
 import { addressFieldsFromPlace } from '../../src/mileage/flow';
 import ProjectDetail from '../../components/project/ProjectDetail';
+import { useShellDetail } from '../../src/navigation/shellDetail';
+import { DetailMissing } from '../../src/ui/BackLink';
 import { useEmployees } from '../../src/context/CompanyDataContext';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
 import ProjectPhoneRow from './ProjectPhoneRow';
@@ -341,7 +343,7 @@ export default function ProjectWorkScreen() {
   const [state, setState] = useState(() => cachedProjects || emptyProjectState());
   const [anbud, setAnbud] = useState(() => cachedAnbud);
   // Felles lytter på ansatte i skallet.
-  const { employees } = useEmployees(familyId);
+  const { employees, ready: employeesReady } = useEmployees(familyId);
   const [invoices, setInvoices] = useState([]);
   const [ready, setReady] = useState(() => (cachedProjects?.projects?.length || 0) > 0);
   const [error, setError] = useState('');
@@ -709,6 +711,28 @@ export default function ProjectWorkScreen() {
   }
 
   const selected = state.projects.find((item) => item.id === selectedId && projectVisible(item)) || null;
+  // Prosjektet har egen adresse (/hjem/prosjekt/:id), også mens det redigeres. Tilbake i nettleseren går til listen.
+  const projectOpen = view === 'detail' || view === 'edit';
+  const link = useShellDetail('project', projectOpen ? selectedId : '', {
+    onOpen: (id) => {
+      const project = (state.projects || []).find((row) => row.id === id);
+      setSelectedId(id);
+      setDetailTab('');
+      setForm(project ? formFromProject(project) : EMPTY_FORM);
+      setError('');
+      setNote('');
+      setConfirmEditDelete(false);
+      setConfirmBulkDelete(false);
+      setView('detail');
+    },
+    onClose: () => {
+      if (!projectOpen) return;
+      setView('list');
+      setSelectedId('');
+    },
+  });
+  // Først når listen og tilgangen er lest, vet vi at prosjektet i lenken ikke finnes eller ikke er ditt.
+  const projectsKnown = ready && access.ready && (seesAllProjects || employeesReady);
   const selectedHourKey = selected
     ? `${selected.id}:${projectLookupNumbers(selected).join(',')}`
     : '';
@@ -2076,6 +2100,14 @@ export default function ProjectWorkScreen() {
       ) : null}
     </View>
   ) : null;
+
+  if (view === 'detail' && selectedId && !selected && projectsKnown) {
+    return (
+      <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+        <DetailMissing list={link.list} thing={link.thing} onBack={() => { setView('list'); setSelectedId(''); }} />
+      </View>
+    );
+  }
 
   if (view === 'detail' && selected) {
     return (

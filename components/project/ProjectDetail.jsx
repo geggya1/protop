@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { showSaveToast } from '../../src/ui/saveToast';
+import BackLink from '../../src/ui/BackLink';
+import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
 import {
   addActivity,
   updateActivity,
@@ -140,6 +142,7 @@ export default function ProjectDetail({
   onChangeState,
   onEditForm,
   onBack,
+  backLabel = SHELL_DETAILS.project.list,
   onOpenAgreement,
   onOpenCustomer,
   onOpenInvoice,
@@ -252,10 +255,7 @@ export default function ProjectDetail({
   return (
     <View style={styles.wrap} nativeID="project-detail">
       <View style={styles.headRow}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} accessibilityRole="button">
-          <Ionicons name="arrow-back" size={18} color={colors.ink} />
-          <Text style={{ color: colors.ink }}>Tilbake til listen</Text>
-        </TouchableOpacity>
+        <BackLink label={backLabel} onPress={onBack} nativeID="project-back" />
         {full || editor ? (
         <TouchableOpacity
           onPress={() => setTab('innstillinger')}
@@ -600,7 +600,6 @@ export default function ProjectDetail({
 const styles = StyleSheet.create({
   wrap: { flex: 1, minHeight: 0 },
   headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',

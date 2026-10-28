@@ -35,7 +35,15 @@ async function findNote() {
   return all.find((n) => n.title === title) || null;
 }
 async function openSettings(bot) {
-  // Tannhjulet har ikke tilgjengelig navn: trykk knappen til venstre for «Lagre».
+  // Tannhjulet har tilgjengelig navn etter UX-rettingen («Notatinnstillinger: …»).
+  const gear = bot.page.getByLabel(/^Notatinnstillinger/);
+  const gv = await visibleIdx(gear);
+  if (gv.length) {
+    await gear.nth(gv[gv.length - 1]).click();
+    await sleep(1500);
+    return;
+  }
+  // Eldre utgave: trykk knappen til venstre for «Lagre».
   const lagre = bot.page.getByText('Lagre', { exact: true });
   const vis = await visibleIdx(lagre);
   const b = await lagre.nth(vis[vis.length - 1]).boundingBox();
@@ -83,10 +91,11 @@ try {
     return { ok: ok && !!noteId, actual: `editor=${ok} id=${noteId}`, shot };
   }, { bot: eier });
 
-  await R.step('N-03', 'Eva skriver og trykker «Lagre»', '«Notatet er lagret» og teksten ligger i databasen', async () => {
+  // FL-19: lagring viser status i editoren («Lagret»), ikke et eget vindu.
+  await R.step('N-03', 'Eva skriver og trykker «Lagre»', 'Status «Lagret» og teksten ligger i databasen', async () => {
     await eier.page.getByPlaceholder(BODY).fill(secret);
     await tap(eier, 'Lagre', { last: true });
-    const ok = await seen(eier, 'Notatet er lagret', 10000);
+    const ok = await seen(eier, eier.page.getByText(/Notatet er lagret|^Lagret$/), 10000);
     const shot = await eier.shot('n03-lagret');
     await okDialog(eier);
     const n = await findNote();
@@ -145,7 +154,7 @@ try {
     await tap(eier, 'Lagre', { last: true });
     await sleep(10000);
     const hanging = await seen(eier, 'Lagrer…', 1000);
-    const feedback = await seen(eier, 'Klarte ikke', 500) || await seen(eier, 'Notatet er lagret', 500) || await seen(eier, 'Ingen nettforbindelse', 500) || await seen(eier, 'lagres når', 500);
+    const feedback = await seen(eier, 'Klarte ikke', 500) || await seen(eier, 'Notatet er lagret', 500) || await seen(eier, 'Ingen nettforbindelse', 500) || await seen(eier, 'lagres når', 500) || await seen(eier, 'Venter på nett', 500);
     const shot = await eier.shot('n10-lagrer-uten-nett');
     await eier.ctx.setOffline(false);
     await sleep(6000);
@@ -208,7 +217,7 @@ try {
     const kimText = 'Kim: stillas er bestilt til mandag.';
     await kollega.page.getByPlaceholder(BODY).fill(kimText);
     await tap(kollega, 'Lagre', { last: true });
-    const kimSaved = await seen(kollega, 'Notatet er lagret', 8000);
+    const kimSaved = await seen(kollega, kollega.page.getByText(/Notatet er lagret|^Lagret$/), 8000);
     await okDialog(kollega);
     await sleep(3000);
     const evaSees = (await eier.page.getByPlaceholder(BODY).inputValue().catch(() => '')).includes('stillas');

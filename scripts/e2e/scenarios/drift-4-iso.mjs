@@ -65,32 +65,27 @@ try {
     const skip = B.page.getByText('Hopp over rundturen', { exact: true });
     if (await skip.count()) await skip.first().click({ force: true }).catch(() => {});
     await go(B, 'home', null, 3000);
+    // ISO-03: «Meld RUH» ligger på bedriftens Hjem og åpner hurtigmeldingen (type → tekst/foto → Send).
     let taps = 0;
-    const tap = async (label, opts) => { await B.click(label, opts); taps += 1; };
     await B.shot('hjem');
-    await tap('Mer');
-    await tap('ISO / K-HMS', { timeout: 15000 });
-    await B.page.waitForTimeout(5000);
-    await tap('Meld avvik', { timeout: 90000 });
-    await B.page.waitForTimeout(2000);
-    await tap('Meld avvik');
-    await B.page.waitForTimeout(1200);
-    await tap('Prosessavvik');
-    await tap('Nestenulykke / RUH');
-    await B.fill('Kort hva som skjedde', TITLE); taps += 1;
-    await B.page.locator('textarea:visible').first().fill('Planke på stillas 2. etasje lå løst. Ingen skadet.'); taps += 1;
+    await B.click('Meld RUH', { timeout: 60000 }); taps += 1;
+    await B.page.waitForTimeout(1500);
+    await B.page.locator('[id="quick-type-nestenulykke"]').first().click({ timeout: 30000 }); taps += 1;
+    await B.page.waitForTimeout(800);
+    await B.page.locator('[id="quick-text"]').first().fill(`${TITLE}. Planke på stillas i 2. etasje lå løst. Ingen skadet.`); taps += 1;
     const form = await B.visibleText();
-    const photo = /foto|bilde|kamera|vedlegg/i.test(form.slice(form.lastIndexOf('Meld avvik')));
+    const photo = /Ta bilde/.test(form);
     await B.shot('ruh-skjema');
-    await tap('Send inn');
-    await sleep(4000);
-    const f = (await findings()).find((x) => x.title === TITLE);
+    await B.page.getByRole('button', { name: 'Send', exact: true }).last().click({ timeout: 30000 }); taps += 1;
+    await sleep(5000);
+    const thanks = await B.hasText('Takk for meldingen', { timeout: 15000 });
+    const f = (await findings()).find((x) => String(x.title || '').startsWith(TITLE));
     dump('4-01-ruh', f || null);
-    R.check('4.01a', 'Ansatt melder RUH fra telefon (lagres som registrert sak)', !!f && f.state === 'registrert', { actual: f ? `${f.number} ${f.type} ${f.state} skjermet=${f.restricted}` : 'ikke lagret', shot: await B.shot('ruh-sendt') });
+    R.check('4.01a', 'Ansatt melder RUH fra telefon (lagres som registrert sak)', !!f && f.state === 'registrert', { actual: f ? `${f.number} ${f.type} ${f.state} skjermet=${f.restricted} prosjekt=${f.projectName || '-'} kvittering=${thanks}` : `ikke lagret (kvittering=${thanks})`, shot: await B.shot('ruh-sendt') });
     R.check('4.01', 'ISO-03: RUH kan meldes med høyst 5 trykk fra hjem-skjermen på telefon', taps <= 5, {
-      expected: '≤ 5 trykk (hurtigskjema)', actual: `${taps} trykk/felt (Mer → ISO / K-HMS → Meld avvik → Meld avvik → type → RUH → tittel → beskrivelse → Send inn)`,
+      expected: '≤ 5 trykk (hurtigskjema)', actual: `${taps} trykk/felt (Meld RUH → RUH / nestenulykke → tekst → Send)`,
     });
-    R.check('4.01b', 'ISO-03: Skjemaet for avvik/RUH lar deg legge ved foto', photo, { actual: photo ? 'fotovalg finnes' : 'ingen mulighet for foto/vedlegg i skjemaet' });
+    R.check('4.01b', 'ISO-03: Skjemaet for avvik/RUH lar deg legge ved foto', photo, { actual: photo ? '«Ta bilde» i hurtigmeldingen' : 'ingen mulighet for foto/vedlegg i skjemaet' });
   });
   await B.stop();
   B = null;
@@ -106,63 +101,72 @@ try {
   });
 
   await guard(R, '4.03', 'Innleid melder RUH', async () => {
-    const tok = await token(S.users.innleid);
-    const now = new Date().toISOString();
-    const res = await rest(tok, 'POST', `families/${C}/isoFindings`, {
-      fields: fieldsOf({
-        type: 'ruh', title: 'RUH fra innleid', description: 'Manglende rekkverk', state: 'registrert', restricted: false,
-        reportedByUid: S.users.innleid.uid, reportedBy: S.users.innleid.name, reportedAt: now, number: 'AVV-INN-1', rev: 1,
-      }),
-    }, '?documentId=ruh-innleid');
+    // ISO-04: innleide får «Meld RUH» og «Mine meldinger» i ISO i stedet for «Ingen tilgang», og kan sende.
     const I = await newBot(Bot, 'I-innleid', S.users.innleid, { outDir: SHOTS });
+    let ui = false; let t = ''; let sent = null; let shot = '';
     try {
-    await go(I, 'iso', 'avvik', 6000);
-    await I.page.getByText('Kontrollerer tilgang', { exact: false }).first().waitFor({ state: 'hidden', timeout: 90000 }).catch(() => {});
-    await I.page.waitForTimeout(2000);
-    const t = await I.visibleText();
-    // «Meld avvik» står også i tipsfeltet; tell bare knapper.
-    const ui = (await I.page.getByRole('button', { name: /Meld avvik/ }).count()) > 0 && !/Ingen tilgang/.test(t);
-    var shot = await I.shot('innleid-iso');
-    var uiResult = ui; var uiText = t;
+      await go(I, 'iso', 'avvik', 6000);
+      await I.page.getByText('Kontrollerer tilgang', { exact: false }).first().waitFor({ state: 'hidden', timeout: 90000 }).catch(() => {});
+      await I.page.waitForTimeout(2000);
+      t = await I.visibleText();
+      ui = (await I.page.getByRole('button', { name: /Meld RUH/ }).count()) > 0 && !/Ingen tilgang/.test(t);
+      shot = await I.shot('innleid-iso');
+      if (ui) {
+        await I.page.getByRole('button', { name: /Meld RUH/ }).first().click();
+        await I.page.waitForTimeout(1200);
+        await I.page.locator('[id="quick-type-nestenulykke"]').first().click({ timeout: 30000 });
+        await I.page.locator('[id="quick-text"]').first().fill('RUH fra innleid. Manglende rekkverk ved trapp.');
+        await I.page.getByRole('button', { name: 'Send', exact: true }).last().click({ timeout: 30000 });
+        await sleep(5000);
+        sent = (await findings()).find((x) => String(x.title || '').startsWith('RUH fra innleid'));
+        await I.shot('innleid-sendt');
+      }
     } finally { await I.stop(); }
-    const ui = uiResult; const t = uiText;
-    R.check('4.03', 'ISO-04: Innleid kan melde RUH (UI og regler)', res.status === 200 && ui, {
-      expected: 'Meld avvik tilgjengelig og lagring tillatt', actual: `REST HTTP ${res.status}, UI: ${ui ? 'Meld avvik vises' : (t.match(/Ingen tilgang[^\n]*/) || ['ingen «Meld avvik»'])[0]}`, shot,
+    R.check('4.03', 'ISO-04: Innleid kan melde RUH (UI og regler)', ui && !!sent, {
+      expected: '«Meld RUH» tilgjengelig og saken lagres', actual: `UI: ${ui ? '«Meld RUH» vises' : (t.match(/Ingen tilgang[^\n]*/) || ['ingen «Meld RUH»'])[0]}; lagret=${sent ? `${sent.number} ${sent.state}` : 'nei'}`, shot,
     });
   });
 
   /* ───── Saksbehandling til lukking ───── */
   await guard(R, '4.04', 'Triage/årsak/tiltak', async () => {
+    // Ny avviksflyt (#554): «Start behandling» (alvorlighet + saksbehandler), «Vurder» (tiltak trengs + årsak),
+    // «Nytt tiltak» (ansvarlig + frist). Hvert steg i eget ark.
     await openCase(E);
+    await E.click('Start behandling');
+    await E.page.waitForTimeout(1200);
     await E.page.getByRole('radio', { name: 'Middels' }).first().click();
-    await pickPerson(E, 'Per Prosjektleder');
-    await E.click('Lagre første vurdering');
-    await sleep(3000);
+    await pickPerson(E, 'Per Prosjektleder', 'last');
+    await clickLast(E, 'Start behandling');
+    await sleep(3500);
+    await E.click('Vurder');
+    await E.page.waitForTimeout(1200);
     await E.page.getByRole('radio', { name: 'Ja' }).first().click();
-    await E.click('Lagre beslutning');
-    await sleep(3000);
-    await E.fill('Hvorfor 1?', 'Planken var ikke festet');
-    await E.fill('Hvorfor 2?', 'Ingen sjekk før bruk');
-    await fillAfterLabel(E, 'Systemårsak', 'Mangler rutine for daglig stillaskontroll');
-    await E.click('Lagre årsak');
-    await sleep(3000);
+    await E.page.getByPlaceholder('Hva i rutiner, planlegging, utstyr eller opplæring gjorde at det skjedde?').last().fill('Mangler rutine for daglig stillaskontroll');
+    await clickLast(E, 'Lagre');
+    await sleep(3500);
     await E.click('Nytt tiltak');
     await E.page.waitForTimeout(1200);
-    await fillAfterLabel(E, 'Tiltak', 'Innfør daglig stillaskontroll med sjekkliste', { nth: 'last' });
+    await E.page.getByPlaceholder('Hva skal gjøres?').last().fill('Innfør daglig stillaskontroll med sjekkliste');
     await pickPerson(E, 'Per Prosjektleder', 'last');
     await E.page.locator('input[type=date]').last().fill('2026-11-15');
-    await E.click('Legg til og lag oppgave');
+    await clickLast(E, 'Legg til og lag oppgave');
     await sleep(3500);
-    const f = (await findings()).find((x) => x.title === TITLE);
+    const f = (await findings()).find((x) => String(x.title || '').startsWith(TITLE));
     const todos = await listDocs(`families/${C}/parentTodos`);
-    R.check('4.04', 'Eier triagerer, beslutter tiltak, registrerer årsak og tiltak (oppgave til Per)', f?.state === 'tiltak' && f?.rootCause?.systemCause && (f?.actions || []).length === 1 && todos.some((t) => /Tiltak/.test(t.title || '')), {
-      actual: `state=${f?.state} årsak=${!!f?.rootCause} tiltak=${(f?.actions || []).length} oppgaver=${todos.map((t) => t.title).join(' | ')}`, shot: await E.shot('sak-tiltak'),
+    R.check('4.04', 'Eier starter behandlingen, vurderer (tiltak trengs + årsak) og legger inn tiltak (oppgave til Per)', ['tiltak', 'vurdert'].includes(f?.state) && f?.rootCause?.systemCause && (f?.actions || []).length === 1 && todos.some((t) => /Tiltak/.test(t.title || '')), {
+      actual: `state=${f?.state} alvorlighet=${f?.severity} saksbehandler=${f?.assigneeName} årsak=${!!f?.rootCause?.systemCause} tiltak=${(f?.actions || []).length} oppgaver=${todos.map((t) => t.title).join(' | ')}`, shot: await E.shot('sak-tiltak'),
     });
-    // Trykk «Godkjenn lukking» før kontroll og effekt: saken skal ikke lukkes.
-    await E.page.getByText('Godkjenn lukking', { exact: true }).first().click({ force: true }).catch(() => {});
-    await sleep(2500);
-    const early = (await findings()).find((x) => x.title === TITLE)?.state === 'lukket';
-    R.check('4.04a', 'Lukking er sperret før tiltak er kontrollert og effekt verifisert', !early, { actual: early ? 'saken ble lukket' : 'trykk på «Godkjenn lukking» lukker ikke saken' });
+    // «Lukk saken» før kontroll og effekt: knappen finnes ikke, eller lukking er sperret.
+    const closeBtn = await E.page.getByText('Lukk saken', { exact: true }).count();
+    if (closeBtn) {
+      await E.page.getByText('Lukk saken', { exact: true }).first().click({ force: true }).catch(() => {});
+      await E.page.waitForTimeout(800);
+      await E.page.getByText('Godkjenn lukking', { exact: true }).last().click({ force: true }).catch(() => {});
+      await sleep(2500);
+      await E.page.getByText('Avbryt', { exact: true }).last().click().catch(() => {});
+    }
+    const early = (await findings()).find((x) => String(x.title || '').startsWith(TITLE))?.state === 'lukket';
+    R.check('4.04a', 'Lukking er sperret før tiltak er kontrollert og effekt verifisert', !early, { actual: early ? 'saken ble lukket' : `saken er ikke lukket («Lukk saken» vises=${closeBtn > 0})` });
     const tokB = await token(S.users.ansatt2);
     const res = await patchAs(tokB, `families/${C}/isoFindings/${f.id}`, { state: 'lukket', closeNote: 'lukker selv', closedByUid: S.users.ansatt2.uid });
     R.check('4.04b', 'Reglene nekter melderen (ansatt) å lukke saken selv (REST)', res.status === 403, { expected: '403', actual: `HTTP ${res.status}` });
@@ -182,21 +186,27 @@ try {
   });
 
   await guard(R, '4.06', 'Kontroll, effekt og lukking', async () => {
-    // ISO-data lastes én gang; eieren må laste siden på nytt for å se at tiltaket er meldt utført (jf. 4.05a).
-    await E.page.reload();
-    await E.waitShell();
-    await openCase(E);
+    // DRIFT-23: saken oppdateres i sanntid, men en ny lasting skal heller ikke skade.
+    if (!(await E.hasText('Godkjenn gjennomføring', { timeout: 3000 }))) {
+      await E.page.reload();
+      await E.waitShell();
+      await openCase(E);
+    }
     await E.click('Godkjenn gjennomføring');
-    await sleep(3000);
-    await fillAfterLabel(E, 'Metode', 'Stikkprøve av sjekklister to uker etter');
-    await fillAfterLabel(E, 'Resultat', 'Alle stikkprøver OK, ingen nye funn.');
-    await E.page.getByRole('radio', { name: 'Effekt verifisert' }).first().click();
-    await E.click('Lagre effektkontroll');
-    await sleep(3000);
-    await fillAfterLabel(E, 'Lukkebegrunnelse', 'Tiltak gjennomført og effekt verifisert.');
-    await E.click('Godkjenn lukking');
     await sleep(3500);
-    const f = (await findings()).find((x) => x.title === TITLE);
+    await E.click('Kontroller effekt');
+    await E.page.waitForTimeout(1200);
+    await E.page.getByPlaceholder('Stikkprøve, måling, oppfølgingssamtale …').last().fill('Stikkprøve av sjekklister to uker etter');
+    await E.page.getByLabel('Resultat').last().fill('Alle stikkprøver OK, ingen nye funn.');
+    await E.page.getByRole('radio', { name: 'Effekt verifisert' }).first().click();
+    await clickLast(E, 'Lagre effektkontroll');
+    await sleep(3500);
+    await E.click('Lukk saken');
+    await E.page.waitForTimeout(1200);
+    await E.page.getByPlaceholder('Hva ble gjort, og hvorfor er saken ferdig?').last().fill('Tiltak gjennomført og effekt verifisert.');
+    await clickLast(E, 'Godkjenn lukking');
+    await sleep(3500);
+    const f = (await findings()).find((x) => String(x.title || '').startsWith(TITLE));
     dump('4-06-sak-lukket', f);
     R.check('4.06', 'Saken lukkes med årsak, kontrollert tiltak, verifisert effekt og lukkebegrunnelse', f?.state === 'lukket' && f?.effect?.outcome === 'verifisert' && f?.closeNote && f?.actions?.[0]?.state === 'verifisert', {
       actual: `state=${f?.state} effekt=${f?.effect?.outcome} tiltak=${f?.actions?.[0]?.state} lukket av=${f?.closedBy}`, shot: await E.shot('sak-lukket'),

@@ -122,19 +122,24 @@ try {
     return { ok: r.ok && got, actual: `sendt=${r.ok} mottatt=${got}`, shot };
   }, { bot: eier });
 
-  await R.step('V-07', '«Send på nytt» gir kvittering og ny e-post', 'Toast «Forespørsel sendt på nytt» + 1 ny e-post', async () => {
+  // L-33: «Send på nytt» fornyer varselet i appen, men sender høyst én e-post i uken til en med konto.
+  await R.step('V-07', '«Send på nytt» gir kvittering, og ingen ny e-post innen en uke (L-33)', 'Toast «Forespørsel sendt på nytt» / «Varselet i appen er fornyet …»; e-post bare hvis kvitteringen sier det', async () => {
     const before = mailsTo(P.utenfor.email).length;
     await tap(eier, 'Send på nytt');
-    const toast = await seen(eier, 'Forespørsel sendt på nytt', 15000);
+    const toast = await seen(eier, eier.page.getByText(/Forespørsel sendt på nytt|Varselet i appen er fornyet/), 15000);
+    const limited = await seen(eier, 'høyst én gang i uken', 1000);
     const shot = await eier.shot('v07-sendt-pa-nytt');
     await sleep(1500);
     const n = mailsTo(P.utenfor.email).length - before;
-    return { ok: toast && n === 1, actual: `toast=${toast} nye e-poster=${n}`, shot };
+    return { ok: toast && (limited ? n === 0 : n === 1), actual: `toast=${toast} begrenset=${limited} nye e-poster=${n}`, shot };
   }, { bot: eier });
 
   await R.step('V-07b', 'Ulf åpner lenken i e-posten (/friend-invite/<id>)', 'Siden viser forespørselen fra Eva med Godta/Avslå', async () => {
     const m = mailsTo(P.utenfor.email).slice(-1)[0];
-    const link = linksIn(m).find((l) => /friend-invite\//.test(l));
+    let link = linksIn(m).find((l) => /friend-invite\//.test(l));
+    // L-33: den nye forespørselen fikk ingen ny e-post. Lenken i den første e-posten gjelder en avslått
+    // forespørsel; samme side åpnes da for den ventende forespørselen (samme lenkeformat som i e-posten).
+    if (withdrawnReqId && (!link || !link.includes(withdrawnReqId))) link = `${BASE}/friend-invite/${withdrawnReqId}`;
     if (!link) return { ok: false, actual: 'ingen lenke i siste e-post' };
     const u = new URL(link);
     await utenfor.page.goto(`${BASE}${u.pathname}`, { waitUntil: 'domcontentloaded', timeout: 300000 });

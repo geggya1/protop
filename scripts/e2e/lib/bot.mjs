@@ -62,7 +62,9 @@ export class Bot {
     // Varsler tillatt, ellers dekker «Varsler er blokkert»-stripen toppen av hver side.
     await this.ctx.grantPermissions(['notifications'], { origin: BASE }).catch(() => {});
     if (this.consents) {
+      // Init-skript kjører også i sandkassede rammer (kart) uten localStorage; hopp over dem.
       await this.ctx.addInitScript(() => {
+        if (window.top !== window) return;
         const now = new Date().toISOString();
         localStorage.setItem('protop.lang', 'nb');
         localStorage.setItem('protop.consents', JSON.stringify({
@@ -70,7 +72,7 @@ export class Bot {
         }));
       });
     } else {
-      await this.ctx.addInitScript(() => { localStorage.setItem('protop.lang', 'nb'); });
+      await this.ctx.addInitScript(() => { if (window.top === window) localStorage.setItem('protop.lang', 'nb'); });
     }
     this.page = await this.ctx.newPage();
     this.page.on('pageerror', (e) => {

@@ -4,28 +4,40 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useI18n } from '../src/i18n';
-import { legalDocument } from '../src/i18n/legal';
+import { getDpa, isLegalHeading, legalDocument } from '../src/i18n/legal';
 import { colors, radius } from '../src/theme';
 
-export default function LegalDocumentModal({ visible, onClose }) {
+/** `doc="dpa"` viser databehandleravtalen. Ellers vilkår og personvern på én side. */
+export default function LegalDocumentModal({ visible, onClose, doc = 'all' }) {
   const { t, lang } = useI18n();
-  const sections = legalDocument(lang);
+  const dpa = doc === 'dpa';
+  const sections = dpa
+    ? [{ id: 'dpa', title: 'Databehandleravtale', paragraphs: getDpa(lang) }]
+    : legalDocument(lang).map((section) => ({ ...section, title: t(section.key) }));
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.header}>
-          <Text style={styles.title}>{t('legal.docTitle')}</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+          <Text style={styles.title} accessibilityRole="header">
+            {dpa ? 'Databehandleravtale' : t('legal.docTitle')}
+          </Text>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button">
             <Text style={styles.closeTxt}>{t('common.ok')}</Text>
           </TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={styles.body}>
           {sections.map((section) => (
             <View key={section.id} style={styles.section}>
-              <Text style={styles.h}>{t(section.key)}</Text>
-              {section.paragraphs.map((p) => (
-                <Text key={p} style={styles.p}>{p}</Text>
+              <Text style={styles.h} accessibilityRole="header">{section.title}</Text>
+              {section.paragraphs.map((p, i) => (
+                <Text
+                  key={`${section.id}-${i}`}
+                  style={isLegalHeading(p, i) && i > 0 ? styles.sub : styles.p}
+                  accessibilityRole={isLegalHeading(p, i) && i > 1 ? 'header' : undefined}
+                >
+                  {p}
+                </Text>
               ))}
             </View>
           ))}
@@ -51,5 +63,6 @@ const styles = StyleSheet.create({
   body: { padding: 16, gap: 16, paddingBottom: 32 },
   section: { backgroundColor: colors.card, borderRadius: radius.md, padding: 14, gap: 8 },
   h: { fontWeight: '400', fontSize: 17, color: colors.brand },
+  sub: { fontWeight: '600', fontSize: 14, lineHeight: 21, color: colors.ink, marginTop: 4 },
   p: { fontSize: 14, lineHeight: 21, color: colors.ink },
 });

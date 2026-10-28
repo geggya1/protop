@@ -127,7 +127,6 @@ export default function SettingsScreen({ setSubView } = {}) {
   };
 
   const appVersion = getAppVersion();
-  const privacyUrl = Constants.expoConfig?.extra?.privacyPolicyUrl || 'https://www.protop.no/personvern';
   const supportUrl = Constants.expoConfig?.extra?.supportUrl || 'https://www.protop.no/kontakt';
   const openUrl = (url) => { Linking.openURL(url).catch(() => {}); };
   const openUpdates = () => requestShellTab('more', 'help', 'help-news');
@@ -347,7 +346,8 @@ export default function SettingsScreen({ setSubView } = {}) {
         <SectionHeader title={t('settings.about')} />
         <View style={styles.group}>
           <Row icon="document-text" label={t('more.legal')} onPress={() => requestShellTab('more', 'legal')} />
-          <Row icon="shield-checkmark-outline" label={t('settings.privacyPolicy')} onPress={() => openUrl(privacyUrl)} />
+          {/* /personvern på protop.no har ingen egen side ennå. Vis erklæringen i appen. */}
+          <Row icon="shield-checkmark-outline" label={t('settings.privacyPolicy')} onPress={() => requestShellTab('more', 'legal', 'legal-privacy')} />
           <Row icon="mail-outline" label={t('settings.contactSupport')} onPress={() => openUrl(supportUrl)} />
           <Row icon="help-circle" label={t('help.title')} onPress={() => requestShellTab('more', 'help')} />
           <Row

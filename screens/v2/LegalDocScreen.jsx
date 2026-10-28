@@ -5,6 +5,6 @@ import PrivacyTermsScreen from './PrivacyTermsScreen';
 /** Deep-link / stack: vis dokumentet som underside av personvern-huben. */
 export default function LegalDocScreen() {
   const { params } = useRoute();
-  const page = params?.doc === 'privacy' ? 'privacy' : 'terms';
+  const page = ['privacy', 'dpa'].includes(params?.doc) ? params.doc : 'terms';
   return <PrivacyTermsScreen initialPage={page} />;
 }

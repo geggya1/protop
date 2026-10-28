@@ -13,9 +13,12 @@ import BrandToggle from '../../components/BrandToggle';
 import CheckBox from '../../components/CheckBox';
 import LegalDocumentModal from '../../components/LegalDocumentModal';
 import { LEGAL_VERSION } from '../../src/i18n/langs';
-import { getTerms, getPrivacy, APP_LICENSES } from '../../src/i18n/legal';
 import {
-  emptyConsents, loadLocalConsents, saveLocalConsents, persistUserConsents,
+  getTerms, getPrivacy, isLegalHeading, APP_LICENSES, LEGAL_ENTITY,
+} from '../../src/i18n/legal';
+import {
+  acceptedConsentRecord, consentsComplete, emptyConsents, loadLocalConsents, saveLocalConsents,
+  persistUserConsents,
 } from '../../src/utils/consents';
 
 const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'licenses', 'consent'];
@@ -29,12 +32,6 @@ function formatConsentDate(iso) {
   } catch {
     return null;
   }
-}
-
-function isLegalHeading(p, i) {
-  return i < 2
-    || /^\d+\./.test(p)
-    || (p === p.toUpperCase() && p.length < 80 && /[A-ZÆØÅ]/.test(p));
 }
 
 function HubTile({ icon, title, sub, onPress, compact, status }) {
@@ -114,7 +111,11 @@ export default function PrivacyTermsScreen({
   const refresh = useCallback(async () => {
     const local = await loadLocalConsents();
     const remote = userProfile?.consents || {};
-    setConsents({ ...emptyConsents(), ...local, ...remote });
+    // Gjeldende versjon godtatt på denne enheten, men ikke lagret på kontoen ennå: vis den.
+    const preferLocal = consentsComplete(local) && !consentsComplete(remote);
+    setConsents(preferLocal
+      ? { ...emptyConsents(), ...remote, ...local }
+      : { ...emptyConsents(), ...local, ...remote });
   }, [userProfile?.consents]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -134,7 +135,8 @@ export default function PrivacyTermsScreen({
     clearShellIntent?.();
   }, [shellIntent, clearShellIntent]);
 
-  const termsStamp = formatConsentDate(consents.termsAt || consents.privacyAt);
+  const current = consentsComplete(consents);
+  const termsStamp = current ? formatConsentDate(consents.termsAt || consents.privacyAt) : null;
   const marketingStamp = formatConsentDate(consents.marketingAt);
   const termsParas = useMemo(() => getTerms(lang), [lang]);
   const privacyParas = useMemo(() => getPrivacy(lang), [lang]);
@@ -173,17 +175,7 @@ export default function PrivacyTermsScreen({
     if (!agreed || !openedDoc) return;
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      const next = {
-        ...consents,
-        termsAt: now,
-        privacyAt: now,
-        gdprAt: now,
-        dataAt: now,
-        copyrightAt: now,
-        language: lang,
-        version: LEGAL_VERSION,
-      };
+      const next = acceptedConsentRecord(lang, consents);
       await saveLocalConsents(next);
       if (uid) await persistUserConsents(uid, next).catch(() => {});
       setConsents(next);
@@ -228,11 +220,11 @@ export default function PrivacyTermsScreen({
             <>
               <Title size={22}>{pageTitle}</Title>
               {page === 'hub' ? (
-                <Mute>Vilkår, personvern, lisenser og samtykke — samlet for foresatte.</Mute>
+                <Mute>Vilkår, personvern, lisenser og samtykke for ProTop.</Mute>
               ) : null}
             </>
           ) : (
-            <Mute>Vilkår, personvern, lisenser og samtykke — samlet for foresatte.</Mute>
+            <Mute>Vilkår, personvern, lisenser og samtykke for ProTop.</Mute>
           )}
 
           {page === 'hub' ? (
@@ -260,7 +252,9 @@ export default function PrivacyTermsScreen({
                     compact={compact}
                     icon="reader-outline"
                     title={t('legal.terms')}
-                    sub={termsStamp ? `Godkjent ${termsStamp}` : `Versjon ${LEGAL_VERSION}`}
+                    sub={termsStamp
+                      ? `Versjon ${LEGAL_VERSION} · godkjent ${termsStamp}`
+                      : `Versjon ${LEGAL_VERSION} · ikke godkjent ennå`}
                     onPress={() => setPage('terms')}
                   />
                 </View>
@@ -287,7 +281,8 @@ export default function PrivacyTermsScreen({
                     compact={compact}
                     icon="checkmark-circle-outline"
                     title="Bekreft samtykke"
-                    sub="For foresatte — ved oppdaterte vilkår"
+                    sub={current ? 'Du har godtatt gjeldende versjon' : `Godta versjon ${LEGAL_VERSION}`}
+                    status={{ on: current, label: current ? 'Godtatt' : 'Ny versjon' }}
                     onPress={() => setPage('consent')}
                   />
                 </View>
@@ -297,11 +292,12 @@ export default function PrivacyTermsScreen({
 
               <TouchableOpacity
                 style={styles.mailRow}
-                onPress={() => Linking.openURL('https://protop.no')}
+                onPress={() => Linking.openURL(`mailto:${LEGAL_ENTITY.email}`).catch(() => {})}
                 accessibilityRole="link"
+                accessibilityLabel={`Personvern: ${LEGAL_ENTITY.email}`}
               >
                 <Ionicons name="mail-outline" size={16} color={colors.brand} />
-                <Text style={styles.mailTxt}>protop.no</Text>
+                <Text style={styles.mailTxt}>{LEGAL_ENTITY.email}</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -330,8 +326,8 @@ export default function PrivacyTermsScreen({
                 />
               </View>
               <Text style={[styles.fine, compact && styles.fineDesk]}>
-                ProTop sender ikke personlig annonsering til barn. Tips gjelder tjenesten
-                (nye funksjoner, trygg bruk). Du kan når som helst slå dette av.{' '}
+                Tipsene gjelder tjenesten (nye funksjoner og trygg bruk). Du kan når som
+                helst slå dette av.{' '}
                 <Text style={styles.link} onPress={() => setPage('privacy')}>
                   Les personvernerklæringen
                 </Text>

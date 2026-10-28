@@ -62,6 +62,7 @@ import {
   initials,
   isDeletedEmployee,
   linkClash,
+  mergeEmployeeEdit,
   newId,
   ownEmployee,
   presentEmployee,
@@ -72,6 +73,7 @@ import {
 
 import { cvEditorSections } from '../../src/employees/schema';
 import {
+  employeeVersion,
   loadProfessionalProfile,
   removeEmployee,
   saveEmployee,
@@ -269,6 +271,18 @@ export default function EmployeesScreen() {
   }, [view, draft?.person?.address1]);
 
   const selected = rows.find((row) => row.id === selectedId) || null;
+
+  // Personen er endret i skyen mens hen er åpen (f.eks. godtatt invitasjon, eller endret av en
+  // annen): legg endringene inn i redigeringskopien. Egne, ulagrede endringer beholdes, og en
+  // senere lagring skriver ikke tilbake gammel kobling eller invitasjon.
+  useEffect(() => {
+    if (!selected?.updatedAt || view === 'mine') return;
+    setDraft((current) => {
+      if (!current || current.id !== selected.id || current.updatedAt === selected.updatedAt) return current;
+      const base = employeeVersion(familyId, current.id, current.updatedAt);
+      return presentEmployee(mergeEmployeeEdit({ remote: selected, base, next: current }));
+    });
+  }, [selected?.id, selected?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   // Andre ansatte: Lese ser bare hovedsiden, begrenset redigering ser også
   // Oversikt, Timer og Fraværsoversikt (uten å endre). Resten krever Admin.
   // «Vis som»: den valgte ansatte er «meg», også når profilen ikke er knyttet til en bruker.

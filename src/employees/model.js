@@ -1088,6 +1088,73 @@ export function presentEmployee(employee) {
   return next;
 }
 
+// Settes av serveren når invitasjonen godtas eller personen knyttes. En gammel
+// redigeringskopi skal aldri skrive dem tilbake.
+const SERVER_OWNED_PATHS = ['personUid', 'linkStatus', 'invite'];
+
+function plainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function sameValue(left, right) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+/** Datoer på samme form (åååå-mm-dd), så dd.mm.åååå i en redigeringskopi ikke regnes som endring. */
+function canonicalDates(employee) {
+  const next = normalizeEmployee(employee);
+  for (const path of DATE_PATHS) {
+    const iso = parseNbDate(readPath(next, path));
+    if (iso) writePath(next, path, iso);
+  }
+  return next;
+}
+
+/** Feltstier (blad) som er endret fra base til next. Lister regnes som én verdi. */
+export function employeeChanges(base, next, prefix = '') {
+  const out = [];
+  const keys = new Set([...Object.keys(base || {}), ...Object.keys(next || {})]);
+  for (const key of keys) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    const left = base?.[key];
+    const right = next?.[key];
+    if (plainObject(left) && plainObject(right)) out.push(...employeeChanges(left, right, path));
+    else if (!sameValue(left, right)) out.push(path);
+  }
+  return out;
+}
+
+/**
+ * Slå en redigeringskopi sammen med nyeste versjon i skyen.
+ * remote: dokumentet slik det er nå. base: versjonen kopien ble laget fra. next: kopien.
+ * Bare feltene som er endret i kopien, skrives. Har serveren endret kobling eller
+ * invitasjon siden kopien ble laget, beholdes serverens verdi.
+ * Uten kjent base vinner kopien, men personUid, linkStatus og invite tas fra skyen når de er satt der.
+ */
+export function mergeEmployeeEdit({ remote, base, next } = {}) {
+  const draft = canonicalDates(next);
+  if (!remote) return draft;
+  const fresh = canonicalDates(remote);
+  if (!base) {
+    const merged = clone(draft);
+    if (text(fresh.personUid)) {
+      merged.personUid = fresh.personUid;
+      merged.linkStatus = fresh.linkStatus;
+    }
+    if (fresh.invite?.status && fresh.invite.status !== 'none') merged.invite = clone(fresh.invite);
+    return normalizeEmployee(merged);
+  }
+  const from = canonicalDates(base);
+  const merged = clone(fresh);
+  for (const path of employeeChanges(from, draft)) {
+    const top = path.split('.')[0];
+    const serverMoved = !sameValue(readPath(from, path), readPath(fresh, path));
+    if (SERVER_OWNED_PATHS.includes(top) && serverMoved) continue;
+    writePath(merged, path, clone(readPath(draft, path)));
+  }
+  return normalizeEmployee(merged);
+}
+
 export function linkClash(list, employee) {
   const uid = text(employee?.personUid);
   if (!uid) return null;

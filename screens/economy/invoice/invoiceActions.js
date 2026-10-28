@@ -405,7 +405,7 @@ export async function postpone(ctx, invoice, date) {
 /** Last opp et vedlegg til fakturaen (PDF eller bilde). */
 export async function uploadAttachment(ctx, invoice, file, bytes) {
   const type = file.mimeType || file.type || 'application/octet-stream';
-  const ref = await storeInvoiceFile(ctx.familyId, invoice.id, file.name || 'vedlegg', bytes, type);
+  const ref = await storeInvoiceFile(ctx.familyId, invoice.id, file.name || 'vedlegg', bytes, type, { unique: true });
   // Importert faktura: den første PDF-en er selve fakturaen fra det andre systemet.
   const imported = !isManagedInvoice(invoice) && !isDraftInvoice(invoice);
   const asDocument = imported && !invoice.attachment?.url && /pdf/i.test(type || ref.name);

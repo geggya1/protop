@@ -9,7 +9,9 @@ import {
 import { db } from '../../firebase';
 import { rememberInvoicedStatement } from './invoicedStatementStorage.js';
 import { withEvent } from './invoiceFlow.js';
-import { issueGapRecord, jumpReasonFor, seriesGapOnIssue } from './invoiceNumberSeries.js';
+import {
+  counterJumpEntry, issueGapRecord, jumpReasonFor, seriesGapOnIssue,
+} from './invoiceNumberSeries.js';
 import {
   invoiceListSource,
   isInvoiceCacheQuotaError,
@@ -236,10 +238,19 @@ export async function issueInvoiceWithNumber(companyId, invoice, {
       updatedAt: stamp,
     });
     const jumps = Array.isArray(counterSnap.exists() ? counterSnap.data()?.jumps : null) ? counterSnap.data().jumps : [];
+    // Hopper telleren mer enn ett steg, må loggen få en begrunnet rad (firestore.rules, L-31).
+    const jump = counterJumpEntry({
+      last,
+      number,
+      record,
+      invoiceId: id,
+      actor: { byUid: result.invoice.issuedByUid, byName: result.invoice.issuedByName },
+      at: stamp,
+    });
     tx.set(counter, {
       last: number,
       updatedAt: stamp,
-      ...(record ? { jumps: [...jumps, record.entry].slice(-200) } : {}),
+      ...(jump ? { jumps: [...jumps, jump].slice(-200) } : {}),
     }, { merge: true });
     tx.set(ref, next, { merge: true });
     return next;

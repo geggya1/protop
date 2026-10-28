@@ -142,3 +142,27 @@ export function issueGapRecord(gap, { reason = '', invoiceId = '', actor = null,
     event: `nummerserien hoppet over ${formatNumberRange(gap)}: ${why}`,
   };
 }
+
+/**
+ * Raden telleren (invoiceSeries.jumps) må få når den flyttes mer enn ett steg. Reglene krever
+ * en begrunnet rad med neste nummer for hvert hopp (L-31). Et hull har sin egen rad (record);
+ * nummer som er brukt i fakturalisten (import), forklares her. null når telleren går ett steg
+ * eller ikke er startet.
+ */
+export function counterJumpEntry({ last = 0, number = 0, record = null, invoiceId = '', actor = null, at = '' } = {}) {
+  const prev = whole(last);
+  const n = whole(number);
+  if (!prev || n <= prev + 1) return null;
+  if (record?.entry) return record.entry;
+  const range = formatNumberRange({ from: prev + 1, to: n - 1 });
+  return {
+    from: prev + 1,
+    to: n - 1,
+    next: n,
+    reason: `Nummer ${range} er brukt i fakturalisten (importerte eller eldre fakturaer).`,
+    invoiceId: text(invoiceId, 120),
+    byUid: text(actor?.byUid, 128),
+    byName: text(actor?.byName, 120),
+    at: text(at, 40) || new Date().toISOString(),
+  };
+}

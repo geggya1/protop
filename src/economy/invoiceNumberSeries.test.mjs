@@ -9,6 +9,7 @@ import {
   expectedNextNumber,
   formatNumberRange,
   isJumpDocumented,
+  counterJumpEntry,
   issueGapRecord,
   jumpReasonFor,
   normalizeNumberJumps,
@@ -87,5 +88,16 @@ assert.deepEqual(record.entry, {
 assert.equal(record.event, `nummerserien hoppet over 105–109: ${entry.reason}`);
 assert.equal(issueGapRecord(gap, {}).entry.reason, UNDOCUMENTED_GAP_REASON, 'uten begrunnelse logges hvor den skal stå');
 assert.equal(issueGapRecord(null), null);
+
+// Telleren: hvert hopp over ett steg får en begrunnet rad med neste nummer (firestore.rules, L-31).
+assert.equal(counterJumpEntry({ last: 104, number: 105 }), null, 'ett steg');
+assert.equal(counterJumpEntry({ last: 0, number: 10001 }), null, 'telleren startes');
+assert.deepEqual(counterJumpEntry({ last: 104, number: 110, record }), record.entry, 'hullet har sin egen rad');
+const covered = counterJumpEntry({ last: 100, number: 151, invoiceId: 'inv_2', at: '2026-10-28T09:00:00.000Z' });
+assert.equal(covered.next, 151);
+assert.equal(covered.from, 101);
+assert.equal(covered.to, 150);
+assert.match(covered.reason, /101–150 er brukt i fakturalisten/);
+assert.ok(covered.reason.length >= 10);
 
 console.log('invoiceNumberSeries.test.mjs: ok');

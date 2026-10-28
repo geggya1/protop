@@ -33,10 +33,15 @@ function blobOf(bytes, mime) {
   return new Blob([bytes], { type: mime });
 }
 
-/** Lagrer en fil i fakturaens mappe og svarer med en filreferanse til fakturaen. */
-export async function storeInvoiceFile(companyId, invoiceId, name, bytes, mime) {
+/**
+ * Lagrer en fil i fakturaens mappe og svarer med en filreferanse til fakturaen.
+ * En fil i fakturamappen kan ikke overskrives (arkivet, storage.rules). unique gir vedlegg
+ * en egen sti, så samme filnavn kan lastes opp to ganger.
+ */
+export async function storeInvoiceFile(companyId, invoiceId, name, bytes, mime, { unique = false } = {}) {
   const file = safeName(name);
-  const storagePath = `families/${companyId}/invoices/${invoiceId}/${file}`;
+  const stored = unique ? `${Date.now().toString(36)}-${file}` : file;
+  const storagePath = `families/${companyId}/invoices/${invoiceId}/${stored}`;
   const blob = blobOf(bytes, mime);
   if (!companyId || companyId === '__demo__') {
     return { url: URL.createObjectURL(blob), storagePath: '', name: file, mime, size: blob.size, at: new Date().toISOString() };

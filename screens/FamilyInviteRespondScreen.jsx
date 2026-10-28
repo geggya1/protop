@@ -19,6 +19,7 @@ import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { groupInviteCopy } from '../src/utils/inviteIdentifiers';
 import { inviteResponseMessage, isCompanyGroupType } from '../src/utils/groupInviteLogic';
 import { notifyUser } from '../src/utils/dialog';
+import { FAMILY_PRODUCT_UNAVAILABLE, groupInviteAllowed } from '../src/navigation/familyProduct';
 
 /** Egen innboks først: en invitert er ikke medlem ennå og kan ikke lese gruppens data. */
 async function loadInvite(uid, familyId, inviteId) {
@@ -170,6 +171,30 @@ export default function FamilyInviteRespondScreen() {
   }
 
   const familyLabel = invite.familyName || copy.bodyName;
+
+  // Invitasjon til familie, lag eller klasse: finnes ikke i ProTop, men kan avslås (L-35).
+  if (!groupInviteAllowed(invite.groupType)) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <Ionicons name="mail-open-outline" size={48} color={colors.muted} />
+          <Text style={styles.title}>{familyLabel}</Text>
+          <Text style={styles.hint}>{`${FAMILY_PRODUCT_UNAVAILABLE} Invitasjonen kan ikke godtas her.`}</Text>
+          <TouchableOpacity
+            style={[styles.secondary, busy && styles.disabled]}
+            onPress={onDecline}
+            disabled={busy}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryTxt}>{t('member.declineInvite')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.primary} onPress={leave} accessibilityRole="button">
+            <Text style={styles.primaryTxt}>{t('common.back')}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>

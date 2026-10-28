@@ -113,6 +113,7 @@ import ShellErrorBoundary from './ShellErrorBoundary';
 import { companyDisplayName } from '../src/utils/companyName';
 import ConfirmHost from './ConfirmHost';
 import IsoAutomation from '../screens/iso/IsoAutomation';
+import { FAMILY_PRODUCT_ENABLED } from '../src/navigation/familyProduct';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -291,6 +292,8 @@ function AppShellInner() {
 
   // Publiser kun for innlogget identitet — ikke når foresatt bare «ser som barn».
   const locationSharingEnabled = useMemo(() => {
+    // Familieposisjon er ikke med i ProTop (L-35): ingen posisjon publiseres til bedriften.
+    if (!FAMILY_PRODUCT_ENABLED) return false;
     if (isActingAsChild && !isChild) return false;
     return effectiveLocationSharing({
       userProfile,

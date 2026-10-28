@@ -179,6 +179,7 @@ import {
 } from './src/utils/personalShell';
 import { clearSessionData } from './src/utils/localCache';
 import { useInviteLinkJoin } from './src/hooks/useInviteLinkJoin';
+import { blockedFamilyProductRoute, childLoginAllowed } from './src/navigation/familyProduct';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -549,6 +550,13 @@ export default function App() {
       }
       if (sessionUid && sessionUid !== u.uid) clearSessionData().catch(() => {});
       sessionUid = u.uid;
+      // Barnekontoer hører til familieproduktet og har ingen vilkårsgodkjenning fra
+      // foresatte. I ProTop logges de ut (L-35); innloggingen sier fra (LoginScreen).
+      if (isChildEmail(u.email) && !childLoginAllowed()) {
+        console.warn('[auth] barnekonto logges ut: familieproduktet er ikke med i ProTop');
+        signOut(auth).catch(() => {});
+        return;
+      }
       try {
         // Network / IDB stalls must not leave the app on a forever white spinner.
         const withTimeout = (promise, ms, label) => Promise.race([
@@ -1027,6 +1035,13 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       ref={navRef}
       linking={linking}
       onReady={() => setAppNav(navRef.current)}
+      // Familieskjermene finnes ikke i ProTop (L-35). Lenker går til Hjem (linking.js);
+      // kommer en navigering dit likevel, sendes brukeren til Hjem.
+      onStateChange={(state) => {
+        if (blockedFamilyProductRoute(state) && navRef.current) {
+          navRef.current.reset({ index: 0, routes: [{ name: 'Home' }] });
+        }
+      }}
     >
       <Stack.Navigator initialRouteName={initial} screenOptions={{ headerShown: false, title: 'ProTop', contentStyle: { flex: 1 }, gestureEnabled: true, fullScreenGestureEnabled: true }}>
         <Stack.Screen name="Welcome">

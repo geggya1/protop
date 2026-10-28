@@ -14,6 +14,7 @@ import { indexLinkFromPath } from '../indeksregulering/indexLink';
 import { homePathForLinking, shellLinkState } from './shellPaths';
 import { legacyNewNoteState, legacyRegisterInvitedState } from './legacyPaths.js';
 import { parseFriendInviteFromPath, registerFriendInviteParams } from './friendInviteLinks.js';
+import { guardFamilyProductState } from './familyProduct.js';
 
 export { isAuthEntryPath, AUTH_ENTRY_PATHS } from './authEntryPaths';
 
@@ -114,6 +115,11 @@ export const linking = {
     return withAgreementQuery(defaultGetPathFromState(state, options));
   },
   getStateFromPath(path, options) {
+    // Familieproduktet er ikke med i ProTop: lenker til familieskjermene åpner Hjem (L-35).
+    return guardFamilyProductState(linking.resolveStateFromPath(path, options));
+  },
+  /** Tilstanden for en adresse, før vakten for familieproduktet. */
+  resolveStateFromPath(path, options) {
     try { captureAgreementLinkFromLocation(path); } catch { /* ignore */ }
     const indexLink = indexLinkFromPath(path);
     if (indexLink) {

@@ -25,6 +25,7 @@ import { Screen } from '../../components/ui';
 import { AvatarBubble } from '../../components/AvatarPicker';
 import AddToHomeGuide from '../../components/AddToHomeGuide';
 import FriendQrModal from '../../components/FriendQrModal';
+import { FAMILY_PRODUCT_ENABLED } from '../../src/navigation/familyProduct';
 
 function SectionHeader({ title }) {
   const { isDesktop } = useLayout();
@@ -188,7 +189,10 @@ export default function SettingsScreen({ setSubView } = {}) {
           />
           <Row icon="qr-code-outline" label={t('friend.qrTitle')} onPress={() => setQrOpen(true)} />
           <Row icon="globe" label={t('more.language')} onPress={() => nav.navigate('PickLanguage')} />
-          <Row icon="navigate-outline" label={t('settings.locationSharing')} onPress={() => nav.navigate('LocationSettings')} />
+          {/* Posisjonsdeling hører til familieproduktet og er av i ProTop (L-35). */}
+          {FAMILY_PRODUCT_ENABLED ? (
+            <Row icon="navigate-outline" label={t('settings.locationSharing')} onPress={() => nav.navigate('LocationSettings')} />
+          ) : null}
           <Row icon="notifications-outline" label={t('tabs.notifications')} onPress={() => openNotifications(nav)} muted />
           <Row icon="options-outline" label="Varselinnstillinger" onPress={() => nav.navigate('NotificationSettings')} />
           {showInstallGuide ? (

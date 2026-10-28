@@ -34,6 +34,7 @@ import { persistPendingAddFriend } from '../src/utils/pendingAddFriend';
 import { useOptionalRoute } from '../src/hooks/useOptionalRoute';
 import { claimEmployeeSeat } from '../src/employees/inviteClient';
 import { syncMyInvites } from '../src/utils/invite';
+import { FAMILY_PRODUCT_UNAVAILABLE, childLoginAllowed } from '../src/navigation/familyProduct';
 
 function confirmAsync(title, message, ok = 'Bli med', cancel = 'Senere') {
   // react-native-web's Alert.alert is a no-op — Promises would hang forever on web.
@@ -193,6 +194,11 @@ export default function LoginScreen({ navigation }) {
         8000,
         'login-email-timeout',
       ).catch(() => emailTrimmed)) || emailTrimmed;
+      // Brukernavn-kontoer (barn i familieproduktet) kan ikke logge inn i ProTop (L-35).
+      if (isChildEmail(loginEmail) && !childLoginAllowed()) {
+        setFormError(`${FAMILY_PRODUCT_UNAVAILABLE} Logg inn med e-postadressen din.`);
+        return;
+      }
       const signIn = (email) => withDeadline(
         signInWithEmailAndPassword(auth, email, password),
         20000,

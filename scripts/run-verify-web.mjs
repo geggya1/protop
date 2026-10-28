@@ -257,6 +257,7 @@ export const FILES = [
   'src/utils/personalShell.test.mjs',
   'src/utils/authBootGate.test.mjs',
   'src/utils/inviteLinkJoin.test.mjs',
+  'src/navigation/familyProduct.test.mjs',
 ];
 
 function runFile(file) {

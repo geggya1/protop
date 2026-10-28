@@ -432,4 +432,25 @@ assert.equal(manyCv.cv.projects[0].title, 'Prosjekt 001 med et langt navn');
 assert.equal(manyCv.cv.projects[69].title, 'Prosjekt 070 med et langt navn');
 assert.equal(manyCv.cv.projects[69].client, 'Kommunen');
 
+// Bedriften har slått av AI: ingenting sendes til Gemini, og telleren røres ikke.
+let geminiCalls = 0;
+let counted = 0;
+await assert.rejects(
+  () => handleInterpretImport({
+    familyId: 'fam',
+    kind: 'customers',
+    mode: 'columns',
+    headers: ['Navn'],
+    samples: [['Ola']],
+  }, { uid: 'user' }, {
+    ...deps,
+    assertCompanyAiAllowed: async () => { throw new Error('AI-funksjoner er slått av for bedriften.'); },
+    checkAndIncrementUsage: async () => { counted += 1; },
+    callGeminiJson: async () => { geminiCalls += 1; return {}; },
+  }),
+  /slått av/,
+);
+assert.equal(geminiCalls, 0);
+assert.equal(counted, 0);
+
 console.log('importInterpret.test.mjs: ok');

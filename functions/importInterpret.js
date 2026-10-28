@@ -153,6 +153,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
 
   const runtime = await runtimeDeps(deps);
   await runtime.assertFamilyAdult(runtime.db, uid, familyId);
+  await runtime.assertCompanyAiAllowed(runtime.db, familyId);
   await runtime.checkAndIncrementUsage(runtime.db, familyId, uid, 'import', runtime.importLimit);
 
   const apiKey = runtime.getGeminiKey();
@@ -262,6 +263,7 @@ async function runtimeDeps(deps) {
     return {
       db: deps.db,
       assertFamilyAdult: deps.assertFamilyAdult,
+      assertCompanyAiAllowed: deps.assertCompanyAiAllowed || (async () => {}),
       checkAndIncrementUsage: deps.checkAndIncrementUsage,
       getGeminiKey: deps.getGeminiKey,
       callGeminiJson: deps.callGeminiJson,
@@ -274,6 +276,7 @@ async function runtimeDeps(deps) {
   return {
     db: deps.db || getFirestore(),
     assertFamilyAdult: deps.assertFamilyAdult || shared.assertFamilyAdult,
+    assertCompanyAiAllowed: deps.assertCompanyAiAllowed || shared.assertCompanyAiAllowed,
     checkAndIncrementUsage: deps.checkAndIncrementUsage || shared.checkAndIncrementUsage,
     getGeminiKey: deps.getGeminiKey || shared.getGeminiKey,
     callGeminiJson: deps.callGeminiJson || shared.callGeminiJson,

@@ -77,6 +77,7 @@ import { recordUsage } from '../../src/employees/usageClient';
 import { displayName } from '../../src/employees/model.js';
 import { parseDate } from '../../src/economy/invoices.js';
 import { pickableProjects } from '../../src/project/myProjects';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -139,6 +140,7 @@ export default function EconomyHours({
   const contentWidth = width - (hasRail ? railWidth : 0) - 32;
   const stackRows = isPhone || contentWidth < 720;
 
+  const guardAi = useCompanyAiGuard();
   const [state, setState] = useState(() => peekProjectState(resolvedFamilyId) || emptyProjectState());
   const [employees, setEmployees] = useState([]);
   const [anbudCustomers, setAnbudCustomers] = useState([]);
@@ -463,7 +465,7 @@ export default function EconomyHours({
         employees,
         customers,
         projects: projectList,
-      }, (payload) => askImportInterpret(payload));
+      }, guardAi((payload) => askImportInterpret(payload)));
       if (!plan.rows.length) {
         setError('Fant ingen timer i filen.');
         return;

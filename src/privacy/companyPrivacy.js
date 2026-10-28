@@ -72,6 +72,21 @@ export function companyAiAllowed(company) {
   return companyPrivacySettings(company).ai;
 }
 
+export const AI_OFF_MESSAGE = 'AI-funksjoner er slått av for bedriften. En administrator kan slå dem på under Selskapsinnstillinger → Personvern.';
+
+/**
+ * AI-kallet når bedriften tillater AI. Ellers en funksjon som feiler med forklaringen,
+ * så skjermene viser feilen eller faller tilbake til lokal lesing som før.
+ */
+export function companyAiCall(company, call) {
+  if (companyAiAllowed(company)) return call;
+  return async () => {
+    const err = new Error(AI_OFF_MESSAGE);
+    err.code = 'failed-precondition';
+    throw err;
+  };
+}
+
 /** Ny company.privacy med ett valg endret. */
 export function withCompanyPrivacy(company, key, value) {
   return { ...(company?.privacy || {}), [key]: value === true };

@@ -397,7 +397,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
           <SettingsSection
             icon="shield-checkmark-outline"
             title="Personvern"
-            hint="Databehandleravtale og brukslogg"
+            hint="Databehandleravtale, brukslogg og AI"
             colors={colors}
           >
             <CompanyPrivacySettings

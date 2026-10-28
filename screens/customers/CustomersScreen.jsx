@@ -77,6 +77,7 @@ import OwnerPicker from '../anbud/OwnerPicker';
 import IndexLetterTable from '../../components/economy/IndexLetterTable';
 import { lettersForCustomer } from '../../src/indeksregulering/groups';
 import CustomerPhoneRow from './CustomerPhoneRow';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 // Tabellen tegner en side om gangen. Tusenvis av rader på én gang låser nettleseren.
 const PAGE_SIZE = 100;
@@ -214,6 +215,7 @@ export default function CustomersScreen() {
   const canImport = canImportList(useCompanyAccess(), 'customers');
   // Fakturatallene per kunde vises bare for dem som kan se Faktura.
   const canSeeInvoices = !!access?.ready && !!access.canView?.('economyInvoices');
+  const guardAi = useCompanyAiGuard();
   const [state, setState] = useState(null);
   const [projects, setProjects] = useState([]);
   const [query, setQuery] = useState('');
@@ -542,7 +544,7 @@ export default function CustomersScreen() {
       const bytes = await bytesFromFile(file);
       const interpreted = await readCustomerImport(bytes, file.name, {
         familyId,
-        ask: (payload) => askImportInterpret(payload),
+        ask: guardAi((payload) => askImportInterpret(payload)),
       });
       const loaded = await loadAnbudState(familyId, { force: true });
       const planned = planCustomerImport(loaded, interpreted.rows);
@@ -553,7 +555,7 @@ export default function CustomersScreen() {
       const plan = await enrichCustomerImportPlan(planned, { lookup: lookupBrregCustomer });
       const filled = plan.rows.filter((row) => row.action === 'create' && row.customer?.address).length;
       const understood = interpreted.engine && interpreted.engine !== 'lokal'
-        ? (interpreted.engine.includes('ocr') ? ' Dokumentet er lest med OCR og AI.' : ' Ukjente kolonner er tolket med AI.')
+        ? (interpreted.engine.includes('ocr') ? ' Dokumentet er lest med OCR og AI (Google Gemini).' : ' Ukjente kolonner er tolket med AI (Google Gemini).')
         : '';
       const brregNote = filled
         ? ` Adresse og kontakt er hentet fra Brønnøysund der org.nr fantes.`

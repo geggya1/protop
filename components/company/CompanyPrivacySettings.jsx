@@ -26,7 +26,7 @@ function PrivacySwitch({
 
 /**
  * Selskapsinnstillinger → Personvern: databehandleravtalen og selskapets valg
- * for brukslogg. `onSaveCompany(next)` lagrer selskapet felt for felt.
+ * for brukslogg og AI. `onSaveCompany(next)` lagrer selskapet felt for felt.
  * Valgene kan endres av den som kan endre selskapsinnstillingene (`canEdit`).
  */
 export default function CompanyPrivacySettings({
@@ -114,6 +114,17 @@ export default function CompanyPrivacySettings({
         value={settings.usageLog}
         disabled={!canEdit || busy}
         onChange={(next) => setPrivacy('usageLog', next)}
+        colors={colors}
+      />
+      <PrivacySwitch
+        nativeID="company-ai"
+        title="Tillat AI-funksjoner"
+        body={settings.ai
+          ? 'På: tolking av importfiler, CV, arbeidsavtaler og kvitteringer, kontroll av timelister, anbud og avtaler sender innholdet til Google Gemini, som kan behandle det utenfor EØS. Hjelpeassistenten er ikke med i dette valget.'
+          : 'Av: ingenting fra bedriften sendes til Google Gemini. Import av regneark og avtaler leses lokalt i appen, og AI-knappene gir beskjed om at AI er slått av.'}
+        value={settings.ai}
+        disabled={!canEdit || busy}
+        onChange={(next) => setPrivacy('ai', next)}
         colors={colors}
       />
       {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}

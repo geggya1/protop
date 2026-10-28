@@ -1,4 +1,6 @@
-import { getGeminiKey, GEMINI_MODEL, checkAndIncrementUsage, AI_LIMITS } from './aiShared.js';
+import {
+  getGeminiKey, GEMINI_MODEL, checkAndIncrementUsage, AI_LIMITS, assertCompanyAiAllowed,
+} from './aiShared.js';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const SYSTEM_SUMMARIZE = `Du er en norsk notatassistent.
@@ -104,6 +106,7 @@ export async function handleAiVoiceNote(data, auth) {
   const familyId = String(data?.familyId || '').trim() || null;
 
   const db = getFirestore();
+  await assertCompanyAiAllowed(db, familyId);
   await checkAndIncrementUsage(db, familyId, auth.uid, 'chat', AI_LIMITS.chatPerUserPerDay);
 
   if (action === 'summarize') {

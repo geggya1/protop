@@ -82,6 +82,7 @@ import ProcessTrail from './ProcessTrail';
 import BidOverview from './BidOverview';
 import BidSymbolButton from './BidSymbolButton';
 import ReviewNotes from './ReviewNotes';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 const TABS = [
   { id: 'oversikt', label: 'Oversikt', icon: 'grid-outline' },
@@ -170,6 +171,7 @@ export default function BidWorkspace({
   members = [], units = [], companies = [],
   onReturnToReview, onMarkUaktuell,
 }) {
+  const guardAi = useCompanyAiGuard();
   const [step, setStep] = useState('oversikt');
   const [folderId, setFolderId] = useState(null);
   const [folderName, setFolderName] = useState('');
@@ -356,7 +358,7 @@ export default function BidWorkspace({
     setAiBusy(true);
     setLocalNote('');
     try {
-      const result = await interpretBidCompetition(bid, {
+      const result = await guardAi(interpretBidCompetition)(bid, {
         focus,
         companyName: companies.find((row) => row.id === companyId)?.name || '',
       });

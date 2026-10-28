@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { DPA_VERSION } from '../i18n/langs.js';
 import {
-  ACTIVITY_USAGE_TYPES, USAGE_RETENTION_DAYS, canAcceptDpa, companyAiAllowed, companyPrivacySettings,
+  ACTIVITY_USAGE_TYPES, AI_OFF_MESSAGE, USAGE_RETENTION_DAYS, canAcceptDpa, companyAiAllowed, companyAiCall,
+  companyPrivacySettings,
   companyUsageLogEnabled, dpaAccepted, dpaAcceptedLabel, dpaAcceptance, dpaAcceptanceRecord,
   usageCutoffIso, usageEventAllowed, usageLogNotice, withCompanyPrivacy, withinUsageRetention,
 } from './companyPrivacy.js';
@@ -61,5 +62,16 @@ assert.deepEqual(withinUsageRetention(events, now).map((row) => row.id), ['ny', 
 assert.match(usageLogNotice({}), /IP-adresse/);
 assert.match(usageLogNotice({}), /90 dager/);
 assert.match(usageLogNotice(off), /slått av/);
+
+// «Tillat AI-funksjoner»: av gir et kall som feiler med forklaring, uten å kalle AI.
+let calls = 0;
+const call = async (value) => { calls += 1; return value; };
+assert.equal(await companyAiCall({}, call)('svar'), 'svar');
+await assert.rejects(() => companyAiCall({ privacy: { ai: false } }, call)('svar'), (err) => {
+  assert.equal(err.message, AI_OFF_MESSAGE);
+  assert.equal(err.code, 'failed-precondition');
+  return true;
+});
+assert.equal(calls, 1);
 
 console.log('companyPrivacy.test.mjs: ok');

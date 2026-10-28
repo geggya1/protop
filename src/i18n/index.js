@@ -105,6 +105,12 @@ export function I18nProvider({ children, userLanguage }) {
     try { await AsyncStorage.setItem(LANG_KEY, next); } catch {}
   }, []);
 
+  // Skjermlesere på web leser siden på valgt språk (WCAG 3.1.1). Standard i index.html er nb.
+  useEffect(() => {
+    if (typeof document === 'undefined' || !document.documentElement) return;
+    document.documentElement.lang = lang || 'nb';
+  }, [lang]);
+
   const t = useCallback((key, vars) => format(lookup(lang, key), vars), [lang]);
 
   const value = useMemo(

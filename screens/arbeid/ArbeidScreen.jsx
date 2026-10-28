@@ -102,6 +102,7 @@ import {
   saveTimesheetPrefs,
 } from '../../src/arbeid/timesheetPrefsStorage.js';
 import { upsertExpense, upsertSale, upsertTrip } from '../../src/economy/opsState.js';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 const DAILY = 8;
 
@@ -1042,7 +1043,7 @@ export default function ArbeidScreen({
     </View>
   );
 
-  const companyLabel = String(policySource?.company?.navn || policySource?.name || '').trim();
+  const companyLabel = companyDisplayName(policySource);
   const crumb = timesheetCrumb({ personal, locked: !!lockedId, companyLabel });
   const canSwitchPerson = canSwitchTimesheetPerson({ personal, locked: !!lockedId, manager });
   const needsPersonStep = needsTimesheetPersonStep({

@@ -6,6 +6,7 @@ import { isLiveOrganization } from '../project/companyOffer.js';
 import { findPersonalShell, isPersonalShell } from './personalShell.js';
 import { isProtopWorkspace } from './platformAccess.js';
 import { platformHomeRoute } from './groupTypes.js';
+import { companyDisplayName } from './companyName.js';
 
 export function liveWorkspaces(families = []) {
   return (families || []).filter((group) => (
@@ -24,7 +25,7 @@ export function personalWorkspace(families = []) {
 }
 
 function companyName(group) {
-  return String(group?.company?.navn || group?.name || '').trim();
+  return companyDisplayName(group);
 }
 
 export function companyOrgnr(group) {

@@ -114,6 +114,7 @@ import {
   EMPLOYEE_DETAIL_TABS, EMPLOYEE_SETTINGS_SUBS, EMPLOYEE_SUB_TABS, PERSON_FILL_VIEWS, PERSON_VIEWS, employeeTabViews, employeeViewToTab,
 } from '../../src/employees/personTabs.js';
 import EmployeeEarningsSheet from '../../components/economy/EmployeeEarningsSheet';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -151,7 +152,7 @@ export default function EmployeesScreen() {
   const canOpenAccessPage = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
     || (access.ready && access.canView('accessControl'));
   const accessLocked = canEditAccess ? [] : ['company.accessRole'];
-  const companyName = family?.company?.navn || family?.name || '';
+  const companyName = companyDisplayName(family);
   const departments = useMemo(
     () => departmentsOf(family?.company?.subUnits || []),
     [family?.company?.subUnits],

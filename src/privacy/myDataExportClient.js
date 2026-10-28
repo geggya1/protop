@@ -10,6 +10,7 @@ import { db } from '../../firebase';
 import { loadLocalConsents } from '../utils/consents';
 import { chatVisibleToUser } from '../utils/chatsLogic';
 import { buildMyDataExport, exportCount, exportFileName } from './myDataExport';
+import { companyDisplayName } from '../utils/companyName.js';
 
 const MAX_ROWS = 2000;
 const MAX_MESSAGES = 1000;
@@ -61,7 +62,7 @@ async function companyData(family, uid) {
   );
   return {
     id,
-    name: family.company?.navn || family.name || '',
+    name: companyDisplayName(family),
     type: family.type || '',
     employees,
     notes,

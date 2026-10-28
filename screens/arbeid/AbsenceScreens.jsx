@@ -61,6 +61,7 @@ import {
   normalizeVacationPlan,
   planningWindow,
 } from '../../src/arbeid/vacationPlan.js';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 // Fraværsrapport bruker samme dagstabell + filter på mobil og desktop.
 
@@ -549,7 +550,7 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const names = {};
   for (const row of people) names[row.id] = employeeDisplayName(row);
   const canChooseEmployee = !!workspace.manager && !workspace.lockedId;
-  const companyName = String(family?.company?.navn || family?.name || '').trim();
+  const companyName = companyDisplayName(family);
   const window = planningWindow(plan || {}, today);
   const registrationLocked = !!plan?.announcedAt && window.locked && !workspace.manager;
 

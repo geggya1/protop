@@ -186,6 +186,7 @@ export const FILES = [
   'src/economy/projectHours.test.mjs',
   'src/economy/invoiceCustomer.test.mjs',
   'src/employees/profileSync.test.mjs',
+  'src/utils/companyName.test.mjs',
   // Flyter og sikkerhet: feil vises på web, notater, oppgaver, venner, EHF, e-postrelé, proxy og XSS.
   'src/utils/webAlerts.test.mjs',
   'src/utils/notesLogic.test.mjs',

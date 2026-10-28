@@ -39,6 +39,7 @@ import { dateKey } from '../../src/utils/dates';
 import DirectAgreementForm from './DirectAgreementForm';
 import AgreementDetail from './AgreementDetail';
 import FilterMenu from '../../components/FilterMenu';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 const PAGE = 50;
 const STATUS_FILTERS = [
@@ -81,7 +82,7 @@ export default function ContractFollowUp({
   onSeedPicksConsumed,
 }) {
   const { requestShellTab, family } = useApp();
-  const companyName = family?.company?.navn || family?.name || '';
+  const companyName = companyDisplayName(family);
   const companyOrgnr = family?.company?.organisasjonsnummer || family?.orgnr || '';
   const access = useCompanyAccess();
   /** Permanent slett er forbeholdt administrator (og eier via bypass). */

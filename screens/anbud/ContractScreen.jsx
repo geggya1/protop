@@ -10,6 +10,7 @@ import { useEmployees } from '../../src/context/CompanyDataContext';
 import ContractFollowUp from './ContractFollowUp';
 import AgreementTreatment from './AgreementTreatment';
 import AgreementCreateWizard from './AgreementCreateWizard';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 export default function ContractScreen() {
   const colors = useColors();
@@ -124,7 +125,7 @@ export default function ContractScreen() {
         <AgreementTreatment
           companyId={familyId}
           company={{
-            name: family?.company?.navn || family?.name || '',
+            name: companyDisplayName(family),
             orgnr: family?.company?.organisasjonsnummer || '',
             email: family?.company?.epostadresse || '',
           }}

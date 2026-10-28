@@ -32,6 +32,7 @@ import { countForItem } from '../src/utils/notifications';
 import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
 import { grandparentModulesFor } from '../src/utils/grandparentAccess';
 import HelpTarget from './HelpTarget';
+import { companyDisplayName } from '../src/utils/companyName';
 
 /** Personlig åpen; app-mapper lukket til de åpnes eller inneholder aktiv side. */
 const DEFAULT_OPEN = { main: true, company: true, skole: true, account: false };
@@ -344,7 +345,7 @@ export default function DesktopRail({
   return (
     <HelpTarget id="rail" style={styles.wrap}>
       <BrandLogo variant="full" height={52} maxWidth={200} style={styles.brandLogo} />
-      <Text style={styles.fam} numberOfLines={1}>{family?.name || 'Familien'}</Text>
+      <Text style={styles.fam} numberOfLines={1}>{companyDisplayName(family, 'Familien')}</Text>
 
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={14} color={colors.muted} />

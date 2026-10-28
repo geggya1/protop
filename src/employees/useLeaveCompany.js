@@ -9,6 +9,7 @@ import { isOrganizationType } from '../utils/groupTypes';
 import { confirmUser, notifyUser } from '../utils/dialog';
 import { isCompanyOwnerUid } from './membership.js';
 import { leaveCompany } from './membershipClient.js';
+import { companyDisplayName } from '../utils/companyName.js';
 
 export function useLeaveCompany() {
   const {
@@ -16,7 +17,7 @@ export function useLeaveCompany() {
   } = useApp();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const companyName = family?.company?.navn || family?.name || 'bedriften';
+  const companyName = companyDisplayName(family, 'bedriften');
   const canLeave = !!uid && !!familyId && isOrganizationType(family?.type) && !isCompanyOwnerUid(family, uid);
 
   const leave = useCallback(async () => {

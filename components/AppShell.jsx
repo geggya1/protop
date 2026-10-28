@@ -109,6 +109,7 @@ import {
 } from '../src/utils/childHomeLayout';
 import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
+import { companyDisplayName } from '../src/utils/companyName';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -710,7 +711,7 @@ function AppShellInner() {
         .filter((row) => row?.id && row.id !== familyId && isOrganizationType(row.type))
         .map((row) => ({
           id: row.id,
-          name: row.company?.navn || row.name || 'Selskap',
+          name: companyDisplayName(row, 'Selskap'),
           organization: true,
           type: row.type,
         }));
@@ -722,7 +723,7 @@ function AppShellInner() {
           companies={relatedCompanies}
           company={{
             id: familyId,
-            name: family?.company?.navn || family?.name || '',
+            name: companyDisplayName(family),
             orgnr: family?.company?.organisasjonsnummer || '',
             cpvCodes: family?.cpvCodes || [],
             cpvSource: family?.cpvSource || '',
@@ -1032,7 +1033,7 @@ function AppShellInner() {
               <HelpTarget id="rail" style={{ flex: 1 }}>
                 <BrandLogo variant="full" height={48} maxWidth={180} style={styles.brandLogo} />
                 <Text style={[styles.fam, { color: colors.muted }]} numberOfLines={1}>
-                  {family?.name || 'Familien'}
+                  {companyDisplayName(family, 'Familien')}
                 </Text>
 
                 <ScrollView

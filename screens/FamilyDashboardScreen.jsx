@@ -45,6 +45,7 @@ import {
   softDeleteParentFromFamily,
 } from '../src/utils/groups';
 import Svg, { Circle } from 'react-native-svg';
+import { renameGroupPatch } from '../src/utils/companyName';
 
 const fullWeekdayNO = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
 
@@ -407,8 +408,19 @@ export default function FamilyDashboardScreen() {
     const trimmed = (newFamilyName || '').trim();
     if (!trimmed) { setRenameOpen(false); return; }
     try {
-      await updateDoc(doc(db, 'families', familyId), { name: trimmed, updatedAt: new Date() });
-      setFamilyDoc((prev) => ({ ...prev, name: trimmed }));
+      // Selskap: company.navn er fasit og endres sammen med name (DS-17).
+      const patch = renameGroupPatch(familyDoc, trimmed);
+      const ref = doc(db, 'families', familyId);
+      await updateDoc(ref, { ...patch, updatedAt: new Date() }).catch(async (error) => {
+        // Uten rett til selskapsprofilen: bare navnet på gruppen, som før.
+        if (!patch['company.navn'] || !/permission/i.test(String(error?.code || error?.message || ''))) throw error;
+        await updateDoc(ref, { name: trimmed, updatedAt: new Date() });
+      });
+      setFamilyDoc((prev) => ({
+        ...prev,
+        name: trimmed,
+        ...(prev?.company && patch['company.navn'] ? { company: { ...prev.company, navn: trimmed } } : {}),
+      }));
       setRenameOpen(false);
     } catch (e) {
       console.error('Klarte ikke å endre navn.');

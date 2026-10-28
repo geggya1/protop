@@ -297,15 +297,42 @@ export async function loadTimeEntries(companyId, opts = {}) {
   }
 }
 
-async function writeBatchSet(companyId, entries, onProgress) {
+/** Feltene som alltid skrives, så dokumentet er en gyldig føring selv om bare én ting er endret. */
+const ENTRY_IDENTITY_KEYS = ['id', 'projectId', 'employeeId', 'date'];
+
+/**
+ * Bare feltene som er endret siden raden ble lest (pluss id, prosjekt, ansatt og dato).
+ * En eldre kopi skal ikke nullstille invoiceId, status eller låsing som andre har satt,
+ * eller overskrive felt den ikke har rørt. Uten forrige versjon skrives hele raden.
+ */
+export function timeEntryWrite(previous, next) {
+  const row = normalizeTimeEntryRow(next);
+  if (!row?.id) return null;
+  const prev = previous ? normalizeTimeEntryRow(previous) : null;
+  if (!prev || prev.id !== row.id) return row;
+  const patch = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (ENTRY_IDENTITY_KEYS.includes(key) || JSON.stringify(prev[key] ?? null) !== JSON.stringify(value ?? null)) {
+      patch[key] = value;
+    }
+  }
+  return Object.keys(patch).length > ENTRY_IDENTITY_KEYS.length ? patch : null;
+}
+
+async function writeBatchSet(companyId, entries, onProgress, previous = null) {
   const bits = await firestoreBits();
   const list = withoutDeletedTimeEntries(companyId, entries);
+  const before = new Map(
+    (Array.isArray(previous) ? previous : [])
+      .filter((row) => row?.id)
+      .map((row) => [text(row.id), row]),
+  );
   let batch = bits.writeBatch(bits.db);
   let n = 0;
   let done = 0;
   const total = list.length;
   for (const entry of list) {
-    const next = normalizeTimeEntryRow(entry);
+    const next = timeEntryWrite(before.get(text(entry?.id)), entry);
     if (!next?.id) continue;
     batch.set(entryRef(bits, companyId, next.id), next, { merge: true });
     n += 1;
@@ -326,8 +353,9 @@ async function writeBatchSet(companyId, entries, onProgress) {
 /**
  * Lagrer timeføringer til egen subcollection. Kaster ved feil —
  * UI skal ikke vise «lagret» hvis skyen avviser.
+ * previous: radene slik de ble lest. Da skrives bare feltene som er endret.
  */
-export async function saveTimeEntries(companyId, entries, { onProgress } = {}) {
+export async function saveTimeEntries(companyId, entries, { onProgress, previous = null } = {}) {
   if (!companyId) throw new Error('Mangler selskap for timelagring.');
   await hydrateDeletedTimeEntries(companyId);
   const list = withoutDeletedTimeEntries(companyId, (Array.isArray(entries) ? entries : [])
@@ -338,7 +366,7 @@ export async function saveTimeEntries(companyId, entries, { onProgress } = {}) {
     }))
     .filter(Boolean));
   if (!list.length) return { saved: 0, entries: [] };
-  await writeBatchSet(companyId, list, onProgress);
+  await writeBatchSet(companyId, list, onProgress, previous);
   const current = await readLocal(companyId);
   await writeLocal(companyId, mergeEntryLists(current, list));
   return { saved: list.length, entries: list };

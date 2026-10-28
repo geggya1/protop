@@ -2,7 +2,7 @@
  * Mutasjoner for utlegg, kjørebok, produkter og varesalg på prosjektstate.
  */
 
-import { createId } from '../project/engine.js';
+import { createId, markRowsDeleted } from '../project/engine.js';
 import { normalizeExpense, validateExpense } from './expenses.js';
 import { normalizeTrip, validateTrip } from './mileage.js';
 import { applySaleToStock, normalizeProduct, normalizeSale, validateProduct } from './products.js';
@@ -55,6 +55,8 @@ export function deleteExpense(state, id) {
   return ok({
     ...state,
     expenses: (state.expenses || []).filter((row) => row.id !== id),
+    // Markeringen hindrer at en eldre kopi henter utlegget tilbake.
+    deletedRows: markRowsDeleted(state, 'expenses', id),
   }, { expense: current });
 }
 
@@ -242,6 +244,7 @@ export function deleteSale(state, id) {
   return ok({
     ...state,
     sales: (state.sales || []).filter((row) => row.id !== id),
+    deletedRows: markRowsDeleted(state, 'sales', id),
   }, { sale: current });
 }
 

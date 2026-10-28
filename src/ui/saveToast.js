@@ -1,6 +1,7 @@
 /**
  * Kort bekreftelse når en endring er lagret.
  * Skjermen kaller showSaveToast; SaveToastHost viser popupen noen sekunder.
+ * showSaveError viser samme popup som feil, når skyen ikke tok imot lagringen.
  */
 
 const listeners = new Set();
@@ -27,6 +28,17 @@ export function saveToastPayload(detail = '') {
 
 export function showSaveToast(detail = '') {
   const toast = { id: ++seq, ...saveToastPayload(detail) };
+  for (const listener of listeners) listener(toast);
+  return toast;
+}
+
+/** Lagringen nådde ikke skyen. Vises som feil, ikke som bekreftelse. */
+export const SAVE_ERROR_TITLE = 'Endringen er ikke lagret i skyen';
+export const SAVE_ERROR_MS = 8000;
+
+export function showSaveError(detail = '') {
+  const text = String(detail ?? '').replace(/\s+/g, ' ').trim();
+  const toast = { id: ++seq, kind: 'error', title: SAVE_ERROR_TITLE, detail: text };
   for (const listener of listeners) listener(toast);
   return toast;
 }

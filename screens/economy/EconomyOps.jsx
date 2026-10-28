@@ -20,8 +20,7 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { emptyProjectState } from '../../src/project/engine';
-import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { useProjectStateEditor } from '../../src/project/useProjectStateEditor';
 import { loadAnbudState } from '../../src/anbud/storage';
 import { formatMoney } from '../../src/economy/invoices.js';
 import {
@@ -228,10 +227,8 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const hostedHero = useModuleHeroHosted();
   const { familyId, requestShellTab } = useApp();
   const access = useCompanyAccess();
-  const [state, setState] = useState(emptyProjectState());
   const [customers, setCustomers] = useState([]);
   const [contracts, setContracts] = useState([]);
-  const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [rateOpen, setRateOpen] = useState(false);
@@ -240,13 +237,13 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
   const [editingTrip, setEditingTrip] = useState(null);
   const [pendingDelete, setPendingDelete] = useState('');
 
+  // Lagrer bare etter endringer her, ikke når siden åpnes.
+  const { state, setState, ready } = useProjectStateEditor(familyId, {
+    onError: () => setError('Kunne ikke lagre.'),
+  });
+
   useEffect(() => {
     let live = true;
-    loadProjectState(familyId).then((loaded) => {
-      if (!live) return;
-      setState(loaded);
-      setReady(true);
-    });
     loadAnbudState(familyId).then((loaded) => {
       if (!live) return;
       setCustomers(loaded?.customers || []);
@@ -254,10 +251,6 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
     }).catch(() => {});
     return () => { live = false; };
   }, [familyId]);
-
-  useEffect(() => {
-    if (ready) saveProjectState(state, familyId).catch(() => {});
-  }, [state, ready, familyId]);
 
   const title = kind === 'mileage' ? 'Kjørebok' : 'Utlegg';
   const expenses = state.expenses || [];

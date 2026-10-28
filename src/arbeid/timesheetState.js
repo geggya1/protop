@@ -357,33 +357,74 @@ export function setAbsenceAdjustment(state, input = {}) {
   return ok({ ...state, absenceAdjustments: next });
 }
 
-export function setAbsencePins(state, { employeeId, typeIds = [] } = {}) {
-  const id = text(employeeId);
-  if (!id) return fail(state, 'Velg medarbeider.');
-  const wanted = [...new Set((typeIds || []).map((item) => text(item)).filter(Boolean))];
-  const rest = list(state, 'timesheetPins').filter((row) => row.employeeId !== id);
-  const pins = wanted.map((typeId) => ({
-    id: `pin_${id}_${typeId}`,
-    employeeId: id,
-    typeId,
-  }));
-  return ok({ ...state, timesheetPins: [...pins, ...rest] });
+/*
+ * Personlige valg i timelisten: stjerne på prosjekt, skjulte prosjekter og faste
+ * fraværskategorier. De ligger på den ansatte (employees/{id}/prefs/timesheet, se
+ * timesheetPrefsStorage.js). Før lå de i prosjektdokumentet, og hver stjerne skrev
+ * projects/state med en kopi som kunne være eldre enn det andre hadde lagret.
+ * Det som fortsatt ligger i prosjektdokumentet, brukes til personen har valgt selv.
+ */
+
+function flagMap(value) {
+  const out = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [key, flag] of Object.entries(value)) {
+    if (text(key) && typeof flag === 'boolean') out[text(key)] = flag;
+  }
+  return out;
 }
 
-export function hideTimesheetProject(state, { employeeId, projectId, hidden = true } = {}) {
-  const employee = text(employeeId);
-  const project = text(projectId);
-  if (!employee || !project) return fail(state, 'Velg prosjekt.');
-  const current = list(state, 'hiddenTimesheetProjects');
-  const without = current.filter((row) => !(row.employeeId === employee && row.projectId === project));
-  if (!hidden) return ok({ ...state, hiddenTimesheetProjects: without });
-  return ok({
-    ...state,
-    hiddenTimesheetProjects: [
-      { id: `hid_${employee}_${project}`, employeeId: employee, projectId: project },
-      ...without,
-    ],
-  });
+export function normalizeTimesheetPrefs(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  return {
+    starred: flagMap(src.starred),
+    hidden: flagMap(src.hidden),
+    absencePins: Array.isArray(src.absencePins)
+      ? [...new Set(src.absencePins.map((item) => text(item)).filter(Boolean))]
+      : null,
+  };
+}
+
+/** Legg en endring (samme form som det som lagres) på valgene. */
+export function applyTimesheetPrefsPatch(prefs, patch = {}) {
+  const current = normalizeTimesheetPrefs(prefs);
+  const next = normalizeTimesheetPrefs(patch);
+  return {
+    starred: { ...current.starred, ...next.starred },
+    hidden: { ...current.hidden, ...next.hidden },
+    absencePins: Array.isArray(patch?.absencePins) ? next.absencePins : current.absencePins,
+  };
+}
+
+/** Stjernemerkede og skjulte prosjekter og faste fraværstyper for én ansatt. */
+export function resolveTimesheetPrefs(state, employeeId, prefs) {
+  const id = text(employeeId);
+  const own = normalizeTimesheetPrefs(prefs);
+  const starred = new Set(list(state, 'members')
+    .filter((row) => row.employeeId === id && row.active !== false && row.starred)
+    .map((row) => row.projectId));
+  for (const [projectId, on] of Object.entries(own.starred)) {
+    if (on) starred.add(projectId);
+    else starred.delete(projectId);
+  }
+  const hidden = new Set(list(state, 'hiddenTimesheetProjects')
+    .filter((row) => row.employeeId === id)
+    .map((row) => row.projectId));
+  for (const [projectId, on] of Object.entries(own.hidden)) {
+    if (on) hidden.add(projectId);
+    else hidden.delete(projectId);
+  }
+  const pins = own.absencePins || list(state, 'timesheetPins')
+    .filter((row) => row.employeeId === id)
+    .map((row) => row.typeId);
+  return { starred, hidden, pins };
+}
+
+/** Valget som lagres når en stjerne, et skjult prosjekt eller fraværskategoriene endres. */
+export function timesheetPrefsPatch(kind, projectId, on) {
+  const id = text(projectId);
+  if (!id || (kind !== 'starred' && kind !== 'hidden')) return null;
+  return { [kind]: { [id]: !!on } };
 }
 
 export { isDateLocked, lockThroughDate };

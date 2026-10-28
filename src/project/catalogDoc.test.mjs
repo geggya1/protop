@@ -31,13 +31,28 @@ const MOCKS = {
       const data = store.get(ref.path);
       return { exists: () => data !== undefined, data: () => clone(data) };
     }
-    export async function setDoc(ref, data, opts = {}) {
+    function nextFor(ref, data, opts = {}) {
       const next = opts.merge ? deepMerge(store.get(ref.path), clone(data)) : clone(data);
       const size = JSON.stringify(next).length;
       if (size > (globalThis.__catalogTestLimits[ref.path] ?? Infinity)) {
         throw new Error('Document ' + ref.path + ' cannot be written because its size (' + size + ' bytes) exceeds the maximum allowed size');
       }
-      store.set(ref.path, next);
+      return next;
+    }
+    export async function setDoc(ref, data, opts = {}) {
+      store.set(ref.path, nextFor(ref, data, opts));
+    }
+    // Transaksjon: alt eller ingenting. Et for stort dokument stopper hele skrivingen.
+    export async function runTransaction(db, fn) {
+      const writes = [];
+      const tx = {
+        get: async (ref) => getDoc(ref),
+        set: (ref, data, opts) => { writes.push([ref, data, opts]); return tx; },
+      };
+      const result = await fn(tx);
+      const staged = writes.map(([ref, data, opts]) => [ref.path, nextFor(ref, data, opts)]);
+      for (const [path, next] of staged) store.set(path, next);
+      return result;
     }
   `,
   'firebase/auth': 'export function onAuthStateChanged() { return () => {}; }',
@@ -84,7 +99,7 @@ const {
 const { emptyProduct } = await import('../economy/products.js');
 const { deleteProduct, setProductArchived, upsertProduct } = await import('../economy/opsState.js');
 const { patchRowsById } = await import('../equipment/state.js');
-const { normalizeProjectState } = await import('./engine.js');
+const { createProject, normalizeProjectState } = await import('./engine.js');
 
 const CO = 'co-catalog';
 const MAIN = `families/${CO}/projects/state`;
@@ -159,11 +174,13 @@ const sold = await patchProjectOperations(CO, () => ({ sales: [{ id: 's1', name:
 assert.equal(sold.ok, false);
 assert.match(String(sold.error?.message || ''), /exceeds the maximum allowed size/);
 
-// Når hoveddokumentet kan skrives igjen, får det samme katalog som katalogdokumentet
-// (eldre klienter leser derfra). En eldre kopi med det slettede produktet får det ikke tilbake.
+// Når hoveddokumentet skrives igjen, får det samme katalog som katalogdokumentet
+// (eldre klienter leser derfra). En skjerm som lastet før arkivering og sletting, legger
+// til et prosjekt: den gamle kopien av produktene blir ikke med, og v2 kommer ikke tilbake.
 delete globalThis.__catalogTestLimits[MAIN];
-const stale = normalizeProjectState({ ...reloaded, products: [...reloaded.products, ...seed.products.filter((row) => row.id === 'v2')] });
+const stale = createProject(loaded, { name: 'Nytt', number: '2' }).state;
 await persistProjectState(stale, CO);
+assert.deepEqual(store.get(MAIN).state.projects.map((row) => row.number).sort(), ['1', '2']);
 assert.deepEqual(store.get(MAIN).state.products.map((row) => row.id), ['v1']);
 assert.equal(store.get(MAIN).state.products[0].archived, true);
 assert.deepEqual(store.get(CATALOG).products.map((row) => row.id), ['v1']);

@@ -151,6 +151,10 @@ export const FILES = [
   'src/utils/companyChat.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',
+  // To brukere som lagrer samtidig: ingen tapte eller gjenopplivede prosjekter, utlegg og kunder.
+  'src/project/concurrentSave.test.mjs',
+  'src/project/useProjectStateEditor.test.mjs',
+  'src/anbud/customerSave.test.mjs',
 ];
 
 function runFile(file) {

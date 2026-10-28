@@ -59,6 +59,11 @@ export function emptyProjectState() {
     deletedMileageTrips: [],
     /** Tombstones slik at slettede produkter ikke gjenoppstår ved merge. */
     deletedProducts: [],
+    /**
+     * Felles slettemarkering for de andre listene: { key, id, deletedAt }.
+     * En eldre kopi (lokalt eller på en annen enhet) skal ikke hente raden tilbake.
+     */
+    deletedRows: [],
     activities: [],
     members: [],
     timeEntries: [],
@@ -142,6 +147,102 @@ function withoutDeletedProducts(state) {
       row && typeof row === 'object' && !ids.has(text(row.id))
     )),
   };
+}
+
+/**
+ * Lister der rader får tilfeldig id og kan slettes. De får slettemarkering i deletedRows.
+ * Prosjekter, kjøreturer og produkter har egne markeringer. Innstillingslister
+ * (røde dager, fraværstyper, kontoer) bruker faste id-er som kan legges inn igjen.
+ */
+export const TOMBSTONE_KEYS = [
+  'activities',
+  'members',
+  'expenses',
+  'sales',
+  'equipment',
+  'equipmentBookings',
+  'personalVehicles',
+  'balanceAdjustments',
+  'absenceAdjustments',
+  'board',
+  'sja',
+  'incidents',
+  'inspections',
+  'deviations',
+  'checklists',
+  'documents',
+  'meetings',
+  'changes',
+  'contracts',
+  'entries',
+  'crew',
+  'waste',
+  'audits',
+];
+const TOMBSTONE_KEY_SET = new Set(TOMBSTONE_KEYS);
+/** Markeringer eldre enn dette, eller utover taket, slippes så dokumentet ikke vokser. */
+const DELETED_ROWS_DAYS = 180;
+const DELETED_ROWS_CAP = 1500;
+
+function rowStampMs(row) {
+  return Date.parse(row?.updatedAt || row?.addedAt || row?.createdAt || '') || 0;
+}
+
+function normalizeDeletedRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  const key = text(row.key);
+  const id = text(row.id);
+  if (!key || !id) return null;
+  return { key, id, deletedAt: text(row.deletedAt) || '' };
+}
+
+/** Slå sammen slettemarkeringer. Nyeste deletedAt vinner, gamle markeringer slippes. */
+export function mergeDeletedRows(...lists) {
+  const map = new Map();
+  for (const list of lists) {
+    for (const raw of Array.isArray(list) ? list : []) {
+      const row = normalizeDeletedRow(raw);
+      if (!row) continue;
+      const k = `${row.key}|${row.id}`;
+      const prev = map.get(k);
+      if (!prev || (Date.parse(row.deletedAt) || 0) >= (Date.parse(prev.deletedAt) || 0)) map.set(k, row);
+    }
+  }
+  const cutoff = Date.now() - DELETED_ROWS_DAYS * 86400000;
+  return [...map.values()]
+    .filter((row) => !row.deletedAt || (Date.parse(row.deletedAt) || 0) >= cutoff)
+    .sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)))
+    .slice(0, DELETED_ROWS_CAP);
+}
+
+/** Legg slettemarkering på rader som fjernes fra en liste. */
+export function markRowsDeleted(state, key, ids, at = new Date().toISOString()) {
+  const list = (Array.isArray(ids) ? ids : [ids]).map(text).filter(Boolean);
+  if (!TOMBSTONE_KEY_SET.has(key) || !list.length) return state?.deletedRows || [];
+  return mergeDeletedRows(state?.deletedRows, list.map((id) => ({ key, id, deletedAt: at })));
+}
+
+/**
+ * Fjern rader som er merket slettet. En rad som er endret etter slettingen
+ * (nyere updatedAt), blir stående: da har noen arbeidet videre med den.
+ */
+function withoutDeletedRows(state) {
+  const tombstones = mergeDeletedRows(state.deletedRows);
+  if (!tombstones.length) return { deletedRows: tombstones };
+  const byKey = new Map();
+  for (const row of tombstones) {
+    if (!byKey.has(row.key)) byKey.set(row.key, new Map());
+    byKey.get(row.key).set(row.id, Date.parse(row.deletedAt) || Number.POSITIVE_INFINITY);
+  }
+  const out = { deletedRows: tombstones };
+  for (const [key, gone] of byKey) {
+    if (!TOMBSTONE_KEY_SET.has(key) || !Array.isArray(state[key])) continue;
+    out[key] = state[key].filter((row) => {
+      const at = gone.get(text(row?.id));
+      return at === undefined || rowStampMs(row) > at;
+    });
+  }
+  return out;
 }
 
 function withoutDeletedMileage(state) {
@@ -352,6 +453,7 @@ export function normalizeProjectState(raw) {
   next.deletedProducts = catalog.deletedProducts;
   next.products = catalog.products;
   next.sales = (next.sales || []).filter((row) => row && typeof row === 'object');
+  Object.assign(next, withoutDeletedRows(next));
   const healed = healOrphanProjectRefs(next, idRemap);
   // Nullstill Moment-restfelter og økonomiske verdier som andre moduler fyller automatisk.
   return scrubProjectState(healed);
@@ -1466,7 +1568,11 @@ export function accounts() {
 
 export function removeRecord(state, key, id) {
   if (!Array.isArray(state[key])) return fail(state, 'Listen finnes ikke.');
-  return ok({ ...state, [key]: state[key].filter((row) => row.id !== id) });
+  return ok({
+    ...state,
+    [key]: state[key].filter((row) => row.id !== id),
+    deletedRows: markRowsDeleted(state, key, id),
+  });
 }
 
 /** Legg til ansatt som deltaker på prosjekt. */
@@ -2184,6 +2290,7 @@ export function mergeProjectStates(left, right) {
     && key !== 'syncedAt'
     && key !== 'procedures'
     && key !== 'deletedProjects'
+    && key !== 'deletedRows'
     && key !== 'fullDayHours'
     && key !== 'fullDayHoursCustom'
     && key !== 'absenceTypesCustom'
@@ -2194,6 +2301,8 @@ export function mergeProjectStates(left, right) {
     next[key] = mergeRows(a[key] || [], b[key] || []);
   }
   next.deletedProjects = mergeDeletedProjects(a.deletedProjects, b.deletedProjects);
+  // Slettede rader i de andre listene holdes ute av normalizeProjectState nederst.
+  next.deletedRows = mergeDeletedRows(a.deletedRows, b.deletedRows);
   const deletedIds = new Set(next.deletedProjects.map((row) => row.id));
   next.projects = next.projects.filter((row) => !deletedIds.has(row.id));
   for (const key of PROJECT_SCOPED_KEYS) {

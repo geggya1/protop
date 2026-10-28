@@ -14,7 +14,7 @@ import {
   workspaceHref,
 } from '../../src/indeksregulering/cases';
 import { emptyProjectState } from '../../src/project/engine';
-import { loadProjectState, saveProjectState } from '../../src/project/storage';
+import { loadProjectState } from '../../src/project/storage';
 import { defaultOkonomiSubView } from '../../src/navigation/shellModules';
 import { canDeleteCase } from '../../src/indeksregulering/cases';
 import { dueByContractId } from '../../src/indeksregulering/watch';
@@ -52,7 +52,6 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   } = useApp();
   const page = defaultOkonomiSubView(subView);
   const [state, setState] = useState(emptyProjectState());
-  const [ready, setReady] = useState(false);
   const [anbud, setAnbud] = useState(null);
   const [chosen, setChosen] = useState(null);
   const [indexOpen, setIndexOpen] = useState(false);
@@ -77,6 +76,8 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     return job;
   }, [familyId]);
 
+  // Siden leser bare prosjektene. Den skriver dem ikke tilbake: å åpne Økonomi skrev før
+  // kopien i minnet til skyen, og en eldre kopi overskrev da nyere endringer fra andre.
   useEffect(() => {
     let live = true;
     const from = new Date();
@@ -85,14 +86,9 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     loadProjectState(familyId, { hours: { fromDate } }).then((loaded) => {
       if (!live) return;
       setState(loaded);
-      setReady(true);
     });
     return () => { live = false; };
   }, [familyId]);
-
-  useEffect(() => {
-    if (ready) saveProjectState(state, familyId).catch(() => {});
-  }, [state, ready, familyId]);
 
   useEffect(() => {
     loadAnbudState(familyId).then(setAnbud);

@@ -194,6 +194,8 @@ export function useTimesheetWorkspace({
       skipSave.current = false;
       return;
     }
+    // Timer og fravær går til egne samlinger. Prosjektdokumentet får bare radene som faktisk
+    // er endret her (lås, saldo, fraværstyper), lagt på skyens ferske kopi.
     saveProjectState(state, workspaceId).catch(() => setError('Kunne ikke lagre.'));
   }, [state, ready, workspaceId]);
 

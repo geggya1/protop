@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   CUSTOM_BANNER_ID,
   HOME_BANNER_GROUPS,
+  PLAIN_BANNER_ID,
   bannersInGroup,
   getHomeBanner,
 } from '../../src/homeBanners';
@@ -146,6 +147,7 @@ export default function HomeSetupForm({
   const isFirst = stepIndex === 0;
   const isLastForm = stepIndex === formSteps.length - 1;
   const initialGroup = suggestedGroup
+    || (bannerId === PLAIN_BANNER_ID ? 'ingen' : null)
     || getHomeBanner(bannerId)?.group
     || (bannerId === CUSTOM_BANNER_ID ? 'eget' : 'natur');
   const [groupId, setGroupId] = useState(initialGroup);
@@ -212,7 +214,7 @@ export default function HomeSetupForm({
 
   const imageStep = (
     <>
-      <Text style={[styles.section, { color: colors.muted }]}>Velg et ferdig bilde</Text>
+      <Text style={[styles.section, { color: colors.muted }]}>Bakgrunn</Text>
       <View style={styles.chipRow}>
         {HOME_BANNER_GROUPS.map((g) => {
           const on = g.id === groupId;
@@ -240,7 +242,37 @@ export default function HomeSetupForm({
         {HOME_BANNER_GROUPS.find((g) => g.id === groupId)?.hint}
       </Text>
 
-      {groupId === 'eget' ? (
+      {groupId === 'ingen' ? (
+        <View style={styles.grid}>
+          {/* Uten bilde: Hjem er samme flate som modulene, kort på sidens bakgrunn (UX-05). */}
+          <TouchableOpacity
+            style={[
+              styles.bannerCard,
+              { backgroundColor: colors.card },
+              bannerId === PLAIN_BANNER_ID && { borderColor: colors.brand },
+            ]}
+            onPress={() => canEdit && onSelectBanner?.(PLAIN_BANNER_ID, null)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: bannerId === PLAIN_BANNER_ID }}
+            testID="home-banner-plain"
+          >
+            <View style={[styles.bannerImgWrap, styles.plainPreview, { backgroundColor: colors.bg }]}>
+              {[1, 0.46, 0.46, 1].map((w, i) => (
+                <View
+                  key={`p-${i}`}
+                  style={[styles.plainPreviewCard, { width: `${w * 100}%`, backgroundColor: colors.card, borderColor: colors.line }]}
+                />
+              ))}
+            </View>
+            {bannerId === PLAIN_BANNER_ID ? (
+              <View style={styles.check}>
+                <Ionicons name="checkmark-circle" size={22} color={colors.brand} />
+              </View>
+            ) : null}
+            <Text style={[styles.bannerLabel, { color: colors.ink }]} numberOfLines={1}>Uten bilde</Text>
+          </TouchableOpacity>
+        </View>
+      ) : groupId === 'eget' ? (
         <View>
           {customBannerUri ? (
             <TouchableOpacity
@@ -395,11 +427,11 @@ export default function HomeSetupForm({
     body = (
       <>
         <Text style={[styles.stepEyebrow, { color: colors.muted }]}>Steg {stepIndex + 1} av {steps.length}</Text>
-        <Text style={[styles.stepTitle, { color: colors.ink }]}>Velg bilde</Text>
+        <Text style={[styles.stepTitle, { color: colors.ink }]}>Velg bakgrunn</Text>
         <Text style={[styles.stepLead, { color: colors.muted }]}>
           {isLastForm
-            ? 'På telefon dekker bildet hele hjemskjermen bak widgetene. Neste åpner hjem med standard widgets — du kan endre eller hoppe over der.'
-            : 'På telefon dekker bildet hele hjemskjermen bak widgetene. Velg et ferdig bilde, eller last opp ditt eget.'}
+            ? 'Uten bilde ser Hjem ut som resten av ProTop. Et bilde dekker hjemskjermen bak widgetene på telefon. Neste åpner hjem med standard widgets — du kan endre eller hoppe over der.'
+            : 'Uten bilde ser Hjem ut som resten av ProTop. Et bilde dekker hjemskjermen bak widgetene på telefon. Velg et ferdig bilde, eller last opp ditt eget.'}
         </Text>
         {imageStep}
       </>
@@ -529,6 +561,8 @@ const styles = StyleSheet.create({
     ...(Platform.OS === 'web' ? { objectFit: 'cover' } : null),
   },
   bannerImgContain: Platform.OS === 'web' ? { objectFit: 'contain' } : {},
+  plainPreview: { padding: 10, gap: 8, flexDirection: 'row', flexWrap: 'wrap', alignContent: 'flex-start' },
+  plainPreviewCard: { height: 48, borderRadius: 8, borderWidth: 1 },
   bannerLabel: {
     fontSize: 12, fontWeight: '400', paddingHorizontal: 8, paddingVertical: 8,
   },

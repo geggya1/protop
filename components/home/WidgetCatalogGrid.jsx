@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { groupedCatalog, isWidgetOn } from '../../src/homeWidgetCatalog';
-import { soft } from '../parentHome/softTheme';
+import { colors } from '../../src/theme';
+import { radius } from '../../src/ui/tokens';
 
 export default function WidgetCatalogGrid({
   role = 'parent',
@@ -32,7 +33,7 @@ export default function WidgetCatalogGrid({
                   testID={`${testIDPrefix}-${item.type}`}
                 >
                   <View style={[styles.icon, on && styles.iconOn]}>
-                    <Ionicons name={item.icon} size={20} color={on ? '#fff' : soft.sage} />
+                    <Ionicons name={item.icon} size={20} color={on ? colors.onBrand : colors.brand} />
                   </View>
                   <Text style={styles.label} numberOfLines={2}>{item.label}</Text>
                   <Text style={[styles.state, on && styles.stateOn]}>{on ? 'På' : 'Av'}</Text>
@@ -50,8 +51,7 @@ const styles = StyleSheet.create({
   group: { marginBottom: 16 },
   groupLabel: {
     fontSize: 12,
-    color: soft.muted,
-    fontFamily: soft.body,
+    color: colors.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: 8,
@@ -66,36 +66,35 @@ const styles = StyleSheet.create({
     minWidth: 96,
     flexGrow: 0,
     flexShrink: 0,
-    backgroundColor: soft.card,
-    borderRadius: 16,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     paddingVertical: 12,
     paddingHorizontal: 8,
     alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   tileOn: {
-    backgroundColor: soft.mint,
-    borderColor: soft.sage,
+    backgroundColor: colors.brandSoft,
+    borderColor: colors.brand,
   },
   icon: {
     width: 40,
     height: 40,
-    borderRadius: 14,
-    backgroundColor: soft.cream,
+    borderRadius: radius.card,
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
-  iconOn: { backgroundColor: soft.sage },
+  iconOn: { backgroundColor: colors.brandInk },
   label: {
     fontSize: 13,
-    color: soft.ink,
-    fontFamily: soft.body,
+    color: colors.ink,
     textAlign: 'center',
     lineHeight: 16,
     minHeight: 32,
   },
-  state: { fontSize: 11, color: soft.muted, fontFamily: soft.body, marginTop: 4 },
-  stateOn: { color: soft.sage },
+  state: { fontSize: 11, color: colors.muted, marginTop: 4 },
+  stateOn: { color: colors.brandInk },
 });

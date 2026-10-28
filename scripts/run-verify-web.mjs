@@ -260,6 +260,9 @@ export const FILES = [
   // sperrehaken for hardkodede verdier, bekreftelse/angre, norsk format og språklås.
   'src/appearance/contrast.test.mjs',
   'src/appearance/typography.test.mjs',
+  // UX-05: Hjem er samme ProTop-flate som modulene (kort, farger, skrift, lyst og mørkt).
+  'src/appearance/homeSurface.test.mjs',
+  'src/homeSurface.test.mjs',
   'src/ui/focusRing.test.mjs',
   'src/ui/a11yLabels.test.mjs',
   'src/ui/landmarks.test.mjs',

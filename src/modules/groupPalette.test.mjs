@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { COMPANY_DRAWER_GROUPS } from '../navigation/shellModules.js';
 import { HELP_SECTIONS } from '../help/protopPages.js';
+import { readFileSync } from 'node:fs';
 import { GROUP_PALETTE } from './groupPalette.js';
+import { LIGHT } from '../appearance/palette.js';
 
 function luminance(hex) {
   const h = hex.replace('#', '');
@@ -30,5 +32,19 @@ for (const [id, row] of Object.entries(GROUP_PALETTE)) {
     assert.ok(ratio >= 4.5, `${id}: ${row.accent} på ${key} ${row[key]} gir ${ratio.toFixed(2)}`);
   }
 }
+
+// Båndet er lyst også i mørkt utseende: tittel og ingress er den lyse palettens ink og muted
+// (UX-05). Med colors.ink ble teksten lys på lyst i mørkt.
+for (const [id, row] of Object.entries(GROUP_PALETTE)) {
+  for (const key of ['bg', 'bg2']) {
+    for (const fg of ['ink', 'muted']) {
+      const ratio = contrast(LIGHT[fg], row[key]);
+      assert.ok(ratio >= 4.5, `${id}: ${fg} på ${key} gir ${ratio.toFixed(2)}`);
+    }
+  }
+}
+const heroSrc = readFileSync(new URL('../../components/ModuleHero.jsx', import.meta.url), 'utf8');
+assert.match(heroSrc, /const titleColor = hero\.ink \|\| LIGHT\.ink;/);
+assert.match(heroSrc, /const pitchColor = hero\.muted \|\| LIGHT\.muted;/);
 
 console.log('groupPalette.test.mjs ok');

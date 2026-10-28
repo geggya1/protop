@@ -7,7 +7,6 @@ import { useApp } from '../../src/context/AppContext';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { useOptionalRoute } from '../../src/hooks/useOptionalRoute';
 import { colors, useLayout } from '../../src/theme';
-import { soft } from './softTheme';
 import { useParentHomeModel } from './useParentHomeModel';
 import { usePullToRefresh, hardReloadApp } from '../../src/hooks/usePullToRefresh';
 import { useHomeLayout } from '../../src/hooks/useHomeLayout';
@@ -79,7 +78,8 @@ export default function ParentHomeThemeHost({
 
   const { isPhone } = useLayout();
   const immersive = useHomeImmersive() && isPhone;
-  const pageBg = immersive ? 'transparent' : soft.bg;
+  // Samme bakgrunn som modulene (UX-05); med bakgrunnsbilde er siden gjennomsiktig.
+  const pageBg = immersive ? 'transparent' : colors.bg;
   const { contentPaddingBottom } = useBottomChromeInset();
 
   if (!model.themeReady || !home.ready) {

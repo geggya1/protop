@@ -7,9 +7,14 @@
  * and add a row with `.medium.jpg` (display) + `.thumb.jpg` (picker).
  */
 
+import { DEFAULT_PHOTO_BANNER_ID, PLAIN_BANNER_ID } from './homeSurface.js';
+
+export { DEFAULT_PHOTO_BANNER_ID, PLAIN_BANNER_ID, hasHomePhoto } from './homeSurface.js';
+
 export const HOME_BANNER_PACKS = ['natur'];
 
 export const HOME_BANNER_GROUPS = [
+  { id: 'ingen', label: 'Uten bilde', hint: 'Samme rolige flate som resten av ProTop' },
   { id: 'natur', label: 'Natur', hint: 'Fjell, fjord og lys' },
   { id: 'eget', label: 'Eget', hint: 'Last opp selv' },
 ];
@@ -679,7 +684,9 @@ export const HOME_BANNERS = [
   },
 ];
 
-export const DEFAULT_HOME_BANNER_ID = 'natur-innsjo-hytte-morgen';
+// Uten bakgrunnsbilde er Hjem den samme ProTop-flaten som modulene (UX-05), og det er
+// standard. Bakgrunnsbilde er et valg under Tilpass hjem.
+export const DEFAULT_HOME_BANNER_ID = PLAIN_BANNER_ID;
 export const DEFAULT_CHILD_HOME_BANNER_ID = 'noytralt-smaabarn-barnerom';
 export const CUSTOM_BANNER_ID = 'custom';
 
@@ -693,16 +700,16 @@ export function bannersInGroup(groupId) {
 }
 
 export function getHomeBanner(id) {
-  if (!id || id === CUSTOM_BANNER_ID) return null;
+  if (!id || id === CUSTOM_BANNER_ID || id === PLAIN_BANNER_ID) return null;
   const hit = HOME_BANNERS.find((b) => b.id === id);
   if (isOfferedBanner(hit)) return hit;
-  return HOME_BANNERS.find((b) => b.id === DEFAULT_HOME_BANNER_ID)
+  return HOME_BANNERS.find((b) => b.id === DEFAULT_PHOTO_BANNER_ID)
     || HOME_BANNERS.find(isOfferedBanner)
     || null;
 }
 
 export function isValidHomeBannerId(id) {
-  if (id === CUSTOM_BANNER_ID) return true;
+  if (id === CUSTOM_BANNER_ID || id === PLAIN_BANNER_ID) return true;
   return isOfferedBanner(HOME_BANNERS.find((b) => b.id === id));
 }
 

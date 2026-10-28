@@ -17,7 +17,6 @@ import { isParentTaskOpen, parentTaskVisibleOnDate } from '../../src/utils/paren
 import { parentTaskVisibleToUser } from '../../src/utils/parentTaskVisibility';
 import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
 import { useNow } from '../../src/hooks/useNow';
-import { soft } from '../../components/parentHome/softTheme';
 import {
   COMPANY_HOME_SHORTCUTS,
   companyGreetingHello,
@@ -212,7 +211,6 @@ export default function CompanyHomePhone() {
 const heroText = {
   color: '#fff',
   fontWeight: '400',
-  fontFamily: soft.body,
   textShadowColor: 'rgba(0,0,0,0.45)',
   textShadowOffset: { width: 0, height: 1 },
   textShadowRadius: 6,
@@ -272,7 +270,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 15,
     fontWeight: '400',
-    fontFamily: soft.body,
     color: '#1A2744',
     textAlign: 'center',
   },
@@ -301,10 +298,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 24,
     fontWeight: '700',
-    fontFamily: soft.body,
     color: '#1A2744',
   },
-  seeAll: { fontSize: 15, fontWeight: '400', fontFamily: soft.body },
+  seeAll: { fontSize: 15, fontWeight: '400' },
   taskRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -319,7 +315,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
     fontWeight: '400',
-    fontFamily: soft.body,
     color: '#1A2744',
   },
   badge: {
@@ -331,12 +326,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { color: '#fff', fontSize: 12, fontWeight: '400', fontFamily: soft.body },
+  badgeText: { color: '#fff', fontSize: 12, fontWeight: '400' },
   empty: {
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '400',
-    fontFamily: soft.body,
     color: '#5B6B82',
     paddingVertical: 12,
   },

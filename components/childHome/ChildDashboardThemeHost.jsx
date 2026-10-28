@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { soft } from '../parentHome/softTheme';
+import { soft } from './softTheme';
 import { colors, useLayout } from '../../src/theme';
 import { useWeather } from '../../src/hooks/useWeather';
 import { roundTemp } from '../../src/utils/weather';

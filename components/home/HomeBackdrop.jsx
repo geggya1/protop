@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Image, StyleSheet, Platform } from 'react-native';
-import { CUSTOM_BANNER_ID, DEFAULT_HOME_BANNER_ID, getHomeBanner } from '../../src/homeBanners';
+import { CUSTOM_BANNER_ID, DEFAULT_PHOTO_BANNER_ID, getHomeBanner } from '../../src/homeBanners';
 import { containBackdropBox, resolveSourceAspect } from '../../src/utils/homeBackdropFit';
 
 /** Authored fullscreen banners are ~941×1672 (9:16). Used until getSize resolves. */
@@ -12,7 +12,7 @@ const webBlurFill = Platform.OS === 'web'
 
 /** Full-screen photo behind phone home chrome, widgets and dock. */
 function HomeBackdrop({ bannerId, customUri } = {}) {
-  const id = bannerId || DEFAULT_HOME_BANNER_ID;
+  const id = bannerId || DEFAULT_PHOTO_BANNER_ID;
   const pack = id === CUSTOM_BANNER_ID ? null : getHomeBanner(id);
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const source = useMemo(

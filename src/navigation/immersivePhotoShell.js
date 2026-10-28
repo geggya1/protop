@@ -1,8 +1,9 @@
 /**
- * Phone photo chrome: full-bleed home banner behind glass widgets.
+ * Phone photo chrome: full-bleed home banner behind the widget cards.
  * Parent and child profiles share the same look. Barnevennlig høy
- * (simpleChildUi) keeps the simpler cream home without photo overlay.
+ * (simpleChildUi) keeps the simpler home without photo overlay.
  * Home always; Mer hub (no subview) so +mer opens the same photo dashboard.
+ * Uten bakgrunnsbilde (photo: false, UX-05) er Hjem den vanlige ProTop-flaten.
  */
 
 export function isImmersivePhotoShell({
@@ -13,8 +14,9 @@ export function isImmersivePhotoShell({
   asChildView = false,
   kitchenMode = false,
   simpleChildUi = false,
+  photo = true,
 } = {}) {
-  if (!isPhone || kitchenMode || simpleChildUi) return false;
+  if (!isPhone || kitchenMode || simpleChildUi || !photo) return false;
   if (!asChildView && !isParent) return false;
   if (tab === 'home') return true;
   if (tab === 'more' && !moreSubView) return true;

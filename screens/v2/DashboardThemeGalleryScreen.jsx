@@ -15,7 +15,6 @@ import { getParentDashboardTheme } from '../../src/parentDashboardThemes';
 import { buildParentDashboardPreviewModel } from '../../src/utils/parentDashboardPreview';
 import { homeFocusCopy } from '../../src/utils/deskHome';
 import { HomeImmersiveProvider } from '../../src/context/HomeImmersiveContext';
-import { soft } from '../../components/parentHome/softTheme';
 import HomeModulesBoard from '../../components/home/HomeModulesBoard';
 import { buildChildDashboardApps, buildParentDashboardApps } from '../../src/navigation/shellModules';
 import { useI18n } from '../../src/i18n';
@@ -307,11 +306,11 @@ const styles = StyleSheet.create({
   roleTxt: { fontSize: 14, fontWeight: '400', color: colors.ink },
   roleTxtOn: { color: colors.brand },
   phone: {
-    backgroundColor: soft.bg,
+    backgroundColor: colors.bg,
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: soft.line,
+    borderColor: colors.line,
     marginBottom: 24,
     position: 'relative',
   },
@@ -321,15 +320,15 @@ const styles = StyleSheet.create({
   phoneBodyBoard: { flex: 1, minHeight: 0, paddingBottom: 0 },
   chrome: {
     paddingVertical: 12, alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: soft.line,
-    backgroundColor: soft.card,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
+    backgroundColor: colors.card,
     zIndex: 1,
   },
   // Same white logo bar as on modules (meny / logo / varsler / profil).
   chromeImmersive: {
     backgroundColor: '#fff',
-    borderBottomColor: soft.line,
+    borderBottomColor: colors.line,
   },
-  logo: { fontSize: 18, color: soft.sage, fontFamily: soft.display },
-  logoImmersive: { color: soft.ink },
+  logo: { fontSize: 18, color: colors.brandInk, fontWeight: '600' },
+  logoImmersive: { color: colors.ink },
 });

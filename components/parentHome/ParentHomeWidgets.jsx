@@ -12,7 +12,7 @@ import { parentAppShortLabel, parentAppAccent } from '../../src/utils/parentHome
 import { DASHBOARD_CARD_ART } from '../../src/parentDashboardThemes';
 import LiveHomeWidgets from '../LiveHomeWidgets';
 import { dashboardDayPartLabel } from '../../src/utils/dashboardTimeArt';
-import { soft } from './softTheme';
+import { soft } from '../childHome/softTheme';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { immersiveCardSurface } from '../home/homeGlass';
 import { placeText } from '../../src/utils/homeWidgetVisuals';

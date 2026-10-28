@@ -1,28 +1,26 @@
 import React from 'react';
 import {
-  View, Text, Image, TouchableOpacity, StyleSheet, Platform,
+  View, Text, Image, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { initialOf } from '../../src/utils/homeWidgetVisuals';
-import { soft } from '../parentHome/softTheme';
-import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
-import { immersiveCardSurface, immersiveIconDisc } from './homeGlass';
+import { colors } from '../../src/theme';
+import { radius } from '../../src/ui/tokens';
+import { homeCardSurface, immersiveIconDisc } from './homeGlass';
 
 const BRAND_MARK = require('../../assets/protop-mark-square.png');
 
-/** Home modules match the cream theme. Dimmed chrome is only for pickers. */
-export const glassCard = {
-  backgroundColor: soft.card,
-};
+/** Widgetkortet på Hjem er ProTop-kortet (UX-05). Dempet krom hører bare til velgere. */
+export const glassCard = homeCardSurface;
 
 export function ProgressRing({
   value = 0,
   max = 1,
   label,
   size = 44,
-  color = '#34C759',
-  track = 'rgba(61,68,80,0.12)',
+  color = colors.success,
+  track = colors.line,
 }) {
   const pct = max ? Math.max(0, Math.min(1, value / max)) : 0;
   const stroke = 3.6;
@@ -59,25 +57,19 @@ export function ProgressRing({
 }
 
 export function AppIconTile({ icon = 'apps', glyphColor, glyphBg }) {
-  const immersive = useHomeImmersive();
   if (icon === 'mark' || !icon) {
     return (
-      <View style={[styles.appIcon, immersive && styles.appIconImmersive, immersive && immersiveIconDisc]}>
+      <View style={styles.appIcon}>
         <Image source={BRAND_MARK} style={styles.appIconImg} resizeMode="contain" />
       </View>
     );
   }
   const name = typeof icon === 'string' ? icon : icon.name;
-  const color = glyphColor || icon.color || '#3D4450';
+  const color = glyphColor || icon.color || colors.brand;
   return (
-    <View style={[
-      styles.appIcon,
-      immersive && styles.appIconImmersive,
-      immersive ? immersiveIconDisc : null,
-      !immersive && (glyphBg || icon.bg) ? { backgroundColor: glyphBg || icon.bg } : null,
-    ]}>
+    <View style={[styles.appIcon, immersiveIconDisc, (glyphBg || icon.bg) ? { backgroundColor: glyphBg || icon.bg } : null]}>
       <View style={styles.glyphInner}>
-        <Ionicons name={name} size={immersive ? 17 : 18} color={color} />
+        <Ionicons name={name} size={18} color={color} />
       </View>
     </View>
   );
@@ -97,10 +89,10 @@ export function WidgetBadge({ label, tone = 'muted' }) {
 }
 
 const BADGE_TONES = {
-  muted: { bg: soft.cream, border: soft.line, fg: soft.ink },
-  green: { bg: soft.mint, border: '#B7D4BE', fg: '#1F8A4C' },
-  people: { bg: soft.mint, border: '#B7D4BE', fg: '#1F8A4C' },
-  blue: { bg: '#2F80ED', border: '#2F80ED', fg: '#fff' },
+  muted: { bg: colors.bg, border: colors.line, fg: colors.ink },
+  green: { bg: colors.bg, border: colors.line, fg: colors.successInk },
+  people: { bg: colors.brandSoft, border: colors.brandSoft, fg: colors.brandInk },
+  blue: { bg: colors.brandInk, border: colors.brandInk, fg: colors.onBrand },
 };
 
 export function FooterCta({ label }) {
@@ -113,8 +105,8 @@ export function FooterCta({ label }) {
 }
 
 /**
- * Shared module chrome: cream-theme card, app-icon header, footer capsule.
- * Dimmed overlay belongs only in a picker, never on the home board.
+ * Felles modulkort på Hjem: ProTop-kortet, ikon og tittel øverst, lenke nederst.
+ * Dempet overlegg hører bare til velgere, aldri på Hjem.
  */
 export default function ModuleWidget({
   title,
@@ -135,10 +127,9 @@ export default function ModuleWidget({
   compact = true,
   children,
 }) {
-  const immersive = useHomeImmersive();
   return (
     <TouchableOpacity
-      style={[glassCard, styles.card, compact && styles.cardCompact, immersive && immersiveCardSurface]}
+      style={[glassCard, styles.card, compact && styles.cardCompact]}
       onPress={onPress}
       activeOpacity={0.92}
       accessibilityRole="button"
@@ -186,7 +177,7 @@ export default function ModuleWidget({
           {footerMeta ? (
             <View style={styles.footMetaRow}>
               {footerIcon ? (
-                <Ionicons name={footerIcon} size={13} color={soft.muted} />
+                <Ionicons name={footerIcon} size={13} color={colors.muted} />
               ) : null}
               <Text style={styles.footMeta} numberOfLines={1}>{footerMeta}</Text>
             </View>
@@ -202,7 +193,7 @@ export function ColorGlyph({ icon, bg, color = '#fff', size = 28, radius = 8 }) 
   return (
     <View style={[
       styles.glyph,
-      { width: size, height: size, borderRadius: radius, backgroundColor: bg || '#5B63A6' },
+      { width: size, height: size, borderRadius: radius, backgroundColor: bg || colors.brand },
     ]}>
       <Ionicons name={icon} size={Math.round(size * 0.52)} color={color} />
     </View>
@@ -211,7 +202,7 @@ export function ColorGlyph({ icon, bg, color = '#fff', size = 28, radius = 8 }) 
 
 export function AvatarGlyph({ name, tint, pin, size = 34 }) {
   return (
-    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: tint || '#8EB4F0' }]}>
+    <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2, backgroundColor: tint || colors.brand }]}>
       {pin ? (
         <Ionicons name="location" size={16} color="#fff" />
       ) : (
@@ -237,35 +228,26 @@ export function PillRow({ children, style }) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 18,
     padding: 10,
     minHeight: 112,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
     overflow: 'hidden',
   },
   cardCompact: { minHeight: 96, padding: 8 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   appIcon: {
-    width: 30, height: 30, borderRadius: 9, backgroundColor: soft.cream,
+    width: 30, height: 30, borderRadius: radius.control, backgroundColor: colors.bg,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth, borderColor: soft.line,
-  },
-  appIconImmersive: {
-    width: 32, height: 32, borderRadius: 16, overflow: 'hidden',
   },
   appIconImg: { width: 24, height: 24 },
   glyphInner: {
     width: 30, height: 30, alignItems: 'center', justifyContent: 'center',
   },
   title: {
-    fontSize: 15, color: soft.ink, fontWeight: '500',
-    fontFamily: Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined,
+    fontSize: 14, color: colors.ink, fontWeight: '600',
     lineHeight: 19,
   },
   subtitle: {
-    fontSize: 12, color: soft.muted, marginTop: 1,
-    fontFamily: Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined,
+    fontSize: 12, color: colors.muted, marginTop: 1,
   },
   badge: {
     flexDirection: 'row', alignItems: 'center',
@@ -273,13 +255,13 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   badgeTxt: { fontSize: 12, fontWeight: '500' },
-  headerLink: { fontSize: 12, color: soft.muted },
+  headerLink: { fontSize: 12, color: colors.muted },
   dateWrap: { alignItems: 'flex-end' },
-  dateKicker: { fontSize: 11, color: soft.muted, marginBottom: 1 },
-  dateValue: { fontSize: 13, color: soft.ink, fontWeight: '400' },
+  dateKicker: { fontSize: 11, color: colors.muted, marginBottom: 1 },
+  dateValue: { fontSize: 13, color: colors.ink, fontWeight: '400' },
   statWrap: { alignItems: 'flex-end' },
-  statValue: { fontSize: 15, color: soft.ink, fontWeight: '400' },
-  statHint: { fontSize: 11, color: soft.muted, marginTop: 1, maxWidth: 92, textAlign: 'right' },
+  statValue: { fontSize: 15, color: colors.ink, fontWeight: '400' },
+  statHint: { fontSize: 11, color: colors.muted, marginTop: 1, maxWidth: 92, textAlign: 'right' },
   body: { gap: 6, flex: 1 },
   pill: {
     flexDirection: 'row',
@@ -288,37 +270,35 @@ const styles = StyleSheet.create({
     minHeight: 32,
     paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: soft.cream,
+    borderRadius: radius.card,
+    backgroundColor: colors.bg,
   },
   glyph: { alignItems: 'center', justifyContent: 'center' },
   avatar: { alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { color: '#fff', fontWeight: '400' },
-  checkOn: { backgroundColor: '#34C759', alignItems: 'center', justifyContent: 'center' },
-  checkOff: { borderWidth: 1.5, borderColor: '#C8CDD6' },
+  checkOn: { backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' },
+  checkOff: { borderWidth: 1.5, borderColor: colors.muted },
   foot: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     gap: 8, marginTop: 8, paddingTop: 2,
   },
   fullFoot: {
     marginTop: 8,
-    backgroundColor: soft.cream,
+    backgroundColor: colors.bg,
     borderRadius: 999,
     paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   footMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 },
-  footMeta: { fontSize: 12, color: soft.muted, flexShrink: 1 },
+  footMeta: { fontSize: 12, color: colors.muted, flexShrink: 1 },
   cta: {
-    backgroundColor: soft.mint,
+    backgroundColor: colors.brandSoft,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#B7D4BE',
   },
-  ctaTxt: { fontSize: 12, color: soft.sage },
-  ctaFullTxt: { fontSize: 14, color: soft.sage },
-  ringTxt: { fontSize: 10, color: soft.ink, fontWeight: '400' },
+  ctaTxt: { fontSize: 12, color: colors.brandInk },
+  ctaFullTxt: { fontSize: 14, color: colors.brandInk },
+  ringTxt: { fontSize: 10, color: colors.ink, fontWeight: '400' },
 });

@@ -107,7 +107,9 @@ assert.equal(src.includes("label: 'Småbarn'"), false);
 assert.equal(src.includes("label: 'Barn'"), false);
 assert.equal(src.includes("label: 'Ungdom'"), false);
 
-assert.match(src, /export const DEFAULT_HOME_BANNER_ID = 'natur-innsjo-hytte-morgen'/);
+// UX-05: uten bilde er standard; naturbildet er standard når et bilde mangler.
+assert.match(src, /export const DEFAULT_HOME_BANNER_ID = PLAIN_BANNER_ID;/);
+assert.match(src, /export \{ DEFAULT_PHOTO_BANNER_ID, PLAIN_BANNER_ID, hasHomePhoto \} from '\.\/homeSurface\.js';/);
 assert.match(src, /export const DEFAULT_CHILD_HOME_BANNER_ID = 'noytralt-smaabarn-barnerom'/);
 assert.match(src, /if \(groupId !== 'natur'\) return \[\]/);
 assert.match(src, /label: 'Natur'/);

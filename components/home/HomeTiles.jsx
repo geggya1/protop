@@ -4,10 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { useNow } from '../../src/hooks/useNow';
 import { widgetVariant } from '../../src/homeWidgetCatalog';
-import { soft } from '../parentHome/softTheme';
+import { colors } from '../../src/theme';
 import { SoftWeatherCard } from './PastelCards';
-import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
-import { immersiveCardSurface } from './homeGlass';
+import { homeCardSurface } from './homeGlass';
 
 function TileWrap({ interactive, onPress, accessibilityLabel, style, children }) {
   if (!interactive) {
@@ -67,7 +66,7 @@ function AnalogFace({ size }) {
   const minPt = polar(cx, cy, minDeg, size * 0.38);
   return (
     <Svg width={size} height={size}>
-      <Circle cx={cx} cy={cy} r={size / 2 - 1.5} fill={soft.cream} stroke={soft.line} strokeWidth={2} />
+      <Circle cx={cx} cy={cy} r={size / 2 - 1.5} fill={colors.bg} stroke={colors.line} strokeWidth={2} />
       {ticks.map((i) => {
         const outer = polar(cx, cy, i * 30, size / 2 - 6);
         const inner = polar(cx, cy, i * 30, size / 2 - (i % 3 === 0 ? 13 : 10));
@@ -78,15 +77,15 @@ function AnalogFace({ size }) {
             y1={inner.y}
             x2={outer.x}
             y2={outer.y}
-            stroke={i % 3 === 0 ? soft.ink : soft.muted}
+            stroke={i % 3 === 0 ? colors.ink : colors.muted}
             strokeWidth={i % 3 === 0 ? 2 : 1.2}
             strokeLinecap="round"
           />
         );
       })}
-      <Line x1={cx} y1={cy} x2={hourPt.x} y2={hourPt.y} stroke={soft.ink} strokeWidth={4} strokeLinecap="round" />
-      <Line x1={cx} y1={cy} x2={minPt.x} y2={minPt.y} stroke={soft.sage} strokeWidth={3} strokeLinecap="round" />
-      <Circle cx={cx} cy={cy} r={4} fill={soft.ink} />
+      <Line x1={cx} y1={cy} x2={hourPt.x} y2={hourPt.y} stroke={colors.ink} strokeWidth={4} strokeLinecap="round" />
+      <Line x1={cx} y1={cy} x2={minPt.x} y2={minPt.y} stroke={colors.brand} strokeWidth={3} strokeLinecap="round" />
+      <Circle cx={cx} cy={cy} r={4} fill={colors.ink} />
     </Svg>
   );
 }
@@ -102,14 +101,13 @@ export function ClockTile({
   const now = useNow(1000);
   const label = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
   const face = look === 'wide' ? 72 : 56;
-  const immersive = useHomeImmersive();
 
   return (
     <TileWrap
       interactive={interactive}
       onPress={onPress}
       accessibilityLabel={`Klokken er ${label}`}
-      style={[styles.clock, look === 'wide' && styles.clockWide, immersive && immersiveCardSurface]}
+      style={[styles.clock, homeCardSurface, look === 'wide' && styles.clockWide]}
     >
       {look === 'wide' ? (
         <>
@@ -147,14 +145,13 @@ export function DateTile({
   const now = useNow(30000);
   const weekday = WEEKDAYS_NB[now.getDay()];
   const month = MONTHS_NB[now.getMonth()];
-  const immersive = useHomeImmersive();
 
   return (
     <TileWrap
       interactive={interactive}
       onPress={onPress}
       accessibilityLabel={`${weekday} ${now.getDate()}. ${month}`}
-      style={[styles.dateTile, look === 'wide' && styles.dateWide, immersive && immersiveCardSurface]}
+      style={[styles.dateTile, homeCardSurface, look === 'wide' && styles.dateWide]}
     >
       {look === 'wide' ? (
         <>
@@ -176,7 +173,7 @@ export function DateTile({
 }
 
 export function StatTile({
-  label, value, hint, icon, onPress, tint = soft.card,
+  label, value, hint, icon, onPress, tint = colors.card,
 }) {
   return (
     <TouchableOpacity
@@ -186,7 +183,7 @@ export function StatTile({
       accessibilityRole="button"
       accessibilityLabel={`${label} ${value || ''}`}
     >
-      {icon ? <Ionicons name={icon} size={22} color={soft.sage} /> : null}
+      {icon ? <Ionicons name={icon} size={22} color={colors.brand} /> : null}
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
       {hint ? <Text style={styles.meta} numberOfLines={1}>{hint}</Text> : null}
@@ -197,48 +194,38 @@ export function StatTile({
 const styles = StyleSheet.create({
   clock: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
     padding: 10,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E8E4DC',
   },
   clockWide: { flexDirection: 'row', paddingHorizontal: 16, gap: 16 },
   clockWideCopy: { flex: 1, justifyContent: 'center' },
-  timeTxt: { fontSize: 16, color: soft.ink, fontFamily: soft.display, marginTop: 2, letterSpacing: 0.4 },
-  timeTxtWide: { fontSize: 28, color: soft.ink, fontFamily: soft.display, letterSpacing: 0.4 },
+  timeTxt: { fontSize: 16, color: colors.ink, fontWeight: '600', marginTop: 2, letterSpacing: 0.4 },
+  timeTxtWide: { fontSize: 28, color: colors.ink, fontWeight: '600', letterSpacing: 0.4 },
   dateTile: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
     padding: 12,
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E8E4DC',
     overflow: 'hidden',
   },
   dateWide: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
   dateWeek: {
-    fontSize: 11, color: '#E24B4A', fontFamily: soft.body, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: '400',
+    fontSize: 11, color: colors.dangerInk, textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: '500',
   },
-  dateNum: { fontSize: 42, color: '#1C1C1E', fontFamily: soft.display, lineHeight: 46 },
-  dateNumSm: { fontSize: 36, color: '#1C1C1E', fontFamily: soft.display, lineHeight: 40 },
-  dateNumWide: { fontSize: 44, color: '#1C1C1E', fontFamily: soft.display, lineHeight: 48 },
-  dateMonth: { fontSize: 14, color: '#8A93A3', fontFamily: soft.body, textTransform: 'capitalize' },
+  dateNum: { fontSize: 42, color: colors.ink, fontWeight: '600', lineHeight: 46 },
+  dateNumSm: { fontSize: 36, color: colors.ink, fontWeight: '600', lineHeight: 40 },
+  dateNumWide: { fontSize: 44, color: colors.ink, fontWeight: '600', lineHeight: 48 },
+  dateMonth: { fontSize: 14, color: colors.muted, textTransform: 'capitalize' },
   stat: {
     flex: 1,
     minHeight: 118,
-    borderRadius: 22,
+    ...homeCardSurface,
     padding: 12,
     justifyContent: 'space-between',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
   },
-  statLabel: { fontSize: 13, color: soft.muted, fontFamily: soft.body },
-  statValue: { fontSize: 28, color: soft.ink, fontFamily: soft.display, lineHeight: 32 },
-  meta: { fontSize: 12, color: soft.muted, fontFamily: soft.body },
+  statLabel: { fontSize: 13, color: colors.muted },
+  statValue: { fontSize: 28, color: colors.ink, fontWeight: '600', lineHeight: 32 },
+  meta: { fontSize: 12, color: colors.muted },
 });

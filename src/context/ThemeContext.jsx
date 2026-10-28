@@ -3,7 +3,7 @@ import { colors as baseColors } from '../theme';
 import { getChildTheme, resolveColorsForChildTheme } from '../childThemes';
 import { isHighChildFriendliness } from '../utils/childUi';
 import { profileAge, isMinor } from '../utils/age';
-import { soft } from '../../components/parentHome/softTheme';
+import { soft } from '../../components/childHome/softTheme';
 import { useAppearance } from '../appearance/AppearanceContext';
 import { paletteFor } from '../appearance/palette';
 import { useApp } from './AppContext';

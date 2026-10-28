@@ -373,6 +373,7 @@ export function watchCrash(bot) {
 export async function revive(bot) {
   if (!bot.crashed && !bot.page.isClosed()) return false;
   try { await bot.page.close(); } catch { /* ignore */ }
+  await bot.ctx.setOffline(false).catch(() => {});
   bot.page = await bot.ctx.newPage();
   bot.crashed = false;
   watchCrash(bot);

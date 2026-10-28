@@ -152,7 +152,19 @@ try {
     await L.click('T.o.m. i dag');
     await L.page.waitForTimeout(2500);
     const g = norm(await L.visibleText());
-    R.info('3.05b', 'Til fakturering etter utlegg og kjøring', (g.match(/Totalt å faktureres:[^\n]*/) || [''])[0]);
+    R.info('3.05b', 'Til fakturering før utlegget er godkjent: utkast («draft») tas ikke med, og siden sier ikke at noe venter på godkjenning', (g.match(/Totalt å faktureres:[^\n]*/) || [''])[0]);
+    // Leder godkjenner utlegget i Økonomi → Utlegg; da skal det komme med i Til fakturering.
+    await go(L, 'okonomi', 'utlegg', 4500);
+    await L.click('Godkjenn');
+    await sleep(3000);
+    const ex = ((await projectState(C)).expenses || []).find((e) => e.description === 'Parkering byggeplass');
+    await go(L, 'okonomi', 'fakturagrunnlag', 4500);
+    await L.click('T.o.m. i dag');
+    await L.page.waitForTimeout(2500);
+    const g2 = norm(await L.visibleText());
+    R.check('3.05c', 'Godkjent utlegg (200,00 kr eks. mva, ev. med påslag) kommer med i Til fakturering for #100', ex?.status === 'approved' && /Totalt å faktureres: (200|220),00 kr/.test(g2), {
+      actual: `status=${ex?.status}; ${(g2.match(/Totalt å faktureres:[^\n]*/) || [''])[0]}`, shot: await L.shot('til-fakturering-etter-godkjent-utlegg'),
+    });
   });
 
   await guard(R, '3.06', 'Ferie → godkjenn', async () => {

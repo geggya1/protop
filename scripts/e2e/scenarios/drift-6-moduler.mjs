@@ -1,7 +1,7 @@
 /**
  * Drift-bot 6 – modulaktivering (Selskap → Moduler).
- * Eier slår av «Kunder». Leder og ansatt har siden/menyen åpen: forsvinner modulen
- * for dem i sanntid, uten ny lasting? Og hva sier reglene om data i modulen?
+ * Eier slår av «Kunder». Leder har siden åpen: forsvinner modulen for ham i sanntid,
+ * uten ny lasting? Og hva sier reglene om data i modulen? Høyst to kontekster samtidig.
  *
  *   NODE_PATH=$(npm root -g) node scripts/e2e/scenarios/drift-6-moduler.mjs
  */
@@ -19,17 +19,15 @@ const S = await seedCompany(`m${stamp()}`);
 const C = S.companyId;
 console.log(`Selskap ${C}`);
 
-let E; let L; let A;
-const lockedShown = (bot) => bot.hasText('Kunder er ikke aktivert', { timeout: 15000 });
+let E; let L;
+const lockedShown = (bot) => bot.hasText('Kunder er ikke aktivert', { timeout: 30000 });
 
 try {
   L = await newBot(Bot, 'L-leder', S.users.okonomi, { outDir: SHOTS });
-  await go(L, 'kunder', null, 5000);
-  R.check('6.01', 'Leder har Kunder åpen (modulen er aktiv)', await L.hasText('Kunde En AS', { timeout: 20000 }), { shot: await L.shot('kunder-aktiv') });
-
-  A = await newBot(Bot, 'A-ansatt', S.users.ansatt, { outDir: SHOTS });
-  await go(A, 'arbeid', 'timeliste', 5000);
-  const before = await A.page.evaluate(() => (document.body.innerText.match(/Kunder og oppdrag/) || []).length);
+  await guard(R, '6.01', 'Kunder åpen', async () => {
+    await go(L, 'kunder', null, 5000);
+    R.check('6.01', 'Leder har Kunder åpen (modulen er aktiv)', await L.hasText('Kunde En AS', { timeout: 60000 }), { shot: await L.shot('kunder-aktiv') });
+  });
 
   E = await newBot(Bot, 'E-eier', S.users.eier, { outDir: SHOTS });
   await guard(R, '6.02', 'Slå av Kunder', async () => {
@@ -55,11 +53,11 @@ try {
     R.check('6.03a', 'Leder som åpner Kunder på nytt får låst side', await lockedShown(L), { shot: await L.shot('kunder-apnet-pa-nytt') });
   });
 
-  await guard(R, '6.04', 'Meny hos ansatt', async () => {
-    await sleep(2000);
-    const menu = await A.page.evaluate(() => document.body.innerText);
-    const locked = /Ikke aktivert/.test(menu);
-    R.info('6.04', 'Ansatt (har ikke Kunder i sin tilgang) – meny etter at modulen ble slått av', locked ? 'meny viser «Ikke aktivert»' : `uendret (Kunder og oppdrag-treff før: ${before})`, await A.shot('ansatt-meny'));
+  await guard(R, '6.04', 'Meny hos leder', async () => {
+    const menu = await L.page.evaluate(() => document.body.innerText);
+    R.check('6.04', 'Menyen hos leder merker Kunder som «Ikke aktivert»', /Ikke aktivert/.test(menu), {
+      actual: /Ikke aktivert/.test(menu) ? 'merket' : 'ikke merket', shot: await L.shot('meny-etter-av'),
+    });
   });
 
   await guard(R, '6.05', 'Data i avslått modul', async () => {
@@ -83,7 +81,7 @@ try {
 } catch (e) {
   R.step('X', 'Uventet feil i boten', { ok: false, actual: e?.stack || e });
 } finally {
-  for (const b of [E, L, A]) {
+  for (const b of [E, L]) {
     const errs = (b?.errors || []).filter((x) => !/listCalendarConnections|fetchExternalCalendarEvents|CORS policy/.test(x.message));
     if (errs.length) R.info('JS', `JS-feil hos ${b.name}`, errs.slice(0, 3).map((x) => x.message).join(' | '));
   }

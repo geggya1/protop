@@ -1,5 +1,6 @@
 /**
- * Sosial-bot (team B): chat mellom kolleger (ChatDock) med tre boter.
+ * Sosial-bot (team B): chat mellom kolleger (ChatDock).
+ * Maks to nettleserkontekster samtidig: fase A Eva (PC) + Kim (mobil), fase B Eva + Kari (PC).
  *
  *   eier     = Eva Eier (PC)
  *   kollega  = Kim Kollega (mobil)
@@ -22,15 +23,26 @@ const world = await setupWorld();
 const { people: P, companyId } = world;
 R.info(`Verden: ${world.companyName} (${companyId})`);
 
-const bots = await startBots(world, [['eier', 'desktop'], ['kollega', 'phone'], ['kollega2', 'desktop']], Bot);
-const { eier, kollega, kollega2 } = bots;
-R.bots = Object.values(bots);
+let { eier, kollega } = await startBots(world, [['eier', 'desktop'], ['kollega', 'phone']], Bot);
+let kollega2 = null;
+R.bots = [eier, kollega];
 const dmId = `dm_${[P.eier.uid, P.kollega.uid].sort().join('_')}`;
 
 async function openCompose(bot) {
   const label = bot.view === 'phone' ? 'Chat' : 'Ny chat';
   await tap(bot, bot.page.getByLabel(label, { exact: true }).last());
   await sleep(1200);
+}
+async function waitMsg(text) {
+  for (let i = 0; i < 20; i += 1) {
+    const chats = await listDocs(`families/${companyId}/chats`);
+    for (const c of chats) {
+      const msgs = await listDocs(`families/${companyId}/chats/${c.id}/messages`);
+      if (msgs.some((m) => m.text === text)) return true;
+    }
+    await sleep(1000);
+  }
+  return false;
 }
 async function threadOpen(bot) {
   return (await visibleIdx(bot.page.getByPlaceholder('Skriv en melding…'))).length > 0;
@@ -45,7 +57,7 @@ async function badgeAfter(bot, rowName, subtitle) {
 }
 
 try {
-  await Promise.all([go(eier, 'home'), go(kollega, 'home'), go(kollega2, 'home')]);
+  await Promise.all([go(eier, 'home'), go(kollega, 'home')]);
 
   await R.step('C-01', 'Eva åpner «Ny chat»', 'Kolleger (Kari, Kim) og «Alle ansatte» vises', async () => {
     await openCompose(eier);
@@ -130,36 +142,6 @@ try {
     return { ok: dotted.length === 0, actual: dotted.length ? `toppnivåfelt med punktum: ${dotted.map((k) => k.split('.')[0] + '.<uid>').join(', ')}; kart: ${JSON.stringify(Object.keys(d.unreadCounts || {}).length)} nøkkel(er)` : 'ok' };
   });
 
-  const m3 = `Til alle: HMS-møte fredag ${Date.now().toString().slice(-4)}`;
-  await R.step('C-10', '«Alle ansatte»: Eva skriver → Kim og Kari får det i sanntid', 'Kim (mobil) og Kari (PC) ser meldingen', async () => {
-    await closeDock(eier);
-    await openCompose(eier);
-    await tap(eier, 'Alle ansatte', { last: true });
-    await sleep(2000);
-    await eier.fill('Skriv en melding…', m3);
-    await tap(eier, eier.page.getByLabel('Send', { exact: true }).last());
-    const k = await seen(kollega, m3, 20000);
-    const ka = await seen(kollega2, m3, 20000);
-    const shot = await kollega2.shot('c10-alle-ansatte-kari');
-    await kollega.shot('c10-alle-ansatte-kim');
-    return { ok: k && ka, actual: `Kim=${k} Kari=${ka}`, shot };
-  }, { bot: kollega2 });
-
-  const m4 = `Kari her: jeg tar med kaffe ${Date.now().toString().slice(-4)}`;
-  await R.step('C-11', 'Kari svarer i «Alle ansatte» → Eva og Kim ser svaret', 'Svaret når begge i sanntid', async () => {
-    await dismissPopup(kollega2);
-    await openCompose(kollega2);
-    await tap(kollega2, 'Alle ansatte', { last: true });
-    await sleep(2000);
-    const hist = await seen(kollega2, m3, 8000);
-    await kollega2.fill('Skriv en melding…', m4);
-    await tap(kollega2, kollega2.page.getByLabel('Send', { exact: true }).last());
-    const e = await seen(eier, m4, 20000);
-    const k = await seen(kollega, m4, 20000);
-    const shot = await eier.shot('c11-svar-alle');
-    return { ok: hist && e && k, actual: `Kari ser historikk=${hist} Eva=${e} Kim=${k}`, shot };
-  }, { bot: eier });
-
   await R.step('C-12', 'Utenforstående kan ikke lese bedriftens chat via reglene', 'REST-lesing gir 403', async () => {
     const u = await asUser(P.utenfor);
     const r = await u.list(`families/${companyId}/chats/${dmId}/messages`);
@@ -185,6 +167,41 @@ try {
     R.ux('C-UX2', 'Sending uten nett gir beskjed', 'Tekst om at meldingen venter/ikke er sendt', hint, `lokal visning=${local}, ingen statusmerking`, shotOff);
     return { ok: delivered, actual: `vist lokalt=${local}, levert etter gjenoppkobling=${delivered}`, shot: shotOff };
   }, { bot: eier });
+  // ── Fase B: Kim ut, Kari (PC) inn ──
+  await kollega.stop();
+  ({ kollega2 } = await startBots(world, [['kollega2', 'desktop']], Bot));
+  R.bots = [eier, kollega2];
+  await go(kollega2, 'home');
+
+  const m3 = `Til alle: HMS-møte fredag ${Date.now().toString().slice(-4)}`;
+  await R.step('C-10', '«Alle ansatte»: Eva skriver → Kari ser det i sanntid, Kim får varsel', 'Kari (PC) ser meldingen; den er lagret og ligger i Kims innboks', async () => {
+    await closeDock(eier);
+    await openCompose(eier);
+    await tap(eier, 'Alle ansatte', { last: true });
+    await sleep(2000);
+    await eier.fill('Skriv en melding…', m3);
+    await tap(eier, eier.page.getByLabel('Send', { exact: true }).last());
+    const ka = await seen(kollega2, m3, 20000);
+    const shot = await kollega2.shot('c10-alle-ansatte-kari');
+    const kimMsg = await waitMsg(m3);
+    const kimNotif = (await notifs(listDocs, P.kollega.uid)).some((x) => x.body === m3);
+    return { ok: ka && kimMsg && kimNotif, actual: `Kari ser den=${ka}; meldingen lagret=${kimMsg}, varsel i Kims innboks=${kimNotif} (Kim er logget ut i fase B)`, shot };
+  }, { bot: kollega2 });
+
+  const m4 = `Kari her: jeg tar med kaffe ${Date.now().toString().slice(-4)}`;
+  await R.step('C-11', 'Kari svarer i «Alle ansatte» → Eva ser svaret', 'Svaret når Eva i sanntid', async () => {
+    await dismissPopup(kollega2);
+    await openCompose(kollega2);
+    await tap(kollega2, 'Alle ansatte', { last: true });
+    await sleep(2000);
+    const hist = await seen(kollega2, m3, 8000);
+    await kollega2.fill('Skriv en melding…', m4);
+    await tap(kollega2, kollega2.page.getByLabel('Send', { exact: true }).last());
+    const e = await seen(eier, m4, 20000);
+    const shot = await eier.shot('c11-svar-alle');
+    return { ok: hist && e, actual: `Kari ser historikk=${hist} Eva=${e}`, shot };
+  }, { bot: eier });
+
 } catch (err) {
   R.add('C-XX', 'Uventet stopp i skriptet', 'Ingen unntak', false, String(err?.stack || err).slice(0, 400));
 } finally {

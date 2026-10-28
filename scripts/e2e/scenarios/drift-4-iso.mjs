@@ -4,13 +4,15 @@
  *   E = eier/systemansvarlig (saksbehandling, dokument, revisjon, LGJ),
  *   P = prosjektleder med ISO-rolle (tiltaksansvarlig, utpekt godkjenner, vedtakseier).
  *
+ * Høyst to nettleserkontekster er åpne samtidig.
+ *
  *   NODE_PATH=$(npm root -g) node scripts/e2e/scenarios/drift-4-iso.mjs
  */
 import { join } from 'node:path';
 import { Bot, closeBrowser } from '../lib/bot.mjs';
 import { getDoc, listDocs } from '../lib/emu.mjs';
 import {
-  Report, seedCompany, stamp, dump, go, guard, newBot, fillAfterLabel, rest, patchAs, token, fieldsOf, OUT,
+  Report, seedCompany, stamp, dump, go, guard, newBot, fillAfterLabel, rest, patchAs, token, fieldsOf, clickLast, OUT,
 } from './drift-lib.mjs';
 
 const R = new Report('drift-4-iso');
@@ -156,13 +158,11 @@ try {
     R.check('4.04', 'Eier triagerer, beslutter tiltak, registrerer årsak og tiltak (oppgave til Per)', f?.state === 'tiltak' && f?.rootCause?.systemCause && (f?.actions || []).length === 1 && todos.some((t) => /Tiltak/.test(t.title || '')), {
       actual: `state=${f?.state} årsak=${!!f?.rootCause} tiltak=${(f?.actions || []).length} oppgaver=${todos.map((t) => t.title).join(' | ')}`, shot: await E.shot('sak-tiltak'),
     });
-    const early = await E.page.evaluate(() => {
-      const t = [...document.querySelectorAll('div')].find((e) => e.childElementCount === 0 && (e.innerText || '').trim() === 'Godkjenn lukking');
-      const btn = t?.closest('[role=button],button');
-      if (!btn) return null;
-      return !(btn.getAttribute('aria-disabled') === 'true' || btn.hasAttribute('disabled'));
-    });
-    R.check('4.04a', 'Lukking er sperret før tiltak er kontrollert og effekt verifisert', !early, { actual: early ? 'knappen er aktiv' : 'knappen er sperret' });
+    // Trykk «Godkjenn lukking» før kontroll og effekt: saken skal ikke lukkes.
+    await E.page.getByText('Godkjenn lukking', { exact: true }).first().click({ force: true }).catch(() => {});
+    await sleep(2500);
+    const early = (await findings()).find((x) => x.title === TITLE)?.state === 'lukket';
+    R.check('4.04a', 'Lukking er sperret før tiltak er kontrollert og effekt verifisert', !early, { actual: early ? 'saken ble lukket' : 'trykk på «Godkjenn lukking» lukker ikke saken' });
     const tokB = await token(S.users.ansatt2);
     const res = await patchAs(tokB, `families/${C}/isoFindings/${f.id}`, { state: 'lukket', closeNote: 'lukker selv', closedByUid: S.users.ansatt2.uid });
     R.check('4.04b', 'Reglene nekter melderen (ansatt) å lukke saken selv (REST)', res.status === 403, { expected: '403', actual: `HTTP ${res.status}` });
@@ -237,6 +237,8 @@ try {
     });
   });
 
+  // Høyst to nettleserkontekster samtidig: prosjektlederen logger ut mens den ansatte leser.
+  if (P) { await P.stop(); P = null; }
   await guard(R, '4.08', 'Lesebekreftelse', async () => {
     const A = await newBot(Bot, 'A-ansatt', S.users.ansatt, { outDir: SHOTS });
     try {
@@ -249,7 +251,11 @@ try {
     const d = (await documents()).find((x) => x.title === DOC);
     R.check('4.08', 'Ansatt bekrefter lest (readAcks)', (d?.readAcks || []).some((a) => a.uid === S.users.ansatt.uid), { actual: (d?.readAcks || []).map((a) => a.name).join(',') || 'ingen', shot: await A.shot('lest') });
     } finally { await A.stop(); }
+    // ISO-data lastes én gang: last siden på nytt for å se kvitteringen (jf. 4.05a).
+    await E.page.reload();
+    await E.waitShell();
     await go(E, 'iso', 'dokumenter', 4000);
+    await E.page.getByText(DOC, { exact: false }).first().waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
     await E.click(DOC, { exact: false });
     await E.page.waitForTimeout(2500);
     const t = await E.visibleText();
@@ -266,9 +272,13 @@ try {
     await fillAfterLabel(E, 'Kriterier', 'ISO 45001 kap. 8');
     await pickPerson(E, 'Per Prosjektleder', 'last');
     await E.page.locator('input[type=date]').last().fill('2026-10-27');
-    await E.click('Lagre');
+    await E.shot('revisjon-skjema');
+    await clickLast(E, 'Lagre');
     await sleep(3500);
-    await E.click('Revisjon drift-test', { exact: false });
+    const rec = (await records()).find((x) => x.title === 'Revisjon drift-test');
+    if (!rec) throw new Error(`revisjonen ble ikke lagret (${(await E.visibleText()).match(/[^\n]*(må|påkrevd|Fyll)[^\n]*/)?.[0] || 'ingen melding'})`);
+    await E.page.getByText(`${rec.number} · Revisjon drift-test`, { exact: false }).first().waitFor({ state: 'visible', timeout: 30000 });
+    await E.click(`${rec.number} · Revisjon drift-test`, { exact: false });
     await E.page.waitForTimeout(2000);
     await E.click('Godkjenn rapport (låser)');
     await sleep(3000);
@@ -291,7 +301,7 @@ try {
     await E.page.locator('input[type=date]').last().fill('2026-10-27');
     await fillAfterLabel(E, 'Deltakere', 'Eva Eier, Per Prosjektleder');
     await fillAfterLabel(E, 'Vurdering av systemets egnethet, tilstrekkelighet og effektivitet', 'Systemet er egnet.');
-    await E.click('Lagre');
+    await clickLast(E, 'Lagre');
     await sleep(3500);
     await E.click('LGJ drift-test', { exact: false });
     await E.page.waitForTimeout(2000);
@@ -306,6 +316,7 @@ try {
     await sleep(3000);
     let r = (await records()).find((x) => x.title === 'LGJ drift-test');
     R.check('4.10a', 'LGJ med vedtak godkjennes og låses', r?.locked === true && (r?.decisions || []).length === 1, { actual: `state=${r?.state} locked=${r?.locked} vedtak=${(r?.decisions || []).length}`, shot: await E.shot('lgj-godkjent') });
+    P = await newBot(Bot, 'P-prosjektleder', S.users.pl, { outDir: SHOTS });
     await go(P, 'iso', 'ledelse', 5000);
     await P.page.getByText('LGJ drift-test', { exact: false }).first().waitFor({ state: 'visible', timeout: 60000 }).catch(() => {});
     await P.click('LGJ drift-test', { exact: false });
@@ -316,7 +327,7 @@ try {
     const t = await P.visibleText();
     dump('4-10-lgj', r);
     R.check('4.10', 'ISO-08: Vedtakseier (Per, ISO-rolle uten godkjennerrolle) kan markere vedtaket utført på godkjent LGJ', r?.decisions?.[0]?.done === true, {
-      expected: 'decision.done = true', actual: `done=${r?.decisions?.[0]?.done}; feilmelding vist: ${/tilgang|Kunne ikke|låst/i.test(t.slice(t.indexOf('Vedtak'))) ? 'ja' : 'nei'}`,
+      expected: 'decision.done = true', actual: `done=${r?.decisions?.[0]?.done}; feilmelding vist: ${/tilgang|Kunne ikke|nektet|permission|endret av/i.test(t.slice(t.indexOf('Vedtak'))) ? 'ja' : 'nei (knappen gjør ingenting synlig)'}`,
       shot: await P.shot('vedtak-utfort'),
     });
   });

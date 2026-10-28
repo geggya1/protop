@@ -24,7 +24,7 @@ import {
   authUserByEmail, callFn, createAuthUser, getDoc, idToken, linksIn, listDocs, mailsTo, putDoc, waitFor,
 } from '../lib/emu.mjs';
 import {
-  OUT_ROOT, Steps, addInvitePerson, createCompanyUI, loginAndSettle, loginUI, openInvitePanel, rget, rpatch,
+  OUT_ROOT, Steps, addInvitePerson, memGate, createCompanyUI, loginAndSettle, loginUI, openInvitePanel, rget, rpatch,
   sendQueued, skipTour, tap, tsId, waitShell, waitText,
 } from './ansatt-lib.mjs';
 
@@ -111,6 +111,7 @@ async function owner() {
 /** Kjører ett kanttilfelle. Krasjer en nettleser, prøves det én gang til med ny økt. */
 async function runTest(name, fn) {
   for (let i = 0; i < 2; i += 1) {
+    await memGate();
     try {
       await fn();
       return;

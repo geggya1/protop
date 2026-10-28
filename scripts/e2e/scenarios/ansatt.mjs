@@ -22,7 +22,7 @@ import {
   authUserByEmail, callFn, createAuthUser, getDoc, idToken, linksIn, listDocs, mailsTo, putDoc, waitFor,
 } from '../lib/emu.mjs';
 import {
-  OUT_ROOT, Steps, allowed, denied, fillId, localLink, loginUI, pageAccess, rarray, rget, rlist, rpatch,
+  OUT_ROOT, Steps, allowed, checkConsent, memGate, denied, fillId, localLink, loginUI, pageAccess, rarray, rget, rlist, rpatch,
   skipTour, tap, tapId, tsId, waitShell, waitText,
 } from './ansatt-lib.mjs';
 
@@ -65,6 +65,10 @@ async function closeBot(key) {
   await bots[key].stop();
   delete bots[key];
 }
+/** Maks to nettlesere samtidig (lite minne på testmaskinen): lukker alle andre enn de nevnte. */
+async function only(...keep) {
+  for (const k of Object.keys(bots)) if (!keep.includes(k)) await closeBot(k);
+}
 async function shot(b, label) {
   return b.shot(label);
 }
@@ -98,6 +102,33 @@ async function loginAndSettle(b, { name } = {}) {
   return text;
 }
 
+/**
+ * Hva skjer etter at bekreftelseslenken er åpnet i samme nettleser: 'profil' (riktig), 'login'
+ * (sendt ut til innlogging) eller 'fast' (står på «Bekreft e-posten din»). Boten kommer seg videre
+ * (logger inn / laster på nytt), slik en bruker måtte gjort.
+ */
+async function afterVerify(b, steps, { overlayOk = false } = {}) {
+  const until = Date.now() + 45000;
+  let t = '';
+  while (Date.now() < until) {
+    t = await b.visibleText().catch(() => '');
+    if (/Velkommen/.test(t) || (overlayOk && /Bedriftsinvitasjon/i.test(t))) return 'profil';
+    if (/Har du ikke konto\?/.test(t)) {
+      steps.push('Logg inn på nytt');
+      await loginUI(b);
+      return 'login';
+    }
+    await b.page.waitForTimeout(1500);
+  }
+  if (/Bekreft e-posten din/.test(t)) {
+    steps.push('Last siden på nytt');
+    await b.page.goto(`${BASE}/hjem`, { waitUntil: 'domcontentloaded' });
+    await b.page.waitForTimeout(5000);
+    return 'fast';
+  }
+  return `ukjent: ${t.split('\n').filter(Boolean).slice(0, 2).join(' | ')}`;
+}
+
 /* ════════════════════ Fase 1: Eva registrerer seg og oppretter bedriften ════════════════════ */
 async function phase1() {
   console.log('\n── Fase 1: registrering, e-postbekreftelse og ny bedrift ──');
@@ -124,7 +155,7 @@ async function phase1() {
   S.check(blocked, 'R2 Registrering uten samtykke stoppes', 'Melding «Huk av for å gå videre», ingen konto', blocked ? 'Stoppet med melding' : 'Gikk videre uten samtykke', { shot: await shot(b, 'uten-samtykke') });
   S.check(!(await authUserByEmail(st.eier.email)), 'R3 Ingen konto opprettet uten samtykke', 'Ingen Auth-bruker', (await authUserByEmail(st.eier.email)) ? 'Konto finnes' : 'Ingen konto');
 
-  await tap(b, 'Jeg har lest og forstått', { exact: false });
+  await checkConsent(b);
   steps.push('Kryss av samtykke');
   await tap(b, 'Registrer');
   steps.push('Trykk «Registrer»');
@@ -145,20 +176,14 @@ async function phase1() {
     await b.page.goto(link, { waitUntil: 'domcontentloaded' });
     steps.push('Åpne lenken i e-posten');
     const done = await waitText(b, /E-post bekreftet|Velkommen/, 30000);
-    S.check(!!done, 'R8 Lenken bekrefter e-posten og fører videre', '«E-post bekreftet» og så profilsteget', done ? done.split('\n').filter(Boolean).slice(0, 3).join(' | ') : (await b.visibleText()).slice(0, 200), { shot: await shot(b, 'etter-lenke') });
+    S.info('R8 Første skjerm etter lenken', done ? done.split('\n').filter(Boolean).slice(0, 3).join(' | ') : (await b.visibleText()).split('\n').filter(Boolean).slice(0, 3).join(' | '), await shot(b, 'etter-lenke'));
   }
   const auth = await authUserByEmail(st.eier.email);
   st.eier.uid = auth?.localId;
   S.check(auth?.emailVerified === true, 'R9 Auth: emailVerified=true etter lenken', 'emailVerified true', `emailVerified=${auth?.emailVerified}`);
-
-  // Etter «E-post bekreftet» skal personen videre til profilsteget, ikke ut til innlogging.
-  const where = await waitText(b, /Velkommen|Har du ikke konto\?/, 30000) || '';
-  const toLogin = /Har du ikke konto\?/.test(where) && !/Velkommen/.test(where);
-  S.check(!toLogin, 'R8b Etter bekreftelsen går innlogget bruker videre (ikke til innlogging)', 'Profilsteget «Velkommen»', toLogin ? 'Havnet på «Logg inn» og må logge inn på nytt' : 'Profilsteget', { id: 'ANSATT-06', sev: 'Lav', shot: toLogin ? await shot(b, 'etter-bekreftelse-til-login') : '' });
-  if (toLogin) {
-    steps.push('Logg inn på nytt');
-    await loginUI(b);
-  }
+  // Etter «E-post bekreftet» skal innlogget bruker videre til profilsteget.
+  const outcome = await afterVerify(b, steps);
+  S.check(outcome === 'profil', 'R8b Bekreftelseslenken i samme nettleser fører videre til profilsteget', 'Profilsteget «Velkommen» innen 45 s', outcome === 'login' ? 'Havnet på «Logg inn» og måtte logge inn på nytt' : (outcome === 'fast' ? 'Står fast på «Bekreft e-posten din / Send på nytt» selv om e-posten er bekreftet; måtte laste siden på nytt' : outcome), { id: 'ANSATT-06', sev: 'Middels', shot: await shot(b, `etter-bekreftelse-${outcome}`) });
   const prof = await waitText(b, /Velkommen/, 30000);
   if (prof) {
     const nameVal = await b.page.locator('input').first().inputValue().catch(() => '');
@@ -295,6 +320,12 @@ async function phase2() {
   st.ola.uid = await createAuthUser({ email: st.ola.email, password: PW, name: st.ola.name });
   st.per.uid = await createAuthUser({ email: st.per.email, password: PW, name: st.per.name });
   saveState();
+  // Per har logget inn én gang før (profilsteget), men har ingen bedrift.
+  const pp = await bot('per', 'phone');
+  await loginAndSettle(pp, { name: st.per.name });
+  await waitShell(pp).catch(() => {});
+  S.info('I0 Per har logget inn én gang (profil og personlig arbeidsområde)', (await pp.visibleText()).split('\n').filter(Boolean).slice(0, 2).join(' | '), await shot(pp, 'per-forste-innlogging'));
+  await closeBot('per');
   const o = await bot('ola', 'desktop');
   await loginAndSettle(o, { name: st.ola.name });
   await waitShell(o);
@@ -310,12 +341,6 @@ async function phase2() {
     if (f?.type === 'organization' && f?.name === st.companyB) st.companyBId = fid;
   }
   saveState();
-  // Per har logget inn én gang før (profilsteget), men har ingen bedrift.
-  const pp = await bot('per', 'phone');
-  await loginAndSettle(pp, { name: st.per.name });
-  await waitShell(pp).catch(() => {});
-  S.info('I0 Per har logget inn én gang (profil og personlig arbeidsområde)', (await pp.visibleText()).split('\n').filter(Boolean).slice(0, 2).join(' | '), await shot(pp, 'per-forste-innlogging'));
-  await closeBot('per');
   S.check(!!st.companyBId, 'I1 Ola har egen bedrift B fra før', 'Bedrift B finnes med Ola som eier', st.companyBId || 'mangler', { shot: await shot(o, 'ola-bedrift-b') });
 
   // Eva inviterer tre personer med ulike nivåer.
@@ -351,6 +376,7 @@ async function phase2() {
   const perMail = await inviteMail(st.per.email);
   st.per.link = mailCheck('I7', 'Per (eksisterende)', perMail, { existing: true });
   saveState();
+  await closeBot('ola');
   if (olaMail) {
     S.check(/godta eller avslå/i.test(olaMail.text) && /allerede en ProTop-konto/i.test(olaMail.text), 'I8 Eksisterende bruker får «godta eller avslå»-tekst', 'Tekst om at hen har konto og må godta', olaMail.text.split('\n').filter(Boolean).slice(1, 3).join(' '));
   }
@@ -363,6 +389,7 @@ async function phase2() {
 /* ════════════════════ Fase 3: Nina (ny bruker, telefon) registrerer seg via lenken ════════════════════ */
 async function phase3() {
   console.log('\n── Fase 3: Nina registrerer seg via invitasjonslenken og godtar ──');
+  await only('eier');
   const n = await bot('nina', 'phone');
   const nSteps = [];
   const regUrl = localLink(st.nina.link || `https://www.protop.no/register?email=${encodeURIComponent(st.nina.email)}&familyId=${st.companyId}`);
@@ -379,7 +406,7 @@ async function phase3() {
   await n.fill('Ditt navn', st.nina.name);
   await n.fill('Minst 8 tegn', PW);
   nSteps.push('Fyll navn', 'Fyll passord');
-  await tap(n, 'Jeg har lest og forstått', { exact: false });
+  await checkConsent(n);
   nSteps.push('Kryss av samtykke');
   await tap(n, 'Registrer og se invitasjonen');
   nSteps.push('Trykk «Registrer og se invitasjonen»');
@@ -393,6 +420,8 @@ async function phase3() {
   }
   st.nina.uid = (await authUserByEmail(st.nina.email))?.localId;
   saveState();
+  const nOut = await afterVerify(n, nSteps, { overlayOk: true });
+  S.check(nOut === 'profil', 'I11b Bekreftelseslenken i samme nettleser fører Nina videre', 'Profilsteget eller invitasjonsvinduet innen 45 s', nOut === 'login' ? 'Havnet på «Logg inn»' : (nOut === 'fast' ? 'Står fast på «Bekreft e-posten din»; måtte laste siden på nytt' : nOut), { id: 'ANSATT-06', sev: 'Middels', shot: await shot(n, `nina-etter-bekreftelse-${nOut}`) });
   // Profilsteget og invitasjonsvinduet kommer om hverandre: vinduet kan legge seg over «Velkommen».
   let t = '';
   let sawBoth = false;
@@ -436,8 +465,12 @@ async function phase3() {
   S.check(denied(rPol0.status), 'I31 Regler (bedrift uten ISO): Ansatt kan ikke skrive tilgangsmatrisen', '403', `${rPol0.status} (accessAcl-dokumenter i bedriften: ${aclList.length})`, { id: 'ANSATT-13', sev: 'Kritisk', ref: 'FL-02' });
   if (allowed(rPol0.status)) {
     const pol = (await company())?.company?.accessPolicy;
-    S.info('I31b Etter Ninas skriving', `company.accessPolicy=${JSON.stringify(pol).slice(0, 160)} – tilbakestilles`);
+    await n.page.waitForTimeout(3000);
+    const tilgang = await pageAccess(n, 'selskap', 'tilgang');
+    const okonomi = await pageAccess(n, 'okonomi', 'faktura');
+    S.info('I31b Virkning i appen for Nina etter egen skriving', `company.accessPolicy=${JSON.stringify(pol).slice(0, 140)}; Tilgangsstyring: ${tilgang}, Økonomi – Faktura: ${okonomi}`, await shot(n, 'nina-egen-tilgangsmatrise'));
     await rpatch(`families/${st.companyId}`, 'owner', { company: { accessPolicy: {} } });
+    await n.open('selskap');
   }
   const rMem0 = await rarray(`families/${st.companyId}`, ntk, 'members', ['fremmed-test-uid']);
   S.check(denied(rMem0.status), 'I32 Regler (bedrift uten ISO): Ansatt kan ikke legge en fremmed inn i members', '403', String(rMem0.status), { id: 'ANSATT-13', sev: 'Kritisk', ref: 'FL-02' });
@@ -464,13 +497,14 @@ async function ensure(key, view) {
 /* ════════════════════ Fase 4: Ola (har konto og egen bedrift) godtar og bytter bedrift ════════════════════ */
 async function phase4() {
   console.log('\n── Fase 4: Ola godtar og bytter mellom bedriftene ──');
+  await only('eier');
   const o = await ensure('ola', 'desktop');
   const olaMember = ((await company()).members || []).includes(st.ola.uid);
   if (olaMember) S.info('I18–I22', 'Ola har allerede godtatt i en tidligere kjøring (gjenopptatt)');
   else {
     // Ola er innlogget i bedrift B. Invitasjonsvinduet kommer i økten.
     const oOverlay = await waitText(o, /Bedriftsinvitasjon/i, 30000);
-    S.check(!!oOverlay && oOverlay.includes(st.company), 'I18 Ola får invitasjonsvinduet i økten han har åpen', '«Bedriftsinvitasjon» med bedrift A', oOverlay ? 'Vist' : 'Ikke vist', { shot: await shot(o, 'ola-invitasjon-vindu') });
+    S.check(!!oOverlay && oOverlay.includes(st.company), 'I18 Ola får invitasjonsvinduet når han logger inn', '«Bedriftsinvitasjon» med bedrift A', oOverlay ? 'Vist' : 'Ikke vist', { shot: await shot(o, 'ola-invitasjon-vindu') });
     // Lenken i e-posten (family-invite) skal føre til samme invitasjon.
     if (st.ola.link) {
       await o.page.goto(localLink(st.ola.link), { waitUntil: 'domcontentloaded' });
@@ -528,7 +562,7 @@ async function phase4() {
 /* ════════════════════ Fase 5: Per avslår ════════════════════ */
 async function phase5() {
   console.log('\n── Fase 5: Per avslår ──');
-  await closeBot('nina');
+  await only('eier');
   const b = await ensureOwner();
   const p = await bot('per', 'phone');
   await loginAndSettle(p, { name: st.per.name });
@@ -556,6 +590,7 @@ async function phase5() {
 /* ════════════════════ Fase 5b: Eva inviterer Per på nytt, Per godtar ════════════════════ */
 async function phase5b() {
   console.log('\n── Fase 5b: ny invitasjon etter avslag – Per godtar ──');
+  await only('eier', 'per');
   const b = await ensureOwner();
   if (((await company()).members || []).includes(st.per.uid)) {
     S.info('P1–P4', 'Per er allerede medlem (gjenopptatt kjøring)');
@@ -564,9 +599,15 @@ async function phase5b() {
   await b.open('ansatte');
   await tap(b, 'Ny medarbeider').catch(() => {});
   await tap(b, 'Inviter brukere');
-  await waitText(b, /Avslått/, 15000);
-  await tap(b, 'Inviter på nytt');
-  const re = await waitText(b, /Invitasjonen er sendt|Kunne ikke|ikke sendt/, 40000) || '';
+  const perRow = await employeeOf('per');
+  if (perRow?.invite?.status === 'queued') {
+    // Gjenopptatt: en tidligere kjøring la Per i køen, men ble avbrutt før sending.
+    await tapId(b, 'employee-invite-send');
+  } else {
+    await waitText(b, /Avslått/, 15000);
+    await tap(b, 'Inviter på nytt');
+  }
+  const re = await waitText(b, /Invitasjonen er sendt|invitasjoner er sendt|Kunne ikke|ikke sendt/, 40000) || '';
   S.check(/Invitasjonen er sendt/.test(re), 'P1 «Inviter på nytt» etter avslag sender ny invitasjon', 'Melding «Invitasjonen er sendt»', (re.match(/[^\n]*(Invitasjonen er sendt|Kunne ikke|ikke sendt)[^\n]*/) || ['(ingen melding)'])[0], { shot: await shot(b, 'per-inviter-pa-nytt') });
   const p = await ensure('per', 'phone');
   const ov = await waitText(p, /Bedriftsinvitasjon/i, 40000);
@@ -620,12 +661,14 @@ async function accessMatrix(prefix, key, b, levelId) {
 
 async function phase6() {
   console.log('\n── Fase 6: tilgang per nivå i UI og i reglene ──');
+  await only();
   const n = await ensure('nina', 'phone');
   await accessMatrix('A1', 'nina', n, 'ansatt');
   // Sperret side: hva står det?
   await pageAccess(n, 'hr', 'lonn');
   const deniedTxt = await n.visibleText();
   S.info('A2 Teksten Nina møter på en sperret side', (deniedTxt.match(/Ingen tilgang[\s\S]{0,140}/) || ['?'])[0].replace(/\n/g, ' '), await shot(n, 'nina-sperret-hr'));
+  await only();
   const o = await ensure('ola', 'desktop');
   await accessMatrix('A3', 'ola', o, 'administrator');
 
@@ -665,6 +708,7 @@ async function phase6() {
   const rMem = await rarray(`families/${st.companyId}`, nt, 'members', ['fremmed-test-uid']);
   S.check(denied(rMem.status), 'A12 Regler: Ansatt kan ikke legge en fremmed inn i members', '403', String(rMem.status), { id: 'ANSATT-13', sev: 'Kritisk', ref: 'FL-02' });
   if (allowed(rMem.status)) await rarray(`families/${st.companyId}`, 'owner', 'members', ['fremmed-test-uid'], { remove: true });
+  await only();
   saveState();
 }
 
@@ -678,6 +722,7 @@ async function toggleLevel(b, empId, levelId) {
 
 async function phase7() {
   console.log('\n── Fase 7: nivåbytte (admin → ansatt, ansatt → admin) ──');
+  await only('eier');
   const b = await ensureOwner();
   const ola = await employeeOf('ola');
   const nina = await employeeOf('nina');
@@ -698,10 +743,12 @@ async function phase7() {
   const comp = await company();
   S.check(!(comp.adminUids || []).includes(st.ola.uid), 'N2 Nedgradert Ola fjernes fra adminUids', 'Ola ikke i adminUids', `Ola i adminUids=${(comp.adminUids || []).includes(st.ola.uid)}`, { id: 'ANSATT-14', sev: 'Høy', ref: 'FL-08' });
   S.check((comp.adminUids || []).includes(st.nina.uid), 'N3 Oppgradert Nina legges i adminUids', 'Nina i adminUids', `Nina i adminUids=${(comp.adminUids || []).includes(st.nina.uid)}`, { id: 'ANSATT-14', sev: 'Høy', ref: 'FL-08' });
-  // UI følger nivået (åpne økter).
+  // UI følger nivået (ny økt for hver, maks to nettlesere).
+  await only('eier');
   const o = await ensure('ola', 'desktop');
   await o.page.waitForTimeout(3000);
   await accessMatrix('N4', 'ola', o, 'ansatt');
+  await only('eier');
   const n = await ensure('nina', 'phone');
   await n.page.waitForTimeout(3000);
   await accessMatrix('N5', 'nina', n, 'administrator');
@@ -763,6 +810,7 @@ async function openPerson(b, empId, name = '') {
 
 async function phase8() {
   console.log('\n── Fase 8: avslutning (deaktiver, avslutt konto, sluttdato, papirkurv, sletting) ──');
+  await only('eier', 'nina');
   const b = await ensureOwner();
   const nina = await employeeOf('nina');
   // a) Deaktiver Nina (nå Administrator) under Innstillinger → Brukerkonto.
@@ -818,6 +866,7 @@ async function phase8() {
 /* ════════════════════ Fase 9: papirkurv og permanent sletting (FL-03) ════════════════════ */
 async function phase9() {
   console.log('\n── Fase 9: papirkurv og permanent sletting ──');
+  await only('eier', 'nina');
   const b = await ensureOwner();
   void b;
   const nina = await employeeOf('nina');
@@ -873,6 +922,7 @@ async function phase9() {
 /* ════════════════════ Fase 10: «Avslutt medarbeiderkonto» (FL-18) ════════════════════ */
 async function phase10() {
   console.log('\n── Fase 10: Avslutt medarbeiderkonto ──');
+  await only('eier');
   const b = await ensureOwner();
   await closeBot('nina');
   const ola = await employeeOf('ola');
@@ -902,6 +952,7 @@ async function phase10() {
 /* ════════════════════ Fase 11: «Kan logge inn» og sluttdato (FL-04, FL-18) ════════════════════ */
 async function phase11() {
   console.log('\n── Fase 11: Kan logge inn og Ansatt til ──');
+  await only('eier');
   const b = await ensureOwner();
   const per = await employeeOf('per');
   if (per?.personUid) {
@@ -930,6 +981,7 @@ try {
   for (let i = 0; i < PHASES.length; i += 1) {
     if (!runPhase(i + 1)) continue;
     try {
+      await memGate();
       await PHASES[i]();
     } catch (err) {
       S.record({ step: `Fase ${PHASES[i].name} stoppet`, expected: 'Fasen kjører ferdig', actual: String(err?.stack || err).slice(0, 500), ok: false, kind: 'bot' });

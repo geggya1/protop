@@ -1,5 +1,7 @@
 /**
- * Sosial-bot (team B): Venner og venne-chat med tre boter mot hverandre.
+ * Sosial-bot (team B): Venner og venne-chat med tre brukere mot hverandre.
+ * Maskinen har lite minne, så maks to nettleserkontekster er åpne samtidig:
+ *   fase A: Eva (PC) + Ulf (PC) · fase B: Kim (mobil) + Ulf (PC) · fase C: Eva (PC) + ny bruker (mobil)
  *
  *   eier    = Eva Eier (PC)       – Sosial Bygg AS
  *   kollega = Kim Kollega (mobil) – Sosial Bygg AS
@@ -27,9 +29,11 @@ const world = await setupWorld();
 const { people: P } = world;
 R.info(`Verden: ${world.companyName} (${world.companyId}), utenfor: ${world.otherCompanyId}`);
 
-const bots = await startBots(world, [['eier', 'desktop'], ['kollega', 'phone'], ['utenfor', 'desktop']], Bot);
-const { eier, kollega, utenfor } = bots;
-R.bots = Object.values(bots);
+const allBots = [];
+let { eier, utenfor } = await startBots(world, [['eier', 'desktop'], ['utenfor', 'desktop']], Bot);
+let kollega = null;
+allBots.push(eier, utenfor);
+R.bots = [eier, utenfor];
 const ID_FIELD = '@brukernavn, e-post eller +47…';
 const chatIdOf = (a, b) => `dm_${[a, b].sort().join('_')}`;
 
@@ -55,7 +59,7 @@ async function sendRequest(bot, value) {
 }
 
 try {
-  await Promise.all([go(eier, 'more', 'friends'), go(kollega, 'more', 'friends'), go(utenfor, 'more', 'friends')]);
+  await Promise.all([go(eier, 'more', 'friends'), go(utenfor, 'more', 'friends')]);
 
   // ── UX: familie-rester på Venner-siden ──
   {
@@ -140,6 +144,12 @@ try {
     const btn = await seen(utenfor, 'Godta', 5000);
     const shot = await utenfor.shot('v07b-epostlenke');
     const t = await utenfor.visibleText();
+    const back = (await visibleIdx(utenfor.page.getByText(/Tilbake|Lukk|Gå til venner/))).length > 0;
+    R.ux('V-UX6', 'E-postlenken (/friend-invite) har vei tilbake til appen', 'Tilbake-/lukk-knapp på siden', back, 'Fullskjerm med bare Godta/Avslå, ingen tilbake-knapp eller meny', shot);
+    // Siden ligger utenfor skallet (openShell flytter ikke derfra): last appen på nytt.
+    await utenfor.goto('/');
+    await utenfor.waitShell();
+    await clearOverlays(utenfor);
     await go(utenfor, 'more', 'friends');
     return { ok: who && btn && !/Fant ikke/.test(t), actual: `${u.pathname}: Eva vist=${who} Godta-knapp=${btn}${/Fant ikke/.test(t) ? ' («Fant ikke …»)' : ''}`, shot };
   }, { bot: utenfor });
@@ -185,11 +195,21 @@ try {
     return { ok: ok && img, actual: `brukernavn=${ok} qr=${img}`, shot };
   }, { bot: utenfor });
 
+  // ── Fase B: Eva ut, Kim (mobil) inn ──
+  await eier.stop();
+  ({ kollega } = await startBots(world, [['kollega', 'phone']], Bot));
+  allBots.push(kollega);
+  R.bots = [kollega, utenfor];
+
   await R.step('V-11', 'Kim (mobil) åpner QR-lenken /add-friend/<brukernavn>', '«Legg til venn» åpnes med @brukernavn utfylt', async () => {
     await kollega.page.goto(`${BASE}/add-friend/${P.utenfor.username}`, { waitUntil: 'domcontentloaded', timeout: 300000 });
     await kollega.waitShell();
-    await clearOverlays(kollega);
-    const open = await seen(kollega, 'QR-koden pekte på', 15000);
+    let open = false;
+    for (let i = 0; i < 3 && !open; i += 1) {
+      await sleep(2000);
+      await clearOverlays(kollega);
+      open = await seen(kollega, 'QR-koden pekte på', 8000);
+    }
     const val = await kollega.page.getByPlaceholder(ID_FIELD).inputValue().catch(() => '');
     const shot = await kollega.shot('v11-qr-lenke');
     const t = await kollega.visibleText();
@@ -268,7 +288,7 @@ try {
 
   await R.step('V-16b', 'FL-14: venne-melding uten nett på mobil gir synlig feilmelding', '«Kunne ikke sende» eller ventende-merking vises', async () => {
     await openFriendThread(kollega, 'Ulf Utenfor');
-    const offMsg = `Uten nett ${Date.now().toString().slice(-4)}`;
+    const offMsg = `Offline-test ${Date.now().toString().slice(-4)}`;
     await kollega.ctx.setOffline(true);
     kollega.dialogs.length = 0;
     await kollega.fill('Skriv en melding…', offMsg);
@@ -363,8 +383,10 @@ try {
   await closeDock(kollega);
 
   await R.step('V-23', 'FL-25: tjenestefeil ved «Godta» (simulert 500) på mobil', 'Forståelig norsk feilmelding, ikke regelfeil fra reserveløsningen', async () => {
-    await sendRequest(eier, P.kollega.email);
-    await tap(eier, 'OK').catch(() => {});
+    await closeDock(utenfor);
+    await go(utenfor, 'more', 'friends');
+    await sendRequest(utenfor, P.kollega.email);
+    await tap(utenfor, 'OK').catch(() => {});
     await seen(kollega, 'Vil du godta invitasjonen?', 20000);
     await kollega.page.route('**/respondFriendRequestAdmin', (route) => route.fulfill({
       status: 500, contentType: 'application/json', body: JSON.stringify({ error: { status: 'UNAVAILABLE', message: 'Tjenesten er midlertidig nede (test)' } }),
@@ -381,7 +403,14 @@ try {
   }, { bot: kollega });
   await tap(kollega, 'Avslå', { last: true }).catch(() => {});
 
-  // ── V-24..25: ny e-post → registrering via lenken ──
+  // ── Fase C: Kim og Ulf ut, Eva inn (+ ny bruker i V-25) ──
+  await kollega.stop();
+  await utenfor.stop();
+  ({ eier } = await startBots(world, [['eier', 'desktop']], Bot));
+  allBots.push(eier);
+  R.bots = [eier];
+
+  // ── V-24..26: ny e-post → registrering via lenken ──
   const nyEmail = `sosial-${world.tag}-ny@protop.test`;
   let regLink = null;
   await R.step('V-24', 'Eva inviterer en ny e-post (ikke bruker)', '«Invitasjon sendt» og e-post med registreringslenke i fangeren', async () => {
@@ -398,8 +427,6 @@ try {
   let ny = null;
   await R.step('V-25', 'Lenken i invitasjonen åpner registrering med invitasjonen', 'E-post forhåndsutfylt og boksen «Venneinvitasjon» vises', async () => {
     if (!regLink) return { ok: false, actual: 'mangler lenke' };
-    await utenfor.stop();
-    R.bots = R.bots.filter((b) => b !== utenfor);
     ny = await new Bot('ny', { email: nyEmail, password: P.eier.password, view: 'phone', outDir: OUT }).start();
     const u = new URL(regLink);
     await ny.page.goto(`${BASE}${u.pathname}${u.search}`, { waitUntil: 'domcontentloaded', timeout: 300000 });
@@ -435,7 +462,7 @@ try {
 } catch (err) {
   R.add('V-XX', 'Uventet stopp i skriptet', 'Ingen unntak', false, String(err?.stack || err).slice(0, 400));
 } finally {
-  for (const b of Object.values(bots)) {
+  for (const b of allBots) {
     if (b.errors.length) R.info(`${b.name}: ${b.errors.length} JS-/konsollfeil, første: ${b.errors.find((e) => !/CORS|listCalendarConnections|fetchExternalCalendarEvents/.test(e.message))?.message || '(bare kalender-CORS i emulator)'}`);
   }
   await closeBrowser();

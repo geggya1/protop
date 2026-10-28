@@ -10,7 +10,6 @@ import ChatDockHost from './ChatDock';
 import InviteRespondOverlay from './InviteRespondOverlay';
 import PendingAddFriendPrompt from './PendingAddFriendPrompt';
 import FamilySetupNudgeModal from './FamilySetupNudgeModal';
-import CompanyOfferModal from './CompanyOfferModal';
 import MajorUpdateModal from './MajorUpdateModal';
 import LegalUpdateNotice from './LegalUpdateNotice';
 import {
@@ -90,7 +89,6 @@ export default function SessionOverlays() {
       />
       <BirthdayPrepReminderModal enabled={false} />
       <FamilySetupNudgeModal enabled={false} />
-      <CompanyOfferModal enabled={invitesEnabled && !hasPendingInvites} />
       <MajorUpdateModal
         enabled={!loading && invitesEnabled && !hasPendingInvites}
       />

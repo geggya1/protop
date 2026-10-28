@@ -68,6 +68,7 @@ export default function WidgetBoard({
   onCycleSize,
   onResetWidgets,
   onDraggingChange,
+  topSlot = null,
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const look = layout?.look || 'oversikt';
@@ -112,6 +113,9 @@ export default function WidgetBoard({
       ) : null)}
 
       {immersive ? null : <HomeWeekStrip onPressDay={handlers?.onOpenPlan} />}
+
+      {/* Kort som hører til oppstarten (tilbud om bedrift, Kom i gang), over widgetene. */}
+      {topSlot}
 
       {canEdit ? (
         <View style={styles.editRow}>

@@ -14,6 +14,7 @@ import { useHomeLayout } from '../../src/hooks/useHomeLayout';
 import { homeSceneTitle, homeSceneTagline, HOME_SCENE_SUBTITLE } from '../../src/homeBanners';
 import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
 import WidgetBoard from '../home/WidgetBoard';
+import CompanyOfferCard from '../home/CompanyOfferCard';
 
 /**
  * Fixed parent home — same tidy widget layout for every login.
@@ -120,6 +121,7 @@ export default function ParentHomeThemeHost({
           onCycleSize={home.cycleSize}
           onResetWidgets={home.resetWidgets}
           onDraggingChange={setDragging}
+          topSlot={<CompanyOfferCard style={styles.startCard} />}
         />
       </ScrollView>
     </View>
@@ -134,4 +136,5 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   body: { paddingHorizontal: 10, paddingTop: 0, paddingBottom: 20, backgroundColor: 'transparent' },
+  startCard: { marginTop: 4, marginBottom: 10 },
 });

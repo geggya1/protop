@@ -190,6 +190,7 @@ export const FILES = [
   'src/navigation/legacyPaths.test.mjs',
   'src/utils/friendSend.test.mjs',
   'src/project/companyCreate.test.mjs',
+  'src/project/companyOffer.test.mjs',
   'functions/vegvesenFallback.test.mjs',
   'functions/ehfGuard.test.mjs',
   'src/economy/ehfResend.test.mjs',

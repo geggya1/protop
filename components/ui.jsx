@@ -48,7 +48,7 @@ export function Title({ children, size = 20, style }) {
   const { isDesktop } = useLayout();
   const fontSize = isDesktop ? Math.min(size, 17) : size;
   return (
-    <Text accessibilityRole="header" style={[styles.title, isDesktop && styles.titleDesktop, { fontSize, color: colors.ink }, style]}>
+    <Text accessibilityRole="header" aria-level={2} style={[styles.title, isDesktop && styles.titleDesktop, { fontSize, color: colors.ink }, style]}>
       {children}
     </Text>
   );

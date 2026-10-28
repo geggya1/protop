@@ -65,7 +65,7 @@ test('felles komponenter bruker brandInk til tekst på aktive faner og fylte kna
   assert.match(read('components/ui.jsx'), /themeColors\.brandInk/);
   assert.match(read('components/DeskBtn.jsx'), /backgroundColor: colors\.brandInk/);
   assert.match(read('components/ConfirmDialog.jsx'), /primary: \{ backgroundColor: colors\.brandInk \}/);
-  assert.match(read('screens/iso/isoUi.jsx'), /primary \? colors\.brandInk/);
+  assert.match(read('src/ui/primitives.jsx'), /primary \? colors\.brandInk/);
   for (const path of ['screens/LoginScreen.jsx', 'screens/RegisterScreen.jsx']) {
     assert.equal(read(path).includes('#8b98a5'), false, `${path}: plassholderen bruker colors.placeholder`);
   }

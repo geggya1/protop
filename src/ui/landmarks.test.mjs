@@ -24,7 +24,7 @@ test('hopp-lenken er første element i skallet og synes med fokus (WCAG 2.4.1)',
 });
 
 test('sidetitler i felles komponenter er overskrifter (WCAG 2.4.6)', () => {
-  assert.match(read('components/ui.jsx'), /<Text accessibilityRole="header" style=\{\[styles\.title/);
+  assert.match(read('components/ui.jsx'), /<Text accessibilityRole="header" aria-level=\{2\} style=\{\[styles\.title/);
   const header = read('components/ShellHeader.jsx');
   assert.equal((header.match(/accessibilityRole="header"/g) || []).length >= 2, true, 'tittelen i toppfeltet på PC og mobil');
   for (const path of ['components/ConfirmDialog.jsx', 'components/ConfirmActionModal.jsx', 'components/ScrollSheet.jsx', 'components/DesktopFormShell.jsx']) {

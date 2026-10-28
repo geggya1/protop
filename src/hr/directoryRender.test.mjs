@@ -285,6 +285,24 @@ let followHtml = '';
   assert.match(html, /1 av 2 krav er gyldige/);
   assert.match(html, /Utløpt · til 31\.01\.2025/);
   assert.match(html, /Åpne Kompetanse i ISO/);
+  // Minimumskravene i AML § 14-6 settes fra avtalen, ikke ved avkrysning.
+  assert.match(html, /id="hr-compliance-derived-aml_contract_minimum"/);
+  assert.match(html, /Mangler · Ingen aktiv arbeidsavtale/);
+
+  // Avtale etter de gamle ni punktene: fortsatt ikke OK, og det står hva som mangler.
+  const oldContract = {
+    id: 'c1', employeeId: 'e1', status: 'active', startDate: '2020-01-01',
+    employerName: 'A', employeeName: 'Ada', workplace: 'Oslo', positionTitle: 'Rådgiver',
+    workPercent: '100', salaryAmount: '1', workHours: '37,5', noticePeriod: '3 mnd',
+  };
+  const partial = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    hr: { ...hr, contracts: [oldContract], compliance: [{ catalogId: 'aml_contract_minimum', employeeId: 'e1', status: 'ok' }] },
+    selectedId: 'e1',
+    sheet: 'compliance',
+  }));
+  assert.match(partial, /Forfalt · Settes fra avtalen\. Mangler: .*Framgangsmåte ved opphør/);
+  assert.match(partial, /Pensjon og andre trygdeordninger/);
 
   // Uten tilgang til ISO: bare henvisningen, ingen knapp.
   const plain = renderToStaticMarkup(React.createElement(HrPeople, {

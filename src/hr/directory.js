@@ -121,12 +121,12 @@ export function hrControlCells(employee, { hr = {}, entries = [] } = {}) {
       ? overview.gaps.join(' · ')
       : 'Ingen påkrevde mangler',
     contract: contract
-      ? (contract.aml?.pct != null ? `AML ${contract.aml.pct} %` : 'Registrert')
+      ? (contract.aml?.pct != null ? `AML ${Math.floor(contract.aml.pct)} %` : 'Registrert')
       : 'Mangler',
     contractTitle: contract?.title || 'Mangler',
     contractStatus: contract ? choiceLabel(CONTRACT_STATUSES, contract.status) : 'Mangler',
     contractFrom: contract?.startDate ? formatNbDate(contract.startDate) : '—',
-    contractAml: contract?.aml?.pct != null ? `${contract.aml.pct} %` : '—',
+    contractAml: contract?.aml?.pct != null ? `${Math.floor(contract.aml.pct)} %` : '—',
     review: review?.date ? formatNbDate(review.date) : 'Mangler',
     utilization: hasHours ? `${Number(utilization.utilizationPct || 0).toFixed(0)} %` : '—',
     billableHours: hasHours ? String(utilization.billable) : '—',

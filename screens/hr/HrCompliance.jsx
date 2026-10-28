@@ -3,12 +3,14 @@ import { StyleSheet, Text, View } from 'react-native';
 import {
   COMPLIANCE_CATALOG,
   COMPLIANCE_SOURCES,
+  amlContractCompleteness,
+  amlFieldLabel,
   complianceSummary,
   ensureEmployeeCompliance,
   replaceEmployeeCompliance,
   syncComplianceFromEvidence,
 } from '../../src/hr/compliance';
-import { formatNbDate, localIsoDate } from '../../src/hr/model';
+import { activeContractFor, formatNbDate, localIsoDate } from '../../src/hr/model';
 import { showSaveToast } from '../../src/ui/saveToast';
 import OptionPicker from '../../components/OptionPicker';
 import {
@@ -54,6 +56,17 @@ export default function HrCompliance({
     ? rows
     : rows.filter((row) => row.source === sourceFilter);
   const summary = complianceSummary(rows);
+  const activeContract = activeId ? activeContractFor(activeId, hr.contracts || []) : null;
+
+  /** Punkter som settes fra dataene: hva som mangler, i stedet for avkrysning. */
+  function derivedText(row, cat) {
+    if (cat?.derived !== 'contract') return '';
+    const due = row.dueDate && row.status !== 'ok' ? ` Frist ${formatNbDate(row.dueDate)}.` : '';
+    if (!activeContract) return `Ingen aktiv arbeidsavtale. Registrer den under Ansettelsesavtale.${due}`;
+    const aml = amlContractCompleteness(activeContract);
+    if (!aml.missing.length) return `Alle ${aml.total} påkrevde punkter er fylt ut i avtalen.`;
+    return `Settes fra avtalen. Mangler: ${aml.missing.map(amlFieldLabel).join(' · ')}.${due}`;
+  }
 
   function noteKey(catalogId, empId = activeId) {
     return `${empId || ''}:${catalogId}`;
@@ -61,6 +74,7 @@ export default function HrCompliance({
 
   function setStatus(catalogId, status) {
     if (!canWrite || !activeId) return;
+    if (COMPLIANCE_CATALOG.find((c) => c.id === catalogId)?.derived) return;
     onPatch?.((state) => {
       const nextRows = ensureEmployeeCompliance(state.compliance || [], activeId).map((row) => (
         row.catalogId === catalogId
@@ -149,17 +163,26 @@ export default function HrCompliance({
                 {cat?.hint ? (
                   <Text style={[styles.itemHint, { color: colors.muted }]}>{cat.hint}</Text>
                 ) : null}
-                <View style={styles.chips}>
-                  {STATUS.map((s) => (
-                    <HrChip
-                      key={s.id}
-                      colors={colors}
-                      label={s.label}
-                      active={row.status === s.id}
-                      onPress={() => setStatus(row.catalogId, s.id)}
-                    />
-                  ))}
-                </View>
+                {cat?.derived ? (
+                  <Text
+                    style={[styles.itemHint, { color: row.status === 'ok' ? colors.ink : colors.danger }]}
+                    nativeID={`hr-compliance-derived-${row.catalogId}`}
+                  >
+                    {`${STATUS.find((s) => s.id === row.status)?.label || row.status} · ${derivedText(row, cat)}`}
+                  </Text>
+                ) : (
+                  <View style={styles.chips}>
+                    {STATUS.map((s) => (
+                      <HrChip
+                        key={s.id}
+                        colors={colors}
+                        label={s.label}
+                        active={row.status === s.id}
+                        onPress={() => setStatus(row.catalogId, s.id)}
+                      />
+                    ))}
+                  </View>
+                )}
                 {canWrite ? (
                   <>
                     <HrField
@@ -191,13 +214,14 @@ export default function HrCompliance({
       {canWrite && activeId ? (
         <HrButton
           colors={colors}
-          label="Marker alle påkrevde som OK"
+          label="Marker alle påkrevde som OK (unntatt det som settes fra avtalen)"
           primary
           onPress={() => {
             onPatch?.((state) => {
               const nextRows = ensureEmployeeCompliance(state.compliance || [], activeId).map((row) => {
                 const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
-                if (!cat?.required) return row;
+                // Punkter som settes fra dataene (avtalen), krysses ikke av for hånd.
+                if (!cat?.required || cat.derived) return row;
                 return {
                   ...row,
                   status: 'ok',

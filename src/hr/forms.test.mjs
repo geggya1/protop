@@ -5,6 +5,7 @@ import {
   employmentContractFormTemplate,
   performanceReviewFormTemplate,
 } from './forms.js';
+import { amlContractCompleteness } from './compliance.js';
 
 {
   const form = employmentContractFormTemplate();
@@ -20,6 +21,22 @@ import {
   assert.equal(fields.positionTitle, 'Konsulent');
   assert.equal(fields.workPercent, '100');
   assert.equal(fields.salaryAmount, '700000');
+}
+
+{
+  // Malen har alle punktene i AML § 14-6 fra 1.7.2024: påkrevde felt utfylt gir en komplett avtale.
+  const form = employmentContractFormTemplate();
+  for (const field of form.fields) {
+    if (field.required) field.value = field.type === 'date' ? '2026-01-05' : 'Fylt ut';
+  }
+  const contract = answersToContractFields(form);
+  assert.deepEqual(amlContractCompleteness({ ...contract, employmentType: 'Fast' }).missing, []);
+  for (const key of ['terminationProcedure', 'overtimeTerms', 'competenceDevelopment', 'pensionInsurance', 'collectiveAgreement']) {
+    assert.equal(contract[key], 'Fylt ut', key);
+  }
+  const label = form.fields.find((f) => f.label === 'Innleievirksomhet (ved utleie)');
+  label.value = 'Bygg AS';
+  assert.equal(answersToContractFields(form).hirerIdentity, 'Bygg AS');
 }
 
 {

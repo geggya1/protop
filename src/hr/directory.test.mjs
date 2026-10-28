@@ -125,6 +125,13 @@ function person(id, {
     workPercent: '100',
     workHours: '37,5',
     breakLength: '30 min',
+    // Punktene som kom inn i AML § 14-6 fra 1.7.2024.
+    terminationProcedure: 'Skriftlig. Søksmål innen 8 uker.',
+    paySchedule: 'Den 15. hver måned',
+    overtimeTerms: 'Minst 40 % tillegg',
+    collectiveAgreement: 'Ingen',
+    competenceDevelopment: 'Kurs etter plan',
+    pensionInsurance: 'OTP',
   });
   const cells = hrControlCells(employee, {
     hr: {
@@ -160,6 +167,13 @@ function person(id, {
   // HMS-introduksjon og kompetanse følges opp i ISO, ikke i HR-sjekklisten.
   assert.equal(cells.checklistGaps, 'Personverninformasjon gitt');
   assert.doesNotMatch(cells.checklistGaps, /Skriftlig arbeidsavtale/);
+
+  // Avtale uten punktene fra 2024: minimumskravet står som mangel.
+  const older = normalizeContract({ ...contract, pensionInsurance: '', competenceDevelopment: '' });
+  const olderCells = hrControlCells(employee, { hr: { contracts: [older], compliance: [] }, entries: [] });
+  assert.match(olderCells.contract, /^AML \d+ %$/);
+  assert.notEqual(olderCells.contract, 'AML 100 %');
+  assert.match(olderCells.checklistGaps, /Avtalen dekker minimumskrav/);
 }
 
 {

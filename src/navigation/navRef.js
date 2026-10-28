@@ -51,6 +51,10 @@ function shellForEvent(eventType) {
   }
   if (eventType === 'messageReceived') return { tab: 'chat' };
   if (eventType === 'familyInvite') return null;
+  // Venneforespørsel (også en som er trukket tilbake) og godtatt forespørsel: Venner.
+  if (eventType === 'friendInvite' || eventType === 'friendInviteAccepted') {
+    return { tab: 'more', subView: 'friends' };
+  }
   if (eventType === 'gameInvite') return { tab: 'more', subView: 'games' };
   if (eventType === 'attestPending') return { tab: 'more', subView: 'progress', intent: 'attest' };
   if (eventType === 'documentApproval' || eventType === 'documentComment') return { tab: 'skjema', intent: { type: 'docControl', tab: 'styring' } };

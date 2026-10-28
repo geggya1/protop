@@ -25,6 +25,7 @@ import {
 const CATEGORY_META = {
   members: { label: 'Familie', icon: 'people-outline' },
   chat: { label: 'Chat', icon: 'chatbubbles-outline' },
+  friends: { label: 'Venner', icon: 'person-add-outline' },
   plan: { label: 'Kalender', icon: 'calendar-outline' },
   stars: { label: 'Oppgaver', icon: 'star-outline' },
   chores: { label: 'Gjøremål', icon: 'checkmark-circle-outline' },

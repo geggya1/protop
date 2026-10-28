@@ -1112,6 +1112,8 @@ export default function ProjectWorkScreen() {
     const leftOut = [];
     importPlan.rows.forEach((row, index) => {
       const id = String(index);
+      // Finnes fra før uten noe å fylle inn: ingenting å lagre, og ingen feil.
+      if (row.existing && !row.project) return;
       if (row.severity === 'block' || dropped.has(id) || !row.project) {
         leftOut.push({
           name: [row.number, row.name].filter(Boolean).join(' ') || 'Uten navn',
@@ -1119,7 +1121,7 @@ export default function ProjectWorkScreen() {
         });
         return;
       }
-      if (!row.customerId) {
+      if (!row.existing && !row.customerId) {
         leftOut.push({
           name: [row.number, row.name].filter(Boolean).join(' ') || 'Uten navn',
           reason: 'Kunden er ikke koblet.',
@@ -1136,6 +1138,7 @@ export default function ProjectWorkScreen() {
       row.severity !== 'block'
       && !dropped.has(String(index))
       && row.project
+      && !row.existing
       && !row.customerId
     ));
     if (missingCustomer.length) {
@@ -1153,7 +1156,8 @@ export default function ProjectWorkScreen() {
       }
       const saved = await persistProjectState(result.state, familyId);
       setState(saved);
-      for (const project of [...(result.created || []), ...(result.updated || [])]) {
+      // Oppdaterte prosjekt har bare fått priser; avtalekoblingen er uendret.
+      for (const project of result.created || []) {
         if (project.contractId) await syncContractLink(project.id, project.contractId, '');
       }
       const imported = chosen.map((row) => ({
@@ -1166,12 +1170,13 @@ export default function ProjectWorkScreen() {
       setImportReport(importResult(imported, leftOut));
       setImportPlan(null);
       setDropped(new Set());
-      setNote(result.skipped?.length
-        ? `${result.created.length} nye. ${result.skipped.length} fantes allerede og ble hoppet over.`
-        : `${result.created.length} nye prosjekter importert.`);
-      showSaveToast(result.skipped?.length
-        ? `${result.created.length} nye prosjekter. ${result.skipped.length} fantes allerede.`
-        : `${result.created.length} nye prosjekter importert.`);
+      const summary = `${[
+        result.created.length ? `${result.created.length} nye prosjekter importert` : '',
+        result.updated.length ? `${result.updated.length} prosjekter fikk priser fylt inn` : '',
+        result.skipped.length ? `${result.skipped.length} hoppet over` : '',
+      ].filter(Boolean).join('. ')}.`;
+      setNote(summary);
+      showSaveToast(summary);
       setView('list');
     } catch (cause) {
       setError(String(cause?.message || '') || 'Kunne ikke lagre prosjektlisten.');
@@ -1185,7 +1190,8 @@ export default function ProjectWorkScreen() {
     severity: row.severity,
     title: [row.number, row.name].filter(Boolean).join(' · ') || 'Uten navn',
     meta: [
-      row.customerId ? 'Kunde koblet' : '',
+      row.pricing,
+      !row.existing && row.customerId ? 'Kunde koblet' : '',
       row.customerNumber ? `Kundenr ${row.customerNumber}` : '',
       row.client,
       row.orgnr ? `Org.nr ${row.orgnr}` : '',
@@ -1193,10 +1199,12 @@ export default function ProjectWorkScreen() {
       row.place,
     ].filter(Boolean).join(' · '),
     issues: row.issues || [],
+    locked: !!row.locked,
     included: row.severity !== 'block' && !dropped.has(String(index)),
-    ready: !!row.customerId,
-    needsCustomer: !row.customerId && row.severity !== 'block',
-    customerLinked: !!row.customerId,
+    // Prosjekt som finnes fra før har kunden sin allerede.
+    ready: !!row.existing || !!row.customerId,
+    needsCustomer: !row.existing && !row.customerId && row.severity !== 'block',
+    customerLinked: !row.existing && !!row.customerId,
     customerHint: {
       customerNumber: row.customerNumber,
       client: row.client,
@@ -2194,10 +2202,10 @@ export default function ProjectWorkScreen() {
         <ImportReview
           nativeID="projects-import-plan"
           colors={colors}
-          lead="Ingenting er lagret ennå. Alle prosjekt må kobles til en kunde før import. Prosjektnummer som finnes fra før importeres ikke på nytt. Avtaler kan knyttes etterpå."
+          lead="Ingenting er lagret ennå. Nye prosjekt må kobles til en kunde før import. Prosjekt som finnes fra før får bare fylt inn prismodell og priser som mangler. Det som er satt i ProTop, blir stående. Timeprisen regnes ut fra timene i Moment. Avtaler kan knyttes etterpå."
           rows={reviewRows}
           busy={importing}
-          confirmLabel={(count) => `Importer ${count} prosjekter med kundekobling`}
+          confirmLabel={(count) => `Lagre ${count} prosjekter`}
           onToggle={toggleImportRow}
           onConfirm={confirmImport}
           onCancel={() => { setImportPlan(null); setDropped(new Set()); setLinkQuery({}); setView('list'); }}

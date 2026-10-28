@@ -2,6 +2,7 @@
  * Hurtigimport av bedriftens prosjektliste fra Excel/CSV (f.eks. Moment overview).
  * Kobler mot kunder via kundenummer, org.nr eller navn når det finnes i kunderegisteret.
  * Rammeavtale / oppdragsavtale settes ikke fra listen, men feltene ligger klare etterpå.
+ * Prosjekt som finnes fra før får bare fylt inn prismodell og priser som mangler.
  */
 import { readSpreadsheetTables, CUSTOMER_IMPORT_ACCEPT } from '../anbud/customerImport.js';
 import {
@@ -11,8 +12,16 @@ import {
   normalizeOrgnr,
   withCustomerNumbers,
 } from '../anbud/customers.js';
-import { normalizePricingModel, projectNumberKey } from './projectFields.js';
+import {
+  HOURLY_RATE_CEILING,
+  normalizePricingModel,
+  normalizePricingSettings,
+  pricingFill,
+  pricingModelLabel,
+  projectNumberKey,
+} from './projectFields.js';
 import { phaseFromProjectStatus } from './statusFilter.js';
+import { formatKr } from '../format/nb.js';
 
 const FIELDS = [
   ['number', ['prosjektnr', 'prosjektnummer', 'projectnumber', 'projectno']],
@@ -42,12 +51,18 @@ const FIELDS = [
   ['placeName', ['poststed', 'city']],
   ['cadastralId', ['matrikkelid', 'matrikkel-id', 'matrikkel']],
   ['pricingModel', ['prismodell', 'pricingmodel']],
+  ['hourlyRate', ['timepris', 'timesats', 'honorarsats']],
+  ['fixedFee', ['fastpris']],
   ['feeEstimate', ['honorarestimat', 'honorar', 'feeestimate']],
+  ['feeTotal', ['angitttotalhonorar']],
   ['billedOnPricingModels', ['fakturertpaprismodeller', 'fakturert på prismodeller']],
   ['description', ['beskrivelse', 'description']],
   ['exportStatus', ['eksportstatus']],
   ['hoursPeriod', ['timerperiode', 'timer (periode)', 'timer']],
   ['billableHours', ['fakturerbart', 'billable']],
+  ['billableHoursTotal', ['fakturerbarttotalt']],
+  ['hoursIncomeTotal', ['inntektertimertotalt']],
+  ['hoursIncomePeriod', ['inntekterfortimeforingeriperiode']],
   ['toInvoice', ['afaktureres', 'å faktureres']],
   ['totalCost', ['totalkostnad', 'total kostnad']],
   ['invoices', ['fakturaer', 'invoices']],
@@ -79,6 +94,73 @@ function fold(value) {
 
 function text(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function amount(value) {
+  const raw = text(value).replace(/\s/g, '').replace(',', '.');
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function positive(value) {
+  const n = amount(value);
+  return n != null && n > 0 ? n : null;
+}
+
+function kr(value) {
+  return formatKr(value, { decimals: 0 });
+}
+
+const RATE_AVERAGE = 'Timeprisen må settes for hånd. Moment viser bare et snitt av flere satser.';
+const RATE_NONE = 'Timeprisen må settes for hånd. Moment har ingen fakturerbare timer å regne den ut fra.';
+const RATE_WRONG = 'Timeprisen var lik honorarestimatet fra Moment og blir rettet.';
+
+/**
+ * Timeprisen Moment har brukt: inntekt på timer delt på fakturerbare timer.
+ * Prosjektlisten fra Moment har ikke satsen som egen kolonne. Går regnestykket
+ * opp i hele kroner, har prosjektet hatt én sats (exact). Ellers er det et snitt
+ * av flere satser, og satsen må settes for hånd.
+ */
+export function momentHourlyRate(row = {}) {
+  const pairs = [
+    [row.hoursIncomeTotal, row.billableHoursTotal],
+    [row.hoursIncomePeriod, row.billableHours],
+  ];
+  for (const [incomeValue, hoursValue] of pairs) {
+    const income = positive(incomeValue);
+    const hours = positive(hoursValue);
+    if (income == null || hours == null) continue;
+    const average = income / hours;
+    const rate = Math.round(average);
+    const exact = Math.abs(average - rate) < 0.01 && rate < HOURLY_RATE_CEILING;
+    return { rate, average, exact, income, hours };
+  }
+  return null;
+}
+
+/** Prisene importen gir prosjektet, som tekst i kontrollen før lagring. */
+function offerText(offer, momentRate) {
+  const parts = [];
+  if (offer.hourlyRate != null) parts.push(`Timepris ${kr(offer.hourlyRate)}`);
+  else if (momentRate) parts.push(`Snitt i Moment ${kr(momentRate.average)}/t`);
+  if (offer.fixedFee != null) parts.push(`Fastpris ${kr(offer.fixedFee)}`);
+  if (offer.estimatedTotalFee != null) parts.push(`Estimert totalhonorar ${kr(offer.estimatedTotalFee)}`);
+  return parts.join(' · ');
+}
+
+function fillText(fill) {
+  const settings = fill.pricingSettings;
+  const parts = fill.changes.map((change) => {
+    if (change === 'pricingModel') return `Prismodell ${pricingModelLabel(fill.pricingModel)}`;
+    if (change === 'hourlyRate') return `Timepris ${kr(settings.hourlyRate)}`;
+    if (change === 'hourlyRateReplaced') return `Timepris ${kr(fill.previous.hourlyRate)} → ${kr(settings.hourlyRate)}`;
+    if (change === 'hourlyRateCleared') return `Timepris ${kr(fill.previous.hourlyRate)} fjernes`;
+    if (change === 'fixedFee') return `Fastpris ${kr(settings.fixedFee)}`;
+    if (change === 'estimatedTotalFee') return `Estimert totalhonorar ${kr(settings.estimatedTotalFee)}`;
+    return '';
+  }).filter(Boolean);
+  return `Oppdateres: ${parts.join(' · ')}`;
 }
 
 function fieldOf(header) {
@@ -288,7 +370,7 @@ export function linkImportPlanCustomer(plan, rowIndex, customer, { applyGroup = 
   const key = customerIdentityKey(target);
   const nextRows = rows.map((row, index) => {
     if (index === rowIndex) return linkImportRowCustomer(row, customer);
-    if (applyGroup && key && customerIdentityKey(row) === key && !row.customerId) {
+    if (applyGroup && key && customerIdentityKey(row) === key && !row.customerId && !row.existing) {
       return linkImportRowCustomer(row, customer);
     }
     return row;
@@ -382,10 +464,28 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     }
   }
 
+  const typedRate = positive(row.hourlyRate);
+  const listedRate = typedRate != null && typedRate < HOURLY_RATE_CEILING ? typedRate : null;
+  const listedFixed = positive(row.fixedFee);
+  const pricingModel = normalizePricingModel(row.pricingModel)
+    || (listedRate != null ? 'hourly' : (listedFixed != null ? 'fixed' : ''));
+  const fee = positive(row.feeEstimate) ?? positive(row.feeTotal);
+  const momentRate = pricingModel === 'hourly' ? momentHourlyRate(row) : null;
+  // En timepris i listen går foran den som regnes ut av timene i Moment.
+  // Honorarestimatet er et totalbeløp. På timepris hører det til estimert totalhonorar, ikke timeprisen.
+  const pricingOffer = {
+    pricingModel,
+    hourlyRate: pricingModel === 'hourly' ? (listedRate ?? (momentRate?.exact ? momentRate.rate : null)) : null,
+    fixedFee: pricingModel === 'fixed' ? (listedFixed ?? fee) : null,
+    estimatedTotalFee: pricingModel === 'hourly' ? fee : null,
+  };
+  if (severity !== 'block' && pricingModel === 'hourly' && pricingOffer.hourlyRate == null) {
+    if (severity === 'ok') severity = 'review';
+    issues.push(momentRate ? RATE_AVERAGE : RATE_NONE);
+  }
+
   const blocked = severity === 'block';
   const place = placeOf(row);
-  const pricingModel = normalizePricingModel(row.pricingModel);
-  const feeEstimate = text(row.feeEstimate);
   const project = blocked ? null : {
     number,
     name,
@@ -407,12 +507,13 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     place,
     cadastralId: text(row.cadastralId),
     pricingModel,
-    pricingSettings: pricingModel === 'hourly' && feeEstimate
-      ? { hourlyRate: feeEstimate }
-      : (pricingModel === 'fixed' && feeEstimate
-        ? { fixedFee: feeEstimate }
-        : {}),
-    feeEstimate,
+    pricingSettings: Object.fromEntries(
+      ['hourlyRate', 'fixedFee', 'estimatedTotalFee']
+        .filter((key) => pricingOffer[key] != null)
+        .map((key) => [key, pricingOffer[key]]),
+    ),
+    // Tomt: feltet regnes ut fra prisinnstillingene ved lagring.
+    feeEstimate: '',
     description: text(row.description),
     // Timer/økonomi og Moment-restfelter nullstilles ved lagring — fylles av andre moduler.
     phase: phaseFromProjectStatus(row.status),
@@ -441,6 +542,9 @@ export function companyProjectRow(input, customers = [], contracts = []) {
     agreementKind,
     contractId: agreement?.id || '',
     frameworkAgreementId: framework?.id || (agreement?.kind === 'rammeavtale' ? agreement.id : ''),
+    pricingOffer,
+    momentRate,
+    pricing: offerText(pricingOffer, momentRate),
     project,
   };
 }
@@ -453,12 +557,58 @@ function blockImportRow(row, reason) {
   return row;
 }
 
-export function planProjectImport(projectState, customers, contracts, rows) {
-  const existing = new Set(
-    (projectState?.projects || [])
-      .map((row) => projectNumberKey(row.number))
-      .filter(Boolean),
+/**
+ * Prosjektet finnes fra før. Raden fyller bare inn prismodell og priser som
+ * mangler (pricingFill); alt annet på prosjektet blir stående.
+ */
+function existingImportRow(row, project) {
+  const active = project.status !== 'arkivert';
+  const fill = active ? pricingFill(project, row.pricingOffer) : null;
+  const model = fill?.pricingModel || normalizePricingModel(project.pricingModel);
+  const settings = fill?.pricingSettings || normalizePricingSettings(
+    { ...(project.pricingSettings || {}), feeEstimate: project.feeEstimate },
+    model,
   );
+  const rateMissing = active && model === 'hourly' && settings.hourlyRate == null;
+  const issues = [];
+  if (fill?.changes.some((change) => change === 'hourlyRateReplaced' || change === 'hourlyRateCleared')) {
+    issues.push(RATE_WRONG);
+  }
+  if (rateMissing) issues.push(row.momentRate ? RATE_AVERAGE : RATE_NONE);
+  const hint = rateMissing && row.momentRate ? `Snitt i Moment ${kr(row.momentRate.average)}/t` : '';
+  row.existing = true;
+  row.projectId = project.id;
+  row.customerId = text(project.customerId);
+  row.issues = issues;
+  if (!fill) {
+    row.severity = 'existing';
+    row.locked = true;
+    row.reason = 'Prosjektnummeret finnes allerede.';
+    row.pricing = hint;
+    row.project = null;
+    return row;
+  }
+  row.severity = issues.length ? 'review' : 'ok';
+  row.pricing = [fillText(fill), hint].filter(Boolean).join(' · ');
+  row.project = {
+    ...row.pricingOffer,
+    pricingUpdate: true,
+    projectId: project.id,
+    number: row.number,
+    name: row.name,
+  };
+  return row;
+}
+
+export function planProjectImport(projectState, customers, contracts, rows) {
+  const existing = new Map();
+  for (const project of projectState?.projects || []) {
+    const key = projectNumberKey(project?.number);
+    if (!key) continue;
+    const held = existing.get(key);
+    // Et aktivt prosjekt går foran et arkivert med samme nummer.
+    if (!held || (held.status === 'arkivert' && project.status !== 'arkivert')) existing.set(key, project);
+  }
   const registry = withCustomerNumbers(customers);
   const seen = new Set();
   const planned = [];
@@ -466,12 +616,11 @@ export function planProjectImport(projectState, customers, contracts, rows) {
     const row = companyProjectRow(raw, registry, contracts);
     const key = projectNumberKey(row.number);
     if (row.severity !== 'block' && key) {
-      if (existing.has(key)) {
-        blockImportRow(row, 'Prosjektnummeret finnes allerede.');
-      } else if (seen.has(key)) {
+      if (seen.has(key)) {
         blockImportRow(row, 'Prosjektnummeret står flere ganger i listen. Bare den første raden kan importeres.');
       } else {
         seen.add(key);
+        if (existing.has(key)) existingImportRow(row, existing.get(key));
       }
     }
     planned.push(row);

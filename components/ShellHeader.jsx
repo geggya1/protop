@@ -63,6 +63,7 @@ export default function ShellHeader({
   hero = null,
   viewAs = null,
   coverStatusBar = false,
+  meta = '',
 }) {
   const nav = useNavigation();
   const { t } = useI18n();
@@ -293,7 +294,7 @@ export default function ShellHeader({
             ) : (
               <>
                 <Text style={[styles.familyName, { color: colors.muted }]} numberOfLines={1}>
-                  {familyName}
+                  {meta || familyName}
                 </Text>
                 <View style={styles.pageTitleRow}>
                   <Text

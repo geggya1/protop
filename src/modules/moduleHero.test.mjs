@@ -7,7 +7,10 @@ import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PAGE_ART_SCALE } from '../appearance/pageArtScale.js';
-import { MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroModuleId } from './moduleHero.js';
+import {
+  MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroCompact, shellHeroModuleId,
+} from './moduleHero.js';
+import { isModuleStartPage } from '../navigation/navTrail.js';
 import { COMPANY_HERO, companyHeroId } from './companyHero.js';
 import {
   ACTIVATABLE_MODULE_IDS,
@@ -309,7 +312,10 @@ const COMPANY_PAGES = [
 for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.equal(companyHeroId(tab, sub), id, `${tab}/${sub || ''}`);
   assert.equal(shellHeroModuleId(tab, sub), id, `${id} shell heading`);
-  assert.equal(phoneChromeHeroId(tab, sub, true), id, `${id} phone chrome heading`);
+  // Båndet bare på modulens startside. Undersider får kompakt tittelrad (UX-25).
+  const start = isModuleStartPage(tab, sub);
+  assert.equal(shellHeroCompact(tab, sub), !start, `${tab}/${sub || ''} kompakt på underside`);
+  assert.equal(phoneChromeHeroId(tab, sub, true), start ? id : null, `${id} phone chrome heading`);
   assert.equal(phoneChromeHeroId(tab, sub, false), null, `${id} tablet/web keeps content-band heading`);
   const hero = resolveModuleHero(id, 'nb');
   const en = resolveModuleHero(id, 'en');
@@ -319,6 +325,14 @@ for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.notEqual(en.title, hero.title, `${id} should have English title`);
   assert.ok(COMPANY_HERO[id], `${id} company hero`);
 }
+assert.equal(shellHeroCompact('arbeid', 'timeliste'), false, 'Timeliste er startsiden i Timer');
+assert.equal(shellHeroCompact('arbeid', 'godkjenning'), true, 'Godkjenninger er en underside');
+assert.equal(shellHeroCompact('okonomi', 'oversikt'), false);
+assert.equal(shellHeroCompact('okonomi', 'fakturagrunnlag'), true);
+assert.equal(shellHeroCompact('hr', 'lonn'), true);
+assert.equal(shellHeroCompact('kunder'), false);
+assert.equal(shellHeroCompact('stars'), false, 'personlige sider beholder båndet');
+assert.equal(shellHeroCompact('home'), false, 'Hjem har ikke bånd');
 assert.equal(resolveModuleHero('projects', 'nb').wideArt, true, 'project overview uses the wide illustration');
 assert.equal(resolveModuleHero('ansatte', 'nb').wideArt, true, 'ansatte uses the wide illustration');
 assert.equal(resolveModuleHero('kunder', 'nb').wideArt, true, 'kunder uses the wide illustration');

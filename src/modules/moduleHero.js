@@ -7,6 +7,7 @@ import { pickIntroText } from '../utils/moduleIntros.js';
 import { getModuleConfig, SHELL_SKIP_MODULE_IDS, ILLUSTRATION_FILES } from './moduleActivationRegistry.js';
 import { localizeModuleFields } from '../i18n/moduleCatalog.js';
 import { COMPANY_HERO, companyHeroId } from './companyHero.js';
+import { isModuleStartPage } from '../navigation/navTrail.js';
 
 const t = (nb, en) => ({ nb, en });
 
@@ -344,13 +345,25 @@ export function shellHeroModuleId(tab, moreSubView = null) {
 }
 
 /**
+ * Båndet med illustrasjon og salgstekst vises bare på modulens startside.
+ * Undersider (Godkjenninger, Til fakturering, Lønn …) får en kompakt tittelrad
+ * med brødsmule, så innholdet starter høyere opp. Personlige sider har ingen
+ * undersider og beholder båndet.
+ */
+export function shellHeroCompact(tab, moreSubView = null) {
+  if (!shellHeroModuleId(tab, moreSubView)) return false;
+  return !isModuleStartPage(tab, moreSubView);
+}
+
+/**
  * Phone chrome heading: the pastel band is the top heading under the logo bar.
  * Hides family name + large page title. Add overlays the lower-right edge.
  * Help is a separate overlay under the profile photo, above this band.
  * Tablet/web keep the heading in the content band (`null` here).
+ * Undersider har ikke båndet: toppfeltet viser sidetittelen i stedet.
  */
 export function phoneChromeHeroId(tab, moreSubView = null, isPhone = false) {
-  if (!isPhone) return null;
+  if (!isPhone || shellHeroCompact(tab, moreSubView)) return null;
   return shellHeroModuleId(tab, moreSubView);
 }
 

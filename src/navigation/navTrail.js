@@ -42,6 +42,19 @@ export function companyNavGroupId(tab, subView = null) {
 }
 
 /**
+ * Modulens startside: siden menypunktet åpner. Andre sider i modulen er undersider.
+ * Sider utenfor bedriftsmenyen regnes som startsider (de har ikke undersider her).
+ */
+export function isModuleStartPage(tab, subView = null) {
+  const trail = companyNavTrail(tab, subView);
+  if (!trail?.page) return true;
+  const start = trail.module.action || {};
+  const page = trail.page.action || {};
+  return (start.tab || null) === (page.tab || null)
+    && (start.subView || null) === (page.subView || null);
+}
+
+/**
  * Leddene i brødsmulen. Siden er siste ledd og har ingen lenke.
  * compact (telefon) dropper menygruppen. Et ledd som har samme navn som forrige, tas ikke med.
  */
@@ -63,6 +76,12 @@ export function navTrailSegments(trail, { compact = false, current = '' } = {}) 
   // Siste ledd er siden man står på.
   if (out.length) out[out.length - 1] = { ...out[out.length - 1], action: null, current: true };
   return out;
+}
+
+/** Leddene over siden (gruppe › modul), til linjen over sidetittelen på telefon. */
+export function navTrailParentText(tab, subView = null) {
+  const segments = navTrailSegments(companyNavTrail(tab, subView));
+  return segments.slice(0, -1).map((row) => row.label).join(TRAIL_SEPARATOR);
 }
 
 /** Brødsmulen som tekst: «Ansatte og arbeidstid › Timer / arbeid per ansatt › Godkjenninger». */

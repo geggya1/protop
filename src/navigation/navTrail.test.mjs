@@ -3,6 +3,8 @@ import { COMPANY_DRAWER_GROUPS } from './shellModules.js';
 import {
   companyNavGroupId,
   companyNavTrail,
+  isModuleStartPage,
+  navTrailParentText,
   navTrailSegments,
   navTrailText,
 } from './navTrail.js';
@@ -43,5 +45,25 @@ assert.equal(customers[customers.length - 1].action, null, 'siden man står på 
 const segs = navTrailSegments(approvals);
 assert.equal(segs[0].action, null, 'menygruppen er ikke en side');
 assert.deepEqual(segs[1].action, { type: 'tab', tab: 'arbeid', subView: 'timeliste' }, 'modulen lenker til startsiden');
+
+// Startside eller underside.
+assert.equal(isModuleStartPage('arbeid', 'timeliste'), true);
+assert.equal(isModuleStartPage('arbeid', null), true);
+assert.equal(isModuleStartPage('arbeid', 'godkjenning'), false);
+assert.equal(isModuleStartPage('okonomi', 'oversikt'), true);
+assert.equal(isModuleStartPage('okonomi', 'fakturagrunnlag'), false);
+assert.equal(isModuleStartPage('arbeid', 'fravaer'), true, 'Fravær åpner fraværsoversikten');
+assert.equal(isModuleStartPage('arbeid', 'planlagt'), false);
+assert.equal(isModuleStartPage('hr', 'oversikt'), true);
+assert.equal(isModuleStartPage('hr', 'lonn'), false);
+assert.equal(isModuleStartPage('iso', 'avvik'), false);
+assert.equal(isModuleStartPage('kunder'), true);
+assert.equal(isModuleStartPage('selskap'), true);
+assert.equal(isModuleStartPage('selskap', 'tilgang'), false);
+assert.equal(isModuleStartPage('stars'), true, 'personlige sider beholder båndet');
+
+// Linjen over sidetittelen på telefon (undersider uten bånd).
+assert.equal(navTrailParentText('arbeid', 'utlegg'), `${groupLabel('company-finance')} › Økonomi`);
+assert.equal(navTrailParentText('home'), '');
 
 console.log('navTrail.test.mjs ok');

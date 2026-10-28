@@ -74,11 +74,12 @@ import { allowedAppsForChild, isChildAppAllowed } from '../src/utils/childApps';
 import { grandparentModulesFor, isGrandparentAppAllowed } from '../src/utils/grandparentAccess';
 import ModuleIntroHost from './ModuleIntroHost';
 import { helpPageId } from '../src/help/protopPages';
-import ModuleHero from './ModuleHero';
+import ModuleHero, { ModuleTitleRow } from './ModuleHero';
 import HelpTarget from './HelpTarget';
 import ModuleActivationGate from './ModuleActivationGate';
 import { activationModuleIdForShell } from '../src/modules/moduleActivationRegistry';
-import { phoneChromeHeroId, shellHeroModuleId } from '../src/modules/moduleHero';
+import { phoneChromeHeroId, shellHeroCompact, shellHeroModuleId } from '../src/modules/moduleHero';
+import { navTrailParentText } from '../src/navigation/navTrail';
 import ModuleAside, { ModuleAsideProvider, ShellWideContext } from './ModuleAside';
 import { ModuleHeroHostProvider, useShowModuleHero } from './ModulePageBg';
 import { useChatDock, useChatDockPreferred } from '../src/context/ChatDockContext';
@@ -913,6 +914,8 @@ function AppShellInner() {
   const headerHeroId = (!kitchenMode && showPageHero)
     ? phoneChromeHeroId(tab, moreSubView, isPhone)
     : null;
+  // Undersider: kompakt tittelrad i stedet for båndet (telefon: toppfeltet viser tittelen).
+  const heroCompact = !!pageHeroId && shellHeroCompact(tab, moreSubView);
 
   const activationModuleId = kitchenMode
     ? null
@@ -1118,6 +1121,7 @@ function AppShellInner() {
               titleRight={shellTitleRight}
               viewAs={viewAsControl}
               onLogoHome={goHome}
+              meta={heroCompact && isPhone ? navTrailParentText(tab, moreSubView) : ''}
               hero={shellPageHero || (headerHeroId ? (
                 <ModuleHero moduleId={headerHeroId} flush chrome />
               ) : null)}
@@ -1147,12 +1151,14 @@ function AppShellInner() {
               immersiveHome && styles.immersiveLayer,
             ]}
             >
-              {pageHeroId && !headerHeroId ? (
+              {pageHeroId && !headerHeroId && !(heroCompact && isPhone) ? (
                   <View style={[
                     styles.heroBand,
                     isDesktop ? styles.heroBandDesk : styles.heroBandTablet,
                   ]}>
-                    <ModuleHero moduleId={pageHeroId} flush />
+                    {heroCompact
+                      ? <ModuleTitleRow moduleId={pageHeroId} tab={tab} subView={moreSubView} />
+                      : <ModuleHero moduleId={pageHeroId} flush />}
                   </View>
                 ) : null}
                 {showDeskAside ? (

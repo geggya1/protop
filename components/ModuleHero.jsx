@@ -4,6 +4,7 @@ import { useI18n } from '../src/i18n';
 import { colors, useLayout } from '../src/theme';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
 import { resolveModuleHero } from '../src/modules/moduleHero';
+import Breadcrumb from './Breadcrumb';
 
 /** 2mm at the CSS reference pixel (96px = 1in). The picture scales to this inset. */
 const ART_INSET = 8;
@@ -132,6 +133,30 @@ export default function ModuleHero({
   );
 }
 
+/**
+ * Kompakt tittelrad på modulens undersider (i stedet for båndet): stripe i modulens
+ * farge og brødsmulen fra menyen, der siste ledd er sidetittelen.
+ * Sider utenfor bedriftsmenyen får modulnavnet som tittel.
+ */
+export function ModuleTitleRow({ moduleId, tab, subView = null }) {
+  const { lang } = useI18n();
+  const hero = useMemo(() => resolveModuleHero(moduleId, lang), [moduleId, lang]);
+  return (
+    <View
+      nativeID="module-title-row"
+      style={[styles.titleRow, { borderLeftColor: hero.accent }]}
+    >
+      <Breadcrumb
+        tab={tab}
+        subView={subView}
+        compact={false}
+        title
+        nativeID="module-title-crumb"
+      />
+    </View>
+  );
+}
+
 const webShadow = Platform.OS === 'web'
   ? { boxShadow: '0 8px 24px rgba(15, 23, 42, 0.06)' }
   : {
@@ -142,6 +167,15 @@ const webShadow = Platform.OS === 'web'
   };
 
 const styles = StyleSheet.create({
+  titleRow: {
+    borderLeftWidth: 4,
+    borderRadius: 2,
+    paddingLeft: 12,
+    paddingVertical: 4,
+    marginBottom: 8,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
   hero: {
     flexDirection: 'row',
     alignItems: 'stretch',

@@ -1,20 +1,25 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback, useEffect, useMemo, useRef, useState,
+} from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput,
-  Platform, ActivityIndicator, Modal, Pressable,
+  View, Text, TouchableOpacity, Pressable, StyleSheet, ScrollView, TextInput,
+  Platform, ActivityIndicator, Modal, useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, useLayout } from '../../src/theme';
 import { Screen } from '../../components/ui';
 import { useApp } from '../../src/context/AppContext';
-import { DeskBtn } from '../../components/DeskBtn';
 import ShellAddButton from '../../components/ShellAddButton';
-import FilterMenu from '../../components/FilterMenu';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { MailPaneResizeHandle } from '../../components/MailPaneResizeHandle';
 import MailSettingsModal from '../../components/MailSettingsModal';
 import MailComposeBox from '../../components/MailComposeBox';
 import HelpTarget from '../../components/HelpTarget';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import MailMessageList from '../../components/mail/MailMessageList';
+import MailReadingPane from '../../components/mail/MailReadingPane';
+import { MailMenu, MailMenuButton, MailToolButton } from '../../components/mail/MailMenu';
+import useDomHover from '../../components/mail/useDomHover';
 import {
   listCalendarConnections,
   connectMicrosoftMail,
@@ -23,18 +28,6 @@ import {
   OAUTH_COMPLETE_MESSAGE,
 } from '../../src/utils/calendarIntegration';
 import { peekCalendarConnectionsCache } from '../../src/utils/calendarConnectionsCache';
-import {
-  listMailFolders,
-  listMailMessages,
-  syncOutlookMailbox,
-  getMailMessage,
-  sendOutlookMail,
-  replyOutlookMail,
-  forwardOutlookMail,
-  deleteOutlookMail,
-  formatMailWhen,
-  mailSectionLabel,
-} from '../../src/utils/outlookMail';
 import {
   loadMailFoldersCache,
   putMailFoldersCache,
@@ -46,10 +39,9 @@ import {
   putMailMessageCache,
   loadMailMessageCache,
 } from '../../src/utils/mailCache';
-import { sanitizeHtml } from '../../src/utils/sanitizeHtml';
 import {
   nestMailFolders,
-  favoriteMailFolders,
+  flattenMailFolders,
   visibleMailFolderRows,
   expandAncestorIds,
   mailFolderIcon,
@@ -64,34 +56,88 @@ import {
   MAIL_LIST_PANE_MAX,
   MAIL_LIST_PANE_MIN,
 } from '../../src/utils/mailPanes';
-import {
-  uniqueMicrosoftConnections,
-  duplicateMicrosoftConnectionIds,
-  senderInitials,
-} from '../../src/utils/mailUi';
+import { uniqueMicrosoftConnections, duplicateMicrosoftConnectionIds } from '../../src/utils/mailUi';
 import {
   friendlyMailError,
-  isMailCacheFresh,
-  MAIL_FOLDER_FRESH_MS,
-  MAIL_LIST_PAGE,
   MAIL_STORAGE_MS,
-  mailRefreshPlan,
+  mergeFirstPage,
   mergeMailMessages,
-  newestMailReceivedAt,
   pickInboxFolderId,
 } from '../../src/utils/mailSync';
+import { loadMailComposePrefs, patchMailComposePrefs, signatureFor } from '../../src/utils/mailComposePrefs';
+import { signatureBlockHtml } from '../../src/utils/mailSignature';
+import { composeBodyToHtml } from '../../src/utils/mailHtml';
 import {
-  loadMailComposePrefs,
-  patchMailComposePrefs,
-} from '../../src/utils/mailComposePrefs';
-import { appendSignatureHtml, prepareHtmlForSend, shouldIncludeSignature } from '../../src/utils/mailSignature';
-import { composeBodyToHtml, escapeHtml } from '../../src/utils/mailHtml';
+  FLAG_OPTIONS,
+  MAIL_FILTERS,
+  applyFlagLocally,
+  categoryChoices,
+  contactsFromMessages,
+  flagPatch,
+  folderByWell,
+  forwardSubject,
+  groupMailRows,
+  isValidAddress,
+  matchesMailFilter,
+  mergeContacts,
+  normalizeMailFilter,
+  replyRecipients,
+  replySubject,
+  toggleCategory,
+  visibleAttachments,
+} from '../../src/utils/mailModel';
+import {
+  keepMailTokenFresh,
+  prefetchMailMessages,
+  loadInlineImages,
+  updateMailMessages,
+  moveMailMessages,
+  deleteMailMessagesPermanently,
+  loadMasterCategories,
+  searchMailMessages,
+  downloadMailAttachment,
+  saveMailDraft,
+  discardMailDraft,
+  openMailDraft,
+  removeDraftAttachment,
+} from '../../src/utils/mailGraph';
+import {
+  bootMailbox,
+  listMessages,
+  loadFolders,
+  getMessage,
+  sendCompose,
+  deleteMessages,
+  isDirectMail,
+} from '../../src/utils/mailBackend';
 
 const PANE_KEY = 'protop.mail.panes';
 const EXPAND_KEY = 'protop.mail.expanded';
+const FAVORITES_KEY = 'protop.mail.favorites';
 const DEFAULT_ACCOUNT_KEY = 'protop.mail.defaultAccount';
 const LAST_FOLDER_KEY = 'protop.mail.lastFolder';
 const UNREAD_FIRST_KEY = 'protop.mail.unreadFirst';
+const FILTER_KEY = 'protop.mail.filter';
+const CONTACTS_KEY = 'protop.mail.contacts';
+
+const PAGE = 30;
+/** Samme liste hentes ikke på nytt innen dette (cache vises med en gang). */
+const FRESH_MS = 20 * 1000;
+const POLL_MS = 60 * 1000;
+const AUTOSAVE_MS = 15 * 1000;
+
+/** Bilder i åpnede meldinger, så de ikke hentes på nytt ved hvert klikk. */
+const IMAGE_CACHE = new Map();
+
+function imageCacheKey(conn, id) {
+  return `${conn}|${id}`;
+}
+
+function rememberImages(key, value) {
+  IMAGE_CACHE.delete(key);
+  IMAGE_CACHE.set(key, value);
+  while (IMAGE_CACHE.size > 30) IMAGE_CACHE.delete(IMAGE_CACHE.keys().next().value);
+}
 
 function readJson(key, fallback) {
   try {
@@ -107,48 +153,71 @@ function writeJson(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 }
 
-function FolderRow({ row, selected, onSelect, onToggle }) {
+function timeLabel(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function isTypingTarget(el) {
+  if (!el) return false;
+  const tag = String(el.tagName || '').toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+}
+
+/* ───────── Mapper ───────── */
+
+function FolderRow({
+  row, selected, onSelect, onToggle, favorite, onFavorite,
+}) {
+  const ref = useRef(null);
+  const hovered = useDomHover(ref);
+  const count = row.wellKnownName === 'drafts' ? row.total : row.unread;
   return (
-    <View style={[styles.folderRow, selected && styles.folderOn, { paddingLeft: 6 + row.depth * 14 }]}>
-      <TouchableOpacity
-        style={styles.folderChev}
-        onPress={() => { if (row.hasKids) onToggle(row.id); }}
-        disabled={!row.hasKids}
-        accessibilityLabel={row.expanded ? 'Skjul undermapper' : 'Vis undermapper'}
-      >
-        {row.hasKids ? (
-          <Ionicons
-            name={row.expanded ? 'chevron-down' : 'chevron-forward'}
-            size={12}
-            color={colors.muted}
-          />
-        ) : (
-          <View style={{ width: 12 }} />
-        )}
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.folderBody}
-        onPress={() => onSelect(row.id)}
-        accessibilityRole="button"
-        accessibilityState={{ selected }}
-      >
-        <Ionicons
-          name={mailFolderIcon(row.wellKnownName)}
-          size={14}
-          color={selected ? colors.brand : colors.muted}
-        />
-        <Text style={[styles.folderName, selected && styles.folderNameOn]} numberOfLines={1}>
+    <Pressable
+      ref={ref}
+      style={[
+        styles.folderRow,
+        hovered && styles.folderHover,
+        selected && styles.folderOn,
+        { paddingLeft: 6 + row.depth * 14 },
+      ]}
+      onPress={() => onSelect(row.id)}
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${row.name}${count ? `, ${count}` : ''}`}
+    >
+      <>
+        <TouchableOpacity
+          style={styles.folderChev}
+          onPress={() => { if (row.hasKids) onToggle(row.id); }}
+          disabled={!row.hasKids}
+          accessibilityLabel={row.expanded ? 'Skjul undermapper' : 'Vis undermapper'}
+        >
+          {row.hasKids ? (
+            <Ionicons name={row.expanded ? 'chevron-down' : 'chevron-forward'} size={12} color={colors.muted} />
+          ) : <View style={{ width: 12 }} />}
+        </TouchableOpacity>
+        <Ionicons name={mailFolderIcon(row.wellKnownName)} size={14} color={selected ? colors.brand : colors.muted} />
+        <Text style={[styles.folderName, selected && styles.folderNameOn, row.unread > 0 && styles.folderNameUnread]} numberOfLines={1}>
           {row.name}
         </Text>
-        {row.unread > 0 ? <Text style={styles.unread}>{row.unread}</Text> : null}
-      </TouchableOpacity>
-    </View>
+        {hovered && onFavorite && Platform.OS === 'web' ? (
+          <Pressable onPress={() => onFavorite(row.id)} hitSlop={4} accessibilityLabel={favorite ? 'Fjern fra favoritter' : 'Legg til i favoritter'}>
+            <Ionicons name={favorite ? 'star' : 'star-outline'} size={13} color={favorite ? colors.star : colors.muted} />
+          </Pressable>
+        ) : count > 0 ? (
+          <Text style={[styles.unread, row.wellKnownName === 'drafts' && styles.unreadMuted]}>
+            {row.wellKnownName === 'drafts' || row.wellKnownName === 'junkemail' ? `[${count}]` : count}
+          </Text>
+        ) : null}
+      </>
+    </Pressable>
   );
 }
 
 function FolderList({
-  favoriteRows, folderRows, folderId, mailAccounts, active,
-  grantBusy, onSelect, onToggle, onSwitchAccount, onGrant, onOpenSettings,
+  favoriteRows, folderRows, folderId, mailAccounts, active, favoriteIds,
+  grantBusy, onSelect, onToggle, onSwitchAccount, onGrant, onOpenSettings, onFavorite,
 }) {
   return (
     <>
@@ -162,6 +231,8 @@ function FolderList({
               selected={f.id === folderId}
               onSelect={onSelect}
               onToggle={onToggle}
+              favorite
+              onFavorite={onFavorite}
             />
           ))}
         </>
@@ -178,11 +249,7 @@ function FolderList({
             style={[styles.accountRow, acc.id === active?.id && styles.accountOn]}
             onPress={() => onSwitchAccount(acc)}
           >
-            <Ionicons
-              name={acc.id === active?.id ? 'chevron-down' : 'chevron-forward'}
-              size={12}
-              color={colors.muted}
-            />
+            <Ionicons name={acc.id === active?.id ? 'chevron-down' : 'chevron-forward'} size={12} color={colors.muted} />
             <Ionicons name="mail" size={14} color={colors.brand} />
             <Text style={styles.accountLbl} numberOfLines={1}>{acc.email || acc.label || 'Outlook'}</Text>
           </TouchableOpacity>
@@ -198,6 +265,8 @@ function FolderList({
                 selected={row.id === folderId}
                 onSelect={onSelect}
                 onToggle={onToggle}
+                favorite={favoriteIds.includes(row.id)}
+                onFavorite={onFavorite}
               />
             ))
           ) : null}
@@ -210,9 +279,7 @@ function FolderList({
   );
 }
 
-function MailFolderDrawer({
-  visible, onClose, currentName, children,
-}) {
+function MailFolderDrawer({ visible, onClose, currentName, children }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.drawerRoot}>
@@ -233,93 +300,35 @@ function MailFolderDrawer({
   );
 }
 
-function addrLine(list) {
-  return (list || []).map((r) => r.name || r.address).filter(Boolean).join(', ');
-}
-
-function MessageRows({ grouped, selectedId, onOpen, onPrefetch, compact = false, emptyText, loading }) {
-  if (!grouped.length) {
-    if (loading) {
-      return (
-        <View style={styles.listLoading}>
-          <ActivityIndicator color={colors.brand} />
-          <Text style={styles.muted}>Laster meldinger…</Text>
-        </View>
-      );
-    }
-    return <Text style={[styles.muted, { padding: 16 }]}>{emptyText}</Text>;
-  }
-  return grouped.map((row) => (
-    row.type === 'head' ? (
-      <Text key={row.id} style={styles.section}>{row.label}</Text>
-    ) : (
-      <TouchableOpacity
-        key={row.id}
-        style={[styles.msgRow, compact && styles.msgRowCompact, row.id === selectedId && styles.msgOn, !row.isRead && styles.msgUnread]}
-        onPress={() => onOpen(row.id)}
-        onMouseEnter={onPrefetch ? () => onPrefetch(row.id) : undefined}
-      >
-        {!row.isRead ? <View style={styles.unreadDot} /> : <View style={styles.readDot} />}
-        <View style={styles.avatar}>
-          <Text style={styles.avatarTxt}>{senderInitials(row.from?.name, row.from?.address)}</Text>
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={styles.msgTop}>
-            <Text style={[styles.msgFrom, !row.isRead && styles.msgBold]} numberOfLines={1}>
-              {row.from?.name || row.from?.address || 'Ukjent'}
-            </Text>
-            <Text style={styles.msgWhen}>{formatMailWhen(row.receivedAt)}</Text>
-          </View>
-          <Text style={styles.msgSub} numberOfLines={1}>{row.subject}</Text>
-          <Text style={styles.msgPrev} numberOfLines={compact ? 1 : 2}>{row.preview}</Text>
-        </View>
-        {row.hasAttachments ? <Ionicons name="attach" size={14} color={colors.muted} /> : null}
-        {row.importance === 'high' ? <Ionicons name="arrow-up" size={12} color={colors.danger} /> : null}
-      </TouchableOpacity>
-    )
-  ));
-}
-
-function ReadingBody({ open, onReply, onReplyAll, onForward }) {
+function Toast({ toast, onClose }) {
+  if (!toast) return null;
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.readSubject}>{open.subject}</Text>
-      <Text style={styles.readFrom}>
-        {open.from?.name || open.from?.address}
-        {open.from?.address ? ` <${open.from.address}>` : ''}
-      </Text>
-      <Text style={styles.readMeta}>Til: {addrLine(open.to) || '—'}</Text>
-      <View style={styles.readActions}>
-        <DeskBtn icon="arrow-undo-outline" label="Svar" onPress={onReply} />
-        <DeskBtn icon="arrow-undo" label="Svar alle" onPress={onReplyAll} />
-        <DeskBtn icon="arrow-redo-outline" label="Videresend" onPress={onForward} />
+    <View style={styles.toastWrap} pointerEvents="box-none">
+      <View style={[styles.toast, toast.error && styles.toastErr]}>
+        {toast.busy ? <ActivityIndicator size="small" color="#fff" /> : null}
+        <Text style={styles.toastTxt} numberOfLines={2}>{toast.text}</Text>
+        {toast.action ? (
+          <Pressable onPress={() => { onClose(); toast.action.run(); }} hitSlop={6}>
+            <Text style={styles.toastAction}>{toast.action.label}</Text>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={onClose} hitSlop={6} accessibilityLabel="Lukk melding">
+          <Ionicons name="close" size={14} color="#fff" />
+        </Pressable>
       </View>
-      {Platform.OS === 'web' ? (
-        <iframe
-          title="Melding"
-          sandbox=""
-          srcDoc={`<base target="_blank" /><style>body{font-family:Segoe UI,sans-serif;font-size:14px;color:#1a2744;margin:0}</style>${sanitizeHtml(open.html || '')}`}
-          style={{ width: '100%', minHeight: 320, border: 0, flex: 1 }}
-        />
-      ) : (
-        <Text style={styles.readPlain}>{open.preview}</Text>
-      )}
-    </ScrollView>
+    </View>
   );
 }
 
 export default function MailHubScreen() {
   const { isDesktop } = useLayout();
+  const win = useWindowDimensions();
   const { uid } = useApp();
-  const [accounts, setAccounts] = useState(() => {
-    const peeked = peekCalendarConnectionsCache(uid);
-    return peeked?.connections || [];
-  });
+  const [accounts, setAccounts] = useState(() => peekCalendarConnectionsCache(uid)?.connections || []);
   const [connectionId, setConnectionId] = useState(() => {
     const preferred = readJson(DEFAULT_ACCOUNT_KEY, null);
-    const peeked = peekCalendarConnectionsCache(uid);
     const ms = uniqueMicrosoftConnections(
-      (peeked?.connections || []).filter((c) => c.type === 'microsoft'),
+      (peekCalendarConnectionsCache(uid)?.connections || []).filter((c) => c.type === 'microsoft'),
     );
     if (preferred && ms.some((c) => c.id === preferred)) return preferred;
     return ms.find((c) => c.mailAccess)?.id || ms[0]?.id || null;
@@ -329,20 +338,28 @@ export default function MailHubScreen() {
     const saved = readJson(LAST_FOLDER_KEY, null);
     return typeof saved === 'string' ? saved : null;
   });
+  const [filter, setFilter] = useState(() => {
+    const saved = readJson(FILTER_KEY, null);
+    if (saved) return normalizeMailFilter(saved);
+    return readJson(UNREAD_FIRST_KEY, false) === true ? 'unread' : 'all';
+  });
   const [messages, setMessages] = useState([]);
-  const [unreadOnly, setUnreadOnly] = useState(() => readJson(UNREAD_FIRST_KEY, false) === true);
+  const [hasMore, setHasMore] = useState(false);
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [syncCount, setSyncCount] = useState(0);
+  const [syncedAt, setSyncedAt] = useState(0);
   const [selectedId, setSelectedId] = useState(null);
   const [open, setOpen] = useState(null);
-  // Ikke blokker hele UI hvis vi allerede har konti fra cache
-  const [loading, setLoading] = useState(() => {
-    const peeked = peekCalendarConnectionsCache(uid);
-    return !(peeked?.connections?.length);
-  });
-  const [listBusy, setListBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [bodyLoading, setBodyLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
+  const [search, setSearch] = useState(null);
   const [compose, setCompose] = useState(null);
   const [composeBusy, setComposeBusy] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [master, setMaster] = useState([]);
+  const [storedContacts, setStoredContacts] = useState(() => readJson(CONTACTS_KEY, []));
+  const [loadingAccounts, setLoadingAccounts] = useState(() => !(peekCalendarConnectionsCache(uid)?.connections?.length));
   const [grantBusy, setGrantBusy] = useState(false);
   const [folderOpen, setFolderOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -352,37 +369,83 @@ export default function MailHubScreen() {
     return typeof saved === 'string' ? saved : null;
   });
   const [composePrefs, setComposePrefs] = useState(() => loadMailComposePrefs());
-  const [hasMore, setHasMore] = useState(false);
-  const [nextSkip, setNextSkip] = useState(0);
-  const [moreBusy, setMoreBusy] = useState(false);
   const [folderW, setFolderW] = useState(MAIL_FOLDER_PANE_DEFAULT);
   const [listW, setListW] = useState(MAIL_LIST_PANE_DEFAULT);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const [favoriteIds, setFavoriteIds] = useState(null);
+  const [menu, setMenu] = useState(null);
+  const [purgeIds, setPurgeIds] = useState(null);
+  const [attachmentBusy, setAttachmentBusy] = useState(null);
+
   const folderWRef = useRef(MAIL_FOLDER_PANE_DEFAULT);
   const listWRef = useRef(MAIL_LIST_PANE_DEFAULT);
   const folderOriginRef = useRef(MAIL_FOLDER_PANE_DEFAULT);
   const listOriginRef = useRef(MAIL_LIST_PANE_DEFAULT);
   const prevConnRef = useRef(null);
-  const bootGenRef = useRef(0);
   const lastAccountFetchRef = useRef(0);
   const nextSkipRef = useRef(0);
+  const keyRef = useRef('');
+  const bootedRef = useRef(new Set());
+  const bootingRef = useRef(new Set());
+  const lastFetchRef = useRef(new Map());
+  const messagesRef = useRef([]);
+  const foldersRef = useRef([]);
+  const openRef = useRef(null);
+  const composeRef = useRef(null);
+  const savingRef = useRef(Promise.resolve());
+  /** Siste lagring per skrivevindu, så send/forkast ser utkastet selv om tilstanden ikke er oppdatert ennå. */
+  const savedDraftsRef = useRef(new Map());
+  const autosaveRef = useRef(null);
+  const toastTimer = useRef(null);
+  const hoverTimer = useRef(null);
+  const pollTick = useRef(0);
+  const loadListRef = useRef(null);
   folderWRef.current = folderW;
   listWRef.current = listW;
+  messagesRef.current = messages;
+  foldersRef.current = folders;
+  openRef.current = open;
+  composeRef.current = compose;
 
   const mailAccounts = useMemo(
     () => uniqueMicrosoftConnections((accounts || []).filter((c) => c.type === 'microsoft')),
     [accounts],
   );
-  const active = mailAccounts.find((c) => c.id === connectionId) || mailAccounts.find((c) => c.mailAccess) || mailAccounts[0] || null;
+  const active = mailAccounts.find((c) => c.id === connectionId)
+    || mailAccounts.find((c) => c.mailAccess) || mailAccounts[0] || null;
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const folderIdRef = useRef(folderId);
+  folderIdRef.current = folderId;
+  const filterRef = useRef(filter);
+  filterRef.current = filter;
+  const syncing = syncCount > 0;
+  /** Under denne bredden vises sjeldnere knapper bare som ikon, så båndet holder seg på én linje. */
+  const ribbonCompact = win.width < 1580;
+
+  /* ───────── Meldinger, feil og tilstand ───────── */
+
+  const showToast = useCallback((text, opts = {}) => {
+    clearTimeout(toastTimer.current);
+    setToast({ text, ...opts });
+    if (!opts.busy) toastTimer.current = setTimeout(() => setToast(null), opts.action ? 8000 : 4500);
+  }, []);
+
+  const showError = useCallback((e, fallback = 'E-post feilet') => {
+    const text = friendlyMailError(e?.message ? e : { message: String(e || '') }, fallback);
+    const consent = e?.needsMailConsent === true || (e?.code === 'token' && e?.status === 401) || e?.status === 403;
+    setError({ text, consent });
+  }, []);
 
   useEffect(() => {
     const saved = readJson(PANE_KEY, null);
-    if (saved?.folder) {
-      setFolderW(clampMailPaneWidth(saved.folder, MAIL_FOLDER_PANE_MIN, MAIL_FOLDER_PANE_MAX));
-    }
-    if (saved?.list) {
-      setListW(clampMailPaneWidth(saved.list, MAIL_LIST_PANE_MIN, MAIL_LIST_PANE_MAX));
-    }
+    if (saved?.folder) setFolderW(clampMailPaneWidth(saved.folder, MAIL_FOLDER_PANE_MIN, MAIL_FOLDER_PANE_MAX));
+    if (saved?.list) setListW(clampMailPaneWidth(saved.list, MAIL_LIST_PANE_MIN, MAIL_LIST_PANE_MAX));
+    return () => {
+      clearTimeout(toastTimer.current);
+      clearTimeout(autosaveRef.current);
+      clearTimeout(hoverTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -393,15 +456,30 @@ export default function MailHubScreen() {
       setMessages([]);
       setSelectedId(null);
       setOpen(null);
-      setError('');
+      setError(null);
       setHasMore(false);
-      setNextSkip(0);
+      setSearch(null);
+      nextSkipRef.current = 0;
+      foldersRef.current = [];
+      messagesRef.current = [];
+      folderIdRef.current = null;
+      openRef.current = null;
     }
     prevConnRef.current = id || null;
-    if (!id) return;
+    if (!id) return undefined;
     const saved = readJson(`${EXPAND_KEY}.${id}`, []);
     setExpandedIds(new Set(Array.isArray(saved) ? saved : []));
-  }, [active?.id]);
+    const favs = readJson(`${FAVORITES_KEY}.${id}`, null);
+    setFavoriteIds(Array.isArray(favs) ? favs : null);
+    if (!active?.mailAccess) return undefined;
+    const release = keepMailTokenFresh(id);
+    if (isDirectMail(id)) {
+      loadMasterCategories(id).then((list) => {
+        if (list && activeRef.current?.id === id) setMaster(list);
+      }).catch(() => {});
+    }
+    return release;
+  }, [active?.id, active?.mailAccess]);
 
   const reloadAccounts = useCallback(async () => {
     try {
@@ -409,61 +487,176 @@ export default function MailHubScreen() {
       const microsoft = (list || []).filter((c) => c.type === 'microsoft');
       const extras = duplicateMicrosoftConnectionIds(microsoft);
       const keptMs = uniqueMicrosoftConnections(microsoft);
-      setAccounts([
-        ...(list || []).filter((c) => c.type !== 'microsoft'),
-        ...keptMs,
-      ]);
-      if (extras.length) {
-        extras.forEach((id) => {
-          removeCalendarConnection(id).catch(() => {});
-        });
-      }
+      setAccounts([...(list || []).filter((c) => c.type !== 'microsoft'), ...keptMs]);
+      extras.forEach((id) => { removeCalendarConnection(id).catch(() => {}); });
       const preferred = readJson(DEFAULT_ACCOUNT_KEY, null);
       setConnectionId((cur) => {
         if (cur && keptMs.some((c) => c.id === cur)) return cur;
         if (preferred && keptMs.some((c) => c.id === preferred)) return preferred;
-        const withMail = keptMs.find((c) => c.mailAccess);
-        return withMail?.id || keptMs[0]?.id || null;
+        return keptMs.find((c) => c.mailAccess)?.id || keptMs[0]?.id || null;
       });
       lastAccountFetchRef.current = Date.now();
     } catch (e) {
-      setError(e?.message || 'Klarte ikke hente kontoer');
+      setError({ text: e?.message || 'Klarte ikke hente kontoer' });
     }
   }, []);
 
-  useEffect(() => { reloadAccounts().finally(() => setLoading(false)); }, [reloadAccounts]);
+  useEffect(() => { reloadAccounts().finally(() => setLoadingAccounts(false)); }, [reloadAccounts]);
 
-  // Synk-hydrat folders/messages fra minne når aktiv konto er klar
+  /* ───────── Lasting av mapper og liste ───────── */
+
+  const applyFolders = useCallback((conn, list, { persist = true } = {}) => {
+    const next = list || [];
+    foldersRef.current = next;
+    setFolders(next);
+    if (persist) putMailFoldersCache(uid, conn, next);
+  }, [uid]);
+
+  const prefetchTop = useCallback((conn, list) => {
+    if (!isDirectMail(conn)) return;
+    const ids = (list || [])
+      .slice(0, 8)
+      .map((m) => m.id)
+      .filter((id) => !peekMailMessageCache(uid, conn, id))
+      .slice(0, 6);
+    if (!ids.length) return;
+    prefetchMailMessages(conn, ids).then((full) => {
+      full.forEach((m) => putMailMessageCache(uid, conn, m.id, m));
+    }).catch(() => {});
+  }, [uid]);
+
+  const applyPage = useCallback((conn, fid, f, page, { append = false } = {}) => {
+    const incoming = page?.messages || [];
+    const prev = messagesRef.current;
+    const next = append
+      ? mergeMailMessages(prev, incoming, { append: true })
+      : mergeFirstPage(prev, incoming, { hasMore: page?.hasMore !== false });
+    messagesRef.current = next;
+    setMessages(next);
+    putMailMessagesCache(uid, conn, fid, f, next);
+    nextSkipRef.current = append ? Number(page?.nextSkip || next.length) : Math.max(next.length, incoming.length);
+    setHasMore(page?.hasMore === true);
+    if (!append) prefetchTop(conn, next);
+  }, [uid, prefetchTop]);
+
+  const loadList = useCallback(async ({ force = false, silent = false } = {}) => {
+    const acc = activeRef.current;
+    if (!uid || !acc?.id || !acc.mailAccess) return;
+    const conn = acc.id;
+    const fid = folderIdRef.current;
+    const f = filterRef.current;
+    const booted = bootedRef.current.has(conn);
+    const key = `${conn}|${fid || ''}|${f}`;
+    keyRef.current = key;
+
+    if (!silent) {
+      const cachedFolders = peekMailFoldersCache(uid, conn, { maxAgeMs: MAIL_STORAGE_MS })
+        || await loadMailFoldersCache(uid, conn);
+      if (keyRef.current !== key) return;
+      if (cachedFolders?.folders?.length && !foldersRef.current.length) {
+        applyFolders(conn, cachedFolders.folders, { persist: false });
+      }
+      const cfid = fid || (cachedFolders?.folders?.length ? pickInboxFolderId(cachedFolders.folders, null) : null);
+      if (cfid) {
+        const cached = peekMailMessagesCache(uid, conn, cfid, f, { maxAgeMs: MAIL_STORAGE_MS })
+          || await loadMailMessagesCache(uid, conn, cfid, f);
+        if (keyRef.current !== key) return;
+        const list = cached?.messages || [];
+        messagesRef.current = list;
+        setMessages(list);
+        setHasMore(list.length >= PAGE);
+        nextSkipRef.current = list.length;
+      } else if (!messagesRef.current.length) {
+        setMessages([]);
+      }
+    }
+
+    if (!force && booted && fid && Date.now() - (lastFetchRef.current.get(key) || 0) < FRESH_MS) return;
+    // Første henting for kontoen pågår; den laster riktig liste når den er ferdig.
+    if ((!booted || !fid) && bootingRef.current.has(conn)) return;
+    if (!silent) setSyncCount((n) => n + 1);
+    try {
+      if (!booted || !fid) {
+        bootingRef.current.add(conn);
+        let res;
+        try {
+          res = await bootMailbox(conn, { folderId: fid || 'inbox', filter: f, top: PAGE });
+        } finally {
+          bootingRef.current.delete(conn);
+        }
+        if (activeRef.current?.id !== conn) return;
+        bootedRef.current.add(conn);
+        applyFolders(conn, res.folders);
+        const realFid = res.folderId === 'inbox' ? pickInboxFolderId(res.folders, 'inbox') : res.folderId;
+        const realKey = `${conn}|${realFid}|${f}`;
+        lastFetchRef.current.set(realKey, Date.now());
+        if (keyRef.current === key || keyRef.current === realKey) {
+          keyRef.current = realKey;
+          if (folderIdRef.current !== realFid) {
+            folderIdRef.current = realFid;
+            setFolderId(realFid);
+          }
+          applyPage(conn, realFid, f, res.page);
+        } else {
+          // Brukeren byttet mappe eller filter mens kontoen lastet.
+          setTimeout(() => loadListRef.current?.(), 0);
+        }
+        res.deeper().then((extra) => {
+          if (!extra.length || activeRef.current?.id !== conn) return;
+          const have = new Set(foldersRef.current.map((x) => x.id));
+          applyFolders(conn, [...foldersRef.current, ...extra.filter((x) => !have.has(x.id))]);
+        }).catch(() => {});
+      } else {
+        const page = await listMessages(conn, fid, { filter: f, top: PAGE });
+        if (keyRef.current !== key) return;
+        lastFetchRef.current.set(key, Date.now());
+        applyPage(conn, fid, f, page);
+      }
+      setSyncedAt(Date.now());
+      setError((cur) => (cur?.sync ? null : cur));
+    } catch (e) {
+      if (keyRef.current === key && !silent) {
+        showError(e, 'Klarte ikke hente e-post');
+        setError((cur) => (cur ? { ...cur, sync: true } : cur));
+      }
+    } finally {
+      if (!silent) setSyncCount((n) => Math.max(0, n - 1));
+    }
+  }, [uid, applyFolders, applyPage, showError]);
+  loadListRef.current = loadList;
+
+  const refreshFolders = useCallback(async () => {
+    const conn = activeRef.current?.id;
+    if (!conn || !isDirectMail(conn)) return;
+    try {
+      const list = await loadFolders(conn);
+      if (activeRef.current?.id === conn && list?.length) applyFolders(conn, list);
+    } catch { /* stille */ }
+  }, [applyFolders]);
+
   useEffect(() => {
     if (!uid || !active?.id || !active.mailAccess) return;
-    const folderPeek = peekMailFoldersCache(uid, active.id, { maxAgeMs: MAIL_STORAGE_MS });
-    if (folderPeek?.folders?.length) {
-      setFolders(folderPeek.folders);
-      setFolderId((cur) => {
-        if (cur && folderPeek.folders.some((f) => f.id === cur)) return cur;
-        const last = readJson(LAST_FOLDER_KEY, null);
-        if (last && folderPeek.folders.some((f) => f.id === last)) return last;
-        const inbox = folderPeek.folders.find((f) => (
-          f.wellKnownName === 'inbox' || /^innboks$|^inbox$/i.test(f.name || '')
-        ));
-        return inbox?.id || folderPeek.folders[0]?.id || cur;
-      });
-    }
-  }, [uid, active?.id, active?.mailAccess]);
+    setSearch(null);
+    loadListRef.current?.();
+  }, [uid, active?.id, active?.mailAccess, folderId, filter]);
+
+  // Ny e-post hentes i bakgrunnen mens siden er åpen, som i Outlook.
+  useEffect(() => {
+    if (!active?.id || !active.mailAccess) return undefined;
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      pollTick.current += 1;
+      loadListRef.current?.({ force: true, silent: true }).catch(() => {});
+      if (pollTick.current % 3 === 0) refreshFolders();
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [active?.id, active?.mailAccess, refreshFolders]);
 
   useEffect(() => {
-    if (!uid || !active?.id || !folderId) return;
-    const msgPeek = peekMailMessagesCache(uid, active.id, folderId, unreadOnly, {
-      maxAgeMs: MAIL_STORAGE_MS,
-    });
-    if (msgPeek?.messages) setMessages(msgPeek.messages);
-  }, [uid, active?.id, folderId, unreadOnly]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
+    if (typeof window === 'undefined' || !window.addEventListener) return undefined;
     const onFocus = () => {
-      if (Date.now() - lastAccountFetchRef.current < 120000) return;
-      reloadAccounts();
+      if (Date.now() - lastAccountFetchRef.current > 120000) reloadAccounts();
+      loadListRef.current?.({ silent: true });
     };
     const onMsg = (e) => {
       if (e.origin !== window.location.origin) return;
@@ -477,183 +670,54 @@ export default function MailHubScreen() {
     };
   }, [reloadAccounts]);
 
-  const applyFolderList = useCallback((id, list, { persist = true } = {}) => {
-    const foldersList = list || [];
-    setFolders(foldersList);
-    if (persist) putMailFoldersCache(uid, id, foldersList);
-    setFolderId((cur) => {
-      if (cur && cur !== 'inbox' && foldersList.some((f) => f.id === cur)) return cur;
-      const last = readJson(LAST_FOLDER_KEY, null);
-      if (last && foldersList.some((f) => f.id === last)) return last;
-      return pickInboxFolderId(foldersList, cur || 'inbox');
-    });
-  }, [uid]);
-
-  const applyMessagePage = useCallback((id, fid, unread, page, { append = false, merge = false } = {}) => {
-    const incoming = page?.messages || [];
-    setMessages((prev) => {
-      const next = mergeMailMessages(prev, incoming, { append, merge });
-      putMailMessagesCache(uid, id, fid, unread, next);
-      return next;
-    });
-    const skip = Number(page?.nextSkip || incoming.length) || incoming.length;
-    nextSkipRef.current = skip;
-    setNextSkip(skip);
-    setHasMore(page?.hasMore === true);
-    if (page?.folderId && page.folderId !== fid) setFolderId(page.folderId);
-  }, [uid]);
-
-  const loadFolders = useCallback(async (id, { force = false } = {}) => {
-    if (!id) return;
-    const acc = mailAccounts.find((c) => c.id === id);
-    if (!acc?.mailAccess) {
-      setFolders([]);
-      return;
-    }
-    const cached = peekMailFoldersCache(uid, id, { maxAgeMs: MAIL_STORAGE_MS })
-      || await loadMailFoldersCache(uid, id);
-    if (cached?.folders?.length) applyFolderList(id, cached.folders, { persist: false });
-    if (!force && isMailCacheFresh(cached, MAIL_FOLDER_FRESH_MS)) return;
-    const res = await listMailFolders(id);
-    if (!res?.ok) {
-      setError(friendlyMailError({ message: res?.error, code: res?.code }, 'Klarte ikke hente mapper'));
-      setFolderId((cur) => cur || 'inbox');
-      return;
-    }
-    applyFolderList(id, res.folders || []);
-  }, [mailAccounts, uid, applyFolderList]);
-
-  const loadMessages = useCallback(async (id, fid, unread, { force = false, append = false } = {}) => {
-    if (!id || !fid) {
-      if (!append) setMessages([]);
-      return;
-    }
-    const cached = peekMailMessagesCache(uid, id, fid, unread, { maxAgeMs: MAIL_STORAGE_MS })
-      || await loadMailMessagesCache(uid, id, fid, unread);
-    if (!append && cached?.messages) setMessages(cached.messages);
-    if (!append && !force && isMailCacheFresh(cached)) {
-      setHasMore((cached.messages || []).length >= MAIL_LIST_PAGE);
-      setNextSkip((cached.messages || []).length);
-      return;
-    }
-    if (!append && !cached?.messages?.length) setListBusy(true);
-    const since = !append && !force && cached?.messages?.length
-      ? newestMailReceivedAt(cached.messages)
-      : '';
+  const loadMore = useCallback(async () => {
+    const conn = activeRef.current?.id;
+    const fid = folderIdRef.current;
+    const f = filterRef.current;
+    if (!conn || !fid || moreBusy || !hasMore || search) return;
+    const key = keyRef.current;
+    setMoreBusy(true);
     try {
-      const res = await listMailMessages(id, {
-        folderId: fid,
-        unreadOnly: unread,
-        skip: append ? nextSkipRef.current : 0,
-        top: MAIL_LIST_PAGE,
-        since: since || undefined,
-      });
-      if (!res?.ok) {
-        const msg = res?.error || 'Klarte ikke hente e-post';
-        if (/targeted mailbox|does not belong|doesn't belong/i.test(msg)) {
-          setFolderId('inbox');
-          setError('');
-          if (!cached?.messages?.length) setMessages([]);
-          return;
-        }
-        if (cached?.messages?.length) return;
-        setError(friendlyMailError({ message: msg, code: res?.code }));
-        if (!cached?.messages?.length) setMessages([]);
-        return;
-      }
-      applyMessagePage(id, fid, unread, res, { append, merge: !!since || append });
+      const page = await listMessages(conn, fid, { filter: f, top: PAGE, skip: nextSkipRef.current });
+      if (keyRef.current === key) applyPage(conn, fid, f, page, { append: true });
+    } catch (e) {
+      showError(e, 'Klarte ikke hente flere');
     } finally {
-      setListBusy(false);
       setMoreBusy(false);
     }
-  }, [uid, applyMessagePage]);
+  }, [moreBusy, hasMore, search, applyPage, showError]);
 
-  const bootMailbox = useCallback(async (id, fid, unread, force = false) => {
-    const gen = ++bootGenRef.current;
-    const folderCached = peekMailFoldersCache(uid, id, { maxAgeMs: MAIL_STORAGE_MS })
-      || await loadMailFoldersCache(uid, id);
-    const resolvedFolder = fid
-      || (folderCached?.folders ? pickInboxFolderId(folderCached.folders) : 'inbox');
-    const msgCached = resolvedFolder
-      ? (peekMailMessagesCache(uid, id, resolvedFolder, unread, { maxAgeMs: MAIL_STORAGE_MS })
-        || await loadMailMessagesCache(uid, id, resolvedFolder, unread))
-      : null;
-    if (gen !== bootGenRef.current) return;
-    if (folderCached?.folders?.length) applyFolderList(id, folderCached.folders, { persist: false });
-    if (msgCached?.messages) {
-      setMessages(msgCached.messages);
-      nextSkipRef.current = msgCached.messages.length;
-      setNextSkip(msgCached.messages.length);
-      setHasMore(msgCached.messages.length >= MAIL_LIST_PAGE);
-    }
-    const foldersFresh = !force && isMailCacheFresh(folderCached, MAIL_FOLDER_FRESH_MS);
-    const messagesFresh = !force && isMailCacheFresh(msgCached);
-    const plan = mailRefreshPlan({
-      foldersFresh,
-      messagesFresh,
-      hasMessages: !!(msgCached?.messages?.length),
-      force,
+  /* ───────── Visning ───────── */
+
+  const listSource = search ? search.messages : messages;
+  const shown = useMemo(() => {
+    const q = search ? '' : query.trim().toLowerCase();
+    return listSource.filter((m) => {
+      if (!search && !matchesMailFilter(m, filter)) return false;
+      if (!q) return true;
+      return `${m.subject} ${m.from?.name || ''} ${m.from?.address || ''} ${m.preview}`.toLowerCase().includes(q);
     });
-    if (plan === 'none') return;
-    // Empty mailbox cache: one combined Graph sync. With cached mail, only
-    // fetch new messages (since) so we don't re-download the whole inbox.
-    if (plan === 'full' && !msgCached?.messages?.length && resolvedFolder) {
-      if (!msgCached?.messages?.length) setListBusy(true);
-      try {
-        const res = await syncOutlookMailbox(id, {
-          folderId: resolvedFolder,
-          unreadOnly: unread,
-          top: MAIL_LIST_PAGE,
-        });
-        if (gen !== bootGenRef.current) return;
-        if (res?.ok) {
-          applyFolderList(id, res.folders || []);
-          const realFolder = pickInboxFolderId(res.folders, res.folderId || resolvedFolder);
-          applyMessagePage(id, realFolder, unread, res);
-          return;
-        }
-      } finally {
-        if (gen === bootGenRef.current) setListBusy(false);
-      }
-    }
-    if (!foldersFresh) await loadFolders(id, { force });
-    if (!messagesFresh && resolvedFolder) await loadMessages(id, resolvedFolder, unread, { force });
-  }, [uid, applyFolderList, applyMessagePage, loadFolders, loadMessages]);
-
-  useEffect(() => {
-    if (!active?.id || !active.mailAccess) return undefined;
-    bootMailbox(active.id, folderId, unreadOnly, false)
-      .catch((e) => setError(friendlyMailError(e, 'E-post feilet')));
-    return undefined;
-  }, [active?.id, active?.mailAccess, folderId, unreadOnly, bootMailbox]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return messages;
-    return messages.filter((m) => (
-      `${m.subject} ${m.from?.name || ''} ${m.from?.address || ''} ${m.preview}`.toLowerCase().includes(q)
-    ));
-  }, [messages, query]);
-
-  const grouped = useMemo(() => {
-    const out = [];
-    let last = '';
-    filtered.forEach((m) => {
-      const label = mailSectionLabel(m.receivedAt);
-      if (label !== last) {
-        out.push({ type: 'head', id: `h-${label}-${m.id}`, label });
-        last = label;
-      }
-      out.push({ type: 'msg', ...m });
-    });
-    return out;
-  }, [filtered]);
+  }, [listSource, query, search, filter]);
+  const rows = useMemo(() => groupMailRows(shown), [shown]);
 
   const folderTree = useMemo(() => nestMailFolders(folders), [folders]);
-  const favoriteRows = useMemo(() => favoriteMailFolders(folderTree), [folderTree]);
-  const folderRows = useMemo(
-    () => visibleMailFolderRows(folderTree, expandedIds),
-    [folderTree, expandedIds],
+  const allFolders = useMemo(() => flattenMailFolders(folderTree), [folderTree]);
+  const foldersById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
+  const effectiveFavorites = useMemo(() => {
+    if (favoriteIds) return favoriteIds.filter((id) => foldersById.has(id));
+    return ['inbox', 'sentitems'].map((w) => folderByWell(folders, w)?.id).filter(Boolean);
+  }, [favoriteIds, foldersById, folders]);
+  const favoriteRows = useMemo(
+    () => effectiveFavorites.map((id) => foldersById.get(id)).filter(Boolean),
+    [effectiveFavorites, foldersById],
+  );
+  const folderRows = useMemo(() => visibleMailFolderRows(folderTree, expandedIds), [folderTree, expandedIds]);
+  const currentFolder = foldersById.get(folderId) || null;
+  const currentWell = currentFolder?.wellKnownName || (folderId === 'inbox' ? 'inbox' : null);
+  const currentFolderName = currentFolder?.name || (folderId === 'inbox' ? 'Innboks' : 'E-post');
+  const contacts = useMemo(
+    () => mergeContacts(storedContacts, contactsFromMessages(messages).map((c) => ({ ...c, count: 0 })), 0),
+    [storedContacts, messages],
   );
 
   useEffect(() => {
@@ -673,82 +737,591 @@ export default function MailHubScreen() {
     });
   }, [folderId, folderTree]);
 
-  const persistExpanded = (next) => {
-    setExpandedIds(next);
-    if (active?.id) writeJson(`${EXPAND_KEY}.${active.id}`, [...next]);
-  };
-
   const toggleFolder = (id) => {
     const next = new Set(expandedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    persistExpanded(next);
+    setExpandedIds(next);
+    if (active?.id) writeJson(`${EXPAND_KEY}.${active.id}`, [...next]);
   };
 
-  const persistPanes = (folder, list) => {
-    writeJson(PANE_KEY, { folder, list });
+  const toggleFavorite = (id) => {
+    const cur = effectiveFavorites;
+    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    setFavoriteIds(next);
+    if (active?.id) writeJson(`${FAVORITES_KEY}.${active.id}`, next);
   };
 
-  const currentFolderName = useMemo(() => {
-    const hit = folders.find((f) => f.id === folderId);
-    if (hit?.name) return hit.name;
-    if (folderId === 'inbox') return 'Innboks';
-    return 'E-post';
-  }, [folders, folderId]);
+  const persistPanes = (folder, list) => writeJson(PANE_KEY, { folder, list });
 
-  const switchAccount = (acc) => {
-    if (acc.id !== connectionId) {
-      setConnectionId(acc.id);
-    }
-    if (!acc.mailAccess) grantMail(acc.id);
-  };
+  /* ───────── Lokale endringer ───────── */
 
-  const openMessage = async (id) => {
-    if (!active?.id || !id) return;
+  const putList = useCallback((next) => {
+    messagesRef.current = next;
+    setMessages(next);
+    const conn = activeRef.current?.id;
+    if (conn && folderIdRef.current) putMailMessagesCache(uid, conn, folderIdRef.current, filterRef.current, next);
+  }, [uid]);
+
+  const patchLocal = useCallback((ids, fn) => {
+    const set = new Set(ids);
+    putList(messagesRef.current.map((m) => (set.has(m.id) ? fn(m) : m)));
+    setOpen((o) => (o && set.has(o.id) ? fn(o) : o));
+    setSearch((s) => (s ? { ...s, messages: s.messages.map((m) => (set.has(m.id) ? fn(m) : m)) } : s));
+    const conn = activeRef.current?.id;
+    ids.forEach((id) => {
+      const hit = peekMailMessageCache(uid, conn, id);
+      if (hit?.message) putMailMessageCache(uid, conn, id, fn(hit.message));
+    });
+  }, [uid, putList]);
+
+  const bumpUnread = useCallback((fid, delta) => {
+    const conn = activeRef.current?.id;
+    if (!conn || !delta) return;
+    const target = foldersRef.current.find((f) => f.id === fid || f.wellKnownName === fid);
+    if (!target) return;
+    applyFolders(conn, foldersRef.current.map((f) => (
+      f.id === target.id ? { ...f, unread: Math.max(0, Number(f.unread || 0) + delta) } : f
+    )));
+  }, [applyFolders]);
+
+  /* ───────── Åpne melding ───────── */
+
+  const withImages = useCallback((conn, message) => {
+    const hit = IMAGE_CACHE.get(imageCacheKey(conn, message.id));
+    if (hit) return { ...message, html: hit.html, visibleAttachments: visibleAttachments(message, hit.used) };
+    return { ...message, visibleAttachments: visibleAttachments(message, new Set()) };
+  }, []);
+
+  const resolveImages = useCallback(async (conn, message) => {
+    if (!isDirectMail(conn) || !/cid:/i.test(message.html || '')) return;
+    if (IMAGE_CACHE.has(imageCacheKey(conn, message.id))) return;
+    try {
+      const res = await loadInlineImages(conn, message);
+      rememberImages(imageCacheKey(conn, message.id), { html: res.html, used: res.used });
+      setOpen((cur) => (cur?.id === message.id ? withImages(conn, { ...message, ...cur, html: message.html }) : cur));
+    } catch { /* teksten vises uten bilder */ }
+  }, [withImages]);
+
+  const markRead = useCallback((list, isRead) => {
+    const conn = activeRef.current?.id;
+    const targets = (list || []).filter((m) => m && m.isRead !== isRead && !m.isDraft);
+    if (!conn || !targets.length) return;
+    const ids = targets.map((m) => m.id);
+    patchLocal(ids, (m) => ({ ...m, isRead }));
+    const byFolder = {};
+    targets.forEach((m) => {
+      const fid = m.parentFolderId || folderIdRef.current;
+      byFolder[fid] = (byFolder[fid] || 0) + (isRead ? -1 : 1);
+    });
+    Object.entries(byFolder).forEach(([fid, d]) => bumpUnread(fid, d));
+    if (!isDirectMail(conn)) return;
+    updateMailMessages(conn, ids, { isRead }).catch((e) => {
+      patchLocal(ids, (m) => ({ ...m, isRead: !isRead }));
+      Object.entries(byFolder).forEach(([fid, d]) => bumpUnread(fid, -d));
+      showError(e);
+    });
+  }, [patchLocal, bumpUnread, showError]);
+
+  const openMessage = useCallback(async (id) => {
+    const conn = activeRef.current?.id;
+    if (!conn || !id) return;
     setSelectedId(id);
-    const cached = peekMailMessageCache(uid, active.id, id)
-      || await loadMailMessageCache(uid, active.id, id);
-    const summary = messages.find((m) => m.id === id);
-    if (cached?.message?.html) {
-      setOpen(cached.message);
+    const summary = messagesRef.current.find((m) => m.id === id)
+      || search?.messages?.find((m) => m.id === id);
+    const cached = peekMailMessageCache(uid, conn, id) || await loadMailMessageCache(uid, conn, id);
+    const cachedFull = cached?.message?.full && cached.message.html ? cached.message : null;
+    if (cachedFull) {
+      setOpen(withImages(conn, { ...cachedFull, ...(summary ? {
+        isRead: summary.isRead, flagged: summary.flagged, flagStatus: summary.flagStatus, flagDue: summary.flagDue, categories: summary.categories,
+      } : {}) }));
+      setBodyLoading(false);
     } else if (summary) {
-      setOpen({
-        ...summary,
-        html: `<p>${escapeHtml(summary.preview || '')}</p>`,
-        partial: true,
-      });
-    } else {
-      setOpen(null);
+      setOpen({ ...summary, html: '', partial: true });
+      setBodyLoading(true);
     }
-    if (cached?.message?.html) {
-      setOpen(cached.message);
-      setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead: true } : m)));
-      if (!cached.stale) {
-        getMailMessage(active.id, id).then((res) => {
-          if (res?.ok) {
-            setOpen((cur) => (cur?.id === id ? res.message : cur));
-            putMailMessageCache(uid, active.id, id, res.message);
-          }
-        }).catch(() => {});
-        return;
+    if (summary && !summary.isRead && composePrefs.markReadOnOpen !== false) markRead([summary], true);
+
+    let full = cachedFull;
+    if (!full || cached?.stale) {
+      try {
+        full = await getMessage(conn, id);
+        putMailMessageCache(uid, conn, id, full);
+        if (openRef.current?.id === id || !openRef.current) {
+          const live = messagesRef.current.find((m) => m.id === id);
+          setOpen(withImages(conn, {
+            ...full,
+            ...(live ? { isRead: live.isRead, flagged: live.flagged, flagStatus: live.flagStatus, flagDue: live.flagDue, categories: live.categories } : {}),
+          }));
+        }
+      } catch (e) {
+        if (!cachedFull) showError(e, 'Klarte ikke åpne meldingen');
+      } finally {
+        if (!openRef.current || openRef.current.id === id) setBodyLoading(false);
       }
     }
-    const res = await getMailMessage(active.id, id);
-    if (!res?.ok) {
-      setError(friendlyMailError({ message: res?.error, code: res?.code }, 'Klarte ikke åpne meldingen'));
+    if (full) resolveImages(conn, full);
+  }, [uid, search, withImages, markRead, resolveImages, showError, composePrefs.markReadOnOpen]);
+
+  const prefetchOne = useCallback((id) => {
+    const conn = activeRef.current?.id;
+    if (!conn || !id || Platform.OS !== 'web' || !isDirectMail(conn)) return;
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => {
+      if (peekMailMessageCache(uid, conn, id)) return;
+      getMessage(conn, id).then((m) => putMailMessageCache(uid, conn, id, m)).catch(() => {});
+    }, 220);
+  }, [uid]);
+
+  const ensureFull = useCallback(async (m) => {
+    if (!m) return null;
+    if (m.full && m.html !== undefined) return m;
+    const conn = activeRef.current?.id;
+    const full = await getMessage(conn, m.id);
+    putMailMessageCache(uid, conn, m.id, full);
+    return full;
+  }, [uid]);
+
+  /* ───────── Handlinger ───────── */
+
+  const selectAfterRemove = useCallback((ids) => {
+    const set = new Set(ids);
+    const list = shown;
+    const idx = list.findIndex((m) => set.has(m.id));
+    const rest = list.filter((m) => !set.has(m.id));
+    if (openRef.current && set.has(openRef.current.id)) {
+      const next = rest[Math.min(Math.max(0, idx), rest.length - 1)];
+      if (next && isDesktop) openMessage(next.id);
+      else {
+        setOpen(null);
+        setSelectedId(null);
+      }
+    }
+  }, [shown, isDesktop, openMessage]);
+
+  const removeLocal = useCallback((ids) => {
+    const set = new Set(ids);
+    selectAfterRemove(ids);
+    putList(messagesRef.current.filter((m) => !set.has(m.id)));
+    setSearch((s) => (s ? { ...s, messages: s.messages.filter((m) => !set.has(m.id)) } : s));
+  }, [putList, selectAfterRemove]);
+
+  const targets = useCallback((m) => (m ? [m] : (openRef.current ? [openRef.current] : [])), []);
+
+  const moveTo = useCallback(async (m, destId, label) => {
+    const conn = activeRef.current?.id;
+    const list = targets(m);
+    if (!conn || !list.length) return;
+    const ids = list.map((x) => x.id);
+    const from = list[0].parentFolderId || folderIdRef.current;
+    const unreadN = list.filter((x) => !x.isRead).length;
+    removeLocal(ids);
+    bumpUnread(from, -unreadN);
+    bumpUnread(destId, unreadN);
+    try {
+      const moved = destId === 'deleteditems'
+        ? await deleteMessages(conn, ids)
+        : await moveMailMessages(conn, ids, destId);
+      const newIds = moved.map((x) => x.message?.id).filter(Boolean);
+      showToast(`Flyttet til ${label}`, newIds.length && from ? {
+        action: {
+          label: 'Angre',
+          run: () => {
+            moveMailMessages(conn, newIds, from)
+              .then(() => {
+                bumpUnread(destId, -unreadN);
+                bumpUnread(from, unreadN);
+                return loadListRef.current?.({ force: true, silent: true });
+              })
+              .catch((e) => showError(e));
+          },
+        },
+      } : {});
+    } catch (e) {
+      bumpUnread(from, unreadN);
+      bumpUnread(destId, -unreadN);
+      showError(e, 'Klarte ikke flytte');
+      loadListRef.current?.({ force: true });
+    }
+  }, [targets, removeLocal, bumpUnread, showToast, showError]);
+
+  const onDelete = useCallback((m) => {
+    const list = targets(m);
+    if (!list.length) return;
+    const inTrash = (list[0].parentFolderId && foldersById.get(list[0].parentFolderId)?.wellKnownName === 'deleteditems')
+      || currentWell === 'deleteditems';
+    if (inTrash) {
+      setPurgeIds(list.map((x) => x.id));
       return;
     }
-    setOpen(res.message);
-    putMailMessageCache(uid, active.id, id, res.message);
-    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, isRead: true } : m)));
+    moveTo(m, 'deleteditems', 'Slettede elementer');
+  }, [targets, foldersById, currentWell, moveTo]);
+
+  const purge = async () => {
+    const ids = purgeIds || [];
+    setPurgeIds(null);
+    const conn = activeRef.current?.id;
+    if (!conn || !ids.length) return;
+    removeLocal(ids);
+    try {
+      await deleteMailMessagesPermanently(conn, ids);
+      showToast('Slettet for godt');
+    } catch (e) {
+      showError(e, 'Klarte ikke slette');
+      loadListRef.current?.({ force: true });
+    }
   };
 
-  const prefetchMessage = (id) => {
-    if (!active?.id || !id || Platform.OS !== 'web') return;
-    if (peekMailMessageCache(uid, active.id, id)) return;
-    getMailMessage(active.id, id).then((res) => {
-      if (res?.ok) putMailMessageCache(uid, active.id, id, res.message);
-    }).catch(() => {});
+  const setFlag = useCallback((m, kind) => {
+    const conn = activeRef.current?.id;
+    const list = targets(m);
+    if (!conn || !list.length) return;
+    const ids = list.map((x) => x.id);
+    const before = new Map(list.map((x) => [x.id, x]));
+    const patch = flagPatch(kind);
+    patchLocal(ids, (x) => applyFlagLocally(x, patch));
+    updateMailMessages(conn, ids, patch).catch((e) => {
+      patchLocal(ids, (x) => ({
+        ...x,
+        flagged: before.get(x.id)?.flagged,
+        flagStatus: before.get(x.id)?.flagStatus,
+        flagDue: before.get(x.id)?.flagDue,
+      }));
+      showError(e);
+    });
+  }, [targets, patchLocal, showError]);
+
+  const setCategories = useCallback((m, next) => {
+    const conn = activeRef.current?.id;
+    const list = targets(m);
+    if (!conn || !list.length) return;
+    const target = list[0];
+    const before = target.categories || [];
+    patchLocal([target.id], (x) => ({ ...x, categories: next }));
+    updateMailMessages(conn, [target.id], { categories: next }).catch((e) => {
+      patchLocal([target.id], (x) => ({ ...x, categories: before }));
+      showError(e);
+    });
+  }, [targets, patchLocal, showError]);
+
+  /* ───────── Skriv ───────── */
+
+  const baseCompose = useCallback((mode, extra = {}) => {
+    const sig = signatureFor(composePrefs, mode === 'new' ? 'new' : 'reply');
+    return {
+      key: `c${Date.now()}`,
+      mode,
+      accountId: activeRef.current?.id,
+      title: 'Ny e-post',
+      to: [],
+      cc: [],
+      bcc: [],
+      showCc: false,
+      showBcc: !!composePrefs.showBcc,
+      subject: '',
+      body: `<div><br></div>${signatureBlockHtml(sig?.html)}`,
+      signatureId: sig?.id || '',
+      importance: 'normal',
+      sensitivity: 'normal',
+      readReceipt: !!composePrefs.readReceipt,
+      deliveryReceipt: false,
+      files: [],
+      draftId: '',
+      quoteHtml: '',
+      inlineKnown: {},
+      inlineUploaded: [],
+      rev: 0,
+      savedRev: 0,
+      error: '',
+      savedAt: 0,
+      ...extra,
+    };
+  }, [composePrefs]);
+
+  const startCompose = useCallback((extra = {}) => {
+    if (composeRef.current && !composeRef.current.minimized) return;
+    setCompose(baseCompose('new', extra));
+  }, [baseCompose]);
+
+  const startReply = useCallback(async (mode, m) => {
+    const src = m || openRef.current;
+    if (!src) return;
+    if (composeRef.current) {
+      showToast('Lukk eller send meldingen du skriver først.');
+      setCompose((c) => (c ? { ...c, minimized: false } : c));
+      return;
+    }
+    try {
+      const msg = await ensureFull(src);
+      const self = activeRef.current?.email;
+      const base = {
+        sourceId: msg.id,
+        source: msg,
+        focusBody: true,
+      };
+      if (mode === 'forward') {
+        setCompose(baseCompose('forward', { ...base, title: 'Videresend', subject: forwardSubject(msg.subject), focusBody: false }));
+        return;
+      }
+      const { to, cc } = replyRecipients(msg, self, { all: mode === 'replyAll' });
+      setCompose(baseCompose(mode, {
+        ...base,
+        title: mode === 'replyAll' ? 'Svar alle' : 'Svar',
+        to,
+        cc,
+        showCc: cc.length > 0,
+        subject: replySubject(msg.subject),
+      }));
+    } catch (e) {
+      showError(e, 'Klarte ikke åpne meldingen');
+    }
+  }, [ensureFull, baseCompose, showToast, showError]);
+
+  const editDraft = useCallback(async (m) => {
+    const conn = activeRef.current?.id;
+    const src = m || openRef.current;
+    if (!conn || !src) return;
+    try {
+      const d = await openMailDraft(conn, src.id);
+      const msg = d.message;
+      setCompose(baseCompose('draft', {
+        title: 'Utkast',
+        draftId: msg.id,
+        quoteHtml: d.quoteHtml,
+        inlineKnown: d.inlineKnown,
+        inlineUploaded: d.inlineUploaded,
+        to: msg.to,
+        cc: msg.cc,
+        bcc: msg.bcc,
+        showCc: msg.cc.length > 0,
+        showBcc: msg.bcc.length > 0,
+        subject: msg.subject === '(uten emne)' ? '' : msg.subject,
+        body: d.editable,
+        signatureId: '',
+        importance: msg.importance,
+        sensitivity: msg.sensitivity,
+        readReceipt: msg.readReceipt,
+        deliveryReceipt: msg.deliveryReceipt,
+        files: d.files,
+        focusBody: true,
+      }));
+    } catch (e) {
+      showError(e, 'Klarte ikke åpne utkastet');
+    }
+  }, [baseCompose, showError]);
+
+  const updateCompose = useCallback((patch) => {
+    setCompose((c) => {
+      if (!c) return c;
+      if (patch.removedFile) {
+        const gone = (c.files || []).find((f) => f.key === patch.removedFile);
+        if (gone?.graphId && c.draftId) removeDraftAttachment(c.accountId, c.draftId, gone.graphId);
+      }
+      const { dirty, removedFile, ...rest } = patch;
+      return { ...c, ...rest, rev: dirty ? (c.rev || 0) + 1 : c.rev, error: dirty ? '' : (rest.error ?? c.error) };
+    });
+  }, []);
+
+  const composeHtml = useCallback((c) => composeBodyToHtml(c.body, composePrefs), [composePrefs]);
+
+  const saveDraft = useCallback(({ close = false, silent = false } = {}) => {
+    const run = savingRef.current.then(async () => {
+      const c = composeRef.current;
+      if (!c) return;
+      if (!isDirectMail(c.accountId)) {
+        if (!silent) updateCompose({ error: 'Utkast krever at e-posten kobles til på nytt.' });
+        return;
+      }
+      const rev = c.rev || 0;
+      setCompose((cur) => (cur?.key === c.key ? { ...cur, saving: true } : cur));
+      try {
+        const res = await saveMailDraft(c.accountId, { ...c, html: composeHtml(c) });
+        savedDraftsRef.current.set(c.key, res);
+        setCompose((cur) => {
+          if (cur?.key !== c.key) return cur;
+          const files = (cur.files || []).map((f) => res.files.find((x) => x.key === f.key) || f);
+          return {
+            ...cur, ...res, files, saving: false, savedAt: Date.now(), savedRev: rev, error: '',
+          };
+        });
+        if (close) {
+          setCompose(null);
+          showToast('Utkastet er lagret i Kladd');
+        }
+      } catch (e) {
+        setCompose((cur) => (cur?.key === c.key ? {
+          ...cur, saving: false, error: silent ? 'Klarte ikke lagre utkastet automatisk.' : friendlyMailError(e, 'Klarte ikke lagre utkastet'),
+        } : cur));
+      }
+    });
+    savingRef.current = run.catch(() => {});
+    return run;
+  }, [composeHtml, updateCompose, showToast]);
+
+  // Autolagring av utkast, som i Outlook.
+  useEffect(() => {
+    clearTimeout(autosaveRef.current);
+    if (!compose || composeBusy || (compose.rev || 0) === (compose.savedRev || 0)) return undefined;
+    const hasContent = compose.to.length || compose.subject || String(compose.body || '').replace(/<[^>]+>|&nbsp;/g, '').trim();
+    if (!hasContent) return undefined;
+    autosaveRef.current = setTimeout(() => saveDraft({ silent: true }), AUTOSAVE_MS);
+    return () => clearTimeout(autosaveRef.current);
+  }, [compose, composeBusy, saveDraft]);
+
+  const withSavedDraft = useCallback((c) => {
+    const res = c ? savedDraftsRef.current.get(c.key) : null;
+    if (!res) return c;
+    return {
+      ...c,
+      draftId: c.draftId || res.draftId,
+      quoteHtml: c.quoteHtml || res.quoteHtml,
+      inlineUploaded: [...new Set([...(c.inlineUploaded || []), ...(res.inlineUploaded || [])])],
+      files: (c.files || []).map((f) => (f.graphId ? f : (res.files || []).find((x) => x.key === f.key && x.graphId) || f)),
+    };
+  }, []);
+
+  const discardCompose = useCallback(async () => {
+    const c = composeRef.current;
+    clearTimeout(autosaveRef.current);
+    setCompose(null);
+    await savingRef.current;
+    const draftId = withSavedDraft(c)?.draftId;
+    if (c) savedDraftsRef.current.delete(c.key);
+    if (c && draftId) {
+      discardMailDraft(c.accountId, draftId).then(() => {
+        if (currentWell === 'drafts') loadListRef.current?.({ force: true, silent: true });
+      });
+    }
+  }, [currentWell, withSavedDraft]);
+
+  const rememberRecipients = useCallback((c) => {
+    const next = mergeContacts(readJson(CONTACTS_KEY, []), [...c.to, ...c.cc, ...c.bcc], 3);
+    writeJson(CONTACTS_KEY, next);
+    setStoredContacts(next);
+  }, []);
+
+  const runSend = useCallback(async () => {
+    const c = composeRef.current;
+    if (!c || composeBusy) return;
+    const all = [...c.to, ...c.cc, ...c.bcc];
+    if (!all.length) {
+      updateCompose({ error: 'Legg til minst én mottaker.' });
+      return;
+    }
+    const bad = all.filter((r) => !isValidAddress(r.address));
+    if (bad.length) {
+      updateCompose({ error: `Sjekk adressen: ${bad.map((r) => r.address).join(', ')}` });
+      return;
+    }
+    if (!String(c.subject || '').trim() && !c.noSubjectOk) {
+      updateCompose({ error: 'Meldingen har ikke emne. Trykk Send igjen for å sende likevel.', noSubjectOk: true });
+      return;
+    }
+    clearTimeout(autosaveRef.current);
+    setComposeBusy(true);
+    await savingRef.current;
+    const latest = withSavedDraft(composeRef.current || c);
+    savedDraftsRef.current.delete(latest.key);
+    setCompose(null);
+    showToast('Sender…', { busy: true });
+    try {
+      await sendCompose(latest.accountId, { ...latest, html: composeHtml(latest) });
+      rememberRecipients(latest);
+      if (latest.draftId && messagesRef.current.some((m) => m.id === latest.draftId)) removeLocal([latest.draftId]);
+      showToast('Sendt');
+      if (currentWell === 'sentitems' || currentWell === 'drafts') {
+        setTimeout(() => loadListRef.current?.({ force: true, silent: true }), 1500);
+      }
+    } catch (e) {
+      setCompose({
+        ...latest,
+        draftId: e?.draftId || latest.draftId,
+        quoteHtml: e?.quoteHtml || latest.quoteHtml,
+        error: friendlyMailError(e, 'Sending feilet'),
+        minimized: false,
+      });
+      showToast('Meldingen ble ikke sendt', { error: true });
+    } finally {
+      setComposeBusy(false);
+    }
+  }, [composeBusy, updateCompose, composeHtml, showToast, rememberRecipients, currentWell, withSavedDraft, removeLocal]);
+
+  /* ───────── Vedlegg ───────── */
+
+  const openAttachment = useCallback(async (att) => {
+    const conn = activeRef.current?.id;
+    const msg = openRef.current;
+    if (!conn || !msg) return;
+    if (Platform.OS !== 'web') {
+      showToast('Vedlegg åpnes foreløpig i nettleseren på PC.');
+      return;
+    }
+    const preview = /pdf|^image\/|^text\/plain/i.test(att.contentType);
+    const w = preview ? window.open('', '_blank') : null;
+    if (w?.document?.body) {
+      w.document.title = att.name;
+      w.document.body.innerHTML = '<p style="font-family:Segoe UI,sans-serif;color:#5b6b82;padding:16px">Henter vedlegg…</p>';
+    }
+    setAttachmentBusy(att.id);
+    try {
+      const blob = await downloadMailAttachment(conn, msg.id, att.id);
+      const typed = new Blob([blob], { type: att.contentType || blob.type || 'application/octet-stream' });
+      const url = URL.createObjectURL(typed);
+      if (w) {
+        w.location.href = url;
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = att.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } catch (e) {
+      w?.close?.();
+      showError(e, 'Klarte ikke hente vedlegget');
+    } finally {
+      setAttachmentBusy(null);
+    }
+  }, [showToast, showError]);
+
+  /* ───────── Søk ───────── */
+
+  const runSearch = useCallback(async (raw) => {
+    const q = String(raw || '').trim();
+    const conn = activeRef.current?.id;
+    if (!q) {
+      setSearch(null);
+      return;
+    }
+    if (!conn || !isDirectMail(conn)) return;
+    setSearch((s) => ({ query: q, messages: s?.messages || [], busy: true }));
+    try {
+      const res = await searchMailMessages(conn, q);
+      setSearch((s) => (s && s.query === q ? { query: q, messages: res.messages, busy: false } : s));
+    } catch (e) {
+      setSearch((s) => (s && s.query === q ? { ...s, busy: false } : s));
+      showError(e, 'Søket feilet');
+    }
+  }, [showError]);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setSearch(null);
+      return undefined;
+    }
+    if (q.length < 3) return undefined;
+    const t = setTimeout(() => runSearch(q), 650);
+    return () => clearTimeout(t);
+  }, [query, runSearch]);
+
+  /* ───────── Kontoer og innstillinger ───────── */
+
+  const switchAccount = (acc) => {
+    if (acc.id !== connectionId) setConnectionId(acc.id);
+    if (!acc.mailAccess) grantMail(acc.id);
   };
 
   const persistDefaultAccount = (id) => {
@@ -757,59 +1330,16 @@ export default function MailHubScreen() {
     if (id) setConnectionId(id);
   };
 
-  const persistUnreadFirst = (value) => {
-    setUnreadOnly(!!value);
-    writeJson(UNREAD_FIRST_KEY, !!value);
+  const pickFilter = (id) => {
+    const next = normalizeMailFilter(id);
+    setFilter(next);
+    writeJson(FILTER_KEY, next);
   };
 
   const persistComposePrefs = (patch) => {
-    setComposePrefs(patchMailComposePrefs(patch));
-  };
-
-  const buildSendPayload = (draft) => {
-    const html = composeBodyToHtml(draft.body, composePrefs);
-    const withSig = draft.includeSignature !== false
-      ? appendSignatureHtml(html, composePrefs.signature, { mode: draft.mode, preview: true })
-      : html;
-    const prepared = prepareHtmlForSend(withSig, composePrefs.signature);
-    return {
-      to: draft.to,
-      cc: draft.cc,
-      bcc: draft.bcc,
-      subject: draft.subject,
-      body: prepared.html,
-      html: true,
-      importance: draft.importance || 'normal',
-      readReceipt: !!draft.readReceipt,
-      attachments: prepared.attachments,
-    };
-  };
-
-  const runCompose = async () => {
-    if (!active?.id || !compose) return;
-    setComposeBusy(true);
-    try {
-      const payload = buildSendPayload(compose);
-      let res;
-      if (compose.mode === 'reply' || compose.mode === 'replyAll') {
-        res = await replyOutlookMail(active.id, compose.messageId, {
-          ...payload,
-          replyAll: compose.mode === 'replyAll',
-        });
-      } else if (compose.mode === 'forward') {
-        res = await forwardOutlookMail(active.id, compose.messageId, payload);
-      } else {
-        res = await sendOutlookMail(active.id, payload);
-      }
-      if (!res?.ok) {
-        setCompose((c) => ({ ...c, error: res?.error || 'Sending feilet' }));
-        return;
-      }
-      setCompose(null);
-      if (folderId) loadMessages(active.id, folderId, unreadOnly, { force: true });
-    } finally {
-      setComposeBusy(false);
-    }
+    const next = patchMailComposePrefs(patch);
+    setComposePrefs(next);
+    if (next.saveFailed) showToast('Signaturen er for stor til å lagres. Bruk mindre bilder.', { error: true });
   };
 
   const removeAccount = async (id) => {
@@ -819,90 +1349,198 @@ export default function MailHubScreen() {
       if (defaultAccountId === id) persistDefaultAccount(null);
       await reloadAccounts();
     } catch (e) {
-      setError(e?.message || 'Klarte ikke fjerne kontoen');
+      setError({ text: e?.message || 'Klarte ikke fjerne kontoen' });
     }
   };
 
-  const grantMail = async (id) => {
+  async function grantMail(id) {
     try {
       setGrantBusy(true);
-      setError('');
+      setError(null);
       const cfg = await getCalendarOAuthConfig();
       const acc = mailAccounts.find((c) => c.id === id);
-      await connectMicrosoftMail({
-        clientId: cfg?.microsoft?.clientId,
-        connectionId: id,
-        loginHint: acc?.email,
-      });
+      await connectMicrosoftMail({ clientId: cfg?.microsoft?.clientId, connectionId: id, loginHint: acc?.email });
     } catch (e) {
       if (e?.message === 'cancelled') return;
-      setError(e?.message || 'Klarte ikke be om e-posttilgang');
+      setError({ text: e?.message || 'Klarte ikke be om e-posttilgang' });
     } finally {
       setGrantBusy(false);
     }
-  };
-
-  const onDelete = async () => {
-    if (!active?.id || !selectedId) return;
-    const res = await deleteOutlookMail(active.id, selectedId);
-    if (!res?.ok) {
-      setError(res?.error || 'Klarte ikke slette');
-      return;
-    }
-    setMessages((prev) => prev.filter((m) => m.id !== selectedId));
-    setSelectedId(null);
-    setOpen(null);
-  };
-
-  const emptyDraft = (mode) => ({
-    mode,
-    to: '',
-    cc: '',
-    bcc: '',
-    subject: '',
-    body: '<div><br></div>',
-    importance: 'normal',
-    readReceipt: !!composePrefs.readReceipt,
-    includeSignature: shouldIncludeSignature(composePrefs.signature, mode),
-    openedAt: Date.now(),
-    error: '',
-  });
-
-  const startReply = (replyAll) => {
-    if (!open) return;
-    const mode = replyAll ? 'replyAll' : 'reply';
-    const to = replyAll
-      ? [open.from?.address, ...((open.to || []).map((r) => r.address))].filter(Boolean).join('; ')
-      : (open.from?.address || '');
-    setCompose({
-      ...emptyDraft(mode),
-      title: replyAll ? 'Svar til alle' : 'Svar',
-      messageId: open.id,
-      to,
-      subject: open.subject?.startsWith('Re:') ? open.subject : `Re: ${open.subject}`,
-    });
-  };
-
-  const startCompose = () => setCompose({
-    ...emptyDraft('new'),
-    title: 'Ny e-post',
-  });
-
-  const shellMailAdd = useMemo(() => {
-    if (compose || loading) return null;
-    return <ShellAddButton label="Ny e-post" onPress={startCompose} />;
-  }, [compose, loading, composePrefs]);
-  useShellTitleRight(shellMailAdd);
+  }
 
   const pickFolder = (id) => {
     setFolderId(id);
     writeJson(LAST_FOLDER_KEY, id || null);
     setFolderOpen(false);
-    if (!isDesktop) {
+    setQuery('');
+    setSearch(null);
+    if (id !== folderIdRef.current) {
       setOpen(null);
       setSelectedId(null);
     }
   };
+
+  const refreshMailbox = () => {
+    if (search) {
+      runSearch(search.query);
+      return;
+    }
+    loadListRef.current?.({ force: true });
+    refreshFolders();
+  };
+
+  /* ───────── Menyer ───────── */
+
+  const moveItems = useCallback((m) => {
+    const skip = (m?.parentFolderId) || folderIdRef.current;
+    return [
+      { header: 'Flytt til' },
+      ...allFolders
+        .filter((f) => f.id !== skip && f.wellKnownName !== 'outbox' && f.wellKnownName !== 'drafts')
+        .map((f) => ({
+          id: `mv-${f.id}`,
+          label: `${' '.repeat(Math.min(4, Number(f.depth || 0)))}${f.name}`,
+          icon: mailFolderIcon(f.wellKnownName),
+          onPress: () => moveTo(m, f.id, f.name),
+        })),
+    ];
+  }, [allFolders, moveTo]);
+
+  const flagItems = useCallback((m) => FLAG_OPTIONS.map((o) => ({
+    id: `fl-${o.id}`,
+    label: o.label,
+    icon: o.id === 'clear' ? 'flag-outline' : o.id === 'complete' ? 'checkmark-circle-outline' : 'flag',
+    iconColor: o.id === 'clear' || o.id === 'complete' ? colors.ink : colors.danger,
+    onPress: () => setFlag(m, o.id),
+  })), [setFlag]);
+
+  const categoryItems = useCallback((m) => {
+    const target = m || openRef.current;
+    const current = target?.categories || [];
+    return [
+      ...categoryChoices(master, [...messagesRef.current, ...(target ? [target] : [])]).map((c) => ({
+        id: `cat-${c.name}`,
+        label: c.name,
+        swatch: c.color,
+        checked: current.some((x) => x.toLowerCase() === c.name.toLowerCase()),
+        onPress: () => setCategories(target, toggleCategory(current, c.name)),
+      })),
+      { divider: true },
+      { id: 'cat-clear', label: 'Fjern alle kategorier', icon: 'close-circle-outline', disabled: !current.length, onPress: () => setCategories(target, []) },
+    ];
+  }, [master, setCategories]);
+
+  // Undermenyen åpnes der forrige meny var, etter at den er lukket.
+  const openLater = useCallback((next) => setTimeout(() => setMenu(next), 0), []);
+
+  const moreItems = useCallback((m, anchor) => {
+    const target = m || openRef.current;
+    if (!target) return [];
+    const at = anchor || {
+      x: Math.max(8, win.width / 2 - 120), y: 120, w: 0, h: 0,
+    };
+    const sub = (kind) => () => openLater({ kind, message: target, anchor: at });
+    return [
+      ...(target.isDraft ? [{ id: 'm-edit', label: 'Fortsett utkast', icon: 'create-outline', onPress: () => editDraft(target) }] : [
+        { id: 'm-reply', label: 'Svar', icon: 'arrow-undo-outline', onPress: () => startReply('reply', target) },
+        { id: 'm-replyall', label: 'Svar alle', icon: 'arrow-undo', onPress: () => startReply('replyAll', target) },
+        { id: 'm-fwd', label: 'Videresend', icon: 'arrow-redo-outline', onPress: () => startReply('forward', target) },
+      ]),
+      { divider: true },
+      {
+        id: 'm-read',
+        label: target.isRead ? 'Merk som ulest' : 'Merk som lest',
+        icon: target.isRead ? 'mail-unread-outline' : 'mail-open-outline',
+        onPress: () => markRead([target], !target.isRead),
+      },
+      { id: 'm-flag', label: 'Flagg …', icon: 'flag-outline', onPress: sub('flag') },
+      { id: 'm-cat', label: 'Kategoriser …', icon: 'pricetags-outline', onPress: sub('category') },
+      { divider: true },
+      { id: 'm-move', label: 'Flytt til …', icon: 'folder-open-outline', onPress: sub('move') },
+      { id: 'm-archive', label: 'Arkiver', icon: 'archive-outline', onPress: () => moveTo(target, 'archive', 'Arkiv') },
+      { id: 'm-junk', label: 'Søppelpost', icon: 'alert-circle-outline', onPress: () => moveTo(target, 'junkemail', 'Søppelpost') },
+      { id: 'm-delete', label: 'Slett', icon: 'trash-outline', danger: true, onPress: () => onDelete(target) },
+    ];
+  }, [editDraft, startReply, markRead, moveTo, onDelete, openLater, win.width]);
+
+  const menuItems = useMemo(() => {
+    if (!menu) return [];
+    if (menu.kind === 'move') return moveItems(menu.message);
+    if (menu.kind === 'flag') return flagItems(menu.message);
+    if (menu.kind === 'category') return categoryItems(menu.message);
+    return moreItems(menu.message, menu.anchor);
+  }, [menu, moveItems, flagItems, categoryItems, moreItems]);
+
+  const rowHandlers = useMemo(() => ({
+    onOpen: (id) => openMessage(id),
+    onPrefetch: (id) => prefetchOne(id),
+    onAction: (kind, m) => {
+      if (kind === 'delete') onDelete(m);
+      else if (kind === 'toggleRead') markRead([m], !m.isRead);
+      else if (kind === 'toggleFlag') setFlag(m, m.flagged ? 'clear' : 'noDate');
+    },
+    onMenu: (m, anchor) => setMenu({ kind: 'more', message: m, anchor }),
+  }), [openMessage, prefetchOne, onDelete, markRead, setFlag]);
+
+  /* ───────── Tastatur (web) ───────── */
+
+  const keyState = useRef({});
+  keyState.current = {
+    shown, open, compose, menu, purgeIds, settingsOpen, isDesktop,
+    openMessage, onDelete, startReply, markRead, setFlag, startCompose,
+  };
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
+    const onKey = (e) => {
+      const s = keyState.current;
+      if (!s.isDesktop || (s.compose && !s.compose.minimized) || s.menu || s.purgeIds || s.settingsOpen) return;
+      if (isTypingTarget(e.target)) return;
+      const ctrl = e.ctrlKey || e.metaKey;
+      const k = e.key;
+      const idx = s.shown.findIndex((m) => m.id === s.open?.id);
+      if (k === 'ArrowDown' || k === 'ArrowUp' || ((k === 'j' || k === 'k') && !ctrl)) {
+        e.preventDefault();
+        const dir = k === 'ArrowDown' || k === 'j' ? 1 : -1;
+        const next = s.shown[Math.max(0, Math.min(s.shown.length - 1, idx < 0 ? 0 : idx + dir))];
+        if (next) s.openMessage(next.id);
+      } else if (k === 'Delete' && s.open) {
+        e.preventDefault();
+        s.onDelete(null);
+      } else if (ctrl && e.shiftKey && (k === 'R' || k === 'r') && s.open) {
+        e.preventDefault();
+        s.startReply('replyAll');
+      } else if (ctrl && !e.shiftKey && (k === 'r' || k === 'R') && s.open) {
+        e.preventDefault();
+        s.startReply('reply');
+      } else if (ctrl && e.shiftKey && (k === 'F' || k === 'f') && s.open) {
+        e.preventDefault();
+        s.startReply('forward');
+      } else if (ctrl && (k === 'q' || k === 'Q') && s.open) {
+        e.preventDefault();
+        s.markRead([s.open], true);
+      } else if (ctrl && (k === 'u' || k === 'U') && s.open) {
+        e.preventDefault();
+        s.markRead([s.open], false);
+      } else if (k === 'Insert' && s.open) {
+        e.preventDefault();
+        s.setFlag(null, s.open.flagged ? 'clear' : 'noDate');
+      } else if ((k === 'n' || k === 'N') && !ctrl && !e.altKey) {
+        e.preventDefault();
+        s.startCompose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const shellMailAdd = useMemo(() => {
+    if (compose && !compose.minimized) return null;
+    if (loadingAccounts && !accounts.length) return null;
+    return <ShellAddButton label="Ny e-post" onPress={() => startCompose()} />;
+  }, [compose, loadingAccounts, accounts.length, startCompose]);
+  useShellTitleRight(shellMailAdd);
+
+  /* ───────── Felles deler ───────── */
 
   const folderNav = (
     <FolderList
@@ -911,17 +1549,18 @@ export default function MailHubScreen() {
       folderId={folderId}
       mailAccounts={mailAccounts}
       active={active}
+      favoriteIds={effectiveFavorites}
       grantBusy={grantBusy}
       onSelect={pickFolder}
       onToggle={toggleFolder}
       onSwitchAccount={switchAccount}
       onGrant={grantMail}
       onOpenSettings={() => setSettingsOpen(true)}
+      onFavorite={toggleFavorite}
     />
   );
 
-  // Kun full-skjerm spinner ved kald start uten cache
-  if (loading && !accounts.length && !messages.length) {
+  if (loadingAccounts && !accounts.length && !messages.length) {
     return (
       <Screen>
         <View style={styles.center}>
@@ -934,44 +1573,117 @@ export default function MailHubScreen() {
 
   const emptyListText = active && !active.mailAccess
     ? 'Gi e-posttilgang for å lese innboksen.'
-    : 'Ingen meldinger i denne mappen.';
-  const listLoading = listBusy && messages.length === 0;
+    : search
+      ? (search.busy ? 'Søker…' : `Fant ingen meldinger for «${search.query}».`)
+      : filter !== 'all'
+        ? `Ingen meldinger her med filteret «${MAIL_FILTERS.find((f) => f.id === filter)?.label}».`
+        : 'Ingen meldinger i denne mappen.';
+  const listLoading = (syncing && !messages.length && !search) || (search?.busy && !search.messages.length);
+  const showRecipients = !search && (currentWell === 'sentitems' || currentWell === 'drafts' || currentWell === 'outbox');
+  const folderNameOf = search ? (id) => foldersById.get(id)?.name || '' : null;
 
-  const forwardOpen = () => {
-    if (!open) return;
-    setCompose({
-      ...emptyDraft('forward'),
-      title: 'Videresend',
-      messageId: open.id,
-      subject: `Vs: ${open.subject || ''}`,
-    });
-  };
-
-  const refreshMailbox = () => {
-    if (active?.id) bootMailbox(active.id, folderId, unreadOnly, true);
-  };
-
-  const loadMore = () => {
-    if (!active?.id || !folderId || moreBusy || !hasMore) return;
-    setMoreBusy(true);
-    loadMessages(active.id, folderId, unreadOnly, { append: true, force: true });
-  };
-
-  const moreRow = hasMore && !listLoading ? (
-    <TouchableOpacity style={styles.moreBtn} onPress={loadMore} disabled={moreBusy}>
-      <Text style={styles.moreTxt}>{moreBusy ? 'Laster flere…' : 'Last flere meldinger'}</Text>
-    </TouchableOpacity>
+  const banner = error ? (
+    <View style={styles.banner}>
+      <Ionicons name="warning-outline" size={14} color="#9a3412" />
+      <Text style={styles.bannerTxt}>{error.text}</Text>
+      {error.consent && active ? (
+        <Pressable onPress={() => grantMail(active.id)} hitSlop={6}>
+          <Text style={styles.bannerAction}>Gi e-posttilgang</Text>
+        </Pressable>
+      ) : null}
+      <Pressable onPress={() => setError(null)} hitSlop={6} accessibilityLabel="Lukk">
+        <Ionicons name="close" size={14} color="#9a3412" />
+      </Pressable>
+    </View>
   ) : null;
+
+  const listHeader = (
+    <View style={styles.listHead}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.listTitle} numberOfLines={1}>
+          {search ? `Søk: «${search.query}»` : currentFolderName}
+        </Text>
+        <Text style={styles.listSub} numberOfLines={1}>
+          {search
+            ? (search.busy ? 'Søker i alle mapper…' : `${search.messages.length} treff i alle mapper`)
+            : syncing ? 'Oppdaterer…' : syncedAt ? `Oppdatert ${timeLabel(syncedAt)}` : ''}
+        </Text>
+      </View>
+      {search ? (
+        <MailToolButton icon="close" label="Avslutt søk" onPress={() => { setQuery(''); setSearch(null); }} />
+      ) : (
+        <MailMenuButton
+          icon="filter-outline"
+          label={MAIL_FILTERS.find((f) => f.id === filter)?.label || 'Alle'}
+          active={filter !== 'all'}
+          width={190}
+          items={() => MAIL_FILTERS.map((f) => ({
+            id: f.id, label: f.label, checked: f.id === filter, onPress: () => pickFilter(f.id),
+          }))}
+        />
+      )}
+      {syncing || search?.busy ? <ActivityIndicator size="small" color={colors.brand} /> : null}
+    </View>
+  );
+
+  const list = (
+    <MailMessageList
+      rows={rows}
+      selectedId={selectedId}
+      compact={!!composePrefs.compactList}
+      showRecipients={showRecipients}
+      folderNameOf={folderNameOf}
+      master={master}
+      handlers={rowHandlers}
+      loading={listLoading}
+      emptyText={emptyListText}
+      hasMore={!search && hasMore}
+      moreBusy={moreBusy}
+      onEndReached={loadMore}
+      contentStyle={!isDesktop ? styles.mobileListPad : undefined}
+    />
+  );
+
+  const reading = open ? (
+    <MailReadingPane
+      message={open}
+      bodyLoading={bodyLoading}
+      master={master}
+      attachmentBusy={attachmentBusy}
+      onReply={() => startReply('reply')}
+      onReplyAll={() => startReply('replyAll')}
+      onForward={() => startReply('forward')}
+      onOpenAttachment={openAttachment}
+      onEditDraft={() => editDraft(open)}
+      moreItems={(anchor) => moreItems(open, anchor)}
+      showActions={isDesktop}
+    />
+  ) : null;
+
+  const contextMenu = (
+    <MailMenu
+      visible={!!menu}
+      anchor={menu?.anchor}
+      items={menuItems}
+      onClose={() => setMenu(null)}
+      width={menu?.kind === 'move' ? 280 : 240}
+    />
+  );
 
   const composeOverlay = compose ? (
     <MailComposeBox
-      compose={compose}
+      compose={{ ...compose, dirty: (compose.rev || 0) !== (compose.savedRev || 0) }}
       prefs={composePrefs}
+      accounts={mailAccounts.filter((a) => a.mailAccess)}
+      contacts={contacts}
       busy={composeBusy}
-      onChange={(patch) => setCompose((c) => ({ ...c, ...patch }))}
-      onSend={runCompose}
+      onChange={updateCompose}
+      onSend={runSend}
+      onSaveDraft={(opts) => saveDraft({ close: !!opts?.close })}
+      onDiscard={discardCompose}
       onClose={() => setCompose(null)}
       onOpenSettings={() => setSettingsOpen(true)}
+      onNotice={(text) => showToast(text)}
     />
   ) : null;
 
@@ -981,10 +1693,10 @@ export default function MailHubScreen() {
       onClose={() => setSettingsOpen(false)}
       accounts={mailAccounts}
       defaultId={defaultAccountId || active?.id}
-      unreadFirst={unreadOnly}
+      unreadFirst={filter === 'unread'}
       grantBusy={grantBusy}
       onDefaultChange={persistDefaultAccount}
-      onUnreadFirstChange={persistUnreadFirst}
+      onUnreadFirstChange={(v) => pickFilter(v ? 'unread' : 'all')}
       onConnect={() => grantMail(undefined)}
       onGrant={grantMail}
       onRemove={removeAccount}
@@ -992,6 +1704,32 @@ export default function MailHubScreen() {
       onComposePrefsChange={persistComposePrefs}
     />
   );
+
+  const purgeDialog = (
+    <ConfirmDialog
+      visible={!!purgeIds}
+      title="Slette for godt?"
+      message="Meldingen ligger i Slettede elementer og blir borte for godt."
+      confirmText="Slett"
+      cancelText="Avbryt"
+      danger
+      onCancel={() => setPurgeIds(null)}
+      onConfirm={purge}
+      onClose={() => setPurgeIds(null)}
+    />
+  );
+
+  const overlays = (
+    <>
+      {contextMenu}
+      {composeOverlay}
+      {settingsModal}
+      {purgeDialog}
+      <Toast toast={toast} onClose={() => setToast(null)} />
+    </>
+  );
+
+  /* ───────── Mobil ───────── */
 
   if (!isDesktop) {
     return (
@@ -1006,65 +1744,54 @@ export default function MailHubScreen() {
                   accessibilityLabel="Tilbake til listen"
                 >
                   <Ionicons name="chevron-back" size={22} color={colors.brand} />
-                  <Text style={styles.mobileBackTxt} numberOfLines={1}>{currentFolderName}</Text>
+                  <Text style={styles.mobileBackTxt} numberOfLines={1}>{search ? 'Søk' : currentFolderName}</Text>
                 </TouchableOpacity>
                 <View style={styles.mobileBarActions}>
-                  <TouchableOpacity style={styles.iconHit} onPress={() => startReply(false)} accessibilityLabel="Svar">
-                    <Ionicons name="arrow-undo-outline" size={20} color={colors.ink} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.iconHit} onPress={onDelete} accessibilityLabel="Slett">
-                    <Ionicons name="trash-outline" size={20} color={colors.ink} />
-                  </TouchableOpacity>
+                  {open.isDraft ? (
+                    <MailToolButton icon="create-outline" compact accessibilityLabel="Fortsett utkast" onPress={() => editDraft(open)} />
+                  ) : (
+                    <MailMenuButton
+                      icon="arrow-undo-outline"
+                      compact
+                      accessibilityLabel="Svar"
+                      items={() => [
+                        { id: 'r', label: 'Svar', icon: 'arrow-undo-outline', onPress: () => startReply('reply') },
+                        { id: 'ra', label: 'Svar alle', icon: 'arrow-undo', onPress: () => startReply('replyAll') },
+                        { id: 'f', label: 'Videresend', icon: 'arrow-redo-outline', onPress: () => startReply('forward') },
+                      ]}
+                    />
+                  )}
+                  <MailToolButton
+                    icon={open.flagged ? 'flag' : 'flag-outline'}
+                    iconColor={open.flagged ? colors.danger : undefined}
+                    compact
+                    accessibilityLabel={open.flagged ? 'Fjern flagg' : 'Flagg'}
+                    onPress={() => setFlag(null, open.flagged ? 'clear' : 'noDate')}
+                  />
+                  <MailToolButton icon="trash-outline" compact accessibilityLabel="Slett" onPress={() => onDelete(null)} />
+                  <MailMenuButton
+                    icon="ellipsis-horizontal"
+                    compact
+                    accessibilityLabel="Flere handlinger"
+                    items={(anchor) => moreItems(open, anchor)}
+                  />
                 </View>
               </View>
-              {error ? (
-                <TouchableOpacity style={styles.banner} onPress={() => setError('')}>
-                  <Text style={styles.bannerTxt}>{error}</Text>
-                </TouchableOpacity>
-              ) : null}
-              <ReadingBody
-                open={open}
-                onReply={() => startReply(false)}
-                onReplyAll={() => startReply(true)}
-                onForward={forwardOpen}
-              />
+              {banner}
+              {reading}
             </View>
           ) : (
             <View style={styles.mobileList}>
               <View style={styles.mobileBar}>
-                <TouchableOpacity
-                  style={styles.mobileBarBtn}
-                  onPress={() => setFolderOpen(true)}
-                  accessibilityLabel="Velg mappe"
-                >
+                <TouchableOpacity style={styles.mobileBarBtn} onPress={() => setFolderOpen(true)} accessibilityLabel="Velg mappe">
                   <Ionicons name="folder-outline" size={20} color={colors.ink} />
                   <Text style={styles.mobileTitle} numberOfLines={1}>{currentFolderName}</Text>
                   <Ionicons name="chevron-down" size={14} color={colors.muted} />
                 </TouchableOpacity>
                 <View style={styles.mobileBarActions}>
-                  <TouchableOpacity
-                    style={styles.iconHit}
-                    onPress={() => {
-                      if (active?.id && folderId) refreshMailbox();
-                    }}
-                    accessibilityLabel="Oppdater"
-                  >
-                    <Ionicons name="refresh" size={20} color={colors.ink} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.iconHit}
-                    onPress={() => setSettingsOpen(true)}
-                    accessibilityLabel="Innstillinger"
-                  >
-                    <Ionicons name="settings-outline" size={20} color={colors.ink} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.iconHit}
-                    onPress={() => setSearchOpen((v) => !v)}
-                    accessibilityLabel="Søk"
-                  >
-                    <Ionicons name="search" size={20} color={colors.ink} />
-                  </TouchableOpacity>
+                  <MailToolButton icon="refresh" compact accessibilityLabel="Oppdater" onPress={refreshMailbox} />
+                  <MailToolButton icon="settings-outline" compact accessibilityLabel="Innstillinger" onPress={() => setSettingsOpen(true)} />
+                  <MailToolButton icon="search" compact accessibilityLabel="Søk" onPress={() => setSearchOpen((v) => !v)} />
                 </View>
               </View>
               {searchOpen ? (
@@ -1074,72 +1801,68 @@ export default function MailHubScreen() {
                     style={styles.search}
                     value={query}
                     onChangeText={setQuery}
-                    placeholder="Søk"
+                    onSubmitEditing={() => runSearch(query)}
+                    placeholder="Søk i all e-post"
                     placeholderTextColor={colors.muted}
+                    returnKeyType="search"
                     autoFocus
                   />
                 </View>
               ) : null}
-              <View style={styles.listTabs}>
-                <FilterMenu
-                  groups={[{
-                    id: 'read',
-                    label: 'Vis',
-                    value: unreadOnly ? 'unread' : 'all',
-                    onChange: (id) => setUnreadOnly(id === 'unread'),
-                    options: [
-                      { id: 'all', label: 'Alle' },
-                      { id: 'unread', label: 'Ulest' },
-                    ],
-                  }]}
-                />
-                {listBusy ? <ActivityIndicator size="small" color={colors.brand} /> : null}
-              </View>
-              {error ? (
-                <TouchableOpacity style={styles.banner} onPress={() => setError('')}>
-                  <Text style={styles.bannerTxt}>{error}</Text>
-                </TouchableOpacity>
-              ) : null}
+              {listHeader}
+              {banner}
               <HelpTarget id="content" style={{ flex: 1, minHeight: 0, width: '100%' }}>
-              <ScrollView style={styles.paneScroll} contentContainerStyle={styles.mobileListPad}>
-                <MessageRows
-                  grouped={grouped}
-                  selectedId={selectedId}
-                  onOpen={openMessage}
-                  onPrefetch={prefetchMessage}
-                  compact
-                  emptyText={emptyListText}
-                  loading={listLoading}
-                />
-                {moreRow}
-              </ScrollView>
+                {list}
               </HelpTarget>
             </View>
           )}
         </View>
-        <MailFolderDrawer
-          visible={folderOpen}
-          onClose={() => setFolderOpen(false)}
-          currentName={currentFolderName}
-        >
+        <MailFolderDrawer visible={folderOpen} onClose={() => setFolderOpen(false)} currentName={currentFolderName}>
           {folderNav}
         </MailFolderDrawer>
-        {composeOverlay}
-        {settingsModal}
+        {overlays}
       </Screen>
     );
   }
 
+  /* ───────── Desktop ───────── */
+
+  const hasOpen = !!open;
   return (
     <Screen>
       <View style={styles.shell}>
-        <View style={styles.toolbar}>
-          <DeskBtn icon="arrow-undo-outline" label="Svar" onPress={() => startReply(false)} />
-          <DeskBtn icon="arrow-undo" label="Svar alle" onPress={() => startReply(true)} />
-          <DeskBtn icon="arrow-redo-outline" label="Videresend" onPress={forwardOpen} />
-          <DeskBtn icon="trash-outline" label="Slett" onPress={onDelete} />
-          <DeskBtn icon="refresh" label="Oppdater" onPress={refreshMailbox} />
-          <DeskBtn icon="settings-outline" label="Innstillinger" onPress={() => setSettingsOpen(true)} />
+        <View style={styles.ribbon}>
+          <MailToolButton icon="create-outline" label="Ny e-post" primary onPress={() => startCompose()} />
+          <View style={styles.ribbonSep} />
+          <MailToolButton icon="trash-outline" label="Slett" compact={ribbonCompact} disabled={!hasOpen} onPress={() => onDelete(null)} />
+          <MailToolButton icon="archive-outline" label="Arkiver" compact={ribbonCompact} disabled={!hasOpen} onPress={() => moveTo(null, 'archive', 'Arkiv')} />
+          <MailMenuButton icon="folder-open-outline" label="Flytt" compact={ribbonCompact} disabled={!hasOpen} width={280} items={() => moveItems(open)} />
+          <MailToolButton icon="alert-circle-outline" label="Søppelpost" compact={ribbonCompact} disabled={!hasOpen} onPress={() => moveTo(null, 'junkemail', 'Søppelpost')} />
+          <View style={styles.ribbonSep} />
+          <MailToolButton icon="arrow-undo-outline" label="Svar" disabled={!hasOpen || open?.isDraft} onPress={() => startReply('reply')} />
+          <MailToolButton icon="arrow-undo" label="Svar alle" disabled={!hasOpen || open?.isDraft} onPress={() => startReply('replyAll')} />
+          <MailToolButton icon="arrow-redo-outline" label="Videresend" disabled={!hasOpen || open?.isDraft} onPress={() => startReply('forward')} />
+          <View style={styles.ribbonSep} />
+          <MailToolButton
+            icon={open?.isRead === false ? 'mail-open-outline' : 'mail-unread-outline'}
+            label={open?.isRead === false ? 'Merk som lest' : 'Merk som ulest'}
+            compact={ribbonCompact}
+            disabled={!hasOpen}
+            onPress={() => markRead([open], open?.isRead === false)}
+          />
+          <MailMenuButton
+            icon={open?.flagged ? 'flag' : 'flag-outline'}
+            iconColor={open?.flagged ? colors.danger : undefined}
+            label="Flagg"
+            compact={ribbonCompact}
+            disabled={!hasOpen}
+            width={210}
+            items={() => flagItems(null)}
+          />
+          <MailMenuButton icon="pricetags-outline" label="Kategoriser" compact={ribbonCompact} disabled={!hasOpen} width={240} items={() => categoryItems(null)} />
+          <View style={styles.ribbonSep} />
+          <MailToolButton icon="refresh" label="Oppdater" compact={ribbonCompact} onPress={refreshMailbox} />
+          <MailToolButton icon="settings-outline" label="Innstillinger" compact onPress={() => setSettingsOpen(true)} />
           <View style={{ flex: 1 }} />
           <View style={styles.searchWrap}>
             <Ionicons name="search" size={14} color={colors.muted} />
@@ -1147,17 +1870,21 @@ export default function MailHubScreen() {
               style={styles.search}
               value={query}
               onChangeText={setQuery}
-              placeholder="Søk"
+              onSubmitEditing={() => runSearch(query)}
+              placeholder="Søk i all e-post"
               placeholderTextColor={colors.muted}
+              returnKeyType="search"
+              accessibilityLabel="Søk i e-post"
             />
+            {query ? (
+              <Pressable onPress={() => { setQuery(''); setSearch(null); }} hitSlop={6} accessibilityLabel="Tøm søk">
+                <Ionicons name="close-circle" size={14} color={colors.muted} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
-        {error ? (
-          <TouchableOpacity style={styles.banner} onPress={() => setError('')}>
-            <Text style={styles.bannerTxt}>{error}</Text>
-          </TouchableOpacity>
-        ) : null}
+        {banner}
 
         <View style={styles.panes}>
           <View style={[styles.folderPane, { width: folderW }]}>
@@ -1168,12 +1895,7 @@ export default function MailHubScreen() {
               label="Endre bredde på mapper"
               onGrant={() => { folderOriginRef.current = folderWRef.current; }}
               onMove={(dx) => {
-                const next = applyMailPaneDrag(
-                  folderOriginRef.current,
-                  dx,
-                  MAIL_FOLDER_PANE_MIN,
-                  MAIL_FOLDER_PANE_MAX,
-                );
+                const next = applyMailPaneDrag(folderOriginRef.current, dx, MAIL_FOLDER_PANE_MIN, MAIL_FOLDER_PANE_MAX);
                 folderWRef.current = next;
                 setFolderW(next);
               }}
@@ -1182,45 +1904,15 @@ export default function MailHubScreen() {
           </View>
 
           <View style={[styles.listPane, { width: listW }]}>
-            <View style={styles.listTabs}>
-              <FilterMenu
-                groups={[{
-                  id: 'read',
-                  label: 'Vis',
-                  value: unreadOnly ? 'unread' : 'all',
-                  onChange: (id) => setUnreadOnly(id === 'unread'),
-                  options: [
-                    { id: 'all', label: 'Alle' },
-                    { id: 'unread', label: 'Ulest' },
-                  ],
-                }]}
-              />
-              {listBusy ? <ActivityIndicator size="small" color={colors.brand} /> : null}
-            </View>
+            {listHeader}
             <HelpTarget id="content" style={{ flex: 1, minHeight: 0, width: '100%' }}>
-            <ScrollView style={styles.paneScroll}>
-              <MessageRows
-                grouped={grouped}
-                selectedId={selectedId}
-                onOpen={openMessage}
-                onPrefetch={prefetchMessage}
-                compact={!!composePrefs.compactList}
-                emptyText={emptyListText}
-                loading={listLoading}
-              />
-              {moreRow}
-            </ScrollView>
+              {list}
             </HelpTarget>
             <MailPaneResizeHandle
               label="Endre bredde på meldingsliste"
               onGrant={() => { listOriginRef.current = listWRef.current; }}
               onMove={(dx) => {
-                const next = applyMailPaneDrag(
-                  listOriginRef.current,
-                  dx,
-                  MAIL_LIST_PANE_MIN,
-                  MAIL_LIST_PANE_MAX,
-                );
+                const next = applyMailPaneDrag(listOriginRef.current, dx, MAIL_LIST_PANE_MIN, MAIL_LIST_PANE_MAX);
                 listWRef.current = next;
                 setListW(next);
               }}
@@ -1229,49 +1921,48 @@ export default function MailHubScreen() {
           </View>
 
           <View style={styles.readPane}>
-            {!open ? (
+            {reading || (
               <View style={styles.center}>
                 <Ionicons name="mail-open-outline" size={36} color={colors.line} />
                 <Text style={styles.muted}>Velg en melding</Text>
+                {Platform.OS === 'web' ? (
+                  <Text style={styles.hint}>
+                    Piltaster blar · Delete sletter · Ctrl+R svar · Ctrl+Shift+R svar alle · Ctrl+Shift+F videresend · N ny e-post
+                  </Text>
+                ) : null}
               </View>
-            ) : (
-              <ReadingBody
-                open={open}
-                onReply={() => startReply(false)}
-                onReplyAll={() => startReply(true)}
-                onForward={forwardOpen}
-              />
             )}
           </View>
         </View>
       </View>
-
-      {composeOverlay}
-      {settingsModal}
+      {overlays}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   shell: { flex: 1, minHeight: 0, backgroundColor: colors.card },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  listLoading: {
-    paddingVertical: 28, alignItems: 'center', justifyContent: 'center', gap: 10,
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
+  muted: { color: colors.muted, fontSize: 13 },
+  hint: { color: colors.muted, fontSize: 11, textAlign: 'center', maxWidth: 360, lineHeight: 16 },
+  ribbon: {
+    flexDirection: 'row', alignItems: 'center', gap: 2, flexWrap: 'wrap',
+    paddingHorizontal: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.line,
+    backgroundColor: colors.card,
   },
-  muted: { color: colors.muted, fontSize: 13, fontWeight: '400' },
-  toolbar: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap',
-    paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.line,
-  },
+  ribbonSep: { width: 1, height: 20, backgroundColor: colors.line, marginHorizontal: 4 },
   searchWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.line,
-    paddingHorizontal: 8, height: 32, minWidth: 180, backgroundColor: colors.card,
+    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colors.line, borderRadius: 4,
+    paddingHorizontal: 8, height: 32, width: 260, flexShrink: 1, minWidth: 150, backgroundColor: colors.card,
   },
   search: { flex: 1, fontSize: 13, color: colors.ink, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } : null) },
-  banner: { backgroundColor: '#fff7ed', padding: 8, marginHorizontal: 10, marginTop: 8 },
-  bannerTxt: { color: '#9a3412', fontWeight: '400', fontSize: 12 },
+  banner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#fff7ed', paddingHorizontal: 10, paddingVertical: 8, marginHorizontal: 10, marginTop: 8, borderRadius: 4,
+  },
+  bannerTxt: { color: '#9a3412', fontSize: 12, flex: 1 },
+  bannerAction: { color: colors.brand, fontSize: 12 },
   panes: { flex: 1, flexDirection: 'row', minHeight: 0, position: 'relative', alignItems: 'stretch' },
-  panesStack: { flexDirection: 'column' },
   paneScroll: { flex: 1, minHeight: 0 },
   folderScrollInner: { paddingVertical: 8 },
   mobileList: { flex: 1, minHeight: 0, position: 'relative' },
@@ -1279,109 +1970,72 @@ const styles = StyleSheet.create({
   mobileListPad: { paddingBottom: 88 },
   mobileBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 10, paddingVertical: 8, gap: 8,
+    paddingHorizontal: 10, paddingVertical: 6, gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
   mobileBarBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
-  mobileTitle: { fontSize: 20, fontWeight: '400', color: colors.ink, flexShrink: 1 },
-  mobileBackTxt: { fontSize: 16, fontWeight: '400', color: colors.brand, flexShrink: 1 },
+  mobileTitle: { fontSize: 20, color: colors.ink, flexShrink: 1 },
+  mobileBackTxt: { fontSize: 16, color: colors.brand, flexShrink: 1 },
   mobileBarActions: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 0 },
-  iconHit: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   mobileSearch: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 10, marginBottom: 6,
-    borderWidth: 1, borderColor: colors.line, paddingHorizontal: 8, height: 36, backgroundColor: colors.card,
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 10, marginTop: 6,
+    borderWidth: 1, borderColor: colors.line, paddingHorizontal: 8, height: 36, backgroundColor: colors.card, borderRadius: 4,
   },
-  pill: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, backgroundColor: colors.bg },
-  pillOn: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line },
-  pillTxt: { fontWeight: '400', color: colors.muted, fontSize: 13 },
-  pillTxtOn: { color: colors.ink },
   drawerRoot: { flex: 1, flexDirection: 'row' },
   drawerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.4)' },
-  drawerPanel: {
-    width: '82%', maxWidth: 320, height: '100%', backgroundColor: colors.card,
-    zIndex: 2, paddingTop: 8,
-  },
+  drawerPanel: { width: '82%', maxWidth: 320, height: '100%', backgroundColor: colors.card, zIndex: 2, paddingTop: 8 },
   drawerHead: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 12, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
-  drawerTitle: { fontSize: 18, fontWeight: '400', color: colors.ink, flex: 1 },
+  drawerTitle: { fontSize: 18, color: colors.ink, flex: 1 },
   drawerClose: {
     width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg,
   },
   folderPane: {
-    width: MAIL_FOLDER_PANE_DEFAULT,
-    flexShrink: 0,
-    position: 'relative',
-    overflow: 'visible',
-    zIndex: 3,
-    minHeight: 0,
-  },
-  folderPaneMobile: {
-    width: '100%',
-    maxHeight: 220,
-    overflow: 'hidden',
-    borderRightWidth: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.line,
+    width: MAIL_FOLDER_PANE_DEFAULT, flexShrink: 0, position: 'relative', overflow: 'visible', zIndex: 3, minHeight: 0,
   },
   paneKicker: {
-    fontSize: 11, fontWeight: '400', color: colors.muted, letterSpacing: 0.4,
+    fontSize: 11, color: colors.muted, letterSpacing: 0.4,
     paddingHorizontal: 12, marginTop: 8, marginBottom: 4, textTransform: 'uppercase',
   },
   accountBlock: { marginBottom: 4 },
   accountRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7 },
   accountOn: { backgroundColor: colors.brandSoft },
-  accountLbl: { flex: 1, fontSize: 12, fontWeight: '400', color: colors.ink },
-  grantBtn: {
-    alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6 },
-  grantTxt: { color: colors.brand, fontWeight: '400', fontSize: 12 },
-  folderRow: { flexDirection: 'row', alignItems: 'center', paddingRight: 8, minHeight: 26 },
-  folderOn: { backgroundColor: '#e8f1fc' },
+  accountLbl: { flex: 1, fontSize: 12, color: colors.ink },
+  grantBtn: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6 },
+  grantTxt: { color: colors.brand, fontSize: 12 },
+  folderRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 10, minHeight: 27,
+  },
+  folderHover: { backgroundColor: colors.sunken },
+  folderOn: { backgroundColor: colors.brandSoft },
   folderChev: { width: 18, height: 24, alignItems: 'center', justifyContent: 'center' },
-  folderBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, minWidth: 0, paddingVertical: 4 },
   folderName: { flex: 1, fontSize: 13, color: colors.ink },
-  folderNameOn: { fontWeight: '400', color: colors.brand },
-  unread: { fontSize: 11, fontWeight: '400', color: colors.brand },
+  folderNameOn: { color: colors.brand },
+  folderNameUnread: { fontWeight: '600' },
+  unread: { fontSize: 11, color: colors.brand, fontWeight: '600' },
+  unreadMuted: { color: colors.muted, fontWeight: '400' },
   listPane: {
-    width: MAIL_LIST_PANE_DEFAULT,
-    flexShrink: 0,
-    minWidth: 0,
-    minHeight: 0,
-    position: 'relative',
-    overflow: 'visible',
-    zIndex: 2,
+    width: MAIL_LIST_PANE_DEFAULT, flexShrink: 0, minWidth: 0, minHeight: 0, position: 'relative', overflow: 'visible', zIndex: 2,
+    borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: colors.line,
   },
-  listTabs: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, borderBottomWidth: 1, borderBottomColor: colors.line },
-  tab: { paddingVertical: 4, paddingHorizontal: 8 },
-  tabOn: { borderBottomWidth: 2, borderBottomColor: colors.brand },
-  tabTxt: { fontWeight: '400', color: colors.muted, fontSize: 13 },
-  tabTxtOn: { color: colors.brand },
-  section: { fontSize: 11, fontWeight: '400', color: colors.muted, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4 },
-  msgRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingRight: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line },
-  msgRowCompact: { paddingVertical: 10 },
-  msgOn: { backgroundColor: '#f8fbff' },
-  msgUnread: { backgroundColor: '#fcfdff' },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.brand, marginLeft: 6 },
-  readDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'transparent', marginLeft: 6 },
-  avatar: {
-    width: 36, height: 36, borderRadius: 18, backgroundColor: '#dbeafe',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  listHead: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.line,
   },
-  avatarTxt: { fontSize: 12, fontWeight: '400', color: colors.brand },
-  msgTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  msgFrom: { flex: 1, fontSize: 13, color: colors.ink },
-  msgBold: { fontWeight: '400' },
-  msgWhen: { fontSize: 11, color: colors.muted, fontWeight: '400' },
-  msgSub: { fontSize: 13, color: colors.brand, fontWeight: '400', marginTop: 1 },
-  msgPrev: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  listTitle: { fontSize: 15, color: colors.ink },
+  listSub: { fontSize: 11, color: colors.muted },
   readPane: { flex: 1, minWidth: 0, minHeight: 0, zIndex: 1, overflow: 'hidden' },
-  readSubject: { fontSize: 20, fontWeight: '400', color: colors.ink, marginBottom: 8 },
-  readFrom: { fontSize: 14, fontWeight: '400', color: colors.ink },
-  readMeta: { fontSize: 12, color: colors.muted, marginTop: 4 },
-  readActions: { flexDirection: 'row', gap: 6, marginVertical: 12, flexWrap: 'wrap' },
-  readPlain: { fontSize: 14, color: colors.ink, lineHeight: 20 },
-  moreBtn: {
-    alignSelf: 'flex-start', paddingVertical: 12, alignItems: 'center' },
-  moreTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
+  toastWrap: {
+    position: 'absolute', left: 0, right: 0, bottom: 24, alignItems: 'center', zIndex: 60,
+  },
+  toast: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#1f2937',
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 6, maxWidth: 520, marginHorizontal: 16,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 8px 24px rgba(15,23,42,0.3)' } : null),
+  },
+  toastErr: { backgroundColor: '#991b1b' },
+  toastTxt: { color: '#fff', fontSize: 13, flexShrink: 1 },
+  toastAction: { color: '#93c5fd', fontSize: 13, fontWeight: '600' },
 });

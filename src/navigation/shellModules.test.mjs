@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  COMPANY_DRAWER_GROUPS,
   buildShellModules,
   buildParentDashboardApps,
   buildChildDashboardApps,
@@ -97,6 +98,7 @@ function idsIn(sections) {
     [
       'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
       'okonomi-inntjening', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
+      'skjema',
     ],
   );
   assert.equal(companyItems[0].label, 'Bedriften');
@@ -206,12 +208,15 @@ function idsIn(sections) {
   assert.equal(okonomiKids.some((i) => i.id === 'okonomi-avtaler'), false);
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-prosjektutlegg').action.tab, 'arbeid');
   assert.equal(okonomiKids.find((i) => i.id === 'okonomi-prosjektutlegg').action.subView, 'utlegg');
+  // UX-17: Tilgang under Konto gikk til samme side som Tilgangsstyring, og Skjemabygger ligger i bedriftsmenyen.
   const accountItems = company.find((s) => s.id === 'account').items;
-  assert.equal(accountItems[0].id, 'tilgang');
-  assert.equal(accountItems[0].action.subView, 'tilgang');
-  assert.equal(accountItems[1].id, 'skjema');
-  assert.equal(accountItems[1].label, 'Skjemabygger');
-  assert.equal(accountItems[1].action.tab, 'skjema');
+  assert.equal(accountItems.some((i) => i.id === 'tilgang'), false);
+  assert.equal(accountItems.some((i) => i.id === 'skjema'), false);
+  const skjema = companyItems.find((i) => i.id === 'skjema');
+  assert.equal(skjema.label, 'Skjemabygger');
+  assert.equal(skjema.action.tab, 'skjema');
+  assert.equal(skjema.children, undefined);
+  assert.deepEqual(COMPANY_DRAWER_GROUPS.find((g) => g.id === 'company-quality').itemIds, ['iso', 'skjema']);
   const order = company.map((s) => s.id);
   assert.ok(order.indexOf('main') < order.indexOf('company'));
   assert.ok(order.indexOf('company') < order.indexOf('account'));
@@ -584,10 +589,9 @@ assert.match(readFileSync(new URL('./navTree.js', import.meta.url), 'utf8'), /gr
   assert.equal(drawerSubmenuOpen(okonomi, 'arbeid', {}, 'utlegg'), true);
   assert.equal(drawerSubmenuOpen(kunder, 'kunder'), false);
 }
-assert.match(
-  readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8'),
-  /Kundesummer/,
-);
+// Kunder og Avtaler er faner i Inntjening, ikke egne sider med eget navn (UX-17).
+assert.equal(okonomiMenuTitle('kunder'), 'Inntjening');
+assert.equal(okonomiMenuTitle('avtaler'), 'Inntjening');
 assert.equal(
   readFileSync(new URL('./shellModules.js', import.meta.url), 'utf8').includes("label: 'Økonomi',\n      action: { type: 'tab', tab: 'okonomi', subView: 'oversikt' },\n      forceOpen: true,"),
   false,
@@ -694,7 +698,7 @@ function collectPresented(items, acc = []) {
     [
       ['selskap', 'underenheter', 'selskapsinnstillinger'],
       ['ansatte', 'hr', 'fravaer', 'arbeid'],
-      ['iso'],
+      ['iso', 'skjema'],
       ['produktivitet', 'fremdrift', 'okonomi-inntjening'],
       ['okonomi'],
       ['produkt', 'utstyr', 'kjorebok'],
@@ -788,10 +792,24 @@ function collectPresented(items, acc = []) {
     personal.find((section) => section.id === 'main').items.map((item) => item.id),
     ['home', 'chat', 'friends', 'plan', 'mail', 'stars', 'notes', 'timeliste'],
   );
+  // Eier i Bedrift: Aktiverte moduler ligger i Modulinnstillinger, ikke under Konto (UX-17).
   assert.deepEqual(
-    personal.find((section) => section.id === 'account').items.map((item) => item.id).slice(0, 2),
-    ['tilgang', 'skjema'],
+    personal.find((section) => section.id === 'account').items.map((item) => item.id),
+    ['settings', 'help', 'legal'],
   );
+  const ansattAccount = buildShellModules({
+    t, asChild: false, asParent: true, isSuperAdmin: false,
+    familyId: 'F', family: { type: 'organization', name: 'ProTop AS' },
+    hasKids: false, childForSchedule: null, firstKid: null,
+    companyGrants: standardGrants('ansatt'),
+  }).find((section) => section.id === 'account').items.map((item) => item.id);
+  assert.ok(ansattAccount.includes('moduleAccess'), 'ansatt uten Modulinnstillinger beholder Aktiverte moduler under Konto');
+  const privatAccount = buildShellModules({
+    t, asChild: false, asParent: true, isSuperAdmin: false,
+    familyId: 'P', family: { type: 'family', isPersonal: true, name: 'Meg' },
+    hasKids: false, childForSchedule: null, firstKid: null,
+  }).find((section) => section.id === 'account').items.map((item) => item.id);
+  assert.ok(privatAccount.includes('moduleAccess'), 'Privat har Aktiverte moduler under Konto');
 }
 
 console.log('shellModules.test.mjs: ok');

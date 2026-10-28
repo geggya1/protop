@@ -708,7 +708,7 @@ export const ASSISTANT_TASKS = [
     ask: tx(['nytt skjema', 'lage skjema', 'lage et skjema', 'lage sjekkliste', 'ny sjekkliste', 'skjemabygger', 'bygge skjema', 'skjema fra papir', 'skjemamal'], ['new form', 'create form', 'form builder', 'build a checklist']),
     intro: tx('Skjema og sjekklister lages i Skjemabygger — fra bunnen eller fra en mal du har på papir eller fil.', 'Forms and checklists are made in the Form builder — from scratch or from a template you have on paper or file.'),
     steps: [
-      s(tx('Åpne Skjemabygger', 'Open the form builder'), 'Gå til Konto → Skjemabygger.', 'Go to Account → Form builder.', { ...gate('skjema', 0), go: true }),
+      s(tx('Åpne Skjemabygger', 'Open the form builder'), 'Gå til Bedrift → Kvalitet og styringssystem → Skjemabygger.', 'Go to Company → Quality and management system → Form builder.', { ...gate('skjema', 0), go: true }),
       s(tx('Nytt eller fra mal', 'New or from a template'), '«Nytt skjema» gir et tomt skjema. «Les inn en mal» → «Last opp fil» eller «Ta bilde av papir» bygger det med AI.', '“New form” gives an empty form. “Read a template” → “Upload file” or “Photograph paper” builds it with AI.', gate('skjema', 0)),
       s(tx('Bygg', 'Build'), '«Legg til felt», endre spørsmålene og bruk «Innstillinger» for logo, varsler og om svar kan endres.', '“Add field”, edit the questions and use “Settings” for logo, notifications and whether answers can be changed.', gate('skjema', 1)),
     ],

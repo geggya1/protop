@@ -147,8 +147,9 @@ const t = (k) => LABELS[k] || k;
   assert.equal(resolveShellHeaderTitle({ tab: 'ansatte', t }), 'Ansatte og eksterne');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', t }), 'Økonomi');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'oversikt', t }), 'Økonomi');
-  assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'kunder', t }), 'Kundesummer');
-  assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'avtaler', t }), 'Avtalesummer');
+  // Kunder og Avtaler er faner i Inntjening (UX-17).
+  assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'kunder', t }), 'Inntjening');
+  assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'avtaler', t }), 'Inntjening');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'faktura', t }), 'Faktura');
   assert.equal(resolveShellHeaderTitle({ tab: 'okonomi', moreSubView: 'indeks', t }), 'Indeksregulering');
   assert.equal(resolveShellHeaderTitle({ tab: 'arbeid', t }), 'Timer');

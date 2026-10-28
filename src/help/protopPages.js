@@ -373,14 +373,14 @@ export const PROTOP_PAGES = {
   moduleAccess: page({
     section: 'account',
     label: tx('Aktiverte moduler', 'Enabled modules'),
-    path: tx('Konto → Aktiverte moduler', 'Account → Enabled modules'),
+    path: tx('Konto → Aktiverte moduler (i Bedrift: Bedriftsinnstillinger → Modulinnstillinger)', 'Account → Enabled modules (in Company: Company settings → Module settings)'),
     nav: { tab: 'more', subView: 'moduleAccess' },
     icon: 'apps',
-    kicker: tx('Dine personlige moduler', 'Your personal modules'),
-    title: tx('Slå personlige moduler av og på', 'Turn personal modules on and off'),
+    kicker: tx('Kalender, e-post og verktøy', 'Calendar, mail and tools'),
+    title: tx('Slå moduler av og på', 'Turn modules on and off'),
     pitch: tx(
-      'Velg hvilke personlige moduler (Kalender, E-post, Oppgaver, Notat …) du bruker. Bedriftens moduler styres i Modulinnstillinger.',
-      'Choose which personal modules (Calendar, Mail, Tasks, Notes …) you use. Company modules are managed in Module settings.',
+      'Velg hvilke moduler (Kalender, E-post, Oppgaver, Notat …) som er aktivert. I Bedrift ligger valget sammen med bedriftens moduler i Modulinnstillinger for den som har den siden.',
+      'Choose which modules (Calendar, Mail, Tasks, Notes …) are enabled. In Company the choice sits with the company modules in Module settings for whoever has that page.',
     ),
     steps: [
       step(tx('Aktiver eller deaktiver', 'Enable or disable'),
@@ -514,8 +514,12 @@ export const PROTOP_PAGES = {
         '«Lagre moduler» tar endringen i bruk for alle. «Angre endringer» setter tilbake.',
         '“Save modules” applies the change for everyone. “Undo changes” reverts.',
         { find: ['Lagre moduler', 'Angre endringer'] }),
+      step(tx('Aktiverte moduler', 'Enabled modules'),
+        'Nederst: Kalender, E-post, Oppgaver, Notat og Chat. De står alltid i menyen; en som er slått av, viser velkomsten neste gang den åpnes. Lagres med en gang.',
+        'At the bottom: Calendar, Mail, Tasks, Notes and Chat. They are always in the menu; one that is off shows the welcome next time it opens. Saved at once.',
+        { find: ['Aktiverte moduler'] }),
     ],
-    keywords: ['moduler', 'modulinnstillinger', 'slå av', 'deaktivert', 'låst modul', 'aktivere modul'],
+    keywords: ['moduler', 'modulinnstillinger', 'slå av', 'deaktivert', 'låst modul', 'aktivere modul', 'aktiverte moduler'],
   }),
   'selskap.tilgang': page({
     section: 'company-org',
@@ -1803,9 +1807,9 @@ export const PROTOP_PAGES = {
 
   /* ───────────────────── Skjemabygger ───────────────────── */
   skjema: page({
-    section: 'account',
+    section: 'company-quality',
     label: tx('Skjemabygger', 'Form builder'),
-    path: tx('Konto → Skjemabygger', 'Account → Form builder'),
+    path: tx('Bedrift → Kvalitet og styringssystem → Skjemabygger', 'Company → Quality and management system → Form builder'),
     nav: { tab: 'skjema' },
     icon: 'clipboard',
     kicker: tx('Skjema, sjekklister og avtalemaler', 'Forms, checklists and agreement templates'),

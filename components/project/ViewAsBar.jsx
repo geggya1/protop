@@ -19,7 +19,7 @@ import {
   useViewAsSelection,
   viewAsKey,
 } from '../../src/access/viewAsStore';
-import { companyAccountNavItems, companyNavItems } from '../../src/navigation/shellModules';
+import { companyNavItems } from '../../src/navigation/shellModules';
 import { displayName } from '../../src/employees/model';
 
 const RANK_PHRASE = {
@@ -51,7 +51,7 @@ function moduleLabel(tab, subView) {
     }
     return null;
   };
-  return walk([...companyNavItems({ includeUnderenheter: true }), ...companyAccountNavItems()]) || 'denne modulen';
+  return walk(companyNavItems({ includeUnderenheter: true })) || 'denne modulen';
 }
 
 function PersonButton({ person, active, colors, onPress }) {

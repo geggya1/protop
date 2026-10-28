@@ -16,6 +16,7 @@ import CompanyLogoSettings from '../../components/CompanyLogoSettings';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import CompanyModuleSettings from '../../components/project/CompanyModuleSettings';
+import ModuleActivationSettings from '../../components/ModuleActivationSettings';
 import CompanyPrivacySettings from '../../components/company/CompanyPrivacySettings';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
@@ -281,6 +282,15 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
                 }
               }}
             />
+            {/* Samme valg som Konto → Aktiverte moduler, her sammen med bedriftens moduler (UX-17). */}
+            <SettingsSection
+              icon="apps-outline"
+              title="Aktiverte moduler"
+              hint="Kalender, E-post, Oppgaver, Notat og Chat står alltid i menyen. En som er slått av, viser velkomsten neste gang den åpnes. Lagres med en gang."
+              colors={colors}
+            >
+              <ModuleActivationSettings showCategories={false} />
+            </SettingsSection>
           </>
         ) : (
           <CompanyAccessDenied colors={colors} />

@@ -321,13 +321,24 @@ export function mergeNotices(left, right) {
   return mergeNoticeLists(left, right);
 }
 
+function rowStamp(row) {
+  return Date.parse(row?.updatedAt || '') || 0;
+}
+
+/**
+ * Slår sammen etter id. Raden med nyest updatedAt vinner, så en eldre kopi (en annen
+ * skjerm eller enhet) ikke overskriver en nyere endring. Uten tidsstempel, eller ved
+ * likt tidspunkt, vinner høyre side som før.
+ */
 function mergeById(left, right) {
   const map = new Map();
   for (const row of [...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])]) {
     const id = text(row?.id);
     if (!id) continue;
     const prev = map.get(id);
-    map.set(id, prev ? { ...prev, ...row, id } : row);
+    if (!prev) map.set(id, row);
+    else if (rowStamp(prev) > rowStamp(row)) map.set(id, { ...row, ...prev, id });
+    else map.set(id, { ...prev, ...row, id });
   }
   return [...map.values()];
 }
@@ -875,6 +886,8 @@ function enforceStorageBudget(state, maxBytes) {
  */
 export function fitAnbudState(raw, maxBytes = ANBUD_STORAGE_BYTES) {
   const base = compactAnbudState(raw);
+  // Får alt plass, forkortes ingenting.
+  if (encodedBytes(base) <= maxBytes) return base;
   const customers = base.customers || [];
   const keepCustomers = (state) => {
     if ((state?.customers || []).length >= customers.length) return state;
@@ -889,6 +902,45 @@ export function fitAnbudState(raw, maxBytes = ANBUD_STORAGE_BYTES) {
   fitted = keepCustomers(shrinkToBudget(fitted, maxBytes));
   if (encodedBytes(fitted) <= maxBytes) return fitted;
   return enforceStorageBudget(fitted, maxBytes);
+}
+
+/** Anbudsdokumentet får ikke plass i skyen uten å kaste noe brukeren har skrevet. */
+export function anbudTooLargeError(bytes) {
+  const error = new Error(
+    `Anbud og avtaler er for store til å lagres i skyen (${Math.round(bytes / 1000)} kB). `
+    + 'Ingenting er forkortet. Fjern store vedlegg eller gamle tilbud, og prøv igjen.',
+  );
+  error.code = 'anbud-too-large';
+  return error;
+}
+
+/**
+ * Tilstanden som skrives til skyen (anbud/state). Tekst og rader brukeren har skrevet
+ * (avtaler, tilbud, avtalesaker, skjemamaler, bibliotek), forkortes eller kastes aldri.
+ * Bare kunngjøringstreff kan kortes ned og slippes (de har eget treffdokument), loggen
+ * kortes til de siste hendelsene, og kundekopien kan slippes (registeret anbud/customers
+ * er fasit). Får det fortsatt ikke plass, kastes anbudTooLargeError, og lagringen stopper.
+ */
+export function fitAnbudForCloud(raw, maxBytes = ANBUD_STORAGE_BYTES) {
+  const base = compactAnbudState(raw);
+  if (encodedBytes(base) <= maxBytes) return base;
+  let next = base;
+  for (const limit of [8000, 2000, 600, 160]) {
+    next = { ...base, notices: (base.notices || []).map((row) => lightNotice(row, limit)) };
+    if (encodedBytes(next) <= maxBytes) return next;
+  }
+  next = dropOldestUndecided(next, maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = dropOldestUndecided({
+    ...next,
+    notices: (next.notices || []).map((row) => (decidedNotice(row) ? slimDecidedNotice(row) : row)),
+  }, maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = fitPrefix({ ...next, audit: (next.audit || []).slice(0, 100) }, 'notices', maxBytes);
+  if (encodedBytes(next) <= maxBytes) return next;
+  next = { ...next, customers: [] };
+  if (encodedBytes(next) <= maxBytes) return next;
+  throw anbudTooLargeError(encodedBytes(base));
 }
 
 export const LOGIN_PORTALS = [

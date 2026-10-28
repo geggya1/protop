@@ -3,11 +3,12 @@ import { doc, getDoc, setDoc, serverTimestamp, runTransaction } from 'firebase/f
 import { db } from '../../firebase';
 import { anbudHitsKey, anbudLocalKey, RETIRED_ANBUD_KEYS, saveWhereItFits, storeAnbudPayload, storeHitsPayload } from './localStore.js';
 import { pickCustomerList, resolveCustomerLoad } from './customerRegistry.js';
-import { normalizeCustomers } from './customers.js';
-import { emptyAnbudState, fitAnbudState, mergeAnbudStates, normalizeAnbudState } from './model.js';
+import { nextCustomerNumber, normalizeCustomers } from './customers.js';
+import { emptyAnbudState, fitAnbudForCloud, mergeAnbudStates, normalizeAnbudState } from './model.js';
 import { hitsSignature, mergeHitPacks, packHits, readHitPack, withHits } from './hitStore.js';
 import { aliasSourceIds } from '../project/companyAlias.js';
 import { dropRetiredLocalKeys } from '../utils/retiredLocalKeys.js';
+import { showSaveError } from '../ui/saveToast.js';
 
 const CUSTOMER_KEY = 'protop.customers.v2';
 const REMOTE_AUTH_MS = 8000;
@@ -25,6 +26,11 @@ const MEMORY = new Map();
 const inflight = new Map();
 /** 'ok' når skyen svarte, 'local' når bare nettleseren har data, 'error' når lesingen feilet. */
 const loadMeta = new Map();
+/**
+ * Kundene slik de sist ble lest fra eller skrevet til registeret (id → JSON).
+ * Lagring sender bare kunder som er endret siden, så en eldre liste ikke overskriver andres endringer.
+ */
+const REGISTRY_BASE = new Map();
 
 function memoryKey(companyId) {
   return String(companyId || '').trim() || '_';
@@ -254,23 +260,71 @@ async function readCustomerRegistry(companyId) {
   }
 }
 
+function rememberRegistry(companyId, customers) {
+  REGISTRY_BASE.set(memoryKey(companyId), new Map(
+    normalizeCustomers(customers).map((row) => [row.id, JSON.stringify(row)]),
+  ));
+}
+
+/** Kundene som er nye eller endret siden registeret sist ble lest eller skrevet. */
+export function changedCustomerRows(base, customers) {
+  const list = normalizeCustomers(customers);
+  if (!base) return list;
+  return list.filter((row) => base.get(row.id) !== JSON.stringify(row));
+}
+
+/**
+ * Legg endrede kunder på registeret slik det ligger i skyen. Nyeste updatedAt vinner per kunde.
+ * Har en ny kunde fått et kundenummer en annen kunde allerede har (to lagret samtidig),
+ * får den neste ledige nummer.
+ */
+export function mergeCustomerChanges(remote, changed) {
+  const current = normalizeCustomers(remote);
+  const incoming = normalizeCustomers(changed);
+  const merged = mergeAnbudStates({ customers: current }, { customers: incoming }).customers;
+  const changedIds = new Set(incoming.map((row) => row.id));
+  const taken = new Map();
+  for (const row of merged) {
+    if (changedIds.has(row.id) || !row.customerNumber) continue;
+    taken.set(row.customerNumber, row.id);
+  }
+  let next = Number(nextCustomerNumber(merged)) || 1;
+  return merged.map((row) => {
+    if (!changedIds.has(row.id) || !row.customerNumber) return row;
+    const owner = taken.get(row.customerNumber);
+    if (!owner || owner === row.id) {
+      taken.set(row.customerNumber, row.id);
+      return row;
+    }
+    const customerNumber = String(next);
+    next += 1;
+    taken.set(customerNumber, row.id);
+    return { ...row, customerNumber };
+  });
+}
+
+/** Skriver bare de endrede kundene, i en transaksjon mot registeret i skyen. Gir hele listen etterpå. */
 async function writeCustomerRegistry(companyId, customers) {
   const ref = customerDoc(companyId);
   const list = normalizeCustomers(customers);
-  if (!ref || !list.length) return;
+  if (!ref || !list.length) return null;
+  const changed = changedCustomerRows(REGISTRY_BASE.get(memoryKey(companyId)), list);
+  if (!changed.length) return null;
   const authed = await ensureRemoteAuth();
-  if (!authed) return;
+  if (!authed) return null;
   let stored = list;
   await runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
     const remote = snap.exists() ? normalizeCustomers(snap.data()?.customers) : [];
-    stored = mergeAnbudStates({ customers: remote }, { customers: list }).customers;
+    stored = mergeCustomerChanges(remote, changed);
     transaction.set(ref, {
       customers: JSON.parse(JSON.stringify(stored)),
       updatedAt: serverTimestamp(),
     });
   });
+  rememberRegistry(companyId, stored);
   await writeCustomerCache(companyId, stored);
+  return stored;
 }
 
 /**
@@ -291,25 +345,28 @@ export async function loadCustomerList(companyId, { onCache } = {}) {
     registryCustomers: registry.customers,
     registryOk: registry.ok,
   });
+  if (registry.ok) rememberRegistry(companyId, registry.customers);
   loadMeta.set(memoryKey(companyId), picked.status);
   if (picked.customers.length) writeCustomerCache(companyId, picked.customers).catch(() => {});
   if (picked.refreshRegistry) writeCustomerRegistry(companyId, picked.customers).catch(() => {});
   return picked;
 }
 
-/** Lagrer kundene uten å lese eller skrive resten av anbudsdokumentet. */
+/** Lagrer kundene uten å lese eller skrive resten av anbudsdokumentet. Gir listen slik den ble lagret. */
 export async function saveCustomers(companyId, customers) {
   const list = normalizeCustomers(customers);
   if (!companyId || !list.length) return list;
   await writeCustomerCache(companyId, list);
-  await writeCustomerRegistry(companyId, list).catch(() => {});
+  const stored = await writeCustomerRegistry(companyId, list).catch(() => null);
+  const saved = stored || list;
   const current = MEMORY.get(memoryKey(companyId));
-  if (current) putAnbudMemory(companyId, { ...current, customers: list });
-  return list;
+  if (current) putAnbudMemory(companyId, { ...current, customers: saved });
+  return saved;
 }
 
+/** Til skyen: tekst brukeren har skrevet, forkortes aldri. For stort dokument stopper lagringen. */
 function plainState(state) {
-  return JSON.parse(JSON.stringify(fitAnbudState(state)));
+  return JSON.parse(JSON.stringify(fitAnbudForCloud(state)));
 }
 
 async function writeLocal(companyId, state) {
@@ -336,7 +393,8 @@ async function writeRemote(companyId, state) {
       // Hele dokumentet byttes ut, slik at tidligere filinnhold ikke blir liggende i dokumentet.
       transaction.set(ref, commitMerged(remote));
     });
-  } catch {
+  } catch (error) {
+    if (error?.code === 'anbud-too-large') throw error;
     // Ikke skriv klientkopien alene: en feilet lesing har tom kundeliste og ville slettet registeret.
     const snap = await getDoc(ref);
     const remote = snap.exists() ? (snap.data()?.state || {}) : {};
@@ -363,7 +421,14 @@ function queueRemote(companyId, state) {
     remoteTimers.delete(id);
     const pending = remotePending.get(id);
     remotePending.delete(id);
-    if (pending) writeRemote(id, pending).catch(() => {});
+    // Lagringen i skyen skjer etter at skjermen har sagt «lagret». En feil skal likevel vises.
+    if (pending) {
+      writeRemote(id, pending).catch((error) => {
+        showSaveError(error?.code === 'anbud-too-large'
+          ? error.message
+          : 'Anbud og avtaler er lagret på denne enheten, men ikke i skyen. Prøv igjen når du har nett.');
+      });
+    }
   }, 400));
 }
 
@@ -407,6 +472,7 @@ export async function loadAnbudState(companyId, { force = false } = {}) {
       registryOk: registry.ok,
     });
     loadMeta.set(key, resolved.status);
+    if (registry.ok) rememberRegistry(companyId, registry.customers);
     if (resolved.state.customers.length) {
       writeCustomerCache(companyId, resolved.state.customers).catch(() => {});
     }
@@ -457,10 +523,18 @@ export async function flushAnbudState(companyId) {
   ]);
 }
 
+/** Registeret er fasit: andres nye kunder og rettede kundenummer følger med videre. */
+function withStoredCustomers(next, stored) {
+  return stored ? mergeAnbudStates(next, { customers: stored }) : next;
+}
+
 export async function saveAnbudState(state, companyId) {
-  const { next, registryStale } = await mergedForSave(state, companyId);
+  const merged = await mergedForSave(state, companyId);
+  let { next } = merged;
+  if (companyId && merged.registryStale) {
+    next = withStoredCustomers(next, await writeCustomerRegistry(companyId, next.customers).catch(() => null));
+  }
   if (next.customers.length) writeCustomerCache(companyId, next.customers).catch(() => {});
-  if (companyId && registryStale) await writeCustomerRegistry(companyId, next.customers).catch(() => {});
   queueHits(companyId, next);
   const where = await saveWhereItFits({
     companyId,
@@ -476,10 +550,11 @@ export async function saveAnbudState(state, companyId) {
 
 /** Lagrer med en gang og venter på Firestore, slik at «Lagre» ikke later som det gikk bra. */
 export async function persistAnbudState(state, companyId) {
-  const { next, registryStale } = await mergedForSave(state, companyId);
+  const merged = await mergedForSave(state, companyId);
+  let { next } = merged;
   const id = String(companyId || '').trim();
+  if (id && merged.registryStale) next = withStoredCustomers(next, await writeCustomerRegistry(id, next.customers));
   if (next.customers.length) writeCustomerCache(companyId, next.customers).catch(() => {});
-  if (id && registryStale) await writeCustomerRegistry(id, next.customers);
   queueHits(companyId, next);
   clearRemoteQueue(id);
   let localError = null;

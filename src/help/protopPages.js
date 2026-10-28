@@ -31,6 +31,7 @@ export const HELP_SECTIONS = [
   { id: 'company-resources', icon: 'cube-outline', title: tx('Produkter og driftsressurser', 'Products and resources') },
   { id: 'company-tenders', icon: 'megaphone-outline', title: tx('Anbud', 'Tenders') },
   { id: 'company-customers', icon: 'briefcase-outline', title: tx('Kunder og oppdrag', 'Customers and assignments') },
+  { id: 'company-meetings', icon: 'people-circle-outline', title: tx('Møter og referat', 'Meetings and minutes') },
   { id: 'account', icon: 'settings-outline', title: tx('Konto og hjelp', 'Account and help') },
 ];
 
@@ -1766,6 +1767,60 @@ export const PROTOP_PAGES = {
     keywords: ['anbudsinnstillinger', 'cpv', 'søkeord', 'næringskode', 'varsel anbud', 'ai-profil', 'kanaler'],
   }),
 
+  /* ───────────────────── Møter og referat ───────────────────── */
+  moter: page({
+    section: 'company-meetings',
+    label: tx('Møter', 'Meetings'),
+    path: tx('Bedrift → Møter og referat → Møter', 'Company → Meetings and minutes → Meetings'),
+    nav: { tab: 'moter' },
+    icon: 'people-circle',
+    kicker: tx('Fra innkalling til ferdig referat', 'From invitation to finished minutes'),
+    title: tx('Møter, referat og oppfølging', 'Meetings, minutes and follow-up'),
+    pitch: tx(
+      'Planlegg møtet fra en mal, et skjema eller med AI, send innkalling, før referatet mens dere sitter i møtet, og ferdigstill det som en ryddig PDF. Åpne oppfølgingspunkter følger med til neste møte i serien.',
+      'Plan the meeting from a template, a form or with AI, send the invitation, take minutes during the meeting and finalise them as a tidy PDF. Open action items carry over to the next meeting in the series.',
+    ),
+    steps: [
+      step(tx('Nytt møte', 'New meeting'),
+        'Trykk «Nytt møte» og velg hvordan du vil starte: fra en møtemal, fra et skjema i Skjemabygger, med AI som setter opp dagsordenen, eller blankt. Faste møter fortsetter serien med neste nummer.',
+        'Tap “Nytt møte” and choose how to start: from a meeting template, from a form in the form builder, with AI drafting the agenda, or blank. Recurring meetings continue the series with the next number.',
+        { find: ['Nytt møte'] }),
+      step(tx('Dagsorden og deltakere', 'Agenda and participants'),
+        'Åpne møtet. Under «Dagsorden» legger du til kapitler og punkter med varighet og innleder. Under «Deltakere» velger du ansatte eller eksterne, og hvem som er møteleder og referent.',
+        'Open the meeting. Under “Dagsorden” add chapters and items with duration and presenter. Under “Deltakere” pick employees or external guests, and who chairs and takes minutes.',
+        { find: ['Dagsorden', 'Deltakere'] }),
+      step(tx('Send innkalling', 'Send the invitation'),
+        '«Send innkalling» sender dagsordenen som PDF og en kalenderfil til deltakerne, og legger møtet i kalenderen deres i ProTop.',
+        '“Send innkalling” sends the agenda as a PDF and a calendar file to the participants, and adds the meeting to their ProTop calendar.',
+        { find: ['Send innkalling'] }),
+      step(tx('Gjennomfør', 'Run the meeting'),
+        '«Start møtet» åpner møtemodus: ett punkt om gangen med klokke, notater, beslutninger og oppfølgingspunkter med ansvarlig og frist. «Rydd med AI» gjør stikkord om til ferdig referattekst.',
+        '“Start møtet” opens meeting mode: one item at a time with a clock, notes, decisions and action items with owner and deadline. “Rydd med AI” turns keywords into finished minutes.',
+        { find: ['Start møtet'] }),
+      step(tx('Ferdigstill og send referat', 'Finalise and send the minutes'),
+        '«Ferdigstill referat» låser referatet og lager PDF-en. «Send referat» sender den til deltakerne. Må noe rettes, gjenåpner du referatet med en begrunnelse, og neste versjon får ny revisjon.',
+        '“Ferdigstill referat” locks the minutes and creates the PDF. “Send referat” emails it to the participants. If something must be corrected, reopen the minutes with a reason, and the next version gets a new revision.',
+        { find: ['Ferdigstill referat', 'Send referat'] }),
+    ],
+    faq: [
+      {
+        q: tx('Hvem ser møtene?', 'Who can see the meetings?'),
+        a: tx(
+          'Alle med tilgang til Møter ser møter som er åpne for bedriften. Møter som bare er for deltakerne, som styremøter og ledermøter, ser bare deltakerne og bedriftens administratorer.',
+          'Everyone with access to Meetings sees meetings open to the company. Meetings for participants only, such as board and management meetings, are visible only to participants and company administrators.',
+        ),
+      },
+      {
+        q: tx('Hva skjer med oppfølgingspunktene?', 'What happens to the action items?'),
+        a: tx(
+          'Åpne punkter følger med til neste møte i serien, merket med hvilket møte de kom fra. Under «Oppfølging» ser du alle åpne punkter på tvers av møtene, med forfalte øverst.',
+          'Open items carry over to the next meeting in the series, marked with the meeting they came from. Under “Oppfølging” you see all open items across meetings, with overdue ones first.',
+        ),
+      },
+    ],
+    keywords: ['møte', 'møter', 'referat', 'innkalling', 'dagsorden', 'agenda', 'byggemøte', 'styremøte', 'ledermøte', 'oppfølging', 'aksjon', 'beslutning', 'møtemal'],
+  }),
+
   /* ───────────────────── Produkter og driftsressurser ───────────────────── */
   utstyr: page({
     section: 'company-resources',
@@ -2128,27 +2183,27 @@ export const PROTOP_PAGES = {
     ),
     steps: [
       step(tx('Meld avvik', 'Report'),
-        '«Meld avvik»: kort hva som skjedde, dato, sted/prosjekt og konsekvens. Ved personskade velger du skadeklasse. Mulig meldeplikt: velg hvem som varsler myndighet – personen får oppgave med frist i dag. Ikke legg inn helseopplysninger.',
-        '“Report deviation”: what happened, date, location/project and consequence. For an injury, pick the injury class. Possible duty to notify: pick who notifies the authorities – they get a task due today. Don’t enter health data.',
+        '«Meld avvik»: velg type, skriv kort hva som skjedde, når og hvor, og legg ved bilder. Ved personskade velger du skadeklasse. Mulig meldeplikt: velg hvem som varsler myndighet – personen får oppgave med frist i dag. Ikke legg inn helseopplysninger.',
+        '“Report deviation”: pick the type, write briefly what happened, when and where, and attach photos. For an injury, pick the injury class. Possible duty to notify: pick who notifies the authorities – they get a task due today. Don’t enter health data.',
         { find: ['Meld avvik'] }),
-      step(tx('Første vurdering', 'First assessment'),
-        'Ansvarlig setter alvorlighet og om det er mulig meldeplikt, og trykker «Lagre første vurdering».',
-        'The owner sets severity and possible reporting duty, then “Save first assessment”.',
-        { find: ['Lagre første vurdering'], via: ['iso-row'], viaText: tx('Åpne en avvikssak først: trykk den markerte, så viser jeg knappen.', 'Open a deviation case first: tap the highlighted one and I’ll show you the button.'), pending: tx('Ligger inne i en avvikssak — meld et avvik først hvis listen er tom.', 'Inside a deviation case — report one first if the list is empty.') }),
+      step(tx('Vurder', 'Triage'),
+        'Saksbehandler trykker «Start behandling» og setter alvorlighet, frist, skadeklasse ved personskade og om det er mulig meldeplikt. Senere endringer lagres med «Lagre triage».',
+        'The case handler taps “Start handling” and sets severity, deadline, the injury class for an injury and possible reporting duty. Later changes are saved with “Save triage”.',
+        { find: ['Start behandling', 'Lagre triage'], via: ['iso-row'], viaText: tx('Åpne en avvikssak først: trykk den markerte, så viser jeg knappen.', 'Open a deviation case first: tap the highlighted one and I’ll show you the button.'), pending: tx('Ligger inne i en avvikssak — meld et avvik først hvis listen er tom.', 'Inside a deviation case — report one first if the list is empty.') }),
       step(tx('Årsak og tiltak', 'Cause and actions'),
-        '«Lagre årsak», og «Nytt tiltak» med ansvarlig og frist. Tiltaket blir en oppgave i Oppgaver.',
-        '“Save cause”, then “New action” with owner and deadline. The action becomes a task in Tasks.',
+        '«Vurder»: om tiltak trengs og hvorfor det skjedde. «Nytt tiltak» med ansvarlig og frist blir en oppgave i Oppgaver.',
+        '“Assess”: whether actions are needed and why it happened. “New action” with owner and deadline becomes a task in Tasks.',
         { find: ['Nytt tiltak'], via: ['iso-row'], viaText: tx('Åpne en avvikssak først: trykk den markerte, så viser jeg knappen.', 'Open a deviation case first: tap the highlighted one and I’ll show you the button.'), pending: tx('Ligger inne i en avvikssak — meld et avvik først hvis listen er tom.', 'Inside a deviation case — report one first if the list is empty.') }),
       step(tx('Lukk', 'Close'),
-        'Når tiltakene er «Meld utført», kontrolleres effekten. «Godkjenn lukking» lukker saken med læring.',
-        'When the actions are “Report done”, the effect is checked. “Approve closure” closes the case with learning.',
-        { find: ['Godkjenn lukking'], via: ['iso-row'], viaText: tx('Åpne en avvikssak først: trykk den markerte, så viser jeg knappen.', 'Open a deviation case first: tap the highlighted one and I’ll show you the button.'), pending: tx('Ligger inne i en avvikssak — meld et avvik først hvis listen er tom.', 'Inside a deviation case — report one first if the list is empty.') }),
+        'Når tiltakene er «Meld utført» og kontrollert, kontrolleres effekten. «Lukk saken» → «Godkjenn lukking» lukker saken med læring.',
+        'When the actions are “Report done” and checked, the effect is checked. “Close case” → “Approve closure” closes the case with learning.',
+        { find: ['Lukk saken', 'Godkjenn lukking'], via: ['iso-row'], viaText: tx('Åpne en avvikssak først: trykk den markerte, så viser jeg knappen.', 'Open a deviation case first: tap the highlighted one and I’ll show you the button.'), pending: tx('Ligger inne i en avvikssak — meld et avvik først hvis listen er tom.', 'Inside a deviation case — report one first if the list is empty.') }),
     ],
     keywords: ['avvik', 'melde avvik', 'hendelse', 'nestenulykke', 'tiltak', 'årsak', 'forbedring', 'rua', 'uønsket hendelse'],
     faq: [
       {
         q: tx('Hvordan melder jeg et avvik?', 'How do I report a deviation?'),
-        a: tx('ISO / K-HMS → Oversikt eller Avvik og forbedring → «Meld avvik». Beskriv fakta, sett dato og prosjekt, og send.', 'ISO / QHSE → Overview or Deviations → “Report deviation”. Describe the facts, set date and project, and submit.'),
+        a: tx('ISO / K-HMS → Oversikt eller Avvik og forbedring → «Meld avvik». Velg type, beskriv fakta, sett når og hvor, legg ved bilder og send.', 'ISO / QHSE → Overview or Deviations → “Report deviation”. Pick the type, describe the facts, set when and where, attach photos and submit.'),
       },
     ],
   }),

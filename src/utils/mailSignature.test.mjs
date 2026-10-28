@@ -7,7 +7,8 @@ import {
   parseDataUrl,
   DEFAULT_MAIL_SIGNATURE,
 } from './mailSignature.js';
-import { normalizeMailComposePrefs } from './mailComposePrefs.js';
+import { normalizeMailComposePrefs, signatureFor } from './mailComposePrefs.js';
+import { signatureBlockHtml } from './mailSignature.js';
 
 assert.equal(buildSignatureHtml({ ...DEFAULT_MAIL_SIGNATURE, enabled: false }), '');
 assert.equal(buildSignatureHtml({ ...DEFAULT_MAIL_SIGNATURE, enabled: true }), '');
@@ -56,5 +57,24 @@ const prefs = normalizeMailComposePrefs({ fontSize: 99, showBcc: true, signature
 assert.equal(prefs.fontSize, 11);
 assert.equal(prefs.showBcc, true);
 assert.equal(prefs.signature.name, 'Ada');
+
+// Gammel feltsignatur blir én HTML-signatur, brukt i nye meldinger og svar.
+assert.equal(prefs.signatures.length, 1);
+assert.match(prefs.signatures[0].html, /Ada/);
+assert.doesNotMatch(prefs.signatures[0].html, /data-wp-signature/);
+assert.equal(prefs.signatureNew, 'standard');
+assert.equal(signatureFor(prefs, 'reply').id, 'standard');
+
+// Flere signaturer: egen for svar, ukjent id gir ingen signatur.
+const multi = normalizeMailComposePrefs({
+  signatures: [{ id: 'full', name: 'Full', html: '<b>Geir Ove</b>' }, { id: 'kort', name: 'Kort', html: 'GOA' }],
+  signatureNew: 'full',
+  signatureReply: 'finnes-ikke',
+});
+assert.equal(signatureFor(multi, 'new').name, 'Full');
+assert.equal(signatureFor(multi, 'reply'), null);
+assert.equal(normalizeMailComposePrefs({ signatures: [] }).signatures.length, 0);
+assert.equal(signatureBlockHtml(''), '');
+assert.equal(signatureBlockHtml('<b>X</b>'), '<div data-wp-signature="1"><div><br></div><b>X</b></div>');
 
 console.log('mailSignature ok');

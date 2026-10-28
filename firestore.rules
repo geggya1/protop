@@ -665,7 +665,7 @@ service cloud.firestore {
     function isProtected(coll) {
       return coll.matches('^iso[A-Z].*') || coll == 'accessAcl'
         || coll == 'docComments' || coll == 'docControlSettings' || coll == 'docControl' || coll == 'docAcks'
-        || coll == 'invoices' || coll == 'invoiceSeries'
+        || coll == 'invoices' || coll == 'invoiceSeries' || coll == 'meetings'
         || coll == 'parents' || coll == 'memberInvites'
         || coll == 'hr' || coll == 'hrSelf' || coll == 'absences' || coll == 'childAbsences' || coll == 'employeesPrivate'
         || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
@@ -1010,6 +1010,45 @@ service cloud.firestore {
         && getAfter(invoiceSeriesPath(familyId)).data.get('last', -1) == int(request.resource.data.invoiceNumber)
         && (!exists(invoiceSeriesPath(familyId))
           || get(invoiceSeriesPath(familyId)).data.get('last', 0) < getAfter(invoiceSeriesPath(familyId)).data.get('last', 0));
+    }
+
+    /* ───────── Møter ─────────
+     * Et møte som bare er for deltakerne (visibility 'deltakere'), ser bare personene i
+     * memberUids (deltakere med innlogging og den som opprettet møtet) og bedriftens
+     * administratorer. Appen spør derfor med filter: visibility == 'alle' og
+     * memberUids array-contains uid. Et ferdigstilt referat (status ferdigstilt/sendt) er
+     * låst: bare status, utsendelser, logg og arkiv kan endres, og arkivet bare vokse.
+     * Retting skjer ved å gjenåpne (status pagar) med en begrunnelse.
+     */
+    // Direkte feltoppslag med vilje: med d.get(felt, standard) godtar vurderingen av
+    // spørringer en liste uten filter, og møter for bare deltakerne ville lekke.
+    // Appen lagrer alltid visibility og memberUids (normalizeMeeting).
+    function meetingInsider(familyId, d) {
+      return d.visibility != 'deltakere'
+        || request.auth.uid in d.memberUids
+        || isFamilyAdmin(familyId);
+    }
+
+    // get på et møte som ikke finnes ennå (lagring i transaksjon) er tillatt for medlemmer.
+    function meetingSeen(familyId, r) {
+      return r == null || meetingInsider(familyId, r.data);
+    }
+
+    function meetingLocked(d) {
+      return d.get('status', 'utkast') in ['ferdigstilt', 'sendt'];
+    }
+
+    function meetingShapeOk(d) {
+      return d.get('visibility', '') in ['alle', 'deltakere']
+        && d.get('memberUids', null) is list;
+    }
+
+    function meetingLockedChangeOk() {
+      let next = request.resource.data;
+      return changed().hasOnly(['status', 'deliveries', 'log', 'archive', 'updatedAt', 'updatedBy', 'reopenReason', 'endedAt', 'calendar'])
+        && next.get('archive', []).hasAll(resource.data.get('archive', []))
+        && (next.get('status', '') in ['ferdigstilt', 'sendt']
+          || (next.get('status', '') == 'pagar' && next.get('reopenReason', '').size() >= 3));
     }
 
     /* ───────── Dokumentstyring (Skjemabygger og personalhåndbok) ─────────
@@ -1396,6 +1435,21 @@ service cloud.firestore {
           && request.resource.data.get('last', 0) >= 1;
         allow update: if isFamilyMember(familyId) && invoiceManager(familyId) && invoiceSeriesStepOk();
         allow delete: if false;
+      }
+
+      match /meetings/{meetingId} {
+        allow get: if isFamilyMember(familyId) && meetingSeen(familyId, resource);
+        allow list: if isFamilyMemberLite(familyId) && meetingInsider(familyId, resource.data);
+        allow create: if isFamilyMember(familyId) && meetingShapeOk(request.resource.data);
+        allow update: if isFamilyMember(familyId)
+          && meetingInsider(familyId, resource.data)
+          && meetingShapeOk(request.resource.data)
+          && (!meetingLocked(resource.data) || meetingLockedChangeOk());
+        // Bare utkast som aldri er sendt, kan slettes. Resten avlyses.
+        allow delete: if isFamilyMember(familyId)
+          && meetingInsider(familyId, resource.data)
+          && resource.data.get('status', 'utkast') == 'utkast'
+          && resource.data.get('deliveries', []).size() == 0;
       }
 
       // Ansatte: som før, men tilgangs- og kontofeltene er beskyttet (se empUpdateOk).

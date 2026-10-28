@@ -107,6 +107,13 @@ test('vanlig signatur beholdes', () => {
   assert.match(out, /<b>Kari Nordmann<\/b>/);
 });
 
+test('signaturblokken i skrivefeltet beholder markøren, men ikke hendelser', () => {
+  const out = clean('<div data-wp-signature="1" data-x="y"><div><br></div><img src="data:image/png;base64,AAA" onerror="alert(1)">Kari</div>');
+  assert.match(out, /^<div data-wp-signature="1">/);
+  assert.equal(/data-x|onerror/.test(out), false, out);
+  assert.match(out, /<img src="data:image\/png;base64,AAA">/);
+});
+
 test('ukjente elementer pakkes ut, innholdet blir stående', () => {
   assert.equal(clean('<custom-el><b>Hei</b></custom-el>'), '<b>Hei</b>');
 });

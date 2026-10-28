@@ -97,7 +97,7 @@ function idsIn(sections) {
     companyItems.map((i) => i.id),
     [
       'selskap', 'selskapsinnstillinger', 'ansatte', 'hr', 'fravaer', 'arbeid', 'produktivitet', 'fremdrift',
-      'okonomi-inntjening', 'kunder', 'anbud', 'kontrakt', 'projects', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
+      'okonomi-inntjening', 'kunder', 'anbud', 'kontrakt', 'projects', 'moter', 'produkt', 'utstyr', 'kjorebok', 'okonomi', 'iso',
       'skjema',
     ],
   );
@@ -646,13 +646,14 @@ assert.match(customerScreen, /FilterMenu/);
 for (const file of [
   '../../screens/v2/RecipesHubScreen.jsx',
   '../../screens/v2/MealsHubScreen.jsx',
-  '../../screens/v2/MailHubScreen.jsx',
   '../../screens/v2/BoligmappaHubScreen.jsx',
   '../../screens/ActivitiesScreen.jsx',
   '../../screens/anbud/TenderHitCards.jsx',
 ]) {
   assert.match(readFileSync(new URL(file, import.meta.url), 'utf8'), /FilterMenu/);
 }
+// E-post har eget filter i verktøylinjen, som i Outlook (#555), ikke FilterMenu.
+assert.match(readFileSync(new URL('../../screens/v2/MailHubScreen.jsx', import.meta.url), 'utf8'), /MAIL_FILTERS/);
 assert.match(customerScreen, /searchBrregCompanies/);
 assert.match(customerScreen, /readCustomerImport/);
 assert.match(customerScreen, /identityFieldsForKind/);
@@ -693,6 +694,7 @@ function collectPresented(items, acc = []) {
       'Produkter og driftsressurser',
       'Anbud',
       'Kunder og oppdrag',
+      'Møter og referat',
     ],
   );
   assert.deepEqual(
@@ -706,11 +708,12 @@ function collectPresented(items, acc = []) {
       ['produkt', 'utstyr', 'kjorebok'],
       ['anbud'],
       ['kunder', 'kontrakt', 'projects'],
+      ['moter'],
     ],
   );
   assert.deepEqual(
     presented.filter((item) => item.group).map((item) => item.icon),
-    ['business', 'people', 'shield-checkmark', 'stats-chart', 'wallet', 'cube', 'megaphone', 'briefcase'],
+    ['business', 'people', 'shield-checkmark', 'stats-chart', 'wallet', 'cube', 'megaphone', 'briefcase', 'people-circle'],
   );
   const org = presented.find((item) => item.id === 'company-org');
   const people = presented.find((item) => item.id === 'company-people');
@@ -761,7 +764,7 @@ function collectPresented(items, acc = []) {
   ]);
   assert.equal(withExtra.at(-1).id, 'ekstra');
   assert.equal(withExtra.at(-1).label, 'Ekstra');
-  assert.equal(withExtra.filter((item) => item.group).length, 8);
+  assert.equal(withExtra.filter((item) => item.group).length, 9);
 
   const innleie = groupCompanyDrawerItems(filterCompanyNav(source, standardGrants('innleie_ekstern')));
   const innleieIds = innleie.filter((item) => item.group).flatMap((item) => item.children.map((child) => child.id));
@@ -776,6 +779,11 @@ function collectPresented(items, acc = []) {
   assert.equal(drawerGroupOpen(people, 'arbeid', { 'company-people': false }, 'fravaer'), false);
   assert.equal(drawerGroupOpen(customers, 'projects', {}, null), true);
   assert.equal(drawerGroupOpen(customers, 'kunder', {}, null), true);
+  // Møter: tre sider i modulens vannrette meny. Innleide ser ikke modulen.
+  const meetings = presented.find((item) => item.id === 'company-meetings');
+  assert.deepEqual(meetings.children[0].pages.map((item) => item.id), ['moter-oversikt', 'moter-oppfolging', 'moter-maler']);
+  assert.equal(drawerGroupOpen(meetings, 'moter', {}, 'oppfolging'), true);
+  assert.equal(innleieIds.includes('moter'), false);
   assert.deepEqual(
     releaseClosedActiveGroups({ 'company-people': false, 'company-finance': false }, source, 'hr', 'oversikt'),
     { 'company-finance': false },

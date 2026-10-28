@@ -60,3 +60,22 @@ assert.equal(friendlyMailError('For mange kall. Prøv igjen senere.'), 'For mang
 assert.equal(friendlyMailError('Mangler e-posttilgang'), 'Mangler e-posttilgang');
 
 console.log('mailSync ok');
+
+{
+  const { mergeFirstPage } = await import('./mailSync.js');
+  const prev = [
+    { id: 'a', receivedAt: '2026-10-27T10:00:00Z' },
+    { id: 'gone', receivedAt: '2026-10-27T09:00:00Z' },
+    { id: 'b', receivedAt: '2026-10-27T08:00:00Z' },
+    { id: 'old', receivedAt: '2026-10-20T08:00:00Z' },
+  ];
+  const page = [
+    { id: 'new', receivedAt: '2026-10-27T11:00:00Z' },
+    { id: 'a', receivedAt: '2026-10-27T10:00:00Z', isRead: true },
+    { id: 'b', receivedAt: '2026-10-27T08:00:00Z' },
+  ];
+  assert.deepEqual(mergeFirstPage(prev, page).map((m) => m.id), ['new', 'a', 'b', 'old']);
+  assert.equal(mergeFirstPage(prev, page)[1].isRead, true);
+  assert.deepEqual(mergeFirstPage(prev, page, { hasMore: false }).map((m) => m.id), ['new', 'a', 'b']);
+  assert.deepEqual(mergeFirstPage(prev, []).map((m) => m.id), ['a', 'gone', 'b', 'old']);
+}

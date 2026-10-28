@@ -51,7 +51,8 @@ export function bulletsToHtml(text) {
 
 export function wrapMailFont(innerHtml, { fontFamily, fontSize } = {}) {
   const inner = String(innerHtml || '<div><br></div>');
-  const family = fontFamily || 'Calibri, "Segoe UI", Arial, sans-serif';
+  // Doble anførselstegn i skriftnavnet ville avsluttet style-attributtet.
+  const family = String(fontFamily || "Calibri, 'Segoe UI', Arial, sans-serif").replace(/"/g, "'");
   const size = Number(fontSize) || 11;
   if (/data-wp-mail-font="1"/.test(inner)) return inner;
   return `<div data-wp-mail-font="1" style="font-family:${family};font-size:${size}pt;color:#1a2744">${inner}</div>`;

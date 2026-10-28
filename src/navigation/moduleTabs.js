@@ -4,7 +4,8 @@
  * Alle moduler har samme meny (også HR og Anbud): fanene som får plass, og resten under «Mer» (UX-19).
  */
 import {
-  ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultIsoSubView, isNavItemActive,
+  ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultIsoSubView, defaultMoterSubView,
+  isNavItemActive,
 } from './shellModules.js';
 
 /** ISO har mange sider. Delene blir titler i «Mer»-arket. Oversikt står alltid i raden. */
@@ -40,6 +41,7 @@ const SHORT = {
 /** Modulene som viser en standard underside når adressen ikke har en (/hjem/hr → Oversikt). */
 const DEFAULT_SUB = {
   iso: defaultIsoSubView,
+  moter: defaultMoterSubView,
   hr: defaultHrSubView,
   anbud: (sub) => (sub === 'pipeline' ? 'tilbud' : defaultAnbudSubView(sub)),
 };

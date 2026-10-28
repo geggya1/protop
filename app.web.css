@@ -177,6 +177,10 @@ button, input, select, textarea { font-family: var(--app-font); }
 }
 button, [role="button"] { cursor: pointer; }
 
+/* Møter: tittelfeltene skal være store overskrifter, ikke vanlige skjemafelt. */
+input[data-meeting-input="title"] { font-size: 21px !important; }
+textarea[data-meeting-input="notes"] { font-size: 15px !important; line-height: 1.5 !important; }
+
 /*
  * Bedriftsprofilen er smalere enn innholdsfeltet. Scrollflaten fyller bredden,
  * og selve siden (1180px) ligger mot venstre, på linje med de andre sidene.

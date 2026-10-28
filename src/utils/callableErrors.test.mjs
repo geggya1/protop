@@ -41,7 +41,9 @@ test('kalender- og e-postinnstillingene bruker meldingene, og e-postfeilen vises
   assert.match(cal, /friendlyCallableError\(e, 'Kunne ikke legge til ICS-kalender\.'\)/);
   const mail = readFileSync(new URL('../../screens/v2/MailHubScreen.jsx', import.meta.url), 'utf8');
   assert.doesNotMatch(mail, /setError\(e\?\.message/);
-  assert.match(mail, /error=\{settingsOpen \? error : ''\}/);
+  // Feilen er et objekt ({ text, consent }) etter #555.
+  assert.match(mail, /error=\{settingsOpen \? error\?\.text \|\| '' : ''\}/);
+  assert.match(mail, /friendlyCallableError\(e, 'Klarte ikke hente kontoer\.'\)/);
   const modal = readFileSync(new URL('../../components/MailSettingsModal.jsx', import.meta.url), 'utf8');
   assert.match(modal, /\{error \? \(/);
   assert.match(modal, /accessibilityRole="alert"/);

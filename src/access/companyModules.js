@@ -107,6 +107,15 @@ export const COMPANY_MODULES = [
     routes: [['projects', null]],
   },
   {
+    id: 'moter',
+    groupId: 'company-meetings',
+    label: 'Møter',
+    icon: 'people-circle',
+    hint: 'Møter med innkalling, gjennomføring, referat og oppfølging.',
+    navIds: ['moter'],
+    routes: [['moter', null]],
+  },
+  {
     id: 'produktivitet',
     groupId: 'company-productivity',
     label: 'Produktivitet',

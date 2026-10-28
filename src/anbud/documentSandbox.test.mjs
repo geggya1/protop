@@ -8,6 +8,8 @@ import { readFileSync } from 'node:fs';
 import { isActiveContentMime, safeBlobMime, UNTRUSTED_HTML_SANDBOX } from './documentAccess.js';
 import { peekAgreementBlobUrl, rememberAgreementBlobUrl } from './documentFile.js';
 import { routeMapDocument, scriptSafeJson } from '../mileage/routeMapHtml.js';
+import { tenderMapDocument } from './tenderMapHtml.js';
+import { MAP_FRAME_SANDBOX, mapScriptNonce } from '../utils/mapFrame.js';
 
 const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 
@@ -60,13 +62,33 @@ test('HTML-forhåndsvisningen kjører i sandkasse uten skript og uten samme opph
   assert.match(open, /const sessionBlob = !activeDoc/);
 });
 
-test('kart-iframes har ikke allow-same-origin', () => {
+test('kart-iframes har samme opphav, så OpenStreetMap får Referer', () => {
+  // Uten allow-same-origin sender nettleseren ingen Referer, og OSM svarer «Access blocked».
+  assert.equal(MAP_FRAME_SANDBOX, 'allow-scripts allow-same-origin');
   for (const rel of ['../../components/mileage/MileageRouteMap.jsx', '../../screens/anbud/TenderMap.jsx']) {
     const src = read(rel);
-    assert.equal(/sandbox: '[^']*allow-same-origin/.test(src), false, rel);
-    assert.match(src, /sandbox: 'allow-scripts'/);
+    assert.match(src, /sandbox: MAP_FRAME_SANDBOX/, rel);
   }
   assert.match(read('../../screens/anbud/TenderMap.jsx'), /event\?\.source !== iframeRef\.current\.contentWindow/);
+});
+
+test('kartdokumentene kjører bare skript med egen nonce', () => {
+  const docs = [
+    routeMapDocument({ from: { lat: 59.9, lng: 10.7, label: 'Oslo' }, to: { lat: 60.4, lng: 5.3, label: 'Bergen' } }),
+    tenderMapDocument([{ id: 't1', title: '<img src=x onerror=alert(1)>', lat: 59.9, lng: 10.7 }]),
+  ];
+  for (const doc of docs) {
+    const nonce = doc.match(/script-src 'nonce-([0-9a-f]{32})'/)?.[1];
+    assert.ok(nonce, 'CSP med nonce');
+    assert.ok(doc.indexOf('Content-Security-Policy') < doc.indexOf('<script'), 'CSP står før første skript');
+    const tags = doc.match(/<script[^>]*>/g);
+    assert.equal(tags.length, 2);
+    for (const tag of tags) assert.ok(tag.includes(`nonce="${nonce}"`), tag);
+  }
+  // Samme data gir samme srcDoc, ellers laster kartet seg på nytt ved hver rendering.
+  const route = { from: { lat: 59.9, lng: 10.7 }, to: { lat: 60.4, lng: 5.3 } };
+  assert.equal(routeMapDocument(route), routeMapDocument(route));
+  assert.match(mapScriptNonce(), /^[0-9a-f]{32}$/);
 });
 
 test('kjøreboks-kartet: stedsnavn kan ikke avslutte skriptet', () => {

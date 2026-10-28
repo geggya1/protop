@@ -3,6 +3,8 @@
  * Samme mønster som anbudskartet, uten API-nøkkel.
  */
 
+import { mapCspMeta, mapScriptNonce } from '../utils/mapFrame.js';
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -65,10 +67,12 @@ export function routeMapDocument({
     path,
   });
 
+  const nonce = mapScriptNonce();
   return `<!DOCTYPE html>
 <html lang="no">
 <head>
 <meta charset="utf-8"/>
+${mapCspMeta(nonce)}
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
@@ -85,8 +89,8 @@ export function routeMapDocument({
 </head>
 <body>
 <div id="map" role="img" aria-label="Kart over kjøreturen"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+<script nonce="${nonce}" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script nonce="${nonce}">
 const data = ${payload};
 const map = L.map('map', { zoomControl: true, attributionControl: true });
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

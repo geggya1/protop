@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { mapsUrl } from '../../src/utils/locationMaps';
+import { MAP_FRAME_SANDBOX } from '../../src/utils/mapFrame';
 import { nextMapPinIndex } from '../../src/anbud/noticePlace';
 import { tenderMapDocument } from '../../src/anbud/tenderMapHtml';
 import { dateText } from '../../src/format/nb';
@@ -213,8 +214,8 @@ export default function TenderMap({
             ref: iframeRef,
             title: mapTitle,
             srcDoc: html,
-            // Uten allow-same-origin: kartet snakker med appen bare via postMessage.
-            sandbox: 'allow-scripts',
+            // Samme opphav, ellers sender nettleseren ingen Referer og OpenStreetMap blokkerer flisene.
+            sandbox: MAP_FRAME_SANDBOX,
             style: { border: 0, width: '100%', height: '100%', borderRadius: 12 },
             onLoad: () => {
               syncMap();

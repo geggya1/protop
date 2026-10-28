@@ -6,6 +6,7 @@ import React, { useMemo } from 'react';
 import { Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { mapsUrl } from '../../src/utils/locationMaps';
+import { MAP_FRAME_SANDBOX } from '../../src/utils/mapFrame';
 import { routeMapDocument } from '../../src/mileage/routeMapHtml';
 
 function hasCoords(place) {
@@ -79,8 +80,8 @@ export default function MileageRouteMap({
       {React.createElement('iframe', {
         title: 'Kart over kjøreturen',
         srcDoc: html,
-        // Uten allow-same-origin: kartet kjører i eget opphav og når ikke innloggingen i appen.
-        sandbox: 'allow-scripts',
+        // Samme opphav, ellers sender nettleseren ingen Referer og OpenStreetMap blokkerer flisene.
+        sandbox: MAP_FRAME_SANDBOX,
         style: { border: 0, width: '100%', height: '100%', borderRadius: 12 },
       })}
     </View>

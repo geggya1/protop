@@ -30,6 +30,20 @@ export default function ImportReview({
   }, 0);
   return (
     <View nativeID={nativeID} style={{ gap: 12 }}>
+      {/* Knappene står øverst: listen kan være flere hundre rader lang. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        <TouchableOpacity onPress={onCancel} accessibilityRole="button" style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }}>
+          <Text style={{ color: colors.ink }}>Avbryt</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onConfirm}
+          disabled={busy || !ready}
+          accessibilityRole="button"
+          style={{ backgroundColor: colors.brandInk || colors.brand, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, opacity: busy || !ready ? 0.6 : 1 }}
+        >
+          <Text style={{ color: colors.onBrand }}>{busy ? 'Lagrer…' : confirmLabel(ready)}</Text>
+        </TouchableOpacity>
+      </View>
       <Text style={{ color: colors.ink }}>{reviewHeadline(rows)}</Text>
       {issueTally(rows).map(([issue, count]) => (
         <Text key={issue} style={{ color: issueNeedsAction(issue) ? danger : AMBER, fontWeight: '600' }}>
@@ -94,19 +108,6 @@ export default function ImportReview({
           })}
         </View>
       ))}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-        <TouchableOpacity onPress={onCancel} accessibilityRole="button" style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }}>
-          <Text style={{ color: colors.ink }}>Avbryt</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={onConfirm}
-          disabled={busy || !ready}
-          accessibilityRole="button"
-          style={{ backgroundColor: colors.brandInk || colors.brand, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, opacity: busy || !ready ? 0.6 : 1 }}
-        >
-          <Text style={{ color: colors.onBrand }}>{busy ? 'Lagrer…' : confirmLabel(ready)}</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }

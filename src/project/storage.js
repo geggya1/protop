@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  compactProjectStateForStorage,
   emptyProjectState,
   mergeMemberLists,
   normalizeProjectState,
@@ -617,7 +618,7 @@ function withoutBaseRev(state) {
 
 async function writeLocal(companyId, state) {
   // Ikke lagre timeEntries i prosjekt-blob — egen cache i timeEntryStorage.
-  const slim = withoutBaseRev(stripTimeEntriesFromState(state));
+  const slim = compactProjectStateForStorage(withoutBaseRev(stripTimeEntriesFromState(state)));
   const payload = JSON.stringify(slim);
   const key = localKey(companyId);
   try {
@@ -635,8 +636,8 @@ async function writeLocal(companyId, state) {
 
 function firestorePayload(state) {
   // JSON fjerner undefined, som Firestore avviser og som ellers stopper synk til mobil.
-  // timeEntries strippes alltid — monolitt må holde seg under 1 MiB.
-  return JSON.parse(JSON.stringify(withoutBaseRev(stripTimeEntriesFromState(state))));
+  // timeEntries strippes alltid, og standardverdier skrives ikke — monolitt må holde seg under 1 MiB.
+  return JSON.parse(JSON.stringify(compactProjectStateForStorage(withoutBaseRev(stripTimeEntriesFromState(state)))));
 }
 
 function encodedBytes(value) {

@@ -867,6 +867,24 @@ service cloud.firestore {
         || grantAtLeast(g, 'economyBilling', 1);
     }
 
+    // Godkjenner timer (status 'godkjent'): eier, administrator, Begrenset redigering på Andres timer
+    // (leder, som Godkjenninger i appen) eller den som fakturerer (Til fakturering godkjenner
+    // fakturagrunnlaget). Uten ferskt speil bare eier og administratorer (DRIFT-06, DRIFT-07).
+    function timeApprover(familyId) {
+      let g = aclGrants(familyId);
+      return isFamilyAdmin(familyId) || grantAtLeast(g, 'hoursOthers', 2)
+        || grantAtLeast(g, 'economyBilling', 2) || grantAtLeast(g, 'economyInvoices', 2);
+    }
+
+    // Godkjenningen står: en føring blir ikke godkjent, og en godkjent føring beholder status, timer,
+    // dato, ansatt og prosjekt (teksten kan rettes). Det er godkjenningen på føringen som teller, ikke
+    // låseraden i projects/state, som alle medlemmer kan skrive.
+    function timeApprovalKept() {
+      return resource.data.get('status', '') == 'godkjent'
+        ? (unchanged('status') && timeEntryCoreKept())
+        : request.resource.data.get('status', '') != 'godkjent';
+    }
+
     function timeEntryCoreKept() {
       let d = request.resource.data;
       let o = resource.data;
@@ -1162,18 +1180,25 @@ service cloud.firestore {
       // Timer og prosjektutlegg: som før for alle medlemmer, men en fakturert eller låst rad
       // beholder timer, beløp, dato, ansatt og prosjekt, og slettes ikke (DS-11, L-10).
       // Koblingen til fakturaen settes og tas bort av den som fakturerer.
+      // Godkjenning (status 'godkjent') settes og fjernes bare av den som godkjenner timer, og en
+      // godkjent rad endres og slettes bare av dem, også egne timer (DRIFT-06, DRIFT-07).
       // En rad som allerede er slettet, kan slettes igjen (appen kan slette samme rad fra to
       // steder samtidig, og eldre versjoner gjør det). Det avslører ikke noe medlemmer ikke kan lese.
       match /timeEntries/{entryId} {
         allow get: if isFamilyMember(familyId);
         allow list: if isFamilyMemberLite(familyId);
-        allow create: if isFamilyMember(familyId);
+        allow create: if isFamilyMember(familyId)
+          && (request.resource.data.get('status', '') != 'godkjent' || timeApprover(familyId));
         allow update: if isFamilyMember(familyId)
           && timeEntryHistoryAppended()
           && (sameInvoiceLink() || invoiceBiller(familyId))
           && (!entryLocked(resource.data, 'låst') || timeEntryCoreKept())
-          && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId));
-        allow delete: if isFamilyMember(familyId) && (resource == null || !entryLocked(resource.data, 'låst'));
+          && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId))
+          && (timeApprovalKept() || timeApprover(familyId));
+        allow delete: if isFamilyMember(familyId)
+          && (resource == null
+            || (!entryLocked(resource.data, 'låst')
+              && (resource.data.get('status', '') != 'godkjent' || timeApprover(familyId))));
       }
 
       // Slettelogg for timer: nye rader i eget navn, aldri endret eller slettet.

@@ -282,7 +282,10 @@ function approvedForBilling(state) {
   const opened = toggleTimesheetLock(approved.state, { employeeId: 'e1', throughDate: '2026-10-02' });
   assert.equal(lockThroughDate(opened.state.timesheetLocks, 'e1'), '');
   assert.equal(opened.state.timesheetLockArchive[0].throughDate, '2026-10-02');
-  assert.equal(opened.state.timeEntries.find((row) => row.id === 'a').status, 'godkjent');
+  // Leder åpner listen igjen: godkjenningen tas bort, så timene kan rettes og godkjennes på nytt (DRIFT-06).
+  assert.equal(opened.state.timeEntries.find((row) => row.id === 'a').status, 'registrert');
+  assert.equal(approvedForBilling(opened.state), 0);
+  assert.match(opened.notice, /Godkjenningen er tatt bort på 1 føring/);
 }
 
 console.log('timesheetRules.test.mjs: ok');

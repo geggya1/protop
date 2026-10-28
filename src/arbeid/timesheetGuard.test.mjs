@@ -12,6 +12,7 @@ import {
 } from './timesheetState.js';
 import {
   PROJECTS_NOT_LOADED,
+  approvedEntryBlock,
   changedLockEmployees,
   invoicedEntryBlock,
   lockSignature,
@@ -51,6 +52,53 @@ test('ansatt kan ikke låse opp en godkjent timeliste, leder kan', () => {
   const reopened = toggleTimesheetLock(approved.state, { employeeId: 'e1', throughDate: '2026-10-02', canReopen: true });
   assert.equal(reopened.ok, true);
   assert.equal(reopened.state.timesheetLocks.length, 0);
+  // Godkjenningen på timene tas bort, så den ansatte kan rette dem (reglene stenger godkjente timer).
+  assert.deepEqual(reopened.state.timeEntries.map((row) => [row.id, row.status]).sort(), [
+    ['t1', 'registrert'], ['t2', 'registrert'], ['t3', 'registrert'],
+  ]);
+});
+
+test('leder flytter låsen bakover: godkjenningen etter den nye datoen tas bort, og neste godkjenning tar dem med (DRIFT-06)', () => {
+  const { state } = withHours();
+  const locked = toggleTimesheetLock(state, { employeeId: 'e1', throughDate: '2026-10-02' });
+  const approved = approveTimesheetLock(locked.state, { employeeId: 'e1', approvedByUid: 'leder' });
+  // Fakturert føring i perioden står som den er.
+  const withInvoice = {
+    ...approved.state,
+    timeEntries: approved.state.timeEntries.map((row) => (row.id === 't2' ? { ...row, invoiceId: 'F-9' } : row)),
+  };
+  const back = toggleTimesheetLock(approved.state, { employeeId: 'e1', throughDate: '2026-10-01', canReopen: true });
+  assert.equal(back.ok, true, back.error);
+  const status = (result, id) => result.state.timeEntries.find((row) => row.id === id).status;
+  assert.equal(status(back, 't1'), 'godkjent', 'før den nye datoen står godkjent');
+  assert.equal(status(back, 't2'), 'registrert', 'etter den nye datoen er timene åpne igjen');
+  assert.equal(approvedThroughDate(back.state.timesheetLocks[0]), '2026-10-01');
+  assert.equal(status(toggleTimesheetLock(withInvoice, { employeeId: 'e1', throughDate: '2026-10-01', canReopen: true }), 't2'), 'godkjent');
+  // Den ansatte låser på nytt, og lederen godkjenner: den gjenåpnede dagen kommer med.
+  const relocked = toggleTimesheetLock(back.state, { employeeId: 'e1', throughDate: '2026-10-05', canReopen: false });
+  const again = approveTimesheetLock(relocked.state, { employeeId: 'e1', approvedByUid: 'leder' });
+  assert.deepEqual(['t1', 't2', 't3'].map((id) => status(again, id)), ['godkjent', 'godkjent', 'godkjent']);
+  // Den ansatte (uten Andres timer) kan aldri ta bort godkjenningen.
+  const own = toggleTimesheetLock(approved.state, { employeeId: 'e1', throughDate: '2026-10-01', canReopen: false });
+  assert.equal(own.ok, false);
+});
+
+test('godkjente timer: den ansatte får beskjed før lagringen, teksten kan rettes (DRIFT-06, DRIFT-07)', () => {
+  const rows = [
+    { id: 'a', status: 'godkjent', hours: 7.5, timeType: 'ordinary' },
+    { id: 'b', status: 'registrert', hours: 2 },
+    { id: 'c', status: 'godkjent', hours: 3, invoiceId: 'F-1' },
+  ];
+  const keep = [{ id: 'a', hours: 7.5, timeType: 'ordinary' }, { id: 'b', hours: 4 }, { id: 'c', hours: 3 }];
+  assert.equal(approvedEntryBlock(rows, { blocks: keep }), '', 'bare teksten eller andre timer endres');
+  assert.match(approvedEntryBlock(rows, { blocks: [{ id: 'a', hours: 8 }, { id: 'b', hours: 2 }] }), /godkjent/);
+  assert.match(approvedEntryBlock(rows, { blocks: [{ id: 'a', hours: 7.5, timeType: 'overtime50' }] }), /godkjent/);
+  assert.match(approvedEntryBlock(rows, { blocks: [{ id: 'b', hours: 2 }] }), /godkjent/, 'den godkjente fjernes');
+  assert.match(approvedEntryBlock(rows), /godkjent/, 'sletting');
+  assert.equal(approvedEntryBlock([rows[1], rows[2]]), '', 'fakturerte stoppes av invoicedEntryBlock');
+  assert.equal(approvedEntryBlock(rows, { canApprove: true }), '', 'leder retter selv');
+  const screen = readFileSync(new URL('../../screens/arbeid/ArbeidScreen.jsx', import.meta.url), 'utf8');
+  assert.equal((screen.match(/approvedEntryBlock\(/g) || []).length, 2, 'lagring og sletting i timelisten');
 });
 
 test('låst videre etter en godkjenning: den ansatte låser opp bare det nye', () => {

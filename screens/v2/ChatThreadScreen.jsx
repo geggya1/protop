@@ -385,7 +385,7 @@ export default function ChatThreadScreen() {
               <Ionicons name="image-outline" size={22} color={colors.brand} />
             )}
           </TouchableOpacity>
-          <HelpTarget id="input" style={{ flex: 1 }}>
+          <HelpTarget id="input" style={{ flex: 1, minWidth: 0 }}>
           <TextInput
             value={text}
             onChangeText={setText}
@@ -510,12 +510,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   input: {
-    flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
+    flex: 1, minWidth: 0, borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
     paddingHorizontal: 12, paddingVertical: 8, fontSize: 16, backgroundColor: colors.bg,
   },
   send: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brand,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   editBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20,

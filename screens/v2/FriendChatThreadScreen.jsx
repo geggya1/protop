@@ -271,8 +271,11 @@ const styles = StyleSheet.create({
     borderTopColor: '#eff3f4',
     backgroundColor: colors.card,
   },
+  // minWidth 0: ellers skyver tekstfeltet Send-knappen ut av skjermen på mobil-web.
   input: {
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
     minHeight: 36,
     maxHeight: 80,
     borderRadius: 18,
@@ -289,6 +292,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   sendBtnDisabled: { opacity: 0.45 },
 });

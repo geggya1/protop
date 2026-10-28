@@ -1511,9 +1511,13 @@ const styles = StyleSheet.create({
     }),
   },
   iconBtn: {
-    alignSelf: 'flex-start', padding: 4 },
+    alignSelf: 'flex-start', padding: 4, flexShrink: 0 },
+  // minWidth 0: et <input> på web krymper ellers ikke under sin naturlige bredde,
+  // og Send-knappen havner utenfor skjermen på mobil (SOS-02).
   input: {
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
     minHeight: 36,
     maxHeight: 80,
     borderRadius: 18,
@@ -1530,6 +1534,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   sendBtnDisabled: { opacity: 0.45 },
   pill: {

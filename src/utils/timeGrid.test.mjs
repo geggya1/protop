@@ -9,6 +9,7 @@ import {
   calendarIdOf,
   memberLayerId,
   formatWeekRangeNo,
+  formatWeekRangeShortNo,
   isCalendarLayerHidden,
   shouldListEventAsCalendarLayer,
   icsHostFromUrl,
@@ -116,6 +117,16 @@ const months = [
   'Juli', 'August', 'September', 'Oktober', 'November', 'Desember',
 ];
 assert.equal(formatWeekRangeNo(week, months), '24 - 30. august 2026');
+
+// SOS-18: kort ukeoverskrift på mobil, også over månedsskiftet.
+assert.equal(formatWeekRangeShortNo(week, months), '24.–30. aug.');
+const overMonth = Array.from({ length: 7 }, (_, i) => new Date(2026, 9, 26 + i));
+assert.equal(formatWeekRangeShortNo(overMonth, months), '26. okt.–1. nov.');
+const overYear = Array.from({ length: 7 }, (_, i) => new Date(2026, 11, 28 + i));
+assert.equal(formatWeekRangeShortNo(overYear, months), '28. des.–3. jan.');
+const may = Array.from({ length: 7 }, (_, i) => new Date(2026, 4, 4 + i));
+assert.equal(formatWeekRangeShortNo(may, months), '4.–10. mai');
+assert.equal(formatWeekRangeShortNo([], months), '');
 
 assert.equal(icsHostFromUrl('https://outlook.office365.com/owa/calendar/abc/calendar.ics'), 'outlook.office365.com');
 assert.equal(icsDisplayLabel({ label: 'ICS', icsHost: 'outlook.office365.com' }), 'ICS · outlook.office365.com');

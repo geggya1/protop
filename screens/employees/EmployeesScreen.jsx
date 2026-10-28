@@ -45,6 +45,7 @@ import { EMPLOYEE_IMPORT_ACCEPT, employeeImportMatchLabel } from '../../src/empl
 import { readEmployeeImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { logSensitiveAccess } from '../../src/hr/accessLogClient';
 import { employeeReviewSeverity, importResult } from '../../src/imports/review';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
@@ -1622,6 +1623,17 @@ export default function EmployeesScreen() {
     if (!personMode || personFills) return;
     scrollRef.current?.scrollTo?.({ y: 0, animated: false });
   }, [view, selectedId, personMode, personFills]);
+
+  // Innsynslogg (L-19): en annens personnummer (vises i klartekst for administrator) og fravær.
+  const loggedNationalId = !!selected?.person?.nationalId && canSeeSensitive(selected, { uid, isAdmin });
+  useEffect(() => {
+    if (!familyId || !selected?.id || isSelfRow(selected)) return;
+    if ((view === 'detail' || view === 'settingsEmployment') && loggedNationalId) {
+      logSensitiveAccess({ familyId, kind: 'nationalId', employeeId: selected.id });
+    } else if (view === 'absence') {
+      logSensitiveAccess({ familyId, kind: 'absence', employeeId: selected.id });
+    }
+  }, [familyId, view, selected?.id, loggedNationalId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>

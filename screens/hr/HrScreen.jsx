@@ -11,6 +11,7 @@ import { createFollowUpTask } from '../../src/hr/followUpTask';
 import { emptyHrState, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { companyRetention, hrRetentionPlan, retentionToast } from '../../src/hr/retention';
+import { logSensitiveAccess } from '../../src/hr/accessLogClient';
 import { defaultHrSubView } from '../../src/navigation/shellModules';
 import { useLayout } from '../../src/theme';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -204,6 +205,16 @@ export default function HrScreen({ subView = 'oversikt' }) {
     saveChainRef.current.then(() => { if (message) showSaveToast?.(message); }).catch(() => {});
   }, [ready, employeesLoaded, familyId, access, employees, retention, uid, assigneeName, persist]);
 
+  // Innsynslogg (L-19): en annens HR-mappe eller lønn. Eget innsyn logges ikke (serveren sjekker).
+  useEffect(() => {
+    if (!ready || !familyId || !canSee) return;
+    if (page === 'personell' && selectedEmployeeId) {
+      logSensitiveAccess({ familyId, kind: employeeSheet === 'lonn' ? 'salary' : 'hrFolder', employeeId: selectedEmployeeId });
+    } else if (page === 'lonn') {
+      logSensitiveAccess({ familyId, kind: 'salary' });
+    }
+  }, [ready, familyId, canSee, page, selectedEmployeeId, employeeSheet]);
+
   const go = useCallback((id, intent = null) => {
     if (id === 'produktivitet') {
       requestShellTab?.('arbeid', 'produktivitet');
@@ -325,6 +336,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
           entries={entries}
           onOpenEmployee={openEmployee}
           company={ownCompany}
+          familyId={familyId}
+          canSeeAccessLog={access.ready && access.canAdmin('hr')}
         />
       );
     }
@@ -398,7 +411,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
     openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
-    isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany, retention,
+    isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany, retention, access,
   ]);
 
   if (access.active && access.ready && !canSee) {

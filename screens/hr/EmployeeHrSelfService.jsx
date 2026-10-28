@@ -15,6 +15,7 @@ import {
 import { loadEmployeeHrSlice } from '../../src/hr/storage';
 import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './HrShared';
 import MyDocuments from '../doccontrol/MyDocuments';
+import HrAccessLog from './HrAccessLog';
 
 export default function EmployeeHrSelfService({ colors, companyId, employeeId }) {
   const [slice, setSlice] = useState(null);
@@ -183,6 +184,13 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId })
           </View>
         ) : null}
       </HrCard>
+      <HrAccessLog
+        colors={colors}
+        familyId={companyId}
+        employeeId={employeeId}
+        title="Innsyn i dine opplysninger"
+        subtitle="Hvem i bedriften som har åpnet HR-mappen, lønnen, fraværet eller personnummeret ditt, og når."
+      />
     </View>
   );
 }

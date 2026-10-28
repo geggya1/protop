@@ -23,14 +23,18 @@ import { absenceWidgetDestination } from '../../src/arbeid/absenceWidgetNav.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
 import { personnelKind, personnelKindLabel } from '../../src/employees/model.js';
 import Breadcrumb from '../../components/Breadcrumb';
+import { radius } from '../../src/ui/tokens';
 
 const ink = '#152033';
 const muted = '#8B95A6';
 const line = '#E6EBF2';
 const blue = '#2F6BDB';
 const blueSoft = '#E8F0FE';
+/** Tekst og ikon på valgt (blå) knapp. */
+const onBlue = '#fff';
 /** Tekst på knapper som ikke er valgt: mørkere enn muted, så de ikke ser deaktiverte ut. */
 const soft = '#5B6678';
+const hoverBg = '#E8EEF6';
 const BARS = { ferie: '#2F6BDB', sykdom: '#E15D6A', annet: '#F0A04B' };
 const AUDIENCE = [
   { id: 'staff', label: 'Eget personell' },
@@ -1359,7 +1363,7 @@ function Segmented({ items, value, onChange, idPrefix }) {
             accessibilityState={{ selected: on }}
             nativeID={idPrefix ? `${idPrefix}-${item.id}` : undefined}
           >
-            {item.icon ? <Ionicons name={item.icon} size={14} color={on ? '#fff' : soft} /> : null}
+            {item.icon ? <Ionicons name={item.icon} size={14} color={on ? onBlue : soft} /> : null}
             <Text style={[styles.segmentLabel, on && styles.segmentLabelOn]}>{item.label}</Text>
           </Pressable>
         );
@@ -1387,7 +1391,7 @@ function AudienceBar({ kinds, onToggleKind, includeInactive, onToggleInactive })
   // Flere kan være på samtidig, så hver gruppe er en egen avkrysningsbrikke, ikke en segmentvelger.
   return (
     <View style={styles.toggleRow} nativeID="fravaer-utvalg">
-      <Text style={styles.toggleGroupLabel}>Utvalg</Text>
+      <Text style={[styles.headTxt, styles.toggleGroupLabel]}>Utvalg</Text>
       {items.map((item) => (
         <Pressable
           key={item.id}
@@ -1402,7 +1406,7 @@ function AudienceBar({ kinds, onToggleKind, includeInactive, onToggleInactive })
           nativeID={item.nativeID}
         >
           <Ionicons name={item.on ? 'checkbox' : 'square-outline'} size={16} color={item.on ? blue : muted} />
-          <Text style={[styles.toggleChipTxt, item.on && styles.toggleChipTxtOn]}>{item.label}</Text>
+          <Text style={[styles.segmentLabel, item.on && styles.toggleChipTxtOn]}>{item.label}</Text>
         </Pressable>
       ))}
     </View>
@@ -1951,7 +1955,7 @@ const styles = StyleSheet.create({
   },
   yearChipOn: { borderColor: blue, backgroundColor: blue },
   yearChipTxt: { color: soft, fontSize: 12, fontWeight: '400' },
-  yearChipTxtOn: { color: '#fff', fontWeight: '400' },
+  yearChipTxtOn: { color: onBlue, fontWeight: '400' },
   hint: { color: muted, fontSize: 13, fontWeight: '400', marginTop: -2 },
   empty: { color: muted, fontSize: 13, fontWeight: '400', paddingVertical: 2 },
   moreHint: { color: muted, fontSize: 13, fontWeight: '400', paddingTop: 2 },
@@ -2017,31 +2021,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 32,
   },
-  segmentHover: { backgroundColor: '#E8EEF6' },
+  segmentHover: { backgroundColor: hoverBg },
   segmentOn: {
     backgroundColor: blue,
     ...(Platform.OS === 'web' ? { boxShadow: '0 1px 3px rgba(47, 107, 219, 0.35)' } : null),
   },
   segmentLabel: { color: soft, fontSize: 13, fontWeight: '400' },
-  segmentLabelOn: { color: '#fff', fontWeight: '400' },
+  segmentLabelOn: { color: onBlue, fontWeight: '400' },
   toggleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
-  toggleGroupLabel: { color: muted, fontSize: 13, fontWeight: '400', marginRight: 2 },
+  toggleGroupLabel: { marginRight: 2 },
   toggleChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
     borderColor: line,
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    borderRadius: radius.control,
     paddingHorizontal: 10,
     paddingVertical: 5,
     minHeight: 32,
   },
-  toggleChipHover: { borderColor: '#C9D6EA', backgroundColor: '#F7F9FC' },
+  toggleChipHover: { backgroundColor: hoverBg },
   toggleChipOn: { borderColor: blue, backgroundColor: blueSoft },
-  toggleChipTxt: { color: soft, fontSize: 13, fontWeight: '400' },
-  toggleChipTxtOn: { color: blue, fontWeight: '400' },
+  toggleChipTxtOn: { color: blue },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   navHit: { minWidth: 32, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
   stepLabel: { color: ink, fontWeight: '400', fontSize: 13, minWidth: 148, textAlign: 'center' },

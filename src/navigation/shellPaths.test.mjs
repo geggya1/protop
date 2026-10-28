@@ -94,7 +94,7 @@ test('bytte til Privat: bedriftssider blir ikke med, felles sider blir stående 
   assert.equal(isCompanyOnlyTab('selskap'), true);
   assert.equal(isCompanyOnlyTab('plan'), false);
   const shell = readFileSync(new URL('../../components/AppShell.jsx', import.meta.url), 'utf8');
-  assert.match(shell, /family\.id !== familyId\) return;/, 'skallet lander ikke på selskapssiden med forrige arbeidsområde');
+  assert.match(shell, /hold \? null : <AppShellInner/, 'skallet monteres ikke med forrige arbeidsområde');
   const platformSwitch = readFileSync(new URL('../utils/platformSwitch.js', import.meta.url), 'utf8');
   assert.ok(
     platformSwitch.indexOf('leaveShellPathForSwitch(') < platformSwitch.indexOf('await selectFamily?.('),

@@ -451,9 +451,6 @@ function AppShellInner() {
   const landedRef = useRef(false);
   useEffect(() => {
     if (landedRef.current || Platform.OS !== 'web' || typeof window === 'undefined' || !family) return;
-    // Under bytte med Privat/Bedrift peker familien et øyeblikk på det forrige arbeidsområdet.
-    // Da landes det ikke, ellers ble selskapssiden med over i Privat (EGEN-04).
-    if (familyId && family.id && family.id !== familyId) return;
     const company = isOrganizationType(family.type);
     if (company && companyAccess.active && !companyAccess.ready) return;
     landedRef.current = true;
@@ -465,7 +462,7 @@ function AppShellInner() {
       allowed: companyAccess.tabAllowed('selskap', null),
     });
     if (next) setTab((current) => (current === 'home' ? next : current));
-  }, [family, familyId, companyAccess.active, companyAccess.ready]);
+  }, [family, companyAccess.active, companyAccess.ready]);
 
   // Tilpass hjem → åpne hjem-fanen (editHome leses av theme hosts)
   useEffect(() => {
@@ -1276,11 +1273,23 @@ export default function AppShell() {
   // Felles lesing for bedriften (ansatte, personer, kunder, prosjekter, innstillinger).
   const companyId = family?.id === familyId && isOrganizationType(family?.type) ? familyId : '';
   const me = useMemo(() => (uid ? { ...(userProfile || {}), uid } : null), [uid, userProfile]);
+  // Under bytte med Privat/Bedrift peker familien et øyeblikk på det forrige arbeidsområdet. Skallet monteres
+  // først når de stemmer, så det ikke tegnes med feil arbeidsområde og tar en bedriftsside med over i Privat
+  // (EGEN-04). Kommer det ikke svar (frakoblet), tegnes det likevel etter et øyeblikk, som før.
+  const switching = !!(family?.id && familyId && family.id !== familyId);
+  const [waitedOut, setWaitedOut] = useState(false);
+  useEffect(() => {
+    setWaitedOut(false);
+    if (!switching) return undefined;
+    const timer = setTimeout(() => setWaitedOut(true), 1500);
+    return () => clearTimeout(timer);
+  }, [switching]);
+  const hold = switching && !waitedOut;
   return (
     <CompanyDataProvider companyId={companyId} members={parents} me={me}>
       {/* ISO-automatikk og køen for hurtigmeldinger (ISO-02/03). Tegner ingenting. */}
       {companyId ? <IsoAutomation key={`iso-${companyId}`} /> : null}
-      <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />
+      {hold ? null : <AppShellInner key={`fam-${familyId || 'none'}-${family?.type || 'x'}`} />}
     </CompanyDataProvider>
   );
 }

@@ -1,5 +1,7 @@
 /** Leaflet + OpenStreetMap, uten API-nøkkel eller innlogging. */
 
+import { mapCspMeta, mapScriptNonce } from '../utils/mapFrame.js';
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -74,10 +76,12 @@ export function tenderMapDocument(pins, {
     placeKind: row.placeKind === 'hele' || row.placeKind === 'miss' ? row.placeKind : 'point',
     ...(Number(row.mapNo) > 0 ? { mapNo: Number(row.mapNo) } : {}),
   }))).replace(/</g, '\\u003c');
+  const nonce = mapScriptNonce();
   return `<!doctype html>
 <html lang="nb">
 <head>
 <meta charset="utf-8"/>
+${mapCspMeta(nonce)}
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
@@ -144,8 +148,8 @@ export function tenderMapDocument(pins, {
   <div class="where"><b id="barTitle">Velg en nål</b><span id="barMeta"></span></div>
   <button type="button" data-act="next" aria-label="Neste sted">Neste</button>
 </div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
+<script nonce="${nonce}" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script nonce="${nonce}">
 const pins = ${payload};
 const selected = ${JSON.stringify(String(selectedId || ''))};
 const brandColor = ${JSON.stringify(String(brand || '#3D6B8A'))};

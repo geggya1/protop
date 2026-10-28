@@ -18,7 +18,7 @@ import {
   listenAccessibleNotes, startCreateNote, memberSummary, isPrivateNote, notePreview,
   filterNotesForProfile, migrateVoiceNotesIntoFamily,
 } from '../../src/utils/familyNotes';
-import { withSaveTimeout, isOfflineSaveError } from '../../src/utils/notesLogic.js';
+import { withSaveTimeout, isOfflineSaveError, filterNotesByQuery } from '../../src/utils/notesLogic.js';
 
 /**
  * Opprett og vent på serveren en stund. Offline ligger notatet likevel lokalt,
@@ -60,6 +60,7 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
   const [manualOpen, setManualOpen] = useState(false);
   const [manualText, setManualText] = useState('');
   const [dialog, setDialog] = useState(null);
+  const [search, setSearch] = useState('');
   useHelpScene(view === 'hub' ? 'hub' : 'inner');
   const {
     recording, liveText, liveScrollRef, supported, startRecording, stopRecording,
@@ -68,15 +69,20 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
 
   const myName = members.find((m) => m.uid === uid)?.name || '';
 
-  const visibleNotes = useMemo(
+  const profileNotes = useMemo(
     () => filterNotesForProfile(notes, profileUid),
     [notes, profileUid],
   );
+  const visibleNotes = useMemo(
+    () => filterNotesByQuery(profileNotes, search),
+    [profileNotes, search],
+  );
 
   const visibleArchivedNotes = useMemo(
-    () => filterNotesForProfile(archivedNotes, profileUid),
-    [archivedNotes, profileUid],
+    () => filterNotesByQuery(filterNotesForProfile(archivedNotes, profileUid), search),
+    [archivedNotes, profileUid, search],
   );
+  const searching = !!search.trim();
 
   useEffect(() => {
     if (!familyId || !uid) return undefined;
@@ -290,6 +296,33 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
         )}
         </ModuleHubIntro>
 
+        {!loading && (profileNotes.length > 0 || searching) ? (
+          <View style={[styles.searchRow, isDesktop && styles.searchRowDesk]}>
+            <Ionicons name="search" size={16} color={colors.muted} />
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Søk i notater"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Søk i notater"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searching ? (
+              <TouchableOpacity
+                onPress={() => setSearch('')}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Tøm søket"
+              >
+                <Ionicons name="close-circle" size={18} color={colors.muted} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+
         {loading ? (
           <ActivityIndicator color={colors.brand} style={{ marginTop: 24 }} />
         ) : (
@@ -299,9 +332,11 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
             </Text>
             {visibleNotes.length === 0 ? (
               <Text style={styles.emptyInline}>
-                {profileUid
-                  ? 'Ingen notater for denne profilen ennå.'
-                  : 'Ingen notater ennå. Opprett ett, eller ta opp med mikrofon.'}
+                {searching
+                  ? `Ingen notater passer «${search.trim()}».`
+                  : profileUid
+                    ? 'Ingen notater for denne profilen ennå.'
+                    : 'Ingen notater ennå. Opprett ett, eller ta opp med mikrofon.'}
               </Text>
             ) : (
               visibleNotes.map((item, i) => (
@@ -467,6 +502,20 @@ export default function NotesHubScreen({ compactHeader = false, profileUid = nul
 }
 
 const styles = StyleSheet.create({
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    minHeight: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.card,
+  },
+  searchRowDesk: { minHeight: 34, marginBottom: 8 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 14, color: colors.ink, paddingVertical: 8 },
   bgWrap: {
     position: 'absolute',
     left: 8,

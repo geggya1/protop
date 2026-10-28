@@ -473,6 +473,18 @@ export function newFindingEffects(finding, system) {
 /* ───────────────────────── Modenhet / neste steg ───────────────────────── */
 
 /**
+ * Datoen en ledelsens gjennomgang eller internrevisjon regnes som gjennomført: møtedato / revisjonsdato
+ * (planlagt dato) når den er passert, ellers datoen rapporten eller referatet ble godkjent. Aldri siste
+ * endring: en gjennomgang fra 2023 som redigeres i dag, er ikke gjennomført i dag.
+ */
+export function performedDate(record, now = new Date()) {
+  const own = isoDate(record?.register === 'ledelse' ? record?.meetingDate : record?.plannedDate);
+  if (own && own <= todayKey(now)) return own;
+  const approved = [...(record?.history || [])].reverse().find((h) => /^Status: godkjent/.test(String(h?.action || '')))?.at;
+  return isoDate(approved) || '';
+}
+
+/**
  * Intern beredskapsliste (spesifikasjon kap. 9). Ikke en sertifiseringsgrad:
  * viser hva som finnes og hva som mangler, med lenke til riktig side.
  */
@@ -496,8 +508,8 @@ export function readinessChecklist(state, { now = new Date(), people = [] } = {}
     { key: 'objectives', label: 'Mål med måling er etablert', done: (rec.mal || []).some((m) => (m.measurements || []).length), page: 'mal' },
     { key: 'competence', label: 'Kompetansekrav er definert', done: (rec.kompetansekrav || []).length > 0 && people.length > 0, page: 'kompetanse' },
     { key: 'nonconformity', label: 'Avviksbehandling er i bruk', done: (state.findings || []).length > 0, page: 'avvik' },
-    { key: 'audit', label: 'Internrevisjon gjennomført siste 12 mnd', done: (rec.revisjon || []).some((a) => ['godkjent', 'oppfolging', 'lukket'].includes(a.state) && String(a.updatedAt || '').slice(0, 10) >= year), page: 'revisjon' },
-    { key: 'review', label: 'Ledelsens gjennomgang siste 12 mnd', done: (rec.ledelse || []).some((l) => l.state === 'godkjent' && String(l.updatedAt || '').slice(0, 10) >= year), page: 'ledelse' },
+    { key: 'audit', label: 'Internrevisjon gjennomført siste 12 mnd', done: (rec.revisjon || []).some((a) => ['godkjent', 'oppfolging', 'lukket'].includes(a.state) && performedDate(a, now) >= year), page: 'revisjon' },
+    { key: 'review', label: 'Ledelsens gjennomgang siste 12 mnd', done: (rec.ledelse || []).some((l) => l.state === 'godkjent' && performedDate(l, now) >= year), page: 'ledelse' },
   ];
   const done = items.filter((i) => i.done).length;
   return { items, done, total: items.length, method: 'Intern sjekkliste over hovedelementer i ledelsessystemet. Ikke en sertifiseringsgrad.' };

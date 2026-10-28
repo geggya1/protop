@@ -11,11 +11,11 @@ import {
 import { normalizeSubUnits } from '../../src/project/companyUnits';
 import { createFinding } from '../../src/iso/findings';
 import { managementReviewSnapshot } from '../../src/iso/analytics';
-import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
+import { allRequirements, attachEvidence, requirementIdsForArea, statusText } from '../../src/iso/requirements';
 import { visibleFindings } from '../../src/iso/access';
 import { templateIdFor, usableForms } from '../../src/iso/forms';
 import {
-  autoAssignee, aspectSuggestions, contractReviewStatus, equipmentStatus, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
+  autoAssignee, aspectSuggestions, contractReviewStatus, equipmentStatus, readinessChecklist, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
   projectQuality, qualityPlanDraft, sickLeaveSeries, stakeholderSuggestions, supplierSuggestions, wasteSummary,
 } from '../../src/iso/integrations';
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
@@ -1345,9 +1345,12 @@ export function ProjectQualityPage({ ctx }) {
 
 export function CertificationPage({ ctx }) {
   const colors = useColors();
-  const { state, wide, caps } = ctx;
+  const { state, wide, caps, go, people } = ctx;
   const [selected, setSelected] = useState([]);
   const requirements = useMemo(() => allRequirements(state), [state]);
+  // Mangellisten bak «Klar for ekstern revisjon»: samme sjekkliste som «Neste steg» på oversikten.
+  const ready = useMemo(() => readinessChecklist(state, { people }), [state, people]);
+  const missing = ready.items.filter((i) => !i.done);
   const evidence = new Map(state.evidence.map((e) => [e.id, e]));
 
   function exportPackage() {
@@ -1357,14 +1360,14 @@ export function CertificationPage({ ctx }) {
       const r = requirements.find((x) => x.id === id);
       const links = state.evidenceLinks.filter((l) => l.requirementId === id && l.reviewState === 'godkjent');
       const a = state.assessments.find((x) => x.requirementId === id);
-      return { r, a, ev: links.map((l) => evidence.get(l.evidenceId)).filter((e) => e && e.classification !== 'skjermet') };
+      return { r, a, status: statusText(state, id), ev: links.map((l) => evidence.get(l.evidenceId)).filter((e) => e && e.classification !== 'skjermet') };
     }).filter((x) => x.r);
     const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Bevispakke</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#0f172a}td,th{border:1px solid #cbd5e1;padding:6px;font-size:12px;vertical-align:top}table{border-collapse:collapse;width:100%}h1{font-size:20px}.m{color:#475569;font-size:12px}</style></head><body>
 <h1>Bevispakke – ${esc(state.system.name || 'Ledelsessystem')}</h1>
 <p class="m">Eksportert ${new Date().toISOString().slice(0, 16).replace('T', ' ')}. Omfang: ${esc(state.system.scopeText)}. Interne vurderinger – ikke sertifisering. Skjermede HMS-/personopplysninger er utelatt.</p>
 <table><tr><th>Krav</th><th>Intern status</th><th>Vurdert</th><th>Godkjente bevis (revisjon)</th></tr>
-${rows.map(({ r, a, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clause}` : r.kind)} ${esc(r.title)}</td><td>${esc(a?.status || 'ikke_vurdert')}</td><td>${esc(a?.assessedBy || '')} ${esc(String(a?.assessedAt || '').slice(0, 10))}</td><td>${ev.map((e) => `${esc(e.label)}${e.objectRevision ? ` (rev ${esc(e.objectRevision)})` : ''} [${esc(e.hash)}]`).join('<br>') || '–'}</td></tr>`).join('')}
+${rows.map(({ r, a, status, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clause}` : r.kind)} ${esc(r.title)}</td><td>${esc(status)}</td><td>${esc(a?.assessedBy || '')} ${esc(String(a?.assessedAt || '').slice(0, 10))}</td><td>${ev.map((e) => `${esc(e.label)}${e.objectRevision ? ` (rev ${esc(e.objectRevision)})` : ''} [${esc(e.hash)}]`).join('<br>') || '–'}</td></tr>`).join('')}
 </table><script>setTimeout(function(){window.print()},300)</script></body></html>`;
     const w = window.open('', '_blank');
     if (w) { w.document.write(html); w.document.close(); }
@@ -1372,7 +1375,12 @@ ${rows.map(({ r, a, ev }) => `<tr><td>${esc(r.standard ? `${r.standard} ${r.clau
 
   return (
     <Page wide={wide} title="Sertifisering og revisjonsrom" intro="Sertifikater, eksterne revisjoner og bevispakker. ProTop utsteder ikke sertifikat – det gjør et akkreditert sertifiseringsorgan etter uavhengig revisjon.">
-      <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Klar for ekstern revisjon» er en intern indikator med synlig mangelliste." />
+      <Banner tone="warn" text="Bruk ikke ISO-logoen som sertifiseringsmerke. «Klar for ekstern revisjon» er en intern indikator med synlig mangelliste, ikke en sertifiseringsgrad." />
+      <Card title={`Klar for ekstern revisjon: ${ready.done} av ${ready.total}`} subtitle={ready.method}>
+        {missing.length ? missing.map((i) => (
+          <ListRow key={i.key} icon="close-circle-outline" tone="warn" title={i.label} subtitle="Mangler" onPress={() => go(i.page)} />
+        )) : <Banner tone="ok" text="Hovedelementene er på plass. Om kravene er oppfylt, avgjør revisor." />}
+      </Card>
       <SimpleRegister ctx={ctx} registerKey="sertifikat" subtitle={(r) => `${r.certBody}${r.validTo ? ` · gyldig til ${prettyDate(r.validTo)}` : ''}${r.nextAudit ? ` · neste revisjon ${prettyDate(r.nextAudit)}` : ''}`} />
       <Card title="Bevispakke til revisor" subtitle="Velg krav (tomt utvalg = alle). Bare godkjente bevis tas med, og skjermede saker utelates.">
         <Choice small multi title="Krav" options={requirements.map((r) => ({ id: r.id, label: r.standard ? `${r.standard.replace('ISO', 'ISO ')} ${r.clause}` : r.title, hint: r.standard ? (r.title || '') : '' }))} value={selected} onChange={setSelected} />

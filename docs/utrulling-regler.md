@@ -85,7 +85,30 @@ Disse avvises for eldre apper. Det var dette rettingene skulle stoppe.
 | Lager et barnedokument i gruppen uten å være voksen der eller administrator, eller i en bedrift | Dokumentet ga den kontoen medlemskap i gruppen (REV-24) | Ingen vanlig flyt gjør dette. Et barn som lagrer tema før dokumentet finnes, får det bare lagret på enheten. |
 | Starter vennechat med en som ikke er venn (også kollega) | SOS-04, FL-12 | Tråden lages ikke. |
 | Endrer tilgangsmatrisen uten speil, eller orgnr/konto/moduler/personvernvalg uten tilgang | FL-02, SEC-13 | Lagringen feiler for andre enn eier og administratorer. |
+| Slår Kalender, E-post, Oppgaver, Notat eller Chat av eller på i en bedrift (Konto → Aktiverte moduler, eller «Aktiver» i velkomstvinduet) uten Admin på Modulinnstillinger | MENY-01: valget på `families/{id}.moduleAccess` gjaldt hele bedriften | Bryteren og «Aktiver» gjør ingenting (eldre app viser ingen feil). Se «Aktiverte moduler i en bedrift» under. |
 | Overskriver en fil i fakturaarkivet (Storage) | Bokføringsloven § 13 | Et vedlegg med samme filnavn kan ikke lastes opp på nytt i eldre apper. |
+
+### Aktiverte moduler i en bedrift (MENY-01)
+
+Kalender, E-post, Oppgaver, Notat og Chat slås av og på på `families/{id}.moduleAccess`. Før kunne
+enhver ansatt endre dette for hele bedriften fra Konto → Aktiverte moduler (og via REST). Nå:
+
+- **Hele bedriften** endres bare av eier, administratorer (`adminUids`) og den som har Admin på
+  Modulinnstillinger i speilet (`moduleAccessOk` i `firestore.rules`), samme tilgang som
+  Modulinnstillinger. I appen ligger valget i Bedriftsinnstillinger → Modulinnstillinger.
+- **En vanlig ansatt** endrer bare sin egen visning: `users/{uid}/modulePrefs/{bedrift}`
+  (`{ modules: { plan: 'off' | 'on' } }`, dekket av den eksisterende regelen for `users/{uid}/…`).
+  «Av» skjuler modulen for den ansatte (velkomsten vises, og den kan slås på igjen). «På» slår på en
+  modul bedriften ikke har tatt stilling til. En modul bedriften har slått av, kan ikke slås på for
+  seg selv; velkomstvinduet sier da hvem som kan slå den på.
+- Familier og lag: som før (valget gjelder gruppen).
+
+Eldre apper (86332db): en ansatt som slår en modul av eller på under Konto, eller trykker «Aktiver»
+i velkomstvinduet i en bedrift, får skrivingen avvist. Eldre app viser ingen feil; bryteren og
+velkomsten blir stående som før. I en bedrift der ingen med tilgang har slått på f.eks. Kalender,
+ser en ansatt med eldre app velkomsten til appen er oppdatert (web oppdateres med en gang ved
+merge). Eier og administratorer merker ingen forskjell. Rekkefølge: merge (web ute) før reglene,
+som i steg 1–4. Test: `tests/rules/companyModules.rules.test.mjs` (også direkte PATCH mot REST).
 
 ### Private hendelser før bedriften er merket
 

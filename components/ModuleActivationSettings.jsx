@@ -4,7 +4,7 @@ import { colors, useLayout } from '../src/theme';
 import BrandToggle from './BrandToggle';
 import { listModulesByCategory } from '../src/modules/moduleActivationRegistry';
 import { applyProtopActivationSections } from '../src/navigation/protopShell';
-import { useModuleAccess } from '../src/context/ModuleAccessContext';
+import { useModuleAccess, useModuleWriteScope } from '../src/context/ModuleAccessContext';
 import { localizeModuleFields } from '../src/i18n/moduleCatalog';
 import { useI18n } from '../src/i18n';
 
@@ -21,11 +21,21 @@ const CATEGORY_KEYS = {
 /**
  * Foreldre kan slå av en modul. Neste åpning viser velkomstskjermen igjen.
  * showCategories={false}: uten kategorioverskrift, når siden har sin egen (Modulinnstillinger).
+ *
+ * I en bedrift (MENY-01): scope 'company' viser og endrer bedriftens valg (Modulinnstillinger,
+ * canEdit = Admin på Modulinnstillinger). scope 'personal' (Konto for en vanlig ansatt) endrer
+ * bare den ansattes egen visning; en modul bedriften har slått av, kan ikke slås på for seg selv.
+ * Uten scope: useModuleWriteScope (hele bedriften for den som har tilgangen, ellers bare meg).
  */
-export default function ModuleActivationSettings({ showCategories = true }) {
+export default function ModuleActivationSettings({ showCategories = true, scope: scopeProp = '', canEdit = true }) {
   const { isDesktop } = useLayout();
   const { t, lang } = useI18n();
-  const { isActivated, activateModule, deactivateModule, canManage } = useModuleAccess();
+  const {
+    isActivated, companyActivated, companyLocked, activateModule, deactivateModule, canManage,
+  } = useModuleAccess();
+  const ownScope = useModuleWriteScope();
+  const scope = scopeProp || ownScope;
+  const personal = scope === 'personal';
   const sections = useMemo(() => {
     return applyProtopActivationSections(listModulesByCategory()).map((section) => ({
       ...section,
@@ -47,21 +57,25 @@ export default function ModuleActivationSettings({ showCategories = true }) {
           {showCategories ? <Text style={[styles.cat, isDesktop && styles.catDesk]}>{section.title}</Text> : null}
           <View style={styles.group}>
             {section.items.map((mod) => {
-              const on = isActivated(mod.id);
+              const on = scope === 'company' ? companyActivated(mod.id) : isActivated(mod.id);
+              // Slått av for hele bedriften: kan ikke slås på bare for meg.
+              const locked = personal && !on && companyLocked(mod.id);
+              const hint = locked
+                ? 'Slått av for hele bedriften'
+                : (on ? t('settings.activated') : t('settings.showsWelcome'));
               return (
                 <View key={mod.id} style={[styles.row, isDesktop && styles.rowCompact]}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.label, isDesktop && styles.labelCompact]}>{mod.name}</Text>
-                    <Text style={styles.rowHint}>
-                      {on ? t('settings.activated') : t('settings.showsWelcome')}
-                    </Text>
+                    <Text style={styles.rowHint}>{hint}</Text>
                   </View>
                   <BrandToggle
                     compact={isDesktop}
                     value={on}
+                    disabled={!canEdit || locked}
                     onValueChange={(next) => {
-                      if (next) activateModule(mod.id, { source: 'settings' });
-                      else deactivateModule(mod.id);
+                      if (next) activateModule(mod.id, { source: 'settings', scope });
+                      else deactivateModule(mod.id, { scope });
                     }}
                   />
                 </View>

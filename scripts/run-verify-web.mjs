@@ -289,6 +289,8 @@ export const FILES = [
   'src/economy/expenseRegistry.test.mjs',
   // Utlegg: prosjekt og internt på én side (UX-17).
   'src/economy/expenseScope.test.mjs',
+  // Aktiverte moduler: bedriften eller bare meg (MENY-01).
+  'src/utils/modulePrefs.test.mjs',
   'src/economy/invoiceWorkText.test.mjs',
   'src/economy/driftUx.test.mjs',
   'src/project/statusFilter.test.mjs',

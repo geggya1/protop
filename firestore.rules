@@ -1044,6 +1044,15 @@ service cloud.firestore {
         && !company.hasAny(['privacy', 'dpaAcceptance']);
     }
 
+    // Aktiverte moduler (Kalender, E-post, Oppgaver, Notat, Chat) for hele bedriften: samme tilgang
+    // som Modulinnstillinger, Admin i speilet (MENY-01). Eier og administratorer kommer ikke hit.
+    // En vanlig ansatt lagrer sin egen visning under users/{uid}/modulePrefs. Familier og lag som før.
+    function moduleAccessOk(familyId, keys) {
+      return !keys.hasAny(['moduleAccess', 'moduleAccessInitialized'])
+        || !isCompanyGroup(familyId)
+        || aclRank(familyId, 'moduleSettings') >= 3;
+    }
+
     // Det vanlige medlemmer ikke kan endre på gruppen. Eier og administratorer kan alt
     // (unntatt eierskap).
     function familyUpdateOk(familyId) {
@@ -1052,7 +1061,8 @@ service cloud.firestore {
         && (keys.hasAny(['members']) ? memberListOk(familyId, 'members') : true)
         && (keys.hasAny(['activeUsers']) ? memberListOk(familyId, 'activeUsers') : true)
         && (keys.hasAny(['memberIds']) ? memberListOk(familyId, 'memberIds') : true)
-        && (keys.hasAny(['company', 'orgnr']) ? companyFieldsOk(familyId, keys) : true);
+        && (keys.hasAny(['company', 'orgnr']) ? companyFieldsOk(familyId, keys) : true)
+        && moduleAccessOk(familyId, keys);
     }
 
     // Avslutning av bedriften (GRUNN-03): closure, closedAt og deleteAfter skrives bare av serveren

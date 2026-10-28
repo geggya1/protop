@@ -15,9 +15,8 @@ import {
   ChatRows, PeopleGrid, LocationRows, InfoRows,
   TimedIconRows, EmptyHint,
 } from './WidgetBodies';
-import { soft } from '../parentHome/softTheme';
-import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
-import { immersiveCardSurface } from './homeGlass';
+import { colors } from '../../src/theme';
+import { homeCardSurface } from './homeGlass';
 import {
   firstName, personTint, withFallback, wishVisual, placeText,
   FALLBACK_SHOP, FALLBACK_CHAT, FALLBACK_EVENTS, FALLBACK_TIMELINE,
@@ -38,9 +37,8 @@ function openApp(model, handlers, id) {
 }
 
 function EmptyWidget({ label }) {
-  const immersive = useHomeImmersive();
   return (
-    <View style={[styles.empty, immersive && immersiveCardSurface]}>
+    <View style={[styles.empty, homeCardSurface]}>
       <Text style={styles.emptyTxt}>{label}</Text>
     </View>
   );
@@ -622,7 +620,7 @@ export default function ParentWidgetRenderer({ widget, model, handlers }) {
     return (
       <View style={{ flex: 1, minHeight: 0 }}>
         {widget.gh > 2 ? (
-          <W.SectionHeader title="Barnas dag" icon="happy-outline" iconColor={soft.sage} />
+          <W.SectionHeader title="Barnas dag" icon="happy-outline" iconColor={colors.brand} />
         ) : null}
         <W.KidsDayCards
           kids={shown}
@@ -661,9 +659,9 @@ export default function ParentWidgetRenderer({ widget, model, handlers }) {
   if (type === 'reminders') {
     const hints = withFallback(
       (model.remainingHints || []).map((h, i) => ({
-        id: `h-${i}`, icon: 'alert-circle', bg: '#C47A4A', title: h,
+        id: `h-${i}`, icon: 'alert-circle', bg: colors.brand, title: h,
       })),
-      [{ id: 'r', icon: 'notifications', bg: '#C47A4A', title: 'Alt er unna', meta: 'Ingen åpne huskelapper' }],
+      [{ id: 'r', icon: 'notifications', bg: colors.brand, title: 'Alt er unna', meta: 'Ingen åpne huskelapper' }],
       { demo: demo || !(model.remainingHints || []).length },
     );
     return (
@@ -696,13 +694,9 @@ export default function ParentWidgetRenderer({ widget, model, handlers }) {
 const styles = StyleSheet.create({
   empty: {
     minHeight: 112,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#E8E4DC',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
   },
-  emptyTxt: { fontSize: 14, color: '#8A93A3' },
+  emptyTxt: { fontSize: 14, color: colors.muted },
 });

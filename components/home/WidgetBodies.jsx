@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   ProgressRing, ColorGlyph, AvatarGlyph, CheckCircle, PillRow,
@@ -7,10 +7,10 @@ import {
 import {
   groceryVisual, eventVisual, personTint, placeText,
 } from '../../src/utils/homeWidgetVisuals';
-import { soft } from '../parentHome/softTheme';
+import { colors } from '../../src/theme';
+import { radius } from '../../src/ui/tokens';
 
-const sans = Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined;
-const chevron = soft.muted;
+const chevron = colors.muted;
 
 export function EmptyHint({ text }) {
   return (
@@ -81,12 +81,12 @@ export function CalendarEventRows({ items = [], compact }) {
               <Text style={styles.rowTitle} numberOfLines={1}>{ev.title}</Text>
               {placeText(ev.place) ? (
                 <View style={styles.placeRow}>
-                  <Ionicons name="location-outline" size={11} color={soft.muted} />
+                  <Ionicons name="location-outline" size={11} color={colors.muted} />
                   <Text style={styles.rowMeta} numberOfLines={1}>{placeText(ev.place)}</Text>
                 </View>
               ) : null}
             </View>
-            <ColorGlyph icon={vis.icon} bg={soft.lavender} color={soft.ink} size={30} radius={9} />
+            <ColorGlyph icon={vis.icon} bg={colors.brandSoft} color={colors.brandInk} size={30} radius={radius.control} />
           </PillRow>
         );
       })}
@@ -201,7 +201,7 @@ export function WeekOverview({ days = [], stats, progressLabel, progressValue = 
             <Text style={styles.weekLbl}>{d.label}</Text>
             {(d.items || []).slice(0, 3).map((it, i) => (
               <View key={`${d.label}-${i}`} style={styles.weekItem}>
-                <View style={[styles.weekDot, { backgroundColor: it.color || '#34C759' }]} />
+                <View style={[styles.weekDot, { backgroundColor: it.color || colors.brand }]} />
                 <Text style={styles.weekHint} numberOfLines={1}>{it.label}</Text>
               </View>
             ))}
@@ -231,8 +231,8 @@ export function NoteCards({ items = [], compact }) {
         <PillRow key={n.id || n.title} style={n.highlight ? styles.noteHi : null}>
           <ColorGlyph
             icon="document-text"
-            bg={n.highlight ? '#F2E38A' : soft.sky}
-            color={n.highlight ? '#6B5A18' : soft.ink}
+            bg={n.highlight ? '#F2E38A' : colors.brandSoft}
+            color={n.highlight ? '#6B5A18' : colors.brandInk}
           />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.rowTitle} numberOfLines={1}>{n.title}</Text>
@@ -285,7 +285,7 @@ export function InfoRows({ items = [], compact }) {
           />
         ) : (
           <PillRow key={row.id || row.title}>
-            <ColorGlyph icon={row.icon || 'ellipse'} bg={row.bg || '#2F80ED'} />
+            <ColorGlyph icon={row.icon || 'ellipse'} bg={row.bg || colors.brand} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.rowTitle} numberOfLines={1}>{row.title}</Text>
               {placeText(row.meta) ? <Text style={styles.rowMeta} numberOfLines={1}>{placeText(row.meta)}</Text> : null}
@@ -361,74 +361,74 @@ export function TimedIconRows({ items = [] }) {
 
 const styles = StyleSheet.create({
   stack: { gap: 6 },
-  rowTitle: { flex: 1, fontSize: 14, color: soft.ink, fontFamily: sans, fontWeight: '500' },
-  rowMeta: { fontSize: 12, color: soft.muted, fontFamily: sans, marginTop: 1 },
-  struck: { textDecorationLine: 'line-through', color: soft.quiet },
-  timeMuted: { fontSize: 12, color: soft.muted, fontFamily: sans },
+  rowTitle: { flex: 1, fontSize: 13, color: colors.ink, fontWeight: '500' },
+  rowMeta: { fontSize: 12, color: colors.muted, marginTop: 1 },
+  struck: { textDecorationLine: 'line-through', color: colors.muted },
+  timeMuted: { fontSize: 12, color: colors.muted },
   timeBold: {
-    width: 46, fontSize: 14, color: soft.ink, fontWeight: '400', fontFamily: sans, fontVariant: ['tabular-nums'],
+    width: 46, fontSize: 14, color: colors.ink, fontWeight: '400', fontVariant: ['tabular-nums'],
   },
-  timeEnd: { fontSize: 12, color: soft.muted, fontFamily: sans, fontVariant: ['tabular-nums'] },
+  timeEnd: { fontSize: 12, color: colors.muted, fontVariant: ['tabular-nums'] },
   timeStack: { width: 46 },
   colorBar: { width: 3, alignSelf: 'stretch', borderRadius: 2, marginVertical: 2 },
   placeRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
   mealStripe: { width: 4, alignSelf: 'stretch', borderTopLeftRadius: 16, borderBottomLeftRadius: 16 },
-  vLine: { width: 1, height: 18, backgroundColor: soft.line },
+  vLine: { width: 1, height: 18, backgroundColor: colors.line },
   durationChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#1F8A4C', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 5,
   },
-  durationTxt: { fontSize: 12, color: '#fff', fontWeight: '400', fontFamily: sans },
+  durationTxt: { fontSize: 12, color: '#fff', fontWeight: '400' },
   bubbleDot: {
     position: 'absolute', right: -3, bottom: -2, width: 16, height: 16, borderRadius: 8,
-    backgroundColor: '#2F80ED', alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#fff',
+    backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.card,
   },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   progressTrack: {
-    flex: 1, height: 8, borderRadius: 999, backgroundColor: soft.cream, overflow: 'hidden',
+    flex: 1, height: 8, borderRadius: 999, backgroundColor: colors.bg, overflow: 'hidden',
   },
-  progressFill: { height: '100%', backgroundColor: '#34C759', borderRadius: 999 },
-  pctTxt: { fontSize: 13, color: soft.muted, width: 40, textAlign: 'right', fontFamily: sans },
+  progressFill: { height: '100%', backgroundColor: colors.success, borderRadius: 999 },
+  pctTxt: { fontSize: 13, color: colors.muted, width: 40, textAlign: 'right' },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 28, paddingHorizontal: 2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   peopleScroll: { flex: 1, minHeight: 0 },
   peopleScrollBody: { flexGrow: 1 },
   personTile: {
     flexGrow: 1, flexShrink: 1, minWidth: 0, alignItems: 'center',
-    backgroundColor: soft.cream, borderRadius: 10, paddingVertical: 6, paddingHorizontal: 6,
+    backgroundColor: colors.bg, borderRadius: radius.control, paddingVertical: 6, paddingHorizontal: 6,
   },
   personIcon: {
     width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 3,
   },
   personName: {
-    fontSize: 12, color: soft.ink, fontFamily: sans, fontWeight: '500',
+    fontSize: 12, color: colors.ink, fontWeight: '500',
     width: '100%', textAlign: 'center', minWidth: 0,
   },
-  personMeta: { fontSize: 11, color: soft.muted, fontFamily: sans, flexShrink: 1, minWidth: 0 },
+  personMeta: { fontSize: 11, color: colors.muted, flexShrink: 1, minWidth: 0 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, maxWidth: '100%' },
   statusDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
   weekRow: { flexDirection: 'row', gap: 5 },
   weekCol: {
-    flex: 1, minWidth: 0, backgroundColor: soft.cream,
+    flex: 1, minWidth: 0, backgroundColor: colors.bg,
     borderRadius: 10, padding: 5, minHeight: 56,
   },
-  weekLbl: { fontSize: 12, color: soft.ink, fontWeight: '400', marginBottom: 6, fontFamily: sans },
+  weekLbl: { fontSize: 12, color: colors.ink, fontWeight: '400', marginBottom: 6 },
   weekItem: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3 },
   weekDot: { width: 6, height: 6, borderRadius: 3 },
-  weekHint: { fontSize: 10, color: soft.muted, fontFamily: sans, flex: 1 },
+  weekHint: { fontSize: 10, color: colors.muted, flex: 1 },
   statsPill: {
     marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: soft.cream, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, gap: 8,
+    backgroundColor: colors.bg, borderRadius: radius.card, paddingHorizontal: 12, paddingVertical: 8, gap: 8,
   },
-  statsTxt: { flex: 1, fontSize: 13, color: soft.ink, fontFamily: sans },
+  statsTxt: { flex: 1, fontSize: 13, color: colors.ink },
   noteHi: { backgroundColor: 'rgba(242,227,138,0.35)' },
   pinAvatar: {
     width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
   },
   emptyHint: {
-    minHeight: 52, borderRadius: 16, backgroundColor: soft.cream,
+    minHeight: 52, borderRadius: radius.card, backgroundColor: colors.bg,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 12,
   },
-  emptyHintTxt: { fontSize: 14, color: soft.muted, textAlign: 'center' },
+  emptyHintTxt: { fontSize: 14, color: colors.muted, textAlign: 'center' },
 });

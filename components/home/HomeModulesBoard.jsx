@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import CompactBackLink from '../CompactBackLink';
 import { ShortcutTile } from './PastelCards';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
@@ -7,7 +7,7 @@ import { immersiveHeroMuted, immersiveHeroText } from './homeGlass';
 import { useBottomChromeInset } from '../../src/utils/useBottomChromeInset';
 import { parentAppShortLabel } from '../../src/utils/parentHomeShortcuts';
 import { countForItem } from '../../src/utils/notifications';
-import { soft } from '../parentHome/softTheme';
+import { colors } from '../../src/theme';
 
 /**
  * Photo-backdrop dashboard of every family module as glass shortcut tiles.
@@ -47,7 +47,7 @@ export default function HomeModulesBoard({
         <Text style={[styles.sub, immersive && styles.subImmersive]}>{subtitle}</Text>
       ) : null}
       <View style={styles.grid}>
-        {apps.map((app, i) => (
+        {apps.map((app) => (
           <View key={app.id} style={styles.cell}>
             <ShortcutTile
               app={{
@@ -55,7 +55,6 @@ export default function HomeModulesBoard({
                 tileLabel: parentAppShortLabel(app) || app.label,
                 badge: countForItem(unreadByModule, app),
               }}
-              index={i}
               size="board"
               onPress={onPress}
             />
@@ -86,9 +85,6 @@ export default function HomeModulesBoard({
   );
 }
 
-const sans = Platform.OS === 'web' ? 'Inter, system-ui, -apple-system, sans-serif' : undefined;
-const display = Platform.OS === 'web' ? 'Fraunces, Georgia, serif' : undefined;
-
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: 'transparent' },
   embedded: {
@@ -103,9 +99,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     lineHeight: 30,
-    color: soft.ink,
-    fontFamily: display,
-    fontWeight: '500',
+    color: colors.ink,
+    fontWeight: '600',
     marginBottom: 4,
   },
   titleImmersive: {
@@ -117,8 +112,7 @@ const styles = StyleSheet.create({
   sub: {
     fontSize: 14,
     lineHeight: 18,
-    color: soft.muted,
-    fontFamily: sans,
+    color: colors.muted,
     marginBottom: 12,
   },
   subImmersive: {

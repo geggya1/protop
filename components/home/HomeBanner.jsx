@@ -3,7 +3,7 @@ import { View, Text, Image, Pressable, StyleSheet, Platform } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
 import { getHomeBanner, CUSTOM_BANNER_ID } from '../../src/homeBanners';
-import { soft } from '../parentHome/softTheme';
+import { colors } from '../../src/theme';
 import HelpTarget from '../HelpTarget';
 
 export default function HomeBanner({
@@ -56,7 +56,7 @@ export default function HomeBanner({
       </Pressable>
       {weather?.temp != null ? (
         <View style={styles.weatherChip} pointerEvents="none" testID="home-banner-weather">
-          <Ionicons name={weather.icon || 'partly-sunny'} size={16} color="#E0A106" />
+          <Ionicons name={weather.icon || 'partly-sunny'} size={16} color={colors.star} />
           <Text style={styles.weatherTxt}>{weather.temp}°</Text>
         </View>
       ) : null}
@@ -70,7 +70,7 @@ export default function HomeBanner({
           testID="home-banner-edit"
         >
           <View style={styles.pencilInner}>
-            <Ionicons name="image-outline" size={16} color={soft.ink} />
+            <Ionicons name="image-outline" size={16} color={colors.ink} />
           </View>
         </Pressable>
       </HelpTarget>
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
     height: 132,
     overflow: 'hidden',
-    backgroundColor: soft.bg,
+    backgroundColor: colors.bg,
     position: 'relative',
     marginBottom: 4,
   },
@@ -99,19 +99,20 @@ const styles = StyleSheet.create({
     width: '118%',
     left: '-4%',
   },
-  fallback: { ...StyleSheet.absoluteFillObject, backgroundColor: soft.mint },
+  fallback: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.brandSoft },
   fadeStrip: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     width: '28%',
-    backgroundColor: soft.bg,
+    backgroundColor: colors.bg,
   },
   fade: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
     ...(Platform.OS === 'web' ? {
-      backgroundImage: 'linear-gradient(90deg, #F5F2EC 0%, rgba(245,242,236,0.9) 18%, rgba(245,242,236,0.28) 38%, transparent 58%)',
+      // Toner bildet ut mot sidens bakgrunn (colors.bg), i lyst og mørkt.
+      backgroundImage: 'linear-gradient(90deg, var(--wp-c-bg) 0%, color-mix(in srgb, var(--wp-c-bg) 90%, transparent) 18%, color-mix(in srgb, var(--wp-c-bg) 28%, transparent) 38%, transparent 58%)',
     } : null),
   },
   copy: {
@@ -122,14 +123,13 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   hi: {
-    fontSize: 13, color: soft.muted, fontFamily: soft.body, marginBottom: 2,
+    fontSize: 13, color: colors.muted, marginBottom: 2,
   },
   title: {
-    fontSize: 22, color: soft.ink, fontFamily: soft.display, lineHeight: 26,
-    ...(Platform.OS === 'web' ? { textShadow: '0 1px 8px rgba(245,242,236,0.9)' } : null),
+    fontSize: 22, color: colors.ink, fontWeight: '600', lineHeight: 26,
   },
   sub: {
-    fontSize: 13, color: soft.muted, fontFamily: soft.body, marginTop: 3,
+    fontSize: 13, color: colors.muted, marginTop: 3,
   },
   pencil: {
     position: 'absolute',
@@ -138,10 +138,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: colors.card,
     zIndex: 3,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
+    borderWidth: 1,
+    borderColor: colors.line,
     overflow: 'hidden',
   },
   pencilInner: {
@@ -157,14 +157,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: colors.card,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.8)',
+    borderWidth: 1,
+    borderColor: colors.line,
   },
   weatherTxt: {
-    fontSize: 15, color: soft.ink, fontFamily: soft.display,
+    fontSize: 15, color: colors.ink, fontWeight: '600',
   },
 });

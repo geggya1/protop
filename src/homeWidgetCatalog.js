@@ -13,6 +13,10 @@ import {
 } from './homeGrid.js';
 import { isProtopHomeWidget } from './navigation/protopShell.js';
 import { LEGACY_WIDGET_TYPES } from './utils/legacyNames.js';
+import { protopBrand } from './brand/protopBrand.js';
+
+/** Widgetene ProTop viser har ikon i ProTop-blått, som modulene (UX-05). */
+const BRAND = protopBrand.digitalBlue;
 
 export const WIDGET_SIZES = ['third', 'half', 'full', 'tall'];
 
@@ -240,13 +244,13 @@ export function resolvedWidgetSize(widget) {
 
 /** Unique per-module glyph — never the ProTop mark. */
 export const MODULE_CHROME = {
-  weeklyPlan: { icon: 'calendar', glyphColor: '#2F80ED' },
-  nextEvent: { icon: 'today', glyphColor: '#5B63A6' },
-  timeline: { icon: 'list', glyphColor: '#34C759' },
-  tasks: { icon: 'checkbox', glyphColor: '#34C759' },
+  weeklyPlan: { icon: 'calendar', glyphColor: BRAND },
+  nextEvent: { icon: 'today', glyphColor: BRAND },
+  timeline: { icon: 'list', glyphColor: BRAND },
+  tasks: { icon: 'checkbox', glyphColor: BRAND },
   shopping: { icon: 'cart', glyphColor: '#C47A4A' },
   meals: { icon: 'restaurant', glyphColor: '#E07A7A' },
-  notes: { icon: 'document-text', glyphColor: '#8EB4F0' },
+  notes: { icon: 'document-text', glyphColor: BRAND },
   messages: { icon: 'chatbubbles', glyphColor: '#2F80ED' },
   family: { icon: 'people', glyphColor: '#6B8F71' },
   location: { icon: 'location', glyphColor: '#E85D4C' },
@@ -257,9 +261,9 @@ export const MODULE_CHROME = {
   wishes: { icon: 'gift', glyphColor: '#E07A9A' },
   books: { icon: 'library', glyphColor: '#2F80ED' },
   kids: { icon: 'happy', glyphColor: '#E0A106' },
-  shortcuts: { icon: 'apps', glyphColor: '#5B63A6' },
-  appFolder: { icon: 'grid', glyphColor: '#5B63A6' },
-  reminders: { icon: 'notifications', glyphColor: '#C47A4A' },
+  shortcuts: { icon: 'apps', glyphColor: BRAND },
+  appFolder: { icon: 'grid', glyphColor: BRAND },
+  reminders: { icon: 'notifications', glyphColor: BRAND },
   assistant: { icon: 'sparkles', glyphColor: '#7C3AED' },
   homework: { icon: 'bulb', glyphColor: '#E0A106' },
   school: { icon: 'school', glyphColor: '#2F80ED' },

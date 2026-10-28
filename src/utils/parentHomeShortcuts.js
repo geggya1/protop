@@ -9,7 +9,7 @@ export const DEFAULT_PARENT_SHORTCUT_IDS = ['stars', 'plan', 'projects', 'mail']
 export const MORE_FOLDER_GLYPHS = [
   { icon: 'calendar', color: BRAND },
   { icon: 'business', color: BRAND },
-  { icon: 'people', color: '#6B8F71' },
+  { icon: 'people', color: BRAND },
   { icon: 'mail', color: BRAND },
 ];
 

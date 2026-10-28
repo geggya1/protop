@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { immersiveHeroMuted, immersiveHeroText } from './homeGlass';
-import { soft } from '../parentHome/softTheme';
 
 export default function HomeHeroOverlay({
   greeting,
@@ -51,8 +50,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 30,
     color: immersiveHeroText,
-    fontFamily: soft.display,
-    fontWeight: '500',
+    fontWeight: '600',
     textShadowColor: 'rgba(0,0,0,0.45)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 8,
@@ -62,7 +60,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     color: immersiveHeroMuted,
-    fontFamily: soft.body,
     textShadowColor: 'rgba(0,0,0,0.4)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
@@ -72,7 +69,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     lineHeight: 30,
     color: immersiveHeroText,
-    fontFamily: soft.display,
+    fontWeight: '600',
     marginTop: 2,
     textShadowColor: 'rgba(0,0,0,0.45)',
     textShadowOffset: { width: 0, height: 1 },

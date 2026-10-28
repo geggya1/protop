@@ -17,8 +17,8 @@ import HomeWidgetFrame from './HomeWidgetFrame';
 import ParentWidgetRenderer from './ParentWidgetRenderer';
 import ChildWidgetRenderer from './ChildWidgetRenderer';
 import HelpTarget from '../HelpTarget';
-import { soft } from '../parentHome/softTheme';
-import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
+import { colors } from '../../src/theme';
+import { radius } from '../../src/ui/tokens';
 import { immersiveWidgetCell } from './homeGlass';
 
 export default function WidgetGrid({
@@ -34,7 +34,6 @@ export default function WidgetGrid({
   onCycleSize,
 }) {
   const Renderer = role === 'child' ? ChildWidgetRenderer : ParentWidgetRenderer;
-  const immersive = useHomeImmersive();
   const wrapRef = useRef(null);
   const origin = useRef({ x: 0, y: 0, w: 360 });
   const liftRef = useRef(null);
@@ -106,7 +105,7 @@ export default function WidgetGrid({
         const box = widgetBox(widget, boardW);
         const helpId = !editing ? helpIdForWidget(widget, usedHelpIds) : null;
         const lifting = lift?.id === widget.id;
-        const wrapStyle = [styles.abs, immersive && styles.absGlass, box, lifting && { zIndex: 20 }];
+        const wrapStyle = [styles.abs, box, lifting && { zIndex: 20 }];
         const cell = (
           <GridCell
             widget={widget}
@@ -262,13 +261,11 @@ function GridCell({
 
 const styles = StyleSheet.create({
   wrap: { position: 'relative', width: '100%', marginTop: 6, backgroundColor: 'transparent' },
+  // Cellen er gjennomsiktig; kortet inni er ProTop-kortet (homeCardSurface).
   abs: {
     position: 'absolute',
     overflow: 'hidden',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.88)',
-  },
-  absGlass: {
+    borderRadius: radius.card,
     ...immersiveWidgetCell,
   },
   fill: { flex: 1, width: '100%', height: '100%', overflow: 'hidden' },
@@ -277,15 +274,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: 'rgba(107,143,113,0.42)',
-    backgroundColor: 'rgba(107,143,113,0.08)',
+    borderColor: colors.line,
+    backgroundColor: colors.bg,
   },
   ghost: {
     position: 'absolute',
-    borderRadius: 14,
-    backgroundColor: 'rgba(107,143,113,0.22)',
+    borderRadius: radius.card,
+    backgroundColor: colors.brandSoft,
     borderWidth: 2,
-    borderColor: soft.sage,
+    borderColor: colors.brand,
   },
   chrome: { ...StyleSheet.absoluteFillObject, zIndex: 4 },
   kill: {
@@ -295,7 +292,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#C45C4A',
+    backgroundColor: colors.dangerInk,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -304,12 +301,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 6,
     right: 6,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: colors.card,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: soft.line,
+    borderWidth: 1,
+    borderColor: colors.line,
   },
-  sizeTxt: { fontSize: 11, color: soft.sage, fontFamily: Platform.OS === 'web' ? 'Inter, system-ui, sans-serif' : undefined },
+  sizeTxt: { fontSize: 11, color: colors.brandInk },
 });

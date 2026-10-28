@@ -886,6 +886,16 @@ export default function ArbeidScreen({
       return;
     }
     setBusyLock(false);
+    // Brukeren trykket «Lås» på en gammel kopi, men skyen er alt låst til dagen: vis det
+    // i stedet for å tolke trykket som «Lås opp».
+    const wantedUnlock = lockThroughDate(state.timesheetLocks, employeeId) === dateKey;
+    if (!wantedUnlock && lockThroughDate(working.timesheetLocks, employeeId) === dateKey) {
+      skipSave.current = true;
+      setState(working);
+      setError('');
+      setNote(`Timelisten er allerede låst til ${dateKey}.`);
+      return;
+    }
     const result = toggleTimesheetLock(working, {
       employeeId,
       throughDate: dateKey,

@@ -45,10 +45,36 @@ function readInviteParams(route) {
   };
 }
 
+/** Behold verdier vi allerede har, når adressefeltet er skrevet om uten parametre. */
+function keepInviteParams(prev, next) {
+  const out = { ...next };
+  Object.keys(prev || {}).forEach((key) => {
+    if (!out[key] && prev[key]) out[key] = prev[key];
+  });
+  return out;
+}
+
 export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
   const route = useOptionalRoute();
   const { lang } = useI18n();
-  const invite = useMemo(() => readInviteParams(route), [route]);
+  // Invitasjonen leses fra ruten eller adressefeltet ved første visning. Navigasjonen kan
+  // skrive adressen om til /register uten parametre etterpå, så verdiene holdes fast (SOS-01).
+  const [invite, setInvite] = useState(() => readInviteParams(route));
+  useEffect(() => {
+    setInvite((prev) => keepInviteParams(prev, readInviteParams(route)));
+  }, [route]);
+
+  // Web: legg venneinvitasjonen tilbake i adressen, så den overlever en omlasting.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || !invite.friendInvite) return;
+    try {
+      const qs = new URLSearchParams(window.location.search || '');
+      if (qs.get('friendInvite') || !/^\/register\/?$/.test(window.location.pathname || '')) return;
+      qs.set('friendInvite', invite.friendInvite);
+      if (invite.email) qs.set('email', invite.email);
+      window.history.replaceState(window.history.state || {}, '', `${window.location.pathname}?${qs.toString()}`);
+    } catch { /* ignore */ }
+  }, [invite.friendInvite, invite.email]);
   const { width } = useWindowDimensions();
   const wide = width >= 480;
   const goBack = navigation.canGoBack() ? () => navigation.goBack() : undefined;

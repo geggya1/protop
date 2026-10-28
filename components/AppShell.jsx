@@ -113,7 +113,7 @@ import ShellErrorBoundary from './ShellErrorBoundary';
 import { companyDisplayName } from '../src/utils/companyName';
 import ConfirmHost from './ConfirmHost';
 import IsoAutomation from '../screens/iso/IsoAutomation';
-import { FAMILY_PRODUCT_ENABLED } from '../src/navigation/familyProduct';
+import { FAMILY_PRODUCT_ENABLED, isFamilyProductMoreView } from '../src/navigation/familyProduct';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -865,6 +865,12 @@ function AppShellInner() {
   }, [companyAccess.previewing, companyAccess.previewStamp, companyAccess.ready, tab, moreSubView]);
 
   useEffect(() => {
+    // Familiesidene under Meny åpnes ikke i ProTop (L-35), heller ikke fra varsler eller lenker.
+    if (tab === 'more' && isFamilyProductMoreView(moreSubView)) {
+      setTab('home');
+      setMoreSubView(null);
+      return;
+    }
     if (tab === 'chores' && !(isChild || isActingAsChild)) {
       setTab('home');
       return;
@@ -946,7 +952,9 @@ function AppShellInner() {
   // Undersider: kompakt tittelrad i stedet for båndet (telefon: toppfeltet viser tittelen).
   const heroCompact = !!pageHeroId && shellHeroCompact(tab, moreSubView);
 
-  const activationModuleId = kitchenMode
+  // Familiesidene under Meny er ikke med i ProTop (L-35): ingen «Aktiver …» for dem.
+  const familyViewBlocked = tab === 'more' && isFamilyProductMoreView(moreSubView);
+  const activationModuleId = kitchenMode || familyViewBlocked
     ? null
     : activationModuleIdForShell(tab, moreSubView);
   const blockingWelcome = needsWelcome(activationModuleId);

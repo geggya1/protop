@@ -74,6 +74,14 @@ test('listene peker på skjermer og sider som finnes (ingen skrivefeil)', () => 
   }
 });
 
+test('adressen /hjem/apper/<familieside> åpner Hjem', async () => {
+  const { parseShellPath } = await import('./shellPaths.js');
+  assert.deepEqual(parseShellPath('/hjem/apper/games'), { tab: 'home', subView: null });
+  assert.deepEqual(parseShellPath('/hjem/apper/location'), { tab: 'home', subView: null });
+  assert.deepEqual(parseShellPath('/hjem/apper/settings'), { tab: 'more', subView: 'settings' });
+  assert.deepEqual(parseShellPath('/hjem/timeliste'), { tab: 'timeliste', subView: null });
+});
+
 test('vaktene er koblet inn der familieproduktet kunne nås', () => {
   assert.match(read('src/navigation/linking.js'), /guardFamilyProductState\(linking\.resolveStateFromPath/);
   assert.match(read('App.jsx'), /onStateChange=\{\(state\) => \{\s*if \(blockedFamilyProductRoute\(state\)/);
@@ -83,4 +91,6 @@ test('vaktene er koblet inn der familieproduktet kunne nås', () => {
   assert.match(read('components/InviteRespondOverlay.jsx'), /groupInviteAllowed\(inv\?\.groupType\)/);
   assert.match(read('screens/FamilyInviteRespondScreen.jsx'), /!groupInviteAllowed\(invite\.groupType\)/);
   assert.match(read('components/AppShell.jsx'), /if \(!FAMILY_PRODUCT_ENABLED\) return false;/);
+  assert.match(read('components/AppShell.jsx'), /if \(tab === 'more' && isFamilyProductMoreView\(moreSubView\)\) \{\s*setTab\('home'\)/);
+  assert.match(read('components/AppShell.jsx'), /kitchenMode \|\| familyViewBlocked/);
 });

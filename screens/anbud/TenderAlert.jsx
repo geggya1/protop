@@ -22,6 +22,7 @@ import { SIDE_WIDTH_KEY, PHONE_PREVIEW_MAP_HEIGHT, clampSideWidth, mapHeightForR
 import { departmentsOf } from '../../src/project/companyUnits';
 import { BREAKPOINTS, useLayout } from '../../src/theme';
 import { touchHit } from '../../src/ui/touchTarget';
+import { radius } from '../../src/ui/tokens';
 import TenderHitCards from './TenderHitCards';
 import NoticeInsight from './NoticeInsight';
 import NextStep from './NextStep';
@@ -1442,7 +1443,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  iconHit: { borderRadius: 15, flexShrink: 0 },
+  iconHit: { borderRadius: radius.pill, flexShrink: 0 },
   updateBtn: {
     flexDirection: 'row',
     alignItems: 'center',

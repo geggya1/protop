@@ -141,6 +141,12 @@ export function tsId() {
 
 /** Lukker velkomstrunden og andre overlegg som legger seg over skallet. */
 export async function skipTour(bot, rounds = 3) {
+  // «Jobber…» dekker skjermen mens appen lagrer. Vent til den er borte (treg testmaskin).
+  for (let w = 0; w < 60; w += 1) {
+    const busy = await bot.page.evaluate(() => /Jobber…\s*\n?\s*Vent til operasjonen er ferdig/.test(document.body.innerText || '')).catch(() => false);
+    if (!busy) break;
+    await bot.page.waitForTimeout(1000);
+  }
   for (let i = 0; i < rounds; i += 1) {
     const el = bot.page.getByText('Hopp over rundturen', { exact: true });
     let hit = false;

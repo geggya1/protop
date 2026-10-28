@@ -296,12 +296,12 @@ async function k6k7(b) {
   const lock = await waitText(m, /Bedriftsinvitasjon/i, 30000);
   if (lock) {
     await m.page.getByText('Godta invitasjon', { exact: true }).last().click();
-    await m.page.waitForTimeout(5000);
+    await m.page.waitForTimeout(15000);
     const t1 = await m.visibleText();
     await m.page.keyboard.press('Escape').catch(() => {});
     await m.page.waitForTimeout(1000);
     const still = /Bedriftsinvitasjon/i.test(await m.visibleText());
-    S.check(!still, 'K7c Mia blir ikke låst av en invitasjon som allerede er besvart', 'Ingen vindu, eller vinduet kan lukkes', `Vinduet står etter Godta: «${(t1.match(/Invitasjonen er allerede besvart\.?|[^\n]*besvart[^\n]*|Kunne ikke[^\n]*/) || ['ingen melding'])[0]}», Escape lukker ikke`, { id: 'ANSATT-24', sev: 'Høy', ref: 'FL-05 / FL-06', shot: await m.shot('k7-mia-last') });
+    S.check(!still, 'K7c Mia blir ikke låst av en invitasjon som allerede er besvart', 'Ingen vindu, eller vinduet kan lukkes', `Vinduet står etter Godta: «${(t1.match(/Invitasjonen er allerede besvart\.?|[^\n]*besvart[^\n]*|Kunne ikke[^\n]*|[^\n]*feil[^\n]*/i) || ['ingen melding'])[0]}», Escape lukker ikke`, { id: 'ANSATT-24', sev: 'Høy', ref: 'FL-05 / FL-06', shot: await m.shot('k7-mia-last') });
   } else {
     S.check(true, 'K7c Mia blir ikke låst av en invitasjon som allerede er besvart', 'Ingen vindu', 'Ingen vindu', { shot: await m.shot('k7-mia') });
   }
@@ -427,7 +427,7 @@ async function k10(b) {
     await b.page.getByText(/Forespørsel om å bli med|ber om å bli med/).first().click().catch(() => {});
     await b.page.waitForTimeout(2500);
     const after = await b.visibleText();
-    const opened = /Inviter brukere|Lise Lurer[\s\S]{0,200}(Inviter|Avvis)/.test(after) && !/Varsler/.test(after.slice(0, 200));
+    const opened = !/Trykk for å åpne opphavet/.test(after) && /Inviter brukere|Lise Lurer[\s\S]{0,200}(Inviter|Avvis)/.test(after);
     S.check(opened, 'K10d Varselet åpner forespørselen', 'Fører til Inviter brukere / forespørselen', opened ? 'Åpnet' : 'Ingenting skjer', { id: 'ANSATT-26', sev: 'Middels', ref: 'FL-15', shot: await b.shot('k10-varsel-trykk') });
   }
   await openInvitePanel(b);

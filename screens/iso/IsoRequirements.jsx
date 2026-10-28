@@ -3,7 +3,7 @@ import { Platform, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate } from '../../src/iso/core';
 import {
-  ASSESSMENT_STATUSES, NORWEGIAN_OBLIGATIONS, REQUIREMENT_KINDS, STANDARDS, assessmentLabel, kindLabel, mayBeNotApplicable, standardLabel,
+  ASSESSMENT_STATUSES, LEGAL_LIBRARY_CHECKED, NORWEGIAN_OBLIGATIONS, REQUIREMENT_KINDS, STANDARDS, assessmentLabel, kindLabel, mayBeNotApplicable, standardLabel,
 } from '../../src/iso/catalog';
 import {
   assessmentFor, attachEvidence, createCustomRequirement, linksFor, matrixRows, requirementById, reviewEvidenceLink, setAssessment,
@@ -94,7 +94,7 @@ export default function IsoRequirements({ ctx, legal = false }) {
       </Card>
 
       {legal && caps.manage ? (
-        <Card title="Norsk regelverkslag" subtitle="Redaktørstyrte startmaler. Legg til de som kan være relevante, og vurder dem.">
+        <Card title="Norsk regelverkslag" subtitle={`Redaktørstyrte startmaler, også for bygg og anlegg (SAK10, TEK17, stillas og sakkyndig kontroll, HMS-kort, påseplikt, åpenhetsloven, varme arbeider). Kildene sist gjennomgått ${LEGAL_LIBRARY_CHECKED.split('-').reverse().join('.')}. Legg til de som kan være relevante, og vurder dem.`}>
           {NORWEGIAN_OBLIGATIONS.map((o) => (
             <ListRow key={o.key} icon="library-outline" title={o.title} subtitle={o.summary} right={existingKeys.has(o.key) ? <Pill label="Lagt til" tone="ok" /> : <Btn small label="Legg til" onPress={() => addNorwegian(o)} />} />
           ))}

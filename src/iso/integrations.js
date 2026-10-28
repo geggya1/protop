@@ -773,7 +773,8 @@ export function starterPlan(system, now = new Date()) {
   const year = (now instanceof Date ? now : new Date(now)).getFullYear();
   return {
     processes,
-    obligations: NORWEGIAN_OBLIGATIONS.filter((o) => o.key !== 'bhf' || std.has('ISO45001')).map((o) => o.key),
+    // Byggherreforskriften og de andre byggkravene gjelder uansett hvilke standarder som er valgt (ISO-19).
+    obligations: NORWEGIAN_OBLIGATIONS.map((o) => o.key),
     documents: ['policy', 'avviksrutine'],
     review: { title: `Ledelsens gjennomgang ${year}`, period: String(year), meetingDate: `${year}-12-01` },
     audits: [...std].map((code, i) => ({

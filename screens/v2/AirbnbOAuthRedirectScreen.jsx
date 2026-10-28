@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 18,
     fontWeight: '400',
-    color: colors.ink || '#0f172a',
+    color: colors.ink,
     textAlign: 'center',
   },
   titleErr: { color: colors.dangerInk },

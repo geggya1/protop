@@ -680,7 +680,7 @@ function Action({ label, onPress, danger }) {
 
 const styles = StyleSheet.create({
   fg: { flex: 1, zIndex: 1, backgroundColor: 'transparent' },
-  pageTitle: { fontSize: 20, fontWeight: '500', color: colors.ink || '#0f172a', marginBottom: 4 },
+  pageTitle: { fontSize: 20, fontWeight: '500', color: colors.ink, marginBottom: 4 },
   tabScroll: { marginVertical: 10, maxHeight: 48 },
   tabs: { flexDirection: 'row', gap: 8, paddingVertical: 4 },
   tab: {
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
   tabTxtActive: { color: '#fff' },
   block: { gap: 10 },
   sectionTitle: {
-    marginTop: 8, fontSize: 16, fontWeight: '500', color: colors.ink || '#0f172a',
+    marginTop: 8, fontSize: 16, fontWeight: '500', color: colors.ink,
   },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: {
@@ -708,7 +708,7 @@ const styles = StyleSheet.create({
   pillTxtOk: { color: colors.successInk },
   pillTxtWarn: { color: colors.warnInk },
   checkRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 6 },
-  checkTitle: { fontWeight: '500', color: colors.ink || '#0f172a' },
+  checkTitle: { fontWeight: '500', color: colors.ink },
   checkHow: { color: colors.muted, fontSize: 13, marginTop: 2 },
   checkNote: { color: colors.muted, fontSize: 12, marginTop: 2, fontStyle: 'italic' },
   btn: {
@@ -724,15 +724,15 @@ const styles = StyleSheet.create({
     borderRadius: 14, padding: 14, gap: 6, backgroundColor: colors.card,
   },
   cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontWeight: '500', fontSize: 15, color: colors.ink || '#0f172a' },
+  cardTitle: { fontWeight: '500', fontSize: 15, color: colors.ink },
   cardMeta: { color: colors.muted, fontSize: 13 },
   code: { fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }), color: colors.brand, fontWeight: '500' },
-  preview: { color: colors.ink || '#334155', fontSize: 13, lineHeight: 18 },
+  preview: { color: colors.ink, fontSize: 13, lineHeight: 18 },
   field: { gap: 4 },
   fieldLabel: { fontSize: 12, fontWeight: '500', color: colors.muted },
   input: {
     borderWidth: 1, borderColor: colors.line, borderRadius: radius.md,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.ink || '#0f172a',
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.ink,
     backgroundColor: colors.card,
   },
   inputMulti: { minHeight: 88, textAlignVertical: 'top' },
@@ -753,7 +753,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sunken,
   },
   chipOn: { backgroundColor: colors.brand },
-  chipTxt: { fontSize: 12, color: colors.ink || '#334155', fontWeight: '500' },
+  chipTxt: { fontSize: 12, color: colors.ink, fontWeight: '500' },
   chipTxtOn: { color: '#fff' },
   error: { color: colors.dangerInk, marginBottom: 6 },
   busyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },

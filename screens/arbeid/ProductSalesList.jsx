@@ -15,6 +15,7 @@ import { formatMoney } from '../../src/economy/invoices.js';
 import { SALE_STATUSES } from '../../src/economy/products.js';
 import { saleIsLocked, saleProjectLabel, saleTotals } from '../../src/economy/productSalesView.js';
 import { formatDate } from '../../src/format/nb';
+import { radius, type } from '../../src/ui/tokens';
 
 // flex: kolonnen tar resten av bredden, med width som minste bredde.
 const COLUMNS = [
@@ -225,7 +226,7 @@ export function ProductSalesList({
             }]}
           >
             <Ionicons name="options-outline" size={18} color={colors.ink} />
-            <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Filter</Text>
+            <Text style={{ color: colors.ink, fontWeight: '600', fontSize: type.label.fontSize }}>Filter</Text>
             {activeFilters ? (
               <View style={[styles.badge, { backgroundColor: colors.brand }]}>
                 <Text style={styles.badgeText}>{activeFilters}</Text>
@@ -415,10 +416,10 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, paddingVertical: 8 },
   picker: { flexBasis: 220, flexGrow: 0, flexShrink: 1, minWidth: 180 },
   exportBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, minHeight: 40 },
-  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, minHeight: 40 },
-  badge: { minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  panel: { gap: 10, borderWidth: 1, borderRadius: 10, padding: 12 },
+  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: radius.control, paddingHorizontal: 12, minHeight: 40 },
+  badge: { minWidth: 18, height: 18, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  badgeText: { color: '#fff', fontSize: type.caption.fontSize, fontWeight: '600' },
+  panel: { gap: 10, borderWidth: 1, borderRadius: radius.card, padding: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   table: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },

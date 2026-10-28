@@ -53,6 +53,7 @@ import { ControlStatus, ControlsEditor } from './EquipmentControls';
 import { submitQuick } from '../iso/quickSend';
 import EquipmentCalendar from '../../components/equipment/EquipmentCalendar';
 import { Ionicons } from '@expo/vector-icons';
+import { radius } from '../../src/ui/tokens';
 import { useLayout } from '../../src/theme';
 import { mileageProjectOptions, vehicleOdometer } from '../../src/mileage/flow';
 import { lookupVehicleByReg } from '../../src/utils/vegvesenLookupClient';
@@ -952,7 +953,7 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 10, padding: 14, gap: 6 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
-  iconBtn: { width: 38, height: 38, borderWidth: 1, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 38, height: 38, borderWidth: 1, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   btnGhost: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
   week: { flexDirection: 'row', flexWrap: 'wrap' },

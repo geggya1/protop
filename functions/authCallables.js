@@ -31,6 +31,7 @@ import {
   requireAuth,
 } from './security.js';
 import { memberPasswordDecision } from './memberPassword.js';
+import { confirmMicrosoftEmailFor } from './microsoftEmail.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -407,6 +408,31 @@ export const setMemberPassword = onCall(CALL, async (req) => {
     if (error instanceof HttpsError) return { ok: false, error: error.message };
     logger.error('[setMemberPassword]', { message: error?.message });
     return { ok: false, error: error?.message || 'Kunne ikke endre passord' };
+  }
+});
+
+/**
+ * Etter Microsoft-innlogging: klienten sender Microsofts ID-token. Sier Microsoft at
+ * e-posten er bekreftet (se microsoftEmail.js), merkes Firebase-kontoen som bekreftet,
+ * og invitasjoner på e-post kan knyttes. Ellers må personen bekrefte e-posten selv.
+ */
+export const confirmMicrosoftEmail = onCall(CALL, async (req) => {
+  try {
+    const uid = requireAuth(req.auth);
+    const idToken = String(req.data?.idToken || '');
+    if (!idToken || idToken.length > 20000) return { ok: false, error: 'bad-token' };
+    await assertRateLimit(db, {
+      key: hashRateKey(['ms-email', uid]),
+      limit: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    const res = await confirmMicrosoftEmailFor(uid, idToken, { auth: adminAuth });
+    logger.info('[confirmMicrosoftEmail]', { uid, ok: res.ok, verified: !!res.verified, reason: res.reason || res.error || '' });
+    return res;
+  } catch (error) {
+    if (error instanceof HttpsError) return { ok: false, error: error.message };
+    logger.error('[confirmMicrosoftEmail]', { message: error?.message });
+    return { ok: false, error: 'failed' };
   }
 });
 

@@ -204,7 +204,7 @@ MEMBERSHIP="functions:resolveJoinCode,functions:submitJoinRequestByCode,function
 queue_entry membershipIndex.js "$MEMBERSHIP"
 open_for membershipIndex.js "$MEMBERSHIP"
 
-AUTH="functions:sendInviteV2,functions:sendInviteSmsV2,functions:sendEmailVerificationV2,functions:confirmEmailVerificationV2,functions:sendPasswordResetV2,functions:setMemberPassword,functions:lookupAdultProfile"
+AUTH="functions:sendInviteV2,functions:sendInviteSmsV2,functions:sendEmailVerificationV2,functions:confirmEmailVerificationV2,functions:sendPasswordResetV2,functions:setMemberPassword,functions:lookupAdultProfile,functions:confirmMicrosoftEmail"
 queue_entry authIndex.js "$AUTH"
 open_for authIndex.js "$AUTH"
 

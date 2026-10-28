@@ -106,8 +106,8 @@ export const claimEmployeeInvite = onCall(CALL, async (req) => {
   });
   const companySnap = await db.doc(`families/${companyId}`).get();
   if (!companySnap.exists) return { ok: true, skipped: true };
-  // Bare den som har godtatt invitasjonen, og med bekreftet e-post (eller Google/Microsoft/Apple),
-  // knyttes til en ansatt.
+  // Bare den som har godtatt invitasjonen, og med bekreftet e-post (email_verified, se
+  // emailTrusted), knyttes til en ansatt.
   if (!isConfirmedMember(companySnap.data(), uid)) return { ok: true, skipped: true, needsAccept: true };
   if (!emailTrusted(req.auth)) return { ok: true, skipped: true, needsVerifiedEmail: true };
   const snap = await db.collection(`families/${companyId}/employees`).get();

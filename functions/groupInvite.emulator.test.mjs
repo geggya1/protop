@@ -111,10 +111,24 @@ describe('ny bruker invitert på e-post', () => {
     assert.equal((await db.collection('users/nina/familyInvites').get()).size, 0);
   });
 
+  // SEC-17: innloggingsmåten alene gjør ikke e-posten bekreftet. Fra Microsoft kan `email`
+  // være ubekreftet (nOAuth); confirmMicrosoftEmail merker kontoen når Microsoft sier at
+  // adressen er bekreftet, og da har tokenet email_verified.
   for (const provider of ['microsoft.com', 'google.com']) {
-    test(`innlogget med ${provider}: invitasjonen vises og kan godtas uten egen bekreftelse`, async () => {
-      // Firebase merker ikke e-post fra Microsoft som bekreftet.
+    test(`innlogget med ${provider} uten bekreftet e-post: ingen invitasjon og ingen knytting`, async () => {
       const opts = { verified: false, provider };
+      assert.equal((await call(syncMyInvites, 'nina', {}, opts)).skipped, 'email-not-verified');
+      assert.equal((await db.collection('users/nina/familyInvites').get()).size, 0);
+      // Selv som medlem knyttes ikke medarbeiderposten på en ubekreftet e-post.
+      await db.doc(`families/${A}`).update({ members: ['own', 'nina'] });
+      assert.equal((await call(claimEmployeeInvite, 'nina', { familyId: A }, opts)).needsVerifiedEmail, true);
+      assert.equal((await data(`families/${A}/employees/emp_nina`)).personUid, undefined);
+    });
+  }
+
+  for (const provider of ['microsoft.com', 'google.com']) {
+    test(`innlogget med ${provider} og bekreftet e-post: invitasjonen vises og kan godtas`, async () => {
+      const opts = { verified: true, provider };
       const { invites } = await call(syncMyInvites, 'nina', {}, opts);
       assert.equal(invites.length, 1);
       const { inviteId } = invites[0];

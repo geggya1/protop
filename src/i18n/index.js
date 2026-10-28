@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LANGS, LANG_IDS, LANG_KEY, LEGAL_VERSION, CONSENT_KEY } from './langs';
+import {
+  ACTIVE_LANGS, LANGS, LANG_IDS, LANG_KEY, LEGAL_VERSION, CONSENT_KEY, activeLanguage,
+} from './langs';
 import { TABLE } from './strings';
 import { deviceLanguageId } from './deviceLang';
 
@@ -71,7 +73,8 @@ export function I18nProvider({ children, userLanguage }) {
       try {
         const stored = await AsyncStorage.getItem(LANG_KEY);
         if (alive && stored && LANG_IDS.includes(stored)) {
-          setLangState(stored);
+          // Et tidligere valg av f.eks. polsk vises nå på engelsk (skallet er låst til nb/en).
+          setLangState(activeLanguage(stored));
           setLangPicked(true);
         } else if (alive) {
           setLangState(deviceLanguageId());
@@ -93,13 +96,13 @@ export function I18nProvider({ children, userLanguage }) {
 
   useEffect(() => {
     if (userLanguage && LANG_IDS.includes(userLanguage)) {
-      setLangState(userLanguage);
+      setLangState(activeLanguage(userLanguage));
       setLangPicked(true);
     }
   }, [userLanguage]);
 
   const setLang = useCallback(async (id) => {
-    const next = LANG_IDS.includes(id) ? id : 'en';
+    const next = activeLanguage(LANG_IDS.includes(id) ? id : 'en');
     setLangState(next);
     setLangPicked(true);
     try { await AsyncStorage.setItem(LANG_KEY, next); } catch {}
@@ -114,7 +117,8 @@ export function I18nProvider({ children, userLanguage }) {
   const t = useCallback((key, vars) => format(lookup(lang, key), vars), [lang]);
 
   const value = useMemo(
-    () => ({ lang, setLang, t, ready, langPicked, langs: LANGS, legalVersion: LEGAL_VERSION, consentKey: CONSENT_KEY }),
+    // Velgerne viser bare språkene skallet kan vises på nå.
+    () => ({ lang, setLang, t, ready, langPicked, langs: ACTIVE_LANGS, legalVersion: LEGAL_VERSION, consentKey: CONSENT_KEY }),
     [lang, setLang, t, ready, langPicked]
   );
 

@@ -190,6 +190,11 @@ async function acceptInvite({ req, uid, familyId, inviteRef, invite, family }) {
     acceptedAt: now,
     deleted: false,
     archived: false,
+    // Kommer personen tilbake (forlot selv, eller ansettelsen ble avsluttet), gjelder ikke
+    // utmeldingen lenger. Ellers stenger leftAt for serveren og reglene (REV-04).
+    leftAt: FieldValue.delete(),
+    leftReason: FieldValue.delete(),
+    endedBy: FieldValue.delete(),
     updatedAt: now,
   };
   if (name) memberPatch.name = name;

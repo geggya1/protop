@@ -82,6 +82,10 @@ async function ensureCompanyMembership({
     acceptedAt: now,
     deleted: false,
     archived: false,
+    // Står som medlem med åpen ansettelse: en gammel utmelding gjelder ikke (REV-04).
+    leftAt: FieldValue.delete(),
+    leftReason: FieldValue.delete(),
+    endedBy: FieldValue.delete(),
     updatedAt: now,
   };
   if (name) memberPatch.name = name;

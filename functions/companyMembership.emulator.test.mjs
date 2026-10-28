@@ -20,6 +20,8 @@ const {
 } = await import('./companyMembership.js');
 const { claimEmployeeInvite } = await import('./employeeInvite.js');
 const { respondGroupInvite } = await import('./groupInvite.js');
+const { listMyFamilies } = await import('./joinCallables.js');
+const { assertFamilyMember } = await import('./security.js');
 
 const db = getFirestore();
 const A = 'companyA';
@@ -219,6 +221,52 @@ describe('reaktivering', () => {
     const res = await call(setEmploymentStatus, 'own', { companyId: A, employeeId: 'emp_ans', status: 'active' });
     assert.equal(res.membership, 'needs-invite');
     assert.ok(!(await data(`families/${A}`)).members.includes('ans'));
+  });
+
+  test('REV-04: ny invitasjon godtatt gir hele medlemskapet tilbake', async () => {
+    await call(leaveCompany, 'ans', { companyId: A });
+    await call(setEmploymentStatus, 'own', { companyId: A, employeeId: 'emp_ans', status: 'active' });
+    // Ny invitasjon fra Ansatte til den eksisterende kontoen (inviteExistingAdult).
+    await db.doc(`families/${A}/employees/emp_ans`).update({
+      invite: { status: 'sent', email: 'ans@firma.no', accessLevel: 'ansatt', parentKey: 'ans', sentAt: new Date().toISOString() },
+    });
+    await db.doc(`families/${A}/parents/ans`).set({
+      inviteStatus: 'pending', inviteKind: 'existing', inviteId: 'inv_ans', placeholder: true, active: false,
+    }, { merge: true });
+    await db.doc(`families/${A}/memberInvites/inv_ans`).set({
+      status: 'pending', inviteKind: 'existing', inviteeUid: 'ans', inviteeEmail: 'ans@firma.no',
+      invitedBy: 'own', familyId: A, familyName: 'Rådgiver AS', groupType: 'organization',
+    });
+    const answer = await call(respondGroupInvite, 'ans', { familyId: A, inviteId: 'inv_ans', response: 'accepted' });
+    assert.equal(answer.ok, true);
+    const member = await data(`families/${A}/parents/ans`);
+    assert.equal(member.leftAt, undefined);
+    assert.equal(member.leftReason, undefined);
+    assert.equal(member.endedBy, undefined);
+    assert.equal(member.active, true);
+    // Serveren slipper personen inn igjen, og bedriften står i listen.
+    await assertFamilyMember(db, A, 'ans');
+    const mine = await listMyFamilies.run({ data: {}, auth: { uid: 'ans', token: {} }, rawRequest: { headers: {} } });
+    assert.ok(mine.families.some((row) => row.id === A));
+    // Neste økt (claimEmployeeInvite) holder medlemskapet.
+    const claim = await call(claimEmployeeInvite, 'ans', { familyId: A });
+    assert.equal(claim.ok, true);
+    // Senere avslutning og reaktivering virker som for andre: personen gikk ikke selv denne gangen.
+    await call(setEmploymentStatus, 'own', { companyId: A, employeeId: 'emp_ans', status: 'inactive' });
+    const again = await call(setEmploymentStatus, 'own', { companyId: A, employeeId: 'emp_ans', status: 'active' });
+    assert.equal(again.membership, 'restored');
+  });
+
+  test('REV-04: neste økt rydder et gammelt utmeldingsmerke for den som står som medlem', async () => {
+    // Godtatt med en eldre versjon: står i members, men medlemsdokumentet har fortsatt leftAt.
+    await db.doc(`families/${A}/parents/ans`).set({ leftAt: '2026-10-01T10:00:00Z', leftReason: 'self', endedBy: 'ans' }, { merge: true });
+    await assert.rejects(assertFamilyMember(db, A, 'ans'), (err) => err.code === 'permission-denied');
+    const claim = await call(claimEmployeeInvite, 'ans', { familyId: A });
+    assert.equal(claim.ok, true);
+    const member = await data(`families/${A}/parents/ans`);
+    assert.equal(member.leftAt, undefined);
+    assert.equal(member.leftReason, undefined);
+    await assertFamilyMember(db, A, 'ans');
   });
 });
 

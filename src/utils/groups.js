@@ -1560,6 +1560,10 @@ async function activateExistingMember({
     updatedAt: now,
     deleted: false,
     archived: false,
+    // Tidligere medlem som kommer tilbake: utmeldingen gjelder ikke lenger (som på serveren).
+    leftAt: deleteField(),
+    leftReason: deleteField(),
+    endedBy: deleteField(),
     admin: asAdminEffective,
     ...roleFields,
   };

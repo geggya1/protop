@@ -12,6 +12,7 @@ process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
 
 const { getFirestore } = await import('firebase-admin/firestore');
 const { approveJoinRequest } = await import('./joinCallables.js');
+const { assertFamilyMember } = await import('./security.js');
 
 const db = getFirestore();
 
@@ -94,6 +95,23 @@ test('klasse: lærer kan godkjenne, eleven får rollen student', async () => {
   const child = (await db.doc(`families/klassen/children/${res.childId}`).get()).data();
   assert.equal(child.role, 'student');
   assert.equal((await db.doc('families/klassen/parents/far').get()).data().staffRole, null);
+});
+
+test('REV-04: et tidligere medlem som godkjennes på nytt, får hele medlemskapet tilbake', async () => {
+  // Fjernet fra gruppen tidligere (softDeleteParentFromFamily / removeMemberFromGroup).
+  await db.doc('families/venner/parents/ny').set({
+    uid: 'ny', active: false, deleted: true, archived: true, leftAt: '2026-09-01T10:00:00Z', leftReason: 'ended', endedBy: 'eier',
+    inviteStatus: 'pending', placeholder: true,
+  });
+  await rejects(assertFamilyMember(db, 'venner', 'ny'), 'permission-denied');
+  await call('eier', { familyId: 'venner', requestId: 'r1' });
+  const member = (await db.doc('families/venner/parents/ny').get()).data();
+  assert.equal(member.leftAt, undefined);
+  assert.equal(member.leftReason, undefined);
+  assert.equal(member.endedBy, undefined);
+  assert.equal(member.deleted, false);
+  assert.equal(member.inviteStatus, 'accepted');
+  await assertFamilyMember(db, 'venner', 'ny');
 });
 
 test('vanlig medlem, bedrift, ukjent forespørsel og slettet gruppe avvises', async () => {

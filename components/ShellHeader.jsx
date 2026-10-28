@@ -39,11 +39,12 @@ export const ShellPageHeroContext = createContext(null);
  * compact (desktop): én linje — tittel + handlinger.
  * Privat/Bedrift er låst i midten av linjen, uavhengig av tittel og sideknapper.
  * Mobil/nettbrett: logo øverst, deretter familie / side.
- * Lyspæren henger på selve profilbildet og starter under det, også når
- * statusfeltet skyver logo-raden ned. Den tar ikke plass i flyten.
+ * Lyspæren står i logo-raden ved siden av menyknappen, på samme linje som
+ * varsler og profil. Den henger ikke lenger over Privat/Bedrift, modulbåndet
+ * eller innholdet (EGEN-03).
  * På Hjem (chromeOnly) er det samme hvite logo-feltet som på modulene —
- * meny, logo, varsler, profil. Logoen (og meny/faner) er veien hjem —
- * ingen egen «Hjem»-tilbakelenke. Lyspæren ligger også her, under profilen.
+ * meny, lyspære, logo, varsler, profil. Logoen (og meny/faner) er veien hjem —
+ * ingen egen «Hjem»-tilbakelenke.
  * Sidetittel og modulheading ligger alltid under logo-raden, aldri over
  * den og aldri i nettleserens adresselinje.
  * Når `hero` er satt (modulheading på telefon), er pastellbåndet selve
@@ -88,9 +89,8 @@ export default function ShellHeader({
   // onBackHome kept as optional fallback for logo tap only (no visible Hjem link).
   const goHomeFromLogo = onLogoHome || onBackHome;
 
-  // Mobil/nettbrett: lyspæren henger under profilbildet (raden ligger over
-  // toppbilde og modulbånd, se chromeRow). PC: lyspæren står i knappeRaden.
-  const profileButton = (size, { hangingHelp = true } = {}) => (
+  // Lyspæren står i knapperaden på alle flater, aldri over profilbildet eller innholdet.
+  const profileButton = (size) => (
     <View style={styles.avatarSlot}>
       <TouchableOpacity
         style={styles.avatarBtn}
@@ -104,16 +104,6 @@ export default function ShellHeader({
           size={size}
         />
       </TouchableOpacity>
-      {hangingHelp ? (
-        <View pointerEvents="box-none" style={styles.helpOnAvatar}>
-          <HelpButton
-            floating
-            compact={size < 34}
-            color={colors.ink}
-            borderColor={colors.line}
-          />
-        </View>
-      ) : null}
     </View>
   );
 
@@ -147,7 +137,7 @@ export default function ShellHeader({
                 <Ionicons name="notifications-outline" size={18} color={colors.ink} />
               </IconBadge>
             </TouchableOpacity>
-            {profileButton(28, { hangingHelp: false })}
+            {profileButton(28)}
           </View>
         </View>
         <ProfileMenuModal visible={menuOpen} onClose={() => setMenuOpen(false)} />
@@ -197,7 +187,7 @@ export default function ShellHeader({
                   <Ionicons name="notifications-outline" size={18} color={colors.ink} />
                 </IconBadge>
               </TouchableOpacity>
-              {profileButton(28, { hangingHelp: false })}
+              {profileButton(28)}
             </View>
           </View>
           <View pointerEvents="box-none" nativeID="platform-switch-lock" style={styles.switchLock}>
@@ -239,6 +229,8 @@ export default function ShellHeader({
                 </IconBadge>
               </TouchableOpacity>
             )}
+            {/* Lyspæren i raden, ved menyen: dekker verken Privat/Bedrift, båndet eller innholdet. */}
+            <HelpButton inline compact color={colors.ink} borderColor={colors.line} />
           </View>
 
           <View style={styles.logoCenter} pointerEvents="box-none">
@@ -371,16 +363,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'visible',
   },
-  /* Starts at the bottom edge of the profile photo, so status-bar padding cannot park it on the picture. */
-  helpOnAvatar: {
-    position: 'absolute',
-    zIndex: 8,
-    top: '100%',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    marginTop: 6,
-  },
   barTablet: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -427,7 +409,7 @@ const styles = StyleSheet.create({
   /*
    * zIndex over switchRow (3) og textCol/modulbåndet: react-native-web gir hver
    * View z-index 0, så uten dette tegnes Privat/Bedrift og toppbildet over
-   * lyspæren som henger under profilbildet, og trykk på den treffer ikke.
+   * knappene i raden (meny, lyspære, varsler, profil).
    */
   chromeRow: {
     flexDirection: 'row',

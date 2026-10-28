@@ -6,6 +6,7 @@ import { HrCard, HrSectionTitle } from './HrShared';
 import { HrFilterBar, HrTable, useHrDirectory } from './HrDirectory';
 import HrHmsCards from './HrHmsCards';
 import HrPayGap from './HrPayGap';
+import HrAccessLog from './HrAccessLog';
 
 const PAGES = {
   avtaler: {
@@ -73,6 +74,7 @@ const PAGES = {
 
 export default function HrControl({
   colors, page = 'avtaler', employees, hr, entries, onOpenEmployee, company = null,
+  familyId = '', canSeeAccessLog = false,
 }) {
   const spec = PAGES[page] || PAGES.avtaler;
   const dir = useHrDirectory(employees, spec.staffOnly ? { lockedKind: 'internal' } : undefined);
@@ -172,6 +174,7 @@ export default function HrControl({
       {page === 'compliance' ? (
         <HrHmsCards colors={colors} employees={rows.map((row) => row.employee)} hr={hr} entries={entries} company={company} />
       ) : null}
+      {page === 'compliance' && canSeeAccessLog && familyId ? <HrAccessLog colors={colors} familyId={familyId} /> : null}
       {page === 'lonn' ? <HrPayGap colors={colors} employees={rows.map((row) => row.employee)} hr={hr} /> : null}
     </View>
   );

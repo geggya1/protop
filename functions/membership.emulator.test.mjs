@@ -15,7 +15,7 @@ process.env.FIRESTORE_EMULATOR_HOST ||= '127.0.0.1:8080';
 const { getFirestore } = await import('firebase-admin/firestore');
 const { assertCompanyAccess, assertFamilyAdmin, assertFamilyMember } = await import('./security.js');
 const { syncCompany } = await import('./companyAccessSync.js');
-const { writeMemberPasswordCopies } = await import('./authCallables.js');
+const { lookupAdultProfile, writeMemberPasswordCopies } = await import('./authCallables.js');
 
 const db = getFirestore();
 const A = 'companyA';
@@ -121,6 +121,42 @@ test('SEC-01: passordkopiene lager aldri medlemsdokumenter i en fremmed gruppe',
   await db.doc(`families/${A}/children/kid`).set({ uid: 'kid', active: true });
   await db.doc('children/kid').set({ uid: 'kid', familyId: A });
   await writeMemberPasswordCopies(db, { uid: 'kid', familyId: A, isChildMember: true, password: 'barn1234' });
-  assert.equal((await data(`families/${A}/children/kid`)).password, 'barn1234');
-  assert.equal((await data('children/kid')).password, 'barn1234');
+  // SEC-21: passordet lagres ikke i klartekst; bare at det er satt.
+  assert.equal((await data(`families/${A}/children/kid`)).password, undefined);
+  assert.equal((await data('children/kid')).password, undefined);
+  assert.ok((await data('children/kid')).passwordSetAt);
+});
+
+test('SEC-21: gamle lesbare barnepassord slettes når passordet settes på nytt', async () => {
+  await db.doc(`families/${A}/children/kid`).set({ uid: 'kid', active: true, password: 'gammelt1' });
+  await db.doc('children/kid').set({ uid: 'kid', familyId: A, password: 'gammelt1' });
+  await db.doc('users/kid').set({ role: 'child', password: 'gammelt1' });
+  await writeMemberPasswordCopies(db, { uid: 'kid', familyId: A, isChildMember: true, password: 'nytt1234' });
+  for (const path of [`families/${A}/children/kid`, 'children/kid', 'users/kid']) {
+    const row = await data(path);
+    assert.equal(row.password, undefined, path);
+    assert.equal(JSON.stringify(row).includes('nytt1234'), false, path);
+  }
+});
+
+test('SEC-22: uid-oppslaget svarer bare den som kan invitere til gruppen', async () => {
+  await db.doc('users/kari').set({ email: 'kari@firma.no', displayName: 'Kari', phone: '+4799999999' });
+  const lookup = (uid, data) => lookupAdultProfile.run({
+    data, auth: { uid, token: { email: `${uid}@firma.no`, email_verified: true } }, rawRequest: { headers: {}, ip: '127.0.0.1' },
+  });
+  // Uten gruppe, i en fremmed gruppe og som vanlig ansatt: ingen profil og ingen uid.
+  for (const [uid, data] of [['bob', { identifier: 'kari@firma.no' }], ['mal', { identifier: 'kari@firma.no', familyId: A }],
+    ['bob', { identifier: 'kari@firma.no', familyId: A }]]) {
+    const res = await lookup(uid, data);
+    assert.equal(res.ok, false, uid);
+    assert.equal(res.profile, null, uid);
+  }
+  // Administrator og den med Admin på Ansatte (Øverste leder) kan invitere og får uid.
+  for (const uid of ['adm', 'sjef']) {
+    const res = await lookup(uid, { identifier: 'kari@firma.no', familyId: A });
+    assert.equal(res.ok, true, uid);
+    assert.equal(res.profile.uid, 'kari', uid);
+    assert.equal(res.profile.name, 'Kari');
+    assert.equal(res.profile.phone, '', 'telefonnummeret sendes ikke');
+  }
 });

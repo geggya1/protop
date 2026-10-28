@@ -592,6 +592,10 @@ export function normalizeTimeEntryRow(row) {
     createdAt: text(row.createdAt) || '',
     updatedAt: text(row.updatedAt) || '',
     createdByUid: text(row.createdByUid),
+    // Endringshistorikk (L-13, src/arbeid/timeEntryHistory.js). Skrives som én ny rad om gangen.
+    ...(Array.isArray(row.history) && row.history.length ? {
+      history: row.history.filter((item) => item && typeof item === 'object').slice(-100),
+    } : {}),
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
     // Avskrevet fra et fakturautkast: skal ikke faktureres (Til fakturering → Slett utkast).
     ...(text(row.writeOffAt) ? {

@@ -12,4 +12,5 @@ export {
   sendPasswordResetV2,
   setMemberPassword,
   lookupAdultProfile,
+  confirmMicrosoftEmail,
 } from './authCallables.js';

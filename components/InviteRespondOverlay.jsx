@@ -94,8 +94,9 @@ export default function InviteRespondOverlay({ enabled = true, onPendingChange }
   }, [uid, enabled]);
 
   // Ny bruker invitert på e-post: serveren legger invitasjonen i innboksen når e-posten er
-  // bekreftet, eller personen er innlogget med Google, Microsoft eller Apple. Hentes ved
-  // innlogging, når e-posten blir bekreftet og når appen får fokus igjen.
+  // bekreftet (lenken fra ProTop, Google/Apple, eller Microsoft når Microsofts token sier det,
+  // se src/utils/microsoftEmail.js). Hentes ved innlogging, når e-posten blir bekreftet og
+  // når appen får fokus igjen.
   const [emailVerified, setEmailVerified] = useState(() => !!auth.currentUser?.emailVerified);
   const syncBusyRef = useRef(false);
   const lastSyncRef = useRef(0);

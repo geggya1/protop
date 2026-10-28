@@ -1,8 +1,9 @@
 /**
  * Endringshistorikk for timeføringer. Oversikten over arbeidstiden skal være pålitelig
  * (AML § 10-7), så en endring skal vise hva som ble endret, av hvem og når.
- * Ren logikk. Lagringen (timeEntryStorage, normalizeTimeEntryRow og reglene) må ta vare på
- * feltet history før dette er i bruk. Se loggen for L-13.
+ * Ren logikk. timeEntryStorage (timeEntryWritePlan) legger én ny rad i history ved hver
+ * lagring med kjent forrige versjon (arrayUnion), og en rad i timeEntryDeletions ved sletting.
+ * normalizeTimeEntryRow beholder feltet, og TimeEntryModal viser det.
  */
 
 /** Feltene som påvirker arbeidstid, fakturering og lønn. */
@@ -67,6 +68,52 @@ export function deletedTimeEntryRecord(entry, { actor = null, at = '', reason = 
     byName: text(actor?.byName || actor?.name, 120),
     ...(text(reason) ? { reason: text(reason) } : {}),
   };
+}
+
+const FIELD_LABELS = {
+  date: 'dato',
+  hours: 'timer',
+  billableHours: 'fakturerbare timer',
+  clockIn: 'kom',
+  clockOut: 'gikk',
+  projectId: 'prosjekt',
+  activityId: 'aktivitet',
+  timeType: 'timetype',
+  description: 'beskrivelse',
+  status: 'status',
+  employeeId: 'ansatt',
+};
+
+function stamp(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** Endringene som tekst for visning: [{ key, when, who, text }], nyeste først. */
+export function timeEntryHistoryLines(history) {
+  const rows = Array.isArray(history) ? history.filter((row) => row && typeof row === 'object') : [];
+  return rows.map((row, index) => {
+    let what = 'Endret';
+    if (row.kind === 'created') what = 'Ført';
+    else if (Array.isArray(row.changes) && row.changes.length) {
+      what = `Endret ${row.changes.map((change) => {
+        const label = FIELD_LABELS[change.field] || change.field;
+        // Prosjekt, aktivitet og ansatt er id-er; vis bare at de er endret.
+        if (['projectId', 'activityId', 'employeeId'].includes(change.field)) return label;
+        const from = text(change.from, 40) || '–';
+        const to = text(change.to, 40) || '–';
+        return `${label} ${from} → ${to}`;
+      }).join(', ')}`;
+    }
+    return {
+      key: `${text(row.at, 40)}-${index}`,
+      when: stamp(row.at),
+      who: text(row.byName, 120) || 'Ukjent',
+      text: text(row.reason) ? `${what} (${text(row.reason)})` : what,
+    };
+  }).reverse();
 }
 
 /**

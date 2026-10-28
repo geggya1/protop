@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { OAuthProvider, onAuthStateChanged, signInWithCredential } from 'firebase/auth';
 import { auth, functions } from '../../firebase';
+import { confirmMicrosoftEmail } from './microsoftEmail';
 import {
   clearOutlookGraphToken,
   fetchOutlookEventsFromGraph,
@@ -829,6 +830,8 @@ async function completeMicrosoftAccountSignIn({ clientId, code, redirectUri, cod
     accessToken: tokens.accessToken || undefined,
   });
   const cred = await signInWithCredential(auth, credential);
+  // Venter ikke: invitasjonene hentes når e-posten er merket som bekreftet (InviteRespondOverlay).
+  confirmMicrosoftEmail(cred.user, tokens.idToken);
   return { ok: true, signIn: true, user: cred.user };
 }
 

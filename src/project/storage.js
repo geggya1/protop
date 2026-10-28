@@ -909,7 +909,7 @@ async function syncTimeEntriesRemote(companyId, previousEntries, nextEntries, { 
     const prevById = new Map((previousEntries || []).map((row) => [row?.id, row]));
     for (const entryId of removable) {
       const source = String(prevById.get(entryId)?.sourceCompanyId || id).trim() || id;
-      await removeTimeEntry(source, entryId);
+      await removeTimeEntry(source, entryId, { entry: prevById.get(entryId) || null, log: true });
     }
   }
   const nextClean = withoutDeletedTimeEntries(id, nextEntries);

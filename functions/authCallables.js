@@ -31,6 +31,7 @@ import {
   requireAuth,
 } from './security.js';
 import { memberPasswordDecision } from './memberPassword.js';
+import { confirmMicrosoftEmailFor } from './microsoftEmail.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -322,12 +323,14 @@ async function groupsOfAccount(uid) {
 }
 
 /**
- * Lesbar kopi for foresatte (barn) eller sletting av gamle kopier (voksne).
+ * Passord lagres aldri i Firestore (SEC-21): gamle lesbare kopier slettes. På barnets
+ * dokumenter merkes bare at passordet er satt (passwordSetAt), så foresatte ser «Satt».
+ * Foresatte ser passordet én gang når de setter det, og setter et nytt om barnet glemmer det.
  * Bare dokumenter som finnes oppdateres: kallet skal aldri lage medlemsdokumenter.
  */
-export async function writeMemberPasswordCopies(store, { uid, familyId, isChildMember, password }) {
+export async function writeMemberPasswordCopies(store, { uid, familyId, isChildMember }) {
   const wipe = { password: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() };
-  const keep = { password, updatedAt: FieldValue.serverTimestamp() };
+  const keep = { password: FieldValue.delete(), passwordSetAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() };
   const paths = [`parents/${uid}`, `users/${uid}`];
   const childPaths = [`children/${uid}`];
   if (familyId) {
@@ -399,7 +402,6 @@ export const setMemberPassword = onCall(CALL, async (req) => {
       uid,
       familyId: family ? familyId : '',
       isChildMember,
-      password: pwd,
     });
     logger.info('[setMemberPassword] passord satt', { caller, uid, familyId, self: uid === caller });
     return { ok: true };
@@ -410,14 +412,51 @@ export const setMemberPassword = onCall(CALL, async (req) => {
   }
 });
 
+/**
+ * Etter Microsoft-innlogging: klienten sender Microsofts ID-token. Sier Microsoft at
+ * e-posten er bekreftet (se microsoftEmail.js), merkes Firebase-kontoen som bekreftet,
+ * og invitasjoner på e-post kan knyttes. Ellers må personen bekrefte e-posten selv.
+ */
+export const confirmMicrosoftEmail = onCall(CALL, async (req) => {
+  try {
+    const uid = requireAuth(req.auth);
+    const idToken = String(req.data?.idToken || '');
+    if (!idToken || idToken.length > 20000) return { ok: false, error: 'bad-token' };
+    await assertRateLimit(db, {
+      key: hashRateKey(['ms-email', uid]),
+      limit: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    const res = await confirmMicrosoftEmailFor(uid, idToken, { auth: adminAuth });
+    logger.info('[confirmMicrosoftEmail]', { uid, ok: res.ok, verified: !!res.verified, reason: res.reason || res.error || '' });
+    return res;
+  } catch (error) {
+    if (error instanceof HttpsError) return { ok: false, error: error.message };
+    logger.error('[confirmMicrosoftEmail]', { message: error?.message });
+    return { ok: false, error: 'failed' };
+  }
+});
+
+/**
+ * Oppslaget e-post/telefon/brukernavn → uid er bare for den som kan invitere til gruppen
+ * (SEC-22). Andre får ingen profil, så uid-er og kontoer ikke kan kartlegges.
+ */
+export const LOOKUP_FORBIDDEN = 'Bare den som kan invitere til gruppen, kan slå opp brukere.';
+
 export const lookupAdultProfile = onCall(
   { ...CALL, timeoutSeconds: 20 },
   async (req) => {
     try {
       const caller = requireAuth(req.auth);
+      const familyId = String(req.data?.familyId || '').trim();
+      const family = familyId && !familyId.includes('/')
+        ? await assertCanInvite(db, familyId, caller).catch(() => null)
+        : null;
+      if (!family) return { ok: false, error: LOOKUP_FORBIDDEN, profile: null };
+      const type = String(family.data()?.type || '').toLowerCase();
       await assertRateLimit(db, {
         key: hashRateKey(['lookup-adult', caller]),
-        limit: await orgAdminLimit(caller, req.data?.familyId, 40),
+        limit: ['organization', 'company'].includes(type) ? ORG_INVITE_LIMIT : 40,
         windowMs: 60 * 60 * 1000,
       });
       const identifier = String(req.data?.identifier || '').trim();

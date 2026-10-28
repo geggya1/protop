@@ -42,8 +42,10 @@ export default function ChildProfileScreen({ route, navigation }) {
   const [photoUrl, setPhotoUrl] = useState(child.photoUrl || child.photoURL || '');
   const [isActive, setIsActive] = useState(child.active !== false);
   const [username] = useState(child.username || '');
-  const [password, setPassword] = useState(child.password || '');
+  // Passordet lagres ikke i Firestore (SEC-21): feltet er bare for et nytt passord.
+  const [password, setPassword] = useState('');
   const [editingPassword, setEditingPassword] = useState(false);
+  const passwordSet = !!(child.passwordSetAt || child.password);
 
   const [busy, setBusy] = useState(false);
 
@@ -59,8 +61,8 @@ export default function ChildProfileScreen({ route, navigation }) {
     setBirthday(toIsoDate(child.birthday) || '');
     setPhotoUrl(child.photoUrl || child.photoURL || '');
     setIsActive(child.active !== false);
-    setPassword(child.password || '');
-  }, [child?.name, child?.birthday, child?.photoUrl, child?.photoURL, child?.active, child?.password]);
+    setPassword('');
+  }, [child?.name, child?.birthday, child?.photoUrl, child?.photoURL, child?.active]);
 
   const onCropComplete = useCallback((_, croppedPixels) => setCroppedAreaPixels(croppedPixels), []);
 
@@ -312,7 +314,7 @@ export default function ChildProfileScreen({ route, navigation }) {
           {!editingPassword ? (
             <View style={styles.passwordRow}>
               <Text style={styles.loginText}>
-                Passord: <Text style={{ fontWeight: '400' }}>{password}</Text>
+                Passord: <Text style={{ fontWeight: '400' }}>{passwordSet ? 'Satt (vises ikke)' : 'Ikke satt'}</Text>
               </Text>
               <TouchableOpacity onPress={() => setEditingPassword(true)} disabled={busy}>
                 <Feather name="edit-2" size={18} color="#007AFF" style={{ marginLeft: 8 }} />

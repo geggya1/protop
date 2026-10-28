@@ -15,7 +15,8 @@ export const USAGE_TYPES = new Set([
   'change',
 ]);
 
-const DETAIL_KEYS = ['tab', 'subView', 'hours', 'date', 'projectName', 'entryId', 'path', 'accessLevel'];
+// pages/count: samlede sidevisninger (usageBatch.js), én hendelse per minutt.
+const DETAIL_KEYS = ['tab', 'subView', 'hours', 'date', 'projectName', 'entryId', 'path', 'accessLevel', 'pages', 'count'];
 
 function text(value) {
   return String(value ?? '').trim();
@@ -74,6 +75,11 @@ function cleanDetail(raw) {
       if (Number.isFinite(hours)) detail.hours = Math.round(hours * 100) / 100;
       continue;
     }
+    if (key === 'count') {
+      const count = Math.round(Number(source[key]));
+      if (Number.isFinite(count) && count > 0) detail.count = Math.min(count, 1000);
+      continue;
+    }
     detail[key] = text(source[key]).slice(0, 120);
   }
   return detail;
@@ -83,7 +89,7 @@ export function usageEventLabel(type, detail = {}) {
   if (type === 'login') return 'Logget inn';
   if (type === 'active') return 'Aktiv i ProTop';
   if (type === 'navigation') {
-    const tab = text(detail.tab || detail.path);
+    const tab = text(detail.pages || detail.tab || detail.path);
     return tab ? `Åpnet ${tab}` : 'Byttet side';
   }
   if (type === 'hour') {

@@ -7,7 +7,7 @@ import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from '../../firebase';
 import { createGroup } from '../utils/groups';
 import { fetchCompanyCpv } from '../anbud/doffinClient';
-import { findCompanyByOrgnr } from './companyLookupClient';
+import { claimCompanyOrgnr, findCompanyByOrgnr } from './companyLookupClient';
 import { companyRegistrationDecision, digitsOrgnr, newCompanyFields } from './companyRegistry';
 
 /** Doffin får litt tid. Svarer den ikke, opprettes bedriften uten CPV-koder. */
@@ -65,6 +65,13 @@ export async function registerCompany(nextCompany, { profile } = {}) {
     profile,
     fields: patch,
   });
+  // Serveren knytter orgnummeret til bedriften, så oppslaget alltid finner den samme.
+  // Venter ikke: bedriften er opprettet, og oppslaget avgjør eierskapet også uten dette kallet.
+  if (patch.orgnr) {
+    claimCompanyOrgnr(id).then((res) => {
+      if (res?.taken) console.warn('[registerCompany] orgnummeret er allerede knyttet til', res.taken.name);
+    }).catch(() => {});
+  }
   return { id, patch };
 }
 

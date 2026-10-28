@@ -44,6 +44,8 @@ import { PROJECT_IMPORT_ACCEPT, readProjectTable } from '../../src/employees/pro
 import { EMPLOYEE_IMPORT_ACCEPT, employeeImportMatchLabel } from '../../src/employees/import';
 import { readEmployeeImport } from '../../src/imports/assist';
 import { askImportInterpret } from '../../src/imports/interpretClient';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import { logSensitiveAccess } from '../../src/hr/accessLogClient';
 import { employeeReviewSeverity, importResult } from '../../src/imports/review';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ImportReview, { ImportResult } from '../../components/ImportReview';
@@ -140,6 +142,8 @@ export default function EmployeesScreen() {
   const { familyId, family, members, uid, user, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
   const leaving = useLeaveCompany();
   const access = useCompanyAccess();
+  // «Tillat AI-funksjoner» (L-09): av = importen leses lokalt, CV fra PDF/bilde gir beskjed.
+  const guardAi = useCompanyAiGuard();
   // isAdmin = begrenset redigering (hovedsiden kan redigeres); employeesAdmin = Admin (alt annet).
   // Bare tilgangsstyringen gjelder. Administratorlisten på selskapet (adminUids) gir ikke Admin her;
   // eieren har full tilgang gjennom useCompanyAccess.
@@ -480,7 +484,7 @@ export default function EmployeesScreen() {
         existing: rows,
         departments,
         familyId,
-      }, (payload) => askImportInterpret(payload));
+      }, guardAi((payload) => askImportInterpret(payload)));
       setImportPlan(plan);
       setDropped(new Set());
       setImportReport(null);
@@ -996,7 +1000,7 @@ export default function EmployeesScreen() {
       }
       const interpreted = await readCvImport(bytes, file.name, {
         familyId,
-        ask: (payload) => askImportInterpret(payload),
+        ask: guardAi((payload) => askImportInterpret(payload)),
       });
       const applied = applyImportedCv(draft, interpreted.cv);
       setDraft(presentEmployee(applied.employee));
@@ -1018,7 +1022,7 @@ export default function EmployeesScreen() {
   async function projectsFromSheet(bytes, filename) {
     const interpreted = await readCvImport(bytes, filename, {
       familyId,
-      ask: (payload) => askImportInterpret(payload),
+      ask: guardAi((payload) => askImportInterpret(payload)),
     });
     const projects = interpreted.cv?.projects || [];
     if (!projects.length) throw new Error('Fant ingen referanseprosjekter i dokumentet.');
@@ -1621,6 +1625,17 @@ export default function EmployeesScreen() {
     scrollRef.current?.scrollTo?.({ y: 0, animated: false });
   }, [view, selectedId, personMode, personFills]);
 
+  // Innsynslogg (L-19): en annens personnummer (vises i klartekst for administrator) og fravær.
+  const loggedNationalId = !!selected?.person?.nationalId && canSeeSensitive(selected, { uid, isAdmin });
+  useEffect(() => {
+    if (!familyId || !selected?.id || isSelfRow(selected)) return;
+    if ((view === 'detail' || view === 'settingsEmployment') && loggedNationalId) {
+      logSensitiveAccess({ familyId, kind: 'nationalId', employeeId: selected.id });
+    } else if (view === 'absence') {
+      logSensitiveAccess({ familyId, kind: 'absence', employeeId: selected.id });
+    }
+  }, [familyId, view, selected?.id, loggedNationalId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <>
     <View nativeID="employees-page" id="employees-page" style={[styles.screen, { backgroundColor: colors.bg }]}>
@@ -2026,6 +2041,7 @@ export default function EmployeesScreen() {
           {view === 'settingsLog' && selected ? (
             <EmployeeUsagePanel
               companyId={familyId}
+              company={family?.company}
               employee={selected}
               colors={colors}
               enabled={employeesAdmin || isSelfRow(selected)}

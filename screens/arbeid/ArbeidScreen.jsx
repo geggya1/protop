@@ -646,10 +646,12 @@ export default function ArbeidScreen({
   }
 
   async function purgeCloudEntries(ids) {
+    // Slettingen spores (timeEntryDeletions, L-13) med føringen slik den var.
+    const before = new Map((state.timeEntries || []).map((row) => [row.id, row]));
     for (const id of ids) {
       if (!workspaceId || !id) continue;
       try {
-        await removeTimeEntry(workspaceId, id);
+        await removeTimeEntry(workspaceId, id, { entry: before.get(id) || null, log: true });
       } catch (cause) {
         setError(String(cause?.message || '') || 'Kunne ikke slette føringen i skyen.');
         return false;

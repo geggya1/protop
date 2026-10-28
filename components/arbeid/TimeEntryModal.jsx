@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Platform,
@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
 import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { TIME_TYPES } from '../../src/arbeid/overtime.js';
+import { timeEntryHistoryLines } from '../../src/arbeid/timeEntryHistory.js';
 
 const QUICK = ['0:30', '1:00', '2:00', '4:00', '7:30', '8:00'];
 
@@ -70,6 +71,12 @@ export default function TimeEntryModal({
   const [moveProjectId, setMoveProjectId] = useState('');
   const [activityOpen, setActivityOpen] = useState('');
   const [error, setError] = useState('');
+  // Endringshistorikk (L-13): hvem endret hva og når, for føringene i ruten.
+  const [showHistory, setShowHistory] = useState(false);
+  const historyLines = useMemo(() => {
+    const seeds = Array.isArray(entries) && entries.length ? entries : (initial ? [initial] : []);
+    return seeds.flatMap((row) => timeEntryHistoryLines(row?.history).map((line) => ({ ...line, key: `${row?.id || ''}-${line.key}` })));
+  }, [entries, initial]);
 
   useEffect(() => {
     if (!visible) return;
@@ -86,6 +93,7 @@ export default function TimeEntryModal({
     setMoveProjectId(project?.id || '');
     setActivityOpen('');
     setError('');
+    setShowHistory(false);
   }, [visible, initial, entries, activities, dateKey, project?.id]);
 
   function patchBlock(key, patch) {
@@ -300,6 +308,20 @@ export default function TimeEntryModal({
 
             {dateLabel ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>{dateLabel}</Text> : null}
             {project ? <Text style={{ color: colors.muted, fontSize: 12 }}>#{project.number} {project.name}</Text> : null}
+            {historyLines.length ? (
+              <View nativeID="time-entry-history" style={{ marginTop: 6, gap: 2 }}>
+                <TouchableOpacity onPress={() => setShowHistory((value) => !value)} accessibilityRole="button" hitSlop={6}>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>
+                    {`${showHistory ? 'Skjul' : 'Vis'} endringer (${historyLines.length}) · sist ${historyLines[0].when} av ${historyLines[0].who}`}
+                  </Text>
+                </TouchableOpacity>
+                {showHistory ? historyLines.map((line) => (
+                  <Text key={line.key} style={{ color: colors.muted, fontSize: 12 }}>
+                    {`${line.when} · ${line.who}: ${line.text}`}
+                  </Text>
+                )) : null}
+              </View>
+            ) : null}
             {locked ? <Text style={{ color: '#0f766e', marginTop: 6 }}>Låst — klar for fakturering.</Text> : null}
             {readOnly ? (
               <Text style={{ color: colors.muted, marginTop: 6 }} nativeID="time-entry-readonly">

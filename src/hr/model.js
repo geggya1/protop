@@ -110,6 +110,8 @@ export function emptyHrState() {
     files: [],
     // HMS-kort per ansatt (kortnummer, utløpsdato, arbeidsgivers org.nr.). Se hmsCard.js.
     hmsCards: [],
+    // Kjøringer av lagringstiden (hvem slettet hva og når). Se retention.js.
+    retentionRuns: [],
     handbook: emptyHandbook(),
     updatedAt: '',
   };
@@ -366,8 +368,24 @@ export function normalizeApplication(row = {}) {
     source: text(row.source),
     appliedAt: normalizeIsoDate(row.appliedAt) || localIsoDate(),
     attachments: normalizeList(row.attachments, normalizeAttachment),
+    // Lagringstid (retention.js): når søknaden ble avgjort, og samtykke til å beholde den.
+    closedAt: migrated.board === 'completed' && migrated.outcome !== 'pending' ? normalizeIsoDate(row.closedAt) : '',
+    consentToKeep: row.consentToKeep === true,
+    retainUntil: row.consentToKeep === true ? normalizeIsoDate(row.retainUntil) : '',
     createdAt: text(row.createdAt) || new Date().toISOString(),
     updatedAt: text(row.updatedAt) || new Date().toISOString(),
+  };
+}
+
+function normalizeRetentionRun(row = {}) {
+  if (!row || typeof row !== 'object' || !text(row.at)) return null;
+  return {
+    at: text(row.at),
+    byUid: text(row.byUid),
+    byName: text(row.byName),
+    applications: Math.max(0, Math.round(num(row.applications, 0))),
+    employees: Math.max(0, Math.round(num(row.employees, 0))),
+    rows: Math.max(0, Math.round(num(row.rows, 0))),
   };
 }
 
@@ -402,6 +420,7 @@ export function normalizeHrState(raw) {
     compliance: normalizeList(raw.compliance, normalizeComplianceItem),
     files: normalizeList(raw.files, normalizeHrFile),
     hmsCards: normalizeList(raw.hmsCards, normalizeHmsCard),
+    retentionRuns: normalizeList(raw.retentionRuns, normalizeRetentionRun).slice(-20),
     handbook: normalizeHandbook(raw.handbook),
     updatedAt: text(raw.updatedAt),
   };
@@ -720,10 +739,14 @@ export function moveApplicationBoard(application, board, outcome) {
   // Utfall (vunnet/avslått) gjelder bare i ferdigbehandlet. Ellers tilbakestilles.
   if (nextBoard !== 'completed' && nextOutcome !== 'pending') nextOutcome = 'pending';
   // Ferdigbehandlet kan være «pending» til HR velger vunnet/avslått — ikke auto-avslå.
+  // Avgjørelsesdatoen styrer lagringstiden; den settes når utfallet velges eller endres.
+  const decided = nextBoard === 'completed' && nextOutcome !== 'pending';
+  const sameDecision = decided && application?.outcome === nextOutcome && application?.board === 'completed';
   return normalizeApplication({
     ...application,
     board: nextBoard,
     outcome: nextOutcome,
+    closedAt: decided ? (sameDecision && application?.closedAt ? application.closedAt : localIsoDate()) : '',
     stage: nextOutcome === 'hired'
       ? 'hired'
       : nextOutcome === 'rejected'

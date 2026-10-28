@@ -280,7 +280,7 @@ export async function addChildMember({
     activeUsers: arrayUnion(uid),
     updatedAt: now,
   });
-  // Sync Auth password into a foresatt-readable copy on the child profile.
+  // Passordet settes i Auth via serveren; det lagres ikke i Firestore (SEC-21).
   if (password) {
     await setMemberPassword({ uid, password, familyId }).catch(() => {});
   }

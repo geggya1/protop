@@ -7,6 +7,7 @@ import {
   changedByOther,
   deletedTimeEntryRecord,
   timeEntryChanges,
+  timeEntryHistoryLines,
   withTimeEntryHistory,
 } from './timeEntryHistory.js';
 
@@ -60,5 +61,38 @@ assert.equal(changedByOther(entry, 'u-leder'), true);
 assert.equal(changedByOther(entry, 'u-ansatt'), false);
 assert.equal(changedByOther({}, 'u-leder'), false, 'ukjent eier gir ikke varsel');
 assert.equal(changedByOther({ createdByUid: 'u-leder' }, 'u-leder', { employeeUid: 'u-ansatt' }), true, 'leder førte for den ansatte');
+
+// Visning: nyeste først, med hvem, når og hva.
+{
+  const lines = timeEntryHistoryLines([
+    { at: '2026-10-19T15:05:00.000Z', kind: 'created', byName: 'Kari' },
+    { at: '2026-10-20T08:00:00.000Z', kind: 'changed', byName: 'Leder', changes: [{ field: 'hours', from: '7.5', to: '9' }, { field: 'projectId', from: 'p1', to: 'p2' }], reason: 'Rettet' },
+  ]);
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0].who, 'Leder');
+  assert.equal(lines[0].text, 'Endret timer 7.5 → 9, prosjekt (Rettet)');
+  assert.equal(lines[1].text, 'Ført');
+  assert.match(lines[1].when, /^\d\d\.10\.2026 \d\d:\d\d$/);
+  assert.deepEqual(timeEntryHistoryLines(null), []);
+  assert.equal(timeEntryHistoryLines([{ kind: 'changed' }])[0].who, 'Ukjent');
+}
+
+// Lagringen (L-13): én ny rad per lagring med kjent forrige versjon, og varsel når en annen endrer.
+{
+  const { timeEntryWritePlan } = await import('../economy/timeEntryStorage.js');
+  const prev = { ...entry, history: [{ at: '2026-10-19T15:05:00.000Z', kind: 'created', byUid: 'u-ansatt' }] };
+  const plan = timeEntryWritePlan(prev, { ...prev, hours: 8 }, { actor: { uid: 'u-leder', name: 'Leder' }, at: '2026-10-20T08:00:00.000Z' });
+  assert.equal(plan.patch.history, undefined, 'historikken skrives aldri som hel liste');
+  assert.equal(plan.historyRow.kind, 'changed');
+  assert.deepEqual(plan.historyRow.changes, [{ field: 'hours', from: '7.5', to: '8' }]);
+  assert.equal(plan.notifyUid, 'u-ansatt');
+  // Egen endring: ingen beskjed.
+  assert.equal(timeEntryWritePlan(prev, { ...prev, hours: 8 }, { actor: { uid: 'u-ansatt' } }).notifyUid, '');
+  // Uendret i sporede felt: ingen rad. Uten kjent forrige versjon: ingen rad.
+  assert.equal(timeEntryWritePlan(prev, { ...prev, internalNote: 'x' }, { actor: { uid: 'u-leder' } }).historyRow, null);
+  assert.equal(timeEntryWritePlan(null, prev, { actor: { uid: 'u-leder' } }).historyRow, null);
+  // Ny føring når forrige versjon er kjent.
+  assert.equal(timeEntryWritePlan(null, entry, { known: true, actor: { uid: 'u-ansatt' }, reason: 'Import' }).historyRow.reason, 'Import');
+}
 
 console.log('timeEntryHistory.test.mjs: ok');

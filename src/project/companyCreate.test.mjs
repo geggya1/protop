@@ -35,3 +35,10 @@ test('«Opprett bedrift» skriver orgnr i samme batch som selskapet', () => {
   // Ekstra felt kommer først, så eierskap, medlemmer og type ikke kan overstyres.
   assert.match(create, /\.\.\.\(fields && typeof fields === 'object' \? fields : \{\}\),\s*\.\.\.records\.family,/);
 });
+
+test('ny bedrift med orgnr knyttes til oppslaget på serveren (SEC-18)', () => {
+  const flow = readFileSync(new URL('./companyJoinFlow.js', import.meta.url), 'utf8');
+  const fn = flow.slice(flow.indexOf('export async function registerCompany'), flow.indexOf('export async function requestCompanyAccess'));
+  assert.ok(fn.indexOf('claimCompanyOrgnr(id)') > fn.indexOf('createGroup('), 'orgnummeret knyttes etter at bedriften finnes');
+  assert.match(fn, /if \(patch\.orgnr\)/);
+});

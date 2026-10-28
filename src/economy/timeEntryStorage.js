@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeTimeEntryRow } from '../project/engine.js';
 import { projectLookupNumbers } from '../project/projectFields.js';
 import { aliasSourceIds } from '../project/companyAlias.js';
+import { changedByOther, deletedTimeEntryRecord, withTimeEntryHistory } from '../arbeid/timeEntryHistory.js';
 import { text } from './invoices.js';
 
 const LIST_KEY = 'protop.timeEntries.v1';
@@ -28,11 +29,22 @@ function windowKey(companyId, fromDate, toDate, employeeId) {
 }
 
 async function firestoreBits() {
-  const [{ collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch }, { db }] = await Promise.all([
+  const [{
+    addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch,
+  }, { auth, db }] = await Promise.all([
     import('firebase/firestore'),
     import('../../firebase.js'),
   ]);
-  return { collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch, db };
+  return {
+    addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, where, writeBatch, db, auth,
+  };
+}
+
+/** Den innloggede, til endringshistorikken. */
+function currentActor(bits) {
+  const user = bits?.auth?.currentUser;
+  if (!user?.uid) return null;
+  return { uid: user.uid, name: text(user.displayName) || text(user.email) };
 }
 
 /**
@@ -329,21 +341,86 @@ export function timeEntryWrite(previous, next) {
   return Object.keys(patch).length > ENTRY_IDENTITY_KEYS.length ? patch : null;
 }
 
-async function writeBatchSet(companyId, entries, onProgress, previous = null) {
+function withoutHistory(row) {
+  if (!row || typeof row !== 'object') return row;
+  const { history: _history, ...rest } = row;
+  return rest;
+}
+
+/**
+ * Hva som skrives for én føring (L-13): de endrede feltene (timeEntryWrite) og én ny rad
+ * i endringshistorikken. history skrives aldri som hel liste fra klienten, bare som én ny
+ * rad (arrayUnion hos kalleren), så en eldre kopi ikke kan fjerne andres rader.
+ * known = forrige versjon er kjent (previous ble sendt med): en føring som ikke fantes
+ * der, er ny. Uten kjent forrige versjon skrives ingen historikk.
+ * notifyUid: den som førte timen, når en annen endrer den.
+ */
+export function timeEntryWritePlan(previous, next, { known = false, actor = null, at = '', reason = '' } = {}) {
+  const write = timeEntryWrite(previous, next);
+  if (!write?.id) return null;
+  const patch = withoutHistory(write);
+  let historyRow = null;
+  if (previous || known) {
+    // Sammenlign normaliserte rader, så standardverdier (status, timetype) ikke ser ut som endringer.
+    const before = previous ? withoutHistory(normalizeTimeEntryRow(previous)) : null;
+    const after = withoutHistory(normalizeTimeEntryRow(next));
+    const tracked = withTimeEntryHistory(before, after, { actor, at, reason });
+    historyRow = Array.isArray(tracked?.history) ? tracked.history[tracked.history.length - 1] || null : null;
+    // Fakturerbare timer som bare følger timene, er ikke en egen endring.
+    if (historyRow?.changes && before && Number(before.billableHours) === Number(before.hours)
+      && Number(after.billableHours) === Number(after.hours)) {
+      const changes = historyRow.changes.filter((change) => change.field !== 'billableHours');
+      historyRow = changes.length ? { ...historyRow, changes } : null;
+    }
+  }
+  const notifyUid = historyRow && previous && changedByOther(previous, actor?.uid) ? text(previous.createdByUid) : '';
+  return { id: patch.id, patch, historyRow, notifyUid };
+}
+
+/** Én beskjed per person når en annen har endret timene deres. Feiler stille. */
+async function notifyChangedEntries(companyId, plans, actor) {
+  const byUid = new Map();
+  for (const plan of plans) {
+    if (!plan.notifyUid) continue;
+    byUid.set(plan.notifyUid, (byUid.get(plan.notifyUid) || 0) + 1);
+  }
+  if (!byUid.size) return;
+  try {
+    const { notifyUsers } = await import('../utils/notifications.js');
+    const who = text(actor?.name) || 'En leder';
+    await Promise.all([...byUid.entries()].map(([uid, count]) => notifyUsers([uid], {
+      eventType: 'timeEntryChanged',
+      title: 'Timene dine er endret',
+      body: `${who} har endret ${count === 1 ? 'en timeføring' : `${count} timeføringer`} du førte. Se endringene på timen.`,
+      familyId: companyId,
+      createdBy: actor?.uid || null,
+    })));
+  } catch {
+    // Beskjeden er et tillegg. Historikken står på timen uansett.
+  }
+}
+
+async function writeBatchSet(companyId, entries, onProgress, previous = null, { reason = '' } = {}) {
   const bits = await firestoreBits();
   const list = withoutDeletedTimeEntries(companyId, entries);
+  const known = Array.isArray(previous);
   const before = new Map(
-    (Array.isArray(previous) ? previous : [])
+    (known ? previous : [])
       .filter((row) => row?.id)
       .map((row) => [text(row.id), row]),
   );
+  const actor = currentActor(bits);
+  const at = new Date().toISOString();
+  const plans = [];
   let batch = bits.writeBatch(bits.db);
   let n = 0;
   let done = 0;
   const total = list.length;
   for (const entry of list) {
-    const next = timeEntryWrite(before.get(text(entry?.id)), entry);
-    if (!next?.id) continue;
+    const plan = timeEntryWritePlan(before.get(text(entry?.id)), entry, { known, actor, at, reason });
+    if (!plan) continue;
+    plans.push(plan);
+    const next = plan.historyRow ? { ...plan.patch, history: bits.arrayUnion(plan.historyRow) } : plan.patch;
     batch.set(entryRef(bits, companyId, next.id), next, { merge: true });
     n += 1;
     done += 1;
@@ -358,6 +435,7 @@ async function writeBatchSet(companyId, entries, onProgress, previous = null) {
     await batch.commit();
     onProgress?.(done, total);
   }
+  notifyChangedEntries(companyId, plans, actor);
 }
 
 /**
@@ -365,7 +443,7 @@ async function writeBatchSet(companyId, entries, onProgress, previous = null) {
  * UI skal ikke vise «lagret» hvis skyen avviser.
  * previous: radene slik de ble lest. Da skrives bare feltene som er endret.
  */
-export async function saveTimeEntries(companyId, entries, { onProgress, previous = null } = {}) {
+export async function saveTimeEntries(companyId, entries, { onProgress, previous = null, reason = '' } = {}) {
   if (!companyId) throw new Error('Mangler selskap for timelagring.');
   await hydrateDeletedTimeEntries(companyId);
   const list = withoutDeletedTimeEntries(companyId, (Array.isArray(entries) ? entries : [])
@@ -376,7 +454,7 @@ export async function saveTimeEntries(companyId, entries, { onProgress, previous
     }))
     .filter(Boolean));
   if (!list.length) return { saved: 0, entries: [] };
-  await writeBatchSet(companyId, list, onProgress, previous);
+  await writeBatchSet(companyId, list, onProgress, previous, { reason });
   const current = await readLocal(companyId);
   await writeLocal(companyId, mergeEntryLists(current, list));
   return { saved: list.length, entries: list };
@@ -386,7 +464,8 @@ export async function saveTimeEntryImport(companyId, entries, { onProgress } = {
   if (!companyId) throw new Error('Mangler selskap for timeimport.');
   const list = (Array.isArray(entries) ? entries : []).map((row) => normalizeTimeEntryRow(row)).filter(Boolean);
   if (!list.length) throw new Error('Ingen timer å lagre.');
-  return saveTimeEntries(companyId, list, { onProgress });
+  // Importerte føringer er nye: historikken viser at de kom fra importen.
+  return saveTimeEntries(companyId, list, { onProgress, previous: [], reason: 'Import' });
 }
 
 /**
@@ -401,10 +480,12 @@ export async function releaseTimeEntriesFromInvoice(companyId, invoiceId, entryI
   const bits = await firestoreBits();
   const stamp = new Date().toISOString();
   const updates = [];
+  const previous = [];
   for (const entryId of ids) {
     const snap = await bits.getDoc(entryRef(bits, id, entryId));
     if (!snap.exists()) continue;
     const row = snap.data() || {};
+    previous.push({ ...row, id: snap.id });
     const linked = text(row.invoiceId);
     if (linked && linked !== invoice) continue;
     updates.push({
@@ -416,7 +497,7 @@ export async function releaseTimeEntriesFromInvoice(companyId, invoiceId, entryI
     });
   }
   if (!updates.length) return { released: 0 };
-  await saveTimeEntries(id, updates);
+  await saveTimeEntries(id, updates, { previous, reason: 'Fakturaen er slettet' });
   return { released: updates.length };
 }
 
@@ -446,18 +527,29 @@ export async function loadTimeEntriesByInvoice(companyId, invoiceId) {
   return snap.docs.map((item) => normalizeTimeEntryRow({ ...item.data(), id: item.id })).filter(Boolean);
 }
 
-export async function removeTimeEntry(companyId, entryId) {
+/**
+ * Slett en føring. log: true (eller entry) legger en rad i families/{id}/timeEntryDeletions,
+ * så slettingen kan spores (L-13). Opprydding av rader som allerede er slettet, logges ikke.
+ */
+export async function removeTimeEntry(companyId, entryId, { entry = null, log = !!entry, reason = '' } = {}) {
   const id = text(entryId);
   if (!companyId || !id) return;
   // Merk før nettverket, så en parallell lagring ikke skriver raden tilbake.
   const already = deletedTimeEntryIds(companyId).has(id);
   rememberDeletedTimeEntries(companyId, [id]);
+  let bits = null;
   try {
-    const bits = await firestoreBits();
+    bits = await firestoreBits();
     await bits.deleteDoc(entryRef(bits, companyId, id));
   } catch (error) {
     if (!already) forgetDeletedTimeEntries(companyId, [id]);
     throw error;
+  }
+  if (log && !already) {
+    const record = deletedTimeEntryRecord({ ...(entry || {}), id }, { actor: currentActor(bits), reason });
+    Promise.resolve()
+      .then(() => bits.addDoc(bits.collection(bits.db, 'families', companyId, 'timeEntryDeletions'), record))
+      .catch(() => {});
   }
   const current = await readLocal(companyId);
   await writeLocal(companyId, withoutDeletedTimeEntries(companyId, current));

@@ -10,7 +10,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import {
-  doc, getDoc, setDoc, serverTimestamp,
+  deleteField, doc, getDoc, setDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { useApp } from '../src/context/AppContext';
@@ -151,8 +151,9 @@ export default function ChildSettingsScreen() {
   const [phone, setPhone] = useState('');
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
 
-  // Password (admin only) — view saved copy; change via modal
+  // Passord (admin): lagres ikke i Firestore (SEC-21). Vises bare rett etter at det er satt.
   const [savedPassword, setSavedPassword] = useState('');
+  const [passwordSet, setPasswordSet] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [passwordBusy, setPasswordBusy] = useState(false);
@@ -250,7 +251,6 @@ export default function ChildSettingsScreen() {
         username: d.username || '',
         email: d.email || '',
         phone: d.phone || '',
-        password: d.password || '',
         aiEnabled: loadedAiEnabled,
         allowedApps: mergeAllowedApps(d.allowedApps, { aiEnabled: loadedAiEnabled }),
         locationSharingEnabled: typeof d.locationSharingEnabled === 'boolean' ? d.locationSharingEnabled : false,
@@ -272,9 +272,14 @@ export default function ChildSettingsScreen() {
       setUsernameLocked(loadedUsername.length >= 3);
       setEmail(loaded.email);
       setPhone(loaded.phone);
-      // Barnepassord lagres som lesbar kopi for foresatte (satt via setMemberPassword).
-      setSavedPassword(String(loaded.password || ''));
+      // Barnepassord lagres ikke lenger som lesbar kopi (SEC-21). En gammel kopi slettes.
+      setPasswordSet(!!(d.passwordSetAt || d.password));
+      setSavedPassword('');
       setShowPassword(false);
+      if (d.password) {
+        setDoc(childDocRef, { password: deleteField() }, { merge: true }).catch(() => {});
+        setDoc(doc(db, 'children', childId), { password: deleteField() }, { merge: true }).catch(() => {});
+      }
       setAiEnabled(loaded.aiEnabled);
       setAllowedApps(loaded.allowedApps);
       setLocationSharingEnabled(loaded.locationSharingEnabled);
@@ -496,9 +501,10 @@ export default function ChildSettingsScreen() {
         familyId,
       });
       setSavedPassword(nextPassword);
+      setPasswordSet(true);
       setShowPassword(false);
       setChangePasswordOpen(false);
-      showInfo('Passord lagret', 'Det nye passordet er aktivt. Trykk øyet for å vise det.');
+      showInfo('Passord lagret', 'Det nye passordet er aktivt. Det lagres ikke i ProTop og vises bare nå: trykk øyet og noter det sammen med barnet.');
     } catch (e) {
       console.warn('[ChildSettings] password save failed', e);
       showInfo('Feil', e?.message || 'Klarte ikke lagre passordet.');
@@ -710,7 +716,7 @@ export default function ChildSettingsScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={styles.hint}>
-                Trykk øyet for å se passordet sammen med barnet.
+                Vises bare nå. Passordet lagres ikke i ProTop, så noter det sammen med barnet.
               </Text>
               <TouchableOpacity
                 style={styles.changePasswordBtn}
@@ -725,13 +731,13 @@ export default function ChildSettingsScreen() {
             <>
               <View style={styles.lockedUsernameRow}>
                 <Text style={[styles.lockedUsername, { color: colors.muted }]}>
-                  {usernameLocked ? 'Satt — kan ikke vises ennå' : 'Ikke satt'}
+                  {passwordSet || usernameLocked ? 'Satt — vises ikke' : 'Ikke satt'}
                 </Text>
                 <Ionicons name="lock-closed-outline" size={16} color={colors.muted} />
               </View>
               <Text style={styles.hint}>
-                {usernameLocked
-                  ? 'Passordet finnes i innloggingen, men er ikke lagret her for visning. Sett det på nytt én gang — deretter kan du se det med øyet.'
+                {passwordSet || usernameLocked
+                  ? 'Passordet lagres ikke i ProTop og kan ikke vises. Har barnet glemt det, setter du et nytt.'
                   : 'Sett et passord barnet kan logge inn med.'}
               </Text>
               <TouchableOpacity
@@ -741,7 +747,7 @@ export default function ChildSettingsScreen() {
               >
                 <Ionicons name="key-outline" size={18} color={colors.brand} />
                 <Text style={styles.changePasswordBtnTxt}>
-                  {usernameLocked ? 'Sett nytt passord' : 'Sett passord'}
+                  {passwordSet || usernameLocked ? 'Sett nytt passord' : 'Sett passord'}
                 </Text>
               </TouchableOpacity>
             </>
@@ -890,7 +896,7 @@ export default function ChildSettingsScreen() {
               hint={
                 isChildSelfView
                   ? 'Se brukernavnet ditt'
-                  : savedPassword
+                  : (savedPassword || passwordSet)
                     ? 'Se innlogging eller endre passord'
                     : 'Sett brukernavn og passord'
               }
@@ -1256,7 +1262,7 @@ export default function ChildSettingsScreen() {
 
       <ChangeChildPasswordModal
         visible={changePasswordOpen}
-        mode={savedPassword ? 'change' : 'set'}
+        mode={savedPassword || passwordSet ? 'change' : 'set'}
         childName={name.trim() || child?.name || ''}
         busy={passwordBusy}
         onCancel={() => { if (!passwordBusy) setChangePasswordOpen(false); }}

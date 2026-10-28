@@ -76,7 +76,11 @@ export async function approveWork(companyId, selection) {
   if (isDemo(companyId)) return { approved: 0 };
   const entries = (selection.entries || []).filter((row) => row.status !== 'godkjent' && !text(row.invoiceId));
   if (entries.length) {
-    await saveTimeEntries(companyId, entries.map((row) => ({ ...cleanEntry(row), status: 'godkjent', updatedAt: stamp() })));
+    // previous: endringshistorikken på timen viser at den ble godkjent, og av hvem (L-13).
+    await saveTimeEntries(companyId, entries.map((row) => ({ ...cleanEntry(row), status: 'godkjent', updatedAt: stamp() })), {
+      previous: entries.map(cleanEntry),
+      reason: 'Godkjent',
+    });
   }
   const pick = (list) => (list || []).filter((row) => row.status !== 'approved' && !text(row.invoiceId));
   const opSelection = {
@@ -138,7 +142,10 @@ export async function reserveWork(companyId, selection, invoiceId) {
   const patched = await patchOperations(companyId, internal, mark);
   if (patched && patched.ok === false) throw patched.error || new Error('Kunne ikke lagre utlegg og salg på utkastet.');
   if (conflicts) throw new WorkConflictError(conflicts);
-  if (entries.length) await saveTimeEntries(companyId, entries);
+  if (entries.length) {
+    const before = (selection.entries || []).map((row) => cleanEntry(freshById.get(row.id) || row));
+    await saveTimeEntries(companyId, entries, { previous: before, reason: 'Lagt på fakturautkast' });
+  }
   if (externalExpenses.length) await saveProjectExpenses(companyId, externalExpenses.map((row) => ({ ...mark(row), updatedAt: at })));
   if (externalSales.length) await saveProductSales(companyId, externalSales.map((row) => ({ ...mark(row), updatedAt: at })));
 }
@@ -180,7 +187,8 @@ export async function releaseWork(companyId, invoice, {
   const known = idSet(linked);
   const missing = ids.timeEntryIds.filter((id) => !known.has(id));
   const extra = missing.length ? await loadTimeEntriesByIds(companyId, missing).catch(() => []) : [];
-  const entries = [...linked, ...extra]
+  const current = [...linked, ...extra];
+  const entries = current
     .filter((row) => text(row.invoiceId) === invoiceId && allowed(row.id))
     .map((row) => (writeOff
       ? {
@@ -193,7 +201,12 @@ export async function releaseWork(companyId, invoice, {
         updatedAt: at,
       }
       : { ...row, invoiceId: '', status: 'godkjent', updatedAt: at }));
-  if (entries.length) await saveTimeEntries(companyId, entries);
+  if (entries.length) {
+    await saveTimeEntries(companyId, entries, {
+      previous: current,
+      reason: writeOff ? `Avskrevet: ${text(reason)}`.slice(0, 200) : 'Frigjort fra faktura',
+    });
+  }
 
   const change = (row) => {
     if (text(row.invoiceId) !== invoiceId) return null;

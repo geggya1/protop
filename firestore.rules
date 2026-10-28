@@ -1257,5 +1257,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if false;
     }
+
+    // Orgnummer → bedrift (SEC-18). Bare serveren (findCompanyByOrgnr, claimCompanyOrgnr)
+    // leser og skriver, i transaksjon, så ingen kan ta over et annet firmas orgnummer.
+    match /orgnrIndex/{orgnr} {
+      allow read, write: if false;
+    }
   }
 }

@@ -121,7 +121,7 @@ export default function DesktopRail({
           onChangeText={setQuery}
           placeholder="Søk…"
           placeholderTextColor={colors.muted}
-          style={[styles.searchInput, { color: colors.ink }, Platform.OS === 'web' && { outlineStyle: 'none' }]}
+          style={[styles.searchInput, t?.searchInput, { color: colors.ink }, Platform.OS === 'web' && { outlineStyle: 'none' }]}
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
@@ -203,6 +203,8 @@ const styles = StyleSheet.create({
 /** Berøringsskjerm: felt og knapper på minst touch.min. */
 const touchStyles = StyleSheet.create({
   searchWrap: { minHeight: touch.min },
+  // Feltet fyller hele høyden, så et trykk hvor som helst i rammen treffer det.
+  searchInput: { alignSelf: 'stretch', minHeight: touch.min - 2 },
   clearBtn: { minWidth: touch.min, minHeight: touch.min, alignItems: 'center', justifyContent: 'center', marginRight: -8 },
   collapseBtn: { minHeight: touch.min },
 });

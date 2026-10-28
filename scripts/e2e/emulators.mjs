@@ -93,6 +93,8 @@ const child = spawn('npx', [
   '--only', 'auth,firestore,storage,functions',
   '--config', '.e2e-firebase.json',
   '--project', 'protop-c189c',
+  // F.eks. --import=.e2e-data for å starte med data eksportert med «firebase emulators:export».
+  ...process.argv.slice(2),
 ], { cwd: root, stdio: 'inherit', env: { ...process.env, E2E_MAIL_LOG: mailLog } });
 
 process.on('SIGINT', () => child.kill('SIGINT'));

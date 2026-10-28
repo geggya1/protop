@@ -69,6 +69,7 @@ scripts/backup-cross-company-*/
 .helpbot-fn/
 help-bot-out/
 .e2e-fn/
+.e2e-data/
 e2e-out/
 .e2e-firebase.json
 .e2e-storage.rules

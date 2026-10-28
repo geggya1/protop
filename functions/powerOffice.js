@@ -13,7 +13,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-import { assertFamilyAdmin, assertFamilyMember, assertRateLimit, hashRateKey } from './security.js';
+import { assertCompanyAccess, assertFamilyMember, assertRateLimit, hashRateKey } from './security.js';
 import { resolveRuntimeSecret } from './runtimeSecret.js';
 import {
   createPowerOfficeClient, findClientEnvironment, POWEROFFICE_ENVS, PowerOfficeError, powerOfficeErrorText,
@@ -46,6 +46,20 @@ function familyIdFrom(request) {
   if (!familyId || familyId.includes('/')) throw new HttpsError('invalid-argument', 'Bedrift mangler.');
   return familyId;
 }
+
+// Samme rettigheter som appen viser (EconomySettingsScreen og EconomyInvoices):
+// Admin på Økonomi → Innstillinger kobler til og velger produkter, og den som kan
+// redigere Faktura (Begrenset redigering) overfører utkast. Eier og administratorer kan alt.
+const SETTINGS_ACCESS = {
+  resource: 'economySettings',
+  action: 'write',
+  message: 'Krever Admin på Økonomi – Innstillinger i tilgangsstyringen.',
+};
+const TRANSFER_ACCESS = {
+  resource: 'economyInvoices',
+  action: 'read',
+  message: 'Krever redigeringstilgang til Faktura i tilgangsstyringen.',
+};
 
 function toHttpsError(err, where) {
   if (err instanceof HttpsError) return err;
@@ -135,7 +149,7 @@ export const powerOfficeConnect = onCall(CALL, async (request) => {
   const uid = requireUid(request);
   const familyId = familyIdFrom(request);
   const db = getFirestore();
-  await assertFamilyAdmin(db, familyId, uid);
+  await assertCompanyAccess(db, familyId, uid, SETTINGS_ACCESS);
   await limitCalls(db, uid, 'connect', 30);
   const at = new Date().toISOString();
   const update = { updatedAt: at, updatedBy: uid };
@@ -183,7 +197,7 @@ export const powerOfficeDisconnect = onCall(CALL, async (request) => {
   const uid = requireUid(request);
   const familyId = familyIdFrom(request);
   const db = getFirestore();
-  await assertFamilyAdmin(db, familyId, uid);
+  await assertCompanyAccess(db, familyId, uid, SETTINGS_ACCESS);
   const at = new Date().toISOString();
   await statusRef(db, familyId).set({
     connected: false,
@@ -200,7 +214,7 @@ export const powerOfficeProducts = onCall(CALL, async (request) => {
   const uid = requireUid(request);
   const familyId = familyIdFrom(request);
   const db = getFirestore();
-  await assertFamilyAdmin(db, familyId, uid);
+  await assertCompanyAccess(db, familyId, uid, SETTINGS_ACCESS);
   try {
     const client = await clientFor(db, familyId);
     return { products: await productsWithVat(client) };
@@ -228,7 +242,7 @@ export const powerOfficeTransferInvoice = onCall(CALL, async (request) => {
   const invoiceId = String(request.data?.invoiceId || '').trim();
   if (!invoiceId || invoiceId.includes('/')) throw new HttpsError('invalid-argument', 'Faktura mangler.');
   const db = getFirestore();
-  await assertFamilyAdmin(db, familyId, uid);
+  await assertCompanyAccess(db, familyId, uid, TRANSFER_ACCESS);
   await limitCalls(db, uid, 'transfer', 200);
 
   const invoiceRef = db.doc(`families/${familyId}/invoices/${invoiceId}`);

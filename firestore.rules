@@ -603,7 +603,8 @@ service cloud.firestore {
         || coll == 'invoices' || coll == 'invoiceSeries'
         || coll == 'parents' || coll == 'memberInvites'
         || coll == 'hr' || coll == 'hrSelf' || coll == 'absences' || coll == 'employeesPrivate'
-        || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events';
+        || coll == 'notes' || coll == 'timeEntries' || coll == 'projectExpenses' || coll == 'events'
+        || coll == 'timeEntryDeletions' || coll == 'accessLog';
     }
 
     // Kalenderhendelse i en bedrift: «bare utvalgte» (audience 'selected') leses av den som laget
@@ -752,6 +753,24 @@ service cloud.firestore {
       let a = request.resource.data.get('invoiceId', null);
       let b = resource.data.get('invoiceId', null);
       return (blankText(a) && blankText(b)) || a == b;
+    }
+
+    // Endringshistorikken på en timeføring kan bare utvides (appen legger til én rad med arrayUnion).
+    function timeEntryHistoryAppended() {
+      let before = resource.data.get('history', []);
+      let after = request.resource.data.get('history', []);
+      return after is list && after.size() >= before.size()
+        && (before.size() == 0 || after[0:before.size()] == before);
+    }
+
+    // Sletteloggen for timer leses av ledere (Andres timer), HR og økonomi, eier og administratorer.
+    function timeDeletionReader(familyId) {
+      let g = aclGrants(familyId);
+      return isFamilyAdmin(familyId)
+        || grantAtLeast(g, 'hoursOthers', 2)
+        || hrGrantAtLeast(g, 1)
+        || grantAtLeast(g, 'economyInvoices', 1)
+        || grantAtLeast(g, 'economyBilling', 1);
     }
 
     function timeEntryCoreKept() {
@@ -1006,11 +1025,24 @@ service cloud.firestore {
         allow list: if isFamilyMemberLite(familyId);
         allow create: if isFamilyMember(familyId);
         allow update: if isFamilyMember(familyId)
+          && timeEntryHistoryAppended()
           && (sameInvoiceLink() || invoiceBiller(familyId))
           && (!entryLocked(resource.data, 'låst') || timeEntryCoreKept())
           && (!entryInvoiced(resource.data) || unchanged('status') || invoiceBiller(familyId));
         allow delete: if isFamilyMember(familyId) && !entryLocked(resource.data, 'låst');
       }
+
+      // Slettelogg for timer: nye rader i eget navn, aldri endret eller slettet.
+      match /timeEntryDeletions/{recordId} {
+        allow get: if isFamilyMember(familyId) && timeDeletionReader(familyId);
+        allow list: if isFamilyMemberLite(familyId) && timeDeletionReader(familyId);
+        allow create: if isFamilyMember(familyId)
+          && request.resource.data.get('byUid', '') == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // Logg over innsyn i sensitive opplysninger (accessLog): bare serveren (logSensitiveAccess,
+      // listAccessLog). Ingen klientregler; samlingen står i isProtected.
 
       match /projectExpenses/{expenseId} {
         allow get: if isFamilyMember(familyId);

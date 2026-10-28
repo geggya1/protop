@@ -5,7 +5,8 @@
  *     "node --test --test-concurrency=1 tests/rules/dataProtection.rules.test.mjs"
  *
  * HR (L-01, SEC-06, DS-10), fravær (L-02), personnummer og pårørende (L-03), notater (FL-13),
- * vennechat (FL-12), faktura, nummerserie, timer og utlegg (SEC-14, L-10, L-31, DS-11) og
+ * vennechat (FL-12, SOS-04), kalender (SOS-08), faktura, nummerserie, timer og utlegg (SEC-14,
+ * L-10, L-31, DS-11), endringshistorikk og slettelogg for timer, innsynsloggen og
  * personvernvalgene på selskapet. Rettighetene kommer fra speilet accessAcl/{uid}, som i appen.
  *
  * Bedrift A: own = eier, adm = administrator, hr = HR-ansvarlig, avd = avdelingsleder (HR Lese,
@@ -17,7 +18,7 @@ import { after, before, beforeEach, describe, test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import {
-  Timestamp, collection, deleteDoc, doc, getDoc, getDocs, or, query, setDoc, updateDoc, where, writeBatch,
+  Timestamp, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, or, query, setDoc, updateDoc, where, writeBatch,
 } from 'firebase/firestore';
 
 const A = 'companyA';
@@ -142,6 +143,11 @@ async function seed() {
     await setDoc(doc(db, 'families', A, 'timeEntries', 'te_free'), te({}));
     await setDoc(doc(db, 'families', A, 'timeEntries', 'te_locked'), te({ status: 'låst' }));
     await setDoc(doc(db, 'families', A, 'timeEntries', 'te_inv'), te({ status: 'låst', invoiceId: 'D1' }));
+    await setDoc(doc(db, 'families', A, 'timeEntries', 'te_hist'), te({
+      history: [{ at: '2026-10-20T08:00:00Z', kind: 'created', byUid: 'bob', byName: 'bob' }],
+    }));
+    await setDoc(doc(db, 'families', A, 'timeEntryDeletions', 'del1'), { entryId: 'x', employeeId: 'emp_bob', hours: 2, kind: 'deleted', byUid: 'bob' });
+    await setDoc(doc(db, 'families', A, 'accessLog', 'log1'), { actorUid: 'adm', employeeId: 'emp_bob', kind: 'nationalId' });
     const pe = (over) => ({ projectId: 'p1', employeeId: 'emp_bob', date: '2026-10-20', amountExVat: 400, amountInclVat: 500, vatCode: 'HIGH', markupPercent: 0, billable: true, status: 'approved', invoiceId: '', notes: '', ...over });
     await setDoc(doc(db, 'families', A, 'projectExpenses', 'pe_free'), pe({}));
     await setDoc(doc(db, 'families', A, 'projectExpenses', 'pe_inv'), pe({ status: 'invoiced', invoiceId: 'D1' }));
@@ -507,6 +513,40 @@ describe('timer og prosjektutlegg med faktura eller lås (DS-11)', () => {
     await assertFails(updateDoc(pe('bob', 'pe_inv'), { invoiceId: '', status: 'approved' }));
     await assertFails(deleteDoc(pe('bob', 'pe_inv')));
     await assertSucceeds(updateDoc(pe('bill', 'pe_inv'), { invoiceId: '', status: 'approved' }));
+  });
+});
+
+describe('endringshistorikk, slettelogg og innsynslogg', () => {
+  test('historikken på en timeføring kan bare utvides', async () => {
+    const ref = doc(as('bob'), 'families', A, 'timeEntries', 'te_hist');
+    const first = { at: '2026-10-20T08:00:00Z', kind: 'created', byUid: 'bob', byName: 'bob' };
+    const next = { at: '2026-10-21T08:00:00Z', kind: 'changed', byUid: 'bob', byName: 'bob', changes: [{ field: 'hours', from: '7.5', to: '8' }] };
+    await assertSucceeds(updateDoc(ref, { hours: 8, history: arrayUnion(next) }));
+    await assertFails(updateDoc(ref, { history: [] }));
+    await assertFails(updateDoc(ref, { history: [{ ...first, byName: 'Noen andre' }, next] }));
+    await assertFails(updateDoc(doc(as('own'), 'families', A, 'timeEntries', 'te_hist'), { history: [next] }));
+    await assertSucceeds(updateDoc(ref, { description: 'Uten historikk i skrivingen' }));
+  });
+
+  test('slettelogg for timer: rader i eget navn, lesing for leder, HR og økonomi, aldri endret', async () => {
+    const record = (byUid) => ({ entryId: 'te1', employeeId: 'emp_bob', date: '2026-10-20', hours: 7.5, kind: 'deleted', byUid });
+    await assertSucceeds(setDoc(doc(as('bob'), 'families', A, 'timeEntryDeletions', 'd2'), record('bob')));
+    await assertFails(setDoc(doc(as('bob'), 'families', A, 'timeEntryDeletions', 'd3'), record('eve')));
+    await assertFails(setDoc(doc(as('ext'), 'families', A, 'timeEntryDeletions', 'd4'), record('ext')));
+    await assertFails(getDocs(collection(as('bob'), 'families', A, 'timeEntryDeletions')));
+    for (const uid of ['avd', 'hr', 'okon', 'bill', 'own', 'adm']) {
+      await assertSucceeds(getDocs(collection(as(uid), 'families', A, 'timeEntryDeletions')), uid);
+    }
+    await assertFails(updateDoc(doc(as('own'), 'families', A, 'timeEntryDeletions', 'del1'), { hours: 0 }));
+    await assertFails(deleteDoc(doc(as('own'), 'families', A, 'timeEntryDeletions', 'del1')));
+  });
+
+  test('innsynsloggen er stengt for alle klienter', async () => {
+    for (const uid of ['own', 'adm', 'bob']) {
+      await assertFails(getDoc(doc(as(uid), 'families', A, 'accessLog', 'log1')), uid);
+      await assertFails(getDocs(collection(as(uid), 'families', A, 'accessLog')), uid);
+      await assertFails(setDoc(doc(as(uid), 'families', A, 'accessLog', `x_${uid}`), { actorUid: uid }), uid);
+    }
   });
 });
 

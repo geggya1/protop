@@ -21,14 +21,16 @@ import {
 import { resolveMailApiKey } from './mailApiKey.js';
 import {
   assertCanInvite,
-  assertFamilyAdmin,
   assertRateLimit,
   assertSafeAppContinueUrl,
   hashRateKey,
+  isFamilyOwnerOrAdmin,
   isValidEmail,
+  listedOnFamily,
   redactEmail,
   requireAuth,
 } from './security.js';
+import { memberPasswordDecision } from './memberPassword.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -305,49 +307,101 @@ export const sendPasswordResetV2 = onCall(CALL, async (req) => {
   }
 });
 
+/** Alle grupper kontoen er med i (eier, administrator eller medlemslistene). */
+async function groupsOfAccount(uid) {
+  const snaps = await Promise.all([
+    db.collection('families').where('members', 'array-contains', uid).limit(50).get(),
+    db.collection('families').where('activeUsers', 'array-contains', uid).limit(50).get(),
+    db.collection('families').where('memberIds', 'array-contains', uid).limit(50).get(),
+    db.collection('families').where('adminUids', 'array-contains', uid).limit(50).get(),
+    db.collection('families').where('ownerUid', '==', uid).limit(50).get(),
+  ]);
+  const byId = new Map();
+  for (const snap of snaps) snap.docs.forEach((row) => byId.set(row.id, { id: row.id, ...row.data() }));
+  return [...byId.values()];
+}
+
+/**
+ * Lesbar kopi for foresatte (barn) eller sletting av gamle kopier (voksne).
+ * Bare dokumenter som finnes oppdateres: kallet skal aldri lage medlemsdokumenter.
+ */
+export async function writeMemberPasswordCopies(store, { uid, familyId, isChildMember, password }) {
+  const wipe = { password: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() };
+  const keep = { password, updatedAt: FieldValue.serverTimestamp() };
+  const paths = [`parents/${uid}`, `users/${uid}`];
+  const childPaths = [`children/${uid}`];
+  if (familyId) {
+    childPaths.push(`families/${familyId}/children/${uid}`);
+    paths.push(`families/${familyId}/parents/${uid}`);
+  }
+  const jobs = [
+    ...paths.map((path) => [path, wipe]),
+    ...childPaths.map((path) => [path, isChildMember ? keep : wipe]),
+  ].map(async ([path, patch]) => {
+    const ref = store.doc(path);
+    const snap = await ref.get();
+    if (snap.exists) await ref.update(patch);
+  });
+  await Promise.all(jobs.map((job) => job.catch(() => {})));
+}
+
 export const setMemberPassword = onCall(CALL, async (req) => {
   try {
     const caller = req.auth?.uid;
     if (!caller) return { ok: false, error: 'Du må være innlogget.' };
-    const { uid, password, familyId } = req.data || {};
+    const { uid, password } = req.data || {};
+    const familyId = String(req.data?.familyId || '').trim();
     const pwd = String(password || '');
     if (!uid || pwd.length < 6) return { ok: false, error: 'Passordet må ha minst 6 tegn.' };
     if (pwd.length > 128) return { ok: false, error: 'Passordet er for langt.' };
+    if (familyId.includes('/') || String(uid).includes('/')) return { ok: false, error: 'Mangler gruppe.' };
+    if (uid !== caller && !familyId) return { ok: false, error: 'Mangler gruppe.' };
+    await assertRateLimit(db, {
+      key: hashRateKey(['member-password', caller]),
+      limit: 30,
+      windowMs: 60 * 60 * 1000,
+    });
 
+    let family = null;
+    let memberDoc = null;
     let isChildMember = false;
-    if (uid !== caller) {
-      if (!familyId) return { ok: false, error: 'Mangler gruppe.' };
-      await assertFamilyAdmin(db, familyId, caller);
-      const [child, parent] = await Promise.all([
+    let groups = [];
+    if (familyId) {
+      const [famSnap, child, parent] = await Promise.all([
+        db.doc(`families/${familyId}`).get(),
         db.doc(`families/${familyId}/children/${uid}`).get(),
         db.doc(`families/${familyId}/parents/${uid}`).get(),
       ]);
-      if (!child.exists && !parent.exists) return { ok: false, error: 'Personen er ikke i gruppen.' };
-      isChildMember = child.exists;
-    } else if (familyId) {
-      const child = await db.doc(`families/${familyId}/children/${uid}`).get();
+      family = famSnap.exists ? famSnap.data() || {} : null;
+      memberDoc = child.exists ? child.data() || {} : (parent.exists ? parent.data() || {} : null);
       isChildMember = child.exists;
     } else {
-      const child = await db.doc(`children/${uid}`).get();
-      isChildMember = child.exists;
+      isChildMember = (await db.doc(`children/${uid}`).get()).exists;
     }
+    if (uid !== caller) {
+      // Kontoen må tilhøre gruppen før vi slår opp i Auth eller i andre grupper.
+      if (!family || !isFamilyOwnerOrAdmin(family, caller)) return { ok: false, error: 'Bare admin kan gjøre dette.' };
+      groups = await groupsOfAccount(uid);
+    }
+    const authUser = await adminAuth.getUser(uid).catch(() => null);
+    const decision = memberPasswordDecision({
+      caller, uid, family, memberDoc, groups, authUser,
+    });
+    if (!decision.ok) {
+      logger.warn('[setMemberPassword] avvist', { caller, uid, familyId, error: decision.error });
+      return { ok: false, error: decision.error };
+    }
+    // Egen konto: bare medlemskap i gruppen gir den lesbare kopien.
+    if (uid === caller && familyId && !(family && listedOnFamily(family, uid))) isChildMember = false;
 
     await adminAuth.updateUser(uid, { password: pwd });
-    const wipe = { password: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() };
-    const store = { password: pwd, updatedAt: FieldValue.serverTimestamp() };
-    const jobs = [
-      db.doc(`parents/${uid}`).set(wipe, { merge: true }).catch(() => {}),
-      db.doc(`users/${uid}`).set(wipe, { merge: true }).catch(() => {}),
-    ];
-    if (isChildMember) {
-      jobs.push(db.doc(`children/${uid}`).set(store, { merge: true }).catch(() => {}));
-      if (familyId) jobs.push(db.doc(`families/${familyId}/children/${uid}`).set(store, { merge: true }).catch(() => {}));
-    } else {
-      jobs.push(db.doc(`children/${uid}`).set(wipe, { merge: true }).catch(() => {}));
-      if (familyId) jobs.push(db.doc(`families/${familyId}/children/${uid}`).set(wipe, { merge: true }).catch(() => {}));
-    }
-    if (familyId) jobs.push(db.doc(`families/${familyId}/parents/${uid}`).set(wipe, { merge: true }).catch(() => {}));
-    await Promise.all(jobs);
+    await writeMemberPasswordCopies(db, {
+      uid,
+      familyId: family ? familyId : '',
+      isChildMember,
+      password: pwd,
+    });
+    logger.info('[setMemberPassword] passord satt', { caller, uid, familyId, self: uid === caller });
     return { ok: true };
   } catch (error) {
     if (error instanceof HttpsError) return { ok: false, error: error.message };

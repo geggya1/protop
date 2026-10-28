@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { newId, setEmployeePath } from '../../src/employees/model';
+import {
+  displayName, employmentEndDate, isActiveEmployee, newId, setEmployeePath,
+} from '../../src/employees/model';
+import { todayKey } from '../../src/employees/employmentState';
+import { confirmUser } from '../../src/utils/dialog';
 import { employmentFlags } from '../../src/employees/employmentFlags';
 import {
   SCHEDULE_DAYS,
@@ -23,8 +27,8 @@ import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
 
+// «Kan logge inn» er ikke et eget valg: innlogging følger kobling og om ansettelsen er aktiv.
 const CHECKS = [
-  { key: 'canLogin', label: 'Kan logge inn', path: 'company' },
   { key: 'activeEmployment', label: 'Har et aktivt arbeidsforhold' },
   { key: 'showFlexInTimesheet', label: 'Vis mertid i timelisten' },
   // Kapasitet og ekstern følger personelltypen under rettigheter.
@@ -93,26 +97,31 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }
   async function toggle(key) {
     const row = CHECKS.find((item) => item.key === key);
     if (row ? rowLocked(row, membership) : !canEdit) return;
-    if (key === 'canLogin') {
-      await onSave?.(setEmployeePath(employee, 'company.canLogin', employee?.company?.canLogin === false));
-      return;
-    }
     const current = timeSettingsOf(employee)[key];
     const value = !current;
     const companyPatch = {};
     if (key === 'activeEmployment') {
-      companyPatch.status = value ? 'active' : 'inactive';
+      if (!value) {
+        await closeAccount();
+        return;
+      }
+      companyPatch.status = 'active';
+      // En passert sluttdato ville holdt ansettelsen avsluttet.
+      if (employmentEndDate(employee) && employmentEndDate(employee) < todayKey()) companyPatch.periodTo = '';
     }
-    await onSave?.(patchSettings({ [key]: value }, companyPatch));
+    setNote('');
+    setError('');
+    const ok = await onSave?.(patchSettings({ [key]: value }, companyPatch));
+    if (ok && key === 'activeEmployment') setNote('Arbeidsforholdet er aktivt igjen.');
   }
 
   async function saveGoals() {
     const percent = Number(String(target).replace(',', '.'));
-    await onSave?.(patchSettings({
+    const ok = await onSave?.(patchSettings({
       utilizationTarget: Number.isFinite(percent) ? percent : 100,
       hourlyRate: rate,
     }));
-    setNote('Mål og timepris er lagret.');
+    if (ok) setNote('Mål og timepris er lagret.');
   }
 
   async function resetPassword() {
@@ -131,16 +140,30 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }
     }
   }
 
+  /** Avslutt: bekreft først, sett sluttdato til i dag, og si fra bare når lagringen lyktes. */
   async function closeAccount() {
-    let next = setEmployeePath(employee, 'company.status', 'inactive');
-    next = setEmployeePath(next, 'company.canLogin', false);
-    await onSave?.(next);
-    setNote('Medarbeiderkontoen er avsluttet.');
+    if (!canEdit || !isActiveEmployee(employee)) return;
+    const name = displayName(employee);
+    const sure = await confirmUser(
+      'Avslutte medarbeiderkontoen?',
+      `${name} tas ut av bedriften, logges ut og mister all tilgang. Timer, fravær og dokumenter blir liggende. Du kan aktivere kontoen igjen senere.`,
+      { ok: 'Avslutt kontoen' },
+    );
+    if (!sure) return;
+    setNote('');
+    setError('');
+    const today = todayKey();
+    let next = patchSettings({ activeEmployment: false }, { status: 'inactive', canLogin: false });
+    const end = employmentEndDate(employee);
+    if (!end || end > today) next = setEmployeePath(next, 'company.periodTo', today);
+    const ok = await onSave?.(next);
+    if (ok) setNote(`Medarbeiderkontoen er avsluttet. ${name} er tatt ut av bedriften.`);
+    else setError('Kontoen ble ikke avsluttet. Se feilmeldingen øverst og prøv igjen.');
   }
 
   const flags = {
     ...settings,
-    canLogin: employee?.company?.canLogin !== false,
+    activeEmployment: isActiveEmployee(employee),
     includeInCapacity: membership.includeInCapacity,
     externalConsultant: membership.externalConsultant,
   };
@@ -186,9 +209,16 @@ function EmployeeSettings({ employee, colors, canEdit, onSave, sub = 'general' }
           </View>
           {canEdit ? (
             <View style={styles.row}>
-              <TouchableOpacity onPress={closeAccount} style={[styles.btn, { backgroundColor: '#dc2626' }]}>
-                <Text style={styles.btnText}>Avslutt medarbeiderkonto</Text>
-              </TouchableOpacity>
+              {isActiveEmployee(employee) ? (
+                <TouchableOpacity
+                  nativeID="employee-settings-close"
+                  onPress={closeAccount}
+                  accessibilityRole="button"
+                  style={[styles.btn, { backgroundColor: '#dc2626' }]}
+                >
+                  <Text style={styles.btnText}>Avslutt medarbeiderkonto</Text>
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity onPress={saveGoals} style={[styles.btn, { backgroundColor: colors.brand }]} nativeID="employee-settings-save">
                 <Text style={styles.btnText}>Lagre endringer</Text>
               </TouchableOpacity>

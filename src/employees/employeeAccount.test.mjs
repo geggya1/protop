@@ -23,7 +23,11 @@ assert.match(employment, /label="Personell"/);
 
 // Brukerkonto: aktiver/deaktiver, inviter med tidspunkt, rettigheter som oppsummering med lenke.
 assert.match(account, /onClassify\?\.\(\{ status: 'active' \}\)/);
-assert.match(account, /onClassify\?\.\(\{ status: 'inactive', canLogin: false \}\)/);
+assert.match(account, /onClassify\?\.\(\{ status: 'inactive' \}\)/);
+// «Kan logge inn» er ikke et eget valg (gjorde ingenting). Innlogging følger kobling og status.
+assert.equal(/onClassify\?\.\(\{ canLogin/.test(account), false);
+assert.match(account, /label="Kan logge inn"/);
+assert.match(account, /nativeID="employee-account-invite-withdraw"/);
 assert.match(account, /nativeID="employee-account-invite-send"/);
 assert.match(account, /inviteTimeline\(employee\)/);
 assert.match(account, /Rettighetene settes bare i Tilgangsstyring\./);

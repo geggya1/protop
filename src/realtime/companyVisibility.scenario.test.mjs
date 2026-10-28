@@ -554,10 +554,11 @@ test('flere boter: oppslag, flere bedrifter, invitasjon, e-post, deaktivering og
     queueEmployeeInvite(removed).error,
     'Medarbeideren ligger i papirkurven.',
   );
-  assert.equal(
-    claimInvite(world, { companyId: consult.id, uid: EVA, email: 'eva@example.com' }).already,
-    true,
-  );
+  // Avsluttet ansettelse knyttes ikke på nytt ved innlogging (gir verken medlemskap eller admin tilbake).
+  const reclaim = claimInvite(world, { companyId: consult.id, uid: EVA, email: 'eva@example.com' });
+  assert.equal(reclaim.skipped, true);
+  assert.equal(reclaim.closed, true);
+  assert.equal(consult.members.includes(EVA), false);
 
   const liv = employ(world, {
     companyId: nord.id,

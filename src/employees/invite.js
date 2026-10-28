@@ -9,6 +9,7 @@ import {
   levelById,
   levelIdFromRoleLabel,
 } from '../access/companyAccess.js';
+import { isActiveEmployee } from './employmentState.js';
 
 const STATUSES = new Set(['none', 'queued', 'sent', 'accepted', 'declined']);
 
@@ -316,9 +317,9 @@ export function applyInviteSendResult(employee, result, { at = '' } = {}) {
   };
 }
 
+// Samme definisjon som tilgangen: deaktivert, papirkurv og passert sluttdato er avsluttet.
 function employmentOpen(employee) {
-  const status = text(employee?.company?.status || 'active');
-  return status !== 'deleted' && status !== 'inactive' && status !== 'former';
+  return isActiveEmployee(employee);
 }
 
 function acceptedPatch(employee, actor, email, stamp) {
@@ -365,6 +366,8 @@ export function claimEmployeeSeatPlan({
     text(row.personUid) === actor && normalizeInviteState(row.invite).status === 'accepted'
   ));
   if (accepted) {
+    // Avsluttet ansettelse: ingenting skal legges tilbake (medlemskap eller administrator).
+    if (!employmentOpen(accepted)) return { ok: true, skipped: true, closed: true };
     return {
       ok: true,
       already: true,

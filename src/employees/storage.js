@@ -1,12 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  collection, deleteDoc, doc, getDoc, onSnapshot, runTransaction, setDoc,
+  collection, doc, getDoc, onSnapshot, runTransaction, setDoc,
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { employeeListKey, persistEmployeeList } from './localCache.js';
 import {
   mergeEmployeeEdit, newId, normalizeEmployee, normalizeProfile, sortEmployees,
 } from './model.js';
+import { employmentChangeNeedsServer } from './membership.js';
+import { setEmploymentStatus } from './membershipClient.js';
 import { aliasSourceIds, subscribeCompanyAliases } from '../project/companyAlias.js';
 
 const sourceByEmployee = new Map();
@@ -139,13 +141,33 @@ export function watchEmployees(companyId, onData, onError) {
  * Lagre en ansatt. Bare feltene som er endret i forhold til versjonen kopien ble laget fra,
  * skrives, slått sammen med nyeste versjon i skyen i en transaksjon. Kobling og invitasjon
  * som serveren har satt i mellomtiden, overskrives ikke. base kan gis når kallet vet den.
+ *
+ * Avsluttes ansettelsen (deaktivert, papirkurv, sluttdato passert) eller tas den opp igjen,
+ * settes status og sluttdato av serveren først, sammen med medlemskapet. Feiler det, lagres
+ * ingenting, og feilen kastes videre. onEmployment får svaret fra serveren (membership:
+ * removed | restored | needs-invite | kept | none).
  */
-export async function saveEmployee(companyId, employee, { base = null } = {}) {
+export async function saveEmployee(companyId, employee, { base = null, onEmployment = null } = {}) {
   const target = sourceByEmployee.get(sourceKey(companyId, employee?.id))
     || String(employee?.sourceCompanyId || companyId || '').trim();
   const id = employee?.id || newId('emp');
   const ref = employeeRef(target || companyId, id);
   const from = base || employeeVersion(companyId, id, employee?.updatedAt);
+  const current = await getDoc(ref);
+  if (current.exists()) {
+    const remote = normalizeEmployee({ ...current.data(), id });
+    const wanted = mergeEmployeeEdit({ remote, base: from, next: { ...employee, id } });
+    if (employmentChangeNeedsServer(remote, wanted)) {
+      const result = await setEmploymentStatus({
+        companyId,
+        employeeId: id,
+        employeeCompanyId: target || companyId,
+        status: wanted.company.status,
+        periodTo: wanted.company.periodTo,
+      });
+      onEmployment?.(result);
+    }
+  }
   const stamp = new Date().toISOString();
   const next = await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
@@ -170,12 +192,21 @@ export async function saveEmployee(companyId, employee, { base = null } = {}) {
   return next;
 }
 
+/**
+ * Slett permanent (fra papirkurven). Serveren sletter posten og sørger for at personen
+ * ikke lenger er medlem av bedriften.
+ */
 export async function removeEmployee(companyId, employeeId) {
   const id = String(employeeId || '');
   if (!companyId || !id) return;
   const target = sourceByEmployee.get(sourceKey(companyId, id)) || companyId;
+  await setEmploymentStatus({
+    companyId,
+    employeeId: id,
+    employeeCompanyId: target,
+    purge: true,
+  });
   sourceByEmployee.delete(sourceKey(companyId, id));
-  await deleteDoc(employeeRef(target, id));
   try {
     const current = await readLocal(companyId);
     await writeLocal(companyId, current.filter((row) => row.id !== id));

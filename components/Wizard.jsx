@@ -31,7 +31,7 @@ export default function Wizard({
           <Text style={[styles.backTxt, plain && styles.backTxtPlain]}>‹ {t('common.back')}</Text>
         </TouchableOpacity>
       ) : null}
-      {title ? (plain ? <Text style={styles.plainTitle}>{title}</Text> : <Title size={wide ? 22 : 26}>{title}</Title>) : null}
+      {title ? (plain ? <Text style={styles.plainTitle} accessibilityRole="header">{title}</Text> : <Title size={wide ? 22 : 26}>{title}</Title>) : null}
       {subtitle ? (plain ? <Text style={styles.plainSub}>{subtitle}</Text> : <Mute style={styles.sub}>{subtitle}</Mute>) : null}
     </>
   );

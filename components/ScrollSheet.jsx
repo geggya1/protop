@@ -52,7 +52,7 @@ export default function ScrollSheet({
       accessibilityViewIsModal
     >
       <View style={styles.head}>
-        <Text style={[styles.title, { color: colors.ink }]}>{title}</Text>
+        <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">{title}</Text>
         <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Lukk">
           <Text style={{ color: colors.brand }}>Lukk</Text>
         </TouchableOpacity>

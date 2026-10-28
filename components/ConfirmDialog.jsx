@@ -53,7 +53,7 @@ export default function ConfirmDialog({
 
   const card = (
     <Pressable style={styles.card} onPress={() => {}} onStartShouldSetResponder={() => true}>
-      {!!title && <Text style={styles.title}>{title}</Text>}
+      {!!title && <Text style={styles.title} accessibilityRole="header">{title}</Text>}
       {!!message && <Text style={styles.msg}>{message}</Text>}
       <View style={styles.row}>
         {resolvedButtons.map((b, idx) => (

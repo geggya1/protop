@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import ParentHomeBottomNav from './ParentHomeBottomNav';
 import HelpTarget from '../HelpTarget';
@@ -174,7 +174,9 @@ export default function ParentShellBottomNav({
 
   return (
     <HelpTarget id="tabs" style={styles.flowDock}>
-      {bar}
+      <View role="navigation" aria-label="Snarveier">
+        {bar}
+      </View>
     </HelpTarget>
   );
 }

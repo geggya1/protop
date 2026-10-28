@@ -172,7 +172,7 @@ export default function ShellHeader({
               </TouchableOpacity>
             )}
             <View style={styles.textColCompact}>
-              <Text style={[styles.pageTitleCompact, { color: colors.ink }]} numberOfLines={1}>
+              <Text accessibilityRole="header" style={[styles.pageTitleCompact, { color: colors.ink }]} numberOfLines={1}>
                 {pageTitle}
               </Text>
               <Text style={[styles.metaCompact, { color: colors.muted }]} numberOfLines={1}>
@@ -297,6 +297,7 @@ export default function ShellHeader({
                 </Text>
                 <View style={styles.pageTitleRow}>
                   <Text
+                    accessibilityRole="header"
                     style={[styles.pageTitle, showFamilyHint && styles.pageTitleTablet, { color: colors.ink }]}
                     numberOfLines={1}
                   >

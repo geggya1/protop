@@ -309,6 +309,29 @@ select:focus-visible {
   outline: none;
 }
 
+/* Hopp-lenken ligger utenfor skjermen til den får fokus med Tab. */
+.wp-skip-link {
+  position: fixed;
+  left: 12px;
+  top: -80px;
+  z-index: 2147483647;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #07274C;
+  color: #ffffff;
+  font-size: 15px;
+  text-decoration: none;
+}
+.wp-skip-link:focus,
+.wp-skip-link:focus-visible {
+  top: 12px;
+  outline: 2px solid #1099F4;
+  outline-offset: 2px;
+}
+#shell-scroll:focus {
+  outline: none;
+}
+
 /* Mobil: full bredde */
 #root { max-width: 100%; margin: 0 auto; }
 

@@ -52,7 +52,7 @@ export default function ConfirmActionModal({
 
   const card = (
     <View style={styles.card} accessibilityRole="dialog" accessibilityViewIsModal>
-      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.title} accessibilityRole="header">{title}</Text>
       {body ? <Text style={styles.body}>{body}</Text> : null}
 
       {checkLabel ? (

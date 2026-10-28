@@ -154,6 +154,26 @@ function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) 
   );
 }
 
+/**
+ * Hopp-lenke på web (WCAG 2.4.1): første Tab-stopp på siden, synlig bare med fokus.
+ * Flytter fokus til hovedinnholdet uten å endre adressen (navigasjonen leser stien).
+ */
+function SkipToContent() {
+  if (Platform.OS !== 'web') return null;
+  const jump = (event) => {
+    event.preventDefault();
+    const main = typeof document !== 'undefined' ? document.getElementById('shell-scroll') : null;
+    if (!main) return;
+    if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
+    main.focus({ preventScroll: false });
+  };
+  return (
+    <a href="#shell-scroll" className="wp-skip-link" onClick={jump}>
+      Hopp til innholdet
+    </a>
+  );
+}
+
 /** Moduler med tipsfeltet på alle undersider unntatt oversikten: fane → standard underside. */
 const SUBPAGE_ASIDE = { iso: defaultIsoSubView, hr: defaultHrSubView };
 /** Under denne vindusbredden får modulen hele bredden i stedet for tipsfeltet. */
@@ -1005,13 +1025,17 @@ function AppShellInner() {
     <ShellPageHeroContext.Provider value={shellPageHeroApi}>
     <View style={[styles.safe, { backgroundColor: immersiveHome ? '#1a2430' : colors.bg }]}>
       <UsageRecorder companyId={familyId} tab={tab} subView={moreSubView} />
+      <SkipToContent />
       {immersiveHome ? (
         <HomeBackdrop bannerId={backdropBannerId} customUri={backdropCustomUri} />
       ) : null}
       <SafeAreaView edges={safeEdges} style={[styles.safe, styles.shellAboveBackdrop]}>
       <View style={[styles.wrap, hasRail && !kitchenMode && styles.wrapRow, immersiveHome && styles.immersiveLayer]}>
         {hasRail && !kitchenMode && (
-          <View style={[
+          <View
+            role="navigation"
+            aria-label="Hovedmeny"
+            style={[
             styles.rail,
             {
               width: isDesktop ? (railCollapsed ? 52 : railWidth) : railWidth,
@@ -1131,6 +1155,7 @@ function AppShellInner() {
           ) : null}
           <View
             nativeID="shell-scroll"
+            role="main"
             style={[
             styles.contentArea,
             !isDesktop && styles.contentClip,

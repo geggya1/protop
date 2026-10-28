@@ -322,18 +322,11 @@ export async function loginAndSettle(bot, { name = '' } = {}) {
 /** Privat/Bedrift → Opprett ny bedrift → Registrer manuelt. */
 export async function createCompanyUI(bot, name, address = '') {
   await skipTour(bot);
-  await tapId(bot, 'platform-switch-bedrift');
+  // CreateCompany-ruten direkte: samme skjerm som «Opprett ny bedrift» fører til,
+  // og den finnes uansett om bedriftsbryteren er synlig (telefon/desktop).
+  await bot.page.goto(`${BASE}/CreateCompany`, { waitUntil: 'domcontentloaded' });
   await bot.page.waitForTimeout(1500);
-  const t = await bot.visibleText();
-  if (!/Opprett ny bedrift/.test(t)) {
-    // Har allerede bedrift: menyen åpnes. Bruk profilmenyen i stedet.
-    await bot.page.keyboard.press('Escape').catch(() => {});
-    await bot.page.evaluate(() => window.__protopBot.openShell('home', null));
-    await bot.page.waitForTimeout(800);
-    await bot.page.goto(`${BASE}/CreateCompany`, { waitUntil: 'domcontentloaded' });
-  } else {
-    await tap(bot, 'Opprett ny bedrift');
-  }
+  await skipTour(bot);
   await waitText(bot, /Opprett bedrift/, 30000);
   await bot.fill('Bedriftsnavn', name);
   if (address) await bot.fill('Adresse, hvis kjent', address);

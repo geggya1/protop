@@ -271,6 +271,8 @@ try {
     await fillAfterLabel(E, 'Omfang (prosesser/enheter)', 'Byggeplass og stillas');
     await fillAfterLabel(E, 'Kriterier', 'ISO 45001 kap. 8');
     await pickPerson(E, 'Per Prosjektleder', 'last');
+    // Påkrevd uavhengighetserklæring (avkrysning uten «*» i skjemaet).
+    await E.page.getByRole('checkbox', { name: 'Revisor reviderer ikke eget arbeid' }).last().click({ timeout: 30000 });
     await E.page.locator('input[type=date]').last().fill('2026-10-27');
     await E.shot('revisjon-skjema');
     await clickLast(E, 'Lagre');

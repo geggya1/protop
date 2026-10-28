@@ -11,6 +11,7 @@ import {
   standardAccountRows,
 } from '../economy/companyChart.js';
 import { normalizeCompanyInvoiceDefaults } from '../economy/companyInvoiceDefaults.js';
+import { appendNumberJump } from '../economy/invoiceNumberSeries.js';
 
 function text(value) {
   return String(value || '').trim();
@@ -124,9 +125,17 @@ export function saveStandardAccounts(state, draft) {
   });
 }
 
-/** Lagre selskapets faktura-/økonomistandarder som prosjekter arver. */
-export function saveCompanyInvoiceDefaults(state, draft = {}) {
-  const next = normalizeCompanyInvoiceDefaults(draft);
+/**
+ * Lagre selskapets faktura-/økonomistandarder som prosjekter arver.
+ * numberJump er en begrunnet rad for et hopp i nummerserien. Loggen tas fra lagret
+ * tilstand, ikke fra utkastet, så rader ikke kan fjernes ved lagring.
+ */
+export function saveCompanyInvoiceDefaults(state, draft = {}, { numberJump = null } = {}) {
+  const saved = state?.companyInvoiceDefaults?.numberJumps;
+  const next = normalizeCompanyInvoiceDefaults({
+    ...draft,
+    numberJumps: appendNumberJump(saved, numberJump),
+  });
   return ok({
     ...state,
     companyInvoiceDefaults: { ...next, updatedAt: stamp() },

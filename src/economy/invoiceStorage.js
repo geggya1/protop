@@ -8,6 +8,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { rememberInvoicedStatement } from './invoicedStatementStorage.js';
+import { withEvent } from './invoiceFlow.js';
+import { issueGapRecord, jumpReasonFor, seriesGapOnIssue } from './invoiceNumberSeries.js';
 import {
   invoiceListSource,
   isInvoiceCacheQuotaError,
@@ -191,13 +193,22 @@ export async function peekInvoiceNumbers(companyId) {
  * sammen, så to brukere aldri får samme nummer og et nummer aldri går tapt.
  * minimum er høyeste nummer i listen + 1, eller startnummeret fra innstillingene.
  * build(number, current) returnerer { ok, invoice, error } (se issueInvoice).
+ * Hopper nummeret over ubrukte nummer, logges hullet med begrunnelse på telleren
+ * (jumps) og i fakturaens hendelseslogg (bokføringsforskriften § 5-1-1 nr. 1).
+ * Begrunnelsen er gapReason, eller hentes fra numberJumps (fakturastandardene).
  */
-export async function issueInvoiceWithNumber(companyId, invoice, { minimum = 1, build } = {}) {
+export async function issueInvoiceWithNumber(companyId, invoice, {
+  minimum = 1,
+  build,
+  numberJumps = [],
+  gapReason = '',
+} = {}) {
   if (!companyId) throw new Error('Mangler selskap.');
   const id = text(invoice?.id);
   if (!id) throw new Error('Fakturaen mangler id.');
   const ref = invoiceRef(companyId, id);
   const counter = seriesRef(companyId);
+  const listed = await peekInvoiceNumbers(companyId).catch(() => ({ highest: 0 }));
   const issued = await runTransaction(db, async (tx) => {
     const counterSnap = await tx.get(counter);
     const invoiceSnap = await tx.get(ref);
@@ -208,13 +219,28 @@ export async function issueInvoiceWithNumber(companyId, invoice, { minimum = 1, 
     const result = build(String(number), current);
     if (!result?.ok) throw new Error(result?.error || 'Kunne ikke ferdigstille fakturaen.');
     const stamp = new Date().toISOString();
+    const gap = seriesGapOnIssue({ last, highest: listed.highest, number });
+    const record = issueGapRecord(gap, {
+      reason: text(gapReason) || jumpReasonFor(numberJumps, gap),
+      invoiceId: id,
+      actor: { byUid: result.invoice.issuedByUid, byName: result.invoice.issuedByName },
+      at: stamp,
+    });
+    const built = record
+      ? withEvent(result.invoice, { type: 'number', text: record.event, actor: { byUid: result.invoice.issuedByUid, byName: result.invoice.issuedByName }, at: stamp })
+      : result.invoice;
     const next = normalizeInvoice({
-      ...result.invoice,
+      ...built,
       id,
       createdAt: result.invoice.createdAt || current?.createdAt || stamp,
       updatedAt: stamp,
     });
-    tx.set(counter, { last: number, updatedAt: stamp }, { merge: true });
+    const jumps = Array.isArray(counterSnap.exists() ? counterSnap.data()?.jumps : null) ? counterSnap.data().jumps : [];
+    tx.set(counter, {
+      last: number,
+      updatedAt: stamp,
+      ...(record ? { jumps: [...jumps, record.entry].slice(-200) } : {}),
+    }, { merge: true });
     tx.set(ref, next, { merge: true });
     return next;
   });

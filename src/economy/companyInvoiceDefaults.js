@@ -2,6 +2,7 @@
  * Selskapets standard faktura- og økonomiinnstillinger.
  * Prosjekter arver disse verdien når prosjektfelt er tomme / «bruk standard».
  */
+import { normalizeNumberJumps } from './invoiceNumberSeries.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -110,6 +111,8 @@ export function normalizeCompanyInvoiceDefaults(raw = {}) {
       next[key] = n == null ? sample : n;
     } else next[key] = text(src[key]).slice(0, key.endsWith('Text') ? 4000 : 200);
   }
+  // Begrunnede hopp i nummerserien (bokføringsforskriften § 5-1-1 nr. 1). Loggen bare vokser.
+  next.numberJumps = normalizeNumberJumps(src.numberJumps);
   return next;
 }
 

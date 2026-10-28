@@ -434,7 +434,7 @@ export async function clickInRow(bot, rowText, pick = 'last', { minChildren = 3 
 
 /** Åpner føringsdialogen for prosjektraden og dagen (1–31) i månedsrutenettet (PC-visning). */
 export async function openTimesheetCell(bot, projectLabel, day) {
-  await bot.page.getByText(projectLabel, { exact: true }).first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+  await bot.page.getByText(projectLabel, { exact: true }).first().waitFor({ state: 'visible', timeout: 90000 }).catch(() => {});
   const r = await bot.page.evaluate(([label, d]) => {
     document.querySelectorAll('[data-drift-cell]').forEach((e) => e.removeAttribute('data-drift-cell'));
     const el = [...document.querySelectorAll('div')].find((e) => e.childElementCount === 0 && (e.innerText || '').trim() === label);
@@ -493,6 +493,8 @@ export function osloDate() {
 export async function go(bot, tab, sub = null, wait = 3000) {
   // Skallet kan overstyre en tidlig navigasjon (startsiden «Selskap» lastes etter innlogging).
   // Åpne derfor to ganger; andre gang er uten virkning når vi allerede står der.
+  // Appen kan ha lastet seg på nytt (f.eks. etter en intern Firestore-feil): vent på testkroken.
+  await bot.page.waitForFunction(() => !!window.__protopBot, null, { timeout: 180000 }).catch(() => {});
   await bot.open(tab, sub, 1200);
   await bot.open(tab, sub, wait);
   const skip = bot.page.getByText('Hopp over rundturen', { exact: true });

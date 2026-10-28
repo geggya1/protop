@@ -243,6 +243,13 @@ try {
   A = await newBot(Bot, 'A-ansatt', S.users.ansatt, { outDir: SHOTS });
   await guard(R, '1.11', 'Låsing og godkjenning', async () => {
     await go(A, 'arbeid', 'timeliste', 4500);
+    // Ikke lås før prosjektene er lastet: en timeliste som ikke fikk lest prosjektdokumentet,
+    // skriver en tom prosjektliste ved første endring (se drift-7-tregt-nett).
+    for (let i = 0; i < 3 && !(await A.hasText('#100 Rehab Kundeveien', { timeout: 60000 })); i += 1) {
+      await A.page.reload();
+      await A.waitShell();
+      await go(A, 'arbeid', 'timeliste', 4500);
+    }
     await A.page.getByRole('button', { name: `Lås timer til ${today}` }).waitFor({ state: 'visible', timeout: 60000 });
     await A.page.getByRole('button', { name: `Lås timer til ${today}` }).click();
     await sleep(2500);

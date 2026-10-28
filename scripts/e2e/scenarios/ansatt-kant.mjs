@@ -77,6 +77,12 @@ async function setupOwner() {
   if (bots.eier) await closeBot('eier');
   const b = await bot('eier', 'desktop');
   await loginAndSettle(b, { name: st.eier.name });
+  if (/Velkommen/.test(await b.visibleText())) {
+    // Treg maskin: profilsteget svarte ikke. Last på nytt og prøv igjen.
+    await b.page.reload({ waitUntil: 'domcontentloaded' });
+    await b.page.waitForTimeout(8000);
+    await b.page.getByText('Fortsett', { exact: true }).first().click({ timeout: 20000 }).catch(() => {});
+  }
   await waitShell(b);
   st.company = `Kant Bygg ${ID} AS`;
   await createCompanyUI(b, st.company);

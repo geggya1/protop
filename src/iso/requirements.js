@@ -15,7 +15,7 @@ import {
 
 export function allRequirements(state) {
   const standards = state?.system?.standards?.length ? state.system.standards : [];
-  const lib = isoRequirementLibrary(standards);
+  const lib = isoRequirementLibrary(standards, state?.system?.editions);
   const custom = (state?.requirements || []).filter((r) => !r.archived);
   return [...lib, ...custom];
 }

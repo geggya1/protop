@@ -3,7 +3,7 @@ import { Platform, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate } from '../../src/iso/core';
 import {
-  ASSESSMENT_STATUSES, NORWEGIAN_OBLIGATIONS, REQUIREMENT_KINDS, STANDARDS, assessmentLabel, kindLabel, mayBeNotApplicable,
+  ASSESSMENT_STATUSES, NORWEGIAN_OBLIGATIONS, REQUIREMENT_KINDS, STANDARDS, assessmentLabel, kindLabel, mayBeNotApplicable, standardLabel,
 } from '../../src/iso/catalog';
 import {
   assessmentFor, attachEvidence, createCustomRequirement, linksFor, matrixRows, requirementById, reviewEvidenceLink, setAssessment,
@@ -42,6 +42,13 @@ export default function IsoRequirements({ ctx, legal = false }) {
   useEffect(() => { if (params?.status) setStatus(params.status); if (params?.open) setOpenId(params.open); if (params?.standard) setStandard(params.standard); }, [params]);
   const rows = useMemo(() => matrixRows(state, { standard, kind, status, search: q, onlyNoEvidence: noEvidence, onlyOverdue: overdue }), [state, standard, kind, status, q, noEvidence, overdue]);
   const active = STANDARDS.filter((s) => state.system.standards.includes(s.code));
+  // Siste utgavebytte per standard det siste året, med antall krav som ikke er vurdert på nytt.
+  const transitions = useMemo(() => {
+    const year = new Date(Date.now() - 365 * 24 * 3600 * 1000).toISOString();
+    const latest = new Map();
+    for (const h of state.system.editionHistory || []) if (String(h.at) >= year && state.system.standards.includes(h.code)) latest.set(h.code, h);
+    return [...latest.values()].map((h) => ({ ...h, open: matrixRows(state, { standard: h.code, status: 'ma_revurderes' }).length }));
+  }, [state]);
   const existingKeys = new Set(state.requirements.map((r) => r.templateKey).filter(Boolean));
 
   async function addNorwegian(o) {
@@ -66,9 +73,16 @@ export default function IsoRequirements({ ctx, legal = false }) {
       )}
     >
       {!legal && !active.length ? <Banner tone="warn" text="Ingen standarder er aktivert. Velg standarder under Innstillinger." /> : null}
+      {!legal ? transitions.map((t) => (
+        // Overgang til ny utgave (ISO-09): kravene i standarden er merket for ny vurdering.
+        <Card key={`${t.code}-${t.at}`} title={`Ny utgave: ${standardLabel(t.code, { [t.code]: t.to })}`} subtitle={`Byttet fra ${standardLabel(t.code, { [t.code]: t.from })} ${String(t.at).slice(0, 10).split('-').reverse().join('.')}${t.by ? ` av ${t.by}` : ''}. Vurderinger og bevis er beholdt.`}>
+          <Text style={{ color: colors.ink, fontSize: 13 }}>{`${t.open} krav i standarden må vurderes på nytt mot den nye utgaven.`}</Text>
+          {t.open ? <Btn small icon="refresh-circle-outline" label="Vis krav som må vurderes" onPress={() => { setStandard(t.code); setStatus('ma_revurderes'); }} /> : null}
+        </Card>
+      )) : null}
       <Card>
         <TextIn value={q} onChangeText={setQ} placeholder="Søk i klausul, tittel eller kilde" />
-        {!legal ? <Choice small options={active.map((s) => ({ id: s.code, label: s.label }))} value={standard} onChange={setStandard} placeholder="Alle standarder" title="Standard" /> : null}
+        {!legal ? <Choice small options={active.map((s) => ({ id: s.code, label: standardLabel(s.code, state.system.editions) }))} value={standard} onChange={setStandard} placeholder="Alle standarder" title="Standard" /> : null}
         <Row>
           <View style={{ flex: 1, minWidth: 160 }}><Choice small options={REQUIREMENT_KINDS} value={kind} onChange={setKind} placeholder="Alle kravtyper" title="Kravtype" /></View>
           <View style={{ flex: 1, minWidth: 160 }}><Choice small options={ASSESSMENT_STATUSES.map((s) => ({ id: s.id, label: s.label }))} value={status} onChange={setStatus} placeholder="Alle statuser" title="Vurdering" /></View>

@@ -16,6 +16,44 @@ export function standardByCode(code) {
   return STANDARDS.find((row) => row.code === code) || null;
 }
 
+/**
+ * Utgaver per standard (ISO-09). Virksomheten velger utgaven den er sertifisert eller skal sertifiseres
+ * etter (system.editions). Uten valg gjelder utgaven i STANDARDS. Amd 1:2024 (klima) gjelder alle tre.
+ */
+export const STANDARD_EDITIONS = {
+  ISO9001: [{ id: '2015+A1:2024', label: 'ISO 9001:2015 + Amd 1:2024' }, { id: '2026', label: 'ISO 9001:2026' }],
+  ISO14001: [{ id: '2015+A1:2024', label: 'ISO 14001:2015 + Amd 1:2024' }, { id: '2026', label: 'ISO 14001:2026' }],
+  ISO45001: [{ id: '2018+A1:2024', label: 'ISO 45001:2018 + Amd 1:2024' }],
+};
+
+export function standardEdition(code, editions = null) {
+  const list = STANDARD_EDITIONS[code] || [];
+  return list.find((e) => e.id === editions?.[code]) || list.find((e) => e.id === standardByCode(code)?.edition) || list[0] || null;
+}
+
+/** «ISO 9001:2015 + Amd 1:2024» eller «ISO 9001:2026», etter valgt utgave. */
+export function standardLabel(code, editions = null) {
+  return standardEdition(code, editions)?.label || standardByCode(code)?.label || code;
+}
+
+/** Bare gyldige utgaver lagres. */
+export function cleanEditions(raw) {
+  const out = {};
+  for (const [code, list] of Object.entries(STANDARD_EDITIONS)) {
+    if (list.some((e) => e.id === raw?.[code])) out[code] = raw[code];
+  }
+  return out;
+}
+
+/**
+ * Krav-id-er uten utgave (req_9001_context). Eldre id-er hadde utgaven i seg (req_9001_2026_context) og
+ * ville blitt foreldreløse ved bytte av utgave; de gjøres om til samme id uten utgave.
+ */
+export function canonicalRequirementId(id) {
+  const m = /^req_(\d{4,5})_[0-9A-Za-z]+_([A-Za-z]+)$/.exec(String(id || ''));
+  return m ? `req_${m[1]}_${m[2]}` : String(id || '');
+}
+
 /** Kravtyper som alltid skal skilles i UI (A19). */
 export const REQUIREMENT_KINDS = [
   { id: 'iso', label: 'ISO-krav', hint: 'Krav i aktivert ISO-standard. Fagvalideres mot lisensiert tekst.' },
@@ -95,27 +133,31 @@ export function mayBeNotApplicable(requirement) {
   return requirement.standard === 'ISO9001' && /^8\./.test(String(requirement.clause || ''));
 }
 
-/** Standard kravbibliotek for valgte standarder. Stabil id per standard/utgave/klausul. */
-export function isoRequirementLibrary(standardCodes = STANDARDS.map((s) => s.code)) {
+/**
+ * Standard kravbibliotek for valgte standarder. Stabil id per standard og kravområde, uten utgave,
+ * så vurderinger og bevis følger med når virksomheten bytter utgave. Utgaven står på kravet.
+ */
+export function isoRequirementLibrary(standardCodes = STANDARDS.map((s) => s.code), editions = null) {
   const out = [];
   for (const code of standardCodes) {
     const std = standardByCode(code);
     if (!std) continue;
+    const edition = standardEdition(code, editions);
     for (const area of REQUIREMENT_AREAS) {
       const clause = area.clauses[code];
       if (!clause) continue;
       out.push({
-        id: `req_${std.number}_${std.edition.replace(/[^0-9A-Za-z]/g, '')}_${area.key}`,
+        id: `req_${std.number}_${area.key}`,
         kind: 'iso',
         standard: code,
-        edition: std.edition,
+        edition: edition?.id || std.edition,
         clause,
         areaKey: area.key,
         title: area.title,
         summary: area.summary,
         module: area.module,
         reviewStatus: 'ikke_faglig_validert',
-        source: `${std.label} (lisensiert tekst kreves for normativ ordlyd)`,
+        source: `${edition?.label || std.label} (lisensiert tekst kreves for normativ ordlyd)`,
       });
     }
   }

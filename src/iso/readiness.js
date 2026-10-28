@@ -7,7 +7,7 @@
  * Det er ikke en sertifiseringsgrad, og det betyr ikke at kravet er oppfylt i virksomheten.
  */
 import { addDays, isoDate, text, todayKey } from './core.js';
-import { STANDARDS } from './catalog.js';
+import { STANDARDS, standardLabel } from './catalog.js';
 import { documentsDueForReview } from './documents.js';
 import { isOpenFinding, overdueActions } from './findings.js';
 import { matrixRows } from './requirements.js';
@@ -367,7 +367,7 @@ export function certificationReadiness(state, { now = new Date(), people = [], p
     const all = chapters.flatMap((c) => c.items);
     const counts = { dekket: 0, delvis: 0, mangler: 0 };
     for (const i of all) counts[i.status] += 1;
-    return { code, label: std?.label || code, short: std?.short || code, status: rollUp(all), counts, chapters };
+    return { code, label: standardLabel(code, state?.system?.editions), short: std?.short || code, status: rollUp(all), counts, chapters };
   });
   return {
     standards,

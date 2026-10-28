@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate } from '../../src/iso/core';
-import { STANDARDS } from '../../src/iso/catalog';
+import { STANDARDS, standardLabel } from '../../src/iso/catalog';
 import { visibleFindings } from '../../src/iso/access';
 import {
   closedWithinDeadline, findingFunnel, findingTrend, kpis, requirementStatusDistribution, riskMatrixData, upcomingActivities,
@@ -86,7 +86,7 @@ export default function IsoDashboard({ ctx }) {
     <Page
       wide={wide}
       title="Oversikt"
-      intro={`${state.system.name || 'Ledelsessystem'} · ${standards.map((s) => s.label).join(' · ') || 'Ingen standarder aktivert'}`}
+      intro={`${state.system.name || 'Ledelsessystem'} · ${standards.map((s) => standardLabel(s.code, state.system.editions)).join(' · ') || 'Ingen standarder aktivert'}`}
       actions={(
         <>
           <Btn kind="primary" icon="add" label="Meld avvik" onPress={() => go('avvik', { create: true })} />

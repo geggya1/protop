@@ -3,8 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { auditEvent, bump, nowIso, prettyDate } from '../../src/iso/core';
-import { DEFAULT_RISK_METHOD, ISO_ROLES, STANDARDS } from '../../src/iso/catalog';
-import { markForReassessment, requirementIdsForArea } from '../../src/iso/requirements';
+import { DEFAULT_RISK_METHOD, ISO_ROLES, STANDARDS, STANDARD_EDITIONS, standardEdition, standardLabel } from '../../src/iso/catalog';
+import { allRequirements, markForReassessment, requirementIdsForArea } from '../../src/iso/requirements';
 import { setupDefaultsFromCompany } from '../../src/iso/integrations';
 import {
   APPROVER_ROLES, approverUidsFromRoles, employeeForRole, employeeIsoRank, recommendedRoleAccess, roleAccessCheck, restrictedUids,
@@ -18,11 +18,11 @@ import { STARTER_OPTIONS, runStarterKit } from './starterKit';
 import IsoImport from './IsoImport';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { normalizeDocStructure } from '../../src/iso/documents';
-import { mergeOwnChanges, settingsKey } from '../../src/iso/settingsSave';
+import { editionChanges, mergeOwnChanges, settingsKey } from '../../src/iso/settingsSave';
 import { normalizeSystem } from '../../src/iso/state';
 import { normalizeCompanyPage, shownAbout } from '../../src/project/companyPage';
 import {
-  Banner, Btn, Card, Check, Field, KV, ListRow, Page, PersonPick, Pill, Row, TextIn,
+  Banner, Btn, Card, Check, Choice, Field, KV, ListRow, Page, PersonPick, Pill, Row, TextIn,
 } from './isoUi';
 
 function bumpVersion(v) {
@@ -244,6 +244,10 @@ export default function IsoSettings({ ctx }) {
         history: [...(prev.riskMethod?.history || []), { version: prev.riskMethod?.version || DEFAULT_RISK_METHOD.version, name: prev.riskMethod?.name || DEFAULT_RISK_METHOD.name, thresholds: prev.riskMethod?.thresholds || DEFAULT_RISK_METHOD.thresholds }].slice(-20),
       } : (cur.riskMethod || DEFAULT_RISK_METHOD),
       roleMap,
+      // Byttet utgave logges, så kravmatrisen kan vise overgangen (ISO-09).
+      editionHistory: editionChanges(prev, cur, actor).length
+        ? [...(prev.editionHistory || []), ...editionChanges(prev, cur, actor)].slice(-20)
+        : (prev.editionHistory || []),
       // Godkjennerne lagres som liste, så Firestore-reglene kan lese dem.
       approverUids: approverUidsFromRoles(roleMap, cur.ownerUid),
       setupAt: prev.setupAt || nowIso(),
@@ -296,6 +300,13 @@ export default function IsoSettings({ ctx }) {
       }
       sysRef.current = next;
       const scopeMoved = cur.scopeText !== base.scopeText || cur.units !== base.units || cur.locations !== base.locations || cur.activities !== base.activities || (cur.standards || []).join() !== (base.standards || []).join();
+      // Ny utgave: kravene i standarden må vurderes på nytt mot den nye utgaven.
+      for (const change of editionChanges(base, cur, actor)) {
+        const now = store.current();
+        const ids = allRequirements(now).filter((r) => r.kind === 'iso' && r.standard === change.code).map((r) => r.id);
+        const flagged = markForReassessment(now, ids, `Ny utgave: ${standardLabel(change.code, { [change.code]: change.to })}`, { actor });
+        if (flagged.events.length) await store.commitLists({ assessments: flagged.assessments }, flagged.events);
+      }
       if (scopeMoved) {
         const now = store.current();
         const ids = requirementIdsForArea(now, 'scope').concat(requirementIdsForArea(now, 'context'));
@@ -446,9 +457,27 @@ export default function IsoSettings({ ctx }) {
       <Card title="Ledelsessystem" subtitle={sources.company?.navn ? `Hentet fra selskapsprofilen: ${sources.company.navn}${sources.company.organisasjonsnummer ? ` · ${sources.company.organisasjonsnummer}` : ''}` : ''}>
         <Field label="Navn"><TextIn value={v.name} onChangeText={set('name')} /></Field>
         <Field label="Standarder" required>
-          {STANDARDS.map((s) => (
-            <Check key={s.code} label={`${s.label} – ${s.domain}`} value={(v.standards || []).includes(s.code)} onChange={(on) => update((cur) => ({ ...cur, standards: on ? [...(cur.standards || []), s.code] : (cur.standards || []).filter((x) => x !== s.code) }))} />
-          ))}
+          {STANDARDS.map((s) => {
+            const on = (v.standards || []).includes(s.code);
+            const editions = STANDARD_EDITIONS[s.code] || [];
+            return (
+              <View key={s.code} style={{ gap: 4 }}>
+                <Check label={`${standardLabel(s.code, v.editions)} – ${s.domain}`} value={on} onChange={(x) => update((cur) => ({ ...cur, standards: x ? [...(cur.standards || []), s.code] : (cur.standards || []).filter((y) => y !== s.code) }))} />
+                {on && editions.length > 1 ? (
+                  <View style={{ paddingLeft: 28 }}>
+                    <Choice
+                      small
+                      title={`Utgave av ISO ${s.short}`}
+                      options={editions.map((e) => ({ id: e.id, label: e.label }))}
+                      value={standardEdition(s.code, v.editions)?.id}
+                      onChange={(x) => x && update((cur) => ({ ...cur, editions: { ...(cur.editions || {}), [s.code]: x } }))}
+                    />
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+          <Text style={{ color: colors.muted, fontSize: 12 }}>Velg utgaven dere er sertifisert eller skal sertifiseres etter. Vurderinger og bevis følger kravet når utgaven byttes, og kravene i standarden merkes for ny vurdering.</Text>
         </Field>
         <Field label="Omfangserklæring" required><TextIn multiline rows={3} value={v.scopeText} onChangeText={set('scopeText')} /></Field>
         <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>

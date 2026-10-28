@@ -7,7 +7,7 @@
  * ISO før brukeren velger det, og ingenting skrives tilbake til de andre modulene.
  */
 import { addDays, isoDate, lastMonths, monthKey, text, todayKey, uniq } from './core.js';
-import { NORWEGIAN_OBLIGATIONS, STANDARDS } from './catalog.js';
+import { NORWEGIAN_OBLIGATIONS, STANDARDS, standardLabel } from './catalog.js';
 import { isOpenFinding, notificationTaskKey, openActions, urgentTriage } from './findings.js';
 import { normalizeDiagram, versionOf } from './processes.js';
 import { documentsDueForReview } from './documents.js';
@@ -730,7 +730,7 @@ export function starterPlan(system, now = new Date()) {
     documents: ['policy', 'avviksrutine'],
     review: { title: `Ledelsens gjennomgang ${year}`, period: String(year), meetingDate: `${year}-12-01` },
     audits: [...std].map((code, i) => ({
-      title: `Internrevisjon ${STANDARDS.find((s) => s.code === code)?.label}`,
+      title: `Internrevisjon ${standardLabel(code, system?.editions)}`,
       plannedDate: addDays(todayKey(now), 60 + i * 60),
       standards: [STANDARDS.find((s) => s.code === code)?.label.replace(/:.*$/, '')],
     })),

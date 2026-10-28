@@ -20,6 +20,37 @@ function clip(value, max = 180) {
   return `${raw.slice(0, max - 1).trim()}…`;
 }
 
+/** Alt fra kunngjøringen og appen escapes før det settes inn i HTML-en. */
+export function escapeMailHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Portalene treffene kommer fra. Andre lenker blir ikke klikkbare i varselet. */
+const NOTICE_HOSTS = [
+  'doffin.no', 'europa.eu', 'mercell.com', 'eu-supply.com', 'tendsign.com', 'tendsign.no',
+  'kgv.no', 'artifik.no', 'hyyr.no', 'protop.no',
+];
+
+/** https-lenke til en kjent anbudsportal, ellers ''. */
+export function safeNoticeUrl(value) {
+  const raw = text(value);
+  if (!raw) return '';
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return '';
+  }
+  if (url.protocol !== 'https:' || url.username || url.password) return '';
+  const host = url.hostname.toLowerCase();
+  return NOTICE_HOSTS.some((allowed) => host === allowed || host.endsWith(`.${allowed}`)) ? url.href : '';
+}
+
 function sourceName(source) {
   if (source === 'ted') return 'TED';
   return 'Doffin';
@@ -65,29 +96,34 @@ export function buildTenderAlert({ companyName, cpvCodes, keywords, notices, lea
     if (row.places?.length) lines.push(row.places.join(', '));
     if (row.brief?.summary) lines.push(clip(row.brief.summary, 220));
     if (row.description) lines.push(clip(row.description));
-    if (row.url) lines.push(row.url);
+    if (safeNoticeUrl(row.url)) lines.push(safeNoticeUrl(row.url));
     lines.push(`Matcher: ${matchLine(row, watched, words)}`);
     lines.push('');
   }
   if (!rows.length) lines.push('Ingen nye treff denne gangen.');
   const textBody = lines.join('\n');
-  const items = rows.map((row) => `
+  const esc = escapeMailHtml;
+  const items = rows.map((row) => {
+    const href = safeNoticeUrl(row.url);
+    const title = esc(row.title || 'Kunngjøring');
+    return `
     <tr>
-      <td style="padding:10px 8px;border-top:1px solid #e6e6e6;vertical-align:top;white-space:nowrap;">${day(row.publishedAt) || '—'}</td>
-      <td style="padding:10px 8px;border-top:1px solid #e6e6e6;vertical-align:top;">${row.noticeType || 'Konkurranse'}<br><span style="color:#667;">${sourceName(row.source)}</span></td>
-      <td style="padding:10px 8px;border-top:1px solid #e6e6e6;vertical-align:top;white-space:nowrap;">${day(row.deadline) || '—'}</td>
+      <td style="padding:10px 8px;border-top:1px solid #e6e6e6;vertical-align:top;white-space:nowrap;">${esc(day(row.publishedAt) || '—')}</td>
+      <td style="padding:10px 8px;border-top:1px solid #e6e6e6;vertical-align:top;">${esc(row.noticeType || 'Konkurranse')}<br><span style="color:#667;">${esc(sourceName(row.source))}</span></td>
+      <td style="padding:10px 8px;border-top:1px solid #e6e6e6;vertical-align:top;white-space:nowrap;">${esc(day(row.deadline) || '—')}</td>
       <td style="padding:10px 8px;border-top:1px solid #e6e6e6;vertical-align:top;">
-        <a href="${row.url || '#'}" style="color:#0b57d0;text-decoration:none;">${row.title || 'Kunngjøring'}</a>
-        <div style="color:#333;margin-top:4px;">${row.buyer || ''}</div>
-        <div style="color:#667;margin-top:4px;">${clip(row.brief?.summary || row.description, 140)}</div>
-        <div style="margin-top:6px;">Matcher: ${matchLine(row, watched, words)}</div>
+        ${href ? `<a href="${esc(href)}" style="color:#0b57d0;text-decoration:none;">${title}</a>` : `<strong>${title}</strong>`}
+        <div style="color:#333;margin-top:4px;">${esc(row.buyer || '')}</div>
+        <div style="color:#667;margin-top:4px;">${esc(clip(row.brief?.summary || row.description, 140))}</div>
+        <div style="margin-top:6px;">Matcher: ${esc(matchLine(row, watched, words))}</div>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#1a1a1a;">
     <p>Hei</p>
     <p>Her er de siste treffene for profilen din:</p>
-    <p>${lead || 'Treffene kommer fra åpne kunngjøringer på Doffin og TED.'}</p>
-    <p><strong>${name}</strong> — ${fresh} ny</p>
+    <p>${esc(lead || 'Treffene kommer fra åpne kunngjøringer på Doffin og TED.')}</p>
+    <p><strong>${esc(name)}</strong> — ${esc(fresh)} ny</p>
     <p>Konkurranser</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
       <thead><tr>

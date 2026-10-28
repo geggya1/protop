@@ -672,15 +672,31 @@ service cloud.firestore {
 
     function memberDocUpdateOk(pid) {
       let self = pid == request.auth.uid || resource.data.get('uid', '') == request.auth.uid;
-      return !changed().hasAny(memberRoleKeys())
-        && (self
-          // Eget dokument: uid kan bare bli en selv, og en kan ikke gi seg selv tilgang tilbake.
-          ? ((unchanged('uid') || request.resource.data.get('uid', '') == request.auth.uid)
-              && (grantsMembership(resource.data) || !grantsMembership(request.resource.data)))
-          // Andres dokument: bare plassholdere som fortsatt ikke gir tilgang, og samme person.
-          : (!changed().hasAny(['uid', 'email', 'phone'])
-              && !grantsMembership(resource.data)
-              && !grantsMembership(request.resource.data)));
+      return self
+        // Eget dokument: ikke rollefeltene, uid kan bare bli en selv, og en kan ikke gi seg selv
+        // tilgang tilbake.
+        ? (!changed().hasAny(memberRoleKeys())
+            && (unchanged('uid') || request.resource.data.get('uid', '') == request.auth.uid)
+            && (grantsMembership(resource.data) || !grantsMembership(request.resource.data)))
+        // Andres dokument: bare plassholdere som fortsatt ikke gir tilgang, og samme person.
+        // Telefon kan fylles inn der den mangler; e-posten (som invitasjonen kobles på) står.
+        : (!changed().hasAny(['uid', 'email'])
+            && (unchanged('phone') || resource.data.get('phone', '') == '')
+            && !grantsMembership(resource.data)
+            && !grantsMembership(request.resource.data)
+            && (!changed().hasAny(memberRoleKeys()) || memberReinviteOk()));
+    }
+
+    // Ny invitasjon til en eksisterende plassholder eller et tidligere medlem (inviteAdult og
+    // inviteExistingAdult skriver med merge): et medlem kan legge den på nytt i eget navn (REV-16).
+    // Den gir ikke tilgang før personen godtar, og aldri administrator eller en ansattrolle.
+    function memberReinviteOk() {
+      let d = request.resource.data;
+      return d.get('admin', false) != true
+        && d.get('superAdmin', false) != true
+        && !changed().hasAny(['staffRole', 'role'])
+        && (unchanged('createdBy') || d.get('createdBy', '') == request.auth.uid)
+        && (unchanged('invitedBy') || d.get('invitedBy', '') == request.auth.uid);
     }
 
     /* ───────── Fakturaer ─────────

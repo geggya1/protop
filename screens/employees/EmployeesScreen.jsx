@@ -21,7 +21,9 @@ import {
 } from '../../src/employees/invite';
 import { inviteAdultSmart, resendAdultInvite } from '../../src/utils/groups';
 import { setEmploymentStatus, withdrawEmployeeInvite } from '../../src/employees/membershipClient';
-import { companyMemberIds, isCompanyOwnerUid, membershipUid } from '../../src/employees/membership';
+import {
+  EMPLOYMENT_CHANGE_DENIED, canChangeEmployment, companyMemberIds, employmentChangeBlocked, isCompanyOwnerUid, membershipUid,
+} from '../../src/employees/membership';
 import { useLeaveCompany } from '../../src/employees/useLeaveCompany';
 import { declineCompanyJoinRequest, watchCompanyJoinRequests } from '../../src/employees/joinRequestsClient';
 import { confirmUser } from '../../src/utils/dialog';
@@ -153,6 +155,10 @@ export default function EmployeesScreen() {
   const isAdmin = access.ready && access.canEdit('employees');
   const employeesAdmin = access.ready && access.canAdmin('employees');
   const canInvite = employeesAdmin;
+  // Avslutte eller aktivere en ansettelse (status, sluttdato) tar personen ut av eller inn i
+  // bedriften: Admin på Ansatte eller Tilgangsstyring, som på serveren (REV-07). Begrenset
+  // redigering ser ikke Deaktiver/Aktiver, og sluttdatoen er låst på en lagret post.
+  const canEndEmployment = canChangeEmployment(access);
   const canEditAccess = (isSuperAdmin(family, uid) && !access.previewLocks('accessControl'))
     || (access.ready && access.canAdmin('accessControl'));
   // Rettighetene settes bare i Tilgangsstyring. Brukerkonto lenker dit for den som kan åpne siden.
@@ -992,6 +998,11 @@ export default function EmployeesScreen() {
 
   async function saveWork(employee) {
     let membership = '';
+    const before = rows.find((row) => row.id === employee?.id);
+    if (employmentChangeBlocked({ before, after: employee, canChange: canEndEmployment })) {
+      showError(EMPLOYMENT_CHANGE_DENIED);
+      return false;
+    }
     try {
       const saved = await saveEmployee(familyId, employee, {
         onEmployment: (res) => { membership = res?.membership || ''; },
@@ -1287,6 +1298,10 @@ export default function EmployeesScreen() {
     if (patch.status === 'active' && employmentState(next) === 'ended') {
       next = { ...next, company: { ...next.company, periodTo: '' } };
     }
+    if (employmentChangeBlocked({ before: current, after: next, canChange: canEndEmployment })) {
+      showError(EMPLOYMENT_CHANGE_DENIED);
+      return false;
+    }
     setDraft(next);
     const result = commitEmployee(next, { scope: 'company' });
     if (!result.ok) {
@@ -1355,6 +1370,10 @@ export default function EmployeesScreen() {
     }
     // Status eller en passert «Ansatt til» avslutter ansettelsen: personen tas ut av bedriften.
     const before = scope === 'company' ? rows.find((row) => row.id === result.employee.id) : null;
+    if (employmentChangeBlocked({ before, after: result.employee, canChange: canEndEmployment })) {
+      showError(EMPLOYMENT_CHANGE_DENIED);
+      return false;
+    }
     if (before && isActiveEmployee(before) && !isActiveEmployee(result.employee)) {
       const ended = employmentState(result.employee) === 'ended';
       const sure = await confirmUser(
@@ -2001,7 +2020,7 @@ export default function EmployeesScreen() {
               colors={colors}
               companyName={companyName}
               busy={busy}
-              canEdit={isAdmin}
+              canEdit={canEndEmployment}
               canInvite={canInvite}
               onClassify={classifyEmployee}
               onInvite={() => inviteEmployee(personEmployee)}
@@ -2022,6 +2041,7 @@ export default function EmployeesScreen() {
               reveal={canSeeSensitive(personEmployee, { uid, isAdmin })}
               canEdit={isAdmin || isSelfRow(personEmployee)}
               canEditAccess={canEditAccess}
+              canEndEmployment={canEndEmployment}
               isAdmin={isAdmin}
               isSelf={isSelfRow(personEmployee)}
               busy={busy}
@@ -2056,6 +2076,7 @@ export default function EmployeesScreen() {
               gaps={gaps}
               canEdit={isAdmin || (isSelfRow(detailEmployee) && ownLevel !== 'reader')}
               canEditAccess={canEditAccess}
+              canEndEmployment={canEndEmployment}
               isAdmin={isAdmin}
               isSelf={isSelfRow(detailEmployee)}
               limited={limitedPerson}
@@ -2350,7 +2371,9 @@ export default function EmployeesScreen() {
             scope={view === 'mine' ? 'profile' : 'employee'}
             colors={colors}
             canEditOwner={canEditOwner}
-            lockedKeys={accessLocked}
+            lockedKeys={!canEndEmployment && draft && rows.some((row) => row.id === draft.id)
+              ? [...accessLocked, 'company.status', 'company.periodTo']
+              : accessLocked}
             departments={departments}
             members={people}
             addressHits={addressHits}

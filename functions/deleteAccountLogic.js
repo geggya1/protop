@@ -1,3 +1,5 @@
+import { isOrganizationType } from '../src/utils/groupTypes.js';
+
 /** Must match src/utils/deleteAccount.js. Reviewers type this in any language. */
 export const DELETE_CONFIRM = 'DELETE';
 
@@ -35,9 +37,9 @@ export function isServerMember(data, uid) {
   return ['members', 'activeUsers', 'memberIds', 'adminUids'].some((key) => listHas(data[key], uid));
 }
 
-/** Bedrift (ikke familie eller lag). */
+/** Bedrift (ikke familie eller lag): type 'organization' eller 'company', eller et firmanavn (REV-20). */
 export function isCompanyGroup(data) {
-  return data?.type === 'organization' || !!data?.company?.navn;
+  return isOrganizationType(data?.type) || !!data?.company?.navn;
 }
 
 /**

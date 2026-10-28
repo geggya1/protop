@@ -339,6 +339,10 @@ export const approveJoinRequest = onCall(
       updatedAt: now,
     }, { merge: true });
 
+    // Et tidligere medlem (fjernet, forlatt, eller en ventende invitasjon) godkjennes på nytt:
+    // utmeldingen og den ventende statusen gjelder ikke lenger, ellers stenger de tilgangen (REV-04).
+    const memberRef = db.doc(`families/${familyId}/parents/${parentUid}`);
+    const earlier = await memberRef.get();
     const member = {
       uid: parentUid,
       name: request.parentName || (withChild ? '' : 'Medlem'),
@@ -346,15 +350,20 @@ export const approveJoinRequest = onCall(
       admin: false,
       active: true,
       archived: false,
+      deleted: false,
       placeholder: false,
+      leftAt: FieldValue.delete(),
+      leftReason: FieldValue.delete(),
+      endedBy: FieldValue.delete(),
       createdAt: now,
       updatedAt: now,
     };
+    if (earlier.exists && earlier.data()?.inviteStatus === 'pending') member.inviteStatus = 'accepted';
     if (withChild) {
       Object.assign(member, { superAdmin: false, role: 'guardian', linkedChildIds: FieldValue.arrayUnion(childRef.id) });
       if (classroom) member.staffRole = null;
     }
-    batch.set(db.doc(`families/${familyId}/parents/${parentUid}`), member, { merge: true });
+    batch.set(memberRef, member, { merge: true });
 
     if (withChild) {
       batch.set(childRef, {

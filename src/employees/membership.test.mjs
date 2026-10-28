@@ -4,6 +4,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  EMPLOYMENT_CHANGE_DENIED,
+  canChangeEmployment,
+  employmentChangeBlocked,
   employmentChangeNeedsServer,
   inviteBelongsTo,
   inviteEmailsToRevoke,
@@ -12,6 +15,7 @@ import {
   membershipUid,
 } from './membership.js';
 import { claimEmployeeSeatPlan } from './invite.js';
+import { allows, resolveActorAccess } from '../access/companyAccess.js';
 
 const family = { ownerUid: 'own', members: ['own', 'kari', 'per'], adminUids: ['own'] };
 
@@ -94,4 +98,34 @@ test('ved hver økt: avsluttet ansettelse knyttes ikke på nytt og gir ikke admi
   assert.equal(plan.closed, true);
   const ended = emp('k', 'kari', { periodTo: '2001-01-01' }, { status: 'sent', email: 'k@firma.no' });
   assert.equal(claimEmployeeSeatPlan({ employees: [ended], uid: 'kari', authEmail: 'k@firma.no' }).ok, false);
+});
+
+test('REV-07: avslutte og aktivere en ansettelse krever Admin på Ansatte, som på serveren', () => {
+  // Samme beregning som serveren (actorRights i functions/companyMembership.js).
+  const accessFor = (level) => {
+    const actor = resolveActorAccess({ policy: null, employees: [emp(`e_${level}`, level, { accessLevels: [level] })], uid: level });
+    return { ready: true, canAdmin: (resource) => allows(actor.grants, resource, 'write') };
+  };
+  const server = (level) => {
+    const { grants } = resolveActorAccess({ policy: null, employees: [emp(`e_${level}`, level, { accessLevels: [level] })], uid: level });
+    return allows(grants, 'employees', 'write') || allows(grants, 'accessControl', 'write');
+  };
+  for (const level of ['avdelingsleder', 'leder', 'hr_ansvarlig', 'administrator', 'ansatt']) {
+    assert.equal(canChangeEmployment(accessFor(level)), server(level), level);
+  }
+  // Avdelingsleder (Begrenset redigering på Ansatte) kan ikke; Øverste leder og HR kan.
+  assert.equal(canChangeEmployment(accessFor('avdelingsleder')), false);
+  assert.equal(canChangeEmployment(accessFor('leder')), true);
+  assert.equal(canChangeEmployment(accessFor('hr_ansvarlig')), true);
+  assert.equal(canChangeEmployment({ ready: false, canAdmin: () => true }), false);
+
+  const active = emp('k', 'kari');
+  const ended = emp('k', 'kari', { periodTo: '2001-01-01' });
+  assert.equal(employmentChangeBlocked({ before: active, after: ended, canChange: false }), true);
+  assert.equal(employmentChangeBlocked({ before: active, after: emp('k', 'kari', { status: 'inactive' }), canChange: false }), true);
+  assert.equal(employmentChangeBlocked({ before: active, after: ended, canChange: true }), false);
+  // Vanlige endringer og nye poster stoppes ikke.
+  assert.equal(employmentChangeBlocked({ before: active, after: emp('k', 'kari', { title: 'Bas' }), canChange: false }), false);
+  assert.equal(employmentChangeBlocked({ before: null, after: ended, canChange: false }), false);
+  assert.match(EMPLOYMENT_CHANGE_DENIED, /Admin på Ansatte/);
 });

@@ -418,7 +418,7 @@ export default function GroupHubScreen({ inShell = false }) {
                 compact={compact}
                 inactive={false}
                 superAdmin={p.uid === owner || p.superAdmin}
-                admin={p.admin || (family?.adminUids || []).includes(p.uid)}
+                admin={(family?.adminUids || []).includes(p.uid)}
                 onPress={() => openMember('parent', p)}
               />
             ))}
@@ -507,7 +507,7 @@ export default function GroupHubScreen({ inShell = false }) {
                           compact={compact}
                           inactive
                           superAdmin={p.uid === owner || p.superAdmin}
-                          admin={p.admin || (family?.adminUids || []).includes(p.uid)}
+                          admin={(family?.adminUids || []).includes(p.uid)}
                           onPress={() => openMember('parent', p)}
                         />
                       ))}

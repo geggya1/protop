@@ -73,6 +73,12 @@ test('jobbkonto: bare xms_edov eller email_verified gjør e-posten bekreftet (nO
   assert.equal(microsoftEmailVerdict({ tid: TENANT, email: 'kari@firma.no', xms_edov: false }, account).verified, false);
   // preferred_username teller ikke for jobbkontoer.
   assert.equal(microsoftEmailVerdict({ tid: TENANT, preferred_username: 'kari@firma.no' }, account).reason, 'no-email');
+  // Autoritativ e-post fra Entra ID (valgfrie claims), som streng eller liste.
+  assert.deepEqual(microsoftEmailVerdict({ tid: TENANT, verified_primary_email: ['Kari@firma.no'] }, account), {
+    verified: true, email: 'kari@firma.no', reason: 'verified_email',
+  });
+  assert.equal(microsoftEmailVerdict({ tid: TENANT, email: 'kari@firma.no', verified_secondary_email: 'kari@firma.no' }, account).verified, true);
+  assert.equal(microsoftEmailVerdict({ tid: TENANT, email: 'kari@firma.no', verified_primary_email: ['annen@firma.no'] }, account).verified, false);
 });
 
 test('personlig Microsoft-konto er bekreftet, men bare for samme e-post som kontoen', () => {

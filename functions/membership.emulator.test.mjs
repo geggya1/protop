@@ -88,7 +88,9 @@ test('FL-09: PowerOffice følger tilgangsstyringen som appen', async () => {
 });
 
 test('FL-08: administratorlisten følger nivået Administrator, og eieren beholder admin', async () => {
-  // Bob blir administrator, adm nedgraderes til Øverste leder, eieren står uten ansattpost.
+  // Etter overføringen (REV-06): Bob blir administrator, adm nedgraderes til Øverste leder,
+  // eieren står uten ansattpost.
+  await db.doc(`families/${A}`).set({ adminLevelsSyncedAt: '2026-10-01T00:00:00.000Z' }, { merge: true });
   await db.doc(`families/${A}/employees/emp_bob`).set({ personUid: 'bob', company: { accessLevels: ['administrator'], status: 'active' } });
   await db.doc(`families/${A}/employees/emp_adm`).set({ personUid: 'adm', company: { accessLevels: ['leder'], status: 'active' } });
   await db.doc(`families/${A}`).set({ adminUids: ['own', 'adm', 'gammel', 'ukoblet'], members: ['own', 'adm', 'bob', 'eve', 'sjef', 'regn', 'ukoblet'] }, { merge: true });
@@ -103,6 +105,35 @@ test('FL-08: administratorlisten følger nivået Administrator, og eieren behold
   assert.equal((await data(`families/${A}/accessAcl/sjef`)).levelId, 'leder');
   // Ingen endring: ingen ny skriving.
   assert.deepEqual((await syncCompany(A)).admins, { add: [], remove: [] });
+});
+
+test('REV-06: første synk tar ikke bort administratorer fra adminUids; de får nivået Administrator', async () => {
+  // Gjort til administrator i Gruppeinnstillinger (adminUids) før administratorlisten fulgte nivået.
+  await db.doc(`families/${A}`).set({ adminUids: ['own', 'adm', 'sjef', 'regn'] }, { merge: true });
+  const first = await syncCompany(A);
+  assert.deepEqual(first.admins, { add: [], remove: [] });
+  const family = await data(`families/${A}`);
+  assert.deepEqual(family.adminUids, ['own', 'adm', 'sjef', 'regn']);
+  assert.ok(family.adminLevelsSyncedAt);
+  for (const uid of ['sjef', 'regn']) {
+    const post = await data(`families/${A}/employees/emp_${uid}`);
+    assert.ok(post.company.accessLevels.includes('administrator'), uid);
+    // Speilet regnes ut fra posten etter overføringen.
+    assert.equal((await data(`families/${A}/accessAcl/${uid}`)).grants.accessControl, 'write', uid);
+  }
+  assert.deepEqual((await data(`families/${A}/employees/emp_sjef`)).company.accessLevels, ['leder', 'administrator']);
+  // Etterpå er nivået det som gjelder: tar en administrator bort nivået, går admin bort.
+  await db.doc(`families/${A}/employees/emp_regn`).set({ company: { accessLevels: ['regnskap_ekstern'] } }, { merge: true });
+  const second = await syncCompany(A);
+  assert.deepEqual(second.admins, { add: [], remove: ['regn'] });
+  assert.ok((await data(`families/${A}/employees/emp_sjef`)).company.accessLevels.includes('administrator'));
+});
+
+test('REV-06: bedriften står aldri uten administrator', async () => {
+  await db.doc(`families/${A}`).set({ ownerUid: null, adminUids: ['adm'], adminLevelsSyncedAt: '2026-10-01T00:00:00.000Z' }, { merge: true });
+  await db.doc(`families/${A}/employees/emp_adm`).set({ company: { accessLevels: ['leder'] } }, { merge: true });
+  await syncCompany(A);
+  assert.deepEqual((await data(`families/${A}`)).adminUids, ['adm']);
 });
 
 test('FL-08: administratorlisten i en familie røres ikke', async () => {

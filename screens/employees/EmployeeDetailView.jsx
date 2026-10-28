@@ -317,6 +317,8 @@ export default function EmployeeDetailView({
   gaps = null,
   canEdit = false,
   canEditAccess = false,
+  // Sluttdatoen avslutter ansettelsen når den passeres: Admin på Ansatte (REV-07).
+  canEndEmployment = true,
   isAdmin = false,
   isSelf = false,
   confirmDelete = false,
@@ -514,6 +516,9 @@ export default function EmployeeDetailView({
     if (ok !== false) cancelEdit();
   }
 
+  // Status og sluttdato avslutter eller åpner ansettelsen: bare med Admin på Ansatte (REV-07).
+  const employmentLocked = canEndEmployment ? [] : ['company.status', 'company.periodTo'];
+
   function fieldEditor(fieldKey) {
     return (
       <InlineEditor
@@ -521,7 +526,7 @@ export default function EmployeeDetailView({
         employee={employee}
         colors={colors}
         canEditOwner={canEditOwner}
-        lockedKeys={canEditAccess ? [] : ['company.accessRole']}
+        lockedKeys={[...(canEditAccess ? [] : ['company.accessRole']), ...employmentLocked]}
         departments={departments}
         members={members}
         addressHits={addressHits}
@@ -549,6 +554,7 @@ export default function EmployeeDetailView({
           showCustom={false}
           colors={colors}
           canEditOwner={canEditOwner}
+          lockedKeys={employmentLocked}
           departments={departments}
           members={members}
           addressHits={addressHits}

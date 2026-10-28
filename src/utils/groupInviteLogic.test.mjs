@@ -95,3 +95,41 @@ test('FL-05: invitasjoner som ikke lenger gjelder, lukkes i innboksen', async ()
   assert.match(inviteResponseMessage('expired'), /utløpt/);
   assert.match(inviteResponseMessage('no-employee'), /trukket tilbake/);
 });
+
+test('REV-05: invitasjon til kontoen krever ikke bekreftet e-post, invitasjon på e-post gjør det', async () => {
+  const { inviteAcceptEmailCheck, inviteMatchedBy, inviteNeedsVerifiedEmail } = await import('./groupInviteLogic.js');
+  assert.equal(inviteMatchedBy('username'), 'username');
+  assert.equal(inviteMatchedBy('invalid-email'), '');
+  // Funnet på brukernavn eller telefon, eller valgt direkte: gjelder kontoen.
+  for (const matchedBy of ['username', 'phone', 'uid']) {
+    const invite = { inviteeUid: 'ola', inviteeEmail: 'ola@firma.no', matchedBy };
+    assert.equal(inviteNeedsVerifiedEmail(invite), false, matchedBy);
+    assert.deepEqual(inviteAcceptEmailCheck({ invite, authEmail: 'ola@firma.no', trusted: false }), { ok: true, matchEmail: '' });
+  }
+  // Eldre invitasjon på brukernavn uten e-post.
+  assert.equal(inviteNeedsVerifiedEmail({ inviteeUid: 'ola', inviteeEmail: '' }), false);
+  // Funnet på e-post, e-postinvitasjon fra syncMyInvites og eldre invitasjoner med e-post.
+  for (const invite of [
+    { inviteeEmail: 'ola@firma.no', matchedBy: 'email' },
+    { inviteeEmail: 'ola@firma.no', source: 'email' },
+    { inviteeEmail: 'ola@firma.no' },
+  ]) {
+    assert.equal(inviteNeedsVerifiedEmail(invite), true, JSON.stringify(invite));
+    assert.deepEqual(inviteAcceptEmailCheck({ invite, authEmail: 'Ola@firma.no', trusted: false }), {
+      ok: false, error: 'email-not-verified', matchEmail: '',
+    });
+    assert.deepEqual(inviteAcceptEmailCheck({ invite, authEmail: 'Ola@firma.no', trusted: true }), {
+      ok: true, matchEmail: 'ola@firma.no',
+    });
+  }
+  // Funnet på e-post: en annen bekreftet adresse (for eksempel fra et forfalsket profilfelt) godtas ikke.
+  assert.equal(inviteAcceptEmailCheck({
+    invite: { inviteeEmail: 'ola@firma.no', matchedBy: 'email' }, authEmail: 'angriper@gmail.com', trusted: true,
+  }).error, 'other-email');
+  // Eldre invitasjoner uten matchedBy: som før (bekreftet e-post holder).
+  assert.equal(inviteAcceptEmailCheck({
+    invite: { inviteeEmail: 'ola@firma.no' }, authEmail: 'ola.privat@gmail.com', trusted: true,
+  }).ok, true);
+  assert.match(inviteResponseMessage('email-verification-sent'), /bekreftelseslenke/);
+  assert.match(inviteResponseMessage('other-email'), /annen e-postadresse/);
+});

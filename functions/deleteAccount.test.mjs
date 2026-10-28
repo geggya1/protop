@@ -92,6 +92,10 @@ assert.equal(handover.nextOwner, 'emp');
 assert.equal(planFamilyExit('me', { id: 'f1', data: { ownerUid: 'me' }, otherLiveParentUids: [], hasAccounting: true }).action, 'archive');
 assert.equal(isCompanyGroup({ company: { navn: 'X AS' } }), true);
 assert.equal(isCompanyGroup({ type: 'family' }), false);
+// REV-20: type 'company' uten company.navn er også en bedrift, så regnskapssperren gjelder.
+assert.equal(isCompanyGroup({ type: 'company' }), true);
+assert.equal(isCompanyGroup({ type: 'Organization' }), true);
+assert.equal(planFamilyExit('me', { id: 'c2', data: { type: 'company', ownerUid: 'me', members: ['me'] }, otherLiveParentUids: [], hasAccounting: true }).action, 'blocked');
 assert.match(accountingBlockMessage(['Bygg AS', 'Bygg AS']), /«Bygg AS», som har utstedte fakturaer/);
 assert.match(accountingBlockMessage([]), /bedriften/);
 assert.match(accountingBlockMessage(['A']), /support@protop\.no/);

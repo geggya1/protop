@@ -184,6 +184,7 @@ export const FILES = [
   'src/employees/employeeAbsenceRender.test.cjs',
   'src/employees/personTabs.test.mjs',
   'src/employees/employeeAccount.test.mjs',
+  'src/employees/membership.test.mjs',
   'src/project/projectAccess.test.mjs',
   'src/arbeid/employeeScheduleRender.test.cjs',
   // Prosjekt, kjøretøy, (i)-forklaringene og fagansvar, og at selskapet lagres felt for felt.
@@ -242,6 +243,8 @@ export const FILES = [
   // Rester: orgnr, Microsoft-e-post, barnepassord, AI-bryter, brukslogg, lagringstid og innsynslogg.
   'src/project/orgnrIndex.test.mjs',
   'functions/microsoftEmail.test.mjs',
+  'src/utils/groupInviteLogic.test.mjs',
+  'src/utils/groupLifecycleLogic.test.mjs',
   'src/utils/childPasswordStorage.test.mjs',
   'src/privacy/aiGuardCoverage.test.mjs',
   'src/employees/usageBatch.test.mjs',

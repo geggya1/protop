@@ -94,6 +94,27 @@ const SECTION_SLOT = {
   admin: 'admin',
 };
 
+/** Lengste beskrivelse av arbeidet på en timelinje (resten kortes med «…»). */
+const WORK_TEXT_MAX = 160;
+
+/**
+ * Hva som er gjort, fra beskrivelsene på timene (ulike tekster, i rekkefølge). Fakturalinjen
+ * sier da hva kunden betaler for, ikke bare hvem som gjorde det.
+ */
+export function workDescription(texts = []) {
+  const seen = new Set();
+  const parts = [];
+  for (const raw of texts || []) {
+    const value = text(raw).replace(/\s+/g, ' ');
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    parts.push(value);
+  }
+  const joined = parts.join('; ');
+  return joined.length > WORK_TEXT_MAX ? `${joined.slice(0, WORK_TEXT_MAX - 1).trimEnd()}…` : joined;
+}
+
 /** Timer → linjer etter groupHoursBy: per medarbeider, aktivitet eller samlet, per måned når perioden vises. */
 export function hourLines(entries = [], { settings = {}, accounts, chart = [], markupPercent = 0, discountPercent = 0 } = {}) {
   const mode = ['employee', 'activity', 'total', 'employee_activity'].includes(settings.groupHoursBy)
@@ -133,15 +154,22 @@ export function hourLines(entries = [], { settings = {}, accounts, chart = [], m
         periodStart: row.date,
         periodEnd: row.date,
         timeEntryIds: [],
+        workTexts: [],
       });
     }
     const bucket = buckets.get(key);
     bucket.quantity = roundHours(bucket.quantity + (Number(row._hours) || 0));
     bucket.timeEntryIds.push(row.id);
+    bucket.workTexts.push(row.description);
     if (row.date < bucket.periodStart) bucket.periodStart = row.date;
     if (row.date > bucket.periodEnd) bucket.periodEnd = row.date;
   }
   return [...buckets.values()]
+    .map(({ workTexts, ...line }) => {
+      // «Anne Ansatt – Riving bad; Flislegging» i stedet for bare navnet.
+      const work = workDescription(workTexts);
+      return work ? { ...line, description: `${line.description} – ${work}` } : line;
+    })
     .map((line) => {
       if (!perMonth) return line;
       const bounds = monthBounds(line.periodStart);

@@ -114,13 +114,8 @@ function noteList(model, demo) {
     highlight: i === 0,
   }));
   if (fromNotes.length) return fromNotes;
-  const hints = (model.remainingHints || []).map((h, i) => ({
-    id: `h-${i}`,
-    title: h,
-    meta: 'Huskelapp',
-    highlight: i === 0,
-  }));
-  return withFallback(hints, FALLBACK_NOTES, { demo });
+  // Ingen notater: vis «Ingen notater ennå», ikke huskelappene som om de var notater.
+  return withFallback([], FALLBACK_NOTES, { demo });
 }
 
 function calendarEvents(model, demo) {

@@ -25,6 +25,7 @@ import {
   memberDayStatus,
   taskFocusMeta,
   buildPrepareFocus,
+  buildRemainingHints,
   timelineEventLabel,
 } from './deskHome.js';
 
@@ -171,11 +172,28 @@ const prepareDone = buildPrepareFocus({
   shopCount: 0,
   dinnerMissing: false,
   dinnerTitle: 'Laksepasta',
+  includeDinner: true,
 });
 assert.equal(prepareDone.eyebrow, 'Før i dag');
 assert.equal(prepareDone.headline, 'Alt er klart');
 assert.equal(prepareDone.done, 3);
 assert.equal(prepareDone.empty, true);
+
+// ProTop: ingen middag i «Før i dag» med mindre den slås på (EGEN-01).
+const noDinner = buildPrepareFocus({ openTasks: [], shopCount: 0, dinnerMissing: true });
+assert.equal(noDinner.remaining.some((row) => row.id === 'dinner'), false);
+assert.equal(noDinner.total, 2);
+assert.equal(JSON.stringify(noDinner).includes('middag'), false);
+
+// «Husk» på Hjem handler om arbeidsdagen, ikke middag og dagligvarer.
+assert.deepEqual(buildRemainingHints({ taskCount: 2, eventsToday: 1 }), ['2 oppgaver gjenstår', '1 avtale i kalenderen i dag']);
+assert.deepEqual(buildRemainingHints({ taskCount: 1 }), ['1 oppgave gjenstår']);
+assert.deepEqual(buildRemainingHints({}), []);
+const banners = readFileSync(new URL('../homeBanners.js', import.meta.url), 'utf8');
+const tagline = banners.slice(banners.indexOf('export function homeSceneTagline'));
+assert.doesNotMatch(tagline.slice(0, tagline.indexOf('\n}')), /[Rr]oligere|middag|familie/);
+const model = readFileSync(new URL('../../components/parentHome/useParentHomeModel.js', import.meta.url), 'utf8');
+assert.doesNotMatch(model, /bits\.push\('Planlegg middag'\)|bits\.push\('Dagligvarer'\)/);
 
 assert.equal(timelineEventLabel({ title: 'Skolelevering' }), 'Skolelevering');
 assert.equal(timelineEventLabel({ title: 'Fotball trening' }), 'Fotball');

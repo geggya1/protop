@@ -193,6 +193,7 @@ export const FILES = [
   'src/project/companyCreate.test.mjs',
   'src/project/companyOffer.test.mjs',
   'src/companyHome/startChecklist.test.mjs',
+  'src/utils/deskHome.test.mjs',
   'functions/vegvesenFallback.test.mjs',
   'functions/ehfGuard.test.mjs',
   'src/economy/ehfResend.test.mjs',

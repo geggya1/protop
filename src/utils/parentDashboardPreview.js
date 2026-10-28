@@ -119,7 +119,7 @@ export function buildParentDashboardPreviewModel(theme, {
     ],
     mealCount: 3,
     notes: [
-      { id: 'n1', title: 'Husk gymtøy i morgen 💪', meta: 'I dag kl. 16:42' },
+      { id: 'n1', title: 'Bestill stillas til Fjordveien', meta: 'I dag kl. 16:42' },
     ],
     noteCount: 1,
     chatPreview: [
@@ -128,7 +128,7 @@ export function buildParentDashboardPreviewModel(theme, {
       { id: 'c3', name: 'Celine', preview: 'Kan jeg ta med bok?', time: '19:55', tint: '#B9A6F0' },
     ],
     unreadByModule: { chat: 3 },
-    remainingHints: ['Dagligvarer', 'Planlegg middag'],
+    remainingHints: ['2 oppgaver gjenstår', '3 avtaler i kalenderen i dag'],
     remainingCount: 2,
     custodyWeekLabel: 'Neste bytte: mandag',
     weekStats: { swaps: 1, activities: 3, appointments: 3, reminders: 6 },

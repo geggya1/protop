@@ -387,6 +387,17 @@ export function joinFirstNames(people = []) {
 }
 
 /**
+ * «Husk» på Hjem: det som gjenstår av arbeidsdagen. Åpne oppgaver og dagens avtaler.
+ * Ingen middag eller handleliste (familieappens moduler finnes ikke i ProTop).
+ */
+export function buildRemainingHints({ taskCount = 0, eventsToday = 0 } = {}) {
+  const bits = [];
+  if (taskCount > 0) bits.push(taskCount === 1 ? '1 oppgave gjenstår' : `${taskCount} oppgaver gjenstår`);
+  if (eventsToday > 0) bits.push(eventsToday === 1 ? '1 avtale i kalenderen i dag' : `${eventsToday} avtaler i kalenderen i dag`);
+  return bits.slice(0, 2);
+}
+
+/**
  * Kort «Før i morgen» / «Før i dag» fra eksisterende apper (oppgaver, handle, middag).
  * Ingen nye apper — bare sammendrag av det som allerede finnes.
  */
@@ -397,7 +408,8 @@ export function buildPrepareFocus({
   shopLabel = 'Handleliste',
   dinnerMissing = false,
   dinnerTitle = '',
-  includeDinner = true,
+  // ProTop har ikke middagsplan; familieappen kan slå den på.
+  includeDinner = false,
 } = {}) {
   const checklist = [];
   const open = (openTasks || []).filter(Boolean);

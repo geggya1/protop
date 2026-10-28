@@ -13,6 +13,7 @@ import {
   eventSourceHint,
   joinFirstNames,
   upcomingDayEvents,
+  buildRemainingHints,
 } from '../../src/utils/deskHome';
 import { firstNameFromProfile, formatGreetingDate } from '../../src/utils/timeGreeting';
 import { roundTemp } from '../../src/utils/weather';
@@ -223,15 +224,14 @@ export function useParentHomeModel({
     };
   }, [eventsToday, eventsTomorrow, taskCount, activeKids, now]);
 
-  const remainingHints = useMemo(() => {
-    const bits = [];
-    if (shopCount > 0) bits.push('Dagligvarer');
-    if (!dinner) bits.push('Planlegg middag');
-    if (taskCount > 0 && bits.length < 2) bits.push('Oppgaver');
-    return bits.slice(0, 2);
-  }, [shopCount, dinner, taskCount]);
+  // «Husk» viser arbeidsdagen: åpne oppgaver og dagens kalender. ProTop har ikke
+  // handleliste og middagsplan, så de nevnes ikke (de ga «Planlegg middag» i bedriften).
+  const remainingHints = useMemo(() => buildRemainingHints({
+    taskCount,
+    eventsToday: eventsToday?.length || 0,
+  }), [taskCount, eventsToday]);
 
-  const remainingCount = (taskCount > 0 ? 1 : 0) + (shopCount > 0 ? 1 : 0) + (!dinner ? 1 : 0);
+  const remainingCount = remainingHints.length;
 
   const appById = useMemo(() => {
     const map = {};
@@ -386,7 +386,7 @@ export function useParentHomeModel({
     notes,
     noteCount,
     remainingHints,
-    remainingCount: Math.min(remainingCount, 2) || (taskCount + (shopCount > 0 ? 1 : 0)),
+    remainingCount,
     custodyWeekLabel,
     weekStats,
     activeKids,

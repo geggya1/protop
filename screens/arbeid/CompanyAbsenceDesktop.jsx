@@ -28,6 +28,9 @@ const ink = '#152033';
 const muted = '#8B95A6';
 const line = '#E6EBF2';
 const blue = '#2F6BDB';
+const blueSoft = '#E8F0FE';
+/** Tekst på knapper som ikke er valgt: mørkere enn muted, så de ikke ser deaktiverte ut. */
+const soft = '#5B6678';
 const BARS = { ferie: '#2F6BDB', sykdom: '#E15D6A', annet: '#F0A04B' };
 const AUDIENCE = [
   { id: 'staff', label: 'Eget personell' },
@@ -48,6 +51,10 @@ const SPANS = [
   { id: 'dag', label: 'Dag' },
   { id: 'uke', label: 'Uke' },
   { id: 'maned', label: 'Måned' },
+];
+const VIEWS = [
+  { id: 'diagram', label: 'Diagram', icon: 'bar-chart-outline' },
+  { id: 'tabell', label: 'Tabell', icon: 'list-outline' },
 ];
 
 /** Minste tabellbredde og antall rader per «Vis flere» i fraværsrapporten. */
@@ -273,13 +280,14 @@ export function CompanyAbsenceDesktop({
           {canChooseEmployee ? (
             <TouchableOpacity
               onPress={() => setPeopleOpen((value) => !value)}
-              style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
+              style={[styles.personBtn, peopleOpen && styles.personBtnOpen]}
               accessibilityRole="button"
               accessibilityLabel="Velg ansatt"
+              accessibilityState={{ expanded: peopleOpen }}
             >
               <Ionicons name="people" size={14} color={blue} />
               <Text style={styles.personTxt}>{selectedName}</Text>
-              <Ionicons name="chevron-down" size={13} color={muted} />
+              <Ionicons name={peopleOpen ? 'chevron-up' : 'chevron-down'} size={13} color={peopleOpen ? blue : muted} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -349,7 +357,7 @@ export function CompanyAbsenceDesktop({
             </View>
             <View style={styles.controlEdgeRight}>
               <Segmented
-                items={[{ id: 'diagram', label: 'Diagram' }, { id: 'tabell', label: 'Tabell' }]}
+                items={VIEWS}
                 value={view}
                 onChange={setView}
                 idPrefix="visning"
@@ -357,13 +365,14 @@ export function CompanyAbsenceDesktop({
               {canChooseEmployee ? (
                 <TouchableOpacity
                   onPress={() => setPeopleOpen((value) => !value)}
-                  style={[styles.personBtn, { borderColor: line, backgroundColor: '#fff' }]}
+                  style={[styles.personBtn, peopleOpen && styles.personBtnOpen]}
                   accessibilityRole="button"
                   accessibilityLabel="Velg ansatt"
+                  accessibilityState={{ expanded: peopleOpen }}
                 >
                   <Ionicons name="people" size={14} color={blue} />
                   <Text style={styles.personTxt}>{selectedName}</Text>
-                  <Ionicons name="chevron-down" size={13} color={muted} />
+                  <Ionicons name={peopleOpen ? 'chevron-up' : 'chevron-down'} size={13} color={peopleOpen ? blue : muted} />
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -1331,22 +1340,28 @@ export function PlannedAbsenceDesktop({
   );
 }
 
+/** Enkeltvalg: den valgte knappen er fylt blå med hvit tekst, de andre er nøytrale. */
 function Segmented({ items, value, onChange, idPrefix }) {
   return (
     <View style={styles.segmentTrack} accessibilityRole="tablist">
       {items.map((item) => {
         const on = value === item.id;
         return (
-          <TouchableOpacity
+          <Pressable
             key={item.id}
             onPress={() => onChange(item.id)}
-            style={[styles.segment, on && styles.segmentOn]}
+            style={({ hovered, pressed }) => [
+              styles.segment,
+              !on && (hovered || pressed) && styles.segmentHover,
+              on && styles.segmentOn,
+            ]}
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
             nativeID={idPrefix ? `${idPrefix}-${item.id}` : undefined}
           >
+            {item.icon ? <Ionicons name={item.icon} size={14} color={on ? '#fff' : soft} /> : null}
             <Text style={[styles.segmentLabel, on && styles.segmentLabelOn]}>{item.label}</Text>
-          </TouchableOpacity>
+          </Pressable>
         );
       })}
     </View>
@@ -1369,19 +1384,26 @@ function AudienceBar({ kinds, onToggleKind, includeInactive, onToggleInactive })
       nativeID: 'fravaer-deaktivert',
     },
   ];
+  // Flere kan være på samtidig, så hver gruppe er en egen avkrysningsbrikke, ikke en segmentvelger.
   return (
-    <View style={styles.segmentTrack} nativeID="fravaer-utvalg" accessibilityRole="tablist">
+    <View style={styles.toggleRow} nativeID="fravaer-utvalg">
+      <Text style={styles.toggleGroupLabel}>Utvalg</Text>
       {items.map((item) => (
-        <TouchableOpacity
+        <Pressable
           key={item.id}
           onPress={item.press}
-          style={[styles.segment, item.on && styles.segmentOn]}
-          accessibilityRole="button"
-          accessibilityState={{ selected: item.on }}
+          style={({ hovered, pressed }) => [
+            styles.toggleChip,
+            !item.on && (hovered || pressed) && styles.toggleChipHover,
+            item.on && styles.toggleChipOn,
+          ]}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: item.on }}
           nativeID={item.nativeID}
         >
-          <Text style={[styles.segmentLabel, item.on && styles.segmentLabelOn]}>{item.label}</Text>
-        </TouchableOpacity>
+          <Ionicons name={item.on ? 'checkbox' : 'square-outline'} size={16} color={item.on ? blue : muted} />
+          <Text style={[styles.toggleChipTxt, item.on && styles.toggleChipTxtOn]}>{item.label}</Text>
+        </Pressable>
       ))}
     </View>
   );
@@ -1645,12 +1667,13 @@ function MenuRow({ label, on, onPress, nativeID }) {
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={styles.menuRow}
+      style={[styles.menuRow, on && styles.menuRowOn]}
       accessibilityRole="button"
       accessibilityState={{ selected: !!on }}
       nativeID={nativeID}
     >
-      <Text style={[styles.nameTxt, on && { color: blue }]}>{label}</Text>
+      <Text style={[styles.nameTxt, { flex: 1 }, on && { color: blue }]} numberOfLines={1}>{label}</Text>
+      {on ? <Ionicons name="checkmark" size={16} color={blue} /> : null}
     </TouchableOpacity>
   );
 }
@@ -1852,7 +1875,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: '#fff',
   },
-  sortChipOn: { borderColor: blue, backgroundColor: '#E8F1FF' },
+  sortChipOn: { borderColor: blue, backgroundColor: blue },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1867,11 +1890,13 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, color: ink, fontSize: 14, paddingVertical: 8 },
   personBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: line, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
   },
+  personBtnOpen: { borderColor: blue, backgroundColor: blueSoft },
   personTxt: { color: ink, fontWeight: '400', fontSize: 13 },
   menu: { borderWidth: 1, borderRadius: 10, backgroundColor: '#fff', maxHeight: 280, overflow: 'hidden' },
-  menuRow: { paddingHorizontal: 12, paddingVertical: 7 },
+  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  menuRowOn: { backgroundColor: blueSoft },
   kpis: {
     flexDirection: 'row',
     gap: 0,
@@ -1924,9 +1949,9 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: line, backgroundColor: '#fff', borderRadius: 8,
     paddingHorizontal: 8, paddingVertical: 3,
   },
-  yearChipOn: { borderColor: blue, backgroundColor: '#E8F0FE' },
-  yearChipTxt: { color: muted, fontSize: 12, fontWeight: '400' },
-  yearChipTxtOn: { color: blue, fontWeight: '400' },
+  yearChipOn: { borderColor: blue, backgroundColor: blue },
+  yearChipTxt: { color: soft, fontSize: 12, fontWeight: '400' },
+  yearChipTxtOn: { color: '#fff', fontWeight: '400' },
   hint: { color: muted, fontSize: 13, fontWeight: '400', marginTop: -2 },
   empty: { color: muted, fontSize: 13, fontWeight: '400', paddingVertical: 2 },
   moreHint: { color: muted, fontSize: 13, fontWeight: '400', paddingTop: 2 },
@@ -1983,6 +2008,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   segment: {
+    flexDirection: 'row',
+    gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -1990,9 +2017,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 32,
   },
-  segmentOn: { backgroundColor: '#fff' },
-  segmentLabel: { color: muted, fontSize: 13, fontWeight: '400' },
-  segmentLabelOn: { color: ink, fontWeight: '400' },
+  segmentHover: { backgroundColor: '#E8EEF6' },
+  segmentOn: {
+    backgroundColor: blue,
+    ...(Platform.OS === 'web' ? { boxShadow: '0 1px 3px rgba(47, 107, 219, 0.35)' } : null),
+  },
+  segmentLabel: { color: soft, fontSize: 13, fontWeight: '400' },
+  segmentLabelOn: { color: '#fff', fontWeight: '400' },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  toggleGroupLabel: { color: muted, fontSize: 13, fontWeight: '400', marginRight: 2 },
+  toggleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: line,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    minHeight: 32,
+  },
+  toggleChipHover: { borderColor: '#C9D6EA', backgroundColor: '#F7F9FC' },
+  toggleChipOn: { borderColor: blue, backgroundColor: blueSoft },
+  toggleChipTxt: { color: soft, fontSize: 13, fontWeight: '400' },
+  toggleChipTxtOn: { color: blue, fontWeight: '400' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   navHit: { minWidth: 32, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
   stepLabel: { color: ink, fontWeight: '400', fontSize: 13, minWidth: 148, textAlign: 'center' },

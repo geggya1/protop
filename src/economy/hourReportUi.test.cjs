@@ -106,7 +106,7 @@ function hookedRequire(orig, id) {
   if (id.includes('CompanyDataContext')) return companyData;
   if (id === 'react-native') return rnMock;
   if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
-  if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }) };
+  if (id.includes('AppContext')) return { useApp: () => ({ familyId: 'co' }), useOptionalApp: () => ({ familyId: 'co' }) };
   if (id.includes('useCompanyAi')) return { useCompanyAiGuard: () => (call) => call, useCompanyAiAllowed: () => true };
   if (id.includes('useCompanyAccess')) {
     return { useCompanyAccess: () => ({ ready: true, previewing: false, employee: null, canView: () => true, canEdit: () => true, canAdmin: () => true }) };

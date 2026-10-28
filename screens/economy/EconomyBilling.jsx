@@ -9,7 +9,9 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { dateKey } from '../../src/utils/dates';
 import { fold } from '../../src/economy/invoices.js';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
-import { buildReadyProjects, PERIOD_OPTIONS, periodEndFor } from '../../src/economy/billingReady.js';
+import {
+  buildReadyProjects, PERIOD_OPTIONS, pendingOperations, periodEndFor,
+} from '../../src/economy/billingReady.js';
 import { osloDate } from '../../src/indeksregulering/watch';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
@@ -85,6 +87,11 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
     });
     return withIndexWarnings(built, data, today);
   }, [data, periodEnd, today]);
+
+  // Utlegg og kjøring som ikke er godkjent ennå, tas ikke med. Si fra om dem.
+  const waiting = useMemo(() => (data.ready
+    ? pendingOperations({ expenses: data.expenses, trips: data.trips, until: periodEnd })
+    : { expenses: 0, trips: 0 }), [data.ready, data.expenses, data.trips, periodEnd]);
 
   const me = fold(activeProfile?.name);
   const visible = useMemo(() => {
@@ -189,6 +196,24 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
           >
             <Ionicons name="arrow-back" size={14} color={colors.brand} />
             <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>{approvalsBackLabel(chain.godkjenn)}</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {waiting.expenses || waiting.trips ? (
+          <TouchableOpacity
+            onPress={() => requestShellTab?.('okonomi', waiting.expenses ? 'utlegg' : 'kjorebok')}
+            accessibilityRole="link"
+            nativeID="billing-pending-operations"
+            style={styles.backLink}
+          >
+            <Ionicons name="time-outline" size={14} color={colors.brand} />
+            <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '600' }}>
+              {[
+                waiting.expenses ? `${waiting.expenses} utlegg` : '',
+                waiting.trips ? `${waiting.trips} ${waiting.trips === 1 ? 'kjøretur' : 'kjøreturer'}` : '',
+              ].filter(Boolean).join(' og ')}
+              {` venter på godkjenning og er ikke med her. Godkjenn under Økonomi → ${waiting.expenses ? 'Utlegg' : 'Kjørebok'}.`}
+            </Text>
           </TouchableOpacity>
         ) : null}
 

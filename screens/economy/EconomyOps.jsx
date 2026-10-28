@@ -29,8 +29,10 @@ import {
   EXPENSE_CATEGORIES,
   EXPENSE_CHARGE_TYPES,
   emptyExpense,
+  expenseStatusLabel,
   expensesToCsv,
 } from '../../src/economy/expenses.js';
+import { expenseRegistryPatch } from '../../src/economy/expenseRegistry.js';
 import {
   MILEAGE_RATE_TAX_FREE,
   tripsToCsv,
@@ -39,6 +41,7 @@ import {
 import { setMileageRate } from '../../src/equipment/state';
 import { mileageRate } from '../../src/mileage/flow';
 import {
+  deleteExpense,
   deleteTrip,
   setExpenseStatus,
   setTripStatus,
@@ -227,7 +230,7 @@ function Field({ label, value, onChange, colors, placeholder, keyboardType }) {
 export default function EconomyOps({ kind = 'expenses', company = null }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { familyId, requestShellTab } = useApp();
+  const { familyId, requestShellTab, user } = useApp();
   const access = useCompanyAccess();
   const [customers, setCustomers] = useState([]);
   const [contracts, setContracts] = useState([]);
@@ -265,6 +268,18 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
     projects: freshRows(state.projects || [], refs.projects),
   }), [refs, customers, state.projects]);
   const shownExpenses = useMemo(() => hydrateRows(expenses, lookup), [expenses, lookup]);
+  // Ansatt, kunde og prosjekt velges fra registrene, så utlegget er koblet (DRIFT-24).
+  const people = useMemo(() => (refs.directory?.rows || [])
+    .filter((row) => row.employeeId && row.active !== false)
+    .map((row) => ({ id: row.employeeId, label: row.name || 'Uten navn', uid: row.uid })), [refs.directory]);
+  const projectOptions = useMemo(() => (lookup.projects || [])
+    .filter((row) => row?.id && row.status !== 'arkivert')
+    .map((row) => ({ id: row.id, label: [row.number ? `#${row.number}` : '', row.name].filter(Boolean).join(' ') })), [lookup.projects]);
+  const customerOptions = useMemo(() => (lookup.customers || [])
+    .filter((row) => row?.id)
+    .map((row) => ({ id: row.id, label: [row.customerNumber || row.number, row.name].filter(Boolean).join(' · ') })), [lookup.customers]);
+  const ownEmployeeId = people.find((row) => row.uid && row.uid === user?.uid)?.id || '';
+  const draftEmployeeId = draft.employeeId ?? ownEmployeeId;
   const shownTrips = useMemo(() => hydrateRows(trips, lookup), [trips, lookup]);
   const dutyKm = useMemo(() => yearlyDutyKm(trips, new Date().getFullYear()), [trips]);
   const rateInfo = mileageRate(state.mileagePolicies);
@@ -300,11 +315,36 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
     if (result.ok && editingTrip?.id === trip.id) setEditingTrip(null);
   }
 
+  function pickInDraft(kind, id) {
+    setDraft((current) => ({
+      ...current,
+      ...expenseRegistryPatch(kind, id, {
+        people,
+        projects: lookup.projects || [],
+        customers: lookup.customers || [],
+        current: { ...current, employeeId: current.employeeId ?? ownEmployeeId },
+      }),
+    }));
+  }
+
   function saveExpense() {
-    apply(upsertExpense(state, {
+    const employee = people.find((row) => row.id === draftEmployeeId);
+    const result = apply(upsertExpense(state, {
       ...emptyExpense(draft),
+      employeeId: draftEmployeeId,
+      employeeName: employee?.label || '',
       date: draft.date || new Date().toISOString().slice(0, 10),
     }));
+    if (result.ok) setDraft({});
+  }
+
+  function removeExpense(row) {
+    if (pendingDelete !== row.id) {
+      setPendingDelete(row.id);
+      return;
+    }
+    setPendingDelete('');
+    apply(deleteExpense(state, row.id));
   }
 
   if (!ready) {
@@ -404,8 +444,38 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
             <Field label="Formål" value={draft.purpose || ''} onChange={(v) => setDraft((d) => ({ ...d, purpose: v }))} colors={colors} />
             <Field label="Kvittering (URI)" value={draft.receiptUri || ''} onChange={(v) => setDraft((d) => ({ ...d, receiptUri: v }))} colors={colors} placeholder="fil:// eller https://" />
             <Field label="Påslag %" value={String(draft.markupPercent ?? '')} onChange={(v) => setDraft((d) => ({ ...d, markupPercent: v }))} colors={colors} keyboardType="decimal-pad" />
-            <Field label="Kunde" value={draft.customerName || ''} onChange={(v) => setDraft((d) => ({ ...d, customerName: v }))} colors={colors} />
-            <Field label="Prosjekt" value={draft.projectName || ''} onChange={(v) => setDraft((d) => ({ ...d, projectName: v }))} colors={colors} />
+          </View>
+          <View style={{ marginTop: 8 }}>
+            <OptionPicker
+              options={people}
+              value={draftEmployeeId}
+              onChange={(id) => pickInDraft('employee', id)}
+              title="Ansatt"
+              placeholder="Velg ansatt"
+              accessibilityLabel="Ansatt som har lagt ut"
+            />
+          </View>
+          <View style={{ marginTop: 8 }}>
+            <OptionPicker
+              options={projectOptions}
+              value={draft.projectId || ''}
+              onChange={(id) => pickInDraft('project', id)}
+              title="Prosjekt"
+              placeholder="Velg prosjekt"
+              clearLabel="Uten prosjekt"
+              accessibilityLabel="Prosjekt"
+            />
+          </View>
+          <View style={{ marginTop: 8 }}>
+            <OptionPicker
+              options={customerOptions}
+              value={draft.customerId || ''}
+              onChange={(id) => pickInDraft('customer', id)}
+              title="Kunde"
+              placeholder="Velg kunde"
+              clearLabel="Uten kunde"
+              accessibilityLabel="Kunde"
+            />
           </View>
           <View style={{ marginTop: 8 }}>
             <OptionPicker
@@ -451,7 +521,15 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
         return (
           <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
             <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.description || row.purpose} · {formatMoney(row.amountInclVat)}</Text>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>{row.date} · {row.status} · {row.customerName || 'uten kunde'}</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              {[
+                row.date,
+                expenseStatusLabel(row.status),
+                row.employeeName || 'uten ansatt',
+                row.projectName ? [row.projectNumber ? `#${row.projectNumber}` : '', row.projectName].filter(Boolean).join(' ') : 'uten prosjekt',
+                row.customerName || 'uten kunde',
+              ].join(' · ')}
+            </Text>
             <View style={[styles.row, { marginTop: 8 }]}>
               {trip ? (
                 <>
@@ -472,6 +550,27 @@ export default function EconomyOps({ kind = 'expenses', company = null }) {
                 <TouchableOpacity onPress={() => apply(setExpenseStatus(state, row.id, 'approved'))} style={[styles.btnGhost, { borderColor: colors.line }]}>
                   <Text style={{ color: colors.ink }}>Godkjenn</Text>
                 </TouchableOpacity>
+              ) : null}
+              {!trip && row.status !== 'invoiced' ? (
+                <TouchableOpacity
+                  onPress={() => removeExpense(row)}
+                  style={[styles.btnGhost, { borderColor: colors.line }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={pendingDelete === row.id ? `Bekreft sletting av ${row.description || 'utlegget'}` : `Slett ${row.description || 'utlegget'}`}
+                  nativeID={`expense-delete-${row.id}`}
+                >
+                  <Text style={{ color: colors.danger || '#b42318', fontWeight: '700' }}>{pendingDelete === row.id ? 'Slett nå' : 'Slett'}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {!trip && pendingDelete === row.id ? (
+                <>
+                  <TouchableOpacity onPress={() => setPendingDelete('')} style={[styles.btnGhost, { borderColor: colors.line }]}>
+                    <Text style={{ color: colors.ink }}>Avbryt</Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: colors.ink, fontSize: 13, flexBasis: '100%' }}>
+                    Trykk «Slett nå» for å slette utlegget. Det kan ikke angres.
+                  </Text>
+                </>
               ) : null}
             </View>
           </View>

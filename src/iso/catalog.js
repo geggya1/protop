@@ -140,6 +140,7 @@ export const FINDING_TYPES = [
   { id: 'prosess', label: 'Prosessavvik', domain: 'KVALITET' },
   { id: 'leveranse', label: 'Produkt-/leveranseavvik', domain: 'KVALITET' },
   { id: 'kundeklage', label: 'Kundeklage', domain: 'KVALITET' },
+  { id: 'leverandor', label: 'Leverandøravvik', domain: 'KVALITET' },
   { id: 'revisjonsfunn', label: 'Revisjonsfunn', domain: 'KVALITET' },
   { id: 'risikofunn', label: 'Risikofunn', domain: 'KVALITET' },
   { id: 'miljo', label: 'Miljøhendelse', domain: 'MILJO' },

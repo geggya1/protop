@@ -403,6 +403,7 @@ const FINDING_AREAS = {
   prosess: ['nonconformity', 'operation'],
   leveranse: ['nonconformity', 'release'],
   kundeklage: ['nonconformity', 'satisfaction'],
+  leverandor: ['nonconformity', 'suppliers'],
   revisjonsfunn: ['nonconformity', 'internalAudit'],
   risikofunn: ['nonconformity', 'risk'],
   miljo: ['nonconformity', 'aspects', 'emergency'],

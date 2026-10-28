@@ -14,6 +14,7 @@ import { canCloseFinding, canManageFinding, visibleFindings } from '../../src/is
 import { allRequirements, attachEvidence, requirementIdsForArea } from '../../src/iso/requirements';
 import { loadAuditFor } from '../../src/iso/storage';
 import { autoAssignee, legacyProjectCases, newFindingEffects, notificationTaskEffects, requirementIdsForFinding } from '../../src/iso/integrations';
+import { ksDeviationCandidates } from '../../src/iso/forms';
 import { publishedVersionOf, normalizeDiagram } from '../../src/iso/processes';
 import IsoDiagram, { fitView } from './IsoDiagram';
 import QuickReportButton from './QuickReport';
@@ -51,6 +52,8 @@ export default function IsoFindings({ ctx }) {
     .filter((f) => !query || `${f.number} ${f.title} ${f.description} ${f.projectName}`.toLowerCase().includes(query.toLowerCase())), [visible, drillIds, typeFilter, stateFilter, query, today]);
 
   const legacy = useMemo(() => (caps.manage ? legacyProjectCases(ctx.sources?.projectState, state.findings) : []), [caps.manage, ctx.sources?.projectState, state.findings]);
+  // Avvik i utfylte KS-sjekklister og vernerunder (Skjemabygger) som ikke er sak ennå.
+  const ksRows = useMemo(() => ksDeviationCandidates(ctx.sources?.formTemplates, state.findings), [ctx.sources?.formTemplates, state.findings]);
 
   async function adopt(cases) {
     let existing = store.current().findings;
@@ -58,11 +61,11 @@ export default function IsoFindings({ ctx }) {
       const who = autoAssignee(state.system, c.type);
       const res = createFinding({
         type: c.type, title: c.title, description: c.description || c.title, projectId: c.projectId, projectName: c.projectName,
-        severity: c.severity, sourceRef: { module: c.module, id: c.id }, assigneeName: who?.name, assigneeUid: who?.uid,
-        requirementIds: requirementIdsForFinding(state, c.type),
+        severity: c.severity, sourceRef: c.sourceRef || { module: c.module, id: c.id }, assigneeName: who?.name, assigneeUid: who?.uid,
+        requirementIds: requirementIdsForFinding(state, c.type), immediateAction: c.immediateAction, dueAt: c.dueAt,
       }, { actor: ctx.actor, existing });
       if (!res.ok) continue;
-      const saved = await store.commit('findings', 'finding', res);
+      const saved = await store.commit('findings', 'finding', res, { effects: newFindingEffects(res.finding, state.system) });
       if (saved.ok) existing = [...existing, res.finding];
     }
   }
@@ -104,6 +107,14 @@ export default function IsoFindings({ ctx }) {
           {legacy.length > 1 ? <Btn small icon="download-outline" label={`Ta inn alle ${legacy.length}`} onPress={() => adopt(legacy)} /> : null}
         </Card>
       ) : null}
+      {ksRows.length && caps.view ? (
+        <Card title={`Avvik fra sjekklister og vernerunder (${ksRows.length})`} subtitle="Punkter merket «Avvik», «N» eller «Nei» i KS-sjekklistene i Skjemabygger. Ett trykk gjør punktet til en sak med behandler, oppgave og frist.">
+          {ksRows.slice(0, 8).map((c) => (
+            <ListRow key={c.id} icon="clipboard-outline" tone="warn" title={c.title} subtitle={[c.label, c.immediateAction].filter(Boolean).join(' · ')} right={<Btn small kind="primary" label="Opprett sak" onPress={() => adopt([c])} />} />
+          ))}
+          {ksRows.length > 1 ? <Btn small icon="layers-outline" label={`Opprett saker for alle ${ksRows.length}`} onPress={() => adopt(ksRows)} /> : null}
+        </Card>
+      ) : null}
       <Card title={`${rows.length} saker`}>
         {!rows.length ? (
           <Empty
@@ -140,6 +151,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
   const domain = FINDING_TYPES.find((t) => t.id === v.type)?.domain;
   const restricted = v.restricted == null ? defaultRestricted(v.type) : v.restricted;
   const injury = ['hms', 'nestenulykke'].includes(v.type);
+  const { suppliers, customers } = linkOptions(ctx);
   // Alvorlig personskade eller dødsfall: foreslå meldeplikt med en gang.
   const pickInjury = (x) => setV((cur) => ({ ...cur, injuryClass: x || '', authorityNotificationRequired: seriousInjury(x) ? true : cur.authorityNotificationRequired }));
 
@@ -188,6 +200,12 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
       </Field>
       {projects.length ? (
         <Field label="Prosjekt"><Choice small title="Prosjekt" options={projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() }))} value={v.projectId} onChange={set('projectId')} /></Field>
+      ) : null}
+      {['leverandor', 'leveranse'].includes(v.type) && suppliers.length ? (
+        <Field label="Leverandør"><Choice small clearable title="Leverandør" options={suppliers} value={v.supplierId} onChange={(x) => setV((cur) => ({ ...cur, supplierId: x || '', supplierName: suppliers.find((o) => o.id === x)?.label || '' }))} /></Field>
+      ) : null}
+      {['kundeklage', 'positiv', 'leveranse'].includes(v.type) && customers.length ? (
+        <Field label="Kunde"><Choice small clearable title="Kunde" options={customers} value={v.customerId} onChange={(x) => setV((cur) => ({ ...cur, customerId: x || '', customerName: customers.find((o) => o.id === x)?.label || '' }))} /></Field>
       ) : null}
       <Field label="Sted"><TextIn value={v.location} onChangeText={set('location')} placeholder="Adresse, bygg eller prosjektsted" /></Field>
       {domain === 'KVALITET' ? (
@@ -285,6 +303,7 @@ function FindingDetail({ ctx, finding, onBack }) {
   const [notifNote, setNotifNote] = useState('');
   const [reason, setReason] = useState('');
   const [reqOpen, setReqOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
   const [selfOk, setSelfOk] = useState({});
 
   const requirements = useMemo(() => allRequirements(state), [state]);
@@ -536,6 +555,11 @@ function FindingDetail({ ctx, finding, onBack }) {
             {manage && !closed ? <Btn small icon="link-outline" label="Koble krav" onPress={() => setReqOpen(true)} /> : null}
             {finding.links?.auditId ? <ListRow icon="search-outline" title="Fra internrevisjon" onPress={() => go('revisjon', { open: finding.links.auditId })} /> : null}
             {finding.links?.equipmentId ? <ListRow icon="construct-outline" title={`Utstyr: ${finding.links.equipmentName || 'utstyr'}`} subtitle="Kontroll og kalibrering i Utstyr" onPress={() => ctx.requestTab?.('utstyr')} /> : null}
+            {finding.links?.supplierId ? <ListRow icon="cube-outline" title={`Leverandør: ${finding.links.supplierName || 'leverandør'}`} onPress={() => go('leverandorer', { open: finding.links.supplierId })} /> : null}
+            {finding.links?.customerId ? <ListRow icon="people-outline" title={`Kunde: ${finding.links.customerName || 'kunde'}`} onPress={() => ctx.requestTab?.('kunder')} /> : null}
+            {finding.projectId ? <ListRow icon="briefcase-outline" title={`Prosjekt: ${finding.projectName || 'prosjekt'}`} onPress={() => go('prosjekt')} /> : null}
+            {(finding.links?.employeeIds || []).length && (!finding.restricted || caps.restrictedView) ? <ListRow icon="person-outline" title={`Ansatte: ${(finding.links.employeeNames || []).join(', ') || finding.links.employeeIds.length}`} /> : null}
+            {manage && !closed ? <Btn small icon="git-merge-outline" label="Koble til utstyr, leverandør, kunde, prosjekt eller ansatt" onPress={() => setLinkOpen(true)} /> : null}
             {evidenceReqs.length ? (
               <>
                 <Text style={{ color: colors.muted, fontSize: 12, marginTop: 6 }}>Brukt som bevis i kravmatrisen:</Text>
@@ -565,6 +589,14 @@ function FindingDetail({ ctx, finding, onBack }) {
         <Field label="Påkrevd dokumentasjon"><TextIn value={act.requiredEvidence} onChangeText={(x) => setAct({ ...act, requiredEvidence: x })} placeholder="F.eks. oppdatert prosedyre" /></Field>
         {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
       </Sheet>
+
+      <LinkSheet
+        ctx={ctx}
+        finding={finding}
+        visible={linkOpen}
+        onClose={() => setLinkOpen(false)}
+        onSave={async (patch) => { setLinkOpen(false); await run('Koblinger', updateFindingLinks(finding, patch, { actor })); }}
+      />
 
       <RequirementPicker
         visible={reqOpen}
@@ -601,6 +633,62 @@ function CaseProcess({ state, finding, wide }) {
         <Text style={{ color: colors.muted, fontSize: 12 }}>Nå: {active.map((id) => diagram.nodes.find((n) => n.id === id)?.label).filter(Boolean).join(' / ') || (finding.state === 'lukket' ? 'Lukket' : '–')}</Text>
       )}
     </Card>
+  );
+}
+
+/** Valgene for koblinger: leverandører i ISO, kunder fra Kunder, utstyr fra Utstyr, prosjekter og ansatte. */
+function linkOptions(ctx) {
+  const { state, sources = {}, projects = [], people = [] } = ctx;
+  return {
+    suppliers: (state.records.leverandor || []).filter((r) => r.state !== 'arkivert').map((r) => ({ id: r.id, label: r.title })),
+    customers: (sources.customers || []).filter((c) => c?.id && (c.name || c.navn)).map((c) => ({ id: c.id, label: c.name || c.navn })),
+    equipment: (sources.equipment || []).filter((e) => e?.id && e.scope !== 'private' && e.status !== 'retired').map((e) => ({ id: e.id, label: e.name || 'Utstyr' })),
+    projects: projects.map((p) => ({ id: p.id, label: `${p.number || ''} ${p.name || ''}`.trim() })),
+    people: people.filter((p) => p.id).map((p) => ({ id: p.id, label: p.name })),
+  };
+}
+
+/** Rød tråd (ISO-17): koble saken til utstyr, leverandør, kunde, prosjekt og involverte ansatte. */
+function LinkSheet({ ctx, finding, visible, onClose, onSave }) {
+  const colors = useColors();
+  const opts = useMemo(() => linkOptions(ctx), [ctx.state, ctx.sources, ctx.projects, ctx.people]); // eslint-disable-line react-hooks/exhaustive-deps
+  const initial = () => ({
+    equipmentId: finding.links?.equipmentId || '',
+    supplierId: finding.links?.supplierId || '',
+    customerId: finding.links?.customerId || '',
+    projectId: finding.projectId || '',
+    employeeIds: finding.links?.employeeIds || [],
+  });
+  const [v, setV] = useState(initial);
+  useEffect(() => { if (visible) setV(initial()); }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const name = (list, id) => list.find((o) => o.id === id)?.label || '';
+  const pick = (key, list, title) => (list.length
+    ? <Field label={title}><Choice small clearable title={title} options={list} value={v[key]} onChange={(x) => setV({ ...v, [key]: x || '' })} /></Field>
+    : null);
+  return (
+    <Sheet
+      visible={visible}
+      title="Koblinger"
+      onClose={onClose}
+      footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Lagre" onPress={() => onSave({
+        equipmentId: v.equipmentId, equipmentName: name(opts.equipment, v.equipmentId),
+        supplierId: v.supplierId, supplierName: name(opts.suppliers, v.supplierId),
+        customerId: v.customerId, customerName: name(opts.customers, v.customerId),
+        projectId: v.projectId, projectName: name(opts.projects, v.projectId),
+        employeeIds: v.employeeIds, employeeNames: v.employeeIds.map((id) => name(opts.people, id)).filter(Boolean),
+      })} /></>}
+    >
+      <Text style={{ color: colors.muted, fontSize: 13 }}>Saken vises på utstyret, leverandøren og prosjektet, og telles i leverandørevalueringen og ledelsens gjennomgang.</Text>
+      {pick('equipmentId', opts.equipment, 'Utstyr')}
+      {pick('supplierId', opts.suppliers, 'Leverandør')}
+      {pick('customerId', opts.customers, 'Kunde')}
+      {pick('projectId', opts.projects, 'Prosjekt')}
+      {opts.people.length ? (
+        <Field label="Involverte ansatte" hint={finding.restricted ? 'Skjermet sak: vises bare for dem med tilgang.' : 'Personopplysninger om skade hører i en skjermet sak.'}>
+          <Choice small multi title="Ansatte" options={opts.people} value={v.employeeIds} onChange={(x) => setV({ ...v, employeeIds: x || [] })} />
+        </Field>
+      ) : null}
+    </Sheet>
   );
 }
 

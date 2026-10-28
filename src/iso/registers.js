@@ -206,7 +206,6 @@ export const REGISTERS = {
       { key: 'certificates', label: 'Sertifikater', type: 'long' },
       { key: 'diligence', label: 'Aktsomhetsvurdering (åpenhetsloven)', type: 'select', options: opt(['Utført', 'Ikke utført', 'Ikke relevant']) },
       { key: 'agreementUrl', label: 'Gyldig avtale (lenke)', type: 'text' },
-      { key: 'deviations', label: 'Registrerte avvik', type: 'select', options: opt(['Nei', 'Ja']) },
       { key: 'approval', label: 'Status', type: 'select', options: opt(['Ikke vurdert', 'Godkjent', 'Betinget godkjent', 'Ikke godkjent']), required: true },
       { key: 'score', label: 'Siste evaluering (1–5)', type: 'scale' },
       { key: 'ownerName', label: 'Ansvarlig', type: 'person' },

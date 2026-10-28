@@ -12,8 +12,9 @@
 import {
   auditEvent, bump, checksum, fail, isoDate, newId, nowIso, pushHistory, text,
 } from './core.js';
+import { ksDeviationRows } from '../forms/ksLibrary.js';
 
-const F = (key, type, label, extra = {}) => ({ key, type, label, ...extra });
+const F =(key, type, label, extra = {}) => ({ key, type, label, ...extra });
 const YN = ['Ja', 'Nei'];
 const STATUS = ['Utkast', 'Godkjent', 'Avvist'];
 
@@ -296,4 +297,38 @@ export function correctSubmission(submission, patch, reason, { actor, now = new 
 /** Skjema som kan brukes i prosesstrinn: styrte og godkjente. */
 export function usableForms(controls) {
   return (controls || []).filter((c) => !c.archived && c.publishedVersion);
+}
+
+/**
+ * Avvik i utfylte KS-sjekklister og vernerunder (Skjemabygger) som ikke er sak i ISO ennå (ISO-17).
+ * Hver rad merket «Avvik», «N» eller «Nei» blir et forslag med tittel, beskrivelse, frist og fast kilde,
+ * så «Opprett sak» gir én sak per rad og ingenting skrives inn på nytt.
+ */
+export function ksDeviationCandidates(formTemplates, findings = []) {
+  const taken = new Set((findings || []).map((f) => f.sourceRef?.id).filter(Boolean));
+  const out = [];
+  for (const t of formTemplates || []) {
+    for (const row of ksDeviationRows(t)) {
+      if (taken.has(row.key)) continue;
+      const day = isoDate(row.at);
+      const due = isoDate(row.deadline);
+      out.push({
+        id: row.key,
+        module: 'ks',
+        type: row.type,
+        title: text(`${row.point}`, 200),
+        label: `${t.title}${day ? ` · ${day.split('-').reverse().join('.')}` : ''}`,
+        description: [
+          `Avvik registrert i «${t.title}»${day ? ` ${day.split('-').reverse().join('.')}` : ''}: ${row.point} (${row.mark}).`,
+          row.comment ? `Kommentar / tiltak: ${row.comment}` : '',
+          row.responsible ? `Ansvarlig i sjekklisten: ${row.responsible}` : '',
+          due ? `Frist i sjekklisten: ${due.split('-').reverse().join('.')}` : '',
+        ].filter(Boolean).join('\n'),
+        immediateAction: text(row.comment, 2000),
+        dueAt: due,
+        sourceRef: { module: 'ks', id: row.key },
+      });
+    }
+  }
+  return out;
 }

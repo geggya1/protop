@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Pressable, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { prettyDate, todayKey } from '../../src/iso/core';
-import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, riskLevel } from '../../src/iso/catalog';
+import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, findingStateLabel, riskLevel } from '../../src/iso/catalog';
 import {
   AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
   competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
@@ -10,7 +10,7 @@ import {
   REVIEW_OUTPUTS, reviewApprovalBlockers, setReviewConclusion,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
-import { createFinding } from '../../src/iso/findings';
+import { createFinding, findingsLinkedTo } from '../../src/iso/findings';
 import { managementReviewSnapshot } from '../../src/iso/analytics';
 import { allRequirements, attachEvidence, requirementIdsForArea, statusText } from '../../src/iso/requirements';
 import { visibleFindings } from '../../src/iso/access';
@@ -1017,7 +1017,10 @@ function SupplierEvaluation({ ctx, record }) {
 
 export function SupplierPage({ ctx }) {
   const colors = useColors();
-  const { state, wide } = ctx;
+  const { state, wide, caps } = ctx;
+  // «Registrerte avvik» telles fra sakene som er koblet til leverandøren (ikke et Ja/Nei-felt).
+  const supplierFindings = useMemo(() => visibleFindings(caps, state.findings).filter((f) => f.links?.supplierId), [caps, state.findings]);
+  const linked = (r) => findingsLinkedTo(supplierFindings, 'supplier', r.id);
   const due = overdueRecords(state.records.leverandor, 'nextReview');
   const suggestions = useMemo(() => supplierSuggestions(ctx.sources?.expenses, state.records.leverandor)
     .map((r) => ({ title: r.title, criticality: 'Middels', approval: 'Ikke vurdert', category: '', source: `Utlegg (${r.count} bilag)` })), [ctx.sources?.expenses, state.records.leverandor]);
@@ -1025,7 +1028,20 @@ export function SupplierPage({ ctx }) {
     <Page wide={wide} title="Leverandørkontroll" intro="Kvalifisering, evaluering og oppfølging etter kritikalitet. Leverandører foreslås fra utleggene, og evaluering blir oppgave når den forfaller.">
       {due.length ? <Banner tone="warn" text={`${due.length} leverandører har forfalt evaluering.`} /> : null}
       <Suggestions ctx={ctx} registerKey="leverandor" rows={suggestions} direct title="Leverandører fra utleggene" subtitle="Mest brukte leverandører som ikke er vurdert. Legges inn som «Ikke vurdert» med middels kritikalitet." describe={() => 'Ikke vurdert'} limit={8} />
-      <SimpleRegister ctx={ctx} registerKey="leverandor" subtitle={(r) => [r.supplierClass || `${r.criticality} kritikalitet`, r.approval, r.score ? `score ${r.score}` : '', r.services].filter(Boolean).join(' · ')} detail={(r) => <SupplierEvaluation ctx={ctx} record={r} />} />
+      <SimpleRegister
+        ctx={ctx}
+        registerKey="leverandor"
+        subtitle={(r) => [r.supplierClass || `${r.criticality} kritikalitet`, r.approval, r.score ? `score ${r.score}` : '', `${linked(r).length} registrerte avvik`, r.services].filter(Boolean).join(' · ')}
+        detail={(r) => (
+          <>
+            <Text style={{ color: colors.ink, fontWeight: '700', marginTop: 6 }}>Registrerte avvik ({linked(r).length})</Text>
+            {linked(r).length ? linked(r).map((f) => (
+              <ListRow key={f.id} icon="flag-outline" title={`${f.number} · ${f.title}`} subtitle={findingStateLabel(f.state)} onPress={() => ctx.go('avvik', { open: f.id })} />
+            )) : <Text style={{ color: colors.muted, fontSize: 12 }}>Ingen saker er koblet til leverandøren. Koble en sak under Avvik → Koblinger, eller meld et leverandøravvik.</Text>}
+            <SupplierEvaluation ctx={ctx} record={r} />
+          </>
+        )}
+      />
       <Card title="Leverandørklasser" subtitle="Klassen gir kritikalitet og hvor ofte leverandøren evalueres.">
         {SUPPLIER_CLASSES.map((c) => {
           const n = (state.records.leverandor || []).filter((r) => r.state !== 'arkivert' && r.supplierClass === c.id).length;

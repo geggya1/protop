@@ -123,6 +123,13 @@ export function createFinding(input, { actor, existing = [], now = new Date() } 
       // Utstyret saken gjelder (kalibrering eller kontroll med avvik, ISO 9001 7.1.5.2).
       equipmentId: text(input.equipmentId, 120),
       equipmentName: text(input.equipmentName, 200),
+      // Rød tråd: leverandør (8.4), kunde (kundeklage, 9.1.2) og ansatte som er involvert.
+      supplierId: text(input.supplierId, 120),
+      supplierName: text(input.supplierName, 200),
+      customerId: text(input.customerId, 120),
+      customerName: text(input.customerName, 200),
+      employeeIds: uniq(input.employeeIds),
+      employeeNames: uniq(input.employeeNames),
     },
     sourceRef: input.sourceRef?.id ? { module: text(input.sourceRef.module, 60), id: text(input.sourceRef.id, 120) } : null,
     attachments: findingAttachments(input.attachments),
@@ -547,6 +554,9 @@ export function assessChange(finding, input, { actor, now = new Date() } = {}) {
   return result(finding, next, 'iso.finding.change', actor, now);
 }
 
+/** Koblinger som er id + navn (navnet vises uten å slå opp i modulen). */
+const NAMED_LINKS = [['equipmentId', 'equipmentName'], ['supplierId', 'supplierName'], ['customerId', 'customerName']];
+
 export function updateFindingLinks(finding, patch, { actor, now = new Date() } = {}) {
   if (!finding) return fail('Fant ikke saken.');
   const links = {
@@ -555,9 +565,28 @@ export function updateFindingLinks(finding, patch, { actor, now = new Date() } =
     ...(patch.documentIds ? { documentIds: uniq(patch.documentIds) } : {}),
     ...(patch.riskIds ? { riskIds: uniq(patch.riskIds) } : {}),
     ...(patch.processId != null ? { processId: text(patch.processId, 120) } : {}),
+    ...(patch.employeeIds ? { employeeIds: uniq(patch.employeeIds), employeeNames: uniq(patch.employeeNames) } : {}),
   };
-  const next = bump({ ...finding, links, history: pushHistory(finding, 'Koblinger oppdatert', actor, '', now) }, actor, now);
+  for (const [idKey, nameKey] of NAMED_LINKS) {
+    if (patch[idKey] == null) continue;
+    links[idKey] = text(patch[idKey], 120);
+    links[nameKey] = links[idKey] ? text(patch[nameKey], 200) : '';
+  }
+  // Prosjektet står på saken (brukes av prosjektkvalitet og prosjektsiden).
+  const project = patch.projectId != null ? { projectId: text(patch.projectId, 120), projectName: text(patch.projectId, 120) ? text(patch.projectName, 200) : '' } : {};
+  const next = bump({ ...finding, ...project, links, history: pushHistory(finding, 'Koblinger oppdatert', actor, '', now) }, actor, now);
   return result(finding, next, 'iso.finding.links', actor, now);
+}
+
+/** Saker koblet til en post i en annen modul (utstyr, leverandør, kunde, prosjekt, ansatt). */
+export function findingsLinkedTo(findings, kind, id) {
+  const key = text(id, 120);
+  if (!key) return [];
+  return (findings || []).filter((f) => {
+    if (kind === 'project') return f.projectId === key;
+    if (kind === 'employee') return (f.links?.employeeIds || []).includes(key);
+    return f.links?.[`${kind}Id`] === key;
+  });
 }
 
 /** Fase i flyten — brukes av funnel/fasefordeling og stepper. */

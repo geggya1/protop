@@ -478,8 +478,9 @@ test('flere boter: oppslag, flere bedrifter, invitasjon, e-post, deaktivering og
   assert.match(sent.mail.subject, /^Invitasjon til bedriften CONSULT1 AS på ProTop$/);
   assert.match(sent.mail.text, /Du er invitert inn i bedriften «CONSULT1 AS» på ProTop/);
   assert.match(sent.mail.text, /Opprett konto her/);
-  assert.match(sent.mail.text, /Du blir ikke med i bedriften før du har godtatt/);
-  assert.match(sent.mail.html, /Opprett konto og svar på invitasjonen/);
+  assert.match(sent.mail.text, /bekreft e-posten, så er du med i bedriften/);
+  assert.match(sent.mail.text, /Er invitasjonen ikke til deg, kan du avslå den i appen/);
+  assert.match(sent.mail.html, /Opprett konto og bli med/);
   assert.match(sent.mail.html, /Hei Eva &lt;script&gt;/);
   assert.equal(sent.mail.html.includes('<script>'), false);
   assert.match(sent.mail.text, /https:\/\/www\.protop\.no\/register\?email=eva%40example\.com&familyId=/);

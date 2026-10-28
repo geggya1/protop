@@ -48,10 +48,12 @@ export function buildInviteMessage({
   const accountHtml = organization
     ? 'Du har allerede en ProTop-konto. Du blir ikke med i bedriften før du godtar. Åpne lenken under for å godta eller avslå invitasjonen.'
     : 'Du har allerede en ProTop-konto. Åpne lenken under for å godta eller avslå invitasjonen.';
-  // Ny bruker: konto først, så Godta/Avslå når e-posten er bekreftet.
+  // Ny bruker i en bedrift: kontoen fra lenken er svaret, og invitasjonen godtas når e-posten
+  // er bekreftet (UX-30). Andre grupper: konto først, så Godta/Avslå.
   const registerLine = organization
-    ? 'Opprett en konto med denne e-postadressen og bekreft e-posten. Deretter godtar eller avslår du invitasjonen. Du blir ikke med i bedriften før du har godtatt'
+    ? 'Opprett en konto med denne e-postadressen fra lenken og bekreft e-posten, så er du med i bedriften. Er invitasjonen ikke til deg, kan du avslå den i appen'
     : 'Opprett en konto med denne e-postadressen og bekreft e-posten. Deretter godtar eller avslår du invitasjonen';
+  const registerButton = organization ? 'Opprett konto og bli med' : 'Opprett konto og svar på invitasjonen';
   const signoff = 'Hilsen ProTop';
 
   if (existingUser) {
@@ -100,7 +102,7 @@ export function buildInviteMessage({
       <a href="${registerUrl}"
          style="background:#1099F4;color:#fff;padding:10px 16px;border-radius:8px;
                 text-decoration:none;display:inline-block">
-        Opprett konto og svar på invitasjonen
+        ${registerButton}
       </a>
     </p>
     <p style="color:#475569;font-size:13px">Hvis knappen ikke virker: ${escapeHtml(registerUrl)}</p>

@@ -134,7 +134,7 @@ export default function EmployeeInvitePanel({
         onInvite={onInviteSelected}
       />
       <Text style={{ color: colors.muted }}>
-        Legg til så mange du vil. E-post sendes ikke før du trykker Inviter. Personen får en invitasjon og må selv godta den før hen kommer inn i bedriften, med tilgangsnivået du setter her.
+        Legg til så mange du vil. E-post sendes ikke før du trykker Inviter. Personen kommer inn i bedriften med tilgangsnivået du setter her når hen har svart: en ny bruker ved å opprette konto fra lenken og bekrefte e-posten, en som har konto fra før ved å godta invitasjonen.
       </Text>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }]}>
         <Text style={[styles.heading, { color: colors.ink }]}>Ny person</Text>

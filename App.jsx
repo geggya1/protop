@@ -178,6 +178,7 @@ import {
   isHomeSetupCompleteSession,
 } from './src/utils/personalShell';
 import { clearSessionData } from './src/utils/localCache';
+import { useInviteLinkJoin } from './src/hooks/useInviteLinkJoin';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -705,7 +706,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   const { langPicked, ready, t, lang } = useI18n();
   const {
     userProfile, families, familiesReady, familiesLoadError, userProfileReady,
-    family, familyId, selectFamily,
+    family, familyId, selectFamily, requestShellTab,
   } = useApp();
   const [localConsents, setLocalConsents] = useState(null);
   const [consentReady, setConsentReady] = useState(false);
@@ -715,6 +716,10 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
   // Brukeren (uid) som har fått svar på opprettelsen av arbeidsområdet i denne økten.
   const [shellEnsureSettled, setShellEnsureSettled] = useState(null);
   const shellEnsureAttemptedRef = React.useRef(null);
+  // Registrert fra en invitasjonslenke: invitasjonen godtas når e-posten er bekreftet (UX-30).
+  const inviteJoin = useInviteLinkJoin({
+    user, userProfile, families, familiesReady, selectFamily, requestShellTab,
+  });
 
   useEffect(() => {
     setBootTimedOut(false);
@@ -765,6 +770,12 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     if (!user?.uid || userRole !== 'parent') return undefined;
     if (!userProfile?.profileComplete) return undefined;
     if (!familiesReady) return undefined;
+    // Personen blir med i bedriften fra invitasjonslenken; da trengs ikke et eget skall først.
+    if (inviteJoin.joining) return undefined;
+    // Profilen lagres alt ved registreringen (UX-30). Arbeidsområdet lages først når e-posten
+    // er bekreftet, så den som kommer fra en invitasjonslenke går rett inn i bedriften.
+    const provider = user?.providerData?.[0]?.providerId;
+    if ((!provider || provider === 'password') && !user.emailVerified) return undefined;
     const live = (families || []).filter(
       (f) => f.deleted !== true && f.hiddenFromApp !== true
         && f.archived !== true && f.active !== false,
@@ -823,7 +834,8 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
       if (!finished) shellEnsureAttemptedRef.current = null;
     };
   }, [
-    user, userRole, userProfile, familiesReady, families, selectFamily, lang,
+    user, user?.emailVerified, userRole, userProfile, familiesReady, families, selectFamily, lang,
+    inviteJoin.joining,
   ]);
 
   const consented = userRole === 'child'
@@ -938,6 +950,7 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
     else if (needsVerify) stage = 'verify';
     else if (user && userRole === 'parent' && !bootTimedOut && (!familiesReady || (!userProfileReady && !hasGroups))) stage = 'boot';
     else if (!langPicked && user) stage = 'language';
+    else if (inviteJoin.joining) stage = 'boot';
     // Never eject incomplete profiles to GetStarted — bootTimedOut only clears the
     // white spinner (boot stage). Kicking off ProfileSetup mid-birthday-picker left
     // new users on «Fant ikke familien din».
@@ -995,13 +1008,14 @@ function RootNav({ user, userRole, justRegisteredEmail, setJustRegisteredEmail, 
             path = (window.location.pathname || '/').replace(/\/$/, '') || '/';
           }
         } catch { /* ignore */ }
-        if (!isAuthEntryPath(path)) return;
+        // Bekreftelseslenken (/verify-email?vt=…) skal ikke åpnes på nytt når bedriften er klar.
+        if (!isAuthEntryPath(path) && !path.startsWith('/verify-email')) return;
       }
       navRef.current.reset({ index: 0, routes: [{ name: initial }] });
     }
   }, [stage, initial, forceCalendarOauth]);
 
-  if (stage === 'boot') return <LoadingView label="Laster ProTop…" />;
+  if (stage === 'boot') return <LoadingView label={inviteJoin.joining ? 'Åpner bedriften…' : 'Laster ProTop…'} />;
 
   // SessionOverlays must mount for any signed-in user past boot — not only
   // stage==='app'. Users on legal/profile/language/start otherwise never see

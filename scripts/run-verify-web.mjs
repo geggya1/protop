@@ -256,6 +256,7 @@ export const FILES = [
   // Konto: første innlogging, invitasjonslenke, brukernavn, familieproduktet og venneinvitasjoner.
   'src/utils/personalShell.test.mjs',
   'src/utils/authBootGate.test.mjs',
+  'src/utils/inviteLinkJoin.test.mjs',
 ];
 
 function runFile(file) {

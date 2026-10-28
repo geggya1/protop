@@ -4,6 +4,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import IsoDateField from './IsoDateField';
+import TypedInput from '../../src/ui/TypedInput';
+import { sameOrCleared } from '../../src/ui/typedText';
 import { useCompanyDirectory } from '../../src/context/CompanyDataContext';
 import {
   FIXED_EXTRA_TEMPLATES,
@@ -346,9 +348,11 @@ export default function VacationPlanPanel({
           <Text style={styles.hint}>For eksempel inneklemte dager i påsken eller mellom jul og nyttår. Dagene legges til summen for alle.</Text>
           {current.fixedExtras.map((row) => (
             <View key={row.id} style={styles.extra} nativeID={`ferieplan-ekstra-${row.id}`}>
-              <TextInput
+              {/* Tomt navn fjerner raden i planen, så et tømt felt beholder det gamle navnet til noe er skrevet. */}
+              <TypedInput
+                same={sameOrCleared}
                 value={row.label}
-                onChangeText={(label) => updateExtra(row.id, { label })}
+                onChangeText={(label) => { if (label.trim()) updateExtra(row.id, { label }); }}
                 style={[styles.input, { flex: 1 }]}
               />
               <TextInput
@@ -396,7 +400,7 @@ export default function VacationPlanPanel({
 
         <View style={styles.field}>
           <Text style={styles.label}>Memo til alle</Text>
-          <TextInput
+          <TypedInput
             value={current.memo}
             onChangeText={(memo) => patch({ memo })}
             placeholder="+ 25 dager ordinær ferie. Husk å legge hovedferien mellom 1. juni og 30. september."

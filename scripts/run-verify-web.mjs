@@ -76,6 +76,7 @@ export const FILES = [
   'src/utils/webBuildRefresh.test.mjs',
   'src/utils/googleLocalAuth.test.mjs',
   'src/ui/saveToast.test.mjs',
+  'src/ui/typedText.test.mjs',
   'src/economy/productSalesView.test.mjs',
   'src/economy/productSaleEdit.test.mjs',
   'src/economy/productSalesImport.test.mjs',

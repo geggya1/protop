@@ -610,7 +610,7 @@ function ProfileCard({ v, update, wide, about = '', onCompanyPage }) {
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
         <View style={{ flex: 1 }}>
           <Field label="Verdier" hint="Én per linje.">
-            <TextIn multiline rows={3} value={(p.values || []).join('\n')} onChangeText={(x) => setP('values')(String(x).split('\n').map((l) => l.trimStart()).filter((l, i, a) => l || i < a.length - 1))} />
+            <TextIn multiline rows={3} value={(p.values || []).join('\n')} onChangeText={(x) => setP('values')(String(x).split('\n').map((l) => l.trim()).filter(Boolean))} />
           </Field>
         </View>
         <View style={{ flex: 1 }}><Field label="Forretningsmål og overordnede mål"><TextIn multiline rows={3} value={p.businessGoals || ''} onChangeText={setP('businessGoals')} /></Field></View>

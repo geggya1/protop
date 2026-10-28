@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import BidCollab from './BidCollab';
+import TypedInput from '../../src/ui/TypedInput';
 import OptionPicker from '../../components/OptionPicker';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
@@ -737,7 +738,7 @@ export default function BidWorkspace({
             {(bid.questions || []).map((row) => (
               <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: '#fff' }]}>
                 <Text style={{ color: colors.ink }}>{row.question}</Text>
-                <TextInput
+                <TypedInput
                   value={row.answer}
                   onChangeText={(answer) => commit(answerBidQuestion(state, bid.id, row.id, answer))}
                   placeholder="Svar fra oppdragsgiver"
@@ -1174,7 +1175,7 @@ function WorkItemCard({
               </TouchableOpacity>
             ) : null}
           </View>
-          <TextInput
+          <TypedInput
             value={item.note}
             onChangeText={(note) => onCommit(patchWorkItem(state, bid.id, item.id, { note }))}
             placeholder="Notat til sjekkpunktet"

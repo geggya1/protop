@@ -74,7 +74,6 @@ import { shellPathFor } from '../../src/navigation/shellPaths';
 import { createId } from '../../src/project/engine';
 import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
-import { isPhoneWidth } from '../../src/ui/reportTable';
 import { Button, Field, Sheet, TextIn } from '../../src/ui';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
 import Breadcrumb from '../../components/Breadcrumb';
@@ -306,10 +305,10 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   // Import av utleggslister krever Admin på Prosjektutlegg.
   const adminImport = canImportList(access, 'economyProjectExpenses');
   const canImport = adminImport && canImportProp !== false;
-  const { isWide } = useLayout();
+  const { isWide, isPhone } = useLayout();
   // Brede skjermer: filter og sortering i høyre marg, som på Timer.
   const sideFilters = !!isWide;
-  const phone = isPhoneWidth(width);
+  const phone = !!isPhone;
   const hostedHero = useModuleHeroHosted();
   const companyId = familyId;
   const lockedId = String(lockedEmployeeId || '').trim();

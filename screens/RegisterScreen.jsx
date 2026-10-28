@@ -291,6 +291,9 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
               style={styles.input}
               placeholder="Ditt navn"
               placeholderTextColor={colors.placeholder}
+              accessibilityLabel="Navn"
+              autoComplete="name"
+              textContentType="name"
               value={name}
               onChangeText={setName}
               editable={!loading}
@@ -304,6 +307,9 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
               style={[styles.input, email.length > 0 && !emailValid ? styles.inputError : null]}
               placeholder="navn@domene.no"
               placeholderTextColor={colors.placeholder}
+              accessibilityLabel="E-post"
+              autoComplete="email"
+              textContentType="emailAddress"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -331,12 +337,21 @@ export default function RegisterScreen({ navigation, setJustRegisteredEmail }) {
                 ]}
                 placeholder="Minst 8 tegn"
                 placeholderTextColor={colors.placeholder}
+                accessibilityLabel="Passord, minst 8 tegn"
+                autoComplete="new-password"
+                textContentType="newPassword"
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
                 editable={!loading}
               />
-              <TouchableOpacity style={styles.showBtn} disabled={loading} onPress={() => setShowPassword((s) => !s)}>
+              <TouchableOpacity
+                style={styles.showBtn}
+                disabled={loading}
+                onPress={() => setShowPassword((s) => !s)}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Skjul passordet' : 'Vis passordet'}
+              >
                 <Text style={styles.showBtnText}>{showPassword ? 'Skjul' : 'Vis'}</Text>
               </TouchableOpacity>
             </View>

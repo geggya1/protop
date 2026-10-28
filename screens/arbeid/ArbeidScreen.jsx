@@ -1135,7 +1135,7 @@ export default function ArbeidScreen({
           )}
         </View>
         <View style={styles.monthNav}>
-          <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
+          <TouchableOpacity onPress={() => monthNav(-1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Forrige måned" style={styles.navHit}>
             <Ionicons name="chevron-back" size={22} color={colors.ink} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -1146,7 +1146,7 @@ export default function ArbeidScreen({
           >
             <Text style={[styles.monthLabel, isPhone && styles.monthLabelPhone, { color: colors.ink }]}>{currentMonthLabel}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" style={styles.navHit}>
+          <TouchableOpacity onPress={() => monthNav(1)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Neste måned" style={styles.navHit}>
             <Ionicons name="chevron-forward" size={22} color={colors.ink} />
           </TouchableOpacity>
           {readOnly || hideReportTools ? null : (

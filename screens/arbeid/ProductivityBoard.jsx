@@ -688,7 +688,7 @@ export default function ProductivityBoard({
       </View>
 
       <View style={styles.navRow}>
-        <Pressable onPress={() => setOrigin(weekKeys(origin, 1).length ? shiftWeek(origin, -4) : origin)} style={[styles.iconBtn, { borderColor: colors.line }]}>
+        <Pressable onPress={() => setOrigin(weekKeys(origin, 1).length ? shiftWeek(origin, -4) : origin)} accessibilityRole="button" accessibilityLabel="Fire uker tilbake" style={[styles.iconBtn, { borderColor: colors.line }]}>
           <Ionicons name="chevron-back" size={18} color={colors.ink} />
         </Pressable>
         <Pressable onPress={() => setOrigin(weekKeys(new Date(), 1)[0])} style={[styles.todayBtn, { borderColor: colors.line }]}>
@@ -696,7 +696,7 @@ export default function ProductivityBoard({
             {`${weekMeta(origin).short} · ${weekMeta(origin).date}`}
           </Text>
         </Pressable>
-        <Pressable onPress={() => setOrigin(shiftWeek(origin, 4))} style={[styles.iconBtn, { borderColor: colors.line }]}>
+        <Pressable onPress={() => setOrigin(shiftWeek(origin, 4))} accessibilityRole="button" accessibilityLabel="Fire uker fram" style={[styles.iconBtn, { borderColor: colors.line }]}>
           <Ionicons name="chevron-forward" size={18} color={colors.ink} />
         </Pressable>
         <Text style={[styles.weekHours, { color: colors.muted }]}>

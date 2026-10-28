@@ -300,6 +300,9 @@ export default function LoginScreen({ navigation }) {
             style={styles.input}
             placeholder={t('auth.identifier')}
             placeholderTextColor={colors.placeholder}
+            accessibilityLabel={t('auth.identifier')}
+            autoComplete="username"
+            textContentType="username"
             autoCapitalize="none"
             autoCorrect={false}
             value={email}
@@ -312,12 +315,20 @@ export default function LoginScreen({ navigation }) {
               style={[styles.input, styles.pwInput]}
               placeholder={t('auth.password')}
               placeholderTextColor={colors.placeholder}
+              accessibilityLabel={t('auth.password')}
+              autoComplete="current-password"
+              textContentType="password"
               secureTextEntry={!showPw}
               value={password}
               onChangeText={(v) => { setPassword(v); if (formError) setFormError(null); }}
               editable={!busy}
             />
-            <TouchableOpacity style={styles.eyeBtn} onPress={() => setShowPw((s) => !s)}>
+            <TouchableOpacity
+              style={styles.eyeBtn}
+              onPress={() => setShowPw((s) => !s)}
+              accessibilityRole="button"
+              accessibilityState={{ checked: showPw }}
+            >
               <Text style={styles.eyeTxt}>{showPw ? t('auth.hidePassword') : t('auth.showPassword')}</Text>
             </TouchableOpacity>
           </View>
@@ -333,7 +344,9 @@ export default function LoginScreen({ navigation }) {
             ?
           </Text>
 
-          {!!formError && <Text style={styles.errorText}>{formError}</Text>}
+          {!!formError && (
+            <Text style={styles.errorText} accessibilityRole="alert" accessibilityLiveRegion="polite">{formError}</Text>
+          )}
           {unverifiedInfo && (
             <Text style={styles.infoText}>E-posten er ikke bekreftet (sjekk e-post/spam).</Text>
           )}

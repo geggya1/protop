@@ -89,7 +89,7 @@ export default function ConfirmActionModal({
       ) : null}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} disabled={busy}>
+        <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} disabled={busy} accessibilityRole="button">
           <Text style={styles.cancelTxt}>{cancelLabel}</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -100,6 +100,8 @@ export default function ConfirmActionModal({
           ]}
           onPress={canConfirm ? onConfirm : undefined}
           disabled={!canConfirm}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canConfirm, busy: !!busy }}
         >
           {busy ? (
             <ActivityIndicator color="#fff" />

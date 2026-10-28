@@ -141,7 +141,7 @@ export default function CreateCompanyScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.bg }]} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => nav.goBack()} style={styles.back} accessibilityRole="button">
+        <TouchableOpacity onPress={() => nav.goBack()} style={styles.back} accessibilityRole="button" accessibilityLabel="Tilbake">
           <Ionicons name="arrow-back" size={22} color={colors.ink} />
         </TouchableOpacity>
         <Text style={[styles.kicker, { color: colors.muted }]}>Gratis</Text>

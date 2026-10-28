@@ -1874,6 +1874,7 @@ export default function ProjectWorkScreen() {
                     <TouchableOpacity
                       onPress={toggleCheckAllVisible}
                       accessibilityRole="checkbox"
+                      accessibilityLabel="Merk alle prosjektene i listen"
                       accessibilityState={{ checked: allVisibleChecked }}
                     >
                       <Ionicons

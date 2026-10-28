@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -137,6 +138,8 @@ export default function AbsencePeriodModal({
                         onChangeText={(value) => setDraft((current) => ({ ...current, hours: value }))}
                         placeholder="Timer"
                         placeholderTextColor={colors.muted}
+                        accessibilityLabel="Timer"
+                        keyboardType={Platform.OS === 'web' ? 'default' : 'numbers-and-punctuation'}
                         style={[styles.input, { borderColor: colors.line, color: colors.ink }]}
                       />
                       <TextInput

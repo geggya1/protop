@@ -504,6 +504,8 @@ export default function ProjectDetail({
                       });
                       if (result.ok) onChangeState(result.state);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={row.status === 'avsluttet' ? `Gjenåpne ${row.name}` : `Merk ${row.name} som avsluttet`}
                   >
                     <Ionicons name="create-outline" size={18} color={colors.muted} />
                   </TouchableOpacity>
@@ -534,7 +536,11 @@ export default function ProjectDetail({
                   {row.status === 'godkjent' || row.status === 'låst' ? (
                     <Ionicons name="checkmark-circle" size={18} color={colors.success || '#16a34a'} />
                   ) : full && isAdmin ? (
-                    <TouchableOpacity onPress={() => approveEntry(row.id)}>
+                    <TouchableOpacity
+                      onPress={() => approveEntry(row.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Godkjenn timene ${row.date} for ${row.employeeName || 'den ansatte'}`}
+                    >
                       <Ionicons name="ellipse-outline" size={18} color={colors.muted} />
                     </TouchableOpacity>
                   ) : (

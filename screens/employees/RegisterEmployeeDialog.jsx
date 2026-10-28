@@ -223,6 +223,8 @@ export default function RegisterEmployeeDialog({
             <Field colors={colors} label="E-post">
               <TextInput
                 nativeID="employee-register-email"
+                accessibilityLabel="E-post"
+                autoComplete="email"
                 value={email}
                 onChangeText={(value) => { setEmail(value); setFormError(''); }}
                 autoCapitalize="none"
@@ -267,6 +269,7 @@ export default function RegisterEmployeeDialog({
                 <Field colors={colors} label="Fornavn">
                   <TextInput
                     nativeID="employee-register-first"
+                    accessibilityLabel="Fornavn"
                     value={firstName}
                     onChangeText={setFirstName}
                     placeholder="Fornavn"
@@ -277,6 +280,7 @@ export default function RegisterEmployeeDialog({
                 <Field colors={colors} label="Etternavn">
                   <TextInput
                     nativeID="employee-register-last"
+                    accessibilityLabel="Etternavn"
                     value={lastName}
                     onChangeText={setLastName}
                     placeholder="Etternavn"
@@ -303,6 +307,7 @@ export default function RegisterEmployeeDialog({
                     </View>
                     <TextInput
                       nativeID="employee-register-phone"
+                      accessibilityLabel="Mobiltelefon"
                       value={national}
                       onChangeText={setNational}
                       keyboardType="phone-pad"
@@ -330,6 +335,7 @@ export default function RegisterEmployeeDialog({
                 <Field colors={colors} label="Eksternt ansattnummer">
                   <TextInput
                     nativeID="employee-register-number"
+                    accessibilityLabel="Eksternt ansattnummer"
                     value={externalNumber}
                     onChangeText={setExternalNumber}
                     placeholderTextColor={colors.placeholder}

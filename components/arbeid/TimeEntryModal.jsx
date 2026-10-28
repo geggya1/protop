@@ -179,6 +179,7 @@ export default function TimeEntryModal({
                       <TextInput
                         value={block.hours}
                         onChangeText={(hours) => patchBlock(block.key, { hours })}
+                        accessibilityLabel="Timer"
                         placeholder="0:00"
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
@@ -188,6 +189,7 @@ export default function TimeEntryModal({
                       <TextInput
                         value={block.description}
                         onChangeText={(description) => patchBlock(block.key, { description })}
+                        accessibilityLabel="Eksternt notat, synlig for kunde"
                         placeholder="Eksternt notat - synlig for kunde"
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
@@ -208,6 +210,7 @@ export default function TimeEntryModal({
                       <TextInput
                         value={block.internalNote}
                         onChangeText={(internalNote) => patchBlock(block.key, { internalNote })}
+                        accessibilityLabel="Internt notat, bare synlig internt"
                         placeholder="Internt notat — kun synlig internt"
                         placeholderTextColor={colors.placeholder}
                         editable={!frozen}
@@ -220,6 +223,7 @@ export default function TimeEntryModal({
                         <TextInput
                           value={block.clockIn}
                           onChangeText={(clockIn) => patchBlock(block.key, { clockIn })}
+                          accessibilityLabel="Kom, klokkeslett"
                           placeholder="Kom 08:00"
                           placeholderTextColor={colors.placeholder}
                           style={[styles.clock, { color: colors.ink, borderColor: colors.line }]}
@@ -227,6 +231,7 @@ export default function TimeEntryModal({
                         <TextInput
                           value={block.clockOut}
                           onChangeText={(clockOut) => patchBlock(block.key, { clockOut })}
+                          accessibilityLabel="Gå, klokkeslett"
                           placeholder="Gå 16:00"
                           placeholderTextColor={colors.placeholder}
                           style={[styles.clock, { color: colors.ink, borderColor: colors.line }]}
@@ -236,6 +241,9 @@ export default function TimeEntryModal({
                     <TouchableOpacity
                       onPress={() => setActivityOpen((current) => (current === block.key ? '' : block.key))}
                       disabled={readOnly}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Aktivitet: ${activityName}`}
+                      accessibilityState={{ expanded: activityOpen === block.key, disabled: !!readOnly }}
                       style={[styles.activity, { borderColor: colors.line }]}
                     >
                       <Text style={{ color: colors.ink, flex: 1 }}>{activityName}</Text>

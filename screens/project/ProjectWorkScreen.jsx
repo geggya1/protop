@@ -15,7 +15,7 @@ import { myProjectIds } from '../../src/project/myProjects';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useColors } from '../../src/context/ThemeContext';
 import { useLayout } from '../../src/theme';
-import { showSaveToast } from '../../src/ui/saveToast';
+import { showSaveToast, showUndoToast } from '../../src/ui/saveToast';
 import { kindLabel } from '../../src/anbud/agreementTemplate';
 import { openIndexIntentFromContract } from '../../src/anbud/directContract';
 import { loadAnbudState, peekAnbudState, saveAnbudState } from '../../src/anbud/storage';
@@ -346,6 +346,9 @@ export default function ProjectWorkScreen() {
   const [query, setQuery] = useState('');
   const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState('');
+  // Angre etter fjernet dokument skal ikke skrive inn i et annet prosjekt som er åpnet i mellomtiden.
+  const selectedIdRef = useRef('');
+  selectedIdRef.current = selectedId;
   const [form, setForm] = useState(EMPTY_FORM);
   const [gapFilter, setGapFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -1323,7 +1326,17 @@ export default function ProjectWorkScreen() {
     showSaveToast('Tilbudsdokumenter er overført til prosjektet.');
   }
 
+  // Fjerning av et dokument kan angres, så ingen dialog, men en toast med «Angre»
+  // som legger listen tilbake slik den var (UX-27).
   function removeDoc(docId, kind) {
+    const key = kind === 'offer' ? 'offerDocuments' : 'agreementDocuments';
+    const before = form[key] || [];
+    const removed = before.find((doc) => doc.id === docId);
+    const projectId = view === 'edit' ? selectedId : '';
+    const offerUndo = () => showUndoToast(
+      `«${removed?.name || removed?.title || 'Dokumentet'}» er fjernet`,
+      () => restoreDocs(key, before, projectId),
+    );
     if (view === 'edit' && selectedId) {
       const result = removeProjectDocument(state, selectedId, docId, kind);
       if (!result.ok) {
@@ -1337,6 +1350,7 @@ export default function ProjectWorkScreen() {
         agreementDocuments: project?.agreementDocuments || [],
         offerDocuments: project?.offerDocuments || [],
       }));
+      offerUndo();
       return;
     }
     setForm((current) => ({
@@ -1348,6 +1362,18 @@ export default function ProjectWorkScreen() {
         ? (current.offerDocuments || []).filter((doc) => doc.id !== docId)
         : current.offerDocuments,
     }));
+    offerUndo();
+  }
+
+  function restoreDocs(key, list, projectId) {
+    if (projectId) {
+      setState((current) => {
+        const result = updateProject(current, projectId, { [key]: list });
+        return result.ok ? result.state : current;
+      });
+      if (selectedIdRef.current !== projectId) return;
+    }
+    setForm((current) => ({ ...current, [key]: list }));
   }
 
   const pricing = form.pricingSettings || emptyPricingSettings();
@@ -1553,7 +1579,7 @@ export default function ProjectWorkScreen() {
       {(form.agreementDocuments || []).map((doc) => (
         <View key={doc.id} style={styles.docRow}>
           <Text style={{ color: colors.ink, flex: 1 }} numberOfLines={2}>{doc.name || doc.title}</Text>
-          <TouchableOpacity onPress={() => removeDoc(doc.id, 'agreement')} accessibilityRole="button">
+          <TouchableOpacity onPress={() => removeDoc(doc.id, 'agreement')} accessibilityRole="button" accessibilityLabel={`Fjern ${doc.name || doc.title || 'dokumentet'}`}>
             <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
           </TouchableOpacity>
         </View>
@@ -1579,7 +1605,7 @@ export default function ProjectWorkScreen() {
             {doc.name || doc.title}
             {doc.source === 'tilbud' ? ' · fra tilbud' : ''}
           </Text>
-          <TouchableOpacity onPress={() => removeDoc(doc.id, 'offer')} accessibilityRole="button">
+          <TouchableOpacity onPress={() => removeDoc(doc.id, 'offer')} accessibilityRole="button" accessibilityLabel={`Fjern ${doc.name || doc.title || 'dokumentet'}`}>
             <Text style={{ color: colors.danger || '#b42318' }}>Fjern</Text>
           </TouchableOpacity>
         </View>

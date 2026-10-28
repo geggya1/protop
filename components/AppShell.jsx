@@ -108,6 +108,7 @@ import {
 } from '../src/utils/childHomeLayout';
 import { shouldShowParentBottomNav } from '../src/utils/parentBottomNav';
 import ShellErrorBoundary from './ShellErrorBoundary';
+import ConfirmHost from './ConfirmHost';
 
 function RailTabItem({ tab, active, onPress, desktop, colors, badgeCount = 0 }) {
   const color = active ? colors.brand : colors.muted;
@@ -1221,6 +1222,8 @@ function AppShellInner() {
           glass={immersiveHome}
         />
       </View>
+
+      <ConfirmHost />
 
       {!simpleChildUi && !kitchenMode && (
         <ShellDrawer

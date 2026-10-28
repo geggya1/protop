@@ -3,10 +3,16 @@ import test from 'node:test';
 import {
   SAVE_TOAST_MS,
   SAVE_TOAST_TITLE,
+  UNDO_LABEL,
+  UNDO_TOAST_MS,
   resetSaveToastForTests,
+  runToastAction,
   saveToastPayload,
   showSaveToast,
+  showUndoToast,
   subscribeSaveToast,
+  toastDuration,
+  undoToastPayload,
 } from './saveToast.js';
 
 test('kort bekreftelse sier at endringen er lagret', () => {
@@ -35,5 +41,27 @@ test('ny lagring erstatter den forrige i lytteren', () => {
   assert.equal(seen[0].detail, 'Første');
   assert.equal(seen[1].detail, 'Andre');
   assert.notEqual(seen[0].id, seen[1].id);
+  resetSaveToastForTests();
+});
+
+test('angre-toasten har én handling som bare kan kjøres én gang', () => {
+  resetSaveToastForTests();
+  const seen = [];
+  const stop = subscribeSaveToast((toast) => seen.push(toast));
+  let undone = 0;
+  const toast = showUndoToast('«Kontrakt.pdf» er fjernet', () => { undone += 1; });
+  stop();
+  assert.equal(seen.length, 1);
+  assert.equal(toast.kind, 'undo');
+  assert.equal(toast.title, '«Kontrakt.pdf» er fjernet');
+  assert.equal(toast.action.label, UNDO_LABEL);
+  assert.equal(toastDuration(toast), UNDO_TOAST_MS);
+  assert.ok(UNDO_TOAST_MS > SAVE_TOAST_MS, 'angre står lenger enn en vanlig bekreftelse');
+  assert.equal(runToastAction(toast), true);
+  assert.equal(runToastAction(toast), false, 'andre trykk gjør ingenting');
+  assert.equal(undone, 1);
+  assert.equal(undoToastPayload('Fjernet', null).action, null, 'uten funksjon ingen knapp');
+  assert.equal(toastDuration({ kind: 'error' }) > SAVE_TOAST_MS, true);
+  assert.equal(toastDuration(saveToastPayload('x')), SAVE_TOAST_MS);
   resetSaveToastForTests();
 });

@@ -1327,6 +1327,17 @@ export default function EmployeesScreen() {
       showError(`${displayName(clash)} er allerede knyttet til denne personen.`);
       return false;
     }
+    // Status eller en passert «Ansatt til» avslutter ansettelsen: personen tas ut av bedriften.
+    const before = scope === 'company' ? rows.find((row) => row.id === result.employee.id) : null;
+    if (before && isActiveEmployee(before) && !isActiveEmployee(result.employee)) {
+      const ended = employmentState(result.employee) === 'ended';
+      const sure = await confirmUser(
+        `Avslutte ansettelsen til ${displayName(before)}?`,
+        `${ended ? 'Sluttdatoen («Ansatt til») er passert. ' : ''}Personen tas ut av bedriften, logges ut og mister all tilgang.`,
+        { ok: 'Lagre og avslutt' },
+      );
+      if (!sure) return false;
+    }
     const pendingImages = countInlineCvImages(result.employee);
     setBusy(true);
     setBusyKind('save');
@@ -1400,7 +1411,10 @@ export default function EmployeesScreen() {
           : 'Profilen er lagret. Den følger deg, og kan knyttes til et selskap senere.');
         return true;
       }
-      const saved = await saveEmployee(familyId, employee);
+      let membership = '';
+      const saved = await saveEmployee(familyId, employee, {
+        onEmployment: (res) => { membership = res?.membership || ''; },
+      });
       setRows((current) => sortEmployees([...current.filter((row) => row.id !== saved.id), saved]));
       if (!kinMissing(saved)) closeKinTask(familyId, saved.id, { uid });
       if (saved.personUid && saved.personUid === uid) {
@@ -1420,7 +1434,9 @@ export default function EmployeesScreen() {
       }
       setDraft(presentEmployee(saved));
       setView('detail');
-      noteSaved('Medarbeideren er lagret.');
+      noteSaved(membershipNote(saved, membership)
+        ? `Medarbeideren er lagret. ${membershipNote(saved, membership)}`
+        : 'Medarbeideren er lagret.');
       recordUsage({
         type: 'change',
         companyId: familyId,
@@ -2389,7 +2405,11 @@ function classificationNote(employee, patch) {
 /** Hva serveren gjorde med medlemskapet, sagt rett ut. Tom når ingenting endret seg. */
 function membershipNote(employee, membership) {
   const name = displayName(employee);
-  if (membership === 'removed') return `${name} er deaktivert, tatt ut av bedriften og logget ut.`;
+  if (membership === 'removed') {
+    const state = employmentState(employee);
+    const what = state === 'ended' ? 'har sluttet' : (state === 'deleted' ? 'ligger i papirkurven' : 'er deaktivert');
+    return `${name} ${what}, er tatt ut av bedriften og logget ut.`;
+  }
   if (membership === 'restored') return `${name} er aktivert og har tilgang til bedriften igjen.`;
   if (membership === 'needs-invite') {
     return `${name} er aktivert, men er ikke medlem av bedriften. Send en ny invitasjon for å gi tilgang.`;

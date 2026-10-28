@@ -9,6 +9,7 @@ import { dateKey } from '../../../src/utils/dates';
 import { formatDate } from '../../../src/economy/invoices.js';
 import { DELIVERY_CHANNELS, daysBetween, dueDateFor, isCreditNote } from '../../../src/economy/invoiceFlow.js';
 import { INVOICE_LANGUAGE_OPTIONS } from '../../../src/economy/companyInvoiceDefaults.js';
+import { customerFieldsFrom } from '../../../src/economy/invoiceCustomer.js';
 import { Field, LinkText } from '../billing/ui';
 
 function Fact({ label, children, colors }) {
@@ -111,14 +112,13 @@ export function InvoiceHeaderEditor({ invoice, colors, wide, customers = [], onP
   function pickCustomer(id) {
     const customer = (customers || []).find((row) => row.id === id);
     if (!customer) return;
+    // Utkastet følger den valgte kunden i registeret til det ferdigstilles (customerCopy).
+    const fields = customerFieldsFrom(customer);
     onPatch({
       customerId: customer.id,
-      customerNumber: customer.customerNumber || '',
-      customerName: customer.name,
-      orgnr: customer.orgnr || '',
-      customerEmail: customer.invoiceEmail || customer.email || invoice.customerEmail,
-      customerContact: customer.contactName || '',
-      customerAddress: { street: customer.address || '', postalCode: customer.postalCode || '', city: customer.place || '', country: 'NO' },
+      ...fields,
+      customerEmail: fields.customerEmail || invoice.customerEmail,
+      customerCopy: fields,
     });
   }
   const setAddr = (key, value) => onPatch({ customerAddress: { ...addr, [key]: value } });

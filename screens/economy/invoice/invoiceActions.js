@@ -51,6 +51,7 @@ import {
 } from '../../../src/economy/invoiceDelivery.js';
 import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js';
 import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
+import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 
 function demo(ctx) {
   return !ctx.familyId || ctx.familyId === '__demo__';
@@ -159,7 +160,9 @@ export async function finalize(ctx, invoice, { date = '', dueDate = '' } = {}) {
   const settings = ctx.settings || {};
   const minimum = nextInvoiceNumber(ctx.invoices || [], settings.invoiceNumberStart);
   const build = (number, current) => {
-    const base = current && current.status === 'draft' ? { ...current, ...invoice } : invoice;
+    const merged = current && current.status === 'draft' ? { ...current, ...invoice } : invoice;
+    // Kunden kopieres fra registeret nå, ved ferdigstilling, og låses deretter (DS-09).
+    const base = withRegistryCustomer(merged, ctx.customers || []);
     const issued = issueInvoice(base, {
       number,
       date,

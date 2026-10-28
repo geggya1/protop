@@ -54,6 +54,25 @@ export function employmentChangeNeedsServer(before, after, options) {
 }
 
 /**
+ * Hvem kan avslutte og ta opp igjen en ansettelse (status, papirkurv eller passert sluttdato)?
+ * Det tar personen ut av eller inn i bedriften, og hører til Admin på Ansatte (som invitere og
+ * slette), eller Admin på Tilgangsstyring. Eier og administratorer har det gjennom tilgangen.
+ * Samme regel som serveren (setEmploymentStatus i functions/companyMembership.js, REV-07).
+ * access: useCompanyAccess() eller et objekt med canAdmin(resource).
+ */
+export function canChangeEmployment(access) {
+  if (!access || access.ready === false || typeof access.canAdmin !== 'function') return false;
+  return !!(access.canAdmin('employees') || access.canAdmin('accessControl'));
+}
+
+export const EMPLOYMENT_CHANGE_DENIED = 'Bare den som har Admin på Ansatte kan avslutte eller aktivere en ansettelse. Be en administrator om å gjøre det.';
+
+/** Stopper lagringen før serveren avviser den: endringen avslutter eller åpner ansettelsen. */
+export function employmentChangeBlocked({ before, after, canChange, options } = {}) {
+  return !canChange && employmentChangeNeedsServer(before, after, options);
+}
+
+/**
  * Hva som skal skje med medlemskapet når ansettelsen har tilstanden i employee.
  * action:
  *   none     – ingen konto er knyttet

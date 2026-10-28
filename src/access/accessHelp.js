@@ -42,8 +42,8 @@ export const ACCESS_HELP = {
   },
   employees: {
     see: 'Ser ansattlisten. På andre ansatte bare Hovedside, uten personlige data, arbeidsforhold, mangler og tagger. Bare prosjekter en selv er med i vises.',
-    read: 'Som Lese, og ser også Oversikt, Timer og Fravær på andre (bare visning). Kan redigere hovedsiden og registrere medarbeidere.',
-    write: 'Alle faner på alle ansatte, også Filer, Prosjektutlegg, Innstillinger og CV. Kan invitere, importere liste og slette.',
+    read: 'Som Lese, og ser også Oversikt, Timer og Fravær på andre (bare visning). Kan redigere hovedsiden og registrere medarbeidere, men ikke avslutte eller aktivere en ansettelse.',
+    write: 'Alle faner på alle ansatte, også Filer, Prosjektutlegg, Innstillinger og CV. Kan invitere, avslutte og aktivere ansettelser (status og sluttdato), importere liste og slette.',
   },
   ownProfile: {
     see: 'Ser Hovedside på egen profil, uten å endre.',

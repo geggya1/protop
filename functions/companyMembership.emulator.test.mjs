@@ -178,6 +178,21 @@ describe('hvem som kan', () => {
     assert.equal(res.membership, 'removed');
   });
 
+  test('REV-07: Begrenset redigering på Ansatte (avdelingsleder) kan ikke avslutte en ansettelse', async () => {
+    // Appen skjuler Deaktiver/Aktiver og låser status og sluttdato for den samme regelen (canChangeEmployment).
+    await db.doc(`families/${A}`).update({ members: ['own', 'adm', 'sjef', 'kari', 'ans', 'avd'] });
+    await db.doc(`families/${A}/parents/avd`).set({ uid: 'avd', active: true, inviteStatus: 'accepted' });
+    await db.doc(`families/${A}/employees/emp_avd`).set(employee('emp_avd', 'avd', 'avdelingsleder'));
+    for (const change of [{ status: 'inactive' }, { periodTo: '01.02.2020' }]) {
+      await assert.rejects(
+        call(setEmploymentStatus, 'avd', { companyId: A, employeeId: 'emp_ans', ...change }),
+        (err) => err.code === 'permission-denied',
+        JSON.stringify(change),
+      );
+    }
+    assert.ok((await data(`families/${A}`)).members.includes('ans'));
+  });
+
   test('eieren kan ikke avsluttes, og ingen avslutter seg selv her', async () => {
     await assert.rejects(
       call(setEmploymentStatus, 'adm', { companyId: A, employeeId: 'emp_own', status: 'inactive' }),

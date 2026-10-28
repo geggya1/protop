@@ -49,4 +49,12 @@ assert.match(usagePanel, /\{notice \|\| usageLogNotice\(company\)\}/);
 assert.equal(/IP-adressen hentes fra tilkoblingen/.test(usagePanel), false);
 assert.match(screen, /<EmployeeUsagePanel\s+companyId=\{familyId\}\s+company=\{family\?\.company\}/);
 
+// REV-07: Deaktiver/Aktiver, status og sluttdato bare med Admin på Ansatte (som serveren).
+assert.match(screen, /const canEndEmployment = canChangeEmployment\(access\);/);
+assert.match(screen, /<EmployeeAccountView[\s\S]{0,260}canEdit=\{canEndEmployment\}/);
+assert.equal((screen.match(/employmentChangeBlocked\(/g) || []).length, 3, 'classifyEmployee, save og saveWork');
+assert.equal((screen.match(/canEndEmployment=\{canEndEmployment\}/g) || []).length, 2);
+assert.match(detail, /const employmentLocked = canEndEmployment \? \[\] : \['company\.status', 'company\.periodTo'\]/);
+assert.match(detail, /lockedKeys=\{employmentLocked\}/);
+
 console.log('employeeAccount.test.mjs: ok');

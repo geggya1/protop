@@ -128,6 +128,12 @@ export const claimEmployeeInvite = onCall(CALL, async (req) => {
     companyId,
   });
   if (plan.skipped) return trusted ? { ok: true, skipped: true } : { ok: true, skipped: true, needsVerifiedEmail: true };
+  // Ledertilgang krever bekreftet e-post lik invitasjonsadressen (claimEmployeeSeatPlan, SEC-26).
+  // Kalles ved hver økt, så det er et svar og ikke en feil.
+  if (plan.code) {
+    logger.info('employee claim needs verified email', { companyId, code: plan.code });
+    return { ok: false, error: plan.code, needsVerifiedEmail: true };
+  }
   if (!plan.ok) throw new HttpsError('failed-precondition', plan.error);
   const employee = employees.find((row) => row.id === plan.employeeId) || null;
   const companyName = text(companySnap.data()?.company?.navn || companySnap.data()?.name) || 'Bedriften';

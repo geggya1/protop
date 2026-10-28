@@ -2,7 +2,9 @@
  * Kobling av ansattposten ende til ende (SEC-26): serveren kobler den inviterte (respondGroupInvite,
  * claimEmployeeInvite), og reglene lar den koblede lese eget personnummer og føre egne timer. Et vanlig
  * medlem får ikke koblet seg til en kollegas post, verken fra klienten (reglene) eller via serveren
- * (invitasjonens nøkkel, invite.parentKey).
+ * (invitasjonens nøkkel, invite.parentKey). Serveren gir ikke ledertilgang på nøkkelen alene, heller
+ * ikke med reglene som ligger i produksjon til de nye deployes (86332db), og permanent sletting tar
+ * med de private delene av posten.
  *
  *   flock /tmp/protop-rules-test.lock npx firebase emulators:exec --only firestore \
  *     --config firebase.rules.json --project demo-protop \
@@ -23,6 +25,9 @@ const { assertFails, assertSucceeds, initializeTestEnvironment } = await import(
 const { doc, getDoc, setDoc, updateDoc } = await import('firebase/firestore');
 const { claimEmployeeInvite } = await import('./employeeInvite.js');
 const { respondGroupInvite } = await import('./groupInvite.js');
+const { membershipDeps, setEmploymentStatus } = await import('./companyMembership.js');
+
+membershipDeps.revokeTokens = async () => {};
 
 // RULES_FILE: en annen regelfil (f.eks. reglene før rettingen, for å se at testene fanger feilen).
 const RULES = process.env.RULES_FILE || new URL('../firestore.rules', import.meta.url);
@@ -162,5 +167,61 @@ describe('SEC-26: serveren kobler den inviterte, reglene resten', () => {
     assert.equal((await data(`families/${A}/employees/emp_sjef`)).personUid, '');
     assert.equal((await data(`families/${A}/employees/emp_nina`)).personUid, '');
     assert.ok(!(await data(`families/${A}`)).adminUids.includes('eve'));
+  });
+});
+
+describe('SEC-26: serveren alene, også med reglene som ligger i produksjon (86332db)', () => {
+  // Reglene fra 86332db slipper skrivingen gjennom fra klienten. Med de nye reglene avvises den, og da
+  // gjør testen den med Admin SDK, så det er serveren som prøves uansett regelfil (RULES_FILE).
+  async function setKeyAs(uid, opts) {
+    const path = `families/${A}/employees/emp_sjef`;
+    await updateDoc(doc(client(uid, opts), 'families', A, 'employees', 'emp_sjef'), { 'invite.parentKey': uid })
+      .catch(() => db.doc(path).update({ 'invite.parentKey': uid }));
+    assert.equal((await data(path)).invite.parentKey, uid);
+  }
+
+  test('nøkkelen på en ventende administratorinvitasjon gir verken kobling eller administrator', async () => {
+    // eve uten bekreftet e-post: serveren kobler ellers på invite.parentKey (REV-05).
+    await setKeyAs('eve', { verified: false });
+    const claim = await call(claimEmployeeInvite, 'eve', { familyId: A }, { verified: false });
+    assert.equal(claim.ok, false);
+    assert.equal(claim.error, 'email-not-verified');
+    // lise med bekreftet e-post, men ikke adressen invitasjonen ble sendt til.
+    await setKeyAs('lise');
+    const other = await call(claimEmployeeInvite, 'lise', { familyId: A });
+    assert.equal(other.ok, false);
+    assert.equal(other.error, 'other-email');
+    const sjef = await data(`families/${A}/employees/emp_sjef`);
+    assert.equal(sjef.personUid, '');
+    assert.equal(sjef.invite.status, 'sent');
+    const family = await data(`families/${A}`);
+    assert.deepEqual(family.adminUids, ['own']);
+    assert.deepEqual(family.members, ['own', 'eve', 'lise']);
+  });
+
+  test('den inviterte lederen med bekreftet e-post lik invitasjonen kobles og blir administrator som før', async () => {
+    await db.doc(`families/${A}`).update({ members: ['own', 'eve', 'lise', 'sjef'], activeUsers: ['own', 'eve', 'lise', 'sjef'] });
+    const claim = await call(claimEmployeeInvite, 'sjef', { familyId: A });
+    assert.equal(claim.ok, true);
+    assert.equal(claim.accessLevel, 'administrator');
+    assert.equal((await data(`families/${A}/employees/emp_sjef`)).personUid, 'sjef');
+    assert.ok((await data(`families/${A}`)).adminUids.includes('sjef'));
+  });
+
+  test('permanent sletting tar med personnummer og Min side, så en ny post med samme id ikke arver dem', async () => {
+    await db.doc(`families/${A}/employees/emp_lise`).update({ 'company.status': 'deleted' });
+    await db.doc(`families/${A}/employeesPrivate/emp_lise`).set({ employeeId: 'emp_lise', person: { nationalId: '02028012345' } });
+    await db.doc(`families/${A}/hrSelf/emp_lise`).set({ employeeId: 'emp_lise', salaries: [{ amount: 50000 }] });
+    const purge = await call(setEmploymentStatus, 'own', { companyId: A, employeeId: 'emp_lise', purge: true });
+    assert.equal(purge.status, 'purged');
+    assert.equal(await data(`families/${A}/employees/emp_lise`), undefined);
+    assert.equal(await data(`families/${A}/employeesPrivate/emp_lise`), undefined);
+    assert.equal(await data(`families/${A}/hrSelf/emp_lise`), undefined);
+    // Et medlem lager en ny post med samme id, knyttet til seg selv: ingenting å lese.
+    const eve = client('eve');
+    await assertSucceeds(setDoc(doc(eve, 'families', A, 'employees', 'emp_lise'), {
+      personUid: 'eve', person: { firstName: 'Eve' }, company: { accessLevels: ['ansatt'], status: 'active' },
+    }));
+    assert.equal((await getDoc(doc(eve, 'families', A, 'employeesPrivate', 'emp_lise'))).exists(), false);
   });
 });

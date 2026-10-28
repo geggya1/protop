@@ -8,6 +8,8 @@ import {
   canonicalLevelId,
   levelById,
   levelIdFromRoleLabel,
+  normalizeEmployeeLevelIds,
+  placedLevelId,
 } from '../access/companyAccess.js';
 import { isActiveEmployee } from './employmentState.js';
 
@@ -73,6 +75,25 @@ export function placedAccessLevel(employee) {
     || levelIdFromRoleLabel(employee?.company?.accessRole)
     || canonicalLevelId(employee?.invite?.accessLevel)
     || '';
+}
+
+// Nivåene som gir ledertilgang (samme som empPrivilegedLevels i firestore.rules).
+const ELEVATED_LEVELS = new Set([
+  'administrator', 'leder', 'avdelingsleder', 'hr_ansvarlig', 'kvalitetsansvarlig', 'hms_ansvarlig', 'iso_rolle',
+]);
+
+/** Posten gir ledertilgang: et ledernivå (også i invitasjonen) eller avvik fra nivået, som i reglene. */
+export function employeeLinkElevated(employee) {
+  const company = employee?.company || {};
+  const inviteLevel = employee?.invite?.accessLevel;
+  const levels = [
+    ...normalizeEmployeeLevelIds(company.accessLevels),
+    placedLevelId(employee),
+    canonicalLevelId(inviteLevel) || levelIdFromRoleLabel(inviteLevel),
+  ];
+  const overrides = company.accessOverrides;
+  return levels.some((id) => ELEVATED_LEVELS.has(id))
+    || (!!overrides && typeof overrides === 'object' && Object.keys(overrides).length > 0);
 }
 
 export function inviteStatusLabel(status) {
@@ -398,7 +419,19 @@ export function claimEmployeeSeatPlan({
   // Aktiv ansettelse før avsluttet, utsendt invitasjon før annen kobling.
   const rank = (row) => (employmentOpen(row) ? 4 : 0) + (invited(row) ? 2 : 1);
   eligible.sort((a, b) => rank(b) - rank(a));
-  const employee = eligible[0];
+  // Ledertilgang knyttes bare på bekreftet e-post lik invitasjonsadressen. Nøkkelen (invite.parentKey)
+  // alene er ikke nok: med eldre regler (86332db) kan et medlem skrive den på en annens post (SEC-26).
+  // En post som allerede er knyttet til personen, står som før.
+  const leaderOk = (row) => text(row.personUid) === actor || !employeeLinkElevated(row)
+    || (!!email && normalizeInviteState(row.invite).email === email);
+  const employee = eligible.find(leaderOk);
+  if (!employee && eligible.length) {
+    return {
+      ok: false,
+      code: email ? 'other-email' : 'email-not-verified',
+      error: 'Invitasjonen gir ledertilgang og må godtas med bekreftet e-post, den invitasjonen ble sendt til.',
+    };
+  }
   if (!employee) {
     const taken = matches.some((row) => {
       const linked = text(row.personUid);

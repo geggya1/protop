@@ -35,6 +35,12 @@ og, med serveren, `functions/employeeLink.emulator.test.mjs`.
    GOOGLE_APPLICATION_CREDENTIALS=sa.json node scripts/seal-company-calendars.mjs --apply
    ```
 4. **Deploy `firestore.rules`** (workflow «Deploy Firestore rules»; den kjører alle regeltestene først).
+   Ikke vent lenger enn nødvendig (SEC-26): serveren gir ikke lenger ledertilgang på invitasjonens
+   nøkkel alene (`claimEmployeeInvite`, `respondGroupInvite`; ledernivå krever bekreftet e-post lik
+   invitasjonsadressen), men med reglene fra 86332db kan et medlem fortsatt koble seg direkte til en
+   ventende lederpost (`invite.acceptedUid`, så `personUid`) eller skrive sin egen bekreftede adresse
+   som invitasjonsadresse. `syncCompanyAccess` eller `claimEmployeeInvite` gir da administrator.
+   Bare de nye reglene stenger det.
 5. **Deploy `storage.rules`** manuelt, etter sammenligning med produksjonsreglene (grenser som
    produksjon har i dag, f.eks. for album, må tas med).
 6. Følg med på `permission-denied` i loggene første døgn (særlig fra mobilappene).
@@ -87,7 +93,7 @@ Disse avvises for eldre apper. Det var dette rettingene skulle stoppe.
 | Deler et notat en annen har laget | FL-13 | Delingen feiler. |
 | Deaktiverer, aktiverer, legger i papirkurven eller setter en passert sluttdato på en annens ansattpost med bare Begrenset redigering på Ansatte (avdelingsleder) | Appen og serveren krever Admin på Ansatte eller Tilgangsstyring (REV-07, REV-21) | Lagringen av posten feiler. En med Admin på Ansatte gjør det (i ny app via serveren). |
 | «Gjenopprett min profil» kobler en ukoblet ansattpost som bare har samme navn (eller en e-post som ikke er innloggingens bekreftede e-post) til den innloggede | SEC-26: et medlem kunne koble en kollegas post til seg selv, lese personnummeret i `employeesPrivate` og føre timene på posten | Knappen gir en feilmelding. Personen kobles av serveren ved innlogging når administrator har lagt inn e-posten og sendt invitasjonen (`claimEmployeeInvite`), eller administrator velger personen på posten. Ny app sier fra før den prøver («Be en administrator om å knytte ansettelsen til deg.»). |
-| Endrer kobling (`personUid`), e-post (person, firma, invitasjon) eller invitasjonen (status, `acceptedUid`, `parentKey`) på en annens ansattpost uten Admin på Ansatte eller Tilgangsstyring | SEC-26: serveren kobler invitasjonen på e-posten og på `invite.parentKey` (også uten bekreftet e-post, REV-05). Et medlem kunne sette sin egen uid som nøkkel på en ventende invitasjon og bli koblet ved neste innlogging, også til en administratorinvitasjon | Ingen vanlig flyt i appen gjør dette uten Admin på Ansatte (Ansatte viser andres poster uten redigering, og invitasjonen sendes bare med Admin). Andre felt på en kollegas post lagres som før. |
+| Endrer kobling (`personUid`), e-post (person, firma, invitasjon) eller invitasjonen (status, `acceptedUid`, `parentKey`) på en annens ansattpost uten Admin på Ansatte eller Tilgangsstyring | SEC-26: serveren kobler invitasjonen på e-posten og på `invite.parentKey` (også uten bekreftet e-post, REV-05). Et medlem kunne sette sin egen uid som nøkkel på en ventende invitasjon og bli koblet ved neste innlogging, også til en administratorinvitasjon | Ingen vanlig flyt i appen gjør dette uten Admin på Ansatte (Ansatte viser andres poster uten redigering, og invitasjonen sendes bare med Admin). Andre felt på en kollegas post lagres som før. Serveren kobler fortsatt en vanlig ansatt på nøkkelen (brukernavn, telefon, Microsoft uten bekreftet e-post), men en post med ledernivå bare på bekreftet e-post lik invitasjonsadressen; ellers svarer den `email-not-verified` eller `other-email`, og invitasjonen står (administrator kan knytte posten). Permanent sletting fjerner også `employeesPrivate` og `hrSelf` for posten. |
 | Lager et barnedokument i gruppen uten å være voksen der eller administrator, eller i en bedrift | Dokumentet ga den kontoen medlemskap i gruppen (REV-24) | Ingen vanlig flyt gjør dette. Et barn som lagrer tema før dokumentet finnes, får det bare lagret på enheten. |
 | Starter vennechat med en som ikke er venn (også kollega) | SOS-04, FL-12 | Tråden lages ikke. |
 | Endrer tilgangsmatrisen uten speil, eller orgnr/konto/moduler/personvernvalg uten tilgang | FL-02, SEC-13 | Lagringen feiler for andre enn eier og administratorer. |

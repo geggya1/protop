@@ -1,12 +1,15 @@
 /**
- * Registrene: låsen på godkjent internrevisjon og ledelsens gjennomgang, og oppfølging av vedtak (ISO-08).
+ * Registrene: låsen på godkjent internrevisjon og ledelsens gjennomgang, og oppfølging av vedtak (ISO-08),
+ * kompetansebevis og CV-treff (ISO-13), måloppnåelse (ISO-14), risikometode (ISO-16) og øvelser (ISO-22).
  * Hver test gjenskaper feilen fra revisjonen.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  addAuditFinding, addReviewDecision, createRecord, decisionCompleted, markDecisionDone, setRecordState,
+  addAuditFinding, addExercise, addMeasurement, addReviewDecision, competenceMatrix, createRecord, cvEvidence, decisionCompleted, markDecisionDone,
+  objectiveProgress, periodSortKey, riskSummary, setRecordState, updateRecord,
 } from './registers.js';
+import { DEFAULT_RISK_METHOD, riskMatrixLevels } from './catalog.js';
 import { autoTaskEffects } from './integrations.js';
 import { isoCapabilities } from './access.js';
 import { emptyIsoState } from './state.js';
@@ -77,4 +80,84 @@ test('ISO-08: vedtak som er ferdig i Oppgaver gir ikke påminnelse om forfalt ve
   const key = review.decisions[0].taskKey.replace(/[^A-Za-z0-9_-]/g, '_');
   assert.equal(decisionCompleted(review.decisions[0], { [key]: { done: true } }), true);
   assert.deepEqual(titles({ [key]: { done: true } }), ['Forfalt vedtak: Ny leverandørrutine']);
+});
+
+test('ISO-13: nyeste gyldige kompetansebevis vinner over et eldre udatert bevis', () => {
+  const req = { id: 'k1', title: 'Fallsikring', role: 'Alle ansatte', validityMonths: 12, state: 'aktiv' };
+  const recs = [
+    { id: 'a', requirementId: 'k1', personUid: 'p1', validFrom: '2024-01-01', state: 'gyldig' },
+    { id: 'b', requirementId: 'k1', personUid: 'p1', validFrom: '2026-06-01', validTo: '2027-06-01', state: 'gyldig' },
+  ];
+  const cell = competenceMatrix([{ id: 'e1', uid: 'p1', name: 'Kari' }], [req], recs, now)[0].cells[0];
+  assert.equal(cell.status, 'gyldig', 'ga «utløpt» før rettingen');
+  assert.equal(cell.record.id, 'b');
+  // Blant to gyldige vinner det som varer lengst (også når sluttdatoen er regnet fra «gyldig fra»).
+  const two = [
+    { id: 'c', requirementId: 'k1', personUid: 'p1', validFrom: '2026-01-01', state: 'gyldig' },
+    { id: 'd', requirementId: 'k1', personUid: 'p1', validFrom: '2026-09-01', state: 'gyldig' },
+  ];
+  assert.equal(competenceMatrix([{ id: 'e1', uid: 'p1', name: 'Kari' }], [req], two, now)[0].cells[0].record.id, 'd');
+});
+
+test('ISO-13: CV-treff gjelder hele ord, ikke delord', () => {
+  const cv = (title) => ({ cv: { courses: [{ title }] } });
+  assert.equal(cvEvidence(cv('HMS'), { title: 'HMS-introduksjon' }), null, '«HMS» oppfylte «HMS-introduksjon» før rettingen');
+  assert.equal(cvEvidence(cv('Fallsikringskurs'), { title: 'Fallsikring' }), null);
+  assert.equal(cvEvidence(cv('HMS-introduksjon for nyansatte'), { title: 'HMS-introduksjon' })?.kind, 'Kurs');
+  assert.equal(cvEvidence(cv('Kurs i varme arbeider'), { title: 'Varme arbeider' })?.kind, 'Kurs');
+  assert.equal(cvEvidence(cv('Fallsikring'), { title: 'fallsikring' })?.kind, 'Kurs');
+});
+
+test('ISO-14: uten utgangsverdi vises ingen prosent, og årsmåling sorteres etter månedsmåling', () => {
+  const goal = { register: 'mal', direction: 'Redusere', target: 5, baseline: null, measurements: [{ period: '2026-09', value: 8 }] };
+  const p = objectiveProgress(goal);
+  assert.equal(p.status, 'underveis');
+  assert.equal(p.pct, null, 'viste «100 % av veien» før rettingen');
+  assert.equal(objectiveProgress({ ...goal, baseline: '' }).pct, null);
+  assert.equal(objectiveProgress({ ...goal, baseline: 10 }).pct, 40);
+  assert.equal(objectiveProgress({ ...goal, baseline: 0, direction: 'Øke', target: 10 }).pct, 80, 'utgangsverdi 0 er en verdi');
+  const m = addMeasurement({ register: 'mal', measurements: [{ period: '2026-05', value: 1 }] }, { period: '2026', value: 99 }, { actor: ANNE, now });
+  assert.equal(m.record.measurements.at(-1).period, '2026', 'siste måling var 2026-05 før rettingen');
+  assert.ok(periodSortKey('2026-Q2') > periodSortKey('2026-06') && periodSortKey('2026-Q2') < periodSortKey('2026-07'));
+  // Usorterte målinger (f.eks. import): siste periode brukes likevel.
+  assert.equal(objectiveProgress({ ...goal, measurements: [{ period: '2026', value: 4 }, { period: '2026-03', value: 9 }] }).value, 4);
+});
+
+test('ISO-16: risikomatrisen bruker virksomhetens terskler', () => {
+  const strict = { ...DEFAULT_RISK_METHOD, version: '1.1', thresholds: { medium: 3, high: 6, critical: 12 } };
+  const levels = riskMatrixLevels(strict);
+  assert.equal(levels[0][2], 'middels', 'sannsynlighet 1 × konsekvens 3 = 3');
+  assert.equal(levels[1][2], 'hoy', '2 × 3 = 6');
+  assert.equal(levels[2][3], 'kritisk', '3 × 4 = 12');
+  assert.equal(riskMatrixLevels()[2][3], 'hoy', 'standardmetoden: 12 er høy');
+});
+
+test('ISO-16: gamle vurderinger beholder metoden de ble gjort etter', () => {
+  const r = createRecord('risiko', { kind: 'Risiko', title: 'Fall', category: 'arbeidsmiljo', inherentL: 2, inherentC: 3, ownerName: 'A' }, { actor: ANNE, now }).record;
+  assert.deepEqual(r.methodThresholds, DEFAULT_RISK_METHOD.thresholds);
+  const strict = { ...DEFAULT_RISK_METHOD, version: '1.1', thresholds: { medium: 3, high: 6, critical: 12 }, history: [{ version: '1.0', name: DEFAULT_RISK_METHOD.name, thresholds: DEFAULT_RISK_METHOD.thresholds }] };
+  assert.equal(riskSummary(r, strict).inherent.id, 'middels', 'ble klassifisert om til «høy» før rettingen');
+  // Eldre post uten lagrede terskler: versjonen slås opp i metodehistorikken.
+  const legacy = { ...r, methodThresholds: undefined };
+  assert.equal(riskSummary(legacy, strict).inherent.id, 'middels');
+  // Ny vurdering (endret tall) gjøres etter gjeldende metode.
+  const re = updateRecord(r, { inherentL: 2, inherentC: 4 }, { actor: ANNE, now, riskMethod: strict }).record;
+  assert.equal(re.methodVersion, '1.1');
+  assert.equal(riskSummary(re, strict).inherent.id, 'hoy');
+  // Endring av annen tekst beholder metoden.
+  assert.equal(updateRecord(r, { title: 'Fall fra stige' }, { actor: ANNE, now, riskMethod: strict }).record.methodVersion, '1.0');
+});
+
+test('ISO-22: registrert beredskapsøvelse flytter neste øvelsesdato', () => {
+  const ber = { id: 'b1', register: 'beredskap', title: 'Brann', nextExercise: '2026-09-01', state: 'aktiv' };
+  const ex = addExercise(ber, { date: '2026-10-20', evaluation: 'Gikk greit' }, { actor: ANNE, now });
+  assert.equal(ex.record.nextExercise, '2027-10-20', 'sto fortsatt på 01.09.2026 før rettingen');
+  assert.equal(addExercise(ber, { date: '2026-10-20', evaluation: 'ok', nextExercise: '2027-04-01' }, { actor: ANNE, now }).record.nextExercise, '2027-04-01');
+  assert.equal(addExercise(ber, { date: '2026-10-20', evaluation: 'ok', nextExercise: '2026-10-01' }, { actor: ANNE, now }).ok, false);
+  // En senere planlagt øvelse beholdes.
+  assert.equal(addExercise({ ...ber, nextExercise: '2028-01-01' }, { date: '2026-10-20', evaluation: 'ok' }, { actor: ANNE, now }).record.nextExercise, '2028-01-01');
+  // Påminnelsen forsvinner når neste øvelse er flyttet.
+  const state = emptyIsoState();
+  state.records = { ...state.records, beredskap: [ex.record] };
+  assert.equal(autoTaskEffects(state, { now }).some((e) => e.title.startsWith('Gjennomfør beredskapsøvelse')), false);
 });

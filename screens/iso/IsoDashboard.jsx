@@ -161,7 +161,7 @@ export default function IsoDashboard({ ctx }) {
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12 }}>
         <Card style={{ flex: 3 }} title="Risikobilde" right={<Choice small options={[{ id: 'inherent', label: 'Iboende' }, { id: 'residual', label: 'Rest' }]} value={riskView} onChange={(v) => setRiskView(v || 'inherent')} />}>
-          <RiskMatrix cells={risk} method={`Metode: ${state.system.riskMethod?.name || ''} v${state.system.riskMethod?.version || ''}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
+          <RiskMatrix cells={risk} riskMethod={state.system.riskMethod} method={`Metode: ${state.system.riskMethod?.name || ''} v${state.system.riskMethod?.version || ''}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
         </Card>
         <Card style={{ flex: 2 }} title="Avvik etter fase">
           <HBars rows={funnel} onPick={(r) => go('avvik', { ids: r.ids, label: r.label })} empty="Ingen åpne saker." />

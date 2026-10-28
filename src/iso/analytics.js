@@ -8,7 +8,7 @@ import { ASSESSMENT_STATUSES, FINDING_TYPES } from './catalog.js';
 import { isOpenFinding, openActions, overdueActions } from './findings.js';
 import { documentsAwaitingApproval, documentsDueForReview } from './documents.js';
 import { matrixRows, statusCounts } from './requirements.js';
-import { competenceGaps, competenceMatrix, overdueRecords, riskMatrix } from './registers.js';
+import { competenceGaps, competenceMatrix, overdueRecords, riskMatrix, sortedMeasurements } from './registers.js';
 import { visibleFindings } from './access.js';
 
 export function kpis(state, caps, { people = [], now = new Date() } = {}) {
@@ -146,7 +146,7 @@ export function managementReviewSnapshot(state, caps, { people = [], now = new D
     },
     requirements: { total: req.total, segments: req.segments.map(({ label, value }) => ({ label, value })) },
     audits: (state.records.revisjon || []).map((a) => ({ number: a.number, title: a.title, state: a.state, findings: (a.findings || []).length, nonconformities: (a.findings || []).filter((f) => f.classification === 'avvik').length })),
-    objectives: (state.records.mal || []).map((m) => ({ title: m.title, target: m.target, unit: m.unit, last: (m.measurements || []).at(-1)?.value ?? null })),
+    objectives: (state.records.mal || []).map((m) => ({ title: m.title, target: m.target, unit: m.unit, last: sortedMeasurements(m).at(-1)?.value ?? null })),
     compliance: (state.records.samsvar || []).map((s) => ({ title: s.title, result: s.result, nextReview: s.nextReview })),
     previousDecisions: (state.records.ledelse || []).flatMap((l) => (l.decisions || []).map((d) => ({ from: l.number, decision: d.decision, done: d.done, dueAt: d.dueAt }))),
     risks: (state.records.risiko || []).filter((r) => r.state === 'aktiv').length,

@@ -6,7 +6,7 @@ import { DEFAULT_RISK_METHOD, RISK_GUIDANCE, aspectSignificance, riskLevel } fro
 import {
   AUDIT_FINDING_CLASSES, REGISTERS, SUPPLIER_CLASSES, SUPPLIER_CRITERIA, addAuditFinding, addSupplierEvaluation, addExercise, addMeasurement, addReviewDecision, attachReviewSnapshot,
   competenceGaps, competenceMatrix, createRecord, decisionCompleted, unassignedRequirements, findingInputFromAudit, linkAuditFinding, markDecisionDone, objectiveProgress, overdueRecords,
-  cleanContacts, contactsLabel, personsLabel, registerDef, riskMatrix, riskSummary, setRecordState, updateRecord,
+  cleanContacts, contactsLabel, personsLabel, proofEnd, recordRiskMethod, registerDef, riskMatrix, riskScoresChanged, riskSummary, setRecordState, updateRecord,
 } from '../../src/iso/registers';
 import { normalizeSubUnits } from '../../src/project/companyUnits';
 import { createFinding } from '../../src/iso/findings';
@@ -15,7 +15,7 @@ import { allRequirements, attachEvidence, requirementIdsForArea } from '../../sr
 import { visibleFindings } from '../../src/iso/access';
 import { templateIdFor, usableForms } from '../../src/iso/forms';
 import {
-  aspectSuggestions, contractReviewStatus, equipmentStatus, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
+  autoAssignee, aspectSuggestions, contractReviewStatus, equipmentStatus, hazardSuggestions, hrCarryOver, hrCarryOverRecords, mileageSeries,
   projectQuality, qualityPlanDraft, sickLeaveSeries, stakeholderSuggestions, supplierSuggestions, wasteSummary,
 } from '../../src/iso/integrations';
 import { CompetenceHeatmap, HBars, MonthBars, ObjectiveSpark, RiskMatrix } from './isoCharts';
@@ -87,7 +87,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
   async function save() {
     setBusy(true);
     const res = record
-      ? updateRecord(record, v, { actor })
+      ? updateRecord(record, v, { actor, riskMethod: state.system.riskMethod || DEFAULT_RISK_METHOD })
       : createRecord(registerKey, v, { actor, existing: state.records[registerKey], riskMethod: state.system.riskMethod || DEFAULT_RISK_METHOD });
     if (!res.ok) { setErr(res.error); setBusy(false); return; }
     const saved = await store.commit('records', 'record', res, { previous: record || null });
@@ -138,7 +138,10 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
     }
   }
 
-  const level = (registerKey === 'risiko' || registerKey === 'fare') ? riskSummary(v, state.system.riskMethod) : null;
+  // Endrede tall = ny vurdering etter gjeldende metode; ellers vises nivået etter metoden posten ble vurdert etter.
+  const assessed = record && riskScoresChanged(record, v) ? { ...v, methodThresholds: null, methodVersion: '' } : v;
+  const usedMethod = recordRiskMethod(assessed, state.system.riskMethod);
+  const level = (registerKey === 'risiko' || registerKey === 'fare') ? riskSummary(assessed, state.system.riskMethod) : null;
   const aspect = registerKey === 'miljoaspekt' ? aspectSignificance(v, state.system.riskMethod) : null;
   return (
     <Sheet visible={visible} title={record ? `${record.number} · ${def.title}` : `Ny – ${def.title}`} onClose={onClose} wide={ctx.wide} footer={<><Btn label="Avbryt" onPress={onClose} /><Btn kind="primary" label="Lagre" busy={busy} onPress={save} /></>}>
@@ -150,7 +153,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
         <Row>
           <Pill label={`Iboende: ${level.inherent.label}${level.inherent.score ? ` (${level.inherent.score})` : ''}`} tone={level.inherent.id === 'kritisk' || level.inherent.id === 'hoy' ? 'danger' : 'warn'} />
           <Pill label={`Rest: ${level.residual.label}${level.residual.score ? ` (${level.residual.score})` : ''}`} tone={level.residual.id === 'kritisk' || level.residual.id === 'hoy' ? 'danger' : 'ok'} />
-          <Text style={{ color: colors.muted, fontSize: 11 }}>Metode {state.system.riskMethod?.name} v{state.system.riskMethod?.version}</Text>
+          <Text style={{ color: colors.muted, fontSize: 11 }}>Metode {usedMethod?.name} v{usedMethod?.version}</Text>
         </Row>
       ) : null}
       {level?.inherent?.id && level.inherent.id !== 'ukjent' ? (
@@ -569,7 +572,7 @@ export function RiskPage({ ctx }) {
       {ids ? <Banner tone="info" text={`Viser utvalg: ${params?.label || ''}`} /> : null}
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 12, alignItems: 'flex-start' }}>
         <Card title="Risikomatrise" style={{ flex: 1, width: wide ? undefined : '100%' }} right={<Choice small options={[{ id: 'inherent', label: 'Iboende' }, { id: 'residual', label: 'Rest' }]} value={which} onChange={(x) => setWhich(x || 'inherent')} />}>
-          <RiskMatrix cells={cells} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
+          <RiskMatrix cells={cells} riskMethod={state.system.riskMethod} method={`${state.system.riskMethod?.name} v${state.system.riskMethod?.version}. Terskler: middels ≥ ${state.system.riskMethod?.thresholds?.medium}, høy ≥ ${state.system.riskMethod?.thresholds?.high}, kritisk ≥ ${state.system.riskMethod?.thresholds?.critical}.`} onPick={(p) => go('risiko', { ids: p.ids, label: p.label })} />
         </Card>
         <Card title="Register" style={{ flex: 1, width: wide ? undefined : '100%' }}>
           <Choice small options={['Risiko', 'Mulighet']} value={kind} onChange={setKind} placeholder="Alle" title="Vis" />
@@ -737,7 +740,7 @@ export function EmergencyPage({ ctx }) {
   const { state, wide, actor, store, caps } = ctx;
   const reg = useRegister(ctx, 'beredskap');
   const [emergency, setEmergency] = useState('');
-  const [ex, setEx] = useState({ date: todayKey(), participants: '', evaluation: '', improvement: false });
+  const [ex, setEx] = useState({ date: todayKey(), participants: '', evaluation: '', improvement: false, nextExercise: '' });
   const [err, setErr] = useState('');
   const scen = reg.rows.filter((r) => r.state !== 'arkivert');
   const shown = scen.find((s) => s.id === emergency);
@@ -771,6 +774,7 @@ export function EmergencyPage({ ctx }) {
               <Field label="Dato"><DateIn value={ex.date} onChange={(x) => setEx({ ...ex, date: x })} /></Field>
               <Field label="Deltakere"><TextIn value={ex.participants} onChangeText={(x) => setEx({ ...ex, participants: x })} /></Field>
               <Field label="Evaluering" required><TextIn multiline value={ex.evaluation} onChangeText={(x) => setEx({ ...ex, evaluation: x })} /></Field>
+              <Field label="Neste øvelse" hint="Tomt = 12 måneder etter denne øvelsen."><DateIn value={ex.nextExercise} onChange={(x) => setEx({ ...ex, nextExercise: x })} /></Field>
               <Check label="Behov for forbedring (oppretter avvikssak)" value={ex.improvement} onChange={(x) => setEx({ ...ex, improvement: x })} />
               <Btn kind="primary" label="Registrer øvelse" onPress={async () => {
                 const res = addExercise(reg.open, ex, { actor });
@@ -778,10 +782,12 @@ export function EmergencyPage({ ctx }) {
                 const saved = await store.commit('records', 'record', res, { previous: reg.open });
                 if (!saved.ok) { setErr(saved.error); return; }
                 if (ex.improvement) {
-                  const f = createFinding({ type: 'forbedring', title: `Forbedring etter øvelse: ${reg.open.title}`, description: ex.evaluation, requirementIds: requirementIdsForArea(state, 'emergency') }, { actor, existing: state.findings });
-                  if (f.ok) await store.commit('findings', 'finding', f);
+                  // Forbedringssaken får ansvarlig og oppgave som andre saker.
+                  const who = autoAssignee(state.system, 'forbedring');
+                  const f = createFinding({ type: 'forbedring', title: `Forbedring etter øvelse: ${reg.open.title}`, description: ex.evaluation, requirementIds: requirementIdsForArea(state, 'emergency'), assigneeName: who?.name || '', assigneeUid: who?.uid || '' }, { actor, existing: state.findings });
+                  if (f.ok) await store.commit('findings', 'finding', f, { effects: who?.uid ? [{ type: 'createTask', key: `iso_${f.finding.id}_triage`, title: `Behandle ${f.finding.number}: ${f.finding.title}`, assigneeUid: who.uid, deadline: f.finding.triageDue }] : [] });
                 }
-                setEx({ date: todayKey(), participants: '', evaluation: '', improvement: false });
+                setEx({ date: todayKey(), participants: '', evaluation: '', improvement: false, nextExercise: '' });
               }} />
               {err ? <Text style={{ color: colors.danger }}>{err}</Text> : null}
             </>
@@ -877,7 +883,7 @@ export function CompetencePage({ ctx }) {
         <CompetenceProfiles ctx={ctx} people={people} matrix={fullMatrix} q={q} />
       </Card>
       <SimpleRegister ctx={ctx} registerKey="kompetansekrav" subtitle={(r) => `${r.role}${(r.persons || []).length ? ` + ${r.persons.length} valgt` : ''}${r.validityMonths ? ` · gyldig ${r.validityMonths} mnd` : ''}`} />
-      <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => `${r.personName} · ${r.validTo ? `til ${prettyDate(r.validTo)}` : 'varig'}`} />
+      <SimpleRegister ctx={ctx} registerKey="kompetanse" subtitle={(r) => { const end = proofEnd(r, (state.records.kompetansekrav || []).find((k) => k.id === r.requirementId)); return `${r.personName} · ${end ? `til ${prettyDate(end)}` : 'varig'}`; }} />
       {eq.total ? (
         <Card title="Utstyr og infrastruktur (7.1)" subtitle="Fra Utstyr. Service og garanti følges opp der.">
           {eq.inService.slice(0, 5).map((e) => <ListRow key={e.id} icon="construct-outline" tone="warn" title={e.name || e.title || 'Utstyr'} subtitle="På service" />)}
@@ -886,7 +892,7 @@ export function CompetencePage({ ctx }) {
         </Card>
       ) : null}
       <Sheet visible={!!pick} title={pick ? `${pick.person.name} – ${pick.cell.requirement.title}` : ''} onClose={() => setPick(null)}>
-        {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${pick.cell.record.validTo ? `gyldig til ${prettyDate(pick.cell.record.validTo)}` : 'varig'}`} /> : null}
+        {pick?.cell.record ? <KV label="Bevis" value={`${pick.cell.record.title} · ${proofEnd(pick.cell.record, pick.cell.requirement) ? `gyldig til ${prettyDate(proofEnd(pick.cell.record, pick.cell.requirement))}` : 'varig'}`} /> : null}
         {!pick?.cell.record && pick?.cell.cv ? <KV label={`I CV-en (${pick.cell.cv.kind.toLowerCase()})`} value={`${pick.cell.cv.title}${pick.cell.cv.date ? ` · ${pick.cell.cv.date}` : ''}`} /> : null}
         {!pick?.cell.record && !pick?.cell.cv ? <Text style={{ color: colors.muted }}>Ingen dokumentert kompetanse.</Text> : null}
         <Btn kind="primary" icon="add" label="Registrer bevis" onPress={() => { setCreate({ personName: pick.person.name, personUid: pick.person.uid, requirementId: pick.cell.requirement.id, title: pick.cell.cv?.title || '' }); setPick(null); }} />

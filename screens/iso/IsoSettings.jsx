@@ -237,7 +237,12 @@ export default function IsoSettings({ ctx }) {
       // Felt som også kan settes av importen: behold det som er lagret hvis skjemaet ikke har dem.
       docStructure: cur.docStructure !== undefined ? normalizeDocStructure(cur.docStructure) : (prev.docStructure || []),
       profile: cur.profile !== undefined ? cur.profile : (prev.profile || null),
-      riskMethod: methodChanged && prev.setupAt ? { ...cur.riskMethod, version: bumpVersion(prev.riskMethod?.version) } : (cur.riskMethod || DEFAULT_RISK_METHOD),
+      // Ny metodeversjon: forrige versjon legges i historikken, så eldre vurderinger beholder sine terskler.
+      riskMethod: methodChanged && prev.setupAt ? {
+        ...cur.riskMethod,
+        version: bumpVersion(prev.riskMethod?.version),
+        history: [...(prev.riskMethod?.history || []), { version: prev.riskMethod?.version || DEFAULT_RISK_METHOD.version, name: prev.riskMethod?.name || DEFAULT_RISK_METHOD.name, thresholds: prev.riskMethod?.thresholds || DEFAULT_RISK_METHOD.thresholds }].slice(-20),
+      } : (cur.riskMethod || DEFAULT_RISK_METHOD),
       roleMap,
       // Godkjennerne lagres som liste, så Firestore-reglene kan lese dem.
       approverUids: approverUidsFromRoles(roleMap, cur.ownerUid),

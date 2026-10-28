@@ -249,6 +249,11 @@ export function riskLevel(likelihood, consequence, method = DEFAULT_RISK_METHOD)
   return { score, id: 'lav', label: 'Lav' };
 }
 
+/** Nivå per celle i 5×5-matrisen etter virksomhetens terskler: [sannsynlighet 1–5][konsekvens 1–5] → lav | middels | hoy | kritisk. */
+export function riskMatrixLevels(method = DEFAULT_RISK_METHOD) {
+  return [1, 2, 3, 4, 5].map((l) => [1, 2, 3, 4, 5].map((c) => riskLevel(l, c, method).id));
+}
+
 /**
  * Veiledning til risikomatrisen. Grensene i metoden endres ikke; dette er skalabeskrivelser og
  * akseptkriterier slik NS 5814:2021 og ISO 31000 krever (kriterier fastsatt før vurderingen,

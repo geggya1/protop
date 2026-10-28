@@ -41,9 +41,9 @@ for (const title of ['Avtale', 'Kjøreturer', 'Innstillinger for timeføring']) 
 }
 assert.match(settings, /editable=\{canEdit\}\s*value=\{start\}/);
 
-for (const src of [expenses, sales]) {
-  assert.match(src, /\(!employeeId \|\| row\.employeeId === employeeId\)/);
-}
+assert.match(sales, /\(!employeeId \|\| row\.employeeId === employeeId\)/);
+// Utleggene: samme sammenslåing som Utlegg og Til fakturering, bare egne uten full tilgang (UX-17).
+assert.match(expenses, /projectExpenseRows\(state\.expenses, imported, project\.id, \{ employeeId \}\)/);
 
 // Nytt utlegg på prosjekt får den som registrerer, så det vises på ansattsiden.
 assert.match(expenses, /employeeId: myEmployeeId,\s*employeeName: personName\(myEmployeeId\)/);

@@ -160,10 +160,16 @@ export const ACCESS_HELP = {
     read: GENERIC.read,
     write: 'Som Begrenset redigering, og kan importere fakturalister.',
   },
+  // Utlegg er én side (UX-17). Utlegg gir filtrene Prosjekt, Internt og Alle; Prosjektutlegg bare Prosjekt.
+  economyExpenses: {
+    see: 'Ser alle utlegg under Utlegg: Prosjekt, Internt og Alle.',
+    read: 'Som Lese, og kan registrere, godkjenne og slette utlegg.',
+    write: SAME_AS_EDIT,
+  },
   economyProjectExpenses: {
-    see: 'Ser prosjektutlegg.',
-    read: GENERIC.read,
-    write: 'Som Begrenset redigering, og kan importere utleggslister.',
+    see: 'Ser utleggene på prosjekt under Utlegg (filteret Prosjekt).',
+    read: 'Som Lese, og kan registrere utlegg på prosjekt og endre egne til de er godkjent.',
+    write: 'Som Begrenset redigering, og kan godkjenne og slette utlegg på prosjekt og importere utleggslister.',
   },
   economySettings: {
     see: 'Gir ikke tilgang alene. Innstillingene krever Admin.',

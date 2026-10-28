@@ -24,9 +24,9 @@ assert.equal(navTrailText('arbeid', 'godkjenning', { compact: true }), `${approv
 
 // Fraværsrapport ligger under Fravær, ikke under «Arbeid».
 assert.equal(navTrailText('arbeid', 'fravaersrapport'), `${groupLabel('company-people')} › Fravær › Fraværsrapport`);
-// Prosjektutlegg har rute arbeid/utlegg, men ligger under Økonomi i menyen.
-assert.equal(companyNavGroupId('arbeid', 'utlegg'), 'company-finance');
-assert.equal(navTrailText('arbeid', 'utlegg', { compact: true }), 'Økonomi › Prosjektutlegg');
+// Utlegg (prosjekt og internt på én side, UX-17) ligger under Økonomi i menyen.
+assert.equal(companyNavGroupId('okonomi', 'utlegg'), 'company-finance');
+assert.equal(navTrailText('okonomi', 'utlegg', { compact: true }), 'Økonomi › Utlegg');
 assert.equal(navTrailText('okonomi', 'faktura', { compact: true }), 'Økonomi › Faktura');
 assert.equal(navTrailText('okonomi', 'faktura', { current: 'Faktura 1001' }),
   `${groupLabel('company-finance')} › Økonomi › Faktura › Faktura 1001`);
@@ -63,7 +63,7 @@ assert.equal(isModuleStartPage('selskap', 'tilgang'), false);
 assert.equal(isModuleStartPage('stars'), true, 'personlige sider beholder båndet');
 
 // Linjen over sidetittelen på telefon (undersider uten bånd).
-assert.equal(navTrailParentText('arbeid', 'utlegg'), `${groupLabel('company-finance')} › Økonomi`);
+assert.equal(navTrailParentText('okonomi', 'utlegg'), `${groupLabel('company-finance')} › Økonomi`);
 assert.equal(navTrailParentText('home'), '');
 
 console.log('navTrail.test.mjs ok');

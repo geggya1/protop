@@ -277,8 +277,8 @@ export const ASSISTANT_TASKS = [
       s(tx('Fyll ut', 'Fill in'), 'Skriv beskrivelse og «Beløp inkl. mva», og velg kategori (f.eks. Materiell / innsats eller Verktøy / utstyr). Trykk «Lagre».', 'Enter a description and “Amount incl. VAT”, and pick a category (e.g. Materials or Tools / equipment). Tap “Save”.'),
     ],
     after: tx(
-      'Med kvittering og påslag registreres utlegg under Økonomi → Utlegg («Nytt utlegg» → «Lagre utlegg»).',
-      'With receipt and markup, expenses are registered under Finance → Expenses (“New expense” → “Save expense”).',
+      'Med kvittering og påslag, eller uten prosjekt (internt), registreres utlegg under Økonomi → Utlegg («Nytt utlegg» → «Lagre utlegg»).',
+      'With receipt and markup, or without a project (internal), expenses are registered under Finance → Expenses (“New expense” → “Save expense”).',
     ),
     show: [at('timeliste', 1), at('arbeid.timeliste', 2)],
     related: ['task.kjoring', 'task.produktsalg'],

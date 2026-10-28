@@ -395,6 +395,7 @@ export default function ProjectDetail({
             employeeId={ownOnly}
             myEmployeeId={myEmployeeId}
             employees={employees}
+            familyId={familyId}
             onChangeState={onChangeState}
           />
         ) : null}

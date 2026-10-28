@@ -64,7 +64,8 @@ export function selskapMenuTitle(subView) {
  * Undermeny når Arbeid er valgt.
  * Timeliste er daglig føring. Timerapport er oversikt, import og organisering.
  * Samme timeliste ligger også under Personlig, låst til innlogget bruker.
- * Fravær, produktsalg og prosjektutlegg ligger i egne menykategorier.
+ * Fravær og produktsalg ligger i egne menykategorier. Utlegg ligger under Økonomi;
+ * arbeid/utlegg (den gamle Prosjektutlegg-siden) sender videre dit.
  * Produktivitet er eget hovedpunkt under Bedrift (samme rute: arbeid/produktivitet).
  * Prosjektfremdrift ligger ved siden av (arbeid/fremdrift).
  */
@@ -101,7 +102,8 @@ export function arbeidMenuTitle(subView) {
   if (subView === 'fravaer-innstillinger') return 'Fraværsinnstillinger';
   if (subView === 'produktivitet') return 'Produktivitet';
   if (subView === 'fremdrift') return 'Prosjektfremdrift';
-  if (subView === 'utlegg') return 'Prosjektutlegg';
+  // Den gamle adressen til Prosjektutlegg sender videre til Utlegg (UX-17).
+  if (subView === 'utlegg') return 'Utlegg';
   if (subView === 'salg') return 'Produktsalg';
   const row = ARBEID_MENU.find((item) => item.id === subView);
   return row?.label || 'Timer';
@@ -139,8 +141,8 @@ export const OKONOMI_MENU = [
   { id: 'oversikt', icon: 'home', label: 'Oversikt' },
   { id: 'faktura', icon: 'document-text', label: 'Faktura' },
   { id: 'fakturagrunnlag', icon: 'receipt', label: 'Til fakturering' },
+  // Prosjektutlegg og interne utlegg på én side, med filteret Prosjekt / Internt / Alle (UX-17).
   { id: 'utlegg', icon: 'card', label: 'Utlegg' },
-  { id: 'prosjektutlegg', icon: 'receipt-outline', label: 'Prosjektutlegg', tab: 'arbeid', subView: 'utlegg' },
   { id: 'indeks', icon: 'trending-up', label: 'Indeksregulering' },
   { id: 'indekser', icon: 'stats-chart', label: 'Indekser' },
   { id: 'innstillinger', icon: 'settings-outline', label: 'Innstillinger' },
@@ -564,7 +566,7 @@ export const COMPANY_DRAWER_GROUPS = [
  */
 function drawerModule(item) {
   if (!item?.children?.length || item.forceOpen) return item;
-  // Bare én side tilgjengelig (f.eks. Prosjektutlegg for innleide): vis siden, ikke modulen.
+  // Bare én side tilgjengelig (f.eks. Utlegg for innleide): vis siden, ikke modulen.
   if (item.children.length === 1 && !item.children[0].children?.length) return item.children[0];
   const { children, ...rest } = item;
   return { ...rest, pages: children };

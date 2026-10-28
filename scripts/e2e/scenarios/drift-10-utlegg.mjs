@@ -1,6 +1,8 @@
 /**
- * Drift-bot 10 – Økonomi → Utlegg (DRIFT-24): utlegg koblet til ansatt, prosjekt og kunde,
+ * Drift-bot 10 – Økonomi → Utlegg (DRIFT-24, UX-17): utlegg koblet til ansatt, prosjekt og kunde,
  * norsk status, hint i Til fakturering mens det venter, og sletting med bekreftelse.
+ * Utlegg er én side for prosjekt og internt: «Nytt utlegg» åpner skjemaet, og et utlegg åpnes
+ * fra listen for å godkjenne eller slette.
  * Én nettleserkontekst (Øverste leder). Personvernmeldingen lukkes først (den dekker knappene).
  *
  *   NODE_PATH=$(npm root -g) node scripts/e2e/scenarios/drift-10-utlegg.mjs
@@ -34,6 +36,8 @@ try {
   await closeNotice(L);
 
   await guard(R, '10.01', 'Nytt utlegg fra registrene', async () => {
+    await L.click('Nytt utlegg');
+    await L.page.waitForTimeout(800);
     await fillAfterLabel(L, 'Dato', today);
     await fillAfterLabel(L, 'Beløp eks. mva', '800');
     await fillAfterLabel(L, 'Beskrivelse', 'Leie av lift');
@@ -64,12 +68,14 @@ try {
     await go(L, 'okonomi', 'utlegg', 5000);
     await closeNotice(L);
     const row = await find();
-    await L.page.locator(`[id="expense-delete-${row.id}"]`).click();
+    await L.page.locator(`[id="expense-row-${row.id}"]`).click();
+    await sleep(800);
+    await L.page.locator('[id="expense-sheet-delete"]').click();
     await sleep(1500);
     const still = !!(await find());
     const asked = await L.hasText('Trykk «Slett nå» for å slette utlegget', { exact: false, timeout: 3000 });
     await L.shot('bekreft');
-    await L.page.locator(`[id="expense-delete-${row.id}"]`).click();
+    await L.page.locator('[id="expense-sheet-delete"]').click();
     await sleep(3000);
     const gone = !(await find());
     R.check('10.04', 'Første trykk spør, andre sletter utlegget', still && asked && gone, {

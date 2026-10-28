@@ -287,6 +287,8 @@ export const FILES = [
   'src/arbeid/timesheetRules.test.mjs',
   'src/arbeid/vacationPlan.test.mjs',
   'src/economy/expenseRegistry.test.mjs',
+  // Utlegg: prosjekt og internt på én side (UX-17).
+  'src/economy/expenseScope.test.mjs',
   'src/economy/invoiceWorkText.test.mjs',
   'src/economy/driftUx.test.mjs',
   'src/project/statusFilter.test.mjs',

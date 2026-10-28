@@ -1190,7 +1190,6 @@ const NAV_RESOURCE = {
   'okonomi-faktura': 'economyInvoices',
   'okonomi-fakturagrunnlag': 'economyBilling',
   'okonomi-utlegg': 'economyExpenses',
-  'okonomi-prosjektutlegg': 'economyProjectExpenses',
   'okonomi-indeks': 'economyIndex',
   'okonomi-indekser': 'economyIndices',
   'okonomi-innstillinger': 'economySettings',
@@ -1213,6 +1212,11 @@ function seeResource(grants, resource) {
 
 function adminResource(grants, resource) {
   return allowsEffective(grants, resource, 'write');
+}
+
+/** Utlegg (UX-17): Utlegg gir alle utlegg, Prosjektutlegg gir utleggene på prosjekt. */
+function expensesAllowed(grants) {
+  return seeResource(grants, 'economyExpenses') || seeResource(grants, 'economyProjectExpenses');
 }
 
 function projectTimelineAllowed(grants) {
@@ -1243,7 +1247,8 @@ export function companyTabAllowed(tab, subView, grants) {
   // Fremdrift viser alle prosjekter, så den krever også Prosjekt (ikke bare tildelte).
   if (tab === 'arbeid' && subView === 'fremdrift') return projectTimelineAllowed(grants);
   if (tab === 'arbeid' && subView === 'salg') return seeResource(grants, 'productSales');
-  if (tab === 'arbeid' && subView === 'utlegg') return seeResource(grants, 'economyProjectExpenses');
+  // Den gamle adressen til Prosjektutlegg sender videre til Utlegg (UX-17).
+  if (tab === 'arbeid' && subView === 'utlegg') return expensesAllowed(grants);
   if (tab === 'arbeid' && (subView === 'fravaer' || subView === 'fravaersrapport' || subView === 'planlagt')) {
     const map = {
       fravaer: 'absence',
@@ -1268,9 +1273,11 @@ export function companyTabAllowed(tab, subView, grants) {
   }
   if (tab === 'okonomi') {
     if (subView === 'innstillinger') return adminResource(grants, 'economySettings');
+    // Utlegg er én side for prosjektutlegg og interne utlegg (UX-17): Prosjektutlegg alene gir filteret Prosjekt.
+    if (subView === 'utlegg') return expensesAllowed(grants);
     if (subView === 'kjorebok') return seeResource(grants, 'mileage');
     if (subView === 'produkter') return seeResource(grants, 'products');
-    // Prosjektutlegg åpnes via arbeid-fanen; alene skal den ikke åpne økonomi-fanen.
+    // Prosjektutlegg alene åpner bare Utlegg, ikke resten av økonomi-fanen.
     if (subView) return seeResource(grants, economyResourceForSubView(subView));
     return allowsEconomy(grants, 'see')
       || seeResource(grants, 'mileage')
@@ -1339,6 +1346,7 @@ function navItemAllowed(id, grants) {
   if (id === 'hr') {
     return allowsHr(grants, 'see');
   }
+  if (id === 'okonomi-utlegg') return expensesAllowed(grants);
   if (id === 'okonomi-inntjening') {
     return seeResource(grants, 'economyEarnings')
       || seeResource(grants, 'economyCustomers')

@@ -120,6 +120,8 @@ export function isShellPath(path) {
 /** Spørringer som hører til én side. De følger ikke med til andre sider, ellers åpner en oppdatering den siden igjen. */
 const PAGE_QUERY = [
   { tab: 'okonomi', subView: 'indeks', keys: ['indeksAvtale', 'indeksSak', 'indeksVis'] },
+  // Utlegg: filteret Prosjekt / Internt / Alle (UX-17).
+  { tab: 'okonomi', subView: 'utlegg', keys: ['vis'] },
 ];
 
 /** Spørringen som skal stå i adressen for fanen og undersiden. Andre siders spørringer fjernes. */

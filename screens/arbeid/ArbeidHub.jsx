@@ -11,7 +11,6 @@ import {
 import {
   ApprovalsScreen,
   ProductSalesScreen,
-  ProjectExpensesScreen,
 } from './OpsScreens';
 import ProductivityScreen from './ProductivityScreen';
 import ProjectTimelineScreen from './ProjectTimelineScreen';
@@ -25,7 +24,9 @@ export default function ArbeidHub({ subView } = {}) {
   if (page === 'fravaersrapport') return <AbsenceReportScreen />;
   if (page === 'planlagt') return <PlannedAbsenceScreen />;
   if (page === 'fravaer-innstillinger') return <AbsenceSettingsScreen />;
-  if (page === 'utlegg') return <ProjectExpensesScreen />;
+  // Den gamle adressen til Prosjektutlegg: skallet sender videre til Økonomi → Utlegg med filteret
+  // Prosjekt (UX-17). Ingenting tegnes her, så filteret ikke tas imot av en side som straks forsvinner.
+  if (page === 'utlegg') return null;
   if (page === 'salg') return <ProductSalesScreen />;
   if (page === 'godkjenning') return <ApprovalsScreen />;
   if (page === 'produktivitet') return <ProductivityScreen />;

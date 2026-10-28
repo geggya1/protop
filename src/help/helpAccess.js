@@ -62,13 +62,13 @@ export const PAGE_ACCESS = {
   'arbeid.fravaer': { res: 'absence', steps: [S, S, S] },
   'arbeid.fravaersrapport': { res: 'absenceReport', steps: [S] },
   'arbeid.planlagt': { res: 'absencePlanned', steps: [R, R, on(R, 'hoursOthers')] },
-  'arbeid.utlegg': { res: 'economyProjectExpenses', steps: [S, W] },
   'arbeid.salg': { res: 'productSales', steps: [S, W] },
 
   'okonomi.oversikt': { res: 'economyOverview', steps: [S, S] },
   'okonomi.faktura': { res: 'economyInvoices', steps: [S, R, R, R, W, S] },
   'okonomi.fakturagrunnlag': { res: 'economyBilling', steps: [S, R, S] },
-  'okonomi.utlegg': { res: 'economyExpenses', steps: [R, R] },
+  // Prosjektutlegg alene åpner Utlegg (filteret Prosjekt). Godkjenning: Admin på Prosjektutlegg (eller Begrenset redigering på Utlegg).
+  'okonomi.utlegg': { res: 'economyProjectExpenses', steps: [S, R, W, S, W] },
   'okonomi.indeks': { res: 'economyIndex', steps: [S, R, R] },
   'okonomi.indekser': { res: 'economyIndices', steps: [S] },
   'okonomi.innstillinger': { res: 'economySettings', steps: [W, W] },

@@ -97,7 +97,7 @@ import Breadcrumb from '../../components/Breadcrumb';
 import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
 import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
-import { monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
+import { employmentRange, monthTimebank, payrollHoursOnDate } from '../../src/arbeid/balance.js';
 import { loadTimeEntries, readCachedTimeEntries } from '../../src/economy/timeEntryStorage.js';
 import { loadAbsences } from '../../src/arbeid/absenceStorage.js';
 import { HEALTH_FREE_TEXT_NOTICE, absenceTypeById, isHealthAbsence } from '../../src/arbeid/absenceCatalog.js';
@@ -588,6 +588,8 @@ export default function ArbeidScreen({
     }).hours;
   }, [selectedEmployee, fullDayHours, redDays]);
 
+  // Samme grunnlag som Timesaldo: til og med i dag, og bare mens personen er ansatt.
+  const employed = employmentRange(selectedEmployee);
   const timebank = useMemo(() => monthTimebank({
     year,
     monthIndex,
@@ -597,7 +599,13 @@ export default function ArbeidScreen({
     adjustments: state.balanceAdjustments,
     agreedForDate,
     types: absenceTypes,
+    throughDate: todayKey,
+    employedFrom: employed.from,
+    employedTo: employed.to,
   }), [
+    todayKey,
+    employed.from,
+    employed.to,
     year,
     monthIndex,
     employeeId,

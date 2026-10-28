@@ -204,6 +204,49 @@ import { emptyProjectState } from '../project/engine.js';
   assert.equal(bank.adjustment, -1);
 }
 
+// DRIFT-13/14: nyansatt fra 1. oktober, i dag er 14. oktober. Timesaldo teller ikke månedene
+// før «Ansatt fra», og «Utgående» i timelisten er lik saldoen samme dag (ingen framtidige dager).
+{
+  const weekday = (key) => {
+    const [y, m, d] = key.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    return dow === 0 || dow === 6 ? 0 : 7.5;
+  };
+  const entries = [
+    { id: 'x1', employeeId: 'e1', date: '2026-10-01', hours: 7.5 },
+    { id: 'x2', employeeId: 'e1', date: '2026-10-02', hours: 8 },
+    { id: 'x3', employeeId: 'e1', date: '2026-10-05', hours: 7.5 },
+  ];
+  const absences = [
+    { id: 'v1', employeeId: 'e1', date: '2026-10-06', hours: 7.5, type: 'ferie' },
+    { id: 'v2', employeeId: 'e1', date: '2026-10-07', hours: 7.5, type: 'avspasering' },
+  ];
+  const common = {
+    employeeId: 'e1', entries, absences, adjustments: [], agreedForDate: weekday,
+    employedFrom: '2026-10-01',
+  };
+  const saldo = buildTimesaldo({ ...common, year: 2026, throughDate: '2026-10-14' });
+  const jan = saldo.rows.find((row) => row.month === '2026-01');
+  assert.equal(jan.agreed, 0, 'ingen avtalte timer før ansettelsen');
+  assert.equal(jan.flex, 0);
+  // 1.–14. oktober: 10 virkedager à 7,5 = 75 avtalt. Registrert: 23 t + ferie 7,5 (dekker avtalen);
+  // avspasering dekker ikke. 30,5 − 75 = −44,5.
+  assert.equal(saldo.totals.saldo, -44.5);
+  const bank = monthTimebank({ ...common, year: 2026, monthIndex: 9, throughDate: '2026-10-14' });
+  assert.equal(bank.outgoing, saldo.totals.saldo, '«Utgående» = Timesaldo samme dag');
+  assert.equal(bank.byDate.get('2026-10-20'), 0, 'framtidige dager teller ikke ennå');
+  // Uten «Ansatt fra» gir januar–september minus (slik testboten fant).
+  const before = buildTimesaldo({ ...common, employedFrom: '', year: 2026, throughDate: '2026-10-14' });
+  assert.ok(before.totals.saldo < -1000);
+  // Avslutningsdato: avtalte timer etter teller ikke.
+  const ended = buildTimesaldo({ ...common, employedTo: '2026-10-07', year: 2026, throughDate: '2026-10-14' });
+  assert.equal(ended.totals.saldo, roundHoursForTest(30.5 - 5 * 7.5));
+}
+
+function roundHoursForTest(value) {
+  return Math.round(value * 100) / 100;
+}
+
 // Godkjente timer som kan faktureres (Til fakturering).
 function approvedForBilling(state) {
   return buildReadyProjects({

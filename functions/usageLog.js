@@ -1,5 +1,8 @@
 /**
  * Brukslogg. IP og user-agent leses fra forespørselen, ikke fra klienten.
+ * Hendelser eldre enn 90 dager slettes ved innlogging og når loggen leses.
+ * Bedriften kan slå av logging av innlogging, aktivitet og sidevisninger
+ * (company.privacy.usageLog). Timer og invitasjoner logges alltid.
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getApps, initializeApp } from 'firebase-admin/app';
@@ -12,6 +15,13 @@ import {
   normalizeUsageEvent,
   sanitizeIp,
 } from '../src/employees/usage.js';
+import {
+  USAGE_RETENTION_DAYS,
+  usageCutoffIso,
+  usageEventAllowed,
+  usageLogNotice,
+  withinUsageRetention,
+} from '../src/privacy/companyPrivacy.js';
 
 if (!getApps().length) initializeApp();
 const db = getFirestore();
@@ -61,6 +71,21 @@ function canLogHoursOn(ctx, employee, uid) {
   return !!(ctx.grants && allows(ctx.grants, 'hoursOthers', 'read'));
 }
 
+/** Slett hendelser eldre enn lagringstiden. Begrenset per kall, resten tas neste gang. */
+export async function pruneUsage(collectionRef, now = new Date(), limit = 200) {
+  const old = await collectionRef.where('at', '<', usageCutoffIso(now)).limit(limit).get();
+  await Promise.all(old.docs.map((item) => item.ref.delete()));
+  return old.size;
+}
+
+async function pruneQuietly(collectionRef) {
+  try {
+    await pruneUsage(collectionRef);
+  } catch (err) {
+    console.warn('[usageLog] prune failed', err?.message || err);
+  }
+}
+
 export async function writeUsageEvent(database, input, { trusted = false } = {}) {
   const event = normalizeUsageEvent(input, {
     at: input?.at || new Date().toISOString(),
@@ -70,10 +95,12 @@ export async function writeUsageEvent(database, input, { trusted = false } = {})
   });
   if (!event?.actorUid) return null;
   const stamp = event.at;
-  await database.collection(`users/${event.actorUid}/usage`).add({
+  const userLog = database.collection(`users/${event.actorUid}/usage`);
+  await userLog.add({
     ...event,
     createdAt: FieldValue.serverTimestamp(),
   });
+  if (event.type === 'login') await pruneQuietly(userLog);
   const userRef = database.doc(`users/${event.actorUid}`);
   const userSnap = await userRef.get();
   const userSummary = applyUsageSummary(userSnap.data()?.usage, event);
@@ -92,6 +119,7 @@ export async function writeUsageEvent(database, input, { trusted = false } = {})
     ...event,
     createdAt: FieldValue.serverTimestamp(),
   });
+  if (event.type === 'login') await pruneQuietly(employeeRef.collection('usage'));
   return event;
 }
 
@@ -109,6 +137,8 @@ export const recordUsage = onCall(CALL, async (req) => {
   let trusted = false;
   if (companyId) {
     const ctx = await companyContext(companyId, uid);
+    // Bedriften har slått av aktivitetsloggen: lagre ingenting, verken hos brukeren eller den ansatte.
+    if (!usageEventAllowed(ctx.data.company, type)) return { ok: true, skipped: 'company-off' };
     if (type === 'hour' || type === 'hour_deleted') {
       const employee = ctx.employees.find((row) => row.id === employeeId);
       if (!canLogHoursOn(ctx, employee, uid)) {
@@ -156,11 +186,13 @@ export const listEmployeeUsage = onCall(CALL, async (req) => {
   if (!self && !canWriteEmployees(ctx)) {
     throw new HttpsError('permission-denied', 'Du kan ikke se denne bruksloggen.');
   }
-  const snap = await db.collection(`families/${companyId}/employees/${employeeId}/usage`)
+  const log = db.collection(`families/${companyId}/employees/${employeeId}/usage`);
+  await pruneQuietly(log);
+  const snap = await log
     .orderBy('at', 'desc')
     .limit(40)
     .get();
-  const events = snap.docs.map((item) => {
+  const events = withinUsageRetention(snap.docs.map((item) => {
     const data = item.data() || {};
     return {
       id: item.id,
@@ -170,10 +202,12 @@ export const listEmployeeUsage = onCall(CALL, async (req) => {
       ip: data.ip || '',
       detail: data.detail || {},
     };
-  });
+  }));
   return {
     ok: true,
     summary: employee.usage || {},
     events,
+    retentionDays: USAGE_RETENTION_DAYS,
+    notice: usageLogNotice(ctx.data.company),
   };
 });

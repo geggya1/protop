@@ -5,6 +5,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import {
   AI_LIMITS,
   getGeminiKey,
+  assertCompanyAiAllowed,
   assertFamilyAdult,
   checkAndIncrementUsage,
   callGeminiJson,
@@ -64,6 +65,7 @@ export async function handleAiReceiptOcr(data, auth) {
   }
 
   await assertFamilyAdult(getFirestore(), uid, familyId);
+  await assertCompanyAiAllowed(getFirestore(), familyId);
   await checkAndIncrementUsage(
     getFirestore(),
     familyId,

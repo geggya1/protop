@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { pdfFromJpegs } from '../src/imports/filePayload.js';
-import { handleInterpretImport } from './importInterpret.js';
+import { handleInterpretImport, maskIdentityNumbers } from './importInterpret.js';
 
 const deps = {
   db: {},
@@ -431,5 +431,49 @@ assert.equal(manyCv.cv.projects.length, 70);
 assert.equal(manyCv.cv.projects[0].title, 'Prosjekt 001 med et langt navn');
 assert.equal(manyCv.cv.projects[69].title, 'Prosjekt 070 med et langt navn');
 assert.equal(manyCv.cv.projects[69].client, 'Kommunen');
+
+// Personnummer i eksempelradene sendes ikke til AI når bare kolonnene tolkes. Org.nr. og telefon er urørt.
+assert.equal(maskIdentityNumbers('01017012345'), '[11 siffer]');
+assert.equal(maskIdentityNumbers('010170 12345'), '[11 siffer]');
+assert.equal(maskIdentityNumbers('Fnr: 01017012345.'), 'Fnr: [11 siffer].');
+assert.equal(maskIdentityNumbers('923456785'), '923456785');
+assert.equal(maskIdentityNumbers('+47 40000000'), '+47 40000000');
+assert.equal(maskIdentityNumbers('123456789012'), '123456789012');
+await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'employees',
+  mode: 'columns',
+  headers: ['Navn', 'Fnr', 'Org'],
+  samples: [['Ola', '01017012345', '923456785']],
+}, { uid: 'user' }, {
+  ...deps,
+  callGeminiJson: async (_key, _prompt, parts) => {
+    assert.doesNotMatch(parts[0].text, /01017012345/);
+    assert.match(parts[0].text, /\[11 siffer\]/);
+    assert.match(parts[0].text, /923456785/);
+    return { columns: [{ header: 'Fnr', field: 'nationalId' }] };
+  },
+});
+
+// Bedriften har slått av AI: ingenting sendes til Gemini, og telleren røres ikke.
+let geminiCalls = 0;
+let counted = 0;
+await assert.rejects(
+  () => handleInterpretImport({
+    familyId: 'fam',
+    kind: 'customers',
+    mode: 'columns',
+    headers: ['Navn'],
+    samples: [['Ola']],
+  }, { uid: 'user' }, {
+    ...deps,
+    assertCompanyAiAllowed: async () => { throw new Error('AI-funksjoner er slått av for bedriften.'); },
+    checkAndIncrementUsage: async () => { counted += 1; },
+    callGeminiJson: async () => { geminiCalls += 1; return {}; },
+  }),
+  /slått av/,
+);
+assert.equal(geminiCalls, 0);
+assert.equal(counted, 0);
 
 console.log('importInterpret.test.mjs: ok');

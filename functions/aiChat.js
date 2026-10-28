@@ -7,6 +7,7 @@ import {
   AI_LIMITS,
   GEMINI_MODEL,
   childAllowsApp,
+  assertCompanyAiAllowed,
 } from './aiShared.js';
 import { childChatLocal } from './childChatLocal.js';
 
@@ -167,6 +168,7 @@ export async function handleAiChat(data, auth) {
 
   if (familyId) {
     await assertFamilyMember(db, familyId, auth.uid);
+    await assertCompanyAiAllowed(db, familyId);
   }
 
   if (context === 'child' && familyId && childId) {

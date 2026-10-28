@@ -6,7 +6,9 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Rect } from 'react-native-svg';
 import RegisterVacationModal from '../../components/arbeid/RegisterVacationModal';
 import { useApp } from '../../src/context/AppContext';
-import { absencePickerTypes, absenceTypeById, resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
+import {
+  absencePickerTypes, absenceTypeById, isHealthAbsence, resolveAbsenceTypes,
+} from '../../src/arbeid/absenceCatalog.js';
 import {
   ABSENCE_DAY_HOURS,
   ACTIVE_STAFF_LABEL,
@@ -650,6 +652,7 @@ export function AbsenceOverviewView({
       requireEmployee={!employeeId}
       locked={registrationLocked && dashboard.balanceType === 'ferie'}
       vacation={dashboard.balanceType === 'ferie'}
+      healthNotice={isHealthAbsence(dashboard.balanceType)}
       onClose={() => setRegisterOpen(false)}
       onSave={(payload) => {
         const ok = onRegister?.(payload);

@@ -42,6 +42,7 @@ import {
   officialNoticeUrl,
   sourceLabel,
 } from '../../src/anbud/noticeText';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 const FILTERS = [
   ['nye', 'Nye', 'emphasis'],
@@ -171,6 +172,7 @@ export default function TenderAlert({
 }) {
   const { width } = useWindowDimensions();
   const hostedHero = useModuleHeroHosted();
+  const guardAi = useCompanyAiGuard();
   const [cssPhone, setCssPhone] = useState(false);
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
@@ -449,7 +451,7 @@ export default function TenderAlert({
     }
     setRanking(true);
     try {
-      const data = await rankTenderHits({
+      const data = await guardAi(rankTenderHits)({
         companyName: watch.companyName || company?.name,
         description: profile.description,
         summary: profile.summary,

@@ -13,12 +13,26 @@ import BrandToggle from '../../components/BrandToggle';
 import CheckBox from '../../components/CheckBox';
 import LegalDocumentModal from '../../components/LegalDocumentModal';
 import { LEGAL_VERSION } from '../../src/i18n/langs';
-import { getTerms, getPrivacy, APP_LICENSES } from '../../src/i18n/legal';
 import {
-  emptyConsents, loadLocalConsents, saveLocalConsents, persistUserConsents,
+  getTerms, getPrivacy, getDpa, isLegalHeading, APP_LICENSES, LEGAL_ENTITY,
+} from '../../src/i18n/legal';
+import {
+  acceptedConsentRecord, consentsComplete, emptyConsents, loadLocalConsents, saveLocalConsents,
+  persistUserConsents,
 } from '../../src/utils/consents';
+import { consentHistoryLabel } from '../../src/utils/consentState';
+import { downloadMyData } from '../../src/privacy/myDataExportClient';
 
-const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'licenses', 'consent'];
+const PAGES = ['hub', 'marketing', 'terms', 'privacy', 'dpa', 'export', 'licenses', 'consent'];
+
+/** Servertid fra samtykkeloggen (Firestore Timestamp). */
+function formatConsentTime(at) {
+  const date = typeof at?.toDate === 'function' ? at.toDate() : null;
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('nb-NO', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
 
 function formatConsentDate(iso) {
   if (!iso) return null;
@@ -29,12 +43,6 @@ function formatConsentDate(iso) {
   } catch {
     return null;
   }
-}
-
-function isLegalHeading(p, i) {
-  return i < 2
-    || /^\d+\./.test(p)
-    || (p === p.toUpperCase() && p.length < 80 && /[A-ZÆØÅ]/.test(p));
 }
 
 function HubTile({ icon, title, sub, onPress, compact, status }) {
@@ -101,7 +109,9 @@ export default function PrivacyTermsScreen({
   const { t, lang } = useI18n();
   const { isDesktop, hasRail, pad } = useLayout();
   const compact = isDesktop;
-  const { uid, userProfile, requestShellTab, shellIntent, clearShellIntent } = useApp();
+  const {
+    uid, user, families, userProfile, requestShellTab, shellIntent, clearShellIntent,
+  } = useApp();
   const startPage = PAGES.includes(initialPage) ? initialPage : 'hub';
   const [page, setPage] = useState(startPage);
   const [consents, setConsents] = useState(emptyConsents());
@@ -110,11 +120,17 @@ export default function PrivacyTermsScreen({
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState('');
 
   const refresh = useCallback(async () => {
     const local = await loadLocalConsents();
     const remote = userProfile?.consents || {};
-    setConsents({ ...emptyConsents(), ...local, ...remote });
+    // Gjeldende versjon godtatt på denne enheten, men ikke lagret på kontoen ennå: vis den.
+    const preferLocal = consentsComplete(local) && !consentsComplete(remote);
+    setConsents(preferLocal
+      ? { ...emptyConsents(), ...remote, ...local }
+      : { ...emptyConsents(), ...local, ...remote });
   }, [userProfile?.consents]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -134,10 +150,16 @@ export default function PrivacyTermsScreen({
     clearShellIntent?.();
   }, [shellIntent, clearShellIntent]);
 
-  const termsStamp = formatConsentDate(consents.termsAt || consents.privacyAt);
+  const current = consentsComplete(consents);
+  const history = useMemo(
+    () => (Array.isArray(userProfile?.consentHistory) ? [...userProfile.consentHistory].reverse() : []),
+    [userProfile?.consentHistory],
+  );
+  const termsStamp = current ? formatConsentDate(consents.termsAt || consents.privacyAt) : null;
   const marketingStamp = formatConsentDate(consents.marketingAt);
   const termsParas = useMemo(() => getTerms(lang), [lang]);
   const privacyParas = useMemo(() => getPrivacy(lang), [lang]);
+  const dpaParas = useMemo(() => getDpa(lang), [lang]);
 
   const goHub = () => {
     setPage('hub');
@@ -166,24 +188,28 @@ export default function PrivacyTermsScreen({
     };
     setConsents(next);
     await saveLocalConsents(next);
-    if (uid) await persistUserConsents(uid, next).catch(() => {});
+    if (uid) await persistUserConsents(uid, next, { marketing: true }).catch(() => {});
+  };
+
+  const exportMyData = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setExportNote('');
+    try {
+      const result = await downloadMyData({ user, families });
+      setExportNote(`${result.filename} er laget med ${result.count} rader.`);
+    } catch (err) {
+      setExportNote(err?.message || 'Kunne ikke hente dataene. Prøv igjen.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const saveConsent = async () => {
     if (!agreed || !openedDoc) return;
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      const next = {
-        ...consents,
-        termsAt: now,
-        privacyAt: now,
-        gdprAt: now,
-        dataAt: now,
-        copyrightAt: now,
-        language: lang,
-        version: LEGAL_VERSION,
-      };
+      const next = acceptedConsentRecord(lang, consents);
       await saveLocalConsents(next);
       if (uid) await persistUserConsents(uid, next).catch(() => {});
       setConsents(next);
@@ -209,6 +235,8 @@ export default function PrivacyTermsScreen({
     marketing: 'Markedsføring',
     terms: t('legal.terms'),
     privacy: t('legal.privacy'),
+    dpa: 'Databehandleravtale',
+    export: 'Last ned mine data',
     licenses: 'Lisenser',
     consent: 'Bekreft samtykke',
   }[page];
@@ -228,11 +256,11 @@ export default function PrivacyTermsScreen({
             <>
               <Title size={22}>{pageTitle}</Title>
               {page === 'hub' ? (
-                <Mute>Vilkår, personvern, lisenser og samtykke — samlet for foresatte.</Mute>
+                <Mute>Vilkår, personvern, lisenser og samtykke for ProTop.</Mute>
               ) : null}
             </>
           ) : (
-            <Mute>Vilkår, personvern, lisenser og samtykke — samlet for foresatte.</Mute>
+            <Mute>Vilkår, personvern, lisenser og samtykke for ProTop.</Mute>
           )}
 
           {page === 'hub' ? (
@@ -260,7 +288,9 @@ export default function PrivacyTermsScreen({
                     compact={compact}
                     icon="reader-outline"
                     title={t('legal.terms')}
-                    sub={termsStamp ? `Godkjent ${termsStamp}` : `Versjon ${LEGAL_VERSION}`}
+                    sub={termsStamp
+                      ? `Versjon ${LEGAL_VERSION} · godkjent ${termsStamp}`
+                      : `Versjon ${LEGAL_VERSION} · ikke godkjent ennå`}
                     onPress={() => setPage('terms')}
                   />
                 </View>
@@ -271,6 +301,24 @@ export default function PrivacyTermsScreen({
                     title={t('legal.privacy')}
                     sub="Hvordan ProTop behandler personopplysninger"
                     onPress={() => setPage('privacy')}
+                  />
+                </View>
+                <View style={compact ? styles.cellDesk : styles.cell}>
+                  <HubTile
+                    compact={compact}
+                    icon="download-outline"
+                    title="Last ned mine data"
+                    sub="Kopi av dine egne data som JSON-fil"
+                    onPress={() => setPage('export')}
+                  />
+                </View>
+                <View style={compact ? styles.cellDesk : styles.cell}>
+                  <HubTile
+                    compact={compact}
+                    icon="briefcase-outline"
+                    title="Databehandleravtale"
+                    sub="For bedrifter: ProTop som databehandler"
+                    onPress={() => setPage('dpa')}
                   />
                 </View>
                 <View style={compact ? styles.cellDesk : styles.cell}>
@@ -287,7 +335,8 @@ export default function PrivacyTermsScreen({
                     compact={compact}
                     icon="checkmark-circle-outline"
                     title="Bekreft samtykke"
-                    sub="For foresatte — ved oppdaterte vilkår"
+                    sub={current ? 'Du har godtatt gjeldende versjon' : `Godta versjon ${LEGAL_VERSION}`}
+                    status={{ on: current, label: current ? 'Godtatt' : 'Ny versjon' }}
                     onPress={() => setPage('consent')}
                   />
                 </View>
@@ -297,11 +346,12 @@ export default function PrivacyTermsScreen({
 
               <TouchableOpacity
                 style={styles.mailRow}
-                onPress={() => Linking.openURL('https://protop.no')}
+                onPress={() => Linking.openURL(`mailto:${LEGAL_ENTITY.email}`).catch(() => {})}
                 accessibilityRole="link"
+                accessibilityLabel={`Personvern: ${LEGAL_ENTITY.email}`}
               >
                 <Ionicons name="mail-outline" size={16} color={colors.brand} />
-                <Text style={styles.mailTxt}>protop.no</Text>
+                <Text style={styles.mailTxt}>{LEGAL_ENTITY.email}</Text>
               </TouchableOpacity>
             </>
           ) : null}
@@ -330,8 +380,8 @@ export default function PrivacyTermsScreen({
                 />
               </View>
               <Text style={[styles.fine, compact && styles.fineDesk]}>
-                ProTop sender ikke personlig annonsering til barn. Tips gjelder tjenesten
-                (nye funksjoner, trygg bruk). Du kan når som helst slå dette av.{' '}
+                Tipsene gjelder tjenesten (nye funksjoner og trygg bruk). Du kan når som
+                helst slå dette av.{' '}
                 <Text style={styles.link} onPress={() => setPage('privacy')}>
                   Les personvernerklæringen
                 </Text>
@@ -342,6 +392,37 @@ export default function PrivacyTermsScreen({
 
           {page === 'terms' ? <DocBody paragraphs={termsParas} compact={compact} /> : null}
           {page === 'privacy' ? <DocBody paragraphs={privacyParas} compact={compact} /> : null}
+          {page === 'dpa' ? <DocBody paragraphs={dpaParas} compact={compact} /> : null}
+
+          {page === 'export' ? (
+            <View style={[styles.panel, compact && styles.panelDesk]} nativeID="my-data-export">
+              <Text style={[styles.panelBody, compact && styles.panelBodyDesk]}>
+                Filen inneholder profilen din, samtykker, notater, oppgaver og kalender, egne timer,
+                fravær og utlegg, og chatmeldinger i trådene du er med i. Den lages på enheten din
+                med den tilgangen du allerede har.
+              </Text>
+              <Text style={[styles.fine, compact && styles.fineDesk]}>
+                Opplysninger bedriften har registrert om deg, for eksempel lønn, arbeidsavtale og
+                HR-saker, får du ved å spørre bedriften. ProTop hjelper bedriften med å svare.
+                Spørsmål: {LEGAL_ENTITY.email}.
+              </Text>
+              <TouchableOpacity
+                onPress={exportMyData}
+                disabled={exporting}
+                style={[styles.cta, compact && styles.ctaDesk, exporting && styles.ctaDisabled]}
+                accessibilityRole="button"
+              >
+                {exporting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.ctaTxt}>Last ned mine data</Text>
+                )}
+              </TouchableOpacity>
+              {exportNote ? (
+                <Text style={styles.notice} accessibilityLiveRegion="polite">{exportNote}</Text>
+              ) : null}
+            </View>
+          ) : null}
 
           {page === 'licenses' ? (
             <>
@@ -411,6 +492,20 @@ export default function PrivacyTermsScreen({
                   <Text style={styles.ctaTxt}>{t('common.save')}</Text>
                 )}
               </TouchableOpacity>
+              {history.length ? (
+                <View style={styles.history} nativeID="consent-history">
+                  <Text style={[styles.panelTitle, compact && styles.panelTitleDesk]}>Historikk</Text>
+                  {history.map((row, idx) => (
+                    <Text key={`${row.kind}-${idx}`} style={[styles.meta, compact && styles.metaDesk]}>
+                      {consentHistoryLabel(row)}
+                      {formatConsentTime(row.at) ? ` · ${formatConsentTime(row.at)}` : ''}
+                    </Text>
+                  ))}
+                  <Text style={[styles.meta, compact && styles.metaDesk]}>
+                    Tidspunktene er satt av serveren.
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -553,4 +648,5 @@ const styles = StyleSheet.create({
   },
   mailTxt: { color: colors.brand, fontWeight: '400', fontSize: 13 },
   notice: { marginTop: 12, color: colors.success, fontWeight: '400', fontSize: 13 },
+  history: { marginTop: 16, gap: 2 },
 });

@@ -63,6 +63,7 @@ export {
 } from './joinCallables.js';
 
 export { deleteMyAccount } from './deleteAccount.js';
+export { recordConsent } from './consentLog.js';
 
 export { onChatMessageCreated, onFriendChatMessageCreated };
 

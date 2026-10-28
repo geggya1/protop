@@ -30,6 +30,8 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import {
   EmptyHint, HrButton, HrCard, HrField, HrSectionTitle, RowLink,
 } from './HrShared';
+import { useCompanyAiAllowed } from '../../src/privacy/useCompanyAi';
+import AiNotice from '../../components/privacy/AiNotice';
 
 /** Alle punktene i AML § 14-6 (fra 1.7.2024) kan fylles ut i skjemaet. */
 const KEY_FIELDS = AML_CONTRACT_FIELDS.map((field) => field.key);
@@ -74,6 +76,7 @@ export default function HrContracts({
   );
   const active = activeId ? activeContractFor(activeId, hr.contracts) : null;
 
+  const aiAllowed = useCompanyAiAllowed();
   const [ocrText, setOcrText] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -108,7 +111,8 @@ export default function HrContracts({
     setBusy(true);
     try {
       const result = await interpretEmploymentContract({
-        familyId,
+        // Uten selskap leses teksten lokalt. Det gjelder også når bedriften har slått av AI.
+        familyId: aiAllowed ? familyId : '',
         text: ocrText,
         filename: 'arbeidsavtale.txt',
       });
@@ -353,6 +357,7 @@ export default function HrContracts({
                 disabled={busy}
                 onPress={runOcr}
               />
+              <AiNotice allowed={aiAllowed} colors={colors} what="Teksten" />
               <HrButton colors={colors} label="Opprett mal i skjemabygger" icon="clipboard-outline" onPress={ensureFormTemplate} />
               {draft.documentName ? (
                 <Text style={[styles.line, { color: colors.muted }]}>{draft.documentName}</Text>

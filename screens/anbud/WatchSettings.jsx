@@ -12,6 +12,7 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { updateGroup } from '../../src/utils/groups';
 import OptionPicker from '../../components/OptionPicker';
 import RegionCoverage from './RegionCoverage';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 function Chip({ label, on, onPress, colors, hint }) {
   return (
@@ -42,6 +43,7 @@ function toggle(setter, value) {
 }
 
 export default function WatchSettings({ company, colors, units = [] }) {
+  const guardAi = useCompanyAiGuard();
   const [state, setState] = useState(emptyAnbudState());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -227,7 +229,7 @@ export default function WatchSettings({ company, colors, units = [] }) {
     setAiNote('');
     setError('');
     try {
-      const data = await interpretCompanyProfile({
+      const data = await guardAi(interpretCompanyProfile)({
         companyName: company?.name || state.watch.companyName,
         orgnr: company?.orgnr || state.watch.orgnr,
         description,

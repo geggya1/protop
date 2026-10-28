@@ -1,29 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-import { CONSENT_KEY, LEGAL_VERSION } from '../i18n/langs';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../../firebase';
+import { CONSENT_KEY } from '../i18n/langs';
+import { acceptedConsentRecord, consentsComplete, emptyConsents } from './consentState';
 
-export function emptyConsents() {
-  return {
-    version: LEGAL_VERSION,
-    termsAt: null,
-    privacyAt: null,
-    // Legacy fields kept for older clients reading the same doc
-    gdprAt: null,
-    dataAt: null,
-    copyrightAt: null,
-    marketingOptIn: false,
-    marketingAt: null,
-    language: null,
-  };
-}
-
-export function consentsComplete(c) {
-  if (!c || c.version !== LEGAL_VERSION) return false;
-  if (c.termsAt && c.privacyAt) return true;
-  // Accept legacy four-stamp packs only if somehow same version was written that way
-  return !!(c.privacyAt && c.gdprAt && c.dataAt && c.copyrightAt);
-}
+export {
+  acceptedConsentRecord, consentsComplete, emptyConsents, needsLegalUpdate,
+} from './consentState';
 
 export async function loadLocalConsents() {
   try {
@@ -38,21 +23,6 @@ export async function saveLocalConsents(consents) {
   await AsyncStorage.setItem(CONSENT_KEY, JSON.stringify(consents));
 }
 
-/** Stamp privacy + terms for the current legal version (sign-in card). */
-export function acceptedConsentRecord(language, existing) {
-  const now = new Date().toISOString();
-  return {
-    ...(existing || emptyConsents()),
-    termsAt: now,
-    privacyAt: now,
-    gdprAt: now,
-    dataAt: now,
-    copyrightAt: now,
-    language: language || existing?.language || null,
-    version: LEGAL_VERSION,
-  };
-}
-
 export async function acceptLegalConsents(language) {
   const existing = await loadLocalConsents();
   const next = acceptedConsentRecord(language, existing);
@@ -60,11 +30,42 @@ export async function acceptLegalConsents(language) {
   return next;
 }
 
-export async function persistUserConsents(uid, consents) {
+/**
+ * Samtykkeloggen på serveren (versjon og servertid). Feiler stille: godkjenningen
+ * er allerede lagret på kontoen, og samme godkjenning kan sendes på nytt uten duplikat.
+ */
+export async function logConsent({ kind, version, accepted, language, clientAt, familyId } = {}) {
+  try {
+    const call = httpsCallable(functions, 'recordConsent', { timeout: 15000 });
+    await call({
+      kind, version, accepted, language, clientAt, familyId, platform: Platform.OS,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** `marketing: true` logger også valget om produkttips. */
+export async function persistUserConsents(uid, consents, { marketing = false } = {}) {
   if (!uid) return;
   await setDoc(doc(db, 'users', uid), {
     consents,
     consentsVersion: consents.version,
     updatedAt: serverTimestamp(),
   }, { merge: true });
+  if (consentsComplete(consents)) {
+    logConsent({
+      kind: 'terms', version: consents.version, language: consents.language, clientAt: consents.termsAt,
+    });
+  }
+  if (marketing) {
+    logConsent({
+      kind: 'marketing',
+      version: consents.version,
+      accepted: !!consents.marketingOptIn,
+      language: consents.language,
+      clientAt: consents.marketingAt,
+    });
+  }
 }

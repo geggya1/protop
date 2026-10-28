@@ -16,6 +16,7 @@ import CompanyLogoSettings from '../../components/CompanyLogoSettings';
 import CompanyStructureSettings from '../../components/project/CompanyStructureSettings';
 import CompanyAccessSettings, { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import CompanyModuleSettings from '../../components/project/CompanyModuleSettings';
+import CompanyPrivacySettings from '../../components/company/CompanyPrivacySettings';
 import { saveEmployee } from '../../src/employees/storage';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
@@ -391,6 +392,24 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
             <Field label="Gate og nummer" value={gate} onChangeText={setGate} editable={canEdit} placeholder="Svanholmen 7" colors={colors} />
             <Field label="Postnummer" value={postal} onChangeText={setPostal} editable={canEdit} placeholder="4313" colors={colors} keyboardType="number-pad" />
             <Field label="Poststed" value={place} onChangeText={setPlace} editable={canEdit} placeholder="Sandnes" colors={colors} />
+          </SettingsSection>
+
+          <SettingsSection
+            icon="shield-checkmark-outline"
+            title="Personvern"
+            hint="Databehandleravtale, brukslogg og AI"
+            colors={colors}
+          >
+            <CompanyPrivacySettings
+              family={family}
+              familyId={familyId}
+              company={company}
+              uid={uid}
+              userName={userProfile?.displayName || userProfile?.name || ''}
+              colors={colors}
+              onSaveCompany={(next) => savePatch(familyId, { company: next })}
+              canEdit={canEdit}
+            />
           </SettingsSection>
 
           {canEdit ? (

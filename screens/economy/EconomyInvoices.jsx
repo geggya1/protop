@@ -82,6 +82,7 @@ import { isCreditNote, isDraftInvoice } from '../../src/economy/invoiceFlow.js';
 import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings.js';
 import { resolveCompanyInvoiceDefaults } from '../../src/economy/companyInvoiceDefaults.js';
 import { resolveCompanyAccounts } from '../../src/economy/companyChart.js';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 async function bytesFromFile(file) {
   let blob = file?.blob || null;
@@ -161,6 +162,7 @@ export default function EconomyInvoices({
   const wideDetail = !isPhone && contentWidth >= 900;
   // Utkast lages, godkjennes og ferdigstilles av alle med redigeringstilgang til Faktura.
   const canManage = !!isAdmin || !!demoProjectState || !!access?.canEdit?.('economyInvoices');
+  const guardAi = useCompanyAiGuard();
   const [columnKeys, setColumnKeys, resetColumns] = useReportColumns('invoices', uid, INVOICE_REPORT_COLUMNS);
   const listColumns = useMemo(() => visibleColumns(INVOICE_REPORT_COLUMNS, columnKeys), [columnKeys]);
 
@@ -363,7 +365,7 @@ export default function EconomyInvoices({
         existingInvoices: invoices,
         customers,
         projects,
-      }, (payload) => askImportInterpret(payload));
+      }, guardAi((payload) => askImportInterpret(payload)));
       if (!plan.rows.length) {
         setError('Fant ingen fakturaer i filen.');
         return;

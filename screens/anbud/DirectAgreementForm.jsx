@@ -44,6 +44,7 @@ import AgreementDocumentPreview from './AgreementDocumentPreview';
 import AgreementPersonField from './AgreementPersonField';
 import AgreementProjectField from './AgreementProjectField';
 import FileDropZone from './FileDropZone';
+import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 const DATE_FIELD_KEYS = new Set(['start', 'end', 'contractDate', 'renewalUntil']);
 
@@ -397,6 +398,7 @@ export default function DirectAgreementForm({
   onOpenCustomer,
   onCustomersChanged,
 }) {
+  const guardAi = useCompanyAiGuard();
   const [form, setForm] = useState(() => ({
     ...emptyForm(),
     parentId,
@@ -537,7 +539,7 @@ export default function DirectAgreementForm({
       }
     }
     try {
-      const remote = await interpretAvtale({ documents: usable });
+      const remote = await guardAi(interpretAvtale)({ documents: usable });
       if (remote?.extracted) {
         merged = mergeInterpretation(merged, remote.extracted, usable.map((doc) => doc.text).filter(Boolean).join('\n'));
       }
@@ -695,7 +697,7 @@ export default function DirectAgreementForm({
     const pdf = /\.pdf$/i.test(file.name || '') || /pdf/i.test(file.mimeType || '');
     if (pdf && bytes.length > MAX_LOCAL_PDF_BYTES) {
       if (bytes.length > MAX_REMOTE_BYTES) bytes = bytes.subarray(0, MAX_REMOTE_BYTES);
-      const remote = await interpretAvtale({
+      const remote = await guardAi(interpretAvtale)({
         fileName: file.name || attached.name || 'Avtale.pdf',
         mimeType: file.mimeType || attached.mimeType || 'application/pdf',
         fileBase64: bytesToBase64(bytes),
@@ -715,7 +717,7 @@ export default function DirectAgreementForm({
       setStatus(`Leser skannet dokument${label}…`);
       await yieldUi();
       try {
-        const remote = await interpretAvtale({
+        const remote = await guardAi(interpretAvtale)({
           fileName: file.name || attached.name || 'Avtale.pdf',
           mimeType: file.mimeType || attached.mimeType || 'application/pdf',
           fileBase64: bytesToBase64(bytes),

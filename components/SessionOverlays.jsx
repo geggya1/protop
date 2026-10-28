@@ -12,6 +12,7 @@ import PendingAddFriendPrompt from './PendingAddFriendPrompt';
 import FamilySetupNudgeModal from './FamilySetupNudgeModal';
 import CompanyOfferModal from './CompanyOfferModal';
 import MajorUpdateModal from './MajorUpdateModal';
+import LegalUpdateNotice from './LegalUpdateNotice';
 import {
   loadKitchenDisplaySettings,
   subscribeKitchenDisplay,
@@ -93,6 +94,7 @@ export default function SessionOverlays() {
       <MajorUpdateModal
         enabled={!loading && invitesEnabled && !hasPendingInvites}
       />
+      {invitesEnabled && !hasPendingInvites ? <LegalUpdateNotice /> : null}
       {!kitchenMode ? <BiometricLockOverlay uid={uid} /> : null}
       <ChatDockHost />
     </NavigationRouteContext.Provider>

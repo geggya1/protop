@@ -67,6 +67,7 @@ import { configurePushHandlers } from './src/utils/push';
 import { I18nProvider, useI18n } from './src/i18n';
 import AppShell from './components/AppShell';
 import SessionOverlays from './components/SessionOverlays';
+import StorageNotice from './components/StorageNotice';
 import { ChatDockProvider } from './src/context/ChatDockContext';
 import TeamShell from './components/TeamShell';
 import TeamJoinScreen from './screens/team/TeamJoinScreen';
@@ -677,6 +678,7 @@ export default function App() {
           <HelpOverlay />
           <HelpModuleCard />
           <SaveToastHost />
+          <StorageNotice />
           </ChatDockProvider>
           </ThemeProvider>
           </AppearanceProvider>

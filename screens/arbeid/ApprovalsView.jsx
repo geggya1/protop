@@ -117,7 +117,7 @@ export function ApprovalsBody({
     }
     let live = true;
     setAiFindings([]);
-    setAiNote('AI leser listen …');
+    setAiNote('AI (Google Gemini) leser listen …');
     const rows = bundle.hours;
     Promise.resolve(scan(rows)).then((result) => {
       if (!live) return;

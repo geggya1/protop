@@ -123,15 +123,19 @@ export async function writeUsageEvent(database, input, { trusted = false } = {})
   return event;
 }
 
+/** Endringsspor (timer, invitasjoner) har egen grense, så sidevisninger ikke fortrenger dem. */
+const CHANGE_TYPES = new Set(['hour', 'hour_deleted', 'invite_sent']);
+
 export const recordUsage = onCall(CALL, async (req) => {
   const uid = requireAuth(req.auth);
+  const type = String(req.data?.type || '');
+  const change = CHANGE_TYPES.has(type);
   await assertRateLimit(db, {
-    key: hashRateKey(['usage', uid]),
-    limit: 180,
+    key: hashRateKey([change ? 'usage-change' : 'usage', uid]),
+    limit: change ? 600 : 180,
     windowMs: 60 * 60 * 1000,
   });
   const meta = requestMeta(req);
-  const type = String(req.data?.type || '');
   const companyId = String(req.data?.companyId || '').trim();
   let employeeId = String(req.data?.employeeId || '').trim();
   let trusted = false;

@@ -2,7 +2,7 @@ import { DPA_VERSION, LEGAL_VERSION } from './langs.js';
 
 /**
  * Vilkår, personvernerklæring og databehandleravtale for ProTop som tjeneste
- * for bedrifter i bygg og anlegg. Oppdatert 27. oktober 2026.
+ * for bedrifter i bygg og anlegg. Oppdatert 28. oktober 2026 (mottakere, GRUNN-02).
  * Ny tekst krever ny aksept: øk LEGAL_VERSION (vilkår og personvern) eller
  * DPA_VERSION (databehandleravtalen) i langs.js.
  */
@@ -24,7 +24,7 @@ export const LEGAL_ENTITY = {
   web: 'https://protop.no',
 };
 
-export const LEGAL_UPDATED = { nb: '27. oktober 2026', en: '27 October 2026' };
+export const LEGAL_UPDATED = { nb: '28. oktober 2026', en: '28 October 2026' };
 
 /**
  * Abonnementsvilkår mangler (L-33). Prisvisningen er av (PRICING_VISIBLE i billingMethods.js),
@@ -62,27 +62,52 @@ function contactLine(entity, lang) {
   return `Privacy contact: ${email}.${dpo ? ` Data protection officer: ${dpo}.` : ''}`;
 }
 
-/** Underleverandørene, felles for personvernerklæringen og databehandleravtalen. */
+/*
+ * Underleverandørene og de andre mottakerne, felles for personvernerklæringen og
+ * databehandleravtalen.
+ *
+ * TIL JURIST (GRUNN-02, 28. oktober 2026): Expo, nettleserens push-tjeneste, kart og adresser,
+ * ruteberegning, vær og talegjenkjenning var i bruk, men sto ikke i listen. Kontroller:
+ * - Expo (650 Industries): databehandleravtale og grunnlag (DPF-sertifisering eller SCC).
+ * - OSRM (router.project-osrm.org): åpen demotjener uten avtale, driftssted ikke bekreftet.
+ *   Alternativ: egen OSRM-tjener eller routing.openstreetmap.de (FOSSGIS, Tyskland).
+ * - Talegjenkjenning: nettleserens leverandør (Google, Microsoft, Apple) får lyden. ProTop har
+ *   ingen avtale med dem om dette.
+ * - Om rettingen av listen i databehandleravtalen skal varsles bedriftene eller gi ny DPA_VERSION.
+ * BigDataCloud (Australia) er fjernet fra koden (src/utils/reverseGeocode.js) og står derfor ikke her.
+ */
 const SUBPROCESSORS_NB = [
   '• Google Firebase og Google Cloud (innlogging, database, filer og serverfunksjoner). Data lagres i EU, region europe-west1 (Belgia).',
   '• Google Gemini (AI-funksjoner, se punkt 6).',
   '• Brevo, Resend eller SendGrid (utsending av e-post og SMS fra tjenesten).',
+  '• Expo (650 Industries, USA): push-varsler til mobilappen, videre gjennom Apple og Google. Expo får enhetens push-adresse og varselets tittel, tekst og lenke. Overføring etter punkt 8.',
+  '• Nettleserens push-tjeneste (Google, Mozilla, Apple eller Microsoft, etter nettleseren du bruker): varsler på web. Innholdet er kryptert. Tjenesten ser bare push-adressen og tidspunktet.',
   '• Microsoft (bare når du kobler Outlook eller Microsoft 365).',
   '• PowerOffice (bare når bedriften kobler regnskapssystemet).',
   '• Peppol-aksesspunkt (bare når bedriften sender EHF-faktura).',
   '• Oppslag i offentlige registre: Brønnøysundregistrene, Statens vegvesen og Doffin.',
-  '• Ressurser på nett: Google Fonts (skrift), unpkg (kartbibliotek) og OpenStreetMap/Nominatim (kart og adresseoppslag). Disse får IP-adressen din når siden henter ressursen.',
+  '• Kart og adresser: Kartverket (Geonorge), OpenStreetMap/Nominatim og Photon (komoot, Tyskland). Brukes til adressesøk og til å finne adressen når du trykker «Her» i kjøreboken eller lar appen finne stedet for været. De får søketeksten eller posisjonen og IP-adressen din. Behandles i EØS eller Storbritannia.',
+  '• Ruteberegning i kjøreboken: Google Routes (Google Maps Platform) og OSRM (router.project-osrm.org, en åpen rutetjeneste for OpenStreetMap). De får koordinatene for start og mål på turen. OSRM brukes når Google ikke svarer og for å finne ferjestrekninger.',
+  '• Vær: Meteorologisk institutt (Norge) og Open-Meteo (Sveits) får posisjonen til stedet værvarselet gjelder.',
+  '• Talegjenkjenning: når du dikterer (for eksempel i «Meld RUH» og notater), bruker appen nettleserens egen talegjenkjenning. I Chrome og Edge sendes lyden til Google eller Microsoft for å bli gjort om til tekst, i Safari til Apple. ProTop lagrer bare teksten. Skriv i stedet hvis du ikke vil at lyden skal sendes.',
+  '• Ressurser på nett: Google Fonts (skrift) og unpkg (kartbibliotek). Disse får IP-adressen din når siden henter ressursen.',
 ];
 
 const SUBPROCESSORS_EN = [
   '• Google Firebase and Google Cloud (sign-in, database, files and server functions). Data is stored in the EU, region europe-west1 (Belgium).',
   '• Google Gemini (AI features, see section 6).',
   '• Brevo, Resend or SendGrid (email and SMS sent by the service).',
+  '• Expo (650 Industries, USA): push notifications to the mobile app, delivered through Apple and Google. Expo receives the device push address and the notification title, text and link. Transfers under section 8.',
+  '• The browser’s push service (Google, Mozilla, Apple or Microsoft, depending on your browser): notifications on the web. The content is encrypted. The service only sees the push address and the time.',
   '• Microsoft (only when you connect Outlook or Microsoft 365).',
   '• PowerOffice (only when the company connects its accounting system).',
   '• Peppol access point (only when the company sends EHF invoices).',
   '• Public registers: the Brønnøysund Register Centre, the Norwegian Public Roads Administration and Doffin.',
-  '• Web resources: Google Fonts (typeface), unpkg (map library) and OpenStreetMap/Nominatim (maps and address lookup). They receive your IP address when the page loads the resource.',
+  '• Maps and addresses: the Norwegian Mapping Authority (Geonorge), OpenStreetMap/Nominatim and Photon (komoot, Germany). Used for address search and to find the address when you tap “Here” in the mileage log or let the app find the place for the weather. They receive the search text or the position and your IP address. Processed in the EEA or the United Kingdom.',
+  '• Route calculation in the mileage log: Google Routes (Google Maps Platform) and OSRM (router.project-osrm.org, an open routing service for OpenStreetMap). They receive the coordinates of the start and end of the trip. OSRM is used when Google does not respond and to find ferry crossings.',
+  '• Weather: the Norwegian Meteorological Institute (Norway) and Open-Meteo (Switzerland) receive the position of the place the forecast is for.',
+  '• Speech recognition: when you dictate (for example in “Report near miss” and notes), the app uses the browser’s own speech recognition. In Chrome and Edge the audio is sent to Google or Microsoft to be turned into text, in Safari to Apple. ProTop stores only the text. Type instead if you do not want the audio to be sent.',
+  '• Web resources: Google Fonts (typeface) and unpkg (map library). They receive your IP address when the page loads the resource.',
 ];
 
 function privacyNb(entity) {
@@ -117,9 +142,9 @@ function privacyNb(entity) {
     'Noen funksjoner bruker Google Gemini: tolking av importfiler, CV, arbeidsavtaler og kvitteringer, kontroll av timelister, anbud og avtaler, notater og hjelpeassistenten. Det du sender til en AI-funksjon, går til Google for behandling og kan behandles utenfor EØS. Svaret lagres i ProTop. Googles vilkår for tjenesten gjelder for Googles behandling. Bedriften kan slå av AI-funksjonene under Selskapsinnstillinger. Ikke send helseopplysninger eller personnummer til AI når det ikke trengs.',
     '7. Underleverandører',
     ...SUBPROCESSORS_NB,
-    'Underleverandørene behandler opplysningene etter avtale med oss og bare for å levere tjenesten.',
+    'Underleverandørene behandler opplysningene etter avtale med oss og bare for å levere tjenesten. De åpne kart-, adresse-, rute- og værtjenestene og nettleserens egne tjenester (push og talegjenkjenning) følger sine egne vilkår.',
     '8. Overføring utenfor EØS',
-    'Noen underleverandører er amerikanske selskaper (blant annet Google, Microsoft og e-postleverandørene). Overføring skjer etter EU–US Data Privacy Framework når leverandøren er sertifisert, ellers etter EUs standardkontraktsklausuler (GDPR artikkel 46).',
+    'Noen underleverandører er amerikanske selskaper (blant annet Google, Microsoft, Expo og e-postleverandørene). Overføring skjer etter EU–US Data Privacy Framework når leverandøren er sertifisert, ellers etter EUs standardkontraktsklausuler (GDPR artikkel 46). Storbritannia (OpenStreetMap) og Sveits (Open-Meteo) har EUs vedtak om tilstrekkelig beskyttelsesnivå (artikkel 45). Talegjenkjenningen i nettleseren og rutetjenesten OSRM kan behandle data utenfor EØS etter leverandørens vilkår.',
     '9. Lagringstid',
     '• Brukerkonto: så lenge du har konto. Sletter du kontoen, sletter vi profilen, innloggingen, filer under profilen din, private chatter, koblinger, samtykkeloggen og bruksloggen din.',
     '• Brukslogg: 90 dager.',
@@ -170,9 +195,9 @@ function privacyEn(entity) {
     'Some features use Google Gemini: reading import files, CVs, employment contracts and receipts, checking timesheets, tenders and agreements, notes and the help assistant. What you send to an AI feature goes to Google for processing and may be processed outside the EEA. The answer is stored in ProTop. Google’s terms for the service apply to Google’s processing. The company can turn off AI features under Company settings. Do not send health data or identity numbers to AI unless needed.',
     '7. Subprocessors',
     ...SUBPROCESSORS_EN,
-    'Subprocessors process the data under agreement with us and only to provide the service.',
+    'Subprocessors process the data under agreement with us and only to provide the service. The open map, address, routing and weather services and the browser’s own services (push and speech recognition) follow their own terms.',
     '8. Transfers outside the EEA',
-    'Some subprocessors are US companies (including Google, Microsoft and the email providers). Transfers rely on the EU–US Data Privacy Framework where the provider is certified, otherwise on the EU standard contractual clauses (GDPR Article 46).',
+    'Some subprocessors are US companies (including Google, Microsoft, Expo and the email providers). Transfers rely on the EU–US Data Privacy Framework where the provider is certified, otherwise on the EU standard contractual clauses (GDPR Article 46). The United Kingdom (OpenStreetMap) and Switzerland (Open-Meteo) have EU adequacy decisions (Article 45). The browser’s speech recognition and the OSRM routing service may process data outside the EEA under the provider’s terms.',
     '9. Retention',
     '• User account: as long as you have an account. When you delete it, we delete the profile, sign-in, files under your profile, private chats, connections, the consent log and your usage log.',
     '• Usage log: 90 days.',

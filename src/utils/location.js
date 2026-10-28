@@ -4,6 +4,7 @@ import {
   searchKartverketAdresser,
   parseNorwegianAddressQuery,
 } from './boligmappaApis';
+import { reverseGeocodeWith } from './reverseGeocode';
 
 export { mapsEmbed, mapsUrl };
 
@@ -26,20 +27,6 @@ function nominatimHeaders(lang = 'nb') {
     headers['User-Agent'] = 'ProTop/2.0 (https://protop.no)';
   }
   return headers;
-}
-
-function coordsLabel(lat, lng) {
-  return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
-}
-
-function placeFromCoords(lat, lng, label, source = 'coords') {
-  return {
-    label: label || coordsLabel(lat, lng),
-    lat: Number(lat),
-    lng: Number(lng),
-    placeId: '',
-    source,
-  };
 }
 
 async function searchPlacesOsm(query, lang = 'en') {
@@ -170,75 +157,15 @@ export async function resolveTypedLocation(text, lang = 'en') {
   };
 }
 
-async function reverseViaBigDataCloud(lat, lng, lang = 'nb') {
-  const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}&localityLanguage=${encodeURIComponent(lang || 'nb')}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) return null;
-  const json = await res.json();
-  const parts = [
-    json.locality,
-    json.city,
-    json.principalSubdivision,
-    json.countryName,
-  ].filter(Boolean);
-  const unique = [...new Set(parts.map((p) => String(p).trim()).filter(Boolean))];
-  if (!unique.length) return null;
-  return placeFromCoords(lat, lng, unique.join(', '), 'bigdatacloud');
-}
-
-async function reverseViaPhoton(lat, lng) {
-  // Photon only supports default/de/en/fr — use English labels.
-  const url = `https://photon.komoot.io/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&lang=en`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) return null;
-  const json = await res.json();
-  const props = json?.features?.[0]?.properties;
-  if (!props) return null;
-  const street = [props.street, props.housenumber].filter(Boolean).join(' ');
-  const parts = [street || props.name, props.locality || props.district, props.city, props.country]
-    .filter(Boolean);
-  const unique = [...new Set(parts.map((p) => String(p).trim()).filter(Boolean))];
-  if (!unique.length) return null;
-  return placeFromCoords(lat, lng, unique.join(', '), 'photon');
-}
-
-async function reverseViaNominatim(lat, lng, lang = 'nb') {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`;
-  const res = await fetch(url, { headers: nominatimHeaders(lang) });
-  if (!res.ok) return null;
-  const json = await res.json();
-  if (!json?.display_name) return null;
-  return placeFromCoords(lat, lng, json.display_name, 'osm');
-}
-
 /**
- * Reverse geocode. Prefer CORS-friendly providers on web — Nominatim reverse
- * often omits Access-Control-Allow-Origin, which breaks browser fetch.
- * Always resolves to a usable place (coords label as last resort).
+ * Adresse fra posisjon: Kartverket, Photon og Nominatim (src/utils/reverseGeocode.js).
+ * Alltid et sted tilbake (koordinatene som tekst til slutt).
  */
 export async function reverseGeocode(lat, lng, lang = 'en') {
-  const nLat = Number(lat);
-  const nLng = Number(lng);
-  if (!Number.isFinite(nLat) || !Number.isFinite(nLng)) {
-    throw new Error('invalid-coords');
-  }
-
-  const providers = [
-    () => reverseViaBigDataCloud(nLat, nLng, lang),
-    () => reverseViaPhoton(nLat, nLng),
-    () => reverseViaNominatim(nLat, nLng, lang),
-  ];
-
-  for (const run of providers) {
-    try {
-      const hit = await withTimeout(run(), 5000, null);
-      if (hit?.label) return hit;
-    } catch {
-      // try next
-    }
-  }
-
-  return placeFromCoords(nLat, nLng, coordsLabel(nLat, nLng), 'coords');
+  return reverseGeocodeWith(lat, lng, {
+    fetchImpl: (...args) => fetch(...args),
+    nominatimHeaders: nominatimHeaders(lang),
+  });
 }
 
 export async function openGoogleMaps(loc) {

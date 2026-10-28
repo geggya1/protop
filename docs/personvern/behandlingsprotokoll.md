@@ -94,8 +94,8 @@ hvilken region data faktisk behandles i, og grunnlaget for overføring.
 | Statens vegvesen | Kjøretøyoppslag | Reg.nr. | Norge | Nei | `functions/vegvesenLookup.js` |
 | Doffin, TED, Mercell, Tendsign, EU-Supply, Artifik, Hyyr | Anbud | Søkeord, kunngjøringer (kontaktpersoner i kunngjøringer) | EU/Norge | Nei | `functions/doffin*.js`, `tenderProxy.js`, `src/anbud/` |
 | SSB | Indeksregulering | Ingen personopplysninger | Norge | Nei | `functions/indeksreguleringAi.js` |
-| OpenStreetMap/Nominatim, Photon (komoot), Geonorge/Kartverket | Adressesøk og kart | Søketekst, IP | EU/Norge | Nei | `src/utils/location.js`, `src/anbud/geocodePlace.js` |
-| BigDataCloud | Adresse fra posisjon (kjørebok «Her») | Koordinater, IP | Australia | **Ja** | `src/utils/location.js` |
+| OpenStreetMap/Nominatim, Photon (komoot), Geonorge/Kartverket | Adressesøk, kart og adresse fra posisjon (kjørebok «Her», vær) | Søketekst eller koordinater, IP | EU/Norge, Storbritannia (Nominatim) | Nei (Storbritannia har tilstrekkelighetsvedtak) | `src/utils/location.js`, `src/utils/reverseGeocode.js`, `src/anbud/geocodePlace.js` |
+| ~~BigDataCloud~~ | Fjernet (GRUNN-02). Adresse fra posisjon går nå til Kartverket, så Photon og Nominatim | – | – | – | `src/utils/reverseGeocode.js` |
 | OSRM (router.project-osrm.org) | Reserve for kjørerute | Koordinater | Offentlig demotjener | Ukjent | `src/mileage/drivingRoute.js` |
 | MET Norway, Open-Meteo | Vær på forsiden | Omtrentlig posisjon | Norge, Sveits | Nei (Sveits har tilstrekkelighetsvedtak) | `src/utils/weather.js` |
 | Google Fonts, unpkg | Skrift og kartbibliotek | IP-adresse | USA | **Ja** | `app.web.css`, `src/mileage/routeMapHtml.js`, `src/anbud/tenderMapHtml.js` |
@@ -105,7 +105,9 @@ hvilken region data faktisk behandles i, og grunnlaget for overføring.
 
 Personvernerklæringen sier at overføring skjer etter EU–US Data Privacy Framework når leverandøren er
 sertifisert, ellers etter EUs standardkontraktsklausuler (art. 46). **[bekreft]** for hver leverandør i
-tabellen merket «Ja». BigDataCloud (Australia), Expo og OSRM er ikke nevnt i personvernerklæringen.
+tabellen merket «Ja». Expo, OSRM, Google Routes, vær, kart og talegjenkjenning står i personvernerklæringen fra
+28. oktober 2026 (GRUNN-02, merket for juristgjennomgang i `src/i18n/legal.js`). BigDataCloud er fjernet fra koden.
+OSRM-demotjeneren har ingen avtale og ukjent driftssted. **[bekreft]** eller bytt til egen tjener.
 
 ## 6. Lagringstid og sletting slik koden gjør det
 
@@ -146,7 +148,8 @@ Mer i [ROS-analysen](ros-analyse.md).
 
 1. Fyll inn juridisk navn, org.nr., adresse og eventuelt personvernombud (`LEGAL_ENTITY`).
 2. Bekreft databehandleravtaler og overføringsgrunnlag for hver underleverandør i punkt 4.
-   Legg til BigDataCloud, Expo, OSRM og talegjenkjenning i personvernerklæringen, eller fjern dem fra koden.
+   ~~Legg til BigDataCloud, Expo, OSRM og talegjenkjenning i personvernerklæringen, eller fjern dem fra koden.~~
+   Gjort (GRUNN-02): BigDataCloud fjernet, de andre står i erklæringen. Juristen må kontrollere grunnlaget.
 3. Bekreft region for Firestore og Storage, og hvor Firebase Auth lagrer data.
 4. Gemini Developer API eller Vertex AI i EU? Brukes betalt nivå (ingen bruk av data til trening)?
 5. Hvilken e-postleverandør brukes i produksjon (Brevo, Resend eller SendGrid)?

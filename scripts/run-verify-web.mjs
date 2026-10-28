@@ -33,6 +33,7 @@ export const FILES = [
   'src/privacy/myDataExport.test.mjs',
   'functions/deleteAccount.test.mjs',
   'functions/helpKnowledge.test.mjs',
+  'src/utils/reverseGeocode.test.mjs',
   'src/privacy/storageNotice.test.mjs',
   'src/i18n/htmlLang.test.mjs',
   'src/i18n/welcomeB2b.test.mjs',

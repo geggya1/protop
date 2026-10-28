@@ -27,6 +27,20 @@ for (const needle of [
 ]) {
   assert.ok(privacy.toLowerCase().includes(needle.toLowerCase()), `personvern mangler «${needle}»`);
 }
+// Mottakere som var i bruk uten å stå i erklæringen (GRUNN-02), med formål og grunnlag.
+for (const needle of [
+  'Expo', 'push-adresse', 'Kartverket', 'Photon', 'OSRM', 'koordinatene for start og mål', 'Google Routes',
+  'Talegjenkjenning', 'lyden', 'Open-Meteo', 'Meteorologisk institutt', 'tilstrekkelig beskyttelsesnivå',
+]) {
+  assert.ok(privacy.includes(needle), `personvern mangler «${needle}»`);
+}
+assert.doesNotMatch(privacy, /BigDataCloud/i, 'BigDataCloud er fjernet fra koden');
+const privacyEnText = getPrivacy('en').join('\n');
+for (const needle of ['Expo', 'OSRM', 'Speech recognition', 'Open-Meteo', 'Photon']) {
+  assert.ok(privacyEnText.includes(needle), `privacy (en) mangler «${needle}»`);
+}
+// Databehandleravtalen har den samme listen.
+assert.ok(getDpa('nb').join('\n').includes('Expo (650 Industries'));
 assert.ok(getPrivacy('en').join('\n').includes('processor'));
 assert.ok(getDpa('nb').join('\n').includes('artikkel 28'));
 assert.ok(getDpa('nb')[1].includes(DPA_VERSION));

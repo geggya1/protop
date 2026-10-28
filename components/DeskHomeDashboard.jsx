@@ -24,7 +24,6 @@ import CompanyQuickReport from './home/CompanyQuickReport';
 import { isDoneOn } from '../src/utils/todos';
 import { addDays, dateKey } from '../src/utils/dates';
 import {
-  deskGreetingEmoji,
   deskGreetingTitle,
   eventSourceHint,
   mergeDeskDayEvents,
@@ -179,8 +178,9 @@ export default function DeskHomeDashboard({
     <View style={[styles.page, short && styles.pageShort]}>
       <View style={styles.hero}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.hello, short && styles.helloShort]} numberOfLines={1}>
-            {deskGreetingTitle(now, firstNameMe)} {deskGreetingEmoji(now)}
+          {/* Samme hilsen som Hjem på telefon (UX-05), uten emoji. */}
+          <Text style={[styles.hello, short && styles.helloShort]} numberOfLines={1} accessibilityRole="header">
+            {deskGreetingTitle(now, firstNameMe)}
           </Text>
           <View style={styles.heroSubRow}>
             <Text style={styles.heroSub} numberOfLines={1}>{dateLabel}</Text>

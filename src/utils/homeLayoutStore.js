@@ -4,6 +4,7 @@ import {
   CUSTOM_BANNER_ID,
   isValidHomeBannerId,
 } from '../homeBanners';
+import { resolveParentBannerId } from '../homeSurface';
 import {
   DEFAULT_HOME_LOOK,
   resolveHomeLook,
@@ -88,6 +89,7 @@ export function homeLayoutsEqual(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;
   return a.bannerId === b.bannerId
+    && !!a.bannerChosen === !!b.bannerChosen
     && (a.customBannerUri || null) === (b.customBannerUri || null)
     && a.look === b.look
     && a.bottomNavEnabled === b.bottomNavEnabled
@@ -103,6 +105,10 @@ export function parseHomeLayout(parsed, role = 'parent') {
 function parseLayout(parsed, role = 'parent') {
   const fallback = emptyHomeLayout(role);
   let bannerId = isValidHomeBannerId(parsed?.bannerId) ? parsed.bannerId : fallback.bannerId;
+  // Før UX-05 var naturbildet standard og ble lagret uten at personen hadde valgt det.
+  // Uten eget valg viser Hjem nå ProTop-flaten; et bilde valgt under Tilpass hjem står.
+  const bannerChosen = parsed?.bannerChosen === true;
+  if (role === 'parent') bannerId = resolveParentBannerId(bannerId, { bannerChosen });
   const bottomIds = Array.isArray(parsed?.bottomIds)
     ? normalizeBottomShortcutIds(parsed.bottomIds, { max: MAX_PARENT_BOTTOM_SHORTCUTS })
     : fallback.bottomIds;
@@ -130,6 +136,7 @@ function parseLayout(parsed, role = 'parent') {
   const bottomNavEnabled = parsed?.bottomNavEnabled !== false;
   return {
     bannerId,
+    bannerChosen,
     customBannerUri: bannerId === CUSTOM_BANNER_ID ? (parsed?.customBannerUri || null) : null,
     look,
     widgets,

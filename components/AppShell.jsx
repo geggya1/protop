@@ -101,6 +101,7 @@ import {
 import KitchenPinModal from './KitchenPinModal';
 import ParentShellBottomNav from './parentHome/ParentShellBottomNav';
 import HomeBackdrop from './home/HomeBackdrop';
+import { hasHomePhoto } from '../src/homeBanners';
 import { HomeImmersiveProvider } from '../src/context/HomeImmersiveContext';
 import { useParentDashboardTheme } from '../src/hooks/useParentDashboardTheme';
 import { useHomeLayout } from '../src/hooks/useHomeLayout';
@@ -1002,6 +1003,7 @@ function AppShellInner() {
     kitchenMode,
     bottomNavEnabled,
   });
+  const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
   const immersiveHome = isImmersivePhotoShell({
     isPhone,
     tab,
@@ -1010,8 +1012,8 @@ function AppShellInner() {
     asChildView,
     kitchenMode,
     simpleChildUi,
+    photo: hasHomePhoto(backdropBannerId),
   });
-  const backdropBannerId = asChildView ? childHome.layout.bannerId : homeBannerId;
   const backdropCustomUri = asChildView ? childHome.layout.customBannerUri : homeCustomBannerUri;
   // ProTop keeps the safe area inside the chrome, not as a gap outside it.
   // On a phone the header is the top layer: its background covers Safari's

@@ -75,8 +75,9 @@ export function useHomeLayout(uid, { role = 'parent', aliases = [] } = {}) {
     });
   }, [uid, role]);
 
+  // Et bilde (eller «Uten bilde») valgt her er personens eget valg og står (UX-05).
   const setBanner = useCallback((bannerId, customBannerUri = null) => (
-    persist({ bannerId, customBannerUri })
+    persist({ bannerId, customBannerUri, bannerChosen: true })
   ), [persist]);
 
   const setBottomIds = useCallback((bottomIds) => persist({ bottomIds }), [persist]);

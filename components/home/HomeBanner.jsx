@@ -2,9 +2,52 @@ import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PAGE_ART_SCALE } from '../../src/appearance/pageArtScale';
-import { getHomeBanner, CUSTOM_BANNER_ID } from '../../src/homeBanners';
+import { getHomeBanner, hasHomePhoto, CUSTOM_BANNER_ID } from '../../src/homeBanners';
 import { colors } from '../../src/theme';
+import { radius, type } from '../../src/ui/tokens';
+import { formatGreetingDate } from '../../src/utils/timeGreeting';
 import HelpTarget from '../HelpTarget';
+
+/**
+ * Hjem uten bakgrunnsbilde (UX-05): samme topp som Hjem på PC, med hilsen, dato og vær
+ * på sidens bakgrunn. Knappen åpner Tilpass hjem, der bakgrunnsbilde kan velges.
+ */
+function PlainHomeHeader({ greeting, weather, onEdit }) {
+  const dateLabel = formatGreetingDate(new Date());
+  const weatherBit = weather?.temp != null
+    ? `${weather.temp}°${weather.place ? ` ${weather.place}` : ''}`
+    : '';
+  return (
+    <View style={styles.plain} testID="home-banner-plain">
+      <View style={styles.plainCopy}>
+        {greeting ? (
+          <Text style={styles.plainHi} accessibilityRole="header" numberOfLines={2}>{greeting}</Text>
+        ) : null}
+        <View style={styles.plainSubRow}>
+          <Text style={styles.plainDate} numberOfLines={1}>{dateLabel}</Text>
+          {weatherBit ? (
+            <View style={styles.plainWeather} testID="home-banner-weather">
+              <Ionicons name={weather.icon || 'partly-sunny'} size={14} color={colors.brand} />
+              <Text style={styles.plainWeatherTxt} numberOfLines={1}>{weatherBit}</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+      <HelpTarget id="edit" style={styles.plainEdit}>
+        <Pressable
+          style={styles.plainEditBtn}
+          onPress={onEdit}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="Tilpass hjem og velg bakgrunnsbilde"
+          testID="home-banner-edit"
+        >
+          <Ionicons name="image-outline" size={18} color={colors.brandInk} />
+        </Pressable>
+      </HelpTarget>
+    </View>
+  );
+}
 
 export default function HomeBanner({
   bannerId,
@@ -16,6 +59,9 @@ export default function HomeBanner({
   onPressBanner,
   onEdit,
 }) {
+  if (!customUri && !hasHomePhoto(bannerId)) {
+    return <PlainHomeHeader greeting={greeting} weather={weather} onEdit={onEdit || onPressBanner} />;
+  }
   const pack = bannerId === CUSTOM_BANNER_ID ? null : getHomeBanner(bannerId);
   const source = customUri
     ? { uri: customUri }
@@ -79,6 +125,30 @@ export default function HomeBanner({
 }
 
 const styles = StyleSheet.create({
+  plain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+    paddingHorizontal: 4,
+  },
+  plainCopy: { flex: 1, minWidth: 0 },
+  plainHi: { ...type.h1, color: colors.ink },
+  plainSubRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  plainDate: { fontSize: 13, color: colors.muted },
+  plainWeather: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
+    borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3,
+  },
+  plainWeatherTxt: { fontSize: 12, color: colors.ink },
+  plainEdit: { width: 40, height: 40 },
+  plainEditBtn: {
+    width: 40, height: 40, borderRadius: radius.control,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line,
+  },
   wrap: {
     marginHorizontal: -14,
     marginTop: -4,

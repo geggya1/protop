@@ -15,11 +15,21 @@ export function useSeesBillingChain() {
 }
 
 /**
- * Prosesslinjen øverst på Timeliste, Godkjenninger, Til fakturering og Faktura:
- * ① Timer → ② Godkjenn → ③ Til fakturering → ④ Faktura, med antall per steg.
+ * Prosesslinjen ① Timer → ② Godkjenn → ③ Til fakturering → ④ Faktura, med antall per steg.
+ * Står øverst på Timeliste og Godkjenninger. I Økonomi står den ikke øverst på sidene,
+ * men i «Godkjenn utvalg» på Til fakturering (BillingApproveDialog).
  * `counts` kan sendes inn når siden allerede har regnet dem ut.
+ * onNavigate: kalles før et steg åpner en annen side (f.eks. for å lukke dialogen).
  */
-export default function BillingChainLine({ current, counts = null, entries = null, locks = null, employees = null, invoices = null }) {
+export default function BillingChainLine({
+  current,
+  counts = null,
+  entries = null,
+  locks = null,
+  employees = null,
+  invoices = null,
+  onNavigate = null,
+}) {
   const requestShellTab = useOptionalApp()?.requestShellTab;
   const visible = useSeesBillingChain();
   const loaded = useBillingChain({ entries, locks, employees, invoices, enabled: visible && !counts });
@@ -30,7 +40,10 @@ export default function BillingChainLine({ current, counts = null, entries = nul
       steps={steps}
       label="Fra timer til faktura"
       nativeID="billing-chain"
-      onSelect={(step) => requestShellTab?.(step.tab, step.subView)}
+      onSelect={(step) => {
+        onNavigate?.(step);
+        requestShellTab?.(step.tab, step.subView);
+      }}
     />
   );
 }

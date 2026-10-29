@@ -8,8 +8,12 @@ import {
   layoutMonthChart,
   layoutYearChart,
   statementDomain,
+  statementTableYears,
   statementTip,
   statementYearColor,
+  statementYearWindow,
+  yearWindowEnd,
+  yearWindowOffset,
 } from './invoicedStatement.js';
 
 const today = '2026-10-20';
@@ -143,5 +147,40 @@ assert.equal(chartCanvasHeight(0), 228);
 assert.equal(chartCanvasHeight(860), 228);
 assert.equal(chartCanvasHeight(1400), 280);
 assert.equal(chartCanvasHeight(2600), 340);
+
+// Alle år ligger i tabellen; fem vises om gangen og eldre blas frem.
+const tableYears = statementTableYears(statement);
+assert.equal(tableYears.length, 11);
+assert.deepEqual(statementTableYears({ chartYears: [2025, 2026] }), [2025, 2026]);
+assert.deepEqual(statementYearWindow(tableYears, 10), [2022, 2023, 2024, 2025, 2026]);
+assert.deepEqual(statementYearWindow(tableYears, 9), [2021, 2022, 2023, 2024, 2025]);
+assert.deepEqual(statementYearWindow(tableYears, 0), [2016, 2017, 2018, 2019, 2020]);
+assert.deepEqual(statementYearWindow([2025, 2026], 1), [2025, 2026]);
+assert.deepEqual(statementYearWindow([], 3), []);
+
+// Fem kolonner på 200 px synlige, elleve år totalt.
+const wide = { viewport: 1000, column: 200, count: 11 };
+assert.equal(yearWindowOffset({ ...wide, end: 10 }), 1200);
+assert.equal(yearWindowEnd({ ...wide, offset: 1200 }), 10);
+assert.equal(yearWindowOffset({ ...wide, end: 9 }), 1000);
+assert.equal(yearWindowEnd({ ...wide, offset: 1000 }), 9);
+assert.equal(yearWindowEnd({ ...wide, offset: 0 }), 4);
+assert.equal(yearWindowOffset({ ...wide, end: 0 }), 0);
+// Mobil: to kolonner synlige, utsnittet er fortsatt fem år.
+const narrow = { viewport: 294, column: 132, count: 11 };
+assert.equal(yearWindowEnd({ ...narrow, offset: yearWindowOffset({ ...narrow, end: 10 }) }), 10);
+assert.equal(yearWindowEnd({ ...narrow, offset: 0 }), 4);
+// Uten måling vises de siste årene.
+assert.equal(yearWindowEnd({ offset: 0, viewport: 0, column: 0, count: 11 }), 10);
+
+// Hvert år beholder fargen når utsnittet flyttes.
+assert.equal(statementYearColor(2026, tableYears), '#7030A0');
+assert.equal(statementYearColor(2022, tableYears), '#4472C4');
+assert.equal(statementYearColor(2021, tableYears), '#7030A0');
+assert.equal(statementYearColor(2017, tableYears), '#4472C4');
+assert.equal(new Set(statementYearWindow(tableYears, 7).map((year) => statementYearColor(year, tableYears))).size, 5);
+assert.equal(statementYearColor(2025, [2025, 2026]), '#4472C4');
+assert.equal(statementYearColor(2026, [2025, 2026]), '#C00000');
+assert.match(invoicedStatementWorkbook(statement, 'monthly'), /<Data ss:Type="Number">2016<\/Data>/);
 
 console.log('invoicedStatement.test.mjs: ok');

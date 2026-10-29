@@ -12,8 +12,10 @@ export const STATEMENT_YEAR_COLORS = ['#4472C4', '#C00000', '#ED7D31', '#70AD47'
 
 export const STATEMENT_YEAR_BAR = '#4472C4';
 
+/** Så mange år vises samtidig i graf og tabell. Eldre år blas frem sidelengs. */
+export const STATEMENT_YEAR_WINDOW = 5;
+
 const ISSUED = new Set(['issued', 'sent', 'paid', 'overdue', 'credited', 'written_off']);
-const CHART_YEAR_SPAN = 5;
 
 function roundOre(value) {
   const amount = Number(value);
@@ -42,10 +44,17 @@ export function formatStatementAxis(value) {
   }).format(amount).replace(/\u00a0|\u202f/g, ' ');
 }
 
+/**
+ * Fargen følger året, ikke plassen i utsnittet. De siste fem årene får
+ * fargene i fast rekkefølge, og fem år på rad har alltid ulike farger.
+ */
 export function statementYearColor(year, years) {
-  const index = (years || []).findIndex((item) => Number(item) === Number(year));
-  if (index < 0) return STATEMENT_YEAR_COLORS[0];
-  return STATEMENT_YEAR_COLORS[index % STATEMENT_YEAR_COLORS.length];
+  const list = (years || []).map(Number).filter(Number.isFinite);
+  const target = Number(year);
+  if (!list.includes(target)) return STATEMENT_YEAR_COLORS[0];
+  const span = STATEMENT_YEAR_COLORS.length;
+  const start = Math.max(Math.min(...list), Math.max(...list) - (span - 1));
+  return STATEMENT_YEAR_COLORS[(((target - start) % span) + span) % span];
 }
 
 function calendarToday(today) {
@@ -129,7 +138,7 @@ export function buildInvoicedStatement(invoices, { today = new Date() } = {}) {
   const latest = Math.max(...buckets.keys());
   const allYears = [];
   for (let year = earliest; year <= latest; year += 1) allYears.push(year);
-  const chartStart = Math.max(earliest, latest - (CHART_YEAR_SPAN - 1));
+  const chartStart = Math.max(earliest, latest - (STATEMENT_YEAR_WINDOW - 1));
   const chartYears = allYears.filter((year) => year >= chartStart);
 
   const monthly = {};
@@ -176,6 +185,41 @@ export function buildInvoicedStatement(invoices, { today = new Date() } = {}) {
     vat: 'ex',
     asOf: `${now.year}-${String(now.month + 1).padStart(2, '0')}-01`,
   };
+}
+
+/** Alle år i tabellen, eldste først. Eldre lagrede oppstillinger har bare chartYears. */
+export function statementTableYears(statement) {
+  if (Array.isArray(statement?.allYears) && statement.allYears.length) return statement.allYears;
+  return Array.isArray(statement?.chartYears) ? statement.chartYears : [];
+}
+
+function clampEnd(end, count, size) {
+  const last = count - 1;
+  const first = Math.min(size, count) - 1;
+  return Math.min(last, Math.max(first, Math.round(Number(end) || 0)));
+}
+
+/** Årene i utsnittet som slutter på indeks end. */
+export function statementYearWindow(years, end, size = STATEMENT_YEAR_WINDOW) {
+  const list = Array.isArray(years) ? years : [];
+  if (!list.length) return [];
+  const stop = clampEnd(end, list.length, size);
+  return list.slice(Math.max(0, stop - size + 1), stop + 1);
+}
+
+/** Siste synlige årskolonne når tabellen er rullet til offset. */
+export function yearWindowEnd({ offset, viewport, column, count, size = STATEMENT_YEAR_WINDOW }) {
+  if (!(count > 0)) return 0;
+  if (!(column > 0) || !(viewport > 0)) return count - 1;
+  return clampEnd(Math.round((Math.max(0, offset) + viewport) / column) - 1, count, size);
+}
+
+/** Rulleposisjon som viser årskolonne end helt til høyre. */
+export function yearWindowOffset({ end, viewport, column, count, size = STATEMENT_YEAR_WINDOW }) {
+  if (!(count > 0) || !(column > 0) || !(viewport > 0)) return 0;
+  const max = Math.max(0, column * count - viewport);
+  const x = (clampEnd(end, count, size) + 1) * column - viewport;
+  return Math.min(max, Math.max(0, x));
 }
 
 export function statementRow(series, year) {
@@ -413,7 +457,7 @@ function sheet(name, rows) {
 }
 
 function monthSheet(name, statement, series) {
-  const years = statement?.chartYears || [];
+  const years = statementTableYears(statement);
   const header = ['', ...years];
   const rows = [header];
   STATEMENT_MONTHS.forEach((label, index) => {

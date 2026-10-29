@@ -67,3 +67,18 @@ assert.equal(receiptVatCode(8), null);
   assert.equal(expensePatchFromReceipt({}, { amount: 125 }).patch.amountExVat, '100');
   assert.match(expensePatchFromReceipt({}, {}).summary, /Fant ikke/);
 }
+
+// Fakturering: viderefakturering eller internkostnad. «Utlegg i kundens navn» bare på eldre utlegg.
+{
+  const { EXPENSE_BILLING_CHOICES, expenseBillingChoice, expenseBillingChoices, expenseBillingPatch, emptyExpense } = await import('./expenses.js');
+  assert.deepEqual(EXPENSE_BILLING_CHOICES.map((row) => row.label), ['Viderefakturering', 'Internkostnad']);
+  assert.equal(expenseBillingChoice({}), 'reinvoice');
+  assert.equal(expenseBillingChoice({ billable: false }), 'internal');
+  assert.equal(expenseBillingChoice({ chargeType: 'outlay' }), 'outlay');
+  assert.deepEqual(expenseBillingChoices({}).map((row) => row.id), ['reinvoice', 'internal']);
+  assert.deepEqual(expenseBillingChoices({ chargeType: 'outlay' }).map((row) => row.id), ['reinvoice', 'internal', 'outlay']);
+  const internal = emptyExpense({ amountExVat: 100, ...expenseBillingPatch('internal') });
+  assert.equal(internal.billable, false);
+  assert.equal(internal.chargeType, 'reinvoice');
+  assert.equal(emptyExpense({ billable: false, ...expenseBillingPatch('reinvoice') }).billable, true);
+}

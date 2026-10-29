@@ -33,7 +33,9 @@ import { freshRows, hydrateRows, liveCustomerList } from '../../src/company/comp
 import { formatMoney, parseDate } from '../../src/economy/invoices.js';
 import {
   EXPENSE_CATEGORIES,
-  EXPENSE_CHARGE_TYPES,
+  expenseBillingChoice,
+  expenseBillingChoices,
+  expenseBillingPatch,
   EXPENSE_STATUSES,
   emptyExpense,
   expensesToCsv,
@@ -212,7 +214,8 @@ export function ExpenseSheet({
     }
   }
   const employeeName = people.find((row) => row.id === draft.employeeId)?.label || draft.employeeName || '';
-  const charge = EXPENSE_CHARGE_TYPES.find((row) => row.id === (draft.chargeType || 'reinvoice'));
+  const billingChoice = expenseBillingChoice(draft);
+  const charge = expenseBillingChoices(draft).find((row) => row.id === billingChoice);
   const label = draft.description || draft.purpose || 'utlegget';
   // Feilen står over knappene, så den synes også når skjemaet er rullet (telefon).
   const footer = [
@@ -381,16 +384,16 @@ export function ExpenseSheet({
         </View>
         <View style={styles.sheetCell}>
           <Field label="Påslag %">
-            <TextIn value={String(draft.markupPercent ?? '')} onChangeText={set('markupPercent')} keyboardType="decimal-pad" editable={editable && draft.chargeType !== 'outlay'} />
+            <TextIn value={String(draft.markupPercent ?? '')} onChangeText={set('markupPercent')} keyboardType="decimal-pad" editable={editable && billingChoice === 'reinvoice'} />
           </Field>
         </View>
       </View>
-      <Field label="Faktureres som" hint={charge?.hint}>
+      <Field label="Fakturering" hint={charge?.hint}>
         <OptionPicker
-          options={EXPENSE_CHARGE_TYPES.map((row) => ({ id: row.id, label: row.label }))}
-          value={draft.chargeType || 'reinvoice'}
-          onChange={(id) => { if (id) setDraft((current) => ({ ...current, chargeType: id, ...(id === 'outlay' ? { markupPercent: 0 } : {}) })); }}
-          title="Faktureres som"
+          options={expenseBillingChoices(draft).map((row) => ({ id: row.id, label: row.label }))}
+          value={billingChoice}
+          onChange={(id) => { if (id) setDraft((current) => ({ ...current, ...expenseBillingPatch(id) })); }}
+          title="Fakturering"
           clearable={false}
           disabled={!editable}
         />

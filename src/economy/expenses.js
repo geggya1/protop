@@ -39,6 +39,34 @@ export const EXPENSE_CHARGE_TYPES = [
   { id: 'outlay', label: 'Utlegg i kundens navn', hint: 'Kvitteringen lyder på kunden. Faktureres med bruttobeløpet, uten påslag og mva.' },
 ];
 
+/**
+ * Valget i skjemaene. «Utlegg i kundens navn» velges ikke lenger, men eldre utlegg med
+ * chargeType 'outlay' faktureres som før og vises med sitt valg.
+ * internal: kostnad for bedriften (billable: false), kommer ikke i Til fakturering.
+ */
+export const EXPENSE_BILLING_CHOICES = [
+  { id: 'reinvoice', label: 'Viderefakturering', hint: 'Faktureres kunden eks. mva med påslag, og får mva.' },
+  { id: 'internal', label: 'Internkostnad', hint: 'Kostnad for bedriften. Faktureres ikke kunden.' },
+];
+
+const LEGACY_OUTLAY_CHOICE = { id: 'outlay', label: 'Utlegg i kundens navn', hint: 'Registrert før. Faktureres med bruttobeløpet, uten påslag og mva.' };
+
+export function expenseBillingChoice(row) {
+  if (row?.billable === false) return 'internal';
+  return row?.chargeType === 'outlay' ? 'outlay' : 'reinvoice';
+}
+
+/** Valgene for et utlegg: de to faste, og det eldre valget når utlegget har det. */
+export function expenseBillingChoices(row) {
+  return expenseBillingChoice(row) === 'outlay' ? [...EXPENSE_BILLING_CHOICES, LEGACY_OUTLAY_CHOICE] : EXPENSE_BILLING_CHOICES;
+}
+
+export function expenseBillingPatch(id) {
+  if (id === 'internal') return { billable: false, chargeType: 'reinvoice' };
+  if (id === 'outlay') return { billable: true, chargeType: 'outlay', markupPercent: 0 };
+  return { billable: true, chargeType: 'reinvoice' };
+}
+
 export function expenseCategory(id) {
   return EXPENSE_CATEGORIES.find((row) => row.id === id) || EXPENSE_CATEGORIES[EXPENSE_CATEGORIES.length - 1];
 }

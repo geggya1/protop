@@ -124,4 +124,13 @@ assert.deepEqual(POWEROFFICE_VAT_ROWS.map((row) => row.id), ['HIGH', 'MID', 'LOW
   assert.equal(syncCountsText({ sending: 1, failed: 1 }), '1 sendes fortsatt, 1 sending feilet');
 }
 
+{
+  // Vedlegg som er lagt på utkastet, og de som ikke kom med.
+  const withDocs = powerOfficeSummary({ poweroffice: { state: 'draft', salesOrderId: 'so-1', attachments: 3, attachmentErrors: 'stor.pdf: for stor' } });
+  assert.ok(withDocs.lines.includes('Fakturaspesifikasjon og 2 vedlegg er lagt ved.'));
+  assert.ok(withDocs.lines.includes('Ikke lagt ved: stor.pdf: for stor'));
+  const specOnly = powerOfficeSummary({ poweroffice: { state: 'sending', salesOrderId: 'so-1', attachments: 1, sendRequestedAt: '2026-10-29' } });
+  assert.ok(specOnly.lines.includes('Fakturaspesifikasjonen er lagt ved.'));
+}
+
 console.log('powerOfficeView.test ok');

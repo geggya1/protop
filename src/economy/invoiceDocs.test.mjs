@@ -8,6 +8,7 @@ import { buildCreditNote, issueInvoice, recalcInvoice } from './invoiceFlow.js';
 import { emptyInvoice } from './invoices.js';
 import {
   buildInvoicePdf,
+  buildInvoiceSpecPdf,
   buildInvoiceWithTimeSpecPdf,
   buildTimeSpecPdf,
   invoicePdfName,
@@ -117,6 +118,17 @@ const creditPdf = Buffer.from(buildInvoicePdf(credit, { supplier, originalDate: 
 assert.ok(creditPdf.includes('KREDITNOTA 16723'));
 assert.ok(creditPdf.includes('Faktura 16722 av 30.09.2026'));
 const entries = [{ id: 't1', date: '2026-09-03', employeeName: 'Linda Øie', activityName: 'Hovedaktivitet', hours: 10.5, description: 'Byggemøte' }];
+{
+  // Fakturaspesifikasjon til PowerOffice: ProTop sitt design, uten utkastmerking og uten
+  // betalingsinformasjon i faktaboksen (den står på fakturaen fra PowerOffice).
+  const specPdf = Buffer.from(buildInvoiceSpecPdf(draft, entries, { supplier })).toString('latin1');
+  assert.ok(specPdf.includes('FAKTURASPESIFIKASJON'));
+  assert.ok(!specPdf.includes('FAKTURAUTKAST'));
+  assert.ok(!specPdf.includes('Betalingsfrist:'));
+  assert.ok(specPdf.includes('Timespesifikasjon'), 'timespesifikasjonen følger etter');
+  const noEntries = Buffer.from(buildInvoiceSpecPdf(draft, [], { supplier })).toString('latin1');
+  assert.ok(!noEntries.includes('Timespesifikasjon'));
+}
 const spec = Buffer.from(buildTimeSpecPdf(invoice, entries, { supplier })).toString('latin1');
 assert.ok(spec.includes('Timespesifikasjon'));
 assert.ok(spec.includes('Byggem'));

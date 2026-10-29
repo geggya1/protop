@@ -35,6 +35,7 @@ import { attachVoucherSnapshot, ledgerVoucher } from '../../../src/economy/vouch
 import { buildEhfXml } from '../../../src/economy/ehf.js';
 import {
   buildInvoicePdf,
+  buildInvoiceSpecPdf,
   buildInvoiceWithTimeSpecPdf,
   buildTimeSpecPdf,
   invoicePdfName,
@@ -251,6 +252,42 @@ function attachmentAllowed(familyId, row) {
 /** Vedlegg som ikke ligger i ProTop (for eksempel en lenke), kan ikke sendes med. */
 export function sendableAttachments(familyId, invoice) {
   return (invoice?.attachments || []).filter((row) => row.include !== false && (demo({ familyId }) || attachmentAllowed(familyId, row)));
+}
+
+/** Base64-tegn som får plass i ett kall til serveren (grensen er rundt 10 MB). */
+const POWEROFFICE_UPLOAD_CHARS = 9_000_000;
+
+/**
+ * Vedleggene som legges på utkastet i PowerOffice og følger med fakturaen:
+ * fakturaspesifikasjonen i ProTop sitt design (med timespesifikasjon når fakturaen har timer
+ * og den ikke er slått av), og fakturaens vedlegg og kvitteringer.
+ * Returnerer { files: [{ name, mime, base64 }], skipped: [navn som ikke fikk plass] }.
+ */
+export async function powerOfficeAttachments(ctx, invoice) {
+  const full = await fullInvoice(ctx, invoice);
+  const settings = ctx.settings || {};
+  const entries = settings.attachTimeSpec !== false && (full.timeEntryIds || []).length
+    ? await timeEntriesFor(ctx, full).catch(() => [])
+    : [];
+  const spec = buildInvoiceSpecPdf(full, entries, { supplier: ctx.supplier, settings, logo: ctx.logo });
+  const project = String(full.projectNumber || '').replace(/[^\w-]+/g, '');
+  const files = [{ name: `Fakturaspesifikasjon${project ? `-${project}` : ''}.pdf`, mime: 'application/pdf', base64: pdfBase64(spec) }];
+  const skipped = [];
+  let used = files[0].base64.length;
+  for (const row of sendableAttachments(ctx.familyId, full)) {
+    const base64 = await fileBase64(row).catch(() => '');
+    if (!base64) {
+      skipped.push(row.name);
+      continue;
+    }
+    if (used + base64.length > POWEROFFICE_UPLOAD_CHARS) {
+      skipped.push(row.name);
+      continue;
+    }
+    used += base64.length;
+    files.push({ name: row.name, mime: row.mime || '', base64 });
+  }
+  return { files, skipped };
 }
 
 /** Sender en ferdigstilt faktura: e-post, EHF (med e-post i tillegg) eller manuelt. */

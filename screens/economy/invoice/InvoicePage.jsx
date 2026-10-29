@@ -239,11 +239,21 @@ export default function InvoicePage({
     }
   }
 
+  /** Spesifikasjon og vedlegg til utkastet i PowerOffice, når det er slått på og ikke gjort før. */
+  async function powerOfficeFiles() {
+    if (poStatus?.attachDocs === false || invoice?.poweroffice?.attachmentsAddedAt) return {};
+    const { files, skipped } = await actions.powerOfficeAttachments(ctx, invoice);
+    return { attachments: files, skipped };
+  }
+
   async function finalizeAndSend(options) {
     if (mode === 'poweroffice') {
       // Resultatet og feilen fra PowerOffice vises øverst på fakturaen.
       setDialog('');
-      await run('transfer', () => onTransfer?.({ again: invoice?.poweroffice?.state === 'missing' }), { close: false });
+      await run('transfer', async () => onTransfer?.({
+        again: invoice?.poweroffice?.state === 'missing',
+        ...(await powerOfficeFiles()),
+      }), { close: false });
       return;
     }
     setBusy('finalize');
@@ -471,7 +481,7 @@ export default function InvoicePage({
       powerOfficeSummary={powerOfficeSummary(invoice)}
       powerOfficeUrl={poStatus?.connected ? (POWEROFFICE_GUI[poStatus.env] || POWEROFFICE_GUI.prod) : ''}
       onPowerOfficeSend={canManage && canSendFromPowerOffice(invoice, poStatus) && onTransfer
-        ? () => run('posend', () => onTransfer({ send: true }), { close: false })
+        ? () => run('posend', async () => onTransfer({ send: true, ...(await powerOfficeFiles()) }), { close: false })
         : null}
       onPowerOfficeSync={poStatus?.connected && invoice?.poweroffice?.salesOrderId && onSyncPowerOffice
         ? () => run('posync', () => onSyncPowerOffice(), { close: false })

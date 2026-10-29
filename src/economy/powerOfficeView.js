@@ -131,6 +131,12 @@ export function canTransferToPowerOffice(invoice, status) {
   return !po.salesOrderId || po.state === 'missing';
 }
 
+function attachmentsText(po) {
+  const n = Number(po?.attachments) || 0;
+  if (!n) return '';
+  return n === 1 ? 'Fakturaspesifikasjonen er lagt ved.' : `Fakturaspesifikasjon og ${n - 1} vedlegg er lagt ved.`;
+}
+
 /** Tekst om fakturaen i PowerOffice, eller null når den ikke er overført. */
 export function powerOfficeSummary(invoice) {
   const po = invoice?.poweroffice;
@@ -143,6 +149,8 @@ export function powerOfficeSummary(invoice) {
       lines: [
         po.sendError ? `Sendingen feilet: ${po.sendError}` : '',
         `Utkast${po.orderNo ? ` nr. ${po.orderNo}` : ''} venter på kontroll og sending i PowerOffice Go.`,
+        attachmentsText(po),
+        po.attachmentErrors ? `Ikke lagt ved: ${po.attachmentErrors}` : '',
         po.mergedFrom ? 'Utkastet er slått sammen med et annet utkast i PowerOffice.' : '',
         `Overført ${formatDate(po.transferredAt)}.`,
         'Skal det slettes: slett utkastet i PowerOffice først, og synk.',
@@ -155,8 +163,9 @@ export function powerOfficeSummary(invoice) {
       title: `Sendes fra PowerOffice${env}`,
       lines: [
         `Bedt sendt ${formatDate(po.sendRequestedAt)}${po.orderNo ? ` (utkast nr. ${po.orderNo})` : ''}.`,
+        attachmentsText(po),
         'Fakturanummer, KID og forsendelse kommer ved neste synk.',
-      ],
+      ].filter(Boolean),
     };
   }
   if (po.state === 'missing') {

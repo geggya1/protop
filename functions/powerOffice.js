@@ -20,7 +20,8 @@ import {
 } from './powerOfficeApi.js';
 import { normalizeProductCodes } from './powerOfficeMap.js';
 import {
-  lookupOutgoingInvoice, productsWithVat, requestSend, sendFailedPatch, syncInvoices, transferInvoice,
+  attachmentFiles, attachToSalesOrder, lookupOutgoingInvoice, productsWithVat, requestSend, sendFailedPatch,
+  syncInvoices, transferInvoice,
 } from './powerOfficeSync.js';
 
 if (!getApps().length) initializeApp();
@@ -130,6 +131,8 @@ function publicStatus(status, ready) {
     invalidPrivileges: Array.isArray(status.invalidPrivileges) ? status.invalidPrivileges : [],
     productCodes: normalizeProductCodes(status.productCodes),
     autoSend: status.autoSend === true,
+    attachDocs: status.attachDocs !== false,
+    brandingTheme: String(status.brandingTheme || ''),
     lastSyncAt: status.lastSyncAt || '',
     lastSyncCounts: status.lastSyncCounts || null,
     keysReady: ready,
@@ -162,6 +165,10 @@ export const powerOfficeConnect = onCall(CALL, async (request) => {
   }
   // Send fakturaen fra Go med en gang den er overført. Av som standard.
   if (typeof request.data?.autoSend === 'boolean') update.autoSend = request.data.autoSend;
+  // Fakturaspesifikasjon og vedlegg på utkastet. På som standard.
+  if (typeof request.data?.attachDocs === 'boolean') update.attachDocs = request.data.attachDocs;
+  // Fakturaoppsett (branding theme) i Go: kode, eller tomt for klientens standard.
+  if (typeof request.data?.brandingTheme === 'string') update.brandingTheme = request.data.brandingTheme.trim().slice(0, 40);
 
   const clientKey = String(request.data?.clientKey || '').trim();
   if (clientKey) {
@@ -272,6 +279,7 @@ export const powerOfficeTransferInvoice = onCall(CALL, async (request) => {
       knownCustomer,
       productCodes: status.productCodes || {},
       again: request.data?.again === true,
+      brandingTheme: String(status.brandingTheme || ''),
     });
     // send: «Send nå» på et overført utkast. autoSend: bedriften sender alt som overføres.
     const wantSend = request.data?.send === true || status.autoSend === true;
@@ -285,21 +293,43 @@ export const powerOfficeTransferInvoice = onCall(CALL, async (request) => {
       }
       current = { ...invoice, ...result.patch };
     }
+    // Fakturaspesifikasjon (ProTop sitt design), timespesifikasjon, kvitteringer og vedlegg
+    // legges på utkastet før det sendes, så de følger med fakturaen. Bare én gang per utkast.
+    let attached = null;
+    const po = current.poweroffice || {};
+    if (status.attachDocs !== false && po.salesOrderId && po.state === 'draft' && !po.attachmentsAddedAt) {
+      const { files, skipped } = attachmentFiles(request.data?.attachments);
+      if (files.length || skipped.length) {
+        const upload = files.length ? await attachToSalesOrder(client, po.salesOrderId, files) : { added: [], failed: [] };
+        attached = { added: upload.added, failed: upload.failed, skipped };
+        const attachPatch = {
+          poweroffice: {
+            ...po,
+            attachmentsAddedAt: upload.added.length ? new Date().toISOString() : '',
+            attachments: upload.added.length,
+            attachmentErrors: [...upload.failed.map((row) => `${row.name}: ${row.message}`), ...skipped.map((name) => `${name}: for stor`)]
+              .join(' · ').slice(0, 500),
+          },
+        };
+        await invoiceRef.set(attachPatch, { merge: true });
+        current = { ...current, poweroffice: attachPatch.poweroffice };
+      }
+    }
     if (!wantSend || current.poweroffice?.state !== 'draft') {
-      return { already: !!result.already, poweroffice: current.poweroffice || null };
+      return { already: !!result.already, attached, poweroffice: current.poweroffice || null };
     }
     const at = new Date().toISOString();
     try {
       const sent = await requestSend(client, { invoice: current, at });
       await invoiceRef.set(sent, { merge: true });
-      return { already: !!result.already, sent: true, poweroffice: sent.poweroffice };
+      return { already: !!result.already, sent: true, attached, poweroffice: sent.poweroffice };
     } catch (err) {
       // Utkastet ligger i Go. Feilen lagres, så den vises på fakturaen og kan rettes.
       const message = err instanceof PowerOfficeError ? powerOfficeErrorText(err) : (err?.message || 'Sendingen feilet.');
       if (err instanceof PowerOfficeError) logger.warn('PowerOffice send', { status: err.status, path: err.path, message: err.message });
       const failed = sendFailedPatch(current, message, { at });
       await invoiceRef.set(failed, { merge: true });
-      return { already: !!result.already, sent: false, sendError: failed.poweroffice.sendError, poweroffice: failed.poweroffice };
+      return { already: !!result.already, sent: false, attached, sendError: failed.poweroffice.sendError, poweroffice: failed.poweroffice };
     }
   } catch (err) {
     throw toHttpsError(err, 'transfer');

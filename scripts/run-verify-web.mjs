@@ -299,7 +299,6 @@ export const FILES = [
   'src/i18n/deviceLang.test.mjs',
   'src/companyHome/model.test.mjs',
   // Bedriftssiden: Om oss-artikkel, Tjenester, Ansatte og Bærekraft fra ISO.
-  'src/project/companyPage.test.mjs',
   'src/project/articleFormat.test.mjs',
   'src/project/companyStaff.test.mjs',
   'src/project/companySustainability.test.mjs',

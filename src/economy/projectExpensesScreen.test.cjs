@@ -123,6 +123,7 @@ function loadJsx(rel) {
     if (id.includes('ExpenseImportReview')) return { __esModule: true, default: function ExpenseImportReview() { return null; } };
     // Registreringen (egen test i expenseWizard.test.cjs) åpnes først ved «Nytt utlegg».
     if (id.includes('economy/ExpenseWizard')) return { __esModule: true, default: function ExpenseWizard() { return null; } };
+    if (id.includes('economy/PayoutSheet')) return { __esModule: true, default: function PayoutSheet() { return null; } };
     if (id.includes('components/OptionPicker')) {
       // Felles velger: vis valgt etikett som tekst, slik feltet gjør.
       return {
@@ -198,6 +199,14 @@ assert.match(body, /^Utlegg$/m);
 assert.match(body, /Importer fra fil/);
 assert.match(body, /Nytt utlegg/);
 assert.match(body, /Eksporter CSV/);
+// Økonomi: utlegg de ansatte har betalt selv, til utbetaling (med lønnen).
+assert.match(body, /^Til utbetaling$/m);
+{
+  // Ansattsiden: summen til utbetaling for personen.
+  const own = texts(withHooks(() => React.createElement(screen.ExpensesScreen, { lockedEmployeeId: 'a', embedded: true })));
+  assert.match(own, /Til utbetaling/);
+  assert.match(own, /Ingenting til utbetaling\. Utlegg betales ut med lønnen når de er godkjent\./);
+}
 assert.match(body, /Filtrer medarbeider/);
 assert.match(body, /Filtrer kunde/);
 assert.match(body, /Filtrer prosjekt/);

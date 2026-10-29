@@ -190,6 +190,19 @@ expense vouchers to Go». Ansatte i Go har egne kontonumre for utbetaling av utl
 3. Regnskapsføreren betaler ut fra Go. ProTop henter status tilbake («Utbetalt»).
 4. Firmakort: kredit kortets mellomregningskonto i stedet for den ansatte. Ingen refusjon.
 
+Utbetaling til den ansatte (bygget i ProTop, `src/economy/expensePayout.js`):
+
+- Hvert utlegg står på den ansatte (`employeeId`). Den ansatte og økonomi kan registrere utlegg fra
+  den ansattes side (Ansatte → person → Utlegg), som viser hva personen har til utbetaling.
+- Om utlegg betales ut med lønnen eller som egen utbetaling, er en standard under Økonomi →
+  Innstillinger → Reise og kjøring, og kan settes per ansatt under HR → Lønn.
+- Utlegg → «Til utbetaling» viser godkjente utlegg og kjøregodtgjørelse betalt privat, per ansatt.
+  «Eksporter til lønn» gir lønnslinjene som CSV: «Refusjon utlegg» (trekkfri, ikke opplysningspliktig),
+  «Bilgodtgjørelse, trekkfri» og «Bilgodtgjørelse, trekkpliktig». «Utbetalt» markerer dem med
+  lønnsperioden (`payoutPeriod`), måten (`payoutMethod`) og tidspunktet (`reimbursedAt`).
+- Med PowerOffice skal de samme linjene gå rett til lønnskjøringen i Go (spørsmål 5 og 9 under),
+  og «Utbetalt» settes når lønnen er kjørt.
+
 Avgiftskodene i ProTop er standardkodene fra SAF-T (`src/economy/vatTreatment.js`): 1 (fradrag 25 %),
 11 (15 %), 13 (12 %), 0 (ingen mva-behandling, for eksempel representasjon og servering) og 86
 (tjenester kjøpt fra utlandet).
@@ -226,6 +239,10 @@ trekkpliktig bilgodtgjørelse), ikke som et vanlig bilag.
 7. Prosjekt og avdeling på bilagslinjene: hvilke felt bruker vi?
 8. Hvilke tilganger skal krysses av i skjemaet for produksjonstilgang for alt dette (bilag,
    bilagsdokumentasjon, ansatte, lønn, prosjekter og avdelinger)?
+9. Utlegg som betales ut med lønnen: kan de sendes som lønnslinjer på den ansatte til neste
+   lønnskjøring («refusjon av utlegg», ikke opplysningspliktig), i stedet for bilag mot
+   ansattreskontroen? Og kan vi lese når lønnen er kjørt og utbetalt, så ProTop markerer utleggene
+   som utbetalt?
 
 ## Utkast til svar til PowerOffice (sendes når testlisten er grønn)
 
@@ -271,6 +288,10 @@ trekkpliktig bilgodtgjørelse), ikke som et vanlig bilag.
 > 7. Hvilke felt bruker vi for prosjekt og avdeling på bilagslinjene?
 > 8. Hvilke tilganger skal vi krysse av i skjemaet for produksjonstilgang for dette (bilag,
 >    bilagsdokumentasjon, ansatte, lønn, prosjekter og avdelinger)?
+> 9. De fleste ansatte får utleggene utbetalt med lønnen. Kan godkjente utlegg sendes som lønnslinjer
+>    på den ansatte til neste lønnskjøring (refusjon av utlegg, ikke opplysningspliktig), i stedet for
+>    bilag mot ansattreskontroen? Og kan vi lese når lønnen er kjørt, så ProTop markerer utleggene
+>    som utbetalt?
 >
 > Med vennlig hilsen
 > Geir Ove Andersen

@@ -81,6 +81,9 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { Button, Field, Sheet, TextIn } from '../../src/ui';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
 import ExpenseWizard from '../../components/economy/ExpenseWizard';
+import PayoutSheet from '../../components/economy/PayoutSheet';
+import { markReimbursed, payableExpenses, payoutSummary } from '../../src/economy/expensePayout.js';
+import { employeePayout, payoutLabel } from '../../src/mileage/compensation';
 import Breadcrumb from '../../components/Breadcrumb';
 import ReportTable from '../../components/table/ReportTable';
 import DateInput from '../../components/DateInput';
@@ -423,6 +426,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   const [draft, setDraft] = useState(null);
   // Nytt utlegg registreres trinnvis (ExpenseWizard), som en kjøretur.
   const [wizardOpen, setWizardOpen] = useState(false);
+  // «Til utbetaling»: utlegg de ansatte har betalt selv, per ansatt (økonomi).
+  const [payoutOpen, setPayoutOpen] = useState(false);
   const [draftError, setDraftError] = useState('');
   const [pendingDelete, setPendingDelete] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -441,7 +446,6 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   const scopes = expenseScopesFor({ all: seesAll, project: !seesAll });
   const activeScope = resolveExpenseScope(wantedScope, scopes);
   const canManage = access.canEdit('economyExpenses') || access.canAdmin('economyProjectExpenses');
-  const canRegister = !embedded && (seesAll || access.canEdit('economyProjectExpenses'));
 
   useEffect(() => {
     let live = true;
@@ -507,6 +511,9 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
     .filter((row) => row?.id)
     .map((row) => ({ id: row.id, label: [row.customerNumber || row.number, row.name].filter(Boolean).join(' · ') })), [lookup.customers]);
   const myEmployeeId = people.find((row) => row.uid && row.uid === user?.uid)?.id || '';
+  // På ansattsiden registrerer og åpner den ansatte selv og økonomi utlegg for personen.
+  const ownPage = !!lockedId && (canManage || lockedId === myEmployeeId);
+  const canRegister = (seesAll || access.canEdit('economyProjectExpenses') || ownPage) && (!embedded || ownPage);
 
   const allRows = useMemo(() => {
     // Registrerte og importerte, med samme regel som Til fakturering og prosjektfanen.
@@ -727,6 +734,27 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
     if (setState(result.state)) showSaveToast('Utlegget er godkjent.');
   }
 
+  /** Markerer utlegg som utbetalt i en lønnsperiode (Til utbetaling). Gir { ok, error }. */
+  async function markPaidOut(rows, { period, method }) {
+    const at = new Date().toISOString();
+    const done = rows.map((row) => markReimbursed(storedRow(row), { period, method, at }));
+    const external = done.filter((row) => isExternalExpense(row));
+    for (const row of external) {
+      const result = await saveExpenseChange(companyId, row);
+      if (!result.ok) return { ok: false, error: result.error };
+    }
+    if (external.length) setRemoteExpenses((current) => mergeExpenseLists(current, external));
+    let next = state;
+    for (const row of done.filter((item) => !isExternalExpense(item))) {
+      const result = upsertExpense(next, row);
+      if (!result.ok) return { ok: false, error: result.error };
+      next = result.state;
+    }
+    if (next !== state && !setState(next)) return { ok: false, error: 'Kunne ikke lagre.' };
+    showSaveToast(`${done.length} utlegg er markert som utbetalt.`);
+    return { ok: true };
+  }
+
   // Første trykk på «Slett» spør («Slett nå»), andre sletter (DRIFT-24).
   async function deleteDraft() {
     if (!draft?.id || saving) return;
@@ -828,7 +856,9 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
     { key: 'status', label: 'Status', width: w(100, 110), text: (row) => expenseStatusLabel(row.status), phone: 'badge' },
   ];
   const totalAmount = visible.reduce((sum, row) => sum + (Number(row.amountInclVat) || 0), 0);
-  const canOpenRows = !embedded;
+  const canOpenRows = !embedded || ownPage;
+  const payable = payableExpenses(allRows);
+  const myPayout = lockedId ? payoutSummary(allRows, { employeeId: lockedId })[0] || null : null;
   const showBilling = !embedded && access.tabAllowed('okonomi', 'fakturagrunnlag');
 
   const filterPanel = (
@@ -946,6 +976,14 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
         {!embedded ? (
           <Button label="Eksporter CSV" icon="download-outline" onPress={() => downloadCsv('utlegg.csv', expensesToCsv(visible))} />
         ) : null}
+        {!embedded && canManage ? (
+          <Button
+            label={payable.length ? `Til utbetaling (${payable.length})` : 'Til utbetaling'}
+            icon="wallet-outline"
+            nativeID="expense-payout-open"
+            onPress={() => setPayoutOpen(true)}
+          />
+        ) : null}
         {showBilling ? (
           <Button label="Til fakturering" icon="receipt-outline" onPress={() => requestShellTab?.('okonomi', 'fakturagrunnlag')} />
         ) : null}
@@ -956,6 +994,17 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
             ? 'Utlegg uten prosjekt. De faktureres ikke, men godkjennes og bokføres.'
             : 'Godkjente utlegg på prosjekt kommer med i Til fakturering og vises på prosjektet.'}
         </Text>
+      ) : null}
+      {lockedId ? (
+        <View style={[styles.payoutCard, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="expense-payout-summary">
+          <Text style={[styles.payoutLabel, { color: colors.muted }]}>Til utbetaling</Text>
+          <Text style={[styles.payoutAmount, { color: colors.ink }]}>{money(myPayout?.total || 0)}</Text>
+          <Text style={[styles.lead, { color: colors.muted }]}>
+            {myPayout
+              ? `${myPayout.count} godkjente utlegg betalt privat. Utbetales ${payoutLabel(employeePayout(state.mileagePolicies, lockedId)).toLowerCase()}.${myPayout.taxable ? ` Herav ${money(myPayout.taxable)} skattepliktig bilgodtgjørelse.` : ''}`
+              : `Ingenting til utbetaling. Utlegg betales ut ${payoutLabel(employeePayout(state.mileagePolicies, lockedId)).toLowerCase()} når de er godkjent.`}
+          </Text>
+        </View>
       ) : null}
       <InlineError
         message={error}
@@ -1016,10 +1065,19 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
           projectOptions={projectOptions}
           people={people}
           existing={allRows}
-          myEmployeeId={myEmployeeId}
-          canPickEmployee={canManage}
+          myEmployeeId={lockedId || myEmployeeId}
+          canPickEmployee={canManage && !lockedId}
           canInternal={seesAll}
           uid={user?.uid || ''}
+        />
+      ) : null}
+      {payoutOpen ? (
+        <PayoutSheet
+          colors={colors}
+          rows={allRows}
+          policies={state.mileagePolicies || []}
+          onMark={markPaidOut}
+          onClose={() => setPayoutOpen(false)}
         />
       ) : null}
       {draft ? (
@@ -1077,4 +1135,7 @@ const styles = StyleSheet.create({
   sheetError: { ...type.caption, flexBasis: '100%', textAlign: 'right' },
   sheetValue: { ...type.body },
   receiptRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  payoutCard: { borderWidth: 1, borderRadius: radius.card, padding: space.sm, gap: 2, maxWidth: 520 },
+  payoutLabel: { ...type.caption },
+  payoutAmount: { ...type.h2 },
 });

@@ -81,3 +81,17 @@ test('kjøretur dekket av lønn: bare bom refunderes, uten bom ingen utleggsrad'
   assert.equal(plain.state.expenses.length, 0);
   assert.equal(plain.state.mileageTrips[0].expenseId, '');
 });
+
+test('utbetaling av utlegg: med lønnen som standard, egen utbetaling for bedrift eller ansatt', async () => {
+  const { companyPayout, employeePayout } = await import('./compensation.js');
+  assert.equal(companyPayout([]), 'payroll');
+  const policies = [
+    companyPolicyRow({}, { compensation: 'state', expensePayout: 'direct' }),
+    employeePolicyRow('e2', { compensation: 'company', payout: 'payroll' }),
+  ];
+  assert.equal(employeePayout(policies, 'e1'), 'direct');
+  assert.equal(employeePayout(policies, 'e2'), 'payroll');
+  // Egen utbetaling uten egen sats: kjøringen følger bedriftens sats.
+  assert.equal(mileageCompensation(policies, 'e2', { date: '2026-10-20' }).rate, 5.3);
+  assert.equal(employeePolicyRow('e3', { compensation: 'company' }), null);
+});

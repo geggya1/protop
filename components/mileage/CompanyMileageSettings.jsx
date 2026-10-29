@@ -2,6 +2,7 @@
  * Økonomi → Innstillinger → Reise og kjøring: sats for kjøregodtgjørelse med egen bil.
  * Statens sats og den trekkfrie satsen hentes automatisk (useMileageRates), så bedriften bare
  * velger ordning. Om en ansatt får godtgjørelse, settes på den ansatte under HR → Lønn.
+ * Her settes også om godkjente utlegg betales ut med lønnen (standard) eller som egen utbetaling.
  */
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -9,6 +10,8 @@ import { useProjectStateEditor } from '../../src/project/useProjectStateEditor';
 import { setMileagePolicy } from '../../src/equipment/state';
 import {
   COMPANY_COMPENSATIONS,
+  PAYOUT_METHODS,
+  companyPayout,
   companyCompensation,
   companyCompensationHint,
   companyPolicyRow,
@@ -32,13 +35,16 @@ export default function CompanyMileageSettings({ familyId, colors, canEdit = fal
   const rates = mileageRatesFor(new Date().toISOString().slice(0, 10), fetched.rates);
   const company = companyCompensation(state.mileagePolicies);
   const [mode, setMode] = useState(company.mode);
+  const savedPayout = companyPayout(state.mileagePolicies);
+  const [payout, setPayout] = useState(savedPayout);
   const [rate, setRate] = useState(company.ratePerKm ? kr(company.ratePerKm) : '');
 
   useEffect(() => {
     if (!ready) return;
     setMode(company.mode);
+    setPayout(savedPayout);
     setRate(company.ratePerKm ? kr(company.ratePerKm) : '');
-  }, [ready, company.mode, company.ratePerKm]);
+  }, [ready, company.mode, company.ratePerKm, savedPayout]);
 
   function save() {
     setError('');
@@ -47,7 +53,7 @@ export default function CompanyMileageSettings({ familyId, colors, canEdit = fal
       return;
     }
     const current = (state.mileagePolicies || []).find((row) => row?.id === 'company') || {};
-    const result = setMileagePolicy(state, companyPolicyRow(current, { compensation: mode, ratePerKm: rate }));
+    const result = setMileagePolicy(state, companyPolicyRow(current, { compensation: mode, ratePerKm: rate, expensePayout: payout }));
     if (result.ok && setState(result.state)) showSaveToast('Satsen er lagret.');
   }
 
@@ -91,8 +97,30 @@ export default function CompanyMileageSettings({ familyId, colors, canEdit = fal
           style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
         />
       ) : null}
+      <Text style={[styles.title, { color: colors.ink, marginTop: 6 }]}>Utbetaling av utlegg</Text>
+      <View style={styles.row}>
+        {PAYOUT_METHODS.map((row) => {
+          const on = payout === row.id;
+          return (
+            <TouchableOpacity
+              key={row.id}
+              onPress={() => setPayout(row.id)}
+              disabled={!canEdit}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on, disabled: !canEdit }}
+              nativeID={`company-payout-${row.id}`}
+              style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft || colors.card : colors.card }]}
+            >
+              <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '600' : '400' }}>{row.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
       <Text style={[styles.hint, { color: colors.muted }]}>
-        Om en ansatt får kjøregodtgjørelse, eller har den dekket i lønnen, settes på den ansatte under HR → Lønn.
+        {payout === 'payroll'
+          ? 'Godkjente utlegg og kjøregodtgjørelse betales ut med neste lønn. Skattepliktig bilgodtgjørelse går på lønnslippen.'
+          : 'Godkjente utlegg betales ut til den ansattes konto, utenom lønnen. Skattepliktig bilgodtgjørelse går likevel på lønn.'}
+        {' Standarden kan endres per ansatt under HR → Lønn, sammen med kjøregodtgjørelsen.'}
       </Text>
       {error ? <Text style={{ color: colors.dangerInk || colors.danger }} accessibilityRole="alert">{error}</Text> : null}
       {canEdit ? (

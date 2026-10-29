@@ -683,7 +683,18 @@ export function normalizeAbsenceRow(row) {
     createdByUid: text(row.createdByUid),
     ...(row.extraordinary === true ? { extraordinary: true } : {}),
     ...(text(row.sourceCompanyId) ? { sourceCompanyId: text(row.sourceCompanyId) } : {}),
+    ...absenceApproval(row),
   };
+}
+
+/** Når og av hvem fraværet ble godkjent. Følger bare med så lenge raden er godkjent. */
+function absenceApproval(row) {
+  if (row.status !== 'godkjent' && row.status !== 'låst') return {};
+  const out = {};
+  for (const key of ['approvedAt', 'approvedByUid', 'approvedByName']) {
+    if (text(row[key])) out[key] = text(row[key]);
+  }
+  return out;
 }
 
 function stamp() {
@@ -1860,8 +1871,12 @@ export function setAbsenceStatus(state, absenceId, status) {
   });
 }
 
-/** Sett status på flere fraværsdager (f.eks. en periode). */
-export function setAbsenceStatuses(state, absenceIds, status) {
+/**
+ * Sett status på flere fraværsdager (f.eks. en periode).
+ * by: { uid, name } for den som godkjenner. Godkjent dato og godkjenner lagres på raden;
+ * settes raden tilbake til behandling, fjernes de.
+ */
+export function setAbsenceStatuses(state, absenceIds, status, by = null) {
   if (!['registrert', 'godkjent', 'låst'].includes(status)) {
     return fail(state, 'Ugyldig status.');
   }
@@ -1873,6 +1888,23 @@ export function setAbsenceStatuses(state, absenceIds, status) {
     if (!ids.has(row.id)) return row;
     if (row.status === 'låst' && status !== 'låst') return row;
     changed += 1;
+    if (status === 'registrert') {
+      const next = { ...row, status, updatedAt: now };
+      delete next.approvedAt;
+      delete next.approvedByUid;
+      delete next.approvedByName;
+      return next;
+    }
+    if (status === 'godkjent' && row.status !== 'godkjent') {
+      return {
+        ...row,
+        status,
+        updatedAt: now,
+        approvedAt: now,
+        approvedByUid: text(by?.uid),
+        approvedByName: text(by?.name),
+      };
+    }
     return { ...row, status, updatedAt: now };
   });
   if (!changed) return fail(state, 'Ingen fravær kunne oppdateres.');

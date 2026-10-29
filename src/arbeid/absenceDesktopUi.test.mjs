@@ -60,6 +60,21 @@ assert.match(filterValue, /fontWeight:\s*'400'/);
 assert.match(filterLabel, /fontWeight:\s*'400'/);
 assert.doesNotMatch(filterValue, /fontWeight:\s*'700'/);
 
+// Antallet i utvalget heter det utvalget er (Innleide, Eksterne), ikke alltid «Ansatte».
+assert.match(desktop, /label=\{absenceAudienceLabel\(audience\.selected\)\}/);
+
+// Planlagt fravær: ingen fet skrift, godkjent ferie i egen skuff med dato og godkjenner, saldo per søknad.
+const panel = readFileSync(join(ROOT, 'components/arbeid/VacationPlanPanel.jsx'), 'utf8');
+assert.doesNotMatch(panel, /fontWeight:\s*['"](?:[56789]00|bold)['"]/);
+assert.match(panel, /nativeID="ferieplan-godkjent-skuff"/);
+assert.match(panel, /approvalLabel\(row, nameOf\)/);
+assert.match(panel, /vacationRequestBalance\(/);
+assert.match(panel, /nativeID=\{`ferieplan-angre-/);
+assert.doesNotMatch(
+  readFileSync(join(ROOT, 'components/arbeid/RegisterVacationModal.jsx'), 'utf8'),
+  /fontWeight:\s*['"](?:[789]00|bold)['"]/,
+);
+
 assert.match(hero, /isDesktop \? 148/);
 assert.match(hero, /titleDesk:[\s\S]*fontSize:\s*22/);
 

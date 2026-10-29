@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   ABSENCE_DAY_HOURS,
   STATUTORY_VACATION_DAYS,
+  absenceAudienceLabel,
   absencesForRoster,
   absenceRoster,
   absenceYears,
@@ -244,7 +245,12 @@ const employees = [
   });
   const ada = board.staff.find((row) => row.name === 'Ada Nord');
   const bo = board.staff.find((row) => row.name === 'Bo Berg');
-  assert.equal(board.staff.some((row) => row.name === 'Cato'), false);
+  // Alle i utvalget står i årstabellen, også uten fravær og startsaldo.
+  const cato = board.staff.find((row) => row.name === 'Cato');
+  assert.ok(cato);
+  assert.equal(cato.absenceDays, 0);
+  assert.equal(cato.earned, 0);
+  assert.equal(board.staff[board.staff.length - 1].name, 'Cato', 'de uten fravær står sist');
   assert.equal(ada.months[6].ferie, 3);
   assert.equal(ada.earned, 21);
   assert.equal(ada.remaining, 18);
@@ -287,7 +293,8 @@ const employees = [
     names: { e1: 'Ada Nord' },
     absences: [{ id: 'old', employeeId: 'e1', type: 'ferie', date: '2024-07-01', hours: 7.5 }],
   });
-  assert.equal(board.staff.length, 0);
+  assert.deepEqual(board.staff.map((row) => row.id), ['e1', 'e2'], 'slettede er ikke med');
+  assert.equal(board.staff.every((row) => row.absenceDays === 0), true);
   assert.equal(board.yearTotals.ferie, 0);
 }
 
@@ -478,5 +485,12 @@ const employees = [
   assert.equal(year.summary.planned, 1);
   assert.equal(year.headcount, 2);
 }
+
+// Antallet i utvalget heter det utvalget er, ikke alltid «Ansatte».
+assert.equal(absenceAudienceLabel(['staff']), 'Ansatte');
+assert.equal(absenceAudienceLabel(['innleid']), 'Innleide');
+assert.equal(absenceAudienceLabel(['external']), 'Eksterne');
+assert.equal(absenceAudienceLabel(['staff', 'innleid']), 'I utvalget');
+assert.equal(absenceAudienceLabel([]), 'I utvalget');
 
 console.log('absenceDashboard ok');

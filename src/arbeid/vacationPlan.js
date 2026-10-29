@@ -624,23 +624,19 @@ function vacationStatusBucket(status) {
 
 /**
  * Datoene søknadslistene gjelder. Fra oktober er planåret neste år, men ferie søkt for resten
- * av inneværende år skal fortsatt kunne godkjennes: ventende ferie i inneværende år, og
- * godkjent ferie fra i dag, tas med.
+ * av inneværende år skal fortsatt kunne godkjennes. Inneværende år tas da med i begge listene,
+ * så det som godkjennes, blir liggende under Godkjent og ikke forsvinner fra siden.
  */
-function requestDateFilter({ year, today, bucket }) {
+function requestDateFilter({ year, today }) {
   const planYear = String(year || '');
   const key = isIsoDate(today) ? today : '';
   const currentYear = key.slice(0, 4);
   const carry = !!currentYear && Number(planYear) > Number(currentYear);
-  return (date) => {
-    if (date.startsWith(planYear)) return true;
-    if (!carry || !date.startsWith(currentYear)) return false;
-    return bucket === 'pending' || date >= key;
-  };
+  return (date) => date.startsWith(planYear) || (carry && date.startsWith(currentYear));
 }
 
 function groupVacationPeriods(absences, { year, bucket, today = '' } = {}) {
-  const inRange = requestDateFilter({ year, today, bucket });
+  const inRange = requestDateFilter({ year, today });
   const rows = (absences || [])
     .filter((row) => row && (row.type || 'ferie') === 'ferie')
     .filter((row) => vacationStatusBucket(row.status) === bucket)
@@ -655,8 +651,14 @@ function groupVacationPeriods(absences, { year, bucket, today = '' } = {}) {
       last.hours = round2(last.hours + (Number(row.hours) || 0));
       last.ids.push(row.id);
       last.extraordinary = last.extraordinary || row.extraordinary === true;
+      last.locked = last.locked || row.status === 'låst';
       const created = text(row.createdAt).slice(0, 10);
       if (isIsoDate(created) && (!last.created || created < last.created)) last.created = created;
+      if (text(row.approvedAt) > last.approvedAt) {
+        last.approvedAt = text(row.approvedAt);
+        last.approvedByUid = text(row.approvedByUid);
+        last.approvedByName = text(row.approvedByName);
+      }
       continue;
     }
     periods.push({
@@ -668,8 +670,14 @@ function groupVacationPeriods(absences, { year, bucket, today = '' } = {}) {
       hours: round2(Number(row.hours) || 0),
       ids: [row.id].filter(Boolean),
       extraordinary: row.extraordinary === true,
+      // Låst ferie (timelisten er låst) kan ikke settes tilbake til behandling.
+      locked: row.status === 'låst',
       created: isIsoDate(text(row.createdAt).slice(0, 10)) ? text(row.createdAt).slice(0, 10) : '',
       status: vacationStatusBucket(row.status),
+      // Siste godkjenning i perioden: når og av hvem.
+      approvedAt: text(row.approvedAt),
+      approvedByUid: text(row.approvedByUid),
+      approvedByName: text(row.approvedByName),
     });
   }
   return periods;
@@ -697,9 +705,32 @@ export function pendingVacationRequests(absences, opts = {}) {
   );
 }
 
+/** Sist godkjent først. Eldre godkjenninger uten tidspunkt kommer etter, senest ferie først. */
 export function approvedVacationRequests(absences, opts = {}) {
   return decorateVacationPeriods(
     groupVacationPeriods(absences, { year: opts.year, bucket: 'approved', today: opts.today }),
     opts,
-  );
+  ).sort((a, b) => b.approvedAt.localeCompare(a.approvedAt) || b.start.localeCompare(a.start));
+}
+
+/**
+ * Saldoen en søknad gjelder, i søknadens år: feriedagene personen har, og hva som er igjen
+ * før og etter at søknaden er trukket fra. Alt som er registrert det året, også andre
+ * søknader som venter, er trukket fra. null for personer utenfor ferieplanen (innleide,
+ * eksterne, deaktiverte).
+ */
+export function vacationRequestBalance(employee, planInput, request, { absences = [], today = '', dayHours = 8 } = {}) {
+  if (!employee || !isPlanningEmployee(employee)) return null;
+  const plan = normalizeVacationPlan(planInput);
+  const year = Number(text(request?.start).slice(0, 4)) || plan.year;
+  const quota = vacationQuota(employee, vacationPlanForYear(plan, year), { absences, today, dayHours });
+  const after = quota.remaining;
+  return {
+    year,
+    total: quota.total,
+    registered: quota.registered,
+    before: round2(after + (Number(request?.days) || 0)),
+    after,
+    over: after < -0.001,
+  };
 }

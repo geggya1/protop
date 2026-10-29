@@ -320,6 +320,17 @@ export const COMPANY_HERO = {
       'Day by day, with filters and import.',
     ),
   },
+  // Samme bånd og illustrasjon som Fraværsoversikt, med sidens egen tittel.
+  'arbeid-fravaer-innstillinger': {
+    wideArt: true,
+    name: 'Fraværsinnstillinger',
+    kicker: t('Arbeid', 'Work'),
+    title: t('Fraværsinnstillinger', 'Absence settings'),
+    pitch: t(
+      'Fraværstyper, fridager og ferieplan for de ansatte.',
+      'Absence types, days off and the holiday plan for the team.',
+    ),
+  },
   'arbeid-planlagt': {
     name: 'Planlagt fravær',
     kicker: t('Arbeid', 'Work'),

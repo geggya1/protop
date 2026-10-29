@@ -243,6 +243,10 @@ function periodStatus(start, end, today) {
   return 'registrert';
 }
 
+function isApproved(row) {
+  return row?.status === 'godkjent' || row?.status === 'låst';
+}
+
 export function groupAbsencePeriods(rows = [], today = '') {
   const sorted = [...rows].sort((a, b) => (
     String(a.employeeId).localeCompare(String(b.employeeId))
@@ -262,6 +266,7 @@ export function groupAbsencePeriods(rows = [], today = '') {
       last.end = row.date;
       last.hours = round2(last.hours + (Number(row.hours) || 0));
       last.ids.push(row.id);
+      last.approved = last.approved && isApproved(row);
       continue;
     }
     periods.push({
@@ -272,6 +277,8 @@ export function groupAbsencePeriods(rows = [], today = '') {
       end: row.date,
       hours: round2(Number(row.hours) || 0),
       ids: [row.id].filter(Boolean),
+      // Godkjent bare når alle dagene i perioden er godkjent.
+      approved: isApproved(row),
     });
   }
   return periods.map((period) => ({
@@ -560,8 +567,7 @@ export function buildAbsenceWebBoard({
       today,
       year,
     });
-    const hasMonths = grid.months.some((month) => month.ferie || month.sykdom || month.annet);
-    if (!hasMonths && !overview.summary.earned) continue;
+    // Alle i utvalget står i årstabellen, også de uten fravær eller startsaldo.
     const absenceDays = round2(grid.months.reduce((sum, month) => (
       sum + month.ferie + month.sykdom + month.annet
     ), 0));
@@ -608,6 +614,14 @@ const WEEKDAY_SHORT = ['sø', 'ma', 'ti', 'on', 'to', 'fr', 'lø'];
 
 /** Tekst når utvalget er alle aktive ansatte, ikke hele personallisten. */
 export const ACTIVE_STAFF_LABEL = 'Aktive ansatte';
+
+const AUDIENCE_COUNT_LABEL = { staff: 'Ansatte', innleid: 'Innleide', external: 'Eksterne' };
+
+/** Etiketten på antallet i utvalget. «Ansatte» bare når utvalget er eget personell. */
+export function absenceAudienceLabel(kinds = ['staff']) {
+  const list = [...new Set((kinds || []).filter((kind) => AUDIENCE_COUNT_LABEL[kind]))];
+  return list.length === 1 ? AUDIENCE_COUNT_LABEL[list[0]] : 'I utvalget';
+}
 
 /**
  * Eget personell med aktiv status er standard.

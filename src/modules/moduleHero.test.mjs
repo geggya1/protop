@@ -293,6 +293,7 @@ const COMPANY_PAGES = [
   ['arbeid', 'fravaer', 'arbeid-fravaer'],
   ['arbeid', 'fravaersrapport', 'arbeid-fravaersrapport'],
   ['arbeid', 'planlagt', 'arbeid-planlagt'],
+  ['arbeid', 'fravaer-innstillinger', 'arbeid-fravaer-innstillinger'],
   ['arbeid', 'utlegg', 'okonomi-utlegg'],
   ['arbeid', 'salg', 'arbeid-salg'],
   ['arbeid', 'godkjenning', 'arbeid-godkjenning'],
@@ -348,6 +349,11 @@ assert.equal(resolveModuleHero('arbeid-timerapport', 'nb').wideArt, true, 'hours
 assert.equal(resolveModuleHero('arbeid-timesaldo', 'nb').wideArt, true, 'hour balance uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaer', 'nb').wideArt, true, 'absence overview uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-fravaersrapport', 'nb').wideArt, true, 'absence report uses the wide illustration');
+// Fraværsinnstillinger har samme bånd som Fraværsoversikt, med sin egen tittel.
+assert.equal(resolveModuleHero('arbeid-fravaer-innstillinger', 'nb').title, 'Fraværsinnstillinger');
+assert.equal(resolveModuleHero('arbeid-fravaer-innstillinger', 'nb').wideArt, true);
+assert.equal(resolveModuleHero('arbeid-fravaer-innstillinger', 'nb').bg, resolveModuleHero('arbeid-fravaer', 'nb').bg);
+assert.equal(ILLUSTRATION_FILES['arbeid-fravaer-innstillinger'], ILLUSTRATION_FILES['arbeid-fravaer']);
 assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');

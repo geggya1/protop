@@ -16,8 +16,10 @@ import {
   planningWindow,
   vacationPlanForYear,
   vacationQuota,
+  vacationRequestBalance,
   weekdayKeys,
 } from './vacationPlan.js';
+import { normalizeAbsenceRow, setAbsenceStatuses } from '../project/engine.js';
 
 const ada = {
   id: 'e1',
@@ -239,7 +241,8 @@ const young = {
   const pending = pendingVacationRequests(rows, opts);
   assert.deepEqual(pending.map((row) => row.ids.join('+')).sort(), ['j1', 'n1+n2']);
   const approved = approvedVacationRequests(rows, opts);
-  assert.deepEqual(approved.map((row) => row.ids.join('+')), ['g1'], 'godkjent ferie fra i dag, ikke sommeren som er over');
+  // Det som er godkjent, blir liggende under Godkjent (også ferie som er tatt ut), senest først.
+  assert.deepEqual(approved.map((row) => row.ids.join('+')), ['g1', 'g0']);
   // Planåret er inneværende år: bare det året.
   assert.deepEqual(pendingVacationRequests(rows, { ...opts, year: 2026 }).map((row) => row.ids.join('+')), ['n1+n2']);
   // Uten dagens dato: bare planåret, som før.
@@ -255,6 +258,64 @@ const young = {
   assert.match(openingBalanceYearLabel(2026, '2026-03-01'), /Inngående feriedagssaldo for 2026/);
   assert.match(firstWorkingDayBalanceReminder(2027), /første virkedag i 2027/);
   assert.match(firstWorkingDayBalanceReminder(2027), /start fraværssaldo/);
+}
+
+// Godkjenning: dato og godkjenner lagres på raden, følger med i Godkjent og fjernes ved angring.
+{
+  const state = {
+    absences: [
+      { id: 'p1', employeeId: 'e1', type: 'ferie', status: 'registrert', date: '2026-11-16', hours: 7.5 },
+      { id: 'p2', employeeId: 'e1', type: 'ferie', status: 'registrert', date: '2026-11-17', hours: 7.5 },
+      { id: 'p3', employeeId: 'e2', type: 'ferie', status: 'godkjent', date: '2026-12-01', hours: 7.5, approvedAt: '2026-10-01T08:00:00.000Z', approvedByName: 'Eva' },
+    ],
+  };
+  const done = setAbsenceStatuses(state, ['p1', 'p2'], 'godkjent', { uid: 'u-hr', name: 'Hanne HR' });
+  assert.equal(done.ok, true);
+  const row = done.state.absences.find((item) => item.id === 'p1');
+  assert.equal(row.status, 'godkjent');
+  assert.equal(row.approvedByUid, 'u-hr');
+  assert.equal(row.approvedByName, 'Hanne HR');
+  assert.match(row.approvedAt, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(normalizeAbsenceRow(row).approvedByName, 'Hanne HR', 'lagres med raden');
+  const approved = approvedVacationRequests(done.state.absences, { year: 2027, today: '2026-10-29', dayHours: 7.5, names: { e1: 'Ada Nord' } });
+  assert.deepEqual(approved.map((item) => item.ids.join('+')), ['p1+p2', 'p3'], 'sist godkjent først');
+  assert.equal(approved[0].approvedByName, 'Hanne HR');
+  assert.equal(approved[0].days, 2);
+  assert.equal(approved[1].approvedByName, 'Eva');
+  // Godkjent på nytt beholder første godkjenning.
+  const again = setAbsenceStatuses(done.state, ['p1'], 'godkjent', { uid: 'u-2', name: 'Noen andre' });
+  assert.equal(again.state.absences.find((item) => item.id === 'p1').approvedByName, 'Hanne HR');
+  const back = setAbsenceStatuses(done.state, ['p1', 'p2'], 'registrert');
+  const reopened = back.state.absences.find((item) => item.id === 'p1');
+  assert.equal(reopened.status, 'registrert');
+  assert.equal(reopened.approvedAt, undefined);
+  assert.equal(reopened.approvedByName, undefined);
+  // Gamle felt i skyen følger ikke med når raden ikke er godkjent.
+  assert.equal(normalizeAbsenceRow({ ...row, status: 'registrert' }).approvedAt, undefined);
+}
+
+// Saldo per søknad: hva personen har igjen før og etter, i søknadens år.
+{
+  const plan = normalizeVacationPlan({ year: 2027, ordinaryDays: 25, seniorEnabled: false, extraAgreedDays: 0 });
+  const absences = [
+    ...weekdayKeys('2026-07-06', '2026-07-31').map((date, index) => ({ id: `s${index}`, employeeId: 'e2', type: 'ferie', status: 'godkjent', date, hours: 7.5 })),
+    ...weekdayKeys('2026-11-16', '2026-11-20').map((date, index) => ({ id: `n${index}`, employeeId: 'e2', type: 'ferie', status: 'registrert', date, hours: 7.5 })),
+  ];
+  const request = pendingVacationRequests(absences, { year: 2027, today: '2026-10-29', dayHours: 7.5 })[0];
+  assert.equal(request.days, 5);
+  const balance = vacationRequestBalance(young, plan, request, { absences, today: '2026-10-29', dayHours: 7.5 });
+  assert.equal(balance.year, 2026);
+  assert.equal(balance.total, 25);
+  assert.equal(balance.before, 5);
+  assert.equal(balance.after, 0);
+  assert.equal(balance.over, false);
+  const more = [...absences, { id: 'x', employeeId: 'e2', type: 'ferie', status: 'registrert', date: '2026-11-23', hours: 7.5 }];
+  const longer = pendingVacationRequests(more, { year: 2027, today: '2026-10-29', dayHours: 7.5 })[0];
+  const over = vacationRequestBalance(young, plan, longer, { absences: more, today: '2026-10-29', dayHours: 7.5 });
+  assert.equal(over.after, -1);
+  assert.equal(over.over, true);
+  // Innleide og eksterne er utenfor ferieplanen.
+  assert.equal(vacationRequestBalance({ id: 'x', company: { status: 'active', personnelKind: 'innleid' } }, plan, request), null);
 }
 
 console.log('vacationPlan.test.mjs: ok');

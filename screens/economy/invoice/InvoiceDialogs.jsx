@@ -359,7 +359,7 @@ export function SendDialog({
                 <Text style={{ color: colors.ink, lineHeight: 20 }}>
                   Utkastet overføres til PowerOffice Go og sendes til kunden med en gang: som EHF, eFaktura eller AvtaleGiro
                   når kunden kan ta imot det, ellers som PDF på e-post{invoice?.customerEmail ? ` til ${invoice.customerEmail}` : ' til kundens faktura-e-post i PowerOffice'}.
-                  Fakturanummer, KID og betaling hentes tilbake hit.
+                  Fakturaspesifikasjonen og vedleggene følger med. Fakturanummer, KID og betaling hentes tilbake hit.
                   {`\n\nFakturadato: ${invoice?.invoiceDateSet && invoice?.invoiceDate ? formatDate(invoice.invoiceDate) : 'dagens dato'}. `}
                   {invoice?.dueDateSet && invoice?.dueDate
                     ? `Forfall: ${formatDate(invoice.dueDate)}.`
@@ -367,8 +367,8 @@ export function SendDialog({
                 </Text>
               ) : (
                 <Text style={{ color: colors.ink, lineHeight: 20 }}>
-                  Utkastet overføres til PowerOffice Go, som setter fakturanummer og KID. Kontroller og send fakturaen fra PowerOffice.
-                  Nummer, KID, sending og betaling hentes tilbake hit.
+                  Utkastet overføres til PowerOffice Go, som setter fakturanummer og KID. Fakturaspesifikasjonen og
+                  vedleggene legges ved. Kontroller og send fakturaen fra PowerOffice. Nummer, KID, sending og betaling hentes tilbake hit.
                   {invoice?.invoiceDate ? `\n\nOrdredato i PowerOffice: ${formatDate(invoice.invoiceDate)}. ` : '\n\n'}
                   {invoice?.dueDateSet && invoice?.creditDays != null && Number.isFinite(Number(invoice.creditDays))
                     ? `Betalingsfristen blir ${Number(invoice.creditDays)} dager fra dagen fakturaen sendes fra PowerOffice.`

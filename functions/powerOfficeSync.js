@@ -139,6 +139,7 @@ async function findDraftByRef(client, customerNo, ref) {
  */
 export async function transferInvoice(client, {
   invoice, customer = null, knownCustomer = null, productCodes = {}, again = false, at = new Date().toISOString(),
+  brandingTheme = '',
 }) {
   const po = invoice?.poweroffice && typeof invoice.poweroffice === 'object' ? invoice.poweroffice : {};
   if (po.salesOrderId && po.state !== 'missing') {
@@ -151,11 +152,11 @@ export async function transferInvoice(client, {
   const ref = salesOrderRef(invoice.id, attempt);
 
   // Sjekk produktene før vi gjør noe i Go.
-  const dry = salesOrderFromInvoice(invoice, { customerId: -1, productCodes, ref });
+  const dry = salesOrderFromInvoice(invoice, { customerId: -1, productCodes, ref, brandingTheme });
   if (!dry.ok) throw new Error(dry.error);
 
   const { customer: poCustomer } = await resolveCustomer(client, { invoice, customer, known: knownCustomer });
-  const built = salesOrderFromInvoice(invoice, { customerId: poCustomer.Id, productCodes, ref });
+  const built = salesOrderFromInvoice(invoice, { customerId: poCustomer.Id, productCodes, ref, brandingTheme });
   if (!built.ok) throw new Error(built.error);
 
   let order;
@@ -177,6 +178,49 @@ export async function transferInvoice(client, {
     patch,
     customerLink: { id: poCustomer.Id, no: poCustomer.Number ?? null },
   };
+}
+
+const ATTACHMENT_LIMITS = { files: 20, fileBytes: 7 * 1024 * 1024, totalBytes: 9 * 1024 * 1024 };
+const ATTACHMENT_MIME = /^(application\/pdf|image\/(png|jpe?g|gif|tiff?|heic)|text\/plain|application\/xml|application\/vnd\.openxmlformats-officedocument\.[\w.]+|application\/msword|application\/vnd\.ms-excel)$/i;
+
+/**
+ * Filer fra appen (base64) som skal ligge på utkastet i Go og følge med fakturaen.
+ * Navn renses, ukjente typer blir binærfil, og for store filer hoppes over.
+ */
+export function attachmentFiles(input) {
+  const files = [];
+  const skipped = [];
+  let total = 0;
+  for (const row of (Array.isArray(input) ? input : []).slice(0, ATTACHMENT_LIMITS.files)) {
+    const base64 = String(row?.base64 || '').replace(/\s+/g, '');
+    const name = text(row?.name).replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120) || 'Vedlegg.pdf';
+    if (!base64) continue;
+    const bytes = Buffer.from(base64, 'base64');
+    if (!bytes.length) continue;
+    if (bytes.length > ATTACHMENT_LIMITS.fileBytes || total + bytes.length > ATTACHMENT_LIMITS.totalBytes) {
+      skipped.push(name);
+      continue;
+    }
+    total += bytes.length;
+    const mime = ATTACHMENT_MIME.test(text(row?.mime)) ? text(row.mime) : 'application/octet-stream';
+    files.push({ name, mime, bytes });
+  }
+  return { files, skipped };
+}
+
+/** Legg filene på utkastet (POST /SalesOrders/{id}/Attachments). Én feil stopper ikke resten. */
+export async function attachToSalesOrder(client, salesOrderId, files = []) {
+  const added = [];
+  const failed = [];
+  for (const file of files) {
+    try {
+      await client.upload(`/SalesOrders/${encodeURIComponent(salesOrderId)}/Attachments`, file);
+      added.push(file.name);
+    } catch (err) {
+      failed.push({ name: file.name, message: text(err?.message).slice(0, 200) });
+    }
+  }
+  return { added, failed };
 }
 
 /**

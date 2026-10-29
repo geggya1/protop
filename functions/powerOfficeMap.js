@@ -82,39 +82,104 @@ export function normalizeProductCodes(input) {
  * Linjer uten beløp og antall blir tekstlinjer. Andre linjer trenger et produkt
  * (line.productCode eller produktet for linjens MVA-sats).
  */
-export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, ref }) {
+/** Seksjonene i ProTop, i samme rekkefølge og med samme navn som på ProTop-fakturaen. */
+const SECTIONS = [
+  ['hours', 'Timer'],
+  ['fixed', 'Fastpris og avtaler'],
+  ['expenses', 'Viderefakturerte utlegg'],
+  ['outlays', 'Utlegg på vegne av kunden (uten mva)'],
+  ['trips', 'Kjøring'],
+  ['products', 'Produkter'],
+  ['admin', 'Adm. kostnader'],
+  ['other', 'Andre linjer'],
+];
+const SECTION_ORDER = new Map(SECTIONS.map(([id], index) => [id, index]));
+const SECTION_LABEL = new Map(SECTIONS);
+
+/** «02.2026» eller «01.2026–03.2026», som perioden på ProTop-fakturaen. */
+export function linePeriod(start, end) {
+  const month = (value) => {
+    const match = text(value).match(/^(\d{4})-(\d{2})/);
+    return match ? `${match[2]}.${match[1]}` : '';
+  };
+  const a = month(start);
+  const b = month(end);
+  if (a && b && a !== b) return `${a}–${b}`;
+  return a || b || '';
+}
+
+/** Tekst i Go deles i linjer på høyst 250 tegn, på ordgrense. */
+function textChunks(value, max = 250) {
+  const out = [];
+  for (const paragraph of String(value ?? '').split(/\n+/)) {
+    let rest = paragraph.replace(/\s+/g, ' ').trim();
+    while (rest.length > max) {
+      const cut = rest.lastIndexOf(' ', max) > max / 2 ? rest.lastIndexOf(' ', max) : max;
+      out.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut).trim();
+    }
+    if (rest) out.push(rest);
+  }
+  return out;
+}
+
+export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, ref, brandingTheme = '' }) {
   const row = invoice && typeof invoice === 'object' ? invoice : {};
   if (!customerId) return { ok: false, error: 'Kunden finnes ikke i PowerOffice ennå.' };
   if (!ref) return { ok: false, error: 'Referanse mangler.' };
   const codes = normalizeProductCodes(productCodes);
   const missing = new Set();
-  const lines = (Array.isArray(row.lines) ? row.lines : []).map((line, index) => {
+  const source = (Array.isArray(row.lines) ? row.lines : []).map((line, index) => ({ line, index }));
+  // Seksjonsoverskrifter som på ProTop-fakturaen, når linjene har seksjon.
+  const sectioned = source.some(({ line }) => SECTION_ORDER.has(text(line?.section)));
+  const sectionOf = ({ line }) => (SECTION_ORDER.has(text(line?.section)) ? text(line.section) : 'other');
+  if (sectioned) {
+    source.sort((a, b) => (SECTION_ORDER.get(sectionOf(a)) - SECTION_ORDER.get(sectionOf(b))) || (a.index - b.index));
+  }
+  const lines = [];
+  const textLine = (description, key) => lines.push({
+    Description: description,
+    SortOrder: lines.length,
+    ExternalImportReference: `${ref}-${key}`,
+    LineType: 'Text',
+  });
+  // Fakturateksten først, som på ProTop-fakturaen.
+  textChunks(row.invoiceText).forEach((chunk, index) => textLine(chunk, `T${index + 1}`));
+  let currentSection = '';
+  for (const item of source) {
+    const { line, index } = item;
+    if (sectioned && sectionOf(item) !== currentSection) {
+      currentSection = sectionOf(item);
+      textLine(SECTION_LABEL.get(currentSection), `H${SECTION_ORDER.get(currentSection) + 1}`);
+    }
     const quantity = num(line?.quantity) ?? 0;
     // Nettopris etter påslag og rabatt, så summen i PowerOffice blir lik utkastet i ProTop.
     const net = num(line?.netUnitPrice);
     const listPrice = num(line?.unitPrice) ?? 0;
     const unitPrice = net != null && quantity && Math.abs(net - listPrice) > 0.00001 ? net : listPrice;
-    const description = text(line?.description).slice(0, 250);
+    const period = linePeriod(line?.periodStart, line?.periodEnd);
+    const description = [period, text(line?.description)].filter(Boolean).join(' · ').slice(0, 250);
     const base = {
       Description: description || null,
-      SortOrder: index,
+      SortOrder: lines.length,
       ExternalImportReference: lineRef(ref, index),
     };
     if (!quantity && !unitPrice) {
-      return { ...base, LineType: 'Text' };
+      lines.push({ ...base, LineType: 'Text' });
+      continue;
     }
     const vatCode = text(line?.vatCode) || 'HIGH';
     const productCode = text(line?.productCode) || codes[vatCode] || '';
     if (!productCode) missing.add(vatCode);
-    return {
+    lines.push({
       ...base,
       LineType: 'Normal',
       ProductCode: productCode,
       Quantity: quantity,
       ProductUnitPrice: unitPrice === listPrice ? round2(unitPrice) : Math.round(unitPrice * 10000) / 10000,
-    };
-  });
-  if (!lines.length) return { ok: false, error: 'Fakturaen har ingen linjer.' };
+    });
+  }
+  if (!source.length) return { ok: false, error: 'Fakturaen har ingen linjer.' };
   if (missing.size) {
     return {
       ok: false,
@@ -128,6 +193,10 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
     SalesOrderDate: isoDate(row.invoiceDate) || null,
     DeliveryDate: isoDate(row.periodEnd) || null,
     CustomerReference: text(row.customerReference) || null,
+    PurchaseOrderReference: text(row.orderReference) || null,
+    ContractNo: text(row.contractReference) || null,
+    // Fakturaoppsettet (logo, farger, bunntekst) i Go. Tomt: klientens standard.
+    BrandingThemeCode: text(brandingTheme) || null,
     PaymentTerm: paymentTerm(row),
     CurrencyCode: text(row.currency) || 'NOK',
     SalesOrderLines: lines,

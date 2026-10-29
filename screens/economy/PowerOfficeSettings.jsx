@@ -36,6 +36,7 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [lookupNo, setLookupNo] = useState('');
+  const [theme, setTheme] = useState(null);
   const [lookup, setLookup] = useState(null);
 
   function applyStatus(next) {
@@ -118,6 +119,20 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
     if (!next) return;
     applyStatus(next);
     showSaveToast(next.autoSend ? 'Fakturaer sendes automatisk fra PowerOffice.' : 'Fakturaer sendes fra PowerOffice Go.');
+  }
+
+  async function toggleAttachDocs() {
+    const next = await run('attachdocs', () => connectPowerOffice(familyId, { attachDocs: status?.attachDocs === false }));
+    if (!next) return;
+    applyStatus(next);
+  }
+
+  async function saveTheme() {
+    const next = await run('theme', () => connectPowerOffice(familyId, { brandingTheme: (theme ?? status?.brandingTheme ?? '').trim() }));
+    if (!next) return;
+    applyStatus(next);
+    setTheme(null);
+    showSaveToast(next.brandingTheme ? `Fakturaoppsett «${next.brandingTheme}» er lagret.` : 'Fakturaene bruker standard fakturaoppsett i PowerOffice.');
   }
 
   async function disconnect() {
@@ -308,6 +323,48 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
           <Text style={{ ...type.caption, color: colors.muted }}>
             Krever at integrasjonen har tilgangen til fakturasending (CreateAndSendInvoice) i PowerOffice.
           </Text>
+        </View>
+      ) : null}
+
+      {connected ? (
+        <View nativeID="poweroffice-design" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={[styles.heading, { color: colors.ink }]}>Fakturaen kunden får</Text>
+          <Text style={{ color: colors.muted, lineHeight: 20 }}>
+            PowerOffice lager selve fakturaen med kontonummer, KID og forfall. Logo, farger og bunntekst settes i
+            PowerOffice Go under fakturaoppsett. ProTop sender med fakturatekst, overskrifter, periode og referanser.
+          </Text>
+          <TouchableOpacity
+            onPress={toggleAttachDocs}
+            disabled={!!busy || !canEdit}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: status.attachDocs !== false }}
+            style={[styles.row, { opacity: busy || !canEdit ? 0.6 : 1 }]}
+          >
+            <Ionicons name={status.attachDocs !== false ? 'checkbox' : 'square-outline'} size={22} color={status.attachDocs !== false ? colors.brand : colors.muted} />
+            <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>
+              Legg ved fakturaspesifikasjon i ProTop sitt design, med timespesifikasjon, kvitteringer og vedlegg
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ ...type.caption, color: colors.muted }}>
+            Vedleggene legges på utkastet i PowerOffice og følger med fakturaen på e-post og EHF. Krever tilgangen til
+            vedlegg på salgsordre (SalesOrderAttachment) i PowerOffice.
+          </Text>
+          <Text style={{ color: colors.ink, fontWeight: '600' }}>Fakturaoppsett i PowerOffice</Text>
+          <View style={styles.row}>
+            <TextInput
+              value={theme ?? status.brandingTheme ?? ''}
+              onChangeText={setTheme}
+              placeholder="Kode, for eksempel CONSULT1 (tomt: standard)"
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              editable={canEdit}
+              style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+            />
+            {button(busy === 'theme' ? 'Lagrer…' : 'Lagre', saveTheme, {
+              key: 'theme', disabled: theme == null || theme.trim() === (status.brandingTheme || ''),
+            })}
+          </View>
         </View>
       ) : null}
 

@@ -100,6 +100,7 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 - [ ] «Test tilbakehenting» med en faktura sendt fra Go viser fakturanummer, KID, forsendelse og restbeløp.
 - [ ] «Send fra PowerOffice nå» på et overført utkast: status «Sendes», og synk gir fakturanummer og KID.
 - [ ] Med automatisk sending på: «Overfør og send» sender fakturaen uten at noen åpner Go.
+- [ ] Utkastet i Go har fakturaspesifikasjonen (ProTop-design) og vedleggene, og de følger med fakturaen.
 - [ ] Registrer innbetaling i Go. Synk gir status «Betalt».
 - [ ] Slå sammen to utkast for samme kunde i Go. Synk finner det nye utkastet («slått sammen»).
 - [ ] Slett et overført utkast i Go. Synk viser «Finnes ikke lenger i PowerOffice». «Overfør på nytt» virker.
@@ -128,6 +129,25 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 - Krever tilgangen til fakturasending (CreateAndSendInvoice). Den må krysses av i skjemaet for produksjonstilgang.
 - Fakturaer fra testklienten (`poweroffice.env: 'demo'`) kan slettes fra fakturalisten uansett status, og
   nummer derfra teller ikke i ProTop sin nummerserie.
+
+### Fakturaen kunden får (valgt 29.10.2026: løsning A)
+
+PowerOffice lager og sender selve fakturaen (kontonummer, KID, forfall, EHF, purring og inkasso i Go).
+ProTop sitt design følger med som vedlegg:
+
+- **Fakturaspesifikasjon** (`buildInvoiceSpecPdf`): ProTop-fakturaen uten utkastmerking og uten
+  betalingsinformasjon, med timespesifikasjon etter når fakturaen har timer (av med `attachTimeSpec: false`).
+  Summen er uten øreavrunding, som i Go.
+- **Fakturaens vedlegg og kvitteringer** (`sendableAttachments`).
+- Lastes opp med `POST /SalesOrders/{id}/Attachments` (multipart, feltet `file`) før en eventuell sending,
+  én gang per utkast (`poweroffice.attachmentsAddedAt`). Innstilling `attachDocs` (på som standard).
+- Linjene: fakturatekst og seksjonsoverskrifter («Timer», «Kjøring» …) som tekstlinjer, og periode foran
+  linjeteksten. Hodet: `PurchaseOrderReference` (bestilling), `ContractNo` (kontrakt) og
+  `BrandingThemeCode` (fakturaoppsett i Go, valgt under Regnskapssystem).
+- Logo, farger og bunntekst settes i Go under fakturaoppsett.
+
+Tilganger som må med i skjemaet for produksjonstilgang: kunder, produkter, salgsordre (SalesOrders_Full),
+vedlegg på salgsordre (SalesOrderAttachment_Full), utgående fakturaer, og fakturasending (CreateAndSendInvoice).
 
 ## Utkast til svar til PowerOffice (sendes når testlisten er grønn)
 

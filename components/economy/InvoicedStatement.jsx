@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -7,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 import { useColors } from '../../src/context/ThemeContext';
 import {
@@ -19,9 +20,14 @@ import {
   layoutYearChart,
   STATEMENT_MONTHS,
   STATEMENT_YEAR_BAR,
+  STATEMENT_YEAR_WINDOW,
   statementRow,
+  statementTableYears,
   statementTip,
   statementYearColor,
+  statementYearWindow,
+  yearWindowEnd,
+  yearWindowOffset,
 } from '../../src/economy/invoicedStatement.js';
 import { readInvoicedStatement } from '../../src/economy/invoicedStatementStorage.js';
 import { watchInvoices } from '../../src/economy/invoiceStorage.js';
@@ -68,13 +74,13 @@ function Panel({ title, subtitle, children, nativeID }) {
   );
 }
 
-function Legend({ years }) {
+function Legend({ years, colorYears }) {
   const colors = useColors();
   return (
     <View style={styles.legend}>
       {years.map((year) => (
         <View key={year} style={styles.legendItem}>
-          <View style={[styles.swatch, { backgroundColor: statementYearColor(year, years) }]} />
+          <View style={[styles.swatch, { backgroundColor: statementYearColor(year, colorYears) }]} />
           <Text style={[styles.legendText, { color: colors.ink }]}>{year}</Text>
         </View>
       ))}
@@ -147,9 +153,15 @@ function placeTip(x, y, canvasWidth) {
   };
 }
 
-function MonthChart({ statement, series, mode, nativeID }) {
+function MonthChart({
+  statement,
+  years,
+  colorYears,
+  series,
+  mode,
+  nativeID,
+}) {
   const colors = useColors();
-  const years = statement?.chartYears || [];
   const months = statement?.months?.length === 12 ? statement.months : STATEMENT_MONTHS;
   const [width, setWidth] = useState(0);
   const [tip, setTip] = useState(null);
@@ -173,7 +185,6 @@ function MonthChart({ statement, series, mode, nativeID }) {
 
   return (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-      <Legend years={years} />
       <ChartFrame nativeID={nativeID} canvasWidth={canvas} canvasHeight={height} tip={tip}>
         <Svg width={canvas} height={height} pointerEvents="none">
           <Axis layout={layout} colors={colors} />
@@ -185,7 +196,7 @@ function MonthChart({ statement, series, mode, nativeID }) {
                 y={bar.y}
                 width={bar.w}
                 height={bar.h}
-                fill={statementYearColor(bar.year, years)}
+                fill={statementYearColor(bar.year, colorYears)}
               />
             ) : null
           )) : layout.segments.map((segment) => (
@@ -195,14 +206,14 @@ function MonthChart({ statement, series, mode, nativeID }) {
                 cx={segment.points[0]?.x || 0}
                 cy={segment.points[0]?.y || 0}
                 r={3}
-                fill={statementYearColor(segment.year, years)}
+                fill={statementYearColor(segment.year, colorYears)}
               />
             ) : (
               <Polyline
                 key={`${segment.year}-${segment.points[0]?.month}`}
                 points={segment.points.map((point) => `${point.x},${point.y}`).join(' ')}
                 fill="none"
-                stroke={statementYearColor(segment.year, years)}
+                stroke={statementYearColor(segment.year, colorYears)}
                 strokeWidth={2}
               />
             )
@@ -313,10 +324,42 @@ function DataTable({
   statement,
   years,
   series,
+  end,
+  onEnd,
   onDownload,
 }) {
   const colors = useColors();
   const months = statement?.months || [];
+  const scrollRef = useRef(null);
+  const reported = useRef(end);
+  const [viewport, setViewport] = useState(0);
+  const count = years.length;
+  const shown = Math.max(1, Math.min(count, STATEMENT_YEAR_WINDOW));
+  const column = Math.max(CELL_WIDTH, viewport / shown);
+  const content = column * count;
+
+  function placeWindow() {
+    if (!(viewport > 0)) return;
+    const x = yearWindowOffset({ end: reported.current, viewport, column, count });
+    scrollRef.current?.scrollTo({ x, animated: false });
+  }
+
+  useEffect(placeWindow, [viewport, column, count]);
+
+  useEffect(() => {
+    if (end === reported.current) return;
+    reported.current = end;
+    const x = yearWindowOffset({ end, viewport, column, count });
+    scrollRef.current?.scrollTo({ x, animated: true });
+  }, [end]);
+
+  function onScroll(event) {
+    const next = yearWindowEnd({ offset: event.nativeEvent.contentOffset.x, viewport, column, count });
+    if (next === reported.current) return;
+    reported.current = next;
+    onEnd(next);
+  }
+
   return (
     <View nativeID={nativeID} style={styles.tableBlock}>
       <View style={styles.tableHead}>
@@ -327,35 +370,139 @@ function DataTable({
           </Pressable>
         ) : null}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tableScroll}>
-        <View style={[styles.tableGrid, { minWidth: LABEL_WIDTH + years.length * CELL_WIDTH }]}>
+      <View style={styles.tableBody}>
+        <View>
           <View style={[styles.row, { borderBottomColor: colors.line, backgroundColor: colors.sunken }]}>
             <Text style={[styles.labelCell, { color: colors.muted }]} />
-            {years.map((year) => (
-              <Text key={year} style={[styles.fillCell, styles.headCell, { color: colors.ink }]}>{year}</Text>
-            ))}
           </View>
           {months.map((label, index) => (
             <View key={label} style={[styles.row, { borderBottomColor: colors.line, backgroundColor: index % 2 ? colors.sunken : colors.card }]}>
               <Text style={[styles.labelCell, { color: colors.ink }]}>{label}</Text>
-              {years.map((year) => (
-                <Text key={year} style={[styles.fillCell, { color: colors.ink }]}>
-                  {formatStatementAmount(amountOf(series, year, index))}
-                </Text>
-              ))}
             </View>
           ))}
           <View style={[styles.row, { borderBottomColor: colors.line }]}>
             <Text style={[styles.labelCell, { color: colors.muted }]} />
-            {years.map((year) => (
-              <Text key={year} style={[styles.fillCell, styles.totalCell, { color: colors.ink }]}>
-                {formatStatementAmount(totalOf(statement, year))}
-              </Text>
-            ))}
           </View>
         </View>
-      </ScrollView>
+        <View style={styles.yearColumns} onLayout={(event) => setViewport(event.nativeEvent.layout.width)}>
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={content > viewport + 1}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={placeWindow}
+          >
+            <View style={{ width: content }}>
+              <View style={[styles.row, { borderBottomColor: colors.line, backgroundColor: colors.sunken }]}>
+                {years.map((year) => (
+                  <Text key={year} style={[styles.yearCell, styles.headCell, { width: column, color: colors.ink }]}>{year}</Text>
+                ))}
+              </View>
+              {months.map((label, index) => (
+                <View key={label} style={[styles.row, { borderBottomColor: colors.line, backgroundColor: index % 2 ? colors.sunken : colors.card }]}>
+                  {years.map((year) => (
+                    <Text key={year} style={[styles.yearCell, { width: column, color: colors.ink }]}>
+                      {formatStatementAmount(amountOf(series, year, index))}
+                    </Text>
+                  ))}
+                </View>
+              ))}
+              <View style={[styles.row, { borderBottomColor: colors.line }]}>
+                {years.map((year) => (
+                  <Text key={year} style={[styles.yearCell, styles.totalCell, { width: column, color: colors.ink }]}>
+                    {formatStatementAmount(totalOf(statement, year))}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
     </View>
+  );
+}
+
+function YearPager({ years, end, onEnd }) {
+  const colors = useColors();
+  if (years.length <= STATEMENT_YEAR_WINDOW) return null;
+  const shown = statementYearWindow(years, end);
+  const canBack = end > STATEMENT_YEAR_WINDOW - 1;
+  const canForward = end < years.length - 1;
+  return (
+    <View style={styles.pager}>
+      <Pressable
+        onPress={() => onEnd(end - 1)}
+        disabled={!canBack}
+        accessibilityRole="button"
+        accessibilityLabel="Vis eldre år"
+        hitSlop={6}
+        style={[styles.pagerButton, { borderColor: colors.line, opacity: canBack ? 1 : 0.35 }]}
+      >
+        <Ionicons name="chevron-back" size={16} color={colors.ink} />
+      </Pressable>
+      <Text style={[styles.pagerText, { color: colors.muted }]}>{`${shown[0]}–${shown[shown.length - 1]}`}</Text>
+      <Pressable
+        onPress={() => onEnd(end + 1)}
+        disabled={!canForward}
+        accessibilityRole="button"
+        accessibilityLabel="Vis nyere år"
+        hitSlop={6}
+        style={[styles.pagerButton, { borderColor: colors.line, opacity: canForward ? 1 : 0.35 }]}
+      >
+        <Ionicons name="chevron-forward" size={16} color={colors.ink} />
+      </Pressable>
+    </View>
+  );
+}
+
+/** Graf og tabell for måned-for-måned. Fem år vises, eldre år blas frem sidelengs. */
+function MonthPanel({
+  title,
+  subtitle,
+  nativeID,
+  statement,
+  series,
+  mode,
+  section,
+  filename,
+}) {
+  const years = statementTableYears(statement);
+  const last = years.length - 1;
+  const first = Math.min(years.length, STATEMENT_YEAR_WINDOW) - 1;
+  const [end, setEnd] = useState(last);
+
+  useEffect(() => {
+    setEnd(last);
+  }, [last, years[0]]);
+
+  const windowYears = statementYearWindow(years, end);
+  const move = (next) => setEnd(Math.min(last, Math.max(first, next)));
+
+  return (
+    <Panel title={title} subtitle={subtitle} nativeID={nativeID}>
+      <View style={styles.chartHead}>
+        <Legend years={windowYears} colorYears={years} />
+        <YearPager years={years} end={end} onEnd={move} />
+      </View>
+      <MonthChart
+        statement={statement}
+        years={windowYears}
+        colorYears={years}
+        series={series}
+        mode={mode}
+        nativeID={`${nativeID}-chart`}
+      />
+      <DataTable
+        nativeID={`${nativeID}-table`}
+        statement={statement}
+        years={years}
+        series={series}
+        end={end}
+        onEnd={move}
+        onDownload={() => downloadWorkbook(statement, section, filename)}
+      />
+    </Panel>
   );
 }
 
@@ -443,26 +590,26 @@ export default function InvoicedStatement({ familyId }) {
       ) : null}
       {!empty ? (
         <>
-          <Panel title="Utfakturert per måned" subtitle="Eks. mva, basert på fakturadato" nativeID="economy-invoiced-monthly">
-            <MonthChart statement={statement} series={statement.monthly} mode="bars" nativeID="economy-invoiced-monthly-chart" />
-            <DataTable
-              nativeID="economy-invoiced-monthly-table"
-              statement={statement}
-              years={statement.chartYears}
-              series={statement.monthly}
-              onDownload={() => downloadWorkbook(statement, 'monthly', 'utfakturert-per-maned.xls')}
-            />
-          </Panel>
-          <Panel title="Utfakturert gjennom året" subtitle="Måned for måned akkumulert" nativeID="economy-invoiced-cumulative">
-            <MonthChart statement={statement} series={statement.cumulative} mode="lines" nativeID="economy-invoiced-cumulative-chart" />
-            <DataTable
-              nativeID="economy-invoiced-cumulative-table"
-              statement={statement}
-              years={statement.chartYears}
-              series={statement.cumulative}
-              onDownload={() => downloadWorkbook(statement, 'cumulative', 'utfakturert-gjennom-aret.xls')}
-            />
-          </Panel>
+          <MonthPanel
+            title="Utfakturert per måned"
+            subtitle="Eks. mva, basert på fakturadato"
+            nativeID="economy-invoiced-monthly"
+            statement={statement}
+            series={statement.monthly}
+            mode="bars"
+            section="monthly"
+            filename="utfakturert-per-maned.xls"
+          />
+          <MonthPanel
+            title="Utfakturert gjennom året"
+            subtitle="Måned for måned akkumulert"
+            nativeID="economy-invoiced-cumulative"
+            statement={statement}
+            series={statement.cumulative}
+            mode="lines"
+            section="cumulative"
+            filename="utfakturert-gjennom-aret.xls"
+          />
           <Panel title="Omsetning per år" subtitle="Eks. mva, basert på fakturadato" nativeID="economy-invoiced-yearly">
             <YearChart statement={statement} />
             <YearTable
@@ -482,7 +629,8 @@ const webShadow = Platform.OS === 'web'
 
 const LABEL_WIDTH = 48;
 const CELL_WIDTH = 132;
-const cellText = { fontSize: 12, textAlign: 'right', paddingVertical: 6, paddingHorizontal: 8, fontVariant: ['tabular-nums'] };
+const ROW_HEIGHT = 29;
+const cellText = { fontSize: 12, lineHeight: 16, textAlign: 'right', paddingVertical: 6, paddingHorizontal: 8, fontVariant: ['tabular-nums'] };
 
 const styles = StyleSheet.create({
   page: { gap: 14 },
@@ -492,7 +640,11 @@ const styles = StyleSheet.create({
   panelTitle: { fontSize: 15, fontWeight: '600' },
   panelBody: { padding: 12, gap: 10 },
   sub: { fontSize: 13, lineHeight: 18 },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  chartHead: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, flexShrink: 1 },
+  pager: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 'auto' },
+  pagerButton: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  pagerText: { fontSize: 12, minWidth: 72, textAlign: 'center', fontVariant: ['tabular-nums'] },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   swatch: { width: 14, height: 14, borderRadius: 2 },
   legendText: { fontSize: 12 },
@@ -500,13 +652,13 @@ const styles = StyleSheet.create({
   tableHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   tableTitle: { fontSize: 14, fontWeight: '600' },
   excel: { fontSize: 13, fontWeight: '600' },
-  row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
-  tableScroll: { flexGrow: 1 },
-  tableGrid: { flexGrow: 1 },
-  labelCell: { width: LABEL_WIDTH, fontSize: 12, paddingVertical: 6, paddingHorizontal: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', height: ROW_HEIGHT, borderBottomWidth: StyleSheet.hairlineWidth },
+  tableBody: { flexDirection: 'row', alignItems: 'flex-start' },
+  yearColumns: { flex: 1, minWidth: 0 },
+  labelCell: { width: LABEL_WIDTH, fontSize: 12, lineHeight: 16, paddingVertical: 6, paddingHorizontal: 4 },
   yearLabel: { width: 72, fontSize: 12, paddingVertical: 6, paddingHorizontal: 4 },
   cell: { width: CELL_WIDTH, ...cellText },
-  fillCell: { flexGrow: 1, flexBasis: CELL_WIDTH, ...cellText },
+  yearCell: cellText,
   headCell: { fontWeight: '700' },
   totalCell: { fontWeight: '700' },
   tip: {

@@ -108,12 +108,12 @@ export default function HolidaySettings({ familyId, colors, canEdit }) {
           nativeID="import-holidays"
           accessibilityRole="button"
         >
-          <Text style={{ color: colors.brand, fontWeight: '700' }}>Importer norske helligdager</Text>
+          <Text style={{ color: colors.brand, fontWeight: '400' }}>Importer norske helligdager</Text>
         </TouchableOpacity>
       ) : null}
       {draft ? (
         <View style={[styles.form, { borderColor: colors.line, backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.ink, fontWeight: '700' }}>{draft.id ? 'Endre fridag' : 'Ny selskapsfridag'}</Text>
+          <Text style={{ color: colors.ink, fontWeight: '400' }}>{draft.id ? 'Endre fridag' : 'Ny selskapsfridag'}</Text>
           <TextInput
             value={draft.name}
             onChangeText={(name) => setDraft((current) => ({ ...current, name }))}
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   header: { paddingHorizontal: 16, paddingVertical: 12 },
-  headerText: { fontWeight: '700' },
+  headerText: { fontWeight: '400' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   name: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   badge: { borderWidth: 1, borderColor: '#d0d5dd', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },

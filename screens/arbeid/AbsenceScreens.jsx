@@ -19,7 +19,7 @@ import {
   hydrateAbsenceReportRow,
 } from '../../src/arbeid/absenceReport.js';
 import { buildAbsenceOverview, hoursToDays } from '../../src/arbeid/balance.js';
-import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
+import { employeeDisplayName, filterEmployeesForPicker, findLinkedEmployee } from '../../src/arbeid/roles.js';
 import { employeeActivityTab } from '../../src/employees/model.js';
 import { monthDateRange, toDateKey } from '../../src/arbeid/calendar.js';
 import { parseHours } from '../../src/arbeid/hours.js';
@@ -79,6 +79,13 @@ async function bytesFromFile(file) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
+/** Den som er logget inn og godkjenner, ikke personen «Vis som» viser. */
+function approverOf(workspace, user) {
+  const own = findLinkedEmployee(workspace.employees || [], workspace.uid);
+  const name = own ? employeeDisplayName(own) : '';
+  return { uid: workspace.uid || '', name: name || String(user?.displayName || user?.email || '').trim() };
+}
+
 /** hours: datovindu for timeføringer. Fraværssidene bruker ikke timer og henter ingen. */
 function usePeople(lockedEmployeeId, hours = null) {
   const workspace = useTimesheetWorkspace({
@@ -97,6 +104,7 @@ function usePeople(lockedEmployeeId, hours = null) {
 export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const confirm = useConfirm();
+  const { user } = useApp();
   const { workspace, activeId } = usePeople(lockedEmployeeId);
   // Import av fraværslister: leder for andres timer med Admin på Fraværsrapport.
   const adminImport = canImportList(useCompanyAccess(), 'absenceReport');
@@ -447,7 +455,7 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
       onApprove={async () => {
         const ids = openPeriod?.ids || [];
         const ok = await applyAbsenceMutation(
-          setAbsenceStatuses(workspace.state, ids, 'godkjent'),
+          setAbsenceStatuses(workspace.state, ids, 'godkjent', approverOf(workspace, user)),
           'Perioden er godkjent.',
         );
         if (ok) setOpenPeriod(null);
@@ -519,7 +527,7 @@ export function AbsenceReportScreen({ lockedEmployeeId = '' } = {}) {
 export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
-  const { shellIntent, clearShellIntent, familyId, family } = useApp();
+  const { shellIntent, clearShellIntent, familyId, family, user } = useApp();
   const { workspace, activeId, setEmployeeId } = usePeople(lockedEmployeeId);
   const [focusEmployeeId, setFocusEmployeeId] = useState('');
   const [plan, setPlan] = useState(null);
@@ -598,13 +606,25 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
   }
 
   function approve(ids) {
-    const result = setAbsenceStatuses(workspace.state, ids, 'godkjent');
+    const result = setAbsenceStatuses(workspace.state, ids, 'godkjent', approverOf(workspace, user));
     if (!result.ok) {
       setPlanError(result.error);
       return;
     }
     workspace.setState(result.state);
-    setNotice('Ferien er godkjent.');
+    setPlanError('');
+    setNotice('Ferien er godkjent og ligger under Godkjent.');
+  }
+
+  function reopen(ids) {
+    const result = setAbsenceStatuses(workspace.state, ids, 'registrert');
+    if (!result.ok) {
+      setPlanError(result.error);
+      return;
+    }
+    workspace.setState(result.state);
+    setPlanError('');
+    setNotice('Godkjenningen er angret. Ferien venter på godkjenning igjen.');
   }
 
   const panel = (
@@ -622,6 +642,7 @@ export function PlannedAbsenceScreen({ lockedEmployeeId = '' } = {}) {
       notice={notice}
       error={planError}
       onApprove={approve}
+      onReopen={reopen}
       onRegister={() => setRegisterOpen(true)}
     />
   );

@@ -211,7 +211,7 @@ export default function AbsenceSettingsScreen({ startTab = 'fravaerstyper' } = {
             >
               <Ionicons name={row.icon} size={18} color={on ? colors.brand : colors.ink} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '600' }}>{row.label}</Text>
+                <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: '400' }}>{row.label}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12 }} numberOfLines={2}>{row.hint}</Text>
               </View>
             </TouchableOpacity>

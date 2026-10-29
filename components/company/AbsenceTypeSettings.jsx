@@ -131,7 +131,7 @@ export default function AbsenceTypeSettings({ familyId, colors, canEdit }) {
         {rows.map((row, index) => (
           <View key={row.id} style={[styles.row, { backgroundColor: index % 2 ? (colors.sunken || '#f6f7fb') : colors.card }]}>
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={{ color: colors.ink, fontWeight: '600' }}>{absenceTypeTitle(row)}</Text>
+              <Text style={{ color: colors.ink, fontWeight: '400' }}>{absenceTypeTitle(row)}</Text>
               <Text style={{ color: colors.muted, fontSize: 13 }}>
                 {`Betalt fravær: ${yesNo(row.paid)} · Trekkes fra timebalanse: ${yesNo(row.deductBalance)}`}
               </Text>
@@ -141,7 +141,7 @@ export default function AbsenceTypeSettings({ familyId, colors, canEdit }) {
             </View>
             {canEdit ? (
               <TouchableOpacity onPress={() => openRow(row)} accessibilityLabel={`Endre ${row.label}`}>
-                <Text style={{ color: colors.brand, fontWeight: '700' }}>Rediger</Text>
+                <Text style={{ color: colors.brand, fontWeight: '400' }}>Rediger</Text>
               </TouchableOpacity>
             ) : null}
           </View>
@@ -181,14 +181,14 @@ function Toggle({ label, value, onChange, disabled, colors }) {
 
 const styles = StyleSheet.create({
   form: { borderWidth: 1, borderRadius: 12, padding: 14, gap: 12 },
-  formTitle: { fontSize: 16, fontWeight: '700' },
+  formTitle: { fontSize: 16, fontWeight: '400' },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
   formActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   table: { borderWidth: 1, borderRadius: 12, overflow: 'hidden' },
   header: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10 },
-  headerText: { fontWeight: '700' },
+  headerText: { fontWeight: '400' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   toggle: { flexDirection: 'row', alignItems: 'center' },
 });

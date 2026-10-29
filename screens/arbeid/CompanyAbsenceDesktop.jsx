@@ -18,7 +18,9 @@ import {
 import { parseDate } from '../../src/economy/invoices.js';
 import AbsenceOrganizePanel from '../../components/arbeid/AbsenceOrganizePanel';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import { absenceRoster, absenceYears, buildAbsencePeriodGrid, buildAbsenceWebBoard, summarizeAbsenceSpan } from '../../src/arbeid/absenceDashboard.js';
+import {
+  absenceAudienceLabel, absenceRoster, absenceYears, buildAbsencePeriodGrid, buildAbsenceWebBoard, summarizeAbsenceSpan,
+} from '../../src/arbeid/absenceDashboard.js';
 import { absenceWidgetDestination } from '../../src/arbeid/absenceWidgetNav.js';
 import { monthDateRange, monthLabel, parseDateKey, shiftMonth, shortDayLabel, toDateKey, weekAround } from '../../src/arbeid/calendar.js';
 import { personnelKind, personnelKindLabel } from '../../src/employees/model.js';
@@ -35,6 +37,8 @@ const onBlue = '#fff';
 /** Tekst på knapper som ikke er valgt: mørkere enn muted, så de ikke ser deaktiverte ut. */
 const soft = '#5B6678';
 const hoverBg = '#E8EEF6';
+/** Grønt for ferie og godkjent. */
+const green = '#1F9D55';
 const BARS = { ferie: '#2F6BDB', sykdom: '#E15D6A', annet: '#F0A04B' };
 const AUDIENCE = [
   { id: 'staff', label: 'Eget personell' },
@@ -130,7 +134,7 @@ function useAudience(employees) {
     setKinds({ staff: true, innleid: false, external: false });
     setIncludeInactive(false);
   };
-  return { kinds, toggleKind, includeInactive, setIncludeInactive, roster, resetAudience };
+  return { kinds, selected, toggleKind, includeInactive, setIncludeInactive, roster, resetAudience };
 }
 
 function sortPlannedRows(rows, sort) {
@@ -384,8 +388,8 @@ export function CompanyAbsenceDesktop({
 
           {canChooseEmployee ? (
           <View style={styles.kpis}>
-            <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label="Ansatte" pending={peopleLoading} pendingId="fravaer-loading-kpi-ansatte" onPress={() => openSource('headcount')} />
-            <Kpi icon="calendar" tint="#1F9D55" bg="#E7F8EF" value={ferieNow} label={onToday ? 'På ferie nå' : 'På ferie'} pending={boardPending} pendingId="fravaer-loading-kpi-ferie" onPress={() => openSource('away-ferie')} />
+            <Kpi icon="people" tint={blue} bg="#E8F0FE" value={roster.length} label={absenceAudienceLabel(audience.selected)} pending={peopleLoading} pendingId="fravaer-loading-kpi-ansatte" onPress={() => openSource('headcount')} />
+            <Kpi icon="calendar" tint={green} bg="#E7F8EF" value={ferieNow} label={onToday ? 'På ferie nå' : 'På ferie'} pending={boardPending} pendingId="fravaer-loading-kpi-ferie" onPress={() => openSource('away-ferie')} />
             <Kpi icon="heart" tint="#E15B73" bg="#FDECEF" value={sykNow} label={onToday ? 'Sykemeldte nå' : 'Sykemeldte'} pending={boardPending} pendingId="fravaer-loading-kpi-syk" onPress={() => openSource('away-sykdom')} />
             <Kpi icon="time" tint="#E09A3E" bg="#FFF4E5" value={annetNow} label={onToday ? 'Annet fravær nå' : 'Annet fravær'} pending={boardPending} pendingId="fravaer-loading-kpi-annet" onPress={() => openSource('away-annet')} />
           </View>
@@ -526,7 +530,7 @@ export function CompanyAbsenceDesktop({
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.matrixScroll}>
                         <View style={styles.matrix}>
                           <View style={styles.matrixHead}>
-                            <Text style={[styles.nameCol, styles.headTxt]}>Ansatt</Text>
+                            <Text style={[styles.nameCol, styles.headTxt]}>Navn</Text>
                             {board.months.map((label) => (
                               <Text key={label} style={[styles.monthCol, styles.headTxt]}>{label}</Text>
                             ))}
@@ -551,7 +555,7 @@ export function CompanyAbsenceDesktop({
                         </View>
                       </ScrollView>
                     ) : (
-                      <Text style={styles.empty}>{`Ingen fravær registrert i ${board.year}.`}</Text>
+                      <Text style={styles.empty}>Ingen personer i utvalget.</Text>
                     )}
                   </>
                 )}
@@ -1599,7 +1603,14 @@ function PlannedCard({ rows, onOpen, heading = 'Planlagt fravær' }) {
             <Text style={styles.periodMeta}>{`${row.typeLabel} · ${row.start === row.end ? row.start : `${row.start} – ${row.end}`}`}</Text>
           </View>
           <Text style={styles.periodDays}>{`${formatCount(row.days)} d`}</Text>
-          <Text style={styles.periodStatus}>Planlagt</Text>
+          {row.approved ? (
+            <View style={styles.periodApproved}>
+              <Ionicons name="checkmark-circle" size={13} color={green} />
+              <Text style={[styles.periodMeta, { color: green }]}>Godkjent</Text>
+            </View>
+          ) : (
+            <Text style={styles.periodStatus}>Planlagt</Text>
+          )}
         </TouchableOpacity>
       )) : (
         <Text style={styles.empty}>Ingen planlagt fravær frem i tid.</Text>
@@ -2064,6 +2075,7 @@ const styles = StyleSheet.create({
   periodMeta: { color: muted, fontSize: 13, fontWeight: '400' },
   periodDays: { color: ink, fontWeight: '400', width: 44, textAlign: 'right', fontVariant: ['tabular-nums'] },
   periodStatus: { color: muted, width: 80, textAlign: 'right', fontSize: 13, fontWeight: '400' },
+  periodApproved: { width: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
   tableHead: { flexDirection: 'row', paddingBottom: 6 },
   tableRow: { flexDirection: 'row', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: line, paddingVertical: 8 },
   colGrow: { flex: 1, minWidth: 0 },

@@ -241,6 +241,7 @@ deploy_entry pushIndex.js functions:onChatMessageCreated,functions:onFriendChatM
 deploy_entry notifyPushIndex.js functions:onNotificationPush
 deploy_entry vacationPlanDailyIndex.js functions:vacationPlanDaily
 deploy_entry powerOfficeSyncScheduledIndex.js functions:powerOfficeSyncScheduled
+deploy_entry collectionAutoIndex.js functions:collectionAutoScheduled
 deploy_entry aiCleanupIndex.js functions:aiCleanupScheduled
 deploy_entry indeksSsbDailyIndex.js functions:indeksSsbDaily
 

@@ -375,7 +375,7 @@ function normalizeCustomerCopy(raw) {
   };
 }
 
-const COLLECTION_STEP_KINDS = new Set(['reminder', 'notice', 'debt', 'interest']);
+const COLLECTION_STEP_KINDS = new Set(['friendly', 'reminder', 'notice', 'debt', 'interest']);
 
 /** Steg i innkrevingen (purring, inkassovarsel, inkasso, rentefaktura). Se collection.js. */
 function normalizeCollectionSteps(list) {
@@ -395,6 +395,7 @@ function normalizeCollectionSteps(list) {
       invoiceId: text(row.invoiceId),
       feeInvoiceId: text(row.feeInvoiceId),
       note: text(row.note).slice(0, 500),
+      auto: row.auto === true,
       ...person(row),
     }));
 }
@@ -402,6 +403,11 @@ function normalizeCollectionSteps(list) {
 function normalizeCollection(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   return {
+    hold: src.hold === true,
+    // Automatisk steg som ikke kunne sendes (for eksempel manglende e-post), så det meldes én gang.
+    autoBlocked: text(src.autoBlocked),
+    friendlySent: src.friendlySent === true,
+    friendlySentAt: text(src.friendlySentAt),
     reminderSent: src.reminderSent === true,
     reminderSentAt: text(src.reminderSentAt),
     noticeSent: src.noticeSent === true,
@@ -692,7 +698,8 @@ export function toInvoiceCacheRow(invoice) {
     ...(row.kind === 'credit_note' ? { kind: row.kind } : {}),
     ...(row.issuedAt ? { issuedAt: row.issuedAt } : {}),
     ...(row.approval ? { approval: row.approval } : {}),
-    ...(row.collection && (row.collection.reminderSent || row.collection.noticeSent || row.collection.debtCollection
+    ...(row.collection && (row.collection.hold || row.collection.friendlySent || row.collection.reminderSent
+      || row.collection.noticeSent || row.collection.debtCollection
       || row.collection.interestInvoice || row.collection.steps?.length)
       ? { collection: row.collection }
       : {}),

@@ -3,7 +3,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  addCollectionStep, buildInterestInvoice, checkDeadline, collectionLetter, collectionStatus, collectionSteps,
+  addCollectionStep, buildInterestInvoice, canTakeStep, checkDeadline, collectionLetter, collectionStatus, collectionSteps,
   lateInterest, lateInterestRate, overdueBalances,
 } from './collection.js';
 import { normalizeInvoice } from './invoices.js';
@@ -51,43 +51,74 @@ const invoice = (extra = {}) => normalizeInvoice({
 }
 
 {
-  // Status: gebyr først 14 dager etter forfall, høyst for to varsler, frist minst 14 dager.
-  const early = collectionStatus(invoice(), { today: '2026-11-20', settings: { reminderFee: 60 } });
+  // Løpet: påminnelse → purring → inkassovarsel → inkasso, ett steg om gangen.
+  const settings = { reminderFee: 60, friendlyReminderDays: 3 };
+  const early = collectionStatus(invoice(), { today: '2026-11-14', settings });
   assert.equal(early.open, true);
-  assert.equal(early.daysOverdue, 8);
-  assert.equal(early.feeAllowed, false);
-  assert.equal(early.suggestedFee, 0);
-  assert.match(early.feeNote, /26\.11\.2026/);
-  assert.equal(early.defaultDeadline, '2026-12-04');
-  assert.match(early.debtHint, /inkassovarsel først/);
-  const later = collectionStatus(invoice(), { today: '2026-11-26', settings: { reminderFee: 60 } });
-  assert.equal(later.feeAllowed, true);
-  assert.equal(later.suggestedFee, 38, 'gebyret har et tak');
-  assert.equal(collectionStatus(invoice({ status: 'paid', outstandingAmount: 0 }), { today: '2026-11-26' }).open, false);
+  assert.deepEqual(early.plan.map((row) => [row.kind, row.state]), [
+    ['friendly', 'next'], ['reminder', 'locked'], ['notice', 'locked'], ['debt', 'locked'],
+  ]);
+  assert.equal(early.next.kind, 'friendly');
+  assert.equal(early.next.availableFrom, '2026-11-13');
+  assert.equal(early.suggestedFee, 0, 'påminnelsen har ikke gebyr');
+  assert.equal(early.settings.reminderFee, 38, 'gebyret har et tak');
+  assert.equal(early.settings.reminderDays, 14, 'med gebyr tidligst 14 dager etter forfall');
+  assert.equal(early.defaultDeadline, '2026-11-28');
+  assert.match(early.debtHint, /inkassovarselet er sendt/);
+  // Ikke betalt, ikke forfalt, eller utkast: ingen steg.
+  assert.equal(collectionStatus(invoice({ status: 'paid', outstandingAmount: 0 }), { today: '2026-11-26' }).next, null);
+  assert.equal(collectionStatus(invoice(), { today: '2026-11-12' }).next, null);
   assert.equal(collectionStatus(invoice({ status: 'draft' }), { today: '2026-11-26' }).canInterest, false);
+  // Påminnelsen kan slås av. Da er purringen neste, tidligst 14 dager etter forfall med gebyr.
+  const off = collectionStatus(invoice(), { today: '2026-11-20', settings: { reminderFee: 38, friendlyReminderDays: 0 } });
+  assert.deepEqual(off.plan.map((row) => row.state), ['off', 'waiting', 'locked', 'locked']);
+  assert.equal(off.next.kind, 'reminder');
+  assert.equal(off.next.availableFrom, '2026-11-26');
+  assert.equal(canTakeStep(invoice(), 'reminder', { today: '2026-11-20', settings: { reminderFee: 38, friendlyReminderDays: 0 } }).error, 'Kan sendes fra 26.11.2026.');
+  assert.match(canTakeStep(invoice(), 'notice', { today: '2026-11-30', settings }).error, /Send påminnelse først/);
+  assert.equal(canTakeStep(invoice(), 'friendly', { today: '2026-11-30', settings }).ok, true);
+  // På vent: ingen steg kan tas.
+  const held = invoice({ collection: { hold: true } });
+  assert.match(canTakeStep(held, 'friendly', { today: '2026-11-30', settings }).error, /på vent/);
 
   assert.equal(checkDeadline('2026-12-09', '2026-11-26').ok, false);
   assert.equal(checkDeadline('2026-12-10', '2026-11-26').ok, true);
 }
 
 {
-  // Steg: purring og inkassovarsel med gebyr, så kan saken sendes til inkasso når fristen er ute.
+  // Steg: påminnelse, purring med gebyr, inkassovarsel når purrefristen er ute, så inkasso.
   const actor = { byUid: 'u1', byName: 'Geir Ove Andersen' };
+  const settings = { reminderFee: 38 };
   let row = invoice();
+  row = addCollectionStep(row, { kind: 'friendly', to: 'faktura@kunde.no', auto: true }, { actor, at: '2026-11-15T07:30:00.000Z' }).invoice;
+  const afterFriendly = collectionStatus(row, { today: '2026-11-20', settings });
+  assert.equal(afterFriendly.next.kind, 'reminder');
+  assert.equal(afterFriendly.next.state, 'waiting');
   row = addCollectionStep(row, { kind: 'reminder', fee: 38, deadline: '2026-12-10', to: 'faktura@kunde.no' }, { actor, at: '2026-11-26T10:00:00.000Z' }).invoice;
-  row = addCollectionStep(row, { kind: 'notice', fee: 38, deadline: '2026-12-24', channel: 'manual' }, { actor, at: '2026-12-10T10:00:00.000Z' }).invoice;
+  // Inkassovarsel først dagen etter fristen i purringen.
+  assert.equal(collectionStatus(row, { today: '2026-12-10', settings }).next.state, 'waiting');
+  const noticeDay = collectionStatus(row, { today: '2026-12-11', settings });
+  assert.equal(noticeDay.next.kind, 'notice');
+  assert.equal(noticeDay.next.ready, true);
+  assert.equal(noticeDay.feeAllowed, true, 'andre gebyr: fristen i purringen er oversittet');
+  row = addCollectionStep(row, { kind: 'notice', fee: 38, deadline: '2026-12-24', channel: 'manual' }, { actor, at: '2026-12-11T10:00:00.000Z' }).invoice;
+  assert.equal(row.collection.friendlySent, true);
   assert.equal(row.collection.reminderSent, true);
   assert.equal(row.collection.noticeSent, true);
-  assert.deepEqual(collectionSteps(row).map((s) => s.kind), ['reminder', 'notice']);
-  assert.deepEqual(row.events.map((e) => e.text), [
-    'sendte purring med gebyr 38,00 kr, frist 10.12.2026 til faktura@kunde.no',
-    'sendte inkassovarsel med gebyr 38,00 kr, frist 24.12.2026 (lastet ned og sendt selv)',
+  assert.deepEqual(collectionSteps(row).map((s) => s.kind), ['friendly', 'reminder', 'notice']);
+  assert.deepEqual(row.events.map((e) => [e.text, e.byName || '']), [
+    ['ProTop sendte betalingspåminnelse til faktura@kunde.no automatisk', ''],
+    ['sendte purring med gebyr 38,00 kr, frist 10.12.2026 til faktura@kunde.no', 'Geir Ove Andersen'],
+    ['sendte inkassovarsel med gebyr 38,00 kr, frist 24.12.2026 (lastet ned og sendt selv)', 'Geir Ove Andersen'],
   ]);
-  const before = collectionStatus(row, { today: '2026-12-20', settings: { reminderFee: 38 } });
+  const before = collectionStatus(row, { today: '2026-12-20', settings });
   assert.equal(before.feeAllowed, false, 'gebyr for to varsler er brukt');
   assert.equal(before.fees, 76);
-  assert.match(before.debtHint, /24\.12\.2026/);
+  assert.match(before.debtHint, /25\.12\.2026/);
+  assert.equal(before.next.kind, 'debt');
+  assert.equal(before.next.ready, false);
   const after = collectionStatus(row, { today: '2026-12-28' });
+  assert.equal(after.next.ready, true);
   assert.equal(after.debtHint, '');
 
   // Brevene.

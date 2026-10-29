@@ -55,7 +55,7 @@ import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js
 import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
 import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 import {
-  addCollectionStep, buildInterestInvoice, checkDeadline, collectionLetter, collectionStatus,
+  addCollectionStep, buildInterestInvoice, canTakeStep, checkDeadline, collectionLetter, collectionStatus, setCollectionHold,
 } from '../../../src/economy/collection.js';
 
 function demo(ctx) {
@@ -534,6 +534,7 @@ function localToday() {
 }
 
 const LETTER_SUBJECT = {
+  friendly: (no, company) => `Påminnelse: faktura ${no} fra ${company}`,
   reminder: (no, company) => `Purring: faktura ${no} fra ${company}`,
   notice: (no, company) => `Inkassovarsel: faktura ${no} fra ${company}`,
   debt: (no, company, customer) => `Inkasso: faktura ${no} fra ${company} til ${customer}`,
@@ -558,11 +559,15 @@ export async function collectionLetterPdf(ctx, invoice, { kind, fee = 0, deadlin
  * inkasso også fakturaen), 'manual' gir PDF-en til nedlasting. Steget lagres i begge tilfeller.
  */
 export async function sendCollection(ctx, invoice, { kind, fee = 0, deadline = '', to = [], channel = 'email', replyTo = '' } = {}) {
-  if (kind !== 'debt') {
+  const allowed = canTakeStep(invoice, kind, { today: localToday(), settings: ctx.settings || {} });
+  if (!allowed.ok) throw new Error(allowed.error);
+  const withDeadline = kind === 'reminder' || kind === 'notice';
+  if (withDeadline) {
     const check = checkDeadline(deadline, localToday());
     if (!check.ok) throw new Error(check.error);
   }
-  const { full, letter, name, pdf } = await collectionLetterPdf(ctx, invoice, { kind, fee, deadline });
+  if (Number(fee) > 0 && !allowed.status.feeAllowed) throw new Error(allowed.status.feeNote);
+  const { full, letter, name, pdf } = await collectionLetterPdf(ctx, invoice, { kind, fee: withDeadline ? fee : 0, deadline: withDeadline ? deadline : '' });
   const company = ctx.companyName || ctx.supplier?.name || '';
   const recipients = (to || []).map((row) => String(row || '').trim()).filter(Boolean);
   if (channel === 'email') {
@@ -586,14 +591,14 @@ export async function sendCollection(ctx, invoice, { kind, fee = 0, deadline = '
   }
   const step = addCollectionStep(full, {
     kind,
-    fee: kind === 'debt' ? 0 : fee,
-    deadline: kind === 'debt' ? '' : deadline,
+    fee: withDeadline ? fee : 0,
+    deadline: withDeadline ? deadline : '',
     to: channel === 'email' ? recipients.join(', ') : '',
     channel,
   }, { actor: ctx.actor });
   if (!step.ok) throw new Error(step.error);
   const saved = await save(ctx, step.invoice);
-  const what = { reminder: 'Purringen', notice: 'Inkassovarselet', debt: 'Kravsoppstillingen' }[kind];
+  const what = { friendly: 'Påminnelsen', reminder: 'Purringen', notice: 'Inkassovarselet', debt: 'Kravsoppstillingen' }[kind];
   return {
     invoice: saved,
     pdf: channel === 'manual' ? pdf : null,
@@ -620,4 +625,9 @@ export async function createInterestInvoice(ctx, invoice, { includeFees = true }
   }, { actor: ctx.actor });
   await save(ctx, step.invoice);
   return { invoice: draft, message: 'Rentefakturaen er laget som utkast. Kontroller og send den som en vanlig faktura.' };
+}
+
+export async function holdCollection(ctx, invoice, hold) {
+  const saved = await save(ctx, setCollectionHold(invoice, hold, { actor: ctx.actor }));
+  return { invoice: saved, message: hold ? 'Purring og inkasso er satt på vent.' : 'Purring og inkasso fortsetter.' };
 }

@@ -109,23 +109,37 @@ function stepLine(step) {
     step.deadline ? `frist ${formatDate(step.deadline)}` : '',
     step.amount ? money(step.amount) : '',
     step.to ? `til ${step.to}` : (step.channel === 'manual' ? 'sendt selv' : ''),
-    step.byName ? `av ${step.byName}` : '',
+    step.auto ? 'automatisk' : (step.byName ? `av ${step.byName}` : ''),
   ].filter(Boolean).join(' · ');
 }
 
+const STEP_ICONS = { done: 'checkmark-circle', next: 'arrow-forward-circle', waiting: 'time-outline', locked: 'lock-closed-outline', skipped: 'remove-circle-outline', off: 'remove-circle-outline' };
+
+function planLine(row, st, autoEligible) {
+  const label = COLLECTION_KINDS[row.kind].label;
+  if (row.state === 'done') return stepLine(row.done);
+  if (row.state === 'skipped') return `${label}: hoppet over`;
+  if (row.state === 'off') return `${label}: slått av i Fakturainnstillinger`;
+  if (row.state === 'locked') return `${label}: etter ${row.kind === 'debt' ? 'inkassovarselet' : (row.kind === 'notice' ? 'purringen' : 'forrige steg')}`;
+  let auto = '';
+  if (autoEligible && st.settings.auto[row.kind] && row.auto) {
+    auto = row.auto <= st.today ? ' · sendes automatisk ved neste kjøring' : ` · sendes automatisk ${formatDate(row.auto)}`;
+  }
+  if (row.state === 'next') return `${label}: kan sendes nå${auto}`;
+  return `${label}: kan sendes fra ${formatDate(row.availableFrom)}${auto}`;
+}
+
 /**
- * Purring og inkasso: det som er gjort, og det som kan gjøres nå. ProTop styrer dette, også
- * for fakturaer sendt fra PowerOffice. Betaling kommer fra synken.
+ * Purring og inkasso som steg i lovens rekkefølge: påminnelse (valgfri), purring,
+ * inkassovarsel (purring 2) og inkasso. Bare neste steg kan tas, når fristen i forrige er ute.
+ * ProTop styrer dette, også for fakturaer sendt fra PowerOffice. Betaling kommer fra synken.
  */
-function CollectionCard({ invoice, settings, colors, canManage, busy, onCollection, onOpenInvoice }) {
+function CollectionCard({ invoice, settings, colors, canManage, busy, onCollection, onHold, onOpenInvoice }) {
   const st = collectionStatus(invoice, { settings });
   if (!st.steps.length && !st.open && !st.canInterest) return null;
-  const actions = canManage && onCollection ? [
-    st.canRemind ? { kind: 'reminder', label: 'Send purring', icon: 'mail-outline' } : null,
-    st.canNotice ? { kind: 'notice', label: 'Send inkassovarsel', icon: 'alert-circle-outline' } : null,
-    st.canDebt ? { kind: 'debt', label: 'Send til inkasso', icon: 'briefcase-outline' } : null,
-    st.canInterest ? { kind: 'interest', label: 'Lag rentefaktura', icon: 'calculator-outline' } : null,
-  ].filter(Boolean) : [];
+  const next = st.next;
+  // Automatisk utsending bare når betalingen hentes fra PowerOffice, og aldri fra testklienten.
+  const autoEligible = sentFromPowerOffice(invoice) && invoice.poweroffice?.env !== 'demo';
   return (
     <Card title="Purring og inkasso" colors={colors} nativeID="invoice-collection">
       {st.open ? (
@@ -133,40 +147,52 @@ function CollectionCard({ invoice, settings, colors, canManage, busy, onCollecti
           {`Forfalt ${formatDate(st.due)}, ${st.daysOverdue} ${st.daysOverdue === 1 ? 'dag' : 'dager'} siden. Utestående ${money(st.outstanding, invoice.currency)}.`}
         </Text>
       ) : null}
-      {st.interest.amount > 0 ? (
-        <Text style={[type.caption, { color: colors.muted }]}>
-          {`Forsinkelsesrente ${st.paid ? 'for sen betaling' : 'til i dag'}: ${money(st.interest.amount, invoice.currency)} (${st.interest.days} dager).`}
-        </Text>
+      {st.hold ? (
+        <Text style={[type.label, { color: colors.ink }]}>Satt på vent. Ingenting sendes, heller ikke automatisk.</Text>
       ) : null}
-      {st.steps.map((step) => (
+      {st.plan.map((row) => (
+        <View key={row.kind} style={styles.flagRow} nativeID={`invoice-collection-step-${row.kind}`}>
+          <Ionicons name={STEP_ICONS[row.state] || 'ellipse-outline'} size={14} color={row.state === 'next' ? colors.brand : colors.muted} />
+          <Text style={[type.caption, { color: row.state === 'locked' || row.state === 'off' || row.state === 'skipped' ? colors.muted : colors.ink, flex: 1 }]}>
+            {planLine(row, st, autoEligible)}
+          </Text>
+        </View>
+      ))}
+      {st.interestInvoices.map((step) => (
         <View key={step.id} style={styles.flagRow}>
-          <Ionicons name={step.kind === 'interest' ? 'document-text-outline' : 'checkmark-circle-outline'} size={14} color={colors.muted} />
-          {step.kind === 'interest' && step.invoiceId && onOpenInvoice ? (
+          <Ionicons name="document-text-outline" size={14} color={colors.muted} />
+          {step.invoiceId && onOpenInvoice ? (
             <LinkText label={stepLine(step)} colors={colors} onPress={() => onOpenInvoice(step.invoiceId)} />
           ) : (
             <Text style={[type.caption, { color: colors.ink, flex: 1 }]}>{stepLine(step)}</Text>
           )}
         </View>
       ))}
-      {actions.length ? (
-        <View style={styles.actionRow}>
-          {actions.map((row) => (
-            <Button
-              key={row.kind}
-              label={row.label}
-              icon={row.icon}
-              small
-              tone={row.kind === 'debt' ? 'ghost' : undefined}
-              colors={colors}
-              disabled={!!busy}
-              onPress={() => onCollection(row.kind)}
-              nativeID={`invoice-collection-${row.kind}`}
-            />
-          ))}
-        </View>
+      {st.interest.amount > 0 ? (
+        <Text style={[type.caption, { color: colors.muted }]}>
+          {`Forsinkelsesrente ${st.paid ? 'for sen betaling' : 'til i dag'}: ${money(st.interest.amount, invoice.currency)} (${st.interest.days} dager).`}
+        </Text>
       ) : null}
-      {st.open && st.debtHint && st.notices.length ? (
-        <Text style={[type.caption, { color: colors.muted }]}>{st.debtHint}</Text>
+      {canManage && onCollection ? (
+        <View style={styles.actionRow}>
+          {next ? (
+            <Button
+              label={`Send ${COLLECTION_KINDS[next.kind].label.toLowerCase().replace(' (purring 2)', '')}`}
+              icon="mail-outline"
+              small
+              colors={colors}
+              disabled={!!busy || !next.ready}
+              onPress={() => onCollection(next.kind)}
+              nativeID="invoice-collection-next"
+            />
+          ) : null}
+          {st.canInterest ? (
+            <Button label="Lag rentefaktura" icon="calculator-outline" small tone="ghost" colors={colors} disabled={!!busy} onPress={() => onCollection('interest')} nativeID="invoice-collection-interest" />
+          ) : null}
+          {(st.open || st.hold) && onHold ? (
+            <LinkText label={st.hold ? 'Fortsett oppfølgingen' : 'Sett på vent'} icon={st.hold ? 'play-outline' : 'pause-outline'} colors={colors} onPress={() => !busy && onHold(!st.hold)} nativeID="invoice-collection-hold" />
+          ) : null}
+        </View>
       ) : null}
     </Card>
   );
@@ -186,6 +212,7 @@ export default function InvoiceSidebar({
   editable,
   onAction,
   onCollection,
+  onCollectionHold,
   onAddNote,
   onRemoveNote,
   onAddEvent,
@@ -351,6 +378,7 @@ export default function InvoiceSidebar({
           canManage={canManage}
           busy={busy}
           onCollection={onCollection}
+          onHold={onCollectionHold}
           onOpenInvoice={onOpenCredit}
         />
       ) : null}

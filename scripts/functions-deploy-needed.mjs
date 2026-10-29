@@ -52,6 +52,7 @@ export const DEPLOY_ENTRIES = [
   'meetingIndex.js',
   'vacationPlanDailyIndex.js',
   'powerOfficeSyncScheduledIndex.js',
+  'collectionAutoIndex.js',
   'aiCleanupIndex.js',
   'indeksSsbDailyIndex.js',
 ];

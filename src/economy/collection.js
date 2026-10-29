@@ -28,9 +28,10 @@ export const REMINDER_FEE_CAP = REMINDER_FEE_MAX;
 export const FEE_NOTICES_MAX = 2;
 
 export const COLLECTION_KINDS = {
+  friendly: { label: 'Påminnelse', title: 'BETALINGSPÅMINNELSE' },
   reminder: { label: 'Purring', title: 'PURRING' },
-  notice: { label: 'Inkassovarsel', title: 'INKASSOVARSEL' },
-  debt: { label: 'Sendt til inkasso', title: 'KRAVSOPPSTILLING' },
+  notice: { label: 'Inkassovarsel (purring 2)', title: 'INKASSOVARSEL' },
+  debt: { label: 'Inkasso', title: 'KRAVSOPPSTILLING' },
   interest: { label: 'Rentefaktura', title: 'RENTEFAKTURA' },
 };
 
@@ -166,31 +167,131 @@ export function outstandingOf(invoice) {
   return round2(invoiceTotal(invoice) - paidAmountOf(invoice) - Math.abs(parseMoney(invoice?.creditedAmount) || 0));
 }
 
+function whole(value, fallback, min = 0, max = 365) {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;
+}
+
 /**
- * Hva som kan gjøres nå, med frister og gebyr. settings: reminderFee (fra Fakturainnstillinger).
+ * Innstillingene for innkrevingen (Fakturainnstillinger → Purring og inkasso), med lovens
+ * minstekrav lagt på. Dager regnes fra forfall (påminnelse og purring) eller fra dagen etter
+ * fristen i forrige brev (inkassovarsel og inkasso).
+ */
+export function collectionSettings(settings = {}) {
+  const fee = Math.min(REMINDER_FEE_MAX, Math.max(0, Math.round(Number(settings?.reminderFee) || 0)));
+  const friendlyDays = whole(settings?.friendlyReminderDays, 3, 0, 60);
+  return {
+    friendly: friendlyDays > 0,
+    friendlyDays,
+    // Med gebyr tidligst 14 dager etter forfall (inkassoforskriften § 1-2).
+    reminderDays: Math.max(fee > 0 ? 14 : 1, whole(settings?.reminderDays, 14, 1, 120)),
+    reminderFee: fee,
+    noticeDays: whole(settings?.noticeDaysAfterDeadline, 1, 1, 60),
+    debtDays: whole(settings?.debtDaysAfterDeadline, 1, 1, 60),
+    deadlineDays: Math.max(NOTICE_DAYS, whole(settings?.collectionDeadlineDays, NOTICE_DAYS, NOTICE_DAYS, 60)),
+    auto: {
+      friendly: settings?.collectionAutoFriendly === true,
+      reminder: settings?.collectionAutoReminder === true,
+      notice: settings?.collectionAutoNotice === true,
+      debt: settings?.collectionAutoDebt === true,
+    },
+    agencyEmail: text(settings?.collectionAgencyEmail),
+  };
+}
+
+/** Rekkefølgen loven og praksis gir. Påminnelsen er valgfri. Se kommentaren øverst. */
+export const COLLECTION_ORDER = ['friendly', 'reminder', 'notice', 'debt'];
+
+/**
+ * Hele løpet for én faktura: hvert steg med status, og neste steg som kan tas.
+ * state: done (sendt), next (neste), waiting (neste, men ikke ennå), locked (forrige steg mangler),
+ * skipped (hoppet over), off (slått av). availableFrom: første dag steget kan sendes.
  */
 export function collectionStatus(invoice, { today = '', settings = {} } = {}) {
   const now = todayIso(today);
+  const cs = collectionSettings(settings);
   const due = parseDate(invoice?.dueDate);
   const steps = collectionSteps(invoice);
   const outstanding = outstandingOf(invoice);
   const paid = invoice?.status === 'paid' || outstanding <= 0;
   const closed = isDraftInvoice(invoice) || isCreditNote(invoice) || ['credited', 'written_off'].includes(invoice?.status);
   const daysOverdue = due ? Math.max(0, daysBetween(due, now)) : 0;
+  const hold = invoice?.collection?.hold === true;
   const open = !closed && !paid && daysOverdue > 0;
   const of = (kind) => steps.filter((row) => row.kind === kind);
+  const last = (kind) => { const list = of(kind); return list[list.length - 1] || null; };
   const feeSteps = steps.filter((row) => (row.kind === 'reminder' || row.kind === 'notice') && Number(row.fee) > 0);
   const fees = round2(feeSteps.reduce((sum, row) => sum + Number(row.fee), 0));
   const unbilledFees = round2(feeSteps.filter((row) => !row.feeInvoiceId).reduce((sum, row) => sum + Number(row.fee), 0));
-  const settingFee = Math.min(REMINDER_FEE_MAX, Math.max(0, Math.round(Number(settings?.reminderFee) || 0)));
-  const feeAllowed = daysOverdue >= 14 && feeSteps.length < FEE_NOTICES_MAX;
-  const notices = of('notice');
-  const lastNotice = notices[notices.length - 1] || null;
-  const noticeDeadline = parseDate(lastNotice?.deadline);
   const interest = lateInterest(overdueBalances(invoice, { today: now }));
+
+  const friendly = last('friendly');
+  const reminder = last('reminder');
+  const notice = last('notice');
+  const debt = last('debt');
+  // Eldre avkrysninger har ingen frist. Da kan neste steg tas med en gang.
+  const after = (step) => (step?.deadline ? addDays(step.deadline, 1) : (step?.legacy ? now : ''));
+  // Første lovlige dag ved manuell sending, og dagen etter innstillingene ved automatisk.
+  const plan = [
+    {
+      kind: 'friendly',
+      done: friendly,
+      earliest: due ? addDays(due, 1) : '',
+      auto: due ? addDays(due, cs.friendlyDays) : '',
+      skipped: !friendly && !!(reminder || notice || debt),
+      off: !cs.friendly && !friendly,
+    },
+    {
+      kind: 'reminder',
+      done: reminder,
+      earliest: due ? addDays(due, cs.reminderFee > 0 ? 14 : 1) : '',
+      auto: due ? addDays(due, cs.reminderDays) : '',
+      skipped: !reminder && !!(notice || debt),
+    },
+    {
+      kind: 'notice',
+      done: notice,
+      // Gebyr for andre varsel bare når fristen i purringen er oversittet (inkassoforskriften § 1-3).
+      locked: !reminder,
+      earliest: after(reminder),
+      auto: reminder?.deadline ? addDays(reminder.deadline, cs.noticeDays) : '',
+      skipped: !notice && !!debt,
+    },
+    {
+      kind: 'debt',
+      done: debt,
+      // Inkasso først når fristen i inkassovarselet er ute (inkassoloven § 9).
+      locked: !notice,
+      earliest: after(notice),
+      auto: notice?.deadline ? addDays(notice.deadline, cs.debtDays) : '',
+    },
+  ];
+  let next = null;
+  for (const row of plan) {
+    if (row.done) row.state = 'done';
+    else if (row.skipped) row.state = 'skipped';
+    else if (row.off) row.state = 'off';
+    else if (row.locked || next) row.state = 'locked';
+    else {
+      row.availableFrom = row.earliest || now;
+      row.ready = open && !hold && !!row.earliest && row.earliest <= now;
+      row.autoReady = row.ready && cs.auto[row.kind] && !!row.auto && row.auto <= now;
+      row.state = row.ready ? 'next' : 'waiting';
+      next = row;
+    }
+  }
+  if (!open) next = null;
+  const feeAllowedFor = (kind) => {
+    if (cs.reminderFee <= 0 || feeSteps.length >= FEE_NOTICES_MAX || daysOverdue < 14) return false;
+    // Andre gebyr bare når fristen i første varsel er oversittet.
+    if (kind === 'notice' || feeSteps.length === 1) return !!reminder?.deadline && reminder.deadline < now;
+    return kind === 'reminder';
+  };
+  const nextKind = next?.kind || '';
+  const feeAllowed = feeAllowedFor(nextKind);
   let debtHint = '';
-  if (!notices.length) debtHint = 'Send inkassovarsel først. Saken kan sendes til inkasso når fristen i varselet er ute.';
-  else if (noticeDeadline && noticeDeadline >= now) debtHint = `Fristen i inkassovarselet går ut ${formatDate(noticeDeadline)}. Saken bør ikke sendes til inkasso før det.`;
+  if (!notice) debtHint = 'Saken kan sendes til inkasso når inkassovarselet er sendt og fristen i det er ute.';
+  else if (notice.deadline && notice.deadline >= now) debtHint = `Fristen i inkassovarselet går ut ${formatDate(notice.deadline)}. Saken kan sendes til inkasso fra ${formatDate(addDays(notice.deadline, 1))}.`;
   return {
     today: now,
     due,
@@ -198,22 +299,28 @@ export function collectionStatus(invoice, { today = '', settings = {} } = {}) {
     outstanding,
     paid,
     open,
+    hold,
+    settings: cs,
     steps,
+    plan,
+    next,
     reminders: of('reminder'),
-    notices,
+    notices: of('notice'),
     debt: of('debt'),
     interestInvoices: of('interest'),
     fees,
     unbilledFees,
     feeAllowed,
-    suggestedFee: feeAllowed ? settingFee : 0,
-    feeNote: daysOverdue < 14
-      ? `Purregebyr kan kreves fra ${formatDate(addDays(due, 14))} (14 dager etter forfall).`
-      : (feeSteps.length >= FEE_NOTICES_MAX ? 'Gebyr er krevd for to varsler. Flere gebyr er ikke lov for dette kravet.' : `Høyst ${REMINDER_FEE_MAX} kr.`),
-    defaultDeadline: addDays(now, NOTICE_DAYS),
-    canRemind: open,
-    canNotice: open,
-    canDebt: open && !of('debt').length,
+    suggestedFee: feeAllowed ? cs.reminderFee : 0,
+    feeNote: cs.reminderFee <= 0
+      ? 'Purregebyr er ikke slått på i Fakturainnstillinger.'
+      : (!feeAllowed
+        ? (daysOverdue < 14
+          ? `Purregebyr kan kreves fra ${formatDate(addDays(due, 14))} (14 dager etter forfall).`
+          : (feeSteps.length >= FEE_NOTICES_MAX ? 'Gebyr er krevd for to varsler. Flere gebyr er ikke lov for dette kravet.' : 'Gebyr kan ikke kreves for dette brevet.'))
+        : `Høyst ${REMINDER_FEE_MAX} kr.`),
+    defaultDeadline: addDays(now, Math.max(NOTICE_DAYS, cs.deadlineDays)),
+    minDeadline: addDays(now, NOTICE_DAYS),
     debtHint,
     interest,
     // Rente også når fakturaen ble betalt for sent, og gebyr som ikke er fakturert.
@@ -234,13 +341,46 @@ function stepText(step) {
   const fee = Number(step.fee) > 0 ? ` med gebyr ${formatMoney(step.fee)}` : '';
   const deadline = step.deadline ? `, frist ${formatDate(step.deadline)}` : '';
   const to = step.to ? ` til ${step.to}` : (step.channel === 'manual' ? ' (lastet ned og sendt selv)' : '');
+  if (step.kind === 'friendly') return `sendte betalingspåminnelse${to}`;
   if (step.kind === 'reminder') return `sendte purring${fee}${deadline}${to}`;
   if (step.kind === 'notice') return `sendte inkassovarsel${fee}${deadline}${to}`;
   if (step.kind === 'debt') return `sendte saken til inkasso${to}`;
   return `laget rentefaktura${step.amount ? ` på ${formatMoney(step.amount)}` : ''}${step.invoiceId ? ' (utkast)' : ''}`;
 }
 
-const FLAG_FOR = { reminder: 'reminderSent', notice: 'noticeSent', debt: 'debtCollection', interest: 'interestInvoice' };
+export const COLLECTION_FLAGS_FOR = { friendly: 'friendlySent', reminder: 'reminderSent', notice: 'noticeSent', debt: 'debtCollection', interest: 'interestInvoice' };
+
+/**
+ * Kan steget tas nå? Bare neste steg i rekkefølgen, når fristen i forrige er ute.
+ * Rentefaktura står utenfor rekkefølgen.
+ */
+export function canTakeStep(invoice, kind, { today = '', settings = {} } = {}) {
+  const st = collectionStatus(invoice, { today, settings });
+  if (kind === 'interest') return st.canInterest ? { ok: true, status: st } : { ok: false, error: 'Det er ingen rente eller gebyr å fakturere.', status: st };
+  if (!st.open) return { ok: false, error: st.paid ? 'Fakturaen er betalt.' : 'Fakturaen er ikke forfalt.', status: st };
+  if (st.hold) return { ok: false, error: 'Oppfølgingen av fakturaen er satt på vent.', status: st };
+  const row = st.plan.find((item) => item.kind === kind);
+  if (!row || row.state === 'done') return { ok: false, error: `${COLLECTION_KINDS[kind]?.label || 'Steget'} er allerede sendt.`, status: st };
+  if (st.next?.kind !== kind) {
+    const wanted = st.next ? COLLECTION_KINDS[st.next.kind].label.toLowerCase() : 'forrige steg';
+    return { ok: false, error: `Send ${wanted} først.`, status: st };
+  }
+  if (!row.ready) return { ok: false, error: `Kan sendes fra ${formatDate(row.availableFrom)}.`, status: st };
+  return { ok: true, status: st };
+}
+
+/** Sett oppfølgingen på vent (for eksempel ved innsigelse), eller fortsett. */
+export function setCollectionHold(invoice, hold, { actor = null, at = '' } = {}) {
+  const stamp = text(at) || new Date().toISOString();
+  const collection = { ...(invoice?.collection || {}), hold: !!hold, holdAt: hold ? stamp : '' };
+  const row = withEvent({ ...invoice, collection, updatedAt: stamp }, {
+    type: 'collection',
+    text: hold ? 'satte purring og inkasso på vent' : 'fortsatte purring og inkasso',
+    actor,
+    at: stamp,
+  });
+  return normalizeInvoice(row);
+}
 
 /** Legg til et steg på fakturaen, med hendelse i endringsloggen. */
 export function addCollectionStep(invoice, input = {}, { actor = null, at = '' } = {}) {
@@ -258,6 +398,7 @@ export function addCollectionStep(invoice, input = {}, { actor = null, at = '' }
     amount: input.amount != null ? round2(input.amount) : null,
     invoiceId: text(input.invoiceId),
     note: text(input.note).slice(0, 500),
+    auto: input.auto === true,
     byUid: text(actor?.byUid),
     byName: text(actor?.byName),
   };
@@ -268,9 +409,14 @@ export function addCollectionStep(invoice, input = {}, { actor = null, at = '' }
     const ids = new Set(input.feeStepIds);
     steps = steps.map((row) => (ids.has(row.id) ? { ...row, feeInvoiceId: step.invoiceId || step.id } : row));
   }
-  const flag = FLAG_FOR[kind];
+  const flag = COLLECTION_FLAGS_FOR[kind];
   const collection = { ...current, steps, [flag]: true, [`${flag}At`]: stamp };
-  const row = withEvent({ ...invoice, collection, updatedAt: stamp }, { type: 'collection', text: stepText(step), actor, at: stamp });
+  const row = withEvent({ ...invoice, collection, updatedAt: stamp }, {
+    type: 'collection',
+    text: step.auto ? `ProTop ${stepText(step)} automatisk` : stepText(step),
+    actor: step.auto ? null : actor,
+    at: stamp,
+  });
   return { ok: true, error: null, invoice: normalizeInvoice(row), step };
 }
 
@@ -298,6 +444,18 @@ export function collectionLetter(invoice, kind, { fee = 0, deadline = '', today 
     ['Å betale', formatMoney(toPay), true],
     deadline ? ['Betal innen', formatDate(deadline), true] : null,
   ].filter((row) => row && text(row[1]) && row[1] !== '—');
+  if (kind === 'friendly') {
+    return {
+      title: COLLECTION_KINDS.friendly.title,
+      paragraphs: [
+        `Vi minner vennlig om faktura ${no}, som forfalt ${due}.`,
+        `Vi ser ikke at den er betalt ennå. Betal gjerne ${formatMoney(outstanding)} så snart som mulig, og bruk KID ved betaling.`,
+        'Har dere spørsmål om fakturaen, er det bare å svare på denne e-posten.',
+        paidNote,
+      ],
+      facts: facts.filter((row) => !['Purregebyr', 'Betal innen'].includes(row[0])),
+    };
+  }
   if (kind === 'reminder') {
     return {
       title: COLLECTION_KINDS.reminder.title,

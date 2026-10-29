@@ -692,14 +692,19 @@ const styles = StyleSheet.create({
 });
 
 const COLLECTION_TEXT = {
+  friendly: {
+    title: 'Send påminnelse',
+    intro: 'En vennlig påminnelse uten gebyr og uten ny frist. Den kan sendes når fakturaen har forfalt. Purringen kommer etter.',
+    send: 'Send påminnelse',
+  },
   reminder: {
     title: 'Send purring',
-    intro: 'Kunden får en betalingspåminnelse med KID, kontonummer og ny frist. Fristen må være minst 14 dager fram.',
+    intro: 'Kunden får en purring med KID, kontonummer og ny frist på minst 14 dager. Purregebyr kan kreves fra 14 dager etter forfall.',
     send: 'Send purring',
   },
   notice: {
     title: 'Send inkassovarsel',
-    intro: 'Inkassovarselet sier at kravet sendes til inkasso hvis det ikke er betalt innen fristen (inkassoloven § 9). Fristen må være minst 14 dager fram.',
+    intro: 'Inkassovarselet (purring 2) sier at kravet sendes til inkasso hvis det ikke er betalt innen fristen (inkassoloven § 9). Fristen må være minst 14 dager fram.',
     send: 'Send inkassovarsel',
   },
   debt: {
@@ -733,7 +738,7 @@ export function CollectionDialog({ visible, kind, invoice, settings, colors, bus
   const letter = kind === 'reminder' || kind === 'notice';
   const feeValue = Math.round(Number(String(fee).replace(',', '.')) || 0);
   const feeError = letter && feeValue > 0 && !st.feeAllowed ? st.feeNote : (feeValue > REMINDER_FEE_CAP ? `Høyst ${REMINDER_FEE_CAP} kr.` : '');
-  const tooSoon = letter && (!deadline || deadline < st.defaultDeadline);
+  const tooSoon = letter && (!deadline || deadline < st.minDeadline);
   const input = { to: to.split(/[,;\s]+/).filter(Boolean), fee: letter ? feeValue : 0, deadline: letter ? deadline : '', includeFees };
   const blocked = !!feeError || tooSoon;
   const currency = invoice?.currency;
@@ -764,11 +769,19 @@ export function CollectionDialog({ visible, kind, invoice, settings, colors, bus
         {`Faktura ${invoice?.invoiceNumber || ''} · forfall ${formatDate(st.due)} · utestående ${money(st.outstanding, currency)}`}
       </Text>
       {kind === 'debt' && st.debtHint ? <Banner tone="warn" colors={colors}>{st.debtHint}</Banner> : null}
+      {kind === 'friendly' ? (
+        <>
+          <Field label="Til (kundens e-post)" value={to} onChangeText={setTo} colors={colors} keyboardType="email-address" nativeID="invoice-collection-to" />
+          {onPreview ? (
+            <Button label="Se PDF-en" icon="document-outline" tone="ghost" small colors={colors} onPress={() => onPreview(input)} nativeID="invoice-collection-preview" />
+          ) : null}
+        </>
+      ) : null}
       {letter ? (
         <>
           <Field label="Til (kundens e-post)" value={to} onChangeText={setTo} colors={colors} keyboardType="email-address" nativeID="invoice-collection-to" />
           <DateRow label="Ny betalingsfrist" value={deadline} onChange={setDeadline} colors={colors} />
-          {tooSoon ? <Text style={[type.caption, { color: colors.danger }]}>{`Fristen må være minst 14 dager fram, tidligst ${formatDate(st.defaultDeadline)}.`}</Text> : null}
+          {tooSoon ? <Text style={[type.caption, { color: colors.danger }]}>{`Fristen må være minst 14 dager fram, tidligst ${formatDate(st.minDeadline)}.`}</Text> : null}
           <Field label="Gebyr (kr)" value={fee} onChangeText={setFee} colors={colors} keyboardType="number-pad" nativeID="invoice-collection-fee" />
           <Text style={[type.caption, { color: feeError ? colors.danger : colors.muted }]}>{feeError || st.feeNote}</Text>
           {onPreview ? (

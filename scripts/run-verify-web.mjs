@@ -65,6 +65,7 @@ export const FILES = [
   'functions/anbudForm.smoke.test.mjs',
   'functions/slimDeploy.test.mjs',
   'functions/powerOffice.test.mjs',
+  'functions/collectionAuto.test.mjs',
   'scripts/functions-deploy-needed.test.mjs',
   'scripts/run-verify-web.test.mjs',
   'src/imports/filePayload.test.mjs',

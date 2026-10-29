@@ -135,6 +135,17 @@ function publicStatus(status, ready) {
     brandingTheme: String(status.brandingTheme || ''),
     lastSyncAt: status.lastSyncAt || '',
     lastSyncCounts: status.lastSyncCounts || null,
+    lastAutoSyncError: String(status.lastAutoSyncError || ''),
+    // Siste automatiske purring og inkasso (collectionAuto.js).
+    lastCollectionRun: status.lastCollectionRun && typeof status.lastCollectionRun === 'object'
+      ? {
+        at: String(status.lastCollectionRun.at || ''),
+        ok: status.lastCollectionRun.ok !== false,
+        sent: Number(status.lastCollectionRun.sent) || 0,
+        blocked: Number(status.lastCollectionRun.blocked) || 0,
+        reason: String(status.lastCollectionRun.reason || ''),
+      }
+      : null,
     keysReady: ready,
   };
 }

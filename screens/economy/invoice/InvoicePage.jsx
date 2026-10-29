@@ -480,6 +480,7 @@ export default function InvoicePage({
       editable={editable}
       onAction={onAction}
       onCollection={(kind) => { setError(''); setCollectionKind(kind); setDialog('collection'); }}
+      onCollectionHold={(hold) => run('hold', () => actions.holdCollection(ctx, invoice, hold), { close: false })}
       onAddNote={(text) => run('note', () => actions.addNoteAction(ctx, invoice, text), { close: false })}
       onRemoveNote={(id) => run('note', async () => ({ invoice: await store.saveInvoice(familyId, removeNote(invoice, id)), message: 'Notatet er slettet.' }), { close: false })}
       onAddEvent={(text) => run('event', () => actions.addEventAction(ctx, invoice, text), { close: false })}

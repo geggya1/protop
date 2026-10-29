@@ -769,7 +769,7 @@ export function buildCollectionLetterPdf(invoice, letter, { supplier = {}, logo 
 }
 
 export function collectionLetterName(invoice, kind) {
-  const name = { reminder: 'Purring', notice: 'Inkassovarsel', debt: 'Kravsoppstilling' }[kind] || 'Brev';
+  const name = { friendly: 'Paminnelse', reminder: 'Purring', notice: 'Inkassovarsel', debt: 'Kravsoppstilling' }[kind] || 'Brev';
   return `${name}-faktura-${text(invoice?.invoiceNumber) || 'utkast'}.pdf`;
 }
 

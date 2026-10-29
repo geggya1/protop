@@ -265,6 +265,11 @@ export function customerPostFromProTop(customer, { ref, invoice = null } = {}) {
     InvoiceEmailAddress: invoiceEmail || null,
     PhoneNumber: text(row.phone) || null,
     ...customerDelivery({ email: invoiceEmail, orgnr, isPerson }),
+    // Purring og inkasso styres fra ProTop (collection.js). Go skal ikke purre eller sende
+    // til inkasso i tillegg, så kunden ikke får to løp.
+    SendPaymentReminders: false,
+    DoNotAutomatePaymentNotifications: true,
+    TransferToDebtCollectionAgency: false,
   };
   if (isPerson) {
     const parts = name.split(' ');
@@ -358,7 +363,7 @@ export function invoicePatchFromOutgoing(invoice, outgoing, { at }) {
       state: paid ? 'paid' : 'sent',
       outgoingInvoiceId: text(outgoing?.Id),
       invoiceNo: num(outgoing?.InvoiceNo),
-      cid: text(outgoing?.Cid),
+      cid: text(outgoing?.Cid) || text(previous.cid),
       deliveryType: text(outgoing?.InvoiceDeliveryType),
       sentDateTime: text(outgoing?.SentDateTimeOffset),
       balance,

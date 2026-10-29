@@ -6,17 +6,15 @@ import { Linking, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View 
 import { Ionicons } from '@expo/vector-icons';
 import { formatDate } from '../../../src/economy/invoices.js';
 import { type } from '../../../src/ui/tokens';
-import { REMINDER_FEE_MAX } from '../../../src/economy/companyInvoiceDefaults.js';
+import { COLLECTION_KINDS, collectionStatus } from '../../../src/economy/collection.js';
 import { invoicePdfName } from '../../../src/economy/invoicePdf.js';
 import { hasPowerOfficeEhf, sentFromPowerOffice } from '../../../src/economy/powerOfficeView.js';
 import {
-  COLLECTION_FLAGS,
   deliveryChannelLabel,
   displayStatus,
   isCreditNote,
-  reminderFrom,
 } from '../../../src/economy/invoiceFlow.js';
-import { Banner, Button, Check, Chip, LinkText, money } from '../billing/ui';
+import { Button, Check, Chip, LinkText, money } from '../billing/ui';
 
 const STATUS_TONES = {
   draft: 'muted',
@@ -101,13 +99,103 @@ function InlineAdd({ placeholder, onSave, colors, nativeID, multiline = true }) 
   );
 }
 
-function overdueText(invoice, settings) {
-  const from = reminderFrom(invoice, settings);
-  const fee = Number(settings.reminderFee) || 0;
-  const today = new Date().toISOString().slice(0, 10);
-  const when = !from ? '' : from <= today ? ' Purring kan sendes nå' : ` Purring kan sendes fra ${formatDate(from)}`;
-  const feeText = fee > 0 ? ` med purregebyr ${money(Math.min(fee, REMINDER_FEE_MAX))}.` : '.';
-  return `Forfall var ${formatDate(invoice.dueDate)}.${when ? `${when}${feeText}` : ''} Marker «Purring sendt» når den er sendt.`;
+function stepLine(step) {
+  const kind = COLLECTION_KINDS[step.kind]?.label || step.kind;
+  const day = step.at ? formatDate(String(step.at).slice(0, 10)) : '';
+  if (step.legacy) return `${kind}${day ? ` (markert ${day})` : ''}`;
+  return [
+    `${kind} ${day}`.trim(),
+    Number(step.fee) > 0 ? `gebyr ${money(step.fee)}` : '',
+    step.deadline ? `frist ${formatDate(step.deadline)}` : '',
+    step.amount ? money(step.amount) : '',
+    step.to ? `til ${step.to}` : (step.channel === 'manual' ? 'sendt selv' : ''),
+    step.auto ? 'automatisk' : (step.byName ? `av ${step.byName}` : ''),
+  ].filter(Boolean).join(' · ');
+}
+
+const STEP_ICONS = { done: 'checkmark-circle', next: 'arrow-forward-circle', waiting: 'time-outline', locked: 'lock-closed-outline', skipped: 'remove-circle-outline', off: 'remove-circle-outline' };
+
+function planLine(row, st, autoEligible) {
+  const label = COLLECTION_KINDS[row.kind].label;
+  if (row.state === 'done') return stepLine(row.done);
+  if (row.state === 'skipped') return `${label}: hoppet over`;
+  if (row.state === 'off') return `${label}: slått av i Fakturainnstillinger`;
+  if (row.state === 'locked') return `${label}: etter ${row.kind === 'debt' ? 'inkassovarselet' : (row.kind === 'notice' ? 'purringen' : 'forrige steg')}`;
+  let auto = '';
+  if (autoEligible && st.settings.auto[row.kind] && row.auto) {
+    auto = row.auto <= st.today ? ' · sendes automatisk ved neste kjøring' : ` · sendes automatisk ${formatDate(row.auto)}`;
+  }
+  if (row.state === 'next') return `${label}: kan sendes nå${auto}`;
+  return `${label}: kan sendes fra ${formatDate(row.availableFrom)}${auto}`;
+}
+
+/**
+ * Purring og inkasso som steg i lovens rekkefølge: påminnelse (valgfri), purring,
+ * inkassovarsel (purring 2) og inkasso. Bare neste steg kan tas, når fristen i forrige er ute.
+ * ProTop styrer dette, også for fakturaer sendt fra PowerOffice. Betaling kommer fra synken.
+ */
+function CollectionCard({ invoice, settings, colors, canManage, busy, onCollection, onHold, onOpenInvoice }) {
+  const st = collectionStatus(invoice, { settings });
+  if (!st.steps.length && !st.open && !st.canInterest) return null;
+  const next = st.next;
+  // Automatisk utsending bare når betalingen hentes fra PowerOffice, og aldri fra testklienten.
+  const autoEligible = sentFromPowerOffice(invoice) && invoice.poweroffice?.env !== 'demo';
+  return (
+    <Card title="Purring og inkasso" colors={colors} nativeID="invoice-collection">
+      {st.open ? (
+        <Text style={[type.label, { color: colors.dangerInk || colors.danger || colors.ink }]}>
+          {`Forfalt ${formatDate(st.due)}, ${st.daysOverdue} ${st.daysOverdue === 1 ? 'dag' : 'dager'} siden. Utestående ${money(st.outstanding, invoice.currency)}.`}
+        </Text>
+      ) : null}
+      {st.hold ? (
+        <Text style={[type.label, { color: colors.ink }]}>Satt på vent. Ingenting sendes, heller ikke automatisk.</Text>
+      ) : null}
+      {st.plan.map((row) => (
+        <View key={row.kind} style={styles.flagRow} nativeID={`invoice-collection-step-${row.kind}`}>
+          <Ionicons name={STEP_ICONS[row.state] || 'ellipse-outline'} size={14} color={row.state === 'next' ? colors.brand : colors.muted} />
+          <Text style={[type.caption, { color: row.state === 'locked' || row.state === 'off' || row.state === 'skipped' ? colors.muted : colors.ink, flex: 1 }]}>
+            {planLine(row, st, autoEligible)}
+          </Text>
+        </View>
+      ))}
+      {st.interestInvoices.map((step) => (
+        <View key={step.id} style={styles.flagRow}>
+          <Ionicons name="document-text-outline" size={14} color={colors.muted} />
+          {step.invoiceId && onOpenInvoice ? (
+            <LinkText label={stepLine(step)} colors={colors} onPress={() => onOpenInvoice(step.invoiceId)} />
+          ) : (
+            <Text style={[type.caption, { color: colors.ink, flex: 1 }]}>{stepLine(step)}</Text>
+          )}
+        </View>
+      ))}
+      {st.interest.amount > 0 ? (
+        <Text style={[type.caption, { color: colors.muted }]}>
+          {`Forsinkelsesrente ${st.paid ? 'for sen betaling' : 'til i dag'}: ${money(st.interest.amount, invoice.currency)} (${st.interest.days} dager).`}
+        </Text>
+      ) : null}
+      {canManage && onCollection ? (
+        <View style={styles.actionRow}>
+          {next ? (
+            <Button
+              label={`Send ${COLLECTION_KINDS[next.kind].label.toLowerCase().replace(' (purring 2)', '')}`}
+              icon="mail-outline"
+              small
+              colors={colors}
+              disabled={!!busy || !next.ready}
+              onPress={() => onCollection(next.kind)}
+              nativeID="invoice-collection-next"
+            />
+          ) : null}
+          {st.canInterest ? (
+            <Button label="Lag rentefaktura" icon="calculator-outline" small tone="ghost" colors={colors} disabled={!!busy} onPress={() => onCollection('interest')} nativeID="invoice-collection-interest" />
+          ) : null}
+          {(st.open || st.hold) && onHold ? (
+            <LinkText label={st.hold ? 'Fortsett oppfølgingen' : 'Sett på vent'} icon={st.hold ? 'play-outline' : 'pause-outline'} colors={colors} onPress={() => !busy && onHold(!st.hold)} nativeID="invoice-collection-hold" />
+          ) : null}
+        </View>
+      ) : null}
+    </Card>
+  );
 }
 
 export default function InvoiceSidebar({
@@ -123,7 +211,8 @@ export default function InvoiceSidebar({
   canUpload = false,
   editable,
   onAction,
-  onFlag,
+  onCollection,
+  onCollectionHold,
   onAddNote,
   onRemoveNote,
   onAddEvent,
@@ -279,24 +368,20 @@ export default function InvoiceSidebar({
             </View>
           ) : null}
         </View>
-        {issued && !credit ? (
-          <View style={{ gap: 6, marginTop: 8 }}>
-            {COLLECTION_FLAGS.map((row) => (
-              <View key={row.id} style={styles.flagRow}>
-                <Text style={{ color: colors.ink, flex: 1, fontSize: 13 }}>{row.label}</Text>
-                <Check
-                  checked={!!invoice.collection?.[row.id]}
-                  onPress={() => onFlag(row.id, !invoice.collection?.[row.id])}
-                  colors={colors}
-                  disabled={!canManage || !!busy}
-                  label={row.label}
-                  nativeID={`invoice-flag-${row.id}`}
-                />
-              </View>
-            ))}
-          </View>
-        ) : null}
       </Card>
+
+      {issued && !credit ? (
+        <CollectionCard
+          invoice={invoice}
+          settings={settings}
+          colors={colors}
+          canManage={canManage}
+          busy={busy}
+          onCollection={onCollection}
+          onHold={onCollectionHold}
+          onOpenInvoice={onOpenCredit}
+        />
+      ) : null}
 
       {draft ? (
         <View style={[styles.draftBanner, { backgroundColor: '#e9d5ff', borderColor: '#c4b5fd' }]} nativeID="invoice-draft-banner">
@@ -400,18 +485,18 @@ export default function InvoiceSidebar({
       <Card title="Last ned" colors={colors} nativeID="invoice-downloads">
         {poSent ? (
           <>
-            {/* Fakturaen kunden fikk ligger i PowerOffice. ProTop sin PDF er spesifikasjonen som fulgte med. */}
-            <LinkText label={`${invoicePdfName(invoice)} fra PowerOffice`} icon="document-outline" onPress={() => onDownload('po-pdf')} colors={colors} nativeID="invoice-download-pdf" />
+            {/* ProTop sin faktura med nummer og KID fra PowerOffice, og originalen kunden fikk derfra. */}
+            <LinkText label={invoicePdfName(invoice)} icon="document-outline" onPress={() => onDownload('pdf')} colors={colors} nativeID="invoice-download-pdf" />
+            <LinkText label="Original fra PowerOffice (PDF)" icon="document-text-outline" onPress={() => onDownload('po-pdf')} colors={colors} nativeID="invoice-download-po-pdf" />
             {hasPowerOfficeEhf(invoice) ? (
               <LinkText label="EHF fra PowerOffice" icon="code-outline" onPress={() => onDownload('po-ehf')} colors={colors} nativeID="invoice-download-ehf" />
             ) : null}
-            <LinkText label="Fakturaspesifikasjon (vedlegget)" icon="document-outline" onPress={() => onDownload('spec')} colors={colors} />
             {(invoice.timeEntryIds || []).length ? (
-              <LinkText label="Timespesifikasjoner" icon="document-outline" onPress={() => onDownload('timespec')} colors={colors} nativeID="invoice-download-timespec" />
+              <>
+                <LinkText label="Timespesifikasjoner" icon="document-outline" onPress={() => onDownload('timespec')} colors={colors} nativeID="invoice-download-timespec" />
+                <LinkText label="Faktura med timespesifikasjoner" icon="document-outline" onPress={() => onDownload('combined')} colors={colors} />
+              </>
             ) : null}
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Fakturaen med kontonummer og KID hentes fra PowerOffice. Den gikk til kunden sammen med spesifikasjonen.
-            </Text>
           </>
         ) : (
           <>
@@ -480,11 +565,6 @@ export default function InvoiceSidebar({
             </View>
           ))}
         </Card>
-      ) : null}
-      {status.id === 'overdue' ? (
-        <Banner tone="block" colors={colors} title="Forfalt">
-          {overdueText(invoice, settings)}
-        </Banner>
       ) : null}
     </View>
   );

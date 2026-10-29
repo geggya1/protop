@@ -67,11 +67,11 @@ export async function assertFamilyAdult(db, uid, familyId) {
     return { role: 'admin' };
   }
   const parent = await db.doc(`families/${familyId}/parents/${uid}`).get();
-  if (parent.exists() && parent.data()?.active !== false) {
+  if (parent.exists && parent.data()?.active !== false) {
     return { role: parent.data()?.admin ? 'admin' : 'parent' };
   }
   const top = await db.doc(`parents/${uid}`).get();
-  if (top.exists() && top.data()?.familyId === familyId) {
+  if (top.exists && top.data()?.familyId === familyId) {
     return { role: top.data()?.admin ? 'admin' : 'parent' };
   }
   throw new Error('Kun foresatte kan bruke denne funksjonen.');

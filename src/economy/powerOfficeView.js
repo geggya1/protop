@@ -204,3 +204,16 @@ export function powerOfficeSummary(invoice) {
     ].filter(Boolean),
   };
 }
+
+/** Linje om siste automatiske purring og inkasso, eller '' når den ikke har kjørt. */
+export function collectionRunText(run) {
+  if (!run?.at) return '';
+  let time = String(run.at).slice(11, 16);
+  try {
+    time = new Intl.DateTimeFormat('nb-NO', { timeZone: 'Europe/Oslo', hour: '2-digit', minute: '2-digit' }).format(new Date(run.at));
+  } catch { /* klokkeslettet i UTC */ }
+  const when = `${formatDate(run.at)} kl. ${time}`;
+  if (!run.ok) return `Automatisk purring ${when} ble hoppet over: ${run.reason || 'ukjent feil'}. Ingenting ble sendt.`;
+  const parts = [run.sent ? `${run.sent} sendt` : 'ingenting å sende', run.blocked ? `${run.blocked} kunne ikke sendes` : ''].filter(Boolean);
+  return `Automatisk purring ${when}: ${parts.join(', ')}.`;
+}

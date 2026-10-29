@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { loadPowerOfficeStatus, syncPowerOfficeInvoices } from '../../src/economy/powerOfficeClient.js';
-import { envTag, syncCountsText, syncLabel } from '../../src/economy/powerOfficeView.js';
+import { collectionRunText, envTag, syncCountsText, syncLabel } from '../../src/economy/powerOfficeView.js';
 
 /** Synk automatisk når fakturalisten åpnes, men ikke oftere enn dette. */
 const AUTO_SYNC_MS = 5 * 60 * 1000;
@@ -58,6 +58,11 @@ export default function PowerOfficeSyncLine({ familyId, colors, status, onStatus
       </TouchableOpacity>
       {message ? (
         <Text style={{ color: failed ? (colors.danger || '#b42318') : colors.muted }}>{message}</Text>
+      ) : null}
+      {collectionRunText(status.lastCollectionRun) ? (
+        <Text nativeID="poweroffice-collection-run" style={{ color: status.lastCollectionRun.ok ? colors.muted : (colors.danger || '#b42318'), flexBasis: '100%' }}>
+          {collectionRunText(status.lastCollectionRun)}
+        </Text>
       ) : null}
     </View>
   );

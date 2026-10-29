@@ -65,6 +65,7 @@ export const FILES = [
   'functions/anbudForm.smoke.test.mjs',
   'functions/slimDeploy.test.mjs',
   'functions/powerOffice.test.mjs',
+  'functions/collectionAuto.test.mjs',
   'scripts/functions-deploy-needed.test.mjs',
   'scripts/run-verify-web.test.mjs',
   'src/imports/filePayload.test.mjs',
@@ -323,6 +324,8 @@ export const FILES = [
   'src/economy/expenseRegistry.test.mjs',
   // Utlegg: prosjekt og internt på én side (UX-17).
   'src/economy/expenseScope.test.mjs',
+  'src/economy/expenseForm.test.mjs',
+  'src/economy/collection.test.mjs',
   // Aktiverte moduler: bedriften eller bare meg (MENY-01).
   'src/utils/modulePrefs.test.mjs',
   // Brukernavn tas på serveren, ett per konto (SEC-19).

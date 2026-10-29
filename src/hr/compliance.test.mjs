@@ -18,8 +18,9 @@ import {
   syncComplianceFromEvidence,
 } from './compliance.js';
 
-// Bare det HR eier: arbeidsmiljøloven (med HMS-kort) og personvern. Kompetanse og opplæring ligger i ISO.
-assert.equal(COMPLIANCE_CATALOG.length, 7);
+// Bare det HR eier: arbeidsmiljøloven (med HMS-kort) og personvern. Kompetanse og opplæring ligger i ISO,
+// medarbeidersamtalen under Oppfølging.
+assert.equal(COMPLIANCE_CATALOG.length, 6);
 assert.equal(COMPLIANCE_CATALOG.find((row) => row.id === 'hms_card').derived, 'hmsCard');
 assert.ok(COMPLIANCE_CATALOG.every((row) => ['aml', 'gdpr'].includes(row.source)));
 assert.ok(!COMPLIANCE_CATALOG.some((row) => MOVED_TO_ISO.some((moved) => moved.id === row.id)));
@@ -131,7 +132,13 @@ const FULL_CONTRACT = withAmlStandardTexts({
   assert.equal(byId.aml_written_contract.status, 'ok');
   assert.equal(byId.aml_contract_minimum.status, 'ok');
   assert.equal(byId.aml_probation_documented.status, 'ok');
-  assert.equal(byId.aml_followup_dialogue.status, 'ok');
+  // Medarbeidersamtalen følges opp under Oppfølging, ikke i Lovpålagt.
+  assert.equal(byId.aml_followup_dialogue, undefined);
+  assert.equal(COMPLIANCE_CATALOG.some((item) => item.id === 'aml_followup_dialogue'), false);
+  const legacy = [{ catalogId: 'aml_followup_dialogue', employeeId: 'e1', status: 'missing' }];
+  const kept = syncComplianceFromEvidence(legacy, { employeeId: 'e1', contracts: [contract] });
+  assert.equal(kept.filter((row) => row.catalogId === 'aml_followup_dialogue').length, 1, 'lagret rad blir stående');
+  assert.equal(complianceSummary(ensureEmployeeCompliance(kept, 'e1')).missing, 2, 'men teller ikke');
 }
 
 {

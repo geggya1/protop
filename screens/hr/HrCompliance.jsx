@@ -49,11 +49,10 @@ export default function HrCompliance({
     const sourced = syncComplianceFromEvidence(hr.compliance || [], {
       employeeId: activeId,
       contracts: hr.contracts || [],
-      reviews: hr.reviews || [],
       hmsCards: hr.hmsCards || [],
     });
     return ensureEmployeeCompliance(sourced, activeId);
-  }, [hr.compliance, hr.contracts, hr.reviews, hr.hmsCards, activeId]);
+  }, [hr.compliance, hr.contracts, hr.hmsCards, activeId]);
   const visible = sourceFilter === 'all'
     ? rows
     : rows.filter((row) => row.source === sourceFilter);
@@ -118,12 +117,11 @@ export default function HrCompliance({
       const compliance = syncComplianceFromEvidence(state.compliance || [], {
         employeeId: activeId,
         contracts: state.contracts || [],
-        reviews: state.reviews || [],
         hmsCards: state.hmsCards || [],
       });
       return { compliance };
     });
-    showSaveToast?.('Compliance synket fra avtaler og samtaler');
+    showSaveToast?.('Lovpålagt er hentet fra avtalen');
   }
 
   function saveHmsCard(draft) {
@@ -133,7 +131,6 @@ export default function HrCompliance({
       const compliance = syncComplianceFromEvidence(state.compliance || [], {
         employeeId: activeId,
         contracts: state.contracts || [],
-        reviews: state.reviews || [],
         hmsCards,
       });
       return { hmsCards, compliance };
@@ -152,7 +149,7 @@ export default function HrCompliance({
           <HrSectionTitle
             colors={colors}
             title="Lovpålagt"
-            subtitle="Arbeidsavtale, oppfølging, verneutstyr, HMS-kort og personvern for denne personen"
+            subtitle="Arbeidsavtale, verneutstyr, HMS-kort og personvern for denne personen. Medarbeidersamtaler ligger under Oppfølging."
           />
           <Text style={[styles.summary, { color: colors.ink }]}>
             {`OK: ${summary.ok}/${summary.total} (${summary.pct} %) · Mangler: ${summary.missing}`}
@@ -173,7 +170,7 @@ export default function HrCompliance({
           {canWrite ? (
             <HrButton
               colors={colors}
-              label="Synk fra avtale + samtale"
+              label="Hent fra avtalen"
               icon="sync-outline"
               onPress={syncFromEvidence}
             />

@@ -212,6 +212,12 @@ export default function HrScreen({ subView = 'oversikt' }) {
     }
   }, [ready, familyId, canSee, page, selectedEmployeeId, employeeSheet]);
 
+  // Ny ansatt eller ny fane starter øverst, ikke midt i den forrige listen.
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    scrollRef.current?.scrollTo?.({ y: 0, animated: false });
+  }, [page, selectedEmployeeId, employeeSheet]);
+
   const go = useCallback((id, intent = null) => {
     if (id === 'produktivitet') {
       requestShellTab?.('arbeid', 'produktivitet');
@@ -320,6 +326,10 @@ export default function HrScreen({ subView = 'oversikt' }) {
           isoCompetence={isoCompetence}
           onOpenIso={canSeeIso ? openIsoCompetence : null}
           listPreset={peopleFilter}
+          onBackToSalary={() => {
+            setSelectedEmployeeId('');
+            go('lonn');
+          }}
         />
       );
     }
@@ -427,6 +437,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={[styles.scroll, { backgroundColor: colors.bg }]}
       contentContainerStyle={styles.content}
       nativeID="hr-screen"

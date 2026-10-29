@@ -13,7 +13,7 @@ import { normalizeCompanyPage } from '../../src/project/companyPage';
 import CompanyPublicProfile from '../../components/project/CompanyPublicProfile';
 
 /**
- * Offentlig bedriftsprofil. Registerdetaljer ligger under Om oss.
+ * Offentlig bedriftsprofil. Registerdetaljer og regnskap ligger under Offentlig selskapsdata.
  * Innstillinger åpnes fra Rediger side og fra menyen.
  */
 export default function CompanyDesktopLanding({
@@ -21,7 +21,7 @@ export default function CompanyDesktopLanding({
   onSettings,
   onUnits,
   onEmployees,
-  onProjects,
+  onOpenIso,
   initialTab = '',
 }) {
   const colors = useColors();
@@ -90,7 +90,7 @@ export default function CompanyDesktopLanding({
         onSettings={onSettings}
         onUnits={onUnits}
         onEmployees={onEmployees}
-        onProjects={onProjects}
+        onOpenIso={onOpenIso}
         onSavePage={savePage}
         initialTab={initialTab}
       />

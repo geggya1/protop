@@ -60,7 +60,7 @@ export default function CompanyLanding({ subView = '' } = {}) {
           onSettings={canOpenSettings ? () => requestShellTab?.('selskap', 'innstillinger') : null}
           onUnits={() => requestShellTab?.('selskap', 'underenheter')}
           onEmployees={() => requestShellTab?.('ansatte')}
-          onProjects={() => requestShellTab?.('projects')}
+          onOpenIso={() => requestShellTab?.('iso')}
         />
       </View>
     </ScrollView>

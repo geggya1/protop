@@ -93,7 +93,13 @@ function wasEdited(post) {
   return created > 0 && updated > created + 2000;
 }
 
-export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
+/**
+ * categories: bare innlegg i disse kategoriene (f.eks. Bærekraft-fanen).
+ * header og hideWhenEmpty: kortvisningen kan ha egen overskrift og forsvinne når den er tom.
+ */
+export default function CompanyNewsWall({
+  variant = 'feed', onOpenPost, categories = null, header = null, hideWhenEmpty = false,
+}) {
   const colors = useColors();
   const { isDesktop } = useLayout();
   const { familyId, family, uid, members } = useApp();
@@ -246,7 +252,8 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
   }, [familyId, busy, crop]);
 
   const canSubmit = !!(title.trim() || body.trim() || pendingImageUrl || pendingLinkUrl.trim()) && !busy && !crop.busy;
-  const cards = variant === 'cards' ? posts.slice(0, 3) : posts;
+  const shown = categories ? posts.filter((post) => categories.includes(post.category || 'selskap')) : posts;
+  const cards = variant === 'cards' ? shown.slice(0, 3) : shown;
 
   const composer = (
     <Modal
@@ -349,8 +356,10 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
 
   if (variant === 'cards') {
     if (!cards.length) {
+      if (hideWhenEmpty) return null;
       return (
         <View nativeID="company-news-cards" id="company-news-cards">
+          {header}
           <Text style={[styles.emptySub, { color: colors.muted }]}>
             {canPublish
               ? 'Ingen nyheter ennå. Publiser den første under fanen Nyheter.'
@@ -360,34 +369,37 @@ export default function CompanyNewsWall({ variant = 'feed', onOpenPost }) {
       );
     }
     return (
-      <View nativeID="company-news-cards" id="company-news-cards" style={styles.cardGrid}>
-        {cards.map((post) => {
-          const card = presentNewsPost(post);
-          return (
-            <TouchableOpacity
-              key={post.id}
-              onPress={() => onOpenPost?.(post)}
-              accessibilityRole="button"
-              style={[styles.newsCard, { backgroundColor: colors.card, borderColor: colors.line }]}
-            >
-              {card.imageUrl ? (
-                <Image source={{ uri: card.imageUrl }} style={styles.newsImage} />
-              ) : null}
-              <View style={styles.newsBody}>
-                <Text style={[styles.newsKicker, { color: CATEGORY_COLOR[card.category] || colors.brand }]}>
-                  {categoryLabel(card.category).toUpperCase()}
-                  {postDate(post.createdAt) ? `   ${postDate(post.createdAt)}` : ''}
-                </Text>
-                <Text style={[styles.newsTitle, { color: colors.ink }]} numberOfLines={2}>{card.title}</Text>
-                {card.excerpt ? (
-                  <Text style={[styles.newsExcerpt, { color: colors.muted }]} numberOfLines={3}>{card.excerpt}</Text>
+      <>
+        {header}
+        <View nativeID="company-news-cards" id="company-news-cards" style={styles.cardGrid}>
+          {cards.map((post) => {
+            const card = presentNewsPost(post);
+            return (
+              <TouchableOpacity
+                key={post.id}
+                onPress={() => onOpenPost?.(post)}
+                accessibilityRole="button"
+                style={[styles.newsCard, { backgroundColor: colors.card, borderColor: colors.line }]}
+              >
+                {card.imageUrl ? (
+                  <Image source={{ uri: card.imageUrl }} style={styles.newsImage} />
                 ) : null}
-                <Text style={[styles.more, { color: colors.brand }]}>Les mer →</Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+                <View style={styles.newsBody}>
+                  <Text style={[styles.newsKicker, { color: CATEGORY_COLOR[card.category] || colors.brand }]}>
+                    {categoryLabel(card.category).toUpperCase()}
+                    {postDate(post.createdAt) ? `   ${postDate(post.createdAt)}` : ''}
+                  </Text>
+                  <Text style={[styles.newsTitle, { color: colors.ink }]} numberOfLines={2}>{card.title}</Text>
+                  {card.excerpt ? (
+                    <Text style={[styles.newsExcerpt, { color: colors.muted }]} numberOfLines={3}>{card.excerpt}</Text>
+                  ) : null}
+                  <Text style={[styles.more, { color: colors.brand }]}>Les mer →</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </>
     );
   }
 

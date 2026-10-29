@@ -52,7 +52,6 @@ import {
   sortExpenses,
 } from '../../src/economy/expenseList.js';
 import { expenseRegistryPatch } from '../../src/economy/expenseRegistry.js';
-import { VAT_TREATMENTS, suggestVatTreatment } from '../../src/economy/vatTreatment.js';
 import {
   expenseDraftProblem,
   expenseRowActions,
@@ -178,13 +177,6 @@ function ExpenseSheet({
   const receipts = (Array.isArray(draft.attachments) && draft.attachments.length)
     ? draft.attachments.filter((file) => file?.url)
     : (/^https?:/.test(String(draft.receiptUri || '')) ? [{ url: draft.receiptUri, name: draft.receiptName || 'Kvittering', type: '' }] : []);
-  // Eldre utlegg uten avgiftskode: forslag ut fra sats og type, som i registreringen.
-  const treatmentGuess = suggestVatTreatment({
-    vatCode: draft.vatCode || '',
-    category: draft.category || '',
-    foreign: !!draft.originalCurrency && draft.originalCurrency !== 'NOK',
-  });
-  const treatmentHint = treatmentGuess.reason ? `Forslag: ${treatmentGuess.reason}` : '';
   const original = Number(draft.originalAmount) > 0 && draft.originalCurrency
     ? ` · ${String(draft.originalAmount).replace('.', ',')} ${draft.originalCurrency} på kvitteringen`
     : '';
@@ -221,7 +213,7 @@ function ExpenseSheet({
     <Sheet visible title={isNew ? 'Nytt utlegg' : (editable ? 'Endre utlegg' : 'Utlegg')} onClose={onClose} footer={footer} wide>
       {!isNew ? (
         <Text style={[styles.sheetMeta, { color: colors.muted }]}>
-          {`Status: ${expenseStatusLabel(draft.status)}${draft.vendor ? ` · ${draft.vendor}` : ''}${draft.vendorOrgNr ? ` (${draft.vendorOrgNr})` : ''}${draft.receiptNumber ? ` · kvittering ${draft.receiptNumber}` : ''}${original}${draft.cardLast4 ? ` · kort ****${draft.cardLast4}` : ''}${can.trip ? ' · Kjøring: endres i Kjørebok' : ''}`}
+          {`Status: ${expenseStatusLabel(draft.status)}${draft.vendor ? ` · ${draft.vendor}` : ''}${original}${draft.cardLast4 ? ` · kort ****${draft.cardLast4}` : ''}${can.trip ? ' · Kjøring: endres i Kjørebok' : ''}`}
         </Text>
       ) : null}
       {pendingDelete ? (
@@ -338,17 +330,6 @@ function ExpenseSheet({
           </Field>
         </View>
       </View>
-      <Field label="Avgiftskode" hint={draft.vatTreatment ? '' : treatmentHint}>
-        <OptionPicker
-          options={VAT_TREATMENTS.map((row) => ({ id: row.id, label: row.label }))}
-          value={draft.vatTreatment || treatmentGuess.id || ''}
-          onChange={(id) => set('vatTreatment')(id || '')}
-          title="Avgiftskode"
-          placeholder="Velg avgiftskode"
-          disabled={!editable && !can.approve}
-          accessibilityLabel="Avgiftskode"
-        />
-      </Field>
       <Field label="Faktureres som" hint={charge?.hint}>
         <OptionPicker
           options={EXPENSE_CHARGE_TYPES.map((row) => ({ id: row.id, label: row.label }))}

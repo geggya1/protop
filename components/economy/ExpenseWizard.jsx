@@ -31,7 +31,6 @@ import {
   EXPENSE_CATEGORIES,
   EXPENSE_PAID_BY,
   expenseCategory,
-  normalizeExpense,
 } from '../../src/economy/expenses.js';
 import {
   PAYMENT_METHODS,
@@ -40,8 +39,8 @@ import {
   findDuplicateExpense,
   frequentExpenseTypes,
 } from '../../src/economy/expenseReceipt.js';
-import { VAT_TREATMENTS, suggestVatTreatment } from '../../src/economy/vatTreatment.js';
-import { formatMoney, parseDate } from '../../src/economy/invoices.js';
+import { suggestVatTreatment } from '../../src/economy/vatTreatment.js';
+import { parseDate } from '../../src/economy/invoices.js';
 import { formatDate } from '../../src/economy/hoursList.js';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
 import { pickDocument, pickImage, pickImages, uploadFile } from '../../src/utils/media';
@@ -53,13 +52,6 @@ const STEPS = [
   { id: 'prosjekt', label: 'Prosjekt' },
   { id: 'kvittering', label: 'Kvittering' },
   { id: 'seover', label: 'Se over' },
-];
-
-const VAT_CHOICES = [
-  { id: 'HIGH', label: '25 %' },
-  { id: 'MID', label: '15 %' },
-  { id: 'LOW', label: '12 %' },
-  { id: 'EXEMPT', label: '0 %' },
 ];
 
 const MAX_FILES = 4;
@@ -315,7 +307,6 @@ export default function ExpenseWizard({
 
   const foreign = !!draft.currency && draft.currency !== 'NOK';
   const amount = toNumber(draft.amountText);
-  const preview = normalizeExpense({ amountInclVat: amount, vatCode: draft.vatCode || expenseCategory(draft.category || 'other').vatCode, category: draft.category || 'other' });
   const duplicate = findDuplicateExpense(existing, {
     employeeId: draft.employeeId || myEmployeeId,
     date: parseDate(draft.dateText) || draft.date,
@@ -328,7 +319,8 @@ export default function ExpenseWizard({
   const tried = ocr.status === 'done' || ocr.status === 'error';
   const isMissing = (key) => tried && !interpreted.includes(key) && !touched[key]
     && !(key === 'purpose' && String(draft.purpose || '').trim());
-  // Avgiftskoden foreslås ut fra sats, type og land, og følger endringene til den velges selv.
+  // Mva-sats, avgiftskode, org.nr., kvitteringsnr. og formål vises ikke. De tolkes og lagres for
+  // regnskapet. Avgiftskoden foreslås ut fra sats, type og land.
   const effectiveVat = foreign ? 'OUTSIDE' : (draft.vatCode || (draft.category ? expenseCategory(draft.category).vatCode : ''));
   const vatSuggestion = suggestVatTreatment({
     vatCode: effectiveVat,
@@ -525,7 +517,6 @@ export default function ExpenseWizard({
     if (!(amount > 0)) return foreign ? `Skriv beløpet i NOK fra kontoutskriften.` : 'Skriv beløpet.';
     if (!draft.category) return 'Velg utgiftstype.';
     if (!String(draft.description || '').trim()) return 'Skriv en kort beskrivelse.';
-    if (representation && !String(draft.purpose || '').trim()) return 'Representasjon: skriv hvem som deltok og formålet.';
     if (pending) return 'Vent til kvitteringen er lastet opp.';
     if (ocr.status === 'reading') return 'Vent til kvitteringen er lest.';
     return '';
@@ -822,49 +813,7 @@ export default function ExpenseWizard({
       ) : (
         <Input label="Beløp inkl. mva" value={draft.amountText} onChange={set('amountText')} colors={colors} tolket={isTolket('amountText')} missing={isMissing('amountText')} keyboardType="decimal-pad" placeholder="0,00" nativeID="expense-amount" required />
       )}
-      {!foreign ? (
-        <View style={styles.field}>
-          <FieldLabel label="Mva-sats" missing={isMissing('vatCode')} colors={colors} badge={isTolket('vatCode') ? <Tolket colors={colors} /> : null} />
-          <View style={[styles.row, isMissing('vatCode') && styles.missingRow]}>
-            {VAT_CHOICES.map((row) => (
-              <Chip key={row.id} label={row.label} on={(draft.vatCode || (draft.category ? expenseCategory(draft.category).vatCode : '')) === row.id} onPress={() => set('vatCode')(row.id)} colors={colors} />
-            ))}
-          </View>
-          {amount > 0 ? (
-            <Text style={[styles.hint, { color: colors.muted }]}>{`Herav mva ${formatMoney(preview.vatAmount)} · eks. mva ${formatMoney(preview.amountExVat)}`}</Text>
-          ) : null}
-        </View>
-      ) : null}
-      <View style={styles.field}>
-        <FieldLabel
-          label="Avgiftskode"
-          missing={tried && !treatmentId}
-          colors={colors}
-          badge={!touched.vatTreatment && vatSuggestion.id ? <Tolket colors={colors} label="Forslag" /> : null}
-        />
-        <View style={tried && !treatmentId ? styles.missingRow : null}>
-          <OptionPicker
-            options={VAT_TREATMENTS.map((row) => ({ id: row.id, label: row.label }))}
-            value={treatmentId}
-            onChange={(id) => set('vatTreatment')(id || '')}
-            title="Avgiftskode"
-            placeholder="Velg avgiftskode"
-            accessibilityLabel="Avgiftskode"
-          />
-        </View>
-        {!touched.vatTreatment && vatSuggestion.reason ? (
-          <Text style={[styles.hint, { color: colors.muted }]} nativeID="expense-vat-reason">{vatSuggestion.reason}</Text>
-        ) : null}
-      </View>
       <Input label="Butikk / leverandør" value={draft.vendor} onChange={set('vendor')} colors={colors} tolket={isTolket('vendor')} missing={isMissing('vendor')} nativeID="expense-vendor" />
-      <View style={styles.pair}>
-        <View style={styles.half}>
-          <Input label="Org.nr." value={draft.vendorOrgNr} onChange={(v) => set('vendorOrgNr')(String(v || '').replace(/\D/g, '').slice(0, 9))} colors={colors} tolket={isTolket('vendorOrgNr')} missing={isMissing('vendorOrgNr')} keyboardType="number-pad" nativeID="expense-orgnr" />
-        </View>
-        <View style={styles.half}>
-          <Input label="Kvitteringsnr." value={draft.receiptNumber} onChange={set('receiptNumber')} colors={colors} tolket={isTolket('receiptNumber')} missing={isMissing('receiptNumber')} nativeID="expense-receipt-number" />
-        </View>
-      </View>
       <View style={styles.field}>
         <FieldLabel
           label={`Betalt med${draft.cardLast4 ? ` (kort ****${draft.cardLast4})` : ''}`}
@@ -878,18 +827,16 @@ export default function ExpenseWizard({
           ))}
         </View>
       </View>
-      <Input label="Beskrivelse" value={draft.description} onChange={set('description')} colors={colors} tolket={isTolket('description')} missing={isMissing('description')} nativeID="expense-description" required />
       <Input
-        label={representation ? 'Deltakere og formål' : 'Formål'}
-        value={draft.purpose}
-        onChange={set('purpose')}
+        label="Beskrivelse"
+        value={draft.description}
+        onChange={set('description')}
         colors={colors}
-        tolket={isTolket('purpose')}
-        missing={isMissing('purpose') || (tried && representation && !touched.purpose)}
-        placeholder={representation ? 'Hvem deltok, firma og hvorfor' : ''}
-        nativeID="expense-purpose"
-        multiline
-        required={representation}
+        tolket={isTolket('description')}
+        missing={isMissing('description')}
+        placeholder={representation ? 'Hva, hvem som deltok og hvorfor' : ''}
+        nativeID="expense-description"
+        required
       />
       {draft.billingChoice === 'yes' ? (
         <Input label="Påslag %" value={String(draft.markupPercent ?? '')} onChange={set('markupPercent')} colors={colors} keyboardType="decimal-pad" placeholder="0" nativeID="expense-markup" />

@@ -167,10 +167,13 @@ async function main() {
   }
 
   const review = render({ initialStep: 'seover' });
-  for (const label of ['Dato \\*', 'Valuta', 'Utgiftstype \\*', 'Beløp inkl\\. mva \\*', 'Mva-sats', 'Avgiftskode', 'Butikk / leverandør', 'Org\\.nr\\.', 'Kvitteringsnr\\.', 'Betalt med', 'Kort', 'Vipps', 'Beskrivelse \\*', '^Formål$', '^Lagre$']) {
+  for (const label of ['Dato \\*', 'Valuta', 'Utgiftstype \\*', 'Beløp inkl\\. mva \\*', 'Butikk / leverandør', 'Betalt med', 'Kort', 'Vipps', 'Beskrivelse \\*', '^Lagre$']) {
     assert.match(review, new RegExp(label, 'm'), label);
   }
-  assert.match(review, /25 %/);
+  // Tolkes og lagres, men vises ikke: mva-sats, avgiftskode, org.nr., kvitteringsnr. og formål.
+  for (const label of ['Mva-sats', 'Avgiftskode', 'Org\\.nr\\.', 'Kvitteringsnr\\.', '^Formål$']) {
+    assert.doesNotMatch(review, new RegExp(label, 'm'), label);
+  }
   assert.match(review, /Ingenting lagres før du trykker Lagre/);
   console.log('expenseWizard ok');
 }

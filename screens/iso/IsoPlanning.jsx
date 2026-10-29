@@ -13,7 +13,7 @@ import {
 } from '../../src/iso/planning';
 import { personsLabel } from '../../src/iso/registers';
 import { SimpleRegister, Stat } from './IsoRegisters';
-import { postDate, useCompanyNews } from './useCompanyNews';
+import { postDate, postTitle, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, KV, ListRow, Page, Pill, Row } from './isoUi';
 
 const live = (rows) => (rows || []).filter((r) => r.state !== 'arkivert');
@@ -303,7 +303,7 @@ export function CommunicationPage({ ctx }) {
         right={<Btn small icon="create-outline" label="Skriv nyhet" onPress={openNews} />}
       >
         {news.length
-          ? news.map((p) => <ListRow key={p.id} icon="megaphone-outline" title={p.title || String(p.body || '').slice(0, 80)} subtitle={[postDate(p) ? prettyDate(postDate(p)) : '', p.authorName].filter(Boolean).join(' · ')} onPress={openNews} />)
+          ? news.map((p) => <ListRow key={p.id} icon="megaphone-outline" title={postTitle(p)} subtitle={[postDate(p) ? prettyDate(postDate(p)) : '', p.authorName].filter(Boolean).join(' · ')} onPress={openNews} />)
           : <Muted>Ingen nyheter ennå.</Muted>}
         {news.length ? <Row><Btn small icon="list-outline" label="Alle nyheter" onPress={openNews} /></Row> : null}
       </Card>

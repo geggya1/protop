@@ -250,6 +250,8 @@ function numericNumber(value) {
 export function nextInvoiceNumber(invoices = [], startNumber = 0) {
   let max = 0;
   for (const row of invoices || []) {
+    // Nummer fra PowerOffice sin testklient er ikke ekte og skal ikke flytte serien.
+    if (row?.poweroffice?.env === 'demo') continue;
     const n = numericNumber(row?.invoiceNumber);
     if (n != null && n > max) max = n;
   }

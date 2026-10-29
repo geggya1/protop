@@ -232,6 +232,9 @@ assert.equal(updateDraft(invoice, { invoiceText: 'x' }).ok, false, 'ferdigstilt 
 assert.equal(issueInvoice(invoice, { number: '16723' }).ok, false);
 assert.equal(displayStatus(invoice, '2026-10-01').id, 'issued');
 assert.equal(dueDateFor({ invoiceDate: '2026-09-30' }, { creditDays: 14 }), '2026-10-14');
+// Nummer fra PowerOffice sin testklient flytter ikke ProTop sin serie.
+assert.equal(nextInvoiceNumber([{ invoiceNumber: '16722' }, { invoiceNumber: '90001', poweroffice: { env: 'demo' } }]), '16723');
+assert.equal(nextInvoiceNumber([{ invoiceNumber: '16722' }, { invoiceNumber: '16800', poweroffice: { env: 'prod' } }]), '16801');
 // Loggen viser når det skjedde, teksten hvilke datoer fakturaen fikk.
 assert.equal(invoice.events.at(-1).at, '2026-09-30T10:00:00.000Z');
 assert.match(invoice.events.at(-1).text, /^ferdigstilte faktura 16722 \(fakturadato 30\.09\.2026, forfall 28\.10\.2026\)$/);

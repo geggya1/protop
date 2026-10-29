@@ -171,6 +171,11 @@ assert.deepEqual(presentNewsPost({
   imageUrl: 'https://cdn.example/news.jpg',
 });
 assert.equal(presentNewsPost({ body: 'Bare en setning' }).title, 'Bare en setning');
+// Formatering (## og **) vises ikke i kortene.
+assert.deepEqual(
+  (({ title, excerpt }) => ({ title, excerpt }))(presentNewsPost({ body: '## Ny avtale\n**Vi** har signert.\n\n- Fem år' })),
+  { title: 'Ny avtale', excerpt: 'Vi har signert. • Fem år' },
+);
 assert.equal(videoPreview('https://youtu.be/abcdefghijk').thumb.includes('abcdefghijk'), true);
 assert.equal(videoPreview(''), null);
 assert.equal(safeWebUrl('javascript:alert(1)'), '');

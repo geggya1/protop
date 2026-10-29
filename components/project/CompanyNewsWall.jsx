@@ -28,7 +28,9 @@ import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import {
   NEWS_CATEGORIES, POST_ASPECTS, categoryLabel, presentNewsPost,
 } from '../../src/project/companyPage';
+import { newsPlainText } from '../../src/project/newsFormat';
 import { useCroppedUpload } from './useCroppedUpload';
+import NewsBody, { NewsBodyEditor } from './NewsBody';
 import { companyDisplayName } from '../../src/utils/companyName';
 
 const CATEGORY_COLOR = {
@@ -101,7 +103,7 @@ export default function CompanyNewsWall({
   variant = 'feed', onOpenPost, categories = null, header = null, hideWhenEmpty = false,
 }) {
   const colors = useColors();
-  const { isDesktop } = useLayout();
+  const { isDesktop, height: windowHeight } = useLayout();
   const { familyId, family, uid, members } = useApp();
   const access = useCompanyAccess();
   const owner = isSuperAdmin(family, uid);
@@ -217,7 +219,7 @@ export default function CompanyNewsWall({
         });
         const others = (members || []).map((m) => m.uid).filter((id) => id && id !== uid);
         const notifyBody = text
-          ? `${myName}: ${(title || text).slice(0, 80)}`
+          ? `${myName}: ${(title || newsPlainText(text)).slice(0, 80)}`
           : linkUrl
             ? `${myName} delte en lenke`
             : `${myName} delte et bilde`;
@@ -278,7 +280,10 @@ export default function CompanyNewsWall({
             <Text style={[styles.modalTitle, { color: colors.ink }]}>
               {editingPostId ? 'Rediger nyhet' : 'Publiser nyhet'}
             </Text>
-            <ScrollView style={styles.modalScroll} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              style={isDesktop ? { maxHeight: Math.max(320, Math.round(windowHeight * 0.82) - 150) } : styles.modalScroll}
+              keyboardShouldPersistTaps="handled"
+            >
               <TextInput
                 style={[styles.linkInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.sunken }]}
                 value={title}
@@ -294,14 +299,13 @@ export default function CompanyNewsWall({
                 clearable={false}
                 small
               />
-              <TextInput
-                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.sunken }]}
+              <NewsBodyEditor
                 value={body}
                 onChangeText={setBody}
+                title={title}
                 placeholder="Hva skjer i bedriften?"
-                placeholderTextColor={colors.placeholder}
-                multiline
-                textAlignVertical="top"
+                minHeight={isDesktop ? 200 : 140}
+                maxHeight={isDesktop ? 380 : 280}
               />
               <TextInput
                 style={[styles.linkInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.sunken }]}
@@ -486,7 +490,7 @@ export default function CompanyNewsWall({
               ) : null}
             </View>
             {!!post.title && <Text style={[styles.postTitle, { color: colors.ink }]}>{post.title}</Text>}
-            {!!displayBody && <Text style={[styles.postBody, { color: colors.ink }]}>{displayBody}</Text>}
+            {!!displayBody && <NewsBody text={displayBody} />}
             {!!post.imageUrl && <Image source={{ uri: post.imageUrl }} style={styles.image} />}
             {displayLinks.length ? (
               <View style={styles.linkRow}>
@@ -550,7 +554,6 @@ const styles = StyleSheet.create({
   when: { fontSize: 12 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   postTitle: { fontSize: 16, fontWeight: '600', lineHeight: 21 },
-  postBody: { fontSize: 15, lineHeight: 21 },
   image: { width: '100%', height: 180, borderRadius: 10 },
   linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   linkBtn: {
@@ -577,16 +580,12 @@ const styles = StyleSheet.create({
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' },
   modalAvoid: { width: '100%' },
   modalSheet: { borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, gap: 10, maxHeight: '88%' },
-  modalSheetDesk: { margin: 'auto', width: 520, maxWidth: '92%', borderRadius: 16 },
+  modalSheetDesk: { margin: 'auto', width: 680, maxWidth: '92%', borderRadius: 16 },
   sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 4 },
   modalTitle: { fontSize: 18, fontWeight: '600' },
   modalScroll: { maxHeight: 420 },
   categories: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, marginBottom: 8 },
   categoryChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  input: {
-    borderWidth: 1, borderRadius: 12, minHeight: 110,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 16,
-  },
   linkInput: {
     borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, marginTop: 8,
   },

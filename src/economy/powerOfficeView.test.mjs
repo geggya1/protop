@@ -5,8 +5,10 @@
 import assert from 'node:assert/strict';
 import { canDeleteInvoice, invoiceListSource, normalizeInvoice } from './invoices.js';
 import {
+  canSendFromPowerOffice,
   canTransferToPowerOffice,
   lookupRows,
+  syncCountsText,
   POWEROFFICE_VAT_ROWS,
   powerOfficeSummary,
   productOptionsForRow,
@@ -106,6 +108,20 @@ assert.deepEqual(POWEROFFICE_VAT_ROWS.map((row) => row.id), ['HIGH', 'MID', 'LOW
   assert.equal(rows['Lest på id'], 'Ja (so-77)');
   assert.match(rows.Restbeløp, /^0/);
   assert.deepEqual(lookupRows({ found: false, invoiceNo: '1' }), []);
+}
+
+{
+  // Sending fra ProTop: «Send nå» bare for utkast i Go, status mens det sendes, og feilen vises.
+  assert.equal(canSendFromPowerOffice(transferred, connected), true);
+  assert.equal(canSendFromPowerOffice(transferred, { connected: false }), false);
+  assert.equal(canSendFromPowerOffice({ poweroffice: { state: 'sending', salesOrderId: 'so-1' } }, connected), false);
+  const sending = powerOfficeSummary({ poweroffice: { env: 'demo', state: 'sending', salesOrderId: 'so-1', orderNo: 2, sendRequestedAt: '2026-10-29T10:00:00Z' } });
+  assert.equal(sending.title, 'Sendes fra PowerOffice (testklient)');
+  assert.match(sending.lines[0], /Bedt sendt 29\.10\.2026 \(utkast nr\. 2\)/);
+  const failed = powerOfficeSummary({ poweroffice: { state: 'draft', salesOrderId: 'so-1', sendError: 'Integrasjonen mangler tilgang' } });
+  assert.equal(failed.tone, 'warn');
+  assert.equal(failed.lines[0], 'Sendingen feilet: Integrasjonen mangler tilgang');
+  assert.equal(syncCountsText({ sending: 1, failed: 1 }), '1 sendes fortsatt, 1 sending feilet');
 }
 
 console.log('powerOfficeView.test ok');

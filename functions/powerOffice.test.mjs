@@ -14,9 +14,11 @@ import {
   orderRefFromLineRef,
   salesOrderFromInvoice,
   salesOrderRef,
+  sendRequestFromInvoice,
 } from './powerOfficeMap.js';
 import {
-  customerRef, lookupOutgoingInvoice, productsWithVat, syncInvoices, transferInvoice, vatRatePercent,
+  customerRef, lookupOutgoingInvoice, productsWithVat, requestSend, sendFailedPatch, syncInvoices, transferInvoice,
+  vatRatePercent,
 } from './powerOfficeSync.js';
 
 function jsonResponse(status, body, headers = {}) {
@@ -513,9 +515,55 @@ assert.equal(customerDelivery({ orgnr: '918 269 819' }).InvoiceDeliveryType, 'EH
   assert.equal(byId.d.poweroffice.state, 'missing');
   assert.equal(byId.e.status, 'paid');
   assert.equal(result.cursor, '2026-10-26T13:00:00Z');
-  assert.deepEqual(result.counts, { checked: 5, sent: 1, paid: 1, merged: 1, missing: 1 });
+  assert.deepEqual(result.counts, { checked: 5, sent: 1, paid: 1, merged: 1, missing: 1, sending: 0, failed: 0 });
   const idQuery = client.log.find((row) => row.query?.invoiceIds);
   assert.equal(idQuery.query.invoiceIds, 'so-a,so-b,so-c,so-d');
+}
+
+{
+  // Send fra ProTop: Auto-forsendelse, valgt dato og frist følger med, status «sendes».
+  const client = fakeClient({ 'POST /SalesOrders/so-9/createAndSendInvoice': () => null });
+  const draftInGo = {
+    id: 'inv_9', customerEmail: 'faktura@kunde.no', invoiceDate: '2026-10-29', invoiceDateSet: true,
+    dueDate: '2026-11-12', dueDateSet: true,
+    poweroffice: { env: 'demo', state: 'draft', salesOrderId: 'so-9', orderNo: 2, sendError: 'gammel feil' },
+  };
+  const patch = await requestSend(client, { invoice: draftInGo, at: 't1' });
+  const call = client.log.find((row) => row.method === 'POST');
+  assert.equal(call.path, '/SalesOrders/so-9/createAndSendInvoice');
+  assert.deepEqual(call.body, { DeliveryType: 'Auto', EmailAddress: 'faktura@kunde.no', VoucherDate: '2026-10-29', OverrideDueDate: '2026-11-12' });
+  assert.equal(patch.poweroffice.state, 'sending');
+  assert.equal(patch.poweroffice.sendRequestedAt, 't1');
+  assert.equal(patch.poweroffice.sendError, '');
+  assert.equal(patch.poweroffice.orderNo, 2);
+  // Uten valgte datoer: Go bruker dagens dato og betalingsbetingelsen.
+  assert.deepEqual(sendRequestFromInvoice({ invoiceDate: '2026-10-01', dueDate: '2026-10-15' }), { DeliveryType: 'Auto' });
+  await assert.rejects(requestSend(client, { invoice: { poweroffice: { state: 'sent', salesOrderId: 'so-9' } } }), /Bare utkast/);
+  const failed = sendFailedPatch(draftInGo, 'Integrasjonen mangler tilgang', { at: 't2' });
+  assert.equal(failed.poweroffice.state, 'draft');
+  assert.equal(failed.poweroffice.sendError, 'Integrasjonen mangler tilgang');
+}
+
+{
+  // Synk av fakturaer som sendes: ferdig → sendt. Underveis → venter. Feilet → tilbake til utkast med feilen.
+  const client = fakeClient({
+    'GET /OutgoingInvoices': () => [{ Id: 'so-done', InvoiceNo: 30001, Cid: '300010000015', Balance: 500, TotalAmount: 500 }],
+    'GET /SalesOrders/sentState': ({ query }) => (query.id === 'so-fail'
+      ? [{ Id: 'so-fail', IsInvoiceBeingProcessed: false, LastErrorMessage: 'Mangler e-postadresse' }]
+      : [{ Id: query.id, IsInvoiceBeingProcessed: true }]),
+  });
+  const rows = ['so-done', 'so-busy', 'so-fail'].map((id) => ({ id, poweroffice: { state: 'sending', salesOrderId: id } }));
+  const result = await syncInvoices(client, { invoices: rows, cursor: 'c', at: 'now' });
+  const byId = Object.fromEntries(result.patches.map((row) => [row.id, row.patch]));
+  assert.equal(byId['so-done'].poweroffice.state, 'sent');
+  assert.equal(byId['so-done'].invoiceNumber, '30001');
+  assert.equal(byId['so-busy'], undefined);
+  assert.equal(byId['so-fail'].poweroffice.state, 'draft');
+  assert.equal(byId['so-fail'].poweroffice.sendError, 'Mangler e-postadresse');
+  assert.equal(result.counts.sending, 1);
+  assert.equal(result.counts.failed, 1);
+  assert.equal(client.log.some((row) => row.path.startsWith('/SalesOrders/so-busy') && !row.path.includes('sentState')), false,
+    'et utkast som sendes, tolkes ikke som slettet');
 }
 
 {

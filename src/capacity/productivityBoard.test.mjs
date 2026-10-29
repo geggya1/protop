@@ -75,6 +75,7 @@ function loadJsx(rel) {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
     if (id === 'react-native-svg') return svgMock;
+    if (id.endsWith('/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id.includes('employees/model')) {
       return { displayName: (employee) => employee.label || employee.id };

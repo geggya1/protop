@@ -96,6 +96,7 @@ import TimesheetSideForm from '../../components/arbeid/TimesheetSideForm';
 import ScrollSheet from '../../components/ScrollSheet';
 import BillingChainLine from '../economy/billing/BillingChainLine';
 import Breadcrumb from '../../components/Breadcrumb';
+import DateInput from '../../components/DateInput';
 import { agreedHoursForDate, redDayMap, resolveRedDays } from '../../src/arbeid/holidays.js';
 import { resolveAbsenceTypes } from '../../src/arbeid/absenceCatalog.js';
 import { scheduledHours, timeSettingsOf } from '../../src/arbeid/schedule.js';
@@ -1664,11 +1665,12 @@ export default function ArbeidScreen({
             <Text style={{ color: colors.muted, marginBottom: 8 }}>
               {isDateLocked(lockThrough, absenceForm.date) ? 'Dagen er låst.' : 'Timer på denne dagen'}
             </Text>
-            <Text style={{ color: colors.muted, marginBottom: 6, marginTop: 10 }}>Dato (ÅÅÅÅ-MM-DD)</Text>
-            <TextInput
+            <Text style={{ color: colors.muted, marginBottom: 6, marginTop: 10 }}>Dato</Text>
+            <DateInput
               value={absenceForm.date}
-              onChangeText={(date) => setAbsenceForm((f) => ({ ...f, date }))}
-              style={[styles.field, { color: colors.ink, borderColor: colors.line }]}
+              onChange={(date) => setAbsenceForm((f) => ({ ...f, date }))}
+              format="iso"
+              accessibilityLabel="Dato"
             />
             <Text style={{ color: colors.muted, marginBottom: 6, marginTop: 10 }}>Timer</Text>
             <TextInput

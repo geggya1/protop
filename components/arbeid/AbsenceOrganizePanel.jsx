@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
+import DateInput from '../DateInput';
 import { ACTIVE_STAFF_LABEL } from '../../src/arbeid/absenceDashboard.js';
 import {
   ABSENCE_REPORT_COLUMNS,
@@ -59,8 +60,6 @@ export default function AbsenceOrganizePanel({
   toDate,
   onFromDate,
   onToDate,
-  onFromDateBlur,
-  onToDateBlur,
   sort,
   onSort,
   category,
@@ -140,24 +139,26 @@ export default function AbsenceOrganizePanel({
         />
         {period === 'custom' ? (
           <View style={styles.dates}>
-            <TextInput
+            <DateInput
               value={fromDate}
-              onChangeText={onFromDate}
-              onBlur={onFromDateBlur}
+              onChange={onFromDate}
+              format="iso"
               placeholder="Fra dato"
-              placeholderTextColor={colors.placeholder}
+              clearable
+              compact
               nativeID="absence-from-date"
-              style={[styles.dateInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+              style={styles.dateInput}
             />
             <Text style={{ color: colors.muted }}>–</Text>
-            <TextInput
+            <DateInput
               value={toDate}
-              onChangeText={onToDate}
-              onBlur={onToDateBlur}
+              onChange={onToDate}
+              format="iso"
               placeholder="Til dato"
-              placeholderTextColor={colors.placeholder}
+              clearable
+              compact
               nativeID="absence-to-date"
-              style={[styles.dateInput, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
+              style={styles.dateInput}
             />
           </View>
         ) : null}
@@ -321,14 +322,7 @@ const styles = StyleSheet.create({
   },
   count: { fontSize: 12, fontWeight: '400' },
   dates: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  dateInput: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    minHeight: 40,
-    minWidth: 140,
-  },
+  dateInput: { minWidth: 140 },
   columnsToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   columnReset: { justifyContent: 'center', paddingHorizontal: 4 },
 });

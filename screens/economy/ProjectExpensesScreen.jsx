@@ -83,6 +83,7 @@ import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
 import ExpenseWizard from '../../components/economy/ExpenseWizard';
 import Breadcrumb from '../../components/Breadcrumb';
 import ReportTable from '../../components/table/ReportTable';
+import DateInput from '../../components/DateInput';
 import InlineError from '../../src/ui/InlineError';
 import Skeleton from '../../src/ui/Skeleton';
 import { radius, space, type } from '../../src/ui/tokens';
@@ -224,7 +225,7 @@ function ExpenseSheet({
       <View style={styles.sheetGrid}>
         <View style={styles.sheetCell}>
           <Field label="Dato" required>
-            <TextIn value={draft.date || ''} onChangeText={set('date')} placeholder="ÅÅÅÅ-MM-DD" editable={editable} />
+            <DateInput value={draft.date || ''} onChange={set('date')} format="iso" editable={editable} accessibilityLabel="Dato" />
           </Field>
         </View>
         <View style={styles.sheetCell}>
@@ -847,22 +848,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
       </View>
       {period === 'custom' ? (
         <View style={styles.rowWrap}>
-          <TextInput
-            value={fromDate}
-            onChangeText={setFromDate}
-            onBlur={() => setFromDate((value) => parseDate(value) || value)}
-            placeholder="Fra dato"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
-          />
-          <TextInput
-            value={toDate}
-            onChangeText={setToDate}
-            onBlur={() => setToDate((value) => parseDate(value) || value)}
-            placeholder="Til dato"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
-          />
+          <DateInput value={fromDate} onChange={setFromDate} format="iso" placeholder="Fra dato" clearable compact style={styles.dateInput} />
+          <DateInput value={toDate} onChange={setToDate} format="iso" placeholder="Til dato" clearable compact style={styles.dateInput} />
         </View>
       ) : null}
       <Text style={[styles.label, { color: colors.muted }]}>Sortering</Text>

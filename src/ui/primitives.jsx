@@ -1,7 +1,7 @@
 /**
  * ProTops felles byggeklosser (designsystemet, UX-01). Løftet fra ISO / K-HMS
  * (screens/iso/isoUi.jsx re-eksporterer herfra, så ISO ser ut som før).
- * Bruker fargetokens (useColors), Ionicons, DateField og OptionPicker, og følger
+ * Bruker fargetokens (useColors), Ionicons, DateInput og OptionPicker, og følger
  * lyst og mørkt utseende. Nye moduler importerer fra src/ui.
  */
 import React, { createContext, useContext } from 'react';
@@ -10,10 +10,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../context/ThemeContext';
-import DateField from '../../components/DateField';
+import DateInput from '../../components/DateInput';
 import TimeField from '../../components/TimeField';
 import OptionPicker from '../../components/OptionPicker';
-import { dateKey } from '../utils/dates';
 import { BREAKPOINTS } from '../theme';
 import { elevationStyle, radius, space, type } from './tokens';
 import BackLink from './BackLink';
@@ -255,19 +254,9 @@ export function Choice({ options, value, onChange, multi = false, small, placeho
   );
 }
 
-export function DateIn({ value, onChange, placeholder = 'Velg dato' }) {
-  const colors = useColors();
-  return (
-    <View style={[styles.input, { borderColor: colors.line, backgroundColor: colors.card, paddingVertical: 2 }]}>
-      <DateField
-        value={value || null}
-        placeholder={placeholder}
-        onChange={(d) => onChange(d ? dateKey(d) : '')}
-        textStyle={{ color: value ? colors.ink : colors.placeholder }}
-        iconColor={colors.brand}
-      />
-    </View>
-  );
+/** Dato «åååå-mm-dd» med kalender (felles DateInput). clearable der feltet kan stå tomt. */
+export function DateIn({ value, onChange, placeholder = 'Velg dato', clearable = false }) {
+  return <DateInput value={value || ''} onChange={onChange} format="iso" placeholder={placeholder} clearable={clearable} />;
 }
 
 /** Klokkeslett «TT:MM». Tomt er lov (klokkeslett er valgfritt der feltet brukes). */

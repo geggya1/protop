@@ -4,6 +4,7 @@ import { fieldType, needsInput } from '../../src/anbud/formBuilder';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import FormTableAnswer from './FormTableAnswer';
 import OptionPicker, { CHIP_LIMIT } from '../../components/OptionPicker';
+import DateInput from '../../components/DateInput';
 
 const FACE = Platform.OS === 'web' ? { fontFamily: 'Carlito, Calibri, "Segoe UI", Helvetica, Arial, sans-serif' } : null;
 
@@ -189,6 +190,20 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
       </View>
     );
   }
+  // Datofelt: uten format skriver velgeren tilbake i formatet verdien har, ellers åååå-mm-dd.
+  if (cell && field.kind === 'date') {
+    return (
+      <DateInput
+        value={String(field.value || '')}
+        onChange={onChange}
+        placeholder={bracketPlaceholder(field)}
+        clearable
+        compact
+        accessibilityLabel={field.label}
+        style={[styles.cellDate, needBox]}
+      />
+    );
+  }
   if (cell && field.kind !== 'long' && field.kind !== 'scale' && field.kind !== 'image' && field.kind !== 'file') {
     return (
       <TextInput
@@ -320,21 +335,33 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
       </View>
     );
   }
-  const placeholder = field.placeholder || (field.kind === 'date' ? 'ÅÅÅÅ-MM-DD' : field.kind === 'time' ? 'TT:MM' : fieldType(field.kind).label);
+  const placeholder = field.placeholder || (field.kind === 'time' ? 'TT:MM' : fieldType(field.kind).label);
   if (doc && field.kind !== 'long') {
     const stacked = String(field.label || '').length > 22;
     return (
       <View style={{ gap: 2, flex: 1 }}>
         <View style={stacked ? styles.docStack : styles.docBlank}>
           <Text style={[styles.docLabel, { color: colors.ink }, stacked ? null : styles.docLabelSide]}>{label}</Text>
-          <TextInput
-            value={String(field.value || '')}
-            onChangeText={onChange}
-            placeholder={placeholder}
-            placeholderTextColor={colors.placeholder}
-            keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
-            style={[styles.docInput, { color: colors.ink, borderBottomColor: colors.ink }, need && { backgroundColor: FOCUS_FIELD_BG, borderBottomColor: FOCUS_FIELD_BORDER }]}
-          />
+          {field.kind === 'date' ? (
+            <DateInput
+              value={String(field.value || '')}
+              onChange={onChange}
+              placeholder={field.placeholder || undefined}
+              clearable
+              compact
+              accessibilityLabel={field.label}
+              style={[styles.docDate, { borderBottomColor: colors.ink }, need && { backgroundColor: FOCUS_FIELD_BG, borderBottomColor: FOCUS_FIELD_BORDER }]}
+            />
+          ) : (
+            <TextInput
+              value={String(field.value || '')}
+              onChangeText={onChange}
+              placeholder={placeholder}
+              placeholderTextColor={colors.placeholder}
+              keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
+              style={[styles.docInput, { color: colors.ink, borderBottomColor: colors.ink }, need && { backgroundColor: FOCUS_FIELD_BG, borderBottomColor: FOCUS_FIELD_BORDER }]}
+            />
+          )}
         </View>
         {field.help ? <Text style={[styles.help, { color: colors.muted }]}>{field.help}</Text> : null}
       </View>
@@ -344,15 +371,26 @@ export default function FormAnswer({ field, colors, onChange, onPickFile, varian
     <View style={{ gap: 4 }}>
       <Text style={[doc ? styles.docLabel : null, { color: doc ? colors.ink : colors.muted }]}>{label}</Text>
       {field.help ? <Text style={[styles.help, { color: colors.muted }]}>{field.help}</Text> : null}
-      <TextInput
-        value={String(field.value || '')}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={colors.placeholder}
-        multiline={field.kind === 'long'}
-        keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
-        style={[doc ? styles.docArea : styles.input, field.kind === 'long' && !doc && styles.long, { color: colors.ink, borderColor: colors.line, backgroundColor: doc ? 'transparent' : colors.card }, needBox]}
-      />
+      {field.kind === 'date' ? (
+        <DateInput
+          value={String(field.value || '')}
+          onChange={onChange}
+          placeholder={field.placeholder || undefined}
+          clearable
+          accessibilityLabel={field.label}
+          style={needBox}
+        />
+      ) : (
+        <TextInput
+          value={String(field.value || '')}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={colors.placeholder}
+          multiline={field.kind === 'long'}
+          keyboardType={field.kind === 'number' ? 'decimal-pad' : 'default'}
+          style={[doc ? styles.docArea : styles.input, field.kind === 'long' && !doc && styles.long, { color: colors.ink, borderColor: colors.line, backgroundColor: doc ? 'transparent' : colors.card }, needBox]}
+        />
+      )}
     </View>
   );
 }
@@ -368,6 +406,7 @@ const styles = StyleSheet.create({
   docStack: { gap: 2, paddingVertical: 4 },
   docCheck: { paddingVertical: 4 },
   docOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  docDate: { flex: 1, minWidth: 120, borderWidth: 0, borderBottomWidth: 1, borderRadius: 0, backgroundColor: 'transparent' },
   docInput: { flex: 1, minWidth: 80, borderBottomWidth: 1, borderRadius: 0, paddingHorizontal: 2, paddingVertical: 2, fontSize: 14, backgroundColor: 'transparent' },
   docArea: { borderWidth: 1, borderRadius: 0, minHeight: 72, paddingHorizontal: 8, paddingVertical: 6, fontSize: 14, textAlignVertical: 'top' },
   signature: { marginTop: 8, maxWidth: 260, gap: 4 },
@@ -383,6 +422,7 @@ const styles = StyleSheet.create({
   cellText: { fontSize: 12, lineHeight: 16, ...FACE },
   cellOption: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cellOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  cellDate: { minHeight: 18, borderWidth: 0, paddingHorizontal: 0, backgroundColor: 'transparent' },
   cellInput: { fontSize: 12, lineHeight: 16, paddingVertical: 0, paddingHorizontal: 0, minHeight: 18, ...FACE },
   cellArea: { fontSize: 12, lineHeight: 16, minHeight: 48, paddingVertical: 0, paddingHorizontal: 0, textAlignVertical: 'top', ...FACE },
   cellSign: { minHeight: 36, justifyContent: 'flex-end' },

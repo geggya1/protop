@@ -106,7 +106,7 @@ export function RecordSheet({ ctx, registerKey, record, visible, onClose, onSave
     const value = v[f.key];
     switch (f.type) {
       case 'long': return <TextIn multiline value={value} onChangeText={set(f.key)} />;
-      case 'date': return <DateIn value={value} onChange={set(f.key)} />;
+      case 'date': return <DateIn value={value} onChange={set(f.key)} clearable={!f.required} />;
       case 'number': return <TextIn keyboardType="numeric" value={value == null ? '' : String(value)} onChangeText={set(f.key)} />;
       case 'scale': return <Choice title={f.label} options={['1', '2', '3', '4', '5']} value={value == null ? '' : String(value)} onChange={(x) => set(f.key)(x ? Number(x) : null)} clearable={!f.required} />;
       case 'select': return <Choice title={f.label} options={f.options} value={value} onChange={set(f.key)} clearable={!f.required} />;
@@ -829,7 +829,7 @@ export function EmergencyPage({ ctx }) {
               <Field label="Dato"><DateIn value={ex.date} onChange={(x) => setEx({ ...ex, date: x })} /></Field>
               <Field label="Deltakere"><TextIn value={ex.participants} onChangeText={(x) => setEx({ ...ex, participants: x })} /></Field>
               <Field label="Evaluering" required><TextIn multiline value={ex.evaluation} onChangeText={(x) => setEx({ ...ex, evaluation: x })} /></Field>
-              <Field label="Neste øvelse" hint="Tomt = 12 måneder etter denne øvelsen."><DateIn value={ex.nextExercise} onChange={(x) => setEx({ ...ex, nextExercise: x })} /></Field>
+              <Field label="Neste øvelse" hint="Tomt = 12 måneder etter denne øvelsen."><DateIn value={ex.nextExercise} onChange={(x) => setEx({ ...ex, nextExercise: x })} clearable /></Field>
               <Check label="Behov for forbedring (oppretter avvikssak)" value={ex.improvement} onChange={(x) => setEx({ ...ex, improvement: x })} />
               <Btn kind="primary" label="Registrer øvelse" onPress={async () => {
                 const res = addExercise(reg.open, ex, { actor });

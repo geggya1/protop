@@ -31,7 +31,7 @@ import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { bidMapRows, mergeWorkGeo } from '../../src/anbud/workMap';
 import MapRail, { activateMapRow, mapCardChrome, MapIndexBadge, revealAnbudRow } from './MapRail';
-import BidWorkspace from './BidWorkspace';
+import BidWorkspace, { DeadlineField } from './BidWorkspace';
 import FormBuilderScreen from './FormBuilderScreen';
 import FilterMenu from '../../components/FilterMenu';
 import OptionPicker from '../../components/OptionPicker';
@@ -539,13 +539,7 @@ export default function BidDesk({
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
           />
-          <TextInput
-            value={draftDeadline}
-            onChangeText={setDraftDeadline}
-            placeholder="Tilbudsfrist, f.eks. 02.11.2026 12:00"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-          />
+          <DeadlineField value={draftDeadline} onChange={setDraftDeadline} colors={colors} />
           <Text style={{ color: colors.ink, fontWeight: '600', fontSize: 13 }}>Avdeling</Text>
           {departments.length ? (
             <OptionPicker

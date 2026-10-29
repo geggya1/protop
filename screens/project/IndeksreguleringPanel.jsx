@@ -22,6 +22,7 @@ import AvtaleForside from './AvtaleForside';
 import { pickDocument } from '../../src/utils/media';
 import { companyLogoOf } from '../../src/project/companyLogo';
 import CompanyLogoChoice from '../../components/CompanyLogoChoice';
+import DateInput from '../../components/DateInput';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 import { AI_OFF_MESSAGE } from '../../src/privacy/companyPrivacy';
 import { formatDate } from '../../src/format/nb';
@@ -49,19 +50,30 @@ const STANDARDS = [
   ['avtalt', 'Avtalt'],
 ];
 
-function Field({ label, value, onChangeText, placeholder, colors, keyboardType, multiline }) {
+/** date gir datovelger. Motoren leser datoene som åååå-mm-dd (parseIsoDate), så velgeren skriver iso. */
+function Field({ label, value, onChangeText, placeholder, colors, keyboardType, multiline, date, clearable }) {
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: colors.muted }]}>{label}</Text>
-      <TextInput
-        value={value == null ? '' : String(value)}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.placeholder}
-        keyboardType={keyboardType || 'default'}
-        multiline={!!multiline}
-        style={[styles.input, multiline && styles.inputMulti, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
+      {date ? (
+        <DateInput
+          value={value == null ? '' : String(value)}
+          onChange={onChangeText}
+          format="iso"
+          clearable={!!clearable}
+          accessibilityLabel={label}
+        />
+      ) : (
+        <TextInput
+          value={value == null ? '' : String(value)}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.placeholder}
+          keyboardType={keyboardType || 'default'}
+          multiline={!!multiline}
+          style={[styles.input, multiline && styles.inputMulti, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+        />
+      )}
     </View>
   );
 }
@@ -730,15 +742,15 @@ export default function IndeksreguleringPanel({
       <Text style={{ color: colors.muted }}>{MODELS.find((model) => model.id === draft.model)?.formula}</Text>
       <View style={styles.split}>
         <View style={styles.splitItem}>
-          <Field label="Tilbudsdato" value={draft.offerDate} onChangeText={(value) => patch({ offerDate: value })} placeholder="01.03.2024" colors={colors} />
+          <Field label="Tilbudsdato" date clearable value={draft.offerDate} onChangeText={(value) => patch({ offerDate: value })} colors={colors} />
         </View>
         <View style={styles.splitItem}>
-          <Field label="Tilbudsfrist" value={draft.tenderDeadline} onChangeText={(value) => patch({ tenderDeadline: value })} placeholder="15.03.2024" colors={colors} />
+          <Field label="Tilbudsfrist" date clearable value={draft.tenderDeadline} onChangeText={(value) => patch({ tenderDeadline: value })} colors={colors} />
         </View>
       </View>
       <View style={styles.split}>
         <View style={styles.splitItem}>
-          <Field label="Reguleringsdato" value={draft.regulationDate} onChangeText={(value) => patch({ regulationDate: value })} placeholder="04.10.2026" colors={colors} />
+          <Field label="Reguleringsdato" date value={draft.regulationDate} onChangeText={(value) => patch({ regulationDate: value })} colors={colors} />
         </View>
         <View style={styles.splitItem}>
           <Field label="Regulert andel %" value={draft.sharePercent} onChangeText={(value) => patch({ sharePercent: value })} keyboardType="decimal-pad" colors={colors} />
@@ -862,7 +874,7 @@ export default function IndeksreguleringPanel({
       </View>
       <View style={styles.split}>
         <View style={styles.splitItem}>
-          <Field label="Kontraktsdato" value={draft.contractDate} onChangeText={(value) => patch({ contractDate: value })} placeholder="25.08.2023" colors={colors} />
+          <Field label="Kontraktsdato" date clearable value={draft.contractDate} onChangeText={(value) => patch({ contractDate: value })} colors={colors} />
         </View>
         <View style={styles.splitItem}>
           <Field label="Eksternt PO-nr." value={draft.poNumber} onChangeText={(value) => patch({ poNumber: value })} colors={colors} />
@@ -870,10 +882,10 @@ export default function IndeksreguleringPanel({
       </View>
       <View style={styles.split}>
         <View style={styles.splitItem}>
-          <Field label="Første reguleringsdato" value={draft.firstRegulationDate} onChangeText={(value) => patch({ firstRegulationDate: value })} placeholder="01.04.2024" colors={colors} />
+          <Field label="Første reguleringsdato" date clearable value={draft.firstRegulationDate} onChangeText={(value) => patch({ firstRegulationDate: value })} colors={colors} />
         </View>
         <View style={styles.splitItem}>
-          <Field label="Gjeldende fra" value={draft.effectiveDate} onChangeText={(value) => patch({ effectiveDate: value })} placeholder="01.08.2025" colors={colors} />
+          <Field label="Gjeldende fra" date clearable value={draft.effectiveDate} onChangeText={(value) => patch({ effectiveDate: value })} colors={colors} />
         </View>
         <View style={styles.splitItem}>
           <Field label="Avtalt honorar" value={draft.honorar} onChangeText={(value) => patch({ honorar: value })} placeholder="Oppdraget honoreres etter medgått tid" colors={colors} />

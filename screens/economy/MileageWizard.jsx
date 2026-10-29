@@ -61,6 +61,7 @@ import { mileageCompensation } from '../../src/mileage/compensation';
 import { useMileageRates } from '../../src/mileage/useMileageRates';
 import { getDeviceLocation, reverseGeocode, searchPlaces } from '../../src/utils/location';
 import MileageRouteMap from '../../components/mileage/MileageRouteMap';
+import DateInput from '../../components/DateInput';
 import { formatDate } from '../../src/format/nb';
 
 const STEPS = [
@@ -94,22 +95,26 @@ function todayKey() {
   return `${now.getFullYear()}-${m}-${d}`;
 }
 
-function Field({ label, value, onChange, colors, placeholder, keyboardType, onFocus, half, accessory }) {
+function Field({ label, value, onChange, colors, placeholder, keyboardType, onFocus, half, accessory, date }) {
   return (
     <View style={half ? styles.half : styles.field}>
       <View style={styles.labelRow}>
         <Text style={{ color: colors.muted, fontSize: 11 }}>{label}</Text>
         {accessory || null}
       </View>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        onFocus={onFocus}
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        keyboardType={keyboardType || 'default'}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
+      {date ? (
+        <DateInput value={value} onChange={onChange} format={date} accessibilityLabel={label} />
+      ) : (
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          onFocus={onFocus}
+          placeholder={placeholder}
+          placeholderTextColor={colors.muted}
+          keyboardType={keyboardType || 'default'}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+        />
+      )}
     </View>
   );
 }
@@ -980,7 +985,7 @@ export default function MileageWizard({
     if (step === 'rute') {
       const date = String(current.date || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        setError('Dato må være på formen ÅÅÅÅ-MM-DD.');
+        setError('Velg dato.');
         return;
       }
       const from = String(current.from || '').trim();
@@ -1283,7 +1288,7 @@ export default function MileageWizard({
               label="Dato"
               value={draft.date}
               colors={colors}
-              placeholder="ÅÅÅÅ-MM-DD"
+              date="iso"
               onChange={(value) => patch({ date: value })}
             />
             <View style={styles.half}>

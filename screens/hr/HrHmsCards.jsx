@@ -87,8 +87,8 @@ export default function HrHmsCards({ colors, employees, hr, entries, company = n
           <EmptyHint colors={colors} text="Ingen HMS-kort er utløpt eller går ut de neste 30 dagene." />
         )}
         <View style={styles.row}>
-          <View style={styles.field}><HrField colors={colors} label="Fra dato" value={from} onChangeText={setFrom} placeholder="dd.mm.åååå" /></View>
-          <View style={styles.field}><HrField colors={colors} label="Til dato" value={to} onChangeText={setTo} placeholder="dd.mm.åååå" /></View>
+          <View style={styles.field}><HrField colors={colors} label="Fra dato" date="iso" clearable value={from} onChangeText={setFrom} /></View>
+          <View style={styles.field}><HrField colors={colors} label="Til dato" date="iso" clearable value={to} onChangeText={setTo} /></View>
           <View style={styles.field}><HrField colors={colors} label="Prosjekt (nummer eller navn, tomt: alle)" value={project} onChangeText={setProject} /></View>
         </View>
         <Text style={[styles.line, { color: colors.muted }]} nativeID="hr-hms-overview-count">

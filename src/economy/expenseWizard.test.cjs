@@ -55,6 +55,7 @@ function loadJsx(rel) {
   m.require = (id) => {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id.endsWith('/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
     if (id === 'react-native-safe-area-context') return { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) };
     if (id.endsWith('/OptionPicker')) return { __esModule: true, default: host('OptionPicker') };

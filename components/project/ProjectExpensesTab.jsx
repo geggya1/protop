@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker, { CHIP_LIMIT } from '../OptionPicker';
+import DateInput from '../DateInput';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
 import { EXPENSE_CATEGORIES, EXPENSE_CHARGE_TYPES, emptyExpense, expenseCategory } from '../../src/economy/expenses.js';
 import { expenseStatusLabel, filterExpenses } from '../../src/economy/expenseList.js';
@@ -332,12 +333,11 @@ export default function ProjectExpensesTab({
             <Text style={[styles.sheetTitle, { color: colors.ink }]}>{editor?.id ? 'Rediger utlegg' : 'Nytt utlegg'}</Text>
             <ScrollView style={{ maxHeight: 420 }}>
               <Label colors={colors} text="Dato" />
-              <TextInput
+              <DateInput
                 value={editor?.date || ''}
-                onChangeText={(v) => setEditor((e) => ({ ...e, date: v }))}
-                placeholder="ÅÅÅÅ-MM-DD"
-                placeholderTextColor={colors.muted}
-                style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                onChange={(v) => setEditor((e) => ({ ...e, date: v }))}
+                format="iso"
+                accessibilityLabel="Dato"
               />
               <Label colors={colors} text="Medarbeider" />
               <OptionPicker

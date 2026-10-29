@@ -25,6 +25,7 @@ import { formatHours, parseHours } from '../../src/arbeid/hours.js';
 import { toDateKey } from '../../src/arbeid/calendar.js';
 import { sendPasswordResetV2 } from '../../src/utils/sendPasswordReset';
 import { formatDate } from '../../src/format/nb';
+import DateInput from '../../components/DateInput';
 
 // «Kan logge inn» er ikke et eget valg: innlogging følger kobling og om ansettelsen er aktiv.
 const CHECKS = [
@@ -437,24 +438,22 @@ function ScheduleSection({ employee, colors, canEdit, onSave, onNote, onError })
           <View style={styles.planBody}>
             <View style={styles.period}>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Gjelder fra</Text>
-              <TextInput
+              <DateInput
                 value={editor.fromText}
-                onChangeText={(value) => setEditor((current) => (current ? { ...current, fromText: value } : current))}
-                placeholder="DD.MM.ÅÅÅÅ"
-                placeholderTextColor={colors.placeholder}
-                style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                onChange={(value) => setEditor((current) => (current ? { ...current, fromText: value } : current))}
+                format="nb"
                 accessibilityLabel="Fra-dato"
               />
               <Text style={{ color: colors.muted, fontSize: 12 }}>Gjelder til</Text>
               {newer?.from ? (
                 <Text style={{ color: colors.ink }}>{formatScheduleDate(scheduleRange({ id: editor.id, from: editorFrom }, [...others, { id: editor.id, from: editorFrom }]).to)}</Text>
               ) : (
-                <TextInput
+                <DateInput
                   value={editor.toText}
-                  onChangeText={(value) => setEditor((current) => (current ? { ...current, toText: value } : current))}
+                  onChange={(value) => setEditor((current) => (current ? { ...current, toText: value } : current))}
+                  format="nb"
                   placeholder="nåværende"
-                  placeholderTextColor={colors.placeholder}
-                  style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                  clearable
                   accessibilityLabel="Til-dato"
                 />
               )}

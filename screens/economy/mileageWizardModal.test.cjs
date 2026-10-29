@@ -64,6 +64,7 @@ function loadJsx(rel) {
   m.require = (id) => {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id.endsWith('/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id === '@expo/vector-icons') {
       return { Ionicons: function Ionicons() { return null; } };
     }

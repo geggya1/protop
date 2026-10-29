@@ -662,7 +662,7 @@ function NewFindingSheet({ ctx, visible, onClose, onCreated }) {
         <View style={{ ...(wide ? { flex: 1 } : null) }}>
           <Field label="Når skjedde det">
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ flex: 3 }}><DateIn value={v.occurredAt} onChange={set('occurredAt')} /></View>
+              <View style={{ flex: 3 }}><DateIn value={v.occurredAt} onChange={set('occurredAt')} clearable /></View>
               <View style={{ flex: 2 }}><TimeIn value={v.occurredTime} onChange={set('occurredTime')} /></View>
             </View>
           </Field>
@@ -1298,7 +1298,7 @@ function FindingDetail({ ctx, finding, onBack }) {
         <Text style={{ color: colors.muted, fontSize: typeScale.caption.fontSize }}>{finding.number} · {finding.title}</Text>
         <Field label="Alvorlighet" required><Choice options={SEVERITIES.map((s) => ({ id: s.id, label: s.label }))} value={tri.severity} onChange={(x) => setTri({ ...tri, severity: x })} /></Field>
         <Field label="Saksbehandler" required hint="Får saken som oppgave i Oppgaver."><PersonPick people={people} value={tri.assigneeName} onChange={(p) => setTri({ ...tri, assigneeName: p.name, assigneeUid: p.uid })} /></Field>
-        <Field label="Frist for saken" hint="Tom frist gir 30 dager (7 dager ved kritisk)."><DateIn value={tri.dueAt} onChange={(x) => setTri({ ...tri, dueAt: x })} /></Field>
+        <Field label="Frist for saken" hint="Tom frist gir 30 dager (7 dager ved kritisk)."><DateIn value={tri.dueAt} onChange={(x) => setTri({ ...tri, dueAt: x })} clearable /></Field>
         {['hms', 'nestenulykke'].includes(finding.type) ? (
           <Field label="Skadeklasse"><Choice small options={INJURY_CLASSES.map((c) => ({ id: c.id, label: c.label }))} value={tri.injuryClass} onChange={(x) => setTri({ ...tri, injuryClass: x || '', notifiable: seriousInjury(x) ? true : tri.notifiable })} placeholder="Velg" title="Skadeklasse" /></Field>
         ) : null}

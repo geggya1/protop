@@ -84,6 +84,9 @@ import BidOverview from './BidOverview';
 import BidSymbolButton from './BidSymbolButton';
 import ReviewNotes from './ReviewNotes';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
+import DateInput from '../../components/DateInput';
+import TimeField from '../../components/TimeField';
+import { detectDateFormat } from '../../src/utils/dateInput';
 
 const TABS = [
   { id: 'oversikt', label: 'Oversikt', icon: 'grid-outline' },
@@ -95,6 +98,42 @@ const TABS = [
 ];
 
 const FILE_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.txt,.png,.jpg,.jpeg,application/pdf,image/*';
+
+// Tilbudsfristen er tekst som «02.11.2026 12:00» eller «2026-11-02T12:00». Dato og klokkeslett velges hver for seg.
+function splitDeadline(value) {
+  const raw = String(value || '').trim();
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\.\d{4})(?:(T|\s+(?:kl\.?\s*)?)(\d{1,2}:\d{2}))?/i);
+  if (m) return { date: m[1], time: m[3] || '', sep: m[2] || ' ', rest: m[3] ? raw.slice(m[0].length) : '' };
+  if (/^\d{1,2}:\d{2}$/.test(raw)) return { date: '', time: raw, sep: ' ', rest: '' };
+  // Fritekst uten dato vises i feltet til en dato velges.
+  return { date: raw, time: '', sep: ' ', rest: '', free: !!raw };
+}
+
+/** Tilbudsfrist med datovelger og klokkeslett. Lagres i samme tekstform som før. */
+export function DeadlineField({ value, onChange, colors }) {
+  const parts = splitDeadline(value);
+  const join = (date, time) => (date ? `${date}${time ? `${parts.sep}${time}${parts.rest}` : ''}` : time);
+  return (
+    <View style={styles.deadlineRow}>
+      <DateInput
+        value={parts.date}
+        onChange={(date) => onChange(join(date, parts.time))}
+        format={detectDateFormat(parts.date, 'nb')}
+        placeholder="Tilbudsfrist"
+        clearable
+        style={[styles.deadlineDate, { backgroundColor: colors.bg }]}
+      />
+      <TimeField
+        value={parts.time}
+        onChange={(time) => onChange(join(parts.free ? '' : parts.date, time))}
+        placeholder="Klokkeslett"
+        iconColor={colors.brand}
+        style={[styles.deadlineTime, { borderColor: colors.line, backgroundColor: colors.bg }]}
+        textStyle={{ color: parts.time ? colors.ink : colors.placeholder }}
+      />
+    </View>
+  );
+}
 
 function readAsDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -531,13 +570,7 @@ export default function BidWorkspace({
             placeholderTextColor={colors.placeholder}
             style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
           />
-          <TextInput
-            value={metaDeadline}
-            onChangeText={setMetaDeadline}
-            placeholder="Tilbudsfrist"
-            placeholderTextColor={colors.placeholder}
-            style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-          />
+          <DeadlineField value={metaDeadline} onChange={setMetaDeadline} colors={colors} />
           <TouchableOpacity
             onPress={() => commit(updateBidSettings(state, bid.id, {
               title: metaTitle,
@@ -1710,8 +1743,8 @@ function ExecutionPanel({
             <Text style={{ color: colors.ink }}>Tilbudet er levert. Registrer vunnet kontrakt eller marker utfallet.</Text>
           ) : null}
           <TextInput value={value} onChangeText={setValue} placeholder="Kontraktssum" placeholderTextColor={colors.placeholder} keyboardType="decimal-pad" style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
-          <TextInput value={start} onChangeText={setStart} placeholder="Oppstart ÅÅÅÅ-MM-DD" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
-          <TextInput value={end} onChangeText={setEnd} placeholder="Overlevering ÅÅÅÅ-MM-DD" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]} />
+          <DateInput value={start} onChange={setStart} format="iso" placeholder="Oppstart" clearable />
+          <DateInput value={end} onChange={setEnd} format="iso" placeholder="Overlevering" clearable />
           <TouchableOpacity onPress={() => onCommit(awardContract(state, bid.id, { value, start, end }))} accessibilityRole="button" style={[styles.btn, { backgroundColor: colors.brand }]}>
             <Text style={{ color: '#fff' }}>Registrer vunnet kontrakt</Text>
           </TouchableOpacity>
@@ -1814,6 +1847,9 @@ const styles = StyleSheet.create({
   page: { gap: 16, width: '100%', maxWidth: 1240 },
   h: { fontSize: 26, fontWeight: '700', lineHeight: 32 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  deadlineRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  deadlineDate: { flexGrow: 1, flexBasis: 180 },
+  deadlineTime: { flexGrow: 1, flexBasis: 140, minHeight: 44 },
   column: { width: '100%', gap: 14 },
   narrow: { width: '100%', maxWidth: 920, alignSelf: 'flex-start' },
   hero: { borderWidth: 1, borderRadius: 16, padding: 20, gap: 16, width: '100%' },

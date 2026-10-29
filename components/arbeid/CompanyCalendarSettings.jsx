@@ -14,6 +14,7 @@ import {
   upsertRedDay,
 } from '../../src/arbeid/timesheetState.js';
 import { formatDate } from '../../src/format/nb';
+import DateInput from '../DateInput';
 
 /** Røde dager og normaldag for selskapet. Lagres i prosjektstate sammen med timelisten. */
 export default function CompanyCalendarSettings({ familyId, colors: colorsProp, canEdit }) {
@@ -111,8 +112,8 @@ export default function CompanyCalendarSettings({ familyId, colors: colorsProp, 
           </TouchableOpacity>
         ) : null}
       </View>
-      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 8 }}>Egen dag (ÅÅÅÅ-MM-DD)</Text>
-      <TextInput value={date} onChangeText={setDate} editable={canEdit} placeholder="2026-12-24" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line }]} />
+      <Text style={{ color: colors.muted, fontSize: 12, marginTop: 8 }}>Egen dag</Text>
+      <DateInput value={date} onChange={setDate} format="iso" editable={canEdit} accessibilityLabel="Egen dag" style={{ minWidth: 120 }} />
       <TextInput value={name} onChangeText={setName} editable={canEdit} placeholder="Navn, f.eks. julaften" placeholderTextColor={colors.placeholder} style={[styles.input, { color: colors.ink, borderColor: colors.line }]} />
       <View style={styles.row}>
         {['full', 'half'].map((id) => (

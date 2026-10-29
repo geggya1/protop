@@ -26,6 +26,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OptionPicker from '../OptionPicker';
+import DateInput from '../DateInput';
 import {
   EXPENSE_BILLING_CHOICES,
   EXPENSE_CATEGORIES,
@@ -522,7 +523,7 @@ export default function ExpenseWizard({
   }
 
   function saveProblem() {
-    if (!parseDate(draft.dateText) || !/^\d{4}-\d{2}-\d{2}$/.test(parseDate(draft.dateText))) return 'Skriv datoen som dd.mm.åååå.';
+    if (!parseDate(draft.dateText) || !/^\d{4}-\d{2}-\d{2}$/.test(parseDate(draft.dateText))) return 'Velg dato.';
     if (!(amount > 0)) return foreign ? `Skriv beløpet i NOK fra kontoutskriften.` : 'Skriv beløpet.';
     if (!draft.category) return 'Velg utgiftstype.';
     if (!String(draft.description || '').trim()) return 'Skriv en kort beskrivelse.';
@@ -786,7 +787,24 @@ export default function ExpenseWizard({
       ))}
       <View style={styles.pair}>
         <View style={styles.half}>
-          <Input label="Dato" value={draft.dateText} onChange={set('dateText')} onBlur={() => setDraft((d) => ({ ...d, dateText: formatDate(parseDate(d.dateText)) || d.dateText }))} colors={colors} tolket={isTolket('dateText')} missing={isMissing('dateText')} placeholder="dd.mm.åååå" nativeID="expense-date" required />
+          <View style={styles.field}>
+            <FieldLabel
+              label="Dato"
+              required
+              missing={isMissing('dateText')}
+              colors={colors}
+              badge={isTolket('dateText') ? <Tolket colors={colors} /> : null}
+            />
+            <DateInput
+              value={draft.dateText}
+              onChange={set('dateText')}
+              format="nb"
+              placeholder={isMissing('dateText') && !draft.dateText ? 'Fyll ut' : 'Velg dato'}
+              accessibilityLabel="Dato"
+              nativeID="expense-date"
+              style={isMissing('dateText') ? { borderColor: MISSING_LINE, backgroundColor: MISSING_BG } : null}
+            />
+          </View>
         </View>
         <View style={styles.half}>
           <Input label="Valuta" value={draft.currency} onChange={(v) => set('currency')(String(v || '').toUpperCase().slice(0, 3))} colors={colors} tolket={isTolket('currency')} missing={isMissing('currency')} placeholder="NOK" nativeID="expense-currency" />

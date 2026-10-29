@@ -9,6 +9,7 @@ import { CONTROL_KINDS, controlKind } from '../../src/equipment/catalog';
 import { addMonthsKey, controlBlocking, gearControls } from '../../src/equipment/model';
 import { createId } from '../../src/project/engine';
 import { radius, type } from '../../src/ui/tokens';
+import DateInput from '../../components/DateInput';
 
 const STATE_TEXT = { forfalt: 'Forfalt', snart: 'Forfaller snart', ok: 'OK', mangler: 'Mangler frist' };
 
@@ -17,20 +18,24 @@ function pretty(key) {
   return d ? `${d}.${m}.${y}` : '';
 }
 
-function Input({ label, value, onChange, colors, placeholder, keyboardType, nativeID }) {
+function Input({ label, value, onChange, colors, placeholder, keyboardType, nativeID, date, clearable }) {
   return (
     <View style={{ minWidth: 120, flexGrow: 1, flexBasis: 140 }}>
       <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 4 }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        keyboardType={keyboardType || 'default'}
-        nativeID={nativeID}
-        accessibilityLabel={label}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
+      {date ? (
+        <DateInput value={value} onChange={onChange} format="iso" placeholder={placeholder} clearable={clearable} nativeID={nativeID} accessibilityLabel={label} />
+      ) : (
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={colors.muted}
+          keyboardType={keyboardType || 'default'}
+          nativeID={nativeID}
+          accessibilityLabel={label}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+        />
+      )}
     </View>
   );
 }
@@ -75,8 +80,8 @@ export function ControlsEditor({ gear, setGear, colors }) {
           <Text style={{ color: colors.muted, fontSize: 11 }}>{controlKind(c.kind).hint}</Text>
           <View style={styles.row}>
             <Input label="Intervall (måneder)" value={c.intervalMonths ? String(c.intervalMonths) : ''} onChange={(v) => patch(c.id, { intervalMonths: v.replace(/[^0-9]/g, '') })} colors={colors} placeholder="12" keyboardType="number-pad" />
-            <Input label="Sist kontrollert" value={c.last || ''} onChange={(v) => patch(c.id, { last: v })} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
-            <Input label="Neste frist" value={c.next || ''} onChange={(v) => patch(c.id, { next: v })} colors={colors} placeholder="Regnes ut" />
+            <Input label="Sist kontrollert" value={c.last || ''} onChange={(v) => patch(c.id, { last: v })} colors={colors} date clearable />
+            <Input label="Neste frist" value={c.next || ''} onChange={(v) => patch(c.id, { next: v })} colors={colors} placeholder="Regnes ut" date clearable />
           </View>
           <View style={styles.row}>
             <Input label="Sertifikat (nr. eller lenke)" value={c.certificate || ''} onChange={(v) => patch(c.id, { certificate: v })} colors={colors} placeholder="https:// eller nr." />
@@ -132,7 +137,7 @@ export function ControlStatus({ gear, colors, canManage, onRecord, busy = false 
             {form?.controlId === c.id ? (
               <View style={[styles.box, { borderColor: colors.line }]}>
                 <View style={styles.row}>
-                  <Input label="Dato" value={form.date} onChange={(v) => setForm({ ...form, date: v })} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
+                  <Input label="Dato" value={form.date} onChange={(v) => setForm({ ...form, date: v })} colors={colors} date />
                   <Input label="Sertifikat (nr. eller lenke)" value={form.certificate} onChange={(v) => setForm({ ...form, certificate: v })} colors={colors} />
                   <Input label="Kontrollert av" value={form.by} onChange={(v) => setForm({ ...form, by: v })} colors={colors} />
                 </View>

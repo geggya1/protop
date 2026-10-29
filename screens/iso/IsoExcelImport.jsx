@@ -8,6 +8,7 @@ import React, { useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
+import DateInput from '../../components/DateInput';
 import { DEFAULT_RISK_METHOD } from '../../src/iso/catalog';
 import { registerDef } from '../../src/iso/registers';
 import {
@@ -194,7 +195,12 @@ export default function IsoExcelImport({ ctx, registerKey, visible, onClose }) {
                     />
                   </Field>
                 ) : null}
-                {needsDefault && !['select', 'person', 'ref'].includes(f.type) ? (
+                {needsDefault && f.type === 'date' ? (
+                  <Field label={`${f.label} for alle rader`}>
+                    <DateInput value={defaults[f.key] || ''} onChange={(x) => setDefaults({ ...defaults, [f.key]: x })} format="iso" accessibilityLabel={`${f.label} for alle rader`} />
+                  </Field>
+                ) : null}
+                {needsDefault && !['select', 'person', 'ref', 'date'].includes(f.type) ? (
                   <Field label={`${f.label} for alle rader`}>
                     <TextIn value={String(defaults[f.key] ?? '')} onChangeText={(x) => setDefaults({ ...defaults, [f.key]: x })} />
                   </Field>

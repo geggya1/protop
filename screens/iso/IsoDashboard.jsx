@@ -17,7 +17,7 @@ import { recordsNeedingReview } from '../../src/iso/registers';
 import { annualWheel, pageLabel } from '../../src/iso/planning';
 import { READY_STATUS, certificationReadiness } from '../../src/iso/readiness';
 import { RiskMatrix, StatusDonut, TrendBars, HBars } from './isoCharts';
-import { postDate, useCompanyNews } from './useCompanyNews';
+import { postDate, postTitle, useCompanyNews } from './useCompanyNews';
 import { Banner, Btn, Card, Choice, Empty, ListRow, Page, Pill, Row } from './isoUi';
 import QuickReportButton from './QuickReport';
 
@@ -109,7 +109,7 @@ export default function IsoDashboard({ ctx }) {
           ) : null}
           {news.length ? (
             <Card style={{ ...(wide ? { flex: 2 } : null) }} title="Nyheter" subtitle="Fra Selskap → Nyheter" right={<Btn small label="Alle" onPress={openNews} />}>
-              {news.map((p) => <ListRow key={p.id} icon="megaphone-outline" title={p.title || String(p.body || '').slice(0, 80)} subtitle={postDate(p) ? prettyDate(postDate(p)) : p.authorName} onPress={openNews} />)}
+              {news.map((p) => <ListRow key={p.id} icon="megaphone-outline" title={postTitle(p)} subtitle={postDate(p) ? prettyDate(postDate(p)) : p.authorName} onPress={openNews} />)}
             </Card>
           ) : null}
         </View>

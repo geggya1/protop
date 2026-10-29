@@ -237,3 +237,10 @@ Automatisk utsending (`collectionAutoScheduled`, kl. 07.30 og 13.30):
 - Bare fakturaer der betalingen kommer fra PowerOffice, aldri fra testklienten. Høyst 50 brev per bedrift per kjøring.
 - Mangler e-postadresse, føres det i endringsloggen én gang, og ingenting sendes.
 - Synken mot PowerOffice går i tillegg hvert 15. minutt.
+
+### Purring styres fra ProTop (valgt 29.10.2026)
+
+PowerOffice sitt API har ingen kommando for å purre eller sende til inkasso per faktura, bare innstillinger per
+kunde. Purring og inkasso styres derfor fra ProTop. Kunder ProTop oppretter i Go får `SendPaymentReminders: false`,
+`DoNotAutomatePaymentNotifications: true` og `TransferToDebtCollectionAgency: false`, så Go ikke sender et eget løp.
+Purring i Go bør også være slått av for klienten, siden kunder som fantes fra før, ikke endres.

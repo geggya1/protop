@@ -447,6 +447,13 @@ function fakeClient(routes) {
 
 // E-post på fakturaen holder når kunderegisteret mangler den. Person uten e-post: papir.
 assert.equal(customerPostFromProTop({ name: 'A AS', orgnr: '918269819' }, { invoice: { customerEmail: 'f@a.no' } }).customer.InvoiceDeliveryType, 'PdfByEmail');
+{
+  // Purring og inkasso styres fra ProTop: Go purrer ikke og sender ikke til inkasso for kunder vi oppretter.
+  const created = customerPostFromProTop({ name: 'A AS', orgnr: '918269819' }).customer;
+  assert.equal(created.SendPaymentReminders, false);
+  assert.equal(created.DoNotAutomatePaymentNotifications, true);
+  assert.equal(created.TransferToDebtCollectionAgency, false);
+}
 assert.equal(customerDelivery({ email: '', orgnr: '', isPerson: true }).InvoiceDeliveryType, 'Print');
 assert.equal(customerDelivery({ orgnr: '918 269 819' }).InvoiceDeliveryType, 'EHF');
 

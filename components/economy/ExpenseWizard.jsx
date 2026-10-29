@@ -31,6 +31,7 @@ import {
   EXPENSE_CATEGORIES,
   EXPENSE_PAID_BY,
   expenseCategory,
+  normalizeExpense,
 } from '../../src/economy/expenses.js';
 import {
   PAYMENT_METHODS,
@@ -40,7 +41,7 @@ import {
   frequentExpenseTypes,
 } from '../../src/economy/expenseReceipt.js';
 import { suggestVatTreatment } from '../../src/economy/vatTreatment.js';
-import { parseDate } from '../../src/economy/invoices.js';
+import { formatMoney, parseDate } from '../../src/economy/invoices.js';
 import { formatDate } from '../../src/economy/hoursList.js';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
 import { pickDocument, pickImage, pickImages, uploadFile } from '../../src/utils/media';
@@ -103,6 +104,8 @@ function startDraft(employeeId) {
     cardLast4: '',
     vendorCountry: '',
     isService: false,
+    // Mva-beløpet på kvitteringen (null: regnes ut fra satsen).
+    receiptVat: null,
   };
 }
 
@@ -313,6 +316,12 @@ export default function ExpenseWizard({
     amountInclVat: amount,
   });
   const representation = draft.category === 'representation';
+  // Eks. mva er grunnlaget som faktureres videre (med påslag). Fra kvitteringen når den viser mva
+  // og beløpet ikke er endret, ellers regnet ut fra satsen.
+  const exact = !foreign && draft.receiptVat != null && !touched.amountText && amount > draft.receiptVat;
+  const split = normalizeExpense(exact
+    ? { amountInclVat: amount, amountExVat: amount - draft.receiptVat, vatSplit: 'receipt', category: draft.category || 'other' }
+    : { amountInclVat: amount, vatCode: foreign ? 'OUTSIDE' : (draft.vatCode || expenseCategory(draft.category || 'other').vatCode), category: draft.category || 'other' });
   const pending = files.some((file) => file.status === 'preparing' || file.status === 'uploading');
   const isTolket = (key) => interpreted.includes(key) && !touched[key];
   // Etter tolkingen er hvert felt AI-en ikke fylte (og den ansatte ikke har fylt), gult.
@@ -546,8 +555,9 @@ export default function ExpenseWizard({
       currency: 'NOK',
       originalAmount: foreign ? toNumber(draft.originalAmountText) : 0,
       originalCurrency: foreign ? draft.currency : '',
-      amountExVat: 0,
+      amountExVat: exact ? split.amountExVat : 0,
       amountInclVat: amount,
+      vatSplit: exact ? 'receipt' : '',
       vatCode: foreign ? 'OUTSIDE' : (draft.vatCode || expenseCategory(draft.category).vatCode),
       vatTreatment: treatmentId,
       paymentMethod: draft.paymentMethod,
@@ -813,6 +823,11 @@ export default function ExpenseWizard({
       ) : (
         <Input label="Beløp inkl. mva" value={draft.amountText} onChange={set('amountText')} colors={colors} tolket={isTolket('amountText')} missing={isMissing('amountText')} keyboardType="decimal-pad" placeholder="0,00" nativeID="expense-amount" required />
       )}
+      {amount > 0 ? (
+        <Text style={[styles.hint, { color: colors.muted }]} nativeID="expense-ex-vat">
+          {`Eks. mva ${formatMoney(split.amountExVat)}${draft.billingChoice === 'no' ? '' : ' · faktureres kunden med påslag'}`}
+        </Text>
+      ) : null}
       <Input label="Butikk / leverandør" value={draft.vendor} onChange={set('vendor')} colors={colors} tolket={isTolket('vendor')} missing={isMissing('vendor')} nativeID="expense-vendor" />
       <View style={styles.field}>
         <FieldLabel

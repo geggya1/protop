@@ -229,7 +229,12 @@ function ExpenseSheet({
         </View>
         <View style={styles.sheetCell}>
           <Field label="Beløp eks. mva" required>
-            <TextIn value={String(draft.amountExVat ?? '')} onChangeText={set('amountExVat')} keyboardType="decimal-pad" editable={editable} />
+            <TextIn
+              value={String(draft.amountExVat ?? '')}
+              onChangeText={(value) => setDraft((current) => ({ ...current, amountExVat: value, amountInclVat: 0, vatSplit: '' }))}
+              keyboardType="decimal-pad"
+              editable={editable}
+            />
           </Field>
         </View>
       </View>

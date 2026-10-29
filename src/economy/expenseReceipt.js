@@ -148,6 +148,15 @@ export function expensePatchFromReceipt(bilag = {}, { touched = {}, today } = {}
       put('amountInclVat', roundMoney(amount));
     }
   }
+  // Mva-beløpet på kvitteringen (sum av satsene). Gir nøyaktig eks. mva, også med flere satser.
+  if (!foreign && amount != null && amount > 0) {
+    const lines = Array.isArray(bilag.vatLines) ? bilag.vatLines : [];
+    const fromLines = lines.length && lines.every((row) => num(row?.vat) != null)
+      ? lines.reduce((sum, row) => sum + num(row.vat), 0)
+      : null;
+    const vat = num(bilag.vatAmount) ?? fromLines;
+    if (vat != null && vat >= 0 && vat < amount) patch.receiptVat = roundMoney(vat);
+  }
   // Norsk mva gjelder ikke kjøp i utlandet.
   put('vatCode', foreign ? 'OUTSIDE' : receiptVatCode(bilag));
 

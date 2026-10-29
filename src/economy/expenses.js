@@ -152,7 +152,18 @@ export function normalizeExpense(input = {}) {
   const absEx = signedEx != null ? Math.abs(signedEx) : 0;
   const absIncl = signedIncl != null ? Math.abs(signedIncl) : 0;
   let calc;
-  if (absEx > 0) {
+  // Mva slik den står på kvitteringen (flere satser gir ellers feil eks. mva). Eks. mva er
+  // grunnlaget som faktureres videre med påslag.
+  const fromReceipt = row.vatSplit === 'receipt' && absEx > 0 && absIncl >= absEx;
+  if (fromReceipt) {
+    const vat = roundMoney(absIncl - absEx);
+    calc = {
+      amountExVat: roundMoney(absEx),
+      vatAmount: vat,
+      amountInclVat: roundMoney(absIncl),
+      vatPercent: Math.round((vat / absEx) * 1000) / 10,
+    };
+  } else if (absEx > 0) {
     calc = calcLineVat({ quantity: 1, unitPrice: absEx, vatCode });
   } else if (absIncl > 0) {
     const known = calcLineVat({ quantity: 1, unitPrice: 100, vatCode });
@@ -210,6 +221,7 @@ export function normalizeExpense(input = {}) {
     originalCurrency: originalAmount ? text(row.originalCurrency).toUpperCase().slice(0, 3) : '',
     originalAmount,
     // Avgiftskode (SAF-T) for inngående mva, se vatTreatment.js. Tom: regnskapsføreren velger.
+    vatSplit: fromReceipt ? 'receipt' : '',
     vatTreatment: /^\d{1,2}$/.test(text(row.vatTreatment)) ? text(row.vatTreatment) : '',
     paymentMethod: text(row.paymentMethod).slice(0, 20),
     // Kjøregodtgjørelse over trekkfri sats: skattepliktig del som går på lønn.

@@ -168,3 +168,22 @@ test('formål, betalingsmåte og avgiftskode fylles også', () => {
   assert.equal(row.cardLast4, '9141');
   assert.equal(row.attachments[0].originalUrl, 'https://x/o.jpg');
 });
+
+test('eks. mva lagres slik kvitteringen viser det, også med flere satser', () => {
+  // Matbutikk: 15 % på mat (200 + 30) og 25 % på annet (40 + 10). Totalt 280, mva 40.
+  const { patch } = expensePatchFromReceipt({
+    supplier: 'Rema 1000', date: '2026-10-07', amount: 280, currency: 'NOK',
+    vatLines: [{ percent: 15, base: 200, vat: 30 }, { percent: 25, base: 40, vat: 10 }],
+  }, { today: TODAY });
+  assert.equal(patch.receiptVat, 40);
+  const row = normalizeExpense({ amountInclVat: 280, amountExVat: 240, vatSplit: 'receipt', vatCode: patch.vatCode });
+  assert.equal(row.amountExVat, 240);
+  assert.equal(row.vatAmount, 40);
+  assert.equal(row.amountInclVat, 280);
+  assert.equal(row.vatSplit, 'receipt');
+  // Uten kvitteringens mva: eks. mva fra satsen (som før).
+  const byRate = normalizeExpense({ amountInclVat: 280, vatCode: 'MID' });
+  assert.equal(byRate.amountExVat, 243.48);
+  // Utenlandsk kvittering: ingen norsk mva å trekke fra.
+  assert.equal(expensePatchFromReceipt({ supplier: 'X', amount: 20, currency: 'EUR', vatAmount: 4, date: '2026-10-07' }, { today: TODAY }).patch.receiptVat, undefined);
+});

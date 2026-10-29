@@ -217,6 +217,9 @@ export const FILES = [
   'src/utils/mailPanes.test.mjs',
   'src/project/myProjects.test.mjs',
   'src/project/companyFields.test.mjs',
+  // Nyheter: underoverskrift, fet, kursiv, understrek og lister i redigering og visning.
+  'src/project/newsFormat.test.mjs',
+  'src/project/companyPage.test.mjs',
   // To brukere som lagrer samtidig: ingen tapte eller gjenopplivede prosjekter, utlegg og kunder.
   'src/project/concurrentSave.test.mjs',
   'src/project/saveRegressions.test.mjs',

@@ -3,6 +3,7 @@
  * Rekkefølgen i modules er prioriteten. Skjulte moduler ligger igjen i listen.
  */
 import { isActiveEmployee } from '../employees/employmentState.js';
+import { newsPlainText } from './newsFormat.js';
 
 export const PAGE_TABS = [
   { id: 'oversikt', label: 'Oversikt' },
@@ -330,17 +331,19 @@ export function categoryLabel(id) {
 }
 
 export function presentNewsPost(post) {
-  const body = text(post?.body);
+  // Kortene viser ren tekst: ingen ## eller ** fra formateringen.
+  const body = newsPlainText(text(post?.body));
   const explicit = text(post?.title);
   const title = explicit || body.split('\n').map((line) => line.trim()).find(Boolean) || 'Oppdatering';
   let excerpt = body;
   if (explicit && body.toLowerCase().startsWith(explicit.toLowerCase())) {
     excerpt = body.slice(explicit.length).replace(/^[\s:—-]+/, '').trim();
   } else if (!explicit && body.includes('\n')) {
-    excerpt = body.split('\n').slice(1).join(' ').trim();
+    excerpt = body.split('\n').slice(1).map((line) => line.trim()).filter(Boolean).join(' ');
   } else if (!explicit) {
     excerpt = '';
   }
+  excerpt = excerpt.replace(/\s*\n+\s*/g, ' ');
   if (excerpt.length > 160) excerpt = `${excerpt.slice(0, 157).trim()}…`;
   return {
     title,

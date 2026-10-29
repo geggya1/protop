@@ -761,10 +761,14 @@ export default function EconomyInvoices({
     <ConfirmDialog
       visible={!!confirmDelete}
       title="Slett faktura?"
-      message={confirmDelete
-        ? `Faktura ${confirmDelete.invoiceNumber || ''} er importert og slettes fra listen i ProTop. Tilknyttede timer og poster frigjøres hvis de var låst til denne fakturaen.${
-          confirmDelete.poweroffice?.state === 'draft' ? ' Utkastet i PowerOffice må slettes der.' : ''}`
-        : ''}
+      message={(() => {
+        if (!confirmDelete) return '';
+        if (confirmDelete.poweroffice?.env === 'demo') {
+          return `Faktura ${confirmDelete.invoiceNumber || ''} kommer fra PowerOffice sin testklient og er ikke ekte. Den slettes fra ProTop, og timer og poster går tilbake til Til fakturering. I testklienten blir den liggende.`;
+        }
+        return `Faktura ${confirmDelete.invoiceNumber || ''} er importert og slettes fra listen i ProTop. Tilknyttede timer og poster frigjøres hvis de var låst til denne fakturaen.${
+          confirmDelete.poweroffice?.state === 'draft' ? ' Utkastet i PowerOffice må slettes der.' : ''}`;
+      })()}
       confirmText="Slett"
       cancelText="Avbryt"
       danger

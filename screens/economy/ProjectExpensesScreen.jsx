@@ -10,6 +10,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -31,10 +32,13 @@ import { useCompanyRefs, useEmployees } from '../../src/context/CompanyDataConte
 import { freshRows, hydrateRows, liveCustomerList } from '../../src/company/companyData.js';
 import { formatMoney, parseDate } from '../../src/economy/invoices.js';
 import {
+  EXPENSE_BILLING_CHOICES,
   EXPENSE_CATEGORIES,
   EXPENSE_CHARGE_TYPES,
+  EXPENSE_PAID_BY,
   EXPENSE_STATUSES,
   emptyExpense,
+  expenseBillingChoice,
   expensesToCsv,
   validateExpense,
 } from '../../src/economy/expenses.js';
@@ -76,11 +80,23 @@ import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { Button, Field, Sheet, TextIn } from '../../src/ui';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
+import ExpenseWizard from '../../components/economy/ExpenseWizard';
 import Breadcrumb from '../../components/Breadcrumb';
 import ReportTable from '../../components/table/ReportTable';
 import InlineError from '../../src/ui/InlineError';
 import Skeleton from '../../src/ui/Skeleton';
 import { radius, space, type } from '../../src/ui/tokens';
+
+const UNSURE_APPROVE = 'Avgjør først om kunden skal faktureres: velg Ja eller Nei under «Faktureres kunde».';
+
+function openLink(url) {
+  if (!url) return;
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener');
+    return;
+  }
+  Linking?.openURL?.(url);
+}
 
 function money(value) {
   return typeof formatMoney === 'function' ? formatMoney(value) : String(value ?? '');
@@ -158,6 +174,12 @@ function ExpenseSheet({
   const employeeName = people.find((row) => row.id === draft.employeeId)?.label || draft.employeeName || '';
   const charge = EXPENSE_CHARGE_TYPES.find((row) => row.id === (draft.chargeType || 'reinvoice'));
   const label = draft.description || draft.purpose || 'utlegget';
+  const receipts = (Array.isArray(draft.attachments) && draft.attachments.length)
+    ? draft.attachments.filter((file) => file?.url)
+    : (/^https?:/.test(String(draft.receiptUri || '')) ? [{ url: draft.receiptUri, name: draft.receiptName || 'Kvittering', type: '' }] : []);
+  const original = Number(draft.originalAmount) > 0 && draft.originalCurrency
+    ? ` · ${String(draft.originalAmount).replace('.', ',')} ${draft.originalCurrency} på kvitteringen`
+    : '';
   // Feilen står over knappene, så den synes også når skjemaet er rullet (telefon).
   const footer = [
     ...(error ? [
@@ -191,7 +213,7 @@ function ExpenseSheet({
     <Sheet visible title={isNew ? 'Nytt utlegg' : (editable ? 'Endre utlegg' : 'Utlegg')} onClose={onClose} footer={footer} wide>
       {!isNew ? (
         <Text style={[styles.sheetMeta, { color: colors.muted }]}>
-          {`Status: ${expenseStatusLabel(draft.status)}${can.trip ? ' · Kjøring: endres i Kjørebok' : ''}`}
+          {`Status: ${expenseStatusLabel(draft.status)}${draft.vendor ? ` · ${draft.vendor}` : ''}${original}${can.trip ? ' · Kjøring: endres i Kjørebok' : ''}`}
         </Text>
       ) : null}
       {pendingDelete ? (
@@ -278,6 +300,36 @@ function ExpenseSheet({
           </Field>
         </View>
       </View>
+      <View style={styles.sheetGrid}>
+        <View style={styles.sheetCell}>
+          <Field
+            label="Faktureres kunde"
+            hint={expenseBillingChoice(draft) === 'unsure' ? 'Den ansatte var usikker. Velg Ja eller Nei før du godkjenner.' : ''}
+          >
+            <OptionPicker
+              options={EXPENSE_BILLING_CHOICES.map((row) => ({ id: row.id, label: row.label }))}
+              value={expenseBillingChoice(draft)}
+              onChange={(id) => { if (id) setDraft((current) => ({ ...current, billingChoice: id, billable: id !== 'no' })); }}
+              title="Faktureres kunde"
+              clearable={false}
+              disabled={!editable && !can.approve}
+              accessibilityLabel="Faktureres kunde"
+            />
+          </Field>
+        </View>
+        <View style={styles.sheetCell}>
+          <Field label="Betalt">
+            <OptionPicker
+              options={EXPENSE_PAID_BY.map((row) => ({ id: row.id, label: row.label }))}
+              value={draft.paidBy === 'company' ? 'company' : 'personal'}
+              onChange={(id) => { if (id) set('paidBy')(id); }}
+              title="Betalt"
+              clearable={false}
+              disabled={!editable}
+            />
+          </Field>
+        </View>
+      </View>
       <Field label="Faktureres som" hint={charge?.hint}>
         <OptionPicker
           options={EXPENSE_CHARGE_TYPES.map((row) => ({ id: row.id, label: row.label }))}
@@ -291,9 +343,26 @@ function ExpenseSheet({
       <Field label="Formål">
         <TextIn value={draft.purpose || ''} onChangeText={set('purpose')} editable={editable} />
       </Field>
-      <Field label="Kvittering (lenke)" hint="Kvittering kreves over 1 000 kr ved innsatsfaktor (bokføringsforskriften).">
-        <TextIn value={draft.receiptUri || ''} onChangeText={set('receiptUri')} placeholder="fil:// eller https://" editable={editable} />
-      </Field>
+      {receipts.length ? (
+        <Field label="Kvittering">
+          <View style={styles.receiptRow} nativeID="expense-sheet-receipts">
+            {receipts.map((file, index) => (
+              <Button
+                key={file.url}
+                size="sm"
+                icon={/pdf/i.test(file.type || file.name) ? 'document-text-outline' : 'image-outline'}
+                label={file.name || `Kvittering ${index + 1}`}
+                accessibilityLabel={`Åpne ${file.name || 'kvitteringen'}`}
+                onPress={() => openLink(file.url)}
+              />
+            ))}
+          </View>
+        </Field>
+      ) : (
+        <Field label="Kvittering (lenke)" hint="Kvittering kreves over 1 000 kr ved innsatsfaktor (bokføringsforskriften).">
+          <TextIn value={draft.receiptUri || ''} onChangeText={set('receiptUri')} placeholder="fil:// eller https://" editable={editable} />
+        </Field>
+      )}
     </Sheet>
   );
 }
@@ -337,6 +406,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   const [wantedScope, setWantedScope] = useState(() => startScope || scopeFromUrl());
   // Skjemaet: null = lukket, ellers utlegget som registreres eller vises.
   const [draft, setDraft] = useState(null);
+  // Nytt utlegg registreres trinnvis (ExpenseWizard), som en kjøretur.
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [draftError, setDraftError] = useState('');
   const [pendingDelete, setPendingDelete] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -526,12 +597,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   function openNew() {
     setDraftError('');
     setPendingDelete(false);
-    setDraft({
-      date: today(),
-      employeeId: myEmployeeId,
-      category: 'other',
-      chargeType: 'reinvoice',
-    });
+    setDraft(null);
+    setWizardOpen(true);
   }
 
   function openRow(row) {
@@ -558,54 +625,74 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
     }));
   }
 
-  /** Lagre skjemaet. approve: lagre og godkjenne i samme trykk. */
-  async function saveDraft({ approve = false } = {}) {
-    if (!draft || saving) return;
-    const problem = expenseDraftProblem(draft, { needsProject: !seesAll });
-    if (problem) {
-      setDraftError(problem);
-      return;
-    }
+  /**
+   * Lagrer et utlegg fra skjemaet eller registreringen. approve: lagre og godkjenne i samme trykk.
+   * Gir { ok, error }.
+   */
+  async function persistExpense(source, { approve = false } = {}) {
+    const problem = expenseDraftProblem(source, { needsProject: !seesAll });
+    if (problem) return { ok: false, error: problem };
+    if (approve && expenseBillingChoice(source) === 'unsure') return { ok: false, error: UNSURE_APPROVE };
     // Uten godkjenningsrett registrerer man bare egne utlegg.
-    const employeeId = canManage ? (draft.employeeId || '') : (draft.employeeId || myEmployeeId);
+    const employeeId = canManage ? (source.employeeId || '') : (source.employeeId || myEmployeeId);
     const employee = people.find((row) => row.id === employeeId);
+    const project = source.projectId && !source.projectName
+      ? expenseRegistryPatch('project', source.projectId, { people, projects: lookup.projects || [], customers: lookup.customers || [], current: source })
+      : {};
     const input = emptyExpense({
-      ...draft,
+      ...source,
+      ...project,
       employeeId,
-      employeeName: employee?.label || draft.employeeName || '',
-      date: parseDate(draft.date) || draft.date || today(),
+      employeeName: employee?.label || source.employeeName || '',
+      date: parseDate(source.date) || source.date || today(),
       ...(approve ? { status: 'approved' } : {}),
     });
     const check = validateExpense(input);
-    if (!check.ok) {
-      setDraftError(check.error);
-      return;
-    }
-    const isNew = !draft.id;
+    if (!check.ok) return { ok: false, error: check.error };
     if (isExternalExpense(input)) {
-      setSaving(true);
       const result = await saveExpenseChange(companyId, input);
-      setSaving(false);
-      if (!result.ok) {
-        setDraftError(result.error);
-        return;
-      }
+      if (!result.ok) return { ok: false, error: result.error };
       setRemoteExpenses((current) => mergeExpenseLists(current, [input]));
-    } else {
-      const result = upsertExpense(state, input);
-      if (!result.ok) {
-        setDraftError(result.error);
-        return;
-      }
-      if (!setState(result.state)) return;
+      return { ok: true };
+    }
+    const result = upsertExpense(state, input);
+    if (!result.ok) return { ok: false, error: result.error };
+    if (!setState(result.state)) return { ok: false, error: 'Kunne ikke lagre utlegget.' };
+    return { ok: true };
+  }
+
+  async function saveDraft({ approve = false } = {}) {
+    if (!draft || saving) return;
+    setSaving(true);
+    const isNew = !draft.id;
+    const result = await persistExpense(draft, { approve });
+    setSaving(false);
+    if (!result.ok) {
+      setDraftError(result.error);
+      return;
     }
     closeDraft();
     if (approve) showSaveToast('Utlegget er godkjent.');
     else showSaveToast(isNew ? 'Utlegget er registrert. Det venter på godkjenning.' : 'Utlegget er lagret.');
   }
 
+  async function saveWizard(input) {
+    const result = await persistExpense(input);
+    if (result.ok) {
+      setWizardOpen(false);
+      showSaveToast('Utlegget er registrert. Det venter på godkjenning.');
+    }
+    return result;
+  }
+
   async function approveRow(row) {
     setError('');
+    if (expenseBillingChoice(row) === 'unsure') {
+      // Usikker fakturering avgjøres i skjemaet før godkjenning.
+      openRow(row);
+      setDraftError(UNSURE_APPROVE);
+      return;
+    }
     if (isExternalExpense(row)) {
       const next = { ...storedRow(row), status: 'approved' };
       const result = await saveExpenseChange(companyId, next);
@@ -919,6 +1006,20 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
       </View>
       {sideFilters ? <View style={styles.side}>{filterPanel}</View> : null}
       </View>
+      {wizardOpen ? (
+        <ExpenseWizard
+          colors={colors}
+          companyId={companyId}
+          onSave={saveWizard}
+          onClose={() => setWizardOpen(false)}
+          projectOptions={projectOptions}
+          people={people}
+          existing={allRows}
+          myEmployeeId={myEmployeeId}
+          canPickEmployee={canManage}
+          canInternal={seesAll}
+        />
+      ) : null}
       {draft ? (
         <ExpenseSheet
           draft={draft}
@@ -973,4 +1074,5 @@ const styles = StyleSheet.create({
   sheetMeta: { ...type.caption },
   sheetError: { ...type.caption, flexBasis: '100%', textAlign: 'right' },
   sheetValue: { ...type.body },
+  receiptRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
 });

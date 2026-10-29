@@ -4,10 +4,48 @@
 
 function toNum(v) {
   if (v == null || v === '') return null;
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  const s = String(v).replace(/\s/g, '').replace(',', '.');
-  const n = Number(s.replace(/[^\d.-]/g, ''));
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  let s = String(v).replace(/[\s\u00a0]/g, '').replace(/[^\d.,-]/g, '');
+  if (!/\d/.test(s)) return null;
+  // «1.234,50» og «1,234.50»: siste skilletegn er desimaltegnet, de andre er tusenskille.
+  const lastComma = s.lastIndexOf(',');
+  const lastDot = s.lastIndexOf('.');
+  const decimal = Math.max(lastComma, lastDot);
+  if (decimal >= 0) {
+    const tail = s.slice(decimal + 1);
+    const head = s.slice(0, decimal).replace(/[.,]/g, '');
+    // «1.234» (tre siffer etter ett punktum og ingen komma) er tusenskille i norske beløp.
+    const thousands = tail.length === 3 && lastComma < 0 && s.indexOf('.') === lastDot && head.replace('-', '').length <= 3;
+    s = thousands ? `${head}${tail}` : `${head}.${tail}`;
+  }
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
+}
+
+const MONTHS = {
+  jan: 1, januar: 1, january: 1,
+  feb: 2, februar: 2, february: 2,
+  mar: 3, mars: 3, march: 3,
+  apr: 4, april: 4,
+  mai: 5, may: 5,
+  jun: 6, juni: 6, june: 6,
+  jul: 7, juli: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  okt: 10, oktober: 10, oct: 10, october: 10,
+  nov: 11, november: 11,
+  des: 12, desember: 12, dec: 12, december: 12,
+};
+
+function isoDay(y, m, d) {
+  let year = Number(y);
+  if (year < 100) year += 2000;
+  const month = Number(m);
+  const day = Number(d);
+  if (!(month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1990 && year <= 2100)) return '';
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1) return '';
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 function cleanStr(v, max = 200) {
@@ -20,17 +58,33 @@ export function normalizeOrgNr(v) {
 }
 
 export function normalizeDate(v) {
-  const s = cleanStr(v, 32);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
-  if (m) {
-    let y = Number(m[3]);
-    if (y < 100) y += 2000;
-    const mm = String(m[2]).padStart(2, '0');
-    const dd = String(m[1]).padStart(2, '0');
-    return `${y}-${mm}-${dd}`;
-  }
+  const s = cleanStr(v, 48).toLowerCase();
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return isoDay(m[1], m[2], m[3]);
+  m = s.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+  if (m) return isoDay(m[3], m[2], m[1]);
+  // «onsdag 7. oktober 2020», «7 okt 20»
+  m = s.match(/(\d{1,2})\.?\s*([a-zæøå]+)\.?\s*(\d{2,4})/);
+  if (m && MONTHS[m[2]]) return isoDay(m[3], MONTHS[m[2]], m[1]);
   return '';
+}
+
+function normalizeVatLines(list) {
+  if (!Array.isArray(list)) return [];
+  return list.slice(0, 6).map((row) => ({
+    percent: toNum(row?.percent ?? row?.rate),
+    base: toNum(row?.base ?? row?.net ?? row?.exVat),
+    vat: toNum(row?.vat ?? row?.vatAmount),
+  })).filter((row) => row.percent != null && (row.base != null || row.vat != null));
+}
+
+function normalizeCurrency(v) {
+  const raw = cleanStr(v, 8).toUpperCase();
+  if (!raw || raw === 'KR' || raw === 'KR.' || raw === 'NKR') return 'NOK';
+  if (raw === '€' || raw === 'EURO') return 'EUR';
+  if (raw === '$' || raw === 'US$') return 'USD';
+  if (raw === '£') return 'GBP';
+  return /^[A-Z]{3}$/.test(raw) ? raw : 'NOK';
 }
 
 export function normalizeReceiptBilag(raw = {}) {
@@ -73,7 +127,7 @@ export function normalizeReceiptBilag(raw = {}) {
     orgNr: normalizeOrgNr(raw.orgNr || raw.orgNumber || raw.organisasjonsnummer),
     date: normalizeDate(raw.date || raw.purchaseDate),
     amount,
-    currency: cleanStr(raw.currency || 'NOK', 8).toUpperCase() || 'NOK',
+    currency: normalizeCurrency(raw.currency),
     vatAmount,
     vatPercent,
     paymentMethod: cleanStr(raw.paymentMethod, 40).toLowerCase(),
@@ -86,7 +140,12 @@ export function normalizeReceiptBilag(raw = {}) {
     warrantyMonths,
     warrantyUntil,
     warrantyText,
+    vatLines: normalizeVatLines(raw.vatLines),
+    expenseType: cleanStr(raw.expenseType, 32).toLowerCase().replace(/[^a-z]/g, ''),
+    documentType: ['receipt', 'invoice', 'card_slip', 'other'].includes(raw.documentType) ? raw.documentType : '',
+    cardLast4: String(raw.cardLast4 || '').replace(/\D/g, '').slice(-4),
+    duplicatePages: raw.duplicatePages === true,
   };
 }
 
-export const __test = { toNum, cleanStr, normalizeOrgNr, normalizeDate, normalizeReceiptBilag };
+export const __test = { toNum, cleanStr, normalizeOrgNr, normalizeDate, normalizeReceiptBilag, normalizeCurrency };

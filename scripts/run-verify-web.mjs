@@ -185,6 +185,12 @@ export const FILES = [
   'src/project/projectCrossView.test.mjs',
   'src/arbeid/timesheetReview.test.mjs',
   'src/economy/projectExpensesScreen.test.cjs',
+  // Utlegg fra mobil: kvitteringsbilde, tolking og registrering.
+  'src/economy/receiptImage.test.mjs',
+  'src/economy/expenseReceipt.test.mjs',
+  'src/utils/receiptNormalize.test.mjs',
+  'functions/aiReceiptOcr.test.mjs',
+  'src/economy/expenseWizard.test.cjs',
   'scripts/firestoreIndexes.test.mjs',
   'scripts/verify-app-updates.mjs',
   // Rettighetene på ansatte, prosjekt og timer. Sto utenfor CI, så Lese fikk for mye uten at noe ble rødt.

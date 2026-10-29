@@ -120,6 +120,8 @@ function loadJsx(rel) {
     if (id.includes('utils/media')) return { pickDocument: async () => null };
     if (id.includes('saveToast')) return { showSaveToast: () => {} };
     if (id.includes('ExpenseImportReview')) return { __esModule: true, default: function ExpenseImportReview() { return null; } };
+    // Registreringen (egen test i expenseWizard.test.cjs) åpnes først ved «Nytt utlegg».
+    if (id.includes('economy/ExpenseWizard')) return { __esModule: true, default: function ExpenseWizard() { return null; } };
     if (id.includes('components/OptionPicker')) {
       // Felles velger: vis valgt etikett som tekst, slik feltet gjør.
       return {

@@ -1,6 +1,6 @@
 # PowerOffice Go — integrasjon for fakturautkast
 
-Sist oppdatert: 27.10.2026 (innstillinger flyttet, miljø fra nøkkelen)
+Sist oppdatert: 29.10.2026 (plan for utlegg til PowerOffice)
 
 ## Avtalt med PowerOffice
 
@@ -129,6 +129,37 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 - Fakturaer fra testklienten (`poweroffice.env: 'demo'`) kan slettes fra fakturalisten uansett status, og
   nummer derfra teller ikke i ProTop sin nummerserie.
 
+## Utlegg til PowerOffice (plan, ikke bygget)
+
+Spørsmålet: Kan utlegg de ansatte har betalt privat, gå fra ProTop til PowerOffice Go, slik at
+regnskapsføreren refunderer dem der (med lønnskjøringen eller som utbetaling)?
+
+Svaret er ja, med bilag mot ansattreskontroen. API v2 har bilagsendepunkter, og ansattsiden i
+dokumentasjonen viser til arbeidsflyten «Posting expense vouchers to Go». Ansatte i Go har egne
+kontonumre for utbetaling av utlegg (`expenseBankAccountId`, `travelExpenseBankAccountId`).
+
+Slik blir flyten:
+
+1. Den ansatte registrerer utlegget i ProTop med kvittering. Feltene tolkes fra bildet.
+2. Godkjent utlegg med «Betalt privat» overføres som ett bilag per utlegg:
+   - debet: kostnadskonto fra utgiftstypen (for eksempel 7140), med mva-kode og prosjekt/avdeling.
+   - kredit: ansattreskontroen (ansattnummeret i Go). Da står beløpet som gjeld til den ansatte.
+   - Kvitteringen legges ved som PDF (bilagsdokumentasjon).
+   - `ExternalImportReference = ProTop-UTL-<id>`, så samme utlegg ikke overføres to ganger.
+3. Regnskapsføreren ser utlegget på den ansatte i Go og betaler det ut, med lønnskjøringen eller som
+   egen utbetaling. ProTop henter status tilbake («Utbetalt»).
+4. Firmakort: kredit kortets mellomregningskonto i stedet for den ansatte. Ingen refusjon.
+
+Dette må avklares med PowerOffice før vi bygger:
+
+- Hvilket endepunkt de anbefaler for utlegg fra ansatte (bilag med ansattreskontro, eller import med
+  `EmployeeNo` på linjene).
+- Om bilaget kan komme inn som et utkast som regnskapsføreren kontrollerer før bokføring.
+  Dokumentasjonen sier at journalføringsflyten foreløpig bare gjelder leverandørbilag.
+- Hvilke tilganger som må krysses av i skjemaet for produksjonstilgang (bilag, bilagsdokumentasjon,
+  ansatte, prosjekter og avdelinger). **Ta dem med i samme skjema**, så vi slipper en ny runde.
+- Hvordan ansattnummeret i Go kobles til den ansatte i ProTop (e-post eller ansattnummer).
+
 ## Utkast til svar til PowerOffice (sendes når testlisten er grønn)
 
 > **Til:** go-api@poweroffice.no
@@ -148,7 +179,16 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 > - Sammenslåtte utkast spores via ExternalImportReference på linjene.
 >
 > Kan du sende skjemaet for produksjonstilgang? Integrasjonen bruker salgsordrer, utgående fakturaer,
-> kunder og produkter (lesing). Vi trenger ikke CreateAndSendInvoice. Fakturaene sendes fra PowerOffice Go.
+> kunder og produkter (lesing), og sending av faktura (CreateAndSendInvoice).
+>
+> Vi vil også overføre utlegg de ansatte har betalt privat, med kvittering, slik at regnskapsføreren
+> refunderer dem fra Go. Planen er ett bilag per utlegg: kostnadskonto med mva og prosjekt i debet,
+> ansattreskontroen i kredit, og kvitteringen som bilagsdokumentasjon. Spørsmål:
+>
+> 1. Hvilket endepunkt anbefaler dere for utlegg fra ansatte: bilag med ansattreskontro, eller import
+>    med EmployeeNo på linjene?
+> 2. Kan bilaget komme inn som utkast som regnskapsføreren godkjenner før bokføring?
+> 3. Hvilke tilganger skal vi krysse av for dette i skjemaet for produksjonstilgang?
 >
 > Med vennlig hilsen
 > Geir Ove Andersen

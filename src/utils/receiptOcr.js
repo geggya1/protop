@@ -39,3 +39,19 @@ export async function blobToDataUrl(blob) {
     reader.readAsDataURL(blob);
   });
 }
+
+/**
+ * Tolk kvitteringen til et utlegg. images: data-URL-er (1–4 bilder eller PDF) fra prepareReceipt.
+ * expenseTypes: «id: navn; …» (expenseTypeHint), så AI-en velger en type appen kjenner.
+ */
+export async function ocrExpenseReceipt(familyId, images = [], { expenseTypes = '', hint = '' } = {}) {
+  const fn = httpsCallable(functions, 'aiReceiptOcr', { timeout: 120000 });
+  const result = await fn({
+    familyId,
+    purpose: 'expense',
+    images: (images || []).filter(Boolean).slice(0, 4),
+    expenseTypes: String(expenseTypes || ''),
+    hint: String(hint || '').trim().slice(0, 200),
+  });
+  return result?.data?.bilag || {};
+}

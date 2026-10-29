@@ -38,7 +38,7 @@ import { InvoiceHeaderEditor, InvoiceHeaderView, InvoiceTexts } from './InvoiceH
 import { InvoiceLinesView, InvoiceTotalsView } from './InvoiceLinesView';
 import InvoiceLinesEditor from './InvoiceLinesEditor';
 import InvoiceSidebar from './InvoiceSidebar';
-import { CreditDialog, DeleteDraftDialog, LossDialog, PaymentDialog, SendDialog } from './InvoiceDialogs';
+import { CollectionDialog, CreditDialog, DeleteDraftDialog, LossDialog, PaymentDialog, SendDialog } from './InvoiceDialogs';
 import * as actions from './invoiceActions';
 import { SHELL_DETAILS } from '../../../src/navigation/shellPaths';
 import BackLink from '../../../src/ui/BackLink';
@@ -104,6 +104,7 @@ export default function InvoicePage({
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [dialog, setDialog] = useState('');
+  const [collectionKind, setCollectionKind] = useState('');
   const [refresh, setRefresh] = useState(null);
   const [peppol, setPeppol] = useState(null);
   const [preview, setPreview] = useState('');
@@ -478,7 +479,7 @@ export default function InvoicePage({
       canUpload={canManage && (!locked || (!isManagedInvoice(invoice) && !isDraftInvoice(invoice)))}
       editable={editable}
       onAction={onAction}
-      onFlag={(key, value) => run('flag', () => actions.flag(ctx, invoice, key, value), { close: false })}
+      onCollection={(kind) => { setError(''); setCollectionKind(kind); setDialog('collection'); }}
       onAddNote={(text) => run('note', () => actions.addNoteAction(ctx, invoice, text), { close: false })}
       onRemoveNote={(id) => run('note', async () => ({ invoice: await store.saveInvoice(familyId, removeNote(invoice, id)), message: 'Notatet er slettet.' }), { close: false })}
       onAddEvent={(text) => run('event', () => actions.addEventAction(ctx, invoice, text), { close: false })}
@@ -593,6 +594,35 @@ export default function InvoicePage({
         onConfirm={async (choice) => {
           const result = await run('credit', () => actions.createCredit(ctx, invoice, choice));
           if (result?.invoice) onOpenInvoiceId?.(result.invoice.id);
+        }}
+      />
+      <CollectionDialog
+        visible={dialog === 'collection'}
+        kind={collectionKind}
+        invoice={invoice}
+        settings={settings}
+        colors={colors}
+        busy={busy === 'collection'}
+        error={dialog === 'collection' ? error : ''}
+        onCancel={() => setDialog('')}
+        onPreview={async (input) => {
+          try {
+            const { pdf, name } = await actions.collectionLetterPdf(ctx, invoice, { kind: collectionKind, ...input });
+            downloadFile(pdf, name, 'application/pdf');
+          } catch (cause) {
+            setError(friendlyCallError(cause, 'Kunne ikke lage PDF-en.'));
+          }
+        }}
+        onSend={async (input) => {
+          if (collectionKind === 'interest') {
+            const result = await run('collection', () => actions.createInterestInvoice(ctx, invoice, { includeFees: input.includeFees }));
+            if (result?.invoice) onOpenInvoiceId?.(result.invoice.id);
+            return;
+          }
+          const result = await run('collection', () => actions.sendCollection(ctx, invoice, {
+            kind: collectionKind, ...input, replyTo: settings?.emailReplyTo || '',
+          }));
+          if (result?.pdf) downloadFile(result.pdf, result.name, 'application/pdf');
         }}
       />
       <PaymentDialog

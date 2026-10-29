@@ -375,15 +375,42 @@ function normalizeCustomerCopy(raw) {
   };
 }
 
+const COLLECTION_STEP_KINDS = new Set(['reminder', 'notice', 'debt', 'interest']);
+
+/** Steg i innkrevingen (purring, inkassovarsel, inkasso, rentefaktura). Se collection.js. */
+function normalizeCollectionSteps(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((row) => row && typeof row === 'object' && COLLECTION_STEP_KINDS.has(row.kind))
+    .slice(0, 50)
+    .map((row, index) => ({
+      id: text(row.id) || `col_${index + 1}`,
+      kind: row.kind,
+      at: text(row.at),
+      fee: Number.isFinite(Number(row.fee)) ? Math.max(0, Number(row.fee)) : 0,
+      deadline: text(row.deadline).slice(0, 10),
+      to: text(row.to).slice(0, 200),
+      channel: text(row.channel),
+      amount: row.amount == null || row.amount === '' || !Number.isFinite(Number(row.amount)) ? null : Number(row.amount),
+      invoiceId: text(row.invoiceId),
+      feeInvoiceId: text(row.feeInvoiceId),
+      note: text(row.note).slice(0, 500),
+      ...person(row),
+    }));
+}
+
 function normalizeCollection(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
   return {
     reminderSent: src.reminderSent === true,
     reminderSentAt: text(src.reminderSentAt),
+    noticeSent: src.noticeSent === true,
+    noticeSentAt: text(src.noticeSentAt),
     debtCollection: src.debtCollection === true,
     debtCollectionAt: text(src.debtCollectionAt),
     interestInvoice: src.interestInvoice === true,
     interestInvoiceAt: text(src.interestInvoiceAt),
+    steps: normalizeCollectionSteps(src.steps),
   };
 }
 
@@ -665,7 +692,8 @@ export function toInvoiceCacheRow(invoice) {
     ...(row.kind === 'credit_note' ? { kind: row.kind } : {}),
     ...(row.issuedAt ? { issuedAt: row.issuedAt } : {}),
     ...(row.approval ? { approval: row.approval } : {}),
-    ...(row.collection && (row.collection.reminderSent || row.collection.debtCollection || row.collection.interestInvoice)
+    ...(row.collection && (row.collection.reminderSent || row.collection.noticeSent || row.collection.debtCollection
+      || row.collection.interestInvoice || row.collection.steps?.length)
       ? { collection: row.collection }
       : {}),
     ...(row.paidAmount != null ? { paidAmount: row.paidAmount } : {}),

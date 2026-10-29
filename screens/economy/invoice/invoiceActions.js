@@ -22,7 +22,6 @@ import {
   recordDelivery,
   registerPayment,
   removePayment,
-  setCollectionFlag,
   settleCreditNote,
   unapproveDraft,
   updateDraft,
@@ -34,10 +33,12 @@ import { normalizeInvoice } from '../../../src/economy/invoices.js';
 import { attachVoucherSnapshot, ledgerVoucher } from '../../../src/economy/vouchers.js';
 import { buildEhfXml } from '../../../src/economy/ehf.js';
 import {
+  buildCollectionLetterPdf,
   buildInvoicePdf,
   buildInvoiceSpecPdf,
   buildInvoiceWithTimeSpecPdf,
   buildTimeSpecPdf,
+  collectionLetterName,
   invoicePdfName,
   pdfBase64,
 } from '../../../src/economy/invoicePdf.js';
@@ -53,6 +54,9 @@ import {
 import { invoiceWorkIds, releaseWork } from '../../../src/economy/billingWork.js';
 import { loadTimeEntriesByIds } from '../../../src/economy/timeEntryStorage.js';
 import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
+import {
+  addCollectionStep, buildInterestInvoice, checkDeadline, collectionLetter, collectionStatus,
+} from '../../../src/economy/collection.js';
 
 function demo(ctx) {
   return !ctx.familyId || ctx.familyId === '__demo__';
@@ -432,12 +436,6 @@ export async function loss(ctx, invoice, input) {
   return { invoice: await save(ctx, result.invoice), message: 'Restbeløpet er ført som tap.' };
 }
 
-export async function flag(ctx, invoice, key, value) {
-  const result = setCollectionFlag(invoice, key, value, { actor: ctx.actor });
-  if (!result.ok) throw new Error(result.error);
-  return { invoice: await save(ctx, result.invoice), message: '' };
-}
-
 export async function postpone(ctx, invoice, date) {
   return { invoice: await save(ctx, postponeReminder(invoice, date, { actor: ctx.actor })), message: '' };
 }
@@ -528,4 +526,98 @@ export async function applyRefresh(ctx, invoice, preview) {
     preview.removed ? `${preview.removed} poster fjernet` : '',
   ].filter(Boolean);
   return { invoice: saved, message: parts.length ? `Utkastet er oppdatert: ${parts.join(', ')}.` : 'Utkastet er oppdatert.' };
+}
+
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const LETTER_SUBJECT = {
+  reminder: (no, company) => `Purring: faktura ${no} fra ${company}`,
+  notice: (no, company) => `Inkassovarsel: faktura ${no} fra ${company}`,
+  debt: (no, company, customer) => `Inkasso: faktura ${no} fra ${company} til ${customer}`,
+};
+
+/** PDF-en til purring, inkassovarsel eller kravsoppstilling, uten å sende eller lagre noe. */
+export async function collectionLetterPdf(ctx, invoice, { kind, fee = 0, deadline = '' } = {}) {
+  const full = await fullInvoice(ctx, invoice);
+  const today = localToday();
+  const status = collectionStatus(full, { today, settings: ctx.settings || {} });
+  const letter = collectionLetter(full, kind, { fee, deadline, today, supplier: ctx.supplier, status });
+  return {
+    full,
+    letter,
+    name: collectionLetterName(full, kind),
+    pdf: buildCollectionLetterPdf(full, letter, { supplier: ctx.supplier, logo: ctx.logo, date: today }),
+  };
+}
+
+/**
+ * Send purring, inkassovarsel eller saken til inkasso. channel 'email' sender PDF-en (for
+ * inkasso også fakturaen), 'manual' gir PDF-en til nedlasting. Steget lagres i begge tilfeller.
+ */
+export async function sendCollection(ctx, invoice, { kind, fee = 0, deadline = '', to = [], channel = 'email', replyTo = '' } = {}) {
+  if (kind !== 'debt') {
+    const check = checkDeadline(deadline, localToday());
+    if (!check.ok) throw new Error(check.error);
+  }
+  const { full, letter, name, pdf } = await collectionLetterPdf(ctx, invoice, { kind, fee, deadline });
+  const company = ctx.companyName || ctx.supplier?.name || '';
+  const recipients = (to || []).map((row) => String(row || '').trim()).filter(Boolean);
+  if (channel === 'email') {
+    if (!recipients.length) throw new Error(kind === 'debt' ? 'Skriv inn e-posten til inkassobyrået.' : 'Skriv inn e-postadressen til kunden.');
+    const files = [{ name, base64: pdfBase64(pdf), mime: 'application/pdf' }];
+    if (kind === 'debt') files.push({ name: invoicePdfName(full), base64: pdfBase64(pdfFor(ctx, full)), mime: 'application/pdf' });
+    const text = `${letter.paragraphs.join('\n\n')}\n\nMed vennlig hilsen\n${company}`;
+    if (!demo(ctx)) {
+      await sendInvoiceMail({
+        familyId: ctx.familyId,
+        invoiceId: full.id,
+        to: recipients.slice(0, 1),
+        cc: recipients.slice(1),
+        replyTo,
+        fromName: company,
+        subject: LETTER_SUBJECT[kind](full.invoiceNumber, company, full.customerName || ''),
+        text,
+        files,
+      });
+    }
+  }
+  const step = addCollectionStep(full, {
+    kind,
+    fee: kind === 'debt' ? 0 : fee,
+    deadline: kind === 'debt' ? '' : deadline,
+    to: channel === 'email' ? recipients.join(', ') : '',
+    channel,
+  }, { actor: ctx.actor });
+  if (!step.ok) throw new Error(step.error);
+  const saved = await save(ctx, step.invoice);
+  const what = { reminder: 'Purringen', notice: 'Inkassovarselet', debt: 'Kravsoppstillingen' }[kind];
+  return {
+    invoice: saved,
+    pdf: channel === 'manual' ? pdf : null,
+    name,
+    message: channel === 'email'
+      ? `${what} er sendt til ${recipients.join(', ')}.${kind === 'debt' ? ' Fakturaen er lagt ved.' : ''}`
+      : `${what} er lastet ned og registrert. Send den til ${kind === 'debt' ? 'inkassobyrået' : 'kunden'}.`,
+  };
+}
+
+/** Rentefaktura som utkast: forsinkelsesrente og gebyr som ikke er fakturert. */
+export async function createInterestInvoice(ctx, invoice, { includeFees = true } = {}) {
+  const full = await fullInvoice(ctx, invoice);
+  const built = buildInterestInvoice(full, {
+    today: localToday(),
+    includeFees,
+    actor: ctx.actor,
+    creditDays: Number(ctx.settings?.creditDays) || 14,
+  });
+  if (!built.ok) throw new Error(built.error);
+  const draft = await save(ctx, built.invoice);
+  const step = addCollectionStep(full, {
+    kind: 'interest', amount: built.amount, invoiceId: draft.id, feeStepIds: built.feeStepIds,
+  }, { actor: ctx.actor });
+  await save(ctx, step.invoice);
+  return { invoice: draft, message: 'Rentefakturaen er laget som utkast. Kontroller og send den som en vanlig faktura.' };
 }

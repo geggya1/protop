@@ -449,6 +449,18 @@ export default function CompanyInvoiceDefaultsSettings({ familyId, colors, canEd
           />
         </Field>
       </View>
+      <Field label="E-post til inkassobyrå" hint="Brukes når en faktura sendes til inkasso fra fakturasiden. Kravsoppstillingen og fakturaen sendes hit.">
+        <TextInput
+          editable={canEdit}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={String(draft.collectionAgencyEmail ?? '')}
+          onChangeText={(v) => setKey('collectionAgencyEmail', v.trim())}
+          placeholder="For eksempel: oppdrag@inkassobyra.no"
+          style={[styles.input, input]}
+          nativeID="company-invoice-collection-agency"
+        />
+      </Field>
 
       {canEdit ? (
         <View style={styles.actions}>

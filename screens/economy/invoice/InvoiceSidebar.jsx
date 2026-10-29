@@ -6,17 +6,15 @@ import { Linking, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View 
 import { Ionicons } from '@expo/vector-icons';
 import { formatDate } from '../../../src/economy/invoices.js';
 import { type } from '../../../src/ui/tokens';
-import { REMINDER_FEE_MAX } from '../../../src/economy/companyInvoiceDefaults.js';
+import { COLLECTION_KINDS, collectionStatus } from '../../../src/economy/collection.js';
 import { invoicePdfName } from '../../../src/economy/invoicePdf.js';
 import { hasPowerOfficeEhf, sentFromPowerOffice } from '../../../src/economy/powerOfficeView.js';
 import {
-  COLLECTION_FLAGS,
   deliveryChannelLabel,
   displayStatus,
   isCreditNote,
-  reminderFrom,
 } from '../../../src/economy/invoiceFlow.js';
-import { Banner, Button, Check, Chip, LinkText, money } from '../billing/ui';
+import { Button, Check, Chip, LinkText, money } from '../billing/ui';
 
 const STATUS_TONES = {
   draft: 'muted',
@@ -101,13 +99,77 @@ function InlineAdd({ placeholder, onSave, colors, nativeID, multiline = true }) 
   );
 }
 
-function overdueText(invoice, settings) {
-  const from = reminderFrom(invoice, settings);
-  const fee = Number(settings.reminderFee) || 0;
-  const today = new Date().toISOString().slice(0, 10);
-  const when = !from ? '' : from <= today ? ' Purring kan sendes nå' : ` Purring kan sendes fra ${formatDate(from)}`;
-  const feeText = fee > 0 ? ` med purregebyr ${money(Math.min(fee, REMINDER_FEE_MAX))}.` : '.';
-  return `Forfall var ${formatDate(invoice.dueDate)}.${when ? `${when}${feeText}` : ''} Marker «Purring sendt» når den er sendt.`;
+function stepLine(step) {
+  const kind = COLLECTION_KINDS[step.kind]?.label || step.kind;
+  const day = step.at ? formatDate(String(step.at).slice(0, 10)) : '';
+  if (step.legacy) return `${kind}${day ? ` (markert ${day})` : ''}`;
+  return [
+    `${kind} ${day}`.trim(),
+    Number(step.fee) > 0 ? `gebyr ${money(step.fee)}` : '',
+    step.deadline ? `frist ${formatDate(step.deadline)}` : '',
+    step.amount ? money(step.amount) : '',
+    step.to ? `til ${step.to}` : (step.channel === 'manual' ? 'sendt selv' : ''),
+    step.byName ? `av ${step.byName}` : '',
+  ].filter(Boolean).join(' · ');
+}
+
+/**
+ * Purring og inkasso: det som er gjort, og det som kan gjøres nå. ProTop styrer dette, også
+ * for fakturaer sendt fra PowerOffice. Betaling kommer fra synken.
+ */
+function CollectionCard({ invoice, settings, colors, canManage, busy, onCollection, onOpenInvoice }) {
+  const st = collectionStatus(invoice, { settings });
+  if (!st.steps.length && !st.open && !st.canInterest) return null;
+  const actions = canManage && onCollection ? [
+    st.canRemind ? { kind: 'reminder', label: 'Send purring', icon: 'mail-outline' } : null,
+    st.canNotice ? { kind: 'notice', label: 'Send inkassovarsel', icon: 'alert-circle-outline' } : null,
+    st.canDebt ? { kind: 'debt', label: 'Send til inkasso', icon: 'briefcase-outline' } : null,
+    st.canInterest ? { kind: 'interest', label: 'Lag rentefaktura', icon: 'calculator-outline' } : null,
+  ].filter(Boolean) : [];
+  return (
+    <Card title="Purring og inkasso" colors={colors} nativeID="invoice-collection">
+      {st.open ? (
+        <Text style={[type.label, { color: colors.dangerInk || colors.danger || colors.ink }]}>
+          {`Forfalt ${formatDate(st.due)}, ${st.daysOverdue} ${st.daysOverdue === 1 ? 'dag' : 'dager'} siden. Utestående ${money(st.outstanding, invoice.currency)}.`}
+        </Text>
+      ) : null}
+      {st.interest.amount > 0 ? (
+        <Text style={[type.caption, { color: colors.muted }]}>
+          {`Forsinkelsesrente ${st.paid ? 'for sen betaling' : 'til i dag'}: ${money(st.interest.amount, invoice.currency)} (${st.interest.days} dager).`}
+        </Text>
+      ) : null}
+      {st.steps.map((step) => (
+        <View key={step.id} style={styles.flagRow}>
+          <Ionicons name={step.kind === 'interest' ? 'document-text-outline' : 'checkmark-circle-outline'} size={14} color={colors.muted} />
+          {step.kind === 'interest' && step.invoiceId && onOpenInvoice ? (
+            <LinkText label={stepLine(step)} colors={colors} onPress={() => onOpenInvoice(step.invoiceId)} />
+          ) : (
+            <Text style={[type.caption, { color: colors.ink, flex: 1 }]}>{stepLine(step)}</Text>
+          )}
+        </View>
+      ))}
+      {actions.length ? (
+        <View style={styles.actionRow}>
+          {actions.map((row) => (
+            <Button
+              key={row.kind}
+              label={row.label}
+              icon={row.icon}
+              small
+              tone={row.kind === 'debt' ? 'ghost' : undefined}
+              colors={colors}
+              disabled={!!busy}
+              onPress={() => onCollection(row.kind)}
+              nativeID={`invoice-collection-${row.kind}`}
+            />
+          ))}
+        </View>
+      ) : null}
+      {st.open && st.debtHint && st.notices.length ? (
+        <Text style={[type.caption, { color: colors.muted }]}>{st.debtHint}</Text>
+      ) : null}
+    </Card>
+  );
 }
 
 export default function InvoiceSidebar({
@@ -123,7 +185,7 @@ export default function InvoiceSidebar({
   canUpload = false,
   editable,
   onAction,
-  onFlag,
+  onCollection,
   onAddNote,
   onRemoveNote,
   onAddEvent,
@@ -279,24 +341,19 @@ export default function InvoiceSidebar({
             </View>
           ) : null}
         </View>
-        {issued && !credit ? (
-          <View style={{ gap: 6, marginTop: 8 }}>
-            {COLLECTION_FLAGS.map((row) => (
-              <View key={row.id} style={styles.flagRow}>
-                <Text style={{ color: colors.ink, flex: 1, fontSize: 13 }}>{row.label}</Text>
-                <Check
-                  checked={!!invoice.collection?.[row.id]}
-                  onPress={() => onFlag(row.id, !invoice.collection?.[row.id])}
-                  colors={colors}
-                  disabled={!canManage || !!busy}
-                  label={row.label}
-                  nativeID={`invoice-flag-${row.id}`}
-                />
-              </View>
-            ))}
-          </View>
-        ) : null}
       </Card>
+
+      {issued && !credit ? (
+        <CollectionCard
+          invoice={invoice}
+          settings={settings}
+          colors={colors}
+          canManage={canManage}
+          busy={busy}
+          onCollection={onCollection}
+          onOpenInvoice={onOpenCredit}
+        />
+      ) : null}
 
       {draft ? (
         <View style={[styles.draftBanner, { backgroundColor: '#e9d5ff', borderColor: '#c4b5fd' }]} nativeID="invoice-draft-banner">
@@ -480,11 +537,6 @@ export default function InvoiceSidebar({
             </View>
           ))}
         </Card>
-      ) : null}
-      {status.id === 'overdue' ? (
-        <Banner tone="block" colors={colors} title="Forfalt">
-          {overdueText(invoice, settings)}
-        </Banner>
       ) : null}
     </View>
   );

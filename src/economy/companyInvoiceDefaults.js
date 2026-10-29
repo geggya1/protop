@@ -92,6 +92,7 @@ export function builtinInvoiceDefaults() {
     emailIncludeAttachments: true,
     reminderDays: 14,
     reminderFee: 0,
+    collectionAgencyEmail: '',
   };
 }
 

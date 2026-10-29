@@ -199,3 +199,20 @@ og bilagsdokumentasjon (VoucherDocumentation, for å hente fakturaen kunden fikk
 - Gå til Økonomi → Innstillinger → Regnskapssystem i den operative bedriften (Consult1). Lim inn
   klientnøkkelen og velg produkter. Nøkkelen kjennes igjen som produksjon. Kundekoblinger og synkmarkør
   nullstilles når klienten byttes.
+
+### Etter testen 29.10.2026 (kveld)
+
+- Forhåndsvisning og «Faktura-10000.pdf» er ProTop-fakturaen med nummer, KID og forfall fra Go, og
+  beløpet uten øreavrunding. «Original fra PowerOffice (PDF)» henter fakturaen kunden fikk.
+- KID: listen fra Go kan mangle `Cid`. Synken leser fakturaen på id når KID mangler.
+- Automatisk synk: `powerOfficeSyncScheduled` hvert 15. minutt for alle tilkoblede bedrifter
+  (egen inngang `powerOfficeSyncScheduledIndex.js`). Fakturalisten synker også når den åpnes.
+- Purring, inkassovarsel, inkasso og rentefaktura styres i ProTop (`src/economy/collection.js`),
+  også for fakturaer sendt fra Go. Kortet «Purring og inkasso» på fakturaen:
+  - Purring og inkassovarsel: PDF i ProTop-design, på e-post eller lastet ned, frist minst 14 dager,
+    gebyr tidligst 14 dager etter forfall og for høyst to varsler (maks 38 kr i 2026).
+  - Send til inkasso: kravsoppstilling og faktura til inkassobyrået (e-post i Fakturainnstillinger).
+  - Rentefaktura: forsinkelsesrente per halvår (`LATE_INTEREST_RATES`, 12,25 % fra 1.7.2026) og
+    gebyr som ikke er fakturert, som et nytt utkast utenfor mva. I PowerOffice-modus overføres det
+    som andre utkast og trenger et produkt for «Utenfor mva».
+  - Satsen legges inn hvert halvår (1. januar og 1. juli) i `LATE_INTEREST_RATES`.

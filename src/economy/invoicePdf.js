@@ -719,6 +719,60 @@ export function buildInvoiceSpecPdf(invoice, entries = null, { supplier = {}, se
   return pdfDocument(pages, image);
 }
 
+/**
+ * Purring, inkassovarsel eller kravsoppstilling (collectionLetter i collection.js) i samme
+ * design som fakturaen: logo, mottaker, fakta til høyre, brødtekst og bunntekst.
+ */
+export function buildCollectionLetterPdf(invoice, letter, { supplier = {}, logo = null, date = '' } = {}) {
+  const image = logoImage(logo);
+  const labels = labelsFor(invoice?.language, invoice?.currency);
+  const page = pageWriter({
+    onNewPage: (writer) => {
+      writer.text(letter.title, LEFT, 30, 9, true);
+      writer.y = 50;
+    },
+  });
+  page.y = 40;
+  const logoBottom = drawLogo(page, image, supplier.name);
+  const top = Math.max(logoBottom + 14, 92);
+  page.text(letter.title, 330, top, 15, true);
+  if (date) page.text(formatDate(date), 330, top + 19, 8, false, 0.45);
+  const addr = invoice?.customerAddress || {};
+  // Kravsoppstillingen går til inkassobyrået: skyldneren står i faktaene, ikke som mottaker.
+  const recipient = letter.recipient === false ? [] : [
+    invoice?.addressLineAbove,
+    invoice?.customerName,
+    invoice?.addressLineBelow,
+    invoice?.customerContact ? `v/ ${invoice.customerContact}` : '',
+    addr.street,
+    [addr.postalCode, addr.city].filter(Boolean).join(' '),
+  ].filter(Boolean);
+  recipient.forEach((row, index) => page.text(row, LEFT, top + 26 + index * 10, 9, index === (invoice?.addressLineAbove ? 1 : 0)));
+  let factY = top + 34;
+  for (const [label, raw, strong] of letter.facts || []) {
+    const value = label === 'Kontonummer' ? accountPretty(raw) : raw;
+    const rows = wrap(value, RIGHT - 430, 8, !!strong).slice(0, 3);
+    page.text(`${label}:`, 330, factY, 8, !!strong);
+    rows.forEach((row, index) => page.text(row, 430, factY + index * 9, 8, !!strong));
+    factY += 10 + (rows.length - 1) * 9;
+  }
+  page.y = Math.max(top + 26 + recipient.length * 10, factY) + 24;
+  for (const paragraph of letter.paragraphs || []) {
+    for (const row of wrap(paragraph, RIGHT - LEFT, 10)) {
+      page.ensure(14);
+      page.text(row, LEFT, page.y, 10);
+      page.y += 14;
+    }
+    page.y += 6;
+  }
+  return pdfDocument(finish(page.pages, { supplier, labels, invoice }), image);
+}
+
+export function collectionLetterName(invoice, kind) {
+  const name = { reminder: 'Purring', notice: 'Inkassovarsel', debt: 'Kravsoppstilling' }[kind] || 'Brev';
+  return `${name}-faktura-${text(invoice?.invoiceNumber) || 'utkast'}.pdf`;
+}
+
 export function invoicePdfName(invoice) {
   if (isDraftInvoice(invoice)) return isCreditNote(invoice) ? 'Kreditnota-utkast.pdf' : 'Faktura-utkast.pdf';
   return `${isCreditNote(invoice) ? 'Kreditnota' : 'Faktura'}-${text(invoice?.invoiceNumber) || 'utkast'}.pdf`;

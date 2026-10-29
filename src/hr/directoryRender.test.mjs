@@ -113,6 +113,8 @@ function mocked(id) {
     };
   }
   if (id.includes('ui/saveToast')) return { showSaveToast: () => {} };
+  // Kjøregodtgjørelse på lønnssiden leser prosjektstaten og satsene fra serveren.
+  if (id.includes('mileage/EmployeeMileageCard')) return { __esModule: true, default: () => null };
   if (id.includes('ThemeContext')) {
     return {
       useColors: () => ({

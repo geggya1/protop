@@ -15,7 +15,6 @@ import {
 } from './HrShared';
 import HrSalaryEntryModal from './HrSalaryEntryModal';
 import EmployeeMileageCard from '../../components/mileage/EmployeeMileageCard';
-import { useApp } from '../../src/context/AppContext';
 import { radius, type } from '../../src/ui/tokens';
 
 function SalaryRow({ colors, row, canWrite, onEdit }) {
@@ -67,10 +66,9 @@ function SalaryRow({ colors, row, canWrite, onEdit }) {
 }
 
 export default function HrSalary({
-  colors, hr, canWrite, onSaveSalaries, lockedEmployeeId,
+  colors, hr, canWrite, onSaveSalaries, lockedEmployeeId, familyId = '',
 }) {
   const activeId = String(lockedEmployeeId || '');
-  const { familyId } = useApp();
   // null: lukket. { id: '' }: ny post. { id }: endre lagret post.
   const [editor, setEditor] = useState(null);
 

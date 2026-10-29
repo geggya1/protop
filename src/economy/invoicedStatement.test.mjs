@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildInvoicedStatement,
+  chartCanvasHeight,
   formatStatementAmount,
   invoiceCountsAsInvoiced,
   invoicedStatementWorkbook,
@@ -137,5 +138,10 @@ const empty = buildInvoicedStatement([], { today });
 assert.equal(empty.invoiceCount, 0);
 assert.deepEqual(empty.chartYears, []);
 assert.equal(invoicedStatementWorkbook(empty, 'yearly').includes('Omsetning per år'), true);
+
+assert.equal(chartCanvasHeight(0), 228);
+assert.equal(chartCanvasHeight(860), 228);
+assert.equal(chartCanvasHeight(1400), 280);
+assert.equal(chartCanvasHeight(2600), 340);
 
 console.log('invoicedStatement.test.mjs: ok');

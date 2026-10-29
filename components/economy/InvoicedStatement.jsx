@@ -11,6 +11,7 @@ import Svg, { Circle, Line, Polyline, Rect, Text as SvgText } from 'react-native
 import { useColors } from '../../src/context/ThemeContext';
 import {
   buildInvoicedStatement,
+  chartCanvasHeight,
   chartCanvasWidth,
   formatStatementAmount,
   invoicedStatementWorkbook,
@@ -24,8 +25,6 @@ import {
 } from '../../src/economy/invoicedStatement.js';
 import { readInvoicedStatement } from '../../src/economy/invoicedStatementStorage.js';
 import { watchInvoices } from '../../src/economy/invoiceStorage.js';
-
-const CHART_HEIGHT = 228;
 
 function downloadWorkbook(statement, section, filename) {
   if (typeof document === 'undefined' || !statement) return;
@@ -125,10 +124,10 @@ function Axis({ layout, colors }) {
   );
 }
 
-function ChartFrame({ nativeID, canvasWidth, tip, children }) {
+function ChartFrame({ nativeID, canvasWidth, canvasHeight, tip, children }) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} nativeID={nativeID}>
-      <View style={{ width: canvasWidth, height: CHART_HEIGHT, position: 'relative' }}>
+      <View style={{ width: canvasWidth, height: canvasHeight, position: 'relative' }}>
         {children}
         {tip ? (
           <View pointerEvents="none" style={[styles.tip, { left: tip.left, top: tip.top }]}>
@@ -155,11 +154,12 @@ function MonthChart({ statement, series, mode, nativeID }) {
   const [width, setWidth] = useState(0);
   const [tip, setTip] = useState(null);
   const canvas = chartCanvasWidth(width, 12, 56);
+  const height = chartCanvasHeight(canvas);
   const layout = layoutMonthChart({
     years,
     series,
     width: canvas,
-    height: CHART_HEIGHT,
+    height,
     mode,
   });
 
@@ -174,8 +174,8 @@ function MonthChart({ statement, series, mode, nativeID }) {
   return (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
       <Legend years={years} />
-      <ChartFrame nativeID={nativeID} canvasWidth={canvas} tip={tip}>
-        <Svg width={canvas} height={CHART_HEIGHT} pointerEvents="none">
+      <ChartFrame nativeID={nativeID} canvasWidth={canvas} canvasHeight={height} tip={tip}>
+        <Svg width={canvas} height={height} pointerEvents="none">
           <Axis layout={layout} colors={colors} />
           {mode === 'bars' ? layout.bars.map((bar) => (
             bar.h > 0 ? (
@@ -254,7 +254,8 @@ function YearChart({ statement }) {
   const [width, setWidth] = useState(0);
   const [tip, setTip] = useState(null);
   const canvas = chartCanvasWidth(width, Math.max(years.length, 1), 40);
-  const layout = layoutYearChart({ years, amounts, width: canvas, height: CHART_HEIGHT });
+  const height = chartCanvasHeight(canvas);
+  const layout = layoutYearChart({ years, amounts, width: canvas, height });
 
   function show(bar) {
     if (bar.value == null) return;
@@ -267,8 +268,8 @@ function YearChart({ statement }) {
 
   return (
     <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
-      <ChartFrame nativeID="economy-invoiced-yearly-chart" canvasWidth={canvas} tip={tip}>
-        <Svg width={canvas} height={CHART_HEIGHT} pointerEvents="none">
+      <ChartFrame nativeID="economy-invoiced-yearly-chart" canvasWidth={canvas} canvasHeight={height} tip={tip}>
+        <Svg width={canvas} height={height} pointerEvents="none">
           <Axis layout={layout} colors={colors} />
           {layout.bars.map((bar) => (
             bar.h > 0 ? (
@@ -326,19 +327,19 @@ function DataTable({
           </Pressable>
         ) : null}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tableScroll}>
+        <View style={[styles.tableGrid, { minWidth: LABEL_WIDTH + years.length * CELL_WIDTH }]}>
           <View style={[styles.row, { borderBottomColor: colors.line, backgroundColor: colors.sunken }]}>
             <Text style={[styles.labelCell, { color: colors.muted }]} />
             {years.map((year) => (
-              <Text key={year} style={[styles.cell, styles.headCell, { color: colors.ink }]}>{year}</Text>
+              <Text key={year} style={[styles.fillCell, styles.headCell, { color: colors.ink }]}>{year}</Text>
             ))}
           </View>
           {months.map((label, index) => (
             <View key={label} style={[styles.row, { borderBottomColor: colors.line, backgroundColor: index % 2 ? colors.sunken : colors.card }]}>
               <Text style={[styles.labelCell, { color: colors.ink }]}>{label}</Text>
               {years.map((year) => (
-                <Text key={year} style={[styles.cell, { color: colors.ink }]}>
+                <Text key={year} style={[styles.fillCell, { color: colors.ink }]}>
                   {formatStatementAmount(amountOf(series, year, index))}
                 </Text>
               ))}
@@ -347,7 +348,7 @@ function DataTable({
           <View style={[styles.row, { borderBottomColor: colors.line }]}>
             <Text style={[styles.labelCell, { color: colors.muted }]} />
             {years.map((year) => (
-              <Text key={year} style={[styles.cell, styles.totalCell, { color: colors.ink }]}>
+              <Text key={year} style={[styles.fillCell, styles.totalCell, { color: colors.ink }]}>
                 {formatStatementAmount(totalOf(statement, year))}
               </Text>
             ))}
@@ -479,6 +480,10 @@ const webShadow = Platform.OS === 'web'
   ? { boxShadow: '0 8px 22px rgba(15, 23, 42, 0.05)' }
   : {};
 
+const LABEL_WIDTH = 48;
+const CELL_WIDTH = 132;
+const cellText = { fontSize: 12, textAlign: 'right', paddingVertical: 6, paddingHorizontal: 8, fontVariant: ['tabular-nums'] };
+
 const styles = StyleSheet.create({
   page: { gap: 14 },
   lead: { fontSize: 13, lineHeight: 18 },
@@ -496,9 +501,12 @@ const styles = StyleSheet.create({
   tableTitle: { fontSize: 14, fontWeight: '600' },
   excel: { fontSize: 13, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth },
-  labelCell: { width: 48, fontSize: 12, paddingVertical: 6, paddingHorizontal: 4 },
+  tableScroll: { flexGrow: 1 },
+  tableGrid: { flexGrow: 1 },
+  labelCell: { width: LABEL_WIDTH, fontSize: 12, paddingVertical: 6, paddingHorizontal: 4 },
   yearLabel: { width: 72, fontSize: 12, paddingVertical: 6, paddingHorizontal: 4 },
-  cell: { width: 132, fontSize: 12, textAlign: 'right', paddingVertical: 6, paddingHorizontal: 8, fontVariant: ['tabular-nums'] },
+  cell: { width: CELL_WIDTH, ...cellText },
+  fillCell: { flexGrow: 1, flexBasis: CELL_WIDTH, ...cellText },
   headCell: { fontWeight: '700' },
   totalCell: { fontWeight: '700' },
   tip: {

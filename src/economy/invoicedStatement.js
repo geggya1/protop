@@ -383,6 +383,12 @@ export function chartCanvasWidth(containerWidth, groups, minGroup = 44) {
   return Math.max(safe, 96 + groups * minGroup);
 }
 
+/** Grafen blir høyere når siden er bred, så søylene ikke flates ut. */
+export function chartCanvasHeight(canvasWidth, min = 228, max = 340) {
+  const safe = Number(canvasWidth) > 0 ? canvasWidth : 0;
+  return Math.round(Math.min(max, Math.max(min, safe * 0.2)));
+}
+
 function xml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')

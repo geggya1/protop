@@ -8,8 +8,9 @@
  * combineExpenses. Endringer går dit raden hører hjemme (expenseSave.js og opsState.js).
  * Ansattsiden bruker samme liste for én person (lockedEmployeeId, embedded), uten filter og skjema.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -72,7 +73,10 @@ import { combineExpenses, removeExpenseRow, saveExpenseChange } from '../../src/
 import { deleteExpense, setExpenseStatus, upsertExpense } from '../../src/economy/opsState.js';
 import { shellPathFor } from '../../src/navigation/shellPaths';
 import { createId } from '../../src/project/engine';
-import { pickDocument } from '../../src/utils/media';
+import { pickDocument, pickImage, pickReceipt, uploadImage } from '../../src/utils/media';
+import { blobToDataUrl, ocrReceiptWithAi } from '../../src/utils/receiptOcr';
+import { expensePatchFromReceipt, expenseProjectOptions } from '../../src/economy/expenseForm.js';
+import { myProjectIds } from '../../src/project/myProjects';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { Button, Field, Sheet, TextIn } from '../../src/ui';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
@@ -84,6 +88,10 @@ import { radius, space, type } from '../../src/ui/tokens';
 
 function money(value) {
   return typeof formatMoney === 'function' ? formatMoney(value) : String(value ?? '');
+}
+
+function myEmployeeIdFrom(people, uid) {
+  return (uid && people.find((row) => row.uid && row.uid === uid)?.id) || '';
 }
 
 function today() {
@@ -148,13 +156,61 @@ function Choice({ label, on, onPress, colors }) {
  * Skjema for nytt utlegg, og for å se, endre, godkjenne og slette ett (samme felt som
  * Økonomi → Utlegg hadde, med ansatt, prosjekt og kunde fra registrene, DRIFT-24).
  */
-function ExpenseSheet({
+export function ExpenseSheet({
   draft, setDraft, can, colors, people, projectOptions, customerOptions, canPickEmployee, canInternal,
-  error, busy, pendingDelete, onPick, onSave, onApprove, onDelete, onOpenTrip, onClose,
+  error, busy, pendingDelete, onPick, onSave, onApprove, onDelete, onOpenTrip, onClose, familyId, phone,
 }) {
   const isNew = !draft.id;
   const editable = isNew || can.edit;
   const set = (key) => (value) => setDraft((current) => ({ ...current, [key]: value }));
+  const [receiptBusy, setReceiptBusy] = useState('');
+  const [receiptNote, setReceiptNote] = useState('');
+  // Siste versjon av skjemaet, så gjenkjenningen ikke overskriver det som er skrevet imens.
+  const latest = useRef(draft);
+  latest.current = draft;
+
+  /** Last opp kvitteringen (fil eller bilde), og les beløp, dato og leverandør fra den. */
+  async function attachReceipt(kind) {
+    setReceiptNote('');
+    let picked = null;
+    try {
+      picked = kind === 'camera' ? await pickImage({ camera: true, edit: false }) : await pickReceipt();
+    } catch (cause) {
+      setReceiptNote(/denied/.test(String(cause?.message)) ? 'ProTop har ikke tilgang til kameraet eller bildene.' : 'Kunne ikke åpne filen.');
+      return;
+    }
+    if (!picked) return;
+    setReceiptBusy(kind);
+    try {
+      const name = String(picked.name || (kind === 'camera' ? 'kvittering.jpg' : 'kvittering')).slice(0, 120);
+      const safe = name.replace(/[^\w.\-æøåÆØÅ]+/g, '-').slice(0, 80);
+      // Samme mappe som kvitteringene i kjøreboken: den som lastet opp, økonomi og administratorer.
+      const url = await uploadImage(`families/${familyId}/mileage/utlegg-${Date.now()}-${safe}`, picked);
+      setDraft((current) => ({ ...current, receiptUri: url, receiptName: name }));
+      const blob = picked.blob || (picked.uri ? await (await fetch(picked.uri)).blob() : null);
+      if (!blob) {
+        setReceiptNote('Kvitteringen er lagt ved.');
+        return;
+      }
+      if (blob.size > 7 * 1024 * 1024) {
+        setReceiptNote('Kvitteringen er lagt ved. Den er for stor til å leses automatisk, så fyll inn beløp og dato selv.');
+        return;
+      }
+      setReceiptBusy('read');
+      setReceiptNote('Kvitteringen er lagt ved. Leser beløp, dato og leverandør …');
+      const { bilag } = await ocrReceiptWithAi(familyId, { imageBase64: await blobToDataUrl(blob), hint: 'Utlegg i bedrift' });
+      const result = expensePatchFromReceipt(latest.current, bilag, { today: today() });
+      setDraft((current) => ({ ...current, ...result.patch }));
+      setReceiptNote(result.summary);
+    } catch (cause) {
+      const message = String(cause?.message || '').trim();
+      setReceiptNote(latest.current?.receiptUri
+        ? `Kvitteringen er lagt ved, men kunne ikke leses automatisk${message ? ` (${message})` : ''}. Fyll inn beløp og dato selv.`
+        : (message || 'Kunne ikke laste opp kvitteringen.'));
+    } finally {
+      setReceiptBusy('');
+    }
+  }
   const employeeName = people.find((row) => row.id === draft.employeeId)?.label || draft.employeeName || '';
   const charge = EXPENSE_CHARGE_TYPES.find((row) => row.id === (draft.chargeType || 'reinvoice'));
   const label = draft.description || draft.purpose || 'utlegget';
@@ -199,6 +255,57 @@ function ExpenseSheet({
           Trykk «Slett nå» for å slette utlegget. Det kan ikke angres.
         </Text>
       ) : null}
+      {/* Kvitteringen først: beløp, dato og leverandør leses fra den og fylles inn under. */}
+      <Field label="Kvittering" hint="Bilde eller PDF. Beløp, dato og leverandør leses fra kvitteringen. Kvittering kreves over 1 000 kr ved innsatsfaktor (bokføringsforskriften).">
+        {draft.receiptUri ? (
+          <View style={styles.receiptRow}>
+            <TouchableOpacity
+              style={{ flex: 1, minWidth: 0 }}
+              onPress={() => Linking.openURL(draft.receiptUri).catch(() => {})}
+              accessibilityRole="link"
+              nativeID="expense-receipt-open"
+            >
+              <Text style={[type.body, { color: colors.brand }]} numberOfLines={1}>{draft.receiptName || 'Kvittering'}</Text>
+            </TouchableOpacity>
+            {editable ? (
+              <TouchableOpacity
+                onPress={() => { setDraft((current) => ({ ...current, receiptUri: '', receiptName: '' })); setReceiptNote(''); }}
+                accessibilityRole="button"
+                accessibilityLabel="Fjern kvitteringen"
+              >
+                <Text style={[type.label, { color: colors.muted }]}>Fjern</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+        {editable ? (
+          <View style={styles.receiptButtons}>
+            <Button
+              label={draft.receiptUri ? 'Bytt kvittering' : 'Last opp kvittering'}
+              icon="cloud-upload-outline"
+              nativeID="expense-receipt-upload"
+              busy={receiptBusy === 'file'}
+              disabled={!!receiptBusy}
+              onPress={() => attachReceipt('file')}
+            />
+            {phone || Platform.OS !== 'web' ? (
+              <Button
+                label="Ta bilde"
+                icon="camera-outline"
+                nativeID="expense-receipt-camera"
+                busy={receiptBusy === 'camera'}
+                disabled={!!receiptBusy}
+                onPress={() => attachReceipt('camera')}
+              />
+            ) : null}
+          </View>
+        ) : null}
+        {receiptNote ? (
+          <Text style={[type.label, { color: colors.muted, fontWeight: '400' }]} accessibilityLiveRegion="polite" nativeID="expense-receipt-note">
+            {receiptNote}
+          </Text>
+        ) : null}
+      </Field>
       <View style={styles.sheetGrid}>
         <View style={styles.sheetCell}>
           <Field label="Dato" required>
@@ -290,9 +397,6 @@ function ExpenseSheet({
       </Field>
       <Field label="Formål">
         <TextIn value={draft.purpose || ''} onChangeText={set('purpose')} editable={editable} />
-      </Field>
-      <Field label="Kvittering (lenke)" hint="Kvittering kreves over 1 000 kr ved innsatsfaktor (bokføringsforskriften).">
-        <TextIn value={draft.receiptUri || ''} onChangeText={set('receiptUri')} placeholder="fil:// eller https://" editable={editable} />
       </Field>
     </Sheet>
   );
@@ -414,9 +518,13 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   const people = useMemo(() => (refs.directory?.rows || [])
     .filter((row) => row.employeeId && row.active !== false)
     .map((row) => ({ id: row.employeeId, label: row.name || 'Uten navn', uid: row.uid })), [refs.directory]);
-  const projectOptions = useMemo(() => (lookup.projects || [])
-    .filter((row) => row?.id && row.status !== 'arkivert')
-    .map((row) => ({ id: row.id, label: [row.number ? `#${row.number}` : '', row.name].filter(Boolean).join(' ') })), [lookup.projects]);
+  // Den ansattes aktive prosjekter øverst, så de andre. Søket treffer alle.
+  const draftEmployeeId = draft?.employeeId || '';
+  const projectOptions = useMemo(() => {
+    const me = employees.find((row) => row.id === (draftEmployeeId || myEmployeeIdFrom(people, user?.uid)));
+    const mineIds = me ? myProjectIds({ ...state, projects: lookup.projects || [] }, me, employees) : new Set();
+    return expenseProjectOptions(lookup.projects || [], { mineIds, keepId: draft?.projectId || '' });
+  }, [lookup.projects, state, employees, draftEmployeeId, people, user?.uid, draft?.projectId]);
   const customerOptions = useMemo(() => (lookup.customers || [])
     .filter((row) => row?.id)
     .map((row) => ({ id: row.id, label: [row.customerNumber || row.number, row.name].filter(Boolean).join(' · ') })), [lookup.customers]);
@@ -939,6 +1047,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
           onDelete={deleteDraft}
           onOpenTrip={() => { closeDraft(); requestShellTab?.('okonomi', 'kjorebok'); }}
           onClose={closeDraft}
+          familyId={companyId}
+          phone={phone}
         />
       ) : null}
     </ScrollView>
@@ -973,4 +1083,6 @@ const styles = StyleSheet.create({
   sheetMeta: { ...type.caption },
   sheetError: { ...type.caption, flexBasis: '100%', textAlign: 'right' },
   sheetValue: { ...type.body },
+  receiptRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.xs },
+  receiptButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
 });

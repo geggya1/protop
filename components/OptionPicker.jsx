@@ -25,6 +25,22 @@ if (Platform.OS === 'web') {
 // Over ark (Modal) og hjelpekortet.
 const PORTAL_Z = 2147483100;
 
+/**
+ * Hvor listen legges på web. Et ark (react-native-web Modal) holder fokus inni seg og tar
+ * fokus tilbake når noe utenfor får det. Lå listen rett i body, mistet søkefeltet fokus med
+ * en gang, arket rullet, og listen lukket seg. Inni et ark legges listen derfor i arkets
+ * fokusfelle: elementet mellom de to fokusvaktene (div med role «none»/«presentation» og tabindex 0).
+ */
+export function pickerPortalTarget(node) {
+  if (typeof document === 'undefined') return null;
+  // react-native-web skriver role="none" som "presentation".
+  const guard = (el) => !!el && ['none', 'presentation'].includes(el.getAttribute?.('role')) && el.tabIndex === 0;
+  for (let el = node?.parentElement || null; el && el !== document.body; el = el.parentElement) {
+    if (guard(el.previousElementSibling) && guard(el.nextElementSibling)) return el;
+  }
+  return document.body;
+}
+
 function Chips({ list, value, onChange, multiple, small, clearable, disabled }) {
   const colors = useColors();
   const on = (id) => (multiple ? (value || []).includes(id) : value === id);
@@ -144,6 +160,7 @@ export default function OptionPicker({
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
   const [anchor, setAnchor] = useState(null);
+  const [portalTarget, setPortalTarget] = useState(null);
 
   const useChips = pickerMode(list.length, { chipLimit, custom: !!onCustom }) === 'chips';
   const canSearch = searchable ?? (list.length > SEARCH_FROM || !!onCustom);
@@ -177,6 +194,7 @@ export default function OptionPicker({
         bottom: up ? window.innerHeight - r.top + 4 : undefined,
         maxHeight: Math.max(180, Math.min(360, (up ? r.top : below) - 16)),
       });
+      setPortalTarget(pickerPortalTarget(fieldRef.current));
     }
     setOpen(true);
   };
@@ -257,7 +275,7 @@ export default function OptionPicker({
             ) : null}
           </div>
         </div>,
-        document.body,
+        portalTarget || document.body,
       ) : null}
 
       {open && sheet ? (

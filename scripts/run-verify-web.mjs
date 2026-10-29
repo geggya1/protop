@@ -312,6 +312,7 @@ export const FILES = [
   'src/economy/expenseRegistry.test.mjs',
   // Utlegg: prosjekt og internt på én side (UX-17).
   'src/economy/expenseScope.test.mjs',
+  'src/economy/expenseForm.test.mjs',
   // Aktiverte moduler: bedriften eller bare meg (MENY-01).
   'src/utils/modulePrefs.test.mjs',
   // Brukernavn tas på serveren, ett per konto (SEC-19).

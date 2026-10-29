@@ -13,6 +13,21 @@ import {
   friendlyGeminiError,
 } from './aiShared.js';
 import { normalizeReceiptBilag } from './receiptNormalize.js';
+import { assertFamilyMember } from './security.js';
+import { isOrganizationType } from '../src/utils/groupTypes.js';
+
+/**
+ * Familier: bare foresatte. Bedrifter: alle medlemmer, så ansatte kan lese kvitteringen
+ * til et utlegg (Økonomi → Utlegg).
+ */
+async function assertReceiptAccess(db, uid, familyId) {
+  const fam = await db.doc(`families/${familyId}`).get();
+  if (fam.exists && isOrganizationType(fam.data()?.type)) {
+    await assertFamilyMember(db, familyId, uid);
+    return;
+  }
+  await assertFamilyAdult(db, uid, familyId);
+}
 
 const RECEIPT_PROMPT = `Du er en norsk regnskapsassistent som tolker kvitteringer, fakturaer og bilag (OCR).
 Returner KUN gyldig JSON:
@@ -64,7 +79,7 @@ export async function handleAiReceiptOcr(data, auth) {
     throw new Error('Send bilde av kvitteringen.');
   }
 
-  await assertFamilyAdult(getFirestore(), uid, familyId);
+  await assertReceiptAccess(getFirestore(), uid, familyId);
   await assertCompanyAiAllowed(getFirestore(), familyId);
   await checkAndIncrementUsage(
     getFirestore(),

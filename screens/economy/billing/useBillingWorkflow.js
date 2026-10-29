@@ -4,10 +4,13 @@
  *
  * Prosjektene krysses av for masseoperasjoner. Linjene inne i et prosjekt er valgt fra
  * start (fastpris er ikke valgt), og bestemmer hva som kommer med på utkastet.
+ * «Godkjenn utvalg» åpner en kontroll av det som ikke er godkjent (review), prosjekt
+ * for prosjekt, før noe lagres.
  */
 import { useCallback, useMemo, useState } from 'react';
 import { buildInvoiceDraft } from '../../../src/economy/invoiceDraft.js';
 import { approvedOnly, selectableKeys, selectionAmount, selectionFor } from '../../../src/economy/billingReady.js';
+import { approvalReview } from '../../../src/economy/billingApproval.js';
 import { approveWork, releaseWork, reserveWork } from '../../../src/economy/billingWork.js';
 import * as invoiceStorage from '../../../src/economy/invoiceStorage.js';
 
@@ -30,6 +33,7 @@ export default function useBillingWorkflow({
   const [busy, setBusy] = useState('');
   const [progress, setProgress] = useState(null);
   const [pending, setPending] = useState(null);
+  const [review, setReview] = useState(null);
 
   const selectedFor = useCallback((project) => {
     const keys = selectableKeys(project).filter((key) => !excluded.has(key));
@@ -94,23 +98,30 @@ export default function useBillingWorkflow({
     return selectionFor(project, selectedFor(project), { fixedAmount: raw == null || raw === '' ? null : Number(raw) || 0 });
   }
 
-  async function approve(list) {
-    if (busy) return;
+  /**
+   * «Godkjenn utvalg»: åpner kontrollen av det som ikke er godkjent i utvalget.
+   * Gir antall prosjekter med noe å godkjenne (0 når alt allerede er godkjent).
+   */
+  function requestApprove(list) {
+    const items = approvalReview(list, selectedFor);
+    setReview(items.length ? items : null);
+    return items.length;
+  }
+
+  /** Lagrer det som er krysset av i kontrollen (approvalSelection). Feil kastes videre. */
+  async function approveSelections(selections) {
+    if (busy) return 0;
     setBusy('approve');
     let count = 0;
     try {
-      for (const project of list) {
-        const selection = selectionOf(project);
+      for (const selection of selections) {
         const result = await approveWork(familyId, selection);
         count += result.approved || 0;
       }
-      data?.reload?.();
       return count;
-    } catch (cause) {
-      onError?.(String(cause?.message || cause) || 'Kunne ikke godkjenne utvalget.');
-      return 0;
     } finally {
       setBusy('');
+      data?.reload?.();
     }
   }
 
@@ -204,6 +215,9 @@ export default function useBillingWorkflow({
     cancelPending: () => setPending(null),
     confirmPending: (approveFirst) => pending && create(pending.list, { approveFirst }),
     requestCreate,
-    approve,
+    review,
+    requestApprove,
+    closeReview: () => setReview(null),
+    approveSelections,
   };
 }

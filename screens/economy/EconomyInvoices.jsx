@@ -21,7 +21,6 @@ import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import FilterMenu from '../../components/FilterMenu';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import BillingChainLine from './billing/BillingChainLine';
 import { ImportResult } from '../../components/ImportReview';
 import InvoiceImportReview from '../../components/InvoiceImportReview';
 import ColumnSettingsMenu from '../../components/project/ColumnSettingsMenu';
@@ -557,24 +556,33 @@ export default function EconomyInvoices({
    * Overfør utkastet, og send det fra Go når send er satt eller bedriften sender automatisk.
    * Fakturasiden viser resultatet, så feil kastes videre dit.
    */
-  async function transferSelectedInvoice({ again = false, send = false } = {}) {
+  async function transferSelectedInvoice({ again = false, send = false, attachments = null, skipped = [] } = {}) {
     if (!selected || !canManage || transferring || deleting) return null;
     setTransferring(true);
     try {
-      const result = await transferInvoiceToPowerOffice(familyId, selected.id, { again, send });
+      const result = await transferInvoiceToPowerOffice(familyId, selected.id, { again, send, attachments, actorName: actor.byName });
       await reloadSelected();
       const orderNo = result?.poweroffice?.orderNo;
       const where = orderNo ? ` som utkast nr. ${orderNo}` : '';
+      const notAttached = [
+        ...(result?.attached?.failed || []).map((row) => row.name),
+        ...(result?.attached?.skipped || []),
+        ...(skipped || []),
+      ];
+      const attachedText = [
+        result?.attached?.added?.length ? ` ${result.attached.added.length} vedlegg er lagt ved (fakturaspesifikasjon og vedlegg).` : '',
+        notAttached.length ? ` Ikke lagt ved: ${notAttached.join(', ')}. Legg dem ved i PowerOffice Go.` : '',
+      ].join('');
       if (result?.sendError) {
-        throw new Error(`${result.already ? 'Utkastet ligger i PowerOffice' : `Overført til PowerOffice${where}`}, men ble ikke sendt: ${result.sendError} Send fakturaen fra PowerOffice Go, eller prøv «Send nå» igjen.`);
+        throw new Error(`${result.already ? 'Utkastet ligger i PowerOffice' : `Overført til PowerOffice${where}`}, men ble ikke sendt: ${result.sendError} Send fakturaen fra PowerOffice Go, eller prøv «Send nå» igjen.${attachedText}`);
       }
       if (result?.sent) {
-        return { message: `${result.already ? 'Utkastet' : `Overført til PowerOffice${where}, og`} sendes nå fra PowerOffice. Fakturanummer og KID kommer ved neste synk.` };
+        return { message: `${result.already ? 'Utkastet' : `Overført til PowerOffice${where}, og`} sendes nå fra PowerOffice. Fakturanummer og KID kommer ved neste synk.${attachedText}` };
       }
       return {
         message: result?.already
-          ? 'Utkastet ligger allerede i PowerOffice.'
-          : `Overført til PowerOffice${where}. Kontroller og send fakturaen der.`,
+          ? `Utkastet ligger allerede i PowerOffice.${attachedText}`
+          : `Overført til PowerOffice${where}. Kontroller og send fakturaen der.${attachedText}`,
       };
     } finally {
       setTransferring(false);
@@ -1087,7 +1095,6 @@ export default function EconomyInvoices({
 
   const top = (
     <>
-      {demoProjectState ? null : <BillingChainLine current="faktura" invoices={ready ? invoices : null} />}
       <View style={styles.toolbar}>
         <View style={{ flex: 1, gap: 4 }}>
           {hostedHero ? null : (

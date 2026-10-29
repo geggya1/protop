@@ -233,7 +233,9 @@ let followHtml = '';
     sheet: 'oversikt',
   }));
   const html = peopleHtml;
-  assert.match(html, /Sjekkliste/);
+  assert.match(html, /Lovpålagt/);
+  assert.equal(html.includes('Sjekkliste'), false);
+  assert.equal(html.includes('Lønn'), false);
   assert.match(html, /Ansettelsesavtale/);
   assert.match(html, /Medarbeidersamtale/);
   assert.match(html, /Fakturerbarhet/);
@@ -259,6 +261,30 @@ let followHtml = '';
   assert.equal(html.includes('Skann og fyll ut'), false);
   assert.equal(html.includes('Nøkkeldata'), false);
   assert.equal(html.includes('Bo Ekstern'), false);
+}
+
+{
+  // Personellmappen har ikke lønn: ingen fane og ingen lønn i oversikten.
+  const overview = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    selectedId: 'e1',
+    sheet: 'oversikt',
+  }));
+  assert.match(overview, /id="hr-sheet-compliance"/);
+  assert.equal(overview.includes('hr-sheet-lonn'), false);
+  assert.equal(overview.includes('Lønn'), false);
+  assert.match(overview, /Lovpålagt/);
+
+  // Åpnet fra HR → Lønn: bare lønnen, og tilbake til Lønn.
+  const salary = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    selectedId: 'e1',
+    sheet: 'lonn',
+    onBackToSalary: () => {},
+  }));
+  assert.match(salary, /Til lønn/);
+  assert.equal(salary.includes('hr-sheet-avtale'), false);
+  assert.equal(salary.includes('Til personellisten'), false);
 }
 
 {

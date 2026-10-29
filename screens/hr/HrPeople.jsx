@@ -16,30 +16,32 @@ import HrSalary from './HrSalary';
 import HrFollowUp from './HrFollowUp';
 import HrCompliance from './HrCompliance';
 
+// Lønn vises bare fra HR → Lønn, ikke som fane i personellmappen.
 const SHEETS = [
   { id: 'oversikt', label: 'Oversikt' },
   { id: 'avtale', label: 'Avtale' },
-  { id: 'lonn', label: 'Lønn' },
   { id: 'oppfolging', label: 'Oppfølging' },
   { id: 'compliance', label: 'Lovpålagt' },
 ];
+const SHEET_IDS = [...SHEETS.map((item) => item.id), 'lonn'];
+
+// «sheet» er fanen som åpnes når man trykker i kolonnen.
 
 const COLUMNS = [
   { key: 'name', label: 'Navn', width: 190, value: (row) => displayName(row.employee) },
   { key: 'kind', label: 'Type', width: 90, value: (row) => row.cells.kindLabel },
-  { key: 'check', label: 'Sjekkliste', width: 110, value: (row) => row.cells.checklist, warn: (row) => row.cells.checklistMissing > 0 },
-  { key: 'contract', label: 'Ansettelsesavtale', width: 150, value: (row) => row.cells.contract, warn: (row) => row.cells.contract === 'Mangler' },
-  { key: 'review', label: 'Medarbeidersamtale', width: 160, value: (row) => row.cells.review, warn: (row) => row.cells.review === 'Mangler' },
+  { key: 'check', label: 'Lovpålagt', width: 110, sheet: 'compliance', value: (row) => row.cells.checklist, warn: (row) => row.cells.checklistMissing > 0 },
+  { key: 'contract', label: 'Ansettelsesavtale', width: 150, sheet: 'avtale', value: (row) => row.cells.contract, warn: (row) => row.cells.contract === 'Mangler' },
+  { key: 'review', label: 'Medarbeidersamtale', width: 160, sheet: 'oppfolging', value: (row) => row.cells.review, warn: (row) => row.cells.review === 'Mangler' },
   { key: 'util', label: 'Fakturerbarhet', width: 130, value: (row) => row.cells.utilization },
-  { key: 'salary', label: 'Lønn', width: 150, value: (row) => row.cells.salary, warn: (row) => row.cells.salary === 'Mangler' },
-  { key: 'cases', label: 'Åpne saker', width: 110, value: (row) => row.cells.openCases, warn: (row) => Number(row.cells.openCases) > 0 },
+  { key: 'cases', label: 'Åpne saker', width: 110, sheet: 'oppfolging', value: (row) => row.cells.openCases, warn: (row) => Number(row.cells.openCases) > 0 },
 ];
 
 export default function HrPeople({
   colors, employees, hr, entries, selectedId, onSelect, canWrite, onPatch, onSheet,
   sheet = 'oversikt', familyId, onSaveSalaries,
   focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
-  isoCompetence, onOpenIso, listPreset = null,
+  isoCompetence, onOpenIso, listPreset = null, onBackToSalary,
 }) {
   const dir = useHrDirectory(employees, { preset: listPreset });
   const rows = useMemo(
@@ -50,7 +52,7 @@ export default function HrPeople({
     [dir.rows, hr, entries],
   );
   const selected = (employees || []).find((row) => row.id === selectedId) || null;
-  const activeSheet = SHEETS.some((item) => item.id === sheet) ? sheet : 'oversikt';
+  const activeSheet = SHEET_IDS.includes(sheet) ? sheet : 'oversikt';
 
   if (!selected) {
     return (
@@ -59,7 +61,7 @@ export default function HrPeople({
           <HrSectionTitle
             colors={colors}
             title="Personell"
-            subtitle="Velg en ansatt. Avtale, lønn og oppfølging ligger på personen."
+            subtitle="Velg en ansatt. Trykk i en kolonne for å gå rett til avtale, oppfølging eller lovpålagt."
           />
           <HrFilterBar
             colors={colors}
@@ -77,9 +79,9 @@ export default function HrPeople({
             rows={rows}
             rowKey={(row) => row.employee.id}
             emptyText="Ingen treff i personaloversikten."
-            onPressRow={(row) => {
+            onPressRow={(row, col) => {
               onSelect?.(row.employee.id);
-              onSheet?.('oversikt');
+              onSheet?.(col?.sheet || 'oversikt');
             }}
           />
         </HrCard>
@@ -92,6 +94,41 @@ export default function HrPeople({
   const personFiles = (hr.files || []).filter((row) => row.employeeId === selected.id);
   const personMemos = (hr.memos || []).filter((row) => row.employeeId === selected.id);
   const nextEvents = upcomingPeopleEvents([selected], { withinDays: 366 }).slice(0, 2);
+
+  // Åpnet fra HR → Lønn: bare lønnen, og tilbake dit.
+  if (activeSheet === 'lonn') {
+    return (
+      <View style={styles.page} nativeID="hr-employee-sheet">
+        <HrCard colors={colors}>
+          <HrButton
+            colors={colors}
+            label="Til lønn"
+            icon="arrow-back-outline"
+            onPress={() => {
+              if (onBackToSalary) {
+                onBackToSalary();
+                return;
+              }
+              onSelect?.('');
+              onSheet?.('oversikt');
+            }}
+          />
+          <HrSectionTitle
+            colors={colors}
+            title={displayName(selected)}
+            subtitle={[selected?.company?.title, cells.kindLabel, periodLabel(selected)].filter(Boolean).join(' · ')}
+          />
+        </HrCard>
+        <HrSalary
+          colors={colors}
+          hr={hr}
+          canWrite={canWrite}
+          lockedEmployeeId={selected.id}
+          onSaveSalaries={onSaveSalaries}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.page} nativeID="hr-employee-sheet">
@@ -130,9 +167,8 @@ export default function HrPeople({
             <Fact colors={colors} label="Ansatt dato" value={empFormatNbDate(selected?.company?.periodFrom) || '—'} />
             <Fact colors={colors} label="Ansiennitet" value={tenure != null ? `${tenure} år` : '—'} />
             <Fact colors={colors} label="Fødselsdato" value={empFormatNbDate(selected?.person?.birthDate) || '—'} />
-            <Fact colors={colors} label="Sjekkliste" value={cells.checklist} />
+            <Fact colors={colors} label="Lovpålagt" value={cells.checklist} />
             <Fact colors={colors} label="Ansettelsesavtale" value={cells.contract} />
-            <Fact colors={colors} label="Lønn" value={cells.salary === 'Mangler' ? 'Ikke registrert' : cells.salary} />
             <Fact colors={colors} label="Medarbeidersamtale" value={cells.review} />
             <Fact colors={colors} label="Fakturerbarhet" value={cells.utilization} />
             <Fact colors={colors} label="Åpne saker" value={cells.openCases} />
@@ -186,16 +222,6 @@ export default function HrPeople({
           onPatch={onPatch}
           familyId={familyId}
           lockedEmployeeId={selected.id}
-        />
-      ) : null}
-
-      {activeSheet === 'lonn' ? (
-        <HrSalary
-          colors={colors}
-          hr={hr}
-          canWrite={canWrite}
-          lockedEmployeeId={selected.id}
-          onSaveSalaries={onSaveSalaries}
         />
       ) : null}
 

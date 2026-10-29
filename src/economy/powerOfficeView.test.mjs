@@ -7,7 +7,9 @@ import { canDeleteInvoice, invoiceListSource, normalizeInvoice } from './invoice
 import {
   canSendFromPowerOffice,
   canTransferToPowerOffice,
+  hasPowerOfficeEhf,
   lookupRows,
+  sentFromPowerOffice,
   syncCountsText,
   POWEROFFICE_VAT_ROWS,
   powerOfficeSummary,
@@ -124,4 +126,20 @@ assert.deepEqual(POWEROFFICE_VAT_ROWS.map((row) => row.id), ['HIGH', 'MID', 'LOW
   assert.equal(syncCountsText({ sending: 1, failed: 1 }), '1 sendes fortsatt, 1 sending feilet');
 }
 
+{
+  // Vedlegg som er lagt på utkastet, og de som ikke kom med.
+  const withDocs = powerOfficeSummary({ poweroffice: { state: 'draft', salesOrderId: 'so-1', attachments: 3, attachmentErrors: 'stor.pdf: for stor' } });
+  assert.ok(withDocs.lines.includes('Fakturaspesifikasjon og 2 vedlegg er lagt ved.'));
+  assert.ok(withDocs.lines.includes('Ikke lagt ved: stor.pdf: for stor'));
+  const specOnly = powerOfficeSummary({ poweroffice: { state: 'sending', salesOrderId: 'so-1', attachments: 1, sendRequestedAt: '2026-10-29' } });
+  assert.ok(specOnly.lines.includes('Fakturaspesifikasjonen er lagt ved.'));
+}
+
 console.log('powerOfficeView.test ok');
+
+// Sendt fra PowerOffice: fakturaen kunden fikk hentes fra Go. EHF bare når den gikk som EHF.
+assert.equal(sentFromPowerOffice({ poweroffice: { state: 'draft', salesOrderId: 's1' } }), false);
+assert.equal(sentFromPowerOffice({ poweroffice: { state: 'sent', outgoingInvoiceId: 'oi1' } }), true);
+assert.equal(sentFromPowerOffice({}), false);
+assert.equal(hasPowerOfficeEhf({ poweroffice: { outgoingInvoiceId: 'oi1', deliveryType: 'PdfByEmail' } }), false);
+assert.equal(hasPowerOfficeEhf({ poweroffice: { outgoingInvoiceId: 'oi1', deliveryType: 'EHF' } }), true);

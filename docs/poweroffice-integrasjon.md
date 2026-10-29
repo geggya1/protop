@@ -100,6 +100,7 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 - [ ] «Test tilbakehenting» med en faktura sendt fra Go viser fakturanummer, KID, forsendelse og restbeløp.
 - [ ] «Send fra PowerOffice nå» på et overført utkast: status «Sendes», og synk gir fakturanummer og KID.
 - [ ] Med automatisk sending på: «Overfør og send» sender fakturaen uten at noen åpner Go.
+- [ ] Utkastet i Go har fakturaspesifikasjonen (ProTop-design) og vedleggene, og de følger med fakturaen.
 - [ ] Registrer innbetaling i Go. Synk gir status «Betalt».
 - [ ] Slå sammen to utkast for samme kunde i Go. Synk finner det nye utkastet («slått sammen»).
 - [ ] Slett et overført utkast i Go. Synk viser «Finnes ikke lenger i PowerOffice». «Overfør på nytt» virker.
@@ -128,6 +129,42 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 - Krever tilgangen til fakturasending (CreateAndSendInvoice). Den må krysses av i skjemaet for produksjonstilgang.
 - Fakturaer fra testklienten (`poweroffice.env: 'demo'`) kan slettes fra fakturalisten uansett status, og
   nummer derfra teller ikke i ProTop sin nummerserie.
+
+### Fakturaen kunden får (valgt 29.10.2026: løsning A)
+
+PowerOffice lager og sender selve fakturaen (kontonummer, KID, forfall, EHF, purring og inkasso i Go).
+ProTop sitt design følger med som vedlegg:
+
+- **Fakturaspesifikasjon** (`buildInvoiceSpecPdf`): ProTop-fakturaen uten utkastmerking og uten
+  betalingsinformasjon, med timespesifikasjon etter når fakturaen har timer (av med `attachTimeSpec: false`).
+  Summen er uten øreavrunding, som i Go.
+- **Fakturaens vedlegg og kvitteringer** (`sendableAttachments`).
+- Lastes opp med `POST /SalesOrders/{id}/Attachments` (multipart, feltet `file`) før en eventuell sending,
+  én gang per utkast (`poweroffice.attachmentsAddedAt`). Innstilling `attachDocs` (på som standard).
+- Linjene: fakturatekst og seksjonsoverskrifter («Timer», «Kjøring» …) som tekstlinjer, og periode foran
+  linjeteksten. Hodet: `PurchaseOrderReference` (bestilling), `ContractNo` (kontrakt) og
+  `BrandingThemeCode` (fakturaoppsett i Go, valgt under Regnskapssystem).
+- Logo, farger og bunntekst settes i Go under fakturaoppsett.
+
+Tilganger som må med i skjemaet for produksjonstilgang: kunder, produkter, salgsordre (SalesOrders_Full),
+vedlegg på salgsordre (SalesOrderAttachment_Full), utgående fakturaer, fakturasending (CreateAndSendInvoice)
+og bilagsdokumentasjon (VoucherDocumentation, for å hente fakturaen kunden fikk).
+
+### Test 29.10.2026: faktura 10000 fra testklienten
+
+- Utkastet kom inn i Go med fakturaspesifikasjonen som vedlegg. Go slo den sammen med sin egen faktura til én
+  PDF: faktura (KID, forfall), så spesifikasjonen og timespesifikasjonen. Synk ga fakturanummer, KID og «Sendt».
+- «Send fra PowerOffice nå» ga «Missing privilege»: testklienten mangler CreateAndSendInvoice. Bedt om hos
+  PowerOffice.
+- Rettet etter testen: Go får kredittiden fra ProTop (`PaymentTerm`), så forfallet blir det samme. Lange
+  prosjektnavn brytes i PDF-hodet.
+- Endringsloggen får hver bevegelse i PowerOffice (`powerOfficeEvents`, lagt til med `arrayUnion`): overført,
+  vedlegg, bedt sendt, sendefeil, sendt med nummer/KID/forfall, innbetaling, betalt, slettet og sammenslått i Go.
+- «Last ned» på en faktura sendt fra PowerOffice: fakturaen fra Go (`powerOfficeInvoiceDocument`,
+  `GET /VoucherDocumentation/Download`, ZIP pakkes ut på serveren), EHF fra Go når den gikk som EHF, og
+  spesifikasjonen. ProTop sin egen faktura-PDF og EHF vises ikke der, fordi de mangler kontonummer og KID fra Go.
+  Forhåndsvisningen viser spesifikasjonen. Beløpet er Go sitt, uten øreavrunding.
+- Kontonummer på fakturaen kommer fra klientoppsettet i Go. Testklienten har ingen bankkonto.
 
 ## Utlegg og kjøregodtgjørelse til PowerOffice (skal bygges)
 
@@ -208,8 +245,9 @@ trekkpliktig bilgodtgjørelse), ikke som et vanlig bilag.
 >   10 kall i sekundet.
 > - Sammenslåtte utkast spores via ExternalImportReference på linjene.
 >
-> Kan du sende skjemaet for produksjonstilgang? Integrasjonen bruker salgsordrer, utgående fakturaer,
-> kunder og produkter (lesing), og sending av faktura (CreateAndSendInvoice).
+> Kan du sende skjemaet for produksjonstilgang? Integrasjonen bruker salgsordrer med vedlegg, utgående
+> fakturaer, fakturasending (CreateAndSendInvoice), bilagsdokumentasjon (VoucherDocumentation), og kunder og
+> produkter.
 >
 > Vi skal også overføre utlegg og kjøregodtgjørelse, slik at regnskapsføreren refunderer de ansatte
 > fra Go:

@@ -44,6 +44,14 @@ export class PowerOfficeError extends Error {
   }
 }
 
+function safeDecode(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -205,21 +213,22 @@ export function createPowerOfficeClient({
    * Ett kall mot API-et. GET som gir 404 returnerer null, så den som spør
    * kan skille «finnes ikke» fra feil.
    */
-  async function request(method, path, { query = null, body = undefined } = {}) {
+  async function request(method, path, { query = null, body = undefined, form = undefined } = {}) {
     const url = new URL(`${config.baseUrl}${path}`);
     for (const [key, value] of Object.entries(query || {})) {
       if (value == null || value === '') continue;
       url.searchParams.set(key, String(value));
     }
+    // form: multipart (filopplasting). Lages på nytt per forsøk, og fetch setter grensen selv.
     const call = async () => send(url.toString(), {
       method,
       headers: {
         Authorization: `Bearer ${await accessToken()}`,
         'Ocp-Apim-Subscription-Key': subscriptionKey,
         Accept: 'application/json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(body !== undefined && !form ? { 'Content-Type': 'application/json' } : {}),
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(form ? { body: form() } : (body !== undefined ? { body: JSON.stringify(body) } : {})),
     });
     let res = await call();
     if (res.status === 401) {
@@ -234,6 +243,54 @@ export function createPowerOfficeClient({
     return data;
   }
 
+  /**
+   * Henter en fil (for eksempel fakturadokumentet). Gir { bytes, contentType, fileName },
+   * eller null når Go svarer 404.
+   */
+  async function download(path, query = null) {
+    const url = new URL(`${config.baseUrl}${path}`);
+    for (const [key, value] of Object.entries(query || {})) {
+      if (value == null || value === '') continue;
+      url.searchParams.set(key, String(value));
+    }
+    const call = async () => send(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${await accessToken()}`,
+        'Ocp-Apim-Subscription-Key': subscriptionKey,
+        Accept: '*/*',
+      },
+    });
+    let res = await call();
+    if (res.status === 401) {
+      token = null;
+      res = await call();
+    }
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const data = await readBody(res);
+      throw new PowerOfficeError(problemMessage(data, res.status), { status: res.status, path, problem: data });
+    }
+    const disposition = String(res.headers?.get?.('content-disposition') || '');
+    const name = disposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+    return {
+      bytes: Buffer.from(await res.arrayBuffer()),
+      contentType: String(res.headers?.get?.('content-type') || ''),
+      fileName: name ? safeDecode(name[1]) : '',
+    };
+  }
+
+  /** Laster opp én fil som multipart-feltet «file». */
+  async function upload(path, { name, mime = 'application/octet-stream', bytes }) {
+    return request('POST', path, {
+      form: () => {
+        const data = new FormData();
+        data.append('file', new Blob([bytes], { type: mime }), name);
+        return data;
+      },
+    });
+  }
+
   /** Henter alle sider (PageNumber er 1-basert). */
   async function listAll(path, query = {}, { pageSize = 100, maxPages = 50 } = {}) {
     const rows = [];
@@ -246,5 +303,5 @@ export function createPowerOfficeClient({
     return rows;
   }
 
-  return { env, config, accessToken, request, listAll };
+  return { env, config, accessToken, request, upload, download, listAll };
 }

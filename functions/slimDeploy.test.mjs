@@ -44,6 +44,7 @@ const required = [
   'functions:powerOfficeTransferInvoice',
   'functions:powerOfficeSyncInvoices',
   'functions:powerOfficeLookupInvoice',
+  'functions:powerOfficeInvoiceDocument',
   'functions:stravaSyncActivities',
   'pushIndex.js',
   'functions:onChatMessageCreated',

@@ -29,7 +29,8 @@ import {
   openFileUrl,
   previewUrl as makePreviewUrl,
 } from '../../../src/economy/invoiceDelivery.js';
-import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
+import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary, sentFromPowerOffice } from '../../../src/economy/powerOfficeView.js';
+import { fetchPowerOfficeDocument } from '../../../src/economy/powerOfficeClient.js';
 import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
 import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 import { Banner, Button, LinkText, money } from '../billing/ui';
@@ -47,6 +48,13 @@ async function bytesFromFile(file) {
   if (!blob && file?.uri && typeof fetch === 'function') blob = await (await fetch(file.uri)).blob();
   if (!blob || typeof blob.arrayBuffer !== 'function') throw new Error('Kunne ikke lese filen.');
   return new Uint8Array(await blob.arrayBuffer());
+}
+
+function bytesFromBase64(base64) {
+  const binary = atob(String(base64 || ''));
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
+  return out;
 }
 
 function titleOf(invoice) {
@@ -144,7 +152,10 @@ export default function InvoicePage({
     const timer = setTimeout(() => {
       try {
         const original = isCreditNote(shown) ? allInvoices.find((row) => row.id === shown.creditNoteForId) : null;
-        const bytes = actions.pdfFor(ctx, recalcInvoice(shown), original ? formatDate(original.invoiceDate) : '');
+        // Sendt fra PowerOffice: fakturaen ligger i Go. Her vises spesifikasjonen som fulgte med.
+        const bytes = sentFromPowerOffice(shown)
+          ? actions.specPreviewFor(ctx, recalcInvoice(shown))
+          : actions.pdfFor(ctx, recalcInvoice(shown), original ? formatDate(original.invoiceDate) : '');
         const url = makePreviewUrl(bytes);
         if (!alive) {
           if (url) URL.revokeObjectURL(url);
@@ -239,11 +250,21 @@ export default function InvoicePage({
     }
   }
 
+  /** Spesifikasjon og vedlegg til utkastet i PowerOffice, når det er slått på og ikke gjort før. */
+  async function powerOfficeFiles() {
+    if (poStatus?.attachDocs === false || invoice?.poweroffice?.attachmentsAddedAt) return {};
+    const { files, skipped } = await actions.powerOfficeAttachments(ctx, invoice);
+    return { attachments: files, skipped };
+  }
+
   async function finalizeAndSend(options) {
     if (mode === 'poweroffice') {
       // Resultatet og feilen fra PowerOffice vises øverst på fakturaen.
       setDialog('');
-      await run('transfer', () => onTransfer?.({ again: invoice?.poweroffice?.state === 'missing' }), { close: false });
+      await run('transfer', async () => onTransfer?.({
+        again: invoice?.poweroffice?.state === 'missing',
+        ...(await powerOfficeFiles()),
+      }), { close: false });
       return;
     }
     setBusy('finalize');
@@ -276,6 +297,16 @@ export default function InvoicePage({
     try {
       if (kind === 'file' || kind === 'attachment') {
         openFileUrl(file?.url || invoice.attachment?.url);
+        return;
+      }
+      if (kind === 'po-pdf' || kind === 'po-ehf') {
+        const file = await fetchPowerOfficeDocument(familyId, invoice.id, kind === 'po-ehf' ? 'ehf' : 'pdf');
+        if (!file?.base64) throw new Error('PowerOffice sendte ikke noe dokument.');
+        downloadFile(bytesFromBase64(file.base64), file.name, file.mime);
+        return;
+      }
+      if (kind === 'spec') {
+        downloadFile(await actions.specFor(ctx, recalcInvoice(shown)), `Fakturaspesifikasjon-${shown.invoiceNumber || 'utkast'}.pdf`, 'application/pdf');
         return;
       }
       if (kind === 'pdf') {
@@ -471,7 +502,7 @@ export default function InvoicePage({
       powerOfficeSummary={powerOfficeSummary(invoice)}
       powerOfficeUrl={poStatus?.connected ? (POWEROFFICE_GUI[poStatus.env] || POWEROFFICE_GUI.prod) : ''}
       onPowerOfficeSend={canManage && canSendFromPowerOffice(invoice, poStatus) && onTransfer
-        ? () => run('posend', () => onTransfer({ send: true }), { close: false })
+        ? () => run('posend', async () => onTransfer({ send: true, ...(await powerOfficeFiles()) }), { close: false })
         : null}
       onPowerOfficeSync={poStatus?.connected && invoice?.poweroffice?.salesOrderId && onSyncPowerOffice
         ? () => run('posync', () => onSyncPowerOffice(), { close: false })

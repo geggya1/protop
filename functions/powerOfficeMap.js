@@ -82,39 +82,104 @@ export function normalizeProductCodes(input) {
  * Linjer uten beløp og antall blir tekstlinjer. Andre linjer trenger et produkt
  * (line.productCode eller produktet for linjens MVA-sats).
  */
-export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, ref }) {
+/** Seksjonene i ProTop, i samme rekkefølge og med samme navn som på ProTop-fakturaen. */
+const SECTIONS = [
+  ['hours', 'Timer'],
+  ['fixed', 'Fastpris og avtaler'],
+  ['expenses', 'Viderefakturerte utlegg'],
+  ['outlays', 'Utlegg på vegne av kunden (uten mva)'],
+  ['trips', 'Kjøring'],
+  ['products', 'Produkter'],
+  ['admin', 'Adm. kostnader'],
+  ['other', 'Andre linjer'],
+];
+const SECTION_ORDER = new Map(SECTIONS.map(([id], index) => [id, index]));
+const SECTION_LABEL = new Map(SECTIONS);
+
+/** «02.2026» eller «01.2026–03.2026», som perioden på ProTop-fakturaen. */
+export function linePeriod(start, end) {
+  const month = (value) => {
+    const match = text(value).match(/^(\d{4})-(\d{2})/);
+    return match ? `${match[2]}.${match[1]}` : '';
+  };
+  const a = month(start);
+  const b = month(end);
+  if (a && b && a !== b) return `${a}–${b}`;
+  return a || b || '';
+}
+
+/** Tekst i Go deles i linjer på høyst 250 tegn, på ordgrense. */
+function textChunks(value, max = 250) {
+  const out = [];
+  for (const paragraph of String(value ?? '').split(/\n+/)) {
+    let rest = paragraph.replace(/\s+/g, ' ').trim();
+    while (rest.length > max) {
+      const cut = rest.lastIndexOf(' ', max) > max / 2 ? rest.lastIndexOf(' ', max) : max;
+      out.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut).trim();
+    }
+    if (rest) out.push(rest);
+  }
+  return out;
+}
+
+export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, ref, brandingTheme = '' }) {
   const row = invoice && typeof invoice === 'object' ? invoice : {};
   if (!customerId) return { ok: false, error: 'Kunden finnes ikke i PowerOffice ennå.' };
   if (!ref) return { ok: false, error: 'Referanse mangler.' };
   const codes = normalizeProductCodes(productCodes);
   const missing = new Set();
-  const lines = (Array.isArray(row.lines) ? row.lines : []).map((line, index) => {
+  const source = (Array.isArray(row.lines) ? row.lines : []).map((line, index) => ({ line, index }));
+  // Seksjonsoverskrifter som på ProTop-fakturaen, når linjene har seksjon.
+  const sectioned = source.some(({ line }) => SECTION_ORDER.has(text(line?.section)));
+  const sectionOf = ({ line }) => (SECTION_ORDER.has(text(line?.section)) ? text(line.section) : 'other');
+  if (sectioned) {
+    source.sort((a, b) => (SECTION_ORDER.get(sectionOf(a)) - SECTION_ORDER.get(sectionOf(b))) || (a.index - b.index));
+  }
+  const lines = [];
+  const textLine = (description, key) => lines.push({
+    Description: description,
+    SortOrder: lines.length,
+    ExternalImportReference: `${ref}-${key}`,
+    LineType: 'Text',
+  });
+  // Fakturateksten først, som på ProTop-fakturaen.
+  textChunks(row.invoiceText).forEach((chunk, index) => textLine(chunk, `T${index + 1}`));
+  let currentSection = '';
+  for (const item of source) {
+    const { line, index } = item;
+    if (sectioned && sectionOf(item) !== currentSection) {
+      currentSection = sectionOf(item);
+      textLine(SECTION_LABEL.get(currentSection), `H${SECTION_ORDER.get(currentSection) + 1}`);
+    }
     const quantity = num(line?.quantity) ?? 0;
     // Nettopris etter påslag og rabatt, så summen i PowerOffice blir lik utkastet i ProTop.
     const net = num(line?.netUnitPrice);
     const listPrice = num(line?.unitPrice) ?? 0;
     const unitPrice = net != null && quantity && Math.abs(net - listPrice) > 0.00001 ? net : listPrice;
-    const description = text(line?.description).slice(0, 250);
+    const period = linePeriod(line?.periodStart, line?.periodEnd);
+    const description = [period, text(line?.description)].filter(Boolean).join(' · ').slice(0, 250);
     const base = {
       Description: description || null,
-      SortOrder: index,
+      SortOrder: lines.length,
       ExternalImportReference: lineRef(ref, index),
     };
     if (!quantity && !unitPrice) {
-      return { ...base, LineType: 'Text' };
+      lines.push({ ...base, LineType: 'Text' });
+      continue;
     }
     const vatCode = text(line?.vatCode) || 'HIGH';
     const productCode = text(line?.productCode) || codes[vatCode] || '';
     if (!productCode) missing.add(vatCode);
-    return {
+    lines.push({
       ...base,
       LineType: 'Normal',
       ProductCode: productCode,
       Quantity: quantity,
       ProductUnitPrice: unitPrice === listPrice ? round2(unitPrice) : Math.round(unitPrice * 10000) / 10000,
-    };
-  });
-  if (!lines.length) return { ok: false, error: 'Fakturaen har ingen linjer.' };
+    });
+  }
+  if (!source.length) return { ok: false, error: 'Fakturaen har ingen linjer.' };
   if (missing.size) {
     return {
       ok: false,
@@ -128,6 +193,10 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
     SalesOrderDate: isoDate(row.invoiceDate) || null,
     DeliveryDate: isoDate(row.periodEnd) || null,
     CustomerReference: text(row.customerReference) || null,
+    PurchaseOrderReference: text(row.orderReference) || null,
+    ContractNo: text(row.contractReference) || null,
+    // Fakturaoppsettet (logo, farger, bunntekst) i Go. Tomt: klientens standard.
+    BrandingThemeCode: text(brandingTheme) || null,
     PaymentTerm: paymentTerm(row),
     CurrencyCode: text(row.currency) || 'NOK',
     SalesOrderLines: lines,
@@ -138,9 +207,12 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
   return { ok: true, order };
 }
 
-/** Fristen valgt i ProTop, i dager. Ellers arver Go betalingsbetingelsen fra kunden eller klienten. */
+/**
+ * Kredittiden på fakturaen i ProTop, i dager, så Go gir samme forfall som ProTop viser.
+ * Uten kredittid arver Go betalingsbetingelsen fra kunden eller klienten.
+ */
 function paymentTerm(row) {
-  if (row.dueDateSet !== true || row.creditDays == null || row.creditDays === '') return null;
+  if (row.creditDays == null || row.creditDays === '') return null;
   const days = Number(row.creditDays);
   return Number.isFinite(days) && days >= 0 ? Math.round(days) : null;
 }
@@ -339,4 +411,104 @@ export function invoicePatchMerged(invoice, salesOrderId, { at }) {
     },
     updatedAt: at,
   };
+}
+
+function norDate(value) {
+  const iso = isoDate(value);
+  return iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '';
+}
+
+function kroner(value) {
+  const n = Number(value) || 0;
+  const [whole, frac] = Math.abs(n).toFixed(2).split('.');
+  return `${n < 0 ? '−' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')},${frac} kr`;
+}
+
+/**
+ * Hendelser til endringsloggen for det som skjedde med fakturaen i PowerOffice, ut fra
+ * fakturaen før og etter en lagring. user: brukeren gjorde det (navnet står foran teksten).
+ * Ellers er det PowerOffice som meldte det, og teksten står alene.
+ */
+export function powerOfficeEvents(before, after) {
+  const b = before?.poweroffice && typeof before.poweroffice === 'object' ? before.poweroffice : {};
+  const a = after?.poweroffice && typeof after.poweroffice === 'object' ? after.poweroffice : {};
+  const maybe = (value) => (value == null || value === '' ? null : num(value));
+  const out = [];
+  const test = a.env === 'demo' ? ' (testklient)' : '';
+  if (text(a.transferredAt) && a.transferredAt !== b.transferredAt && a.state === 'draft') {
+    const again = text(b.salesOrderId) || maybe(b.attempt) > 0;
+    const no = maybe(a.orderNo);
+    out.push({
+      type: 'poweroffice',
+      user: true,
+      text: `overførte utkastet til PowerOffice${test}${again ? ' på nytt' : ''}${no ? ` som utkast nr. ${no}` : ''}`,
+    });
+  }
+  if (text(a.attachmentsAddedAt) && a.attachmentsAddedAt !== b.attachmentsAddedAt) {
+    const n = maybe(a.attachments) || 0;
+    out.push({ type: 'attachment', user: true, text: `la ved ${n === 1 ? '1 fil' : `${n} filer`} på utkastet i PowerOffice` });
+  }
+  if (text(a.attachmentErrors) && a.attachmentErrors !== b.attachmentErrors) {
+    out.push({ type: 'attachment', user: false, text: `Vedlegg kom ikke med i PowerOffice: ${a.attachmentErrors}` });
+  }
+  if (a.state === 'sending' && b.state !== 'sending') {
+    out.push({ type: 'delivery', user: true, text: 'ba PowerOffice sende fakturaen til kunden' });
+  }
+  if (text(a.sendError) && a.sendError !== b.sendError) {
+    out.push({ type: 'delivery', user: false, text: `Sendingen fra PowerOffice feilet: ${a.sendError}` });
+  }
+  const done = (state) => state === 'sent' || state === 'paid';
+  if (done(a.state) && !done(b.state)) {
+    const delivery = deliveryFromPowerOffice(a.deliveryType);
+    const parts = [
+      delivery ? `som ${delivery.label}` : '',
+      norDate(after?.sentAt || a.sentDateTime) ? `${norDate(after?.sentAt || a.sentDateTime)}` : '',
+    ].filter(Boolean).join(' ');
+    const facts = [
+      text(a.cid) ? `KID ${a.cid}` : '',
+      norDate(after?.invoiceDate) ? `fakturadato ${norDate(after.invoiceDate)}` : '',
+      norDate(after?.dueDate) ? `forfall ${norDate(after.dueDate)}` : '',
+      Number.isFinite(Number(after?.amountInclVat)) && after?.amountInclVat !== '' && after?.amountInclVat != null
+        ? kroner(after.amountInclVat) : '',
+    ].filter(Boolean).join(', ');
+    out.push({
+      type: 'delivery',
+      user: false,
+      text: `PowerOffice${test} sendte faktura ${maybe(a.invoiceNo) ?? text(after?.invoiceNumber)}${parts ? ` ${parts}` : ''}${facts ? ` (${facts})` : ''}`,
+    });
+  }
+  const before0 = maybe(b.balance);
+  const after0 = maybe(a.balance);
+  if (a.state === 'paid' && b.state !== 'paid') {
+    out.push({ type: 'payment', user: false, text: 'Fakturaen er betalt (registrert i PowerOffice)' });
+  } else if (done(a.state) && done(b.state) && before0 != null && after0 != null && after0 !== before0) {
+    out.push({
+      type: 'payment',
+      user: false,
+      text: after0 < before0
+        ? `Innbetaling registrert i PowerOffice, restbeløp ${kroner(after0)}`
+        : `Restbeløpet i PowerOffice er endret til ${kroner(after0)}`,
+    });
+  }
+  if (a.state === 'missing' && b.state !== 'missing') {
+    out.push({
+      type: 'poweroffice',
+      user: false,
+      text: 'Utkastet finnes ikke lenger i PowerOffice (slettet der). Det kan endres, overføres på nytt eller slettes i ProTop',
+    });
+  }
+  if (text(a.mergedFrom) && a.mergedFrom !== b.mergedFrom) {
+    out.push({ type: 'poweroffice', user: false, text: 'Utkastet ble slått sammen med et annet utkast i PowerOffice' });
+  }
+  return out;
+}
+
+/** Fakturaen etter en lagring med merge: poweroffice slås sammen felt for felt. */
+export function mergedInvoice(invoice, patch) {
+  const base = invoice && typeof invoice === 'object' ? invoice : {};
+  const next = { ...base, ...(patch || {}) };
+  if (patch?.poweroffice && typeof patch.poweroffice === 'object') {
+    next.poweroffice = { ...(base.poweroffice || {}), ...patch.poweroffice };
+  }
+  return next;
 }

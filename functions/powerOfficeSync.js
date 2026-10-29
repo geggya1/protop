@@ -16,6 +16,7 @@ import {
   salesOrderRef,
   sendRequestFromInvoice,
 } from './powerOfficeMap.js';
+import { isZip, readZipEntries } from './zipEntries.js';
 
 /** Maks antall id-er i ett invoiceIds-filter. */
 const IDS_PER_CALL = 40;
@@ -139,6 +140,7 @@ async function findDraftByRef(client, customerNo, ref) {
  */
 export async function transferInvoice(client, {
   invoice, customer = null, knownCustomer = null, productCodes = {}, again = false, at = new Date().toISOString(),
+  brandingTheme = '',
 }) {
   const po = invoice?.poweroffice && typeof invoice.poweroffice === 'object' ? invoice.poweroffice : {};
   if (po.salesOrderId && po.state !== 'missing') {
@@ -151,11 +153,11 @@ export async function transferInvoice(client, {
   const ref = salesOrderRef(invoice.id, attempt);
 
   // Sjekk produktene før vi gjør noe i Go.
-  const dry = salesOrderFromInvoice(invoice, { customerId: -1, productCodes, ref });
+  const dry = salesOrderFromInvoice(invoice, { customerId: -1, productCodes, ref, brandingTheme });
   if (!dry.ok) throw new Error(dry.error);
 
   const { customer: poCustomer } = await resolveCustomer(client, { invoice, customer, known: knownCustomer });
-  const built = salesOrderFromInvoice(invoice, { customerId: poCustomer.Id, productCodes, ref });
+  const built = salesOrderFromInvoice(invoice, { customerId: poCustomer.Id, productCodes, ref, brandingTheme });
   if (!built.ok) throw new Error(built.error);
 
   let order;
@@ -177,6 +179,49 @@ export async function transferInvoice(client, {
     patch,
     customerLink: { id: poCustomer.Id, no: poCustomer.Number ?? null },
   };
+}
+
+const ATTACHMENT_LIMITS = { files: 20, fileBytes: 7 * 1024 * 1024, totalBytes: 9 * 1024 * 1024 };
+const ATTACHMENT_MIME = /^(application\/pdf|image\/(png|jpe?g|gif|tiff?|heic)|text\/plain|application\/xml|application\/vnd\.openxmlformats-officedocument\.[\w.]+|application\/msword|application\/vnd\.ms-excel)$/i;
+
+/**
+ * Filer fra appen (base64) som skal ligge på utkastet i Go og følge med fakturaen.
+ * Navn renses, ukjente typer blir binærfil, og for store filer hoppes over.
+ */
+export function attachmentFiles(input) {
+  const files = [];
+  const skipped = [];
+  let total = 0;
+  for (const row of (Array.isArray(input) ? input : []).slice(0, ATTACHMENT_LIMITS.files)) {
+    const base64 = String(row?.base64 || '').replace(/\s+/g, '');
+    const name = text(row?.name).replace(/[\\/:*?"<>|]+/g, '-').slice(0, 120) || 'Vedlegg.pdf';
+    if (!base64) continue;
+    const bytes = Buffer.from(base64, 'base64');
+    if (!bytes.length) continue;
+    if (bytes.length > ATTACHMENT_LIMITS.fileBytes || total + bytes.length > ATTACHMENT_LIMITS.totalBytes) {
+      skipped.push(name);
+      continue;
+    }
+    total += bytes.length;
+    const mime = ATTACHMENT_MIME.test(text(row?.mime)) ? text(row.mime) : 'application/octet-stream';
+    files.push({ name, mime, bytes });
+  }
+  return { files, skipped };
+}
+
+/** Legg filene på utkastet (POST /SalesOrders/{id}/Attachments). Én feil stopper ikke resten. */
+export async function attachToSalesOrder(client, salesOrderId, files = []) {
+  const added = [];
+  const failed = [];
+  for (const file of files) {
+    try {
+      await client.upload(`/SalesOrders/${encodeURIComponent(salesOrderId)}/Attachments`, file);
+      added.push(file.name);
+    } catch (err) {
+      failed.push({ name: file.name, message: text(err?.message).slice(0, 200) });
+    }
+  }
+  return { added, failed };
 }
 
 /**
@@ -388,5 +433,36 @@ export async function lookupOutgoingInvoice(client, { invoiceNo, at = new Date()
       status: patch.status,
       outstandingAmount: patch.outstandingAmount,
     },
+  };
+}
+
+/**
+ * Fakturadokumentet slik kunden fikk det, fra Go (GET /VoucherDocumentation/Download).
+ * Id-en er den samme for utkastet, den sendte fakturaen og bilaget. Go svarer med en ZIP.
+ * kind: 'pdf' eller 'ehf'. Gir { name, mime, base64 }.
+ */
+export async function fetchInvoiceDocument(client, { outgoingInvoiceId, invoiceNo = '', kind = 'pdf' }) {
+  const id = text(outgoingInvoiceId);
+  if (!id) throw new Error('Fakturaen er ikke sendt fra PowerOffice ennå.');
+  const ehf = kind === 'ehf';
+  const file = await client.download('/VoucherDocumentation/Download', { id, documentationType: ehf ? 'Ehf' : 'Pdf' });
+  const missing = ehf ? 'PowerOffice har ingen EHF for denne fakturaen.' : 'Fant ikke fakturadokumentet i PowerOffice.';
+  if (!file?.bytes?.length) throw new Error(missing);
+  const wanted = ehf ? /\.xml$/i : /\.pdf$/i;
+  let bytes = file.bytes;
+  let name = file.fileName;
+  if (isZip(bytes)) {
+    const hit = readZipEntries(bytes).find((row) => wanted.test(row.name));
+    if (!hit) throw new Error(missing);
+    bytes = hit.data;
+    name = hit.name.split('/').pop();
+  } else if (!ehf && bytes.subarray(0, 4).toString('latin1') !== '%PDF') {
+    throw new Error(missing);
+  }
+  const no = text(invoiceNo).replace(/[^\w-]+/g, '');
+  return {
+    name: no ? `Faktura-${no}${ehf ? '-EHF.xml' : '.pdf'}` : (name || (ehf ? 'Faktura-EHF.xml' : 'Faktura.pdf')),
+    mime: ehf ? 'application/xml' : 'application/pdf',
+    base64: bytes.toString('base64'),
   };
 }

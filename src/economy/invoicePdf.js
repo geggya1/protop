@@ -43,6 +43,8 @@ const LABELS = {
     draft: 'FAKTURAUTKAST',
     creditDraft: 'KREDITNOTAUTKAST',
     draftNote: 'Utkast – ikke gyldig som faktura',
+    spec: 'FAKTURASPESIFIKASJON',
+    specNote: 'Vedlegg til fakturaen. Fakturanummer, KID og betalingsinformasjon står på fakturaen.',
     customerNo: 'Kundenr',
     customerOrg: 'Kunde org.nr',
     invoiceDate: 'Fakturadato',
@@ -101,6 +103,8 @@ const LABELS = {
     draft: 'DRAFT INVOICE',
     creditDraft: 'DRAFT CREDIT NOTE',
     draftNote: 'Draft – not a valid invoice',
+    spec: 'INVOICE SPECIFICATION',
+    specNote: 'Attachment to the invoice. Invoice number, KID and payment details are on the invoice.',
     customerNo: 'Customer no.',
     customerOrg: 'Customer org. no.',
     invoiceDate: 'Invoice date',
@@ -157,6 +161,7 @@ const LABELS = {
 LABELS.nn = {
   ...LABELS.nb,
   draftNote: 'Utkast – ikkje gyldig som faktura',
+  specNote: 'Vedlegg til fakturaen. Fakturanummer, KID og betalingsinformasjon står på fakturaen.',
   count: 'Fakturatal',
   countValue: (n) => `${n} på dette prosjektet`,
   toPay: 'Å betale NOK',
@@ -393,7 +398,7 @@ function drawLines(page, invoice, labels) {
   }
 }
 
-function drawTotals(page, invoice, labels, totals) {
+function drawTotals(page, invoice, labels, totals, { spec = false } = {}) {
   const rows = (totals.groups || []).length || 1;
   page.ensure(30 + rows * 10 + 50);
   page.y += 6;
@@ -409,13 +414,20 @@ function drawTotals(page, invoice, labels, totals) {
     page.right(num(group.taxableAmount), 190, y, 8);
     page.right(num(group.vatAmount), 260, y, 8);
   });
-  const paid = paidAmountOf(invoice);
-  const right = [
-    [labels.sumEx, num(totals.amountExVat), false],
-    [labels.vatSum, num(totals.vat), false],
-    [labels.rounding, num(totals.rounding), false],
-    [labels.sumIncl, num(totals.totalDue), true],
-  ];
+  const paid = spec ? 0 : paidAmountOf(invoice);
+  // PowerOffice runder ikke av til hele kroner. Spesifikasjonen viser samme sum som fakturaen derfra.
+  const right = spec
+    ? [
+      [labels.sumEx, num(totals.amountExVat), false],
+      [labels.vatSum, num(totals.vat), false],
+      [labels.sumIncl, num(totals.amountInclVat), true],
+    ]
+    : [
+      [labels.sumEx, num(totals.amountExVat), false],
+      [labels.vatSum, num(totals.vat), false],
+      [labels.rounding, num(totals.rounding), false],
+      [labels.sumIncl, num(totals.totalDue), true],
+    ];
   if (paid) {
     right.push([labels.paid, num(paid), false]);
     right.push([labels.rest, num(totals.totalDue - paid), true]);
@@ -447,15 +459,21 @@ function bold(rows) {
 }
 
 function headerBlock(page, invoice, supplier, labels, logo, options) {
-  const draft = isDraftInvoice(invoice);
+  // spec: vedlegg til en faktura som sendes fra PowerOffice. Ingen utkastmerking og ingen
+  // betalingsinformasjon, så kunden ikke ser to sett med kontonummer og KID.
+  const spec = !!options.spec;
+  const draft = !spec && isDraftInvoice(invoice);
   const credit = isCreditNote(invoice);
   const logoBottom = drawLogo(page, logo, supplier.name);
   let title = credit ? labels.credit : labels.invoice;
-  if (draft) title = credit ? labels.creditDraft : labels.draft;
+  if (spec) title = labels.spec;
+  else if (draft) title = credit ? labels.creditDraft : labels.draft;
   else if (invoice.invoiceNumber) title = `${title} ${invoice.invoiceNumber}`;
   const top = Math.max(logoBottom + 14, 92);
   page.text(title, 330, top, 15, true);
   if (draft) page.text(labels.draftNote, 330, top + 19, 8, false, 0.45);
+  const specNote = spec ? wrap(labels.specNote, RIGHT - 330, 7) : [];
+  specNote.forEach((row, index) => page.text(row, 330, top + 19 + index * 8, 7, false, 0.45));
 
   // Mottaker til venstre.
   const addr = invoice.customerAddress || {};
@@ -475,7 +493,8 @@ function headerBlock(page, invoice, supplier, labels, logo, options) {
   const facts = [
     [labels.customerNo, invoice.customerNumber],
     [labels.customerOrg, invoice.customerVatNumber || (invoice.orgnr ? `NO ${orgPretty(invoice.orgnr)}` : '')],
-    [credit ? labels.creditDate : labels.invoiceDate, formatDate(invoice.invoiceDate)],
+    // Som spesifikasjon: fakturadatoen settes av PowerOffice, med mindre den er valgt i ProTop.
+    spec && !invoice.invoiceDateSet ? null : [credit ? labels.creditDate : labels.invoiceDate, formatDate(invoice.invoiceDate)],
     credit ? [labels.credits, labels.creditsValue(invoice.creditNoteForNumber, options.originalDate || '')] : null,
     [labels.project, [invoice.projectNumber, invoice.projectName].filter(Boolean).join(' - ')],
     invoice.externalProjectNumber ? [labels.project, invoice.externalProjectNumber] : null,
@@ -489,18 +508,21 @@ function headerBlock(page, invoice, supplier, labels, logo, options) {
     [labels.ourRef, invoice.ourReference],
     [labels.orderRef, invoice.orderReference],
     [labels.contractRef, invoice.contractReference],
-    credit ? null : [labels.due, formatDate(invoice.dueDate), true],
-    credit ? null : [labels.account, accountPretty(invoice.bankAccount || supplier.bankAccount), true],
-    credit || !invoice.kid ? null : [labels.kid, invoice.kid, true],
-    [totals.totalDue < 0 ? labels.refund : labels.toPay, num(Math.abs(totals.totalDue)), true],
+    credit || spec ? null : [labels.due, formatDate(invoice.dueDate), true],
+    credit || spec ? null : [labels.account, accountPretty(invoice.bankAccount || supplier.bankAccount), true],
+    credit || spec || !invoice.kid ? null : [labels.kid, invoice.kid, true],
+    spec ? null : [totals.totalDue < 0 ? labels.refund : labels.toPay, num(Math.abs(totals.totalDue)), true],
   ].filter((row) => row && text(row[1]) && text(row[1]) !== '—');
-  const factTop = top + (draft ? 34 : 26);
-  facts.forEach(([label, value, strong], index) => {
-    const y = factTop + index * 10;
-    page.text(`${label}:`, 330, y, 8, !!strong);
-    wrap(value, RIGHT - 430, 8, !!strong).slice(0, 1).forEach((row) => page.text(row, 430, y, 8, !!strong));
+  const factTop = top + (spec ? 26 + specNote.length * 8 : (draft ? 34 : 26));
+  // Lange verdier (som prosjektnavn) brytes over inntil tre linjer i stedet for å kuttes.
+  let factY = factTop;
+  facts.forEach(([label, value, strong]) => {
+    const rows = wrap(value, RIGHT - 430, 8, !!strong).slice(0, 3);
+    page.text(`${label}:`, 330, factY, 8, !!strong);
+    rows.forEach((row, index) => page.text(row, 430, factY + index * 9, 8, !!strong));
+    factY += 10 + (rows.length - 1) * 9;
   });
-  page.y = Math.max(top + 26 + recipient.length * 10, factTop + facts.length * 10) + 18;
+  page.y = Math.max(top + 26 + recipient.length * 10, factY) + 18;
   if (invoice.invoiceText) {
     for (const row of wrap(invoice.invoiceText, RIGHT - LEFT, 9)) {
       page.ensure(12);
@@ -524,21 +546,22 @@ function finish(pages, { supplier, labels, invoice }) {
 }
 
 /** Sidene til fakturaen som PDF-strømmer (brukes også i «Faktura med timespesifikasjoner»). */
-export function invoicePageStreams(invoice, { supplier = {}, logo = null, originalDate = '' } = {}) {
+export function invoicePageStreams(invoice, { supplier = {}, logo = null, originalDate = '', spec = false } = {}) {
   const labels = labelsFor(invoice?.language, invoice?.currency);
   const totals = totalsFromLines(invoice?.lines || []);
   const doc = invoice?.lines?.length ? invoice : { ...invoice, lines: [] };
   const page = pageWriter({
     onNewPage: (writer) => {
-      const head = isDraftInvoice(doc) ? labels.draft : `${isCreditNote(doc) ? labels.credit : labels.invoice} ${doc.invoiceNumber || ''}`;
+      let head = isDraftInvoice(doc) ? labels.draft : `${isCreditNote(doc) ? labels.credit : labels.invoice} ${doc.invoiceNumber || ''}`;
+      if (spec) head = labels.spec;
       writer.text(head.trim(), LEFT, 30, 9, true);
       writer.y = 50;
     },
   });
   page.y = 40;
-  headerBlock(page, doc, supplier, labels, logo, { totals, originalDate });
+  headerBlock(page, doc, supplier, labels, logo, { totals, originalDate, spec });
   drawLines(page, doc, labels);
-  drawTotals(page, doc, labels, totals);
+  drawTotals(page, doc, labels, totals, { spec });
   return finish(page.pages, { supplier, labels, invoice: doc });
 }
 
@@ -546,7 +569,7 @@ export function invoicePageStreams(invoice, { supplier = {}, logo = null, origin
  * Timespesifikasjon: timene bak timelinjene, gruppert per medarbeider eller aktivitet.
  * show styrer kolonnene (timeSpecShow* i innstillingene).
  */
-export function timeSpecPageStreams(invoice, entries = [], { supplier = {}, settings = {} } = {}) {
+export function timeSpecPageStreams(invoice, entries = [], { supplier = {}, settings = {}, spec = false } = {}) {
   const labels = labelsFor(invoice?.language, invoice?.currency);
   const show = {
     employee: settings.timeSpecShowEmployee !== false,
@@ -579,7 +602,8 @@ export function timeSpecPageStreams(invoice, entries = [], { supplier = {}, sett
   page.text(labels.timeSpec, LEFT, page.y, 15, true);
   page.y += 22;
   const head = [
-    invoice?.invoiceNumber ? `${isCreditNote(invoice) ? labels.credit : labels.invoice} ${invoice.invoiceNumber}` : labels.draft,
+    // Som vedlegg til fakturaen fra PowerOffice finnes ikke fakturanummeret ennå.
+    spec ? labels.spec : (invoice?.invoiceNumber ? `${isCreditNote(invoice) ? labels.credit : labels.invoice} ${invoice.invoiceNumber}` : labels.draft),
     [invoice?.projectNumber, invoice?.projectName].filter(Boolean).join(' - '),
     invoice?.customerName,
     invoice?.periodStart || invoice?.periodEnd ? `${labels.period}: ${formatDate(invoice.periodStart)} – ${formatDate(invoice.periodEnd)}` : '',
@@ -679,6 +703,17 @@ export function buildInvoiceWithTimeSpecPdf(invoice, entries, { supplier = {}, s
     ...invoicePageStreams(invoice, { supplier, logo: image, originalDate }),
     ...timeSpecPageStreams(invoice, entries, { supplier, settings }),
   ], image);
+}
+
+/**
+ * Fakturaspesifikasjon i ProTop sitt design, som vedlegg til fakturaen fra PowerOffice:
+ * linjene og summene, med timespesifikasjonen etter når entries er med.
+ */
+export function buildInvoiceSpecPdf(invoice, entries = null, { supplier = {}, settings = {}, logo = null } = {}) {
+  const image = logoImage(logo);
+  const pages = invoicePageStreams(invoice, { supplier, logo: image, spec: true });
+  if (Array.isArray(entries) && entries.length) pages.push(...timeSpecPageStreams(invoice, entries, { supplier, settings, spec: true }));
+  return pdfDocument(pages, image);
 }
 
 export function invoicePdfName(invoice) {

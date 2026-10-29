@@ -207,7 +207,6 @@ export default function HrContracts({
       const compliance = syncComplianceFromEvidence(state.compliance || [], {
         employeeId: activeId,
         contracts: nextContracts,
-        reviews: state.reviews || [],
         hmsCards: state.hmsCards || [],
       });
       return { contracts: nextContracts, compliance };

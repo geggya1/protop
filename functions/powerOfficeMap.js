@@ -207,9 +207,12 @@ export function salesOrderFromInvoice(invoice, { customerId, productCodes = {}, 
   return { ok: true, order };
 }
 
-/** Fristen valgt i ProTop, i dager. Ellers arver Go betalingsbetingelsen fra kunden eller klienten. */
+/**
+ * Kredittiden på fakturaen i ProTop, i dager, så Go gir samme forfall som ProTop viser.
+ * Uten kredittid arver Go betalingsbetingelsen fra kunden eller klienten.
+ */
 function paymentTerm(row) {
-  if (row.dueDateSet !== true || row.creditDays == null || row.creditDays === '') return null;
+  if (row.creditDays == null || row.creditDays === '') return null;
   const days = Number(row.creditDays);
   return Number.isFinite(days) && days >= 0 ? Math.round(days) : null;
 }

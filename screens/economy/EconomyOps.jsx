@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
-import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -27,12 +26,11 @@ import { useCompanyRefs } from '../../src/context/CompanyDataContext';
 import { freshRows, hydrateRows, liveCustomerList } from '../../src/company/companyData.js';
 import { formatMoney } from '../../src/economy/invoices.js';
 import {
-  MILEAGE_RATE_TAX_FREE,
   tripsToCsv,
   yearlyDutyKm,
 } from '../../src/economy/mileage.js';
-import { setMileageRate } from '../../src/equipment/state';
-import { mileageRate } from '../../src/mileage/flow';
+import { mileageCompensation } from '../../src/mileage/compensation';
+import { useMileageRates } from '../../src/mileage/useMileageRates';
 import { deleteTrip, setTripStatus } from '../../src/economy/opsState.js';
 import MileageWizard from './MileageWizard';
 import { formatDate } from '../../src/format/nb';
@@ -199,33 +197,15 @@ function downloadCsv(name, csv) {
   URL.revokeObjectURL(url);
 }
 
-function Field({ label, value, onChange, colors, placeholder, keyboardType }) {
-  return (
-    <View style={{ minWidth: 140, flexGrow: 1, flexBasis: 160 }}>
-      <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 4 }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        keyboardType={keyboardType || 'default'}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
-    </View>
-  );
-}
-
 export default function EconomyOps({ kind = 'mileage', company = null }) {
   const colors = useColors();
   const hostedHero = useModuleHeroHosted();
   const { familyId, requestShellTab } = useApp();
-  const access = useCompanyAccess();
+  const fetchedRates = useMileageRates();
   const [customers, setCustomers] = useState([]);
   const [contracts, setContracts] = useState([]);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
-  const [rateOpen, setRateOpen] = useState(false);
-  const [rateDraft, setRateDraft] = useState('');
   const [editingTrip, setEditingTrip] = useState(null);
   const [pendingDelete, setPendingDelete] = useState('');
 
@@ -255,13 +235,8 @@ export default function EconomyOps({ kind = 'mileage', company = null }) {
   }), [refs, customers, state.projects]);
   const shownTrips = useMemo(() => hydrateRows(trips, lookup), [trips, lookup]);
   const dutyKm = useMemo(() => yearlyDutyKm(trips, new Date().getFullYear()), [trips]);
-  const rateInfo = mileageRate(state.mileagePolicies);
-  const canEditRate = access.canAdmin('mileage') || access.canAdmin('economySettings');
-
-  useEffect(() => {
-    const current = (state.mileagePolicies || []).find((row) => row.id === 'company');
-    setRateDraft(current?.ratePerKm ? String(current.ratePerKm) : '');
-  }, [state.mileagePolicies]);
+  // Bedriftens sats (Økonomi → Innstillinger → Reise og kjøring), oppdatert fra statens regulativ.
+  const rateInfo = mileageCompensation(state.mileagePolicies, '', { fetched: fetchedRates.rates });
 
   function apply(result) {
     setError(result.ok ? '' : result.error);
@@ -306,47 +281,10 @@ export default function EconomyOps({ kind = 'mileage', company = null }) {
           <View style={[styles.row, { alignItems: 'center' }]}>
             <Text style={{ color: colors.muted, fontSize: 13, flex: 1 }}>
               {hostedHero ? '' : 'Yrkeskjøring med fra/til, formål og km. '}
-              {rateInfo.label}: {rateInfo.rate.toFixed(2)} kr/km
-              {rateInfo.source === 'statutory' ? ' (skattefri)' : ''}. I år: {dutyKm} km yrkeskjøring
+              {rateInfo.label}: {rateInfo.rate.toFixed(2)} kr/km. I år: {dutyKm} km yrkeskjøring
               {dutyKm >= 6000 ? ' — over 6 000 km: vurder faktiske bilutgifter.' : '.'}
             </Text>
-            {canEditRate ? (
-              <TouchableOpacity
-                onPress={() => setRateOpen((open) => !open)}
-                style={[styles.btnGhost, { borderColor: colors.line, flexDirection: 'row', gap: 6, alignItems: 'center' }]}
-              >
-                <Ionicons name="settings-outline" size={16} color={colors.ink} />
-                <Text style={{ color: colors.ink }}>Innstillinger</Text>
-              </TouchableOpacity>
-            ) : null}
           </View>
-          {rateOpen ? (
-            <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
-              <Text style={{ color: colors.ink, fontWeight: '700' }}>Kjøresats</Text>
-              <Text style={{ color: colors.muted, fontSize: 12 }}>
-                Tomt felt bruker statens regulativ, {MILEAGE_RATE_TAX_FREE.toFixed(2)} kr/km skattefritt.
-              </Text>
-              <View style={styles.row}>
-                <Field
-                  label="Selskapssats kr/km"
-                  value={rateDraft}
-                  onChange={setRateDraft}
-                  colors={colors}
-                  placeholder="Tom = statens sats"
-                  keyboardType="decimal-pad"
-                />
-                <TouchableOpacity
-                  onPress={() => {
-                    apply(setMileageRate(state, rateDraft));
-                    setRateOpen(false);
-                  }}
-                  style={[styles.btn, { backgroundColor: colors.brand }]}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>Lagre sats</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : null}
         </View>
       ) : null}
 

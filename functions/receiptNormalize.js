@@ -145,7 +145,70 @@ export function normalizeReceiptBilag(raw = {}) {
     documentType: ['receipt', 'invoice', 'card_slip', 'other'].includes(raw.documentType) ? raw.documentType : '',
     cardLast4: String(raw.cardLast4 || '').replace(/\D/g, '').slice(-4),
     duplicatePages: raw.duplicatePages === true,
+    vendorCountry: /^[A-Za-z]{2}$/.test(String(raw.vendorCountry || '').trim()) ? String(raw.vendorCountry).trim().toUpperCase() : '',
+    isService: raw.isService === true,
+    purpose: cleanStr(raw.purpose || raw.formaal, 200),
+    time: /^\d{1,2}[:.]\d{2}/.test(String(raw.time || '').trim()) ? String(raw.time).trim().slice(0, 5).replace('.', ':') : '',
   };
 }
 
-export const __test = { toNum, cleanStr, normalizeOrgNr, normalizeDate, normalizeReceiptBilag, normalizeCurrency };
+function near(a, b, tolerance) {
+  return Math.abs(Number(a) - Number(b)) <= tolerance;
+}
+
+/**
+ * Det som ikke stemmer i en tolket kvittering: manglende hovedfelt, lav sikkerhet og summer
+ * som ikke går opp (mva-linjer mot total, mva-beløp, varelinjer). Tom liste når alt stemmer.
+ * today: YYYY-MM-DD (dato frem i tid er feil).
+ */
+export function receiptProblems(bilag = {}, { today = new Date().toISOString().slice(0, 10) } = {}) {
+  const problems = [];
+  const amount = bilag.amount;
+  if (amount == null || !(Math.abs(amount) > 0)) problems.push('Totalbeløp mangler.');
+  if (!bilag.date) problems.push('Dato mangler.');
+  else if (bilag.date > today) problems.push(`Datoen ${bilag.date} er frem i tid.`);
+  if (!bilag.supplier) problems.push('Butikk/leverandør mangler.');
+  if (bilag.confidence != null && bilag.confidence < 0.8) problems.push(`Lav sikkerhet (${bilag.confidence}).`);
+  const lines = Array.isArray(bilag.vatLines) ? bilag.vatLines : [];
+  if (amount != null && lines.length && lines.every((row) => row.base != null && row.vat != null)) {
+    const sum = lines.reduce((acc, row) => acc + row.base + row.vat, 0);
+    if (!near(sum, amount, Math.max(1, Math.abs(amount) * 0.01))) {
+      problems.push(`Mva-spesifikasjonen (${sum.toFixed(2)}) stemmer ikke med totalen (${Number(amount).toFixed(2)}).`);
+    }
+    for (const row of lines) {
+      if (row.base > 0 && !near((row.base * row.percent) / 100, row.vat, Math.max(0.6, row.vat * 0.02))) {
+        problems.push(`Mva ${row.percent} % av ${row.base} er ikke ${row.vat}.`);
+      }
+    }
+  }
+  if (bilag.vatAmount != null && lines.length) {
+    const vatSum = lines.reduce((acc, row) => acc + (row.vat || 0), 0);
+    if (!near(vatSum, bilag.vatAmount, 1)) problems.push(`Mva-beløpet (${bilag.vatAmount}) stemmer ikke med mva-linjene (${vatSum.toFixed(2)}).`);
+  }
+  if (amount != null && bilag.vatAmount != null && bilag.vatAmount >= Math.abs(amount) && amount !== 0) {
+    problems.push('Mva-beløpet er like stort som eller større enn totalen.');
+  }
+  const items = (bilag.lineItems || []).filter((row) => row.amount != null);
+  if (amount != null && items.length >= 2) {
+    const sum = items.reduce((acc, row) => acc + row.amount, 0);
+    if (!near(sum, amount, Math.max(1, Math.abs(amount) * 0.02)) && !near(sum, amount * 2, 1)) {
+      problems.push(`Varelinjene (${sum.toFixed(2)}) stemmer ikke med totalen (${Number(amount).toFixed(2)}).`);
+    }
+  }
+  return problems;
+}
+
+/**
+ * Kontrollrunden går foran. Felt den lot stå tomme, hentes fra første runde.
+ */
+export function mergeReceiptPasses(first = {}, second = {}) {
+  const out = { ...second };
+  for (const [key, value] of Object.entries(first)) {
+    const next = out[key];
+    const empty = next == null || next === '' || (Array.isArray(next) && !next.length);
+    if (empty && value != null && value !== '' && !(Array.isArray(value) && !value.length)) out[key] = value;
+  }
+  return out;
+}
+
+export const __test = { toNum, cleanStr, normalizeOrgNr, normalizeDate, normalizeReceiptBilag, normalizeCurrency, receiptProblems, mergeReceiptPasses };

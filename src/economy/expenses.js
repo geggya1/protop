@@ -89,6 +89,9 @@ function cleanAttachments(list) {
       path: text(item?.path),
       name: text(item?.name).slice(0, 160),
       type: text(item?.type).slice(0, 80),
+      // Originalen (fargebildet eller filen slik den ble lastet opp) når bilaget er et skann.
+      originalUrl: text(item?.originalUrl),
+      originalPath: text(item?.originalPath),
     }))
     .filter((item) => item.url)
     .slice(0, 10);
@@ -206,6 +209,12 @@ export function normalizeExpense(input = {}) {
     receiptNumber: text(row.receiptNumber).slice(0, 60),
     originalCurrency: originalAmount ? text(row.originalCurrency).toUpperCase().slice(0, 3) : '',
     originalAmount,
+    // Avgiftskode (SAF-T) for inngående mva, se vatTreatment.js. Tom: regnskapsføreren velger.
+    vatTreatment: /^\d{1,2}$/.test(text(row.vatTreatment)) ? text(row.vatTreatment) : '',
+    paymentMethod: text(row.paymentMethod).slice(0, 20),
+    // Kjøregodtgjørelse over trekkfri sats: skattepliktig del som går på lønn.
+    taxableAmount: Math.max(0, roundMoney(Number(row.taxableAmount) || 0)),
+    cardLast4: text(row.cardLast4).replace(/\D/g, '').slice(-4),
     interpreted: Array.isArray(row.interpreted) ? row.interpreted.map(text).filter(Boolean).slice(0, 20) : [],
     status,
     invoiceId: text(row.invoiceId),

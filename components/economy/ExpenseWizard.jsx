@@ -34,11 +34,13 @@ import {
   normalizeExpense,
 } from '../../src/economy/expenses.js';
 import {
+  PAYMENT_METHODS,
   expensePatchFromReceipt,
   expenseTypeHint,
   findDuplicateExpense,
   frequentExpenseTypes,
 } from '../../src/economy/expenseReceipt.js';
+import { VAT_TREATMENTS, suggestVatTreatment } from '../../src/economy/vatTreatment.js';
 import { formatMoney, parseDate } from '../../src/economy/invoices.js';
 import { formatDate } from '../../src/economy/hoursList.js';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
@@ -104,8 +106,17 @@ function startDraft(employeeId) {
     description: '',
     purpose: '',
     markupPercent: '',
+    vatTreatment: '',
+    paymentMethod: '',
+    cardLast4: '',
+    vendorCountry: '',
+    isService: false,
   };
 }
+
+// Gult felt: AI-en fant det ikke, og den ansatte har ikke fylt det ut.
+const MISSING_BG = '#FFF4C7';
+const MISSING_LINE = '#E3B000';
 
 function Chip({ label, on, onPress, colors, nativeID, wide }) {
   return (
@@ -124,24 +135,44 @@ function Chip({ label, on, onPress, colors, nativeID, wide }) {
   );
 }
 
-function Tolket({ colors }) {
+function Tolket({ colors, label = 'Tolket' }) {
   return (
     <View style={[styles.tolket, { backgroundColor: `${colors.brand}22` }]}>
-      <Text style={{ color: colors.brandInk || colors.ink, fontSize: 12 }}>Tolket</Text>
+      <Text style={{ color: colors.brandInk || colors.ink, fontSize: 12 }}>{label}</Text>
     </View>
   );
 }
 
-function Input({ label, value, onChange, colors, tolket, placeholder, keyboardType, nativeID, multiline, onBlur, required }) {
+function Mangler() {
+  return (
+    <View style={[styles.tolket, { backgroundColor: MISSING_LINE, marginRight: 0 }]} accessibilityLabel="Ikke funnet på kvitteringen, fyll ut">
+      <Text style={{ color: '#3D2B00', fontSize: 12, fontWeight: '600' }}>Mangler</Text>
+    </View>
+  );
+}
+
+function FieldLabel({ label, required, missing, colors, badge }) {
+  return (
+    <View style={styles.labelRow}>
+      <Text style={[styles.label, { color: colors.muted, flexShrink: 1 }]} numberOfLines={1}>{`${label}${required ? ' *' : ''}`}</Text>
+      {missing ? <Mangler /> : (badge || null)}
+    </View>
+  );
+}
+
+function Input({ label, value, onChange, colors, tolket, missing, placeholder, keyboardType, nativeID, multiline, onBlur, required }) {
   return (
     <View style={styles.field}>
-      <Text style={[styles.label, { color: colors.muted }]}>{`${label}${required ? ' *' : ''}`}</Text>
-      <View style={[styles.inputWrap, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <FieldLabel label={label} required={required} missing={missing} colors={colors} />
+      <View style={[styles.inputWrap, missing
+        ? { borderColor: MISSING_LINE, backgroundColor: MISSING_BG }
+        : { borderColor: colors.line, backgroundColor: colors.card }]}
+      >
         <TextInput
           value={value}
           onChangeText={onChange}
           onBlur={onBlur}
-          placeholder={placeholder}
+          placeholder={missing && !value ? 'Fyll ut' : placeholder}
           placeholderTextColor={colors.muted}
           keyboardType={keyboardType || 'default'}
           nativeID={nativeID}
@@ -174,7 +205,7 @@ function ActionRow({ icon, label, onPress, colors, nativeID, hint }) {
 }
 
 const FILE_STATUS = {
-  preparing: 'Retter opp bildet…',
+  preparing: 'Skanner bildet…',
   uploading: 'Laster opp…',
   ready: 'Lastet opp',
   error: 'Feilet',
@@ -234,6 +265,7 @@ export default function ExpenseWizard({
   canPickEmployee = false,
   canInternal = false,
   initialStep = 'type',
+  uid = '',
 }) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -253,6 +285,8 @@ export default function ExpenseWizard({
   const touchedRef = useRef(touched);
   touchedRef.current = touched;
   const ocrRun = useRef(0);
+  const filesRef = useRef(files);
+  filesRef.current = files;
 
   useEffect(() => () => { live.current = false; }, []);
 
@@ -290,22 +324,61 @@ export default function ExpenseWizard({
   const representation = draft.category === 'representation';
   const pending = files.some((file) => file.status === 'preparing' || file.status === 'uploading');
   const isTolket = (key) => interpreted.includes(key) && !touched[key];
+  // Etter tolkingen er hvert felt AI-en ikke fylte (og den ansatte ikke har fylt), gult.
+  const tried = ocr.status === 'done' || ocr.status === 'error';
+  const isMissing = (key) => tried && !interpreted.includes(key) && !touched[key]
+    && !(key === 'purpose' && String(draft.purpose || '').trim());
+  // Avgiftskoden foreslås ut fra sats, type og land, og følger endringene til den velges selv.
+  const effectiveVat = foreign ? 'OUTSIDE' : (draft.vatCode || (draft.category ? expenseCategory(draft.category).vatCode : ''));
+  const vatSuggestion = suggestVatTreatment({
+    vatCode: effectiveVat,
+    category: draft.category,
+    foreign,
+    vendorCountry: draft.vendorCountry,
+    isService: draft.isService,
+  });
+  const treatmentId = touched.vatTreatment ? draft.vatTreatment : (vatSuggestion.id || draft.vatTreatment);
 
-  /** Tolker alle ferdige bilder samlet (flere bilder kan være samme lange kvittering). */
-  async function interpret(list) {
-    const images = list.map((file) => file.dataUrl).filter(Boolean).slice(0, MAX_FILES);
-    if (!images.length) return;
+  /**
+   * Tolker alle opplastede filer samlet (flere bilder kan være samme lange kvittering).
+   * Serveren skanner bilder appen ikke har skannet selv, og skannet blir bilaget.
+   */
+  async function interpret() {
+    const list = filesRef.current.filter((file) => file.status === 'ready' && file.path).slice(0, MAX_FILES);
+    if (!list.length) return;
     const run = ocrRun.current + 1;
     ocrRun.current = run;
     setOcr({ status: 'reading', error: '', warnings: [] });
     try {
-      const bilag = await ocrExpenseReceipt(companyId, images, {
+      // Har serveren allerede skannet filen, sendes skannet med originalen som fargebilde.
+      const result = await ocrExpenseReceipt(companyId, list.map((file) => (file.originalPath
+        ? { path: file.path, kind: 'scan', colorPath: file.originalPath }
+        : { path: file.path, kind: file.kind, colorPath: file.colorPath || '' })), {
         expenseTypes: expenseTypeHint(),
-        hint: project ? `Prosjekt: ${project.label}` : '',
+        hint: [
+          project ? `Prosjekt: ${project.label}` : 'Uten prosjekt (internt)',
+          `Faktureres kunde: ${EXPENSE_BILLING_CHOICES.find((row) => row.id === draft.billingChoice)?.label || 'ikke valgt'}`,
+          EXPENSE_PAID_BY.find((row) => row.id === draft.paidBy)?.label || '',
+        ].filter(Boolean).join('. '),
       });
       if (!live.current || run !== ocrRun.current) return;
+      // Skannet fra serveren erstatter bildet som bilag. Originalen beholdes ved siden av.
+      for (const scan of result.scans || []) {
+        const hit = filesRef.current.find((file) => !file.originalPath && file.path === scan.source);
+        if (hit) {
+          patchFile(hit.id, {
+            originalUrl: hit.originalUrl || hit.url,
+            originalPath: hit.originalPath || hit.path,
+            url: scan.url,
+            path: scan.path,
+            previewUri: scan.url,
+            cropped: scan.cropped,
+            enhanced: true,
+          });
+        }
+      }
       const seen = touchedRef.current;
-      const { patch, interpreted: keys, warnings } = expensePatchFromReceipt(bilag, {
+      const { patch, interpreted: keys, warnings } = expensePatchFromReceipt(result.bilag || {}, {
         touched: { ...seen, date: seen.dateText, amountInclVat: seen.amountText, originalAmount: seen.originalAmountText },
       });
       const { date, amountInclVat, originalAmount, ...rest } = patch;
@@ -317,7 +390,8 @@ export default function ExpenseWizard({
         ...(originalAmount != null ? { originalAmountText: amountText(originalAmount) } : {}),
       }));
       setInterpreted((current) => [...new Set([...current, ...keys.map((key) => FORM_KEY[key] || key)])]);
-      setOcr({ status: 'done', error: '', warnings });
+      const checks = (result.checks || []).map((text) => `Kontroller: ${text}`);
+      setOcr({ status: 'done', error: '', warnings: [...warnings, ...checks] });
     } catch (cause) {
       if (!live.current || run !== ocrRun.current) return;
       setOcr({ status: 'error', error: String(cause?.message || '') || 'Kunne ikke lese kvitteringen.', warnings: [] });
@@ -325,43 +399,55 @@ export default function ExpenseWizard({
   }
 
   function patchFile(id, partial) {
-    setFiles((list) => list.map((file) => (file.id === id ? { ...file, ...partial } : file)));
+    const next = filesRef.current.map((file) => (file.id === id ? { ...file, ...partial } : file));
+    filesRef.current = next;
+    setFiles(next);
   }
 
+  /** Laster opp skannet (eller originalen) og fargebildet. Gir true når filen er oppe. */
   async function upload(file) {
     patchFile(file.id, { status: 'uploading', error: '' });
     try {
-      const path = receiptStoragePath(companyId, file.name);
-      const source = file.blob ? { blob: file.blob, name: file.name, mimeType: file.mimeType } : { uri: file.uri, name: file.name, mimeType: file.mimeType };
-      const url = await uploadFile(path, source, file.mimeType);
-      if (!live.current) return;
-      patchFile(file.id, { status: 'ready', url, path });
+      const source = (blob, uri, name, mimeType) => (blob ? { blob, name, mimeType } : { uri, name, mimeType });
+      const path = receiptStoragePath(companyId, uid, file.name);
+      const colorPath = file.color ? receiptStoragePath(companyId, uid, file.colorName || 'farge.jpg') : '';
+      const [url, colorUrl] = await Promise.all([
+        uploadFile(path, source(file.blob, file.uri, file.name, file.mimeType), file.mimeType),
+        colorPath ? uploadFile(colorPath, source(file.color, '', file.colorName, 'image/jpeg'), 'image/jpeg') : Promise.resolve(''),
+      ]);
+      if (!live.current) return false;
+      patchFile(file.id, { status: 'ready', url, path, colorUrl, colorPath });
+      return true;
     } catch (cause) {
-      if (!live.current) return;
+      if (!live.current) return false;
       patchFile(file.id, { status: 'error', error: String(cause?.message || '') || 'Opplastingen feilet.' });
+      return false;
     }
   }
 
-  /** Legg til valgte filer: gjør klar, last opp og tolk. */
+  /** Legg til valgte filer: skann, last opp og tolk. */
   async function addPicked(picked) {
-    const list = (Array.isArray(picked) ? picked : [picked]).filter(Boolean).slice(0, MAX_FILES - files.length);
+    const list = (Array.isArray(picked) ? picked : [picked]).filter(Boolean).slice(0, MAX_FILES - filesRef.current.length);
     if (!list.length) return;
     setError('');
     const fresh = list.map((item) => ({ id: fileId(), status: 'preparing', name: item.name || 'Kvittering', previewUri: '', pdf: /pdf/i.test(item.mimeType || item.name || '') }));
-    setFiles((current) => [...current, ...fresh]);
+    const withFresh = [...filesRef.current, ...fresh];
+    filesRef.current = withFresh;
+    setFiles(withFresh);
     setStep('seover');
     const prepared = await Promise.all(list.map(async (item, index) => {
       try {
-        const ready = await prepareReceipt(item);
-        return { ...fresh[index], ...ready, status: 'uploading' };
+        return { ...fresh[index], ...(await prepareReceipt(item)), status: 'uploading' };
       } catch (cause) {
         return { ...fresh[index], status: 'error', error: String(cause?.message || '') || 'Kunne ikke lese bildet.' };
       }
     }));
     if (!live.current) return;
-    setFiles((current) => current.map((file) => prepared.find((row) => row.id === file.id) || file));
-    prepared.filter((file) => file.status === 'uploading').forEach((file) => { upload(file); });
-    interpret([...files, ...prepared].filter((file) => file.dataUrl && file.status !== 'error'));
+    const next = filesRef.current.map((file) => prepared.find((row) => row.id === file.id) || file);
+    filesRef.current = next;
+    setFiles(next);
+    const uploaded = await Promise.all(prepared.filter((file) => file.status === 'uploading').map(upload));
+    if (uploaded.some(Boolean)) interpret();
   }
 
   async function takePhoto() {
@@ -389,16 +475,19 @@ export default function ExpenseWizard({
   }
 
   function removeFile(file) {
-    const rest = files.filter((row) => row.id !== file.id);
+    const rest = filesRef.current.filter((row) => row.id !== file.id);
+    filesRef.current = rest;
     setFiles(rest);
-    if (file.previewUri && Platform.OS === 'web' && /^blob:/.test(file.previewUri)) {
-      try { URL.revokeObjectURL(file.previewUri); } catch { /* ignore */ }
+    for (const uri of [file.previewUri, file.colorPreviewUri]) {
+      if (uri && Platform.OS === 'web' && /^blob:/.test(uri)) {
+        try { URL.revokeObjectURL(uri); } catch { /* ignore */ }
+      }
     }
-    if (rest.some((row) => row.dataUrl)) interpret(rest.filter((row) => row.dataUrl && row.status !== 'error'));
+    if (rest.some((row) => row.status === 'ready')) interpret();
   }
 
-  function retryFile(file) {
-    if (file.blob || file.uri) upload(file);
+  async function retryFile(file) {
+    if ((file.blob || file.uri) && await upload(file)) interpret();
   }
 
   function chooseBilling(id) {
@@ -438,6 +527,7 @@ export default function ExpenseWizard({
     if (!String(draft.description || '').trim()) return 'Skriv en kort beskrivelse.';
     if (representation && !String(draft.purpose || '').trim()) return 'Representasjon: skriv hvem som deltok og formålet.';
     if (pending) return 'Vent til kvitteringen er lastet opp.';
+    if (ocr.status === 'reading') return 'Vent til kvitteringen er lest.';
     return '';
   }
 
@@ -468,11 +558,22 @@ export default function ExpenseWizard({
       amountExVat: 0,
       amountInclVat: amount,
       vatCode: foreign ? 'OUTSIDE' : (draft.vatCode || expenseCategory(draft.category).vatCode),
+      vatTreatment: treatmentId,
+      paymentMethod: draft.paymentMethod,
+      cardLast4: draft.cardLast4,
       billingChoice: draft.billingChoice,
       billable: draft.billingChoice !== 'no',
       chargeType: 'reinvoice',
       markupPercent: draft.billingChoice === 'yes' ? toNumber(draft.markupPercent) : 0,
-      attachments: ready.map((file) => ({ url: file.url, path: file.path, name: file.name, type: file.mimeType })),
+      attachments: ready.map((file) => ({
+        url: file.url,
+        path: file.path,
+        name: file.name,
+        type: file.mimeType,
+        // Bilaget er skannet. Originalen er fargebildet (nett) eller bildet slik det ble lastet opp (app).
+        originalUrl: file.colorUrl || file.originalUrl || '',
+        originalPath: file.colorPath || file.originalPath || '',
+      })),
       interpreted: interpreted.filter((key) => !touched[key]).map((key) => STORED_KEY[key] || key),
     };
     const result = await onSave(input);
@@ -684,20 +785,22 @@ export default function ExpenseWizard({
       ))}
       <View style={styles.pair}>
         <View style={styles.half}>
-          <Input label="Dato" value={draft.dateText} onChange={set('dateText')} onBlur={() => setDraft((d) => ({ ...d, dateText: formatDate(parseDate(d.dateText)) || d.dateText }))} colors={colors} tolket={isTolket('dateText')} placeholder="dd.mm.åååå" nativeID="expense-date" required />
+          <Input label="Dato" value={draft.dateText} onChange={set('dateText')} onBlur={() => setDraft((d) => ({ ...d, dateText: formatDate(parseDate(d.dateText)) || d.dateText }))} colors={colors} tolket={isTolket('dateText')} missing={isMissing('dateText')} placeholder="dd.mm.åååå" nativeID="expense-date" required />
         </View>
         <View style={styles.half}>
-          <Input label="Valuta" value={draft.currency} onChange={(v) => set('currency')(String(v || '').toUpperCase().slice(0, 3))} colors={colors} tolket={isTolket('currency')} placeholder="NOK" nativeID="expense-currency" />
+          <Input label="Valuta" value={draft.currency} onChange={(v) => set('currency')(String(v || '').toUpperCase().slice(0, 3))} colors={colors} tolket={isTolket('currency')} missing={isMissing('currency')} placeholder="NOK" nativeID="expense-currency" />
         </View>
       </View>
       <View style={styles.field}>
-        <Text style={[styles.label, { color: colors.muted }]}>Utgiftstype *</Text>
+        <FieldLabel label="Utgiftstype" required missing={isMissing('category')} colors={colors} />
         <TouchableOpacity
           onPress={() => setTypeOpen((open) => !open)}
           accessibilityRole="button"
           accessibilityLabel={`Utgiftstype: ${draft.category ? expenseCategory(draft.category).label : 'ikke valgt'}`}
           nativeID="expense-type"
-          style={[styles.inputWrap, styles.select, { borderColor: colors.line, backgroundColor: colors.card }]}
+          style={[styles.inputWrap, styles.select, isMissing('category')
+            ? { borderColor: MISSING_LINE, backgroundColor: MISSING_BG }
+            : { borderColor: colors.line, backgroundColor: colors.card }]}
         >
           <Text style={{ color: draft.category ? ink : colors.muted, fontSize: 16, fontWeight: draft.category ? '700' : '400', flex: 1 }}>
             {draft.category ? expenseCategory(draft.category).label : 'Velg utgiftstype'}
@@ -710,22 +813,19 @@ export default function ExpenseWizard({
       {foreign ? (
         <View style={styles.pair}>
           <View style={styles.half}>
-            <Input label={`Beløp i ${draft.currency}`} value={draft.originalAmountText} onChange={set('originalAmountText')} colors={colors} tolket={isTolket('originalAmountText')} keyboardType="decimal-pad" nativeID="expense-original-amount" />
+            <Input label={`Beløp i ${draft.currency}`} value={draft.originalAmountText} onChange={set('originalAmountText')} colors={colors} tolket={isTolket('originalAmountText')} missing={isMissing('originalAmountText')} keyboardType="decimal-pad" nativeID="expense-original-amount" />
           </View>
           <View style={styles.half}>
-            <Input label="Beløp i NOK" value={draft.amountText} onChange={set('amountText')} colors={colors} keyboardType="decimal-pad" placeholder="Fra kontoutskriften" nativeID="expense-amount" required />
+            <Input label="Beløp i NOK" value={draft.amountText} onChange={set('amountText')} colors={colors} missing={tried && !touched.amountText} keyboardType="decimal-pad" placeholder="Fra kontoutskriften" nativeID="expense-amount" required />
           </View>
         </View>
       ) : (
-        <Input label="Beløp inkl. mva" value={draft.amountText} onChange={set('amountText')} colors={colors} tolket={isTolket('amountText')} keyboardType="decimal-pad" placeholder="0,00" nativeID="expense-amount" required />
+        <Input label="Beløp inkl. mva" value={draft.amountText} onChange={set('amountText')} colors={colors} tolket={isTolket('amountText')} missing={isMissing('amountText')} keyboardType="decimal-pad" placeholder="0,00" nativeID="expense-amount" required />
       )}
       {!foreign ? (
         <View style={styles.field}>
-          <View style={styles.labelRow}>
-            <Text style={[styles.label, { color: colors.muted }]}>Mva-sats</Text>
-            {isTolket('vatCode') ? <Tolket colors={colors} /> : null}
-          </View>
-          <View style={styles.row}>
+          <FieldLabel label="Mva-sats" missing={isMissing('vatCode')} colors={colors} badge={isTolket('vatCode') ? <Tolket colors={colors} /> : null} />
+          <View style={[styles.row, isMissing('vatCode') && styles.missingRow]}>
             {VAT_CHOICES.map((row) => (
               <Chip key={row.id} label={row.label} on={(draft.vatCode || (draft.category ? expenseCategory(draft.category).vatCode : '')) === row.id} onPress={() => set('vatCode')(row.id)} colors={colors} />
             ))}
@@ -735,13 +835,57 @@ export default function ExpenseWizard({
           ) : null}
         </View>
       ) : null}
-      <Input label="Butikk / leverandør" value={draft.vendor} onChange={set('vendor')} colors={colors} tolket={isTolket('vendor')} nativeID="expense-vendor" />
-      <Input label="Beskrivelse" value={draft.description} onChange={set('description')} colors={colors} tolket={isTolket('description')} nativeID="expense-description" required />
+      <View style={styles.field}>
+        <FieldLabel
+          label="Avgiftskode"
+          missing={tried && !treatmentId}
+          colors={colors}
+          badge={!touched.vatTreatment && vatSuggestion.id ? <Tolket colors={colors} label="Forslag" /> : null}
+        />
+        <View style={tried && !treatmentId ? styles.missingRow : null}>
+          <OptionPicker
+            options={VAT_TREATMENTS.map((row) => ({ id: row.id, label: row.label }))}
+            value={treatmentId}
+            onChange={(id) => set('vatTreatment')(id || '')}
+            title="Avgiftskode"
+            placeholder="Velg avgiftskode"
+            accessibilityLabel="Avgiftskode"
+          />
+        </View>
+        {!touched.vatTreatment && vatSuggestion.reason ? (
+          <Text style={[styles.hint, { color: colors.muted }]} nativeID="expense-vat-reason">{vatSuggestion.reason}</Text>
+        ) : null}
+      </View>
+      <Input label="Butikk / leverandør" value={draft.vendor} onChange={set('vendor')} colors={colors} tolket={isTolket('vendor')} missing={isMissing('vendor')} nativeID="expense-vendor" />
+      <View style={styles.pair}>
+        <View style={styles.half}>
+          <Input label="Org.nr." value={draft.vendorOrgNr} onChange={(v) => set('vendorOrgNr')(String(v || '').replace(/\D/g, '').slice(0, 9))} colors={colors} tolket={isTolket('vendorOrgNr')} missing={isMissing('vendorOrgNr')} keyboardType="number-pad" nativeID="expense-orgnr" />
+        </View>
+        <View style={styles.half}>
+          <Input label="Kvitteringsnr." value={draft.receiptNumber} onChange={set('receiptNumber')} colors={colors} tolket={isTolket('receiptNumber')} missing={isMissing('receiptNumber')} nativeID="expense-receipt-number" />
+        </View>
+      </View>
+      <View style={styles.field}>
+        <FieldLabel
+          label={`Betalt med${draft.cardLast4 ? ` (kort ****${draft.cardLast4})` : ''}`}
+          missing={isMissing('paymentMethod')}
+          colors={colors}
+          badge={isTolket('paymentMethod') ? <Tolket colors={colors} /> : null}
+        />
+        <View style={[styles.row, isMissing('paymentMethod') && styles.missingRow]}>
+          {PAYMENT_METHODS.map((row) => (
+            <Chip key={row.id} label={row.label} on={draft.paymentMethod === row.id} onPress={() => set('paymentMethod')(row.id)} colors={colors} />
+          ))}
+        </View>
+      </View>
+      <Input label="Beskrivelse" value={draft.description} onChange={set('description')} colors={colors} tolket={isTolket('description')} missing={isMissing('description')} nativeID="expense-description" required />
       <Input
-        label={representation ? 'Deltakere og formål' : 'Formål / merknad'}
+        label={representation ? 'Deltakere og formål' : 'Formål'}
         value={draft.purpose}
         onChange={set('purpose')}
         colors={colors}
+        tolket={isTolket('purpose')}
+        missing={isMissing('purpose') || (tried && representation && !touched.purpose)}
         placeholder={representation ? 'Hvem deltok, firma og hvorfor' : ''}
         nativeID="expense-purpose"
         multiline
@@ -881,6 +1025,7 @@ const styles = StyleSheet.create({
   inputMulti: { minHeight: 64, textAlignVertical: 'top' },
   select: { paddingLeft: 12, gap: 8 },
   tolket: { borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3, marginRight: 8 },
+  missingRow: { backgroundColor: MISSING_BG, borderColor: MISSING_LINE, borderWidth: 1, borderRadius: 10, padding: 6 },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 60, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   listRow: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, minHeight: 48, justifyContent: 'center', gap: 2 },
   typePanel: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 6 },

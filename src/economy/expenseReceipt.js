@@ -5,6 +5,7 @@
  */
 import { EXPENSE_CATEGORIES, expenseCategory } from './expenses.js';
 import { roundMoney } from './vat.js';
+import { suggestVatTreatment } from './vatTreatment.js';
 
 function text(value) {
   return String(value ?? '').trim();
@@ -17,7 +18,19 @@ function num(value) {
 }
 
 /** Feltene registreringen merker «Tolket». */
-export const INTERPRETED_FIELDS = ['date', 'amountInclVat', 'currency', 'vatCode', 'vendor', 'description', 'category'];
+export const INTERPRETED_FIELDS = [
+  'date', 'amountInclVat', 'currency', 'vatCode', 'vatTreatment', 'vendor', 'vendorOrgNr', 'receiptNumber',
+  'paymentMethod', 'description', 'purpose', 'category',
+];
+
+/** Betalingsmåte fra kvitteringen, som tekst i skjemaet («Kort ****9141»). */
+export const PAYMENT_METHODS = [
+  { id: 'kort', label: 'Kort' },
+  { id: 'vipps', label: 'Vipps' },
+  { id: 'kontant', label: 'Kontant' },
+  { id: 'faktura', label: 'Faktura' },
+  { id: 'annet', label: 'Annet' },
+];
 
 /** Utgiftstypene som liste til AI-en: «id: navn». */
 export function expenseTypeHint() {
@@ -139,14 +152,30 @@ export function expensePatchFromReceipt(bilag = {}, { touched = {}, today } = {}
   put('vatCode', foreign ? 'OUTSIDE' : receiptVatCode(bilag));
 
   put('vendor', text(bilag.supplier).slice(0, 120));
-  if (!touched.vendorOrgNr && /^\d{9}$/.test(text(bilag.orgNr))) patch.vendorOrgNr = text(bilag.orgNr);
-  if (!touched.receiptNumber && text(bilag.invoiceNumber)) patch.receiptNumber = text(bilag.invoiceNumber).slice(0, 60);
+  if (/^\d{9}$/.test(text(bilag.orgNr))) put('vendorOrgNr', text(bilag.orgNr));
+  put('receiptNumber', text(bilag.invoiceNumber).slice(0, 60));
+  const method = text(bilag.paymentMethod).toLowerCase();
+  if (PAYMENT_METHODS.some((row) => row.id === method)) put('paymentMethod', method);
+  if (!touched.cardLast4 && /^\d{4}$/.test(text(bilag.cardLast4))) patch.cardLast4 = text(bilag.cardLast4);
 
   const type = guessExpenseType(bilag);
   if (type) put('category', type);
   const title = text(bilag.suggestedTitle)
     || [type ? expenseCategory(type).label : '', text(bilag.supplier)].filter(Boolean).join(' – ');
   put('description', title.slice(0, 120));
+  put('purpose', text(bilag.purpose).slice(0, 200));
+
+  // Avgiftskode ut fra sats, type og land. Settes bare når den kan foreslås.
+  const treatment = suggestVatTreatment({
+    vatCode: patch.vatCode || '',
+    category: patch.category || '',
+    foreign,
+    vendorCountry: text(bilag.vendorCountry).toUpperCase(),
+    isService: bilag.isService === true,
+  });
+  if (treatment.id) put('vatTreatment', treatment.id);
+  if (text(bilag.vendorCountry)) patch.vendorCountry = text(bilag.vendorCountry).toUpperCase();
+  if (bilag.isService === true) patch.isService = true;
 
   if (bilag.confidence != null && num(bilag.confidence) < 0.5) {
     warnings.push('Kvitteringen var vanskelig å lese. Kontroller beløp og dato.');

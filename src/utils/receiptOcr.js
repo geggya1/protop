@@ -41,17 +41,25 @@ export async function blobToDataUrl(blob) {
 }
 
 /**
- * Tolk kvitteringen til et utlegg. images: data-URL-er (1–4 bilder eller PDF) fra prepareReceipt.
+ * Tolk kvitteringen til et utlegg. files: opplastede filer i personens utleggsmappe,
+ * [{ path, kind: 'scan'|'color'|'original', colorPath }] (receiptPrepare + receiptStoragePath).
  * expenseTypes: «id: navn; …» (expenseTypeHint), så AI-en velger en type appen kjenner.
+ * Gir { bilag, checks (det som ikke stemmer), scans (skann serveren laget) }.
  */
-export async function ocrExpenseReceipt(familyId, images = [], { expenseTypes = '', hint = '' } = {}) {
-  const fn = httpsCallable(functions, 'aiReceiptOcr', { timeout: 120000 });
+export async function ocrExpenseReceipt(familyId, files = [], { expenseTypes = '', hint = '' } = {}) {
+  // Skanning av store bilder og to tolkerunder kan ta tid.
+  const fn = httpsCallable(functions, 'aiReceiptOcr', { timeout: 300000 });
   const result = await fn({
     familyId,
     purpose: 'expense',
-    images: (images || []).filter(Boolean).slice(0, 4),
+    files: (files || []).filter((file) => file?.path).slice(0, 4),
     expenseTypes: String(expenseTypes || ''),
-    hint: String(hint || '').trim().slice(0, 200),
+    hint: String(hint || '').trim().slice(0, 300),
   });
-  return result?.data?.bilag || {};
+  const data = result?.data || {};
+  return {
+    bilag: data.bilag || {},
+    checks: Array.isArray(data.checks) ? data.checks : [],
+    scans: Array.isArray(data.scans) ? data.scans : [],
+  };
 }

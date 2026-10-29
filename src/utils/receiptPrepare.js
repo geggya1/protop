@@ -1,26 +1,33 @@
 /**
- * Kvitteringsbilde før opplasting og tolking: rett vei opp, beskåret til kvitteringen,
- * skalert ned og med strukket kontrast, så teksten blir skarp for AI-en og regnskapsføreren.
+ * Kvitteringsbilde før opplasting og tolking.
  *
- * Nett (også mobilnettleseren): canvas, med beskjæring og kontrast fra src/economy/receiptImage.js.
- * App: expo-image-manipulator skalerer og komprimerer. Beskjæring gjøres ikke der ennå.
- * PDF sendes som den er.
+ * Nett (også mobilnettleseren): bildet leses rett vei opp, beskjæres til kvitteringen og gjøres
+ * om til et rent skann (skygger jevnes ut, teksten blir mørkere og skarpere, se documentScan i
+ * src/economy/receiptImage.js). Ved siden av lages et fargebilde av samme utsnitt. Begge lastes opp:
+ * skannet er bilaget, fargebildet er reserve når noe har farge (logo, stempel).
+ * Store bilder (mange MB, 48 MP) leses nedskalert, så telefonen ikke går tom for minne.
+ *
+ * App: expo-image-manipulator skalerer og komprimerer fargebildet. Serveren lager skannet.
+ * PDF og bilder nettleseren ikke kan lese (HEIC på PC), lastes opp som de er og tolkes på serveren.
  */
 import { Image, Platform } from 'react-native';
 import {
-  contrastLevels,
+  documentScan,
   findDocumentBox,
   fitSize,
-  histogram,
-  levelsTable,
   luminance,
+  scanSize,
 } from '../economy/receiptImage.js';
 
-export const RECEIPT_MAX_SIDE = 2000;
-const QUALITY = 0.85;
+const SCAN_QUALITY = 0.9;
+const COLOR_QUALITY = 0.85;
+const COLOR_MAX_SIDE = 2000;
+const NATIVE_MAX_SIDE = 3200;
 const ANALYSIS_SIDE = 240;
-// PDF-er over dette tolkes ikke (de lastes opp likevel).
-const MAX_OCR_PDF_BYTES = 4 * 1024 * 1024;
+// Bredde når et bilde er for stort til å leses i fullt format.
+const DECODE_MAX_SIDE = 5000;
+// Største fil som lastes opp. Serveren leser opptil 40 MB.
+export const MAX_RECEIPT_BYTES = 40 * 1024 * 1024;
 
 export const RECEIPT_ACCEPT = 'image/*,application/pdf,.pdf,.heic,.heif';
 
@@ -34,23 +41,14 @@ function baseName(picked, fallback) {
   return raw.replace(/[^\w.\-æøåÆØÅ ]+/g, '_').slice(0, 80) || fallback;
 }
 
-export function receiptStoragePath(companyId, name) {
+/**
+ * Sti for en kvitteringsfil. Den ansattes uid står i stien, så serveren bare tolker filer
+ * personen selv har lastet opp. Samme mappe og tilgang som kvitteringene i kjøreboken.
+ */
+export function receiptStoragePath(companyId, uid, name) {
   const safe = String(name || 'kvittering.jpg').replace(/[^\w.-]+/g, '_').slice(-60);
-  // Samme mappe og tilgang som kvitteringene i kjøreboken: den som lastet opp og økonomi.
-  return `families/${companyId || 'personal'}/mileage/utlegg/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safe}`;
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    if (typeof FileReader === 'undefined') {
-      resolve('');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Kunne ikke lese filen.'));
-    reader.readAsDataURL(blob);
-  });
+  const who = String(uid || 'ukjent').replace(/[^\w-]+/g, '_');
+  return `families/${companyId || 'personal'}/mileage/utlegg/${who}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${safe}`;
 }
 
 async function readBlob(picked) {
@@ -60,18 +58,25 @@ async function readBlob(picked) {
   return response.blob();
 }
 
-async function loadBitmap(blob) {
+// Lar telefonen tegne spinneren mellom de tunge stegene.
+function breathe() {
+  return new Promise((resolve) => { setTimeout(resolve, 0); });
+}
+
+async function decodeImage(blob) {
   if (typeof createImageBitmap === 'function') {
     try {
       return await createImageBitmap(blob, { imageOrientation: 'from-image' });
-    } catch { /* eldre nettleser */ }
+    } catch { /* for stort eller ukjent: prøv nedskalert */ }
     try {
-      return await createImageBitmap(blob);
+      // Svært store bilder (48 MP) kan feile i fullt format på telefon. Les dem nedskalert.
+      return await createImageBitmap(blob, { imageOrientation: 'from-image', resizeWidth: DECODE_MAX_SIDE, resizeQuality: 'high' });
     } catch { /* prøv bildeelement */ }
   }
   const url = URL.createObjectURL(blob);
   try {
-    const img = new Image();
+    // DOM-bildet, ikke React Native-komponenten med samme navn.
+    const img = new globalThis.Image();
     img.src = url;
     await img.decode();
     return img;
@@ -87,71 +92,79 @@ function canvasOf(width, height) {
   return canvas;
 }
 
-/** Beskjæring og kontrast regnes på et lite utsnitt (240 px). */
-function analyse(bitmap, width, height, crop) {
+function toJpeg(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Kunne ikke lagre bildet.'))), 'image/jpeg', quality);
+  });
+}
+
+/** Utsnittet med kvitteringen, som andeler av bildet (hele bildet når den ikke finnes). */
+function documentArea(bitmap, width, height) {
   const small = fitSize(width, height, ANALYSIS_SIDE);
-  const canvas = canvasOf(small.width, small.height);
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const ctx = canvasOf(small.width, small.height).getContext('2d', { willReadFrequently: true });
   ctx.drawImage(bitmap, 0, 0, small.width, small.height);
   const lum = luminance(ctx.getImageData(0, 0, small.width, small.height).data, small.width, small.height);
-  const box = crop ? findDocumentBox(lum, small.width, small.height) : null;
-  const area = box || { x: 0, y: 0, w: 1, h: 1 };
-  const x0 = Math.floor(area.x * small.width);
-  const y0 = Math.floor(area.y * small.height);
-  const x1 = Math.ceil((area.x + area.w) * small.width);
-  const y1 = Math.ceil((area.y + area.h) * small.height);
-  const inside = [];
-  for (let y = y0; y < y1; y += 1) {
-    for (let x = x0; x < x1; x += 1) inside.push(lum[y * small.width + x]);
-  }
-  return { box, levels: contrastLevels(histogram(inside)) };
+  return findDocumentBox(lum, small.width, small.height);
 }
 
 async function prepareWebImage(picked, { crop }) {
   const blob = await readBlob(picked);
   let bitmap;
   try {
-    bitmap = await loadBitmap(blob);
+    bitmap = await decodeImage(blob);
   } catch {
-    // Nettleseren kan ikke vise formatet (HEIC på PC): send originalen.
-    return { blob, mimeType: blob.type || 'image/jpeg', dataUrl: await blobToDataUrl(blob), previewUri: '', cropped: false, enhanced: false };
+    // Nettleseren kan ikke lese formatet (HEIC på PC): serveren tolker originalen.
+    return { kind: 'original', blob, mimeType: blob.type || 'image/heic', previewUri: '', cropped: false, enhanced: false };
   }
   const width = bitmap.width || bitmap.naturalWidth;
   const height = bitmap.height || bitmap.naturalHeight;
-  const { box, levels } = analyse(bitmap, width, height, crop);
+  const box = crop ? documentArea(bitmap, width, height) : null;
   const sx = box ? Math.round(box.x * width) : 0;
   const sy = box ? Math.round(box.y * height) : 0;
   const sw = box ? Math.round(box.w * width) : width;
   const sh = box ? Math.round(box.h * height) : height;
-  const out = fitSize(sw, sh, RECEIPT_MAX_SIDE);
-  const canvas = canvasOf(out.width, out.height);
-  const ctx = canvas.getContext('2d', { willReadFrequently: !!levels });
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, out.width, out.height);
-  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, out.width, out.height);
+  await breathe();
+
+  // Fargebilde av utsnittet.
+  const colorSize = fitSize(sw, sh, COLOR_MAX_SIDE);
+  const colorCanvas = canvasOf(colorSize.width, colorSize.height);
+  const colorCtx = colorCanvas.getContext('2d');
+  colorCtx.fillStyle = '#fff';
+  colorCtx.fillRect(0, 0, colorSize.width, colorSize.height);
+  colorCtx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, colorSize.width, colorSize.height);
+  const color = await toJpeg(colorCanvas, COLOR_QUALITY);
+  await breathe();
+
+  // Skannet: høy oppløsning, svart-hvitt, utjevnet lys og mørkere tekst.
+  const size = scanSize(sw, sh);
+  const canvas = canvasOf(size.width, size.height);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, size.width, size.height);
   if (typeof bitmap.close === 'function') bitmap.close();
-  if (levels) {
-    const table = levelsTable(levels);
-    const image = ctx.getImageData(0, 0, out.width, out.height);
-    const px = image.data;
-    for (let i = 0; i < px.length; i += 4) {
-      px[i] = table[px[i]];
-      px[i + 1] = table[px[i + 1]];
-      px[i + 2] = table[px[i + 2]];
-    }
-    ctx.putImageData(image, 0, 0);
+  const image = ctx.getImageData(0, 0, size.width, size.height);
+  const scanned = documentScan(luminance(image.data, size.width, size.height), size.width, size.height);
+  const px = image.data;
+  for (let i = 0, p = 0; p < scanned.length; i += 4, p += 1) {
+    px[i] = scanned[p];
+    px[i + 1] = scanned[p];
+    px[i + 2] = scanned[p];
+    px[i + 3] = 255;
   }
-  const jpeg = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
-  if (!jpeg) throw new Error('Kunne ikke lagre bildet.');
+  ctx.putImageData(image, 0, 0);
+  await breathe();
+  const scan = await toJpeg(canvas, SCAN_QUALITY);
   return {
-    blob: jpeg,
+    kind: 'scan',
+    blob: scan,
     mimeType: 'image/jpeg',
-    dataUrl: await blobToDataUrl(jpeg),
-    previewUri: URL.createObjectURL(jpeg),
+    color,
+    previewUri: URL.createObjectURL(scan),
+    colorPreviewUri: URL.createObjectURL(color),
     cropped: !!box,
-    enhanced: !!levels,
-    width: out.width,
-    height: out.height,
+    enhanced: true,
+    width: size.width,
+    height: size.height,
   };
 }
 
@@ -170,16 +183,17 @@ async function prepareNativeImage(picked) {
   const manipulate = mod.manipulateAsync || mod.default?.manipulateAsync;
   const format = (mod.SaveFormat || mod.default?.SaveFormat)?.JPEG || 'jpeg';
   const size = await imageSize(picked.uri);
-  const longest = size ? Math.max(size.width, size.height) : RECEIPT_MAX_SIDE + 1;
-  const resize = longest > RECEIPT_MAX_SIDE
-    ? [{ resize: !size || size.width >= size.height ? { width: RECEIPT_MAX_SIDE } : { height: RECEIPT_MAX_SIDE } }]
+  const longest = size ? Math.max(size.width, size.height) : NATIVE_MAX_SIDE + 1;
+  const resize = longest > NATIVE_MAX_SIDE
+    ? [{ resize: !size || size.width >= size.height ? { width: NATIVE_MAX_SIDE } : { height: NATIVE_MAX_SIDE } }]
     : [];
-  const out = await manipulate(picked.uri, resize, { compress: QUALITY, format, base64: true });
+  const out = await manipulate(picked.uri, resize, { compress: 0.9, format });
+  // Serveren beskjærer og lager skannet fra dette fargebildet.
   return {
+    kind: 'color',
     uri: out.uri,
     blob: null,
     mimeType: 'image/jpeg',
-    dataUrl: out.base64 ? `data:image/jpeg;base64,${out.base64}` : '',
     previewUri: out.uri,
     cropped: false,
     enhanced: false,
@@ -189,30 +203,37 @@ async function prepareNativeImage(picked) {
 }
 
 /**
- * Gjør en valgt fil klar: { name, mimeType, blob|uri, dataUrl (for tolking), previewUri, cropped, enhanced, pdf }.
+ * Gjør en valgt fil klar for opplasting og tolking.
+ * kind: 'scan' (nett: skann + fargebilde), 'color' (app: serveren lager skannet),
+ * 'original' (PDF eller format nettleseren ikke leser: tolkes på serveren).
  * crop: false gir hele bildet (når den ansatte vil ha originalutsnittet).
  */
 export async function prepareReceipt(picked, { crop = true } = {}) {
   if (!picked) throw new Error('Ingen fil valgt.');
+  const size = Number(picked.size || picked.blob?.size || 0);
+  if (size > MAX_RECEIPT_BYTES && (isPdf(picked) || Platform.OS !== 'web')) {
+    throw new Error(`Filen er ${Math.round(size / 1048576)} MB. Største fil er ${MAX_RECEIPT_BYTES / 1048576} MB.`);
+  }
   if (isPdf(picked)) {
-    const blob = await readBlob(picked);
-    const dataUrl = blob.size && blob.size <= MAX_OCR_PDF_BYTES ? await blobToDataUrl(blob) : '';
     return {
+      kind: 'original',
       name: baseName(picked, 'kvittering.pdf'),
       mimeType: 'application/pdf',
-      blob,
+      blob: picked.blob || null,
       uri: picked.uri || '',
-      dataUrl: dataUrl.replace(/^data:[^;]*;/, 'data:application/pdf;'),
       previewUri: '',
       cropped: false,
       enhanced: false,
       pdf: true,
     };
   }
-  const name = baseName(picked, 'kvittering.jpg').replace(/\.(heic|heif|png|webp|jpe?g)$/i, '') || 'kvittering';
+  const stem = baseName(picked, 'kvittering').replace(/\.(heic|heif|png|webp|jpe?g)$/i, '') || 'kvittering';
   const ready = Platform.OS === 'web'
     ? await prepareWebImage(picked, { crop })
     : await prepareNativeImage(picked);
-  // Originalen sendes når nettleseren ikke kunne lese den (HEIC på PC). Da beholdes filnavnet.
-  return { ...ready, name: ready.mimeType === 'image/jpeg' ? `${name}.jpg` : baseName(picked, 'kvittering'), pdf: false };
+  if (ready.kind === 'original') {
+    if (size > MAX_RECEIPT_BYTES) throw new Error(`Bildet er ${Math.round(size / 1048576)} MB. Største fil er ${MAX_RECEIPT_BYTES / 1048576} MB.`);
+    return { ...ready, name: baseName(picked, 'kvittering'), pdf: false };
+  }
+  return { ...ready, name: `${stem}.jpg`, colorName: `${stem}-farge.jpg`, pdf: false };
 }

@@ -259,6 +259,7 @@ export {
   aiMealIngredients,
   aiRecipeImport,
   aiReceiptOcr,
+  mileageRates,
   aiClassListOcr,
   interpretImport,
   aiMatcoachWeeklyPlan,

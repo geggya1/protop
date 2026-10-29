@@ -45,7 +45,6 @@ import {
   companyAddressQueries,
   companyAddressSearchHit,
   mileageProjectOptions,
-  mileageRate,
   projectAddressLabel,
   projectDestinationSuggestion,
   projectHasOwnAddress,
@@ -58,6 +57,8 @@ import {
 } from '../../src/mileage/flow';
 import { suggestDriving } from '../../src/mileage/suggestRoute';
 import { mileageModalFrame } from '../../src/mileage/modalFrame';
+import { mileageCompensation } from '../../src/mileage/compensation';
+import { useMileageRates } from '../../src/mileage/useMileageRates';
 import { getDeviceLocation, reverseGeocode, searchPlaces } from '../../src/utils/location';
 import MileageRouteMap from '../../components/mileage/MileageRouteMap';
 import { formatDate } from '../../src/format/nb';
@@ -372,7 +373,13 @@ export default function MileageWizard({
   });
   const employeeId = me?.id || uid || '';
   const employeeName = me ? displayName(me) : (activeProfile?.name || user?.displayName || 'Ansatt');
-  const rateInfo = mileageRate(state.mileagePolicies);
+  // Satsen følger bedriften (Økonomi → Innstillinger) og den ansattes avtale (HR → Lønn), og
+  // statens regulativ for året turen gjelder. Ingen valg her.
+  const fetchedRates = useMileageRates();
+  const rateInfo = mileageCompensation(state.mileagePolicies, editingTrip?.employeeId || employeeId, {
+    date: draft.date,
+    fetched: fetchedRates.rates,
+  });
   // Firmabiler: uten Admin på Utstyr bare de personen har rettighet på (Tilgang på kjøretøyet).
   const gearAccess = equipmentViewerAccess(access, { employees, self: me });
   const cars = vehiclesForViewer(companyVehicles(state.equipment), {
@@ -889,6 +896,8 @@ export default function MileageWizard({
       toLat: draft.toPlace?.lat,
       toLng: draft.toPlace?.lng,
       rate: rateInfo.rate,
+      compensation: rateInfo.mode,
+      reimbursable: rateInfo.reimburse,
       projectId: project?.id || '',
       projectNumber: project?.number || '',
       projectName: project?.name || '',

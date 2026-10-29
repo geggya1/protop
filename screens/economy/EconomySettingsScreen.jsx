@@ -10,6 +10,7 @@ import StandardAccountSettings from '../../components/company/StandardAccountSet
 import CompanyInvoiceDefaultsSettings from '../../components/company/CompanyInvoiceDefaultsSettings';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import PowerOfficeSettings from './PowerOfficeSettings';
+import CompanyMileageSettings from '../../components/mileage/CompanyMileageSettings';
 import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 
 const TABS = [
@@ -17,17 +18,20 @@ const TABS = [
   { id: 'regnskapskontoer', label: 'Standard regnskapskontoer', icon: 'wallet-outline', hint: 'Honorar, timer, utlegg, produkter og avrunding' },
   { id: 'fakturastandarder', label: 'Fakturastandarder', icon: 'receipt-outline', hint: 'Kredittid, tekster, påslag og EHF — arves av alle prosjekter' },
   { id: 'regnskapssystem', label: 'Regnskapssystem', icon: 'swap-horizontal-outline', hint: 'PowerOffice Go: fakturautkast ut, faktura og betaling inn' },
+  { id: 'reise', label: 'Reise og kjøring', icon: 'car-outline', hint: 'Sats for kjøregodtgjørelse, oppdatert fra statens regulativ' },
 ];
 
 function initialTab(startTab) {
   if (startTab === 'regnskapskontoer') return 'regnskapskontoer';
   if (startTab === 'fakturastandarder') return 'fakturastandarder';
   if (startTab === 'regnskapssystem') return 'regnskapssystem';
+  if (startTab === 'reise') return 'reise';
   return 'kontoplan';
 }
 
 /**
- * Økonomi → Innstillinger: kontoplan, standardkontoer, fakturastandarder og regnskapssystem.
+ * Økonomi → Innstillinger: kontoplan, standardkontoer, fakturastandarder, regnskapssystem og
+ * sats for kjøregodtgjørelse.
  * Prosjekter arver faktura-/økonomiverdier herfra under Faktureringsvalg.
  */
 export default function EconomySettingsScreen({ startTab = 'kontoplan' } = {}) {
@@ -126,6 +130,9 @@ export default function EconomySettingsScreen({ startTab = 'kontoplan' } = {}) {
       ) : null}
       {tab === 'regnskapssystem' ? (
         <PowerOfficeSettings familyId={familyId} colors={colors} canEdit={canEdit} />
+      ) : null}
+      {tab === 'reise' ? (
+        <CompanyMileageSettings familyId={familyId} colors={colors} canEdit={canEdit} />
       ) : null}
     </ScrollView>
   );

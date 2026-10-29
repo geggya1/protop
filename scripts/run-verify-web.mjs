@@ -191,6 +191,9 @@ export const FILES = [
   'src/utils/receiptNormalize.test.mjs',
   'functions/aiReceiptOcr.test.mjs',
   'src/economy/expenseWizard.test.cjs',
+  'src/economy/vatTreatment.test.mjs',
+  'src/mileage/compensation.test.mjs',
+  'functions/mileageRates.test.mjs',
   'scripts/firestoreIndexes.test.mjs',
   'scripts/verify-app-updates.mjs',
   // Rettighetene på ansatte, prosjekt og timer. Sto utenfor CI, så Lese fikk for mye uten at noe ble rødt.

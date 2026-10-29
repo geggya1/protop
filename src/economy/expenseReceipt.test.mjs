@@ -42,7 +42,10 @@ test('kvittering fyller dato, beløp, valuta, mva, leverandør, type og beskrive
   assert.equal(patch.receiptNumber, '99056');
   assert.equal(patch.category, 'books');
   assert.equal(patch.description, 'Bok – SIA Bok Kristiansand');
-  assert.deepEqual(interpreted.sort(), ['amountInclVat', 'category', 'currency', 'date', 'description', 'vatCode', 'vendor']);
+  assert.equal(patch.vatTreatment, '1');
+  assert.deepEqual(interpreted.sort(), [
+    'amountInclVat', 'category', 'currency', 'date', 'description', 'receiptNumber', 'vatCode', 'vatTreatment', 'vendor', 'vendorOrgNr',
+  ]);
   assert.deepEqual(warnings, []);
   // Utlegget får riktig beløp eks. mva fra satsen på kvitteringen, ikke fra typen (bøker 0 %).
   const row = normalizeExpense(emptyExpense({ ...patch }));
@@ -140,4 +143,28 @@ test('fakturering ja / usikker / nei og vedlegg lagres på utlegget', () => {
   const foreign = normalizeExpense({ originalAmount: 12.5, originalCurrency: 'eur', currency: 'EUR', amountInclVat: 145 });
   assert.equal(foreign.originalAmount, 12.5);
   assert.equal(foreign.originalCurrency, 'EUR');
+});
+
+test('formål, betalingsmåte og avgiftskode fylles også', () => {
+  const { patch, interpreted } = expensePatchFromReceipt({
+    ...bookReceipt,
+    supplier: 'Egon Kvadraturen',
+    expenseType: 'representation',
+    purpose: 'Lunsj med kunde',
+    paymentMethod: 'kort',
+    cardLast4: '9141',
+  }, { today: TODAY });
+  assert.equal(patch.purpose, 'Lunsj med kunde');
+  assert.equal(patch.paymentMethod, 'kort');
+  assert.equal(patch.cardLast4, '9141');
+  // Representasjon: ikke fradrag.
+  assert.equal(patch.vatTreatment, '0');
+  for (const key of ['purpose', 'paymentMethod', 'vatTreatment']) assert.ok(interpreted.includes(key), key);
+  // Tjeneste fra utlandet: omvendt avgiftsplikt.
+  const adobe = expensePatchFromReceipt({ supplier: 'Adobe', expenseType: 'software', amount: 24, currency: 'EUR', vendorCountry: 'IE', isService: true, date: '2026-10-01' }, { today: TODAY });
+  assert.equal(adobe.patch.vatTreatment, '86');
+  const row = normalizeExpense({ vatTreatment: '86', paymentMethod: 'kort', cardLast4: '**9141', attachments: [{ url: 'https://x/s.jpg', originalUrl: 'https://x/o.jpg' }] });
+  assert.equal(row.vatTreatment, '86');
+  assert.equal(row.cardLast4, '9141');
+  assert.equal(row.attachments[0].originalUrl, 'https://x/o.jpg');
 });

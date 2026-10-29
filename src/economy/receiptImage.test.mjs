@@ -76,3 +76,50 @@ test('luminans og størrelse', () => {
   assert.deepEqual(fitSize(4000, 3000, 2000), { width: 2000, height: 1500, scale: 0.5 });
   assert.equal(fitSize(800, 600, 2000).width, 800);
 });
+
+test('skann: skygge jevnes ut, blek tekst blir mørk, papiret hvitt', async () => {
+  const { documentScan } = await import('./receiptImage.js');
+  const width = 120;
+  const height = 120;
+  const lum = new Uint8Array(width * height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      // Papiret går fra lyst (220) til skygge (110) fra venstre mot høyre.
+      const paper = 220 - (110 * x) / width;
+      // Blek tekst: 75 % av papiret på hver fjerde linje.
+      const text = y % 8 < 2 && x % 10 < 6;
+      lum[y * width + x] = Math.round(text ? paper * 0.75 : paper);
+    }
+  }
+  const out = documentScan(lum, width, height, { sharpen: 0 });
+  const at = (x, y) => out[y * width + x];
+  // Papir i lys og i skygge blir like hvitt.
+  assert.ok(at(5, 5) >= 245, `lys ${at(5, 5)}`);
+  assert.ok(at(110, 5) >= 245, `skygge ${at(110, 5)}`);
+  // Teksten blir mørk både i lys og skygge (var 165 og 85 før).
+  assert.ok(at(2, 0) < 90, `tekst i lys ${at(2, 0)}`);
+  assert.ok(at(102, 0) < 90, `tekst i skygge ${at(102, 0)}`);
+});
+
+test('skann: store svarte felt blekes ikke bort', async () => {
+  const { documentScan } = await import('./receiptImage.js');
+  const width = 100;
+  const height = 100;
+  const lum = new Uint8Array(width * height).fill(230);
+  for (let y = 30; y < 70; y += 1) for (let x = 30; x < 70; x += 1) lum[y * width + x] = 20;
+  const out = documentScan(lum, width, height, { sharpen: 0 });
+  assert.ok(out[50 * width + 50] < 40, `logo ${out[50 * width + 50]}`);
+  assert.ok(out[5 * width + 5] >= 245);
+});
+
+test('størrelse: lang kvittering beholder lesbar bredde', async () => {
+  const { scanSize } = await import('./receiptImage.js');
+  // 12 MP mobilbilde av en lang kvittering (beskåret 1000 x 3800).
+  const tall = scanSize(1000, 3800);
+  assert.equal(tall.width, 1000);
+  assert.equal(tall.height, 3800);
+  const huge = scanSize(4000, 12000);
+  assert.ok(huge.width >= 1200 && huge.width * huge.height <= 7_000_001, JSON.stringify(huge));
+  const photo = scanSize(4032, 3024);
+  assert.equal(Math.max(photo.width, photo.height), 3055);
+});

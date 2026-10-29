@@ -62,7 +62,7 @@ function loadJsx(rel) {
     if (id.includes('utils/receiptPrepare')) return { prepareReceipt: async () => ({}), RECEIPT_ACCEPT: 'image/*', receiptStoragePath: () => '' };
     if (id.includes('utils/receiptOcr')) return { ocrExpenseReceipt: async () => ({}) };
     if (id.includes('mileage/modalFrame')) return { mileageModalFrame: () => ({ width: 370, maxHeight: 800 }) };
-    if (/src\/economy\/(expenses|expenseReceipt|invoices|hoursList)\.js$/.test(id)) {
+    if (/src\/economy\/(expenses|expenseReceipt|invoices|hoursList|vatTreatment)\.js$/.test(id)) {
       return require(path.join(path.dirname(full), id));
     }
     return orig(id);
@@ -128,7 +128,7 @@ async function main() {
     const full = path.join(ROOT, rel);
     require.cache[full] = { id: full, filename: full, loaded: true, exports: await import(full) };
   };
-  for (const rel of ['src/economy/expenses.js', 'src/economy/expenseReceipt.js', 'src/economy/invoices.js', 'src/economy/hoursList.js']) {
+  for (const rel of ['src/economy/expenses.js', 'src/economy/expenseReceipt.js', 'src/economy/invoices.js', 'src/economy/hoursList.js', 'src/economy/vatTreatment.js']) {
     await load(rel);
   }
   const Wizard = loadJsx('components/economy/ExpenseWizard.jsx').default;
@@ -167,7 +167,7 @@ async function main() {
   }
 
   const review = render({ initialStep: 'seover' });
-  for (const label of ['Dato \\*', 'Valuta', 'Utgiftstype \\*', 'Beløp inkl\\. mva \\*', 'Mva-sats', 'Butikk / leverandør', 'Beskrivelse \\*', '^Lagre$']) {
+  for (const label of ['Dato \\*', 'Valuta', 'Utgiftstype \\*', 'Beløp inkl\\. mva \\*', 'Mva-sats', 'Avgiftskode', 'Butikk / leverandør', 'Org\\.nr\\.', 'Kvitteringsnr\\.', 'Betalt med', 'Kort', 'Vipps', 'Beskrivelse \\*', '^Formål$', '^Lagre$']) {
     assert.match(review, new RegExp(label, 'm'), label);
   }
   assert.match(review, /25 %/);

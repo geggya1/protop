@@ -125,7 +125,7 @@ function Chip({ label, on, onPress, colors, nativeID, wide }) {
         backgroundColor: on ? colors.ink : colors.card,
       }]}
     >
-      <Text style={{ color: on ? colors.card : colors.ink, fontSize: 15, fontWeight: on ? '700' : '500' }}>{label}</Text>
+      <Text style={{ color: on ? colors.card : colors.ink, fontSize: 15, fontWeight: on ? '600' : '500' }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -673,7 +673,7 @@ export default function ExpenseWizard({
           nativeID="expense-project-internal"
           style={[styles.listRow, { borderColor: draft.internal ? ink : colors.line, borderWidth: draft.internal ? 2 : StyleSheet.hairlineWidth }]}
         >
-          <Text style={{ color: ink, fontSize: 16, fontWeight: draft.internal ? '700' : '400' }}>Uten prosjekt (internt)</Text>
+          <Text style={{ color: ink, fontSize: 16, fontWeight: draft.internal ? '600' : '400' }}>Uten prosjekt (internt)</Text>
           <Text style={{ color: colors.muted, fontSize: 12 }}>Kostnad for bedriften. Faktureres ikke.</Text>
         </TouchableOpacity>
       ) : null}
@@ -688,7 +688,7 @@ export default function ExpenseWizard({
             accessibilityLabel={row.label}
             style={[styles.listRow, { borderColor: on ? ink : colors.line, borderWidth: on ? 2 : StyleSheet.hairlineWidth }]}
           >
-            <Text style={{ color: ink, fontSize: 16, fontWeight: on ? '700' : '400' }} numberOfLines={2}>{row.label}</Text>
+            <Text style={{ color: ink, fontSize: 16, fontWeight: on ? '600' : '400' }} numberOfLines={2}>{row.label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -742,7 +742,7 @@ export default function ExpenseWizard({
           accessibilityState={{ selected: draft.category === row.id }}
           style={styles.typeRow}
         >
-          <Text style={{ color: ink, fontSize: 16, fontWeight: draft.category === row.id ? '700' : '400' }}>{row.label}</Text>
+          <Text style={{ color: ink, fontSize: 16, fontWeight: draft.category === row.id ? '600' : '400' }}>{row.label}</Text>
           {draft.category === row.id ? <Ionicons name="checkmark" size={18} color={ink} /> : null}
         </TouchableOpacity>
       ))}
@@ -803,7 +803,7 @@ export default function ExpenseWizard({
             ? { borderColor: MISSING_LINE, backgroundColor: MISSING_BG }
             : { borderColor: colors.line, backgroundColor: colors.card }]}
         >
-          <Text style={{ color: draft.category ? ink : colors.muted, fontSize: 16, fontWeight: draft.category ? '700' : '400', flex: 1 }}>
+          <Text style={{ color: draft.category ? ink : colors.muted, fontSize: 16, fontWeight: draft.category ? '600' : '400', flex: 1 }}>
             {draft.category ? expenseCategory(draft.category).label : 'Velg utgiftstype'}
           </Text>
           {isTolket('category') ? <Tolket colors={colors} /> : null}
@@ -910,7 +910,7 @@ export default function ExpenseWizard({
                     style={styles.stepHit}
                   >
                     <View style={[styles.stepBar, { backgroundColor: reached ? colors.brand : colors.line }]} />
-                    <Text numberOfLines={1} style={{ color: active ? ink : colors.muted, fontSize: 12, fontWeight: active ? '700' : '500' }}>
+                    <Text numberOfLines={1} style={{ color: active ? ink : colors.muted, fontSize: 12, fontWeight: active ? '600' : '500' }}>
                       {item.label}
                     </Text>
                   </TouchableOpacity>
@@ -949,7 +949,7 @@ export default function ExpenseWizard({
               style={[styles.footBtn, styles.footPrimary, { backgroundColor: ink, borderColor: ink, opacity: saving ? 0.7 : 1 }]}
             >
               {saving ? <ActivityIndicator size="small" color={colors.card} /> : null}
-              <Text style={{ color: colors.card, fontSize: 16, fontWeight: '700' }}>{nextLabel}</Text>
+              <Text style={{ color: colors.card, fontSize: 16, fontWeight: '600' }}>{nextLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
   sheet: { borderWidth: 1, borderRadius: 16, overflow: 'hidden', flexDirection: 'column' },
   head: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, gap: 8 },
   headRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
-  title: { flex: 1, fontSize: 18, fontWeight: '700' },
+  title: { flex: 1, fontSize: 18, fontWeight: '600' },
   closeHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   steps: { flexDirection: 'row', gap: 8 },
   stepHit: { flex: 1, minHeight: 32, justifyContent: 'center', gap: 6 },

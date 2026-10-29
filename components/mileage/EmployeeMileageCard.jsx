@@ -78,7 +78,7 @@ export default function EmployeeMileageCard({ familyId, employeeId, employeeName
                   nativeID={`employee-mileage-${row.id}`}
                   style={[styles.chip, { borderColor: on ? colors.brand : colors.line, backgroundColor: on ? colors.brandSoft || colors.card : colors.card }]}
                 >
-                  <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '700' : '400' }}>{row.label}</Text>
+                  <Text style={{ color: on ? colors.brand : colors.ink, fontWeight: on ? '600' : '400' }}>{row.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -112,7 +112,7 @@ export default function EmployeeMileageCard({ familyId, employeeId, employeeName
 
 const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 12, padding: 16, gap: 10 },
-  title: { fontWeight: '700', fontSize: 16 },
+  title: { fontWeight: '600', fontSize: 16 },
   hint: { fontSize: 13, lineHeight: 18 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, minHeight: 40, justifyContent: 'center' },

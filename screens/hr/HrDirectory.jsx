@@ -90,33 +90,37 @@ export function HrTable({
         {rows.length === 0 ? (
           <EmptyHint colors={colors} text={emptyText || 'Ingen treff.'} />
         ) : rows.map((row) => (
-          <Pressable
+          // Hver celle er sin egen knapp, så en kolonne kan åpne rett fane på personen.
+          <View
             key={rowKey(row)}
             nativeID={`hr-row-${rowKey(row)}`}
-            onPress={() => onPressRow?.(row)}
             style={[styles.tr, { borderColor: colors.line }]}
           >
             {columns.map((col) => {
               const value = col.value(row);
               const warn = col.warn?.(row);
               return (
-                <Text
+                <Pressable
                   key={col.key}
-                  numberOfLines={2}
-                  style={[
-                    styles.td,
-                    {
-                      width: col.width,
-                      color: warn ? (colors.danger || '#b91c1c') : colors.ink,
-                      fontWeight: col.key === 'name' ? '600' : '400',
-                    },
-                  ]}
+                  onPress={() => onPressRow?.(row, col)}
+                  style={[styles.cell, { width: col.width }]}
                 >
-                  {value}
-                </Text>
+                  <Text
+                    numberOfLines={2}
+                    style={[
+                      styles.td,
+                      {
+                        color: warn ? (colors.danger || '#b91c1c') : colors.ink,
+                        fontWeight: col.key === 'name' ? '600' : '400',
+                      },
+                    ]}
+                  >
+                    {value}
+                  </Text>
+                </Pressable>
               );
             })}
-          </Pressable>
+          </View>
         ))}
       </View>
     </ScrollView>
@@ -142,10 +146,10 @@ const styles = StyleSheet.create({
   th: { fontSize: 12, fontWeight: '600', paddingRight: 12 },
   tr: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 10,
     paddingHorizontal: 4,
   },
-  td: { fontSize: 14, lineHeight: 18, paddingRight: 12 },
+  cell: { justifyContent: 'center', paddingVertical: 10, paddingRight: 12 },
+  td: { fontSize: 14, lineHeight: 18 },
 });

@@ -203,7 +203,14 @@ function person(id, {
   assert.match(follow, /lockedEmployeeId/);
   assert.doesNotMatch(follow, /title="Medarbeider"/);
   assert.doesNotMatch(compliance, /people\.map/);
-  assert.match(people, /Sjekkliste/);
+  assert.match(people, /label: 'Lovpålagt', width: 110, sheet: 'compliance'/);
+  assert.doesNotMatch(people, /Sjekkliste/);
+  // Lønn står bare under HR → Lønn, ikke i personellisten eller som fane på personen.
+  assert.doesNotMatch(people, /key: 'salary'/);
+  assert.doesNotMatch(people, /\{ id: 'lonn', label: 'Lønn' \}/);
+  assert.doesNotMatch(people, /label="Lønn"/);
+  assert.match(people, /onSheet\?\.\(col\?\.sheet \|\| 'oversikt'\)/);
+  assert.match(screen, /scrollRef\.current\?\.scrollTo\?\.\(\{ y: 0, animated: false \}\);\n  \}, \[page, selectedEmployeeId, employeeSheet\]\);/);
   assert.match(people, /Ansettelsesavtale/);
   assert.match(people, /Medarbeidersamtale/);
   assert.match(people, /Fakturerbarhet/);

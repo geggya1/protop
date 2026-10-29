@@ -10,6 +10,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { classroomColors as c } from '../../src/classroomTheme';
 import OptionPicker from '../../components/OptionPicker';
+import DateInput from '../../components/DateInput';
 import {
   createClassworkItem, updateClassworkItem, classworkTypeMeta, listenClassTopics, listenSubjects,
 } from '../../src/utils/classroom';
@@ -135,14 +136,15 @@ export default function ClassroomClassworkEditorScreen() {
         />
         {type !== 'material' ? (
           <>
-            <Text style={styles.label}>Frist (ÅÅÅÅ-MM-DD)</Text>
-            <TextInput
+            <Text style={styles.label}>Frist</Text>
+            <DateInput
               style={styles.input}
+              textStyle={{ color: dueDate ? c.ink : c.muted }}
               value={dueDate}
-              onChangeText={setDueDate}
-              placeholder="2026-09-15"
-              placeholderTextColor={c.muted}
-              autoCapitalize="none"
+              onChange={setDueDate}
+              format="iso"
+              placeholder="Velg frist"
+              clearable
             />
             <Text style={styles.label}>Poeng (valgfritt)</Text>
             <TextInput
@@ -155,14 +157,16 @@ export default function ClassroomClassworkEditorScreen() {
             />
           </>
         ) : null}
-        <Text style={styles.label}>Planlegg publisering (valgfritt, ÅÅÅÅ-MM-DD)</Text>
-        <TextInput
+        <Text style={styles.label}>Planlegg publisering (valgfritt)</Text>
+        <DateInput
           style={styles.input}
+          textStyle={{ color: scheduledDate ? c.ink : c.muted }}
           value={scheduledDate}
-          onChangeText={setScheduledDate}
+          onChange={setScheduledDate}
+          format="iso"
           placeholder="Tom = synlig med en gang"
-          placeholderTextColor={c.muted}
-          autoCapitalize="none"
+          accessibilityLabel="Planlegg publisering"
+          clearable
         />
         <Text style={styles.label}>Lenke / ressurs (valgfritt)</Text>
         <TextInput

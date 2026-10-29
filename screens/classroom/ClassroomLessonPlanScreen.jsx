@@ -8,6 +8,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { classroomColors as c } from '../../src/classroomTheme';
 import OptionPicker from '../../components/OptionPicker';
+import DateInput from '../../components/DateInput';
 import {
   listenSubjects, listenLessonPlans, createLessonPlan, deleteLessonPlan, isClassroomAdmin,
 } from '../../src/utils/classroom';
@@ -145,8 +146,15 @@ export default function ClassroomLessonPlanScreen({ classroomId, classroom }) {
                 title="Fag"
                 clearable={false}
               />
-              <Text style={styles.label}>Dato (YYYY-MM-DD)</Text>
-              <TextInput style={styles.input} value={form.dateKey} onChangeText={(t) => setForm((f) => ({ ...f, dateKey: t }))} />
+              <Text style={styles.label}>Dato</Text>
+              <DateInput
+                style={styles.input}
+                textStyle={{ color: form.dateKey ? c.ink : c.muted }}
+                value={form.dateKey}
+                onChange={(t) => setForm((f) => ({ ...f, dateKey: t }))}
+                format="iso"
+                accessibilityLabel="Dato"
+              />
               <Text style={styles.label}>Læringsmål (ett per linje)</Text>
               <TextInput
                 style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]}

@@ -18,10 +18,10 @@ import { resolveRuntimeSecret } from './runtimeSecret.js';
 import {
   createPowerOfficeClient, findClientEnvironment, POWEROFFICE_ENVS, PowerOfficeError, powerOfficeErrorText,
 } from './powerOfficeApi.js';
-import { normalizeProductCodes } from './powerOfficeMap.js';
+import { mergedInvoice, normalizeProductCodes, powerOfficeEvents } from './powerOfficeMap.js';
 import {
-  attachmentFiles, attachToSalesOrder, lookupOutgoingInvoice, productsWithVat, requestSend, sendFailedPatch,
-  syncInvoices, transferInvoice,
+  attachmentFiles, attachToSalesOrder, fetchInvoiceDocument, lookupOutgoingInvoice, productsWithVat, requestSend,
+  sendFailedPatch, syncInvoices, transferInvoice,
 } from './powerOfficeSync.js';
 
 if (!getApps().length) initializeApp();
@@ -235,6 +235,31 @@ export const powerOfficeProducts = onCall(CALL, async (request) => {
   }
 });
 
+/** Den som gjør kallet, til endringsloggen. Navnet er bare visning. uid kommer fra innloggingen. */
+function actorFrom(request) {
+  const name = String(request.data?.actorName || request.auth?.token?.name || request.auth?.token?.email || '')
+    .replace(/\s+/g, ' ').trim().slice(0, 120);
+  return { uid: String(request.auth?.uid || ''), name };
+}
+
+/**
+ * Lagringen med hendelser i endringsloggen for det som endret seg i PowerOffice.
+ * arrayUnion, så hendelser lagt til samtidig fra appen ikke overskrives.
+ */
+function withEvents(patch, before, actor) {
+  const at = new Date().toISOString();
+  const stamp = Date.now().toString(36);
+  const events = powerOfficeEvents(before, mergedInvoice(before, patch)).map((row, index) => ({
+    id: `ev_po_${stamp}_${index}_${Math.random().toString(36).slice(2, 7)}`,
+    at,
+    type: row.type,
+    text: String(row.text).slice(0, 500),
+    byUid: row.user ? actor.uid : '',
+    byName: row.user ? actor.name : '',
+  }));
+  return events.length ? { ...patch, events: FieldValue.arrayUnion(...events) } : patch;
+}
+
 async function loadProTopCustomer(db, familyId, invoice) {
   const customerId = String(invoice?.customerId || '');
   if (!customerId) return null;
@@ -269,6 +294,7 @@ export const powerOfficeTransferInvoice = onCall(CALL, async (request) => {
   }
 
   const status = await readStatus(db, familyId);
+  const actor = actorFrom(request);
   const customer = await loadProTopCustomer(db, familyId, invoice);
   const knownCustomer = invoice.customerId ? status.customers?.[invoice.customerId] || null : null;
   try {
@@ -287,7 +313,7 @@ export const powerOfficeTransferInvoice = onCall(CALL, async (request) => {
     if (result.already) {
       if (!wantSend) return { already: true, poweroffice: invoice.poweroffice || null };
     } else {
-      await invoiceRef.set(result.patch, { merge: true });
+      await invoiceRef.set(withEvents(result.patch, invoice, actor), { merge: true });
       if (invoice.customerId && result.customerLink) {
         await statusRef(db, familyId).set({ customers: { [invoice.customerId]: result.customerLink } }, { merge: true });
       }
@@ -311,7 +337,7 @@ export const powerOfficeTransferInvoice = onCall(CALL, async (request) => {
               .join(' · ').slice(0, 500),
           },
         };
-        await invoiceRef.set(attachPatch, { merge: true });
+        await invoiceRef.set(withEvents(attachPatch, current, actor), { merge: true });
         current = { ...current, poweroffice: attachPatch.poweroffice };
       }
     }
@@ -321,14 +347,14 @@ export const powerOfficeTransferInvoice = onCall(CALL, async (request) => {
     const at = new Date().toISOString();
     try {
       const sent = await requestSend(client, { invoice: current, at });
-      await invoiceRef.set(sent, { merge: true });
+      await invoiceRef.set(withEvents(sent, current, actor), { merge: true });
       return { already: !!result.already, sent: true, attached, poweroffice: sent.poweroffice };
     } catch (err) {
       // Utkastet ligger i Go. Feilen lagres, så den vises på fakturaen og kan rettes.
       const message = err instanceof PowerOfficeError ? powerOfficeErrorText(err) : (err?.message || 'Sendingen feilet.');
       if (err instanceof PowerOfficeError) logger.warn('PowerOffice send', { status: err.status, path: err.path, message: err.message });
       const failed = sendFailedPatch(current, message, { at });
-      await invoiceRef.set(failed, { merge: true });
+      await invoiceRef.set(withEvents(failed, current, actor), { merge: true });
       return { already: !!result.already, sent: false, attached, sendError: failed.poweroffice.sendError, poweroffice: failed.poweroffice };
     }
   } catch (err) {
@@ -354,10 +380,13 @@ export const powerOfficeSyncInvoices = onCall(CALL, async (request) => {
   try {
     const client = await clientFor(db, familyId, status);
     const result = await syncInvoices(client, { invoices, cursor: status.balanceCursor || '', at });
+    const byId = new Map(invoices.map((row) => [row.id, row]));
+    const actor = actorFrom(request);
     for (let i = 0; i < result.patches.length; i += 400) {
       const batch = db.batch();
       for (const { id, patch } of result.patches.slice(i, i + 400)) {
-        batch.set(db.doc(`families/${familyId}/invoices/${id}`), patch, { merge: true });
+        const before = byId.get(id) || {};
+        batch.set(db.doc(`families/${familyId}/invoices/${id}`), withEvents(patch, before, actor), { merge: true });
       }
       await batch.commit();
     }
@@ -385,5 +414,39 @@ export const powerOfficeLookupInvoice = onCall(CALL, async (request) => {
     return await lookupOutgoingInvoice(client, { invoiceNo: request.data?.invoiceNo });
   } catch (err) {
     throw toHttpsError(err, 'lookup');
+  }
+});
+
+/**
+ * Fakturadokumentet fra Go, slik kunden fikk det (PDF eller EHF). Krever tilgangen
+ * VoucherDocumentation for integrasjonen.
+ */
+export const powerOfficeInvoiceDocument = onCall(CALL, async (request) => {
+  const uid = requireUid(request);
+  const familyId = familyIdFrom(request);
+  const invoiceId = String(request.data?.invoiceId || '').trim();
+  if (!invoiceId || invoiceId.includes('/')) throw new HttpsError('invalid-argument', 'Faktura mangler.');
+  const db = getFirestore();
+  await assertCompanyAccess(db, familyId, uid, TRANSFER_ACCESS);
+  await limitCalls(db, uid, 'document', 200);
+  const snap = await db.doc(`families/${familyId}/invoices/${invoiceId}`).get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Fant ikke fakturaen.');
+  const invoice = snap.data() || {};
+  const po = invoice.poweroffice || {};
+  if (!po.outgoingInvoiceId) throw new HttpsError('failed-precondition', 'Fakturaen er ikke sendt fra PowerOffice ennå.');
+  const status = await readStatus(db, familyId);
+  try {
+    const client = await clientFor(db, familyId, status);
+    return await fetchInvoiceDocument(client, {
+      outgoingInvoiceId: po.outgoingInvoiceId,
+      invoiceNo: po.invoiceNo ?? invoice.invoiceNumber,
+      kind: request.data?.kind === 'ehf' ? 'ehf' : 'pdf',
+    });
+  } catch (err) {
+    if (err instanceof PowerOfficeError && err.status === 403) {
+      throw new HttpsError('permission-denied',
+        'Integrasjonen mangler tilgang til å hente fakturadokumentet (VoucherDocumentation) i PowerOffice. Be PowerOffice legge den til.');
+    }
+    throw toHttpsError(err, 'document');
   }
 });

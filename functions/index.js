@@ -289,6 +289,7 @@ export {
   powerOfficeTransferInvoice,
   powerOfficeSyncInvoices,
   powerOfficeLookupInvoice,
+  powerOfficeInvoiceDocument,
 } from './powerOffice.js';
 export { sendInvoiceMail, sendInvoiceEhf, lookupPeppolReceiver } from './invoiceDelivery.js';
 export { sendMeetingMail, aiMeeting } from './meetingDelivery.js';

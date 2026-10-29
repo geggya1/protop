@@ -115,6 +115,16 @@ export function syncCountsText(counts) {
 }
 
 /** Kan sendes fra ProTop: utkastet ligger i Go og er ikke bedt sendt ennå. */
+/** Sendt fra PowerOffice: fakturaen kunden fikk (med kontonummer og KID) ligger i Go. */
+export function sentFromPowerOffice(invoice) {
+  return !!String(invoice?.poweroffice?.outgoingInvoiceId || '').trim();
+}
+
+/** Go har en EHF for fakturaen bare når den ble sendt som EHF. */
+export function hasPowerOfficeEhf(invoice) {
+  return sentFromPowerOffice(invoice) && /ehf/i.test(String(invoice?.poweroffice?.deliveryType || ''));
+}
+
 export function canSendFromPowerOffice(invoice, status) {
   const po = invoice?.poweroffice || {};
   return !!status?.connected && !!po.salesOrderId && po.state === 'draft';

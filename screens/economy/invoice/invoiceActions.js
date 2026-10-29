@@ -69,8 +69,21 @@ export async function timeEntriesFor(ctx, invoice) {
   return loadTimeEntriesByIds(ctx.familyId, ids);
 }
 
+export function specPreviewFor(ctx, invoice) {
+  return buildInvoiceSpecPdf(invoice, [], { supplier: ctx.supplier, settings: ctx.settings || {}, logo: ctx.logo });
+}
+
 export function pdfFor(ctx, invoice, originalDate = '') {
   return buildInvoicePdf(invoice, { supplier: ctx.supplier, logo: ctx.logo, originalDate });
+}
+
+/** Fakturaspesifikasjonen (ProTop sitt design uten betalingsinformasjon), som følger med fra PowerOffice. */
+export async function specFor(ctx, invoice, { withEntries = true } = {}) {
+  const settings = ctx.settings || {};
+  const entries = withEntries && settings.attachTimeSpec !== false && (invoice.timeEntryIds || []).length
+    ? await timeEntriesFor(ctx, invoice).catch(() => [])
+    : [];
+  return buildInvoiceSpecPdf(invoice, entries, { supplier: ctx.supplier, settings, logo: ctx.logo });
 }
 
 export async function timeSpecFor(ctx, invoice) {

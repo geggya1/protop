@@ -7,7 +7,9 @@ import { canDeleteInvoice, invoiceListSource, normalizeInvoice } from './invoice
 import {
   canSendFromPowerOffice,
   canTransferToPowerOffice,
+  hasPowerOfficeEhf,
   lookupRows,
+  sentFromPowerOffice,
   syncCountsText,
   POWEROFFICE_VAT_ROWS,
   powerOfficeSummary,
@@ -134,3 +136,10 @@ assert.deepEqual(POWEROFFICE_VAT_ROWS.map((row) => row.id), ['HIGH', 'MID', 'LOW
 }
 
 console.log('powerOfficeView.test ok');
+
+// Sendt fra PowerOffice: fakturaen kunden fikk hentes fra Go. EHF bare når den gikk som EHF.
+assert.equal(sentFromPowerOffice({ poweroffice: { state: 'draft', salesOrderId: 's1' } }), false);
+assert.equal(sentFromPowerOffice({ poweroffice: { state: 'sent', outgoingInvoiceId: 'oi1' } }), true);
+assert.equal(sentFromPowerOffice({}), false);
+assert.equal(hasPowerOfficeEhf({ poweroffice: { outgoingInvoiceId: 'oi1', deliveryType: 'PdfByEmail' } }), false);
+assert.equal(hasPowerOfficeEhf({ poweroffice: { outgoingInvoiceId: 'oi1', deliveryType: 'EHF' } }), true);

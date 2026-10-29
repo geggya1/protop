@@ -560,7 +560,7 @@ export default function EconomyInvoices({
     if (!selected || !canManage || transferring || deleting) return null;
     setTransferring(true);
     try {
-      const result = await transferInvoiceToPowerOffice(familyId, selected.id, { again, send, attachments });
+      const result = await transferInvoiceToPowerOffice(familyId, selected.id, { again, send, attachments, actorName: actor.byName });
       await reloadSelected();
       const orderNo = result?.poweroffice?.orderNo;
       const where = orderNo ? ` som utkast nr. ${orderNo}` : '';

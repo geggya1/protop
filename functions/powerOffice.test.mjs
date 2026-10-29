@@ -9,17 +9,23 @@ import {
 import {
   customerDelivery,
   customerPostFromProTop,
+  invoicePatchAfterTransfer,
   invoicePatchFromOutgoing,
+  invoicePatchMissing,
   matchCustomer,
+  mergedInvoice,
+  powerOfficeEvents,
   orderRefFromLineRef,
   salesOrderFromInvoice,
   salesOrderRef,
   sendRequestFromInvoice,
 } from './powerOfficeMap.js';
 import {
-  attachmentFiles, attachToSalesOrder, customerRef, lookupOutgoingInvoice, productsWithVat, requestSend,
-  sendFailedPatch, syncInvoices, transferInvoice, vatRatePercent,
+  attachmentFiles, attachToSalesOrder, customerRef, fetchInvoiceDocument, lookupOutgoingInvoice, productsWithVat,
+  requestSend, sendFailedPatch, syncInvoices, transferInvoice, vatRatePercent,
 } from './powerOfficeSync.js';
+import { deflateRawSync } from 'node:zlib';
+import { readZipEntries } from './zipEntries.js';
 
 function jsonResponse(status, body, headers = {}) {
   return {
@@ -761,4 +767,142 @@ console.log('powerOffice.test ok');
   assert.equal(order.ok, true);
   assert.equal(order.order.SalesOrderLines[0].ProductUnitPrice, 69928.2915);
   assert.equal(order.order.SalesOrderLines[1].ProductUnitPrice, 1090);
+}
+
+// ZIP med én deflate-fil og én lagret fil, med databeskrivelse (størrelse 0 i lokalt hode).
+function zipOf(files) {
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
+  for (const { name, data, store } of files) {
+    const body = store ? data : deflateRawSync(data);
+    const nameBuf = Buffer.from(name);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(8, 6);
+    local.writeUInt16LE(store ? 0 : 8, 8);
+    local.writeUInt16LE(nameBuf.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(store ? 0 : 8, 10);
+    central.writeUInt32LE(body.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, nameBuf, body);
+    centrals.push(central, nameBuf);
+    offset += 30 + nameBuf.length + body.length;
+  }
+  const cd = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(cd.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, end]);
+}
+
+{
+  const pdf = Buffer.from('%PDF-1.4 faktura 10000 '.repeat(50));
+  const zip = zipOf([{ name: 'docs/10000.pdf', data: pdf }, { name: 'info.txt', data: Buffer.from('hei'), store: true }]);
+  const entries = readZipEntries(zip);
+  assert.deepEqual(entries.map((row) => row.name), ['docs/10000.pdf', 'info.txt']);
+  assert.ok(entries[0].data.equals(pdf));
+  assert.equal(entries[1].data.toString(), 'hei');
+  assert.throws(() => readZipEntries(Buffer.from('ikke zip')), /ikke gyldig/);
+
+  // Fakturadokumentet fra Go: ZIP pakkes ut, PDF-en får fakturanummeret i navnet.
+  const asked = [];
+  const client = {
+    download: async (path, query) => {
+      asked.push({ path, ...query });
+      return query.documentationType === 'Pdf' ? { bytes: zip, contentType: 'application/zip', fileName: 'x.zip' } : null;
+    },
+  };
+  const doc = await fetchInvoiceDocument(client, { outgoingInvoiceId: 'abc-1', invoiceNo: 10000 });
+  assert.deepEqual(asked[0], { path: '/VoucherDocumentation/Download', id: 'abc-1', documentationType: 'Pdf' });
+  assert.equal(doc.name, 'Faktura-10000.pdf');
+  assert.equal(doc.mime, 'application/pdf');
+  assert.ok(Buffer.from(doc.base64, 'base64').equals(pdf));
+  await assert.rejects(fetchInvoiceDocument(client, { outgoingInvoiceId: 'abc-1', kind: 'ehf' }), /ingen EHF/);
+  await assert.rejects(fetchInvoiceDocument(client, { outgoingInvoiceId: '' }), /ikke sendt/);
+  // PDF rett (ikke ZIP) godtas. Annet innhold er ikke fakturaen.
+  const plain = { download: async () => ({ bytes: pdf, contentType: 'application/pdf', fileName: '' }) };
+  assert.equal((await fetchInvoiceDocument(plain, { outgoingInvoiceId: 'x' })).name, 'Faktura.pdf');
+  const junk = { download: async () => ({ bytes: Buffer.from('<html>'), contentType: 'text/html', fileName: '' }) };
+  await assert.rejects(fetchInvoiceDocument(junk, { outgoingInvoiceId: 'x' }), /Fant ikke/);
+}
+
+{
+  // download: binært svar med filnavn, 404 gir null, 403 gir feil med status.
+  const fetchImpl = async (url) => {
+    if (url.includes('OAuth')) return jsonResponse(200, { access_token: 't', expires_in: 1200 });
+    const id = new URL(url).searchParams.get('id');
+    if (id === 'none') return jsonResponse(404, null);
+    if (id === 'denied') return jsonResponse(403, { title: 'Missing privilege' });
+    return {
+      status: 200,
+      ok: true,
+      headers: { get: (name) => ({ 'content-type': 'application/zip', 'content-disposition': 'attachment; filename="Faktura 1.zip"' })[name.toLowerCase()] ?? null },
+      arrayBuffer: async () => new Uint8Array([80, 75, 3, 4]).buffer,
+    };
+  };
+  const clock = fakeClock();
+  const client = createPowerOfficeClient({
+    applicationKey: 'a', clientKey: 'c', subscriptionKey: 's', fetchImpl, now: clock.now, sleep: clock.sleep,
+  });
+  const file = await client.download('/VoucherDocumentation/Download', { id: 'ok', documentationType: 'Pdf' });
+  assert.equal(file.fileName, 'Faktura 1.zip');
+  assert.equal(file.contentType, 'application/zip');
+  assert.deepEqual([...file.bytes], [80, 75, 3, 4]);
+  assert.equal(await client.download('/VoucherDocumentation/Download', { id: 'none' }), null);
+  await assert.rejects(client.download('/VoucherDocumentation/Download', { id: 'denied' }), (err) => err.status === 403);
+}
+
+{
+  // Endringsloggen: hver bevegelse i PowerOffice blir en hendelse.
+  const at = '2026-10-29T10:00:00.000Z';
+  const draft = { id: 'inv1', status: 'draft', invoiceNumber: '' };
+  const transferred = mergedInvoice(draft, invoicePatchAfterTransfer(draft, { Id: 'so1', SalesOrderNo: 3 }, {
+    env: 'demo', ref: 'ProTop-inv1', customer: { Id: 9, Number: 10018 }, at,
+  }));
+  assert.deepEqual(powerOfficeEvents(draft, transferred), [
+    { type: 'poweroffice', user: true, text: 'overførte utkastet til PowerOffice (testklient) som utkast nr. 3' },
+  ]);
+  const attached = mergedInvoice(transferred, { poweroffice: { attachmentsAddedAt: at, attachments: 2, attachmentErrors: 'kvittering.heic: for stor' } });
+  assert.deepEqual(powerOfficeEvents(transferred, attached).map((row) => row.text), [
+    'la ved 2 filer på utkastet i PowerOffice',
+    'Vedlegg kom ikke med i PowerOffice: kvittering.heic: for stor',
+  ]);
+  const failed = mergedInvoice(attached, sendFailedPatch(attached, 'Missing privilege', { at }));
+  const failedEvents = powerOfficeEvents(attached, failed);
+  assert.equal(failedEvents.length, 1);
+  assert.equal(failedEvents[0].user, false);
+  assert.match(failedEvents[0].text, /^Sendingen fra PowerOffice feilet: Missing privilege/);
+  // Samme feil på nytt gir ikke ny hendelse.
+  assert.deepEqual(powerOfficeEvents(failed, failed), []);
+
+  const sent = mergedInvoice(failed, invoicePatchFromOutgoing(failed, {
+    Id: 'oi1', InvoiceNo: 10000, Cid: '8951100666', InvoiceDeliveryType: 'PdfByEmail', Balance: 215678.75,
+    TotalAmount: 215678.75, NetAmount: 172543, VoucherDate: '2026-10-29', DueDate: '2026-11-12',
+    SentDateTimeOffset: '2026-10-29T12:00:00+01:00',
+  }, { at }));
+  assert.deepEqual(powerOfficeEvents(failed, sent).map((row) => row.text), [
+    'PowerOffice (testklient) sendte faktura 10000 som E-post (PDF) 29.10.2026 (KID 8951100666, fakturadato 29.10.2026, forfall 12.11.2026, 215 678,75 kr)',
+  ]);
+  const part = mergedInvoice(sent, { poweroffice: { balance: 100000 } });
+  assert.deepEqual(powerOfficeEvents(sent, part).map((row) => row.text), ['Innbetaling registrert i PowerOffice, restbeløp 100 000,00 kr']);
+  const paid = mergedInvoice(part, { status: 'paid', poweroffice: { state: 'paid', balance: 0 } });
+  assert.deepEqual(powerOfficeEvents(part, paid).map((row) => row.type), ['payment']);
+  // Sendt og betalt før første synk: begge hendelsene.
+  assert.deepEqual(powerOfficeEvents(failed, paid).map((row) => row.type), ['delivery', 'payment']);
+
+  const missing = mergedInvoice(transferred, invoicePatchMissing(transferred, { at }));
+  assert.match(powerOfficeEvents(transferred, missing)[0].text, /finnes ikke lenger i PowerOffice/);
+  const again = mergedInvoice(missing, invoicePatchAfterTransfer(missing, { Id: 'so2', SalesOrderNo: 4 }, {
+    env: 'prod', ref: 'ProTop-inv1-2', customer: { Id: 9 }, at: '2026-10-29T11:00:00.000Z',
+  }));
+  assert.equal(powerOfficeEvents(missing, again)[0].text, 'overførte utkastet til PowerOffice på nytt som utkast nr. 4');
+  assert.deepEqual(powerOfficeEvents({}, {}), []);
 }

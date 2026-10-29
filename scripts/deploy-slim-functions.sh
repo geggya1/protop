@@ -220,7 +220,7 @@ queue_entry vacationPlanIndex.js functions:publishVacationPlan,functions:sweepVa
 open_for vacationPlanIndex.js functions:publishVacationPlan,functions:sweepVacationPlan
 
 # PowerOffice Go: fakturautkast ut, fakturanummer, KID og betalingsstatus inn.
-POWEROFFICE="functions:powerOfficeStatus,functions:powerOfficeConnect,functions:powerOfficeDisconnect,functions:powerOfficeProducts,functions:powerOfficeTransferInvoice,functions:powerOfficeSyncInvoices,functions:powerOfficeLookupInvoice"
+POWEROFFICE="functions:powerOfficeStatus,functions:powerOfficeConnect,functions:powerOfficeDisconnect,functions:powerOfficeProducts,functions:powerOfficeTransferInvoice,functions:powerOfficeSyncInvoices,functions:powerOfficeLookupInvoice,functions:powerOfficeInvoiceDocument"
 queue_entry powerOfficeIndex.js "$POWEROFFICE"
 open_for powerOfficeIndex.js "$POWEROFFICE"
 

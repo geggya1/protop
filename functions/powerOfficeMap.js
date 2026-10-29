@@ -412,3 +412,103 @@ export function invoicePatchMerged(invoice, salesOrderId, { at }) {
     updatedAt: at,
   };
 }
+
+function norDate(value) {
+  const iso = isoDate(value);
+  return iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '';
+}
+
+function kroner(value) {
+  const n = Number(value) || 0;
+  const [whole, frac] = Math.abs(n).toFixed(2).split('.');
+  return `${n < 0 ? '−' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')},${frac} kr`;
+}
+
+/**
+ * Hendelser til endringsloggen for det som skjedde med fakturaen i PowerOffice, ut fra
+ * fakturaen før og etter en lagring. user: brukeren gjorde det (navnet står foran teksten).
+ * Ellers er det PowerOffice som meldte det, og teksten står alene.
+ */
+export function powerOfficeEvents(before, after) {
+  const b = before?.poweroffice && typeof before.poweroffice === 'object' ? before.poweroffice : {};
+  const a = after?.poweroffice && typeof after.poweroffice === 'object' ? after.poweroffice : {};
+  const maybe = (value) => (value == null || value === '' ? null : num(value));
+  const out = [];
+  const test = a.env === 'demo' ? ' (testklient)' : '';
+  if (text(a.transferredAt) && a.transferredAt !== b.transferredAt && a.state === 'draft') {
+    const again = text(b.salesOrderId) || maybe(b.attempt) > 0;
+    const no = maybe(a.orderNo);
+    out.push({
+      type: 'poweroffice',
+      user: true,
+      text: `overførte utkastet til PowerOffice${test}${again ? ' på nytt' : ''}${no ? ` som utkast nr. ${no}` : ''}`,
+    });
+  }
+  if (text(a.attachmentsAddedAt) && a.attachmentsAddedAt !== b.attachmentsAddedAt) {
+    const n = maybe(a.attachments) || 0;
+    out.push({ type: 'attachment', user: true, text: `la ved ${n === 1 ? '1 fil' : `${n} filer`} på utkastet i PowerOffice` });
+  }
+  if (text(a.attachmentErrors) && a.attachmentErrors !== b.attachmentErrors) {
+    out.push({ type: 'attachment', user: false, text: `Vedlegg kom ikke med i PowerOffice: ${a.attachmentErrors}` });
+  }
+  if (a.state === 'sending' && b.state !== 'sending') {
+    out.push({ type: 'delivery', user: true, text: 'ba PowerOffice sende fakturaen til kunden' });
+  }
+  if (text(a.sendError) && a.sendError !== b.sendError) {
+    out.push({ type: 'delivery', user: false, text: `Sendingen fra PowerOffice feilet: ${a.sendError}` });
+  }
+  const done = (state) => state === 'sent' || state === 'paid';
+  if (done(a.state) && !done(b.state)) {
+    const delivery = deliveryFromPowerOffice(a.deliveryType);
+    const parts = [
+      delivery ? `som ${delivery.label}` : '',
+      norDate(after?.sentAt || a.sentDateTime) ? `${norDate(after?.sentAt || a.sentDateTime)}` : '',
+    ].filter(Boolean).join(' ');
+    const facts = [
+      text(a.cid) ? `KID ${a.cid}` : '',
+      norDate(after?.invoiceDate) ? `fakturadato ${norDate(after.invoiceDate)}` : '',
+      norDate(after?.dueDate) ? `forfall ${norDate(after.dueDate)}` : '',
+      Number.isFinite(Number(after?.amountInclVat)) && after?.amountInclVat !== '' && after?.amountInclVat != null
+        ? kroner(after.amountInclVat) : '',
+    ].filter(Boolean).join(', ');
+    out.push({
+      type: 'delivery',
+      user: false,
+      text: `PowerOffice${test} sendte faktura ${maybe(a.invoiceNo) ?? text(after?.invoiceNumber)}${parts ? ` ${parts}` : ''}${facts ? ` (${facts})` : ''}`,
+    });
+  }
+  const before0 = maybe(b.balance);
+  const after0 = maybe(a.balance);
+  if (a.state === 'paid' && b.state !== 'paid') {
+    out.push({ type: 'payment', user: false, text: 'Fakturaen er betalt (registrert i PowerOffice)' });
+  } else if (done(a.state) && done(b.state) && before0 != null && after0 != null && after0 !== before0) {
+    out.push({
+      type: 'payment',
+      user: false,
+      text: after0 < before0
+        ? `Innbetaling registrert i PowerOffice, restbeløp ${kroner(after0)}`
+        : `Restbeløpet i PowerOffice er endret til ${kroner(after0)}`,
+    });
+  }
+  if (a.state === 'missing' && b.state !== 'missing') {
+    out.push({
+      type: 'poweroffice',
+      user: false,
+      text: 'Utkastet finnes ikke lenger i PowerOffice (slettet der). Det kan endres, overføres på nytt eller slettes i ProTop',
+    });
+  }
+  if (text(a.mergedFrom) && a.mergedFrom !== b.mergedFrom) {
+    out.push({ type: 'poweroffice', user: false, text: 'Utkastet ble slått sammen med et annet utkast i PowerOffice' });
+  }
+  return out;
+}
+
+/** Fakturaen etter en lagring med merge: poweroffice slås sammen felt for felt. */
+export function mergedInvoice(invoice, patch) {
+  const base = invoice && typeof invoice === 'object' ? invoice : {};
+  const next = { ...base, ...(patch || {}) };
+  if (patch?.poweroffice && typeof patch.poweroffice === 'object') {
+    next.poweroffice = { ...(base.poweroffice || {}), ...patch.poweroffice };
+  }
+  return next;
+}

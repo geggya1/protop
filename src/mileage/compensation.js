@@ -28,6 +28,34 @@ export const COMPANY_COMPENSATIONS = [
   { id: 'custom', label: 'Egen sats' },
 ];
 
+/**
+ * Hvordan utlegg og kjøregodtgjørelse betales ut til den ansatte (src/economy/expensePayout.js).
+ * Bedriften har en standard (expensePayout på { id: 'company' }), den ansatte kan ha sin egen (payout).
+ */
+export const PAYOUT_METHODS = [
+  { id: 'payroll', label: 'Med lønnen' },
+  { id: 'direct', label: 'Egen utbetaling' },
+];
+
+const PAYOUTS = new Set(PAYOUT_METHODS.map((row) => row.id));
+
+export function companyPayout(policies = []) {
+  const row = (policies || []).find((item) => item?.id === 'company') || null;
+  return PAYOUTS.has(row?.expensePayout) ? row.expensePayout : 'payroll';
+}
+
+/** Utbetalingen for en ansatt: egen avtale, ellers bedriftens standard. */
+export function employeePayout(policies = [], employeeId = '') {
+  const own = employeeId
+    ? (policies || []).find((item) => item?.id === employeePolicyId(employeeId)) || null
+    : null;
+  return PAYOUTS.has(own?.payout) ? own.payout : companyPayout(policies);
+}
+
+export function payoutLabel(method) {
+  return PAYOUT_METHODS.find((row) => row.id === method)?.label || '';
+}
+
 export const EMPLOYEE_COMPENSATIONS = [
   { id: 'company', label: 'Etter bedriftens sats' },
   { id: 'none', label: 'Dekket av lønn' },
@@ -122,26 +150,33 @@ export function tripReimbursement({ km = 0, allowance = 0, extras = 0, reimburse
   };
 }
 
-/** Bedriftens valg (og sats for «Egen sats»). */
-export function companyPolicyRow(current = {}, { compensation, ratePerKm } = {}) {
+/** Bedriftens valg (og sats for «Egen sats»), og standard utbetaling av utlegg. */
+export function companyPolicyRow(current = {}, { compensation, ratePerKm, expensePayout } = {}) {
   const mode = COMPANY_MODES.has(compensation) ? compensation : 'taxfree';
   return {
     ...current,
     id: 'company',
     compensation: mode,
     ratePerKm: mode === 'custom' ? rateOf(ratePerKm) : rateOf(current?.ratePerKm),
+    expensePayout: PAYOUTS.has(expensePayout) ? expensePayout : companyPayout([current]),
   };
 }
 
-/** Den ansattes avtale. 'company' gir null: ingen egen rad, bedriftens sats gjelder. */
-export function employeePolicyRow(employeeId, { compensation, ratePerKm, employeeName = '' } = {}) {
+/**
+ * Den ansattes avtale. Uten egen sats og uten egen utbetaling gir den null: ingen egen rad,
+ * bedriftens valg gjelder. payout: 'payroll', 'direct' eller tom (som bedriften).
+ */
+export function employeePolicyRow(employeeId, { compensation, ratePerKm, employeeName = '', payout = '' } = {}) {
   const id = String(employeeId || '').trim();
-  if (!id || (compensation !== 'none' && compensation !== 'custom')) return null;
+  const own = compensation === 'none' || compensation === 'custom';
+  const ownPayout = PAYOUTS.has(payout) ? payout : '';
+  if (!id || (!own && !ownPayout)) return null;
   return {
     id: employeePolicyId(id),
     employeeId: id,
     employeeName: String(employeeName || '').slice(0, 120),
-    compensation,
+    compensation: own ? compensation : 'company',
     ratePerKm: compensation === 'custom' ? rateOf(ratePerKm) : 0,
+    payout: ownPayout,
   };
 }

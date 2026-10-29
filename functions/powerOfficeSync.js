@@ -14,6 +14,7 @@ import {
   orderRefFromLineRef,
   salesOrderFromInvoice,
   salesOrderRef,
+  sendRequestFromInvoice,
 } from './powerOfficeMap.js';
 
 /** Maks antall id-er i ett invoiceIds-filter. */
@@ -179,6 +180,47 @@ export async function transferInvoice(client, {
 }
 
 /**
+ * Be Go gjøre utkastet om til faktura og sende det (createAndSendInvoice).
+ * Krever tilgangen til fakturasending. Fakturanummer og KID kommer ved neste synk.
+ */
+export async function requestSend(client, { invoice, at = new Date().toISOString() }) {
+  const po = invoice?.poweroffice && typeof invoice.poweroffice === 'object' ? invoice.poweroffice : {};
+  if (!text(po.salesOrderId) || po.state !== 'draft') {
+    throw new Error('Bare utkast som ligger i PowerOffice, kan sendes herfra.');
+  }
+  await client.request('POST', `/SalesOrders/${encodeURIComponent(po.salesOrderId)}/createAndSendInvoice`, {
+    body: sendRequestFromInvoice(invoice),
+  });
+  return {
+    exportStatus: 'Sendes fra PowerOffice',
+    updatedAt: at,
+    poweroffice: { ...po, state: 'sending', sendRequestedAt: at, sendError: '' },
+  };
+}
+
+/** Sendingen feilet: utkastet ligger fortsatt i Go og kan sendes derfra eller på nytt. */
+export function sendFailedPatch(invoice, message, { at = new Date().toISOString() } = {}) {
+  const po = invoice?.poweroffice && typeof invoice.poweroffice === 'object' ? invoice.poweroffice : {};
+  return {
+    exportStatus: 'Overført til PowerOffice',
+    updatedAt: at,
+    poweroffice: {
+      ...po,
+      state: 'draft',
+      sendError: text(message).slice(0, 500) || 'Sendingen feilet i PowerOffice.',
+      sendFailedAt: at,
+    },
+  };
+}
+
+/** Status for en send-forespørsel: { IsInvoiceBeingProcessed, LastErrorMessage, SentDateTimeOffset }. */
+async function sentState(client, salesOrderId) {
+  const rows = await client.request('GET', '/SalesOrders/sentState', { query: { id: salesOrderId } });
+  const list = Array.isArray(rows) ? rows : (rows ? [rows] : []);
+  return list.find((row) => text(row?.Id) === text(salesOrderId)) || list[0] || null;
+}
+
+/**
  * Utkastet er borte. Ble det slått sammen, har et annet utkast (eller en sendt faktura)
  * linjer med vår referanse.
  */
@@ -224,9 +266,11 @@ function laterIso(a, b) {
  */
 export async function syncInvoices(client, { invoices = [], cursor = '', at = new Date().toISOString() }) {
   const patches = [];
-  const counts = { checked: 0, sent: 0, paid: 0, merged: 0, missing: 0 };
+  const counts = { checked: 0, sent: 0, paid: 0, merged: 0, missing: 0, sending: 0, failed: 0 };
   const tracked = invoices.filter((row) => text(row?.poweroffice?.salesOrderId));
   const drafts = tracked.filter((row) => row.poweroffice.state === 'draft');
+  // Bedt sendt fra ProTop: utkastet er på vei til å bli faktura i Go.
+  const sending = tracked.filter((row) => row.poweroffice.state === 'sending');
   const open = tracked.filter((row) => row.poweroffice.state === 'sent');
   let nextCursor = text(cursor);
 
@@ -239,7 +283,7 @@ export async function syncInvoices(client, { invoices = [], cursor = '', at = ne
   };
 
   // Uten markør vet vi ikke hva som har endret seg, så alle ubetalte sjekkes med id.
-  const byId = cursor ? drafts : [...drafts, ...open];
+  const byId = cursor ? [...drafts, ...sending] : [...drafts, ...sending, ...open];
   const found = new Map();
   for (const ids of chunk(byId.map((row) => row.poweroffice.salesOrderId), IDS_PER_CALL)) {
     const wanted = new Set(ids);
@@ -253,6 +297,18 @@ export async function syncInvoices(client, { invoices = [], cursor = '', at = ne
     const outgoing = found.get(invoice.poweroffice.salesOrderId);
     if (outgoing) {
       apply(invoice, outgoing);
+      continue;
+    }
+    if (invoice.poweroffice.state === 'sending') {
+      // Ikke ferdig sendt ennå. Utkastet kan være borte fra listen mens det blir faktura,
+      // så det leses som send-status, ikke som slettet.
+      const state = await sentState(client, invoice.poweroffice.salesOrderId).catch(() => null);
+      if (text(state?.LastErrorMessage) && !state?.IsInvoiceBeingProcessed) {
+        patches.push({ id: invoice.id, patch: sendFailedPatch(invoice, state.LastErrorMessage, { at }) });
+        counts.failed += 1;
+      } else {
+        counts.sending += 1;
+      }
       continue;
     }
     if (invoice.poweroffice.state !== 'draft') continue;

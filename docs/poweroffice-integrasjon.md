@@ -98,6 +98,8 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 - [ ] En ny overføring av samme utkast lager ikke duplikat. «Allerede overført» vises.
 - [ ] Send utkastet fra Go. «Synk nå» gir fakturanummer, KID, forsendelse og restbeløp i ProTop.
 - [ ] «Test tilbakehenting» med en faktura sendt fra Go viser fakturanummer, KID, forsendelse og restbeløp.
+- [ ] «Send fra PowerOffice nå» på et overført utkast: status «Sendes», og synk gir fakturanummer og KID.
+- [ ] Med automatisk sending på: «Overfør og send» sender fakturaen uten at noen åpner Go.
 - [ ] Registrer innbetaling i Go. Synk gir status «Betalt».
 - [ ] Slå sammen to utkast for samme kunde i Go. Synk finner det nye utkastet («slått sammen»).
 - [ ] Slett et overført utkast i Go. Synk viser «Finnes ikke lenger i PowerOffice». «Overfør på nytt» virker.
@@ -112,6 +114,20 @@ Funksjonene er `powerOfficeStatus`, `powerOfficeConnect`, `powerOfficeDisconnect
 - Til da: send en faktura laget manuelt i Go og bruk «Test tilbakehenting» under Regnskapssystem.
   Den slår opp fakturanummeret (`GET /OutgoingInvoices?invoiceNos=`), leser fakturaen på id
   (`GET /OutgoingInvoices/{id}`) og viser fakturanummer, KID, forsendelse og restbeløp. Ingenting lagres.
+
+### Status 29.10.2026
+
+- Rettelsen er publisert i demo. Utkast overføres: Go-utkast nr. 2 kom inn med riktig kunde, linjer og MVA.
+- Ny innstilling under Regnskapssystem: «Send fakturaen automatisk fra PowerOffice når den overføres» (av som
+  standard). På: ProTop kaller `POST /SalesOrders/{id}/createAndSendInvoice` rett etter overføringen, med
+  `DeliveryType: Auto` (EHF, eFaktura eller AvtaleGiro når kunden kan ta imot det, ellers PDF på e-post),
+  e-post fra fakturaen, og valgt fakturadato (`VoucherDate`) og frist (`OverrideDueDate`).
+- «Send fra PowerOffice nå» på et overført utkast gjør det samme for ett utkast. Status «Sendes» til synken
+  finner fakturaen i `GET /OutgoingInvoices`. Feilet sendingen (`GET /SalesOrders/sentState`, `LastErrorMessage`),
+  går den tilbake til utkast med feilmeldingen.
+- Krever tilgangen til fakturasending (CreateAndSendInvoice). Den må krysses av i skjemaet for produksjonstilgang.
+- Fakturaer fra testklienten (`poweroffice.env: 'demo'`) kan slettes fra fakturalisten uansett status, og
+  nummer derfra teller ikke i ProTop sin nummerserie.
 
 ## Utkast til svar til PowerOffice (sendes når testlisten er grønn)
 

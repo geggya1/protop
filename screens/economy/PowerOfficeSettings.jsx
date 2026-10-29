@@ -3,6 +3,7 @@ import { Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 're
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../../components/OptionPicker';
 import { showSaveToast } from '../../src/ui/saveToast';
+import { type } from '../../src/ui/tokens';
 import {
   connectPowerOffice,
   disconnectPowerOffice,
@@ -110,6 +111,13 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
     setLookup(null);
     const result = await run('lookup', () => lookupPowerOfficeInvoice(familyId, lookupNo));
     if (result) setLookup(result);
+  }
+
+  async function toggleAutoSend() {
+    const next = await run('autosend', () => connectPowerOffice(familyId, { autoSend: !status?.autoSend }));
+    if (!next) return;
+    applyStatus(next);
+    showSaveToast(next.autoSend ? 'Fakturaer sendes automatisk fra PowerOffice.' : 'Fakturaer sendes fra PowerOffice Go.');
   }
 
   async function disconnect() {
@@ -274,6 +282,32 @@ export default function PowerOfficeSettings({ familyId, colors, canEdit = false 
           {products && !products.length ? (
             <Text style={{ color: colors.muted }}>Fant ingen produkter i PowerOffice. Opprett dem der først.</Text>
           ) : null}
+        </View>
+      ) : null}
+
+      {connected ? (
+        <View nativeID="poweroffice-autosend" style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+          <Text style={[styles.heading, { color: colors.ink }]}>Sending</Text>
+          <TouchableOpacity
+            onPress={toggleAutoSend}
+            disabled={!!busy || !canEdit}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: !!status.autoSend }}
+            style={[styles.row, { opacity: busy || !canEdit ? 0.6 : 1 }]}
+          >
+            <Ionicons name={status.autoSend ? 'checkbox' : 'square-outline'} size={22} color={status.autoSend ? colors.brand : colors.muted} />
+            <Text style={{ color: colors.ink, fontWeight: '600', flex: 1 }}>
+              Send fakturaen automatisk fra PowerOffice når den overføres
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ color: colors.muted, lineHeight: 20 }}>
+            {status.autoSend
+              ? 'Det som overføres fra ProTop, regnes som godkjent. PowerOffice sender fakturaen med en gang: som EHF, eFaktura eller AvtaleGiro når kunden kan ta imot det, ellers som PDF på e-post til fakturaadressen. Fakturadato og forfall er de som er valgt i ProTop, ellers dagens dato og kundens betalingsbetingelse.'
+              : 'Av: utkastet legges i PowerOffice Go, og noen kontrollerer og sender det derfra. Et overført utkast kan også sendes med «Send fra PowerOffice nå» på fakturaen.'}
+          </Text>
+          <Text style={{ ...type.caption, color: colors.muted }}>
+            Krever at integrasjonen har tilgangen til fakturasending (CreateAndSendInvoice) i PowerOffice.
+          </Text>
         </View>
       ) : null}
 

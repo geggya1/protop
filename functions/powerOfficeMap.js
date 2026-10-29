@@ -146,6 +146,21 @@ function paymentTerm(row) {
 }
 
 /**
+ * Send-forespørsel for et utkast i Go (SendInvoiceRequestPostDto). Auto: Go sender EHF,
+ * eFaktura eller AvtaleGiro når kunden kan ta imot det, ellers PDF på e-post.
+ * Valgt fakturadato og frist i ProTop følger med. Ellers dagens dato og betalingsbetingelsen.
+ */
+export function sendRequestFromInvoice(invoice) {
+  const row = invoice && typeof invoice === 'object' ? invoice : {};
+  const body = { DeliveryType: 'Auto' };
+  const email = text(row.customerEmail);
+  if (email) body.EmailAddress = email;
+  if (row.invoiceDateSet === true && isoDate(row.invoiceDate)) body.VoucherDate = isoDate(row.invoiceDate);
+  if (row.dueDateSet === true && isoDate(row.dueDate)) body.OverrideDueDate = isoDate(row.dueDate);
+  return body;
+}
+
+/**
  * Forsendelse for en ny kunde i Go. Go bruker ellers e-post, og avviser kunden når
  * e-postadressen mangler. Med e-post: PDF på e-post. Uten: EHF når kunden har
  * org.nr., ellers papir. Purring og inkassovarsel kan bare gå på e-post eller papir.
@@ -277,6 +292,7 @@ export function invoicePatchFromOutgoing(invoice, outgoing, { at }) {
       balance,
       balanceChangedAt: text(outgoing?.BalanceLastChangedDateTimeOffset),
       matchId: num(outgoing?.MatchId),
+      sendError: '',
       syncedAt: at,
     },
     updatedAt: at,

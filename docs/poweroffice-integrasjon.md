@@ -1,6 +1,6 @@
 # PowerOffice Go — integrasjon for fakturautkast
 
-Sist oppdatert: 29.10.2026 (utlegg og kjøregodtgjørelse til PowerOffice, avklaringer)
+Sist oppdatert: 29.10.2026 (ønskeliste: bilag, lønn, resultatregnskap, tilganger)
 
 ## Avtalt med PowerOffice
 
@@ -166,6 +166,61 @@ og bilagsdokumentasjon (VoucherDocumentation, for å hente fakturaen kunden fikk
   Forhåndsvisningen viser spesifikasjonen. Beløpet er Go sitt, uten øreavrunding.
 - Kontonummer på fakturaen kommer fra klientoppsettet i Go. Testklienten har ingen bankkonto.
 
+## Ønskeliste: bilag, lønn og regnskapstall med PowerOffice (bestemt 29.10.2026)
+
+Prinsipp: PowerOffice Go er regnskapet. Kostnader kommer inn og godkjennes i Go som i dag. ProTop
+sender grunnlag dit (bilag med kvittering, lønnslinjer, timer) og leser tallene tilbake. Alt vi trenger,
+skal krysses av i skjemaet for produksjonstilgang, så vi slipper flere runder. Spørsmålene står under
+«Avklaringer med PowerOffice» og i svarutkastet.
+
+### Det vi ønsker, i prioritert rekkefølge
+
+1. **Bilag til regnskapsføreren.** Utlegg, firmakort, kvitteringer og andre bilag som registreres i ProTop,
+   sendes til Go som bilag med bilde/PDF (journalføringsutkast), så regnskapsføreren kontrollerer og
+   bokfører dem der. Ingenting bokføres direkte fra ProTop uten kontroll.
+2. **Lønn.** Utlegg som betales med lønnen, bilgodtgjørelse (trekkfri og trekkpliktig) og eventuelt
+   tillegg og overtid fra timene sendes som lønnslinjer til neste lønnskjøring. Status hentes tilbake
+   («Sendt til lønn» → «Utbetalt»).
+3. **Resultatregnskap i ProTop** (kun lesing). Saldobalanse og kontoposter fra Go gir en egen side med
+   resultat per måned og hittil i år, sammenlignet med i fjor, gruppert som i regnskapet (inntekter,
+   varekost, lønn, andre driftskostnader, finans). Klikk på en linje viser postene og bilaget. Kan
+   filtreres på avdeling og prosjekt. Kostnadene godkjennes fortsatt i Go.
+4. **Prosjektregnskap.** Kostnader per prosjekt fra Go (leverandørfakturaer og lønn ført på prosjekt)
+   sammen med timer, utlegg og fakturering i ProTop: dekningsbidrag per prosjekt.
+5. **Ansatte og arbeidsforhold.** Samme ansatte i ProTop og Go (ansattnummer, avdeling, stilling, start og
+   slutt). Grunnlag for lønnslinjer og bilag mot ansattreskontroen.
+6. **Prosjekter og avdelinger.** Samme nummer i ProTop og Go, så bilag og lønnslinjer havner riktig.
+7. **Timer.** Godkjente timer fra ProTop til timeføringen i Go, der klienten bruker den.
+8. **Kundereskontro.** Åpne poster, forfalt og purret per kunde i ProTop (i tillegg til faktura og betaling
+   som allerede synkes).
+9. **Lønnsslipper**, hvis PowerOffice har eller får et endepunkt for det. Da finner de ansatte lønn,
+   utlegg og bilgodtgjørelse på ett sted i ProTop. Ellers lenker vi til der lønnsslippen ligger.
+10. **Godkjenning av leverandørfakturaer i ProTop** (valgfritt). Prosjektleder kan attestere fakturaer på
+    sitt prosjekt fra ProTop, mens godkjenningen ellers fortsetter i Go.
+
+### Tilganger vi ber om i skjemaet for produksjonstilgang
+
+- Faktura (i bruk): kunder, produkter, salgsordre med vedlegg, utgående fakturaer, fakturasending
+  (CreateAndSendInvoice), bilagsdokumentasjon (VoucherDocumentation).
+- Bilag: journalføringsbilag/bilagsimport med vedlegg, bilagsdokumentasjon, bilagsgodkjenning
+  (VoucherApproval), leverandørbilag (lesing).
+- Lønn: lønnslinjer (SalaryLines), lønnsarter (PayItems), lønnsinnstillinger (PayrollSettings).
+- Kontakter og dimensjoner: ansatte og arbeidsforhold (Employees, Employments), prosjekter, avdelinger,
+  lokasjoner og egne dimensjoner.
+- Timeføring: aktiviteter, timetyper, timeføringer og TimeTransactions.
+- Rapporter: saldobalanse (TrialBalance), kontoposter (AccountTransactions), kundereskontro, kontoplan og
+  mva-koder (GeneralLedgerAccounts, VatCodes).
+
+### Notert fra dokumentasjonen (søk 29.10.2026)
+
+- Bilag kan sendes som journalføringsutkast med sider (PDF/bilde) og eventuelt sendes til godkjenning.
+  Godkjenning fra et eksternt system skjer ved å hente `GET /VoucherApproval` med jevne mellomrom.
+  Den gjelder leverandørbilag, bankbilag og manuelle bilag.
+- Noen endepunkter for leverandørbilag kan være begrenset. Må avklares med PowerOffice.
+- Bilagsimport (`POST /Imports/Upload`, `GET /Imports`) finnes, men PowerOffice anbefaler bilagsendepunktene.
+- Vi fant ingen webhooks. Endringer hentes med jevne mellomrom (synk), som for fakturaer i dag.
+- Saldobalanse er tilgjengelig også for klienter med bare lønnsmodul.
+
 ## Utlegg og kjøregodtgjørelse til PowerOffice (skal bygges)
 
 Bestemt: utlegg og kjøregodtgjørelse skal overføres til PowerOffice Go, slik at regnskapsføreren
@@ -272,6 +327,13 @@ trekkpliktig bilgodtgjørelse), ikke som et vanlig bilag.
 11. Tilganger for lønn og ansatte: SalaryLines, PayItems, PayrollSettings, Employees/Employments, og
     eventuelt timeføring, prosjekter, avdelinger og rapporter (AccountTransactions, TrialBalance).
     Krever lønn at klienten har lønnsmodulen i Go?
+12. Bilag til regnskapsføreren: kan andre bilag enn leverandørbilag (kvitteringer, utlegg, firmakort)
+    sendes som journalføringsutkast med bilde/PDF, så regnskapsføreren kontrollerer og bokfører dem i Go?
+    Hvilket endepunkt anbefaler dere, og hvilke begrensninger gjelder for endepunktene for leverandørbilag?
+13. Resultatregnskap og prosjektregnskap: er `TrialBalance` og `AccountTransactions` riktig grunnlag for
+    resultat per måned, avdeling og prosjekt? Får vi bilagsnummer og lenke eller dokument per post?
+14. Finnes det webhooks eller varsler for endringer (betalt faktura, kjørt lønn, nye bilag), eller skal vi
+    hente endringer med jevne mellomrom?
 
 ## Utkast til svar til PowerOffice (sendes når testlisten er grønn)
 
@@ -291,42 +353,49 @@ trekkpliktig bilgodtgjørelse), ikke som et vanlig bilag.
 >   10 kall i sekundet.
 > - Sammenslåtte utkast spores via ExternalImportReference på linjene.
 >
-> Kan du sende skjemaet for produksjonstilgang? Integrasjonen bruker salgsordrer med vedlegg, utgående
-> fakturaer, fakturasending (CreateAndSendInvoice), bilagsdokumentasjon (VoucherDocumentation), og kunder og
-> produkter.
+> Vi vil bruke mer av API-et, og ønsker å få alle tilgangene med i skjemaet for produksjonstilgang:
 >
-> Vi skal også overføre utlegg og kjøregodtgjørelse, slik at regnskapsføreren refunderer de ansatte
-> fra Go:
+> - Faktura (i bruk): kunder, produkter, salgsordrer med vedlegg, utgående fakturaer, fakturasending
+>   (CreateAndSendInvoice) og bilagsdokumentasjon (VoucherDocumentation).
+> - Bilag: journalføringsbilag med vedlegg, bilagsdokumentasjon, bilagsgodkjenning (VoucherApproval) og
+>   leverandørbilag (lesing).
+> - Lønn: lønnslinjer (SalaryLines), lønnsarter (PayItems) og lønnsinnstillinger (PayrollSettings).
+> - Ansatte og arbeidsforhold, prosjekter, avdelinger, lokasjoner og egne dimensjoner.
+> - Timeføring: aktiviteter, timetyper, timeføringer og TimeTransactions.
+> - Rapporter: saldobalanse, kontoposter, kundereskontro, kontoplan og mva-koder.
 >
-> - Utlegg betalt privat: ett bilag per utlegg, med kostnadskonto, avgiftskode og prosjekt i debet,
->   ansattreskontroen i kredit, og den skannede kvitteringen som bilagsdokumentasjon.
-> - Kjøregodtgjørelse: etter statens regulativ (5,30 kr/km, der 3,50 kr/km er trekkfritt), skattefri
->   sats eller egen sats, avhengig av bedrift og ansatt.
+> Det vi skal bygge:
+>
+> - Bilag til regnskapsføreren: utlegg, firmakort og kvitteringer fra ProTop sendes til Go med bilde
+>   eller PDF, så regnskapsføreren kontrollerer og bokfører dem der.
+> - Lønn: utlegg som betales med lønnen, og bilgodtgjørelse etter statens regulativ (5,30 kr/km, der
+>   3,50 kr/km er trekkfritt), skattefri sats eller egen sats, sendes som lønnslinjer til neste
+>   lønnskjøring. Status hentes tilbake.
+> - Resultatregnskap og prosjektregnskap i ProTop, lest fra saldobalanse og kontoposter. Kostnadene
+>   godkjennes fortsatt i Go.
+> - Samme ansatte, prosjekter og avdelinger i ProTop og Go, og godkjente timer til timeføringen.
 >
 > Spørsmål:
 >
-> 1. Hvilket endepunkt anbefaler dere for utlegg fra ansatte: bilag med ansattreskontro, eller import
->    med EmployeeNo på linjene?
-> 2. Kan bilaget komme inn som utkast som regnskapsføreren godkjenner før bokføring?
-> 3. Tar bilagsdokumentasjonen imot JPG, eller må kvitteringen være PDF? Hva er største filstørrelse?
+> 1. Utlegg betalt privat: anbefaler dere bilag mot ansattreskontroen, import med EmployeeNo på linjene,
+>    eller lønnslinjer når utlegget betales med lønnen?
+> 2. Kan bilag fra ProTop (kvitteringer, utlegg, firmakort) komme inn som journalføringsutkast med
+>    bilde/PDF, så regnskapsføreren kontrollerer og bokfører dem? Gjelder det bare leverandørbilag i dag,
+>    og hvilke begrensninger har endepunktene for leverandørbilag?
+> 3. Tar bilagsdokumentasjonen imot JPG, eller må vedlegget være PDF? Hva er største filstørrelse?
 > 4. Kan vi sende SAF-T-avgiftskodene (1, 11, 13, 0, 86) direkte, eller må vi bruke klientens egne
 >    mva-koder?
-> 5. Kan kjøregodtgjørelse sendes som lønnslinjer til lønnskjøringen, med trekkfri og trekkpliktig
->    bilgodtgjørelse hver for seg? Hvilket endepunkt og hvilke lønnsarter?
-> 6. Kan vi slå opp ansatte på e-post for å finne ansattnummeret?
-> 7. Hvilke felt bruker vi for prosjekt og avdeling på bilagslinjene?
-> 8. Hvilke tilganger skal vi krysse av i skjemaet for produksjonstilgang for dette (bilag,
->    bilagsdokumentasjon, ansatte, lønn, prosjekter og avdelinger)?
-> 9. De fleste ansatte får utleggene utbetalt med lønnen. Vi planlegger å sende dem som lønnslinjer
->    (POST /SalaryLines) på den ansatte. Hvilke lønnsarter (PayItems) bør vi bruke for refusjon av
->    utlegg og for trekkfri og trekkpliktig bilgodtgjørelse? Og hvordan ser vi på en lønnslinje at den
->    er tatt med i en fullført lønnskjøring, og hvilken utbetalingsdato den fikk?
-> 10. Finnes det, eller kommer det, et endepunkt for lønnsslipper eller utbetalt lønn per ansatt, så de
->     ansatte kan se lønnen sin i ProTop? Hvis ikke: hvor ser den ansatte lønnsslippen i PowerOffice,
->     så vi kan lenke dit?
-> 11. Hvilke tilganger trenger vi for lønnslinjer, lønnsarter, lønnsinnstillinger, ansatte og
->     arbeidsforhold, og eventuelt timeføring, prosjekter, avdelinger og rapporter? Krever lønnslinjene
->     at klienten har lønnsmodulen i Go?
+> 5. Lønnslinjer: hvilke lønnsarter (PayItems) bør vi bruke for refusjon av utlegg og for trekkfri og
+>    trekkpliktig bilgodtgjørelse? Hvordan ser vi at en linje er tatt med i en fullført lønnskjøring, og
+>    hvilken utbetalingsdato den fikk? Krever lønnslinjene at klienten har lønnsmodulen?
+> 6. Finnes det, eller kommer det, et endepunkt for lønnsslipper eller utbetalt lønn per ansatt? Hvis ikke:
+>    hvor ser den ansatte lønnsslippen, så vi kan lenke dit?
+> 7. Kan vi slå opp ansatte på e-post for å finne ansattnummeret?
+> 8. Hvilke felt bruker vi for prosjekt og avdeling på bilagslinjer og lønnslinjer?
+> 9. Er TrialBalance og AccountTransactions riktig grunnlag for resultat per måned, avdeling og prosjekt?
+>    Får vi bilagsnummer og dokument per post?
+> 10. Finnes det webhooks eller varsler for endringer (betalt faktura, kjørt lønn, nye bilag), eller skal vi
+>     hente endringer med jevne mellomrom?
 >
 > Med vennlig hilsen
 > Geir Ove Andersen

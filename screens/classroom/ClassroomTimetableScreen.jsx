@@ -8,6 +8,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { classroomColors as c } from '../../src/classroomTheme';
 import OptionPicker from '../../components/OptionPicker';
+import DateInput from '../../components/DateInput';
 import {
   listenSubjects, listenTimetableSlots, createTimetableSlot, deleteTimetableSlot,
   expandTimetableSlots, weekRangeKeys, monthRangeKeys, yearRangeKeys, WEEKDAYS,
@@ -327,10 +328,25 @@ export default function ClassroomTimetableScreen({ classroomId, classroom }) {
               <TextInput style={styles.input} value={form.title} onChangeText={(t) => setForm((f) => ({ ...f, title: t }))} placeholder="Norsk" />
               <Text style={styles.label}>Sted (valgfritt)</Text>
               <TextInput style={styles.input} value={form.location} onChangeText={(t) => setForm((f) => ({ ...f, location: t }))} placeholder="Rom 12" />
-              <Text style={styles.label}>Fra dato (YYYY-MM-DD)</Text>
-              <TextInput style={styles.input} value={form.fromDate} onChangeText={(t) => setForm((f) => ({ ...f, fromDate: t }))} />
+              <Text style={styles.label}>Fra dato</Text>
+              <DateInput
+                style={styles.input}
+                textStyle={{ color: form.fromDate ? c.ink : c.muted }}
+                value={form.fromDate}
+                onChange={(t) => setForm((f) => ({ ...f, fromDate: t }))}
+                format="iso"
+                accessibilityLabel="Fra dato"
+              />
               <Text style={styles.label}>Til og med dato</Text>
-              <TextInput style={styles.input} value={form.toDate} onChangeText={(t) => setForm((f) => ({ ...f, toDate: t }))} />
+              <DateInput
+                style={styles.input}
+                textStyle={{ color: form.toDate ? c.ink : c.muted }}
+                value={form.toDate}
+                onChange={(t) => setForm((f) => ({ ...f, toDate: t }))}
+                format="iso"
+                min={form.fromDate}
+                accessibilityLabel="Til og med dato"
+              />
               <Text style={styles.hint}>Økten gjentas hver uke i perioden.</Text>
               <TouchableOpacity style={styles.save} onPress={save} disabled={busy}>
                 {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveTxt}>Lagre og gjenta ukentlig</Text>}

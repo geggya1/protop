@@ -144,6 +144,9 @@ export function normalizeTrip(input = {}) {
   const allowance = roundMoney(distance * rate + passengers * PASSENGER_RATE * distance);
   const extras = roundMoney(tolls + parking + charging + otherCosts + ferries);
   const status = TRIP_STATUSES.some((s) => s.id === row.status) ? row.status : 'draft';
+  const taxFree = purpose === 'duty' ? Math.min(allowance, roundMoney(distance * MILEAGE_RATE_TAX_FREE)) : 0;
+  // «Dekket av lønn» (src/mileage/compensation.js): km-godtgjørelsen refunderes ikke, utleggene gjør.
+  const reimbursable = row.reimbursable !== false;
   return {
     id: text(row.id),
     date: text(row.date),
@@ -174,7 +177,12 @@ export function normalizeTrip(input = {}) {
     taxable: purpose === 'private' || purpose === 'commute'
       ? roundMoney(distance * (vehicleKind === 'company' ? FIRM_CAR_PRIVATE_RATE : 0))
       : 0,
-    taxFree: purpose === 'duty' ? Math.min(allowance, roundMoney(distance * MILEAGE_RATE_TAX_FREE)) : 0,
+    taxFree,
+    compensation: text(row.compensation),
+    reimbursable,
+    // Det den ansatte får tilbake, og delen av km-godtgjørelsen som er skattepliktig (lønn).
+    reimbursement: roundMoney(reimbursable ? allowance + extras : extras),
+    taxableAllowance: reimbursable && purpose === 'duty' ? roundMoney(allowance - taxFree) : 0,
     billable: row.billable !== false && purpose === 'duty',
     billableRate: Number(row.billableRate) > 0 ? Number(row.billableRate) : rate,
     customerId: text(row.customerId),

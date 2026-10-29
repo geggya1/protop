@@ -41,6 +41,9 @@ const MULTILINE_FIELDS = new Set([
   'competenceDevelopment', 'pensionInsurance',
 ]);
 
+/** Datofeltene lagres som åååå-mm-dd (normalizeContract). */
+const DATE_FIELDS = new Set(['startDate', 'endDate']);
+
 const EMPTY_CONTRACT_DRAFT = {
   id: '',
   title: 'Arbeidsavtale',
@@ -342,6 +345,8 @@ export default function HrContracts({
                   value={String(draft[field.key] || '')}
                   onChangeText={(value) => setField(field.key, value)}
                   multiline={MULTILINE_FIELDS.has(field.key)}
+                  date={DATE_FIELDS.has(field.key) ? 'iso' : undefined}
+                  clearable={field.key === 'endDate'}
                 />
               ))}
               <HrButton colors={colors} label="Lagre avtale på person" primary icon="save-outline" onPress={saveContract} />

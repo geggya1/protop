@@ -247,7 +247,7 @@ export function BuilderField({ field: f, value, onChange, error, people }) {
   switch (f.kind) {
     case 'long': input = <TextIn accessibilityLabel={f.label} multiline value={value} onChangeText={onChange} placeholder={f.placeholder || ''} />; break;
     case 'number': input = <TextIn accessibilityLabel={f.label} keyboardType="numeric" value={value} onChangeText={onChange} />; break;
-    case 'date': input = <DateIn value={value} onChange={onChange} />; break;
+    case 'date': input = <DateIn value={value} onChange={onChange} clearable={!f.required} />; break;
     case 'time': input = <TextIn accessibilityLabel={f.label} value={value} onChangeText={onChange} placeholder="tt:mm" />; break;
     case 'choice': case 'dropdown': input = <Choice options={opts} value={value} onChange={onChange} />; break;
     case 'checks': input = <Choice multi options={opts} value={value || []} onChange={onChange} />; break;

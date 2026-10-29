@@ -382,7 +382,7 @@ export default function HrFollowUp({
             <View style={styles.form}>
               <HrField colors={colors} label="Tittel" value={caseDraft.title} onChangeText={(title) => setCaseDraft((p) => ({ ...p, title }))} />
               <HrField colors={colors} label="Beskrivelse" value={caseDraft.description} onChangeText={(description) => setCaseDraft((p) => ({ ...p, description }))} multiline />
-              <HrField colors={colors} label="Frist (ÅÅÅÅ-MM-DD)" value={caseDraft.dueDate} onChangeText={(dueDate) => setCaseDraft((p) => ({ ...p, dueDate }))} />
+              <HrField colors={colors} label="Frist" date="iso" clearable value={caseDraft.dueDate} onChangeText={(dueDate) => setCaseDraft((p) => ({ ...p, dueDate }))} />
               <View style={styles.chips}>
                 {CASE_PRIORITIES.map((p) => (
                   <HrChip key={p.id} colors={colors} label={p.label} active={caseDraft.priority === p.id} onPress={() => setCaseDraft((prev) => ({ ...prev, priority: p.id }))} />
@@ -495,7 +495,7 @@ export default function HrFollowUp({
                   />
                 ))}
               </View>
-              <HrField colors={colors} label="Dato" value={reviewDraft.date} onChangeText={(date) => setReviewDraft((p) => ({ ...p, date }))} />
+              <HrField colors={colors} label="Dato" date="iso" value={reviewDraft.date} onChangeText={(date) => setReviewDraft((p) => ({ ...p, date }))} />
               <HrField colors={colors} label="Samtalepartner" value={reviewDraft.interviewer} onChangeText={(interviewer) => setReviewDraft((p) => ({ ...p, interviewer }))} />
               <HrField colors={colors} label="Trivsel (1–5)" value={reviewDraft.wellbeing} onChangeText={(wellbeing) => setReviewDraft((p) => ({ ...p, wellbeing }))} />
               <HrField colors={colors} label="Sammendrag" value={reviewDraft.summary} onChangeText={(summary) => setReviewDraft((p) => ({ ...p, summary }))} multiline />
@@ -648,7 +648,7 @@ export default function HrFollowUp({
             <View style={styles.form}>
               <HrField colors={colors} label="Oppgave" value={taskDraft.title} onChangeText={(title) => setTaskDraft((p) => ({ ...p, title }))} />
               <HrField colors={colors} label="Beskrivelse" value={taskDraft.description} onChangeText={(description) => setTaskDraft((p) => ({ ...p, description }))} multiline />
-              <HrField colors={colors} label="Frist" value={taskDraft.dueDate} onChangeText={(dueDate) => setTaskDraft((p) => ({ ...p, dueDate }))} />
+              <HrField colors={colors} label="Frist" date="iso" clearable value={taskDraft.dueDate} onChangeText={(dueDate) => setTaskDraft((p) => ({ ...p, dueDate }))} />
               <HrButton
                 colors={colors}
                 label="Tildel oppgave"

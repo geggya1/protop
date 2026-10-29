@@ -30,6 +30,7 @@ import { adultUidsFromMembers } from '../../src/utils/birthdayPrepReminder';
 import { notifyUsers } from '../../src/utils/notifications';
 import BoligenCareSections from '../../components/BoligenCareSections';
 import HelpTarget from '../../components/HelpTarget';
+import DateInput from '../../components/DateInput';
 
 import {
   listenHoldings, saveHolding, archiveHolding, isHomeItemHolding,
@@ -1324,13 +1325,13 @@ export default function BoligmappaHubScreen({ inShell = false }) {
                 ) : (
                   <Mute>Legg til rom først hvis tingen skal høre til et sted.</Mute>
                 )}
-                <TextInput
+                <DateInput
                   style={styles.input}
                   value={itemWarranty}
-                  onChangeText={setItemWarranty}
-                  placeholder="Garanti til (ÅÅÅÅ-MM-DD)"
-                  placeholderTextColor={colors.placeholder}
-                  autoCapitalize="none"
+                  onChange={setItemWarranty}
+                  format="iso"
+                  placeholder="Garanti til"
+                  clearable
                 />
                 {(selected?.entries || []).length ? (
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -1457,14 +1458,15 @@ export default function BoligmappaHubScreen({ inShell = false }) {
                   multiline
                 />
 
-                <Text style={styles.fieldLabel}>Dato (ÅÅÅÅ-MM-DD)</Text>
-                <TextInput
+                <Text style={styles.fieldLabel}>Dato</Text>
+                <DateInput
                   style={styles.input}
                   value={entryDateKey}
-                  onChangeText={setEntryDateKey}
+                  onChange={setEntryDateKey}
+                  format="iso"
                   placeholder="Valgfritt"
-                  placeholderTextColor={colors.placeholder}
-                  autoCapitalize="none"
+                  accessibilityLabel="Dato"
+                  clearable
                 />
 
                 <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Garanti</Text>
@@ -1477,13 +1479,14 @@ export default function BoligmappaHubScreen({ inShell = false }) {
                     placeholderTextColor={colors.placeholder}
                     keyboardType="number-pad"
                   />
-                  <TextInput
+                  <DateInput
                     style={[styles.input, { flex: 2 }]}
                     value={warrantyUntil}
-                    onChangeText={setWarrantyUntil}
-                    placeholder="Til dato (ÅÅÅÅ-MM-DD)"
-                    placeholderTextColor={colors.placeholder}
-                    autoCapitalize="none"
+                    onChange={setWarrantyUntil}
+                    format="iso"
+                    placeholder="Til dato"
+                    accessibilityLabel="Garanti til dato"
+                    clearable
                   />
                 </View>
                 <TextInput

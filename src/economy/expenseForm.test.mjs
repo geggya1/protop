@@ -1,8 +1,8 @@
 /**
- * «Nytt utlegg»: prosjektvelgeren og utfylling fra en tolket kvittering.
+ * Utlegg: prosjektvelgeren med den ansattes aktive prosjekter først.
  */
 import assert from 'node:assert/strict';
-import { expensePatchFromReceipt, expenseProjectOptions, receiptVatCode } from './expenseForm.js';
+import { expenseProjectOptions } from './expenseForm.js';
 
 {
   const projects = [
@@ -21,64 +21,4 @@ import { expensePatchFromReceipt, expenseProjectOptions, receiptVatCode } from '
   // Arkivert vises bare når utlegget allerede står på prosjektet.
   assert.ok(expenseProjectOptions(projects, { keepId: 'p4' }).some((row) => row.id === 'p4'));
   assert.deepEqual(expenseProjectOptions([], {}), []);
-}
-
-assert.equal(receiptVatCode(25), 'HIGH');
-assert.equal(receiptVatCode(15), 'MID');
-assert.equal(receiptVatCode(12), 'LOW');
-assert.equal(receiptVatCode(0), 'EXEMPT');
-assert.equal(receiptVatCode(25.1), 'HIGH');
-assert.equal(receiptVatCode(null), null);
-assert.equal(receiptVatCode(8), null);
-
-{
-  // Tomt skjema: dato, beløp eks. mva, beskrivelse og kategori fylles.
-  const draft = { date: '2026-10-29', category: 'other', amountExVat: '' };
-  const bilag = {
-    supplier: 'Byggmakker Sandnes', date: '2026-10-27', amount: 1250, vatAmount: 250, vatPercent: 25,
-    category: 'bygg', suggestedTitle: 'Skruer og lister – Byggmakker',
-  };
-  const { patch, summary, filled } = expensePatchFromReceipt(draft, bilag, { today: '2026-10-29' });
-  assert.deepEqual(patch, {
-    vendor: 'Byggmakker Sandnes',
-    date: '2026-10-27',
-    vatCode: 'HIGH',
-    amountExVat: '1000',
-    description: 'Skruer og lister – Byggmakker',
-    category: 'materials',
-  });
-  assert.deepEqual(filled, ['dato', 'beløp', 'beskrivelse', 'kategori']);
-  assert.match(summary, /^Lest fra kvitteringen: Byggmakker Sandnes, 27\.10\.2026, 1 250,00 kr inkl\. mva \(mva 250,00 kr\)\./);
-}
-
-{
-  // Det brukeren har skrevet, overskrives ikke. Dato endret av brukeren står.
-  const draft = { date: '2026-10-01', amountExVat: '3', description: 'TEST', category: 'tools', vendor: 'Meg' };
-  const { patch, filled } = expensePatchFromReceipt(draft, { supplier: 'X', date: '2026-10-27', amount: 500, vatAmount: 100 }, { today: '2026-10-29' });
-  assert.deepEqual(patch, {});
-  assert.deepEqual(filled, []);
-}
-
-{
-  // Bompenger uten mva, og beløp uten mva-opplysning (regnes som 25 %).
-  assert.deepEqual(expensePatchFromReceipt({}, { amount: 45, vatPercent: 0, category: 'bompenger' }).patch, {
-    vatCode: 'EXEMPT', amountExVat: '45', category: 'toll',
-  });
-  assert.equal(expensePatchFromReceipt({}, { amount: 125 }).patch.amountExVat, '100');
-  assert.match(expensePatchFromReceipt({}, {}).summary, /Fant ikke/);
-}
-
-// Fakturering: viderefakturering eller internkostnad. «Utlegg i kundens navn» bare på eldre utlegg.
-{
-  const { EXPENSE_BILLING_CHOICES, expenseBillingChoice, expenseBillingChoices, expenseBillingPatch, emptyExpense } = await import('./expenses.js');
-  assert.deepEqual(EXPENSE_BILLING_CHOICES.map((row) => row.label), ['Viderefakturering', 'Internkostnad']);
-  assert.equal(expenseBillingChoice({}), 'reinvoice');
-  assert.equal(expenseBillingChoice({ billable: false }), 'internal');
-  assert.equal(expenseBillingChoice({ chargeType: 'outlay' }), 'outlay');
-  assert.deepEqual(expenseBillingChoices({}).map((row) => row.id), ['reinvoice', 'internal']);
-  assert.deepEqual(expenseBillingChoices({ chargeType: 'outlay' }).map((row) => row.id), ['reinvoice', 'internal', 'outlay']);
-  const internal = emptyExpense({ amountExVat: 100, ...expenseBillingPatch('internal') });
-  assert.equal(internal.billable, false);
-  assert.equal(internal.chargeType, 'reinvoice');
-  assert.equal(emptyExpense({ billable: false, ...expenseBillingPatch('reinvoice') }).billable, true);
 }

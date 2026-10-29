@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { useApp } from '../../src/context/AppContext';
+import DateInput from '../../components/DateInput';
 import { listenPickupPlans, createPickupPlan } from '../../src/platform/platformCore';
 
 export default function PlatformPickupScreen({ config, groupId }) {
@@ -59,7 +60,14 @@ export default function PlatformPickupScreen({ config, groupId }) {
       {formOpen && (
         <View style={[styles.form, { backgroundColor: c.surface, borderColor: c.line }]}>
           <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Barn" value={childName} onChangeText={setChildName} placeholderTextColor={c.muted} />
-          <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Dato" value={dateKey} onChangeText={setDateKey} placeholderTextColor={c.muted} />
+          <DateInput
+            style={[styles.input, { borderColor: c.line, backgroundColor: c.surface }]}
+            textStyle={{ color: dateKey ? c.ink : c.muted }}
+            placeholder="Dato"
+            value={dateKey}
+            onChange={setDateKey}
+            format="iso"
+          />
           <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Hentetid" value={pickupTime} onChangeText={setPickupTime} placeholderTextColor={c.muted} />
           <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Hentes av" value={pickupBy} onChangeText={setPickupBy} placeholderTextColor={c.muted} />
           <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Telefon" value={pickupPhone} onChangeText={setPickupPhone} placeholderTextColor={c.muted} keyboardType="phone-pad" />

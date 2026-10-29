@@ -248,6 +248,18 @@ export function removePersonalVehicle(state, id) {
   });
 }
 
+/** Lagrer en ordning for kjøregodtgjørelse (src/mileage/compensation.js), for bedriften eller en ansatt. */
+export function setMileagePolicy(state, row) {
+  if (!row?.id) return fail(state, 'Mangler ordning.');
+  const policy = { ...row, updatedAt: stamp() };
+  return ok({ ...state, mileagePolicies: replaceById(state.mileagePolicies || [], policy) }, { policy });
+}
+
+/** Fjerner et unntak (den ansatte følger bedriftens ordning igjen). */
+export function removeMileagePolicy(state, id) {
+  return ok({ ...state, mileagePolicies: (state.mileagePolicies || []).filter((row) => row?.id !== id) });
+}
+
 /** Tom sats betyr statens regulativ. Driften setter kroner per km her. */
 export function setMileageRate(state, ratePerKm) {
   const rate = Number(String(ratePerKm ?? '').replace(',', '.'));

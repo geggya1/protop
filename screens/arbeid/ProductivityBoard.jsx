@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
+  Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native';
 import Svg, { Line, Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -53,6 +53,7 @@ import {
   weekSeries,
 } from '../../src/capacity/plan';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
+import DateInput from '../../components/DateInput';
 
 const WEEK_W = 54;
 const MATRIX_W = 48;
@@ -1348,72 +1349,40 @@ function AllocationSettings({
           </Pressable>
         ) : null}
       </View>
-      <View style={styles.editorLine}>
-        <DateChip
-          colors={colors}
-          label="Fra"
-          value={alloc.start || ''}
-          editable={canWrite}
-          onChange={onFrom}
-          nativeID="produktivitet-from"
-        />
-        <Text style={[styles.miniSuffix, { color: colors.muted }]}>–</Text>
-        <DateChip
-          colors={colors}
-          label="Til"
-          value={allocationInclusiveEnd(alloc)}
-          editable={canWrite}
-          onChange={onTo}
-          nativeID="produktivitet-to"
-        />
-      </View>
+      <DateChip
+        colors={colors}
+        label="Fra"
+        value={alloc.start || ''}
+        editable={canWrite}
+        onChange={onFrom}
+        nativeID="produktivitet-from"
+      />
+      <DateChip
+        colors={colors}
+        label="Til"
+        value={allocationInclusiveEnd(alloc)}
+        editable={canWrite}
+        onChange={onTo}
+        nativeID="produktivitet-to"
+      />
     </View>
   );
 }
 
 function DateChip({ colors, label, value, editable, onChange, nativeID }) {
-  const [text, setText] = useState(value || '');
-  useEffect(() => { setText(value || ''); }, [value]);
-  const shown = weekMeta(value).date || '–';
-  const commit = (next) => {
-    const raw = String(next || '');
-    setText(raw);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return;
-    onChange(raw);
-  };
+  // Belegget må ha begge datoer: tømming ignoreres.
   return (
-    <View nativeID={nativeID} style={[styles.dateChip, { borderColor: colors.line }]}>
+    <View nativeID={nativeID} style={styles.editorLine}>
       <Text style={[styles.dateChipLabel, { color: colors.muted }]}>{label}</Text>
-      <Text style={[styles.dateChipValue, { color: colors.ink }]}>{shown}</Text>
-      {Platform.OS === 'web' ? (
-        <input
-          type="date"
-          value={value || ''}
-          disabled={!editable}
-          aria-label={label}
-          onPointerDown={(event) => event.stopPropagation()}
-          onChange={(event) => commit(event.target.value)}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            opacity: 0,
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        />
-      ) : (
-        <TextInput
-          value={text}
-          editable={editable}
-          onChangeText={commit}
-          placeholder="ÅÅÅÅ-MM-DD"
-          autoCapitalize="none"
-          accessibilityLabel={label}
-          style={styles.nativeDate}
-        />
-      )}
+      <DateInput
+        value={value || ''}
+        onChange={(next) => { if (next) onChange(next); }}
+        format="iso"
+        editable={editable}
+        compact
+        accessibilityLabel={label}
+        style={styles.dateChipInput}
+      />
     </View>
   );
 }
@@ -1555,20 +1524,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   miniSuffix: { fontSize: 11, fontWeight: '700' },
-  dateChip: {
-    position: 'relative',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    borderWidth: 1,
-    borderRadius: 7,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    overflow: 'hidden',
-  },
-  dateChipLabel: { fontSize: 9, fontWeight: '700' },
-  dateChipValue: { fontSize: 12, fontWeight: '700' },
-  nativeDate: { width: 78, fontSize: 11, paddingVertical: 0 },
+  dateChipLabel: { fontSize: 9, fontWeight: '700', minWidth: 16 },
+  dateChipInput: { flex: 1, minWidth: 0 },
   sectionLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, gap: 2 },

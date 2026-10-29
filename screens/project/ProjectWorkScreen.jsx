@@ -92,6 +92,7 @@ import { projectLookupNumbers } from '../../src/project/projectFields.js';
 import { projectHoursQuery } from '../../src/economy/timeEntryStorage.js';
 import { uploadAgreementFile } from '../../src/anbud/contractFiles';
 import SearchSelect from '../../components/project/SearchSelect';
+import DateInput from '../../components/DateInput';
 import { searchPlaces } from '../../src/utils/location';
 import { addressFieldsFromPlace } from '../../src/mileage/flow';
 import ProjectDetail from '../../components/project/ProjectDetail';
@@ -245,18 +246,22 @@ async function bytesFromFile(file) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-function Field({ label, value, onChangeText, placeholder, colors, multiline }) {
+function Field({ label, value, onChangeText, placeholder, colors, multiline, date }) {
   return (
     <View style={styles.field}>
       <Text style={[styles.label, { color: colors.muted }]}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.placeholder}
-        multiline={!!multiline}
-        style={[styles.input, multiline && styles.inputMulti, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
+      {date ? (
+        <DateInput value={value} onChange={onChangeText} format="iso" clearable accessibilityLabel={label} />
+      ) : (
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.placeholder}
+          multiline={!!multiline}
+          style={[styles.input, multiline && styles.inputMulti, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+        />
+      )}
     </View>
   );
 }
@@ -1416,8 +1421,8 @@ export default function ProjectWorkScreen() {
       <Field label="Statuskommentar" value={form.statusComment} onChangeText={(v) => patchForm('statusComment', v)} colors={colors} />
       <Field label="Avdeling" value={form.department} onChangeText={(v) => patchForm('department', v)} colors={colors} />
       <Field label="Prosjektleder / eier" value={form.manager} onChangeText={(v) => patchForm('manager', v)} colors={colors} />
-      <Field label="Start" value={form.start} onChangeText={(v) => patchForm('start', v)} colors={colors} />
-      <Field label="Slutt" value={form.end} onChangeText={(v) => patchForm('end', v)} colors={colors} />
+      <Field label="Start" value={form.start} onChangeText={(v) => patchForm('start', v)} colors={colors} date />
+      <Field label="Slutt" value={form.end} onChangeText={(v) => patchForm('end', v)} colors={colors} date />
       <SearchSelect
         colors={colors}
         label="Hovedprosjekt"

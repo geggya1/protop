@@ -787,8 +787,6 @@ export function AbsenceReportDesktop({
       toDate={toDate}
       onFromDate={setFromDate}
       onToDate={setToDate}
-      onFromDateBlur={() => setFromDate((current) => parseDate(current) || current)}
-      onToDateBlur={() => setToDate((current) => parseDate(current) || current)}
       sort={sort}
       onSort={setSort}
       category={category}

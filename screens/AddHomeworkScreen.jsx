@@ -6,7 +6,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
-  Platform, Image, ActivityIndicator,
+  Image, ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,7 @@ import { radius, useLayout } from '../src/theme';
 import { Screen, Title, BigButton } from '../components/ui';
 import DesktopFormShell from '../components/DesktopFormShell';
 import ConfirmActionModal from '../components/ConfirmActionModal';
+import DateInput from '../components/DateInput';
 import { dateKey, parseDateKey } from '../src/utils/dates';
 import { pickDocument, uploadFile } from '../src/utils/media';
 import {
@@ -271,28 +272,13 @@ export default function AddHomeworkScreen() {
       ) : (
         <>
           <View style={styles.deadlineRow}>
-            {Platform.OS === 'web' ? (
-              <View style={[styles.pickerBtn, { flex: 1 }]}>
-                <Ionicons name="calendar-outline" size={18} color={colors.brand} />
-                <Text style={[styles.pickerBtnTxt, !dueDate && styles.pickerPlaceholder]}>
-                  {dueDate || 'Velg dato'}
-                </Text>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  style={styles.webPickerOverlay}
-                  aria-label="Velg frist"
-                />
-              </View>
-            ) : (
-              <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                value={dueDate}
-                onChangeText={setDueDate}
-                placeholder="ÅÅÅÅ-MM-DD"
-              />
-            )}
+            <DateInput
+              style={{ flex: 1 }}
+              value={dueDate}
+              onChange={setDueDate}
+              format="iso"
+              accessibilityLabel="Velg frist"
+            />
           </View>
           {dueDate ? (
             <TouchableOpacity onPress={() => setDueDate('')}>
@@ -499,27 +485,6 @@ function makeStyles(colors) {
     chipOn: { backgroundColor: colors.brand, borderColor: colors.brand },
     chipTxt: { fontWeight: '400', color: colors.ink, fontSize: 13 },
     chipTxtOn: { color: '#fff' },
-    pickerBtn: {
-      alignSelf: 'flex-start',
-      position: 'relative',
-      overflow: 'hidden',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      minHeight: 44,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.brand,
-      backgroundColor: colors.card,
-    },
-    pickerBtnTxt: { flex: 1, fontSize: 14, fontWeight: '500', color: colors.ink },
-    pickerPlaceholder: { color: colors.muted, fontWeight: '400' },
-    webPickerOverlay: {
-      position: 'absolute', left: 0, top: 0, width: '100%', height: '100%',
-      opacity: 0, cursor: 'pointer', border: 'none', backgroundColor: 'transparent',
-    },
     deadlineRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
     attRow: {
       flexDirection: 'row', alignItems: 'center', gap: 10,

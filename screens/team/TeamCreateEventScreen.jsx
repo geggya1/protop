@@ -12,6 +12,7 @@ import { createTeamEvent } from '../../src/utils/teams';
 import { teamColors as c } from '../../src/teamTheme';
 import LocationPicker from '../../components/LocationPicker';
 import OptionPicker from '../../components/OptionPicker';
+import DateInput from '../../components/DateInput';
 
 function InviteChip({ label, selected, onPress }) {
   return (
@@ -134,27 +135,16 @@ export default function TeamCreateEventScreen() {
           placeholderTextColor={c.muted}
         />
         <Text style={styles.label}>Dato</Text>
-        {Platform.OS === 'web' ? (
-          <View style={styles.dateWrap}>
-            <input
-              type="date"
-              value={dateKey}
-              onChange={(e) => setDateKey(e.target.value)}
-              style={{
-                width: '100%', padding: 14, borderRadius: 16, border: `1px solid ${c.line}`,
-                background: c.surface, color: c.ink, fontWeight: '400', fontSize: 16,
-              }}
-            />
-          </View>
-        ) : (
-          <TextInput
+        <View style={styles.dateWrap}>
+          <DateInput
             style={styles.input}
+            textStyle={{ color: dateKey ? c.ink : c.muted }}
             value={dateKey}
-            onChangeText={setDateKey}
-            placeholder="ÅÅÅÅ-MM-DD"
-            placeholderTextColor={c.muted}
+            onChange={setDateKey}
+            format="iso"
+            accessibilityLabel="Dato"
           />
-        )}
+        </View>
         <Text style={styles.label}>Klokkeslett (valgfritt)</Text>
         {Platform.OS === 'web' ? (
           <View style={styles.dateWrap}>

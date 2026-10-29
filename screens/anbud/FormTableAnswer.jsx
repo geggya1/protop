@@ -10,6 +10,7 @@ import {
 } from '../../src/anbud/formBuilder';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER } from '../../src/forms/highlight';
 import OptionPicker, { CHIP_LIMIT } from '../../components/OptionPicker';
+import DateInput from '../../components/DateInput';
 
 /** Bredde der tabellen vises som rutenett. Smalere skjerm får ett kort per rad. */
 const GRID_MIN = 620;
@@ -79,11 +80,24 @@ function Cell({ column, row, colors, onCell, readOnly }) {
     return <CheckCell value={value === true} colors={colors} disabled={readOnly} label={column.label} onChange={(next) => onCell(row.id, column.id, next)} />;
   }
   if (readOnly) return <Text style={{ color: colors.ink }}>{value || preset || ''}</Text>;
+  if (column.type === 'date') {
+    return (
+      <DateInput
+        value={value !== undefined ? String(value) : ''}
+        onChange={(next) => onCell(row.id, column.id, next)}
+        format="nb"
+        placeholder={preset || undefined}
+        clearable
+        compact
+        accessibilityLabel={column.label}
+      />
+    );
+  }
   return (
     <TextInput
       value={value !== undefined ? String(value) : ''}
       onChangeText={(next) => onCell(row.id, column.id, next)}
-      placeholder={preset || (column.type === 'date' ? 'dd.mm.åååå' : column.label)}
+      placeholder={preset || column.label}
       placeholderTextColor={colors.placeholder}
       multiline={column.type === 'long'}
       keyboardType={column.type === 'number' ? 'decimal-pad' : 'default'}

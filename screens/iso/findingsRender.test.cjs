@@ -61,6 +61,7 @@ function loadLocal(full) {
     if (id === 'react-native-svg') return { __esModule: true, default: host('Svg'), Circle: host('Circle'), G: host('G') };
     if (id.includes('components/OptionPicker')) return { __esModule: true, default: host('OptionPicker') };
     if (id.includes('components/DateField')) return { __esModule: true, default: host('DateField') };
+    if (id.includes('components/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id.includes('components/TimeField')) return { __esModule: true, default: host('TimeField') };
     if (id.includes('context/ThemeContext')) return { useColors: () => colors };
     if (id.includes('utils/media')) return { pickDocument: async () => [], pickImage: async () => null, uploadFile: async () => 'https://x/fil' };

@@ -90,10 +90,30 @@ export function recordDutyTrip(state, input) {
   };
   const check = validateTrip(draft);
   if (!check.ok) return fail(state, check.error);
+  const companyCar = check.trip.vehicleKind === 'company';
+  // Ingenting å refundere («Dekket av lønn» uten bom, ferje eller parkering): ingen utleggsrad.
+  const refund = companyCar ? check.trip.amount : check.trip.reimbursement;
+  if (!(refund > 0)) {
+    const tripSaved = upsertTrip(state, { ...check.trip, expenseId: '' });
+    if (!tripSaved.ok) return tripSaved;
+    const linked = expenseId || check.trip.expenseId;
+    const next = linked
+      ? { ...tripSaved.state, expenses: (tripSaved.state.expenses || []).filter((row) => row.id !== linked) }
+      : tripSaved.state;
+    return ok(next, { trip: tripSaved.trip, expense: null });
+  }
   const nextExpenseId = expenseId || check.trip.expenseId || createId('utl');
   const tripSaved = upsertTrip(state, { ...check.trip, expenseId: nextExpenseId });
   if (!tripSaved.ok) return tripSaved;
   const trip = tripSaved.trip;
+  const salary = trip.reimbursable === false;
+  const notes = [
+    'Koblet til kjørebok. Faktureres som kjøretur, ikke som eget utlegg.',
+    salary ? 'Km-godtgjørelsen er dekket av lønn. Bare bom, ferje og parkering refunderes.' : '',
+    !companyCar && trip.taxableAllowance > 0
+      ? `Trekkfritt ${trip.taxFree.toFixed(2)} kr, skattepliktig ${trip.taxableAllowance.toFixed(2)} kr (går på lønn).`
+      : '',
+  ].filter(Boolean).join(' ');
   const expenseSaved = upsertExpense(tripSaved.state, {
     id: nextExpenseId,
     date: trip.date,
@@ -103,9 +123,10 @@ export function recordDutyTrip(state, input) {
     description: `Kjøring ${trip.from} – ${trip.to}`,
     purpose: trip.notes || trip.visitPurpose,
     vendor: trip.vehicleName || '',
-    paidBy: trip.vehicleKind === 'company' ? 'company' : 'personal',
-    amountExVat: trip.amount,
+    paidBy: companyCar ? 'company' : 'personal',
+    amountExVat: refund,
     vatCode: 'EXEMPT',
+    vatTreatment: '0',
     billable: false,
     customerId: trip.customerId,
     customerNumber: trip.customerNumber,
@@ -115,8 +136,9 @@ export function recordDutyTrip(state, input) {
     projectName: trip.projectName,
     tripId: trip.id,
     vehicleId: trip.vehicleId,
+    taxableAmount: companyCar ? 0 : trip.taxableAllowance,
     status: 'approved',
-    notes: 'Koblet til kjørebok. Faktureres som kjøretur, ikke som eget utlegg.',
+    notes,
   });
   if (!expenseSaved.ok) return expenseSaved;
   return ok(expenseSaved.state, { trip, expense: expenseSaved.expense });

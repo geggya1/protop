@@ -21,6 +21,7 @@ import Fab from '../../components/Fab';
 import PlusActionMenu from '../../components/PlusActionMenu';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import ConfirmActionModal from '../../components/ConfirmActionModal';
+import DateInput from '../../components/DateInput';
 import {
   listenHoldings, saveHolding, archiveHolding,
   VEHICLE_TYPES, VEHICLE_LOG_KINDS, HOLDING_DOC_KINDS, HOLDINGS_HUB_BLURB,
@@ -531,7 +532,14 @@ export default function HoldingsHubScreen({ inShell = false }) {
         <TextInput style={styles.input} value={form.tireNote} onChangeText={(tireNote) => patch({ tireNote })} placeholder={cfg.tireLabel} placeholderTextColor={colors.placeholder} />
       ) : null}
       {cfg.showPurchaseDate ? (
-        <TextInput style={styles.input} value={form.purchaseKey} onChangeText={(purchaseKey) => patch({ purchaseKey })} placeholder="Kjøpsdato (ÅÅÅÅ-MM-DD)" placeholderTextColor={colors.placeholder} />
+        <DateInput
+          style={styles.input}
+          value={form.purchaseKey}
+          onChange={(purchaseKey) => patch({ purchaseKey })}
+          format="iso"
+          placeholder="Kjøpsdato"
+          clearable
+        />
       ) : null}
       {cfg.showInsurance ? (
         <>
@@ -562,8 +570,22 @@ export default function HoldingsHubScreen({ inShell = false }) {
       return (
         <>
           <Mute>Registrer service uten å åpne hele skjemaet.</Mute>
-          <TextInput style={styles.input} value={form.nextServiceKey} onChangeText={(nextServiceKey) => patch({ nextServiceKey })} placeholder={cfg.serviceNextLabel} placeholderTextColor={colors.placeholder} />
-          <TextInput style={styles.input} value={form.lastServiceKey} onChangeText={(lastServiceKey) => patch({ lastServiceKey })} placeholder={cfg.serviceLastLabel} placeholderTextColor={colors.placeholder} />
+          <DateInput
+            style={styles.input}
+            value={form.nextServiceKey}
+            onChange={(nextServiceKey) => patch({ nextServiceKey })}
+            format="iso"
+            placeholder={cfg.serviceNextLabel}
+            clearable
+          />
+          <DateInput
+            style={styles.input}
+            value={form.lastServiceKey}
+            onChange={(lastServiceKey) => patch({ lastServiceKey })}
+            format="iso"
+            placeholder={cfg.serviceLastLabel}
+            clearable
+          />
         </>
       );
     }
@@ -581,10 +603,24 @@ export default function HoldingsHubScreen({ inShell = false }) {
             />
           ) : null}
           {cfg.showInsurance ? (
-            <TextInput style={styles.input} value={form.insuranceKey} onChangeText={(insuranceKey) => patch({ insuranceKey })} placeholder="Forsikring utløper (ÅÅÅÅ-MM-DD)" placeholderTextColor={colors.placeholder} />
+            <DateInput
+              style={styles.input}
+              value={form.insuranceKey}
+              onChange={(insuranceKey) => patch({ insuranceKey })}
+              format="iso"
+              placeholder="Forsikring utløper"
+              clearable
+            />
           ) : null}
           {cfg.showEu ? (
-            <TextInput style={styles.input} value={form.euControlKey} onChangeText={(euControlKey) => patch({ euControlKey })} placeholder="Neste EU-kontroll (ÅÅÅÅ-MM-DD)" placeholderTextColor={colors.placeholder} />
+            <DateInput
+              style={styles.input}
+              value={form.euControlKey}
+              onChange={(euControlKey) => patch({ euControlKey })}
+              format="iso"
+              placeholder="Neste EU-kontroll"
+              clearable
+            />
           ) : null}
         </>
       );
@@ -670,7 +706,13 @@ export default function HoldingsHubScreen({ inShell = false }) {
               </TouchableOpacity>
             ))}
           </View>
-          <TextInput style={styles.input} value={logDraft.dateKey} onChangeText={(dateKey) => setLogDraft((s) => ({ ...s, dateKey }))} placeholder="Dato (ÅÅÅÅ-MM-DD)" placeholderTextColor={colors.placeholder} />
+          <DateInput
+            style={styles.input}
+            value={logDraft.dateKey}
+            onChange={(dateKey) => setLogDraft((s) => ({ ...s, dateKey }))}
+            format="iso"
+            placeholder="Dato"
+          />
           <TextInput style={styles.input} value={logDraft.amount} onChangeText={(amount) => setLogDraft((s) => ({ ...s, amount }))} placeholder="Beløp (kr)" placeholderTextColor={colors.placeholder} keyboardType="numeric" />
           {logDraft.kind === 'fuel' ? (
             <>

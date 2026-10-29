@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../../../components/OptionPicker';
+import DateInput from '../../../components/DateInput';
 import {
   LINE_SECTIONS,
   LINE_UNITS,
@@ -172,8 +173,8 @@ export default function InvoiceLinesEditor({ lines = [], onChange, colors, chart
               </View>
             );
             const fields = [
-              <Cell key="ps" label="Start" value={line.periodStart} onChange={(v) => update(line.id, { periodStart: v })} colors={colors} width={stacked ? undefined : 96} placeholder="åååå-mm-dd" editable={!locked} />,
-              <Cell key="pe" label="Slutt" value={line.periodEnd} onChange={(v) => update(line.id, { periodEnd: v })} colors={colors} width={stacked ? undefined : 96} placeholder="åååå-mm-dd" editable={!locked} />,
+              <DateInput key="ps" accessibilityLabel="Start" placeholder="Start" value={line.periodStart} onChange={(v) => update(line.id, { periodStart: v })} format="iso" editable={!locked} clearable={stacked} compact style={{ width: stacked ? undefined : 96, flex: stacked ? 1 : undefined }} />,
+              <DateInput key="pe" accessibilityLabel="Slutt" placeholder="Slutt" value={line.periodEnd} onChange={(v) => update(line.id, { periodEnd: v })} format="iso" editable={!locked} clearable={stacked} compact style={{ width: stacked ? undefined : 96, flex: stacked ? 1 : undefined }} />,
               <Cell key="tx" label="Tekst" value={line.description} onChange={(v) => update(line.id, { description: v })} colors={colors} flex={1} editable={!locked} />,
               <Cell key="qt" label="Antall" value={numText(line.quantity)} onChange={(v) => update(line.id, { quantity: parseNum(v) })} colors={colors} width={stacked ? undefined : 70} align="right" editable={!locked} />,
             ];

@@ -11,6 +11,7 @@ import { radius, useLayout } from '../../src/theme';
 import { Screen } from '../../components/ui';
 import CompactBackLink from '../../components/CompactBackLink';
 import LocationPicker from '../../components/LocationPicker';
+import DateInput from '../../components/DateInput';
 import { mapsEmbed, openGoogleMaps } from '../../src/utils/location';
 import { ensureChatDoc } from '../../src/utils/chats';
 import {
@@ -703,13 +704,14 @@ export default function KlassenDetailScreen() {
                   value={meetingForm.title}
                   onChangeText={(title) => setMeetingForm((f) => ({ ...f, title }))}
                 />
-                <Text style={styles.fieldLabel}>Dato (YYYY-MM-DD)</Text>
-                <TextInput
+                <Text style={styles.fieldLabel}>Dato</Text>
+                <DateInput
                   style={styles.input}
                   value={meetingForm.dateKey}
-                  onChangeText={(dateKey) => setMeetingForm((f) => ({ ...f, dateKey }))}
-                  placeholder="2026-09-10"
-                  placeholderTextColor={colors.muted}
+                  onChange={(dateKey) => setMeetingForm((f) => ({ ...f, dateKey }))}
+                  format="iso"
+                  accessibilityLabel="Dato"
+                  clearable
                 />
                 <Text style={styles.fieldLabel}>Notater</Text>
                 <TextInput

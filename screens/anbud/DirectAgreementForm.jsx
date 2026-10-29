@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import DateField from '../../components/DateField';
+import DateInput from '../../components/DateInput';
 import OptionPicker from '../../components/OptionPicker';
 import LocationPicker from '../../components/LocationPicker';
 import { interpretAvtale } from '../../src/indeksregulering/aiClient';
@@ -36,7 +36,6 @@ import { agreementSummary, emailLooksLikeSupplier, registerConfirmText, reviewFl
 import { ensureAgreementOriginal } from '../../src/anbud/contractFiles';
 import { AGREEMENT_IMPORT_ACCEPT, documentHasOriginalFile, documentIsOpenable, openAgreementDocument } from '../../src/anbud/openDocument';
 import { pickDocument } from '../../src/utils/media';
-import { dateKey } from '../../src/utils/dates';
 import { useLayout } from '../../src/theme';
 import AgreementAssigneesField from './AgreementAssigneesField';
 import AgreementCustomerField from './AgreementCustomerField';
@@ -47,12 +46,6 @@ import FileDropZone from './FileDropZone';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 
 const DATE_FIELD_KEYS = new Set(['start', 'end', 'contractDate', 'renewalUntil']);
-
-function isoFromDate(value) {
-  if (!value) return '';
-  if (typeof value === 'string') return value.slice(0, 10);
-  return dateKey(value) || '';
-}
 
 const ACCEPT = AGREEMENT_IMPORT_ACCEPT;
 const MAX_REMOTE_BYTES = 2500000;
@@ -223,16 +216,14 @@ function Field({ colors, field, value, onChange, warning, hint, suggested }) {
           {warning ? <Text style={{ color: warnColor, fontWeight: '700' }}>!</Text> : null}
         </View>
         {showMark ? <SuggestMark /> : null}
-        <View style={[styles.dateBox, { borderColor, backgroundColor }]}>
-          <DateField
-            value={value || null}
-            onChange={(date) => onChange(isoFromDate(date))}
-            placeholder="Velg dato"
-            iconColor={colors.brand}
-            style={styles.dateField}
-            textStyle={{ color: value ? colors.ink : colors.placeholder, fontSize: 15 }}
-          />
-        </View>
+        <DateInput
+          value={value || ''}
+          onChange={onChange}
+          format="iso"
+          clearable
+          accessibilityLabel={field.label}
+          style={{ borderColor, backgroundColor }}
+        />
         {warning ? <Text style={{ color: warnColor, fontSize: 12 }}>{warning}</Text> : null}
       </View>
     );
@@ -1490,8 +1481,6 @@ const styles = StyleSheet.create({
   drawerBody: { paddingHorizontal: 14, paddingBottom: 14, gap: 10 },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   chip: { borderWidth: 1, borderColor: 'transparent', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6 },
-  dateBox: { borderWidth: 1, borderRadius: 10, justifyContent: 'center' },
-  dateField: { paddingHorizontal: 10, paddingVertical: 8, minHeight: 42 },
   menu: { borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
   menuItem: { paddingHorizontal: 10, paddingVertical: 8 },
   suggestWrap: { borderWidth: 1, borderRadius: 10, padding: 4 },

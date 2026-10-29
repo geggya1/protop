@@ -10,6 +10,7 @@ import {
 } from '../../src/arbeid/timesheetState.js';
 import { SetupFrame, TextAction } from './SetupFrame';
 import { useCompanyProject } from './useCompanyProject';
+import DateInput from '../DateInput';
 
 function formatNb(iso) {
   const [year, month, day] = String(iso || '').split('-');
@@ -123,14 +124,12 @@ export default function HolidaySettings({ familyId, colors, canEdit }) {
             accessibilityLabel="Navn på fridag"
             style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
           />
-          <TextInput
+          <DateInput
             value={draft.date}
-            onChangeText={(date) => setDraft((current) => ({ ...current, date }))}
-            placeholder="dd.mm.åååå"
-            placeholderTextColor={colors.placeholder}
+            onChange={(date) => setDraft((current) => ({ ...current, date }))}
+            format="nb"
             editable={canEdit}
             accessibilityLabel="Dato for fridag"
-            style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
           />
           <View style={styles.tools}>
             {['full', 'half'].map((portion) => (

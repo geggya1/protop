@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../firebase';
 import ConfirmDialog, { InfoDialog } from '../components/ConfirmDialog';
 import AiImportChildPicker from '../components/AiImportChildPicker';
+import DateInput from '../components/DateInput';
 import { Screen } from '../components/ui';
 import SchoolPageLayout from '../components/SchoolPageLayout';
 import { useApp } from '../src/context/AppContext';
@@ -1005,41 +1006,23 @@ export default function AiImportReviewScreen() {
                       maxLength={2}
                     />
                     <Text style={styles.periodFieldLabel}>Eller sluttdato (valgfritt)</Text>
-                    {Platform.OS === 'web' ? (
-                      <View style={styles.periodDateBtn}>
-                        <Ionicons name="calendar-outline" size={16} color="#2563eb" />
-                        <Text style={styles.periodDateTxt}>
-                          {period.endDate || 'Velg sluttdato'}
-                        </Text>
-                        <input
-                          type="date"
-                          value={period.endDate || ''}
-                          onChange={(e) => {
-                            const endDate = e.target.value || null;
-                            setPeriod((prev) => normalizeClientPeriod({
-                              ...prev,
-                              kind: 'special',
-                              endDate,
-                              fromAi: false,
-                              label: endDate ? `Til ${endDate}` : prev.label,
-                            }));
-                          }}
-                          style={styles.webDateOverlay}
-                        />
-                      </View>
-                    ) : (
-                      <TextInput
-                        style={styles.periodInput}
-                        value={period.endDate || ''}
-                        onChangeText={(endDate) => setPeriod((prev) => normalizeClientPeriod({
+                    <DateInput
+                      style={styles.periodInput}
+                      value={period.endDate || ''}
+                      onChange={(next) => {
+                        const endDate = String(next || '').trim() || null;
+                        setPeriod((prev) => normalizeClientPeriod({
                           ...prev,
                           kind: 'special',
-                          endDate: endDate.trim() || null,
+                          endDate,
                           fromAi: false,
-                        }))}
-                        placeholder="ÅÅÅÅ-MM-DD"
-                      />
-                    )}
+                          label: endDate ? `Til ${endDate}` : prev.label,
+                        }));
+                      }}
+                      format="iso"
+                      placeholder="Velg sluttdato"
+                      clearable
+                    />
                   </View>
                 )}
 

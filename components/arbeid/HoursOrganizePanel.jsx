@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker from '../OptionPicker';
+import DateInput from '../DateInput';
 import {
   DEFAULT_HOUR_COLUMNS,
   HOUR_COLUMNS,
@@ -54,8 +55,6 @@ export default function HoursOrganizePanel({
   toDate,
   onFromDate,
   onToDate,
-  onFromDateBlur,
-  onToDateBlur,
   groupBy,
   onGroupBy,
   sort,
@@ -126,24 +125,8 @@ export default function HoursOrganizePanel({
           />
           {period === 'custom' ? (
             <View style={{ gap: 8, marginTop: 8 }}>
-              <TextInput
-                value={fromDate}
-                onChangeText={onFromDate}
-                onBlur={onFromDateBlur}
-                placeholder="Fra (dd.mm.åååå)"
-                placeholderTextColor={colors.placeholder}
-                nativeID="hours-from-date"
-                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-              />
-              <TextInput
-                value={toDate}
-                onChangeText={onToDate}
-                onBlur={onToDateBlur}
-                placeholder="Til (dd.mm.åååå)"
-                placeholderTextColor={colors.placeholder}
-                nativeID="hours-to-date"
-                style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg }]}
-              />
+              <DateInput value={fromDate} onChange={onFromDate} format="iso" placeholder="Fra dato" clearable compact nativeID="hours-from-date" />
+              <DateInput value={toDate} onChange={onToDate} format="iso" placeholder="Til dato" clearable compact nativeID="hours-to-date" />
             </View>
           ) : null}
         </Section>

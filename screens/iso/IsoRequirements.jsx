@@ -242,7 +242,7 @@ function RequirementSheet({ ctx, requirementId, onClose }) {
           {v.status === 'internt_verifisert' ? <Banner tone="info" text="Internt verifisert krever minst ett godkjent bevis og en begrunnelse som viser hva som er kontrollert." /> : null}
           <Field label="Begrunnelse"><TextIn multiline rows={3} value={v.rationale} onChangeText={(x) => setV({ ...v, rationale: x })} /></Field>
           <Field label="Kravansvarlig"><PersonPick people={people} value={v.ownerName} onChange={(p) => setV({ ...v, ownerName: p.name, ownerUid: p.uid })} /></Field>
-          <Field label="Neste vurdering"><DateIn value={v.nextReview} onChange={(x) => setV({ ...v, nextReview: x })} /></Field>
+          <Field label="Neste vurdering"><DateIn value={v.nextReview} onChange={(x) => setV({ ...v, nextReview: x })} clearable /></Field>
           <Btn kind="primary" label="Lagre vurdering" onPress={saveAssessment} />
         </>
       ) : null}

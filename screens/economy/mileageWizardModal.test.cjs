@@ -64,6 +64,7 @@ function loadJsx(rel) {
   m.require = (id) => {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id.endsWith('/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id === '@expo/vector-icons') {
       return { Ionicons: function Ionicons() { return null; } };
     }
@@ -115,6 +116,8 @@ function loadJsx(rel) {
     if (id.includes('components/OptionPicker')) return { __esModule: true, default: host('OptionPicker'), CHIP_LIMIT: 4 };
     if (id.includes('mileage/drivingRoute')) return { planDrivingRoute: async () => null };
     if (id.includes('mileage/suggestRoute')) return { suggestDriving: async () => null };
+    // Satsene hentes fra serveren. Testen bruker de kjente satsene.
+    if (id.includes('mileage/useMileageRates')) return { useMileageRates: () => ({ rates: {}, checkedAt: '' }) };
     if (id.includes('mileage/routePlan')) return { chargesForRoute: () => [] };
     if (id.endsWith('/firebase') || id.endsWith('/firebase.js') || id === '../../firebase') {
       return { firebaseConfig: { apiKey: '' } };

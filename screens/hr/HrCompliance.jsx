@@ -292,7 +292,7 @@ function HmsCardEditor({ colors, card, canWrite, notApplicable, onSave, onApplic
       {canWrite && !notApplicable ? (
         <>
           <HrField colors={colors} label="Kortnummer" value={draft.number} onChangeText={(number) => setDraft((prev) => ({ ...prev, number }))} />
-          <HrField colors={colors} label="Gyldig til (dd.mm.åååå)" value={draft.validTo} onChangeText={(validTo) => setDraft((prev) => ({ ...prev, validTo }))} placeholder="31.12.2027" />
+          <HrField colors={colors} label="Gyldig til" date="iso" clearable value={draft.validTo} onChangeText={(validTo) => setDraft((prev) => ({ ...prev, validTo }))} />
           <HrField colors={colors} label="Arbeidsgivers org.nr. på kortet (tomt: selskapets)" value={draft.employerOrgnr} onChangeText={(employerOrgnr) => setDraft((prev) => ({ ...prev, employerOrgnr }))} keyboardType="number-pad" />
           <HrButton colors={colors} label="Lagre HMS-kort" icon="card-outline" nativeID="hr-compliance-hms-save" onPress={() => onSave?.(draft)} />
         </>

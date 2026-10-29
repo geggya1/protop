@@ -8,7 +8,7 @@
  * combineExpenses. Endringer går dit raden hører hjemme (expenseSave.js og opsState.js).
  * Ansattsiden bruker samme liste for én person (lockedEmployeeId, embedded), uten filter og skjema.
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Linking,
   Platform,
@@ -32,12 +32,13 @@ import { useCompanyRefs, useEmployees } from '../../src/context/CompanyDataConte
 import { freshRows, hydrateRows, liveCustomerList } from '../../src/company/companyData.js';
 import { formatMoney, parseDate } from '../../src/economy/invoices.js';
 import {
+  EXPENSE_BILLING_CHOICES,
   EXPENSE_CATEGORIES,
-  expenseBillingChoice,
-  expenseBillingChoices,
-  expenseBillingPatch,
+  EXPENSE_CHARGE_TYPES,
+  EXPENSE_PAID_BY,
   EXPENSE_STATUSES,
   emptyExpense,
+  expenseBillingChoice,
   expensesToCsv,
   validateExpense,
 } from '../../src/economy/expenses.js';
@@ -75,25 +76,33 @@ import { combineExpenses, removeExpenseRow, saveExpenseChange } from '../../src/
 import { deleteExpense, setExpenseStatus, upsertExpense } from '../../src/economy/opsState.js';
 import { shellPathFor } from '../../src/navigation/shellPaths';
 import { createId } from '../../src/project/engine';
-import { pickDocument, pickImage, pickReceipt, uploadImage } from '../../src/utils/media';
-import { blobToDataUrl, ocrReceiptWithAi } from '../../src/utils/receiptOcr';
-import { expensePatchFromReceipt, expenseProjectOptions } from '../../src/economy/expenseForm.js';
-import { myProjectIds } from '../../src/project/myProjects';
+import { pickDocument } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { Button, Field, Sheet, TextIn } from '../../src/ui';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
+import ExpenseWizard from '../../components/economy/ExpenseWizard';
+import { expenseProjectOptions } from '../../src/economy/expenseForm.js';
+import { myProjectIds } from '../../src/project/myProjects';
 import Breadcrumb from '../../components/Breadcrumb';
 import ReportTable from '../../components/table/ReportTable';
+import DateInput from '../../components/DateInput';
 import InlineError from '../../src/ui/InlineError';
 import Skeleton from '../../src/ui/Skeleton';
 import { radius, space, type } from '../../src/ui/tokens';
 
-function money(value) {
-  return typeof formatMoney === 'function' ? formatMoney(value) : String(value ?? '');
+const UNSURE_APPROVE = 'Avgjør først om kunden skal faktureres: velg Ja eller Nei under «Faktureres kunde».';
+
+function openLink(url) {
+  if (!url) return;
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.open(url, '_blank', 'noopener');
+    return;
+  }
+  Linking?.openURL?.(url);
 }
 
-function myEmployeeIdFrom(people, uid) {
-  return (uid && people.find((row) => row.uid && row.uid === uid)?.id) || '';
+function money(value) {
+  return typeof formatMoney === 'function' ? formatMoney(value) : String(value ?? '');
 }
 
 function today() {
@@ -158,65 +167,22 @@ function Choice({ label, on, onPress, colors }) {
  * Skjema for nytt utlegg, og for å se, endre, godkjenne og slette ett (samme felt som
  * Økonomi → Utlegg hadde, med ansatt, prosjekt og kunde fra registrene, DRIFT-24).
  */
-export function ExpenseSheet({
+function ExpenseSheet({
   draft, setDraft, can, colors, people, projectOptions, customerOptions, canPickEmployee, canInternal,
-  error, busy, pendingDelete, onPick, onSave, onApprove, onDelete, onOpenTrip, onClose, familyId, phone,
+  error, busy, pendingDelete, onPick, onSave, onApprove, onDelete, onOpenTrip, onClose,
 }) {
   const isNew = !draft.id;
   const editable = isNew || can.edit;
   const set = (key) => (value) => setDraft((current) => ({ ...current, [key]: value }));
-  const [receiptBusy, setReceiptBusy] = useState('');
-  const [receiptNote, setReceiptNote] = useState('');
-  // Siste versjon av skjemaet, så gjenkjenningen ikke overskriver det som er skrevet imens.
-  const latest = useRef(draft);
-  latest.current = draft;
-
-  /** Last opp kvitteringen (fil eller bilde), og les beløp, dato og leverandør fra den. */
-  async function attachReceipt(kind) {
-    setReceiptNote('');
-    let picked = null;
-    try {
-      picked = kind === 'camera' ? await pickImage({ camera: true, edit: false }) : await pickReceipt();
-    } catch (cause) {
-      setReceiptNote(/denied/.test(String(cause?.message)) ? 'ProTop har ikke tilgang til kameraet eller bildene.' : 'Kunne ikke åpne filen.');
-      return;
-    }
-    if (!picked) return;
-    setReceiptBusy(kind);
-    try {
-      const name = String(picked.name || (kind === 'camera' ? 'kvittering.jpg' : 'kvittering')).slice(0, 120);
-      const safe = name.replace(/[^\w.\-æøåÆØÅ]+/g, '-').slice(0, 80);
-      // Samme mappe som kvitteringene i kjøreboken: den som lastet opp, økonomi og administratorer.
-      const url = await uploadImage(`families/${familyId}/mileage/utlegg-${Date.now()}-${safe}`, picked);
-      setDraft((current) => ({ ...current, receiptUri: url, receiptName: name }));
-      const blob = picked.blob || (picked.uri ? await (await fetch(picked.uri)).blob() : null);
-      if (!blob) {
-        setReceiptNote('Kvitteringen er lagt ved.');
-        return;
-      }
-      if (blob.size > 7 * 1024 * 1024) {
-        setReceiptNote('Kvitteringen er lagt ved. Den er for stor til å leses automatisk, så fyll inn beløp og dato selv.');
-        return;
-      }
-      setReceiptBusy('read');
-      setReceiptNote('Kvitteringen er lagt ved. Leser beløp, dato og leverandør …');
-      const { bilag } = await ocrReceiptWithAi(familyId, { imageBase64: await blobToDataUrl(blob), hint: 'Utlegg i bedrift' });
-      const result = expensePatchFromReceipt(latest.current, bilag, { today: today() });
-      setDraft((current) => ({ ...current, ...result.patch }));
-      setReceiptNote(result.summary);
-    } catch (cause) {
-      const message = String(cause?.message || '').trim();
-      setReceiptNote(latest.current?.receiptUri
-        ? `Kvitteringen er lagt ved, men kunne ikke leses automatisk${message ? ` (${message})` : ''}. Fyll inn beløp og dato selv.`
-        : (message || 'Kunne ikke laste opp kvitteringen.'));
-    } finally {
-      setReceiptBusy('');
-    }
-  }
   const employeeName = people.find((row) => row.id === draft.employeeId)?.label || draft.employeeName || '';
-  const billingChoice = expenseBillingChoice(draft);
-  const charge = expenseBillingChoices(draft).find((row) => row.id === billingChoice);
+  const charge = EXPENSE_CHARGE_TYPES.find((row) => row.id === (draft.chargeType || 'reinvoice'));
   const label = draft.description || draft.purpose || 'utlegget';
+  const receipts = (Array.isArray(draft.attachments) && draft.attachments.length)
+    ? draft.attachments.filter((file) => file?.url)
+    : (/^https?:/.test(String(draft.receiptUri || '')) ? [{ url: draft.receiptUri, name: draft.receiptName || 'Kvittering', type: '' }] : []);
+  const original = Number(draft.originalAmount) > 0 && draft.originalCurrency
+    ? ` · ${String(draft.originalAmount).replace('.', ',')} ${draft.originalCurrency} på kvitteringen`
+    : '';
   // Feilen står over knappene, så den synes også når skjemaet er rullet (telefon).
   const footer = [
     ...(error ? [
@@ -250,7 +216,7 @@ export function ExpenseSheet({
     <Sheet visible title={isNew ? 'Nytt utlegg' : (editable ? 'Endre utlegg' : 'Utlegg')} onClose={onClose} footer={footer} wide>
       {!isNew ? (
         <Text style={[styles.sheetMeta, { color: colors.muted }]}>
-          {`Status: ${expenseStatusLabel(draft.status)}${can.trip ? ' · Kjøring: endres i Kjørebok' : ''}`}
+          {`Status: ${expenseStatusLabel(draft.status)}${draft.vendor ? ` · ${draft.vendor}` : ''}${original}${draft.cardLast4 ? ` · kort ****${draft.cardLast4}` : ''}${can.trip ? ' · Kjøring: endres i Kjørebok' : ''}`}
         </Text>
       ) : null}
       {pendingDelete ? (
@@ -258,66 +224,20 @@ export function ExpenseSheet({
           Trykk «Slett nå» for å slette utlegget. Det kan ikke angres.
         </Text>
       ) : null}
-      {/* Kvitteringen først: beløp, dato og leverandør leses fra den og fylles inn under. */}
-      <Field label="Kvittering" hint="Bilde eller PDF. Beløp, dato og leverandør leses fra kvitteringen. Kvittering kreves over 1 000 kr ved innsatsfaktor (bokføringsforskriften).">
-        {draft.receiptUri ? (
-          <View style={styles.receiptRow}>
-            <TouchableOpacity
-              style={{ flex: 1, minWidth: 0 }}
-              onPress={() => Linking.openURL(draft.receiptUri).catch(() => {})}
-              accessibilityRole="link"
-              nativeID="expense-receipt-open"
-            >
-              <Text style={[type.body, { color: colors.brand }]} numberOfLines={1}>{draft.receiptName || 'Kvittering'}</Text>
-            </TouchableOpacity>
-            {editable ? (
-              <TouchableOpacity
-                onPress={() => { setDraft((current) => ({ ...current, receiptUri: '', receiptName: '' })); setReceiptNote(''); }}
-                accessibilityRole="button"
-                accessibilityLabel="Fjern kvitteringen"
-              >
-                <Text style={[type.label, { color: colors.muted }]}>Fjern</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
-        {editable ? (
-          <View style={styles.receiptButtons}>
-            <Button
-              label={draft.receiptUri ? 'Bytt kvittering' : 'Last opp kvittering'}
-              icon="cloud-upload-outline"
-              nativeID="expense-receipt-upload"
-              busy={receiptBusy === 'file'}
-              disabled={!!receiptBusy}
-              onPress={() => attachReceipt('file')}
-            />
-            {phone || Platform.OS !== 'web' ? (
-              <Button
-                label="Ta bilde"
-                icon="camera-outline"
-                nativeID="expense-receipt-camera"
-                busy={receiptBusy === 'camera'}
-                disabled={!!receiptBusy}
-                onPress={() => attachReceipt('camera')}
-              />
-            ) : null}
-          </View>
-        ) : null}
-        {receiptNote ? (
-          <Text style={[type.label, { color: colors.muted, fontWeight: '400' }]} accessibilityLiveRegion="polite" nativeID="expense-receipt-note">
-            {receiptNote}
-          </Text>
-        ) : null}
-      </Field>
       <View style={styles.sheetGrid}>
         <View style={styles.sheetCell}>
           <Field label="Dato" required>
-            <TextIn value={draft.date || ''} onChangeText={set('date')} placeholder="ÅÅÅÅ-MM-DD" editable={editable} />
+            <DateInput value={draft.date || ''} onChange={set('date')} format="iso" editable={editable} accessibilityLabel="Dato" />
           </Field>
         </View>
         <View style={styles.sheetCell}>
           <Field label="Beløp eks. mva" required>
-            <TextIn value={String(draft.amountExVat ?? '')} onChangeText={set('amountExVat')} keyboardType="decimal-pad" editable={editable} />
+            <TextIn
+              value={String(draft.amountExVat ?? '')}
+              onChangeText={(value) => setDraft((current) => ({ ...current, amountExVat: value, amountInclVat: 0, vatSplit: '' }))}
+              keyboardType="decimal-pad"
+              editable={editable}
+            />
           </Field>
         </View>
       </View>
@@ -384,23 +304,85 @@ export function ExpenseSheet({
         </View>
         <View style={styles.sheetCell}>
           <Field label="Påslag %">
-            <TextIn value={String(draft.markupPercent ?? '')} onChangeText={set('markupPercent')} keyboardType="decimal-pad" editable={editable && billingChoice === 'reinvoice'} />
+            <TextIn value={String(draft.markupPercent ?? '')} onChangeText={set('markupPercent')} keyboardType="decimal-pad" editable={editable && draft.chargeType !== 'outlay'} />
           </Field>
         </View>
       </View>
-      <Field label="Fakturering" hint={charge?.hint}>
-        <OptionPicker
-          options={expenseBillingChoices(draft).map((row) => ({ id: row.id, label: row.label }))}
-          value={billingChoice}
-          onChange={(id) => { if (id) setDraft((current) => ({ ...current, ...expenseBillingPatch(id) })); }}
-          title="Fakturering"
-          clearable={false}
-          disabled={!editable}
-        />
-      </Field>
+      <View style={styles.sheetGrid}>
+        <View style={styles.sheetCell}>
+          <Field
+            label="Faktureres kunde"
+            hint={expenseBillingChoice(draft) === 'unsure' ? 'Den ansatte var usikker. Velg Ja eller Nei før du godkjenner.' : ''}
+          >
+            <OptionPicker
+              options={EXPENSE_BILLING_CHOICES.map((row) => ({ id: row.id, label: row.label }))}
+              value={expenseBillingChoice(draft)}
+              onChange={(id) => { if (id) setDraft((current) => ({ ...current, billingChoice: id, billable: id !== 'no' })); }}
+              title="Faktureres kunde"
+              clearable={false}
+              disabled={!editable && !can.approve}
+              accessibilityLabel="Faktureres kunde"
+            />
+          </Field>
+        </View>
+        <View style={styles.sheetCell}>
+          <Field label="Betalt">
+            <OptionPicker
+              options={EXPENSE_PAID_BY.map((row) => ({ id: row.id, label: row.label }))}
+              value={draft.paidBy === 'company' ? 'company' : 'personal'}
+              onChange={(id) => { if (id) set('paidBy')(id); }}
+              title="Betalt"
+              clearable={false}
+              disabled={!editable}
+            />
+          </Field>
+        </View>
+      </View>
+      {/* «Utlegg i kundens navn» velges ikke lenger. Eldre utlegg med valget vises og faktureres som før. */}
+      {draft.chargeType === 'outlay' ? (
+        <Field label="Faktureres som" hint={charge?.hint}>
+          <OptionPicker
+            options={EXPENSE_CHARGE_TYPES.map((row) => ({ id: row.id, label: row.label }))}
+            value="outlay"
+            onChange={(id) => { if (id) setDraft((current) => ({ ...current, chargeType: id })); }}
+            title="Faktureres som"
+            clearable={false}
+            disabled={!editable}
+          />
+        </Field>
+      ) : null}
       <Field label="Formål">
         <TextIn value={draft.purpose || ''} onChangeText={set('purpose')} editable={editable} />
       </Field>
+      {receipts.length ? (
+        <Field label="Kvittering">
+          <View style={styles.receiptRow} nativeID="expense-sheet-receipts">
+            {receipts.map((file, index) => (
+              <React.Fragment key={file.url}>
+                <Button
+                  size="sm"
+                  icon={/pdf/i.test(file.type || file.name) ? 'document-text-outline' : 'image-outline'}
+                  label={file.name || `Kvittering ${index + 1}`}
+                  accessibilityLabel={`Åpne ${file.name || 'kvitteringen'}`}
+                  onPress={() => openLink(file.url)}
+                />
+                {file.originalUrl ? (
+                  <Button
+                    size="sm"
+                    label="Original"
+                    accessibilityLabel={`Åpne originalbildet av ${file.name || 'kvitteringen'}`}
+                    onPress={() => openLink(file.originalUrl)}
+                  />
+                ) : null}
+              </React.Fragment>
+            ))}
+          </View>
+        </Field>
+      ) : (
+        <Field label="Kvittering (lenke)" hint="Kvittering kreves over 1 000 kr ved innsatsfaktor (bokføringsforskriften).">
+          <TextIn value={draft.receiptUri || ''} onChangeText={set('receiptUri')} placeholder="fil:// eller https://" editable={editable} />
+        </Field>
+      )}
     </Sheet>
   );
 }
@@ -444,6 +426,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   const [wantedScope, setWantedScope] = useState(() => startScope || scopeFromUrl());
   // Skjemaet: null = lukket, ellers utlegget som registreres eller vises.
   const [draft, setDraft] = useState(null);
+  // Nytt utlegg registreres trinnvis (ExpenseWizard), som en kjøretur.
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [draftError, setDraftError] = useState('');
   const [pendingDelete, setPendingDelete] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -524,7 +508,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   // Den ansattes aktive prosjekter øverst, så de andre. Søket treffer alle.
   const draftEmployeeId = draft?.employeeId || '';
   const projectOptions = useMemo(() => {
-    const me = employees.find((row) => row.id === (draftEmployeeId || myEmployeeIdFrom(people, user?.uid)));
+    const own = draftEmployeeId || people.find((row) => row.uid && row.uid === user?.uid)?.id || '';
+    const me = employees.find((row) => row.id === own);
     const mineIds = me ? myProjectIds({ ...state, projects: lookup.projects || [] }, me, employees) : new Set();
     return expenseProjectOptions(lookup.projects || [], { mineIds, keepId: draft?.projectId || '' });
   }, [lookup.projects, state, employees, draftEmployeeId, people, user?.uid, draft?.projectId]);
@@ -637,12 +622,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   function openNew() {
     setDraftError('');
     setPendingDelete(false);
-    setDraft({
-      date: today(),
-      employeeId: myEmployeeId,
-      category: 'other',
-      chargeType: 'reinvoice',
-    });
+    setDraft(null);
+    setWizardOpen(true);
   }
 
   function openRow(row) {
@@ -669,54 +650,74 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
     }));
   }
 
-  /** Lagre skjemaet. approve: lagre og godkjenne i samme trykk. */
-  async function saveDraft({ approve = false } = {}) {
-    if (!draft || saving) return;
-    const problem = expenseDraftProblem(draft, { needsProject: !seesAll });
-    if (problem) {
-      setDraftError(problem);
-      return;
-    }
+  /**
+   * Lagrer et utlegg fra skjemaet eller registreringen. approve: lagre og godkjenne i samme trykk.
+   * Gir { ok, error }.
+   */
+  async function persistExpense(source, { approve = false } = {}) {
+    const problem = expenseDraftProblem(source, { needsProject: !seesAll });
+    if (problem) return { ok: false, error: problem };
+    if (approve && expenseBillingChoice(source) === 'unsure') return { ok: false, error: UNSURE_APPROVE };
     // Uten godkjenningsrett registrerer man bare egne utlegg.
-    const employeeId = canManage ? (draft.employeeId || '') : (draft.employeeId || myEmployeeId);
+    const employeeId = canManage ? (source.employeeId || '') : (source.employeeId || myEmployeeId);
     const employee = people.find((row) => row.id === employeeId);
+    const project = source.projectId && !source.projectName
+      ? expenseRegistryPatch('project', source.projectId, { people, projects: lookup.projects || [], customers: lookup.customers || [], current: source })
+      : {};
     const input = emptyExpense({
-      ...draft,
+      ...source,
+      ...project,
       employeeId,
-      employeeName: employee?.label || draft.employeeName || '',
-      date: parseDate(draft.date) || draft.date || today(),
+      employeeName: employee?.label || source.employeeName || '',
+      date: parseDate(source.date) || source.date || today(),
       ...(approve ? { status: 'approved' } : {}),
     });
     const check = validateExpense(input);
-    if (!check.ok) {
-      setDraftError(check.error);
-      return;
-    }
-    const isNew = !draft.id;
+    if (!check.ok) return { ok: false, error: check.error };
     if (isExternalExpense(input)) {
-      setSaving(true);
       const result = await saveExpenseChange(companyId, input);
-      setSaving(false);
-      if (!result.ok) {
-        setDraftError(result.error);
-        return;
-      }
+      if (!result.ok) return { ok: false, error: result.error };
       setRemoteExpenses((current) => mergeExpenseLists(current, [input]));
-    } else {
-      const result = upsertExpense(state, input);
-      if (!result.ok) {
-        setDraftError(result.error);
-        return;
-      }
-      if (!setState(result.state)) return;
+      return { ok: true };
+    }
+    const result = upsertExpense(state, input);
+    if (!result.ok) return { ok: false, error: result.error };
+    if (!setState(result.state)) return { ok: false, error: 'Kunne ikke lagre utlegget.' };
+    return { ok: true };
+  }
+
+  async function saveDraft({ approve = false } = {}) {
+    if (!draft || saving) return;
+    setSaving(true);
+    const isNew = !draft.id;
+    const result = await persistExpense(draft, { approve });
+    setSaving(false);
+    if (!result.ok) {
+      setDraftError(result.error);
+      return;
     }
     closeDraft();
     if (approve) showSaveToast('Utlegget er godkjent.');
     else showSaveToast(isNew ? 'Utlegget er registrert. Det venter på godkjenning.' : 'Utlegget er lagret.');
   }
 
+  async function saveWizard(input) {
+    const result = await persistExpense(input);
+    if (result.ok) {
+      setWizardOpen(false);
+      showSaveToast('Utlegget er registrert. Det venter på godkjenning.');
+    }
+    return result;
+  }
+
   async function approveRow(row) {
     setError('');
+    if (expenseBillingChoice(row) === 'unsure') {
+      // Usikker fakturering avgjøres i skjemaet før godkjenning.
+      openRow(row);
+      setDraftError(UNSURE_APPROVE);
+      return;
+    }
     if (isExternalExpense(row)) {
       const next = { ...storedRow(row), status: 'approved' };
       const result = await saveExpenseChange(companyId, next);
@@ -857,22 +858,8 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
       </View>
       {period === 'custom' ? (
         <View style={styles.rowWrap}>
-          <TextInput
-            value={fromDate}
-            onChangeText={setFromDate}
-            onBlur={() => setFromDate((value) => parseDate(value) || value)}
-            placeholder="Fra dato"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
-          />
-          <TextInput
-            value={toDate}
-            onChangeText={setToDate}
-            onBlur={() => setToDate((value) => parseDate(value) || value)}
-            placeholder="Til dato"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, styles.dateInput, { color: colors.ink, borderColor: colors.line }]}
-          />
+          <DateInput value={fromDate} onChange={setFromDate} format="iso" placeholder="Fra dato" clearable compact style={styles.dateInput} />
+          <DateInput value={toDate} onChange={setToDate} format="iso" placeholder="Til dato" clearable compact style={styles.dateInput} />
         </View>
       ) : null}
       <Text style={[styles.label, { color: colors.muted }]}>Sortering</Text>
@@ -1030,6 +1017,21 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
       </View>
       {sideFilters ? <View style={styles.side}>{filterPanel}</View> : null}
       </View>
+      {wizardOpen ? (
+        <ExpenseWizard
+          colors={colors}
+          companyId={companyId}
+          onSave={saveWizard}
+          onClose={() => setWizardOpen(false)}
+          projectOptions={projectOptions}
+          people={people}
+          existing={allRows}
+          myEmployeeId={myEmployeeId}
+          canPickEmployee={canManage}
+          canInternal={seesAll}
+          uid={user?.uid || ''}
+        />
+      ) : null}
       {draft ? (
         <ExpenseSheet
           draft={draft}
@@ -1050,8 +1052,6 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
           onDelete={deleteDraft}
           onOpenTrip={() => { closeDraft(); requestShellTab?.('okonomi', 'kjorebok'); }}
           onClose={closeDraft}
-          familyId={companyId}
-          phone={phone}
         />
       ) : null}
     </ScrollView>
@@ -1086,6 +1086,5 @@ const styles = StyleSheet.create({
   sheetMeta: { ...type.caption },
   sheetError: { ...type.caption, flexBasis: '100%', textAlign: 'right' },
   sheetValue: { ...type.body },
-  receiptRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginBottom: space.xs },
-  receiptButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  receiptRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
 });

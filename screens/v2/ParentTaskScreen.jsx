@@ -19,6 +19,7 @@ import { useApp } from '../../src/context/AppContext';
 import { colors, radius, useLayout } from '../../src/theme';
 import { Screen, Title, BigButton } from '../../components/ui';
 import DesktopFormShell from '../../components/DesktopFormShell';
+import DateInput from '../../components/DateInput';
 import RecurrenceEditor, { emptyRecurrenceValue } from '../../components/RecurrenceEditor';
 import { dateKey, parseDateKey } from '../../src/utils/dates';
 import { notifyUsers } from '../../src/utils/notifications';
@@ -456,29 +457,13 @@ export default function ParentTaskScreen() {
             ) : (
               <>
                 <View style={styles.deadlineRow}>
-                  {Platform.OS === 'web' ? (
-                    <View style={[styles.pickerBtn, { flex: 1 }]}>
-                      <Ionicons name="calendar-outline" size={18} color={colors.brand} />
-                      <Text style={[styles.pickerBtnTxt, !deadline && styles.pickerPlaceholder]}>
-                        {deadline || 'Velg dato'}
-                      </Text>
-                      <input
-                        type="date"
-                        value={deadline}
-                        onChange={(e) => setDeadline(e.target.value)}
-                        style={styles.webPickerOverlay}
-                        aria-label="Velg fristdato"
-                      />
-                    </View>
-                  ) : (
-                    <TextInput
-                      style={[styles.input, styles.pickerField, { flex: 1, marginBottom: 0 }]}
-                      value={deadline}
-                      onChangeText={setDeadline}
-                      placeholder="ÅÅÅÅ-MM-DD"
-                      keyboardType="numeric"
-                    />
-                  )}
+                  <DateInput
+                    style={{ flex: 1 }}
+                    value={deadline}
+                    onChange={setDeadline}
+                    format="iso"
+                    accessibilityLabel="Velg fristdato"
+                  />
                   {Platform.OS === 'web' ? (
                     <View style={[styles.pickerBtn, styles.timePickerBtn, !deadline && styles.pickerDisabled]}>
                       <Ionicons name="time-outline" size={18} color={deadline ? colors.brand : colors.muted} />

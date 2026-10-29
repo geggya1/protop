@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import OptionPicker, { CHIP_LIMIT } from '../OptionPicker';
+import DateInput from '../DateInput';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
 import {
-  EXPENSE_CATEGORIES, emptyExpense, expenseBillingChoice, expenseBillingChoices, expenseBillingPatch, expenseCategory,
+  EXPENSE_BILLING_CHOICES, EXPENSE_CATEGORIES, emptyExpense, expenseBillingChoice, expenseCategory,
 } from '../../src/economy/expenses.js';
 import { expenseStatusLabel, filterExpenses } from '../../src/economy/expenseList.js';
 import { deleteExpense, upsertExpense } from '../../src/economy/opsState.js';
@@ -334,12 +335,11 @@ export default function ProjectExpensesTab({
             <Text style={[styles.sheetTitle, { color: colors.ink }]}>{editor?.id ? 'Rediger utlegg' : 'Nytt utlegg'}</Text>
             <ScrollView style={{ maxHeight: 420 }}>
               <Label colors={colors} text="Dato" />
-              <TextInput
+              <DateInput
                 value={editor?.date || ''}
-                onChangeText={(v) => setEditor((e) => ({ ...e, date: v }))}
-                placeholder="ÅÅÅÅ-MM-DD"
-                placeholderTextColor={colors.muted}
-                style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+                onChange={(v) => setEditor((e) => ({ ...e, date: v }))}
+                format="iso"
+                accessibilityLabel="Dato"
               />
               <Label colors={colors} text="Medarbeider" />
               <OptionPicker
@@ -372,23 +372,26 @@ export default function ProjectExpensesTab({
                 onChangeText={(v) => setEditor((e) => ({ ...e, amountExVat: v }))}
                 style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
               />
-              <Label colors={colors} text="Fakturering" />
-              {expenseBillingChoices(editor).map((type) => {
-                const on = expenseBillingChoice(editor) === type.id;
+              <Label colors={colors} text="Faktureres kunde" />
+              {EXPENSE_BILLING_CHOICES.map((type) => {
+                const on = expenseBillingChoice(editor || {}) === type.id;
                 return (
                   <TouchableOpacity
                     key={type.id}
-                    onPress={() => setEditor((e) => ({ ...e, ...expenseBillingPatch(type.id) }))}
+                    onPress={() => setEditor((e) => ({ ...e, billingChoice: type.id, billable: type.id !== 'no' }))}
                     style={styles.check}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: on }}
-                    nativeID={`expense-charge-${type.id}`}
+                    nativeID={`expense-billing-${type.id}`}
                   >
                     <Text style={{ color: on ? colors.brand : colors.ink }}>{on ? '●' : '○'} {type.label}</Text>
                     <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 18 }}>{type.hint}</Text>
                   </TouchableOpacity>
                 );
               })}
+              {editor?.chargeType === 'outlay' ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Registrert som utlegg i kundens navn. Faktureres som før.</Text>
+              ) : null}
             </ScrollView>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
               <TouchableOpacity onPress={() => setEditor(null)} style={[styles.ghost, { borderColor: colors.line, flex: 1, justifyContent: 'center' }]}>

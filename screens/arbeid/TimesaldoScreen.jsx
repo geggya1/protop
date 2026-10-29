@@ -33,6 +33,7 @@ import { useTimesheetWorkspace } from './useTimesheetWorkspace';
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { companyDisplayName } from '../../src/utils/companyName';
 import Breadcrumb from '../../components/Breadcrumb';
+import DateInput from '../../components/DateInput';
 
 function todayKey() {
   return toDateKey(new Date());
@@ -236,10 +237,11 @@ export default function TimesaldoScreen({
           )}
           <View style={styles.through}>
             <Text style={{ color: colors.muted, fontSize: 12 }}>Sluttdato</Text>
-            <TextInput
+            <DateInput
               value={through}
-              onChangeText={setThrough}
-              style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+              onChange={setThrough}
+              format="iso"
+              style={{ minWidth: 140 }}
               accessibilityLabel="Sluttdato"
               nativeID="timesaldo-through"
             />

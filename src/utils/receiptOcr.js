@@ -39,3 +39,27 @@ export async function blobToDataUrl(blob) {
     reader.readAsDataURL(blob);
   });
 }
+
+/**
+ * Tolk kvitteringen til et utlegg. files: opplastede filer i personens utleggsmappe,
+ * [{ path, kind: 'scan'|'color'|'original', colorPath }] (receiptPrepare + receiptStoragePath).
+ * expenseTypes: «id: navn; …» (expenseTypeHint), så AI-en velger en type appen kjenner.
+ * Gir { bilag, checks (det som ikke stemmer), scans (skann serveren laget) }.
+ */
+export async function ocrExpenseReceipt(familyId, files = [], { expenseTypes = '', hint = '' } = {}) {
+  // Skanning av store bilder og to tolkerunder kan ta tid.
+  const fn = httpsCallable(functions, 'aiReceiptOcr', { timeout: 300000 });
+  const result = await fn({
+    familyId,
+    purpose: 'expense',
+    files: (files || []).filter((file) => file?.path).slice(0, 4),
+    expenseTypes: String(expenseTypes || ''),
+    hint: String(hint || '').trim().slice(0, 300),
+  });
+  const data = result?.data || {};
+  return {
+    bilag: data.bilag || {},
+    checks: Array.isArray(data.checks) ? data.checks : [],
+    scans: Array.isArray(data.scans) ? data.scans : [],
+  };
+}

@@ -5,6 +5,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { toneColor, pctWidth } from '../../src/hr/uiHelpers';
 import { useRepeatsShellTitle } from '../../src/ui/ShellTitles';
+import DateInput from '../../components/DateInput';
 
 export function HrCard({ colors, children, style }) {
   return (
@@ -85,26 +86,39 @@ export function HrButton({ colors, label, onPress, icon, primary, danger, disabl
   );
 }
 
+/** date: 'iso' eller 'nb' gir datovelger i stedet for tekstfelt, med verdien lagret i det formatet. */
 export function HrField({
-  colors, label, value, onChangeText, placeholder, multiline, keyboardType, autoFocus,
+  colors, label, value, onChangeText, placeholder, multiline, keyboardType, autoFocus, date, clearable,
 }) {
   return (
     <View style={styles.field}>
       {label ? <Text style={[styles.fieldLabel, { color: colors.muted }]}>{label}</Text> : null}
-      <TextInput
-        autoFocus={!!autoFocus}
-        value={value ?? ''}
-        onChangeText={onChangeText}
-        placeholder={placeholder || ''}
-        placeholderTextColor={colors.muted}
-        multiline={!!multiline}
-        keyboardType={keyboardType || 'default'}
-        style={[
-          styles.input,
-          multiline && styles.inputMulti,
-          { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg },
-        ]}
-      />
+      {date ? (
+        <DateInput
+          value={value ?? ''}
+          onChange={onChangeText}
+          format={date}
+          placeholder={placeholder || undefined}
+          clearable={!!clearable}
+          accessibilityLabel={label || undefined}
+          style={{ backgroundColor: colors.bg }}
+        />
+      ) : (
+        <TextInput
+          autoFocus={!!autoFocus}
+          value={value ?? ''}
+          onChangeText={onChangeText}
+          placeholder={placeholder || ''}
+          placeholderTextColor={colors.muted}
+          multiline={!!multiline}
+          keyboardType={keyboardType || 'default'}
+          style={[
+            styles.input,
+            multiline && styles.inputMulti,
+            { color: colors.ink, borderColor: colors.line, backgroundColor: colors.bg },
+          ]}
+        />
+      )}
     </View>
   );
 }

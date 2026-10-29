@@ -6,15 +6,35 @@
 import { calcLineVat, roundMoney } from './vat.js';
 import { text } from './invoices.js';
 
+// Utgiftstyper med konto (NS 4102) og vanlig mva-sats. Satsen fra kvitteringen går foran.
+// Id-ene lagres på utlegget og endres ikke. «Annet» brukes når typen ikke finnes.
 export const EXPENSE_CATEGORIES = [
   { id: 'materials', label: 'Materiell / innsats', account: '4000', vatCode: 'HIGH', inputFactor: true },
   { id: 'tools', label: 'Verktøy / utstyr', account: '6500', vatCode: 'HIGH', inputFactor: true },
   { id: 'travel', label: 'Reise (billett/hotell)', account: '7140', vatCode: 'HIGH', inputFactor: false },
+  { id: 'flight', label: 'Fly', account: '7140', vatCode: 'LOW', inputFactor: false },
+  { id: 'transit', label: 'Buss, tog og båt', account: '7140', vatCode: 'LOW', inputFactor: false },
+  { id: 'taxi', label: 'Drosje', account: '7140', vatCode: 'LOW', inputFactor: false },
+  { id: 'hotel', label: 'Hotell og overnatting', account: '7140', vatCode: 'LOW', inputFactor: false },
+  { id: 'meals', label: 'Mat på reise / overtidsmat', account: '7140', vatCode: 'HIGH', inputFactor: false },
   { id: 'mileage', label: 'Kjøregodtgjørelse', account: '7100', vatCode: 'EXEMPT', inputFactor: false },
+  { id: 'fuel', label: 'Drivstoff', account: '7000', vatCode: 'HIGH', inputFactor: false },
+  { id: 'charging', label: 'Lading el-bil', account: '7000', vatCode: 'HIGH', inputFactor: false },
   { id: 'parking', label: 'Parkering', account: '7140', vatCode: 'HIGH', inputFactor: false },
   { id: 'toll', label: 'Bompenger', account: '7140', vatCode: 'EXEMPT', inputFactor: false },
+  { id: 'vehicle', label: 'Reparasjon og vedlikehold bil', account: '7020', vatCode: 'HIGH', inputFactor: false },
   { id: 'representation', label: 'Representasjon', account: '7370', vatCode: 'HIGH', inputFactor: false },
-  { id: 'office', label: 'Kontor', account: '7000', vatCode: 'HIGH', inputFactor: false },
+  { id: 'meeting', label: 'Møtekostnader', account: '6860', vatCode: 'HIGH', inputFactor: false },
+  { id: 'course', label: 'Kurs og utdanning', account: '6860', vatCode: 'HIGH', inputFactor: false },
+  { id: 'gifts', label: 'Gaver', account: '7420', vatCode: 'HIGH', inputFactor: false },
+  { id: 'welfare', label: 'Velferd og sosialt', account: '5990', vatCode: 'HIGH', inputFactor: false },
+  { id: 'office', label: 'Kontorrekvisita', account: '6800', vatCode: 'HIGH', inputFactor: false },
+  { id: 'equipment', label: 'Inventar og småanskaffelser', account: '6540', vatCode: 'HIGH', inputFactor: false },
+  { id: 'software', label: 'Programvare og abonnement', account: '6420', vatCode: 'HIGH', inputFactor: false },
+  { id: 'phone', label: 'Telefon og internett', account: '6900', vatCode: 'HIGH', inputFactor: false },
+  { id: 'books', label: 'Aviser, tidsskrifter og bøker', account: '6840', vatCode: 'ZERO', inputFactor: false },
+  { id: 'postage', label: 'Porto og frakt', account: '6940', vatCode: 'HIGH', inputFactor: false },
+  { id: 'marketing', label: 'Reklame og annonser', account: '7320', vatCode: 'HIGH', inputFactor: false },
   { id: 'other', label: 'Annet', account: '7790', vatCode: 'HIGH', inputFactor: false },
 ];
 
@@ -39,8 +59,46 @@ export const EXPENSE_CHARGE_TYPES = [
   { id: 'outlay', label: 'Utlegg i kundens navn', hint: 'Kvitteringen lyder på kunden. Faktureres med bruttobeløpet, uten påslag og mva.' },
 ];
 
+/**
+ * Skal utlegget faktureres videre til kunden? Velges først i registreringen, som på kjøretur.
+ * unsure: den som godkjenner avgjør. Utlegget står som fakturerbart til det er avklart.
+ */
+export const EXPENSE_BILLING_CHOICES = [
+  { id: 'yes', label: 'Ja', hint: 'Kunden faktureres. Prosjekt må velges.' },
+  { id: 'unsure', label: 'Usikker', hint: 'Den som godkjenner avgjør om kunden faktureres.' },
+  { id: 'no', label: 'Nei', hint: 'Kostnad for bedriften, på prosjekt eller internt.' },
+];
+
+/** Hvem betalte: den ansatte (refunderes) eller bedriften (firmakort). */
+export const EXPENSE_PAID_BY = [
+  { id: 'personal', label: 'Betalt privat', hint: 'Du får pengene tilbake.' },
+  { id: 'company', label: 'Firmakort', hint: 'Bedriften har betalt. Bare kvittering og fordeling.' },
+];
+
+export function expenseBillingChoice(row = {}) {
+  if (row.billingChoice === 'unsure') return 'unsure';
+  if (row.billable === false || row.billingChoice === 'no') return 'no';
+  return 'yes';
+}
+
+function cleanAttachments(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => ({
+      url: text(item?.url),
+      path: text(item?.path),
+      name: text(item?.name).slice(0, 160),
+      type: text(item?.type).slice(0, 80),
+      // Originalen (fargebildet eller filen slik den ble lastet opp) når bilaget er et skann.
+      originalUrl: text(item?.originalUrl),
+      originalPath: text(item?.originalPath),
+    }))
+    .filter((item) => item.url)
+    .slice(0, 10);
+}
+
 export function expenseCategory(id) {
-  return EXPENSE_CATEGORIES.find((row) => row.id === id) || EXPENSE_CATEGORIES[EXPENSE_CATEGORIES.length - 1];
+  return EXPENSE_CATEGORIES.find((row) => row.id === id) || EXPENSE_CATEGORIES.find((row) => row.id === 'other');
 }
 
 export function emptyExpense(overrides = {}) {
@@ -94,7 +152,18 @@ export function normalizeExpense(input = {}) {
   const absEx = signedEx != null ? Math.abs(signedEx) : 0;
   const absIncl = signedIncl != null ? Math.abs(signedIncl) : 0;
   let calc;
-  if (absEx > 0) {
+  // Mva slik den står på kvitteringen (flere satser gir ellers feil eks. mva). Eks. mva er
+  // grunnlaget som faktureres videre med påslag.
+  const fromReceipt = row.vatSplit === 'receipt' && absEx > 0 && absIncl >= absEx;
+  if (fromReceipt) {
+    const vat = roundMoney(absIncl - absEx);
+    calc = {
+      amountExVat: roundMoney(absEx),
+      vatAmount: vat,
+      amountInclVat: roundMoney(absIncl),
+      vatPercent: Math.round((vat / absEx) * 1000) / 10,
+    };
+  } else if (absEx > 0) {
     calc = calcLineVat({ quantity: 1, unitPrice: absEx, vatCode });
   } else if (absIncl > 0) {
     const known = calcLineVat({ quantity: 1, unitPrice: 100, vatCode });
@@ -113,6 +182,10 @@ export function normalizeExpense(input = {}) {
     };
   }
   const status = EXPENSE_STATUSES.some((s) => s.id === row.status) ? row.status : 'draft';
+  const attachments = cleanAttachments(row.attachments);
+  // Nei = ikke fakturerbar. Usikker og ja står som fakturerbare til de er avklart.
+  const billingChoice = row.billingChoice === 'unsure' ? 'unsure' : (row.billable === false || row.billingChoice === 'no' ? 'no' : 'yes');
+  const originalAmount = Math.abs(Number(row.originalAmount)) > 0 ? roundMoney(Number(row.originalAmount)) : 0;
   return {
     id: text(row.id),
     date: text(row.date),
@@ -131,7 +204,7 @@ export function normalizeExpense(input = {}) {
     amountInclVat: calc.amountInclVat,
     markupPercent: row.chargeType === 'outlay' ? 0 : Math.max(0, Number(row.markupPercent) || 0),
     chargeType: row.chargeType === 'outlay' ? 'outlay' : 'reinvoice',
-    billable: row.billable !== false,
+    billable: row.billable !== false && row.billingChoice !== 'no',
     representation: !!row.representation || category.id === 'representation',
     customerId: text(row.customerId),
     customerNumber: text(row.customerNumber),
@@ -139,8 +212,22 @@ export function normalizeExpense(input = {}) {
     projectId: text(row.projectId),
     projectNumber: text(row.projectNumber),
     projectName: text(row.projectName),
-    receiptUri: text(row.receiptUri),
-    receiptName: text(row.receiptName),
+    receiptUri: text(row.receiptUri) || attachments[0]?.url || '',
+    receiptName: text(row.receiptName) || attachments[0]?.name || '',
+    attachments,
+    billingChoice,
+    vendorOrgNr: text(row.vendorOrgNr).replace(/\D/g, '').slice(0, 9),
+    receiptNumber: text(row.receiptNumber).slice(0, 60),
+    originalCurrency: originalAmount ? text(row.originalCurrency).toUpperCase().slice(0, 3) : '',
+    originalAmount,
+    // Avgiftskode (SAF-T) for inngående mva, se vatTreatment.js. Tom: regnskapsføreren velger.
+    vatSplit: fromReceipt ? 'receipt' : '',
+    vatTreatment: /^\d{1,2}$/.test(text(row.vatTreatment)) ? text(row.vatTreatment) : '',
+    paymentMethod: text(row.paymentMethod).slice(0, 20),
+    // Kjøregodtgjørelse over trekkfri sats: skattepliktig del som går på lønn.
+    taxableAmount: Math.max(0, roundMoney(Number(row.taxableAmount) || 0)),
+    cardLast4: text(row.cardLast4).replace(/\D/g, '').slice(-4),
+    interpreted: Array.isArray(row.interpreted) ? row.interpreted.map(text).filter(Boolean).slice(0, 20) : [],
     status,
     invoiceId: text(row.invoiceId),
     tripId: text(row.tripId),

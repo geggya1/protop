@@ -125,6 +125,7 @@ export default function HrPeople({
           canWrite={canWrite}
           lockedEmployeeId={selected.id}
           onSaveSalaries={onSaveSalaries}
+          familyId={familyId}
         />
       </View>
     );

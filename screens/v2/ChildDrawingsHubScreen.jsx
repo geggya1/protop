@@ -14,6 +14,7 @@ import { ModulePageFrame, ModuleHubIntro } from '../../components/ModulePageBg';
 import ShellAddButton from '../../components/ShellAddButton';
 import FilterMenu from '../../components/FilterMenu';
 import HelpTarget from '../../components/HelpTarget';
+import DateInput from '../../components/DateInput';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import LivingRoomWall, { RoomThumb } from '../../components/LivingRoomWall';
@@ -561,10 +562,10 @@ export default function ChildDrawingsHubScreen({ inShell = false }) {
                 </View>
                 <View style={styles.col}>
                   <Text style={styles.label}>Dato</Text>
-                  <TextInput
+                  <DateInput
                     style={styles.input}
                     value={form.drawnAtKey}
-                    onChangeText={(drawnAtKey) => {
+                    onChange={(drawnAtKey) => {
                       const child = childMembers.find(
                         (c) => (c.id || c.docId) === form.childId,
                       );
@@ -573,8 +574,8 @@ export default function ChildDrawingsHubScreen({ inShell = false }) {
                         : form.age;
                       patchForm({ drawnAtKey, age: nextAge });
                     }}
-                    placeholder="ÅÅÅÅ-MM-DD"
-                    placeholderTextColor={colors.placeholder}
+                    format="iso"
+                    accessibilityLabel="Dato"
                   />
                 </View>
               </View>

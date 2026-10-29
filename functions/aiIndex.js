@@ -16,6 +16,7 @@ export {
   aiMealIngredients,
   aiRecipeImport,
   aiReceiptOcr,
+  mileageRates,
   aiClassListOcr,
   aiMatcoachWeeklyPlan,
   aiMatcoachFridgeScan,

@@ -18,6 +18,7 @@ import { searchPlaces } from '../../src/utils/location';
 import { alertPhotoError, pickImage, uploadImage } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import MileageWizard from '../../screens/economy/MileageWizard';
+import DateInput from '../DateInput';
 import { formatDate } from '../../src/format/nb';
 
 /**
@@ -198,25 +199,25 @@ export default function ProjectSettingsTab({
         <View style={styles.row}>
           <View style={styles.field}>
             <Text style={{ color: colors.muted, fontSize: 11 }}>Startdato</Text>
-            <TextInput
+            <DateInput
               editable={canEdit}
               value={start}
-              onChangeText={setStart}
-              placeholder="ÅÅÅÅ-MM-DD"
-              placeholderTextColor={colors.muted}
-              style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+              onChange={setStart}
+              format="iso"
+              clearable
+              accessibilityLabel="Startdato"
               nativeID="project-settings-start"
             />
           </View>
           <View style={styles.field}>
             <Text style={{ color: colors.muted, fontSize: 11 }}>Sluttdato</Text>
-            <TextInput
+            <DateInput
               editable={canEdit}
               value={end}
-              onChangeText={setEnd}
-              placeholder="ÅÅÅÅ-MM-DD"
-              placeholderTextColor={colors.muted}
-              style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
+              onChange={setEnd}
+              format="iso"
+              clearable
+              accessibilityLabel="Sluttdato"
               nativeID="project-settings-end"
             />
           </View>

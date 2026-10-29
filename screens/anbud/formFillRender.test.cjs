@@ -71,6 +71,7 @@ const MOCKS = {
   'src/anbud/agreementCase': { agreementStarterTemplate: () => ({ fields: [] }) },
   'components/CreateMenu': { __esModule: true, default: host('CreateMenu') },
   'components/BrandBusyOverlay': { __esModule: true, default: host('BrandBusyOverlay') },
+  'components/DateInput': { __esModule: true, default: host('DateInput') },
 };
 
 const cache = new Map();

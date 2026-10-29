@@ -65,6 +65,7 @@ function load(full) {
       };
     }
     if (id.includes('sendPasswordReset')) return { sendPasswordResetV2: async () => {} };
+    if (id.endsWith('components/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id.startsWith('.')) {
       const resolved = path.resolve(path.dirname(full), id);
       const file = fs.existsSync(resolved) ? resolved : `${resolved}.js`;

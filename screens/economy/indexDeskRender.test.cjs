@@ -53,6 +53,7 @@ function loadLocal(full) {
         Platform: { OS: 'web', select: (options) => options && (options.web ?? options.default) },
       };
     }
+    if (id.endsWith('/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
     if (id.includes('ThemeContext')) return { useColors: () => colors };
     if (id === 'firebase/functions') return { httpsCallable: () => async () => ({ data: {} }) };

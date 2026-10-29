@@ -53,6 +53,7 @@ import { fetchSeriesById } from '../../src/indeksregulering/ssb';
 import { frequencyLabel } from '../../src/indeksregulering/settings';
 import { osloDate } from '../../src/indeksregulering/watch';
 import EconomyIndices from './EconomyIndices';
+import DateInput from '../../components/DateInput';
 
 const NAV = [
   { id: 'oversikt', label: 'Oversikt' },
@@ -66,11 +67,13 @@ function screenFromView(view) {
   return NAV.some((item) => item.id === view) ? view : 'oversikt';
 }
 
-function Field({ label, value, colors, onChange, placeholder, compact }) {
+function Field({ label, value, colors, onChange, placeholder, compact, date, clearable }) {
   return (
     <View style={[styles.field, compact && styles.fieldCompact]}>
       <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-      {onChange ? (
+      {onChange && date ? (
+        <DateInput value={value} onChange={onChange} format="iso" clearable={clearable} accessibilityLabel={label} />
+      ) : onChange ? (
         <TextInput
           value={value}
           onChangeText={onChange}
@@ -918,10 +921,10 @@ function Calculation(props) {
             <View style={styles.grid}>
               <Field label="Referanseperiode fra" value={periodLabel(chain?.previous?.period)} colors={colors} />
               <Field label="Referanseperiode til" value={periodLabel(math?.regulationPoint?.period)} colors={colors} />
-              <Field label="Reguleringsdato" value={dates.regulationDate} colors={colors} onChange={(value) => patchDate('regulationDate', value)} placeholder="ÅÅÅÅ-MM-DD" />
-              <Field label="Varslingsdato" value={dates.noticeDate} colors={colors} onChange={(value) => patchDate('noticeDate', value)} placeholder="ÅÅÅÅ-MM-DD" />
-              <Field label="Ny pris gjelder fra" value={dates.effectiveFrom} colors={colors} onChange={(value) => patchDate('effectiveFrom', value)} placeholder="ÅÅÅÅ-MM-DD" />
-              <Field label="Perioden slutter" value={dates.effectiveTo} colors={colors} onChange={(value) => patchDate('effectiveTo', value)} placeholder="ÅÅÅÅ-MM-DD" />
+              <Field label="Reguleringsdato" value={dates.regulationDate} colors={colors} onChange={(value) => patchDate('regulationDate', value)} date />
+              <Field label="Varslingsdato" value={dates.noticeDate} colors={colors} onChange={(value) => patchDate('noticeDate', value)} date />
+              <Field label="Ny pris gjelder fra" value={dates.effectiveFrom} colors={colors} onChange={(value) => patchDate('effectiveFrom', value)} date />
+              <Field label="Perioden slutter" value={dates.effectiveTo} colors={colors} onChange={(value) => patchDate('effectiveTo', value)} date clearable />
             </View>
             {(math?.warnings || []).map((line) => <Text key={line} style={{ color: colors.muted }}>{line}</Text>)}
           </View>
@@ -1051,8 +1054,8 @@ function LetterEditor({ baseLetter, letterEdits, useLogo, logo, freeText, dates,
       {buttons(true)}
       <CompanyLogoChoice value={logoOn} onChange={setLogoOn} logo={logo} colors={colors} subject="indeksbrevet" />
       <View style={styles.grid}>
-        <Field label="Ny pris gjelder fra" value={effectiveFrom} colors={colors} onChange={setEffectiveFrom} placeholder="ÅÅÅÅ-MM-DD" />
-        <Field label="Varslingsdato" value={noticeDate} colors={colors} onChange={setNoticeDate} placeholder="ÅÅÅÅ-MM-DD" />
+        <Field label="Ny pris gjelder fra" value={effectiveFrom} colors={colors} onChange={setEffectiveFrom} date />
+        <Field label="Varslingsdato" value={noticeDate} colors={colors} onChange={setNoticeDate} date />
       </View>
       <Field label="Ekstra merknad i brevet" value={extra} colors={colors} onChange={setExtra} placeholder="Valgfri presisering" compact />
       <View style={styles.factGrid}>

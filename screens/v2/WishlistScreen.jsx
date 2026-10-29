@@ -10,6 +10,7 @@ import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { Mute } from '../../components/ui';
 import ShellAddButton from '../../components/ShellAddButton';
 import HelpTarget from '../../components/HelpTarget';
+import DateInput from '../../components/DateInput';
 import OverlayHost from '../../components/OverlayHost';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelp } from '../../src/context/HelpContext';
@@ -907,15 +908,16 @@ export default function WishlistScreen({ listId, listFamilyId = null, onBack, mo
                 onChangeText={setSettingsName}
                 editable={canManage}
               />
-              <Text style={styles.fieldLabel}>Anledning / dato (ÅÅÅÅ-MM-DD)</Text>
-              <TextInput
+              <Text style={styles.fieldLabel}>Anledning / dato</Text>
+              <DateInput
                 style={[styles.input, isDesktop && styles.inputDesk]}
                 value={settingsDate}
-                onChangeText={setSettingsDate}
-                placeholder="f.eks. 2026-12-24"
-                placeholderTextColor={colors.muted}
-                autoCapitalize="none"
+                onChange={setSettingsDate}
+                format="iso"
+                placeholder="Velg dato"
+                accessibilityLabel="Anledning / dato"
                 editable={canManage}
+                clearable
               />
               {canShare && (
                 <WishlistSharePicker

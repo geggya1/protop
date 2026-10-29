@@ -24,6 +24,7 @@ import {
 import { handleAiMealIngredients } from './aiMealPlan.js';
 import { handleAiRecipeImport } from './aiRecipeImport.js';
 import { handleAiReceiptOcr } from './aiReceiptOcr.js';
+import { handleMileageRates } from './mileageRates.js';
 import { handleAiClassListOcr } from './aiClassListOcr.js';
 import { handleInterpretImport } from './importInterpret.js';
 import {
@@ -164,12 +165,15 @@ export const aiRecipeImport = onCall(
   },
 );
 
-/** OCR kvittering/faktura → regnskapsbilag (kun foresatte). */
+/**
+ * OCR kvittering/faktura → regnskapsbilag. Utlegg (purpose 'expense'): skann av store bilder
+ * og to tolkerunder, derfor mer minne og tid.
+ */
 export const aiReceiptOcr = onCall(
   {
     region: 'europe-west1',
-    timeoutSeconds: 120,
-    memory: '512MiB',
+    timeoutSeconds: 300,
+    memory: '1GiB',
     cors: true,
   },
   async (req) => {
@@ -180,6 +184,28 @@ export const aiReceiptOcr = onCall(
     } catch (error) {
       logger.warn('aiReceiptOcr failed', { message: error?.message });
       rethrowCallable(error, 'Klarte ikke tolke kvitteringen.');
+    }
+  },
+);
+
+/**
+ * Satser for bilgodtgjørelse (statens sats og trekkfri sats), hentet automatisk og lagret i ett døgn.
+ * Alle innloggede kan lese dem. Se mileageRates.js.
+ */
+export const mileageRates = onCall(
+  {
+    region: 'europe-west1',
+    timeoutSeconds: 120,
+    memory: '512MiB',
+    cors: true,
+  },
+  async (req) => {
+    try {
+      requireAuth(req.auth);
+      return await handleMileageRates(req.auth);
+    } catch (error) {
+      logger.warn('mileageRates failed', { message: error?.message });
+      rethrowCallable(error, 'Kunne ikke hente satsene.');
     }
   },
 );

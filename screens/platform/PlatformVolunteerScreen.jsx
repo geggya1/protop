@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import DateInput from '../../components/DateInput';
 import { isGroupAdmin } from '../../src/utils/groups';
 import { listenVolunteerSlots, signUpVolunteerSlot, createVolunteerSlot } from '../../src/platform/platformCore';
 
@@ -69,7 +70,14 @@ export default function PlatformVolunteerScreen({ config, groupId, group }) {
         creating ? (
           <View style={[styles.form, { backgroundColor: c.surface, borderColor: c.line }]}>
             <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Tittel" placeholderTextColor={c.muted} value={title} onChangeText={setTitle} />
-            <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Dato YYYY-MM-DD" placeholderTextColor={c.muted} value={dateKey} onChangeText={setDateKey} />
+            <DateInput
+              style={[styles.input, { borderColor: c.line, backgroundColor: c.surface }]}
+              textStyle={{ color: dateKey ? c.ink : c.muted }}
+              placeholder="Dato"
+              value={dateKey}
+              onChange={setDateKey}
+              format="iso"
+            />
             <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Tid" placeholderTextColor={c.muted} value={startTime} onChangeText={setStartTime} />
             <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Antall plasser" placeholderTextColor={c.muted} value={spots} onChangeText={setSpots} keyboardType="number-pad" />
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: c.brand }]} onPress={add}>

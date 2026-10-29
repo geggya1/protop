@@ -11,6 +11,8 @@ export const AI_LIMITS = {
   chatPerUserPerDay: 40,
   /** Maks chat-meldinger per barn per dag (lokal motor, ingen API-kostnad) */
   chatPerChildPerDay: 50,
+  /** Maks tolkede kvitteringer per ansatt per dag (utlegg) */
+  receiptsPerUserPerDay: 60,
   /** Maks Leksehjelpen-turer per bruker per dag (litt slakk så barn ikke treffer tak midt i lekseøkt) */
   tutorPerUserPerDay: 50,
   /** Maks bildestørrelse (bytes) etter komprimering */
@@ -99,6 +101,9 @@ function usageDocRef(db, familyId, uid, kind) {
   if (kind === 'tutor') {
     return { ref: db.doc(`aiUsage/user_${uid}_${dateKey}_tutor`), dateKey };
   }
+  if (kind === 'receipt') {
+    return { ref: db.doc(`aiUsage/user_${uid}_${dateKey}_receipt`), dateKey };
+  }
   return { ref: db.doc(`aiUsage/user_${uid}_${dateKey}`), dateKey };
 }
 
@@ -110,6 +115,8 @@ function usageLimitError(kind, limit) {
         ? `Daglig grense for AI-middag er nådd (${limit}/dag). Prøv igjen i morgen.`
         : kind === 'tutor'
           ? `Daglig grense for Leksehjelpen er nådd (${limit}/dag). Prøv igjen i morgen.`
+          : kind === 'receipt'
+            ? `Daglig grense for tolking av kvitteringer er nådd (${limit}/dag). Fyll ut feltene selv, eller prøv igjen i morgen.`
           : `Daglig grense for AI-chat er nådd (${limit}/dag). Prøv igjen i morgen.`,
   );
   err.code = 'resource-exhausted';

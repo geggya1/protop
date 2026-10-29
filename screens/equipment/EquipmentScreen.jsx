@@ -49,6 +49,7 @@ import {
 } from '../../src/equipment/state';
 import EquipmentBookingAccess from '../../components/equipment/EquipmentBookingAccess';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import DateInput from '../../components/DateInput';
 import { ControlStatus, ControlsEditor } from './EquipmentControls';
 import { submitQuick } from '../iso/quickSend';
 import EquipmentCalendar from '../../components/equipment/EquipmentCalendar';
@@ -63,18 +64,22 @@ import { dateText } from '../../src/format/nb';
 const WEEKDAYS = ['ma', 'ti', 'on', 'to', 'fr', 'lø', 'sø'];
 const MONTHS = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
 
-function Field({ label, value, onChange, colors, placeholder, keyboardType }) {
+function Field({ label, value, onChange, colors, placeholder, keyboardType, date }) {
   return (
     <View style={{ minWidth: 140, flexGrow: 1, flexBasis: 160 }}>
       <Text style={{ color: colors.muted, fontSize: 11, marginBottom: 4 }}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={colors.muted}
-        keyboardType={keyboardType || 'default'}
-        style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
-      />
+      {date ? (
+        <DateInput value={value} onChange={onChange} format="iso" clearable accessibilityLabel={label} />
+      ) : (
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={colors.muted}
+          keyboardType={keyboardType || 'default'}
+          style={[styles.input, { color: colors.ink, borderColor: colors.line, backgroundColor: colors.card }]}
+        />
+      )}
     </View>
   );
 }
@@ -735,8 +740,8 @@ export default function EquipmentScreen() {
                 ))}
               </View>
               <View style={styles.row}>
-                <Field label="Kjøpt" value={gear.purchasedAt} onChange={(value) => setGear((row) => ({ ...row, purchasedAt: value }))} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
-                <Field label="Garanti til" value={gear.warrantyUntil} onChange={(value) => setGear((row) => ({ ...row, warrantyUntil: value }))} colors={colors} placeholder="ÅÅÅÅ-MM-DD" />
+                <Field label="Kjøpt" value={gear.purchasedAt} onChange={(value) => setGear((row) => ({ ...row, purchasedAt: value }))} colors={colors} date />
+                <Field label="Garanti til" value={gear.warrantyUntil} onChange={(value) => setGear((row) => ({ ...row, warrantyUntil: value }))} colors={colors} date />
                 <Field label="Garantigiver" value={gear.warrantyVendor} onChange={(value) => setGear((row) => ({ ...row, warrantyVendor: value }))} colors={colors} />
               </View>
               <Field label="Garantibevis (lenke)" value={gear.warrantyUri} onChange={(value) => setGear((row) => ({ ...row, warrantyUri: value }))} colors={colors} placeholder="https://" />

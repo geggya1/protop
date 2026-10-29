@@ -77,7 +77,6 @@ import {
 import { freshRows, hydrateRows } from '../../src/company/companyData.js';
 import { recordUsage } from '../../src/employees/usageClient';
 import { displayName } from '../../src/employees/model.js';
-import { parseDate } from '../../src/economy/invoices.js';
 import { pickableProjects } from '../../src/project/myProjects';
 import { useCompanyAiGuard } from '../../src/privacy/useCompanyAi';
 import Breadcrumb from '../../components/Breadcrumb';
@@ -757,8 +756,6 @@ export default function EconomyHours({
       toDate={toDate}
       onFromDate={(value) => setFromDate(value)}
       onToDate={(value) => setToDate(value)}
-      onFromDateBlur={() => setFromDate((current) => parseDate(current) || current)}
-      onToDateBlur={() => setToDate((current) => parseDate(current) || current)}
       groupBy={groupBy}
       onGroupBy={setGroupBy}
       sort={sort}

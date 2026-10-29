@@ -8,6 +8,7 @@ import { colors } from '../../src/theme';
 import { desktopOverlay, desktopSheet } from '../../src/desktop';
 import { useLayout } from '../../src/theme';
 import ConfirmDialog from '../ConfirmDialog';
+import DateInput from '../DateInput';
 import { emptyBilag, formatBilagAmount } from '../../src/utils/documentBilag';
 import { dateText } from '../../src/format/nb';
 
@@ -155,14 +156,17 @@ export default function DocumentBilagEditSheet({
 
               <Field label="Leverandør" value={form.supplier} onChangeText={(v) => setField('supplier', v)} editable={canEdit} />
               <View style={styles.row2}>
-                <Field
-                  label="Dato"
-                  value={form.date}
-                  onChangeText={(v) => setField('date', v)}
-                  editable={canEdit}
-                  placeholder="ÅÅÅÅ-MM-DD"
-                  style={{ flex: 1 }}
-                />
+                <View style={[styles.field, { flex: 1 }]}>
+                  <Text style={styles.fieldLbl}>Dato</Text>
+                  <DateInput
+                    value={form.date || ''}
+                    onChange={(v) => setField('date', v)}
+                    format="iso"
+                    editable={canEdit}
+                    clearable
+                    accessibilityLabel="Dato"
+                  />
+                </View>
                 <Field
                   label="Beløp"
                   value={numToStr(form.amount)}

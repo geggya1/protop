@@ -5,6 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useApp } from '../../src/context/AppContext';
+import DateInput from '../../components/DateInput';
 import { configForType } from '../../src/platform/platformConfigs';
 import { createPlatformEvent, createDaycareAnnouncement } from '../../src/platform/platformCore';
 
@@ -85,13 +86,14 @@ export default function PlatformCreateEventScreen() {
         />
         {!isAnnouncement && (
           <>
-            <Text style={[styles.label, { color: c.muted }]}>Dato (YYYY-MM-DD)</Text>
-            <TextInput
-              style={[styles.input, { borderColor: c.line, color: c.ink, backgroundColor: c.surface }]}
+            <Text style={[styles.label, { color: c.muted }]}>Dato</Text>
+            <DateInput
+              style={[styles.input, { borderColor: c.line, backgroundColor: c.surface }]}
+              textStyle={{ color: dateKey ? c.ink : c.muted }}
               value={dateKey}
-              onChangeText={setDateKey}
-              placeholder="2026-08-24"
-              placeholderTextColor={c.muted}
+              onChange={setDateKey}
+              format="iso"
+              accessibilityLabel="Dato"
             />
             <Text style={[styles.label, { color: c.muted }]}>Tid</Text>
             <TextInput

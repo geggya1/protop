@@ -297,7 +297,7 @@ export function mileageRate(policies = []) {
   if (Number.isFinite(rate) && rate > 0) {
     return { rate: roundMoney(rate), source: 'company', label: 'Selskapssats' };
   }
-  return { rate: MILEAGE_RATE_TAX_FREE, source: 'statutory', label: 'Statens regulativ' };
+  return { rate: MILEAGE_RATE_TAX_FREE, source: 'statutory', label: 'Skattefri sats' };
 }
 
 export function sumCharges(charges = [], kind) {

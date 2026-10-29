@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../src/context/AppContext';
+import DateInput from '../../components/DateInput';
 import { listenAbsences, reportAbsence } from '../../src/platform/platformCore';
 
 export default function PlatformAbsenceScreen({ config, groupId }) {
@@ -65,7 +66,14 @@ export default function PlatformAbsenceScreen({ config, groupId }) {
       {formOpen && (
         <View style={[styles.form, { backgroundColor: c.surface, borderColor: c.line }]}>
           <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Barnets navn" placeholderTextColor={c.muted} value={childName} onChangeText={setChildName} />
-          <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Dato YYYY-MM-DD" placeholderTextColor={c.muted} value={dateKey} onChangeText={setDateKey} />
+          <DateInput
+            style={[styles.input, { borderColor: c.line, backgroundColor: c.surface }]}
+            textStyle={{ color: dateKey ? c.ink : c.muted }}
+            placeholder="Dato"
+            value={dateKey}
+            onChange={setDateKey}
+            format="iso"
+          />
           <TextInput style={[styles.input, { color: c.ink, borderColor: c.line }]} placeholder="Årsak (valgfritt)" placeholderTextColor={c.muted} value={reason} onChangeText={setReason} />
           <TouchableOpacity style={[styles.saveBtn, { backgroundColor: c.brand }]} onPress={submit}>
             <Text style={styles.saveTxt}>Send</Text>

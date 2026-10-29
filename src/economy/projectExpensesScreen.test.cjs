@@ -62,6 +62,7 @@ function loadJsx(rel) {
   m.require = (id) => {
     if (id === 'react') return React;
     if (id === 'react-native') return rnMock;
+    if (id.endsWith('/DateInput')) return { __esModule: true, default: host('DateInput') };
     if (id === '@expo/vector-icons') return { Ionicons: host('Ionicons') };
     // Felles rapporttabell rendres ekte, så kolonner og telefonkort testes med skjermen.
     if (id.includes('components/table/ReportTable')) return loadJsx('components/table/ReportTable.jsx');
@@ -120,6 +121,8 @@ function loadJsx(rel) {
     if (id.includes('utils/media')) return { pickDocument: async () => null };
     if (id.includes('saveToast')) return { showSaveToast: () => {} };
     if (id.includes('ExpenseImportReview')) return { __esModule: true, default: function ExpenseImportReview() { return null; } };
+    // Registreringen (egen test i expenseWizard.test.cjs) åpnes først ved «Nytt utlegg».
+    if (id.includes('economy/ExpenseWizard')) return { __esModule: true, default: function ExpenseWizard() { return null; } };
     if (id.includes('components/OptionPicker')) {
       // Felles velger: vis valgt etikett som tekst, slik feltet gjør.
       return {

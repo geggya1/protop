@@ -99,7 +99,6 @@ export function hrControlCells(employee, { hr = {}, entries = [] } = {}) {
   const id = employee?.id || '';
   const overview = companyComplianceOverview([employee], hr.compliance, {
     contracts: hr.contracts,
-    reviews: hr.reviews,
     hmsCards: hr.hmsCards,
     applyEvidence: true,
   })[0];

@@ -44,7 +44,6 @@ export function splitHrPeople(employees) {
 export function complianceByItem(staff, hr = {}) {
   const rows = companyComplianceOverview(staff, hr.compliance, {
     contracts: hr.contracts,
-    reviews: hr.reviews,
     hmsCards: hr.hmsCards,
     applyEvidence: true,
   });

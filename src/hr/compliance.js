@@ -1,7 +1,8 @@
 /**
- * Lovpålagt oppfølging per ansatt: arbeidsavtale, oppfølging, verneutstyr, HMS-kort og personvern.
- * Kilder: AML §§ 4-2/4-3/14-5/14-6/15-6 (§ 14-6 slik den lyder fra 1.7.2024) og personvernforordningen.
+ * Lovpålagt per ansatt: arbeidsavtale, verneutstyr, HMS-kort og personvern.
+ * Kilder: AML §§ 14-5/14-6/15-6 (§ 14-6 slik den lyder fra 1.7.2024) og personvernforordningen.
  * Kompetanse, opplæring, HMS-introduksjon og avviksrutine følges opp i ISO / K-HMS → Kompetanse.
+ * Medarbeidersamtaler holdes og følges opp under HR → Oppfølging, ikke her.
  * Punkter med derived settes fra dataene (avtalen, HMS-kortet), ikke ved avkrysning.
  */
 import { hmsCardFor, hmsComplianceStatus } from './hmsCard.js';
@@ -34,13 +35,6 @@ export const COMPLIANCE_CATALOG = [
     label: 'Prøvetid dokumentert (hvis avtalt)',
     hint: 'Maks 6 måneder, og ved midlertidig ansettelse høyst halvparten av ansettelsens varighet (AML § 15-6). Skriftlig i avtalen.',
     required: false,
-  },
-  {
-    id: 'aml_followup_dialogue',
-    source: 'aml',
-    label: 'Systematisk oppfølging / medarbeidersamtale',
-    hint: 'AML §§ 4-2 og 4-3 — helse, trivsel og utvikling.',
-    required: true,
   },
   {
     // Id-en er beholdt fra da punktet lå under ISO 45001, så lagrede avkrysninger følger med.
@@ -82,7 +76,10 @@ export const MOVED_TO_ISO = [
   { id: 'iso45001_hms', label: 'Arbeidsmiljøopplæring' },
 ];
 
-/** Bytt ut én ansatts sjekkliste. Rader utenfor katalogen (flyttet til ISO) blir stående. */
+// «aml_followup_dialogue» (medarbeidersamtale) lå før her og følges nå opp under HR → Oppfølging.
+// Lagrede rader blir stående, men teller ikke i Lovpålagt.
+
+/** Bytt ut én ansatts sjekkliste. Rader utenfor katalogen (flyttet til ISO eller Oppfølging) blir stående. */
 export function replaceEmployeeCompliance(all, employeeId, rows) {
   const emp = String(employeeId || '').trim();
   const kept = (all || []).filter((row) => String(row.employeeId) !== emp || !CATALOG_IDS.has(row.catalogId));
@@ -298,13 +295,12 @@ function markOk(row, note = '') {
 }
 
 /**
- * Synkroniser sjekkliste fra avtaler og samtaler (Personio/BambooHR-mønster).
+ * Synkroniser sjekkliste fra avtaler og HMS-kort (Personio/BambooHR-mønster).
  * Skriver bare opp mangler → OK når evidens finnes; overskriver ikke manuell OK/NA.
  */
 export function syncComplianceFromEvidence(compliance, {
   employeeId,
   contracts = [],
-  reviews = [],
   hmsCards = [],
   today = '',
 } = {}) {
@@ -315,9 +311,6 @@ export function syncComplianceFromEvidence(compliance, {
     (c) => String(c.employeeId) === emp && c.status === 'active',
   );
   const aml = active ? amlContractCompleteness(active) : null;
-  const hasDoneReview = (reviews || []).some(
-    (r) => String(r.employeeId) === emp && r.status === 'done',
-  );
   const now = String(today || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
 
   const next = rows.map((row) => {
@@ -354,9 +347,6 @@ export function syncComplianceFromEvidence(compliance, {
     if (row.catalogId === 'aml_probation_documented' && active?.probationMonths) {
       return markOk(row, `Prøvetid ${active.probationMonths} mnd i avtale`);
     }
-    if (row.catalogId === 'aml_followup_dialogue' && hasDoneReview) {
-      return markOk(row, 'Medarbeidersamtale gjennomført');
-    }
     return row;
   });
 
@@ -366,7 +356,6 @@ export function syncComplianceFromEvidence(compliance, {
 /** Oversikt over compliance-gap for hele selskapet (sortert verst først). */
 export function companyComplianceOverview(employees, compliance, {
   contracts = [],
-  reviews = [],
   hmsCards = [],
   applyEvidence = true,
   today = '',
@@ -380,7 +369,6 @@ export function companyComplianceOverview(employees, compliance, {
       ? syncComplianceFromEvidence(compliance || [], {
         employeeId: id,
         contracts,
-        reviews,
         hmsCards,
         today,
       })

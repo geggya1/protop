@@ -6,6 +6,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { periodLabel, sectionsOf } from '../../../src/economy/invoiceLines.js';
 import { invoiceTotals, paidAmountOf } from '../../../src/economy/invoiceFlow.js';
+import { sentFromPowerOffice } from '../../../src/economy/powerOfficeView.js';
 import { MiniTable, money } from '../billing/ui';
 
 function num(value) {
@@ -66,17 +67,20 @@ export function InvoiceTotalsView({ invoice, colors }) {
   const paid = paidAmountOf(invoice);
   const credited = Math.abs(Number(invoice?.creditedAmount) || 0);
   const loss = Math.abs(Number(invoice?.loss) || 0);
-  const outstanding = Number(invoice?.outstandingAmount ?? totals.totalDue - paid);
+  // Sendt fra PowerOffice: Go runder ikke av, og beløpet på fakturaen der er det som gjelder.
+  const fromPowerOffice = sentFromPowerOffice(invoice) && Number.isFinite(Number(invoice?.amountInclVat));
+  const totalDue = fromPowerOffice ? Number(invoice.amountInclVat) : totals.totalDue;
+  const outstanding = Number(invoice?.outstandingAmount ?? totalDue - paid);
   const rows = [
     ['Fakturabeløp eks. mva', money(totals.amountExVat, currency)],
     ['Mva', money(totals.vat, currency)],
     ['Fakturabeløp ink. mva', money(totals.amountInclVat, currency)],
-    ['Øreavrunding', money(totals.rounding, currency)],
-    [totals.totalDue < 0 ? `Til gode ${currency}` : `Totalt å betale ${currency}`, money(Math.abs(totals.totalDue), currency), true],
+    fromPowerOffice ? null : ['Øreavrunding', money(totals.rounding, currency)],
+    [totalDue < 0 ? `Til gode ${currency}` : `Totalt å betale ${currency}`, money(Math.abs(totalDue), currency), true],
     ['Har betalt', paid ? money(paid, currency) : '–'],
     credited ? ['Kreditert', money(credited, currency)] : null,
     loss ? ['Ført som tap', money(loss, currency)] : null,
-    ['Igjen å betale', money(Number.isFinite(outstanding) ? outstanding : totals.totalDue, currency), true],
+    ['Igjen å betale', money(Number.isFinite(outstanding) ? outstanding : totalDue, currency), true],
   ].filter(Boolean);
   return (
     <View style={styles.totals}>

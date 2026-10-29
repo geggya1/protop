@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { formatDate } from '../../../src/economy/invoices.js';
 import { type } from '../../../src/ui/tokens';
 import { REMINDER_FEE_MAX } from '../../../src/economy/companyInvoiceDefaults.js';
+import { invoicePdfName } from '../../../src/economy/invoicePdf.js';
+import { hasPowerOfficeEhf, sentFromPowerOffice } from '../../../src/economy/powerOfficeView.js';
 import {
   COLLECTION_FLAGS,
   deliveryChannelLabel,
@@ -75,6 +77,7 @@ const EVENT_ICONS = {
   attachment: 'attach-outline',
   manual: 'chatbox-ellipses-outline',
   archive: 'archive-outline',
+  poweroffice: 'swap-horizontal-outline',
 };
 
 function InlineAdd({ placeholder, onSave, colors, nativeID, multiline = true }) {
@@ -144,6 +147,7 @@ export default function InvoiceSidebar({
   const draft = status.id === 'draft' || status.id === 'approved';
   const issued = !!invoice.issuedAt || (!draft && status.id !== 'transferred');
   const po = mode === 'poweroffice';
+  const poSent = sentFromPowerOffice(invoice);
   const events = [...(invoice.events || [])].reverse();
   const shownEvents = allEvents ? events : events.slice(0, 6);
   const notes = [...(invoice.noteList || [])].reverse();
@@ -394,14 +398,33 @@ export default function InvoiceSidebar({
       </Card>
 
       <Card title="Last ned" colors={colors} nativeID="invoice-downloads">
-        <LinkText label={invoice.issuedAt ? `${credit ? 'Kreditnota' : 'Faktura'}-${invoice.invoiceNumber}.pdf` : (credit ? 'Kreditnota-utkast.pdf' : 'Faktura-utkast.pdf')} icon="document-outline" onPress={() => onDownload('pdf')} colors={colors} nativeID="invoice-download-pdf" />
-        {(invoice.timeEntryIds || []).length ? (
+        {poSent ? (
           <>
-            <LinkText label="Timespesifikasjoner" icon="document-outline" onPress={() => onDownload('timespec')} colors={colors} nativeID="invoice-download-timespec" />
-            <LinkText label="Faktura med timespesifikasjoner" icon="document-outline" onPress={() => onDownload('combined')} colors={colors} />
+            {/* Fakturaen kunden fikk ligger i PowerOffice. ProTop sin PDF er spesifikasjonen som fulgte med. */}
+            <LinkText label={`${invoicePdfName(invoice)} fra PowerOffice`} icon="document-outline" onPress={() => onDownload('po-pdf')} colors={colors} nativeID="invoice-download-pdf" />
+            {hasPowerOfficeEhf(invoice) ? (
+              <LinkText label="EHF fra PowerOffice" icon="code-outline" onPress={() => onDownload('po-ehf')} colors={colors} nativeID="invoice-download-ehf" />
+            ) : null}
+            <LinkText label="Fakturaspesifikasjon (vedlegget)" icon="document-outline" onPress={() => onDownload('spec')} colors={colors} />
+            {(invoice.timeEntryIds || []).length ? (
+              <LinkText label="Timespesifikasjoner" icon="document-outline" onPress={() => onDownload('timespec')} colors={colors} nativeID="invoice-download-timespec" />
+            ) : null}
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Fakturaen med kontonummer og KID hentes fra PowerOffice. Den gikk til kunden sammen med spesifikasjonen.
+            </Text>
           </>
-        ) : null}
-        <LinkText label="EHF (XML)" icon="code-outline" onPress={() => onDownload('ehf')} colors={colors} nativeID="invoice-download-ehf" />
+        ) : (
+          <>
+            <LinkText label={invoicePdfName(invoice)} icon="document-outline" onPress={() => onDownload('pdf')} colors={colors} nativeID="invoice-download-pdf" />
+            {(invoice.timeEntryIds || []).length ? (
+              <>
+                <LinkText label="Timespesifikasjoner" icon="document-outline" onPress={() => onDownload('timespec')} colors={colors} nativeID="invoice-download-timespec" />
+                <LinkText label="Faktura med timespesifikasjoner" icon="document-outline" onPress={() => onDownload('combined')} colors={colors} />
+              </>
+            ) : null}
+            <LinkText label="EHF (XML)" icon="code-outline" onPress={() => onDownload('ehf')} colors={colors} nativeID="invoice-download-ehf" />
+          </>
+        )}
         {invoice.archive?.pdf?.url ? (
           <Text style={{ color: colors.muted, fontSize: 12 }}>
             {`Arkivert ${formatDate(String(invoice.archive.pdf.at || invoice.issuedAt).slice(0, 10))}. Arkivkopien endres ikke.`}

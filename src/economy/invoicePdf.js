@@ -514,12 +514,15 @@ function headerBlock(page, invoice, supplier, labels, logo, options) {
     spec ? null : [totals.totalDue < 0 ? labels.refund : labels.toPay, num(Math.abs(totals.totalDue)), true],
   ].filter((row) => row && text(row[1]) && text(row[1]) !== '—');
   const factTop = top + (spec ? 26 + specNote.length * 8 : (draft ? 34 : 26));
-  facts.forEach(([label, value, strong], index) => {
-    const y = factTop + index * 10;
-    page.text(`${label}:`, 330, y, 8, !!strong);
-    wrap(value, RIGHT - 430, 8, !!strong).slice(0, 1).forEach((row) => page.text(row, 430, y, 8, !!strong));
+  // Lange verdier (som prosjektnavn) brytes over inntil tre linjer i stedet for å kuttes.
+  let factY = factTop;
+  facts.forEach(([label, value, strong]) => {
+    const rows = wrap(value, RIGHT - 430, 8, !!strong).slice(0, 3);
+    page.text(`${label}:`, 330, factY, 8, !!strong);
+    rows.forEach((row, index) => page.text(row, 430, factY + index * 9, 8, !!strong));
+    factY += 10 + (rows.length - 1) * 9;
   });
-  page.y = Math.max(top + 26 + recipient.length * 10, factTop + facts.length * 10) + 18;
+  page.y = Math.max(top + 26 + recipient.length * 10, factY) + 18;
   if (invoice.invoiceText) {
     for (const row of wrap(invoice.invoiceText, RIGHT - LEFT, 9)) {
       page.ensure(12);

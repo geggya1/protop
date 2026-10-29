@@ -147,7 +147,24 @@ ProTop sitt design følger med som vedlegg:
 - Logo, farger og bunntekst settes i Go under fakturaoppsett.
 
 Tilganger som må med i skjemaet for produksjonstilgang: kunder, produkter, salgsordre (SalesOrders_Full),
-vedlegg på salgsordre (SalesOrderAttachment_Full), utgående fakturaer, og fakturasending (CreateAndSendInvoice).
+vedlegg på salgsordre (SalesOrderAttachment_Full), utgående fakturaer, fakturasending (CreateAndSendInvoice)
+og bilagsdokumentasjon (VoucherDocumentation, for å hente fakturaen kunden fikk).
+
+### Test 29.10.2026: faktura 10000 fra testklienten
+
+- Utkastet kom inn i Go med fakturaspesifikasjonen som vedlegg. Go slo den sammen med sin egen faktura til én
+  PDF: faktura (KID, forfall), så spesifikasjonen og timespesifikasjonen. Synk ga fakturanummer, KID og «Sendt».
+- «Send fra PowerOffice nå» ga «Missing privilege»: testklienten mangler CreateAndSendInvoice. Bedt om hos
+  PowerOffice.
+- Rettet etter testen: Go får kredittiden fra ProTop (`PaymentTerm`), så forfallet blir det samme. Lange
+  prosjektnavn brytes i PDF-hodet.
+- Endringsloggen får hver bevegelse i PowerOffice (`powerOfficeEvents`, lagt til med `arrayUnion`): overført,
+  vedlegg, bedt sendt, sendefeil, sendt med nummer/KID/forfall, innbetaling, betalt, slettet og sammenslått i Go.
+- «Last ned» på en faktura sendt fra PowerOffice: fakturaen fra Go (`powerOfficeInvoiceDocument`,
+  `GET /VoucherDocumentation/Download`, ZIP pakkes ut på serveren), EHF fra Go når den gikk som EHF, og
+  spesifikasjonen. ProTop sin egen faktura-PDF og EHF vises ikke der, fordi de mangler kontonummer og KID fra Go.
+  Forhåndsvisningen viser spesifikasjonen. Beløpet er Go sitt, uten øreavrunding.
+- Kontonummer på fakturaen kommer fra klientoppsettet i Go. Testklienten har ingen bankkonto.
 
 ## Utkast til svar til PowerOffice (sendes når testlisten er grønn)
 
@@ -167,8 +184,9 @@ vedlegg på salgsordre (SalesOrderAttachment_Full), utgående fakturaer, og fakt
 >   10 kall i sekundet.
 > - Sammenslåtte utkast spores via ExternalImportReference på linjene.
 >
-> Kan du sende skjemaet for produksjonstilgang? Integrasjonen bruker salgsordrer, utgående fakturaer,
-> kunder og produkter (lesing). Vi trenger ikke CreateAndSendInvoice. Fakturaene sendes fra PowerOffice Go.
+> Kan du sende skjemaet for produksjonstilgang? Integrasjonen bruker salgsordrer med vedlegg, utgående
+> fakturaer, fakturasending (CreateAndSendInvoice), bilagsdokumentasjon (VoucherDocumentation), og kunder og
+> produkter.
 >
 > Med vennlig hilsen
 > Geir Ove Andersen

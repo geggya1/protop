@@ -128,6 +128,11 @@ const entries = [{ id: 't1', date: '2026-09-03', employeeName: 'Linda Øie', act
   assert.ok(specPdf.includes('Timespesifikasjon'), 'timespesifikasjonen følger etter');
   const noEntries = Buffer.from(buildInvoiceSpecPdf(draft, [], { supplier })).toString('latin1');
   assert.ok(!noEntries.includes('Timespesifikasjon'));
+  // Langt prosjektnavn brytes i hodet i stedet for å kuttes.
+  const longName = Buffer.from(buildInvoiceSpecPdf(
+    { ...draft, projectNumber: '10772', projectName: 'Prismen (Ny) : Saksomkostninger - Anke' }, [], { supplier },
+  )).toString('latin1');
+  assert.ok(longName.includes('Anke'), 'hele prosjektnavnet står på PDF-en');
 }
 const spec = Buffer.from(buildTimeSpecPdf(invoice, entries, { supplier })).toString('latin1');
 assert.ok(spec.includes('Timespesifikasjon'));

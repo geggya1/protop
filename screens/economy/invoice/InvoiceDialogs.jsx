@@ -363,14 +363,16 @@ export function SendDialog({
                   {`\n\nFakturadato: ${invoice?.invoiceDateSet && invoice?.invoiceDate ? formatDate(invoice.invoiceDate) : 'dagens dato'}. `}
                   {invoice?.dueDateSet && invoice?.dueDate
                     ? `Forfall: ${formatDate(invoice.dueDate)}.`
-                    : 'Forfall etter betalingsbetingelsen i PowerOffice.'}
+                    : invoice?.creditDays != null && invoice?.creditDays !== '' && Number.isFinite(Number(invoice.creditDays))
+                      ? `Forfall ${Number(invoice.creditDays)} dager etter fakturadatoen.`
+                      : 'Forfall etter betalingsbetingelsen i PowerOffice.'}
                 </Text>
               ) : (
                 <Text style={{ color: colors.ink, lineHeight: 20 }}>
                   Utkastet overføres til PowerOffice Go, som setter fakturanummer og KID. Fakturaspesifikasjonen og
                   vedleggene legges ved. Kontroller og send fakturaen fra PowerOffice. Nummer, KID, sending og betaling hentes tilbake hit.
                   {invoice?.invoiceDate ? `\n\nOrdredato i PowerOffice: ${formatDate(invoice.invoiceDate)}. ` : '\n\n'}
-                  {invoice?.dueDateSet && invoice?.creditDays != null && Number.isFinite(Number(invoice.creditDays))
+                  {invoice?.creditDays != null && invoice?.creditDays !== '' && Number.isFinite(Number(invoice.creditDays))
                     ? `Betalingsfristen blir ${Number(invoice.creditDays)} dager fra dagen fakturaen sendes fra PowerOffice.`
                     : 'Betalingsfristen følger betalingsbetingelsen i PowerOffice.'}
                 </Text>

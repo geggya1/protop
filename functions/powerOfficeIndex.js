@@ -17,4 +17,5 @@ export {
   powerOfficeTransferInvoice,
   powerOfficeSyncInvoices,
   powerOfficeLookupInvoice,
+  powerOfficeInvoiceDocument,
 } from './powerOffice.js';

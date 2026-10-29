@@ -16,6 +16,7 @@ import {
   salesOrderRef,
   sendRequestFromInvoice,
 } from './powerOfficeMap.js';
+import { isZip, readZipEntries } from './zipEntries.js';
 
 /** Maks antall id-er i ett invoiceIds-filter. */
 const IDS_PER_CALL = 40;
@@ -432,5 +433,36 @@ export async function lookupOutgoingInvoice(client, { invoiceNo, at = new Date()
       status: patch.status,
       outstandingAmount: patch.outstandingAmount,
     },
+  };
+}
+
+/**
+ * Fakturadokumentet slik kunden fikk det, fra Go (GET /VoucherDocumentation/Download).
+ * Id-en er den samme for utkastet, den sendte fakturaen og bilaget. Go svarer med en ZIP.
+ * kind: 'pdf' eller 'ehf'. Gir { name, mime, base64 }.
+ */
+export async function fetchInvoiceDocument(client, { outgoingInvoiceId, invoiceNo = '', kind = 'pdf' }) {
+  const id = text(outgoingInvoiceId);
+  if (!id) throw new Error('Fakturaen er ikke sendt fra PowerOffice ennå.');
+  const ehf = kind === 'ehf';
+  const file = await client.download('/VoucherDocumentation/Download', { id, documentationType: ehf ? 'Ehf' : 'Pdf' });
+  const missing = ehf ? 'PowerOffice har ingen EHF for denne fakturaen.' : 'Fant ikke fakturadokumentet i PowerOffice.';
+  if (!file?.bytes?.length) throw new Error(missing);
+  const wanted = ehf ? /\.xml$/i : /\.pdf$/i;
+  let bytes = file.bytes;
+  let name = file.fileName;
+  if (isZip(bytes)) {
+    const hit = readZipEntries(bytes).find((row) => wanted.test(row.name));
+    if (!hit) throw new Error(missing);
+    bytes = hit.data;
+    name = hit.name.split('/').pop();
+  } else if (!ehf && bytes.subarray(0, 4).toString('latin1') !== '%PDF') {
+    throw new Error(missing);
+  }
+  const no = text(invoiceNo).replace(/[^\w-]+/g, '');
+  return {
+    name: no ? `Faktura-${no}${ehf ? '-EHF.xml' : '.pdf'}` : (name || (ehf ? 'Faktura-EHF.xml' : 'Faktura.pdf')),
+    mime: ehf ? 'application/xml' : 'application/pdf',
+    base64: bytes.toString('base64'),
   };
 }

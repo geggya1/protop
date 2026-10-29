@@ -81,6 +81,8 @@ import { showSaveToast } from '../../src/ui/saveToast';
 import { Button, Field, Sheet, TextIn } from '../../src/ui';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
 import ExpenseWizard from '../../components/economy/ExpenseWizard';
+import { expenseProjectOptions } from '../../src/economy/expenseForm.js';
+import { myProjectIds } from '../../src/project/myProjects';
 import Breadcrumb from '../../components/Breadcrumb';
 import ReportTable from '../../components/table/ReportTable';
 import DateInput from '../../components/DateInput';
@@ -336,16 +338,19 @@ function ExpenseSheet({
           </Field>
         </View>
       </View>
-      <Field label="Faktureres som" hint={charge?.hint}>
-        <OptionPicker
-          options={EXPENSE_CHARGE_TYPES.map((row) => ({ id: row.id, label: row.label }))}
-          value={draft.chargeType || 'reinvoice'}
-          onChange={(id) => { if (id) setDraft((current) => ({ ...current, chargeType: id, ...(id === 'outlay' ? { markupPercent: 0 } : {}) })); }}
-          title="Faktureres som"
-          clearable={false}
-          disabled={!editable}
-        />
-      </Field>
+      {/* «Utlegg i kundens navn» velges ikke lenger. Eldre utlegg med valget vises og faktureres som før. */}
+      {draft.chargeType === 'outlay' ? (
+        <Field label="Faktureres som" hint={charge?.hint}>
+          <OptionPicker
+            options={EXPENSE_CHARGE_TYPES.map((row) => ({ id: row.id, label: row.label }))}
+            value="outlay"
+            onChange={(id) => { if (id) setDraft((current) => ({ ...current, chargeType: id })); }}
+            title="Faktureres som"
+            clearable={false}
+            disabled={!editable}
+          />
+        </Field>
+      ) : null}
       <Field label="Formål">
         <TextIn value={draft.purpose || ''} onChangeText={set('purpose')} editable={editable} />
       </Field>
@@ -500,9 +505,14 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   const people = useMemo(() => (refs.directory?.rows || [])
     .filter((row) => row.employeeId && row.active !== false)
     .map((row) => ({ id: row.employeeId, label: row.name || 'Uten navn', uid: row.uid })), [refs.directory]);
-  const projectOptions = useMemo(() => (lookup.projects || [])
-    .filter((row) => row?.id && row.status !== 'arkivert')
-    .map((row) => ({ id: row.id, label: [row.number ? `#${row.number}` : '', row.name].filter(Boolean).join(' ') })), [lookup.projects]);
+  // Den ansattes aktive prosjekter øverst, så de andre. Søket treffer alle.
+  const draftEmployeeId = draft?.employeeId || '';
+  const projectOptions = useMemo(() => {
+    const own = draftEmployeeId || people.find((row) => row.uid && row.uid === user?.uid)?.id || '';
+    const me = employees.find((row) => row.id === own);
+    const mineIds = me ? myProjectIds({ ...state, projects: lookup.projects || [] }, me, employees) : new Set();
+    return expenseProjectOptions(lookup.projects || [], { mineIds, keepId: draft?.projectId || '' });
+  }, [lookup.projects, state, employees, draftEmployeeId, people, user?.uid, draft?.projectId]);
   const customerOptions = useMemo(() => (lookup.customers || [])
     .filter((row) => row?.id)
     .map((row) => ({ id: row.id, label: [row.customerNumber || row.number, row.name].filter(Boolean).join(' · ') })), [lookup.customers]);

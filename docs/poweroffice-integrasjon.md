@@ -283,3 +283,48 @@ trekkpliktig bilgodtgjørelse), ikke som et vanlig bilag.
 - Gå til Økonomi → Innstillinger → Regnskapssystem i den operative bedriften (Consult1). Lim inn
   klientnøkkelen og velg produkter. Nøkkelen kjennes igjen som produksjon. Kundekoblinger og synkmarkør
   nullstilles når klienten byttes.
+
+### Etter testen 29.10.2026 (kveld)
+
+- Forhåndsvisning og «Faktura-10000.pdf» er ProTop-fakturaen med nummer, KID og forfall fra Go, og
+  beløpet uten øreavrunding. «Original fra PowerOffice (PDF)» henter fakturaen kunden fikk.
+- KID: listen fra Go kan mangle `Cid`. Synken leser fakturaen på id når KID mangler.
+- Automatisk synk: `powerOfficeSyncScheduled` hvert 15. minutt for alle tilkoblede bedrifter
+  (egen inngang `powerOfficeSyncScheduledIndex.js`). Fakturalisten synker også når den åpnes.
+- Purring, inkassovarsel, inkasso og rentefaktura styres i ProTop (`src/economy/collection.js`),
+  også for fakturaer sendt fra Go. Kortet «Purring og inkasso» på fakturaen:
+  - Purring og inkassovarsel: PDF i ProTop-design, på e-post eller lastet ned, frist minst 14 dager,
+    gebyr tidligst 14 dager etter forfall og for høyst to varsler (maks 38 kr i 2026).
+  - Send til inkasso: kravsoppstilling og faktura til inkassobyrået (e-post i Fakturainnstillinger).
+  - Rentefaktura: forsinkelsesrente per halvår (`LATE_INTEREST_RATES`, 12,25 % fra 1.7.2026) og
+    gebyr som ikke er fakturert, som et nytt utkast utenfor mva. I PowerOffice-modus overføres det
+    som andre utkast og trenger et produkt for «Utenfor mva».
+  - Satsen legges inn hvert halvår (1. januar og 1. juli) i `LATE_INTEREST_RATES`.
+
+### Purring og inkasso som steg (endret 29.10.2026 kveld)
+
+Stegene følger loven, og bare neste steg kan tas:
+
+1. **Påminnelse** (valgfri): vennlig, uten gebyr og frist. Kan sendes når fakturaen har forfalt.
+2. **Purring**: ny frist minst 14 dager. Purregebyr tidligst 14 dager etter forfall (inkassoforskriften § 1-2).
+3. **Inkassovarsel (purring 2)**: først dagen etter at fristen i purringen er ute. Frist minst 14 dager
+   (inkassoloven § 9). Andre gebyr bare når fristen i purringen er oversittet (§ 1-3). Høyst to gebyr.
+4. **Inkasso**: først dagen etter at fristen i inkassovarselet er ute.
+
+Rentefaktura står utenfor rekkefølgen. Fakturaen kan settes på vent (for eksempel ved innsigelse).
+
+Innstillinger (Fakturainnstillinger → Purring og inkasso): dager per steg, gebyr, frist og automatikk per steg.
+Automatisk utsending (`collectionAutoScheduled`, kl. 07.30 og 13.30):
+
+- Henter betalinger fra PowerOffice for bedriften først (`syncCompany`). Feiler det, sendes ingenting den gangen,
+  og `lastCollectionRun` på statusen sier hvorfor. Fakturalisten viser det.
+- Bare fakturaer der betalingen kommer fra PowerOffice, aldri fra testklienten. Høyst 50 brev per bedrift per kjøring.
+- Mangler e-postadresse, føres det i endringsloggen én gang, og ingenting sendes.
+- Synken mot PowerOffice går i tillegg hvert 15. minutt.
+
+### Purring styres fra ProTop (valgt 29.10.2026)
+
+PowerOffice sitt API har ingen kommando for å purre eller sende til inkasso per faktura, bare innstillinger per
+kunde. Purring og inkasso styres derfor fra ProTop. Kunder ProTop oppretter i Go får `SendPaymentReminders: false`,
+`DoNotAutomatePaymentNotifications: true` og `TransferToDebtCollectionAgency: false`, så Go ikke sender et eget løp.
+Purring i Go bør også være slått av for klienten, siden kunder som fantes fra før, ikke endres.

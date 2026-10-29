@@ -143,3 +143,11 @@ assert.equal(sentFromPowerOffice({ poweroffice: { state: 'sent', outgoingInvoice
 assert.equal(sentFromPowerOffice({}), false);
 assert.equal(hasPowerOfficeEhf({ poweroffice: { outgoingInvoiceId: 'oi1', deliveryType: 'PdfByEmail' } }), false);
 assert.equal(hasPowerOfficeEhf({ poweroffice: { outgoingInvoiceId: 'oi1', deliveryType: 'EHF' } }), true);
+
+// Siste automatiske purring: hoppet over når betalingene ikke kunne hentes.
+{
+  const { collectionRunText } = await import('./powerOfficeView.js');
+  assert.equal(collectionRunText(null), '');
+  assert.match(collectionRunText({ at: '2026-11-15T06:30:00.000Z', ok: false, reason: 'Henting av betalinger fra PowerOffice feilet: nede' }), /hoppet over: Henting av betalinger.*Ingenting ble sendt/);
+  assert.match(collectionRunText({ at: '2026-11-15T06:30:00.000Z', ok: true, sent: 2, blocked: 1 }), /kl\. 07[.:]30: 2 sendt, 1 kunne ikke sendes/);
+}

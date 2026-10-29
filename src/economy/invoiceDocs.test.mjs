@@ -177,3 +177,16 @@ assert.ok(longPdf.includes('Side 2 av'));
 assert.equal(Math.round(textWidth('1 090,00', 10) * 100) / 100, 38.92);
 
 console.log('invoiceDocs.test.mjs: ok');
+
+// Sendt fra PowerOffice: fakturaen viser nummer og KID derfra, og beløpet uten øreavrunding.
+{
+  const lines = [normalizeLine({ description: 'Timer', quantity: 14, unitPrice: 12233.01, vatCode: 'HIGH' })];
+  const base = recalcInvoice({ ...emptyInvoice(), id: 'po1', invoiceNumber: '10000', status: 'sent', sentAt: '2026-10-29', lines });
+  const fromGo = { ...base, kid: '8951100666', poweroffice: { state: 'sent', outgoingInvoiceId: 'oi1', cid: '8951100666' } };
+  const own = Buffer.from(buildInvoicePdf(base, { supplier })).toString('latin1');
+  const po = Buffer.from(buildInvoicePdf(fromGo, { supplier })).toString('latin1');
+  assert.ok(own.includes('Øreavrunding') || own.includes('\\330reavrunding') || own.includes('reavrunding'), 'egen faktura runder av');
+  assert.ok(!po.includes('reavrunding'), 'fra PowerOffice: ingen øreavrunding');
+  assert.ok(po.includes('8951100666'), 'KID fra PowerOffice');
+  assert.ok(po.includes('FAKTURA 10000'), 'fakturanummeret står på fakturaen');
+}

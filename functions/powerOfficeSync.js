@@ -319,7 +319,14 @@ export async function syncInvoices(client, { invoices = [], cursor = '', at = ne
   const open = tracked.filter((row) => row.poweroffice.state === 'sent');
   let nextCursor = text(cursor);
 
-  const apply = (invoice, outgoing) => {
+  // Listen fra Go kan mangle KID. Første gang fakturaen er sendt leses den på id.
+  const withCid = async (invoice, outgoing) => {
+    if (text(outgoing?.Cid) || text(invoice?.poweroffice?.cid) || !text(outgoing?.Id)) return outgoing;
+    const full = await client.request('GET', `/OutgoingInvoices/${encodeURIComponent(outgoing.Id)}`).catch(() => null);
+    return full?.Id ? { ...outgoing, ...full } : outgoing;
+  };
+  const apply = async (invoice, row) => {
+    const outgoing = await withCid(invoice, row);
     const patch = invoicePatchFromOutgoing(invoice, outgoing, { at });
     patches.push({ id: invoice.id, patch });
     if (patch.poweroffice.state === 'paid') counts.paid += 1;
@@ -328,7 +335,10 @@ export async function syncInvoices(client, { invoices = [], cursor = '', at = ne
   };
 
   // Uten markør vet vi ikke hva som har endret seg, så alle ubetalte sjekkes med id.
-  const byId = cursor ? [...drafts, ...sending] : [...drafts, ...sending, ...open];
+  // Sendte uten KID leses også, så KID kommer med selv om listen manglet den første gang.
+  const byId = cursor
+    ? [...drafts, ...sending, ...open.filter((row) => !text(row.poweroffice.cid))]
+    : [...drafts, ...sending, ...open];
   const found = new Map();
   for (const ids of chunk(byId.map((row) => row.poweroffice.salesOrderId), IDS_PER_CALL)) {
     const wanted = new Set(ids);
@@ -341,7 +351,7 @@ export async function syncInvoices(client, { invoices = [], cursor = '', at = ne
     counts.checked += 1;
     const outgoing = found.get(invoice.poweroffice.salesOrderId);
     if (outgoing) {
-      apply(invoice, outgoing);
+      await apply(invoice, outgoing);
       continue;
     }
     if (invoice.poweroffice.state === 'sending') {
@@ -365,7 +375,7 @@ export async function syncInvoices(client, { invoices = [], cursor = '', at = ne
       counts.merged += 1;
     } else if (merged?.kind === 'sent') {
       const mergedInvoice = { ...invoice, poweroffice: invoicePatchMerged(invoice, merged.id, { at }).poweroffice };
-      apply(mergedInvoice, merged.outgoing);
+      await apply(mergedInvoice, merged.outgoing);
       counts.merged += 1;
     } else {
       patches.push({ id: invoice.id, patch: invoicePatchMissing(invoice, { at }) });
@@ -381,7 +391,7 @@ export async function syncInvoices(client, { invoices = [], cursor = '', at = ne
       const invoice = byOutgoing.get(text(row?.Id));
       if (!invoice) continue;
       counts.checked += 1;
-      apply(invoice, row);
+      await apply(invoice, row);
     }
   }
 

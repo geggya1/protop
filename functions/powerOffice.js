@@ -135,6 +135,17 @@ function publicStatus(status, ready) {
     brandingTheme: String(status.brandingTheme || ''),
     lastSyncAt: status.lastSyncAt || '',
     lastSyncCounts: status.lastSyncCounts || null,
+    lastAutoSyncError: String(status.lastAutoSyncError || ''),
+    // Siste automatiske purring og inkasso (collectionAuto.js).
+    lastCollectionRun: status.lastCollectionRun && typeof status.lastCollectionRun === 'object'
+      ? {
+        at: String(status.lastCollectionRun.at || ''),
+        ok: status.lastCollectionRun.ok !== false,
+        sent: Number(status.lastCollectionRun.sent) || 0,
+        blocked: Number(status.lastCollectionRun.blocked) || 0,
+        reason: String(status.lastCollectionRun.reason || ''),
+      }
+      : null,
     keysReady: ready,
   };
 }
@@ -372,34 +383,66 @@ export const powerOfficeSyncInvoices = onCall(CALL, async (request) => {
 
   const status = await readStatus(db, familyId);
   if (status.connected !== true) return { counts: null, connected: false };
+  try {
+    return await syncCompany(db, familyId, status, actorFrom(request));
+  } catch (err) {
+    throw toHttpsError(err, 'sync');
+  }
+});
+
+/**
+ * Synk én bedrift: fakturanummer, KID, forsendelse og betaling fra Go, med hendelser i
+ * endringsloggen. Brukes av «Synk nå» og av den automatiske synken.
+ */
+export async function syncCompany(db, familyId, status, actor = { uid: '', name: '' }) {
+  const client = await clientFor(db, familyId, status);
   const snap = await db.collection(`families/${familyId}/invoices`)
     .where('poweroffice.state', 'in', ['draft', 'sending', 'sent'])
     .get();
   const invoices = snap.docs.map((row) => ({ id: row.id, ...row.data() }));
   const at = new Date().toISOString();
-  try {
-    const client = await clientFor(db, familyId, status);
-    const result = await syncInvoices(client, { invoices, cursor: status.balanceCursor || '', at });
-    const byId = new Map(invoices.map((row) => [row.id, row]));
-    const actor = actorFrom(request);
-    for (let i = 0; i < result.patches.length; i += 400) {
-      const batch = db.batch();
-      for (const { id, patch } of result.patches.slice(i, i + 400)) {
-        const before = byId.get(id) || {};
-        batch.set(db.doc(`families/${familyId}/invoices/${id}`), withEvents(patch, before, actor), { merge: true });
-      }
-      await batch.commit();
+  const result = await syncInvoices(client, { invoices, cursor: status.balanceCursor || '', at });
+  const byId = new Map(invoices.map((row) => [row.id, row]));
+  for (let i = 0; i < result.patches.length; i += 400) {
+    const batch = db.batch();
+    for (const { id, patch } of result.patches.slice(i, i + 400)) {
+      const before = byId.get(id) || {};
+      batch.set(db.doc(`families/${familyId}/invoices/${id}`), withEvents(patch, before, actor), { merge: true });
     }
-    await statusRef(db, familyId).set({
-      lastSyncAt: at,
-      lastSyncCounts: result.counts,
-      balanceCursor: result.cursor || status.balanceCursor || '',
-    }, { merge: true });
-    return { connected: true, counts: result.counts, updated: result.patches.map((row) => row.id) };
-  } catch (err) {
-    throw toHttpsError(err, 'sync');
+    await batch.commit();
   }
-});
+  await statusRef(db, familyId).set({
+    lastSyncAt: at,
+    lastSyncCounts: result.counts,
+    balanceCursor: result.cursor || status.balanceCursor || '',
+    lastAutoSyncError: '',
+  }, { merge: true });
+  return { connected: true, counts: result.counts, updated: result.patches.map((row) => row.id) };
+}
+
+/**
+ * Automatisk synk for alle bedrifter som er koblet til. Feil i én bedrift stopper ikke
+ * de andre. Gir { companies, updated, failed }.
+ */
+export async function syncAllCompanies(db = getFirestore()) {
+  const snap = await db.collection('powerOfficeClients').where('connected', '==', true).get();
+  const out = { companies: 0, updated: 0, failed: 0 };
+  for (const doc of snap.docs) {
+    out.companies += 1;
+    try {
+      const result = await syncCompany(db, doc.id, doc.data() || {});
+      out.updated += result.updated.length;
+    } catch (err) {
+      out.failed += 1;
+      logger.warn('PowerOffice automatisk synk', { familyId: doc.id, status: err?.status, message: err?.message });
+      await statusRef(db, doc.id).set({
+        lastAutoSyncError: String(err?.message || 'Ukjent feil').slice(0, 300),
+        lastAutoSyncErrorAt: new Date().toISOString(),
+      }, { merge: true }).catch(() => {});
+    }
+  }
+  return out;
+}
 
 /** Les én faktura fra Go på fakturanummer, uten å lagre noe. Tester tilbakehentingen. */
 export const powerOfficeLookupInvoice = onCall(CALL, async (request) => {

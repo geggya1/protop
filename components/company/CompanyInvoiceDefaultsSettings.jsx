@@ -116,6 +116,13 @@ export function invoiceDefaultsErrors(draft, { numbers = null, jumpReason = '' }
   const days = wholeNumber(draft.reminderDays || 0);
   if (!Number.isInteger(days) || days < 0) errors.push('Dager før purring må være et helt tall.');
   else if (fee > 0 && days < 14) errors.push('Med purregebyr kan purringen tidligst sendes 14 dager etter forfall.');
+  const deadline = wholeNumber(draft.collectionDeadlineDays ?? 14);
+  if (!Number.isInteger(deadline) || deadline < 14) errors.push('Fristen i purring og inkassovarsel må være minst 14 dager (inkassoloven § 9).');
+  const friendly = wholeNumber(draft.friendlyReminderDays ?? 0);
+  if (!Number.isInteger(friendly) || friendly < 0) errors.push('Dager før påminnelse må være et helt tall (0 slår den av).');
+  if (draft.collectionAutoDebt && !String(draft.collectionAgencyEmail || '').includes('@')) {
+    errors.push('Automatisk inkasso trenger e-postadressen til inkassobyrået.');
+  }
   const credit = wholeNumber(draft.creditDays ?? '');
   if (!Number.isInteger(credit) || credit < 0) errors.push('Kredittiden må være et helt antall dager.');
   return errors;
@@ -426,9 +433,23 @@ export default function CompanyInvoiceDefaultsSettings({ familyId, colors, canEd
       <Toggle label="Legg ved PDF av fakturaen" value={draft.emailIncludePdf} onChange={(v) => setKey('emailIncludePdf', v)} {...props} />
       <Toggle label="Legg ved vedlegg (kvitteringer og timespesifikasjon)" value={draft.emailIncludeAttachments} onChange={(v) => setKey('emailIncludeAttachments', v)} {...props} />
 
-      <Text style={[styles.section, { color: colors.ink }]}>Purring</Text>
+      <Text style={[styles.section, { color: colors.ink }]}>Purring og inkasso</Text>
+      <Text style={[styles.hint, { color: colors.ink }]}>
+        Stegene følger loven: påminnelse (valgfri, uten gebyr), purring, inkassovarsel (purring 2) og inkasso. Neste steg
+        kan først sendes dagen etter at fristen i forrige er ute. Fristen i purring og inkassovarsel er minst 14 dager.
+      </Text>
       <View style={styles.grid}>
-        <Field grow label="Dager etter forfall" hint="Når fakturaen viser at purring kan sendes.">
+        <Field grow label="Påminnelse, dager etter forfall" hint="Vennlig påminnelse uten gebyr. 0 slår den av.">
+          <TextInput
+            editable={canEdit}
+            keyboardType="number-pad"
+            value={String(draft.friendlyReminderDays ?? '')}
+            onChangeText={(v) => setKey('friendlyReminderDays', v.replace(/\D/g, ''))}
+            style={[styles.input, input]}
+            nativeID="company-invoice-friendly-days"
+          />
+        </Field>
+        <Field grow label="Purring, dager etter forfall" hint="Med purregebyr minst 14 dager.">
           <TextInput
             editable={canEdit}
             keyboardType="number-pad"
@@ -438,7 +459,7 @@ export default function CompanyInvoiceDefaultsSettings({ familyId, colors, canEd
             nativeID="company-invoice-reminder-days"
           />
         </Field>
-        <Field grow label="Purregebyr (kr)" hint={`Maks ${REMINDER_FEE_MAX} kr, og bare når det er avtalt med kunden.`}>
+        <Field grow label="Purregebyr (kr)" hint={`Maks ${REMINDER_FEE_MAX} kr, for høyst to brev (purring og inkassovarsel).`}>
           <TextInput
             editable={canEdit}
             keyboardType="decimal-pad"
@@ -449,6 +470,65 @@ export default function CompanyInvoiceDefaultsSettings({ familyId, colors, canEd
           />
         </Field>
       </View>
+      <View style={styles.grid}>
+        <Field grow label="Frist i purring og varsel (dager)" hint="Minst 14 dager.">
+          <TextInput
+            editable={canEdit}
+            keyboardType="number-pad"
+            value={String(draft.collectionDeadlineDays ?? '')}
+            onChangeText={(v) => setKey('collectionDeadlineDays', v.replace(/\D/g, ''))}
+            style={[styles.input, input]}
+            nativeID="company-invoice-collection-deadline"
+          />
+        </Field>
+        <Field grow label="Inkassovarsel, dager etter purrefristen" hint="1 = dagen etter at fristen i purringen er ute.">
+          <TextInput
+            editable={canEdit}
+            keyboardType="number-pad"
+            value={String(draft.noticeDaysAfterDeadline ?? '')}
+            onChangeText={(v) => setKey('noticeDaysAfterDeadline', v.replace(/\D/g, ''))}
+            style={[styles.input, input]}
+            nativeID="company-invoice-notice-days"
+          />
+        </Field>
+        <Field grow label="Inkasso, dager etter varselfristen" hint="1 = dagen etter at fristen i inkassovarselet er ute.">
+          <TextInput
+            editable={canEdit}
+            keyboardType="number-pad"
+            value={String(draft.debtDaysAfterDeadline ?? '')}
+            onChangeText={(v) => setKey('debtDaysAfterDeadline', v.replace(/\D/g, ''))}
+            style={[styles.input, input]}
+            nativeID="company-invoice-debt-days"
+          />
+        </Field>
+      </View>
+      <Field label="E-post til inkassobyrå" hint="Kravsoppstillingen og fakturaen sendes hit når saken går til inkasso.">
+        <TextInput
+          editable={canEdit}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={String(draft.collectionAgencyEmail ?? '')}
+          onChangeText={(v) => setKey('collectionAgencyEmail', v.trim())}
+          placeholder="For eksempel: oppdrag@inkassobyra.no"
+          style={[styles.input, input]}
+          nativeID="company-invoice-collection-agency"
+        />
+      </Field>
+      <Text style={[styles.hint, { color: colors.ink }]}>
+        Automatisk utsending: ProTop sjekker morgen og ettermiddag og sender steget når dagen er kommet. Det gjelder bare
+        fakturaer der betalingen hentes fra PowerOffice. Feiler hentingen, sendes ingenting den dagen.
+      </Text>
+      <Toggle label="Send påminnelse automatisk" value={draft.collectionAutoFriendly} onChange={(v) => setKey('collectionAutoFriendly', v)} nativeID="company-invoice-auto-friendly" {...props} />
+      <Toggle label="Send purring automatisk" value={draft.collectionAutoReminder} onChange={(v) => setKey('collectionAutoReminder', v)} nativeID="company-invoice-auto-reminder" {...props} />
+      <Toggle label="Send inkassovarsel automatisk" value={draft.collectionAutoNotice} onChange={(v) => setKey('collectionAutoNotice', v)} nativeID="company-invoice-auto-notice" {...props} />
+      <Toggle
+        label="Send til inkasso automatisk"
+        hint="Kravsoppstillingen går til inkassobyrået uten at noen godkjenner den."
+        value={draft.collectionAutoDebt}
+        onChange={(v) => setKey('collectionAutoDebt', v)}
+        nativeID="company-invoice-auto-debt"
+        {...props}
+      />
 
       {canEdit ? (
         <View style={styles.actions}>

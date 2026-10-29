@@ -398,7 +398,7 @@ function drawLines(page, invoice, labels) {
   }
 }
 
-function drawTotals(page, invoice, labels, totals, { spec = false } = {}) {
+function drawTotals(page, invoice, labels, totals, { spec = false, noRounding = false } = {}) {
   const rows = (totals.groups || []).length || 1;
   page.ensure(30 + rows * 10 + 50);
   page.y += 6;
@@ -425,7 +425,7 @@ function drawTotals(page, invoice, labels, totals, { spec = false } = {}) {
     : [
       [labels.sumEx, num(totals.amountExVat), false],
       [labels.vatSum, num(totals.vat), false],
-      [labels.rounding, num(totals.rounding), false],
+      ...(noRounding ? [] : [[labels.rounding, num(totals.rounding), false]]),
       [labels.sumIncl, num(totals.totalDue), true],
     ];
   if (paid) {
@@ -548,7 +548,10 @@ function finish(pages, { supplier, labels, invoice }) {
 /** Sidene til fakturaen som PDF-strømmer (brukes også i «Faktura med timespesifikasjoner»). */
 export function invoicePageStreams(invoice, { supplier = {}, logo = null, originalDate = '', spec = false } = {}) {
   const labels = labelsFor(invoice?.language, invoice?.currency);
-  const totals = totalsFromLines(invoice?.lines || []);
+  let totals = totalsFromLines(invoice?.lines || []);
+  // Sendt fra PowerOffice: Go runder ikke av til hele kroner. Fakturaen viser beløpet derfra.
+  const fromPowerOffice = !spec && !!String(invoice?.poweroffice?.outgoingInvoiceId || '').trim();
+  if (fromPowerOffice) totals = { ...totals, rounding: 0, totalDue: totals.amountInclVat };
   const doc = invoice?.lines?.length ? invoice : { ...invoice, lines: [] };
   const page = pageWriter({
     onNewPage: (writer) => {
@@ -561,7 +564,7 @@ export function invoicePageStreams(invoice, { supplier = {}, logo = null, origin
   page.y = 40;
   headerBlock(page, doc, supplier, labels, logo, { totals, originalDate, spec });
   drawLines(page, doc, labels);
-  drawTotals(page, doc, labels, totals, { spec });
+  drawTotals(page, doc, labels, totals, { spec, noRounding: fromPowerOffice });
   return finish(page.pages, { supplier, labels, invoice: doc });
 }
 
@@ -714,6 +717,60 @@ export function buildInvoiceSpecPdf(invoice, entries = null, { supplier = {}, se
   const pages = invoicePageStreams(invoice, { supplier, logo: image, spec: true });
   if (Array.isArray(entries) && entries.length) pages.push(...timeSpecPageStreams(invoice, entries, { supplier, settings, spec: true }));
   return pdfDocument(pages, image);
+}
+
+/**
+ * Purring, inkassovarsel eller kravsoppstilling (collectionLetter i collection.js) i samme
+ * design som fakturaen: logo, mottaker, fakta til høyre, brødtekst og bunntekst.
+ */
+export function buildCollectionLetterPdf(invoice, letter, { supplier = {}, logo = null, date = '' } = {}) {
+  const image = logoImage(logo);
+  const labels = labelsFor(invoice?.language, invoice?.currency);
+  const page = pageWriter({
+    onNewPage: (writer) => {
+      writer.text(letter.title, LEFT, 30, 9, true);
+      writer.y = 50;
+    },
+  });
+  page.y = 40;
+  const logoBottom = drawLogo(page, image, supplier.name);
+  const top = Math.max(logoBottom + 14, 92);
+  page.text(letter.title, 330, top, 15, true);
+  if (date) page.text(formatDate(date), 330, top + 19, 8, false, 0.45);
+  const addr = invoice?.customerAddress || {};
+  // Kravsoppstillingen går til inkassobyrået: skyldneren står i faktaene, ikke som mottaker.
+  const recipient = letter.recipient === false ? [] : [
+    invoice?.addressLineAbove,
+    invoice?.customerName,
+    invoice?.addressLineBelow,
+    invoice?.customerContact ? `v/ ${invoice.customerContact}` : '',
+    addr.street,
+    [addr.postalCode, addr.city].filter(Boolean).join(' '),
+  ].filter(Boolean);
+  recipient.forEach((row, index) => page.text(row, LEFT, top + 26 + index * 10, 9, index === (invoice?.addressLineAbove ? 1 : 0)));
+  let factY = top + 34;
+  for (const [label, raw, strong] of letter.facts || []) {
+    const value = label === 'Kontonummer' ? accountPretty(raw) : raw;
+    const rows = wrap(value, RIGHT - 430, 8, !!strong).slice(0, 3);
+    page.text(`${label}:`, 330, factY, 8, !!strong);
+    rows.forEach((row, index) => page.text(row, 430, factY + index * 9, 8, !!strong));
+    factY += 10 + (rows.length - 1) * 9;
+  }
+  page.y = Math.max(top + 26 + recipient.length * 10, factY) + 24;
+  for (const paragraph of letter.paragraphs || []) {
+    for (const row of wrap(paragraph, RIGHT - LEFT, 10)) {
+      page.ensure(14);
+      page.text(row, LEFT, page.y, 10);
+      page.y += 14;
+    }
+    page.y += 6;
+  }
+  return pdfDocument(finish(page.pages, { supplier, labels, invoice }), image);
+}
+
+export function collectionLetterName(invoice, kind) {
+  const name = { friendly: 'Paminnelse', reminder: 'Purring', notice: 'Inkassovarsel', debt: 'Kravsoppstilling' }[kind] || 'Brev';
+  return `${name}-faktura-${text(invoice?.invoiceNumber) || 'utkast'}.pdf`;
 }
 
 export function invoicePdfName(invoice) {

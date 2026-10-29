@@ -118,7 +118,12 @@ function loadJsx(rel) {
         saveProjectExpenses: async () => ({ saved: 0 }),
       };
     }
-    if (id.includes('utils/media')) return { pickDocument: async () => null };
+    if (id.includes('utils/media')) {
+      return {
+        pickDocument: async () => null, pickReceipt: async () => null, pickImage: async () => null, uploadImage: async () => '',
+      };
+    }
+    if (id.includes('utils/receiptOcr')) return { ocrReceiptWithAi: async () => ({ bilag: {} }), blobToDataUrl: async () => '' };
     if (id.includes('saveToast')) return { showSaveToast: () => {} };
     if (id.includes('ExpenseImportReview')) return { __esModule: true, default: function ExpenseImportReview() { return null; } };
     // Registreringen (egen test i expenseWizard.test.cjs) åpnes først ved «Nytt utlegg».

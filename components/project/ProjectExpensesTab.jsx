@@ -13,7 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import OptionPicker, { CHIP_LIMIT } from '../OptionPicker';
 import DateInput from '../DateInput';
 import { formatDate, formatMoney } from '../../src/economy/invoices.js';
-import { EXPENSE_CATEGORIES, EXPENSE_CHARGE_TYPES, emptyExpense, expenseCategory } from '../../src/economy/expenses.js';
+import {
+  EXPENSE_BILLING_CHOICES, EXPENSE_CATEGORIES, emptyExpense, expenseBillingChoice, expenseCategory,
+} from '../../src/economy/expenses.js';
 import { expenseStatusLabel, filterExpenses } from '../../src/economy/expenseList.js';
 import { deleteExpense, upsertExpense } from '../../src/economy/opsState.js';
 import { employeeDisplayName, filterEmployeesForPicker } from '../../src/arbeid/roles.js';
@@ -268,7 +270,7 @@ export default function ProjectExpensesTab({
               <Text style={[styles.td, { color: colors.ink, flex: 1.4 }]} numberOfLines={2}>{row.description || '—'}</Text>
               <Text style={[styles.td, { color: colors.ink }]}>{expenseCategory(row.category).label}</Text>
               <Text style={[styles.td, { color: colors.ink, fontWeight: '600' }]}>{formatMoney(row.amountExVat)}</Text>
-              <Text style={[styles.td, { color: colors.ink }]}>{row.billable ? (row.chargeType === 'outlay' ? 'Ja, i kundens navn' : 'Ja') : 'Nei'}</Text>
+              <Text style={[styles.td, { color: colors.ink }]}>{row.billable ? (row.chargeType === 'outlay' ? 'Ja, i kundens navn' : 'Ja') : 'Nei, internkostnad'}</Text>
               <View style={styles.td}>
                 <View style={[styles.badge, { backgroundColor: tone.bg }]}>
                   <Text style={{ color: tone.fg, fontSize: 11, fontWeight: '600' }}>{tone.label}</Text>
@@ -370,32 +372,25 @@ export default function ProjectExpensesTab({
                 onChangeText={(v) => setEditor((e) => ({ ...e, amountExVat: v }))}
                 style={[styles.input, { color: colors.ink, borderColor: colors.line }]}
               />
-              <TouchableOpacity
-                onPress={() => setEditor((e) => ({ ...e, billable: !e.billable }))}
-                style={styles.check}
-              >
-                <Text style={{ color: colors.ink }}>{editor?.billable ? '☑' : '☐'} Fakturerbar</Text>
-              </TouchableOpacity>
-              {editor?.billable ? (
-                <>
-                  <Label colors={colors} text="Faktureres som" />
-                  {EXPENSE_CHARGE_TYPES.map((type) => {
-                    const on = (editor?.chargeType || 'reinvoice') === type.id;
-                    return (
-                      <TouchableOpacity
-                        key={type.id}
-                        onPress={() => setEditor((e) => ({ ...e, chargeType: type.id, ...(type.id === 'outlay' ? { markupPercent: 0 } : {}) }))}
-                        style={styles.check}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: on }}
-                        nativeID={`expense-charge-${type.id}`}
-                      >
-                        <Text style={{ color: on ? colors.brand : colors.ink }}>{on ? '●' : '○'} {type.label}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 18 }}>{type.hint}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </>
+              <Label colors={colors} text="Faktureres kunde" />
+              {EXPENSE_BILLING_CHOICES.map((type) => {
+                const on = expenseBillingChoice(editor || {}) === type.id;
+                return (
+                  <TouchableOpacity
+                    key={type.id}
+                    onPress={() => setEditor((e) => ({ ...e, billingChoice: type.id, billable: type.id !== 'no' }))}
+                    style={styles.check}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: on }}
+                    nativeID={`expense-billing-${type.id}`}
+                  >
+                    <Text style={{ color: on ? colors.brand : colors.ink }}>{on ? '●' : '○'} {type.label}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12, marginLeft: 18 }}>{type.hint}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {editor?.chargeType === 'outlay' ? (
+                <Text style={{ color: colors.muted, fontSize: 12 }}>Registrert som utlegg i kundens navn. Faktureres som før.</Text>
               ) : null}
             </ScrollView>
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>

@@ -90,8 +90,18 @@ export function builtinInvoiceDefaults() {
     emailCc: '',
     emailIncludePdf: true,
     emailIncludeAttachments: true,
+    // Purring og inkasso (collection.js). Dager fra forfall, eller fra dagen etter fristen i forrige brev.
+    friendlyReminderDays: 3,
     reminderDays: 14,
     reminderFee: 0,
+    noticeDaysAfterDeadline: 1,
+    debtDaysAfterDeadline: 1,
+    collectionDeadlineDays: 14,
+    collectionAutoFriendly: false,
+    collectionAutoReminder: false,
+    collectionAutoNotice: false,
+    collectionAutoDebt: false,
+    collectionAgencyEmail: '',
   };
 }
 

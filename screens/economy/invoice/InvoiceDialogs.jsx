@@ -11,6 +11,8 @@ import { formatDate } from '../../../src/economy/invoices.js';
 import { dueDateFor, invoiceTotals, isCreditNote, issueDates } from '../../../src/economy/invoiceFlow.js';
 import { sectionLabel } from '../../../src/economy/invoiceLines.js';
 import { ehfUnavailableText } from '../../../src/economy/ehf.js';
+import { collectionStatus, REMINDER_FEE_CAP } from '../../../src/economy/collection.js';
+import { type } from '../../../src/ui/tokens';
 import DialogShell from './DialogShell';
 import { Banner, Button, Check, Field, money } from '../billing/ui';
 
@@ -688,3 +690,127 @@ const styles = StyleSheet.create({
   recipientInput: { flex: 1, paddingVertical: 4, fontSize: 14 },
   sum: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 },
 });
+
+const COLLECTION_TEXT = {
+  friendly: {
+    title: 'Send påminnelse',
+    intro: 'En vennlig påminnelse uten gebyr og uten ny frist. Den kan sendes når fakturaen har forfalt. Purringen kommer etter.',
+    send: 'Send påminnelse',
+  },
+  reminder: {
+    title: 'Send purring',
+    intro: 'Kunden får en purring med KID, kontonummer og ny frist på minst 14 dager. Purregebyr kan kreves fra 14 dager etter forfall.',
+    send: 'Send purring',
+  },
+  notice: {
+    title: 'Send inkassovarsel',
+    intro: 'Inkassovarselet (purring 2) sier at kravet sendes til inkasso hvis det ikke er betalt innen fristen (inkassoloven § 9). Fristen må være minst 14 dager fram.',
+    send: 'Send inkassovarsel',
+  },
+  debt: {
+    title: 'Send til inkasso',
+    intro: 'Inkassobyrået får en kravsoppstilling med fakturaen, purringer, gebyr og påløpt rente.',
+    send: 'Send til inkassobyrået',
+  },
+  interest: {
+    title: 'Lag rentefaktura',
+    intro: 'Forsinkelsesrenten regnes fra forfall til betaling (eller i dag), med satsen for hvert halvår. Renter og gebyr er utenfor mva.',
+    send: 'Lag rentefaktura',
+  },
+};
+
+/** Purring, inkassovarsel, inkasso og rentefaktura. onSend({ channel, to, fee, deadline, includeFees }). */
+export function CollectionDialog({ visible, kind, invoice, settings, colors, busy, error = '', onCancel, onSend, onPreview }) {
+  const st = useMemo(() => (invoice ? collectionStatus(invoice, { settings }) : null), [invoice, settings, visible]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [to, setTo] = useState('');
+  const [fee, setFee] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [includeFees, setIncludeFees] = useState(true);
+  useEffect(() => {
+    if (!visible || !st) return;
+    setTo(kind === 'debt' ? String(settings?.collectionAgencyEmail || '') : String(invoice?.customerEmail || ''));
+    setFee(st.suggestedFee ? String(st.suggestedFee) : '0');
+    setDeadline(st.defaultDeadline);
+    setIncludeFees(true);
+  }, [visible, kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!visible || !st || !COLLECTION_TEXT[kind]) return null;
+  const text = COLLECTION_TEXT[kind];
+  const letter = kind === 'reminder' || kind === 'notice';
+  const feeValue = Math.round(Number(String(fee).replace(',', '.')) || 0);
+  const feeError = letter && feeValue > 0 && !st.feeAllowed ? st.feeNote : (feeValue > REMINDER_FEE_CAP ? `Høyst ${REMINDER_FEE_CAP} kr.` : '');
+  const tooSoon = letter && (!deadline || deadline < st.minDeadline);
+  const input = { to: to.split(/[,;\s]+/).filter(Boolean), fee: letter ? feeValue : 0, deadline: letter ? deadline : '', includeFees };
+  const blocked = !!feeError || tooSoon;
+  const currency = invoice?.currency;
+  return (
+    <DialogShell
+      visible={visible}
+      title={text.title}
+      onClose={onCancel}
+      colors={colors}
+      width={540}
+      nativeID="invoice-collection-dialog"
+      footer={kind === 'interest' ? (
+        <>
+          <Button label="Avbryt" tone="ghost" colors={colors} onPress={onCancel} />
+          <Button label={text.send} colors={colors} busy={busy} onPress={() => onSend({ ...input, channel: 'draft' })} nativeID="invoice-collection-confirm" />
+        </>
+      ) : (
+        <>
+          <Button label="Avbryt" tone="ghost" colors={colors} onPress={onCancel} />
+          <Button label="Last ned og send selv" tone="ghost" colors={colors} disabled={blocked || !!busy} onPress={() => onSend({ ...input, channel: 'manual' })} nativeID="invoice-collection-manual" />
+          <Button label={text.send} colors={colors} busy={busy} disabled={blocked || !input.to.length} onPress={() => onSend({ ...input, channel: 'email' })} nativeID="invoice-collection-confirm" />
+        </>
+      )}
+    >
+      {error ? <Banner tone="block" colors={colors}>{error}</Banner> : null}
+      <Text style={[type.body, { color: colors.ink }]}>{text.intro}</Text>
+      <Text style={[type.label, { color: colors.ink }]}>
+        {`Faktura ${invoice?.invoiceNumber || ''} · forfall ${formatDate(st.due)} · utestående ${money(st.outstanding, currency)}`}
+      </Text>
+      {kind === 'debt' && st.debtHint ? <Banner tone="warn" colors={colors}>{st.debtHint}</Banner> : null}
+      {kind === 'friendly' ? (
+        <>
+          <Field label="Til (kundens e-post)" value={to} onChangeText={setTo} colors={colors} keyboardType="email-address" nativeID="invoice-collection-to" />
+          {onPreview ? (
+            <Button label="Se PDF-en" icon="document-outline" tone="ghost" small colors={colors} onPress={() => onPreview(input)} nativeID="invoice-collection-preview" />
+          ) : null}
+        </>
+      ) : null}
+      {letter ? (
+        <>
+          <Field label="Til (kundens e-post)" value={to} onChangeText={setTo} colors={colors} keyboardType="email-address" nativeID="invoice-collection-to" />
+          <DateRow label="Ny betalingsfrist" value={deadline} onChange={setDeadline} colors={colors} />
+          {tooSoon ? <Text style={[type.caption, { color: colors.danger }]}>{`Fristen må være minst 14 dager fram, tidligst ${formatDate(st.minDeadline)}.`}</Text> : null}
+          <Field label="Gebyr (kr)" value={fee} onChangeText={setFee} colors={colors} keyboardType="number-pad" nativeID="invoice-collection-fee" />
+          <Text style={[type.caption, { color: feeError ? colors.danger : colors.muted }]}>{feeError || st.feeNote}</Text>
+          {onPreview ? (
+            <Button label="Se PDF-en" icon="document-outline" tone="ghost" small colors={colors} disabled={blocked} onPress={() => onPreview(input)} nativeID="invoice-collection-preview" />
+          ) : null}
+        </>
+      ) : null}
+      {kind === 'debt' ? (
+        <Field label="Til (inkassobyråets e-post)" value={to} onChangeText={setTo} colors={colors} keyboardType="email-address" placeholder="For eksempel: oppdrag@inkassobyra.no" nativeID="invoice-collection-to" />
+      ) : null}
+      {kind === 'interest' ? (
+        <>
+          {st.interest.parts.map((part) => (
+            <Text key={`${part.from}-${part.to}`} style={[type.caption, { color: colors.ink }]}>
+              {`${formatDate(part.from)}–${formatDate(part.to)}: ${part.days} dager à ${String(part.rate).replace('.', ',')} % av ${money(part.principal, currency)} = ${money(part.amount, currency)}`}
+            </Text>
+          ))}
+          <Text style={[type.label, { color: colors.ink }]}>{`Forsinkelsesrente: ${money(st.interest.amount, currency)}`}</Text>
+          {st.interest.missingRate ? (
+            <Text style={[type.caption, { color: colors.danger }]}>Satsen før 2024 er ikke lagt inn. Kontroller renten i utkastet.</Text>
+          ) : null}
+          {st.unbilledFees ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Check checked={includeFees} onPress={() => setIncludeFees(!includeFees)} colors={colors} label="Ta med gebyr" nativeID="invoice-collection-fees" />
+              <Text style={[type.body, { color: colors.ink, flex: 1 }]}>{`Ta med gebyr som ikke er fakturert (${money(st.unbilledFees, currency)})`}</Text>
+            </View>
+          ) : null}
+        </>
+      ) : null}
+    </DialogShell>
+  );
+}

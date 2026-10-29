@@ -398,7 +398,7 @@ function drawLines(page, invoice, labels) {
   }
 }
 
-function drawTotals(page, invoice, labels, totals, { spec = false } = {}) {
+function drawTotals(page, invoice, labels, totals, { spec = false, noRounding = false } = {}) {
   const rows = (totals.groups || []).length || 1;
   page.ensure(30 + rows * 10 + 50);
   page.y += 6;
@@ -425,7 +425,7 @@ function drawTotals(page, invoice, labels, totals, { spec = false } = {}) {
     : [
       [labels.sumEx, num(totals.amountExVat), false],
       [labels.vatSum, num(totals.vat), false],
-      [labels.rounding, num(totals.rounding), false],
+      ...(noRounding ? [] : [[labels.rounding, num(totals.rounding), false]]),
       [labels.sumIncl, num(totals.totalDue), true],
     ];
   if (paid) {
@@ -548,7 +548,10 @@ function finish(pages, { supplier, labels, invoice }) {
 /** Sidene til fakturaen som PDF-strømmer (brukes også i «Faktura med timespesifikasjoner»). */
 export function invoicePageStreams(invoice, { supplier = {}, logo = null, originalDate = '', spec = false } = {}) {
   const labels = labelsFor(invoice?.language, invoice?.currency);
-  const totals = totalsFromLines(invoice?.lines || []);
+  let totals = totalsFromLines(invoice?.lines || []);
+  // Sendt fra PowerOffice: Go runder ikke av til hele kroner. Fakturaen viser beløpet derfra.
+  const fromPowerOffice = !spec && !!String(invoice?.poweroffice?.outgoingInvoiceId || '').trim();
+  if (fromPowerOffice) totals = { ...totals, rounding: 0, totalDue: totals.amountInclVat };
   const doc = invoice?.lines?.length ? invoice : { ...invoice, lines: [] };
   const page = pageWriter({
     onNewPage: (writer) => {
@@ -561,7 +564,7 @@ export function invoicePageStreams(invoice, { supplier = {}, logo = null, origin
   page.y = 40;
   headerBlock(page, doc, supplier, labels, logo, { totals, originalDate, spec });
   drawLines(page, doc, labels);
-  drawTotals(page, doc, labels, totals, { spec });
+  drawTotals(page, doc, labels, totals, { spec, noRounding: fromPowerOffice });
   return finish(page.pages, { supplier, labels, invoice: doc });
 }
 

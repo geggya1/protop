@@ -29,7 +29,7 @@ import {
   openFileUrl,
   previewUrl as makePreviewUrl,
 } from '../../../src/economy/invoiceDelivery.js';
-import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary, sentFromPowerOffice } from '../../../src/economy/powerOfficeView.js';
+import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
 import { fetchPowerOfficeDocument } from '../../../src/economy/powerOfficeClient.js';
 import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
 import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
@@ -152,10 +152,7 @@ export default function InvoicePage({
     const timer = setTimeout(() => {
       try {
         const original = isCreditNote(shown) ? allInvoices.find((row) => row.id === shown.creditNoteForId) : null;
-        // Sendt fra PowerOffice: fakturaen ligger i Go. Her vises spesifikasjonen som fulgte med.
-        const bytes = sentFromPowerOffice(shown)
-          ? actions.specPreviewFor(ctx, recalcInvoice(shown))
-          : actions.pdfFor(ctx, recalcInvoice(shown), original ? formatDate(original.invoiceDate) : '');
+        const bytes = actions.pdfFor(ctx, recalcInvoice(shown), original ? formatDate(original.invoiceDate) : '');
         const url = makePreviewUrl(bytes);
         if (!alive) {
           if (url) URL.revokeObjectURL(url);
@@ -303,10 +300,6 @@ export default function InvoicePage({
         const file = await fetchPowerOfficeDocument(familyId, invoice.id, kind === 'po-ehf' ? 'ehf' : 'pdf');
         if (!file?.base64) throw new Error('PowerOffice sendte ikke noe dokument.');
         downloadFile(bytesFromBase64(file.base64), file.name, file.mime);
-        return;
-      }
-      if (kind === 'spec') {
-        downloadFile(await actions.specFor(ctx, recalcInvoice(shown)), `Fakturaspesifikasjon-${shown.invoiceNumber || 'utkast'}.pdf`, 'application/pdf');
         return;
       }
       if (kind === 'pdf') {

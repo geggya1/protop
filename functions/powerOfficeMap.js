@@ -358,7 +358,7 @@ export function invoicePatchFromOutgoing(invoice, outgoing, { at }) {
       state: paid ? 'paid' : 'sent',
       outgoingInvoiceId: text(outgoing?.Id),
       invoiceNo: num(outgoing?.InvoiceNo),
-      cid: text(outgoing?.Cid),
+      cid: text(outgoing?.Cid) || text(previous.cid),
       deliveryType: text(outgoing?.InvoiceDeliveryType),
       sentDateTime: text(outgoing?.SentDateTimeOffset),
       balance,

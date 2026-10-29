@@ -400,18 +400,18 @@ export default function InvoiceSidebar({
       <Card title="Last ned" colors={colors} nativeID="invoice-downloads">
         {poSent ? (
           <>
-            {/* Fakturaen kunden fikk ligger i PowerOffice. ProTop sin PDF er spesifikasjonen som fulgte med. */}
-            <LinkText label={`${invoicePdfName(invoice)} fra PowerOffice`} icon="document-outline" onPress={() => onDownload('po-pdf')} colors={colors} nativeID="invoice-download-pdf" />
+            {/* ProTop sin faktura med nummer og KID fra PowerOffice, og originalen kunden fikk derfra. */}
+            <LinkText label={invoicePdfName(invoice)} icon="document-outline" onPress={() => onDownload('pdf')} colors={colors} nativeID="invoice-download-pdf" />
+            <LinkText label="Original fra PowerOffice (PDF)" icon="document-text-outline" onPress={() => onDownload('po-pdf')} colors={colors} nativeID="invoice-download-po-pdf" />
             {hasPowerOfficeEhf(invoice) ? (
               <LinkText label="EHF fra PowerOffice" icon="code-outline" onPress={() => onDownload('po-ehf')} colors={colors} nativeID="invoice-download-ehf" />
             ) : null}
-            <LinkText label="Fakturaspesifikasjon (vedlegget)" icon="document-outline" onPress={() => onDownload('spec')} colors={colors} />
             {(invoice.timeEntryIds || []).length ? (
-              <LinkText label="Timespesifikasjoner" icon="document-outline" onPress={() => onDownload('timespec')} colors={colors} nativeID="invoice-download-timespec" />
+              <>
+                <LinkText label="Timespesifikasjoner" icon="document-outline" onPress={() => onDownload('timespec')} colors={colors} nativeID="invoice-download-timespec" />
+                <LinkText label="Faktura med timespesifikasjoner" icon="document-outline" onPress={() => onDownload('combined')} colors={colors} />
+              </>
             ) : null}
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Fakturaen med kontonummer og KID hentes fra PowerOffice. Den gikk til kunden sammen med spesifikasjonen.
-            </Text>
           </>
         ) : (
           <>

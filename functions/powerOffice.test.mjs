@@ -490,7 +490,7 @@ assert.equal(customerDelivery({ orgnr: '918 269 819' }).InvoiceDeliveryType, 'EH
     tracked('b', 'draft'), // fortsatt utkast
     tracked('c', 'draft'), // slått sammen med et annet utkast
     tracked('d', 'draft'), // slettet
-    tracked('e', 'sent', { outgoingInvoiceId: 'so-e' }), // betalt siden forrige synk
+    tracked('e', 'sent', { outgoingInvoiceId: 'so-e', cid: '22' }), // betalt siden forrige synk
     { id: 'f', poweroffice: {} },
   ];
   const client = fakeClient({
@@ -588,6 +588,23 @@ assert.equal(customerDelivery({ orgnr: '918 269 819' }).InvoiceDeliveryType, 'EH
   assert.equal(result.patches.length, 1);
   assert.equal(result.patches[0].patch.outstandingAmount, 400);
   assert.equal(client.log.some((row) => row.query?.balanceLastChangedDateTimeOffsetGreaterThan), false);
+}
+
+{
+  // KID mangler i listen: fakturaen leses på id første gang. Sendt uten KID sjekkes også med markør.
+  const client = fakeClient({
+    'GET /OutgoingInvoices': ({ query }) => (query.invoiceIds
+      ? [{ Id: 'so-k', InvoiceNo: 10000, Balance: 215678.75, TotalAmount: 215678.75 }]
+      : []),
+    'GET /OutgoingInvoices/so-k': { Id: 'so-k', InvoiceNo: 10000, Cid: '8951100666', Balance: 215678.75, TotalAmount: 215678.75 },
+  });
+  const sent = { id: 'k', poweroffice: { state: 'sent', salesOrderId: 'so-k', outgoingInvoiceId: 'so-k' } };
+  const result = await syncInvoices(client, { invoices: [sent], cursor: 'c', at: 'now' });
+  assert.equal(result.patches[0].patch.kid, '8951100666');
+  assert.equal(result.patches[0].patch.poweroffice.cid, '8951100666');
+  // KID som er lagret, blir stående når listen mangler den.
+  const kept = invoicePatchFromOutgoing({ poweroffice: { cid: '8951100666' } }, { Id: 'so-k', InvoiceNo: 10000, Balance: 0 }, { at: 'now' });
+  assert.equal(kept.poweroffice.cid, '8951100666');
 }
 
 {
@@ -905,4 +922,32 @@ function zipOf(files) {
   }));
   assert.equal(powerOfficeEvents(missing, again)[0].text, 'overførte utkastet til PowerOffice på nytt som utkast nr. 4');
   assert.deepEqual(powerOfficeEvents({}, {}), []);
+}
+
+{
+  // Automatisk synk: en bedrift som feiler, stopper ikke de andre, og feilen lagres på statusen.
+  const { syncAllCompanies } = await import('./powerOffice.js');
+  const writes = [];
+  const db = {
+    collection(path) {
+      assert.equal(path, 'powerOfficeClients');
+      return {
+        where: () => ({
+          get: async () => ({
+            docs: [
+              { id: 'uten-nokkel', data: () => ({ connected: true }) },
+              { id: 'ogsa-uten', data: () => ({ connected: true }) },
+            ],
+          }),
+        }),
+      };
+    },
+    doc(path) {
+      return { set: async (data) => { writes.push({ path, data }); } };
+    },
+  };
+  const result = await syncAllCompanies(db);
+  assert.deepEqual(result, { companies: 2, updated: 0, failed: 2 });
+  assert.deepEqual(writes.map((row) => row.path), ['powerOfficeClients/uten-nokkel', 'powerOfficeClients/ogsa-uten']);
+  assert.match(writes[0].data.lastAutoSyncError, /ikke koblet til/);
 }

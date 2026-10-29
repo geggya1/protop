@@ -744,6 +744,8 @@ export function canDeleteInvoice(invoice) {
   if (!text(row.id) && !text(row.invoiceNumber)) return false;
   // Ferdigstilt i ProTop: salgsdokumentet står fast og rettes med kreditnota.
   if (text(row.issuedAt)) return false;
+  // Fra PowerOffice sin testklient: aldri ekte regnskap, så den kan alltid ryddes bort.
+  if (row.poweroffice?.env === 'demo') return true;
   // Ligger utkastet i PowerOffice, må det slettes der først. Ellers frigjøres timene
   // mens utkastet fortsatt kan sendes, og kunden kan bli fakturert to ganger.
   if (text(row.poweroffice?.salesOrderId) && row.poweroffice?.state !== 'missing') return false;

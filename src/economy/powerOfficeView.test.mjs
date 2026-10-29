@@ -33,10 +33,16 @@ assert.deepEqual(transferred.poweroffice, { env: 'demo', state: 'draft', salesOr
 // Listen får med PowerOffice-status, så slett-knappen vet om utkastet ligger i Go.
 assert.equal(invoiceListSource(transferred, 'inv_1').poweroffice.salesOrderId, 'so-1');
 
-// Ligger utkastet i Go, må det slettes der først. Borte i Go: kan slettes.
+// Ligger utkastet i Go (produksjon), må det slettes der først. Borte i Go: kan slettes.
+const inProd = { ...transferred, poweroffice: { ...transferred.poweroffice, env: 'prod' } };
 assert.equal(canDeleteInvoice(draft), true);
-assert.equal(canDeleteInvoice(transferred), false);
-assert.equal(canDeleteInvoice({ ...transferred, poweroffice: { state: 'missing', salesOrderId: 'so-1' } }), true);
+assert.equal(canDeleteInvoice(inProd), false);
+assert.equal(canDeleteInvoice({ ...inProd, poweroffice: { state: 'missing', salesOrderId: 'so-1' } }), true);
+assert.equal(canDeleteInvoice({ ...inProd, status: 'paid', poweroffice: { env: 'prod', state: 'paid', salesOrderId: 'so-1' } }), false);
+// Fra testklienten er ingenting ekte: kan ryddes bort uansett, også sendt og betalt.
+assert.equal(canDeleteInvoice(transferred), true);
+assert.equal(canDeleteInvoice({ ...transferred, status: 'paid', invoiceNumber: '10007', poweroffice: { env: 'demo', state: 'paid', salesOrderId: 'so-1' } }), true);
+assert.equal(canDeleteInvoice({ ...transferred, issuedAt: '2026-10-01T10:00:00Z' }), false, 'ferdigstilt i ProTop står fast');
 
 const connected = { connected: true, env: 'demo' };
 assert.equal(canTransferToPowerOffice(draft, connected), true);

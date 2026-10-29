@@ -6,17 +6,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { companyLogoOf } from '../../src/project/companyLogo';
-import { groupOverview } from '../../src/project/companyUnits';
+import { departmentsOf, groupOverview } from '../../src/project/companyUnits';
 import { nbDate, nok, registerRows } from '../../src/project/companyPublic';
+import { mergeAccountYears } from '../../src/project/accountSeries';
 import {
   COVER_ASPECTS,
+  EDIT_TABS,
   PAGE_TABS,
+  articleHasContent,
   companyInitials,
   formatOrgNumber,
   formatPhone,
   normalizeCompanyPage,
   openingStatus,
-  publicStaff,
+  serviceSectionsOf,
   shortCompanyName,
   shownAbout,
   shownContact,
@@ -25,9 +28,22 @@ import {
   visibleModules,
   websiteLabel,
 } from '../../src/project/companyPage';
+import {
+  moveStaffOrder, orderStaff, shiftStaffOrder, staffCandidates,
+} from '../../src/project/companyStaff';
+import AccountHistoryCard from './AccountHistoryCard';
+import CompanyArticle from './CompanyArticle';
 import CompanyNewsWall from './CompanyNewsWall';
 import CompanyPageEditor from './CompanyPageEditor';
+import CompanyServices from './CompanyServices';
+import CompanyStaff from './CompanyStaff';
+import CompanySustainability from './CompanySustainability';
+import {
+  Card, EditBar, EmptyNote, SectionHead,
+} from './ProfileParts';
+import { useAccountHistory } from './useAccountHistory';
 import { useCroppedUpload } from './useCroppedUpload';
+import { useIsoProfile } from './useIsoProfile';
 import { useApp } from '../../src/context/AppContext';
 import { parentCompanyDisplayName } from '../../src/utils/companyName';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
@@ -41,8 +57,8 @@ const TONES = {
 };
 
 const EXPLORE = [
+  { id: 'om-oss', icon: 'book-outline', tint: '#f3e8ff', color: '#7c3aed', title: 'Om oss', text: 'Hvem vi er' },
   { id: 'tjenester', icon: 'briefcase-outline', tint: '#e8f1ff', color: '#2563eb', title: 'Tjenester', text: 'Hva vi tilbyr' },
-  { id: 'prosjekter', icon: 'folder-open-outline', tint: '#f3e8ff', color: '#7c3aed', title: 'Prosjekter', text: 'Utvalgte prosjekter' },
   { id: 'ansatte', icon: 'people-outline', tint: '#e7f8ee', color: '#15915a', title: 'Ansatte', text: 'Vårt team' },
   { id: 'baerekraft', icon: 'leaf-outline', tint: '#e5f6ef', color: '#15915a', title: 'Bærekraft', text: 'Vårt samfunnsansvar' },
   { id: 'kontakt', icon: 'mail-outline', tint: '#e8f1ff', color: '#2563eb', title: 'Kontakt', text: 'Ta kontakt' },
@@ -61,27 +77,6 @@ function addressLines(value) {
   return `${parts[0]},\n${parts.slice(1).join(' ')}`;
 }
 
-function Card({ children, colors, style, nativeID }) {
-  return (
-    <View nativeID={nativeID} id={nativeID} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line }, style]}>
-      {children}
-    </View>
-  );
-}
-
-function SectionHead({ title, colors, action, onAction }) {
-  return (
-    <View style={styles.cardHead}>
-      <Text accessibilityRole="header" style={[styles.cardTitle, { color: colors.ink }]}>{title}</Text>
-      {action ? (
-        <TouchableOpacity onPress={onAction} accessibilityRole="button">
-          <Text style={[styles.link, { color: colors.brand }]}>{action}</Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
-}
-
 function Highlight({ row }) {
   if (!row?.title) return null;
   const tone = TONES[row.tone] || TONES.blue;
@@ -92,10 +87,6 @@ function Highlight({ row }) {
       {row.text ? <Text style={styles.highlightText}>{row.text}</Text> : null}
     </View>
   );
-}
-
-function EmptyNote({ colors, children }) {
-  return <Text style={[styles.muted, { color: colors.muted }]}>{children}</Text>;
 }
 
 export default function CompanyPublicProfile({
@@ -110,7 +101,7 @@ export default function CompanyPublicProfile({
   onSettings,
   onUnits,
   onEmployees,
-  onProjects,
+  onOpenIso,
   onSavePage,
   initialTab = '',
 }) {
@@ -120,7 +111,7 @@ export default function CompanyPublicProfile({
   // Blyanten er en sirkel på 22 px; trykkflaten rundt er 44 px på berøringsskjerm (UX-26).
   const pencilHit = touchHit(22, 22, { touch: isTouch, os: Platform.OS });
   const access = useCompanyAccess();
-  const { family, families } = useApp();
+  const { family, families, uid } = useApp();
   // Morselskapet slås opp via parentCompanyId, så et nytt navn der vises her (DS-17).
   const parentName = parentCompanyDisplayName(family, families) || stored?.parentCompanyName;
   const wide = width >= BREAKPOINTS.desktop;
@@ -154,7 +145,29 @@ export default function CompanyPublicProfile({
   const about = shownAbout(view, profile);
   const contact = shownContact(view, profile, stored, address);
   const logo = companyLogoOf(stored);
-  const staff = publicStaff(access.employees);
+  const departments = useMemo(() => departmentsOf(stored?.subUnits || []), [stored?.subUnits]);
+  // Ny rekkefølge vises med en gang, før lagringen er tilbake (flere raske flytt etter hverandre).
+  const [pendingOrder, setPendingOrder] = useState(null);
+  useEffect(() => { setPendingOrder(null); }, [page]);
+  const staffOrder = pendingOrder || view.staff?.order;
+  // Alle aktive i registeret i lagret rekkefølge; eksterne filtreres bort når de ikke skal vises.
+  const staffAll = useMemo(
+    () => orderStaff(staffCandidates(access.employees, departments), staffOrder),
+    [access.employees, departments, staffOrder],
+  );
+  const staff = view.staff?.includeExternal ? staffAll : staffAll.filter((row) => !row.external);
+  const iso = useIsoProfile({
+    companyId: familyId,
+    uid,
+    enabled: tab === 'baerekraft',
+    family,
+    employees: access.employees,
+  });
+  const accountHistory = useAccountHistory(profile?.organisasjonsnummer || stored?.organisasjonsnummer, { enabled: tab === 'selskapsdata' });
+  const accountView = useMemo(
+    () => (tab === 'selskapsdata' ? mergeAccountYears(live?.accounts, accountHistory.years || []) : null),
+    [tab, live?.accounts, accountHistory.years],
+  );
   const hoursNow = openingStatus(view.hours);
   const film = videoPreview(view.videoUrl);
   const registers = registerRows(profile);
@@ -205,8 +218,53 @@ export default function CompanyPublicProfile({
     setDraft(page);
     setSaveError('');
     setEditing(true);
-    setTab('oversikt');
+    // Om oss, Tjenester og Bærekraft redigeres der de står; resten fra Oversikt.
+    if (!EDIT_TABS.includes(tab)) setTab('oversikt');
   }
+
+  /** Endringer gjort på fanen (rekkefølge, visning): i utkastet under redigering, ellers lagres de med en gang. */
+  async function applyPage(fn) {
+    if (editing) {
+      setDraft((prev) => fn(prev));
+      return true;
+    }
+    setSaveError('');
+    try {
+      await onSavePage(fn(page));
+      return true;
+    } catch (err) {
+      setSaveError(err?.message || 'Kunne ikke lagre siden.');
+      return false;
+    }
+  }
+
+  function patchStaff(partial) {
+    return applyPage((prev) => ({ ...prev, staff: { ...(prev.staff || {}), ...partial } }));
+  }
+
+  async function saveStaffOrder(order) {
+    setPendingOrder(order);
+    if (!(await patchStaff({ order }))) setPendingOrder(null);
+  }
+
+  function moveStaff(fromId, toId) {
+    saveStaffOrder(moveStaffOrder(staffAll.map((row) => row.id), fromId, toId));
+  }
+
+  function shiftStaff(id, direction) {
+    saveStaffOrder(shiftStaffOrder(staffAll.map((row) => row.id), staff.map((row) => row.id), id, direction));
+  }
+
+  const editProps = {
+    editing,
+    canEdit,
+    colors,
+    saving,
+    error: saveError,
+    onEdit: openEdit,
+    onSave: saveEdit,
+    onCancel: cancelEdit,
+  };
 
   function cancelEdit() {
     const dirty = JSON.stringify(normalizeCompanyPage(draft)) !== JSON.stringify(page);
@@ -254,7 +312,12 @@ export default function CompanyPublicProfile({
         <Card colors={colors}>
           <View style={[styles.aboutGrid, wide && film && styles.aboutGridWide]}>
             <View style={styles.aboutCopy}>
-              <SectionHead colors={colors} title={`Om ${shortName}`} />
+              <SectionHead
+                colors={colors}
+                title={`Om ${shortName}`}
+                action={articleHasContent(view) ? 'Les mer' : null}
+                onAction={() => setTab('om-oss')}
+              />
               {about ? <Text style={[styles.body, { color: colors.ink }]}>{about}</Text> : (
                 <EmptyNote colors={colors}>
                   {canEdit ? 'Skriv en kort presentasjon under Rediger side.' : 'Bedriften har ikke lagt ut en presentasjon ennå.'}
@@ -316,7 +379,7 @@ export default function CompanyPublicProfile({
     if (id === 'facts') {
       return (
         <Card colors={colors}>
-          <SectionHead colors={colors} title="Nøkkelinformasjon" action="Se mer" onAction={() => setTab('om-oss')} />
+          <SectionHead colors={colors} title="Nøkkelinformasjon" action="Se mer" onAction={() => setTab('selskapsdata')} />
           {facts.map((row) => (
             <View key={row.label} style={styles.factRow}>
               <Ionicons name={row.icon} size={16} color={colors.muted} />
@@ -393,7 +456,7 @@ export default function CompanyPublicProfile({
     if (id === 'registers' && registers.length) {
       return (
         <Card colors={colors}>
-          <SectionHead colors={colors} title="Register og status" action="Se mer" onAction={() => setTab('om-oss')} />
+          <SectionHead colors={colors} title="Register og status" action="Se mer" onAction={() => setTab('selskapsdata')} />
           {registers.slice(0, 4).map((row) => (
             <Text key={row.label} style={{ color: colors.ink }}>{row.label}: {row.value}</Text>
           ))}
@@ -403,7 +466,7 @@ export default function CompanyPublicProfile({
     if (id === 'roles' && roles.length) {
       return (
         <Card colors={colors}>
-          <SectionHead colors={colors} title="Roller" action="Se mer" onAction={() => setTab('om-oss')} />
+          <SectionHead colors={colors} title="Roller" action="Se mer" onAction={() => setTab('selskapsdata')} />
           {roles.slice(0, 4).map((row) => (
             <Text key={`${row.rolle}-${row.navn}`} style={{ color: colors.ink }}>{row.navn} · {row.rolle}</Text>
           ))}
@@ -559,6 +622,19 @@ export default function CompanyPublicProfile({
         />
       ) : null}
 
+      {editing && !EDIT_TABS.includes(tab) ? (
+        <Card colors={colors}>
+          <EditBar
+            colors={colors}
+            saving={saving}
+            error={saveError}
+            onSave={saveEdit}
+            onCancel={cancelEdit}
+            note="Du redigerer siden. Oversikt, Om oss, Tjenester og Bærekraft redigeres på fanene sine."
+          />
+        </Card>
+      ) : null}
+
       {tab === 'oversikt' ? (
         <View style={[styles.columns, wide && styles.columnsWide]}>
           <View style={styles.mainCol}>{mainModules}</View>
@@ -569,95 +645,50 @@ export default function CompanyPublicProfile({
       {tab === 'nyheter' ? <CompanyNewsWall /> : null}
 
       {tab === 'om-oss' ? (
-        <RegistryDetails
-          colors={colors}
-          profile={profile}
-          name={name}
-          about={about}
-          contact={contact}
-          registers={registers}
-          roles={roles}
-          signature={signature}
-          overview={overview}
-          parentLabel={parentLabel}
-          onUnits={onUnits}
-          brregUrl={live?.brregUrl}
+        <CompanyArticle
+          {...editProps}
+          article={view.article}
+          fallback={about}
+          familyId={familyId}
+          onUpdate={(fn) => setDraft((prev) => ({ ...prev, article: fn(prev.article) }))}
         />
       ) : null}
 
       {tab === 'tjenester' ? (
-        <Card colors={colors}>
-          <SectionHead colors={colors} title="Tjenester" />
-          {view.services.length ? view.services.map((row) => (
-            <View key={row.id} style={styles.story}>
-              {row.imageUrl ? <Image source={{ uri: row.imageUrl }} style={styles.storyImage} /> : null}
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={[styles.exploreTitle, { color: colors.ink }]}>{row.title}</Text>
-                {row.text ? <Text style={[styles.body, { color: colors.ink }]}>{row.text}</Text> : null}
-              </View>
-            </View>
-          )) : (
-            <EmptyNote colors={colors}>
-              {canEdit ? 'Legg til tjenestene bedriften vil vise, under Rediger side.' : 'Ingen tjenester er publisert.'}
-            </EmptyNote>
-          )}
-        </Card>
-      ) : null}
-
-      {tab === 'prosjekter' ? (
-        <Card colors={colors}>
-          <SectionHead colors={colors} title="Prosjekter" action={onProjects && canEdit ? 'Åpne prosjektmodulen' : null} onAction={onProjects} />
-          {view.projects.length ? view.projects.map((row) => (
-            <View key={row.id} style={styles.story}>
-              {row.imageUrl ? <Image source={{ uri: row.imageUrl }} style={styles.storyImage} /> : null}
-              <View style={{ flex: 1, gap: 4 }}>
-                <Text style={[styles.exploreTitle, { color: colors.ink }]}>{row.title}</Text>
-                {row.text ? <Text style={[styles.body, { color: colors.ink }]}>{row.text}</Text> : null}
-              </View>
-            </View>
-          )) : (
-            <EmptyNote colors={colors}>
-              {canEdit ? 'Legg utvalgte prosjekter på profilen under Rediger side.' : 'Ingen prosjekter er publisert på profilen.'}
-            </EmptyNote>
-          )}
-        </Card>
+        <CompanyServices
+          {...editProps}
+          sections={editing ? draft.servicePage?.sections : serviceSectionsOf(page)}
+          familyId={familyId}
+          onUpdate={(fn) => setDraft((prev) => ({ ...prev, servicePage: { sections: fn(prev.servicePage?.sections) } }))}
+        />
       ) : null}
 
       {tab === 'ansatte' ? (
-        <Card colors={colors}>
-          <SectionHead colors={colors} title="Ansatte" action={canEdit && onEmployees ? 'Åpne ansattregisteret' : null} onAction={onEmployees} />
-          {view.showEmployees && staff.length ? (
-            <View style={styles.staffGrid}>
-              {staff.map((person) => (
-                <View key={person.id} style={[styles.staffCard, { borderColor: colors.line, backgroundColor: colors.sunken }]}>
-                  <View style={[styles.roundIcon, { backgroundColor: colors.card }]}>
-                    <Text style={{ color: colors.brand, fontWeight: '600' }}>{companyInitials(person.name)}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.ink }}>{person.name}</Text>
-                    {person.title ? <Text style={[styles.muted, { color: colors.muted }]}>{person.title}</Text> : null}
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <EmptyNote colors={colors}>
-              {view.showEmployees
-                ? 'Ingen aktive ansatte er registrert.'
-                : 'Ansatte vises ikke på den offentlige profilen.'}
-              {canEdit ? ' Du kan skru visningen på under Rediger side.' : ''}
-            </EmptyNote>
-          )}
-        </Card>
+        <CompanyStaff
+          people={staff}
+          visible={view.showEmployees}
+          includeExternal={view.staff?.includeExternal === true}
+          canEdit={canEdit}
+          colors={colors}
+          onToggleVisible={() => applyPage((prev) => ({ ...prev, showEmployees: !prev.showEmployees }))}
+          onToggleExternal={() => patchStaff({ includeExternal: !(view.staff?.includeExternal === true) })}
+          onMove={moveStaff}
+          onShift={shiftStaff}
+          onOpenRegister={onEmployees}
+        />
       ) : null}
 
       {tab === 'baerekraft' ? (
-        <Card colors={colors}>
-          <SectionHead colors={colors} title="Bærekraft" />
-          <Text style={[styles.body, { color: colors.ink }]}>
-            {view.sustainability || view.highlights.find((row) => row.id === 'baerekraft')?.text || 'Bedriften har ikke publisert en bærekraftstekst.'}
-          </Text>
-        </Card>
+        <CompanySustainability
+          {...editProps}
+          page={view}
+          iso={iso}
+          wide={wide}
+          fallback={view.highlights.find((row) => row.id === 'baerekraft')?.text || ''}
+          onUpdate={(fn) => setDraft((prev) => fn(prev))}
+          onOpenNews={() => setTab('nyheter')}
+          onOpenIso={onOpenIso}
+        />
       ) : null}
 
       {tab === 'kontakt' ? (
@@ -678,25 +709,52 @@ export default function CompanyPublicProfile({
           ))}
         </Card>
       ) : null}
+
+      {tab === 'selskapsdata' ? (
+        <RegistryDetails
+          colors={colors}
+          profile={profile}
+          stored={stored}
+          name={name}
+          contact={contact}
+          registers={registers}
+          roles={roles}
+          signature={signature}
+          overview={overview}
+          parentLabel={parentLabel}
+          onUnits={onUnits}
+          brregUrl={live?.brregUrl}
+          accounts={accountView}
+          accountsLoading={accountHistory.loading}
+          loading={loading}
+        />
+      ) : null}
       {cover.modal}
     </View>
   );
 }
 
+/**
+ * Offentlig selskapsdata: Enhetsregisteret, signaturrett, roller, konsern og regnskap.
+ * Det samme som Økonomi → Oversikt viser om bedriften, pluss registerdetaljene.
+ */
 function RegistryDetails({
-  colors, profile, name, about, contact, registers, roles, signature, overview, parentLabel, onUnits, brregUrl,
+  colors, profile, stored, name, contact, registers, roles, signature, overview, parentLabel, onUnits, brregUrl,
+  accounts, accountsLoading, loading,
 }) {
   return (
     <View style={styles.stack}>
-      <Card colors={colors}>
+      <Card colors={colors} nativeID="company-public-data">
         <SectionHead colors={colors} title="Om bedriften" />
         <Text style={[styles.body, { color: colors.ink }]}>
           {[profile?.organisasjonsnummer, profile?.organisasjonsform].filter(Boolean).join(' · ') || name}
         </Text>
         {parentLabel ? <Text style={[styles.muted, { color: colors.muted }]}>Overordnet enhet: {parentLabel}</Text> : null}
-        {about ? <Text style={[styles.body, { color: colors.ink }]}>{about}</Text> : null}
-        {profile?.formaal?.length && about !== profile.formaal.join(' ') ? (
+        {profile?.formaal?.length ? (
           <Text style={[styles.body, { color: colors.ink }]}>{profile.formaal.join(' ')}</Text>
+        ) : null}
+        {!profile?.formaal?.length && profile?.aktivitet?.length ? (
+          <Text style={[styles.body, { color: colors.ink }]}>{profile.aktivitet.join(' ')}</Text>
         ) : null}
         <View style={styles.factGrid}>
           <Mini label="Stiftet" value={nbDate(profile?.stiftelsesdato)} colors={colors} />
@@ -707,8 +765,11 @@ function RegistryDetails({
           <Mini label="Ansatte" value={profile?.ansatte != null ? String(profile.ansatte) : ''} colors={colors} />
           <Mini label={profile?.kapital?.type || 'Kapital'} value={profile?.kapital ? nok(profile.kapital.belop) : ''} colors={colors} />
           <Mini label="Siste årsregnskap" value={profile?.sisteRegnskap} colors={colors} />
-          <Mini label="Forretningsadresse" value={contact.address} colors={colors} />
+          <Mini label="Forretningsadresse" value={profile?.forretning?.label || contact.address} colors={colors} />
           <Mini label="Postadresse" value={profile?.post?.label} colors={colors} />
+          <Mini label="Telefon" value={formatPhone(profile?.telefon || profile?.mobil || stored?.telefon)} colors={colors} />
+          <Mini label="E-post" value={profile?.epostadresse || stored?.epostadresse} colors={colors} />
+          <Mini label="Hjemmeside" value={websiteLabel(profile?.hjemmeside)} colors={colors} />
         </View>
         {(profile?.naeringer || []).map((row) => (
           <Text key={`${row.kode}-${row.beskrivelse}`} style={{ color: colors.ink }}>
@@ -718,7 +779,19 @@ function RegistryDetails({
         {profile?.historiskeNavn?.length ? (
           <Mini label="Tidligere navn" value={profile.historiskeNavn.join(', ')} colors={colors} />
         ) : null}
+        {loading && !profile?.organisasjonsform ? <EmptyNote colors={colors}>Henter offentlige opplysninger …</EmptyNote> : null}
       </Card>
+
+      {accounts ? (
+        <Card colors={colors} nativeID="company-public-accounts">
+          <AccountHistoryCard
+            accounts={accounts}
+            founded={profile?.stiftelsesdato}
+            loading={accountsLoading}
+            colors={colors}
+          />
+        </Card>
+      ) : null}
 
       {registers.length ? (
         <Card colors={colors}>
@@ -857,10 +930,8 @@ const styles = StyleSheet.create({
   mainCol: { flex: 1.45, gap: 12, minWidth: 0 },
   sideCol: { gap: 12, minWidth: 0 },
   sideColWide: { flex: 0.8, maxWidth: 380 },
-  card: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 10, ...shadow },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   cardTitle: { fontSize: 18, fontWeight: '600' },
-  link: { fontSize: 13 },
   body: { fontSize: 14, lineHeight: 21 },
   muted: { fontSize: 13, lineHeight: 18 },
   highlightRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -900,8 +971,4 @@ const styles = StyleSheet.create({
   stack: { gap: 12 },
   factGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   mini: { minWidth: 140, flexGrow: 1, gap: 2 },
-  story: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  storyImage: { width: 120, height: 80, borderRadius: 10 },
-  staffGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  staffCard: { flexGrow: 1, flexBasis: 220, borderWidth: 1, borderRadius: 12, padding: 10, flexDirection: 'row', gap: 8, alignItems: 'center' },
 });

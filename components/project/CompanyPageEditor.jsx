@@ -3,11 +3,9 @@ import {
   Image, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../src/context/AppContext';
 import {
-  POST_ASPECTS, moduleLabel, movePageModule, setPageModuleColumn, togglePageModule,
+  moduleLabel, movePageModule, setPageModuleColumn, togglePageModule,
 } from '../../src/project/companyPage';
-import { useCroppedUpload } from './useCroppedUpload';
 
 function Field({ label, value, onChangeText, colors, multiline, placeholder, keyboardType }) {
   return (
@@ -31,15 +29,6 @@ function Field({ label, value, onChangeText, colors, multiline, placeholder, key
   );
 }
 
-function newCard(prefix) {
-  return {
-    id: `${prefix}-${Date.now().toString(36)}`,
-    title: '',
-    text: '',
-    imageUrl: '',
-  };
-}
-
 export default function CompanyPageEditor({
   draft,
   colors,
@@ -53,16 +42,6 @@ export default function CompanyPageEditor({
   onClearCover,
   onOpenSettings,
 }) {
-  const { familyId } = useApp();
-  const images = useCroppedUpload({
-    familyId,
-    folder: 'companyPage',
-    aspect: 16 / 9,
-    aspectPair: [16, 9],
-    aspects: POST_ASPECTS,
-    title: 'Beskjær bilde',
-  });
-
   function patch(partial) {
     onChange({ ...draft, ...partial });
   }
@@ -75,11 +54,6 @@ export default function CompanyPageEditor({
     patch({
       [key]: draft[key].map((row) => (row.id === id ? { ...row, ...partial } : row)),
     });
-  }
-
-  async function pickCardImage(key, id) {
-    const url = await images.choose();
-    if (url) patchList(key, id, { imageUrl: url });
   }
 
   return (
@@ -98,8 +72,9 @@ export default function CompanyPageEditor({
         </TouchableOpacity>
       </View>
       <Text style={[styles.help, { color: colors.muted }]}>
-        Vis, skjul og flytt modulene. Tung informasjon som register, roller og signaturrett
-        ligger under Om oss, og kan også hentes fram på forsiden.
+        Vis, skjul og flytt modulene. Om oss, Tjenester og Bærekraft redigerer du på fanene sine mens
+        redigeringen er på. Register, roller, signaturrett og regnskap ligger under Offentlig selskapsdata,
+        og kan også hentes fram på forsiden.
       </Text>
 
       <Text style={[styles.section, { color: colors.ink }]}>Moduler på forsiden</Text>
@@ -144,7 +119,7 @@ export default function CompanyPageEditor({
 
       <Text style={[styles.section, { color: colors.ink }]}>Profiltekst</Text>
       <Field label="Kort beskrivelse" value={draft.tagline} colors={colors} placeholder="Hva bedriften driver med" onChangeText={(tagline) => patch({ tagline })} />
-      <Field label="Om oss" value={draft.about} colors={colors} multiline placeholder="Tekst på forsiden. Tomt felt bruker formålet fra Enhetsregisteret." onChangeText={(about) => patch({ about })} />
+      <Field label="Kort presentasjon på forsiden" value={draft.about} colors={colors} multiline placeholder="Noen setninger om bedriften. Tomt felt bruker formålet fra Enhetsregisteret." onChangeText={(about) => patch({ about })} />
       <Field label="Telefon som vises" value={draft.phone} colors={colors} placeholder="Tomt felt bruker registrert telefon" onChangeText={(phone) => patch({ phone })} />
       <Field label="E-post som vises" value={draft.email} colors={colors} keyboardType="email-address" placeholder="post@bedrift.no" onChangeText={(email) => patch({ email })} />
       <Field label="Nettsted" value={draft.website} colors={colors} keyboardType="url" placeholder="www.bedrift.no" onChangeText={(website) => patch({ website })} />
@@ -199,48 +174,11 @@ export default function CompanyPageEditor({
       <Field label="Videolenke" value={draft.videoUrl} colors={colors} keyboardType="url" placeholder="YouTube eller annen lenke" onChangeText={(videoUrl) => patch({ videoUrl })} />
       <Field label="Videotittel" value={draft.videoTitle} colors={colors} placeholder="Se vår presentasjon" onChangeText={(videoTitle) => patch({ videoTitle })} />
 
-      <Text style={[styles.section, { color: colors.ink }]}>Tjenester</Text>
-      {draft.services.map((row) => (
-        <CardFields
-          key={row.id}
-          row={row}
-          colors={colors}
-          busy={images.busy}
-          onChange={(partial) => patchList('services', row.id, partial)}
-          onImage={() => pickCardImage('services', row.id)}
-          onRemove={() => patch({ services: draft.services.filter((item) => item.id !== row.id) })}
-        />
-      ))}
-      <TouchableOpacity onPress={() => patch({ services: [...draft.services, newCard('tjeneste')] })}>
-        <Text style={{ color: colors.brand }}>Legg til tjeneste</Text>
-      </TouchableOpacity>
-
-      <Text style={[styles.section, { color: colors.ink }]}>Utvalgte prosjekter</Text>
-      {draft.projects.map((row) => (
-        <CardFields
-          key={row.id}
-          row={row}
-          colors={colors}
-          busy={images.busy}
-          onChange={(partial) => patchList('projects', row.id, partial)}
-          onImage={() => pickCardImage('projects', row.id)}
-          onRemove={() => patch({ projects: draft.projects.filter((item) => item.id !== row.id) })}
-        />
-      ))}
-      <TouchableOpacity onPress={() => patch({ projects: [...draft.projects, newCard('prosjekt')] })}>
-        <Text style={{ color: colors.brand }}>Legg til prosjekt</Text>
-      </TouchableOpacity>
-
-      <Text style={[styles.section, { color: colors.ink }]}>Bærekraft og ansatte</Text>
-      <Field label="Bærekraft" value={draft.sustainability} colors={colors} multiline placeholder="Kort om miljø og samfunnsansvar" onChangeText={(sustainability) => patch({ sustainability })} />
-      <TouchableOpacity onPress={() => patch({ showEmployees: !draft.showEmployees })} style={styles.checkRow}>
-        <Ionicons name={draft.showEmployees ? 'checkbox-outline' : 'square-outline'} size={18} color={colors.brand} />
-        <Text style={{ color: colors.ink, flex: 1 }}>Vis ansatte med navn og stilling på profilen</Text>
-      </TouchableOpacity>
+      <Text style={[styles.section, { color: colors.ink }]}>Ledige stillinger</Text>
       <Field label="Ledige stillinger" value={draft.jobs.text} colors={colors} multiline placeholder="Kort tekst i stillingskortet" onChangeText={(text) => patch({ jobs: { ...draft.jobs, text } })} />
       <Field label="Lenke til stillinger" value={draft.jobs.url} colors={colors} keyboardType="url" placeholder="Valgfri lenke" onChangeText={(url) => patch({ jobs: { ...draft.jobs, url } })} />
 
-      {!!(error || images.error) && <Text style={{ color: colors.danger }}>{error || images.error}</Text>}
+      {!!error && <Text style={{ color: colors.danger }}>{error}</Text>}
       <View style={styles.actions}>
         <TouchableOpacity onPress={onSave} disabled={saving} style={[styles.save, { backgroundColor: colors.brand, opacity: saving ? 0.6 : 1 }]}>
           <Text style={styles.saveText}>{saving ? 'Lagrer…' : 'Lagre siden'}</Text>
@@ -254,25 +192,6 @@ export default function CompanyPageEditor({
             <Text style={{ color: colors.brand }}>Selskapsinnstillinger</Text>
           </TouchableOpacity>
         ) : null}
-      </View>
-      {images.modal}
-    </View>
-  );
-}
-
-function CardFields({ row, colors, busy, onChange, onImage, onRemove }) {
-  return (
-    <View style={[styles.cardBox, { borderColor: colors.line }]}>
-      <Field label="Tittel" value={row.title} colors={colors} onChangeText={(title) => onChange({ title })} />
-      <Field label="Tekst" value={row.text} colors={colors} multiline onChangeText={(text) => onChange({ text })} />
-      {row.imageUrl ? <Image source={{ uri: row.imageUrl }} style={styles.thumb} /> : null}
-      <View style={styles.row}>
-        <TouchableOpacity onPress={onImage} disabled={busy}>
-          <Text style={{ color: colors.brand }}>{busy ? 'Venter…' : (row.imageUrl ? 'Bytt bilde' : 'Last opp bilde')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={onRemove}>
-          <Text style={{ color: colors.danger }}>Fjern</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
@@ -302,8 +221,6 @@ const styles = StyleSheet.create({
   stack: { gap: 8 },
   hoursRow: { flexDirection: 'row', gap: 8 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardBox: { borderWidth: 1, borderRadius: 12, padding: 10, gap: 8 },
-  thumb: { width: 160, height: 90, borderRadius: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginTop: 6 },
   save: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
   saveText: { color: '#fff', fontSize: 14 },

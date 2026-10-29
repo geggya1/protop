@@ -4,14 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
 import InvoicedStatement from '../../components/economy/InvoicedStatement';
 import AccountHistoryCard from '../../components/project/AccountHistoryCard';
+import { useAccountHistory } from '../../components/project/useAccountHistory';
 import { mergeAccountYears } from '../../src/project/accountSeries';
 import {
-  accountHistoryEndpoint,
   fetchPublicCompany,
   nbDate,
   storedCompanyProfile,
 } from '../../src/project/companyPublic';
-import { proxyAuthHeaders } from '../../src/anbud/proxyAuth';
 import { companyLogoOf } from '../../src/project/companyLogo';
 
 function Fact({ label, value, colors }) {
@@ -27,8 +26,6 @@ function Fact({ label, value, colors }) {
 export default function EconomyWelcome({ stored, familyId }) {
   const colors = useColors();
   const [live, setLive] = useState(null);
-  const [history, setHistory] = useState(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
   const profile = live?.company || storedCompanyProfile(stored);
   const logo = companyLogoOf(stored);
   const orgnr = stored?.organisasjonsnummer || '';
@@ -45,31 +42,7 @@ export default function EconomyWelcome({ stored, familyId }) {
     return () => { alive = false; };
   }, [orgnr]);
 
-  useEffect(() => {
-    const id = String(orgnr || '').replace(/\D/g, '');
-    if (id.length !== 9) return undefined;
-    let alive = true;
-    setHistoryLoading(true);
-    // Proxyen krever innlogget bruker.
-    proxyAuthHeaders()
-      .then((headers) => fetch(accountHistoryEndpoint(), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'account-history', orgnr: id }),
-      }))
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!alive) return;
-        setHistory(Array.isArray(data?.years) ? data.years : []);
-      })
-      .catch(() => {
-        if (alive) setHistory([]);
-      })
-      .finally(() => {
-        if (alive) setHistoryLoading(false);
-      });
-    return () => { alive = false; };
-  }, [orgnr]);
+  const { years: history, loading: historyLoading } = useAccountHistory(orgnr);
 
   const accountView = useMemo(
     () => mergeAccountYears(live?.accounts, history || []),

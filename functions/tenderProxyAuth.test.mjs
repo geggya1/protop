@@ -79,7 +79,7 @@ test('appen sender Bearer-token til proxyen', async () => {
     const withAuth = (src.match(/fetch\(tenderProxyUrl\(\), \{\s+method: 'POST',\s+headers: await proxyAuthHeaders\(\)/g) || []).length;
     assert.equal(withAuth, calls, rel);
   }
-  for (const rel of ['../src/project/companyPublic.js', '../src/project/groupChartData.js', '../screens/economy/EconomyWelcome.jsx']) {
+  for (const rel of ['../src/project/companyPublic.js', '../src/project/groupChartData.js', '../components/project/useAccountHistory.js']) {
     assert.match(readFileSync(new URL(rel, import.meta.url), 'utf8'), /proxyAuthHeaders\(/, rel);
   }
 });

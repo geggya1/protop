@@ -265,6 +265,30 @@ export class ConflictError extends Error {
   }
 }
 
+/**
+ * Det bedriftssiden viser under Bærekraft: oppsettet, policydokumentene og registrene for mål og
+ * sertifikater. Tre lesinger i stedet for hele ISO-tilstanden. null uten ISO-tilgang (reglene avviser).
+ * Reglene filtrerer ikke på status; den som viser fram, tar bare publisert og ikke-skjermet.
+ */
+export async function loadIsoProfileParts(companyId) {
+  const id = cid(companyId);
+  if (!id) return null;
+  try {
+    const [system, documents, records] = await Promise.all([
+      getDoc(doc(db, 'families', id, 'isoSystem', 'main')),
+      getDocs(query(collection(db, 'families', id, COLLECTIONS.documents), where('docType', '==', 'policy'))),
+      getDocs(query(collection(db, 'families', id, COLLECTIONS.records), where('register', 'in', ['mal', 'sertifikat']))),
+    ]);
+    return {
+      system: system.exists() ? system.data() : null,
+      documents: documents.docs.map((d) => ({ ...d.data(), id: d.id })),
+      records: records.docs.map((d) => ({ ...d.data(), id: d.id })),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Bare oppsettet (isoSystem/main), slik det står lagret nå. Brukes når en lagring ble avvist fordi det er endret et annet sted. */
 export async function loadIsoSystem(companyId) {
   const id = cid(companyId);

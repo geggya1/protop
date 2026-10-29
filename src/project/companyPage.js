@@ -1,6 +1,7 @@
 /**
  * Offentlig bedriftsside: hero, moduler og nyhetskort.
  * Rekkefølgen i modules er prioriteten. Skjulte moduler ligger igjen i listen.
+ * Om oss er en artikkel (article.blocks), Tjenester er seksjoner med kort (servicePage.sections).
  */
 import { isActiveEmployee } from '../employees/employmentState.js';
 import { newsPlainText } from './newsFormat.js';
@@ -10,10 +11,29 @@ export const PAGE_TABS = [
   { id: 'nyheter', label: 'Nyheter' },
   { id: 'om-oss', label: 'Om oss' },
   { id: 'tjenester', label: 'Tjenester' },
-  { id: 'prosjekter', label: 'Prosjekter' },
   { id: 'ansatte', label: 'Ansatte' },
   { id: 'baerekraft', label: 'Bærekraft' },
   { id: 'kontakt', label: 'Kontakt' },
+  { id: 'selskapsdata', label: 'Offentlig selskapsdata' },
+];
+
+/** Faner som redigeres der de står når «Rediger side» er på. Resten redigeres fra Oversikt. */
+export const EDIT_TABS = ['oversikt', 'om-oss', 'tjenester', 'baerekraft'];
+
+// Siden lagres på bedriftsdokumentet, som alle i bedriften leser: grensene holder det lett.
+export const ARTICLE_LIMITS = { blocks: 20, text: 4000, caption: 200 };
+
+export const IMAGE_LAYOUTS = [
+  { id: 'full', label: 'Full bredde', icon: 'image-outline' },
+  { id: 'left', label: 'Bilde til venstre', icon: 'arrow-back-outline' },
+  { id: 'right', label: 'Bilde til høyre', icon: 'arrow-forward-outline' },
+];
+
+export const SERVICE_LIMITS = { sections: 8, items: 12, title: 80, intro: 600, text: 700 };
+
+export const SERVICE_LAYOUTS = [
+  { id: 'cards', label: 'Bildekort', icon: 'grid-outline' },
+  { id: 'columns', label: 'Tekst i to kolonner', icon: 'reorder-two-outline' },
 ];
 
 export const NEWS_CATEGORIES = [
@@ -160,14 +180,145 @@ function normalizeHours(raw) {
   });
 }
 
-function normalizeCards(raw) {
+function uniqueId(value, fallback, seen) {
+  let id = clip(value, 40) || fallback;
+  if (seen.has(id)) id = `${id}-${seen.size + 1}`;
+  seen.add(id);
+  return id;
+}
+
+/** Ny id til blokker, seksjoner og kort. Tid + tilfeldig, så to trykk i samme millisekund ikke kolliderer. */
+export function pageItemId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function normalizeArticle(raw) {
+  const source = Array.isArray(raw?.blocks) ? raw.blocks : [];
+  const seen = new Set();
+  const blocks = source.slice(0, ARTICLE_LIMITS.blocks).map((row, index) => {
+    const id = uniqueId(row?.id, `blokk-${index + 1}`, seen);
+    if (row?.type === 'image') {
+      return {
+        id,
+        type: 'image',
+        url: safeWebUrl(row?.url),
+        caption: clip(row?.caption, ARTICLE_LIMITS.caption),
+        layout: IMAGE_LAYOUTS.some((item) => item.id === row?.layout) ? row.layout : 'full',
+        text: clip(row?.text, ARTICLE_LIMITS.text),
+      };
+    }
+    return { id, type: 'text', text: clip(row?.text, ARTICLE_LIMITS.text) };
+  });
+  // Tomme blokker lagres ikke: et bilde uten fil, en tekst uten innhold.
+  return { blocks: blocks.filter((row) => (row.type === 'image' ? row.url : row.text)) };
+}
+
+export function newArticleBlock(type) {
+  if (type === 'image') {
+    return { id: pageItemId('bilde'), type: 'image', url: '', caption: '', layout: 'full', text: '' };
+  }
+  return { id: pageItemId('tekst'), type: 'text', text: '' };
+}
+
+export function articleHasContent(page) {
+  return normalizeArticle(page?.article).blocks.length > 0;
+}
+
+function normalizeServiceItems(raw, limit = SERVICE_LIMITS.items) {
   if (!Array.isArray(raw)) return [];
-  return raw.slice(0, 8).map((row, index) => ({
-    id: clip(row?.id, 40) || `card-${index + 1}`,
-    title: clip(row?.title, 80),
-    text: clip(row?.text, 280),
+  const seen = new Set();
+  return raw.slice(0, limit).map((row, index) => ({
+    id: uniqueId(row?.id, `kort-${index + 1}`, seen),
+    title: clip(row?.title, SERVICE_LIMITS.title),
+    text: clip(row?.text, SERVICE_LIMITS.text),
     imageUrl: safeWebUrl(row?.imageUrl),
   })).filter((row) => row.title || row.text || row.imageUrl);
+}
+
+/**
+ * Tjenestesiden. Eldre profiler har en flat liste (page.services); den blir én seksjon,
+ * med bildekort når noen av tjenestene har bilde.
+ */
+function normalizeServicePage(raw, legacy) {
+  if (!Array.isArray(raw?.sections)) {
+    const items = normalizeServiceItems(legacy, 8);
+    if (!items.length) return { sections: [] };
+    const layout = items.some((row) => row.imageUrl) ? 'cards' : 'columns';
+    return { sections: [{ id: 'tjenester', title: '', intro: '', layout, items }] };
+  }
+  const seen = new Set();
+  return {
+    sections: raw.sections.slice(0, SERVICE_LIMITS.sections).map((row, index) => ({
+      id: uniqueId(row?.id, `seksjon-${index + 1}`, seen),
+      title: clip(row?.title, SERVICE_LIMITS.title),
+      intro: clip(row?.intro, SERVICE_LIMITS.intro),
+      layout: SERVICE_LAYOUTS.some((item) => item.id === row?.layout) ? row.layout : 'cards',
+      items: normalizeServiceItems(row?.items),
+    })).filter((row) => row.title || row.intro || row.items.length),
+  };
+}
+
+export function newServiceSection(layout = 'cards') {
+  return {
+    id: pageItemId('seksjon'),
+    title: '',
+    intro: '',
+    layout: SERVICE_LAYOUTS.some((item) => item.id === layout) ? layout : 'cards',
+    items: [newServiceItem()],
+  };
+}
+
+export function newServiceItem() {
+  return { id: pageItemId('kort'), title: '', text: '', imageUrl: '' };
+}
+
+export function serviceSectionsOf(page) {
+  return normalizeServicePage(page?.servicePage, page?.services).sections;
+}
+
+/** Flytt et element i en liste én plass opp (-1) eller ned (1). Samme liste tilbake ved kanten. */
+export function moveListItem(list, id, direction) {
+  const rows = Array.isArray(list) ? list : [];
+  const index = rows.findIndex((row) => row?.id === id);
+  const next = index + direction;
+  if (index < 0 || next < 0 || next >= rows.length) return rows;
+  const out = rows.slice();
+  const [row] = out.splice(index, 1);
+  out.splice(next, 0, row);
+  return out;
+}
+
+/** Kolonner i et rutenett som får plass i boksen: minst min px per kort, høyst max. */
+export function gridColumns(boxWidth, { min = 200, gap = 16, max = 4 } = {}) {
+  const w = Number(boxWidth) || 0;
+  if (w <= 0) return 1;
+  return Math.max(1, Math.min(max, Math.floor((w + gap) / (min + gap))));
+}
+
+/** Bredden på ett kort når boksen deles i columns kolonner med gap mellom. */
+export function gridItemWidth(boxWidth, columns, gap = 16) {
+  const n = Math.max(1, Number(columns) || 1);
+  const w = Number(boxWidth) || 0;
+  return Math.max(0, Math.floor((w - gap * (n - 1)) / n));
+}
+
+function normalizeStaffSettings(raw) {
+  const order = Array.isArray(raw?.order)
+    ? [...new Set(raw.order.map((id) => clip(id, 80)).filter(Boolean))].slice(0, 300)
+    : [];
+  return { includeExternal: raw?.includeExternal === true, order };
+}
+
+/** Hva Bærekraft-fanen henter fra resten av bedriften. Alt er på til bedriften skrur av. */
+export const SUSTAINABILITY_SOURCES = [
+  { id: 'certificates', label: 'Sertifikater', hint: 'Gyldige sertifikater fra ISO' },
+  { id: 'policy', label: 'Policy', hint: 'Publisert policy for kvalitet, miljø og arbeidsmiljø fra ISO' },
+  { id: 'goals', label: 'Miljømål', hint: 'Aktive og nådde mål med område Miljø fra ISO' },
+  { id: 'news', label: 'Nyheter', hint: 'Nyheter i kategoriene Bærekraft og Kvalitet, miljø og HMS' },
+];
+
+function normalizeSustainability(raw) {
+  return Object.fromEntries(SUSTAINABILITY_SOURCES.map((row) => [row.id, raw?.[row.id] !== false]));
 }
 
 export function defaultCompanyPage() {
@@ -187,15 +338,17 @@ export function normalizeCompanyPage(raw) {
     videoUrl: safeWebUrl(page.videoUrl),
     videoTitle: clip(page.videoTitle, 80),
     showEmployees: page.showEmployees === true,
-    sustainability: clip(page.sustainability, 1200),
+    staff: normalizeStaffSettings(page.staff),
+    sustainability: clip(page.sustainability, 3000),
+    sustainabilitySources: normalizeSustainability(page.sustainabilitySources),
     jobs: {
       text: clip(page.jobs?.text, 280),
       url: safeWebUrl(page.jobs?.url),
     },
     hours: normalizeHours(page.hours),
     highlights: normalizeHighlights(page.highlights),
-    services: normalizeCards(page.services),
-    projects: normalizeCards(page.projects),
+    article: normalizeArticle(page.article),
+    servicePage: normalizeServicePage(page.servicePage, page.services),
     modules: normalizeModules(page.modules),
   };
 }

@@ -19,7 +19,9 @@ import {
   createPowerOfficeClient, findClientEnvironment, POWEROFFICE_ENVS, PowerOfficeError, powerOfficeErrorText,
 } from './powerOfficeApi.js';
 import { normalizeProductCodes } from './powerOfficeMap.js';
-import { lookupOutgoingInvoice, productsWithVat, syncInvoices, transferInvoice } from './powerOfficeSync.js';
+import {
+  lookupOutgoingInvoice, productsWithVat, requestSend, sendFailedPatch, syncInvoices, transferInvoice,
+} from './powerOfficeSync.js';
 
 if (!getApps().length) initializeApp();
 
@@ -127,6 +129,7 @@ function publicStatus(status, ready) {
     clientName: status.clientName || '',
     invalidPrivileges: Array.isArray(status.invalidPrivileges) ? status.invalidPrivileges : [],
     productCodes: normalizeProductCodes(status.productCodes),
+    autoSend: status.autoSend === true,
     lastSyncAt: status.lastSyncAt || '',
     lastSyncCounts: status.lastSyncCounts || null,
     keysReady: ready,
@@ -157,6 +160,8 @@ export const powerOfficeConnect = onCall(CALL, async (request) => {
   if (request.data?.productCodes) {
     update.productCodes = normalizeProductCodes(request.data.productCodes);
   }
+  // Send fakturaen fra Go med en gang den er overført. Av som standard.
+  if (typeof request.data?.autoSend === 'boolean') update.autoSend = request.data.autoSend;
 
   const clientKey = String(request.data?.clientKey || '').trim();
   if (clientKey) {
@@ -268,14 +273,34 @@ export const powerOfficeTransferInvoice = onCall(CALL, async (request) => {
       productCodes: status.productCodes || {},
       again: request.data?.again === true,
     });
+    // send: «Send nå» på et overført utkast. autoSend: bedriften sender alt som overføres.
+    const wantSend = request.data?.send === true || status.autoSend === true;
+    let current = invoice;
     if (result.already) {
-      return { already: true, poweroffice: invoice.poweroffice || null };
+      if (!wantSend) return { already: true, poweroffice: invoice.poweroffice || null };
+    } else {
+      await invoiceRef.set(result.patch, { merge: true });
+      if (invoice.customerId && result.customerLink) {
+        await statusRef(db, familyId).set({ customers: { [invoice.customerId]: result.customerLink } }, { merge: true });
+      }
+      current = { ...invoice, ...result.patch };
     }
-    await invoiceRef.set(result.patch, { merge: true });
-    if (invoice.customerId && result.customerLink) {
-      await statusRef(db, familyId).set({ customers: { [invoice.customerId]: result.customerLink } }, { merge: true });
+    if (!wantSend || current.poweroffice?.state !== 'draft') {
+      return { already: !!result.already, poweroffice: current.poweroffice || null };
     }
-    return { already: false, poweroffice: result.patch.poweroffice };
+    const at = new Date().toISOString();
+    try {
+      const sent = await requestSend(client, { invoice: current, at });
+      await invoiceRef.set(sent, { merge: true });
+      return { already: !!result.already, sent: true, poweroffice: sent.poweroffice };
+    } catch (err) {
+      // Utkastet ligger i Go. Feilen lagres, så den vises på fakturaen og kan rettes.
+      const message = err instanceof PowerOfficeError ? powerOfficeErrorText(err) : (err?.message || 'Sendingen feilet.');
+      if (err instanceof PowerOfficeError) logger.warn('PowerOffice send', { status: err.status, path: err.path, message: err.message });
+      const failed = sendFailedPatch(current, message, { at });
+      await invoiceRef.set(failed, { merge: true });
+      return { already: !!result.already, sent: false, sendError: failed.poweroffice.sendError, poweroffice: failed.poweroffice };
+    }
   } catch (err) {
     throw toHttpsError(err, 'transfer');
   }
@@ -292,7 +317,7 @@ export const powerOfficeSyncInvoices = onCall(CALL, async (request) => {
   const status = await readStatus(db, familyId);
   if (status.connected !== true) return { counts: null, connected: false };
   const snap = await db.collection(`families/${familyId}/invoices`)
-    .where('poweroffice.state', 'in', ['draft', 'sent'])
+    .where('poweroffice.state', 'in', ['draft', 'sending', 'sent'])
     .get();
   const invoices = snap.docs.map((row) => ({ id: row.id, ...row.data() }));
   const at = new Date().toISOString();

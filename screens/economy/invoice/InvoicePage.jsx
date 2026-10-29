@@ -29,7 +29,7 @@ import {
   openFileUrl,
   previewUrl as makePreviewUrl,
 } from '../../../src/economy/invoiceDelivery.js';
-import { POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
+import { canSendFromPowerOffice, POWEROFFICE_GUI, powerOfficeSummary } from '../../../src/economy/powerOfficeView.js';
 import { accountsFrom } from '../../../src/economy/invoiceDraft.js';
 import { withRegistryCustomer } from '../../../src/economy/invoiceCustomer.js';
 import { Banner, Button, LinkText, money } from '../billing/ui';
@@ -84,6 +84,7 @@ export default function InvoicePage({
   onChanged,
   onDeleted,
   onTransfer,
+  onSyncPowerOffice,
   transferring = false,
 }) {
   // Utkast viser kunden slik den står i registeret nå; den kopieres for godt ved ferdigstilling (DS-09).
@@ -469,6 +470,12 @@ export default function InvoicePage({
       onOpenCredit={(id) => onOpenInvoiceId?.(id)}
       powerOfficeSummary={powerOfficeSummary(invoice)}
       powerOfficeUrl={poStatus?.connected ? (POWEROFFICE_GUI[poStatus.env] || POWEROFFICE_GUI.prod) : ''}
+      onPowerOfficeSend={canManage && canSendFromPowerOffice(invoice, poStatus) && onTransfer
+        ? () => run('posend', () => onTransfer({ send: true }), { close: false })
+        : null}
+      onPowerOfficeSync={poStatus?.connected && invoice?.poweroffice?.salesOrderId && onSyncPowerOffice
+        ? () => run('posync', () => onSyncPowerOffice(), { close: false })
+        : null}
       settings={settings}
     />
   );
@@ -546,6 +553,7 @@ export default function InvoicePage({
         peppol={peppol}
         checks={dialog === 'finalize' ? checks : null}
         powerOffice={mode === 'poweroffice' && dialog === 'finalize'}
+        powerOfficeAutoSend={!!poStatus?.autoSend}
         busy={busy === 'finalize' || busy === 'send'}
         onCancel={() => setDialog('')}
         onConfirm={(options) => (dialog === 'finalize'

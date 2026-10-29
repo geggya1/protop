@@ -109,7 +109,15 @@ export function syncCountsText(counts) {
   if (counts.paid) parts.push(`${counts.paid} betalt`);
   if (counts.merged) parts.push(`${counts.merged} slått sammen`);
   if (counts.missing) parts.push(`${counts.missing} ikke funnet`);
+  if (counts.sending) parts.push(`${counts.sending} sendes fortsatt`);
+  if (counts.failed) parts.push(`${counts.failed} sending feilet`);
   return parts.length ? parts.join(', ') : 'ingen endringer';
+}
+
+/** Kan sendes fra ProTop: utkastet ligger i Go og er ikke bedt sendt ennå. */
+export function canSendFromPowerOffice(invoice, status) {
+  const po = invoice?.poweroffice || {};
+  return !!status?.connected && !!po.salesOrderId && po.state === 'draft';
 }
 
 function isDraft(invoice) {
@@ -130,14 +138,25 @@ export function powerOfficeSummary(invoice) {
   const env = po.env === 'demo' ? ' (testklient)' : '';
   if (po.state === 'draft') {
     return {
-      tone: 'info',
+      tone: po.sendError ? 'warn' : 'info',
       title: `Overført til PowerOffice${env}`,
       lines: [
+        po.sendError ? `Sendingen feilet: ${po.sendError}` : '',
         `Utkast${po.orderNo ? ` nr. ${po.orderNo}` : ''} venter på kontroll og sending i PowerOffice Go.`,
         po.mergedFrom ? 'Utkastet er slått sammen med et annet utkast i PowerOffice.' : '',
         `Overført ${formatDate(po.transferredAt)}.`,
         'Skal det slettes: slett utkastet i PowerOffice først, og synk.',
       ].filter(Boolean),
+    };
+  }
+  if (po.state === 'sending') {
+    return {
+      tone: 'info',
+      title: `Sendes fra PowerOffice${env}`,
+      lines: [
+        `Bedt sendt ${formatDate(po.sendRequestedAt)}${po.orderNo ? ` (utkast nr. ${po.orderNo})` : ''}.`,
+        'Fakturanummer, KID og forsendelse kommer ved neste synk.',
+      ],
     };
   }
   if (po.state === 'missing') {

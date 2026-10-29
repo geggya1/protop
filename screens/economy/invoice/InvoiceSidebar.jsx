@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatDate } from '../../../src/economy/invoices.js';
+import { type } from '../../../src/ui/tokens';
 import { REMINDER_FEE_MAX } from '../../../src/economy/companyInvoiceDefaults.js';
 import {
   COLLECTION_FLAGS,
@@ -131,6 +132,8 @@ export default function InvoiceSidebar({
   onOpenCredit,
   powerOfficeSummary,
   powerOfficeUrl = '',
+  onPowerOfficeSend = null,
+  onPowerOfficeSync = null,
   settings = {},
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
@@ -239,10 +242,36 @@ export default function InvoiceSidebar({
           {powerOfficeSummary ? (
             <View style={{ gap: 2, marginTop: 4 }}>
               <Text style={{ color: colors.ink, fontWeight: '700', fontSize: 13 }}>{powerOfficeSummary.title}</Text>
-              {powerOfficeSummary.lines.map((line) => <Text key={line} style={{ color: colors.muted, fontSize: 12 }}>{line}</Text>)}
-              {powerOfficeUrl ? (
-                <LinkText label="Åpne PowerOffice Go" icon="open-outline" colors={colors} onPress={() => Linking.openURL(powerOfficeUrl)} nativeID="invoice-open-poweroffice" />
+              {powerOfficeSummary.lines.map((line) => (
+                <Text
+                  key={line}
+                  style={{ ...type.caption, color: line.startsWith('Sendingen feilet') ? (colors.danger || '#b42318') : colors.muted }}
+                >
+                  {line}
+                </Text>
+              ))}
+              {onPowerOfficeSend ? (
+                <View style={[styles.actionRow, { marginTop: 6 }]}>
+                  <Button
+                    label="Send fra PowerOffice nå"
+                    icon="send-outline"
+                    small
+                    colors={colors}
+                    onPress={onPowerOfficeSend}
+                    busy={isBusy('posend')}
+                    disabled={!!busy}
+                    nativeID="invoice-poweroffice-send"
+                  />
+                </View>
               ) : null}
+              <View style={[styles.actionRow, { marginTop: 4 }]}>
+                {onPowerOfficeSync ? (
+                  <LinkText label={isBusy('posync') ? 'Synker …' : 'Synk nå'} icon="sync-outline" colors={colors} onPress={() => !busy && onPowerOfficeSync()} nativeID="invoice-poweroffice-sync" />
+                ) : null}
+                {powerOfficeUrl ? (
+                  <LinkText label="Åpne PowerOffice Go" icon="open-outline" colors={colors} onPress={() => Linking.openURL(powerOfficeUrl)} nativeID="invoice-open-poweroffice" />
+                ) : null}
+              </View>
             </View>
           ) : null}
         </View>

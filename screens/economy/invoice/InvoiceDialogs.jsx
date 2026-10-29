@@ -181,6 +181,7 @@ export function SendDialog({
   peppol = null,
   checks = null,
   powerOffice = false,
+  powerOfficeAutoSend = false,
   busy = false,
   onCancel,
   onConfirm,
@@ -261,7 +262,7 @@ export function SendDialog({
   let action = 'Send';
   if (finalize) action = send && !powerOffice ? 'Ferdigstill og send' : 'Ferdigstill';
   const again = powerOffice && invoice?.poweroffice?.state === 'missing';
-  if (powerOffice) action = again ? 'Overfør på nytt' : 'Overfør til PowerOffice';
+  if (powerOffice) action = again ? 'Overfør på nytt' : (powerOfficeAutoSend ? 'Overfør og send' : 'Overfør til PowerOffice');
 
   const channelTabs = [
     { id: 'ehf', label: narrow ? 'EHF' : 'Send som EHF' },
@@ -354,14 +355,26 @@ export function SendDialog({
                   </Text>
                 </Banner>
               ) : null}
-              <Text style={{ color: colors.ink, lineHeight: 20 }}>
-                Utkastet overføres til PowerOffice Go, som setter fakturanummer og KID. Kontroller og send fakturaen fra PowerOffice.
-                Nummer, KID, sending og betaling hentes tilbake hit.
-                {invoice?.invoiceDate ? `\n\nOrdredato i PowerOffice: ${formatDate(invoice.invoiceDate)}. ` : '\n\n'}
-                {invoice?.dueDateSet && invoice?.creditDays != null && Number.isFinite(Number(invoice.creditDays))
-                  ? `Betalingsfristen blir ${Number(invoice.creditDays)} dager fra dagen fakturaen sendes fra PowerOffice.`
-                  : 'Betalingsfristen følger betalingsbetingelsen i PowerOffice.'}
-              </Text>
+              {powerOfficeAutoSend ? (
+                <Text style={{ color: colors.ink, lineHeight: 20 }}>
+                  Utkastet overføres til PowerOffice Go og sendes til kunden med en gang: som EHF, eFaktura eller AvtaleGiro
+                  når kunden kan ta imot det, ellers som PDF på e-post{invoice?.customerEmail ? ` til ${invoice.customerEmail}` : ' til kundens faktura-e-post i PowerOffice'}.
+                  Fakturanummer, KID og betaling hentes tilbake hit.
+                  {`\n\nFakturadato: ${invoice?.invoiceDateSet && invoice?.invoiceDate ? formatDate(invoice.invoiceDate) : 'dagens dato'}. `}
+                  {invoice?.dueDateSet && invoice?.dueDate
+                    ? `Forfall: ${formatDate(invoice.dueDate)}.`
+                    : 'Forfall etter betalingsbetingelsen i PowerOffice.'}
+                </Text>
+              ) : (
+                <Text style={{ color: colors.ink, lineHeight: 20 }}>
+                  Utkastet overføres til PowerOffice Go, som setter fakturanummer og KID. Kontroller og send fakturaen fra PowerOffice.
+                  Nummer, KID, sending og betaling hentes tilbake hit.
+                  {invoice?.invoiceDate ? `\n\nOrdredato i PowerOffice: ${formatDate(invoice.invoiceDate)}. ` : '\n\n'}
+                  {invoice?.dueDateSet && invoice?.creditDays != null && Number.isFinite(Number(invoice.creditDays))
+                    ? `Betalingsfristen blir ${Number(invoice.creditDays)} dager fra dagen fakturaen sendes fra PowerOffice.`
+                    : 'Betalingsfristen følger betalingsbetingelsen i PowerOffice.'}
+                </Text>
+              )}
             </>
           )}
         </View>

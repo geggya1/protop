@@ -19,11 +19,12 @@ export function loadPowerOfficeStatus(familyId) {
  * Klientnøkkel fra Utvidelser i PowerOffice Go, og/eller produkt per MVA-sats.
  * Serveren finner selv ut om nøkkelen hører til produksjon eller en testklient.
  */
-export function connectPowerOffice(familyId, { clientKey, productCodes } = {}) {
+export function connectPowerOffice(familyId, { clientKey, productCodes, autoSend } = {}) {
   return call('powerOfficeConnect', {
     familyId,
     ...(clientKey ? { clientKey } : {}),
     ...(productCodes ? { productCodes } : {}),
+    ...(typeof autoSend === 'boolean' ? { autoSend } : {}),
   }, 30000);
 }
 
@@ -35,8 +36,9 @@ export function listPowerOfficeProducts(familyId) {
   return call('powerOfficeProducts', { familyId }, 60000);
 }
 
-export function transferInvoiceToPowerOffice(familyId, invoiceId, { again = false } = {}) {
-  return call('powerOfficeTransferInvoice', { familyId, invoiceId, again }, 120000);
+/** send: be Go sende fakturaen med en gang (også et utkast som allerede er overført). */
+export function transferInvoiceToPowerOffice(familyId, invoiceId, { again = false, send = false } = {}) {
+  return call('powerOfficeTransferInvoice', { familyId, invoiceId, again, ...(send ? { send: true } : {}) }, 120000);
 }
 
 export function syncPowerOfficeInvoices(familyId) {

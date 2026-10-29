@@ -80,7 +80,8 @@ import { DetailMissing } from '../../src/ui/BackLink';
 import { DeleteDraftDialog, PaymentDialog } from './invoice/InvoiceDialogs';
 import { deleteDraft, payment } from './invoice/invoiceActions';
 import PowerOfficeSyncLine from './PowerOfficeSyncLine';
-import { loadPowerOfficeStatus, transferInvoiceToPowerOffice } from '../../src/economy/powerOfficeClient.js';
+import { loadPowerOfficeStatus, syncPowerOfficeInvoices, transferInvoiceToPowerOffice } from '../../src/economy/powerOfficeClient.js';
+import { syncCountsText } from '../../src/economy/powerOfficeView.js';
 import { isCreditNote, isDraftInvoice } from '../../src/economy/invoiceFlow.js';
 import { resolveProjectInvoiceSettings } from '../../src/project/invoiceSettings.js';
 import { resolveCompanyInvoiceDefaults } from '../../src/economy/companyInvoiceDefaults.js';
@@ -543,22 +544,47 @@ export default function EconomyInvoices({
   }, [selected?.projectId, watch, projects]);
 
   /** Overfør utkastet. Fakturasiden viser resultatet, så feil kastes videre dit. */
-  async function transferSelectedInvoice({ again = false } = {}) {
+  async function reloadSelected() {
+    const row = typeof loadInvoice === 'function' && selected ? await loadInvoice(familyId, selected.id).catch(() => null) : null;
+    if (row) {
+      setSelected(row);
+      setInvoices((rows) => rows.map((item) => (item.id === row.id ? { ...item, ...row } : item)));
+    }
+  }
+
+  /**
+   * Overfør utkastet, og send det fra Go når send er satt eller bedriften sender automatisk.
+   * Fakturasiden viser resultatet, så feil kastes videre dit.
+   */
+  async function transferSelectedInvoice({ again = false, send = false } = {}) {
     if (!selected || !canManage || transferring || deleting) return null;
     setTransferring(true);
     try {
-      const result = await transferInvoiceToPowerOffice(familyId, selected.id, { again });
-      const row = typeof loadInvoice === 'function' ? await loadInvoice(familyId, selected.id).catch(() => null) : null;
-      if (row) setSelected(row);
+      const result = await transferInvoiceToPowerOffice(familyId, selected.id, { again, send });
+      await reloadSelected();
       const orderNo = result?.poweroffice?.orderNo;
+      const where = orderNo ? ` som utkast nr. ${orderNo}` : '';
+      if (result?.sendError) {
+        throw new Error(`${result.already ? 'Utkastet ligger i PowerOffice' : `Overført til PowerOffice${where}`}, men ble ikke sendt: ${result.sendError} Send fakturaen fra PowerOffice Go, eller prøv «Send nå» igjen.`);
+      }
+      if (result?.sent) {
+        return { message: `${result.already ? 'Utkastet' : `Overført til PowerOffice${where}, og`} sendes nå fra PowerOffice. Fakturanummer og KID kommer ved neste synk.` };
+      }
       return {
         message: result?.already
           ? 'Utkastet ligger allerede i PowerOffice.'
-          : `Overført til PowerOffice${orderNo ? ` som utkast nr. ${orderNo}` : ''}. Kontroller og send fakturaen der.`,
+          : `Overført til PowerOffice${where}. Kontroller og send fakturaen der.`,
       };
     } finally {
       setTransferring(false);
     }
+  }
+
+  /** Synk med PowerOffice fra fakturasiden, og vis fakturaen slik den er etterpå. */
+  async function syncSelectedPowerOffice() {
+    const result = await syncPowerOfficeInvoices(familyId);
+    await reloadSelected();
+    return { message: `Synket med PowerOffice: ${syncCountsText(result?.counts)}.` };
   }
 
   function requestDelete(row) {
@@ -832,6 +858,7 @@ export default function EconomyInvoices({
             setNote(message || '');
           }}
           onTransfer={transferSelectedInvoice}
+          onSyncPowerOffice={syncSelectedPowerOffice}
           transferring={transferring}
         />
         {busyOverlay}

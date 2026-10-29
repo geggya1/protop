@@ -102,6 +102,7 @@ export const FILES = [
   'src/anbud/customers.test.mjs',
   'src/economy/powerOfficeView.test.mjs',
   'src/economy/billingChain.test.mjs',
+  'src/economy/billingApproval.test.mjs',
   'src/arbeid/productSalesList.test.mjs',
   'src/arbeid/absenceDashboard.test.mjs',
   'src/arbeid/workingTimeRules.test.mjs',
@@ -302,6 +303,7 @@ export const FILES = [
   'src/project/articleFormat.test.mjs',
   'src/project/companyStaff.test.mjs',
   'src/project/companySustainability.test.mjs',
+  'src/project/companyFacts.test.mjs',
   // Drift (testbot C): fakturatilgang for utsending, lås mot gammel kopi og tregt nett.
   'functions/invoiceMailGuard.test.mjs',
   'src/arbeid/timesheetGuard.test.mjs',

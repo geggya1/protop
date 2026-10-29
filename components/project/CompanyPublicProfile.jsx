@@ -9,6 +9,7 @@ import { companyLogoOf } from '../../src/project/companyLogo';
 import { departmentsOf, groupOverview } from '../../src/project/companyUnits';
 import { nbDate, nok, registerRows } from '../../src/project/companyPublic';
 import { mergeAccountYears } from '../../src/project/accountSeries';
+import { companyFactGroups, factColumns } from '../../src/project/companyFacts';
 import {
   COVER_ASPECTS,
   EDIT_TABS,
@@ -727,6 +728,7 @@ export default function CompanyPublicProfile({
           accounts={accountView}
           accountsLoading={accountHistory.loading}
           loading={loading}
+          stacked={stacked}
         />
       ) : null}
       {cover.modal}
@@ -740,46 +742,47 @@ export default function CompanyPublicProfile({
  */
 function RegistryDetails({
   colors, profile, stored, name, contact, registers, roles, signature, overview, parentLabel, onUnits, brregUrl,
-  accounts, accountsLoading, loading,
+  accounts, accountsLoading, loading, stacked,
 }) {
+  const groups = companyFactGroups(profile, { stored, contact, parentLabel });
+  const purpose = (profile?.formaal?.length ? profile.formaal : profile?.aktivitet || []).join(' ');
   return (
     <View style={styles.stack}>
       <Card colors={colors} nativeID="company-public-data">
         <SectionHead colors={colors} title="Om bedriften" />
-        <Text style={[styles.body, { color: colors.ink }]}>
-          {[profile?.organisasjonsnummer, profile?.organisasjonsform].filter(Boolean).join(' · ') || name}
-        </Text>
-        {parentLabel ? <Text style={[styles.muted, { color: colors.muted }]}>Overordnet enhet: {parentLabel}</Text> : null}
-        {profile?.formaal?.length ? (
-          <Text style={[styles.body, { color: colors.ink }]}>{profile.formaal.join(' ')}</Text>
-        ) : null}
-        {!profile?.formaal?.length && profile?.aktivitet?.length ? (
-          <Text style={[styles.body, { color: colors.ink }]}>{profile.aktivitet.join(' ')}</Text>
-        ) : null}
-        <View style={styles.factGrid}>
-          <Mini label="Stiftet" value={nbDate(profile?.stiftelsesdato)} colors={colors} />
-          <Mini label="Oppstart" value={profile?.stiftelsesdato ? '' : nbDate(profile?.oppstart)} colors={colors} />
-          <Mini label="I Enhetsregisteret" value={nbDate(profile?.registrert)} colors={colors} />
-          <Mini label="Målform" value={profile?.maalform} colors={colors} />
-          <Mini label="Sektor" value={[profile?.sektorKode, profile?.sektor].filter(Boolean).join(' · ')} colors={colors} />
-          <Mini label="Ansatte" value={profile?.ansatte != null ? String(profile.ansatte) : ''} colors={colors} />
-          <Mini label={profile?.kapital?.type || 'Kapital'} value={profile?.kapital ? nok(profile.kapital.belop) : ''} colors={colors} />
-          <Mini label="Siste årsregnskap" value={profile?.sisteRegnskap} colors={colors} />
-          <Mini label="Forretningsadresse" value={profile?.forretning?.label || contact.address} colors={colors} />
-          <Mini label="Postadresse" value={profile?.post?.label} colors={colors} />
-          <Mini label="Telefon" value={formatPhone(profile?.telefon || profile?.mobil || stored?.telefon)} colors={colors} />
-          <Mini label="E-post" value={profile?.epostadresse || stored?.epostadresse} colors={colors} />
-          <Mini label="Hjemmeside" value={websiteLabel(profile?.hjemmeside)} colors={colors} />
-        </View>
-        {(profile?.naeringer || []).map((row) => (
-          <Text key={`${row.kode}-${row.beskrivelse}`} style={{ color: colors.ink }}>
-            {[row.kode, row.beskrivelse].filter(Boolean).join(' · ')}
-          </Text>
-        ))}
-        {profile?.historiskeNavn?.length ? (
-          <Mini label="Tidligere navn" value={profile.historiskeNavn.join(', ')} colors={colors} />
-        ) : null}
-        {loading && !profile?.organisasjonsform ? <EmptyNote colors={colors}>Henter offentlige opplysninger …</EmptyNote> : null}
+        {purpose ? <Text style={[styles.lead, { color: colors.ink }]}>{purpose}</Text> : null}
+        {groups.length ? (
+          <View style={[styles.factColumns, stacked && styles.factColumnsStacked]}>
+            {factColumns(groups, stacked ? 1 : 2).map((column) => (
+              <View key={column.map((group) => group.id).join('-')} style={styles.factColumn}>
+                {column.map((group) => (
+                  <View key={group.id} style={styles.factGroup}>
+                    <Text accessibilityRole="header" style={[styles.factGroupTitle, { color: colors.muted }]}>{group.title}</Text>
+                    {group.rows.map((row, index) => (
+                      <View
+                        key={row.label}
+                        style={[styles.factLine, index ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.line } : null]}
+                      >
+                        <Text style={[styles.factLineLabel, stacked && styles.factLineLabelStacked, { color: colors.muted }]}>{row.label}</Text>
+                        <Text
+                          style={[styles.factLineValue, { color: row.link ? colors.brandInk || colors.brand : colors.ink }]}
+                          onPress={row.link === 'mailto'
+                            ? () => Linking.openURL(`mailto:${row.value}`).catch(() => {})
+                            : (row.link === 'web' ? () => openUrl(row.value) : undefined)}
+                          accessibilityRole={row.link ? 'link' : undefined}
+                        >
+                          {row.value}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <EmptyNote colors={colors}>{loading ? 'Henter offentlige opplysninger …' : name}</EmptyNote>
+        )}
       </Card>
 
       {accounts ? (
@@ -863,16 +866,6 @@ function RegistryDetails({
           Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret.
         </Text>
       ) : null}
-    </View>
-  );
-}
-
-function Mini({ label, value, colors }) {
-  if (!value) return null;
-  return (
-    <View style={styles.mini}>
-      <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
-      <Text style={{ color: colors.ink }}>{value}</Text>
     </View>
   );
 }
@@ -969,6 +962,15 @@ const styles = StyleSheet.create({
   jobsBtn: { alignSelf: 'flex-start', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   jobsBtnText: { color: '#fff', fontSize: 13 },
   stack: { gap: 12 },
-  factGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  mini: { minWidth: 140, flexGrow: 1, gap: 2 },
+  lead: { fontSize: 15, lineHeight: 22 },
+  factColumns: { flexDirection: 'row', gap: 32, alignItems: 'flex-start' },
+  factColumnsStacked: { flexDirection: 'column', gap: 16 },
+  factColumn: { flex: 1, minWidth: 0, gap: 16, alignSelf: 'stretch' },
+  factGroup: { gap: 0 },
+  factGroupTitle: { fontSize: 12, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 4 },
+  factLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 8 },
+  factLineLabel: { width: '42%', maxWidth: 190, fontSize: 13, lineHeight: 19 },
+  // På telefon er 42 % for smalt for «Organisasjonsnummer».
+  factLineLabelStacked: { width: 150, maxWidth: '50%' },
+  factLineValue: { flex: 1, minWidth: 0, fontSize: 14, lineHeight: 19 },
 });

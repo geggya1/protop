@@ -205,21 +205,22 @@ export function createPowerOfficeClient({
    * Ett kall mot API-et. GET som gir 404 returnerer null, så den som spør
    * kan skille «finnes ikke» fra feil.
    */
-  async function request(method, path, { query = null, body = undefined } = {}) {
+  async function request(method, path, { query = null, body = undefined, form = undefined } = {}) {
     const url = new URL(`${config.baseUrl}${path}`);
     for (const [key, value] of Object.entries(query || {})) {
       if (value == null || value === '') continue;
       url.searchParams.set(key, String(value));
     }
+    // form: multipart (filopplasting). Lages på nytt per forsøk, og fetch setter grensen selv.
     const call = async () => send(url.toString(), {
       method,
       headers: {
         Authorization: `Bearer ${await accessToken()}`,
         'Ocp-Apim-Subscription-Key': subscriptionKey,
         Accept: 'application/json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(body !== undefined && !form ? { 'Content-Type': 'application/json' } : {}),
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(form ? { body: form() } : (body !== undefined ? { body: JSON.stringify(body) } : {})),
     });
     let res = await call();
     if (res.status === 401) {
@@ -234,6 +235,17 @@ export function createPowerOfficeClient({
     return data;
   }
 
+  /** Laster opp én fil som multipart-feltet «file». */
+  async function upload(path, { name, mime = 'application/octet-stream', bytes }) {
+    return request('POST', path, {
+      form: () => {
+        const data = new FormData();
+        data.append('file', new Blob([bytes], { type: mime }), name);
+        return data;
+      },
+    });
+  }
+
   /** Henter alle sider (PageNumber er 1-basert). */
   async function listAll(path, query = {}, { pageSize = 100, maxPages = 50 } = {}) {
     const rows = [];
@@ -246,5 +258,5 @@ export function createPowerOfficeClient({
     return rows;
   }
 
-  return { env, config, accessToken, request, listAll };
+  return { env, config, accessToken, request, upload, listAll };
 }

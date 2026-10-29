@@ -8,8 +8,9 @@
  *   sats er skattepliktig (taxableAmount på utlegget), og må på lønnslippen som det.
  * - direct: egen utbetaling til konto.
  *
- * Når utbetalingen er gjort, markeres utleggene «Utbetalt» med lønnsperioden (payoutPeriod,
- * «åååå-mm»), måten (payoutMethod) og tidspunktet (reimbursedAt).
+ * Utbetalingsstatus (payoutStatus): venter på godkjenning → til utbetaling → sendt til lønn
+ * (eksportert eller overført til lønnskjøringen, payrollSentAt) → utbetalt (reimbursedAt, med
+ * lønnsperioden payoutPeriod «åååå-mm» og måten payoutMethod). Firmakort og avviste utbetales ikke.
  */
 import { normalizeExpense } from './expenses.js';
 import { roundMoney } from './vat.js';
@@ -26,6 +27,71 @@ export function isPayable(row) {
     && expense.status === 'approved'
     && !text(row.reimbursedAt)
     && Math.abs(expense.amountInclVat) > 0;
+}
+
+const MONTHS = ['jan.', 'feb.', 'mars', 'apr.', 'mai', 'juni', 'juli', 'aug.', 'sep.', 'okt.', 'nov.', 'des.'];
+
+/** «okt. 2026» for «2026-10». */
+export function periodShort(period) {
+  const [y, m] = text(period).split('-').map(Number);
+  return y && m ? `${MONTHS[m - 1]} ${y}` : '';
+}
+
+export const PAYOUT_STATES = [
+  { id: 'approval', label: 'Venter på godkjenning' },
+  { id: 'payable', label: 'Til utbetaling' },
+  { id: 'sent', label: 'Sendt til lønn' },
+  { id: 'paid', label: 'Utbetalt' },
+  { id: 'rejected', label: 'Avvist' },
+  { id: 'company', label: 'Firmakort' },
+];
+
+/**
+ * Hvor utlegget er i utbetalingen: { id, label }. label har perioden med når den finnes
+ * («Sendt til lønn okt. 2026», «Utbetalt okt. 2026»).
+ */
+export function payoutStatus(row) {
+  const expense = normalizeExpense(row || {});
+  const period = periodShort(expense.payoutPeriod);
+  const label = (id) => PAYOUT_STATES.find((item) => item.id === id).label;
+  if (expense.paidBy === 'company') return { id: 'company', label: label('company') };
+  if (expense.status === 'rejected') return { id: 'rejected', label: label('rejected') };
+  if (expense.status === 'reimbursed' || text(row?.reimbursedAt)) {
+    return { id: 'paid', label: [label('paid'), expense.payoutMethod === 'direct' ? 'til konto' : '', period].filter(Boolean).join(' ') };
+  }
+  if (expense.status === 'approved' || expense.status === 'invoiced') {
+    if (text(row?.payrollSentAt)) return { id: 'sent', label: [label('sent'), period].filter(Boolean).join(' ') };
+    return { id: 'payable', label: label('payable') };
+  }
+  return { id: 'approval', label: label('approval') };
+}
+
+/**
+ * Status samlet for en ansatt: [{ id, label, count, total }] i rekkefølgen over.
+ * Tar bare med utlegg den ansatte har betalt selv.
+ */
+export function payoutStatusSummary(expenses = [], { employeeId = '' } = {}) {
+  const groups = new Map();
+  for (const row of expenses || []) {
+    if (!row || (employeeId && text(row.employeeId) !== employeeId)) continue;
+    const state = payoutStatus(row);
+    if (state.id === 'company') continue;
+    const group = groups.get(state.id) || { id: state.id, label: PAYOUT_STATES.find((item) => item.id === state.id).label, count: 0, total: 0 };
+    group.count += 1;
+    group.total = roundMoney(group.total + normalizeExpense(row).amountInclVat);
+    groups.set(state.id, group);
+  }
+  return PAYOUT_STATES.map((item) => groups.get(item.id)).filter(Boolean);
+}
+
+/** Utlegget sendt til lønn (eksportert eller overført) for en periode. Fortsatt til utbetaling. */
+export function markSentToPayroll(row, { period, at = new Date().toISOString() } = {}) {
+  return {
+    ...row,
+    payrollSentAt: at,
+    payoutPeriod: text(period) || payoutPeriodOf(at),
+    payoutMethod: 'payroll',
+  };
 }
 
 /** Til utbetaling: utleggene som venter, til og med en dato (tom: alle). */

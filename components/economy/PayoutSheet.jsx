@@ -7,7 +7,7 @@ import React, { useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Sheet } from '../../src/ui';
 import { formatMoney } from '../../src/economy/invoices';
-import { payableExpenses, payoutPeriodOf, payoutSummary, payrollCsv } from '../../src/economy/expensePayout';
+import { payableExpenses, payoutPeriodOf, payoutStatus, payoutSummary, payrollCsv } from '../../src/economy/expensePayout';
 import { employeePayout, payoutLabel } from '../../src/mileage/compensation';
 import { radius, space, type } from '../../src/ui/tokens';
 
@@ -37,12 +37,19 @@ function download(name, csv) {
  * rows: utleggene (med navn), policies: kjøreordningene (utbetaling per ansatt).
  * onMark(rows, { period, method }) → Promise<{ ok, error }>.
  */
-export default function PayoutSheet({ colors, rows = [], policies = [], onMark, onClose }) {
+export default function PayoutSheet({ colors, rows = [], policies = [], onMark, onSent, onClose }) {
   const [period, setPeriod] = useState(() => payoutPeriodOf(new Date()));
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const groups = useMemo(() => payoutSummary(rows), [rows]);
   const total = groups.reduce((sum, row) => sum + row.total, 0);
+  // «Sendt til lønn okt. 2026» når alle den ansattes linjer er eksportert, ellers hvor mange.
+  const sentLabel = (employeeId) => {
+    const list = payableExpenses(rows, { employeeId });
+    const sent = list.filter((row) => payoutStatus(row).id === 'sent');
+    if (!sent.length) return '';
+    return sent.length === list.length ? payoutStatus(sent[0]).label : `${sent.length} sendt til lønn`;
+  };
 
   async function mark(employeeId) {
     const list = payableExpenses(rows, { employeeId });
@@ -65,6 +72,20 @@ export default function PayoutSheet({ colors, rows = [], policies = [], onMark, 
     setBusy('');
   }
 
+  // Bare de som får utlegg med lønnen. Egen utbetaling går til konto. Linjene merkes «Sendt til lønn».
+  async function exportPayroll() {
+    const list = payableExpenses(rows).filter((row) => employeePayout(policies, row.employeeId) === 'payroll');
+    if (!list.length) {
+      setError('Ingen utlegg skal utbetales med lønnen.');
+      return;
+    }
+    download(`utlegg-til-lonn-${period}.csv`, payrollCsv(list, { period }));
+    setBusy('csv');
+    const result = await onSent?.(list, { period });
+    if (result && !result.ok) setError(result.error || 'Kunne ikke merke utleggene som sendt til lønn.');
+    setBusy('');
+  }
+
   const footer = [
     ...(error ? [<Text key="error" style={[styles.error, { color: colors.dangerInk || colors.danger }]} accessibilityRole="alert">{error}</Text>] : []),
     <Button key="close" label="Lukk" onPress={onClose} />,
@@ -74,11 +95,8 @@ export default function PayoutSheet({ colors, rows = [], policies = [], onMark, 
       label="Eksporter til lønn"
       nativeID="payout-export"
       disabled={!groups.length}
-      // Bare de som får utlegg med lønnen. Egen utbetaling går til konto.
-      onPress={() => download(`utlegg-til-lonn-${period}.csv`, payrollCsv(
-        payableExpenses(rows).filter((row) => employeePayout(policies, row.employeeId) === 'payroll'),
-        { period },
-      ))}
+      busy={busy === 'csv'}
+      onPress={exportPayroll}
     />,
     <Button
       key="all"
@@ -94,7 +112,7 @@ export default function PayoutSheet({ colors, rows = [], policies = [], onMark, 
   return (
     <Sheet visible title="Til utbetaling" onClose={onClose} footer={footer} wide>
       <Text style={[styles.lead, { color: colors.muted }]}>
-        Godkjente utlegg og kjøregodtgjørelse som de ansatte har betalt selv. Eksporter linjene til lønn, og marker dem som utbetalt når lønnen er kjørt.
+        Godkjente utlegg og kjøregodtgjørelse som de ansatte har betalt selv. «Eksporter til lønn» gir lønnslinjene og merker dem «Sendt til lønn». Marker dem som utbetalt når lønnen er kjørt.
       </Text>
       <View style={styles.periodRow} nativeID="payout-period">
         <Text style={[styles.label, { color: colors.muted }]}>Lønnsperiode</Text>
@@ -123,6 +141,7 @@ export default function PayoutSheet({ colors, rows = [], policies = [], onMark, 
               <Text style={[styles.meta, { color: colors.muted }]}>
                 {[
                   `${group.count} utlegg fra ${group.oldest.split('-').reverse().join('.')}`,
+                  sentLabel(group.employeeId),
                   payoutLabel(method),
                   group.taxable ? `${formatMoney(group.taxable)} skattepliktig bilgodtgjørelse` : '',
                 ].filter(Boolean).join(' · ')}

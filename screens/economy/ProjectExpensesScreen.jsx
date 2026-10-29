@@ -82,7 +82,14 @@ import { Button, Field, Sheet, TextIn } from '../../src/ui';
 import ExpenseImportReview from '../../components/economy/ExpenseImportReview';
 import ExpenseWizard from '../../components/economy/ExpenseWizard';
 import PayoutSheet from '../../components/economy/PayoutSheet';
-import { markReimbursed, payableExpenses, payoutSummary } from '../../src/economy/expensePayout.js';
+import {
+  markReimbursed,
+  markSentToPayroll,
+  payableExpenses,
+  payoutStatus,
+  payoutStatusSummary,
+  payoutSummary,
+} from '../../src/economy/expensePayout.js';
 import { employeePayout, payoutLabel } from '../../src/mileage/compensation';
 import Breadcrumb from '../../components/Breadcrumb';
 import ReportTable from '../../components/table/ReportTable';
@@ -135,6 +142,13 @@ function downloadCsv(name, csv) {
 function scopeFromUrl() {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return '';
   return expenseScopeFromSearch(window.location.search);
+}
+
+// Status i tabellen: utbetalingen for utlegg den ansatte har betalt selv (til utbetaling, sendt til
+// lønn, utbetalt), ellers utleggets status.
+function statusText(row) {
+  const payout = payoutStatus(row);
+  return ['payable', 'sent', 'paid'].includes(payout.id) ? payout.label : expenseStatusLabel(row.status);
 }
 
 // Status i tabellen og på telefonkortet: grønn når utlegget er godkjent eller betalt, rød når det er avvist.
@@ -735,9 +749,19 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
   }
 
   /** Markerer utlegg som utbetalt i en lønnsperiode (Til utbetaling). Gir { ok, error }. */
-  async function markPaidOut(rows, { period, method }) {
+  function markPaidOut(rows, { period, method }) {
     const at = new Date().toISOString();
-    const done = rows.map((row) => markReimbursed(storedRow(row), { period, method, at }));
+    return saveRows(rows.map((row) => markReimbursed(storedRow(row), { period, method, at })), `${rows.length} utlegg er markert som utbetalt.`);
+  }
+
+  /** Utleggene er eksportert til lønn for en periode («Sendt til lønn»). */
+  function markSent(rows, { period }) {
+    const at = new Date().toISOString();
+    return saveRows(rows.map((row) => markSentToPayroll(storedRow(row), { period, at })), `${rows.length} utlegg er sendt til lønn.`);
+  }
+
+  /** Lagrer endrede utlegg der de hører hjemme (appen eller importerte). Gir { ok, error }. */
+  async function saveRows(done, message) {
     const external = done.filter((row) => isExternalExpense(row));
     for (const row of external) {
       const result = await saveExpenseChange(companyId, row);
@@ -751,7 +775,7 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
       next = result.state;
     }
     if (next !== state && !setState(next)) return { ok: false, error: 'Kunne ikke lagre.' };
-    showSaveToast(`${done.length} utlegg er markert som utbetalt.`);
+    showSaveToast(message);
     return { ok: true };
   }
 
@@ -853,7 +877,7 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
     ] : []),
     { key: 'description', label: 'Beskrivelse', width: w(170, 136), flex: 1.5, text: (row) => row.purpose || row.description || '', sortable: false, phone: 'title' },
     { key: 'amount', label: 'Beløp', width: w(110, 100), kind: 'money', value: (row) => row.amountInclVat, text: (row) => money(row.amountInclVat), phone: 'amount' },
-    { key: 'status', label: 'Status', width: w(100, 110), text: (row) => expenseStatusLabel(row.status), phone: 'badge' },
+    { key: 'status', label: 'Status', width: w(120, 120), text: (row) => statusText(row), phone: 'badge' },
   ];
   const totalAmount = visible.reduce((sum, row) => sum + (Number(row.amountInclVat) || 0), 0);
   const canOpenRows = !embedded || ownPage;
@@ -1004,6 +1028,13 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
               ? `${myPayout.count} godkjente utlegg betalt privat. Utbetales ${payoutLabel(employeePayout(state.mileagePolicies, lockedId)).toLowerCase()}.${myPayout.taxable ? ` Herav ${money(myPayout.taxable)} skattepliktig bilgodtgjørelse.` : ''}`
               : `Ingenting til utbetaling. Utlegg betales ut ${payoutLabel(employeePayout(state.mileagePolicies, lockedId)).toLowerCase()} når de er godkjent.`}
           </Text>
+          <View style={styles.payoutStates} nativeID="expense-payout-states">
+            {payoutStatusSummary(allRows, { employeeId: lockedId }).map((group) => (
+              <Text key={group.id} style={[styles.payoutState, { color: colors.ink, borderColor: colors.line }]}>
+                {`${group.label}: ${money(group.total)} (${group.count})`}
+              </Text>
+            ))}
+          </View>
         </View>
       ) : null}
       <InlineError
@@ -1031,10 +1062,10 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
           onSort={(col) => toggleSort(col.key)}
           onOpen={canOpenRows ? openRow : undefined}
           rowNativeID={canOpenRows ? (row) => `expense-row-${row.id}` : undefined}
-          rowLabel={(row) => [row.purpose || row.description, formatDate(row.date), money(row.amountInclVat), expenseStatusLabel(row.status)].filter(Boolean).join(', ')}
+          rowLabel={(row) => [row.purpose || row.description, formatDate(row.date), money(row.amountInclVat), statusText(row)].filter(Boolean).join(', ')}
           renderCell={(row, col) => (col.key === 'status' ? (
             <Text style={[styles.status, { color: statusTone(row.status, colors), borderColor: colors.line }]} numberOfLines={1}>
-              {expenseStatusLabel(row.status)}
+              {statusText(row)}
             </Text>
           ) : undefined)}
           renderAction={quickApprove ? (row) => (rowActions(row).approve ? (
@@ -1077,6 +1108,7 @@ export function ExpensesScreen({ lockedEmployeeId = '', embedded = false, canImp
           rows={allRows}
           policies={state.mileagePolicies || []}
           onMark={markPaidOut}
+          onSent={markSent}
           onClose={() => setPayoutOpen(false)}
         />
       ) : null}
@@ -1138,4 +1170,6 @@ const styles = StyleSheet.create({
   payoutCard: { borderWidth: 1, borderRadius: radius.card, padding: space.sm, gap: 2, maxWidth: 520 },
   payoutLabel: { ...type.caption },
   payoutAmount: { ...type.h2 },
+  payoutStates: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs, marginTop: space.xxs },
+  payoutState: { ...type.caption, borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: space.xs, paddingVertical: 2 },
 });

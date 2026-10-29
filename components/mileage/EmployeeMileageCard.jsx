@@ -19,7 +19,7 @@ import {
   mileageCompensation,
   payoutLabel,
 } from '../../src/mileage/compensation';
-import { payoutSummary } from '../../src/economy/expensePayout';
+import { payoutStatusSummary, payoutSummary } from '../../src/economy/expensePayout';
 import { formatMoney } from '../../src/economy/invoices';
 import { useMileageRates } from '../../src/mileage/useMileageRates';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -65,6 +65,7 @@ export default function EmployeeMileageCard({ familyId, employeeId, employeeName
   const [payout, setPayout] = useState(ownRow?.payout || 'company');
   const effect = mileageCompensation(policies, employeeId, { fetched: fetched.rates });
   const pending = payoutSummary(state.expenses || [], { employeeId })[0] || null;
+  const states = payoutStatusSummary(state.expenses || [], { employeeId });
   const companyDefault = companyPayout(policies);
 
   useEffect(() => {
@@ -105,6 +106,11 @@ export default function EmployeeMileageCard({ familyId, employeeId, employeeName
           ? `Til utbetaling: ${formatMoney(pending.total)} (${pending.count} utlegg)${pending.taxable ? `, herav ${formatMoney(pending.taxable)} skattepliktig bilgodtgjørelse` : ''}.`
           : 'Ingenting til utbetaling.'}
       </Text>
+      {states.length ? (
+        <Text style={[styles.hint, { color: colors.muted }]} nativeID="employee-payout-states">
+          {states.map((group) => `${group.label}: ${formatMoney(group.total)} (${group.count})`).join(' · ')}
+        </Text>
+      ) : null}
       <Text style={[styles.hint, { color: colors.muted }]}>
         {`Utbetales ${payoutLabel(payoutNow).toLowerCase()}${payout === 'company' ? ' (som bedriften)' : ''}. ${mileageSummary}`}
       </Text>

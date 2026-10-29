@@ -200,8 +200,31 @@ Utbetaling til den ansatte (bygget i ProTop, `src/economy/expensePayout.js`):
   «Eksporter til lønn» gir lønnslinjene som CSV: «Refusjon utlegg» (trekkfri, ikke opplysningspliktig),
   «Bilgodtgjørelse, trekkfri» og «Bilgodtgjørelse, trekkpliktig». «Utbetalt» markerer dem med
   lønnsperioden (`payoutPeriod`), måten (`payoutMethod`) og tidspunktet (`reimbursedAt`).
-- Med PowerOffice skal de samme linjene gå rett til lønnskjøringen i Go (spørsmål 5 og 9 under),
-  og «Utbetalt» settes når lønnen er kjørt.
+- Utbetalingsstatus på hvert utlegg (`payoutStatus`): venter på godkjenning → til utbetaling →
+  sendt til lønn (`payrollSentAt`, settes når linjene eksporteres) → utbetalt (`reimbursedAt`,
+  `payoutPeriod`). Statusen vises i Utlegg-listen, på den ansattes Utlegg-fane og under HR → Lønn.
+- Med PowerOffice skal de samme linjene gå rett til lønnskjøringen i Go som lønnslinjer
+  (`POST /SalaryLines`), og status hentes derfra (se under).
+
+### Andre deler av PowerOffice Go API v2 vi kan bruke
+
+Funnet i dokumentasjonen (søk 29.10.2026). Feltnavn og statusverdier må sjekkes i Swagger før vi bygger.
+
+| Område | Endepunkt | Hva ProTop kan bruke det til |
+|---|---|---|
+| Lønnslinjer | `GET/POST/PATCH/DELETE /SalaryLines` | Utlegg, bilgodtgjørelse (trekkfri/trekkpliktig) og eventuelt overtid rett til neste lønnskjøring. Linjene står «klar for lønn» i Go til de tas med i en lønnskjøring, og låses da. Bare linjer vi har laget, kan leses. `EmploymentId` kan settes. Gir status «Sendt til lønn» → «Utbetalt». |
+| Lønnsarter | `GET /PayItems` | Velge riktig lønnsart for hver linje (refusjon utlegg, bilgodtgjørelse). Kun lesing. |
+| Lønnsinnstillinger | `GET /PayrollSettings` | Lønnsperioder og utbetalingsdato, så «Til utbetaling» kan foreslå riktig periode. |
+| Ansatte og arbeidsforhold | `GET/PATCH /Employees`, `GET /Employees/{id}/Employments` | Koble ansatte i ProTop og Go (ansattnummer), stilling, start og slutt. Lønn og faste lønnslinjer er ikke med i API-et. |
+| Timeføring | aktiviteter, timetyper, timeføringer, `GET /TimeTransactions` | Godkjente timer fra ProTop til Go (timelønn, prosjektregnskap), eller timer fra Go inn i ProTop. |
+| Dimensjoner | `Projects`, `Departments`, `Locations`, `CustomDimensions` | Samme prosjekt- og avdelingsnummer i ProTop og Go, så bilag og lønnslinjer havner riktig. |
+| Rapporter | `AccountTransactions`, `TrialBalance`, kundereskontro | Regnskapstall fra Go i Økonomioversikten (resultat per prosjekt, åpne poster). |
+| Bilag | bilag, bilagsdokumentasjon, godkjenning av leverandørbilag | Utlegg og firmakort som bilag med kvittering. Godkjenning av leverandørfakturaer i ProTop. |
+| I bruk nå | `Customers`, `Products`, `SalesOrders`, `OutgoingInvoices` | Fakturautkast ut, faktura og betaling inn. |
+
+Lønnsslipper: det ser ikke ut til å finnes et endepunkt for lønnsslipper eller utbetalt lønn per ansatt.
+Uten det kan ProTop vise utlegg, bilgodtgjørelse og status på linjene vi har sendt, men ikke selve
+lønnsslippen. Spørsmål 10 under.
 
 Avgiftskodene i ProTop er standardkodene fra SAF-T (`src/economy/vatTreatment.js`): 1 (fradrag 25 %),
 11 (15 %), 13 (12 %), 0 (ingen mva-behandling, for eksempel representasjon og servering) og 86
@@ -239,10 +262,16 @@ trekkpliktig bilgodtgjørelse), ikke som et vanlig bilag.
 7. Prosjekt og avdeling på bilagslinjene: hvilke felt bruker vi?
 8. Hvilke tilganger skal krysses av i skjemaet for produksjonstilgang for alt dette (bilag,
    bilagsdokumentasjon, ansatte, lønn, prosjekter og avdelinger)?
-9. Utlegg som betales ut med lønnen: kan de sendes som lønnslinjer på den ansatte til neste
-   lønnskjøring («refusjon av utlegg», ikke opplysningspliktig), i stedet for bilag mot
-   ansattreskontroen? Og kan vi lese når lønnen er kjørt og utbetalt, så ProTop markerer utleggene
-   som utbetalt?
+9. Utlegg som betales ut med lønnen: vi planlegger `POST /SalaryLines` på den ansatte. Hvilke lønnsarter
+   (`PayItems`) bruker vi for refusjon av utlegg og for trekkfri og trekkpliktig bilgodtgjørelse?
+   Hvordan ser vi på en lønnslinje at den er tatt med i en fullført lønnskjøring, og hvilken
+   utbetalingsdato den fikk, så ProTop kan sette «Utbetalt»?
+10. Lønnsslipper: finnes det (eller kommer det) et endepunkt for lønnsslipper eller utbetalt lønn per
+    ansatt, så de ansatte kan se lønnen sin i ProTop? Hvis ikke: kan vi lenke til der den ansatte ser
+    lønnsslippen i PowerOffice?
+11. Tilganger for lønn og ansatte: SalaryLines, PayItems, PayrollSettings, Employees/Employments, og
+    eventuelt timeføring, prosjekter, avdelinger og rapporter (AccountTransactions, TrialBalance).
+    Krever lønn at klienten har lønnsmodulen i Go?
 
 ## Utkast til svar til PowerOffice (sendes når testlisten er grønn)
 
@@ -288,10 +317,16 @@ trekkpliktig bilgodtgjørelse), ikke som et vanlig bilag.
 > 7. Hvilke felt bruker vi for prosjekt og avdeling på bilagslinjene?
 > 8. Hvilke tilganger skal vi krysse av i skjemaet for produksjonstilgang for dette (bilag,
 >    bilagsdokumentasjon, ansatte, lønn, prosjekter og avdelinger)?
-> 9. De fleste ansatte får utleggene utbetalt med lønnen. Kan godkjente utlegg sendes som lønnslinjer
->    på den ansatte til neste lønnskjøring (refusjon av utlegg, ikke opplysningspliktig), i stedet for
->    bilag mot ansattreskontroen? Og kan vi lese når lønnen er kjørt, så ProTop markerer utleggene
->    som utbetalt?
+> 9. De fleste ansatte får utleggene utbetalt med lønnen. Vi planlegger å sende dem som lønnslinjer
+>    (POST /SalaryLines) på den ansatte. Hvilke lønnsarter (PayItems) bør vi bruke for refusjon av
+>    utlegg og for trekkfri og trekkpliktig bilgodtgjørelse? Og hvordan ser vi på en lønnslinje at den
+>    er tatt med i en fullført lønnskjøring, og hvilken utbetalingsdato den fikk?
+> 10. Finnes det, eller kommer det, et endepunkt for lønnsslipper eller utbetalt lønn per ansatt, så de
+>     ansatte kan se lønnen sin i ProTop? Hvis ikke: hvor ser den ansatte lønnsslippen i PowerOffice,
+>     så vi kan lenke dit?
+> 11. Hvilke tilganger trenger vi for lønnslinjer, lønnsarter, lønnsinnstillinger, ansatte og
+>     arbeidsforhold, og eventuelt timeføring, prosjekter, avdelinger og rapporter? Krever lønnslinjene
+>     at klienten har lønnsmodulen i Go?
 >
 > Med vennlig hilsen
 > Geir Ove Andersen

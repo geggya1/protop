@@ -63,3 +63,19 @@ test('markert utbetalt med lønnsperiode', () => {
   assert.equal(normalizeExpense(markReimbursed(rows[0], { method: 'direct', at: '2026-11-02T08:00:00Z' })).payoutPeriod, '2026-11');
   assert.equal(payoutPeriodOf('2026-12-31'), '2026-12');
 });
+
+test('utbetalingsstatus gjennom hele løpet', async () => {
+  const { payoutStatus, payoutStatusSummary, markSentToPayroll } = await import('./expensePayout.js');
+  assert.deepEqual(payoutStatus({ paidBy: 'personal', status: 'draft', amountInclVat: 10 }), { id: 'approval', label: 'Venter på godkjenning' });
+  assert.equal(payoutStatus(rows[0]).label, 'Til utbetaling');
+  const sent = markSentToPayroll(rows[0], { period: '2026-10', at: '2026-10-24T08:00:00Z' });
+  assert.equal(payoutStatus(sent).label, 'Sendt til lønn okt. 2026');
+  // Sendt til lønn er fortsatt til utbetaling til lønnen er kjørt.
+  assert.equal(isPayable(sent), true);
+  assert.equal(payoutStatus(markReimbursed(sent, { period: '2026-10' })).label, 'Utbetalt okt. 2026');
+  assert.equal(payoutStatus(markReimbursed(rows[0], { period: '2026-11', method: 'direct' })).label, 'Utbetalt til konto nov. 2026');
+  assert.equal(payoutStatus(rows[3]).id, 'company');
+  assert.equal(payoutStatus({ paidBy: 'personal', status: 'rejected' }).label, 'Avvist');
+  const summary = payoutStatusSummary([...rows, sent], { employeeId: 'a' });
+  assert.deepEqual(summary.map((row) => [row.id, row.count]), [['approval', 1], ['payable', 2], ['sent', 1]]);
+});

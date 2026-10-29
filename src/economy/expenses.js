@@ -226,6 +226,7 @@ export function normalizeExpense(input = {}) {
     paymentMethod: text(row.paymentMethod).slice(0, 20),
     // Utbetalt til den ansatte (expensePayout.js): når, i hvilken lønnsperiode og hvordan.
     reimbursedAt: text(row.reimbursedAt),
+    payrollSentAt: text(row.payrollSentAt),
     payoutPeriod: /^\d{4}-\d{2}$/.test(text(row.payoutPeriod)) ? text(row.payoutPeriod) : '',
     payoutMethod: row.payoutMethod === 'direct' ? 'direct' : (row.payoutMethod === 'payroll' ? 'payroll' : ''),
     // Kjøregodtgjørelse over trekkfri sats: skattepliktig del som går på lønn.

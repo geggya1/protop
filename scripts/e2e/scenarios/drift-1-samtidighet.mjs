@@ -311,6 +311,10 @@ try {
     await L.page.waitForTimeout(600);
     if (await L.page.locator('#billing-approve-selected').isEnabled()) {
       await L.page.locator('#billing-approve-selected').click();
+      // «Godkjenn utvalg» viser først timene som ikke er godkjent. Bekreft i dialogen.
+      const all = L.page.locator('#billing-approve-all');
+      const confirm = (await all.isVisible().catch(() => false)) ? all : L.page.locator('#billing-approve-confirm');
+      await confirm.click({ timeout: 4000 }).catch(() => {});
       await sleep(2500);
     }
     if (!(await L.page.locator('#billing-draft-selected').isEnabled())) {

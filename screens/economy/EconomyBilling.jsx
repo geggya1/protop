@@ -22,9 +22,11 @@ import useBillingData from './billing/useBillingData';
 import useBillingWorkflow from './billing/useBillingWorkflow';
 import { Banner, Button, Check, money } from './billing/ui';
 import { withIndexWarnings } from './billing/indexWarnings';
-import BillingChainLine, { useSeesBillingChain } from './billing/BillingChainLine';
+import { useSeesBillingChain } from './billing/BillingChainLine';
+import BillingApproveDialog from './billing/BillingApproveDialog';
 import useBillingChain, { forgetBillingChain } from './billing/useBillingChain';
 import { approvalsBackLabel } from '../../src/economy/billingChain.js';
+import { postsLabel } from '../../src/economy/billingApproval.js';
 
 const SCOPES = [
   { id: 'all', label: 'Alle prosjekter' },
@@ -59,7 +61,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
   const periodEnd = periodEndFor(period, today, customDate);
   const supplier = useMemo(() => (demo?.supplier || supplierFromCompany(family?.company, family?.name)), [family, demo]);
   const actor = useMemo(() => ({ byUid: uid || '', byName: activeProfile?.name || '' }), [uid, activeProfile?.name]);
-  // Prosesslinjen og lenken tilbake til Godkjenninger bruker samme tall.
+  // Lenken tilbake til Godkjenninger og prosesslinjen i «Godkjenn utvalg» bruker samme tall.
   const seesChain = useSeesBillingChain() && !demo;
   const chain = useBillingChain({
     entries: data.ready ? data.timeEntries : null,
@@ -160,14 +162,20 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
     requestShellTab?.('projects', null, { type: 'openProject', projectId: project.projectId, tab });
   }
 
-  async function approve(list) {
+  // «Godkjenn utvalg» åpner kontrollen. Ingenting lagres før den bekreftes der.
+  function approve(list) {
     setError('');
-    const count = await workflow.approve(list);
-    if (count) {
-      const text = count === 1 ? '1 post er godkjent.' : `${count} poster er godkjent.`;
-      setNote(text);
-      showSaveToast(text);
-    }
+    setNote('');
+    if (!workflow.requestApprove(list)) setNote('Alt i utvalget er allerede godkjent.');
+  }
+
+  function closeApproval(count) {
+    workflow.closeReview();
+    if (!count) return;
+    forgetBillingChain(familyId);
+    const text = `${postsLabel(count)} er godkjent.`;
+    setNote(text);
+    showSaveToast(text);
   }
 
   if (!data.ready) {
@@ -182,7 +190,6 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
     <View style={[styles.wrap, { backgroundColor: colors.bg }]} nativeID="economy-billing">
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         {hostedHero ? null : <Text style={[styles.title, { color: colors.ink }]}>Til fakturering</Text>}
-        {seesChain ? <BillingChainLine current="fakturering" counts={chain} /> : null}
         <Text style={{ color: colors.muted, fontSize: 13, maxWidth: 760, lineHeight: 19 }}>
           Ufakturerte timer, utlegg, kjøring og salg per prosjekt. Åpne et prosjekt for å se linjene,
           godkjenn og lag fakturautkast. Utkastene får nummer først når de ferdigstilles.
@@ -324,7 +331,6 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
                   tone="success"
                   colors={colors}
                   disabled={!checkedProjects.length || !!workflow.busy}
-                  busy={workflow.busy === 'approve'}
                   onPress={() => approve(checkedProjects)}
                   nativeID="billing-approve-selected"
                 />
@@ -381,6 +387,18 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
         </View>
       </ScrollView>
 
+      {workflow.review ? (
+        <BillingApproveDialog
+          review={workflow.review}
+          colors={colors}
+          chain={chain}
+          showChain={seesChain}
+          stacked={isPhone}
+          busy={!!workflow.busy}
+          onSave={workflow.approveSelections}
+          onClose={closeApproval}
+        />
+      ) : null}
       <ConfirmDialog
         visible={!!workflow.pending}
         title="Ikke godkjent"

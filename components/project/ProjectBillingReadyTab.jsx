@@ -10,10 +10,13 @@ import { osloDate } from '../../src/indeksregulering/watch';
 import ConfirmDialog from '../ConfirmDialog';
 import BrandBusyOverlay from '../BrandBusyOverlay';
 import BillingProjectRow from '../../screens/economy/billing/BillingProjectRow';
+import BillingApproveDialog from '../../screens/economy/billing/BillingApproveDialog';
 import useBillingData from '../../screens/economy/billing/useBillingData';
 import useBillingWorkflow from '../../screens/economy/billing/useBillingWorkflow';
 import { Banner } from '../../screens/economy/billing/ui';
 import { withIndexWarnings } from '../../screens/economy/billing/indexWarnings';
+import { forgetBillingChain } from '../../screens/economy/billing/useBillingChain';
+import { postsLabel } from '../../src/economy/billingApproval.js';
 
 /**
  * Prosjekt · Til fakturering: samme blokk som i Økonomi → Til fakturering, for dette prosjektet.
@@ -124,9 +127,10 @@ export default function ProjectBillingReadyTab({
           stacked={isPhone || !isWide}
           busy={!!workflow.busy}
           canEdit={canEdit}
-          onApprove={async () => {
-            const count = await workflow.approve([ready]);
-            if (count) showSaveToast(count === 1 ? '1 post er godkjent.' : `${count} poster er godkjent.`);
+          onApprove={() => {
+            setError('');
+            setNote('');
+            if (!workflow.requestApprove([ready])) setNote('Alt i utvalget er allerede godkjent.');
           }}
           onCreateDraft={() => { setError(''); setNote(''); workflow.requestCreate([ready]); }}
           onOpenDraft={(invoice) => onOpenInvoice?.(invoice.id)}
@@ -136,6 +140,21 @@ export default function ProjectBillingReadyTab({
         <Text style={{ color: colors.muted }}>Ingen poster klare til fakturering.</Text>
       )}
 
+      {workflow.review ? (
+        <BillingApproveDialog
+          review={workflow.review}
+          colors={colors}
+          stacked={isPhone}
+          busy={!!workflow.busy}
+          onSave={workflow.approveSelections}
+          onClose={(count) => {
+            workflow.closeReview();
+            if (!count) return;
+            forgetBillingChain(familyId);
+            showSaveToast(`${postsLabel(count)} er godkjent.`);
+          }}
+        />
+      ) : null}
       <ConfirmDialog
         visible={!!workflow.pending}
         title="Ikke godkjent"

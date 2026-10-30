@@ -199,6 +199,8 @@ export default function EconomyInvoices({
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [watch, setWatch] = useState(null);
   const [poStatus, setPoStatus] = useState(null);
+  // Fakturasiden venter på PowerOffice-statusen før knappene som avhenger av den vises.
+  const [poReady, setPoReady] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [progress, setProgress] = useState(null); // { label, done?, total? }
   const [importPlan, setImportPlan] = useState(null);
@@ -297,10 +299,16 @@ export default function EconomyInvoices({
   useEffect(() => {
     let live = true;
     setPoStatus(null);
-    if (!canManage || !familyId) return undefined;
+    setPoReady(false);
+    if (!canManage || !familyId) {
+      setPoReady(true);
+      return undefined;
+    }
     loadPowerOfficeStatus(familyId).then((next) => {
       if (live) setPoStatus(next);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      if (live) setPoReady(true);
+    });
     return () => { live = false; };
   }, [canManage, familyId]);
 
@@ -841,6 +849,7 @@ export default function EconomyInvoices({
           customers={customers}
           contracts={watch?.contracts || []}
           mode={poStatus?.connected ? 'poweroffice' : 'protop'}
+          modeReady={poReady}
           poStatus={poStatus}
           canManage={canManage && (fullId === selected.id || !!demoProjectState)}
           wide={wideDetail}

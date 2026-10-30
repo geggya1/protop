@@ -17,6 +17,7 @@ import {
   isLockedInvoice,
   isManagedInvoice,
   issueChecks,
+  isTransferredToPowerOffice,
   recalcInvoice,
   removeNote,
 } from '../../../src/economy/invoiceFlow.js';
@@ -75,7 +76,8 @@ export default function InvoicePage({
   chart = [],
   customers = [],
   contracts = [],
-  mode = 'protop',
+  mode: companyMode = 'protop',
+  modeReady = true,
   poStatus = null,
   canManage = false,
   wide = false,
@@ -103,6 +105,11 @@ export default function InvoicePage({
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  // En faktura som ligger i PowerOffice, behandles som PowerOffice-faktura uansett om statusen
+  // for bedriften er lastet ennå. Ellers blinker knappene for en vanlig ProTop-faktura.
+  const inPowerOffice = isTransferredToPowerOffice(invoice);
+  const mode = inPowerOffice ? 'poweroffice' : companyMode;
+  const modeKnown = modeReady || inPowerOffice;
   const [dialog, setDialog] = useState('');
   const [collectionKind, setCollectionKind] = useState('');
   const [refresh, setRefresh] = useState(null);
@@ -382,7 +389,12 @@ export default function InvoicePage({
           ) : null}
           <InvoiceHeaderView invoice={shown} colors={colors} wide={wide} onOpenCustomer={onOpenCustomer} onOpenProject={onOpenProject} />
           <InvoiceTexts invoice={shown} colors={colors} />
-          <InvoiceLinesView invoice={shown} colors={colors} stacked={stacked} />
+          <InvoiceLinesView
+            invoice={shown}
+            colors={colors}
+            stacked={stacked}
+            loadEntries={(ids) => actions.timeEntriesFor(ctx, { ...shown, lines: [{ timeEntryIds: ids }], timeEntryIds: ids })}
+          />
           <InvoiceTotalsView invoice={shown} colors={colors} />
           {supplierRows.length ? (
             <View style={[styles.supplier, { borderTopColor: colors.line }]}>
@@ -470,6 +482,7 @@ export default function InvoicePage({
       invoice={shown}
       colors={colors}
       mode={mode}
+      modeReady={modeKnown}
       canManage={canManage}
       checks={checks}
       busy={busy || (transferring ? 'transfer' : '')}

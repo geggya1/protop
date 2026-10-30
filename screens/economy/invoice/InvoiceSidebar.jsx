@@ -227,6 +227,7 @@ export default function InvoiceSidebar({
   onPowerOfficeSend = null,
   onPowerOfficeSync = null,
   settings = {},
+  modeReady = true,
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [eventOpen, setEventOpen] = useState(false);
@@ -253,7 +254,8 @@ export default function InvoiceSidebar({
           <Button label="Oppdater utkast" icon="refresh" tone="ghost" small colors={colors} onPress={() => onAction('refresh')} busy={isBusy('refresh')} disabled={!!busy || editing} nativeID="invoice-action-refresh" />
         ) : null}
       </View>,
-      <View key="row2" style={styles.actionRow}>
+      // Overfør eller ferdigstill avhenger av om bedriften bruker PowerOffice. Vises når det er kjent.
+      modeReady ? <View key="row2" style={styles.actionRow}>
         <Button
           label={invoice.approval ? 'Trekk godkjenning' : 'Godkjenn utkast'}
           icon={invoice.approval ? 'close-circle-outline' : 'checkmark'}
@@ -275,10 +277,10 @@ export default function InvoiceSidebar({
           disabled={!!busy || editing}
           nativeID="invoice-action-finalize"
         />
-      </View>,
+      </View> : null,
     );
   }
-  if (canManage && issued && !po) {
+  if (canManage && issued && !po && modeReady) {
     const row = [];
     if (status.id !== 'credited' && status.id !== 'written_off' && invoice.issuedAt) {
       row.push(<Button key="send" label={invoice.sentAt ? 'Send på nytt' : (credit ? 'Send kreditnota' : 'Send faktura')} icon="paper-plane-outline" small colors={colors} onPress={() => onAction('send')} disabled={!!busy} nativeID="invoice-action-send" />);
@@ -295,10 +297,11 @@ export default function InvoiceSidebar({
     if (row.length) actions.push(<View key="issued" style={styles.actionRow}>{row}</View>);
   }
   if (canManage && issued && po && !credit && status.id !== 'credited') {
+    // Betaling og kreditering føres i PowerOffice Go og hentes hit med synken.
     actions.push(
-      <View key="po" style={styles.actionRow}>
-        {outstanding > 0.004 ? <Button label="Registrer betaling" icon="cash-outline" tone="success" small colors={colors} onPress={() => onAction('payment')} disabled={!!busy} /> : null}
-      </View>,
+      <Text key="po" style={[type.caption, { color: colors.muted }]} nativeID="invoice-po-ledger-note">
+        Betaling og kreditnota registreres i PowerOffice Go og hentes hit automatisk.
+      </Text>,
     );
   }
 

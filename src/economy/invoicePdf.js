@@ -288,17 +288,19 @@ function pageWriter({ onNewPage } = {}) {
   return api;
 }
 
-function drawLogo(page, logo, supplierName) {
+/** Logoen (eller firmanavnet uten logo) starter på x, samme linje som tittel og fakta. */
+function drawLogo(page, logo, supplierName, x) {
   if (logo) {
-    const box = fitLogoBox(logo.width, logo.height, 170, 56);
+    const box = fitLogoBox(logo.width, logo.height, Math.min(170, RIGHT - x), 56);
     const ops = page.ops();
     ops.push('q');
-    ops.push(`${box.width.toFixed(2)} 0 0 ${box.height.toFixed(2)} ${(RIGHT - box.width).toFixed(2)} ${(PAGE_H - 36 - box.height).toFixed(2)} cm`);
+    ops.push(`${box.width.toFixed(2)} 0 0 ${box.height.toFixed(2)} ${x.toFixed(2)} ${(PAGE_H - 36 - box.height).toFixed(2)} cm`);
     ops.push('/Im1 Do');
     ops.push('Q');
     return 36 + box.height;
   }
-  page.right(supplierName, RIGHT, 40, 16, true);
+  const size = Math.max(10, Math.min(16, (16 * (RIGHT - x)) / Math.max(1, textWidth(supplierName, 16, true))));
+  page.text(supplierName, x, 40, size, true);
   return 62;
 }
 
@@ -479,13 +481,13 @@ function headerBlock(page, invoice, supplier, labels, logo, options) {
   const spec = !!options.spec;
   const draft = !spec && isDraftInvoice(invoice);
   const credit = isCreditNote(invoice);
-  const logoBottom = drawLogo(page, logo, supplier.name);
+  const x = infoColumnX(invoice.lines || [], labels);
+  const logoBottom = drawLogo(page, logo, supplier.name, x);
   let title = credit ? labels.credit : labels.invoice;
   if (spec) title = labels.spec;
   else if (draft) title = credit ? labels.creditDraft : labels.draft;
   else if (invoice.invoiceNumber) title = `${title} ${invoice.invoiceNumber}`;
   const top = Math.max(logoBottom + 14, 92);
-  const x = infoColumnX(invoice.lines || [], labels);
   page.text(title, x, top, 15, true);
   if (draft) page.text(labels.draftNote, x, top + 19, 8, false, 0.45);
   const specNote = spec ? wrap(labels.specNote, RIGHT - x, 7) : [];
@@ -750,10 +752,10 @@ export function buildCollectionLetterPdf(invoice, letter, { supplier = {}, logo 
     },
   });
   page.y = 40;
-  const logoBottom = drawLogo(page, image, supplier.name);
-  const top = Math.max(logoBottom + 14, 92);
   // Samme linje som fakta og summer på fakturaen.
   const x = infoColumnX([], labels);
+  const logoBottom = drawLogo(page, image, supplier.name, x);
+  const top = Math.max(logoBottom + 14, 92);
   page.text(letter.title, x, top, 15, true);
   if (date) page.text(formatDate(date), x, top + 19, 8, false, 0.45);
   const addr = invoice?.customerAddress || {};

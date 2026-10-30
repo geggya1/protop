@@ -3,6 +3,7 @@ import {
   ACTIVE_MONTHS,
   activityCutoff,
   activitySegments,
+  filterTimelineGroups,
   addMonthsKey,
   formatDay,
   hoursRangeFor,
@@ -150,6 +151,20 @@ assert.deepEqual(
   timelineRows({ projects, contracts, query: 'sandnes' }).active.map((row) => row.id),
   ['p1'],
 );
+
+// Søket filtrerer ferdige rader og gir samme svar som søk i timelineRows.
+assert.equal(filterTimelineGroups(rows, ''), rows, 'tomt søk gir samme rader');
+assert.deepEqual(
+  filterTimelineGroups(rows, 'arkiv').inactive.map((row) => row.id),
+  timelineRows({ projects, contracts, timeEntries: entries, today: '2026-10-27', query: 'arkiv' }).inactive.map((row) => row.id),
+);
+assert.deepEqual(filterTimelineGroups(rows, 'arkiv').active, []);
+
+// Timer før vinduet teller ikke i stolpen, men siste aktivitet ser alle timer.
+const windowed = timelineRows({ projects, contracts, timeEntries: entries, today: '2026-10-27', hoursFrom: '2026-10-01' });
+assert.equal(windowed.active[0].lastActivity, '2026-10-26');
+assert.equal(windowed.active[0].totalHours, 55.5, 'timene 01.09 ligger før vinduet');
+assert.equal(windowed.active[0].firstWorked, '2026-10-19');
 
 const stats = timelineStats(rows.active, '2026-10-27');
 assert.deepEqual(stats, { active: 1, working: 1, endingSoon: 1, missing: 0 });

@@ -9,6 +9,7 @@ import {
   RECENT_WEEKS,
   TIMELINE_ZOOMS,
   activitySegments,
+  filterTimelineGroups,
   formatDay,
   hoursRangeFor,
   monthWindow,
@@ -342,9 +343,10 @@ export default function ProjectTimelineBoard({
     onRange?.(range);
   }, [range.fromDate, range.toDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const groups = useMemo(() => timelineRows({
-    projects, contracts, timeEntries, query, today, hoursFrom: range.fromDate,
-  }), [projects, contracts, timeEntries, query, today, range.fromDate]);
+  const allGroups = useMemo(() => timelineRows({
+    projects, contracts, timeEntries, today, hoursFrom: range.fromDate,
+  }), [projects, contracts, timeEntries, today, range.fromDate]);
+  const groups = useMemo(() => filterTimelineGroups(allGroups, query), [allGroups, query]);
   const stats = useMemo(() => timelineStats(groups.active, today), [groups.active, today]);
   const toggle = (id) => setOpenId((current) => (current === id ? '' : id));
   const shared = {

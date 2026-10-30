@@ -7,7 +7,14 @@ import { capacityLoadMeta, loadCapacityPlan, saveCapacityPlan } from '../../src/
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useEmployees } from '../../src/context/CompanyDataContext';
-import { ensureProjectAbsences, loadProjectState } from '../../src/project/storage';
+import {
+  absencesRangeCovered,
+  ensureProjectAbsences,
+  ensureProjectHours,
+  hoursRangeCovered,
+  loadProjectState,
+  peekProjectState,
+} from '../../src/project/storage';
 import { myProjectIds } from '../../src/project/myProjects';
 import { showSaveToast } from '../../src/ui/saveToast';
 import ProductivityBoard from './ProductivityBoard';
@@ -34,7 +41,11 @@ export default function ProductivityScreen() {
   const [timeEntries, setTimeEntries] = useState([]);
   const [absences, setAbsences] = useState([]);
   const [dayHours, setDayHours] = useState(8);
-  const [ready, setReady] = useState(false);
+  // Tavlen vises når planen, prosjektdokumentet og fraværet er klart.
+  // Timene trengs bare når en person er åpnet, og kommer etter.
+  const [loaded, setLoaded] = useState({ plan: false, base: false, absences: false });
+  const [loadingHours, setLoadingHours] = useState(false);
+  const ready = loaded.plan && loaded.base && loaded.absences;
   const echo = useRef(true);
   const familyRef = useRef(familyId);
   familyRef.current = familyId;
@@ -42,36 +53,64 @@ export default function ProductivityScreen() {
   useEffect(() => {
     let live = true;
     if (!familyId) return undefined;
-    echo.current = true;
-    setReady(false);
-    setPlan(emptyPlan());
     const companyId = familyId;
+    const isLive = () => live && familyRef.current === companyId;
+    const mark = (part) => {
+      if (isLive()) setLoaded((current) => (current[part] ? current : { ...current, [part]: true }));
+    };
+    const today = toDateKey(new Date());
     const hourFrom = addDays(planActivityFrom(new Date()), -7 * 16);
-    const absenceTo = addDays(toDateKey(new Date()), 7 * 60);
-    Promise.all([
-      loadProjectState(companyId, {
-        hours: { fromDate: hourFrom, toDate: toDateKey(new Date()) },
-      }).catch(() => ({ projects: [], members: [], timeEntries: [] }))
-        .then((projectState) => ensureProjectAbsences(companyId, {
-          fromDate: hourFrom,
-          toDate: absenceTo,
-        }).then((withAbs) => ({
-          ...projectState,
-          timeEntries: withAbs?.timeEntries?.length ? withAbs.timeEntries : projectState?.timeEntries,
-          absences: withAbs?.absences || [],
-        })).catch(() => projectState)),
-      loadCapacityPlan(companyId).catch(() => emptyPlan()),
-    ]).then(([projectState, loadedPlan]) => {
-      if (!live || familyRef.current !== companyId) return;
-      setProjects(projectState?.projects || []);
-      setTimeEntries(projectState?.timeEntries || []);
-      setAbsences(projectState?.absences || []);
-      setDayHours(Number(projectState?.fullDayHours) > 0 ? Number(projectState.fullDayHours) : 8);
-      setMembers(projectState?.members || []);
-      echo.current = true;
-      setPlan(loadedPlan || emptyPlan());
-      setReady(true);
-    });
+    const hoursRange = { fromDate: hourFrom, toDate: today };
+    const absenceRange = { fromDate: hourFrom, toDate: addDays(today, 7 * 60) };
+
+    // Det som alt ligger i minnet (fra et tidligere besøk), tegnes med en gang. Nettet oppdaterer etterpå.
+    const cached = peekProjectState(companyId);
+    const absencesCached = !!cached && absencesRangeCovered(companyId, absenceRange);
+    echo.current = true;
+    setPlan(emptyPlan());
+    setProjects(cached?.projects || []);
+    setMembers(cached?.members || []);
+    setDayHours(Number(cached?.fullDayHours) > 0 ? Number(cached.fullDayHours) : 8);
+    setTimeEntries(cached && hoursRangeCovered(companyId, hoursRange) ? cached.timeEntries || [] : []);
+    setAbsences(absencesCached ? cached.absences || [] : []);
+    setLoaded({ plan: false, base: !!cached, absences: absencesCached });
+
+    loadCapacityPlan(companyId)
+      .catch(() => emptyPlan())
+      .then((loadedPlan) => {
+        if (!isLive()) return;
+        echo.current = true;
+        setPlan(loadedPlan || emptyPlan());
+        mark('plan');
+      });
+
+    loadProjectState(companyId, { hours: false })
+      .catch(() => null)
+      .then((projectState) => {
+        if (!isLive()) return;
+        if (projectState) {
+          setProjects(projectState.projects || []);
+          setMembers(projectState.members || []);
+          setDayHours(Number(projectState.fullDayHours) > 0 ? Number(projectState.fullDayHours) : 8);
+        }
+        mark('base');
+        // Fravær og timer hentes samtidig, ikke etter hverandre.
+        ensureProjectAbsences(companyId, absenceRange)
+          .then((state) => {
+            if (isLive()) setAbsences(state?.absences || []);
+          })
+          .catch(() => {})
+          .finally(() => mark('absences'));
+        setLoadingHours(true);
+        ensureProjectHours(companyId, hoursRange)
+          .then((state) => {
+            if (isLive()) setTimeEntries(state?.timeEntries || []);
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (isLive()) setLoadingHours(false);
+          });
+      });
     return () => { live = false; };
   }, [familyId]);
 
@@ -151,6 +190,7 @@ export default function ProductivityScreen() {
           timeEntries={timeEntries}
           absences={absences}
           fullDayHours={dayHours}
+          loadingHours={loadingHours}
           canWrite={canWrite && (!access.active || access.ready)}
           onPlan={setPlan}
         />

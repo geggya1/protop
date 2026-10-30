@@ -164,6 +164,19 @@ import {
   const series = weekSeries(people, rows, weekKeys('2026-10-12', 2), 37.5);
   assert.equal(series[1].hours, 37.5);
   assert.equal(series[1].ofContract, 66.6);
+  const { key, meta, ...first } = series[0];
+  assert.deepEqual(first, week, 'ukeserien gir samme sum som companyWeekLoad');
+  assert.equal(key, '2026-10-12');
+  assert.equal(meta.short, 'U42');
+}
+
+{
+  // Mandag huskes per tekst, men svaret er det samme.
+  assert.equal(mondayKey('2026-10-18'), '2026-10-12');
+  assert.equal(mondayKey('2026-10-18'), '2026-10-12');
+  assert.equal(mondayKey('2026-10-19T08:00:00Z'), '2026-10-19');
+  assert.equal(mondayKey('ikke en dato'), '');
+  assert.equal(mondayKey(new Date(2026, 9, 21)), '2026-10-19');
 }
 
 {

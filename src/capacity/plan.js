@@ -75,8 +75,22 @@ export function addDays(key, days) {
   return toDateKey(dt);
 }
 
+/** Datoer gjentar seg i tusenvis av timeføringer. Svaret huskes per tekst. */
+const MONDAY_CACHE = new Map();
+const MONDAY_CACHE_MAX = 5000;
+
 /** Mandag for datoen, som ÅÅÅÅ-MM-DD. */
 export function mondayKey(input) {
+  if (typeof input !== 'string') return computeMondayKey(input);
+  const hit = MONDAY_CACHE.get(input);
+  if (hit !== undefined) return hit;
+  const out = computeMondayKey(input);
+  if (MONDAY_CACHE.size >= MONDAY_CACHE_MAX) MONDAY_CACHE.clear();
+  MONDAY_CACHE.set(input, out);
+  return out;
+}
+
+function computeMondayKey(input) {
   const key = toDateKey(input);
   if (!key) return '';
   const parts = dateParts(key);
@@ -389,10 +403,14 @@ export function firstSlackWeek(employee, allocations, weeks, weekHours) {
 }
 
 export function companyWeekLoad(people, allocations, monday, weekHours) {
+  return sumWeekLoad(people, () => allocations, monday, weekHours);
+}
+
+function sumWeekLoad(people, allocationsFor, monday, weekHours) {
   let capacity = 0;
   let hours = 0;
   for (const person of people || []) {
-    const row = occupancy(person, allocations, monday, weekHours);
+    const row = occupancy(person, allocationsFor(person), monday, weekHours);
     capacity += row.capacity;
     hours += row.hours;
   }
@@ -403,10 +421,18 @@ export function companyWeekLoad(people, allocations, monday, weekHours) {
 }
 
 export function weekSeries(people, allocations, weeks, weekHours) {
+  // Hver person ser bare sine egne tildelinger, ikke hele planen for hver uke.
+  const byEmployee = new Map();
+  for (const row of allocations || []) {
+    const list = byEmployee.get(row?.employeeId);
+    if (list) list.push(row);
+    else byEmployee.set(row?.employeeId, [row]);
+  }
+  const own = (person) => byEmployee.get(person?.id) || [];
   return (weeks || []).map((key) => ({
     key,
     meta: weekMeta(key),
-    ...companyWeekLoad(people, allocations, key, weekHours),
+    ...sumWeekLoad(people, own, key, weekHours),
   }));
 }
 

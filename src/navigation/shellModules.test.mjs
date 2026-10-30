@@ -15,6 +15,7 @@ import {
   isNavItemActive,
   releaseClosedActiveGroups,
   releaseClosedActiveSubmenus,
+  toggleDrawerGroup,
   normalizeShellSelection,
   okonomiMenuTitle,
 } from './shellModules.js';
@@ -785,6 +786,17 @@ function collectPresented(items, acc = []) {
   assert.deepEqual(meetings.children[0].pages.map((item) => item.id), ['moter-oversikt', 'moter-oppfolging', 'moter-maler']);
   assert.equal(drawerGroupOpen(meetings, 'moter', {}, 'oppfolging'), true);
   assert.equal(innleieIds.includes('moter'), false);
+  // Én gruppe om gangen: åpnes en, lukkes de andre, også gruppen med aktiv side.
+  const opened = toggleDrawerGroup({ 'company-tenders': true }, finance, presented, 'hr', 'oversikt');
+  assert.deepEqual(
+    presented.filter((g) => g.group && drawerGroupOpen(g, 'hr', opened, 'oversikt')).map((g) => g.id),
+    ['company-finance'],
+  );
+  assert.deepEqual(
+    toggleDrawerGroup(opened, finance, presented, 'hr', 'oversikt'),
+    { ...opened, 'company-finance': false },
+  );
+  assert.equal(drawerGroupOpen(people, 'hr', toggleDrawerGroup({}, people, presented, 'hr', 'oversikt'), 'oversikt'), false);
   assert.deepEqual(
     releaseClosedActiveGroups({ 'company-people': false, 'company-finance': false }, source, 'hr', 'oversikt'),
     { 'company-finance': false },

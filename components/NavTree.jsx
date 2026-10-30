@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Platform,
 } from 'react-native';
@@ -13,6 +13,7 @@ import {
   isNavItemActive,
   releaseClosedActiveGroups,
   releaseClosedActiveSubmenus,
+  toggleDrawerGroup,
 } from '../src/navigation/shellModules';
 import { navSectionExpanded } from '../src/navigation/navTree';
 import IconBadge from './IconBadge';
@@ -67,8 +68,16 @@ export function useNavTreeState(sections, activeTab, activeSubView) {
     [sections],
   );
 
+  const lastPage = useRef(`${activeTab}|${activeSubView}`);
+
   useEffect(() => {
-    setGroupOpen((prev) => releaseClosedActiveGroups(prev, companyItems, activeTab, activeSubView));
+    // Ny side: bare gruppen med aktiv side står åpen (én gruppe om gangen).
+    const page = `${activeTab}|${activeSubView}`;
+    const moved = page !== lastPage.current;
+    lastPage.current = page;
+    setGroupOpen((prev) => (moved
+      ? (Object.keys(prev).length ? {} : prev)
+      : releaseClosedActiveGroups(prev, companyItems, activeTab, activeSubView)));
     setSubmenuOpen((prev) => releaseClosedActiveSubmenus(prev, companyItems, activeTab, activeSubView));
   }, [activeTab, activeSubView, companyItems]);
 
@@ -263,7 +272,7 @@ export default function NavTree({
     );
   };
 
-  const renderGroup = (item, index) => {
+  const renderGroup = (item, index, siblings) => {
     if (!item.group) return renderBranch(item);
     const expanded = searching || drawerGroupOpen(item, activeTab, groupOpen, activeSubView);
     const containsActive = (item.children || []).some((child) => isActive(child));
@@ -271,10 +280,7 @@ export default function NavTree({
       <View key={item.id} style={[s.groupBlock, tone.line, index === 0 && s.groupBlockFirst]}>
         <TouchableOpacity
           style={[s.groupHead, t?.groupHead, containsActive && { backgroundColor: colors.brandSoft }]}
-          onPress={() => setGroupOpen((prev) => ({
-            ...prev,
-            [item.id]: !drawerGroupOpen(item, activeTab, prev, activeSubView),
-          }))}
+          onPress={() => setGroupOpen((prev) => toggleDrawerGroup(prev, item, siblings, activeTab, activeSubView))}
           accessibilityRole="button"
           accessibilityState={{ expanded }}
           accessibilityLabel={`${item.label}, ${expanded ? 'åpen' : 'lukket'}`}
@@ -364,7 +370,7 @@ export default function NavTree({
         ]}
       >
         {head}
-        {expanded ? (section.items || []).map(renderGroup) : null}
+        {expanded ? (section.items || []).map((item, index, siblings) => renderGroup(item, index, siblings)) : null}
       </View>
     );
   });

@@ -5,11 +5,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { READ_RULES, ackFor, documentsForEmployee, latestAck } from '../../src/doccontrol/model';
+import { READ_RULES, ackFor, documentsForEmployee, latestAck, todayKey } from '../../src/doccontrol/model';
 import { handbookFromControl } from '../../src/doccontrol/content';
 import { formFromControl } from '../../src/doccontrol/templates';
 import { completeFilledDoc, newFilledDoc, reopenFilledDoc } from '../../src/forms/filledDocs';
 import { loadFilledDocs, peekFilledDocs, saveFilledDoc } from '../../src/forms/filledStore';
+import { closeDocTask } from '../../src/doccontrol/store';
+import { docTaskId } from '../../src/doccontrol/readTasks';
 import { formWithTokens } from '../../src/forms/tokens';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
 import { showSaveToast } from '../../src/ui/saveToast';
@@ -72,7 +74,10 @@ export default function MyDocuments({ colors, employeeId, employeeName = '', sel
     const res = await dc.acknowledge(ackFor(row.control.id, row.revision, { uid: actor.uid, employeeId, name: actor.name || employeeName }));
     setBusy(false);
     setNote(res.ok ? '' : res.error);
-    if (res.ok) showSaveToast('Takk, bekreftelsen er lagret.');
+    if (res.ok) {
+      showSaveToast('Takk, bekreftelsen er lagret.');
+      closeDocTask(familyId, { id: docTaskId(row.control.id, employeeId) }, { today: todayKey() });
+    }
   }
 
   async function storeFilled(next, message) {
@@ -110,7 +115,11 @@ export default function MyDocuments({ colors, employeeId, employeeName = '', sel
         onComplete={() => {
           const res = completeFilledDoc(formWithTokens(fillDoc, company), { actor });
           if (!res.ok) setNote(res.error);
-          else storeFilled(res.doc, 'Dokumentet er signert og lagret i HR.');
+          else {
+            storeFilled(res.doc, 'Dokumentet er signert og lagret i HR.');
+            const control = rows.find((row) => row.control.refId === res.doc.templateId)?.control;
+            if (control) closeDocTask(familyId, { id: docTaskId(control.id, employeeId) }, { today: todayKey() });
+          }
         }}
         onReopen={() => storeFilled(reopenFilledDoc(fillDoc, { actor }), 'Dokumentet er åpnet for endring.')}
         onDelete={null}

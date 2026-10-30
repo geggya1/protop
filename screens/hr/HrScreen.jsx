@@ -8,7 +8,7 @@ import { CompanyAccessDenied } from '../../components/project/CompanyAccessSetti
 import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';
-import { emptyHrState, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
+import { emptyHrState, filterHrEmployees, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
 import { hmsCardRequirement } from '../../src/hr/hmsCard';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { companyRetention, hrRetentionPlan, retentionToast } from '../../src/hr/retention';
@@ -24,6 +24,9 @@ import HrForms from './HrForms';
 import { useFormContext } from '../anbud/useFormContext';
 import { useKinTasks } from './useKinTasks';
 import { useHmsTasks } from './useHmsTasks';
+import { useDocControl } from '../doccontrol/useDocControl';
+import { useDocReadTasks } from '../doccontrol/useDocReadTasks';
+import { privacyDocState } from '../../src/hr/privacyDoc';
 import { useIsoCompetence } from './useIsoCompetence';
 
 function periodWindow(months = 3) {
@@ -86,8 +89,17 @@ export default function HrScreen({ subView = 'oversikt' }) {
     () => hmsCardRequirement({ naeringskode, setting: hr.settings?.hmsCard }),
     [naeringskode, hr.settings?.hmsCard],
   );
-  // hmsRule lagres ikke. normalizeHrState tar det bort.
-  const hrView = useMemo(() => ({ ...hr, hmsRequired: hmsRule.required, hmsRule }), [hr, hmsRule]);
+  // Dokumentstyringen: personverninformasjonen i Lovpålagt og oppgaver om å lese og signere.
+  const dc = useDocControl();
+  const privacyDoc = useMemo(
+    () => privacyDocState(dc.controls, dc.acks, filterHrEmployees(employees, 'active')),
+    [dc.controls, dc.acks, employees],
+  );
+  // hmsRule og privacyDoc lagres ikke. normalizeHrState tar dem bort.
+  const hrView = useMemo(
+    () => ({ ...hr, hmsRequired: hmsRule.required, hmsRule, privacyDoc }),
+    [hr, hmsRule, privacyDoc],
+  );
   const familyIdRef = useRef(familyId);
   const saveChainRef = useRef(Promise.resolve());
   familyIdRef.current = familyId;
@@ -105,6 +117,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const kin = useKinTasks({ familyId, employees, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
   // HMS-kort som går ut innen 30 dager: oppgave og varsel til HR om å fornye kortet.
   useHmsTasks({ familyId, employees, hr, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
+  // Nyansatte og nye versjoner av dokumenter med lesekrav: oppgave og varsel til den ansatte.
+  useDocReadTasks({ dc, employees, canWrite: ready && access.canEdit('hrPeople') });
 
   useEffect(() => {
     let live = true;
@@ -337,6 +351,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           onCreateFollowUpTask={createTask}
           isoCompetence={isoCompetence}
           onOpenIso={canSeeIso ? openIsoCompetence : null}
+          onOpenLibraryTemplate={(key) => requestShellTab?.('skjema', null, { type: 'openLibraryTemplate', key })}
           listPreset={peopleFilter}
           onBackToSalary={() => {
             setSelectedEmployeeId('');

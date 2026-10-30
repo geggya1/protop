@@ -223,3 +223,17 @@ console.log('hr/compliance.test.mjs ok');
   const na = sync([{ catalogId: 'aml_written_contract', employeeId: 'e9', status: 'na' }], { employeeId: 'e9' });
   assert.equal(na.find((row) => row.catalogId === 'aml_written_contract').status, 'na');
 }
+
+{
+  // Personverninformasjonen følger lesebekreftelsen når dokumentet er godkjent.
+  const { syncComplianceFromEvidence: sync, companyComplianceOverview } = await import('./compliance.js');
+  const pick = (rows, emp) => rows.find((row) => row.catalogId === 'gdpr_privacy_notice' && row.employeeId === emp).status;
+  const privacy = { published: true, acked: ['a1'], manual: ['m1'] };
+  assert.equal(pick(sync([], { employeeId: 'a1', privacy }), 'a1'), 'ok', 'bekreftet');
+  assert.equal(pick(sync([{ catalogId: 'gdpr_privacy_notice', employeeId: 'b1', status: 'ok' }], { employeeId: 'b1', privacy }), 'b1'), 'missing', 'krysset av for hånd, men ikke bekreftet');
+  assert.equal(pick(sync([{ catalogId: 'gdpr_privacy_notice', employeeId: 'm1', status: 'ok' }], { employeeId: 'm1', privacy }), 'm1'), 'ok', 'uten brukerkonto står avkrysningen');
+  assert.equal(pick(sync([{ catalogId: 'gdpr_privacy_notice', employeeId: 'b1', status: 'na' }], { employeeId: 'b1', privacy }), 'b1'), 'na');
+  assert.equal(pick(sync([{ catalogId: 'gdpr_privacy_notice', employeeId: 'b1', status: 'ok' }], { employeeId: 'b1' }), 'b1'), 'ok', 'uten godkjent dokument står avkrysningen');
+  const row = companyComplianceOverview([{ id: 'a1', company: { status: 'active' } }], [], { privacy }).at(0);
+  assert.equal(row.gapIds.includes('gdpr_privacy_notice'), false);
+}

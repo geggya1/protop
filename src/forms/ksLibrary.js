@@ -637,6 +637,36 @@ function taushetserklaering() {
   };
 }
 
+/**
+ * Informasjon til ansatte om behandling av personopplysninger (personvernforordningen art. 13).
+ * Leses og bekreftes av hver ansatt. Låste felt fylles inn av bedriften i malen.
+ */
+function personvernAnsatte() {
+  return {
+    title: 'Personverninformasjon til ansatte',
+    layout: 'brev',
+    fields: [
+      note('Her forklarer vi hvordan {{firma}} behandler personopplysninger om deg som ansatt, og hvilke rettigheter du har (personvernforordningen artikkel 13).'),
+      title('Behandlingsansvarlig'),
+      locked('Behandlingsansvarlig', '{{firma}}', { width: 'half' }),
+      locked('Kontakt for personvern', 'Daglig leder', { width: 'half', help: 'Navn, rolle eller e-post. Har bedriften personvernombud, skriv det her.' }),
+      title('Hva vi behandler og hvorfor'),
+      note('• Kontakt- og identitetsopplysninger: navn, adresse, telefon, e-post, fødselsdato og fødselsnummer. Formål: administrere arbeidsforholdet, lønn og innrapportering. Grunnlag: arbeidsavtalen og rettslig plikt (art. 6 nr. 1 b og c).\n• Arbeidsavtale, stilling, lønn, kontonummer, skattetrekk, ferie og pensjon. Formål: lønn og oppfølging av arbeidsforholdet. Grunnlag: arbeidsavtalen og rettslig plikt (a-opplysningsloven, skatte- og regnskapsregler).\n• Timeføring, fravær og sykefravær. Formål: lønn, fakturering, oppfølging av sykefravær og arbeidstid. Grunnlag: arbeidsavtalen og rettslig plikt (arbeidsmiljøloven og folketrygdloven). Helseopplysninger behandles bare så langt loven krever det (art. 9 nr. 2 b).\n• Medarbeidersamtaler, oppfølgingssaker, kompetanse og kurs. Formål: utvikling, oppfølging og dokumentasjon av kompetanse. Grunnlag: arbeidsavtalen og berettiget interesse (art. 6 nr. 1 f).\n• Nærmeste pårørende. Formål: kontakt ved ulykke eller akutt sykdom. Grunnlag: berettiget interesse. Du legger dem inn selv.\n• HMS-kort, verneutstyr og oversiktslister på byggeplass der det gjelder. Grunnlag: rettslig plikt (forskrift om HMS-kort og byggherreforskriften).\n• Bilde, CV og referanseprosjekter. Formål: tilbud, anbud og presentasjon av bedriften. Grunnlag: berettiget interesse. Du kan be om at bilde ikke brukes utad.'),
+      locked('Andre opplysninger eller formål', 'Ingen', { help: 'For eksempel kameraovervåking, GPS i firmabil eller kontroll av e-post. Slike tiltak krever egne regler (arbeidsmiljøloven kapittel 9 og forskrift om innsyn i e-postkasse).' }),
+      title('Hvem som får opplysningene'),
+      note('Opplysningene er bare tilgjengelige for dem som trenger dem i arbeidet. Lønns- og personalopplysninger ses av leder og HR. Vi deler opplysninger med offentlige myndigheter når loven krever det (Skatteetaten, NAV, Arbeidstilsynet), og med leverandører som behandler data på våre vegne etter databehandleravtale.'),
+      locked('Systemer og databehandlere', 'ProTop (personal, timer og HR), regnskaps- og lønnssystem, pensjons- og forsikringsselskap', { help: 'List systemene og leverandørene bedriften bruker.' }),
+      title('Hvor lenge vi lagrer'),
+      note('Vi lagrer opplysningene så lenge du er ansatt, og etter det så lenge loven krever eller det er nødvendig for å ivareta krav. Regnskapsmateriale som lønnsbilag lagres i fem år (bokføringsloven). Personalmappen slettes etter fristen bedriften har satt, og det logges hva som slettes.'),
+      locked('Lagringstid for personalmappen etter fratreden', '3 år', { width: 'half' }),
+      title('Dine rettigheter'),
+      note('Du har rett til innsyn i opplysningene om deg, til å få rettet feil og til å få slettet opplysninger vi ikke lenger har grunn til å ha. Du kan protestere mot behandling som bygger på berettiget interesse, og be om begrenset behandling. Mye ser du selv under Ansatte › Min side. Henvendelser sendes til kontakten for personvern over.'),
+      note('Mener du at vi behandler opplysninger i strid med regelverket, kan du klage til Datatilsynet (datatilsynet.no).'),
+      note('Ved å bekrefte at du har lest dokumentet, bekrefter du at du har fått denne informasjonen. Bekreftelsen er ikke et samtykke.'),
+    ],
+  };
+}
+
 function nyansatt() {
   const items = [
     '# Før oppstart',
@@ -811,6 +841,7 @@ export const KS_LIBRARY = [
   MAL('miljofyrtarn-ansvarlig', 'C1-F-03-004', 'miljo', miljofyrtarnAnsvarlig, 'Rollebeskrivelse med signatur fra daglig leder og miljøfyrtårnansvarlig.'),
   SYS('parorende', 'C1-C-01-002', 'personal', 'Pårørendeskjema', { tab: 'ansatte', label: 'Ansatte › Min side' }, 'Den ansatte fyller inn pårørende selv på profilen. Mangler det, får hen en oppgave med varsel og påminnelse.'),
   MAL('taushetserklaering', 'C1-C-01-003', 'personal', taushetserklaering, 'Taushetserklæring med sikkerhetsgradert informasjon og offentlige oppdrag.', { hr: true }),
+  MAL('personvern-ansatte', 'C1-C-01-005', 'personal', personvernAnsatte, 'Hvordan bedriften behandler personopplysninger om de ansatte, og deres rettigheter. Hver ansatt leser og bekrefter.', { hr: true }),
   MAL('nyansatt', 'C1-F-02-003', 'personal', nyansatt, 'Introduksjonsprogram: før oppstart, første dag og første uke.', { hr: true }),
   MAL('oppfolgingsplan', 'C1-F-02-004', 'personal', oppfolgingsplan, 'Samtaler i prøvetiden etter 1, 3 og 5 måneder.', { hr: true }),
   MAL('medarbeidersamtale', 'C1-F-03-001', 'personal', medarbeidersamtale, 'Tema før og under samtalen, og en signert handlingsplan.', { hr: true }),

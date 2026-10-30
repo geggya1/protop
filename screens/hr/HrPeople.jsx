@@ -42,7 +42,7 @@ export default function HrPeople({
   colors, employees, hr, entries, selectedId, onSelect, canWrite, onPatch, onSheet,
   sheet = 'oversikt', familyId, onSaveSalaries,
   focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
-  isoCompetence, onOpenIso, listPreset = null, onBackToSalary,
+  isoCompetence, onOpenIso, listPreset = null, onBackToSalary, onOpenLibraryTemplate,
 }) {
   const dir = useHrDirectory(employees, { preset: listPreset });
   const rows = useMemo(
@@ -252,6 +252,7 @@ export default function HrPeople({
           isoCompetence={isoCompetence}
           onOpenIso={onOpenIso}
           onOpenSheet={(id) => onSheet?.(id)}
+          onOpenLibraryTemplate={onOpenLibraryTemplate}
         />
       ) : null}
     </View>

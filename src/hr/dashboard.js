@@ -47,6 +47,7 @@ export function complianceByItem(staff, hr = {}) {
     hmsCards: hr.hmsCards,
     applyEvidence: true,
     hmsRequired: hr.hmsRequired !== false,
+    privacy: hr.privacyDoc?.published ? hr.privacyDoc : null,
   });
   const ok = rows.reduce((sum, row) => sum + row.ok, 0);
   const total = rows.reduce((sum, row) => sum + row.total, 0);

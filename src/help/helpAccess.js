@@ -48,7 +48,7 @@ export const PAGE_ACCESS = {
   'hr.avtaler': { res: 'hrAgreements', steps: [S, R, R] },
   'hr.lonn': { res: 'hrPayroll', steps: [S, R] },
   'hr.oppfolging': { res: 'hrFollowup', steps: [S, R, R, R, R] },
-  'hr.compliance': { res: 'hrCompliance', steps: [S, R, R] },
+  'hr.compliance': { res: 'hrCompliance', steps: [S, R, R, R] },
   'hr.rekruttering': { res: 'hrRecruitment', steps: [R, R, R, R] },
   'hr.handbok': { res: 'hr', steps: [W, W, W, R, R] },
   'hr.skjema': { res: 'hrPeople', steps: [W, W, R] },

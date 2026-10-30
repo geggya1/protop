@@ -12,6 +12,7 @@ export const DEFAULT_SYSTEM = '{{firma}} - Ledelsessystem';
 /** Lesekrav som KS-malene starter med. Kan endres per dokument. */
 const DEFAULT_READ_RULES = {
   taushetserklaering: 'signeres',
+  'personvern-ansatte': 'pakrevd',
   branninstruks: 'pakrevd',
   'instruks-arbeidsutstyr': 'pakrevd',
   avfallsinstruks: 'info',

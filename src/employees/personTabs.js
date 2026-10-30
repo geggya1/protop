@@ -1,6 +1,8 @@
 /** Skilleark på person-sider (ansatt-detalj). Timer, Fravær og Innstillinger har undersider. */
 export const EMPLOYEE_DETAIL_TABS = [
   { id: 'home', label: 'Hovedside' },
+  // Det personen selv må gjøre: dokumenter, HMS-kort, pårørende og oppgaver fra HR.
+  { id: 'todo', label: 'Gjøremål' },
   { id: 'hours', label: 'Timer' },
   { id: 'absence', label: 'Fravær' },
   { id: 'files', label: 'Filer' },
@@ -60,7 +62,7 @@ export function employeeTabViews(tabId) {
 }
 
 export const PERSON_VIEWS = new Set([
-  'detail', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'earnings', 'settings', 'cv',
+  'detail', 'todo', 'overview', 'hours', 'report', 'files', 'absence', 'saldo', 'expenses', 'earnings', 'settings', 'cv',
   'settingsEmployment', 'settingsLog',
   ...Object.keys(EMPLOYEE_SETTINGS_SUBS),
 ]);

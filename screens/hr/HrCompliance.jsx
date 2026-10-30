@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
   COMPLIANCE_CATALOG,
   amlContractCompleteness,
@@ -14,10 +14,10 @@ import {
 } from '../../src/hr/compliance';
 import { activeContractFor, formatNbDate, localIsoDate } from '../../src/hr/model';
 import {
-  hmsCardFor, hmsCardStatus, parseHmsQr, upsertHmsCard,
+  hmsCardFor, hmsCardStatus, upsertHmsCard,
 } from '../../src/hr/hmsCard';
 import { showSaveToast } from '../../src/ui/saveToast';
-import BarcodeScannerModal from '../../components/BarcodeScannerModal';
+import HmsCardEditor from './HmsCardEditor';
 import {
   EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle,
 } from './HrShared';
@@ -57,6 +57,7 @@ function isGap(row, required) {
  */
 export default function HrCompliance({
   colors, hr, canWrite, onPatch, lockedEmployeeId, isoCompetence, onOpenIso, onOpenSheet, onOpenLibraryTemplate,
+  familyId = '', personName = '', personBirthDate = '',
 }) {
   const activeId = String(lockedEmployeeId || '');
   const hmsRequired = hr.hmsRequired !== false;
@@ -245,10 +246,13 @@ export default function HrCompliance({
 
               {cat?.derived === 'hmsCard' ? (
                 <HmsCardEditor
-                  key={`${activeId}:${hmsCard?.updatedAt || ''}`}
+                  key={activeId}
                   colors={colors}
                   card={hmsCard}
                   canWrite={canWrite}
+                  familyId={familyId}
+                  personName={personName}
+                  personBirthDate={personBirthDate}
                   notApplicable={row.status === 'na'}
                   onSave={saveHmsCard}
                   onApplicable={(applicable) => setStatus('hms_card', applicable ? 'missing' : 'na')}
@@ -318,89 +322,6 @@ function ItemNote({ colors, note, canWrite, onSave }) {
       {note ? <Text style={[styles.hint, { color: colors.muted, flex: 1 }]}>{`Notat: ${note}`}</Text> : null}
       {canWrite ? (
         <HrChip colors={colors} label={note ? 'Endre notat' : 'Legg til notat'} onPress={() => setDraft(note || '')} />
-      ) : null}
-    </View>
-  );
-}
-
-/**
- * HMS-kort: skann QR-koden på kortet eller skriv inn kortnummer og utløpsdato.
- * QR-koden viser status i HMS-kortregisteret, så lenken lagres og kan åpnes igjen.
- * HR får oppgave og varsel 30 dager før kortet går ut (useHmsTasks).
- */
-function HmsCardEditor({ colors, card, canWrite, notApplicable, onSave, onApplicable }) {
-  const [draft, setDraft] = useState(() => ({
-    number: card?.number || '',
-    validTo: card?.validTo || '',
-    employerOrgnr: card?.employerOrgnr || '',
-    qrUrl: card?.qrUrl || '',
-  }));
-  const [scanning, setScanning] = useState(false);
-  const [scanNote, setScanNote] = useState('');
-
-  function onScan(raw) {
-    setScanning(false);
-    const parsed = parseHmsQr(raw);
-    if (!parsed.url && !parsed.number) {
-      setScanNote('QR-koden ble ikke gjenkjent som et HMS-kort. Skriv inn kortnummer og utløpsdato.');
-      return;
-    }
-    setDraft((prev) => ({
-      ...prev,
-      qrUrl: parsed.url || prev.qrUrl,
-      number: parsed.number || prev.number,
-    }));
-    setScanNote(parsed.url
-      ? 'QR-koden er lest. Åpne kortet for å se status, fyll inn kortnummer og utløpsdato fra kortet og lagre.'
-      : 'Kortnummeret er lest. Fyll inn utløpsdatoen fra kortet og lagre.');
-  }
-
-  const qrUrl = draft.qrUrl || card?.qrUrl || '';
-
-  return (
-    <View style={styles.stack} nativeID="hr-compliance-hms-card">
-      {canWrite && !notApplicable ? (
-        <>
-          <View style={styles.actions}>
-            <HrButton colors={colors} label="Skann QR-koden på kortet" icon="qr-code-outline" nativeID="hr-compliance-hms-scan" onPress={() => { setScanNote(''); setScanning(true); }} />
-            {qrUrl ? (
-              <HrButton colors={colors} label="Åpne kortet i HMS-kortregisteret" icon="open-outline" onPress={() => Linking.openURL(qrUrl).catch(() => {})} />
-            ) : null}
-          </View>
-          {scanNote ? <Text style={[styles.line, { color: colors.brand }]}>{scanNote}</Text> : null}
-          <View style={styles.fields}>
-            <View style={styles.field}>
-              <HrField colors={colors} label="Kortnummer" value={draft.number} onChangeText={(number) => setDraft((prev) => ({ ...prev, number }))} />
-            </View>
-            <View style={styles.field}>
-              <HrField colors={colors} label="Gyldig til" date="iso" clearable value={draft.validTo} onChangeText={(validTo) => setDraft((prev) => ({ ...prev, validTo }))} />
-            </View>
-            <View style={styles.field}>
-              <HrField colors={colors} label="Arbeidsgivers org.nr. (tomt: bedriftens)" value={draft.employerOrgnr} onChangeText={(employerOrgnr) => setDraft((prev) => ({ ...prev, employerOrgnr }))} keyboardType="number-pad" />
-            </View>
-          </View>
-          <View style={styles.actions}>
-            <HrButton colors={colors} label="Lagre HMS-kort" icon="card-outline" nativeID="hr-compliance-hms-save" onPress={() => onSave?.(draft)} />
-          </View>
-          <BarcodeScannerModal
-            visible={scanning}
-            qr
-            title="Skann HMS-kortet"
-            hint="Hold QR-koden på forsiden av kortet i rammen."
-            permissionText="Vi trenger kamera for å lese QR-koden på HMS-kortet."
-            onScan={onScan}
-            onClose={() => setScanning(false)}
-          />
-        </>
-      ) : null}
-      {canWrite ? (
-        <View style={styles.actions}>
-          <HrChip
-            colors={colors}
-            label={notApplicable ? 'Personen trenger HMS-kort' : 'Ikke aktuelt for denne personen'}
-            onPress={() => onApplicable?.(notApplicable)}
-          />
-        </View>
       ) : null}
     </View>
   );

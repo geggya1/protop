@@ -69,6 +69,34 @@ await assert.rejects(
   /Ikke innlogget/,
 );
 
+// Bilde av HMS-kortet: feltene på kortet, rensket.
+const hms = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'hmsCard',
+  mode: 'ocr',
+  mime: 'image/jpeg',
+  imageBase64: 'a'.repeat(120),
+}, { uid: 'user' }, {
+  ...deps,
+  documentParts: async (_data, options) => {
+    assert.equal(options.intro, 'Les HMS-kortet.');
+    return { usedOcr: true, parts: [{ text: 'bilde' }] };
+  },
+  callGeminiJson: async (_key, prompt) => {
+    assert.match(prompt, /HMS-kort/);
+    return { number: 'HMS 123 456', validTo: '31.12.2027', firstName: 'Ada', lastName: 'Nordmann', birthDate: '1990-05-04', employerName: 'Consult1 AS', employerOrgnr: '916 538 804' };
+  },
+});
+assert.deepEqual(hms.card, {
+  number: 'HMS 123 456',
+  validTo: '2027-12-31',
+  firstName: 'Ada',
+  lastName: 'Nordmann',
+  birthDate: '1990-05-04',
+  employerName: 'Consult1 AS',
+  employerOrgnr: '916538804',
+});
+
 const cv = await handleInterpretImport({
   familyId: 'fam',
   kind: 'cv',

@@ -11,6 +11,7 @@ import {
   sanitizeCv,
   sanitizeOcrRows,
 } from '../src/imports/interpret.js';
+import { hmsCardPrompt, sanitizeHmsCardRead } from '../src/hr/hmsCard.js';
 import { extractCvPictures, withCvPictures } from './cvPictures.js';
 import { CV_PDF_CHARS, extractPdfLines } from './documentText.js';
 import { pagePartsFromPdf } from './importPages.js';
@@ -147,15 +148,8 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   const uid = auth?.uid;
   if (!uid) throw new Error('Ikke innlogget');
   const familyId = clean(data?.familyId, 80);
-  const kind = data?.kind === 'employees'
-    ? 'employees'
-    : data?.kind === 'cv'
-      ? 'cv'
-      : data?.kind === 'invoices'
-        ? 'invoices'
-        : data?.kind === 'hours'
-          ? 'hours'
-          : 'customers';
+  const kinds = ['hmsCard', 'employees', 'cv', 'invoices', 'hours'];
+  const kind = kinds.includes(data?.kind) ? data.kind : 'customers';
   const mode = data?.mode === 'ocr' ? 'ocr' : 'columns';
   if (!familyId) throw new Error('Åpne selskapet før du importerer.');
 
@@ -169,6 +163,15 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   const call = runtime.callGeminiJson;
 
   try {
+    // Bilde av HMS-kortet: kortnummer, gyldig til, navn, fødselsdato og arbeidsgiver.
+    if (kind === 'hmsCard') {
+      const document = await (deps.documentParts || documentParts)(data, { maxImages: 2, intro: 'Les HMS-kortet.' });
+      const parsed = await call(apiKey, hmsCardPrompt(), document.parts, {
+        maxOutputTokens: 1024,
+        perModelTimeoutMs: 30000,
+      });
+      return { card: sanitizeHmsCardRead(parsed), engine: 'gemini' };
+    }
     if (kind === 'cv') {
       const prose = String(data?.text || '').replace(/\r\n/g, '\n').trim().slice(0, CV_PDF_CHARS);
       let parts;

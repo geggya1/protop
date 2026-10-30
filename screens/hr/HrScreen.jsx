@@ -9,7 +9,8 @@ import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';
 import { emptyHrState, filterHrEmployees, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
-import { hmsCardRequirement } from '../../src/hr/hmsCard';
+import { hmsCardRequirement, mergeHmsCards } from '../../src/hr/hmsCard';
+import { loadSelfHmsCards } from '../../src/hr/hmsSelf';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { companyRetention, hrRetentionPlan, retentionToast } from '../../src/hr/retention';
 import { logSensitiveAccess } from '../../src/hr/accessLogClient';
@@ -95,10 +96,19 @@ export default function HrScreen({ subView = 'oversikt' }) {
     () => privacyDocState(dc.controls, dc.acks, filterHrEmployees(employees, 'active')),
     [dc.controls, dc.acks, employees],
   );
-  // hmsRule og privacyDoc lagres ikke. normalizeHrState tar dem bort.
+  // HMS-kort de ansatte har registrert selv på Min side › Gjøremål (employeesPrivate).
+  const [selfHmsCards, setSelfHmsCards] = useState([]);
+  useEffect(() => {
+    let live = true;
+    setSelfHmsCards([]);
+    if (familyId) loadSelfHmsCards(familyId).then((rows) => { if (live) setSelfHmsCards(rows); });
+    return () => { live = false; };
+  }, [familyId]);
+  // hmsRule, privacyDoc og de sammenslåtte kortene lagres ikke. normalizeHrState tar dem bort,
+  // og lagring går mot HR-tilstanden (hrRef), ikke hrView.
   const hrView = useMemo(
-    () => ({ ...hr, hmsRequired: hmsRule.required, hmsRule, privacyDoc }),
-    [hr, hmsRule, privacyDoc],
+    () => ({ ...hr, hmsCards: mergeHmsCards(hr.hmsCards, selfHmsCards), hmsRequired: hmsRule.required, hmsRule, privacyDoc }),
+    [hr, selfHmsCards, hmsRule, privacyDoc],
   );
   const familyIdRef = useRef(familyId);
   const saveChainRef = useRef(Promise.resolve());
@@ -116,7 +126,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
   // Pårørende fylles inn av den ansatte på profilen. Mangler det, får hen oppgave og varsel.
   const kin = useKinTasks({ familyId, employees, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
   // HMS-kort som går ut innen 30 dager: oppgave og varsel til HR om å fornye kortet.
-  useHmsTasks({ familyId, employees, hr, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
+  useHmsTasks({ familyId, employees, hr: hrView, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
   // Nyansatte og nye versjoner av dokumenter med lesekrav: oppgave og varsel til den ansatte.
   useDocReadTasks({ dc, employees, canWrite: ready && access.canEdit('hrPeople') });
 

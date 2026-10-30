@@ -288,7 +288,8 @@ export async function saveEmployee(companyId, employee, { base = null, onEmploym
       const parts = splitEmployeePrivate(row);
       tx.set(ref, parts.main);
       if (secret || hasPrivateValues(parts.secret) || (raw && hasPrivateValues(raw))) {
-        tx.set(secretRef, { ...parts.secret, employeeId: id, updatedAt: stamp });
+        // merge: HMS-kortet den ansatte har registrert selv (hmsCard) ligger i samme dokument.
+        tx.set(secretRef, { ...parts.secret, employeeId: id, updatedAt: stamp }, { merge: true });
       }
       return row;
     });

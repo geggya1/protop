@@ -17,7 +17,7 @@ import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './H
 import MyDocuments from '../doccontrol/MyDocuments';
 import HrAccessLog from './HrAccessLog';
 
-export default function EmployeeHrSelfService({ colors, companyId, employeeId }) {
+export default function EmployeeHrSelfService({ colors, companyId, employeeId, showDocuments = true }) {
   const [slice, setSlice] = useState(null);
 
   useEffect(() => {
@@ -55,7 +55,8 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId })
 
   return (
     <View style={styles.page} nativeID="employee-hr-self" id="employee-hr-self">
-      <MyDocuments colors={colors} employeeId={employeeId} />
+      {/* Dokumentene står under Gjøremål når personen har en ansattpost i bedriften. */}
+      {showDocuments ? <MyDocuments colors={colors} employeeId={employeeId} /> : null}
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}

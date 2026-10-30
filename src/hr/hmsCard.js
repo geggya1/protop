@@ -54,11 +54,47 @@ export function hmsCardRequirement({ naeringskode = '', setting = '' } = {}) {
  */
 export function parseHmsQr(raw) {
   const value = text(raw, 500);
-  if (!value) return { url: '', number: '' };
-  if (/^https:\/\/[^\s]+$/i.test(value)) return { url: value, number: '' };
+  if (!value) return { url: '', number: '', id: '' };
+  if (/^https:\/\/[^\s]+$/i.test(value)) {
+    // Kortets side i HMS-kortregisteret: hmskort.no/v/<id>.
+    const id = (value.match(/^https:\/\/(?:www\.)?hmskort\.no\/v\/([^/?#\s]+)/i) || [])[1] || '';
+    return { url: value, number: '', id: decodeURIComponent(id).slice(0, 120) };
+  }
   const digits = value.replace(/\s+/g, '');
-  if (/^\d{6,20}$/.test(digits)) return { url: '', number: digits };
-  return { url: '', number: '' };
+  if (/^\d{6,20}$/.test(digits)) return { url: '', number: digits, id: '' };
+  return { url: '', number: '', id: '' };
+}
+
+/** Feltene AI-en leser fra bildet av HMS-kortet. */
+export const HMS_CARD_READ_FIELDS = ['number', 'validTo', 'firstName', 'lastName', 'birthDate', 'employerName', 'employerOrgnr'];
+
+/** Instruks til AI-lesing av bildet av HMS-kortet (forsiden). */
+export function hmsCardPrompt() {
+  return `Du leser et bilde av et norsk HMS-kort (forsiden) utstedt etter forskrift om HMS-kort.
+Trekk ut det som står på kortet. Ikke finn opp verdier. Tom streng når feltet ikke kan leses.
+Returner KUN JSON med disse nøklene:
+number: kortnummeret
+validTo: gyldig til (YYYY-MM-DD)
+firstName: fornavn
+lastName: etternavn
+birthDate: fødselsdato (YYYY-MM-DD)
+employerName: arbeidsgiverens navn
+employerOrgnr: arbeidsgiverens organisasjonsnummer (9 sifre)`;
+}
+
+/** Rens svaret fra AI-en. Bare kjente felt, gyldige datoer og org.nr. */
+export function sanitizeHmsCardRead(parsed = {}) {
+  const src = parsed && typeof parsed === 'object' ? (parsed.card || parsed) : {};
+  const orgnr = text(src.employerOrgnr, 20).replace(/\D/g, '');
+  return {
+    number: text(src.number, 40).replace(/\s+/g, ' '),
+    validTo: isoDate(src.validTo),
+    firstName: text(src.firstName, 80),
+    lastName: text(src.lastName, 80),
+    birthDate: isoDate(src.birthDate),
+    employerName: text(src.employerName, 120),
+    employerOrgnr: orgnr.length === 9 ? orgnr : '',
+  };
 }
 
 function text(value, max = 200) {
@@ -94,6 +130,14 @@ export function normalizeHmsCard(row = {}) {
     employerOrgnr: text(row.employerOrgnr, 20).replace(/\D/g, '').slice(0, 9),
     // Lenken fra QR-koden på kortet. Åpnes for å se status i registeret.
     qrUrl: /^https:\/\//i.test(text(row.qrUrl, 500)) ? text(row.qrUrl, 500) : '',
+    qrId: text(row.qrId, 120),
+    // Det som står på kortet, lest fra bildet eller skrevet inn.
+    holderName: text(row.holderName, 160),
+    birthDate: isoDate(row.birthDate),
+    employerName: text(row.employerName, 120),
+    // Hvor dataene kom fra: qr (skannet), photo (lest fra bilde) eller manual.
+    source: ['qr', 'photo', 'manual'].includes(row.source) ? row.source : '',
+    scannedAt: text(row.scannedAt, 40),
     updatedAt: text(row.updatedAt, 40) || new Date().toISOString(),
   };
 }
@@ -103,6 +147,39 @@ export function hmsCardFor(employeeId, cards) {
   const id = text(employeeId, 120);
   if (!id) return null;
   return (Array.isArray(cards) ? cards : []).find((row) => text(row?.employeeId, 120) === id) || null;
+}
+
+/**
+ * Kortene i HR slått sammen med dem de ansatte har registrert selv (hmsSelf.js).
+ * Ett kort per ansatt. Det sist oppdaterte vinner.
+ */
+export function mergeHmsCards(hrCards, selfCards) {
+  const byEmployee = new Map();
+  for (const raw of [...(Array.isArray(hrCards) ? hrCards : []), ...(Array.isArray(selfCards) ? selfCards : [])]) {
+    const card = normalizeHmsCard(raw);
+    if (!card.employeeId) continue;
+    const prev = byEmployee.get(card.employeeId);
+    if (!prev || String(card.updatedAt) > String(prev.updatedAt)) byEmployee.set(card.employeeId, card);
+  }
+  return [...byEmployee.values()];
+}
+
+/**
+ * Det som står på kortet, lagt på kortet som er lagret. Tomme felt i det som er lest,
+ * endrer ikke det som står fra før.
+ */
+export function applyHmsCardRead(card, read = {}) {
+  const name = [read.firstName, read.lastName].map((v) => text(v)).filter(Boolean).join(' ');
+  const pick = (next, prev) => (text(next) ? next : prev);
+  return {
+    ...(card || {}),
+    number: pick(read.number, card?.number || ''),
+    validTo: pick(read.validTo, card?.validTo || ''),
+    holderName: pick(name, card?.holderName || ''),
+    birthDate: pick(read.birthDate, card?.birthDate || ''),
+    employerName: pick(read.employerName, card?.employerName || ''),
+    employerOrgnr: pick(read.employerOrgnr, card?.employerOrgnr || ''),
+  };
 }
 
 /** Bytter ut kortet til den ansatte. Tomt kortnummer og tom dato fjerner kortet. */
@@ -121,7 +198,9 @@ export function upsertHmsCard(cards, card) {
 export function hmsCardStatus(card, today = '') {
   const now = isoDate(today) || new Date().toISOString().slice(0, 10);
   if (!card || !text(card.number) || !isoDate(card.validTo)) {
-    return { id: 'missing', label: card?.number ? 'Utløpsdato mangler' : 'Ikke registrert', daysLeft: null };
+    let label = 'Ikke registrert';
+    if (card?.number || card?.qrUrl) label = isoDate(card?.validTo) ? 'Kortnummer mangler' : 'Utløpsdato mangler';
+    return { id: 'missing', label, daysLeft: null };
   }
   const daysLeft = dayIndex(card.validTo) - dayIndex(now);
   if (daysLeft < 0) return { id: 'expired', label: `Utløpt ${nbDate(card.validTo)}`, daysLeft };

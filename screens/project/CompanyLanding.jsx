@@ -70,9 +70,9 @@ export default function CompanyLanding({ subView = '' } = {}) {
 const styles = StyleSheet.create({
   scroll: { flex: 1, alignSelf: 'stretch', width: '100%' },
   body: { flexGrow: 1, width: '100%', alignItems: 'flex-start' },
+  // Siden fyller bredden; CompanyPublicProfile fordeler modulene på flere kolonner når det er plass.
   sheet: {
     width: '100%',
-    maxWidth: 1180,
     alignSelf: 'flex-start',
     ...(Platform.OS === 'web' ? { marginLeft: 0, marginRight: 'auto' } : null),
   },

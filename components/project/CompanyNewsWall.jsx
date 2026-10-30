@@ -79,6 +79,14 @@ function postTime(ts) {
   }
 }
 
+function withoutLeadingTitle(body, title) {
+  const head = String(title || '').trim();
+  const text = String(body || '');
+  if (!head) return text;
+  const [first, ...rest] = text.split('\n');
+  return first.replace(/^#+\s*/, '').trim().toLowerCase() === head.toLowerCase() ? rest.join('\n').trim() : text;
+}
+
 function postDate(ts) {
   try {
     const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
@@ -363,6 +371,38 @@ export default function CompanyNewsWall({
     </Modal>
   );
 
+  // Sidespalten: de siste overskriftene med dato og bilde.
+  if (variant === 'list') {
+    const rows = shown.slice(0, 4);
+    if (!rows.length && hideWhenEmpty) return null;
+    return (
+      <View nativeID="company-news-list" style={styles.list}>
+        {header}
+        {rows.length ? rows.map((post) => {
+          const card = presentNewsPost(post);
+          return (
+            <TouchableOpacity
+              key={post.id}
+              onPress={() => onOpenPost?.(post)}
+              accessibilityRole="button"
+              style={[styles.listRow, { borderTopColor: colors.line }]}
+            >
+              {card.imageUrl ? <Image source={{ uri: card.imageUrl }} style={[styles.listImage, { backgroundColor: colors.sunken }]} /> : null}
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text style={[styles.listTitle, { color: colors.ink }]} numberOfLines={2}>{card.title}</Text>
+                <Text style={[styles.when, { color: colors.muted }]}>
+                  {[categoryLabel(card.category), postDate(post.createdAt)].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }) : (
+          <Text style={[styles.emptySub, { color: colors.muted }]}>Når bedriften publiserer nyheter, vises de her.</Text>
+        )}
+      </View>
+    );
+  }
+
   if (variant === 'cards') {
     if (!cards.length) {
       if (hideWhenEmpty) return null;
@@ -454,7 +494,10 @@ export default function CompanyNewsWall({
         const author = memberByUid[post.authorUid];
         const editingThis = editingPostId === post.id;
         const card = presentNewsPost(post);
-        const { text: displayBody, links: displayLinks } = splitBodyAndLinks(post.body || '', post.linkUrl);
+        const split = splitBodyAndLinks(post.body || '', post.linkUrl);
+        const displayLinks = split.links;
+        // Mange innlegg begynner med overskriften. Den står allerede over teksten.
+        const displayBody = withoutLeadingTitle(split.text, post.title);
         return (
           <View
             key={post.id}
@@ -572,8 +615,13 @@ const styles = StyleSheet.create({
   author: { fontSize: 14, fontWeight: '400' },
   when: { fontSize: 12 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  postTitle: { fontSize: 16, fontWeight: '600', lineHeight: 21 },
-  image: { width: '100%', height: 180, borderRadius: 10 },
+  // Samme størrelse som seksjonsoverskriftene på Tjenester; brødteksten (NewsBody) er 15/22 som der.
+  postTitle: { fontSize: 20, fontWeight: '600', lineHeight: 26, letterSpacing: -0.3 },
+  image: { width: '100%', aspectRatio: 16 / 9, maxHeight: 360, borderRadius: 10 },
+  list: { gap: 8 },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 },
+  listImage: { width: 64, height: 48, borderRadius: 8 },
+  listTitle: { fontSize: 14, fontWeight: '600', lineHeight: 19 },
   linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   linkBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,

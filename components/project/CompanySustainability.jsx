@@ -96,7 +96,62 @@ function Policy({ policy, colors }) {
   );
 }
 
+function Stat({ value, label, colors }) {
+  return (
+    <View style={[styles.stat, { backgroundColor: colors.card, borderColor: colors.line }]}>
+      <Text style={[type.h2, { color: colors.successInk || colors.success }]}>{value}</Text>
+      <Text style={[type.caption, { color: colors.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+/** Toppen av fanen: hva bedriften står for, og tallene fra ISO når de finnes. */
+function Intro({ name, lead, iso, colors }) {
+  const reached = iso ? iso.goals.filter((goal) => goal.reached).length : 0;
+  const stats = iso ? [
+    iso.certificates.length ? { key: 'cert', value: iso.certificates.length, label: iso.certificates.length === 1 ? 'gyldig sertifikat' : 'gyldige sertifikater' } : null,
+    iso.goals.length ? { key: 'goals', value: iso.goals.length, label: 'miljømål' } : null,
+    iso.goals.length ? { key: 'reached', value: reached, label: 'mål nådd' } : null,
+    iso.standards.length ? { key: 'std', value: iso.standards.length, label: iso.standards.length === 1 ? 'standard i styringssystemet' : 'standarder i styringssystemet' } : null,
+  ].filter(Boolean) : [];
+  return (
+    <View nativeID="company-sustainability-intro" style={[styles.intro, { backgroundColor: colors.successSoft || colors.sunken, borderColor: colors.line }]}>
+      <View style={styles.introTop}>
+        <View style={[styles.introIcon, { backgroundColor: colors.card }]}>
+          <Ionicons name="leaf" size={26} color={colors.success} />
+        </View>
+        <View style={styles.flex}>
+          <Text style={[type.label, styles.kicker, { color: colors.successInk || colors.success }]}>Bærekraft</Text>
+          <Text style={[type.h2, { color: colors.ink }]}>{name ? `Slik tar ${name} ansvar` : 'Slik tar vi ansvar'}</Text>
+          {lead ? <Text style={[styles.lead, { color: colors.ink }]}>{lead}</Text> : null}
+        </View>
+      </View>
+      <View style={styles.pillars}>
+        {PILLARS.map((row) => (
+          <View key={row.id} style={[styles.pillar, { backgroundColor: colors.card, borderColor: colors.line }]}>
+            <Ionicons name={row.icon} size={18} color={colors.success} />
+            <Text style={[type.bodyStrong, { color: colors.ink }]}>{row.title}</Text>
+          </View>
+        ))}
+      </View>
+      {stats.length ? (
+        <View style={styles.stats}>
+          {stats.map((row) => <Stat key={row.key} value={row.value} label={row.label} colors={colors} />)}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+// De tre områdene bærekraft handler om (ISO 14001, 45001 og samfunnsansvar). Ingen påstander om bedriften.
+const PILLARS = [
+  { id: 'miljo', icon: 'earth-outline', title: 'Miljø og klima' },
+  { id: 'mennesker', icon: 'people-outline', title: 'Arbeidsmiljø og sikkerhet' },
+  { id: 'samfunn', icon: 'business-outline', title: 'Samfunn og lokalmiljø' },
+];
+
 export default function CompanySustainability({
+  name = '',
   page,
   iso,
   editing,
@@ -182,9 +237,9 @@ export default function CompanySustainability({
           <PillButton label="Rediger" icon="pencil-outline" onPress={onEdit} colors={colors} />
         </View>
       ) : null}
+      {own ? <SectionHead colors={colors} title="Vårt arbeid" /> : null}
       {own ? <ArticleText text={own} colors={colors} /> : null}
-      {!own && fallback ? <Text style={[styles.lead, { color: colors.ink }]}>{fallback}</Text> : null}
-      {!own && !fallback && !hasIso ? (
+      {!own && (canEdit || (!fallback && !hasIso)) ? (
         <EmptyNote colors={colors}>
           {canEdit ? 'Skriv om bedriftens arbeid med miljø og samfunn under Rediger. Sertifikater, policy og miljømål fra ISO kommer med automatisk.' : 'Bedriften har ikke publisert noe om bærekraft ennå.'}
         </EmptyNote>
@@ -192,26 +247,43 @@ export default function CompanySustainability({
     </Card>
   );
 
+  // Kortet med egen tekst vises bare når det har noe å si; ellers bærer toppen siden.
+  const showOwn = editing || own || canEdit || (!fallback && !hasIso);
   return (
-    <View style={[styles.columns, wide && styles.columnsWide]}>
+    <View style={styles.page}>
+      {editing ? null : <Intro name={name} lead={fallback} iso={shownIso} colors={colors} />}
+      <View style={[styles.columns, wide && styles.columnsWide]}>
       <View style={styles.main}>
-        {ownCard}
+        {showOwn ? ownCard : null}
         {shownIso?.policy ? <Policy policy={shownIso.policy} colors={colors} /> : null}
         {news}
       </View>
       <View style={[styles.side, wide && styles.sideWide]}>{side}</View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  page: { gap: space.sm },
+  intro: { borderWidth: 1, borderRadius: radius.card, padding: space.lg, gap: space.md },
+  introTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  introIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  kicker: { textTransform: 'uppercase', letterSpacing: 0.6 },
+  pillars: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  pillar: {
+    flexDirection: 'row', alignItems: 'center', gap: space.xs, flexGrow: 1, flexBasis: 200,
+    borderWidth: 1, borderRadius: radius.control, paddingHorizontal: space.sm, paddingVertical: space.xs + 2,
+  },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  stat: { minWidth: 160, borderWidth: 1, borderRadius: radius.control, paddingHorizontal: space.md, paddingVertical: space.sm, gap: 2 },
   columns: { gap: space.sm },
   columnsWide: { flexDirection: 'row', alignItems: 'flex-start' },
   main: { flex: 1.45, gap: space.sm, minWidth: 0 },
   side: { gap: space.sm, minWidth: 0 },
   sideWide: { flex: 0.8, maxWidth: 380 },
   toolbar: { flexDirection: 'row', justifyContent: 'flex-end', gap: space.xs },
-  lead: { fontSize: type.body.fontSize + 2, lineHeight: 26 },
+  lead: { fontSize: type.body.fontSize + 1, lineHeight: 22 },
   line: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
   badge: { width: 32, height: 32, borderRadius: radius.control, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1, minWidth: 0, gap: 2 },

@@ -137,7 +137,8 @@ export default function CompanyStaff({
   const [arranging, setArranging] = useState(false);
   const [dragId, setDragId] = useState('');
   const [overId, setOverId] = useState('');
-  const count = gridColumns(width, { min: 170, gap: GAP, max: 4 });
+  // Kortene holder omtrent samme størrelse på alle skjermer (230–300 px); bred skjerm får flere i bredden.
+  const count = gridColumns(width, { min: 230, gap: GAP, max: 10 });
   const itemWidth = gridItemWidth(width, count, GAP);
   const list = Array.isArray(people) ? people : [];
   const showGrid = visible || canEdit;

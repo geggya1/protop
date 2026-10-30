@@ -107,7 +107,8 @@ export default function ArticleText({ text, colors, compact = false }) {
 
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
-  body: { fontSize: type.body.fontSize + 2, lineHeight: 26 },
+  // Samme brødtekst som Tjenester og nyhetene (15/22), så fanene på bedriftssiden leses likt.
+  body: { fontSize: type.body.fontSize + 1, lineHeight: 22 },
   bodyCompact: { fontSize: type.body.fontSize, lineHeight: 22 },
   bold: { fontWeight: '600' },
   italic: { fontStyle: 'italic' },

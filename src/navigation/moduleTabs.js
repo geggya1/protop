@@ -4,7 +4,7 @@
  * Alle moduler har samme meny (også HR og Anbud): fanene som får plass, og resten under «Mer» (UX-19).
  */
 import {
-  ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultIsoSubView, defaultMoterSubView,
+  COMPANY_DRAWER_GROUPS, ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultIsoSubView, defaultMoterSubView,
   isNavItemActive,
 } from './shellModules.js';
 
@@ -93,7 +93,7 @@ export function moduleTabsFor(tab, subView, items = null) {
   const list = items || companyNavItems({ includeUnderenheter: true });
   const sub = DEFAULT_SUB[tab] ? DEFAULT_SUB[tab](subView) : (subView || null);
   const module = list.find((item) => !item.locked && (item.children || []).length && isNavItemActive(item, tab, sub));
-  if (!module) return null;
+  if (!module) return groupTabsFor(list, tab);
   let pages = module.children.filter((p) => !p.locked && p.action?.type === 'tab');
   // Modulens egen side først når den ikke er en av undersidene (Selskapsinnstillinger → Generelt).
   if (module.action?.type === 'tab' && !pages.some((p) => sameAction(p.action, module.action))) {
@@ -105,6 +105,23 @@ export function moduleTabsFor(tab, subView, items = null) {
   const out = { moduleId: module.id, label: module.label, pages, activeId: active?.id || null };
   if (module.id === 'iso') Object.assign(out, { groups: isoGroups(pages) }, isoSections(pages, active));
   return out;
+}
+
+/**
+ * Grupper med `tabs` (Kunder og oppdrag): sidene i gruppen står som faner seg imellom,
+ * så også sider uten undersider har meny under båndet. Sider med egne undersider hører ikke med.
+ */
+function groupTabsFor(list, tab) {
+  for (const group of COMPANY_DRAWER_GROUPS) {
+    if (!group.tabs) continue;
+    const pages = group.itemIds
+      .map((id) => list.find((item) => item.id === id))
+      .filter((item) => item && !item.locked && item.action?.type === 'tab' && !(item.children || []).length);
+    const active = pages.find((page) => page.action.tab === tab);
+    if (!active || pages.length < 2) continue;
+    return { moduleId: group.id, label: group.label, pages, activeId: active.id };
+  }
+  return null;
 }
 
 /** Omtrentlig bredde på en fane: 14 px tekst (≈ 7,2 px per tegn) og 12 px luft på hver side. */

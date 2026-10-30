@@ -16,7 +16,7 @@ import { useLayout } from '../../src/theme';
 import BackLink from '../../src/ui/BackLink';
 import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
 import { radius, space, type } from '../../src/ui/tokens';
-import ModuleTabs from '../../components/ModuleTabs';
+import PageTabs from '../../components/PageTabs';
 import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
 
 export { EMPLOYEE_DETAIL_TABS, employeeViewToTab };
@@ -63,17 +63,7 @@ export default function EmployeePersonChrome({
   const pickable = people || siblings;
   const canSwitch = !!onSelect && pickable.length > 1;
 
-  const menu = useMemo(() => ({
-    moduleId: 'employee',
-    label: name || 'Medarbeider',
-    pages: tabs.map((tab) => ({
-      id: `employee-${tab.id}`,
-      label: tab.label,
-      short: SHORT[tab.id],
-      action: { tab: 'employee', subView: tab.id },
-    })),
-    activeId: `employee-${activeTab}`,
-  }), [tabs, activeTab, name]);
+  const pageTabs = useMemo(() => tabs.map((tab) => ({ ...tab, short: SHORT[tab.id] })), [tabs]);
 
   useEffect(() => {
     if (!pickerOpen || Platform.OS !== 'web') return undefined;
@@ -88,7 +78,7 @@ export default function EmployeePersonChrome({
 
   return (
     <View nativeID="employee-person-chrome" style={styles.root}>
-      <ModuleTabs menu={menu} onSelect={(_, tabId) => onTab?.(tabId)} />
+      <PageTabs id="employee" label={name || 'Medarbeider'} tabs={pageTabs} value={activeTab} onChange={onTab} />
 
       <View style={[styles.body, isPhone && styles.bodyPhone]}>
         <View style={styles.identity}>

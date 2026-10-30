@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { CompanyAccessDenied } from '../../components/project/CompanyAccessSettings';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { activeEmployees, activeProjects, addDays, emptyPlan, planActivityFrom, toDateKey } from '../../src/capacity/plan';
@@ -17,7 +17,13 @@ import {
 } from '../../src/project/storage';
 import { myProjectIds } from '../../src/project/myProjects';
 import { showSaveToast } from '../../src/ui/saveToast';
+import PageTabs from '../../components/PageTabs';
 import ProductivityBoard from './ProductivityBoard';
+
+const VIEWS = [
+  { id: 'people', label: 'Personer' },
+  { id: 'sum', label: 'Sammenslått' },
+];
 
 function ownEmployee(rows, user) {
   const uid = String(user?.uid || '');
@@ -46,6 +52,7 @@ export default function ProductivityScreen() {
   const [loaded, setLoaded] = useState({ plan: false, base: false, absences: false });
   const [loadingHours, setLoadingHours] = useState(false);
   const ready = loaded.plan && loaded.base && loaded.absences;
+  const [view, setView] = useState('people');
   const echo = useRef(true);
   const familyRef = useRef(familyId);
   familyRef.current = familyId;
@@ -175,8 +182,10 @@ export default function ProductivityScreen() {
   }
 
   return (
+    <View style={[styles.scroll, { backgroundColor: colors.bg }]}>
+    <PageTabs id="produktivitet" label="Produktivitet" tabs={VIEWS} value={view} onChange={setView} />
     <ScrollView
-      style={[styles.scroll, { backgroundColor: colors.bg }]}
+      style={styles.scroll}
       contentContainerStyle={styles.content}
       nativeID="produktivitet-screen"
     >
@@ -193,9 +202,11 @@ export default function ProductivityScreen() {
           loadingHours={loadingHours}
           canWrite={canWrite && (!access.active || access.ready)}
           onPlan={setPlan}
+          view={view}
         />
       ) : null}
     </ScrollView>
+    </View>
   );
 }
 

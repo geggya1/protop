@@ -594,6 +594,8 @@ export const COMPANY_DRAWER_GROUPS = [
     icon: 'briefcase',
     itemIds: ['kunder', 'kontrakt', 'projects'],
     processOrder: true,
+    // Sidene har ingen undersider. De står som faner seg imellom, så sidene har samme meny som HR.
+    tabs: true,
   },
   {
     id: 'company-meetings',

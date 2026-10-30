@@ -15,6 +15,7 @@ import {
 import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { useShellWide } from '../../components/ModuleAside';
 import OptionPicker from '../../components/OptionPicker';
+import PageTabs from '../../components/PageTabs';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
@@ -127,6 +128,12 @@ function CarOdometer({ car, trips, colors, onSave }) {
     </View>
   );
 }
+
+const TABS = [
+  { id: 'bedrift', label: 'Bedrift' },
+  { id: 'privat', label: 'Privat' },
+  { id: 'kalender', label: 'Kalender' },
+];
 
 function Chip({ label, active, onPress, colors, nativeID }) {
   return (
@@ -576,14 +583,20 @@ export default function EquipmentScreen() {
     ? { style: [styles.wrap, styles.wrapFill, { backgroundColor: colors.bg }] }
     : { style: [styles.wrap, { backgroundColor: colors.bg }], contentContainerStyle: { padding: 16, gap: 12 }, keyboardShouldPersistTaps: 'handled' };
 
+  const pickTab = (next) => {
+    setTab(next);
+    closeForm();
+    if (next === 'kalender') setToolsOpen(false);
+    else setQuery('');
+  };
+
   return (
+    <View style={[styles.wrap, { backgroundColor: colors.bg }]}>
+      {hostedHero ? null : <Text style={[styles.title, styles.titleOwn, { color: colors.ink }]}>Utstyr</Text>}
+      <PageTabs id="equipment" label="Utstyr" tabs={TABS} value={formOpen ? null : tab} onChange={pickTab} />
     <Body {...bodyProps}>
-      {hostedHero ? null : <Text style={[styles.title, { color: colors.ink }]}>Utstyr</Text>}
-      <View style={styles.row}>
-        <Chip nativeID="equipment-tab-bedrift" label="Bedrift" active={tab === 'bedrift' && !formOpen} onPress={() => { setTab('bedrift'); closeForm(); setQuery(''); }} colors={colors} />
-        <Chip nativeID="equipment-tab-privat" label="Privat" active={tab === 'privat' && !formOpen} onPress={() => { setTab('privat'); closeForm(); setQuery(''); }} colors={colors} />
-        <Chip nativeID="equipment-tab-kalender" label="Kalender" active={tab === 'kalender' && !formOpen} onPress={() => { setTab('kalender'); closeForm(); setToolsOpen(false); }} colors={colors} />
-        {phoneTools ? (
+      {phoneTools ? (
+        <View style={styles.row}>
           <TouchableOpacity
             onPress={() => setToolsOpen((open) => !open)}
             accessibilityRole="button"
@@ -594,8 +607,8 @@ export default function EquipmentScreen() {
           >
             <Ionicons name="settings-outline" size={18} color={colors.ink} />
           </TouchableOpacity>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
       {phoneTools && toolsOpen ? (
         <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="equipment-tools-menu">
           <TouchableOpacity
@@ -956,6 +969,7 @@ export default function EquipmentScreen() {
       ) : null}
 
     </Body>
+    </View>
   );
 }
 
@@ -967,6 +981,7 @@ const styles = StyleSheet.create({
   wrapFill: { padding: 16, gap: 12, minHeight: 0 },
   calendarFrame: { flex: 1, minHeight: 480, borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
   title: { fontSize: 22, fontWeight: '700' },
+  titleOwn: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   card: { borderWidth: 1, borderRadius: 10, padding: 14, gap: 6 },

@@ -40,9 +40,19 @@ test('modulmeny: Økonomi, Arbeid, Fravær, Produkt og Selskapsinnstillinger', (
 
 test('modulmeny: ingen meny der modulen ikke har undersider', () => {
   assert.equal(moduleTabsFor('selskap', null), null);
-  assert.equal(moduleTabsFor('kunder', null), null);
   assert.equal(moduleTabsFor('arbeid', 'produktivitet'), null);
   assert.equal(moduleTabsFor('home', null), null);
+});
+
+test('modulmeny: Kunder, Kontrakter og Prosjekt står som faner seg imellom', () => {
+  for (const [tab, active] of [['kunder', 'kunder'], ['kontrakt', 'kontrakt'], ['projects', 'projects']]) {
+    const m = moduleTabsFor(tab, null);
+    assert.equal(m.moduleId, 'company-customers');
+    assert.equal(m.activeId, active);
+    assert.deepEqual(m.pages.map((p) => p.label), ['Kunder', 'Kontrakter', 'Prosjekt']);
+  }
+  const items = companyMenuItems({ grants: { customers: 'read', companyPublic: 'read' } });
+  assert.equal(moduleTabsFor('kunder', null, items)?.pages.some((p) => p.id === 'projects') ?? false, false, 'bare sidene du har tilgang til');
 });
 
 test('modulmeny: HR og Anbud bruker samme meny som de andre modulene (UX-19)', () => {

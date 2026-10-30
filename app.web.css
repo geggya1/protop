@@ -250,14 +250,6 @@ textarea[data-meeting-input="notes"] { font-size: 15px !important; line-height: 
   width: auto !important;
 }
 
-/* Aktivt skilleark på en person skal synes selv om bedriftssiden tvinger vanlig vekt. */
-#employee-detail-tabs [data-employee-tab="active"],
-#employee-detail-tabs [data-employee-tab="active"] * {
-  color: var(--wp-c-brand) !important;
-  font-weight: 600 !important;
-  font-variation-settings: 'wght' 600 !important;
-}
-
 /*
  * iOS Safari zoomer automatisk inn når <input>/<textarea> har font-size < 16px.
  * RN Web setter fontSize via inline style, så vi må bruke !important.

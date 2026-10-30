@@ -59,6 +59,7 @@ import { useApp } from '../../src/context/AppContext';
 import FormStudio from './FormStudio';
 import FormFill, { FilledStatusIcon } from './FormFill';
 import { useFormContext } from './useFormContext';
+import PageTabs from '../../components/PageTabs';
 import CreateMenu from '../../components/CreateMenu';
 import BrandBusyOverlay from '../../components/BrandBusyOverlay';
 import { useDocControl } from '../doccontrol/useDocControl';
@@ -640,8 +641,13 @@ export default function FormBuilderScreen({
     .map((group) => ({ ...group, entries: group.entries.filter((row) => libraryHits.has(row.key)) }))
     .filter((group) => group.entries.length);
 
+  // Tallene står i fanen, som «Tilbud (2)» i Anbud.
+  const counts = { utfylt: ownFilled.length, maler: templates.length, styring: myApprovals };
+  const tabs = TABS.map((item) => ({ ...item, label: counts[item.id] ? `${item.label} (${counts[item.id]})` : item.label }));
+
   return (
     <>
+      <PageTabs id="skjema" label="Skjemabygger" tabs={tabs} value={tab} onChange={setTab} />
       <ScrollView style={fill ? { flex: 1 } : undefined} contentContainerStyle={styles.list}>
         <CreateMenu
           label="Nytt skjema"
@@ -652,24 +658,6 @@ export default function FormBuilderScreen({
             { id: 'import', label: reading ? 'Leser …' : 'Last opp fil', hint: 'PDF, Word, bilde eller tekst fra maskinen. Samme lesing, uten kamera.', onPress: () => readDocument('import'), disabled: busy || reading },
           ]}
         />
-        <View style={styles.tabs}>
-          {TABS.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => setTab(item.id)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: tab === item.id }}
-              style={[styles.tab, { backgroundColor: tab === item.id ? colors.brand : colors.sunken }]}
-            >
-              <Text style={{ color: tab === item.id ? '#fff' : colors.ink, fontWeight: '600' }}>
-                {item.label}
-                {item.id === 'utfylt' && ownFilled.length ? ` (${ownFilled.length})` : ''}
-                {item.id === 'maler' && templates.length ? ` (${templates.length})` : ''}
-                {item.id === 'styring' && myApprovals ? ` (${myApprovals})` : ''}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
         {tab !== 'styring' ? (
         <TextInput
           value={query}
@@ -836,8 +824,6 @@ export default function FormBuilderScreen({
 const styles = StyleSheet.create({
   list: { gap: 12, padding: 12, paddingBottom: 32 },
   kicker: { fontSize: 11, fontWeight: '600', letterSpacing: 0.4, textTransform: 'uppercase' },
-  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tab: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   card: { borderWidth: 1, borderRadius: 16, padding: 12, gap: 8 },
   filledRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

@@ -224,7 +224,7 @@ export default function ProductivityBoard({
   onPlan,
   initialOpenId = '',
   initialSelectedId = '',
-  initialView = 'people',
+  view = 'people',
   initialKind = 'staff',
   fullDayHours = 8,
   loadingHours = false,
@@ -233,7 +233,6 @@ export default function ProductivityBoard({
   const labelW = labelColumnWidth(screenWidth);
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState(initialKind);
-  const [view, setView] = useState(initialView);
   const [horizon, setHorizon] = useState(26);
   const [origin, setOrigin] = useState(() => weekKeys(new Date(), 1)[0]);
   const [openId, setOpenId] = useState(initialOpenId);
@@ -652,24 +651,6 @@ export default function ProductivityBoard({
   return (
     <View style={styles.page} nativeID="produktivitet-board">
       <View style={styles.toolbar}>
-        <View style={[styles.segment, { backgroundColor: colors.sunken || colors.bg, borderColor: colors.line }]}>
-          {[
-            { id: 'people', label: 'Personer' },
-            { id: 'sum', label: 'Sammenslått' },
-          ].map((row) => {
-            const on = view === row.id;
-            return (
-              <Pressable
-                key={row.id}
-                onPress={() => setView(row.id)}
-                style={[styles.segmentBtn, on && { backgroundColor: colors.card }]}
-                nativeID={`produktivitet-view-${row.id}`}
-              >
-                <Text style={{ color: on ? colors.ink : colors.muted, fontWeight: '600' }}>{row.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
         <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.card }]}>
           <Ionicons name="search" size={16} color={colors.muted} />
           <TextInput
@@ -1437,8 +1418,6 @@ function monthBands(weeks) {
 const styles = StyleSheet.create({
   page: { gap: 12 },
   toolbar: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center' },
-  segment: { flexDirection: 'row', borderWidth: 1, borderRadius: 12, padding: 3, gap: 2 },
-  segmentBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 9 },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, paddingHorizontal: 10, minWidth: 220, flexGrow: 1 },
   searchInput: { flex: 1, paddingVertical: 8, fontSize: 15 },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

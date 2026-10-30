@@ -127,6 +127,7 @@ export const FILES = [
   'src/shell/standaloneViewport.test.mjs',
   'src/shell/pwaNavigation.test.mjs',
   'src/hr/model.test.mjs',
+  'src/hr/recruitment.test.mjs',
   'src/hr/followUpTask.test.mjs',
   'src/hr/directory.test.mjs',
   'src/hr/directoryRender.test.mjs',

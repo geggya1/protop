@@ -112,6 +112,6 @@ test('HR kjører lagringstiden når noen med Admin på HR åpner HR', () => {
   const settings = readFileSync(new URL('../../components/company/CompanyPrivacySettings.jsx', import.meta.url), 'utf8');
   assert.match(settings, /nativeID="company-retention"/);
   assert.match(settings, /withCompanyRetention\(company, key, value\)/);
-  const recruitment = readFileSync(new URL('../../screens/hr/HrRecruitment.jsx', import.meta.url), 'utf8');
+  const recruitment = readFileSync(new URL('../../screens/hr/RecruitmentBoard.jsx', import.meta.url), 'utf8');
   assert.match(recruitment, /deleteCountdownLabel\(applicationDeleteOn\(app, retention\)\)/);
 });

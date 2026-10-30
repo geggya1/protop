@@ -12,6 +12,7 @@ import {
   sanitizeOcrRows,
 } from '../src/imports/interpret.js';
 import { hmsCardPrompt, sanitizeHmsCardRead } from '../src/hr/hmsCard.js';
+import { applicationPrompt, sanitizeApplicationRead } from '../src/hr/applicationRead.js';
 import { extractCvPictures, withCvPictures } from './cvPictures.js';
 import { CV_PDF_CHARS, extractPdfLines } from './documentText.js';
 import { pagePartsFromPdf } from './importPages.js';
@@ -148,7 +149,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   const uid = auth?.uid;
   if (!uid) throw new Error('Ikke innlogget');
   const familyId = clean(data?.familyId, 80);
-  const kinds = ['hmsCard', 'employees', 'cv', 'invoices', 'hours'];
+  const kinds = ['hmsCard', 'application', 'employees', 'cv', 'invoices', 'hours'];
   const kind = kinds.includes(data?.kind) ? data.kind : 'customers';
   const mode = data?.mode === 'ocr' ? 'ocr' : 'columns';
   if (!familyId) throw new Error('Åpne selskapet før du importerer.');
@@ -171,6 +172,32 @@ export async function handleInterpretImport(data, auth, deps = {}) {
         perModelTimeoutMs: 30000,
       });
       return { card: sanitizeHmsCardRead(parsed), engine: 'gemini' };
+    }
+    // Søknad eller CV til en stilling: kontaktinfo, kort profil og vurdering mot kravene.
+    if (kind === 'application') {
+      const prose = String(data?.text || '').replace(/\r\n/g, '\n').trim().slice(0, CV_PDF_CHARS);
+      const job = data?.job && typeof data.job === 'object' ? data.job : {};
+      let parts;
+      let sourceText = prose;
+      let usedOcr = false;
+      if (prose.length >= 40) {
+        parts = [{ text: `Søknadstekst:\n${prose}` }];
+      } else {
+        const document = await (deps.documentParts || documentParts)(data, { maxImages: 4, intro: 'Les søknaden.' });
+        parts = document.parts;
+        sourceText = document.text || '';
+        usedOcr = document.usedOcr;
+      }
+      const parsed = await call(apiKey, applicationPrompt({
+        title: clean(job.title, 160),
+        requirements: String(job.requirements || '').slice(0, 3000),
+        description: String(job.description || '').slice(0, 2000),
+      }), parts, {
+        maxOutputTokens: 4096,
+        perModelTimeoutMs: 45000,
+        models: CV_MODELS,
+      });
+      return { ...sanitizeApplicationRead(parsed, sourceText), engine: usedOcr ? 'ocr+gemini' : 'gemini' };
     }
     if (kind === 'cv') {
       const prose = String(data?.text || '').replace(/\r\n/g, '\n').trim().slice(0, CV_PDF_CHARS);

@@ -49,6 +49,8 @@ export async function askImportInterpret(payload) {
     mode: payload?.mode || 'columns',
     filename: payload?.filename || '',
   };
+  // Stillingen søknaden vurderes mot (kind application).
+  if (payload?.job && typeof payload.job === 'object') body.job = payload.job;
   if (payload?.text) {
     body.mode = 'ocr';
     body.text = String(payload.text).slice(0, 200_000);

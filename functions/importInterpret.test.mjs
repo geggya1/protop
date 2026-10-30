@@ -97,6 +97,31 @@ assert.deepEqual(hms.card, {
   employerOrgnr: '916538804',
 });
 
+// Søknad til en stilling: kontaktinfo, profil og vurdering mot kravene.
+const application = await handleInterpretImport({
+  familyId: 'fam',
+  kind: 'application',
+  mode: 'ocr',
+  filename: 'soknad.docx',
+  text: 'Kari Nordmann\nE-post: kari@example.no\nTelefon: 412 34 567\nIngeniør med ti års erfaring fra bygg.',
+  job: { title: 'Prosjektleder', requirements: 'Ingeniør\nErfaring fra bygg' },
+}, { uid: 'user' }, {
+  ...deps,
+  documentParts: async () => { throw new Error('tekst skal ikke til OCR'); },
+  callGeminiJson: async (_key, prompt, parts) => {
+    assert.match(prompt, /Stilling: Prosjektleder/);
+    assert.match(prompt, /Erfaring fra bygg/);
+    assert.match(parts[0].text, /Kari Nordmann/);
+    return { name: 'Kari Nordmann', headline: 'Ingeniør', match: 8, strengths: ['Ti års erfaring'], skills: ['Bygg'] };
+  },
+});
+assert.equal(application.candidate.name, 'Kari Nordmann');
+assert.equal(application.candidate.email, 'kari@example.no', 'e-post fra teksten når modellen ikke ga den');
+assert.equal(application.candidate.phone, '412 34 567');
+assert.equal(application.assessment.match, 8);
+assert.deepEqual(application.profile.skills, ['Bygg']);
+assert.equal(application.engine, 'gemini');
+
 const cv = await handleInterpretImport({
   familyId: 'fam',
   kind: 'cv',

@@ -118,9 +118,9 @@ export const PROTOP_PROCESSES = {
     keywords: ['ny ansatt', 'onboarding', 'invitere', 'tilgang', 'arbeidsavtale', 'rekruttering'],
     steps: [
       flowStep('hr.rekruttering', tx('Ansett søkeren', 'Hire the applicant'),
-        'Kommer personen fra rekruttering, trykk «Ansett (vunnet)» på søknaden.',
-        'If the person comes from recruitment, tap “Hire (won)” on the application.',
-        { find: ['Ansett (vunnet)', 'Publiser annonse'] }),
+        'Kommer personen fra rekruttering, åpne søknaden og trykk «Ansett».',
+        'If the person comes from recruitment, open the application and tap “Hire”.',
+        { find: ['Ansett', 'Ny stilling'] }),
       flowStep('ansatte', tx('Registrer og inviter', 'Register and invite'),
         '«Ny ansatt»: navn, e-post, avdeling og nivå. Huk av «Send velkomstmal» for invitasjon.',
         '“New employee”: name, email, department and level. Tick “Send welcome template” to invite.',

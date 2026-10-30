@@ -87,8 +87,10 @@ import {
   const moved = moveApplicationBoard(neu, 'processing');
   assert.equal(moved.board, 'processing');
   assert.equal(moved.outcome, 'pending');
+  // Ferdigbehandlet uten utfall venter på svar på tilbudet.
   const awaiting = moveApplicationBoard(moved, 'completed');
-  assert.equal(awaiting.board, 'completed');
+  assert.equal(awaiting.stage, 'offer');
+  assert.equal(awaiting.board, 'processing');
   assert.equal(awaiting.outcome, 'pending');
   const won = moveApplicationBoard(moved, 'completed', 'hired');
   assert.equal(won.outcome, 'hired');

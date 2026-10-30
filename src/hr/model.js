@@ -49,7 +49,10 @@ export const JOB_STATUSES = [
   { id: 'closed', label: 'Lukket' },
 ];
 
-/** Tre ATS-kolonner (brukerkrav) + utfall. */
+/**
+ * Tre grove kolonner (mottatt → behandling → ferdig) + utfall. Avledes av steget (stage),
+ * og brukes av oversikten, dashbordet og lagringstiden.
+ */
 export const APPLICATION_BOARD = [
   { id: 'received', label: 'Søknad mottatt', order: 1 },
   { id: 'processing', label: 'Til behandling', order: 2 },
@@ -62,15 +65,29 @@ export const APPLICATION_OUTCOMES = [
   { id: 'rejected', label: 'Avslått' },
 ];
 
-/** Bakoverkompatibilitet med v1-stadier. */
+/**
+ * Stegene i rekrutteringen. Søknaden står i ett steg om gangen.
+ * Avsluttede steg (closed) har utfall: ansatt, eller avslått/trukket/takket nei (slettes etter lagringstiden).
+ */
 export const APPLICATION_STAGES = [
-  { id: 'new', label: 'Ny', order: 1, board: 'received' },
-  { id: 'screening', label: 'Screening', order: 2, board: 'processing' },
+  { id: 'new', label: 'Mottatt', order: 1, board: 'received' },
+  { id: 'screening', label: 'Til vurdering', order: 2, board: 'processing' },
   { id: 'interview', label: 'Intervju', order: 3, board: 'processing' },
-  { id: 'offer', label: 'Tilbud', order: 4, board: 'processing' },
-  { id: 'hired', label: 'Ansatt', order: 5, board: 'completed', outcome: 'hired' },
-  { id: 'rejected', label: 'Avslått', order: 6, board: 'completed', outcome: 'rejected' },
-  { id: 'withdrawn', label: 'Trukket', order: 7, board: 'completed', outcome: 'rejected' },
+  { id: 'references', label: 'Referansesjekk', order: 4, board: 'processing' },
+  { id: 'offer', label: 'Tilbud sendt', order: 5, board: 'processing' },
+  { id: 'hired', label: 'Ansatt', order: 6, board: 'completed', outcome: 'hired', closed: true },
+  { id: 'rejected', label: 'Avslått', order: 7, board: 'completed', outcome: 'rejected', closed: true },
+  { id: 'withdrawn', label: 'Trukket av søker', order: 8, board: 'completed', outcome: 'rejected', closed: true },
+  { id: 'declined', label: 'Takket nei til tilbud', order: 9, board: 'completed', outcome: 'rejected', closed: true },
+];
+
+/** Poeng 1–5 per kriterium. Hver vurderer fyller sitt eget scorekort. */
+export const RECRUITMENT_CRITERIA = [
+  { id: 'competence', label: 'Faglig kompetanse' },
+  { id: 'experience', label: 'Relevant erfaring' },
+  { id: 'fit', label: 'Personlig egnethet' },
+  { id: 'motivation', label: 'Motivasjon' },
+  { id: 'communication', label: 'Kommunikasjon og språk' },
 ];
 
 export const SALARY_KINDS = [
@@ -320,38 +337,148 @@ export function normalizeJob(row = {}) {
     description: text(row.description),
     requirements: text(row.requirements),
     headcount: Math.max(1, Math.round(num(row.headcount, 1))),
+    // Ansvarlig for stillingen (rekrutteringsansvarlig).
+    ownerUid: text(row.ownerUid),
+    ownerName: text(row.ownerName),
     attachments: normalizeList(row.attachments, normalizeAttachment),
     createdAt: text(row.createdAt) || new Date().toISOString(),
     updatedAt: text(row.updatedAt) || new Date().toISOString(),
   };
 }
 
-function migrateBoard(stage, board, outcome) {
-  if (APPLICATION_BOARD.some((b) => b.id === board)) {
-    return {
-      board,
-      outcome: APPLICATION_OUTCOMES.some((o) => o.id === outcome) ? outcome : 'pending',
-    };
+/** Eldre søknader har bare kolonne (board) og utfall. Finn steget fra dem. */
+function stageFromBoard(board, outcome) {
+  if (board === 'completed') {
+    if (outcome === 'hired') return 'hired';
+    if (outcome === 'rejected') return 'rejected';
+    return 'offer';
   }
-  const hit = APPLICATION_STAGES.find((s) => s.id === stage);
-  if (hit) {
-    return {
-      board: hit.board || 'received',
-      outcome: hit.outcome || (stage === 'hired' ? 'hired' : stage === 'rejected' || stage === 'withdrawn' ? 'rejected' : 'pending'),
-    };
+  if (board === 'processing') return 'screening';
+  return 'new';
+}
+
+function stageDef(id) {
+  return APPLICATION_STAGES.find((row) => row.id === id) || APPLICATION_STAGES[0];
+}
+
+function cleanList(value, max, len = 200) {
+  return (Array.isArray(value) ? value : [])
+    .map((item) => text(item).slice(0, len))
+    .filter(Boolean)
+    .slice(0, max);
+}
+
+function normalizeRatings(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const criterion of RECRUITMENT_CRITERIA) {
+    const n = Math.round(num(raw[criterion.id], 0));
+    if (n >= 1 && n <= 5) out[criterion.id] = n;
   }
-  return { board: 'received', outcome: 'pending' };
+  return out;
+}
+
+function normalizeScorecard(row = {}) {
+  if (!row || typeof row !== 'object') return null;
+  const ratings = normalizeRatings(row.ratings);
+  const comment = text(row.comment).slice(0, 2000);
+  const recommendation = ['yes', 'maybe', 'no'].includes(row.recommendation) ? row.recommendation : '';
+  if (!Object.keys(ratings).length && !comment && !recommendation) return null;
+  return {
+    byUid: text(row.byUid),
+    byName: text(row.byName) || 'Ukjent',
+    at: text(row.at) || new Date().toISOString(),
+    ratings,
+    comment,
+    recommendation,
+  };
+}
+
+function normalizeComment(row = {}) {
+  if (!row || typeof row !== 'object' || !text(row.text)) return null;
+  return {
+    id: text(row.id) || newId('hrnote'),
+    at: text(row.at) || new Date().toISOString(),
+    byUid: text(row.byUid),
+    byName: text(row.byName),
+    text: text(row.text).slice(0, 2000),
+  };
+}
+
+function normalizeHistoryEvent(row = {}) {
+  if (!row || typeof row !== 'object' || !text(row.action)) return null;
+  return {
+    id: text(row.id) || newId('hrev'),
+    at: text(row.at) || new Date().toISOString(),
+    byUid: text(row.byUid),
+    byName: text(row.byName),
+    action: text(row.action),
+    from: text(row.from),
+    to: text(row.to),
+    text: text(row.text).slice(0, 500),
+  };
+}
+
+function normalizeProfile(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const years = num(raw.yearsExperience, NaN);
+  const profile = {
+    headline: text(raw.headline).slice(0, 160),
+    summary: text(raw.summary).slice(0, 800),
+    yearsExperience: Number.isFinite(years) && years > 0 ? Math.round(years) : null,
+    education: cleanList(raw.education, 6, 160),
+    experience: cleanList(raw.experience, 8, 160),
+    skills: cleanList(raw.skills, 12, 60),
+    languages: cleanList(raw.languages, 6, 40),
+    certifications: cleanList(raw.certifications, 8, 120),
+  };
+  const filled = profile.headline || profile.summary || profile.yearsExperience
+    || profile.education.length || profile.experience.length || profile.skills.length;
+  return filled ? profile : null;
+}
+
+function normalizeAiAssessment(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const match = raw.match == null || raw.match === '' ? null : num(raw.match, NaN);
+  const out = {
+    match: Number.isFinite(match) ? Math.max(0, Math.min(10, match)) : null,
+    strengths: cleanList(raw.strengths, 6),
+    gaps: cleanList(raw.gaps, 6),
+    summary: text(raw.summary).slice(0, 600),
+    engine: text(raw.engine),
+    at: text(raw.at),
+  };
+  return out.match != null || out.strengths.length || out.gaps.length || out.summary ? out : null;
+}
+
+/** Snitt av alle scorekort (1–5) og samme tall på skala 0–10. */
+export function applicationScorecardAverage(scorecards) {
+  const values = [];
+  for (const card of scorecards || []) {
+    for (const value of Object.values(card?.ratings || {})) {
+      const n = Number(value);
+      if (n >= 1 && n <= 5) values.push(n);
+    }
+  }
+  if (!values.length) return { avg: null, score: null, count: 0 };
+  const avg = values.reduce((sum, n) => sum + n, 0) / values.length;
+  return {
+    avg: Math.round(avg * 10) / 10,
+    score: Math.round(avg * 2 * 10) / 10,
+    count: (scorecards || []).filter((card) => Object.keys(card?.ratings || {}).length).length,
+  };
 }
 
 export function normalizeApplication(row = {}) {
-  const stage = text(row.stage) || 'new';
-  const migrated = migrateBoard(stage, text(row.board), text(row.outcome));
-  let stageOut = stage;
-  if (migrated.outcome === 'hired') stageOut = 'hired';
-  else if (migrated.outcome === 'rejected') stageOut = 'rejected';
-  else if (migrated.board === 'received') stageOut = 'new';
-  else if (migrated.board === 'processing') stageOut = stage === 'new' ? 'screening' : stage;
-  else stageOut = stageOut || 'screening';
+  const rawStage = text(row.stage);
+  const stage = APPLICATION_STAGES.some((s) => s.id === rawStage)
+    ? rawStage
+    : stageFromBoard(text(row.board), text(row.outcome));
+  const def = stageDef(stage);
+  const board = def.board;
+  const outcome = def.outcome || 'pending';
+  const scorecards = normalizeList(row.scorecards, normalizeScorecard).slice(-12);
+  const fromCards = applicationScorecardAverage(scorecards);
 
   return {
     id: text(row.id) || newId('hrapp'),
@@ -359,19 +486,44 @@ export function normalizeApplication(row = {}) {
     name: text(row.name) || 'Søker',
     email: text(row.email).toLowerCase(),
     phone: text(row.phone),
-    board: migrated.board,
-    outcome: migrated.outcome,
-    stage: stageOut,
-    score: Math.min(10, Math.max(0, num(row.score, 0))),
+    location: text(row.location),
+    board,
+    outcome,
+    stage,
+    // Score 0–10: snittet av scorekortene når de finnes, ellers tallet som ble satt for hånd.
+    score: fromCards.score != null ? fromCards.score : Math.min(10, Math.max(0, num(row.score, 0))),
+    scorecards,
     evaluation: text(row.evaluation),
     response: text(row.response),
     rejectReason: text(row.rejectReason),
     notes: text(row.notes),
+    // HR lagres i ett dokument (maks 1 MB). Notater og historikk holdes derfor korte per søknad.
+    comments: normalizeList(row.comments, normalizeComment).slice(-60),
+    history: normalizeList(row.history, normalizeHistoryEvent).slice(-60),
     source: text(row.source),
     appliedAt: normalizeIsoDate(row.appliedAt) || localIsoDate(),
     attachments: normalizeList(row.attachments, normalizeAttachment),
+    // Ansvarlig for søkeren (følger opp, svarer og flytter videre).
+    ownerUid: text(row.ownerUid),
+    ownerName: text(row.ownerName),
+    // Fra OCR/AI-lesingen av CV-en / søknaden.
+    profile: normalizeProfile(row.profile),
+    ai: normalizeAiAssessment(row.ai),
+    // Intervju og tilbud.
+    interviewDate: normalizeIsoDate(row.interviewDate),
+    interviewTime: /^\d{1,2}:\d{2}$/.test(text(row.interviewTime)) ? text(row.interviewTime).padStart(5, '0') : '',
+    interviewPlace: text(row.interviewPlace),
+    interviewers: text(row.interviewers),
+    offerSalary: text(row.offerSalary),
+    offerStart: normalizeIsoDate(row.offerStart),
+    offerDeadline: normalizeIsoDate(row.offerDeadline),
+    offerSentAt: normalizeIsoDate(row.offerSentAt),
+    // Svar til søkeren: bekreftelse på mottatt og endelig svar.
+    acknowledgedAt: normalizeIsoDate(row.acknowledgedAt),
+    respondedAt: normalizeIsoDate(row.respondedAt),
+    employeeId: text(row.employeeId),
     // Lagringstid (retention.js): når søknaden ble avgjort, og samtykke til å beholde den.
-    closedAt: migrated.board === 'completed' && migrated.outcome !== 'pending' ? normalizeIsoDate(row.closedAt) : '',
+    closedAt: def.closed ? normalizeIsoDate(row.closedAt) : '',
     consentToKeep: row.consentToKeep === true,
     retainUntil: row.consentToKeep === true ? normalizeIsoDate(row.retainUntil) : '',
     createdAt: text(row.createdAt) || new Date().toISOString(),
@@ -794,29 +946,25 @@ export function applicationsByBoard(applications) {
   return buckets;
 }
 
+/**
+ * Eldre API: flytt til en av de tre kolonnene. Velger steget som passer.
+ * Ferdigbehandlet uten utfall blir «Tilbud sendt» (venter på svar).
+ */
 export function moveApplicationBoard(application, board, outcome) {
   const nextBoard = APPLICATION_BOARD.some((b) => b.id === board) ? board : 'received';
-  let nextOutcome = APPLICATION_OUTCOMES.some((o) => o.id === outcome) ? outcome : application?.outcome || 'pending';
-  // Utfall (vunnet/avslått) gjelder bare i ferdigbehandlet. Ellers tilbakestilles.
-  if (nextBoard !== 'completed' && nextOutcome !== 'pending') nextOutcome = 'pending';
-  // Ferdigbehandlet kan være «pending» til HR velger vunnet/avslått — ikke auto-avslå.
-  // Avgjørelsesdatoen styrer lagringstiden; den settes når utfallet velges eller endres.
-  const decided = nextBoard === 'completed' && nextOutcome !== 'pending';
-  const sameDecision = decided && application?.outcome === nextOutcome && application?.board === 'completed';
+  const current = normalizeApplication(application || {});
+  let stage;
+  if (nextBoard === 'received') stage = 'new';
+  else if (nextBoard === 'processing') stage = current.board === 'processing' ? current.stage : 'screening';
+  else if (outcome === 'hired') stage = 'hired';
+  else if (outcome === 'rejected') stage = current.stage === 'withdrawn' || current.stage === 'declined' ? current.stage : 'rejected';
+  else stage = 'offer';
+  const def = stageDef(stage);
+  const same = def.closed && current.stage === stage && current.closedAt;
   return normalizeApplication({
     ...application,
-    board: nextBoard,
-    outcome: nextOutcome,
-    closedAt: decided ? (sameDecision && application?.closedAt ? application.closedAt : localIsoDate()) : '',
-    stage: nextOutcome === 'hired'
-      ? 'hired'
-      : nextOutcome === 'rejected'
-        ? 'rejected'
-        : nextBoard === 'received'
-          ? 'new'
-          : nextBoard === 'completed'
-            ? 'offer'
-            : 'screening',
+    stage,
+    closedAt: def.closed ? (same ? current.closedAt : localIsoDate()) : '',
   });
 }
 

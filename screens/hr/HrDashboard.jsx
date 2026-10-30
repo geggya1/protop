@@ -593,7 +593,7 @@ function RecruitmentCard({
       nativeID="hr-recruitment"
       icon="person-add-outline"
       title="Rekruttering"
-      subtitle="Tre steg: mottatt → behandling → ferdig."
+      subtitle="Mottatt → vurdering → intervju → tilbud → avsluttet."
       actionLabel="Vis alle"
       onAction={onOpen}
     >

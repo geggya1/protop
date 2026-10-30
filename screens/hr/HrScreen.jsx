@@ -425,6 +425,10 @@ export default function HrScreen({ subView = 'oversikt' }) {
           familyId={familyId}
           focus={recruitFocus}
           retention={retention}
+          employees={employees}
+          uid={uid || ''}
+          assigneeName={assigneeName}
+          companyName={ownCompany.name}
         />
       );
     }

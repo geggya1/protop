@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const chart = readFileSync(join(root, 'components/project/CompanyGroupChart.jsx'), 'utf8');
 const screen = readFileSync(join(root, 'screens/project/CompanyUnitsScreen.jsx'), 'utf8');
+const details = readFileSync(join(root, 'components/project/CompanyGroupDetails.jsx'), 'utf8');
 
 assert.match(chart, /export function GroupYearButton/);
 assert.match(chart, /nativeID="company-group-year"/);
@@ -30,5 +31,13 @@ assert.match(screen, /onPress=\{canEdit \? toggleSettings : null\}/);
 assert.match(screen, /settingsOpen && canEdit \?/);
 assert.doesNotMatch(screen, /group-show-units/);
 assert.doesNotMatch(screen, /Vis underenheter fra Enhetsregisteret/);
+
+// Bred skjerm: selskapsdetaljene står til høyre for treet, ellers under det.
+assert.match(chart, /<CompanyGroupDetails/);
+assert.match(chart, /boxWidth >= SPLIT_MIN/);
+assert.match(details, /nativeID="company-group-figures"/);
+assert.match(details, /Selskapene i konsernet/);
+assert.match(details, /facts\.address/);
+assert.doesNotMatch(screen, /maxWidth: 920, width: '100%'/);
 
 console.log('companyGroupChart.ui ok');

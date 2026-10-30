@@ -119,6 +119,12 @@ export default function CompanyPublicProfile({
   const parentName = parentCompanyDisplayName(family, families) || stored?.parentCompanyName;
   const wide = width >= BREAKPOINTS.desktop;
   const stacked = width < BREAKPOINTS.tablet;
+  // Bredden på selve siden. Store skjermer får to sidekolonner og et høyere banner.
+  const [pageWidth, setPageWidth] = useState(0);
+  const sideSplit = wide && pageWidth >= PROFILE_SIDE_SPLIT;
+  const heroHeight = wide && pageWidth
+    ? Math.round(Math.min(HERO_MAX, Math.max(HERO_MIN, pageWidth * 0.14)))
+    : HERO_MIN;
   const page = useMemo(() => normalizeCompanyPage(stored?.publicPage), [stored?.publicPage]);
   const [tab, setTab] = useState(initialTab || 'oversikt');
   // Lenker fra andre moduler (f.eks. ISO → «Skriv nyhet») åpner nyhetene direkte.
@@ -498,11 +504,13 @@ export default function CompanyPublicProfile({
     .filter(Boolean);
   const mainModules = keyedModules('main');
   const sideModules = keyedModules('side');
+  // To sidekolonner: modulene beholder rekkefølgen, første halvdel til venstre.
+  const sideHalf = Math.ceil(sideModules.length / 2);
 
   return (
-    <View style={styles.page}>
+    <View style={styles.page} onLayout={(event) => setPageWidth(Math.round(event.nativeEvent.layout.width))}>
       <View nativeID="company-profile-hero" id="company-profile-hero" style={styles.heroWrap}>
-        <View style={styles.hero}>
+        <View style={[styles.hero, { height: heroHeight }]}>
           {view.coverUrl ? (
             <Image source={{ uri: view.coverUrl }} style={styles.heroImage} resizeMode="cover" accessibilityLabel="Bannerbilde" />
           ) : (
@@ -641,7 +649,14 @@ export default function CompanyPublicProfile({
       {tab === 'oversikt' ? (
         <View style={[styles.columns, wide && styles.columnsWide]}>
           <View style={styles.mainCol}>{mainModules}</View>
-          <View style={[styles.sideCol, wide && styles.sideColWide]}>{sideModules}</View>
+          {sideSplit ? (
+            <>
+              <View style={[styles.sideCol, styles.sideColSplit]}>{sideModules.slice(0, sideHalf)}</View>
+              <View style={[styles.sideCol, styles.sideColSplit]}>{sideModules.slice(sideHalf)}</View>
+            </>
+          ) : (
+            <View style={[styles.sideCol, wide && styles.sideColWide]}>{sideModules}</View>
+          )}
         </View>
       ) : null}
 
@@ -896,11 +911,16 @@ function RegistryDetails({
 
 const shadow = Platform.OS === 'web' ? { boxShadow: '0 10px 28px rgba(15, 23, 42, 0.06)' } : {};
 
+const HERO_MIN = 228;
+const HERO_MAX = 320;
+/** Sidebredde der sidemodulene fordeles på to kolonner. */
+const PROFILE_SIDE_SPLIT = 1600;
+
 const styles = StyleSheet.create({
   page: { gap: 14, paddingBottom: 28 },
   heroWrap: { gap: 0 },
   hero: {
-    height: 228, borderRadius: 18, overflow: 'hidden', backgroundColor: '#0b3a5b',
+    height: HERO_MIN, borderRadius: 18, overflow: 'hidden', backgroundColor: '#0b3a5b',
   },
   heroImage: { width: '100%', height: '100%' },
   heroFallback: { flex: 1, justifyContent: 'flex-start', padding: 22, gap: 4 },
@@ -946,7 +966,8 @@ const styles = StyleSheet.create({
   columnsWide: { flexDirection: 'row', alignItems: 'flex-start' },
   mainCol: { flex: 1.45, gap: 12, minWidth: 0 },
   sideCol: { gap: 12, minWidth: 0 },
-  sideColWide: { flex: 0.8, maxWidth: 380 },
+  sideColWide: { flex: 0.8, maxWidth: 420 },
+  sideColSplit: { flex: 0.62, maxWidth: 440 },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   cardTitle: { fontSize: 18, fontWeight: '600' },
   body: { fontSize: 14, lineHeight: 21 },

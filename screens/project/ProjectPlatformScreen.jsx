@@ -26,6 +26,10 @@ import { UnlessShellTitle } from '../../src/ui/ShellTitles';
 import { useLayout } from '../../src/theme';
 import { touchHit } from '../../src/ui/touchTarget';
 
+/** Bredde på innstillingssiden for to og tre kolonner. */
+const SETTINGS_TWO_COLS = 1080;
+const SETTINGS_THREE_COLS = 1720;
+
 function initialCompanyPage(startPage) {
   if (startPage === 'tilgang') return 'tilgang';
   if (startPage === 'moduler') return 'moduler';
@@ -49,9 +53,9 @@ function SettingsSection({ icon, title, hint, colors, children }) {
   );
 }
 
-function Field({ label, value, onChangeText, placeholder, colors, keyboardType, editable = true }) {
+function Field({ label, value, onChangeText, placeholder, colors, keyboardType, editable = true, style }) {
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, style]}>
       <Text style={[styles.label, { color: colors.muted }]}>{label}</Text>
       <TextInput
         value={value}
@@ -97,6 +101,9 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     || (access.ready && access.canView('accessControl'));
   const contextLabel = companyContextLabel(family);
   const [page, setPage] = useState(initialCompanyPage(startPage));
+  // Innstillingene fordeles på kolonner etter bredden: 1 på mobil, 2 på PC, 3 på store skjermer.
+  const [bodyWidth, setBodyWidth] = useState(0);
+  const settingsCols = bodyWidth >= SETTINGS_THREE_COLS ? 3 : bodyWidth >= SETTINGS_TWO_COLS ? 2 : 1;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [phone, setPhone] = useState(company?.telefon || '');
@@ -207,11 +214,141 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
     );
   }
 
+  // Seksjonene på innstillingssiden. Samme innhold på alle bredder; bare fordelingen på kolonner endres.
+  const profileSection = (
+    <SettingsSection
+      icon="image-outline"
+      title="Bedriftsprofil og grunnopplysninger"
+      hint="Logo, kontakt og registrerte virksomhetsopplysninger"
+      colors={colors}
+    >
+      <CompanyLogoSettings
+        company={company}
+        canEdit={canEdit}
+        colors={colors}
+        busy={busy}
+        onSave={async (logo) => {
+          const next = { ...company };
+          if (logo) next.logo = logo;
+          else delete next.logo;
+          await savePatch(familyId, { company: next });
+        }}
+      />
+      <View style={styles.fieldRow}>
+        <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" style={styles.fieldCell} />
+        <Field label="E-post" value={email} onChangeText={setEmail} editable={canEdit} placeholder="E-post" colors={colors} keyboardType="email-address" style={styles.fieldCell} />
+      </View>
+      {canEdit ? (
+        <TouchableOpacity onPress={refreshFromBrreg} style={[styles.btn, { backgroundColor: colors.sunken }]} disabled={busy}>
+          <Text style={[styles.btnText, { color: colors.ink }]}>Hent på nytt fra Brønnøysund</Text>
+        </TouchableOpacity>
+      ) : null}
+    </SettingsSection>
+  );
+  const groupSection = (
+    <SettingsSection
+      icon="git-network-outline"
+      title="Konsern, selskaper og underenheter"
+      hint="Tilknyttede selskaper, underenheter og avdelinger"
+      colors={colors}
+    >
+      <CompanyStructureSettings
+        company={company}
+        familyId={familyId}
+        families={families || []}
+        canEdit={canEdit}
+        colors={colors}
+        busy={busy}
+        setBusy={setBusy}
+        setError={setError}
+        userProfile={userProfile}
+        onSaved={async (next) => {
+          await savePatch(familyId, { company: next });
+        }}
+        onOpenCompany={(id) => {
+          selectFamily?.(id);
+          requestShellTab?.('selskap');
+        }}
+      />
+      <TouchableOpacity
+        onPress={() => requestShellTab?.('selskap', 'underenheter')}
+        accessibilityRole="button"
+        accessibilityLabel="Underenheter"
+        style={[styles.btn, { backgroundColor: colors.sunken }]}
+      >
+        <Text style={[styles.btnText, { color: colors.ink }]}>Administrer underenheter og avdelinger</Text>
+      </TouchableOpacity>
+    </SettingsSection>
+  );
+  const driveSection = (
+    <SettingsSection
+      icon="car-outline"
+      title="Kjøreadresse"
+      hint="Oppmøteadresse som brukes i kjøreboken"
+      colors={colors}
+    >
+      <Text style={[styles.lead, { color: colors.muted }]}>
+        Gate og nummer brukes i kjøreboken og kommer opp som søketreff. Etasje tas ikke med, for det er ikke en kartadresse.
+      </Text>
+      {company.addressLabel && company.addressLabel !== companyAddressLabel({ kjoeradresse: { gate, postnummer: postal, poststed: place } }) ? (
+        <Text style={[styles.lead, { color: colors.muted }]}>
+          {`Registeret har «${company.addressLabel}».`}
+        </Text>
+      ) : null}
+      <Field label="Gate og nummer" value={gate} onChangeText={setGate} editable={canEdit} placeholder="Svanholmen 7" colors={colors} />
+      <View style={styles.fieldRow}>
+        <Field label="Postnummer" value={postal} onChangeText={setPostal} editable={canEdit} placeholder="4313" colors={colors} keyboardType="number-pad" style={styles.fieldPostal} />
+        <Field label="Poststed" value={place} onChangeText={setPlace} editable={canEdit} placeholder="Sandnes" colors={colors} style={styles.fieldCell} />
+      </View>
+    </SettingsSection>
+  );
+  const privacySection = (
+    <SettingsSection
+      icon="shield-checkmark-outline"
+      title="Personvern"
+      hint="Databehandleravtale, brukslogg og AI"
+      colors={colors}
+    >
+      <CompanyPrivacySettings
+        family={family}
+        familyId={familyId}
+        company={company}
+        uid={uid}
+        userName={userProfile?.displayName || userProfile?.name || ''}
+        colors={colors}
+        onSaveCompany={(next) => savePatch(familyId, { company: next })}
+        canEdit={canEdit}
+      />
+    </SettingsSection>
+  );
+  const closureSection = (
+    <SettingsSection
+      icon="archive-outline"
+      title="Avslutt bedriften"
+      hint="Eksport av alle data, og sletting etter 90 dager"
+      colors={colors}
+    >
+      <CompanyClosure family={family} familyId={familyId} uid={uid} colors={colors} />
+    </SettingsSection>
+  );
+  const saveButton = canEdit ? (
+    <TouchableOpacity onPress={saveSettings} style={[styles.btn, { backgroundColor: colors.brand }]} disabled={busy}>
+      <Text style={styles.btnText}>{busy ? 'Lagrer…' : 'Lagre innstillinger'}</Text>
+    </TouchableOpacity>
+  ) : null;
+  // Mobil: samme rekkefølge som før. PC: lagreknappen står under feltene den lagrer.
+  const settingsLayout = settingsCols === 3
+    ? [[['profile', profileSection], ['drive', driveSection], ['save', saveButton]], [['group', groupSection]], [['privacy', privacySection], ['closure', closureSection]]]
+    : settingsCols === 2
+      ? [[['profile', profileSection], ['drive', driveSection], ['save', saveButton], ['closure', closureSection]], [['group', groupSection], ['privacy', privacySection]]]
+      : [[['profile', profileSection], ['group', groupSection], ['drive', driveSection], ['privacy', privacySection], ['closure', closureSection], ['save', saveButton]]];
+
   return (
     <View nativeID="company-page" id="company-page" dataSet={{ companyPage: '1' }} style={styles.fill}>
     <ScrollView
-      contentContainerStyle={[styles.body, page === 'tilgang' || page === 'moduler' ? styles.bodyAccess : null]}
+      contentContainerStyle={[styles.body, page === 'tilgang' || page === 'moduler' || settingsCols > 1 ? styles.bodyAccess : null]}
       keyboardShouldPersistTaps="handled"
+      onLayout={(event) => setBodyWidth(Math.round(event.nativeEvent.layout.width))}
     >
       {returnTo ? (
         <TouchableOpacity onPress={() => requestShellTab?.(returnTo.tab, returnTo.subView || null, returnTo.intent || null)} accessibilityRole="button" nativeID="company-return-to">
@@ -316,7 +453,7 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
         ) : !canOpenSettings ? (
           <CompanyAccessDenied colors={colors} />
         ) : (
-        <View style={styles.column}>
+        <View style={[styles.column, settingsCols > 1 && styles.columnWide]}>
           <View style={styles.settingsHead}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.kicker, { color: colors.muted }]}>Administrasjon</Text>
@@ -343,118 +480,13 @@ export default function ProjectPlatformScreen({ startPage = '' }) {
             </Text>
           ) : null}
 
-          <SettingsSection
-            icon="image-outline"
-            title="Bedriftsprofil og grunnopplysninger"
-            hint="Logo, kontakt og registrerte virksomhetsopplysninger"
-            colors={colors}
-          >
-            <CompanyLogoSettings
-              company={company}
-              canEdit={canEdit}
-              colors={colors}
-              busy={busy}
-              onSave={async (logo) => {
-                const next = { ...company };
-                if (logo) next.logo = logo;
-                else delete next.logo;
-                await savePatch(familyId, { company: next });
-              }}
-            />
-            <Field label="Telefon" value={phone} onChangeText={setPhone} editable={canEdit} placeholder="Telefon til bedriften" colors={colors} keyboardType="phone-pad" />
-            <Field label="E-post" value={email} onChangeText={setEmail} editable={canEdit} placeholder="E-post" colors={colors} keyboardType="email-address" />
-            {canEdit ? (
-              <TouchableOpacity onPress={refreshFromBrreg} style={[styles.btn, { backgroundColor: colors.sunken }]} disabled={busy}>
-                <Text style={[styles.btnText, { color: colors.ink }]}>Hent på nytt fra Brønnøysund</Text>
-              </TouchableOpacity>
-            ) : null}
-          </SettingsSection>
-
-          <SettingsSection
-            icon="git-network-outline"
-            title="Konsern, selskaper og underenheter"
-            hint="Tilknyttede selskaper, underenheter og avdelinger"
-            colors={colors}
-          >
-            <CompanyStructureSettings
-              company={company}
-              familyId={familyId}
-              families={families || []}
-              canEdit={canEdit}
-              colors={colors}
-              busy={busy}
-              setBusy={setBusy}
-              setError={setError}
-              userProfile={userProfile}
-              onSaved={async (next) => {
-                await savePatch(familyId, { company: next });
-              }}
-              onOpenCompany={(id) => {
-                selectFamily?.(id);
-                requestShellTab?.('selskap');
-              }}
-            />
-            <TouchableOpacity
-              onPress={() => requestShellTab?.('selskap', 'underenheter')}
-              accessibilityRole="button"
-              accessibilityLabel="Underenheter"
-              style={[styles.btn, { backgroundColor: colors.sunken }]}
-            >
-              <Text style={[styles.btnText, { color: colors.ink }]}>Administrer underenheter og avdelinger</Text>
-            </TouchableOpacity>
-          </SettingsSection>
-
-          <SettingsSection
-            icon="car-outline"
-            title="Kjøreadresse"
-            hint="Oppmøteadresse som brukes i kjøreboken"
-            colors={colors}
-          >
-            <Text style={[styles.lead, { color: colors.muted }]}>
-              Gate og nummer brukes i kjøreboken og kommer opp som søketreff. Etasje tas ikke med, for det er ikke en kartadresse.
-            </Text>
-            {company.addressLabel && company.addressLabel !== companyAddressLabel({ kjoeradresse: { gate, postnummer: postal, poststed: place } }) ? (
-              <Text style={[styles.lead, { color: colors.muted }]}>
-                {`Registeret har «${company.addressLabel}».`}
-              </Text>
-            ) : null}
-            <Field label="Gate og nummer" value={gate} onChangeText={setGate} editable={canEdit} placeholder="Svanholmen 7" colors={colors} />
-            <Field label="Postnummer" value={postal} onChangeText={setPostal} editable={canEdit} placeholder="4313" colors={colors} keyboardType="number-pad" />
-            <Field label="Poststed" value={place} onChangeText={setPlace} editable={canEdit} placeholder="Sandnes" colors={colors} />
-          </SettingsSection>
-
-          <SettingsSection
-            icon="shield-checkmark-outline"
-            title="Personvern"
-            hint="Databehandleravtale, brukslogg og AI"
-            colors={colors}
-          >
-            <CompanyPrivacySettings
-              family={family}
-              familyId={familyId}
-              company={company}
-              uid={uid}
-              userName={userProfile?.displayName || userProfile?.name || ''}
-              colors={colors}
-              onSaveCompany={(next) => savePatch(familyId, { company: next })}
-              canEdit={canEdit}
-            />
-          </SettingsSection>
-
-          <SettingsSection
-            icon="archive-outline"
-            title="Avslutt bedriften"
-            hint="Eksport av alle data, og sletting etter 90 dager"
-            colors={colors}
-          >
-            <CompanyClosure family={family} familyId={familyId} uid={uid} colors={colors} />
-          </SettingsSection>
-
-          {canEdit ? (
-            <TouchableOpacity onPress={saveSettings} style={[styles.btn, { backgroundColor: colors.brand }]} disabled={busy}>
-              <Text style={styles.btnText}>{busy ? 'Lagrer…' : 'Lagre innstillinger'}</Text>
-            </TouchableOpacity>
-          ) : null}
+          <View nativeID="company-settings-columns" style={settingsCols > 1 ? styles.settingsCols : styles.settingsStack}>
+            {settingsLayout.map((column) => (
+              <View key={column[0][0]} style={settingsCols > 1 ? styles.settingsCol : styles.settingsStack}>
+                {column.map(([key, section]) => (section ? <React.Fragment key={key}>{section}</React.Fragment> : null))}
+              </View>
+            ))}
+          </View>
         </View>
         )
       ) : null}
@@ -470,6 +502,13 @@ const styles = StyleSheet.create({
   body: { padding: 16, paddingBottom: 48, gap: 10, maxWidth: 1180, width: '100%', alignSelf: 'flex-start' },
   bodyAccess: { maxWidth: '100%', alignSelf: 'stretch', flexGrow: 1 },
   column: { alignSelf: 'flex-start', width: '100%', maxWidth: 760, gap: 10 },
+  columnWide: { maxWidth: '100%' },
+  settingsStack: { gap: 10 },
+  settingsCols: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  settingsCol: { flex: 1, minWidth: 0, gap: 14 },
+  fieldRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  fieldCell: { flexGrow: 1, flexBasis: 220, minWidth: 0 },
+  fieldPostal: { flexGrow: 0, flexBasis: 120 },
   settingsHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   kicker: { fontSize: 12, fontWeight: '400', letterSpacing: 0.4, textTransform: 'uppercase' },
   title: { fontSize: 22, fontWeight: '600' },

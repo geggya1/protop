@@ -13,16 +13,17 @@ export const ModuleAsideSlotContext = createContext(null);
 export const ShellWideContext = createContext(null);
 
 /**
- * Lar en skjerm bruke hele bredden på desktop: tipsfeltet skjules og
- * hovedfeltet får ingen maksbredde så lenge `active` er sann.
+ * Lar en skjerm bruke hele bredden på desktop: hovedfeltet får ingen maksbredde
+ * så lenge `active` er sann. Tipsfeltet skjules, med mindre `keepAside` er satt;
+ * da fyller hovedfeltet plassen mellom menyen og tipsfeltet.
  */
-export function useShellWide(active) {
+export function useShellWide(active, { keepAside = false } = {}) {
   const setWide = useContext(ShellWideContext);
   useLayoutEffect(() => {
     if (!setWide || !active) return undefined;
-    setWide(true);
+    setWide(keepAside ? 'aside' : true);
     return () => setWide(false);
-  }, [setWide, active]);
+  }, [setWide, active, keepAside]);
 }
 
 export function ModuleAsideProvider({ children }) {

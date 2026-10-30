@@ -51,6 +51,7 @@ import HelpTarget from '../../components/HelpTarget';
 import { useShellTitleRight } from '../../src/hooks/useShellTitleRight';
 import { useHelpScene } from '../../src/hooks/useHelpScene';
 import { ModulePageFrame } from '../../components/ModulePageBg';
+import { useShellWide } from '../../components/ModuleAside';
 import { confirmUser } from '../../src/utils/dialog';
 import { showErrorToast } from '../../src/ui/saveToast';
 import { todoActionError } from '../../src/utils/todoStatus.js';
@@ -252,6 +253,9 @@ function memberName(members, id) {
   const m = members.find((x) => x.id === id || x.uid === id || x.childId === id);
   return m?.name?.split(' ')[0] || 'Ukjent';
 }
+
+/** Bredde på oppgavefeltet (PC) der Mine oppgaver og Tildelt til andre står side om side. */
+const TASK_SPLIT_MIN = 1100;
 
 export default function RewardsScreen({ variant = 'auto' }) {
   const nav = useNavigation();
@@ -545,6 +549,16 @@ export default function RewardsScreen({ variant = 'auto' }) {
   const trashCount = trashTasks.length;
   const doneCount = myDone.length + delegatedDone.length;
 
+  // PC: oppgavene fyller plassen mellom menyen og tipsfeltet. Er feltet bredt nok,
+  // står «Mine oppgaver» og «Tildelt til andre» side om side.
+  useShellWide(isDesktop && showTasksOverview, { keepAside: true });
+  const [bodyWidth, setBodyWidth] = useState(0);
+  const delegatedShown = showDelegated && listDelegated.length > 0;
+  const splitLists = isDesktop && delegatedShown && taskFilter !== 'trash' && bodyWidth >= TASK_SPLIT_MIN;
+  const columnWidth = splitLists ? (bodyWidth - 32 - 12) / 2 : bodyWidth - 32;
+  const gridCols = Math.max(2, Math.min(4, Math.floor(columnWidth / 300)));
+  const gridCardBasis = { flexBasis: `${100 / gridCols - 2}%` };
+
   const onToggle = async (task) => {
     if (!familyId || !childId) return;
     const wasDone = isDoneOn(task, selectedKey);
@@ -651,7 +665,12 @@ export default function RewardsScreen({ variant = 'auto' }) {
           });
         }}
       />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+        onLayout={(e) => setBodyWidth(Math.round(e.nativeEvent.layout.width))}
+      >
         {canManageChores && (
           <View style={styles.choresTopRow}>
             <Text style={styles.choresTopHint}>Belønning og import</Text>
@@ -692,7 +711,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
           ))}
         </View>
 
-        <View style={[styles.navRow, isDesktop && styles.navRowDesk]}>
+        <View style={[styles.navRow, isDesktop && styles.navRowDesk, isDesktop && !splitLists && styles.listsDesk]}>
           <TouchableOpacity onPress={() => shift(-1)} style={[styles.navBtn, isDesktop && styles.navBtnDesk]} accessibilityRole="button" accessibilityLabel="Forrige periode">
             <Ionicons name="chevron-back" size={isDesktop ? 16 : 20} color={colors.ink} />
           </TouchableOpacity>
@@ -739,11 +758,11 @@ export default function RewardsScreen({ variant = 'auto' }) {
 
         {mode !== 'day' && (
           <>
-            <View style={styles.weekHead}>
+            <View style={[styles.weekHead, isDesktop && styles.gridDesk]}>
               <Text style={styles.weekNumHead}>Uke</Text>
               {WEEKDAYS_SHORT.map((d) => <Text key={d} style={styles.wh}>{d}</Text>)}
             </View>
-            <View style={styles.grid}>
+            <View style={[styles.grid, isDesktop && styles.gridDesk]}>
               {chunkWeeks(days).map((row) => {
                 const weekNo = getISOWeek(row[0]).week;
                 return (
@@ -815,7 +834,8 @@ export default function RewardsScreen({ variant = 'auto' }) {
               }]}
             />
 
-            <View style={[styles.listCard, isDesktop && styles.listCardDesk]}>
+            <View nativeID="tasks-lists" style={[isDesktop && styles.listsDesk, splitLists && styles.listsSplit]}>
+            <View nativeID="tasks-mine" style={[styles.listCard, isDesktop && styles.listCardDesk, splitLists && styles.listCol]}>
               <Text style={[styles.listSection, isDesktop && styles.listSectionDesk]}>
                 {taskFilter === 'trash'
                   ? 'Papirkurv'
@@ -880,7 +900,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
                       else if (t?.deadline && t.deadline === tomorrowKey) importance = 'Middels';
 
                       return (
-                        <View key={t.id} style={[styles.taskGridCard, overdue && styles.taskRowOverdue]}>
+                        <View key={t.id} style={[styles.taskGridCard, isDesktop && gridCardBasis, overdue && styles.taskRowOverdue]}>
                           <TouchableOpacity
                             style={styles.taskGridTitleWrap}
                             onPress={() => openTask(t)}
@@ -972,9 +992,12 @@ export default function RewardsScreen({ variant = 'auto' }) {
               )}
             </View>
 
-            {showDelegated && listDelegated.length > 0 && (
-              <View style={[styles.listCard, { marginTop: 10 }]}>
-                <Text style={styles.listSection}>
+            {delegatedShown && (
+              <View
+                nativeID="tasks-delegated"
+                style={[styles.listCard, isDesktop && styles.listCardDesk, splitLists ? styles.listCol : { marginTop: 10 }]}
+              >
+                <Text style={[styles.listSection, isDesktop && styles.listSectionDesk]}>
                   {taskFilter === 'done' ? 'Tildelt til andre · ferdig' : 'Tildelt til andre'}
                 </Text>
                 {isDesktop && tasksLayoutMode === 'list' ? (
@@ -1040,6 +1063,7 @@ export default function RewardsScreen({ variant = 'auto' }) {
                 )}
               </View>
             )}
+            </View>
           </>
         )}
 
@@ -1332,6 +1356,7 @@ const styles = StyleSheet.create({
   },
   wh: { flex: 1, textAlign: 'center', fontWeight: '400', color: colors.muted, fontSize: 10 },
   grid: { marginBottom: 10 },
+  gridDesk: { maxWidth: 760 },
   calRow: { flexDirection: 'row', alignItems: 'center' },
   cell: {
     flex: 1, aspectRatio: 1.1, alignItems: 'center', justifyContent: 'center',
@@ -1355,6 +1380,12 @@ const styles = StyleSheet.create({
     borderColor: colors.line, overflow: 'hidden',
   },
   listCardDesk: { borderRadius: 8 },
+  // Én liste alene blir ikke bredere enn den kan leses; to lister deler bredden.
+  listsDesk: { maxWidth: 1180 },
+  listsSplit: {
+    maxWidth: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+  },
+  listCol: { flex: 1, minWidth: 0 },
   listSection: {
     fontSize: 10, fontWeight: '500', color: colors.muted, textTransform: 'uppercase',
     letterSpacing: 0.6, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4,

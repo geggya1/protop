@@ -272,7 +272,8 @@ export default function CompanyUnitsScreen() {
 }
 
 const styles = StyleSheet.create({
-  inner: { padding: 16, paddingBottom: 48, gap: 14, maxWidth: 920, width: '100%', alignSelf: 'flex-start' },
+  // Treet holder seg smalt; selskapsdetaljene fyller resten av bredden (CompanyGroupChart).
+  inner: { padding: 16, paddingBottom: 48, gap: 14, width: '100%', alignSelf: 'flex-start' },
   heading: { gap: 6, marginBottom: 2 },
   headingRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   headingActions: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-end', gap: 8, zIndex: 5 },
@@ -287,7 +288,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  settings: { gap: 10 },
+  settings: { gap: 10, maxWidth: 920 },
   section: { fontSize: 16, fontWeight: '600', marginTop: 4 },
   hint: { fontSize: 13, lineHeight: 18 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

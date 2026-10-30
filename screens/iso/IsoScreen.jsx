@@ -187,8 +187,8 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   };
 
   const Current = PAGES[page] || IsoDashboard;
-  // Prosesslandskapet og prosesskartene bruker hele bredden; de andre sidene leses best smalere.
-  const fullWidth = wide && page === 'prosesser';
+  // Oversikten (kort i rader) og prosesslandskapet bruker hele bredden; de andre sidene leses best smalere.
+  const fullWidth = wide && (page === 'prosesser' || page === 'oversikt');
   const needsSetup = !store.loading && !isSetUp(store.state) && page !== 'innstillinger';
   const isSettings = page === 'innstillinger';
 

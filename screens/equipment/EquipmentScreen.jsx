@@ -232,7 +232,14 @@ export default function EquipmentScreen() {
   }, [familyId, ready]));
 
   const deskCalendar = isDesktop && tab === 'kalender' && !formOpen;
-  useShellWide(deskCalendar);
+  // PC: kalenderen tar hele bredden. Listene fyller plassen mellom menyen og tipsfeltet,
+  // og kortene legger seg i kolonner etter hvor mye plass det er.
+  useShellWide(isDesktop && !formOpen, { keepAside: !deskCalendar });
+  const [gridWidth, setGridWidth] = useState(0);
+  const gearCols = isDesktop ? Math.max(1, Math.min(4, Math.floor((gridWidth + GEAR_GAP) / GEAR_TILE_MIN))) : 1;
+  const gearTile = gearCols > 1 && gridWidth
+    ? { width: Math.floor((gridWidth - (gearCols - 1) * GEAR_GAP) / gearCols) }
+    : { width: '100%' };
 
   useEffect(() => watchEmployees(familyId, (rows) => setEmployees(rows || [])), [familyId]);
 
@@ -514,7 +521,7 @@ export default function EquipmentScreen() {
   function renderGear(row) {
     const group = equipmentGroup(row.group);
     return (
-      <View key={row.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+      <View key={row.id} style={[styles.card, gearTile, { borderColor: colors.line, backgroundColor: colors.card }]}>
         <Text style={{ color: colors.ink, fontWeight: '700' }}>{row.name}</Text>
         <Text style={{ color: colors.muted, fontSize: 12 }}>
           {group.label}
@@ -785,7 +792,7 @@ export default function EquipmentScreen() {
           <Text style={{ color: colors.muted, fontSize: 13 }}>
             Utstyr bedriften eier. Søk i listen, eller registrer noe nytt.
           </Text>
-          <View style={[styles.row, { alignItems: 'flex-end' }]}>
+          <View style={[styles.row, styles.searchRow, { alignItems: 'flex-end' }]}>
             <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Søk i listen" />
             {showRegister && !isPhone ? (
               <TouchableOpacity onPress={() => openForm('company')} style={[styles.btn, { backgroundColor: colors.brand }]}>
@@ -793,7 +800,9 @@ export default function EquipmentScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
-          {visibleCompany.map(renderGear)}
+          <View nativeID="equipment-company-list" style={styles.gearGrid} onLayout={(e) => setGridWidth(Math.round(e.nativeEvent.layout.width))}>
+            {visibleCompany.map(renderGear)}
+          </View>
           {!visibleCompany.length ? (
             <Text style={{ color: colors.muted }}>
               {rights === 'admin' ? 'Ingen bedriftsutstyr er registrert.' : 'Du har ikke rettighet på noe bedriftsutstyr.'}
@@ -807,7 +816,7 @@ export default function EquipmentScreen() {
           <Text style={{ color: colors.muted, fontSize: 13 }}>
             Ditt private utstyr, for eksempel bilen du bruker i kjøreboken.
           </Text>
-          <View style={[styles.row, { alignItems: 'flex-end' }]}>
+          <View style={[styles.row, styles.searchRow, { alignItems: 'flex-end' }]}>
             <Field label="Søk" value={query} onChange={setQuery} colors={colors} placeholder="Søk i listen" />
             {isPhone ? null : (
               <TouchableOpacity onPress={() => openForm('private')} style={[styles.btn, { backgroundColor: colors.brand }]}>
@@ -815,9 +824,10 @@ export default function EquipmentScreen() {
               </TouchableOpacity>
             )}
           </View>
+          <View nativeID="equipment-private-list" style={styles.gearGrid} onLayout={(e) => setGridWidth(Math.round(e.nativeEvent.layout.width))}>
           {visiblePrivate.map(renderGear)}
           {visibleCars.map((car) => (
-            <View key={car.id} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card }]}>
+            <View key={car.id} style={[styles.card, gearTile, { borderColor: colors.line, backgroundColor: colors.card }]}>
               <Text style={{ color: colors.ink, fontWeight: '700' }}>{vehicleTitle(car)}</Text>
               <Text style={{ color: colors.muted, fontSize: 12 }}>Kjøretøy</Text>
               {car.vegvesenSummary ? <Text style={{ color: colors.muted, fontSize: 12 }}>{car.vegvesenSummary}</Text> : null}
@@ -833,6 +843,7 @@ export default function EquipmentScreen() {
               </TouchableOpacity>
             </View>
           ))}
+          </View>
           {!visiblePrivate.length && !visibleCars.length ? (
             <Text style={{ color: colors.muted }}>Du har ikke registrert privat utstyr.</Text>
           ) : null}
@@ -948,6 +959,9 @@ export default function EquipmentScreen() {
   );
 }
 
+const GEAR_GAP = 10;
+const GEAR_TILE_MIN = 340;
+
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
   wrapFill: { padding: 16, gap: 12, minHeight: 0 },
@@ -956,6 +970,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' },
   chip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   card: { borderWidth: 1, borderRadius: 10, padding: 14, gap: 6 },
+  gearGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: GEAR_GAP },
+  searchRow: { maxWidth: 760 },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
   btn: { borderRadius: 8, paddingHorizontal: 14, paddingVertical: 10 },
   iconBtn: { width: 38, height: 38, borderWidth: 1, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },

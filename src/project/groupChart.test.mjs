@@ -4,9 +4,11 @@ import {
   branchesFrom,
   buildGroupChart,
   entityCountLabel,
+  entityFacts,
   formatCompactAmount,
   formatDelta,
   formatOwnership,
+  formatShare,
   majorityCorporateOwner,
   normalizeGroupChartSettings,
   stakesFromInvestments,
@@ -216,5 +218,29 @@ const unavailable = buildGroupChart({
 assert.equal(unavailable.ownershipKnown, false);
 assert.equal(unavailable.parent.navn, 'Uten tall');
 assert.equal(unavailable.emptyOwnership, '');
+
+// Fakta ved siden av treet: adresse, bransje, stiftet og hjemmeside fra Enhetsregisteret.
+const facts = entityFacts({
+  organisasjonsform: { kode: 'AS', beskrivelse: 'Aksjeselskap' },
+  naeringskode1: { kode: '71.121', beskrivelse: 'Byggeteknisk konsulentvirksomhet' },
+  stiftelsesdato: '2016-01-01',
+  hjemmeside: 'www.consult1.no',
+  forretningsadresse: { adresse: ['Svanholmen 7', ''], postnummer: '4313', poststed: 'SANDNES' },
+});
+assert.equal(facts.address, 'Svanholmen 7, 4313 SANDNES');
+assert.equal(facts.orgForm, 'Aksjeselskap');
+assert.equal(facts.industry, '71.121 Byggeteknisk konsulentvirksomhet');
+assert.equal(facts.founded, '2016-01-01');
+assert.equal(facts.websiteUrl, 'https://www.consult1.no');
+assert.equal(entityFacts(null), null);
+assert.equal(entityFacts({ hjemmeside: 'https://a.no' }).websiteUrl, 'https://a.no');
+assert.equal(model.parent.facts.address, '');
+assert.equal(model.parent.facts.orgForm, '');
+
+assert.equal(formatShare(4178408, 50613141), '8,3 %');
+assert.equal(formatShare(-198513, 5558590), '−3,6 %');
+assert.equal(formatShare(5, 0), '–');
+assert.equal(formatShare(null, 10), '–');
+assert.equal(model.parent.marginLabel, '8,3 %');
 
 console.log('groupChart ok');

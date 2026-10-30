@@ -8,6 +8,10 @@ import { loadEntityFigures, loadGroupSources, mapPool } from '../../src/project/
 import { digitsOrgnr } from '../../src/project/companyRegistry';
 import { departmentsOf } from '../../src/project/companyUnits';
 import { BREAKPOINTS } from '../../src/ui/layout.js';
+import CompanyGroupDetails from './CompanyGroupDetails';
+
+/** Bredde der selskapsdetaljene står til høyre for treet i stedet for under. */
+const SPLIT_MIN = 1200;
 
 function openUrl(url) {
   const raw = String(url || '').trim();
@@ -239,6 +243,7 @@ export default function CompanyGroupChart({
   onYears,
 }) {
   const { width } = useWindowDimensions();
+  const [boxWidth, setBoxWidth] = useState(0);
   const orgnr = digitsOrgnr(company?.organisasjonsnummer);
   const [sources, setSources] = useState(null);
   const [bundles, setBundles] = useState({});
@@ -352,67 +357,84 @@ export default function CompanyGroupChart({
     card: <CompanyCard node={child} colors={colors} compact tight={tight && useFork && model.children.length > 1} onPress={() => openNode(child)} />,
   }));
 
+  const split = boxWidth >= SPLIT_MIN;
+  const details = loading ? null : (
+    <CompanyGroupDetails
+      model={model}
+      colors={colors}
+      isLinked={(node) => !!companyIdFor?.(node.organisasjonsnummer)}
+      onOpen={openNode}
+    />
+  );
+
   return (
-    <View nativeID="company-group-chart" style={styles.block}>
-      {loading ? (
-        <View style={styles.loadingRow}>
-          <ActivityIndicator color={colors.brand} />
-          <Text style={[styles.note, { color: colors.muted }]}>Henter nøkkeltall fra offentlige registre…</Text>
-        </View>
-      ) : null}
-      {warnings.map((line) => (
-        <Text key={line} style={[styles.note, { color: colors.danger }]}>{line}</Text>
-      ))}
-      {model.owner ? (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={`Eid av ${model.owner.navn}`}
-          onPress={() => openUrl(`https://virksomhet.brreg.no/nb/oppslag/enheter/${model.owner.organisasjonsnummer}`)}
-          style={[styles.owner, { backgroundColor: colors.card, borderColor: colors.line }]}
-        >
-          <Ionicons name="git-network-outline" size={16} color={colors.brand} />
-          <Text style={[styles.ownerText, { color: colors.ink }]}>
-            Eid {model.owner.ownershipLabel} av {model.owner.navn}
+    <View
+      nativeID="company-group-chart"
+      style={[styles.block, split && styles.split]}
+      onLayout={(event) => setBoxWidth(Math.round(event.nativeEvent.layout.width))}
+    >
+      <View style={split ? styles.splitMain : styles.treeCol}  >
+        {loading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={colors.brand} />
+            <Text style={[styles.note, { color: colors.muted }]}>Henter nøkkeltall fra offentlige registre…</Text>
+          </View>
+        ) : null}
+        {warnings.map((line) => (
+          <Text key={line} style={[styles.note, { color: colors.danger }]}>{line}</Text>
+        ))}
+        {model.owner ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Eid av ${model.owner.navn}`}
+            onPress={() => openUrl(`https://virksomhet.brreg.no/nb/oppslag/enheter/${model.owner.organisasjonsnummer}`)}
+            style={[styles.owner, { backgroundColor: colors.card, borderColor: colors.line }]}
+          >
+            <Ionicons name="git-network-outline" size={16} color={colors.brand} />
+            <Text style={[styles.ownerText, { color: colors.ink }]}>
+              Eid {model.owner.ownershipLabel} av {model.owner.navn}
+            </Text>
+            <Ionicons name="open-outline" size={14} color={colors.muted} />
+          </Pressable>
+        ) : null}
+
+        <View nativeID="company-group-totals" style={styles.summary}>
+          <Text accessibilityRole="header" style={[styles.summaryName, { color: colors.ink }]}>
+            {model.totals.label}
           </Text>
-          <Ionicons name="open-outline" size={14} color={colors.muted} />
-        </Pressable>
-      ) : null}
+          <Text style={[styles.meta, { color: colors.muted }]}>{model.totals.countLabel}</Text>
+          <Text style={[styles.sourceInline, { color: colors.muted }]}>{model.totals.source}</Text>
+          <Metrics node={model.totals} colors={colors} />
+        </View>
 
-      <View nativeID="company-group-totals" style={styles.summary}>
-        <Text accessibilityRole="header" style={[styles.summaryName, { color: colors.ink }]}>
-          {model.totals.label}
+        <View style={styles.tree}>
+          <CompanyCard node={model.parent} colors={colors} onPress={() => openNode(model.parent)} />
+          {useFork ? <Fork colors={colors} tight={tight}>{nodes}</Fork> : null}
+          {!useFork && model.children.length ? <Rail colors={colors}>{nodes}</Rail> : null}
+        </View>
+
+        {!loading && model.emptyOwnership ? (
+          <Text style={[styles.note, { color: colors.muted }]}>{model.emptyOwnership}</Text>
+        ) : null}
+        {!model.ownershipKnown && !loading && orgnr.length === 9 ? (
+          <Text style={[styles.note, { color: colors.muted }]}>
+            Eierandeler fra Aksjonærregisteret kunne ikke hentes nå.
+          </Text>
+        ) : null}
+
+        {departmentCount ? (
+          <Text style={[styles.note, { color: colors.muted }]}>
+            {departmentCount === 1
+              ? '1 avdeling administreres under tannhjulet.'
+              : `${departmentCount} avdelinger administreres under tannhjulet.`}
+          </Text>
+        ) : null}
+        <Text style={[styles.sources, { color: colors.muted }]}>
+          Inntekt og resultat er fra Regnskapsregisteret. Ansatte er fra Enhetsregisteret.
+          Eierandeler er fra Aksjonærregisteret per 31. desember. Ansatte har ikke årstall i registeret og vises som dagens tall.
         </Text>
-        <Text style={[styles.meta, { color: colors.muted }]}>{model.totals.countLabel}</Text>
-        <Text style={[styles.sourceInline, { color: colors.muted }]}>{model.totals.source}</Text>
-        <Metrics node={model.totals} colors={colors} />
       </View>
-
-      <View style={styles.tree}>
-        <CompanyCard node={model.parent} colors={colors} onPress={() => openNode(model.parent)} />
-        {useFork ? <Fork colors={colors} tight={tight}>{nodes}</Fork> : null}
-        {!useFork && model.children.length ? <Rail colors={colors}>{nodes}</Rail> : null}
-      </View>
-
-      {!loading && model.emptyOwnership ? (
-        <Text style={[styles.note, { color: colors.muted }]}>{model.emptyOwnership}</Text>
-      ) : null}
-      {!model.ownershipKnown && !loading && orgnr.length === 9 ? (
-        <Text style={[styles.note, { color: colors.muted }]}>
-          Eierandeler fra Aksjonærregisteret kunne ikke hentes nå.
-        </Text>
-      ) : null}
-
-      {departmentCount ? (
-        <Text style={[styles.note, { color: colors.muted }]}>
-          {departmentCount === 1
-            ? '1 avdeling administreres under tannhjulet.'
-            : `${departmentCount} avdelinger administreres under tannhjulet.`}
-        </Text>
-      ) : null}
-      <Text style={[styles.sources, { color: colors.muted }]}>
-        Inntekt og resultat er fra Regnskapsregisteret. Ansatte er fra Enhetsregisteret.
-        Eierandeler er fra Aksjonærregisteret per 31. desember. Ansatte har ikke årstall i registeret og vises som dagens tall.
-      </Text>
+      {split ? <View style={styles.splitSide}>{details}</View> : details}
     </View>
   );
 }
@@ -429,6 +451,10 @@ const cardShadow = Platform.OS === 'web'
 
 const styles = StyleSheet.create({
   block: { gap: 12, width: '100%' },
+  split: { flexDirection: 'row', alignItems: 'flex-start', gap: 24 },
+  splitMain: { flex: 1, minWidth: 0, maxWidth: 940, gap: 12 },
+  treeCol: { width: '100%', maxWidth: 940, gap: 12 },
+  splitSide: { flex: 1, minWidth: 0 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   note: { fontSize: 13, lineHeight: 18 },
   sources: { fontSize: 12, lineHeight: 17 },

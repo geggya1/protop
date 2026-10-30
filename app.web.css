@@ -182,8 +182,8 @@ input[data-meeting-input="title"] { font-size: 21px !important; }
 textarea[data-meeting-input="notes"] { font-size: 15px !important; line-height: 1.5 !important; }
 
 /*
- * Bedriftsprofilen er smalere enn innholdsfeltet. Scrollflaten fyller bredden,
- * og selve siden (1180px) ligger mot venstre, på linje med de andre sidene.
+ * Bedriftsprofilen fyller innholdsfeltet. På store skjermer fordeler
+ * CompanyPublicProfile modulene på flere kolonner i stedet for å stå smalt til venstre.
  * Inline align-self fra ScrollView taper mot disse reglene.
  */
 #company-landing {
@@ -202,7 +202,7 @@ textarea[data-meeting-input="notes"] { font-size: 15px !important; line-height: 
 }
 #company-profile-sheet {
   width: 100% !important;
-  max-width: 1180px !important;
+  max-width: none !important;
   align-self: flex-start !important;
   margin-left: 0 !important;
   margin-right: auto !important;

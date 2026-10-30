@@ -235,6 +235,38 @@ export function majorityCorporateOwner(investors, sharesByYear, { year = null, s
   return best;
 }
 
+/** Andel med én desimal: margin (resultat av inntekt) eller del av konsernets inntekt. */
+export function formatShare(part, whole) {
+  if (part == null || whole == null || part === '' || whole === '') return '–';
+  const top = Number(part);
+  const bottom = Number(whole);
+  if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom <= 0) return '–';
+  const value = Math.round((top / bottom) * 1000) / 10;
+  const sign = value < 0 ? '−' : '';
+  const body = new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Math.abs(value));
+  return `${sign}${body} %`;
+}
+
+/** Fakta fra Enhetsregisteret som vises ved siden av konserntreet. */
+export function entityFacts(entity) {
+  if (!entity || typeof entity !== 'object') return null;
+  const addr = entity.forretningsadresse || entity.postadresse || {};
+  const street = Array.isArray(addr.adresse)
+    ? addr.adresse.map((line) => String(line || '').trim()).filter(Boolean).join(', ')
+    : String(addr.adresse || '').trim();
+  const place = [String(addr.postnummer || '').trim(), String(addr.poststed || '').trim()].filter(Boolean).join(' ');
+  const industry = entity.naeringskode1 || {};
+  const website = String(entity.hjemmeside || '').trim();
+  return {
+    address: [street, place].filter(Boolean).join(', '),
+    orgForm: String(entity.organisasjonsform?.beskrivelse || '').trim(),
+    industry: [String(industry.kode || '').trim(), String(industry.beskrivelse || '').trim()].filter(Boolean).join(' '),
+    founded: String(entity.stiftelsesdato || '').trim(),
+    website,
+    websiteUrl: website && !/^https?:\/\//i.test(website) ? `https://${website}` : website,
+  };
+}
+
 export function branchesFrom(payload) {
   const rows = payload?._embedded?.underenheter || (Array.isArray(payload) ? payload : []);
   return rows
@@ -281,6 +313,7 @@ function presentNode(row, { loading = false } = {}) {
     employeesLabel: loading ? '…' : formatEmployees(row.employees),
     revenueDelta: loading ? null : formatDelta(row.revenueDelta),
     resultDelta: loading ? null : formatDelta(row.resultDelta),
+    marginLabel: loading ? '…' : formatShare(row.result, row.revenue),
     ownershipLabel: formatOwnership(row.percent),
   };
 }
@@ -377,6 +410,7 @@ export function buildGroupChart({
       revenueDelta: snap?.revenueDelta ?? null,
       resultDelta: snap?.resultDelta ?? null,
       brregUrl: `https://virksomhet.brreg.no/nb/oppslag/enheter/${stake.organisasjonsnummer}`,
+      facts: entityFacts(ent),
     }, { loading });
   });
   const daughters = children.filter((row) => row.percent >= 50).length;
@@ -394,6 +428,7 @@ export function buildGroupChart({
     revenueDelta: parentSnap.revenueDelta,
     resultDelta: parentSnap.resultDelta,
     brregUrl: orgnr ? `https://virksomhet.brreg.no/nb/oppslag/enheter/${orgnr}` : '',
+    facts: entityFacts(entity),
   });
   const units = prefs.showUnits
     ? branchesFrom(unitPayload)

@@ -1288,7 +1288,7 @@ function AppShellInner() {
                         {gatedBody}
                       </EdgeSwipeBack>
                     </View>
-                    {deskWide || (subDesk && !subAside) ? null : (
+                    {deskWide === true || (subDesk && !subAside) ? null : (
                       <View style={[styles.deskAside, subDesk && styles.deskAsideFlush]}>
                         <ModuleAside fallbackName={shellHeaderTitle} />
                       </View>

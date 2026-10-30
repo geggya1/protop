@@ -1,6 +1,8 @@
-import React from 'react';
+import React, {
+  useEffect, useMemo, useRef, useState,
+} from 'react';
 import {
-  Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -13,7 +15,9 @@ import { EMPLOYEE_DETAIL_TABS, employeeViewToTab } from '../../src/employees/per
 import { useLayout } from '../../src/theme';
 import BackLink from '../../src/ui/BackLink';
 import { SHELL_DETAILS } from '../../src/navigation/shellPaths';
-import { radius, type } from '../../src/ui/tokens';
+import { radius, space, type } from '../../src/ui/tokens';
+import ModuleTabs from '../../components/ModuleTabs';
+import TimesheetEmployeePicker from '../../components/arbeid/TimesheetEmployeePicker';
 
 export { EMPLOYEE_DETAIL_TABS, employeeViewToTab };
 
@@ -24,14 +28,19 @@ function closedNote(state) {
   return 'Kontoen er deaktivert. Personen har ikke vanlig tilgang.';
 }
 
+/** Kortnavn på fanen på telefon, så flere faner får plass. */
+const SHORT = { expenses: 'Utlegg' };
+
 /**
- * Fast person-chrome: navn + skilleark som står på tvers av alle undersider.
+ * Fast person-chrome, likt HR og de andre modulene: fanene rett under båndet,
+ * så én rad med tilbake, navnet og Forrige/Neste. Navnet åpner personvelgeren (som i Timeliste).
  */
 export default function EmployeePersonChrome({
   employee,
   colors,
   companyName = '',
   siblings = [],
+  people = null,
   activeTab = 'home',
   onBack,
   onTab,
@@ -40,6 +49,9 @@ export default function EmployeePersonChrome({
   children,
 }) {
   const { isPhone } = useLayout();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const searchRef = useRef(null);
   const index = siblings.findIndex((row) => row.id === employee?.id);
   const prev = index > 0 ? siblings[index - 1] : null;
   const next = index >= 0 && index < siblings.length - 1 ? siblings[index + 1] : null;
@@ -48,40 +60,59 @@ export default function EmployeePersonChrome({
   const state = employmentState(employee);
   const deactivated = state !== 'active' && state !== 'leave';
   const subtitle = cardSubtitle(employee, companyName);
+  const pickable = people || siblings;
+  const canSwitch = !!onSelect && pickable.length > 1;
+
+  const menu = useMemo(() => ({
+    moduleId: 'employee',
+    label: name || 'Medarbeider',
+    pages: tabs.map((tab) => ({
+      id: `employee-${tab.id}`,
+      label: tab.label,
+      short: SHORT[tab.id],
+      action: { tab: 'employee', subView: tab.id },
+    })),
+    activeId: `employee-${activeTab}`,
+  }), [tabs, activeTab, name]);
+
+  useEffect(() => {
+    if (!pickerOpen || Platform.OS !== 'web') return undefined;
+    const timer = setTimeout(() => searchRef.current?.focus?.(), 60);
+    return () => clearTimeout(timer);
+  }, [pickerOpen]);
+
+  const closePicker = () => {
+    setPickerOpen(false);
+    setQuery('');
+  };
 
   return (
-    <View nativeID="employee-person-chrome" style={[styles.root, isPhone && styles.rootPhone]}>
-      {isPhone ? (
-        <>
-          {/* Mobil: tilbake og bla mellom ansatte på én linje, navnet mindre, så sideinnholdet får plassen. */}
-          <View style={styles.phoneBar}>
-            <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
-            <View style={styles.navActions}>
-              <TouchableOpacity
-                onPress={() => prev && onSelect?.(prev)}
-                disabled={!prev}
-                accessibilityRole="button"
-                accessibilityLabel="Forrige medarbeider"
-                hitSlop={4}
-                style={[styles.navIcon, { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 }]}
+    <View nativeID="employee-person-chrome" style={styles.root}>
+      <ModuleTabs menu={menu} onSelect={(_, tabId) => onTab?.(tabId)} />
+
+      <View style={[styles.body, isPhone && styles.bodyPhone]}>
+        <View style={styles.identity}>
+          <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
+          <View style={[styles.divider, { backgroundColor: colors.line }]} />
+          <View style={styles.titleBlock}>
+            <Pressable
+              onPress={() => canSwitch && setPickerOpen(true)}
+              disabled={!canSwitch}
+              accessibilityRole="button"
+              accessibilityLabel={canSwitch ? `${name}. Skift person` : name}
+              nativeID="employee-name"
+              style={({ hovered }) => [styles.nameBtn, hovered && canSwitch ? { opacity: 0.75 } : null]}
+            >
+              <Text
+                accessibilityRole="header"
+                numberOfLines={1}
+                style={[isPhone ? type.h2 : styles.name, styles.nameText, { color: colors.ink }]}
               >
-                <Ionicons name="chevron-back" size={18} color={colors.ink} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => next && onSelect?.(next)}
-                disabled={!next}
-                accessibilityRole="button"
-                accessibilityLabel="Neste medarbeider"
-                hitSlop={4}
-                style={[styles.navIcon, { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 }]}
-              >
-                <Ionicons name="chevron-forward" size={18} color={colors.ink} />
-              </TouchableOpacity>
-            </View>
-          </View>
-          <View style={styles.phoneTitle}>
-            <Text accessibilityRole="header" numberOfLines={1} style={[type.h2, { color: colors.ink }]}>{name}</Text>
-            <Text numberOfLines={1} style={[type.caption, { color: colors.muted }]}>
+                {name}
+              </Text>
+              {canSwitch ? <Ionicons name="chevron-down" size={isPhone ? 16 : 18} color={colors.muted} /> : null}
+            </Pressable>
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: isPhone ? 12 : 14 }}>
               {deactivated ? (
                 <Text style={{ color: colors.danger || '#dc2626', fontWeight: '600' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
               ) : (
@@ -90,123 +121,104 @@ export default function EmployeePersonChrome({
               {subtitle ? ` · ${subtitle}` : ''}
             </Text>
           </View>
-        </>
-      ) : (
-        <>
-          <BackLink label={SHELL_DETAILS.employee.list} onPress={onBack} nativeID="employee-back" />
-
-          <View style={[styles.titleRow, isPhone && styles.titleRowPhone]}>
-            <View style={styles.titleBlock}>
-              <Text accessibilityRole="header" style={[styles.name, { color: colors.ink }]}>{name}</Text>
-              <Text style={{ color: colors.muted, fontSize: 14 }}>
-                {deactivated ? (
-                  <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
-                ) : (
-                  <Text style={{ color: colors.muted }}>{status}</Text>
-                )}
-                {subtitle ? ` · ${subtitle}` : ''}
-              </Text>
-            </View>
-            <View style={styles.navActions}>
-              <TouchableOpacity
-                onPress={() => prev && onSelect?.(prev)}
-                disabled={!prev}
-                accessibilityRole="button"
-                accessibilityLabel="Forrige medarbeider"
-                style={[
-                  styles.navBtn,
-                  { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 },
-                ]}
-              >
-                <Ionicons name="chevron-back" size={16} color={colors.ink} />
-                <Text style={{ color: colors.ink, fontSize: 13 }}>Forrige</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => next && onSelect?.(next)}
-                disabled={!next}
-                accessibilityRole="button"
-                accessibilityLabel="Neste medarbeider"
-                style={[
-                  styles.navBtn,
-                  { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 },
-                ]}
-              >
-                <Text style={{ color: colors.ink, fontSize: 13 }}>Neste</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.ink} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </>
-      )}
-
-      {deactivated ? (
-        <View
-          nativeID="employee-deactivated"
-          style={[styles.deactivatedBanner, { backgroundColor: '#fde8e8', borderColor: colors.danger || '#dc2626' }]}
-        >
-          <Ionicons name="remove-circle" size={18} color={colors.danger || '#dc2626'} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
-            <Text style={{ color: colors.danger || '#dc2626', fontSize: 13, lineHeight: 18 }}>
-              {closedNote(state)}
-            </Text>
-          </View>
-        </View>
-      ) : null}
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.tabs, { borderBottomColor: colors.line }]}
-        contentContainerStyle={styles.tabsInner}
-        nativeID="employee-detail-tabs"
-      >
-        {tabs.map((tab) => {
-          const active = tab.id === activeTab;
-          return (
+          <View style={styles.navActions}>
             <TouchableOpacity
-              key={tab.id}
-              onPress={() => onTab?.(tab.id)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active }}
-              aria-selected={active}
-              accessibilityLabel={tab.label}
-              nativeID={`employee-tab-${tab.id}`}
-              {...(Platform.OS === 'web' ? { dataSet: { employeeTab: active ? 'active' : 'idle' } } : null)}
+              onPress={() => prev && onSelect?.(prev)}
+              disabled={!prev}
+              accessibilityRole="button"
+              accessibilityLabel="Forrige medarbeider"
+              hitSlop={4}
               style={[
-                styles.tab,
-                isPhone && styles.tabPhone,
-                active && {
-                  borderBottomColor: colors.brand,
-                  backgroundColor: colors.brandSoft || '#E5F6FE',
-                },
+                isPhone ? styles.navIcon : styles.navBtn,
+                { borderColor: colors.line, backgroundColor: colors.card, opacity: prev ? 1 : 0.45 },
               ]}
             >
-              <Text style={{
-                color: active ? colors.brand : colors.muted,
-                fontWeight: active ? '600' : '500',
-                fontSize: 14,
-              }}
-              >
-                {tab.label}
-              </Text>
+              <Ionicons name="chevron-back" size={isPhone ? 18 : 16} color={colors.ink} />
+              {isPhone ? null : <Text style={{ color: colors.ink, fontSize: 13 }}>Forrige</Text>}
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+            <TouchableOpacity
+              onPress={() => next && onSelect?.(next)}
+              disabled={!next}
+              accessibilityRole="button"
+              accessibilityLabel="Neste medarbeider"
+              hitSlop={4}
+              style={[
+                isPhone ? styles.navIcon : styles.navBtn,
+                { borderColor: colors.line, backgroundColor: colors.card, opacity: next ? 1 : 0.45 },
+              ]}
+            >
+              {isPhone ? null : <Text style={{ color: colors.ink, fontSize: 13 }}>Neste</Text>}
+              <Ionicons name="chevron-forward" size={isPhone ? 18 : 16} color={colors.ink} />
+            </TouchableOpacity>
+          </View>
+        </View>
 
-      {children}
+        {deactivated ? (
+          <View
+            nativeID="employee-deactivated"
+            style={[styles.deactivatedBanner, { backgroundColor: '#fde8e8', borderColor: colors.danger || '#dc2626' }]}
+          >
+            <Ionicons name="remove-circle" size={18} color={colors.danger || '#dc2626'} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.danger || '#dc2626', fontWeight: '700' }}>{state === 'ended' ? 'Sluttet' : 'Deaktivert'}</Text>
+              <Text style={{ color: colors.danger || '#dc2626', fontSize: 13, lineHeight: 18 }}>
+                {closedNote(state)}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {children}
+      </View>
+
+      {/* Personvelger: samme som «Bytt medarbeider» i Timeliste. Fanen du står på, beholdes. */}
+      <Modal transparent visible={pickerOpen} animationType="fade" onRequestClose={closePicker}>
+        <View style={styles.modalBg}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={closePicker}
+            accessibilityRole="button"
+            accessibilityLabel="Lukk medarbeidervelger"
+          />
+          <View
+            style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.line }]}
+            accessibilityViewIsModal
+            nativeID="employee-person-picker"
+          >
+            <Text style={[styles.sheetTitle, { color: colors.ink }]}>Bytt medarbeider</Text>
+            <TimesheetEmployeePicker
+              colors={colors}
+              employees={pickable}
+              selectedId={employee?.id || ''}
+              companyName={companyName}
+              query={query}
+              onQueryChange={setQuery}
+              searchRef={searchRef}
+              compact
+              title="Bytt medarbeider"
+              subtitle=""
+              onSelect={(row) => {
+                closePicker();
+                if (row.id !== employee?.id) onSelect?.(row);
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { gap: 10, width: '100%', flexShrink: 0 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  titleRowPhone: { flexDirection: 'column' },
-  rootPhone: { gap: 6 },
-  phoneBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  phoneTitle: { gap: 2 },
+  root: { width: '100%', flexShrink: 0 },
+  body: { paddingHorizontal: space.md, paddingVertical: space.sm, gap: 10 },
+  bodyPhone: { paddingHorizontal: space.sm, paddingVertical: space.xs, gap: 6 },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  divider: { width: 1, alignSelf: 'stretch', marginVertical: 6 },
+  titleBlock: { flex: 1, minWidth: 0, gap: 2 },
+  nameBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', maxWidth: '100%' },
+  name: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3 },
+  nameText: { flexShrink: 1 },
   navIcon: {
     width: 36,
     height: 36,
@@ -215,9 +227,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.pill,
   },
-  titleBlock: { flex: 1, gap: 4, minWidth: 180 },
-  name: { fontSize: 28, fontWeight: '700', letterSpacing: -0.3 },
-  navActions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  navActions: { flexDirection: 'row', gap: 8 },
   navBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -228,22 +238,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   deactivatedBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 12, padding: 12 },
-  tabs: {
-    flexGrow: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  modalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
-  tabsInner: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 2,
+  sheet: {
+    width: '100%',
+    maxWidth: 440,
+    maxHeight: '80%',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    zIndex: 2,
+    position: 'relative',
   },
-  tab: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-  },
-  tabPhone: { paddingHorizontal: 10, paddingVertical: 8 },
+  sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
 });

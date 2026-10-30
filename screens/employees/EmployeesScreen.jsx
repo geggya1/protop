@@ -1689,12 +1689,13 @@ export default function EmployeesScreen() {
     <>
     <View nativeID="employees-page" id="employees-page" style={[styles.screen, { backgroundColor: colors.bg }]}>
     {personMode ? (
-      <View style={[styles.personChrome, isPhone && styles.personChromePhone, { backgroundColor: colors.bg, borderBottomColor: colors.line }]}>
+      <View style={[styles.personChrome, { backgroundColor: colors.bg, borderBottomColor: colors.line }]}>
         <EmployeePersonChrome
           employee={personEmployee}
           colors={colors}
           companyName={companyName}
           siblings={visible}
+          people={rows}
           tabs={EMPLOYEE_DETAIL_TABS.filter((tab) => allowedTabViews(selected, tab.id).length > 0)}
           activeTab={employeeViewToTab(view)}
           onBack={openList}
@@ -2547,12 +2548,11 @@ function summaryNote(labels) {
 const styles = StyleSheet.create({
   screen: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', alignSelf: 'stretch' },
   screenScroll: { flex: 1, minWidth: 0, alignSelf: 'stretch' },
+  // Fanene står kant i kant rett under båndet, som modulmenyen i HR. Polstringen ligger i EmployeePersonChrome.
   personChrome: {
     flexShrink: 0,
     width: '100%',
     alignSelf: 'stretch',
-    paddingHorizontal: 16,
-    paddingTop: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     zIndex: 2,
   },
@@ -2565,8 +2565,6 @@ const styles = StyleSheet.create({
   hoursHost: { flex: 1, minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', alignSelf: 'stretch' },
   absenceHost: { flex: 1, minHeight: 0, width: '100%', alignSelf: 'stretch' },
   subTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  // Mobil: lavere topp på ansattprofilen, så timelisten og de andre fanene får plassen.
-  personChromePhone: { paddingTop: 4, paddingBottom: 8, paddingHorizontal: 12 },
   subTabsPhone: { gap: 4, flexWrap: 'nowrap' },
   subTabPhone: { paddingHorizontal: 10, paddingVertical: 4 },
   subTab: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },

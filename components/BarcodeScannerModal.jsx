@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, Modal, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
   TextInput, Alert,
@@ -9,6 +9,26 @@ import { colors } from '../src/theme';
 import { friendlyWebCameraError, needsCameraUserGesture } from '../src/utils/webCamera';
 
 const NATIVE_BARCODE_TYPES = ['ean13', 'ean8', 'upc_a', 'upc_e'];
+const WEB_BARCODE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+
+/** Tekster og formater for strekkode (standard) eller QR-kode (qr). */
+function scanKind(qr) {
+  return qr
+    ? {
+      native: ['qr'],
+      web: ['qr_code'],
+      manual: 'Skriv inn manuelt',
+      invalidTitle: 'Ugyldig verdi',
+      invalidText: 'Teksten kunne ikke brukes. Prøv å skanne QR-koden.',
+    }
+    : {
+      native: NATIVE_BARCODE_TYPES,
+      web: WEB_BARCODE_FORMATS,
+      manual: 'Skriv strekkode manuelt',
+      invalidTitle: 'Ugyldig strekkode',
+      invalidText: 'Skriv en EAN-8 eller EAN-13 (vanlig strekkode på matvarer).',
+    };
+}
 
 /** Session flag: after first successful web camera open, skip the gate when remounting (non-iOS). */
 let webCameraSessionReady = false;
@@ -84,7 +104,7 @@ function ScanOverlay({ title, hint, onClose, footer }) {
   );
 }
 
-function ManualCodeEntry({ onSubmit, onInvalid }) {
+function ManualCodeEntry({ onSubmit, onInvalid, label = 'Skriv strekkode manuelt' }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
 
@@ -103,7 +123,7 @@ function ManualCodeEntry({ onSubmit, onInvalid }) {
   if (!open) {
     return (
       <TouchableOpacity style={styles.manualLink} onPress={() => setOpen(true)}>
-        <Text style={styles.manualLinkTxt}>Skriv strekkode manuelt</Text>
+        <Text style={styles.manualLinkTxt}>{label}</Text>
       </TouchableOpacity>
     );
   }
@@ -127,7 +147,8 @@ function ManualCodeEntry({ onSubmit, onInvalid }) {
   );
 }
 
-function NativeScanner({ title, hint, permissionText, normalize, onScan, onClose, resumeKey = 0 }) {
+function NativeScanner({ title, hint, permissionText, normalize, onScan, onClose, resumeKey = 0, qr = false }) {
+  const kind = useMemo(() => scanKind(qr), [qr]);
   const [permission, requestPermission] = useCameraPermissions();
   const scannedRef = useRef(false);
 
@@ -161,8 +182,8 @@ function NativeScanner({ title, hint, permissionText, normalize, onScan, onClose
   }, [normalize, onScan]);
 
   const handleInvalidManual = useCallback(() => {
-    Alert.alert('Ugyldig strekkode', 'Skriv en EAN-8 eller EAN-13 (vanlig strekkode på matvarer).');
-  }, []);
+    Alert.alert(kind.invalidTitle, kind.invalidText);
+  }, [kind.invalidTitle, kind.invalidText]);
 
   if (!permission) {
     return (
@@ -199,20 +220,21 @@ function NativeScanner({ title, hint, permissionText, normalize, onScan, onClose
         style={StyleSheet.absoluteFill}
         facing="back"
         responsiveOrientationWhenOrientationLocked={false}
-        barcodeScannerSettings={{ barcodeTypes: NATIVE_BARCODE_TYPES }}
+        barcodeScannerSettings={{ barcodeTypes: kind.native }}
         onBarcodeScanned={handleBarcode}
       />
       <ScanOverlay
         title={title}
         hint={hint}
         onClose={onClose}
-        footer={<ManualCodeEntry onSubmit={handleManual} onInvalid={handleInvalidManual} />}
+        footer={<ManualCodeEntry onSubmit={handleManual} onInvalid={handleInvalidManual} label={kind.manual} />}
       />
     </View>
   );
 }
 
-function WebScanner({ title, hint, permissionText, normalize, onScan, onClose, resumeKey = 0 }) {
+function WebScanner({ title, hint, permissionText, normalize, onScan, onClose, resumeKey = 0, qr = false }) {
+  const kind = useMemo(() => scanKind(qr), [qr]);
   const containerRef = useRef(null);
   const videoRef = useRef(null);
   const stopRef = useRef(null);
@@ -264,15 +286,15 @@ function WebScanner({ title, hint, permissionText, normalize, onScan, onClose, r
 
   const handleManual = useCallback((raw) => finishScan(raw), [finishScan]);
   const handleInvalidManual = useCallback(() => {
-    Alert.alert('Ugyldig strekkode', 'Skriv en EAN-8 eller EAN-13 (vanlig strekkode på matvarer).');
-  }, []);
+    Alert.alert(kind.invalidTitle, kind.invalidText);
+  }, [kind.invalidTitle, kind.invalidText]);
 
   const startDetectorLoop = useCallback(() => {
     if (typeof window === 'undefined' || !('BarcodeDetector' in window)) return;
     const video = videoRef.current;
     if (!video || detectorLoopActiveRef.current) return;
     try {
-      const detector = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+      const detector = new window.BarcodeDetector({ formats: kind.web });
       detectorLoopActiveRef.current = true;
       const loop = async () => {
         if (cancelledRef.current || scannedRef.current) {
@@ -303,7 +325,7 @@ function WebScanner({ title, hint, permissionText, normalize, onScan, onClose, r
     } catch {
       detectorLoopActiveRef.current = false;
     }
-  }, [finishScan]);
+  }, [finishScan, kind.web]);
 
   const resumeScanning = useCallback(() => {
     // Brief lock so the same barcode still in frame is not instantly re-accepted.
@@ -361,8 +383,8 @@ function WebScanner({ title, hint, permissionText, normalize, onScan, onClose, r
     video.srcObject = stream;
     await video.play().catch(() => {});
 
-    const { BrowserMultiFormatOneDReader } = await import('@zxing/browser');
-    const reader = new BrowserMultiFormatOneDReader();
+    const zxing = await import('@zxing/browser');
+    const reader = qr ? new zxing.BrowserQRCodeReader() : new zxing.BrowserMultiFormatOneDReader();
     const controls = await reader.decodeFromStream(stream, video, (result) => {
       if (result) finishScan(result.getText());
     });
@@ -376,7 +398,7 @@ function WebScanner({ title, hint, permissionText, normalize, onScan, onClose, r
     };
 
     startDetectorLoop();
-  }, [finishScan, startDetectorLoop]);
+  }, [finishScan, startDetectorLoop, qr]);
 
   /**
    * Må kalles direkte fra trykk/klikk (brukeraktivering) første gang.
@@ -453,7 +475,7 @@ function WebScanner({ title, hint, permissionText, normalize, onScan, onClose, r
           title={title}
           hint={hint}
           onClose={onClose}
-          footer={<ManualCodeEntry onSubmit={handleManual} onInvalid={handleInvalidManual} />}
+          footer={<ManualCodeEntry onSubmit={handleManual} onInvalid={handleInvalidManual} label={kind.manual} />}
         />
       )}
 
@@ -470,7 +492,7 @@ function WebScanner({ title, hint, permissionText, normalize, onScan, onClose, r
             <Text style={styles.actionBtnTxt}>Åpne kamera</Text>
           </TouchableOpacity>
           <View style={{ height: 16 }} />
-          <ManualCodeEntry onSubmit={handleManual} onInvalid={handleInvalidManual} />
+          <ManualCodeEntry onSubmit={handleManual} onInvalid={handleInvalidManual} label={kind.manual} />
           <TouchableOpacity style={styles.cancelLink} onPress={onClose}>
             <Text style={styles.cancelLinkTxt}>Lukk</Text>
           </TouchableOpacity>
@@ -490,6 +512,8 @@ export default function BarcodeScannerModal({
   normalize,
   /** Increment to accept another scan without remounting / showing the gate. */
   resumeKey = 0,
+  /** Les QR-kode i stedet for strekkode. */
+  qr = false,
 }) {
   const handleScan = useCallback((code) => {
     onScan?.(code);
@@ -522,6 +546,7 @@ export default function BarcodeScannerModal({
               onScan={handleScan}
               onClose={onClose}
               resumeKey={resumeKey}
+              qr={qr}
             />
           ) : (
             <NativeScanner
@@ -532,6 +557,7 @@ export default function BarcodeScannerModal({
               onScan={handleScan}
               onClose={onClose}
               resumeKey={resumeKey}
+              qr={qr}
             />
           )
         ) : null}

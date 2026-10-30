@@ -8,7 +8,7 @@ import {
   normalizeComplianceItem,
 } from './compliance.js';
 import { emptyHandbook, handbookHasContent, normalizeHandbook } from './handbook.js';
-import { normalizeHmsCard } from './hmsCard.js';
+import { normalizeHmsCard, normalizeHmsSetting } from './hmsCard.js';
 
 export const HR_VERSION = 2;
 
@@ -113,6 +113,8 @@ export function emptyHrState() {
     // Kjøringer av lagringstiden (hvem slettet hva og når). Se retention.js.
     retentionRuns: [],
     handbook: emptyHandbook(),
+    // hmsCard: '' følger næringskoden, 'on' eller 'off' er valgt av bedriften. Se hmsCard.js.
+    settings: { hmsCard: '' },
     updatedAt: '',
   };
 }
@@ -422,6 +424,7 @@ export function normalizeHrState(raw) {
     hmsCards: normalizeList(raw.hmsCards, normalizeHmsCard),
     retentionRuns: normalizeList(raw.retentionRuns, normalizeRetentionRun).slice(-20),
     handbook: normalizeHandbook(raw.handbook),
+    settings: { hmsCard: normalizeHmsSetting(raw.settings?.hmsCard) },
     updatedAt: text(raw.updatedAt),
   };
 }

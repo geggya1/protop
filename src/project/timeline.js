@@ -36,8 +36,22 @@ function text(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
+/** Datoer gjentar seg i tusenvis av timeføringer. Svaret huskes per tekst. */
+const ISO_CACHE = new Map();
+const ISO_CACHE_MAX = 5000;
+
 /** dd.mm.åååå eller åååå-mm-dd → åååå-mm-dd. Alt annet gir tom tekst. */
 export function isoDay(value) {
+  if (typeof value !== 'string') return parseIsoDay(value);
+  const hit = ISO_CACHE.get(value);
+  if (hit !== undefined) return hit;
+  const out = parseIsoDay(value);
+  if (ISO_CACHE.size >= ISO_CACHE_MAX) ISO_CACHE.clear();
+  ISO_CACHE.set(value, out);
+  return out;
+}
+
+function parseIsoDay(value) {
   const raw = text(value);
   if (!raw) return '';
   const parsed = parseDate(raw);
@@ -244,6 +258,14 @@ export function spanPlacement(start, end, months, monthW) {
  * Returnerer Map<projectId, { weeks: Map<mandag, timer>, total, first, last }>.
  */
 export function projectWeekHours(entries, projects, { from = '', to = '' } = {}) {
+  return projectHoursPass(entries, projects, { from, to }).hours;
+}
+
+/**
+ * Én runde gjennom timene. hours er som projectWeekHours (fra og med from),
+ * lastAny er siste dato med timer per prosjekt uten from-grensen.
+ */
+function projectHoursPass(entries, projects, { from = '', to = '' } = {}) {
   const ids = new Set();
   const byNumber = new Map();
   for (const project of projects || []) {
@@ -253,16 +275,19 @@ export function projectWeekHours(entries, projects, { from = '', to = '' } = {})
     if (key && !byNumber.has(key)) byNumber.set(key, project.id);
   }
   const out = new Map();
+  const lastAny = new Map();
   for (const row of entries || []) {
     const date = isoDay(row?.date);
     if (!date) continue;
-    if (from && date < from) continue;
     if (to && date > to) continue;
     const hours = parseHours(row?.hours);
     if (hours <= 0) continue;
     let projectId = text(row?.projectId);
     if (!ids.has(projectId)) projectId = byNumber.get(projectNumberKey(row?.projectNumber)) || '';
     if (!projectId) continue;
+    const seen = lastAny.get(projectId);
+    if (!seen || date > seen) lastAny.set(projectId, date);
+    if (from && date < from) continue;
     if (!out.has(projectId)) out.set(projectId, { weeks: new Map(), total: 0, first: '', last: '' });
     const bucket = out.get(projectId);
     const week = mondayKey(date);
@@ -271,7 +296,7 @@ export function projectWeekHours(entries, projects, { from = '', to = '' } = {})
     if (!bucket.first || date < bucket.first) bucket.first = date;
     if (!bucket.last || date > bucket.last) bucket.last = date;
   }
-  return out;
+  return { hours: out, lastAny };
 }
 
 /**
@@ -341,8 +366,7 @@ export function timelineRows({
   hoursFrom = '',
 } = {}) {
   const list = (projects || []).filter((row) => row?.id && !row.deletedAt);
-  const all = projectWeekHours(timeEntries, list, { to: today });
-  const hours = hoursFrom ? projectWeekHours(timeEntries, list, { from: hoursFrom, to: today }) : all;
+  const { hours, lastAny } = projectHoursPass(timeEntries, list, { from: hoursFrom, to: today });
   const recentFrom = addDays(mondayKey(today), -7 * (RECENT_WEEKS - 1));
   const rows = list
     .filter((project) => matchesQuery(project, query))
@@ -353,7 +377,7 @@ export function timelineRows({
         if (key >= recentFrom && key <= today) recentHours += value;
       }
       const span = plannedSpan(project, contracts);
-      const lastActivity = all.get(project.id)?.last || '';
+      const lastActivity = lastAny.get(project.id) || '';
       const placement = rowPlacement({ project, span, lastWorked: lastActivity, today });
       return {
         id: project.id,
@@ -376,6 +400,16 @@ export function timelineRows({
   return {
     active: rows.filter((row) => row.active),
     inactive: rows.filter((row) => !row.active),
+  };
+}
+
+/** Søk i rader som alt er bygget, så et tastetrykk ikke regner timene på nytt. */
+export function filterTimelineGroups(groups, query = '') {
+  if (!text(query)) return groups;
+  const keep = (row) => matchesQuery(row.project, query);
+  return {
+    active: (groups?.active || []).filter(keep),
+    inactive: (groups?.inactive || []).filter(keep),
   };
 }
 

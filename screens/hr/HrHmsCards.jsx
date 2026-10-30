@@ -2,7 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { hmsCardAlerts, siteOverviewCsv, siteOverviewRows } from '../../src/hr/hmsCard';
 import { localIsoDate } from '../../src/hr/model';
-import { EmptyHint, HrButton, HrCard, HrField, HrSectionTitle } from './HrShared';
+import { EmptyHint, HrButton, HrCard, HrChip, HrField, HrSectionTitle } from './HrShared';
+
+const HMS_CHOICES = [
+  { id: '', label: 'Følg næringskoden' },
+  { id: 'on', label: 'Kreves' },
+  { id: 'off', label: 'Kreves ikke' },
+];
 
 function daysAgo(n) {
   const d = new Date();
@@ -34,7 +40,9 @@ function downloadCsv(filename, csv) {
  * (byggherreforskriften § 15) fra timeføringen. entries er timene HR har lastet (tre måneder),
  * company er { name, orgnr } for arbeidsgiveren.
  */
-export default function HrHmsCards({ colors, employees, hr, entries, company = null }) {
+export default function HrHmsCards({
+  colors, employees, hr, entries, company = null, canWrite = false, onPatch,
+}) {
   const [from, setFrom] = useState(() => daysAgo(6));
   const [to, setTo] = useState(() => localIsoDate());
   const [project, setProject] = useState('');
@@ -79,6 +87,25 @@ export default function HrHmsCards({ colors, employees, hr, entries, company = n
           title="HMS-kort og oversiktsliste"
           subtitle="Kort som er utløpt eller går ut innen 30 dager, og daglig oversiktsliste for byggeplass fra timeføringen (byggherreforskriften § 15)."
         />
+        <View nativeID="hr-hms-setting" style={styles.stack}>
+          <Text style={[styles.label, { color: colors.ink }]}>Krever bedriften HMS-kort?</Text>
+          {hr?.hmsRule?.text ? (
+            <Text style={[styles.line, { color: colors.muted }]}>{hr.hmsRule.text}</Text>
+          ) : null}
+          {canWrite ? (
+            <View style={styles.row}>
+              {HMS_CHOICES.map((choice) => (
+                <HrChip
+                  key={choice.id || 'auto'}
+                  colors={colors}
+                  label={choice.label}
+                  active={(hr?.settings?.hmsCard || '') === choice.id}
+                  onPress={() => onPatch?.((state) => ({ settings: { ...(state.settings || {}), hmsCard: choice.id } }))}
+                />
+              ))}
+            </View>
+          ) : null}
+        </View>
         {alerts.length ? alerts.map((row) => (
           <Text key={row.employeeId} style={[styles.line, { color: row.status === 'expired' ? colors.danger : colors.ink }]}>
             {`${row.name}: HMS-kort ${row.number} · ${row.text}`}
@@ -103,6 +130,7 @@ export default function HrHmsCards({ colors, employees, hr, entries, company = n
 
 const styles = StyleSheet.create({
   stack: { gap: 8 },
+  label: { fontSize: 14, fontWeight: '600' },
   line: { fontSize: 13, lineHeight: 19 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   field: { flexGrow: 1, flexBasis: 180 },

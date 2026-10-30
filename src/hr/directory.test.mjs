@@ -165,7 +165,8 @@ function person(id, {
   assert.equal(cells.openTasks, '1');
   assert.equal(cells.kindLabel, 'Intern');
   assert.equal(cells.checklistOk, 3, 'avtale, minimumskrav og gyldig HMS-kort');
-  assert.equal(cells.checklist, '3/4');
+  assert.equal(cells.checklist, 'Personvern', 'listen sier hva som mangler, ikke 3/4');
+  assert.equal(cells.checklistCount, '3/4');
   // HMS-introduksjon og kompetanse følges opp i ISO, ikke i HR-sjekklisten.
   assert.equal(cells.checklistGaps, 'Personverninformasjon gitt');
   assert.doesNotMatch(cells.checklistGaps, /Skriftlig arbeidsavtale/);
@@ -187,6 +188,7 @@ function person(id, {
   assert.equal(cells.utilization, '—');
   assert.equal(cells.checklistMissing > 0, true);
   assert.match(cells.checklistGaps, /Skriftlig arbeidsavtale/);
+  assert.equal(cells.checklist, 'HMS-kort, personvern', 'avtalen står i egen kolonne og gjentas ikke');
 }
 
 {
@@ -204,7 +206,7 @@ function person(id, {
   assert.match(follow, /lockedEmployeeId/);
   assert.doesNotMatch(follow, /title="Medarbeider"/);
   assert.doesNotMatch(compliance, /people\.map/);
-  assert.match(people, /label: 'Lovpålagt', width: 110, sheet: 'compliance'/);
+  assert.match(people, /label: 'Lovpålagt', width: 200, sheet: 'compliance'/);
   assert.doesNotMatch(people, /Sjekkliste/);
   // Lønn står bare under HR → Lønn, ikke i personellisten eller som fane på personen.
   assert.doesNotMatch(people, /key: 'salary'/);

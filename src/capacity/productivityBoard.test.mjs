@@ -150,7 +150,7 @@ function collectText(node, depth = 0, out = []) {
 
 const boardModule = loadJsx('screens/arbeid/ProductivityBoard.jsx');
 const Board = boardModule.default;
-const { WeekSumChart, labelColumnWidth, editorLeft, editorTop, gestureIntent } = boardModule;
+const { WeekSumChart, labelColumnWidth, editorLeft, editorTop, gestureIntent, groupByEmployee } = boardModule;
 
 assert.equal(labelColumnWidth(390), 132);
 assert.equal(labelColumnWidth(700), 132);
@@ -261,6 +261,33 @@ assert.doesNotMatch(openText, /2026-08-03/);
 assert.doesNotMatch(openText, /Bare medlem/);
 assert.doesNotMatch(openText, /Gammelt/);
 assert.doesNotMatch(openText, /Dra eller trykk/);
+
+// Hver ansatt får sine egne rader. Rader uten ansatt telles ikke.
+const grouped = groupByEmployee([
+  { employeeId: 'a', id: 1 },
+  { employeeId: ' a ', id: 2 },
+  { employeeId: 'b', id: 3 },
+  { id: 4 },
+]);
+assert.deepEqual([...grouped.keys()], ['a', 'b']);
+assert.deepEqual(grouped.get('a').map((row) => row.id), [1, 2]);
+
+// Mens timene hentes, vises tavlen likevel, og den åpne personen sier at timene kommer.
+const loadingTree = withHooks(() => React.createElement(Board, {
+  colors,
+  people,
+  projects,
+  members,
+  plan: { weekHours: 37.5, allocations: [] },
+  loadingHours: true,
+  canWrite: true,
+  onPlan: () => {},
+  initialOpenId: 'a',
+}));
+const loadingText = collectText(loadingTree).join('\n');
+assert.match(loadingText, /Henter timer/);
+assert.doesNotMatch(loadingText, /Ingen prosjekt med timer/);
+assert.doesNotMatch(text, /Henter timer/);
 
 const selectedId = plan.allocations[0].id;
 let removed = null;

@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { planAbsenceRemovals } from '../arbeid/absenceStorage.js';
 import {
+  absencesRangeCovered,
   adoptLoadedHours,
   applyAbsencesOntoState,
   applyEquipmentDoc,
   applyHoursOntoState,
   applyRemoteProjectRead,
   clearProjectStateMemory,
+  ensureProjectAbsences,
   ensureProjectHours,
   hoursRangeCovered,
   loadProjectState,
@@ -241,6 +243,20 @@ assert.equal(projectLoadMeta('co1'), 'ok');
   assert.equal(mergedDoc.equipment.find((row) => row.id === 'car').bookingAccess, 'selected');
   assert.deepEqual(mergedDoc.equipment.map((row) => row.id).sort(), ['car', 'drill']);
   assert.deepEqual(mergedDoc.personalVehicles, []);
+}
+
+{
+  // Fravær i minnet kan tegnes før nettet svarer, men bare når vinduet er lest før.
+  const range = { fromDate: '2026-04-01', toDate: '2027-12-31' };
+  clearProjectStateMemory('co-abs');
+  assert.equal(absencesRangeCovered('co-abs', range), false, 'ingenting i minnet');
+  putProjectState(emptyProjectState(), 'co-abs');
+  assert.equal(absencesRangeCovered('co-abs', range), false, 'fraværet er ikke lest');
+  await ensureProjectAbsences('co-abs', range);
+  assert.equal(absencesRangeCovered('co-abs', range), true);
+  assert.equal(absencesRangeCovered('co-abs', { fromDate: '2026-05-01', toDate: '2027-01-31' }), true, 'smalere vindu er dekket');
+  assert.equal(absencesRangeCovered('co-abs', { fromDate: '2026-01-01', toDate: '2027-01-31' }), false, 'eldre fravær er ikke lest');
+  clearProjectStateMemory('co-abs');
 }
 
 console.log('storage.test.mjs: ok');

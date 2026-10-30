@@ -17,6 +17,7 @@ import {
   ACTIVATABLE_MODULE_IDS,
   getModuleConfig,
   ILLUSTRATION_FILES,
+  PHONE_ILLUSTRATION_FILES,
 } from './moduleActivationRegistry.js';
 import { buildHelpWelcomeModule } from '../utils/helpWelcome.js';
 import { getModuleIntro, localizeIntro } from '../utils/moduleIntros.js';
@@ -369,6 +370,8 @@ for (const id of ['moter-oversikt', 'moter-oppfolging', 'moter-maler']) {
   assert.equal(resolveModuleHero(id, 'nb').wideArt, true, `${id} uses the wide illustration`);
   assert.equal(ILLUSTRATION_FILES[id], 'moter--module-activation-illustration.png');
   assert.equal(companyHeroGroup(id), 'company-meetings');
+  // Telefonen har et eget, nesten kvadratisk bilde, så folkene ikke blir små i det lave båndet.
+  assert.equal(PHONE_ILLUSTRATION_FILES[id], 'moter-phone--module-activation-illustration.png');
 }
 assert.equal(resolveModuleHero('moter-oppfolging', 'nb').title, 'Oppfølging');
 assert.equal(resolveModuleHero('moter-maler', 'nb').title, 'Møtemaler');
@@ -733,6 +736,7 @@ for (const file of [
   'okonomi-utlegg-phone--module-activation-illustration.png',
   'arbeid-fravaer-phone--module-activation-illustration.png',
   'timeliste-phone--module-activation-illustration.png',
+  'moter-phone--module-activation-illustration.png',
 ]) {
   const bundled = join(ROOT, 'assets/module-activation', file);
   const published = join(ROOT, 'public/assets/module-activation', file);

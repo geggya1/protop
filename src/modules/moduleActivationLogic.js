@@ -122,6 +122,9 @@ export const PHONE_ILLUSTRATION_FILES = {
   'arbeid-fravaersrapport': 'arbeid-fravaer-phone--module-activation-illustration.png',
   timeliste: 'timeliste-phone--module-activation-illustration.png',
   'arbeid-timeliste': 'timeliste-phone--module-activation-illustration.png',
+  'moter-oversikt': 'moter-phone--module-activation-illustration.png',
+  'moter-oppfolging': 'moter-phone--module-activation-illustration.png',
+  'moter-maler': 'moter-phone--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

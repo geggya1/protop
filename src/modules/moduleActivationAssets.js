@@ -105,6 +105,9 @@ const BUNDLED_PHONE = {
   'arbeid-fravaersrapport': require('../../assets/module-activation/arbeid-fravaer-phone--module-activation-illustration.png'),
   timeliste: require('../../assets/module-activation/timeliste-phone--module-activation-illustration.png'),
   'arbeid-timeliste': require('../../assets/module-activation/timeliste-phone--module-activation-illustration.png'),
+  'moter-oversikt': require('../../assets/module-activation/moter-phone--module-activation-illustration.png'),
+  'moter-oppfolging': require('../../assets/module-activation/moter-phone--module-activation-illustration.png'),
+  'moter-maler': require('../../assets/module-activation/moter-phone--module-activation-illustration.png'),
 };
 
 /** ModulePageBg / screen `name` → catalog module id. */

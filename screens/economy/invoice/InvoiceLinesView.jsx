@@ -115,15 +115,22 @@ export function InvoiceLinesView({ invoice, colors, stacked = false, loadEntries
       {sections.map((section) => (
         <View key={section.id} style={{ gap: 4 }}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>{section.label}</Text>
-          <MiniTable columns={columns} rows={section.lines} colors={colors} stacked={stacked} rowKey={(line) => line.id} />
-          {section.lines.filter((line) => open[line.id]).map((line) => (
-            <View key={`hours-${line.id}`} style={{ gap: 4 }}>
-              <Text style={[type.label, { color: colors.ink }]}>
-                {`Timer bak «${line.description || 'linjen'}»${periodLabel(line.periodStart, line.periodEnd) ? `, ${periodLabel(line.periodStart, line.periodEnd)}` : ''}`}
-              </Text>
-              <HoursDrawer line={line} colors={colors} stacked={stacked} state={open[line.id]} />
-            </View>
-          ))}
+          {/* Timene vises rett under linjen som er åpnet. */}
+          <MiniTable
+            columns={columns}
+            rows={section.lines}
+            colors={colors}
+            stacked={stacked}
+            rowKey={(line) => line.id}
+            renderAfter={(line) => (open[line.id] ? (
+              <View style={styles.drawerWrap}>
+                <Text style={[type.label, { color: colors.ink }]}>
+                  {`Timer bak «${line.description || 'linjen'}»${periodLabel(line.periodStart, line.periodEnd) ? `, ${periodLabel(line.periodStart, line.periodEnd)}` : ''}`}
+                </Text>
+                <HoursDrawer line={line} colors={colors} stacked={stacked} state={open[line.id]} />
+              </View>
+            ) : null)}
+          />
         </View>
       ))}
       <Text style={{ color: colors.muted, fontSize: 11 }}>{`Beløp i ${currency}.`}</Text>
@@ -166,6 +173,7 @@ export function InvoiceTotalsView({ invoice, colors }) {
 
 const styles = StyleSheet.create({
   drawerToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, alignSelf: 'flex-start' },
+  drawerWrap: { gap: 4, paddingVertical: 8 },
   drawer: { borderWidth: 1, borderRadius: 8, padding: 8, gap: 6 },
   totals: { alignSelf: 'flex-end', gap: 4, minWidth: 320 },
   totalRow: { flexDirection: 'row', gap: 12 },

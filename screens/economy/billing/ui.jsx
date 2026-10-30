@@ -2,7 +2,7 @@
  * Felles byggeklosser for Til fakturering og fakturasiden.
  * Tabellen blir til kort på smal skjerm, så ingenting forsvinner på mobil.
  */
-import React from 'react';
+import React, { Fragment } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatMoney } from '../../../src/economy/invoices.js';
@@ -147,12 +147,14 @@ export function Field({ label, value, onChangeText, colors, placeholder = '', mu
  * Tabell. columns: [{ key, label, width?, flex?, align?, render? }].
  * stacked: kort i stedet for kolonner (smal skjerm).
  */
-export function MiniTable({ columns, rows, colors, stacked = false, rowKey = (row, index) => row?.key || row?.id || index, footer = null, dimmed }) {
+/** renderAfter(row) gir innhold rett under raden, for eksempel en skuff som er åpnet. */
+export function MiniTable({ columns, rows, colors, stacked = false, rowKey = (row, index) => row?.key || row?.id || index, footer = null, dimmed, renderAfter = null }) {
   if (stacked) {
     return (
       <View style={{ gap: 8 }}>
         {rows.map((row, index) => (
-          <View key={rowKey(row, index)} style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, opacity: dimmed?.(row) ? 0.5 : 1 }]}>
+          <Fragment key={rowKey(row, index)}>
+          <View style={[styles.card, { borderColor: colors.line, backgroundColor: colors.card, opacity: dimmed?.(row) ? 0.5 : 1 }]}>
             {columns.map((col) => {
               const content = col.render ? col.render(row) : row[col.key];
               if (content == null || content === '') return null;
@@ -168,6 +170,8 @@ export function MiniTable({ columns, rows, colors, stacked = false, rowKey = (ro
               );
             })}
           </View>
+          {renderAfter?.(row) || null}
+          </Fragment>
         ))}
         {footer}
       </View>
@@ -190,7 +194,8 @@ export function MiniTable({ columns, rows, colors, stacked = false, rowKey = (ro
         ))}
       </View>
       {rows.map((row, index) => (
-        <View key={rowKey(row, index)} style={[styles.bodyRow, { borderBottomColor: colors.line, opacity: dimmed?.(row) ? 0.5 : 1 }]}>
+        <Fragment key={rowKey(row, index)}>
+        <View style={[styles.bodyRow, { borderBottomColor: colors.line, opacity: dimmed?.(row) ? 0.5 : 1 }]}>
           {columns.map((col) => {
             const content = col.render ? col.render(row) : row[col.key];
             return (
@@ -202,6 +207,8 @@ export function MiniTable({ columns, rows, colors, stacked = false, rowKey = (ro
             );
           })}
         </View>
+        {renderAfter?.(row) || null}
+        </Fragment>
       ))}
       {footer}
     </View>

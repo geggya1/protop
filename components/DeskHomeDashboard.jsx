@@ -114,7 +114,8 @@ export default function DeskHomeDashboard({
   const { activeProfile, kids, parents, uid, members, isParent, familyId } = useApp();
   const { unreadTotal } = useUnread();
   const { place, forecast } = useWeather();
-  const day = useGreetingDayStatus({ enabled: true });
+  // Avtalene kommer fra Hjem og useDeskHomeExternalEvents. Her trengs bare oppgavene.
+  const day = useGreetingDayStatus({ enabled: true, tasksOnly: true });
   const now = useMemo(() => new Date(), []);
   const todayKey = dateKey(now);
   const tomorrow = useMemo(() => addDays(now, 1), [now]);

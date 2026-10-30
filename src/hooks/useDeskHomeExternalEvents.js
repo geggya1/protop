@@ -36,15 +36,13 @@ export function loadExternalCalendarEventsForDeskHome({
     })
     .catch(() => {});
 
-  listCalendarConnections()
-    .then((list) => (alive ? (list || []) : []))
-    .catch(() => [])
-    .then(() => {
-      if (!alive) return null;
-      // lastError/needsReauth must not bypass cache — reconnect is a user action,
-      // and hammering Graph on every home/plan mount trips the 4/min guard.
-      return fetchExternalCalendarEvents(start, end, { uid, force: false });
-    })
+  // Warms the connection cache for Plan/Mail. Runs alongside the event fetch,
+  // which does not need the list — waiting on it only delayed the agenda.
+  listCalendarConnections().catch(() => {});
+
+  // lastError/needsReauth must not bypass cache — reconnect is a user action,
+  // and hammering Graph on every home/plan mount trips the 4/min guard.
+  fetchExternalCalendarEvents(start, end, { uid, force: false })
     .then((res) => {
       if (!alive || !res) return;
       onEvents?.(res.events || []);

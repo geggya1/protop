@@ -322,14 +322,27 @@ async function fetchExternalCalendarEventsNetwork(startDateKey, endDateKey) {
   };
 }
 
+const externalFetchInflight = new Map();
+
 /**
  * Hent eksterne kalenderhendelser med stale-while-revalidate-cache.
+ * Samtidige kall for samme periode deler én henting.
  * @param {string} startDateKey
  * @param {string} endDateKey
  * @param {{ force?: boolean, uid?: string }} [opts]
  */
-export async function fetchExternalCalendarEvents(startDateKey, endDateKey, opts = {}) {
+export function fetchExternalCalendarEvents(startDateKey, endDateKey, opts = {}) {
   const uid = opts.uid || auth.currentUser?.uid || 'anon';
+  const key = `${uid}:${startDateKey}:${endDateKey}:${opts.force ? 1 : 0}`;
+  if (externalFetchInflight.has(key)) return externalFetchInflight.get(key);
+  const pending = fetchExternalCalendarEventsOnce(startDateKey, endDateKey, { ...opts, uid })
+    .finally(() => { externalFetchInflight.delete(key); });
+  externalFetchInflight.set(key, pending);
+  return pending;
+}
+
+async function fetchExternalCalendarEventsOnce(startDateKey, endDateKey, opts) {
+  const { uid } = opts;
   if (!opts.force) {
     const cached = peekExternalCalendarCache(uid, startDateKey, endDateKey, {
       maxAgeMs: CAL_FRESH_MS,

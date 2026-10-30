@@ -721,24 +721,11 @@ async function fetchAir(lat, lng, opts) {
   return parsed;
 }
 
-/**
- * Henter bare widgetene som er slått på. Feil i én kilde stopper ikke de andre.
- */
-export async function loadLiveWidgets(prefs, {
-  lat,
-  lng,
-  now = new Date(),
-  fetchImpl,
-  proxyImpl,
-  preferProxy = false,
-} = {}) {
-  const safe = normalizeLivePrefs(prefs);
+function liveWidgetJobs(safe, { lat, lng, now, opts }) {
   const enabled = new Set(safe.enabled);
-  const opts = { fetchImpl, proxyImpl, preferProxy };
-  const data = {};
-  const errors = {};
   const jobs = [];
   const powerZone = effectivePowerZone(safe, { lat, lng });
+  const day = osloDateParts(now).date;
 
   if (enabled.has('news')) {
     jobs.push(['news', TTL.news, `news:${safe.newsSource}`, () => fetchNews(safe.newsSource, opts), safe.newsSource]);
@@ -747,24 +734,85 @@ export async function loadLiveWidgets(prefs, {
     jobs.push(['stocks', TTL.stocks, `stocks:${safe.stockSymbols.join(',')}`, () => fetchStocks(safe.stockSymbols, opts), 'aksje']);
   }
   if (enabled.has('power')) {
-    jobs.push(['power', TTL.power, `power:${powerZone}:${osloDateParts(now).date}`, () => fetchPower(powerZone, now, opts), 'strømpris']);
+    jobs.push(['power', TTL.power, `power:${powerZone}:${day}`, () => fetchPower(powerZone, now, opts), 'strømpris']);
   }
   if (enabled.has('fx')) {
     jobs.push(['fx', TTL.fx, `fx:${safe.fxCodes.join(',')}`, () => fetchFx(safe.fxCodes, opts), 'valuta']);
   }
   if (enabled.has('holiday')) {
-    jobs.push(['holiday', TTL.holiday, `holiday:${osloDateParts(now).date}`, () => fetchHoliday(now, opts), 'helligdag']);
+    jobs.push(['holiday', TTL.holiday, `holiday:${day}`, () => fetchHoliday(now, opts), 'helligdag']);
   }
   if (enabled.has('air') && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
     const key = `air:${Number(lat).toFixed(2)},${Number(lng).toFixed(2)}`;
     jobs.push(['air', TTL.air, key, () => fetchAir(lat, lng, opts), 'luftkvalitet']);
   }
+  return jobs;
+}
+
+/** Hvor gammel lagret widgetdata kan være før den ikke vises i det hele tatt. */
+export const LIVE_SNAPSHOT_MAX_AGE = 24 * 60 * 60 * 1000;
+
+/**
+ * Det som ligger i cachen nå, også utdatert. Gir kortene noe å vise straks
+ * mens ferske tall hentes.
+ */
+export function peekLiveWidgets(prefs, { lat, lng, now = new Date() } = {}) {
+  const safe = normalizeLivePrefs(prefs);
+  const data = {};
+  liveWidgetJobs(safe, { lat, lng, now, opts: {} }).forEach(([id, , key]) => {
+    const hit = cache.get(key);
+    if (hit) data[id] = hit.data;
+  });
+  return data;
+}
+
+/** Cacheinnslag som kan lagres mellom besøk. */
+export function liveWidgetCacheEntries({ now = Date.now() } = {}) {
+  return [...cache.entries()]
+    .filter(([, hit]) => hit && now - hit.at < LIVE_SNAPSHOT_MAX_AGE)
+    .map(([key, hit]) => [key, { at: hit.at, data: hit.data }]);
+}
+
+/** Legger lagrede innslag tilbake i cachen. Nyere innslag i minnet vinner. */
+export function primeLiveWidgetCache(entries, { now = Date.now() } = {}) {
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    const [key, hit] = Array.isArray(entry) ? entry : [];
+    const at = Number(hit?.at);
+    if (typeof key !== 'string' || !hit || hit.data == null || !Number.isFinite(at)) return;
+    if (now - at >= LIVE_SNAPSHOT_MAX_AGE) return;
+    const prev = cache.get(key);
+    if (prev && prev.at >= at) return;
+    cache.set(key, { at, data: hit.data });
+  });
+}
+
+/**
+ * Henter bare widgetene som er slått på. Feil i én kilde stopper ikke de andre.
+ * onResult(id, { data } | { error }) kalles for hver kilde så snart den svarer,
+ * så raske kort slipper å vente på den tregeste.
+ */
+export async function loadLiveWidgets(prefs, {
+  lat,
+  lng,
+  now = new Date(),
+  fetchImpl,
+  proxyImpl,
+  preferProxy = false,
+  onResult,
+} = {}) {
+  const safe = normalizeLivePrefs(prefs);
+  const opts = { fetchImpl, proxyImpl, preferProxy };
+  const data = {};
+  const errors = {};
+  const jobs = liveWidgetJobs(safe, { lat, lng, now, opts });
 
   await Promise.all(jobs.map(async ([id, ttl, key, run, name]) => {
     try {
       data[id] = await cached(key, ttl, run);
+      onResult?.(id, { data: data[id] });
     } catch (err) {
       errors[id] = friendly(err, name);
+      onResult?.(id, { error: errors[id] });
     }
   }));
 

@@ -4,13 +4,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  APPLICATION_STAGES, RECRUITMENT_CRITERIA, formatNbDate, localIsoDate, normalizeApplication,
+  APPLICATION_STAGES, formatNbDate, jobCriteria, localIsoDate, normalizeApplication,
 } from '../../src/hr/model';
 import {
   APPLICATION_SOURCES, CLOSED_STAGES, RECOMMENDATIONS, RESPONSE_TEMPLATES,
-  addApplicationComment, assignApplication, criteriaAverages, historyLine, isClosedStage,
-  mailtoHref, markResponseSent, moveApplicationStage, myScorecard, removeApplicationComment,
-  responseTemplate, saveScorecard, stageLabel,
+  addApplicationComment, addReference, assignApplication, criteriaAverages, historyLine,
+  interviewIcs, isClosedStage, mailtoHref, markAiReviewed, markResponseSent, moveApplicationStage,
+  myScorecard, otherApplications, removeApplicationComment, removeReference, responseTemplate,
+  saveScorecard, stageLabel, updateReference,
 } from '../../src/hr/recruitment';
 import {
   RETENTION_DEFAULTS, addMonths, applicationClosed, applicationDeleteOn, deleteCountdownLabel,
@@ -31,6 +32,7 @@ const TABS = [
   { id: 'overview', label: 'Oversikt' },
   { id: 'score', label: 'Vurdering' },
   { id: 'interview', label: 'Intervju og tilbud' },
+  { id: 'references', label: 'Referanser' },
   { id: 'notes', label: 'Interne notater' },
   { id: 'reply', label: 'Svar til søker' },
   { id: 'history', label: 'Historikk' },
@@ -39,11 +41,39 @@ const TABS = [
 const DRAFT_KEYS = [
   'name', 'email', 'phone', 'location', 'source', 'jobId', 'evaluation', 'rejectReason',
   'interviewDate', 'interviewTime', 'interviewPlace', 'interviewers',
-  'offerSalary', 'offerStart', 'offerDeadline', 'response',
+  'offerSalary', 'offerStart', 'offerDeadline', 'response', 'interviewNotes',
 ];
 
+const EMPTY_REF = {
+  name: '', relation: '', phone: '', email: '', notes: '', givenByApplicant: true,
+};
+
+/** Anonym vurdering gjelder til søkeren er kalt inn til intervju. */
+const ANON_STAGES = ['new', 'screening'];
+
+/** Laster ned en tekstfil i nettleseren. */
+function downloadText(filename, content, mime) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return false;
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
+}
+
 function draftOf(app) {
-  return Object.fromEntries(DRAFT_KEYS.map((key) => [key, app?.[key] ?? '']));
+  return Object.fromEntries(DRAFT_KEYS.map((key) => [key, app?.[key] ?? (key === 'interviewNotes' ? {} : '')]));
+}
+
+function same(a, b) {
+  return typeof a === 'object' || typeof b === 'object'
+    ? JSON.stringify(a || {}) === JSON.stringify(b || {})
+    : String(a ?? '') === String(b ?? '');
 }
 
 function when(iso) {
@@ -118,8 +148,9 @@ function RatingRow({ colors, label, value, onChange, disabled }) {
  * Tekstfeltene (kontaktinfo, intervju, tilbud, svar) lagres med «Lagre» og når panelet lukkes.
  */
 export default function RecruitmentApplicant({
-  colors, app, job, jobs, canWrite, actor, ownerOptions, company, retention = RETENTION_DEFAULTS,
-  hiring, attaching, onClose, onUpdate, onHire, onDelete, onAttachFiles, onPickFiles, initialClose = false,
+  colors, app, job, jobs, apps = [], canWrite, actor, ownerOptions, company, retention = RETENTION_DEFAULTS,
+  hiring, attaching, onClose, onUpdate, onHire, onDelete, onAttachFiles, onPickFiles, onCopyToJob,
+  onOpenOther, anonymous = false, initialClose = false,
 }) {
   const { width } = useWindowDimensions();
   const wide = width >= BREAKPOINTS.tablet;
@@ -131,6 +162,9 @@ export default function RecruitmentApplicant({
   const [closing, setClosing] = useState(initialClose ? 'pick' : '');
   const [replyKind, setReplyKind] = useState('');
   const [subject, setSubject] = useState('');
+  const [refDraft, setRefDraft] = useState(EMPTY_REF);
+  const [copyJobId, setCopyJobId] = useState('');
+  const [reveal, setReveal] = useState(false);
   const mine = myScorecard(app, actor);
   const [card, setCard] = useState(() => ({
     ratings: mine?.ratings || {}, comment: mine?.comment || '', recommendation: mine?.recommendation || '',
@@ -143,6 +177,9 @@ export default function RecruitmentApplicant({
     setClosing(initialClose ? 'pick' : '');
     setReplyKind('');
     setSubject('');
+    setRefDraft(EMPTY_REF);
+    setCopyJobId('');
+    setReveal(false);
     const own = myScorecard(app, actor);
     setCard({ ratings: own?.ratings || {}, comment: own?.comment || '', recommendation: own?.recommendation || '' });
     // Bare når en annen søknad åpnes.
@@ -150,10 +187,12 @@ export default function RecruitmentApplicant({
   }, [app?.id, initialClose]);
 
   const dirty = useMemo(
-    () => Object.keys(edits).some((key) => String(edits[key] ?? '') !== String(app?.[key] ?? '')),
+    () => Object.keys(edits).some((key) => !same(edits[key], app?.[key])),
     [edits, app],
   );
-  const averages = useMemo(() => criteriaAverages(app?.scorecards), [app?.scorecards]);
+  const criteria = useMemo(() => jobCriteria(job), [job]);
+  const averages = useMemo(() => criteriaAverages(app?.scorecards, criteria), [app?.scorecards, criteria]);
+  const others = useMemo(() => (app ? otherApplications(app, apps) : []), [app, apps]);
   const jobOptions = useMemo(() => [
     { id: '', label: 'Åpen søknad (ingen stilling)' },
     ...(jobs || []).map((row) => ({ id: row.id, label: row.title })),
@@ -161,6 +200,8 @@ export default function RecruitmentApplicant({
 
   if (!app) return null;
   const closed = isClosedStage(app.stage);
+  const hidden = anonymous && ANON_STAGES.includes(app.stage) && !reveal;
+  const shownName = hidden ? `Søker ${String(app.id).slice(-4).toUpperCase()}` : app.name;
   const set = (key) => (value) => setEdits((prev) => ({ ...prev, [key]: value }));
 
   /** Lagrer utkastet sammen med handlingen, så ingenting skrevet går tapt. */
@@ -213,7 +254,7 @@ export default function RecruitmentApplicant({
     <View style={[styles.head, { borderBottomColor: colors.line }]}>
       <View style={styles.headTop}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.title, { color: colors.ink }]} numberOfLines={1} accessibilityRole="header">{app.name}</Text>
+          <Text style={[styles.title, { color: colors.ink }]} numberOfLines={1} accessibilityRole="header">{shownName}</Text>
           <Text style={[styles.meta, { color: colors.muted }]} numberOfLines={2}>
             {[job?.title || 'Åpen søknad', `Søkt ${formatNbDate(app.appliedAt)}`, ownerLabel].join(' · ')}
           </Text>
@@ -316,7 +357,8 @@ export default function RecruitmentApplicant({
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
         {TABS.map((row) => {
           const count = row.id === 'notes' ? app.comments.length + (app.notes ? 1 : 0)
-            : row.id === 'score' ? app.scorecards.length : 0;
+            : row.id === 'score' ? app.scorecards.length
+              : row.id === 'references' ? app.references.length : 0;
           return (
             <Pressable
               key={row.id}
@@ -339,6 +381,15 @@ export default function RecruitmentApplicant({
   const overview = (
     <>
       <Section colors={colors} title="Søker">
+        {hidden ? (
+          <View style={[styles.anonBox, { borderColor: colors.line, backgroundColor: colors.bg }]} nativeID="hr-app-anon">
+            <Text style={[styles.body, { color: colors.ink, flex: 1 }]}>
+              Anonym vurdering: navn og kontaktinfo er skjult til søkeren går videre til intervju. Vurder kompetanse og erfaring.
+            </Text>
+            <HrButton colors={colors} label="Vis likevel" icon="eye-outline" onPress={() => setReveal(true)} />
+          </View>
+        ) : (
+        <>
         <View style={styles.grid}>
           <View style={styles.cell}><HrField colors={colors} label="Navn" value={draft.name} onChangeText={set('name')} /></View>
           <View style={styles.cell}><HrField colors={colors} label="Bosted" value={draft.location} onChangeText={set('location')} /></View>
@@ -353,6 +404,8 @@ export default function RecruitmentApplicant({
             <HrChip colors={colors} label={`Ring ${app.phone}`} active={false} onPress={() => Linking.openURL(`tel:${app.phone.replace(/\s/g, '')}`).catch(() => {})} />
           ) : null}
         </View>
+        </>
+        )}
         <Text style={[styles.label, { color: colors.muted }]}>Kilde</Text>
         <View style={styles.actions}>
           {APPLICATION_SOURCES.map((source) => (
@@ -388,6 +441,48 @@ export default function RecruitmentApplicant({
           </View>
         </View>
       </Section>
+
+      {others.length || (canWrite && (jobs || []).length > 1) ? (
+        <Section colors={colors} title="Andre stillinger">
+          {others.map((row) => {
+            const title = (jobs || []).find((j) => j.id === row.jobId)?.title || 'Åpen søknad';
+            return (
+              <Pressable key={row.id} onPress={() => onOpenOther?.(row.id)} style={styles.docRow} accessibilityRole="link">
+                <Ionicons name="git-branch-outline" size={15} color={colors.brand} />
+                <Text style={[styles.body, { color: colors.brand, flex: 1 }]} numberOfLines={1}>
+                  {`Har også søkt: ${title} · ${stageLabel(row.stage)}`}
+                </Text>
+              </Pressable>
+            );
+          })}
+          {canWrite && (jobs || []).length > 1 ? (
+            <View style={styles.grid}>
+              <View style={styles.cell}>
+                <OptionPicker
+                  options={(jobs || []).filter((j) => j.id !== app.jobId && j.status !== 'closed').map((j) => ({ id: j.id, label: j.title }))}
+                  value={copyJobId}
+                  onChange={(id) => setCopyJobId(id || '')}
+                  placeholder="Velg stilling"
+                  title="Vurder for en annen stilling"
+                />
+              </View>
+              <HrButton
+                colors={colors}
+                label="Kopier søkeren dit"
+                icon="copy-outline"
+                disabled={!copyJobId}
+                onPress={() => { onCopyToJob?.(app, copyJobId); setCopyJobId(''); }}
+                nativeID="hr-app-copy"
+              />
+            </View>
+          ) : null}
+          {canWrite && (jobs || []).length > 1 ? (
+            <Text style={[styles.meta, { color: colors.muted }]}>
+              Talentbank: kopien starter i «Mottatt» på den andre stillingen, med CV og AI-profil. Vurderinger og notater følger ikke med.
+            </Text>
+          ) : null}
+        </Section>
+      ) : null}
 
       {app.ai || app.profile ? (
         <Section
@@ -437,9 +532,22 @@ export default function RecruitmentApplicant({
               {[...(app.profile?.certifications || []), ...(app.profile?.languages || [])].join(' · ')}
             </Text>
           ) : null}
-          <Text style={[styles.meta, { color: colors.muted }]}>
-            AI-lesingen er et utgangspunkt. Kontroller mot dokumentet før du avgjør.
-          </Text>
+          <View style={[styles.anonBox, { borderColor: colors.line, backgroundColor: colors.bg }]} nativeID="hr-app-ai-review">
+            <Text style={[styles.meta, { color: colors.muted, flex: 1 }]}>
+              {app.aiReviewedBy
+                ? `Kontrollert mot dokumentet av ${app.aiReviewedBy} ${when(app.aiReviewedAt)}. AI-en er et forslag; avgjørelsen tas av mennesker.`
+                : 'AI-lesingen er et forslag og kan ta feil. Kontroller mot dokumentet før søkeren vurderes. Avgjørelser tas av mennesker.'}
+            </Text>
+            {canWrite && !app.aiReviewedBy ? (
+              <HrButton
+                colors={colors}
+                label="Jeg har kontrollert"
+                icon="shield-checkmark-outline"
+                onPress={() => commit((row) => markAiReviewed(row, { actor }))}
+                nativeID="hr-app-ai-reviewed"
+              />
+            ) : null}
+          </View>
         </Section>
       ) : null}
 
@@ -531,7 +639,7 @@ export default function RecruitmentApplicant({
         <Text style={[styles.meta, { color: colors.muted }]}>
           Gi 1–5 per kriterium. Hver vurderer har sitt eget scorekort, og scoren er snittet av alle.
         </Text>
-        {RECRUITMENT_CRITERIA.map((criterion) => (
+        {criteria.map((criterion) => (
           <RatingRow
             key={criterion.id}
             colors={colors}
@@ -594,7 +702,7 @@ export default function RecruitmentApplicant({
             </View>
           ))}
           {app.scorecards.map((row) => {
-            const values = Object.values(row.ratings || {});
+            const values = criteria.map((c) => row.ratings?.[c.id]).filter((n) => n >= 1 && n <= 5);
             const avg = values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10 : null;
             const rec = RECOMMENDATIONS.find((r) => r.id === row.recommendation);
             return (
@@ -640,8 +748,45 @@ export default function RecruitmentApplicant({
               <HrButton colors={colors} label="Flytt til Intervju" icon="arrow-forward" onPress={() => moveTo('interview')} />
             ) : null}
             <HrButton colors={colors} label="Lag innkalling" icon="mail-outline" onPress={() => { pickTemplate('interview'); setTab('reply'); }} />
+            {Platform.OS === 'web' ? (
+              <HrButton
+                colors={colors}
+                label="Legg i kalender (.ics)"
+                icon="calendar-outline"
+                disabled={!draft.interviewDate}
+                onPress={() => {
+                  const ics = interviewIcs({ ...app, ...draft }, { job, company: company?.name || '' });
+                  if (ics) downloadText(`intervju-${String(app.name).replace(/[^\p{L}\d]+/gu, '-').toLowerCase()}.ics`, ics, 'text/calendar');
+                }}
+                nativeID="hr-app-ics"
+              />
+            ) : null}
           </View>
         ) : null}
+      </Section>
+      <Section colors={colors} title="Intervjuspørsmål">
+        {(job?.questions || []).length ? (
+          <>
+            <Text style={[styles.meta, { color: colors.muted }]}>
+              Samme spørsmål til alle søkerne. Skriv svar og inntrykk per spørsmål.
+            </Text>
+            {job.questions.map((q, index) => (
+              <HrField
+                key={q.id}
+                colors={colors}
+                label={`${index + 1}. ${q.label}`}
+                value={draft.interviewNotes?.[q.id] || ''}
+                onChangeText={(value) => setEdits((prev) => ({
+                  ...prev,
+                  interviewNotes: { ...(prev.interviewNotes || app.interviewNotes || {}), [q.id]: value },
+                }))}
+                multiline
+              />
+            ))}
+          </>
+        ) : (
+          <EmptyHint colors={colors} text="Stillingen har ingen intervjuspørsmål. Legg dem inn under «Endre» på stillingen for et strukturert intervju." />
+        )}
       </Section>
       <Section colors={colors} title="Tilbud">
         <View style={styles.grid}>
@@ -663,6 +808,74 @@ export default function RecruitmentApplicant({
         ) : null}
       </Section>
     </>
+  );
+
+  const referencesTab = (
+    <Section colors={colors} title="Referanser">
+      <Text style={[styles.meta, { color: colors.muted }]}>
+        Ta bare kontakt med referanser søkeren selv har oppgitt, og fortell søkeren at du gjør det. Noter bare det som er relevant for stillingen.
+      </Text>
+      {app.references.map((ref) => (
+        <View key={ref.id} style={[styles.scoreRow, { borderTopColor: colors.line }]}>
+          <View style={styles.sectionHead}>
+            <Text style={[styles.bodyStrong, { color: colors.ink, flex: 1 }]}>
+              {[ref.name, ref.relation].filter(Boolean).join(' · ')}
+            </Text>
+            {canWrite ? (
+              <Pressable onPress={() => commit((row) => removeReference(row, ref.id))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Slett referansen">
+                <Ionicons name="trash-outline" size={14} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
+          <Text style={[styles.meta, { color: colors.muted }]}>
+            {[ref.phone, ref.email, ref.givenByApplicant ? 'Oppgitt av søkeren' : 'Ikke oppgitt av søkeren', ref.byName ? `Registrert av ${ref.byName}` : ''].filter(Boolean).join(' · ')}
+          </Text>
+          {ref.notes ? <Text style={[styles.body, { color: colors.ink }]}>{ref.notes}</Text> : null}
+          {canWrite ? (
+            <View style={styles.actions}>
+              <HrChip
+                colors={colors}
+                label={ref.contactedAt ? `Kontaktet ${formatNbDate(ref.contactedAt)}` : 'Merk som kontaktet i dag'}
+                active={!!ref.contactedAt}
+                onPress={() => commit((row) => updateReference(row, ref.id, { contactedAt: ref.contactedAt ? '' : localIsoDate() }))}
+              />
+            </View>
+          ) : null}
+        </View>
+      ))}
+      {canWrite ? (
+        <View style={[styles.anonBox, styles.refForm, { borderColor: colors.line, backgroundColor: colors.bg }]} nativeID="hr-app-ref-form">
+          <View style={styles.grid}>
+            <View style={styles.cell}><HrField colors={colors} label="Navn" value={refDraft.name} onChangeText={(name) => setRefDraft((p) => ({ ...p, name }))} /></View>
+            <View style={styles.cell}><HrField colors={colors} label="Rolle / forhold" value={refDraft.relation} onChangeText={(relation) => setRefDraft((p) => ({ ...p, relation }))} placeholder="Nærmeste leder, Bygg AS" /></View>
+            <View style={styles.cell}><HrField colors={colors} label="Telefon" value={refDraft.phone} onChangeText={(phone) => setRefDraft((p) => ({ ...p, phone }))} keyboardType="phone-pad" /></View>
+            <View style={styles.cell}><HrField colors={colors} label="E-post" value={refDraft.email} onChangeText={(email) => setRefDraft((p) => ({ ...p, email }))} keyboardType="email-address" /></View>
+          </View>
+          <HrField colors={colors} label="Notat fra samtalen" value={refDraft.notes} onChangeText={(notes) => setRefDraft((p) => ({ ...p, notes }))} multiline />
+          <View style={styles.actions}>
+            <HrChip
+              colors={colors}
+              label="Oppgitt av søkeren"
+              active={refDraft.givenByApplicant}
+              onPress={() => setRefDraft((p) => ({ ...p, givenByApplicant: !p.givenByApplicant }))}
+            />
+            <HrButton
+              colors={colors}
+              label="Legg til referanse"
+              primary
+              icon="person-add-outline"
+              disabled={!refDraft.name.trim()}
+              onPress={() => {
+                commit((row) => addReference(row, refDraft, { actor }));
+                setRefDraft(EMPTY_REF);
+              }}
+              nativeID="hr-app-ref-add"
+            />
+          </View>
+        </View>
+      ) : null}
+      {!app.references.length && !canWrite ? <EmptyHint colors={colors} text="Ingen referanser." /> : null}
+    </Section>
   );
 
   const notesTab = (
@@ -782,7 +995,7 @@ export default function RecruitmentApplicant({
   );
 
   const content = {
-    overview, score: scoreTab, interview: interviewTab, notes: notesTab, reply: replyTab, history: historyTab,
+    overview, score: scoreTab, interview: interviewTab, references: referencesTab, notes: notesTab, reply: replyTab, history: historyTab,
   }[tab];
 
   return (
@@ -792,7 +1005,7 @@ export default function RecruitmentApplicant({
         <View
           style={[styles.panel, wide ? styles.panelWide : styles.panelNarrow, { backgroundColor: colors.card, borderColor: colors.line }]}
           accessibilityRole="dialog"
-          accessibilityLabel={`Søknad fra ${app.name}`}
+          accessibilityLabel={`Søknad fra ${shownName}`}
           nativeID="hr-app-panel"
         >
           {header}
@@ -877,6 +1090,10 @@ const styles = StyleSheet.create({
   dot: {
     width: 8, height: 8, borderRadius: radius.pill, marginTop: 6,
   },
+  anonBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: radius.card, padding: 10, flexWrap: 'wrap',
+  },
+  refForm: { flexDirection: 'column', alignItems: 'stretch' },
   foot: {
     flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderTopWidth: 1, flexWrap: 'wrap',
   },

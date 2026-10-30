@@ -157,7 +157,12 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   const runtime = await runtimeDeps(deps);
   await runtime.assertFamilyAdult(runtime.db, uid, familyId);
   await runtime.assertCompanyAiAllowed(runtime.db, familyId);
-  await runtime.checkAndIncrementUsage(runtime.db, familyId, uid, 'import', runtime.importLimit);
+  // Søknader har egen dagskvote, så en bunke CV-er ikke stopper annen import (og omvendt).
+  if (kind === 'application') {
+    await runtime.checkAndIncrementUsage(runtime.db, familyId, uid, 'application', runtime.applicationLimit);
+  } else {
+    await runtime.checkAndIncrementUsage(runtime.db, familyId, uid, 'import', runtime.importLimit);
+  }
 
   const apiKey = runtime.getGeminiKey();
   if (!apiKey) throw new Error('AI er ikke tilgjengelig akkurat nå. Prøv igjen senere.');
@@ -291,7 +296,7 @@ export async function handleInterpretImport(data, auth, deps = {}) {
   } catch (err) {
     if (deps.passthroughErrors) throw err;
     const message = String(err?.message || '');
-    if (/^Send et bilde|^Filen er for stor|^Åpne selskapet|^AI er ikke|^Ikke innlogget/.test(message)) throw err;
+    if (/^Send et bilde|^Filen er for stor|^Åpne selskapet|^AI er ikke|^Ikke innlogget|^Daglig grense/.test(message)) throw err;
     throw new Error(runtime.friendlyGeminiError(err));
   }
 }
@@ -307,6 +312,7 @@ async function runtimeDeps(deps) {
       callGeminiJson: deps.callGeminiJson,
       friendlyGeminiError: deps.friendlyGeminiError,
       importLimit: 20,
+      applicationLimit: 150,
     };
   }
   const shared = await import('./aiShared.js');
@@ -320,5 +326,6 @@ async function runtimeDeps(deps) {
     callGeminiJson: deps.callGeminiJson || shared.callGeminiJson,
     friendlyGeminiError: deps.friendlyGeminiError || shared.friendlyGeminiError,
     importLimit: shared.AI_LIMITS.importsPerFamilyPerDay,
+    applicationLimit: shared.AI_LIMITS.applicationsPerFamilyPerDay,
   };
 }

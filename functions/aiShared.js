@@ -7,6 +7,8 @@ import { AI_OFF_MESSAGE, companyAiAllowed } from '../src/privacy/companyPrivacy.
 export const AI_LIMITS = {
   /** Maks AI-import analyser per familie per dag (kun vellykkede / fullførte analyser) */
   importsPerFamilyPerDay: 20,
+  /** Maks søknader/CV-er lest med AI i rekrutteringen per selskap per dag (egen kvote) */
+  applicationsPerFamilyPerDay: 150,
   /** Maks chat-meldinger per bruker per dag (foresatte) */
   chatPerUserPerDay: 40,
   /** Maks chat-meldinger per barn per dag (lokal motor, ingen API-kostnad) */
@@ -98,6 +100,9 @@ function usageDocRef(db, familyId, uid, kind) {
   if (kind === 'import' || kind === 'meal') {
     return { ref: db.doc(`aiUsage/family_${familyId}_${dateKey}`), dateKey };
   }
+  if (kind === 'application') {
+    return { ref: db.doc(`aiUsage/family_${familyId}_${dateKey}_application`), dateKey };
+  }
   if (kind === 'tutor') {
     return { ref: db.doc(`aiUsage/user_${uid}_${dateKey}_tutor`), dateKey };
   }
@@ -111,6 +116,8 @@ function usageLimitError(kind, limit) {
   const err = new Error(
     kind === 'import'
       ? `Daglig grense for AI-import er nådd (${limit}/dag). Prøv igjen i morgen.`
+      : kind === 'application'
+        ? `Daglig grense for AI-lesing av søknader er nådd (${limit}/dag). Søknaden er lagret, og du kan fylle ut feltene selv eller lese den på nytt i morgen.`
       : kind === 'meal'
         ? `Daglig grense for AI-middag er nådd (${limit}/dag). Prøv igjen i morgen.`
         : kind === 'tutor'

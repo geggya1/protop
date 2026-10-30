@@ -70,6 +70,8 @@ const MOCKS = {
   'src/anbud/formImport': { askCompanyForm: async () => null, FORM_IMPORT_ACCEPT: '', readFormImport: async () => null },
   'src/anbud/agreementCase': { agreementStarterTemplate: () => ({ fields: [] }) },
   'components/CreateMenu': { __esModule: true, default: host('CreateMenu') },
+  // Fanene (PageTabs → ModuleTabs) trenger ark og målinger. Her holder det med tekstene.
+  'components/PageTabs': { __esModule: true, default: (props) => React.createElement('PageTabs', props, (props.tabs || []).map((tab) => tab.label)) },
   'components/BrandBusyOverlay': { __esModule: true, default: host('BrandBusyOverlay') },
   'components/DateInput': { __esModule: true, default: host('DateInput') },
 };

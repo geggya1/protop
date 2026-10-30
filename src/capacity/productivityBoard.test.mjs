@@ -217,7 +217,8 @@ const allKinds = withHooks(() => React.createElement(Board, {
   initialKind: 'alle',
 }));
 assert.match(collectText(allKinds).join('\n'), /Bo Ekstern/);
-assert.match(text, /Sammenslått/);
+// Personer / Sammenslått står som faner over tavlen (PageTabs i ProductivityScreen), ikke i tavlen.
+assert.doesNotMatch(text, /Sammenslått/);
 assert.match(text, /80 % stilling/);
 assert.match(text, /Ledig/);
 assert.match(text, /U42/);
@@ -342,6 +343,8 @@ assert.equal(series[0].hours, 18.8);
 const screen = readFileSync(join(ROOT, 'screens/arbeid/ProductivityScreen.jsx'), 'utf8');
 assert.match(screen, /loadCapacityPlan/);
 assert.match(screen, /activeEmployees/);
+assert.match(screen, /<PageTabs id="produktivitet"/);
+assert.match(screen, /label: 'Sammenslått'/);
 const hub = readFileSync(join(ROOT, 'screens/arbeid/ArbeidHub.jsx'), 'utf8');
 assert.match(hub, /page === 'produktivitet'/);
 const menu = readFileSync(join(ROOT, 'src/navigation/shellModules.js'), 'utf8');

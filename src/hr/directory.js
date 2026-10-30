@@ -4,7 +4,7 @@
  */
 import { levelById, placedLevelId } from '../access/companyAccess.js';
 import { displayName, employeeDirectoryBucket, personnelKind } from '../employees/model.js';
-import { companyComplianceOverview } from './compliance.js';
+import { companyComplianceOverview, complianceGapText } from './compliance.js';
 import {
   CONTRACT_STATUSES,
   activeContractFor,
@@ -101,6 +101,7 @@ export function hrControlCells(employee, { hr = {}, entries = [] } = {}) {
     contracts: hr.contracts,
     hmsCards: hr.hmsCards,
     applyEvidence: true,
+    hmsRequired: hr.hmsRequired !== false,
   })[0];
   const contract = id ? activeContractFor(id, hr.contracts) : null;
   const review = id ? (latestReviewsFor(id, hr.reviews, 1)[0] || null) : null;
@@ -113,7 +114,8 @@ export function hrControlCells(employee, { hr = {}, entries = [] } = {}) {
   return {
     kind: hrKindBucket(employee),
     kindLabel: hrKindLabel(employee),
-    checklist: overview ? `${overview.ok}/${overview.total}` : '—',
+    checklist: complianceGapText(overview),
+    checklistCount: overview ? `${overview.ok}/${overview.total}` : '—',
     checklistPct: overview ? `${overview.pct} %` : '—',
     checklistOk: overview?.ok ?? 0,
     checklistMissing: overview?.missing ?? 0,

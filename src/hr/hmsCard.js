@@ -8,6 +8,59 @@
 /** Varsel så mange dager før kortet går ut. */
 export const HMS_CARD_WARN_DAYS = 30;
 
+/**
+ * Bransjer der HMS-kort er påbudt, etter bedriftens næringskode (SN2007).
+ * Bilpleie, hjulskift og hjullagring er også omfattet, men har ingen egen næringskode
+ * og slås på med innstillingen.
+ */
+const HMS_TRADES = [
+  { re: /^4[123]\./, label: 'bygg og anlegg' },
+  { re: /^81\.2/, label: 'renhold' },
+];
+
+export const HMS_SCOPE_TEXT = 'HMS-kort er påbudt i bygg og anlegg, renhold og bilpleie, hjulskift og hjullagring.';
+
+/** Innstillingen i HR: '' følger næringskoden, 'on' kreves alltid, 'off' kreves ikke. */
+export function normalizeHmsSetting(value) {
+  return value === 'on' || value === 'off' ? value : '';
+}
+
+/**
+ * Kreves HMS-kort i bedriften? Næringskoden avgjør, med mindre bedriften har valgt selv.
+ * Den enkelte kan fortsatt settes til «Ikke aktuelt» (arbeider ikke på byggeplass).
+ */
+export function hmsCardRequirement({ naeringskode = '', setting = '' } = {}) {
+  const code = text(naeringskode, 20);
+  const trade = HMS_TRADES.find((row) => row.re.test(code));
+  const choice = normalizeHmsSetting(setting);
+  if (choice === 'on') return { required: true, setting: choice, trade: trade?.label || '', text: 'Bedriften har valgt at HMS-kort kreves.' };
+  if (choice === 'off') return { required: false, setting: choice, trade: trade?.label || '', text: 'Bedriften har valgt at HMS-kort ikke kreves.' };
+  if (trade) {
+    return { required: true, setting: '', trade: trade.label, text: `Kreves fordi bedriften er registrert med ${trade.label} (næringskode ${code}).` };
+  }
+  return {
+    required: false,
+    setting: '',
+    trade: '',
+    text: code
+      ? `Kreves ikke etter bedriftens næringskode (${code}). ${HMS_SCOPE_TEXT}`
+      : `Bedriften har ingen næringskode registrert. ${HMS_SCOPE_TEXT}`,
+  };
+}
+
+/**
+ * QR-koden på HMS-kortet. Den viser status i registeret når den skannes, så lenken lagres
+ * på kortet. Kortnummeret hentes ut bare når QR-koden er selve nummeret.
+ */
+export function parseHmsQr(raw) {
+  const value = text(raw, 500);
+  if (!value) return { url: '', number: '' };
+  if (/^https:\/\/[^\s]+$/i.test(value)) return { url: value, number: '' };
+  const digits = value.replace(/\s+/g, '');
+  if (/^\d{6,20}$/.test(digits)) return { url: '', number: digits };
+  return { url: '', number: '' };
+}
+
 function text(value, max = 200) {
   return String(value ?? '').trim().slice(0, max);
 }
@@ -39,6 +92,8 @@ export function normalizeHmsCard(row = {}) {
     number: text(row.number, 40).replace(/\s+/g, ' '),
     validTo: isoDate(row.validTo),
     employerOrgnr: text(row.employerOrgnr, 20).replace(/\D/g, '').slice(0, 9),
+    // Lenken fra QR-koden på kortet. Åpnes for å se status i registeret.
+    qrUrl: /^https:\/\//i.test(text(row.qrUrl, 500)) ? text(row.qrUrl, 500) : '',
     updatedAt: text(row.updatedAt, 40) || new Date().toISOString(),
   };
 }
@@ -55,7 +110,7 @@ export function upsertHmsCard(cards, card) {
   const next = normalizeHmsCard(card);
   const rest = (Array.isArray(cards) ? cards : []).filter((row) => text(row?.employeeId, 120) !== next.employeeId);
   if (!next.employeeId) return rest;
-  if (!next.number && !next.validTo) return rest;
+  if (!next.number && !next.validTo && !next.qrUrl) return rest;
   return [...rest, next];
 }
 

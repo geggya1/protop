@@ -92,6 +92,7 @@ const rnMock = {
   Modal: (props) => (props?.visible === false ? null : React.createElement('div', domProps(props), props?.children)),
   Dimensions: { get: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }) },
   useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }),
+  Linking: { openURL: async () => {} },
 };
 
 function mocked(id) {
@@ -113,6 +114,8 @@ function mocked(id) {
     };
   }
   if (id.includes('ui/saveToast')) return { showSaveToast: () => {} };
+  // Kameraet til QR-skanning av HMS-kort lastes ikke i testen.
+  if (id.includes('BarcodeScannerModal')) return { __esModule: true, default: () => null };
   // Kjøregodtgjørelse på lønnssiden leser prosjektstaten og satsene fra serveren.
   if (id.includes('mileage/EmployeeMileageCard')) return { __esModule: true, default: () => null };
   if (id.includes('ThemeContext')) {
@@ -316,13 +319,26 @@ let followHtml = '';
   // Minimumskravene i AML § 14-6 settes fra avtalen, ikke ved avkrysning.
   assert.match(html, /id="hr-compliance-derived-aml_contract_minimum"/);
   assert.match(html, /Ingen aktiv arbeidsavtale\. Registrer den under Avtale/);
-  // Øverst står hva som mangler og hva som må gjøres, ikke bare et tall.
+  // Øverst står hvor mange som mangler. Punktene står én gang, det som mangler først.
   assert.match(html, /id="hr-compliance-summary"/);
-  assert.match(html, /Dette mangler: \d av \d påkrevde punkter/);
-  assert.match(html, /id="hr-compliance-gap-aml_written_contract"/);
-  assert.match(html, /Registrer arbeidsavtalen under Avtale\./);
-  assert.match(html, /Åpne Avtale/);
+  assert.match(html, /Dette mangler: 4 av 4 påkrevde punkter/);
   assert.equal(html.includes('OK: 0/'), false);
+  assert.equal((html.match(/>Skriftlig arbeidsavtale</g) || []).length, 1, 'punktet står bare én gang');
+  assert.equal(html.includes('hr-compliance-gap-'), false, 'ingen egen liste over mangler i tillegg til punktene');
+  const order = ['aml_written_contract', 'aml_contract_minimum', 'hms_card', 'gdpr_privacy_notice', 'aml_probation_documented']
+    .map((id) => html.indexOf(`id="hr-compliance-item-${id}"`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'påkrevde mangler før punktene ved behov');
+  assert.match(html, /Åpne Avtale/);
+  // Avtalen følger det som er registrert under Avtale. Ingen avkrysning, ingen «Hent fra avtalen».
+  assert.match(html, /id="hr-compliance-derived-aml_written_contract"/);
+  assert.equal(html.includes('Hent fra avtalen'), false);
+  assert.equal(html.includes('Marker alle påkrevde som OK'), false);
+  assert.equal(html.includes('Arbeidsmiljøloven</span></button>'), false, 'ingen kildefilter');
+  // Notatfeltet åpnes ved behov, ikke på hvert punkt.
+  assert.equal(html.includes('Lagre notat'), false);
+  assert.match(html, /Legg til notat/);
+  // Forfalt kan ikke velges for hånd.
+  assert.equal(html.includes('>Forfalt</span></button>'), false);
 
   // Avtale etter de gamle ni punktene: fortsatt ikke OK, og det står hva som mangler.
   const oldContract = {
@@ -337,25 +353,36 @@ let followHtml = '';
     sheet: 'compliance',
   }));
   assert.match(partial, /id="hr-compliance-state-aml_contract_minimum"[^>]*>Forfalt · påkrevd/);
-  assert.match(partial, /Settes fra avtalen\. Mangler: .*Framgangsmåte ved opphør/);
-  assert.match(partial, /Avtalen dekker minimumskrav · forfalt/, 'oppsummeringen øverst sier at fristen er passert');
+  assert.match(partial, /Fyll ut i avtalen: .*Framgangsmåte ved opphør/);
   assert.match(partial, /Pensjon og andre trygdeordninger/);
+  assert.match(partial, /id="hr-compliance-state-aml_written_contract"[^>]*>OK · påkrevd/);
 
-  // HMS-kort: registreres på personen, med varsel når kortet er utløpt.
+  // HMS-kort: skann QR-koden eller registrer på personen, med varsel når kortet er utløpt.
   assert.match(html, /Gyldig HMS-kort/);
   assert.match(html, /id="hr-compliance-hms-card"/);
-  assert.match(html, /Registrer kortnummer og utløpsdato under/);
-  assert.match(html, /Ikke aktuelt: arbeider ikke på byggeplass/);
+  assert.match(html, /Skann QR-koden på kortet/);
+  assert.match(html, /Ikke aktuelt for denne personen/);
   const expired = renderToStaticMarkup(React.createElement(HrPeople, {
     ...peopleProps,
-    hr: { ...hr, hmsCards: [{ employeeId: 'e1', number: 'HMS 42', validTo: '2020-01-31' }] },
+    hr: { ...hr, hmsCards: [{ employeeId: 'e1', number: 'HMS 42', validTo: '2020-01-31', qrUrl: 'https://hmskort.no/v/abc' }] },
     selectedId: 'e1',
     sheet: 'compliance',
   }));
   assert.match(expired, /id="hr-compliance-state-hms_card"[^>]*>Forfalt · påkrevd/);
-  assert.match(expired, /HMS 42 · Utløpt 31\.01\.2020/);
-  assert.match(expired, /HMS-kortet er utløpt\. Registrer det nye kortet/);
-  assert.match(expired, /HMS-kortet er utløpt \(31\.01\.2020\)\. Bestill nytt kort\./);
+  assert.match(expired, /HMS 42 · Utløpt 31\.01\.2020\. Bestill nytt kort på hmskort\.no/);
+  assert.equal(expired.includes('hr-compliance-hms-alert'), false, 'utløpet står én gang, i statuslinjen');
+  assert.match(expired, /Åpne kortet i HMS-kortregisteret/);
+
+  // Bedrift utenfor bransjene med HMS-kort: punktet er «ved behov» og teller ikke.
+  const office = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    hr: { ...hr, hmsRequired: false, hmsRule: { required: false, text: 'Kreves ikke etter bedriftens næringskode (62.010).' } },
+    selectedId: 'e1',
+    sheet: 'compliance',
+  }));
+  assert.match(office, /id="hr-compliance-state-hms_card"[^>]*>Mangler · ved behov/);
+  assert.match(office, /Dette mangler: 3 av 3 påkrevde punkter/);
+  assert.match(office, /Kreves ikke etter bedriftens næringskode \(62\.010\)\. Endres under HR → Lovpålagt\./);
 
   // Uten tilgang til ISO: bare henvisningen, ingen knapp.
   const plain = renderToStaticMarkup(React.createElement(HrPeople, {

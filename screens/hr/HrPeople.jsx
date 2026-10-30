@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   displayName, formatNbDate as empFormatNbDate, periodLabel,
 } from '../../src/employees/model';
@@ -169,14 +169,12 @@ export default function HrPeople({
             <Fact colors={colors} label="Ansatt dato" value={empFormatNbDate(selected?.company?.periodFrom) || '—'} />
             <Fact colors={colors} label="Ansiennitet" value={tenure != null ? `${tenure} år` : '—'} />
             <Fact colors={colors} label="Fødselsdato" value={empFormatNbDate(selected?.person?.birthDate) || '—'} />
-            <Fact colors={colors} label="Lovpålagt" value={cells.checklist} />
-            <Fact colors={colors} label="Ansettelsesavtale" value={cells.contract} />
-            <Fact colors={colors} label="Medarbeidersamtale" value={cells.review} />
+            {/* Det som hører til en annen fane, er en snarvei dit. Detaljene står der. */}
+            <Fact colors={colors} label="Lovpålagt" value={cells.checklist} warn={cells.checklistMissing > 0} onPress={() => onSheet?.('compliance')} />
+            <Fact colors={colors} label="Ansettelsesavtale" value={cells.contract === 'Mangler' ? 'Ingen avtale' : cells.contract} warn={cells.contract === 'Mangler'} onPress={() => onSheet?.('avtale')} />
+            <Fact colors={colors} label="Medarbeidersamtale" value={cells.review === 'Mangler' ? 'Ingen samtale' : cells.review} warn={cells.review === 'Mangler'} onPress={() => onSheet?.('oppfolging')} />
             <Fact colors={colors} label="Fakturerbarhet" value={cells.utilization} />
-            <Fact colors={colors} label="Åpne saker" value={cells.openCases} />
-            <Fact colors={colors} label="Oppgaver" value={cells.openTasks} />
-            <Fact colors={colors} label="Memo" value={String(personMemos.length)} />
-            <Fact colors={colors} label="Filer" value={String(personFiles.length)} />
+            <Fact colors={colors} label="Saker, oppgaver, memo og filer" value={`${cells.openCases} åpne saker · ${cells.openTasks} oppgaver · ${personMemos.length} memo · ${personFiles.length} filer`} onPress={() => onSheet?.('oppfolging')} />
           </View>
           {nextEvents.length ? (
             <View style={styles.block}>
@@ -260,12 +258,18 @@ export default function HrPeople({
   );
 }
 
-function Fact({ colors, label, value }) {
-  return (
-    <View style={styles.fact}>
+function Fact({ colors, label, value, warn, onPress }) {
+  const body = (
+    <>
       <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
-      <Text style={[styles.factValue, { color: colors.ink }]}>{value}</Text>
-    </View>
+      <Text style={[styles.factValue, { color: warn ? colors.danger : colors.ink }]}>{value}</Text>
+    </>
+  );
+  if (!onPress) return <View style={styles.fact}>{body}</View>;
+  return (
+    <Pressable style={styles.fact} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}>
+      {body}
+    </Pressable>
   );
 }
 

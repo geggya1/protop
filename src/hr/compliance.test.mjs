@@ -205,3 +205,21 @@ console.log('hr/compliance.test.mjs ok');
   );
   assert.equal(complianceGapText(null), '—');
 }
+
+{
+  // HMS-kort teller bare når bedriften krever det. Avtalen følger det som er registrert.
+  const { companyComplianceOverview, isRequiredItem, syncComplianceFromEvidence: sync } = await import('./compliance.js');
+  assert.equal(isRequiredItem('hms_card'), true);
+  assert.equal(isRequiredItem('hms_card', { hmsRequired: false }), false);
+  assert.equal(isRequiredItem('aml_probation_documented'), false);
+  const emp = [{ id: 'e9', company: { status: 'active' } }];
+  assert.equal(companyComplianceOverview(emp, [], {}).at(0).total, 4);
+  const office = companyComplianceOverview(emp, [], { hmsRequired: false }).at(0);
+  assert.equal(office.total, 3);
+  assert.equal(office.gapIds.includes('hms_card'), false);
+  // Krysset av for hånd uten registrert avtale: mangler likevel, for avtalen ligger under Avtale.
+  const manual = sync([{ catalogId: 'aml_written_contract', employeeId: 'e9', status: 'ok' }], { employeeId: 'e9' });
+  assert.equal(manual.find((row) => row.catalogId === 'aml_written_contract').status, 'missing');
+  const na = sync([{ catalogId: 'aml_written_contract', employeeId: 'e9', status: 'na' }], { employeeId: 'e9' });
+  assert.equal(na.find((row) => row.catalogId === 'aml_written_contract').status, 'na');
+}

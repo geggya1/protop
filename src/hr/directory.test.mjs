@@ -165,7 +165,7 @@ function person(id, {
   assert.equal(cells.openTasks, '1');
   assert.equal(cells.kindLabel, 'Intern');
   assert.equal(cells.checklistOk, 3, 'avtale, minimumskrav og gyldig HMS-kort');
-  assert.equal(cells.checklist, 'personvern', 'listen sier hva som mangler, ikke 3/4');
+  assert.equal(cells.checklist, 'Personvern', 'listen sier hva som mangler, ikke 3/4');
   assert.equal(cells.checklistCount, '3/4');
   // HMS-introduksjon og kompetanse følges opp i ISO, ikke i HR-sjekklisten.
   assert.equal(cells.checklistGaps, 'Personverninformasjon gitt');

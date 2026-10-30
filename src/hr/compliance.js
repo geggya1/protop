@@ -27,6 +27,7 @@ export const COMPLIANCE_CATALOG = [
     sheet: 'avtale',
     hint: 'AML §§ 14-5 og 14-6 — alle skal ha skriftlig avtale, senest sju dager etter tiltredelse.',
     required: true,
+    derived: 'contractExists',
   },
   {
     id: 'aml_contract_minimum',
@@ -64,8 +65,9 @@ export const COMPLIANCE_CATALOG = [
     source: 'aml',
     label: 'Gyldig HMS-kort',
     short: 'HMS-kort',
-    todo: 'Registrer kortnummer og utløpsdato, eller velg «Ikke aktuelt» hvis personen ikke arbeider på byggeplass.',
-    hint: 'Alle som arbeider på bygge- eller anleggsplass, skal ha gyldig HMS-kort (forskrift om HMS-kort). Velg «Ikke aktuelt» for den som ikke er på byggeplass. Varsel 30 dager før kortet går ut.',
+    todo: 'Skann QR-koden på kortet eller skriv inn kortnummer og utløpsdato. Velg «Ikke aktuelt» for den som ikke arbeider der kortet kreves.',
+    hint: 'Påbudt i bygg og anlegg, renhold og bilpleie, hjulskift og hjullagring. Varsel 30 dager før kortet går ut.',
+    // Påkrevd bare når bedriften krever HMS-kort (hmsRequired, se hmsCard.js hmsCardRequirement).
     required: true,
     derived: 'hmsCard',
   },
@@ -81,6 +83,13 @@ export const COMPLIANCE_CATALOG = [
 ];
 
 const CATALOG_IDS = new Set(COMPLIANCE_CATALOG.map((row) => row.id));
+
+/** Er punktet påkrevd? HMS-kort er det bare når bedriften krever det. */
+export function isRequiredItem(catalogId, { hmsRequired = true } = {}) {
+  const cat = COMPLIANCE_CATALOG.find((row) => row.id === catalogId);
+  if (!cat?.required) return false;
+  return catalogId === 'hms_card' ? hmsRequired !== false : true;
+}
 
 /**
  * Punkter som før lå i sjekklisten og nå følges opp i ISO / K-HMS → Kompetanse.
@@ -155,12 +164,9 @@ export function ensureEmployeeCompliance(existing, employeeId) {
   ));
 }
 
-export function complianceSummary(items) {
+export function complianceSummary(items, { hmsRequired = true } = {}) {
   const rows = Array.isArray(items) ? items : [];
-  const required = rows.filter((row) => {
-    const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
-    return cat?.required && row.status !== 'na';
-  });
+  const required = rows.filter((row) => isRequiredItem(row.catalogId, { hmsRequired }) && row.status !== 'na');
   const ok = required.filter((row) => row.status === 'ok').length;
   const missing = required.filter((row) => row.status === 'missing' || row.status === 'overdue').length;
   return {
@@ -303,6 +309,14 @@ export function contractDueDate(startDate) {
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + 7)).toISOString().slice(0, 10);
 }
 
+/**
+ * Notater som synkroniseringen skrev før, på punkter som følger dataene. De gjentar bare
+ * statusen og vises ikke. Avtalen og HMS-kortet står i statuslinjen.
+ */
+export function isAutoNote(note) {
+  return /^(AML § 14-6 dekket \(\d+\/\d+\)|Aktiv arbeidsavtale i HR|HMS-kort .+)$/.test(String(note || '').trim());
+}
+
 function markOk(row, note = '') {
   return {
     ...row,
@@ -337,7 +351,7 @@ export function syncComplianceFromEvidence(compliance, {
     // når punktet er krysset av for hånd eller ble grønt etter de gamle kravene.
     if (row.catalogId === 'aml_contract_minimum' && row.status !== 'na') {
       if (aml && aml.pct >= 100) {
-        return row.status === 'ok' ? row : markOk(row, `AML § 14-6 dekket (${aml.filled}/${aml.total})`);
+        return row.status === 'ok' ? row : markOk(row);
       }
       const dueDate = contractDueDate(active?.startDate) || row.dueDate;
       const status = dueDate && dueDate < now ? 'overdue' : 'missing';
@@ -355,14 +369,16 @@ export function syncComplianceFromEvidence(compliance, {
         status,
         dueDate,
         completedAt: status === 'ok' ? (row.completedAt || now) : '',
-        note: status === 'ok' && card?.number ? `HMS-kort ${card.number}` : row.note,
         updatedAt: new Date().toISOString(),
       };
     }
-    if (row.status === 'ok' || row.status === 'na') return row;
-    if (row.catalogId === 'aml_written_contract' && active) {
-      return markOk(row, 'Aktiv arbeidsavtale i HR');
+    // Skriftlig avtale følger avtalen som er registrert under Avtale.
+    if (row.catalogId === 'aml_written_contract' && row.status !== 'na') {
+      if (active) return row.status === 'ok' ? row : markOk(row);
+      if (row.status === 'missing') return row;
+      return { ...row, status: 'missing', completedAt: '', updatedAt: new Date().toISOString() };
     }
+    if (row.status === 'ok' || row.status === 'na') return row;
     if (row.catalogId === 'aml_probation_documented' && active?.probationMonths) {
       return markOk(row, `Prøvetid ${active.probationMonths} mnd i avtale`);
     }
@@ -388,7 +404,10 @@ export function complianceGapText(overview) {
   const ids = overview.gapIds || [];
   const shorts = overview.gapShort || [];
   const other = shorts.filter((_, i) => COMPLIANCE_CATALOG.find((c) => c.id === ids[i])?.sheet !== 'avtale');
-  if (other.length) return other.join(', ');
+  if (other.length) {
+    const text = other.join(', ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
   return shorts.length ? 'Bare avtalen' : 'OK';
 }
 
@@ -398,6 +417,7 @@ export function companyComplianceOverview(employees, compliance, {
   hmsCards = [],
   applyEvidence = true,
   today = '',
+  hmsRequired = true,
 } = {}) {
   const rows = [];
   for (const emp of employees || []) {
@@ -413,11 +433,10 @@ export function companyComplianceOverview(employees, compliance, {
       })
       : (compliance || []);
     const items = ensureEmployeeCompliance(sourced, id);
-    const summary = complianceSummary(items);
-    const gapRows = items.filter((row) => {
-      const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
-      return cat?.required && (row.status === 'missing' || row.status === 'overdue');
-    });
+    const summary = complianceSummary(items, { hmsRequired });
+    const gapRows = items.filter((row) => (
+      isRequiredItem(row.catalogId, { hmsRequired }) && (row.status === 'missing' || row.status === 'overdue')
+    ));
     rows.push({
       employeeId: id,
       missing: summary.missing,

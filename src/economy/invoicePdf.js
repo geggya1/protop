@@ -347,6 +347,20 @@ function columnsFor(lines) {
   return { ...cols, markupOn: markup, discountOn: discount };
 }
 
+/**
+ * Venstrekanten til «Antall» i linjetabellen. Fakta øverst og summene nederst starter her,
+ * så de tre blokkene står på samme loddrette linje.
+ */
+function infoColumnX(lines, labels) {
+  return columnsFor(lines).qty - textWidth(labels.qtyCol, 7, true);
+}
+
+/** Verdikolonnen i faktaene: etter den lengste ledeteksten, men ikke før 430. */
+function factValueX(rows, x) {
+  const widest = Math.max(0, ...rows.map(([label, , strong]) => textWidth(`${label}:`, 8, !!strong)));
+  return Math.max(430, Math.ceil(x + widest + 8));
+}
+
 function sectionHeader(page, labels, cols) {
   const top = page.y;
   page.text(labels.periodCol, cols.period, top, 7, true);
@@ -400,6 +414,7 @@ function drawLines(page, invoice, labels) {
 
 function drawTotals(page, invoice, labels, totals, { spec = false, noRounding = false } = {}) {
   const rows = (totals.groups || []).length || 1;
+  const x = infoColumnX(invoice.lines || [], labels);
   page.ensure(30 + rows * 10 + 50);
   page.y += 6;
   page.line(LEFT, page.y, RIGHT, 0.6);
@@ -434,10 +449,10 @@ function drawTotals(page, invoice, labels, totals, { spec = false, noRounding = 
   }
   right.forEach(([label, value, bold], index) => {
     const y = top + index * 11;
-    page.text(label, 360, y, 8, bold);
+    page.text(label, x, y, 8, bold);
     page.right(value, RIGHT, y, 8, bold);
   });
-  page.line(360, top + right.length * 11 - 1, RIGHT, bold(right) ? 0.8 : 0.4);
+  page.line(x, top + right.length * 11 - 1, RIGHT, bold(right) ? 0.8 : 0.4);
   page.y = top + Math.max(right.length * 11, 11 + rows * 10) + 10;
   const zeroVat = (totals.groups || []).some((group) => ['ZERO', 'EXEMPT', 'OUTSIDE'].includes(group.vatCode) && group.taxableAmount);
   if (zeroVat && !totals.vat) {
@@ -470,10 +485,11 @@ function headerBlock(page, invoice, supplier, labels, logo, options) {
   else if (draft) title = credit ? labels.creditDraft : labels.draft;
   else if (invoice.invoiceNumber) title = `${title} ${invoice.invoiceNumber}`;
   const top = Math.max(logoBottom + 14, 92);
-  page.text(title, 330, top, 15, true);
-  if (draft) page.text(labels.draftNote, 330, top + 19, 8, false, 0.45);
-  const specNote = spec ? wrap(labels.specNote, RIGHT - 330, 7) : [];
-  specNote.forEach((row, index) => page.text(row, 330, top + 19 + index * 8, 7, false, 0.45));
+  const x = infoColumnX(invoice.lines || [], labels);
+  page.text(title, x, top, 15, true);
+  if (draft) page.text(labels.draftNote, x, top + 19, 8, false, 0.45);
+  const specNote = spec ? wrap(labels.specNote, RIGHT - x, 7) : [];
+  specNote.forEach((row, index) => page.text(row, x, top + 19 + index * 8, 7, false, 0.45));
 
   // Mottaker til venstre.
   const addr = invoice.customerAddress || {};
@@ -516,10 +532,11 @@ function headerBlock(page, invoice, supplier, labels, logo, options) {
   const factTop = top + (spec ? 26 + specNote.length * 8 : (draft ? 34 : 26));
   // Lange verdier (som prosjektnavn) brytes over inntil tre linjer i stedet for å kuttes.
   let factY = factTop;
+  const valueX = factValueX(facts, x);
   facts.forEach(([label, value, strong]) => {
-    const rows = wrap(value, RIGHT - 430, 8, !!strong).slice(0, 3);
-    page.text(`${label}:`, 330, factY, 8, !!strong);
-    rows.forEach((row, index) => page.text(row, 430, factY + index * 9, 8, !!strong));
+    const rows = wrap(value, RIGHT - valueX, 8, !!strong).slice(0, 3);
+    page.text(`${label}:`, x, factY, 8, !!strong);
+    rows.forEach((row, index) => page.text(row, valueX, factY + index * 9, 8, !!strong));
     factY += 10 + (rows.length - 1) * 9;
   });
   page.y = Math.max(top + 26 + recipient.length * 10, factY) + 18;
@@ -735,8 +752,10 @@ export function buildCollectionLetterPdf(invoice, letter, { supplier = {}, logo 
   page.y = 40;
   const logoBottom = drawLogo(page, image, supplier.name);
   const top = Math.max(logoBottom + 14, 92);
-  page.text(letter.title, 330, top, 15, true);
-  if (date) page.text(formatDate(date), 330, top + 19, 8, false, 0.45);
+  // Samme linje som fakta og summer på fakturaen.
+  const x = infoColumnX([], labels);
+  page.text(letter.title, x, top, 15, true);
+  if (date) page.text(formatDate(date), x, top + 19, 8, false, 0.45);
   const addr = invoice?.customerAddress || {};
   // Kravsoppstillingen går til inkassobyrået: skyldneren står i faktaene, ikke som mottaker.
   const recipient = letter.recipient === false ? [] : [
@@ -749,11 +768,12 @@ export function buildCollectionLetterPdf(invoice, letter, { supplier = {}, logo 
   ].filter(Boolean);
   recipient.forEach((row, index) => page.text(row, LEFT, top + 26 + index * 10, 9, index === (invoice?.addressLineAbove ? 1 : 0)));
   let factY = top + 34;
+  const valueX = factValueX(letter.facts || [], x);
   for (const [label, raw, strong] of letter.facts || []) {
     const value = label === 'Kontonummer' ? accountPretty(raw) : raw;
-    const rows = wrap(value, RIGHT - 430, 8, !!strong).slice(0, 3);
-    page.text(`${label}:`, 330, factY, 8, !!strong);
-    rows.forEach((row, index) => page.text(row, 430, factY + index * 9, 8, !!strong));
+    const rows = wrap(value, RIGHT - valueX, 8, !!strong).slice(0, 3);
+    page.text(`${label}:`, x, factY, 8, !!strong);
+    rows.forEach((row, index) => page.text(row, valueX, factY + index * 9, 8, !!strong));
     factY += 10 + (rows.length - 1) * 9;
   }
   page.y = Math.max(top + 26 + recipient.length * 10, factY) + 24;

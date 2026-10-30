@@ -9,6 +9,7 @@ import { watchEmployees } from '../../src/employees/storage';
 import { loadTimeEntries } from '../../src/economy/timeEntryStorage';
 import { createFollowUpTask } from '../../src/hr/followUpTask';
 import { emptyHrState, localIsoDate, normalizeHrState, patchHrState } from '../../src/hr/model';
+import { hmsCardRequirement } from '../../src/hr/hmsCard';
 import { hrLoadMeta, loadHrState, saveHrState } from '../../src/hr/storage';
 import { companyRetention, hrRetentionPlan, retentionToast } from '../../src/hr/retention';
 import { logSensitiveAccess } from '../../src/hr/accessLogClient';
@@ -22,6 +23,7 @@ import HrHandbook from './HrHandbook';
 import HrForms from './HrForms';
 import { useFormContext } from '../anbud/useFormContext';
 import { useKinTasks } from './useKinTasks';
+import { useHmsTasks } from './useHmsTasks';
 import { useIsoCompetence } from './useIsoCompetence';
 
 function periodWindow(months = 3) {
@@ -78,6 +80,14 @@ export default function HrScreen({ subView = 'oversikt' }) {
   const [employeesLoaded, setEmployeesLoaded] = useState(false);
   const retentionRanRef = useRef('');
   const hrRef = useRef(hr);
+  // HMS-kort kreves etter næringskoden, med mindre bedriften har valgt selv (HR → Lovpålagt).
+  const naeringskode = String(family?.company?.naeringskode || '').trim();
+  const hmsRule = useMemo(
+    () => hmsCardRequirement({ naeringskode, setting: hr.settings?.hmsCard }),
+    [naeringskode, hr.settings?.hmsCard],
+  );
+  // hmsRule lagres ikke. normalizeHrState tar det bort.
+  const hrView = useMemo(() => ({ ...hr, hmsRequired: hmsRule.required, hmsRule }), [hr, hmsRule]);
   const familyIdRef = useRef(familyId);
   const saveChainRef = useRef(Promise.resolve());
   familyIdRef.current = familyId;
@@ -93,6 +103,8 @@ export default function HrScreen({ subView = 'oversikt' }) {
 
   // Pårørende fylles inn av den ansatte på profilen. Mangler det, får hen oppgave og varsel.
   const kin = useKinTasks({ familyId, employees, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
+  // HMS-kort som går ut innen 30 dager: oppgave og varsel til HR om å fornye kortet.
+  useHmsTasks({ familyId, employees, hr, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
 
   useEffect(() => {
     let live = true;
@@ -305,7 +317,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
         <HrPeople
           colors={colors}
           employees={employees}
-          hr={hr}
+          hr={hrView}
           entries={entries}
           selectedId={selectedEmployeeId}
           onSelect={(id) => {
@@ -339,12 +351,14 @@ export default function HrScreen({ subView = 'oversikt' }) {
           colors={colors}
           page={page}
           employees={employees}
-          hr={hr}
+          hr={hrView}
           entries={entries}
           onOpenEmployee={openEmployee}
           company={ownCompany}
           familyId={familyId}
           canSeeAccessLog={access.ready && access.canAdmin('hr')}
+          canWrite={canWrite}
+          onPatch={onPatch}
         />
       );
     }
@@ -352,7 +366,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
       return (
         <HrHandbook
           colors={colors}
-          hr={hr}
+          hr={hrView}
           canWrite={canWrite}
           onPatch={onPatch}
           employees={employees}
@@ -380,7 +394,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
       return (
         <HrRecruitment
           colors={colors}
-          hr={hr}
+          hr={hrView}
           canWrite={canWrite}
           onPatch={onPatch}
           familyId={familyId}
@@ -393,7 +407,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
       <HrDashboard
         colors={colors}
         employees={employees}
-        hr={hr}
+        hr={hrView}
         canWrite={canWrite}
         onPatch={onPatch}
         onOpenPeople={(filter) => go('personell', filter ? { type: 'hrPeopleFilter', ...filter } : null)}
@@ -415,7 +429,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
       />
     );
   }, [
-    page, colors, employees, hr, entries, selectedEmployeeId, employeeSheet,
+    page, colors, employees, hrView, entries, selectedEmployeeId, employeeSheet,
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
     openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
     isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany, retention, access,

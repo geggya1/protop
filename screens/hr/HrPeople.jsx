@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   displayName, formatNbDate as empFormatNbDate, periodLabel,
 } from '../../src/employees/model';
@@ -26,13 +26,14 @@ const SHEETS = [
 const SHEET_IDS = [...SHEETS.map((item) => item.id), 'lonn'];
 
 // «sheet» er fanen som åpnes når man trykker i kolonnen.
+// Rødt betyr at noe mangler. Hver kolonne sier selv hva, så «Mangler» gjentas ikke på tvers.
 
 const COLUMNS = [
   { key: 'name', label: 'Navn', width: 190, value: (row) => displayName(row.employee) },
   { key: 'kind', label: 'Type', width: 90, value: (row) => row.cells.kindLabel },
-  { key: 'check', label: 'Lovpålagt', width: 110, sheet: 'compliance', value: (row) => row.cells.checklist, warn: (row) => row.cells.checklistMissing > 0 },
-  { key: 'contract', label: 'Ansettelsesavtale', width: 150, sheet: 'avtale', value: (row) => row.cells.contract, warn: (row) => row.cells.contract === 'Mangler' },
-  { key: 'review', label: 'Medarbeidersamtale', width: 160, sheet: 'oppfolging', value: (row) => row.cells.review, warn: (row) => row.cells.review === 'Mangler' },
+  { key: 'check', label: 'Lovpålagt', width: 200, sheet: 'compliance', value: (row) => row.cells.checklist, warn: (row) => row.cells.checklistMissing > 0 },
+  { key: 'contract', label: 'Ansettelsesavtale', width: 150, sheet: 'avtale', value: (row) => (row.cells.contract === 'Mangler' ? 'Ingen avtale' : row.cells.contract), warn: (row) => row.cells.contract === 'Mangler' },
+  { key: 'review', label: 'Medarbeidersamtale', width: 160, sheet: 'oppfolging', value: (row) => (row.cells.review === 'Mangler' ? 'Ingen samtale' : row.cells.review), warn: (row) => row.cells.review === 'Mangler' },
   { key: 'util', label: 'Fakturerbarhet', width: 130, value: (row) => row.cells.utilization },
   { key: 'cases', label: 'Åpne saker', width: 110, sheet: 'oppfolging', value: (row) => row.cells.openCases, warn: (row) => Number(row.cells.openCases) > 0 },
 ];
@@ -61,7 +62,7 @@ export default function HrPeople({
           <HrSectionTitle
             colors={colors}
             title="Personell"
-            subtitle="Velg en ansatt. Trykk i en kolonne for å gå rett til avtale, oppfølging eller lovpålagt."
+            subtitle="Velg en ansatt. Rødt er det som mangler. Trykk i en kolonne for å gå rett til avtale, oppfølging eller lovpålagt."
           />
           <HrFilterBar
             colors={colors}
@@ -168,14 +169,12 @@ export default function HrPeople({
             <Fact colors={colors} label="Ansatt dato" value={empFormatNbDate(selected?.company?.periodFrom) || '—'} />
             <Fact colors={colors} label="Ansiennitet" value={tenure != null ? `${tenure} år` : '—'} />
             <Fact colors={colors} label="Fødselsdato" value={empFormatNbDate(selected?.person?.birthDate) || '—'} />
-            <Fact colors={colors} label="Lovpålagt" value={cells.checklist} />
-            <Fact colors={colors} label="Ansettelsesavtale" value={cells.contract} />
-            <Fact colors={colors} label="Medarbeidersamtale" value={cells.review} />
+            {/* Det som hører til en annen fane, er en snarvei dit. Detaljene står der. */}
+            <Fact colors={colors} label="Lovpålagt" value={cells.checklist} warn={cells.checklistMissing > 0} onPress={() => onSheet?.('compliance')} />
+            <Fact colors={colors} label="Ansettelsesavtale" value={cells.contract === 'Mangler' ? 'Ingen avtale' : cells.contract} warn={cells.contract === 'Mangler'} onPress={() => onSheet?.('avtale')} />
+            <Fact colors={colors} label="Medarbeidersamtale" value={cells.review === 'Mangler' ? 'Ingen samtale' : cells.review} warn={cells.review === 'Mangler'} onPress={() => onSheet?.('oppfolging')} />
             <Fact colors={colors} label="Fakturerbarhet" value={cells.utilization} />
-            <Fact colors={colors} label="Åpne saker" value={cells.openCases} />
-            <Fact colors={colors} label="Oppgaver" value={cells.openTasks} />
-            <Fact colors={colors} label="Memo" value={String(personMemos.length)} />
-            <Fact colors={colors} label="Filer" value={String(personFiles.length)} />
+            <Fact colors={colors} label="Saker, oppgaver, memo og filer" value={`${cells.openCases} åpne saker · ${cells.openTasks} oppgaver · ${personMemos.length} memo · ${personFiles.length} filer`} onPress={() => onSheet?.('oppfolging')} />
           </View>
           {nextEvents.length ? (
             <View style={styles.block}>
@@ -252,18 +251,25 @@ export default function HrPeople({
           lockedEmployeeId={selected.id}
           isoCompetence={isoCompetence}
           onOpenIso={onOpenIso}
+          onOpenSheet={(id) => onSheet?.(id)}
         />
       ) : null}
     </View>
   );
 }
 
-function Fact({ colors, label, value }) {
-  return (
-    <View style={styles.fact}>
+function Fact({ colors, label, value, warn, onPress }) {
+  const body = (
+    <>
       <Text style={[styles.factLabel, { color: colors.muted }]}>{label}</Text>
-      <Text style={[styles.factValue, { color: colors.ink }]}>{value}</Text>
-    </View>
+      <Text style={[styles.factValue, { color: warn ? colors.danger : colors.ink }]}>{value}</Text>
+    </>
+  );
+  if (!onPress) return <View style={styles.fact}>{body}</View>;
+  return (
+    <Pressable style={styles.fact} onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}>
+      {body}
+    </Pressable>
   );
 }
 

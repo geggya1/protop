@@ -74,7 +74,7 @@ const PAGES = {
 
 export default function HrControl({
   colors, page = 'avtaler', employees, hr, entries, onOpenEmployee, company = null,
-  familyId = '', canSeeAccessLog = false,
+  familyId = '', canSeeAccessLog = false, canWrite = false, onPatch,
 }) {
   const spec = PAGES[page] || PAGES.avtaler;
   const dir = useHrDirectory(employees, spec.staffOnly ? { lockedKind: 'internal' } : undefined);
@@ -172,7 +172,7 @@ export default function HrControl({
         />
       </HrCard>
       {page === 'compliance' ? (
-        <HrHmsCards colors={colors} employees={rows.map((row) => row.employee)} hr={hr} entries={entries} company={company} />
+        <HrHmsCards colors={colors} employees={rows.map((row) => row.employee)} hr={hr} entries={entries} company={company} canWrite={canWrite} onPatch={onPatch} />
       ) : null}
       {page === 'compliance' && canSeeAccessLog && familyId ? <HrAccessLog colors={colors} familyId={familyId} /> : null}
       {page === 'lonn' ? <HrPayGap colors={colors} employees={rows.map((row) => row.employee)} hr={hr} /> : null}

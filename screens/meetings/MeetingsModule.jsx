@@ -180,7 +180,6 @@ export default function MeetingsModule({
         width={width}
         onOpen={openMeeting}
         onStart={startFromList}
-        onNew={() => { setNewPreset(null); setNewOpen(true); }}
         onNext={createNext}
         onFollowUp={() => navigate('oppfolging')}
       />

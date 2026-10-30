@@ -5,7 +5,7 @@
  * tallene for ansatte.
  */
 import { displayName } from '../employees/model.js';
-import { COMPLIANCE_CATALOG, companyComplianceOverview } from './compliance.js';
+import { COMPLIANCE_CATALOG, companyComplianceOverview, isRequiredItem } from './compliance.js';
 import { hrKindBucket, hrKindLabel } from './directory.js';
 import {
   daysUntil,
@@ -46,12 +46,13 @@ export function complianceByItem(staff, hr = {}) {
     contracts: hr.contracts,
     hmsCards: hr.hmsCards,
     applyEvidence: true,
+    hmsRequired: hr.hmsRequired !== false,
   });
   const ok = rows.reduce((sum, row) => sum + row.ok, 0);
   const total = rows.reduce((sum, row) => sum + row.total, 0);
   const missing = rows.reduce((sum, row) => sum + row.missing, 0);
   const items = COMPLIANCE_CATALOG
-    .filter((cat) => cat.required)
+    .filter((cat) => isRequiredItem(cat.id, { hmsRequired: hr.hmsRequired !== false }))
     .map((cat) => ({
       id: cat.id,
       label: cat.label,

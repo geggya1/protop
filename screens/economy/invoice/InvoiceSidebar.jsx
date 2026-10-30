@@ -132,11 +132,13 @@ function planLine(row, st, autoEligible) {
 /**
  * Purring og inkasso som steg i lovens rekkefølge: påminnelse (valgfri), purring,
  * inkassovarsel (purring 2) og inkasso. Bare neste steg kan tas, når fristen i forrige er ute.
- * ProTop styrer dette, også for fakturaer sendt fra PowerOffice. Betaling kommer fra synken.
+ * ProTop styrer dette, også for fakturaer sendt fra PowerOffice.
  */
 function CollectionCard({ invoice, settings, colors, canManage, busy, onCollection, onHold, onOpenInvoice }) {
   const st = collectionStatus(invoice, { settings });
-  if (!st.steps.length && !st.open && !st.canInterest) return null;
+  // Ubetalt og ikke forfalt: stegene vises med datoene de kan tas, så hele løpet er synlig.
+  const waiting = !st.open && !st.paid && !['credited', 'written_off'].includes(invoice.status);
+  if (!st.steps.length && !st.open && !st.canInterest && !waiting) return null;
   const next = st.next;
   // Automatisk utsending bare når betalingen hentes fra PowerOffice, og aldri fra testklienten.
   const autoEligible = sentFromPowerOffice(invoice) && invoice.poweroffice?.env !== 'demo';
@@ -145,6 +147,11 @@ function CollectionCard({ invoice, settings, colors, canManage, busy, onCollecti
       {st.open ? (
         <Text style={[type.label, { color: colors.dangerInk || colors.danger || colors.ink }]}>
           {`Forfalt ${formatDate(st.due)}, ${st.daysOverdue} ${st.daysOverdue === 1 ? 'dag' : 'dager'} siden. Utestående ${money(st.outstanding, invoice.currency)}.`}
+        </Text>
+      ) : null}
+      {waiting && st.due ? (
+        <Text style={[type.caption, { color: colors.muted }]}>
+          {`Forfaller ${formatDate(st.due)}. Stegene kan tas etter forfall.`}
         </Text>
       ) : null}
       {st.hold ? (
@@ -236,7 +243,8 @@ export default function InvoiceSidebar({
   const credit = isCreditNote(invoice);
   const draft = status.id === 'draft' || status.id === 'approved';
   const issued = !!invoice.issuedAt || (!draft && status.id !== 'transferred');
-  const po = mode === 'poweroffice';
+  // Bare fakturautkast går til PowerOffice. Kreditnota og all oppfølging etter sending gjøres i ProTop.
+  const po = mode === 'poweroffice' && !credit;
   const poSent = sentFromPowerOffice(invoice);
   const events = [...(invoice.events || [])].reverse();
   const shownEvents = allEvents ? events : events.slice(0, 6);
@@ -280,9 +288,9 @@ export default function InvoiceSidebar({
       </View> : null,
     );
   }
-  if (canManage && issued && !po && modeReady) {
+  if (canManage && issued && modeReady) {
     const row = [];
-    if (status.id !== 'credited' && status.id !== 'written_off' && invoice.issuedAt) {
+    if (status.id !== 'credited' && status.id !== 'written_off' && (invoice.issuedAt || poSent)) {
       row.push(<Button key="send" label={invoice.sentAt ? 'Send på nytt' : (credit ? 'Send kreditnota' : 'Send faktura')} icon="paper-plane-outline" small colors={colors} onPress={() => onAction('send')} disabled={!!busy} nativeID="invoice-action-send" />);
     }
     if (!credit && outstanding > 0.004 && status.id !== 'written_off') {
@@ -295,14 +303,6 @@ export default function InvoiceSidebar({
       row.push(<Button key="loss" label="Før som tap" icon="alert-circle-outline" tone="ghost" small colors={colors} onPress={() => onAction('loss')} disabled={!!busy} nativeID="invoice-action-loss" />);
     }
     if (row.length) actions.push(<View key="issued" style={styles.actionRow}>{row}</View>);
-  }
-  if (canManage && issued && po && !credit && status.id !== 'credited') {
-    // Betaling og kreditering føres i PowerOffice Go og hentes hit med synken.
-    actions.push(
-      <Text key="po" style={[type.caption, { color: colors.muted }]} nativeID="invoice-po-ledger-note">
-        Betaling og kreditnota registreres i PowerOffice Go og hentes hit automatisk.
-      </Text>,
-    );
   }
 
   return (

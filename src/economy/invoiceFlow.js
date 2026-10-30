@@ -126,8 +126,15 @@ export function isManagedInvoice(invoice) {
   return !!(text(invoice?.issuedAt) || (Array.isArray(invoice?.lines) && invoice.lines.length));
 }
 
+/** Sendt fra PowerOffice Go: Go runder ikke av, og restbeløpet derfra har med betalingene i Go. */
+function sentViaPowerOffice(row) {
+  return !!text(row?.poweroffice?.outgoingInvoiceId);
+}
+
 /**
  * Linjer og summer regnet på nytt. Utestående = å betale − betalt − kreditert − tap.
+ * Sendt fra Go: restbeløpet i Go er utgangspunktet. Betaling, kreditnota og tap føres i ProTop
+ * og trekkes fra det.
  * Importerte fakturaer uten linjer beholder beløpene og utestående fra importen.
  */
 export function recalcInvoice(invoice) {
@@ -139,7 +146,10 @@ export function recalcInvoice(invoice) {
   const paid = paidAmountOf(row);
   const credited = Math.abs(parseMoney(row.creditedAmount) || 0);
   const loss = Math.abs(parseMoney(row.loss) || 0);
-  const outstanding = round2(totals.totalDue - paid - (totals.totalDue < 0 ? -credited : credited) - loss);
+  const viaGo = sentViaPowerOffice(row);
+  const due = viaGo ? totals.amountInclVat : totals.totalDue;
+  const goBalance = viaGo ? parseMoney(row.poweroffice.balance) : null;
+  const outstanding = round2((goBalance ?? due) - paid - (due < 0 ? -credited : credited) - loss);
   const dates = lines.flatMap((line) => [line.periodStart, line.periodEnd]).filter(Boolean).sort();
   return normalizeInvoice({
     ...row,
@@ -166,7 +176,10 @@ function adjustImportedOutstanding(row, delta) {
 
 export function invoiceTotals(invoice) {
   const lines = normalizeLines(invoice?.lines);
-  if (lines.length) return totalsFromLines(lines);
+  if (lines.length) {
+    const totals = totalsFromLines(lines);
+    return sentViaPowerOffice(invoice) ? { ...totals, rounding: 0, totalDue: totals.amountInclVat } : totals;
+  }
   const ex = parseMoney(invoice?.amountExVat) || 0;
   const vat = parseMoney(invoice?.vat) || 0;
   const incl = parseMoney(invoice?.amountInclVat) ?? round2(ex + vat);
@@ -724,7 +737,8 @@ export function buildCreditNote(invoice, { lineIds = null, reason = '', releaseW
 export function applyCreditToOriginal(original, creditNote, { actor = null, at = '' } = {}) {
   const credit = Math.abs(invoiceTotals(creditNote).totalDue);
   const total = Math.abs(invoiceTotals(original).totalDue);
-  const credited = round2((Math.abs(parseMoney(original.creditedAmount) || 0)) + credit);
+  // Kreditnotaen er avrundet. Fakturaen fra Go er ikke det, så kreditert beløp går ikke over fakturabeløpet.
+  const credited = round2(Math.min(total, (Math.abs(parseMoney(original.creditedAmount) || 0)) + credit));
   const full = credited >= total - 0.01;
   const next = {
     ...original,

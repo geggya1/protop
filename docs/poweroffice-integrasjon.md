@@ -453,3 +453,20 @@ PowerOffice sitt API har ingen kommando for å purre eller sende til inkasso per
 kunde. Purring og inkasso styres derfor fra ProTop. Kunder ProTop oppretter i Go får `SendPaymentReminders: false`,
 `DoNotAutomatePaymentNotifications: true` og `TransferToDebtCollectionAgency: false`, så Go ikke sender et eget løp.
 Purring i Go bør også være slått av for klienten, siden kunder som fantes fra før, ikke endres.
+
+### All betjening etter sending i ProTop (valgt 30.10.2026)
+
+Bare fakturautkastet går til PowerOffice Go. Alt etter at fakturaen er sendt gjøres i ProTop, også for
+fakturaer sendt fra Go:
+
+- Knappene på fakturaen er de samme som når ProTop utsteder selv: «Send på nytt», «Registrer betaling»,
+  «Opprett kreditnota» og «Før som tap». Kortet «Purring og inkasso» vises også før forfall, med datoen
+  hvert steg kan tas.
+- Kreditnota lages, ferdigstilles og sendes i ProTop med ProTop sin nummerserie. Den overføres ikke til Go.
+- Restbeløpet: utgangspunktet er restbeløpet fra Go (`poweroffice.balance`, med betalingene der). Betaling,
+  kreditnota og tap ført i ProTop trekkes fra (`recalcInvoice`, og `invoicePatchFromOutgoing` ved synk).
+  Status fra ProTop (kreditert, tap) beholdes når synken kjører.
+- Go runder ikke av. Kreditert beløp på fakturaen går ikke over fakturabeløpet, så en hel kreditering
+  ikke gir ørerest selv om kreditnotaen er avrundet.
+- Det som føres i ProTop, kommer ikke inn i regnskapet i Go. Kreditnota, tap og innbetalinger som ikke
+  går via banken i Go, må bokføres der også.

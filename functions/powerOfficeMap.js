@@ -339,6 +339,15 @@ export function invoicePatchAfterTransfer(invoice, order, { env, ref, customer, 
   };
 }
 
+/** Betaling, kreditnota og tap ført i ProTop. Go vet ikke om dem. */
+function settledInProTop(invoice) {
+  const payments = Array.isArray(invoice?.payments) ? invoice.payments : [];
+  const paid = payments.length
+    ? payments.reduce((sum, row) => sum + (num(row?.amount) || 0), 0)
+    : (num(invoice?.paidAmount) || 0);
+  return Math.round((paid + Math.abs(num(invoice?.creditedAmount) || 0) + Math.abs(num(invoice?.loss) || 0)) * 100) / 100;
+}
+
 /** GET /OutgoingInvoices → felt på ProTop-fakturaen. */
 export function invoicePatchFromOutgoing(invoice, outgoing, { at }) {
   const previous = invoice?.poweroffice && typeof invoice.poweroffice === 'object' ? invoice.poweroffice : {};
@@ -374,6 +383,19 @@ export function invoicePatchFromOutgoing(invoice, outgoing, { at }) {
     },
     updatedAt: at,
   };
+  // All betjening skjer i ProTop. Det som er ført her, trekkes fra restbeløpet i Go, og
+  // status fra ProTop (kreditert, tap) beholdes.
+  const settled = settledInProTop(invoice);
+  if (settled && balance != null) {
+    const rest = Math.round((balance - settled) * 100) / 100;
+    const kept = ['credited', 'written_off'].includes(invoice?.status) ? invoice.status : '';
+    patch.outstandingAmount = rest;
+    patch.outstanding = String(rest);
+    patch.status = kept || (rest <= 0.004 ? 'paid' : 'sent');
+    patch.paidAt = patch.status === 'paid'
+      ? (text(invoice?.paidAt) || isoDate(outgoing?.BalanceLastChangedDateTimeOffset))
+      : (kept ? text(invoice?.paidAt) : '');
+  }
   if (outgoing?.InvoiceNo != null) patch.invoiceNumber = String(outgoing.InvoiceNo);
   if (text(outgoing?.Cid)) patch.kid = text(outgoing.Cid);
   if (isoDate(outgoing?.VoucherDate)) patch.invoiceDate = isoDate(outgoing.VoucherDate);

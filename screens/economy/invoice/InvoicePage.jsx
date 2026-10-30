@@ -263,7 +263,8 @@ export default function InvoicePage({
   }
 
   async function finalizeAndSend(options) {
-    if (mode === 'poweroffice') {
+    // Kreditnota ferdigstilles og sendes fra ProTop, også når PowerOffice er koblet.
+    if (mode === 'poweroffice' && !isCreditNote(invoice)) {
       // Resultatet og feilen fra PowerOffice vises øverst på fakturaen.
       setDialog('');
       await run('transfer', async () => onTransfer?.({
@@ -591,7 +592,7 @@ export default function InvoicePage({
         settings={settings}
         peppol={peppol}
         checks={dialog === 'finalize' ? checks : null}
-        powerOffice={mode === 'poweroffice' && dialog === 'finalize'}
+        powerOffice={mode === 'poweroffice' && dialog === 'finalize' && !isCreditNote(invoice)}
         powerOfficeAutoSend={!!poStatus?.autoSend}
         busy={busy === 'finalize' || busy === 'send'}
         onCancel={() => setDialog('')}

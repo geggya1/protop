@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -46,6 +46,23 @@ function downloadWorkbook(statement, section, filename) {
 
 function canDownload() {
   return typeof document !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function';
+}
+
+/**
+ * Bredden til en flate. På web leses den før første tegning, så grafer og
+ * tabell ikke vises smale først og så vokser når onLayout kommer.
+ */
+function useMeasuredWidth() {
+  const ref = useRef(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    if (typeof node?.getBoundingClientRect !== 'function') return;
+    const next = node.getBoundingClientRect().width;
+    if (next > 0) setWidth(next);
+  }, []);
+  const onLayout = (event) => setWidth(event.nativeEvent.layout.width);
+  return [ref, width, onLayout];
 }
 
 function amountOf(series, year, index) {
@@ -163,7 +180,7 @@ function MonthChart({
 }) {
   const colors = useColors();
   const months = statement?.months?.length === 12 ? statement.months : STATEMENT_MONTHS;
-  const [width, setWidth] = useState(0);
+  const [measureRef, width, onLayout] = useMeasuredWidth();
   const [tip, setTip] = useState(null);
   const canvas = chartCanvasWidth(width, 12, 56);
   const height = chartCanvasHeight(canvas);
@@ -184,7 +201,7 @@ function MonthChart({
   }
 
   return (
-    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+    <View ref={measureRef} onLayout={onLayout}>
       <ChartFrame nativeID={nativeID} canvasWidth={canvas} canvasHeight={height} tip={tip}>
         <Svg width={canvas} height={height} pointerEvents="none">
           <Axis layout={layout} colors={colors} />
@@ -262,7 +279,7 @@ function YearChart({ statement }) {
   const colors = useColors();
   const years = statement?.allYears || [];
   const amounts = years.map((year) => totalOf(statement, year));
-  const [width, setWidth] = useState(0);
+  const [measureRef, width, onLayout] = useMeasuredWidth();
   const [tip, setTip] = useState(null);
   const canvas = chartCanvasWidth(width, Math.max(years.length, 1), 40);
   const height = chartCanvasHeight(canvas);
@@ -278,7 +295,7 @@ function YearChart({ statement }) {
   }
 
   return (
-    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+    <View ref={measureRef} onLayout={onLayout}>
       <ChartFrame nativeID="economy-invoiced-yearly-chart" canvasWidth={canvas} canvasHeight={height} tip={tip}>
         <Svg width={canvas} height={height} pointerEvents="none">
           <Axis layout={layout} colors={colors} />
@@ -332,7 +349,7 @@ function DataTable({
   const months = statement?.months || [];
   const scrollRef = useRef(null);
   const reported = useRef(end);
-  const [viewport, setViewport] = useState(0);
+  const [viewportRef, viewport, onViewportLayout] = useMeasuredWidth();
   const count = years.length;
   const shown = Math.max(1, Math.min(count, STATEMENT_YEAR_WINDOW));
   const column = Math.max(CELL_WIDTH, viewport / shown);
@@ -384,7 +401,7 @@ function DataTable({
             <Text style={[styles.labelCell, { color: colors.muted }]} />
           </View>
         </View>
-        <View style={styles.yearColumns} onLayout={(event) => setViewport(event.nativeEvent.layout.width)}>
+        <View ref={viewportRef} style={styles.yearColumns} onLayout={onViewportLayout}>
           <ScrollView
             ref={scrollRef}
             horizontal

@@ -195,7 +195,7 @@ export default function IsoScreen({ subView = 'oversikt' }) {
   let body;
   if (!familyId) {
     body = <Empty icon="business-outline" title="Velg en bedrift" text="ISO / K-HMS hører til en bedrift. Bytt til bedriftsprofilen." />;
-  } else if (store.loading && store.serverIso == null) {
+  } else if ((store.loading && store.serverIso == null) || (!bypass && access.active && !access.ready)) {
     body = <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={colors.brand} /><Text style={{ color: colors.muted, marginTop: 8 }}>Kontrollerer tilgang …</Text></View>;
   } else if (!caps.view) {
     // Meldetilgang (ISO-04): alle i selskapet, også innleide og eksterne, kan melde RUH og se egne meldinger.

@@ -56,7 +56,13 @@ test('startsider med bånd: båndets tekst teller, ikke brødsmulen eller et skj
   const hero = resolveModuleHero('iso');
   const titles = shellPageTitles({ tab: 'iso', subView: 'oversikt', headerTitle: '', titleRow: false, heroId: 'iso' });
   assert.ok(titles.includes(hero.title));
-  assert.equal(repeatsShellTitle('Oversikt', titles), false, 'ISO-oversikten beholder «Oversikt»');
+  assert.equal(repeatsShellTitle('Oversikt', titles), false, 'båndet alene dekker ikke «Oversikt»');
+  // Fanen «Oversikt» i modulmenyen under båndet viser tittelen; siden gjentar den ikke.
+  const withTab = shellPageTitles({ tab: 'iso', subView: 'oversikt', heroId: 'iso', tabLabels: ['Oversikt'] });
+  assert.equal(repeatsShellTitle('Oversikt', withTab), true);
+  const avvik = shellPageTitles({ tab: 'iso', subView: 'avvik', heroId: 'iso', tabLabels: ['Avvik og forbedring', 'Avvik'] });
+  assert.equal(repeatsShellTitle('Avvik og forbedring', avvik), true);
+  assert.equal(repeatsShellTitle('Risiko og muligheter', avvik), false);
   // Bedrift › Fraværsinnstillinger: båndet viser «Bedriften», toppfeltet er skjult på PC.
   const absence = shellPageTitles({ tab: 'selskap', subView: 'fravaerstyper', headerTitle: '', heroId: 'selskap' });
   assert.equal(repeatsShellTitle('Fraværsinnstillinger', absence), false);

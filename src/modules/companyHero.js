@@ -7,6 +7,7 @@ import {
   defaultAnbudSubView,
   defaultArbeidSubView,
   defaultHrSubView,
+  defaultMoterSubView,
   defaultOkonomiSubView,
 } from '../navigation/shellModules.js';
 import { companyNavGroupId } from '../navigation/navTrail.js';
@@ -477,6 +478,37 @@ export const COMPANY_HERO = {
       'Latest Statistics Norway point for the indices used in agreements.',
     ),
   },
+  // Møter: samme bilde på alle tre sidene, med sidens egen tittel.
+  'moter-oversikt': {
+    wideArt: true,
+    name: 'Møter',
+    kicker: t('Møter', 'Meetings'),
+    title: t('Møter og referat', 'Meetings and minutes'),
+    pitch: t(
+      'Planlegg, gjennomfør og send referat. Faste møter fører åpne punkter videre til neste møte.',
+      'Plan, run and send the minutes. Recurring meetings carry open items over to the next meeting.',
+    ),
+  },
+  'moter-oppfolging': {
+    wideArt: true,
+    name: 'Oppfølging',
+    kicker: t('Møter', 'Meetings'),
+    title: t('Oppfølging', 'Follow-up'),
+    pitch: t(
+      'Alle oppfølgingspunkter fra møtene, med ansvarlig og frist.',
+      'Every action item from the meetings, with owner and deadline.',
+    ),
+  },
+  'moter-maler': {
+    wideArt: true,
+    name: 'Møtemaler',
+    kicker: t('Møter', 'Meetings'),
+    title: t('Møtemaler', 'Meeting templates'),
+    pitch: t(
+      'Bedriftens egne maler og ProTops ferdige maler for vanlige møter.',
+      'The company’s own templates and ProTop’s ready-made templates for common meetings.',
+    ),
+  },
 };
 
 export function companyHeroId(tab, moreSubView = null) {
@@ -487,6 +519,7 @@ export function companyHeroId(tab, moreSubView = null) {
   if (tab === 'kontrakt') return 'kontrakt';
   if (tab === 'skjema') return 'skjema';
   if (tab === 'iso') return 'iso';
+  if (tab === 'moter') return `moter-${defaultMoterSubView(moreSubView)}`;
   if (tab === 'timeliste') return 'timeliste';
   if (tab === 'underenheter') return 'underenheter';
   if (tab === 'selskap') {
@@ -503,7 +536,7 @@ export function companyHeroId(tab, moreSubView = null) {
   return null;
 }
 
-const ROUTE_PREFIXES = ['hr', 'anbud', 'arbeid', 'okonomi', 'selskap'];
+const ROUTE_PREFIXES = ['hr', 'anbud', 'arbeid', 'okonomi', 'selskap', 'moter'];
 
 /** Fane og underside for en bånd-id (motsatt vei av companyHeroId). */
 export function companyHeroRoute(id) {

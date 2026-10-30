@@ -8,6 +8,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { useRepeatsShellTitle } from '../../src/ui/ShellTitles';
+import { useModuleHeroHosted } from '../../components/ModulePageBg';
 import { canSeeMeeting, todayOslo } from '../../src/meetings/model';
 import MeetingList from './MeetingList';
 import MeetingWorkspace from './MeetingWorkspace';
@@ -127,6 +128,9 @@ export default function MeetingsModule({
   const [pageTitle, pageText] = PAGE_TITLES[subView] || PAGE_TITLES.oversikt;
   // Én tittel per side: skallet viser «Møter» (og «Møter · Oppfølging»), da står bare forklaringen her.
   const shellHasTitle = useRepeatsShellTitle(pageTitle);
+  // Modulbåndet over siden har både tittelen og forklaringen; da står bare knappen her.
+  const bandShown = useModuleHeroHosted();
+  const showNew = canCreate && subView !== 'maler';
   const phone = width < 640;
 
   let body = null;
@@ -191,13 +195,13 @@ export default function MeetingsModule({
     <View style={[styles.root, { backgroundColor: colors.bg }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={[styles.scroll, phone && { padding: 12 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.inner}>
-          {!open ? (
-            <View style={[styles.head, phone && { flexDirection: 'column', alignItems: 'flex-start' }]}>
+          {!open && (!bandShown || showNew) ? (
+            <View style={[styles.head, phone && !bandShown && { flexDirection: 'column', alignItems: 'flex-start' }]}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                {shellHasTitle ? null : <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">{pageTitle}</Text>}
-                <Text style={[styles.subtitle, { color: colors.muted }]}>{pageText}</Text>
+                {shellHasTitle || bandShown ? null : <Text style={[styles.title, { color: colors.ink }]} accessibilityRole="header">{pageTitle}</Text>}
+                {bandShown ? null : <Text style={[styles.subtitle, { color: colors.muted }]}>{pageText}</Text>}
               </View>
-              {canCreate && subView !== 'maler' ? (
+              {showNew ? (
                 <Btn label="Nytt møte" icon="add" tone="primary" onPress={() => { setNewPreset(null); setNewOpen(true); }} nativeID="meetings-new" />
               ) : null}
             </View>

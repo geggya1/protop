@@ -266,6 +266,10 @@ const COMPANY_PAGES = [
   ['kontrakt', null, 'kontrakt'],
   ['skjema', null, 'skjema'],
   ['iso', null, 'iso'],
+  ['moter', null, 'moter-oversikt'],
+  ['moter', 'oversikt', 'moter-oversikt'],
+  ['moter', 'oppfolging', 'moter-oppfolging'],
+  ['moter', 'maler', 'moter-maler'],
   ['timeliste', null, 'timeliste'],
   ['hr', 'oversikt', 'hr-oversikt'],
   ['hr', 'personell', 'hr-personell'],
@@ -360,6 +364,14 @@ assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'appro
 assert.equal(resolveModuleHero('arbeid-produktivitet', 'nb').wideArt, true, 'capacity plan uses the wide illustration');
 assert.equal(resolveModuleHero('arbeid-produktivitet', 'nb').title, 'Belegg og kapasitet');
 assert.equal(resolveModuleHero('iso', 'nb').wideArt, true, 'iso uses the wide illustration');
+// Møter: samme bilde på alle sidene, med sidens egen tittel, og fargen fra Møter og referat.
+for (const id of ['moter-oversikt', 'moter-oppfolging', 'moter-maler']) {
+  assert.equal(resolveModuleHero(id, 'nb').wideArt, true, `${id} uses the wide illustration`);
+  assert.equal(ILLUSTRATION_FILES[id], 'moter--module-activation-illustration.png');
+  assert.equal(companyHeroGroup(id), 'company-meetings');
+}
+assert.equal(resolveModuleHero('moter-oppfolging', 'nb').title, 'Oppfølging');
+assert.equal(resolveModuleHero('moter-maler', 'nb').title, 'Møtemaler');
 assert.equal(resolveModuleHero('okonomi-faktura', 'nb').wideArt, true, 'invoices use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-kjorebok', 'nb').wideArt, true, 'mileage log uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adjustment uses the wide illustration');

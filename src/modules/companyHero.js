@@ -203,6 +203,8 @@ export const COMPANY_HERO = {
   },
   selskap: {
     wideArt: true,
+    // Bedriftsprofilen har ikke eget banner; båndet viser «Bedriften – Consult1 AS».
+    withCompanyName: true,
     name: 'Selskap',
     kicker: t('Selskap', 'Company'),
     title: t('Bedriften', 'The company'),

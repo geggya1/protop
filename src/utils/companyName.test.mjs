@@ -4,7 +4,9 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { companyDisplayName, parentCompanyDisplayName, renameGroupPatch } from './companyName.js';
+import {
+  companyDisplayName, parentCompanyDisplayName, readableCompanyName, renameGroupPatch,
+} from './companyName.js';
 import { inviteFromPlaceholder } from './groupInviteLogic.js';
 
 const company = { id: 'A', type: 'organization', name: 'Gammelt AS', company: { navn: 'Nytt Bygg AS' } };
@@ -12,6 +14,11 @@ const company = { id: 'A', type: 'organization', name: 'Gammelt AS', company: { 
 assert.equal(companyDisplayName(company), 'Nytt Bygg AS', 'company.navn går foran name');
 assert.equal(companyDisplayName({ name: 'Familien Hansen' }), 'Familien Hansen', 'grupper uten selskap');
 assert.equal(companyDisplayName(null, 'Selskap'), 'Selskap');
+
+assert.equal(readableCompanyName('CONSULT1 AS'), 'Consult1 AS', 'registernavn i overskrifter');
+assert.equal(readableCompanyName('BYGG OG ANLEGG SØR-VEST AS'), 'Bygg og Anlegg Sør-Vest AS');
+assert.equal(readableCompanyName('Nytt Bygg AS'), 'Nytt Bygg AS', 'egen skrivemåte står');
+assert.equal(readableCompanyName(''), '');
 
 assert.deepEqual(renameGroupPatch(company, '  Berg Bygg AS '), { name: 'Berg Bygg AS', 'company.navn': 'Berg Bygg AS' });
 assert.deepEqual(renameGroupPatch({ name: 'Familien' }, 'Familien Berg'), { name: 'Familien Berg' });

@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PAGE_ART_SCALE } from '../appearance/pageArtScale.js';
 import {
-  MODULE_HERO, phoneChromeHeroId, resolveModuleHero, shellHeroCompact, shellHeroModuleId,
+  MODULE_HERO, heroTitleWithCompany, phoneChromeHeroId, resolveModuleHero, shellHeroCompact, shellHeroModuleId,
 } from './moduleHero.js';
 import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
 import { GROUP_PALETTE } from './groupPalette.js';
@@ -381,6 +381,11 @@ assert.equal(resolveModuleHero('okonomi-indeks', 'nb').wideArt, true, 'index adj
 assert.equal(resolveModuleHero('okonomi-fakturagrunnlag', 'nb').wideArt, true, 'billing basis uses the wide illustration');
 assert.equal(resolveModuleHero('okonomi-oversikt', 'nb').wideArt, true, 'finance overview uses the wide illustration');
 assert.equal(resolveModuleHero('selskap', 'nb').wideArt, true, 'company profile uses the wide illustration');
+// Bedriftsprofilen har ikke eget banner; båndet bærer selskapsnavnet.
+assert.equal(resolveModuleHero('selskap', 'nb').withCompanyName, true);
+assert.equal(resolveModuleHero('underenheter', 'nb').withCompanyName, false);
+assert.equal(heroTitleWithCompany('Bedriften', 'CONSULT1 AS'), 'Bedriften – Consult1 AS');
+assert.equal(heroTitleWithCompany('Bedriften', ''), 'Bedriften');
 assert.equal(resolveModuleHero('underenheter', 'nb').wideArt, true, 'units and group use the wide illustration');
 assert.equal(resolveModuleHero('selskap-tilgang', 'nb').wideArt, true, 'access and permissions use the wide illustration');
 assert.equal(resolveModuleHero('plan', 'nb').wideArt, true, 'calendar uses the wide illustration');

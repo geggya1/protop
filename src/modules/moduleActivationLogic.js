@@ -78,6 +78,9 @@ export const ILLUSTRATION_FILES = {
   'arbeid-timesaldo': 'arbeid-timesaldo--module-activation-illustration.png',
   'arbeid-fravaer': 'arbeid-fravaer--module-activation-illustration.png',
   'arbeid-fravaer-innstillinger': 'arbeid-fravaer--module-activation-illustration.png',
+  'moter-oversikt': 'moter--module-activation-illustration.png',
+  'moter-oppfolging': 'moter--module-activation-illustration.png',
+  'moter-maler': 'moter--module-activation-illustration.png',
   'arbeid-fravaersrapport': 'arbeid-fravaersrapport--module-activation-illustration.png',
   'arbeid-utlegg': 'arbeid-utlegg--module-activation-illustration.png',
   'arbeid-salg': 'arbeid-salg--module-activation-illustration.png',
@@ -119,6 +122,9 @@ export const PHONE_ILLUSTRATION_FILES = {
   'arbeid-fravaersrapport': 'arbeid-fravaer-phone--module-activation-illustration.png',
   timeliste: 'timeliste-phone--module-activation-illustration.png',
   'arbeid-timeliste': 'timeliste-phone--module-activation-illustration.png',
+  'moter-oversikt': 'moter-phone--module-activation-illustration.png',
+  'moter-oppfolging': 'moter-phone--module-activation-illustration.png',
+  'moter-maler': 'moter-phone--module-activation-illustration.png',
 };
 
 export function publicIllustrationPathForId(moduleId, catalogPath = null) {

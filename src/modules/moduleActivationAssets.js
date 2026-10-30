@@ -62,6 +62,9 @@ const BUNDLED = {
   'arbeid-timesaldo': require('../../assets/module-activation/arbeid-timesaldo--module-activation-illustration.png'),
   'arbeid-fravaer': require('../../assets/module-activation/arbeid-fravaer--module-activation-illustration.png'),
   'arbeid-fravaer-innstillinger': require('../../assets/module-activation/arbeid-fravaer--module-activation-illustration.png'),
+  'moter-oversikt': require('../../assets/module-activation/moter--module-activation-illustration.png'),
+  'moter-oppfolging': require('../../assets/module-activation/moter--module-activation-illustration.png'),
+  'moter-maler': require('../../assets/module-activation/moter--module-activation-illustration.png'),
   'arbeid-fravaersrapport': require('../../assets/module-activation/arbeid-fravaersrapport--module-activation-illustration.png'),
   'arbeid-utlegg': require('../../assets/module-activation/arbeid-utlegg--module-activation-illustration.png'),
   'arbeid-salg': require('../../assets/module-activation/arbeid-salg--module-activation-illustration.png'),
@@ -102,6 +105,9 @@ const BUNDLED_PHONE = {
   'arbeid-fravaersrapport': require('../../assets/module-activation/arbeid-fravaer-phone--module-activation-illustration.png'),
   timeliste: require('../../assets/module-activation/timeliste-phone--module-activation-illustration.png'),
   'arbeid-timeliste': require('../../assets/module-activation/timeliste-phone--module-activation-illustration.png'),
+  'moter-oversikt': require('../../assets/module-activation/moter-phone--module-activation-illustration.png'),
+  'moter-oppfolging': require('../../assets/module-activation/moter-phone--module-activation-illustration.png'),
+  'moter-maler': require('../../assets/module-activation/moter-phone--module-activation-illustration.png'),
 };
 
 /** ModulePageBg / screen `name` → catalog module id. */

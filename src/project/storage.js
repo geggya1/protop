@@ -282,6 +282,19 @@ export function hoursRangeCovered(companyId, range = {}) {
   return list.some((have) => rangeCovers(have, need));
 }
 
+/** Fraværet for vinduet ligger i minnet fra en tidligere lesing, så skjermen kan tegne det før nettet svarer. */
+export function absencesRangeCovered(companyId, range = {}) {
+  const key = hoursModeKey(companyId);
+  if (!MEMORY.has(memoryKey(companyId))) return false;
+  if (ABSENCE_MODE.get(key) === 'all') return true;
+  return rangeCovers(ABSENCE_WINDOW.get(key), {
+    all: false,
+    fromDate: String(range.fromDate || ''),
+    toDate: String(range.toDate || ''),
+    employeeId: String(range.employeeId || ''),
+  });
+}
+
 /**
  * Ta imot en time-lasting uten å miste rader skjermen allerede viser
  * (lokal føring eller cache som kom inn mens nett-kallet pågikk).

@@ -6,8 +6,12 @@ import { loadAnbudState, peekAnbudState } from '../../src/anbud/storage';
 import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useEmployees } from '../../src/context/CompanyDataContext';
-import { ensureProjectHours, loadProjectState, peekProjectState } from '../../src/project/storage';
+import { toDateKey } from '../../src/capacity/plan';
+import {
+  ensureProjectHours, hoursRangeCovered, loadProjectState, peekProjectState,
+} from '../../src/project/storage';
 import { myProjectIds } from '../../src/project/myProjects';
+import { TIMELINE_ZOOMS, hoursRangeFor, monthWindow } from '../../src/project/timeline';
 import ProjectTimelineBoard from './ProjectTimelineBoard';
 
 function ownEmployee(rows, user) {
@@ -34,8 +38,15 @@ export default function ProjectTimelineScreen() {
   const [members, setMembers] = useState(() => cachedProjects?.members || []);
   const [dayHours, setDayHours] = useState(() => Number(cachedProjects?.fullDayHours) || 8);
   const [contracts, setContracts] = useState(() => peekAnbudState(familyId)?.contracts || []);
-  const [timeEntries, setTimeEntries] = useState([]);
-  const [range, setRange] = useState(null);
+  // Samme vindu som tavlen starter med, så timene hentes med en gang og ikke etter første tegning.
+  const [range, setRange] = useState(() => {
+    const today = toDateKey(new Date());
+    return hoursRangeFor(monthWindow(today, TIMELINE_ZOOMS[0].months), today);
+  });
+  // Timer som allerede ligger i minnet for vinduet, tegnes før nettet svarer.
+  const [timeEntries, setTimeEntries] = useState(() => (
+    cachedProjects && hoursRangeCovered(familyId, range) ? cachedProjects.timeEntries || [] : []
+  ));
   const [loadingHours, setLoadingHours] = useState(false);
   const familyRef = useRef(familyId);
   familyRef.current = familyId;

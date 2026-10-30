@@ -128,6 +128,21 @@ function initials(name) {
   return `${first}${last}`.toUpperCase();
 }
 
+/** Rader per ansatt, så hver person ikke leter gjennom hele selskapets timer og fravær. */
+export function groupByEmployee(rows) {
+  const out = new Map();
+  for (const row of rows || []) {
+    const id = String(row?.employeeId ?? '').trim();
+    if (!id) continue;
+    const list = out.get(id);
+    if (list) list.push(row);
+    else out.set(id, [row]);
+  }
+  return out;
+}
+
+const NO_ROWS = [];
+
 function pointOf(event) {
   const native = event?.nativeEvent || {};
   return {
@@ -203,8 +218,8 @@ export default function ProductivityBoard({
   people = [],
   projects = [],
   plan,
-  timeEntries = [],
-  absences = [],
+  timeEntries = NO_ROWS,
+  absences = NO_ROWS,
   canWrite = false,
   onPlan,
   initialOpenId = '',
@@ -212,6 +227,7 @@ export default function ProductivityBoard({
   initialView = 'people',
   initialKind = 'staff',
   fullDayHours = 8,
+  loadingHours = false,
 }) {
   const { width: screenWidth } = useWindowDimensions();
   const labelW = labelColumnWidth(screenWidth);
@@ -240,10 +256,14 @@ export default function ProductivityBoard({
 
   const forwardWeeks = useMemo(() => weekKeys(origin, horizon), [origin, horizon]);
   const weeks = useMemo(() => visibleWeekKeys(origin, horizon), [origin, horizon]);
+  const weekMetas = useMemo(() => new Map(weeks.map((key) => [key, weekMeta(key)])), [weeks]);
   const todayKey = mondayKey(new Date());
   const activityFrom = planActivityFrom(new Date());
   const weekHours = (Number(fullDayHours) > 0 ? Number(fullDayHours) : 8) * 5;
-  const allocations = plan?.allocations || [];
+  const allocations = plan?.allocations || NO_ROWS;
+  const entriesByPerson = useMemo(() => groupByEmployee(timeEntries), [timeEntries]);
+  const absencesByPerson = useMemo(() => groupByEmployee(absences), [absences]);
+  const allocsByPerson = useMemo(() => groupByEmployee(allocations), [allocations]);
 
   const visiblePeople = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -704,6 +724,9 @@ export default function ProductivityBoard({
         <Text style={[styles.weekHours, { color: colors.muted }]}>
           {`Full uke ${formatHours(weekHours)} t`}
         </Text>
+        {loadingHours ? (
+          <Text style={[styles.weekHours, { color: colors.muted }]} nativeID="produktivitet-loading-hours">Henter timer …</Text>
+        ) : null}
       </View>
 
       <View style={styles.stats}>
@@ -759,19 +782,28 @@ export default function ProductivityBoard({
         const open = openId === person.id;
         const kindName = kindLabel(kindOf(person));
         const contract = person.company?.workPercent ? `${person.company.workPercent} % stilling` : '100 % stilling';
-        const now = occupancy(person, allocations, forwardWeeks[0], weekHours);
-        const slack = firstSlackWeek(person, allocations, forwardWeeks, weekHours);
-        const personAllocs = allocations.filter((row) => row.employeeId === person.id).map(shown);
+        const ownAllocs = allocsByPerson.get(String(person.id ?? '').trim()) || NO_ROWS;
+        const ownEntries = entriesByPerson.get(String(person.id ?? '').trim()) || NO_ROWS;
+        const now = occupancy(person, ownAllocs, forwardWeeks[0], weekHours);
+        const slack = firstSlackWeek(person, ownAllocs, forwardWeeks, weekHours);
+        const personAllocs = ownAllocs.filter((row) => row.employeeId === person.id).map(shown);
         const weekPane = Math.max(POPUP_W, screenWidth - labelW - 48);
-        const rows = planningRows({
-          projects,
-          allocations: personAllocs,
-          timeEntries,
-          employeeId: person.id,
-          activityFrom,
-        });
-        const actualByProject = weeklyActualHours(timeEntries, person.id, weeks);
-        const absenceByWeek = weeklyAbsenceHours(absences, person.id, weeks);
+        // Prosjektrader og påløpte timer vises bare for den som er åpnet.
+        const rows = open
+          ? planningRows({
+            projects,
+            allocations: personAllocs,
+            timeEntries: ownEntries,
+            employeeId: person.id,
+            activityFrom,
+          })
+          : NO_ROWS;
+        const actualByProject = open ? weeklyActualHours(ownEntries, person.id, weeks) : null;
+        const absenceByWeek = weeklyAbsenceHours(
+          absencesByPerson.get(String(person.id ?? '').trim()) || NO_ROWS,
+          person.id,
+          weeks,
+        );
         const hasAbsence = absenceByWeek.size > 0;
         const headerFreeHours = round1(now.freeHours - (absenceByWeek.get(forwardWeeks[0])?.hours || 0));
         const headerFree = freeCapacityPercent(headerFreeHours, now.capacity);
@@ -819,7 +851,7 @@ export default function ProductivityBoard({
                   <View>
                     <View style={styles.weekHead}>
                       {weeks.map((key) => {
-                        const meta = weekMeta(key);
+                        const meta = weekMetas.get(key) || weekMeta(key);
                         const current = key === todayKey;
                         return (
                           <View key={key} style={[styles.weekHeadCell, current && { backgroundColor: withAlpha(colors.brand, '18') }]}>
@@ -831,7 +863,7 @@ export default function ProductivityBoard({
                     </View>
                     <View style={styles.freeRow}>
                       {weeks.map((key) => {
-                        const occ = occupancy(person, allocations, key, weekHours);
+                        const occ = occupancy(person, ownAllocs, key, weekHours);
                         const away = absenceByWeek.get(key)?.hours || 0;
                         const free = round1(occ.freeHours - away);
                         const future = key >= todayKey;
@@ -902,7 +934,7 @@ export default function ProductivityBoard({
                       </View>
                       <View style={styles.weekHead}>
                         {weeks.map((key) => {
-                          const meta = weekMeta(key);
+                          const meta = weekMetas.get(key) || weekMeta(key);
                           const current = key === todayKey;
                           return (
                             <View key={key} style={[styles.weekHeadCell, current && { backgroundColor: withAlpha(colors.brand, '18') }]}>
@@ -945,7 +977,7 @@ export default function ProductivityBoard({
                         {weeks.map((key) => {
                           const past = key < todayKey;
                           const value = past
-                            ? actualHoursForWeek(timeEntries, person.id, key)
+                            ? actualHoursForWeek(ownEntries, person.id, key)
                             : occupancy(person, personAllocs, key, weekHours).hours;
                           const tone = past ? colors.muted : TONE_COLOR[loadTone(occupancy(person, personAllocs, key, weekHours).ofContract)];
                           return (
@@ -1177,7 +1209,10 @@ export default function ProductivityBoard({
                   </ScrollView>
                 </View>
 
-                {rows.length === 0 ? (
+                {rows.length === 0 && loadingHours ? (
+                  <Text style={[styles.cardSub, { color: colors.muted }]}>Henter timer …</Text>
+                ) : null}
+                {rows.length === 0 && !loadingHours ? (
                   <Text style={[styles.cardSub, { color: colors.muted }]}>
                     Ingen prosjekt med timer de siste tre månedene. Legg til et prosjekt under, eller et dummy-prosjekt for å prøve belegg.
                   </Text>

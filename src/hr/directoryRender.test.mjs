@@ -315,7 +315,14 @@ let followHtml = '';
   assert.match(html, /Åpne Kompetanse i ISO/);
   // Minimumskravene i AML § 14-6 settes fra avtalen, ikke ved avkrysning.
   assert.match(html, /id="hr-compliance-derived-aml_contract_minimum"/);
-  assert.match(html, /Mangler · Ingen aktiv arbeidsavtale/);
+  assert.match(html, /Ingen aktiv arbeidsavtale\. Registrer den under Avtale/);
+  // Øverst står hva som mangler og hva som må gjøres, ikke bare et tall.
+  assert.match(html, /id="hr-compliance-summary"/);
+  assert.match(html, /Dette mangler: \d av \d påkrevde punkter/);
+  assert.match(html, /id="hr-compliance-gap-aml_written_contract"/);
+  assert.match(html, /Registrer arbeidsavtalen under Avtale\./);
+  assert.match(html, /Åpne Avtale/);
+  assert.equal(html.includes('OK: 0/'), false);
 
   // Avtale etter de gamle ni punktene: fortsatt ikke OK, og det står hva som mangler.
   const oldContract = {
@@ -329,7 +336,9 @@ let followHtml = '';
     selectedId: 'e1',
     sheet: 'compliance',
   }));
-  assert.match(partial, /Forfalt · Settes fra avtalen\. Mangler: .*Framgangsmåte ved opphør/);
+  assert.match(partial, /id="hr-compliance-state-aml_contract_minimum"[^>]*>Forfalt · påkrevd/);
+  assert.match(partial, /Settes fra avtalen\. Mangler: .*Framgangsmåte ved opphør/);
+  assert.match(partial, /Avtalen dekker minimumskrav · forfalt/, 'oppsummeringen øverst sier at fristen er passert');
   assert.match(partial, /Pensjon og andre trygdeordninger/);
 
   // HMS-kort: registreres på personen, med varsel når kortet er utløpt.
@@ -343,7 +352,9 @@ let followHtml = '';
     selectedId: 'e1',
     sheet: 'compliance',
   }));
-  assert.match(expired, /Forfalt · HMS 42 · Utløpt 31\.01\.2020/);
+  assert.match(expired, /id="hr-compliance-state-hms_card"[^>]*>Forfalt · påkrevd/);
+  assert.match(expired, /HMS 42 · Utløpt 31\.01\.2020/);
+  assert.match(expired, /HMS-kortet er utløpt\. Registrer det nye kortet/);
   assert.match(expired, /HMS-kortet er utløpt \(31\.01\.2020\)\. Bestill nytt kort\./);
 
   // Uten tilgang til ISO: bare henvisningen, ingen knapp.

@@ -12,12 +12,19 @@ export const COMPLIANCE_SOURCES = [
   { id: 'gdpr', label: 'GDPR' },
 ];
 
-/** Standard sjekkliste — «skal være under kontroll» for oppdragsgiver. */
+/**
+ * Standard sjekkliste — «skal være under kontroll» for oppdragsgiver.
+ * short brukes i personellisten («HMS-kort, personvern»), todo sier hva som må gjøres,
+ * og sheet er fanen på personen der det gjøres (ellers på selve punktet i Lovpålagt).
+ */
 export const COMPLIANCE_CATALOG = [
   {
     id: 'aml_written_contract',
     source: 'aml',
     label: 'Skriftlig arbeidsavtale',
+    short: 'arbeidsavtale',
+    todo: 'Registrer arbeidsavtalen under Avtale.',
+    sheet: 'avtale',
     hint: 'AML §§ 14-5 og 14-6 — alle skal ha skriftlig avtale, senest sju dager etter tiltredelse.',
     required: true,
   },
@@ -25,6 +32,9 @@ export const COMPLIANCE_CATALOG = [
     id: 'aml_contract_minimum',
     source: 'aml',
     label: 'Avtalen dekker minimumskrav',
+    short: 'minimumskrav',
+    todo: 'Fyll ut de påkrevde punktene i arbeidsavtalen under Avtale.',
+    sheet: 'avtale',
     hint: 'AML § 14-6 fra 1.7.2024: partene, arbeidssted, stilling, tiltredelse, varighet, prøvetid, ferie, opphør med frister for søksmål, lønn og utbetaling, arbeidstid og overtid, pauser, tariffavtale, kompetanseutvikling og pensjon. Blir OK når punktene er fylt ut i avtalen.',
     required: true,
     derived: 'contract',
@@ -33,6 +43,9 @@ export const COMPLIANCE_CATALOG = [
     id: 'aml_probation_documented',
     source: 'aml',
     label: 'Prøvetid dokumentert (hvis avtalt)',
+    short: 'prøvetid',
+    todo: 'Skriv prøvetiden inn i arbeidsavtalen, eller velg «Ikke aktuelt» hvis det ikke er avtalt prøvetid.',
+    sheet: 'avtale',
     hint: 'Maks 6 måneder, og ved midlertidig ansettelse høyst halvparten av ansettelsens varighet (AML § 15-6). Skriftlig i avtalen.',
     required: false,
   },
@@ -41,6 +54,8 @@ export const COMPLIANCE_CATALOG = [
     id: 'iso45001_ppe',
     source: 'aml',
     label: 'Verneutstyr utlevert (ved behov)',
+    short: 'verneutstyr',
+    todo: 'Marker OK når verneutstyret er utlevert, eller «Ikke aktuelt» hvis rollen ikke krever det.',
     hint: 'Når rollen krever det. Arbeidsgiver stiller verneutstyret til rådighet.',
     required: false,
   },
@@ -48,6 +63,8 @@ export const COMPLIANCE_CATALOG = [
     id: 'hms_card',
     source: 'aml',
     label: 'Gyldig HMS-kort',
+    short: 'HMS-kort',
+    todo: 'Registrer kortnummer og utløpsdato, eller velg «Ikke aktuelt» hvis personen ikke arbeider på byggeplass.',
     hint: 'Alle som arbeider på bygge- eller anleggsplass, skal ha gyldig HMS-kort (forskrift om HMS-kort). Velg «Ikke aktuelt» for den som ikke er på byggeplass. Varsel 30 dager før kortet går ut.',
     required: true,
     derived: 'hmsCard',
@@ -56,6 +73,8 @@ export const COMPLIANCE_CATALOG = [
     id: 'gdpr_privacy_notice',
     source: 'gdpr',
     label: 'Personverninformasjon gitt',
+    short: 'personvern',
+    todo: 'Gi personen informasjon om hvordan personaldata behandles, og marker punktet OK.',
     hint: 'Ansatt er informert om behandling av personaldata.',
     required: true,
   },
@@ -353,6 +372,26 @@ export function syncComplianceFromEvidence(compliance, {
   return replaceEmployeeCompliance(compliance, emp, next);
 }
 
+/** Kort navn på et manglende punkt, med «forfalt» når fristen er passert. */
+export function complianceGapShort(row = {}) {
+  const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
+  const name = cat?.short || row.label || row.catalogId || '';
+  return row.status === 'overdue' ? `${name} (forfalt)` : name;
+}
+
+/**
+ * Celletekst for personellisten: hva som mangler, ikke bare et tall.
+ * Avtalepunktene står i egen kolonne (Ansettelsesavtale) og gjentas ikke her.
+ */
+export function complianceGapText(overview) {
+  if (!overview) return '—';
+  const ids = overview.gapIds || [];
+  const shorts = overview.gapShort || [];
+  const other = shorts.filter((_, i) => COMPLIANCE_CATALOG.find((c) => c.id === ids[i])?.sheet !== 'avtale');
+  if (other.length) return other.join(', ');
+  return shorts.length ? 'Bare avtalen' : 'OK';
+}
+
 /** Oversikt over compliance-gap for hele selskapet (sortert verst først). */
 export function companyComplianceOverview(employees, compliance, {
   contracts = [],
@@ -387,6 +426,7 @@ export function companyComplianceOverview(employees, compliance, {
       pct: summary.pct,
       gaps: gapRows.map((row) => row.label),
       gapIds: gapRows.map((row) => row.catalogId),
+      gapShort: gapRows.map((row) => complianceGapShort(row)),
     });
   }
   return rows.sort((a, b) => b.missing - a.missing || a.pct - b.pct);

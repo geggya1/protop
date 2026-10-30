@@ -33,8 +33,10 @@ const ISO_STATUS = {
   cv: 'Står i CV-en, mangler bevis',
 };
 
+const SHEET_LABELS = { avtale: 'Avtale' };
+
 export default function HrCompliance({
-  colors, hr, canWrite, onPatch, lockedEmployeeId, isoCompetence, onOpenIso,
+  colors, hr, canWrite, onPatch, lockedEmployeeId, isoCompetence, onOpenIso, onOpenSheet,
 }) {
   const activeId = String(lockedEmployeeId || '');
   const [sourceFilter, setSourceFilter] = useState('all');
@@ -57,8 +59,23 @@ export default function HrCompliance({
     ? rows
     : rows.filter((row) => row.source === sourceFilter);
   const summary = complianceSummary(rows);
+  const gaps = rows.filter((row) => isGap(row, COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId)));
   const activeContract = activeId ? activeContractFor(activeId, hr.contracts || []) : null;
   const hmsCard = activeId ? hmsCardFor(activeId, hr.hmsCards || []) : null;
+
+  /** Hva som må gjøres for et manglende punkt, i oppsummeringen øverst. */
+  function gapTodo(row, cat) {
+    const due = row.dueDate ? ` Frist ${formatNbDate(row.dueDate)}.` : '';
+    if (cat?.derived === 'contract') {
+      if (!activeContract) return `Registrer arbeidsavtalen under Avtale først. Da sjekkes punktene i den.${due}`;
+      const aml = amlContractCompleteness(activeContract);
+      return `Fyll ut i arbeidsavtalen: ${aml.missing.map(amlFieldLabel).join(' · ')}.${due}`;
+    }
+    if (cat?.derived === 'hmsCard' && hmsCard?.number && row.status === 'overdue') {
+      return 'HMS-kortet er utløpt. Registrer det nye kortet under HMS-kort nedenfor.';
+    }
+    return cat?.todo || '';
+  }
 
   /** Punkter som settes fra dataene: hva som mangler, i stedet for avkrysning. */
   function derivedText(row, cat) {
@@ -69,7 +86,7 @@ export default function HrCompliance({
     }
     if (cat?.derived !== 'contract') return '';
     const due = row.dueDate && row.status !== 'ok' ? ` Frist ${formatNbDate(row.dueDate)}.` : '';
-    if (!activeContract) return `Ingen aktiv arbeidsavtale. Registrer den under Ansettelsesavtale.${due}`;
+    if (!activeContract) return `Ingen aktiv arbeidsavtale. Registrer den under Avtale.${due}`;
     const aml = amlContractCompleteness(activeContract);
     if (!aml.missing.length) return `Alle ${aml.total} påkrevde punkter er fylt ut i avtalen.`;
     return `Settes fra avtalen. Mangler: ${aml.missing.map(amlFieldLabel).join(' · ')}.${due}`;
@@ -146,14 +163,39 @@ export default function HrCompliance({
         </HrCard>
       ) : (
         <HrCard colors={colors}>
-          <HrSectionTitle
-            colors={colors}
-            title="Lovpålagt"
-            subtitle="Arbeidsavtale, verneutstyr, HMS-kort og personvern for denne personen. Medarbeidersamtaler ligger under Oppfølging."
-          />
-          <Text style={[styles.summary, { color: colors.ink }]}>
-            {`OK: ${summary.ok}/${summary.total} (${summary.pct} %) · Mangler: ${summary.missing}`}
-          </Text>
+          <View nativeID="hr-compliance-summary" style={styles.summaryBox}>
+            <Text style={[styles.summary, { color: gaps.length ? colors.danger : colors.ink }]}>
+              {gaps.length
+                ? `Dette mangler: ${gaps.length} av ${summary.total} påkrevde punkter`
+                : `Alt lovpålagt er på plass (${summary.ok} av ${summary.total} påkrevde punkter)`}
+            </Text>
+            <Text style={[styles.itemHint, { color: colors.muted }]}>
+              Arbeidsavtale, minimumskravene i avtalen, HMS-kort og personvern er påkrevd. HMS-kort kan settes til «Ikke aktuelt» for den som ikke arbeider på byggeplass. Prøvetid og verneutstyr gjelder bare når det er avtalt eller rollen krever det. Medarbeidersamtaler ligger under Oppfølging.
+            </Text>
+            {gaps.map((row) => {
+              const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
+              return (
+                <View
+                  key={row.catalogId}
+                  nativeID={`hr-compliance-gap-${row.catalogId}`}
+                  style={[styles.gap, { borderColor: colors.line }]}
+                >
+                  <Text style={[styles.itemTitle, { color: colors.ink }]}>
+                    {`${row.label}${row.status === 'overdue' ? ' · forfalt' : ''}`}
+                  </Text>
+                  <Text style={[styles.itemHint, { color: colors.muted }]}>{gapTodo(row, cat)}</Text>
+                  {cat?.sheet && onOpenSheet ? (
+                    <HrButton
+                      colors={colors}
+                      label={`Åpne ${SHEET_LABELS[cat.sheet] || cat.sheet}`}
+                      icon="arrow-forward-outline"
+                      onPress={() => onOpenSheet(cat.sheet)}
+                    />
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
         </HrCard>
       )}
 
@@ -180,18 +222,24 @@ export default function HrCompliance({
             const cat = COMPLIANCE_CATALOG.find((c) => c.id === row.catalogId);
             return (
               <View key={row.catalogId} style={[styles.item, { borderColor: colors.line }]}>
-                <Text style={[styles.itemTitle, { color: colors.ink }]}>
-                  {row.label}{cat?.required ? ' *' : ''}
-                </Text>
+                <View style={styles.itemHead}>
+                  <Text style={[styles.itemTitle, { color: colors.ink, flex: 1 }]}>{row.label}</Text>
+                  <Text
+                    style={[styles.itemState, { color: isGap(row, cat) ? colors.danger : colors.muted }]}
+                    nativeID={`hr-compliance-state-${row.catalogId}`}
+                  >
+                    {`${STATUS.find((s) => s.id === row.status)?.label || row.status} · ${cat?.required ? 'påkrevd' : 'ved behov'}`}
+                  </Text>
+                </View>
                 {cat?.hint ? (
                   <Text style={[styles.itemHint, { color: colors.muted }]}>{cat.hint}</Text>
                 ) : null}
                 {cat?.derived ? (
                   <Text
-                    style={[styles.itemHint, { color: row.status === 'ok' ? colors.ink : colors.danger }]}
+                    style={[styles.itemHint, { color: isGap(row, cat) ? colors.danger : colors.ink }]}
                     nativeID={`hr-compliance-derived-${row.catalogId}`}
                   >
-                    {`${STATUS.find((s) => s.id === row.status)?.label || row.status} · ${derivedText(row, cat)}`}
+                    {derivedText(row, cat)}
                   </Text>
                 ) : null}
                 {cat?.derived === 'hmsCard' ? (
@@ -273,6 +321,11 @@ export default function HrCompliance({
   );
 }
 
+/** Påkrevd punkt som ikke er OK eller «Ikke aktuelt». */
+function isGap(row, cat) {
+  return !!cat?.required && (row.status === 'missing' || row.status === 'overdue');
+}
+
 /** HMS-kort: kortnummer, utløpsdato og arbeidsgivers org.nr. Varsel vises når kortet går ut. */
 function HmsCardEditor({ colors, card, canWrite, notApplicable, onSave, onApplicable }) {
   const [draft, setDraft] = useState(() => ({
@@ -346,6 +399,10 @@ const styles = StyleSheet.create({
   page: { gap: 14 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   summary: { fontSize: 15, fontWeight: '600' },
+  summaryBox: { gap: 8 },
+  gap: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, gap: 6 },
+  itemHead: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 },
+  itemState: { fontSize: 12, fontWeight: '600' },
   item: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
   hmsBox: { gap: 8 },
   itemTitle: { fontSize: 14, fontWeight: '600' },

@@ -143,13 +143,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
-  th: { fontSize: 12, fontWeight: '600', paddingRight: 12 },
+  th: { fontSize: 12, fontWeight: '600', paddingRight: 20 },
   tr: {
     flexDirection: 'row',
     alignItems: 'stretch',
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 4,
   },
-  cell: { justifyContent: 'center', paddingVertical: 10, paddingRight: 12 },
+  cell: { justifyContent: 'center', paddingVertical: 10, paddingRight: 20 },
   td: { fontSize: 14, lineHeight: 18 },
 });

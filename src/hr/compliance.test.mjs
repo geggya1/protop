@@ -193,3 +193,15 @@ const FULL_CONTRACT = withAmlStandardTexts({
 }
 
 console.log('hr/compliance.test.mjs ok');
+
+{
+  // Personellisten: navn på det som mangler, uten avtalepunktene (de har egen kolonne).
+  const { complianceGapText } = await import('./compliance.js');
+  assert.equal(complianceGapText({ gapIds: [], gapShort: [] }), 'OK');
+  assert.equal(complianceGapText({ gapIds: ['aml_written_contract', 'aml_contract_minimum'], gapShort: ['arbeidsavtale', 'minimumskrav'] }), 'Bare avtalen');
+  assert.equal(
+    complianceGapText({ gapIds: ['aml_written_contract', 'hms_card', 'gdpr_privacy_notice'], gapShort: ['arbeidsavtale', 'HMS-kort (forfalt)', 'personvern'] }),
+    'HMS-kort (forfalt), personvern',
+  );
+  assert.equal(complianceGapText(null), '—');
+}

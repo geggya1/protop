@@ -7,14 +7,37 @@ import { proxyOpenFeed } from '../utils/openFeedClient';
 import {
   LIVE_WIDGET_KEY,
   clearLiveWidgetCache,
+  liveWidgetCacheEntries,
   loadLiveWidgets,
   normalizeLivePrefs,
+  peekLiveWidgets,
+  primeLiveWidgetCache,
   suggestPowerZone,
 } from '../utils/liveWidgets';
 
+// Åpne, felles data (nyheter, kurs, strøm). Ikke knyttet til bruker.
+const LIVE_CACHE_KEY = `${LIVE_WIDGET_KEY}.cache`;
+let cacheHydrated = null;
+
+/** Leser forrige besøks widgetdata inn i minnet én gang per økt. */
+function hydrateLiveCache() {
+  if (!cacheHydrated) {
+    cacheHydrated = AsyncStorage.getItem(LIVE_CACHE_KEY)
+      .then((raw) => { if (raw) primeLiveWidgetCache(JSON.parse(raw)); })
+      .catch(() => {});
+  }
+  return cacheHydrated;
+}
+
+function persistLiveCache() {
+  try {
+    AsyncStorage.setItem(LIVE_CACHE_KEY, JSON.stringify(liveWidgetCacheEntries())).catch(() => {});
+  } catch { /* ignore */ }
+}
+
 export function useLiveWidgets({ enabled = true } = {}) {
   const { uid } = useApp();
-  const { place } = useWeather();
+  const { place, placeResolved } = useWeather();
   const storageKey = uid ? `${LIVE_WIDGET_KEY}.${uid}` : LIVE_WIDGET_KEY;
   const [prefs, setPrefs] = useState(null);
   const [data, setData] = useState({});
@@ -27,7 +50,7 @@ export function useLiveWidgets({ enabled = true } = {}) {
     (async () => {
       let raw = null;
       try {
-        const stored = await AsyncStorage.getItem(storageKey);
+        const [stored] = await Promise.all([AsyncStorage.getItem(storageKey), hydrateLiveCache()]);
         raw = stored ? JSON.parse(stored) : null;
       } catch {
         raw = null;
@@ -56,26 +79,43 @@ export function useLiveWidgets({ enabled = true } = {}) {
   }, []);
 
   useEffect(() => {
-    if (!enabled || !prefs) return undefined;
+    // Vent på stedet, ellers hentes strøm og luft først for Oslo og så på nytt.
+    if (!enabled || !prefs || !placeResolved) return undefined;
     let alive = true;
+    const where = { lat: place?.lat, lng: place?.lng };
+    // Vis det vi har (også fra forrige besøk) straks, og bytt ut kort for kort.
+    const shown = peekLiveWidgets(prefs, where);
+    setData((prev) => ({ ...prev, ...shown }));
+    setErrors({});
     setLoading(true);
     loadLiveWidgets(prefs, {
-      lat: place?.lat,
-      lng: place?.lng,
+      ...where,
       proxyImpl: proxyOpenFeed,
       preferProxy: Platform.OS === 'web',
-    }).then((result) => {
-      if (!alive) return;
-      setData(result.data);
-      setErrors(result.errors);
-      setLoading(false);
+      onResult: (id, result) => {
+        if (!alive) return;
+        if (result.error) {
+          setErrors((prev) => ({ ...prev, [id]: result.error }));
+          return;
+        }
+        setData((prev) => (prev[id] === result.data ? prev : { ...prev, [id]: result.data }));
+        setErrors((prev) => {
+          if (!(id in prev)) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      },
+    }).then(() => {
+      persistLiveCache();
+      if (alive) setLoading(false);
     }).catch(() => {
-      if (!alive) return;
-      setLoading(false);
+      if (alive) setLoading(false);
     });
     return () => { alive = false; };
   }, [
     enabled,
+    placeResolved,
     prefs?.newsSource,
     prefs?.stockSymbol,
     (prefs?.stockSymbols || []).join(','),

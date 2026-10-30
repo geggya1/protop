@@ -13,7 +13,40 @@ import {
 } from '../utils/weather';
 
 const CACHE_MS = 15 * 60 * 1000;
+const FORECAST_STORE_KEY = 'protop.weatherForecast.v1';
 const forecastCache = new Map();
+const forecastInflight = new Map();
+let forecastHydrated = null;
+
+/** Siste varsel fra forrige besøk, så været vises før Yr svarer. */
+function hydrateForecastCache() {
+  if (!forecastHydrated) {
+    forecastHydrated = AsyncStorage.getItem(FORECAST_STORE_KEY)
+      .then((raw) => {
+        const saved = raw ? JSON.parse(raw) : null;
+        if (saved?.key && saved.data && !forecastCache.has(saved.key)) {
+          forecastCache.set(saved.key, { at: Number(saved.at) || 0, data: saved.data });
+        }
+      })
+      .catch(() => {});
+  }
+  return forecastHydrated;
+}
+
+/** Flere komponenter på samme side deler én henting. */
+function loadForecast(key, place, todayKey) {
+  if (forecastInflight.has(key)) return forecastInflight.get(key);
+  const pending = fetchWeatherForecast(place, { todayKey })
+    .then((data) => {
+      const hit = { at: Date.now(), data };
+      forecastCache.set(key, hit);
+      AsyncStorage.setItem(FORECAST_STORE_KEY, JSON.stringify({ key, ...hit })).catch(() => {});
+      return data;
+    })
+    .finally(() => { forecastInflight.delete(key); });
+  forecastInflight.set(key, pending);
+  return pending;
+}
 
 function cacheKey(place) {
   if (!place) return '';
@@ -86,9 +119,9 @@ export function useWeather() {
     if (!place) return undefined;
     let alive = true;
     const key = `${cacheKey(place)}:${todayKey}`;
-    const cached = forecastCache.get(key);
-    if (cached && Date.now() - cached.at < CACHE_MS) {
-      setForecast(cached.data);
+    const fresh = forecastCache.get(key);
+    if (fresh && Date.now() - fresh.at < CACHE_MS) {
+      setForecast(fresh.data);
       setLoading(false);
       setError(null);
       return undefined;
@@ -96,10 +129,22 @@ export function useWeather() {
 
     setLoading(true);
     setError(null);
-    fetchWeatherForecast(place, { todayKey })
+    hydrateForecastCache()
+      .then(() => {
+        if (!alive) return null;
+        const cached = forecastCache.get(key);
+        if (cached) {
+          // Vis forrige varsel straks. Ferskt varsel erstatter det under.
+          setForecast(cached.data);
+          if (Date.now() - cached.at < CACHE_MS) {
+            setLoading(false);
+            return null;
+          }
+        }
+        return loadForecast(key, place, todayKey);
+      })
       .then((data) => {
-        if (!alive) return;
-        forecastCache.set(key, { at: Date.now(), data });
+        if (!alive || !data) return;
         setForecast(data);
         setLoading(false);
       })

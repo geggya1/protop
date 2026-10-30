@@ -57,8 +57,10 @@ function parentDayProgress(tasks, day, { uid, ids }) {
 
 /**
  * Dagens status + gårsdagens progresjon for morgen-/kveldshilsen.
+ * tasksOnly: bare egne oppgaver. Hopper over kalender og barnas oppgaver
+ * når siden henter avtalene selv (skrivebordets Hjem).
  */
-export function useGreetingDayStatus({ enabled = true } = {}) {
+export function useGreetingDayStatus({ enabled = true, tasksOnly = false } = {}) {
   const {
     familyId, families, uid, isChild, isActingAsChild, activeChild, meChild, kids,
     childProfile, activeChildId,
@@ -113,13 +115,13 @@ export function useGreetingDayStatus({ enabled = true } = {}) {
       return undefined;
     }
     return loadExternalCalendarEventsForDeskHome({
-      enabled: enabled && !!uid,
+      enabled: enabled && !tasksOnly && !!uid,
       uid,
       todayKey,
       onHiddenCals: setHiddenCals,
       onEvents: setExternalEvents,
     });
-  }, [enabled, uid, todayKey, asChild]);
+  }, [enabled, tasksOnly, uid, todayKey, asChild]);
 
   const visibleExternalEvents = useMemo(
     () => (externalEvents || []).filter(
@@ -130,7 +132,7 @@ export function useGreetingDayStatus({ enabled = true } = {}) {
 
   // Events
   useEffect(() => {
-    if (!enabled || !familyId) {
+    if (!enabled || tasksOnly || !familyId) {
       setEvents([]);
       return undefined;
     }
@@ -141,7 +143,7 @@ export function useGreetingDayStatus({ enabled = true } = {}) {
       platforms: families,
       onChange: setEvents,
     });
-  }, [enabled, familyId, platformIds, viewerIds, families]);
+  }, [enabled, tasksOnly, familyId, platformIds, viewerIds, families]);
 
   // Child todos (logged-in child or parent viewing as child)
   useEffect(() => {
@@ -181,7 +183,7 @@ export function useGreetingDayStatus({ enabled = true } = {}) {
   );
 
   useEffect(() => {
-    if (!enabled || asChild || !familyId || !activeKids.length) {
+    if (!enabled || tasksOnly || asChild || !familyId || !activeKids.length) {
       setKidsTodosById({});
       return undefined;
     }
@@ -195,7 +197,7 @@ export function useGreetingDayStatus({ enabled = true } = {}) {
       },
     }));
     return () => unsubs.forEach((u) => u?.());
-  }, [enabled, asChild, familyId, activeKids, families]);
+  }, [enabled, tasksOnly, asChild, familyId, activeKids, families]);
 
   return useMemo(() => {
     const familyTodayEvents = (events || [])

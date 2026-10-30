@@ -26,6 +26,10 @@ import {
   fxUrl,
   friendlyLiveError,
   DEFAULT_LIVE_PREFS,
+  peekLiveWidgets,
+  liveWidgetCacheEntries,
+  primeLiveWidgetCache,
+  LIVE_SNAPSHOT_MAX_AGE,
 } from './liveWidgets.js';
 
 assert.equal(normalizeStockSymbol(' eqnr.ol '), 'EQNR.OL');
@@ -322,5 +326,60 @@ const preferProxyStock = await loadLiveWidgets({
 });
 assert.equal(preferProxyStock.data.stocks.quotes[0].price, 12);
 assert.equal(skippedYahoo.length, 0);
+
+// Raske kilder meldes før den tregeste er ferdig.
+clearLiveWidgetCache();
+const order = [];
+let releaseNews;
+const slowNews = new Promise((resolve) => { releaseNews = resolve; });
+const progressive = loadLiveWidgets({
+  enabled: ['news', 'fx'],
+  newsSource: 'nrk',
+  fxCodes: ['USD'],
+}, {
+  fetchImpl: async (url) => {
+    if (String(url).includes('nrk.no')) {
+      await slowNews;
+      return { ok: true, text: async () => '<rss><channel><item><title>Treg</title><link>https://www.nrk.no/a</link></item></channel></rss>' };
+    }
+    return {
+      ok: true,
+      text: async () => 'BASE_CUR;Basisvaluta;UNIT_MULT;TIME_PERIOD;OBS_VALUE\nUSD;Amerikansk dollar;0;2026-10-29;10,5\nUSD;Amerikansk dollar;0;2026-10-30;10,6',
+    };
+  },
+  onResult: (id, result) => order.push([id, !!result.data]),
+});
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.deepEqual(order, [['fx', true]]);
+releaseNews();
+await progressive;
+assert.deepEqual(order, [['fx', true], ['news', true]]);
+
+// Cachen kan lagres og leses inn igjen ved neste besøk.
+const saved = JSON.parse(JSON.stringify(liveWidgetCacheEntries()));
+assert.ok(saved.some(([key]) => key === 'news:nrk'));
+clearLiveWidgetCache();
+assert.deepEqual(peekLiveWidgets({ enabled: ['news'], newsSource: 'nrk' }), {});
+primeLiveWidgetCache(saved);
+assert.equal(peekLiveWidgets({ enabled: ['news'], newsSource: 'nrk' }).news.items[0].title, 'Treg');
+const fromSnapshot = await loadLiveWidgets({ enabled: ['news'], newsSource: 'nrk' }, {
+  fetchImpl: async () => { throw new Error('skal bruke lagret cache'); },
+});
+assert.equal(fromSnapshot.data.news.items[0].title, 'Treg');
+
+// Utdatert innslag vises, men hentes på nytt. For gamle innslag droppes.
+clearLiveWidgetCache();
+const now = Date.now();
+primeLiveWidgetCache([
+  ['news:nrk', { at: now - 60 * 60 * 1000, data: { items: [{ title: 'Gammel' }] } }],
+  ['news:vg', { at: now - LIVE_SNAPSHOT_MAX_AGE - 1, data: { items: [{ title: 'For gammel' }] } }],
+  ['bad', null],
+]);
+assert.equal(peekLiveWidgets({ enabled: ['news'], newsSource: 'nrk' }).news.items[0].title, 'Gammel');
+assert.deepEqual(peekLiveWidgets({ enabled: ['news'], newsSource: 'vg' }), {});
+const refreshed = await loadLiveWidgets({ enabled: ['news'], newsSource: 'nrk' }, {
+  fetchImpl: async () => ({ ok: true, text: async () => '<rss><channel><item><title>Fersk</title><link>https://www.nrk.no/b</link></item></channel></rss>' }),
+});
+assert.equal(refreshed.data.news.items[0].title, 'Fersk');
 
 console.log('liveWidgets.test.mjs: ok');

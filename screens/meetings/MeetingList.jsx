@@ -217,7 +217,7 @@ function SeriesCard({ series, onOpen, onNext, canCreate }) {
 }
 
 export default function MeetingList({
-  meetings, today, viewer, projects = [], canCreate, onOpen, onStart, onNew, onNext, onFollowUp, width,
+  meetings, today, viewer, projects = [], canCreate, onOpen, onStart, onNext, onFollowUp, width,
 }) {
   const colors = useColors();
   const [tab, setTab] = useState('kommende');
@@ -267,7 +267,6 @@ export default function MeetingList({
           icon="people-circle-outline"
           title="Ingen møter ennå"
           text="Start fra en ferdig møtemal, et skjema fra Skjemabygger, la AI sette opp dagsordenen, eller begynn blankt. Faste møter får løpenummer, og åpne oppfølgingspunkter følger med til neste møte."
-          action={canCreate ? <Btn label="Nytt møte" icon="add" tone="primary" onPress={() => onNew()} nativeID="meetings-empty-new" /> : null}
         />
       </Card>
     );

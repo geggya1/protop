@@ -309,6 +309,24 @@ assert.equal(orderRefFromLineRef('noe annet'), '');
   assert.equal(merged.amountInclVat, undefined);
   assert.equal(merged.outstandingAmount, 1250);
   assert.equal(merged.invoiceNumber, '20051');
+
+  // Betjening i ProTop: betaling, kreditnota og tap føres her og trekkes fra restbeløpet i Go.
+  const partPaid = invoicePatchFromOutgoing({ ...sentInvoice, payments: [{ amount: 300 }] }, outgoing, { at: 'x' });
+  assert.equal(partPaid.outstandingAmount, 1000);
+  assert.equal(partPaid.status, 'sent');
+  const paidHere = invoicePatchFromOutgoing({ ...sentInvoice, payments: [{ amount: 1300 }], paidAt: '2026-10-30' }, outgoing, { at: 'x' });
+  assert.equal(paidHere.status, 'paid');
+  assert.equal(paidHere.paidAt, '2026-10-30');
+  assert.equal(paidHere.outstandingAmount, 0);
+  const creditedHere = invoicePatchFromOutgoing({ ...sentInvoice, status: 'credited', creditedAmount: 1300 }, outgoing, { at: 'x' });
+  assert.equal(creditedHere.status, 'credited');
+  assert.equal(creditedHere.outstandingAmount, 0);
+  const lossHere = invoicePatchFromOutgoing({ ...sentInvoice, status: 'written_off', loss: 1300 }, outgoing, { at: 'x' });
+  assert.equal(lossHere.status, 'written_off');
+  // Delbetaling i Go etter delkreditering i ProTop: begge trekkes fra.
+  const both = invoicePatchFromOutgoing({ ...sentInvoice, creditedAmount: 300 }, { ...outgoing, Balance: 800 }, { at: 'x' });
+  assert.equal(both.outstandingAmount, 500);
+  assert.equal(both.status, 'sent');
 }
 
 // ── Overføring og synk med falsk API-klient ─────────────────────────────────

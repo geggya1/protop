@@ -478,6 +478,17 @@ export const COMPANY_HERO = {
       'Latest Statistics Norway point for the indices used in agreements.',
     ),
   },
+  // Samme bilde som Bedriftsinnstillinger, med sidens egen tittel.
+  'okonomi-innstillinger': {
+    wideArt: true,
+    name: 'Økonomiinnstillinger',
+    kicker: t('Økonomi', 'Finance'),
+    title: t('Økonomiinnstillinger', 'Finance settings'),
+    pitch: t(
+      'Kontoplan, standardkontoer, fakturastandarder, regnskapssystem og kjøregodtgjørelse.',
+      'Chart of accounts, default accounts, invoice defaults, accounting system and mileage rates.',
+    ),
+  },
   // Møter: samme bilde på alle tre sidene, med sidens egen tittel.
   'moter-oversikt': {
     wideArt: true,

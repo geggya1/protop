@@ -314,6 +314,7 @@ const COMPANY_PAGES = [
   ['okonomi', 'produkter', 'okonomi-produkter'],
   ['okonomi', 'indeks', 'okonomi-indeks'],
   ['okonomi', 'indekser', 'okonomi-indekser'],
+  ['okonomi', 'innstillinger', 'okonomi-innstillinger'],
 ];
 for (const [tab, sub, id] of COMPANY_PAGES) {
   assert.equal(companyHeroId(tab, sub), id, `${tab}/${sub || ''}`);
@@ -359,6 +360,10 @@ assert.equal(resolveModuleHero('arbeid-fravaer-innstillinger', 'nb').title, 'Fra
 assert.equal(resolveModuleHero('arbeid-fravaer-innstillinger', 'nb').wideArt, true);
 assert.equal(resolveModuleHero('arbeid-fravaer-innstillinger', 'nb').bg, resolveModuleHero('arbeid-fravaer', 'nb').bg);
 assert.equal(ILLUSTRATION_FILES['arbeid-fravaer-innstillinger'], ILLUSTRATION_FILES['arbeid-fravaer']);
+// Økonomiinnstillinger har samme bilde som Bedriftsinnstillinger, med sin egen tittel.
+assert.equal(resolveModuleHero('okonomi-innstillinger', 'nb').title, 'Økonomiinnstillinger');
+assert.equal(resolveModuleHero('okonomi-innstillinger', 'nb').wideArt, true);
+assert.equal(ILLUSTRATION_FILES['okonomi-innstillinger'], ILLUSTRATION_FILES.selskap);
 assert.equal(resolveModuleHero('arbeid-salg', 'nb').wideArt, true, 'product sales use the wide illustration');
 assert.equal(resolveModuleHero('okonomi-produkter', 'nb').wideArt, true, 'products use the wide illustration');
 assert.equal(resolveModuleHero('arbeid-godkjenning', 'nb').wideArt, true, 'approvals use the wide illustration');

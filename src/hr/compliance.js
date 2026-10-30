@@ -77,8 +77,10 @@ export const COMPLIANCE_CATALOG = [
     label: 'Personverninformasjon gitt',
     short: 'personvern',
     todo: 'Gi personen informasjon om hvordan personaldata behandles, og marker punktet OK.',
-    hint: 'Ansatt er informert om behandling av personaldata.',
+    hint: 'Personvernforordningen art. 13: den ansatte skal få vite hva som behandles, hvorfor, hvem som får det, hvor lenge det lagres og hvilke rettigheter hen har.',
     required: true,
+    // KS-malen som gir informasjonen. Når den er godkjent, følger punktet lesebekreftelsen (privacy).
+    doc: 'personvern-ansatte',
   },
 ];
 
@@ -317,6 +319,11 @@ export function isAutoNote(note) {
   return /^(AML § 14-6 dekket \(\d+\/\d+\)|Aktiv arbeidsavtale i HR|HMS-kort .+)$/.test(String(note || '').trim());
 }
 
+/** Følger personverninformasjonen lesebekreftelsen for denne personen? */
+export function privacyGoverned(privacy, employeeId) {
+  return !!privacy && Array.isArray(privacy.acked) && !(privacy.manual || []).includes(employeeId);
+}
+
 function markOk(row, note = '') {
   return {
     ...row,
@@ -336,6 +343,10 @@ export function syncComplianceFromEvidence(compliance, {
   contracts = [],
   hmsCards = [],
   today = '',
+  // Personverninformasjonen som styrt dokument: { acked, manual } med ansatt-id-er som har
+  // bekreftet gjeldende versjon, og som ikke har brukerkonto (krysses av for hånd).
+  // null: dokumentet er ikke godkjent ennå, og punktet krysses av for hånd for alle.
+  privacy = null,
 } = {}) {
   const emp = String(employeeId || '').trim();
   if (!emp) return Array.isArray(compliance) ? compliance : [];
@@ -371,6 +382,13 @@ export function syncComplianceFromEvidence(compliance, {
         completedAt: status === 'ok' ? (row.completedAt || now) : '',
         updatedAt: new Date().toISOString(),
       };
+    }
+    // Personverninformasjonen følger lesebekreftelsen når dokumentet er godkjent.
+    if (row.catalogId === 'gdpr_privacy_notice' && privacyGoverned(privacy, emp) && row.status !== 'na') {
+      const acked = privacy.acked.includes(emp);
+      if (acked) return row.status === 'ok' ? row : markOk(row);
+      if (row.status === 'missing') return row;
+      return { ...row, status: 'missing', completedAt: '', updatedAt: new Date().toISOString() };
     }
     // Skriftlig avtale følger avtalen som er registrert under Avtale.
     if (row.catalogId === 'aml_written_contract' && row.status !== 'na') {
@@ -418,6 +436,7 @@ export function companyComplianceOverview(employees, compliance, {
   applyEvidence = true,
   today = '',
   hmsRequired = true,
+  privacy = null,
 } = {}) {
   const rows = [];
   for (const emp of employees || []) {
@@ -430,6 +449,7 @@ export function companyComplianceOverview(employees, compliance, {
         contracts,
         hmsCards,
         today,
+        privacy,
       })
       : (compliance || []);
     const items = ensureEmployeeCompliance(sourced, id);

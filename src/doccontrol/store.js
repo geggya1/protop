@@ -4,11 +4,13 @@
  *   families/{id}/docControlSettings/main   godkjennere, merknadslesere og varsel
  *   families/{id}/docComments/{id}          merknader (bare synlige for utpekte, se firestore.rules)
  *   families/{id}/docAcks/{docKey}__{uid}   lesebekreftelser
+ *   families/{id}/parentTodos/doc_…         oppgaver til de ansatte om å lese eller signere (readTasks.js)
  */
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { isFirestorePermissionError, waitForFirestoreAccess } from '../utils/firestoreAccess.js';
 import { ackId, normalizeAck, normalizeComment, normalizeControl, normalizeSettings } from './model.js';
+import { DOC_TASK_SOURCE, docReadTask, docTaskId } from './readTasks.js';
 
 const AUTH_MS = 8000;
 const MEMORY = new Map();
@@ -199,5 +201,38 @@ export async function saveAck(companyId, input) {
   } catch (err) {
     warn('ack save', err);
     return { ok: false, error: 'Kunne ikke lagre bekreftelsen. Prøv igjen.' };
+  }
+}
+
+/* ───────── Oppgaver til de ansatte (readTasks.js) ───────── */
+
+export async function loadDocTasks(companyId) {
+  if (!cid(companyId)) return [];
+  try {
+    const snap = await getDocs(query(collection(db, 'families', cid(companyId), 'parentTodos'), where('source', '==', DOC_TASK_SOURCE)));
+    return snap.docs.map((row) => ({ ...row.data(), id: row.id }));
+  } catch (err) {
+    console.warn('doc tasks load failed', err?.message || err);
+    return [];
+  }
+}
+
+/** Lag oppgaven til den ansatte. Erstatter en oppgave for en eldre versjon. */
+export async function createDocTask(companyId, control, employee, { uid = '', today = '' } = {}) {
+  const id = docTaskId(control.id, employee.id);
+  const task = docReadTask(control, employee, { uid, today });
+  await setDoc(doc(db, 'families', cid(companyId), 'parentTodos', id), { ...plain(task), createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return { ...task, id };
+}
+
+/** Lukk oppgaven når dokumentet er bekreftet eller ikke lenger krever noe. */
+export async function closeDocTask(companyId, task, { today = '' } = {}) {
+  if (!cid(companyId) || !task?.id) return false;
+  try {
+    // updateDoc: finnes ikke oppgaven, lages det ingen tom oppgave.
+    await updateDoc(doc(db, 'families', cid(companyId), 'parentTodos', task.id), { done: true, completedDates: [today], updatedAt: serverTimestamp() });
+    return true;
+  } catch {
+    return false;
   }
 }

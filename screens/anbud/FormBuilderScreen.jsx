@@ -245,6 +245,15 @@ export default function FormBuilderScreen({
     say(own ? '' : 'KS-malen fra biblioteket. Endringer lagres som bedriftens egen versjon.');
   }
 
+  // Fra HR → Lovpålagt: åpne en KS-mal for å sette den opp, for eksempel personverninformasjonen.
+  useEffect(() => {
+    if (!state || shellIntent?.type !== 'openLibraryTemplate' || !shellIntent.key) return;
+    const { key } = shellIntent;
+    clearShellIntent?.();
+    setFilled(null);
+    openLibrary(key);
+  }, [state, shellIntent, clearShellIntent]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function controlOf(template) {
     const key = templateControlKey(template);
     return key ? dc.controlFor(key) : null;

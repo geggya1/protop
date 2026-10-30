@@ -384,6 +384,36 @@ let followHtml = '';
   assert.match(office, /Dette mangler: 3 av 3 påkrevde punkter/);
   assert.match(office, /Kreves ikke etter bedriftens næringskode \(62\.010\)\. Endres under HR → Lovpålagt\./);
 
+  // Personverninformasjonen: ikke satt opp gir knapp til malen. Godkjent følger bekreftelsen.
+  const noDoc = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    hr: { ...hr, privacyDoc: { state: 'none', published: false } },
+    selectedId: 'e1',
+    sheet: 'compliance',
+    onOpenLibraryTemplate: () => {},
+  }));
+  assert.match(noDoc, /id="hr-compliance-privacy-setup"/);
+  assert.match(noDoc, /Sett opp personverninformasjonen/);
+  assert.match(noDoc, /nyansatte får oppgave med varsel/);
+  const waiting = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    employees: employees.map((row) => (row.id === 'e1' ? { ...row, personUid: 'u1' } : row)),
+    hr: { ...hr, privacyDoc: { state: 'published', published: true, revision: 2, acked: [], manual: [], ackedAt: {} } },
+    selectedId: 'e1',
+    sheet: 'compliance',
+    onOpenLibraryTemplate: () => {},
+  }));
+  assert.match(waiting, /Venter på at personen leser og bekrefter versjon 2/);
+  assert.equal(waiting.includes('hr-compliance-privacy-setup'), false);
+  const confirmed = renderToStaticMarkup(React.createElement(HrPeople, {
+    ...peopleProps,
+    hr: { ...hr, privacyDoc: { state: 'published', published: true, revision: 2, acked: ['e1'], manual: [], ackedAt: { e1: '2026-10-29T08:00:00Z' } } },
+    selectedId: 'e1',
+    sheet: 'compliance',
+  }));
+  assert.match(confirmed, /id="hr-compliance-state-gdpr_privacy_notice"[^>]*>OK · påkrevd/);
+  assert.match(confirmed, /Har lest og bekreftet versjon 2 29\.10\.2026/);
+
   // Uten tilgang til ISO: bare henvisningen, ingen knapp.
   const plain = renderToStaticMarkup(React.createElement(HrPeople, {
     ...peopleProps,

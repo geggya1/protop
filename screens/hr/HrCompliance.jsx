@@ -8,6 +8,7 @@ import {
   ensureEmployeeCompliance,
   isAutoNote,
   isRequiredItem,
+  privacyGoverned,
   replaceEmployeeCompliance,
   syncComplianceFromEvidence,
 } from '../../src/hr/compliance';
@@ -55,10 +56,14 @@ function isGap(row, required) {
  * Avtalepunktene og HMS-kortet følger dataene. Resten krysses av her.
  */
 export default function HrCompliance({
-  colors, hr, canWrite, onPatch, lockedEmployeeId, isoCompetence, onOpenIso, onOpenSheet,
+  colors, hr, canWrite, onPatch, lockedEmployeeId, isoCompetence, onOpenIso, onOpenSheet, onOpenLibraryTemplate,
 }) {
   const activeId = String(lockedEmployeeId || '');
   const hmsRequired = hr.hmsRequired !== false;
+  // Personverninformasjonen som styrt dokument (src/hr/privacyDoc.js). Godkjent: punktet følger bekreftelsen.
+  const privacyDoc = hr.privacyDoc || null;
+  const privacy = privacyDoc?.published ? privacyDoc : null;
+  const privacyFollowsAck = privacyGoverned(privacy, activeId);
 
   const rows = useMemo(() => {
     if (!activeId) return [];
@@ -66,9 +71,10 @@ export default function HrCompliance({
       employeeId: activeId,
       contracts: hr.contracts || [],
       hmsCards: hr.hmsCards || [],
+      privacy,
     });
     return ensureEmployeeCompliance(sourced, activeId);
-  }, [hr.compliance, hr.contracts, hr.hmsCards, activeId]);
+  }, [hr.compliance, hr.contracts, hr.hmsCards, privacy, activeId]);
   const summary = complianceSummary(rows, { hmsRequired });
   const required = (row) => isRequiredItem(row.catalogId, { hmsRequired });
   // Det som mangler først, ellers katalogens rekkefølge.
@@ -97,13 +103,31 @@ export default function HrCompliance({
       if (hmsCard?.number) return `${hmsCard.number} · ${state.label}.`;
       return cat.todo;
     }
+    if (cat?.doc) {
+      if (privacyFollowsAck) {
+        if (row.status === 'ok') {
+          const at = privacy.ackedAt?.[activeId];
+          return `Har lest og bekreftet versjon ${privacy.revision}${at ? ` ${formatNbDate(at.slice(0, 10))}` : ''}.`;
+        }
+        if (row.status === 'na') return 'Ikke aktuelt for denne personen.';
+        return `Venter på at personen leser og bekrefter versjon ${privacy.revision} under Ansatte › Min side. Nyansatte og nye versjoner gir oppgave med varsel.`;
+      }
+      if (privacy) return 'Personen har ikke brukerkonto og kan ikke bekrefte selv. Gi personverninformasjonen på papir eller e-post, og marker OK.';
+      if (row.status === 'ok' || row.status === 'na') return '';
+      if (privacyDoc?.state === 'review') return 'Personverninformasjonen venter på godkjenning i Skjemabygger. Til da krysses punktet av for hånd.';
+      if (privacyDoc?.state === 'draft') return 'Personverninformasjonen er et utkast. Send den til godkjenning i Skjemabygger, så får de ansatte den til lesing og bekreftelse.';
+      return 'Sett opp «Personverninformasjon til ansatte» fra KS-malen. Når den er godkjent, får alle ansatte den til lesing, nyansatte får oppgave med varsel, og punktet blir OK når de har bekreftet.';
+    }
     if (gap) return cat?.todo || '';
     return '';
   }
 
   function setStatus(catalogId, status) {
     if (!canWrite || !activeId) return;
-    const derived = catalogItem(catalogId)?.derived;
+    const cat = catalogItem(catalogId);
+    const derived = cat?.derived;
+    // Personverninformasjonen følger bekreftelsen når dokumentet er godkjent. «Ikke aktuelt» kan settes.
+    if (cat?.doc && privacyFollowsAck && status !== 'na' && status !== 'missing') return;
     // HMS-kort kan settes til «Ikke aktuelt» og tilbake. Resten av de avledede følger dataene.
     if (derived && !(derived === 'hmsCard' && (status === 'na' || status === 'missing'))) return;
     onPatch?.((state) => {
@@ -231,9 +255,21 @@ export default function HrCompliance({
                 />
               ) : null}
 
+              {cat?.doc && !privacy && canWrite && onOpenLibraryTemplate ? (
+                <View style={styles.actions}>
+                  <HrButton
+                    colors={colors}
+                    label={privacyDoc?.state === 'none' ? 'Sett opp personverninformasjonen' : 'Åpne personverninformasjonen'}
+                    icon="document-text-outline"
+                    nativeID="hr-compliance-privacy-setup"
+                    onPress={() => onOpenLibraryTemplate(cat.doc)}
+                  />
+                </View>
+              ) : null}
+
               {!cat?.derived && canWrite ? (
                 <View style={styles.actions}>
-                  {MANUAL_STATUS.map((id) => (
+                  {(cat?.doc && privacyFollowsAck ? MANUAL_STATUS.filter((id) => id !== 'ok') : MANUAL_STATUS).map((id) => (
                     <HrChip
                       key={id}
                       colors={colors}
@@ -248,7 +284,7 @@ export default function HrCompliance({
               <ItemNote
                 key={`${activeId}:${row.catalogId}`}
                 colors={colors}
-                note={cat?.derived && isAutoNote(row.note) ? '' : row.note}
+                note={(cat?.derived || cat?.doc) && isAutoNote(row.note) ? '' : row.note}
                 canWrite={canWrite}
                 onSave={(note) => saveNote(row.catalogId, note)}
               />

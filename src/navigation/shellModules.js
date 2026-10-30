@@ -656,6 +656,23 @@ export function drawerGroupOpen(group, activeTab, overrides = {}, activeSubView 
   return (group.children || []).some((child) => isNavItemActive(child, activeTab, activeSubView));
 }
 
+/**
+ * Trykk på en gruppe i menyen. Bare én gruppe står åpen om gangen: åpnes en, lukkes de andre
+ * (også gruppen med aktiv side), så menyen ikke blir lang. Lukkes en åpen gruppe, står resten lukket.
+ */
+export function toggleDrawerGroup(overrides, group, groups, activeTab, activeSubView = null) {
+  if (!group?.group) return overrides || {};
+  if (drawerGroupOpen(group, activeTab, overrides, activeSubView)) {
+    return { ...(overrides || {}), [group.id]: false };
+  }
+  const next = {};
+  for (const item of groups || []) {
+    if (item?.group && item.id !== group.id) next[item.id] = false;
+  }
+  next[group.id] = true;
+  return next;
+}
+
 /** Etter navigering skal gruppen som inneholder aktiv side være utvidet igjen. */
 export function releaseClosedActiveGroups(overrides, items, activeTab, activeSubView) {
   let changed = false;

@@ -106,6 +106,7 @@ export const ILLUSTRATION_FILES = {
   'okonomi-fakturagrunnlag': 'okonomi-fakturagrunnlag--module-activation-illustration.png',
   'okonomi-oversikt': 'okonomi-oversikt--module-activation-illustration.png',
   'okonomi-utlegg': 'okonomi-utlegg--module-activation-illustration.png',
+  'okonomi-innstillinger': 'selskap--module-activation-illustration.png',
   selskap: 'selskap--module-activation-illustration.png',
   underenheter: 'underenheter--module-activation-illustration.png',
   'selskap-tilgang': 'selskap-tilgang--module-activation-illustration.png',

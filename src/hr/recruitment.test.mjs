@@ -188,4 +188,126 @@ assert.match(screen, /readApplicationFile\(/);
 assert.match(screen, /FileDropZone/);
 assert.doesNotMatch(screen, /title="Rekruttering"/, 'skallet viser sidetittelen');
 
+
+// ---- Runde 2: analyse, referanser, intervjusett, AI-kontroll, avslutning, kalender, CSV, talentbank.
+{
+  const {
+    addReference, applicantsCsv, bccMailtoHref, closeRecruitment, copyApplicationToJob, deadlineDays,
+    interviewIcs, markAiReviewed, otherApplications, recruitmentAnalytics, removeReference, updateReference,
+  } = await import('./recruitment.js');
+  const { jobCriteria, normalizeJob, RECRUITMENT_CRITERIA } = await import('./model.js');
+  const t = new Date('2026-10-30T10:00:00Z');
+
+  // Egne kriterier og spørsmål på stillingen. Id-ene er stabile og trygge som nøkler.
+  const job = normalizeJob({
+    id: 'j1', title: 'PL', publishedAt: '2026-09-01', closesAt: '2026-11-02',
+    criteria: 'Prosjektledelse\nHMS-forståelse\nprosjektledelse', questions: [{ id: 'spm-a', label: 'Fortell om et prosjekt' }],
+  });
+  assert.deepEqual(job.criteria.map((c) => c.id), ['krit-prosjektledelse', 'krit-hms-forstaelse'], 'duplikat fjernet, æøå i id');
+  assert.equal(job.questions[0].id, 'spm-a');
+  assert.equal(jobCriteria(job), job.criteria);
+  assert.equal(jobCriteria({}), RECRUITMENT_CRITERIA);
+  assert.equal(deadlineDays(job, t), 3);
+  const scoredCustom = saveScorecard(app, { ratings: { 'krit-prosjektledelse': 5, 'bad key!': 4 } }, { actor: ola, now: t });
+  assert.deepEqual(scoredCustom.scorecards[0].ratings, { 'krit-prosjektledelse': 5 }, 'ugyldige nøkler fjernes');
+  assert.equal(criteriaAverages(scoredCustom.scorecards, job.criteria)[0].avg, 5);
+  assert.equal(normalizeApplication({ interviewNotes: { 'spm-a': ' Godt svar ', '<x>': 'nei' } }).interviewNotes['spm-a'], 'Godt svar');
+
+  // Referanser: oppgitt av søkeren som standard, logges i historikken.
+  let withRef = addReference(app, { name: ' Per Leder ', relation: 'Leder', phone: '99887766' }, { actor: kari, now: t });
+  assert.equal(withRef.references[0].name, 'Per Leder');
+  assert.equal(withRef.references[0].givenByApplicant, true);
+  assert.equal(withRef.references[0].byName, 'Kari Leder');
+  assert.equal(withRef.history.at(-1).action, 'reference');
+  assert.equal(addReference(app, { name: '  ' }).references.length, 0);
+  withRef = updateReference(withRef, withRef.references[0].id, { contactedAt: '2026-10-30' });
+  assert.equal(withRef.references[0].contactedAt, '2026-10-30');
+  assert.equal(removeReference(withRef, withRef.references[0].id).references.length, 0);
+
+  // Et menneske kontrollerer AI-lesingen.
+  const reviewed = markAiReviewed(app, { actor: kari, now: t });
+  assert.equal(reviewed.aiReviewedBy, 'Kari Leder');
+  assert.equal(reviewed.aiReviewedAt, t.toISOString());
+  assert.match(historyLine(reviewed.history.at(-1)), /AI-lesingen kontrollert/);
+
+  // Talentbank: kopi til annen stilling uten vurderinger og notater.
+  const copy = copyApplicationToJob(scored, 'j2', { actor: kari, fromJobTitle: 'PL', now: t });
+  assert.equal(copy.jobId, 'j2');
+  assert.equal(copy.stage, 'new');
+  assert.equal(copy.copiedFrom, scored.id);
+  assert.equal(copy.scorecards.length, 0);
+  assert.equal(copy.comments.length, 0);
+  assert.equal(copy.profile.headline, 'Byggingeniør');
+  assert.deepEqual(otherApplications(copy, [scored, copy]).map((row) => row.id), [scored.id]);
+  assert.deepEqual(otherApplications({ id: 'z', email: '' }, [scored]), []);
+
+  // Avslutt rekrutteringen: aktive avslås, ansatte og andre stillinger berøres ikke.
+  const hiredApp = moveApplicationStage({ ...app, id: 'h', jobId: 'j1' }, 'hired', { now: t }).app;
+  const state = {
+    jobs: [job, { id: 'j2', title: 'Annen', status: 'open' }],
+    applications: [
+      normalizeApplication({ ...app, id: 'x1', jobId: 'j1', stage: 'interview' }),
+      normalizeApplication({ ...app, id: 'x2', jobId: 'j1', stage: 'new', email: 'b@x.no' }),
+      hiredApp,
+      normalizeApplication({ ...app, id: 'x3', jobId: 'j2' }),
+    ],
+  };
+  const closedState = closeRecruitment(state, 'j1', { reason: 'Besatt', actor: ola, now: t });
+  assert.deepEqual(closedState.rejected.map((row) => row.id), ['x1', 'x2']);
+  assert.equal(closedState.applications.find((row) => row.id === 'h').stage, 'hired');
+  assert.equal(closedState.applications.find((row) => row.id === 'x3').stage, 'new');
+  assert.equal(closedState.applications.find((row) => row.id === 'x1').rejectReason, 'Besatt');
+  assert.equal(closedState.applications.find((row) => row.id === 'x1').history.at(-1).action, 'bulk-close');
+  assert.equal(closedState.jobs.find((row) => row.id === 'j1').status, 'closed');
+  assert.equal(closedState.jobs.find((row) => row.id === 'j2').status, 'open');
+  const bcc = bccMailtoHref(['A@x.no', 'a@x.no', '', 'b@x.no'], 'Svar', 'Hei');
+  assert.match(bcc, /^mailto:\?bcc=a@x\.no,b@x\.no&subject=Svar&body=Hei$/);
+
+  // Kalender: lokal tid, escaping av komma og semikolon.
+  const ics = interviewIcs({ id: 'i1', name: 'Ada, N', interviewDate: '2026-11-03', interviewTime: '9:05', interviewPlace: 'Rom 1; 3. etg' }, { job, now: t });
+  assert.match(ics, /DTSTART:20261103T090500/);
+  assert.match(ics, /DTEND:20261103T100500/);
+  assert.match(ics, /SUMMARY:Intervju: Ada\\, N – PL/);
+  assert.match(ics, /LOCATION:Rom 1\\; 3\. etg/);
+  assert.equal(interviewIcs({ id: 'i2', name: 'Uten dato' }), '');
+
+  // CSV: semikolon, BOM for Excel, formler nøytralisert.
+  const csv = applicantsCsv([normalizeApplication({ name: '=HYPERLINK("x")', email: 'a@x.no', jobId: 'j1', source: 'NAV; Oslo' })], [job]);
+  assert.ok(csv.startsWith('﻿Navn;E-post'));
+  assert.match(csv, /"'=HYPERLINK\(""x""\)"/);
+  assert.match(csv, /;PL;Mottatt;/);
+  assert.match(csv, /"NAV; Oslo"/);
+
+  // Analyse: median tid til ansettelse/besatt, tilbudsaksept, konvertering og kilder.
+  const hiredA = normalizeApplication({ ...moveApplicationStage({ ...app, id: 'ha', jobId: 'j1', appliedAt: '2026-09-10', source: 'Finn.no' }, 'hired', { now: new Date('2026-09-30T10:00:00Z') }).app });
+  const declined = normalizeApplication({ id: 'd1', jobId: 'j1', stage: 'declined', appliedAt: '2026-09-12', source: 'NAV', rejectReason: 'Annen jobb', closedAt: '2026-10-01' });
+  const early = normalizeApplication({ id: 'e1', jobId: 'j1', stage: 'screening', appliedAt: '2026-10-01', source: 'Finn.no' });
+  const stats = recruitmentAnalytics([hiredA, declined, early], [job]);
+  assert.equal(stats.timeToHire, 20);
+  assert.equal(stats.timeToFill, 29);
+  assert.equal(stats.offerAcceptance, 50);
+  assert.equal(stats.funnel.find((row) => row.id === 'new').count, 3);
+  assert.equal(stats.funnel.find((row) => row.id === 'offer').count, 2, 'takket nei og ansatt har begge nådd tilbud');
+  assert.equal(stats.funnel.find((row) => row.id === 'hired').pct, 33);
+  assert.deepEqual(stats.sources[0], { source: 'Finn.no', applicants: 2, hired: 1, interviewed: 1 });
+  assert.equal(recruitmentAnalytics([]).offerAcceptance, null);
+
+  // Ny nøkkeltall: ikke bekreftet mottatt etter tre dager.
+  const unack = recruitmentOverview([normalizeApplication({ appliedAt: '2026-10-20' }), normalizeApplication({ appliedAt: '2026-10-29' })], t);
+  assert.equal(unack.unacknowledged, 1);
+}
+
+{
+  const { interviewIcs } = await import('./recruitment.js');
+  // Klokkeslett skrevet på norsk vis normaliseres; ugyldig tid lagres ikke.
+  assert.equal(normalizeApplication({ interviewTime: '9.30' }).interviewTime, '09:30');
+  assert.equal(normalizeApplication({ interviewTime: '1430' }).interviewTime, '14:30');
+  assert.equal(normalizeApplication({ interviewTime: '25:00' }).interviewTime, '');
+  assert.match(interviewIcs({ id: 'n', name: 'Natt', interviewDate: '2026-11-03', interviewTime: '23:30' }), /DTEND:20261104T003000/);
+  assert.equal(interviewIcs({ id: 'n', name: 'Feil', interviewDate: '03.11.2026' }), '');
+}
+
+// Bekreftelsen forteller søkeren om AI-støtten og at mennesker avgjør (åpenhet, GDPR art. 13 / AI-forordningen).
+assert.match(responseTemplate('ack', { app, job: { title: 'PL' } }).body, /AI-støtte[\s\S]*avgjørelser tas av mennesker/);
+
 console.log('hr/recruitment.test.mjs ok');

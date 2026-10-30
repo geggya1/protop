@@ -340,10 +340,51 @@ export function normalizeJob(row = {}) {
     // Ansvarlig for stillingen (rekrutteringsansvarlig).
     ownerUid: text(row.ownerUid),
     ownerName: text(row.ownerName),
+    // Egne vurderingskriterier og intervjuspørsmål for stillingen (tomt = standard).
+    criteria: normalizeLabeled(row.criteria, 10, 'krit'),
+    questions: normalizeLabeled(row.questions, 15, 'spm', 300),
     attachments: normalizeList(row.attachments, normalizeAttachment),
     createdAt: text(row.createdAt) || new Date().toISOString(),
     updatedAt: text(row.updatedAt) || new Date().toISOString(),
   };
+}
+
+/** Id fra en etikett: små bokstaver, siffer og bindestrek. */
+export function labelId(label, prefix = 'id') {
+  const slug = text(label)
+    .toLowerCase()
+    .replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'a')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 36);
+  return slug ? `${prefix}-${slug}` : '';
+}
+
+const RATING_KEY = /^[a-z0-9_-]{1,48}$/;
+
+/** Liste med { id, label }. Tekst (én per linje) eller liste. Duplikater fjernes. */
+function normalizeLabeled(raw, max, prefix, len = 80) {
+  const rows = Array.isArray(raw) ? raw : String(raw ?? '').split('\n');
+  const out = [];
+  const seen = new Set();
+  for (const row of rows) {
+    const label = text(typeof row === 'object' && row ? row.label : row).slice(0, len);
+    if (!label) continue;
+    const given = typeof row === 'object' && row ? text(row.id) : '';
+    const id = RATING_KEY.test(given) ? given : labelId(label, prefix);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, label });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+/** Kriteriene søkerne vurderes etter: stillingens egne, ellers standard. */
+export function jobCriteria(job) {
+  return job?.criteria?.length ? job.criteria : RECRUITMENT_CRITERIA;
 }
 
 /** Eldre søknader har bare kolonne (board) og utfall. Finn steget fra dem. */
@@ -371,9 +412,38 @@ function cleanList(value, max, len = 200) {
 function normalizeRatings(raw) {
   const out = {};
   if (!raw || typeof raw !== 'object') return out;
-  for (const criterion of RECRUITMENT_CRITERIA) {
-    const n = Math.round(num(raw[criterion.id], 0));
-    if (n >= 1 && n <= 5) out[criterion.id] = n;
+  // Stillingen kan ha egne kriterier, så alle gyldige nøkler beholdes (maks 12).
+  for (const [key, value] of Object.entries(raw)) {
+    if (!RATING_KEY.test(key) || Object.keys(out).length >= 12) continue;
+    const n = Math.round(num(value, 0));
+    if (n >= 1 && n <= 5) out[key] = n;
+  }
+  return out;
+}
+
+function normalizeReference(row = {}) {
+  if (!row || typeof row !== 'object' || !text(row.name)) return null;
+  return {
+    id: text(row.id) || newId('hrref'),
+    name: text(row.name).slice(0, 120),
+    relation: text(row.relation).slice(0, 160),
+    phone: text(row.phone).slice(0, 40),
+    email: text(row.email).toLowerCase().slice(0, 120),
+    // Søkeren har selv oppgitt referansen (referanser innhentes ikke bak søkerens rygg).
+    givenByApplicant: row.givenByApplicant !== false,
+    contactedAt: normalizeIsoDate(row.contactedAt),
+    notes: text(row.notes).slice(0, 2000),
+    byUid: text(row.byUid),
+    byName: text(row.byName),
+  };
+}
+
+function normalizeInterviewNotes(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [key, value] of Object.entries(raw)) {
+    const note = text(value).slice(0, 1000);
+    if (RATING_KEY.test(key) && note && Object.keys(out).length < 15) out[key] = note;
   }
   return out;
 }
@@ -451,6 +521,13 @@ function normalizeAiAssessment(raw) {
   return out.match != null || out.strengths.length || out.gaps.length || out.summary ? out : null;
 }
 
+/** «9:05», «09.05» og «0905» blir «09:05». Ugyldig tid blir tom. */
+function normalizeClock(value) {
+  const m = text(value).match(/^(\d{1,2})[:.]?(\d{2})$/);
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return '';
+  return `${m[1].padStart(2, '0')}:${m[2]}`;
+}
+
 /** Snitt av alle scorekort (1–5) og samme tall på skala 0–10. */
 export function applicationScorecardAverage(scorecards) {
   const values = [];
@@ -511,9 +588,17 @@ export function normalizeApplication(row = {}) {
     ai: normalizeAiAssessment(row.ai),
     // Intervju og tilbud.
     interviewDate: normalizeIsoDate(row.interviewDate),
-    interviewTime: /^\d{1,2}:\d{2}$/.test(text(row.interviewTime)) ? text(row.interviewTime).padStart(5, '0') : '',
+    interviewTime: normalizeClock(row.interviewTime),
     interviewPlace: text(row.interviewPlace),
     interviewers: text(row.interviewers),
+    // Notat per intervjuspørsmål (stillingens spørsmål) og referanser.
+    interviewNotes: normalizeInterviewNotes(row.interviewNotes),
+    references: normalizeList(row.references, normalizeReference).slice(0, 6),
+    // Et menneske har kontrollert AI-lesingen (AI er bare et forslag).
+    aiReviewedBy: text(row.aiReviewedBy),
+    aiReviewedAt: text(row.aiReviewedBy) ? text(row.aiReviewedAt) : '',
+    // Kopiert fra en annen søknad (talentbank).
+    copiedFrom: text(row.copiedFrom),
     offerSalary: text(row.offerSalary),
     offerStart: normalizeIsoDate(row.offerStart),
     offerDeadline: normalizeIsoDate(row.offerDeadline),

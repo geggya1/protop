@@ -3,7 +3,9 @@ import {
   Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { JOB_STATUSES, localIsoDate, normalizeJob } from '../../src/hr/model';
+import {
+  JOB_STATUSES, RECRUITMENT_CRITERIA, localIsoDate, normalizeJob,
+} from '../../src/hr/model';
 import OptionPicker from '../../components/OptionPicker';
 import { HrButton, HrChip, HrField } from './HrShared';
 import { radius, type } from '../../src/ui/tokens';
@@ -11,7 +13,17 @@ import { radius, type } from '../../src/ui/tokens';
 const EMPTY = {
   title: '', department: '', location: '', description: '', requirements: '',
   status: 'open', headcount: '1', closesAt: '', ownerUid: '', ownerName: '',
+  criteriaText: '', questionsText: '',
 };
+
+/** Linjer tilbake til { id, label }. Uendrede etiketter beholder id-en, så poeng ikke mistes. */
+function linesToLabeled(textValue, existing) {
+  return String(textValue || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((label) => (existing || []).find((row) => row.label === label) || label);
+}
 
 function draftOf(job, actor) {
   if (!job) return { ...EMPTY, ownerUid: actor?.uid || '', ownerName: actor?.uid ? actor?.name || '' : '' };
@@ -19,6 +31,8 @@ function draftOf(job, actor) {
     ...EMPTY,
     ...job,
     headcount: String(job.headcount || 1),
+    criteriaText: (job.criteria || []).map((row) => row.label).join('\n'),
+    questionsText: (job.questions || []).map((row) => row.label).join('\n'),
   };
 }
 
@@ -38,6 +52,8 @@ export default function RecruitmentJobForm({
       ...(job || {}),
       ...draft,
       headcount: Number(draft.headcount) || 1,
+      criteria: linesToLabeled(draft.criteriaText, job?.criteria),
+      questions: linesToLabeled(draft.questionsText, job?.questions),
       publishedAt: publish ? localIsoDate() : job?.publishedAt,
       updatedAt: new Date().toISOString(),
     });
@@ -96,6 +112,28 @@ export default function RecruitmentJobForm({
             />
             <Text style={[styles.hint, { color: colors.muted }]}>
               AI vurderer hver søker mot kravene når CV-en leses. Jo tydeligere krav, desto bedre vurdering.
+            </Text>
+            <HrField
+              colors={colors}
+              label="Vurderingskriterier (1–5 i scorekortet)"
+              value={draft.criteriaText}
+              onChangeText={set('criteriaText')}
+              multiline
+              placeholder={RECRUITMENT_CRITERIA.map((row) => row.label).join('\n')}
+            />
+            <Text style={[styles.hint, { color: colors.muted }]}>
+              Én per linje. Tomt gir standardkriteriene over. Alle vurderere bruker de samme, så søkerne kan sammenlignes.
+            </Text>
+            <HrField
+              colors={colors}
+              label="Intervjuspørsmål"
+              value={draft.questionsText}
+              onChangeText={set('questionsText')}
+              multiline
+              placeholder={'Én per linje, f.eks.\nFortell om et prosjekt der du ledet andre\nHvordan prioriterer du når fristene kolliderer?'}
+            />
+            <Text style={[styles.hint, { color: colors.muted }]}>
+              Samme spørsmål til alle søkerne gir et strukturert intervju og et rettferdig grunnlag. Notatene skrives per spørsmål i søknaden.
             </Text>
           </ScrollView>
           <View style={[styles.foot, { borderTopColor: colors.line }]}>

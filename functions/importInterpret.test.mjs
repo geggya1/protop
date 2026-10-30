@@ -107,6 +107,10 @@ const application = await handleInterpretImport({
   job: { title: 'Prosjektleder', requirements: 'Ingeniør\nErfaring fra bygg' },
 }, { uid: 'user' }, {
   ...deps,
+  checkAndIncrementUsage: async (_db, _fam, _uid, kind, limit) => {
+    assert.equal(kind, 'application', 'søknader har egen dagskvote');
+    assert.equal(limit, 150);
+  },
   documentParts: async () => { throw new Error('tekst skal ikke til OCR'); },
   callGeminiJson: async (_key, prompt, parts) => {
     assert.match(prompt, /Stilling: Prosjektleder/);

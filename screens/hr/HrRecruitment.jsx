@@ -2,7 +2,7 @@ import React, {
   useCallback, useEffect, useMemo, useRef, useState,
 } from 'react';
 import {
-  Platform, Pressable, ScrollView, StyleSheet, Text, View,
+  Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -14,9 +14,10 @@ import {
   onboardingTasksFor,
 } from '../../src/hr/model';
 import {
-  APPLICATION_SOURCES, SORTS, applicationFromRead, applicationsByColumn, applyReadToApplication,
+  APPLICATION_SOURCES, SORTS, applicantsCsv, applicationFromRead, applicationsByColumn,
+  applyReadToApplication, bccMailtoHref, closeRecruitment, copyApplicationToJob, deadlineDays,
   filterApplications, isClosedStage, jobCounts, logApplicationEvent, moveApplicationStage,
-  recruitmentOverview, sortApplications, stageLabel,
+  recruitmentAnalytics, recruitmentOverview, responseTemplate, sortApplications, stageLabel,
 } from '../../src/hr/recruitment';
 import {
   APPLICATION_ACCEPT, canReadApplicationFile, fileBytes, readApplicationFile, storageSafeName,
@@ -44,6 +45,68 @@ const OWNER_FILTERS = [
   { id: 'mine', label: 'Mine' },
   { id: 'none', label: 'Uten ansvarlig' },
 ];
+
+/** Søknadsfristen som kort tekst og tone. */
+function deadlineLabel(job, colors) {
+  const days = deadlineDays(job);
+  if (days == null) return null;
+  if (days < 0) return { text: `Fristen gikk ut ${formatNbDate(job.closesAt)}`, tone: job.status === 'open' ? colors.warnInk : colors.muted };
+  if (days === 0) return { text: 'Frist i dag', tone: colors.warnInk };
+  return { text: `Frist om ${days} d (${formatNbDate(job.closesAt)})`, tone: days <= 3 ? colors.warnInk : colors.muted };
+}
+
+function downloadFile(filename, content, mime) {
+  if (!isWeb || typeof document === 'undefined') return false;
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
+}
+
+function Analytics({ colors, data }) {
+  const days = (n) => (n == null ? '–' : `${n} d`);
+  return (
+    <View style={{ gap: 12 }} nativeID="hr-recruit-analytics">
+      <View style={styles.kpis}>
+        <Kpi colors={colors} label="Tid til ansettelse (median, søkt → ansatt)" value={days(data.timeToHire)} />
+        <Kpi colors={colors} label="Tid til besatt (median, publisert → ansatt)" value={days(data.timeToFill)} />
+        <Kpi colors={colors} label="Tilbud akseptert" value={data.offerAcceptance == null ? '–' : `${data.offerAcceptance} %`} />
+        <Kpi colors={colors} label="Trukket av søker" value={data.withdrawn} />
+      </View>
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.label, { color: colors.muted }]}>Hvor langt søkerne kom</Text>
+        {data.funnel.map((row) => (
+          <View key={row.id} style={styles.barRow}>
+            <Text style={[styles.meta, { color: colors.ink, width: 120 }]} numberOfLines={1}>{row.label}</Text>
+            <View style={[styles.barTrack, { backgroundColor: colors.line }]}>
+              <View style={[styles.barFill, { width: `${row.pct}%`, backgroundColor: colors.brand }]} />
+            </View>
+            <Text style={[styles.meta, { color: colors.muted, width: 70, textAlign: 'right' }]}>{`${row.count} · ${row.pct} %`}</Text>
+          </View>
+        ))}
+      </View>
+      {data.sources.length ? (
+        <View style={{ gap: 4 }}>
+          <Text style={[styles.label, { color: colors.muted }]}>Kilder</Text>
+          {data.sources.map((row) => (
+            <View key={row.source} style={styles.srcRow}>
+              <Text style={[styles.body, { color: colors.ink, flex: 1 }]} numberOfLines={1}>{row.source}</Text>
+              <Text style={[styles.meta, { color: colors.muted }]}>
+                {`${row.applicants} søkere · ${row.interviewed} til intervju · ${row.hired} ansatt`}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 const EMPTY_MANUAL = {
   name: '', email: '', phone: '', source: '', notes: '',
@@ -110,6 +173,10 @@ export default function HrRecruitment({
   const [manual, setManual] = useState(EMPTY_MANUAL);
   const [imports, setImports] = useState([]);
   const [hiring, setHiring] = useState(false);
+  const [anonymous, setAnonymous] = useState(false);
+  const [talentOnly, setTalentOnly] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+  const [closeJob, setCloseJob] = useState(null);
   const [attaching, setAttaching] = useState(false);
   const busyRef = useRef(false);
 
@@ -152,9 +219,10 @@ export default function HrRecruitment({
   }, [employees, uid, assigneeName, applications, jobs]);
 
   const scoped = useMemo(
-    () => applications.filter((row) => !jobId || row.jobId === jobId),
-    [applications, jobId],
+    () => applications.filter((row) => (!jobId || row.jobId === jobId) && (!talentOnly || row.consentToKeep)),
+    [applications, jobId, talentOnly],
   );
+  const analytics = useMemo(() => (showAnalytics ? recruitmentAnalytics(scoped, jobs) : null), [showAnalytics, scoped, jobs]);
   const overview = useMemo(() => recruitmentOverview(scoped), [scoped]);
   const visible = useMemo(() => sortApplications(filterApplications(scoped, {
     query, owner: ownerFilter, uid, showClosed,
@@ -442,6 +510,56 @@ export default function HrRecruitment({
     }));
   }
 
+  function copyToJob(app, targetJobId) {
+    const target = jobsById[targetJobId];
+    if (!canWrite || !target) return;
+    const exists = applications.some((row) => row.jobId === targetJobId && app.email && row.email === app.email);
+    if (exists) {
+      showSaveToast?.(`${app.name} har allerede en søknad på ${target.title}`);
+      return;
+    }
+    const copy = copyApplicationToJob(app, targetJobId, { actor, fromJobTitle: jobsById[app.jobId]?.title || '' });
+    onPatch?.((state) => ({ applications: [copy, ...(state.applications || [])] }));
+    showSaveToast?.(`Kopiert til ${target.title}`);
+  }
+
+  function exportCsv() {
+    const csv = applicantsCsv(visible, jobs);
+    const name = activeJob ? `soknader-${activeJob.title}` : 'soknader';
+    if (!downloadFile(`${name.toLowerCase().replace(/[^a-z0-9æøå]+/gi, '-')}.csv`, csv, 'text/csv;charset=utf-8')) {
+      showSaveToast?.('Eksport er tilgjengelig i nettleseren');
+    }
+  }
+
+  function finishRecruitment() {
+    if (!canWrite || !closeJob) return;
+    const job = closeJob.job;
+    const reason = closeJob.reason.trim() || 'Stillingen er besatt';
+    let rejected = [];
+    onPatch?.((state) => {
+      const result = closeRecruitment(state, job.id, { reason, actor });
+      rejected = result.rejected;
+      return { applications: result.applications, jobs: result.jobs };
+    });
+    const emails = rejected.map((row) => row.email).filter(Boolean);
+    setCloseJob({ ...closeJob, done: true, count: rejected.length, emails });
+    showSaveToast?.(rejected.length ? `Rekrutteringen er avsluttet. ${rejected.length} søkere avslått.` : 'Rekrutteringen er avsluttet');
+  }
+
+  function mailRejected() {
+    if (!closeJob?.emails?.length) return;
+    const tpl = responseTemplate('reject', { app: { name: '' }, job: closeJob.job, company: companyName, sender: assigneeName });
+    Linking.openURL(bccMailtoHref(closeJob.emails, tpl.subject, tpl.body)).catch(() => showSaveToast?.('Fant ingen e-postklient'));
+    const ids = new Set(closeJob.emails);
+    onPatch?.((state) => ({
+      applications: (state.applications || []).map((row) => (
+        row.jobId === closeJob.job.id && row.stage === 'rejected' && ids.has(row.email) && !row.respondedAt
+          ? logApplicationEvent({ ...normalizeApplication(row), respondedAt: new Date().toISOString().slice(0, 10), response: tpl.body }, 'response', { actor, text: 'Avslag (samlet)' })
+          : row
+      )),
+    }));
+  }
+
   const importing = imports.some((row) => row.status === 'upload' || row.status === 'read');
   const empty = !jobs.length && !applications.length;
 
@@ -488,9 +606,60 @@ export default function HrRecruitment({
                 </Text>
               </View>
               {canWrite ? (
-                <HrButton colors={colors} label="Endre" icon="create-outline" onPress={() => setJobForm({ job: activeJob })} />
+                <View style={styles.chips}>
+                  <HrButton colors={colors} label="Endre" icon="create-outline" onPress={() => setJobForm({ job: activeJob })} />
+                  {activeJob.status !== 'closed' ? (
+                    <HrButton
+                      colors={colors}
+                      label="Avslutt rekrutteringen"
+                      icon="flag-outline"
+                      onPress={() => setCloseJob({ job: activeJob, reason: 'Stillingen er besatt' })}
+                      nativeID="hr-job-finish"
+                    />
+                  ) : null}
+                </View>
               ) : null}
             </View>
+            {deadlineLabel(activeJob, colors) ? (
+              <Text style={[styles.meta, { color: deadlineLabel(activeJob, colors).tone, fontWeight: '600' }]} nativeID="hr-job-deadline">
+                {deadlineLabel(activeJob, colors).text}
+              </Text>
+            ) : null}
+            {closeJob && closeJob.job.id === activeJob.id ? (
+              <View style={[styles.closeBox, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID="hr-job-finish-box">
+                {closeJob.done ? (
+                  <>
+                    <Text style={[styles.body, { color: colors.ink }]}>
+                      {closeJob.count
+                        ? `Stillingen er lukket, og ${closeJob.count} søkere er avslått. ${closeJob.emails.length} har e-post.`
+                        : 'Stillingen er lukket. Det var ingen aktive søkere igjen.'}
+                    </Text>
+                    <View style={styles.chips}>
+                      {closeJob.emails.length ? (
+                        <HrButton colors={colors} label="Send avslag (blindkopi)" primary icon="send-outline" onPress={mailRejected} nativeID="hr-job-finish-mail" />
+                      ) : null}
+                      <HrButton colors={colors} label="Ferdig" onPress={() => setCloseJob(null)} />
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.body, { color: colors.ink }]}>
+                      {`Lukker stillingen og avslår ${overview.active} aktive søkere med samme begrunnelse. Ansatte søkere berøres ikke.`}
+                    </Text>
+                    <HrField
+                      colors={colors}
+                      label="Begrunnelse (intern)"
+                      value={closeJob.reason}
+                      onChangeText={(reason) => setCloseJob((prev) => ({ ...prev, reason }))}
+                    />
+                    <View style={styles.chips}>
+                      <HrButton colors={colors} label="Avslutt og avslå" danger icon="flag-outline" onPress={finishRecruitment} nativeID="hr-job-finish-confirm" />
+                      <HrButton colors={colors} label="Avbryt" onPress={() => setCloseJob(null)} />
+                    </View>
+                  </>
+                )}
+              </View>
+            ) : null}
             {canWrite ? (
               <View style={styles.chips}>
                 {JOB_STATUSES.map((status) => (
@@ -541,6 +710,9 @@ export default function HrRecruitment({
         ) : null}
         {overview.unscored ? (
           <Kpi colors={colors} label="Ikke vurdert" value={overview.unscored} tone={colors.warnInk} />
+        ) : null}
+        {overview.unacknowledged ? (
+          <Kpi colors={colors} label="Ikke bekreftet mottatt (3+ d)" value={overview.unacknowledged} tone={colors.warnInk} />
         ) : null}
         {overview.unanswered ? (
           <Kpi colors={colors} label="Mangler svar" value={overview.unanswered} tone={colors.dangerInk} />
@@ -642,7 +814,19 @@ export default function HrRecruitment({
           ))}
           <HrChip colors={colors} label={showClosed ? 'Skjul avsluttede' : 'Vis avsluttede'} active={!showClosed} onPress={() => setShowClosed((v) => !v)} />
         </View>
+        <View style={[styles.chips, styles.filterChips]}>
+          <HrChip colors={colors} label="Anonym vurdering" active={anonymous} onPress={() => setAnonymous((v) => !v)} nativeID="hr-recruit-anon" />
+          <HrChip colors={colors} label="Talentbank (samtykke)" active={talentOnly} onPress={() => setTalentOnly((v) => !v)} nativeID="hr-recruit-talent" />
+          <HrChip colors={colors} label="Analyse" active={showAnalytics} onPress={() => setShowAnalytics((v) => !v)} nativeID="hr-recruit-analytics-toggle" />
+          {isWeb ? <HrChip colors={colors} label="Eksporter CSV" active={false} onPress={exportCsv} nativeID="hr-recruit-export" /> : null}
+        </View>
       </View>
+
+      {analytics ? (
+        <HrCard colors={colors}>
+          <Analytics colors={colors} data={analytics} />
+        </HrCard>
+      ) : null}
 
       {empty ? (
         <EmptyHint
@@ -661,6 +845,7 @@ export default function HrRecruitment({
         selectedId={selectedId}
         canWrite={canWrite}
         retention={retention}
+        anonymous={anonymous}
         onOpen={(id) => { setCloseOnOpen(false); setSelectedId(id); }}
         onMove={moveCard}
         onFiles={importFiles}
@@ -672,6 +857,8 @@ export default function HrRecruitment({
           app={selected}
           job={jobsById[selected.jobId] || null}
           jobs={jobs}
+          apps={applications}
+          anonymous={anonymous}
           canWrite={canWrite}
           actor={actor}
           ownerOptions={ownerOptions}
@@ -686,6 +873,8 @@ export default function HrRecruitment({
           onDelete={deleteApplication}
           onAttachFiles={attachFiles}
           onPickFiles={pickAndAttach}
+          onCopyToJob={copyToJob}
+          onOpenOther={(id) => { setCloseOnOpen(false); setSelectedId(id); }}
         />
       ) : null}
 
@@ -750,4 +939,9 @@ const styles = StyleSheet.create({
   },
   search: { flexGrow: 1, flexBasis: 260, minWidth: 0 },
   filterChips: { flexShrink: 1, minWidth: 0, maxWidth: '100%' },
+  closeBox: { borderWidth: 1, borderRadius: radius.card, padding: 10, gap: 8 },
+  barRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  barTrack: { flex: 1, height: 8, borderRadius: radius.pill, overflow: 'hidden' },
+  barFill: { height: 8, borderRadius: radius.pill },
+  srcRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
 });

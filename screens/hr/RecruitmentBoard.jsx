@@ -124,8 +124,11 @@ function ScorePill({ colors, label, value, tone }) {
 }
 
 function ApplicationCard({
-  colors, app, job, showJob, selected, canWrite, onOpen, onStep, retention, dragging,
+  colors, app, job, showJob, selected, canWrite, onOpen, onStep, retention, dragging, anonymous,
 }) {
+  // Anonym vurdering: navn og kontaktinfo skjules til søkeren går videre til intervju.
+  const hidden = anonymous && (app.stage === 'new' || app.stage === 'screening');
+  const name = hidden ? `Søker ${String(app.id).slice(-4).toUpperCase()}` : app.name;
   const idle = applicationIdleDays(app);
   const closed = app.board === 'completed';
   const outcomeTone = app.stage === 'hired' ? colors.successInk : colors.dangerInk;
@@ -148,17 +151,17 @@ function ApplicationCard({
       <Pressable
         onPress={() => onOpen(app.id)}
         accessibilityRole="button"
-        accessibilityLabel={`Åpne søknaden fra ${app.name}`}
+        accessibilityLabel={`Åpne søknaden fra ${name}`}
         style={styles.cardBody}
       >
         <View style={styles.cardHead}>
           <View style={[styles.avatar, { backgroundColor: `${colors.brand}1a` }]}>
-            <Text style={[styles.avatarText, { color: colors.brand }]}>{initials(app.name) || '?'}</Text>
+            <Text style={[styles.avatarText, { color: colors.brand }]}>{hidden ? '?' : (initials(app.name) || '?')}</Text>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.cardTitle, { color: colors.ink }]} numberOfLines={1}>{app.name}</Text>
+            <Text style={[styles.cardTitle, { color: colors.ink }]} numberOfLines={1}>{name}</Text>
             <Text style={[styles.cardMeta, { color: colors.muted }]} numberOfLines={1}>
-              {app.profile?.headline || app.email || app.source || 'Ingen detaljer ennå'}
+              {app.profile?.headline || (hidden ? '' : app.email) || app.source || 'Ingen detaljer ennå'}
             </Text>
           </View>
         </View>
@@ -247,7 +250,7 @@ function ApplicationCard({
  */
 export default function RecruitmentBoard({
   colors, buckets, jobsById, showJob, selectedId, canWrite, retention,
-  onOpen, onMove, onFiles,
+  onOpen, onMove, onFiles, anonymous = false,
 }) {
   const [dragId, setDragId] = useState('');
   const [hoverCol, setHoverCol] = useState('');
@@ -318,6 +321,7 @@ export default function RecruitmentBoard({
                   onStep={(row, stage) => onMove(row.id, stage)}
                   retention={retention}
                   dragging={dragId === app.id}
+                  anonymous={anonymous}
                 />
               </DragCard>
             ))}

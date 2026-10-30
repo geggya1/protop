@@ -147,8 +147,8 @@ export function myScorecard(application, actor) {
 }
 
 /** Snitt per kriterium over alle scorekort. */
-export function criteriaAverages(scorecards) {
-  return RECRUITMENT_CRITERIA.map((criterion) => {
+export function criteriaAverages(scorecards, criteria = RECRUITMENT_CRITERIA) {
+  return (criteria?.length ? criteria : RECRUITMENT_CRITERIA).map((criterion) => {
     const values = (scorecards || [])
       .map((card) => Number(card?.ratings?.[criterion.id]))
       .filter((n) => n >= 1 && n <= 5);
@@ -281,6 +281,8 @@ export function recruitmentOverview(apps, now = new Date()) {
     unassigned: active.filter((row) => !row.ownerUid).length,
     unscored: active.filter((row) => row.stage !== 'new' && !row.scorecards?.length).length,
     unanswered: list.filter((row) => isClosedStage(row.stage) && row.stage !== 'hired' && !row.respondedAt).length,
+    // Mottatt for mer enn tre dager siden uten bekreftelse til søkeren.
+    unacknowledged: active.filter((row) => !row.acknowledgedAt && (daysSince(row.appliedAt, now) ?? 0) > 3).length,
     idle: active.filter((row) => (applicationIdleDays(row, now) ?? 0) >= 14).length,
   };
 }
@@ -317,7 +319,7 @@ export function responseTemplate(kind, { app, job, company = '', sender = '' } =
   if (kind === 'ack') {
     return {
       subject: `Søknad mottatt${job?.title ? ` – ${job.title}` : ''}`,
-      body: `${hi}\n\nTakk for søknaden på ${role}. Vi har mottatt den og går gjennom søknadene fortløpende. Du hører fra oss så snart vi har vurdert den.${close}`,
+      body: `${hi}\n\nTakk for søknaden på ${role}. Vi har mottatt den og går gjennom søknadene fortløpende. Du hører fra oss så snart vi har vurdert den.\n\nVi bruker et verktøy med AI-støtte til å lese CV og søknad. Alle vurderinger og avgjørelser tas av mennesker. Søknaden slettes når rekrutteringen er avsluttet, med mindre du samtykker til at vi beholder den.${close}`,
     };
   }
   if (kind === 'interview') {
@@ -362,6 +364,10 @@ export function historyLine(row) {
   if (row.action === 'ai') return `Lest med OCR/AI${row.text ? `: ${row.text}` : ''}${who}`;
   if (row.action === 'document') return `Dokument lagt til${row.text ? `: ${row.text}` : ''}${who}`;
   if (row.action === 'hired') return `Opprettet som ansatt${who}`;
+  if (row.action === 'reference') return `Referanse: ${row.text || ''}${who}`;
+  if (row.action === 'ai-review') return `AI-lesingen kontrollert${who}`;
+  if (row.action === 'copied') return `Kopiert ${row.text ? `fra ${row.text}` : 'fra en annen stilling'}${who}`;
+  if (row.action === 'bulk-close') return `Avsluttet da rekrutteringen ble avsluttet${row.text ? `: ${row.text}` : ''}${who}`;
   return `${row.text || row.action}${who}`;
 }
 
@@ -385,4 +391,255 @@ export function logApplicationEvent(application, action, { actor = null, now = n
     ...app,
     history: [...app.history, event(action, actor, { text }, now)],
   }, now));
+}
+
+/** Et menneske bekrefter at AI-lesingen er kontrollert mot dokumentet. */
+export function markAiReviewed(application, { actor = null, now = new Date() } = {}) {
+  const app = normalizeApplication(application || {});
+  return normalizeApplication(touched({
+    ...app,
+    aiReviewedBy: String(actor?.name || '').trim() || 'Ukjent',
+    aiReviewedAt: now.toISOString(),
+    history: [...app.history, event('ai-review', actor, {}, now)],
+  }, now));
+}
+
+export function addReference(application, ref, { actor = null, now = new Date() } = {}) {
+  const app = normalizeApplication(application || {});
+  if (!String(ref?.name || '').trim()) return app;
+  const row = { ...ref, id: newId('hrref'), ...actorOf(actor) };
+  return normalizeApplication(touched({
+    ...app,
+    references: [...app.references, row],
+    history: [...app.history, event('reference', actor, { text: String(ref.name).trim() }, now)],
+  }, now));
+}
+
+export function updateReference(application, id, patch, { now = new Date() } = {}) {
+  const app = normalizeApplication(application || {});
+  return normalizeApplication(touched({
+    ...app,
+    references: app.references.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+  }, now));
+}
+
+export function removeReference(application, id, { now = new Date() } = {}) {
+  const app = normalizeApplication(application || {});
+  return normalizeApplication(touched({ ...app, references: app.references.filter((row) => row.id !== id) }, now));
+}
+
+/** Andre søknader fra samme person (e-post), f.eks. på andre stillinger. */
+export function otherApplications(app, apps) {
+  const email = String(app?.email || '').toLowerCase();
+  if (!email) return [];
+  return (apps || []).filter((row) => row.id !== app.id && row.email === email);
+}
+
+/** Kopi av søkeren til en annen stilling (talentbank). Starter i «Mottatt». */
+export function copyApplicationToJob(application, jobId, { actor = null, fromJobTitle = '', now = new Date() } = {}) {
+  const app = normalizeApplication(application || {});
+  return normalizeApplication({
+    jobId,
+    name: app.name,
+    email: app.email,
+    phone: app.phone,
+    location: app.location,
+    source: app.source,
+    attachments: app.attachments,
+    profile: app.profile,
+    stage: 'new',
+    appliedAt: localIsoDate(now),
+    ownerUid: actor?.uid || '',
+    ownerName: actor?.uid ? String(actor?.name || '') : '',
+    copiedFrom: app.id,
+    history: [event('copied', actor, { text: fromJobTitle }, now)],
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
+  });
+}
+
+/**
+ * Avslutter rekrutteringen for en stilling: stillingen lukkes og alle aktive søkere
+ * avslås med samme begrunnelse. Svarer { applications, jobs, rejected } for HR-tilstanden.
+ */
+export function closeRecruitment(state, jobId, { reason = '', actor = null, now = new Date() } = {}) {
+  const why = String(reason || '').trim() || 'Stillingen er besatt';
+  const rejected = [];
+  const applications = (state?.applications || []).map((row) => {
+    if (row.jobId !== jobId || isClosedStage(row.stage)) return row;
+    const moved = moveApplicationStage(row, 'rejected', { actor, reason: why, now });
+    if (!moved.ok) return row;
+    rejected.push(moved.app);
+    const last = moved.app.history.at(-1);
+    return normalizeApplication({
+      ...moved.app,
+      history: [...moved.app.history.slice(0, -1), { ...last, action: 'bulk-close' }],
+    });
+  });
+  const jobs = (state?.jobs || []).map((row) => (
+    row.id === jobId ? { ...row, status: 'closed', updatedAt: now.toISOString() } : row
+  ));
+  return { applications, jobs, rejected };
+}
+
+/** E-post til mange søkere med blindkopi, så de ikke ser hverandre. */
+export function bccMailtoHref(emails, subject, body) {
+  const list = [...new Set((emails || []).map((e) => String(e || '').trim().toLowerCase()).filter(Boolean))];
+  const params = [`bcc=${list.join(',')}`, `subject=${encodeURIComponent(subject || '')}`, `body=${encodeURIComponent(body || '')}`];
+  return `mailto:?${params.join('&')}`;
+}
+
+function icsText(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/[,;]/g, (c) => `\\${c}`).replace(/\r?\n/g, '\\n');
+}
+
+/** «9:05», «09.05» og «0905» blir [9, 5]. Ugyldig tid gir 09:00. */
+function parseClock(time) {
+  const m = String(time || '').trim().match(/^(\d{1,2})[:.]?(\d{2})$/);
+  const h = m ? Number(m[1]) : 9;
+  const min = m ? Number(m[2]) : 0;
+  return h < 24 && min < 60 ? [h, min] : [9, 0];
+}
+
+function icsStamp(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}00`;
+}
+
+/** Kalenderinvitasjon (.ics) for intervjuet, i lokal tid. Tom streng uten gyldig dato. */
+export function interviewIcs(app, { job = null, company = '', minutes = 60, now = new Date() } = {}) {
+  const day = String(app?.interviewDate || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!day) return '';
+  const [h, min] = parseClock(app.interviewTime);
+  // UTC brukes bare som regnestykke for lokal tid (ingen tidssone i filen).
+  const start = new Date(Date.UTC(Number(day[1]), Number(day[2]) - 1, Number(day[3]), h, min));
+  const end = new Date(start.getTime() + minutes * 60000);
+  const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const title = `Intervju: ${app.name}${job?.title ? ` – ${job.title}` : ''}`;
+  const desc = [
+    job?.title ? `Stilling: ${job.title}` : '',
+    app.email ? `E-post: ${app.email}` : '',
+    app.phone ? `Telefon: ${app.phone}` : '',
+    app.interviewers ? `Intervjuere: ${app.interviewers}` : '',
+    company ? `${company}` : '',
+  ].filter(Boolean).join('\n');
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//ProTop//Rekruttering//NO',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${app.id}-intervju@protop.no`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${icsStamp(start)}`,
+    `DTEND:${icsStamp(end)}`,
+    `SUMMARY:${icsText(title)}`,
+    app.interviewPlace ? `LOCATION:${icsText(app.interviewPlace)}` : '',
+    desc ? `DESCRIPTION:${icsText(desc)}` : '',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].filter(Boolean).join('\r\n');
+}
+
+function csvCell(value) {
+  const raw = String(value ?? '');
+  // Formler i regneark (=, +, -, @) skal ikke kjøres når filen åpnes.
+  const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return /[";\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+}
+
+/** Søkerliste som CSV (semikolon, for norsk Excel). */
+export function applicantsCsv(apps, jobs = []) {
+  const jobTitle = Object.fromEntries((jobs || []).map((row) => [row.id, row.title]));
+  const header = ['Navn', 'E-post', 'Telefon', 'Bosted', 'Stilling', 'Steg', 'Søkt', 'Kilde', 'Ansvarlig', 'Score', 'AI-match', 'Begrunnelse'];
+  const rows = (apps || []).map((row) => [
+    row.name, row.email, row.phone, row.location, jobTitle[row.jobId] || 'Åpen søknad', stageLabel(row.stage),
+    formatNbDate(row.appliedAt), row.source, row.ownerName,
+    row.scorecards?.length ? String(row.score).replace('.', ',') : '',
+    row.ai?.match != null ? String(row.ai.match).replace('.', ',') : '',
+    isClosedStage(row.stage) ? row.rejectReason : '',
+  ]);
+  return `\uFEFF${[header, ...rows].map((cols) => cols.map(csvCell).join(';')).join('\r\n')}`;
+}
+
+function median(values) {
+  const list = values.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+  if (!list.length) return null;
+  const mid = Math.floor(list.length / 2);
+  return list.length % 2 ? list[mid] : Math.round((list[mid - 1] + list[mid]) / 2);
+}
+
+function dayDiff(from, to) {
+  const a = String(from || '').slice(0, 10);
+  const b = String(to || '').slice(0, 10);
+  if (!a || !b) return null;
+  const ms = Date.UTC(...b.split('-').map((v, i) => Number(v) - (i === 1 ? 1 : 0)))
+    - Date.UTC(...a.split('-').map((v, i) => Number(v) - (i === 1 ? 1 : 0)));
+  return Number.isFinite(ms) ? Math.round(ms / 86400000) : null;
+}
+
+const FUNNEL = ['new', 'screening', 'interview', 'references', 'offer', 'hired'];
+
+/** Høyeste steg søknaden har nådd (fra historikken og steget den står i nå). */
+function reachedIndex(app) {
+  const seen = [app.stage, ...(app.history || []).flatMap((row) => [row.from, row.to])];
+  let best = 0;
+  for (const stage of seen) {
+    const index = FUNNEL.indexOf(stage);
+    if (index > best) best = index;
+  }
+  // Takket nei har nådd tilbud.
+  if (app.stage === 'declined') best = Math.max(best, FUNNEL.indexOf('offer'));
+  return best;
+}
+
+/**
+ * Nøkkeltall for rekrutteringen: tid til ansettelse, tid til besatt stilling,
+ * tilbudsaksept, kilder og konvertering mellom stegene.
+ */
+export function recruitmentAnalytics(apps, jobs = []) {
+  const list = apps || [];
+  const hired = list.filter((row) => row.stage === 'hired');
+  const timeToHire = median(hired.map((row) => dayDiff(row.appliedAt, row.closedAt)));
+  const jobsById = Object.fromEntries((jobs || []).map((row) => [row.id, row]));
+  const timeToFill = median(hired.map((row) => dayDiff(jobsById[row.jobId]?.publishedAt, row.closedAt)));
+  const offered = list.filter((row) => row.stage === 'offer' || row.stage === 'declined' || row.stage === 'hired');
+  const decided = list.filter((row) => row.stage === 'declined' || row.stage === 'hired');
+  const offerAcceptance = decided.length ? Math.round((hired.length / decided.length) * 100) : null;
+  const reached = FUNNEL.map((stage, index) => ({
+    id: stage,
+    label: stageLabel(stage),
+    count: list.filter((row) => reachedIndex(row) >= index).length,
+  }));
+  const funnel = reached.map((row, index) => ({
+    ...row,
+    pct: index === 0 || !reached[0].count ? (reached[0].count ? 100 : 0) : Math.round((row.count / reached[0].count) * 100),
+  }));
+  const bySource = {};
+  for (const row of list) {
+    const key = row.source || 'Ukjent';
+    bySource[key] = bySource[key] || { source: key, applicants: 0, hired: 0, interviewed: 0 };
+    bySource[key].applicants += 1;
+    if (row.stage === 'hired') bySource[key].hired += 1;
+    if (reachedIndex(row) >= FUNNEL.indexOf('interview')) bySource[key].interviewed += 1;
+  }
+  const withdrawn = list.filter((row) => row.stage === 'withdrawn').length;
+  return {
+    total: list.length,
+    hired: hired.length,
+    offered: offered.length,
+    timeToHire,
+    timeToFill,
+    offerAcceptance,
+    withdrawn,
+    funnel,
+    sources: Object.values(bySource).sort((a, b) => b.hired - a.hired || b.applicants - a.applicants),
+  };
+}
+
+/** Søknadsfristen: dager igjen (negativ når passert), eller null uten frist. */
+export function deadlineDays(job, now = new Date()) {
+  if (!job?.closesAt) return null;
+  return dayDiff(localIsoDate(now), job.closesAt);
 }

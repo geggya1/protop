@@ -1016,6 +1016,10 @@ function AppShellInner() {
   const titleInContent = !!pageHeroId && !headerHeroId && !(heroCompact && isPhone);
   // Én tittel per side: titlene skallet faktisk viser, så sidene ikke gjentar dem (Page i src/ui).
   const headerShowsTitle = !titleInContent && (isDesktop || !(headerHeroId || shellPageHero));
+  // Den valgte fanen i modulmenyen står alltid synlig over siden (splitModuleTabs), og er også en tittel.
+  const activeModuleTab = tab !== 'plan' ? moduleMenu?.pages?.find((p) => p.id === moduleMenu.activeId) : null;
+  const tabLabels = activeModuleTab ? [activeModuleTab.label, activeModuleTab.short].filter(Boolean) : [];
+  const tabLabelsKey = tabLabels.join('|');
   const shellTitles = useMemo(() => (kitchenMode ? null : shellPageTitles({
     tab,
     subView: moreSubView,
@@ -1023,7 +1027,8 @@ function AppShellInner() {
     titleRow: heroCompact,
     heroId: heroCompact ? null : pageHeroId,
     lang,
-  })), [kitchenMode, tab, moreSubView, headerShowsTitle, shellHeaderTitle, heroCompact, pageHeroId, lang]);
+    tabLabels: tabLabelsKey ? tabLabelsKey.split('|') : [],
+  })), [kitchenMode, tab, moreSubView, headerShowsTitle, shellHeaderTitle, heroCompact, pageHeroId, lang, tabLabelsKey]);
 
   // Familiesidene under Meny er ikke med i ProTop (L-35): ingen «Aktiver …» for dem.
   const familyViewBlocked = tab === 'more' && isFamilyProductMoreView(moreSubView);

@@ -2,8 +2,11 @@
  * Fakturalinjene i seksjoner (Timer, Utlegg, Adm. kostnader …) og summeringen,
  * slik de står på fakturaen.
  */
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { formatDate } from '../../../src/economy/invoices.js';
+import { type } from '../../../src/ui/tokens';
 import { periodLabel, sectionsOf } from '../../../src/economy/invoiceLines.js';
 import { invoiceTotals, paidAmountOf } from '../../../src/economy/invoiceFlow.js';
 import { sentFromPowerOffice } from '../../../src/economy/powerOfficeView.js';
@@ -19,8 +22,54 @@ function pct(value) {
   return n ? `${num(n)} %` : '';
 }
 
-export function InvoiceLinesView({ invoice, colors, stacked = false }) {
+/**
+ * Skuffen under en timelinje: timene bak linjen, med dato, medarbeider, aktivitet og hva som er gjort.
+ * loadEntries(ids) henter timene første gang skuffen åpnes.
+ */
+function HoursDrawer({ line, colors, stacked, state }) {
+  if (!state) return null;
+  if (state.loading) return <Text style={[type.caption, { color: colors.muted }]}>Henter timene …</Text>;
+  if (state.error) return <Text style={[type.caption, { color: colors.danger }]}>{state.error}</Text>;
+  const rows = [...(state.rows || [])].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  if (!rows.length) return <Text style={[type.caption, { color: colors.muted }]}>Fant ikke timene bak linjen.</Text>;
+  const hours = rows.reduce((sum, row) => sum + (Number(row.billableHours ?? row.hours) || 0), 0);
+  return (
+    <View style={[styles.drawer, { borderColor: colors.line, backgroundColor: colors.bg }]} nativeID={`invoice-line-hours-${line.id}`}>
+      <MiniTable
+        colors={colors}
+        stacked={stacked}
+        rows={rows}
+        rowKey={(row, index) => row.id || index}
+        columns={[
+          { key: 'date', label: 'Dato', width: 84, render: (row) => formatDate(row.date) },
+          { key: 'employee', label: 'Medarbeider', flex: 1, wrap: true, render: (row) => row.employeeName || '—' },
+          { key: 'activity', label: 'Aktivitet', flex: 1, wrap: true, render: (row) => row.activityName || '' },
+          { key: 'description', label: 'Hva som er gjort', flex: 3, wrap: true, render: (row) => row.description || row.comment || '' },
+          { key: 'hours', label: 'Timer', width: 64, align: 'right', render: (row) => num(row.billableHours ?? row.hours) },
+        ]}
+      />
+      <Text style={[type.caption, { color: colors.muted }]}>{`${rows.length} ${rows.length === 1 ? 'føring' : 'føringer'}, ${num(hours)} timer.`}</Text>
+    </View>
+  );
+}
+
+export function InvoiceLinesView({ invoice, colors, stacked = false, loadEntries = null }) {
+  const [open, setOpen] = useState({});
   const sections = sectionsOf(invoice?.lines || []);
+  const toggle = async (line) => {
+    const id = line.id;
+    if (open[id]) {
+      setOpen((current) => ({ ...current, [id]: null }));
+      return;
+    }
+    setOpen((current) => ({ ...current, [id]: { loading: true } }));
+    try {
+      const rows = await loadEntries(line.timeEntryIds || []);
+      setOpen((current) => (current[id] ? { ...current, [id]: { rows: rows || [] } } : current));
+    } catch (cause) {
+      setOpen((current) => (current[id] ? { ...current, [id]: { error: String(cause?.message || 'Kunne ikke hente timene.') } } : current));
+    }
+  };
   const currency = invoice?.currency || 'NOK';
   if (!sections.length) {
     return (
@@ -36,7 +85,20 @@ export function InvoiceLinesView({ invoice, colors, stacked = false }) {
     { key: 'description', label: 'Tekst', flex: 3, wrap: true, render: (line) => (
       <View>
         <Text style={{ color: colors.ink, fontSize: 13 }}>{line.description || '—'}</Text>
-        {line.account ? <Text style={{ color: colors.muted, fontSize: 11 }}>Konto {line.account}</Text> : null}
+        {loadEntries && (line.timeEntryIds || []).length ? (
+          <TouchableOpacity
+            onPress={() => toggle(line)}
+            accessibilityRole="button"
+            accessibilityState={{ expanded: !!open[line.id] }}
+            style={styles.drawerToggle}
+            nativeID={`invoice-line-toggle-${line.id}`}
+          >
+            <Ionicons name={open[line.id] ? 'chevron-down' : 'chevron-forward'} size={12} color={colors.brand} />
+            <Text style={[type.caption, { color: colors.brand }]}>
+              {`${open[line.id] ? 'Skjul' : 'Vis'} timene (${line.timeEntryIds.length})`}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     ) },
     { key: 'quantity', label: 'Antall', width: 80, align: 'right', render: (line) => (line.locked && line.section === 'admin' ? '' : `${num(line.quantity)} ${line.unit === 't' ? 't' : line.unit}`) },
@@ -54,6 +116,14 @@ export function InvoiceLinesView({ invoice, colors, stacked = false }) {
         <View key={section.id} style={{ gap: 4 }}>
           <Text style={{ color: colors.muted, fontSize: 13 }}>{section.label}</Text>
           <MiniTable columns={columns} rows={section.lines} colors={colors} stacked={stacked} rowKey={(line) => line.id} />
+          {section.lines.filter((line) => open[line.id]).map((line) => (
+            <View key={`hours-${line.id}`} style={{ gap: 4 }}>
+              <Text style={[type.label, { color: colors.ink }]}>
+                {`Timer bak «${line.description || 'linjen'}»${periodLabel(line.periodStart, line.periodEnd) ? `, ${periodLabel(line.periodStart, line.periodEnd)}` : ''}`}
+              </Text>
+              <HoursDrawer line={line} colors={colors} stacked={stacked} state={open[line.id]} />
+            </View>
+          ))}
         </View>
       ))}
       <Text style={{ color: colors.muted, fontSize: 11 }}>{`Beløp i ${currency}.`}</Text>
@@ -95,6 +165,8 @@ export function InvoiceTotalsView({ invoice, colors }) {
 }
 
 const styles = StyleSheet.create({
+  drawerToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2, alignSelf: 'flex-start' },
+  drawer: { borderWidth: 1, borderRadius: 8, padding: 8, gap: 6 },
   totals: { alignSelf: 'flex-end', gap: 4, minWidth: 320 },
   totalRow: { flexDirection: 'row', gap: 12 },
 });

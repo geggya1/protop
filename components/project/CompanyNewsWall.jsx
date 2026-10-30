@@ -125,6 +125,8 @@ export default function CompanyNewsWall({
   const [editingPostId, setEditingPostId] = useState(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Kortene på forsiden følger bredden: én nyhet blir et bredt kort med bildet til venstre.
+  const [gridWidth, setGridWidth] = useState(0);
   const crop = useCroppedUpload({
     familyId,
     folder: 'companyWall',
@@ -256,6 +258,9 @@ export default function CompanyNewsWall({
   const canSubmit = !!(title.trim() || body.trim() || pendingImageUrl || pendingLinkUrl.trim()) && !busy && !crop.busy;
   const shown = categories ? posts.filter((post) => categories.includes(post.category || 'selskap')) : posts;
   const cards = variant === 'cards' ? shown.slice(0, 3) : shown;
+  const feature = cards.length === 1 && gridWidth >= FEATURE_MIN;
+  const cardWidth = cards.length ? (gridWidth - (cards.length - 1) * CARD_GAP) / cards.length : 0;
+  const imageHeight = Math.round(Math.min(IMAGE_MAX, Math.max(IMAGE_MIN, cardWidth * 0.42)));
 
   const composer = (
     <Modal
@@ -375,7 +380,12 @@ export default function CompanyNewsWall({
     return (
       <>
         {header}
-        <View nativeID="company-news-cards" id="company-news-cards" style={styles.cardGrid}>
+        <View
+          nativeID="company-news-cards"
+          id="company-news-cards"
+          style={styles.cardGrid}
+          onLayout={(event) => setGridWidth(Math.round(event.nativeEvent.layout.width))}
+        >
           {cards.map((post) => {
             const card = presentNewsPost(post);
             return (
@@ -383,19 +393,22 @@ export default function CompanyNewsWall({
                 key={post.id}
                 onPress={() => onOpenPost?.(post)}
                 accessibilityRole="button"
-                style={[styles.newsCard, { backgroundColor: colors.card, borderColor: colors.line }]}
+                style={[styles.newsCard, feature && styles.newsCardFeature, { backgroundColor: colors.card, borderColor: colors.line }]}
               >
                 {card.imageUrl ? (
-                  <Image source={{ uri: card.imageUrl }} style={styles.newsImage} />
+                  <Image
+                    source={{ uri: card.imageUrl }}
+                    style={feature ? styles.newsImageFeature : [styles.newsImage, { height: imageHeight }]}
+                  />
                 ) : null}
-                <View style={styles.newsBody}>
+                <View style={[styles.newsBody, feature && styles.newsBodyFeature]}>
                   <Text style={[styles.newsKicker, { color: CATEGORY_COLOR[card.category] || colors.brand }]}>
                     {categoryLabel(card.category).toUpperCase()}
                     {postDate(post.createdAt) ? `   ${postDate(post.createdAt)}` : ''}
                   </Text>
-                  <Text style={[styles.newsTitle, { color: colors.ink }]} numberOfLines={2}>{card.title}</Text>
+                  <Text style={[styles.newsTitle, feature && styles.newsTitleFeature, { color: colors.ink }]} numberOfLines={2}>{card.title}</Text>
                   {card.excerpt ? (
-                    <Text style={[styles.newsExcerpt, { color: colors.muted }]} numberOfLines={3}>{card.excerpt}</Text>
+                    <Text style={[styles.newsExcerpt, { color: colors.muted }]} numberOfLines={feature ? 6 : 3}>{card.excerpt}</Text>
                   ) : null}
                   <Text style={[styles.more, { color: colors.brand }]}>Les mer →</Text>
                 </View>
@@ -538,6 +551,12 @@ const webShadow = Platform.OS === 'web'
   ? { boxShadow: '0 8px 22px rgba(15, 23, 42, 0.05)' }
   : {};
 
+const CARD_GAP = 12;
+const IMAGE_MIN = 132;
+const IMAGE_MAX = 240;
+/** Bredde der én nyhet vises som et bredt kort med bildet til venstre. */
+const FEATURE_MIN = 640;
+
 const styles = StyleSheet.create({
   wrap: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12, ...webShadow },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
@@ -566,13 +585,17 @@ const styles = StyleSheet.create({
   empty: { borderRadius: 12, padding: 14, gap: 4 },
   emptyTitle: { fontSize: 15, fontWeight: '400' },
   emptySub: { fontSize: 13, lineHeight: 18 },
-  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP },
   newsCard: {
-    flexGrow: 1, flexBasis: 220, minWidth: 200, maxWidth: 420,
+    flexGrow: 1, flexBasis: 220, minWidth: 200,
     borderWidth: 1, borderRadius: 16, overflow: 'hidden', ...webShadow,
   },
-  newsImage: { width: '100%', height: 132 },
+  newsCardFeature: { flexDirection: 'row', alignItems: 'stretch', minHeight: 220 },
+  newsImage: { width: '100%', height: IMAGE_MIN },
+  newsImageFeature: { width: '44%', maxWidth: 560, minHeight: 220 },
   newsBody: { padding: 12, gap: 6 },
+  newsBodyFeature: { flex: 1, minWidth: 0, padding: 20, gap: 8, justifyContent: 'center' },
+  newsTitleFeature: { fontSize: 19, lineHeight: 25 },
   newsKicker: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
   newsTitle: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
   newsExcerpt: { fontSize: 13, lineHeight: 18 },

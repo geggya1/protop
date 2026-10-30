@@ -117,9 +117,6 @@ export default function CompanyPublicProfile({
   const parentName = parentCompanyDisplayName(family, families) || stored?.parentCompanyName;
   const wide = width >= BREAKPOINTS.desktop;
   const stacked = width < BREAKPOINTS.tablet;
-  // Bredden på selve siden. Store skjermer får to sidekolonner.
-  const [pageWidth, setPageWidth] = useState(0);
-  const sideSplit = wide && pageWidth >= PROFILE_SIDE_SPLIT;
   const page = useMemo(() => normalizeCompanyPage(stored?.publicPage), [stored?.publicPage]);
   const [tab, setTab] = useState(initialTab || 'oversikt');
   // Lenker fra andre moduler (f.eks. ISO → «Skriv nyhet») åpner nyhetene direkte.
@@ -519,11 +516,9 @@ export default function CompanyPublicProfile({
     .filter(Boolean);
   const mainModules = keyedModules('main');
   const sideModules = keyedModules('side');
-  // To sidekolonner: modulene beholder rekkefølgen, første halvdel til venstre.
-  const sideHalf = Math.ceil(sideModules.length / 2);
 
   return (
-    <View style={styles.page} onLayout={(event) => setPageWidth(Math.round(event.nativeEvent.layout.width))}>
+    <View style={styles.page}>
       {(saveError || error) ? (
         <Text style={{ color: colors.danger }}>{saveError || error}</Text>
       ) : null}
@@ -590,15 +585,9 @@ export default function CompanyPublicProfile({
 
       {tab === 'oversikt' ? (
         <View style={[styles.columns, wide && styles.columnsWide]}>
+          {/* Én sidekolonne med fast bredde. Hovedkolonnen (om oss, nyheter) tar resten av bredden. */}
           <View style={styles.mainCol}>{mainModules}</View>
-          {sideSplit ? (
-            <>
-              <View style={[styles.sideCol, styles.sideColSplit]}>{sideModules.slice(0, sideHalf)}</View>
-              <View style={[styles.sideCol, styles.sideColSplit]}>{sideModules.slice(sideHalf)}</View>
-            </>
-          ) : (
-            <View style={[styles.sideCol, wide && styles.sideColWide]}>{sideModules}</View>
-          )}
+          <View style={[styles.sideCol, wide && styles.sideColWide]}>{sideModules}</View>
         </View>
       ) : null}
 
@@ -850,9 +839,6 @@ function RegistryDetails({
   );
 }
 
-/** Sidebredde der sidemodulene fordeles på to kolonner. */
-const PROFILE_SIDE_SPLIT = 1600;
-
 const styles = StyleSheet.create({
   page: { gap: 14, paddingBottom: 28 },
   identityTop: { flexDirection: 'row', gap: 12, alignItems: 'center' },
@@ -889,7 +875,6 @@ const styles = StyleSheet.create({
   mainCol: { flex: 1.45, gap: 12, minWidth: 0 },
   sideCol: { gap: 12, minWidth: 0 },
   sideColWide: { flex: 0.8, maxWidth: 420 },
-  sideColSplit: { flex: 0.62, maxWidth: 440 },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   cardTitle: { fontSize: 18, fontWeight: '600' },
   body: { fontSize: 14, lineHeight: 21 },

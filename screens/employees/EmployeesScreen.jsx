@@ -111,6 +111,7 @@ import EmployeeUsagePanel from './EmployeeUsagePanel';
 import EmployeeAccountView from './EmployeeAccountView';
 import EmployeeFilesView from './EmployeeFilesView';
 import EmployeeHrSelfService from '../hr/EmployeeHrSelfService';
+import EmployeeTodo from './EmployeeTodo';
 import { kinMissing } from '../../src/hr/kinReminder';
 import { closeKinTask } from '../../src/hr/kinTasks';
 import { FOCUS_FIELD_BG, FOCUS_FIELD_BORDER, FOCUS_FIELD_INK } from '../../src/forms/highlight';
@@ -362,6 +363,8 @@ export default function EmployeesScreen() {
   }
   function personViewAllowed(row, nextView) {
     if (!PERSON_VIEWS.has(nextView)) return true;
+    // Gjøremål er personens egne: personen selv og administrator på ansatte.
+    if (nextView === 'todo') return isSelfRow(row) || employeesAdmin;
     if (nextView === 'earnings' && !access.canView('economyEarnings') && !access.canView('economy')) return false;
     const allowed = personTabsAllowed(row);
     return !allowed || allowed.has(nextView);
@@ -393,6 +396,11 @@ export default function EmployeesScreen() {
   const mineHrEmployeeId = useMemo(
     () => resolveMineEmployeeId({ linked, mine, profile, familyId }),
     [linked, mine, profile, familyId],
+  );
+  // Egen ansattpost i bedriften: Gjøremål og «Krever oppmerksomhet» på Min side.
+  const mineTodoEmployee = useMemo(
+    () => rows.find((row) => row.id === mineHrEmployeeId) || linked || null,
+    [rows, mineHrEmployeeId, linked],
   );
   const inviteCounts = useMemo(() => inviteOverview(rows), [rows]);
   // Avsluttede ansettelser der personen fortsatt står som medlem: deaktivert før tilgangen ble
@@ -993,7 +1001,9 @@ export default function EmployeesScreen() {
   useEffect(() => {
     if (!pendingMine.current || (!directoryReady && !linked && !mine)) return;
     pendingMine.current = false;
-    openMine();
+    // Varsel om dokument å lese eller signere: Gjøremål på egen side, der dokumentene står.
+    if (mineTodoEmployee) openWork(mineTodoEmployee, 'todo');
+    else openMine();
   }, [rows, directoryReady, linked, mine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveWork(employee) {
@@ -2006,6 +2016,18 @@ export default function EmployeesScreen() {
             />
           ) : null}
 
+          {view === 'todo' && selected ? (
+            <EmployeeTodo
+              colors={colors}
+              companyId={familyId}
+              employee={selected}
+              self={isSelfRow(selected)}
+              naeringskode={family?.company?.naeringskode || ''}
+              canEdit={isSelfRow(selected) || employeesAdmin}
+              onOpenMine={isSelfRow(selected) ? openMine : null}
+            />
+          ) : null}
+
           {view === 'earnings' && (access.canView('economyEarnings') || access.canView('economy')) ? (
             <EmployeeEarningsSheet
               companyId={familyId}
@@ -2349,11 +2371,22 @@ export default function EmployeesScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
+          {view === 'mine' && mineTodoEmployee ? (
+            <EmployeeTodo
+              compact
+              colors={colors}
+              companyId={familyId}
+              employee={mineTodoEmployee}
+              naeringskode={family?.company?.naeringskode || ''}
+              onOpenTodo={() => openWork(mineTodoEmployee, 'todo')}
+            />
+          ) : null}
           {view === 'mine' && mineHrEmployeeId ? (
             <EmployeeHrSelfService
               colors={colors}
               companyId={familyId}
               employeeId={mineHrEmployeeId}
+              showDocuments={!mineTodoEmployee}
             />
           ) : null}
           {(view === 'mine' || isAdmin || isSelfRow(draft)) ? (

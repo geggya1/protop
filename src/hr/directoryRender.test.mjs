@@ -359,8 +359,9 @@ let followHtml = '';
 
   // HMS-kort: skann QR-koden eller registrer på personen, med varsel når kortet er utløpt.
   assert.match(html, /Gyldig HMS-kort/);
-  assert.match(html, /id="hr-compliance-hms-card"/);
-  assert.match(html, /Skann QR-koden på kortet/);
+  assert.match(html, /id="hms-card-editor"/);
+  assert.match(html, /Skann QR-koden/);
+  assert.match(html, /Ta bilde av kortet/);
   assert.match(html, /Ikke aktuelt for denne personen/);
   const expired = renderToStaticMarkup(React.createElement(HrPeople, {
     ...peopleProps,

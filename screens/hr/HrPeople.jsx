@@ -253,6 +253,9 @@ export default function HrPeople({
           onOpenIso={onOpenIso}
           onOpenSheet={(id) => onSheet?.(id)}
           onOpenLibraryTemplate={onOpenLibraryTemplate}
+          familyId={familyId}
+          personName={displayName(selected)}
+          personBirthDate={selected?.person?.birthDate || ''}
         />
       ) : null}
     </View>

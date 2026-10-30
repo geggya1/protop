@@ -8,6 +8,9 @@ import {
   hmsCardFor,
   hmsCardRequirement,
   parseHmsQr,
+  applyHmsCardRead,
+  mergeHmsCards,
+  sanitizeHmsCardRead,
   hmsCardStatus,
   hmsComplianceStatus,
   normalizeHmsCard,
@@ -142,14 +145,47 @@ assert.equal(hmsCardFor('', cards), null);
   assert.equal(normalizeHrState({ hmsRequired: false }).hmsRequired, undefined, 'utregnet krav lagres ikke');
 
   // QR-koden: lenken lagres, rent kortnummer fylles inn. Annet avvises.
-  assert.deepEqual(parseHmsQr(' https://hmskort.no/v/abc123 '), { url: 'https://hmskort.no/v/abc123', number: '' });
-  assert.deepEqual(parseHmsQr('1234 5678'), { url: '', number: '12345678' });
-  assert.deepEqual(parseHmsQr('http://usikker.no/x'), { url: '', number: '' });
-  assert.deepEqual(parseHmsQr('hei'), { url: '', number: '' });
+  assert.deepEqual(parseHmsQr(' https://hmskort.no/v/abc123 '), { url: 'https://hmskort.no/v/abc123', number: '', id: 'abc123' });
+  assert.deepEqual(parseHmsQr('https://annet.no/x'), { url: 'https://annet.no/x', number: '', id: '' });
+  assert.deepEqual(parseHmsQr('1234 5678'), { url: '', number: '12345678', id: '' });
+  assert.deepEqual(parseHmsQr('http://usikker.no/x'), { url: '', number: '', id: '' });
+  assert.deepEqual(parseHmsQr('hei'), { url: '', number: '', id: '' });
   const scanned = normalizeHmsCard({ employeeId: 'e1', qrUrl: 'https://hmskort.no/v/abc123' });
   assert.equal(scanned.qrUrl, 'https://hmskort.no/v/abc123');
   assert.equal(normalizeHmsCard({ employeeId: 'e1', qrUrl: 'javascript:alert(1)' }).qrUrl, '');
   assert.equal(upsertHmsCard([], { employeeId: 'e1', qrUrl: 'https://hmskort.no/v/abc123' }).length, 1, 'skannet kort uten nummer lagres');
+}
+
+{
+  // Skannet kort uten utløpsdato: det står hva som mangler.
+  assert.equal(hmsCardStatus({ qrUrl: 'https://hmskort.no/v/x' }, '2026-10-30').label, 'Utløpsdato mangler');
+  assert.equal(hmsCardStatus({ qrUrl: 'https://hmskort.no/v/x', validTo: '2027-01-01' }, '2026-10-30').label, 'Kortnummer mangler');
+  // Det som står på kortet, legges på uten å viske ut det som var der.
+  const read = sanitizeHmsCardRead({ number: 'HMS 9', validTo: '31.12.2027', firstName: 'Ada', lastName: 'Nordmann', birthDate: '04.05.1990', employerName: 'Consult1 AS', employerOrgnr: '916538804' });
+  const applied = applyHmsCardRead({ employeeId: 'e1', qrUrl: 'https://hmskort.no/v/x', employerOrgnr: '' }, read);
+  assert.equal(applied.number, 'HMS 9');
+  assert.equal(applied.validTo, '2027-12-31');
+  assert.equal(applied.holderName, 'Ada Nordmann');
+  assert.equal(applied.birthDate, '1990-05-04');
+  assert.equal(applied.employerOrgnr, '916538804');
+  assert.equal(applied.qrUrl, 'https://hmskort.no/v/x');
+  assert.equal(applyHmsCardRead({ number: 'A' }, sanitizeHmsCardRead({})).number, 'A', 'tomt felt endrer ikke');
+  assert.equal(sanitizeHmsCardRead({ employerOrgnr: '123' }).employerOrgnr, '', 'org.nr. må ha ni sifre');
+  // Det som står på kortet, lagres.
+  const stored = normalizeHmsCard({ ...applied, source: 'photo', scannedAt: '2026-10-30T10:00:00Z' });
+  assert.equal(stored.holderName, 'Ada Nordmann');
+  assert.equal(stored.source, 'photo');
+  assert.equal(normalizeHmsCard({ source: 'tull' }).source, '');
+  // Kort den ansatte har registrert selv, slås sammen med HR sine. Det nyeste vinner.
+  const merged = mergeHmsCards(
+    [{ employeeId: 'e1', number: 'HR', updatedAt: '2026-01-01T00:00:00Z' }, { employeeId: 'e2', number: 'B', updatedAt: '2026-01-01T00:00:00Z' }],
+    [{ employeeId: 'e1', number: 'SELV', updatedAt: '2026-02-01T00:00:00Z' }],
+  );
+  assert.deepEqual(merged.map((c) => `${c.employeeId}:${c.number}`).sort(), ['e1:SELV', 'e2:B']);
+  // Min side får vite om kortet kreves og om det er «Ikke aktuelt».
+  const slice = employeeVisibleSlice({ settings: { hmsCard: 'on' }, compliance: [{ catalogId: 'hms_card', employeeId: 'e1', status: 'na' }, { catalogId: 'gdpr_privacy_notice', employeeId: 'e1', status: 'ok' }] }, 'e1');
+  assert.equal(slice.settings.hmsCard, 'on');
+  assert.deepEqual(slice.compliance.map((row) => row.status), ['na'], 'bare HMS-punktet');
 }
 
 console.log('hmsCard.test.mjs: ok');

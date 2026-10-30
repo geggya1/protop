@@ -13,7 +13,7 @@ assert.equal(employeeViewToTab('overview'), 'absence');
 assert.equal(employeeViewToTab('cv'), 'cv');
 
 const ids = EMPLOYEE_DETAIL_TABS.map((tab) => tab.id);
-assert.deepEqual(ids, ['home', 'hours', 'absence', 'files', 'expenses', 'earnings', 'settings', 'cv']);
+assert.deepEqual(ids, ['home', 'todo', 'hours', 'absence', 'files', 'expenses', 'earnings', 'settings', 'cv']);
 assert.deepEqual(EMPLOYEE_SUB_TABS.hours.map((tab) => tab.label), ['Timeliste', 'Timerapport', 'Timesaldo']);
 assert.deepEqual(EMPLOYEE_SUB_TABS.absence.map((tab) => tab.label), ['Oversikt', 'Rapport']);
 assert.deepEqual(employeeTabViews('hours'), ['hours', 'report', 'saldo']);

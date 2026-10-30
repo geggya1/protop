@@ -29,7 +29,7 @@ function personName(employee) {
 
 export default function EmployeeTodo({
   colors, companyId, employee, self = true, naeringskode = '', canEdit = true,
-  compact = false, onOpenTodo = null, onOpenMine = null,
+  compact = false, always = false, onOpenTodo = null, onOpenMine = null,
 }) {
   const dc = useDocControl();
   const employeeId = employee?.id || '';
@@ -109,7 +109,8 @@ export default function EmployeeTodo({
     </HrCard>
   );
 
-  if (compact) return open.length || !slice ? attention : null;
+  // Kompakt: på Min side alltid (veien inn til Gjøremål), på Hovedside bare når noe gjenstår.
+  if (compact) return always || open.length || !slice ? attention : null;
 
   return (
     <View style={styles.page} nativeID="employee-todo">
@@ -117,29 +118,30 @@ export default function EmployeeTodo({
 
       <MyDocuments colors={colors} employeeId={employeeId} employeeName={personName(employee)} self={self} />
 
-      {(rule.required || card) ? (
-        <HrCard colors={colors}>
-          <View nativeID="employee-todo-hms" style={styles.stack}>
-            <HrSectionTitle
+      {/* HMS-kortet kan alltid registreres. Det er et gjøremål bare når bedriften krever det. */}
+      <HrCard colors={colors}>
+        <View nativeID="employee-todo-hms" style={styles.stack}>
+          <HrSectionTitle
+            colors={colors}
+            title="HMS-kort"
+            subtitle={notApplicable
+              ? 'HR har satt HMS-kort til «Ikke aktuelt».'
+              : `${rule.required ? 'Påkrevd. ' : ''}Skann QR-koden eller ta bilde av forsiden, så registreres kortet og HR ser det i Lovpålagt. Det kommer varsel før kortet går ut.`}
+          />
+          {!notApplicable ? (
+            <HmsCardEditor
+              key={employeeId}
               colors={colors}
-              title="HMS-kort"
-              subtitle={notApplicable ? 'HR har satt HMS-kort til «Ikke aktuelt» for deg.' : rule.text}
+              card={card}
+              canWrite={canEdit}
+              familyId={companyId}
+              personName={personName(employee)}
+              personBirthDate={employee?.person?.birthDate || ''}
+              onSave={saveCard}
             />
-            {!notApplicable ? (
-              <HmsCardEditor
-                key={employeeId}
-                colors={colors}
-                card={card}
-                canWrite={canEdit}
-                familyId={companyId}
-                personName={personName(employee)}
-                personBirthDate={employee?.person?.birthDate || ''}
-                onSave={saveCard}
-              />
-            ) : null}
-          </View>
-        </HrCard>
-      ) : null}
+          ) : null}
+        </View>
+      </HrCard>
 
       {done.length ? (
         <HrCard colors={colors}>

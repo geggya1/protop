@@ -8,19 +8,37 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { checksum } from '../../src/iso/core';
 import { emptyIsoState, replaceIn } from '../../src/iso/state';
 import {
-  appendAudit, appendReadAck, ensureAccessMirror, loadIsoState, loadIsoTasks, peekIsoState, saveEntity, saveMany,
+  appendAudit, appendReadAck, ensureAccessMirror, loadIsoState, loadIsoTasks, peekIsoAccess, peekIsoState,
+  readIsoSnapshot, rememberIsoAccess, saveEntity, saveMany,
 } from '../../src/iso/storage';
 import { renumberEffects, runIsoEffects, safeEffects } from './isoEffects';
 
 export function useIsoStore({ companyId, actor, family = null, employees = null, ready = true }) {
   const [state, setState] = useState(() => peekIsoState(companyId, actor?.uid) || emptyIsoState());
-  const [serverIso, setServerIso] = useState(null);
+  const [serverIso, setServerIso] = useState(() => peekIsoAccess(companyId, actor?.uid));
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState('');
   const [loadError, setLoadError] = useState('');
   const [tasks, setTasks] = useState({});
   const stateRef = useRef(state);
   stateRef.current = state;
+  /** Selskap og bruker som er lest fra skyen; lokal kopi skal da ikke overskrive. */
+  const fetchedRef = useRef('');
+  const who = `${companyId || ''}:${actor?.uid || ''}`;
+
+  // Forrige kjente tilstand (fra økten eller lokal kopi) vises med en gang, mens tilgang og data
+  // hentes på nytt. Er tilgangen endret, oppdateres visningen når serveren har svart.
+  useEffect(() => {
+    if (!companyId) return undefined;
+    let live = true;
+    readIsoSnapshot(companyId, actor?.uid).then((snap) => {
+      if (!live || !snap || fetchedRef.current === who) return;
+      stateRef.current = snap.state;
+      setState(snap.state);
+      setServerIso(snap.iso);
+    });
+    return () => { live = false; };
+  }, [who]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const refreshTasks = useCallback(async () => {
     if (!companyId) return;
@@ -34,10 +52,19 @@ export function useIsoStore({ companyId, actor, family = null, employees = null,
     }
     if (!ready) return;
     setLoading(true);
-    // Tilgangsmatrisen speiles til serveren før lesing; reglene leser den.
-    const mirror = await ensureAccessMirror(companyId, actor?.uid, { family, employees });
+    // Tilgangsmatrisen speiles til serveren (reglene leser den) samtidig som ISO leses. Som oftest er
+    // speilet allerede gyldig, og eieren slipper uansett gjennom reglene. Avviste reglene lesingen
+    // fordi speilet nettopp måtte synkes, leses det på nytt.
+    const [mirror, first] = await Promise.all([
+      ensureAccessMirror(companyId, actor?.uid, { family, employees }),
+      loadIsoState(companyId, { uid: actor?.uid }),
+    ]);
+    const res = first.denied && mirror.fresh && mirror.via !== 'cache'
+      ? await loadIsoState(companyId, { uid: actor?.uid })
+      : first;
+    rememberIsoAccess(companyId, actor?.uid, mirror.fresh ? mirror.iso : null);
+    fetchedRef.current = `${companyId}:${actor?.uid || ''}`;
     setServerIso(mirror.fresh ? mirror.iso : 0);
-    const res = await loadIsoState(companyId, { uid: actor?.uid });
     setState(res.state);
     setSource(res.source);
     setLoadError(res.error || '');

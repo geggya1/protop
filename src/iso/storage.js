@@ -30,6 +30,8 @@ import { withInvolved } from './findings.js';
 const CACHE_KEY = 'protop.iso.v1';
 const AUTH_MS = 8000;
 const MEMORY = new Map();
+/** Siste ISO-nivå serveren bekreftet (accessAcl), per selskap og bruker. */
+const ACCESS_MEMORY = new Map();
 
 function cid(companyId) {
   return String(companyId || '').trim();
@@ -116,6 +118,53 @@ export function peekIsoState(companyId, uid = '') {
   return MEMORY.get(memoryKey(companyId, uid)) || null;
 }
 
+/** Siste bekreftede ISO-nivå i økten, eller null. */
+export function peekIsoAccess(companyId, uid = '') {
+  const iso = ACCESS_MEMORY.get(memoryKey(companyId, uid));
+  return Number.isFinite(iso) ? iso : null;
+}
+
+/**
+ * Husk nivået serveren bekreftet, så neste åpning kan vise forrige kjente tilstand med en gang.
+ * null glemmer det (speilet kunne ikke bekreftes).
+ */
+export async function rememberIsoAccess(companyId, uid, iso) {
+  const key = memoryKey(companyId, uid);
+  const level = iso == null ? null : Number(iso);
+  try {
+    if (Number.isFinite(level)) {
+      ACCESS_MEMORY.set(key, level);
+      await AsyncStorage.setItem(`${cacheKey(companyId, uid)}.access`, String(level));
+    } else {
+      ACCESS_MEMORY.delete(key);
+      await AsyncStorage.removeItem(`${cacheKey(companyId, uid)}.access`);
+    }
+  } catch { /* ikke kritisk */ }
+}
+
+/**
+ * Forrige kjente tilstand og nivå (fra økten, ellers lokal kopi på enheten), eller null.
+ * Vises mens tilgang og data hentes på nytt. Lokal kopi har aldri skjermede saker.
+ */
+export async function readIsoSnapshot(companyId, uid = '') {
+  const id = cid(companyId);
+  if (!id) return null;
+  const memState = peekIsoState(id, uid);
+  const memIso = peekIsoAccess(id, uid);
+  if (memState && memIso != null) return { state: memState, iso: memIso };
+  try {
+    const [raw, level] = await Promise.all([
+      readCache(id, uid),
+      AsyncStorage.getItem(`${cacheKey(id, uid)}.access`),
+    ]);
+    const iso = level == null ? NaN : Number(level);
+    if (!raw || !Number.isFinite(iso)) return null;
+    return { state: stateFromCollections(raw), iso };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Leser hele ISO-tilstanden for selskapet.
  * Returnerer { state, source: 'remote' | 'cache' | 'empty', error? }.
@@ -194,7 +243,7 @@ export async function ensureAccessMirror(companyId, uid, { family = null, employ
 
 /**
  * Leser hele ISO-tilstanden for selskapet.
- * Returnerer { state, source: 'remote' | 'cache' | 'empty', error? }.
+ * Returnerer { state, source: 'remote' | 'cache' | 'empty', error?, denied? }. denied: reglene avviste lesingen.
  */
 export async function loadIsoState(companyId, { uid = '' } = {}) {
   const id = cid(companyId);
@@ -208,28 +257,30 @@ export async function loadIsoState(companyId, { uid = '' } = {}) {
   }
   try {
     const names = Object.entries(COLLECTIONS).filter(([key]) => key !== 'restrictedFindings');
-    const [systemSnap, grants, ...lists] = await Promise.all([
+    // Egne skjermede saker leses samtidig; står brukeren på listen, leses alle etterpå.
+    const [systemSnap, grants, own, ...lists] = await Promise.all([
       getDoc(doc(db, 'families', id, 'isoSystem', 'main')),
       loadRestrictedGrants(id),
+      readOwnRestricted(id, uid).catch(() => []),
       ...names.map(([, name]) => readAll(id, name)),
     ]);
     const parts = { system: systemSnap.exists() ? systemSnap.data() : null, restrictedGrants: grants };
     names.forEach(([key], i) => { parts[key] = lists[i]; });
     // Særskilt tilgang: bare personer som står uttrykkelig på listen (håndheves også i reglene).
     const listed = !!uid && restrictedUids(grants).has(String(uid));
-    parts.restrictedFindings = listed
-      ? await readAll(id, COLLECTIONS.restrictedFindings)
-      : await readOwnRestricted(id, uid).catch(() => []);
+    parts.restrictedFindings = listed ? await readAll(id, COLLECTIONS.restrictedFindings) : own;
     const state = stateFromCollections(parts);
     MEMORY.set(memoryKey(id, uid), state);
-    await writeCache(id, uid, parts);
+    // Lokal kopi skrives etter at skjermen har fått tilstanden; visningen venter ikke på den.
+    setTimeout(() => { writeCache(id, uid, parts); }, 0);
     return { state, source: 'remote' };
   } catch (err) {
     const cached = await readCache(id, uid);
-    const message = isFirestorePermissionError(err) ? 'Mangler tilgang til ISO-data i skyen.' : 'Kunne ikke hente ISO-data.';
+    const denied = isFirestorePermissionError(err);
+    const message = denied ? 'Mangler tilgang til ISO-data i skyen.' : 'Kunne ikke hente ISO-data.';
     return cached
-      ? { state: stateFromCollections(cached), source: 'cache', error: `${message} Viser lokal kopi.` }
-      : { state: emptyIsoState(), source: 'empty', error: message };
+      ? { state: stateFromCollections(cached), source: 'cache', error: `${message} Viser lokal kopi.`, denied }
+      : { state: emptyIsoState(), source: 'empty', error: message, denied };
   }
 }
 
@@ -638,11 +689,13 @@ export async function completeIsoTask(companyId, key) {
 
 export function clearIsoMemory() {
   MEMORY.clear();
+  ACCESS_MEMORY.clear();
 }
 
 /** Fjerner lokale kopier for alle brukere på enheten (utlogging / brukerbytte). */
 export async function clearIsoCache() {
   MEMORY.clear();
+  ACCESS_MEMORY.clear();
   try {
     const keys = await AsyncStorage.getAllKeys();
     const mine = keys.filter((k) => k.startsWith(CACHE_KEY));

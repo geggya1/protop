@@ -79,6 +79,14 @@ function postTime(ts) {
   }
 }
 
+function withoutLeadingTitle(body, title) {
+  const head = String(title || '').trim();
+  const text = String(body || '');
+  if (!head) return text;
+  const [first, ...rest] = text.split('\n');
+  return first.replace(/^#+\s*/, '').trim().toLowerCase() === head.toLowerCase() ? rest.join('\n').trim() : text;
+}
+
 function postDate(ts) {
   try {
     const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
@@ -125,6 +133,8 @@ export default function CompanyNewsWall({
   const [editingPostId, setEditingPostId] = useState(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Kortene på forsiden følger bredden: én nyhet blir et bredt kort med bildet til venstre.
+  const [gridWidth, setGridWidth] = useState(0);
   const crop = useCroppedUpload({
     familyId,
     folder: 'companyWall',
@@ -256,6 +266,9 @@ export default function CompanyNewsWall({
   const canSubmit = !!(title.trim() || body.trim() || pendingImageUrl || pendingLinkUrl.trim()) && !busy && !crop.busy;
   const shown = categories ? posts.filter((post) => categories.includes(post.category || 'selskap')) : posts;
   const cards = variant === 'cards' ? shown.slice(0, 3) : shown;
+  const feature = cards.length === 1 && gridWidth >= FEATURE_MIN;
+  const cardWidth = cards.length ? (gridWidth - (cards.length - 1) * CARD_GAP) / cards.length : 0;
+  const imageHeight = Math.round(Math.min(IMAGE_MAX, Math.max(IMAGE_MIN, cardWidth * 0.42)));
 
   const composer = (
     <Modal
@@ -358,6 +371,38 @@ export default function CompanyNewsWall({
     </Modal>
   );
 
+  // Sidespalten: de siste overskriftene med dato og bilde.
+  if (variant === 'list') {
+    const rows = shown.slice(0, 4);
+    if (!rows.length && hideWhenEmpty) return null;
+    return (
+      <View nativeID="company-news-list" style={styles.list}>
+        {header}
+        {rows.length ? rows.map((post) => {
+          const card = presentNewsPost(post);
+          return (
+            <TouchableOpacity
+              key={post.id}
+              onPress={() => onOpenPost?.(post)}
+              accessibilityRole="button"
+              style={[styles.listRow, { borderTopColor: colors.line }]}
+            >
+              {card.imageUrl ? <Image source={{ uri: card.imageUrl }} style={[styles.listImage, { backgroundColor: colors.sunken }]} /> : null}
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text style={[styles.listTitle, { color: colors.ink }]} numberOfLines={2}>{card.title}</Text>
+                <Text style={[styles.when, { color: colors.muted }]}>
+                  {[categoryLabel(card.category), postDate(post.createdAt)].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        }) : (
+          <Text style={[styles.emptySub, { color: colors.muted }]}>Når bedriften publiserer nyheter, vises de her.</Text>
+        )}
+      </View>
+    );
+  }
+
   if (variant === 'cards') {
     if (!cards.length) {
       if (hideWhenEmpty) return null;
@@ -375,7 +420,12 @@ export default function CompanyNewsWall({
     return (
       <>
         {header}
-        <View nativeID="company-news-cards" id="company-news-cards" style={styles.cardGrid}>
+        <View
+          nativeID="company-news-cards"
+          id="company-news-cards"
+          style={styles.cardGrid}
+          onLayout={(event) => setGridWidth(Math.round(event.nativeEvent.layout.width))}
+        >
           {cards.map((post) => {
             const card = presentNewsPost(post);
             return (
@@ -383,19 +433,22 @@ export default function CompanyNewsWall({
                 key={post.id}
                 onPress={() => onOpenPost?.(post)}
                 accessibilityRole="button"
-                style={[styles.newsCard, { backgroundColor: colors.card, borderColor: colors.line }]}
+                style={[styles.newsCard, feature && styles.newsCardFeature, { backgroundColor: colors.card, borderColor: colors.line }]}
               >
                 {card.imageUrl ? (
-                  <Image source={{ uri: card.imageUrl }} style={styles.newsImage} />
+                  <Image
+                    source={{ uri: card.imageUrl }}
+                    style={feature ? styles.newsImageFeature : [styles.newsImage, { height: imageHeight }]}
+                  />
                 ) : null}
-                <View style={styles.newsBody}>
+                <View style={[styles.newsBody, feature && styles.newsBodyFeature]}>
                   <Text style={[styles.newsKicker, { color: CATEGORY_COLOR[card.category] || colors.brand }]}>
                     {categoryLabel(card.category).toUpperCase()}
                     {postDate(post.createdAt) ? `   ${postDate(post.createdAt)}` : ''}
                   </Text>
-                  <Text style={[styles.newsTitle, { color: colors.ink }]} numberOfLines={2}>{card.title}</Text>
+                  <Text style={[styles.newsTitle, feature && styles.newsTitleFeature, { color: colors.ink }]} numberOfLines={2}>{card.title}</Text>
                   {card.excerpt ? (
-                    <Text style={[styles.newsExcerpt, { color: colors.muted }]} numberOfLines={3}>{card.excerpt}</Text>
+                    <Text style={[styles.newsExcerpt, { color: colors.muted }]} numberOfLines={feature ? 6 : 3}>{card.excerpt}</Text>
                   ) : null}
                   <Text style={[styles.more, { color: colors.brand }]}>Les mer →</Text>
                 </View>
@@ -441,7 +494,10 @@ export default function CompanyNewsWall({
         const author = memberByUid[post.authorUid];
         const editingThis = editingPostId === post.id;
         const card = presentNewsPost(post);
-        const { text: displayBody, links: displayLinks } = splitBodyAndLinks(post.body || '', post.linkUrl);
+        const split = splitBodyAndLinks(post.body || '', post.linkUrl);
+        const displayLinks = split.links;
+        // Mange innlegg begynner med overskriften. Den står allerede over teksten.
+        const displayBody = withoutLeadingTitle(split.text, post.title);
         return (
           <View
             key={post.id}
@@ -538,6 +594,12 @@ const webShadow = Platform.OS === 'web'
   ? { boxShadow: '0 8px 22px rgba(15, 23, 42, 0.05)' }
   : {};
 
+const CARD_GAP = 12;
+const IMAGE_MIN = 132;
+const IMAGE_MAX = 240;
+/** Bredde der én nyhet vises som et bredt kort med bildet til venstre. */
+const FEATURE_MIN = 640;
+
 const styles = StyleSheet.create({
   wrap: { borderWidth: 1, borderRadius: 16, padding: 14, gap: 12, ...webShadow },
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
@@ -553,8 +615,13 @@ const styles = StyleSheet.create({
   author: { fontSize: 14, fontWeight: '400' },
   when: { fontSize: 12 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  postTitle: { fontSize: 16, fontWeight: '600', lineHeight: 21 },
-  image: { width: '100%', height: 180, borderRadius: 10 },
+  // Samme størrelse som seksjonsoverskriftene på Tjenester; brødteksten (NewsBody) er 15/22 som der.
+  postTitle: { fontSize: 20, fontWeight: '600', lineHeight: 26, letterSpacing: -0.3 },
+  image: { width: '100%', aspectRatio: 16 / 9, maxHeight: 360, borderRadius: 10 },
+  list: { gap: 8 },
+  listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10 },
+  listImage: { width: 64, height: 48, borderRadius: 8 },
+  listTitle: { fontSize: 14, fontWeight: '600', lineHeight: 19 },
   linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   linkBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -566,13 +633,17 @@ const styles = StyleSheet.create({
   empty: { borderRadius: 12, padding: 14, gap: 4 },
   emptyTitle: { fontSize: 15, fontWeight: '400' },
   emptySub: { fontSize: 13, lineHeight: 18 },
-  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CARD_GAP },
   newsCard: {
-    flexGrow: 1, flexBasis: 220, minWidth: 200, maxWidth: 420,
+    flexGrow: 1, flexBasis: 220, minWidth: 200,
     borderWidth: 1, borderRadius: 16, overflow: 'hidden', ...webShadow,
   },
-  newsImage: { width: '100%', height: 132 },
+  newsCardFeature: { flexDirection: 'row', alignItems: 'stretch', minHeight: 220 },
+  newsImage: { width: '100%', height: IMAGE_MIN },
+  newsImageFeature: { width: '44%', maxWidth: 560, minHeight: 220 },
   newsBody: { padding: 12, gap: 6 },
+  newsBodyFeature: { flex: 1, minWidth: 0, padding: 20, gap: 8, justifyContent: 'center' },
+  newsTitleFeature: { fontSize: 19, lineHeight: 25 },
   newsKicker: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
   newsTitle: { fontSize: 15, fontWeight: '600', lineHeight: 20 },
   newsExcerpt: { fontSize: 13, lineHeight: 18 },

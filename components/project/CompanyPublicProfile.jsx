@@ -39,6 +39,7 @@ import CompanyNewsWall from './CompanyNewsWall';
 import CompanyPageEditor from './CompanyPageEditor';
 import CompanyServices from './CompanyServices';
 import CompanyStaff from './CompanyStaff';
+import CompanyProfileAside from './CompanyProfileAside';
 import CompanySustainability from './CompanySustainability';
 import {
   Card, EditBar, EmptyNote, SectionHead,
@@ -60,9 +61,8 @@ const TONES = {
 const EXPLORE = [
   { id: 'om-oss', icon: 'book-outline', tint: '#f3e8ff', color: '#7c3aed', title: 'Om oss', text: 'Hvem vi er' },
   { id: 'tjenester', icon: 'briefcase-outline', tint: '#e8f1ff', color: '#2563eb', title: 'Tjenester', text: 'Hva vi tilbyr' },
-  { id: 'ansatte', icon: 'people-outline', tint: '#e7f8ee', color: '#15915a', title: 'Ansatte', text: 'Vårt team' },
+  { id: 'ansatte', icon: 'people-outline', tint: '#e7f8ee', color: '#15915a', title: 'Ansatte og kontakt', text: 'Folkene og hvor du finner oss' },
   { id: 'baerekraft', icon: 'leaf-outline', tint: '#e5f6ef', color: '#15915a', title: 'Bærekraft', text: 'Vårt samfunnsansvar' },
-  { id: 'kontakt', icon: 'mail-outline', tint: '#e8f1ff', color: '#2563eb', title: 'Kontakt', text: 'Ta kontakt' },
 ];
 
 function openUrl(url) {
@@ -117,9 +117,6 @@ export default function CompanyPublicProfile({
   const parentName = parentCompanyDisplayName(family, families) || stored?.parentCompanyName;
   const wide = width >= BREAKPOINTS.desktop;
   const stacked = width < BREAKPOINTS.tablet;
-  // Bredden på selve siden. Store skjermer får to sidekolonner.
-  const [pageWidth, setPageWidth] = useState(0);
-  const sideSplit = wide && pageWidth >= PROFILE_SIDE_SPLIT;
   const page = useMemo(() => normalizeCompanyPage(stored?.publicPage), [stored?.publicPage]);
   const [tab, setTab] = useState(initialTab || 'oversikt');
   // Lenker fra andre moduler (f.eks. ISO → «Skriv nyhet») åpner nyhetene direkte.
@@ -443,9 +440,9 @@ export default function CompanyPublicProfile({
             colors={colors}
             title="Kontakt oss"
             action={view.showEmployees ? 'Se alle kontaktpersoner' : 'Kontakt'}
-            onAction={() => setTab(view.showEmployees ? 'ansatte' : 'kontakt')}
+            onAction={() => setTab('ansatte')}
           />
-          <TouchableOpacity onPress={() => setTab('kontakt')} style={styles.contactLine} accessibilityRole="button">
+          <TouchableOpacity onPress={() => setTab('ansatte')} style={styles.contactLine} accessibilityRole="button">
             <View style={[styles.roundIcon, { backgroundColor: colors.sunken }]}>
               <Ionicons name="person-outline" size={16} color={colors.brand} />
             </View>
@@ -468,7 +465,7 @@ export default function CompanyPublicProfile({
             {view.jobs.text || 'Ta kontakt om du vil bli en del av laget.'}
           </Text>
           <TouchableOpacity
-            onPress={() => (view.jobs.url ? openUrl(view.jobs.url) : setTab('kontakt'))}
+            onPress={() => (view.jobs.url ? openUrl(view.jobs.url) : setTab('ansatte'))}
             style={[styles.jobsBtn, { backgroundColor: colors.brand }]}
             accessibilityRole="button"
           >
@@ -519,11 +516,36 @@ export default function CompanyPublicProfile({
     .filter(Boolean);
   const mainModules = keyedModules('main');
   const sideModules = keyedModules('side');
-  // To sidekolonner: modulene beholder rekkefølgen, første halvdel til venstre.
-  const sideHalf = Math.ceil(sideModules.length / 2);
+
+  const asideData = {
+    name,
+    logo,
+    tagline,
+    about,
+    contact,
+    hours: view.hours,
+    hoursNow,
+    people: view.showEmployees ? staff : [],
+    jobs: view.jobs,
+  };
+  // Fanene får en sidespalte på PC: innholdet til venstre, bedriften, folkene og kontakt til høyre.
+  // Ansatte-fanen har kortene i full bredde og en smalere spalte.
+  function withAside(main, blocks, { staff: staffTab = false } = {}) {
+    if (!blocks.length) return main;
+    const aside = <CompanyProfileAside blocks={blocks} data={asideData} colors={colors} onTab={setTab} />;
+    if (!wide) {
+      return <View style={styles.tabStack}>{main}{aside}</View>;
+    }
+    return (
+      <View style={styles.tabSplit}>
+        <View style={[styles.tabMain, staffTab && styles.tabMainWide]}>{main}</View>
+        <View style={[styles.tabAside, staffTab && styles.tabAsideNarrow]}>{aside}</View>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.page} onLayout={(event) => setPageWidth(Math.round(event.nativeEvent.layout.width))}>
+    <View style={styles.page}>
       {(saveError || error) ? (
         <Text style={{ color: colors.danger }}>{saveError || error}</Text>
       ) : null}
@@ -590,28 +612,23 @@ export default function CompanyPublicProfile({
 
       {tab === 'oversikt' ? (
         <View style={[styles.columns, wide && styles.columnsWide]}>
+          {/* Én sidekolonne med fast bredde. Hovedkolonnen (om oss, nyheter) tar resten av bredden. */}
           <View style={styles.mainCol}>{mainModules}</View>
-          {sideSplit ? (
-            <>
-              <View style={[styles.sideCol, styles.sideColSplit]}>{sideModules.slice(0, sideHalf)}</View>
-              <View style={[styles.sideCol, styles.sideColSplit]}>{sideModules.slice(sideHalf)}</View>
-            </>
-          ) : (
-            <View style={[styles.sideCol, wide && styles.sideColWide]}>{sideModules}</View>
-          )}
+          <View style={[styles.sideCol, wide && styles.sideColWide]}>{sideModules}</View>
         </View>
       ) : null}
 
-      {tab === 'nyheter' ? <CompanyNewsWall /> : null}
+      {tab === 'nyheter' ? withAside(<CompanyNewsWall />, ['company', 'people', 'contact', 'jobs']) : null}
 
-      {tab === 'om-oss' ? (
+      {tab === 'om-oss' ? withAside(
         <CompanyArticle
           {...editProps}
           article={view.article}
           fallback={about}
           familyId={familyId}
           onUpdate={(fn) => setDraft((prev) => ({ ...prev, article: fn(prev.article) }))}
-        />
+        />,
+        editing ? [] : ['news', 'people', 'contact'],
       ) : null}
 
       {tab === 'tjenester' ? (
@@ -623,7 +640,7 @@ export default function CompanyPublicProfile({
         />
       ) : null}
 
-      {tab === 'ansatte' ? (
+      {tab === 'ansatte' ? withAside(
         <CompanyStaff
           people={staff}
           visible={view.showEmployees}
@@ -635,12 +652,16 @@ export default function CompanyPublicProfile({
           onMove={moveStaff}
           onShift={shiftStaff}
           onOpenRegister={onEmployees}
-        />
+        />,
+        // Ansatte og kontakt: besøk, kontakt og åpningstider står ved siden av folkene.
+        ['contact', 'company', 'jobs'],
+        { staff: true },
       ) : null}
 
       {tab === 'baerekraft' ? (
         <CompanySustainability
           {...editProps}
+          name={shortName}
           page={view}
           iso={iso}
           wide={wide}
@@ -649,25 +670,6 @@ export default function CompanyPublicProfile({
           onOpenNews={() => setTab('nyheter')}
           onOpenIso={onOpenIso}
         />
-      ) : null}
-
-      {tab === 'kontakt' ? (
-        <Card colors={colors}>
-          <SectionHead colors={colors} title="Kontakt" />
-          <Text style={{ color: colors.ink }}>{addressLines(contact.address) || 'Adresse er ikke lagt inn.'}</Text>
-          {contact.phone ? <Text style={{ color: colors.ink }}>{formatPhone(contact.phone)}</Text> : null}
-          {contact.email ? (
-            <Text style={{ color: colors.brand }} onPress={() => Linking.openURL(`mailto:${contact.email}`).catch(() => {})}>{contact.email}</Text>
-          ) : null}
-          {contact.website ? (
-            <Text style={{ color: colors.brand }} onPress={() => openUrl(contact.website)}>{websiteLabel(contact.website)}</Text>
-          ) : null}
-          {view.hours.map((row) => (
-            <Text key={row.id} style={[styles.muted, { color: colors.muted }]}>
-              {row.label}: {row.closed || !row.open ? 'Stengt' : `${row.open} – ${row.close}`}
-            </Text>
-          ))}
-        </Card>
       ) : null}
 
       {tab === 'selskapsdata' ? (
@@ -687,6 +689,8 @@ export default function CompanyPublicProfile({
           accountsLoading={accountHistory.loading}
           loading={loading}
           stacked={stacked}
+          split={wide}
+          factCols={width >= SELSKAPSDATA_TWO_FACT_COLS ? 2 : 1}
         />
       ) : null}
     </View>
@@ -761,7 +765,7 @@ function FactDrawer({
  */
 function RegistryDetails({
   colors, profile, stored, name, contact, registers, roles, signature, overview, onUnits, brregUrl,
-  accounts, accountsLoading, loading, stacked,
+  accounts, accountsLoading, loading, stacked, split = false, factCols = 2,
 }) {
   const groups = companyFactGroups(profile, {
     stored, contact, registers, overview,
@@ -769,14 +773,13 @@ function RegistryDetails({
   const purpose = (profile?.formaal?.length ? profile.formaal : profile?.aktivitet || []).join(' ');
   const signatures = signatureRows(signature);
   const roleList = roleRows(roles);
-  return (
-    <View style={styles.stack}>
+  const facts = (
       <Card colors={colors} nativeID="company-public-data">
         <SectionHead colors={colors} title="Om bedriften" />
         {purpose ? <Text style={[styles.lead, { color: colors.ink }]}>{purpose}</Text> : null}
         {groups.length ? (
           <View style={[styles.factColumns, stacked && styles.factColumnsStacked]}>
-            {factColumns(groups, stacked ? 1 : 2).map((column) => (
+            {factColumns(groups, stacked ? 1 : (split ? factCols : 2)).map((column) => (
               <View key={column.map((group) => group.id).join('-')} style={styles.factColumn}>
                 {column.map((group) => (
                   <View
@@ -806,7 +809,9 @@ function RegistryDetails({
           <EmptyNote colors={colors}>{loading ? 'Henter offentlige opplysninger …' : name}</EmptyNote>
         )}
       </Card>
-
+  );
+  const rest = (
+    <>
       {accounts ? (
         <Card colors={colors} nativeID="company-public-accounts">
           <AccountHistoryCard
@@ -846,12 +851,27 @@ function RegistryDetails({
           Kilde: Enhetsregisteret, signaturrett og Regnskapsregisteret.
         </Text>
       ) : null}
+    </>
+  );
+  // PC: registeropplysningene til venstre, regnskap, signaturrett og roller til høyre.
+  if (split) {
+    return (
+      <View nativeID="company-public-split" style={styles.registrySplit}>
+        <View style={styles.registryCol}>{facts}</View>
+        <View style={styles.registryCol}>{rest}</View>
+      </View>
+    );
+  }
+  return (
+    <View style={styles.stack}>
+      {facts}
+      {rest}
     </View>
   );
 }
 
-/** Sidebredde der sidemodulene fordeles på to kolonner. */
-const PROFILE_SIDE_SPLIT = 1600;
+/** Vindusbredde der registeropplysningene (venstre halvdel) får to kolonner. */
+const SELSKAPSDATA_TWO_FACT_COLS = 1900;
 
 const styles = StyleSheet.create({
   page: { gap: 14, paddingBottom: 28 },
@@ -889,7 +909,16 @@ const styles = StyleSheet.create({
   mainCol: { flex: 1.45, gap: 12, minWidth: 0 },
   sideCol: { gap: 12, minWidth: 0 },
   sideColWide: { flex: 0.8, maxWidth: 420 },
-  sideColSplit: { flex: 0.62, maxWidth: 440 },
+  tabStack: { gap: 12 },
+  registrySplit: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  registryCol: { flex: 1, minWidth: 0, gap: 12 },
+  tabSplit: { flexDirection: 'row', alignItems: 'flex-start', gap: 16 },
+  tabMain: { flex: 1.4, minWidth: 0, maxWidth: 960, gap: 12 },
+  tabMainWide: { maxWidth: '100%', flex: 1 },
+  tabAside: { flex: 1, minWidth: 320 },
+  tabAsideNarrow: {
+    flexGrow: 0, flexShrink: 0, flexBasis: 380, width: 380, minWidth: 0,
+  },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   cardTitle: { fontSize: 18, fontWeight: '600' },
   body: { fontSize: 14, lineHeight: 21 },

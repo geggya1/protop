@@ -11,9 +11,9 @@ export const PAGE_TABS = [
   { id: 'nyheter', label: 'Nyheter' },
   { id: 'om-oss', label: 'Om oss' },
   { id: 'tjenester', label: 'Tjenester' },
-  { id: 'ansatte', label: 'Ansatte' },
+  // Kontakt er slått sammen med Ansatte: folkene i midten, besøk, kontakt og åpningstider ved siden av.
+  { id: 'ansatte', label: 'Ansatte og kontakt' },
   { id: 'baerekraft', label: 'Bærekraft' },
-  { id: 'kontakt', label: 'Kontakt' },
   { id: 'selskapsdata', label: 'Offentlig selskapsdata' },
 ];
 

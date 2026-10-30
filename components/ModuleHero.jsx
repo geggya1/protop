@@ -4,7 +4,9 @@ import { useI18n } from '../src/i18n';
 import { colors, useLayout } from '../src/theme';
 import { LIGHT } from '../src/appearance/palette';
 import { illustrationSourceById } from '../src/modules/moduleActivationAssets';
-import { resolveModuleHero } from '../src/modules/moduleHero';
+import { heroTitleWithCompany, resolveModuleHero } from '../src/modules/moduleHero';
+import { useOptionalApp } from '../src/context/AppContext';
+import { companyDisplayName } from '../src/utils/companyName';
 import Breadcrumb from './Breadcrumb';
 import { normalizeTitle } from '../src/ui/pageTitle';
 
@@ -40,6 +42,7 @@ export default function ModuleHero({
   const [artRatio, setArtRatio] = useState(2.4);
   useEffect(() => { setArtRatio(2.4); }, [moduleId, isPhone, useBundled]);
   const hero = useMemo(() => resolveModuleHero(moduleId, lang), [moduleId, lang]);
+  const app = useOptionalApp();
   const imgSource = useMemo(
     () => (moduleId ? illustrationSourceById(moduleId, { preferBundled: useBundled, phone: isPhone }) : null),
     [moduleId, useBundled, isPhone],
@@ -48,7 +51,9 @@ export default function ModuleHero({
   if (!moduleId && !title) return null;
   void force;
 
-  const heading = title || hero.title;
+  const heading = title || (hero.withCompanyName
+    ? heroTitleWithCompany(hero.title, companyDisplayName(app?.family))
+    : hero.title);
   const lead = subtitle || hero.pitch;
   // Overlinjen er modulnavnet; den står ikke over en overskrift med samme tekst (én tittel per side).
   const overline = normalizeTitle(kicker || hero.kicker) === normalizeTitle(heading) ? '' : (kicker || hero.kicker);

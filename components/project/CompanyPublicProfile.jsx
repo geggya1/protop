@@ -13,7 +13,6 @@ import {
   companyFactGroups, factColumns, roleRows, roleSummary, signatureRows,
 } from '../../src/project/companyFacts';
 import {
-  COVER_ASPECTS,
   EDIT_TABS,
   PAGE_TABS,
   articleHasContent,
@@ -45,7 +44,6 @@ import {
   Card, EditBar, EmptyNote, SectionHead,
 } from './ProfileParts';
 import { useAccountHistory } from './useAccountHistory';
-import { useCroppedUpload } from './useCroppedUpload';
 import { useIsoProfile } from './useIsoProfile';
 import { useApp } from '../../src/context/AppContext';
 import { parentCompanyDisplayName } from '../../src/utils/companyName';
@@ -119,12 +117,9 @@ export default function CompanyPublicProfile({
   const parentName = parentCompanyDisplayName(family, families) || stored?.parentCompanyName;
   const wide = width >= BREAKPOINTS.desktop;
   const stacked = width < BREAKPOINTS.tablet;
-  // Bredden på selve siden. Store skjermer får to sidekolonner og et høyere banner.
+  // Bredden på selve siden. Store skjermer får to sidekolonner.
   const [pageWidth, setPageWidth] = useState(0);
   const sideSplit = wide && pageWidth >= PROFILE_SIDE_SPLIT;
-  const heroHeight = wide && pageWidth
-    ? Math.round(Math.min(HERO_MAX, Math.max(HERO_MIN, pageWidth * 0.14)))
-    : HERO_MIN;
   const page = useMemo(() => normalizeCompanyPage(stored?.publicPage), [stored?.publicPage]);
   const [tab, setTab] = useState(initialTab || 'oversikt');
   // Lenker fra andre moduler (f.eks. ISO → «Skriv nyhet») åpner nyhetene direkte.
@@ -133,16 +128,6 @@ export default function CompanyPublicProfile({
   const [draft, setDraft] = useState(page);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const cover = useCroppedUpload({
-    familyId,
-    folder: 'companyPage',
-    aspect: COVER_ASPECTS[0].value,
-    aspectPair: [21, 8],
-    aspects: COVER_ASPECTS,
-    title: 'Beskjær banner',
-    maxEdge: 2000,
-  });
-
   useEffect(() => {
     if (!editing) setDraft(page);
   }, [page, editing]);
@@ -207,21 +192,6 @@ export default function CompanyPublicProfile({
     },
     { icon: 'business-outline', label: 'Hovedkontor', value: addressLines(contact.address) },
   ].filter((row) => row.value);
-
-  async function changeCover() {
-    const url = await cover.choose();
-    if (!url) return;
-    if (editing) {
-      setDraft((prev) => ({ ...prev, coverUrl: url }));
-      return;
-    }
-    setSaveError('');
-    try {
-      await onSavePage({ ...page, coverUrl: url });
-    } catch (err) {
-      setSaveError(err?.message || 'Kunne ikke lagre banneret.');
-    }
-  }
 
   function openEdit() {
     setDraft(page);
@@ -327,6 +297,51 @@ export default function CompanyPublicProfile({
                 action={articleHasContent(view) ? 'Les mer' : null}
                 onAction={() => setTab('om-oss')}
               />
+              <View style={styles.identityTop}>
+                <View
+                  nativeID="company-landing-logo"
+                  id="company-landing-logo"
+                  style={[styles.logoPlate, { borderColor: colors.line, backgroundColor: colors.card }]}
+                >
+                  {logo?.dataUrl ? (
+                    <Image source={{ uri: logo.dataUrl }} style={styles.logo} resizeMode="contain" accessibilityLabel={`Logo for ${name}`} />
+                  ) : (
+                    <Text style={[styles.initials, { color: colors.brand }]}>{companyInitials(name)}</Text>
+                  )}
+                  {canEdit ? (
+                    <TouchableOpacity
+                      onPress={openEdit}
+                      style={[styles.pencilHit, pencilHit.style]}
+                      hitSlop={pencilHit.hitSlop}
+                      accessibilityRole="button"
+                      accessibilityLabel="Rediger profiltekst"
+                    >
+                      <View style={[styles.pencil, { backgroundColor: colors.sunken }]}>
+                        <Ionicons name="pencil" size={12} color={colors.ink} />
+                      </View>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                  {profile?.organisasjonsform ? (
+                    <View style={styles.badge}>
+                      <Ionicons name="checkmark-circle" size={14} color={colors.brand} />
+                      <Text style={[styles.badgeText, { color: colors.muted }]}>{profile.organisasjonsform}</Text>
+                    </View>
+                  ) : null}
+                  {tagline ? <Text style={[styles.tagline, { color: colors.ink }]}>{tagline}</Text> : null}
+                </View>
+              </View>
+              {contactBits().length ? (
+                <View style={styles.metaRow}>
+                  {contactBits().map((bit) => (
+                    <TouchableOpacity key={bit.icon} onPress={bit.onPress || undefined} disabled={!bit.onPress} style={styles.metaBit}>
+                      <Ionicons name={bit.icon} size={14} color={colors.muted} />
+                      <Text style={[styles.metaText, { color: colors.ink }]} numberOfLines={1}>{bit.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
               {about ? <Text style={[styles.body, { color: colors.ink }]}>{about}</Text> : (
                 <EmptyNote colors={colors}>
                   {canEdit ? 'Skriv en kort presentasjon under Rediger side.' : 'Bedriften har ikke lagt ut en presentasjon ennå.'}
@@ -509,113 +524,43 @@ export default function CompanyPublicProfile({
 
   return (
     <View style={styles.page} onLayout={(event) => setPageWidth(Math.round(event.nativeEvent.layout.width))}>
-      <View nativeID="company-profile-hero" id="company-profile-hero" style={styles.heroWrap}>
-        <View style={[styles.hero, { height: heroHeight }]}>
-          {view.coverUrl ? (
-            <Image source={{ uri: view.coverUrl }} style={styles.heroImage} resizeMode="cover" accessibilityLabel="Bannerbilde" />
-          ) : (
-            <View style={styles.heroFallback}>
-              <Text style={styles.heroKicker}>{profile?.organisasjonsform || 'Bedrift'}</Text>
-            </View>
-          )}
-          {canEdit ? (
-            <TouchableOpacity
-              onPress={changeCover}
-              disabled={cover.busy}
-              nativeID="company-cover-edit"
-              accessibilityRole="button"
-              accessibilityLabel="Endre bilde"
-              style={styles.coverBtn}
-            >
-              <Ionicons name="camera-outline" size={15} color="#fff" />
-              <Text style={styles.coverBtnText}>{cover.busy ? 'Laster…' : 'Endre bilde'}</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        <View style={[styles.identityRow, stacked && styles.identityStacked]}>
-          <View style={[styles.identity, { backgroundColor: colors.card, borderColor: colors.line }]}>
-            <View style={styles.identityTop}>
-              <View
-                nativeID="company-landing-logo"
-                id="company-landing-logo"
-                style={[styles.logoPlate, { borderColor: colors.line, backgroundColor: colors.card }]}
-              >
-                {logo?.dataUrl ? (
-                  <Image source={{ uri: logo.dataUrl }} style={styles.logo} resizeMode="contain" accessibilityLabel={`Logo for ${name}`} />
-                ) : (
-                  <Text style={[styles.initials, { color: colors.brand }]}>{companyInitials(name)}</Text>
-                )}
-                {canEdit ? (
-                  <TouchableOpacity
-                    onPress={openEdit}
-                    style={[styles.pencilHit, pencilHit.style]}
-                    hitSlop={pencilHit.hitSlop}
-                    accessibilityRole="button"
-                    accessibilityLabel="Rediger profiltekst"
-                  >
-                    <View style={[styles.pencil, { backgroundColor: colors.sunken }]}>
-                      <Ionicons name="pencil" size={12} color={colors.ink} />
-                    </View>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                {profile?.organisasjonsform ? (
-                  <View style={styles.badge}>
-                    <Ionicons name="checkmark-circle" size={14} color={colors.brand} />
-                    <Text style={[styles.badgeText, { color: colors.muted }]}>{profile.organisasjonsform}</Text>
-                  </View>
-                ) : null}
-                <Text accessibilityRole="header" style={[styles.companyName, { color: colors.ink }]}>{name}</Text>
-                {tagline ? <Text style={[styles.tagline, { color: colors.muted }]}>{tagline}</Text> : null}
-              </View>
-            </View>
-            <View style={styles.metaRow}>
-              {contactBits().map((bit) => (
-                <TouchableOpacity key={bit.icon} onPress={bit.onPress || undefined} disabled={!bit.onPress} style={styles.metaBit}>
-                  <Ionicons name={bit.icon} size={14} color={colors.muted} />
-                  <Text style={[styles.metaText, { color: colors.ink }]} numberOfLines={1}>{bit.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-          {canEdit ? (
-            <TouchableOpacity
-              onPress={editing ? cancelEdit : openEdit}
-              nativeID="company-profile-edit"
-              accessibilityRole="button"
-              accessibilityLabel="Rediger side"
-              style={[styles.editBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
-            >
-              <Ionicons name="pencil-outline" size={15} color={colors.ink} />
-              <Text style={[styles.editBtnText, { color: colors.ink }]}>{editing ? 'Avbryt' : 'Rediger side'}</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      </View>
-
-      {(cover.error || saveError || error) ? (
-        <Text style={{ color: colors.danger }}>{cover.error || saveError || error}</Text>
+      {(saveError || error) ? (
+        <Text style={{ color: colors.danger }}>{saveError || error}</Text>
       ) : null}
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.tabScroll}
-        nativeID="company-profile-tabs"
-        id="company-profile-tabs"
-        contentContainerStyle={[styles.tabs, { borderBottomColor: colors.line }]}
-      >
-        {PAGE_TABS.map((item) => {
-          const on = tab === item.id;
-          return (
-            <TouchableOpacity key={item.id} onPress={() => setTab(item.id)} accessibilityRole="tab" style={styles.tab}>
-              <Text style={{ color: on ? colors.brand : colors.muted, fontWeight: on ? '600' : '400', fontSize: 14 }}>{item.label}</Text>
-              <View style={[styles.tabLine, { backgroundColor: on ? colors.brand : 'transparent' }]} />
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      {/* Sidetittelen («Bedriften – navn») står i modulbåndet; siden har ikke eget banner. */}
+      <View style={[styles.tabBar, { borderBottomColor: colors.line }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabScroll}
+          nativeID="company-profile-tabs"
+          id="company-profile-tabs"
+          contentContainerStyle={styles.tabs}
+        >
+          {PAGE_TABS.map((item) => {
+            const on = tab === item.id;
+            return (
+              <TouchableOpacity key={item.id} onPress={() => setTab(item.id)} accessibilityRole="tab" style={styles.tab}>
+                <Text style={{ color: on ? colors.brand : colors.muted, fontWeight: on ? '600' : '400', fontSize: 14 }}>{item.label}</Text>
+                <View style={[styles.tabLine, { backgroundColor: on ? colors.brand : 'transparent' }]} />
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        {canEdit ? (
+          <TouchableOpacity
+            onPress={editing ? cancelEdit : openEdit}
+            nativeID="company-profile-edit"
+            accessibilityRole="button"
+            accessibilityLabel="Rediger side"
+            style={[styles.editBtn, { backgroundColor: colors.card, borderColor: colors.line }]}
+          >
+            <Ionicons name="pencil-outline" size={15} color={colors.ink} />
+            {stacked ? null : <Text style={[styles.editBtnText, { color: colors.ink }]}>{editing ? 'Avbryt' : 'Rediger side'}</Text>}
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
       {editing && tab === 'oversikt' ? (
         <CompanyPageEditor
@@ -623,12 +568,9 @@ export default function CompanyPublicProfile({
           colors={colors}
           saving={saving}
           error={saveError}
-          coverBusy={cover.busy}
           onChange={setDraft}
           onSave={saveEdit}
           onCancel={cancelEdit}
-          onPickCover={changeCover}
-          onClearCover={() => setDraft((prev) => ({ ...prev, coverUrl: '' }))}
           onOpenSettings={onSettings}
         />
       ) : null}
@@ -747,7 +689,6 @@ export default function CompanyPublicProfile({
           stacked={stacked}
         />
       ) : null}
-      {cover.modal}
     </View>
   );
 }
@@ -909,53 +850,34 @@ function RegistryDetails({
   );
 }
 
-const shadow = Platform.OS === 'web' ? { boxShadow: '0 10px 28px rgba(15, 23, 42, 0.06)' } : {};
-
-const HERO_MIN = 228;
-const HERO_MAX = 320;
 /** Sidebredde der sidemodulene fordeles på to kolonner. */
 const PROFILE_SIDE_SPLIT = 1600;
 
 const styles = StyleSheet.create({
   page: { gap: 14, paddingBottom: 28 },
-  heroWrap: { gap: 0 },
-  hero: {
-    height: HERO_MIN, borderRadius: 18, overflow: 'hidden', backgroundColor: '#0b3a5b',
-  },
-  heroImage: { width: '100%', height: '100%' },
-  heroFallback: { flex: 1, justifyContent: 'flex-start', padding: 22, gap: 4 },
-  heroKicker: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
-  coverBtn: {
-    position: 'absolute', top: 14, right: 14, flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(15,23,42,0.72)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
-  },
-  coverBtnText: { color: '#fff', fontSize: 13 },
-  identityRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: -78, paddingHorizontal: 16 },
-  identityStacked: { flexDirection: 'column', alignItems: 'stretch', marginTop: -36, paddingHorizontal: 0 },
-  identity: { flex: 1, borderWidth: 1, borderRadius: 16, padding: 16, gap: 12, ...shadow },
-  identityTop: { flexDirection: 'row', gap: 14, alignItems: 'center' },
+  identityTop: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   logoPlate: {
-    width: 84, height: 84, borderWidth: 1, borderRadius: 14,
+    width: 64, height: 64, borderWidth: 1, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
-  logo: { width: 68, height: 48 },
-  initials: { fontSize: 22, fontWeight: '600' },
+  logo: { width: 52, height: 38 },
+  initials: { fontSize: 18, fontWeight: '600' },
   pencilHit: { position: 'absolute', top: -6, right: -6, borderRadius: 11 },
   pencil: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   badgeText: { fontSize: 12 },
-  companyName: { fontSize: 26, fontWeight: '600', letterSpacing: -0.3 },
-  tagline: { fontSize: 14, lineHeight: 20, marginTop: 2 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tagline: { fontSize: 14, lineHeight: 20 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 6 },
   metaBit: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: '100%' },
   metaText: { fontSize: 13 },
   editBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 12,
-    paddingHorizontal: 12, paddingVertical: 10, marginTop: 18, ...shadow,
+    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 10,
+    paddingHorizontal: 10, paddingVertical: 7, marginBottom: 6, marginLeft: 'auto',
   },
   editBtnText: { fontSize: 14 },
-  tabs: { gap: 16, paddingHorizontal: 4, borderBottomWidth: 1 },
-  tabScroll: { flexGrow: 0 },
+  tabBar: { flexDirection: 'row', alignItems: 'flex-end', gap: 12, borderBottomWidth: 1 },
+  tabs: { gap: 16, paddingHorizontal: 4 },
+  tabScroll: { flexGrow: 0, flexShrink: 1 },
   tab: { paddingTop: 6, gap: 8 },
   aboutGrid: { gap: 12 },
   aboutGridWide: { flexDirection: 'row', alignItems: 'flex-start' },

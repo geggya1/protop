@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Image, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -34,12 +34,9 @@ export default function CompanyPageEditor({
   colors,
   saving,
   error,
-  coverBusy,
   onChange,
   onSave,
   onCancel,
-  onPickCover,
-  onClearCover,
   onOpenSettings,
 }) {
   function patch(partial) {
@@ -125,19 +122,6 @@ export default function CompanyPageEditor({
       <Field label="Nettsted" value={draft.website} colors={colors} keyboardType="url" placeholder="www.bedrift.no" onChangeText={(website) => patch({ website })} />
       <Field label="Adresse som vises" value={draft.address} colors={colors} placeholder="Tomt felt bruker forretningsadressen" onChangeText={(address) => patch({ address })} />
 
-      <Text style={[styles.section, { color: colors.ink }]}>Banner</Text>
-      <View style={styles.row}>
-        <TouchableOpacity onPress={onPickCover} disabled={coverBusy} style={[styles.smallBtn, { backgroundColor: colors.brand }]}>
-          <Text style={styles.smallBtnText}>{coverBusy ? 'Laster…' : 'Last opp banner'}</Text>
-        </TouchableOpacity>
-        {draft.coverUrl ? (
-          <TouchableOpacity onPress={onClearCover} style={[styles.smallBtn, { backgroundColor: colors.sunken }]}>
-            <Text style={[styles.smallBtnText, { color: colors.ink }]}>Fjern banner</Text>
-          </TouchableOpacity>
-        ) : null}
-      </View>
-      {draft.coverUrl ? <Image source={{ uri: draft.coverUrl }} style={styles.cover} /> : null}
-
       <Text style={[styles.section, { color: colors.ink }]}>Høydepunkter</Text>
       {draft.highlights.map((row) => (
         <View key={row.id} style={styles.stack}>
@@ -217,7 +201,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   smallBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
   smallBtnText: { color: '#fff', fontSize: 13 },
-  cover: { width: '100%', height: 120, borderRadius: 12 },
   stack: { gap: 8 },
   hoursRow: { flexDirection: 'row', gap: 8 },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

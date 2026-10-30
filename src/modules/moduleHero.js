@@ -4,6 +4,7 @@
  * this is the in-page overlay heading.
  */
 import { pickIntroText } from '../utils/moduleIntros.js';
+import { readableCompanyName } from '../utils/companyName.js';
 import { getModuleConfig, SHELL_SKIP_MODULE_IDS, ILLUSTRATION_FILES } from './moduleActivationRegistry.js';
 import { localizeModuleFields } from '../i18n/moduleCatalog.js';
 import { COMPANY_HERO, companyHeroGroup, companyHeroId } from './companyHero.js';
@@ -395,8 +396,15 @@ export function resolveModuleHero(moduleId, lang = 'nb') {
     title: pickIntroText(custom.title, lang) || catalog?.headline || catalog?.name || '',
     pitch: pickIntroText(custom.pitch, lang) || catalog?.pitch || '',
     wideArt: !!custom.wideArt,
+    withCompanyName: !!custom.withCompanyName,
     ...palette,
   };
+}
+
+/** Overskriften i båndet med selskapsnavnet etter: «Bedriften – Consult1 AS». */
+export function heroTitleWithCompany(title, companyName) {
+  const name = readableCompanyName(companyName);
+  return name ? `${title} – ${name}` : title;
 }
 
 export function moduleHeroName(moduleId, lang = 'nb') {

@@ -361,10 +361,13 @@ export default function EmployeesScreen() {
     }
     return isAdmin ? EDITOR_PERSON_VIEWS : READER_PERSON_VIEWS;
   }
+  function canSeeTodo(row) {
+    return isSelfRow(row) || isAdmin || (access.ready && access.canEdit('hrPeople'));
+  }
   function personViewAllowed(row, nextView) {
     if (!PERSON_VIEWS.has(nextView)) return true;
-    // Gjøremål er personens egne: personen selv og administrator på ansatte.
-    if (nextView === 'todo') return isSelfRow(row) || employeesAdmin;
+    // Gjøremål er personens egne: personen selv, og den som redigerer ansatte eller HR.
+    if (nextView === 'todo') return canSeeTodo(row);
     if (nextView === 'earnings' && !access.canView('economyEarnings') && !access.canView('economy')) return false;
     const allowed = personTabsAllowed(row);
     return !allowed || allowed.has(nextView);
@@ -2023,7 +2026,7 @@ export default function EmployeesScreen() {
               employee={selected}
               self={isSelfRow(selected)}
               naeringskode={family?.company?.naeringskode || ''}
-              canEdit={isSelfRow(selected) || employeesAdmin}
+              canEdit={canSeeTodo(selected)}
               onOpenMine={isSelfRow(selected) ? openMine : null}
             />
           ) : null}
@@ -2084,6 +2087,17 @@ export default function EmployeesScreen() {
               colors={colors}
               canEdit={isAdmin || isSelfRow(selected)}
               onSave={saveWork}
+            />
+          ) : null}
+
+          {view === 'detail' && selected && canSeeTodo(selected) ? (
+            <EmployeeTodo
+              compact
+              colors={colors}
+              companyId={familyId}
+              employee={selected}
+              naeringskode={family?.company?.naeringskode || ''}
+              onOpenTodo={() => openPersonView('todo')}
             />
           ) : null}
 
@@ -2374,6 +2388,7 @@ export default function EmployeesScreen() {
           {view === 'mine' && mineTodoEmployee ? (
             <EmployeeTodo
               compact
+              always
               colors={colors}
               companyId={familyId}
               employee={mineTodoEmployee}

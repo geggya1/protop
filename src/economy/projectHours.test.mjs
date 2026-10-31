@@ -88,4 +88,16 @@ assert.equal(shown.find((row) => row.id === 't2').projectName, 'Import');
 const [sale] = hydrateRows([{ id: 's1', projectNumber: '2100', projectName: 'Gammelt' }], { projects: indexProjects([project]) });
 assert.equal(sale.projectName, 'Skole, byggetrinn 2');
 
+// Til fakturering sitt store datovindu (cache: false) skrives ikke til nettleserens lager.
+// Et vanlig vindu gjør det fortsatt.
+const { default: storage } = await import('@react-native-async-storage/async-storage');
+const windowKeys = async () => (await storage.getAllKeys()).filter((k) => k.startsWith('protop.timeEntries.window.v1.'));
+const before = (await windowKeys()).length;
+const wide = await loadTimeEntries('co', { fromDate: '2025-04-01', toDate: '2026-10-31', cache: false });
+assert.equal(wide.length, 3, 'radene kommer likevel');
+assert.equal((await windowKeys()).length, before, 'vinduet er ikke lagret');
+await loadTimeEntries('co', { fromDate: '2026-10-01', toDate: '2026-10-31' });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal((await windowKeys()).length, before + 1, 'et vanlig vindu lagres');
+
 console.log('projectHours.test.mjs: ok');

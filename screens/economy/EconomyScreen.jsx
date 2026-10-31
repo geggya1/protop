@@ -36,6 +36,8 @@ import EconomyWelcome from './EconomyWelcome';
 import EconomySettingsScreen from './EconomySettingsScreen';
 import EconomyEarnings from './EconomyEarnings';
 import { supplierFromCompany } from '../../src/economy/ehf.js';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { prefetchBillingData } from './billing/useBillingData';
 
 /** Arbeidsvinduet står i adressen (/hjem/okonomi/indeks?indeksAvtale=…). Fra en annen side blir det en ny oppføring, så tilbake går dit. */
 function rememberIndexUrl(contractId, caseId = '', view = '') {
@@ -54,6 +56,11 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
     family, familyId, members, requestShellTab, shellIntent, clearShellIntent, isAdmin, user,
   } = useApp();
   const page = defaultOkonomiSubView(subView);
+  // Til fakturering henter prosjektene selv. Skallets egen lesing (med timer) venter til
+  // en annen fane åpnes, så de to ikke henter det store prosjektdokumentet samtidig.
+  const onBilling = page === 'fakturagrunnlag';
+  const access = useCompanyAccess();
+  const invoicesWork = !!isAdmin || !!access?.canEdit?.('economyBilling');
   const [state, setState] = useState(emptyProjectState());
   const [anbud, setAnbud] = useState(null);
   const [chosen, setChosen] = useState(null);
@@ -86,6 +93,7 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
   // Siden leser bare prosjektene. Den skriver dem ikke tilbake: å åpne Økonomi skrev før
   // kopien i minnet til skyen, og en eldre kopi overskrev da nyere endringer fra andre.
   useEffect(() => {
+    if (onBilling) return undefined;
     let live = true;
     const from = new Date();
     from.setMonth(from.getMonth() - 2);
@@ -95,7 +103,15 @@ export default function EconomyScreen({ subView = 'oversikt' }) {
       setState(loaded);
     });
     return () => { live = false; };
-  }, [familyId]);
+  }, [familyId, onBilling]);
+
+  // Den som fakturerer, får Til fakturering hentet i bakgrunnen når Økonomi åpnes,
+  // så siden er klar (eller nesten) når den åpnes.
+  useEffect(() => {
+    if (!familyId || !invoicesWork || onBilling) return undefined;
+    const timer = setTimeout(() => prefetchBillingData(familyId), 1500);
+    return () => clearTimeout(timer);
+  }, [familyId, invoicesWork, onBilling]);
 
   useEffect(() => {
     loadAnbudState(familyId).then(setAnbud);

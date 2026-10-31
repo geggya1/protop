@@ -12,6 +12,7 @@ import { watchInvoices } from '../../../src/economy/invoiceStorage.js';
 import { watchEmployees } from '../../../src/employees/storage';
 import { filterEmployeesForPicker } from '../../../src/arbeid/roles.js';
 import { loadProjectState } from '../../../src/project/storage';
+import { staleBillingData } from './useBillingData';
 
 const FRESH_MS = 60 * 1000;
 const CACHE = new Map();
@@ -31,6 +32,9 @@ export default function useBillingChain({
   employees = null,
   invoices = null,
   enabled = true,
+  // false: siden har selv alle åpne timer (Til fakturering sine 18 måneder), så låste og
+  // godkjente timer hentes ikke en gang til. Tallene venter til sidens timer er lastet.
+  fetchEntries = true,
 } = {}) {
   const familyId = useOptionalApp()?.familyId || '';
   const needLocks = enabled && !locks;
@@ -42,7 +46,7 @@ export default function useBillingChain({
   const [remoteInvoices, setRemoteInvoices] = useState(null);
 
   useEffect(() => {
-    if (!enabled || !familyId) return undefined;
+    if (!enabled || !familyId || !fetchEntries) return undefined;
     const warm = cached(familyId, 'entries');
     if (warm) {
       setRemoteEntries(warm);
@@ -56,7 +60,7 @@ export default function useBillingChain({
       if (live) setRemoteEntries(null);
     });
     return () => { live = false; };
-  }, [enabled, familyId]);
+  }, [enabled, familyId, fetchEntries]);
 
   useEffect(() => {
     if (!needLocks || !familyId) return undefined;
@@ -84,16 +88,17 @@ export default function useBillingChain({
   return useMemo(() => {
     // Sidens egne timer (f.eks. etter en godkjenning) vinner over det som ble hentet.
     const pageEntries = Array.isArray(entries) ? entries : null;
+    const fetched = fetchEntries ? remoteEntries : null;
     const mergedEntries = pageEntries
-      ? mergeEntries(remoteEntries || [], pageEntries)
-      : remoteEntries;
+      ? mergeEntries(fetched || [], pageEntries)
+      : fetched;
     return billingChainCounts({
       employees: employees || remoteEmployees,
       locks: locks || remoteLocks,
       entries: mergedEntries,
       invoices: invoices || remoteInvoices,
     });
-  }, [entries, locks, employees, invoices, remoteEntries, remoteLocks, remoteEmployees, remoteInvoices]);
+  }, [entries, locks, employees, invoices, fetchEntries, remoteEntries, remoteLocks, remoteEmployees, remoteInvoices]);
 }
 
 /** Etter en godkjenning eller et nytt utkast: neste side henter tallene på nytt. */
@@ -101,4 +106,5 @@ export function forgetBillingChain(familyId) {
   if (!familyId) return;
   CACHE.delete(`${familyId}:entries`);
   CACHE.delete(`${familyId}:locks`);
+  staleBillingData(familyId);
 }

@@ -269,7 +269,9 @@ async function queryTimeEntries(bits, companyId, {
 
 /**
  * @param {string} companyId
- * @param {{ fromDate?: string, toDate?: string, employeeId?: string, projectId?: string, projectNumbers?: string[], all?: boolean }} [opts]
+ * @param {{ fromDate?: string, toDate?: string, employeeId?: string, projectId?: string, projectNumbers?: string[], all?: boolean, cache?: boolean }} [opts]
+ * cache: false skriver ikke vinduet til nettleserens lager (store vinduer ingen leser derfra,
+ * f.eks. Til fakturering sine 18 måneder). Lesing fra lageret ved nettfeil virker fortsatt.
  */
 export async function loadTimeEntries(companyId, opts = {}) {
   if (!companyId) return [];
@@ -304,7 +306,7 @@ export async function loadTimeEntries(companyId, opts = {}) {
     try {
       const rows = await loadWindowEntries(bits, companyId, range);
       // Prosjektutvalg skal ikke overskrive uke-cachen med bare disse radene.
-      const persist = projectScoped
+      const persist = projectScoped || opts.cache === false
         ? () => {}
         : (clean) => writeLocalWindow(companyId, clean, range);
       return finishLoadedEntries(companyId, rows, persist);

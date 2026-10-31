@@ -65,6 +65,83 @@ function windowStart(today = new Date()) {
   return date.toISOString().slice(0, 10);
 }
 
+/** Lesinger som pågår per selskap/prosjekt. Siden og forhåndslastingen deler dem. */
+const INFLIGHT = new Map();
+const LATEST = new Map();
+let loadSeq = 0;
+
+/**
+ * Henter grunnlaget (prosjekter, timer, utlegg, salg og avtaler) og husker det.
+ * force: ny lesing selv om en annen pågår (etter godkjenning eller nytt utkast).
+ */
+export function loadBillingBase(familyId, { projectId = '', project = null, force = false } = {}) {
+  const key = snapshotKey(familyId, projectId);
+  if (!force && INFLIGHT.has(key)) return INFLIGHT.get(key);
+  const seq = ++loadSeq;
+  LATEST.set(key, seq);
+  const today = new Date().toISOString().slice(0, 10);
+  // Prosjektets timer på id og nummer, så eldre og importerte timer også kommer med.
+  // Vinduet på 18 måneder leses bare her, så det skrives ikke til nettleserens lager.
+  const hours = projectId
+    ? loadTimeEntries(familyId, project?.id === projectId ? projectHoursQuery(project) : { projectId })
+    : loadTimeEntries(familyId, { fromDate: windowStart(), toDate: today, cache: false });
+  const pending = Promise.all([
+    loadProjectState(familyId, { force }),
+    hours.catch(() => []),
+    loadProjectExpenses(familyId).catch(() => []),
+    loadProductSales(familyId).catch(() => []),
+    loadAnbudState(familyId).catch(() => null),
+  ]).then(([projects, entries, remoteExpenses, remoteSales, loadedAnbud]) => {
+    const next = {
+      state: projects || emptyProjectState(),
+      timeEntries: entries || [],
+      // Utlegg og salg ligger to steder; samme sammenslåing som resten av appen (DS-13).
+      expenses: combineExpenses(projects?.expenses, remoteExpenses),
+      sales: combineSales(projects?.sales, remoteSales),
+      anbud: loadedAnbud,
+    };
+    // En eldre lesing som blir ferdig sist, skal ikke overskrive en nyere.
+    if (LATEST.get(key) === seq) rememberSnapshot(key, { ...next, loaded: true, at: Date.now() });
+    return next;
+  });
+  INFLIGHT.set(key, pending);
+  const done = () => { if (INFLIGHT.get(key) === pending) INFLIGHT.delete(key); };
+  pending.then(done, done);
+  return pending;
+}
+
+/**
+ * Etter en godkjenning eller et nytt utkast: en lesing som pågår, kan være fra før endringen.
+ * Den brukes ikke og lagres ikke, og forhåndslastingen henter på nytt. Det lagrede grunnlaget
+ * vises fortsatt til en fersk lesing er ferdig.
+ */
+export function staleBillingData(familyId) {
+  const prefix = `${familyId || ''}|`;
+  for (const key of [...INFLIGHT.keys()]) {
+    if (!key.startsWith(prefix)) continue;
+    INFLIGHT.delete(key);
+    LATEST.set(key, ++loadSeq);
+  }
+  for (const [key, row] of SNAPSHOTS) {
+    if (key.startsWith(prefix)) SNAPSHOTS.set(key, { ...row, at: 0 });
+  }
+}
+
+/** Lagret grunnlag nyere enn dette hentes ikke på nytt av forhåndslastingen. */
+const PREFETCH_FRESH_MS = 2 * 60 * 1000;
+
+/**
+ * Start lesingen av Til fakturering i bakgrunnen (f.eks. når Økonomi åpnes),
+ * så siden er klar når den åpnes. Feil svelges: siden prøver selv.
+ */
+export function prefetchBillingData(familyId) {
+  if (!familyId || familyId === '__demo__') return;
+  const key = snapshotKey(familyId, '');
+  const warm = SNAPSHOTS.get(key);
+  if (INFLIGHT.has(key) || (warm?.loaded && Date.now() - (warm.at || 0) < PREFETCH_FRESH_MS)) return;
+  loadBillingBase(familyId).catch(() => {});
+}
+
 /**
  * demo: { state, timeEntries, expenses, sales, customers, contracts } brukes i stedet for skyen
  * (demosiden /faktura-demo). Fakturaene kommer fortsatt fra storage.
@@ -133,33 +210,14 @@ export default function useBillingData({ familyId, projectId = '', project = nul
       }
     }
     setRefreshing(true);
-    const today = new Date().toISOString().slice(0, 10);
-    // Prosjektets timer på id og nummer, så eldre og importerte timer også kommer med.
-    const hours = projectId
-      ? loadTimeEntries(familyId, project?.id === projectId ? projectHoursQuery(project) : { projectId })
-      : loadTimeEntries(familyId, { fromDate: windowStart(), toDate: today });
-    Promise.all([
-      loadProjectState(familyId, { force: stamp > 0 }),
-      hours.catch(() => []),
-      loadProjectExpenses(familyId).catch(() => []),
-      loadProductSales(familyId).catch(() => []),
-      loadAnbudState(familyId).catch(() => null),
-    ]).then(([projects, entries, remoteExpenses, remoteSales, loadedAnbud]) => {
+    // En forhåndslasting som pågår, brukes. Ellers en ny lesing.
+    loadBillingBase(familyId, { projectId, project, force: stamp > 0 }).then((next) => {
       if (!active) return;
-      const next = {
-        state: projects || emptyProjectState(),
-        timeEntries: entries || [],
-        // Utlegg og salg ligger to steder; samme sammenslåing som resten av appen (DS-13).
-        expenses: combineExpenses(projects?.expenses, remoteExpenses),
-        sales: combineSales(projects?.sales, remoteSales),
-        anbud: loadedAnbud,
-      };
       setState(next.state);
       setTimeEntries(next.timeEntries);
       setExpenses(next.expenses);
       setSales(next.sales);
       setAnbud(next.anbud);
-      if (cacheable) rememberSnapshot(key, { ...next, loaded: true });
       shownKey.current = key;
       setReady(true);
       setRefreshing(false);
@@ -172,8 +230,10 @@ export default function useBillingData({ familyId, projectId = '', project = nul
     return () => { active = false; };
   }, [familyId, projectId, stamp, demo]);
 
+  // Indeksvarslene hentes når grunnlaget er på plass, så de ikke konkurrerer med det.
+  const indexReady = ready || !!warm?.loaded;
   useEffect(() => {
-    if (!familyId || demo) return undefined;
+    if (!familyId || demo || !indexReady) return undefined;
     let active = true;
     Promise.all([
       loadCases(familyId).catch(() => []),
@@ -188,7 +248,7 @@ export default function useBillingData({ familyId, projectId = '', project = nul
       if (cacheable) rememberSnapshot(key, { dueById: due });
     }).catch(() => {});
     return () => { active = false; };
-  }, [familyId]);
+  }, [familyId, indexReady]);
 
   useEffect(() => {
     if (!familyId || typeof store.watchInvoices !== 'function') return undefined;

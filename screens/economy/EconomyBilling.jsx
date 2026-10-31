@@ -69,6 +69,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
     locks: data.ready ? data.timesheetLocks : null,
     invoices: data.ready ? data.invoices : null,
     enabled: seesChain,
+    fetchEntries: false,
   });
 
   const ready = useMemo(() => {

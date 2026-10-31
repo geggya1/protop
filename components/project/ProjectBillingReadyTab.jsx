@@ -126,6 +126,7 @@ export default function ProjectBillingReadyTab({
           onFixedAmount={(value) => workflow.setFixedAmount(ready.projectId, value)}
           stacked={isPhone || !isWide}
           busy={!!workflow.busy}
+          locked={!!data.refreshing}
           canEdit={canEdit}
           onApprove={() => {
             setError('');

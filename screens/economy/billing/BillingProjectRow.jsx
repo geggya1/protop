@@ -39,6 +39,8 @@ export default function BillingProjectRow({
   onFixedAmount,
   stacked = false,
   busy = false,
+  // Knappene er låst uten spinner (f.eks. mens grunnlaget oppdateres).
+  locked = false,
   canEdit = true,
   onApprove,
   onCreateDraft,
@@ -356,7 +358,7 @@ export default function BillingProjectRow({
                 icon="checkmark"
                 tone="success"
                 onPress={onApprove}
-                disabled={!picked.length || busy}
+                disabled={!picked.length || busy || locked}
                 colors={colors}
                 small
                 nativeID={`billing-approve-${project.projectId}`}
@@ -365,7 +367,7 @@ export default function BillingProjectRow({
                 label="Lag fakturautkast av utvalg"
                 icon="document-text-outline"
                 onPress={onCreateDraft}
-                disabled={!picked.length || busy}
+                disabled={!picked.length || busy || locked}
                 busy={busy}
                 colors={colors}
                 small

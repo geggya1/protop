@@ -326,6 +326,8 @@ export const FILES = [
   // Utlegg: prosjekt og internt på én side (UX-17).
   'src/economy/expenseScope.test.mjs',
   'src/economy/expenseForm.test.mjs',
+  // Til fakturering: forrige grunnlag vises med en gang, ferske tall i bakgrunnen.
+  'src/economy/billingDataCache.test.mjs',
   'src/economy/collection.test.mjs',
   // Aktiverte moduler: bedriften eller bare meg (MENY-01).
   'src/utils/modulePrefs.test.mjs',

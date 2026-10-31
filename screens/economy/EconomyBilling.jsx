@@ -5,6 +5,7 @@ import { useApp } from '../../src/context/AppContext';
 import { useColors } from '../../src/context/ThemeContext';
 import { useCompanyAccess } from '../../src/access/useCompanyAccess';
 import { useLayout } from '../../src/theme';
+import { type } from '../../src/ui/tokens';
 import { showSaveToast } from '../../src/ui/saveToast';
 import { dateKey } from '../../src/utils/dates';
 import { fold } from '../../src/economy/invoices.js';
@@ -139,6 +140,8 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
   const selectable = visible.filter((project) => !project.blocked);
   const allChecked = selectable.length > 0 && selectable.every((project) => workflow.checked.has(project.projectId));
   const someChecked = selectable.some((project) => workflow.checked.has(project.projectId));
+  // Lagret grunnlag vises med en gang. Godkjenning og utkast venter til ferske tall er hentet.
+  const locked = !!workflow.busy || !!data.refreshing;
   const checkedProjects = selectable.filter((project) => workflow.checked.has(project.projectId));
 
   function toggleOpen(projectId) {
@@ -323,6 +326,9 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
             {someChecked ? (
               <Text style={{ color: colors.muted, fontSize: 13 }}>{`Valgt ${money(workflow.totals.picked)}`}</Text>
             ) : null}
+            {data.refreshing ? (
+              <Text style={[type.caption, { color: colors.muted }]} nativeID="billing-refreshing">Oppdaterer…</Text>
+            ) : null}
             {canEdit ? (
               <View style={[styles.actions, isPhone && { width: '100%' }]}>
                 <Button
@@ -330,7 +336,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
                   icon="checkmark"
                   tone="success"
                   colors={colors}
-                  disabled={!checkedProjects.length || !!workflow.busy}
+                  disabled={!checkedProjects.length || locked}
                   onPress={() => approve(checkedProjects)}
                   nativeID="billing-approve-selected"
                 />
@@ -338,7 +344,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
                   label="Lag fakturautkast av utvalg"
                   icon="document-text-outline"
                   colors={colors}
-                  disabled={!checkedProjects.length || !!workflow.busy}
+                  disabled={!checkedProjects.length || locked}
                   busy={workflow.busy === 'draft'}
                   onPress={() => { setError(''); setNote(''); setCreatedDrafts([]); workflow.requestCreate(checkedProjects); }}
                   nativeID="billing-draft-selected"
@@ -377,6 +383,7 @@ export default function EconomyBilling({ demo = null, storage = null, onOpenInvo
               onFixedAmount={(value) => workflow.setFixedAmount(project.projectId, value)}
               stacked={stacked}
               busy={!!workflow.busy}
+              locked={!!data.refreshing}
               canEdit={canEdit}
               onApprove={() => approve([project])}
               onCreateDraft={() => { setError(''); setNote(''); setCreatedDrafts([]); workflow.requestCreate([project]); }}

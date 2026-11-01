@@ -273,7 +273,7 @@ function normalizeEvents(list) {
       text: message.slice(0, 500),
       ...person(row),
     };
-  });
+  }, 2000);
 }
 
 function normalizeNotes(list) {

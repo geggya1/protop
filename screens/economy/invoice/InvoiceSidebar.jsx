@@ -8,6 +8,8 @@ import { formatDate } from '../../../src/economy/invoices.js';
 import { type } from '../../../src/ui/tokens';
 import { COLLECTION_KINDS, collectionStatus } from '../../../src/economy/collection.js';
 import { invoicePdfName } from '../../../src/economy/invoicePdf.js';
+import { invoiceLog } from '../../../src/economy/invoiceLog.js';
+import PdfPagesPreview from './PdfPagesPreview';
 import { hasPowerOfficeEhf, sentFromPowerOffice } from '../../../src/economy/powerOfficeView.js';
 import {
   deliveryChannelLabel,
@@ -49,6 +51,20 @@ function Card({ title, right = null, children, colors, nativeID }) {
       <View style={styles.cardBody}>{children}</View>
     </View>
   );
+}
+
+/** Mobil eller nettbrett i nettleser: der vises ikke PDF i en iframe. */
+function touchWeb() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = String(navigator.userAgent || '');
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;
+  // iPadOS oppgir seg som Mac, men har berøringsskjerm.
+  return /Macintosh/.test(ua) && Number(navigator.maxTouchPoints) > 1;
+}
+
+function openPreview(url) {
+  if (typeof window === 'undefined' || !url) return;
+  window.open(url, '_blank', 'noopener');
 }
 
 function timeAgo(iso) {
@@ -239,6 +255,8 @@ export default function InvoiceSidebar({
   const [noteOpen, setNoteOpen] = useState(false);
   const [eventOpen, setEventOpen] = useState(false);
   const [allEvents, setAllEvents] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  React.useEffect(() => { setPreviewFailed(false); }, [previewUrl]);
   const status = displayStatus(invoice);
   const credit = isCreditNote(invoice);
   const draft = status.id === 'draft' || status.id === 'approved';
@@ -246,7 +264,7 @@ export default function InvoiceSidebar({
   // Bare fakturautkast går til PowerOffice. Kreditnota og all oppfølging etter sending gjøres i ProTop.
   const po = mode === 'poweroffice' && !credit;
   const poSent = sentFromPowerOffice(invoice);
-  const events = [...(invoice.events || [])].reverse();
+  const events = invoiceLog(invoice);
   const shownEvents = allEvents ? events : events.slice(0, 6);
   const notes = [...(invoice.noteList || [])].reverse();
   const outstanding = Number(invoice.outstandingAmount) || 0;
@@ -472,7 +490,14 @@ export default function InvoiceSidebar({
       </Card>
 
       <Card title="Forhåndsvisning" colors={colors} nativeID="invoice-preview">
-        {Platform.OS === 'web' && previewUrl ? (
+        {Platform.OS === 'web' && previewUrl && touchWeb() ? (
+          // Safari på iPhone/iPad og nettlesere på Android viser ikke PDF i en iframe (hvit flate).
+          // Der tegnes sidene som bilder, med knapp for å åpne selve PDF-en.
+          <View style={{ gap: 8 }}>
+            {!previewFailed ? <PdfPagesPreview url={previewUrl} colors={colors} onFailed={() => setPreviewFailed(true)} /> : null}
+            <LinkText label="Åpne PDF-en" icon="open-outline" onPress={() => openPreview(previewUrl)} colors={colors} nativeID="invoice-preview-open" />
+          </View>
+        ) : Platform.OS === 'web' && previewUrl ? (
           <View style={[styles.frame, { borderColor: colors.line }]}>
             {React.createElement('iframe', {
               title: `PDF ${invoice.invoiceNumber || 'utkast'}`,

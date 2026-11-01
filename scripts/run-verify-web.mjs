@@ -148,6 +148,11 @@ export const FILES = [
   'src/hr/handbook.test.mjs',
   'src/doccontrol/doccontrol.test.mjs',
   'src/hr/kinReminder.test.mjs',
+  // HR-årshjul, frister ved sykefravær og anonym medarbeiderundersøkelse.
+  'src/hr/annualWheel.test.mjs',
+  'src/hr/sickLeave.test.mjs',
+  'src/hr/survey.test.mjs',
+  'src/hr/annualRender.test.cjs',
   'screens/anbud/formFillRender.test.cjs',
   'screens/iso/findingsRender.test.cjs',
   'src/anbud/formBuilder.test.mjs',

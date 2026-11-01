@@ -121,6 +121,16 @@ export const COMPANY_HERO = {
       'Employment agreement, follow-up, protective equipment and privacy per employee.',
     ),
   },
+  'hr-arshjul': {
+    wideArt: true,
+    name: 'Årshjul',
+    kicker: t('HR', 'HR'),
+    title: t('HR-årshjul og lovpålagte frister', 'HR annual cycle and statutory deadlines'),
+    pitch: t(
+      'Faste HR-oppgaver måned for måned, frister ved sykefravær og anonym medarbeiderundersøkelse.',
+      'Recurring HR tasks month by month, sick leave deadlines and an anonymous employee survey.',
+    ),
+  },
   'hr-handbok': {
     wideArt: true,
     name: 'Personalhåndbok',

@@ -16,9 +16,12 @@ import { loadEmployeeHrSlice } from '../../src/hr/storage';
 import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './HrShared';
 import MyDocuments from '../doccontrol/MyDocuments';
 import HrAccessLog from './HrAccessLog';
+import EmployeeSurveyCard from './EmployeeSurveyCard';
+import { useOptionalApp } from '../../src/context/AppContext';
 
 export default function EmployeeHrSelfService({ colors, companyId, employeeId, showDocuments = true }) {
   const [slice, setSlice] = useState(null);
+  const uid = useOptionalApp()?.uid || '';
 
   useEffect(() => {
     let live = true;
@@ -57,6 +60,8 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId, s
     <View style={styles.page} nativeID="employee-hr-self" id="employee-hr-self">
       {/* Dokumentene står under Gjøremål når personen har en ansattpost i bedriften. */}
       {showDocuments ? <MyDocuments colors={colors} employeeId={employeeId} /> : null}
+      {/* Åpen medarbeiderundersøkelse: svaret lagres anonymt. */}
+      <EmployeeSurveyCard colors={colors} companyId={companyId} uid={uid} />
       <HrCard colors={colors}>
         <HrSectionTitle
           colors={colors}

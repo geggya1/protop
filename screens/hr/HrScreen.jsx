@@ -22,6 +22,8 @@ import HrRecruitment from './HrRecruitment';
 import HrControl from './HrControl';
 import HrHandbook from './HrHandbook';
 import HrForms from './HrForms';
+import HrAnnual from './HrAnnual';
+import { hrDeadlinesHandled, useHrDeadlines } from './useHrDeadlines';
 import { useFormContext } from '../anbud/useFormContext';
 import { useKinTasks } from './useKinTasks';
 import { useHmsTasks } from './useHmsTasks';
@@ -64,6 +66,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     lonn: 'hrPayroll',
     oppfolging: 'hrFollowup',
     compliance: 'hrCompliance',
+    arshjul: 'hrFollowup',
     rekruttering: 'hrRecruitment',
     handbok: 'hr',
     skjema: 'hrPeople',
@@ -129,6 +132,17 @@ export default function HrScreen({ subView = 'oversikt' }) {
   useHmsTasks({ familyId, employees, hr: hrView, canWrite: ready && access.canEdit('hrPeople'), actor: forms.actor });
   // Nyansatte og nye versjoner av dokumenter med lesekrav: oppgave og varsel til den ansatte.
   useDocReadTasks({ dc, employees, canWrite: ready && access.canEdit('hrPeople') });
+  // Frister ved sykefravær og oppgaver fra HR-årshjulet. Fravær er helseopplysninger: bare med Oppfølging.
+  // Fraværet hentes på Årshjul-siden, og ellers én gang per økt for å lage oppgavene.
+  const deadlines = useHrDeadlines({
+    familyId,
+    employees,
+    hr,
+    enabled: ready && access.ready && access.canView('hrFollowup')
+      && (page === 'arshjul' || !hrDeadlinesHandled(familyId)),
+    canWrite: ready && access.canEdit('hrFollowup'),
+    actor: forms.actor,
+  });
 
   useEffect(() => {
     let live = true;
@@ -402,6 +416,25 @@ export default function HrScreen({ subView = 'oversikt' }) {
         />
       );
     }
+    if (page === 'arshjul') {
+      return (
+        <HrAnnual
+          colors={colors}
+          hr={hrView}
+          canWrite={canWrite}
+          onPatch={onPatch}
+          familyId={familyId}
+          uid={uid || ''}
+          actorName={assigneeName}
+          deadlines={deadlines}
+          onRefreshTasks={deadlines.refresh}
+          onOpen={(target) => {
+            if (target === 'fravaer') requestShellTab?.('arbeid', 'fravaer-innstillinger');
+            else if (target !== 'arshjul') go(target);
+          }}
+        />
+      );
+    }
     if (page === 'skjema') {
       return (
         <HrForms
@@ -462,6 +495,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
     focusCaseId, canWrite, onPatch, go, familyId, uid, assigneeName,
     openEmployee, openCase, openLinkedTask, createTask, saveSalaries, forms.actor, forms.company, forms.logo, kin,
     isoCompetence, canSeeIso, openIsoCompetence, peopleFilter, recruitFocus, ownCompany, retention, access,
+    deadlines, requestShellTab,
   ]);
 
   if (access.active && access.ready && !canSee) {

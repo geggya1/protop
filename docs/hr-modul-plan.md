@@ -20,6 +20,13 @@ Se også `docs/hr/research-matrix.md` for verdensbasis-matrise (BambooHR, Person
 6. **Oppfølging** — saker, samtaler (PDF + sammenlign), memo/filer, oppgaver
 7. **Lovpålagt** — AML (avtale, oppfølging, verneutstyr) og GDPR per ansatt. Kompetanse, opplæring og HMS-introduksjon følges opp i ISO / K-HMS → Kompetanse
 8. **Rekruttering** — annonser, 3-kolonne kanban (mottatt → behandling → ferdig), vunnet/avslått
+9. **Årshjul** — faste HR-aktiviteter måned for måned med lovhenvisning (`src/hr/annualWheel.js`), frister ved sykefravær regnet fra Fravær (`src/hr/sickLeave.js`: oppfølgingsplan 4 uker, dialogmøte 1 7 uker, dialogmøte 2 26 uker) og anonym medarbeiderundersøkelse (`src/hr/survey.js`). Ressurs `hrFollowup`, siden fravær er helseopplysninger.
+
+### Årshjul, sykefravær og undersøkelse
+
+- Avkrysninger og av-slåtte aktiviteter: `hr.annual`. Markerte frister ved sykefravær: `hr.sickFollowUps`.
+- Oppgaver (`parentTodos`) kan leses av alle i bedriften. Oppgavene for sykefravær har derfor nøytral tittel og id uten ansatt-id; navnet står bare i HR.
+- Undersøkelsen: `hrSurveys` (alle leser, HR skriver), `hrSurveyAnswers` (svar uten bruker-id, bare HR leser) og `hrSurveyReceipts/{survey}_{uid}` (hindrer dobbeltsvar). Reglene krever svar og kvittering i samme skriving. Resultater vises først når undersøkelsen er avsluttet og minst fem har svart, og en avsluttet undersøkelse kan ikke åpnes igjen.
 
 ## Datamodell
 

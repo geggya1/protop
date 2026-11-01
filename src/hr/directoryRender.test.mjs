@@ -722,7 +722,7 @@ let phoneSheetHtml = '';
   assert.match(phoneNavHtml, /id="module-tab-hr-oversikt"/);
   assert.match(phoneNavHtml, /id="module-tab-hr-personell"/);
   assert.match(phoneNavHtml, /id="module-tabs-more"/);
-  assert.match(phoneNavHtml, /Flere sider i HR \(6\)/);
+  assert.match(phoneNavHtml, /Flere sider i HR \(7\)/);
   for (const label of ['Lønn', 'Rekruttering', 'Personalhåndbok']) {
     assert.equal(phoneNavHtml.includes(label), false, `lukket «Mer» skal ikke vise ${label}`);
   }

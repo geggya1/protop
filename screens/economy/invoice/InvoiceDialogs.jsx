@@ -111,9 +111,17 @@ export function DeleteDraftDialog({ visible, invoice, colors, busy, onCancel, on
   );
 }
 
-function RecipientList({ list, onChange, colors }) {
-  const [draft, setDraft] = useState('');
-  const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(draft.trim());
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Adressen som står i feltet uten at + er trykket. Den sendes også til (mobil: + er lett å overse). */
+function pendingEmail(draft) {
+  const value = String(draft || '').trim().toLowerCase();
+  return EMAIL.test(value) ? value : '';
+}
+
+function RecipientList({ list, onChange, draft, onDraft, colors }) {
+  const setDraft = onDraft;
+  const valid = !!pendingEmail(draft);
   return (
     <View style={[styles.recipients, { borderColor: colors.line }]}>
       {list.map((row) => (
@@ -161,12 +169,22 @@ function RecipientList({ list, onChange, colors }) {
   );
 }
 
-function initialRecipients(invoice, settings) {
+export function initialRecipients(invoice, settings) {
+  // Sendt på e-post før: de samme mottakerne foreslås ved «Send på nytt».
+  const earlier = [...(invoice?.deliveries || [])].reverse()
+    .find((row) => row?.channel === 'email' && row?.status !== 'failed' && Array.isArray(row?.to) && row.to.length);
+  const previous = (earlier?.to || []).map((row) => String(row || '').trim().toLowerCase()).filter((row) => EMAIL.test(row));
+  const customer = String(invoice?.customerEmail || '').trim().toLowerCase();
   const emails = [
-    invoice?.customerEmail,
+    customer,
+    ...previous,
     ...String(settings?.emailCc || '').split(/[,;\s]+/),
-  ].map((row) => String(row || '').trim().toLowerCase()).filter((row) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row));
-  return [...new Set(emails)].map((email, index) => ({ email, on: index === 0 || !!invoice?.customerEmail }));
+  ].map((row) => String(row || '').trim().toLowerCase()).filter((row) => EMAIL.test(row));
+  const first = EMAIL.test(customer) ? customer : (previous[0] || '');
+  return [...new Set(emails)].map((email, index) => ({
+    email,
+    on: index === 0 || !!first,
+  }));
 }
 
 /**
@@ -192,6 +210,7 @@ export function SendDialog({
   const [send, setSend] = useState(true);
   const [channel, setChannel] = useState('email');
   const [recipients, setRecipients] = useState([]);
+  const [recipientDraft, setRecipientDraft] = useState('');
   const [replyTo, setReplyTo] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -215,6 +234,7 @@ export function SendDialog({
     setChannel(start);
     setSend(true);
     setRecipients(initialRecipients(invoice, settings));
+    setRecipientDraft('');
     setReplyTo(settings.emailReplyTo || supplier.email || '');
     setSubject((credit ? settings.creditEmailSubject : settings.emailSubject) || 'Faktura @invoiceNumber fra @company');
     setBody((credit ? settings.creditEmailBodyText : settings.emailBodyText) || '');
@@ -253,7 +273,8 @@ export function SendDialog({
   const finalize = mode === 'finalize';
   const blocking = checks?.blocking || [];
   const warnings = checks?.warnings || [];
-  const chosen = recipients.filter((row) => row.on).map((row) => row.email);
+  const typed = pendingEmail(recipientDraft);
+  const chosen = [...new Set([...recipients.filter((row) => row.on).map((row) => row.email), ...(typed ? [typed] : [])])];
   const narrow = useWindowDimensions().width < BREAKPOINTS.tablet;
   const needsMail = send && (channel === 'email' || (channel === 'ehf' && alsoEmail));
   const dueBeforeDate = finalize && !powerOffice && !credit && !!dueDate && !!date && dueDate < date;
@@ -444,7 +465,12 @@ export function SendDialog({
               ) : null}
               {needsMail ? (
                 <View style={{ gap: 10 }}>
-                  <RecipientList list={recipients} onChange={setRecipients} colors={colors} />
+                  <RecipientList list={recipients} onChange={setRecipients} draft={recipientDraft} onDraft={setRecipientDraft} colors={colors} />
+                  {!chosen.length ? (
+                    <Text style={[type.caption, { color: colors.dangerInk || colors.danger }]} nativeID="invoice-send-no-recipient">
+                      Skriv inn minst én e-postadresse for å sende.
+                    </Text>
+                  ) : null}
                   <Field label="Svar til" value={replyTo} onChangeText={setReplyTo} colors={colors} placeholder={supplier.email || 'faktura@firma.no'} />
                   <Field label="Emne" value={subject} onChangeText={setSubject} colors={colors} nativeID="invoice-send-subject" />
                   <Field label="Melding" value={body} onChangeText={setBody} colors={colors} multiline nativeID="invoice-send-body" />

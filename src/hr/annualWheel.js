@@ -18,6 +18,7 @@ export const MONTHS_NB = [
  * kind: 'lov' = lovkrav, 'anbefalt' = god praksis.
  * minStaff: gjelder fra så mange egne ansatte (null = alle). note forklarer grensen.
  * page: hvor i ProTop det gjøres (HR-underside, eller 'fravaer' for ferieplanen). outside = utenfor ProTop.
+ * iso: ISO-siden der det samme føres når bedriften har ISO / K-HMS, så det ikke føres to steder.
  */
 export const HR_ANNUAL_ACTIVITIES = [
   {
@@ -66,7 +67,7 @@ export const HR_ANNUAL_ACTIVITIES = [
     months: [2, 3],
     kind: 'anbefalt',
     law: 'Arbeidsmiljøloven § 4-2 (medvirkning og utvikling)',
-    description: 'Hold samtale med alle egne ansatte: trivsel, mål, kompetanse og utvikling. Registreres under HR → Oppfølging. Avvik blir sak automatisk.',
+    description: 'Hold samtale med alle egne ansatte: trivsel, mål, kompetanse og utvikling. Registreres under HR → Oppfølging → Samtaler og saker (eller KS-skjemaet under Skjemaer). Avvik blir sak automatisk.',
     page: 'oppfolging',
   },
   {
@@ -129,8 +130,8 @@ export const HR_ANNUAL_ACTIVITIES = [
     months: [8],
     kind: 'anbefalt',
     law: 'Internkontrollforskriften § 5 andre ledd nr. 6 (kartlegge farer i arbeidsmiljøet)',
-    description: 'Anonym undersøkelse om arbeidsmiljø, arbeidsmengde, ledelse og trakassering. Start den nederst på denne siden. Resultatene vises når den er avsluttet og minst fem har svart.',
-    page: 'arshjul',
+    description: 'Anonym undersøkelse om arbeidsmiljø, arbeidsmengde, ledelse og trakassering, under HR → Oppfølging → Medarbeiderundersøkelse. Resultatene vises når den er avsluttet og minst fem har svart.',
+    page: 'undersokelse',
   },
   {
     id: 'vernerunde',
@@ -138,7 +139,8 @@ export const HR_ANNUAL_ACTIVITIES = [
     months: [8],
     kind: 'lov',
     law: 'Internkontrollforskriften § 5 andre ledd nr. 6',
-    description: 'Kartlegg farer og vurder risiko, både fysisk og psykososialt arbeidsmiljø, sammen med verneombudet. Bruk KS-skjemaet «Vernerunde». Følg opp funn med tiltak og frist.',
+    description: 'Kartlegg farer og vurder risiko, både fysisk og psykososialt arbeidsmiljø, sammen med verneombudet. Bruk KS-skjemaet «Vernerunde». Følg opp funn med tiltak og frist. Med ISO / K-HMS føres farer og tiltak der.',
+    iso: 'hms',
   },
   {
     id: 'budsjett',
@@ -163,8 +165,9 @@ export const HR_ANNUAL_ACTIVITIES = [
     months: [11],
     kind: 'lov',
     law: 'Internkontrollforskriften § 5 andre ledd nr. 8',
-    description: 'Gå gjennom at internkontrollen virker: mål, sykefravær, avvik, vernerunder og tiltak. Oppdater personalhåndboken og rutinene ved behov.',
+    description: 'Gå gjennom at internkontrollen virker: mål, sykefravær, avvik, vernerunder og tiltak. Oppdater personalhåndboken og rutinene ved behov. Med ISO / K-HMS gjøres gjennomgangen i Ledelsens gjennomgang.',
     page: 'handbok',
+    iso: 'ledelse',
   },
 ];
 
@@ -175,6 +178,7 @@ export const HR_ANNUAL_ONGOING = [
     title: 'Oppfølging ved sykefravær',
     law: 'Arbeidsmiljøloven § 4-6 og folketrygdloven § 8-7 a',
     description: 'Oppfølgingsplan innen 4 uker, dialogmøte 1 innen 7 uker, og dialogmøte 2 med NAV innen 26 uker. ProTop regner ut fristene fra fraværet og lager oppgave.',
+    page: 'sykefravaer',
   },
   {
     id: 'arbeidsavtale',
@@ -321,7 +325,7 @@ export function annualTaskPlan(settings, { today = new Date(), staffCount = null
       description: [
         activity.description,
         activity.law ? `Grunnlag: ${activity.law}.` : '',
-        'Kryss av under HR → Årshjul når det er gjort.',
+        'Kryss av under HR → Rutiner → Årshjul når det er gjort.',
       ].filter(Boolean).join('\n'),
       deadline: lastDayOfMonth(year, month),
       deadlineTime: null,
@@ -343,14 +347,25 @@ export function annualTaskPlan(settings, { today = new Date(), staffCount = null
   return out;
 }
 
-/** Fremdrift for medarbeidersamtaler: egne ansatte med gjennomført samtale i året. */
-export function reviewProgress(reviews, staffIds, year) {
+/**
+ * Fremdrift for medarbeidersamtaler: egne ansatte med gjennomført samtale i året.
+ * Teller samtaler under Oppfølging (reviews) og ferdige KS-skjema «Medarbeidersamtale» under
+ * Skjemaer (forms: [{ employeeId, date }]), så det ikke spiller noen rolle hvor samtalen ble ført.
+ */
+export function reviewProgress(reviews, staffIds, year, forms = []) {
   const ids = new Set((staffIds || []).map(text).filter(Boolean));
-  const had = new Set(
-    (reviews || [])
-      .filter((r) => r?.status === 'done' && text(r.date).startsWith(`${year}-`) && ids.has(text(r.employeeId)))
-      .map((r) => text(r.employeeId)),
-  );
+  const inYear = (date) => text(date).startsWith(`${year}-`);
+  const had = new Set([
+    ...(reviews || []).filter((r) => r?.status === 'done' && inYear(r.date)).map((r) => text(r.employeeId)),
+    ...(forms || []).filter((f) => inYear(f?.date)).map((f) => text(f.employeeId)),
+  ].filter((id) => ids.has(id)));
   if (!ids.size) return null;
   return { label: `${had.size} av ${ids.size} har hatt samtale i ${year}`, done: had.size >= ids.size };
+}
+
+/** Ferdige KS-skjema «Medarbeidersamtale» (HR → Skjemaer) som { employeeId, date }. */
+export function reviewFormsFromFilled(docs) {
+  return (docs || [])
+    .filter((d) => d?.scope === 'hr' && d.libraryKey === 'medarbeidersamtale' && d.status === 'ferdig' && d.subject?.id)
+    .map((d) => ({ employeeId: text(d.subject.id), date: text(d.completedAt).slice(0, 10) }));
 }

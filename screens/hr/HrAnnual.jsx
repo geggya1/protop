@@ -1,16 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  HR_ANNUAL_ONGOING, annualSummary, hrAnnualWheel, normalizeAnnualSettings, reviewProgress,
+  HR_ANNUAL_ONGOING, annualSummary, hrAnnualWheel, normalizeAnnualSettings, reviewFormsFromFilled, reviewProgress,
   toggleAnnualDone, toggleAnnualOff,
 } from '../../src/hr/annualWheel';
+import { loadFilledDocs, peekFilledDocs } from '../../src/forms/filledStore';
 import { formatNbDate } from '../../src/hr/model';
 import { toneColor } from '../../src/hr/uiHelpers';
 import { EmptyHint, HrButton, HrCard, HrChip, HrSectionTitle, HrStat } from './HrShared';
 import { radius, space, type } from '../../src/ui/tokens';
-import HrSickLeave from './HrSickLeave';
-import HrSurvey from './HrSurvey';
+
+/** ISO-sidene som fører det samme, når bedriften har ISO / K-HMS. */
+const ISO_LABEL = {
+  hms: 'Åpne ISO › HMS',
+  ledelse: 'Åpne ISO › Ledelsens gjennomgang',
+};
 
 const STATUS = {
   done: { label: 'Gjort', tone: 'good', icon: 'checkmark-circle' },
@@ -22,7 +27,9 @@ const STATUS = {
 };
 
 const PAGE_LABEL = {
-  oppfolging: 'Åpne Oppfølging',
+  oppfolging: 'Åpne Samtaler og saker',
+  sykefravaer: 'Åpne Sykefravær',
+  undersokelse: 'Åpne Medarbeiderundersøkelse',
   lonn: 'Åpne Lønn',
   compliance: 'Åpne Lovpålagt',
   avtaler: 'Åpne Avtaler',
@@ -30,7 +37,7 @@ const PAGE_LABEL = {
   fravaer: 'Åpne ferieplanen',
 };
 
-function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, onOpen }) {
+function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, onOpen, onOpenIso }) {
   const [open, setOpen] = useState(false);
   const { activity, status, done, auto } = item;
   const st = STATUS[status] || STATUS.later;
@@ -79,6 +86,9 @@ function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, 
             {activity.page && PAGE_LABEL[activity.page] ? (
               <HrButton colors={colors} icon="arrow-forward" label={PAGE_LABEL[activity.page]} onPress={() => onOpen(activity.page)} />
             ) : null}
+            {activity.iso && onOpenIso ? (
+              <HrButton colors={colors} icon="shield-checkmark" label={ISO_LABEL[activity.iso]} onPress={() => onOpenIso(activity.iso)} />
+            ) : null}
           </View>
         </View>
       ) : null}
@@ -87,22 +97,30 @@ function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, 
 }
 
 /**
- * HR → Årshjul: frister ved sykefravær, årshjulet måned for måned, og medarbeiderundersøkelsen.
+ * HR → Rutiner → Årshjul: faste HR-aktiviteter måned for måned. Fristene ved sykefravær og
+ * medarbeiderundersøkelsen er egne sider under Oppfølging, og aktivitetene lenker dit.
+ * onOpenIso: finnes når personen ser ISO, så HMS-aktivitetene føres der og ikke to steder.
  */
 export default function HrAnnual({
-  colors, hr, canWrite, onPatch, familyId, uid, actorName, deadlines, onOpen, onRefreshTasks,
+  colors, hr, canWrite, onPatch, familyId, actorName, staff = [], onOpen, onOpenIso, onRefreshTasks,
 }) {
   const thisYear = new Date().getFullYear();
   const [year, setYear] = useState(thisYear);
-  const staff = deadlines?.staff || [];
   const settings = normalizeAnnualSettings(hr?.annual);
+  // Medarbeidersamtaler kan også være ført som KS-skjema under Skjemaer.
+  const [filled, setFilled] = useState(() => peekFilledDocs(familyId) || []);
+  useEffect(() => {
+    let live = true;
+    if (familyId) loadFilledDocs(familyId).then((rows) => { if (live) setFilled(rows || []); }).catch(() => {});
+    return () => { live = false; };
+  }, [familyId]);
 
   const extra = useMemo(() => {
     const out = {};
-    const reviews = reviewProgress(hr?.reviews, staff.map((e) => e.id), year);
+    const reviews = reviewProgress(hr?.reviews, staff.map((e) => e.id), year, reviewFormsFromFilled(filled));
     if (reviews) out.medarbeidersamtaler = reviews;
     return out;
-  }, [hr?.reviews, staff, year]);
+  }, [hr?.reviews, staff, year, filled]);
 
   const wheel = useMemo(
     () => hrAnnualWheel(settings, { year, staffCount: staff.length || null, extra }),
@@ -110,7 +128,6 @@ export default function HrAnnual({
     [hr?.annual, year, staff.length, extra],
   );
   const summary = annualSummary(wheel);
-  const invited = staff.filter((e) => String(e?.personUid || '').trim()).length;
   const currentMonth = new Date().getMonth();
 
   const patchAnnual = (fn) => onPatch?.((state) => ({ annual: fn(state.annual) }));
@@ -124,20 +141,11 @@ export default function HrAnnual({
 
   return (
     <View style={styles.page}>
-      <HrSickLeave
-        colors={colors}
-        rows={deadlines?.sickRows || []}
-        loading={!!deadlines?.loading}
-        canWrite={canWrite}
-        onPatch={onPatch}
-        actorName={actorName}
-      />
-
       <HrCard colors={colors}>
         <View nativeID="hr-annual-wheel" style={styles.stack}>
           <HrSectionTitle
             colors={colors}
-            title={`HR-årshjul ${year}`}
+            title="Årshjul"
             subtitle={`Faste HR-oppgaver gjennom året, med lovhenvisning. ${staff.length} egne ansatte: aktiviteter som krever flere ansatte, er tonet ned. Trykk en aktivitet for detaljer.`}
           />
           <View style={styles.actions}>
@@ -179,6 +187,7 @@ export default function HrAnnual({
                   onToggleDone={toggleDone}
                   onToggleOff={toggleOff}
                   onOpen={onOpen}
+                  onOpenIso={onOpenIso}
                 />
               )) : <EmptyHint colors={colors} text="Ingen faste HR-aktiviteter." />}
             </View>
@@ -186,10 +195,15 @@ export default function HrAnnual({
           <View style={styles.month}>
             <Text style={[styles.monthName, { color: colors.ink }]}>Hele året</Text>
             {HR_ANNUAL_ONGOING.map((row) => (
-              <View key={row.id} style={[styles.activity, { borderColor: colors.line }]}>
+              <View key={row.id} style={[styles.activity, { borderColor: colors.line }]} nativeID={`hr-annual-ongoing-${row.id}`}>
                 <Text style={[styles.activityTitle, { color: colors.ink }]}>{row.title}</Text>
                 <Text style={[styles.body, { color: colors.ink }]}>{row.description}</Text>
                 <Text style={[styles.small, { color: colors.muted }]}>{`Grunnlag: ${row.law}`}</Text>
+                {row.page && PAGE_LABEL[row.page] ? (
+                  <View style={styles.actions}>
+                    <HrButton colors={colors} icon="arrow-forward" label={PAGE_LABEL[row.page]} onPress={() => onOpen(row.page)} />
+                  </View>
+                ) : null}
               </View>
             ))}
           </View>
@@ -198,8 +212,6 @@ export default function HrAnnual({
           </Text>
         </View>
       </HrCard>
-
-      <HrSurvey colors={colors} familyId={familyId} canWrite={canWrite} invited={invited} uid={uid} />
     </View>
   );
 }

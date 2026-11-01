@@ -136,7 +136,7 @@ function SurveyItem({ colors, survey, familyId, invited, canWrite, onChanged }) 
 }
 
 /**
- * Medarbeiderundersøkelse (HR → Årshjul). invited: egne ansatte med brukerkonto.
+ * HR → Oppfølging → Medarbeiderundersøkelse. invited: egne ansatte med brukerkonto.
  */
 export default function HrSurvey({ colors, familyId, canWrite, invited, uid }) {
   const [surveys, setSurveys] = useState(null);

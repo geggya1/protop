@@ -65,6 +65,7 @@ function load(rel) {
     if (id === 'react-native') return rnMock;
     if (id === '@expo/vector-icons') return { Ionicons: function Ionicons() { return null; } };
     if (id.includes('surveyStore')) return surveyStoreMock;
+    if (id.includes('filledStore')) return { peekFilledDocs: () => [], loadFilledDocs: async () => [] };
     if (id.includes('saveToast')) return { showSaveToast() {} };
     if (id.includes('ShellTitles')) return { useRepeatsShellTitle: () => false };
     if (id.includes('components/DateInput')) return { __esModule: true, default: host('DateInput') };
@@ -80,38 +81,51 @@ function load(rel) {
 }
 
 const HrAnnual = load('screens/hr/HrAnnual.jsx').default;
+const HrSickLeave = load('screens/hr/HrSickLeave.jsx').default;
+const HrSurvey = load('screens/hr/HrSurvey.jsx').default;
 const EmployeeSurveyCard = load('screens/hr/EmployeeSurveyCard.jsx').default;
+const has = (html, id) => assert.ok(html.includes(`id="${id}"`), `mangler ${id}`);
 
 (async () => {
-  const { sickFollowUpRows: rowsFor, addDays } = await import('./sickLeave.js');
+  const { sickFollowUpRows, addDays } = await import('./sickLeave.js');
   const today = new Date().toISOString().slice(0, 10);
   const start = addDays(today, -20);
   const absences = [];
   for (let d = start; d <= today; d = addDays(d, 1)) absences.push({ employeeId: 'e1', date: d, type: 'syk_melding' });
   const employees = [{ id: 'e1', personUid: 'u1', person: { firstName: 'Ada', lastName: 'Nordmann' } }];
-  const sickRows = rowsFor(absences, [], { today, employees });
+  const sickRows = sickFollowUpRows(absences, [], { today, employees });
   assert.equal(sickRows.length, 1);
 
-  const html = renderToStaticMarkup(React.createElement(HrAnnual, {
+  // Årshjul: bare årshjulet. Sykefravær og undersøkelsen er egne sider, og aktivitetene lenker dit.
+  const annual = renderToStaticMarkup(React.createElement(HrAnnual, {
     colors,
     hr: { annual: { tasks: true, done: {}, off: [] }, reviews: [], sickFollowUps: [] },
     canWrite: true,
     onPatch() {},
     familyId: 'c1',
-    uid: 'u1',
     actorName: 'HR',
-    deadlines: { sickRows, loading: false, staff: employees, refresh() {} },
+    staff: employees,
     onOpen() {},
+    onOpenIso() {},
     onRefreshTasks() {},
   }));
-  for (const id of ['hr-sick-followup', 'hr-annual-wheel', 'hr-survey', 'hr-annual-tasks', 'hr-annual-ferie_fastsett', 'hr-annual-medarbeiderundersokelse']) {
-    assert.ok(html.includes(`id="${id}"`), `mangler ${id}`);
-  }
-  assert.match(html, /Ada Nordmann/);
-  assert.match(html, /Oppfølgingsplan · frist/);
-  assert.match(html, /HR-årshjul \d{4}/);
-  assert.match(html, /Hele året/);
-  assert.match(html, /Lager oppgave når måneden starter/);
+  for (const id of ['hr-annual-wheel', 'hr-annual-tasks', 'hr-annual-ferie_fastsett', 'hr-annual-medarbeiderundersokelse', 'hr-annual-ongoing-sykefravaer']) has(annual, id);
+  assert.equal(annual.includes('id="hr-sick-followup"'), false, 'sykefravær er egen side');
+  assert.equal(annual.includes('id="hr-survey"'), false, 'undersøkelsen er egen side');
+  assert.equal(annual.includes('Ada Nordmann'), false, 'ingen navn i årshjulet');
+  assert.match(annual, /Åpne Sykefravær/);
+  assert.match(annual, /Hele året/);
+  assert.match(annual, /Lager oppgave når måneden starter/);
+
+  const sick = renderToStaticMarkup(React.createElement(HrSickLeave, {
+    colors, rows: sickRows, loading: false, canWrite: true, onPatch() {}, actorName: 'HR',
+  }));
+  has(sick, 'hr-sick-followup');
+  assert.match(sick, /Ada Nordmann/);
+  assert.match(sick, /Oppfølgingsplan · frist/);
+
+  const survey = renderToStaticMarkup(React.createElement(HrSurvey, { colors, familyId: 'c1', canWrite: true, invited: 1, uid: 'u1' }));
+  has(survey, 'hr-survey');
 
   // Uten åpen undersøkelse vises ingenting på Min side (første rendering, før lasting).
   assert.equal(renderToStaticMarkup(React.createElement(EmployeeSurveyCard, { colors, companyId: 'c1', uid: 'u1' })), '');

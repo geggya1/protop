@@ -59,7 +59,10 @@ test('modulmeny: HR og Anbud bruker samme meny som de andre modulene (UX-19)', (
   const hr = moduleTabsFor('hr', 'lonn');
   assert.equal(hr.moduleId, 'hr');
   assert.equal(hr.activeId, 'hr-lonn');
-  assert.deepEqual(hr.pages.map((p) => p.label), ['Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Oppfølging', 'Lovpålagt', 'Årshjul', 'Rekruttering', 'Personalhåndbok', 'Skjemaer']);
+  assert.deepEqual(hr.pages.map((p) => p.label), [
+    'Oversikt', 'Personell', 'Avtaler', 'Lønn', 'Lovpålagt', 'Samtaler og saker', 'Sykefravær', 'Medarbeiderundersøkelse',
+    'Rekruttering', 'Årshjul', 'Personalhåndbok', 'Skjemaer',
+  ]);
   assert.equal(moduleTabsFor('hr', null).activeId, 'hr-oversikt');
   const anbud = moduleTabsFor('anbud', 'vurdering');
   assert.equal(anbud.moduleId, 'anbud');
@@ -83,9 +86,10 @@ test('modulmeny: tilgangen styrer fanene i HR og Anbud', () => {
 });
 
 test('modulmeny: telefon viser 3–4 faner og «Mer» med resten', () => {
+  // HR har deler (som ISO). Arket har delene som titler når det brukes.
   const hr = splitModuleTabs(moduleTabsFor('hr', 'oversikt'), PHONE);
   assert.deepEqual(hr.visible.map((p) => p.label), ['Oversikt', 'Personell', 'Avtaler']);
-  assert.deepEqual(hr.more[0].pages.map((p) => p.label), ['Lønn', 'Oppfølging', 'Lovpålagt', 'Årshjul', 'Rekruttering', 'Personalhåndbok', 'Skjemaer']);
+  assert.deepEqual(hr.more.map((g) => g.label), ['Ansatte', 'Oppfølging', 'Rekruttering', 'Rutiner']);
   const anbud = splitModuleTabs(moduleTabsFor('anbud', 'varsling'), PHONE);
   assert.deepEqual(anbud.visible.map((p) => p.short), ['Varsling', 'Forespørsel', 'Vurdering']);
   const iso = splitModuleTabs(moduleTabsFor('iso', 'avvik'), PHONE);
@@ -121,12 +125,9 @@ test('modulmeny: står du på en side under «Mer», tar den plassen til den sis
 test('modulmeny: PC viser alt som får plass, ISO har resten under «Mer»', () => {
   const ok = splitModuleTabs(moduleTabsFor('okonomi', 'faktura'), { width: 1180 });
   assert.deepEqual(ok.more, [], 'Økonomi får plass i én rad');
-  const hr = splitModuleTabs(moduleTabsFor('hr', 'oversikt'), { width: 1180 });
-  assert.equal(hr.visible.length, 10, 'alle HR-sidene på PC');
-  // Smal PC: det som ikke får plass, ligger under «Mer», og ingen side forsvinner.
-  const narrow = splitModuleTabs(moduleTabsFor('hr', 'oversikt'), DESKTOP);
-  assert.ok(narrow.visible.length >= 8);
-  assert.equal(narrow.visible.length + narrow.more.flatMap((g) => g.pages).length, 10);
+  // HR vises med deler (to rader), så alle sidene finnes i raden eller arket.
+  const hr = splitModuleTabs(moduleTabsFor('hr', 'oversikt'), DESKTOP);
+  assert.equal(hr.visible.length + hr.more.flatMap((g) => g.pages).length, 12);
   const iso = splitModuleTabs(moduleTabsFor('iso', 'avvik'), DESKTOP);
   assert.deepEqual(iso.visible.slice(0, 3).map((p) => p.label), ['Oversikt', 'Avvik og forbedring', 'Risiko']);
   assert.ok(iso.visible.length >= 6 && iso.visible.length < 23);
@@ -197,5 +198,27 @@ test('modulmeny: ISO har delene som første rad og sidene i delen som andre rad'
   assert.equal(moduleTabsFor('iso', 'innstillinger').activeSectionId, 'innstillinger');
   const all = m.sections.flatMap((s) => s.pages.map((p) => p.id));
   assert.equal(new Set(all).size, m.pages.length, 'alle ISO-sidene står i en del');
-  assert.equal(moduleTabsFor('hr', 'lonn').sections, undefined, 'andre moduler har én rad med «Mer»');
+  assert.equal(moduleTabsFor('anbud', 'tilbud').sections, undefined, 'andre moduler har én rad med «Mer»');
+});
+
+test('modulmeny: HR har delene som første rad og sidene i delen som andre rad, som ISO', () => {
+  const m = moduleTabsFor('hr', 'lonn');
+  assert.deepEqual(m.sections.map((s) => s.label), ['Oversikt', 'Ansatte', 'Oppfølging', 'Rekruttering', 'Rutiner']);
+  assert.equal(m.activeSectionId, 'ansatte');
+  const pagesIn = (id) => m.sections.find((s) => s.id === id).pages.map((p) => p.short || p.label);
+  assert.deepEqual(pagesIn('ansatte'), ['Personell', 'Avtaler', 'Lønn', 'Lovpålagt']);
+  assert.deepEqual(pagesIn('oppfolging'), ['Samtaler og saker', 'Sykefravær', 'Undersøkelse']);
+  assert.deepEqual(pagesIn('rutiner'), ['Årshjul', 'Personalhåndbok', 'Skjemaer']);
+  assert.equal(moduleTabsFor('hr', 'sykefravaer').activeSectionId, 'oppfolging');
+  assert.equal(moduleTabsFor('hr', 'arshjul').activeSectionId, 'rutiner');
+  assert.equal(moduleTabsFor('hr', null).activeSectionId, 'oversikt');
+  // Ingen side står to steder, og ingen side mangler en del.
+  const all = m.sections.flatMap((s) => s.pages.map((p) => p.id));
+  assert.equal(all.length, m.pages.length);
+  assert.equal(new Set(all).size, m.pages.length);
+  // Uten tilgang til en side forsvinner den, og en tom del forsvinner med den.
+  const items = companyMenuItems({ grants: { hr: 'read', hrPeople: 'read', hrAgreements: 'read' } });
+  const limited = moduleTabsFor('hr', 'oversikt', items);
+  assert.equal(limited.sections.some((s) => s.id === 'oppfolging'), false);
+  assert.equal(limited.sections.some((s) => s.id === 'rekruttering'), false);
 });

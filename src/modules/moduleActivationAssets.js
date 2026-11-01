@@ -82,6 +82,8 @@ const BUNDLED = {
   'hr-compliance': require('../../assets/module-activation/hr-compliance--module-activation-illustration.png'),
   'hr-rekruttering': require('../../assets/module-activation/hr-rekruttering--module-activation-illustration.png'),
   'hr-arshjul': require('../../assets/module-activation/hr-oppfolging--module-activation-illustration.png'),
+  'hr-sykefravaer': require('../../assets/module-activation/hr-oppfolging--module-activation-illustration.png'),
+  'hr-undersokelse': require('../../assets/module-activation/hr-oppfolging--module-activation-illustration.png'),
   'hr-handbok': require('../../assets/module-activation/hr-compliance--module-activation-illustration.png'),
   'hr-skjema': require('../../assets/module-activation/skjema--module-activation-illustration.png'),
   'okonomi-faktura': require('../../assets/module-activation/okonomi-faktura--module-activation-illustration.png'),

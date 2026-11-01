@@ -243,7 +243,7 @@ export function sickTaskId(sickCase, milestoneId) {
 export function sickTask(milestone, { uid = '', today = new Date() } = {}) {
   return {
     title: `Frist i sykefraværsoppfølging: ${milestone.label.toLowerCase()}`,
-    description: `${milestone.todo}\nGrunnlag: ${milestone.law}.\nHvem det gjelder, står under HR → Årshjul → Frister ved sykefravær. Marker fristen der når den er gjort, så lukkes oppgaven.`,
+    description: `${milestone.todo}\nGrunnlag: ${milestone.law}.\nHvem det gjelder, står under HR → Oppfølging → Sykefravær. Marker fristen der når den er gjort, så lukkes oppgaven.`,
     deadline: milestone.due,
     deadlineTime: null,
     participants: [],

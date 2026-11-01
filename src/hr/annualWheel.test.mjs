@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   HR_ANNUAL_ACTIVITIES, HR_ANNUAL_SOURCE, activityApplies, annualSummary, annualTaskId, annualTaskPlan,
-  hrAnnualWheel, normalizeAnnualSettings, reviewProgress, toggleAnnualDone, toggleAnnualOff,
+  hrAnnualWheel, normalizeAnnualSettings, reviewFormsFromFilled, reviewProgress, toggleAnnualDone, toggleAnnualOff,
 } from './annualWheel.js';
 
 // Katalogen: unike id-er, gyldige måneder, og lovkrav har lovhenvisning.
@@ -82,5 +82,13 @@ const reviews = [
 ];
 assert.deepEqual(reviewProgress(reviews, ['e1', 'e2', 'e3'], 2026), { label: '1 av 3 har hatt samtale i 2026', done: false });
 assert.equal(reviewProgress(reviews, [], 2026), null);
+// KS-skjemaet «Medarbeidersamtale» under Skjemaer teller også.
+const forms = reviewFormsFromFilled([
+  { scope: 'hr', libraryKey: 'medarbeidersamtale', status: 'ferdig', completedAt: '2026-04-02T10:00:00Z', subject: { id: 'e2' } },
+  { scope: 'hr', libraryKey: 'medarbeidersamtale', status: 'utkast', subject: { id: 'e3' } },
+  { scope: 'hr', libraryKey: 'nyansatt', status: 'ferdig', completedAt: '2026-04-02T10:00:00Z', subject: { id: 'e3' } },
+]);
+assert.deepEqual(forms, [{ employeeId: 'e2', date: '2026-04-02' }]);
+assert.equal(reviewProgress(reviews, ['e1', 'e2', 'e3'], 2026, forms).label, '2 av 3 har hatt samtale i 2026');
 
 console.log('annualWheel ok');

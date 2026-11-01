@@ -4,7 +4,7 @@
  * Alle moduler har samme meny (også HR og Anbud): fanene som får plass, og resten under «Mer» (UX-19).
  */
 import {
-  COMPANY_DRAWER_GROUPS, ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultIsoSubView, defaultMoterSubView,
+  COMPANY_DRAWER_GROUPS, HR_GROUPS, HR_MENU, ISO_MENU, companyNavItems, defaultAnbudSubView, defaultHrSubView, defaultIsoSubView, defaultMoterSubView,
   isNavItemActive,
 } from './shellModules.js';
 
@@ -28,6 +28,7 @@ const SHORT = {
   'anbud-vurdering': 'Vurdering',
   'anbud-tilbud': 'Tilbud',
   'iso-avvik': 'Avvik',
+  'hr-undersokelse': 'Undersøkelse',
   'fravaer-fravaer': 'Oversikt',
   'fravaer-fravaersrapport': 'Rapport',
   'fravaer-planlagt': 'Planlagt',
@@ -56,18 +57,33 @@ function ordered(moduleId, pages) {
 }
 
 /**
- * ISO-menyen: første rad er delene (Oversikt, Styring, Drift, Evaluering, Innstillinger),
- * andre rad er sidene i delen du står i, i menyrekkefølge.
+ * Moduler med deler (ISO og HR): første rad er delene, andre rad er sidene i delen du står i,
+ * i menyrekkefølge. En del med én side (Oversikt, Rekruttering) har ingen andre rad.
+ * Delene du ikke har tilgang til noen side i, vises ikke.
  */
-function isoSections(pages, active) {
+function sectionsFor(groups, pages, active, lead = []) {
   const byId = new Map(pages.map((p) => [p.id, p]));
   const pick = (ids) => ids.map((id) => byId.get(id)).filter(Boolean);
   const sections = [
-    { id: 'oversikt', label: 'Oversikt', pages: pick(['iso-oversikt']) },
-    ...isoGroups(pages).map((g) => ({ id: g.id, label: g.label, pages: pick(g.pageIds) })),
+    ...lead.map((g) => ({ id: g.id, label: g.label, pages: pick(g.pageIds) })),
+    ...groups.map((g) => ({ id: g.id, label: g.label, pages: pick(g.pageIds) })),
   ].filter((s) => s.pages.length);
   const current = sections.find((s) => s.pages.some((p) => p.id === active?.id)) || sections[0] || null;
   return { sections, activeSectionId: current?.id || null };
+}
+
+function isoSections(pages, active) {
+  return sectionsFor(isoGroups(pages), pages, active, [{ id: 'oversikt', label: 'Oversikt', pageIds: ['iso-oversikt'] }]);
+}
+
+/** HR: Oversikt, Ansatte, Oppfølging, Rekruttering og Rutiner (HR_GROUPS i shellModules.js). */
+function hrGroups(pages) {
+  const have = new Set(pages.map((p) => p.id));
+  return HR_GROUPS.map((g) => ({
+    id: g.id,
+    label: g.label,
+    pageIds: HR_MENU.filter((m) => m.group === g.id && have.has(`hr-${m.id}`)).map((m) => `hr-${m.id}`),
+  })).filter((g) => g.pageIds.length);
 }
 
 function isoGroups(pages) {
@@ -85,8 +101,8 @@ function isoGroups(pages) {
  * Menyen for fanen og undersiden, eller null når modulen ikke har undersider.
  * items: bedriftsmenyen etter tilgang (companyMenuItems). Uten den brukes hele menyen.
  * Svar: { moduleId, label, pages: [{ id, label, short, icon, action }], activeId, groups?, sections?, activeSectionId? }
- * pages står i visningsrekkefølge. groups (ISO) er titlene i «Mer»-arket.
- * sections (ISO): delene med sidene sine, vist som to rader (ModuleTabs).
+ * pages står i visningsrekkefølge. groups (ISO, HR) er titlene i «Mer»-arket.
+ * sections (ISO, HR): delene med sidene sine, vist som to rader (ModuleTabs).
  */
 export function moduleTabsFor(tab, subView, items = null) {
   if (!tab) return null;
@@ -104,6 +120,7 @@ export function moduleTabsFor(tab, subView, items = null) {
   const active = pages.find((p) => isNavItemActive(p, tab, sub)) || null;
   const out = { moduleId: module.id, label: module.label, pages, activeId: active?.id || null };
   if (module.id === 'iso') Object.assign(out, { groups: isoGroups(pages) }, isoSections(pages, active));
+  if (module.id === 'hr') Object.assign(out, { groups: hrGroups(pages) }, sectionsFor(hrGroups(pages), pages, active));
   return out;
 }
 

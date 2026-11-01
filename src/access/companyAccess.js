@@ -782,8 +782,9 @@ export function hrResourceForSubView(subView) {
     lonn: 'hrPayroll',
     oppfolging: 'hrFollowup',
     compliance: 'hrCompliance',
-    // Årshjulet har fristene ved sykefravær (helseopplysninger), som Oppfølging.
-    arshjul: 'hrFollowup',
+    // Sykefravær er helseopplysninger, og undersøkelsen er oppfølging av arbeidsmiljøet: som Samtaler og saker.
+    sykefravaer: 'hrFollowup',
+    undersokelse: 'hrFollowup',
     rekruttering: 'hrRecruitment',
   };
   return map[subView] || 'hr';
@@ -1182,6 +1183,10 @@ const NAV_RESOURCE = {
   'hr-lonn': 'hrPayroll',
   'hr-oppfolging': 'hrFollowup',
   'hr-compliance': 'hrCompliance',
+  // Sykefravær er helseopplysninger, og undersøkelsen er oppfølging av arbeidsmiljøet: som Samtaler og saker.
+  'hr-sykefravaer': 'hrFollowup',
+  'hr-undersokelse': 'hrFollowup',
+  'hr-arshjul': 'hr',
   'hr-rekruttering': 'hrRecruitment',
   'hr-handbok': 'hr',
   'hr-skjema': 'hrPeople',

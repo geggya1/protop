@@ -98,6 +98,8 @@ export const ILLUSTRATION_FILES = {
   'hr-compliance': 'hr-compliance--module-activation-illustration.png',
   'hr-rekruttering': 'hr-rekruttering--module-activation-illustration.png',
   'hr-arshjul': 'hr-oppfolging--module-activation-illustration.png',
+  'hr-sykefravaer': 'hr-oppfolging--module-activation-illustration.png',
+  'hr-undersokelse': 'hr-oppfolging--module-activation-illustration.png',
   'hr-handbok': 'hr-compliance--module-activation-illustration.png',
   'hr-skjema': 'skjema--module-activation-illustration.png',
   'okonomi-faktura': 'okonomi-faktura--module-activation-illustration.png',

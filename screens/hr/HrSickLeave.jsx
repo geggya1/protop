@@ -17,7 +17,8 @@ const STATUS = {
 };
 
 /**
- * Frister ved sykefravær (HR → Årshjul). rows fra sickFollowUpRows. Navn vises bare her, i HR.
+ * HR → Oppfølging → Sykefravær: fristene per sykefraværstilfelle. rows fra sickFollowUpRows.
+ * Navn vises bare her, i HR.
  */
 export default function HrSickLeave({ colors, rows, loading, canWrite, onPatch, actorName }) {
   const mark = (row, milestoneId, status) => {
@@ -32,7 +33,7 @@ export default function HrSickLeave({ colors, rows, loading, canWrite, onPatch, 
       <View nativeID="hr-sick-followup" style={styles.stack}>
         <HrSectionTitle
           colors={colors}
-          title="Frister ved sykefravær"
+          title="Sykefravær"
           subtitle="Regnet fra første sykedag i Fravær. Oppfølgingsplan innen 4 uker og dialogmøte 1 innen 7 uker (arbeidsmiljøloven § 4-6). NAV kaller inn til dialogmøte 2 innen 26 uker. HR får oppgave før fristen, uten navn i oppgaven."
         />
         {loading ? <EmptyHint colors={colors} text="Henter fravær …" /> : null}

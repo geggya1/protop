@@ -10,17 +10,27 @@ Se også `docs/hr/research-matrix.md` for verdensbasis-matrise (BambooHR, Person
 - Timer / fakturerbarhet hentes fra `timeEntries` (billableHours vs hours).
 - Skjemabygger-maler: «Arbeidsavtale» og «Medarbeidersamtale».
 
-## Undersider (8)
+## Undersider (12, i fem deler)
 
-1. **Oversikt** — go-to dashboard: nedtelling jubileum/bursdag, kontraktutløp, compliance-gap, ATS-kø
-2. **Personell** — HR-liste med stamdata, snareveier til avtaler/lønn/oppfølging/ISO
-3. **Avtaler** — personnivå, AML § 14-6-felter, OCR/AI-skanning, skjemamal
-4. **Produktivitet** — utfakturerbart vs ikke-fakturerbart
-5. **Lønn** — historikk, % utvikling, neste år, memo på bevegelser
-6. **Oppfølging** — saker, samtaler (PDF + sammenlign), memo/filer, oppgaver
-7. **Lovpålagt** — AML (avtale, oppfølging, verneutstyr) og GDPR per ansatt. Kompetanse, opplæring og HMS-introduksjon følges opp i ISO / K-HMS → Kompetanse
-8. **Rekruttering** — annonser, 3-kolonne kanban (mottatt → behandling → ferdig), vunnet/avslått
-9. **Årshjul** — faste HR-aktiviteter måned for måned med lovhenvisning (`src/hr/annualWheel.js`), frister ved sykefravær regnet fra Fravær (`src/hr/sickLeave.js`: oppfølgingsplan 4 uker, dialogmøte 1 7 uker, dialogmøte 2 26 uker) og anonym medarbeiderundersøkelse (`src/hr/survey.js`). Ressurs `hrFollowup`, siden fravær er helseopplysninger.
+Modulmenyen viser delene i første rad og sidene i delen under, som ISO (`HR_GROUPS` og `HR_MENU` i `src/navigation/shellModules.js`).
+
+- **Oversikt** — go-to dashboard: nedtelling jubileum/bursdag, kontraktutløp, compliance-gap, ATS-kø
+- **Ansatte**
+  - **Personell** — HR-liste med stamdata og personalmappen (avtale, lønn, oppfølging, lovpålagt per person)
+  - **Avtaler** — AML § 14-6-felter, OCR/AI-skanning, skjemamal
+  - **Lønn** — historikk, % utvikling, neste år, memo på bevegelser, lønnskartlegging fordelt på kjønn
+  - **Lovpålagt** — arbeidsavtale, HMS-kort, verneutstyr og personvern per ansatt. Kompetanse, opplæring og HMS-introduksjon følges opp i ISO / K-HMS → Kompetanse
+- **Oppfølging**
+  - **Samtaler og saker** — medarbeidersamtaler (PDF + sammenlign), saker, memo/filer, oppgaver
+  - **Sykefravær** — frister regnet fra Fravær (`src/hr/sickLeave.js`): oppfølgingsplan 4 uker, dialogmøte 1 7 uker, dialogmøte 2 26 uker
+  - **Medarbeiderundersøkelse** — anonym kartlegging av arbeidsmiljøet (`src/hr/survey.js`)
+- **Rekruttering** — annonser, kanban (mottatt → behandling → ferdig), vunnet/avslått
+- **Rutiner**
+  - **Årshjul** — faste HR-aktiviteter måned for måned med lovhenvisning (`src/hr/annualWheel.js`). Aktivitetene lenker til siden der de gjøres; vernerunde og årlig gjennomgang lenker til ISO når bedriften har ISO
+  - **Personalhåndbok** — kapitler, versjoner og lesebekreftelse
+  - **Skjemaer** — KS-maler for personal (taushetserklæring, nyansatt, oppfølgingsplan nyansatt, medarbeidersamtale)
+
+Produktivitet ligger under Arbeid. Sykefravær, Medarbeiderundersøkelse og Samtaler og saker har ressursen `hrFollowup`.
 
 ### Årshjul, sykefravær og undersøkelse
 

@@ -187,18 +187,30 @@ export const INNTJENING_NAV = { id: 'inntjening', icon: 'analytics', label: 'Inn
 /**
  * Undermeny når HR er valgt.
  * Dedikert for leder/HR — ikke den ansattes egen Min side.
+ * Sidene er ordnet i deler (group), som ISO: modulmenyen viser delene i første rad og sidene
+ * i delen under (moduleTabs.js). Rekkefølgen her er rekkefølgen i menyen.
  */
+export const HR_GROUPS = [
+  { id: 'oversikt', label: 'Oversikt' },
+  { id: 'ansatte', label: 'Ansatte' },
+  { id: 'oppfolging', label: 'Oppfølging' },
+  { id: 'rekruttering', label: 'Rekruttering' },
+  { id: 'rutiner', label: 'Rutiner' },
+];
+
 export const HR_MENU = [
-  { id: 'oversikt', icon: 'home', label: 'Oversikt' },
-  { id: 'personell', icon: 'people', label: 'Personell' },
-  { id: 'avtaler', icon: 'document-text', label: 'Avtaler' },
-  { id: 'lonn', icon: 'cash', label: 'Lønn' },
-  { id: 'oppfolging', icon: 'flag', label: 'Oppfølging' },
-  { id: 'compliance', icon: 'shield-checkmark', label: 'Lovpålagt' },
-  { id: 'arshjul', icon: 'calendar', label: 'Årshjul' },
-  { id: 'rekruttering', icon: 'megaphone', label: 'Rekruttering' },
-  { id: 'handbok', icon: 'book', label: 'Personalhåndbok' },
-  { id: 'skjema', icon: 'clipboard', label: 'Skjemaer' },
+  { id: 'oversikt', icon: 'home', label: 'Oversikt', group: 'oversikt' },
+  { id: 'personell', icon: 'people', label: 'Personell', group: 'ansatte' },
+  { id: 'avtaler', icon: 'document-text', label: 'Avtaler', group: 'ansatte' },
+  { id: 'lonn', icon: 'cash', label: 'Lønn', group: 'ansatte' },
+  { id: 'compliance', icon: 'shield-checkmark', label: 'Lovpålagt', group: 'ansatte' },
+  { id: 'oppfolging', icon: 'flag', label: 'Samtaler og saker', group: 'oppfolging' },
+  { id: 'sykefravaer', icon: 'medkit', label: 'Sykefravær', group: 'oppfolging' },
+  { id: 'undersokelse', icon: 'stats-chart', label: 'Medarbeiderundersøkelse', group: 'oppfolging' },
+  { id: 'rekruttering', icon: 'megaphone', label: 'Rekruttering', group: 'rekruttering' },
+  { id: 'arshjul', icon: 'calendar', label: 'Årshjul', group: 'rutiner' },
+  { id: 'handbok', icon: 'book', label: 'Personalhåndbok', group: 'rutiner' },
+  { id: 'skjema', icon: 'clipboard', label: 'Skjemaer', group: 'rutiner' },
 ];
 
 export const HR_SUBVIEW_IDS = HR_MENU.map((item) => item.id);

@@ -467,7 +467,7 @@ export function SendDialog({
                 <View style={{ gap: 10 }}>
                   <RecipientList list={recipients} onChange={setRecipients} draft={recipientDraft} onDraft={setRecipientDraft} colors={colors} />
                   {!chosen.length ? (
-                    <Text style={{ color: colors.dangerInk || colors.danger, fontSize: 12 }} nativeID="invoice-send-no-recipient">
+                    <Text style={[type.caption, { color: colors.dangerInk || colors.danger }]} nativeID="invoice-send-no-recipient">
                       Skriv inn minst én e-postadresse for å sende.
                     </Text>
                   ) : null}

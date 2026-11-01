@@ -6,6 +6,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
+import { radius, type } from '../../../src/ui/tokens';
 
 const PDFJS = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
 const WORKER = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -109,7 +110,7 @@ export default function PdfPagesPreview({ url, colors, onFailed }) {
         </View>
       ) : null}
       {ready ? state.pages.map((page) => (
-        <View key={page.number} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 6, overflow: 'hidden', backgroundColor: '#fff' }}>
+        <View key={page.number} style={{ borderWidth: 1, borderColor: colors.line, borderRadius: radius.control, overflow: 'hidden', backgroundColor: '#fff' }}>
           {React.createElement('img', {
             src: page.src,
             alt: `Side ${page.number}`,
@@ -118,7 +119,7 @@ export default function PdfPagesPreview({ url, colors, onFailed }) {
         </View>
       )) : null}
       {ready && state.more > 0 ? (
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{`${state.more} sider til. Åpne PDF-en for å se alt.`}</Text>
+        <Text style={[type.caption, { color: colors.muted }]}>{`${state.more} sider til. Åpne PDF-en for å se alt.`}</Text>
       ) : null}
     </View>
   );

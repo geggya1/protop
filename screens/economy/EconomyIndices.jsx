@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useColors } from '../../src/context/ThemeContext';
 import { formatDateTime } from '../../src/format/nb';
 import { periodLabel } from '../../src/indeksregulering/engine';
@@ -10,6 +10,7 @@ import {
   appendIndexHistory,
   indexColumnIds,
   indexTimeSections,
+  latestPointInfo,
   mergeIndexSnapshot,
 } from '../../src/indeksregulering/indexLedger';
 import { loadRemoteIndexSnapshot } from '../../src/indeksregulering/remoteSsb';
@@ -23,6 +24,44 @@ function showValue(value) {
 }
 
 
+/** (i) bak siste tall: hover på web, trykk på mobil. Boksen legges over raden så tabellen ikke klipper den. */
+function LatestInfo({ info, alignRight, colors }) {
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  if (!info) return null;
+  const open = hover || pinned;
+  return (
+    <View style={styles.infoWrap}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Om ${info.title}`}
+        onHoverIn={() => setHover(true)}
+        onHoverOut={() => setHover(false)}
+        onPress={() => setPinned((on) => !on)}
+        hitSlop={8}
+        style={[styles.infoDot, { borderColor: colors.muted }]}
+      >
+        <Text style={[styles.infoGlyph, { color: colors.muted }]}>i</Text>
+      </Pressable>
+      {open ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.infoBox,
+            alignRight ? { right: -8 } : { left: -8 },
+            { backgroundColor: colors.card, borderColor: colors.line },
+          ]}
+        >
+          <Text style={[styles.infoTitle, { color: colors.ink }]}>{info.title}</Text>
+          {info.lines.map((line) => (
+            <Text key={line} style={[styles.infoLine, { color: colors.muted }]}>{line}</Text>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export default function EconomyIndices({ contracts = [] }) {
   const colors = useColors();
   const [series, setSeries] = useState(null);
@@ -30,6 +69,7 @@ export default function EconomyIndices({ contracts = [] }) {
   const [error, setError] = useState('');
   const [working, setWorking] = useState(true);
   const [years, setYears] = useState(3);
+  const [history, setHistory] = useState([]);
 
   const columnIds = useMemo(() => indexColumnIds(contracts), [contracts]);
   const columnKey = columnIds.join('|');
@@ -38,6 +78,9 @@ export default function EconomyIndices({ contracts = [] }) {
     () => indexTimeSections({ series, ids: columnIds, years }),
     [series, columnIds, years],
   );
+  const infoById = useMemo(() => Object.fromEntries(
+    columnIds.map((id) => [id, latestPointInfo({ id, series, history })]),
+  ), [series, columnIds, history]);
 
   useEffect(() => {
     let live = true;
@@ -59,6 +102,7 @@ export default function EconomyIndices({ contracts = [] }) {
       const localHistory = Array.isArray(cache?.history) ? cache.history : [];
       const initialHistory = remoteHistory.length >= localHistory.length ? remoteHistory : localHistory;
       setSeries(merged);
+      setHistory(initialHistory);
       setCheckedAt(remote?.checkedAt || cache?.fetchedAt || '');
       const ready = ids.every((id) => merged?.[id]?.points?.length);
       if (ready && !shouldCheckToday(cache?.checkedOn)) {
@@ -82,6 +126,7 @@ export default function EconomyIndices({ contracts = [] }) {
         });
         if (!live) return;
         setSeries(nextSeries);
+        setHistory(nextHistory);
         setCheckedAt(bundle.fetchedAt);
         setError(bundle.errors?.[0] || '');
       } catch (cause) {
@@ -156,14 +201,20 @@ export default function EconomyIndices({ contracts = [] }) {
                     <Text style={[styles.period, { color: colors.ink, fontWeight: latest ? '700' : '400' }]}>
                       {periodLabel(row.period)}
                     </Text>
-                    {section.columns.map((column) => (
-                      <Text
-                        key={column.id}
-                        style={[styles.value, { color: colors.ink, fontWeight: latest ? '700' : '400' }]}
-                      >
-                        {showValue(row.values[column.id])}
-                      </Text>
-                    ))}
+                    {section.columns.map((column, columnIndex) => {
+                      const info = infoById[column.id];
+                      const isLatest = info?.period === row.period;
+                      return (
+                        <View key={column.id} style={styles.valueCell}>
+                          <Text style={[styles.valueText, { color: colors.ink, fontWeight: latest ? '700' : '400' }]}>
+                            {showValue(row.values[column.id])}
+                          </Text>
+                          {isLatest ? (
+                            <LatestInfo info={info} alignRight={columnIndex > 0} colors={colors} />
+                          ) : null}
+                        </View>
+                      );
+                    })}
                   </View>
                 );
               })}
@@ -200,6 +251,34 @@ const styles = StyleSheet.create({
   col: { width: 176, paddingRight: 12, gap: 2 },
   colName: { fontSize: 13, fontWeight: '600', lineHeight: 18 },
   colMeta: { fontSize: 11, lineHeight: 14 },
-  value: { width: 176, fontSize: 14, paddingRight: 12, fontVariant: ['tabular-nums'] },
+  valueCell: { width: 176, paddingRight: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  valueText: { fontSize: 14, fontVariant: ['tabular-nums'] },
+  infoWrap: { position: 'relative' },
+  infoDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoGlyph: { fontSize: 10, fontWeight: '700', lineHeight: 12, fontStyle: 'italic' },
+  infoBox: {
+    position: 'absolute',
+    bottom: 24,
+    width: 260,
+    zIndex: 20,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  infoTitle: { fontSize: 13, fontWeight: '700' },
+  infoLine: { fontSize: 12, lineHeight: 17 },
   empty: { padding: 12 },
 });

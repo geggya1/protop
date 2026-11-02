@@ -163,6 +163,8 @@ export const FILES = [
   'src/hr/survey.test.mjs',
   'src/hr/annualRender.test.cjs',
   'src/hr/reviewForms.test.mjs',
+  // Medarbeidersamtalen: forberedelse, signering og signert kopi (PDF).
+  'src/hr/reviewPrep.test.mjs',
   'screens/anbud/formFillRender.test.cjs',
   'screens/iso/findingsRender.test.cjs',
   'src/anbud/formBuilder.test.mjs',

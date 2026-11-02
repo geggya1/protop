@@ -1,6 +1,6 @@
 /**
- * Det den ansatte selv kan se fra HR-modulen — dokumenter å lese og signere,
- * synlige memo, oppgaver, samtaler, kontrakter og lønn. Vises på Min side.
+ * Det den ansatte selv kan se fra HR-modulen — medarbeidersamtalen (forberede og signere),
+ * dokumenter å lese og signere, synlige memo, oppgaver, samtaler, kontrakter og lønn. Vises på Min side.
  */
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -17,6 +17,7 @@ import { EmptyHint, HrCard, HrSectionTitle, RowLink, SalarySparkline } from './H
 import MyDocuments from '../doccontrol/MyDocuments';
 import HrAccessLog from './HrAccessLog';
 import EmployeeSurveyCard from './EmployeeSurveyCard';
+import EmployeeReviewCard from './EmployeeReviewCard';
 import { useOptionalApp } from '../../src/context/AppContext';
 
 export default function EmployeeHrSelfService({ colors, companyId, employeeId, showDocuments = true }) {
@@ -58,6 +59,8 @@ export default function EmployeeHrSelfService({ colors, companyId, employeeId, s
 
   return (
     <View style={styles.page} nativeID="employee-hr-self" id="employee-hr-self">
+      {/* Medarbeidersamtale: forberedelse (frivillig), signering og signert kopi. */}
+      <EmployeeReviewCard colors={colors} companyId={companyId} uid={uid} />
       {/* Dokumentene står under Gjøremål når personen har en ansattpost i bedriften. */}
       {showDocuments ? <MyDocuments colors={colors} employeeId={employeeId} /> : null}
       {/* Åpen medarbeiderundersøkelse: svaret lagres anonymt. */}

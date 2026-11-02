@@ -67,6 +67,14 @@ const MOCKS = {
     saveFilledDoc: async () => ({ ok: true }),
     deleteFilledDoc: async () => ({ ok: true }),
   },
+  // Medarbeidersamtalen: ingen Firestore i testen.
+  'src/hr/reviewPrepStore': {
+    watchPrep: (c, d, cb) => { cb(null); return () => {}; },
+    watchMyPreps: (c, u, cb) => { cb([]); return () => {}; },
+    savePrep: async (c, prep) => prep,
+    deletePrep: async () => {},
+    reviewAction: async () => ({ ok: true, prep: null }),
+  },
   'src/anbud/formImport': { askCompanyForm: async () => null, FORM_IMPORT_ACCEPT: '', readFormImport: async () => null },
   'src/anbud/agreementCase': { agreementStarterTemplate: () => ({ fields: [] }) },
   'components/CreateMenu': { __esModule: true, default: host('CreateMenu') },
@@ -401,6 +409,79 @@ const hrForms = collect(withHooks(() => React.createElement(HrForms, {
 assert.doesNotMatch(hrForms.text, /Pårørendeskjema/, 'pårørende fylles inn på profilen, ikke som skjema');
 assert.match(hrForms.text, /Taushetserklæring/);
 assert.match(hrForms.text, /Utfylte personalskjema/);
+
+/* Medarbeidersamtalen: forberedelse og signering over skjemaet, og kortet på Min side. */
+{
+  const { libraryForm } = require('../../src/forms/ksLibrary.js');
+  const { newFilledDoc } = require('../../src/forms/filledDocs.js');
+  const prepLib = require('../../src/hr/reviewPrep.js');
+  const ReviewPrepPanel = loadLocal(path.join(ROOT, 'screens/hr/ReviewPrepPanel.jsx')).default;
+  const { EmployeeReviewItem } = loadLocal(path.join(ROOT, 'screens/hr/EmployeeReviewCard.jsx'));
+  const HrFilledForm = loadLocal(path.join(ROOT, 'screens/hr/HrFilledForm.jsx')).default;
+  const reviewForm = { ...libraryForm('medarbeidersamtale'), id: 'tmpl', libraryKey: 'medarbeidersamtale' };
+  const reviewDoc = newFilledDoc(reviewForm, { scope: 'hr', subject: { kind: 'employee', id: 'e1', name: 'Ola Nordmann' } });
+  const ola = { id: 'e1', name: 'Ola Nordmann', personUid: 'ola' };
+  const leader = { uid: 'u1', name: 'Kari Leder' };
+  const panel = (prep, employee = ola) => collect(withHooks(() => React.createElement(ReviewPrepPanel, {
+    colors, prep, employee, canWrite: true, busy: false,
+  }))).text;
+
+  const none = panel(null);
+  assert.match(none, /Send temaene til Ola/);
+  assert.match(none, /Signer og send til Ola/);
+  assert.match(none, /Kopi på e-post/);
+  assert.match(panel(null, { id: 'e2', name: 'Lise Ny', personUid: '' }), /Lise Ny har ikke bruker i ProTop/);
+
+  const sent = prepLib.invitationPrep(reviewDoc, { employee: ola, leader, meetingDate: '2026-03-12', meetingTime: '10:00', place: 'Møterom 2', now: new Date('2026-03-02T09:00:00Z') });
+  const sentText = panel(sent);
+  assert.match(sentText, /Samtale 12\.03\.2026 kl\. 10\.00 · Møterom 2/);
+  assert.match(sentText, /svar ønskes innen 10\.03\.2026/);
+  assert.match(sentText, /har ikke sendt inn forberedelse ennå\. Det er frivillig/);
+  const submitted = prepLib.withAnswers(sent, { [sent.topics[3].id]: 'Ønsker BIM-kurs' }, { submit: true });
+  const subText = panel(submitted);
+  assert.match(subText, /sendte inn forberedelsen .*: 1 av 6 tema/);
+  assert.match(subText, /Sett inn i skjemaet/);
+  const signing = prepLib.signingPrep(submitted, reviewDoc, { actor: leader });
+  const signText = panel({ ...signing, leaderSignature: { name: 'Kari Leder', at: '2026-03-12T09:30:00Z' } });
+  assert.match(signText, /Venter på at Ola signerer på Min side/);
+  assert.match(signText, /Trekk tilbake for å endre/);
+  assert.doesNotMatch(signText, /Signer og send til/);
+  const signed = {
+    ...signing, status: 'signed', leaderSignature: { name: 'Kari Leder', at: '2026-03-12T09:30:00Z' },
+    employeeSignature: { name: 'Ola Nordmann', at: '2026-03-12T09:42:00Z' }, comment: 'Takk',
+    mail: { sentAt: '2026-03-12T09:42:05Z', to: ['ola@firma.no', 'kari@firma.no'], failed: [] },
+  };
+  const signedText = panel(signed);
+  assert.match(signedText, /Ola Nordmann signerte 12\.03\.2026 kl\. 10\.42/);
+  assert.match(signedText, /Merknad fra Ola: Takk/);
+  assert.match(signedText, /Kopi sendt på e-post til ola@firma\.no og kari@firma\.no/);
+  assert.match(panel({ ...signed, mail: { to: [], failed: ['Ingen e-postadresse'] } }), /Kopien er ikke sendt på e-post \(Ingen e-postadresse\)/);
+
+  // Panelet står over skjemaet, og den ansattes signatur kan ikke signeres av lederen.
+  const filledText = collect(withHooks(() => React.createElement(HrFilledForm, {
+    colors, familyId: 'f1', doc: reviewDoc, onDoc() {}, canWrite: true, actor: leader, company, employee: ola,
+  }))).text;
+  assert.match(filledText, /Forberedelse og signering/);
+  assert.match(filledText, /Signatur for Eksempel AS/);
+  assert.doesNotMatch(filledText, /Signer som Kari Leder[\s\S]*Signer som Kari Leder/, 'bare lederens felt kan signeres her');
+
+  // Min side: forberede (frivillig), signere med merknad, last ned kopi.
+  const family = { company: { navn: 'Eksempel AS' } };
+  const item = (prep) => collect(withHooks(() => React.createElement(EmployeeReviewItem, { colors, companyId: 'f1', prep, family }))).text;
+  const prepText = item(sent);
+  assert.match(prepText, /Forbered medarbeidersamtalen/);
+  assert.match(prepText, /Forberedelsen er frivillig/);
+  assert.match(prepText, /Kompetanseutvikling og faglig utvikling/);
+  assert.match(prepText, /Send til Kari/);
+  assert.match(prepText, /Lagre utkast/);
+  assert.match(item(submitted), /Send oppdatert/);
+  const signItem = item({ ...signing, leaderSignature: { name: 'Kari Leder', at: '2026-03-12T09:30:00Z' } });
+  assert.match(signItem, /Signer medarbeidersamtalen/);
+  assert.match(signItem, /Kari Leder signerte for Eksempel AS/);
+  assert.match(signItem, /Jeg har lest gjennom samtalen og handlingsplanen/);
+  assert.match(signItem, /Begge får en signert kopi \(PDF\) på e-post/);
+  assert.match(item(signed), /Signert av begge/);
+}
 
 /* HR › Oversikt: hvem som mangler pårørende, og oppgaven de har fått. */
 const HrDashboard = loadLocal(path.join(ROOT, 'screens/hr/HrDashboard.jsx')).default;

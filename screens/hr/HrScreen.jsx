@@ -515,6 +515,7 @@ export default function HrScreen({ subView = 'oversikt' }) {
           colors={colors}
           employees={employees}
           canWrite={canWrite}
+          reviews={hrView.reviews}
           onPatch={onPatch}
           familyId={familyId}
           actor={forms.actor}

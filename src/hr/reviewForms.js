@@ -136,3 +136,14 @@ export function casesFromReviewDoc(cases, doc, normalizeOne, { formatDate = (d) 
     status: 'open',
   }), ...list];
 }
+
+/**
+ * Ferdige samtaleskjema som ikke er speilet som ferdige i hr.reviews. Det skjer når den ansatte
+ * signerer på Min side: serveren ferdigstiller skjemaet, og HR speiler det (og lager saken fra
+ * handlingsplanen) neste gang samtalene lastes.
+ */
+export function reviewDocsToSync(reviews, docs) {
+  const rows = new Map((Array.isArray(reviews) ? reviews : []).map((row) => [row.id, row]));
+  return (docs || []).filter((doc) => isReviewDoc(doc) && doc.status === 'ferdig' && text(doc.subject?.id)
+    && rows.get(reviewRowId(doc.id))?.status !== 'done');
+}

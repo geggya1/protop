@@ -42,13 +42,33 @@ const PAGE_LABEL = {
   fravaer: 'Åpne ferieplanen',
 };
 
-function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, onOpen, onOpenIso }) {
+/** Rull fram til raden når den er valgt fra tidslinjen (web). */
+function scrollToRow(nativeID) {
+  setTimeout(() => {
+    globalThis.document?.getElementById?.(nativeID)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, 60);
+}
+
+function rowId(id) {
+  return `hr-annual-${String(id).replace(/[^a-z0-9_-]/gi, '_')}`;
+}
+
+function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, onOpen, onOpenIso, focus = 0 }) {
   const [open, setOpen] = useState(false);
+  // Valgt fra tidslinjen: åpne raden og rull dit (focus øker for hvert trykk).
+  useEffect(() => {
+    if (!focus) return;
+    setOpen(true);
+    scrollToRow(rowId(item.activity.id));
+  }, [focus, item.activity.id]);
   const { activity, status, done, auto, period } = item;
   const st = STATUS[status] || STATUS.later;
   const muted = status === 'off' || status === 'na';
   return (
-    <View style={[styles.activity, { borderColor: colors.line, opacity: muted ? 0.65 : 1 }]} nativeID={`hr-annual-${activity.id}`}>
+    <View
+      style={[styles.activity, { borderColor: focus ? colors.brand || colors.ink : colors.line, opacity: muted ? 0.65 : 1 }]}
+      nativeID={rowId(activity.id)}
+    >
       <Pressable onPress={() => setOpen((v) => !v)} style={styles.activityHead} accessibilityRole="button" accessibilityState={{ expanded: open }}>
         <Ionicons name={st.icon} size={18} color={toneColor(st.tone, colors)} />
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -103,11 +123,14 @@ function ActivityRow({ colors, item, year, canWrite, onToggleDone, onToggleOff, 
 }
 
 /** En aktivitet fra ISO-årshjulet i den samlede visningen. Føres i ISO, så bare lenke dit. */
-function IsoRow({ colors, item, onOpenIso }) {
+function IsoRow({ colors, item, onOpenIso, focus = 0 }) {
   const chart = chartColorsFor(colors);
   const a = item.activity;
+  useEffect(() => {
+    if (focus) scrollToRow(rowId(a.id));
+  }, [focus, a.id]);
   return (
-    <View style={[styles.activity, { borderColor: colors.line }]} nativeID={`hr-annual-${a.id.replace(/[^a-z0-9_-]/gi, '_')}`}>
+    <View style={[styles.activity, { borderColor: focus ? colors.brand || colors.ink : colors.line }]} nativeID={rowId(a.id)}>
       <View style={styles.activityHead}>
         <View style={[styles.isoDot, { backgroundColor: chart.iso }]} />
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -156,7 +179,10 @@ export default function HrAnnual({
   const { isPhone, width } = useLayout();
   const thisYear = today.getFullYear();
   const [year, setYear] = useState(thisYear);
-  const [month, setMonth] = useState(today.getMonth());
+  const [month, setMonthState] = useState(today.getMonth());
+  // Aktiviteten valgt i tidslinjen: { id, n }. n øker for hvert trykk, så samme rad kan velges igjen.
+  const [picked, setPicked] = useState(null);
+  const setMonth = (m) => { setMonthState(m); setPicked(null); };
   const settings = normalizeAnnualSettings(hr?.annual);
   // Medarbeidersamtaler kan også være ført som KS-skjema under Skjemaer.
   const [filled, setFilled] = useState(() => peekFilledDocs(familyId) || []);
@@ -193,6 +219,14 @@ export default function HrAnnual({
   const patchAnnual = (fn) => onPatch?.((state) => ({ annual: fn(state.annual) }));
   const toggleDone = (id) => patchAnnual((a) => toggleAnnualDone(a, year, id, { by: actorName || '' }));
   const toggleOff = (id) => patchAnnual((a) => toggleAnnualOff(a, id));
+  // Fra tidslinjen: vis en måned aktiviteten gjelder (helst valgt måned, så inneværende), åpne den og rull dit.
+  const pickActivity = (item) => {
+    const months = item.activity.months || [item.start];
+    const target = months.includes(month) ? month : months.includes(nowMonth) ? nowMonth : item.start;
+    setMonthState(target);
+    setPicked((p) => ({ id: item.activity.id, n: (p?.n || 0) + 1 }));
+  };
+  const focusOf = (id) => (picked?.id === id ? picked.n : 0);
   const toggleTasks = () => {
     const turningOn = !settings.tasks;
     patchAnnual((a) => ({ ...normalizeAnnualSettings(a), tasks: !normalizeAnnualSettings(a).tasks }));
@@ -274,12 +308,13 @@ export default function HrAnnual({
                   onToggleOff={toggleOff}
                   onOpen={onOpen}
                   onOpenIso={onOpenIso}
+                  focus={focusOf(item.activity.id)}
                 />
               )) : <EmptyHint colors={colors} text="Ingen faste HR-aktiviteter denne måneden." />}
               {isoInMonth.length ? (
                 <View style={styles.stack} nativeID="hr-annual-iso-month">
                   <Text style={[styles.small, { color: colors.muted }]}>Fra ISO-årshjulet (føres i ISO / K-HMS)</Text>
-                  {isoInMonth.map((item) => <IsoRow key={item.activity.id} colors={colors} item={item} onOpenIso={onOpenIso} />)}
+                  {isoInMonth.map((item) => <IsoRow key={item.activity.id} colors={colors} item={item} onOpenIso={onOpenIso} focus={focusOf(item.activity.id)} />)}
                 </View>
               ) : null}
             </View>
@@ -289,9 +324,9 @@ export default function HrAnnual({
 
       <HrCard colors={colors}>
         <View style={styles.stack}>
-          <HrSectionTitle colors={colors} title="Året i oversikt" subtitle="Hver aktivitet på én linje over månedene den gjelder. Trykk en linje for å åpne måneden over." />
+          <HrSectionTitle colors={colors} title="Året i oversikt" subtitle="Hver aktivitet på én linje over månedene den gjelder. Trykk en linje for å gå til aktiviteten." />
           <StatusLegend colors={colors} withIso={!!iso?.show} />
-          <HrAnnualTimeline colors={colors} layout={layout} nowMonth={nowMonth} selectedMonth={month} onSelectMonth={setMonth} compact={isPhone} />
+          <HrAnnualTimeline colors={colors} layout={layout} nowMonth={nowMonth} selectedId={picked?.id} onSelectActivity={pickActivity} compact={isPhone} />
         </View>
       </HrCard>
 

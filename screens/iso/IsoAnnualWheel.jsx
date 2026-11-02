@@ -3,7 +3,7 @@
  * farget etter område), med datoene fra registrene som punkter på månedsringen. Ved siden av
  * står den valgte måneden, og under ligger hele året som tidslinje.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../src/context/ThemeContext';
@@ -25,10 +25,10 @@ const areaLabel = (id) => ANNUAL_AREAS.find((a) => a.id === id)?.label || 'Annet
  * Én linje i månedspanelet: fargestripe for området, tittel og detaljer. Knappen til høyre ligger
  * ved siden av den trykkbare delen, ikke inni den (ingen knapp i knapp).
  */
-function MonthItem({ color, icon, title, subtitle, onPress, right, nativeID }) {
+function MonthItem({ color, icon, title, subtitle, onPress, right, nativeID, focus = false }) {
   const colors = useColors();
   return (
-    <View style={[styles.item, { borderColor: colors.line, backgroundColor: colors.card }]} nativeID={nativeID}>
+    <View style={[styles.item, { borderColor: focus ? colors.brand : colors.line, backgroundColor: colors.card }]} nativeID={nativeID}>
       <View style={[styles.stripe, { backgroundColor: color }]} />
       <Pressable
         onPress={onPress}
@@ -151,6 +151,17 @@ export default function IsoAnnualWheel({
   const auto = graphic.planned.filter((i) => i.record.createTasks).length;
   const wheelSize = isPhone ? Math.max(260, Math.min(340, width - 64)) : 360;
   const monthName = sel.name.toLowerCase();
+  // Aktiviteten valgt i tidslinjen: vis en måned den gjelder (helst valgt, så inneværende), marker den og rull dit.
+  const [picked, setPicked] = useState(null);
+  const chooseMonth = (m) => { setPicked(null); onMonth(m); };
+  const pickActivity = (item) => {
+    const list = item.activity.months || [item.start];
+    onMonth(list.includes(month) ? month : list.includes(nowMonth) ? nowMonth : item.start);
+    setPicked(item.activity.id);
+    setTimeout(() => {
+      globalThis.document?.getElementById?.(`iso-annual-item-${item.activity.id}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    }, 60);
+  };
 
   return (
     <View style={styles.page}>
@@ -161,7 +172,7 @@ export default function IsoAnnualWheel({
             layout={layout}
             year={year}
             selectedMonth={month}
-            onSelectMonth={onMonth}
+            onSelectMonth={chooseMonth}
             size={wheelSize}
             today={today}
             itemColor={colorOf}
@@ -178,7 +189,7 @@ export default function IsoAnnualWheel({
             <Kpi label="Datoer fra registrene" value={String(datedTotal)} hint="Revisjoner, frister, revurderinger" />
             {thisYear ? <Kpi label="Denne måneden" value={String(counts[nowMonth])} hint={months[nowMonth].name} /> : null}
           </View>
-          <MonthStrip counts={counts} selected={month} nowMonth={nowMonth} onSelect={onMonth} />
+          <MonthStrip counts={counts} selected={month} nowMonth={nowMonth} onSelect={chooseMonth} />
           <View style={styles.monthHead}>
             <Text style={[styles.monthTitle, { color: colors.ink }]} nativeID="iso-annual-month-title">{`${sel.name} ${year}`}</Text>
             {month === nowMonth ? <Pill label="Nå" tone="info" /> : null}
@@ -194,6 +205,7 @@ export default function IsoAnnualWheel({
               <MonthItem
                 key={r.id}
                 nativeID={`iso-annual-item-${r.id}`}
+                focus={picked === r.id}
                 color={chart.areas[area]}
                 title={r.title}
                 subtitle={[
@@ -248,13 +260,13 @@ export default function IsoAnnualWheel({
       {layout.items.length ? (
         <View style={[styles.section, { borderTopColor: colors.line }]}>
           <Text style={[styles.sectionTitle, { color: colors.ink }]}>Året i oversikt</Text>
-          <Text style={[styles.small, { color: colors.muted }]}>Hver faste aktivitet på én linje over månedene den gjelder. Trykk en linje for å velge måneden.</Text>
+          <Text style={[styles.small, { color: colors.muted }]}>Hver faste aktivitet på én linje over månedene den gjelder. Trykk en linje for å gå til aktiviteten.</Text>
           <HrAnnualTimeline
             colors={colors}
             layout={layout}
             nowMonth={nowMonth}
-            selectedMonth={month}
-            onSelectMonth={onMonth}
+            selectedId={picked}
+            onSelectActivity={pickActivity}
             compact={isPhone}
             itemColor={colorOf}
             nativeID="iso-annual-timeline"

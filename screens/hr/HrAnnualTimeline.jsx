@@ -2,6 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { chartColorsFor } from '../../src/ui/chartColors';
 import { radius, space, type } from '../../src/ui/tokens';
+import { MONTHS_NB } from '../../src/hr/annualWheel';
+import { useLayout } from '../../src/theme';
 import { statusColor } from './HrAnnualWheel';
 
 const MONTH_LETTER = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
@@ -31,23 +33,29 @@ export function StatusLegend({ colors, withIso = false }) {
 
 /**
  * Året som tidslinje: én rad per aktivitet, med en strek over månedene den gjelder (farge = status)
- * og inneværende måned markert. Trykk en rad for å velge måneden aktiviteten starter i.
- * layout fra wheelLayout(). compact: telefon (navnet over streken).
+ * og inneværende måned markert. Trykk en rad for å gå rett til aktiviteten (onSelectActivity).
+ * Bare raden som er valgt (selectedId) markeres.
+ * layout fra wheelLayout(). compact: telefon (bokstav for måned, navnet over streken).
  * itemColor: fargen per strek (ISO-årshjulet farger etter område), ellers status.
  */
 export default function HrAnnualTimeline({
-  colors, layout, nowMonth = -1, selectedMonth, onSelectMonth, compact = false, itemColor = null, nativeID = 'hr-annual-timeline',
+  colors, layout, nowMonth = -1, selectedId = null, onSelectActivity, compact = false, itemColor = null, nativeID = 'hr-annual-timeline',
 }) {
   const chart = chartColorsFor(colors);
   const colorOf = itemColor || ((i) => statusColor(i.status, chart));
+  const { isWide } = useLayout();
+  // Hele navnet når det er plass, ellers «Sep», og bokstav på telefon.
+  const label = (name, m) => (compact ? MONTH_LETTER[m] : isWide ? name : name.slice(0, 3));
   const head = (
     <View style={styles.months}>
-      {MONTH_LETTER.map((l, m) => (
+      {MONTHS_NB.map((name, m) => (
         <Text
-          key={`${l}${m}`}
+          key={name}
+          numberOfLines={1}
+          accessibilityLabel={name}
           style={[styles.monthHead, { color: m === nowMonth ? colors.ink : colors.muted, fontWeight: m === nowMonth ? '600' : '400' }]}
         >
-          {l}
+          {label(name, m)}
         </Text>
       ))}
     </View>
@@ -60,13 +68,14 @@ export default function HrAnnualTimeline({
       </View>
       {layout.items.map((i) => {
         const muted = i.track < 0 && i.status !== 'iso';
-        const on = selectedMonth >= i.start && selectedMonth <= i.end;
+        const on = selectedId === i.activity.id;
         return (
           <Pressable
             key={i.activity.id}
-            onPress={() => onSelectMonth?.(i.start)}
+            onPress={() => onSelectActivity?.(i)}
             accessibilityRole="button"
-            accessibilityLabel={`${i.activity.title}: ${i.period || ''} ${i.status}`}
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={`${i.activity.title}: ${i.period || ''} ${i.status}. Gå til aktiviteten.`}
             style={({ hovered }) => [
               styles.row,
               compact && styles.rowCompact,

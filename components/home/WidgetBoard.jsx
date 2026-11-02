@@ -3,10 +3,10 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import HomeBanner from './HomeBanner';
 import HomeHeroOverlay from './HomeHeroOverlay';
-import { HomeWeekStrip, HomeFooterLine } from './PastelCards';
+import { HomeFooterLine } from './PastelCards';
 import WidgetGrid from './WidgetGrid';
 import AddWidgetSheet from './AddWidgetSheet';
-import { colors } from '../../src/theme';
+import { colors, useLayout } from '../../src/theme';
 import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
 import { useModuleHeroHosted } from '../ModulePageBg';
 import { HOME_FOOTER_LINE } from '../../src/homeBanners';
@@ -74,12 +74,13 @@ export default function WidgetBoard({
   const look = layout?.look || 'oversikt';
   const immersive = useHomeImmersive();
   const shellHeroHosted = useModuleHeroHosted();
+  const { isPhone } = useLayout();
   const fitCounts = useMemo(() => contentFitCounts(model), [model]);
   // Edit: saved sizes so ghost footprint matches collision.
-  // View: may shrink content height, but never pack widgets upward.
+  // View (telefon): tom kalender krymper til én rad, og bare radene det frigjør trekkes opp.
   const gridWidgets = useMemo(
-    () => displayHomeWidgets(layout?.widgets || [], fitCounts, { editing }),
-    [layout?.widgets, fitCounts, editing],
+    () => displayHomeWidgets(layout?.widgets || [], fitCounts, { editing, fitContent: isPhone, role }),
+    [layout?.widgets, fitCounts, editing, isPhone, role],
   );
 
   const openCatalog = () => {
@@ -111,8 +112,6 @@ export default function WidgetBoard({
           onEdit={onOpenBannerSettings}
         />
       ) : null)}
-
-      {immersive ? null : <HomeWeekStrip onPressDay={handlers?.onOpenPlan} />}
 
       {/* Kort som hører til oppstarten (tilbud om bedrift, Kom i gang), over widgetene. */}
       {topSlot}

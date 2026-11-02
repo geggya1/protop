@@ -110,6 +110,7 @@ import ParentShellBottomNav from './parentHome/ParentShellBottomNav';
 import HomeBackdrop from './home/HomeBackdrop';
 import { hasHomePhoto } from '../src/homeBanners';
 import { HomeImmersiveProvider } from '../src/context/HomeImmersiveContext';
+import { DEFAULT_GLASS_TINT, glassTintForBanner } from '../src/homeBannerTints';
 import { useParentDashboardTheme } from '../src/hooks/useParentDashboardTheme';
 import { useHomeLayout } from '../src/hooks/useHomeLayout';
 import {
@@ -1103,6 +1104,10 @@ function AppShellInner() {
     photo: hasHomePhoto(backdropBannerId),
   });
   const backdropCustomUri = asChildView ? childHome.layout.customBannerUri : homeCustomBannerUri;
+  // Med bakgrunnsbilde: mørkt glass i bildets egen farge med hvit tekst.
+  const glassTint = asChildView
+    ? null
+    : (backdropCustomUri ? DEFAULT_GLASS_TINT : glassTintForBanner(backdropBannerId));
   // ProTop keeps the safe area inside the chrome, not as a gap outside it.
   // On a phone the header is the top layer: its background covers Safari's
   // top band, and the logo sits just below that band.
@@ -1115,7 +1120,7 @@ function AppShellInner() {
   };
 
   return (
-    <HomeImmersiveProvider value={immersiveHome}>
+    <HomeImmersiveProvider value={immersiveHome} tint={glassTint}>
     <ModuleAsideProvider>
     <ShellWideContext.Provider value={setDeskWide}>
     <ShellTitleRightContext.Provider value={shellTitleApi}>

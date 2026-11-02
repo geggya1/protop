@@ -6,6 +6,9 @@ import {
   cycleWidgetSize,
   DEFAULT_CHILD_WIDGETS,
   DEFAULT_PARENT_WIDGETS,
+  DEFAULT_COMPANY_WIDGETS,
+  LEGACY_PARENT_WIDGETS_V4,
+  sameWidgetPlacement,
   DEFAULT_HOME_LOOK,
   HOME_LOOKS,
   PARENT_WIDGET_CATALOG,
@@ -34,8 +37,9 @@ import { LEGACY_WIDGET_TYPES } from './utils/legacyNames.js';
 assert.equal(DEFAULT_HOME_LOOK, 'oversikt');
 assert.deepEqual(HOME_LOOKS.map((l) => l.id), ['oversikt', 'fokus']);
 
+// Privat Hjem: dagen din, kalender, oppgaver + notater, hurtigvalg og uken.
 assert.deepEqual(DEFAULT_PARENT_WIDGETS.map((w) => w.type), [
-  'timeline', 'tasks', 'notes', 'reminders', 'shortcuts',
+  'dayBrief', 'timeline', 'tasks', 'notes', 'quickActions', 'weekAgenda',
 ]);
 assert.deepEqual(
   DEFAULT_PARENT_WIDGETS.filter((w) => w.type === 'tasks' || w.type === 'notes').map((w) => ({
@@ -43,7 +47,7 @@ assert.deepEqual(
   })),
   [
     { type: 'tasks', gw: 3, gh: 2 },
-    { type: 'notes', gw: 2, gh: 3 },
+    { type: 'notes', gw: 2, gh: 2 },
   ],
 );
 assert.deepEqual(DEFAULT_CHILD_WIDGETS.map((w) => w.type), [
@@ -173,12 +177,50 @@ assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'tasks').gw, 3);
 assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'tasks').gh, 2);
 assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'tasks').col, 0);
 assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'notes').gw, 2);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'notes').gh, 3);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'notes').gh, 2);
 assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'notes').col, 3);
 assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'timeline').gh, 2);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'reminders').row, 5);
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'shortcuts').variant, 'row');
-assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'shortcuts').row, 7);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'timeline').row, 2);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'quickActions').row, 6);
+assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'weekAgenda').row, 8);
+
+// Bedriftens Hjem: egne widgets og egen standard, uten familie- og privatwidgets.
+assert.deepEqual(DEFAULT_COMPANY_WIDGETS.map((w) => w.type), [
+  'myHours', 'quickActions', 'projects', 'team', 'timeline', 'tasks', 'companyNews',
+]);
+assert.deepEqual(
+  DEFAULT_COMPANY_WIDGETS.filter((w) => w.type === 'projects' || w.type === 'team').map((w) => ({
+    type: w.type, col: w.col, row: w.row, gw: w.gw, gh: w.gh,
+  })),
+  [
+    { type: 'projects', col: 0, row: 4, gw: 3, gh: 3 },
+    { type: 'team', col: 3, row: 4, gw: 2, gh: 3 },
+  ],
+);
+const companyTypes = catalogForRole('company').map((w) => w.type);
+['myHours', 'projects', 'team', 'companyNews', 'quickActions', 'dayBrief', 'timeline', 'tasks'].forEach((type) => {
+  assert.ok(companyTypes.includes(type), type);
+});
+['shopping', 'meals', 'family', 'kids', 'progress', 'wishes', 'books', 'weeklyPlan'].forEach((type) => {
+  assert.ok(!companyTypes.includes(type), type);
+});
+// Privat har ikke bedriftswidgetene, men har dagen og hurtigvalg.
+const privateTypes = catalogForRole('parent').map((w) => w.type);
+['myHours', 'projects', 'team', 'companyNews'].forEach((type) => assert.ok(!privateTypes.includes(type), type));
+['dayBrief', 'quickActions', 'weekAgenda', 'mail', 'assistant'].forEach((type) => assert.ok(privateTypes.includes(type), type));
+// Alle valg i bedriftens katalog står i en gruppe i velgeren.
+const companyChoices = groupedCatalog('company').flatMap((g) => g.items.map((i) => i.type));
+assert.equal(companyChoices.length, companyTypes.length);
+assert.equal(groupedCatalog('company')[0].id, 'arbeid');
+// Forrige standard (v4) kjennes igjen, selv med andre id-er.
+assert.ok(sameWidgetPlacement(
+  normalizeWidgets(LEGACY_PARENT_WIDGETS_V4, 'parent'),
+  normalizeWidgets(LEGACY_PARENT_WIDGETS_V4.map((w, i) => ({ ...w, id: `x${i}` })), 'parent'),
+));
+assert.ok(!sameWidgetPlacement(DEFAULT_PARENT_WIDGETS, normalizeWidgets(LEGACY_PARENT_WIDGETS_V4, 'parent')));
+// Nye widgets legges til med full bredde der det passer.
+const withHours = addWidget(DEFAULT_PARENT_WIDGETS.filter((w) => w.type !== 'weekAgenda'), 'weekAgenda', 'parent');
+assert.equal(withHours.find((w) => w.type === 'weekAgenda').gw, 5);
 
 assert.equal(DEFAULT_CHILD_WIDGETS[0].gw, 5);
 assert.equal(DEFAULT_CHILD_WIDGETS[0].gh, 2);
@@ -204,7 +246,7 @@ assert.deepEqual(fokusParent.map((w) => w.type), DEFAULT_PARENT_WIDGETS.map((w) 
 assert.equal(fokusParent.find((w) => w.type === 'timeline').gh, 2);
 assert.equal(fokusParent.find((w) => w.type === 'tasks').gw, 3);
 assert.equal(fokusParent.find((w) => w.type === 'tasks').gh, 2);
-assert.equal(fokusParent.find((w) => w.type === 'notes').gh, 3);
+assert.equal(fokusParent.find((w) => w.type === 'notes').gh, 2);
 
 assert.equal(widgetVariant('weather', 'small').id, 'now');
 assert.equal(widgetVariant('weather', 'now').size, 'half');
@@ -214,7 +256,7 @@ assert.equal(widgetVariant('timeline').height, undefined);
 assert.equal(resolvedWidgetSize({ type: 'tasks', size: 'full' }), 'full');
 
 const applied = applyCanonicalLook('fokus', 'parent');
-assert.equal(applied.find((w) => w.type === 'shortcuts').variant, 'row');
+assert.equal(applied.find((w) => w.type === 'quickActions').gw, 5);
 assert.equal(applied.find((w) => w.type === 'tasks').gh, 2);
 assert.deepEqual(applyCanonicalVariants([], 'parent').map((w) => w.type), DEFAULT_PARENT_WIDGETS.map((w) => w.type));
 assert.deepEqual(setHomeLook([], 'fokus', 'parent').map((w) => w.type), fokusParent.map((w) => w.type));

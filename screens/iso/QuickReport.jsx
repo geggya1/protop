@@ -341,7 +341,9 @@ export function QuickReportSheet({
  * Snarveien «Meld RUH». Selvstendig: henter selskap, bruker og ansattpost selv, og sender køen
  * når nettet er tilbake. variant 'tile' (forside og dock) eller 'button' (inne i en side).
  */
-export default function QuickReportButton({ variant = 'tile', label = 'Meld RUH', onSent = null }) {
+export default function QuickReportButton({
+  variant = 'tile', label = 'Meld RUH', onSent = null, renderTrigger = null,
+}) {
   const colors = useColors();
   const { familyId, uid, activeProfile, user } = useApp();
   const access = useCompanyAccess();
@@ -366,6 +368,15 @@ export default function QuickReportButton({ variant = 'tile', label = 'Meld RUH'
     />
   );
   const waiting = queue.count ? ` · ${queue.count} venter på nett` : '';
+  // Egen knapp (hurtigvalgene på Hjem): samme ark og kø, annen utløser.
+  if (typeof renderTrigger === 'function') {
+    return (
+      <>
+        {renderTrigger({ open: () => setOpen(true), waiting: queue.count || 0 })}
+        {sheet}
+      </>
+    );
+  }
   if (variant === 'button') {
     return (
       <>

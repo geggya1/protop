@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   GRID_COLS,
   GRID_SPANS,
+  CHILD_TASKS_GH,
   MAX_CONTENT_WIDGET_GH,
   MAX_DENSE_WIDGET_GH,
   canPlace,
@@ -44,19 +45,25 @@ assert.deepEqual(nextSpan(5, 1), GRID_SPANS.wide);
 assert.deepEqual(nextSpan(5, 2), GRID_SPANS.tall);
 assert.deepEqual(nextSpan(5, 3), GRID_SPANS.square);
 
-assert.equal(preferredTimelineGh(0), 2);
+assert.equal(CHILD_TASKS_GH, 3);
+assert.equal(preferredTimelineGh(0), 1);
+assert.equal(preferredTimelineGh(0, 'child'), 2);
 assert.equal(preferredTimelineGh(2), 2);
+assert.equal(preferredTimelineGh(2, 'child'), 2);
 assert.equal(preferredTimelineGh(3), 2);
 assert.equal(preferredTimelineGh(5), 2);
 assert.equal(timelineDisplayGh(3, 2), 2);
-assert.equal(timelineDisplayGh(2, 0), 2);
+assert.equal(timelineDisplayGh(2, 0), 1);
+assert.equal(timelineDisplayGh(2, 0, 'child'), 2);
 assert.equal(timelineDisplayGh(1, 5), 1);
-assert.equal(timelineDisplayGh(1, 0), 1);
+assert.equal(timelineDisplayGh(1, 0, 'child'), 1);
 assert.equal(preferredTasksGh(0), 2);
 assert.equal(preferredTasksGh(1), 2);
 assert.equal(preferredTasksGh(2), 2);
 assert.equal(preferredTasksGh(3), 2);
 assert.equal(preferredTasksGh(5), 2);
+assert.equal(preferredTasksGh(0, 'child'), 3);
+assert.equal(preferredTasksGh(5, 'child'), 3);
 assert.equal(preferredListGh(0), 2);
 assert.equal(preferredListGh(2), 2);
 assert.equal(preferredListGh(3), 2);
@@ -68,6 +75,8 @@ assert.equal(preferredShoppingGh(5), 3);
 assert.deepEqual(nextSpanForType('timeline', 5, 2), GRID_SPANS.slim);
 assert.deepEqual(nextSpanForType('timeline', 5, 1), GRID_SPANS.wide);
 assert.deepEqual(nextSpanForType('tasks', 5, 2), GRID_SPANS.square);
+assert.deepEqual(nextSpanForType('tasks', 5, 3, 'child'), GRID_SPANS.wide);
+assert.deepEqual(nextSpanForType('tasks', 5, 2, 'child'), GRID_SPANS.slim);
 assert.deepEqual(nextSpanForType('progress', 3, 2), GRID_SPANS.columnTall);
 assert.deepEqual(nextSpanForType('shopping', 2, 2), GRID_SPANS.rect);
 assert.deepEqual(nextSpanForType('family', 2, 2), GRID_SPANS.rect);
@@ -143,6 +152,14 @@ const laidTall = layoutWidgets([
   { id: 'sq', type: 'shortcuts', col: 0, row: 3, gw: 2, gh: 2 },
 ]);
 assert.equal(laidTall.find((w) => w.id === 'tl').gh, 2);
+const childTasksLaid = layoutWidgets([
+  { id: 'tasks', type: 'tasks', col: 0, row: 0, gw: 5, gh: 3 },
+], 'child');
+assert.equal(childTasksLaid[0].gh, 3);
+const parentTasksLaid = layoutWidgets([
+  { id: 'tasks', type: 'tasks', col: 0, row: 0, gw: 5, gh: 3 },
+]);
+assert.equal(parentTasksLaid[0].gh, 2);
 
 const board = [
   { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
@@ -152,14 +169,15 @@ const fitted = fitTimelineWidgets(board, 2);
 assert.equal(fitted.find((w) => w.id === 'tl').gh, 2);
 assert.equal(fitted.find((w) => w.id === 'sq').row, 2);
 const fittedEmpty = fitTimelineWidgets(board, 0);
-assert.equal(fittedEmpty.find((w) => w.id === 'tl').gh, 2);
-assert.equal(fittedEmpty.find((w) => w.id === 'sq').row, 2);
+assert.equal(fittedEmpty.find((w) => w.id === 'tl').gh, 1);
+// The row the timeline gave up is pulled in, so no blank band is left.
+assert.equal(fittedEmpty.find((w) => w.id === 'sq').row, 1);
 const fittedPacked = fitTimelineWidgets([
   { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
   { id: 'sq', type: 'shortcuts', col: 0, row: 3, gw: 2, gh: 2 },
 ], 0, { compact: true });
-assert.equal(fittedPacked.find((w) => w.id === 'tl').gh, 2);
-assert.equal(fittedPacked.find((w) => w.id === 'sq').row, 3);
+assert.equal(fittedPacked.find((w) => w.id === 'tl').gh, 1);
+assert.equal(fittedPacked.find((w) => w.id === 'sq').row, 1);
 
 const shot = [
   { id: 'kids', type: 'kids', col: 0, row: 0, gw: 5, gh: 2 },
@@ -168,25 +186,10 @@ const shot = [
   { id: 'b', type: 'shortcuts', col: 1, row: 5, gw: 1, gh: 1 },
 ];
 const shotKeep = fitTimelineWidgets(shot, 0);
-assert.equal(shotKeep.find((w) => w.id === 'tl').gh, 2);
-assert.equal(shotKeep.find((w) => w.id === 'a').row, 5);
-
-const emptyAppointments = displayHomeWidgets([
-  { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
-  { id: 'tasks', type: 'tasks', col: 0, row: 2, gw: 3, gh: 2 },
-  { id: 'notes', type: 'notes', col: 3, row: 2, gw: 2, gh: 3 },
-], { timeline: 0, tasks: 0 }, { editing: false });
-assert.equal(emptyAppointments.find((w) => w.id === 'tl').gh, 2);
-assert.equal(emptyAppointments.find((w) => w.id === 'tl').gw, 5);
-assert.equal(emptyAppointments.find((w) => w.id === 'tasks').row, 2);
-const editingAppointments = displayHomeWidgets([
-  { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
-], { timeline: 0 }, { editing: true });
-assert.equal(editingAppointments.find((w) => w.id === 'tl').gh, 2);
-const slimAppointments = displayHomeWidgets([
-  { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 1 },
-], { timeline: 0 }, { editing: false });
-assert.equal(slimAppointments.find((w) => w.id === 'tl').gh, 1);
+assert.equal(shotKeep.find((w) => w.id === 'tl').gh, 1);
+// Row 3 (freed by the timeline) collapses; the user's own gap at row 4 stays.
+assert.equal(shotKeep.find((w) => w.id === 'a').row, 4);
+assert.equal(shotKeep.find((w) => w.id === 'b').row, 4);
 
 const childSparse = [
   { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
@@ -266,8 +269,69 @@ const editView = displayHomeWidgets(tallSaved, { weeklyPlan: 0 }, { editing: tru
 assert.equal(editView.find((w) => w.id === 'top').gh, 2);
 assert.equal(editView.find((w) => w.id === 'bot').row, 5);
 const homeView = displayHomeWidgets(tallSaved, { weeklyPlan: 0 }, { editing: false });
-assert.equal(homeView.find((w) => w.id === 'top').gh, 2);
-assert.equal(homeView.find((w) => w.id === 'bot').row, 5);
+assert.equal(homeView.find((w) => w.id === 'top').gh, 1);
+assert.equal(homeView.find((w) => w.id === 'bot').row, 4);
+const busyView = displayHomeWidgets(tallSaved, { weeklyPlan: 2 }, { editing: false });
+assert.equal(busyView.find((w) => w.id === 'top').gh, 2);
+assert.equal(busyView.find((w) => w.id === 'bot').row, 5);
+
+// Screenshot board: empty calendar + kids without events shrink to one row
+// each, and everything below moves up by the two freed rows.
+const parentBoard = [
+  { id: 'cal', type: 'weeklyPlan', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'prog', type: 'progress', col: 0, row: 2, gw: 3, gh: 3 },
+  { id: 'shop', type: 'shopping', col: 3, row: 2, gw: 2, gh: 3 },
+  { id: 'kids', type: 'kids', col: 0, row: 5, gw: 5, gh: 2 },
+  { id: 'sc', type: 'shortcuts', col: 0, row: 7, gw: 5, gh: 2 },
+];
+// Kid cards stay visible next to "Barnas progresjon" (never hidden in view mode).
+const quietDay = displayHomeWidgets(parentBoard, { weeklyPlan: 0, kids: 0, progress: 3, shopping: 25 });
+assert.equal(quietDay.find((w) => w.id === 'cal').gh, 1);
+assert.equal(quietDay.find((w) => w.id === 'prog').row, 1);
+assert.equal(quietDay.find((w) => w.id === 'prog').foldedKids, undefined);
+assert.equal(quietDay.find((w) => w.id === 'kids').row, 4);
+assert.equal(quietDay.find((w) => w.id === 'kids').gh, 1);
+assert.equal(quietDay.find((w) => w.id === 'sc').row, 5);
+const busyDay = displayHomeWidgets(parentBoard, { weeklyPlan: 3, kids: 2, progress: 3, shopping: 25 });
+assert.equal(busyDay.find((w) => w.id === 'kids').row, 5);
+assert.equal(busyDay.find((w) => w.id === 'kids').gh, 2);
+assert.equal(busyDay.find((w) => w.id === 'sc').row, 7);
+// Edit mode keeps both widgets where the user put them.
+const editBoard = displayHomeWidgets(parentBoard, { weeklyPlan: 0, kids: 0 }, { editing: true });
+assert.equal(editBoard.find((w) => w.id === 'kids').row, 5);
+assert.equal(editBoard.find((w) => w.id === 'prog').foldedKids, undefined);
+// Without a progress widget the kid cards stay (compact when nobody has plans).
+const noProgress = displayHomeWidgets(parentBoard.filter((w) => w.id !== 'prog'), { weeklyPlan: 3, kids: 0 });
+assert.equal(noProgress.find((w) => w.id === 'kids').gh, 1);
+// Child homes never fold.
+const childFold = displayHomeWidgets(parentBoard, { weeklyPlan: 3, kids: 2 }, { role: 'child' });
+assert.ok(childFold.find((w) => w.id === 'kids'));
+const childCal = displayHomeWidgets(parentBoard.slice(0, 1), { weeklyPlan: 0 }, { role: 'child' });
+assert.equal(childCal[0].gh, 2);
+
+const childBoard = [
+  { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'tasks', type: 'tasks', col: 0, row: 2, gw: 5, gh: 3 },
+  { id: 'hw', type: 'homework', col: 0, row: 5, gw: 2, gh: 2 },
+];
+const childEmpty = displayHomeWidgets(childBoard, {
+  timeline: 0,
+  tasks: 2,
+  homework: 1,
+}, { editing: false, role: 'child' });
+assert.equal(childEmpty.find((w) => w.id === 'tl').gh, 2);
+assert.equal(childEmpty.find((w) => w.id === 'tasks').gh, 3);
+assert.equal(childEmpty.find((w) => w.id === 'hw').row, 5);
+const childEdit = displayHomeWidgets(childBoard, {
+  timeline: 0,
+  tasks: 2,
+}, { editing: true, role: 'child' });
+assert.equal(childEdit.find((w) => w.id === 'tl').gh, 2);
+assert.equal(childEdit.find((w) => w.id === 'tasks').gh, 3);
+const parentEmpty = displayHomeWidgets([
+  { id: 'tl', type: 'timeline', col: 0, row: 0, gw: 5, gh: 2 },
+], { timeline: 0 }, { editing: false, role: 'parent' });
+assert.equal(parentEmpty.find((w) => w.id === 'tl').gh, 1);
 
 const packed = compactGrid([
   { id: 'a', type: 'weather', col: 0, row: 2, gw: 2, gh: 2 },

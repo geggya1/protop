@@ -20,7 +20,9 @@ export default function AddWidgetSheet({
           <View style={styles.handle} />
           <Text style={styles.title}>Velg widgets</Text>
           <Text style={styles.lead}>
-            Alle modulene kan ligge på hjem. Trykk for å skru av eller på — {catalog.length} valg.
+            {role === 'company'
+              ? `Bedriftens Hjem: timer, prosjekter, teamet og dagen. Trykk for å skru av eller på — ${catalog.length} valg.`
+              : `Ditt private Hjem: dagen, kalender, oppgaver og notater. Trykk for å skru av eller på — ${catalog.length} valg.`}
           </Text>
           <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
             <WidgetCatalogGrid

@@ -9,20 +9,30 @@ import { AvatarBubble } from '../AvatarPicker';
 import TodoTaskIcon from '../TodoTaskIcon';
 import { colors } from '../../src/theme';
 import { radius } from '../../src/ui/tokens';
-import { useHomeImmersive } from '../../src/context/HomeImmersiveContext';
+import { useHomeImmersive, useHomeGlassTint } from '../../src/context/HomeImmersiveContext';
 import {
   homeCardSurface, immersiveCardSurface, immersiveChipSurface, immersiveIconDisc,
+  useGlassCard, useGlassStyles,
 } from './homeGlass';
 
 function useImmersiveCard() {
   const immersive = useHomeImmersive();
-  return immersive ? immersiveCardSurface : null;
+  const glass = useGlassCard();
+  return immersive ? glass : null;
 }
 
 function useImmersiveChip() {
   const immersive = useHomeImmersive();
-  return immersive ? immersiveChipSurface : null;
+  const tint = useHomeGlassTint();
+  if (!immersive) return null;
+  return tint ? TINTED_CHIP : immersiveChipSurface;
 }
+
+const TINTED_CHIP = {
+  backgroundColor: 'rgba(255,255,255,0.12)',
+  borderWidth: StyleSheet.hairlineWidth,
+  borderColor: 'rgba(255,255,255,0.18)',
+};
 
 /** Modulikonet i kortets tittelrad: ProTop-blå, som ikonene i modulene (UX-05). */
 function ModuleHeadIcon({ name, size = 15 }) {
@@ -40,6 +50,7 @@ const PERIOD_HOUR = {
 };
 
 export function HomeWeekStrip({ onPressDay }) {
+  const styles = useGlassStyles(baseStyles);
   const days = useMemo(() => {
     const labels = ['Ma', 'Ti', 'On', 'To', 'Fr', 'Lø', 'Sø'];
     const now = new Date();
@@ -100,6 +111,7 @@ function weatherDays(weather) {
 }
 
 export function SoftWeatherCard({ weather, look = 'now', compact = false, onPress }) {
+  const styles = useGlassStyles(baseStyles);
   const immersiveCard = useImmersiveCard();
   const chip = useImmersiveChip();
   const temp = weather?.temp != null ? `${weather.temp}°` : '—';
@@ -183,6 +195,7 @@ export function SoftWeatherCard({ weather, look = 'now', compact = false, onPres
 export function NextEventPastel({
   next, onPress, wide = false,
 }) {
+  const styles = useGlassStyles(baseStyles);
   const birthday = /bursdag|fødselsdag/i.test(next?.title || '');
   return (
     <TouchableOpacity
@@ -219,6 +232,7 @@ export function NextEventPastel({
 }
 
 function CheckItem({ title, done, onPress }) {
+  const styles = useGlassStyles(baseStyles);
   return (
     <TouchableOpacity style={styles.checkRow} onPress={onPress} activeOpacity={0.85}>
       <View style={[styles.radio, done && styles.radioOn]}>
@@ -232,6 +246,7 @@ function CheckItem({ title, done, onPress }) {
 export function TasksPastel({
   progress, onOpen, onToggle, illustrated = false, title = 'Dagens oppgaver', compact = false, maxItems,
 }) {
+  const styles = useGlassStyles(baseStyles);
   const shownCount = maxItems ?? (compact ? 3 : 8);
   const items = (progress?.items || []).slice(0, shownCount);
   const done = progress?.done || items.filter((t) => t.done).length;
@@ -290,6 +305,7 @@ export function ChildTasksPastel({
   maxOpen = 6,
   maxDone = 4,
 }) {
+  const styles = useGlassStyles(baseStyles);
   const openItems = (progress?.openItems || progress?.items?.filter((t) => !t.done) || [])
     .slice(0, maxOpen);
   const doneItems = (progress?.doneItems || progress?.items?.filter((t) => t.done) || [])
@@ -356,6 +372,7 @@ export function ChildTasksPastel({
 }
 
 function ChildTaskRow({ item, done, onPress }) {
+  const styles = useGlassStyles(baseStyles);
   return (
     <TouchableOpacity
       style={[styles.childTaskRow, done && styles.childTaskRowDone]}
@@ -392,6 +409,7 @@ function ChildTaskRow({ item, done, onPress }) {
 }
 
 export function ShoppingPastel({ count, items = [], onPress, compact = false, maxItems }) {
+  const styles = useGlassStyles(baseStyles);
   const limit = maxItems ?? (compact ? 8 : 12);
   const shown = items.slice(0, limit);
   return (
@@ -416,6 +434,7 @@ export function ShoppingPastel({ count, items = [], onPress, compact = false, ma
 }
 
 export function MealsPastel({ dinner, onPress, link = false, compact = false }) {
+  const styles = useGlassStyles(baseStyles);
   const lead = link ? 'Enklere middagshverdag' : 'Enklere hverdager';
   return (
     <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
@@ -438,6 +457,7 @@ export function MealsPastel({ dinner, onPress, link = false, compact = false }) 
 }
 
 export function CalendarPeek({ events = [], onPress, title = 'Familiekalender', compact = false, linkLabel }) {
+  const styles = useGlassStyles(baseStyles);
   const rows = events.slice(0, compact ? 2 : 3);
   return (
     <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
@@ -467,6 +487,7 @@ export function WeeklyPlanPastel({
   compact = false,
   onPress,
 }) {
+  const styles = useGlassStyles(baseStyles);
   const rows = lessons.slice(0, compact ? 2 : 4);
   return (
     <TouchableOpacity
@@ -525,6 +546,7 @@ export function WeeklyPlanPastel({
 }
 
 export function RewardsPastel({ amount, hint, onPress, unit = 'kr' }) {
+  const styles = useGlassStyles(baseStyles);
   return (
     <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
       <View style={styles.head}>
@@ -545,6 +567,7 @@ export function RewardsPastel({ amount, hint, onPress, unit = 'kr' }) {
 }
 
 export function GoalsPastel({ items = [], done = 0, total = 0, onPress, compact = false }) {
+  const styles = useGlassStyles(baseStyles);
   const shown = items.slice(0, compact ? 2 : 3);
   const t = total || shown.length;
   return (
@@ -565,6 +588,7 @@ export function GoalsPastel({ items = [], done = 0, total = 0, onPress, compact 
 }
 
 export function KidsProgressPastel({ kids = [], onPress, maxItems = 12 }) {
+  const styles = useGlassStyles(baseStyles);
   const shown = kids.slice(0, maxItems);
   return (
     <TouchableOpacity
@@ -621,6 +645,7 @@ export function KidsProgressPastel({ kids = [], onPress, maxItems = 12 }) {
 }
 
 export function AssistantPastel({ onPress, banner = false }) {
+  const styles = useGlassStyles(baseStyles);
   const glass = useImmersiveCard();
   const chip = useImmersiveChip();
   if (banner) {
@@ -660,6 +685,7 @@ export function AssistantPastel({ onPress, banner = false }) {
   }
 
 export function NotesPastel({ notes = [], onPress, title = 'Notater' }) {
+  const styles = useGlassStyles(baseStyles);
   const note = notes[0];
   return (
     <TouchableOpacity style={[styles.card, useImmersiveCard()]} onPress={onPress} activeOpacity={0.92}>
@@ -676,6 +702,7 @@ export function NotesPastel({ notes = [], onPress, title = 'Notater' }) {
 }
 
 export function AppsPastel({ apps = [], onPress }) {
+  const styles = useGlassStyles(baseStyles);
   const shown = apps.slice(0, 4);
   return (
     <View style={[styles.card, useImmersiveCard()]}>
@@ -698,6 +725,7 @@ export function AppsPastel({ apps = [], onPress }) {
 }
 
 function FolderGlyph({ size = 40 }) {
+  const styles = useGlassStyles(baseStyles);
   const gap = 3;
   const cell = Math.max(12, Math.round((size - 12 - gap) / 2));
   const inner = cell * 2 + gap;
@@ -733,6 +761,8 @@ function FolderGlyph({ size = 40 }) {
 }
 
 export function ShortcutTile({ app, onPress, size = 'row' }) {
+  const styles = useGlassStyles(baseStyles);
+  const cardSurface = useGlassCard();
   const board = size === 'board';
   const isFolder = !!app?.folder;
   const label = app?.tileLabel || parentAppShortLabel(app);
@@ -741,7 +771,7 @@ export function ShortcutTile({ app, onPress, size = 'row' }) {
       style={[
         styles.shortcut,
         board && styles.shortcutBoard,
-        homeCardSurface,
+        cardSurface,
       ]}
       onPress={() => onPress?.(app)}
       activeOpacity={0.9}
@@ -779,6 +809,7 @@ export function ShortcutTile({ app, onPress, size = 'row' }) {
 }
 
 export function ShortcutRow({ apps = [], onPress }) {
+  const styles = useGlassStyles(baseStyles);
   return (
     <View style={styles.shortcutRow}>
       {apps.slice(0, 4).map((app) => (
@@ -795,13 +826,15 @@ export function AppFolderPastel({
   onOpenMore,
   moreLabel = '+ mer',
 }) {
+  const styles = useGlassStyles(baseStyles);
+  const cardSurface = useGlassCard();
   const slots = [0, 1, 2].map((i) => apps[i] || null);
   return (
     <View style={styles.folderGrid} testID="home-app-folder">
       {slots.map((app, i) => (
         <TouchableOpacity
           key={app?.id || `slot-${i}`}
-          style={[styles.folderCell, homeCardSurface]}
+          style={[styles.folderCell, cardSurface]}
           onPress={() => app && onOpenApp?.(app)}
           activeOpacity={app ? 0.88 : 1}
           disabled={!app}
@@ -821,7 +854,7 @@ export function AppFolderPastel({
         </TouchableOpacity>
       ))}
       <TouchableOpacity
-        style={[styles.folderCell, homeCardSurface]}
+        style={[styles.folderCell, cardSurface]}
         onPress={onOpenMore}
         activeOpacity={0.88}
         accessibilityRole="button"
@@ -848,6 +881,7 @@ export function TimelinePastel({
   maxItems,
   compact = false,
 }) {
+  const styles = useGlassStyles(baseStyles);
   const limit = maxItems ?? (compact ? 2 : 8);
   const rows = items.slice(0, limit);
   return (
@@ -892,6 +926,7 @@ export function TimelinePastel({
 }
 
 export function HomeFooterLine({ text = 'Små steg i dag – en enklere hverdag i morgen', light = false }) {
+  const styles = useGlassStyles(baseStyles);
   return (
     <View style={styles.footer}>
       <Text style={styles.footerLeaf}>🌿</Text>
@@ -913,7 +948,7 @@ const card = {
   height: '100%',
 };
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   strip: { flexDirection: 'row', gap: 4, marginBottom: 2 },
   stripDay: {
     flex: 1, alignItems: 'center', paddingVertical: 4, borderRadius: radius.control,

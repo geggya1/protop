@@ -134,6 +134,17 @@ function ParentHomeScreen() {
     [events, tomorrow],
   );
 
+  // Avtaler per dag denne uken (widgeten «Uken»), fra samme lytter som kalenderen.
+  const weekCounts = useMemo(() => {
+    const monday = addDays(today, -((today.getDay() + 6) % 7));
+    const out = {};
+    for (let i = 0; i < 7; i += 1) {
+      const day = addDays(monday, i);
+      out[dateKey(day)] = events.filter((e) => eventOccursOnDate(e, day)).length;
+    }
+    return out;
+  }, [events, today]);
+
   const widgetData = useHomeWidgetData({
     todayEvents: familyEventsToday,
     tomorrowEvents: familyEventsTomorrow,
@@ -167,10 +178,20 @@ function ParentHomeScreen() {
   const runAppAction = (action) => {
     if (!action) return;
     if (action.type === 'tab') {
-      requestShellTab(action.tab, action.subView || null);
+      if (action.mode) requestShellTab(action.tab, action.subView || null, action.mode);
+      else requestShellTab(action.tab, action.subView || null);
       return;
     }
     if (action.type === 'nav') {
+      // Skjemaene trenger arbeidsområdet (og dagen for nye avtaler).
+      if (action.screen === 'EventForm') {
+        nav.navigate('EventForm', { familyId, dateKey: todayKey, ...(action.params || {}) });
+        return;
+      }
+      if (action.screen === 'ParentTask') {
+        nav.navigate('ParentTask', { familyId, ...(action.params || {}) });
+        return;
+      }
       nav.navigate(action.screen, action.params);
     }
   };
@@ -361,6 +382,7 @@ function ParentHomeScreen() {
         allMembers={allMembers}
         dashboardApps={dashboardApps}
         widgetData={widgetData}
+        weekCounts={weekCounts}
         onOpenEvent={openEvent}
         onOpenPlan={() => requestShellTab('plan')}
         onAppAction={runAppAction}

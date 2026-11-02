@@ -32,6 +32,17 @@ Modulmenyen viser delene i første rad og sidene i delen under, som ISO (`HR_GRO
 
 Produktivitet ligger under Arbeid. Sykefravær, Medarbeiderundersøkelse og Samtaler og saker har ressursen `hrFollowup`.
 
+### Medarbeidersamtale: én visning
+
+- Samtalen føres i KS-skjemaet «Medarbeidersamtale» (C1-F-03-001), fra både Rutiner → Skjemaer og Oppfølging → Samtaler og saker. Begge bruker `HrFilledForm` (FormFill) og `useHrFormStart`, så skjemaet og visningen er like.
+- Hvert utfylt samtaleskjema speiles i `hr.reviews` (`src/hr/reviewForms.js`, `formDocId`), så Oversikt, årshjulet og Min side ser samtalen. Når samtalen er ferdig, blir handlingsplanen én sak.
+- Samtaler fra før (feltene under Oppfølging) vises som «eldre format» med PDF og sammenligning.
+
+### Samlet årshjul
+
+- HR → Rutiner → Årshjul kan vise ISO-årshjulet i samme hjul og tidslinje («Vis også ISO-årshjulet», for den som kan se ISO). ISO-aktivitetene føres i ISO og lenker dit.
+- ISO → Årshjul viser månedens HR-aktiviteter med lenke til HR-årshjulet, for den som kan se HR.
+
 ### Årshjul, sykefravær og undersøkelse
 
 - Avkrysninger og av-slåtte aktiviteter: `hr.annual`. Markerte frister ved sykefravær: `hr.sickFollowUps`.

@@ -126,6 +126,30 @@ const has = (html, id) => assert.ok(html.includes(`id="${id}"`), `mangler ${id}`
   assert.match(annual, /Hele året/);
   assert.match(annual, /Lager oppgave når måneden starter/);
 
+  // Samlet visning: ISO-årshjulet i samme hjul, tidslinje og månedspanel.
+  const month = new Date().getMonth();
+  const MONTHS = ['Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Desember'];
+  const isoState = { records: { aarshjul: [{ id: 'ahj1', title: 'Ledelsens gjennomgang', months: [MONTHS[month]], page: 'ledelse', state: 'aktiv' }] }, documents: [] };
+  const combined = renderToStaticMarkup(React.createElement(HrAnnual, {
+    colors,
+    hr: { annual: { tasks: false, done: {}, off: [] }, reviews: [], sickFollowUps: [] },
+    canWrite: true,
+    onPatch() {},
+    familyId: 'c1',
+    actorName: 'HR',
+    staff: employees,
+    onOpen() {},
+    onOpenIso() {},
+    onRefreshTasks() {},
+    iso: { available: true, show: true, onToggle() {}, status: 'ready', state: isoState },
+  }));
+  has(combined, 'hr-annual-iso');
+  has(combined, 'hr-annual-iso-month');
+  assert.match(combined, /Viser også ISO-årshjulet/);
+  assert.match(combined, /ISO · Ledelsens gjennomgang/);
+  assert.match(combined, /Åpne i ISO/);
+  assert.match(combined, /ISO-årshjulet/);
+
   const sick = renderToStaticMarkup(React.createElement(HrSickLeave, {
     colors, rows: sickRows, loading: false, canWrite: true, onPatch() {}, actorName: 'HR',
   }));

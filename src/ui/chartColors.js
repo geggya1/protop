@@ -41,6 +41,8 @@ export function chartColorsFor(colors) {
     done: colors?.success,
     now: colors?.warn,
     late: colors?.danger,
+    // ISO-årshjulet i den samlede visningen (egen identitet, med forklaring).
+    iso: colors?.accent,
     surface: colors?.card,
   };
 }

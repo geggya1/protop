@@ -249,6 +249,8 @@ export function normalizeReview(row = {}) {
     followUps: text(row.followUps),
     previousReviewId: text(row.previousReviewId),
     formTemplateId: text(row.formTemplateId),
+    // Samtalen er ført i KS-skjemaet «Medarbeidersamtale» (reviewForms.js): id-en til det utfylte dokumentet.
+    formDocId: text(row.formDocId),
     formSnapshot: row.formSnapshot && typeof row.formSnapshot === 'object' ? row.formSnapshot : null,
     pdfUrl: text(row.pdfUrl),
     employeeVisible: row.employeeVisible !== false,

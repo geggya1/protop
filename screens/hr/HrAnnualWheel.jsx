@@ -34,6 +34,7 @@ export function statusColor(status, chart) {
   if (status === 'now') return chart.now;
   if (status === 'late') return chart.late;
   if (status === 'later') return chart.planned;
+  if (status === 'iso') return chart.iso;
   return chart.idle;
 }
 
@@ -88,22 +89,20 @@ export default function HrAnnualWheel({
             </G>
           );
         })}
-        {layout.items.filter((i) => i.track >= 0).map((i) => {
+        {layout.items.filter((i) => i.track >= 0).flatMap((i) => (i.segments || [[i.start, i.end]]).map(([from, to]) => {
           const r = rBand - 10 - i.track * trackGap;
-          const a0 = i.start * 30 + 5;
-          const a1 = (i.end + 1) * 30 - 5;
           return (
             <Path
-              key={i.activity.id}
-              d={arc(cx, cy, r, a0, a1)}
+              key={`${i.activity.id}-${from}`}
+              d={arc(cx, cy, r, from * 30 + 5, (to + 1) * 30 - 5)}
               stroke={statusColor(i.status, chart)}
               strokeWidth={8}
               strokeLinecap="round"
               fill="none"
-              onPress={select(i.start)}
+              onPress={select(from)}
             />
           );
-        })}
+        }))}
         {needle != null ? (
           <G>
             <Line

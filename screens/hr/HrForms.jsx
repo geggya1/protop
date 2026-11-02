@@ -1,25 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { KS_LIBRARY, entryTitle, libraryForm, libraryTemplateId } from '../../src/forms/ksLibrary';
-import {
-  completeFilledDoc,
-  filledLine,
-  newFilledDoc,
-  reopenFilledDoc,
-} from '../../src/forms/filledDocs';
-import { deleteFilledDoc, loadFilledDocs, peekFilledDocs, saveFilledDoc } from '../../src/forms/filledStore';
-import { formWithTokens } from '../../src/forms/tokens';
-import { normalizeFormTemplates } from '../../src/anbud/bidLibrary';
-import { loadAnbudState, peekAnbudState } from '../../src/anbud/storage';
+import { KS_LIBRARY, entryTitle, libraryTemplateId } from '../../src/forms/ksLibrary';
+import { filledLine } from '../../src/forms/filledDocs';
+import { loadFilledDocs, peekFilledDocs } from '../../src/forms/filledStore';
 import { displayName } from '../../src/employees/model';
-import { filterHrEmployees } from '../../src/hr/model';
-import { showSaveToast } from '../../src/ui/saveToast';
+import { filterHrEmployees, formatNbDate, normalizeCase, normalizeReview } from '../../src/hr/model';
+import { casesFromReviewDoc, isReviewDoc, syncReviewRows } from '../../src/hr/reviewForms';
 import { controlStatus } from '../../src/doccontrol/model';
-import { fillSource, templateControlKey } from '../../src/doccontrol/templates';
-import FormFill, { FilledStatusIcon } from '../anbud/FormFill';
+import { templateControlKey } from '../../src/doccontrol/templates';
+import { FilledStatusIcon } from '../anbud/FormFill';
 import OptionPicker from '../../components/OptionPicker';
-import { useDocControl } from '../doccontrol/useDocControl';
+import HrFilledForm from './HrFilledForm';
+import { useHrFormStart } from './useHrFormStart';
 import { StatusChip } from '../doccontrol/parts';
 import { HrButton, HrCard, HrSectionTitle } from './HrShared';
 
@@ -32,60 +25,27 @@ function dateText(value) {
   return d.toLocaleDateString('nb-NO', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-/** Ferdige felt som kan fylles fra personkortet. */
-function prefill(doc, employee) {
-  if (!employee) return doc;
-  const person = employee.person || {};
-  const name = displayName(employee);
-  const company = employee.company || {};
-  const values = {
-    navn: name,
-    medarbeider: name,
-    stilling: company.title || '',
-    ansattnummer: company.externalEmployeeNumber || '',
-    'privat e-post': person.email || '',
-    'privat telefon': person.phone || '',
-    'e-post arbeid': company.email || '',
-    'telefon arbeid': '',
-    adresse: [person.address1, person.address2].filter(Boolean).join(', '),
-    'postnr. og sted': [person.postalCode, person.place].filter(Boolean).join(' '),
-    pårørende: person.kinName || '',
-    'telefon pårørende': person.kinPhone || '',
-  };
-  const dates = {
-    tiltredelsesdato: company.periodFrom || '',
-    'ansatt siden': company.periodFrom || '',
-    fødselsdato: person.birthDate || '',
-  };
-  return {
-    ...doc,
-    fields: doc.fields.map((field) => {
-      const key = String(field.label || '').trim().toLocaleLowerCase('nb-NO');
-      if (field.editor === 'fast' || field.value) return field;
-      if (field.kind === 'date' && /^\d{4}-\d{2}-\d{2}/.test(String(dates[key] || ''))) return { ...field, value: String(dates[key]).slice(0, 10) };
-      const value = values[key];
-      if (!value || !['text', 'long'].includes(field.kind)) return field;
-      return { ...field, value: String(value) };
-    }),
-  };
-}
-
-export default function HrForms({ colors, employees, canWrite, familyId, actor, company, logo }) {
+/**
+ * HR → Rutiner → Skjemaer: personalskjemaene fra KS-biblioteket. Medarbeidersamtalen fylles ut i
+ * samme visning som under HR → Oppfølging (HrFilledForm), og speiles i hr.reviews (onPatch).
+ * open: { docId } eller { key, employeeId } for å åpne et skjema direkte.
+ */
+export default function HrForms({
+  colors, employees, canWrite, familyId, actor, company, logo, onPatch,
+}) {
   const [docs, setDocs] = useState(() => (peekFilledDocs(familyId) || []).filter((row) => row.scope === 'hr'));
-  const [templates, setTemplates] = useState(() => normalizeFormTemplates(peekAnbudState(familyId)?.formTemplates || []));
   const [employeeId, setEmployeeId] = useState('');
   const [picking, setPicking] = useState('');
   const [filled, setFilled] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [startNote, setStartNote] = useState('');
   const [note, setNote] = useState('');
   const [noteBad, setNoteBad] = useState(false);
   const people = useMemo(() => filterHrEmployees(employees, 'active'), [employees]);
-  const dc = useDocControl();
+  const { start: startForm, dc } = useHrFormStart(familyId);
 
   useEffect(() => {
     let live = true;
     loadFilledDocs(familyId).then((list) => { if (live) setDocs(list.filter((row) => row.scope === 'hr')); });
-    loadAnbudState(familyId).then((state) => { if (live) setTemplates(normalizeFormTemplates(state?.formTemplates || [])); });
     return () => { live = false; };
   }, [familyId]);
 
@@ -94,61 +54,49 @@ export default function HrForms({ colors, employees, canWrite, familyId, actor, 
     setNoteBad(bad);
   }
 
-  function templateFor(key) {
-    const own = templates.find((row) => row.id === libraryTemplateId(key));
-    if (own) return own;
-    const form = libraryForm(key);
-    return form ? { ...form, id: libraryTemplateId(key) } : null;
-  }
-
   function start(key, employee) {
-    const template = templateFor(key);
-    if (!template) return;
-    // Gjeldende godkjente versjon, med dokumenthodet fra dokumentstyringen.
-    const source = fillSource(template, dc.controlFor(templateControlKey(template)));
-    const subject = employee ? { kind: 'employee', id: employee.id, name: displayName(employee) } : null;
-    setFilled(prefill(newFilledDoc(source.form, { actor, scope: 'hr', subject }), employee));
+    const res = startForm(key, employee, actor);
+    if (!res) return;
+    setFilled(res.doc);
     setPicking('');
-    say(source.approved ? '' : 'Malen er ikke godkjent ennå. Dokumentet får «Utkast» i hodet til en versjon er godkjent.');
+    setStartNote(res.approved ? '' : 'Malen er ikke godkjent ennå. Dokumentet får «Utkast» i hodet til en versjon er godkjent.');
   }
 
-  async function store(next, message) {
-    setSaving(true);
-    const res = await saveFilledDoc(familyId, next);
-    setSaving(false);
-    if (res.list) setDocs(res.list.filter((row) => row.scope === 'hr'));
-    setFilled(res.doc || next);
-    say(res.ok ? message : res.error, !res.ok);
-    if (res.ok) showSaveToast(message);
+  // Samtaleskjema speiles i hr.reviews, så samtalen er den samme uansett hvor den ble ført.
+  function syncReview(doc, { removed = false } = {}) {
+    if (!isReviewDoc(doc) || !onPatch) return;
+    onPatch((state) => ({
+      reviews: syncReviewRows(state.reviews, doc, normalizeReview, { removed }),
+      cases: removed ? state.cases : casesFromReviewDoc(state.cases, doc, normalizeCase, { formatDate: formatNbDate }),
+    }));
   }
 
   if (filled) {
     return (
-      <FormFill
-        doc={filled}
+      <HrFilledForm
+        key={filled.id}
         colors={colors}
+        familyId={familyId}
+        doc={filled}
+        onDoc={setFilled}
+        canWrite={canWrite}
+        actor={actor}
         company={company}
         logo={logo?.dataUrl || ''}
-        actor={actor}
-        busy={saving}
-        note={note}
-        noteBad={noteBad}
         fill
-        onChange={canWrite ? setFilled : () => {}}
-        onSave={() => store(filled, 'Dokumentet er lagret i HR.')}
-        onComplete={() => {
-          const res = completeFilledDoc(formWithTokens(filled, company), { actor });
-          if (!res.ok) say(res.error, true);
-          else store(res.doc, 'Dokumentet er ferdig og lagret i HR.');
+        initialNote={startNote}
+        canDelete={docs.some((row) => row.id === filled.id)}
+        onStored={(doc, list) => {
+          if (list) setDocs(list.filter((row) => row.scope === 'hr'));
+          syncReview(doc);
         }}
-        onReopen={() => store(reopenFilledDoc(filled, { actor }), 'Dokumentet er åpnet for endring.')}
-        onDelete={canWrite && docs.some((row) => row.id === filled.id) ? async () => {
-          const res = await deleteFilledDoc(familyId, filled.id);
-          if (res.list) setDocs(res.list.filter((row) => row.scope === 'hr'));
+        onDeleted={(doc, list) => {
+          if (list) setDocs(list.filter((row) => row.scope === 'hr'));
+          syncReview(doc, { removed: true });
           setFilled(null);
-          say(res.ok ? 'Dokumentet er slettet.' : res.error, !res.ok);
-        } : null}
-        onBack={() => { setFilled(null); say(''); }}
+          say('Dokumentet er slettet.');
+        }}
+        onBack={() => { setFilled(null); say(''); setStartNote(''); }}
         backLabel="Alle personalskjema"
       />
     );
@@ -210,7 +158,7 @@ export default function HrForms({ colors, employees, canWrite, familyId, actor, 
           title="Vis for ansatt"
         />
         {visible.map((row) => (
-          <TouchableOpacity key={row.id} onPress={() => { setFilled(row); say(''); }} accessibilityRole="button" style={[styles.docRow, { borderBottomColor: colors.line }]}>
+          <TouchableOpacity key={row.id} onPress={() => { setFilled(row); setStartNote(''); say(''); }} accessibilityRole="button" style={[styles.docRow, { borderBottomColor: colors.line }]}>
             <FilledStatusIcon status={row.status} colors={colors} />
             <View style={{ flex: 1 }}>
               <Text style={{ color: colors.ink, fontWeight: '600' }}>{row.title}</Text>

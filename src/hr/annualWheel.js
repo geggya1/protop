@@ -393,11 +393,25 @@ export function reviewFormsFromFilled(docs) {
  * måned og et spor (0, 1, 2 …) slik at aktiviteter som overlapper i tid ikke ligger oppå hverandre.
  * Aktiviteter som er slått av eller ikke gjelder, kommer sist og får ikke spor i hjulet (track -1).
  */
-export function wheelLayout(wheel) {
-  const items = (wheel || []).flatMap((m) => m.items).map((item) => ({
+/** Sammenhengende perioder av månedene: [0, 5] → [[0, 0], [5, 5]], [2, 3] → [[2, 3]]. */
+export function monthRuns(months) {
+  const sorted = [...new Set(months || [])].sort((a, b) => a - b);
+  const runs = [];
+  for (const m of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && m === last[1] + 1) last[1] = m;
+    else runs.push([m, m]);
+  }
+  return runs;
+}
+
+export function wheelLayout(wheel, { extra = [] } = {}) {
+  const items = [...(wheel || []).flatMap((m) => m.items), ...(extra || [])].map((item) => ({
     ...item,
     start: Math.min(...item.activity.months),
     end: Math.max(...item.activity.months),
+    // Én bue/strek per sammenhengende periode (halvårlig januar og juni er to, ikke januar–juni).
+    segments: monthRuns(item.activity.months),
   }));
   const active = items.filter((i) => i.status !== 'off' && i.status !== 'na')
     .sort((a, b) => a.start - b.start || b.end - a.end);
@@ -421,4 +435,43 @@ export function yearFraction(today = new Date()) {
   const start = new Date(today.getFullYear(), 0, 1);
   const end = new Date(today.getFullYear() + 1, 0, 1);
   return (today - start) / (end - start);
+}
+
+/**
+ * ISO-årshjulet som elementer i HR-hjulet (samlet visning). isoMonths er annualWheel(isoState, { year })
+ * fra src/iso/planning.js: { month, planned: [rad med months (navn)], dated: [{ key, month, title, count, page }] }.
+ * Faste aktiviteter står én gang over månedene sine; datoer fra registrene står i sin måned.
+ * Status 'iso': de føres i ISO, ikke i HR.
+ */
+export function isoAnnualItems(isoMonths) {
+  const planned = new Map();
+  const out = [];
+  for (const m of isoMonths || []) {
+    for (const r of m.planned || []) {
+      const months = (r.months || []).map((name) => MONTHS_NB.indexOf(name)).filter((i) => i >= 0);
+      if (!months.length || planned.has(r.id)) continue;
+      planned.set(r.id, true);
+      out.push({
+        activity: {
+          id: `iso:${r.id}`, title: text(r.title), months, kind: 'iso', page: text(r.page),
+          description: text(r.description), responsible: text(r.ownerName || r.responsibleRole),
+        },
+        status: 'iso',
+        period: months.length > 1 ? activityPeriod({ months }) : '',
+        source: 'iso',
+      });
+    }
+    for (const d of m.dated || []) {
+      out.push({
+        activity: {
+          id: `iso:${d.key}`, title: `${d.title}${d.count ? ` (${d.count})` : ''}`, months: [d.month], kind: 'iso', page: text(d.page),
+          description: '', date: text(d.date),
+        },
+        status: 'iso',
+        period: '',
+        source: 'iso',
+      });
+    }
+  }
+  return out;
 }

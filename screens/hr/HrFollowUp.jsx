@@ -19,10 +19,12 @@ import {
   REVIEW_STATUSES,
   TASK_STATUSES,
 } from '../../src/hr/model';
-import { performanceReviewFormTemplate } from '../../src/hr/forms';
 import { printReview } from '../../src/hr/reviewPdf';
-import { saveFormTemplate } from '../../src/anbud/bidLibrary';
-import { loadAnbudState, saveAnbudState } from '../../src/anbud/storage';
+import { loadFilledDocs, peekFilledDocs } from '../../src/forms/filledStore';
+import {
+  REVIEW_FORM_KEY, casesFromReviewDoc, previousActionPlan, reviewActionPlan, reviewEntries, syncReviewRows,
+} from '../../src/hr/reviewForms';
+import HrFilledForm from './HrFilledForm';
 import { DEFAULT_DOCUMENT_ACCEPT, pickDocument, uploadFile } from '../../src/utils/media';
 import { showSaveToast } from '../../src/ui/saveToast';
 import {
@@ -37,29 +39,14 @@ const TABS = [
 ];
 
 const EMPTY_CASE = { title: '', description: '', priority: 'normal', dueDate: '', employeeVisible: false };
-const EMPTY_REVIEW = {
-  date: '',
-  interviewer: '',
-  summary: '',
-  goals: '',
-  wellbeing: '',
-  strengths: '',
-  challenges: '',
-  development: '',
-  followUps: '',
-  status: 'done',
-};
 const EMPTY_MEMO = { title: '', body: '', author: '', employeeVisible: false, fileName: '', fileUrl: '' };
 const EMPTY_TASK = { title: '', description: '', dueDate: '', status: 'open' };
 const EMPTY_FILE = { name: '', url: '', employeeVisible: false };
 
-function freshReview() {
-  return { ...EMPTY_REVIEW, date: localIsoDate() };
-}
 
 export default function HrFollowUp({
   colors, employees, hr, canWrite, onPatch, lockedEmployeeId, familyId,
-  focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask,
+  focusCaseId, assigneeUid, assigneeName, onOpenTask, onCreateFollowUpTask, formKit = null,
 }) {
   const [tab, setTab] = useState('cases');
   const [selectedCaseId, setSelectedCaseId] = useState(focusCaseId || '');
@@ -75,7 +62,17 @@ export default function HrFollowUp({
   );
 
   const [caseDraft, setCaseDraft] = useState(EMPTY_CASE);
-  const [reviewDraft, setReviewDraft] = useState(freshReview);
+  // Medarbeidersamtalen: samme skjema og visning som under Skjemaer (HrFilledForm).
+  // formKit fra HR-skjermen: { start (useHrFormStart), actor, company, logo }.
+  const forms = formKit || {};
+  const [formDocs, setFormDocs] = useState(() => (peekFilledDocs(familyId) || []).filter((row) => row.scope === 'hr'));
+  const [openDoc, setOpenDoc] = useState(null);
+  const [openNote, setOpenNote] = useState('');
+  useEffect(() => {
+    let live = true;
+    if (familyId) loadFilledDocs(familyId).then((list) => { if (live) setFormDocs((list || []).filter((row) => row.scope === 'hr')); });
+    return () => { live = false; };
+  }, [familyId]);
   const [memoDraft, setMemoDraft] = useState(EMPTY_MEMO);
   const [taskDraft, setTaskDraft] = useState(EMPTY_TASK);
   const [fileDraft, setFileDraft] = useState(EMPTY_FILE);
@@ -84,7 +81,7 @@ export default function HrFollowUp({
     setSelectedReviewId('');
     setSelectedCaseId('');
     setCaseDraft(EMPTY_CASE);
-    setReviewDraft(freshReview());
+    setOpenDoc(null);
     setMemoDraft(EMPTY_MEMO);
     setTaskDraft(EMPTY_TASK);
     setFileDraft(EMPTY_FILE);
@@ -133,13 +130,14 @@ export default function HrFollowUp({
     }
   }
 
+  // Samtalene: utfylte samtaleskjema og eldre samtaler (registrert før skjemaet ble felles).
+  const entries = useMemo(() => reviewEntries(hr.reviews, formDocs, employeeId), [hr.reviews, formDocs, employeeId]);
   const personReviews = useMemo(
-    () => (hr.reviews || [])
-      .filter((row) => !employeeId || row.employeeId === employeeId)
-      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))),
-    [hr.reviews, employeeId],
+    () => entries.filter((e) => e.kind === 'legacy').map((e) => e.review),
+    [entries],
   );
-  const selectedReview = personReviews.find((r) => r.id === selectedReviewId) || personReviews[0] || null;
+  const selectedReview = personReviews.find((r) => r.id === selectedReviewId) || null;
+  const lastPlan = useMemo(() => previousActionPlan(entries, openDoc?.id || ''), [entries, openDoc?.id]);
   const previousForSelected = useMemo(() => {
     if (!selectedReview) return null;
     const done = latestReviewsFor(selectedReview.employeeId, hr.reviews, 5)
@@ -159,63 +157,20 @@ export default function HrFollowUp({
     [hr.memos, employeeId],
   );
 
-  async function ensureReviewTemplate() {
-    if (!familyId) return;
-    try {
-      const state = await loadAnbudState(familyId);
-      const exists = (state?.formTemplates || []).some(
-        (t) => t.title === 'Medarbeidersamtale' && t.category === 'skjema',
-      );
-      if (exists) {
-        showSaveToast?.('Samtalemal finnes allerede i skjemabygger');
-        return;
-      }
-      const template = performanceReviewFormTemplate();
-      const result = saveFormTemplate(state, template);
-      if (!result?.ok) {
-        showSaveToast?.(result?.error || 'Kunne ikke lagre mal');
-        return;
-      }
-      await saveAnbudState(result.state, familyId);
-      showSaveToast?.('Medarbeidersamtale-mal lagt i skjemabygger');
-    } catch {
-      showSaveToast?.('Kunne ikke lagre skjemamal');
-    }
+  function newReview() {
+    const employee = people.find((row) => row.id === employeeId) || null;
+    const res = forms.start?.(REVIEW_FORM_KEY, employee, forms.actor);
+    if (!res) return;
+    setOpenDoc(res.doc);
+    setOpenNote(res.approved ? '' : 'Malen er ikke godkjent ennå. Dokumentet får «Utkast» i hodet til en versjon er godkjent.');
   }
 
-  function saveReview() {
-    if (!canWrite || !employeeId) return;
-    const draftSnapshot = { ...reviewDraft };
-    const row = normalizeReview({
-      ...draftSnapshot,
-      employeeId,
-      previousReviewId: '',
-      employeeVisible: true,
-      status: draftSnapshot.status || 'done',
-    });
-    onPatch?.((state) => {
-      const prev = latestReviewsFor(employeeId, state.reviews, 1)[0];
-      const saved = { ...row, previousReviewId: prev?.id || '' };
-      const nextReviews = [saved, ...(state.reviews || [])];
-      let nextCases = state.cases || [];
-      if (String(draftSnapshot.followUps || '').trim()) {
-        const caseRow = normalizeCase({
-          employeeId,
-          title: `Oppfølging fra samtale ${formatNbDate(saved.date)}`,
-          description: draftSnapshot.followUps,
-          priority: 'normal',
-          sourceReviewId: saved.id,
-          status: 'open',
-        });
-        nextCases = [caseRow, ...nextCases];
-      }
-      return { reviews: nextReviews, cases: nextCases };
-    });
-    setSelectedReviewId(row.id);
-    setReviewDraft(freshReview());
-    showSaveToast?.(draftSnapshot.followUps?.trim()
-      ? 'Samtale lagret · avvik opprettet som sak'
-      : 'Samtale lagret');
+  // Samme speiling og samme sak fra handlingsplanen som under Skjemaer.
+  function syncReview(doc, { removed = false } = {}) {
+    onPatch?.((state) => ({
+      reviews: syncReviewRows(state.reviews, doc, normalizeReview, { removed }),
+      cases: removed ? state.cases : casesFromReviewDoc(state.cases, doc, normalizeCase, { formatDate: formatNbDate }),
+    }));
   }
 
   async function uploadMemoFile() {
@@ -405,30 +360,85 @@ export default function HrFollowUp({
         </HrCard>
       ) : null}
 
-      {employeeId && tab === 'reviews' ? (
+      {employeeId && tab === 'reviews' && openDoc ? (
+        <View nativeID="hr-review-form" style={styles.reviewForm}>
+          {lastPlan?.plan?.length ? (
+            <HrCard colors={colors}>
+              <HrSectionTitle
+                colors={colors}
+                title="Handlingsplan fra forrige samtale"
+                subtitle={`${formatNbDate(lastPlan.date)} · gå gjennom den under tema 1`}
+              />
+              {lastPlan.plan.map((row, i) => (
+                <Text key={`${i}-${row.tiltak.slice(0, 12)}`} style={[styles.body, { color: colors.ink }]}>
+                  {[`${i + 1}. ${row.tiltak}`, row.ansvar && `ansvar: ${row.ansvar}`, row.frist && `frist: ${formatNbDate(row.frist)}`].filter(Boolean).join(' · ')}
+                </Text>
+              ))}
+            </HrCard>
+          ) : null}
+          <HrFilledForm
+            key={openDoc.id}
+            colors={colors}
+            familyId={familyId}
+            doc={openDoc}
+            onDoc={setOpenDoc}
+            canWrite={canWrite}
+            actor={forms.actor}
+            company={forms.company}
+            logo={forms.logo?.dataUrl || ''}
+            initialNote={openNote}
+            canDelete={formDocs.some((row) => row.id === openDoc.id)}
+            onStored={(doc, list) => {
+              if (list) setFormDocs(list.filter((row) => row.scope === 'hr'));
+              else setFormDocs((rows) => [doc, ...rows.filter((row) => row.id !== doc.id)]);
+              syncReview(doc);
+            }}
+            onDeleted={(doc, list) => {
+              if (list) setFormDocs(list.filter((row) => row.scope === 'hr'));
+              syncReview(doc, { removed: true });
+              setOpenDoc(null);
+            }}
+            onBack={() => { setOpenDoc(null); setOpenNote(''); }}
+            backLabel="Alle samtaler"
+          />
+        </View>
+      ) : null}
+
+      {employeeId && tab === 'reviews' && !openDoc ? (
         <>
           <HrCard colors={colors}>
             <HrSectionTitle
               colors={colors}
               title="Medarbeidersamtaler"
-              subtitle="Standardmal fra skjemabygger · PDF · sammenlign med forrige"
+              subtitle="KS-skjemaet «Medarbeidersamtale», samme skjema som under Skjemaer. Handlingsplanen blir sak når samtalen er ferdig."
+              right={canWrite && forms.start ? (
+                <HrButton colors={colors} primary icon="add" label="Ny samtale" onPress={newReview} nativeID="hr-review-new" />
+              ) : null}
             />
-            {canWrite ? (
-              <View style={styles.chips}>
-                <HrButton colors={colors} label="Opprett mal i skjemabygger" icon="clipboard-outline" onPress={ensureReviewTemplate} />
-              </View>
-            ) : null}
-            {personReviews.map((row) => (
+            {entries.map((entry) => (entry.kind === 'form' ? (
               <RowLink
-                key={row.id}
+                key={entry.id}
                 colors={colors}
-                title={nameOf(row.employeeId)}
-                subtitle={row.summary || row.goals || 'Uten sammendrag'}
-                meta={`${formatNbDate(row.date)} · ${choiceLabel(REVIEW_STATUSES, row.status)}`}
-                onPress={() => setSelectedReviewId(row.id)}
+                title={`Medarbeidersamtale ${formatNbDate(entry.date)}`}
+                subtitle={(() => {
+                  const plan = reviewActionPlan(entry.doc);
+                  return plan.length ? `Handlingsplan: ${plan.map((r) => r.tiltak).join(' · ')}` : 'Ingen tiltak i handlingsplanen';
+                })()}
+                meta={entry.status === 'done' ? 'Ferdig' : 'Utkast'}
+                onPress={() => { setOpenDoc(entry.doc); setOpenNote(''); }}
+                nativeID={`hr-review-${entry.id}`}
               />
-            ))}
-            {personReviews.length === 0 ? <EmptyHint colors={colors} text="Ingen samtaler registrert." /> : null}
+            ) : (
+              <RowLink
+                key={entry.id}
+                colors={colors}
+                title={`Samtale ${formatNbDate(entry.date)} (eldre format)`}
+                subtitle={entry.review.summary || entry.review.goals || 'Uten sammendrag'}
+                meta={choiceLabel(REVIEW_STATUSES, entry.review.status)}
+                onPress={() => setSelectedReviewId(entry.id)}
+              />
+            )))}
+            {entries.length === 0 ? <EmptyHint colors={colors} text="Ingen samtaler registrert." /> : null}
           </HrCard>
 
           {selectedReview ? (
@@ -436,7 +446,7 @@ export default function HrFollowUp({
               <HrSectionTitle
                 colors={colors}
                 title={`Samtale ${formatNbDate(selectedReview.date)}`}
-                subtitle={nameOf(selectedReview.employeeId)}
+                subtitle={`${nameOf(selectedReview.employeeId)} · registrert før samtalene ble ført i KS-skjemaet`}
               />
               <Text style={[styles.body, { color: colors.ink }]}>
                 {[
@@ -451,7 +461,6 @@ export default function HrFollowUp({
                 <HrButton
                   colors={colors}
                   label="Skriv ut / PDF"
-                  primary
                   icon="print-outline"
                   onPress={() => printReview(selectedReview, {
                     employeeName: nameOf(selectedReview.employeeId),
@@ -473,41 +482,7 @@ export default function HrFollowUp({
                     </View>
                   ))}
                 </View>
-              ) : previousForSelected ? (
-                <EmptyHint colors={colors} text="Ingen endringer mot forrige samtale." />
-              ) : (
-                <EmptyHint colors={colors} text="Ingen tidligere samtale å sammenligne med." />
-              )}
-            </HrCard>
-          ) : null}
-
-          {canWrite && employeeId ? (
-            <HrCard colors={colors}>
-              <HrSectionTitle colors={colors} title="Ny samtale" subtitle="Avvik i oppfølging oppretter sak automatisk" />
-              <View style={styles.chips}>
-                {REVIEW_STATUSES.map((s) => (
-                  <HrChip
-                    key={s.id}
-                    colors={colors}
-                    label={s.label}
-                    active={reviewDraft.status === s.id}
-                    onPress={() => setReviewDraft((p) => ({ ...p, status: s.id }))}
-                  />
-                ))}
-              </View>
-              <HrField colors={colors} label="Dato" date="iso" value={reviewDraft.date} onChangeText={(date) => setReviewDraft((p) => ({ ...p, date }))} />
-              <HrField colors={colors} label="Samtalepartner" value={reviewDraft.interviewer} onChangeText={(interviewer) => setReviewDraft((p) => ({ ...p, interviewer }))} />
-              <HrField colors={colors} label="Trivsel (1–5)" value={reviewDraft.wellbeing} onChangeText={(wellbeing) => setReviewDraft((p) => ({ ...p, wellbeing }))} />
-              <HrField colors={colors} label="Sammendrag" value={reviewDraft.summary} onChangeText={(summary) => setReviewDraft((p) => ({ ...p, summary }))} multiline />
-              <HrField colors={colors} label="Styrker" value={reviewDraft.strengths} onChangeText={(strengths) => setReviewDraft((p) => ({ ...p, strengths }))} multiline />
-              <HrField colors={colors} label="Utfordringer" value={reviewDraft.challenges} onChangeText={(challenges) => setReviewDraft((p) => ({ ...p, challenges }))} multiline />
-              <HrField colors={colors} label="Utvikling" value={reviewDraft.development} onChangeText={(development) => setReviewDraft((p) => ({ ...p, development }))} multiline />
-              <HrField colors={colors} label="Mål" value={reviewDraft.goals} onChangeText={(goals) => setReviewDraft((p) => ({ ...p, goals }))} multiline />
-              <HrField colors={colors} label="Oppfølging / avvik" value={reviewDraft.followUps} onChangeText={(followUps) => setReviewDraft((p) => ({ ...p, followUps }))} multiline />
-              <HrButton colors={colors} label="Lagre samtale" primary icon="save-outline" onPress={saveReview} />
-              <Text style={[styles.hint, { color: colors.muted }]}>
-                Feltene speiler skjemamal «Medarbeidersamtale». Tomme felt i malen fylles via skjemabyggeren.
-              </Text>
+              ) : null}
             </HrCard>
           ) : null}
         </>
@@ -676,6 +651,7 @@ const styles = StyleSheet.create({
   body: { fontSize: 14, lineHeight: 21 },
   hint: { fontSize: 12, lineHeight: 17 },
   detail: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
+  reviewForm: { gap: 12 },
   compare: { gap: 8, marginTop: 4 },
   compareTitle: { fontSize: 14, fontWeight: '600' },
   delta: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 4 },

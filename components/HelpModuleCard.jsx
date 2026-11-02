@@ -11,6 +11,7 @@ import { buildTourSteps } from '../src/utils/helpLayout';
 import { pickIntroText } from '../src/utils/moduleIntros';
 import { useHelpAccess } from '../src/help/useHelpAccess';
 import { condenseStepLocks } from '../src/help/helpAccess';
+import { useOptionalApp } from '../src/context/AppContext';
 
 /**
  * Lightbulb entry. ProTop-sider får hjelpekortet (forklaring, steg,
@@ -27,6 +28,7 @@ export default function HelpModuleCard() {
   const helpHeld = routeName === 'ProfileSetup';
   const protopPage = mode === 'moduleCard' && !!copy?.pageKey;
   const layout = useLayout();
+  const requestShellTab = useOptionalApp()?.requestShellTab;
   // Stegene på kortet følger skjermen (mobil/PC-varianter), som rundturen.
   const cardCopy = useMemo(() => {
     if (!protopPage || !copy?.rawSteps) return copy;
@@ -77,6 +79,10 @@ export default function HelpModuleCard() {
           dismiss();
           startProcessTour(id, fromIndex);
         }}
+        onSupport={requestShellTab ? (view) => {
+          dismiss();
+          requestShellTab('more', 'help', { type: 'helpdesk', view });
+        } : null}
         onAsk={() => {
           dismiss();
           const label = copy.label || copy.title;

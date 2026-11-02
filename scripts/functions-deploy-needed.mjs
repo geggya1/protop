@@ -57,6 +57,7 @@ export const DEPLOY_ENTRIES = [
   'indeksSsbDailyIndex.js',
   'intercompanyIndex.js',
   'intercompanyTriggerIndex.js',
+  'helpdeskIndex.js',
 ];
 
 const SPECIFIER_RE = [

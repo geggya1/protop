@@ -15,6 +15,7 @@ import ChatMarkdownText from '../ChatMarkdownText';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { currentRouteName, getAppNav } from '../../src/navigation/navRef';
 import { createSupportTicket } from '../../src/utils/supportTickets';
+import { helpdeskCall } from '../../src/helpdesk/client';
 import {
   ASSISTANT_ESCALATE_AFTER, SUPPORT_TITLE_MAX, greeting, starterSuggestions, supportTicketBody, transcriptText,
 } from '../../src/help/assistantEngine';
@@ -48,10 +49,10 @@ function openShellPage(nav, requestShellTab) {
   const route = currentRouteName();
   const appNav = getAppNav();
   if (route && route !== 'Home' && appNav?.navigate) {
-    appNav.navigate('Home', { openShell: { tab: nav.tab, subView: nav.subView || null } });
+    appNav.navigate('Home', { openShell: { tab: nav.tab, subView: nav.subView || null, ...(nav.intent ? { intent: nav.intent } : {}) } });
     return;
   }
-  requestShellTab?.(nav.tab, nav.subView || null);
+  requestShellTab?.(nav.tab, nav.subView || null, nav.intent || null);
 }
 
 function TypingDots({ color }) {
@@ -440,6 +441,8 @@ export default function AssistantChat({
 
   const onFeedback = useCallback((id, value) => {
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, feedback: value } : m)));
+    // Teller hvor mye assistenten løser (målet er 80 % uten sak).
+    helpdeskCall('assistantOutcome', { resolved: value === 'up' }).catch(() => {});
     if (value === 'down') {
       setUnresolved((n) => {
         const next = n + 1;
@@ -529,7 +532,11 @@ export default function AssistantChat({
       text: lang === 'en'
         ? `Your case is sent${num ? ` (case number **${num}**)` : ''}. You will get the reply in Help & support → My requests.`
         : `Saken er sendt${num ? ` (saksnummer **${num}**)` : ''}. Svaret kommer i Hjelp & support → Mine henvendelser.`,
-      actions: [{ type: 'open', nav: { tab: 'more', subView: 'help' }, label: t('help.myTickets') }],
+      actions: [{
+        type: 'open',
+        nav: { tab: 'more', subView: 'help', intent: data?.ticketId ? { type: 'helpdesk', view: 'ticket', id: data.ticketId } : { type: 'helpdesk', view: 'tickets' } },
+        label: t('help.myTickets'),
+      }],
     }]);
     scrollToEnd();
   }, [lang, t, scrollToEnd]);

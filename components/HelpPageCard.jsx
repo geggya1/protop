@@ -33,6 +33,7 @@ export default function HelpPageCard({
   onStartTour,
   onStartProcess,
   onAsk,
+  onSupport,
   onClose,
 }) {
   const { t, lang } = useI18n();
@@ -235,6 +236,18 @@ export default function HelpPageCard({
             <Text style={styles.secondaryTxt}>{t('helpCard.askAssistant')}</Text>
           </TouchableOpacity>
         </View>
+        {onSupport ? (
+          <View style={styles.supportRow}>
+            <TouchableOpacity onPress={() => onSupport('home')} accessibilityRole="link" testID="help-page-card-center" style={styles.supportLink}>
+              <Ionicons name="library-outline" size={15} color="#0b6bcb" />
+              <Text style={styles.supportTxt}>{lang === 'en' ? 'Help centre' : 'Hjelpesenter'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onSupport('new')} accessibilityRole="link" testID="help-page-card-support" style={styles.supportLink}>
+              <Ionicons name="chatbubbles-outline" size={15} color="#0b6bcb" />
+              <Text style={styles.supportTxt}>{lang === 'en' ? 'Contact support' : 'Kontakt support'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </Animated.View>
     </Animated.View>
   );
@@ -417,4 +430,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   secondaryTxt: { color: '#07274C', fontSize: 14.5, fontWeight: '600' },
+  supportRow: { flexDirection: 'row', justifyContent: 'center', gap: 22, paddingBottom: 14, marginTop: -6 },
+  supportLink: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 },
+  supportTxt: { color: '#0b6bcb', fontSize: 13.5, fontWeight: '600' },
 });

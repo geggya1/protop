@@ -69,7 +69,7 @@ assert.match(fn, /Gi aldri steg for noe som er låst/);
 assert.match(overlay, /useHelpAccess\(\)/);
 assert.match(overlay, /help-step-locked/, 'låst steg forklares i rundturen');
 assert.match(read('components/HelpModuleCard.jsx'), /stepLocks/);
-assert.match(read('screens/v2/HelpSupportScreen.jsx'), /help-article-locked/);
+assert.match(read('screens/helpdesk/HelpCenterScreen.jsx'), /help-article-locked/);
 const assistantChat = read('components/assistant/AssistantChat.jsx');
 assert.match(assistantChat, /useHelpAccess\(\)/);
 assert.match(assistantChat, /access: accessRef\.current/, 'svarene følger tilgangen');

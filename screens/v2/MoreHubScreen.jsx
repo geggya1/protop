@@ -48,7 +48,7 @@ import MailHubScreen from './MailHubScreen';
 import PrivacyTermsScreen from './PrivacyTermsScreen';
 import SubscriptionScreen from './SubscriptionScreen';
 import ModuleAccessSettingsScreen from './ModuleAccessSettingsScreen';
-import HelpSupportScreen from './HelpSupportScreen';
+import HelpCenterScreen from '../helpdesk/HelpCenterScreen';
 import {
   GroupSettingsScreen,
 } from '../settings/GroupSettingsScreen';
@@ -199,7 +199,7 @@ const SUB_SCREENS = {
   legal: PrivacyTermsScreen,
   ...(PRICING_VISIBLE ? { subscription: SubscriptionScreen } : {}),
   moduleAccess: ModuleAccessSettingsScreen,
-  help: HelpSupportScreen,
+  help: HelpCenterScreen,
   notifications: NotificationsScreen,
 };
 

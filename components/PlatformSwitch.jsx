@@ -14,6 +14,7 @@ import {
   resolveWorkspaceId,
   workspacePickerItems,
 } from '../src/utils/platformSwitch';
+import { useHelpdeskAgent } from '../src/helpdesk/useHelpdeskAgent';
 
 let createPortal = null;
 if (Platform.OS === 'web') {
@@ -34,6 +35,8 @@ export default function PlatformSwitch({ compact = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuBox, setMenuBox] = useState(null);
   const bedriftRef = useRef(null);
+  // Tredje valg for helpdesk-teamet: egen portal for supportsaker.
+  const helpdeskAgent = useHelpdeskAgent();
 
   const list = liveFamilies?.length ? liveFamilies : families;
   const segments = useMemo(() => platformSwitchSegments(list), [list]);
@@ -89,7 +92,7 @@ export default function PlatformSwitch({ compact = false }) {
         { borderColor: colors.line, backgroundColor: colors.sunken },
       ]}
       accessibilityRole="tablist"
-      accessibilityLabel="Bytt mellom privat og bedrift"
+      accessibilityLabel={helpdeskAgent ? 'Bytt mellom privat, bedrift og helpdesk' : 'Bytt mellom privat og bedrift'}
       nativeID="platform-switch"
       {...webSet}
     >
@@ -125,6 +128,20 @@ export default function PlatformSwitch({ compact = false }) {
           }}
         />
       </View>
+      {helpdeskAgent ? (
+        <Seg
+          label="Helpdesk"
+          active={false}
+          compact={compact}
+          colors={colors}
+          disabled={busy}
+          nativeID="platform-switch-helpdesk"
+          onPress={() => {
+            setMenuOpen(false);
+            nav.navigate('Helpdesk');
+          }}
+        />
+      ) : null}
       <CompanyMenu
         open={menuOpen && many}
         box={menuBox}
@@ -332,7 +349,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 3,
     gap: 2,
-    maxWidth: 280,
+    maxWidth: 380,
     minHeight: 44,
     overflow: 'visible',
   },

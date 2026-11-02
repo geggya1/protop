@@ -239,6 +239,10 @@ INTERCOMPANY="functions:icRequestLink,functions:icRespondLink,functions:icWithdr
 queue_entry intercompanyIndex.js "$INTERCOMPANY"
 open_for intercompanyIndex.js "$INTERCOMPANY"
 
+# Hjelpesenter og helpdesk-portal: saker, svar, team, e-post og AI-triage.
+queue_entry helpdeskIndex.js functions:helpdesk
+open_for helpdeskIndex.js functions:helpdesk
+
 deploy_queued
 open_queued
 

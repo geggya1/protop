@@ -318,3 +318,4 @@ export {
 } from './intercompanyTriggers.js';
 export { recordUsage, listEmployeeUsage } from './usageLog.js';
 export { logSensitiveAccess, listAccessLog } from './accessLog.js';
+export { helpdesk } from './helpdeskCallable.js';

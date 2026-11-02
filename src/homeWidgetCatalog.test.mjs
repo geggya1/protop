@@ -8,6 +8,7 @@ import {
   DEFAULT_PARENT_WIDGETS,
   DEFAULT_COMPANY_WIDGETS,
   LEGACY_PARENT_WIDGETS_V4,
+  LEGACY_COMPANY_WIDGETS_V5,
   sameWidgetPlacement,
   DEFAULT_HOME_LOOK,
   HOME_LOOKS,
@@ -186,8 +187,19 @@ assert.equal(DEFAULT_PARENT_WIDGETS.find((w) => w.type === 'weekAgenda').row, 8)
 
 // Bedriftens Hjem: egne widgets og egen standard, uten familie- og privatwidgets.
 assert.deepEqual(DEFAULT_COMPANY_WIDGETS.map((w) => w.type), [
-  'myHours', 'quickActions', 'projects', 'team', 'timeline', 'tasks', 'companyNews',
+  'myHours', 'quickActions', 'projects', 'team', 'mileage', 'timeline', 'tasks', 'companyNews',
 ]);
+assert.deepEqual(
+  (({ col, row, gw, gh }) => ({ col, row, gw, gh }))(DEFAULT_COMPANY_WIDGETS.find((w) => w.type === 'mileage')),
+  { col: 0, row: 7, gw: 5, gh: 3 },
+);
+// Forrige bedriftsstandard (uten Kjørebok) kjennes igjen, så urørte Hjem får den nye.
+assert.ok(sameWidgetPlacement(
+  normalizeWidgets(LEGACY_COMPANY_WIDGETS_V5, 'company'),
+  normalizeWidgets(LEGACY_COMPANY_WIDGETS_V5, 'company'),
+));
+assert.ok(!sameWidgetPlacement(DEFAULT_COMPANY_WIDGETS, normalizeWidgets(LEGACY_COMPANY_WIDGETS_V5, 'company')));
+assert.equal(normalizeWidgets(LEGACY_COMPANY_WIDGETS_V5, 'company').length, 7);
 assert.deepEqual(
   DEFAULT_COMPANY_WIDGETS.filter((w) => w.type === 'projects' || w.type === 'team').map((w) => ({
     type: w.type, col: w.col, row: w.row, gw: w.gw, gh: w.gh,
@@ -198,7 +210,7 @@ assert.deepEqual(
   ],
 );
 const companyTypes = catalogForRole('company').map((w) => w.type);
-['myHours', 'projects', 'team', 'companyNews', 'quickActions', 'dayBrief', 'timeline', 'tasks'].forEach((type) => {
+['myHours', 'mileage', 'projects', 'team', 'companyNews', 'quickActions', 'dayBrief', 'timeline', 'tasks'].forEach((type) => {
   assert.ok(companyTypes.includes(type), type);
 });
 ['shopping', 'meals', 'family', 'kids', 'progress', 'wishes', 'books', 'weeklyPlan'].forEach((type) => {
@@ -207,7 +219,7 @@ const companyTypes = catalogForRole('company').map((w) => w.type);
 // Privat har ikke bedriftswidgetene, men har dagen og hurtigvalg.
 const privateTypes = catalogForRole('parent').map((w) => w.type);
 ['myHours', 'projects', 'team', 'companyNews'].forEach((type) => assert.ok(!privateTypes.includes(type), type));
-['dayBrief', 'quickActions', 'weekAgenda', 'mail', 'assistant'].forEach((type) => assert.ok(privateTypes.includes(type), type));
+['dayBrief', 'quickActions', 'weekAgenda', 'mail', 'assistant', 'mileage'].forEach((type) => assert.ok(privateTypes.includes(type), type));
 // Alle valg i bedriftens katalog står i en gruppe i velgeren.
 const companyChoices = groupedCatalog('company').flatMap((g) => g.items.map((i) => i.type));
 assert.equal(companyChoices.length, companyTypes.length);

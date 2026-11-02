@@ -97,6 +97,7 @@ export const PROTOP_HOME_WIDGET_TYPES = [
   'weekAgenda',
   'quickActions',
   'mail',
+  'mileage',
 ];
 
 /** Bedriftens Hjem har i tillegg arbeidswidgetene. */

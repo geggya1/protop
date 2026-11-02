@@ -13,8 +13,10 @@ import { isActiveEmployee } from '../employees/employmentState';
 import { projectPhaseOf } from '../project/statusFilter';
 import { listenCompanyWall } from '../project/companyWall';
 import { newsPlainText } from '../project/newsFormat';
+import { normalizeTrip } from '../economy/mileage';
+import { sameEmployeeIds } from '../project/myProjects';
 import {
-  weekHoursSummary, homeProjects, teamToday, weekDays, isoDay,
+  weekHoursSummary, homeProjects, teamToday, weekDays, isoDay, mileageSummary,
 } from '../utils/proHome';
 
 /** Teller opp når Hjem får fokus igjen, så tallene er ferske etter at man har ført timer. */
@@ -150,4 +152,26 @@ export function useCompanyNewsPeek(companyId, { limit = 3 } = {}) {
     };
   }), [posts, limit]);
   return { items, ready: posts != null, total: (posts || []).length };
+}
+
+/**
+ * Kjøreboken min i ett selskap: mine turer denne måneden og i år.
+ * Turene ligger i prosjektdokumentet (felles lytter); bare egne turer telles.
+ */
+export function useMyMileage(companyId) {
+  const { me, employees, ready: empReady } = useMyEmployee(companyId);
+  const { mileageTrips, ready } = useProjects(companyId, { enabled: !!companyId });
+  const tick = useFocusTick();
+  const today = useMemo(() => new Date(), [tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mine = useMemo(() => (me ? sameEmployeeIds(employees, me) : new Set()), [me, employees]);
+  const trips = useMemo(
+    () => (mileageTrips || []).map((row) => normalizeTrip(row)),
+    [mileageTrips],
+  );
+  const summary = useMemo(
+    // Uten ansattkobling vises ingen turer (ikke andres).
+    () => mileageSummary(me ? trips : [], { mine, today }),
+    [trips, mine, today, me],
+  );
+  return { summary, ready: !!ready && empReady, linked: !!me };
 }

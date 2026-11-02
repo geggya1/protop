@@ -53,6 +53,7 @@ export const PARENT_WIDGET_CATALOG = [
   { type: 'weekAgenda', label: 'Uken', icon: 'calendar-number-outline', sizes: ['full'], defaultSize: 'full', hint: 'Hvor travle dagene i uken er' },
   { type: 'quickActions', label: 'Hurtigvalg', icon: 'flash-outline', sizes: ['full'], defaultSize: 'full', hint: 'Ny avtale, oppgave, notat og mer' },
   { type: 'mail', label: 'E-post', icon: 'mail-outline', sizes: ['third', 'half'], defaultSize: 'half', hint: 'Uleste e-poster' },
+  { type: 'mileage', label: 'Kjørebok', icon: 'car-outline', sizes: ['full'], defaultSize: 'full', hint: 'Kjøreboken din i bedriften' },
 ];
 
 /**
@@ -64,6 +65,7 @@ export const COMPANY_WIDGET_CATALOG = [
   { type: 'projects', label: 'Prosjekter', icon: 'business-outline', sizes: ['half', 'full'], defaultSize: 'full', hint: 'Prosjektene du jobber på' },
   { type: 'team', label: 'Teamet i dag', icon: 'people-outline', sizes: ['half', 'full'], defaultSize: 'half', hint: 'Hvem som har ført timer i dag' },
   { type: 'companyNews', label: 'Nyheter', icon: 'megaphone-outline', sizes: ['full'], defaultSize: 'full', hint: 'Siste nytt fra bedriften' },
+  { type: 'mileage', label: 'Kjørebok', icon: 'car-outline', sizes: ['full'], defaultSize: 'full', hint: 'Km og godtgjørelse, siste turer' },
   { type: 'dayBrief', label: 'Dagen din', icon: 'sunny-outline', sizes: ['full'], defaultSize: 'full', hint: 'Avtaler, oppgaver og varsler i dag' },
   { type: 'quickActions', label: 'Hurtigvalg', icon: 'flash-outline', sizes: ['full'], defaultSize: 'full', hint: 'Før timer, meld avvik, ny oppgave' },
   { type: 'timeline', label: 'Kalender i dag', icon: 'calendar-outline', sizes: ['full', 'tall'], defaultSize: 'full', hint: 'Avtaler i dag — fra kveld: i morgen' },
@@ -160,6 +162,18 @@ const STANDARD_PARENT_WIDGETS = [
  * oppgaver og nyheter fra bedriften.
  */
 const STANDARD_COMPANY_WIDGETS = [
+  { id: 'w-hours', type: 'myHours', col: 0, row: 0, gw: 5, gh: 2 },
+  { id: 'w-quick', type: 'quickActions', col: 0, row: 2, gw: 5, gh: 2 },
+  { id: 'w-projects', type: 'projects', col: 0, row: 4, gw: 3, gh: 3 },
+  { id: 'w-team', type: 'team', col: 3, row: 4, gw: 2, gh: 3 },
+  { id: 'w-mileage', type: 'mileage', col: 0, row: 7, gw: 5, gh: 3 },
+  { id: 'w-today', type: 'timeline', col: 0, row: 10, gw: 5, gh: 2 },
+  { id: 'w-tasks', type: 'tasks', col: 0, row: 12, gw: 5, gh: 2 },
+  { id: 'w-news', type: 'companyNews', col: 0, row: 14, gw: 5, gh: 2 },
+];
+
+/** Bedriftens standard før Kjørebok kom inn (malversjon 5). Urørt får den nye. */
+export const LEGACY_COMPANY_WIDGETS_V5 = [
   { id: 'w-hours', type: 'myHours', col: 0, row: 0, gw: 5, gh: 2 },
   { id: 'w-quick', type: 'quickActions', col: 0, row: 2, gw: 5, gh: 2 },
   { id: 'w-projects', type: 'projects', col: 0, row: 4, gw: 3, gh: 3 },
@@ -360,6 +374,7 @@ export const MODULE_CHROME = {
   projects: { icon: 'business', glyphColor: BRAND },
   team: { icon: 'people', glyphColor: BRAND },
   companyNews: { icon: 'megaphone', glyphColor: BRAND },
+  mileage: { icon: 'car', glyphColor: BRAND },
 };
 
 export function moduleChrome(type) {
@@ -375,7 +390,7 @@ export function catalogForRole(role) {
 }
 
 export const CATALOG_GROUPS = [
-  { id: 'arbeid', label: 'Arbeid', types: ['myHours', 'projects', 'team', 'companyNews'] },
+  { id: 'arbeid', label: 'Arbeid', types: ['myHours', 'mileage', 'projects', 'team', 'companyNews'] },
   {
     id: 'plan',
     label: 'Dag og kalender',

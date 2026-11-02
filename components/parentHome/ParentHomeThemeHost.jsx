@@ -19,6 +19,9 @@ import CompanyQuickReport from '../home/CompanyQuickReport';
 import { isOrganizationType } from '../../src/utils/groupTypes';
 import { useCompanyModules } from '../../src/access/useCompanyModules';
 import { openNotifications } from '../../src/navigation/openNotifications';
+import { useCompanyAccess } from '../../src/access/useCompanyAccess';
+import { applyPlatformSwitch, visibleCompanyWorkspaces } from '../../src/utils/platformSwitch';
+import { companyDisplayName } from '../../src/utils/companyName';
 
 /**
  * Fixed parent home — same tidy widget layout for every login.
@@ -39,12 +42,25 @@ export default function ParentHomeThemeHost({
 }) {
   const nav = useNavigation();
   const route = useOptionalRoute();
-  const { uid, family, familyId } = useApp();
+  const {
+    uid, family, familyId, families, liveFamilies, selectFamily,
+  } = useApp();
   const { unreadByModule } = useUnread();
   // Privat og bedrift har hvert sitt Hjem: eget oppsett, egne widgets og egen standard.
   const board = isOrganizationType(family?.type) ? 'company' : 'private';
   const modules = useCompanyModules();
   const isoActive = board === 'company' && !!modules?.isActive?.('iso');
+  const access = useCompanyAccess();
+  // Kjørebok: modulen må være på og personen må kunne se kjøreboken.
+  const mileageActive = board === 'company'
+    && !!modules?.isActive?.('kjorebok')
+    && (!access.ready || !!access.canView?.('mileage'));
+  // I Privat viser Kjørebok-widgeten kjøreboken fra (første) bedrift personen er med i.
+  const workspaces = liveFamilies?.length ? liveFamilies : families;
+  const mileageCompany = useMemo(
+    () => (board === 'private' ? visibleCompanyWorkspaces(workspaces || [])[0] || null : null),
+    [board, workspaces],
+  );
   const { goChildProfile } = useProfileNavigation();
   const model = useParentHomeModel({
     familyEventsToday,
@@ -62,7 +78,10 @@ export default function ParentHomeThemeHost({
     companyId: board === 'company' ? familyId : '',
     weekCounts: weekCounts || {},
     isoActive,
-  }), [model, board, familyId, weekCounts, isoActive]);
+    mileageActive,
+    mileageCompanyId: mileageCompany?.id || '',
+    mileageCompanyName: mileageCompany ? companyDisplayName(mileageCompany, 'Bedrift') : '',
+  }), [model, board, familyId, weekCounts, isoActive, mileageActive, mileageCompany]);
   const hasQuickActions = (home.layout?.widgets || []).some((w) => w.type === 'quickActions');
   const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -92,6 +111,13 @@ export default function ParentHomeThemeHost({
       onAppAction?.(app?.action || { type: 'tab', tab: 'stars' });
     },
     onOpenNotifications: () => openNotifications(nav),
+    // Fra Privat: bytt til bedriften (Hjem der har Kjørebok og «Registrer tur»).
+    onOpenCompany: (groupId) => {
+      if (!groupId) return;
+      applyPlatformSwitch({
+        navigation: nav, selectFamily, families: workspaces, family, side: 'company', groupId,
+      }).catch(() => {});
+    },
   };
 
   const { isPhone } = useLayout();

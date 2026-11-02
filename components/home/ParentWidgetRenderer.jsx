@@ -27,7 +27,7 @@ import { moduleChrome } from '../../src/homeWidgetCatalog';
 import {
   DayBriefWidget, CalendarWidget, NextEventWidget, WeekAgendaWidget, TasksWidget, NotesWidget,
   RemindersWidget, QuickActionsWidget, MailWidget, AssistantWidget, MyHoursWidget, ProjectsWidget,
-  TeamWidget, CompanyNewsWidget,
+  TeamWidget, CompanyNewsWidget, MileageWidget,
 } from './ProWidgets';
 
 /** ProTop-widgetene (ProWidgets.jsx): arbeidsdagen, i nytt felles kort. */
@@ -46,6 +46,7 @@ const PRO_RENDERERS = {
   projects: ProjectsWidget,
   team: TeamWidget,
   companyNews: CompanyNewsWidget,
+  mileage: MileageWidget,
 };
 
 function openApp(model, handlers, id) {

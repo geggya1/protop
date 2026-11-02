@@ -17,10 +17,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useHomePalette } from './homeGlass';
 import { useNow } from '../../src/hooks/useNow';
 import {
-  dayBrief, countdownLabel, weekLoad, hoursLabel, quickActionsFor, relativeDay,
+  dayBrief, countdownLabel, weekLoad, hoursLabel, quickActionsFor, relativeDay, kmLabel, krLabel,
 } from '../../src/utils/proHome';
 import {
-  useMyWeekHours, useHomeProjects, useTeamToday, useCompanyNewsPeek,
+  useMyWeekHours, useHomeProjects, useTeamToday, useCompanyNewsPeek, useMyMileage,
 } from '../../src/hooks/useProHomeData';
 import QuickReportButton from '../../screens/iso/QuickReport';
 
@@ -77,7 +77,7 @@ function Pill({ label, icon, tone = 'accent', onPress, testID }) {
   const pal = useHomePalette();
   const map = {
     accent: { bg: pal.accentSoft, fg: pal.glass ? pal.ink : pal.accentInk },
-    warn: { bg: pal.warnSoft, fg: pal.glass ? pal.warn : '#8A5A00' },
+    warn: { bg: pal.warnSoft, fg: pal.warnInk },
     danger: { bg: pal.dangerSoft, fg: pal.glass ? pal.danger : '#B42318' },
     success: { bg: pal.successSoft, fg: pal.glass ? pal.success : '#157F3D' },
     muted: { bg: pal.chip, fg: pal.muted },
@@ -440,7 +440,7 @@ export function RemindersWidget({ model, handlers }) {
 function ActionTile({ item, compact, onPress }) {
   const pal = useHomePalette();
   const warn = item.tone === 'warn';
-  const fg = warn ? (pal.glass ? pal.warn : '#B54708') : (pal.glass ? pal.ink : pal.accentInk);
+  const fg = warn ? pal.warnInk : (pal.glass ? pal.ink : pal.accentInk);
   const bg = warn ? pal.warnSoft : pal.accentSoft;
   return (
     <TouchableOpacity
@@ -461,8 +461,8 @@ function ActionTile({ item, compact, onPress }) {
 export function QuickActionsWidget({ model, handlers, widget, board = 'private' }) {
   const { gh } = gridSize(widget);
   const actions = useMemo(
-    () => quickActionsFor(board, { iso: !!model?.isoActive }),
-    [board, model?.isoActive],
+    () => quickActionsFor(board, { iso: !!model?.isoActive, mileage: !!model?.mileageActive }),
+    [board, model?.isoActive, model?.mileageActive],
   );
   const compact = gh <= 1;
   return (
@@ -548,7 +548,7 @@ export function MyHoursWidget({ model, handlers, widget }) {
   }
 
   const compact = gh <= 1;
-  const ctaInk = pal.glass ? pal.ink : '#FFFFFF';
+  const ctaInk = pal.glass ? pal.ink : pal.onAccent;
   const cta = (
     <TouchableOpacity
       style={[s.cta, { backgroundColor: pal.glass ? pal.chipStrong : pal.accentInk }]}
@@ -572,7 +572,7 @@ export function MyHoursWidget({ model, handlers, widget }) {
         av {hoursLabel(summary.target)} · i dag {hoursLabel(summary.todayHours)}
       </Text>
       {!compact && summary.missing.length ? (
-        <Text style={[s.hoursWarn, { color: pal.glass ? pal.warn : '#B54708' }]} numberOfLines={1}>
+        <Text style={[s.hoursWarn, { color: pal.warnInk }]} numberOfLines={1}>
           Mangler: {summary.missing.join(', ')}
         </Text>
       ) : null}
@@ -726,6 +726,138 @@ export function CompanyNewsWidget({ model, handlers, widget }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Kjørebok                                                            */
+/* ------------------------------------------------------------------ */
+
+function shortDate(key) {
+  const [, m, d] = String(key || '').split('-').map(Number);
+  return m && d ? `${d}.${m}.` : '';
+}
+
+/**
+ * Kjøreboken min: km og godtgjørelse denne måneden, yrkeskjøring i år mot 6 000 km,
+ * turer som ikke er sendt, og de siste turene. I Privat vises kjøreboken fra bedriften
+ * personen jobber i, og trykk bytter til Bedrift.
+ */
+export function MileageWidget({ model, handlers, widget, board = 'private' }) {
+  const pal = useHomePalette();
+  const { gh, gw } = gridSize(widget);
+  const companyId = board === 'company' ? model?.companyId : model?.mileageCompanyId;
+  const { summary, ready, linked } = useMyMileage(companyId);
+  const openLog = () => {
+    if (board === 'company') {
+      handlers?.onAppAction?.({ type: 'tab', tab: 'okonomi', subView: 'kjorebok' });
+    } else {
+      handlers?.onOpenCompany?.(companyId);
+    }
+  };
+  const ctaLabel = board === 'company' ? 'Registrer tur' : 'Åpne i bedrift';
+  const ctaInk = pal.glass ? pal.ink : pal.onAccent;
+  const cta = (
+    <TouchableOpacity
+      style={[s.cta, { backgroundColor: pal.glass ? pal.chipStrong : pal.accentInk }]}
+      onPress={openLog}
+      accessibilityRole="button"
+      testID="pro-mileage-add"
+    >
+      <Ionicons name={board === 'company' ? 'add' : 'swap-horizontal'} size={14} color={ctaInk} />
+      <Text style={[s.ctaTxt, { color: ctaInk }]}>{ctaLabel}</Text>
+    </TouchableOpacity>
+  );
+
+  if (board === 'company' && model?.mileageActive === false) {
+    return (
+      <ProCard title="Kjørebok" icon="car" testID="pro-mileage-off">
+        <EmptyLine icon="information-circle" text="Kjørebok er ikke slått på i bedriften." />
+      </ProCard>
+    );
+  }
+  if (!companyId || (ready && !linked)) {
+    return (
+      <ProCard title="Kjørebok" icon="car" testID="pro-mileage-unlinked">
+        <EmptyLine
+          icon="information-circle"
+          text={companyId ? 'Du er ikke koblet til en ansatt i bedriften ennå.' : 'Kjøreboken hører til bedriften du jobber i.'}
+        />
+      </ProCard>
+    );
+  }
+
+  const compact = gh <= 1;
+  const month = (
+    <TouchableOpacity
+      style={s.mileTotals}
+      onPress={openLog}
+      accessibilityRole="button"
+      accessibilityLabel={`${kmLabel(summary.monthKm)} denne måneden, omtrent ${krLabel(summary.monthAmount)}`}
+    >
+      <Text style={[s.hoursBig, { color: pal.ink }]}>{ready ? kmLabel(summary.monthKm) : '…'}</Text>
+      <Text style={[s.hoursSub, { color: pal.muted }]} numberOfLines={1}>
+        denne måneden{summary.monthAmount ? ` · ≈ ${krLabel(summary.monthAmount)}` : ''}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  if (compact) {
+    return (
+      <ProCard pad={8} testID="pro-mileage">
+        <View style={s.hoursTop}>
+          {month}
+          {summary.drafts ? <Pill label={`${summary.drafts} ikke sendt`} tone="warn" onPress={openLog} /> : null}
+          {cta}
+        </View>
+      </ProCard>
+    );
+  }
+
+  const rows = gh >= 3 ? 3 : (gw >= 4 ? 2 : 1);
+  return (
+    <ProCard title={board === 'company' ? 'Kjørebok' : `Kjørebok · ${model?.mileageCompanyName || 'bedrift'}`} icon="car" testID="pro-mileage">
+      <View style={s.hoursHeadCta}>{cta}</View>
+      <View style={s.mileTop}>
+        {month}
+        <View style={s.mileYear}>
+          <View style={s.mileYearHead}>
+            <Text style={[s.mileYearTxt, { color: pal.muted }]} numberOfLines={1}>
+              I år {kmLabel(summary.yearKm)}
+            </Text>
+            {summary.drafts ? (
+              <Text style={[s.mileYearTxt, { color: pal.warnInk }]} numberOfLines={1}>
+                {summary.drafts} ikke sendt
+              </Text>
+            ) : null}
+          </View>
+          <Bar
+            ratio={summary.yearRatio}
+            color={summary.overLimit ? pal.warn : pal.accent}
+            track={pal.track}
+          />
+          <Text style={[s.mileLimit, { color: summary.overLimit ? pal.warnInk : pal.faint }]} numberOfLines={1}>
+            {summary.overLimit ? 'Over 6 000 km i år' : `${kmLabel(Math.max(0, summary.limitKm - summary.yearKm))} til 6 000 km`}
+          </Text>
+        </View>
+      </View>
+      {summary.recent.length ? summary.recent.slice(0, rows).map((t, i) => (
+        <TouchableOpacity
+          key={t.id || i}
+          style={[s.tripRow, { borderTopColor: pal.line }]}
+          onPress={openLog}
+          accessibilityRole="button"
+          accessibilityLabel={`${shortDate(t.date)} ${t.route} ${kmLabel(t.km)}`}
+        >
+          <Text style={[s.tripDate, { color: pal.muted }]}>{shortDate(t.date)}</Text>
+          <Text style={[s.tripRoute, { color: pal.ink }]} numberOfLines={1}>{t.route}</Text>
+          {t.draft ? <View style={[s.tripDraft, { backgroundColor: pal.warn }]} /> : null}
+          <Text style={[s.tripKm, { color: pal.ink }]}>{kmLabel(t.km)}</Text>
+        </TouchableOpacity>
+      )) : (
+        <Text style={[s.calmTxt, { color: pal.muted }]}>Ingen turer ennå. Registrer en kjøretur, så regnes km og godtgjørelse ut.</Text>
+      )}
+    </ProCard>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 
 const s = StyleSheet.create({
   card: {
@@ -863,6 +995,20 @@ const s = StyleSheet.create({
   avatarDot: {
     position: 'absolute', right: -1, bottom: -1, width: 10, height: 10, borderRadius: 5, borderWidth: 1.5,
   },
+
+  mileTop: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 4 },
+  mileTotals: { minWidth: 110, maxWidth: 160, justifyContent: 'center' },
+  mileYear: { flex: 1, minWidth: 0, gap: 4 },
+  mileYearHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 6 },
+  mileYearTxt: { fontSize: 12, fontFamily: FONT },
+  mileLimit: { fontSize: 11, fontFamily: FONT },
+  tripRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  tripDate: { width: 40, fontSize: 12, fontFamily: FONT },
+  tripRoute: { flex: 1, minWidth: 0, fontSize: 13, fontFamily: FONT },
+  tripDraft: { width: 6, height: 6, borderRadius: 3 },
+  tripKm: { fontSize: 13, fontWeight: '600', fontFamily: FONT },
 
   newsRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   newsBody: { flex: 1, minWidth: 0 },
